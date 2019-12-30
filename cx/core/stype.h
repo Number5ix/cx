@@ -10,7 +10,7 @@
 // extra files that can be included for specific functions
 #define STYPE_FOREACH_ALL <cx/core/alltypes.inc>
 
-EXTERN_C_BEGIN
+_EXTERN_C_BEGIN
 
 // IMPORTANT NOTE!
 // Always initialize string to NULL or 0 first!
@@ -505,4 +505,4 @@ _meta_inline uint32 _stHash(stype st, STypeOps *ops, const void *optr, uint32 fl
 }
 #define stHash(type, obj, flags) _stHash(stFullType(type), stArg(type, obj), flags)
 
-EXTERN_C_END
+_EXTERN_C_END

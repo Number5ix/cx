@@ -131,6 +131,8 @@ if(LINK_WITH_PTHREAD)
     set(libs ${libs} pthread)
 endif()
 
+set(libs ${libs} cxmem)
+
 if (NOT USE_STATIC_MBEDTLS_LIBRARY AND NOT USE_SHARED_MBEDTLS_LIBRARY)
     message(FATAL_ERROR "Need to choose static or shared mbedtls build!")
 endif(NOT USE_STATIC_MBEDTLS_LIBRARY AND NOT USE_SHARED_MBEDTLS_LIBRARY)
@@ -158,9 +160,9 @@ if(USE_STATIC_MBEDTLS_LIBRARY)
     set_target_properties(${mbedtls_static_target} PROPERTIES OUTPUT_NAME mbedtls)
     target_link_libraries(${mbedtls_static_target} ${libs} ${mbedx509_static_target})
 
-    install(TARGETS ${mbedtls_static_target} ${mbedx509_static_target} ${mbedcrypto_static_target}
-            DESTINATION ${LIB_INSTALL_DIR}
-            PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+    set_property(TARGET ${mbedcrypto_static_target} PROPERTY FOLDER "3rdparty")
+    set_property(TARGET ${mbedx509_static_target} PROPERTY FOLDER "3rdparty")
+    set_property(TARGET ${mbedtls_static_target} PROPERTY FOLDER "3rdparty")
 endif(USE_STATIC_MBEDTLS_LIBRARY)
 
 if(USE_SHARED_MBEDTLS_LIBRARY)
@@ -181,7 +183,7 @@ if(USE_SHARED_MBEDTLS_LIBRARY)
             PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
 endif(USE_SHARED_MBEDTLS_LIBRARY)
 
-add_custom_target(lib DEPENDS mbedcrypto mbedx509 mbedtls)
-if(USE_STATIC_MBEDTLS_LIBRARY AND USE_SHARED_MBEDTLS_LIBRARY)
-    add_dependencies(lib mbedcrypto_static mbedx509_static mbedtls_static)
-endif()
+#add_custom_target(lib DEPENDS mbedcrypto mbedx509 mbedtls)
+#if(USE_STATIC_MBEDTLS_LIBRARY AND USE_SHARED_MBEDTLS_LIBRARY)
+#    add_dependencies(lib mbedcrypto_static mbedx509_static mbedtls_static)
+#endif()

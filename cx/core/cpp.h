@@ -4,11 +4,11 @@
 // header files are pulled into unusual places.
 
 #ifdef __cplusplus
-#define EXTERN_C extern "C"
-#define EXTERN_C_BEGIN extern "C"{
-#define EXTERN_C_END   }
+#define _EXTERN_C extern "C"
+#define _EXTERN_C_BEGIN extern "C"{
+#define _EXTERN_C_END   }
 #else
-#define EXTERN_C
-#define EXTERN_C_BEGIN
-#define EXTERN_C_END
+#define _EXTERN_C
+#define _EXTERN_C_BEGIN
+#define _EXTERN_C_END
 #endif
