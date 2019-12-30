@@ -11,6 +11,15 @@
 #include <unwind.h>
 #endif
 
+#ifdef _WIN32
+#undef LONG
+#define LONG long
+#include <sys/stat.h>
+#include <tlhelp32.h>
+#undef LONG
+#define	LONG			((size_t)(1U << LG_SIZEOF_LONG))
+#endif
+
 /******************************************************************************/
 /* Data. */
 
@@ -521,6 +530,12 @@ prof_backtrace(prof_bt_t *bt)
 	BT_FRAME(127)
 #undef BT_FRAME
 }
+#elif (defined(JEMALLOC_PROF_WINNT))
+void
+prof_backtrace(prof_bt_t *bt)
+{
+	bt->len = RtlCaptureStackBackTrace(0, PROF_BT_MAX, bt->vec, NULL);
+}
 #else
 void
 prof_backtrace(prof_bt_t *bt)
@@ -939,7 +954,11 @@ prof_dump_open(bool propagate_err, const char *filename)
 {
 	int fd;
 
+#ifdef _WIN32
+	fd = creat(filename, _S_IWRITE);
+#else
 	fd = creat(filename, 0644);
+#endif
 	if (fd == -1 && !propagate_err) {
 		malloc_printf("<jemalloc>: creat(\"%s\"), 0644) failed\n",
 		    filename);
@@ -1424,6 +1443,8 @@ prof_getpid(void)
 #endif
 }
 
+#ifndef _WIN32
+
 static bool
 prof_dump_maps(bool propagate_err)
 {
@@ -1433,8 +1454,6 @@ prof_dump_maps(bool propagate_err)
 	cassert(config_prof);
 #ifdef __FreeBSD__
 	mfd = prof_open_maps("/proc/curproc/map");
-#elif defined(_WIN32)
-	mfd = -1; // Not implemented
 #else
 	{
 		int pid = prof_getpid();
@@ -1477,6 +1496,69 @@ label_return:
 		close(mfd);
 	return (ret);
 }
+
+#else
+
+static bool
+prof_dump_maps(bool propagate_err)
+{
+	bool ret;
+	HANDLE hSnap = INVALID_HANDLE_VALUE;
+	MODULEENTRY32 mod = { 0 };
+	BOOL ok;
+
+	cassert(config_prof);
+
+	hSnap = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, GetCurrentProcessId());
+	if (hSnap != INVALID_HANDLE_VALUE) {
+		ssize_t last;
+
+		if (prof_dump_write(propagate_err, "\nMAPPED_LIBRARIES:\n") &&
+		    propagate_err) {
+			ret = true;
+			goto label_return;
+		}
+		last = 0;
+		for(;;) {
+			if (mod.dwSize == 0) {
+				mod.dwSize = sizeof(mod);
+				ok = Module32First(hSnap, &mod);
+			} else {
+				ok = Module32Next(hSnap, &mod);
+			}
+			if (!ok) {
+				ret = true;
+				goto label_return;
+			}
+			if (PROF_DUMP_BUFSIZE - prof_dump_buf_end < 1024) {
+				/* Make space in prof_dump_buf before sprintf(). */
+				if (prof_dump_flush(propagate_err) &&
+				    propagate_err) {
+					ret = true;
+					goto label_return;
+				}
+			}
+			prof_dump_buf_end += _snprintf_s(&prof_dump_buf[prof_dump_buf_end],
+							 PROF_DUMP_BUFSIZE - prof_dump_buf_end, 1024,
+							 "0x%p 0x%p module %s %s\n",
+							 mod.modBaseAddr,
+							 mod.modBaseAddr + mod.modBaseSize,
+							 mod.szModule,
+							 mod.szExePath);
+		}
+	} else {
+		ret = true;
+		goto label_return;
+	}
+
+	ret = false;
+label_return:
+	if (hSnap != INVALID_HANDLE_VALUE)
+		CloseHandle(hSnap);
+	return (ret);
+}
+
+#endif
 
 /*
  * See prof_sample_threshold_update() comment for why the body of this function

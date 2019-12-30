@@ -82,6 +82,7 @@ CTL_PROTO(config_munmap)
 CTL_PROTO(config_prof)
 CTL_PROTO(config_prof_libgcc)
 CTL_PROTO(config_prof_libunwind)
+CTL_PROTO(config_prof_winnt)
 CTL_PROTO(config_stats)
 CTL_PROTO(config_tcache)
 CTL_PROTO(config_thp)
@@ -258,6 +259,7 @@ static const ctl_named_node_t	config_node[] = {
 	{NAME("prof"),		CTL(config_prof)},
 	{NAME("prof_libgcc"),	CTL(config_prof_libgcc)},
 	{NAME("prof_libunwind"), CTL(config_prof_libunwind)},
+	{NAME("prof_winnt"),	CTL(config_prof_winnt)},
 	{NAME("stats"),		CTL(config_stats)},
 	{NAME("tcache"),	CTL(config_tcache)},
 	{NAME("thp"),		CTL(config_thp)},
@@ -1270,6 +1272,7 @@ CTL_RO_CONFIG_GEN(config_munmap, bool)
 CTL_RO_CONFIG_GEN(config_prof, bool)
 CTL_RO_CONFIG_GEN(config_prof_libgcc, bool)
 CTL_RO_CONFIG_GEN(config_prof_libunwind, bool)
+CTL_RO_CONFIG_GEN(config_prof_winnt, bool)
 CTL_RO_CONFIG_GEN(config_stats, bool)
 CTL_RO_CONFIG_GEN(config_tcache, bool)
 CTL_RO_CONFIG_GEN(config_thp, bool)

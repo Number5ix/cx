@@ -71,6 +71,13 @@ static const bool config_prof_libunwind =
     false
 #endif
     ;
+static const bool config_prof_winnt =
+#ifdef JEMALLOC_PROF_WINNT
+    true
+#else
+    false
+#endif
+;
 static const bool maps_coalesce =
 #ifdef JEMALLOC_MAPS_COALESCE
     true

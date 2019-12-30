@@ -1105,6 +1105,14 @@ arena_chunk_ralloc_huge_expand_hard(tsdn_t *tsdn, arena_t *arena,
 	    cdiff, true, arena->ind)) {
 		chunk_dalloc_wrapper(tsdn, arena, chunk_hooks, nchunk, cdiff,
 		    *sn, *zero, true);
+		if (config_stats) {
+			/* Revert optimistic stats updates. */
+			malloc_mutex_lock(tsdn, &arena->lock);
+			arena_huge_ralloc_stats_update_undo(arena, oldsize,
+							    usize);
+			arena->stats.mapped -= cdiff;
+			malloc_mutex_unlock(tsdn, &arena->lock);
+		}
 		err = true;
 	}
 	return (err);
@@ -1142,6 +1150,14 @@ arena_chunk_ralloc_huge_expand(tsdn_t *tsdn, arena_t *arena, void *chunk,
 	    cdiff, true, arena->ind)) {
 		chunk_dalloc_wrapper(tsdn, arena, &chunk_hooks, nchunk, cdiff,
 		    sn, *zero, true);
+		if (config_stats) {
+			/* Revert optimistic stats updates. */
+			malloc_mutex_lock(tsdn, &arena->lock);
+			arena_huge_ralloc_stats_update_undo(arena, oldsize,
+							    usize);
+			arena->stats.mapped -= cdiff;
+			malloc_mutex_unlock(tsdn, &arena->lock);
+		}
 		err = true;
 	}
 

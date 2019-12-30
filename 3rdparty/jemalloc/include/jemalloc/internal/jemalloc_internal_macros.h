@@ -22,8 +22,13 @@
 #    define JEMALLOC_ALWAYS_INLINE_C \
 	 static inline JEMALLOC_ATTR(always_inline)
 #  else
-#    define JEMALLOC_ALWAYS_INLINE static inline
-#    define JEMALLOC_ALWAYS_INLINE_C static inline
+#    ifdef _MSC_VER
+#      define JEMALLOC_ALWAYS_INLINE static __forceinline
+#      define JEMALLOC_ALWAYS_INLINE_C static __forceinline
+#    else
+#      define JEMALLOC_ALWAYS_INLINE static inline
+#      define JEMALLOC_ALWAYS_INLINE_C static inline
+#    endif
 #  endif
 #  define JEMALLOC_INLINE static inline
 #  define JEMALLOC_INLINE_C static inline
