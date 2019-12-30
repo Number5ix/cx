@@ -348,4 +348,7 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 target_include_directories(jemalloc PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include/msvc_compat)
 endif()
 
+set_property(TARGET jemalloc PROPERTY FOLDER "3rdparty")
+set_property(TARGET jemalloc_generate PROPERTY FOLDER "3rdparty")
+
 add_dependencies(jemalloc jemalloc_generate)
