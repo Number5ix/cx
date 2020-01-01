@@ -41,7 +41,7 @@ set(CORE_INCLUDES
     core/suid.h)
 set(CORE_SIDL
     core/objstdif.sidl)
-#add_sidl(${CORE_SIDL})
+add_sidl_nodep(${CORE_SIDL})
 source_group("core" FILES
     ${CORE_SRCS}
     ${CORE_INCLUDES}
@@ -80,7 +80,7 @@ set(FORMAT_INCLUDES
     format/fppowers.h)
 set(FORMAT_SIDL
     format/formattable.sidl)
-#add_sidl(${FORMAT_SIDL})
+add_sidl(${FORMAT_SIDL})
 source_group("format" FILES
     ${FORMAT_SRCS}
     ${FORMAT_INCLUDES}
@@ -108,7 +108,7 @@ set(FS_INCLUDES
 set(FS_SIDL
     fs/vfsobj.sidl
     fs/vfsprovider.sidl)
-#add_sidl(${FS_SIDL})
+add_sidl(${FS_SIDL})
 source_group("fs" FILES
     ${FS_SRCS}
     ${FS_INCLUDES}
@@ -126,7 +126,7 @@ set(FS_VFSFS_SIDL
     fs/vfsfs/vfsfs.sidl
     fs/vfsfs/vfsfsdirsearch.sidl
     fs/vfsfs/vfsfsfile.sidl)
-#add_sidl(${FS_VFSFS_SIDL})
+add_sidl(${FS_VFSFS_SIDL})
 source_group("fs\\vfsfs" FILES
     ${FS_VFSFS_SRCS}
     ${FS_VFSFS_INCLUDES}
@@ -144,7 +144,7 @@ set(FS_VFSVFS_SIDL
     fs/vfsvfs/vfsvfs.sidl
     fs/vfsvfs/vfsvfsdirsearch.sidl
     fs/vfsvfs/vfsvfsfile.sidl)
-#add_sidl(${FS_VFSVFS_SIDL})
+add_sidl(${FS_VFSVFS_SIDL})
 source_group("fs\\vfsvfs" FILES
     ${FS_VFSVFS_SRCS}
     ${FS_VFSVFS_INCLUDES}

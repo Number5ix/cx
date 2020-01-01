@@ -39,23 +39,14 @@ POSSIBILITY OF SUCH DAMAGE.
 #ifndef PCRE2_H_IDEMPOTENT_GUARD
 #define PCRE2_H_IDEMPOTENT_GUARD
 
+#define PCRE2_CODE_UNIT_WIDTH @PCRE2_CODE_UNIT_WIDTH@
+
 /* The current PCRE version information. */
 
 #define PCRE2_MAJOR           @PCRE2_MAJOR@
 #define PCRE2_MINOR           @PCRE2_MINOR@
 #define PCRE2_PRERELEASE      @PCRE2_PRERELEASE@
 #define PCRE2_DATE            @PCRE2_DATE@
-
-/* When an application links to a PCRE DLL in Windows, the symbols that are
-imported have to be identified as such. When building PCRE2, the appropriate
-export setting is defined in pcre2_internal.h, which includes this file. So we
-don't change existing definitions of PCRE2_EXP_DECL. */
-
-#if defined(_WIN32) && !defined(PCRE2_STATIC)
-#  ifndef PCRE2_EXP_DECL
-#    define PCRE2_EXP_DECL  extern __declspec(dllimport)
-#  endif
-#endif
 
 /* By default, we use the standard "extern" declarations. */
 
