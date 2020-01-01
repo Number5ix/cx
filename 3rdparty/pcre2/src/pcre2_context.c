@@ -44,7 +44,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #endif
 
 #include "pcre2_internal.h"
-
+#include <cxmem/xalloc/xalloc.h>
 
 
 /*************************************************
@@ -56,14 +56,14 @@ POSSIBILITY OF SUCH DAMAGE.
 static void *default_malloc(size_t size, void *data)
 {
 (void)data;
-return malloc(size);
+return xa_malloc(size);
 }
 
 
 static void default_free(void *block, void *data)
 {
 (void)data;
-free(block);
+xa_free(block);
 }
 
 

@@ -41,6 +41,10 @@ POSSIBILITY OF SUCH DAMAGE.
 #ifndef PCRE2_INTERNAL_H_IDEMPOTENT_GUARD
 #define PCRE2_INTERNAL_H_IDEMPOTENT_GUARD
 
+#ifndef PCRE2_STATIC
+#define PCRE2_STATIC 1
+#endif
+
 /* We do not support both EBCDIC and Unicode at the same time. The "configure"
 script prevents both being selected, but not everybody uses "configure". EBCDIC
 is only supported for the 8-bit library, but the check for this has to be later
