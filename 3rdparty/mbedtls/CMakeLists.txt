@@ -46,70 +46,9 @@ set(CTR_DRBG_128_BIT_KEY_WARNING "${WARNING_BORDER}"
                          "${CTR_DRBG_128_BIT_KEY_WARN_L3}"
                          "${WARNING_BORDER}")
 
-#find_package(PythonInterp)
-#find_package(Perl)
-if(PERL_FOUND)
-
-    # If 128-bit keys are configured for CTR_DRBG, display an appropriate warning
-    execute_process(COMMAND ${PERL_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/config.pl -f ${CMAKE_CURRENT_SOURCE_DIR}/include/mbedtls/config.h get MBEDTLS_CTR_DRBG_USE_128_BIT_KEY
-                        RESULT_VARIABLE result)
-    if(${result} EQUAL 0)
-        message(WARNING ${CTR_DRBG_128_BIT_KEY_WARNING})
-    endif()
-
-    # If NULL Entropy is configured, display an appropriate warning
-    execute_process(COMMAND ${PERL_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/config.pl -f ${CMAKE_CURRENT_SOURCE_DIR}/include/mbedtls/config.h get MBEDTLS_TEST_NULL_ENTROPY
-                        RESULT_VARIABLE result)
-    if(${result} EQUAL 0)
-        message(WARNING ${NULL_ENTROPY_WARNING})
-
-        if(NOT UNSAFE_BUILD)
-            message(FATAL_ERROR "\
-\n\
-Warning! You have enabled MBEDTLS_TEST_NULL_ENTROPY. \
-This option is not safe for production use and negates all security \
-It is intended for development use only. \
-\n\
-To confirm you want to build with this option, re-run cmake with the \
-option: \n\
-  cmake -DUNSAFE_BUILD=ON ")
-
-            return()
-        endif()
-    endif()
-endif()
-
 set(CMAKE_BUILD_TYPE ${CMAKE_BUILD_TYPE}
     CACHE STRING "Choose the type of build: None Debug Release Coverage ASan ASanDbg MemSan MemSanDbg Check CheckFull"
     FORCE)
-
-# Create a symbolic link from ${base_name} in the binary directory
-# to the corresponding path in the source directory.
-function(link_to_source base_name)
-    # Get OS dependent path to use in `execute_process`
-    file(TO_NATIVE_PATH "${CMAKE_CURRENT_BINARY_DIR}/${base_name}" link)
-    file(TO_NATIVE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/${base_name}" target)
-
-    if (NOT EXISTS ${link})
-        if (CMAKE_HOST_UNIX)
-            set(command ln -s ${target} ${link})
-        else()
-            if (IS_DIRECTORY ${target})
-                set(command cmd.exe /c mklink /j ${link} ${target})
-            else()
-                set(command cmd.exe /c mklink /h ${link} ${target})
-            endif()
-        endif()
-
-        execute_process(COMMAND ${command}
-            RESULT_VARIABLE result
-            ERROR_VARIABLE output)
-
-        if (NOT ${result} EQUAL 0)
-            message(FATAL_ERROR "Could not create symbolic link for: ${target} --> ${output}")
-        endif()
-    endif()
-endfunction(link_to_source)
 
 string(REGEX MATCH "Clang" CMAKE_COMPILER_IS_CLANG "${CMAKE_C_COMPILER_ID}")
 
@@ -177,58 +116,6 @@ if(ENABLE_ZLIB_SUPPORT)
     endif(ZLIB_FOUND)
 endif(ENABLE_ZLIB_SUPPORT)
 
+set(MBEDTLS_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include)
+
 add_subdirectory(library)
-add_subdirectory(include)
-
-if(ENABLE_PROGRAMS)
-    add_subdirectory(programs)
-endif()
-
-#ADD_CUSTOM_TARGET(apidoc
-#    COMMAND doxygen mbedtls.doxyfile
-#    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/doxygen)
-
-if(ENABLE_TESTING)
-    enable_testing()
-
-    add_subdirectory(tests)
-
-    # additional convenience targets for Unix only
-    if(UNIX)
-
-        ADD_CUSTOM_TARGET(covtest
-            COMMAND make test
-            COMMAND programs/test/selftest
-            COMMAND tests/compat.sh
-            COMMAND tests/ssl-opt.sh
-        )
-
-        ADD_CUSTOM_TARGET(lcov
-            COMMAND rm -rf Coverage
-            COMMAND lcov --capture --initial --directory library/CMakeFiles/mbedtls.dir -o files.info
-            COMMAND lcov --capture --directory library/CMakeFiles/mbedtls.dir -o tests.info
-            COMMAND lcov --add-tracefile files.info --add-tracefile tests.info -o all.info
-            COMMAND lcov --remove all.info -o final.info '*.h'
-            COMMAND gendesc tests/Descriptions.txt -o descriptions
-            COMMAND genhtml --title "mbed TLS" --description-file descriptions --keep-descriptions --legend --no-branch-coverage -o Coverage final.info
-            COMMAND rm -f files.info tests.info all.info final.info descriptions
-        )
-
-        ADD_CUSTOM_TARGET(memcheck
-            COMMAND sed -i.bak s+/usr/bin/valgrind+`which valgrind`+ DartConfiguration.tcl
-            COMMAND ctest -O memcheck.log -D ExperimentalMemCheck
-            COMMAND tail -n1 memcheck.log | grep 'Memory checking results:' > /dev/null
-            COMMAND rm -f memcheck.log
-            COMMAND mv DartConfiguration.tcl.bak DartConfiguration.tcl
-        )
-    endif(UNIX)
-endif()
-
-# Make scripts needed for testing available in an out-of-source build.
-#if (NOT ${CMAKE_CURRENT_BINARY_DIR} STREQUAL ${CMAKE_CURRENT_SOURCE_DIR})
-    link_to_source(scripts)
-    # Copy (don't link) DartConfiguration.tcl, needed for memcheck, to
-    # keep things simple with the sed commands in the memcheck target.
-#    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/DartConfiguration.tcl
-#                   ${CMAKE_CURRENT_BINARY_DIR}/DartConfiguration.tcl COPYONLY)
-#endif()

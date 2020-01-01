@@ -1,0 +1,9 @@
+// Standard interfaces that have special meaning within the framework
+
+interface Sortable {
+    intptr cmp(object other, uint32 flags);
+}
+
+interface Hashable {
+    uint32 hash(uint32 flags);
+}

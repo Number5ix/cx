@@ -1,12 +1,12 @@
 #pragma once
 
-// This is the master include file going forward for all CX-based components.
+// This is the master include file for all CX-based components.
 // It should be included by all CX header files.
 //
 // Changing this file will require EVERYTHING to be rebuilt, so do so sparingly.
 
 #ifdef _WINBASE_
-#error("winbase.h has already been included before cx.h");
+#error("Do not include cx.h after windows.h!");
 #endif
 
 #include <cxmem/config.h>

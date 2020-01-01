@@ -1,0 +1,10 @@
+#include <cx/fs/vfsprovider.sidl>
+#include <cx/fs/vfsobj.sidl>
+
+[methodprefix vfsvfs]
+class VFSVFS implements VFSProvider {
+    object:VFS vfs;
+    string root;
+
+    factory create(VFS *vfs, string rootpath);
+}

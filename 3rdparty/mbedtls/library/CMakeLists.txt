@@ -160,6 +160,8 @@ if(USE_STATIC_MBEDTLS_LIBRARY)
     set_target_properties(${mbedtls_static_target} PROPERTIES OUTPUT_NAME mbedtls)
     target_link_libraries(${mbedtls_static_target} ${libs} ${mbedx509_static_target})
 
+    target_include_directories(${mbedtls_static_target} SYSTEM PUBLIC ${MBEDTLS_INCLUDE_DIR})
+
     set_property(TARGET ${mbedcrypto_static_target} PROPERTY FOLDER "3rdparty")
     set_property(TARGET ${mbedx509_static_target} PROPERTY FOLDER "3rdparty")
     set_property(TARGET ${mbedtls_static_target} PROPERTY FOLDER "3rdparty")

@@ -15,5 +15,5 @@ add_library (cxmem STATIC
     ${CSTRUTIL_SRCS}
     ${XALLOC_SRCS})
 
-target_include_directories(cxmem PUBLIC ${CX_TOP_SOURCE_DIR} ${CX_TOP_SOURCE_DIR}/3rdparty/jemalloc/include/jemalloc ${CX_TOP_BINARY_DIR}/3rdparty/jemalloc/include/jemalloc)
+target_include_directories(cxmem SYSTEM PUBLIC ${CX_TOP_SOURCE_DIR} ${CX_TOP_SOURCE_DIR}/3rdparty/jemalloc/include/jemalloc ${CX_TOP_BINARY_DIR}/3rdparty/jemalloc/include/jemalloc)
 target_link_libraries(cxmem jemalloc)

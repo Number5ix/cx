@@ -1,0 +1,19 @@
+#pragma once
+
+#include <cx/cx.h>
+#include <cx/platform/win.h>
+
+_meta_inline uint64 timeFromFileTime(FILETIME *ft)
+{
+    uint64 ret = ((uint64)ft->dwHighDateTime << 32) | ft->dwLowDateTime;
+    ret /= 10;          // convert from 100-ns intervals to microseconds
+
+    // FILETIME epoch is midnight on Jan 1, 1601
+    // Which is a julian date of 2305813.50000
+    // That's 199222286400 in seconds, or in microseconds...
+
+    ret += 199222286400000000ULL;       // adjust epoch
+    // This still leaves over 500,000 years before overflow
+
+    return ret;
+}

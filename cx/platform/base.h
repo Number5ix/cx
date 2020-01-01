@@ -13,6 +13,9 @@
 #define _no_inline __declspec(noinline)
 #define stackAlloc(sz) _alloca(sz)
 
+// Sometimes things need to be aligned precisely
+#define alignMem(bytes) __declspec(align(bytes))
+
 #if defined(_WIN32)
 #define _PLATFORM_WIN 1
 #else
@@ -41,6 +44,9 @@
 #define _meta_inline __attribute__((always_inline)) inline
 #define _no_inline __attribute__((noinline))
 #define stackAlloc(sz) alloca(sz)
+
+// Sometimes things need to be aligned precisely
+#define alignMem(bytes) __attribute__((aligned(bytes)))
 
 #if defined(__linux__)
 #define _PLATFORM_UNIX 1

@@ -1,12 +1,14 @@
 #pragma once
 
-// unique id
+// sortable unique id
 // loosely based on Alizain Feerasta's ulid
 // https://github.com/ulid/
 
 #include <cx/platform/base.h>
 #include <cx/core/cpp.h>
 #include <cx/core/stype.h>
+
+_EXTERN_C_BEGIN
 
 typedef struct SUID {
     uint64 high;
@@ -47,3 +49,5 @@ bool suidEncodeBytes(char buf[26], const SUID *id);
 // Decodes a SUID from a string
 bool suidDecode(SUID *out, string *str);
 bool suidDecodeBytes(SUID *out, const char buf[26]);
+
+_EXTERN_C_END
