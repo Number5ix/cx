@@ -25,7 +25,7 @@
 #define SCRATCH_MIN_BUFFER_SIZE 64
 #define SCRATCH_MAX_REASONABLE_BUFFER_SIZE 1024
 
-_EXTERN_C_BEGIN
+CX_C_BEGIN
 
 typedef struct ScratchPerThreadInfo {
     int32 next;
@@ -62,4 +62,4 @@ inline void *scratchGet(size_t sz)
     return _scratch_pti->buf[cur];
 }
 
-_EXTERN_C_END
+CX_C_END

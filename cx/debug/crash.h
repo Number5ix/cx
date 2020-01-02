@@ -2,7 +2,7 @@
 
 #include <cx/cx.h>
 
-_EXTERN_C_BEGIN
+CX_C_BEGIN
 
 enum DEBUG_CRASH_FLAGS_ENUM {
     DBG_CrashExit        = 0x0001,          // exit gracefully
@@ -61,4 +61,4 @@ void dbgCrashAddVersionInt(const char *name, int val);
 
 void dbgCrashNow(int skipframes);
 
-_EXTERN_C_END
+CX_C_END

@@ -4,9 +4,9 @@
 #include <cx/core/cpp.h>
 
 #if DEBUG_LEVEL >= 1
-_EXTERN_C bool _cxAssertFail(const char *expr, const char *msg, const char *file, int ln);
+CX_C bool _cxAssertFail(const char *expr, const char *msg, const char *file, int ln);
 #else
-_EXTERN_C bool _cxAssertFail(const char *expr, const char *msg);
+CX_C bool _cxAssertFail(const char *expr, const char *msg);
 #endif
 
 #if DEBUG_LEVEL >= 2

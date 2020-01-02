@@ -17,7 +17,7 @@
 
 #include <cx/cx.h>
 
-_EXTERN_C_BEGIN
+CX_C_BEGIN
 
 typedef struct PcgState {   // Internals are *Private*.
     uint64 state;           // RNG state.  All values are possible.
@@ -49,4 +49,4 @@ _meta_inline uint32 pcgRange(PcgState *rng, uint32 lower, uint32 upper)
 // Advances the RNG state by delta iterations
 void pcgAdvance(PcgState *rng, uint64 delta);
 
-_EXTERN_C_END
+CX_C_END

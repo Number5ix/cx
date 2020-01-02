@@ -7,4 +7,4 @@ typedef struct HostID {
     int32 source;       // platform-specific
 } HostID;
 
-_EXTERN_C bool hostId(HostID *id);
+CX_C bool hostId(HostID *id);

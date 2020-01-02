@@ -3,7 +3,7 @@
 #include "cx/cx.h"
 #include "cx/string.h"
 
-_EXTERN_C_BEGIN
+CX_C_BEGIN
 
 #define BLACKBOX_SIZE 65535
 extern char dbgBlackBox[];
@@ -29,4 +29,4 @@ void bboxInit();
 void bboxSet(string name, string val, uint8 flags);
 void bboxDelete(string name);
 
-_EXTERN_C_END
+CX_C_END

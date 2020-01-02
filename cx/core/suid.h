@@ -8,7 +8,7 @@
 #include <cx/core/cpp.h>
 #include <cx/core/stype.h>
 
-_EXTERN_C_BEGIN
+CX_C_BEGIN
 
 typedef struct SUID {
     uint64 high;
@@ -50,4 +50,4 @@ bool suidEncodeBytes(char buf[26], const SUID *id);
 bool suidDecode(SUID *out, string *str);
 bool suidDecodeBytes(SUID *out, const char buf[26]);
 
-_EXTERN_C_END
+CX_C_END

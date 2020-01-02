@@ -7,7 +7,7 @@
 // A class stores arbitrary per-instance data and may implement one or more interfaces.
 // The class info structure contains runtime meta-information about the class.
 
-_EXTERN_C_BEGIN
+CX_C_BEGIN
 
 typedef struct ObjClassInfo ObjClassInfo;
 typedef struct ObjInst ObjInst;
@@ -85,4 +85,4 @@ ObjIface *_objInstIf(ObjInst *inst, ObjIface *iftmpl);
 ObjInst *_objDynCast(ObjInst *inst, ObjClassInfo *cls);
 #define objDynCast(inst, clsname) ((clsname*)_objDynCast(objInstBase(inst), &objClassInfoName(clsname)))
 
-_EXTERN_C_END
+CX_C_END

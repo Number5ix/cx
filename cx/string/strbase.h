@@ -2,7 +2,7 @@
 
 #include <cx/cx.h>
 
-_EXTERN_C_BEGIN
+CX_C_BEGIN
 
 // IMPORTANT NOTE!
 // Always initialize sstring to NULL or 0 first!
@@ -83,4 +83,4 @@ uint32 strCopyOut(string s, uint32 off, char *buf, uint32 bufsz);
 // For strings with other encodings or raw binary (no embedded NULLs)
 #define _SO (string)"\x80\xC1"
 
-_EXTERN_C_END
+CX_C_END

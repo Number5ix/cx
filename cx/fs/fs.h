@@ -4,7 +4,7 @@
 
 // ---------- Platform-specific filesystem operations ----------
 
-_EXTERN_C_BEGIN
+CX_C_BEGIN
 
 // Convert a platform-specific path into a CX path
 void pathFromPlatform(string *out, string platformpath);
@@ -67,4 +67,4 @@ FSDirSearch *fsSearchDir(string path, string pattern, bool stat);
 FSDirEnt *fsSearchNext(FSDirSearch *search);
 void fsSearchClose(FSDirSearch *search);
 
-_EXTERN_C_END
+CX_C_END

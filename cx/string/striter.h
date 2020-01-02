@@ -2,7 +2,7 @@
 
 #include <cx/string/strbase.h>
 
-_EXTERN_C_BEGIN
+CX_C_BEGIN
 
 // String iterators
 // The public-facing members represent a run of contiguous bytes within the string.
@@ -85,4 +85,4 @@ bool striU8Char(striter *i, int32 *out);
 bool striPeekU8Char(striter *i, int32 *out);
 bool striAdvanceU8(striter *i, uint32 by);
 
-_EXTERN_C_END
+CX_C_END

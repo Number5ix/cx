@@ -8,7 +8,7 @@
 typedef struct VFS VFS;
 typedef struct VFSFile VFSFile;
 
-_EXTERN_C_BEGIN
+CX_C_BEGIN
 
 // vfsCreate() is in vfsobj.h
 void vfsDestroy(VFS *vfs);
@@ -78,4 +78,4 @@ enum VFSFlags {
     VFS_Opaque        = 0x00000020,     // hides lower layers entirely
 };
 
-_EXTERN_C_END
+CX_C_END

@@ -80,19 +80,19 @@
 #define _XA_CUSTOM ""
 #endif
 
-#define XALLOC_STATIC_CONFIG _EXTERN_C const char *je_malloc_conf = "lg_chunk:21,purge:decay,decay_time:60" \
+#define XALLOC_STATIC_CONFIG CX_C const char *je_malloc_conf = "lg_chunk:21,purge:decay,decay_time:60" \
     _XA_ABORT _XA_ZERO _XA_JUNK _XA_ARENA _XA_TCACHE _XA_REDZONE _XA_CUSTOM;
 
 #elif defined(XALLOC_USE_MSVCRT)
 
 #ifdef XALLOC_DEBUG_CHECKS
-#define XALLOC_STATIC_CONFIG _EXTERN_C const int xalloc_msvcrt_debug = 1;
+#define XALLOC_STATIC_CONFIG CX_C const int xalloc_msvcrt_debug = 1;
 #else
-#define XALLOC_STATIC_CONFIG _EXTERN_C const int xalloc_msvcrt_debug = 0;
+#define XALLOC_STATIC_CONFIG CX_C const int xalloc_msvcrt_debug = 0;
 #endif
 
 #endif
 
-_EXTERN_C XALLOC_STATIC_CONFIG
+CX_C XALLOC_STATIC_CONFIG
 
-_EXTERN_C const int you_forgot_to_include_cx_static_config_h = 0;
+CX_C const int you_forgot_to_include_cx_static_config_h = 0;

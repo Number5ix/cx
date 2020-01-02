@@ -3,7 +3,7 @@
 #include <cx/cx.h>
 #include <cx/platform/base.h>
 
-_EXTERN_C_BEGIN
+CX_C_BEGIN
 
 typedef struct RWLock RWLock;
 
@@ -16,4 +16,4 @@ bool rwlockReleaseRead(RWLock *m);
 bool rwlockReleaseWrite(RWLock *m);
 void rwlockDestroy(RWLock *m);
 
-_EXTERN_C_END
+CX_C_END

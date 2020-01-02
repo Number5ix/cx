@@ -2,7 +2,7 @@
 
 #include <cx/string/strbase.h>
 
-_EXTERN_C_BEGIN
+CX_C_BEGIN
 
 // Compare two strings
 // Slightly faster than strCmp you only care about equality.
@@ -28,4 +28,4 @@ bool strBeginsWithi(string str, string sub);
 bool strEndsWith(string str, string sub);
 bool strEndsWithi(string str, string sub);
 
-_EXTERN_C_END
+CX_C_END

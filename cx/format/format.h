@@ -100,7 +100,7 @@
  */
 
 // Each argument must be wrapped with stVar(type, var)
-_EXTERN_C bool _strFormat(string *out, string fmt, int n, stvariant *args);
+CX_C bool _strFormat(string *out, string fmt, int n, stvariant *args);
 #define strFormat(out, fmt, ...) _strFormat(out, fmt, count_macro_args(__VA_ARGS__), (stvariant[]){ __VA_ARGS__ })
 
 // strFormat previously used the sizeof((stvariant[]){ __VA_ARGS__ })/sizeof(stvariant)

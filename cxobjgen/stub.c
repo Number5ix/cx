@@ -3,7 +3,7 @@
 #include <stdio.h>
 
 #if DEBUG_LEVEL >= 1
-_EXTERN_C bool _cxAssertFail(const char *expr, const char *msg, const char *file, int ln){
+CX_C bool _cxAssertFail(const char *expr, const char *msg, const char *file, int ln){
     printf("Assertion failure!\n");
     if (msg)
         printf("%s\n", msg);
@@ -14,7 +14,7 @@ _EXTERN_C bool _cxAssertFail(const char *expr, const char *msg, const char *file
     exit(1);
 }
 #else
-_EXTERN_C bool _cxAssertFail(const char *expr, const char *msg) { exit(1); }
+CX_C bool _cxAssertFail(const char *expr, const char *msg) { exit(1); }
 #endif
 
 intptr_t stCmp_suid(stype st, void *a, void *b) { return 0; }

@@ -15,7 +15,7 @@
 // Unix filesystem: None, namespace is ignored
 // VFS: Identifies a VFS namespace (if that namespace is allowed by the view)
 
-_EXTERN_C_BEGIN
+CX_C_BEGIN
 
 // Eliminate redundant path elements, convert backslashes, etc
 void pathNormalize(string *path);
@@ -57,4 +57,4 @@ enum PathMatchFlags {
 };
 bool pathMatch(string path, string pattern, uint32 flags);
 
-_EXTERN_C_END
+CX_C_END

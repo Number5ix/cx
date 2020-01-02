@@ -8,7 +8,7 @@
 
 #include <cx/cx.h>
 
-_EXTERN_C_BEGIN
+CX_C_BEGIN
 
 typedef struct FSFile FSFile;
 
@@ -35,4 +35,4 @@ int64 fsSeek(FSFile *file, int64 off, int seektype);
 
 bool fsFlush(FSFile *file);
 
-_EXTERN_C_END
+CX_C_END

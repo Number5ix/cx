@@ -5,7 +5,7 @@
 // strings themselves are either UTF-8, ASCII, or unspecified...
 // but they can be converted to/from other encodings
 
-_EXTERN_C_BEGIN
+CX_C_BEGIN
 
 bool strValidUTF8(string s);
 bool strValidASCII(string s);
@@ -30,4 +30,4 @@ bool strFromUTF16(string *o, const wchar_t *buf, size_t wsz);
 bool strB64Encode(string *out, const uint8 *buf, size_t sz, bool urlsafe);
 // Returns the number of bytes required for the buffer, or 0 on error
 size_t strB64Decode(string *s, uint8 *buf, size_t sz);
-_EXTERN_C_END
+CX_C_END

@@ -2,7 +2,7 @@
 
 #include <cx/cx.h>
 
-_EXTERN_C_BEGIN
+CX_C_BEGIN
 
 extern _Thread_local int cxerr;
 
@@ -20,4 +20,4 @@ enum CX_ERROR {
 
 const char *cxErrMsg(int err);
 
-_EXTERN_C_END
+CX_C_END

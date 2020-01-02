@@ -2,7 +2,7 @@
 
 #include <cx/string/strbase.h>
 
-_EXTERN_C_BEGIN
+CX_C_BEGIN
 
 // Convert a string to a number
 // strict indicates whether the entire string must be a number or if
@@ -42,4 +42,4 @@ uint32 _strnum_f32toa(float32 f, char dest[STRNUM_FPBUF]);
 int32 _strnum_grisu2_32(float32 f, char* digits, int32* K);
 int32 _strnum_grisu2_64(float64 d, char* digits, int32* K);
 
-_EXTERN_C_END
+CX_C_END

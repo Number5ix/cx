@@ -3,7 +3,7 @@
 #include <cx/string/strbase.h>
 #include <cx/utils/macros.h>
 
-_EXTERN_C_BEGIN
+CX_C_BEGIN
 
 // String manipulation
 // Argument naming convention:
@@ -58,4 +58,4 @@ char strGetChar(string str, int32 i);
 // set a single byte
 void strSetChar(string *str, int32 i, char ch);
 
-_EXTERN_C_END
+CX_C_END

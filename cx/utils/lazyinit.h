@@ -2,7 +2,7 @@
 
 #include <cx/cx.h>
 
-_EXTERN_C_BEGIN
+CX_C_BEGIN
 
 typedef struct LazyInitState {
     bool init;
@@ -24,4 +24,4 @@ _meta_inline void lazyInit(LazyInitState *state, LazyInitCallback initfunc, void
         _lazyInitInternal(&state->init, &state->initProgress, initfunc, userData);
 }
 
-_EXTERN_C_END
+CX_C_END
