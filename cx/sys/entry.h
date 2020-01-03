@@ -18,7 +18,7 @@ int entryPoint();
 
 // Internal support functions, do not call these directly
 void _entryParseArgs(int argc, const char **argv);
-void _entryParseArgsU16(int argc, const wchar_t **argv);
+void _entryParseArgsU16(int argc, const uint16 **argv);
 
 #if defined(_PLATFORM_WIN)
 #include "cx/platform/win/win_sys_entry.h"

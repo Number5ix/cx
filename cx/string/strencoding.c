@@ -56,7 +56,7 @@ bool strValidASCII(string s)
     return true;
 }
 
-size_t strToUTF16(string s, wchar_t *buf, size_t wsz)
+size_t strToUTF16(string s, uint16 *buf, size_t wsz)
 {
     size_t bufidx = 0;
     int32 codepoint;
@@ -103,7 +103,7 @@ size_t strToUTF16(string s, wchar_t *buf, size_t wsz)
     return bufidx;
 }
 
-bool strFromUTF16(string *o, const wchar_t *buf, size_t wsz)
+bool strFromUTF16(string *o, const uint16 *buf, size_t wsz)
 {
     bool surrogate = false;
     int nexpand = 1;
@@ -155,24 +155,24 @@ fail:
     return false;
 }
 
-wchar_t *strToUTF16A(string s)
+uint16 *strToUTF16A(string s)
 {
     size_t sz = strToUTF16(s, NULL, 0);
     if (sz == 0)
         return NULL;
 
-    wchar_t *ret = xaAlloc(sz * sizeof(wchar_t), 0);
+    uint16 *ret = xaAlloc(sz * sizeof(uint16), 0);
     strToUTF16(s, ret, sz);
     return ret;
 }
 
-wchar_t *strToUTF16S(string s)
+uint16 *strToUTF16S(string s)
 {
     size_t sz = strToUTF16(s, NULL, 0);
     if (sz == 0)
         return NULL;
 
-    wchar_t *ret = scratchGet(sz * sizeof(wchar_t));
+    uint16 *ret = scratchGet(sz * sizeof(uint16));
     strToUTF16(s, ret, sz);
     return ret;
 }

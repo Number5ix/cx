@@ -28,21 +28,21 @@ char *cstrDup(const char *src)
     return ret;
 }
 
-size_t cstrLenw(const short *s)
+size_t cstrLenw(const unsigned short *s)
 {
-    const short *p = s;
+    const unsigned short *p = s;
     while (*p)
         p++;
     return p - s;
 }
 
-short *cstrDupw(const short *src)
+unsigned short *cstrDupw(const unsigned short *src)
 {
     if (!src)
         return NULL;
 
     size_t len = (cstrLenw(src) + 1) * 2;
-    short *ret = xaAlloc(len, 0);
+    unsigned short *ret = xaAlloc(len, 0);
     if (!ret)
         return NULL;
 

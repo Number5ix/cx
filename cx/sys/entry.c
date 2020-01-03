@@ -13,7 +13,7 @@ void _entryParseArgs(int argc, const char **argv)
     }
 }
 
-void _entryParseArgsU16(int argc, const wchar_t **argv)
+void _entryParseArgsU16(int argc, const uint16 **argv)
 {
     saDestroy(&cmdArgs);
     cmdArgs = saCreate(string, 1, 0);
