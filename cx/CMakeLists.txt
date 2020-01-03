@@ -244,8 +244,10 @@ source_group("string" FILES
     ${STRING_INCLUDES})
 
 set(SYS_SRCS
+    sys/entry.c
     sys/hostid.c)
 set(SYS_INCLUDES
+    sys/entry.h
     sys/hostid.h
     sys/hostid_private.h)
 source_group("sys" FILES
