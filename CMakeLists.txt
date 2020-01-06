@@ -39,3 +39,6 @@ add_subdirectory(3rdparty)
 add_subdirectory(cx)
 add_subdirectory(cxmem)
 add_subdirectory(cxobjgen)
+
+enable_testing()
+add_subdirectory(tests)
