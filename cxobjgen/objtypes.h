@@ -99,6 +99,7 @@ typedef struct Interface {
     Method **methods;
     bool included;
     bool processed;
+    bool classif;
     Method **allmethods;
 } Interface;
 extern ObjClassInfo Interface_clsinfo;

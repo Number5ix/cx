@@ -170,6 +170,66 @@ static void addMixin(Class *cls, Class *uses)
     }
 }
 
+static bool implementsChild(Class *cls, Interface *iface)
+{
+    for (int i = saSize(&cls->implements) - 1; i >= 0; --i) {
+        Interface *testif = cls->implements[i];
+
+        // skip self
+        if (testif == iface)
+            continue;
+
+        testif = testif->parent;
+        while (testif) {
+            if (testif == iface)
+                return true;
+            testif = testif->parent;
+        }
+    }
+
+    return false;
+}
+
+static void pruneInterfaces(Class *cls)
+{
+    // First, remove any interfaces where this class also implements one of
+    // their children.
+    for (int i = saSize(&cls->implements) - 1; i >= 0; --i) {
+        if (implementsChild(cls, cls->implements[i]))
+            saRemove(&cls->implements, i, 0);
+    }
+
+    // abstract classes need to keep empty interfaces to pass them on to children
+    if (cls->abstract || cls->mixin)
+        return;
+
+    // Next, remove any interfaces that we don't actually implement anything
+    // from. In practice, this only removes inherited interfaces that are
+    // completely implemented by parent classes, otherwise stub methods would
+    // have already been added.
+    for (int i = saSize(&cls->implements) - 1; i >= 0; --i) {
+        int j;
+
+        // don't delete the class interface
+        if (cls->implements[i]->classif)
+            continue;
+
+        for (j = saSize(&cls->methods) - 1; j >= 0; --j) {
+            if (cls->methods[j]->internal)
+                continue;
+
+            // see if this class method is part of the interface
+            if (saFind(&cls->implements[i]->allmethods, object,
+                        cls->methods[j], 0) != -1)
+                break;
+        }
+
+        // did we find one that's implemented?
+        if (j < 0)
+            saRemove(&cls->implements, i, 0);       // nope
+    }
+}
+
 bool processClass(Class *cls)
 {
     if (cls->processed)
@@ -182,6 +242,13 @@ bool processClass(Class *cls)
     string *mpfx = getAnnotation(&cls->annotations, _S"methodprefix");
     if (saSize(&mpfx) == 2) {
         strDup(&cls->methodprefix, mpfx[1]);
+    }
+
+    // if our parent class implements any interfaces, we implement them too
+    if (cls->parent) {
+        for (int i = 0; i < saSize(&cls->parent->implements); i++) {
+            saPush(&cls->implements, object, cls->parent->implements[i], SA_Unique);
+        }
     }
 
     // copy prototypes for overriden functions from parents
@@ -217,6 +284,7 @@ bool processClass(Class *cls)
     // create the class interface
     if (!cls->mixin) {
         Interface *clsif = interfaceCreate();
+        clsif->classif = true;
         clsif->included = cls->included;
         strDup(&clsif->name, cls->name);
         strAppend(&clsif->name, _S"_ClassIf");
@@ -270,6 +338,9 @@ bool processClass(Class *cls)
     }
     fillMembers(&cls->allmembers, cls);
     fillMethods(&cls->allmethods, cls);
+
+    // delete redundant interfaces
+    pruneInterfaces(cls);
 
     cls->processed = true;
 

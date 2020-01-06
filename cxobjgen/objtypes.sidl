@@ -36,6 +36,7 @@ class Interface implements Sortable {
     sarray:object:Method methods;
     bool included;
     bool processed;
+    bool classif;
     sarray:object:Method allmethods;
 
     factory create();
