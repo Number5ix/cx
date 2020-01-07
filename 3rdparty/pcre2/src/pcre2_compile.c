@@ -43,6 +43,10 @@ POSSIBILITY OF SUCH DAMAGE.
 #include "config.h"
 #endif
 
+#ifdef _WIN32
+#pragma warning (disable:4244)
+#endif
+
 #define NLBLOCK cb             /* Block containing newline information */
 #define PSSTART start_pattern  /* Field containing processed string start */
 #define PSEND   end_pattern    /* Field containing processed string end */

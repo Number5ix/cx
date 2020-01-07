@@ -27,6 +27,10 @@
 #define	JEMALLOC_UTIL_C_
 #include "jemalloc/internal/jemalloc_internal.h"
 
+#ifdef _WIN32
+#pragma warning (disable:4267)
+#endif
+
 /******************************************************************************/
 /* Function prototypes for non-inline static functions. */
 

@@ -12,6 +12,7 @@
 #endif
 
 #ifdef _WIN32
+#pragma warning (disable:4267)
 #undef LONG
 #define LONG long
 #include <sys/stat.h>
