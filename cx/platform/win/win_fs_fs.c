@@ -23,7 +23,7 @@ static void initCurDir(void *data)
     _fsCurDirLock = rwlockCreate();
 
     DWORD sz = GetCurrentDirectoryW(0, NULL);
-    wchar_t *p = xaAlloc(sz * sizeof(wchar_t), 0);
+    wchar_t *p = xaAlloc(sz * sizeof(wchar_t));
     sz = GetCurrentDirectoryW(sz, p);
     strFromUTF16(&_fsCurDir, p, sz);
     xaFree(p);
@@ -203,7 +203,7 @@ static void fsExeInit(void *data)
     string *exepath = (string*)data;
 
     // windows API is really stupid here, has no way to get size first
-    wchar_t *buf = xaAlloc(32768 * sizeof(wchar_t), 0);
+    wchar_t *buf = xaAlloc(32768 * sizeof(wchar_t));
     GetModuleFileNameW(NULL, buf, 32768);
     buf[32767] = 0;             // it also doesn't null terminate when it truncates...
     fsPathFromWinW(exepath, buf);
@@ -331,7 +331,7 @@ FSDirSearch *fsSearchDir(string path, string pattern, bool stat)
     // stat is ignored for Windows since the API always returns file
     // size and timestamps
 
-    ret = xaAlloc(sizeof(FSDirSearch), XA_ZERO);
+    ret = xaAlloc(sizeof(FSDirSearch), Zero);
     pathJoin(&spath, path, strEmpty(pattern) ? _S"*" : pattern);
 
     ret->h = FindFirstFileW(fsPathToNT(spath), &ret->first);

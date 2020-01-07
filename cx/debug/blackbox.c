@@ -50,7 +50,7 @@ static void freeSpaceAdd(uint16 start, uint16 size)
     }
 
     // insert a new one
-    BBoxFreelistNode *fn = xaAlloc(sizeof(BBoxFreelistNode), 0);
+    BBoxFreelistNode *fn = xaAlloc(sizeof(BBoxFreelistNode));
     fn->start = start;
     fn->size = size;
     fn->next = n;
@@ -92,7 +92,7 @@ static void freeSpaceRemove(uint16 start, uint16 size)
                 n->size = start - n->start;
             } else if (start > n->start && start + size < n->start + n->size) {
                 // splitting the block :/
-                BBoxFreelistNode *fn = xaAlloc(sizeof(BBoxFreelistNode), 0);
+                BBoxFreelistNode *fn = xaAlloc(sizeof(BBoxFreelistNode));
                 fn->start = start + size;
                 fn->size = n->start + n->size - (start + size);
                 fn->next = n->next;
@@ -110,7 +110,7 @@ void bboxInit()
 {
     bbmtx = mutexCreate();
     bbindex = htCreate(string, uint16, 0);
-    freelist = xaAlloc(sizeof(BBoxFreelistNode), 0);
+    freelist = xaAlloc(sizeof(BBoxFreelistNode));
     freelist->next = 0;
     freelist->start = sizeof(int16) * 2;            // after the head and tail pointers
     freelist->size = BLACKBOX_SIZE - sizeof(int16) * 2;

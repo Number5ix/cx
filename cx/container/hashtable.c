@@ -54,12 +54,12 @@ hashtable _htCreate(stype keytype, STypeOps *keyops, stype valtype, STypeOps *va
     if (keyops || valops) {
         // need the extended header
         flags |= HTINT_Extended;
-        ret = xaAlloc(sizeof(HashTableHeader) + elemsz * initsz, 0);
+        ret = xaAlloc(sizeof(HashTableHeader) + elemsz * initsz);
         memset(&ret->keytypeops, 0, sizeof(ret->keytypeops));
         memset(&ret->valtypeops, 0, sizeof(ret->valtypeops));
     } else {
         // revel in the evil
-        ret = (HashTableHeader*)((uintptr)xaAlloc((sizeof(HashTableHeader) + elemsz * initsz) - HT_SMALLHDR_OFFSET, 0) - HT_SMALLHDR_OFFSET);
+        ret = (HashTableHeader*)((uintptr)xaAlloc((sizeof(HashTableHeader) + elemsz * initsz) - HT_SMALLHDR_OFFSET) - HT_SMALLHDR_OFFSET);
     }
 
     ret->slots = initsz;
@@ -111,9 +111,9 @@ hashtable _htClone(hashtable *htbl, int32 minsz, int32 *origslot, bool move)
     // make a new table to copy stuff into
     if (hdr->flags & HTINT_Extended) {
         // need the extended header
-        nhdr = xaAlloc(sizeof(HashTableHeader) + elemsz * newsz, 0);
+        nhdr = xaAlloc(sizeof(HashTableHeader) + elemsz * newsz);
     } else {
-        nhdr = (HashTableHeader*)((uintptr)xaAlloc((sizeof(HashTableHeader) + elemsz * newsz) - HT_SMALLHDR_OFFSET, 0) - HT_SMALLHDR_OFFSET);
+        nhdr = (HashTableHeader*)((uintptr)xaAlloc((sizeof(HashTableHeader) + elemsz * newsz) - HT_SMALLHDR_OFFSET) - HT_SMALLHDR_OFFSET);
     }
 
     nhdr->keytype = hdr->keytype;

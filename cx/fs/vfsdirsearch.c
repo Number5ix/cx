@@ -69,7 +69,7 @@ VFSDirSearch *vfsSearchDir(VFS *vfs, string path, string pattern, int typefilter
 
     pathDecompose(&ns, &components, abspath);
 
-    VFSDirSearch *ret = xaAlloc(sizeof(VFSDirSearch), XA_ZERO);
+    VFSDirSearch *ret = xaAlloc(sizeof(VFSDirSearch), Zero);
     ret->vfs = objAcquire(vfs);
     ret->idx = 0;
     STypeOps direntops = (vfs->flags & VFS_CaseSensitive) ? FSDirEnt_ops_cs : FSDirEnt_ops;

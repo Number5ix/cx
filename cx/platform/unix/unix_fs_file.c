@@ -45,7 +45,7 @@ FSFile *_fsOpen(string path, int flags)
         return NULL;
     }
 
-    ret = xaAlloc(sizeof(FSFile), 0);
+    ret = xaAlloc(sizeof(FSFile));
     ret->fd = fd;
     strDestroy(&npath);
     return ret;

@@ -20,7 +20,7 @@ char *cstrDup(const char *src)
         return NULL;
 
     size_t len = cstrLen(src) + 1;
-    char *ret = xaAlloc(len, 0);
+    char *ret = xaAlloc(len);
     if (!ret)
         return NULL;
 
@@ -42,7 +42,7 @@ unsigned short *cstrDupw(const unsigned short *src)
         return NULL;
 
     size_t len = (cstrLenw(src) + 1) * 2;
-    unsigned short *ret = xaAlloc(len, 0);
+    unsigned short *ret = xaAlloc(len);
     if (!ret)
         return NULL;
 

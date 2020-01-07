@@ -106,7 +106,7 @@ ObjInst *_objInstCreate(ObjClassInfo *cls)
         return NULL;
     }
 
-    ret = xaAlloc(cls->instsize, XA_ZERO);
+    ret = xaAlloc(cls->instsize, Zero);
     ret->_clsinfo = cls;
     atomic_store_intptr(&ret->_ref, 1, ATOMIC_RELAXED);
 

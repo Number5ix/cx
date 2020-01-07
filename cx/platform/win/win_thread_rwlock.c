@@ -12,7 +12,7 @@ typedef struct RWLock {
 
 RWLock *rwlockCreate()
 {
-    RWLock *ret = (RWLock*)xaAlloc(sizeof(RWLock), XA_ZERO);
+    RWLock *ret = (RWLock*)xaAlloc(sizeof(RWLock), Zero);
     InitializeSRWLock(&ret->srw);
     return ret;
 }
@@ -72,7 +72,7 @@ typedef struct RWLock {
 
 RWLock *rwlockCreate()
 {
-    RWLock *ret = (RWLock*)xaAlloc(sizeof(RWLock), XA_ZERO);
+    RWLock *ret = (RWLock*)xaAlloc(sizeof(RWLock), Zero);
     InitializeCriticalSectionAndSpinCount(&ret->cs, 5000);
     return ret;
 }

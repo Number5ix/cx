@@ -418,7 +418,7 @@ bool dbgCrashSetPath(string path)
     crashdir = cstrDupw(tmp);
 
     // precompute filename we're going to use
-    processname = xaAlloc(strLen(exename) + 1, 0);
+    processname = xaAlloc(strLen(exename) + 1);
     strcpy_s(processname, strLen(exename) + 1, strC(&exename));
     processnamew = strToUTF16A(exename);
 

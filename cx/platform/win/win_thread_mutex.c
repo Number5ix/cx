@@ -12,7 +12,7 @@ typedef struct Mutex {
 
 Mutex *mutexCreate()
 {
-    Mutex *ret = (Mutex*)xaAlloc(sizeof(Mutex), XA_ZERO);
+    Mutex *ret = (Mutex*)xaAlloc(sizeof(Mutex), Zero);
     InitializeSRWLock(&ret->srw);
     return ret;
 }
@@ -47,7 +47,7 @@ typedef struct Mutex {
 
 Mutex *mutexCreate()
 {
-    Mutex *ret = (Mutex*)xaAlloc(sizeof(Mutex), XA_ZERO);
+    Mutex *ret = (Mutex*)xaAlloc(sizeof(Mutex), Zero);
     InitializeCriticalSectionAndSpinCount(&ret->cs, 5000);
     return ret;
 }

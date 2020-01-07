@@ -12,7 +12,7 @@ static void _strInitRope(string *o)
 
     uint32 sz = STR_OFF_STR(newhdr) + sizeof(str_ropedata);
 
-    string ret = xaAlloc(sz, 0);
+    string ret = xaAlloc(sz);
     if (!ret)
         return;
 

@@ -1,29 +1,33 @@
 #pragma once
 
 #include "jemalloc.h"
+#include <cx/utils/macros.h>
 
 // Allocate memory of at least sz
 // Returns: pointer to memory
-inline void *xaAlloc(size_t size, int flags)
+inline void *_xaAlloc(size_t size, int flags)
 {
     return je_mallocx(size, flags);
 }
+#define xaAlloc(size, ...) _xaAlloc(size, func_flags(XAFUNC, __VA_ARGS__))
 
 // Reallocate ptr to be at least sz byte large, copying it if necessary
 // NOTE: Unlike realloc, ptr cannot be NULL!
 // Returns: pointer to memory
-inline void *xaResize(void *ptr, size_t size, int flags)
+inline void *_xaResize(void *ptr, size_t size, int flags)
 {
     return je_rallocx(ptr, size, flags);
 }
+#define xaResize(ptr, size, ...) _xaResize(ptr, size, func_flags(XAFUNC, __VA_ARGS__))
 
 // Tries to expand ptr to at least size, and at most size+extra.
 // If it cannot be expanded without copying, returns the current size.
 // Returns: size of memory at ptr
-inline size_t xaExpand(void *ptr, size_t size, size_t extra, int flags)
+inline size_t _xaExpand(void *ptr, size_t size, size_t extra, int flags)
 {
     return je_xallocx(ptr, size, extra, flags);
 }
+#define xaExpand(ptr, size, extra, ...) _xaExpand(ptr, size, extra, func_flags(XAFUNC, __VA_ARGS__))
 
 // Returns: size of memory at ptr
 inline size_t xaSize(void *ptr)

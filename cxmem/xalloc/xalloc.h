@@ -19,8 +19,9 @@
 #endif
 
 // These defines must match up with jemalloc MALLOCX_*!
-#define XA_LG_ALIGN(la) ((int)(la))
-#define XA_ZERO ((int)0x40)
+#define XAFUNC_ 0
+#define XAFUNC_Align(la) ((int)(la))
+#define XAFUNC_Zero ((int)0x40)
 
 #if XALLOC_USE_JEMALLOC
 #include "xalloc_jemalloc.h"

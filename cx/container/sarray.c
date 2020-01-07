@@ -216,9 +216,9 @@ static sa_qsort_spec *qsort_spec;
 
 static void sa_spec_init(void *user)
 {
-    find_spec = xaAlloc(256 * sizeof(sa_find_spec), XA_ZERO);
-    bsearch_spec = xaAlloc(256 * sizeof(sa_find_spec), XA_ZERO);
-    qsort_spec = xaAlloc(256 * sizeof(sa_qsort_spec), XA_ZERO);
+    find_spec = xaAlloc(256 * sizeof(sa_find_spec), Zero);
+    bsearch_spec = xaAlloc(256 * sizeof(sa_find_spec), Zero);
+    qsort_spec = xaAlloc(256 * sizeof(sa_qsort_spec), Zero);
 
     SA_SPEC_INIT_ONE(string);
     SA_SPEC_INIT_ONE(int8);
@@ -294,13 +294,13 @@ void *_saCreate(stype elemtype, STypeOps *ops, int32 capacity, uint32 flags)
     if (ops) {
         // need the full header
         flags |= SAINT_Extended;
-        hdr = xaAlloc(SARRAY_HDRSIZE + capacity * stGetSize(elemtype), 0);
+        hdr = xaAlloc(SARRAY_HDRSIZE + capacity * stGetSize(elemtype));
         hdr->typeops = *ops;
     } else {
         // use the smaller header that saves a few bytes for each array
         // yes, this is evil
         // hdr technically points to unallocated memory, but we're careful to not touch the first part
-        hdr = (SArrayHeader*)((uintptr_t)xaAlloc((SARRAY_HDRSIZE + capacity * stGetSize(elemtype)) - SARRAY_SMALLHDR_OFFSET, 0) - SARRAY_SMALLHDR_OFFSET);
+        hdr = (SArrayHeader*)((uintptr_t)xaAlloc((SARRAY_HDRSIZE + capacity * stGetSize(elemtype)) - SARRAY_SMALLHDR_OFFSET) - SARRAY_SMALLHDR_OFFSET);
     }
 
     if (SA_GET_GROW(flags) == SA_GROW_Auto) {
@@ -323,11 +323,11 @@ void *_saCreate(stype elemtype, STypeOps *ops, int32 capacity, uint32 flags)
 static void saRealloc(void **handle, SArrayHeader **hdr, int32 cap)
 {
     if ((*hdr)->flags & SAINT_Extended) {
-        *hdr = xaResize(*hdr, SARRAY_HDRSIZE + cap * stGetSize((*hdr)->elemtype), 0);
+        *hdr = xaResize(*hdr, SARRAY_HDRSIZE + cap * stGetSize((*hdr)->elemtype));
     } else {
         // ugly non-extended header
         void *smlbase = (void*)((uintptr_t)(*hdr) + SARRAY_SMALLHDR_OFFSET);
-        smlbase = xaResize(smlbase, (SARRAY_HDRSIZE + cap * stGetSize((*hdr)->elemtype)) - SARRAY_SMALLHDR_OFFSET, 0);
+        smlbase = xaResize(smlbase, (SARRAY_HDRSIZE + cap * stGetSize((*hdr)->elemtype)) - SARRAY_SMALLHDR_OFFSET);
         *hdr = (SArrayHeader*)((uintptr_t)smlbase - SARRAY_SMALLHDR_OFFSET);
     }
     (*hdr)->capacity = cap;

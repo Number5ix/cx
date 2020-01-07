@@ -9,7 +9,7 @@ typedef struct Mutex {
 
 Mutex *mutexCreate()
 {
-    Mutex *ret = (Mutex*)xaAlloc(sizeof(Mutex), XA_ZERO);
+    Mutex *ret = (Mutex*)xaAlloc(sizeof(Mutex), Zero);
 
     if (pthread_mutex_init(&ret->ptmtx, NULL) != 0) {
         xaFree(ret);

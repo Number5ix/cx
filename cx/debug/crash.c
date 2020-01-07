@@ -83,7 +83,7 @@ static void _dbgCrashAddMetaStr(const char *name, const char *val, bool version)
     CrashExtraMeta nmeta = { 0 };
     size_t origlen = cstrLen(val);
     size_t len = origlen, ci = 0;
-    char *valcopy = xaAlloc(len + 1, 0);
+    char *valcopy = xaAlloc(len + 1);
 
     // do JSON escaping here so the exception handler doesn't have to deal with it
     for (size_t i = 0; i < origlen; i++) {
@@ -116,7 +116,7 @@ static void _dbgCrashAddMetaStr(const char *name, const char *val, bool version)
             valcopy[ci++] = val[i];
         } else {
             len++;
-            valcopy = xaResize(valcopy, len + 1, 0);
+            valcopy = xaResize(valcopy, len + 1);
             valcopy[ci++] = '\\';
             valcopy[ci++] = extra;
         }

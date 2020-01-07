@@ -56,7 +56,7 @@ void _objHydrateIface(ObjIface *ifimpl, ObjIface ***impls, hashtable *impltbl)
     devAssert(ifimpl->_implements);
     if (!htFind(impltbl, ptr, ifimpl->_implements, ptr, &destif)) {
         // we didn't find an existing table entry, so add one
-        destif = xaAlloc(ifimpl->_size, XA_ZERO);
+        destif = xaAlloc(ifimpl->_size, Zero);
         destif->_implements = ifimpl->_implements;
         destif->_size = ifimpl->_size;
 

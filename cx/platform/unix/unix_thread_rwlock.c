@@ -9,7 +9,7 @@ typedef struct RWLock {
 
 RWLock *rwlockCreate()
 {
-    RWLock *ret = (RWLock*)xaAlloc(sizeof(RWLock), XA_ZERO);
+    RWLock *ret = (RWLock*)xaAlloc(sizeof(RWLock), Zero);
 
     if (pthread_rwlock_init(&ret->ptrwl, NULL) != 0) {
         xaFree(ret);

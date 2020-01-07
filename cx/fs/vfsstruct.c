@@ -2,7 +2,7 @@
 
 VFSCacheEnt *_vfsCacheEntCreate(VFSMount *m, string opath)
 {
-    VFSCacheEnt *c = xaAlloc(sizeof(VFSCacheEnt), XA_ZERO);
+    VFSCacheEnt *c = xaAlloc(sizeof(VFSCacheEnt), Zero);
     c->mount = m;
     strDup(&c->origpath, opath);
     return c;
@@ -21,7 +21,7 @@ STypeOps VFSCacheEnt_ops = {
 
 VFSDir *_vfsDirCreate(VFS *vfs, VFSDir *parent)
 {
-    VFSDir *d = xaAlloc(sizeof(VFSDir), XA_ZERO);
+    VFSDir *d = xaAlloc(sizeof(VFSDir), Zero);
     d->parent = parent;             // weak ref
     d->mounts = saCreate(object, 1);
     if (vfs->flags & VFS_CaseSensitive) {
