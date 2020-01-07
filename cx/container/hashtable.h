@@ -45,14 +45,15 @@ typedef struct htiter {
 #define htiVal(iter, type) (*((stStorageType(type)*)((uintptr)((iter).elem) + stGetSize((iter).hdr->keytype))))
 
 enum HASHTABLE_FLAGS_ENUM {
+    HT_                = 0x0000,
     HT_CaseInsensitive = 0x0001,    // only for string keys
     HT_RefKeys         = 0x0002,    // only reference keys rather than copying them
     HT_Ref             = 0x0004,    // only reference values rather than copying them
 
     // internal use only, do not set manually
-    HT_Quadratic       = 0x2000,    // use quadratic probing rather than linear
-    HT_Pow2            = 0x4000,    // size forced to power of 2 to avoid division
-    HT_Extended        = 0x8000,    // extended header is present
+    HTINT_Quadratic    = 0x2000,    // use quadratic probing rather than linear
+    HTINT_Pow2         = 0x4000,    // size forced to power of 2 to avoid division
+    HTINT_Extended     = 0x8000,    // extended header is present
 };
 
 enum HASHTABLE_GROW_ENUM {
@@ -73,28 +74,31 @@ enum HASHTABLE_GROW_ENUM {
 };
 
 enum HASHTABLE_FUNC_FLAGS_ENUM {
+    HTFUNC_             = 0,
+
     // Valid for: htInsert
     // Does not insert if a matching key already exists.
-    HT_Ignore       = 0x00010000,
+    HTFUNC_Ignore       = 0x00010000,
 
     // Valid for: htFind
     // Removes key if found.
-    HT_Destroy      = 0x00020000,
+    HTFUNC_Destroy      = 0x00020000,
 
     // Valid for: htFind
     // Removes key if found (does not destroy).
-    HT_RemoveOnly   = 0x00040000,
+    HTFUNC_RemoveOnly   = 0x00040000,
 
     // internal use only
-    HT_Consume      = 0x10000000,
+    HTFUNCINT_Consume   = 0x10000000,
 };
 
 #define HT_GROW_MASK (0xff000000)
 #define htGrow(flag) (((uint32)HT_GROW_##flag) << 24)
+#define HT_Grow(flag) (((uint32)HT_GROW_##flag) << 24)
 #define HT_GET_GROW(flags) ((flags) >> 24)
 
 hashtable _htCreate(stype keytype, STypeOps *keyops, stype valtype, STypeOps *valops, int32 initsz, uint32 flags);
-#define htCreate(keytype, valtype, initsz, flags) _htCreate(stFullType(keytype), stFullType(valtype), initsz, flags)
+#define htCreate(keytype, valtype, initsz, ...) _htCreate(stFullType(keytype), stFullType(valtype), initsz, func_flags(HT, __VA_ARGS__))
 
 void htDestroy(hashtable *htbl);
 void htClear(hashtable *htbl);
@@ -107,9 +111,9 @@ _meta_inline htelem _htInsertChecked(hashtable *htbl, stype keytype, void *key, 
     devAssert(stEq(htKeyType(htbl), keytype) && stEq(htValType(htbl), valtype));
     return _htInsert(htbl, key, val, flags);
 }
-#define htInsert(htbl, ktype, key, vtype, val, flags) _htInsertChecked(htbl, stChecked(ktype, key), stChecked(vtype, val), flags)
+#define htInsert(htbl, ktype, key, vtype, val, ...) _htInsertChecked(htbl, stChecked(ktype, key), stChecked(vtype, val), func_flags(HTFUNC, __VA_ARGS__))
 // Consumes *value*, not key
-#define htInsertC(htbl, ktype, key, vtype, val, flags) _htInsertChecked(htbl, stChecked(ktype, key), stCheckedPtr(vtype, val), flags | HT_Consume)
+#define htInsertC(htbl, ktype, key, vtype, val, ...) _htInsertChecked(htbl, stChecked(ktype, key), stCheckedPtr(vtype, val), func_flags(HTFUNC, __VA_ARGS__) | HTFUNCINT_Consume)
 
 bool _htFind(hashtable *htbl, void *key, void *val, uint32 flags);
 _meta_inline bool _htFindChecked(hashtable *htbl, stype keytype, void *key, stype valtype, void *val, uint32 flags)
@@ -118,7 +122,7 @@ _meta_inline bool _htFindChecked(hashtable *htbl, stype keytype, void *key, styp
     devAssert(stEq(htKeyType(htbl), keytype) && stEq(htValType(htbl), valtype));
     return _htFind(htbl, key, val, flags);
 }
-#define htFind(htbl, ktype, key, vtype, val_out, flags) _htFindChecked(htbl, stChecked(ktype, key), stCheckedPtr(vtype, val_out), flags)
+#define htFind(htbl, ktype, key, vtype, val_out, ...) _htFindChecked(htbl, stChecked(ktype, key), stCheckedPtr(vtype, val_out), func_flags(HTFUNC, __VA_ARGS__))
 
 // Always destroys; use htFind with HT_RemoveOnly if you want to get a reference out of a hashtable
 // without destroying it.

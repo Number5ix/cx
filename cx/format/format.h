@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cx/cx.h>
-#include <cx/utils/macros.h>
 
 /* String formatter =====================================================================
  *

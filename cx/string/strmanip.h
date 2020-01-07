@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cx/string/strbase.h>
-#include <cx/utils/macros.h>
 
 CX_C_BEGIN
 

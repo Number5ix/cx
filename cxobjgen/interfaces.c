@@ -9,7 +9,7 @@ static void fillMethods(Method ***methods, Interface *iface)
         fillMethods(methods, iface->parent);
 
     for (int i = 0; i < saSize(&iface->methods); i++) {
-        saPush(methods, object, iface->methods[i], SA_Unique);
+        saPush(methods, object, iface->methods[i], Unique);
     }
 }
 

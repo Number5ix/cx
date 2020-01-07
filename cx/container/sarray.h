@@ -4,7 +4,7 @@
 #include <cx/debug/assert.h>
 
 typedef struct SArrayHeader {
-    // sarray extended header begins here (only valid if SA_EXTENDED is set)
+    // sarray extended header begins here (only valid if SAINT_Extended is set)
     STypeOps typeops;
     // sarray header begins here
     stype elemtype;
@@ -14,16 +14,17 @@ typedef struct SArrayHeader {
     void *data[1];
 } SArrayHeader;
 
-enum SARRAY_FLAGS_ENUM
+enum SARRAY_CREATE_FLAGS_ENUM
 {
-    SA_Ref        = 0x0010,     // the array references other data and does not copy/own/destroy it.
+    SA_             = 0x0000,   // for the variable function flags macro
+    SA_Ref          = 0x0010,   // the array references other data and does not copy/own/destroy it.
                                 // only has an effect on pointer or object-type arrays
-    SA_Sorted     = 0x0020,     // array is maintined in sorted order
+    SA_Sorted       = 0x0020,   // array is maintined in sorted order
                                 // O(log n) search and O(n) insert
-    SA_AutoShrink = 0x0040,     // release memory when number of array elements shrinks
+    SA_AutoShrink   = 0x0040,   // release memory when number of array elements shrinks
 
     // internal use only, do not set manually
-    SA_Extended   = 0x8000,     // includes extended header
+    SAINT_Extended  = 0x8000,   // includes extended header
 };
 
 enum SARRAY_GROW_ENUM {
@@ -45,37 +46,40 @@ enum SARRAY_GROW_ENUM {
 };
 
 enum SARRAY_FUNC_FLAGS_ENUM {
+    SAFUNC_             = 0,
+
     // Valid for: saPush, saMerge
     // Does not insert if a matching element already exists.
-    SA_Unique       = 0x00010000,
+    SAFUNC_Unique       = 0x00010000,
 
     // Valid for: saFind, saRemove
     // Destroys element if found.
-    SA_Destroy      = 0x00020000,
+    SAFUNC_Destroy      = 0x00020000,
 
     // Valid for: saFind
     // Removes element if found (does not destroy, caller becomes owner).
-    SA_RemoveOnly   = 0x00040000,
+    SAFUNC_RemoveOnly   = 0x00040000,
 
     // Valid for: saFind, saRemove
     // When removing/destroying an element, swaps with last element,
     // disrupting the order but removing the element much faster.
     // Not valid for sorted arrays.
-    SA_Fast         = 0x00080000,
+    SAFUNC_Fast         = 0x00080000,
 
     // Valid for: saFind
     // Only valid for sorted arrays, setting this flag will return
     // the index where the element would be inserted if there is no
     // exact match.
-    SA_Inexact      = 0x00100000,
+    SAFUNC_Inexact      = 0x00100000,
 
     // ----- INTERNAL USE ONLY -----
     // Destroys original element after inserting.
-    SA_Consume      = 0x10000000,
+    SAFUNCINT_Consume   = 0x10000000,
 };
 
 #define SA_GROW_MASK (0xff000000)
 #define saGrow(rate) (((uint32)SA_GROW_##rate) << 24)
+#define SA_Grow(rate) (((uint32)SA_GROW_##rate) << 24)
 #define SA_GET_GROW(flags) ((flags) >> 24)
 
 #define SARRAY_HDRSIZE (offsetof(SArrayHeader, data))
@@ -89,7 +93,7 @@ enum SARRAY_FUNC_FLAGS_ENUM {
 #define SAHANDLE(h) ((void**)(h))
 
 void *_saCreate(stype elemtype, STypeOps *ops, int32 capacity, uint32 flags);
-#define saCreate(type, capacity, flags) _saCreate(stFullType(type), capacity, flags)
+#define saCreate(type, capacity, ...) _saCreate(stFullType(type), capacity, func_flags(SA, __VA_ARGS__))
 
 void _saDestroy(void **handle);
 #define saDestroy(handle) _saDestroy(SAHANDLE(handle));
@@ -105,9 +109,9 @@ void _saClear(void **handle);
 #define saClear(handle) _saClear(SAHANDLE(handle))
 
 int32 _saPush(void **handle, stype elemtype, void *elem, uint32 flags);
-#define saPush(handle, type, elem, flags) _saPush(SAHANDLE(handle), stChecked(type, elem), flags)
+#define saPush(handle, type, elem, ...) _saPush(SAHANDLE(handle), stChecked(type, elem), func_flags(SAFUNC, __VA_ARGS__))
 // Consume version of push, requires that elem be a pointer
-#define saPushC(handle, type, elem, flags) _saPush(SAHANDLE(handle), stCheckedPtr(type, elem), (flags) | SA_Consume)
+#define saPushC(handle, type, elem, ...) _saPush(SAHANDLE(handle), stCheckedPtr(type, elem), func_flags(SAFUNC, __VA_ARGS__) | SAFUNCINT_Consume)
 
 // Pointer pop transfers ownership to the caller and does not call the destructor
 void *_saPopPtr(void **handle, int32 idx);
@@ -122,7 +126,7 @@ _meta_inline int32 _saFindChecked(void **handle, stype elemtype, void *elem, uin
     devAssert(stEq(saElemType(handle), elemtype));
     return _saFind(handle, elem, flags);
 }
-#define saFind(handle, type, elem, flags) _saFindChecked(SAHANDLE(handle), stChecked(type, elem), flags)
+#define saFind(handle, type, elem, ...) _saFindChecked(SAHANDLE(handle), stChecked(type, elem), func_flags(SAFUNC, __VA_ARGS__))
 
 int32 _saInsert(void **handle, int32 idx, void *elem);
 _meta_inline int32 _saInsertChecked(void **handle, int32 idx, stype elemtype, void *elem)
@@ -134,7 +138,7 @@ _meta_inline int32 _saInsertChecked(void **handle, int32 idx, stype elemtype, vo
 #define saInsert(handle, idx, type, elem) _saInsertChecked(SAHANDLE(handle), idx, stChecked(type, elem))
 
 bool _saRemove(void **handle, int32 idx, uint32 flags);
-#define saRemove(handle, idx, flags) _saRemove(SAHANDLE(handle), idx, flags)
+#define saRemove(handle, idx, ...) _saRemove(SAHANDLE(handle), idx, func_flags(SAFUNC, __VA_ARGS__))
 
 void _saSort(void **handle, bool keep);
 #define saSort(handle, keep) _saSort(SAHANDLE(handle), keep)
@@ -143,4 +147,4 @@ void *_saSlice(void **handle, int32 start, int32 end);
 #define saSlice(handle, start, end) _saSlice(SAHANDLE(handle), start, end)
 
 void *_saMerge(int n, void **handles, uint32 flags);
-#define saMerge(flags, ...) _saMerge(sizeof((void*[]){ __VA_ARGS__ })/sizeof(void*), (void*[]){ __VA_ARGS__ }, flags)
+#define saMerge(flags, ...) _saMerge(sizeof((void*[]){ __VA_ARGS__ })/sizeof(void*), (void*[]){ __VA_ARGS__ }, func_flags(SAFUNC, flags))

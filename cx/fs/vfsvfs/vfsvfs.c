@@ -34,7 +34,7 @@ ObjInst *VFSVFS_open(VFSVFS *self, string path, int flags)
     string vfspath = 0;
     pathJoin(&vfspath, self->root, path);
 
-    VFSFile *file = vfsOpen(self->vfs, vfspath, flags);
+    VFSFile *file = _vfsOpen(self->vfs, vfspath, flags);
     strDestroy(&vfspath);
     if (!file)
         return NULL;

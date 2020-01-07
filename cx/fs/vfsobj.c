@@ -25,7 +25,7 @@ bool VFS_init(VFS *self)
     strDup(&self->curdir, fsPathSepStr);
     self->vfslock = rwlockCreate();
 // ==================== Auto-generated section begins ====================
-    self->namespaces = htCreate(string, custom(ptr, VFSDir_ops), 4, HT_CaseInsensitive);
+    self->namespaces = htCreate(string, custom(ptr, VFSDir_ops), 4, CaseInsensitive);
     return true;
 // ==================== Auto-generated section ends ======================
 }

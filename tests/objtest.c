@@ -166,10 +166,10 @@ static int test_obj_array()
 
     cls5->data = 42;
 
-    TestCls5 **arr = saCreate(object, 10, 0);
+    TestCls5 **arr = saCreate(object, 10);
 
     for (int i = 0; i < 50; i++) {
-        saPush(&arr, object, cls5, 0);
+        saPush(&arr, object, cls5);
     }
 
     if (atomic_load_intptr(&cls5->_ref, ATOMIC_ACQ_REL) != 51)
@@ -186,10 +186,10 @@ static int test_obj_array()
     if (atomic_load_intptr(&cls5->_ref, ATOMIC_ACQ_REL) != 1)
         return 1;
 
-    arr = saCreate(object, 10, 0);
+    arr = saCreate(object, 10);
 
     for (int i = 0; i < 50; i++) {
-        saPush(&arr, object, cls5, SA_Unique);
+        saPush(&arr, object, cls5, Unique);
     }
 
     if (atomic_load_intptr(&cls5->_ref, ATOMIC_ACQ_REL) != 2)

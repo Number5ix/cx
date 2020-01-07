@@ -12,7 +12,7 @@ static void writeUnbound(BufFile *bf, Class *cls, Class *cur, Method ***done)
         if (!m->unbound)
             continue;
 
-        if (saFind(done, object, m, 0) != -1)
+        if (saFind(done, object, m) != -1)
             continue;
 
         if (cls == cur) {
@@ -75,7 +75,7 @@ static void writeUnbound(BufFile *bf, Class *cls, Class *cur, Method ***done)
             bfWriteLine(bf, ln);
         }
 
-        saPush(done, object, m, 0);
+        saPush(done, object, m);
     }
 
     strDestroy(&implname);
@@ -190,7 +190,7 @@ void writeClassDecl(BufFile *bf, Class *cls)
     if (cls->mixin)
         return;
 
-    Method **unboundDone = saCreate(object, 16, 0);
+    Method **unboundDone = saCreate(object, 16);
     writeUnbound(bf, cls, cls, &unboundDone);
     saDestroy(&unboundDone);
 
@@ -221,7 +221,7 @@ bool writeHeader(string fname)
     string hname = 0;
     pathSetExt(&hname, fname, _S"h");
 
-    FSFile *file = fsOpen(hname, FS_Write | FS_Create | FS_Truncate);
+    FSFile *file = fsOpen(hname, Overwrite);
     if (!file) {
         fprintf(stderr, "Failed to open %s for writing", lazyPlatformPath(hname));
         return false;

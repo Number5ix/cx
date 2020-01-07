@@ -23,9 +23,14 @@ VFSDir *_vfsDirCreate(VFS *vfs, VFSDir *parent)
 {
     VFSDir *d = xaAlloc(sizeof(VFSDir), XA_ZERO);
     d->parent = parent;             // weak ref
-    d->mounts = saCreate(object, 1, 0);
-    d->subdirs = htCreate(string, custom(ptr, VFSDir_ops), 8, (vfs->flags & VFS_CaseSensitive) ? 0 : HT_CaseInsensitive);
-    d->files = htCreate(string, custom(ptr, VFSCacheEnt_ops), 8, (vfs->flags & VFS_CaseSensitive) ? 0 : HT_CaseInsensitive);
+    d->mounts = saCreate(object, 1);
+    if (vfs->flags & VFS_CaseSensitive) {
+        d->subdirs = htCreate(string, custom(ptr, VFSDir_ops), 8);
+        d->files = htCreate(string, custom(ptr, VFSCacheEnt_ops), 8);
+    } else {
+        d->subdirs = htCreate(string, custom(ptr, VFSDir_ops), 8, CaseInsensitive);
+        d->files = htCreate(string, custom(ptr, VFSCacheEnt_ops), 8, CaseInsensitive);
+    }
     return d;
 }
 

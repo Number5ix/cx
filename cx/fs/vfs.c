@@ -53,20 +53,20 @@ static VFSDir *_vfsGetDirInternal(VFS *vfs, VFSDir *root, string *path, int32 pl
     if (strEmpty(path[0]))
         child = root;
     else
-        htFind(&root->subdirs, string, path[0], ptr, &child, 0);
+        htFind(&root->subdirs, string, path[0], ptr, &child);
 
     if (!child) {
         if (!writelockheld) {
             rwlockReleaseRead(vfs->vfslock);
             rwlockAcquireWrite(vfs->vfslock);
             // try again with the write lock held
-            htFind(&root->subdirs, string, path[0], ptr, &child, 0);
+            htFind(&root->subdirs, string, path[0], ptr, &child);
         }
         if (!child) {
             child = _vfsDirCreate(vfs, root);
             child->cache = cache;
             strDup(&child->name, path[0]);
-            htInsert(&root->subdirs, string, path[0], ptr, child, 0);
+            htInsert(&root->subdirs, string, path[0], ptr, child);
         }
         if (!writelockheld) {
             rwlockReleaseWrite(vfs->vfslock);
@@ -87,7 +87,7 @@ VFSDir *_vfsGetDir(VFS *vfs, string path, bool isfile, bool cache, bool writeloc
 
     if (strEmpty(ns)) {
         d = vfs->root;
-    } else if (!htFind(&vfs->namespaces, string, ns, ptr, &d, 0)) {
+    } else if (!htFind(&vfs->namespaces, string, ns, ptr, &d)) {
         cxerr = CX_FileNotFound;
         goto out;
     }
@@ -121,7 +121,7 @@ bool _vfsMountProvider(VFS *vfs, ObjInst *provider, string path, uint32 flags)
 
     if (!strEmpty(ns) && !htHasKey(&vfs->namespaces, string, ns)) {
         // namespace hasn't been added yet, create it now
-        htInsert(&vfs->namespaces, string, ns, ptr, _vfsDirCreate(vfs, NULL), 0);
+        htInsert(&vfs->namespaces, string, ns, ptr, _vfsDirCreate(vfs, NULL));
     }
 
     VFSDir *dir = _vfsGetDir(vfs, path, false, false, true);
@@ -135,7 +135,7 @@ bool _vfsMountProvider(VFS *vfs, ObjInst *provider, string path, uint32 flags)
         flags |= VFS_NoCache;
 
     VFSMount *nmount = vfsmountCreate(provider, flags | provif->flags(provider));
-    saPushC(&dir->mounts, object, &nmount, 0);
+    saPushC(&dir->mounts, object, &nmount);
     _vfsInvalidateRecursive(vfs, dir, true);
     ret = true;
 
@@ -146,19 +146,19 @@ out:
 }
 
 // Mounts the built-in OS filesystem provider to the given VFS
-bool vfsMountFS(VFS *vfs, string path, string fsroot, uint32 flags)
+bool _vfsMountFS(VFS *vfs, string path, string fsroot, uint32 flags)
 {
     VFSFS *fsprovider = vfsfsCreate(fsroot);
     if (!fsprovider)
         return false;
 
-    bool ret = vfsMountProvider(vfs, fsprovider, path, flags);
+    bool ret = _vfsMountProvider(vfs, objInstBase(fsprovider), path, flags);
     objRelease(fsprovider);
     return ret;
 }
 
 // Mounts one VFS underneath another
-bool vfsMountVFS(VFS *vfs, string path, VFS *vfs2, string vfs2root, uint32 flags)
+bool _vfsMountVFS(VFS *vfs, string path, VFS *vfs2, string vfs2root, uint32 flags)
 {
     VFSVFS *vfsprovider = vfsvfsCreate(vfs2, vfs2root);
     if (!vfsprovider)
@@ -166,7 +166,7 @@ bool vfsMountVFS(VFS *vfs, string path, VFS *vfs2, string vfs2root, uint32 flags
 
     relAssert(vfs != vfs2);
 
-    bool ret = vfsMountProvider(vfs, vfsprovider, path, flags);
+    bool ret = _vfsMountProvider(vfs, objInstBase(vfsprovider), path, flags);
     objRelease(vfsprovider);
     return ret;
 }
@@ -182,7 +182,7 @@ VFSCacheEnt *_vfsGetFile(VFS *vfs, string path, bool writelockheld)
 
     pathFilename(&fname, path);
 
-    if (!htFind(&pdir->files, string, fname, ptr, &ret, 0))
+    if (!htFind(&pdir->files, string, fname, ptr, &ret))
         cxerr = CX_FileNotFound;
 
     strDestroy(&fname);
@@ -287,7 +287,7 @@ static int vfsFindCISub(VFSDir *vdir, string *out, string path,
         if (cvdir && ent->type == FS_File && !(mount->flags & VFS_NoCache)) {
             // go ahead and add it to the cache while we're here
             VFSCacheEnt *newent = _vfsCacheEntCreate(mount, filepath);
-            htInsertC(&cvdir->files, string, ent->name, ptr, &newent, HT_Ignore);
+            htInsertC(&cvdir->files, string, ent->name, ptr, &newent, Ignore);
         }
     }
 
@@ -436,7 +436,7 @@ done:
         // in case another thread purged the cache when we dropped the lock
         vfsdir = _vfsGetDir(vfs, abspath, true, true, true);
         VFSCacheEnt *newent = _vfsCacheEntCreate(ret, *rpath);
-        htInsertC(&vfsdir->files, string, components[saSize(&components) - 1], ptr, &newent, HT_Ignore);
+        htInsertC(&vfsdir->files, string, components[saSize(&components) - 1], ptr, &newent, Ignore);
         rwlockReleaseWrite(vfs->vfslock);
     }
 

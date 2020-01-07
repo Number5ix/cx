@@ -5,7 +5,7 @@ struct RWLock;
 class VFS {
     VFSDir *root;           // root for namespaceless paths
     // namespaces are never case sensitive even if the paths are
-    [init htCreate(string, custom(ptr, VFSDir_ops), 4, HT_CaseInsensitive)]
+    [init htCreate(string, custom(ptr, VFSDir_ops), 4, CaseInsensitive)]
         hashtable namespaces;   // hashtable of string/VFSDir
     string curdir;
     RWLock *vfslock;

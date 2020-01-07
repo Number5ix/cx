@@ -6,6 +6,7 @@
 #include <string.h>
 #include <cx/debug/assert.h>
 #include <cx/core/cpp.h>
+#include <cx/utils/macros.h>
 
 // extra files that can be included for specific functions
 #define STYPE_FOREACH_ALL <cx/core/alltypes.inc>
@@ -392,10 +393,12 @@ typedef struct stvariant {
 #define stVar(type, val) ((stvariant){ stArg(type, val), stType(type) })
 
 enum STYPE_OPS_FLAGS {
+    STOPS_ = 0,
+
     // Valid for: cmp, hash
     // Perform a case-insensitive hash or compare operation if the
     // underlying type supports it
-    ST_CaseInsensitive = 0x00000001,
+    STOPS_CaseInsensitive = 0x00000001,
 };
 
 typedef void (*stDtorFunc)(stype st, void*, uint32 flags);
@@ -437,7 +440,7 @@ _meta_inline void _stDestroy(stype st, STypeOps *ops, void *optr, uint32 flags)
     else if (_stDefaultDtor[stGetId(st)])
         _stDefaultDtor[stGetId(st)](st, ptr, flags);
 }
-#define stDestroy(type, pobj, flags) _stDestroy(stFullType(type), stArgPtr(type, pobj), flags)
+#define stDestroy(type, pobj, ...) _stDestroy(stFullType(type), stArgPtr(type, pobj), func_flags(STOPS, __VA_ARGS__))
 
 _meta_inline intptr _stCmp(stype st, STypeOps *ops, const void *optr1, const void *optr2, uint32 flags)
 {
@@ -461,7 +464,7 @@ _meta_inline intptr _stCmp(stype st, STypeOps *ops, const void *optr1, const voi
 
     return memcmp(optr1, optr2, stGetSize(st));       // use optr* to compare raw storage for indirect
 }
-#define stCmp(type, obj1, obj2, flags) _stCmp(stFullType(type), stArg(type, obj1), stArg(type, obj2), flags)
+#define stCmp(type, obj1, obj2, ...) _stCmp(stFullType(type), stArg(type, obj1), stArg(type, obj2), func_flags(STOPS, __VA_ARGS__))
 
 _meta_inline void _stCopy(stype st, STypeOps *ops, void *dest, const void *osrc, uint32 flags)
 {
@@ -482,7 +485,7 @@ _meta_inline void _stCopy(stype st, STypeOps *ops, void *dest, const void *osrc,
     else
         memcpy(dest, osrc, stGetSize(st));            // without ops, use osrc to copy the raw storage
 }
-#define stCopy(type, pdest, src, flags) _stCopy(stFullType(type), stArgPtr(type, pdest), stArg(type, src), flags)
+#define stCopy(type, pdest, src, ...) _stCopy(stFullType(type), stArgPtr(type, pdest), stArg(type, src), func_flags(STOPS, __VA_ARGS__))
 
 uint32 stHash_gen(stype st, const void *ptr, uint32 flags);
 _meta_inline uint32 _stHash(stype st, STypeOps *ops, const void *optr, uint32 flags)
@@ -503,6 +506,6 @@ _meta_inline uint32 _stHash(stype st, STypeOps *ops, const void *optr, uint32 fl
     else
         return stHash_gen(st, optr, flags);     // without ops, just hash the storage (optr)
 }
-#define stHash(type, obj, flags) _stHash(stFullType(type), stArg(type, obj), flags)
+#define stHash(type, obj, ...) _stHash(stFullType(type), stArg(type, obj), func_flags(STOPS, __VA_ARGS__))
 
 CX_C_END

@@ -21,7 +21,7 @@ void Param_destroy(Param *self)
 bool Method_init(Method *self)
 {
 // ==================== Auto-generated section begins ====================
-    self->params = saCreate(object, 1, 0);
+    self->params = saCreate(object, 1);
     return true;
 // ==================== Auto-generated section ends ======================
 }
@@ -49,8 +49,8 @@ void Method_destroy(Method *self)
 bool Interface_init(Interface *self)
 {
 // ==================== Auto-generated section begins ====================
-    self->methods = saCreate(object, 1, 0);
-    self->allmethods = saCreate(object, 1, 0);
+    self->methods = saCreate(object, 1);
+    self->allmethods = saCreate(object, 1);
     return true;
 // ==================== Auto-generated section ends ======================
 }
@@ -96,13 +96,13 @@ void Member_destroy(Member *self)
 bool Class_init(Class *self)
 {
 // ==================== Auto-generated section begins ====================
-    self->implements = saCreate(object, 1, 0);
-    self->uses = saCreate(object, 1, 0);
-    self->members = saCreate(object, 1, 0);
-    self->methods = saCreate(object, 1, 0);
-    self->overrides = saCreate(string, 1, 0);
-    self->allmembers = saCreate(object, 1, 0);
-    self->allmethods = saCreate(object, 1, 0);
+    self->implements = saCreate(object, 1);
+    self->uses = saCreate(object, 1);
+    self->members = saCreate(object, 1);
+    self->methods = saCreate(object, 1);
+    self->overrides = saCreate(string, 1);
+    self->allmembers = saCreate(object, 1);
+    self->allmethods = saCreate(object, 1);
     return true;
 // ==================== Auto-generated section ends ======================
 }
@@ -192,9 +192,9 @@ Method *Method_clone(Method *self)
     strDup(&ret->returntype, self->returntype);
     strDup(&ret->predecr, self->predecr);
     strDup(&ret->name, self->name);
-    stCopy(sarray, &ret->params, self->params, 0);
+    stCopy(sarray, &ret->params, self->params);
     if (self->annotations)
-        stCopy(sarray, &ret->annotations, self->annotations, 0);
+        stCopy(sarray, &ret->annotations, self->annotations);
 
     ret->isinit = self->isinit;
     ret->isdestroy = self->isdestroy;

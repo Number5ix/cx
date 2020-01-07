@@ -1,7 +1,7 @@
 #include "vfs_private.h"
 #include "cx/core/error.h"
 
-VFSFile *vfsOpen(VFS *vfs, string path, int flags)
+VFSFile *_vfsOpen(VFS *vfs, string path, int flags)
 {
     VFSFile *ret = 0;
 

@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cx/cx.h>
-#include <cx/utils/macros.h>
 
 // ---------- Platform-indepedent path manipulation ----------
 // All pathnames are UTF-8!

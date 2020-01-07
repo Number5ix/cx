@@ -15,7 +15,7 @@ bool _vfsAddPlatformSpecificMounts(VFS *vfs)
         if (ldrives & 1 << (dletter - 'a')) {
             drivestr[0] = dletter;
             strCopy(&drive, drivestr);
-            ret &= vfsMountFS(vfs, drive, drive, 0);
+            ret &= vfsMountFS(vfs, drive, drive);
         }
     }
 

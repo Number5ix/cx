@@ -202,21 +202,21 @@ bool pathDecompose(string *ns, string **components, string pathin)
     for (int32 i = 0, csz = saSize(components); i < csz; i++) {
         if (i > 0 && strEmpty((*components)[i])) {
             // remove empty components, but not from position 0 (absolute path)
-            saRemove(components, i--, 0);
+            saRemove(components, i--);
             csz--;
         } else if (i > 0 && strEq((*components)[i], _S"..")) {
             // eat previous component
             // only allowed work in position 1 or later to avoid breaking relative paths
-            saRemove(components, i--, 0);
+            saRemove(components, i--);
             csz--;
             if (!absolute || i > 0) {
                 // and absolute paths cannot remove the first empty component
-                saRemove(components, i--, 0);
+                saRemove(components, i--);
                 csz--;
             }
         } else if (strEq((*components)[i], _S".")) {
             // does nothing, just delete this component
-            saRemove(components, i--, 0);
+            saRemove(components, i--);
             csz--;
         }
     }

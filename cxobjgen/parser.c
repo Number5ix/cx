@@ -171,7 +171,7 @@ static bool nextCustomTok(ParseState *ps, string *tok, char ends)
 
 bool parseAnnotation(ParseState *ps, string *tok)
 {
-    string *anparts = saCreate(string, 2, 0);
+    string *anparts = saCreate(string, 2);
     string part = 0;
 
     strDestroy(tok);
@@ -181,15 +181,15 @@ bool parseAnnotation(ParseState *ps, string *tok)
         saDestroy(&anparts);
         return false;
     }
-    saPushC(&anparts, string, &part, 0);
+    saPushC(&anparts, string, &part);
 
     nextCustomTok(ps, &part, ']');
     if (!strEmpty(part))
-        saPushC(&anparts, string, &part, 0);
+        saPushC(&anparts, string, &part);
     else
         strDestroy(&part);
 
-    saPushC(&ps->annotations, sarray, &anparts, 0);
+    saPushC(&ps->annotations, sarray, &anparts);
     return true;
 }
 
@@ -235,7 +235,7 @@ bool parseGlobal(ParseState *ps, string *tok)
         ps->context = Context_ClassPre;
         ps->curcls->included = ps->included;
         ps->curcls->annotations = ps->annotations;
-        ps->annotations = saCreate(sarray, 4, 0);
+        ps->annotations = saCreate(sarray, 4);
         return true;
     } else if (strEq(*tok, _S"#include")) {
         string fname = 0;
@@ -272,18 +272,18 @@ bool parseGlobal(ParseState *ps, string *tok)
             pathFromPlatform(&rname, fname);
             ret = parseFile(rname, &realfname, ps->includepath, true, true);
             pathSetExt(&fname, fname, _S"h");
-            saPushC(&deps, string, &realfname, SA_Unique);
+            saPushC(&deps, string, &realfname, Unique);
             strDestroy(&rname);
         }
 
         strPrepend(brackets ? _S"<" : _S"\"", &fname);
         strAppend(&fname, brackets ? _S">" : _S"\"");
-        saPushC(&includes, string, &fname, SA_Unique);
+        saPushC(&includes, string, &fname, Unique);
         strDestroy(&ext);
         return ret;
     } else if (strEq(*tok, _S"struct")) {
         nextTok(ps, tok);
-        saPush(&structs, string, *tok, SA_Unique);
+        saPush(&structs, string, *tok, Unique);
         nextTok(ps, tok);
         if (!strEq(*tok, _S";")) {
             fprintf(stderr, "parse error in structure forward declaration\n");
@@ -319,7 +319,7 @@ bool parseInterfacePre(ParseState *ps, string *tok)
             strDestroy(&name);
             return false;
         }
-        if (!htFind(&ifidx, string, name, object, &ps->curif->parent, 0)) {
+        if (!htFind(&ifidx, string, name, object, &ps->curif->parent)) {
             fprintf(stderr, "Could not find interface '%s'\n", strC(&name));
             strDestroy(&name);
             return false;
@@ -338,8 +338,8 @@ bool parseInterfacePre(ParseState *ps, string *tok)
 bool parseInterface(ParseState *ps, string *tok)
 {
     if (strEq(*tok, _S"}")) {
-        htInsert(&ifidx, string, ps->curif->name, object, ps->curif, 0);
-        saPushC(&ifaces, object, &ps->curif, 0);
+        htInsert(&ifidx, string, ps->curif->name, object, ps->curif);
+        saPushC(&ifaces, object, &ps->curif);
         saClear(&ps->annotations);
         ps->context = Context_Global;
         return true;
@@ -349,7 +349,7 @@ bool parseInterface(ParseState *ps, string *tok)
                 fprintf(stderr, "Incomplete interface method declaration\n");
                 return false;
             }
-            saPushC(&ps->curif->methods, object, &ps->curmethod, 0);
+            saPushC(&ps->curif->methods, object, &ps->curmethod);
         }
         return true;
     } else if (!ps->curmethod) {
@@ -361,7 +361,7 @@ bool parseInterface(ParseState *ps, string *tok)
         ps->curmethod->annotations = ps->annotations;
         ps->curmethod->srcif = ps->curif;
         strDup(&ps->curmethod->srcfile, ps->fname);
-        ps->annotations = saCreate(sarray, 4, 0);
+        ps->annotations = saCreate(sarray, 4);
         strDup(&ps->curmethod->returntype, *tok);
         return true;
     } else if (strEq(*tok, _S"(")) {
@@ -394,7 +394,7 @@ bool parseParamList(ParseState *ps, string *tok)
                 fprintf(stderr, "Incomplete method parameter\n");
                 return false;
             }
-            saPushC(&ps->curmethod->params, object, &ps->curparam, 0);
+            saPushC(&ps->curmethod->params, object, &ps->curparam);
         }
         saClear(&ps->annotations);
         ps->allowannotations = true;
@@ -405,7 +405,7 @@ bool parseParamList(ParseState *ps, string *tok)
             fprintf(stderr, "Incomplete method parameter\n");
             return false;
         }
-        saPushC(&ps->curmethod->params, object, &ps->curparam, 0);
+        saPushC(&ps->curmethod->params, object, &ps->curparam);
         return true;
     } else if (!ps->curparam) {
         if (!isvalidname(*tok)) {
@@ -453,7 +453,7 @@ bool parseClassPre(ParseState *ps, string *tok)
             strDestroy(&name);
             return false;
         }
-        if (!htFind(&clsidx, string, name, object, &ps->curcls->parent, 0)) {
+        if (!htFind(&clsidx, string, name, object, &ps->curcls->parent)) {
             fprintf(stderr, "Could not find class '%s'\n", strC(&name));
             strDestroy(&name);
             return false;
@@ -469,7 +469,7 @@ bool parseClassPre(ParseState *ps, string *tok)
             strDestroy(&name);
             return false;
         }
-        if (!htFind(&clsidx, string, name, object, &uses, 0)) {
+        if (!htFind(&clsidx, string, name, object, &uses)) {
             fprintf(stderr, "Could not find class '%s'\n", strC(&name));
             strDestroy(&name);
             return false;
@@ -479,7 +479,7 @@ bool parseClassPre(ParseState *ps, string *tok)
             strDestroy(&name);
             return false;
         }
-        saPush(&ps->curcls->uses, object, uses, SA_Unique);
+        saPush(&ps->curcls->uses, object, uses, Unique);
         strDestroy(&name);
         return true;
     } else if (strEq(*tok, _S"implements")) {
@@ -491,12 +491,12 @@ bool parseClassPre(ParseState *ps, string *tok)
             return false;
         }
         Interface *tempif = 0;
-        if (!htFind(&ifidx, string, name, object, &tempif, 0)) {
+        if (!htFind(&ifidx, string, name, object, &tempif)) {
             fprintf(stderr, "Could not find interface '%s'\n", strC(&name));
             strDestroy(&name);
             return false;
         }
-        saPush(&ps->curcls->implements, object, tempif, SA_Unique);
+        saPush(&ps->curcls->implements, object, tempif, Unique);
         strDestroy(&name);
         return true;
     } else if (!ps->curcls->name && isvalidname(*tok)) {
@@ -515,15 +515,15 @@ bool parseClass(ParseState *ps, string *tok)
             fprintf(stderr, "Extra junk in class definition\n");
             return false;
         }
-        htInsert(&clsidx, string, ps->curcls->name, object, ps->curcls, 0);
-        saPushC(&classes, object, &ps->curcls, 0);
+        htInsert(&clsidx, string, ps->curcls->name, object, ps->curcls);
+        saPushC(&classes, object, &ps->curcls);
         saClear(&ps->annotations);
         ps->allowannotations = true;
         ps->context = Context_Global;
         return true;
     } else if (strEq(*tok, _S";")) {
         if (ps->curmethod) {
-            saPushC(&ps->curcls->methods, object, &ps->curmethod, 0);
+            saPushC(&ps->curcls->methods, object, &ps->curmethod);
         } else if (saSize(&ps->tokstack) >= 2) {
             // this must be a class member
             if (!isvalidname(ps->tokstack[0])) {
@@ -532,7 +532,7 @@ bool parseClass(ParseState *ps, string *tok)
             }
             Member *nmem = memberCreate();
             nmem->annotations = ps->annotations;
-            ps->annotations = saCreate(sarray, 4, 0);
+            ps->annotations = saCreate(sarray, 4);
 
             string *vartype = 0;
             if (strSplit(&vartype, ps->tokstack[0], _S":", false) >= 2) {
@@ -566,7 +566,7 @@ bool parseClass(ParseState *ps, string *tok)
                 objRelease(nmem);
                 return false;
             }
-            saPushC(&ps->curcls->members, object, &nmem, 0);
+            saPushC(&ps->curcls->members, object, &nmem);
         }
         saClear(&ps->tokstack);
         saClear(&ps->annotations);
@@ -606,7 +606,7 @@ bool parseClass(ParseState *ps, string *tok)
 
         ps->curmethod = methodCreate();
         ps->curmethod->annotations = ps->annotations;
-        ps->annotations = saCreate(sarray, 4, 0);
+        ps->annotations = saCreate(sarray, 4);
         ps->curmethod->srcclass = ps->curcls;
         strDup(&ps->curmethod->srcfile, ps->fname);
 
@@ -616,7 +616,7 @@ bool parseClass(ParseState *ps, string *tok)
                 return false;
             }
             ps->curmethod->unbound = true;
-            saRemove(&ps->tokstack, 0, 0);
+            saRemove(&ps->tokstack, 0);
         } else if (strEq(ps->tokstack[0], _S"factory")) {
             if (ps->curcls->abstract || ps->curcls->mixin) {
                 fprintf(stderr, "%s class '%s' tried to declare a factory\n",
@@ -627,7 +627,7 @@ bool parseClass(ParseState *ps, string *tok)
 
             ps->curmethod->unbound = true;
             ps->curmethod->isfactory = true;
-            saRemove(&ps->tokstack, 0, 0);
+            saRemove(&ps->tokstack, 0);
             saInsert(&ps->tokstack, 0, string, ps->curcls->name);
             saInsert(&ps->tokstack, 1, string, _S"*");
         }
@@ -660,12 +660,12 @@ bool parseClass(ParseState *ps, string *tok)
             fprintf(stderr, "Invalid override '%s'\n", strC(&name));
             return false;
         }
-        saPushC(&ps->curcls->overrides, string, &name, SA_Unique);
+        saPushC(&ps->curcls->overrides, string, &name, Unique);
         return true;
     }
 
     // we don't know what this is yet, so save it until more context is available
-    saPush(&ps->tokstack, string, *tok, 0);
+    saPush(&ps->tokstack, string, *tok);
     ps->allowannotations = false;           // don't allow after start, so static arrays can be parsed
     return true;
 }
@@ -690,7 +690,7 @@ bool parseFile(string fname, string *realfn, string *searchpath, bool included, 
     }
 
     pathNormalize(&fpath);
-    ps.fp = fsOpen(fpath, FS_Read);
+    ps.fp = fsOpen(fpath, Read);
     if (!ps.fp) {
         if (required)
             fprintf(stderr, "Could not open %s\n", lazyPlatformPath(fpath));
@@ -698,18 +698,18 @@ bool parseFile(string fname, string *realfn, string *searchpath, bool included, 
         return parseEnd(&ps, false);
     }
 
-    stCopy(sarray, &ps.includepath, searchpath, 0);
+    stCopy(sarray, &ps.includepath, searchpath);
     string fdir = 0;
     pathParent(&fdir, fpath);
-    saPushC(&ps.includepath, string, &fdir, SA_Unique);
+    saPushC(&ps.includepath, string, &fdir, Unique);
 
     if (realfn)
         strDup(realfn, fpath);
     strDestroy(&fpath);
 
     ps.context = Context_Global;
-    ps.tokstack = saCreate(string, 8, 0);
-    ps.annotations = saCreate(sarray, 4, 0);
+    ps.tokstack = saCreate(string, 8);
+    ps.annotations = saCreate(sarray, 4);
     ps.included = included;
     ps.allowannotations = true;
 

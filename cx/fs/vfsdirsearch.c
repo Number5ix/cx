@@ -48,9 +48,13 @@ static STypeOps FSDirEnt_ops_cs = {
 VFSDirSearch *vfsSearchDir(VFS *vfs, string path, string pattern, int typefilter, bool stat)
 {
     string abspath = 0, curpath = 0, filepath = 0;
-    hashtable names = htCreate(string, intptr, 8, ((vfs->flags & VFS_CaseSensitive) ? 0 : HT_CaseInsensitive) |
-                               HT_RefKeys | htGrow(MaxSpeed));
+    hashtable names;
     int32 idx;
+
+    if ((vfs->flags & VFS_CaseSensitive))
+        names = htCreate(string, intptr, 8, RefKeys, Grow(MaxSpeed));
+    else
+        names = htCreate(string, intptr, 8, CaseInsensitive, RefKeys, Grow(MaxSpeed));
 
     // just hold the write lock for this since we'll be adding entries to the cache throughout
     rwlockAcquireWrite(vfs->vfslock);
@@ -69,7 +73,7 @@ VFSDirSearch *vfsSearchDir(VFS *vfs, string path, string pattern, int typefilter
     ret->vfs = objAcquire(vfs);
     ret->idx = 0;
     STypeOps direntops = (vfs->flags & VFS_CaseSensitive) ? FSDirEnt_ops_cs : FSDirEnt_ops;
-    ret->ents = saCreate(custom(opaque(FSDirEnt), direntops), 16, saGrow(Aggressive));
+    ret->ents = saCreate(custom(opaque(FSDirEnt), direntops), 16, Grow(Aggressive));
 
     // add child mount points as subdirectories
     htiter sdi;
@@ -80,8 +84,8 @@ VFSDirSearch *vfsSearchDir(VFS *vfs, string path, string pattern, int typefilter
             FSDirEnt ent = { 0 };
             strDup(&ent.name, sd->name);
             ent.type = FS_Directory;
-            saPushC(&ret->ents, opaque, &ent, 0);
-            htInsert(&names, string, sd->name, intptr, 1, 0);
+            saPushC(&ret->ents, opaque, &ent);
+            htInsert(&names, string, sd->name, intptr, 1);
         }
     }
     htiDestroy(&sdi);
@@ -120,14 +124,14 @@ VFSDirSearch *vfsSearchDir(VFS *vfs, string path, string pattern, int typefilter
                 if ((!typefilter || (ent->type & typefilter) == typefilter) &&
                     !htHasKey(&names, string, ent->name)) {
                     // add to list and hash table of seen files
-                    idx = saPush(&ret->ents, opaque, *ent, 0);
-                    htInsert(&names, string, ret->ents[idx].name, intptr, 1, 0);
+                    idx = saPush(&ret->ents, opaque, *ent);
+                    htInsert(&names, string, ret->ents[idx].name, intptr, 1);
 
                     if (ent->type == FS_File && !(pdir->mounts[i]->flags & VFS_NoCache)) {
                         // go ahead and add it to the cache while we're here
                         pathJoin(&filepath, curpath, ent->name);
                         VFSCacheEnt *newent = _vfsCacheEntCreate(pdir->mounts[i], filepath);
-                        htInsertC(&vfsdir->files, string, ent->name, ptr, &newent, HT_Ignore);
+                        htInsertC(&vfsdir->files, string, ent->name, ptr, &newent, Ignore);
                     }
                 }
                 ent = dsprovif->next(dsprov);

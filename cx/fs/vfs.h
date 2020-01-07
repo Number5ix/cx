@@ -13,13 +13,15 @@ CX_C_BEGIN
 // vfsCreate() is in vfsobj.h
 void vfsDestroy(VFS *vfs);
 bool _vfsMountProvider(VFS *vfs, ObjInst *provider, string path, uint32 flags);
-#define vfsMountProvider(vfs, provider, path, flags) _vfsMountProvider(vfs, objInstBase(provider), path, flags)
+#define vfsMountProvider(vfs, provider, path, ...) _vfsMountProvider(vfs, objInstBase(provider), path, func_flags(VFS, __VA_ARGS__))
 
 // Mounts the built-in OS filesystem provider to the given VFS
-bool vfsMountFS(VFS *vfs, string path, string fsroot, uint32 flags);
+bool _vfsMountFS(VFS *vfs, string path, string fsroot, uint32 flags);
+#define vfsMountFS(vfs, path, fsroot, ...) _vfsMountFS(vfs, path, fsroot, func_flags(VFS, __VA_ARGS__))
 
 // Mounts one VFS under another (loopback mode)
-bool vfsMountVFS(VFS *vfs, string path, VFS *vfs2, string vfs2root, uint32 flags);
+bool _vfsMountVFS(VFS *vfs, string path, VFS *vfs2, string vfs2root, uint32 flags);
+#define vfsMountVFS(vfs, path, vfs2, vfs2root, ...) _vfsMountVFS(vfs, path, vfs2, vfs2root, func_flags(VFS, __VA_ARGS__))
 
 // Get / set current directory
 void vfsCurDir(VFS *vfs, string *out);
@@ -56,7 +58,8 @@ VFSDirSearch *vfsSearchDir(VFS *vfs, string path, string pattern, int typefilter
 FSDirEnt *vfsSearchNext(VFSDirSearch *search);
 void vfsSearchClose(VFSDirSearch *search);
 
-VFSFile *vfsOpen(VFS *vfs, string path, int flags);
+VFSFile *_vfsOpen(VFS *vfs, string path, int flags);
+#define vfsOpen(vfs, path, ...) _vfsOpen(vfs, path, func_flags(FS, __VA_ARGS__))
 bool vfsClose(VFSFile *file);
 bool vfsRead(VFSFile *file, void *buf, size_t sz, size_t *bytesread);
 bool vfsWrite(VFSFile *file, void *buf, size_t sz, size_t *byteswritten);
@@ -66,6 +69,7 @@ int64 vfsSeek(VFSFile *file, int64 off, int seektype);
 bool vfsFlush(VFSFile *file);
 
 enum VFSFlags {
+    VFS_              = 0x00000000,
     // Flags that are valid for both VFS creation and VFS providers
     VFS_ReadOnly      = 0x00000001,     // write operations not allowed on this layer
     VFS_CaseSensitive = 0x00000002,     // filesystem or VFS is case-sensitive

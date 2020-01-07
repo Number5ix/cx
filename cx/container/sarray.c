@@ -245,14 +245,14 @@ static int32 sa_find_internal(SArrayHeader *hdr, const void *elem, bool *found)
 
     *found = false;
     if (hdr->flags & SA_Sorted) {
-        if ((hdr->flags & SA_Extended) && hdr->typeops.cmp)
+        if ((hdr->flags & SAINT_Extended) && hdr->typeops.cmp)
             return sa_bsearch_internal_stypecmp(hdr, elem, found);
 
         if (bsearch_spec[type])
             return bsearch_spec[type](hdr, elem, found);
         return sa_bsearch_internal_stype(hdr, elem, found);
     } else {
-        if ((hdr->flags & SA_Extended) && hdr->typeops.cmp)
+        if ((hdr->flags & SAINT_Extended) && hdr->typeops.cmp)
             return sa_find_internal_stypecmp(hdr, elem, found);
 
         if (find_spec[type])
@@ -268,7 +268,7 @@ static void sa_qsort_internal(SArrayHeader *hdr)
     uint8 type = stGetId(hdr->elemtype);
     lazyInit(&spec_init_state, sa_spec_init, NULL);
 
-    if ((hdr->flags & SA_Extended) && hdr->typeops.cmp)
+    if ((hdr->flags & SAINT_Extended) && hdr->typeops.cmp)
         sa_qsort_internal_stypecmp(hdr, hdr->data, hdr->count);
     else if (qsort_spec[type])
         qsort_spec[type](hdr, hdr->data, hdr->count);
@@ -293,7 +293,7 @@ void *_saCreate(stype elemtype, STypeOps *ops, int32 capacity, uint32 flags)
 
     if (ops) {
         // need the full header
-        flags |= SA_Extended;
+        flags |= SAINT_Extended;
         hdr = xaAlloc(SARRAY_HDRSIZE + capacity * stGetSize(elemtype), 0);
         hdr->typeops = *ops;
     } else {
@@ -322,7 +322,7 @@ void *_saCreate(stype elemtype, STypeOps *ops, int32 capacity, uint32 flags)
 
 static void saRealloc(void **handle, SArrayHeader **hdr, int32 cap)
 {
-    if ((*hdr)->flags & SA_Extended) {
+    if ((*hdr)->flags & SAINT_Extended) {
         *hdr = xaResize(*hdr, SARRAY_HDRSIZE + cap * stGetSize((*hdr)->elemtype), 0);
     } else {
         // ugly non-extended header
@@ -392,7 +392,7 @@ void _saDestroy(void **handle)
 
     SArrayHeader *hdr = SARRAY_HDR(*handle);
     _saClear(handle);           // to call dtors
-    if (hdr->flags & SA_Extended) {
+    if (hdr->flags & SAINT_Extended) {
         xaFree(hdr);
     } else {
         void *smbase = (void*)((uintptr_t)hdr + SARRAY_SMALLHDR_OFFSET);
@@ -527,20 +527,20 @@ int32 _saPush(void **handle, stype elemtype, void *elem, uint32 flags)
     if (hdr->flags & SA_Sorted) {
         bool found = false;
         int32 idx = sa_find_internal(hdr, elem, &found);
-        if (found && (flags & SA_Unique)) {
-            if (flags & SA_Consume)
+        if (found && (flags & SAFUNC_Unique)) {
+            if (flags & SAFUNCINT_Consume)
                 _stDestroy(hdr->elemtype, ops, elem, 0);
             return -1;          // don't insert if we already have it
         }
 
-        idx = sa_insert_internal(handle, hdr, idx, elem, flags & SA_Consume);
+        idx = sa_insert_internal(handle, hdr, idx, elem, flags & SAFUNCINT_Consume);
         return idx;
     } else {
-        if (flags & SA_Unique) {
+        if (flags & SAFUNC_Unique) {
             bool found = false;
             sa_find_internal(hdr, elem, &found);
             if (found) {
-                if (flags & SA_Consume)
+                if (flags & SAFUNCINT_Consume)
                     _stDestroy(hdr->elemtype, ops, elem, 0);
                 return -1;
             }
@@ -549,7 +549,7 @@ int32 _saPush(void **handle, stype elemtype, void *elem, uint32 flags)
         if (hdr->count == hdr->capacity)
             _saGrow(handle, &hdr, hdr->count + 1);
 
-        sa_set_elem_internal(hdr, hdr->count, elem, flags & SA_Consume);
+        sa_set_elem_internal(hdr, hdr->count, elem, flags & SAFUNCINT_Consume);
 
         hdr->count++;
         return hdr->count - 1;
@@ -583,10 +583,10 @@ bool _saRemove(void **handle, int32 idx, uint32 flags)
     if (idx < 0 || idx >= hdr->count)
         return false;
 
-    if (!(hdr->flags & SA_Ref) && !(flags & SA_RemoveOnly))
+    if (!(hdr->flags & SA_Ref) && !(flags & SAFUNC_RemoveOnly))
         _stDestroy(hdr->elemtype, HDRTYPEOPS(hdr), ELEMPTR(hdr, idx), 0);
 
-    sa_remove_internal(handle, hdr, idx, flags & SA_Fast);
+    sa_remove_internal(handle, hdr, idx, flags & SAFUNC_Fast);
 
     if (hdr->flags & SA_AutoShrink) {
         saRealloc(handle, &hdr, hdr->count);
@@ -634,10 +634,10 @@ int32 _saFind(void **handle, const void *elem, uint32 flags)
 
     idx = sa_find_internal(hdr, elem, &found);
 
-    if (found && ((flags & SA_Destroy) || (flags & SA_RemoveOnly)))
+    if (found && ((flags & SAFUNC_Destroy) || (flags & SAFUNC_RemoveOnly)))
         _saRemove(handle, idx, flags);
 
-    if (!found && !((flags & SA_Inexact) && (hdr->flags & SA_Sorted)))
+    if (!found && !((flags & SAFUNC_Inexact) && (hdr->flags & SA_Sorted)))
         return -1;
 
     return idx;

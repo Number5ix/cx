@@ -38,7 +38,7 @@ hashtable _htCreate(stype keytype, STypeOps *keyops, stype valtype, STypeOps *va
     if ((HT_GET_GROW(flags) & HT_GROW_AT_MASK) != HT_GROW_At50) {
         // At an average table load of 0.5, linear probing is better due to cache.
         // For everything else use quadratic to avoid clustering.
-        flags |= HT_Quadratic;
+        flags |= HTINT_Quadratic;
     }
 
     if ((HT_GET_GROW(flags) & HT_GROW_BY_MASK) == HT_GROW_By100 ||
@@ -47,13 +47,13 @@ hashtable _htCreate(stype keytype, STypeOps *keyops, stype valtype, STypeOps *va
         // If we set the initial table size to a power of 2, it will always be a
         // power-of-2 sized table even after growing, so we can use fast indexing
         // with masking rather than modulo.
-        flags |= HT_Pow2;
+        flags |= HTINT_Pow2;
         initsz = npow2(initsz);
     }
 
     if (keyops || valops) {
         // need the extended header
-        flags |= HT_Extended;
+        flags |= HTINT_Extended;
         ret = xaAlloc(sizeof(HashTableHeader) + elemsz * initsz, 0);
         memset(&ret->keytypeops, 0, sizeof(ret->keytypeops));
         memset(&ret->valtypeops, 0, sizeof(ret->valtypeops));
@@ -88,7 +88,7 @@ hashtable _htCreate(stype keytype, STypeOps *keyops, stype valtype, STypeOps *va
 
 static _meta_inline uint32 clampHash(HashTableHeader *hdr, uint32 hash)
 {
-    if (hdr->flags & HT_Pow2)
+    if (hdr->flags & HTINT_Pow2)
         return hash & (hdr->slots - 1);
     else
         return hash % hdr->slots;
@@ -105,11 +105,11 @@ hashtable _htClone(hashtable *htbl, int32 minsz, int32 *origslot, bool move)
         minsz = hdr->slots;
 
     int32 newsz = clamplow(minsz, hdr->valid + 1);
-    if (hdr->flags & HT_Pow2)
+    if (hdr->flags & HTINT_Pow2)
         newsz = npow2(newsz);
 
     // make a new table to copy stuff into
-    if (hdr->flags & HT_Extended) {
+    if (hdr->flags & HTINT_Extended) {
         // need the extended header
         nhdr = xaAlloc(sizeof(HashTableHeader) + elemsz * newsz, 0);
     } else {
@@ -132,7 +132,7 @@ hashtable _htClone(hashtable *htbl, int32 minsz, int32 *origslot, bool move)
         nhdr->flags = hdr->flags;
     }
 
-    if (hdr->flags & HT_Extended) {
+    if (hdr->flags & HTINT_Extended) {
         nhdr->keytypeops = hdr->keytypeops;
         nhdr->valtypeops = hdr->valtypeops;
     }
@@ -176,7 +176,7 @@ static void htResizeTable(hashtable *htbl, int32 newsz, int32 *origslot)
     *htbl = _htClone(htbl, newsz, origslot, true);
 
     // free old table
-    if (hdr->flags & HT_Extended) {
+    if (hdr->flags & HTINT_Extended) {
         xaFree(hdr);
     } else {
         void *smbase = (void*)((uintptr_t)hdr + HT_SMALLHDR_OFFSET);
@@ -189,7 +189,7 @@ static void htGrowTable(hashtable *htbl, int32 *origslot)
     HashTableHeader *hdr = HTABLE_HDR(*htbl);
     int32 newsz = hdr->slots;
 
-    if (hdr->flags & HT_Pow2)
+    if (hdr->flags & HTINT_Pow2)
         newsz = npow2(newsz);
 
     switch (HT_GET_GROW(hdr->flags) & HT_GROW_BY_MASK) {
@@ -216,7 +216,7 @@ static void htGrowTable(hashtable *htbl, int32 *origslot)
 static bool htFindInternal(HashTableHeader *hdr, void *key, int32 *indexOut, int32 *deletedOut)
 {
     uint32 elemsz = _htElemSz(hdr);
-    uint32 opsflags = (hdr->flags & HT_CaseInsensitive) ? ST_CaseInsensitive : 0;
+    uint32 opsflags = (hdr->flags & HT_CaseInsensitive) ? STOPS_CaseInsensitive : 0;
     uint32 probes = 1;
 
     if (deletedOut)
@@ -251,7 +251,7 @@ static bool htFindInternal(HashTableHeader *hdr, void *key, int32 *indexOut, int
         }
 
         // keep searching
-        if (hdr->flags & HT_Quadratic) {
+        if (hdr->flags & HTINT_Quadratic) {
             hash += probes * probes;
             probes++;
         } else {
@@ -292,9 +292,9 @@ static int32 _htInsertInternal(hashtable *htbl, void *key, void *val, uint32 fla
     found = htFindInternal(hdr, key, &slot, &deleted);
 
     if (found) {
-        if (flags & HT_Ignore) {
+        if (flags & HTFUNC_Ignore) {
             // already exists and set to ignore, so do not set value
-            if (flags & HT_Consume)
+            if (flags & HTFUNCINT_Consume)
                 _stDestroy(hdr->valtype, HDRVALOPS(hdr), val, 0);
             return slot;
         }
@@ -303,7 +303,7 @@ static int32 _htInsertInternal(hashtable *htbl, void *key, void *val, uint32 fla
         if (!(hdr->flags & HT_Ref))
             _stDestroy(hdr->valtype, HDRVALOPS(hdr), HTVAL(hdr, _htElemSz(hdr), slot), 0);
 
-        htSetValueInternal(hdr, slot, val, flags & HT_Consume);
+        htSetValueInternal(hdr, slot, val, flags & HTFUNCINT_Consume);
         return slot;
     }
 
@@ -319,7 +319,7 @@ static int32 _htInsertInternal(hashtable *htbl, void *key, void *val, uint32 fla
     else
         memcpy(HTKEY(hdr, _htElemSz(hdr), slot), key, stGetSize(hdr->keytype));
 
-    htSetValueInternal(hdr, slot, val, flags & HT_Consume);
+    htSetValueInternal(hdr, slot, val, flags & HTFUNCINT_Consume);
 
     hdr->valid++;
 
@@ -390,7 +390,7 @@ void htDestroy(hashtable *htbl)
     htClear(htbl);
 
     HashTableHeader *hdr = HTABLE_HDR(*htbl);
-    if (hdr->flags & HT_Extended) {
+    if (hdr->flags & HTINT_Extended) {
         xaFree(hdr);
     } else {
         void *smbase = (void*)((uintptr_t)hdr + HT_SMALLHDR_OFFSET);
@@ -402,7 +402,7 @@ void htSetSize(hashtable *htbl, int32 newsz)
 {
     HashTableHeader *hdr = HTABLE_HDR(*htbl);
 
-    if (hdr->flags & HT_Pow2)
+    if (hdr->flags & HTINT_Pow2)
         newsz = npow2(newsz);
     if (newsz < hdr->slots)
         htResizeTable(htbl, newsz, NULL);
@@ -418,9 +418,9 @@ bool _htFind(hashtable *htbl, void *key, void *val, uint32 flags)
     if (found) {
         if (val)
             memcpy(val, HTVAL(hdr, elemsz, slot), stGetSize(hdr->valtype));
-        if ((flags & HT_Destroy) && !(hdr->flags & HT_Ref))
+        if ((flags & HTFUNC_Destroy) && !(hdr->flags & HT_Ref))
             _stDestroy(hdr->valtype, HDRVALOPS(hdr), HTVAL(hdr, elemsz, slot), 0);
-        if (flags & (HT_Destroy | HT_RemoveOnly)) {
+        if (flags & (HTFUNC_Destroy | HTFUNC_RemoveOnly)) {
             if (!(hdr->flags & HT_RefKeys))
                 _stDestroy(hdr->keytype, HDRKEYOPS(hdr), HTKEY(hdr, elemsz, slot), 0);
             *(uint64*)HTKEY(hdr, elemsz, slot) = hashDeleted;

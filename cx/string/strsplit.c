@@ -9,7 +9,7 @@ int32 strSplit(string **out, string s, string sep, bool empty)
     if (*out)
         saDestroy(out);
 
-    *out = saCreate(string, 8, 0);
+    *out = saCreate(string, 8);
 
     uint32 seplen = strLen(sep);
     int32 start = 0, next;
@@ -20,13 +20,13 @@ int32 strSplit(string **out, string s, string sep, bool empty)
                 strSubStr(&seg, s, start, next);
             else
                 strClear(&seg);
-            saPushC(out, string, &seg, 0);
+            saPushC(out, string, &seg);
         }
         start = next + seplen;
     }
     if (start < (int32)strLen(s) || empty) {
         strSubStr(&seg, s, start, strLen(s));
-        saPushC(out, string, &seg, 0);
+        saPushC(out, string, &seg);
     }
 
     return saSize(out);

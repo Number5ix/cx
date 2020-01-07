@@ -21,17 +21,17 @@ int main(int argc, char *argv[])
     string *sidlfiles;
     string *searchpath;
     string fname = 0;
-    ifaces = saCreate(object, 16, 0);
-    ifidx = htCreate(string, object, 16, 0);
-    classes = saCreate(object, 16, 0);
-    clsidx = htCreate(string, object, 16, 0);
-    includes = saCreate(string, 8, 0);
-    implincludes = saCreate(string, 4, 0);
-    deps = saCreate(string, 8, 0);
-    structs = saCreate(string, 8, 0);
+    ifaces = saCreate(object, 16);
+    ifidx = htCreate(string, object, 16);
+    classes = saCreate(object, 16);
+    clsidx = htCreate(string, object, 16);
+    includes = saCreate(string, 8);
+    implincludes = saCreate(string, 4);
+    deps = saCreate(string, 8);
+    structs = saCreate(string, 8);
 
-    searchpath = saCreate(string, 8, 0);
-    sidlfiles = saCreate(string, 4, 0);
+    searchpath = saCreate(string, 8);
+    sidlfiles = saCreate(string, 4);
 
     string tmp = 0;
     for (int i = 1; i < argc; i++) {
@@ -39,12 +39,12 @@ int main(int argc, char *argv[])
         if (strEq(tmp, _S"-I")) {
             strSubStr(&tmp, argv[i], 2, 0);
             pathFromPlatform(&tmp, tmp);
-            saPush(&searchpath, string, tmp, 0);
+            saPush(&searchpath, string, tmp);
         } else if (strEq(argv[i], _S"-f")) {
             force = true;
         } else {
             pathFromPlatform(&tmp, argv[i]);
-            saPush(&sidlfiles, string, tmp, 0);
+            saPush(&sidlfiles, string, tmp);
         }
     }
     strDestroy(&tmp);

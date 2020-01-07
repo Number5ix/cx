@@ -109,7 +109,7 @@ static void freeSpaceRemove(uint16 start, uint16 size)
 void bboxInit()
 {
     bbmtx = mutexCreate();
-    bbindex = htCreate(string, uint16, 0, 0);
+    bbindex = htCreate(string, uint16, 0);
     freelist = xaAlloc(sizeof(BBoxFreelistNode), 0);
     freelist->next = 0;
     freelist->start = sizeof(int16) * 2;            // after the head and tail pointers
@@ -121,7 +121,7 @@ static void _bboxDeleteInternal(uint16 idx)
     BlackBoxEnt *ent = (BlackBoxEnt*)&dbgBlackBox[idx];
     uint16 dummy = 0;
 
-    htFind(&bbindex, string, ent->name, uint16, &dummy, HT_Destroy);
+    htFind(&bbindex, string, ent->name, uint16, &dummy, Destroy);
 
     if (dbgBlackBoxHead == idx)
         dbgBlackBoxHead = ent->next;
@@ -148,7 +148,7 @@ void bboxSet(string name, string val, uint8 flags)
     BlackBoxEnt *ent = 0, *tail;
     uint16 idx = 0;
 
-    if (htFind(&bbindex, string, name, uint16, &idx, 0)) {
+    if (htFind(&bbindex, string, name, uint16, &idx)) {
         // already exists in index
         ent = (BlackBoxEnt*)&dbgBlackBox[idx];
         // is it big enough that we can overwrite in place?
@@ -205,7 +205,7 @@ void bboxSet(string name, string val, uint8 flags)
         strCopyOut(val, 0, bboxGetVal(ent), ent->vallen);
 
         // add to index
-        htInsert(&bbindex, string, ent->name, uint16, best->start, 0);
+        htInsert(&bbindex, string, ent->name, uint16, best->start);
 
         freeSpaceRemove(best->start, needsz);
     } else {
@@ -222,7 +222,7 @@ void bboxDelete(string name)
     mutexAcquire(bbmtx);
     uint16 idx = 0;
 
-    if (htFind(&bbindex, string, name, uint16, &idx, 0))
+    if (htFind(&bbindex, string, name, uint16, &idx))
         _bboxDeleteInternal(idx);
 
     mutexRelease(bbmtx);
