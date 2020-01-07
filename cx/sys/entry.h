@@ -6,6 +6,7 @@
 #include "cx/platform/base.h"
 
 // Command-line arguments (UTF-8)
+extern string cmdProgram;
 extern string *cmdArgs;
 
 // DEFINE_ENTRY_POINT
