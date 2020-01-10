@@ -63,6 +63,7 @@ set(CXOBJGEN_INCLUDES
     buffile.h
     objtypes.h
     cxobjgen.h
+    objtypes.sidl
     )
 
 source_group("" FILES

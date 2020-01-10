@@ -163,9 +163,22 @@ set(PLATFORM_INCLUDES
     platform/cpu.h
     platform/os.h)
 
+if(CMAKE_COMPILER_IS_CLANG)
+    set(PLATFORM_COMPILER_INCLUDES
+        platform/clang/clang_atomic.h
+        platform/clang/clang_cpu.h)
+    source_group("platform\\clang" FILES
+        ${PLATFORM_COMPILER_INCLUDES})
+elseif(CMAKE_COMPILER_IS_MSVC)
+    set(PLATFORM_COMPILER_INCLUDES
+        platform/msvc/msvc_atomic.h
+        platform/msvc/msvc_cpu.h)
+    source_group("platform\\msvc" FILES
+        ${PLATFORM_COMPILER_INCLUDES})
+endif()
+
 if(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD" OR ${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-    set(PLATFORM_SRCS
-	${PLATFORM_SRCS}
+    set(PLATFORM_OS_SRCS
 	platform/unix/unix_debug_crash.c
 	platform/unix/unix_error.c
 	platform/unix/unix_fs_file.c
@@ -175,16 +188,19 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD" OR ${CMAKE_SYSTEM_NAME} MATCHES "Linux
 	platform/unix/unix_thread_rwlock.c
 	platform/unix/unix_time_clock.c
 	platform/unix/unix_vfs.c)
-    set(PLATFORM_INCLUDES
-	${PLATFORM_INCLUDES}
-	platform/unix.h
+    set(PLATFORM_OS_INCLUDES
 	platform/unix/unix_hostid.h
 	platform/unix/unix_os.h
 	platform/unix/unix_sys_entry.h
 	platform/unix/unix_time.h)
+    set(PLATFORM_INCLUDES
+	${PLATFORM_INCLUDES}
+	platform/unix.h)
+    source_group("platform\\unix" FILES
+        ${PLATFORM_OS_SRCS}
+        ${PLATFORM_OS_INCLUDES})
 elseif(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-    set(PLATFORM_SRCS
-	${PLATFORM_SRCS}
+    set(PLATFORM_OS_SRCS
 	platform/win/win_debug_crash.c
 	platform/win/win_debug_stacktrace.c
 	platform/win/win_error.c
@@ -197,15 +213,19 @@ elseif(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 	platform/win/win_thread_rwlock.c
 	platform/win/win_time_clock.c
 	platform/win/win_vfs.c)
-    set(PLATFORM_INCLUDES
-	${PLATFORM_INCLUDES}
-	platform/win.h
+    set(PLATFORM_OS_INCLUDES
 	platform/win/win_fs.h
 	platform/win/win_hostid.h
 	platform/win/win_os.h
 	platform/win/win_stacktrace.h
 	platform/win/win_sys_entry.h
 	platform/win/win_time.h)
+    set(PLATFORM_INCLUDES
+	${PLATFORM_INCLUDES}
+	platform/win.h)
+    source_group("platform\\win" FILES
+        ${PLATFORM_OS_SRCS}
+        ${PLATFORM_OS_INCLUDES})
 endif()
 source_group("platform" FILES
     ${PLATFORM_SRCS}
@@ -327,6 +347,9 @@ add_library(cx STATIC
     ${MATH_INCLUDES}
     ${PLATFORM_SRCS}
     ${PLATFORM_INCLUDES}
+    ${PLATFORM_COMPILER_INCLUDES}
+    ${PLATFORM_OS_SRCS}
+    ${PLATFORM_OS_INCLUDES}
     ${STRING_SRCS}
     ${STRING_INCLUDES}
     ${SYS_SRCS}
