@@ -21,8 +21,12 @@ bool _vfsAddPlatformSpecificMounts(VFS *vfs)
 
     string curdir = 0;
     fsCurDir(&curdir);
+    // mount current drive as root
+    strSubStr(&drive, _fsCurDir, 0, 3);
+    vfsMountFS(vfs, _S"/", drive);
     vfsSetCurDir(vfs, curdir);
     strDestroy(&curdir);
+    strDestroy(&drive);
 
     return ret;
 }
