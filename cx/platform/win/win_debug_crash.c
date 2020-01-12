@@ -433,7 +433,7 @@ bool dbgCrashSetPath(string path)
 
     string reportPlatform = 0;
     pathToPlatform(&reportPlatform, report);
-    strNConcat(&cmdl, chandler, _S" ", reportPlatform);
+    strNConcat(&cmdl, chandler, _S" \"", reportPlatform, _S"\"");
     crashhandlercmdline = strToUTF16A(cmdl);
 
     strDestroy(&reportPlatform);
