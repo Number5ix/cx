@@ -38,6 +38,11 @@ void strClear(string *ps);
 // Returns: String length.
 uint32 strLen(string s);
 
+// Sets the length of a string, truncating or filling with null-characters.
+//      ps: Pointer to string handle.
+//     len: New length
+bool strSetLen(string *ps, uint32 len);
+
 // Checks if a string is empty. Nonexistent strings are considered empty.
 //       s: String handle
 // Returns: true if string is empty

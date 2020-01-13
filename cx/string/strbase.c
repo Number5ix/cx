@@ -418,6 +418,27 @@ uint32 strCopyOut(string s, uint32 off, char *buf, uint32 bufsz)
     return _strFastCopy(s, off, buf, len);
 }
 
+bool strSetLen(string *ps, uint32 len)
+{
+    if (!ps)
+        return false;
+    if (!STR_CHECK_VALID(*ps))
+        _strReset(ps, len);
+
+    // make sure ps points to a flat string with only 1 reference
+    if (!_strFlatten(ps, len))
+        return false;
+
+    uint32 cursz = _strFastLen(*ps);
+    if (cursz < len) {
+        _strResize(ps, len, false);
+        memset(&STR_BUFFER(*ps)[cursz], 0, len - cursz + 1);
+    }
+
+    _strSetLen(*ps, len);
+    return true;
+}
+
 int strTestRefCount(string s)
 {
     if (!STR_CHECK_VALID(s) || !(STR_HDR(s) & STR_ALLOC))

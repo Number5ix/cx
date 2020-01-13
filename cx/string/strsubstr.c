@@ -88,7 +88,10 @@ char strGetChar(string s, int32 i)
     if (i < 0)
         off = max(0, _strFastLen(s) + i);
     else
-        off = min((uint32)i, _strFastLen(s));
+        off = i;
+
+    if (off >= _strFastLen(s))
+        return 0;
 
     return _strFastChar(s, off);
 }
@@ -103,8 +106,13 @@ void strSetChar(string *s, int32 i, char ch)
     // allow negative index to mean from the end of the string
     if (i < 0)
         off = max(0, _strFastLen(*s) + i);
+    else if (i == strEnd)
+        off = _strFastLen(*s);      // shortcut for appending a character
     else
-        off = min((uint32)i, _strFastLen(*s) - 1);       // can't overwrite terminating NULL!
+        off = i;
+
+    if (off >= _strFastLen(*s))
+        strSetLen(s, off + 1);
 
     if (!(STR_HDR(*s) & STR_ROPE)) {
         _strMakeUnique(s, 0);
