@@ -163,13 +163,13 @@ set(PLATFORM_INCLUDES
     platform/cpu.h
     platform/os.h)
 
-if(CMAKE_COMPILER_IS_CLANG)
+if(CX_COMPILER_IS_CLANG)
     set(PLATFORM_COMPILER_INCLUDES
         platform/clang/clang_atomic.h
         platform/clang/clang_cpu.h)
     source_group("platform\\clang" FILES
         ${PLATFORM_COMPILER_INCLUDES})
-elseif(CMAKE_COMPILER_IS_MSVC)
+elseif(CX_COMPILER_IS_MSVC)
     set(PLATFORM_COMPILER_INCLUDES
         platform/msvc/msvc_atomic.h
         platform/msvc/msvc_cpu.h)
@@ -177,7 +177,7 @@ elseif(CMAKE_COMPILER_IS_MSVC)
         ${PLATFORM_COMPILER_INCLUDES})
 endif()
 
-if(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD" OR ${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+if(CX_PLATFORM_IS_UNIX)
     set(PLATFORM_OS_SRCS
 	platform/unix/unix_debug_crash.c
 	platform/unix/unix_error.c
@@ -191,15 +191,14 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD" OR ${CMAKE_SYSTEM_NAME} MATCHES "Linux
     set(PLATFORM_OS_INCLUDES
 	platform/unix/unix_hostid.h
 	platform/unix/unix_os.h
-	platform/unix/unix_sys_entry.h
-	platform/unix/unix_time.h)
+	platform/unix/unix_sys_entry.h)
     set(PLATFORM_INCLUDES
 	${PLATFORM_INCLUDES}
 	platform/unix.h)
     source_group("platform\\unix" FILES
         ${PLATFORM_OS_SRCS}
         ${PLATFORM_OS_INCLUDES})
-elseif(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+elseif(CX_PLATFORM_IS_WINDOWS)
     set(PLATFORM_OS_SRCS
 	platform/win/win_debug_crash.c
 	platform/win/win_debug_stacktrace.c
@@ -285,7 +284,8 @@ source_group("thread" FILES
     ${THREAD_INCLUDES})
 
 set(TIME_INCLUDES
-    time/clock.h)
+    time/clock.h
+    time/time.h)
 source_group("time" FILES
     ${TIME_INCLUDES})
 
@@ -362,7 +362,7 @@ add_library(cx STATIC
     ${CX_INCLUDES})
 
 target_link_libraries(cx ${CMAKE_THREAD_LIBS_INIT} ${CMAKE_DL_LIBS} cxmem mbedtls)
-target_include_directories(cx SYSTEM PUBLIC ${CX_TOP_SOURCE_DIR})
+target_include_directories(cx SYSTEM PUBLIC ${CX_TOP_SOURCE_DIR} ${CX_TOP_BINARY_DIR})
 target_compile_definitions(cx PRIVATE UNICODE _UNICODE)
 
 target_compile_definitions(cx PUBLIC

@@ -3,9 +3,9 @@
 #include <cx/cx.h>
 #include <cx/platform/win.h>
 
-_meta_inline uint64 timeFromFileTime(FILETIME *ft)
+_meta_inline int64 timeFromFileTime(FILETIME *ft)
 {
-    uint64 ret = ((uint64)ft->dwHighDateTime << 32) | ft->dwLowDateTime;
+    int64 ret = ((int64)ft->dwHighDateTime << 32) | ft->dwLowDateTime;
     ret /= 10;          // convert from 100-ns intervals to microseconds
 
     // FILETIME epoch is midnight on Jan 1, 1601
@@ -13,7 +13,7 @@ _meta_inline uint64 timeFromFileTime(FILETIME *ft)
     // That's 199222286400 in seconds, or in microseconds...
 
     ret += 199222286400000000ULL;       // adjust epoch
-    // This still leaves over 500,000 years before overflow
+    // This still leaves over 280,000 years before overflow
 
     return ret;
 }

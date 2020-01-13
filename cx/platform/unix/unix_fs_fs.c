@@ -1,4 +1,4 @@
-#include "unix_time.h"
+#include "cx/time/time.h"
 #include "cx/fs/fs_private.h"
 #include "cx/string.h"
 #include "cx/utils/lazyinit.h"
@@ -198,14 +198,14 @@ int fsStat(string path, FSStat *fsstat)
 
     if (fsstat) {
         fsstat->size = sb.st_size;
-        fsstat->accessed = timeFromTimeSpec(&sb.st_atim);
+        fsstat->accessed = timeFromAbsTimespec(&sb.st_atim);
 
         // unix ctime is inode change time, which is sometimes newer than mtime if the
         // metadata is touched
-        fsstat->modified = max(timeFromTimeSpec(&sb.st_mtim), timeFromTimeSpec(&sb.st_ctim));
+        fsstat->modified = max(timeFromAbsTimespec(&sb.st_mtim), timeFromAbsTimespec(&sb.st_ctim));
 
 #ifdef _PLATFORM_FREEBSD
-        fsstat->created = timeFromTimeSpec(&sb.st_birthtim);
+        fsstat->created = timeFromAbsTimespec(&sb.st_birthtim);
 #else
         // Linux has no file creation timestamp
         fsstat->created = fsstat->modified;

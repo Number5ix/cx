@@ -30,9 +30,9 @@ enum FSPathStat {
 
 typedef struct FSStat {
     uint64 size;
-    uint64 created;
-    uint64 modified;
-    uint64 accessed;
+    int64 created;
+    int64 modified;
+    int64 accessed;
 } FSStat;
 
 int fsStat(string path, FSStat *stat);

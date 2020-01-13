@@ -2,7 +2,7 @@
 #include "cx/utils/lazyinit.h"
 #include "cx/platform/win.h"
 
-uint64 clockWall()
+int64 clockWall()
 {
     FILETIME ft;
     GetSystemTimeAsFileTime(&ft);
@@ -27,12 +27,12 @@ static void qpcInit(void *data)
     }
 }
 
-uint64 clockTimer()
+int64 clockTimer()
 {
     lazyInit(&qpcInitState, qpcInit, 0);
 
     LARGE_INTEGER counter;
     QueryPerformanceCounter(&counter);
 
-    return counter.QuadPart * qpcMult / qpcDivisor;
+    return (int64)(counter.QuadPart * qpcMult / qpcDivisor);
 }

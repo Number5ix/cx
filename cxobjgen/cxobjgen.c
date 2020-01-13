@@ -110,14 +110,14 @@ bool upToDate(string fname)
     FSStat statv;
     if (fsStat(hname, &statv) == FS_Nonexistent)
         goto out;
-    uint64 oldestgen = statv.modified;
+    int64 oldestgen = statv.modified;
     if (fsStat(cname, &statv) == FS_Nonexistent)
         goto out;
     oldestgen = min(oldestgen, statv.modified);
 
     // get the newest timestamp of the input file and all includes
     fsStat(fname, &statv);
-    uint64 newestsrc = statv.modified;
+    int64 newestsrc = statv.modified;
     for (int i = 0; i < saSize(&deps); i++) {
         if (fsStat(deps[i], &statv))
             newestsrc = max(newestsrc, statv.modified);
