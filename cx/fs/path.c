@@ -9,7 +9,7 @@ string fsNSSepStr = _S":";
 // Get parent directory
 bool pathParent(string *out, string path)
 {
-    int32 sep = strFindR(path, 0, fsPathSepStr);
+    int32 sep = strFindR(path, strEnd, fsPathSepStr);
     if (sep <= 0 || strGetChar(path, sep - 1) == ':')
         return false;
 
@@ -18,9 +18,9 @@ bool pathParent(string *out, string path)
 
 bool pathFilename(string *out, string path)
 {
-    int sep = strFindR(path, 0, fsPathSepStr);
+    int sep = strFindR(path, strEnd, fsPathSepStr);
     if (sep != -1)
-        return strSubStr(out, path, sep + 1, 0);
+        return strSubStr(out, path, sep + 1, strEnd);
 
     strDup(out, path);
     return false;
@@ -49,7 +49,7 @@ bool _pathJoin(string *out, int n, string* elements)
                 }
             } else {
                 strDup(&npath, elements[i]);
-                if (strFindR(npath, 0, fsPathSepStr) == strLen(npath) - strLen(fsPathSepStr))
+                if (strFindR(npath, strEnd, fsPathSepStr) == strLen(npath) - strLen(fsPathSepStr))
                     lastroot = true;        // this is a root that ends with the path separator
                 donefirst = true;
             }
@@ -71,8 +71,8 @@ bool pathRemoveExt(string *out, string path)
     if (strEmpty(path))
         return false;
 
-    int32 dot = strFindR(path, 0, _S".");
-    int32 sep = strFindR(path, 0, fsPathSepStr);
+    int32 dot = strFindR(path, strEnd, _S".");
+    int32 sep = strFindR(path, strEnd, fsPathSepStr);
     if (dot < clamplow(sep, 1))
         return false;
 
@@ -85,12 +85,12 @@ bool pathGetExt(string *out, string path)
     if (!path)
         return false;
 
-    int32 dot = strFindR(path, 0, _S".");
-    int32 sep = strFindR(path, 0, fsPathSepStr);
+    int32 dot = strFindR(path, strEnd, _S".");
+    int32 sep = strFindR(path, strEnd, fsPathSepStr);
     if (dot < clamplow(sep, 1))
         return false;
 
-    strSubStr(out, path, dot + 1, 0);
+    strSubStr(out, path, dot + 1, strEnd);
     return true;
 }
 
@@ -120,7 +120,7 @@ bool pathSplitNS(string *nspart, string *pathpart, string path)
 
     if (idx != -1) {
         strSubStr(&rns, path, 0, idx);
-        strSubStr(&rpath, path, idx + 1, 0);
+        strSubStr(&rpath, path, idx + 1, strEnd);
     } else {
         strDup(&rpath, path);
     }

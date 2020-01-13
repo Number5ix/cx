@@ -20,13 +20,13 @@ bool _fmtParseFloatOpt(FMTVar *v, string opt)
         v->flags |= FMT_FloatZero;
         return true;
     } else if (strBeginsWith(opt, "sig:")) {
-        strSubStr(&tmp, opt, 4, 0);
+        strSubStr(&tmp, opt, 4, strEnd);
         if (strToInt32(&val, tmp, 10, true) && val >= 1 && val < 18)
             v->fmtdata[0] = val;
         strDestroy(&tmp);
         return true;
     } else if (strBeginsWith(opt, "dec:")) {
-        strSubStr(&tmp, opt, 4, 0);
+        strSubStr(&tmp, opt, 4, strEnd);
         if (strToInt32(&val, tmp, 10, true) && val >= 0) {
             v->fmtdata[1] = val;
             v->flags |= FMT_FloatDecDigits;

@@ -28,13 +28,13 @@ bool _fmtParseIntOpt(FMTVar *v, string opt)
         v->fmtdata[0] = 2;
         return true;
     } else if (strBeginsWith(opt, "base:")) {
-        strSubStr(&tmp, opt, 5, 0);
+        strSubStr(&tmp, opt, 5, strEnd);
         if (strToUInt32(&val, tmp, 10, true) && val >= 2 && val <= 36)
             v->fmtdata[0] = val;
         strDestroy(&tmp);
         return true;
     } else if (strBeginsWith(opt, "min:")) {
-        strSubStr(&tmp, opt, 4, 0);
+        strSubStr(&tmp, opt, 4, strEnd);
         if (strToUInt32(&val, tmp, 10, true)) {
             v->flags |= FMT_IntMin;
             v->fmtdata[1] = val;

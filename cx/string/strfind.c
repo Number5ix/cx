@@ -38,7 +38,7 @@ int32 _strFindCharR(string s, int32 e, char find)
     // negative e indexes from the end of the string
     if (e < 0)
         slen = ((uint32)(-e) < slen) ? slen + e : 0;
-    else if (e != 0)    // e == 0 means the end of the string
+    else if (e != strEnd)       // e == strEnd means the end of the string
         slen = min((uint32)e, slen);
 
     striter it;
@@ -140,7 +140,7 @@ int32 strFindR(string s, int32 e, string find)
     // negative e indexes from the end of the string
     if (e < 0)
         slen = ((uint32)(-e) < slen) ? slen + e : 0;
-    else if (e != 0)    // e == 0 means the end of the string
+    else if (e != strEnd)       // e == strEnd means the end of the string
         slen = min((uint32)e, slen);
 
     // faster to search for first character of find string in a tight loop

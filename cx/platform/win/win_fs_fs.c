@@ -55,7 +55,7 @@ wchar_t* fsPathToNT(string path)
     if (!fsIsUNC(npath)) {
         strConcat(&ntpath, _S"\\\\?\\", npath);
     } else {
-        strSubStrI(&npath, 2, 0);
+        strSubStrI(&npath, 2, strEnd);
         strConcat(&ntpath, _S"\\\\?\\UNC\\", npath);
     }
 
@@ -84,18 +84,18 @@ void pathFromPlatform(string *out, string platformpath)
     if (buf[0] == '/' && (buf[1] == '/' || buf[1] == '?') &&
         (buf[2] == '?' || buf[2] == '.') && buf[3] == '/') {
         // reserved prefix, can't use this!
-        strSubStrI(&rpath, 4, 0);
+        strSubStrI(&rpath, 4, strEnd);
         buf = strBuffer(&rpath, 4);
     }
 
     if (buf[1] == ':' && buf[2] == '/') {
         // absolute path
         strSubStr(&ns, rpath, 0, 1);
-        strSubStrI(&rpath, 2, 0);
+        strSubStrI(&rpath, 2, strEnd);
     } else if (buf[0] == '/' && buf[1] == '/') {
         // unc
         strDup(&ns, _S"unc");
-        strSubStrI(&rpath, 1, 0);
+        strSubStrI(&rpath, 1, strEnd);
     } else if (buf[0] == '/') {
         // starts with a slash, but not a UNC path...
         // must be drive relative, so get the drive letter from curdir

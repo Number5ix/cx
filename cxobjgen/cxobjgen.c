@@ -37,7 +37,7 @@ int main(int argc, char *argv[])
     for (int i = 1; i < argc; i++) {
         strSubStr(&tmp, argv[i], 0, 2);
         if (strEq(tmp, _S"-I")) {
-            strSubStr(&tmp, argv[i], 2, 0);
+            strSubStr(&tmp, argv[i], 2, strEnd);
             pathFromPlatform(&tmp, tmp);
             saPush(&searchpath, string, tmp);
         } else if (strEq(argv[i], _S"-f")) {

@@ -4,6 +4,10 @@
 
 CX_C_BEGIN
 
+enum STRING_SPECIAL {
+    strEnd = 0x7fffffff
+};
+
 // String manipulation
 // Argument naming convention:
 //   o   = output string, existing content ignored and destroyed

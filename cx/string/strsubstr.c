@@ -21,7 +21,7 @@ static bool _strSubStr(string *o, string *ps, int32 b, int32 e, bool consume)
     // similarly, negative e indexes from the end of the string as well
     if (e < 0)
         len = (slen + e > off) ? (slen + e) - off : 0;
-    else if (e == 0)    // e == 0 means the end of the string
+    else if (e == strEnd)    // e == strEnd means the end of the string
         len = slen - off;
     else
         len = ((uint32)e > off) ? min((uint32)e, slen) - off : 0;

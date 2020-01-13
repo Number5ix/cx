@@ -78,7 +78,7 @@ static int test_substr()
     if (!strEq(o, _S"test"))
         return 1;
 
-    strSubStr(&o, t1, -4, 0);
+    strSubStr(&o, t1, -4, strEnd);
     if (!strEq(o, _S"data"))
         return 1;
 
@@ -94,7 +94,7 @@ static int test_substr()
     if (!strEq(o, _S"Relatively long substring test"))
         return 1;
 
-    strSubStrI(&o, -11, 0);
+    strSubStrI(&o, -11, strEnd);
     if (!strEq(o, _S"string test"))
         return 1;
 

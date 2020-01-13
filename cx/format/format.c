@@ -115,7 +115,7 @@ bool _strFormat(string *out, string fmt, int n, stvariant *args)
 
     // add any text after the last variable
     if (ctx.vend < ctx.flen) {
-        strSubStr(&frag, fmt, ctx.vend, 0);
+        strSubStr(&frag, fmt, ctx.vend, strEnd);
         strAppend(&ctx.dest, frag);
     }
 
