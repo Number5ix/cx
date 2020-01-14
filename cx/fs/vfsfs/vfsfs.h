@@ -27,7 +27,7 @@ extern VFSFS_ClassIf VFSFS_ClassIf_tmpl;
 typedef struct VFSFS {
     VFSFS_ClassIf *_;
     ObjClassInfo *_clsinfo;
-    atomic_intptr_t _ref;
+    atomic_intptr _ref;
 
     string root;
 } VFSFS;

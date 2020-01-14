@@ -29,7 +29,7 @@ extern VFSVFSFile_ClassIf VFSVFSFile_ClassIf_tmpl;
 typedef struct VFSVFSFile {
     VFSVFSFile_ClassIf *_;
     ObjClassInfo *_clsinfo;
-    atomic_intptr_t _ref;
+    atomic_intptr _ref;
 
     VFSFile *file;
 } VFSVFSFile;

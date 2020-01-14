@@ -64,9 +64,9 @@ void _strSetRef(string s, uint16 ref)
     int l = STR_HDR(s) & STR_LEN_MASK;
 
     if (l <= STR_LEN8)
-        atomic_store_uint8(&STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), atomic_uint8_t), (uint8)ref, ATOMIC_ACQ_REL);
+        atomic_store_uint8(&STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), atomic_uint8), (uint8)ref, ATOMIC_ACQ_REL);
     else // STR_LEN16 and STR_LEN32 both have 16-bit ref count
-        atomic_store_uint16(&STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), atomic_uint16_t), (uint16)ref, ATOMIC_ACQ_REL);
+        atomic_store_uint16(&STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), atomic_uint16), (uint16)ref, ATOMIC_ACQ_REL);
 
     // and if you called this function on something without STR_ALLOC set, woe be upon you...
 }
@@ -76,9 +76,9 @@ void _strIncRef(string s)
     int l = STR_HDR(s) & STR_LEN_MASK;
 
     if (l <= STR_LEN8)
-        atomic_fetch_add_uint8(&STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), atomic_uint8_t), 1, ATOMIC_RELAXED);
+        atomic_fetch_add_uint8(&STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), atomic_uint8), 1, ATOMIC_RELAXED);
     else // STR_LEN16 and STR_LEN32 both have 16-bit ref count
-        atomic_fetch_add_uint16(&STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), atomic_uint16_t), 1, ATOMIC_RELAXED);
+        atomic_fetch_add_uint16(&STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), atomic_uint16), 1, ATOMIC_RELAXED);
 }
 
 uint16 _strDecRef(string s)
@@ -86,9 +86,9 @@ uint16 _strDecRef(string s)
     int l = STR_HDR(s) & STR_LEN_MASK;
 
     if (l <= STR_LEN8)
-        return atomic_fetch_sub_uint8(&STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), atomic_uint8_t), 1, ATOMIC_RELEASE);
+        return atomic_fetch_sub_uint8(&STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), atomic_uint8), 1, ATOMIC_RELEASE);
     else // STR_LEN16 and STR_LEN32 both have 16-bit ref count
-        return atomic_fetch_sub_uint16(&STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), atomic_uint16_t), 1, ATOMIC_RELEASE);
+        return atomic_fetch_sub_uint16(&STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), atomic_uint16), 1, ATOMIC_RELEASE);
 }
 
 string _strCopy(string s, uint32 minsz)

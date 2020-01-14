@@ -56,10 +56,10 @@ atomic_fence(atomic_memory_order_t mo)
 #define CX_GENERATE_ATOMICS(type, short_type, lg_size)                  \
 typedef struct {                                                        \
         ATOMIC_INTERLOCKED_REPR(lg_size) repr;                          \
-} atomic_##short_type##_t;                                              \
+} atomic_##short_type;                                                  \
                                                                         \
 _meta_inline type                                                       \
-atomic_load_##short_type(const atomic_##short_type##_t *a,              \
+atomic_load_##short_type(const atomic_##short_type *a,                  \
     atomic_memory_order_t mo) {                                         \
         ATOMIC_INTERLOCKED_REPR(lg_size) ret = a->repr;                 \
         if (mo != atomic_memory_order_relaxed) {                        \
@@ -69,7 +69,7 @@ atomic_load_##short_type(const atomic_##short_type##_t *a,              \
 }                                                                       \
                                                                         \
 _meta_inline void                                                       \
-atomic_store_##short_type(atomic_##short_type##_t *a,                   \
+atomic_store_##short_type(atomic_##short_type *a,                       \
     type val, atomic_memory_order_t mo) {                               \
         if (mo != atomic_memory_order_relaxed) {                        \
                 atomic_fence(atomic_memory_order_release);              \
@@ -81,14 +81,14 @@ atomic_store_##short_type(atomic_##short_type##_t *a,                   \
 }                                                                       \
                                                                         \
 _meta_inline type                                                       \
-atomic_exchange_##short_type(atomic_##short_type##_t *a, type val,      \
+atomic_exchange_##short_type(atomic_##short_type *a, type val,          \
     atomic_memory_order_t mo) {                                         \
         return (type)ATOMIC_INTERLOCKED_NAME(_InterlockedExchange,      \
             lg_size)(&a->repr, (ATOMIC_INTERLOCKED_REPR(lg_size))val);  \
 }                                                                       \
                                                                         \
 _meta_inline bool                                                       \
-atomic_compare_exchange_weak_##short_type(atomic_##short_type##_t *a,   \
+atomic_compare_exchange_weak_##short_type(atomic_##short_type *a,       \
     type *expected, type desired, atomic_memory_order_t success_mo,     \
     atomic_memory_order_t failure_mo) {                                 \
         ATOMIC_INTERLOCKED_REPR(lg_size) e =                            \
@@ -107,7 +107,7 @@ atomic_compare_exchange_weak_##short_type(atomic_##short_type##_t *a,   \
 }                                                                       \
                                                                         \
 _meta_inline bool                                                       \
-atomic_compare_exchange_strong_##short_type(atomic_##short_type##_t *a, \
+atomic_compare_exchange_strong_##short_type(atomic_##short_type *a,     \
     type *expected, type desired, atomic_memory_order_t success_mo,     \
     atomic_memory_order_t failure_mo) {                                 \
         /* We implement the weak version with strong semantics. */      \
@@ -117,24 +117,24 @@ atomic_compare_exchange_strong_##short_type(atomic_##short_type##_t *a, \
 
 #define CX_EXTERN_ATOMICS(type, short_type)                             \
 extern inline type                                                      \
-atomic_load_##short_type(const atomic_##short_type##_t *a,              \
+atomic_load_##short_type(const atomic_##short_type *a,                  \
     atomic_memory_order_t mo);                                          \
                                                                         \
 extern inline void                                                      \
-atomic_store_##short_type(atomic_##short_type##_t *a,                   \
+atomic_store_##short_type(atomic_##short_type *a,                       \
     type val, atomic_memory_order_t mo);                                \
                                                                         \
 extern inline type                                                      \
-atomic_exchange_##short_type(atomic_##short_type##_t *a, type val,      \
+atomic_exchange_##short_type(atomic_##short_type *a, type val,          \
     atomic_memory_order_t mo);                                          \
                                                                         \
 extern inline bool                                                      \
-atomic_compare_exchange_weak_##short_type(atomic_##short_type##_t *a,   \
+atomic_compare_exchange_weak_##short_type(atomic_##short_type *a,       \
     type *expected, type desired, atomic_memory_order_t success_mo,     \
     atomic_memory_order_t failure_mo);                                  \
                                                                         \
 extern inline bool                                                      \
-atomic_compare_exchange_strong_##short_type(atomic_##short_type##_t *a, \
+atomic_compare_exchange_strong_##short_type(atomic_##short_type *a,     \
     type *expected, type desired, atomic_memory_order_t success_mo,     \
     atomic_memory_order_t failure_mo);
 
@@ -142,14 +142,14 @@ atomic_compare_exchange_strong_##short_type(atomic_##short_type##_t *a, \
 CX_GENERATE_ATOMICS(type, short_type, lg_size)                          \
                                                                         \
 _meta_inline type                                                       \
-atomic_fetch_add_##short_type(atomic_##short_type##_t *a,               \
+atomic_fetch_add_##short_type(atomic_##short_type *a,                   \
     type val, atomic_memory_order_t mo) {                               \
         return (type)ATOMIC_INTERLOCKED_NAME(_InterlockedExchangeAdd,   \
             lg_size)(&a->repr, (ATOMIC_INTERLOCKED_REPR(lg_size))val);  \
 }                                                                       \
                                                                         \
 _meta_inline type                                                       \
-atomic_fetch_sub_##short_type(atomic_##short_type##_t *a,               \
+atomic_fetch_sub_##short_type(atomic_##short_type *a,                   \
     type val, atomic_memory_order_t mo) {                               \
         /*                                                              \
          * MSVC warns on negation of unsigned operands, but for us it   \
@@ -161,19 +161,19 @@ atomic_fetch_sub_##short_type(atomic_##short_type##_t *a,               \
         __pragma(warning(pop))                                          \
 }                                                                       \
 _meta_inline type                                                       \
-atomic_fetch_and_##short_type(atomic_##short_type##_t *a,               \
+atomic_fetch_and_##short_type(atomic_##short_type *a,                   \
     type val, atomic_memory_order_t mo) {                               \
         return (type)ATOMIC_INTERLOCKED_NAME(_InterlockedAnd, lg_size)( \
             &a->repr, (ATOMIC_INTERLOCKED_REPR(lg_size))val);           \
 }                                                                       \
 _meta_inline type                                                       \
-atomic_fetch_or_##short_type(atomic_##short_type##_t *a,                \
+atomic_fetch_or_##short_type(atomic_##short_type *a,                    \
     type val, atomic_memory_order_t mo) {                               \
         return (type)ATOMIC_INTERLOCKED_NAME(_InterlockedOr, lg_size)(  \
             &a->repr, (ATOMIC_INTERLOCKED_REPR(lg_size))val);           \
 }                                                                       \
 _meta_inline type                                                       \
-atomic_fetch_xor_##short_type(atomic_##short_type##_t *a,               \
+atomic_fetch_xor_##short_type(atomic_##short_type *a,                   \
     type val, atomic_memory_order_t mo) {                               \
         return (type)ATOMIC_INTERLOCKED_NAME(_InterlockedXor, lg_size)( \
             &a->repr, (ATOMIC_INTERLOCKED_REPR(lg_size))val);           \
@@ -183,18 +183,18 @@ atomic_fetch_xor_##short_type(atomic_##short_type##_t *a,               \
 CX_EXTERN_ATOMICS(type, short_type)                                     \
                                                                         \
 extern inline type                                                      \
-atomic_fetch_add_##short_type(atomic_##short_type##_t *a,               \
+atomic_fetch_add_##short_type(atomic_##short_type *a,                   \
     type val, atomic_memory_order_t mo);                                \
                                                                         \
 extern inline type                                                      \
-atomic_fetch_sub_##short_type(atomic_##short_type##_t *a,               \
+atomic_fetch_sub_##short_type(atomic_##short_type *a,                   \
     type val, atomic_memory_order_t mo);                                \
 extern inline type                                                      \
-atomic_fetch_and_##short_type(atomic_##short_type##_t *a,               \
+atomic_fetch_and_##short_type(atomic_##short_type *a,                   \
     type val, atomic_memory_order_t mo);                                \
 extern inline type                                                      \
-atomic_fetch_or_##short_type(atomic_##short_type##_t *a,                \
+atomic_fetch_or_##short_type(atomic_##short_type *a,                    \
     type val, atomic_memory_order_t mo);                                \
 extern inline type                                                      \
-atomic_fetch_xor_##short_type(atomic_##short_type##_t *a,               \
+atomic_fetch_xor_##short_type(atomic_##short_type *a,                   \
     type val, atomic_memory_order_t mo);

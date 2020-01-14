@@ -19,7 +19,7 @@ typedef struct CrashMemRange {
 } CrashMemRange;
 
 extern LazyInitState _dbgCrashInitState;
-extern atomic_uint32_t _dbgCrashMode;
+extern atomic_uint32 _dbgCrashMode;
 extern CrashExtraMeta *_dbgCrashExtraMeta;
 extern CrashMemRange *_dbgCrashDumpMem;
 extern Mutex *_dbgCrashMutex;

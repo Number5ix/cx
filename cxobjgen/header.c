@@ -170,7 +170,7 @@ void writeClassDecl(BufFile *bf, Class *cls)
             strDup(&ln, _S"    ObjIface *_;");
         bfWriteLine(bf, ln);
         bfWriteLine(bf, _S"    ObjClassInfo *_clsinfo;");
-        bfWriteLine(bf, _S"    atomic_intptr_t _ref;");
+        bfWriteLine(bf, _S"    atomic_intptr _ref;");
         bfWriteLine(bf, NULL);
     }
 

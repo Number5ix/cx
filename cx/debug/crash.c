@@ -9,7 +9,7 @@
 Mutex *_dbgCrashMutex;
 
 LazyInitState _dbgCrashInitState;
-atomic_uint32_t _dbgCrashMode;
+atomic_uint32 _dbgCrashMode;
 static dbgCrashCallback *callbacks;
 CrashExtraMeta *_dbgCrashExtraMeta;
 

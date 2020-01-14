@@ -21,7 +21,7 @@ extern VFSFSDirSearch_ClassIf VFSFSDirSearch_ClassIf_tmpl;
 typedef struct VFSFSDirSearch {
     VFSFSDirSearch_ClassIf *_;
     ObjClassInfo *_clsinfo;
-    atomic_intptr_t _ref;
+    atomic_intptr _ref;
 
     FSDirSearch *dirsearch;
 } VFSFSDirSearch;

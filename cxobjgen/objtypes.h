@@ -49,7 +49,7 @@ extern Class_ClassIf Class_ClassIf_tmpl;
 typedef struct Param {
     ObjIface *_;
     ObjClassInfo *_clsinfo;
-    atomic_intptr_t _ref;
+    atomic_intptr _ref;
 
     string type;
     string predecr;
@@ -64,7 +64,7 @@ Param *Param_create();
 typedef struct Method {
     Method_ClassIf *_;
     ObjClassInfo *_clsinfo;
-    atomic_intptr_t _ref;
+    atomic_intptr _ref;
 
     Class *srcclass;
     Interface *srcif;
@@ -92,7 +92,7 @@ Method *Method_create();
 typedef struct Interface {
     Interface_ClassIf *_;
     ObjClassInfo *_clsinfo;
-    atomic_intptr_t _ref;
+    atomic_intptr _ref;
 
     string name;
     Interface *parent;
@@ -111,7 +111,7 @@ Interface *Interface_create();
 typedef struct Member {
     Member_ClassIf *_;
     ObjClassInfo *_clsinfo;
-    atomic_intptr_t _ref;
+    atomic_intptr _ref;
 
     string *fulltype;
     string vartype;
@@ -133,7 +133,7 @@ Member *Member_create();
 typedef struct Class {
     Class_ClassIf *_;
     ObjClassInfo *_clsinfo;
-    atomic_intptr_t _ref;
+    atomic_intptr _ref;
 
     string name;
     Class *parent;

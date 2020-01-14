@@ -46,7 +46,7 @@ typedef struct ObjClassInfo {
 typedef struct ObjInst {
     ObjIface *_classif;         // basically vtable, this is called _ in class instances for less typing
     ObjClassInfo *_clsinfo;
-    atomic_intptr_t _ref;       // reference count
+    atomic_intptr _ref;         // reference count
 
     // user data members here
 } ObjInst;
