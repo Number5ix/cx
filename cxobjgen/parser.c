@@ -131,7 +131,7 @@ static bool nextTok(ParseState *ps, string *tok)
                 return true;
         } else if (!quote && _isspecial(ch[0])) {
             if (strEmpty(*tok)) {
-                strAppend(tok, ch);
+                strAppend(tok, (string)ch);
                 return true;
             } else {
                 ps->bpos--;
@@ -139,7 +139,7 @@ static bool nextTok(ParseState *ps, string *tok)
             }
         }
 
-        strAppend(tok, ch);
+        strAppend(tok, (string)ch);
 
         if (ch[0] == '"') {
             quote = !quote;
@@ -165,7 +165,7 @@ static bool nextCustomTok(ParseState *ps, string *tok, char ends)
             return true;
         }
 
-        strAppend(tok, ch);
+        strAppend(tok, (string)ch);
     }
 }
 

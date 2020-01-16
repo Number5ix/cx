@@ -45,7 +45,7 @@ static void initCurDir(void *data)
         return;
     }
 
-    pathFromPlatform(&_fsCurDir, buf);
+    pathFromPlatform(&_fsCurDir, (string)buf);
     pathNormalize(&_fsCurDir);
     xaSFree(buf);
 }
@@ -138,7 +138,7 @@ static void fsExeInit(void *data)
     sysctl(mib, 4, NULL, &sz, NULL, 0);
     char *buf = xaAlloc(sz);
     sysctl(mib, 4, buf, &sz, NULL, 0);
-    pathFromPlatform(exepath, buf);
+    pathFromPlatform(exepath, (string)buf);
     xaFree(buf);
 #elif defined(_PLATFORM_LINUX)
     size_t sz = 1024 / 2;
@@ -332,9 +332,9 @@ FSDirEnt *fsSearchNext(FSDirSearch *search)
         if (!de)
             return NULL;
 
-        if (strEmpty(search->pattern) || !pathMatch(de->d_name, search->pattern, 0)) {
+        if (strEmpty(search->pattern) || !pathMatch((string)de->d_name, search->pattern, 0)) {
             FSDirEnt *ret = &search->ent;
-            strCopy(&ret->name, de->d_name);
+            strCopy(&ret->name, (string)de->d_name);
             if (de->d_type == DT_DIR)
                 ret->type = FS_Directory;
             else

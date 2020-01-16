@@ -13,19 +13,19 @@ bool _fmtParseFloatOpt(FMTVar *v, string opt)
 {
     string tmp = 0;
     int32 val;
-    if (strEq(opt, "fixed")) {
+    if (strEq(opt, _S"fixed")) {
         v->flags |= FMT_FloatFixed;
         return true;
-    } else if (strEq(opt, "zero")) {
+    } else if (strEq(opt, _S"zero")) {
         v->flags |= FMT_FloatZero;
         return true;
-    } else if (strBeginsWith(opt, "sig:")) {
+    } else if (strBeginsWith(opt, _S"sig:")) {
         strSubStr(&tmp, opt, 4, strEnd);
         if (strToInt32(&val, tmp, 10, true) && val >= 1 && val < 18)
             v->fmtdata[0] = val;
         strDestroy(&tmp);
         return true;
-    } else if (strBeginsWith(opt, "dec:")) {
+    } else if (strBeginsWith(opt, _S"dec:")) {
         strSubStr(&tmp, opt, 4, strEnd);
         if (strToInt32(&val, tmp, 10, true) && val >= 0) {
             v->fmtdata[1] = val;

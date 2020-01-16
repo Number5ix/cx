@@ -11,7 +11,7 @@ enum PtrOpts {
 
 bool _fmtParsePtrOpt(FMTVar *v, string opt)
 {
-    if (strEq(opt, "prefix")) {
+    if (strEq(opt, _S"prefix")) {
         v->flags |= FMT_PtrPrefix;
         return true;
     }
@@ -64,7 +64,7 @@ bool _fmtPtr(FMTVar *v, string *out)
         *--p = '0';
     }
 
-    strCopy(out, p);
+    strCopy(out, (string)p);
 
     return true;
 }

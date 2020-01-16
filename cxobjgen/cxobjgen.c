@@ -35,15 +35,15 @@ int main(int argc, char *argv[])
 
     string tmp = 0;
     for (int i = 1; i < argc; i++) {
-        strSubStr(&tmp, argv[i], 0, 2);
+        strSubStr(&tmp, (string)argv[i], 0, 2);
         if (strEq(tmp, _S"-I")) {
-            strSubStr(&tmp, argv[i], 2, strEnd);
+            strSubStr(&tmp, (string)argv[i], 2, strEnd);
             pathFromPlatform(&tmp, tmp);
             saPush(&searchpath, string, tmp);
-        } else if (strEq(argv[i], _S"-f")) {
+        } else if (strEq((string)argv[i], _S"-f")) {
             force = true;
         } else {
-            pathFromPlatform(&tmp, argv[i]);
+            pathFromPlatform(&tmp, (string)argv[i]);
             saPush(&sidlfiles, string, tmp);
         }
     }

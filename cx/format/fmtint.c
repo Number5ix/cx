@@ -12,28 +12,28 @@ bool _fmtParseIntOpt(FMTVar *v, string opt)
 {
     string tmp = 0;
     uint32 val;
-    if (strEq(opt, "prefix")) {
+    if (strEq(opt, _S"prefix")) {
         v->flags |= FMT_IntPrefix;
         return true;
-    } else if (strEq(opt, "utfchar")) {
+    } else if (strEq(opt, _S"utfchar")) {
         v->flags |= FMT_IntUtfChar;
         return true;
-    } else if (strEq(opt, "hex")) {
+    } else if (strEq(opt, _S"hex")) {
         v->fmtdata[0] = 16;
         return true;
-    } else if (strEq(opt, "octal")) {
+    } else if (strEq(opt, _S"octal")) {
         v->fmtdata[0] = 8;
         return true;
-    } else if (strEq(opt, "binary")) {
+    } else if (strEq(opt, _S"binary")) {
         v->fmtdata[0] = 2;
         return true;
-    } else if (strBeginsWith(opt, "base:")) {
+    } else if (strBeginsWith(opt, _S"base:")) {
         strSubStr(&tmp, opt, 5, strEnd);
         if (strToUInt32(&val, tmp, 10, true) && val >= 2 && val <= 36)
             v->fmtdata[0] = val;
         strDestroy(&tmp);
         return true;
-    } else if (strBeginsWith(opt, "min:")) {
+    } else if (strBeginsWith(opt, _S"min:")) {
         strSubStr(&tmp, opt, 4, strEnd);
         if (strToUInt32(&val, tmp, 10, true)) {
             v->flags |= FMT_IntMin;
@@ -107,7 +107,7 @@ bool _fmtInt(FMTVar *v, string *out)
         if (len == 0)
             return false;
         buf[len] = 0;
-        strCopy(out, buf);
+        strCopy(out, (string)buf);
         return true;
     }
 

@@ -422,7 +422,7 @@ bool dbgCrashSetPath(string path)
     strcpy_s(processname, strLen(exename) + 1, strC(&exename));
     processnamew = strToUTF16A(exename);
 
-    strNConcat(&report, path, _S"\\", exename, _S"-", crashid, _S".report");
+    strNConcat(&report, path, _S"\\", exename, _S"-", (string)crashid, _S".report");
     tmp = fsPathToNT(report);
     reportfile = cstrDupw(tmp);
 

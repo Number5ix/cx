@@ -121,7 +121,7 @@ static void _bboxDeleteInternal(uint16 idx)
     BlackBoxEnt *ent = (BlackBoxEnt*)&dbgBlackBox[idx];
     uint16 dummy = 0;
 
-    htFind(&bbindex, string, ent->name, uint16, &dummy, Destroy);
+    htFind(&bbindex, string, (string)ent->name, uint16, &dummy, Destroy);
 
     if (dbgBlackBoxHead == idx)
         dbgBlackBoxHead = ent->next;
@@ -205,7 +205,7 @@ void bboxSet(string name, string val, uint8 flags)
         strCopyOut(val, 0, bboxGetVal(ent), ent->vallen);
 
         // add to index
-        htInsert(&bbindex, string, ent->name, uint16, best->start);
+        htInsert(&bbindex, string, (string)ent->name, uint16, best->start);
 
         freeSpaceRemove(best->start, needsz);
     } else {

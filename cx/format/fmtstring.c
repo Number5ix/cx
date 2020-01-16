@@ -8,13 +8,13 @@ enum StringOpts {
 
 bool _fmtParseStringOpt(FMTVar *v, string opt)
 {
-    if (strEq(opt, "empty")) {
+    if (strEq(opt, _S"empty")) {
         v->flags |= FMT_StringEmpty;
         return true;
-    } else if (strEq(opt, "null")) {
+    } else if (strEq(opt, _S"null")) {
         v->flags |= FMT_StringNull;
         return true;
-    } else if (strEq(opt, "name")) {
+    } else if (strEq(opt, _S"name")) {
         v->flags |= FMT_StringNameCase;
         return true;
     }

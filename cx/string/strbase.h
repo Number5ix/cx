@@ -6,7 +6,7 @@ CX_C_BEGIN
 
 // IMPORTANT NOTE!
 // Always initialize sstring to NULL or 0 first!
-typedef char* string;
+typedef struct str_impl* string;
 
 // Create an empty string suitable for initializing a string variable.
 // Do not assign to an existing string handle or you will leak resources!

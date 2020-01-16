@@ -26,19 +26,19 @@ bool FmtTestClass_format(FmtTestClass *self, FMTVar *v, string *out)
     string snum;
     switch (self->iv) {
     case 1:
-        snum = "One";
+        snum = _S"One";
         break;
     case 2:
-        snum = "Two";
+        snum = _S"Two";
         break;
     case 3:
-        snum = "Three";
+        snum = _S"Three";
         break;
     case 4:
-        snum = "Four";
+        snum = _S"Four";
         break;
     case 5:
-        snum = "Five";
+        snum = _S"Five";
         break;
     default:
         return false;

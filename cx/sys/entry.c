@@ -14,10 +14,10 @@ void _entryParseArgs(int argc, const char **argv)
     if (argc < 1)
         return;
 
-    strDup(&cmdProgram, (char*)argv[0]);
+    strDup(&cmdProgram, (string)argv[0]);
 
     for (int i = 1; i < argc; i++) {
-        saPush(&cmdArgs, string, (char*)argv[i]);
+        saPush(&cmdArgs, string, (string)argv[i]);
     }
 }
 

@@ -15,7 +15,7 @@ CX_C_BEGIN
 
 // IMPORTANT NOTE!
 // Always initialize string to NULL or 0 first!
-typedef char* string;
+typedef struct str_impl* string;
 typedef struct hashtable_impl* hashtable;
 typedef struct SUID SUID;
 typedef struct stvar stvar;

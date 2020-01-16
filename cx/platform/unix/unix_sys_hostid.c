@@ -47,7 +47,7 @@ static bool getPerUserId(mbedtls_md_context_t *shactx)
 
     string cxdir = 0;
     string userfile = 0;
-    strConcat(&cxdir, (char*)home, _S"/.cx");
+    strConcat(&cxdir, (string)home, _S"/.cx");
     strConcat(&userfile, cxdir, _S"/hostid");
 
     if (readIdFile(strC(&userfile), shactx, true)) {

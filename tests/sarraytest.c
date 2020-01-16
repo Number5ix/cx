@@ -108,9 +108,9 @@ static int test_string()
 
     t1 = saCreate(string, 10);
 
-    strCopy(&st1, "This is a test");
-    strCopy(&st2, "This is also a test");
-    strCopy(&st3, "Test Test Test");
+    strCopy(&st1, (string)"This is a test");
+    strCopy(&st2, (string)"This is also a test");
+    strCopy(&st3, (string)"Test Test Test");
 
     for (i = 0; i < 50; i++) {
         saPush(&t1, string, st1);
@@ -251,9 +251,9 @@ static int test_string_sort()
 
     t1 = saCreate(string, 10);
 
-    strCopy(&st1, "This is a test");
-    strCopy(&st2, "This is also a test");
-    strCopy(&st3, "Test Test Test");
+    strCopy(&st1, _S"This is a test");
+    strCopy(&st2, _S"This is also a test");
+    strCopy(&st3, _S"Test Test Test");
 
     saPush(&t1, string, st1);
     saPush(&t1, string, st2);

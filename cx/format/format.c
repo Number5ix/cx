@@ -2,13 +2,13 @@
 
 // literal strings with embedded length for maximum efficiency
 string _fmtTypeNames[FMT_count] = {
-    "\xE1\xC1\x06""string",
-    "\xE1\xC1\x03""int",
-    "\xE1\xC1\x04""uint",
-    "\xE1\xC1\x05""float",
-    "\xE1\xC1\x03""ptr",
-    "\xE1\xC1\x04""suid",
-    "\xE1\xC1\x06""object",
+    (string)"\xE1\xC1\x06""string",
+    (string)"\xE1\xC1\x03""int",
+    (string)"\xE1\xC1\x04""uint",
+    (string)"\xE1\xC1\x05""float",
+    (string)"\xE1\xC1\x03""ptr",
+    (string)"\xE1\xC1\x04""suid",
+    (string)"\xE1\xC1\x06""object",
 };
 
 uint8 _fmtTypeIdMask[FMT_count][2] = {
