@@ -1,12 +1,17 @@
 create_test_sourcelist(testsrc
     test_runner.c
     cxmemtest.c
+    fmttest.c
     objtest.c
     sarraytest.c
     strtest.c)
-add_sidl(objtestobj.sidl)
+add_sidl(fmttestobj.sidl
+    objtestobj.sidl)
 add_executable(test_runner
     ${testsrc}
+    fmttestobj.c
+    fmttestobj.h
+    fmttestobj.sidl
     objtestobj.c
     objtestobj.h
     objtestobj.sidl
@@ -20,6 +25,16 @@ add_test(NAME "\"cxmem: Allocation\"" COMMAND test_runner cxmemtest alloc)
 add_test(NAME "\"cxmem: Usable Size\"" COMMAND test_runner cxmemtest usable_size)
 add_test(NAME "\"cxmem: Free\"" COMMAND test_runner cxmemtest free)
 add_test(NAME "\"cxmem: Reallocation\"" COMMAND test_runner cxmemtest realloc)
+add_test(NAME "\"format: Integers\"" COMMAND test_runner fmttest int)
+add_test(NAME "\"format: Floating Point\"" COMMAND test_runner fmttest float)
+add_test(NAME "\"format: Objects\"" COMMAND test_runner fmttest object)
+add_test(NAME "\"format: Pointers\"" COMMAND test_runner fmttest ptr)
+add_test(NAME "\"format: Strings\"" COMMAND test_runner fmttest string)
+add_test(NAME "\"format: SUID\"" COMMAND test_runner fmttest suid)
+add_test(NAME "\"format: Array indexing\"" COMMAND test_runner fmttest array)
+add_test(NAME "\"format: Hashtable lookup\"" COMMAND test_runner fmttest hash)
+add_test(NAME "\"format: Defaults\"" COMMAND test_runner fmttest default)
+add_test(NAME "\"format: Error handling\"" COMMAND test_runner fmttest error)
 add_test(NAME "\"object: Interface\"" COMMAND test_runner objtest iface)
 add_test(NAME "\"object: Class Inheritance\"" COMMAND test_runner objtest inherit)
 add_test(NAME "\"object: Interface Inheritance\"" COMMAND test_runner objtest ifinherit)

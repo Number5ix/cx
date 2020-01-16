@@ -153,6 +153,9 @@ bool _fmtParseVar(FMTContext *ctx)
         }
     }
 
+    if (phase == 1)
+        return false;
+
     if (xstart > 0 && xend == 0)
         xend = len;
     if (vtend == 0)
