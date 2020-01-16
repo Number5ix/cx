@@ -18,6 +18,7 @@ CX_C_BEGIN
 typedef char* string;
 typedef struct hashtable_impl* hashtable;
 typedef struct SUID SUID;
+typedef struct stvar stvar;
 
 enum STYPE_CLASS_ID {
     STCLASS_OPAQUE = 0x00,
@@ -46,8 +47,10 @@ typedef uintptr_t uintptr;
 typedef float float32;
 typedef double float64;
 
-// This is the type that is used for passing as a parameter, should be no larger
-// than 64 bits wide, but can be smaller.
+typedef uint32 stype;
+
+// This is the type that is used for passing as a parameter by-value, containers, and
+// variants. Should be no larger than 64 bits wide, but can be smaller.
 #define SType_opaque void*
 #define SType_int8 int8
 #define SType_int16 int16
@@ -66,6 +69,7 @@ typedef double float64;
 #define SType_string string
 #define SType_object void*
 #define SType_suid SUID*
+#define SType_stvar stvar*
 #define SType_sarray void*
 #define SType_hashtable hashtable
 #define stTypeDef(name) SType_##name
@@ -73,7 +77,74 @@ typedef double float64;
 #define stTypeCast(name, v) ((SType_##name)(v))
 #define stPtrCast(name, v) ((SType_##name*)(v))
 
-// And that's actually used for storage (where possible)
+// container that can be aliased for any type
+#define CONTAINER_TYPE(type) stTypeDef(type) st_##type
+typedef union stgeneric_u {
+    uint64 st_generic;
+    CONTAINER_TYPE(opaque);
+    CONTAINER_TYPE(int8);
+    CONTAINER_TYPE(int16);
+    CONTAINER_TYPE(int32);
+    CONTAINER_TYPE(int64);
+    CONTAINER_TYPE(uint8);
+    CONTAINER_TYPE(uint16);
+    CONTAINER_TYPE(uint32);
+    CONTAINER_TYPE(uint64);
+    CONTAINER_TYPE(intptr);
+    CONTAINER_TYPE(uintptr);
+    CONTAINER_TYPE(size);
+    CONTAINER_TYPE(float32);
+    CONTAINER_TYPE(float64);
+    CONTAINER_TYPE(ptr);
+    CONTAINER_TYPE(string);
+    CONTAINER_TYPE(object);
+    CONTAINER_TYPE(suid);
+    CONTAINER_TYPE(stvar);
+    CONTAINER_TYPE(sarray);
+    CONTAINER_TYPE(hashtable);
+} stgeneric_u;
+
+// Some compilers *cough* were generating very suboptimal code for copying the union,
+// like "rep movsb" with ecx=4 and all associated register setup at the _saPush call
+// site. So we have to treat it as a plain integer and do a pointer alias dance with
+// macros, which is a bit less convenient but does the right thing on all supported
+// compilers.
+
+typedef uint64 stgeneric;
+
+_Static_assert(sizeof(stgeneric_u) == sizeof(stgeneric), "stype container too large");
+
+#ifndef __cplusplus
+#define stgeneric(type, val) (((stgeneric_u){ .st_##type = stCheck(type, val) }).st_generic)
+#else
+#define stgeneric(type, val) ((stgeneric)stCheck(type, val))
+#endif
+#define stGenVal(type, gen) (((stgeneric_u*)(&(gen)))->st_##type)
+
+// Compact variant structure. This is most often used for passing arrays of values that
+// the type is not known at compile time, as part of the type-safe varargs replacement
+// mechanism.
+
+typedef struct stvar {
+    stgeneric data;
+    stype type;
+} stvar;
+
+// Note that this uses a temporary, so the variant's lifetime is equal to the function
+// that it was created in. It should be used for passing varargs by-value.
+#ifndef __cplusplus
+#define stvar(typen, val) ((stvar){ .data = stArg(typen, val), .type = stType(typen) })
+#else
+_meta_inline stvar _stvar(stype st, stgeneric val) {
+    stvar ret;
+    ret.data = val;
+    ret.type = st;
+    return ret;
+}
+#define stvar(typen, val) _stvar(stType(typen), stArg(typen, val))
+#endif
+
+// The type that's actually used for storage in containers, etc.
 #define STStorageType_opaque void
 #define STStorageType_int8 int8
 #define STStorageType_int16 int16
@@ -92,6 +163,7 @@ typedef double float64;
 #define STStorageType_string string
 #define STStorageType_object void*
 #define STStorageType_suid SUID
+#define STStorageType_stvar stvar
 #define STStorageType_sarray void*
 #define STStorageType_hashtable hashtable
 #define stStorageType(name) STStorageType_##name
@@ -99,8 +171,6 @@ typedef double float64;
 enum STYPE_ID {
     // opaque is a magic catch-all type for custom structures and such
     STypeId_opaque = STCLASS_OPAQUE,
-    // varend is a special marker type for ending variadic paramater lists
-    STypeId_varend = STCLASS_OPAQUE | 15,
     // generic scalar types
     STypeId_int8 = STCLASS_INT | 1,
     STypeId_int16 = STCLASS_INT | 2,
@@ -121,6 +191,7 @@ enum STYPE_ID {
     STypeId_string = STCLASS_CX | 0,
     STypeId_object = STCLASS_CX | 1,
     STypeId_suid = STCLASS_CX | 2,        // notable exception
+    STypeId_stvar = STCLASS_CX | 3,
     STypeId_sarray = STCLASS_CX_CONTAINER | 0,
     STypeId_hashtable = STCLASS_CX_CONTAINER | 1,
 };
@@ -148,16 +219,17 @@ enum STYPE_SIZE {
     STypeSize_object = sizeof(void*),
     // SUID is special because it's always passed by reference, but stored as the full 16 bytes
     STypeSize_suid = 16,
+    STypeSize_stvar = sizeof(stvar),
     STypeSize_sarray = sizeof(void*),
     STypeSize_hashtable = sizeof(void*),
 };
 #define stTypeSize(name) STypeSize_##name
 
 enum STYPE_FLAGS {
-    STypeFlag_Indirect = (1 << 0),      // type is a pointer to something else; custom ops get the
-                                        // pointer value itself rather than address of the storage
-    STypeFlag_Object =   (1 << 1),      // "object-like" type -- pointer to managed object
-    STypeFlag_Custom =   (1 << 2),      // type uses custom ops
+    STypeFlag_Object =   (1 << 0),      // "object-like" type -- pointer to managed object
+    STypeFlag_Custom =   (1 << 1),      // type uses custom ops
+    STypeFlag_PassPtr =  (1 << 2),      // type is passed by pointer rather than by value,
+                                        // does not apply to 'handle' style objects
 };
 #define stFlag(name) STypeFlag_##name
 #define stHasFlag(st, fname) ((st >> 8) & stFlag(fname))
@@ -170,7 +242,6 @@ enum STYPE_FLAGS {
         uint16 size;
     };
 } stype; */
-typedef uint32 stype;
 #define stGetId(st) (st & 0xff)
 #define stGetFlags(st) ((st >> 8) & 0xff)
 #define stGetSize(st) (st >> 16)
@@ -183,7 +254,7 @@ _meta_inline bool stEq(stype sta, stype stb) {
 }
 
 enum STYPE_DEFAULT_FLAGS {
-    STypeFlags_opaque = 0,
+    STypeFlags_opaque = stFlag(PassPtr),
     STypeFlags_int8 = 0,
     STypeFlags_int16 = 0,
     STypeFlags_int32 = 0,
@@ -197,10 +268,11 @@ enum STYPE_DEFAULT_FLAGS {
     STypeFlags_size = 0,
     STypeFlags_float32 = 0,
     STypeFlags_float64 = 0,
-    STypeFlags_ptr = stFlag(Indirect),
+    STypeFlags_ptr = 0,
     STypeFlags_string = stFlag(Object),
     STypeFlags_object = stFlag(Object),
-    STypeFlags_suid = 0,
+    STypeFlags_suid = stFlag(PassPtr),
+    STypeFlags_stvar = stFlag(PassPtr) | stFlag(Object),
     STypeFlags_sarray = stFlag(Object),
     STypeFlags_hashtable = stFlag(Object),
 };
@@ -221,11 +293,11 @@ _meta_inline stype _stype_mkcustom(stype base)
 
 // C99 compound literals are lvalues and can force the compiler to create a temporary
 // on the stack if necessary, so that we can pass pointers to arbitrary expressions
-#define stRvalAddr(type, rval) (&((stTypeDef(type)){rval}))
+#define stRvalAddr(type, rval) ((stStorageType(type)[1]){rval})
 
 // MEGA PREPROCESSOR HACKS INCOMING
 // this enables the use of opaque(realtype) as type name in functions like saCreate
-#define stType_opaque(realtype) _stype_mktype(stTypeId(opaque), 0, (uint16)sizeof(realtype))
+#define stType_opaque(realtype) _stype_mktype(stTypeId(opaque), stTypeFlags(opaque), (uint16)sizeof(realtype))
 #define stType_int8 stTypeInternal(int8)
 #define stType_int16 stTypeInternal(int16)
 #define stType_int32 stTypeInternal(int32)
@@ -243,13 +315,14 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define stType_string stTypeInternal(string)
 #define stType_object stTypeInternal(object)
 #define stType_suid stTypeInternal(suid)
+#define stType_stvar stTypeInternal(stvar)
 #define stType_sarray stTypeInternal(sarray)
 #define stType_hashtable stTypeInternal(hashtable)
 #define stType_custom(basetype) _stype_mkcustom(stType_##basetype)
 #define stType(name) stType_##name
 
 // and the hack for custom(basetype, ops)
-#define stFullType_opaque(realtype) _stype_mktype(stTypeId(opaque), 0, (uint16)sizeof(realtype)), 0
+#define stFullType_opaque(realtype) _stype_mktype(stTypeId(opaque), stTypeFlags(opaque), (uint16)sizeof(realtype)), 0
 #define stFullType_int8 stFullTypeInternal(int8)
 #define stFullType_int16 stFullTypeInternal(int16)
 #define stFullType_int32 stFullTypeInternal(int32)
@@ -267,6 +340,7 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define stFullType_string stFullTypeInternal(string)
 #define stFullType_object stFullTypeInternal(object)
 #define stFullType_suid stFullTypeInternal(suid)
+#define stFullType_stvar stFullTypeInternal(stvar)
 #define stFullType_sarray stFullTypeInternal(sarray)
 #define stFullType_hashtable stFullTypeInternal(hashtable)
 // this will chain evaluate macros for stuff like custom(opaque(realtype), ops)
@@ -274,58 +348,61 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define stFullType_custom(basetype, ops) _stype_mkcustom(stType_##basetype), (&ops)
 #define stFullType(name) stFullType_##name
 
-// Macros for passing arguments by pointer
+// Macros for passing arguments by value
 
-// opqaue must always be passed in as an lvalue
-#define STypeArg_opaque(type, val) stCheck(type, &(val))
-// but everything else gets some compound literal fairy dust to enable expressions
-#define STypeArg_int8(type, val) stRvalAddr(type, val)
-#define STypeArg_int16(type, val) stRvalAddr(type, val)
-#define STypeArg_int32(type, val) stRvalAddr(type, val)
-#define STypeArg_int64(type, val) stRvalAddr(type, val)
-#define STypeArg_intptr(type, val) stRvalAddr(type, val)
-#define STypeArg_uint8(type, val) stRvalAddr(type, val)
-#define STypeArg_uint16(type, val) stRvalAddr(type, val)
-#define STypeArg_uint32(type, val) stRvalAddr(type, val)
-#define STypeArg_uint64(type, val) stRvalAddr(type, val)
-#define STypeArg_uintptr(type, val) stRvalAddr(type, val)
-#define STypeArg_size(type, val) stRvalAddr(type, val)
-#define STypeArg_float32(type, val) stRvalAddr(type, val)
-#define STypeArg_float64(type, val) stRvalAddr(type, val)
-#define STypeArg_ptr(type, val) stRvalAddr(type, val)
-#define STypeArg_string(type, val) stRvalAddr(type, val)
-#define STypeArg_object(type, val) stRvalAddr(type, val)
-// except SUID, which also requires an lvalue
-#define STypeArg_suid(type, val) stCheck(type, &(val))
-#define STypeArg_sarray(type, val) stRvalAddr(type, val)
-#define STypeArg_hashtable(type, val) stRvalAddr(type, val)
+// opqaue is a special case that must always be passed by pointer, and
+// the caller must supply an lvalue
+#define STypeArg_opaque(type, val) stgeneric(type, &(val))
+// but everything else gets put into a container
+#define STypeArg_int8(type, val) stgeneric(type, val)
+#define STypeArg_int16(type, val) stgeneric(type, val)
+#define STypeArg_int32(type, val) stgeneric(type, val)
+#define STypeArg_int64(type, val) stgeneric(type, val)
+#define STypeArg_intptr(type, val) stgeneric(type, val)
+#define STypeArg_uint8(type, val) stgeneric(type, val)
+#define STypeArg_uint16(type, val) stgeneric(type, val)
+#define STypeArg_uint32(type, val) stgeneric(type, val)
+#define STypeArg_uint64(type, val) stgeneric(type, val)
+#define STypeArg_uintptr(type, val) stgeneric(type, val)
+#define STypeArg_size(type, val) stgeneric(type, val)
+#define STypeArg_float32(type, val) stgeneric(type, val)
+#define STypeArg_float64(type, val) stgeneric(type, val)
+#define STypeArg_ptr(type, val) stgeneric(type, val)
+#define STypeArg_string(type, val) stgeneric(type, val)
+#define STypeArg_object(type, val) stgeneric(type, val)
+// SUID and stvar are too big, so make a copy and pass a pointer
+#define STypeArg_suid(type, val) stgeneric(type, stRvalAddr(type, val))
+#define STypeArg_stvar(type, val) stgeneric(type, stRvalAddr(type, val))
+#define STypeArg_sarray(type, val) stgeneric(type, val)
+#define STypeArg_hashtable(type, val) stgeneric(type, val)
 #define stArg(type, val) STypeArg_##type(type, val)
 
 // And for passing a pointer-to-pointer, mostly for functions that want to
 // consume or reallocate the object
 
 // opaque is already passed in as a pointer
-#define STypeArgPtr_opaque(type, val) stCheck(type, val)
-#define STypeArgPtr_int8(type, val) stCheckPtr(type, val)
-#define STypeArgPtr_int16(type, val) stCheckPtr(type, val)
-#define STypeArgPtr_int32(type, val) stCheckPtr(type, val)
-#define STypeArgPtr_int64(type, val) stCheckPtr(type, val)
-#define STypeArgPtr_intptr(type, val) stCheckPtr(type, val)
-#define STypeArgPtr_uint8(type, val) stCheckPtr(type, val)
-#define STypeArgPtr_uint16(type, val) stCheckPtr(type, val)
-#define STypeArgPtr_uint32(type, val) stCheckPtr(type, val)
-#define STypeArgPtr_uint64(type, val) stCheckPtr(type, val)
-#define STypeArgPtr_uintptr(type, val) stCheckPtr(type, val)
-#define STypeArgPtr_size(type, val) stCheckPtr(type, val)
-#define STypeArgPtr_float32(type, val) stCheckPtr(type, val)
-#define STypeArgPtr_float64(type, val) stCheckPtr(type, val)
-#define STypeArgPtr_ptr(type, val) stCheckPtr(type, (void**)(val))
-#define STypeArgPtr_string(type, val) stCheckPtr(type, val)
-#define STypeArgPtr_object(type, val) stCheckPtr(type, (void**)val)
-// same for the other special case (SUID)
-#define STypeArgPtr_suid(type, val) stCheck(type, val)
-#define STypeArgPtr_sarray(type, val) stCheckPtr(type, (void**)(val))
-#define STypeArgPtr_hashtable(type, val) stCheckPtr(type, val)
+#define STypeArgPtr_opaque(type, val) &stgeneric(type, val)
+#define STypeArgPtr_int8(type, val) (stgeneric*)stCheckPtr(type, val)
+#define STypeArgPtr_int16(type, val) (stgeneric*)stCheckPtr(type, val)
+#define STypeArgPtr_int32(type, val) (stgeneric*)stCheckPtr(type, val)
+#define STypeArgPtr_int64(type, val) (stgeneric*)stCheckPtr(type, val)
+#define STypeArgPtr_intptr(type, val) (stgeneric*)stCheckPtr(type, val)
+#define STypeArgPtr_uint8(type, val) (stgeneric*)stCheckPtr(type, val)
+#define STypeArgPtr_uint16(type, val) (stgeneric*)stCheckPtr(type, val)
+#define STypeArgPtr_uint32(type, val) (stgeneric*)stCheckPtr(type, val)
+#define STypeArgPtr_uint64(type, val) (stgeneric*)stCheckPtr(type, val)
+#define STypeArgPtr_uintptr(type, val) (stgeneric*)stCheckPtr(type, val)
+#define STypeArgPtr_size(type, val) (stgeneric*)stCheckPtr(type, val)
+#define STypeArgPtr_float32(type, val) (stgeneric*)stCheckPtr(type, val)
+#define STypeArgPtr_float64(type, val) (stgeneric*)stCheckPtr(type, val)
+#define STypeArgPtr_ptr(type, val) (stgeneric*)stCheckPtr(type, (void**)(val))
+#define STypeArgPtr_string(type, val) (stgeneric*)stCheckPtr(type, val)
+#define STypeArgPtr_object(type, val) (stgeneric*)stCheckPtr(type, (void**)val)
+// same for the other pass-by-pointer cases (SUID, stvar)
+#define STypeArgPtr_suid(type, val) &stgeneric(type, val)
+#define STypeArgPtr_stvar(type, val) &stgeneric(type, val)
+#define STypeArgPtr_sarray(type, val) (stgeneric*)stCheckPtr(type, (void**)(val))
+#define STypeArgPtr_hashtable(type, val) (stgeneric*)stCheckPtr(type, val)
 #define stArgPtr(type, val) STypeArgPtr_##type(type, val)
 
 // Macros for type-checked inline metafunctions.
@@ -348,7 +425,8 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define STypeChecked_ptr(type, val) stTypeInternal(type), stArg(type, val)
 #define STypeChecked_string(type, val) stTypeInternal(type), stArg(type, val)
 #define STypeChecked_object(type, val) stTypeInternal(type), stArg(type, val)
-#define STypeChecked_suid(type, val) stTypeInternal(type), stArg(type, &(val))
+#define STypeChecked_suid(type, val) stTypeInternal(type), stArg(type, val)
+#define STypeChecked_stvar(type, val) stTypeInternal(type), stArg(type, val)
 #define STypeChecked_sarray(type, val) stTypeInternal(type), stArg(type, val)
 #define STypeChecked_hashtable(type, val) stTypeInternal(type), stArg(type, val)
 #define stChecked(type, val) STypeChecked_##type(type, val)
@@ -375,22 +453,10 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define STypeCheckedPtr_string(type, val) stTypeInternal(type), stArgPtr(type, val)
 #define STypeCheckedPtr_object(type, val) stTypeInternal(type), stArgPtr(type, val)
 #define STypeCheckedPtr_suid(type, val) stTypeInternal(type), stArgPtr(type, val)
+#define STypeCheckedPtr_stvar(type, val) stTypeInternal(type), stArgPtr(type, val)
 #define STypeCheckedPtr_sarray(type, val) stTypeInternal(type), stArgPtr(type, val)
 #define STypeCheckedPtr_hashtable(type, val) stTypeInternal(type), stArgPtr(type, val)
 #define stCheckedPtr(type, val) STypeCheckedPtr_##type(type, val)
-
-// Compact variant structure. This is most often used for passing arrays of values that
-// the type is not known at compile time, as part of the type-safe varargs replacement
-// mechanism.
-
-typedef struct stvariant {
-    void *ptr;
-    stype type;
-} stvariant;
-
-// Note that this uses a temporary, so the variant's lifetime is equal to the function
-// that it was created in. It should be used for passing varargs by-value.
-#define stVar(type, val) ((stvariant){ stArg(type, val), stType(type) })
 
 enum STYPE_OPS_FLAGS {
     STOPS_ = 0,
@@ -401,12 +467,10 @@ enum STYPE_OPS_FLAGS {
     STOPS_CaseInsensitive = 0x00000001,
 };
 
-typedef void (*stDtorFunc)(stype st, void*, uint32 flags);
-typedef intptr (*stCmpFunc)(stype st, const void*, const void*, uint32 flags);
-typedef uint32 (*stHashFunc)(stype st, const void*, uint32 flags);
-// NOTE: copy ops always get pointer-to-storage for the destination even with ST_Indirect set!
-// (needed as custom copying a pointer almost involves allocating memory & storing the pointer)
-typedef void (*stCopyFunc)(stype st, void*, const void*, uint32 flags);
+typedef void (*stDtorFunc)(stype st, stgeneric*, uint32 flags);
+typedef intptr (*stCmpFunc)(stype st, stgeneric, stgeneric, uint32 flags);
+typedef uint32 (*stHashFunc)(stype st, stgeneric, uint32 flags);
+typedef void (*stCopyFunc)(stype st, stgeneric*, stgeneric, uint32 flags);
 
 extern stDtorFunc _stDefaultDtor[256];
 extern stCmpFunc _stDefaultCmp[256];
@@ -420,91 +484,72 @@ typedef struct STypeOps {
     stCopyFunc copy;
 } STypeOps;
 
+#define stStored(st, storage) (stHasFlag(st, PassPtr) ? stgeneric(ptr, (void*)(storage)) : *(stgeneric*)((void*)(storage)))
+
+#define stStoredPtr(st, storage) (stHasFlag(st, PassPtr) ? &stgeneric(ptr, ((void*)(storage))) : (stgeneric*)((void*)(storage)))
+
+#define stGenPtr(st, gen) (stHasFlag(st, PassPtr) ? stGenVal(ptr, gen) : &(gen))
+
 // inlining these lets most of it get optimized out and specialized if the type is known at compile-time
 
-_meta_inline void _stDestroy(stype st, STypeOps *ops, void *optr, uint32 flags)
+_meta_inline void _stDestroy(stype st, STypeOps *ops, stgeneric *stgen, uint32 flags)
 {
-    void *ptr;
-    if (stHasFlag(st, Indirect)) {
-        ptr = *(void**)optr;
-        *(void**)optr = 0;          // clear out pointer
-    } else {
-        ptr = optr;
-    }
-
     // ops is mandatory for custom type
     devAssert(!stHasFlag(st, Custom) || ops);
 
     if (ops && ops->dtor)
-        ops->dtor(st, ptr, flags);
+        ops->dtor(st, stgen, flags);
     else if (_stDefaultDtor[stGetId(st)])
-        _stDefaultDtor[stGetId(st)](st, ptr, flags);
+        _stDefaultDtor[stGetId(st)](st, stgen, flags);
 }
 #define stDestroy(type, pobj, ...) _stDestroy(stFullType(type), stArgPtr(type, pobj), func_flags(STOPS, __VA_ARGS__))
 
-_meta_inline intptr _stCmp(stype st, STypeOps *ops, const void *optr1, const void *optr2, uint32 flags)
+_meta_inline intptr _stCmp(stype st, STypeOps *ops, stgeneric stgen1, stgeneric stgen2, uint32 flags)
 {
     // ops is mandatory for custom type
     devAssert(!stHasFlag(st, Custom) || ops);
 
-    const void *ptr1, *ptr2;
-    if (stHasFlag(st, Indirect)) {
-        ptr1 = *(const void**)optr1;
-        ptr2 = *(const void**)optr2;
-    } else {
-        ptr1 = optr1;
-        ptr2 = optr2;
-    }
-
     if (ops && ops->cmp)
-        return ops->cmp(st, ptr1, ptr2, flags);
+        return ops->cmp(st, stgen1, stgen2, flags);
 
     if (_stDefaultCmp[stGetId(st)])
-        return _stDefaultCmp[stGetId(st)](st, ptr1, ptr2, flags);
+        return _stDefaultCmp[stGetId(st)](st, stgen1, stgen2, flags);
 
-    return memcmp(optr1, optr2, stGetSize(st));       // use optr* to compare raw storage for indirect
+    if (!stHasFlag(st, PassPtr))
+        return memcmp(&stgen1, &stgen2, stGetSize(st));
+    else
+        return memcmp(stGenVal(ptr, stgen1), stGenVal(ptr, stgen2), stGetSize(st));
 }
 #define stCmp(type, obj1, obj2, ...) _stCmp(stFullType(type), stArg(type, obj1), stArg(type, obj2), func_flags(STOPS, __VA_ARGS__))
 
-_meta_inline void _stCopy(stype st, STypeOps *ops, void *dest, const void *osrc, uint32 flags)
+_meta_inline void _stCopy(stype st, STypeOps *ops, stgeneric *dest, stgeneric src, uint32 flags)
 {
     // ops is mandatory for custom type
     devAssert(!stHasFlag(st, Custom) || ops);
-
-    // dest always points at storage and should ignore the Indirect flag
-    const void *src;
-    if (stHasFlag(st, Indirect))
-        src = *(const void**)osrc;
-    else
-        src = osrc;
 
     if (ops && ops->copy)
         ops->copy(st, dest, src, flags);
     else if (_stDefaultCopy[stGetId(st)])
         _stDefaultCopy[stGetId(st)](st, dest, src, flags);
+    else if (!stHasFlag(st, PassPtr))
+        memcpy(dest, &src, stGetSize(st));
     else
-        memcpy(dest, osrc, stGetSize(st));            // without ops, use osrc to copy the raw storage
+        memcpy(stGenVal(ptr, dest), stGenVal(ptr, src), stGetSize(st));
 }
 #define stCopy(type, pdest, src, ...) _stCopy(stFullType(type), stArgPtr(type, pdest), stArg(type, src), func_flags(STOPS, __VA_ARGS__))
 
-uint32 stHash_gen(stype st, const void *ptr, uint32 flags);
-_meta_inline uint32 _stHash(stype st, STypeOps *ops, const void *optr, uint32 flags)
+uint32 stHash_gen(stype st, stgeneric stgen, uint32 flags);
+_meta_inline uint32 _stHash(stype st, STypeOps *ops, stgeneric stgen, uint32 flags)
 {
     // ops is mandatory for custom type
     devAssert(!stHasFlag(st, Custom) || ops);
 
-    const void *ptr;
-    if (stHasFlag(st, Indirect))
-        ptr = *(const void**)optr;
-    else
-        ptr = optr;
-
     if (ops && ops->hash)
-        return ops->hash(st, ptr, flags);
+        return ops->hash(st, stgen, flags);
     else if (_stDefaultHash[stGetId(st)])
-        return _stDefaultHash[stGetId(st)](st, ptr, flags);
+        return _stDefaultHash[stGetId(st)](st, stgen, flags);
     else
-        return stHash_gen(st, optr, flags);     // without ops, just hash the storage (optr)
+        return stHash_gen(st, stgen, flags);
 }
 #define stHash(type, obj, ...) _stHash(stFullType(type), stArg(type, obj), func_flags(STOPS, __VA_ARGS__))
 

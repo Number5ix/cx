@@ -2,23 +2,22 @@
 #include "cx/debug/assert.h"
 #include "cx/utils/murmur.h"
 
-void stDtor_obj(stype st, void *ptr, uint32 flags)
+void stDtor_obj(stype st, stgeneric *stgen, uint32 flags)
 {
-    objRelease(*(ObjInst**)ptr);
+    ObjInst** inst = (ObjInst**)&stGenVal(object, *stgen);
+    objRelease(*inst);
 }
 
-void stCopy_obj(stype st, void *dest, const void *src, uint32 flags)
+void stCopy_obj(stype st, stgeneric *dest, stgeneric src, uint32 flags)
 {
-    ObjInst** dstinstp = (ObjInst**)dest;
-    ObjInst** srcinstp = (ObjInst**)src;
-    objAcquire(*srcinstp);
-    *dstinstp = *srcinstp;
+    objAcquire((ObjInst*)stGenVal(object, src));
+    stGenVal(object, *dest) = stGenVal(object, src);
 }
 
-intptr stCmp_obj(stype st, const void *ptr1, const void *ptr2, uint32 flags)
+intptr stCmp_obj(stype st, stgeneric stgen1, stgeneric stgen2, uint32 flags)
 {
-    ObjInst* inst1 = *(ObjInst**)ptr1;
-    ObjInst* inst2 = *(ObjInst**)ptr2;
+    ObjInst* inst1 = (ObjInst*)stGenVal(object, stgen1);
+    ObjInst* inst2 = (ObjInst*)stGenVal(object, stgen2);
 
     if (inst1->_clsinfo->_cmp)
         return inst1->_clsinfo->_cmp(inst1, inst2, flags);
@@ -27,9 +26,9 @@ intptr stCmp_obj(stype st, const void *ptr1, const void *ptr2, uint32 flags)
     return -1;
 }
 
-uint32 stHash_obj(stype st, const void *ptr, uint32 flags)
+uint32 stHash_obj(stype st, stgeneric stgen, uint32 flags)
 {
-    ObjInst *inst = *(ObjInst**)ptr;
+    ObjInst *inst = (ObjInst*)stGenVal(object, stgen);
 
     devAssert(inst->_clsinfo->_hash);
     if (inst->_clsinfo->_hash)

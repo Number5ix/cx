@@ -1,19 +1,19 @@
 #include "hashtable_private.h"
 #include "cx/utils/murmur.h"
 
-void stDtor_hashtable(stype st, void *ptr, uint32 flags)
+void stDtor_hashtable(stype st, stgeneric *stgen, uint32 flags)
 {
-    htDestroy((hashtable*)ptr);
+    htDestroy(&stGenVal(hashtable, stgen));
 }
 
-void stCopy_hashtable(stype st, void *dest, const void *src, uint32 flags)
+void stCopy_hashtable(stype st, stgeneric *dest, stgeneric src, uint32 flags)
 {
-    *(hashtable*)dest = _htClone((hashtable*)src, 0, NULL, false);
+    stGenVal(hashtable, *dest) = _htClone(&stGenVal(hashtable, src), 0, NULL, false);
 }
 
-uint32 stHash_hashtable(stype st, const void *ptr, uint32 flags)
+uint32 stHash_hashtable(stype st, stgeneric stgen, uint32 flags)
 {
-    hashtable *htbl = (hashtable*)ptr;
+    hashtable *htbl = &stGenVal(hashtable, stgen);
     HashTableHeader *hdr = HTABLE_HDR(*htbl);
     uint32 elemsz = _htElemSz(hdr);
     uint32 ret = 0;
@@ -23,8 +23,10 @@ uint32 stHash_hashtable(stype st, const void *ptr, uint32 flags)
         if (*skey == hashEmpty || *skey == hashDeleted)
             continue;
 
-        ret ^= _stHash(hdr->keytype, HDRKEYOPS(hdr), HTKEY(hdr, elemsz, i), 0);
-        ret ^= _stHash(hdr->valtype, HDRVALOPS(hdr), HTVAL(hdr, elemsz, i), 0);
+        ret ^= _stHash(hdr->keytype, HDRKEYOPS(hdr),
+                       stStored(hdr->keytype, HTKEY(hdr, elemsz, i)), 0);
+        ret ^= _stHash(hdr->valtype, HDRVALOPS(hdr),
+                       stStored(hdr->valtype, HTVAL(hdr, elemsz, i)), 0);
     }
 
     return ret;

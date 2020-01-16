@@ -1,7 +1,7 @@
 #include "hashtable_private.h"
 #include "cx/debug/assert.h"
 
-static int32 _htInsertInternal(hashtable *htbl, void *key, void *val, uint32 flags);
+static int32 _htInsertInternal(hashtable *htbl, stgeneric key, stgeneric *val, uint32 flags);
 
 static int npow2(int val)
 {
@@ -149,7 +149,8 @@ hashtable _htClone(hashtable *htbl, int32 minsz, int32 *origslot, bool move)
         uint64 *skey = HTKEY(hdr, elemsz, i);
         if (*skey == hashEmpty || *skey == hashDeleted)
             continue;
-        int32 insslot = _htInsertInternal(&ntbl, skey, HTVAL(hdr, elemsz, i), 0);
+        int32 insslot = _htInsertInternal(&ntbl, stStored(hdr->keytype, skey),
+                                          stStoredPtr(hdr->valtype, HTVAL(hdr, elemsz, i)), 0);
         if (origslot && *origslot == i)
             nslot = insslot;
     }
@@ -213,7 +214,7 @@ static void htGrowTable(hashtable *htbl, int32 *origslot)
     htResizeTable(htbl, newsz, origslot);
 }
 
-static bool htFindInternal(HashTableHeader *hdr, void *key, int32 *indexOut, int32 *deletedOut)
+static bool htFindInternal(HashTableHeader *hdr, stgeneric key, int32 *indexOut, int32 *deletedOut)
 {
     uint32 elemsz = _htElemSz(hdr);
     uint32 opsflags = (hdr->flags & HT_CaseInsensitive) ? STOPS_CaseInsensitive : 0;
@@ -237,7 +238,8 @@ static bool htFindInternal(HashTableHeader *hdr, void *key, int32 *indexOut, int
 
         if (*skey != hashDeleted) {
             // not deleted, so check the key
-            if (_stCmp(hdr->keytype, HDRKEYOPS(hdr), key, skey, opsflags) == 0) {
+            if (_stCmp(hdr->keytype, HDRKEYOPS(hdr), key,
+                       stStored(hdr->keytype, skey), opsflags) == 0) {
                 // found it!
                 if (indexOut)
                     *indexOut = hash;
@@ -262,28 +264,30 @@ static bool htFindInternal(HashTableHeader *hdr, void *key, int32 *indexOut, int
 }
 
 //static _meta_inline void htSetValueInternal(HashTableHeader *hdr, int32 slot, void *val, bool consume)
-static void htSetValueInternal(HashTableHeader *hdr, int32 slot, void *val, bool consume)
+static void htSetValueInternal(HashTableHeader *hdr, int32 slot, stgeneric *val, bool consume)
 {
     if (consume) {
         // special case: if we're consuming, just steal the element instead of deep copying it,
         // even if we're the owner
-        memcpy(HTVAL(hdr, _htElemSz(hdr), slot), val, stGetSize(hdr->valtype));
+        memcpy(HTVAL(hdr, _htElemSz(hdr), slot), stGenPtr(hdr->valtype, *val), stGetSize(hdr->valtype));
 
         // destroy source
         if (hdr->flags & HT_Ref)        // this combination doesn't make much sense, but should respect it
             _stDestroy(hdr->valtype, HDRVALOPS(hdr), val, 0);
         else if (stGetSize(hdr->valtype) == sizeof(void*))
-            *(void**)val = 0;       // if this is a pointer-sized element, clear it out
+            stGenVal(ptr, *val) = 0;    // if this is a pointer-sized element, clear it out
         return;
     }
 
     if (!(hdr->flags & HT_Ref))
-        _stCopy(hdr->valtype, HDRVALOPS(hdr), HTVAL(hdr, _htElemSz(hdr), slot), val, 0);
+        _stCopy(hdr->valtype, HDRVALOPS(hdr),
+                stStoredPtr(hdr->valtype, HTVAL(hdr, _htElemSz(hdr), slot)), *val, 0);
     else
-        memcpy(HTVAL(hdr, _htElemSz(hdr), slot), val, stGetSize(hdr->valtype));
+        memcpy(HTVAL(hdr, _htElemSz(hdr), slot), stGenPtr(hdr->valtype, *val),
+               stGetSize(hdr->valtype));
 }
 
-static int32 _htInsertInternal(hashtable *htbl, void *key, void *val, uint32 flags)
+static int32 _htInsertInternal(hashtable *htbl, stgeneric key, stgeneric *val, uint32 flags)
 {
     HashTableHeader *hdr = HTABLE_HDR(*htbl);
     int32 slot, deleted;
@@ -301,7 +305,8 @@ static int32 _htInsertInternal(hashtable *htbl, void *key, void *val, uint32 fla
 
         // replacing existing value, destroy it first if necessary
         if (!(hdr->flags & HT_Ref))
-            _stDestroy(hdr->valtype, HDRVALOPS(hdr), HTVAL(hdr, _htElemSz(hdr), slot), 0);
+            _stDestroy(hdr->valtype, HDRVALOPS(hdr),
+                       stStoredPtr(hdr->valtype, HTVAL(hdr, _htElemSz(hdr), slot)), 0);
 
         htSetValueInternal(hdr, slot, val, flags & HTFUNCINT_Consume);
         return slot;
@@ -315,9 +320,10 @@ static int32 _htInsertInternal(hashtable *htbl, void *key, void *val, uint32 fla
 
     // set key
     if (!(hdr->flags & HT_RefKeys))
-        _stCopy(hdr->keytype, HDRKEYOPS(hdr), HTKEY(hdr, _htElemSz(hdr), slot), key, 0);
+        _stCopy(hdr->keytype, HDRKEYOPS(hdr),
+                stStoredPtr(hdr->keytype, HTKEY(hdr, _htElemSz(hdr), slot)), key, 0);
     else
-        memcpy(HTKEY(hdr, _htElemSz(hdr), slot), key, stGetSize(hdr->keytype));
+        memcpy(HTKEY(hdr, _htElemSz(hdr), slot), stGenPtr(hdr->keytype, key), stGetSize(hdr->keytype));
 
     htSetValueInternal(hdr, slot, val, flags & HTFUNCINT_Consume);
 
@@ -346,7 +352,7 @@ static int32 _htInsertInternal(hashtable *htbl, void *key, void *val, uint32 fla
     return slot;
 }
 
-htelem _htInsert(hashtable *htbl, void *key, void *val, uint32 flags)
+htelem _htInsertPtr(hashtable *htbl, stgeneric key, stgeneric *val, uint32 flags)
 {
     int32 slot = _htInsertInternal(htbl, key, val, flags);
     if (slot == -1)
@@ -354,6 +360,11 @@ htelem _htInsert(hashtable *htbl, void *key, void *val, uint32 flags)
 
     HashTableHeader *hdr = HTABLE_HDR(*htbl);
     return HTKEY(hdr, _htElemSz(hdr), slot);
+}
+
+htelem _htInsert(hashtable *htbl, stgeneric key, stgeneric val, uint32 flags)
+{
+    return _htInsertPtr(htbl, key, &val, flags);
 }
 
 void htClear(hashtable *htbl)
@@ -369,9 +380,11 @@ void htClear(hashtable *htbl)
             uint64 *skey = HTKEY(hdr, elemsz, i);
             if (*skey != hashEmpty && *skey != hashDeleted) {
                 if (!(hdr->flags & HT_RefKeys))
-                    _stDestroy(hdr->keytype, HDRKEYOPS(hdr), HTKEY(hdr, elemsz, i), 0);
+                    _stDestroy(hdr->keytype, HDRKEYOPS(hdr),
+                               stStoredPtr(hdr->keytype, HTKEY(hdr, elemsz, i)), 0);
                 if (!(hdr->flags & HT_Ref))
-                    _stDestroy(hdr->valtype, HDRVALOPS(hdr), HTVAL(hdr, elemsz, i), 0);
+                    _stDestroy(hdr->valtype, HDRVALOPS(hdr),
+                               stStoredPtr(hdr->valtype, HTVAL(hdr, elemsz, i)), 0);
             }
             *skey = hashEmpty;
         }
@@ -408,7 +421,7 @@ void htSetSize(hashtable *htbl, int32 newsz)
         htResizeTable(htbl, newsz, NULL);
 }
 
-bool _htFind(hashtable *htbl, void *key, void *val, uint32 flags)
+bool _htFind(hashtable *htbl, stgeneric key, stgeneric *val, uint32 flags)
 {
     HashTableHeader *hdr = HTABLE_HDR(*htbl);
     uint32 elemsz = _htElemSz(hdr);
@@ -417,12 +430,14 @@ bool _htFind(hashtable *htbl, void *key, void *val, uint32 flags)
 
     if (found) {
         if (val)
-            memcpy(val, HTVAL(hdr, elemsz, slot), stGetSize(hdr->valtype));
+            memcpy(stGenPtr(hdr->valtype, *val), HTVAL(hdr, elemsz, slot), stGetSize(hdr->valtype));
         if ((flags & HTFUNC_Destroy) && !(hdr->flags & HT_Ref))
-            _stDestroy(hdr->valtype, HDRVALOPS(hdr), HTVAL(hdr, elemsz, slot), 0);
+            _stDestroy(hdr->valtype, HDRVALOPS(hdr),
+                       stStoredPtr(hdr->valtype, HTVAL(hdr, elemsz, slot)), 0);
         if (flags & (HTFUNC_Destroy | HTFUNC_RemoveOnly)) {
             if (!(hdr->flags & HT_RefKeys))
-                _stDestroy(hdr->keytype, HDRKEYOPS(hdr), HTKEY(hdr, elemsz, slot), 0);
+                _stDestroy(hdr->keytype, HDRKEYOPS(hdr),
+                           stStoredPtr(hdr->keytype, HTKEY(hdr, elemsz, slot)), 0);
             *(uint64*)HTKEY(hdr, elemsz, slot) = hashDeleted;
             hdr->valid--;
         }
@@ -431,7 +446,7 @@ bool _htFind(hashtable *htbl, void *key, void *val, uint32 flags)
     return found;
 }
 
-bool _htRemove(hashtable *htbl, void *key)
+bool _htRemove(hashtable *htbl, stgeneric key)
 {
     HashTableHeader *hdr = HTABLE_HDR(*htbl);
     uint32 elemsz = _htElemSz(hdr);
@@ -440,9 +455,11 @@ bool _htRemove(hashtable *htbl, void *key)
 
     if (found) {
         if (!(hdr->flags & HT_Ref))
-            _stDestroy(hdr->valtype, HDRVALOPS(hdr), HTVAL(hdr, elemsz, slot), 0);
+            _stDestroy(hdr->valtype, HDRVALOPS(hdr),
+                       stStoredPtr(hdr->valtype, HTVAL(hdr, elemsz, slot)), 0);
         if (!(hdr->flags & HT_RefKeys))
-            _stDestroy(hdr->keytype, HDRKEYOPS(hdr), HTKEY(hdr, elemsz, slot), 0);
+            _stDestroy(hdr->keytype, HDRKEYOPS(hdr),
+                       stStoredPtr(hdr->keytype, HTKEY(hdr, elemsz, slot)), 0);
         *(uint64*)HTKEY(hdr, elemsz, slot) = hashDeleted;
         hdr->valid--;
     }
@@ -450,7 +467,7 @@ bool _htRemove(hashtable *htbl, void *key)
     return found;
 }
 
-htelem _htFindElem(hashtable *htbl, void *key)
+htelem _htFindElem(hashtable *htbl, stgeneric key)
 {
     HashTableHeader *hdr = HTABLE_HDR(*htbl);
     uint32 elemsz = _htElemSz(hdr);

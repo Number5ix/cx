@@ -22,7 +22,7 @@ extern bool(*_fmtTypeFormat[FMT_count])(FMTVar *v, string *out);
 
 typedef struct FMTContext {
     int32 nargs;
-    stvariant *args;
+    stvar *args;
     int32 startarg[FMT_count];      // where to start searching for each type
     int32 arrayidx;                 // arrary index counter
 

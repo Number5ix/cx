@@ -108,18 +108,19 @@ void _saSetSize(void **handle, int32 size);
 void _saClear(void **handle);
 #define saClear(handle) _saClear(SAHANDLE(handle))
 
-int32 _saPush(void **handle, stype elemtype, void *elem, uint32 flags);
+int32 _saPush(void **handle, stype elemtype, stgeneric elem, uint32 flags);
+int32 _saPushPtr(void **handle, stype elemtype, stgeneric *elem, uint32 flags);
 #define saPush(handle, type, elem, ...) _saPush(SAHANDLE(handle), stChecked(type, elem), func_flags(SAFUNC, __VA_ARGS__))
 // Consume version of push, requires that elem be a pointer
-#define saPushC(handle, type, elem, ...) _saPush(SAHANDLE(handle), stCheckedPtr(type, elem), func_flags(SAFUNC, __VA_ARGS__) | SAFUNCINT_Consume)
+#define saPushC(handle, type, elem, ...) _saPushPtr(SAHANDLE(handle), stCheckedPtr(type, elem), func_flags(SAFUNC, __VA_ARGS__) | SAFUNCINT_Consume)
 
 // Pointer pop transfers ownership to the caller and does not call the destructor
 void *_saPopPtr(void **handle, int32 idx);
 #define saPopPtr(handle) _saPopPtr(SAHANDLE(handle), -1)
 #define saPopPtrI(handle, idx) _saPopPtr(SAHANDLE(handle), idx)
 
-int32 _saFind(void **handle, const void *elem, uint32 flags);
-_meta_inline int32 _saFindChecked(void **handle, stype elemtype, void *elem, uint32 flags)
+int32 _saFind(void **handle, stgeneric elem, uint32 flags);
+_meta_inline int32 _saFindChecked(void **handle, stype elemtype, stgeneric elem, uint32 flags)
 {
     if (!*handle)
         return -1;
@@ -128,8 +129,8 @@ _meta_inline int32 _saFindChecked(void **handle, stype elemtype, void *elem, uin
 }
 #define saFind(handle, type, elem, ...) _saFindChecked(SAHANDLE(handle), stChecked(type, elem), func_flags(SAFUNC, __VA_ARGS__))
 
-int32 _saInsert(void **handle, int32 idx, void *elem);
-_meta_inline int32 _saInsertChecked(void **handle, int32 idx, stype elemtype, void *elem)
+int32 _saInsert(void **handle, int32 idx, stgeneric elem);
+_meta_inline int32 _saInsertChecked(void **handle, int32 idx, stype elemtype, stgeneric elem)
 {
     devAssert(*handle);
     devAssert(stEq(saElemType(handle), elemtype));

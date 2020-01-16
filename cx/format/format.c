@@ -80,7 +80,7 @@ static void fmtVarDestroy(FMTVar *v)
     strDestroy(&v->hashkey);
 }
 
-bool _strFormat(string *out, string fmt, int n, stvariant *args)
+bool _strFormat(string *out, string fmt, int n, stvar *args)
 {
     if (!(out && fmt))
         return false;

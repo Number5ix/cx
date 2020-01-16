@@ -1,6 +1,6 @@
 #include "cx/cx.h"
 
-void stDtor_obj(stype st, void *ptr, uint32 flags);
-intptr stCmp_obj(stype st, const void *ptr1, const void *ptr2, uint32 flags);
-void stCopy_obj(stype st, void *dest, const void *src, uint32 flags);
-uint32 stHash_obj(stype st, const void *ptr, uint32 flags);
+void stDtor_obj(stype st, stgeneric *stgen, uint32 flags);
+intptr stCmp_obj(stype st, stgeneric stgen1, stgeneric stgen2, uint32 flags);
+void stCopy_obj(stype st, stgeneric *dest, stgeneric src, uint32 flags);
+uint32 stHash_obj(stype st, stgeneric stgen, uint32 flags);

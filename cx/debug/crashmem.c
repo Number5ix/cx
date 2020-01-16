@@ -3,10 +3,10 @@
 static LazyInitState crashMemInitState;
 CrashMemRange *_dbgCrashDumpMem;
 
-static intptr crashMemCmp(stype st, const void *a, const void *b, uint32 flags)
+static intptr crashMemCmp(stype st, stgeneric a, stgeneric b, uint32 flags)
 {
-    CrashMemRange *r1 = (CrashMemRange*)a;
-    CrashMemRange *r2 = (CrashMemRange*)b;
+    CrashMemRange *r1 = (CrashMemRange*)stGenVal(opaque, a);
+    CrashMemRange *r2 = (CrashMemRange*)stGenVal(opaque, b);
 
     if (r1->start < r2->start)
         return -1;

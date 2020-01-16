@@ -7,6 +7,9 @@
 // C11 thread local
 #define _Thread_local __declspec(thread)
 
+// C11 static assert
+#define _Static_assert static_assert
+
 // We use inline functions for metaprogramming and really, REALLY want them
 // to be inlined
 #define _meta_inline __forceinline

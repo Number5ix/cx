@@ -8,9 +8,9 @@ VFSCacheEnt *_vfsCacheEntCreate(VFSMount *m, string opath)
     return c;
 }
 
-static void _vfsCacheEntDestroy(stype st, void *ptr, uint32 flags)
+static void _vfsCacheEntDestroy(stype st, stgeneric *g, uint32 flags)
 {
-    VFSCacheEnt *e = (VFSCacheEnt*)ptr;
+    VFSCacheEnt *e = (VFSCacheEnt*)stGenVal(ptr, *g);
     strDestroy(&e->origpath);
     xaFree(e);
 }
@@ -34,9 +34,9 @@ VFSDir *_vfsDirCreate(VFS *vfs, VFSDir *parent)
     return d;
 }
 
-static void _vfsDirDestroy(stype st, void *ptr, uint32 flags)
+static void _vfsDirDestroy(stype st, stgeneric *g, uint32 flags)
 {
-    VFSDir *d = (VFSDir*)ptr;
+    VFSDir *d = (VFSDir*)stGenVal(ptr, *g);
     saDestroy(&d->mounts);
     htDestroy(&d->files);
     htDestroy(&d->subdirs);

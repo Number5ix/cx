@@ -180,9 +180,9 @@ loop: \
     } \
 }
 
-#define compfunc_stype(st, a, b) _stCmp(st, NULL, a, b, 0)
+#define compfunc_stype(st, a, b) _stCmp(st, NULL, stStored(st, a), stStored(st, b), 0)
 SA_SPECIALIZE(stype, void*, intptr, compfunc_stype)
-#define compfunc_stype_cmp(st, a, b) _stCmp(st, &hdr->typeops, a, b, 0)
+#define compfunc_stype_cmp(st, a, b) _stCmp(st, &hdr->typeops, stStored(st, a), stStored(st, b), 0)
 SA_SPECIALIZE(stypecmp, void*, intptr, compfunc_stype_cmp)
 #define compfunc_str(st, a, b) strCmp(*(string*)(a), *(string*)(b))
 SA_SPECIALIZE(string, string, int32, compfunc_str)
@@ -238,10 +238,11 @@ static void sa_spec_init(void *user)
 case caseval: \
     return func##_##name(hdr, elem, found);
 
-static int32 sa_find_internal(SArrayHeader *hdr, const void *elem, bool *found)
+static int32 sa_find_internal(SArrayHeader *hdr, stgeneric stelem, bool *found)
 {
     uint8 type = stGetId(hdr->elemtype);
     lazyInit(&spec_init_state, sa_spec_init, NULL);
+    void *elem = stGenPtr(hdr->elemtype, stelem);
 
     *found = false;
     if (hdr->flags & SA_Sorted) {
@@ -412,7 +413,8 @@ void _saClear(void **handle)
         int32 i;
 
         for (i = 0; i < hdr->count; ++i) {
-            _stDestroy(hdr->elemtype, ops, ELEMPTR(hdr, i), 0);
+            _stDestroy(hdr->elemtype, ops,
+                       stStoredPtr(hdr->elemtype, ELEMPTR(hdr, i)), 0);
         }
     }
     hdr->count = 0;
@@ -457,34 +459,36 @@ void _saSetSize(void **handle, int32 size)
         memset(ELEMPTR(hdr, hdr->count), 0, (size - hdr->count) * stGetSize(hdr->elemtype));
     } else if (!(hdr->flags & SA_Ref)) {
         for (int i = size; i < hdr->count; i++) {
-            _stDestroy(hdr->elemtype, ops, ELEMPTR(hdr, i), 0);
+            _stDestroy(hdr->elemtype, ops,
+                       stStoredPtr(hdr->elemtype, ELEMPTR(hdr, i)), 0);
         }
     }
     hdr->count = size;
 }
 
-static _meta_inline void sa_set_elem_internal(SArrayHeader *hdr, int32 idx, void *elem, bool consume)
+static _meta_inline void sa_set_elem_internal(SArrayHeader *hdr, int32 idx, stgeneric *elem, bool consume)
 {
     if (consume) {
         // special case: if we're consuming, just steal the element instead of deep copying it,
         // even if we're the owner
-        memcpy(ELEMPTR(hdr, idx), elem, stGetSize(hdr->elemtype));
+        memcpy(ELEMPTR(hdr, idx), stGenPtr(hdr->elemtype, *elem), stGetSize(hdr->elemtype));
 
         // destroy source
         if (hdr->flags & SA_Ref)        // weird combo, but respect it
             _stDestroy(hdr->elemtype, HDRTYPEOPS(hdr), elem, 0);
         else if (stGetSize(hdr->elemtype) == sizeof(void*))
-            *(void**)elem = 0;      // if this is a pointer-sized element, clear it out
+            stGenVal(ptr, *elem) = 0;   // if this is a pointer-sized element, clear it out
         return;
     }
 
     if (!(hdr->flags & SA_Ref))
-        _stCopy(hdr->elemtype, HDRTYPEOPS(hdr), ELEMPTR(hdr, idx), elem, 0);
+        _stCopy(hdr->elemtype, HDRTYPEOPS(hdr),
+                stStoredPtr(hdr->elemtype, ELEMPTR(hdr, idx)), *elem, 0);
     else
-        memcpy(ELEMPTR(hdr, idx), elem, stGetSize(hdr->elemtype));
+        memcpy(ELEMPTR(hdr, idx), stGenPtr(hdr->elemtype, *elem), stGetSize(hdr->elemtype));
 }
 
-static int32 sa_insert_internal(void **handle, SArrayHeader *hdr, int32 idx, void *elem, bool consume)
+static int32 sa_insert_internal(void **handle, SArrayHeader *hdr, int32 idx, stgeneric *elem, bool consume)
 {
     if (hdr->count == hdr->capacity)
         _saGrow(handle, &hdr, hdr->count + 1);
@@ -497,7 +501,7 @@ static int32 sa_insert_internal(void **handle, SArrayHeader *hdr, int32 idx, voi
     return idx;
 }
 
-int32 _saInsert(void **handle, int32 idx, void *elem)
+int32 _saInsert(void **handle, int32 idx, stgeneric elem)
 {
     SArrayHeader *hdr = SARRAY_HDR(*handle);
 
@@ -512,10 +516,10 @@ int32 _saInsert(void **handle, int32 idx, void *elem)
     if ((hdr->flags & SA_Sorted))
         hdr->flags &= ~SA_Sorted;
 
-    return sa_insert_internal(handle, hdr, idx, elem, false);
+    return sa_insert_internal(handle, hdr, idx, &elem, false);
 }
 
-int32 _saPush(void **handle, stype elemtype, void *elem, uint32 flags)
+int32 _saPushPtr(void **handle, stype elemtype, stgeneric *elem, uint32 flags)
 {
     if (!*handle)
         *handle = _saCreate(elemtype, NULL, 0, 0);
@@ -526,7 +530,7 @@ int32 _saPush(void **handle, stype elemtype, void *elem, uint32 flags)
 
     if (hdr->flags & SA_Sorted) {
         bool found = false;
-        int32 idx = sa_find_internal(hdr, elem, &found);
+        int32 idx = sa_find_internal(hdr, *elem, &found);
         if (found && (flags & SAFUNC_Unique)) {
             if (flags & SAFUNCINT_Consume)
                 _stDestroy(hdr->elemtype, ops, elem, 0);
@@ -538,7 +542,7 @@ int32 _saPush(void **handle, stype elemtype, void *elem, uint32 flags)
     } else {
         if (flags & SAFUNC_Unique) {
             bool found = false;
-            sa_find_internal(hdr, elem, &found);
+            sa_find_internal(hdr, *elem, &found);
             if (found) {
                 if (flags & SAFUNCINT_Consume)
                     _stDestroy(hdr->elemtype, ops, elem, 0);
@@ -554,6 +558,11 @@ int32 _saPush(void **handle, stype elemtype, void *elem, uint32 flags)
         hdr->count++;
         return hdr->count - 1;
     }
+}
+
+int32 _saPush(void **handle, stype elemtype, stgeneric elem, uint32 flags)
+{
+    return _saPushPtr(handle, elemtype, &elem, flags);
 }
 
 static void sa_remove_internal(void **handle, SArrayHeader *hdr, int32 idx, bool fast)
@@ -584,7 +593,8 @@ bool _saRemove(void **handle, int32 idx, uint32 flags)
         return false;
 
     if (!(hdr->flags & SA_Ref) && !(flags & SAFUNC_RemoveOnly))
-        _stDestroy(hdr->elemtype, HDRTYPEOPS(hdr), ELEMPTR(hdr, idx), 0);
+        _stDestroy(hdr->elemtype, HDRTYPEOPS(hdr),
+                   stStoredPtr(hdr->elemtype, ELEMPTR(hdr, idx)), 0);
 
     sa_remove_internal(handle, hdr, idx, flags & SAFUNC_Fast);
 
@@ -625,7 +635,7 @@ void *_saPopPtr(void **handle, int32 idx)
     return ret;
 }
 
-int32 _saFind(void **handle, const void *elem, uint32 flags)
+int32 _saFind(void **handle, stgeneric elem, uint32 flags)
 {
     SArrayHeader *hdr = SARRAY_HDR(*handle);
 
@@ -680,7 +690,7 @@ void *_saSlice(void **handle, int32 start, int32 end)
 
     int32 i;
     for (i = start; i < end; i++) {
-        _saPush(&newhandle, elemtype, ELEMPTR(hdr, i), 0);
+        _saPushPtr(&newhandle, elemtype, stStoredPtr(hdr->elemtype, ELEMPTR(hdr, i)), 0);
     }
 
     // restore flags
@@ -711,7 +721,7 @@ void *_saMerge(int n, void **hptr, uint32 flags)
     for (int i = 0; i < n; i++) {
         SArrayHeader *shdr = SARRAY_HDR(handles[i]);
         for (int32 j = 0; j < shdr->count; j++) {
-            _saPush(&newhandle, elemtype, ELEMPTR(shdr, j), flags);
+            _saPushPtr(&newhandle, elemtype, stStoredPtr(shdr->elemtype, ELEMPTR(shdr, j)), flags);
         }
     }
 

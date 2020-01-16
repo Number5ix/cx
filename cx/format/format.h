@@ -98,11 +98,11 @@
  *
  */
 
-// Each argument must be wrapped with stVar(type, var)
-CX_C bool _strFormat(string *out, string fmt, int n, stvariant *args);
-#define strFormat(out, fmt, ...) _strFormat(out, fmt, count_macro_args(__VA_ARGS__), (stvariant[]){ __VA_ARGS__ })
+// Each argument must be wrapped with stvar(type, var)
+CX_C bool _strFormat(string *out, string fmt, int n, stvar *args);
+#define strFormat(out, fmt, ...) _strFormat(out, fmt, count_macro_args(__VA_ARGS__), (stvar[]){ __VA_ARGS__ })
 
-// strFormat previously used the sizeof((stvariant[]){ __VA_ARGS__ })/sizeof(stvariant)
+// strFormat previously used the sizeof((stvariant[]){ __VA_ARGS__ })/sizeof(stvar)
 // contruction to count the arguments, but this caused MSVC to allocate double the stack
 // space and push duplicate argument lists for no reason! Falling back to the old school
 // macro trick instead.

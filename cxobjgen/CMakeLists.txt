@@ -36,6 +36,7 @@ set(CX_SRCS
     ../cx/core/objstdif.c
     ../cx/core/stype.c
     ../cx/core/stype_obj.c
+    ../cx/core/stype_stvar.c
     ${CX_PLATFORM_SRCS}
     ../cx/string/strbase.c
     ../cx/string/strbase64.c

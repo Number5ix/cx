@@ -1,25 +1,25 @@
 #include "vfs_private.h"
 
-static intptr dirEntCmp(stype st, const void *ptr1, const void *ptr2, uint32 flags)
+static intptr dirEntCmp(stype st, stgeneric g1, stgeneric g2, uint32 flags)
 {
-    FSDirEnt *ent1 = (FSDirEnt*)ptr1;
-    FSDirEnt *ent2 = (FSDirEnt*)ptr2;
+    FSDirEnt *ent1 = (FSDirEnt*)stGenVal(opaque, g1);
+    FSDirEnt *ent2 = (FSDirEnt*)stGenVal(opaque, g2);
 
     return strCmpi(ent1->name, ent2->name);
 }
 
-static intptr dirEntCmpCaseSensitive(stype st, const void *ptr1, const void *ptr2, uint32 flags)
+static intptr dirEntCmpCaseSensitive(stype st, stgeneric g1, stgeneric g2, uint32 flags)
 {
-    FSDirEnt *ent1 = (FSDirEnt*)ptr1;
-    FSDirEnt *ent2 = (FSDirEnt*)ptr2;
+    FSDirEnt *ent1 = (FSDirEnt*)stGenVal(opaque, g1);
+    FSDirEnt *ent2 = (FSDirEnt*)stGenVal(opaque, g2);
 
     return strCmp(ent1->name, ent2->name);
 }
 
-static void dirEntCopy(stype st, void *ptr, const void *ptrsrc, uint32 flags)
+static void dirEntCopy(stype st, stgeneric *gdest, stgeneric gsrc, uint32 flags)
 {
-    FSDirEnt *ent = (FSDirEnt*)ptr;
-    FSDirEnt *src = (FSDirEnt*)ptrsrc;
+    FSDirEnt *ent = (FSDirEnt*)stGenVal(opaque, *gdest);
+    FSDirEnt *src = (FSDirEnt*)stGenVal(opaque, gsrc);
 
     ent->name = 0;
     strDup(&ent->name, src->name);
@@ -27,9 +27,9 @@ static void dirEntCopy(stype st, void *ptr, const void *ptrsrc, uint32 flags)
     ent->stat = src->stat;
 }
 
-static void dirEntDestroy(stype st, void *ptr, uint32 flags)
+static void dirEntDestroy(stype st, stgeneric *g, uint32 flags)
 {
-    FSDirEnt *ent = (FSDirEnt*)ptr;
+    FSDirEnt *ent = (FSDirEnt*)stGenVal(opaque, *g);
     strDestroy(&ent->name);
 }
 

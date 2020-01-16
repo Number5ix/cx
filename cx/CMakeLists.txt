@@ -24,6 +24,7 @@ set(CORE_SRCS
     core/objstdif.c
     core/stype.c
     core/stype_obj.c
+    core/stype_stvar.c
     core/stype_suid.c
     core/suid.c)
 set(CORE_INCLUDES
@@ -37,6 +38,7 @@ set(CORE_INCLUDES
     core/objstdif.h
     core/stype.h
     core/stype_obj.h
+    core/stype_stvar.h
     core/stype_suid.h
     core/suid.h)
 set(CORE_SIDL

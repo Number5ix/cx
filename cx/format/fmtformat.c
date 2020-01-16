@@ -18,7 +18,7 @@ bool _fmtFindData(FMTContext *ctx)
     uint8 typemask = _fmtTypeIdMask[ctx->v.vtype][1];
 
     for (; findinst > 0; idx++) {
-        stvariant *arg = &ctx->args[idx];
+        stvar *arg = &ctx->args[idx];
 
         if (idx >= ctx->nargs) {
             ctx->v.vtype = -1;      // no data, don't try to format
@@ -27,12 +27,12 @@ bool _fmtFindData(FMTContext *ctx)
 
         if (isarray) {
             if (stGetId(arg->type) == stTypeId(sarray) &&
-                (stGetId(saElemType((void**)arg->ptr)) & typemask) == typeid)
+                (stGetId(saElemType(&stGenVal(sarray, arg->data))) & typemask) == typeid)
                 findinst--;
         } else if (ishash) {
             if (stGetId(arg->type) == stTypeId(hashtable) &&
-                stGetId(htKeyType((hashtable*)arg->ptr)) == stTypeId(string) &&
-                (stGetId(htValType((hashtable*)arg->ptr)) & typemask) == typeid)
+                stGetId(htKeyType(&stGenVal(hashtable, arg->data))) == stTypeId(string) &&
+                (stGetId(htValType(&stGenVal(hashtable, arg->data))) & typemask) == typeid)
                 findinst--;
         } else if ((stGetId(arg->type) & typemask) == typeid) {
             findinst--;
@@ -43,7 +43,7 @@ bool _fmtFindData(FMTContext *ctx)
         ctx->startarg[ctx->v.vtype] = idx;
 
     if (isarray) {
-        void **arr = (void**)ctx->args[idx - 1].ptr;
+        void **arr = &stGenVal(sarray, ctx->args[idx - 1].data);
         if (ctx->v.arrayidx >= saSize(arr)) {
             ctx->v.vtype = -1;
             return ret;
@@ -52,7 +52,7 @@ bool _fmtFindData(FMTContext *ctx)
         ctx->v.type = saElemType(arr);
         ctx->v.data = (void*)((uintptr)*arr + saElemSize(arr)*ctx->v.arrayidx);
     } else if (ishash) {
-        hashtable *htbl = ctx->args[idx - 1].ptr;
+        hashtable *htbl = &stGenVal(hashtable, ctx->args[idx - 1].data);
         htelem elem = htFindElem(htbl, string, ctx->v.hashkey);
         if (!elem) {
             ctx->v.vtype = -1;
@@ -62,7 +62,7 @@ bool _fmtFindData(FMTContext *ctx)
         ctx->v.data = hteValPtr(htbl, elem, opaque);
     } else {
         ctx->v.type = ctx->args[idx - 1].type;
-        ctx->v.data = ctx->args[idx - 1].ptr;
+        ctx->v.data = stGenPtr(ctx->v.type, ctx->args[idx - 1].data);
     }
 
     if (typeid == stTypeId(object)) {

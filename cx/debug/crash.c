@@ -57,17 +57,17 @@ bool _dbgCrashTriggerCallbacks(bool after)
 }
 
 // TODO: Hashtable instead?
-static intptr extraMetaCmp(stype st, const void *a, const void *b, uint32 flags)
+static intptr extraMetaCmp(stype st, stgeneric a, stgeneric b, uint32 flags)
 {
-    CrashExtraMeta *m1 = (CrashExtraMeta*)a;
-    CrashExtraMeta *m2 = (CrashExtraMeta*)b;
+    CrashExtraMeta *m1 = (CrashExtraMeta*)stGenVal(opaque, a);
+    CrashExtraMeta *m2 = (CrashExtraMeta*)stGenVal(opaque, b);
 
     return cstrCmpi(m1->name, m2->name);
 }
 
-static void extraMetaDtor(stype st, void *ptr, uint32 flags)
+static void extraMetaDtor(stype st, stgeneric *stgen, uint32 flags)
 {
-    CrashExtraMeta *m = (CrashExtraMeta*)ptr;
+    CrashExtraMeta *m = (CrashExtraMeta*)stGenVal(opaque, *stgen);
     xaSFree(m->str);
 }
 
