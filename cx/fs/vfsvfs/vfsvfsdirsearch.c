@@ -14,7 +14,7 @@ VFSVFSDirSearch *VFSVFSDirSearch_create(VFSDirSearch *ds)
     ret = objInstCreate(VFSVFSDirSearch);
     ret->dirsearch = ds;
     if (!objInstInit(ret))
-        objRelease(ret);
+        objRelease(&ret);
     return ret;
 }
 

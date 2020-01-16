@@ -13,7 +13,7 @@ TestCls1 *TestCls1_create()
     TestCls1 *ret;
     ret = objInstCreate(TestCls1);
     if (!objInstInit(ret))
-        objRelease(ret);
+        objRelease(&ret);
     return ret;
 }
 
@@ -27,7 +27,7 @@ TestCls2 *TestCls2_create()
     TestCls2 *ret;
     ret = objInstCreate(TestCls2);
     if (!objInstInit(ret))
-        objRelease(ret);
+        objRelease(&ret);
     return ret;
 }
 
@@ -36,7 +36,7 @@ TestCls3 *TestCls3_create()
     TestCls3 *ret;
     ret = objInstCreate(TestCls3);
     if (!objInstInit(ret))
-        objRelease(ret);
+        objRelease(&ret);
     return ret;
 }
 
@@ -50,7 +50,7 @@ TestCls4 *TestCls4_create()
     TestCls4 *ret;
     ret = objInstCreate(TestCls4);
     if (!objInstInit(ret))
-        objRelease(ret);
+        objRelease(&ret);
     return ret;
 }
 
@@ -74,7 +74,7 @@ TestCls5 *TestCls5_create()
     TestCls5 *ret;
     ret = objInstCreate(TestCls5);
     if (!objInstInit(ret))
-        objRelease(ret);
+        objRelease(&ret);
     return ret;
 }
 
@@ -91,7 +91,7 @@ TestCls4b *TestCls4b_create()
     TestCls4b *ret;
     ret = objInstCreate(TestCls4b);
     if (!objInstInit(ret))
-        objRelease(ret);
+        objRelease(&ret);
     return ret;
 }
 

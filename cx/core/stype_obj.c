@@ -4,8 +4,7 @@
 
 void stDtor_obj(stype st, stgeneric *stgen, uint32 flags)
 {
-    ObjInst** inst = (ObjInst**)&stGenVal(object, *stgen);
-    objRelease(*inst);
+    objRelease((ObjInst**)&stGenVal(object, *stgen));
 }
 
 void stCopy_obj(stype st, stgeneric *dest, stgeneric src, uint32 flags)

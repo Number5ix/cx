@@ -17,7 +17,7 @@ FmtTestClass *FmtTestClass_create(int32 ival, string sval)
     strDup(&ret->sv, sval);
 
     if (!objInstInit(ret))
-        objRelease(ret);
+        objRelease(&ret);
     return ret;
 }
 

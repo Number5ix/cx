@@ -70,7 +70,7 @@ static void writeMethods(BufFile *bf, Class *cls, string **seen, bool mixinimpl)
                 strNConcat(&ln, _S"    ret = objInstCreate(", cls->name, _S");");
                 bfWriteLine(bf, ln);
                 bfWriteLine(bf, _S"    if (!objInstInit(ret))");
-                bfWriteLine(bf, _S"        objRelease(ret);");
+                bfWriteLine(bf, _S"        objRelease(&ret);");
                 bfWriteLine(bf, _S"    return ret;");
             } else if (strEq(m->name, _S"cmp")) {
                 bfWriteLine(bf, _S"    // Uncomment unless this function can compare different object classes");
@@ -264,7 +264,7 @@ static void writeAutoDtors(BufFile *bf, Class *cls)
             else if (strEq(m->fulltype[0], _S"hashtable"))
                 strNConcat(&mdtor, _S"    htDestroy(&self->", m->name, _S");");
             else if (strEq(m->fulltype[0], _S"object"))
-                strNConcat(&mdtor, _S"    objRelease(self->", m->name, _S");");
+                strNConcat(&mdtor, _S"    objRelease(&self->", m->name, _S");");
         } else if (strEq(m->vartype, _S"string")) {
             strNConcat(&mdtor, _S"    strDestroy(&self->", m->name, _S");");
         } else if (strEq(m->vartype, _S"hashtable")) {

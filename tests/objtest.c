@@ -20,7 +20,7 @@ static int test_iface()
     if (ifptr->testfunc(cls1) != 42)
         return 1;
 
-    objRelease(cls1);
+    objRelease(&cls1);
 
     return 0;
 }
@@ -40,7 +40,7 @@ static int test_inherit()
     if (ifptr->testfunc(cls2) != 42)
         return 1;
 
-    objRelease(cls2);
+    objRelease(&cls2);
 
     return 0;
 }
@@ -63,7 +63,7 @@ static int test_ifinherit()
     if (ifptr->testfunc2(cls3) != 69)
         return 1;
 
-    objRelease(cls3);
+    objRelease(&cls3);
 
     return 0;
 }
@@ -87,7 +87,7 @@ static int test_override()
     if (ifptr->testfunc2(cls4) != 69)
         return 1;
 
-    objRelease(cls4);
+    objRelease(&cls4);
 
     return 0;
 }
@@ -125,7 +125,7 @@ static int test_abstract()
     if (cls4->_->testfunc3(cls4) != 99)
         return 1;
 
-    objRelease(cls4);
+    objRelease(&cls4);
 
     return 0;
 }
@@ -152,7 +152,7 @@ static int test_dyncast()
     if (testCls1Testfunc(cls1) != 71)
         return 1;
 
-    objRelease(cls4);
+    objRelease(&cls4);
 
     return 0;
 }
@@ -196,7 +196,7 @@ static int test_obj_array()
         return 1;
 
     saDestroy(&arr);
-    objRelease(cls5);
+    objRelease(&cls5);
 
     return 0;
 }

@@ -14,7 +14,7 @@ VFSVFSFile *VFSVFSFile_create(VFSFile *f)
     ret = objInstCreate(VFSVFSFile);
     ret->file = f;
     if (!objInstInit(ret))
-        objRelease(ret);
+        objRelease(&ret);
     return ret;
 }
 

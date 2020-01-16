@@ -65,14 +65,19 @@ _meta_inline void _objAcquire(ObjInst *inst)
 }
 #define objAcquire(inst) (_objAcquire(objInstBase(inst)), (inst))
 
-_meta_inline void _objRelease(ObjInst *inst)
+_meta_inline void _objRelease(ObjInst **instp)
 {
-    if (atomic_fetch_sub_intptr(&inst->_ref, 1, ATOMIC_RELEASE) == 1) {
+    if (!*instp)
+        return;
+
+    if (atomic_fetch_sub_intptr(&(*instp)->_ref, 1, ATOMIC_RELEASE) == 1) {
         atomic_fence(ATOMIC_ACQUIRE);
-        _objDestroy(inst);
+        _objDestroy(*instp);
     }
+
+    *instp = NULL;
 }
-#define objRelease(inst) { if (inst) { _objRelease(objInstBase(inst)); (inst) = NULL; } }
+#define objRelease(inst) (objInstBase(*inst), _objRelease((ObjInst**)inst))
 
 // Functions to get a populated interface from a class or instance
 ObjIface *_objClassIf(ObjClassInfo *cls, ObjIface *iftmpl);

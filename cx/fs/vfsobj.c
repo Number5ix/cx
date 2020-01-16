@@ -15,7 +15,7 @@ VFS *VFS_create(uint32 flags)
     ret = objInstCreate(VFS);
     ret->flags = flags;
     if (!objInstInit(ret))
-        objRelease(ret);
+        objRelease(&ret);
     return ret;
 }
 
@@ -49,14 +49,14 @@ VFSMount *VFSMount_create(ObjInst *provider, uint32 flags)
     ret->flags = flags;
 
     if (!objInstInit(ret))
-        objRelease(ret);
+        objRelease(&ret);
     return ret;
 }
 
 void VFSMount_destroy(VFSMount *self)
 {
 // ==================== Auto-generated section begins ====================
-    objRelease(self->provider);
+    objRelease(&self->provider);
 // ==================== Auto-generated section ends ======================
 }
 
@@ -67,7 +67,7 @@ VFS *VFS_createFromFS()
         return NULL;
 
     if (!_vfsAddPlatformSpecificMounts(ret)) {
-        objRelease(ret);
+        objRelease(&ret);
         return NULL;
     }
 
