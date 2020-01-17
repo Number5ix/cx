@@ -534,7 +534,7 @@ _meta_inline void _stCopy(stype st, STypeOps *ops, stgeneric *dest, stgeneric sr
     else if (!stHasFlag(st, PassPtr))
         memcpy(dest, &src, stGetSize(st));
     else
-        memcpy(stGenVal(ptr, dest), stGenVal(ptr, src), stGetSize(st));
+        memcpy(stGenVal(ptr, *dest), stGenVal(ptr, src), stGetSize(st));
 }
 #define stCopy(type, pdest, src, ...) _stCopy(stFullType(type), stArgPtr(type, pdest), stArg(type, src), func_flags(STOPS, __VA_ARGS__))
 
