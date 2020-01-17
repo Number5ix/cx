@@ -4,7 +4,8 @@ create_test_sourcelist(testsrc
     fmttest.c
     objtest.c
     sarraytest.c
-    strtest.c)
+    strtest.c
+    thrtest.c)
 add_sidl(fmttestobj.sidl
     objtestobj.sidl)
 add_executable(test_runner
@@ -53,3 +54,4 @@ add_test(NAME "\"string: Substrings\"" COMMAND test_runner strtest substr)
 add_test(NAME "\"string: Compare\"" COMMAND test_runner strtest compare)
 add_test(NAME "\"string: Long Strings\"" COMMAND test_runner strtest longstring)
 add_test(NAME "\"string: Ropes\"" COMMAND test_runner strtest rope)
+add_test(NAME "\"thread: Basic multithreading\"" COMMAND test_runner thrtest basic)

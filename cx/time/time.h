@@ -3,6 +3,8 @@
 #include "cx/cx.h"
 #include <time.h>
 
+#define timeForever 9223372036854775807LL
+
 // time interval conversion
 _meta_inline int64 timeToSeconds(int64 time)
 {

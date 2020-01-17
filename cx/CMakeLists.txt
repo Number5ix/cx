@@ -188,6 +188,7 @@ if(CX_PLATFORM_IS_UNIX)
 	platform/unix/unix_sys_hostid.c
 	platform/unix/unix_thread_mutex.c
 	platform/unix/unix_thread_rwlock.c
+	platform/unix/unix_thread_thread.c
 	platform/unix/unix_time_clock.c
 	platform/unix/unix_vfs.c)
     set(PLATFORM_OS_INCLUDES
@@ -212,6 +213,7 @@ elseif(CX_PLATFORM_IS_WINDOWS)
 	platform/win/win_sys_hostid.c
 	platform/win/win_thread_mutex.c
 	platform/win/win_thread_rwlock.c
+	platform/win/win_thread_thread.c
 	platform/win/win_time_clock.c
 	platform/win/win_vfs.c)
     set(PLATFORM_OS_INCLUDES
@@ -276,11 +278,14 @@ source_group("sys" FILES
     ${SYS_INCLUDES})
 
 set(THREAD_SRCS
-    thread/atomic.c)
+    thread/atomic.c
+    thread/thread.c)
 set(THREAD_INCLUDES
     thread/atomic.h
     thread/mutex.h
-    thread/rwlock.h)
+    thread/rwlock.h
+    thread/thread.h
+    thread/thread_private.h)
 source_group("thread" FILES
     ${THREAD_SRCS}
     ${THREAD_INCLUDES})
