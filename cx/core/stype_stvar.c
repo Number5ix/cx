@@ -24,9 +24,8 @@ void stCopy_stvar(stype st, stgeneric *dest, stgeneric src, uint32 flags)
     stvar *dvar = stGenVal(stvar, *dest);
     stvar *svar = stGenVal(stvar, src);
 
-    devAssert(dvar->type == svar->type);
-
-    _stCopy(dvar->type, NULL, &dvar->data, svar->data, flags);
+    dvar->type = svar->type;
+    _stCopy(svar->type, NULL, &dvar->data, svar->data, flags);
 }
 
 uint32 stHash_stvar(stype st, stgeneric stgen, uint32 flags)
