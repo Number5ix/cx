@@ -9,20 +9,20 @@
 Mutex _dbgCrashMutex;
 
 LazyInitState _dbgCrashInitState;
-atomic_uint32 _dbgCrashMode;
+atomic(uint32) _dbgCrashMode;
 static dbgCrashCallback *callbacks;
 CrashExtraMeta *_dbgCrashExtraMeta;
 
 void dbgCrashSetMode(uint32 mode)
 {
     lazyInit(&_dbgCrashInitState, _dbgCrashInit, 0);
-    atomic_store_uint32(&_dbgCrashMode, mode, ATOMIC_SEQ_CST);
+    atomicStore(uint32, &_dbgCrashMode, mode, SeqCst);
 }
 
 uint32 dbgCrashGetMode()
 {
     lazyInit(&_dbgCrashInitState, _dbgCrashInit, 0);
-    return atomic_load_uint32(&_dbgCrashMode, ATOMIC_SEQ_CST);
+    return atomicLoad(uint32, &_dbgCrashMode, SeqCst);
 }
 
 void dbgCrashAddCallback(dbgCrashCallback cb)

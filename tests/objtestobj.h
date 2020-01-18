@@ -111,7 +111,7 @@ extern TestCls5_ClassIf TestCls5_ClassIf_tmpl;
 typedef struct TestCls1 {
     TestCls1_ClassIf *_;
     ObjClassInfo *_clsinfo;
-    atomic_intptr _ref;
+    atomic(intptr) _ref;
 
     int data;
 } TestCls1;
@@ -124,7 +124,7 @@ TestCls1 *TestCls1_create();
 typedef struct TestCls2 {
     TestCls2_ClassIf *_;
     ObjClassInfo *_clsinfo;
-    atomic_intptr _ref;
+    atomic(intptr) _ref;
 
     int data;
 } TestCls2;
@@ -137,7 +137,7 @@ TestCls2 *TestCls2_create();
 typedef struct TestCls3 {
     TestCls3_ClassIf *_;
     ObjClassInfo *_clsinfo;
-    atomic_intptr _ref;
+    atomic(intptr) _ref;
 
     int data;
     int data2;
@@ -152,7 +152,7 @@ TestCls3 *TestCls3_create();
 typedef struct TestCls4 {
     TestCls4_ClassIf *_;
     ObjClassInfo *_clsinfo;
-    atomic_intptr _ref;
+    atomic(intptr) _ref;
 
     int data;
     int data2;
@@ -168,7 +168,7 @@ TestCls4 *TestCls4_create();
 typedef struct TestCls4a {
     TestCls4a_ClassIf *_;
     ObjClassInfo *_clsinfo;
-    atomic_intptr _ref;
+    atomic(intptr) _ref;
 
     int data;
     int data2;
@@ -183,7 +183,7 @@ extern ObjClassInfo TestCls4a_clsinfo;
 typedef struct TestCls4b {
     TestCls4b_ClassIf *_;
     ObjClassInfo *_clsinfo;
-    atomic_intptr _ref;
+    atomic(intptr) _ref;
 
     int data;
     int data2;
@@ -202,7 +202,7 @@ TestCls4b *TestCls4b_create();
 typedef struct TestCls5 {
     TestCls5_ClassIf *_;
     ObjClassInfo *_clsinfo;
-    atomic_intptr _ref;
+    atomic(intptr) _ref;
 
     int data;
 } TestCls5;

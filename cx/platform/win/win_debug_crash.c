@@ -86,7 +86,7 @@ _no_inline static LONG WINAPI dbgExceptionFilter(LPEXCEPTION_POINTERS info)
     lazyInit(&_dbgCrashInitState, _dbgCrashInit, 0);
     mutexAcquire(&_dbgCrashMutex);
 
-    _ef_mode = atomic_load_uint32(&_dbgCrashMode, ATOMIC_SEQ_CST);
+    _ef_mode = atomicLoad(uint32, &_dbgCrashMode, SeqCst);
     _ef_canwrite = true;
 
     if (!_dbgCrashTriggerCallbacks(false) || _ef_mode == 0) {

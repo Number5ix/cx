@@ -11,7 +11,7 @@ typedef struct UnixThread {
 static void _thrCancelCleanup(void *data)
 {
     UnixThread *thr = (UnixThread*)data;
-    atomic_store_bool(&thr->base.running, false, ATOMIC_RELEASE);
+    atomicStore(bool, &thr->base.running, false, Release);
 }
 
 static void* _thrEntryPoint(void *data)

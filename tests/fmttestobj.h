@@ -19,7 +19,7 @@ extern FmtTestClass_ClassIf FmtTestClass_ClassIf_tmpl;
 typedef struct FmtTestClass {
     FmtTestClass_ClassIf *_;
     ObjClassInfo *_clsinfo;
-    atomic_intptr _ref;
+    atomic(intptr) _ref;
 
     int32 iv;
     string sv;

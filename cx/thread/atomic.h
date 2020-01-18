@@ -18,27 +18,17 @@
  *   CX_GENERATE_ATOMICS(int *, pi, 3);
  * and then write things like:
  *   int *some_ptr;
- *   atomic_pi_t atomic_ptr_to_int;
- *   atomic_store_pi(&atomic_ptr_to_int, some_ptr, ATOMIC_RELAXED);
- *   int *prev_value = atomic_exchange_pi(&ptr_to_int, NULL, ATOMIC_ACQ_REL);
+ *   atomic(pi) atomic_ptr_to_int;
+ *   atomicStore(pi, &atomic_ptr_to_int, some_ptr, Relaxed);
+ *   int *prev_value = atomicExchange(pi, &ptr_to_int, NULL, AcqRel);
  *   assert(some_ptr == prev_value);
  * and expect things to work in the obvious way.
  *
  * Also included (with naming differences to avoid conflicts with the standard
  * library):
- *   atomic_fence(atomic_memory_order_t) (mimics C11's atomic_thread_fence).
- *   ATOMIC_INIT (mimics C11's ATOMIC_VAR_INIT).
+ *   atomicFence(MemoryOrder) (mimics C11's atomic_thread_fence).
+ *   atomicInit (mimics C11's ATOMIC_VAR_INIT).
  */
-
-/*
- * Pure convenience, so that we don't have to type "atomic_memory_order_"
- * quite so often.
- */
-#define ATOMIC_RELAXED atomic_memory_order_relaxed
-#define ATOMIC_ACQUIRE atomic_memory_order_acquire
-#define ATOMIC_RELEASE atomic_memory_order_release
-#define ATOMIC_ACQ_REL atomic_memory_order_acq_rel
-#define ATOMIC_SEQ_CST atomic_memory_order_seq_cst
 
 #ifdef _64BIT
 CX_GENERATE_ATOMICS(void *, ptr, 3)

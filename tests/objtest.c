@@ -172,7 +172,7 @@ static int test_obj_array()
         saPush(&arr, object, cls5);
     }
 
-    if (atomic_load_intptr(&cls5->_ref, ATOMIC_ACQ_REL) != 51)
+    if (atomicLoad(intptr, &cls5->_ref, AcqRel) != 51)
         return 1;
 
     TestIf1 *if1 = objInstIf(arr[49], TestIf1);
@@ -183,7 +183,7 @@ static int test_obj_array()
 
     saDestroy(&arr);
 
-    if (atomic_load_intptr(&cls5->_ref, ATOMIC_ACQ_REL) != 1)
+    if (atomicLoad(intptr, &cls5->_ref, AcqRel) != 1)
         return 1;
 
     arr = saCreate(object, 10);
@@ -192,7 +192,7 @@ static int test_obj_array()
         saPush(&arr, object, cls5, Unique);
     }
 
-    if (atomic_load_intptr(&cls5->_ref, ATOMIC_ACQ_REL) != 2)
+    if (atomicLoad(intptr, &cls5->_ref, AcqRel) != 2)
         return 1;
 
     saDestroy(&arr);

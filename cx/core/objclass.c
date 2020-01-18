@@ -108,7 +108,7 @@ ObjInst *_objInstCreate(ObjClassInfo *cls)
 
     ret = xaAlloc(cls->instsize, Zero);
     ret->_clsinfo = cls;
-    atomic_store_intptr(&ret->_ref, 1, ATOMIC_RELAXED);
+    atomicStore(intptr, &ret->_ref, 1, Relaxed);
 
     // Initialize interface implementation tables the first time the class is
     // instantiated
@@ -180,7 +180,7 @@ static void instDtor(ObjInst *inst, ObjClassInfo *cls)
 
 void _objDestroy(ObjInst *inst)
 {
-    devAssert(atomic_load_intptr(&inst->_ref, ATOMIC_ACQ_REL) == 0);
+    devAssert(atomicLoad(intptr, &inst->_ref, AcqRel) == 0);
     instDtor(inst, inst->_clsinfo);
     xaFree(inst);
 }

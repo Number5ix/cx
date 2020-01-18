@@ -29,7 +29,7 @@ extern VFSVFS_ClassIf VFSVFS_ClassIf_tmpl;
 typedef struct VFSVFS {
     VFSVFS_ClassIf *_;
     ObjClassInfo *_clsinfo;
-    atomic_intptr _ref;
+    atomic(intptr) _ref;
 
     VFS *vfs;
     string root;

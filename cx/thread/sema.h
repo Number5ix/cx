@@ -17,16 +17,16 @@ enum SEMA_Flags {
 };
 
 typedef struct Semaphore {
-    atomic_int32 count;
-    atomic_int32 spintarget;
+    atomic(int32) count;
+    atomic(int32) spintarget;
     uint32 flags;
     kernelSema ksema;
 
 #ifdef SEMA_PERF_STATS
-    atomic_int64 stats_uncontested;
-    atomic_int64 stats_spin;
-    atomic_int64 stats_yield;
-    atomic_int64 stats_kernel;
+    atomic(int64) stats_uncontested;
+    atomic(int64) stats_spin;
+    atomic(int64) stats_yield;
+    atomic(int64) stats_kernel;
 #endif
 } Semaphore;
 
@@ -36,13 +36,12 @@ bool _semaContendedDec(Semaphore *sema, int64 timeout);
 
 _meta_inline bool semaTryDec(Semaphore *sema)
 {
-    int32 curcount = atomic_load_int32(&sema->count, ATOMIC_RELAXED);
-    bool ret = (curcount > 0 && atomic_compare_exchange_strong_int32(&sema->count, &curcount,
-                                                                 curcount - 1, ATOMIC_ACQUIRE,
-                                                                 ATOMIC_ACQUIRE));
+    int32 curcount = atomicLoad(int32, &sema->count, Relaxed);
+    bool ret = (curcount > 0 && atomicCompareExchange(int32, strong, &sema->count, &curcount,
+                                                      curcount - 1, Acquire, Acquire));
 #ifdef SEMA_PERF_STATS
     if (ret)
-        atomic_fetch_add_int64(&sema->stats_uncontested, 1, ATOMIC_RELAXED);
+        atomicFetchAdd(int64, &sema->stats_uncontested, 1, Relaxed);
 #endif
     return ret;
 }
@@ -67,7 +66,7 @@ _meta_inline bool semaTryDecTimeout(Semaphore *sema, int64 timeout)
 
 _meta_inline bool semaInc(Semaphore *sema, int32 count)
 {
-    int32 oldcount = atomic_fetch_add_int32(&sema->count, count, ATOMIC_RELEASE);
+    int32 oldcount = atomicFetchAdd(int32, &sema->count, count, Release);
     int32 kwaiters = -oldcount < count ? -oldcount : count;
     if (kwaiters > 0) {
         // shouldn't be possible to get here (negative oldcount) without KSemaInit

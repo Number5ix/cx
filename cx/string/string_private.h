@@ -70,9 +70,9 @@ _meta_inline uint16 _strFastRef(string s)
     int l = STR_HDR(s) & STR_LEN_MASK;
 
     if (l <= STR_LEN8)
-        return atomic_load_uint8(&STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), atomic_uint8), ATOMIC_ACQUIRE);
+        return atomicLoad(uint8, &STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), atomic(uint8)), Acquire);
     else
-        return atomic_load_uint16(&STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), atomic_uint16), ATOMIC_ACQUIRE);
+        return atomicLoad(uint16, &STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), atomic(uint16)), Acquire);
 }
 
 _meta_inline uint16 _strFastRefNoSync(string s)

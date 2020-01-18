@@ -46,7 +46,7 @@ typedef struct ObjClassInfo {
 typedef struct ObjInst {
     ObjIface *_classif;         // basically vtable, this is called _ in class instances for less typing
     ObjClassInfo *_clsinfo;
-    atomic_intptr _ref;         // reference count
+    atomic(intptr) _ref;        // reference count
 
     // user data members here
 } ObjInst;
@@ -61,7 +61,7 @@ void _objDestroy(ObjInst *inst);
 _meta_inline void _objAcquire(ObjInst *inst)
 {
     if (inst)
-        atomic_fetch_add_intptr(&inst->_ref, 1, ATOMIC_RELAXED);
+        atomicFetchAdd(intptr, &inst->_ref, 1, Relaxed);
 }
 #define objAcquire(inst) (_objAcquire(objInstBase(inst)), (inst))
 
@@ -70,8 +70,8 @@ _meta_inline void _objRelease(ObjInst **instp)
     if (!*instp)
         return;
 
-    if (atomic_fetch_sub_intptr(&(*instp)->_ref, 1, ATOMIC_RELEASE) == 1) {
-        atomic_fence(ATOMIC_ACQUIRE);
+    if (atomicFetchSub(intptr, &(*instp)->_ref, 1, Release) == 1) {
+        atomicFence(Acquire);
         _objDestroy(*instp);
     }
 

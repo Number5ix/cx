@@ -7,7 +7,7 @@
 CX_C_BEGIN
 
 typedef struct Mutex {
-    atomic_int32 waiting;
+    atomic(int32) waiting;
     Semaphore sema;
 } Mutex;
 
@@ -15,10 +15,10 @@ bool mutexInit(Mutex *m);
 bool _mutexContendedAcquire(Mutex *m, int64 timeout);
 _meta_inline bool mutexTryAcquire(Mutex *m)
 {
-    if (atomic_load_int32(&m->waiting, ATOMIC_RELAXED) != 0)
+    if (atomicLoad(int32, &m->waiting, Relaxed) != 0)
         return false;
     int nowait = 0;
-    return atomic_compare_exchange_strong_int32(&m->waiting, &nowait, 1, ATOMIC_ACQUIRE, ATOMIC_ACQUIRE);
+    return atomicCompareExchange(int32, strong, &m->waiting, &nowait, 1, Acquire, Acquire);
 }
 
 _meta_inline bool mutexAcquire(Mutex *m)
@@ -41,7 +41,7 @@ _meta_inline bool mutexTryAcquireTimeout(Mutex *m, int64 timeout)
 
 _meta_inline bool mutexRelease(Mutex *m)
 {
-    int waiters = atomic_fetch_sub_int32(&m->waiting, 1, ATOMIC_RELEASE);
+    int waiters = atomicFetchSub(int32, &m->waiting, 1, Release);
     devAssert(waiters > 0);
     if (waiters > 1) {
         semaInc(&m->sema, 1);

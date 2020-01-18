@@ -9,7 +9,7 @@ bool mutexInit(Mutex *m)
 
 bool _mutexContendedAcquire(Mutex *m, int64 timeout)
 {
-    if (atomic_fetch_add_int32(&m->waiting, 1, ATOMIC_ACQUIRE) > 0) {
+    if (atomicFetchAdd(int32, &m->waiting, 1, Acquire) > 0) {
         if (timeout == timeForever)
             return semaDec(&m->sema);
         else

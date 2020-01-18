@@ -15,7 +15,7 @@ static unsigned __stdcall _thrEntryPoint(void *data)
 
     thr->base.entry(&thr->base);
 
-    atomic_store_bool(&thr->base.running, false, ATOMIC_ACQ_REL);
+    atomicStore(bool, &thr->base.running, false, AcqRel);
     _endthreadex(0);
     return 0;
 }

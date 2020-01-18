@@ -64,9 +64,9 @@ void _strSetRef(string s, uint16 ref)
     int l = STR_HDR(s) & STR_LEN_MASK;
 
     if (l <= STR_LEN8)
-        atomic_store_uint8(&STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), atomic_uint8), (uint8)ref, ATOMIC_ACQ_REL);
+        atomicStore(uint8, &STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), atomic(uint8)), (uint8)ref, AcqRel);
     else // STR_LEN16 and STR_LEN32 both have 16-bit ref count
-        atomic_store_uint16(&STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), atomic_uint16), (uint16)ref, ATOMIC_ACQ_REL);
+        atomicStore(uint16, &STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), atomic(uint16)), (uint16)ref, AcqRel);
 
     // and if you called this function on something without STR_ALLOC set, woe be upon you...
 }
@@ -76,9 +76,9 @@ void _strIncRef(string s)
     int l = STR_HDR(s) & STR_LEN_MASK;
 
     if (l <= STR_LEN8)
-        atomic_fetch_add_uint8(&STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), atomic_uint8), 1, ATOMIC_RELAXED);
+        atomicFetchAdd(uint8, &STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), atomic(uint8)), 1, Relaxed);
     else // STR_LEN16 and STR_LEN32 both have 16-bit ref count
-        atomic_fetch_add_uint16(&STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), atomic_uint16), 1, ATOMIC_RELAXED);
+        atomicFetchAdd(uint16, &STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), atomic(uint16)), 1, Relaxed);
 }
 
 uint16 _strDecRef(string s)
@@ -86,9 +86,9 @@ uint16 _strDecRef(string s)
     int l = STR_HDR(s) & STR_LEN_MASK;
 
     if (l <= STR_LEN8)
-        return atomic_fetch_sub_uint8(&STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), atomic_uint8), 1, ATOMIC_RELEASE);
+        return atomicFetchSub(uint8, &STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), atomic(uint8)), 1, Release);
     else // STR_LEN16 and STR_LEN32 both have 16-bit ref count
-        return atomic_fetch_sub_uint16(&STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), atomic_uint16), 1, ATOMIC_RELEASE);
+        return atomicFetchSub(uint16, &STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), atomic(uint16)), 1, Release);
 }
 
 string _strCopy(string s, uint32 minsz)
@@ -356,7 +356,7 @@ void strDestroy(string *ps)
         return;
     }
 
-    atomic_fence(ATOMIC_ACQUIRE);
+    atomicFence(Acquire);
     if (STR_HDR(s) & STR_ROPE) {
         _strDestroyRope(s);
     }

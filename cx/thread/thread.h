@@ -12,8 +12,8 @@ typedef int(*threadFunc)(Thread *self);
 typedef struct Thread {
     threadFunc entry;
     stvar *args;            // sarray
-    atomic_bool running;
-    atomic_bool requestExit;
+    atomic(bool) running;
+    atomic(bool) requestExit;
 } Thread;
 
 // trick to get an opaque pointer-sized identifier that synchronization primitives
@@ -26,7 +26,7 @@ Thread* _thrCreate(threadFunc func, int n, stvar args[]);
 
 _meta_inline bool thrRunning(Thread *thread)
 {
-    return atomic_load_bool(&thread->running, ATOMIC_ACQUIRE);
+    return atomicLoad(bool, &thread->running, Acquire);
 }
 
 bool thrRequestExit(Thread *thread);

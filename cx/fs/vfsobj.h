@@ -11,7 +11,7 @@ typedef struct VFSMount VFSMount;
 typedef struct VFS {
     ObjIface *_;
     ObjClassInfo *_clsinfo;
-    atomic_intptr _ref;
+    atomic(intptr) _ref;
 
     VFSDir *root;
     hashtable namespaces;
@@ -29,7 +29,7 @@ VFS *VFS_createFromFS();
 typedef struct VFSMount {
     ObjIface *_;
     ObjClassInfo *_clsinfo;
-    atomic_intptr _ref;
+    atomic(intptr) _ref;
 
     ObjInst *provider;
     uint32 flags;

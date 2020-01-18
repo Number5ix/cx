@@ -17,7 +17,7 @@ Thread* _thrCreate(threadFunc func, int n, stvar args[])
         saPush(&ret->args, stvar, args[i]);
     }
 
-    atomic_store_bool(&ret->running, true, ATOMIC_RELAXED);
+    atomicStore(bool, &ret->running, true, Relaxed);
     if (!_thrPlatformStart(ret)) {
         _thrDestroy(ret);
         return NULL;
@@ -35,13 +35,13 @@ void _thrDestroy(Thread *thread)
 
 bool thrWait(Thread *thread, int64 timeout)
 {
-    if (!atomic_load_bool(&thread->running, ATOMIC_ACQUIRE))
+    if (!atomicLoad(bool, &thread->running, Acquire))
         return true;
 
     bool ret = _thrPlatformWait(thread, timeout);
 
     if (ret) {
-        devAssert(!atomic_load_bool(&thread->running, ATOMIC_ACQUIRE));
+        devAssert(!atomicLoad(bool, &thread->running, Acquire));
     }
 
     return ret;
@@ -52,7 +52,7 @@ void thrDestroy(Thread **thread)
     if (!*thread)
         return;
 
-    if (atomic_load_bool(&(*thread)->running, ATOMIC_ACQUIRE)) {
+    if (atomicLoad(bool, &(*thread)->running, Acquire)) {
         thrRequestExit(*thread);
         if (!thrWait(*thread, THREAD_DESTORY_TIMEOUT))
             _thrPlatformKill(*thread);
@@ -66,5 +66,5 @@ void thrDestroy(Thread **thread)
 
 bool thrRequestExit(Thread *thread)
 {
-    return atomic_exchange_bool(&thread->requestExit, true, ATOMIC_RELEASE);
+    return atomicExchange(bool, &thread->requestExit, true, Release);
 }

@@ -99,7 +99,7 @@ static int test_sema()
         thrDestroy(&consumers[i]);
     }
 
-    if (atomic_load_int32(&testsem.count, ATOMIC_ACQUIRE) != 0)
+    if (atomicLoad(int32, &testsem.count, Acquire) != 0)
         ret = 1;
 
     if (!semaDestroy(&testsem))
@@ -108,7 +108,7 @@ static int test_sema()
     return ret;
 }
 
-static atomic_bool fail;
+static atomic(bool) fail;
 static int64 testint1;
 static int64 testint2;
 static int64 testint3;
@@ -130,7 +130,7 @@ static int thrproc3(Thread *self)
 
         mutexAcquire(&testmtx);
         if (testint1 != testint2 || testint2 != testint3)
-            atomic_store_bool(&fail, true, ATOMIC_RELEASE);
+            atomicStore(bool, &fail, true, Release);
         mutexRelease(&testmtx);
     }
 
@@ -141,7 +141,7 @@ static int thrproc3(Thread *self)
 #define MTX_COUNT 1048576
 static int test_mutex()
 {
-    atomic_store_bool(&fail, false, ATOMIC_RELEASE);
+    atomicStore(bool, &fail, false, Release);
     testint1 = 0;
     testint2 = 0;
     testint3 = 0;
@@ -159,7 +159,7 @@ static int test_mutex()
         thrDestroy(&threads[i]);
     }
 
-    int ret = atomic_load_bool(&fail, ATOMIC_ACQUIRE) ? 1 : 0;
+    int ret = atomicLoad(bool, &fail, Acquire) ? 1 : 0;
     if (testint1 != MTX_COUNT || testint2 != MTX_COUNT || testint3 != MTX_COUNT)
         ret = 1;
 
