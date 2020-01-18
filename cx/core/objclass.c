@@ -6,12 +6,12 @@
 
 // simple mutex to prevent multiple threads from trying to init a class implemenation at
 // the same time
-static Mutex *classMutex = 0;
+static Mutex classMutex;
 static LazyInitState classMutexState;
 
 static void initClassMutex(void *unused)
 {
-    classMutex = mutexCreate();
+    mutexInit(&classMutex);
 }
 
 static void hydrateIfaces(ObjClassInfo *cls, ObjIface ***impls, hashtable *impltbl)
@@ -45,11 +45,11 @@ static void classInitImpl(ObjClassInfo *cls, bool locked)
     lazyInit(&classMutexState, initClassMutex, NULL);
 
     if (!locked) {
-        mutexAcquire(classMutex);
+        mutexAcquire(&classMutex);
 
         // check and make sure another thread didn't win the race
         if (cls->_impl) {
-            mutexRelease(classMutex);
+            mutexRelease(&classMutex);
             return;
         }
     }
@@ -94,7 +94,7 @@ static void classInitImpl(ObjClassInfo *cls, bool locked)
     // without holding the lock to determine if the class needs to be initialized.
     cls->_impl = impl;
     if (!locked)
-        mutexRelease(classMutex);
+        mutexRelease(&classMutex);
 }
 
 ObjInst *_objInstCreate(ObjClassInfo *cls)

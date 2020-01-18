@@ -20,7 +20,7 @@ typedef struct BBoxFreelistNode {
     uint16 size;
 } BBoxFreelistNode;
 
-static Mutex *bbmtx;
+static Mutex bbmtx;
 static hashtable bbindex;
 static BBoxFreelistNode *freelist;
 
@@ -108,7 +108,7 @@ static void freeSpaceRemove(uint16 start, uint16 size)
 
 void bboxInit()
 {
-    bbmtx = mutexCreate();
+    mutexInit(&bbmtx);
     bbindex = htCreate(string, uint16, 0);
     freelist = xaAlloc(sizeof(BBoxFreelistNode));
     freelist->next = 0;
@@ -143,7 +143,7 @@ static void _bboxDeleteInternal(uint16 idx)
 
 void bboxSet(string name, string val, uint8 flags)
 {
-    mutexAcquire(bbmtx);
+    mutexAcquire(&bbmtx);
 
     BlackBoxEnt *ent = 0, *tail;
     uint16 idx = 0;
@@ -214,16 +214,16 @@ void bboxSet(string name, string val, uint8 flags)
     }
 
 out:
-    mutexRelease(bbmtx);
+    mutexRelease(&bbmtx);
 }
 
 void bboxDelete(string name)
 {
-    mutexAcquire(bbmtx);
+    mutexAcquire(&bbmtx);
     uint16 idx = 0;
 
     if (htFind(&bbindex, string, name, uint16, &idx))
         _bboxDeleteInternal(idx);
 
-    mutexRelease(bbmtx);
+    mutexRelease(&bbmtx);
 }

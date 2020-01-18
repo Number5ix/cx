@@ -22,7 +22,7 @@ extern LazyInitState _dbgCrashInitState;
 extern atomic_uint32 _dbgCrashMode;
 extern CrashExtraMeta *_dbgCrashExtraMeta;
 extern CrashMemRange *_dbgCrashDumpMem;
-extern Mutex *_dbgCrashMutex;
+extern Mutex _dbgCrashMutex;
 
 void _dbgCrashInit(void *data);
 bool _dbgCrashPlatformInit();

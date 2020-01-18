@@ -112,7 +112,7 @@ static atomic_bool fail;
 static int64 testint1;
 static int64 testint2;
 static int64 testint3;
-static Mutex *testmtx;
+static Mutex testmtx;
 
 static int thrproc3(Thread *self)
 {
@@ -122,17 +122,16 @@ static int thrproc3(Thread *self)
     int count = stGenVal(int32, self->args[0].data);
 
     for (int i = 0; i < count; i++) {
-        mutexAcquire(testmtx);
+        mutexAcquire(&testmtx);
         testint1++;
         testint2++;
         testint3++;
-        mutexRelease(testmtx);
-        osYield();
+        mutexRelease(&testmtx);
 
-        mutexAcquire(testmtx);
+        mutexAcquire(&testmtx);
         if (testint1 != testint2 || testint2 != testint3)
             atomic_store_bool(&fail, true, ATOMIC_RELEASE);
-        mutexRelease(testmtx);
+        mutexRelease(&testmtx);
     }
 
     return 0;
@@ -146,7 +145,7 @@ static int test_mutex()
     testint1 = 0;
     testint2 = 0;
     testint3 = 0;
-    testmtx = mutexCreate();
+    mutexInit(&testmtx);
 
     int i;
     Thread *threads[MTX_THREADS];
@@ -164,7 +163,7 @@ static int test_mutex()
     if (testint1 != MTX_COUNT || testint2 != MTX_COUNT || testint3 != MTX_COUNT)
         ret = 1;
 
-    mutexDestroy(testmtx);
+    mutexDestroy(&testmtx);
 
     return ret;
 }

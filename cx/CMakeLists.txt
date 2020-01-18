@@ -197,7 +197,6 @@ if(CX_PLATFORM_IS_UNIX)
         platform/unix/unix_ksema.c
         platform/unix/unix_os.c
 	platform/unix/unix_sys_hostid.c
-	platform/unix/unix_thread_mutex.c
 	platform/unix/unix_thread_rwlock.c
 	platform/unix/unix_thread_thread.c
 	platform/unix/unix_time_clock.c
@@ -224,7 +223,6 @@ elseif(CX_PLATFORM_IS_WINDOWS)
 	platform/win/win_os.c
 	platform/win/win_sys_entry.c
 	platform/win/win_sys_hostid.c
-	platform/win/win_thread_mutex.c
 	platform/win/win_thread_rwlock.c
 	platform/win/win_thread_thread.c
 	platform/win/win_time_clock.c
@@ -293,6 +291,7 @@ source_group("sys" FILES
 
 set(THREAD_SRCS
     thread/atomic.c
+    thread/mutex.c
     thread/sema.c
     thread/thread.c)
 set(THREAD_INCLUDES

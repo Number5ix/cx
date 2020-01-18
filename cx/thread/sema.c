@@ -28,7 +28,7 @@ bool semaInit(Semaphore *sema, int32 count)
     devAssert(count >= 0);
     memset(sema, 0, sizeof(Semaphore));
     atomic_store_int32(&sema->count, count, ATOMIC_ACQ_REL);
-    atomic_store_int32(&sema->spintarget, 10, ATOMIC_ACQ_REL);
+    atomic_store_int32(&sema->spintarget, 2000, ATOMIC_ACQ_REL);
 
     // TODO: Set SEMA_NoSpin on single-CPU machines
 
@@ -77,7 +77,7 @@ bool _semaContendedDec(Semaphore *sema, int64 timeout)
             // adjust adaptive target if we had to spin, perfect synchronization
             // is not necessary
             if (spin)
-                atomic_fetch_add_int32(&sema->spintarget, (curtarget - spincount) / 8, ATOMIC_RELAXED);
+                atomic_fetch_add_int32(&sema->spintarget, (curtarget - spincount) / 8 + 1, ATOMIC_RELAXED);
 
 #ifdef SEMA_PERF_STATS
             if (spincount >= curtarget)

@@ -6,7 +6,7 @@
 
 // most of the interesting stuff is in the platform-specific crash module
 
-Mutex *_dbgCrashMutex;
+Mutex _dbgCrashMutex;
 
 LazyInitState _dbgCrashInitState;
 atomic_uint32 _dbgCrashMode;
@@ -28,20 +28,20 @@ uint32 dbgCrashGetMode()
 void dbgCrashAddCallback(dbgCrashCallback cb)
 {
     lazyInit(&_dbgCrashInitState, _dbgCrashInit, 0);
-    mutexAcquire(_dbgCrashMutex);
+    mutexAcquire(&_dbgCrashMutex);
     if (!callbacks)
         callbacks = saCreate(ptr, 0);
 
     saPush(&callbacks, ptr, cb, Unique);
-    mutexRelease(_dbgCrashMutex);
+    mutexRelease(&_dbgCrashMutex);
 }
 
 void dbgCrashRemoveCallback(dbgCrashCallback cb)
 {
     lazyInit(&_dbgCrashInitState, _dbgCrashInit, 0);
-    mutexAcquire(_dbgCrashMutex);
+    mutexAcquire(&_dbgCrashMutex);
     saFind(&cb, ptr, cb, Destroy);
-    mutexRelease(_dbgCrashMutex);
+    mutexRelease(&_dbgCrashMutex);
 }
 
 bool _dbgCrashTriggerCallbacks(bool after)
@@ -123,26 +123,26 @@ static void _dbgCrashAddMetaStr(const char *name, const char *val, bool version)
     }
     valcopy[ci++] = 0;
 
-    mutexAcquire(_dbgCrashMutex);
+    mutexAcquire(&_dbgCrashMutex);
 
     nmeta.name = name;
     nmeta.str = valcopy;
     nmeta.version = version;
     saPush(&_dbgCrashExtraMeta, opaque, nmeta, Unique);
-    mutexRelease(_dbgCrashMutex);
+    mutexRelease(&_dbgCrashMutex);
 }
 
 static void _dbgCrashAddMetaInt(const char *name, int val, bool version)
 {
     lazyInit(&_dbgCrashInitState, _dbgCrashInit, 0);
-    mutexAcquire(_dbgCrashMutex);
+    mutexAcquire(&_dbgCrashMutex);
 
     CrashExtraMeta nmeta = { 0 };
     nmeta.name = name;
     nmeta.val = val;
     nmeta.version = version;
     saPush(&_dbgCrashExtraMeta, opaque, nmeta, Unique);
-    mutexRelease(_dbgCrashMutex);
+    mutexRelease(&_dbgCrashMutex);
 }
 
 void dbgCrashAddMetaStr(const char *name, const char *val)
@@ -167,7 +167,7 @@ void dbgCrashAddVersionInt(const char *name, int val)
 
 void _dbgCrashInit(void *data)
 {
-    _dbgCrashMutex = mutexCreate();
+    mutexInit(&_dbgCrashMutex);
     _dbgCrashExtraMeta = saCreate(custom(opaque(CrashExtraMeta), extraMetaOps), 1, Sorted);
     bboxInit();
 

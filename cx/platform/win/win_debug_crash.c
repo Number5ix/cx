@@ -84,13 +84,13 @@ static const char *_ef_prefix = "  ";
 _no_inline static LONG WINAPI dbgExceptionFilter(LPEXCEPTION_POINTERS info)
 {
     lazyInit(&_dbgCrashInitState, _dbgCrashInit, 0);
-    mutexAcquire(_dbgCrashMutex);
+    mutexAcquire(&_dbgCrashMutex);
 
     _ef_mode = atomic_load_uint32(&_dbgCrashMode, ATOMIC_SEQ_CST);
     _ef_canwrite = true;
 
     if (!_dbgCrashTriggerCallbacks(false) || _ef_mode == 0) {
-        mutexRelease(_dbgCrashMutex);
+        mutexRelease(&_dbgCrashMutex);
         return EXCEPTION_CONTINUE_SEARCH;
     }
 
@@ -307,7 +307,7 @@ _no_inline static LONG WINAPI dbgExceptionFilter(LPEXCEPTION_POINTERS info)
 
     _dbgCrashTriggerCallbacks(true);
 
-    mutexRelease(_dbgCrashMutex);
+    mutexRelease(&_dbgCrashMutex);
     return EXCEPTION_CONTINUE_SEARCH;
 }
 
