@@ -1,7 +1,7 @@
-#include "win_os.h"
+#include "cx/platform/os.h"
 #include "cx/platform/win.h"
 
-bool osIsWine(void)
+bool osIsWine()
 {
     static int result = -1;
 
@@ -19,4 +19,9 @@ bool osIsWine(void)
     }
 
     return result;
+}
+
+void osYield()
+{
+    SwitchToThread();
 }

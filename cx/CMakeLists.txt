@@ -1,4 +1,12 @@
+include (CheckTypeSize)
 find_package (Threads REQUIRED)
+
+if(CX_PLATFORM_IS_UNIX)
+    set(CMAKE_EXTRA_INCLUDE_FILES semaphore.h)
+    check_type_size("sem_t" KERNEL_SEMA_SIZE)
+    unset(CMAKE_EXTRA_INCLUDE_FILES)
+    configure_file(platform/unix/unix_ksema.h.in platform/unix/unix_ksema.h)
+endif()
 
 set(CONTAINER_SRCS
     container/hashtable.c
@@ -163,6 +171,7 @@ source_group("math" FILES
 set(PLATFORM_INCLUDES
     platform/base.h
     platform/cpu.h
+    platform/ksema.h
     platform/os.h)
 
 if(CX_COMPILER_IS_CLANG)
@@ -185,6 +194,8 @@ if(CX_PLATFORM_IS_UNIX)
 	platform/unix/unix_error.c
 	platform/unix/unix_fs_file.c
 	platform/unix/unix_fs_fs.c
+        platform/unix/unix_ksema.c
+        platform/unix/unix_os.c
 	platform/unix/unix_sys_hostid.c
 	platform/unix/unix_thread_mutex.c
 	platform/unix/unix_thread_rwlock.c
@@ -193,6 +204,7 @@ if(CX_PLATFORM_IS_UNIX)
 	platform/unix/unix_vfs.c)
     set(PLATFORM_OS_INCLUDES
 	platform/unix/unix_hostid.h
+        platform/unix/unix_ksema.h
 	platform/unix/unix_os.h
 	platform/unix/unix_sys_entry.h)
     set(PLATFORM_INCLUDES
@@ -208,6 +220,7 @@ elseif(CX_PLATFORM_IS_WINDOWS)
 	platform/win/win_error.c
 	platform/win/win_fs_file.c
 	platform/win/win_fs_fs.c
+        platform/win/win_ksema.c
 	platform/win/win_os.c
 	platform/win/win_sys_entry.c
 	platform/win/win_sys_hostid.c
@@ -219,6 +232,7 @@ elseif(CX_PLATFORM_IS_WINDOWS)
     set(PLATFORM_OS_INCLUDES
 	platform/win/win_fs.h
 	platform/win/win_hostid.h
+        platform/win/win_ksema.h
 	platform/win/win_os.h
 	platform/win/win_stacktrace.h
 	platform/win/win_sys_entry.h
@@ -279,11 +293,13 @@ source_group("sys" FILES
 
 set(THREAD_SRCS
     thread/atomic.c
+    thread/sema.c
     thread/thread.c)
 set(THREAD_INCLUDES
     thread/atomic.h
     thread/mutex.h
     thread/rwlock.h
+    thread/sema.h
     thread/thread.h
     thread/thread_private.h)
 source_group("thread" FILES

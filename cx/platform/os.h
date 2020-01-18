@@ -7,3 +7,5 @@
 #elif defined(_PLATFORM_UNIX)
 #include <cx/platform/unix/unix_os.h>
 #endif
+
+void osYield();
