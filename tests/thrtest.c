@@ -2,6 +2,9 @@
 #include <cx/string/strtest.h>
 #include <cx/container.h>
 #include <cx/thread/sema.h>
+#include <cx/thread/mutex.h>
+#include <cx/thread/rwlock.h>
+#include <cx/platform/os.h>
 
 #define TEST_FILE thrtest
 #define TEST_FUNCS thrtest_funcs
@@ -27,17 +30,18 @@ static int thrproc1(Thread *self)
     return 0;
 }
 
+#define BASIC_THREADS 16
 static int test_basic()
 {
-    Thread *threads[16];
+    Thread *threads[BASIC_THREADS];
     int ret = 0;
     int i;
 
-    for (i = 0; i < 16; i++) {
+    for (i = 0; i < BASIC_THREADS; i++) {
         threads[i] = thrCreate(thrproc1, stvar(int32, i), stvar(int32, 1000000 + i*100000));
     }
 
-    for (i = 0; i < 16; i++) {
+    for (i = 0; i < BASIC_THREADS; i++) {
         thrWait(threads[i], timeForever);
         thrDestroy(&threads[i]);
         if (thrtest1[i] != 1000000 + i * 100000)
@@ -69,6 +73,7 @@ static int thrproc2(Thread *self)
 
 #define SEMA_PRODUCERS 4
 #define SEMA_CONSUMERS 16
+#define SEMA_COUNT 1048576
 static int test_sema()
 {
     int ret = 0;
@@ -79,10 +84,10 @@ static int test_sema()
     Thread *producers[SEMA_PRODUCERS];
     Thread *consumers[SEMA_CONSUMERS];
     for (i = 0; i < SEMA_CONSUMERS; i++) {
-        consumers[i] = thrCreate(thrproc2, stvar(uint8, 1), stvar(int32, 1048576 / SEMA_CONSUMERS));
+        consumers[i] = thrCreate(thrproc2, stvar(uint8, 1), stvar(int32, SEMA_COUNT / SEMA_CONSUMERS));
     }
     for (i = 0; i < SEMA_PRODUCERS; i++) {
-        producers[i] = thrCreate(thrproc2, stvar(uint8, 0), stvar(int32, 1048576 / SEMA_PRODUCERS));
+        producers[i] = thrCreate(thrproc2, stvar(uint8, 0), stvar(int32, SEMA_COUNT / SEMA_PRODUCERS));
     }
 
     for (i = 0; i < SEMA_PRODUCERS; i++) {
@@ -103,8 +108,76 @@ static int test_sema()
     return ret;
 }
 
+static atomic_bool fail;
+static int64 testint1;
+static int64 testint2;
+static int64 testint3;
+static Mutex *testmtx;
+
+static int thrproc3(Thread *self)
+{
+    if (saSize(&self->args) != 1 || !stEq(self->args[0].type, stType(int32)))
+        return 0;
+
+    int count = stGenVal(int32, self->args[0].data);
+
+    for (int i = 0; i < count; i++) {
+        mutexAcquire(testmtx);
+        testint1++;
+        testint2++;
+        testint3++;
+        mutexRelease(testmtx);
+        osYield();
+
+        mutexAcquire(testmtx);
+        if (testint1 != testint2 || testint2 != testint3)
+            atomic_store_bool(&fail, true, ATOMIC_RELEASE);
+        mutexRelease(testmtx);
+    }
+
+    return 0;
+}
+
+#define MTX_THREADS 32
+#define MTX_COUNT 1048576
+static int test_mutex()
+{
+    atomic_store_bool(&fail, false, ATOMIC_RELEASE);
+    testint1 = 0;
+    testint2 = 0;
+    testint3 = 0;
+    testmtx = mutexCreate();
+
+    int i;
+    Thread *threads[MTX_THREADS];
+
+    for (i = 0; i < MTX_THREADS; i++) {
+        threads[i] = thrCreate(thrproc3, stvar(int32, MTX_COUNT / MTX_THREADS));
+    }
+
+    for (i = 0; i < MTX_THREADS; i++) {
+        thrWait(threads[i], timeForever);
+        thrDestroy(&threads[i]);
+    }
+
+    int ret = atomic_load_bool(&fail, ATOMIC_ACQUIRE) ? 1 : 0;
+    if (testint1 != MTX_COUNT || testint2 != MTX_COUNT || testint3 != MTX_COUNT)
+        ret = 1;
+
+    mutexDestroy(testmtx);
+
+    return ret;
+}
+
+static int test_rwlock()
+{
+    return 0;
+}
+
 testfunc thrtest_funcs[] = {
     { "basic", test_basic },
     { "sema", test_sema },
+    { "mutex", test_mutex },
+    { "rwlock", test_rwlock },
     { 0, 0 }
 };
