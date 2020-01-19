@@ -18,6 +18,7 @@ enum SEMA_Flags {
 
 typedef struct Semaphore {
     atomic(int32) count;
+    int32 _align;
     atomic(int32) spintarget;
     uint32 flags;
     kernelSema ksema;

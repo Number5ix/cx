@@ -9,3 +9,5 @@
 #endif
 
 void osYield();
+int osPhysicalCPUs();
+int osLogicalCPUs();

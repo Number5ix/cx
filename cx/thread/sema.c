@@ -30,7 +30,8 @@ bool semaInit(Semaphore *sema, int32 count)
     atomicStore(int32, &sema->count, count, AcqRel);
     atomicStore(int32, &sema->spintarget, 2000, AcqRel);
 
-    // TODO: Set SEMA_NoSpin on single-CPU machines
+    if (osPhysicalCPUs() == 1)
+        sema->flags |= SEMA_NoSpin;
 
     return true;
 }
@@ -52,6 +53,7 @@ bool _semaContendedDec(Semaphore *sema, int64 timeout)
     int32 curtarget = atomicLoad(int32, &sema->spintarget, Relaxed);
     int32 spincount = spin ? curtarget * 2 : 1;
     int64 endtime = timed ? clockTimer() + timeout : 0;
+    int yield = spin ? 0 : 1;
     int32 curcount;
 
     // spincount == 1 for the NoSpin case: assuming semaDec already tried the
@@ -61,12 +63,6 @@ bool _semaContendedDec(Semaphore *sema, int64 timeout)
     // fast path
     for (; spincount; --spincount) {
         _CPU_PAUSE;
-
-        // start yielding the CPU once we're past the halfway point, to prevent CPU
-        // starvation and runaway adaptation if more threads are spinning than
-        // avilable cores
-        if (spincount < curtarget)
-            osYield();
 
         // try to decrement
         curcount = atomicLoad(int32, &sema->count, Acquire);
@@ -79,7 +75,7 @@ bool _semaContendedDec(Semaphore *sema, int64 timeout)
                 atomicFetchAdd(int32, &sema->spintarget, (curtarget - spincount) / 8 + 1, Relaxed);
 
 #ifdef SEMA_PERF_STATS
-            if (spincount >= curtarget)
+            if (!yield)
                 atomicFetchAdd(int64, &sema->stats_spin, 1, Relaxed);
             else
                 atomicFetchAdd(int64, &sema->stats_yield, 1, Relaxed);
@@ -90,13 +86,22 @@ bool _semaContendedDec(Semaphore *sema, int64 timeout)
         // if doing a timed wait, check that we didn't time out
         if (timed && clockTimer() > endtime)
             return false;
+
+        // start yielding the CPU once we're past the halfway point, to prevent CPU
+        // starvation and runaway adaptation if more threads are spinning than
+        // avilable cores
+        if (spincount < curtarget)
+            yield = true;
+
+        if (yield)
+            osYield();
     }
 
     // slow path
 
-    // update adaptive target, spincount zeroed out at this point
+    // give adaptive target a big bump because we really want to avoid the slow path
     if (spin)
-        atomicFetchAdd(int32, &sema->spintarget, curtarget / 8, Relaxed);
+        atomicFetchAdd(int32, &sema->spintarget, curtarget + 2, Relaxed);
 
     // make sure kernel semaphore has been created
     if (!(sema->flags & SEMA_KSemaInit))
