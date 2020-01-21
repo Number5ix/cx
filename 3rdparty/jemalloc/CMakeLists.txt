@@ -3,12 +3,16 @@ include (CheckIncludeFiles)
 include(${CMAKE_CURRENT_SOURCE_DIR}/Utilities.cmake)
 find_package (Threads REQUIRED)
 
-set (jemalloc_version "4.5.0-3-g17c897976c60b0e6e4f4a365c751027244dada7a")
-set (jemalloc_version_major 4)
-set (jemalloc_version_minor 5)
-set (jemalloc_version_bugfix 0)
-set (jemalloc_version_nrev 3)
-set (jemalloc_version_gid "17c897976c60b0e6e4f4a365c751027244dada7a")
+set (jemalloc_version "5.2.1-0-gea6b3e973b477b8061e0076bb257dbd7f3faa756")
+set (jemalloc_version_major 5)
+set (jemalloc_version_minor 2)
+set (jemalloc_version_bugfix 1)
+set (jemalloc_version_nrev 0)
+set (jemalloc_version_gid "ea6b3e973b477b8061e0076bb257dbd7f3faa756")
+
+if(CX_COMPILER_IS_CLANG)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-unused-variable")
+endif()
 
 # whether malloc_usable_size definition can use const argument
 CHECK_INCLUDE_FILES (malloc.h HAVE_MALLOC_H)
@@ -18,6 +22,11 @@ else()
     set(JEMALLOC_USABLE_SIZE_CONST " ")
 endif()
 CHECK_INCLUDE_FILES (stdatomic.h JEMALLOC_C11_ATOMICS)
+CHECK_INCLUDE_FILES (pthread.h JEMALLOC_HAVE_PTHREAD)
+CHECK_INCLUDE_FILES (dlfcn.h JEMALLOC_HAVE_DLSYM)
+if (JEMALLOC_HAVE_PTHREAD AND JEMALLOC_HAVE_DLSYM)
+    set(JEMALLOC_BACKGROUND_THREAD 1)
+endif()
 
 UtilCheckTypeSize(void* SIZEOF_VOID_P)
 if(SIZEOF_VOID_P)
@@ -65,6 +74,12 @@ if(SIZEOF_INTMAX_T)
   endif()
 endif()
 
+if (SIZEOF_VOID_P EQUAL 8)
+  set(LG_VADDR 48)
+else()
+  set(LG_VADDR 32)
+endif()
+
 set(JEMALLOC_PREFIX "je_")
 set(JEMALLOC_CPREFIX "\"JE_\"")
 set(private_namespace je_)
@@ -72,16 +87,12 @@ set(je_ "je_")
 set(JEMALLOC_EXPORT " ")
 
 set(JEMALLOC_CONFIG_MALLOC_CONF "\"\"")
-set(JEMALLOC_CC_SILENCE 1)
 #set(JEMALLOC_DEBUG 1)
-#set(JEMALLOC_IVSALLOC 1)
 set(JEMALLOC_STATS 1)
-set(JEMALLOC_TCACHE 1)
 set(JEMALLOC_PREFIX_JET jet_)
 set(JEMALLOC_DSS 0)
 set(JEMALLOC_FILL 1)
 set(JEMALLOC_UTRACE 0)
-set(JEMALLOC_VALGRIND 0)
 set(JEMALLOC_XMALLOC 0)
 set(JEMALLOC_CACHE_OBLIVIOUS 1)
 
@@ -91,11 +102,11 @@ set(LG_QUANTA 3 4)
 # All currently supported systems have 4k page size
 set(LG_PAGE 12)
 set(LG_PAGE_SIZES 12)
+set(LG_HUGEPAGE 21)
 set(LG_SIZE_CLASS_GROUP 2)
 
 set(JEMALLOC_HAVE_SECURE_GETENV 0)
 set(JEMALLOC_LAZY_LOCK 0)
-set(JEMALLOC_CODE_COVERAGE 0)
 set(JEMALLOC_PROF 0)
 set(JEMALLOC_PROF_LIBUNWIND 0)
 set(JEMALLOC_PROF_LIBGCC 0)
@@ -105,12 +116,14 @@ set(JEMALLOC_HAS_RESTRICT 1)
 if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
     set(JEMALLOC_HAS_ALLOCA_H 1)
     set(JEMALLOC_PROC_SYS_VM_OVERCOMMIT_MEMORY 1)
-    set(JEMALLOC_PURGE_MADVISE_DONTNEED 1)
+    set(JEMALLOC_PURGE_MADVISE_DONTNEED_ZEROS 1)
+    set(JEMALLOC_DEFINE_MADVISE_FREE 1)
     set(JEMALLOC_THREADED_INIT 1)
     set(JEMALLOC_MUNMAP 0)
     set(JEMALLOC_MAPS_COALESCE 1)
     set(JEMALLOC_HAVE_ATTR 1)
     set(CPU_SPINWAIT "__asm__ volatile(\"pause\")")
+    set(HAVE_CPU_SPINWAIT 1)
     set(JEMALLOC_INTERNAL_FFSL __builtin_ffsl)
     set(JEMALLOC_INTERNAL_FFS __builtin_ffs)
     set(JEMALLOC_INTERNAL_FFSLL __builtin_ffsll)
@@ -118,16 +131,15 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
     set(JEMALLOC_MALLOC_THREAD_CLEANUP 0)
     set(JEMALLOC_MUTEX_INIT_CB 0)
     set(JEMALLOC_TLS 1)
-    set(JEMALLOC_ATOMIC9 0)
-    set(JE_FORCE_SYNC_COMPARE_AND_SWAP_4 1)
-    set(JE_FORCE_SYNC_COMPARE_AND_SWAP_8 1)
     set(JEMALLOC_HAVE_BUILTIN_CLZ 1)
     set(JEMALLOC_HAVE_MADVISE 1)
     set(JEMALLOC_HAVE_PTHREAD_ATFORK 1)
+    set(JEMALLOC_HAVE_PTHREAD_SETNAME_NP 0)
     set(JEMALLOC_HAVE_CLOCK_MONOTONIC_COARSE 1)
     set(JEMALLOC_HAVE_CLOCK_MONOTONIC 1)
     set(JEMALLOC_TLS_MODEL "__attribute__((tls_model(\"initial-exec\")))")
     set(JEMALLOC_INTERNAL_UNREACHABLE "__builtin_unreachable")
+    set(JEMALLOC_STRERROR_R_RETURNS_CHAR_WITH_GNU_SOURCE 1)
 elseif(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
     set(JEMALLOC_SYSCTL_VM_OVERCOMMIT 1)
     set(JEMALLOC_PURGE_MADVISE_FREE 1)
@@ -136,6 +148,7 @@ elseif(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
     set(JEMALLOC_MAPS_COALESCE 1)
     set(JEMALLOC_HAVE_ATTR 1)
     set(CPU_SPINWAIT "__asm__ volatile(\"pause\")")
+    set(HAVE_CPU_SPINWAIT 1)
     set(JEMALLOC_INTERNAL_FFSL __builtin_ffsl)
     set(JEMALLOC_INTERNAL_FFS __builtin_ffs)
     set(JEMALLOC_INTERNAL_FFSLL __builtin_ffsll)
@@ -143,12 +156,11 @@ elseif(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
     set(JEMALLOC_MALLOC_THREAD_CLEANUP 1)
     set(JEMALLOC_MUTEX_INIT_CB 1)
     set(JEMALLOC_TLS 1)
-    set(JEMALLOC_ATOMIC9 1)
-    set(JE_FORCE_SYNC_COMPARE_AND_SWAP_4 1)
-    set(JE_FORCE_SYNC_COMPARE_AND_SWAP_8 1)
     set(JEMALLOC_HAVE_BUILTIN_CLZ 1)
     set(JEMALLOC_HAVE_MADVISE 1)
     set(JEMALLOC_HAVE_PTHREAD_ATFORK 1)
+    set(JEMALLOC_HAVE_PTHREAD_SETNAME_NP 0)
+    set(JEMALLOC_HAVE_PTHREAD_MUTEX_ADAPTIVE_NP 1)
     set(JEMALLOC_HAVE_CLOCK_MONOTONIC_COARSE 0)
     set(JEMALLOC_HAVE_CLOCK_MONOTONIC 1)
     set(JEMALLOC_TLS_MODEL "__attribute__((tls_model(\"initial-exec\")))")
@@ -161,6 +173,7 @@ elseif(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     set(JEMALLOC_MAPS_COALESCE 0)
     set(JEMALLOC_HAVE_ATTR 0)
     set(CPU_SPINWAIT "_mm_pause()")
+    set(HAVE_CPU_SPINWAIT 1)
     set(JEMALLOC_INTERNAL_FFSL ffsl)
     set(JEMALLOC_INTERNAL_FFS ffs)
     set(JEMALLOC_INTERNAL_FFSLL ffsll)
@@ -168,12 +181,10 @@ elseif(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     set(JEMALLOC_MALLOC_THREAD_CLEANUP 0)
     set(JEMALLOC_MUTEX_INIT_CB 0)
     set(JEMALLOC_TLS 0)
-    set(JEMALLOC_ATOMIC9 0)
-    set(JE_FORCE_SYNC_COMPARE_AND_SWAP_4 0)
-    set(JE_FORCE_SYNC_COMPARE_AND_SWAP_8 0)
     set(JEMALLOC_HAVE_BUILTIN_CLZ 0)
     set(JEMALLOC_HAVE_MADVISE 0)
     set(JEMALLOC_HAVE_PTHREAD_ATFORK 0)
+    set(JEMALLOC_HAVE_PTHREAD_SETNAME_NP 0)
     set(JEMALLOC_HAVE_CLOCK_MONOTONIC_COARSE 0)
     set(JEMALLOC_HAVE_CLOCK_MONOTONIC 0)
     set(JEMALLOC_INTERNAL_UNREACHABLE "abort")
@@ -239,16 +250,10 @@ set(PRIVATE_UNNAMESPACE_FILE "${CMAKE_CURRENT_BINARY_DIR}/include/jemalloc/inter
 
 # Configure internal headers
 
-# Main internal header does not require #define expansion otherwise it affects real #undefs
-configure_file("include/jemalloc/internal/jemalloc_internal.h.in"
-    "include/jemalloc/internal/jemalloc_internal.h")
-
-foreach(internal_in jemalloc_internal_defs.h)
-  configure_file("include/jemalloc/internal/${internal_in}.in"
-    "include/jemalloc/internal/${internal_in}")
-endforeach(internal_in)
-
-set(SIZE_CLASSES_HDR "${CMAKE_CURRENT_BINARY_DIR}/include/jemalloc/internal/size_classes.h")
+configure_file("include/jemalloc/internal/jemalloc_preamble.h.in"
+    "include/jemalloc/internal/jemalloc_preamble.h")
+configure_file("include/jemalloc/internal/jemalloc_internal_defs.h.in"
+    "include/jemalloc/internal/jemalloc_internal_defs.h")
 
 # To generate protos_jet
 set(je_ jet_)
@@ -270,14 +275,10 @@ foreach(Var ${Vars})
     file(APPEND "${GenerateCache}" "set(${Var} \"${VarValue}\")\n")
 endforeach()
 
-add_custom_command(OUTPUT ${SIZE_CLASSES_HDR}
-    COMMAND ${CMAKE_COMMAND} -DGENERATE=SizeClasses -P "${CMAKE_CURRENT_SOURCE_DIR}/Generate.cmake" VERBATIM)
-
 add_custom_command(OUTPUT ${JEMALLOC_HDR}
     DEPENDS ${PUBLIC_NAMESPACE_FILE} ${PUBLIC_UNNAMESPACE_FILE}
     ${PRIVATE_NAMESPACE_FILE} ${PRIVATE_UNNAMESPACE_FILE}
     ${JEMALLOC_RENAME_HDR} ${JEMALLOC_MANGLE_HDR}
-    ${SIZE_CLASSES_HDR}
     COMMAND ${CMAKE_COMMAND} -DGENERATE=JemallocHeaders -P "${CMAKE_CURRENT_SOURCE_DIR}/Generate.cmake" VERBATIM)
 
 add_custom_command(OUTPUT ${PUBLIC_SYM_FILE}
@@ -297,7 +298,6 @@ add_custom_command(OUTPUT ${JEMALLOC_RENAME_HDR} ${JEMALLOC_MANGLE_HDR} ${JEMALL
 
 add_library(jemalloc_generate STATIC
     jemalloc_generate.c
-    ${SIZE_CLASSES_HDR}
     ${JEMALLOC_HDR}
     ${PUBLIC_NAMESPACE_FILE}
     ${PUBLIC_UNNAMESPACE_FILE}
@@ -310,30 +310,36 @@ add_library(jemalloc_generate STATIC
 set(JEMALLOC_SRCS
     ${CMAKE_CURRENT_SOURCE_DIR}/src/jemalloc.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/arena.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/atomic.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/background_thread.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/base.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/bin.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/bitmap.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/chunk.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/chunk_dss.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/chunk_mmap.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ckh.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ctl.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/div.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/extent.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/extent_dss.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/extent_mmap.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/hash.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/huge.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/hook.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/large.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/log.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/malloc_io.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/mutex.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/mutex_pool.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/nstime.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pages.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/prng.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/prof.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/quarantine.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/rtree.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/spin.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/safety_check.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/sc.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/stats.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/sz.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/tcache.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/test_hooks.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ticker.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/tsd.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/util.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/witness.c)
 
 add_library(jemalloc STATIC

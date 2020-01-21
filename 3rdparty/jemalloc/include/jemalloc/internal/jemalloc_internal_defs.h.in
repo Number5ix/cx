@@ -159,7 +159,7 @@
  */
 #cmakedefine JEMALLOC_DSS @JEMALLOC_DSS@
 
-</* Support memory filling (junk/zero). */
+/* Support memory filling (junk/zero). */
 #cmakedefine JEMALLOC_FILL @JEMALLOC_FILL@
 
 /* Support utrace(2)-based tracing. */

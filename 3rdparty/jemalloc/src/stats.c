@@ -154,7 +154,7 @@ mutex_stats_read_global(const char *name, emitter_col_t *col_name,
 		CTL_GET(cmd, (counter_type *)&dst->bool_val, counter_type);	\
 	} else { \
 	    emitter_col_t *base = &col_##counter_type[mutex_counter_##base_counter];	\
-	    dst->counter_type##_val = rate_per_second(base->counter_type##_val, uptime); \
+	    dst->counter_type##_val = (counter_type)rate_per_second(base->counter_type##_val, uptime); \
 	}
 	MUTEX_PROF_COUNTERS
 #undef OP
@@ -184,7 +184,7 @@ mutex_stats_read_arena(unsigned arena_ind, mutex_prof_arena_ind_t mutex_ind,
 		CTL_M2_GET(cmd, arena_ind, (counter_type *)&dst->bool_val, counter_type); \
 	} else {                      \
 		emitter_col_t *base = &col_##counter_type[mutex_counter_##base_counter];	\
-		dst->counter_type##_val = rate_per_second(base->counter_type##_val, uptime); \
+		dst->counter_type##_val = (counter_type)rate_per_second(base->counter_type##_val, uptime); \
 	}
 	MUTEX_PROF_COUNTERS
 #undef OP
@@ -212,7 +212,7 @@ mutex_stats_read_arena_bin(unsigned arena_ind, unsigned bin_ind,
 		    (counter_type *)&dst->bool_val, counter_type);  \
 	} else {                      \
 		emitter_col_t *base = &col_##counter_type[mutex_counter_##base_counter]; \
-		dst->counter_type##_val = rate_per_second(base->counter_type##_val, uptime); \
+		dst->counter_type##_val = (counter_type)rate_per_second(base->counter_type##_val, uptime); \
 	}
 	MUTEX_PROF_COUNTERS
 #undef OP

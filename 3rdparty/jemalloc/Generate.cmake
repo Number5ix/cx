@@ -1,9 +1,7 @@
 include(GenerateCache.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/Utilities.cmake)
 
-if (${GENERATE} STREQUAL "SizeClasses")
-    SizeClasses("${LG_QUANTA}" ${LG_TINY_MIN} "${LG_PAGE_SIZES}" "${LG_SIZE_CLASS_GROUP}" "${SIZE_CLASSES_HDR}")
-elseif (${GENERATE} STREQUAL "JemallocHeaders")
+if (${GENERATE} STREQUAL "JemallocHeaders")
     CreateJemallocHeader("${JEMALLOC_HDR_LIST}" "${JEMALLOC_HDR}")
 elseif (${GENERATE} STREQUAL "MSVCCompat")
     message(STATUS "Copying MSVC compatibility headers")
