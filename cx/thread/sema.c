@@ -4,6 +4,28 @@
 #include <cx/platform/os.h>
 #include <cx/utils/compare.h>
 
+// Adaptive Half-Spin Semaphore (AHSS)
+
+// Partly based on the concepts discussed in detail on Jeff Preshing's blog (https://preshing.com/)
+// and implemented in his C++11 threading project (https://github.com/preshing/cpp11-on-multicore)
+// under the zlib license.
+//
+// While AHSS is unquestionably inspired in many important ways by his work, this implementation
+// differs in several substantial ways.
+//
+// The spinloop is adapative and adjusts based on contention and how long the average acquisition
+// takes. The back half of the spinloop is a yield loop, which help prevent CPU starvation when
+// under high contention.  Using a single combined spin count target for the spinloop and yield
+// loop provides balanced pressure to keep the target close to the optimal value.
+//
+// Similar to a Windows Critical Section, it defers allocation of the kernel resource until there
+// is an actual need for the thread to sleep, so in low-to-no-contention cases it may never be
+// needed. A suboptimal fallback mechanism is used in the rare event that no more kernel semaphores
+// are available.
+
+// failsafe to guard against pathalogical cases
+#define SPIN_TARGET_MAX 30000
+
 // customized version of lazyinit that uses shared flags
 static void _semaLazyKInit(Semaphore *sema)
 {
@@ -51,7 +73,8 @@ bool _semaContendedDec(Semaphore *sema, int64 timeout)
     bool spin = !(sema->flags & SEMA_NoSpin);
     bool timed = (timeout < timeForever);
     int32 curtarget = atomicLoad(int32, &sema->spintarget, Relaxed);
-    int32 spincount = spin ? curtarget * 2 : 1;
+    int32 overage = (curtarget > SPIN_TARGET_MAX) ? SPIN_TARGET_MAX - curtarget : 0;
+    int32 spincount = spin ? (curtarget - overage) * 2 : 1;
     int64 endtime = timed ? clockTimer() + timeout : 0;
     int yield = spin ? 0 : 1;
     int32 curcount;
@@ -72,7 +95,7 @@ bool _semaContendedDec(Semaphore *sema, int64 timeout)
             // adjust adaptive target if we had to spin, perfect synchronization
             // is not necessary
             if (spin)
-                atomicFetchAdd(int32, &sema->spintarget, (curtarget - spincount) / 8 + 1, Relaxed);
+                atomicFetchAdd(int32, &sema->spintarget, (curtarget - overage - spincount) / 8 + 1, Relaxed);
 
 #ifdef SEMA_PERF_STATS
             if (!yield)
@@ -100,7 +123,7 @@ bool _semaContendedDec(Semaphore *sema, int64 timeout)
     // slow path
 
     // give adaptive target a big bump because we really want to avoid the slow path
-    if (spin)
+    if (spin && overage == 0)
         atomicFetchAdd(int32, &sema->spintarget, curtarget + 2, Relaxed);
 
     // make sure kernel semaphore has been created

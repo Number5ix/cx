@@ -5,6 +5,10 @@
 #include <cx/thread/atomic.h>
 #include <cx/time/time.h>
 
+// Adaptive Half-Spin Semaphore (AHSS)
+
+// See comments and attribution in sema.c
+
 #if DEBUG_LEVEL >= 2
 #define SEMA_PERF_STATS
 #endif
