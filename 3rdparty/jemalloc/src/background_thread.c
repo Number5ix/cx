@@ -26,13 +26,9 @@ background_thread_info_t *background_thread_info;
 
 /******************************************************************************/
 
-#ifdef JEMALLOC_PTHREAD_CREATE_WRAPPER
-
-static int (*pthread_create_fptr)(pthread_t *__restrict, const pthread_attr_t *,
-    void *(*)(void *), void *__restrict);
-
 static void
-pthread_create_wrapper_init(void) {
+set_threaded_init(void)
+{
 #ifdef JEMALLOC_LAZY_LOCK
 	if (!isthreaded) {
 		isthreaded = true;
@@ -40,10 +36,15 @@ pthread_create_wrapper_init(void) {
 #endif
 }
 
+#ifdef JEMALLOC_PTHREAD_CREATE_WRAPPER
+
+static int (*pthread_create_fptr)(pthread_t *__restrict, const pthread_attr_t *,
+    void *(*)(void *), void *__restrict);
+
 int
 pthread_create_wrapper(pthread_t *__restrict thread, const pthread_attr_t *attr,
     void *(*start_routine)(void *), void *__restrict arg) {
-	pthread_create_wrapper_init();
+	set_threaded_init();
 
 	return pthread_create_fptr(thread, attr, start_routine, arg);
 }
@@ -86,6 +87,9 @@ set_current_thread_affinity(int cpu) {
 	CPU_SET(cpu, &cpuset);
 	int ret = sched_setaffinity(0, sizeof(cpu_set_t), &cpuset);
 
+	return (ret != 0);
+#elif defined (JEMALLOC_THREAD_WIN32)
+	DWORD_PTR ret = SetThreadAffinityMask(GetCurrentThread(), (DWORD)(1 << cpu));
 	return (ret != 0);
 #else
 	return false;
@@ -150,7 +154,7 @@ arena_decay_compute_purge_interval_impl(tsdn_t *tsdn, arena_decay_t *decay,
 		goto label_done;
 	}
 
-	size_t lb = BACKGROUND_THREAD_MIN_INTERVAL_NS / decay_interval_ns;
+	size_t lb = (size_t)(BACKGROUND_THREAD_MIN_INTERVAL_NS / decay_interval_ns);
 	size_t ub = SMOOTHSTEP_NSTEPS;
 	/* Minimal 2 intervals to ensure reaching next epoch deadline. */
 	lb = (lb < 2) ? 2 : lb;
@@ -220,17 +224,34 @@ background_thread_sleep(tsdn_t *tsdn, background_thread_info_t *info,
 	}
 	info->npages_to_purge_new = 0;
 
+	nstime_t before_sleep;
+#if defined(JEMALLOC_THREAD_PTHREAD)
 	struct timeval tv;
 	/* Specific clock required by timedwait. */
 	gettimeofday(&tv, NULL);
-	nstime_t before_sleep;
 	nstime_init2(&before_sleep, tv.tv_sec, tv.tv_usec * 1000);
+#elif defined(JEMALLOC_THREAD_WIN32)
+	SYSTEMTIME system_time;
+	FILETIME file_time;
+	GetSystemTime(&system_time);
+	SystemTimeToFileTime(&system_time, &file_time);
+	// only used for timing on windows, so don't need to adjust the epoch
+	uint64_t wintime = ((uint64_t)file_time.dwLowDateTime) | ((uint64_t)file_time.dwHighDateTime) << 32;
+	nstime_init(&before_sleep, wintime * 100);
+#endif
 
 	int ret;
 	if (interval == BACKGROUND_THREAD_INDEFINITE_SLEEP) {
 		assert(background_thread_indefinite_sleep(info));
+#if defined(JEMALLOC_THREAD_PTHREAD)
 		ret = pthread_cond_wait(&info->cond, &info->mtx.lock);
 		assert(ret == 0);
+#elif defined (JEMALLOC_THREAD_WIN32)
+		malloc_mutex_unlock(tsdn, &info->mtx);
+		ret = WaitForSingleObject(info->ev, INFINITE);
+		malloc_mutex_lock(tsdn, &info->mtx);
+		assert(ret == WAIT_OBJECT_0);
+#endif
 	} else {
 		assert(interval >= BACKGROUND_THREAD_MIN_INTERVAL_NS &&
 		    interval <= BACKGROUND_THREAD_INDEFINITE_SLEEP);
@@ -244,6 +265,7 @@ background_thread_sleep(tsdn_t *tsdn, background_thread_info_t *info,
 		background_thread_wakeup_time_set(tsdn, info,
 		    nstime_ns(&next_wakeup));
 
+#if defined(JEMALLOC_THREAD_PTHREAD)
 		nstime_t ts_wakeup;
 		nstime_copy(&ts_wakeup, &before_sleep);
 		nstime_iadd(&ts_wakeup, interval);
@@ -254,13 +276,27 @@ background_thread_sleep(tsdn_t *tsdn, background_thread_info_t *info,
 		assert(!background_thread_indefinite_sleep(info));
 		ret = pthread_cond_timedwait(&info->cond, &info->mtx.lock, &ts);
 		assert(ret == ETIMEDOUT || ret == 0);
+#elif defined(JEMALLOC_THREAD_WIN32)
+		malloc_mutex_unlock(tsdn, &info->mtx);
+		ret = WaitForSingleObject(info->ev, (DWORD)(interval / 1000000));
+		malloc_mutex_lock(tsdn, &info->mtx);
+		assert(ret == WAIT_TIMEOUT || ret == WAIT_OBJECT_0);
+#endif
 		background_thread_wakeup_time_set(tsdn, info,
 		    BACKGROUND_THREAD_INDEFINITE_SLEEP);
 	}
 	if (config_stats) {
-		gettimeofday(&tv, NULL);
 		nstime_t after_sleep;
+#if defined(JEMALLOC_THREAD_PTHREAD)
+		gettimeofday(&tv, NULL);
 		nstime_init2(&after_sleep, tv.tv_sec, tv.tv_usec * 1000);
+#elif defined(JEMALLOC_THREAD_WIN32)
+		GetSystemTime(&system_time);
+		SystemTimeToFileTime(&system_time, &file_time);
+		// only used for timing on windows, so don't need to adjust the epoch
+		wintime = ((uint64_t)file_time.dwLowDateTime) | ((uint64_t)file_time.dwHighDateTime) << 32;
+		nstime_init(&after_sleep, wintime * 100);
+#endif
 		if (nstime_compare(&after_sleep, &before_sleep) > 0) {
 			nstime_subtract(&after_sleep, &before_sleep);
 			nstime_add(&info->tot_sleep_time, &after_sleep);
@@ -287,7 +323,7 @@ background_work_sleep_once(tsdn_t *tsdn, background_thread_info_t *info, unsigne
 	uint64_t min_interval = BACKGROUND_THREAD_INDEFINITE_SLEEP;
 	unsigned narenas = narenas_total_get();
 
-	for (unsigned i = ind; i < narenas; i += max_background_threads) {
+	for (unsigned i = ind; i < narenas; i += (unsigned)max_background_threads) {
 		arena_t *arena = arena_get(tsdn, i, false);
 		if (!arena) {
 			continue;
@@ -324,7 +360,11 @@ background_threads_disable_single(tsd_t *tsd, background_thread_info_t *info) {
 	if (info->state == background_thread_started) {
 		has_thread = true;
 		info->state = background_thread_stopped;
+#if defined(JEMALLOC_THREAD_PTHREAD)
 		pthread_cond_signal(&info->cond);
+#elif defined(JEMALLOC_THREAD_WIN32)
+		SetEvent(info->ev);
+#endif
 	} else {
 		has_thread = false;
 	}
@@ -335,7 +375,12 @@ background_threads_disable_single(tsd_t *tsd, background_thread_info_t *info) {
 		return false;
 	}
 	void *ret;
+#if defined(JEMALLOC_THREAD_PTHREAD)
 	if (pthread_join(info->thread, &ret)) {
+#elif defined(JEMALLOC_THREAD_WIN32)
+	ret = NULL;
+	if (WaitForSingleObject(info->thread, INFINITE) != WAIT_OBJECT_0) {
+#endif
 		post_reentrancy(tsd);
 		return true;
 	}
@@ -346,8 +391,13 @@ background_threads_disable_single(tsd_t *tsd, background_thread_info_t *info) {
 	return false;
 }
 
+#if defined(JEMALLOC_THREAD_PTHREAD)
 static void *background_thread_entry(void *ind_arg);
+#elif defined (JEMALLOC_THREAD_WIN32)
+static DWORD WINAPI background_thread_entry(void *ind_arg);
+#endif
 
+#if defined(JEMALLOC_THREAD_PTHREAD)
 static int
 background_thread_create_signals_masked(pthread_t *thread,
     const pthread_attr_t *attr, void *(*start_routine)(void *), void *arg) {
@@ -379,6 +429,15 @@ background_thread_create_signals_masked(pthread_t *thread,
 	}
 	return create_err;
 }
+#elif defined (JEMALLOC_THREAD_WIN32)
+static int
+background_thread_create_signals_masked(HANDLE *thread,
+	const void *unused, LPTHREAD_START_ROUTINE start_routine, void *arg)
+{
+	*thread = CreateThread(NULL, 0, start_routine, arg, 0, NULL);
+	return !*thread;
+}
+#endif
 
 static bool
 check_background_thread_creation(tsd_t *tsd, unsigned *n_created,
@@ -446,7 +505,7 @@ background_thread0_work(tsd_t *tsd) {
 			continue;
 		}
 		if (check_background_thread_creation(tsd, &n_created,
-		    (bool *)&created_threads)) {
+		    (bool *)created_threads)) {
 			continue;
 		}
 		background_work_sleep_once(tsd_tsdn(tsd),
@@ -502,8 +561,13 @@ background_work(tsd_t *tsd, unsigned ind) {
 	malloc_mutex_unlock(tsd_tsdn(tsd), &info->mtx);
 }
 
+#if defined(JEMALLOC_THREAD_PTHREAD)
 static void *
 background_thread_entry(void *ind_arg) {
+#elif defined(JEMALLOC_THREAD_WIN32)
+static DWORD WINAPI
+background_thread_entry(void *ind_arg) {
+#endif
 	unsigned thread_ind = (unsigned)(uintptr_t)ind_arg;
 	assert(thread_ind < max_background_threads);
 #ifdef JEMALLOC_HAVE_PTHREAD_SETNAME_NP
@@ -520,10 +584,14 @@ background_thread_entry(void *ind_arg) {
 	 * turn triggers another background thread creation).
 	 */
 	background_work(tsd_internal_fetch(), thread_ind);
+#if defined(JEMALLOC_THREAD_PTHREAD)
 	assert(pthread_equal(pthread_self(),
 	    background_thread_info[thread_ind].thread));
+#elif defined(JEMALLOC_THREAD_WIN32)
+	assert(GetCurrentThread() == background_thread_info[thread_ind].thread);
+#endif
 
-	return NULL;
+	return 0;
 }
 
 static void
@@ -559,7 +627,11 @@ background_thread_create_locked(tsd_t *tsd, unsigned arena_ind) {
 		background_thread_info_t *t0 = &background_thread_info[0];
 		malloc_mutex_lock(tsd_tsdn(tsd), &t0->mtx);
 		assert(t0->state == background_thread_started);
+#if defined(JEMALLOC_THREAD_PTHREAD)
 		pthread_cond_signal(&t0->cond);
+#elif defined(JEMALLOC_THREAD_WIN32)
+		SetEvent(t0->ev);
+#endif
 		malloc_mutex_unlock(tsd_tsdn(tsd), &t0->mtx);
 
 		return false;
@@ -711,7 +783,7 @@ background_thread_interval_check(tsdn_t *tsdn, arena_t *arena,
 			    h_steps[SMOOTHSTEP_NSTEPS - 1 - n_epoch]);
 			npurge_new >>= SMOOTHSTEP_BFP;
 		}
-		info->npages_to_purge_new += npurge_new;
+		info->npages_to_purge_new += (size_t)npurge_new;
 	}
 
 	bool should_signal;
@@ -728,7 +800,11 @@ background_thread_interval_check(tsdn_t *tsdn, arena_t *arena,
 
 	if (should_signal) {
 		info->npages_to_purge_new = 0;
+#if defined(JEMALLOC_THREAD_PTHREAD)
 		pthread_cond_signal(&info->cond);
+#elif defined(JEMALLOC_THREAD_WIN32)
+		SetEvent(info->ev);
+#endif
 	}
 label_done_unlock2:
 	malloc_mutex_unlock(tsdn, &decay->mtx);
@@ -738,28 +814,35 @@ label_done:
 
 void
 background_thread_prefork0(tsdn_t *tsdn) {
+#ifndef _WIN32
 	malloc_mutex_prefork(tsdn, &background_thread_lock);
 	background_thread_enabled_at_fork = background_thread_enabled();
+#endif
 }
 
 void
 background_thread_prefork1(tsdn_t *tsdn) {
+#ifndef _WIN32
 	for (unsigned i = 0; i < max_background_threads; i++) {
 		malloc_mutex_prefork(tsdn, &background_thread_info[i].mtx);
 	}
+#endif
 }
 
 void
 background_thread_postfork_parent(tsdn_t *tsdn) {
+#ifndef _WIN32
 	for (unsigned i = 0; i < max_background_threads; i++) {
 		malloc_mutex_postfork_parent(tsdn,
 		    &background_thread_info[i].mtx);
 	}
 	malloc_mutex_postfork_parent(tsdn, &background_thread_lock);
+#endif
 }
 
 void
 background_thread_postfork_child(tsdn_t *tsdn) {
+#ifndef _WIN32
 	for (unsigned i = 0; i < max_background_threads; i++) {
 		malloc_mutex_postfork_child(tsdn,
 		    &background_thread_info[i].mtx);
@@ -783,6 +866,7 @@ background_thread_postfork_child(tsdn_t *tsdn) {
 		malloc_mutex_unlock(tsdn, &info->mtx);
 	}
 	malloc_mutex_unlock(tsdn, &background_thread_lock);
+#endif
 }
 
 bool
@@ -829,6 +913,7 @@ background_thread_stats_read(tsdn_t *tsdn, background_thread_stats_t *stats) {
 #include <dlfcn.h>
 #endif
 
+#ifdef JEMALLOC_PTHREAD_CREATE_WRAPPER
 static bool
 pthread_create_fptr_init(void) {
 	if (pthread_create_fptr != NULL) {
@@ -857,6 +942,7 @@ pthread_create_fptr_init(void) {
 
 	return false;
 }
+#endif
 
 /*
  * When lazy lock is enabled, we need to make sure setting isthreaded before
@@ -869,8 +955,8 @@ background_thread_ctl_init(tsdn_t *tsdn) {
 	malloc_mutex_assert_not_owner(tsdn, &background_thread_lock);
 #ifdef JEMALLOC_PTHREAD_CREATE_WRAPPER
 	pthread_create_fptr_init();
-	pthread_create_wrapper_init();
 #endif
+	set_threaded_init();
 }
 
 #endif /* defined(JEMALLOC_BACKGROUND_THREAD) */
@@ -925,9 +1011,15 @@ background_thread_boot1(tsdn_t *tsdn) {
 		    malloc_mutex_address_ordered)) {
 			return true;
 		}
+#if defined(JEMALLOC_THREAD_PTHREAD)
 		if (pthread_cond_init(&info->cond, NULL)) {
 			return true;
 		}
+#elif defined (JEMALLOC_THREAD_WIN32)
+		info->ev = CreateEvent(NULL, FALSE, FALSE, NULL);
+		if (!info->ev)
+			return true;
+#endif
 		malloc_mutex_lock(tsdn, &info->mtx);
 		info->state = background_thread_stopped;
 		background_thread_info_init(tsdn, info);

@@ -71,8 +71,14 @@
 #define _XA_CUSTOM ""
 #endif
 
+#ifdef XALLOC_JEMALLOC_NO_BACKGROUND_THREAD
+#define _XA_BACKGROUND_THREAD ""
+#else
+#define _XA_BACKGROUND_THREAD ",background_thread:true"
+#endif
+
 #define XALLOC_STATIC_CONFIG CX_C const char *je_malloc_conf = "dirty_decay_ms:60000,muzzy_decay_ms:120000" \
-    _XA_ABORT _XA_ZERO _XA_JUNK _XA_ARENA _XA_TCACHE _XA_CUSTOM;
+    _XA_BACKGROUND_THREAD _XA_ABORT _XA_ZERO _XA_JUNK _XA_ARENA _XA_TCACHE _XA_CUSTOM;
 
 #elif defined(XALLOC_USE_MSVCRT)
 

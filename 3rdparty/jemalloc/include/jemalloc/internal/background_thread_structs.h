@@ -3,8 +3,15 @@
 
 /* This file really combines "structs" and "types", but only transitionally. */
 
+#if !defined(_MSC_VER)
 #if defined(JEMALLOC_BACKGROUND_THREAD) || defined(JEMALLOC_LAZY_LOCK)
 #  define JEMALLOC_PTHREAD_CREATE_WRAPPER
+#  define JEMALLOC_THREAD_PTHREAD
+#endif
+#else
+#if defined(JEMALLOC_BACKGROUND_THREAD)
+#  define JEMALLOC_THREAD_WIN32
+#endif
 #endif
 
 #define BACKGROUND_THREAD_INDEFINITE_SLEEP UINT64_MAX
@@ -19,10 +26,14 @@ typedef enum {
 } background_thread_state_t;
 
 struct background_thread_info_s {
-#ifdef JEMALLOC_BACKGROUND_THREAD
+#ifdef JEMALLOC_THREAD_PTHREAD
 	/* Background thread is pthread specific. */
 	pthread_t		thread;
 	pthread_cond_t		cond;
+#endif
+#ifdef JEMALLOC_THREAD_WIN32
+	HANDLE thread;
+	HANDLE ev;
 #endif
 	malloc_mutex_t		mtx;
 	background_thread_state_t	state;
