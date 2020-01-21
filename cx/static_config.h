@@ -27,12 +27,9 @@
 // #define XALLOC_JEMALLOC_CUSTOM_OPTS 1
 
 // Some rules-based defaults
-#if defined(FULLDEBUG) && defined(XALLOC_USE_JEMALLOC)
+#if DEBUG_LEVEL >= 2 && defined(XALLOC_USE_JEMALLOC)
 #ifndef XALLOC_JEMALLOC_JUNK
 #define XALLOC_JEMALLOC_JUNK 1
-#endif
-#ifndef XALLOC_JEMALLOC_REDZONES
-#define XALLOC_JEMALLOC_REDZONES 1
 #endif
 #endif
 
@@ -68,20 +65,14 @@
 #define _XA_TCACHE ""
 #endif
 
-#ifdef XALLOC_JEMALLOC_REDZONES
-#define _XA_REDZONE ",redzone:true"
-#else
-#define _XA_REDZONE ""
-#endif
-
 #ifdef XALLOC_JEMALLOC_CUSTOM_OPTS
 #define _XA_CUSTOM "," XALLOC_JEMALLOC_CUSTOM_OPTS
 #else
 #define _XA_CUSTOM ""
 #endif
 
-#define XALLOC_STATIC_CONFIG CX_C const char *je_malloc_conf = "lg_chunk:21,purge:decay,decay_time:60" \
-    _XA_ABORT _XA_ZERO _XA_JUNK _XA_ARENA _XA_TCACHE _XA_REDZONE _XA_CUSTOM;
+#define XALLOC_STATIC_CONFIG CX_C const char *je_malloc_conf = "dirty_decay_ms:60000,muzzy_decay_ms:120000" \
+    _XA_ABORT _XA_ZERO _XA_JUNK _XA_ARENA _XA_TCACHE _XA_CUSTOM;
 
 #elif defined(XALLOC_USE_MSVCRT)
 
