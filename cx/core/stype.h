@@ -484,7 +484,29 @@ typedef struct STypeOps {
     stCopyFunc copy;
 } STypeOps;
 
-#define stStored(st, storage) (stHasFlag(st, PassPtr) ? stgeneric(ptr, (void*)(storage)) : *(stgeneric*)((void*)(storage)))
+_meta_inline stgeneric _stStoredVal(stype st, const void *storage)
+{
+    stgeneric ret;
+    switch (stGetSize(st)) {
+    case 1:
+        stGenVal(uint8, ret) = *(uint8*)storage;
+        break;
+    case 2:
+        stGenVal(uint16, ret) = *(uint16*)storage;
+        break;
+    case 4:
+        stGenVal(uint32, ret) = *(uint32*)storage;
+        break;
+    case 8:
+        stGenVal(uint64, ret) = *(uint64*)storage;
+        break;
+    default:
+        devFatalError("Invalid small stype size");
+    }
+    return ret;
+}
+
+#define stStored(st, storage) (stHasFlag(st, PassPtr) ? stgeneric(ptr, (void*)(storage)) : _stStoredVal(st, storage))
 
 #define stStoredPtr(st, storage) (stHasFlag(st, PassPtr) ? &stgeneric(ptr, ((void*)(storage))) : (stgeneric*)((void*)(storage)))
 
