@@ -24,10 +24,10 @@ typedef struct Semaphore {
     kernelSema ksema;
 
 #ifdef SEMA_PERF_STATS
-    atomic(int64) stats_uncontested;
-    atomic(int64) stats_spin;
-    atomic(int64) stats_yield;
-    atomic(int64) stats_kernel;
+    atomic(intptr) stats_uncontested;
+    atomic(intptr) stats_spin;
+    atomic(intptr) stats_yield;
+    atomic(intptr) stats_kernel;
 #endif
 } Semaphore;
 
@@ -42,7 +42,7 @@ _meta_inline bool semaTryDec(Semaphore *sema)
                                                       curcount - 1, Acquire, Acquire));
 #ifdef SEMA_PERF_STATS
     if (ret)
-        atomicFetchAdd(int64, &sema->stats_uncontested, 1, Relaxed);
+        atomicFetchAdd(intptr, &sema->stats_uncontested, 1, Relaxed);
 #endif
     return ret;
 }

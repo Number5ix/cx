@@ -76,9 +76,9 @@ bool _semaContendedDec(Semaphore *sema, int64 timeout)
 
 #ifdef SEMA_PERF_STATS
             if (!yield)
-                atomicFetchAdd(int64, &sema->stats_spin, 1, Relaxed);
+                atomicFetchAdd(intptr, &sema->stats_spin, 1, Relaxed);
             else
-                atomicFetchAdd(int64, &sema->stats_yield, 1, Relaxed);
+                atomicFetchAdd(intptr, &sema->stats_yield, 1, Relaxed);
 #endif
             return true;
         }
@@ -115,13 +115,13 @@ bool _semaContendedDec(Semaphore *sema, int64 timeout)
         // check if another thread incremented it after we gave up
         if (curcount > 0) {
 #ifdef SEMA_PERF_STATS
-            atomicFetchAdd(int64, &sema->stats_yield, 1, Relaxed);
+            atomicFetchAdd(intptr, &sema->stats_yield, 1, Relaxed);
 #endif
             return true;        // don't have to go to kernel after all!
         }
 
 #ifdef SEMA_PERF_STATS
-        atomicFetchAdd(int64, &sema->stats_kernel, 1, Relaxed);
+        atomicFetchAdd(intptr, &sema->stats_kernel, 1, Relaxed);
 #endif
 
         if (!timed)
