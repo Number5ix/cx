@@ -62,3 +62,5 @@ add_test(NAME "\"thread: Basic multithreading\"" COMMAND test_runner thrtest bas
 add_test(NAME "\"thread: Semaphores\"" COMMAND test_runner thrtest sema)
 add_test(NAME "\"thread: Mutexes\"" COMMAND test_runner thrtest mutex)
 add_test(NAME "\"thread: Reader/writer locks\"" COMMAND test_runner thrtest rwlock)
+add_test(NAME "\"thread: Events\"" COMMAND test_runner thrtest event)
+add_test(NAME "\"thread: Events (with spin)\"" COMMAND test_runner thrtest event_s)

@@ -156,7 +156,7 @@ bool _semaContendedDec(Semaphore *sema, int64 timeout)
 
         // undo the count adjustment if we failed to get the semaphore
         if (!ret)
-            atomicFetchAdd(int32, &sema->count, 1, Acquire);
+            atomicFetchAdd(int32, &sema->count, 1, Release);
         return ret;
     } else {
         // couldn't create a kernel semaphore, fall back to a suboptimal yield loop

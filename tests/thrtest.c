@@ -2,6 +2,7 @@
 #include <cx/string/strtest.h>
 #include <cx/container.h>
 #include <cx/thread/sema.h>
+#include <cx/thread/event.h>
 #include <cx/thread/mutex.h>
 #include <cx/thread/rwlock.h>
 #include <cx/platform/os.h>
@@ -246,10 +247,125 @@ static int test_rwlock()
     return ret;
 }
 
+static Event testev;
+
+#define EVENT_CONSUMERS 32
+#define EVENT_PRODUCERS 4
+#define EVENT_COUNT 2097152
+
+static int32 evthrcount[EVENT_CONSUMERS];
+static atomic(int32) evwork;
+static atomic(int32) evdone;
+
+static int thrproc5c(Thread *self)
+{
+    if (saSize(&self->args) != 1 || !stEq(self->args[0].type, stType(int32)))
+        return 0;
+
+    int thrid = stGenVal(int32, self->args[0].data);
+
+    int32 work;
+    for (;;) {
+        eventWait(&testev);
+
+        do {
+            work = atomicLoad(int32, &evwork, Relaxed);
+            if (work > 0 && atomicCompareExchange(int32, strong, &evwork, &work, work - 1, Acquire, Relaxed)) {
+                evthrcount[thrid]++;
+                atomicFetchAdd(int32, &evdone, 1, Release);
+            }
+        } while (work > 0);
+
+        if (atomicLoad(bool, &rthread_exit, Acquire))
+            break;
+    }
+
+    return 0;
+}
+
+static int thrproc5p(Thread *self)
+{
+    if (saSize(&self->args) != 1 || !stEq(self->args[0].type, stType(int32)))
+        return 0;
+
+    int count = stGenVal(int32, self->args[0].data);
+
+    for (int i = 0; i < count; i++) {
+        atomicFetchAdd(int32, &evwork, 1, Acquire);
+        eventSignal(&testev);
+    }
+
+    return 0;
+}
+
+static int test_event_sub(bool spin)
+{
+    atomicStore(bool, &rthread_exit, false, Release);
+
+    if (spin)
+        eventInit(&testev, Spin);
+    else
+        eventInit(&testev);
+
+    int i;
+    Thread *cthreads[EVENT_CONSUMERS];
+    Thread *pthreads[EVENT_PRODUCERS];
+
+    for (i = 0; i < EVENT_CONSUMERS; i++) {
+        cthreads[i] = thrCreate(thrproc5c, stvar(int32, i));
+    }
+    for (i = 0; i < EVENT_PRODUCERS; i++) {
+        pthreads[i] = thrCreate(thrproc5p, stvar(int32, EVENT_COUNT / EVENT_PRODUCERS));
+    }
+
+    for (i = 0; i < EVENT_PRODUCERS; i++) {
+        thrWait(pthreads[i], timeForever);
+        thrDestroy(&pthreads[i]);
+    }
+
+    while (atomicLoad(int32, &evwork, Relaxed) > 0) {
+        osYield();
+    }
+
+    atomicStore(bool, &rthread_exit, true, Release);
+    eventSignalLock(&testev);
+    for (i = 0; i < EVENT_CONSUMERS; i++) {
+        thrWait(cthreads[i], timeForever);
+        thrDestroy(&cthreads[i]);
+    }
+
+    eventDestroy(&testev);
+
+    int tcount = 0;
+    for (int i = 0; i < EVENT_CONSUMERS; i++) {
+        tcount += evthrcount[i];
+    }
+
+    if (atomicLoad(int32, &evdone, Acquire) != EVENT_COUNT)
+        return 1;
+
+    if (tcount != EVENT_COUNT)
+        return 1;
+
+    return 0;
+}
+
+static int test_event()
+{
+    return test_event_sub(false);
+}
+
+static int test_event_s()
+{
+    return test_event_sub(true);
+}
+
 testfunc thrtest_funcs[] = {
     { "basic", test_basic },
     { "sema", test_sema },
     { "mutex", test_mutex },
     { "rwlock", test_rwlock },
+    { "event", test_event },
+    { "event_s", test_event_s },
     { 0, 0 }
 };

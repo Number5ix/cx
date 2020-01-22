@@ -1,11 +1,13 @@
 set(THREAD_SRCS
     thread/atomic.c
+    thread/event.c
     thread/mutex.c
     thread/rwlock.c
     thread/sema.c
     thread/thread.c)
 set(THREAD_INCLUDES
     thread/atomic.h
+    thread/event.h
     thread/mutex.h
     thread/rwlock.h
     thread/sema.h
