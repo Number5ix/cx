@@ -1,6 +1,8 @@
 #include "cx/platform/os.h"
 #include "cx/platform/win.h"
+#include "cx/utils/compare.h"
 #include "cx/utils/lazyinit.h"
+#include "cx/time/time.h"
 
 static LazyInitState coreCache;
 static int ncores;
@@ -75,6 +77,17 @@ out:
 void osYield()
 {
     SwitchToThread();
+}
+
+void osSleep(int64 time)
+{
+    int64 msec = timeToMsec(time);
+
+    while (msec > 0) {
+        DWORD sleeptime = (DWORD)clamphigh(msec, 0xFFFFFFFF);
+        Sleep(sleeptime);
+        msec -= sleeptime;
+    }
 }
 
 int osPhysicalCPUs()

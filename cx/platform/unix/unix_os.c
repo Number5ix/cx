@@ -1,6 +1,8 @@
 #include "cx/platform/os.h"
 #include "cx/utils/lazyinit.h"
+#include "cx/time/time.h"
 #include <pthread.h>
+#include <time.h>
 
 #if defined(_PLATFORM_FREEBSD)
 #include <sys/types.h>
@@ -16,6 +18,13 @@ static int nlogical;
 void osYield()
 {
     pthread_yield();
+}
+
+void osSleep(int64 time)
+{
+    struct timespec ts;
+    timeToRelTimespec(&ts, time);
+    while(nanosleep(&ts, &ts)) {}
 }
 
 static void initCoreCache(void *dummy)

@@ -150,7 +150,7 @@ bool _semaContendedDec(Semaphore *sema, int64 timeout)
         if (!timed)
             ret = kernelSemaDec(&sema->ksema);
         else {
-            int64 ktimeout = clamplow(clockTimer() - endtime, 0);
+            int64 ktimeout = clamplow(endtime - clockTimer(), 0);
             ret = kernelSemaTryDecTimeout(&sema->ksema, ktimeout);
         }
 

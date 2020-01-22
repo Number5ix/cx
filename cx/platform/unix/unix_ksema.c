@@ -31,7 +31,9 @@ bool kernelSemaTryDecTimeout(kernelSema *sema, int64 timeout)
     sem_t *sem = (sem_t*)sema;
     struct timespec to;
 
-    timeToRelTimespec(&to, timeout);
+    // TODO: Possibly add a cmake check for if the system has sem_clockwait_np
+    // so that CLOCK_MONOTONIC can be used in that case
+    timeToAbsTimespec(&to, clockWall() + timeout);
     return !sem_timedwait(sem, &to);
 }
 

@@ -360,6 +360,42 @@ static int test_event_s()
     return test_event_sub(true);
 }
 
+static int thrproc6(Thread *self)
+{
+    if (saSize(&self->args) != 1 || !stEq(self->args[0].type, stType(int32)))
+        return 0;
+
+    // first test should take less than half a second
+    if (!semaTryDecTimeout(&testsem, timeFromMsec(500)))
+        atomicStore(bool, &fail, true, Release);
+
+    // second test should take more than half a second
+    if (semaTryDecTimeout(&testsem, timeFromMsec(500)))
+        atomicStore(bool, &fail, true, Release);
+
+    return 0;
+}
+
+static int test_timeout()
+{
+    atomicStore(bool, &fail, false, Release);
+    semaInit(&testsem, 0);
+
+    Thread *testthr = thrCreate(thrproc6, stvar(int32, 0));
+
+    osSleep(timeFromMsec(250));
+    semaInc(&testsem, 1);
+
+    osSleep(timeFromMsec(750));
+    semaInc(&testsem, 1);
+
+    thrWait(testthr, timeForever);
+    thrDestroy(&testthr);
+
+    int ret = atomicLoad(bool, &fail, Acquire) ? 1 : 0;
+    return ret;
+}
+
 testfunc thrtest_funcs[] = {
     { "basic", test_basic },
     { "sema", test_sema },
@@ -367,5 +403,6 @@ testfunc thrtest_funcs[] = {
     { "rwlock", test_rwlock },
     { "event", test_event },
     { "event_s", test_event_s },
+    { "timeout", test_timeout },
     { 0, 0 }
 };

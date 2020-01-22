@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cx/cx.h>
 #include <cx/platform/base.h>
 
 #if defined(_PLATFORM_WIN)
@@ -9,5 +10,6 @@
 #endif
 
 void osYield();
+void osSleep(int64 time);
 int osPhysicalCPUs();
 int osLogicalCPUs();
