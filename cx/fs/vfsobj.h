@@ -2,9 +2,9 @@
 // This header file is auto-generated!
 // Do not make changes to this file or they will be overwritten.
 #include <cx/obj.h>
+#include <cx/thread/rwlock.h>
 
 typedef struct VFSDir VFSDir;
-typedef struct RWLock RWLock;
 typedef struct VFS VFS;
 typedef struct VFSMount VFSMount;
 
@@ -16,7 +16,7 @@ typedef struct VFS {
     VFSDir *root;
     hashtable namespaces;
     string curdir;
-    RWLock *vfslock;
+    RWLock vfslock;
     uint32 flags;
 } VFS;
 extern ObjClassInfo VFS_clsinfo;

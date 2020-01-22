@@ -168,9 +168,82 @@ static int test_mutex()
     return ret;
 }
 
+static RWLock testrw;
+static atomic(bool) rthread_exit = atomicInit(false);
+
+static int thrproc4r(Thread *self)
+{
+    while (!atomicLoad(bool, &rthread_exit, Acquire)) {
+        rwlockAcquireRead(&testrw);
+        for (int i = 0; i < 16; i++) {
+            if (testint1 != testint2 || testint2 != testint3)
+                atomicStore(bool, &fail, true, Release);
+
+        }
+        rwlockReleaseRead(&testrw);
+        osYield();
+    }
+
+    return 0;
+}
+
+static int thrproc4w(Thread *self)
+{
+    if (saSize(&self->args) != 1 || !stEq(self->args[0].type, stType(int32)))
+        return 0;
+
+    int count = stGenVal(int32, self->args[0].data);
+
+    for (int i = 0; i < count; i++) {
+        rwlockAcquireWrite(&testrw);
+        testint1++;
+        testint2++;
+        testint3++;
+        rwlockReleaseWrite(&testrw);
+    }
+
+    return 0;
+}
+
+#define RW_WTHREADS 4
+#define RW_RTHREADS 16
+#define RW_COUNT 262144
 static int test_rwlock()
 {
-    return 0;
+    atomicStore(bool, &fail, false, Release);
+    testint1 = 0;
+    testint2 = 0;
+    testint3 = 0;
+    rwlockInit(&testrw);
+
+    int i;
+    Thread *rthreads[RW_RTHREADS];
+    Thread *wthreads[RW_WTHREADS];
+
+    for (i = 0; i < RW_RTHREADS; i++) {
+        rthreads[i] = thrCreate(thrproc4r, stvar(int32, 0));
+    }
+    for (i = 0; i < RW_WTHREADS; i++) {
+        wthreads[i] = thrCreate(thrproc4w, stvar(int32, RW_COUNT / RW_WTHREADS));
+    }
+
+    for (i = 0; i < RW_WTHREADS; i++) {
+        thrWait(wthreads[i], timeForever);
+        thrDestroy(&wthreads[i]);
+    }
+    atomicStore(bool, &rthread_exit, true, Release);
+    for (i = 0; i < RW_RTHREADS; i++) {
+        thrWait(rthreads[i], timeForever);
+        thrDestroy(&rthreads[i]);
+    }
+
+    rwlockDestroy(&testrw);
+
+    int ret = atomicLoad(bool, &fail, Acquire) ? 1 : 0;
+    if (testint1 != RW_COUNT || testint2 != RW_COUNT || testint3 != RW_COUNT)
+        ret = 1;
+
+    return ret;
 }
 
 testfunc thrtest_funcs[] = {

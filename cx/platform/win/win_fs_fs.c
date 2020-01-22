@@ -7,7 +7,7 @@
 #include "cx/platform/win.h"
 
 static LazyInitState fsCurDirInit;
-RWLock *_fsCurDirLock;
+RWLock _fsCurDirLock;
 string _fsCurDir = 0;
 string fsPlatformPathSepStr = _S"\\";
 
@@ -20,7 +20,7 @@ static void fsPathFromWinW(string *out, wchar_t *winpath)
 
 static void initCurDir(void *data)
 {
-    _fsCurDirLock = rwlockCreate();
+    rwlockInit(&_fsCurDirLock);
 
     DWORD sz = GetCurrentDirectoryW(0, NULL);
     wchar_t *p = xaAlloc(sz * sizeof(wchar_t));
@@ -100,9 +100,9 @@ void pathFromPlatform(string *out, string platformpath)
         // starts with a slash, but not a UNC path...
         // must be drive relative, so get the drive letter from curdir
         lazyInit(&fsCurDirInit, initCurDir, NULL);
-        rwlockAcquireRead(_fsCurDirLock);
+        rwlockAcquireRead(&_fsCurDirLock);
         strSubStr(&ns, _fsCurDir, 0, 1);
-        rwlockReleaseRead(_fsCurDirLock);
+        rwlockReleaseRead(&_fsCurDirLock);
     }
 
     if (!strEmpty(ns)) {
@@ -153,9 +153,9 @@ bool pathMakeAbsolute(string *out, string path)
     lazyInit(&fsCurDirInit, initCurDir, NULL);
 
     string tmp = 0;
-    rwlockAcquireRead(_fsCurDirLock);
+    rwlockAcquireRead(&_fsCurDirLock);
     pathJoin(&tmp, _fsCurDir, path);
-    rwlockReleaseRead(_fsCurDirLock);
+    rwlockReleaseRead(&_fsCurDirLock);
     strDestroy(out);
     *out = tmp;
     return true;
@@ -164,9 +164,9 @@ bool pathMakeAbsolute(string *out, string path)
 void fsCurDir(string *out)
 {
     lazyInit(&fsCurDirInit, initCurDir, NULL);
-    rwlockAcquireRead(_fsCurDirLock);
+    rwlockAcquireRead(&_fsCurDirLock);
     strDup(out, _fsCurDir);
-    rwlockReleaseRead(_fsCurDirLock);
+    rwlockReleaseRead(&_fsCurDirLock);
 }
 
 bool fsSetCurDir(string cur)
@@ -184,17 +184,17 @@ bool fsSetCurDir(string cur)
     // We don't need to actually change the OS's current directory since our own path
     // normalization always results in absolute paths for everything, but it helps
     // keep things from being confusing if subprocesses are created.
-    rwlockAcquireWrite(_fsCurDirLock);
+    rwlockAcquireWrite(&_fsCurDirLock);
     if (!SetCurrentDirectoryW(fsPathToNT(ncur))) {
         winMapLastError();
         strDestroy(&ncur);
-        rwlockReleaseWrite(_fsCurDirLock);
+        rwlockReleaseWrite(&_fsCurDirLock);
         return false;
     }
 
     strDestroy(&_fsCurDir);
     _fsCurDir = ncur;
-    rwlockReleaseWrite(_fsCurDirLock);
+    rwlockReleaseWrite(&_fsCurDirLock);
     return true;
 }
 

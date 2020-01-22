@@ -49,9 +49,9 @@ VFSFile *_vfsOpen(VFS *vfs, string path, int flags)
     if (cowmount) {
         ret->cowprov = objAcquire(cowmount->provider);
         strDup(&ret->cowrpath, cowrpath);
-        rwlockAcquireRead(vfs->vfslock);
+        rwlockAcquireRead(&vfs->vfslock);
         _vfsAbsPath(vfs, &ret->cowpath, path);
-        rwlockReleaseRead(vfs->vfslock);
+        rwlockReleaseRead(&vfs->vfslock);
     }
     ret->vfs = objAcquire(vfs);
 
@@ -101,11 +101,11 @@ static bool vfsCOWFile(VFSFile *file)
     ObjInst *cowfile = 0;
     size_t bytes;
 
-    rwlockAcquireWrite(file->vfs->vfslock);
+    rwlockAcquireWrite(&file->vfs->vfslock);
 
     if (!file->cowprov) {
         // another thread beat us to the lock
-        rwlockReleaseWrite(file->vfs->vfslock);
+        rwlockReleaseWrite(&file->vfs->vfslock);
         return true;
     }
 
@@ -147,7 +147,7 @@ static bool vfsCOWFile(VFSFile *file)
     file->fileprovif = cowfileif;
     objRelease(&file->cowprov);
     xaFree(buf);
-    rwlockReleaseWrite(file->vfs->vfslock);
+    rwlockReleaseWrite(&file->vfs->vfslock);
 
     _vfsInvalidateCache(file->vfs, file->cowpath);
     return true;

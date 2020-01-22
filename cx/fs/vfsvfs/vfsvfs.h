@@ -4,10 +4,10 @@
 #include <cx/obj.h>
 #include <cx/fs/fs.h>
 #include <cx/fs/vfsprovider.h>
+#include <cx/thread/rwlock.h>
 #include <cx/fs/vfsobj.h>
 
 typedef struct VFSDir VFSDir;
-typedef struct RWLock RWLock;
 typedef struct VFSVFS VFSVFS;
 
 typedef struct VFSVFS_ClassIf {

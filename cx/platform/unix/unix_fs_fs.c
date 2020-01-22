@@ -18,7 +18,7 @@
 #include <sys/stat.h>
 
 static LazyInitState fsCurDirInit;
-RWLock *_fsCurDirLock;
+RWLock _fsCurDirLock;
 string _fsCurDir = 0;
 string fsPlatformPathSepStr = _S"/";
 
@@ -27,7 +27,7 @@ static void initCurDir(void *data)
     char *buf = 0, *pcur = 0;
     size_t bufsz = PATH_MAX / 2;
 
-    _fsCurDirLock = rwlockCreate();
+    rwlockInit(&_fsCurDirLock);
 
     // POSIX doesn't actually limit this to PATH_MAX, so expand as necessary
     do {
@@ -76,9 +76,9 @@ bool pathMakeAbsolute(string *out, string path)
     lazyInit(&fsCurDirInit, initCurDir, NULL);
 
     string tmp = 0;
-    rwlockAcquireRead(_fsCurDirLock);
+    rwlockAcquireRead(&_fsCurDirLock);
     pathJoin(&tmp, _fsCurDir, path);
-    rwlockReleaseRead(_fsCurDirLock);
+    rwlockReleaseRead(&_fsCurDirLock);
     strDestroy(out);
     *out = tmp;
     return true;
@@ -87,9 +87,9 @@ bool pathMakeAbsolute(string *out, string path)
 void fsCurDir(string *out)
 {
     lazyInit(&fsCurDirInit, initCurDir, NULL);
-    rwlockAcquireRead(_fsCurDirLock);
+    rwlockAcquireRead(&_fsCurDirLock);
     strDup(out, _fsCurDir);
-    rwlockReleaseRead(_fsCurDirLock);
+    rwlockReleaseRead(&_fsCurDirLock);
 }
 
 bool fsSetCurDir(string cur)
@@ -108,19 +108,19 @@ bool fsSetCurDir(string cur)
     // normalization always results in absolute paths for everything, but it helps
     // keep things from being confusing if subprocesses are created.
     pathToPlatform(&ppath, ncur);
-    rwlockAcquireWrite(_fsCurDirLock);
+    rwlockAcquireWrite(&_fsCurDirLock);
     if (chdir(strC(&ppath)) != 0) {
         unixMapErrno();
         strDestroy(&ncur);
 	strDestroy(&ppath);
-        rwlockReleaseWrite(_fsCurDirLock);
+        rwlockReleaseWrite(&_fsCurDirLock);
         return false;
     }
 
     strDestroy(&ppath);
     strDestroy(&_fsCurDir);
     _fsCurDir = ncur;
-    rwlockReleaseWrite(_fsCurDirLock);
+    rwlockReleaseWrite(&_fsCurDirLock);
     return true;
 }
 

@@ -7,7 +7,7 @@
 #include "cx/thread/rwlock.h"
 #include "cx/utils.h"
 
-extern RWLock *_fsCurDirLock;
+extern RWLock _fsCurDirLock;
 extern string _fsCurDir;
 extern string fsPathSepStr;
 extern string fsNSSepStr;

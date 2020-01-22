@@ -5,7 +5,6 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD" OR ${CMAKE_SYSTEM_NAME} MATCHES "Linux
 	../cx/platform/unix/unix_fs_fs.c
 	../cx/platform/unix/unix_ksema.c
 	../cx/platform/unix/unix_os.c
-	../cx/platform/unix/unix_thread_rwlock.c
 	../cx/platform/unix/unix_time_clock.c)
 elseif(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     set(CX_PLATFORM_SRCS
@@ -14,7 +13,6 @@ elseif(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 	../cx/platform/win/win_fs_fs.c
 	../cx/platform/win/win_ksema.c
 	../cx/platform/win/win_os.c
-	../cx/platform/win/win_thread_rwlock.c
 	../cx/platform/win/win_time_clock.c)
 endif()
 
@@ -58,6 +56,7 @@ set(CX_SRCS
     ../cx/fs/path.c
     ../cx/fs/pathmatch.c
     ../cx/thread/mutex.c
+    ../cx/thread/rwlock.c
     ../cx/thread/sema.c
     ../cx/utils/lazyinit.c
     ../cx/utils/murmur.c

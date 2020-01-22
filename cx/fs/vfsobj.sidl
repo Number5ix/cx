@@ -1,5 +1,6 @@
+#include <cx/thread/rwlock.h>
+
 struct VFSDir;
-struct RWLock;
 
 [methodprefix vfs]
 class VFS {
@@ -8,7 +9,7 @@ class VFS {
     [init htCreate(string, custom(ptr, VFSDir_ops), 4, CaseInsensitive)]
         hashtable namespaces;   // hashtable of string/VFSDir
     string curdir;
-    RWLock *vfslock;
+    RWLock vfslock;
     uint32 flags;
 
     // Create an empty VFS with nothing mounted

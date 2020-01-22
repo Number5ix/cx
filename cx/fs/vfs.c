@@ -23,7 +23,7 @@ void vfsDestroy(VFS *vfs)
     // of mounting a VFS backed by a file that is in the same VFS as it's
     // being mounted to.
 
-    rwlockAcquireWrite(vfs->vfslock);
+    rwlockAcquireWrite(&vfs->vfslock);
     htiter nsi;
     htiCreate(&nsi, &vfs->namespaces);
     while (htiNext(&nsi)) {
@@ -31,7 +31,7 @@ void vfsDestroy(VFS *vfs)
     }
     htiDestroy(&nsi);
     vfsUnmountAll(vfs->root);
-    rwlockReleaseWrite(vfs->vfslock);
+    rwlockReleaseWrite(&vfs->vfslock);
 
     objRelease(&vfs);
 }
@@ -57,8 +57,8 @@ static VFSDir *_vfsGetDirInternal(VFS *vfs, VFSDir *root, string *path, int32 pl
 
     if (!child) {
         if (!writelockheld) {
-            rwlockReleaseRead(vfs->vfslock);
-            rwlockAcquireWrite(vfs->vfslock);
+            rwlockReleaseRead(&vfs->vfslock);
+            rwlockAcquireWrite(&vfs->vfslock);
             // try again with the write lock held
             htFind(&root->subdirs, string, path[0], ptr, &child);
         }
@@ -69,8 +69,8 @@ static VFSDir *_vfsGetDirInternal(VFS *vfs, VFSDir *root, string *path, int32 pl
             htInsert(&root->subdirs, string, path[0], ptr, child);
         }
         if (!writelockheld) {
-            rwlockReleaseWrite(vfs->vfslock);
-            rwlockAcquireRead(vfs->vfslock);
+            rwlockReleaseWrite(&vfs->vfslock);
+            rwlockAcquireRead(&vfs->vfslock);
         }
     }
 
@@ -111,7 +111,7 @@ bool _vfsMountProvider(VFS *vfs, ObjInst *provider, string path, uint32 flags)
     if (!provif)
         return false;
 
-    rwlockAcquireWrite(vfs->vfslock);
+    rwlockAcquireWrite(&vfs->vfslock);
 
     if (!pathIsAbsolute(path))
         goto out;           // must mount with an absolute path
@@ -140,7 +140,7 @@ bool _vfsMountProvider(VFS *vfs, ObjInst *provider, string path, uint32 flags)
     ret = true;
 
 out:
-    rwlockReleaseWrite(vfs->vfslock);
+    rwlockReleaseWrite(&vfs->vfslock);
     strDestroy(&ns);
     return ret;
 }
@@ -193,20 +193,20 @@ void _vfsInvalidateCache(VFS *vfs, string path)
 {
     string abspath = 0;
 
-    rwlockAcquireWrite(vfs->vfslock);
+    rwlockAcquireWrite(&vfs->vfslock);
     _vfsAbsPath(vfs, &abspath, path);
     VFSDir *pdir = _vfsGetDir(vfs, abspath, true, true, true);
     string fname = 0;
 
     if (!pdir) {
-        rwlockReleaseWrite(vfs->vfslock);
+        rwlockReleaseWrite(&vfs->vfslock);
         strDestroy(&abspath);
         return;
     }
 
     pathFilename(&fname, abspath);
     htRemove(&pdir->files, string, fname);
-    rwlockReleaseWrite(vfs->vfslock);
+    rwlockReleaseWrite(&vfs->vfslock);
     strDestroy(&fname);
     strDestroy(&abspath);
 }
@@ -214,7 +214,7 @@ void _vfsInvalidateCache(VFS *vfs, string path)
 void _vfsInvalidateRecursive(VFS *vfs, VFSDir *dir, bool havelock)
 {
     if (!havelock)
-        rwlockAcquireWrite(vfs->vfslock);
+        rwlockAcquireWrite(&vfs->vfslock);
 
     if (dir->cache && dir->parent) {
         // can just remove the whole thing
@@ -230,7 +230,7 @@ void _vfsInvalidateRecursive(VFS *vfs, VFSDir *dir, bool havelock)
     }
 
     if (!havelock)
-        rwlockReleaseWrite(vfs->vfslock);
+        rwlockReleaseWrite(&vfs->vfslock);
 }
 
 void _vfsAbsPath(VFS *vfs, string *out, string path)
@@ -307,13 +307,13 @@ int _vfsFindCIHelper(VFS *vfs, VFSDir *vdir, string *out, string *components, VF
 
     int ret;
     // grab write lock for this
-    rwlockReleaseRead(vfs->vfslock);
-    rwlockAcquireWrite(vfs->vfslock);
+    rwlockReleaseRead(&vfs->vfslock);
+    rwlockAcquireWrite(&vfs->vfslock);
 
     ret = vfsFindCISub(vdir, out, NULL, components, 0, saSize(&components) - 1, mount, provif);
 
-    rwlockReleaseWrite(vfs->vfslock);
-    rwlockAcquireRead(vfs->vfslock);
+    rwlockReleaseWrite(&vfs->vfslock);
+    rwlockAcquireRead(&vfs->vfslock);
     return ret;
 }
 
@@ -328,7 +328,7 @@ VFSMount *_vfsFindMount(VFS *vfs, string *rpath, string path, VFSMount **cowmoun
     bool flcache = flags & VFS_FindCache;
 
     // see if we can get this from the file cache
-    rwlockAcquireRead(vfs->vfslock);
+    rwlockAcquireRead(&vfs->vfslock);
     _vfsAbsPath(vfs, &abspath, path);
     if (flcache && !flcreate && !fldelete) {
         VFSCacheEnt *ent = _vfsGetFile(vfs, abspath, false);
@@ -337,7 +337,7 @@ VFSMount *_vfsFindMount(VFS *vfs, string *rpath, string path, VFSMount **cowmoun
             strDup(rpath, ent->origpath);
             strDestroy(&abspath);
             ret = ent->mount;
-            rwlockReleaseRead(vfs->vfslock);
+            rwlockReleaseRead(&vfs->vfslock);
             return ret;
         }
     }
@@ -415,7 +415,7 @@ VFSMount *_vfsFindMount(VFS *vfs, string *rpath, string path, VFSMount **cowmoun
     }
 
 done:
-    rwlockReleaseRead(vfs->vfslock);
+    rwlockReleaseRead(&vfs->vfslock);
     if (ret && flwrite && (ret->flags & VFS_ReadOnly) && cowmount) {
         // let the caller know they should COW to a writable provider
         *cowmount = firstwritable;
@@ -432,12 +432,12 @@ done:
         cxerr = CX_FileNotFound;
 
     if (ret && flcache && !(ret->flags & VFS_NoCache)) {
-        rwlockAcquireWrite(vfs->vfslock);
+        rwlockAcquireWrite(&vfs->vfslock);
         // in case another thread purged the cache when we dropped the lock
         vfsdir = _vfsGetDir(vfs, abspath, true, true, true);
         VFSCacheEnt *newent = _vfsCacheEntCreate(ret, *rpath);
         htInsertC(&vfsdir->files, string, components[saSize(&components) - 1], ptr, &newent, Ignore);
-        rwlockReleaseWrite(vfs->vfslock);
+        rwlockReleaseWrite(&vfs->vfslock);
     }
 
     strDestroy(&ns);
@@ -451,9 +451,9 @@ done:
 
 void vfsCurDir(VFS *vfs, string *out)
 {
-    rwlockAcquireRead(vfs->vfslock);
+    rwlockAcquireRead(&vfs->vfslock);
     strDup(out, vfs->curdir);
-    rwlockReleaseRead(vfs->vfslock);
+    rwlockReleaseRead(&vfs->vfslock);
 }
 
 bool vfsSetCurDir(VFS *vfs, string cur)
@@ -461,8 +461,8 @@ bool vfsSetCurDir(VFS *vfs, string cur)
     if (!pathIsAbsolute(cur))
         return false;
 
-    rwlockAcquireWrite(vfs->vfslock);
+    rwlockAcquireWrite(&vfs->vfslock);
     strDup(&vfs->curdir, cur);
-    rwlockReleaseWrite(vfs->vfslock);
+    rwlockReleaseWrite(&vfs->vfslock);
     return true;
 }
