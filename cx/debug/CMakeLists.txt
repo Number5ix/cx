@@ -1,0 +1,25 @@
+set(DEBUG_SRCS
+    debug/assert.c
+    debug/blackbox.c
+    debug/crash.c
+    debug/crashmem.c)
+set(DEBUG_INCLUDES
+    debug/assert.h
+    debug/blackbox.h
+    debug/crash.h
+    debug/crash_private.h
+    debug/stacktrace.h)
+
+set(CX_SRCS
+    ${CX_SRCS}
+    ${DEBUG_SRCS}
+    PARENT_SCOPE)
+set(CX_INCLUDES
+    ${CX_INCLUDES}
+    ${DEBUG_INCLUDES}
+    PARENT_SCOPE)
+
+set(CX_CMAKE_FILES
+    ${CX_CMAKE_FILES}
+    ${CMAKE_CURRENT_SOURCE_DIR}/CMakeLists.txt
+    PARENT_SCOPE)

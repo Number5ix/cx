@@ -8,7 +8,7 @@ create_test_sourcelist(testsrc
     thrtest.c)
 add_sidl(fmttestobj.sidl
     objtestobj.sidl)
-add_executable(test_runner
+set(test_runner_files
     ${testsrc}
     fmttestobj.c
     fmttestobj.h
@@ -17,6 +17,10 @@ add_executable(test_runner
     objtestobj.h
     objtestobj.sidl
     common.h)
+
+source_group("" FILES ${test_runner_files})
+
+add_executable(test_runner ${test_runner_files})
 target_include_directories(test_runner PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(test_runner cx)
 

@@ -1,0 +1,47 @@
+set(CORE_SRCS
+    core/error.c
+    core/objclass.c
+    core/objiface.c
+    core/objimpl.c
+    core/objstdif.c
+    core/stype.c
+    core/stype_obj.c
+    core/stype_stvar.c
+    core/stype_suid.c
+    core/suid.c)
+set(CORE_INCLUDES
+    core/alltypes.inc
+    core/cpp.h
+    core/error.h
+    core/obj_private.h
+    core/objclass.h
+    core/objiface.h
+    core/objimpl.h
+    core/objstdif.h
+    core/stype.h
+    core/stype_obj.h
+    core/stype_stvar.h
+    core/stype_suid.h
+    core/suid.h)
+set(CORE_SIDL
+    core/objstdif.sidl)
+
+add_sidl_nodep(${CORE_SIDL})
+
+set(CX_SRCS
+    ${CX_SRCS}
+    ${CORE_SRCS}
+    PARENT_SCOPE)
+set(CX_INCLUDES
+    ${CX_INCLUDES}
+    ${CORE_INCLUDES}
+    PARENT_SCOPE)
+set(CX_SIDL
+    ${CX_SIDL}
+    ${CORE_SIDL}
+    PARENT_SCOPE)
+
+set(CX_CMAKE_FILES
+    ${CX_CMAKE_FILES}
+    ${CMAKE_CURRENT_SOURCE_DIR}/CMakeLists.txt
+    PARENT_SCOPE)
