@@ -5,8 +5,8 @@ CrashMemRange *_dbgCrashDumpMem;
 
 static intptr crashMemCmp(stype st, stgeneric a, stgeneric b, uint32 flags)
 {
-    CrashMemRange *r1 = (CrashMemRange*)stGenVal(opaque, a);
-    CrashMemRange *r2 = (CrashMemRange*)stGenVal(opaque, b);
+    CrashMemRange *r1 = (CrashMemRange*)a.st_opaque;
+    CrashMemRange *r2 = (CrashMemRange*)b.st_opaque;
 
     if (r1->start < r2->start)
         return -1;

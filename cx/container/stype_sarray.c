@@ -1,18 +1,18 @@
 #include "sarray_private.h"
 
-void stDtor_sarray(stype st, stgeneric *stgen, uint32 flags)
+void stDtor_sarray(stype st, stgeneric *gen, uint32 flags)
 {
-    _saDestroy(&stGenVal(sarray, *stgen));
+    _saDestroy(&gen->st_sarray);
 }
 
 void stCopy_sarray(stype st, stgeneric *dest, stgeneric src, uint32 flags)
 {
-    stGenVal(sarray, *dest) = saSlice(&stGenVal(sarray, src), 0, 0);
+    dest->st_sarray = saSlice(&src.st_sarray, 0, 0);
 }
 
-uint32 stHash_sarray(stype st, stgeneric stgen, uint32 flags)
+uint32 stHash_sarray(stype st, stgeneric gen, uint32 flags)
 {
-    void **handle = &stGenVal(sarray, stgen);
+    void **handle = &gen.st_sarray;
     uint32 ret = 0;
     if (!*handle)
         return ret;

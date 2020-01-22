@@ -275,7 +275,7 @@ static void htSetValueInternal(HashTableHeader *hdr, int32 slot, stgeneric *val,
         if (hdr->flags & HT_Ref)        // this combination doesn't make much sense, but should respect it
             _stDestroy(hdr->valtype, HDRVALOPS(hdr), val, 0);
         else if (stGetSize(hdr->valtype) == sizeof(void*))
-            stGenVal(ptr, *val) = 0;    // if this is a pointer-sized element, clear it out
+            val->st_ptr = 0;            // if this is a pointer-sized element, clear it out
         return;
     }
 

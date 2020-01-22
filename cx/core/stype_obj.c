@@ -2,21 +2,21 @@
 #include "cx/debug/assert.h"
 #include "cx/utils/murmur.h"
 
-void stDtor_obj(stype st, stgeneric *stgen, uint32 flags)
+void stDtor_obj(stype st, stgeneric *gen, uint32 flags)
 {
-    objRelease((ObjInst**)&stGenVal(object, *stgen));
+    objRelease(&gen->st_object);
 }
 
 void stCopy_obj(stype st, stgeneric *dest, stgeneric src, uint32 flags)
 {
-    objAcquire((ObjInst*)stGenVal(object, src));
-    stGenVal(object, *dest) = stGenVal(object, src);
+    objAcquire(src.st_object);
+    dest->st_object = src.st_object;
 }
 
-intptr stCmp_obj(stype st, stgeneric stgen1, stgeneric stgen2, uint32 flags)
+intptr stCmp_obj(stype st, stgeneric gen1, stgeneric gen2, uint32 flags)
 {
-    ObjInst* inst1 = (ObjInst*)stGenVal(object, stgen1);
-    ObjInst* inst2 = (ObjInst*)stGenVal(object, stgen2);
+    ObjInst* inst1 = gen1.st_object;
+    ObjInst* inst2 = gen2.st_object;
 
     if (inst1->_clsinfo->_cmp)
         return inst1->_clsinfo->_cmp(inst1, inst2, flags);
@@ -25,9 +25,9 @@ intptr stCmp_obj(stype st, stgeneric stgen1, stgeneric stgen2, uint32 flags)
     return -1;
 }
 
-uint32 stHash_obj(stype st, stgeneric stgen, uint32 flags)
+uint32 stHash_obj(stype st, stgeneric gen, uint32 flags)
 {
-    ObjInst *inst = (ObjInst*)stGenVal(object, stgen);
+    ObjInst *inst = gen.st_object;
 
     devAssert(inst->_clsinfo->_hash);
     if (inst->_clsinfo->_hash)

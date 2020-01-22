@@ -19,8 +19,8 @@ static int thrproc1(Thread *self)
     if (saSize(&self->args) != 2 || !stEq(self->args[0].type, stType(int32)) || !stEq(self->args[1].type, stType(int32)))
         return 0;
 
-    int slot = stGenVal(int32, self->args[0].data);
-    int count = stGenVal(int32, self->args[1].data);
+    int slot = self->args[0].data.st_int32;
+    int count = self->args[1].data.st_int32;
 
     thrtest2[slot] = thrCurrent();
 
@@ -59,8 +59,8 @@ static int thrproc2(Thread *self)
     if (saSize(&self->args) != 2 || !stEq(self->args[0].type, stType(uint8)) || !stEq(self->args[1].type, stType(int32)))
         return 0;
 
-    bool dec = stGenVal(uint8, self->args[0].data);
-    int count = stGenVal(int32, self->args[1].data);
+    bool dec = self->args[0].data.st_uint8;
+    int count = self->args[1].data.st_int32;
 
     for (int i = 0; i < count; i++) {
         if (dec)
@@ -120,7 +120,7 @@ static int thrproc3(Thread *self)
     if (saSize(&self->args) != 1 || !stEq(self->args[0].type, stType(int32)))
         return 0;
 
-    int count = stGenVal(int32, self->args[0].data);
+    int count = self->args[0].data.st_int32;
 
     for (int i = 0; i < count; i++) {
         mutexAcquire(&testmtx);
@@ -193,7 +193,7 @@ static int thrproc4w(Thread *self)
     if (saSize(&self->args) != 1 || !stEq(self->args[0].type, stType(int32)))
         return 0;
 
-    int count = stGenVal(int32, self->args[0].data);
+    int count = self->args[0].data.st_int32;
 
     for (int i = 0; i < count; i++) {
         rwlockAcquireWrite(&testrw);
@@ -262,7 +262,7 @@ static int thrproc5c(Thread *self)
     if (saSize(&self->args) != 1 || !stEq(self->args[0].type, stType(int32)))
         return 0;
 
-    int thrid = stGenVal(int32, self->args[0].data);
+    int thrid = self->args[0].data.st_int32;
 
     int32 work;
     for (;;) {
@@ -288,7 +288,7 @@ static int thrproc5p(Thread *self)
     if (saSize(&self->args) != 1 || !stEq(self->args[0].type, stType(int32)))
         return 0;
 
-    int count = stGenVal(int32, self->args[0].data);
+    int count = self->args[0].data.st_int32;
 
     for (int i = 0; i < count; i++) {
         atomicFetchAdd(int32, &evwork, 1, Acquire);

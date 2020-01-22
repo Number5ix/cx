@@ -27,12 +27,12 @@ bool _fmtFindData(FMTContext *ctx)
 
         if (isarray) {
             if (stGetId(arg->type) == stTypeId(sarray) &&
-                (stGetId(saElemType(&stGenVal(sarray, arg->data))) & typemask) == typeid)
+                (stGetId(saElemType(&arg->data.st_sarray)) & typemask) == typeid)
                 findinst--;
         } else if (ishash) {
             if (stGetId(arg->type) == stTypeId(hashtable) &&
-                stGetId(htKeyType(&stGenVal(hashtable, arg->data))) == stTypeId(string) &&
-                (stGetId(htValType(&stGenVal(hashtable, arg->data))) & typemask) == typeid)
+                stGetId(htKeyType(&arg->data.st_hashtable)) == stTypeId(string) &&
+                (stGetId(htValType(&arg->data.st_hashtable)) & typemask) == typeid)
                 findinst--;
         } else if ((stGetId(arg->type) & typemask) == typeid) {
             findinst--;
@@ -43,7 +43,7 @@ bool _fmtFindData(FMTContext *ctx)
         ctx->startarg[ctx->v.vtype] = idx;
 
     if (isarray) {
-        void **arr = &stGenVal(sarray, ctx->args[idx - 1].data);
+        void **arr = &ctx->args[idx - 1].data.st_sarray;
         if (ctx->v.arrayidx >= saSize(arr)) {
             ctx->v.vtype = -1;
             return ret;
@@ -52,7 +52,7 @@ bool _fmtFindData(FMTContext *ctx)
         ctx->v.type = saElemType(arr);
         ctx->v.data = (void*)((uintptr)*arr + saElemSize(arr)*ctx->v.arrayidx);
     } else if (ishash) {
-        hashtable *htbl = &stGenVal(hashtable, ctx->args[idx - 1].data);
+        hashtable *htbl = &ctx->args[idx - 1].data.st_hashtable;
         htelem elem = htFindElem(htbl, string, ctx->v.hashkey);
         if (!elem) {
             ctx->v.vtype = -1;

@@ -1,19 +1,19 @@
 #include "hashtable_private.h"
 #include "cx/utils/murmur.h"
 
-void stDtor_hashtable(stype st, stgeneric *stgen, uint32 flags)
+void stDtor_hashtable(stype st, stgeneric *gen, uint32 flags)
 {
-    htDestroy(&stGenVal(hashtable, stgen));
+    htDestroy(&gen->st_hashtable);
 }
 
 void stCopy_hashtable(stype st, stgeneric *dest, stgeneric src, uint32 flags)
 {
-    stGenVal(hashtable, *dest) = _htClone(&stGenVal(hashtable, src), 0, NULL, false);
+    dest->st_hashtable = _htClone(&src.st_hashtable, 0, NULL, false);
 }
 
-uint32 stHash_hashtable(stype st, stgeneric stgen, uint32 flags)
+uint32 stHash_hashtable(stype st, stgeneric gen, uint32 flags)
 {
-    hashtable *htbl = &stGenVal(hashtable, stgen);
+    hashtable *htbl = &gen.st_hashtable;
     HashTableHeader *hdr = HTABLE_HDR(*htbl);
     uint32 elemsz = _htElemSz(hdr);
     uint32 ret = 0;

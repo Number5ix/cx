@@ -13,20 +13,20 @@
 // extern inline intptr stCmp(stype st, const void *ptr1, const void *ptr2, STypeOps *ops);
 // extern inline void stCopy(stype st, void *dest, const void *src, STypeOps *ops);
 
-static void stDtor_ptr(stype st, stgeneric *stgen, uint32 flags)
+static void stDtor_ptr(stype st, stgeneric *gen, uint32 flags)
 {
-    xaSFree(stGenVal(ptr, *stgen));
+    xaSFree(gen->st_ptr);
 }
 
 #define STCMP_GEN(type) \
-static intptr stCmp_##type(stype st, stgeneric stgen1, stgeneric stgen2, uint32 flags) \
+static intptr stCmp_##type(stype st, stgeneric gen1, stgeneric gen2, uint32 flags) \
 { \
-    return (intptr)(stGenVal(type, stgen1) - stGenVal(type, stgen2)); \
+    return (intptr)(gen1.st_##type - gen2.st_##type); \
 }
 #define STCMP_GEN_OVR(type, ovrtype) \
-static intptr stCmp_##type(stype st, stgeneric stgen1, stgeneric stgen2, uint32 flags) \
+static intptr stCmp_##type(stype st, stgeneric gen1, stgeneric gen2, uint32 flags) \
 { \
-    return (intptr)((ovrtype)stGenVal(type, stgen1) - (ovrtype)stGenVal(type, stgen2)); \
+    return (intptr)((ovrtype)gen1.st_##type - (ovrtype)gen2.st_##type); \
 }
 
 STCMP_GEN(int8)
@@ -44,12 +44,12 @@ STCMP_GEN_OVR(ptr, char*)
 STCMP_GEN_OVR(sarray, char*)
 STCMP_GEN_OVR(hashtable, char*)
 
-uint32 stHash_gen(stype st, stgeneric stgen, uint32 flags)
+uint32 stHash_gen(stype st, stgeneric gen, uint32 flags)
 {
     if (!stHasFlag(st, PassPtr))
-        return hashMurmur3((uint8*)&stgen, stGetSize(st));
+        return hashMurmur3((uint8*)&gen, stGetSize(st));
     else
-        return hashMurmur3(stGenVal(ptr, stgen), stGetSize(st));
+        return hashMurmur3(gen.st_ptr, stGetSize(st));
 }
 
 alignMem(64) stDtorFunc _stDefaultDtor[256] = {

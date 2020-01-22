@@ -1,17 +1,17 @@
 #include "cx/cx.h"
 
-void stDtor_stvar(stype st, stgeneric *stgen, uint32 flags)
+void stDtor_stvar(stype st, stgeneric *gen, uint32 flags)
 {
-    stvar *stv = stGenVal(stvar, *stgen);
+    stvar *stv = gen->st_stvar;
 
     _stDestroy(stv->type, NULL, &stv->data, flags);
     stv->type = 0;
 }
 
-intptr stCmp_stvar(stype st, stgeneric stgen1, stgeneric stgen2, uint32 flags)
+intptr stCmp_stvar(stype st, stgeneric gen1, stgeneric gen2, uint32 flags)
 {
-    stvar *stv1 = stGenVal(stvar, stgen1);
-    stvar *stv2 = stGenVal(stvar, stgen2);
+    stvar *stv1 = gen1.st_stvar;
+    stvar *stv2 = gen2.st_stvar;
 
     if (stv1->type != stv2->type)
         return stv1->type - stv2->type;
@@ -21,15 +21,15 @@ intptr stCmp_stvar(stype st, stgeneric stgen1, stgeneric stgen2, uint32 flags)
 
 void stCopy_stvar(stype st, stgeneric *dest, stgeneric src, uint32 flags)
 {
-    stvar *dvar = stGenVal(stvar, *dest);
-    stvar *svar = stGenVal(stvar, src);
+    stvar *dvar = dest->st_stvar;
+    stvar *svar = src.st_stvar;
 
     dvar->type = svar->type;
     _stCopy(svar->type, NULL, &dvar->data, svar->data, flags);
 }
 
-uint32 stHash_stvar(stype st, stgeneric stgen, uint32 flags)
+uint32 stHash_stvar(stype st, stgeneric gen, uint32 flags)
 {
-    stvar *stv = stGenVal(stvar, stgen);
+    stvar *stv = gen.st_stvar;
     return _stHash(stv->type, NULL, stv->data, flags);
 }

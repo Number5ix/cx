@@ -2,24 +2,24 @@
 
 static intptr dirEntCmp(stype st, stgeneric g1, stgeneric g2, uint32 flags)
 {
-    FSDirEnt *ent1 = (FSDirEnt*)stGenVal(opaque, g1);
-    FSDirEnt *ent2 = (FSDirEnt*)stGenVal(opaque, g2);
+    FSDirEnt *ent1 = (FSDirEnt*)g1.st_opaque;
+    FSDirEnt *ent2 = (FSDirEnt*)g2.st_opaque;
 
     return strCmpi(ent1->name, ent2->name);
 }
 
 static intptr dirEntCmpCaseSensitive(stype st, stgeneric g1, stgeneric g2, uint32 flags)
 {
-    FSDirEnt *ent1 = (FSDirEnt*)stGenVal(opaque, g1);
-    FSDirEnt *ent2 = (FSDirEnt*)stGenVal(opaque, g2);
+    FSDirEnt *ent1 = (FSDirEnt*)g1.st_opaque;
+    FSDirEnt *ent2 = (FSDirEnt*)g2.st_opaque;
 
     return strCmp(ent1->name, ent2->name);
 }
 
 static void dirEntCopy(stype st, stgeneric *gdest, stgeneric gsrc, uint32 flags)
 {
-    FSDirEnt *ent = (FSDirEnt*)stGenVal(opaque, *gdest);
-    FSDirEnt *src = (FSDirEnt*)stGenVal(opaque, gsrc);
+    FSDirEnt *ent = (FSDirEnt*)gdest->st_opaque;
+    FSDirEnt *src = (FSDirEnt*)gsrc.st_opaque;
 
     ent->name = 0;
     strDup(&ent->name, src->name);
@@ -29,7 +29,7 @@ static void dirEntCopy(stype st, stgeneric *gdest, stgeneric gsrc, uint32 flags)
 
 static void dirEntDestroy(stype st, stgeneric *g, uint32 flags)
 {
-    FSDirEnt *ent = (FSDirEnt*)stGenVal(opaque, *g);
+    FSDirEnt *ent = (FSDirEnt*)g->st_opaque;
     strDestroy(&ent->name);
 }
 

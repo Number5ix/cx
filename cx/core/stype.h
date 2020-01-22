@@ -17,6 +17,7 @@ CX_C_BEGIN
 // Always initialize string to NULL or 0 first!
 typedef struct str_impl* string;
 typedef struct hashtable_impl* hashtable;
+typedef struct ObjInst ObjInst;
 typedef struct SUID SUID;
 typedef struct stvar stvar;
 
@@ -67,7 +68,7 @@ typedef uint32 stype;
 #define SType_float64 float64
 #define SType_ptr void*
 #define SType_string string
-#define SType_object void*
+#define SType_object ObjInst*
 #define SType_suid SUID*
 #define SType_stvar stvar*
 #define SType_sarray void*
@@ -79,7 +80,7 @@ typedef uint32 stype;
 
 // container that can be aliased for any type
 #define CONTAINER_TYPE(type) stTypeDef(type) st_##type
-typedef union stgeneric_u {
+typedef union stgeneric {
     uint64 st_generic;
     CONTAINER_TYPE(opaque);
     CONTAINER_TYPE(int8);
@@ -102,24 +103,15 @@ typedef union stgeneric_u {
     CONTAINER_TYPE(stvar);
     CONTAINER_TYPE(sarray);
     CONTAINER_TYPE(hashtable);
-} stgeneric_u;
+} stgeneric;
 
-// Some compilers *cough* were generating very suboptimal code for copying the union,
-// like "rep movsb" with ecx=4 and all associated register setup at the _saPush call
-// site. So we have to treat it as a plain integer and do a pointer alias dance with
-// macros, which is a bit less convenient but does the right thing on all supported
-// compilers.
-
-typedef uint64 stgeneric;
-
-_Static_assert(sizeof(stgeneric_u) == sizeof(stgeneric), "stype container too large");
+_Static_assert(sizeof(stgeneric) == sizeof(uint64), "stype container too large");
 
 #ifndef __cplusplus
-#define stgeneric(type, val) (((stgeneric_u){ .st_##type = stCheck(type, val) }).st_generic)
+#define stgeneric(type, val) ((stgeneric){ .st_##type = stCheck(type, val) })
 #else
 #define stgeneric(type, val) ((stgeneric)stCheck(type, val))
 #endif
-#define stGenVal(type, gen) (((stgeneric_u*)(&(gen)))->st_##type)
 
 // Compact variant structure. This is most often used for passing arrays of values that
 // the type is not known at compile time, as part of the type-safe varargs replacement
@@ -161,7 +153,7 @@ _meta_inline stvar _stvar(stype st, stgeneric val) {
 #define STStorageType_float64 float64
 #define STStorageType_ptr void*
 #define STStorageType_string string
-#define STStorageType_object void*
+#define STStorageType_object ObjInst*
 #define STStorageType_suid SUID
 #define STStorageType_stvar stvar
 #define STStorageType_sarray void*
@@ -216,7 +208,7 @@ enum STYPE_SIZE {
     STypeSize_float64 = sizeof(float64),
     STypeSize_ptr = sizeof(void*),
     STypeSize_string = sizeof(void*),
-    STypeSize_object = sizeof(void*),
+    STypeSize_object = sizeof(ObjInst*),
     // SUID is special because it's always passed by reference, but stored as the full 16 bytes
     STypeSize_suid = 16,
     STypeSize_stvar = sizeof(stvar),
@@ -369,7 +361,7 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define STypeArg_float64(type, val) stgeneric(type, val)
 #define STypeArg_ptr(type, val) stgeneric(type, val)
 #define STypeArg_string(type, val) stgeneric(type, val)
-#define STypeArg_object(type, val) stgeneric(type, val)
+#define STypeArg_object(type, val) stgeneric(type, objInstBase(val))
 // SUID and stvar are too big, so make a copy and pass a pointer
 #define STypeArg_suid(type, val) stgeneric(type, stRvalAddr(type, val))
 #define STypeArg_stvar(type, val) stgeneric(type, stRvalAddr(type, val))
@@ -489,16 +481,16 @@ _meta_inline stgeneric _stStoredVal(stype st, const void *storage)
     stgeneric ret;
     switch (stGetSize(st)) {
     case 1:
-        stGenVal(uint8, ret) = *(uint8*)storage;
+        ret.st_uint8 = *(uint8*)storage;
         break;
     case 2:
-        stGenVal(uint16, ret) = *(uint16*)storage;
+        ret.st_uint16 = *(uint16*)storage;
         break;
     case 4:
-        stGenVal(uint32, ret) = *(uint32*)storage;
+        ret.st_uint32 = *(uint32*)storage;
         break;
     case 8:
-        stGenVal(uint64, ret) = *(uint64*)storage;
+        ret.st_uint64 = *(uint64*)storage;
         break;
     default:
         devFatalError("Invalid small stype size");
@@ -507,40 +499,39 @@ _meta_inline stgeneric _stStoredVal(stype st, const void *storage)
 }
 
 #define stStored(st, storage) (stHasFlag(st, PassPtr) ? stgeneric(ptr, (void*)(storage)) : _stStoredVal(st, storage))
-
 #define stStoredPtr(st, storage) (stHasFlag(st, PassPtr) ? &stgeneric(ptr, ((void*)(storage))) : (stgeneric*)((void*)(storage)))
 
-#define stGenPtr(st, gen) (stHasFlag(st, PassPtr) ? stGenVal(ptr, gen) : &(gen))
+#define stGenPtr(st, gen) (stHasFlag(st, PassPtr) ? (gen).st_ptr : &(gen))
 
 // inlining these lets most of it get optimized out and specialized if the type is known at compile-time
 
-_meta_inline void _stDestroy(stype st, STypeOps *ops, stgeneric *stgen, uint32 flags)
+_meta_inline void _stDestroy(stype st, STypeOps *ops, stgeneric *gen, uint32 flags)
 {
     // ops is mandatory for custom type
     devAssert(!stHasFlag(st, Custom) || ops);
 
     if (ops && ops->dtor)
-        ops->dtor(st, stgen, flags);
+        ops->dtor(st, gen, flags);
     else if (_stDefaultDtor[stGetId(st)])
-        _stDefaultDtor[stGetId(st)](st, stgen, flags);
+        _stDefaultDtor[stGetId(st)](st, gen, flags);
 }
 #define stDestroy(type, pobj, ...) _stDestroy(stFullType(type), stArgPtr(type, pobj), func_flags(STOPS, __VA_ARGS__))
 
-_meta_inline intptr _stCmp(stype st, STypeOps *ops, stgeneric stgen1, stgeneric stgen2, uint32 flags)
+_meta_inline intptr _stCmp(stype st, STypeOps *ops, stgeneric gen1, stgeneric gen2, uint32 flags)
 {
     // ops is mandatory for custom type
     devAssert(!stHasFlag(st, Custom) || ops);
 
     if (ops && ops->cmp)
-        return ops->cmp(st, stgen1, stgen2, flags);
+        return ops->cmp(st, gen1, gen2, flags);
 
     if (_stDefaultCmp[stGetId(st)])
-        return _stDefaultCmp[stGetId(st)](st, stgen1, stgen2, flags);
+        return _stDefaultCmp[stGetId(st)](st, gen1, gen2, flags);
 
     if (!stHasFlag(st, PassPtr))
-        return memcmp(&stgen1, &stgen2, stGetSize(st));
+        return memcmp(&gen1, &gen2, stGetSize(st));
     else
-        return memcmp(stGenVal(ptr, stgen1), stGenVal(ptr, stgen2), stGetSize(st));
+        return memcmp(gen1.st_ptr, gen2.st_ptr, stGetSize(st));
 }
 #define stCmp(type, obj1, obj2, ...) _stCmp(stFullType(type), stArg(type, obj1), stArg(type, obj2), func_flags(STOPS, __VA_ARGS__))
 
@@ -556,22 +547,22 @@ _meta_inline void _stCopy(stype st, STypeOps *ops, stgeneric *dest, stgeneric sr
     else if (!stHasFlag(st, PassPtr))
         memcpy(dest, &src, stGetSize(st));
     else
-        memcpy(stGenVal(ptr, *dest), stGenVal(ptr, src), stGetSize(st));
+        memcpy(dest->st_ptr, src.st_ptr, stGetSize(st));
 }
 #define stCopy(type, pdest, src, ...) _stCopy(stFullType(type), stArgPtr(type, pdest), stArg(type, src), func_flags(STOPS, __VA_ARGS__))
 
 uint32 stHash_gen(stype st, stgeneric stgen, uint32 flags);
-_meta_inline uint32 _stHash(stype st, STypeOps *ops, stgeneric stgen, uint32 flags)
+_meta_inline uint32 _stHash(stype st, STypeOps *ops, stgeneric gen, uint32 flags)
 {
     // ops is mandatory for custom type
     devAssert(!stHasFlag(st, Custom) || ops);
 
     if (ops && ops->hash)
-        return ops->hash(st, stgen, flags);
+        return ops->hash(st, gen, flags);
     else if (_stDefaultHash[stGetId(st)])
-        return _stDefaultHash[stGetId(st)](st, stgen, flags);
+        return _stDefaultHash[stGetId(st)](st, gen, flags);
     else
-        return stHash_gen(st, stgen, flags);
+        return stHash_gen(st, gen, flags);
 }
 #define stHash(type, obj, ...) _stHash(stFullType(type), stArg(type, obj), func_flags(STOPS, __VA_ARGS__))
 

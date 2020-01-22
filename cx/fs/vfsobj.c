@@ -32,7 +32,7 @@ bool VFS_init(VFS *self)
 
 void VFS_destroy(VFS *self)
 {
-    _stDestroy(stFullType(custom(ptr, VFSDir_ops)), &stgeneric(object, self->root), 0);
+    _stDestroy(stFullType(custom(ptr, VFSDir_ops)), &stgeneric(ptr, self->root), 0);
     rwlockDestroy(&self->vfslock);
 // ==================== Auto-generated section begins ====================
     htDestroy(&self->namespaces);

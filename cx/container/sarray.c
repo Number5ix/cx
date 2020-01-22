@@ -477,7 +477,7 @@ static _meta_inline void sa_set_elem_internal(SArrayHeader *hdr, int32 idx, stge
         if (hdr->flags & SA_Ref)        // weird combo, but respect it
             _stDestroy(hdr->elemtype, HDRTYPEOPS(hdr), elem, 0);
         else if (stGetSize(hdr->elemtype) == sizeof(void*))
-            stGenVal(ptr, *elem) = 0;   // if this is a pointer-sized element, clear it out
+            elem->st_ptr = 0;           // if this is a pointer-sized element, clear it out
         return;
     }
 
