@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cx/cx.h>
+#include <cx/core/stvar.h>
 #include <cx/platform/base.h>
 #include <cx/thread/atomic.h>
 
@@ -11,7 +12,9 @@ typedef int(*threadFunc)(Thread *self);
 // not the entire structure; platform specific data may be after it
 typedef struct Thread {
     threadFunc entry;
-    stvar *args;            // sarray
+    stvlist args;
+    stvar *_argsa;          // sarray, should use the stvlist instead where possible
+
     atomic(bool) running;
     atomic(bool) requestExit;
 } Thread;

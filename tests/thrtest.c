@@ -16,11 +16,11 @@ intptr thrtest2[16] = {0};
 
 static int thrproc1(Thread *self)
 {
-    if (saSize(&self->args) != 2 || !stEq(self->args[0].type, stType(int32)) || !stEq(self->args[1].type, stType(int32)))
-        return 0;
+    int32 slot, count;
 
-    int slot = self->args[0].data.st_int32;
-    int count = self->args[1].data.st_int32;
+    if (!(stvlNext(&self->args, int32, &slot) &&
+          stvlNext(&self->args, int32, &count)))
+        return 0;
 
     thrtest2[slot] = thrCurrent();
 
@@ -56,11 +56,12 @@ static Semaphore testsem;
 
 static int thrproc2(Thread *self)
 {
-    if (saSize(&self->args) != 2 || !stEq(self->args[0].type, stType(uint8)) || !stEq(self->args[1].type, stType(int32)))
-        return 0;
+    bool dec;
+    int32 count;
 
-    bool dec = self->args[0].data.st_uint8;
-    int count = self->args[1].data.st_int32;
+    if (!(stvlNext(&self->args, uint8, &dec) &&
+          stvlNext(&self->args, int32, &count)))
+        return 0;
 
     for (int i = 0; i < count; i++) {
         if (dec)
@@ -117,10 +118,9 @@ static Mutex testmtx;
 
 static int thrproc3(Thread *self)
 {
-    if (saSize(&self->args) != 1 || !stEq(self->args[0].type, stType(int32)))
+    int32 count;
+    if (!stvlNext(&self->args, int32, &count))
         return 0;
-
-    int count = self->args[0].data.st_int32;
 
     for (int i = 0; i < count; i++) {
         mutexAcquire(&testmtx);
@@ -190,10 +190,9 @@ static int thrproc4r(Thread *self)
 
 static int thrproc4w(Thread *self)
 {
-    if (saSize(&self->args) != 1 || !stEq(self->args[0].type, stType(int32)))
+    int32 count;
+    if (!stvlNext(&self->args, int32, &count))
         return 0;
-
-    int count = self->args[0].data.st_int32;
 
     for (int i = 0; i < count; i++) {
         rwlockAcquireWrite(&testrw);
@@ -259,10 +258,9 @@ static atomic(int32) evdone;
 
 static int thrproc5c(Thread *self)
 {
-    if (saSize(&self->args) != 1 || !stEq(self->args[0].type, stType(int32)))
+    int thrid;
+    if (!stvlNext(&self->args, int32, &thrid))
         return 0;
-
-    int thrid = self->args[0].data.st_int32;
 
     int32 work;
     for (;;) {
@@ -285,10 +283,9 @@ static int thrproc5c(Thread *self)
 
 static int thrproc5p(Thread *self)
 {
-    if (saSize(&self->args) != 1 || !stEq(self->args[0].type, stType(int32)))
+    int count;
+    if (!stvlNext(&self->args, int32, &count))
         return 0;
-
-    int count = self->args[0].data.st_int32;
 
     for (int i = 0; i < count; i++) {
         atomicFetchAdd(int32, &evwork, 1, Acquire);
@@ -362,9 +359,6 @@ static int test_event_s()
 
 static int thrproc6(Thread *self)
 {
-    if (saSize(&self->args) != 1 || !stEq(self->args[0].type, stType(int32)))
-        return 0;
-
     // first test should take less than half a second
     if (!semaTryDecTimeout(&testsem, timeFromMsec(500)))
         atomicStore(bool, &fail, true, Release);
@@ -381,7 +375,7 @@ static int test_timeout()
     atomicStore(bool, &fail, false, Release);
     semaInit(&testsem, 0);
 
-    Thread *testthr = thrCreate(thrproc6, stvar(int32, 0));
+    Thread *testthr = thrCreate(thrproc6, stvNone);
 
     osSleep(timeFromMsec(250));
     semaInc(&testsem, 1);

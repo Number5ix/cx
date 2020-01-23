@@ -122,20 +122,6 @@ typedef struct stvar {
     stype type;
 } stvar;
 
-// Note that this uses a temporary, so the variant's lifetime is equal to the function
-// that it was created in. It should be used for passing varargs by-value.
-#ifndef __cplusplus
-#define stvar(typen, val) ((stvar){ .data = stArg(typen, val), .type = stType(typen) })
-#else
-_meta_inline stvar _stvar(stype st, stgeneric val) {
-    stvar ret;
-    ret.data = val;
-    ret.type = st;
-    return ret;
-}
-#define stvar(typen, val) _stvar(stType(typen), stArg(typen, val))
-#endif
-
 // The type that's actually used for storage in containers, etc.
 #define STStorageType_opaque void
 #define STStorageType_int8 int8

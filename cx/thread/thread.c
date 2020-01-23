@@ -12,10 +12,11 @@ Thread* _thrCreate(threadFunc func, int n, stvar args[])
         return NULL;
 
     ret->entry = func;
-    ret->args = saCreate(stvar, 1);
+    ret->_argsa = saCreate(stvar, 1);
     for (int i = 0; i < n; i++) {
-        saPush(&ret->args, stvar, args[i]);
+        saPush(&ret->_argsa, stvar, args[i]);
     }
+    stvlInitSA(&ret->args, ret->_argsa);
 
     atomicStore(bool, &ret->running, true, Relaxed);
     if (!_thrPlatformStart(ret)) {
@@ -29,7 +30,7 @@ Thread* _thrCreate(threadFunc func, int n, stvar args[])
 void _thrDestroy(Thread *thread)
 {
     _thrPlatformDestroy(thread);
-    saDestroy(&thread->args);
+    saDestroy(&thread->_argsa);
     xaFree(thread);
 }
 

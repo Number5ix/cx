@@ -4,6 +4,7 @@ set(CORE_SRCS
     core/objiface.c
     core/objimpl.c
     core/objstdif.c
+    core/stvar.c
     core/stype.c
     core/stype_obj.c
     core/stype_stvar.c
@@ -18,6 +19,7 @@ set(CORE_INCLUDES
     core/objiface.h
     core/objimpl.h
     core/objstdif.h
+    core/stvar.h
     core/stype.h
     core/stype_obj.h
     core/stype_stvar.h
