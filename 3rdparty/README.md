@@ -8,11 +8,9 @@ recommended.
 
 cx's fork of jemalloc more tightly integrates it with cxmem and the cx build
 and runtime configuration options. It also adds support for memory profiling
-on Windows platforms using the native NT kernel stacktrace facilities.
-
-**IMPORTANT!** jemalloc 4.x is used, as jemalloc 5.x has serious unresolved
-issues on Windows. In testing it caused memory usage several times higher
-than the amount of actual allocations.
+on Windows platforms using the native NT kernel stacktrace facilities, as
+well as the background thread for memory reclamation, which is pthread-only
+in the official version.
 
 ## mbedTLS
 Currently cx only uses a small portion of mbedTLS (entropy gathering), but
