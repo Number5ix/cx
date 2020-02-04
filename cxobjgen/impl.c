@@ -269,8 +269,9 @@ static void writeAutoDtors(BufFile *bf, Class *cls)
             strNConcat(&mdtor, _S"    strDestroy(&self->", m->name, _S");");
         } else if (strEq(m->vartype, _S"hashtable")) {
             strNConcat(&mdtor, _S"    htDestroy(&self->", m->name, _S");");
+        } else if (strEq(m->vartype, _S"stvar")) {
+            strNConcat(&mdtor, _S"    _stDestroy(self->", m->name, _S".type, NULL, &self->", m->name, _S".data, 0);");
         }
-
         if (!strEmpty(mdtor))
             bfWriteLine(bf, mdtor);
         strDestroy(&mdtor);
