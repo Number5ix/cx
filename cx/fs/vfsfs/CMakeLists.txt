@@ -11,8 +11,6 @@ set(FS_VFSFS_SIDL
     fs/vfsfs/vfsfsdirsearch.sidl
     fs/vfsfs/vfsfsfile.sidl)
 
-add_sidl(${FS_VFSFS_SIDL})
-
 set(CX_SRCS
     ${CX_SRCS}
     ${FS_VFSFS_SRCS}

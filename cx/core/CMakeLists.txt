@@ -28,8 +28,6 @@ set(CORE_INCLUDES
 set(CORE_SIDL
     core/objstdif.sidl)
 
-add_sidl_nodep(${CORE_SIDL})
-
 set(CX_SRCS
     ${CX_SRCS}
     ${CORE_SRCS}
@@ -38,8 +36,8 @@ set(CX_INCLUDES
     ${CX_INCLUDES}
     ${CORE_INCLUDES}
     PARENT_SCOPE)
-set(CX_SIDL
-    ${CX_SIDL}
+set(CX_SIDL_NODEP
+    ${CX_SIDL_NODEP}
     ${CORE_SIDL}
     PARENT_SCOPE)
 

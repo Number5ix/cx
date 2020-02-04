@@ -35,12 +35,17 @@ source_group("include" FILES
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES
     ${CX_SRCS}
     ${CX_SIDL}
+    ${CX_SIDL_NODEP}
     ${CX_INCLUDES}
     ${CX_CMAKE_FILES})
+
+add_sidl(${CX_SIDL})
+add_sidl_nodep(${CX_SIDL_NODEP})
 
 add_library(cx STATIC
     ${CX_SRCS}
     ${CX_SIDL}
+    ${CX_SIDL_NODEP}
     ${CX_INCLUDES}
     ${CX_BASE_INCLUDES}
     ${CX_CMAKE_FILES})

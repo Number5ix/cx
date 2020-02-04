@@ -17,8 +17,6 @@ set(FORMAT_INCLUDES
 set(FORMAT_SIDL
     format/formattable.sidl)
 
-add_sidl(${FORMAT_SIDL})
-
 set(CX_SRCS
     ${CX_SRCS}
     ${FORMAT_SRCS}

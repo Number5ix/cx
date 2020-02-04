@@ -21,8 +21,6 @@ set(FS_SIDL
     fs/vfsobj.sidl
     fs/vfsprovider.sidl)
 
-add_sidl(${FS_SIDL})
-
 add_subdirectory(vfsfs)
 add_subdirectory(vfsvfs)
 
