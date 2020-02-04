@@ -52,6 +52,7 @@ typedef uint32 stype;
 
 // This is the type that is used for passing as a parameter by-value, containers, and
 // variants. Should be no larger than 64 bits wide, but can be smaller.
+#define SType_none void*
 #define SType_opaque void*
 #define SType_int8 int8
 #define SType_int16 int16
@@ -82,6 +83,7 @@ typedef uint32 stype;
 #define CONTAINER_TYPE(type) stTypeDef(type) st_##type
 typedef union stgeneric {
     uint64 st_generic;
+    CONTAINER_TYPE(none);
     CONTAINER_TYPE(opaque);
     CONTAINER_TYPE(int8);
     CONTAINER_TYPE(int16);
@@ -123,6 +125,7 @@ typedef struct stvar {
 } stvar;
 
 // The type that's actually used for storage in containers, etc.
+#define STStorageType_none void
 #define STStorageType_opaque void
 #define STStorageType_int8 int8
 #define STStorageType_int16 int16
@@ -147,8 +150,10 @@ typedef struct stvar {
 #define stStorageType(name) STStorageType_##name
 
 enum STYPE_ID {
+    // none is a special type for empty argument lists, variants, etc
+    STypeId_none = STCLASS_OPAQUE,
     // opaque is a magic catch-all type for custom structures and such
-    STypeId_opaque = STCLASS_OPAQUE,
+    STypeId_opaque = STCLASS_OPAQUE | 1,
     // generic scalar types
     STypeId_int8 = STCLASS_INT | 1,
     STypeId_int16 = STCLASS_INT | 2,
@@ -177,6 +182,7 @@ enum STYPE_ID {
 
 // The actual storage size of the type
 enum STYPE_SIZE {
+    STypeSize_none = 0,
     // opaque is not really size 0, but filled by by macros later
     STypeSize_opaque = 0,
     STypeSize_int8 = sizeof(int8),
@@ -232,6 +238,7 @@ _meta_inline bool stEq(stype sta, stype stb) {
 }
 
 enum STYPE_DEFAULT_FLAGS {
+    STypeFlags_none = 0,
     STypeFlags_opaque = stFlag(PassPtr),
     STypeFlags_int8 = 0,
     STypeFlags_int16 = 0,
@@ -274,6 +281,7 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define stRvalAddr(type, rval) ((stStorageType(type)[1]){rval})
 
 // MEGA PREPROCESSOR HACKS INCOMING
+#define stType_none stTypeInternal(none)
 // this enables the use of opaque(realtype) as type name in functions like saCreate
 #define stType_opaque(realtype) _stype_mktype(stTypeId(opaque), stTypeFlags(opaque), (uint16)sizeof(realtype))
 #define stType_int8 stTypeInternal(int8)
@@ -299,6 +307,7 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define stType_custom(basetype) _stype_mkcustom(stType_##basetype)
 #define stType(name) stType_##name
 
+#define stFullType_none stFullTypeInternal(none)
 // and the hack for custom(basetype, ops)
 #define stFullType_opaque(realtype) _stype_mktype(stTypeId(opaque), stTypeFlags(opaque), (uint16)sizeof(realtype)), 0
 #define stFullType_int8 stFullTypeInternal(int8)
@@ -328,6 +337,8 @@ _meta_inline stype _stype_mkcustom(stype base)
 
 // Macros for passing arguments by value
 
+// none ignores the value
+#define STypeArg_none(type, val) stgeneric(type, 0)
 // opqaue is a special case that must always be passed by pointer, and
 // the caller must supply an lvalue
 #define STypeArg_opaque(type, val) stgeneric(type, &(val))
@@ -358,6 +369,7 @@ _meta_inline stype _stype_mkcustom(stype base)
 // And for passing a pointer-to-pointer, mostly for functions that want to
 // consume or reallocate the object
 
+#define STypeArgPtr_none(type, val) &stgeneric(type, 0)
 // opaque is already passed in as a pointer
 #define STypeArgPtr_opaque(type, val) &stgeneric(type, val)
 #define STypeArgPtr_int8(type, val) (stgeneric*)stCheckPtr(type, val)
@@ -386,6 +398,7 @@ _meta_inline stype _stype_mkcustom(stype base)
 // Macros for type-checked inline metafunctions.
 // These expand to a pair of parameters for type, followed by a pointer.
 
+#define STypeChecked_none(type, val) stTypeInternal(type), stArg(type, val)
 #define STypeChecked_opaque(type, val) stType_opaque(val), stArg(type, val)
 #define STypeChecked_int8(type, val) stTypeInternal(type), stArg(type, val)
 #define STypeChecked_int16(type, val) stTypeInternal(type), stArg(type, val)
@@ -412,6 +425,7 @@ _meta_inline stype _stype_mkcustom(stype base)
 // Type checking of pointers to types, mostly for functions that want to
 // consume object-like variables and destroy them
 
+#define STypeCheckedPtr_none(type, val) stTypeInternal(type), stArgPtr(type, val)
 // go the opposite direction for opaque since it's already passed in as a pointer
 #define STypeCheckedPtr_opaque(type, val) stType_opaque(*val), stArgPtr(type, val)
 #define STypeCheckedPtr_int8(type, val) stTypeInternal(type), stArgPtr(type, val)

@@ -52,6 +52,21 @@ uint32 stHash_gen(stype st, stgeneric gen, uint32 flags)
         return hashMurmur3(gen.st_ptr, stGetSize(st));
 }
 
+static intptr stCmp_none(stype st, stgeneric gen1, stgeneric gen2, uint32 flags)
+{
+    // none is never equal to anything, even itself
+    return 1;
+}
+
+static uint32 stHash_none(stype st, stgeneric gen, uint32 flags)
+{
+    return 0;
+}
+
+static void stCopy_none(stype st, stgeneric *dest, stgeneric src, uint32 flags)
+{
+}
+
 alignMem(64) stDtorFunc _stDefaultDtor[256] = {
     // STCLASS_OPAQUE
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -82,7 +97,7 @@ alignMem(64) stDtorFunc _stDefaultDtor[256] = {
 
 alignMem(64) stCmpFunc _stDefaultCmp[256] = {
     // STCLASS_OPAQUE
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    stCmp_none, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     // STCLASS_INT
     0, stCmp_int8, stCmp_int16, 0, stCmp_int32, 0, 0, 0, stCmp_int64, 0, 0, 0, 0, 0, 0, 0,
     // STCLASS_UINT
@@ -110,7 +125,7 @@ alignMem(64) stCmpFunc _stDefaultCmp[256] = {
 
 alignMem(64) stHashFunc _stDefaultHash[256] = {
     // STCLASS_OPAQUE
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    stHash_none, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     // STCLASS_INT
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     // STCLASS_UINT
@@ -137,7 +152,7 @@ alignMem(64) stHashFunc _stDefaultHash[256] = {
 
 alignMem(64) stCopyFunc _stDefaultCopy[256] = {
     // STCLASS_OPAQUE
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    stCopy_none, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     // STCLASS_INT
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     // STCLASS_UINT

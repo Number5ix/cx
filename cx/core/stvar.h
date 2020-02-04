@@ -7,7 +7,7 @@
 #ifndef __cplusplus
 #define stvar(typen, val) ((stvar){ .data = stArg(typen, val), .type = stType(typen) })
 
-#define stvNone ((stvar){ .type = 0 })
+#define stvNone ((stvar){ .type = stType(none) })
 #else
 _meta_inline stvar _stvar(stype st, stgeneric val)
 {
