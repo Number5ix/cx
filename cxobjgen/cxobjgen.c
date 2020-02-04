@@ -11,6 +11,7 @@ string *includes;
 string *implincludes;
 string *deps;
 string *structs;
+string cpassthrough;
 bool needmixinimpl;
 
 bool upToDate(string fname);
@@ -57,6 +58,7 @@ int main(int argc, char *argv[])
         saClear(&includes);
         saClear(&implincludes);
         saClear(&structs);
+        strDestroy(&cpassthrough);
         needmixinimpl = false;
 
         // standard interfaces should always be available, but it's non-fatal if
@@ -91,6 +93,7 @@ int main(int argc, char *argv[])
     saDestroy(&includes);
     saDestroy(&deps);
     saDestroy(&structs);
+    strDestroy(&cpassthrough);
     strDestroy(&fname);
     saDestroy(&searchpath);
     saDestroy(&sidlfiles);

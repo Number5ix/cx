@@ -247,6 +247,8 @@ bool writeHeader(string fname)
         if (!classes[i]->included)
             writeForwardDecl(bf, classes[i]->name);
     }
+    if (!strEmpty(cpassthrough))
+        bfWriteStr(bf, cpassthrough);
     bfWriteLine(bf, NULL);
 
     for (int i = 0; i < saSize(&ifaces); i++) {

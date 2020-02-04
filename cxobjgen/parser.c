@@ -169,6 +169,33 @@ static bool nextCustomTok(ParseState *ps, string *tok, char ends)
     }
 }
 
+static bool nextCustomTok2(ParseState *ps, string *tok, string ends)
+{
+    char ch[2] = { 0 };
+    int elen = strLen(ends);
+    bool started = false;
+
+    strClear(tok);
+    for (;;) {
+        if (ps->bpos == ps->blen) {
+            ps->bpos = 0;
+            if (!fsRead(ps->fp, ps->buf, sizeof(ps->buf), &ps->blen) || ps->blen == 0)
+                return false;           // eof or error
+        }
+        ch[0] = ps->buf[ps->bpos++];
+        if (!started && (ch[0] == '\r' || ch[0] == '\n'))
+            continue;
+
+        started = true;
+        strAppend(tok, (string)ch);
+
+        if (strRangeEq(*tok, ends, -elen, elen)) {
+            strSubStrI(tok, 0, -elen);
+            return true;
+        }
+    }
+}
+
 bool parseAnnotation(ParseState *ps, string *tok)
 {
     string *anparts = saCreate(string, 2);
@@ -499,6 +526,17 @@ bool parseClassPre(ParseState *ps, string *tok)
         saPush(&ps->curcls->implements, object, tempif, Unique);
         strDestroy(&name);
         return true;
+    } else if (strEq(*tok, _S";")) {
+        // this is actually a forward declaration
+        if (strEmpty(ps->curcls->name)) {
+            fprintf(stderr, "Class forward declaration missing a name!\n");
+            return false;
+        }
+        saPush(&structs, string, ps->curcls->name);
+        objRelease(&ps->curcls);
+        saClear(&ps->annotations);
+        ps->context = Context_Global;
+        return true;
     } else if (!ps->curcls->name && isvalidname(*tok)) {
         strDup(&ps->curcls->name, *tok);
         return true;
@@ -717,6 +755,12 @@ bool parseFile(string fname, string *realfn, string *searchpath, bool included, 
     while ((nextTok(&ps, &tok))) {
         if (strEq(tok, _S"//")) {
             nextCustomTok(&ps, &tok, '\n');
+            continue;
+        }
+
+        if (strEq(tok, _S"<<<")) {
+            nextCustomTok2(&ps, &tok, _S">>>");
+            strAppend(&cpassthrough, tok);
             continue;
         }
 

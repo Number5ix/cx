@@ -13,6 +13,7 @@ extern string *includes;
 extern string *implincludes;
 extern string *deps;
 extern string *structs;
+extern string cpassthrough;
 extern bool needmixinimpl;
 
 char *lazyPlatformPath(string path);
