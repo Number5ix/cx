@@ -65,13 +65,21 @@ static void writeMethods(BufFile *bf, Class *cls, string **seen, bool mixinimpl)
             } else if (m->isdestroy) {
                 writeAutoDtors(bf, cls);
             } else if (m->isfactory) {
-                strNConcat(&ln, _S"    ", cls->name, _S" *ret;");
+                strNConcat(&ln, _S"    ", cls->name, _S" *self;");
                 bfWriteLine(bf, ln);
-                strNConcat(&ln, _S"    ret = objInstCreate(", cls->name, _S");");
+                strNConcat(&ln, _S"    self = objInstCreate(", cls->name, _S");");
                 bfWriteLine(bf, ln);
-                bfWriteLine(bf, _S"    if (!objInstInit(ret))");
-                bfWriteLine(bf, _S"        objRelease(&ret);");
-                bfWriteLine(bf, _S"    return ret;");
+                bfWriteLine(bf, NULL);
+                bfWriteLine(bf, _S"    // Insert any pre-initialization object construction here");
+                bfWriteLine(bf, NULL);
+                bfWriteLine(bf, _S"    if (!objInstInit(self)) {");
+                bfWriteLine(bf, _S"        objRelease(&self);");
+                bfWriteLine(bf, _S"        return NULL;");
+                bfWriteLine(bf, _S"    }");
+                bfWriteLine(bf, NULL);
+                bfWriteLine(bf, _S"    // Insert any post-initialization object construction here");
+                bfWriteLine(bf, NULL);
+                bfWriteLine(bf, _S"    return self;");
             } else if (strEq(m->name, _S"cmp")) {
                 bfWriteLine(bf, _S"    // Uncomment unless this function can compare different object classes");
                 bfWriteLine(bf, _S"    // devAssert(objClsInfo(self) == objClsInfo(other));");
