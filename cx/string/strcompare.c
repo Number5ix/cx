@@ -137,6 +137,8 @@ bool strRangeEq(string s1, string s2, int32 off, uint32 len)
     // negative offset means relative to end of string
     if (off < 0)
         off += _strFastLen(s1);
+    if (off < 0)
+        return false;
 
     if (clamphigh(_strFastLen(s1) - off, len) != clamphigh(_strFastLen(s2), len))
         return false;               // early out if lengths do not match
