@@ -89,7 +89,7 @@ bool VFSVFS_deleteFile(VFSVFS *self, string path)
 
 bool VFSVFS_rename(VFSVFS *self, string oldpath, string newpath)
 {
-    string vfsoldpath = 0, vfsnewpath;
+    string vfsoldpath = 0, vfsnewpath = 0;
     pathJoin(&vfsoldpath, self->root, oldpath);
     pathJoin(&vfsnewpath, self->root, newpath);
 
