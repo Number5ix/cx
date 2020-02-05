@@ -15,10 +15,17 @@ static void fillMembers(Member ***members, Class *cls)
 
 static void fillMethods(Method ***methods, Class *cls)
 {
-    // add parent clases first so the order is correct
-    if (cls->parent)
-        fillMethods(methods, cls->parent);
+    // first, add in any methods from parent classes and their interfaces
+    // allmethods includes inherited methods
+    if (cls->parent) {
+        for (int i = 0; i < saSize(&cls->parent->allmethods); i++) {
+            Method *m = cls->parent->allmethods[i];
+            if (!m->unbound && !m->internal)
+                saPush(methods, object, m, Unique);
+        }
+    }
 
+    // then add in actual implemented methods, overriding where applicable
     for (int i = 0; i < saSize(&cls->methods); i++) {
         if (!cls->methods[i]->unbound && !cls->methods[i]->internal) {
             int32 idx = saFind(methods, object, cls->methods[i]);
@@ -82,6 +89,16 @@ static void addInterfaceImpl(Class *cls, Interface *iface)
             m = methodClone(iface->methods[i]);
             saPushC(&cls->methods, object, &m);
         }
+    }
+}
+
+static void addAbstractInterfaces(Method ***methods, Interface *iface)
+{
+    if (iface->parent)
+        addAbstractInterfaces(methods, iface->parent);
+
+    for (int i = 0; i < saSize(&iface->methods); i++) {
+        saPush(methods, object, iface->methods[i], Unique);
     }
 }
 
@@ -299,7 +316,14 @@ bool processClass(Class *cls)
             }
             strDestroy(&pname);
         }
+        fillMethods(&clsif->methods, cls);
         fillMethods(&clsif->allmethods, cls);
+        // abstract classes need to also bring in any methods from interfaces that
+        // we are not implementing ourselves
+        if (cls->abstract) {
+            for (int i = 0; i < saSize(&cls->implements); i++)
+                addAbstractInterfaces(&clsif->allmethods, cls->implements[i]);
+        }
         if (saSize(&clsif->allmethods) > 0) {
             htInsert(&ifidx, string, clsif->name, object, clsif, Ignore);
             saPush(&cls->implements, object, clsif);
@@ -339,6 +363,19 @@ bool processClass(Class *cls)
     }
     fillMembers(&cls->allmembers, cls);
     fillMethods(&cls->allmethods, cls);
+
+    if (cls->abstract) {
+        // copy interface methods into our allmethods table since we're not
+        // implementing them, but child classes still need them
+        for (int i = 0; i < saSize(&cls->implements); i++)
+            addAbstractInterfaces(&cls->allmethods, cls->implements[i]);
+
+        // delete any methods that are explictly marked abstract (no implementation)
+        for (int i = saSize(&cls->methods) - 1; i >= 0; --i) {
+            if (getAnnotation(&cls->methods[i]->annotations, _S"abstract"))
+                saRemove(&cls->methods, i);
+        }
+    }
 
     // delete redundant interfaces
     pruneInterfaces(cls);
