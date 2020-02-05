@@ -35,3 +35,14 @@ _meta_inline bool thrRunning(Thread *thread)
 bool thrRequestExit(Thread *thread);
 bool thrWait(Thread *thread, int64 timeout);
 void thrDestroy(Thread **thread);
+
+// stype glue for custom type
+extern STypeOps _thread_ops;
+#define SType_Thread Thread*
+#define STStorageType_Thread Thread*
+#define stType_Thread _stype_mkcustom(stType_ptr)
+#define stFullType_Thread _stype_mkcustom(stType_ptr), (&_thread_ops)
+#define STypeArg_Thread(type, val) stgeneric(ptr, val)
+#define STypeArgPtr_Thread(type, val) (stgeneric*)stCheckPtr(ptr, (void**)(val))
+#define STypeChecked_Thread(type, val) stType_ptr, stArg(type, val)
+#define STypeCheckedPtr_Thread(type, val) stType_ptr, stArgPtr(type, val)

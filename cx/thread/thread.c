@@ -69,3 +69,12 @@ bool thrRequestExit(Thread *thread)
 {
     return atomicExchange(bool, &thread->requestExit, true, Release);
 }
+
+static void stDtor_thread(stype st, stgeneric *gen, uint32 flags)
+{
+    thrDestroy((Thread**)&gen->st_ptr);
+}
+
+STypeOps _thread_ops = {
+    .dtor = stDtor_thread
+};
