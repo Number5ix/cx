@@ -13,11 +13,6 @@
 // extern inline intptr stCmp(stype st, const void *ptr1, const void *ptr2, STypeOps *ops);
 // extern inline void stCopy(stype st, void *dest, const void *src, STypeOps *ops);
 
-static void stDtor_ptr(stype st, stgeneric *gen, uint32 flags)
-{
-    xaSFree(gen->st_ptr);
-}
-
 #define STCMP_GEN(type) \
 static intptr stCmp_##type(stype st, stgeneric gen1, stgeneric gen2, uint32 flags) \
 { \
@@ -77,8 +72,7 @@ alignMem(64) stDtorFunc _stDefaultDtor[256] = {
     // STCLASS_FLOAT
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     // STCLASS_PTR
-    stDtor_ptr, stDtor_ptr, stDtor_ptr, stDtor_ptr, stDtor_ptr, stDtor_ptr, stDtor_ptr, stDtor_ptr,
-    stDtor_ptr, stDtor_ptr, stDtor_ptr, stDtor_ptr, stDtor_ptr, stDtor_ptr, stDtor_ptr, stDtor_ptr,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     // 0x50 - 0xdf
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
