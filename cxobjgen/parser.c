@@ -575,10 +575,13 @@ bool parseClass(ParseState *ps, string *tok)
             string *vartype = 0;
             if (strSplit(&vartype, ps->tokstack[0], _S":", false) >= 2) {
                 // special case for a couple things
-                if (strEq(vartype[0], _S"hashtable"))
+                if (strEq(vartype[0], _S"hashtable")) {
                     strDup(&nmem->vartype, vartype[0]);         // hashtable is the actual type
-                else
+                } else if (strEq(vartype[0], _S"atomic")) {
+                    strNConcat(&nmem->vartype, _S, _S"atomic(", vartype[saSize(&vartype) - 1], _S")");
+                } else {
                     strDup(&nmem->vartype, vartype[saSize(&vartype) - 1]);
+                }
 
                 nmem->fulltype = vartype;
                 vartype = 0;
