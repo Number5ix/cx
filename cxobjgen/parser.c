@@ -763,7 +763,8 @@ bool parseFile(string fname, string *realfn, string *searchpath, bool included, 
 
         if (strEq(tok, _S"<<<")) {
             nextCustomTok2(&ps, &tok, _S">>>");
-            strAppend(&cpassthrough, tok);
+            if (!included)
+                strAppend(&cpassthrough, tok);
             continue;
         }
 
