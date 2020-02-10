@@ -191,6 +191,7 @@ static void writeAutoInit(BufFile *bf, Class *cls)
                 if (saSize(&an) == 2)
                     size = an[1];
 
+                strClear(&flags);
                 if (saSize(&flagarr) != 0) {
                     saInsert(&flagarr, 0, string, _S"");
                     strJoin(&flags, flagarr, _S", ");
@@ -219,6 +220,7 @@ static void writeAutoInit(BufFile *bf, Class *cls)
                 if (saSize(&an) == 2)
                     size = an[1];
 
+                strClear(&flags);
                 if (saSize(&flagarr) != 0) {
                     saInsert(&flagarr, 0, string, _S"");
                     strJoin(&flags, flagarr, _S", ");
