@@ -84,7 +84,7 @@ static void addInterfaceImpl(Class *cls, Interface *iface)
         addInterfaceImpl(cls, iface->parent);
 
     for (int i = 0; i < saSize(&iface->methods); i++) {
-        Method *m = findClassMethod(iface->methods[i]->name, cls, iface);  // already have it?
+        Method *m = findClassMethod(iface->methods[i]->name, cls, iface->methods[i]->srcif);  // already have it?
         if (!m) {
             m = methodClone(iface->methods[i]);
             saPushC(&cls->methods, object, &m);
