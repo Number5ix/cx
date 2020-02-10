@@ -63,6 +63,7 @@ VFSFile *_vfsOpen(VFS *vfs, string path, int flags);
 bool vfsClose(VFSFile *file);
 bool vfsRead(VFSFile *file, void *buf, size_t sz, size_t *bytesread);
 bool vfsWrite(VFSFile *file, void *buf, size_t sz, size_t *byteswritten);
+bool vfsWriteString(VFSFile *file, string str, size_t *byteswritten);
 int64 vfsTell(VFSFile *file);
 int64 vfsSeek(VFSFile *file, int64 off, int seektype);
 

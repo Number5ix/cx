@@ -177,6 +177,27 @@ bool vfsWrite(VFSFile *file, void *buf, size_t sz, size_t *byteswritten)
     return file->fileprovif->write(file->fileprov, buf, sz, byteswritten);
 }
 
+bool vfsWriteString(VFSFile *file, string str, size_t *byteswritten)
+{
+    size_t written = 0, wstep = 0;
+    bool ret = true;
+
+    striter iter;
+    striBorrow(&iter, str);
+    while(iter.len > 0) {
+        if (!vfsWrite(file, iter.bytes, iter.len, &wstep)) {
+            ret = false;
+            break;
+        }
+        written += wstep;
+        striNext(&iter);
+    }
+
+    if (byteswritten)
+        *byteswritten = written;
+    return ret;
+}
+
 int64 vfsTell(VFSFile *file)
 {
     if (!(file && file->fileprov))

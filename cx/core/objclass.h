@@ -52,7 +52,7 @@ typedef struct ObjInst {
 } ObjInst;
 
 #define objInstCheck(inst) static_assert((inst->_clsinfo, offsetof(*(inst), _ref) == offsetof(ObjInst, _ref)), "Not an instance")
-#define objInstBase(inst) ((ObjInst*)(&(inst)->_ref, &(inst)->_clsinfo, (inst)))
+#define objInstBase(inst) ((ObjInst*)(&((inst)->_ref), &((inst)->_clsinfo), (inst)))
 #define objClsInfo(inst) (inst->_clsinfo)
 
 // DO NOT CALL DIRECTLY! Use objRelease instead
@@ -77,7 +77,7 @@ _meta_inline void _objRelease(ObjInst **instp)
 
     *instp = NULL;
 }
-#define objRelease(inst) (objInstBase(*inst), _objRelease((ObjInst**)inst))
+#define objRelease(inst) (objInstBase(*(inst)), _objRelease((ObjInst**)inst))
 
 // Functions to get a populated interface from a class or instance
 ObjIface *_objClassIf(ObjClassInfo *cls, ObjIface *iftmpl);
