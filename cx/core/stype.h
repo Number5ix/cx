@@ -110,7 +110,7 @@ typedef union stgeneric {
 _Static_assert(sizeof(stgeneric) == sizeof(uint64), "stype container too large");
 
 #ifndef __cplusplus
-#define stgeneric(type, val) ((stgeneric){ .st_##type = stCheck(type, val) })
+#define stgeneric(type, val) ((stgeneric){ .st_##type = (val) })
 #else
 #define stgeneric(type, val) ((stgeneric)stCheck(type, val))
 #endif
