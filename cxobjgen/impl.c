@@ -8,19 +8,69 @@ static const string autogenBegin =  _S"// ==================== Auto-generated se
 static const string autogenNotice = _S"// Do not modify the contents of this section; any changes will be lost!";
 static const string autogenEnd =    _S"// ==================== Auto-generated section ends ======================";
 
+static string **parentmacros;
+
 static void writeAutoInit(BufFile *bf, Class *cls);
 static void writeAutoDtors(BufFile *bf, Class *cls);
 
-static void writeMethodProto(BufFile *bf, Class *cls, Method *m, bool protoonly, bool mixinimpl)
+static void writeMethodProto(BufFile *bf, Class *cls, Method *m, bool protoonly, bool mixinimpl, bool forparent)
 {
     string mname = 0, ln = 0, tmp = 0;
     methodImplName(&mname, cls, m->name);
+
+    if (!protoonly && !forparent && !mixinimpl &&
+        !m->isfactory && !m->isinit && !m->isdestroy &&
+        cls->parent) {
+        Class *pclass = cls->parent;
+        Method *pm = 0;
+
+        while (pclass) {
+            int32 idx = saFind(&pclass->methods, object, m);
+            if (idx != -1) {
+                pm = pclass->methods[idx];
+                break;
+            }
+            pclass = pclass->parent;
+        }
+
+        if (pm) {
+            writeMethodProto(bf, pclass, pm, true, false, true);
+
+            string pmname = 0;
+            methodImplName(&pmname, pclass, pm->name);
+
+            if (saFind(&parentmacros, string, m->name) != -1) {
+                strNConcat(&ln, _S"#undef ", _S"parent_", m->name);
+                bfWriteLine(bf, ln);
+            }
+
+            strNConcat(&ln, _S"#define ", _S"parent_", m->name, _S"(");
+            saPush(&parentmacros, string, m->name, Unique);
+            for (int j = 0; j < saSize(&pm->params); j++) {
+                if (j > 0)
+                    strNConcat(&ln, ln, _S", ", pm->params[j]->name);
+                else
+                    strAppend(&ln, pm->params[j]->name);
+            }
+            strNConcat(&ln, ln, _S") ", pmname, _S"((", pclass->name, _S"*)(self)");
+            for (int j = 0; j < saSize(&pm->params); j++) {
+                strNConcat(&ln, ln, _S", ", pm->params[j]->name);
+            }
+            strAppend(&ln, _S")");
+
+            strDestroy(&pmname);
+            bfWriteLine(bf, ln);
+            strClear(&ln);
+        }
+    }
 
     if (!m->isfactory)
         strNConcat(&ln, m->returntype, _S" ", m->predecr, mname, _S"(", cls->name, _S" *self");
     else
         strNConcat(&ln, m->returntype, _S" ", m->predecr, mname, _S"(");
 
+    if (forparent)
+        strPrepend(_S"extern ", &ln);
     if (mixinimpl)
         strPrepend(_S"_meta_inline ", &ln);
 
@@ -44,6 +94,9 @@ static void writeMethodProto(BufFile *bf, Class *cls, Method *m, bool protoonly,
     if (protoonly)
         strAppend(&ln, _S";");
 
+    if (forparent)
+        strAppend(&ln, _S" // parent");
+
     bfWriteLine(bf, ln);
     strDestroy(&tmp);
     strDestroy(&ln);
@@ -58,7 +111,7 @@ static void writeMethods(BufFile *bf, Class *cls, string **seen, bool mixinimpl)
             continue;
         methodImplName(&mname, cls, m->name);
         if (saFind(seen, string, mname) == -1) {
-            writeMethodProto(bf, cls, m, false, mixinimpl);
+            writeMethodProto(bf, cls, m, false, mixinimpl, false);
             bfWriteLine(bf, _S"{");
             if (m->isinit) {
                 writeAutoInit(bf, cls);
@@ -105,7 +158,7 @@ static void writeMixinStubs(BufFile *bf, Class *cls)
         Method *m = cls->methods[i];
         if (!m->mixin || cls->mixin)
             continue;
-        writeMethodProto(bf, cls, m, false, false);
+        writeMethodProto(bf, cls, m, false, false, false);
         bfWriteLine(bf, _S"{");
         strDup(&ln, _S"    ");
         if (!strEq(m->returntype, _S"void"))
@@ -295,7 +348,7 @@ static void writeMixinProtos(BufFile *bf, Class *cls)
     for (int i = 0; i < saSize(&cls->methods); i++) {
         Method *m = cls->methods[i];
         if (m->isinit || m->isdestroy) {
-            writeMethodProto(bf, cls, m, true, false);
+            writeMethodProto(bf, cls, m, true, false, false);
             continue;
         }
     }
@@ -475,9 +528,12 @@ bool writeImpl(string fname, bool mixinimpl)
     bfWriteLine(nbf, autogenEnd);
 
     string *seen = saCreate(string, 16, Sorted);
+    parentmacros = saCreate(string, 16, Sorted);
     hashtable implidx = htCreate(string, opaque(MethodPair), 16);
     int err;
     PCRE2_SIZE eoffset;
+    pcre2_code *reParentProto = pcre2_compile((PCRE2_SPTR)"extern [A-Za-z0-9_]+ \\**([A-Za-z0-9_]+)\\(.*\\); // parent", PCRE2_ZERO_TERMINATED, PCRE2_ANCHORED | PCRE2_ENDANCHORED, &err, &eoffset, NULL);
+    pcre2_code *reParentMacro = pcre2_compile((PCRE2_SPTR)"#define parent_[A-Za-z0-9_]+\\(.*\\) [A-Za-z0-9_]+\\(.*\\)", PCRE2_ZERO_TERMINATED, PCRE2_ANCHORED | PCRE2_ENDANCHORED, &err, &eoffset, NULL);
     pcre2_code *reProto = pcre2_compile((PCRE2_SPTR)"(?:_meta_inline )?[A-Za-z0-9_]+ \\**([A-Za-z0-9_]+)\\(.*\\)(;)?", PCRE2_ZERO_TERMINATED, PCRE2_ANCHORED | PCRE2_ENDANCHORED, &err, &eoffset, NULL);
     pcre2_match_data *match = pcre2_match_data_create_from_pattern(reProto, NULL);
 
@@ -495,7 +551,15 @@ bool writeImpl(string fname, bool mixinimpl)
         if (!inautogen) {
             wasempty = false;
 
-            int nmatches = pcre2_match(reProto, (PCRE2_SPTR)strC(&ln), strLen(ln), 0, 0, match, NULL);
+            // ignore parent prototypes and macros
+            int nmatches = pcre2_match(reParentProto, (PCRE2_SPTR)strC(&ln), strLen(ln), 0, 0, match, NULL);
+            if (nmatches >= 0)
+                continue;
+            nmatches = pcre2_match(reParentMacro, (PCRE2_SPTR)strC(&ln), strLen(ln), 0, 0, match, NULL);
+            if (nmatches >= 0)
+                continue;
+
+            nmatches = pcre2_match(reProto, (PCRE2_SPTR)strC(&ln), strLen(ln), 0, 0, match, NULL);
             if (nmatches >= 0) {
                 PCRE2_SIZE *ovector = pcre2_get_ovector_pointer(match);
                 string funcname = 0;
@@ -510,7 +574,7 @@ bool writeImpl(string fname, bool mixinimpl)
                             indestroy = mp.c;
                     }
                     saPush(&seen, string, funcname, Unique);
-                    writeMethodProto(nbf, mp.c, mp.m, nmatches == 3, mixinimpl);
+                    writeMethodProto(nbf, mp.c, mp.m, nmatches == 3, mixinimpl, false);
                 } else {
                     bfWriteLine(nbf, ln);
                 }
@@ -583,5 +647,6 @@ bool writeImpl(string fname, bool mixinimpl)
     strDestroy(&newcname);
     htDestroy(&implidx);
     saDestroy(&seen);
+    saDestroy(&parentmacros);
     return true;
 }
