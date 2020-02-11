@@ -4,6 +4,8 @@
 #include <cx/string.h>
 #include <stdio.h>
 
+static string *already_parsed;
+
 enum ParseContext {
     Context_Global,
     Context_InterfacePre,
@@ -731,6 +733,15 @@ bool parseFile(string fname, string *realfn, string *searchpath, bool included, 
     }
 
     pathNormalize(&fpath);
+
+    if (!already_parsed) {
+        already_parsed = saCreate(string, 10, Sorted);
+    }
+    if (saPush(&already_parsed, string, fpath, Unique) == -1) {
+        strDestroy(&fpath);
+        return parseEnd(&ps, true);
+    }
+
     ps.fp = fsOpen(fpath, Read);
     if (!ps.fp) {
         if (required)
