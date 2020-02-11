@@ -84,6 +84,7 @@ typedef struct TestCls4a_ClassIf {
 
     int (*testfunc)(void *self);
     int (*testfunc2)(void *self);
+    int (*testfunc3)(void *self);
 } TestCls4a_ClassIf;
 extern TestCls4a_ClassIf TestCls4a_ClassIf_tmpl;
 
@@ -179,6 +180,7 @@ extern ObjClassInfo TestCls4a_clsinfo;
 
 #define testCls4aTestfunc(self) (self)->_->testfunc(objInstBase(self))
 #define testCls4aTestfunc2(self) (self)->_->testfunc2(objInstBase(self))
+#define testCls4aTestfunc3(self) (self)->_->testfunc3(objInstBase(self))
 
 typedef struct TestCls4b {
     TestCls4b_ClassIf *_;

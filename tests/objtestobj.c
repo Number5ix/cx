@@ -54,11 +54,16 @@ TestCls4 *TestCls4_create()
     return ret;
 }
 
+extern int TestCls1_testfunc(TestCls1 *self); // parent
+#define parent_testfunc() TestCls1_testfunc((TestCls1*)(self))
 int TestCls4_testfunc(TestCls4 *self)
 {
     return self->data3;
 }
 
+extern int TestCls4_testfunc(TestCls4 *self); // parent
+#undef parent_testfunc
+#define parent_testfunc() TestCls4_testfunc((TestCls4*)(self))
 int TestCls4a_testfunc(TestCls4a *self)
 {
     return self->data4;
