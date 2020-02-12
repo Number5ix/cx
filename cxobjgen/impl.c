@@ -279,7 +279,7 @@ static void writeAutoInit(BufFile *bf, Class *cls)
                     strJoin(&flags, flagarr, _S", ");
                 }
                 strNConcat(&ln, _S"    self->", m->name, _S" = htCreate(", m->fulltype[1], _S", ",
-                           m->fulltype[2], _S", ", size, _S", ", flags, _S");");
+                           m->fulltype[2], _S", ", size, flags, _S");");
                 saDestroy(&flagarr);
             }
         }
