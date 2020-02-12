@@ -533,7 +533,7 @@ bool writeImpl(string fname, bool mixinimpl)
     int err;
     PCRE2_SIZE eoffset;
     pcre2_code *reParentProto = pcre2_compile((PCRE2_SPTR)"extern [A-Za-z0-9_]+ \\**([A-Za-z0-9_]+)\\(.*\\); // parent", PCRE2_ZERO_TERMINATED, PCRE2_ANCHORED | PCRE2_ENDANCHORED, &err, &eoffset, NULL);
-    pcre2_code *reParentMacro = pcre2_compile((PCRE2_SPTR)"#define parent_[A-Za-z0-9_]+\\(.*\\) [A-Za-z0-9_]+\\(.*\\)", PCRE2_ZERO_TERMINATED, PCRE2_ANCHORED | PCRE2_ENDANCHORED, &err, &eoffset, NULL);
+    pcre2_code *reParentMacro = pcre2_compile((PCRE2_SPTR)"#(?:define|undef) parent_[A-Za-z0-9_]+(?:\\(.*\\) [A-Za-z0-9_]+\\(.*\\))?", PCRE2_ZERO_TERMINATED, PCRE2_ANCHORED | PCRE2_ENDANCHORED, &err, &eoffset, NULL);
     pcre2_code *reProto = pcre2_compile((PCRE2_SPTR)"(?:_meta_inline )?[A-Za-z0-9_]+ \\**([A-Za-z0-9_]+)\\(.*\\)(;)?", PCRE2_ZERO_TERMINATED, PCRE2_ANCHORED | PCRE2_ENDANCHORED, &err, &eoffset, NULL);
     pcre2_match_data *match = pcre2_match_data_create_from_pattern(reProto, NULL);
 

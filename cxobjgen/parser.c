@@ -307,7 +307,10 @@ bool parseGlobal(ParseState *ps, string *tok)
 
         strPrepend(brackets ? _S"<" : _S"\"", &fname);
         strAppend(&fname, brackets ? _S">" : _S"\"");
-        saPushC(&includes, string, &fname, Unique);
+        if (!ps->included)
+            saPushC(&includes, string, &fname, Unique);
+        else
+            strDestroy(&fname);
         strDestroy(&ext);
         return ret;
     } else if (strEq(*tok, _S"struct")) {

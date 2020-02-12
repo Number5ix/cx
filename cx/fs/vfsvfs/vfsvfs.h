@@ -2,9 +2,7 @@
 // This header file is auto-generated!
 // Do not make changes to this file or they will be overwritten.
 #include <cx/obj.h>
-#include <cx/fs/fs.h>
 #include <cx/fs/vfsprovider.h>
-#include <cx/thread/rwlock.h>
 #include <cx/fs/vfsobj.h>
 
 typedef struct VFSDir VFSDir;
