@@ -148,4 +148,5 @@ void *_saSlice(void **handle, int32 start, int32 end);
 #define saSlice(handle, start, end) _saSlice(SAHANDLE(handle), start, end)
 
 void *_saMerge(int n, void **handles, uint32 flags);
-#define saMerge(flags, ...) _saMerge(sizeof((void*[]){ __VA_ARGS__ })/sizeof(void*), (void*[]){ __VA_ARGS__ }, func_flags(SAFUNC, flags))
+#define saMerge(...) _saMerge(sizeof((void*[]){ __VA_ARGS__ })/sizeof(void*), (void*[]){ __VA_ARGS__ }, 0)
+#define saMergeF(flags, ...) _saMerge(sizeof((void*[]){ __VA_ARGS__ })/sizeof(void*), (void*[]){ __VA_ARGS__ }, func_flags(SAFUNC, flags))
