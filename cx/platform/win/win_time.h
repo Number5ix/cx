@@ -12,7 +12,7 @@ _meta_inline int64 timeFromFileTime(FILETIME *ft)
     // Which is a julian date of 2305813.50000
     // That's 199222286400 in seconds, or in microseconds...
 
-    ret += 199222286400000000ULL;       // adjust epoch
+    ret += 199222286400000000LL;        // adjust epoch
     // This still leaves over 280,000 years before overflow
 
     return ret;

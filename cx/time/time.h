@@ -4,6 +4,35 @@
 #include <time.h>
 
 #define timeForever 9223372036854775807LL
+#define timeS(s) timeFromSeconds(s)
+#define timeMS(s) timeFromMsec(s)
+
+enum WEEKDAYS {
+    Sunday = 0,
+    Monday,
+    Tuesday,
+    Wednesday,
+    Thursday,
+    Friday,
+    Saturday
+};
+
+typedef struct TimeParts {
+    uint32 usec;    // first for structure alignment reasons
+    int32 year;     // Negative numbers are used for BC (there is no year 0)
+    uint8 month;
+    uint8 day;
+    uint8 hour;
+    uint8 minute;
+    uint8 second;
+
+    // these parts are for information only and not used for composition
+    uint8 wday;     // day of week
+    uint16 yday;    // day of year
+} TimeParts;
+
+bool timeDecompose(TimeParts *out, int64 time);
+int64 timeCompose(TimeParts *parts);
 
 // time interval conversion
 _meta_inline int64 timeToSeconds(int64 time)

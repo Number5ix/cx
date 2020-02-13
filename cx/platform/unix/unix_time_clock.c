@@ -8,6 +8,19 @@ int64 clockWall()
     return timeFromAbsTimespec(&ts);
 }
 
+int64 clockWallLocal()
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+
+    struct tm dummytm;
+    time_t curtime = time(NULL);
+    localtime_r(&curtime, &dummytm);
+    ts.tv_sec += dummytm.tm_gmtoff;
+
+    return timeFromAbsTimespec(&ts);
+}
+
 int64 clockTimer()
 {
     struct timespec ts;

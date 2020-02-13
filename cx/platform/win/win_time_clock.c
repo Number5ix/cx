@@ -9,6 +9,14 @@ int64 clockWall()
     return timeFromFileTime(&ft);
 }
 
+int64 clockWallLocal()
+{
+    FILETIME ft, lt;
+    GetSystemTimeAsFileTime(&ft);
+    FileTimeToLocalFileTime(&ft, &lt);
+    return timeFromFileTime(&lt);
+}
+
 static LazyInitState qpcInitState;
 static uint64 qpcMult;
 static uint64 qpcDivisor;
