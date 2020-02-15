@@ -663,6 +663,14 @@ bool parseClass(ParseState *ps, string *tok)
             }
             ps->curmethod->unbound = true;
             saRemove(&ps->tokstack, 0);
+        } else if (strEq(ps->tokstack[0], _S"standalone")) {
+            if (ps->curcls->mixin) {
+                fprintf(stderr, "Standalone functions may not be used in mixin classes\n");
+                return false;
+            }
+            ps->curmethod->unbound = true;      // standalone implies unbound
+            ps->curmethod->standalone = true;
+            saRemove(&ps->tokstack, 0);
         } else if (strEq(ps->tokstack[0], _S"factory")) {
             if (ps->curcls->abstract || ps->curcls->mixin) {
                 fprintf(stderr, "%s class '%s' tried to declare a factory\n",
@@ -672,6 +680,7 @@ bool parseClass(ParseState *ps, string *tok)
             }
 
             ps->curmethod->unbound = true;
+            ps->curmethod->standalone = true;
             ps->curmethod->isfactory = true;
             saRemove(&ps->tokstack, 0);
             saInsert(&ps->tokstack, 0, string, ps->curcls->name);

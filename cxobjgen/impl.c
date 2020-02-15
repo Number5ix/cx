@@ -64,7 +64,7 @@ static void writeMethodProto(BufFile *bf, Class *cls, Method *m, bool protoonly,
         }
     }
 
-    if (!m->isfactory)
+    if (!m->standalone)
         strNConcat(&ln, m->returntype, _S" ", m->predecr, mname, _S"(", cls->name, _S" *self");
     else
         strNConcat(&ln, m->returntype, _S" ", m->predecr, mname, _S"(");
@@ -84,7 +84,7 @@ static void writeMethodProto(BufFile *bf, Class *cls, Method *m, bool protoonly,
             ppre = _S"*";
         }
 
-        if (!m->isfactory || j > 0)
+        if (!m->standalone || j > 0)
             strNConcat(&tmp, _S", ", ptype, _S" ", ppre, p->name, p->postdecr);
         else
             strNConcat(&tmp, ptype, _S" ", ppre, p->name, p->postdecr);

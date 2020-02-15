@@ -17,7 +17,7 @@ static void writeUnbound(BufFile *bf, Class *cls, Class *cur, Method ***done)
 
         if (cls == cur) {
             methodImplName(&implname, cls, m->name);
-            if (!m->isfactory)
+            if (!m->standalone)
                 strNConcat(&ln, m->returntype, _S" ", m->predecr, implname, _S"(", cls->name, _S" *self");
             else
                 strNConcat(&ln, m->returntype, _S" ", m->predecr, implname, _S"(");
@@ -32,7 +32,7 @@ static void writeUnbound(BufFile *bf, Class *cls, Class *cur, Method ***done)
                     ppre = _S"*";
                 }
 
-                if (!m->isfactory || j > 0)
+                if (!m->standalone || j > 0)
                     strNConcat(&ln, ln, _S", ");
                 strNConcat(&ln, ln, ptype, _S" ", ppre, p->name, p->postdecr);
             }
@@ -40,16 +40,16 @@ static void writeUnbound(BufFile *bf, Class *cls, Class *cur, Method ***done)
             bfWriteLine(bf, ln);
 
             methodCallName(&callname, cls, m->name);
-            strNConcat(&ln, _S"#define ", callname, m->isfactory ? _S"(" : _S"(self");
+            strNConcat(&ln, _S"#define ", callname, m->standalone ? _S"(" : _S"(self");
             for (int j = 0; j < saSize(&m->params); j++) {
-                if (!m->isfactory || j > 0)
+                if (!m->standalone || j > 0)
                     strNConcat(&ln, ln, _S", ", m->params[j]->name);
                 else
                     strNConcat(&ln, ln, m->params[j]->name);
             }
-            strNConcat(&ln, ln, _S") ", implname, m->isfactory ? _S"(" : _S"(self");
+            strNConcat(&ln, ln, _S") ", implname, m->standalone ? _S"(" : _S"(self");
             for (int j = 0; j < saSize(&m->params); j++) {
-                if (!m->isfactory || j > 0)
+                if (!m->standalone || j > 0)
                     strNConcat(&ln, ln, _S", ", m->params[j]->name);
                 else
                     strNConcat(&ln, ln, m->params[j]->name);
@@ -57,8 +57,8 @@ static void writeUnbound(BufFile *bf, Class *cls, Class *cur, Method ***done)
             strAppend(&ln, _S")");
             bfWriteLine(bf, ln);
         } else {
-            // only emit factories for the current class
-            if (m->isfactory)
+            // only emit standalone functions for the current class
+            if (m->standalone)
                 continue;
 
             methodCallName(&callname, cls, m->name);

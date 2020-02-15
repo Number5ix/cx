@@ -80,6 +80,7 @@ typedef struct Method {
     bool isfactory;
     bool internal;
     bool unbound;
+    bool standalone;
     bool mixin;
 } Method;
 extern ObjClassInfo Method_clsinfo;
