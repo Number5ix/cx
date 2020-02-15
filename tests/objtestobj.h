@@ -124,8 +124,8 @@ extern ObjClassInfo TestCls1_clsinfo;
 #define TestCls1(inst) ((TestCls1*)(&((inst)->_is_TestCls1), (inst)))
 
 TestCls1 *TestCls1_create();
-#define testCls1Create() TestCls1_create()
-#define testCls1Testfunc(self) (self)->_->testfunc(TestCls1(self))
+#define testcls1Create() TestCls1_create()
+#define testcls1Testfunc(self) (self)->_->testfunc(TestCls1(self))
 
 typedef struct TestCls2 {
     TestCls2_ClassIf *_;
@@ -143,8 +143,8 @@ extern ObjClassInfo TestCls2_clsinfo;
 #define TestCls2(inst) ((TestCls2*)(&((inst)->_is_TestCls2), (inst)))
 
 TestCls2 *TestCls2_create();
-#define testCls2Create() TestCls2_create()
-#define testCls2Testfunc(self) (self)->_->testfunc(TestCls2(self))
+#define testcls2Create() TestCls2_create()
+#define testcls2Testfunc(self) (self)->_->testfunc(TestCls2(self))
 
 typedef struct TestCls3 {
     TestCls3_ClassIf *_;
@@ -164,9 +164,9 @@ extern ObjClassInfo TestCls3_clsinfo;
 #define TestCls3(inst) ((TestCls3*)(&((inst)->_is_TestCls3), (inst)))
 
 TestCls3 *TestCls3_create();
-#define testCls3Create() TestCls3_create()
-#define testCls3Testfunc(self) (self)->_->testfunc(TestCls3(self))
-#define testCls3Testfunc2(self) (self)->_->testfunc2(TestCls3(self))
+#define testcls3Create() TestCls3_create()
+#define testcls3Testfunc(self) (self)->_->testfunc(TestCls3(self))
+#define testcls3Testfunc2(self) (self)->_->testfunc2(TestCls3(self))
 
 typedef struct TestCls4 {
     TestCls4_ClassIf *_;
@@ -188,9 +188,9 @@ extern ObjClassInfo TestCls4_clsinfo;
 #define TestCls4(inst) ((TestCls4*)(&((inst)->_is_TestCls4), (inst)))
 
 TestCls4 *TestCls4_create();
-#define testCls4Create() TestCls4_create()
-#define testCls4Testfunc(self) (self)->_->testfunc(TestCls4(self))
-#define testCls4Testfunc2(self) (self)->_->testfunc2(TestCls4(self))
+#define testcls4Create() TestCls4_create()
+#define testcls4Testfunc(self) (self)->_->testfunc(TestCls4(self))
+#define testcls4Testfunc2(self) (self)->_->testfunc2(TestCls4(self))
 
 typedef struct TestCls4a {
     TestCls4a_ClassIf *_;
@@ -213,9 +213,9 @@ typedef struct TestCls4a {
 extern ObjClassInfo TestCls4a_clsinfo;
 #define TestCls4a(inst) ((TestCls4a*)(&((inst)->_is_TestCls4a), (inst)))
 
-#define testCls4aTestfunc(self) (self)->_->testfunc(TestCls4a(self))
-#define testCls4aTestfunc2(self) (self)->_->testfunc2(TestCls4a(self))
-#define testCls4aTestfunc3(self) (self)->_->testfunc3(TestCls4a(self))
+#define testcls4aTestfunc(self) (self)->_->testfunc(TestCls4a(self))
+#define testcls4aTestfunc2(self) (self)->_->testfunc2(TestCls4a(self))
+#define testcls4aTestfunc3(self) (self)->_->testfunc3(TestCls4a(self))
 
 typedef struct TestCls4b {
     TestCls4b_ClassIf *_;
@@ -241,10 +241,10 @@ extern ObjClassInfo TestCls4b_clsinfo;
 #define TestCls4b(inst) ((TestCls4b*)(&((inst)->_is_TestCls4b), (inst)))
 
 TestCls4b *TestCls4b_create();
-#define testCls4bCreate() TestCls4b_create()
-#define testCls4bTestfunc(self) (self)->_->testfunc(TestCls4b(self))
-#define testCls4bTestfunc2(self) (self)->_->testfunc2(TestCls4b(self))
-#define testCls4bTestfunc3(self) (self)->_->testfunc3(TestCls4b(self))
+#define testcls4bCreate() TestCls4b_create()
+#define testcls4bTestfunc(self) (self)->_->testfunc(TestCls4b(self))
+#define testcls4bTestfunc2(self) (self)->_->testfunc2(TestCls4b(self))
+#define testcls4bTestfunc3(self) (self)->_->testfunc3(TestCls4b(self))
 
 typedef struct TestCls5 {
     TestCls5_ClassIf *_;
@@ -262,7 +262,7 @@ extern ObjClassInfo TestCls5_clsinfo;
 #define TestCls5(inst) ((TestCls5*)(&((inst)->_is_TestCls5), (inst)))
 
 TestCls5 *TestCls5_create();
-#define testCls5Create() TestCls5_create()
-#define testCls5Testfunc(self) (self)->_->testfunc(TestCls5(self))
-#define testCls5Cmp(self, other, flags) (self)->_->cmp(TestCls5(self), other, flags)
+#define testcls5Create() TestCls5_create()
+#define testcls5Testfunc(self) (self)->_->testfunc(TestCls5(self))
+#define testcls5Cmp(self, other, flags) (self)->_->cmp(TestCls5(self), other, flags)
 

@@ -2,7 +2,6 @@
 
 struct VFSDir;
 
-[methodprefix vfs]
 class VFS {
     VFSDir *root;           // root for namespaceless paths
     // namespaces are never case sensitive even if the paths are
@@ -21,7 +20,6 @@ class VFS {
     factory createFromFS();
 }
 
-[methodprefix vfsmount]
 class VFSMount {
     object:ObjInst provider;
     uint32 flags;

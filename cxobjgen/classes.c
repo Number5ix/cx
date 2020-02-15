@@ -408,8 +408,7 @@ void methodCallName(string *out, Class *cls, string mname)
         strDup(&clsname2, cls->methodprefix);
     } else {
         strDup(&clsname2, cls->name);
-        char *tmp = strBuffer(&clsname2, 1);
-        tmp[0] = tolower(tmp[0]);
+        strLower(&clsname2);
     }
 
     strDup(&mname2, mname);
@@ -417,6 +416,8 @@ void methodCallName(string *out, Class *cls, string mname)
     tmp[0] = toupper(tmp[0]);
 
     strConcatC(out, &clsname2, &mname2);
+    strDestroy(&clsname2);
+    strDestroy(&mname2);
 }
 
 void mixinMemberName(string *out, Class *cls)

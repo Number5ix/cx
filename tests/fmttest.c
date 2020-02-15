@@ -173,11 +173,11 @@ static int test_object()
 
     FmtTestClass *o1, *o2, *o3, *o4, *o5;
 
-    o1 = fmtTestClassCreate(1, _S"Test");
-    o2 = fmtTestClassCreate(2, _S"Lest");
-    o3 = fmtTestClassCreate(3, _S"Best");
-    o4 = fmtTestClassCreate(4, _S"Fest");
-    o5 = fmtTestClassCreate(5, _S"Behest");
+    o1 = fmttestclassCreate(1, _S"Test");
+    o2 = fmttestclassCreate(2, _S"Lest");
+    o3 = fmttestclassCreate(3, _S"Best");
+    o4 = fmttestclassCreate(4, _S"Fest");
+    o5 = fmttestclassCreate(5, _S"Behest");
 
     strFormat(&res, _S"This is a ${object}, ${object}, ${object}, ${object}, ${object} test",
               stvar(object, o1), stvar(object, o2), stvar(object, o3), stvar(object, o4), stvar(object, o5));

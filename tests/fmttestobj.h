@@ -31,6 +31,6 @@ extern ObjClassInfo FmtTestClass_clsinfo;
 #define FmtTestClass(inst) ((FmtTestClass*)(&((inst)->_is_FmtTestClass), (inst)))
 
 FmtTestClass *FmtTestClass_create(int32 ival, string sval);
-#define fmtTestClassCreate(ival, sval) FmtTestClass_create(ival, sval)
-#define fmtTestClassFormat(self, v, out) (self)->_->format(FmtTestClass(self), v, out)
+#define fmttestclassCreate(ival, sval) FmtTestClass_create(ival, sval)
+#define fmttestclassFormat(self, v, out) (self)->_->format(FmtTestClass(self), v, out)
 

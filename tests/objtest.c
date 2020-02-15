@@ -149,7 +149,7 @@ static int test_dyncast()
     if (cls1->data != 42)
         return 1;
 
-    if (testCls1Testfunc(cls1) != 71)
+    if (testcls1Testfunc(cls1) != 71)
         return 1;
 
     objRelease(cls4);

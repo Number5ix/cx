@@ -1,7 +1,6 @@
 #include "vfsfs.sidl"
 #include <cx/fs/file.h>
 
-[methodprefix vfsfsfile]
 class VFSFSFile implements VFSFileProvider {
     FSFile *file;
     destroy();

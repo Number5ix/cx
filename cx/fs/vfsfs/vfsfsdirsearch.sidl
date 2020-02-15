@@ -1,6 +1,5 @@
 #include "vfsfs.sidl"
 
-[methodprefix vfsfsdirsearch]
 class VFSFSDirSearch implements VFSDirSearchProvider {
     FSDirSearch *dirsearch;
     destroy();

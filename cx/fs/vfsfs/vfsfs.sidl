@@ -1,6 +1,5 @@
 #include <cx/fs/vfsprovider.sidl>
 
-[methodprefix vfsfs]
 class VFSFS implements VFSProvider {
     string root;
 
