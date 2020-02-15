@@ -33,7 +33,7 @@ void vfsDestroy(VFS *vfs)
     vfsUnmountAll(vfs->root);
     rwlockReleaseWrite(&vfs->vfslock);
 
-    objRelease(&vfs);
+    objRelease(vfs);
 }
 
 static VFSDir *_vfsGetDirInternal(VFS *vfs, VFSDir *root, string *path, int32 plen, bool cache, uint64 now, bool writelockheld)
@@ -153,7 +153,7 @@ bool _vfsMountFS(VFS *vfs, string path, string fsroot, uint32 flags)
         return false;
 
     bool ret = _vfsMountProvider(vfs, objInstBase(fsprovider), path, flags);
-    objRelease(&fsprovider);
+    objRelease(fsprovider);
     return ret;
 }
 
@@ -167,7 +167,7 @@ bool _vfsMountVFS(VFS *vfs, string path, VFS *vfs2, string vfs2root, uint32 flag
     relAssert(vfs != vfs2);
 
     bool ret = _vfsMountProvider(vfs, objInstBase(vfsprovider), path, flags);
-    objRelease(&vfsprovider);
+    objRelease(vfsprovider);
     return ret;
 }
 
@@ -291,7 +291,7 @@ static int vfsFindCISub(VFSDir *vdir, string *out, string path,
         }
     }
 
-    objRelease(&dsprov);
+    objRelease(dsprov);
     strDestroy(&filepath);
     return ret;
 }

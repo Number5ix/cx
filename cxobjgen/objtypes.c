@@ -119,7 +119,7 @@ void Class_destroy(Class *self)
 {
 // ==================== Auto-generated section begins ====================
     strDestroy(&self->name);
-    objRelease(&self->classif);
+    objRelease(self->classif);
     saDestroy(&self->implements);
     saDestroy(&self->uses);
     saDestroy(&self->members);

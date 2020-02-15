@@ -136,7 +136,7 @@ VFSDirSearch *vfsSearchDir(VFS *vfs, string path, string pattern, int typefilter
                 }
                 ent = dsprovif->next(dsprov);
             }
-            objRelease(&dsprov);
+            objRelease(dsprov);
 
             // if this layer is opaque, the buck stops here
             if (pdir->mounts[i]->flags & VFS_Opaque)
@@ -172,6 +172,6 @@ FSDirEnt *vfsSearchNext(VFSDirSearch *search)
 void vfsSearchClose(VFSDirSearch *search)
 {
     saDestroy(&search->ents);
-    objRelease(&search->vfs);
+    objRelease(search->vfs);
     xaFree(search);
 }

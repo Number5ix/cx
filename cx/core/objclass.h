@@ -77,7 +77,7 @@ _meta_inline void _objRelease(ObjInst **instp)
 
     *instp = NULL;
 }
-#define objRelease(inst) (objInstBase(*(inst)), _objRelease((ObjInst**)inst))
+#define objRelease(inst) (objInstBase(inst), _objRelease(&(ObjInst*)(inst)))
 
 // Functions to get a populated interface from a class or instance
 ObjIface *_objClassIf(ObjClassInfo *cls, ObjIface *iftmpl);

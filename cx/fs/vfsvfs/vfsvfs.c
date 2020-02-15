@@ -20,7 +20,7 @@ VFSVFS *VFSVFS_create(VFS *vfs, string rootpath)
     strDup(&ret->root, rootpath);
 
     if (!objInstInit(ret))
-        objRelease(&ret);
+        objRelease(ret);
     return ret;
 }
 
@@ -103,7 +103,7 @@ bool VFSVFS_rename(VFSVFS *self, string oldpath, string newpath)
 void VFSVFS_destroy(VFSVFS *self)
 {
 // ==================== Auto-generated section begins ====================
-    objRelease(&self->vfs);
+    objRelease(self->vfs);
     strDestroy(&self->root);
 // ==================== Auto-generated section ends ======================
 }

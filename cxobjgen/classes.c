@@ -330,7 +330,7 @@ bool processClass(Class *cls)
             saPush(&ifaces, object, clsif, Unique);
             cls->classif = clsif;
         } else {
-            objRelease(&clsif);
+            objRelease(clsif);
         }
     } else {
         // mark mixin methods
