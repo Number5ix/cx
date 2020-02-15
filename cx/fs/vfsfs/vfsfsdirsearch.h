@@ -18,15 +18,20 @@ extern VFSFSDirSearch_ClassIf VFSFSDirSearch_ClassIf_tmpl;
 
 typedef struct VFSFSDirSearch {
     VFSFSDirSearch_ClassIf *_;
-    ObjClassInfo *_clsinfo;
+    union {
+        ObjClassInfo *_clsinfo;
+        void *_is_VFSFSDirSearch;
+        void *_is_ObjInst;
+    };
     atomic(intptr) _ref;
 
     FSDirSearch *dirsearch;
 } VFSFSDirSearch;
 extern ObjClassInfo VFSFSDirSearch_clsinfo;
+#define VFSFSDirSearch(inst) ((VFSFSDirSearch*)(&((inst)->_is_VFSFSDirSearch), (inst)))
 
 VFSFSDirSearch *VFSFSDirSearch_create(FSDirSearch *ds);
 #define vfsfsdirsearchCreate(ds) VFSFSDirSearch_create(ds)
-#define vfsfsdirsearchClose(self) (self)->_->close(objInstBase(self))
-#define vfsfsdirsearchNext(self) (self)->_->next(objInstBase(self))
+#define vfsfsdirsearchClose(self) (self)->_->close(VFSFSDirSearch(self))
+#define vfsfsdirsearchNext(self) (self)->_->next(VFSFSDirSearch(self))
 

@@ -24,19 +24,24 @@ extern VFSVFSFile_ClassIf VFSVFSFile_ClassIf_tmpl;
 
 typedef struct VFSVFSFile {
     VFSVFSFile_ClassIf *_;
-    ObjClassInfo *_clsinfo;
+    union {
+        ObjClassInfo *_clsinfo;
+        void *_is_VFSVFSFile;
+        void *_is_ObjInst;
+    };
     atomic(intptr) _ref;
 
     VFSFile *file;
 } VFSVFSFile;
 extern ObjClassInfo VFSVFSFile_clsinfo;
+#define VFSVFSFile(inst) ((VFSVFSFile*)(&((inst)->_is_VFSVFSFile), (inst)))
 
 VFSVFSFile *VFSVFSFile_create(VFSFile *f);
 #define vfsvfsfileCreate(f) VFSVFSFile_create(f)
-#define vfsvfsfileClose(self) (self)->_->close(objInstBase(self))
-#define vfsvfsfileRead(self, buf, sz, bytesread) (self)->_->read(objInstBase(self), buf, sz, bytesread)
-#define vfsvfsfileWrite(self, buf, sz, byteswritten) (self)->_->write(objInstBase(self), buf, sz, byteswritten)
-#define vfsvfsfileTell(self) (self)->_->tell(objInstBase(self))
-#define vfsvfsfileSeek(self, off, seektype) (self)->_->seek(objInstBase(self), off, seektype)
-#define vfsvfsfileFlush(self) (self)->_->flush(objInstBase(self))
+#define vfsvfsfileClose(self) (self)->_->close(VFSVFSFile(self))
+#define vfsvfsfileRead(self, buf, sz, bytesread) (self)->_->read(VFSVFSFile(self), buf, sz, bytesread)
+#define vfsvfsfileWrite(self, buf, sz, byteswritten) (self)->_->write(VFSVFSFile(self), buf, sz, byteswritten)
+#define vfsvfsfileTell(self) (self)->_->tell(VFSVFSFile(self))
+#define vfsvfsfileSeek(self, off, seektype) (self)->_->seek(VFSVFSFile(self), off, seektype)
+#define vfsvfsfileFlush(self) (self)->_->flush(VFSVFSFile(self))
 

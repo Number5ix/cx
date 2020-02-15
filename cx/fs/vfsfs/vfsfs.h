@@ -25,22 +25,27 @@ extern VFSFS_ClassIf VFSFS_ClassIf_tmpl;
 
 typedef struct VFSFS {
     VFSFS_ClassIf *_;
-    ObjClassInfo *_clsinfo;
+    union {
+        ObjClassInfo *_clsinfo;
+        void *_is_VFSFS;
+        void *_is_ObjInst;
+    };
     atomic(intptr) _ref;
 
     string root;
 } VFSFS;
 extern ObjClassInfo VFSFS_clsinfo;
+#define VFSFS(inst) ((VFSFS*)(&((inst)->_is_VFSFS), (inst)))
 
 VFSFS *VFSFS_create(string rootpath);
 #define vfsfsCreate(rootpath) VFSFS_create(rootpath)
-#define vfsfsGetFSPath(self, out, path) (self)->_->getFSPath(objInstBase(self), out, path)
-#define vfsfsFlags(self) (self)->_->flags(objInstBase(self))
-#define vfsfsOpen(self, path, flags) (self)->_->open(objInstBase(self), path, flags)
-#define vfsfsStat(self, path, stat) (self)->_->stat(objInstBase(self), path, stat)
-#define vfsfsCreateDir(self, path) (self)->_->createDir(objInstBase(self), path)
-#define vfsfsRemoveDir(self, path) (self)->_->removeDir(objInstBase(self), path)
-#define vfsfsDeleteFile(self, path) (self)->_->deleteFile(objInstBase(self), path)
-#define vfsfsRename(self, oldpath, newpath) (self)->_->rename(objInstBase(self), oldpath, newpath)
-#define vfsfsSearchDir(self, path, pattern, stat) (self)->_->searchDir(objInstBase(self), path, pattern, stat)
+#define vfsfsGetFSPath(self, out, path) (self)->_->getFSPath(VFSFS(self), out, path)
+#define vfsfsFlags(self) (self)->_->flags(VFSFS(self))
+#define vfsfsOpen(self, path, flags) (self)->_->open(VFSFS(self), path, flags)
+#define vfsfsStat(self, path, stat) (self)->_->stat(VFSFS(self), path, stat)
+#define vfsfsCreateDir(self, path) (self)->_->createDir(VFSFS(self), path)
+#define vfsfsRemoveDir(self, path) (self)->_->removeDir(VFSFS(self), path)
+#define vfsfsDeleteFile(self, path) (self)->_->deleteFile(VFSFS(self), path)
+#define vfsfsRename(self, oldpath, newpath) (self)->_->rename(VFSFS(self), oldpath, newpath)
+#define vfsfsSearchDir(self, path, pattern, stat) (self)->_->searchDir(VFSFS(self), path, pattern, stat)
 

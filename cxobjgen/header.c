@@ -49,10 +49,17 @@ static void writeUnbound(BufFile *bf, Class *cls, Class *cur, Method ***done)
             }
             strNConcat(&ln, ln, _S") ", implname, m->standalone ? _S"(" : _S"(self");
             for (int j = 0; j < saSize(&m->params); j++) {
+                string extra1 = 0, extra2 = 0;
+                // use cast macro for classes that we know about
+                if (htHasKey(&clsidx, string, m->params[j]->type) && strEq(m->params[j]->predecr, _S"*")) {
+                    strConcat(&extra1, m->params[j]->type, _S"(");
+                    extra2 = _S")";
+                }
                 if (!m->standalone || j > 0)
-                    strNConcat(&ln, ln, _S", ", m->params[j]->name);
+                    strNConcat(&ln, ln, _S", ", extra1, m->params[j]->name, extra2);
                 else
-                    strNConcat(&ln, ln, m->params[j]->name);
+                    strNConcat(&ln, ln, extra1, m->params[j]->name, extra2);
+                strDestroy(&extra1);
             }
             strAppend(&ln, _S")");
             bfWriteLine(bf, ln);
@@ -67,9 +74,13 @@ static void writeUnbound(BufFile *bf, Class *cls, Class *cur, Method ***done)
                 strNConcat(&ln, ln, _S", ", m->params[j]->name);
             }
             methodImplName(&implname, cur, m->name);
-            strNConcat(&ln, ln, _S") ", implname, _S"((", cur->name, _S"*)objInstBase(self)");
+            strNConcat(&ln, ln, _S") ", implname, _S"(", cur->name, _S"(self)");
             for (int j = 0; j < saSize(&m->params); j++) {
-                strNConcat(&ln, ln, _S", ", m->params[j]->name);
+                // use cast macro for classes that we know about
+                if (htHasKey(&clsidx, string, m->params[j]->type) && strEq(m->params[j]->predecr, _S"*"))
+                    strNConcat(&ln, ln, _S", ", m->params[j]->type, _S"(", m->params[j]->name, _S")");
+                else
+                    strNConcat(&ln, ln, _S", ", m->params[j]->name);
             }
             strAppend(&ln, _S")");
             bfWriteLine(bf, ln);
@@ -156,6 +167,17 @@ static void writeClassMember(BufFile *bf, Class *cls, Member *m)
     strDestroy(&ln);
 }
 
+static void writeClassTypeMarkers(BufFile *bf, Class *cls)
+{
+    string ln = 0;
+    strNConcat(&ln, _S"        void *_is_", cls->name, _S";");
+    bfWriteLine(bf, ln);
+    strDestroy(&ln);
+
+    if (cls->parent)
+        writeClassTypeMarkers(bf, cls->parent);
+}
+
 void writeClassDecl(BufFile *bf, Class *cls)
 {
     string ln = 0, mname = 0;
@@ -169,7 +191,11 @@ void writeClassDecl(BufFile *bf, Class *cls)
         else
             strDup(&ln, _S"    ObjIface *_;");
         bfWriteLine(bf, ln);
-        bfWriteLine(bf, _S"    ObjClassInfo *_clsinfo;");
+        bfWriteLine(bf, _S"    union {");
+        bfWriteLine(bf, _S"        ObjClassInfo *_clsinfo;");
+        writeClassTypeMarkers(bf, cls);
+        bfWriteLine(bf, _S"        void *_is_ObjInst;");
+        bfWriteLine(bf, _S"    };");
         bfWriteLine(bf, _S"    atomic(intptr) _ref;");
         bfWriteLine(bf, NULL);
     }
@@ -185,6 +211,9 @@ void writeClassDecl(BufFile *bf, Class *cls)
         strNConcat(&ln, _S"extern ObjClassInfo ", cls->name, _S"_clsinfo;");
         bfWriteLine(bf, ln);
     }
+    strNConcat(&ln, _S"#define ", cls->name, _S"(inst) ((", cls->name,
+               _S"*)(&((inst)->_is_", cls->name, _S"), (inst)))");
+    bfWriteLine(bf, ln);
     bfWriteLine(bf, NULL);
 
     if (cls->mixin)
@@ -203,9 +232,13 @@ void writeClassDecl(BufFile *bf, Class *cls)
         for (int j = 0; j < saSize(&m->params); j++) {
             strNConcat(&ln, ln, _S", ", m->params[j]->name);
         }
-        strNConcat(&ln, ln, _S") (self)->_->", m->name, _S"(objInstBase(self)");
+        strNConcat(&ln, ln, _S") (self)->_->", m->name, _S"(", cls->name, _S"(self)");
         for (int j = 0; j < saSize(&m->params); j++) {
-            strNConcat(&ln, ln, _S", ", m->params[j]->name);
+            // use cast macro for classes that we know about
+            if (htHasKey(&clsidx, string, m->params[j]->type) && strEq(m->params[j]->predecr, _S"*"))
+                strNConcat(&ln, ln, _S", ", m->params[j]->type, _S"(", m->params[j]->name, _S")");
+            else
+                strNConcat(&ln, ln, _S", ", m->params[j]->name);
         }
         strAppend(&ln, _S")");
         bfWriteLine(bf, ln);

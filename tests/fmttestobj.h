@@ -17,15 +17,20 @@ extern FmtTestClass_ClassIf FmtTestClass_ClassIf_tmpl;
 
 typedef struct FmtTestClass {
     FmtTestClass_ClassIf *_;
-    ObjClassInfo *_clsinfo;
+    union {
+        ObjClassInfo *_clsinfo;
+        void *_is_FmtTestClass;
+        void *_is_ObjInst;
+    };
     atomic(intptr) _ref;
 
     int32 iv;
     string sv;
 } FmtTestClass;
 extern ObjClassInfo FmtTestClass_clsinfo;
+#define FmtTestClass(inst) ((FmtTestClass*)(&((inst)->_is_FmtTestClass), (inst)))
 
 FmtTestClass *FmtTestClass_create(int32 ival, string sval);
 #define fmtTestClassCreate(ival, sval) FmtTestClass_create(ival, sval)
-#define fmtTestClassFormat(self, v, out) (self)->_->format(objInstBase(self), v, out)
+#define fmtTestClassFormat(self, v, out) (self)->_->format(FmtTestClass(self), v, out)
 

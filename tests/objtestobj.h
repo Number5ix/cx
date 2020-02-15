@@ -111,48 +111,73 @@ extern TestCls5_ClassIf TestCls5_ClassIf_tmpl;
 
 typedef struct TestCls1 {
     TestCls1_ClassIf *_;
-    ObjClassInfo *_clsinfo;
+    union {
+        ObjClassInfo *_clsinfo;
+        void *_is_TestCls1;
+        void *_is_ObjInst;
+    };
     atomic(intptr) _ref;
 
     int data;
 } TestCls1;
 extern ObjClassInfo TestCls1_clsinfo;
+#define TestCls1(inst) ((TestCls1*)(&((inst)->_is_TestCls1), (inst)))
 
 TestCls1 *TestCls1_create();
 #define testCls1Create() TestCls1_create()
-#define testCls1Testfunc(self) (self)->_->testfunc(objInstBase(self))
+#define testCls1Testfunc(self) (self)->_->testfunc(TestCls1(self))
 
 typedef struct TestCls2 {
     TestCls2_ClassIf *_;
-    ObjClassInfo *_clsinfo;
+    union {
+        ObjClassInfo *_clsinfo;
+        void *_is_TestCls2;
+        void *_is_TestCls1;
+        void *_is_ObjInst;
+    };
     atomic(intptr) _ref;
 
     int data;
 } TestCls2;
 extern ObjClassInfo TestCls2_clsinfo;
+#define TestCls2(inst) ((TestCls2*)(&((inst)->_is_TestCls2), (inst)))
 
 TestCls2 *TestCls2_create();
 #define testCls2Create() TestCls2_create()
-#define testCls2Testfunc(self) (self)->_->testfunc(objInstBase(self))
+#define testCls2Testfunc(self) (self)->_->testfunc(TestCls2(self))
 
 typedef struct TestCls3 {
     TestCls3_ClassIf *_;
-    ObjClassInfo *_clsinfo;
+    union {
+        ObjClassInfo *_clsinfo;
+        void *_is_TestCls3;
+        void *_is_TestCls2;
+        void *_is_TestCls1;
+        void *_is_ObjInst;
+    };
     atomic(intptr) _ref;
 
     int data;
     int data2;
 } TestCls3;
 extern ObjClassInfo TestCls3_clsinfo;
+#define TestCls3(inst) ((TestCls3*)(&((inst)->_is_TestCls3), (inst)))
 
 TestCls3 *TestCls3_create();
 #define testCls3Create() TestCls3_create()
-#define testCls3Testfunc(self) (self)->_->testfunc(objInstBase(self))
-#define testCls3Testfunc2(self) (self)->_->testfunc2(objInstBase(self))
+#define testCls3Testfunc(self) (self)->_->testfunc(TestCls3(self))
+#define testCls3Testfunc2(self) (self)->_->testfunc2(TestCls3(self))
 
 typedef struct TestCls4 {
     TestCls4_ClassIf *_;
-    ObjClassInfo *_clsinfo;
+    union {
+        ObjClassInfo *_clsinfo;
+        void *_is_TestCls4;
+        void *_is_TestCls3;
+        void *_is_TestCls2;
+        void *_is_TestCls1;
+        void *_is_ObjInst;
+    };
     atomic(intptr) _ref;
 
     int data;
@@ -160,15 +185,24 @@ typedef struct TestCls4 {
     int data3;
 } TestCls4;
 extern ObjClassInfo TestCls4_clsinfo;
+#define TestCls4(inst) ((TestCls4*)(&((inst)->_is_TestCls4), (inst)))
 
 TestCls4 *TestCls4_create();
 #define testCls4Create() TestCls4_create()
-#define testCls4Testfunc(self) (self)->_->testfunc(objInstBase(self))
-#define testCls4Testfunc2(self) (self)->_->testfunc2(objInstBase(self))
+#define testCls4Testfunc(self) (self)->_->testfunc(TestCls4(self))
+#define testCls4Testfunc2(self) (self)->_->testfunc2(TestCls4(self))
 
 typedef struct TestCls4a {
     TestCls4a_ClassIf *_;
-    ObjClassInfo *_clsinfo;
+    union {
+        ObjClassInfo *_clsinfo;
+        void *_is_TestCls4a;
+        void *_is_TestCls4;
+        void *_is_TestCls3;
+        void *_is_TestCls2;
+        void *_is_TestCls1;
+        void *_is_ObjInst;
+    };
     atomic(intptr) _ref;
 
     int data;
@@ -177,14 +211,24 @@ typedef struct TestCls4a {
     int data4;
 } TestCls4a;
 extern ObjClassInfo TestCls4a_clsinfo;
+#define TestCls4a(inst) ((TestCls4a*)(&((inst)->_is_TestCls4a), (inst)))
 
-#define testCls4aTestfunc(self) (self)->_->testfunc(objInstBase(self))
-#define testCls4aTestfunc2(self) (self)->_->testfunc2(objInstBase(self))
-#define testCls4aTestfunc3(self) (self)->_->testfunc3(objInstBase(self))
+#define testCls4aTestfunc(self) (self)->_->testfunc(TestCls4a(self))
+#define testCls4aTestfunc2(self) (self)->_->testfunc2(TestCls4a(self))
+#define testCls4aTestfunc3(self) (self)->_->testfunc3(TestCls4a(self))
 
 typedef struct TestCls4b {
     TestCls4b_ClassIf *_;
-    ObjClassInfo *_clsinfo;
+    union {
+        ObjClassInfo *_clsinfo;
+        void *_is_TestCls4b;
+        void *_is_TestCls4a;
+        void *_is_TestCls4;
+        void *_is_TestCls3;
+        void *_is_TestCls2;
+        void *_is_TestCls1;
+        void *_is_ObjInst;
+    };
     atomic(intptr) _ref;
 
     int data;
@@ -194,24 +238,31 @@ typedef struct TestCls4b {
     int data5;
 } TestCls4b;
 extern ObjClassInfo TestCls4b_clsinfo;
+#define TestCls4b(inst) ((TestCls4b*)(&((inst)->_is_TestCls4b), (inst)))
 
 TestCls4b *TestCls4b_create();
 #define testCls4bCreate() TestCls4b_create()
-#define testCls4bTestfunc(self) (self)->_->testfunc(objInstBase(self))
-#define testCls4bTestfunc2(self) (self)->_->testfunc2(objInstBase(self))
-#define testCls4bTestfunc3(self) (self)->_->testfunc3(objInstBase(self))
+#define testCls4bTestfunc(self) (self)->_->testfunc(TestCls4b(self))
+#define testCls4bTestfunc2(self) (self)->_->testfunc2(TestCls4b(self))
+#define testCls4bTestfunc3(self) (self)->_->testfunc3(TestCls4b(self))
 
 typedef struct TestCls5 {
     TestCls5_ClassIf *_;
-    ObjClassInfo *_clsinfo;
+    union {
+        ObjClassInfo *_clsinfo;
+        void *_is_TestCls5;
+        void *_is_TestCls1;
+        void *_is_ObjInst;
+    };
     atomic(intptr) _ref;
 
     int data;
 } TestCls5;
 extern ObjClassInfo TestCls5_clsinfo;
+#define TestCls5(inst) ((TestCls5*)(&((inst)->_is_TestCls5), (inst)))
 
 TestCls5 *TestCls5_create();
 #define testCls5Create() TestCls5_create()
-#define testCls5Testfunc(self) (self)->_->testfunc(objInstBase(self))
-#define testCls5Cmp(self, other, flags) (self)->_->cmp(objInstBase(self), other, flags)
+#define testCls5Testfunc(self) (self)->_->testfunc(TestCls5(self))
+#define testCls5Cmp(self, other, flags) (self)->_->cmp(TestCls5(self), other, flags)
 

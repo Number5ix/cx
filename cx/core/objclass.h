@@ -45,14 +45,17 @@ typedef struct ObjClassInfo {
 // Generic class instance and implicit base for all dynamic objects
 typedef struct ObjInst {
     ObjIface *_classif;         // basically vtable, this is called _ in class instances for less typing
-    ObjClassInfo *_clsinfo;
+    union {
+        ObjClassInfo *_clsinfo;
+        void *_is_ObjInst;
+    };
     atomic(intptr) _ref;        // reference count
 
     // user data members here
 } ObjInst;
 
-#define objInstCheck(inst) static_assert((inst->_clsinfo, offsetof(*(inst), _ref) == offsetof(ObjInst, _ref)), "Not an instance")
-#define objInstBase(inst) ((ObjInst*)(&((inst)->_ref), &((inst)->_clsinfo), (inst)))
+#define objInstCheck(inst) static_assert(offsetof(*(inst), _is_ObjInst) == offsetof(ObjInst, _is_ObjInst), "Not an instance")
+#define objInstBase(inst) ((ObjInst*)(&((inst)->_is_ObjInst), (inst)))
 #define objClsInfo(inst) (inst->_clsinfo)
 
 // DO NOT CALL DIRECTLY! Use objRelease instead
@@ -77,7 +80,7 @@ _meta_inline void _objRelease(ObjInst **instp)
 
     *instp = NULL;
 }
-#define objRelease(inst) (objInstBase(inst), _objRelease(&(ObjInst*)(inst)))
+#define objRelease(inst) (objInstBase(inst), _objRelease((ObjInst**)&(inst)))
 
 // Functions to get a populated interface from a class or instance
 ObjIface *_objClassIf(ObjClassInfo *cls, ObjIface *iftmpl);
