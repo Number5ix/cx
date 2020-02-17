@@ -55,7 +55,8 @@ typedef struct ObjInst {
 } ObjInst;
 
 #define objInstCheck(inst) static_assert(offsetof(*(inst), _is_ObjInst) == offsetof(ObjInst, _is_ObjInst), "Not an instance")
-#define objInstBase(inst) ((ObjInst*)(&((inst)->_is_ObjInst), (inst)))
+#define ObjInst(inst) ((ObjInst*)(&((inst)->_is_ObjInst), (inst)))
+#define objInstBase(inst) ObjInst(inst)
 #define objClsInfo(inst) (inst->_clsinfo)
 
 // DO NOT CALL DIRECTLY! Use objRelease instead

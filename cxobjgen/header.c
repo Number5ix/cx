@@ -3,6 +3,20 @@
 #include <cx/fs/file.h>
 #include <cx/string.h>
 
+static bool isObjectType(Param *param)
+{
+    if (!strEq(param->predecr, _S"*"))
+        return false;
+
+    if (strEq(param->type, _S"ObjInst"))
+        return true;
+
+    if (htHasKey(&clsidx, string, param->type))
+        return true;
+
+    return false;
+}
+
 static void writeUnbound(BufFile *bf, Class *cls, Class *cur, Method ***done)
 {
     string ln = 0, implname = 0, callname = 0;
@@ -51,7 +65,7 @@ static void writeUnbound(BufFile *bf, Class *cls, Class *cur, Method ***done)
             for (int j = 0; j < saSize(&m->params); j++) {
                 string extra1 = 0, extra2 = 0;
                 // use cast macro for classes that we know about
-                if (htHasKey(&clsidx, string, m->params[j]->type) && strEq(m->params[j]->predecr, _S"*")) {
+                if (isObjectType(m->params[j])) {
                     strConcat(&extra1, m->params[j]->type, _S"(");
                     extra2 = _S")";
                 }
@@ -77,7 +91,7 @@ static void writeUnbound(BufFile *bf, Class *cls, Class *cur, Method ***done)
             strNConcat(&ln, ln, _S") ", implname, _S"(", cur->name, _S"(self)");
             for (int j = 0; j < saSize(&m->params); j++) {
                 // use cast macro for classes that we know about
-                if (htHasKey(&clsidx, string, m->params[j]->type) && strEq(m->params[j]->predecr, _S"*"))
+                if (isObjectType(m->params[j]))
                     strNConcat(&ln, ln, _S", ", m->params[j]->type, _S"(", m->params[j]->name, _S")");
                 else
                     strNConcat(&ln, ln, _S", ", m->params[j]->name);
@@ -235,7 +249,7 @@ void writeClassDecl(BufFile *bf, Class *cls)
         strNConcat(&ln, ln, _S") (self)->_->", m->name, _S"(", cls->name, _S"(self)");
         for (int j = 0; j < saSize(&m->params); j++) {
             // use cast macro for classes that we know about
-            if (htHasKey(&clsidx, string, m->params[j]->type) && strEq(m->params[j]->predecr, _S"*"))
+            if (isObjectType(m->params[j]))
                 strNConcat(&ln, ln, _S", ", m->params[j]->type, _S"(", m->params[j]->name, _S")");
             else
                 strNConcat(&ln, ln, _S", ", m->params[j]->name);

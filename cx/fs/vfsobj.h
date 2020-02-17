@@ -47,5 +47,5 @@ extern ObjClassInfo VFSMount_clsinfo;
 #define VFSMount(inst) ((VFSMount*)(&((inst)->_is_VFSMount), (inst)))
 
 VFSMount *VFSMount_create(ObjInst *provider, uint32 flags);
-#define vfsmountCreate(provider, flags) VFSMount_create(provider, flags)
+#define vfsmountCreate(provider, flags) VFSMount_create(ObjInst(provider), flags)
 
