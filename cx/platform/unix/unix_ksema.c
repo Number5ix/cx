@@ -14,7 +14,7 @@ bool kernelSemaDestroy(kernelSema *sema)
     return !sem_destroy(sem);
 }
 
-bool kernelSemaDec(kernelSema *sema)
+bool kernelSemaDec(kernelSema *sema, bool platformevents)
 {
     sem_t *sem = (sem_t*)sema;
     return !sem_wait(sem);
@@ -26,7 +26,7 @@ bool kernelSemaTryDec(kernelSema *sema)
     return !sem_trywait(sem);
 }
 
-bool kernelSemaTryDecTimeout(kernelSema *sema, int64 timeout)
+bool kernelSemaTryDecTimeout(kernelSema *sema, int64 timeout, bool platformevents)
 {
     sem_t *sem = (sem_t*)sema;
     struct timespec to;

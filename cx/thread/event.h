@@ -24,6 +24,7 @@ typedef struct Event {
 enum EVENTINITFUNC_FLAGS {
     EVENTINITFUNC_ = 0,
     EVENTINITFUNC_Spin = 1,
+    EVENTINITFUNC_PlatformEvents = 2,
 };
 
 // Events normally use the "NoSpin" type semaphores.

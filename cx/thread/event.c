@@ -9,6 +9,8 @@ bool _eventInit(Event *e, uint32 flags)
     // See the comments in event.h
     if (!(flags & EVENTINITFUNC_Spin))
         e->sema.flags |= SEMA_NoSpin;
+    if (flags & EVENTINITFUNC_PlatformEvents)
+        e->sema.flags |= SEMA_PlatformEvents;
     return true;
 }
 

@@ -17,10 +17,13 @@ bool kernelSemaDestroy(kernelSema *sema)
     return ret;
 }
 
-bool kernelSemaDec(kernelSema *sema)
+bool kernelSemaDec(kernelSema *sema, bool platformevents)
 {
     HANDLE sem = *(HANDLE*)sema;
-    return WaitForSingleObject(sem, INFINITE) == WAIT_OBJECT_0;
+    if (!platformevents)
+        return WaitForSingleObject(sem, INFINITE) == WAIT_OBJECT_0;
+    else
+        return MsgWaitForMultipleObjects(1, &sem, FALSE, INFINITE, QS_ALLEVENTS) == WAIT_OBJECT_0;
 }
 
 bool kernelSemaTryDec(kernelSema *sema)
@@ -29,10 +32,13 @@ bool kernelSemaTryDec(kernelSema *sema)
     return WaitForSingleObject(sem, 0) == WAIT_OBJECT_0;
 }
 
-bool kernelSemaTryDecTimeout(kernelSema *sema, int64 timeout)
+bool kernelSemaTryDecTimeout(kernelSema *sema, int64 timeout, bool platformevents)
 {
     HANDLE sem = *(HANDLE*)sema;
-    return WaitForSingleObject(sem, (DWORD)timeToMsec(timeout)) == WAIT_OBJECT_0;
+    if (!platformevents)
+        return WaitForSingleObject(sem, (DWORD)timeToMsec(timeout)) == WAIT_OBJECT_0;
+    else
+        return MsgWaitForMultipleObjects(1, &sem, FALSE, (DWORD)timeToMsec(timeout), QS_ALLEVENTS) == WAIT_OBJECT_0;
 }
 
 bool kernelSemaInc(kernelSema *sema, int32 count)

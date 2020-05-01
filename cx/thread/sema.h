@@ -15,6 +15,7 @@
 
 enum SEMA_Flags {
     SEMA_NoSpin            = 0x00000001,
+    SEMA_PlatformEvents    = 0x00000002,        // wait may be interrupted by platform-specific events
     SEMA_KSemaInit         = 0x10000000,
     SEMA_KSemaFallback     = 0x20000000,
     SEMA_KSemaInitProgress = 0x80000000,

@@ -148,10 +148,10 @@ bool _semaContendedDec(Semaphore *sema, int64 timeout)
 #endif
 
         if (!timed)
-            ret = kernelSemaDec(&sema->ksema);
+            ret = kernelSemaDec(&sema->ksema, sema->flags & SEMA_PlatformEvents);
         else {
             int64 ktimeout = clamplow(endtime - clockTimer(), 0);
-            ret = kernelSemaTryDecTimeout(&sema->ksema, ktimeout);
+            ret = kernelSemaTryDecTimeout(&sema->ksema, ktimeout, sema->flags & SEMA_PlatformEvents);
         }
 
         // undo the count adjustment if we failed to get the semaphore

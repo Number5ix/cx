@@ -20,7 +20,7 @@ typedef char kernelSema[KERNEL_SEMA_SIZE];
 
 bool kernelSemaInit(kernelSema *sema, int32 count);
 bool kernelSemaDestroy(kernelSema *sema);
-bool kernelSemaDec(kernelSema *sema);
+bool kernelSemaDec(kernelSema *sema, bool platformevents);
 bool kernelSemaTryDec(kernelSema *sema);
-bool kernelSemaTryDecTimeout(kernelSema *sema, int64 timeout);
+bool kernelSemaTryDecTimeout(kernelSema *sema, int64 timeout, bool platformevents);
 bool kernelSemaInc(kernelSema *sema, int32 count);
