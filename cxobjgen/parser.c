@@ -751,6 +751,8 @@ bool parseFile(string fname, string *realfn, string *searchpath, bool included, 
     }
     if (saPush(&already_parsed, string, fpath, Unique) == -1) {
         strDestroy(&fpath);
+        if (realfn)
+            strClear(realfn);
         return parseEnd(&ps, true);
     }
 

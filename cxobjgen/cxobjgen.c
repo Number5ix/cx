@@ -63,12 +63,17 @@ int main(int argc, char *argv[])
 
         // standard interfaces should always be available, but it's non-fatal if
         // the file can't be located
-        strDup(&fname, _S"cx/core/objstdif.sidl");
-        parseFile(fname, NULL, searchpath, true, false);
-        strClear(&fname);
+        if (!strEndsWith(sidlfiles[i], _S"objstdif.sidl")) {
+            strDup(&fname, _S"cx/core/objstdif.sidl");
+            parseFile(fname, NULL, searchpath, true, false);
+            strClear(&fname);
+        }
 
         if (!parseFile(sidlfiles[i], &fname, searchpath, false, true))
             break;
+
+        if (strEmpty(fname))        // already parsed this file
+            continue;
 
         if (!force && upToDate(fname))
             continue;
