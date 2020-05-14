@@ -155,13 +155,15 @@ static void writeMethods(BufFile *bf, Class *cls, string **seen, bool mixinimpl)
     strDestroy(&ln);
 }
 
-static void writeMixinStubs(BufFile *bf, Class *cls)
+static void writeMixinStubs(BufFile *bf, Class *cls, bool *wroteany)
 {
     string ln = 0, mname = 0, vname = 0;
     for (int i = 0; i < saSize(&cls->methods); i++) {
         Method *m = cls->methods[i];
         if (!m->mixin || cls->mixin)
             continue;
+
+        *wroteany = true;
         writeMethodProto(bf, cls, m, false, false, false);
         bfWriteLine(bf, _S"{");
         strDup(&ln, _S"    ");
@@ -358,10 +360,11 @@ static void writeMixinProtos(BufFile *bf, Class *cls)
     }
 }
 
-static void writeIfaceTmpl(BufFile *bf, Interface *iface)
+static void writeIfaceTmpl(BufFile *bf, Interface *iface, bool *wroteany)
 {
     string ln = 0;
 
+    *wroteany = true;
     strNConcat(&ln, iface->name, _S" ", iface->name, _S"_tmpl = {");
     bfWriteLine(bf, ln);
     strNConcat(&ln, _S"    ._size = sizeof(", iface->name, _S"),");
@@ -447,9 +450,11 @@ static void writeClassIfaceList(BufFile *bf, Class *cls)
     strDestroy(&ln);
 }
 
-static void writeClassImpl(BufFile *bf, Class *cls)
+static void writeClassImpl(BufFile *bf, Class *cls, bool *wroteany)
 {
     string ln = 0;
+
+    *wroteany = true;
 
     for (int i = 0; i < saSize(&cls->implements); i++) {
         writeClassIfaceTbl(bf, cls, cls->implements[i]);
@@ -627,27 +632,35 @@ bool writeImpl(string fname, bool mixinimpl)
     }
 
     if (!mixinimpl) {
+        bool wroteany = false;
+
         bfWriteLine(ibf, autogenBegin);
         bfWriteLine(ibf, autogenNotice);
         for (int i = 0; i < saSize(&classes); i++) {
             if (!classes[i]->included)
-                writeMixinStubs(ibf, classes[i]);
+                writeMixinStubs(ibf, classes[i], &wroteany);
         }
         for (int i = 0; i < saSize(&ifaces); i++) {
             if (!ifaces[i]->included)
-                writeIfaceTmpl(ibf, ifaces[i]);
+                writeIfaceTmpl(ibf, ifaces[i], &wroteany);
         }
         for (int i = 0; i < saSize(&classes); i++) {
             if (!classes[i]->included && !classes[i]->mixin)
-                writeClassImpl(ibf, classes[i]);
+                writeClassImpl(ibf, classes[i], &wroteany);
         }
         bfWriteLine(ibf, autogenEnd);
 
-        bfWriteLine(nbf, autogenBeginShort);
-        pathFilename(&incname, incname);
-        strNConcat(&ln, _S"#include \"", incname, _S"\"");
-        bfWriteLine(nbf, ln);
-        bfWriteLine(nbf, autogenEndShort);
+        if (wroteany) {
+            bfWriteLine(nbf, autogenBeginShort);
+            pathFilename(&incname, incname);
+            strNConcat(&ln, _S"#include \"", incname, _S"\"");
+            bfWriteLine(nbf, ln);
+            bfWriteLine(nbf, autogenEndShort);
+        } else {
+            bfClose(ibf);
+            ibf = NULL;
+            fsDelete(incname);
+        }
     } else {
         bfWriteLine(nbf, autogenBeginShort);
         for (int i = 0; i < saSize(&classes); i++) {
