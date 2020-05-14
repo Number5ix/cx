@@ -61,6 +61,7 @@ typedef struct Param {
     string postdecr;
 } Param;
 extern ObjClassInfo Param_clsinfo;
+#define Param(inst) ((Param*)(&((inst)->_is_Param), (inst)))
 
 Param *Param_create();
 #define paramCreate() Param_create()
@@ -92,11 +93,12 @@ typedef struct Method {
     bool mixin;
 } Method;
 extern ObjClassInfo Method_clsinfo;
+#define Method(inst) ((Method*)(&((inst)->_is_Method), (inst)))
 
 Method *Method_create();
 #define methodCreate() Method_create()
-#define methodClone(self) (self)->_->clone(objInstBase(self))
-#define methodCmp(self, other, flags) (self)->_->cmp(objInstBase(self), other, flags)
+#define methodClone(self) (self)->_->clone(Method(self))
+#define methodCmp(self, other, flags) (self)->_->cmp(Method(self), other, flags)
 
 typedef struct Interface {
     Interface_ClassIf *_;
@@ -116,10 +118,11 @@ typedef struct Interface {
     Method **allmethods;
 } Interface;
 extern ObjClassInfo Interface_clsinfo;
+#define Interface(inst) ((Interface*)(&((inst)->_is_Interface), (inst)))
 
 Interface *Interface_create();
 #define interfaceCreate() Interface_create()
-#define interfaceCmp(self, other, flags) (self)->_->cmp(objInstBase(self), other, flags)
+#define interfaceCmp(self, other, flags) (self)->_->cmp(Interface(self), other, flags)
 
 typedef struct Member {
     Member_ClassIf *_;
@@ -142,10 +145,11 @@ typedef struct Member {
     bool destroy;
 } Member;
 extern ObjClassInfo Member_clsinfo;
+#define Member(inst) ((Member*)(&((inst)->_is_Member), (inst)))
 
 Member *Member_create();
 #define memberCreate() Member_create()
-#define memberCmp(self, other, flags) (self)->_->cmp(objInstBase(self), other, flags)
+#define memberCmp(self, other, flags) (self)->_->cmp(Member(self), other, flags)
 
 typedef struct Class {
     Class_ClassIf *_;
@@ -178,8 +182,9 @@ typedef struct Class {
     Method **allmethods;
 } Class;
 extern ObjClassInfo Class_clsinfo;
+#define Class(inst) ((Class*)(&((inst)->_is_Class), (inst)))
 
 Class *Class_create();
 #define classCreate() Class_create()
-#define classCmp(self, other, flags) (self)->_->cmp(objInstBase(self), other, flags)
+#define classCmp(self, other, flags) (self)->_->cmp(Class(self), other, flags)
 

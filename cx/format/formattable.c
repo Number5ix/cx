@@ -8,9 +8,6 @@
 #include "formattable.h"
 // ==================== Auto-generated section ends ======================
 
-// ==================== Auto-generated section begins ====================
-Formattable Formattable_tmpl = {
-    ._size = sizeof(Formattable),
-};
-
-// ==================== Auto-generated section ends ======================
+// Autogen begins -----
+#include "formattable.auto.inc"
+// Autogen ends -------

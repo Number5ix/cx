@@ -8,13 +8,6 @@
 #include "objstdif.h"
 // ==================== Auto-generated section ends ======================
 
-// ==================== Auto-generated section begins ====================
-Sortable Sortable_tmpl = {
-    ._size = sizeof(Sortable),
-};
-
-Hashable Hashable_tmpl = {
-    ._size = sizeof(Hashable),
-};
-
-// ==================== Auto-generated section ends ======================
+// Autogen begins -----
+#include "objstdif.auto.inc"
+// Autogen ends -------

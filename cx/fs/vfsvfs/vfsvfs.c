@@ -102,10 +102,10 @@ bool VFSVFS_rename(VFSVFS *self, string oldpath, string newpath)
 
 void VFSVFS_destroy(VFSVFS *self)
 {
-// ==================== Auto-generated section begins ====================
+    // Autogen begins -----
     objRelease(self->vfs);
     strDestroy(&self->root);
-// ==================== Auto-generated section ends ======================
+    // Autogen ends -------
 }
 
 ObjInst *VFSVFS_searchDir(VFSVFS *self, string path, string pattern, bool stat)
@@ -122,48 +122,6 @@ ObjInst *VFSVFS_searchDir(VFSVFS *self, string path, string pattern, bool stat)
     return objInstBase(dsprov);
 }
 
-// ==================== Auto-generated section begins ====================
-VFSVFS_ClassIf VFSVFS_ClassIf_tmpl = {
-    ._size = sizeof(VFSVFS_ClassIf),
-};
-
-static VFSProvider _impl_VFSVFS_VFSProvider = {
-    ._size = sizeof(VFSProvider),
-    ._implements = (ObjIface*)&VFSProvider_tmpl,
-    .flags = (uint32 (*)(void*))VFSVFS_flags,
-    .open = (ObjInst *(*)(void*, string, int))VFSVFS_open,
-    .stat = (int (*)(void*, string, FSStat*))VFSVFS_stat,
-    .createDir = (bool (*)(void*, string))VFSVFS_createDir,
-    .removeDir = (bool (*)(void*, string))VFSVFS_removeDir,
-    .deleteFile = (bool (*)(void*, string))VFSVFS_deleteFile,
-    .rename = (bool (*)(void*, string, string))VFSVFS_rename,
-    .searchDir = (ObjInst *(*)(void*, string, string, bool))VFSVFS_searchDir,
-};
-
-static VFSVFS_ClassIf _impl_VFSVFS_VFSVFS_ClassIf = {
-    ._size = sizeof(VFSVFS_ClassIf),
-    ._implements = (ObjIface*)&VFSVFS_ClassIf_tmpl,
-    .flags = (uint32 (*)(void*))VFSVFS_flags,
-    .open = (ObjInst *(*)(void*, string, int))VFSVFS_open,
-    .stat = (int (*)(void*, string, FSStat*))VFSVFS_stat,
-    .createDir = (bool (*)(void*, string))VFSVFS_createDir,
-    .removeDir = (bool (*)(void*, string))VFSVFS_removeDir,
-    .deleteFile = (bool (*)(void*, string))VFSVFS_deleteFile,
-    .rename = (bool (*)(void*, string, string))VFSVFS_rename,
-    .searchDir = (ObjInst *(*)(void*, string, string, bool))VFSVFS_searchDir,
-};
-
-static ObjIface *_ifimpl_VFSVFS[] = {
-    (ObjIface*)&_impl_VFSVFS_VFSProvider,
-    (ObjIface*)&_impl_VFSVFS_VFSVFS_ClassIf,
-    NULL
-};
-
-ObjClassInfo VFSVFS_clsinfo = {
-    .instsize = sizeof(VFSVFS),
-    .classif = (ObjIface*)&VFSVFS_ClassIf_tmpl,
-    .destroy = (void(*)(void*))VFSVFS_destroy,
-    .ifimpl = _ifimpl_VFSVFS,
-};
-
-// ==================== Auto-generated section ends ======================
+// Autogen begins -----
+#include "vfsvfs.auto.inc"
+// Autogen ends -------

@@ -7,6 +7,10 @@
 static const string autogenBegin =  _S"// ==================== Auto-generated section begins ====================";
 static const string autogenNotice = _S"// Do not modify the contents of this section; any changes will be lost!";
 static const string autogenEnd =    _S"// ==================== Auto-generated section ends ======================";
+static const string autogenBeginShort = _S"// Autogen begins -----";
+static const string autogenEndShort =   _S"// Autogen ends -------";
+static const string autogenBeginShortIndent = _S"    // Autogen begins -----";
+static const string autogenEndShortIndent   = _S"    // Autogen ends -------";
 
 static string **parentmacros;
 
@@ -204,7 +208,7 @@ static void writeAutoInit(BufFile *bf, Class *cls)
 {
     string ln = 0, tmp = 0, flags = 0;
 
-    bfWriteLine(bf, autogenBegin);
+    bfWriteLine(bf, autogenBeginShortIndent);
 
     for (int i = 0; i < saSize(&cls->members); i++) {
         Member *m = cls->members[i];
@@ -289,7 +293,7 @@ static void writeAutoInit(BufFile *bf, Class *cls)
     }
 
     bfWriteLine(bf, _S"    return true;");
-    bfWriteLine(bf, autogenEnd);
+    bfWriteLine(bf, autogenEndShortIndent);
     strDestroy(&flags);
     strDestroy(&tmp);
     strDestroy(&ln);
@@ -300,7 +304,7 @@ static void writeAutoDtors(BufFile *bf, Class *cls)
     if (!cls->hasautodtors)
         return;
 
-    bfWriteLine(bf, autogenBegin);
+    bfWriteLine(bf, autogenBeginShortIndent);
 
     for (int i = 0; i < saSize(&cls->members); i++) {
         Member *m = cls->members[i];
@@ -340,7 +344,7 @@ static void writeAutoDtors(BufFile *bf, Class *cls)
         strDestroy(&mdtor);
     }
 
-    bfWriteLine(bf, autogenEnd);
+    bfWriteLine(bf, autogenEndShortIndent);
 }
 
 static void writeMixinProtos(BufFile *bf, Class *cls)
@@ -493,6 +497,8 @@ bool writeImpl(string fname, bool mixinimpl)
     pathSetExt(&cname, fname, !mixinimpl ? _S"c" : _S"impl.h");
     string newcname = 0;
     strConcat(&newcname, cname, _S"new");
+    string incname = 0;
+    pathSetExt(&incname, fname, _S"auto.inc");
 
     FSFile *newf = fsOpen(newcname, Overwrite);
     if (!newf) {
@@ -500,6 +506,18 @@ bool writeImpl(string fname, bool mixinimpl)
         return false;
     }
     BufFile *nbf = bfCreate(newf, true);
+
+    FSFile *incf = 0;
+    BufFile *ibf = 0;
+    if (!mixinimpl) {
+        incf = fsOpen(incname, Overwrite);
+        if (!incf) {
+            fprintf(stderr, "Failed to open %s for writing", lazyPlatformPath(incname));
+            bfClose(nbf);
+            return false;
+        }
+        ibf = bfCreate(incf, true);
+    }
 
     FSFile *oldf = fsOpen(cname, Read);
     BufFile *obf = NULL;
@@ -546,7 +564,7 @@ bool writeImpl(string fname, bool mixinimpl)
     Class *ininit = 0;
     Class *indestroy = 0;
     while (obf && bfReadLine(obf, &ln)) {
-        if (strEq(ln, autogenBegin))
+        if (strEq(ln, autogenBegin) || strEq(ln, autogenBeginShort) || strEq(ln, autogenBeginShortIndent))
             inautogen = true;
         if (!inautogen) {
             wasempty = false;
@@ -593,7 +611,7 @@ bool writeImpl(string fname, bool mixinimpl)
                 bfWriteLine(nbf, ln);
             }
         }
-        if (strEq(ln, autogenEnd)) {
+        if (strEq(ln, autogenEnd) || strEq(ln, autogenEndShort) || strEq(ln, autogenEndShortIndent)) {
             inautogen = false;
         }
     }
@@ -609,31 +627,40 @@ bool writeImpl(string fname, bool mixinimpl)
     }
 
     if (!mixinimpl) {
-        bfWriteLine(nbf, autogenBegin);
+        bfWriteLine(ibf, autogenBegin);
+        bfWriteLine(ibf, autogenNotice);
         for (int i = 0; i < saSize(&classes); i++) {
             if (!classes[i]->included)
-                writeMixinStubs(nbf, classes[i]);
+                writeMixinStubs(ibf, classes[i]);
         }
         for (int i = 0; i < saSize(&ifaces); i++) {
             if (!ifaces[i]->included)
-                writeIfaceTmpl(nbf, ifaces[i]);
+                writeIfaceTmpl(ibf, ifaces[i]);
         }
         for (int i = 0; i < saSize(&classes); i++) {
             if (!classes[i]->included && !classes[i]->mixin)
-                writeClassImpl(nbf, classes[i]);
+                writeClassImpl(ibf, classes[i]);
         }
-        bfWriteLine(nbf, autogenEnd);
+        bfWriteLine(ibf, autogenEnd);
+
+        bfWriteLine(nbf, autogenBeginShort);
+        pathFilename(&incname, incname);
+        strNConcat(&ln, _S"#include \"", incname, _S"\"");
+        bfWriteLine(nbf, ln);
+        bfWriteLine(nbf, autogenEndShort);
     } else {
-        bfWriteLine(nbf, autogenBegin);
+        bfWriteLine(nbf, autogenBeginShort);
         for (int i = 0; i < saSize(&classes); i++) {
             if (!classes[i]->included)
                 writeMixinProtos(nbf, classes[i]);
         }
-        bfWriteLine(nbf, autogenEnd);
+        bfWriteLine(nbf, autogenEndShort);
     }
 
     if (obf)
         bfClose(obf);
+    if (ibf)
+        bfClose(ibf);
     bfClose(nbf);
 
     fsDelete(cname);
@@ -642,6 +669,7 @@ bool writeImpl(string fname, bool mixinimpl)
     pcre2_match_data_free(match);
     pcre2_code_free(reProto);
     strDestroy(&ln);
+    strDestroy(&incname);
     strDestroy(&hname);
     strDestroy(&cname);
     strDestroy(&newcname);

@@ -24,20 +24,20 @@ bool VFS_init(VFS *self)
     self->root = _vfsDirCreate(self, NULL);
     strDup(&self->curdir, fsPathSepStr);
     rwlockInit(&self->vfslock);
-// ==================== Auto-generated section begins ====================
+    // Autogen begins -----
     self->namespaces = htCreate(string, custom(ptr, VFSDir_ops), 4, CaseInsensitive);
     return true;
-// ==================== Auto-generated section ends ======================
+    // Autogen ends -------
 }
 
 void VFS_destroy(VFS *self)
 {
     _stDestroy(stFullType(custom(ptr, VFSDir_ops)), &stgeneric(ptr, self->root), 0);
     rwlockDestroy(&self->vfslock);
-// ==================== Auto-generated section begins ====================
+    // Autogen begins -----
     htDestroy(&self->namespaces);
     strDestroy(&self->curdir);
-// ==================== Auto-generated section ends ======================
+    // Autogen ends -------
 }
 
 VFSMount *VFSMount_create(ObjInst *provider, uint32 flags)
@@ -55,9 +55,9 @@ VFSMount *VFSMount_create(ObjInst *provider, uint32 flags)
 
 void VFSMount_destroy(VFSMount *self)
 {
-// ==================== Auto-generated section begins ====================
+    // Autogen begins -----
     objRelease(self->provider);
-// ==================== Auto-generated section ends ======================
+    // Autogen ends -------
 }
 
 VFS *VFS_createFromFS()
@@ -74,26 +74,6 @@ VFS *VFS_createFromFS()
     return ret;
 }
 
-// ==================== Auto-generated section begins ====================
-static ObjIface *_ifimpl_VFS[] = {
-    NULL
-};
-
-ObjClassInfo VFS_clsinfo = {
-    .instsize = sizeof(VFS),
-    .init = (bool(*)(void*))VFS_init,
-    .destroy = (void(*)(void*))VFS_destroy,
-    .ifimpl = _ifimpl_VFS,
-};
-
-static ObjIface *_ifimpl_VFSMount[] = {
-    NULL
-};
-
-ObjClassInfo VFSMount_clsinfo = {
-    .instsize = sizeof(VFSMount),
-    .destroy = (void(*)(void*))VFSMount_destroy,
-    .ifimpl = _ifimpl_VFSMount,
-};
-
-// ==================== Auto-generated section ends ======================
+// Autogen begins -----
+#include "vfsobj.auto.inc"
+// Autogen ends -------

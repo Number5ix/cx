@@ -8,17 +8,6 @@
 #include "vfsprovider.h"
 // ==================== Auto-generated section ends ======================
 
-// ==================== Auto-generated section begins ====================
-VFSFileProvider VFSFileProvider_tmpl = {
-    ._size = sizeof(VFSFileProvider),
-};
-
-VFSDirSearchProvider VFSDirSearchProvider_tmpl = {
-    ._size = sizeof(VFSDirSearchProvider),
-};
-
-VFSProvider VFSProvider_tmpl = {
-    ._size = sizeof(VFSProvider),
-};
-
-// ==================== Auto-generated section ends ======================
+// Autogen begins -----
+#include "vfsprovider.auto.inc"
+// Autogen ends -------
