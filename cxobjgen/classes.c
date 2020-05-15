@@ -310,10 +310,7 @@ bool processClass(Class *cls)
             string pname = 0;
             strDup(&pname, cls->parent->name);
             strAppend(&pname, _S"_ClassIf");
-            if (!htFind(&ifidx, string, pname, object, &clsif->parent)) {
-                fprintf(stderr, "Impossible error generating class interface");
-                return false;
-            }
+            htFind(&ifidx, string, pname, object, &clsif->parent);
             strDestroy(&pname);
         }
         fillMethods(&clsif->methods, cls);
