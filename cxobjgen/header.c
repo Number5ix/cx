@@ -61,7 +61,10 @@ static void writeUnbound(BufFile *bf, Class *cls, Class *cur, Method ***done)
                 else
                     strNConcat(&ln, ln, m->params[j]->name);
             }
-            strNConcat(&ln, ln, _S") ", implname, m->standalone ? _S"(" : _S"(self");
+            if (m->standalone)
+                strNConcat(&ln, ln, _S") ", implname, _S"(");
+            else
+                strNConcat(&ln, ln, _S") ", implname, _S"(", cur->name, _S"(self)");
             for (int j = 0; j < saSize(&m->params); j++) {
                 string extra1 = 0, extra2 = 0;
                 // use cast macro for classes that we know about
