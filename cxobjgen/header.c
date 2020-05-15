@@ -170,10 +170,12 @@ static void writeClassMember(BufFile *bf, Class *cls, Member *m)
 
     strDup(&predecr, m->predecr);
 
-    for (int i = 0; i < saSize(&m->fulltype); i++) {
-        if (strEq(m->fulltype[i], _S"sarray") ||
-            strEq(m->fulltype[i], _S"object")) {
-            strPrepend(_S"*", &predecr);
+    if (!strEq(m->vartype, _S"hashtable")) {
+        for (int i = 0; i < saSize(&m->fulltype); i++) {
+            if (strEq(m->fulltype[i], _S"sarray") ||
+                strEq(m->fulltype[i], _S"object")) {
+                strPrepend(_S"*", &predecr);
+            }
         }
     }
 
