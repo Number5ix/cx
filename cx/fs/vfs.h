@@ -12,6 +12,9 @@ CX_C_BEGIN
 
 // vfsCreate() is in vfsobj.h
 void vfsDestroy(VFS *vfs);
+
+bool vfsUnmount(VFS *vfs, string path);
+
 bool _vfsMountProvider(VFS *vfs, ObjInst *provider, string path, uint32 flags);
 #define vfsMountProvider(vfs, provider, path, ...) _vfsMountProvider(vfs, objInstBase(provider), path, func_flags(VFS, __VA_ARGS__))
 

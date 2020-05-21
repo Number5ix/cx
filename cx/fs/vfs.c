@@ -145,6 +145,48 @@ out:
     return ret;
 }
 
+bool vfsUnmount(VFS *vfs, string path)
+{
+    string ns = 0, rpath = 0;
+    bool ret = false;
+
+    rwlockAcquireWrite(&vfs->vfsdlock);
+
+    if (!pathIsAbsolute(path))
+        goto out;           // must unmount with an absolute path
+
+    pathSplitNS(&ns, &rpath, path);
+    strDestroy(&rpath);
+
+    VFSDir *dir = _vfsGetDir(vfs, path, false, true, true);
+    if (!dir)
+        goto out;
+
+    vfsUnmountAll(dir);
+
+    if (dir->parent) {
+        // remove this dir from the tree; it'll be recached if a parent provider
+        // still has it
+        htRemove(&dir->parent->subdirs, string, dir->name);
+    } else {
+        // this is the root of something
+        if (!strEmpty(ns)) {
+            // it's a namespace, nuke it
+            htRemove(&vfs->namespaces, string, ns);
+        } else {
+            // the root namespace should never be removed...
+            // but invalidate the cache
+            _vfsInvalidateRecursive(vfs, dir, true);
+        }
+    }
+    ret = true;
+
+out:
+    rwlockReleaseWrite(&vfs->vfsdlock);
+    strDestroy(&ns);
+    return ret;
+}
+
 // Mounts the built-in OS filesystem provider to the given VFS
 bool _vfsMountFS(VFS *vfs, string path, string fsroot, uint32 flags)
 {
