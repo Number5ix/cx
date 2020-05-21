@@ -18,6 +18,7 @@ enum FSOpenFlags {
     FS_Write    = 2,
     FS_Create   = 4,
     FS_Truncate = 8,
+    FS_Lock     = 16,
     FS_Overwrite = (FS_Write | FS_Create | FS_Truncate),
 };
 
