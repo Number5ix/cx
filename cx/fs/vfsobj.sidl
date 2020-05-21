@@ -8,7 +8,11 @@ class VFS {
     [init htCreate(string, custom(ptr, VFSDir_ops), 4, CaseInsensitive)]
         hashtable namespaces;   // hashtable of string/VFSDir
     string curdir;
+    // vfslock is for adding entires to the directory cache
     RWLock vfslock;
+    // vfsdlock is for operations such as mounting / unmounting / invalidating cache
+    // that may destroy VFSDir entries and remove mounts
+    RWLock vfsdlock;
     uint32 flags;
 
     // Create an empty VFS with nothing mounted

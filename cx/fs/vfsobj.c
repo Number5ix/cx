@@ -24,6 +24,7 @@ bool VFS_init(VFS *self)
     self->root = _vfsDirCreate(self, NULL);
     strDup(&self->curdir, fsPathSepStr);
     rwlockInit(&self->vfslock);
+    rwlockInit(&self->vfsdlock);
     // Autogen begins -----
     self->namespaces = htCreate(string, custom(ptr, VFSDir_ops), 4, CaseInsensitive);
     return true;
@@ -33,6 +34,7 @@ bool VFS_init(VFS *self)
 void VFS_destroy(VFS *self)
 {
     _stDestroy(stFullType(custom(ptr, VFSDir_ops)), &stgeneric(ptr, self->root), 0);
+    rwlockDestroy(&self->vfsdlock);
     rwlockDestroy(&self->vfslock);
     // Autogen begins -----
     htDestroy(&self->namespaces);

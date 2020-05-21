@@ -101,11 +101,13 @@ static bool vfsCOWFile(VFSFile *file)
     ObjInst *cowfile = 0;
     size_t bytes;
 
+    rwlockAcquireRead(&file->vfs->vfsdlock);
     rwlockAcquireWrite(&file->vfs->vfslock);
 
     if (!file->cowprov) {
         // another thread beat us to the lock
         rwlockReleaseWrite(&file->vfs->vfslock);
+        rwlockReleaseRead(&file->vfs->vfsdlock);
         return true;
     }
 
@@ -148,6 +150,7 @@ static bool vfsCOWFile(VFSFile *file)
     objRelease(file->cowprov);
     xaFree(buf);
     rwlockReleaseWrite(&file->vfs->vfslock);
+    rwlockReleaseRead(&file->vfs->vfsdlock);
 
     _vfsInvalidateCache(file->vfs, file->cowpath);
     return true;

@@ -57,6 +57,7 @@ VFSDirSearch *vfsSearchDir(VFS *vfs, string path, string pattern, int typefilter
         names = htCreate(string, intptr, 8, CaseInsensitive, RefKeys, Grow(MaxSpeed));
 
     // just hold the write lock for this since we'll be adding entries to the cache throughout
+    rwlockAcquireRead(&vfs->vfsdlock);
     rwlockAcquireWrite(&vfs->vfslock);
 
     _vfsAbsPath(vfs, &abspath, path);
@@ -149,6 +150,7 @@ VFSDirSearch *vfsSearchDir(VFS *vfs, string path, string pattern, int typefilter
 
 done:
     rwlockReleaseWrite(&vfs->vfslock);
+    rwlockReleaseRead(&vfs->vfsdlock);
     saSort(&ret->ents, true);
 
     strDestroy(&ns);

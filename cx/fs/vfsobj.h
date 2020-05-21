@@ -21,6 +21,7 @@ typedef struct VFS {
     hashtable namespaces;
     string curdir;
     RWLock vfslock;
+    RWLock vfsdlock;
     uint32 flags;
 } VFS;
 extern ObjClassInfo VFS_clsinfo;
