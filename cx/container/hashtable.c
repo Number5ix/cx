@@ -393,6 +393,7 @@ void htClear(hashtable *htbl)
             *(uint64*)HTKEY(hdr, elemsz, i) = hashEmpty;
         }
     }
+    hdr->valid = 0;
 }
 
 void htDestroy(hashtable *htbl)
