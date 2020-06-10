@@ -41,6 +41,8 @@ typedef struct htiter {
 #define hteValPtr(handle, elem, type) ((stStorageType(type)*)((*(handle) && (elem)) ? ((uintptr)(elem) + stGetSize(HTABLE_HDR(*(handle))->keytype)) : 0))
 #define hteKey(handle, elem, type) (*hteKeyPtr(handle, elem, type))
 #define hteVal(handle, elem, type) (*hteValPtr(handle, elem, type))
+#define htiKeyPtr(iter, type) (((stStorageType(type)*)((iter).elem)))
+#define htiValPtr(iter, type) (((stStorageType(type)*)((uintptr)((iter).elem) + stGetSize((iter).hdr->keytype))))
 #define htiKey(iter, type) (*((stStorageType(type)*)((iter).elem)))
 #define htiVal(iter, type) (*((stStorageType(type)*)((uintptr)((iter).elem) + stGetSize((iter).hdr->keytype))))
 
