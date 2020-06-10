@@ -41,6 +41,7 @@ typedef struct VFSProvider {
     bool (*removeDir)(void *self, string path);
     bool (*deleteFile)(void *self, string path);
     bool (*rename)(void *self, string oldpath, string newpath);
+    bool (*getFSPath)(void *self, string *out, string path);
     ObjInst *(*searchDir)(void *self, string path, string pattern, bool stat);
 } VFSProvider;
 extern VFSProvider VFSProvider_tmpl;

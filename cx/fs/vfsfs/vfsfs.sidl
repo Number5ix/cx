@@ -3,6 +3,5 @@
 class VFSFS implements VFSProvider {
     string root;
 
-    bool getFSPath(string *out, string path);
     factory create(string rootpath);
 }

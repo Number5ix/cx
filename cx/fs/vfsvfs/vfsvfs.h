@@ -20,6 +20,7 @@ typedef struct VFSVFS_ClassIf {
     bool (*removeDir)(void *self, string path);
     bool (*deleteFile)(void *self, string path);
     bool (*rename)(void *self, string oldpath, string newpath);
+    bool (*getFSPath)(void *self, string *out, string path);
     ObjInst *(*searchDir)(void *self, string path, string pattern, bool stat);
 } VFSVFS_ClassIf;
 extern VFSVFS_ClassIf VFSVFS_ClassIf_tmpl;
@@ -48,5 +49,6 @@ VFSVFS *VFSVFS_create(VFS *vfs, string rootpath);
 #define vfsvfsRemoveDir(self, path) (self)->_->removeDir(VFSVFS(self), path)
 #define vfsvfsDeleteFile(self, path) (self)->_->deleteFile(VFSVFS(self), path)
 #define vfsvfsRename(self, oldpath, newpath) (self)->_->rename(VFSVFS(self), oldpath, newpath)
+#define vfsvfsGetFSPath(self, out, path) (self)->_->getFSPath(VFSVFS(self), out, path)
 #define vfsvfsSearchDir(self, path, pattern, stat) (self)->_->searchDir(VFSVFS(self), path, pattern, stat)
 

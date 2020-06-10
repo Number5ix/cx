@@ -122,6 +122,17 @@ ObjInst *VFSVFS_searchDir(VFSVFS *self, string path, string pattern, bool stat)
     return objInstBase(dsprov);
 }
 
+bool VFSVFS_getFSPath(VFSVFS *self, string *out, string path)
+{
+    string vfspath = 0;
+    pathJoin(&vfspath, self->root, path);
+
+    bool ret = vfsGetFSPath(out, self->vfs, vfspath);
+
+    strDestroy(&vfspath);
+    return ret;
+}
+
 // Autogen begins -----
 #include "vfsvfs.auto.inc"
 // Autogen ends -------

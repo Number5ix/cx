@@ -215,13 +215,11 @@ bool vfsGetFSPath(string *out, VFS *vfs, string path)
         goto out;
     }
 
-    VFSFS *vfsfs = objDynCast(m->provider, VFSFS);
-    if (!vfsfs) {
+    VFSProvider *provif = objInstIf(m->provider, VFSProvider);
+    if (provif)
+        ret = provif->getFSPath(m->provider, out, rpath);
+    else
         cxerr = CX_InvalidArgument;
-        goto out;
-    }
-
-    ret = vfsfs->_->getFSPath(m->provider, out, rpath);
 
 out:
     strDestroy(&rpath);

@@ -14,13 +14,13 @@ static VFSProvider _impl_VFSFS_VFSProvider = {
     .removeDir = (bool (*)(void*, string))VFSFS_removeDir,
     .deleteFile = (bool (*)(void*, string))VFSFS_deleteFile,
     .rename = (bool (*)(void*, string, string))VFSFS_rename,
+    .getFSPath = (bool (*)(void*, string*, string))VFSFS_getFSPath,
     .searchDir = (ObjInst *(*)(void*, string, string, bool))VFSFS_searchDir,
 };
 
 static VFSFS_ClassIf _impl_VFSFS_VFSFS_ClassIf = {
     ._size = sizeof(VFSFS_ClassIf),
     ._implements = (ObjIface*)&VFSFS_ClassIf_tmpl,
-    .getFSPath = (bool (*)(void*, string*, string))VFSFS_getFSPath,
     .flags = (uint32 (*)(void*))VFSFS_flags,
     .open = (ObjInst *(*)(void*, string, int))VFSFS_open,
     .stat = (int (*)(void*, string, FSStat*))VFSFS_stat,
@@ -28,6 +28,7 @@ static VFSFS_ClassIf _impl_VFSFS_VFSFS_ClassIf = {
     .removeDir = (bool (*)(void*, string))VFSFS_removeDir,
     .deleteFile = (bool (*)(void*, string))VFSFS_deleteFile,
     .rename = (bool (*)(void*, string, string))VFSFS_rename,
+    .getFSPath = (bool (*)(void*, string*, string))VFSFS_getFSPath,
     .searchDir = (ObjInst *(*)(void*, string, string, bool))VFSFS_searchDir,
 };
 

@@ -24,6 +24,7 @@ interface VFSProvider {
     bool removeDir(string path);
     bool deleteFile(string path);
     bool rename(string oldpath, string newpath);
+    bool getFSPath(string *out, string path);
 
     ObjInst *searchDir(string path, string pattern, bool stat);
 }
