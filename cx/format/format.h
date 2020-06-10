@@ -19,13 +19,12 @@
  * type#(width,fmtopts)extra;default
  *
  * type is a type name (see below), and the number indicates the n-th instance of that
- * particular type in the format arguments. The type and number are both OPTIONAL, but
- * also REQUIRED -- you must specify either or both. If the number is ommitted, an
- * internal count is maintaned, and each time that type name is used, the count is
- * increased.
+ * particular type in the format arguments. The type is REQUIRED and the number is
+ * OPTIONAL. If the number is ommitted, an internal count is maintaned, and each time
+ * that type name is used, the count is increased.
  *
- * For example, ${string} indicates the next string in the argument sequence, ${int3}
- * uses the third integer, and ${4} uses the 4th argument regardless of type.
+ * For example, ${string} indicates the next string in the argument sequence, and
+ * ${int3} uses the third integer.
  *
  * An optional prefix may precede the type name. Supported prefixes are:
  *   -   For numeric types, leave an extra space for the sign if positive
