@@ -17,7 +17,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInst, _In_opt_ HINSTANCE hPrev, _In_ PWSTR c
 }
 #else
 #define DEFINE_ENTRY_POINT                                                                               \
-int WINAPI WinMain(_In_ HINSTANCE hInst, _In_opt_ HINSTANCE hPrev, _In_ PWSTR cmdline, _In_ int show) {  \
+int WINAPI WinMain(_In_ HINSTANCE hInst, _In_opt_ HINSTANCE hPrev, _In_ PSTR cmdline, _In_ int show) {  \
     entryCmdShow = show;                                                                                 \
     _entryParseArgs(__argc, __argv);                                                                     \
     return entryPoint();                                                                                 \
