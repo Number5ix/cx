@@ -79,23 +79,24 @@ void pathFromPlatform(string *out, string platformpath)
     while ((idx = strFind(rpath, idx, _S"\\")) != -1)
         strSetChar(&rpath, idx, '/');
 
+    uint32 origlen = strLen(rpath);
     char *buf = strBuffer(&rpath, 4);
 
     if (buf[0] == '/' && (buf[1] == '/' || buf[1] == '?') &&
         (buf[2] == '?' || buf[2] == '.') && buf[3] == '/') {
         // reserved prefix, can't use this!
-        strSubStrI(&rpath, 4, strEnd);
+        strSubStrI(&rpath, 4, origlen);
         buf = strBuffer(&rpath, 4);
     }
 
     if (buf[1] == ':' && buf[2] == '/') {
         // absolute path
         strSubStr(&ns, rpath, 0, 1);
-        strSubStrI(&rpath, 2, strEnd);
+        strSubStrI(&rpath, 2, origlen);
     } else if (buf[0] == '/' && buf[1] == '/') {
         // unc
         strDup(&ns, _S"unc");
-        strSubStrI(&rpath, 1, strEnd);
+        strSubStrI(&rpath, 1, origlen);
     } else if (buf[0] == '/') {
         // starts with a slash, but not a UNC path...
         // must be drive relative, so get the drive letter from curdir
@@ -103,6 +104,11 @@ void pathFromPlatform(string *out, string platformpath)
         rwlockAcquireRead(&_fsCurDirLock);
         strSubStr(&ns, _fsCurDir, 0, 1);
         rwlockReleaseRead(&_fsCurDirLock);
+        if (origlen < 4)
+            strSetLen(&rpath, origlen);
+    } else {
+        if (origlen < 4)
+            strSetLen(&rpath, origlen);
     }
 
     if (!strEmpty(ns)) {
@@ -123,8 +129,9 @@ void pathToPlatform(string *out, string path)
     string ns = 0, rpath = 0;
     string ret = 0;
     pathSplitNS(&ns, &rpath, path);
+    strUpper(&ns);
 
-    if (strEq(ns, _S"unc")) {
+    if (strEq(ns, _S"UNC")) {
         strNConcat(&ret, _S"/", rpath);
     } else if (!strEmpty(ns)) {
         strNConcat(&ret, ns, _S":", rpath);
