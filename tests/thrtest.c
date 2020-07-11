@@ -40,6 +40,7 @@ static int test_basic()
 
     for (i = 0; i < BASIC_THREADS; i++) {
         threads[i] = thrCreate(thrproc1, stvar(int32, i), stvar(int32, 1000000 + i*100000));
+        thrSetPriorityV(threads[i], i % (THREAD_Realtime + 1));
     }
 
     for (i = 0; i < BASIC_THREADS; i++) {

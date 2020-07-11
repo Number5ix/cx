@@ -5,6 +5,7 @@
 
 typedef struct WinThread {
     Thread base;
+    bool background;
 
     HANDLE handle;
 } WinThread;
@@ -52,4 +53,45 @@ bool _thrPlatformWait(Thread *thread, int64 timeout)
     WinThread *thr = (WinThread*)thread;
 
     return WaitForSingleObject(thr->handle, (timeout == timeForever) ? INFINITE : (DWORD)timeToMsec(timeout)) == WAIT_OBJECT_0;
+}
+
+bool _thrPlatformSetPriority(Thread *thread, int prio)
+{
+    WinThread *thr = (WinThread*)thread;
+
+    if (prio == THREAD_Batch) {
+        // background mode only works on the current thread, so also adjust priority below
+        SetThreadPriority(thr->handle, THREAD_MODE_BACKGROUND_BEGIN);
+        thr->background = true;
+    } else if (thr->background && prio) {
+        SetThreadPriority(thr->handle, THREAD_MODE_BACKGROUND_END);
+        thr->background = false;
+    }
+
+    int winprio = THREAD_PRIORITY_NORMAL;
+    switch (prio) {
+    case THREAD_Normal:
+        winprio = THREAD_PRIORITY_NORMAL;
+        break;
+    case THREAD_Batch:
+        winprio = THREAD_PRIORITY_BELOW_NORMAL;
+        break;
+    case THREAD_Low:
+        winprio = THREAD_PRIORITY_LOWEST;
+        break;
+    case THREAD_Idle:
+        winprio = THREAD_PRIORITY_IDLE;
+        break;
+    case THREAD_High:
+        winprio = THREAD_PRIORITY_ABOVE_NORMAL;
+        break;
+    case THREAD_Higher:
+        winprio = THREAD_PRIORITY_HIGHEST;
+        break;
+    case THREAD_Realtime:
+        winprio = THREAD_PRIORITY_TIME_CRITICAL;
+        break;
+    }
+
+    return SetThreadPriority(thr->handle, winprio);
 }

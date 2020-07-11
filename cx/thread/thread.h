@@ -19,6 +19,16 @@ typedef struct Thread {
     atomic(bool) requestExit;
 } Thread;
 
+enum ThreadPriority {
+    THREAD_Normal = 0,
+    THREAD_Batch,
+    THREAD_Low,
+    THREAD_Idle,
+    THREAD_High,
+    THREAD_Higher,
+    THREAD_Realtime
+};
+
 // trick to get an opaque pointer-sized identifier that synchronization primitives
 // can use to uniquely identify a thread (inlcuding ones created by native methods)
 extern _Thread_local uintptr _thrCurrentHelper;
@@ -35,6 +45,9 @@ _meta_inline bool thrRunning(Thread *thread)
 bool thrRequestExit(Thread *thread);
 bool thrWait(Thread *thread, int64 timeout);
 void thrDestroy(Thread **thread);
+bool _thrPlatformSetPriority(Thread *thread, int prio);
+#define thrSetPriority(thread, prio) _thrPlatformSetPriority(thread, THREAD_##prio)
+#define thrSetPriorityV(thread, prio) _thrPlatformSetPriority(thread, prio)
 
 // stype glue for custom type
 extern STypeOps _thread_ops;
