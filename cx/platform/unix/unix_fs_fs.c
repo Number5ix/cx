@@ -332,7 +332,7 @@ FSDirEnt *fsSearchNext(FSDirSearch *search)
         if (!de)
             return NULL;
 
-        if (strEmpty(search->pattern) || !pathMatch((string)de->d_name, search->pattern, 0)) {
+        if (strEmpty(search->pattern) || pathMatch((string)de->d_name, search->pattern, 0)) {
             FSDirEnt *ret = &search->ent;
             strCopy(&ret->name, (string)de->d_name);
             if (de->d_type == DT_DIR)
