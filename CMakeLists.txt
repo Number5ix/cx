@@ -1,11 +1,11 @@
 cmake_minimum_required (VERSION 3.9)
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
-    set(CMAKE_BUILD_TYPE "Dev" CACHE
+    set(CMAKE_BUILD_TYPE "dev" CACHE
         STRING "Choose the type of build." FORCE)
 endif()
 
-set(CMAKE_CONFIGURATION_TYPES "Debug" "Dev" "Release")
+set(CMAKE_CONFIGURATION_TYPES "debug" "dev" "release")
 
 include (${CMAKE_CURRENT_SOURCE_DIR}/cmake/sidl.cmake)
 
