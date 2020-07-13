@@ -78,7 +78,7 @@ med3_##name(SArrayHeader *hdr, void *a, void *b, void *c) \
 \
 static void sa_qsort_internal_##name(SArrayHeader *hdr, void *a, size_t n) \
 { \
-    char *pa, *pb, *pc, *pd, *pl, *pm, *pn; \
+    char *pa, *pb, *pc, *pd, *pm, *pn; \
     size_t es, d1, d2; \
     comptyp cmp_result; \
     int swap_cnt; \
@@ -90,7 +90,7 @@ loop: \
 \
     if (n < 7) { \
         for (pm = (char *)a + es; pm < (char *)a + n * es; pm += es) \
-            for (pl = pm; \
+            for (char *pl = pm; \
                  pl > (char *)a && compfunc(hdr->elemtype, (void*)(pl - es), (void*)pl) > 0; \
                  pl -= es) \
                 sa_swap(pl, pl - es, es); \
@@ -98,7 +98,7 @@ loop: \
     } \
     pm = (char *)a + (n / 2) * es; \
     if (n > 7) { \
-        pl = a; \
+        char *pl = a; \
         pn = (char *)a + (n - 1) * es; \
         if (n > 40) { \
             size_t d = (n / 8) * es; \
@@ -139,7 +139,7 @@ loop: \
     } \
     if (swap_cnt == 0) {  /* Switch to insertion sort */ \
         for (pm = (char *)a + es; pm < (char *)a + n * es; pm += es) \
-            for (pl = pm; \
+            for (char *pl = pm; \
                  pl > (char *)a && compfunc(hdr->elemtype, (void*)(pl - es), (void*)pl) > 0; \
                  pl -= es) \
                 sa_swap(pl, pl - es, es); \
