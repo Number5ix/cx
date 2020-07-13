@@ -68,12 +68,21 @@ const char *strC(string *ps);
 char *strBuffer(string *ps, uint32 minsz);
 
 // Copies up to bufsz bytes from the string to an external buffer.
+// The resulting C-style string in buf will always be null terminated.
 //       s: String handle.
 //     off: Offset within string to begin copying.
 //     buf: Pointer to memory buffer.
 //   bufsz: Size of memory buffer.
 // Returns: Number of bytes copied (may be smaller than requested if string length is exceeded).
 uint32 strCopyOut(string s, uint32 off, char *buf, uint32 bufsz);
+
+// Copies raw bytes out of a string without null terminating.
+//       s: String handle.
+//     off: Offset within string to begin copying.
+//     buf: Pointer to memory buffer.
+//  maxlen: Maximum number of bytes to copy.
+// Returns: Number of bytes copied (may be smaller than requested if string length is exceeded).
+uint32 strCopyRaw(string s, uint32 off, char *buf, uint32 maxlen);
 
 #ifdef _WIN32
 // definition of _S interferes with this header, so include it first

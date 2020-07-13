@@ -418,6 +418,17 @@ uint32 strCopyOut(string s, uint32 off, char *buf, uint32 bufsz)
     return _strFastCopy(s, off, buf, len);
 }
 
+uint32 strCopyRaw(string s, uint32 off, char *buf, uint32 maxlen)
+{
+    if (!STR_CHECK_VALID(s) || !buf || !maxlen)
+        return 0;
+
+    uint32 len = _strFastLen(s);
+    off = min(off, len);
+    len = min(len - off, maxlen);
+    return _strFastCopy(s, off, buf, len);
+}
+
 bool strSetLen(string *ps, uint32 len)
 {
     if (!ps)
