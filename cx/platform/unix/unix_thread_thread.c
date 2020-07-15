@@ -1,12 +1,18 @@
 #include <cx/thread.h>
+#if defined(_PLATFORM_FREEBSD)
 #include <pthread.h>
 #include <pthread_np.h>
+#elif defined(_PLATFORM_LINUX)
+#define _GNU_SOURCE
+#include <pthread.h>
+#endif
 #include <sched.h>
 
 typedef struct UnixThread {
     Thread base;
 
     pthread_t pthr;
+    bool joined;
 } UnixThread;
 
 static void _thrCancelCleanup(void *data)
@@ -60,14 +66,20 @@ bool _thrPlatformKill(Thread *thread)
 bool _thrPlatformWait(Thread *thread, int64 timeout)
 {
     UnixThread *thr = (UnixThread*)thread;
+    // some pthreads implementations will crash if you try to join
+    // a thread that's already been joined
+    if (thr->joined)
+        return true;
 
     if (timeout == timeForever)
-        return !pthread_join(thr->pthr, NULL);
+        thr->joined = !pthread_join(thr->pthr, NULL);
     else {
         struct timespec ts;
+	void *unused;
         timeToRelTimespec(&ts, timeout);
-        return !pthread_timedjoin_np(thr->pthr, NULL, &ts);
+        thr->joined = !pthread_timedjoin_np(thr->pthr, &unused, &ts);
     }
+    return thr->joined;
 }
 
 #ifdef _PLATFORM_LINUX

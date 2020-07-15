@@ -157,7 +157,7 @@ static void fsExeInit(void *data)
         strCopy(exepath, _S"/");
     } else {
         buf[lsz] = 0;
-        pathFromPlatform(exepath, buf);
+        pathFromPlatform(exepath, (string)buf);
     }
     xaFree(buf);
 #else

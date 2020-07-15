@@ -9,6 +9,7 @@
 #include <sys/sysctl.h>
 #elif defined(_PLATFORM_LINUX)
 #include <unistd.h>
+#include <sched.h>
 #endif
 
 static LazyInitState coreCache;
@@ -17,7 +18,11 @@ static int nlogical;
 
 void osYield()
 {
+#if defined(_PLATFORM_LINUX)
+    sched_yield();
+#else
     pthread_yield();
+#endif
 }
 
 void osSleep(int64 time)
