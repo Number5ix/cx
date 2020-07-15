@@ -15,6 +15,7 @@
 #include <sys/sysctl.h>
 #endif
 
+#include <fcntl.h>
 #include <sys/stat.h>
 
 static LazyInitState fsCurDirInit;
@@ -266,7 +267,7 @@ bool fsDelete(string path)
     string ppath = 0;
     pathToPlatform(&ppath, path);
     if (unlink(strC(&ppath)) == -1)
-        return unixMapErrno();
+        ret = unixMapErrno();
 
     strDestroy(&ppath);
     return ret;
@@ -362,4 +363,28 @@ void fsSearchClose(FSDirSearch *search)
     strDestroy(&search->path);
     strDestroy(&search->pattern);
     xaFree(search);
+}
+
+bool fsSetTimes(string path, int64 modified, int64 accessed)
+{
+    string ppath = 0;
+    struct timespec times[2] = { 0 };
+    bool ret = true;
+
+    if (accessed >= 0)
+	timeToAbsTimespec(&times[0], accessed);
+    else
+	times[0].tv_nsec = UTIME_OMIT;
+
+    if (modified >= 0)
+	timeToAbsTimespec(&times[1], modified);
+    else
+	times[1].tv_nsec = UTIME_OMIT;
+
+    pathToPlatform(&ppath, path);
+    if (utimensat(AT_FDCWD, strC(&ppath), times, 0) == -1)
+	ret = unixMapErrno();
+    strDestroy(&ppath);
+
+    return ret;
 }

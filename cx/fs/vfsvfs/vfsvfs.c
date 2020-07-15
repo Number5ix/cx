@@ -54,6 +54,17 @@ int VFSVFS_stat(VFSVFS *self, string path, FSStat *stat)
     return ret;
 }
 
+bool VFSVFS_setTimes(VFSVFS *self, string path, int64 modified, int64 accessed)
+{
+    string vfspath = 0;
+    pathJoin(&vfspath, self->root, path);
+
+    bool ret = vfsSetTimes(self->vfs, vfspath, modified, accessed);
+
+    strDestroy(&vfspath);
+    return ret;
+}
+
 bool VFSVFS_createDir(VFSVFS *self, string path)
 {
     string vfspath = 0;

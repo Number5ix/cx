@@ -17,3 +17,15 @@ _meta_inline int64 timeFromFileTime(FILETIME *ft)
 
     return ret;
 }
+
+_meta_inline bool timeToFileTime(int64 time, FILETIME *ft)
+{
+    time -= 199222286400000000LL;       // adjust epoch
+    if (time < 0)
+        return false;
+
+    time *= 10;         // convert to 100-ns intervals
+    ft->dwHighDateTime = (DWORD)(time >> 32);
+    ft->dwLowDateTime = (DWORD)(time & 0xffffffff);
+    return true;
+}

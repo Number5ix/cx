@@ -14,6 +14,7 @@ typedef struct VFSFS_ClassIf {
     uint32 (*flags)(void *self);
     ObjInst *(*open)(void *self, string path, int flags);
     int (*stat)(void *self, string path, FSStat *stat);
+    bool (*setTimes)(void *self, string path, int64 modified, int64 accessed);
     bool (*createDir)(void *self, string path);
     bool (*removeDir)(void *self, string path);
     bool (*deleteFile)(void *self, string path);
@@ -42,6 +43,7 @@ VFSFS *VFSFS_create(string rootpath);
 #define vfsfsFlags(self) (self)->_->flags(VFSFS(self))
 #define vfsfsOpen(self, path, flags) (self)->_->open(VFSFS(self), path, flags)
 #define vfsfsStat(self, path, stat) (self)->_->stat(VFSFS(self), path, stat)
+#define vfsfsSetTimes(self, path, modified, accessed) (self)->_->setTimes(VFSFS(self), path, modified, accessed)
 #define vfsfsCreateDir(self, path) (self)->_->createDir(VFSFS(self), path)
 #define vfsfsRemoveDir(self, path) (self)->_->removeDir(VFSFS(self), path)
 #define vfsfsDeleteFile(self, path) (self)->_->deleteFile(VFSFS(self), path)

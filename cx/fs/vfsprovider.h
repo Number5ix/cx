@@ -37,6 +37,7 @@ typedef struct VFSProvider {
     uint32 (*flags)(void *self);
     ObjInst *(*open)(void *self, string path, int flags);
     int (*stat)(void *self, string path, FSStat *stat);
+    bool (*setTimes)(void *self, string path, int64 modified, int64 accessed);
     bool (*createDir)(void *self, string path);
     bool (*removeDir)(void *self, string path);
     bool (*deleteFile)(void *self, string path);

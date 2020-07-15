@@ -50,6 +50,8 @@ _meta_inline bool fsIsFile(string path)
     return fsStat(path, NULL) == FS_File;
 }
 
+bool fsSetTimes(string path, int64 modified, int64 accessed);
+
 bool fsCreateDir(string path);
 bool fsCreateAll(string path);
 bool fsRemoveDir(string path);

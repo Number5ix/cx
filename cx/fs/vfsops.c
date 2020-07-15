@@ -27,6 +27,26 @@ out:
     return ret;
 }
 
+bool vfsSetTimes(VFS *vfs, string path, int64 modified, int64 accessed)
+{
+    bool ret = false;
+    string rpath = 0;
+
+    VFSMount *m = _vfsFindMount(vfs, &rpath, path, NULL, NULL, VFS_FindCache);
+    if (!m)
+        goto out;
+
+    VFSProvider *provif = objInstIf(m->provider, VFSProvider);
+    if (provif)
+        ret = provif->setTimes(m->provider, rpath, modified, accessed);
+    else
+        cxerr = CX_InvalidArgument;
+
+out:
+    strDestroy(&rpath);
+    return ret;
+}
+
 bool vfsCreateDir(VFS *vfs, string path)
 {
     bool ret = false;

@@ -393,3 +393,26 @@ void fsSearchClose(FSDirSearch *search)
     FindClose(search->h);
     xaFree(search);
 }
+
+bool fsSetTimes(string path, int64 modified, int64 accessed)
+{
+    FILETIME mtime, atime;
+    if (modified >= 0 && !timeToFileTime(modified, &mtime))
+        return false;
+
+    if (accessed >= 0 && !timeToFileTime(accessed, &atime))
+        return false;
+
+    HANDLE fh = CreateFileW(fsPathToNT(path), FILE_WRITE_ATTRIBUTES,
+                            FILE_SHARE_WRITE | FILE_SHARE_WRITE, NULL, OPEN_ALWAYS,
+                            FILE_ATTRIBUTE_NORMAL, NULL);
+    if (!fh)
+        return false;
+
+    bool ret = SetFileTime(fh, NULL,
+                           accessed >= 0 ? &atime : NULL,
+                           modified >= 0 ? &mtime : NULL);
+
+    CloseHandle(fh);
+    return ret;
+}

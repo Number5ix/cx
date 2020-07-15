@@ -45,6 +45,8 @@ _meta_inline bool vfsIsFile(VFS *vfs, string path)
     return vfsStat(vfs, path, NULL) == FS_File;
 }
 
+bool vfsSetTimes(VFS *vfs, string path, int64 modified, int64 accessed);
+
 bool vfsCreateDir(VFS *vfs, string path);
 bool vfsCreateAll(VFS *vfs, string path);
 bool vfsRemoveDir(VFS *vfs, string path);
