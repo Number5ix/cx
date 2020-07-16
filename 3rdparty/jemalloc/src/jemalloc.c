@@ -125,7 +125,7 @@ static pthread_t		malloc_initializer = (pthread_t)NO_INITIALIZER;
 #  define NO_INITIALIZER	false
 #  define INITIALIZER		true
 #  define IS_INITIALIZER	malloc_initializer
-static bool			malloc_initializer = (pthread_t)NO_INITIALIZER;
+static bool			malloc_initializer = NO_INITIALIZER;
 #endif
 
 /* Used to avoid initialization races. */
