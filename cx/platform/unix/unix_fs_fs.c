@@ -11,6 +11,7 @@
 #include <dirent.h>
 
 #ifdef _PLATFORM_FREEBSD
+#include <limits.h>
 #include <sys/types.h>
 #include <sys/sysctl.h>
 #endif

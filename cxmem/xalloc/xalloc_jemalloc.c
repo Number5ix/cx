@@ -3,6 +3,12 @@
 
 #ifdef XALLOC_USE_JEMALLOC
 
+#if defined(__FreeBSD__)
+#define je_mallctl mallctl
+#define je_mallctlnametomib mallctlnametomib
+#define je_mallctlbymib mallctlbymib
+#endif
+
 extern inline void *_xaAlloc(size_t size, int flags);
 extern inline void *_xaResize(void *ptr, size_t size, int flags);
 extern inline size_t _xaExpand(void *ptr, size_t size, size_t extra, int flags);

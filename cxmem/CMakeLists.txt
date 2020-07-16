@@ -16,4 +16,6 @@ add_library (cxmem STATIC
     ${XALLOC_SRCS})
 
 target_include_directories(cxmem SYSTEM PUBLIC ${CX_TOP_SOURCE_DIR} ${CX_TOP_SOURCE_DIR}/3rdparty/jemalloc/include/jemalloc ${CX_TOP_BINARY_DIR}/3rdparty/jemalloc/include/jemalloc)
+if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
 target_link_libraries(cxmem jemalloc)
+endif()

@@ -1,3 +1,5 @@
+if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
 add_subdirectory(jemalloc)
+endif()
 add_subdirectory(mbedtls)
 add_subdirectory(pcre2)

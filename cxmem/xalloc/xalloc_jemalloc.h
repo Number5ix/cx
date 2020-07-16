@@ -1,6 +1,15 @@
 #pragma once
 
+#if defined(__FreeBSD__)
+#include <malloc_np.h>
+#define je_mallocx mallocx
+#define je_rallocx rallocx
+#define je_xallocx xallocx
+#define je_sallocx sallocx
+#define je_dallocx dallocx
+#else
 #include "jemalloc.h"
+#endif
 #include <cx/utils/macros.h>
 
 // Allocate memory of at least sz
@@ -45,10 +54,12 @@ inline void xaFree(void *ptr)
 void xaFlush();
 
 #ifdef XALLOC_REMAP_MALLOC
+#if !defined(__FreeBSD__)
 #define malloc(sz) je_malloc(sz)
 #define calloc(num, sz) je_calloc(num, sz)
 #define free(ptr) je_free(ptr)
 #define realloc(ptr, sz) je_realloc(ptr, sz)
+#endif
 #define strdup(s) cstrDup(s)
 #define _strdup(s) cstrDup(s)
 #define wcsdup(s) cstrDupw(s)
@@ -71,8 +82,15 @@ void xaFlush();
 #endif
 
 // for compatibility with 3rd party libraries only
+#if defined(__FreeBSD__)
+#define xa_malloc malloc
+#define xa_calloc calloc
+#define xa_realloc realloc
+#define xa_free free
+#else
 #define xa_malloc je_malloc
 #define xa_calloc je_calloc
 #define xa_realloc je_realloc
 #define xa_free je_free
+#endif
 #define xa_strdup _xa_jestrdup

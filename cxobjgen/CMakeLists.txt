@@ -1,3 +1,5 @@
+find_package (Threads REQUIRED)
+
 if(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD" OR ${CMAKE_SYSTEM_NAME} MATCHES "Linux")
     set(CX_PLATFORM_SRCS
 	../cx/platform/unix/unix_error.c
