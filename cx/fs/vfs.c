@@ -359,6 +359,9 @@ VFSMount *_vfsFindMount(VFS *vfs, string *rpath, string path, VFSMount **cowmoun
     VFSMount *ret = 0;
     string abspath = 0, curpath = 0;
 
+    if (!vfs)
+        return NULL;
+
     bool flwrite = flags & VFS_FindWriteFile;
     bool fldelete = flags & VFS_FindDelete;
     bool flcreate = flags & VFS_FindCreate;
