@@ -1,19 +1,20 @@
 #include "string_private.h"
 
-static bool _strAppendNoRope(string *io, string s);
+static bool _strAppendNoRope(string *io, strref s);
 
 // This is the master algorithm for concatenating strings!
 // All of the other versions are simplified copies with parts removed.
 // If you change this function, be sure to update the two-argument versions,
 // append, etc.
-bool _strNConcat(string *o, int n, string *args)
+bool _strNConcat(string *o, int n, strref *_args)
 {
+    string *args = (string*)_args;          // we know what we doing
     char *ptr;
     int i, start = 0;
 
     // Pass 1: Build a plan for concatenating the strings
     uint32 len = 0;
-    string firstarg = 0;
+    string(firstarg);
     uint8 encoding = STR_ENCODING_MASK;
     for (i = 0; i < n; ++i) {
         if (!STR_CHECK_VALID(args[i])) {
@@ -63,7 +64,7 @@ bool _strNConcat(string *o, int n, string *args)
         _strSetLen(*o, len);
     } else {
         // final length is over the threshold to make this a rope instead
-        string curtop = 0, curright = 0, newtop = 0;
+        string(curtop); string(curright); string(newtop);
         strDup(&curtop, args[0]);
 
         // build up new rope
@@ -105,7 +106,7 @@ bool _strNConcatC(string *o, int n, string **args)
 
     // Pass 1: Build a plan for concatenating the strings
     uint32 len = 0;
-    string firstarg = 0;
+    string(firstarg);
     uint8 encoding = STR_ENCODING_MASK;
     for (i = 0; i < n; ++i) {
         if (!args[i] || !STR_CHECK_VALID(*args[i])) {
@@ -156,7 +157,7 @@ bool _strNConcatC(string *o, int n, string **args)
         _strSetLen(*o, len);
     } else {
         // final length is over the threshold to make this a rope instead
-        string curtop = 0, curright = 0, newtop = 0;
+        string(curtop); string(curright); string(newtop);
         strDup(&curtop, *args[0]);
 
         // build up new rope
@@ -195,7 +196,7 @@ bool _strNConcatC(string *o, int n, string **args)
     return true;
 }
 
-static bool _strAppendNoRope(string *io, string s)
+static bool _strAppendNoRope(string *io, strref s)
 {
     uint32 iolen = strLen(*io), slen = _strFastLen(s);
     uint32 len = iolen + slen;
@@ -225,7 +226,7 @@ static bool _strAppendNoRope(string *io, string s)
     return true;
 }
 
-static bool _strAppend(string *io, string s)
+static bool _strAppend(string *io, strref s)
 {
     uint32 iolen = strLen(*io), slen = _strFastLen(s);
     uint32 len = iolen + slen;
@@ -266,7 +267,7 @@ static bool _strAppend(string *io, string s)
     return true;
 }
 
-bool strAppend(string *io, string s)
+bool strAppend(string *io, strref s)
 {
     if (!io)
         return false;
@@ -277,9 +278,9 @@ bool strAppend(string *io, string s)
     return _strAppend(io, s);
 }
 
-bool strPrepend(string s, string *io)
+bool strPrepend(strref s, string *io)
 {
-    string out = 0;
+    string(out);
     bool ret;
 
     ret = strConcat(&out, s, *io);
@@ -289,7 +290,7 @@ bool strPrepend(string s, string *io)
 }
 
 // for use by the rope module
-bool _strConcatNoRope(string *o, string s1, string s2)
+bool _strConcatNoRope(string *o, strref s1, strref s2)
 {
     // you really should be calling append...
     if (*o == s1)
@@ -326,7 +327,7 @@ bool _strConcatNoRope(string *o, string s1, string s2)
     return true;
 }
 
-bool strConcat(string *o, string s1, string s2)
+bool strConcat(string *o, strref s1, strref s2)
 {
     if (!o)
         return false;

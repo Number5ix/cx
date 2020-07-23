@@ -4,7 +4,7 @@
 bool _fmtExtractVar(FMTContext *ctx)
 {
     int32 eatchar = 0;
-    string frag = 0;
+    string(frag);
 
     // "loop" to handle escaped start sequences
 retry_start:
@@ -64,7 +64,7 @@ retry_end:
     return true;
 }
 
-static bool fmtParseOpt(FMTContext *ctx, string opt, int32 vtype)
+static bool fmtParseOpt(FMTContext *ctx, strref opt, int32 vtype)
 {
     if (strEq(opt, _S"left"))
         ctx->v.flags |= FMTVar_Left;
@@ -163,7 +163,7 @@ bool _fmtParseVar(FMTContext *ctx)
     if (vnend == 0)
         vnend = len;
 
-    string frag = 0;
+    string(frag);
 
     // check if we have default first, because it will be a fallback in case of parse error
     if (defstart > 0) {

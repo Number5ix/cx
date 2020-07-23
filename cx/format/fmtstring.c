@@ -6,7 +6,7 @@ enum StringOpts {
     FMT_StringNameCase  = 0x00040000,
 };
 
-bool _fmtParseStringOpt(FMTVar *v, string opt)
+bool _fmtParseStringOpt(FMTVar *v, strref opt)
 {
     if (strEq(opt, _S"empty")) {
         v->flags |= FMT_StringEmpty;
@@ -23,7 +23,7 @@ bool _fmtParseStringOpt(FMTVar *v, string opt)
 
 bool _fmtString(FMTVar *v, string *out)
 {
-    string s = *(string*)v->data;
+    strref s = *(strref*)v->data;
     if ((v->flags & FMT_StringNull) && !s)
         return false;
     if ((v->flags & FMT_StringEmpty) && strEmpty(s))

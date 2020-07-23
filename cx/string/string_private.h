@@ -48,7 +48,7 @@ extern const uint8 _str_off[32];
 #define STR_CHECK_VALID(s) (s && *(uint8*)s)
 #define STR_SAFE_DEREF(ps) ((ps && *ps) ? *ps : 0)
 
-_meta_inline uint32 _strFastLen(string s)
+_meta_inline uint32 _strFastLen(strref s)
 {
     if (!(STR_HDR(s) & STR_CX))
         return (uint32)cstrLen((const char*)s);
@@ -65,7 +65,7 @@ _meta_inline uint32 _strFastLen(string s)
 }
 
 // must only be used on STR_CX | STR_ALLOC strings!
-_meta_inline uint16 _strFastRef(string s)
+_meta_inline uint16 _strFastRef(strref s)
 {
     int l = STR_HDR(s) & STR_LEN_MASK;
 
@@ -75,7 +75,7 @@ _meta_inline uint16 _strFastRef(string s)
         return atomicLoad(uint16, &STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), atomic(uint16)), Acquire);
 }
 
-_meta_inline uint16 _strFastRefNoSync(string s)
+_meta_inline uint16 _strFastRefNoSync(strref s)
 {
     int l = STR_HDR(s) & STR_LEN_MASK;
 
@@ -120,12 +120,12 @@ bool _strFlatten(string *ps, uint32 minszforcopy);
 // resize ps in place if possible, or copy if necessary (changing ps)
 bool _strResize(string *ps, uint32 len, bool unique);
 // duplicates s and returns a copy, optionally with more reserved space allocated
-string _strCopy(string s, uint32 minsz);
+string _strCopy(strref s, uint32 minsz);
 // direct copy of string buffer or rope internals, does not check destination size!
-uint32 _strFastCopy(string s, uint32 off, char *buf, uint32 bytes);
+uint32 _strFastCopy(strref s, uint32 off, char *buf, uint32 bytes);
 
 // faster concatenation for internal use
-bool _strConcatNoRope(string *o, string s1, string s2);
+bool _strConcatNoRope(string *o, strref s1, strref s2);
 
 // rope data comes directly after string header if STR_ROPE is set
 typedef struct str_roperef {
@@ -139,27 +139,27 @@ typedef struct str_ropedata {
     int depth;
 } str_ropedata;
 
-string _strCreateRope(string left, uint32 left_off, uint32 left_len, string right, uint32 right_off, uint32 right_len, bool balance);
-string _strCreateRope1(string s, uint32 off, uint32 len);
-string _strCloneRope(string s);
+string _strCreateRope(strref left, uint32 left_off, uint32 left_len, strref right, uint32 right_off, uint32 right_len, bool balance);
+string _strCreateRope1(strref s, uint32 off, uint32 len);
+string _strCloneRope(strref s);
 void _strDestroyRope(string s);
-uint32 _strRopeFastCopy(string s, uint32 off, char *buf, uint32 bytes);
+uint32 _strRopeFastCopy(strref s, uint32 off, char *buf, uint32 bytes);
 bool _strRopeRealStr(string *s, uint32 off, string *rs, uint32 *rsoff, uint32 *rslen, bool writable);
 
 // Finds first occurrence of find in s at or after start
-int32 _strFindChar(string s, int32 start, char find);
+int32 _strFindChar(strref s, int32 start, char find);
 // Finds last occurrence of find in s before end
 // end can be 0 to indicate end of the string
-int32 _strFindCharR(string s, int32 end, char find);
+int32 _strFindCharR(strref s, int32 end, char find);
 
-_meta_inline char _strFastChar(string s, uint32 i)
+_meta_inline char _strFastChar(strref s, uint32 i)
 {
     if (!(STR_HDR(s) & STR_ROPE)) {
         return STR_BUFFER(s)[i];
     } else {
         string realstr;
         uint32 realoff, reallen;
-        if (_strRopeRealStr(&s, i, &realstr, &realoff, &reallen, false))
+        if (_strRopeRealStr((string*)&s, i, &realstr, &realoff, &reallen, false))
             return STR_BUFFER(realstr)[realoff];
     }
     return 0;

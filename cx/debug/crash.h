@@ -28,7 +28,7 @@ void dbgCrashSetMode(uint32 mode);
 uint32 dbgCrashGetMode();
 
 // Set crash dump location
-bool dbgCrashSetPath(string path);
+bool dbgCrashSetPath(strref path);
 
 // Callback function when a crash occurs
 //     after: false when called the first time (immediately after exception)

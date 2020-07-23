@@ -35,15 +35,15 @@ typedef struct VFSProvider {
     size_t _size;
 
     uint32 (*flags)(void *self);
-    ObjInst *(*open)(void *self, string path, int flags);
-    int (*stat)(void *self, string path, FSStat *stat);
-    bool (*setTimes)(void *self, string path, int64 modified, int64 accessed);
-    bool (*createDir)(void *self, string path);
-    bool (*removeDir)(void *self, string path);
-    bool (*deleteFile)(void *self, string path);
-    bool (*rename)(void *self, string oldpath, string newpath);
-    bool (*getFSPath)(void *self, string *out, string path);
-    ObjInst *(*searchDir)(void *self, string path, string pattern, bool stat);
+    ObjInst *(*open)(void *self, strref path, int flags);
+    int (*stat)(void *self, strref path, FSStat *stat);
+    bool (*setTimes)(void *self, strref path, int64 modified, int64 accessed);
+    bool (*createDir)(void *self, strref path);
+    bool (*removeDir)(void *self, strref path);
+    bool (*deleteFile)(void *self, strref path);
+    bool (*rename)(void *self, strref oldpath, strref newpath);
+    bool (*getFSPath)(void *self, string *out, strref path);
+    ObjInst *(*searchDir)(void *self, strref path, strref pattern, bool stat);
 } VFSProvider;
 extern VFSProvider VFSProvider_tmpl;
 

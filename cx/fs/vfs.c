@@ -77,10 +77,10 @@ static VFSDir *_vfsGetDirInternal(VFS *vfs, VFSDir *root, string *path, int32 pl
     return _vfsGetDirInternal(vfs, child, &path[1], plen - 1, cache, now, writelockheld);
 }
 
-VFSDir *_vfsGetDir(VFS *vfs, string path, bool isfile, bool cache, bool writelockheld)
+VFSDir *_vfsGetDir(VFS *vfs, strref path, bool isfile, bool cache, bool writelockheld)
 {
     VFSDir *d, *ret = 0;
-    string ns = 0;
+    string(ns);
     string *components = 0;
 
     pathDecompose(&ns, &components, path);
@@ -100,9 +100,9 @@ out:
     return ret;
 }
 
-bool _vfsMountProvider(VFS *vfs, ObjInst *provider, string path, uint32 flags)
+bool _vfsMountProvider(VFS *vfs, ObjInst *provider, strref path, uint32 flags)
 {
-    string ns = 0, rpath = 0;
+    string(ns); string(rpath);
     VFSProvider *provif;
     bool ret = false;
 
@@ -145,9 +145,9 @@ out:
     return ret;
 }
 
-bool vfsUnmount(VFS *vfs, string path)
+bool vfsUnmount(VFS *vfs, strref path)
 {
-    string ns = 0, rpath = 0;
+    string(ns); string(rpath);
     bool ret = false;
 
     rwlockAcquireWrite(&vfs->vfsdlock);
@@ -188,7 +188,7 @@ out:
 }
 
 // Mounts the built-in OS filesystem provider to the given VFS
-bool _vfsMountFS(VFS *vfs, string path, string fsroot, uint32 flags)
+bool _vfsMountFS(VFS *vfs, strref path, strref fsroot, uint32 flags)
 {
     VFSFS *fsprovider = vfsfsCreate(fsroot);
     if (!fsprovider)
@@ -200,7 +200,7 @@ bool _vfsMountFS(VFS *vfs, string path, string fsroot, uint32 flags)
 }
 
 // Mounts one VFS underneath another
-bool _vfsMountVFS(VFS *vfs, string path, VFS *vfs2, string vfs2root, uint32 flags)
+bool _vfsMountVFS(VFS *vfs, strref path, VFS *vfs2, strref vfs2root, uint32 flags)
 {
     VFSVFS *vfsprovider = vfsvfsCreate(vfs2, vfs2root);
     if (!vfsprovider)
@@ -211,11 +211,11 @@ bool _vfsMountVFS(VFS *vfs, string path, VFS *vfs2, string vfs2root, uint32 flag
     return ret;
 }
 
-VFSCacheEnt *_vfsGetFile(VFS *vfs, string path, bool writelockheld)
+VFSCacheEnt *_vfsGetFile(VFS *vfs, strref path, bool writelockheld)
 {
     VFSDir *pdir = _vfsGetDir(vfs, path, true, true, writelockheld);
     VFSCacheEnt *ret = 0;
-    string fname = 0;
+    string(fname);
 
     if (!pdir)
         return NULL;
@@ -229,14 +229,14 @@ VFSCacheEnt *_vfsGetFile(VFS *vfs, string path, bool writelockheld)
     return ret;
 }
 
-void _vfsInvalidateCache(VFS *vfs, string path)
+void _vfsInvalidateCache(VFS *vfs, strref path)
 {
-    string abspath = 0;
+    string (abspath);
 
     rwlockAcquireWrite(&vfs->vfsdlock);
     _vfsAbsPath(vfs, &abspath, path);
     VFSDir *pdir = _vfsGetDir(vfs, abspath, true, true, true);
-    string fname = 0;
+    string (fname);
 
     if (!pdir) {
         rwlockReleaseWrite(&vfs->vfsdlock);
@@ -273,7 +273,7 @@ void _vfsInvalidateRecursive(VFS *vfs, VFSDir *dir, bool havelock)
         rwlockReleaseWrite(&vfs->vfsdlock);
 }
 
-void _vfsAbsPath(VFS *vfs, string *out, string path)
+void _vfsAbsPath(VFS *vfs, string *out, strref path)
 {
     if (pathIsAbsolute(path))
         strDup(out, path);
@@ -281,12 +281,12 @@ void _vfsAbsPath(VFS *vfs, string *out, string path)
         pathJoin(out, vfs->curdir, path);
 }
 
-static int vfsFindCISub(VFSDir *vdir, string *out, string path,
+static int vfsFindCISub(VFSDir *vdir, string *out, strref path,
         string *components, int depth, int target,
         VFSMount *mount, VFSProvider *provif)
 {
     int ret = FS_Nonexistent;
-    string filepath = 0;
+    string(filepath);
     VFSDir *cvdir = vdir;
 
     // walk backwards up vdir tree to current depth for caching
@@ -354,10 +354,10 @@ int _vfsFindCIHelper(VFS *vfs, VFSDir *vdir, string *out, string *components, VF
     return ret;
 }
 
-VFSMount *_vfsFindMount(VFS *vfs, string *rpath, string path, VFSMount **cowmount, string *cowrpath, uint32 flags)
+VFSMount *_vfsFindMount(VFS *vfs, string *rpath, strref path, VFSMount **cowmount, string *cowrpath, uint32 flags)
 {
     VFSMount *ret = 0;
-    string abspath = 0, curpath = 0;
+    string(abspath); string(curpath);
 
     if (!vfs)
         return NULL;
@@ -386,8 +386,9 @@ VFSMount *_vfsFindMount(VFS *vfs, string *rpath, string path, VFSMount **cowmoun
 
     VFSDir *vfsdir = _vfsGetDir(vfs, abspath, true, true, false), *pdir = vfsdir;
     VFSMount *firstwritable = 0;
-    string firstwpath = 0;
-    string ns = 0, *components = 0, *relcomp = 0;
+    string(firstwpath);
+    string(ns);
+    string *components = 0, *relcomp = 0;
 
     pathDecompose(&ns, &components, abspath);
 
@@ -500,7 +501,7 @@ void vfsCurDir(VFS *vfs, string *out)
     rwlockReleaseRead(&vfs->vfslock);
 }
 
-bool vfsSetCurDir(VFS *vfs, string cur)
+bool vfsSetCurDir(VFS *vfs, strref cur)
 {
     if (!pathIsAbsolute(cur))
         return false;

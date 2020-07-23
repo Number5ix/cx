@@ -28,7 +28,7 @@ enum FSSeekType {
     FS_End
 };
 
-FSFile *_fsOpen(string path, int flags);
+FSFile *_fsOpen(strref path, int flags);
 #define fsOpen(path, ...) _fsOpen(path, func_flags(FS, __VA_ARGS__))
 bool fsClose(FSFile *file);
 

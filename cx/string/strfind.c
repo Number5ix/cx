@@ -1,6 +1,6 @@
 #include "string_private.h"
 
-int32 _strFindChar(string s, int32 b, char find)
+int32 _strFindChar(strref s, int32 b, char find)
 {
     uint32 slen, i;
 
@@ -25,7 +25,7 @@ int32 _strFindChar(string s, int32 b, char find)
     return -1;
 }
 
-int32 _strFindCharR(string s, int32 e, char find)
+int32 _strFindCharR(strref s, int32 e, char find)
 {
     // Conventional wisdom was wrong. Actually scanning backwards turns out to be
     // about 20% faster on average, probably because the conditions to check are
@@ -79,7 +79,7 @@ static inline bool striterEq(striter *istr_in, striter *isub_in)
     return false;
 }
 
-int32 strFind(string s, int32 b, string find)
+int32 strFind(strref s, int32 b, strref find)
 {
     uint32 off, slen, i;
 
@@ -123,7 +123,7 @@ int32 strFind(string s, int32 b, string find)
     return -1;
 }
 
-int32 strFindR(string s, int32 e, string find)
+int32 strFindR(strref s, int32 e, strref find)
 {
     // see _strFindCharR and strFind for implementation notes
     uint32 slen;

@@ -32,7 +32,7 @@ static void initCurDir(void *data)
     pathNormalize(&_fsCurDir);
 }
 
-static bool fsIsUNC(string path)
+static bool fsIsUNC(strref path)
 {
     striter it;
     striBorrow(&it, path);
@@ -44,9 +44,9 @@ static bool fsIsUNC(string path)
     return false;
 }
 
-wchar_t* fsPathToNT(string path)
+wchar_t* fsPathToNT(strref path)
 {
-    string npath = 0, ntpath = 0;
+    string(npath); string(ntpath);
     wchar_t *ret;
     pathMakeAbsolute(&npath, path);
     pathNormalize(&npath);
@@ -66,11 +66,11 @@ wchar_t* fsPathToNT(string path)
     return ret;
 }
 
-void pathFromPlatform(string *out, string platformpath)
+void pathFromPlatform(string *out, strref platformpath)
 {
-    string ns = 0;
-    string rpath = 0;
-    string ret = 0;
+    string(ns);
+    string(rpath);
+    string(ret);
 
     strDup(&rpath, platformpath);
 
@@ -124,10 +124,10 @@ void pathFromPlatform(string *out, string platformpath)
     *out = ret;
 }
 
-void pathToPlatform(string *out, string path)
+void pathToPlatform(string *out, strref path)
 {
-    string ns = 0, rpath = 0;
-    string ret = 0;
+    string(ns); string(rpath);
+    string(ret);
     pathSplitNS(&ns, &rpath, path);
     strUpper(&ns);
 
@@ -151,7 +151,7 @@ void pathToPlatform(string *out, string path)
     *out = ret;
 }
 
-bool pathMakeAbsolute(string *out, string path)
+bool pathMakeAbsolute(string *out, strref path)
 {
     if (pathIsAbsolute(path)) {
         strDup(out, path);
@@ -159,7 +159,7 @@ bool pathMakeAbsolute(string *out, string path)
     }
     lazyInit(&fsCurDirInit, initCurDir, NULL);
 
-    string tmp = 0;
+    string(tmp);
     rwlockAcquireRead(&_fsCurDirLock);
     pathJoin(&tmp, _fsCurDir, path);
     rwlockReleaseRead(&_fsCurDirLock);
@@ -176,12 +176,12 @@ void fsCurDir(string *out)
     rwlockReleaseRead(&_fsCurDirLock);
 }
 
-bool fsSetCurDir(string cur)
+bool fsSetCurDir(strref cur)
 {
     if (strEmpty(cur))
         return false;
 
-    string ncur = 0;
+    string(ncur);
     strDup(&ncur, cur);
 
     // be paranoid about what we set our current directory to
@@ -220,7 +220,7 @@ static void fsExeInit(void *data)
 void fsExe(string *out)
 {
     static LazyInitState execache;
-    static string exepath = 0;
+    static string(exepath);
     lazyInit(&execache, fsExeInit, &exepath);
 
     strDup(out, exepath);
@@ -232,7 +232,7 @@ void fsExeDir(string *out)
     pathParent(out, *out);
 }
 
-int fsStat(string path, FSStat *stat)
+int fsStat(strref path, FSStat *stat)
 {
     if (strEmpty(path))
         return FS_Nonexistent;
@@ -269,7 +269,7 @@ int fsStat(string path, FSStat *stat)
     return FS_File;
 }
 
-bool fsCreateDir(string path)
+bool fsCreateDir(strref path)
 {
     if (strEmpty(path))
         return false;
@@ -280,9 +280,9 @@ bool fsCreateDir(string path)
     return true;
 }
 
-bool fsCreateAll(string path)
+bool fsCreateAll(strref path)
 {
-    string parent = 0;
+    string(parent);
     pathParent(&parent, path);
     if (!strEmpty(parent) && !fsExist(parent))
         fsCreateAll(parent);
@@ -291,7 +291,7 @@ bool fsCreateAll(string path)
     return fsCreateDir(path);
 }
 
-bool fsRemoveDir(string path)
+bool fsRemoveDir(strref path)
 {
     if (strEmpty(path))
         return false;
@@ -302,7 +302,7 @@ bool fsRemoveDir(string path)
     return true;
 }
 
-bool fsDelete(string path)
+bool fsDelete(strref path)
 {
     if (strEmpty(path))
         return false;
@@ -313,7 +313,7 @@ bool fsDelete(string path)
     return true;
 }
 
-bool fsRename(string from, string to)
+bool fsRename(strref from, strref to)
 {
     if (strEmpty(from) || strEmpty(to))
         return false;
@@ -330,10 +330,10 @@ typedef struct FSDirSearch {
     WIN32_FIND_DATAW first;
 } FSDirSearch;
 
-FSDirSearch *fsSearchDir(string path, string pattern, bool stat)
+FSDirSearch *fsSearchDir(strref path, strref pattern, bool stat)
 {
     FSDirSearch *ret;
-    string spath = 0;
+    string(spath);
 
     // stat is ignored for Windows since the API always returns file
     // size and timestamps
@@ -394,7 +394,7 @@ void fsSearchClose(FSDirSearch *search)
     xaFree(search);
 }
 
-bool fsSetTimes(string path, int64 modified, int64 accessed)
+bool fsSetTimes(strref path, int64 modified, int64 accessed)
 {
     FILETIME mtime, atime;
     if (modified >= 0 && !timeToFileTime(modified, &mtime))

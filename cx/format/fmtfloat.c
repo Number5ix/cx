@@ -9,9 +9,9 @@ enum FloatOpts {
     FMT_FloatDecDigits = 0x00040000,
 };
 
-bool _fmtParseFloatOpt(FMTVar *v, string opt)
+bool _fmtParseFloatOpt(FMTVar *v, strref opt)
 {
-    string tmp = 0;
+    string(tmp);
     int32 val;
     if (strEq(opt, _S"fixed")) {
         v->flags |= FMT_FloatFixed;
@@ -56,7 +56,7 @@ bool _fmtParseFloatFinalize(FMTVar *v)
 }
 
 // for special return values
-static bool fmtFloatSpecial(FMTVar *v, string *out, string str)
+static bool fmtFloatSpecial(FMTVar *v, string *out, strref str)
 {
     v->flags &= (~FMTVar_NoGenCase | ~FMTVar_NoGenWidth);
     if (!(v->flags & (FMTVar_Left | FMTVar_Center)))

@@ -4,7 +4,7 @@ static bool _strSubStr(string *o, string *ps, int32 b, int32 e, bool consume)
 {
     uint32 off, len, slen;
     string s = STR_SAFE_DEREF(ps);
-    string ret = 0;
+    string(ret);
 
     if (!o || !s) {
         strDestroy(o);
@@ -62,9 +62,9 @@ static bool _strSubStr(string *o, string *ps, int32 b, int32 e, bool consume)
     return true;
 }
 
-bool strSubStr(string *o, string s, int32 b, int32 e)
+bool strSubStr(string *o, strref s, int32 b, int32 e)
 {
-    return _strSubStr(o, &s, b, e, false);
+    return _strSubStr(o, (string*)&s, b, e, false);
 }
 
 bool strSubStrC(string *o, string *c, int32 b, int32 e)
@@ -77,7 +77,7 @@ bool strSubStrI(string *io, int32 b, int32 e)
     return _strSubStr(io, io, b, e, false);
 }
 
-char strGetChar(string s, int32 i)
+char strGetChar(strref s, int32 i)
 {
     if (!STR_CHECK_VALID(s))
         return 0;

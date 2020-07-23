@@ -42,17 +42,18 @@ static void _striClear(striter *iter)
     iter->cursor = 0;
 }
 
-static void _striCreate(striter *iter, string s, bool reverse)
+static void _striInit(striter *iter, strref s, bool reverse)
 {
     if (!STR_CHECK_VALID(s))
         s = _strEmpty;
 
+    iter->_borrowed = false;
     // if this is an allocated string, grab a ref, otherwise just store it
     if (STR_HDR(s) & STR_ALLOC) {
         iter->_str = 0;
         strDup(&iter->_str, s);
     } else {
-        iter->_str = s;           // non STR_ALLOC strings are readonly anyway
+        iter->_str = (string)s;         // non STR_ALLOC strings are readonly anyway
     }
 
     // prime iterator with first run
@@ -62,22 +63,23 @@ static void _striCreate(striter *iter, string s, bool reverse)
         _striSetup(iter, strLen(s) - 1, 0, true);
 }
 
-void striCreate(striter *iter, string s)
+void striInit(striter *iter, strref s)
 {
-    _striCreate(iter, s, false);
+    _striInit(iter, s, false);
 }
 
-void striCreateRev(striter *iter, string s)
+void striInitRev(striter *iter, strref s)
 {
-    _striCreate(iter, s, true);
+    _striInit(iter, s, true);
 }
 
-static void _striBorrow(striter *iter, string s, bool reverse)
+static void _striBorrow(striter *iter, strref s, bool reverse)
 {
     if (!STR_CHECK_VALID(s))
         s = _strEmpty;
 
-    iter->_str = s;
+    iter->_borrowed = true;
+    iter->_str = (string)s;
 
     // prime iterator with first run
     if (!reverse)
@@ -86,12 +88,12 @@ static void _striBorrow(striter *iter, string s, bool reverse)
         _striSetup(iter, strLen(s) - 1, 0, true);
 }
 
-void striBorrow(striter *iter, string s)
+void striBorrow(striter *iter, strref s)
 {
     _striBorrow(iter, s, false);
 }
 
-void striBorrowRev(striter *iter, string s)
+void striBorrowRev(striter *iter, strref s)
 {
     _striBorrow(iter, s, true);
 }
@@ -208,13 +210,18 @@ bool striSeek(striter *iter, int32 off, STRI_SEEK_TYPE type, STRI_SEEK_WHENCE wh
     return false;
 }
 
-void striDestroy(striter *iter)
+void striFinish(striter *iter)
 {
     if (!iter)
         return;
 
     _striClear(iter);
-    strDestroy(&iter->_str);        // will not deallocate unless this is STR_ALLOC
+    if (iter->_borrowed) {
+        iter->_str = 0;
+        iter->_borrowed = false;
+    } else {
+        strDestroy(&iter->_str);        // will not deallocate unless this is STR_ALLOC
+    }
 }
 
 bool striU8Char(striter *iter, int32 *out)
@@ -251,7 +258,7 @@ static bool _striRewindU8(striter *iter, uint32 by)
     uint8 u;
 
     striter temp;
-    striCreate(&temp, iter->_str);
+    striInit(&temp, iter->_str);
 
     while (by > 0) {
         if (off == 0)
@@ -278,6 +285,6 @@ static bool _striRewindU8(striter *iter, uint32 by)
     ret = true;
 
 out:
-    striDestroy(&temp);
+    striFinish(&temp);
     return ret;
 }

@@ -2,10 +2,10 @@
 #include "cx/core/error.h"
 #include "vfsfs/vfsfs.h"
 
-int vfsStat(VFS *vfs, string path, FSStat *stat)
+int vfsStat(VFS *vfs, strref path, FSStat *stat)
 {
     int ret = FS_Nonexistent;
-    string rpath = 0;
+    string(rpath);
 
     VFSMount *m = _vfsFindMount(vfs, &rpath, path, NULL, NULL, VFS_FindCache);
     if (!m) {
@@ -27,10 +27,10 @@ out:
     return ret;
 }
 
-bool vfsSetTimes(VFS *vfs, string path, int64 modified, int64 accessed)
+bool vfsSetTimes(VFS *vfs, strref path, int64 modified, int64 accessed)
 {
     bool ret = false;
-    string rpath = 0;
+    string(rpath);
 
     VFSMount *m = _vfsFindMount(vfs, &rpath, path, NULL, NULL, VFS_FindCache);
     if (!m)
@@ -47,10 +47,10 @@ out:
     return ret;
 }
 
-bool vfsCreateDir(VFS *vfs, string path)
+bool vfsCreateDir(VFS *vfs, strref path)
 {
     bool ret = false;
-    string rpath = 0;
+    string(rpath);
 
     VFSMount *m = _vfsFindMount(vfs, &rpath, path, NULL, NULL, VFS_FindCreate);
     if (!m) {
@@ -75,9 +75,9 @@ out:
     return ret;
 }
 
-bool vfsCreateAll(VFS *vfs, string path)
+bool vfsCreateAll(VFS *vfs, strref path)
 {
-    string parent = 0;
+    string(parent);
     pathParent(&parent, path);
     if (!strEmpty(parent) && !vfsExist(vfs, parent))
         vfsCreateAll(vfs, parent);
@@ -86,10 +86,10 @@ bool vfsCreateAll(VFS *vfs, string path)
     return vfsCreateDir(vfs, path);
 }
 
-bool vfsRemoveDir(VFS *vfs, string path)
+bool vfsRemoveDir(VFS *vfs, strref path)
 {
     bool ret = false;
-    string rpath = 0;
+    string(rpath);
 
     VFSMount *m = _vfsFindMount(vfs, &rpath, path, NULL, NULL, VFS_FindDelete);
     if (!m) {
@@ -113,10 +113,10 @@ out:
     return ret;
 }
 
-bool vfsDelete(VFS *vfs, string path)
+bool vfsDelete(VFS *vfs, strref path)
 {
     bool ret = false;
-    string rpath = 0;
+    string(rpath);
 
     VFSMount *m = _vfsFindMount(vfs, &rpath, path, NULL, NULL, VFS_FindDelete);
     if (!m) {
@@ -143,7 +143,7 @@ out:
 }
 
 #define COPYBLOCKSIZE 65536
-bool vfsCopy(VFS *vfs, string from, string to)
+bool vfsCopy(VFS *vfs, strref from, strref to)
 {
     VFSFile *srcfile = 0, *dstfile = 0;
     bool ret = false;
@@ -179,10 +179,10 @@ out:
     return ret;
 }
 
-bool vfsRename(VFS *vfs, string from, string to)
+bool vfsRename(VFS *vfs, strref from, strref to)
 {
     bool ret = false;
-    string rpathfrom = 0, rpathto = 0;
+    string(rpathfrom); string(rpathto);
 
     VFSMount *mfrom = _vfsFindMount(vfs, &rpathfrom, from, NULL, NULL, VFS_FindCache);
     VFSMount *mto = _vfsFindMount(vfs, &rpathto, to, NULL, NULL, VFS_FindWriteFile | VFS_FindCreate | VFS_FindCache);
@@ -224,10 +224,10 @@ out:
     return ret;
 }
 
-bool vfsGetFSPath(string *out, VFS *vfs, string path)
+bool vfsGetFSPath(string *out, VFS *vfs, strref path)
 {
     bool ret = false;
-    string rpath = 0;
+    string(rpath);
 
     VFSMount *m = _vfsFindMount(vfs, &rpath, path, NULL, NULL, 0);
     if (!m) {

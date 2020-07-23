@@ -103,7 +103,7 @@ uint32 hashMurmur3i(const uint8* key, size_t len)
     return h;
 }
 
-uint32 hashMurmur3Str(string s)
+uint32 hashMurmur3Str(strref s)
 {
     lazyInit(&msInit, initSeed, NULL);
 
@@ -148,7 +148,7 @@ uint32 hashMurmur3Str(string s)
     return h;
 }
 
-uint32 hashMurmur3Stri(string s)
+uint32 hashMurmur3Stri(strref s)
 {
     lazyInit(&msInit, initSeed, NULL);
 

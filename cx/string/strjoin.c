@@ -1,7 +1,7 @@
 #include "string_private.h"
 #include "cx/container/sarray.h"
 
-bool strJoin(string *o, string *arr, string sep)
+bool strJoin(string *o, string *arr, strref sep)
 {
     if (!o || !arr)
         return false;

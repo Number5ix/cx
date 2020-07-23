@@ -7,18 +7,18 @@ CX_C_BEGIN
 // Convert a string to a number
 // strict indicates whether the entire string must be a number or if
 // it may be followed by non-numeric characters
-bool strToInt32(int32 *out, string s, int base, bool strict);
-bool strToUInt32(uint32 *out, string s, int base, bool strict);
-bool strToInt64(int64 *out, string s, int base, bool strict);
-bool strToUInt64(uint64 *out, string s, int base, bool strict);
+bool strToInt32(int32 *out, strref s, int base, bool strict);
+bool strToUInt32(uint32 *out, strref s, int base, bool strict);
+bool strToInt64(int64 *out, strref s, int base, bool strict);
+bool strToUInt64(uint64 *out, strref s, int base, bool strict);
 
 bool strFromInt32(string *out, int32 i, uint16 base);
 bool strFromUInt32(string *out, uint32 i, uint16 base);
 bool strFromInt64(string *out, int64 i, uint16 base);
 bool strFromUInt64(string *out, uint64 i, uint16 base);
 
-bool strToFloat32(float32 *out, string s, bool strict);
-bool strToFloat64(float64 *out, string s, bool strict);
+bool strToFloat32(float32 *out, strref s, bool strict);
+bool strToFloat64(float64 *out, strref s, bool strict);
 
 bool strFromFloat32(string *out, float32 f);
 bool strFromFloat64(string *out, float64 f);

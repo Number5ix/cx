@@ -7,16 +7,16 @@
 CX_C_BEGIN
 
 // Convert a platform-specific path into a CX path
-void pathFromPlatform(string *out, string platformpath);
+void pathFromPlatform(string *out, strref platformpath);
 // Convert a CX normalized path into a platform-specific path
-void pathToPlatform(string *out, string path);
+void pathToPlatform(string *out, strref path);
 
 // Get / set current directory
 void fsCurDir(string *out);
-bool fsSetCurDir(string cur);
+bool fsSetCurDir(strref cur);
 
 // Make a relative path into an absolute one, using the OS's current directory
-bool pathMakeAbsolute(string *out, string path);
+bool pathMakeAbsolute(string *out, strref path);
 
 // Get running executable name
 void fsExe(string *out);
@@ -35,28 +35,28 @@ typedef struct FSStat {
     int64 accessed;
 } FSStat;
 
-int fsStat(string path, FSStat *stat);
+int fsStat(strref path, FSStat *stat);
 
-_meta_inline bool fsExist(string path)
+_meta_inline bool fsExist(strref path)
 {
     return fsStat(path, NULL) != FS_Nonexistent;
 }
-_meta_inline bool fsIsDir(string path)
+_meta_inline bool fsIsDir(strref path)
 {
     return fsStat(path, NULL) == FS_Directory;
 }
-_meta_inline bool fsIsFile(string path)
+_meta_inline bool fsIsFile(strref path)
 {
     return fsStat(path, NULL) == FS_File;
 }
 
-bool fsSetTimes(string path, int64 modified, int64 accessed);
+bool fsSetTimes(strref path, int64 modified, int64 accessed);
 
-bool fsCreateDir(string path);
-bool fsCreateAll(string path);
-bool fsRemoveDir(string path);
-bool fsDelete(string path);
-bool fsRename(string from, string to);
+bool fsCreateDir(strref path);
+bool fsCreateAll(strref path);
+bool fsRemoveDir(strref path);
+bool fsDelete(strref path);
+bool fsRename(strref from, strref to);
 
 typedef struct FSDirSearch FSDirSearch;
 typedef struct FSDirEnt {
@@ -65,7 +65,7 @@ typedef struct FSDirEnt {
     FSStat stat;
 } FSDirEnt;
 
-FSDirSearch *fsSearchDir(string path, string pattern, bool stat);
+FSDirSearch *fsSearchDir(strref path, strref pattern, bool stat);
 FSDirEnt *fsSearchNext(FSDirSearch *search);
 void fsSearchClose(FSDirSearch *search);
 

@@ -33,7 +33,7 @@ typedef struct VFSCacheEnt {
     VFSMount *mount;        // which VFS mount this file belongs to
     string origpath;        // original path (relative to provider)
 } VFSCacheEnt;
-VFSCacheEnt *_vfsCacheEntCreate(VFSMount *m, string opath);
+VFSCacheEnt *_vfsCacheEntCreate(VFSMount *m, strref opath);
 extern STypeOps VFSCacheEnt_ops;
 
 typedef struct VFSDir VFSDir;
@@ -54,10 +54,10 @@ extern STypeOps VFSDir_ops;
 
 // gets (and creates) path in VFS cache
 // must be called with vfslock read (or write) lock held!
-VFSDir *_vfsGetDir(VFS *vfs, string path, bool isfile, bool cache, bool writelockheld);
+VFSDir *_vfsGetDir(VFS *vfs, strref path, bool isfile, bool cache, bool writelockheld);
 // gets a file from VFS cache if it exists
 // must be called with vfslock read (or write) lock held!
-VFSCacheEnt *_vfsGetFile(VFS *vfs, string path, bool writelockheld);
+VFSCacheEnt *_vfsGetFile(VFS *vfs, strref path, bool writelockheld);
 // finds a suitable provider for a particular file
 enum VFS_FIND_PROVIDER_ENUM {
     VFS_FindWriteFile = 0x01,
@@ -65,10 +65,10 @@ enum VFS_FIND_PROVIDER_ENUM {
     VFS_FindDelete =    0x04,
     VFS_FindCache =   0x1000,
 };
-VFSMount *_vfsFindMount(VFS *vfs, string *rpath, string path, VFSMount **cowmount, string *cowrpath, uint32 flags);
-void _vfsInvalidateCache(VFS *vfs, string path);
+VFSMount *_vfsFindMount(VFS *vfs, string *rpath, strref path, VFSMount **cowmount, string *cowrpath, uint32 flags);
+void _vfsInvalidateCache(VFS *vfs, strref path);
 void _vfsInvalidateRecursive(VFS *vfs, VFSDir *dir, bool havelock);
-void _vfsAbsPath(VFS *vfs, string *out, string path);
+void _vfsAbsPath(VFS *vfs, string *out, strref path);
 int _vfsFindCIHelper(VFS *vfs, VFSDir *vdir, string *out, string *components, VFSMount *mount, VFSProvider *provif);
 
 bool _vfsAddPlatformSpecificMounts(VFS *vfs);

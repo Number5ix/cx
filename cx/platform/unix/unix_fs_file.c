@@ -16,11 +16,11 @@ typedef struct FSFile {
     int fd;
 } FSFile;
 
-FSFile *_fsOpen(string path, int flags)
+FSFile *_fsOpen(strref path, int flags)
 {
     FSFile *ret;
     int oflags = 0;
-    string npath = 0;
+    string(npath);
 
     strDup(&npath, path);
     pathNormalize(&npath);

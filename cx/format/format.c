@@ -21,7 +21,7 @@ uint8 _fmtTypeIdMask[FMT_count][2] = {
     { 0xe1, 0xff },     // object
 };
 
-bool(*_fmtTypeParseOpt[FMT_count])(FMTVar *v, string opt) = {
+bool(*_fmtTypeParseOpt[FMT_count])(FMTVar *v, strref opt) = {
     _fmtParseStringOpt,
     _fmtParseIntOpt,
     _fmtParseIntOpt,
@@ -80,7 +80,7 @@ static void fmtVarDestroy(FMTVar *v)
     strDestroy(&v->hashkey);
 }
 
-bool _strFormat(string *out, string fmt, int n, stvar *args)
+bool _strFormat(string *out, strref fmt, int n, stvar *args)
 {
     if (!(out && fmt))
         return false;
@@ -93,7 +93,7 @@ bool _strFormat(string *out, string fmt, int n, stvar *args)
     ctx.args = args;
     fmtVarCreate(&ctx.v);
 
-    string frag = 0;
+    string(frag);
 
     // main format string scan loop
     for (;;) {

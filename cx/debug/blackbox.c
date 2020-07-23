@@ -141,14 +141,14 @@ static void _bboxDeleteInternal(uint16 idx)
     freeSpaceAdd(idx, bboxEntSize(ent));
 }
 
-void bboxSet(string name, string val, uint8 flags)
+void bboxSet(strref name, strref val, uint8 flags)
 {
     mutexAcquire(&bbmtx);
 
     BlackBoxEnt *ent = 0, *tail;
     uint16 idx = 0;
 
-    if (htFind(&bbindex, string, name, uint16, &idx)) {
+    if (htFind(&bbindex, strref, name, uint16, &idx)) {
         // already exists in index
         ent = (BlackBoxEnt*)&dbgBlackBox[idx];
         // is it big enough that we can overwrite in place?
@@ -217,12 +217,12 @@ out:
     mutexRelease(&bbmtx);
 }
 
-void bboxDelete(string name)
+void bboxDelete(strref name)
 {
     mutexAcquire(&bbmtx);
     uint16 idx = 0;
 
-    if (htFind(&bbindex, string, name, uint16, &idx))
+    if (htFind(&bbindex, strref, name, uint16, &idx))
         _bboxDeleteInternal(idx);
 
     mutexRelease(&bbmtx);

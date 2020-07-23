@@ -45,9 +45,9 @@ static STypeOps FSDirEnt_ops_cs = {
     .dtor = dirEntDestroy,
 };
 
-VFSDirSearch *vfsSearchDir(VFS *vfs, string path, string pattern, int typefilter, bool stat)
+VFSDirSearch *vfsSearchDir(VFS *vfs, strref path, strref pattern, int typefilter, bool stat)
 {
-    string abspath = 0, curpath = 0, filepath = 0;
+    string(abspath); string(curpath); string(filepath);
     hashtable names;
     int32 idx;
 
@@ -63,7 +63,8 @@ VFSDirSearch *vfsSearchDir(VFS *vfs, string path, string pattern, int typefilter
     _vfsAbsPath(vfs, &abspath, path);
 
     VFSDir *vfsdir = _vfsGetDir(vfs, abspath, false, false, true), *pdir = vfsdir;
-    string ns = 0, *components = 0, *relcomp = 0;
+    string(ns);
+    string *components = 0, *relcomp = 0;
 
     if (!vfsdir)
         return NULL;

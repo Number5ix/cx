@@ -1,6 +1,6 @@
 #include "vfs_private.h"
 
-VFSCacheEnt *_vfsCacheEntCreate(VFSMount *m, string opath)
+VFSCacheEnt *_vfsCacheEntCreate(VFSMount *m, strref opath)
 {
     VFSCacheEnt *c = xaAlloc(sizeof(VFSCacheEnt), Zero);
     c->mount = m;

@@ -1,7 +1,7 @@
 #include "string_private.h"
 #include "cx/container/sarray.h"
 
-int32 strSplit(string **out, string s, string sep, bool empty)
+int32 strSplit(string **out, strref s, strref sep, bool empty)
 {
     if (!out)
         return 0;
@@ -13,7 +13,7 @@ int32 strSplit(string **out, string s, string sep, bool empty)
 
     uint32 seplen = strLen(sep);
     int32 start = 0, next;
-    string seg = 0;
+    string(seg);
     while ((next = strFind(s, start, sep)) != -1) {
         if (start != next || empty) {
             if (next != 0)      // degenerate case for starting with separator

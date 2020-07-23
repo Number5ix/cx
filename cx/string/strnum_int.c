@@ -7,7 +7,7 @@ char _strnum_ldigits[] = "0123456789abcdefghijklmnopqrstuvwxyz";
 // string to integer -------------------------------------------------------------------
 
 #define STRNUM_IMPL(type, stype, utype, name, CUTOFF)        \
-bool name(type *out, string s, int base, bool strict)        \
+bool name(type *out, strref s, int base, bool strict)        \
 {                                                            \
     utype acc;                                               \
     char c;                                                  \

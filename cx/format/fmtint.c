@@ -8,9 +8,9 @@ enum IntOpts {
     FMT_IntUtfChar  = 0x00040000,
 };
 
-bool _fmtParseIntOpt(FMTVar *v, string opt)
+bool _fmtParseIntOpt(FMTVar *v, strref opt)
 {
-    string tmp = 0;
+    string(tmp);
     uint32 val;
     if (strEq(opt, _S"prefix")) {
         v->flags |= FMT_IntPrefix;

@@ -2,7 +2,7 @@
 #include "cx/string.h"
 #include "cx/debug/assert.h"
 
-bool pathMatch(string path, string pattern, uint32 flags)
+bool pathMatch(strref path, strref pattern, uint32 flags)
 {
     striter bt_pathi = { 0 }, bt_pati = { 0 };
     striter pathi, pati;

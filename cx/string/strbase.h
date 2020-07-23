@@ -7,10 +7,18 @@ CX_C_BEGIN
 // IMPORTANT NOTE!
 // Always initialize sstring to NULL or 0 first!
 typedef struct str_impl* string;
+// helper for declaring string variables
+#define string(name) string name = 0
 
-// Create an empty string suitable for initializing a string variable.
-// Do not assign to an existing string handle or you will leak resources!
-string strCreate();
+// String references are borrowed references to strings, for
+// controlled situations such as passing as function arguments.
+//
+// IMPORTANT! It is *NEVER* safe to return a strref from a function
+// in a multi-threaded program. Doing so may create a race condition.
+// Always use an output argument and duplicate the result into it.
+// (this also makes it a lot harder for the caller for forget they
+// need to destroy it)
+typedef const struct str_impl* strref;
 
 // Create a new empty string with preallocated storage.
 //        o: output string, will be destroyed if it exists
@@ -21,12 +29,12 @@ void strInit(string *o, uint32 sizehint);
 //       o: output string, will be destroyed if it exists
 //       s: Handle of string to duplicate.
 // Returns: String handle.
-void strDup(string *o, string s);
+void strDup(string *o, strref s);
 
 // Like strDup but always makes a copy (does not use copy-on-write optimization).
 //       o: output string, will be destroyed if it exists
 //       s: Handle of string to copy.
-void strCopy(string *o, string s);
+void strCopy(string *o, strref s);
 
 // Clear the contents of a string. May leave existing storage as preallocated
 // space if it is efficient to do so.
@@ -36,7 +44,7 @@ void strClear(string *ps);
 // Retrieve the length of a string. This does not include preallocated memory.
 //       s: String handle.
 // Returns: String length.
-uint32 strLen(string s);
+uint32 strLen(strref s);
 
 // Sets the length of a string, truncating or filling with null-characters.
 //      ps: Pointer to string handle.
@@ -46,7 +54,7 @@ bool strSetLen(string *ps, uint32 len);
 // Checks if a string is empty. Nonexistent strings are considered empty.
 //       s: String handle
 // Returns: true if string is empty
-bool strEmpty(string s);
+bool strEmpty(strref s);
 
 // Disposes of a string handle.
 //      ps: Pointer to string handle. Handle will be reset to NULL.
@@ -74,7 +82,7 @@ char *strBuffer(string *ps, uint32 minsz);
 //     buf: Pointer to memory buffer.
 //   bufsz: Size of memory buffer.
 // Returns: Number of bytes copied (may be smaller than requested if string length is exceeded).
-uint32 strCopyOut(string s, uint32 off, char *buf, uint32 bufsz);
+uint32 strCopyOut(strref s, uint32 off, char *buf, uint32 bufsz);
 
 // Copies raw bytes out of a string without null terminating.
 //       s: String handle.
@@ -82,7 +90,7 @@ uint32 strCopyOut(string s, uint32 off, char *buf, uint32 bufsz);
 //     buf: Pointer to memory buffer.
 //  maxlen: Maximum number of bytes to copy.
 // Returns: Number of bytes copied (may be smaller than requested if string length is exceeded).
-uint32 strCopyRaw(string s, uint32 off, char *buf, uint32 maxlen);
+uint32 strCopyRaw(strref s, uint32 off, char *buf, uint32 maxlen);
 
 #ifdef _WIN32
 // definition of _S interferes with this header, so include it first

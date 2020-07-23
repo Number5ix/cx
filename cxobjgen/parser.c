@@ -76,7 +76,7 @@ static bool isvalidname(string str)
         return false;
 
     striter st;
-    striCreate(&st, str);
+    striInit(&st, str);
     while (st.len > 0) {
         for (uint32 i = 0; i < st.len; i++) {
             if (_isspecial(st.bytes[i])) {
@@ -87,7 +87,7 @@ static bool isvalidname(string str)
         striNext(&st);
     }
 out:
-    striDestroy(&st);
+    striFinish(&st);
     return ret;
 }
 
@@ -98,7 +98,7 @@ static bool onlyspecial(string str)
         return false;
 
     striter st;
-    striCreate(&st, str);
+    striInit(&st, str);
     while (st.len > 0) {
         for (uint32 i = 0; i < st.len; i++) {
             if (!_isspecial(st.bytes[i])) {
@@ -109,7 +109,7 @@ static bool onlyspecial(string str)
         striNext(&st);
     }
 out:
-    striDestroy(&st);
+    striFinish(&st);
     return ret;
 }
 
@@ -271,7 +271,7 @@ bool parseGlobal(ParseState *ps, string *tok)
         bool brackets;
         nextTok(ps, &fname);
         striter it;
-        striCreate(&it, fname);
+        striInit(&it, fname);
         bool ret = true;
 
         if (it.len < 1)
@@ -286,7 +286,7 @@ bool parseGlobal(ParseState *ps, string *tok)
         striSeek(&it, 1, STRI_BYTE, STRI_END);
         if (it.len < 1 || it.bytes[0] != (brackets ? '>' : '"'))
             ret = false;
-        striDestroy(&it);
+        striFinish(&it);
         if (!ret) {
             fprintf(stderr, "Invalid include syntax '%s'\n", strC(&fname));
             return false;

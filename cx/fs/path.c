@@ -7,7 +7,7 @@ string fsPathSepStr = _S"/";
 string fsNSSepStr = _S":";
 
 // Get parent directory
-bool pathParent(string *out, string path)
+bool pathParent(string *out, strref path)
 {
     int32 sep = strFindR(path, strEnd, fsPathSepStr);
     if (sep <= 0 || strGetChar(path, sep - 1) == ':')
@@ -16,7 +16,7 @@ bool pathParent(string *out, string path)
     return strSubStr(out, path, 0, sep);
 }
 
-bool pathFilename(string *out, string path)
+bool pathFilename(string *out, strref path)
 {
     int sep = strFindR(path, strEnd, fsPathSepStr);
     if (sep != -1)
@@ -26,9 +26,9 @@ bool pathFilename(string *out, string path)
     return false;
 }
 
-bool _pathJoin(string *out, int n, string* elements)
+bool _pathJoin(string *out, int n, strref* elements)
 {
-    string npath = 0;
+    string(npath);
     bool donefirst = false;
     bool lastroot = false;
 
@@ -61,12 +61,12 @@ bool _pathJoin(string *out, int n, string* elements)
     return true;
 }
 
-void pathAddExt(string *out, string path, string ext)
+void pathAddExt(string *out, strref path, strref ext)
 {
     strNConcat(out, path, _S".", ext);
 }
 
-bool pathRemoveExt(string *out, string path)
+bool pathRemoveExt(string *out, strref path)
 {
     if (strEmpty(path))
         return false;
@@ -80,7 +80,7 @@ bool pathRemoveExt(string *out, string path)
     return true;
 }
 
-bool pathGetExt(string *out, string path)
+bool pathGetExt(string *out, strref path)
 {
     if (!path)
         return false;
@@ -94,13 +94,13 @@ bool pathGetExt(string *out, string path)
     return true;
 }
 
-void pathSetExt(string *out, string path, string ext)
+void pathSetExt(string *out, strref path, strref ext)
 {
     pathRemoveExt(out, path);
     pathAddExt(out, *out, ext);
 }
 
-bool pathIsAbsolute(string path)
+bool pathIsAbsolute(strref path)
 {
     // namespaced paths are always absolute
     if (strFind(path, 0, fsNSSepStr) != -1)
@@ -110,11 +110,11 @@ bool pathIsAbsolute(string path)
     return false;
 }
 
-bool pathSplitNS(string *nspart, string *pathpart, string path)
+bool pathSplitNS(string *nspart, string *pathpart, strref path)
 {
     int32 idx = strFind(path, 0, fsNSSepStr);
 
-    string rns = 0, rpath = 0;
+    string(rns); string(rpath);
     if (!nspart || !pathpart)
         return false;
 
@@ -132,7 +132,7 @@ bool pathSplitNS(string *nspart, string *pathpart, string path)
     return true;
 }
 
-static bool pathNormalized(string path)
+static bool pathNormalized(strref path)
 {
     striter pi;
     striBorrow(&pi, path);
@@ -186,9 +186,9 @@ static bool pathNormalized(string path)
     return true;
 }
 
-bool pathDecompose(string *ns, string **components, string pathin)
+bool pathDecompose(string *ns, string **components, strref pathin)
 {
-    string rpath = 0;
+    string(rpath);
 
     pathSplitNS(ns, &rpath, pathin);
     // if there are any backslashes, turn them to forward slashes
@@ -222,16 +222,17 @@ bool pathDecompose(string *ns, string **components, string pathin)
     }
 
     // handle degenerate case of namespace: or namespace:path with no /
-    if (absolute && (saSize(components) == 0 || !strEmpty((*components)[0])))
+    if (absolute && (saSize(components) == 0 || !strEmpty((*components)[0]))) {
         saInsert(components, 0, string, _S);
+    }
 
     strDestroy(&rpath);
     return absolute;
 }
 
-bool pathCompose(string *out, string ns, string *components)
+bool pathCompose(string *out, strref ns, string *components)
 {
-    string rpath = 0;
+    string(rpath);
 
     strJoin(&rpath, components, fsPathSepStr);
     if (saSize(&components) == 1 && strEmpty(components[0]))
@@ -248,7 +249,7 @@ bool pathCompose(string *out, string ns, string *components)
 
 void pathNormalize(string *path)
 {
-    string nspace = 0;
+    string(nspace);
     string *components = 0;
 
     if (!pathNormalized(*path)) {

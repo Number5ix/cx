@@ -18,23 +18,24 @@ typedef struct striter {
 
     // private members
     string _str;
+    bool _borrowed;
 } striter;
 
 typedef enum { STRI_BYTE, STRI_U8CHAR } STRI_SEEK_TYPE;
 typedef enum { STRI_SET, STRI_CUR, STRI_END } STRI_SEEK_WHENCE;
 
-void striCreate(striter *i, string s);
-void striCreateRev(striter *i, string s);
+void striInit(striter *i, strref s);
+void striInitRev(striter *i, strref s);
 bool striNext(striter *i);
 bool striPrev(striter *i);
 bool striSeek(striter *i, int32 off, STRI_SEEK_TYPE type, STRI_SEEK_WHENCE whence);
-void striDestroy(striter *i);
+void striFinish(striter *i);
 
 // Borrowed iterators do not hold a reference to the string. They are intended for
 // carefully controlled circumstances where maximum performance is needed. They
-// should be discarded when finished. NEVER call striDestroy on one.
-void striBorrow(striter *i, string s);
-void striBorrowRev(striter *i, string s);
+// may be discarded when finished.
+void striBorrow(striter *i, strref s);
+void striBorrowRev(striter *i, strref s);
 
 
 // It's preferred to for the caller to use striter->len to scan through bytes, but in

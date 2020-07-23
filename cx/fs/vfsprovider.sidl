@@ -18,14 +18,14 @@ interface VFSDirSearchProvider {
 interface VFSProvider {
     uint32 flags();                             // VFSProviderFlags enforced for this provider
 
-    ObjInst *open(string path, int flags);      // returns an object that implements VFSFileProvider
-    int stat(string path, FSStat *stat);
-    bool setTimes(string path, int64 modified, int64 accessed);
-    bool createDir(string path);
-    bool removeDir(string path);
-    bool deleteFile(string path);
-    bool rename(string oldpath, string newpath);
-    bool getFSPath(string *out, string path);
+    ObjInst *open(strref path, int flags);      // returns an object that implements VFSFileProvider
+    int stat(strref path, FSStat *stat);
+    bool setTimes(strref path, int64 modified, int64 accessed);
+    bool createDir(strref path);
+    bool removeDir(strref path);
+    bool deleteFile(strref path);
+    bool rename(strref oldpath, strref newpath);
+    bool getFSPath(string *out, strref path);
 
-    ObjInst *searchDir(string path, string pattern, bool stat);
+    ObjInst *searchDir(strref path, strref pattern, bool stat);
 }

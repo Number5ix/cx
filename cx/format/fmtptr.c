@@ -9,7 +9,7 @@ enum PtrOpts {
     FMT_PtrPrefix = 0x00010000,
 };
 
-bool _fmtParsePtrOpt(FMTVar *v, string opt)
+bool _fmtParsePtrOpt(FMTVar *v, strref opt)
 {
     if (strEq(opt, _S"prefix")) {
         v->flags |= FMT_PtrPrefix;

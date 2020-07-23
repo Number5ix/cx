@@ -1,7 +1,7 @@
 #include "string_private.h"
 #include "cx/utils/scratch.h"
 
-bool strValidUTF8(string s)
+bool strValidUTF8(strref s)
 {
     if (!STR_CHECK_VALID(s))
         return false;
@@ -32,7 +32,7 @@ bool strValidUTF8(string s)
     return true;
 }
 
-bool strValidASCII(string s)
+bool strValidASCII(strref s)
 {
     if (!STR_CHECK_VALID(s))
         return false;
@@ -56,7 +56,7 @@ bool strValidASCII(string s)
     return true;
 }
 
-size_t strToUTF16(string s, uint16 *buf, size_t wsz)
+size_t strToUTF16(strref s, uint16 *buf, size_t wsz)
 {
     size_t bufidx = 0;
     int32 codepoint;
@@ -155,7 +155,7 @@ fail:
     return false;
 }
 
-uint16 *strToUTF16A(string s)
+uint16 *strToUTF16A(strref s)
 {
     size_t sz = strToUTF16(s, NULL, 0);
     if (sz == 0)
@@ -166,7 +166,7 @@ uint16 *strToUTF16A(string s)
     return ret;
 }
 
-uint16 *strToUTF16S(string s)
+uint16 *strToUTF16S(strref s)
 {
     size_t sz = strToUTF16(s, NULL, 0);
     if (sz == 0)

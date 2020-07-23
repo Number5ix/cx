@@ -52,15 +52,15 @@ static void initCurDir(void *data)
     xaSFree(buf);
 }
 
-void pathFromPlatform(string *out, string platformpath)
+void pathFromPlatform(string *out, strref platformpath)
 {
     // not really much to do here...
     strDup(out, platformpath);
 }
 
-void pathToPlatform(string *out, string path)
+void pathToPlatform(string *out, strref path)
 {
-    string ns = 0, rpath = 0;
+    string(ns); string(rpath);
     pathSplitNS(&ns, &rpath, path);
     // namespaces have no meaning in UNIX paths, so just
     // discard it and use the path part if there is one
@@ -69,7 +69,7 @@ void pathToPlatform(string *out, string path)
     *out = rpath;
 }
 
-bool pathMakeAbsolute(string *out, string path)
+bool pathMakeAbsolute(string *out, strref path)
 {
     if (pathIsAbsolute(path)) {
         strDup(out, path);
@@ -77,7 +77,7 @@ bool pathMakeAbsolute(string *out, string path)
     }
     lazyInit(&fsCurDirInit, initCurDir, NULL);
 
-    string tmp = 0;
+    string(tmp);
     rwlockAcquireRead(&_fsCurDirLock);
     pathJoin(&tmp, _fsCurDir, path);
     rwlockReleaseRead(&_fsCurDirLock);
@@ -94,12 +94,12 @@ void fsCurDir(string *out)
     rwlockReleaseRead(&_fsCurDirLock);
 }
 
-bool fsSetCurDir(string cur)
+bool fsSetCurDir(strref cur)
 {
     if (strEmpty(cur))
         return false;
 
-    string ncur = 0, ppath = 0;
+    string(ncur); string(ppath);
     strDup(&ncur, cur);
 
     // be paranoid about what we set our current directory to
@@ -170,7 +170,7 @@ static void fsExeInit(void *data)
 void fsExe(string *out)
 {
     static LazyInitState execache;
-    static string exepath = 0;
+    static string(exepath);
     lazyInit(&execache, fsExeInit, &exepath);
 
     strDup(out, exepath);
@@ -182,13 +182,13 @@ void fsExeDir(string *out)
     pathParent(out, *out);
 }
 
-int fsStat(string path, FSStat *fsstat)
+int fsStat(strref path, FSStat *fsstat)
 {
     if (strEmpty(path))
         return FS_Nonexistent;
 
     struct stat sb;
-    string ppath = 0;
+    string(ppath);
     pathToPlatform(&ppath, path);
     if (stat(strC(&ppath), &sb) != 0) {
         if (fsstat)
@@ -218,13 +218,13 @@ int fsStat(string path, FSStat *fsstat)
     return FS_File;
 }
 
-bool fsCreateDir(string path)
+bool fsCreateDir(strref path)
 {
     bool ret = true;
     if (strEmpty(path))
         return false;
 
-    string ppath = 0;
+    string(ppath);
     pathToPlatform(&ppath, path);
     if (mkdir(strC(&ppath), 0755) == -1 && errno != EEXIST)
         ret = unixMapErrno();
@@ -233,9 +233,9 @@ bool fsCreateDir(string path)
     return ret;
 }
 
-bool fsCreateAll(string path)
+bool fsCreateAll(strref path)
 {
-    string parent = 0;
+    string(parent);
     pathParent(&parent, path);
     if (!strEmpty(parent) && !fsExist(parent))
         fsCreateAll(parent);
@@ -244,13 +244,13 @@ bool fsCreateAll(string path)
     return fsCreateDir(path);
 }
 
-bool fsRemoveDir(string path)
+bool fsRemoveDir(strref path)
 {
     bool ret = true;
     if (strEmpty(path))
         return false;
 
-    string ppath = 0;
+    string(ppath);
     pathToPlatform(&ppath, path);
     if (rmdir(strC(&ppath)) == -1)
         ret = unixMapErrno();
@@ -259,13 +259,13 @@ bool fsRemoveDir(string path)
     return ret;
 }
 
-bool fsDelete(string path)
+bool fsDelete(strref path)
 {
     bool ret = true;
     if (strEmpty(path))
         return false;
 
-    string ppath = 0;
+    string(ppath);
     pathToPlatform(&ppath, path);
     if (unlink(strC(&ppath)) == -1)
         ret = unixMapErrno();
@@ -274,13 +274,13 @@ bool fsDelete(string path)
     return ret;
 }
 
-bool fsRename(string from, string to)
+bool fsRename(strref from, strref to)
 {
     bool ret = true;
     if (strEmpty(from) || strEmpty(to))
         return false;
 
-    string pfrom = 0, pto = 0;
+    string(pfrom); string(pto);
     pathToPlatform(&pfrom, from);
     pathToPlatform(&pto, to);
     if (rename(strC(&pfrom), strC(&pto)) == -1)
@@ -299,11 +299,11 @@ typedef struct FSDirSearch {
     bool stat;
 } FSDirSearch;
 
-FSDirSearch *fsSearchDir(string path, string pattern, bool stat)
+FSDirSearch *fsSearchDir(strref path, strref pattern, bool stat)
 {
     FSDirSearch *ret = 0;
 
-    string ppath = 0;
+    string(ppath);
     pathToPlatform(&ppath, path);
 
     ret = xaAlloc(sizeof(FSDirSearch), Zero);
@@ -343,7 +343,7 @@ FSDirEnt *fsSearchNext(FSDirSearch *search)
                 ret->type = FS_File;
 
             if (search->stat) {
-                string tpath = 0;
+                string(tpath);
                 pathJoin(&tpath, search->path, ret->name);
                 fsStat(tpath, &ret->stat);
                 strDestroy(&tpath);
@@ -366,9 +366,9 @@ void fsSearchClose(FSDirSearch *search)
     xaFree(search);
 }
 
-bool fsSetTimes(string path, int64 modified, int64 accessed)
+bool fsSetTimes(strref path, int64 modified, int64 accessed)
 {
-    string ppath = 0;
+    string(ppath);
     struct timespec times[2] = { 0 };
     bool ret = true;
 

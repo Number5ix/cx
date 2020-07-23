@@ -5,5 +5,5 @@ class VFSVFS implements VFSProvider {
     object:VFS vfs;
     string root;
 
-    factory create(VFS *vfs, string rootpath);
+    factory create(VFS *vfs, strref rootpath);
 }

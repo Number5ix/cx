@@ -30,7 +30,7 @@ void _entryParseArgsU16(int argc, const uint16 **argv)
     if (argc < 1)
         return;
 
-    string temp = 0;
+    string(temp);
 
     strFromUTF16(&temp, argv[0], cstrLenw(argv[0]));
     strDup(&cmdProgram, temp);

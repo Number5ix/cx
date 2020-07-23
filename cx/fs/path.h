@@ -21,32 +21,32 @@ void pathNormalize(string *path);
 
 // Same as pathNormalize, but outputs an sarray of strings
 // returns true if it was an absolute path, false for relative
-bool pathDecompose(string *ns, string **components, string path);
+bool pathDecompose(string *ns, string **components, strref path);
 
 // Recomposes a path
-bool pathCompose(string *out, string ns, string *components);
+bool pathCompose(string *out, strref ns, string *components);
 
 // Is this an absolute or relative path?
-bool pathIsAbsolute(string path);
+bool pathIsAbsolute(strref path);
 
 // Get parent directory
-bool pathParent(string *out, string path);
+bool pathParent(string *out, strref path);
 
 // Get filename
-bool pathFilename(string *out, string path);
+bool pathFilename(string *out, strref path);
 
 // Split a full path into a namespace/path components
-bool pathSplitNS(string *nspart, string *pathpart, string path);
+bool pathSplitNS(string *nspart, string *pathpart, strref path);
 
 // For convenience, just string concats with the path separator
-bool _pathJoin(string *out, int n, string* elements);
-#define pathJoin(out, ...) _pathJoin(out, count_macro_args(__VA_ARGS__), (string[]){ __VA_ARGS__ })
+bool _pathJoin(string *out, int n, strref* elements);
+#define pathJoin(out, ...) _pathJoin(out, count_macro_args(__VA_ARGS__), (strref[]){ __VA_ARGS__ })
 
 // Add filename extension
-void pathAddExt(string *out, string path, string ext);
-bool pathRemoveExt(string *out, string path);
-bool pathGetExt(string *out, string path);
-void pathSetExt(string *out, string path, string ext);
+void pathAddExt(string *out, strref path, strref ext);
+bool pathRemoveExt(string *out, strref path);
+bool pathGetExt(string *out, strref path);
+void pathSetExt(string *out, strref path, strref ext);
 
 // Path wildcard matching
 enum PathMatchFlags {
@@ -54,6 +54,6 @@ enum PathMatchFlags {
     PATH_IgnorePath       = 2,      // match slashes as regular character
     PATH_CaseInsensitive  = 4,      // Ignore case differences
 };
-bool pathMatch(string path, string pattern, uint32 flags);
+bool pathMatch(strref path, strref pattern, uint32 flags);
 
 CX_C_END

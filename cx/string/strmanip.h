@@ -16,26 +16,26 @@ enum STRING_SPECIAL {
 //   sc* = input string, consumed and handle set to NULLs
 
 // Appends string s to string io (in-place)
-bool strAppend(string *io, string s);
+bool strAppend(string *io, strref s);
 // Prepends string s to string io (in-place)
-bool strPrepend(string s, string *io);
+bool strPrepend(strref s, string *io);
 
 
 // Sets string o to string s1 concatenated to string s2
-bool strConcat(string *o, string s1, string s2);
+bool strConcat(string *o, strref s1, strref s2);
 // Sets string o to string sc1 concatenated to string sc2
 // sc1 and sc2 are destroyed in the process (but efficiently reused if possible)
 bool strConcatC(string *o, string *sc1, string *sc2);
 // Sets string o to n strings concatenated together
-#define strNConcat(o, ...) _strNConcat(o, count_macro_args(__VA_ARGS__), (string[]){__VA_ARGS__})
-bool _strNConcat(string *o, int n, string *stra);
+#define strNConcat(o, ...) _strNConcat(o, count_macro_args(__VA_ARGS__), (strref[]){__VA_ARGS__})
+bool _strNConcat(string *o, int n, strref *stra);
 // Sets string o to n strings concatenated together
 // All input strings are destroyed (but efficiently reused if possible)
 #define strNConcatC(o, ...) _strNConcatC(o, count_macro_args(__VA_ARGS__), (string*[]){__VA_ARGS__})
 bool _strNConcatC(string *o, int n, string **stra);
 
 // Sets string o to a substring of string s between b and e
-bool strSubStr(string *o, string s, int32 b, int32 e);
+bool strSubStr(string *o, strref s, int32 b, int32 e);
 // Sets string o to a substring of string sc between b and e
 // sc is destroyed in the process (but efficiently reused if possible)
 bool strSubStrC(string *o, string *sc, int32 b, int32 e);
@@ -51,13 +51,13 @@ void strLower(string *io);
 //    out: handle to sarray of strings to place results into
 //  empty: if true, empty segments will be preserved
 // return: number of splits
-int32 strSplit(string **out, string s, string sep, bool empty);
+int32 strSplit(string **out, strref s, strref sep, bool empty);
 
 // Joins an array of strings into a single string separated by sep.
-bool strJoin(string *out, string *arr, string sep);
+bool strJoin(string *out, string *arr, strref sep);
 
 // get a single byte
-char strGetChar(string str, int32 i);
+char strGetChar(strref str, int32 i);
 // set a single byte
 void strSetChar(string *str, int32 i, char ch);
 

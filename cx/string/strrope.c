@@ -26,7 +26,7 @@ static void _strInitRope(string *o)
     *o = ret;
 }
 
-static void _strMkOptimalRoperef(str_roperef *out, string s, uint32 off, uint32 len)
+static void _strMkOptimalRoperef(str_roperef *out, strref s, uint32 off, uint32 len)
 {
     // create a roperef, but if the input string is already a rope, try to see if we
     // can steal one of its source strings rather than referencing the rope node
@@ -53,7 +53,7 @@ static void _strMkOptimalRoperef(str_roperef *out, string s, uint32 off, uint32 
     out->len = len;
 }
 
-static int _strRopeDepth(string s)
+static int _strRopeDepth(strref s)
 {
     if (!s || !(STR_HDR(s) & STR_ROPE))
         return 0;
@@ -156,9 +156,9 @@ static void _strRebalanceRope(string *ptop)
 }
 
 // create a new rope node
-string _strCreateRope(string left, uint32 left_off, uint32 left_len, string right, uint32 right_off, uint32 right_len, bool balance)
+string _strCreateRope(strref left, uint32 left_off, uint32 left_len, strref right, uint32 right_off, uint32 right_len, bool balance)
 {
-    string ret = NULL;
+    string(ret);
     uint8 encoding = STR_ENCODING_MASK;
 
     if (!left)
@@ -171,7 +171,7 @@ string _strCreateRope(string left, uint32 left_off, uint32 left_len, string righ
     if (right) {
         right_len = right_len ? min(right_len, _strFastLen(right) - right_off) : _strFastLen(right) - right_off;
         if (left_len + right_len < ROPE_MIN_SIZE * 2) {
-            string ltemp = NULL, rtemp = NULL;
+            string(ltemp); string(rtemp);
             if (left_off > 0 || left_len < _strFastLen(left))
                 strSubStr(&ltemp, left, left_off, left_off + left_len);
             if (right_off > 0 || right_len < _strFastLen(right))
@@ -210,9 +210,9 @@ string _strCreateRope(string left, uint32 left_off, uint32 left_len, string righ
 }
 
 // create a rope node with only half a rope -- this is mostly used for making substrings
-string _strCreateRope1(string s, uint32 off, uint32 len)
+string _strCreateRope1(strref s, uint32 off, uint32 len)
 {
-    string ret = NULL;
+    string(ret);
 
     if (!s)
         return NULL;
@@ -253,9 +253,9 @@ string _strCreateRope1(string s, uint32 off, uint32 len)
 }
 
 // quick and dirty rope node cloning for makeunique
-string _strCloneRope(string s)
+string _strCloneRope(strref s)
 {
-    string ret = NULL;
+    string(ret);
 
     _strInitRope(&ret);
     if (!ret)
@@ -288,7 +288,7 @@ void _strDestroyRope(string s)
 // copy bytes out of a rope
 // as in _strFastCopy, we assume the caller has done the math
 // and knows what they're doing
-uint32 _strRopeFastCopy(string s, uint32 off, char *buf, uint32 bytes)
+uint32 _strRopeFastCopy(strref s, uint32 off, char *buf, uint32 bytes)
 {
     uint32 leftcopy = 0, rightcopy = 0;
     str_ropedata *data = STR_ROPEDATA(s);
@@ -344,12 +344,12 @@ bool _strRopeRealStr(string *s, uint32 off, string *rs, uint32 *rsoff, uint32 *r
     return false;
 }
 
-int strTestRopeDepth(string s)
+int strTestRopeDepth(strref s)
 {
     return _strRopeDepth(s);
 }
 
-bool strTestRopeNode(string *o, string s, bool left)
+bool strTestRopeNode(string *o, strref s, bool left)
 {
     if (!s || !(STR_HDR(s) & STR_ROPE))
         return false;

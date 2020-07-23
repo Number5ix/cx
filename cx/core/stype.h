@@ -16,6 +16,7 @@ CX_C_BEGIN
 // IMPORTANT NOTE!
 // Always initialize string to NULL or 0 first!
 typedef struct str_impl* string;
+typedef const struct str_impl* strref;
 typedef struct hashtable_impl* hashtable;
 typedef struct ObjInst ObjInst;
 typedef struct SUID SUID;
@@ -69,6 +70,7 @@ typedef uint32 stype;
 #define SType_float64 float64
 #define SType_ptr void*
 #define SType_string string
+#define SType_strref strref
 #define SType_object ObjInst*
 #define SType_suid SUID*
 #define SType_stvar stvar*
@@ -100,6 +102,7 @@ typedef union stgeneric {
     CONTAINER_TYPE(float64);
     CONTAINER_TYPE(ptr);
     CONTAINER_TYPE(string);
+    CONTAINER_TYPE(strref);
     CONTAINER_TYPE(object);
     CONTAINER_TYPE(suid);
     CONTAINER_TYPE(stvar);
@@ -142,6 +145,7 @@ typedef struct stvar {
 #define STStorageType_float64 float64
 #define STStorageType_ptr void*
 #define STStorageType_string string
+#define STStorageType_strref string
 #define STStorageType_object ObjInst*
 #define STStorageType_suid SUID
 #define STStorageType_stvar stvar
@@ -172,6 +176,7 @@ enum STYPE_ID {
     STypeId_ptr = STCLASS_PTR | sizeof(void*),
     // most of the CX class are "object-like" types and use pointers as handles
     STypeId_string = STCLASS_CX | 0,
+    STypeId_strref = STCLASS_CX | 0,
     STypeId_object = STCLASS_CX | 1,
     STypeId_suid = STCLASS_CX | 2,        // notable exception
     STypeId_stvar = STCLASS_CX | 3,
@@ -200,6 +205,7 @@ enum STYPE_SIZE {
     STypeSize_float64 = sizeof(float64),
     STypeSize_ptr = sizeof(void*),
     STypeSize_string = sizeof(void*),
+    STypeSize_strref = sizeof(void*),
     STypeSize_object = sizeof(ObjInst*),
     // SUID is special because it's always passed by reference, but stored as the full 16 bytes
     STypeSize_suid = 16,
@@ -255,6 +261,7 @@ enum STYPE_DEFAULT_FLAGS {
     STypeFlags_float64 = 0,
     STypeFlags_ptr = 0,
     STypeFlags_string = stFlag(Object),
+    STypeFlags_strref = stFlag(Object),
     STypeFlags_object = stFlag(Object),
     STypeFlags_suid = stFlag(PassPtr),
     STypeFlags_stvar = stFlag(PassPtr) | stFlag(Object),
@@ -299,6 +306,7 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define stType_float64 stTypeInternal(float64)
 #define stType_ptr stTypeInternal(ptr)
 #define stType_string stTypeInternal(string)
+#define stType_strref stTypeInternal(strref)
 #define stType_object stTypeInternal(object)
 #define stType_suid stTypeInternal(suid)
 #define stType_stvar stTypeInternal(stvar)
@@ -325,6 +333,7 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define stFullType_float64 stFullTypeInternal(float64)
 #define stFullType_ptr stFullTypeInternal(ptr)
 #define stFullType_string stFullTypeInternal(string)
+#define stFullType_strref stFullTypeInternal(strref)
 #define stFullType_object stFullTypeInternal(object)
 #define stFullType_suid stFullTypeInternal(suid)
 #define stFullType_stvar stFullTypeInternal(stvar)
@@ -358,6 +367,7 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define STypeArg_float64(type, val) stgeneric(type, val)
 #define STypeArg_ptr(type, val) stgeneric(type, val)
 #define STypeArg_string(type, val) stgeneric(type, val)
+#define STypeArg_strref(type, val) stgeneric(type, val)
 #define STypeArg_object(type, val) stgeneric(type, objInstBase(val))
 // SUID and stvar are too big, so make a copy and pass a pointer
 #define STypeArg_suid(type, val) stgeneric(type, stRvalAddr(type, val))
@@ -387,6 +397,7 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define STypeArgPtr_float64(type, val) (stgeneric*)stCheckPtr(type, val)
 #define STypeArgPtr_ptr(type, val) (stgeneric*)stCheckPtr(type, (void**)(val))
 #define STypeArgPtr_string(type, val) (stgeneric*)stCheckPtr(type, val)
+#define STypeArgPtr_strref(type, val) (stgeneric*)stCheckPtr(type, val)
 #define STypeArgPtr_object(type, val) (stgeneric*)stCheckPtr(type, (void**)val)
 // same for the other pass-by-pointer cases (SUID, stvar)
 #define STypeArgPtr_suid(type, val) &stgeneric(type, val)
@@ -415,6 +426,7 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define STypeChecked_float64(type, val) stTypeInternal(type), stArg(type, val)
 #define STypeChecked_ptr(type, val) stTypeInternal(type), stArg(type, val)
 #define STypeChecked_string(type, val) stTypeInternal(type), stArg(type, val)
+#define STypeChecked_strref(type, val) stTypeInternal(type), stArg(type, val)
 #define STypeChecked_object(type, val) stTypeInternal(type), stArg(type, val)
 #define STypeChecked_suid(type, val) stTypeInternal(type), stArg(type, val)
 #define STypeChecked_stvar(type, val) stTypeInternal(type), stArg(type, val)
@@ -443,6 +455,7 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define STypeCheckedPtr_float64(type, val) stTypeInternal(type), stArgPtr(type, val)
 #define STypeCheckedPtr_ptr(type, val) stTypeInternal(type), stArgPtr(type, val)
 #define STypeCheckedPtr_string(type, val) stTypeInternal(type), stArgPtr(type, val)
+#define STypeCheckedPtr_strref(type, val) stTypeInternal(type), stArgPtr(type, val)
 #define STypeCheckedPtr_object(type, val) stTypeInternal(type), stArgPtr(type, val)
 #define STypeCheckedPtr_suid(type, val) stTypeInternal(type), stArgPtr(type, val)
 #define STypeCheckedPtr_stvar(type, val) stTypeInternal(type), stArgPtr(type, val)

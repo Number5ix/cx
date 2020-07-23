@@ -388,7 +388,7 @@ bool _dbgCrashPlatformInit()
     return true;
 }
 
-bool dbgCrashSetPath(string path)
+bool dbgCrashSetPath(strref path)
 {
     SUID crashsuid;
 

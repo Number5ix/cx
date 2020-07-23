@@ -11,7 +11,7 @@
 #include "vfsvfsdirsearch.h"
 #include "cx/fs/path.h"
 
-VFSVFS *VFSVFS_create(VFS *vfs, string rootpath)
+VFSVFS *VFSVFS_create(VFS *vfs, strref rootpath)
 {
     VFSVFS *ret;
     ret = objInstCreate(VFSVFS);
@@ -29,9 +29,9 @@ uint32 VFSVFS_flags(VFSVFS *self)
     return 0;
 }
 
-ObjInst *VFSVFS_open(VFSVFS *self, string path, int flags)
+ObjInst *VFSVFS_open(VFSVFS *self, strref path, int flags)
 {
-    string vfspath = 0;
+    string(vfspath);
     pathJoin(&vfspath, self->root, path);
 
     VFSFile *file = _vfsOpen(self->vfs, vfspath, flags);
@@ -43,9 +43,9 @@ ObjInst *VFSVFS_open(VFSVFS *self, string path, int flags)
     return objInstBase(fileprov);
 }
 
-int VFSVFS_stat(VFSVFS *self, string path, FSStat *stat)
+int VFSVFS_stat(VFSVFS *self, strref path, FSStat *stat)
 {
-    string vfspath = 0;
+    string(vfspath);
     pathJoin(&vfspath, self->root, path);
 
     int ret = vfsStat(self->vfs, vfspath, stat);
@@ -54,9 +54,9 @@ int VFSVFS_stat(VFSVFS *self, string path, FSStat *stat)
     return ret;
 }
 
-bool VFSVFS_setTimes(VFSVFS *self, string path, int64 modified, int64 accessed)
+bool VFSVFS_setTimes(VFSVFS *self, strref path, int64 modified, int64 accessed)
 {
-    string vfspath = 0;
+    string(vfspath);
     pathJoin(&vfspath, self->root, path);
 
     bool ret = vfsSetTimes(self->vfs, vfspath, modified, accessed);
@@ -65,9 +65,9 @@ bool VFSVFS_setTimes(VFSVFS *self, string path, int64 modified, int64 accessed)
     return ret;
 }
 
-bool VFSVFS_createDir(VFSVFS *self, string path)
+bool VFSVFS_createDir(VFSVFS *self, strref path)
 {
-    string vfspath = 0;
+    string(vfspath);
     pathJoin(&vfspath, self->root, path);
 
     bool ret = vfsCreateDir(self->vfs, vfspath);
@@ -76,9 +76,9 @@ bool VFSVFS_createDir(VFSVFS *self, string path)
     return ret;
 }
 
-bool VFSVFS_removeDir(VFSVFS *self, string path)
+bool VFSVFS_removeDir(VFSVFS *self, strref path)
 {
-    string vfspath = 0;
+    string(vfspath);
     pathJoin(&vfspath, self->root, path);
 
     bool ret = vfsRemoveDir(self->vfs, vfspath);
@@ -87,9 +87,9 @@ bool VFSVFS_removeDir(VFSVFS *self, string path)
     return ret;
 }
 
-bool VFSVFS_deleteFile(VFSVFS *self, string path)
+bool VFSVFS_deleteFile(VFSVFS *self, strref path)
 {
-    string vfspath = 0;
+    string(vfspath);
     pathJoin(&vfspath, self->root, path);
 
     bool ret = vfsDelete(self->vfs, vfspath);
@@ -98,9 +98,9 @@ bool VFSVFS_deleteFile(VFSVFS *self, string path)
     return ret;
 }
 
-bool VFSVFS_rename(VFSVFS *self, string oldpath, string newpath)
+bool VFSVFS_rename(VFSVFS *self, strref oldpath, strref newpath)
 {
-    string vfsoldpath = 0, vfsnewpath = 0;
+    string(vfsoldpath); string(vfsnewpath);
     pathJoin(&vfsoldpath, self->root, oldpath);
     pathJoin(&vfsnewpath, self->root, newpath);
 
@@ -119,9 +119,9 @@ void VFSVFS_destroy(VFSVFS *self)
     // Autogen ends -------
 }
 
-ObjInst *VFSVFS_searchDir(VFSVFS *self, string path, string pattern, bool stat)
+ObjInst *VFSVFS_searchDir(VFSVFS *self, strref path, strref pattern, bool stat)
 {
-    string vfspath = 0;
+    string(vfspath);
     pathJoin(&vfspath, self->root, path);
 
     VFSDirSearch *ds = vfsSearchDir(self->vfs, vfspath, pattern, 0, stat);
@@ -133,9 +133,9 @@ ObjInst *VFSVFS_searchDir(VFSVFS *self, string path, string pattern, bool stat)
     return objInstBase(dsprov);
 }
 
-bool VFSVFS_getFSPath(VFSVFS *self, string *out, string path)
+bool VFSVFS_getFSPath(VFSVFS *self, string *out, strref path)
 {
-    string vfspath = 0;
+    string(vfspath);
     pathJoin(&vfspath, self->root, path);
 
     bool ret = vfsGetFSPath(out, self->vfs, vfspath);

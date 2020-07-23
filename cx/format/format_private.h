@@ -16,7 +16,7 @@ enum FORMAT_TYPES {
 };
 extern string _fmtTypeNames[FMT_count];
 extern uint8 _fmtTypeIdMask[FMT_count][2];
-extern bool(*_fmtTypeParseOpt[FMT_count])(FMTVar *v, string opt);
+extern bool(*_fmtTypeParseOpt[FMT_count])(FMTVar *v, strref opt);
 extern bool(*_fmtTypeParseFinalize[FMT_count])(FMTVar *v);
 extern bool(*_fmtTypeFormat[FMT_count])(FMTVar *v, string *out);
 
@@ -28,7 +28,7 @@ typedef struct FMTContext {
 
     string dest;                    // output string so far
 
-    string fmt;                     // format string parse state
+    strref fmt;                     // format string parse state
     int32 vstart;
     int32 vend;
     int32 flen;
@@ -42,15 +42,15 @@ bool _fmtFindData(FMTContext *ctx);
 void _fmtFormat(FMTContext *ctx);
 
 // type-specific formatters
-bool _fmtParseStringOpt(FMTVar *v, string opt);
+bool _fmtParseStringOpt(FMTVar *v, strref opt);
 bool _fmtString(FMTVar *v, string *out);
-bool _fmtParseIntOpt(FMTVar *v, string opt);
+bool _fmtParseIntOpt(FMTVar *v, strref opt);
 bool _fmtParseIntFinalize(FMTVar *v);
 bool _fmtInt(FMTVar *v, string *out);
-bool _fmtParseFloatOpt(FMTVar *v, string opt);
+bool _fmtParseFloatOpt(FMTVar *v, strref opt);
 bool _fmtParseFloatFinalize(FMTVar *v);
 bool _fmtFloat(FMTVar *v, string *out);
-bool _fmtParsePtrOpt(FMTVar *v, string opt);
+bool _fmtParsePtrOpt(FMTVar *v, strref opt);
 bool _fmtParsePtrFinalize(FMTVar *v);
 bool _fmtPtr(FMTVar *v, string *out);
 bool _fmtSUID(FMTVar *v, string *out);

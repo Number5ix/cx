@@ -91,11 +91,11 @@ uint16 _strDecRef(string s)
         return atomicFetchSub(uint16, &STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), atomic(uint16)), 1, Release);
 }
 
-string _strCopy(string s, uint32 minsz)
+string _strCopy(strref s, uint32 minsz)
 {
     uint32 len = _strFastLen(s);
 
-    string ret = 0;
+    string(ret);
     strInit(&ret, max(len, minsz));
     if (!ret)
         return NULL;
@@ -108,7 +108,7 @@ string _strCopy(string s, uint32 minsz)
     return ret;
 }
 
-uint32 _strFastCopy(string s, uint32 off, char *buf, uint32 bytes)
+uint32 _strFastCopy(strref s, uint32 off, char *buf, uint32 bytes)
 {
     if (!(STR_HDR(s) & STR_ROPE)) {
         // easy, just copy the buffer
@@ -202,14 +202,6 @@ bool _strFlatten(string *ps, uint32 minszforcopy)
     }
 }
 
-string strCreate()
-{
-    string ret = 0;
-
-    strInit(&ret, 0);
-    return ret;
-}
-
 void strInit(string *o, uint32 sizehint)
 {
     if (!o)
@@ -235,7 +227,7 @@ void strInit(string *o, uint32 sizehint)
     *o = ret;
 }
 
-void strDup(string *o, string s)
+void strDup(string *o, strref s)
 {
     if (o && *o == s)
         return;
@@ -254,7 +246,7 @@ void strDup(string *o, string s)
     } else if (!(STR_HDR(s) & STR_ALLOC)) {
         // assume strings we don't control are immutable
         // makeunique will copy this string if we need to modify it
-        *o = s;
+        *o = (string)s;
         return;
     }
 
@@ -265,8 +257,8 @@ void strDup(string *o, string s)
 
     // source is a refcounted string, see if we can just bump the count
     if (ref < maxref) {
-        _strIncRef(s);
-        *o = s;
+        _strIncRef((string)s);
+        *o = (string)s;
         return;
     }
 
@@ -274,7 +266,7 @@ void strDup(string *o, string s)
     *o = _strCopy(s, 0);
 }
 
-void strCopy(string *o, string s)
+void strCopy(string *o, strref s)
 {
     strDestroy(o);
     if (!o || !STR_CHECK_VALID(s)) return;
@@ -317,14 +309,14 @@ void strClear(string *s)
     _strReset(s, 0);
 }
 
-uint32 strLen(string s)
+uint32 strLen(strref s)
 {
     if (!STR_CHECK_VALID(s)) return 0;
 
     return _strFastLen(s);
 }
 
-bool strEmpty(string s)
+bool strEmpty(strref s)
 {
     if (!STR_CHECK_VALID(s)) return true;
 
@@ -406,7 +398,7 @@ char *strBuffer(string *ps, uint32 minsz)
     return STR_BUFFER(*ps);
 }
 
-uint32 strCopyOut(string s, uint32 off, char *buf, uint32 bufsz)
+uint32 strCopyOut(strref s, uint32 off, char *buf, uint32 bufsz)
 {
     if (!STR_CHECK_VALID(s) || !buf || !bufsz)
         return 0;
@@ -418,7 +410,7 @@ uint32 strCopyOut(string s, uint32 off, char *buf, uint32 bufsz)
     return _strFastCopy(s, off, buf, len);
 }
 
-uint32 strCopyRaw(string s, uint32 off, char *buf, uint32 maxlen)
+uint32 strCopyRaw(strref s, uint32 off, char *buf, uint32 maxlen)
 {
     if (!STR_CHECK_VALID(s) || !buf || !maxlen)
         return 0;
@@ -450,7 +442,7 @@ bool strSetLen(string *ps, uint32 len)
     return true;
 }
 
-int strTestRefCount(string s)
+int strTestRefCount(strref s)
 {
     if (!STR_CHECK_VALID(s) || !(STR_HDR(s) & STR_ALLOC))
         return 0;

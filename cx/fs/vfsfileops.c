@@ -1,13 +1,13 @@
 #include "vfs_private.h"
 #include "cx/core/error.h"
 
-VFSFile *_vfsOpen(VFS *vfs, string path, int flags)
+VFSFile *_vfsOpen(VFS *vfs, strref path, int flags)
 {
     VFSFile *ret = 0;
 
-    string rpath = 0;
+    string(rpath);
     VFSMount *cowmount = 0;
-    string cowrpath = 0;
+    string(cowrpath);
     uint32 pflags = VFS_FindCache;
 
     // get the provider
@@ -83,9 +83,9 @@ bool vfsRead(VFSFile *file, void *buf, size_t sz, size_t *bytesread)
     return file->fileprovif->read(file->fileprov, buf, sz, bytesread);
 }
 
-static void vfsCOWCreateAll(ObjInst *cowprov, VFSProvider *cowprovif, string path)
+static void vfsCOWCreateAll(ObjInst *cowprov, VFSProvider *cowprovif, strref path)
 {
-    string parent = 0;
+    string(parent);
     pathParent(&parent, path);
     if (!strEmpty(parent) && cowprovif->stat(cowprov, parent, NULL) == FS_Nonexistent)
         vfsCOWCreateAll(cowprov, cowprovif, parent);
@@ -117,7 +117,7 @@ static bool vfsCOWFile(VFSFile *file)
         goto error;
 
     // make sure the path exists
-    string dirname = 0;
+    string(dirname);
     pathParent(&dirname, file->cowrpath);
     vfsCOWCreateAll(file->cowprov, cowprovif, dirname);
     strDestroy(&dirname);
@@ -180,7 +180,7 @@ bool vfsWrite(VFSFile *file, void *buf, size_t sz, size_t *byteswritten)
     return file->fileprovif->write(file->fileprov, buf, sz, byteswritten);
 }
 
-bool vfsWriteString(VFSFile *file, string str, size_t *byteswritten)
+bool vfsWriteString(VFSFile *file, strref str, size_t *byteswritten)
 {
     size_t written = 0, wstep = 0;
     bool ret = true;

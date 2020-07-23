@@ -16,7 +16,7 @@ intptr stCmp_string(stype st, stgeneric gen1, stgeneric gen2, uint32 flags)
 
 void stCopy_string(stype st, stgeneric *dest, stgeneric src, uint32 flags)
 {
-    string temp = NULL;
+    string(temp);
     strDup(&temp, src.st_string);
     dest->st_string = temp;
 }
