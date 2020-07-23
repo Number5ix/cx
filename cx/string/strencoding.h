@@ -27,7 +27,7 @@ uint16 *strToUTF16S(strref s);
 bool strFromUTF16(string *o, const uint16 *buf, size_t wsz);
 
 // Binary data to/from base64 encoded strings
-bool strB64Encode(string *out, const uint8 *buf, size_t sz, bool urlsafe);
+bool strB64Encode(string *out, const uint8 *buf, uint32 sz, bool urlsafe);
 // Returns the number of bytes required for the buffer, or 0 on error
-size_t strB64Decode(string *s, uint8 *buf, size_t sz);
+uint32 strB64Decode(strref s, uint8 *buf, uint32 sz);
 CX_C_END

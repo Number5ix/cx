@@ -1,4 +1,5 @@
 #include "strencoding.h"
+#include "string_private.h"
 
 static const char _base64_invcharmap[256] = {
     65,65,65,65, 65,65,65,65, 65,65,65,65, 65,65,65,65,
@@ -51,13 +52,13 @@ static uint32 b64EncodedLen(uint32 bufsz)
     return ((bufsz + 2) / 3) << 2;
 }
 
-bool strB64Encode(string *out, const uint8 *buf, size_t bufsz, bool urlsafe)
+bool strB64Encode(string *out, const uint8 *buf, uint32 bufsz, bool urlsafe)
 {
     const char *charmap = urlsafe ? _base64_charmap_urlsafe : _base64_charmap;
     uint32 word, hextet, i;
     char *c;
 
-    uint32 elen = b64EncodedLen((uint32)bufsz);
+    uint32 elen = b64EncodedLen(bufsz);
     strInit(out, elen);
     c = strBuffer(out, elen);
 
@@ -100,22 +101,21 @@ bool strB64Encode(string *out, const uint8 *buf, size_t bufsz, bool urlsafe)
     return true;
 }
 
-static size_t b64DecodedSize(string *str)
+static uint32 b64DecodedSize(strref str)
 {
-    size_t len = strLen(*str);
-    const char *buffer = strC(str);
+    uint32 len = strLen(str);
     int nudge;
     int c;
 
     // count the padding characters for the remainder
     nudge = -1;
-    c = _base64_invcharmap[(int)buffer[len - 1]];
+    c = _base64_invcharmap[(uint8)_strFastChar(str, len - 1)];
     if (c < 64) nudge = 0;
     else if (c == 64) {
-        c = _base64_invcharmap[(int)buffer[len - 2]];
+        c = _base64_invcharmap[(uint8)_strFastChar(str, len - 2)];
         if (c < 64) nudge = 1;
         else if (c == 64) {
-            c = _base64_invcharmap[(int)buffer[len - 3]];
+            c = _base64_invcharmap[(uint8)_strFastChar(str, len - 3)];
             if (c < 64) nudge = 2;
         }
     }
@@ -125,17 +125,15 @@ static size_t b64DecodedSize(string *str)
     return 3 * (len >> 2) - nudge;
 }
 
-size_t strB64Decode(string *str, uint8 *d, size_t bufsz)
+uint32 strB64Decode(strref str, uint8 *d, uint32 bufsz)
 {
-    const char *buf;
-    size_t dlen;
+    uint32 dlen;
     uint32 word, len, i;
     uint32 hextet = 0;
 
-    len = strLen(*str);
+    len = strLen(str);
     // len must be a multiple of 4
     if (len & 0x03) return false;
-    buf = strC(str);
 
     dlen = b64DecodedSize(str);
     if (!d)
@@ -144,18 +142,26 @@ size_t strB64Decode(string *str, uint8 *d, size_t bufsz)
     if (dlen > bufsz)
         return 0;
 
+    striter sti;
+    striBorrow(&sti, str);
+
     /* loop over each set of 4 characters, decoding 3 bytes */
+    uint8 ch;
     for (i = 0; i < len - 3; i += 4) {
-        hextet = _base64_invcharmap[(int)buf[i]];
+        striChar(&sti, (char*)&ch);
+        hextet = _base64_invcharmap[ch];
         if (hextet & 0xC0) break;
         word = hextet << 18;
-        hextet = _base64_invcharmap[(int)buf[i + 1]];
+        striChar(&sti, (char*)&ch);
+        hextet = _base64_invcharmap[ch];
         if (hextet & 0xC0) break;
         word |= hextet << 12;
-        hextet = _base64_invcharmap[(int)buf[i + 2]];
+        striChar(&sti, (char*)&ch);
+        hextet = _base64_invcharmap[ch];
         if (hextet & 0xC0) break;
         word |= hextet << 6;
-        hextet = _base64_invcharmap[(int)buf[i + 3]];
+        striChar(&sti, (char*)&ch);
+        hextet = _base64_invcharmap[ch];
         if (hextet & 0xC0) break;
         word |= hextet;
         *d++ = (word & 0x00FF0000) >> 16;
@@ -170,32 +176,32 @@ size_t strB64Decode(string *str, uint8 *d, size_t bufsz)
         break;
     case 1:
         /* redo the last quartet, checking for correctness */
-        hextet = _base64_invcharmap[(int)buf[len - 4]];
+        hextet = _base64_invcharmap[(uint8)_strFastChar(str, len - 4)];
         if (hextet & 0xC0) goto _base64_decode_error;
         word = hextet << 2;
-        hextet = _base64_invcharmap[(int)buf[len - 3]];
+        hextet = _base64_invcharmap[(uint8)_strFastChar(str, len - 3)];
         if (hextet & 0xC0) goto _base64_decode_error;
         word |= hextet >> 4;
         *d++ = word & 0xFF;
-        hextet = _base64_invcharmap[(int)buf[len - 2]];
+        hextet = _base64_invcharmap[(uint8)_strFastChar(str, len - 2)];
         if (hextet != 64) goto _base64_decode_error;
-        hextet = _base64_invcharmap[(int)buf[len - 1]];
+        hextet = _base64_invcharmap[(uint8)_strFastChar(str, len - 1)];
         if (hextet != 64) goto _base64_decode_error;
         break;
     case 2:
         /* redo the last quartet, checking for correctness */
-        hextet = _base64_invcharmap[(int)buf[len - 4]];
+        hextet = _base64_invcharmap[(uint8)_strFastChar(str, len - 4)];
         if (hextet & 0xC0) goto _base64_decode_error;
         word = hextet << 10;
-        hextet = _base64_invcharmap[(int)buf[len - 3]];
+        hextet = _base64_invcharmap[(uint8)_strFastChar(str, len - 3)];
         if (hextet & 0xC0) goto _base64_decode_error;
         word |= hextet << 4;
-        hextet = _base64_invcharmap[(int)buf[len - 2]];
+        hextet = _base64_invcharmap[(uint8)_strFastChar(str, len - 2)];
         if (hextet & 0xC0) goto _base64_decode_error;
         word |= hextet >> 2;
         *d++ = (word & 0xFF00) >> 8;
         *d++ = (word & 0x00FF);
-        hextet = _base64_invcharmap[(int)buf[len - 1]];
+        hextet = _base64_invcharmap[(uint8)_strFastChar(str, len - 1)];
         if (hextet != 64) goto _base64_decode_error;
         break;
     }
