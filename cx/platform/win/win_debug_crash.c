@@ -419,7 +419,7 @@ bool dbgCrashSetPath(strref path)
 
     // precompute filename we're going to use
     processname = xaAlloc(strLen(exename) + 1);
-    strcpy_s(processname, strLen(exename) + 1, strC(&exename));
+    strCopyOut(exename, 0, processname, strLen(exename) + 1);
     processnamew = strToUTF16A(exename);
 
     strNConcat(&report, path, _S"\\", exename, _S"-", (string)crashid, _S".report");
