@@ -408,7 +408,7 @@ bool dbgCrashSetPath(string path)
     if (!suidEncodeBytes(crashid, &crashsuid))
         return false;
 
-    string exename = 0, report = 0, chandler = 0, cmdl = 0;
+    string exename = 0, report = 0, exedir = 0, chandler = 0, cmdl = 0;
     wchar_t *tmp;
     fsExe(&exename);
     pathFilename(&exename, exename);
@@ -426,19 +426,34 @@ bool dbgCrashSetPath(string path)
     tmp = fsPathToNT(report);
     reportfile = cstrDupw(tmp);
 
-    fsExeDir(&chandler);
-    pathJoin(&chandler, chandler, _S"CrashHandler.exe");
+    fsExeDir(&exedir);
+    pathJoin(&chandler, exedir, _S"crashhandler.exe");
     tmp = fsPathToNT(chandler);
     crashhandler = cstrDupw(tmp);
 
+    // if there isn't a crashhandler in the current dir, check up one level
+    if (!fsIsFile(chandler)) {
+        pathParent(&exedir, exedir);
+        pathJoin(&chandler, exedir, _S"crashhandler.exe");
+        if (fsIsFile(chandler)) {
+            // found it in the parent, use that one
+            xaFree(crashhandler);
+            tmp = fsPathToNT(chandler);
+            crashhandler = cstrDupw(tmp);
+        }
+        // if the above doesn't find anything, intentionally falls through to
+        // blindly using the original exedir, which will gracefully fail later
+    }
+
     string reportPlatform = 0;
     pathToPlatform(&reportPlatform, report);
-    strNConcat(&cmdl, _S"CrashHandler.exe \"", reportPlatform, _S"\"");
+    strNConcat(&cmdl, _S"crashhandler.exe \"", reportPlatform, _S"\"");
     crashhandlercmdline = strToUTF16A(cmdl);
 
     strDestroy(&reportPlatform);
     strDestroy(&exename);
     strDestroy(&report);
+    strDestroy(&exedir);
     strDestroy(&chandler);
     strDestroy(&cmdl);
 
