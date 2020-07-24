@@ -333,6 +333,8 @@ bool fsSearchInit(FSSearchIter *iter, strref path, strref pattern, bool stat)
 {
     string(spath);
 
+    memset(iter, 0, sizeof(FSSearchIter));
+
     // stat is ignored for Windows since the API always returns file
     // size and timestamps
 

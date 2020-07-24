@@ -483,12 +483,17 @@ htelem _htFindElem(hashtable *htbl, stgeneric key)
 
 bool htiInit(htiter *iter, hashtable *htbl)
 {
-    if (!iter || !htbl)
+    if (!iter)
         return false;
+    if (!htbl) {
+        iter->hdr = NULL;
+        iter->elem = NULL;
+        return false;
+    }
 
     iter->hdr = HTABLE_HDR(*htbl);
     iter->slot = -1;
-    iter->elem = 0;
+    iter->elem = NULL;
     return htiNext(iter);
 }
 
@@ -512,6 +517,7 @@ bool htiNext(htiter *iter)
         }
     }
 
+    iter->hdr = NULL;
     iter->slot = hdr->slots;
     iter->elem = NULL;
     return false;

@@ -70,6 +70,6 @@ typedef struct FSSearchIter {
 bool fsSearchInit(FSSearchIter *iter, strref path, strref pattern, bool stat);
 bool fsSearchNext(FSSearchIter *iter);
 void fsSearchFinish(FSSearchIter *iter);
-_meta_inline bool fsSearchValid(FSSearchIter *iter) { return iter->_search; }
+_meta_inline bool fsSearchValid(FSSearchIter *iter) { return iter->name; }
 
 CX_C_END

@@ -127,21 +127,15 @@ bool VFSFS_searchInit(VFSFS *self, FSSearchIter *iter, strref path, strref patte
     string(fspath);
     pathJoin(&fspath, self->root, path);
 
+    memset(iter, 0, sizeof(FSSearchIter));
     FSSearchIter *fsiter = xaAlloc(sizeof(FSSearchIter));
     iter->_search = fsiter;
 
     bool ret = fsSearchInit(fsiter, fspath, pattern, stat);
     strDestroy(&fspath);
+    if (!ret)
+        xaSFree(iter->_search);
     return ret;
-}
-
-bool VFSFS_searchNext(VFSFS *self, FSSearchIter *iter)
-{
-    FSSearchIter *fsiter = iter->_search;
-    if (!fsiter)
-        return false;
-
-    return fsSearchNext(fsiter);
 }
 
 void VFSFS_searchFinish(VFSFS *self, FSSearchIter *iter)
@@ -152,6 +146,18 @@ void VFSFS_searchFinish(VFSFS *self, FSSearchIter *iter)
 
     fsSearchFinish(fsiter);
     xaSFree(iter->_search);
+}
+
+bool VFSFS_searchNext(VFSFS *self, FSSearchIter *iter)
+{
+    FSSearchIter *fsiter = iter->_search;
+    if (!fsiter)
+        return false;
+
+    bool ret = fsSearchNext(fsiter);
+    if (!ret)
+        VFSFS_searchFinish(self, iter);
+    return ret;
 }
 
 bool VFSFS_getFSPath(VFSFS *self, string *out, strref path)

@@ -167,4 +167,4 @@ _meta_inline bool _htHasKeyChecked(hashtable *htbl, stype keytype, stgeneric key
 bool htiInit(htiter *iter, hashtable *htbl);
 bool htiNext(htiter *iter);
 void htiFinish(htiter *iter);
-_meta_inline bool htiValid(htiter *iter) { return iter->hdr; }
+_meta_inline bool htiValid(htiter *iter) { return iter->elem; }

@@ -51,6 +51,8 @@ bool vfsSearchInit(FSSearchIter *iter, VFS *vfs, strref path, strref pattern, in
     hashtable names;
     int32 idx;
 
+    memset(iter, 0, sizeof(FSSearchIter));
+
     if ((vfs->flags & VFS_CaseSensitive))
         names = htCreate(string, intptr, 8, RefKeys, Grow(MaxSpeed));
     else
