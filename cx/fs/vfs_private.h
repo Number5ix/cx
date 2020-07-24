@@ -17,12 +17,18 @@ typedef struct VFSFile {
     string cowrpath;        // relative path for COW file for provider
 } VFSFile;
 
-typedef struct VFSDirSearch {
+typedef struct VFSDirEnt {
+    string name;
+    int type;
+    FSStat stat;
+} VFSDirEnt;
+
+typedef struct VFSSearch {
     VFS *vfs;
 
-    FSDirEnt *ents;
+    VFSDirEnt *ents;
     int32 idx;
-} VFSDirSearch;
+} VFSSearch;
 
 // object-like structures for VFS
 // these use custom type ops instead of the object framework so that

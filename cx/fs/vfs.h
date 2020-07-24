@@ -58,10 +58,11 @@ bool vfsRename(VFS *vfs, strref from, strref to);
 // in question is backed by a VFSFS provider.
 bool vfsGetFSPath(string *out, VFS *vfs, strref path);
 
-typedef struct VFSDirSearch VFSDirSearch;
-VFSDirSearch *vfsSearchDir(VFS *vfs, strref path, strref pattern, int typefilter, bool stat);
-FSDirEnt *vfsSearchNext(VFSDirSearch *search);
-void vfsSearchClose(VFSDirSearch *search);
+typedef struct FSSearchIter FSSearchIter;
+bool vfsSearchInit(FSSearchIter *iter, VFS *vfs, strref path, strref pattern, int typefilter, bool stat);
+bool vfsSearchNext(FSSearchIter *iter);
+void vfsSearchFinish(FSSearchIter *iter);
+_meta_inline bool vfsSearchValid(FSSearchIter *iter) { return iter->_search; }
 
 VFSFile *_vfsOpen(VFS *vfs, strref path, int flags);
 #define vfsOpen(vfs, path, ...) _vfsOpen(vfs, path, func_flags(FS, __VA_ARGS__))

@@ -4,10 +4,6 @@ VFSFileProvider VFSFileProvider_tmpl = {
     ._size = sizeof(VFSFileProvider),
 };
 
-VFSDirSearchProvider VFSDirSearchProvider_tmpl = {
-    ._size = sizeof(VFSDirSearchProvider),
-};
-
 VFSProvider VFSProvider_tmpl = {
     ._size = sizeof(VFSProvider),
 };

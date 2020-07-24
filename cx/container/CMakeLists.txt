@@ -4,6 +4,7 @@ set(CONTAINER_SRCS
     container/stype_hashtable.c
     container/stype_sarray.c)
 set(CONTAINER_INCLUDES
+    container/foreach.h
     container/hashtable.h
     container/hashtable_private.h
     container/sarray.h

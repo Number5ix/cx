@@ -58,15 +58,18 @@ bool fsRemoveDir(strref path);
 bool fsDelete(strref path);
 bool fsRename(strref from, strref to);
 
-typedef struct FSDirSearch FSDirSearch;
-typedef struct FSDirEnt {
+typedef struct FSSearch FSSearch;
+typedef struct FSSearchIter {
     string name;
     int type;
     FSStat stat;
-} FSDirEnt;
+    // private
+    void *_search;
+} FSSearchIter;
 
-FSDirSearch *fsSearchDir(strref path, strref pattern, bool stat);
-FSDirEnt *fsSearchNext(FSDirSearch *search);
-void fsSearchClose(FSDirSearch *search);
+bool fsSearchInit(FSSearchIter *iter, strref path, strref pattern, bool stat);
+bool fsSearchNext(FSSearchIter *iter);
+void fsSearchFinish(FSSearchIter *iter);
+_meta_inline bool fsSearchValid(FSSearchIter *iter) { return iter->_search; }
 
 CX_C_END

@@ -6,13 +6,10 @@
 
 static void vfsUnmountAll(VFSDir *dir)
 {
-    htiter sdi;
-    htiCreate(&sdi, &dir->subdirs);
-    while (htiNext(&sdi)) {
+    foreach(hashtable, sdi, &dir->subdirs)
+    {
         vfsUnmountAll((VFSDir*)htiVal(sdi, ptr));
-    }
-    htiDestroy(&sdi);
-
+    } endforeach;
     saClear(&dir->mounts);
 }
 
@@ -24,12 +21,10 @@ void vfsDestroy(VFS *vfs)
     // being mounted to.
 
     rwlockAcquireWrite(&vfs->vfsdlock);
-    htiter nsi;
-    htiCreate(&nsi, &vfs->namespaces);
-    while (htiNext(&nsi)) {
+    foreach(hashtable, nsi, &vfs->namespaces)
+    {
         vfsUnmountAll((VFSDir*)htiVal(nsi, ptr));
-    }
-    htiDestroy(&nsi);
+    } endforeach;
     vfsUnmountAll(vfs->root);
     rwlockReleaseWrite(&vfs->vfsdlock);
 
@@ -261,12 +256,10 @@ void _vfsInvalidateRecursive(VFS *vfs, VFSDir *dir, bool havelock)
         htRemove(&dir->parent->subdirs, string, dir->name);
     } else {
         htClear(&dir->files);
-        htiter sdi;
-        htiCreate(&sdi, &dir->subdirs);
-        while (htiNext(&sdi)) {
+        foreach(hashtable, sdi, &dir->subdirs)
+        {
             _vfsInvalidateRecursive(vfs, (VFSDir*)htiVal(sdi, ptr), true);
-        }
-        htiDestroy(&sdi);
+        } endforeach;
     }
 
     if (!havelock)
@@ -295,24 +288,22 @@ static int vfsFindCISub(VFSDir *vdir, string *out, strref path,
     }
 
     // get a directory listing from the current depth
-    ObjInst *dsprov = provif->searchDir(mount->provider, path, NULL, false);
-    VFSDirSearchProvider *dsprovif = objInstIf(dsprov, VFSDirSearchProvider);
-    if (!dsprovif)
+    FSSearchIter dsiter;
+    if (!provif->searchInit(mount->provider, &dsiter, path, NULL, false))
         return ret;
 
-    FSDirEnt *ent;
-    while ((ent = dsprovif->next(dsprov))) {
-        pathJoin(&filepath, path, ent->name);
+    do {
+        pathJoin(&filepath, path, dsiter.name);
 
         // if we haven't found it yet (the loop continues to cache even after
         // we do), check to see if this entry matches what we're looking for
         // at the current depth
-        if (ret == FS_Nonexistent && strEqi(ent->name, components[depth])) {
+        if (ret == FS_Nonexistent && strEqi(dsiter.name, components[depth])) {
             if (depth == target) {
                 // this is it!
                 strDup(out, filepath);
-                ret = ent->type;
-            } else if (ent->type == FS_Directory) {
+                ret = dsiter.type;
+            } else if (dsiter.type == FS_Directory) {
                 // not at the target depth yet, so recurse into all matching
                 // subdirectories (there may be more than one in a case
                 // sensitive filesystem!)
@@ -321,14 +312,14 @@ static int vfsFindCISub(VFSDir *vdir, string *out, strref path,
             }
         }
 
-        if (cvdir && ent->type == FS_File && !(mount->flags & VFS_NoCache)) {
+        if (cvdir && dsiter.type == FS_File && !(mount->flags & VFS_NoCache)) {
             // go ahead and add it to the cache while we're here
             VFSCacheEnt *newent = _vfsCacheEntCreate(mount, filepath);
-            htInsertC(&cvdir->files, string, ent->name, ptr, &newent, Ignore);
+            htInsertC(&cvdir->files, string, dsiter.name, ptr, &newent, Ignore);
         }
-    }
+    } while (provif->searchNext(mount->provider, &dsiter));
+    provif->searchFinish(mount->provider, &dsiter);
 
-    objRelease(dsprov);
     strDestroy(&filepath);
     return ret;
 }
@@ -354,6 +345,8 @@ int _vfsFindCIHelper(VFS *vfs, VFSDir *vdir, string *out, string *components, VF
     return ret;
 }
 
+// This function does all the heavy lifting of the VFS system.
+// It's a bit hard to follow as a result.
 VFSMount *_vfsFindMount(VFS *vfs, string *rpath, strref path, VFSMount **cowmount, string *cowrpath, uint32 flags)
 {
     VFSMount *ret = 0;
@@ -367,9 +360,11 @@ VFSMount *_vfsFindMount(VFS *vfs, string *rpath, strref path, VFSMount **cowmoun
     bool flcreate = flags & VFS_FindCreate;
     bool flcache = flags & VFS_FindCache;
 
-    // see if we can get this from the file cache
+    // do as much work as possible with only the read locks held
     rwlockAcquireRead(&vfs->vfsdlock);
     rwlockAcquireRead(&vfs->vfslock);
+
+    // see if we can get this from the file cache
     _vfsAbsPath(vfs, &abspath, path);
     if (flcache && !flcreate && !fldelete) {
         VFSCacheEnt *ent = _vfsGetFile(vfs, abspath, false);

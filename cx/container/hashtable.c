@@ -481,7 +481,7 @@ htelem _htFindElem(hashtable *htbl, stgeneric key)
     return NULL;
 }
 
-bool htiCreate(htiter *iter, hashtable *htbl)
+bool htiInit(htiter *iter, hashtable *htbl)
 {
     if (!iter || !htbl)
         return false;
@@ -489,7 +489,7 @@ bool htiCreate(htiter *iter, hashtable *htbl)
     iter->hdr = HTABLE_HDR(*htbl);
     iter->slot = -1;
     iter->elem = 0;
-    return true;
+    return htiNext(iter);
 }
 
 bool htiNext(htiter *iter)
@@ -517,7 +517,7 @@ bool htiNext(htiter *iter)
     return false;
 }
 
-void htiDestroy(htiter *iter)
+void htiFinish(htiter *iter)
 {
     memset(iter, 0, sizeof(htiter));
 }

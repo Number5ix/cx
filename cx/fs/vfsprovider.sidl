@@ -10,11 +10,6 @@ interface VFSFileProvider {
     bool flush();
 }
 
-interface VFSDirSearchProvider {
-    bool close();
-    FSDirEnt *next();
-}
-
 interface VFSProvider {
     uint32 flags();                             // VFSProviderFlags enforced for this provider
 
@@ -27,5 +22,7 @@ interface VFSProvider {
     bool rename(strref oldpath, strref newpath);
     bool getFSPath(string *out, strref path);
 
-    ObjInst *searchDir(strref path, strref pattern, bool stat);
+    bool searchInit(FSSearchIter *iter, strref path, strref pattern, bool stat);
+    bool searchNext(FSSearchIter *iter);
+    void searchFinish(FSSearchIter *iter);
 }

@@ -8,7 +8,6 @@
 #include "vfsvfs.h"
 // ==================== Auto-generated section ends ======================
 #include "vfsvfsfile.h"
-#include "vfsvfsdirsearch.h"
 #include "cx/fs/path.h"
 
 VFSVFS *VFSVFS_create(VFS *vfs, strref rootpath)
@@ -119,18 +118,37 @@ void VFSVFS_destroy(VFSVFS *self)
     // Autogen ends -------
 }
 
-ObjInst *VFSVFS_searchDir(VFSVFS *self, strref path, strref pattern, bool stat)
+bool VFSVFS_searchInit(VFSVFS *self, FSSearchIter *iter, strref path, strref pattern, bool stat)
 {
     string(vfspath);
     pathJoin(&vfspath, self->root, path);
 
-    VFSDirSearch *ds = vfsSearchDir(self->vfs, vfspath, pattern, 0, stat);
-    strDestroy(&vfspath);
-    if (!ds)
-        return NULL;
+    // it's iterators all the way down
+    FSSearchIter *vfsiter = xaAlloc(sizeof(FSSearchIter));
+    iter->_search = vfsiter;
 
-    VFSVFSDirSearch *dsprov = vfsvfsdirsearchCreate(ds);
-    return objInstBase(dsprov);
+    bool ret = vfsSearchInit(vfsiter, self->vfs, vfspath, pattern, 0, stat);
+    strDestroy(&vfspath);
+    return ret;
+}
+
+bool VFSVFS_searchNext(VFSVFS *self, FSSearchIter *iter)
+{
+    FSSearchIter *fsiter = iter->_search;
+    if (!fsiter)
+        return false;
+
+    return vfsSearchNext(fsiter);
+}
+
+void VFSVFS_searchFinish(VFSVFS *self, FSSearchIter *iter)
+{
+    FSSearchIter *fsiter = iter->_search;
+    if (!fsiter)
+        return;
+
+    vfsSearchFinish(fsiter);
+    xaSFree(iter->_search);
 }
 
 bool VFSVFS_getFSPath(VFSVFS *self, string *out, strref path)

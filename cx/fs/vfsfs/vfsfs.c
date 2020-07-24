@@ -11,7 +11,6 @@
 #include "cx/fs/path.h"
 #include "cx/fs/vfs.h"
 #include "vfsfsfile.h"
-#include "vfsfsdirsearch.h"
 
 VFSFS *VFSFS_create(strref rootpath)
 {
@@ -123,18 +122,36 @@ bool VFSFS_rename(VFSFS *self, strref oldpath, strref newpath)
     return ret;
 }
 
-ObjInst *VFSFS_searchDir(VFSFS *self, strref path, strref pattern, bool stat)
+bool VFSFS_searchInit(VFSFS *self, FSSearchIter *iter, strref path, strref pattern, bool stat)
 {
     string(fspath);
     pathJoin(&fspath, self->root, path);
 
-    FSDirSearch *ds = fsSearchDir(fspath, pattern, stat);
-    strDestroy(&fspath);
-    if (!ds)
-        return NULL;
+    FSSearchIter *fsiter = xaAlloc(sizeof(FSSearchIter));
+    iter->_search = fsiter;
 
-    VFSFSDirSearch *dsprov = vfsfsdirsearchCreate(ds);
-    return objInstBase(dsprov);
+    bool ret = fsSearchInit(fsiter, fspath, pattern, stat);
+    strDestroy(&fspath);
+    return ret;
+}
+
+bool VFSFS_searchNext(VFSFS *self, FSSearchIter *iter)
+{
+    FSSearchIter *fsiter = iter->_search;
+    if (!fsiter)
+        return false;
+
+    return fsSearchNext(fsiter);
+}
+
+void VFSFS_searchFinish(VFSFS *self, FSSearchIter *iter)
+{
+    FSSearchIter *fsiter = iter->_search;
+    if (!fsiter)
+        return;
+
+    fsSearchFinish(fsiter);
+    xaSFree(iter->_search);
 }
 
 bool VFSFS_getFSPath(VFSFS *self, string *out, strref path)

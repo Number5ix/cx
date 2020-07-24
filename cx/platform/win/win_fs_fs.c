@@ -324,38 +324,40 @@ bool fsRename(strref from, strref to)
     return true;
 }
 
-typedef struct FSDirSearch {
+typedef struct FSSearch {
     HANDLE h;
-    FSDirEnt ent;
     WIN32_FIND_DATAW first;
-} FSDirSearch;
+} FSSearch;
 
-FSDirSearch *fsSearchDir(strref path, strref pattern, bool stat)
+bool fsSearchInit(FSSearchIter *iter, strref path, strref pattern, bool stat)
 {
-    FSDirSearch *ret;
     string(spath);
 
     // stat is ignored for Windows since the API always returns file
     // size and timestamps
 
-    ret = xaAlloc(sizeof(FSDirSearch), Zero);
+    FSSearch *search = xaAlloc(sizeof(FSSearch), Zero);
+    iter->_search = search;
     pathJoin(&spath, path, strEmpty(pattern) ? _S"*" : pattern);
 
-    ret->h = FindFirstFileW(fsPathToNT(spath), &ret->first);
+    search->h = FindFirstFileW(fsPathToNT(spath), &search->first);
     strDestroy(&spath);
 
-    if (ret->h == INVALID_HANDLE_VALUE) {
+    if (search->h == INVALID_HANDLE_VALUE) {
         winMapLastError();
-        xaFree(ret);
-        return NULL;
+        xaSFree(iter->_search);
+        return false;
     }
 
-    return ret;
+    return fsSearchNext(iter);
 }
 
-FSDirEnt *fsSearchNext(FSDirSearch *search)
+bool fsSearchNext(FSSearchIter *iter)
 {
+    FSSearch *search = (FSSearch*)iter->_search;
     WIN32_FIND_DATAW data;
+    if (!search)
+        return false;
 
     do {
         // If we still have the first file from FindFirstFileW, use it
@@ -363,8 +365,10 @@ FSDirEnt *fsSearchNext(FSDirSearch *search)
             memcpy(&data, &search->first, sizeof(WIN32_FIND_DATAW));
             search->first.dwFileAttributes = 0xFFFFFFFF;
         } else {
-            if (!FindNextFileW(search->h, &data))
-                return NULL;
+            if (!FindNextFileW(search->h, &data)) {
+                fsSearchFinish(iter);
+                return false;
+            }
         }
 
         // loop until we have something we're actually interested in
@@ -372,26 +376,29 @@ FSDirEnt *fsSearchNext(FSDirSearch *search)
              !wcscmp(data.cFileName, L".") ||
              !wcscmp(data.cFileName, L".."));
 
-    FSDirEnt *ret = &search->ent;
-    strFromUTF16(&ret->name, data.cFileName, cstrLenw(data.cFileName));
+    strFromUTF16(&iter->name, data.cFileName, cstrLenw(data.cFileName));
     if (data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-        ret->type = FS_Directory;
+        iter->type = FS_Directory;
     else
-        ret->type = FS_File;
+        iter->type = FS_File;
 
-    ret->stat.size = (uint64)data.nFileSizeHigh << 32 | data.nFileSizeLow;
-    ret->stat.accessed = timeFromFileTime(&data.ftLastAccessTime);
-    ret->stat.created = timeFromFileTime(&data.ftCreationTime);
-    ret->stat.modified = timeFromFileTime(&data.ftLastWriteTime);
+    iter->stat.size = (uint64)data.nFileSizeHigh << 32 | data.nFileSizeLow;
+    iter->stat.accessed = timeFromFileTime(&data.ftLastAccessTime);
+    iter->stat.created = timeFromFileTime(&data.ftCreationTime);
+    iter->stat.modified = timeFromFileTime(&data.ftLastWriteTime);
 
-    return ret;
+    return true;
 }
 
-void fsSearchClose(FSDirSearch *search)
+void fsSearchFinish(FSSearchIter *iter)
 {
-    strDestroy(&search->ent.name);
+    FSSearch *search = (FSSearch*)iter->_search;
+    if (!search)
+        return;
+
+    strDestroy(&iter->name);
     FindClose(search->h);
-    xaFree(search);
+    xaSFree(iter->_search);
 }
 
 bool fsSetTimes(strref path, int64 modified, int64 accessed)

@@ -33,10 +33,10 @@ static void hydrateIfaces(ObjClassInfo *cls, ObjIface ***impls, hashtable *implt
 
 bool _objCheckIfaces(ObjIface ***impls)
 {
-    for (int i = 0; i < saSize(impls); i++) {
-        if (!_objCheckIface((*impls)[i]))
+    foreach(sarray, i, ObjIface*, impl, impls) {
+        if (!_objCheckIface(impl))
             return false;
-    }
+    } endforeach;
     return true;
 }
 

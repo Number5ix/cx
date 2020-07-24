@@ -2,24 +2,24 @@
 
 static intptr dirEntCmp(stype st, stgeneric g1, stgeneric g2, uint32 flags)
 {
-    FSDirEnt *ent1 = (FSDirEnt*)g1.st_opaque;
-    FSDirEnt *ent2 = (FSDirEnt*)g2.st_opaque;
+    VFSDirEnt *ent1 = (VFSDirEnt*)g1.st_opaque;
+    VFSDirEnt *ent2 = (VFSDirEnt*)g2.st_opaque;
 
     return strCmpi(ent1->name, ent2->name);
 }
 
 static intptr dirEntCmpCaseSensitive(stype st, stgeneric g1, stgeneric g2, uint32 flags)
 {
-    FSDirEnt *ent1 = (FSDirEnt*)g1.st_opaque;
-    FSDirEnt *ent2 = (FSDirEnt*)g2.st_opaque;
+    VFSDirEnt *ent1 = (VFSDirEnt*)g1.st_opaque;
+    VFSDirEnt *ent2 = (VFSDirEnt*)g2.st_opaque;
 
     return strCmp(ent1->name, ent2->name);
 }
 
 static void dirEntCopy(stype st, stgeneric *gdest, stgeneric gsrc, uint32 flags)
 {
-    FSDirEnt *ent = (FSDirEnt*)gdest->st_opaque;
-    FSDirEnt *src = (FSDirEnt*)gsrc.st_opaque;
+    VFSDirEnt *ent = (VFSDirEnt*)gdest->st_opaque;
+    VFSDirEnt *src = (VFSDirEnt*)gsrc.st_opaque;
 
     ent->name = 0;
     strDup(&ent->name, src->name);
@@ -29,23 +29,23 @@ static void dirEntCopy(stype st, stgeneric *gdest, stgeneric gsrc, uint32 flags)
 
 static void dirEntDestroy(stype st, stgeneric *g, uint32 flags)
 {
-    FSDirEnt *ent = (FSDirEnt*)g->st_opaque;
+    VFSDirEnt *ent = (VFSDirEnt*)g->st_opaque;
     strDestroy(&ent->name);
 }
 
-static STypeOps FSDirEnt_ops = {
+static STypeOps VFSDirEnt_ops = {
     .cmp = dirEntCmp,
     .copy = dirEntCopy,
     .dtor = dirEntDestroy,
 };
 
-static STypeOps FSDirEnt_ops_cs = {
+static STypeOps VFSDirEnt_ops_cs = {
     .cmp = dirEntCmpCaseSensitive,
     .copy = dirEntCopy,
     .dtor = dirEntDestroy,
 };
 
-VFSDirSearch *vfsSearchDir(VFS *vfs, strref path, strref pattern, int typefilter, bool stat)
+bool vfsSearchInit(FSSearchIter *iter, VFS *vfs, strref path, strref pattern, int typefilter, bool stat)
 {
     string(abspath); string(curpath); string(filepath);
     hashtable names;
@@ -67,30 +67,28 @@ VFSDirSearch *vfsSearchDir(VFS *vfs, strref path, strref pattern, int typefilter
     string *components = 0, *relcomp = 0;
 
     if (!vfsdir)
-        return NULL;
+        return false;
 
     pathDecompose(&ns, &components, abspath);
 
-    VFSDirSearch *ret = xaAlloc(sizeof(VFSDirSearch), Zero);
-    ret->vfs = objAcquire(vfs);
-    ret->idx = 0;
-    STypeOps direntops = (vfs->flags & VFS_CaseSensitive) ? FSDirEnt_ops_cs : FSDirEnt_ops;
-    ret->ents = saCreate(custom(opaque(FSDirEnt), direntops), 16, Grow(Aggressive));
+    VFSSearch *search = xaAlloc(sizeof(VFSSearch), Zero);
+    iter->_search = search;
+    search->vfs = objAcquire(vfs);
+    search->idx = 0;
+    STypeOps direntops = (vfs->flags & VFS_CaseSensitive) ? VFSDirEnt_ops_cs : VFSDirEnt_ops;
+    search->ents = saCreate(custom(opaque(VFSDirEnt), direntops), 16, Grow(Aggressive));
 
     // add child mount points as subdirectories
-    htiter sdi;
-    htiCreate(&sdi, &vfsdir->subdirs);
-    while (htiNext(&sdi)) {
+    foreach(hashtable, sdi, &vfsdir->subdirs) {
         VFSDir *sd = (VFSDir*)htiVal(sdi, ptr);
         if (saSize(&sd->mounts) > 0) {
-            FSDirEnt ent = { 0 };
+            VFSDirEnt ent = { 0 };
             strDup(&ent.name, sd->name);
             ent.type = FS_Directory;
-            saPushC(&ret->ents, opaque, &ent);
+            saPushC(&search->ents, opaque, &ent);
             htInsert(&names, string, sd->name, intptr, 1);
         }
-    }
-    htiDestroy(&sdi);
+    } endforeach;
 
     // start at the target directory and recurse upwards to see if any providers know about
     // this directory
@@ -104,7 +102,8 @@ VFSDirSearch *vfsSearchDir(VFS *vfs, strref path, strref pattern, int typefilter
         // traverse list of registered providers backwards, as providers registered later
         // are "higher" on the stack
         for (int i = saSize(&pdir->mounts) - 1; i >= 0; --i) {
-            VFSProvider *provif = objInstIf(pdir->mounts[i]->provider, VFSProvider);
+            ObjInst *provider = pdir->mounts[i]->provider;
+            VFSProvider *provif = objInstIf(provider, VFSProvider);
             if (!provif)
                 continue;
 
@@ -114,31 +113,33 @@ VFSDirSearch *vfsSearchDir(VFS *vfs, strref path, strref pattern, int typefilter
             }
 
             // see if we can get a directory listing out of it
-            ObjInst *dsprov = provif->searchDir(pdir->mounts[i]->provider, curpath, pattern, stat);
-            VFSDirSearchProvider *dsprovif = objInstIf(dsprov, VFSDirSearchProvider);
-            if (!dsprovif)
+            FSSearchIter dsiter;
+            if (!provif->searchInit(provider, &dsiter, curpath, pattern, stat))
                 continue;
 
             // we did! so gather up all the files
-            FSDirEnt *ent = dsprovif->next(dsprov);
-            while (ent) {
+            do {
                 // have we seen this file already on a higher layer?
-                if ((!typefilter || (ent->type & typefilter) == typefilter) &&
-                    !htHasKey(&names, string, ent->name)) {
+                if ((!typefilter || (dsiter.type & typefilter) == typefilter) &&
+                    !htHasKey(&names, string, dsiter.name)) {
                     // add to list and hash table of seen files
-                    idx = saPush(&ret->ents, opaque, *ent);
-                    htInsert(&names, string, ret->ents[idx].name, intptr, 1);
+                    VFSDirEnt ent = {
+                        .name = dsiter.name,        // borrowed ref!
+                        .type = dsiter.type,
+                        .stat = dsiter.stat
+                    };
+                    idx = saPush(&search->ents, opaque, ent);
+                    htInsert(&names, string, search->ents[idx].name, intptr, 1);
 
-                    if (ent->type == FS_File && !(pdir->mounts[i]->flags & VFS_NoCache)) {
+                    if (dsiter.type == FS_File && !(pdir->mounts[i]->flags & VFS_NoCache)) {
                         // go ahead and add it to the cache while we're here
-                        pathJoin(&filepath, curpath, ent->name);
+                        pathJoin(&filepath, curpath, dsiter.name);
                         VFSCacheEnt *newent = _vfsCacheEntCreate(pdir->mounts[i], filepath);
-                        htInsertC(&vfsdir->files, string, ent->name, ptr, &newent, Ignore);
+                        htInsertC(&vfsdir->files, string, dsiter.name, ptr, &newent, Ignore);
                     }
                 }
-                ent = dsprovif->next(dsprov);
-            }
-            objRelease(dsprov);
+            } while (provif->searchNext(provider, &dsiter));
+            provif->searchFinish(provider, &dsiter);
 
             // if this layer is opaque, the buck stops here
             if (pdir->mounts[i]->flags & VFS_Opaque)
@@ -152,7 +153,7 @@ VFSDirSearch *vfsSearchDir(VFS *vfs, strref path, strref pattern, int typefilter
 done:
     rwlockReleaseWrite(&vfs->vfslock);
     rwlockReleaseRead(&vfs->vfsdlock);
-    saSort(&ret->ents, true);
+    saSort(&search->ents, true);
 
     strDestroy(&ns);
     strDestroy(&abspath);
@@ -161,20 +162,32 @@ done:
     saDestroy(&relcomp);
     saDestroy(&components);
     htDestroy(&names);
-    return ret;
+    return vfsSearchNext(iter);
 }
 
-FSDirEnt *vfsSearchNext(VFSDirSearch *search)
+bool vfsSearchNext(FSSearchIter *iter)
 {
-    if (search->idx >= saSize(&search->ents))
-        return NULL;
+    VFSSearch *search = (VFSSearch*)iter->_search;
 
-    return &search->ents[search->idx++];
+    if (!search)
+        return false;
+
+    search->idx++;
+    if (search->idx >= saSize(&search->ents)) {
+        vfsSearchFinish(iter);
+        return false;
+    }
+
+    return true;
 }
 
-void vfsSearchClose(VFSDirSearch *search)
+void vfsSearchFinish(FSSearchIter *iter)
 {
+    VFSSearch *search = (VFSSearch*)iter->_search;
+    if (!search)
+        return;
+
     saDestroy(&search->ents);
     objRelease(search->vfs);
-    xaFree(search);
+    xaSFree(iter->_search);
 }

@@ -1,8 +1,0 @@
-#include "vfsvfs.sidl"
-#include <cx/fs/vfs.h>
-
-class VFSVFSDirSearch implements VFSDirSearchProvider {
-    VFSDirSearch *dirsearch;
-    destroy();
-    factory create(VFSDirSearch *ds);
-}

@@ -47,11 +47,10 @@ void dbgCrashRemoveCallback(dbgCrashCallback cb)
 bool _dbgCrashTriggerCallbacks(bool after)
 {
     // caller should be holding mutex
-    int i;
-    for (i = 0; i < saSize(&callbacks); i++) {
-        if (!callbacks[i](after))
+    foreach(sarray, i, dbgCrashCallback, callback, &callbacks) {
+        if (!callback(after))
             return false;
-    }
+    } endforeach;
 
     return true;
 }

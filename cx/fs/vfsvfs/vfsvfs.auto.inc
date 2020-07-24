@@ -16,7 +16,9 @@ static VFSProvider _impl_VFSVFS_VFSProvider = {
     .deleteFile = (bool (*)(void*, strref))VFSVFS_deleteFile,
     .rename = (bool (*)(void*, strref, strref))VFSVFS_rename,
     .getFSPath = (bool (*)(void*, string*, strref))VFSVFS_getFSPath,
-    .searchDir = (ObjInst *(*)(void*, strref, strref, bool))VFSVFS_searchDir,
+    .searchInit = (bool (*)(void*, FSSearchIter*, strref, strref, bool))VFSVFS_searchInit,
+    .searchNext = (bool (*)(void*, FSSearchIter*))VFSVFS_searchNext,
+    .searchFinish = (void (*)(void*, FSSearchIter*))VFSVFS_searchFinish,
 };
 
 static VFSVFS_ClassIf _impl_VFSVFS_VFSVFS_ClassIf = {
@@ -31,7 +33,9 @@ static VFSVFS_ClassIf _impl_VFSVFS_VFSVFS_ClassIf = {
     .deleteFile = (bool (*)(void*, strref))VFSVFS_deleteFile,
     .rename = (bool (*)(void*, strref, strref))VFSVFS_rename,
     .getFSPath = (bool (*)(void*, string*, strref))VFSVFS_getFSPath,
-    .searchDir = (ObjInst *(*)(void*, strref, strref, bool))VFSVFS_searchDir,
+    .searchInit = (bool (*)(void*, FSSearchIter*, strref, strref, bool))VFSVFS_searchInit,
+    .searchNext = (bool (*)(void*, FSSearchIter*))VFSVFS_searchNext,
+    .searchFinish = (void (*)(void*, FSSearchIter*))VFSVFS_searchFinish,
 };
 
 static ObjIface *_ifimpl_VFSVFS[] = {

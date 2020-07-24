@@ -19,16 +19,6 @@ typedef struct VFSFileProvider {
 } VFSFileProvider;
 extern VFSFileProvider VFSFileProvider_tmpl;
 
-typedef struct VFSDirSearchProvider {
-    ObjIface *_implements;
-    ObjIface *_parent;
-    size_t _size;
-
-    bool (*close)(void *self);
-    FSDirEnt *(*next)(void *self);
-} VFSDirSearchProvider;
-extern VFSDirSearchProvider VFSDirSearchProvider_tmpl;
-
 typedef struct VFSProvider {
     ObjIface *_implements;
     ObjIface *_parent;
@@ -43,7 +33,9 @@ typedef struct VFSProvider {
     bool (*deleteFile)(void *self, strref path);
     bool (*rename)(void *self, strref oldpath, strref newpath);
     bool (*getFSPath)(void *self, string *out, strref path);
-    ObjInst *(*searchDir)(void *self, strref path, strref pattern, bool stat);
+    bool (*searchInit)(void *self, FSSearchIter *iter, strref path, strref pattern, bool stat);
+    bool (*searchNext)(void *self, FSSearchIter *iter);
+    void (*searchFinish)(void *self, FSSearchIter *iter);
 } VFSProvider;
 extern VFSProvider VFSProvider_tmpl;
 

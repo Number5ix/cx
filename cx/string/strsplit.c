@@ -6,10 +6,7 @@ int32 strSplit(string **out, strref s, strref sep, bool empty)
     if (!out)
         return 0;
 
-    if (*out)
-        saDestroy(out);
-
-    *out = saCreate(string, 8);
+    saClear(out);
 
     uint32 seplen = strLen(sep);
     int32 start = 0, next;

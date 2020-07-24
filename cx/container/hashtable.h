@@ -43,8 +43,8 @@ typedef struct htiter {
 #define hteVal(handle, elem, type) (*hteValPtr(handle, elem, type))
 #define htiKeyPtr(iter, type) (((stStorageType(type)*)((iter).elem)))
 #define htiValPtr(iter, type) (((stStorageType(type)*)((uintptr)((iter).elem) + stGetSize((iter).hdr->keytype))))
-#define htiKey(iter, type) (*((stStorageType(type)*)((iter).elem)))
-#define htiVal(iter, type) (*((stStorageType(type)*)((uintptr)((iter).elem) + stGetSize((iter).hdr->keytype))))
+#define htiKey(iter, type) (*htiKeyPtr(iter, type))
+#define htiVal(iter, type) (*htiValPtr(iter, type))
 
 enum HASHTABLE_FLAGS_ENUM {
     HT_                = 0x0000,
@@ -164,6 +164,7 @@ _meta_inline bool _htHasKeyChecked(hashtable *htbl, stype keytype, stgeneric key
 #define htHasKey(htbl, ktype, key) _htHasKeyChecked(htbl, stChecked(ktype, key))
 
 // Hash table iterator
-bool htiCreate(htiter *iter, hashtable *htbl);
+bool htiInit(htiter *iter, hashtable *htbl);
 bool htiNext(htiter *iter);
-void htiDestroy(htiter *iter);
+void htiFinish(htiter *iter);
+_meta_inline bool htiValid(htiter *iter) { return iter->hdr; }

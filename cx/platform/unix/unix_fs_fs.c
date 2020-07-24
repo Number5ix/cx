@@ -291,79 +291,81 @@ bool fsRename(strref from, strref to)
     return ret;
 }
 
-typedef struct FSDirSearch {
+typedef struct FSSearch {
     DIR *d;
-    FSDirEnt ent;
     string path;
     string pattern;
     bool stat;
-} FSDirSearch;
+} FSSearch;
 
-FSDirSearch *fsSearchDir(strref path, strref pattern, bool stat)
+bool fsSearchInit(FSSearchIter *iter, strref path, strref pattern, bool stat)
 {
-    FSDirSearch *ret = 0;
-
     string(ppath);
     pathToPlatform(&ppath, path);
 
-    ret = xaAlloc(sizeof(FSDirSearch), Zero);
-    ret->d = opendir(strC(&ppath));
+    FSSearch *search = xaAlloc(sizeof(FSSearch), Zero);
+    iter->_search = search;
+    search->d = opendir(strC(&ppath));
     strDestroy(&ppath);
 
-    if (!ret->d) {
+    if (!search->d) {
         unixMapErrno();
-        xaFree(ret);
+        xaSFree(iter->_search);
         return NULL;
     }
 
-    strDup(&ret->path, path);
-    strDup(&ret->pattern, pattern);
-    ret->stat = stat;
-    return ret;
+    strDup(&search->path, path);
+    strDup(&search->pattern, pattern);
+    search->stat = stat;
+    return fsSearchNext(iter);
 }
 
-FSDirEnt *fsSearchNext(FSDirSearch *search)
+bool fsSearchNext(FSSearchIter *iter)
 {
+    FSSearch *search = (FSSearch*)iter->_search;
     if (!search)
-        return NULL;
+        return false;
 
     struct dirent *de;
 
     for(;;) {
         de = readdir(search->d);
-        if (!de)
-            return NULL;
+        if (!de) {
+	    fsSearchFinish(iter);
+            return false;
+	}
 
-        if (strEmpty(search->pattern) || pathMatch((string)de->d_name, search->pattern, 0)) {
-            FSDirEnt *ret = &search->ent;
-            strCopy(&ret->name, (string)de->d_name);
+        if (strcmp(de->d_name, ".") && strcmp(de->d_name, "..") &&
+	    (strEmpty(search->pattern) || pathMatch((string)de->d_name, search->pattern, 0))) {
+            strCopy(&iter->name, (string)de->d_name);
             if (de->d_type == DT_DIR)
-                ret->type = FS_Directory;
+                iter->type = FS_Directory;
             else
-                ret->type = FS_File;
+                iter->type = FS_File;
 
             if (search->stat) {
                 string(tpath);
-                pathJoin(&tpath, search->path, ret->name);
-                fsStat(tpath, &ret->stat);
+                pathJoin(&tpath, search->path, iter->name);
+                fsStat(tpath, &iter->stat);
                 strDestroy(&tpath);
             }
 
-            return ret;
+            return true;
         }
     }
 }
 
-void fsSearchClose(FSDirSearch *search)
+void fsSearchFinish(FSSearchIter *iter)
 {
+    FSSearch *search = (FSSearch*)iter->_search;
     if (!search)
         return;
 
-    strDestroy(&search->ent.name);
+    strDestroy(&iter->name);
     closedir(search->d);
     strDestroy(&search->path);
     strDestroy(&search->pattern);
-    xaFree(search);
+    xaSFree(iter->_search);
 }
 
 bool fsSetTimes(strref path, int64 modified, int64 accessed)

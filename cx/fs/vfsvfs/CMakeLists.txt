@@ -1,14 +1,11 @@
 set(FS_VFSVFS_SRCS
     fs/vfsvfs/vfsvfs.c
-    fs/vfsvfs/vfsvfsdirsearch.c
     fs/vfsvfs/vfsvfsfile.c)
 set(FS_VFSVFS_INCLUDES
     fs/vfsvfs/vfsvfs.h
-    fs/vfsvfs/vfsvfsdirsearch.h
     fs/vfsvfs/vfsvfsfile.h)
 set(FS_VFSVFS_SIDL
     fs/vfsvfs/vfsvfs.sidl
-    fs/vfsvfs/vfsvfsdirsearch.sidl
     fs/vfsvfs/vfsvfsfile.sidl)
 
 set(CX_SRCS

@@ -22,7 +22,9 @@ typedef struct VFSVFS_ClassIf {
     bool (*deleteFile)(void *self, strref path);
     bool (*rename)(void *self, strref oldpath, strref newpath);
     bool (*getFSPath)(void *self, string *out, strref path);
-    ObjInst *(*searchDir)(void *self, strref path, strref pattern, bool stat);
+    bool (*searchInit)(void *self, FSSearchIter *iter, strref path, strref pattern, bool stat);
+    bool (*searchNext)(void *self, FSSearchIter *iter);
+    void (*searchFinish)(void *self, FSSearchIter *iter);
 } VFSVFS_ClassIf;
 extern VFSVFS_ClassIf VFSVFS_ClassIf_tmpl;
 
@@ -52,5 +54,7 @@ VFSVFS *VFSVFS_create(VFS *vfs, strref rootpath);
 #define vfsvfsDeleteFile(self, path) (self)->_->deleteFile(VFSVFS(self), path)
 #define vfsvfsRename(self, oldpath, newpath) (self)->_->rename(VFSVFS(self), oldpath, newpath)
 #define vfsvfsGetFSPath(self, out, path) (self)->_->getFSPath(VFSVFS(self), out, path)
-#define vfsvfsSearchDir(self, path, pattern, stat) (self)->_->searchDir(VFSVFS(self), path, pattern, stat)
+#define vfsvfsSearchInit(self, iter, path, pattern, stat) (self)->_->searchInit(VFSVFS(self), iter, path, pattern, stat)
+#define vfsvfsSearchNext(self, iter) (self)->_->searchNext(VFSVFS(self), iter)
+#define vfsvfsSearchFinish(self, iter) (self)->_->searchFinish(VFSVFS(self), iter)
 
