@@ -174,11 +174,15 @@ bool vfsSearchNext(FSSearchIter *iter)
     if (!search)
         return false;
 
-    search->idx++;
     if (search->idx >= saSize(&search->ents)) {
         vfsSearchFinish(iter);
         return false;
     }
+    VFSDirEnt *ent = &search->ents[search->idx];
+    strDup(&iter->name, ent->name);
+    iter->type = ent->type;
+    iter->stat = ent->stat;
+    search->idx++;
 
     return true;
 }
