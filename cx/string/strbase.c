@@ -1,6 +1,7 @@
 #include "string_private.h"
 #include "strtest.h"
 #include "cx/platform/base.h"
+#include "cx/utils/scratch.h"
 
 // lookup table for structure positions, lives in a single cache line
 // Len, Refcount, String, 0
@@ -358,19 +359,19 @@ void strDestroy(string *ps)
     *ps = NULL;
 }
 
-const char *strC(string *ps)
+const char *strC(strref s)
 {
-    string s = STR_SAFE_DEREF(ps);
-    if (!s) return "";
+    if (!STR_CHECK_VALID(s)) return "";
 
     if (!(STR_HDR(s) & STR_ROPE)) {
         // simple string, can just return the buffer
         return STR_BUFFER(s);
     } else {
-        // have to flatten so that C string even exists
-        if (!_strFlatten(ps, 0))
-            return NULL;
-        return STR_BUFFER(*ps);
+        uint32 len = _strFastLen(s);
+        char *buf = scratchGet(len + 1);
+        _strRopeFastCopy(s, 0, buf, len);
+        buf[len] = 0;
+        return buf;
     }
 }
 

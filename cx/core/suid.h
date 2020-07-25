@@ -47,7 +47,7 @@ bool suidEncode(string *out, const SUID *id);
 bool suidEncodeBytes(char buf[26], const SUID *id);
 
 // Decodes a SUID from a string
-bool suidDecode(SUID *out, string *str);
+bool suidDecode(SUID *out, strref str);
 bool suidDecodeBytes(SUID *out, const char buf[26]);
 
 CX_C_END

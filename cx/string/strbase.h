@@ -61,10 +61,14 @@ bool strEmpty(strref s);
 void strDestroy(string *ps);
 
 // Obtains a read-only pointer to a classic C-style string.
-// Pointer is valid until the next string function is called.
-//      ps: Pointer to string handle.
-// Returns: C-style string.
-const char *strC(string *ps);
+// Will attempt to return a pointer to the string itself if possible, but
+// in the case of ropes or other complex strings, the return value may be
+// a scratch buffer instead, along with all the associated caveats and
+// warnings (see utils/scratch.h). Care should be taken and the string
+// used or copied as soon as possible if it must persist.
+//      s: String reference
+// Returns: C-style string
+const char *strC(strref s);
 
 // Obtains a read-write pointer to a string's backing memory buffer.
 // This causes string memory to no longer be shared with duplicates.

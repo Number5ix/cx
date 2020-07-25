@@ -277,7 +277,7 @@ bool processClass(Class *cls)
             m = findInterfaceMethod(cls->overrides[i], cls, NULL);
         }
         if (!m) {
-            fprintf(stderr, "Could not find method '%s' to override\n", strC(&cls->overrides[i]));
+            fprintf(stderr, "Could not find method '%s' to override\n", strC(cls->overrides[i]));
             return false;
         }
         // clone and reset source class
@@ -386,7 +386,7 @@ bool processClasses()
 {
     for (int i = 0; i < saSize(&classes); i++) {
         if (!processClass(classes[i])) {
-            printf("Error processing class '%s'\n", strC(&classes[i]->name));
+            printf("Error processing class '%s'\n", strC(classes[i]->name));
             return false;
         }
     }

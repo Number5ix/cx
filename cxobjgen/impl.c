@@ -575,14 +575,14 @@ bool writeImpl(string fname, bool mixinimpl)
             wasempty = false;
 
             // ignore parent prototypes and macros
-            int nmatches = pcre2_match(reParentProto, (PCRE2_SPTR)strC(&ln), strLen(ln), 0, 0, match, NULL);
+            int nmatches = pcre2_match(reParentProto, (PCRE2_SPTR)strC(ln), strLen(ln), 0, 0, match, NULL);
             if (nmatches >= 0)
                 continue;
-            nmatches = pcre2_match(reParentMacro, (PCRE2_SPTR)strC(&ln), strLen(ln), 0, 0, match, NULL);
+            nmatches = pcre2_match(reParentMacro, (PCRE2_SPTR)strC(ln), strLen(ln), 0, 0, match, NULL);
             if (nmatches >= 0)
                 continue;
 
-            nmatches = pcre2_match(reProto, (PCRE2_SPTR)strC(&ln), strLen(ln), 0, 0, match, NULL);
+            nmatches = pcre2_match(reProto, (PCRE2_SPTR)strC(ln), strLen(ln), 0, 0, match, NULL);
             if (nmatches >= 0) {
                 PCRE2_SIZE *ovector = pcre2_get_ovector_pointer(match);
                 string funcname = 0;

@@ -50,15 +50,15 @@ static bool getPerUserId(mbedtls_md_context_t *shactx)
     strConcat(&cxdir, (string)home, _S"/.cx");
     strConcat(&userfile, cxdir, _S"/hostid");
 
-    if (readIdFile(strC(&userfile), shactx, true)) {
+    if (readIdFile(strC(userfile), shactx, true)) {
         ret = true;
     } else {
         struct stat sb;
-        if (!stat(strC(&cxdir), &sb) || !S_ISDIR(sb.st_mode)) {
-            mkdir(strC(&cxdir), 0755);
+        if (!stat(strC(cxdir), &sb) || !S_ISDIR(sb.st_mode)) {
+            mkdir(strC(cxdir), 0755);
         }
 
-        int fd = open(strC(&userfile), O_WRONLY | O_CREAT | O_TRUNC, 0755);
+        int fd = open(strC(userfile), O_WRONLY | O_CREAT | O_TRUNC, 0755);
         if (fd >= 0) {
             mbedtls_entropy_context entropy;
             uint8 randbuf[64];

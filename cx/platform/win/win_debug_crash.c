@@ -345,17 +345,17 @@ static void dbgInvalidParameterHandler(const wchar_t *w_exp,
 
     if (w_exp) {
         strFromUTF16(&exp, w_exp, cstrLenw(w_exp));
-        dbgCrashAddMetaStr("assertexpr", strC(&exp));
+        dbgCrashAddMetaStr("assertexpr", strC(exp));
         strDestroy(&exp);
     }
     if (w_func) {
         strFromUTF16(&func, w_exp, cstrLenw(w_func));
-        dbgCrashAddMetaStr("assertfunc", strC(&func));
+        dbgCrashAddMetaStr("assertfunc", strC(func));
         strDestroy(&func);
     }
     if (w_file) {
         strFromUTF16(&file, w_exp, cstrLenw(w_file));
-        dbgCrashAddMetaStr("assertfile", strC(&file));
+        dbgCrashAddMetaStr("assertfile", strC(file));
         strDestroy(&file);
     }
     if (line > 0) {

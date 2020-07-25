@@ -38,7 +38,7 @@ FSFile *_fsOpen(strref path, int flags)
     if (flags & FS_Truncate)
         oflags |= O_TRUNC;
 
-    int fd = open(strC(&npath), oflags, 0644);
+    int fd = open(strC(npath), oflags, 0644);
     if (fd < 0) {
         unixMapErrno();
 	strDestroy(&npath);

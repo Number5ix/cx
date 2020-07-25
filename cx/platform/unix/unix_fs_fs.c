@@ -111,7 +111,7 @@ bool fsSetCurDir(strref cur)
     // keep things from being confusing if subprocesses are created.
     pathToPlatform(&ppath, ncur);
     rwlockAcquireWrite(&_fsCurDirLock);
-    if (chdir(strC(&ppath)) != 0) {
+    if (chdir(strC(ppath)) != 0) {
         unixMapErrno();
         strDestroy(&ncur);
 	strDestroy(&ppath);
@@ -190,7 +190,7 @@ int fsStat(strref path, FSStat *fsstat)
     struct stat sb;
     string(ppath);
     pathToPlatform(&ppath, path);
-    if (stat(strC(&ppath), &sb) != 0) {
+    if (stat(strC(ppath), &sb) != 0) {
         if (fsstat)
             memset(fsstat, 0, sizeof(FSStat));
 	strDestroy(&ppath);
@@ -226,7 +226,7 @@ bool fsCreateDir(strref path)
 
     string(ppath);
     pathToPlatform(&ppath, path);
-    if (mkdir(strC(&ppath), 0755) == -1 && errno != EEXIST)
+    if (mkdir(strC(ppath), 0755) == -1 && errno != EEXIST)
         ret = unixMapErrno();
 
     strDestroy(&ppath);
@@ -252,7 +252,7 @@ bool fsRemoveDir(strref path)
 
     string(ppath);
     pathToPlatform(&ppath, path);
-    if (rmdir(strC(&ppath)) == -1)
+    if (rmdir(strC(ppath)) == -1)
         ret = unixMapErrno();
 
     strDestroy(&ppath);
@@ -267,7 +267,7 @@ bool fsDelete(strref path)
 
     string(ppath);
     pathToPlatform(&ppath, path);
-    if (unlink(strC(&ppath)) == -1)
+    if (unlink(strC(ppath)) == -1)
         ret = unixMapErrno();
 
     strDestroy(&ppath);
@@ -283,7 +283,7 @@ bool fsRename(strref from, strref to)
     string(pfrom); string(pto);
     pathToPlatform(&pfrom, from);
     pathToPlatform(&pto, to);
-    if (rename(strC(&pfrom), strC(&pto)) == -1)
+    if (rename(strC(pfrom), strC(pto)) == -1)
         ret = unixMapErrno();
 
     strDestroy(&pfrom);
@@ -307,7 +307,7 @@ bool fsSearchInit(FSSearchIter *iter, strref path, strref pattern, bool stat)
 
     FSSearch *search = xaAlloc(sizeof(FSSearch), Zero);
     iter->_search = search;
-    search->d = opendir(strC(&ppath));
+    search->d = opendir(strC(ppath));
     strDestroy(&ppath);
 
     if (!search->d) {
@@ -387,7 +387,7 @@ bool fsSetTimes(strref path, int64 modified, int64 accessed)
 	times[1].tv_nsec = UTIME_OMIT;
 
     pathToPlatform(&ppath, path);
-    if (utimensat(AT_FDCWD, strC(&ppath), times, 0) == -1)
+    if (utimensat(AT_FDCWD, strC(ppath), times, 0) == -1)
 	ret = unixMapErrno();
     strDestroy(&ppath);
 

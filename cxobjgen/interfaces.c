@@ -33,7 +33,7 @@ bool processInterfaces()
 {
     for (int i = 0; i < saSize(&ifaces); i++) {
         if (!processInterface(ifaces[i])) {
-            printf("Error processing interface '%s'\n", strC(&ifaces[i]->name));
+            printf("Error processing interface '%s'\n", strC(ifaces[i]->name));
             return false;
         }
     }

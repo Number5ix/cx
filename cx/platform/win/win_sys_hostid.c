@@ -67,7 +67,7 @@ int32 hostIdPlatformInit(mbedtls_md_context_t *shactx)
             RegQueryValueExW(key, L"MachineGuid", NULL, NULL, (uint8*)buf, &sz);
             string(guid);
             strFromUTF16(&guid, buf, cstrLenw(buf));
-            mbedtls_md_update(shactx, strC(&guid), strLen(guid));
+            mbedtls_md_update(shactx, strC(guid), strLen(guid));
             strDestroy(&guid);
             ret = HID_SourceCrypto;
         }

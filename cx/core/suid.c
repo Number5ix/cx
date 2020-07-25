@@ -211,9 +211,9 @@ bool suidDecodeBytes(SUID *out, const char buf[26])
     return true;
 }
 
-bool suidDecode(SUID *out, string *str)
+bool suidDecode(SUID *out, strref str)
 {
-    if (!str || strLen(*str) < 26)
+    if (!str || strLen(str) < 26)
         return false;
 
     const char *buf = strC(str);

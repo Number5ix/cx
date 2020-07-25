@@ -288,7 +288,7 @@ bool parseGlobal(ParseState *ps, string *tok)
             ret = false;
         striFinish(&it);
         if (!ret) {
-            fprintf(stderr, "Invalid include syntax '%s'\n", strC(&fname));
+            fprintf(stderr, "Invalid include syntax '%s'\n", strC(fname));
             return false;
         }
 
@@ -324,7 +324,7 @@ bool parseGlobal(ParseState *ps, string *tok)
         return true;
     }
 
-    fprintf(stderr, "Invalid token '%s' in global context\n", strC(tok));
+    fprintf(stderr, "Invalid token '%s' in global context\n", strC(*tok));
     return false;
 }
 
@@ -347,12 +347,12 @@ bool parseInterfacePre(ParseState *ps, string *tok)
         string name = 0;
         nextTok(ps, &name);
         if (!isvalidname(name)) {
-            fprintf(stderr, "Invalid interface name '%s'\n", strC(&name));
+            fprintf(stderr, "Invalid interface name '%s'\n", strC(name));
             strDestroy(&name);
             return false;
         }
         if (!htFind(&ifidx, string, name, object, &ps->curif->parent)) {
-            fprintf(stderr, "Could not find interface '%s'\n", strC(&name));
+            fprintf(stderr, "Could not find interface '%s'\n", strC(name));
             strDestroy(&name);
             return false;
         }
@@ -363,7 +363,7 @@ bool parseInterfacePre(ParseState *ps, string *tok)
         return true;
     }
 
-    fprintf(stderr, "Invalid token '%s' in pre-interface context\n", strC(tok));
+    fprintf(stderr, "Invalid token '%s' in pre-interface context\n", strC(*tok));
     return false;
 }
 
@@ -386,7 +386,7 @@ bool parseInterface(ParseState *ps, string *tok)
         return true;
     } else if (!ps->curmethod) {
         if (!isvalidname(*tok)) {
-            fprintf(stderr, "Invalid return type '%s'\n", strC(tok));
+            fprintf(stderr, "Invalid return type '%s'\n", strC(*tok));
             return false;
         }
         ps->curmethod = methodCreate();
@@ -414,7 +414,7 @@ bool parseInterface(ParseState *ps, string *tok)
         return true;
     }
 
-    fprintf(stderr, "Invalid token '%s' in interface definition\n", strC(tok));
+    fprintf(stderr, "Invalid token '%s' in interface definition\n", strC(*tok));
     return false;
 }
 
@@ -441,7 +441,7 @@ bool parseParamList(ParseState *ps, string *tok)
         return true;
     } else if (!ps->curparam) {
         if (!isvalidname(*tok)) {
-            fprintf(stderr, "Invalid parameter type '%s'\n", strC(tok));
+            fprintf(stderr, "Invalid parameter type '%s'\n", strC(*tok));
             return false;
         }
         ps->curparam = paramCreate();
@@ -481,12 +481,12 @@ bool parseClassPre(ParseState *ps, string *tok)
         string name = 0;
         nextTok(ps, &name);
         if (!isvalidname(name)) {
-            fprintf(stderr, "Invalid class name '%s'\n", strC(&name));
+            fprintf(stderr, "Invalid class name '%s'\n", strC(name));
             strDestroy(&name);
             return false;
         }
         if (!htFind(&clsidx, string, name, object, &ps->curcls->parent)) {
-            fprintf(stderr, "Could not find class '%s'\n", strC(&name));
+            fprintf(stderr, "Could not find class '%s'\n", strC(name));
             strDestroy(&name);
             return false;
         }
@@ -497,17 +497,17 @@ bool parseClassPre(ParseState *ps, string *tok)
         Class *uses;
         nextTok(ps, &name);
         if (!isvalidname(name)) {
-            fprintf(stderr, "Invalid class name '%s'\n", strC(&name));
+            fprintf(stderr, "Invalid class name '%s'\n", strC(name));
             strDestroy(&name);
             return false;
         }
         if (!htFind(&clsidx, string, name, object, &uses)) {
-            fprintf(stderr, "Could not find class '%s'\n", strC(&name));
+            fprintf(stderr, "Could not find class '%s'\n", strC(name));
             strDestroy(&name);
             return false;
         }
         if (!uses->mixin) {
-            fprintf(stderr, "Cannot use non-mixin class '%s'\n", strC(&name));
+            fprintf(stderr, "Cannot use non-mixin class '%s'\n", strC(name));
             strDestroy(&name);
             return false;
         }
@@ -518,13 +518,13 @@ bool parseClassPre(ParseState *ps, string *tok)
         string name = 0;
         nextTok(ps, &name);
         if (!isvalidname(name)) {
-            fprintf(stderr, "Invalid interface name '%s'\n", strC(&name));
+            fprintf(stderr, "Invalid interface name '%s'\n", strC(name));
             strDestroy(&name);
             return false;
         }
         Interface *tempif = 0;
         if (!htFind(&ifidx, string, name, object, &tempif)) {
-            fprintf(stderr, "Could not find interface '%s'\n", strC(&name));
+            fprintf(stderr, "Could not find interface '%s'\n", strC(name));
             strDestroy(&name);
             return false;
         }
@@ -547,7 +547,7 @@ bool parseClassPre(ParseState *ps, string *tok)
         return true;
     }
 
-    fprintf(stderr, "Invalid token '%s' in pre-class context\n", strC(tok));
+    fprintf(stderr, "Invalid token '%s' in pre-class context\n", strC(*tok));
     return false;
 }
 
@@ -570,7 +570,7 @@ bool parseClass(ParseState *ps, string *tok)
         } else if (saSize(&ps->tokstack) >= 2) {
             // this must be a class member
             if (!isvalidname(ps->tokstack[0])) {
-                fprintf(stderr, "Invalid member type '%s'\n", strC(&ps->tokstack[0]));
+                fprintf(stderr, "Invalid member type '%s'\n", strC(ps->tokstack[0]));
                 return false;
             }
             Member *nmem = memberCreate();
@@ -619,7 +619,7 @@ bool parseClass(ParseState *ps, string *tok)
         ps->allowannotations = true;
         return true;
     } else if (ps->curmethod) {
-        fprintf(stderr, "Invalid token '%s' in class definition\n", strC(tok));
+        fprintf(stderr, "Invalid token '%s' in class definition\n", strC(*tok));
         return false;
     } else if (strEq(*tok, _S"(")) {
         if (saSize(&ps->tokstack) == 1) {
@@ -675,7 +675,7 @@ bool parseClass(ParseState *ps, string *tok)
             if (ps->curcls->abstract || ps->curcls->mixin) {
                 fprintf(stderr, "%s class '%s' tried to declare a factory\n",
                         ps->curcls->mixin ? "Mixin" : "Abstract",
-                        strC(&ps->curcls->name));
+                        strC(ps->curcls->name));
                 return false;
             }
 
@@ -712,7 +712,7 @@ bool parseClass(ParseState *ps, string *tok)
         string name = 0;
         nextTok(ps, &name);
         if (!isvalidname(name)) {
-            fprintf(stderr, "Invalid override '%s'\n", strC(&name));
+            fprintf(stderr, "Invalid override '%s'\n", strC(name));
             return false;
         }
         saPushC(&ps->curcls->overrides, string, &name, Unique);
