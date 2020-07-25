@@ -8,7 +8,9 @@ CX_C_BEGIN
 // Always initialize sstring to NULL or 0 first!
 typedef struct str_impl* string;
 // helper for declaring string variables
+#ifndef __cplusplus
 #define string(name) string name = 0
+#endif
 
 // String references are borrowed references to strings, for
 // controlled situations such as passing as function arguments.
