@@ -30,7 +30,7 @@ bool striNext(striter *i);
 bool striPrev(striter *i);
 bool striSeek(striter *i, int32 off, STRI_SEEK_TYPE type, STRI_SEEK_WHENCE whence);
 void striFinish(striter *i);
-_meta_inline striValid(striter *i) { return i->len > 0; }
+_meta_inline bool striValid(striter *i) { return i->len > 0; }
 
 // Borrowed iterators do not hold a reference to the string. They are intended for
 // carefully controlled circumstances where maximum performance is needed. They
