@@ -13,6 +13,9 @@
 
 CX_C_BEGIN
 
+// do this as a typedef instead of a #define
+#undef bool
+
 // IMPORTANT NOTE!
 // Always initialize string to NULL or 0 first!
 typedef struct str_impl* string;
@@ -45,6 +48,7 @@ typedef long long int64;
 typedef unsigned long long uint64;
 typedef intptr_t intptr;
 typedef uintptr_t uintptr;
+typedef _Bool bool;
 
 typedef float float32;
 typedef double float64;
@@ -65,6 +69,7 @@ typedef uint32 stype;
 #define SType_uint64 uint64
 #define SType_intptr intptr
 #define SType_uintptr uintptr
+#define SType_bool _Bool
 #define SType_size size_t
 #define SType_float32 float32
 #define SType_float64 float64
@@ -97,6 +102,7 @@ typedef union stgeneric {
     CONTAINER_TYPE(uint64);
     CONTAINER_TYPE(intptr);
     CONTAINER_TYPE(uintptr);
+    CONTAINER_TYPE(bool);
     CONTAINER_TYPE(size);
     CONTAINER_TYPE(float32);
     CONTAINER_TYPE(float64);
@@ -140,6 +146,7 @@ typedef struct stvar {
 #define STStorageType_uint64 uint64
 #define STStorageType_intptr intptr
 #define STStorageType_uintptr uintptr
+#define STStorageType_bool _Bool
 #define STStorageType_size size_t
 #define STStorageType_float32 float32
 #define STStorageType_float64 float64
@@ -169,6 +176,7 @@ enum STYPE_ID {
     STypeId_uint32 = STCLASS_UINT | 4,
     STypeId_uint64 = STCLASS_UINT | 8,
     STypeId_uintptr = STCLASS_UINT | sizeof(intptr),
+    STypeId_bool = STCLASS_UINT | 3,                // fill in a gap in the ID sequence
     STypeId_size = STCLASS_UINT | sizeof(size_t),   // alias for one of the uint types
     STypeId_float32 = STCLASS_FLOAT | 4,
     STypeId_float64 = STCLASS_FLOAT | 8,
@@ -200,6 +208,7 @@ enum STYPE_SIZE {
     STypeSize_uint32 = sizeof(int32),
     STypeSize_uint64 = sizeof(int64),
     STypeSize_uintptr = sizeof(uintptr),
+    STypeSize_bool = sizeof(_Bool),
     STypeSize_size = sizeof(size_t),
     STypeSize_float32 = sizeof(float32),
     STypeSize_float64 = sizeof(float64),
@@ -256,6 +265,7 @@ enum STYPE_DEFAULT_FLAGS {
     STypeFlags_uint32 = 0,
     STypeFlags_uint64 = 0,
     STypeFlags_uintptr = 0,
+    STypeFlags_bool = 0,
     STypeFlags_size = 0,
     STypeFlags_float32 = 0,
     STypeFlags_float64 = 0,
@@ -301,6 +311,7 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define stType_uint32 stTypeInternal(uint32)
 #define stType_uint64 stTypeInternal(uint64)
 #define stType_uintptr stTypeInternal(uintptr)
+#define stType_bool stTypeInternal(bool)
 #define stType_size stTypeInternal(size)
 #define stType_float32 stTypeInternal(float32)
 #define stType_float64 stTypeInternal(float64)
@@ -328,6 +339,7 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define stFullType_uint32 stFullTypeInternal(uint32)
 #define stFullType_uint64 stFullTypeInternal(uint64)
 #define stFullType_uintptr stFullTypeInternal(uintptr)
+#define stFullType_bool stFullTypeInternal(bool)
 #define stFullType_size stFullTypeInternal(size)
 #define stFullType_float32 stFullTypeInternal(float32)
 #define stFullType_float64 stFullTypeInternal(float64)
@@ -362,6 +374,7 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define STypeArg_uint32(type, val) stgeneric(type, val)
 #define STypeArg_uint64(type, val) stgeneric(type, val)
 #define STypeArg_uintptr(type, val) stgeneric(type, val)
+#define STypeArg_bool(type, val) stgeneric(type, val)
 #define STypeArg_size(type, val) stgeneric(type, val)
 #define STypeArg_float32(type, val) stgeneric(type, val)
 #define STypeArg_float64(type, val) stgeneric(type, val)
@@ -392,6 +405,7 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define STypeArgPtr_uint32(type, val) (stgeneric*)stCheckPtr(type, val)
 #define STypeArgPtr_uint64(type, val) (stgeneric*)stCheckPtr(type, val)
 #define STypeArgPtr_uintptr(type, val) (stgeneric*)stCheckPtr(type, val)
+#define STypeArgPtr_bool(type, val) (stgeneric*)stCheckPtr(type, val)
 #define STypeArgPtr_size(type, val) (stgeneric*)stCheckPtr(type, val)
 #define STypeArgPtr_float32(type, val) (stgeneric*)stCheckPtr(type, val)
 #define STypeArgPtr_float64(type, val) (stgeneric*)stCheckPtr(type, val)
@@ -421,6 +435,7 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define STypeChecked_uint32(type, val) stTypeInternal(type), stArg(type, val)
 #define STypeChecked_uint64(type, val) stTypeInternal(type), stArg(type, val)
 #define STypeChecked_uintptr(type, val) stTypeInternal(type), stArg(type, val)
+#define STypeChecked_bool(type, val) stTypeInternal(type), stArg(type, val)
 #define STypeChecked_size(type, val) stTypeInternal(type), stArg(type, val)
 #define STypeChecked_float32(type, val) stTypeInternal(type), stArg(type, val)
 #define STypeChecked_float64(type, val) stTypeInternal(type), stArg(type, val)
@@ -450,6 +465,7 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define STypeCheckedPtr_uint32(type, val) stTypeInternal(type), stArgPtr(type, val)
 #define STypeCheckedPtr_uint64(type, val) stTypeInternal(type), stArgPtr(type, val)
 #define STypeCheckedPtr_uintptr(type, val) stTypeInternal(type), stArgPtr(type, val)
+#define STypeCheckedPtr_bool(type, val) stTypeInternal(type), stArgPtr(type, val)
 #define STypeCheckedPtr_size(type, val) stTypeInternal(type), stArgPtr(type, val)
 #define STypeCheckedPtr_float32(type, val) stTypeInternal(type), stArgPtr(type, val)
 #define STypeCheckedPtr_float64(type, val) stTypeInternal(type), stArgPtr(type, val)
