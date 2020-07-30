@@ -48,7 +48,11 @@ typedef long long int64;
 typedef unsigned long long uint64;
 typedef intptr_t intptr;
 typedef uintptr_t uintptr;
+#ifndef __cplusplus
 typedef _Bool bool;
+#else
+typedef bool _Bool;
+#endif
 
 typedef float float32;
 typedef double float64;
