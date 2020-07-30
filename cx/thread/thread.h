@@ -49,6 +49,12 @@ bool _thrPlatformSetPriority(Thread *thread, int prio);
 #define thrSetPriority(thread, prio) _thrPlatformSetPriority(thread, THREAD_##prio)
 #define thrSetPriorityV(thread, prio) _thrPlatformSetPriority(thread, prio)
 
+typedef struct Event Event;
+// Registers a thread as a system thread. System threads are background threads that run independently
+// of the main program and are typically library-created. They are notified at program exit and given
+// an opportunity to perform cleanup before being destroyed.
+void thrRegisterSysThread(Thread *thread, Event *notify);
+
 // stype glue for custom type
 extern STypeOps _thread_ops;
 #define SType_Thread Thread*

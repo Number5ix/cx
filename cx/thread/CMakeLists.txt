@@ -4,6 +4,7 @@ set(THREAD_SRCS
     thread/mutex.c
     thread/rwlock.c
     thread/sema.c
+    thread/systhread.c
     thread/thread.c)
 set(THREAD_INCLUDES
     thread/atomic.h
