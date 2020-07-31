@@ -5,6 +5,7 @@
 // Note that this uses a temporary, so the variant's lifetime is equal to the function
 // scope that it was created in. It should be used for passing varargs by-value.
 #ifndef __cplusplus
+#define stvarInit(typen, val) { .data = { .st_##typen = val }, .type = stType(typen) }
 #define stvar(typen, val) ((stvar){ .data = stArg(typen, val), .type = stType(typen) })
 
 #define stvNone ((stvar){ .type = stType(none) })
