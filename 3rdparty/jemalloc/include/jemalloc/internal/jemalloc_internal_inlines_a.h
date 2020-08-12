@@ -11,7 +11,14 @@ JEMALLOC_ALWAYS_INLINE malloc_cpuid_t
 malloc_getcpu(void) {
 	assert(have_percpu_arena);
 #if defined(_WIN32)
+#if _WIN32_WINNT >= 0x0600
 	return GetCurrentProcessorNumber();
+#else
+        _asm {mov eax, 1}
+        _asm {cpuid}
+        _asm {shr ebx, 24}
+        _asm {mov eax, ebx}
+#endif
 #elif defined(JEMALLOC_HAVE_SCHED_GETCPU)
 	return (malloc_cpuid_t)sched_getcpu();
 #else
