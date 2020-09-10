@@ -10,7 +10,7 @@
 #include <unistd.h>
 #include <dirent.h>
 
-#ifdef _PLATFORM_FREEBSD
+#ifdef _PLATFORM_FBSD
 #include <limits.h>
 #include <sys/types.h>
 #include <sys/sysctl.h>
@@ -130,7 +130,7 @@ static void fsExeInit(void *data)
 {
     string *exepath = (string*)data;
 
-#if defined(_PLATFORM_FREEBSD)
+#if defined(_PLATFORM_FBSD)
     int mib[4];
     mib[0] = CTL_KERN;
     mib[1] = KERN_PROC;
@@ -206,7 +206,7 @@ int fsStat(strref path, FSStat *fsstat)
         // metadata is touched
         fsstat->modified = max(timeFromAbsTimespec(&sb.st_mtim), timeFromAbsTimespec(&sb.st_ctim));
 
-#ifdef _PLATFORM_FREEBSD
+#ifdef _PLATFORM_FBSD
         fsstat->created = timeFromAbsTimespec(&sb.st_birthtim);
 #else
         // Linux has no file creation timestamp

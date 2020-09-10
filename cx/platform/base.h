@@ -21,6 +21,7 @@
 
 #if defined(_WIN32)
 #define _PLATFORM_WIN 1
+#define _PLATFORM_STR "win"
 #else
 // this should be impossible
 #error Unsupported operating system ???
@@ -28,9 +29,11 @@
 
 #if defined(_M_IX86)
 #define _ARCH_X86 1
+#define _ARCH_STR "x86"
 #define _32BIT 1
 #elif defined (_M_X64)
 #define _ARCH_X64 1
+#define _ARCH_STR "x64"
 #define _64BIT 1
 #else
 #error Unsupported architecture
@@ -54,18 +57,22 @@
 #if defined(__linux__)
 #define _PLATFORM_UNIX 1
 #define _PLATFORM_LINUX 1
+#define _PLATFORM_STR "linux"
 #elif defined(__FreeBSD__)
 #define _PLATFORM_UNIX 1
-#define _PLATFORM_FREEBSD 1
+#define _PLATFORM_FBSD 1
+#define _PLATFORM_STR "fbsd"
 #else
 #error Unsupported operating system
 #endif
 
 #if defined(__x86_32__)
 #define _ARCH_X86 1
+#define _ARCH_STR "x86"
 #define _32BIT 1
 #elif defined(__x86_64__)
 #define _ARCH_X64 1
+#define _ARCH_STR "x64"
 #define _64BIT 1
 #else
 #error Unsupported architectures
@@ -74,3 +81,5 @@
 #else
 #error Unsupported compiler
 #endif
+
+#define _PLATFORM_ARCH_STR (_PLATFORM_STR "-" _ARCH_STR)

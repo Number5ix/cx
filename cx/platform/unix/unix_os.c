@@ -4,7 +4,7 @@
 #include <pthread.h>
 #include <time.h>
 
-#if defined(_PLATFORM_FREEBSD)
+#if defined(_PLATFORM_FBSD)
 #include <sys/types.h>
 #include <sys/sysctl.h>
 #elif defined(_PLATFORM_LINUX)
@@ -34,7 +34,7 @@ void osSleep(int64 time)
 
 static void initCoreCache(void *dummy)
 {
-#ifdef _PLATFORM_FREEBSD
+#ifdef _PLATFORM_FBSD
     int mib[2];
     size_t len = sizeof(nlogical);
 

@@ -1,5 +1,5 @@
 #include <cx/thread.h>
-#if defined(_PLATFORM_FREEBSD)
+#if defined(_PLATFORM_FBSD)
 #include <pthread.h>
 #include <pthread_np.h>
 #elif defined(_PLATFORM_LINUX)
@@ -124,7 +124,7 @@ bool _thrPlatformSetPriority(Thread *thread, int prio) {
 }
 #endif
 
-#ifdef _PLATFORM_FREEBSD
+#ifdef _PLATFORM_FBSD
 // FreeBSD pthreads sucks because it doesn't have any *lower*-than-normal
 // priority levels. It does support priority levels on SCHED_OTHER though,
 // so we can sort of fake it with that.
