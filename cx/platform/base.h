@@ -86,4 +86,12 @@
 #error Unsupported compiler
 #endif
 
+#if defined(_32BIT)
+#define _word_align alignMem(4)
+#elif defined(_64BIT)
+#define _word_align alignMem(8)
+#else
+#error Unsupported architecture
+#endif
+
 #define _PLATFORM_ARCH_STR (_PLATFORM_STR "-" _ARCH_STR)

@@ -25,7 +25,7 @@ typedef struct Semaphore {
     atomic(int32) count;
     atomic(int32) spintarget;
     uint32 flags;
-    alignMem(sizeof(intptr)) kernelSema ksema;
+    _word_align kernelSema ksema;
 
 #ifdef SEMA_PERF_STATS
     atomic(intptr) stats_uncontested;
