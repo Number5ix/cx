@@ -74,8 +74,12 @@
 #define _ARCH_X64 1
 #define _ARCH_STR "x64"
 #define _64BIT 1
+#elif defined (__aarch64__)
+#define _ARCH_ARM64 1
+#define _ARCH_STR "arm64"
+#define _64BIT 1
 #else
-#error Unsupported architectures
+#error Unsupported architecture
 #endif
 
 #else

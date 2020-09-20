@@ -4,6 +4,7 @@
 #include <pthread_np.h>
 #elif defined(_PLATFORM_LINUX)
 #define _GNU_SOURCE
+#define __USE_GNU
 #include <pthread.h>
 #endif
 #include <sched.h>
