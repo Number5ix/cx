@@ -1,5 +1,6 @@
 include (CheckTypeSize)
 include (CheckIncludeFiles)
+include (CheckPrototypeDefinition)
 include(${CMAKE_CURRENT_SOURCE_DIR}/Utilities.cmake)
 find_package (Threads REQUIRED)
 
@@ -146,7 +147,13 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
     set(JEMALLOC_HAVE_CLOCK_MONOTONIC 1)
     set(JEMALLOC_TLS_MODEL "__attribute__((tls_model(\"initial-exec\")))")
     set(JEMALLOC_INTERNAL_UNREACHABLE "__builtin_unreachable")
-    set(JEMALLOC_STRERROR_R_RETURNS_CHAR_WITH_GNU_SOURCE 1)
+    set(CMAKE_REQUIRED_DEFINITIONS -D_GNU_SOURCE)
+    check_prototype_definition(strerror_r
+        "char *strerror_r (int __errnum, char *__buf, size_t __buflen)"
+        "NULL"
+        "stdlib.h;string.h"
+        JEMALLOC_STRERROR_R_RETURNS_CHAR_WITH_GNU_SOURCE)
+    unset(CMAKE_REQUIRED_DEFINITIONS)
 elseif(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
     set(JEMALLOC_SYSCTL_VM_OVERCOMMIT 1)
     set(JEMALLOC_PURGE_MADVISE_FREE 1)
