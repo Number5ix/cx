@@ -16,6 +16,9 @@ bool name(type *out, strref s, int base, bool strict)        \
     int cutlim;                                              \
     uint32 i = 0;                                            \
                                                              \
+    if(strEmpty(s))                                          \
+        return false;                                        \
+                                                             \
     do {                                                     \
         c = _strFastChar(s, i++);                            \
     } while (isspace(c));                                    \
