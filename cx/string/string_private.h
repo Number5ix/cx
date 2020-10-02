@@ -144,7 +144,7 @@ string _strCreateRope1(strref s, uint32 off, uint32 len);
 string _strCloneRope(strref s);
 void _strDestroyRope(string s);
 uint32 _strRopeFastCopy(strref s, uint32 off, char *buf, uint32 bytes);
-bool _strRopeRealStr(string *s, uint32 off, string *rs, uint32 *rsoff, uint32 *rslen, bool writable);
+bool _strRopeRealStr(string *s, uint32 off, string *rs, uint32 *rsoff, uint32 *rslen, uint32 *rsstart, bool writable);
 
 // Finds first occurrence of find in s at or after start
 int32 _strFindChar(strref s, int32 start, char find);
@@ -158,8 +158,8 @@ _meta_inline char _strFastChar(strref s, uint32 i)
         return STR_BUFFER(s)[i];
     } else {
         string realstr;
-        uint32 realoff, reallen;
-        if (_strRopeRealStr((string*)&s, i, &realstr, &realoff, &reallen, false))
+        uint32 realoff, reallen, realstart;
+        if (_strRopeRealStr((string*)&s, i, &realstr, &realoff, &reallen, &realstart, false))
             return STR_BUFFER(realstr)[realoff];
     }
     return 0;

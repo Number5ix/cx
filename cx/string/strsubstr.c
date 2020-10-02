@@ -119,8 +119,8 @@ void strSetChar(string *s, int32 i, char ch)
         STR_BUFFER(*s)[off] = ch;
     } else {
         string realstr;
-        uint32 realoff, reallen;
-        if (_strRopeRealStr(s, off, &realstr, &realoff, &reallen, true))
+        uint32 realoff, reallen, realstart;
+        if (_strRopeRealStr(s, off, &realstr, &realoff, &reallen, &realstart, true))
             STR_BUFFER(realstr)[realoff] = ch;
     }
 }

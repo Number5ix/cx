@@ -304,7 +304,7 @@ uint32 _strRopeFastCopy(strref s, uint32 off, char *buf, uint32 bytes)
     return leftcopy + rightcopy;    // should equal bytes
 }
 
-static bool _strRopeRealStrPart(str_roperef *ref, uint32 off, string *rs, uint32 *rsoff, uint32 *rslen, bool writable)
+static bool _strRopeRealStrPart(str_roperef *ref, uint32 off, string *rs, uint32 *rsoff, uint32 *rslen, uint32 *rsstart, bool writable)
 {
     // is it part of our ref?
     if (off >= ref->len)
@@ -312,7 +312,7 @@ static bool _strRopeRealStrPart(str_roperef *ref, uint32 off, string *rs, uint32
 
     // if ref string is a rope, recurse into it
     if (STR_HDR(ref->str) & STR_ROPE)
-        return _strRopeRealStr(&ref->str, ref->off + off, rs, rsoff, rslen, writable);
+        return _strRopeRealStr(&ref->str, ref->off + off, rs, rsoff, rslen, rsstart, writable);
 
     if (writable)
         _strMakeUnique(&ref->str, 0);
@@ -321,13 +321,14 @@ static bool _strRopeRealStrPart(str_roperef *ref, uint32 off, string *rs, uint32
     *rs = ref->str;
     *rsoff = ref->off + off;
     *rslen = ref->len - off;
+    *rsstart = ref->off;
     return true;
 }
 
 // get the actual string and offset of a particular offset within a rope.
 // note that rs gets a borrowed reference put into it, so caller must dup
 // if it wants to hold on to it and doesn't otherwise hold a ref!
-bool _strRopeRealStr(string *s, uint32 off, string *rs, uint32 *rsoff, uint32 *rslen, bool writable)
+bool _strRopeRealStr(string *s, uint32 off, string *rs, uint32 *rsoff, uint32 *rslen, uint32 *rsstart, bool writable)
 {
     if (!(STR_HDR(*s) & STR_ROPE))
         return false;
@@ -336,9 +337,9 @@ bool _strRopeRealStr(string *s, uint32 off, string *rs, uint32 *rsoff, uint32 *r
         _strMakeUnique(s, 0);
 
     str_ropedata *data = STR_ROPEDATA(*s);
-    if (_strRopeRealStrPart(&data->left, off, rs, rsoff, rslen, writable))
+    if (_strRopeRealStrPart(&data->left, off, rs, rsoff, rslen, rsstart, writable))
         return true;
-    if (_strRopeRealStrPart(&data->right, off - data->left.len, rs, rsoff, rslen, writable))
+    if (_strRopeRealStrPart(&data->right, off - data->left.len, rs, rsoff, rslen, rsstart, writable))
         return true;
 
     return false;

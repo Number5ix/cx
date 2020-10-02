@@ -15,17 +15,17 @@ static void _striSetup(striter *iter, uint32 off, uint32 newcursor, bool reverse
         iter->len = slen - off;
     } else {
         string realstr;
-        uint32 realoff;
-        if (_strRopeRealStr(&iter->_str, off, &realstr, &realoff, &iter->len, false)) {
+        uint32 realoff, realstart;
+        if (_strRopeRealStr(&iter->_str, off, &realstr, &realoff, &iter->len, &realstart, false)) {
             // this is safe because we're holding a reference to the top-level rope,
             // which in turn makes sure the child strings don't get destroyed
             if (!reverse) {
                 iter->bytes = STR_BUFFER(realstr) + realoff;
                 iter->off = off;
             } else {
-                iter->bytes = STR_BUFFER(realstr);
-                iter->off = off - realoff;
-                iter->len += realoff;
+                iter->bytes = STR_BUFFER(realstr) + realstart;
+                iter->off = off - (realoff - realstart);
+                iter->len += (realoff - realstart);
             }
         } else {
             _striClear(iter);
