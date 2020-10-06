@@ -9,9 +9,14 @@ string fsNSSepStr = _S":";
 // Get parent directory
 bool pathParent(string *out, strref path)
 {
-    int32 sep = strFindR(path, strEnd, fsPathSepStr);
-    if (sep <= 0 || strGetChar(path, sep - 1) == ':')
+    int32 len = strLen(path);
+    int32 sep = strFindR(path, len - 1, fsPathSepStr);
+    if (sep == -1)
         return false;
+
+    // handle root of namespace
+    if (sep == 0 || strGetChar(path, sep - 1) == ':')
+        sep++;
 
     return strSubStr(out, path, 0, sep);
 }
