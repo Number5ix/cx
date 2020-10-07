@@ -26,6 +26,13 @@ static STypeOps SysThread_ops = {
 
 static void systhreadAtExit(void)
 {
+    static bool once = true;
+
+    if (!once)
+        return;
+
+    once = false;
+
     mutexAcquire(&systhreadLock);
     for (int idx = 0, idxmax = saSize(&systhreads); idx < idxmax; idx++) {
         thrRequestExit(systhreads[idx].thr);
