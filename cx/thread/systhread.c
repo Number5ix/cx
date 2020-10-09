@@ -7,17 +7,19 @@
 
 typedef struct SysThread {
     Thread *thr;
-    Event *notify;
+    Event notify;
 } SysThread;
 
 static Mutex systhreadLock;
-static SysThread* systhreads;
+static SysThread** systhreads;
 static LazyInitState systhreadInitState;
 
 static void SysThread_destroy(stype st, stgeneric *gen, uint32 flags)
 {
-    SysThread *sthr = gen->st_opaque;
+    SysThread *sthr = gen->st_ptr;
     thrDestroy(&sthr->thr);
+    eventDestroy(&sthr->notify);
+    xaFree(sthr);
 }
 
 static STypeOps SysThread_ops = {
@@ -35,8 +37,8 @@ static void systhreadAtExit(void)
 
     mutexAcquire(&systhreadLock);
     for (int idx = 0, idxmax = saSize(&systhreads); idx < idxmax; idx++) {
-        thrRequestExit(systhreads[idx].thr);
-        eventSignalLock(systhreads[idx].notify);
+        thrRequestExit(systhreads[idx]->thr);
+        eventSignalLock(&systhreads[idx]->notify);
     }
 
     // this will call SysThread_destroy, and destroying threads with thrDestroy
@@ -49,18 +51,20 @@ static void systhreadAtExit(void)
 static void systhreadInit(void *unused)
 {
     mutexInit(&systhreadLock);
-    systhreads = saCreate(custom(opaque(SysThread), SysThread_ops), 8);
+    systhreads = saCreate(custom(ptr, SysThread_ops), 8);
     atexit(systhreadAtExit);
 }
 
-void thrRegisterSysThread(Thread *thread, Event *notify)
+void thrRegisterSysThread(Thread *thread, Event **notify_out)
 {
     lazyInit(&systhreadInitState, systhreadInit, NULL);
     mutexAcquire(&systhreadLock);
-    SysThread st = {
-        .thr = thread,
-        .notify = notify
-    };
-    saPush(&systhreads, opaque, st);
+
+    SysThread *st = xaAlloc(sizeof(SysThread), Zero);
+    st->thr = thread;
+    eventInit(&st->notify);
+    saPush(&systhreads, ptr, st);
+
+    *notify_out = &st->notify;
     mutexRelease(&systhreadLock);
 }
