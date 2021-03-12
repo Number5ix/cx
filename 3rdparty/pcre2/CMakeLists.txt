@@ -98,7 +98,7 @@
 PROJECT(PCRE2 C)
 
 # Increased minimum to 2.8.5 to support GNUInstallDirs.
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8.5)
+CMAKE_MINIMUM_REQUIRED(VERSION 2.11)
 
 # Set policy CMP0026 to avoid warnings for the use of LOCATION in
 # GET_TARGET_PROPERTY. This should no longer be required.
