@@ -21,7 +21,7 @@
 
 #define foreach_sarray(...) _foreach_array_msvc_workaround((__VA_ARGS__))
 #define _foreach_array_msvc_workaround(args) _foreach_sarray args
-#define _foreach_sarray(type, itervar, elemtype, elemvar, arrptr) if (1) { \
+#define _foreach_sarray(type, itervar, elemtype, elemvar, arrptr) if ((arrptr) && *(arrptr)) { \
         int32 itervar, _##itervar##_max = saSize(arrptr); \
         elemtype elemvar; \
         for (itervar = 0; elemvar = (*arrptr)[itervar], itervar < _##itervar##_max; ++itervar)
