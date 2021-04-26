@@ -153,7 +153,7 @@ static void addMixin(Class *cls, Class *uses)
             m = methodClone(uses->allmethods[i]);
             // so that it can point at the mixin that actually pulled it in
             m->mixinsrc = uses;
-            pathToPlatform(&hfile, m->srcfile);
+            strDup(&hfile, m->srcfile);
             pathSetExt(&hfile, hfile, _S"impl.h");
             strPrepend(_S"\"", &hfile);
             strAppend(&hfile, _S"\"");

@@ -538,10 +538,7 @@ bool writeImpl(string fname, bool mixinimpl)
     bfWriteLine(nbf, _S"#include <cx/container.h>");
     bfWriteLine(nbf, _S"#include <cx/string.h>");
     if (!mixinimpl) {
-        string phname = 0;
-        pathToPlatform(&phname, hname);
-        strNConcat(&ln, _S"#include \"", phname, _S"\"");
-        strDestroy(&phname);
+        strNConcat(&ln, _S"#include \"", hname, _S"\"");
         bfWriteLine(nbf, ln);
         for (int i = 0; i < saSize(&implincludes); i++) {
             strNConcat(&ln, _S"#include ", implincludes[i]);
