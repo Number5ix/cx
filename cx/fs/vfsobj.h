@@ -26,6 +26,7 @@ typedef struct VFS {
 } VFS;
 extern ObjClassInfo VFS_clsinfo;
 #define VFS(inst) ((VFS*)(&((inst)->_is_VFS), (inst)))
+#define VFSNone ((VFS*)NULL)
 
 VFS *VFS_create(uint32 flags);
 #define vfsCreate(flags) VFS_create(flags)
@@ -46,6 +47,7 @@ typedef struct VFSMount {
 } VFSMount;
 extern ObjClassInfo VFSMount_clsinfo;
 #define VFSMount(inst) ((VFSMount*)(&((inst)->_is_VFSMount), (inst)))
+#define VFSMountNone ((VFSMount*)NULL)
 
 VFSMount *VFSMount_create(ObjInst *provider, uint32 flags);
 #define vfsmountCreate(provider, flags) VFSMount_create(ObjInst(provider), flags)
