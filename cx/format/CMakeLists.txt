@@ -12,8 +12,7 @@ set(FORMAT_SRCS
 set(FORMAT_INCLUDES
     format/format.h
     format/format_private.h
-    format/formattable.h
-    format/fppowers.h)
+    format/formattable.h)
 set(FORMAT_SIDL
     format/formattable.sidl)
 
