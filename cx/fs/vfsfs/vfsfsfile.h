@@ -33,7 +33,7 @@ typedef struct VFSFSFile {
     FSFile *file;
 } VFSFSFile;
 extern ObjClassInfo VFSFSFile_clsinfo;
-#define VFSFSFile(inst) ((VFSFSFile*)(&((inst)->_is_VFSFSFile), (inst)))
+#define VFSFSFile(inst) ((VFSFSFile*)((inst) && &((inst)->_is_VFSFSFile), (inst)))
 #define VFSFSFileNone ((VFSFSFile*)NULL)
 
 VFSFSFile *VFSFSFile_create(FSFile *f);

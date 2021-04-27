@@ -121,7 +121,7 @@ typedef struct TestCls1 {
     int data;
 } TestCls1;
 extern ObjClassInfo TestCls1_clsinfo;
-#define TestCls1(inst) ((TestCls1*)(&((inst)->_is_TestCls1), (inst)))
+#define TestCls1(inst) ((TestCls1*)((inst) && &((inst)->_is_TestCls1), (inst)))
 #define TestCls1None ((TestCls1*)NULL)
 
 TestCls1 *TestCls1_create();
@@ -141,7 +141,7 @@ typedef struct TestCls2 {
     int data;
 } TestCls2;
 extern ObjClassInfo TestCls2_clsinfo;
-#define TestCls2(inst) ((TestCls2*)(&((inst)->_is_TestCls2), (inst)))
+#define TestCls2(inst) ((TestCls2*)((inst) && &((inst)->_is_TestCls2), (inst)))
 #define TestCls2None ((TestCls2*)NULL)
 
 TestCls2 *TestCls2_create();
@@ -163,7 +163,7 @@ typedef struct TestCls3 {
     int data2;
 } TestCls3;
 extern ObjClassInfo TestCls3_clsinfo;
-#define TestCls3(inst) ((TestCls3*)(&((inst)->_is_TestCls3), (inst)))
+#define TestCls3(inst) ((TestCls3*)((inst) && &((inst)->_is_TestCls3), (inst)))
 #define TestCls3None ((TestCls3*)NULL)
 
 TestCls3 *TestCls3_create();
@@ -188,7 +188,7 @@ typedef struct TestCls4 {
     int data3;
 } TestCls4;
 extern ObjClassInfo TestCls4_clsinfo;
-#define TestCls4(inst) ((TestCls4*)(&((inst)->_is_TestCls4), (inst)))
+#define TestCls4(inst) ((TestCls4*)((inst) && &((inst)->_is_TestCls4), (inst)))
 #define TestCls4None ((TestCls4*)NULL)
 
 TestCls4 *TestCls4_create();
@@ -215,7 +215,7 @@ typedef struct TestCls4a {
     int data4;
 } TestCls4a;
 extern ObjClassInfo TestCls4a_clsinfo;
-#define TestCls4a(inst) ((TestCls4a*)(&((inst)->_is_TestCls4a), (inst)))
+#define TestCls4a(inst) ((TestCls4a*)((inst) && &((inst)->_is_TestCls4a), (inst)))
 #define TestCls4aNone ((TestCls4a*)NULL)
 
 #define testcls4aTestfunc(self) (self)->_->testfunc(TestCls4a(self))
@@ -243,7 +243,7 @@ typedef struct TestCls4b {
     int data5;
 } TestCls4b;
 extern ObjClassInfo TestCls4b_clsinfo;
-#define TestCls4b(inst) ((TestCls4b*)(&((inst)->_is_TestCls4b), (inst)))
+#define TestCls4b(inst) ((TestCls4b*)((inst) && &((inst)->_is_TestCls4b), (inst)))
 #define TestCls4bNone ((TestCls4b*)NULL)
 
 TestCls4b *TestCls4b_create();
@@ -265,7 +265,7 @@ typedef struct TestCls5 {
     int data;
 } TestCls5;
 extern ObjClassInfo TestCls5_clsinfo;
-#define TestCls5(inst) ((TestCls5*)(&((inst)->_is_TestCls5), (inst)))
+#define TestCls5(inst) ((TestCls5*)((inst) && &((inst)->_is_TestCls5), (inst)))
 #define TestCls5None ((TestCls5*)NULL)
 
 TestCls5 *TestCls5_create();

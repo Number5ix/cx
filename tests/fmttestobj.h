@@ -28,7 +28,7 @@ typedef struct FmtTestClass {
     string sv;
 } FmtTestClass;
 extern ObjClassInfo FmtTestClass_clsinfo;
-#define FmtTestClass(inst) ((FmtTestClass*)(&((inst)->_is_FmtTestClass), (inst)))
+#define FmtTestClass(inst) ((FmtTestClass*)((inst) && &((inst)->_is_FmtTestClass), (inst)))
 #define FmtTestClassNone ((FmtTestClass*)NULL)
 
 FmtTestClass *FmtTestClass_create(int32 ival, string sval);
