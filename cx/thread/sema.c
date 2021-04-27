@@ -14,7 +14,7 @@
 // differs in several substantial ways.
 //
 // The spinloop is adapative and adjusts based on contention and how long the average acquisition
-// takes. The back half of the spinloop is a yield loop, which help prevent CPU starvation when
+// takes. The back half of the spinloop is a yield loop, which helps prevent CPU starvation when
 // under high contention.  Using a single combined spin count target for the spinloop and yield
 // loop provides balanced pressure to keep the target close to the optimal value.
 //
