@@ -54,9 +54,9 @@ bool vfsSearchInit(FSSearchIter *iter, VFS *vfs, strref path, strref pattern, in
     memset(iter, 0, sizeof(FSSearchIter));
 
     if ((vfs->flags & VFS_CaseSensitive))
-        names = htCreate(string, intptr, 8, RefKeys, Grow(MaxSpeed));
+        htInit(&names, string, intptr, 8, RefKeys, Grow(MaxSpeed));
     else
-        names = htCreate(string, intptr, 8, CaseInsensitive, RefKeys, Grow(MaxSpeed));
+        htInit(&names, string, intptr, 8, CaseInsensitive, RefKeys, Grow(MaxSpeed));
 
     // just hold the write lock for this since we'll be adding entries to the cache throughout
     rwlockAcquireRead(&vfs->vfsdlock);

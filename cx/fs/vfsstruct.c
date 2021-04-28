@@ -25,11 +25,11 @@ VFSDir *_vfsDirCreate(VFS *vfs, VFSDir *parent)
     d->parent = parent;             // weak ref
     saInit(&d->mounts, object, 1);
     if (vfs->flags & VFS_CaseSensitive) {
-        d->subdirs = htCreate(string, custom(ptr, VFSDir_ops), 8);
-        d->files = htCreate(string, custom(ptr, VFSCacheEnt_ops), 8);
+        htInit(&d->subdirs, string, custom(ptr, VFSDir_ops), 8);
+        htInit(&d->files, string, custom(ptr, VFSCacheEnt_ops), 8);
     } else {
-        d->subdirs = htCreate(string, custom(ptr, VFSDir_ops), 8, CaseInsensitive);
-        d->files = htCreate(string, custom(ptr, VFSCacheEnt_ops), 8, CaseInsensitive);
+        htInit(&d->subdirs, string, custom(ptr, VFSDir_ops), 8, CaseInsensitive);
+        htInit(&d->files, string, custom(ptr, VFSCacheEnt_ops), 8, CaseInsensitive);
     }
     return d;
 }

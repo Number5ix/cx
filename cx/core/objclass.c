@@ -60,7 +60,7 @@ static void classInitImpl(ObjClassInfo *cls, bool locked)
 
     sa_ObjIface impl;
     saInit(&impl, ptr, 4, Grow(Minimal));
-    cls->_tmpl = htCreate(ptr, ptr, 8, Grow(At50));
+    htInit(&cls->_tmpl, ptr, ptr, 8, Grow(At50));
 
     // Fully hydrated interface implementation tables include methods that are
     // implemented by the parent class, but not any children. Fill them in by recursing

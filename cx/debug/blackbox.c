@@ -109,7 +109,7 @@ static void freeSpaceRemove(uint16 start, uint16 size)
 void bboxInit()
 {
     mutexInit(&bbmtx);
-    bbindex = htCreate(string, uint16, 0);
+    htInit(&bbindex, string, uint16, 0);
     freelist = xaAlloc(sizeof(BBoxFreelistNode));
     freelist->next = 0;
     freelist->start = sizeof(int16) * 2;            // after the head and tail pointers

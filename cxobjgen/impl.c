@@ -286,7 +286,7 @@ static void writeAutoInit(BufFile *bf, Class *cls)
                     saInsert(&flagarr, 0, string, _S"");
                     strJoin(&flags, flagarr, _S", ");
                 }
-                strNConcat(&ln, _S"    self->", m->name, _S" = htCreate(", m->fulltype.a[1], _S", ",
+                strNConcat(&ln, _S"    htInit(&self->", m->name, _S", ", m->fulltype.a[1], _S", ",
                            m->fulltype.a[2], _S", ", size, flags, _S");");
                 saDestroy(&flagarr);
             }
@@ -552,7 +552,8 @@ bool writeImpl(string fname, bool mixinimpl)
     sa_string seen;
     saInit(&seen, string, 16, Sorted);
     saInit(&parentmacros, string, 16, Sorted);
-    hashtable implidx = htCreate(string, opaque(MethodPair), 16);
+    hashtable implidx;
+    htInit(&implidx, string, opaque(MethodPair), 16);
     int err;
     PCRE2_SIZE eoffset;
     pcre2_code *reParentProto = pcre2_compile((PCRE2_SPTR)"extern [A-Za-z0-9_]+ \\**([A-Za-z0-9_]+)\\(.*\\); // parent", PCRE2_ZERO_TERMINATED, PCRE2_ANCHORED | PCRE2_ENDANCHORED, &err, &eoffset, NULL);

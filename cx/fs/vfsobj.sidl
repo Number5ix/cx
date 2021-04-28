@@ -5,8 +5,7 @@ struct VFSDir;
 class VFS {
     VFSDir *root;           // root for namespaceless paths
     // namespaces are never case sensitive even if the paths are
-    [init htCreate(string, custom(ptr, VFSDir_ops), 4, CaseInsensitive)]
-        hashtable namespaces;   // hashtable of string/VFSDir
+    [noinit] hashtable namespaces;   // hashtable of string/VFSDir
     string curdir;
     // vfslock is for adding entires to the directory cache
     RWLock vfslock;
@@ -22,6 +21,7 @@ class VFS {
     // underlying OS filesystem. The exact VFS namespace that is created
     // is platform dependant.
     factory createFromFS();
+    init();
 }
 
 class VFSMount {

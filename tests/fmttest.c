@@ -260,7 +260,8 @@ static int test_array()
 static int test_hash()
 {
     string res = 0;
-    hashtable testht = htCreate(string, float64, 8);
+    hashtable testht;
+    htInit(&testht, string, float64, 8);
 
     htInsert(&testht, string, _S"one", float64, 1);
     htInsert(&testht, string, _S"sqrttwo", float64, 1.41421);

@@ -99,8 +99,8 @@ enum HASHTABLE_FUNC_FLAGS_ENUM {
 #define HT_Grow(flag) (((uint32)HT_GROW_##flag) << 24)
 #define HT_GET_GROW(flags) ((flags) >> 24)
 
-hashtable _htCreate(stype keytype, STypeOps *keyops, stype valtype, STypeOps *valops, int32 initsz, uint32 flags);
-#define htCreate(keytype, valtype, initsz, ...) _htCreate(stFullType(keytype), stFullType(valtype), initsz, func_flags(HT, __VA_ARGS__))
+void _htInit(hashtable *out, stype keytype, STypeOps *keyops, stype valtype, STypeOps *valops, int32 initsz, uint32 flags);
+#define htInit(out, keytype, valtype, initsz, ...) _htInit(out, stFullType(keytype), stFullType(valtype), initsz, func_flags(HT, __VA_ARGS__))
 
 void htDestroy(hashtable *htbl);
 void htClear(hashtable *htbl);

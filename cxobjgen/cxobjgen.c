@@ -25,15 +25,15 @@ int main(int argc, char *argv[])
     sa_string searchpath;
     string fname = 0;
     saInit(&ifaces, object, 16);
-    ifidx = htCreate(string, object, 16);
+    htInit(&ifidx, string, object, 16);
     saInit(&classes, object, 16);
-    clsidx = htCreate(string, object, 16);
+    htInit(&clsidx, string, object, 16);
     saInit(&includes, string, 8);
     saInit(&implincludes, string, 4);
     saInit(&deps, string, 8);
     saInit(&structs, string, 8);
     saInit(&artypes, object, 8);
-    knownartypes = htCreate(string, bool, 16);
+    htInit(&knownartypes, string, bool, 16);
 
     saInit(&searchpath, string, 8);
     saInit(&sidlfiles, string, 4);

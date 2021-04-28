@@ -18,7 +18,7 @@ static void callbackInit(void *data)
 
     saInit(&handles, opaque(CallbackHandle), 0);
     saPush(&handles, opaque, nhandle);          // so that 0 is not a valid handle
-    handleidx = htCreate(ptr, int32, 16);
+    htInit(&handleidx, ptr, int32, 16);
 }
 
 int _callbackGetHandle(const char *cbtype, GenericCallback func)

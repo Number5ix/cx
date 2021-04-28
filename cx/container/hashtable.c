@@ -15,7 +15,7 @@ static int npow2(int val)
     return 16;
 }
 
-hashtable _htCreate(stype keytype, STypeOps *keyops, stype valtype, STypeOps *valops, int32 initsz, uint32 flags)
+void _htInit(hashtable *out, stype keytype, STypeOps *keyops, stype valtype, STypeOps *valops, int32 initsz, uint32 flags)
 {
     HashTableHeader *ret;
     uint32 elemsz = clamplow(stGetSize(keytype) + stGetSize(valtype), 8);
@@ -83,7 +83,7 @@ hashtable _htCreate(stype keytype, STypeOps *keyops, stype valtype, STypeOps *va
 
     devAssert(_htElemSz(ret) == elemsz);
 
-    return (hashtable)&ret->data[0];
+    *out = (hashtable)&ret->data[0];
 }
 
 static _meta_inline uint32 clampHash(HashTableHeader *hdr, uint32 hash)
