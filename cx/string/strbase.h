@@ -4,6 +4,10 @@
 
 CX_C_BEGIN
 
+typedef struct str_ref {
+    void *_is_string;
+} str_ref;
+
 // IMPORTANT NOTE!
 // Always initialize sstring to NULL or 0 first!
 typedef struct str_ref* string;

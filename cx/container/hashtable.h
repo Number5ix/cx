@@ -7,7 +7,6 @@ typedef struct hashtable_ref {
     void *_is_hashtable;
 } hashtable_ref;
 
-
 typedef struct htelem_ref {
     void *_is_htelem;
 } htelem_ref;
@@ -46,8 +45,8 @@ typedef struct htiter {
 #define htValid(handle) (*(handle) ? HTABLE_HDR(*(handle))->valid : 0)
 #define htKeyType(handle) (*(handle) ? HTABLE_HDR(*(handle))->keytype : 0)
 #define htValType(handle) (*(handle) ? HTABLE_HDR(*(handle))->valtype : 0)
-#define hteKeyPtr(handle, elem, type) ((stStorageType(type)*)(*(handle) ? (elem) : 0))
-#define hteValPtr(handle, elem, type) ((stStorageType(type)*)((*(handle) && (elem)) ? ((uintptr)(elem) + stGetSize(HTABLE_HDR(*(handle))->keytype)) : 0))
+#define hteKeyPtr(handle, elem, type) ((stStorageType(type)*)(*(handle) ? ((elem) && &((elem)->_is_htelem), (elem)) : 0))
+#define hteValPtr(handle, elem, type) ((stStorageType(type)*)((*(handle) && (elem)) ? ((uintptr)((elem) && &((elem)->_is_htelem), (elem)) + stGetSize(HTABLE_HDR(*(handle))->keytype)) : 0))
 #define hteKey(handle, elem, type) (*hteKeyPtr(handle, elem, type))
 #define hteVal(handle, elem, type) (*hteValPtr(handle, elem, type))
 #define htiKeyPtr(iter, type) (((stStorageType(type)*)((iter).elem)))
