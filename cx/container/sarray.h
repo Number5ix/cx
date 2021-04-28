@@ -2,7 +2,6 @@
 
 #include <cx/cx.h>
 #include <cx/debug/assert.h>
-#include <cx/container/sarray_types.h>
 
 #define sarrayref(typ) sa_##typ
 #define sarrayhdl(typ) sa_##typ*
@@ -15,11 +14,10 @@
 } sa_##name
 #define saDeclare(name) saDeclareType(name, name)
 #define saDeclarePtr(name) saDeclareType(name, name*)
-#define saTHandle(name, h) ((sa_##name*)((h) && &((h)->is_sarray_##name), (h)))
 #define saInitNone { .a = 0 }
 
 // sarray type declarations
-typedef sa_gen sa_opaque;
+typedef sa_ref sa_opaque;
 saDeclare(int8);
 saDeclare(int16);
 saDeclare(int32);
@@ -40,7 +38,7 @@ saDeclare(string);
 saDeclareType(object, ObjInst);
 saDeclareType(suid, SUID);
 saDeclare(stvar);
-saDeclareType(sarray, sa_gen);
+saDeclareType(sarray, sa_ref);
 saDeclare(hashtable);
 
 typedef struct SArrayHeader {
@@ -124,6 +122,7 @@ enum SARRAY_FUNC_FLAGS_ENUM {
 
 #define SARRAY_HDRSIZE (offsetof(SArrayHeader, data))
 #define SARRAY_HDR(handle) ((SArrayHeader*)(((uintptr)(handle)->a) - SARRAY_HDRSIZE))
+#define SAHANDLE(h) ((sahandle)((h) && &((h)->_is_sarray), (h)))
 
 #define saSize(handle) ((handle)->_is_sarray ? SARRAY_HDR(handle)->count : 0)
 #define saCapacity(handle) ((handle)->_is_sarray ? SARRAY_HDR(handle)->capacity : 0)
@@ -149,9 +148,9 @@ void _saClear(sahandle handle);
 
 int32 _saPush(sahandle handle, stype elemtype, stgeneric elem, uint32 flags);
 int32 _saPushPtr(sahandle handle, stype elemtype, stgeneric *elem, uint32 flags);
-#define saPush(handle, type, elem, ...) _saPush(SAHANDLE(handle), stChecked(type, elem), func_flags(SAFUNC, __VA_ARGS__))
+#define saPush(handle, type, elem, ...) _saPush(SAHANDLE(handle), stCheckedArg(type, elem), func_flags(SAFUNC, __VA_ARGS__))
 // Consume version of push, requires that elem be a pointer
-#define saPushC(handle, type, elem, ...) _saPushPtr(SAHANDLE(handle), stCheckedPtr(type, elem), func_flags(SAFUNC, __VA_ARGS__) | SAFUNCINT_Consume)
+#define saPushC(handle, type, elem, ...) _saPushPtr(SAHANDLE(handle), stCheckedPtrArg(type, elem), func_flags(SAFUNC, __VA_ARGS__) | SAFUNCINT_Consume)
 
 // Pointer pop transfers ownership to the caller and does not call the destructor
 void *_saPopPtr(sahandle handle, int32 idx);
@@ -166,7 +165,7 @@ _meta_inline int32 _saFindChecked(sahandle handle, stype elemtype, stgeneric ele
     devAssert(stEq(saElemType(handle), elemtype));
     return _saFind(handle, elem, flags);
 }
-#define saFind(handle, type, elem, ...) _saFindChecked(SAHANDLE(handle), stChecked(type, elem), func_flags(SAFUNC, __VA_ARGS__))
+#define saFind(handle, type, elem, ...) _saFindChecked(SAHANDLE(handle), stCheckedArg(type, elem), func_flags(SAFUNC, __VA_ARGS__))
 
 int32 _saInsert(sahandle, int32 idx, stgeneric elem);
 _meta_inline int32 _saInsertChecked(sahandle handle, int32 idx, stype elemtype, stgeneric elem)
@@ -175,7 +174,7 @@ _meta_inline int32 _saInsertChecked(sahandle handle, int32 idx, stype elemtype, 
     devAssert(stEq(saElemType(handle), elemtype));
     return _saInsert(handle, idx, elem);
 }
-#define saInsert(handle, idx, type, elem) _saInsertChecked(SAHANDLE(handle), idx, stChecked(type, elem))
+#define saInsert(handle, idx, type, elem) _saInsertChecked(SAHANDLE(handle), idx, stCheckedArg(type, elem))
 
 bool _saRemove(sahandle handle, int32 idx, uint32 flags);
 #define saRemove(handle, idx, ...) _saRemove(SAHANDLE(handle), idx, func_flags(SAFUNC, __VA_ARGS__))

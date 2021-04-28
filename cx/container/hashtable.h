@@ -3,8 +3,17 @@
 #include <cx/cx.h>
 #include <cx/debug/assert.h>
 
-typedef struct hashtable_impl* hashtable;
-typedef struct htelem_impl* htelem;
+typedef struct hashtable_ref {
+    void *_is_hashtable;
+} hashtable_ref;
+
+
+typedef struct htelem_ref {
+    void *_is_htelem;
+} htelem_ref;
+
+typedef struct hashtable_ref* hashtable;
+typedef struct htelem_ref* htelem;
 
 typedef struct HashTableHeader {
     // extended header, present only if HT_Extended is set
@@ -120,9 +129,9 @@ _meta_inline htelem _htInsertCheckedC(hashtable *htbl, stype keytype, stgeneric 
     devAssert(stEq(htKeyType(htbl), keytype) && stEq(htValType(htbl), valtype));
     return _htInsertPtr(htbl, key, val, flags);
 }
-#define htInsert(htbl, ktype, key, vtype, val, ...) _htInsertChecked(htbl, stChecked(ktype, key), stChecked(vtype, val), func_flags(HTFUNC, __VA_ARGS__))
+#define htInsert(htbl, ktype, key, vtype, val, ...) _htInsertChecked(htbl, stCheckedArg(ktype, key), stCheckedArg(vtype, val), func_flags(HTFUNC, __VA_ARGS__))
 // Consumes *value*, not key
-#define htInsertC(htbl, ktype, key, vtype, val, ...) _htInsertCheckedC(htbl, stChecked(ktype, key), stCheckedPtr(vtype, val), func_flags(HTFUNC, __VA_ARGS__) | HTFUNCINT_Consume)
+#define htInsertC(htbl, ktype, key, vtype, val, ...) _htInsertCheckedC(htbl, stCheckedArg(ktype, key), stCheckedPtrArg(vtype, val), func_flags(HTFUNC, __VA_ARGS__) | HTFUNCINT_Consume)
 
 bool _htFind(hashtable *htbl, stgeneric key, stgeneric *val, uint32 flags);
 _meta_inline bool _htFindChecked(hashtable *htbl, stype keytype, stgeneric key, stype valtype, stgeneric *val, uint32 flags)
@@ -131,7 +140,7 @@ _meta_inline bool _htFindChecked(hashtable *htbl, stype keytype, stgeneric key, 
     devAssert(stEq(htKeyType(htbl), keytype) && stEq(htValType(htbl), valtype));
     return _htFind(htbl, key, val, flags);
 }
-#define htFind(htbl, ktype, key, vtype, val_out, ...) _htFindChecked(htbl, stChecked(ktype, key), stCheckedPtr(vtype, val_out), func_flags(HTFUNC, __VA_ARGS__))
+#define htFind(htbl, ktype, key, vtype, val_out, ...) _htFindChecked(htbl, stCheckedArg(ktype, key), stCheckedPtrArg(vtype, val_out), func_flags(HTFUNC, __VA_ARGS__))
 
 // Always destroys; use htFind with HT_RemoveOnly if you want to get a reference out of a hashtable
 // without destroying it.
@@ -142,7 +151,7 @@ _meta_inline bool _htRemoveChecked(hashtable *htbl, stype keytype, stgeneric key
     devAssert(stEq(htKeyType(htbl), keytype));
     return _htRemove(htbl, key);
 }
-#define htRemove(htbl, ktype, key) _htRemoveChecked(htbl, stChecked(ktype, key))
+#define htRemove(htbl, ktype, key) _htRemoveChecked(htbl, stCheckedArg(ktype, key))
 
 // Gets a pointer to the key/value data inside the hashtable rather than copying it out
 htelem _htFindElem(hashtable *htbl, stgeneric key);
@@ -152,7 +161,7 @@ _meta_inline htelem _htFindElemChecked(hashtable *htbl, stype keytype, stgeneric
     devAssert(stEq(htKeyType(htbl), keytype));
     return _htFindElem(htbl, key);
 }
-#define htFindElem(htbl, ktype, key) _htFindElemChecked(htbl, stChecked(ktype, key))
+#define htFindElem(htbl, ktype, key) _htFindElemChecked(htbl, stCheckedArg(ktype, key))
 
 // Just checks for the existence of a key
 _meta_inline bool _htHasKeyChecked(hashtable *htbl, stype keytype, stgeneric key)
@@ -161,7 +170,7 @@ _meta_inline bool _htHasKeyChecked(hashtable *htbl, stype keytype, stgeneric key
     devAssert(stEq(htKeyType(htbl), keytype));
     return _htFindElem(htbl, key);
 }
-#define htHasKey(htbl, ktype, key) _htHasKeyChecked(htbl, stChecked(ktype, key))
+#define htHasKey(htbl, ktype, key) _htHasKeyChecked(htbl, stCheckedArg(ktype, key))
 
 // Hash table iterator
 bool htiInit(htiter *iter, hashtable *htbl);

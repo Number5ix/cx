@@ -39,7 +39,7 @@ void _stvlInitSA(stvlist *list, stvar *vara);
 
 // Get the next variable of the specific type, if it exists
 bool _stvlNext(stvlist *list, stype type, stgeneric *out);
-#define stvlNext(list, type, pvar) _stvlNext(list, stCheckedPtr(type, pvar))
+#define stvlNext(list, type, pvar) _stvlNext(list, stCheckedPtrArg(type, pvar))
 
 // Rewind the list
 void stvlRewind(stvlist *list);

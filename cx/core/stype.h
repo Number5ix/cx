@@ -5,7 +5,6 @@
 #include <stddef.h>
 #include <string.h>
 #include <cx/debug/assert.h>
-#include <cx/container/sarray_types.h>
 #include <cx/core/cpp.h>
 #include <cx/utils/macros.h>
 
@@ -19,9 +18,9 @@ CX_C_BEGIN
 
 // IMPORTANT NOTE!
 // Always initialize string to NULL or 0 first!
-typedef struct str_impl* string;
-typedef const struct str_impl* strref;
-typedef struct hashtable_impl* hashtable;
+typedef struct str_ref* string;
+typedef const struct str_ref* strref;
+typedef struct hashtable_ref* hashtable;
 typedef struct ObjInst ObjInst;
 typedef struct SUID SUID;
 typedef struct stvar stvar;
@@ -60,6 +59,13 @@ typedef double float64;
 
 typedef uint32 stype;
 
+// sarrays are special because of the pointer union
+typedef union sa_ref {
+    void *_is_sarray;
+    void *a;
+} sa_ref;
+typedef union sa_ref* sahandle;
+
 // This is the type that is used for passing as a parameter by-value, containers, and
 // variants. Should be no larger than 64 bits wide, but can be smaller.
 #define SType_none void*
@@ -84,7 +90,7 @@ typedef uint32 stype;
 #define SType_object ObjInst*
 #define SType_suid SUID*
 #define SType_stvar stvar*
-#define SType_sarray sa_gen
+#define SType_sarray sa_ref
 #define SType_hashtable hashtable
 #define stTypeDef(name) SType_##name
 
@@ -124,7 +130,7 @@ typedef union stgeneric {
 _Static_assert(sizeof(stgeneric) == sizeof(uint64), "stype container too large");
 
 #ifndef __cplusplus
-#define stgeneric(type, val) ((stgeneric){ .st_##type = (val) })
+#define stgeneric(type, val) ((stgeneric){ .st_##type = stCheck(type, val) })
 #define stgensarray(val) stgeneric(ptr, (val)._is_sarray)
 #else
 #define stgeneric(type, val) ((stgeneric)stCheck(type, val))
@@ -163,7 +169,7 @@ typedef struct stvar {
 #define STStorageType_object ObjInst*
 #define STStorageType_suid SUID
 #define STStorageType_stvar stvar
-#define STStorageType_sarray sa_gen
+#define STStorageType_sarray sa_ref
 #define STStorageType_hashtable hashtable
 #define stStorageType(name) STStorageType_##name
 
@@ -226,7 +232,7 @@ enum STYPE_SIZE {
     // SUID is special because it's always passed by reference, but stored as the full 16 bytes
     STypeSize_suid = 16,
     STypeSize_stvar = sizeof(stvar),
-    STypeSize_sarray = sizeof(sa_gen),
+    STypeSize_sarray = sizeof(sa_ref),
     STypeSize_hashtable = sizeof(hashtable),
 };
 #define stTypeSize(name) STypeSize_##name
@@ -296,9 +302,65 @@ _meta_inline stype _stype_mkcustom(stype base)
 }
 
 // Static type checks
-// These get completely optimized away by any sane compiler
-#define stCheck(type, val) ((stTypeDef(type))(val), val)
-#define stCheckPtr(type, ptr) ((stTypeDef(type)*)(ptr), ptr)
+#define saCheckType(name, h) ((sa_##name*)((h) && &((h)->is_sarray_##name), (h)))
+#define saCheck(s) (&((s)._is_sarray), (s.a))
+#define saCheckPtr(h) ((h) && &((h)->_is_sarray), (h))
+#define htCheck(h) ((h) && &((h)->_is_hashtable), (h))
+#define htCheckPtr(h) ((h) && (*h) && &((*h)->_is_hashtable), (h))
+#define objInstCheck(o) ((o) && &((o)->_is_ObjInst), (o))
+#define objInstCheckPtr(o) ((o) && (*o) && &((*o)->_is_ObjInst), (o))
+
+// most of these are no-ops, but some can do extra type checking
+#define STypeCheck_opaque(type, val) (val)
+#define STypeCheck_int8(type, val) (val)
+#define STypeCheck_int16(type, val) (val)
+#define STypeCheck_int32(type, val) (val)
+#define STypeCheck_int64(type, val) (val)
+#define STypeCheck_intptr(type, val) (val)
+#define STypeCheck_uint8(type, val) (val)
+#define STypeCheck_uint16(type, val) (val)
+#define STypeCheck_uint32(type, val) (val)
+#define STypeCheck_uint64(type, val) (val)
+#define STypeCheck_uintptr(type, val) (val)
+#define STypeCheck_bool(type, val) (val)
+#define STypeCheck_size(type, val) (val)
+#define STypeCheck_float32(type, val) (val)
+#define STypeCheck_float64(type, val) (val)
+#define STypeCheck_ptr(type, val) (val)
+#define STypeCheck_string(type, val) (val)
+#define STypeCheck_strref(type, val) (val)
+#define STypeCheck_object(type, val) objInstCheck(val)
+#define STypeCheck_suid(type, val) (val)
+#define STypeCheck_stvar(type, val) (val)
+#define STypeCheck_sarray(type, val) saCheck(val)
+#define STypeCheck_hashtable(type, val) htCheck(val)
+#define stCheck(type, val) STypeCheck_##type(type, val)
+
+#define STypeCheckPtr_gen(type, ptr) ((stTypeDef(type)*)(ptr), ptr)
+#define STypeCheckPtr_opaque(type, ptr) (ptr)
+#define STypeCheckPtr_int8(type, ptr) (ptr)
+#define STypeCheckPtr_int16(type, ptr) (ptr)
+#define STypeCheckPtr_int32(type, ptr) (ptr)
+#define STypeCheckPtr_int64(type, ptr) (ptr)
+#define STypeCheckPtr_intptr(type, ptr) (ptr)
+#define STypeCheckPtr_uint8(type, ptr) (ptr)
+#define STypeCheckPtr_uint16(type, ptr) (ptr)
+#define STypeCheckPtr_uint32(type, ptr) (ptr)
+#define STypeCheckPtr_uint64(type, ptr) (ptr)
+#define STypeCheckPtr_uintptr(type, ptr) (ptr)
+#define STypeCheckPtr_bool(type, ptr) (ptr)
+#define STypeCheckPtr_size(type, ptr) (ptr)
+#define STypeCheckPtr_float32(type, ptr) (ptr)
+#define STypeCheckPtr_float64(type, ptr) (ptr)
+#define STypeCheckPtr_ptr(type, ptr) (ptr)
+#define STypeCheckPtr_string(type, ptr) (ptr)
+#define STypeCheckPtr_strref(type, ptr) (ptr)
+#define STypeCheckPtr_object(type, ptr) objInstCheckPtr(ptr)
+#define STypeCheckPtr_suid(type, ptr) (ptr)
+#define STypeCheckPtr_stvar(type, ptr) (ptr)
+#define STypeCheckPtr_sarray(type, ptr) saCheckPtr(ptr)
+#define STypeCheckPtr_hashtable(type, ptr) htCheckPtr(ptr)
+#define stCheckPtr(type, ptr) STypeCheckPtr_##type(type, ptr)
 
 // C99 compound literals are lvalues and can force the compiler to create a temporary
 // on the stack if necessary, so that we can pass pointers to arbitrary expressions
@@ -419,72 +481,72 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define STypeArgPtr_ptr(type, val) (stgeneric*)stCheckPtr(type, (void**)(val))
 #define STypeArgPtr_string(type, val) (stgeneric*)stCheckPtr(type, val)
 #define STypeArgPtr_strref(type, val) (stgeneric*)stCheckPtr(type, val)
-#define STypeArgPtr_object(type, val) (stgeneric*)stCheckPtr(type, (void**)val)
+#define STypeArgPtr_object(type, val) (stgeneric*)stCheckPtr(type, val)
 // same for the other pass-by-pointer cases (SUID, stvar)
 #define STypeArgPtr_suid(type, val) &stgeneric(type, val)
 #define STypeArgPtr_stvar(type, val) &stgeneric(type, val)
-#define STypeArgPtr_sarray(type, val) (stgeneric*)stCheckPtr(type, SAHANDLE(val))
+#define STypeArgPtr_sarray(type, val) (stgeneric*)stCheckPtr(type, val)
 #define STypeArgPtr_hashtable(type, val) (stgeneric*)stCheckPtr(type, val)
 #define stArgPtr(type, val) STypeArgPtr_##type(type, val)
 
 // Macros for type-checked inline metafunctions.
 // These expand to a pair of parameters for type, followed by a pointer.
 
-#define STypeChecked_none(type, val) stTypeInternal(type), stArg(type, val)
-#define STypeChecked_opaque(type, val) stType_opaque(val), stArg(type, val)
-#define STypeChecked_int8(type, val) stTypeInternal(type), stArg(type, val)
-#define STypeChecked_int16(type, val) stTypeInternal(type), stArg(type, val)
-#define STypeChecked_int32(type, val) stTypeInternal(type), stArg(type, val)
-#define STypeChecked_int64(type, val) stTypeInternal(type), stArg(type, val)
-#define STypeChecked_intptr(type, val) stTypeInternal(type), stArg(type, val)
-#define STypeChecked_uint8(type, val) stTypeInternal(type), stArg(type, val)
-#define STypeChecked_uint16(type, val) stTypeInternal(type), stArg(type, val)
-#define STypeChecked_uint32(type, val) stTypeInternal(type), stArg(type, val)
-#define STypeChecked_uint64(type, val) stTypeInternal(type), stArg(type, val)
-#define STypeChecked_uintptr(type, val) stTypeInternal(type), stArg(type, val)
-#define STypeChecked_bool(type, val) stTypeInternal(type), stArg(type, val)
-#define STypeChecked_size(type, val) stTypeInternal(type), stArg(type, val)
-#define STypeChecked_float32(type, val) stTypeInternal(type), stArg(type, val)
-#define STypeChecked_float64(type, val) stTypeInternal(type), stArg(type, val)
-#define STypeChecked_ptr(type, val) stTypeInternal(type), stArg(type, val)
-#define STypeChecked_string(type, val) stTypeInternal(type), stArg(type, val)
-#define STypeChecked_strref(type, val) stTypeInternal(type), stArg(type, val)
-#define STypeChecked_object(type, val) stTypeInternal(type), stArg(type, val)
-#define STypeChecked_suid(type, val) stTypeInternal(type), stArg(type, val)
-#define STypeChecked_stvar(type, val) stTypeInternal(type), stArg(type, val)
-#define STypeChecked_sarray(type, val) stTypeInternal(type), stArg(type, val)
-#define STypeChecked_hashtable(type, val) stTypeInternal(type), stArg(type, val)
-#define stChecked(type, val) STypeChecked_##type(type, val)
+#define STypeCheckedArg_none(type, val) stTypeInternal(type), stArg(type, val)
+#define STypeCheckedArg_opaque(type, val) stType_opaque(val), stArg(type, val)
+#define STypeCheckedArg_int8(type, val) stTypeInternal(type), stArg(type, val)
+#define STypeCheckedArg_int16(type, val) stTypeInternal(type), stArg(type, val)
+#define STypeCheckedArg_int32(type, val) stTypeInternal(type), stArg(type, val)
+#define STypeCheckedArg_int64(type, val) stTypeInternal(type), stArg(type, val)
+#define STypeCheckedArg_intptr(type, val) stTypeInternal(type), stArg(type, val)
+#define STypeCheckedArg_uint8(type, val) stTypeInternal(type), stArg(type, val)
+#define STypeCheckedArg_uint16(type, val) stTypeInternal(type), stArg(type, val)
+#define STypeCheckedArg_uint32(type, val) stTypeInternal(type), stArg(type, val)
+#define STypeCheckedArg_uint64(type, val) stTypeInternal(type), stArg(type, val)
+#define STypeCheckedArg_uintptr(type, val) stTypeInternal(type), stArg(type, val)
+#define STypeCheckedArg_bool(type, val) stTypeInternal(type), stArg(type, val)
+#define STypeCheckedArg_size(type, val) stTypeInternal(type), stArg(type, val)
+#define STypeCheckedArg_float32(type, val) stTypeInternal(type), stArg(type, val)
+#define STypeCheckedArg_float64(type, val) stTypeInternal(type), stArg(type, val)
+#define STypeCheckedArg_ptr(type, val) stTypeInternal(type), stArg(type, val)
+#define STypeCheckedArg_string(type, val) stTypeInternal(type), stArg(type, val)
+#define STypeCheckedArg_strref(type, val) stTypeInternal(type), stArg(type, val)
+#define STypeCheckedArg_object(type, val) stTypeInternal(type), stArg(type, val)
+#define STypeCheckedArg_suid(type, val) stTypeInternal(type), stArg(type, val)
+#define STypeCheckedArg_stvar(type, val) stTypeInternal(type), stArg(type, val)
+#define STypeCheckedArg_sarray(type, val) stTypeInternal(type), stArg(type, val)
+#define STypeCheckedArg_hashtable(type, val) stTypeInternal(type), stArg(type, val)
+#define stCheckedArg(type, val) STypeCheckedArg_##type(type, val)
 
 // Type checking of pointers to types, mostly for functions that want to
 // consume object-like variables and destroy them
 
-#define STypeCheckedPtr_none(type, val) stTypeInternal(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_none(type, val) stTypeInternal(type), stArgPtr(type, val)
 // go the opposite direction for opaque since it's already passed in as a pointer
-#define STypeCheckedPtr_opaque(type, val) stType_opaque(*val), stArgPtr(type, val)
-#define STypeCheckedPtr_int8(type, val) stTypeInternal(type), stArgPtr(type, val)
-#define STypeCheckedPtr_int16(type, val) stTypeInternal(type), stArgPtr(type, val)
-#define STypeCheckedPtr_int32(type, val) stTypeInternal(type), stArgPtr(type, val)
-#define STypeCheckedPtr_int64(type, val) stTypeInternal(type), stArgPtr(type, val)
-#define STypeCheckedPtr_intptr(type, val) stTypeInternal(type), stArgPtr(type, val)
-#define STypeCheckedPtr_uint8(type, val) stTypeInternal(type), stArgPtr(type, val)
-#define STypeCheckedPtr_uint16(type, val) stTypeInternal(type), stArgPtr(type, val)
-#define STypeCheckedPtr_uint32(type, val) stTypeInternal(type), stArgPtr(type, val)
-#define STypeCheckedPtr_uint64(type, val) stTypeInternal(type), stArgPtr(type, val)
-#define STypeCheckedPtr_uintptr(type, val) stTypeInternal(type), stArgPtr(type, val)
-#define STypeCheckedPtr_bool(type, val) stTypeInternal(type), stArgPtr(type, val)
-#define STypeCheckedPtr_size(type, val) stTypeInternal(type), stArgPtr(type, val)
-#define STypeCheckedPtr_float32(type, val) stTypeInternal(type), stArgPtr(type, val)
-#define STypeCheckedPtr_float64(type, val) stTypeInternal(type), stArgPtr(type, val)
-#define STypeCheckedPtr_ptr(type, val) stTypeInternal(type), stArgPtr(type, val)
-#define STypeCheckedPtr_string(type, val) stTypeInternal(type), stArgPtr(type, val)
-#define STypeCheckedPtr_strref(type, val) stTypeInternal(type), stArgPtr(type, val)
-#define STypeCheckedPtr_object(type, val) stTypeInternal(type), stArgPtr(type, val)
-#define STypeCheckedPtr_suid(type, val) stTypeInternal(type), stArgPtr(type, val)
-#define STypeCheckedPtr_stvar(type, val) stTypeInternal(type), stArgPtr(type, val)
-#define STypeCheckedPtr_sarray(type, val) stTypeInternal(type), stArgPtr(type, val)
-#define STypeCheckedPtr_hashtable(type, val) stTypeInternal(type), stArgPtr(type, val)
-#define stCheckedPtr(type, val) STypeCheckedPtr_##type(type, val)
+#define STypeCheckedPtrArg_opaque(type, val) stType_opaque(*val), stArgPtr(type, val)
+#define STypeCheckedPtrArg_int8(type, val) stTypeInternal(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_int16(type, val) stTypeInternal(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_int32(type, val) stTypeInternal(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_int64(type, val) stTypeInternal(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_intptr(type, val) stTypeInternal(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_uint8(type, val) stTypeInternal(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_uint16(type, val) stTypeInternal(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_uint32(type, val) stTypeInternal(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_uint64(type, val) stTypeInternal(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_uintptr(type, val) stTypeInternal(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_bool(type, val) stTypeInternal(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_size(type, val) stTypeInternal(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_float32(type, val) stTypeInternal(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_float64(type, val) stTypeInternal(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_ptr(type, val) stTypeInternal(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_string(type, val) stTypeInternal(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_strref(type, val) stTypeInternal(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_object(type, val) stTypeInternal(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_suid(type, val) stTypeInternal(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_stvar(type, val) stTypeInternal(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_sarray(type, val) stTypeInternal(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_hashtable(type, val) stTypeInternal(type), stArgPtr(type, val)
+#define stCheckedPtrArg(type, val) STypeCheckedPtrArg_##type(type, val)
 
 enum STYPE_OPS_FLAGS {
     STOPS_ = 0,

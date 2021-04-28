@@ -6,7 +6,7 @@ CX_C_BEGIN
 
 // IMPORTANT NOTE!
 // Always initialize sstring to NULL or 0 first!
-typedef struct str_impl* string;
+typedef struct str_ref* string;
 // helper for declaring string variables
 #ifndef __cplusplus
 #define string(name) string name = 0
@@ -20,7 +20,7 @@ typedef struct str_impl* string;
 // Always use an output argument and duplicate the result into it.
 // (this also makes it a lot harder for the caller for forget they
 // need to destroy it)
-typedef const struct str_impl* strref;
+typedef const struct str_ref* strref;
 
 // Create a new empty string with preallocated storage.
 //        o: output string, will be destroyed if it exists

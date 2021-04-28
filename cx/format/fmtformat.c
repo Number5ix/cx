@@ -43,7 +43,7 @@ bool _fmtFindData(FMTContext *ctx)
         ctx->startarg[ctx->v.vtype] = idx;
 
     if (isarray) {
-        sa_gen *arr = &ctx->args[idx - 1].data.st_sarray;
+        sa_ref *arr = &ctx->args[idx - 1].data.st_sarray;
         if (ctx->v.arrayidx >= saSize(arr)) {
             ctx->v.vtype = -1;
             return ret;
