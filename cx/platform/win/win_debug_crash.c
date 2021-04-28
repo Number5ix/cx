@@ -119,21 +119,21 @@ _no_inline static LONG WINAPI dbgExceptionFilter(LPEXCEPTION_POINTERS info)
         _ef_prefix = "    ";
         // write out version metadata
         for (_ef_i = 0; _ef_i < saSize(&_dbgCrashExtraMeta); _ef_i++) {
-            if (!_dbgCrashExtraMeta[_ef_i].version)
+            if (!_dbgCrashExtraMeta.a[_ef_i].version)
                 continue;
             WriteStr(_ef_prefix);
             WriteStatic("\"");
-            WriteStr(_dbgCrashExtraMeta[_ef_i].name);
+            WriteStr(_dbgCrashExtraMeta.a[_ef_i].name);
             WriteStatic("\": ");
-            if (_dbgCrashExtraMeta[_ef_i].str) {
+            if (_dbgCrashExtraMeta.a[_ef_i].str) {
                 WriteStatic("\"");
-                WriteStr(_dbgCrashExtraMeta[_ef_i].str);
+                WriteStr(_dbgCrashExtraMeta.a[_ef_i].str);
                 if (_ef_i < saSize(&_dbgCrashExtraMeta) - 1)
                     WriteStatic("\",\r\n");
                 else
                     WriteStatic("\"\r\n");
             } else {
-                WriteNum(_dbgCrashExtraMeta[_ef_i].val);
+                WriteNum(_dbgCrashExtraMeta.a[_ef_i].val);
                 if (_ef_i < saSize(&_dbgCrashExtraMeta) - 1)
                     WriteStatic(",\r\n");
                 else
@@ -197,18 +197,18 @@ _no_inline static LONG WINAPI dbgExceptionFilter(LPEXCEPTION_POINTERS info)
 
         // write out custom metadata (mostly from assert failures)
         for (_ef_i = 0; _ef_i < saSize(&_dbgCrashExtraMeta); _ef_i++) {
-            if (_dbgCrashExtraMeta[_ef_i].version)
+            if (_dbgCrashExtraMeta.a[_ef_i].version)
                 continue;
             WriteStr(_ef_prefix);
             WriteStatic("\"");
-            WriteStr(_dbgCrashExtraMeta[_ef_i].name);
+            WriteStr(_dbgCrashExtraMeta.a[_ef_i].name);
             WriteStatic("\": ");
-            if (_dbgCrashExtraMeta[_ef_i].str) {
+            if (_dbgCrashExtraMeta.a[_ef_i].str) {
                 WriteStatic("\"");
-                WriteStr(_dbgCrashExtraMeta[_ef_i].str);
+                WriteStr(_dbgCrashExtraMeta.a[_ef_i].str);
                 WriteStatic("\",\r\n");
             } else {
-                WriteNum(_dbgCrashExtraMeta[_ef_i].val);
+                WriteNum(_dbgCrashExtraMeta.a[_ef_i].val);
                 WriteStatic(",\r\n");
             }
         }
@@ -229,9 +229,9 @@ _no_inline static LONG WINAPI dbgExceptionFilter(LPEXCEPTION_POINTERS info)
             WriteCustom("dumpmem", "[\r\n");
             for (_ef_i = 0; _ef_i < saSize(&_dbgCrashDumpMem); _ef_i++) {
                 WriteStatic("      { \"start\": \"");
-                WriteHex(_dbgCrashDumpMem[_ef_i].start);
+                WriteHex(_dbgCrashDumpMem.a[_ef_i].start);
                 WriteStatic("\", \"end\": \"");
-                WriteHex(_dbgCrashDumpMem[_ef_i].end);
+                WriteHex(_dbgCrashDumpMem.a[_ef_i].end);
                 if (_ef_i < saSize(&_dbgCrashDumpMem) - 1)
                     WriteStatic("\" },\r\n");
                 else

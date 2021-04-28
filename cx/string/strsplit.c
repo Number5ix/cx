@@ -1,7 +1,7 @@
 #include "string_private.h"
 #include "cx/container/sarray.h"
 
-int32 strSplit(string **out, strref s, strref sep, bool empty)
+int32 strSplit(sa_string *out, strref s, strref sep, bool empty)
 {
     if (!out)
         return 0;

@@ -1,7 +1,7 @@
 #include "crash_private.h"
 
 static LazyInitState crashMemInitState;
-CrashMemRange *_dbgCrashDumpMem;
+sa_CrashMemRange _dbgCrashDumpMem;
 
 static intptr crashMemCmp(stype st, stgeneric a, stgeneric b, uint32 flags)
 {
@@ -21,7 +21,7 @@ static STypeOps crashMemOps = {
 
 static void crashMemInit(void *data)
 {
-    _dbgCrashDumpMem = saCreate(custom(opaque(CrashMemRange), crashMemOps), 10, Sorted, Grow(Slow));
+    saInit(&_dbgCrashDumpMem, custom(opaque(CrashMemRange), crashMemOps), 10, Sorted, Grow(Slow));
 }
 
 void dbgCrashIncludeMemory(void *ptr, size_t sz)
@@ -33,12 +33,12 @@ void dbgCrashIncludeMemory(void *ptr, size_t sz)
     CrashMemRange r = { .start = (uintptr)ptr,.end = (uintptr)ptr + sz };
     int32 idx = saFind(&_dbgCrashDumpMem, opaque, r, Inexact);
 
-    if (idx > 0 && _dbgCrashDumpMem[idx - 1].end == r.start) {
+    if (idx > 0 && _dbgCrashDumpMem.a[idx - 1].end == r.start) {
         // extend the previous block
-        _dbgCrashDumpMem[idx - 1].end = r.end;
-    } else if (idx >= 0 && idx < saSize(&_dbgCrashDumpMem) && _dbgCrashDumpMem[idx].start == r.end) {
+        _dbgCrashDumpMem.a[idx - 1].end = r.end;
+    } else if (idx >= 0 && idx < saSize(&_dbgCrashDumpMem) && _dbgCrashDumpMem.a[idx].start == r.end) {
         // extend the following block
-        _dbgCrashDumpMem[idx].start = r.start;
+        _dbgCrashDumpMem.a[idx].start = r.start;
     } else {
         // insert a new block
         saPush(&_dbgCrashDumpMem, opaque, r, Unique);
@@ -58,7 +58,7 @@ void dbgCrashExcludeMemory(void *ptr, size_t sz)
     idx = max(idx - 1, 0);
 
     for (; idx < saSize(&_dbgCrashDumpMem); idx++) {
-        CrashMemRange *ir = &_dbgCrashDumpMem[idx];
+        CrashMemRange *ir = &_dbgCrashDumpMem.a[idx];
         if (r.start <= ir->start && r.end >= ir->end) {
             // completely inside removal range, delete it
             saRemove(&_dbgCrashDumpMem, idx--);

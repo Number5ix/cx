@@ -2,12 +2,13 @@
 
 // Platform-independent entry point
 
-#include "cx/cx.h"
-#include "cx/platform/base.h"
+#include <cx/cx.h>
+#include <cx/platform/base.h>
+#include <cx/container/sarray.h>
 
 // Command-line arguments (UTF-8)
 extern string cmdProgram;
-extern string *cmdArgs;
+extern sa_string cmdArgs;
 
 // DEFINE_ENTRY_POINT
 // Put this macro in a translation unit somewhere to define the platform

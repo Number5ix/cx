@@ -10,6 +10,13 @@ typedef struct TestCls4 TestCls4;
 typedef struct TestCls4a TestCls4a;
 typedef struct TestCls4b TestCls4b;
 typedef struct TestCls5 TestCls5;
+saDeclarePtr(TestCls1);
+saDeclarePtr(TestCls2);
+saDeclarePtr(TestCls3);
+saDeclarePtr(TestCls4);
+saDeclarePtr(TestCls4a);
+saDeclarePtr(TestCls4b);
+saDeclarePtr(TestCls5);
 
 typedef struct TestIf1 {
     ObjIface *_implements;

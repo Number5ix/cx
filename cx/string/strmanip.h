@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cx/string/strbase.h>
+#include <cx/container/sarray.h>
 
 CX_C_BEGIN
 
@@ -51,10 +52,10 @@ void strLower(string *io);
 //    out: handle to sarray of strings to place results into
 //  empty: if true, empty segments will be preserved
 // return: number of splits
-int32 strSplit(string **out, strref s, strref sep, bool empty);
+int32 strSplit(sa_string *out, strref s, strref sep, bool empty);
 
 // Joins an array of strings into a single string separated by sep.
-bool strJoin(string *out, string *arr, strref sep);
+bool strJoin(string *out, sa_string arr, strref sep);
 
 // get a single byte
 char strGetChar(strref str, int32 i);

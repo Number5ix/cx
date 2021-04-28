@@ -2,14 +2,14 @@
 #include <cx/container.h>
 #include <cx/string.h>
 
-static void fillMethods(Method ***methods, Interface *iface)
+static void fillMethods(sa_Method *methods, Interface *iface)
 {
     // add parent interfaces first so the order is correct
     if (iface->parent)
         fillMethods(methods, iface->parent);
 
     for (int i = 0; i < saSize(&iface->methods); i++) {
-        saPush(methods, object, iface->methods[i], Unique);
+        saPush(methods, object, iface->methods.a[i], Unique);
     }
 }
 
@@ -32,8 +32,8 @@ bool processInterface(Interface *iface)
 bool processInterfaces()
 {
     for (int i = 0; i < saSize(&ifaces); i++) {
-        if (!processInterface(ifaces[i])) {
-            printf("Error processing interface '%s'\n", strC(ifaces[i]->name));
+        if (!processInterface(ifaces.a[i])) {
+            printf("Error processing interface '%s'\n", strC(ifaces.a[i]->name));
             return false;
         }
     }

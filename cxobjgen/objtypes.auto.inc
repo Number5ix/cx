@@ -130,4 +130,14 @@ ObjClassInfo Class_clsinfo = {
     .ifimpl = _ifimpl_Class,
 };
 
+static ObjIface *_ifimpl_ComplexArrayType[] = {
+    NULL
+};
+
+ObjClassInfo ComplexArrayType_clsinfo = {
+    .instsize = sizeof(ComplexArrayType),
+    .destroy = (void(*)(void*))ComplexArrayType_destroy,
+    .ifimpl = _ifimpl_ComplexArrayType,
+};
+
 // ==================== Auto-generated section ends ======================

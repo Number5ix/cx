@@ -5,6 +5,7 @@
 #include <stddef.h>
 #include <string.h>
 #include <cx/debug/assert.h>
+#include <cx/container/sarray_types.h>
 #include <cx/core/cpp.h>
 #include <cx/utils/macros.h>
 
@@ -83,7 +84,7 @@ typedef uint32 stype;
 #define SType_object ObjInst*
 #define SType_suid SUID*
 #define SType_stvar stvar*
-#define SType_sarray void*
+#define SType_sarray sa_gen
 #define SType_hashtable hashtable
 #define stTypeDef(name) SType_##name
 
@@ -124,8 +125,10 @@ _Static_assert(sizeof(stgeneric) == sizeof(uint64), "stype container too large")
 
 #ifndef __cplusplus
 #define stgeneric(type, val) ((stgeneric){ .st_##type = (val) })
+#define stgensarray(val) stgeneric(ptr, (val)._is_sarray)
 #else
 #define stgeneric(type, val) ((stgeneric)stCheck(type, val))
+#define stgensarray(val) stgeneric(ptr, (val)._is_sarray)
 #endif
 
 // Compact variant structure. This is most often used for passing arrays of values that
@@ -160,7 +163,7 @@ typedef struct stvar {
 #define STStorageType_object ObjInst*
 #define STStorageType_suid SUID
 #define STStorageType_stvar stvar
-#define STStorageType_sarray void*
+#define STStorageType_sarray sa_gen
 #define STStorageType_hashtable hashtable
 #define stStorageType(name) STStorageType_##name
 
@@ -223,8 +226,8 @@ enum STYPE_SIZE {
     // SUID is special because it's always passed by reference, but stored as the full 16 bytes
     STypeSize_suid = 16,
     STypeSize_stvar = sizeof(stvar),
-    STypeSize_sarray = sizeof(void*),
-    STypeSize_hashtable = sizeof(void*),
+    STypeSize_sarray = sizeof(sa_gen),
+    STypeSize_hashtable = sizeof(hashtable),
 };
 #define stTypeSize(name) STypeSize_##name
 
@@ -389,7 +392,7 @@ _meta_inline stype _stype_mkcustom(stype base)
 // SUID and stvar are too big, so make a copy and pass a pointer
 #define STypeArg_suid(type, val) stgeneric(type, stRvalAddr(type, val))
 #define STypeArg_stvar(type, val) stgeneric(type, stRvalAddr(type, val))
-#define STypeArg_sarray(type, val) stgeneric(type, val)
+#define STypeArg_sarray(type, val) stgensarray(val)
 #define STypeArg_hashtable(type, val) stgeneric(type, val)
 #define stArg(type, val) STypeArg_##type(type, val)
 
@@ -420,7 +423,7 @@ _meta_inline stype _stype_mkcustom(stype base)
 // same for the other pass-by-pointer cases (SUID, stvar)
 #define STypeArgPtr_suid(type, val) &stgeneric(type, val)
 #define STypeArgPtr_stvar(type, val) &stgeneric(type, val)
-#define STypeArgPtr_sarray(type, val) (stgeneric*)stCheckPtr(type, (void**)(val))
+#define STypeArgPtr_sarray(type, val) (stgeneric*)stCheckPtr(type, SAHANDLE(val))
 #define STypeArgPtr_hashtable(type, val) (stgeneric*)stCheckPtr(type, val)
 #define stArgPtr(type, val) STypeArgPtr_##type(type, val)
 

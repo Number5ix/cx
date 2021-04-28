@@ -2,6 +2,7 @@
 
 #include <cx/cx.h>
 #include <cx/core/stvar.h>
+#include <cx/container/sarray.h>
 
 /* String formatter =====================================================================
  *
@@ -130,7 +131,7 @@ typedef struct FMTVar {
     int32 vtype;                    // variable type
     int32 idx;                      // explicit index (1-based)
     int32 width;                    // field width
-    string *fmtopts;                // variable format options (other than width)
+    sa_string fmtopts;              // variable format options (other than width)
     string def;                     // default text
 
     int32 arrayidx;                 // array index (or -1)

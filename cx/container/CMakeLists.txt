@@ -9,6 +9,7 @@ set(CONTAINER_INCLUDES
     container/hashtable_private.h
     container/sarray.h
     container/sarray_private.h
+    container/sarray_types.h
     container/stype_hashtable.h
     container/stype_sarray.h)
 

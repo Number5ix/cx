@@ -166,7 +166,8 @@ static int test_obj_array()
 
     cls5->data = 42;
 
-    TestCls5 **arr = saCreate(object, 10);
+    sa_TestCls5 arr;
+    saInit(&arr, object, 10);
 
     for (int i = 0; i < 50; i++) {
         saPush(&arr, object, cls5);
@@ -175,10 +176,10 @@ static int test_obj_array()
     if (atomicLoad(intptr, &cls5->_ref, AcqRel) != 51)
         return 1;
 
-    TestIf1 *if1 = objInstIf(arr[49], TestIf1);
+    TestIf1 *if1 = objInstIf(arr.a[49], TestIf1);
     if (!if1)
         return 1;
-    if (if1->testfunc(arr[49]) != 42)
+    if (if1->testfunc(arr.a[49]) != 42)
         return 1;
 
     saDestroy(&arr);
@@ -186,7 +187,7 @@ static int test_obj_array()
     if (atomicLoad(intptr, &cls5->_ref, AcqRel) != 1)
         return 1;
 
-    arr = saCreate(object, 10);
+    saInit(&arr, object, 10);
 
     for (int i = 0; i < 50; i++) {
         saPush(&arr, object, cls5, Unique);

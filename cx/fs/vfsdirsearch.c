@@ -66,11 +66,13 @@ bool vfsSearchInit(FSSearchIter *iter, VFS *vfs, strref path, strref pattern, in
 
     VFSDir *vfsdir = _vfsGetDir(vfs, abspath, false, false, true), *pdir = vfsdir;
     string(ns);
-    string *components = 0, *relcomp = 0;
+    sa_string components;
+    sa_string relcomp = saInitNone;
 
     if (!vfsdir)
         return false;
 
+    saInit(&components, string, 8, Grow(Aggressive));
     pathDecompose(&ns, &components, abspath);
 
     VFSSearch *search = xaAlloc(sizeof(VFSSearch), Zero);
@@ -78,7 +80,7 @@ bool vfsSearchInit(FSSearchIter *iter, VFS *vfs, strref path, strref pattern, in
     search->vfs = objAcquire(vfs);
     search->idx = 0;
     STypeOps direntops = (vfs->flags & VFS_CaseSensitive) ? VFSDirEnt_ops_cs : VFSDirEnt_ops;
-    search->ents = saCreate(custom(opaque(VFSDirEnt), direntops), 16, Grow(Aggressive));
+    saInit(&search->ents, custom(opaque(VFSDirEnt), direntops), 16, Grow(Aggressive));
 
     // add child mount points as subdirectories
     foreach(hashtable, sdi, &vfsdir->subdirs) {
@@ -98,20 +100,20 @@ bool vfsSearchInit(FSSearchIter *iter, VFS *vfs, strref path, strref pattern, in
     while (pdir) {
         devAssert(relstart >= 0);
         saDestroy(&relcomp);
-        relcomp = saSlice(&components, relstart, 0);
+        saSlice(&relcomp, &components, relstart, 0);
         strJoin(&curpath, relcomp, fsPathSepStr);
 
         // traverse list of registered providers backwards, as providers registered later
         // are "higher" on the stack
         for (int i = saSize(&pdir->mounts) - 1; i >= 0; --i) {
-            ObjInst *provider = pdir->mounts[i]->provider;
+            ObjInst *provider = pdir->mounts.a[i]->provider;
             VFSProvider *provif = objInstIf(provider, VFSProvider);
             if (!provif)
                 continue;
 
-            if (!(vfs->flags & VFS_CaseSensitive) && (pdir->mounts[i]->flags & VFS_CaseSensitive)) {
+            if (!(vfs->flags & VFS_CaseSensitive) && (pdir->mounts.a[i]->flags & VFS_CaseSensitive)) {
                 // case-sensitive file system on insensitive VFS, find the real underlying path
-                _vfsFindCIHelper(vfs, vfsdir, &curpath, relcomp, pdir->mounts[i], provif);
+                _vfsFindCIHelper(vfs, vfsdir, &curpath, relcomp, pdir->mounts.a[i], provif);
             }
 
             // see if we can get a directory listing out of it
@@ -131,12 +133,12 @@ bool vfsSearchInit(FSSearchIter *iter, VFS *vfs, strref path, strref pattern, in
                         .stat = dsiter.stat
                     };
                     idx = saPush(&search->ents, opaque, ent);
-                    htInsert(&names, string, search->ents[idx].name, intptr, 1);
+                    htInsert(&names, string, search->ents.a[idx].name, intptr, 1);
 
-                    if (dsiter.type == FS_File && !(pdir->mounts[i]->flags & VFS_NoCache)) {
+                    if (dsiter.type == FS_File && !(pdir->mounts.a[i]->flags & VFS_NoCache)) {
                         // go ahead and add it to the cache while we're here
                         pathJoin(&filepath, curpath, dsiter.name);
-                        VFSCacheEnt *newent = _vfsCacheEntCreate(pdir->mounts[i], filepath);
+                        VFSCacheEnt *newent = _vfsCacheEntCreate(pdir->mounts.a[i], filepath);
                         htInsertC(&vfsdir->files, string, dsiter.name, ptr, &newent, Ignore);
                     }
                 }
@@ -144,7 +146,7 @@ bool vfsSearchInit(FSSearchIter *iter, VFS *vfs, strref path, strref pattern, in
             provif->searchFinish(provider, &dsiter);
 
             // if this layer is opaque, the buck stops here
-            if (pdir->mounts[i]->flags & VFS_Opaque)
+            if (pdir->mounts.a[i]->flags & VFS_Opaque)
                 goto done;
         }
 
@@ -178,7 +180,7 @@ bool vfsSearchNext(FSSearchIter *iter)
         vfsSearchFinish(iter);
         return false;
     }
-    VFSDirEnt *ent = &search->ents[search->idx];
+    VFSDirEnt *ent = &search->ents.a[search->idx];
     strDup(&iter->name, ent->name);
     iter->type = ent->type;
     iter->stat = ent->stat;

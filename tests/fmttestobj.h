@@ -5,6 +5,7 @@
 #include <cx/format/formattable.h>
 
 typedef struct FmtTestClass FmtTestClass;
+saDeclarePtr(FmtTestClass);
 
 typedef struct FmtTestClass_ClassIf {
     ObjIface *_implements;

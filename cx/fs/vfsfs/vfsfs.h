@@ -5,6 +5,7 @@
 #include <cx/fs/vfsprovider.h>
 
 typedef struct VFSFS VFSFS;
+saDeclarePtr(VFSFS);
 
 typedef struct VFSFS_ClassIf {
     ObjIface *_implements;

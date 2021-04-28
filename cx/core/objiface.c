@@ -49,7 +49,7 @@ static void mergeIface(ObjIface *dest, ObjIface *src)
 // impls is a handle to an array of pointers to interfaces that have been hydrated
 // so far. The impltbl hashtable maps the interface template pointer to the
 // implementation.
-void _objHydrateIface(ObjIface *ifimpl, ObjIface ***impls, hashtable *impltbl)
+void _objHydrateIface(ObjIface *ifimpl, sa_ObjIface *impls, hashtable *impltbl)
 {
     ObjIface *destif = NULL, *tmp = NULL;
 

@@ -3,13 +3,12 @@
 #include <cx/string.h>
 
 string cmdProgram = 0;
-string *cmdArgs = 0;
+sa_string cmdArgs;
 
 void _entryParseArgs(int argc, const char **argv)
 {
     strDestroy(&cmdProgram);
-    saDestroy(&cmdArgs);
-    cmdArgs = saCreate(string, 1);
+    saInit(&cmdArgs, string, 1);
 
     if (argc < 1)
         return;
@@ -24,8 +23,7 @@ void _entryParseArgs(int argc, const char **argv)
 void _entryParseArgsU16(int argc, const uint16 **argv)
 {
     strDestroy(&cmdProgram);
-    saDestroy(&cmdArgs);
-    cmdArgs = saCreate(string, 1);
+    saInit(&cmdArgs, string, 1);
 
     if (argc < 1)
         return;

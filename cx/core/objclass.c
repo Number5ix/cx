@@ -14,7 +14,7 @@ static void initClassMutex(void *unused)
     mutexInit(&classMutex);
 }
 
-static void hydrateIfaces(ObjClassInfo *cls, ObjIface ***impls, hashtable *impltbl)
+static void hydrateIfaces(ObjClassInfo *cls, sa_ObjIface *impls, hashtable *impltbl)
 {
     // Start with current class before moving on to parents.
     // The assumption is that classes deeper in the hierarchy will (usually)
@@ -31,7 +31,7 @@ static void hydrateIfaces(ObjClassInfo *cls, ObjIface ***impls, hashtable *implt
         hydrateIfaces(cls->parent, impls, impltbl);
 }
 
-bool _objCheckIfaces(ObjIface ***impls)
+bool _objCheckIfaces(sa_ObjIface *impls)
 {
     foreach(sarray, i, ObjIface*, impl, impls) {
         if (!_objCheckIface(impl))
@@ -48,7 +48,7 @@ static void classInitImpl(ObjClassInfo *cls, bool locked)
         mutexAcquire(&classMutex);
 
         // check and make sure another thread didn't win the race
-        if (cls->_impl) {
+        if (cls->_impl.a) {
             mutexRelease(&classMutex);
             return;
         }
@@ -58,7 +58,8 @@ static void classInitImpl(ObjClassInfo *cls, bool locked)
     // of the program. It's okay for this to be moderately expensive in terms of
     // computation, as well as to allocate and never free memory.
 
-    ObjIface **impl = saCreate(ptr, 4, Grow(Minimal));
+    sa_ObjIface impl;
+    saInit(&impl, ptr, 4, Grow(Minimal));
     cls->_tmpl = htCreate(ptr, ptr, 8, Grow(At50));
 
     // Fully hydrated interface implementation tables include methods that are
@@ -77,7 +78,7 @@ static void classInitImpl(ObjClassInfo *cls, bool locked)
 
     // Go ahead and init parent class, in case child class needs to call parent
     // class functions by interface.
-    if (cls->parent && !cls->parent->_impl)
+    if (cls->parent && !cls->parent->_impl.a)
         classInitImpl(cls->parent, true);
 
     // If this class implements Sortable or Hashable (even through a parent), cache the
@@ -112,7 +113,7 @@ ObjInst *_objInstCreate(ObjClassInfo *cls)
 
     // Initialize interface implementation tables the first time the class is
     // instantiated
-    if (!cls->_impl)
+    if (!cls->_impl.a)
         classInitImpl(cls, false);
 
     ret->_classif = cls->classif;

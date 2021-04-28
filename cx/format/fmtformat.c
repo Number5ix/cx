@@ -43,14 +43,14 @@ bool _fmtFindData(FMTContext *ctx)
         ctx->startarg[ctx->v.vtype] = idx;
 
     if (isarray) {
-        void **arr = &ctx->args[idx - 1].data.st_sarray;
+        sa_gen *arr = &ctx->args[idx - 1].data.st_sarray;
         if (ctx->v.arrayidx >= saSize(arr)) {
             ctx->v.vtype = -1;
             return ret;
         }
 
         ctx->v.type = saElemType(arr);
-        ctx->v.data = (void*)((uintptr)*arr + saElemSize(arr)*ctx->v.arrayidx);
+        ctx->v.data = (void*)((uintptr)arr->a + saElemSize(arr)*ctx->v.arrayidx);
     } else if (ishash) {
         hashtable *htbl = &ctx->args[idx - 1].data.st_hashtable;
         htelem elem = htFindElem(htbl, string, ctx->v.hashkey);

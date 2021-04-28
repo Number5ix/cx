@@ -209,8 +209,10 @@ static int test_array()
 {
     string res = 0;
 
-    int32 *intarray = saCreate(int32, 5);
-    string strarray = saCreate(string, 5);
+    sa_int32 intarray;
+    saInit(&intarray, int32, 5);
+    sa_string strarray;
+    saInit(&strarray, string, 5);
 
     saPush(&intarray, int32, 32);
     saPush(&intarray, int32, 33);

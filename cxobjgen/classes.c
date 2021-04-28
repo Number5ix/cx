@@ -2,24 +2,24 @@
 #include <cx/container.h>
 #include <cx/string.h>
 
-static void fillMembers(Member ***members, Class *cls)
+static void fillMembers(sa_Member *members, Class *cls)
 {
     // add parent clases first so the order is correct
     if (cls->parent)
         fillMembers(members, cls->parent);
 
     for (int i = 0; i < saSize(&cls->members); i++) {
-        saPush(members, object, cls->members[i]);
+        saPush(members, object, cls->members.a[i]);
     }
 }
 
-static void fillMethods(Method ***methods, Class *cls)
+static void fillMethods(sa_Method *methods, Class *cls)
 {
     // first, add in any methods from parent classes and their interfaces
     // allmethods includes inherited methods
     if (cls->parent) {
         for (int i = 0; i < saSize(&cls->parent->allmethods); i++) {
-            Method *m = cls->parent->allmethods[i];
+            Method *m = cls->parent->allmethods.a[i];
             if (!m->unbound && !m->internal)
                 saPush(methods, object, m, Unique);
         }
@@ -27,14 +27,14 @@ static void fillMethods(Method ***methods, Class *cls)
 
     // then add in actual implemented methods, overriding where applicable
     for (int i = 0; i < saSize(&cls->methods); i++) {
-        if (!cls->methods[i]->unbound && !cls->methods[i]->internal) {
-            int32 idx = saFind(methods, object, cls->methods[i]);
+        if (!cls->methods.a[i]->unbound && !cls->methods.a[i]->internal) {
+            int32 idx = saFind(methods, object, cls->methods.a[i]);
             if (idx == -1) {
-                saPush(methods, object, cls->methods[i], Unique);
+                saPush(methods, object, cls->methods.a[i], Unique);
             } else {
                 // already exists, replace with child class version
                 saRemove(methods, idx);
-                saInsert(methods, idx, object, cls->methods[i]);
+                saInsert(methods, idx, object, cls->methods.a[i]);
             }
         }
     }
@@ -48,8 +48,8 @@ static Method *findClassMethod(string name, Class *search, Interface *iface)
     // ensure the class providing the method actually implements the interface
     if (!iface || saFind(&search->implements, object, iface) != -1) {
         for (int i = 0; i < saSize(&search->methods); i++) {
-            if (strEq(name, search->methods[i]->name))
-                return search->methods[i];
+            if (strEq(name, search->methods.a[i]->name))
+                return search->methods.a[i];
         }
     }
 
@@ -63,14 +63,14 @@ static Method *findInterfaceMethod(string name, Class *root, Interface *search)
 
     if (search) {
         for (int i = 0; i < saSize(&search->methods); i++) {
-            if (strEq(name, search->methods[i]->name))
-                return search->methods[i];
+            if (strEq(name, search->methods.a[i]->name))
+                return search->methods.a[i];
         }
         return search->parent ? findInterfaceMethod(name, root, search->parent) : NULL;
     }
 
     for (int i = 0; i < saSize(&root->implements); i++) {
-        Method *m = findInterfaceMethod(name, root, root->implements[i]);
+        Method *m = findInterfaceMethod(name, root, root->implements.a[i]);
         if (m)
             return m;
     }
@@ -84,33 +84,33 @@ static void addInterfaceImpl(Class *cls, Interface *iface)
         addInterfaceImpl(cls, iface->parent);
 
     for (int i = 0; i < saSize(&iface->methods); i++) {
-        Method *m = findClassMethod(iface->methods[i]->name, cls, iface->methods[i]->srcif);  // already have it?
+        Method *m = findClassMethod(iface->methods.a[i]->name, cls, iface->methods.a[i]->srcif);  // already have it?
         if (!m) {
-            m = methodClone(iface->methods[i]);
+            m = methodClone(iface->methods.a[i]);
             saPushC(&cls->methods, object, &m);
         }
     }
 }
 
-static void addAbstractInterfaces(Method ***methods, Interface *iface)
+static void addAbstractInterfaces(sa_Method *methods, Interface *iface)
 {
     if (iface->parent)
         addAbstractInterfaces(methods, iface->parent);
 
     for (int i = 0; i < saSize(&iface->methods); i++) {
-        saPush(methods, object, iface->methods[i], Unique);
+        saPush(methods, object, iface->methods.a[i], Unique);
     }
 }
 
 static void checkMemberInitDestroy(Class *cls)
 {
     for (int i = 0; i < saSize(&cls->members); i++) {
-        Member *m = cls->members[i];
+        Member *m = cls->members.a[i];
 
         if (strEmpty(m->postdecr)) {
-            if (saSize(&m->fulltype) > 1 && !strEq(m->fulltype[0], _S"atomic")) {
+            if (saSize(&m->fulltype) > 1 && !strEq(m->fulltype.a[0], _S"atomic")) {
                 // these have enough info to auto init without help
-                if (strEmpty(m->predecr) && !strEq(m->fulltype[0], _S"object"))
+                if (strEmpty(m->predecr) && !strEq(m->fulltype.a[0], _S"object"))
                     m->init = true;
                 m->destroy = true;
             }
@@ -122,15 +122,16 @@ static void checkMemberInitDestroy(Class *cls)
         }
 
         // annotations can override
-        string *an = getAnnotation(&m->annotations, _S"init");
-        if (an && saSize(&an) >= 2) {
-            strDup(&m->initstr, an[1]);
+        sa_string an;
+        getAnnotation(&an, &m->annotations, _S"init");
+        if (saSize(&an) >= 2) {
+            strDup(&m->initstr, an.a[1]);
             m->init = true;
         }
-        if (getAnnotation(&m->annotations, _S"noinit")) {
+        if (getAnnotation(NULL, &m->annotations, _S"noinit")) {
             m->init = false;
         }
-        if (getAnnotation(&m->annotations, _S"nodestroy")) {
+        if (getAnnotation(NULL, &m->annotations, _S"nodestroy")) {
             m->destroy = false;
         }
 
@@ -147,10 +148,10 @@ static void addMixin(Class *cls, Class *uses)
     string hfile = 0;
     // copy any methods that we don't already have
     for (int i = 0; i < saSize(&uses->allmethods); i++) {
-        Method *m = findClassMethod(uses->allmethods[i]->name, cls, NULL);     // already have it?
+        Method *m = findClassMethod(uses->allmethods.a[i]->name, cls, NULL);     // already have it?
         if (!m) {
             // clone the method
-            m = methodClone(uses->allmethods[i]);
+            m = methodClone(uses->allmethods.a[i]);
             // so that it can point at the mixin that actually pulled it in
             m->mixinsrc = uses;
             strDup(&hfile, m->srcfile);
@@ -173,7 +174,7 @@ static void addMixin(Class *cls, Class *uses)
 
         // any interfaces implemented by the mixin tree need to be copied, too
         for (int i = 0; i < saSize(&mixin->implements); i++)
-            saPush(&cls->implements, object, mixin->implements[i], Unique);
+            saPush(&cls->implements, object, mixin->implements.a[i], Unique);
     }
 
     // if the mixin class has any data members, embed the mixin struct
@@ -191,7 +192,7 @@ static void addMixin(Class *cls, Class *uses)
 static bool implementsChild(Class *cls, Interface *iface)
 {
     for (int i = saSize(&cls->implements) - 1; i >= 0; --i) {
-        Interface *testif = cls->implements[i];
+        Interface *testif = cls->implements.a[i];
 
         // skip self
         if (testif == iface)
@@ -213,7 +214,7 @@ static void pruneInterfaces(Class *cls)
     // First, remove any interfaces where this class also implements one of
     // their children.
     for (int i = saSize(&cls->implements) - 1; i >= 0; --i) {
-        if (implementsChild(cls, cls->implements[i]))
+        if (implementsChild(cls, cls->implements.a[i]))
             saRemove(&cls->implements, i);
     }
 
@@ -229,16 +230,16 @@ static void pruneInterfaces(Class *cls)
         int j;
 
         // don't delete the class interface
-        if (cls->implements[i]->classif)
+        if (cls->implements.a[i]->classif)
             continue;
 
         for (j = saSize(&cls->methods) - 1; j >= 0; --j) {
-            if (cls->methods[j]->internal)
+            if (cls->methods.a[j]->internal)
                 continue;
 
             // see if this class method is part of the interface
-            if (saFind(&cls->implements[i]->allmethods, object,
-                        cls->methods[j]) != -1)
+            if (saFind(&cls->implements.a[i]->allmethods, object,
+                        cls->methods.a[j]) != -1)
                 break;
         }
 
@@ -257,27 +258,28 @@ bool processClass(Class *cls)
     if (cls->parent)
         processClass(cls->parent);
 
-    string *mpfx = getAnnotation(&cls->annotations, _S"methodprefix");
+    sa_string mpfx;
+    getAnnotation(&mpfx, &cls->annotations, _S"methodprefix");
     if (saSize(&mpfx) == 2) {
-        strDup(&cls->methodprefix, mpfx[1]);
+        strDup(&cls->methodprefix, mpfx.a[1]);
     }
 
     // if our parent class implements any interfaces, we implement them too
     if (cls->parent) {
         for (int i = 0; i < saSize(&cls->parent->implements); i++) {
-            saPush(&cls->implements, object, cls->parent->implements[i], Unique);
+            saPush(&cls->implements, object, cls->parent->implements.a[i], Unique);
         }
     }
 
     // copy prototypes for overriden functions from parents
     for (int i = 0; i < saSize(&cls->overrides); i++) {
-        Method *m = findClassMethod(cls->overrides[i], cls->parent, NULL);
+        Method *m = findClassMethod(cls->overrides.a[i], cls->parent, NULL);
         if (!m) {
             // also allow overriding interface methods this way, mostly for abstract/mixin classes
-            m = findInterfaceMethod(cls->overrides[i], cls, NULL);
+            m = findInterfaceMethod(cls->overrides.a[i], cls, NULL);
         }
         if (!m) {
-            fprintf(stderr, "Could not find method '%s' to override\n", strC(cls->overrides[i]));
+            fprintf(stderr, "Could not find method '%s' to override\n", strC(cls->overrides.a[i]));
             return false;
         }
         // clone and reset source class
@@ -289,14 +291,14 @@ bool processClass(Class *cls)
     // if this is not an abstract class, add any missing interface implementations
     if (!cls->abstract) {
         for (int i = 0; i < saSize(&cls->implements); i++) {
-            addInterfaceImpl(cls, cls->implements[i]);
+            addInterfaceImpl(cls, cls->implements.a[i]);
         }
     }
 
     // copy stuff from mixin classes
     for (int i = 0; i < saSize(&cls->uses); i++) {
-        processClass(cls->uses[i]);
-        addMixin(cls, cls->uses[i]);
+        processClass(cls->uses.a[i]);
+        addMixin(cls, cls->uses.a[i]);
     }
 
     // create the class interface
@@ -319,7 +321,7 @@ bool processClass(Class *cls)
         // we are not implementing ourselves
         if (cls->abstract) {
             for (int i = 0; i < saSize(&cls->implements); i++)
-                addAbstractInterfaces(&clsif->allmethods, cls->implements[i]);
+                addAbstractInterfaces(&clsif->allmethods, cls->implements.a[i]);
         }
         if (saSize(&clsif->allmethods) > 0) {
             htInsert(&ifidx, string, clsif->name, object, clsif, Ignore);
@@ -332,7 +334,7 @@ bool processClass(Class *cls)
     } else {
         // mark mixin methods
         for (int i = 0; i < saSize(&cls->methods); i++)
-            cls->methods[i]->mixin = true;
+            cls->methods.a[i]->mixin = true;
 
         if (!cls->included)
             needmixinimpl = true;
@@ -365,11 +367,11 @@ bool processClass(Class *cls)
         // copy interface methods into our allmethods table since we're not
         // implementing them, but child classes still need them
         for (int i = 0; i < saSize(&cls->implements); i++)
-            addAbstractInterfaces(&cls->allmethods, cls->implements[i]);
+            addAbstractInterfaces(&cls->allmethods, cls->implements.a[i]);
 
         // delete any methods that are explictly marked abstract (no implementation)
         for (int i = saSize(&cls->methods) - 1; i >= 0; --i) {
-            if (getAnnotation(&cls->methods[i]->annotations, _S"abstract"))
+            if (getAnnotation(NULL, &cls->methods.a[i]->annotations, _S"abstract"))
                 saRemove(&cls->methods, i);
         }
     }
@@ -385,8 +387,8 @@ bool processClass(Class *cls)
 bool processClasses()
 {
     for (int i = 0; i < saSize(&classes); i++) {
-        if (!processClass(classes[i])) {
-            printf("Error processing class '%s'\n", strC(classes[i]->name));
+        if (!processClass(classes.a[i])) {
+            printf("Error processing class '%s'\n", strC(classes.a[i]->name));
             return false;
         }
     }

@@ -86,3 +86,10 @@ class Class implements Sortable {
 
     factory create();
 }
+
+class ComplexArrayType {
+    string tname;
+    string tsubtype;
+
+    factory create();
+}

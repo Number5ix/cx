@@ -9,10 +9,12 @@ void stvlInit(stvlist *list, int count, stvar *vars)
 }
 
 // Initialize a list from an sarray of stvars
-void stvlInitSA(stvlist *list, stvar *vararray)
+void _stvlInitSA(stvlist *list, stvar *vara)
 {
+    // slightly ugly here since we want stvar to be usable without including sarray.h
+    sarrayref(stvar) vararray = { .a = vara };
     list->count = saSize(&vararray);
-    list->vars = vararray;
+    list->vars = vara;
     list->cursor = 0;
 }
 

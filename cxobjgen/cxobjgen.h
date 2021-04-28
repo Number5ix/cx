@@ -5,24 +5,26 @@
 #include <cx/fs/fs.h>
 #include <cx/fs/path.h>
 
-extern Interface **ifaces;
+extern sa_Interface ifaces;
 extern hashtable ifidx;
-extern Class **classes;
+extern sa_Class classes;
 extern hashtable clsidx;
-extern string *includes;
-extern string *implincludes;
-extern string *deps;
-extern string *structs;
+extern sa_string includes;
+extern sa_string implincludes;
+extern sa_string deps;
+extern sa_string structs;
+extern sa_ComplexArrayType artypes;
+extern hashtable knownartypes;
 extern string cpassthrough;
 extern bool needmixinimpl;
 
 char *lazyPlatformPath(string path);
-bool parseFile(string fname, string *realfn, string *searchpath, bool included, bool required);
+bool parseFile(string fname, string *realfn, sa_string searchpath, bool included, bool required);
 bool processInterfaces();
 bool processClasses();
 bool writeHeader(string fname);
 bool writeImpl(string fname, bool mixinimpl);
-string* getAnnotation(string*** annotations, string afind);
+bool getAnnotation(sa_string *out, sa_sarray_string *annotations, string afind);
 
 void methodImplName(string *out, Class *cls, string mname);
 void methodCallName(string *out, Class *cls, string mname);

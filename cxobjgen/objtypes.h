@@ -8,6 +8,14 @@ typedef struct Method Method;
 typedef struct Interface Interface;
 typedef struct Member Member;
 typedef struct Class Class;
+typedef struct ComplexArrayType ComplexArrayType;
+saDeclarePtr(Param);
+saDeclarePtr(Method);
+saDeclarePtr(Interface);
+saDeclarePtr(Member);
+saDeclarePtr(Class);
+saDeclarePtr(ComplexArrayType);
+saDeclareType(sarray_string, sa_string);
 
 typedef struct Method_ClassIf {
     ObjIface *_implements;
@@ -61,7 +69,8 @@ typedef struct Param {
     string postdecr;
 } Param;
 extern ObjClassInfo Param_clsinfo;
-#define Param(inst) ((Param*)(&((inst)->_is_Param), (inst)))
+#define Param(inst) ((Param*)((inst) && &((inst)->_is_Param), (inst)))
+#define ParamNone ((Param*)NULL)
 
 Param *Param_create();
 #define paramCreate() Param_create()
@@ -82,8 +91,8 @@ typedef struct Method {
     string returntype;
     string predecr;
     string name;
-    Param **params;
-    string **annotations;
+    sa_Param params;
+    sa_sarray_string annotations;
     bool isinit;
     bool isdestroy;
     bool isfactory;
@@ -93,7 +102,8 @@ typedef struct Method {
     bool mixin;
 } Method;
 extern ObjClassInfo Method_clsinfo;
-#define Method(inst) ((Method*)(&((inst)->_is_Method), (inst)))
+#define Method(inst) ((Method*)((inst) && &((inst)->_is_Method), (inst)))
+#define MethodNone ((Method*)NULL)
 
 Method *Method_create();
 #define methodCreate() Method_create()
@@ -111,14 +121,15 @@ typedef struct Interface {
 
     string name;
     Interface *parent;
-    Method **methods;
+    sa_Method methods;
     bool included;
     bool processed;
     bool classif;
-    Method **allmethods;
+    sa_Method allmethods;
 } Interface;
 extern ObjClassInfo Interface_clsinfo;
-#define Interface(inst) ((Interface*)(&((inst)->_is_Interface), (inst)))
+#define Interface(inst) ((Interface*)((inst) && &((inst)->_is_Interface), (inst)))
+#define InterfaceNone ((Interface*)NULL)
 
 Interface *Interface_create();
 #define interfaceCreate() Interface_create()
@@ -133,19 +144,20 @@ typedef struct Member {
     };
     atomic(intptr) _ref;
 
-    string *fulltype;
+    sa_string fulltype;
     string vartype;
     string predecr;
     string name;
     string postdecr;
-    string **annotations;
+    sa_sarray_string annotations;
     Class *mixinsrc;
     string initstr;
     bool init;
     bool destroy;
 } Member;
 extern ObjClassInfo Member_clsinfo;
-#define Member(inst) ((Member*)(&((inst)->_is_Member), (inst)))
+#define Member(inst) ((Member*)((inst) && &((inst)->_is_Member), (inst)))
+#define MemberNone ((Member*)NULL)
 
 Member *Member_create();
 #define memberCreate() Member_create()
@@ -163,12 +175,12 @@ typedef struct Class {
     string name;
     Class *parent;
     Interface *classif;
-    Interface **implements;
-    Class **uses;
-    Member **members;
-    Method **methods;
-    string *overrides;
-    string **annotations;
+    sa_Interface implements;
+    sa_Class uses;
+    sa_Member members;
+    sa_Method methods;
+    sa_string overrides;
+    sa_sarray_string annotations;
     bool abstract;
     bool mixin;
     bool hasinit;
@@ -178,13 +190,33 @@ typedef struct Class {
     bool hasautoinit;
     bool hasautodtors;
     string methodprefix;
-    Member **allmembers;
-    Method **allmethods;
+    sa_Member allmembers;
+    sa_Method allmethods;
 } Class;
 extern ObjClassInfo Class_clsinfo;
-#define Class(inst) ((Class*)(&((inst)->_is_Class), (inst)))
+#define Class(inst) ((Class*)((inst) && &((inst)->_is_Class), (inst)))
+#define ClassNone ((Class*)NULL)
 
 Class *Class_create();
 #define classCreate() Class_create()
 #define classCmp(self, other, flags) (self)->_->cmp(Class(self), other, flags)
+
+typedef struct ComplexArrayType {
+    ObjIface *_;
+    union {
+        ObjClassInfo *_clsinfo;
+        void *_is_ComplexArrayType;
+        void *_is_ObjInst;
+    };
+    atomic(intptr) _ref;
+
+    string tname;
+    string tsubtype;
+} ComplexArrayType;
+extern ObjClassInfo ComplexArrayType_clsinfo;
+#define ComplexArrayType(inst) ((ComplexArrayType*)((inst) && &((inst)->_is_ComplexArrayType), (inst)))
+#define ComplexArrayTypeNone ((ComplexArrayType*)NULL)
+
+ComplexArrayType *ComplexArrayType_create();
+#define complexarraytypeCreate() ComplexArrayType_create()
 

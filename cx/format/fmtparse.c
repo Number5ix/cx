@@ -198,13 +198,13 @@ bool _fmtParseVar(FMTContext *ctx)
         // look for all-numeric width
         for (int32 i = saSize(&ctx->v.fmtopts) - 1; i >= 0; --i) {
             int32 w;
-            if (strToInt32(&w, ctx->v.fmtopts[i], 10, true)) {
+            if (strToInt32(&w, ctx->v.fmtopts.a[i], 10, true)) {
                 if (ctx->v.width != -1)
                     goto out;           // already have one!
                 ctx->v.width = w;
                 saRemove(&ctx->v.fmtopts, i);
             } else {
-                fmtParseOpt(ctx, ctx->v.fmtopts[i], vtype);
+                fmtParseOpt(ctx, ctx->v.fmtopts.a[i], vtype);
             }
         }
     }

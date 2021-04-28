@@ -7,6 +7,7 @@
 
 typedef struct VFSDir VFSDir;
 typedef struct VFSVFSFile VFSVFSFile;
+saDeclarePtr(VFSVFSFile);
 
 typedef struct VFSVFSFile_ClassIf {
     ObjIface *_implements;

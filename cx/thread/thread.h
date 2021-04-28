@@ -4,6 +4,7 @@
 #include <cx/core/stvar.h>
 #include <cx/platform/base.h>
 #include <cx/thread/atomic.h>
+#include <cx/container/sarray.h>
 
 // args is an sarray
 typedef struct Thread Thread;
@@ -13,7 +14,7 @@ typedef int(*threadFunc)(Thread *self);
 typedef struct Thread {
     threadFunc entry;
     stvlist args;
-    stvar *_argsa;          // sarray, should use the stvlist instead where possible
+    sa_stvar _argsa;            // should use the stvlist instead where possible
 
     atomic(bool) running;
     atomic(bool) requestExit;

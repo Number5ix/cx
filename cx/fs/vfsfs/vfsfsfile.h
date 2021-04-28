@@ -6,6 +6,7 @@
 #include <cx/fs/file.h>
 
 typedef struct VFSFSFile VFSFSFile;
+saDeclarePtr(VFSFSFile);
 
 typedef struct VFSFSFile_ClassIf {
     ObjIface *_implements;

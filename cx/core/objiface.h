@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cx/cx.h>
+#include <cx/container/sarray.h>
 
 // An interface is similar to an abstract class in that it is a list of functions which
 // fulfills a contract.
@@ -30,6 +31,7 @@ typedef struct ObjIface
 
     // interface method pointers beyond this point
 } ObjIface;
+saDeclarePtr(ObjIface);
 
 // standard naming
 #define objIfTmplName(iface) iface##_tmpl

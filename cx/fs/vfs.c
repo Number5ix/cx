@@ -76,8 +76,9 @@ VFSDir *_vfsGetDir(VFS *vfs, strref path, bool isfile, bool cache, bool writeloc
 {
     VFSDir *d, *ret = 0;
     string(ns);
-    string *components = 0;
+    sa_string components;
 
+    saInit(&components, string, 8, Grow(Aggressive));
     pathDecompose(&ns, &components, path);
 
     if (strEmpty(ns)) {
@@ -87,7 +88,7 @@ VFSDir *_vfsGetDir(VFS *vfs, strref path, bool isfile, bool cache, bool writeloc
         goto out;
     }
 
-    ret = _vfsGetDirInternal(vfs, d, components, saSize(&components) - (isfile ? 1 : 0), cache, clockTimer(), writelockheld);
+    ret = _vfsGetDirInternal(vfs, d, components.a, saSize(&components) - (isfile ? 1 : 0), cache, clockTimer(), writelockheld);
 
 out:
     strDestroy(&ns);
@@ -324,7 +325,7 @@ static int vfsFindCISub(VFSDir *vdir, string *out, strref path,
     return ret;
 }
 
-int _vfsFindCIHelper(VFS *vfs, VFSDir *vdir, string *out, string *components, VFSMount *mount, VFSProvider *provif)
+int _vfsFindCIHelper(VFS *vfs, VFSDir *vdir, string *out, sa_string components, VFSMount *mount, VFSProvider *provif)
 {
     // This is ugly and slow. The hope is that once a given file is found, the
     // VFS cache helps take the edge off. All these dir searches help populate
@@ -338,7 +339,7 @@ int _vfsFindCIHelper(VFS *vfs, VFSDir *vdir, string *out, string *components, VF
     rwlockReleaseRead(&vfs->vfslock);
     rwlockAcquireWrite(&vfs->vfslock);
 
-    ret = vfsFindCISub(vdir, out, NULL, components, 0, saSize(&components) - 1, mount, provif);
+    ret = vfsFindCISub(vdir, out, NULL, components.a, 0, saSize(&components) - 1, mount, provif);
 
     rwlockReleaseWrite(&vfs->vfslock);
     rwlockAcquireRead(&vfs->vfslock);
@@ -383,71 +384,73 @@ VFSMount *_vfsFindMount(VFS *vfs, string *rpath, strref path, VFSMount **cowmoun
     VFSMount *firstwritable = 0;
     string(firstwpath);
     string(ns);
-    string *components = 0, *relcomp = 0;
+    sa_string components;
+    sa_string relcomp = saInitNone;
 
+    saInit(&components, string, 8, Grow(Aggressive));
     pathDecompose(&ns, &components, abspath);
 
     int32 relstart = saSize(&components) - 1;
     while (pdir) {
         devAssert(relstart >= 0);
         saDestroy(&relcomp);
-        relcomp = saSlice(&components, relstart, 0);
+        saSlice(&relcomp, &components, relstart, 0);
         strJoin(&curpath, relcomp, fsPathSepStr);
 
         // traverse list of registered providers backwards, as providers registered later
         // are "higher" on the stack
         for (int i = saSize(&pdir->mounts) - 1; i >= 0; --i) {
             // save first writable provider we find
-            if (!firstwritable && !(pdir->mounts[i]->flags & VFS_ReadOnly)) {
-                firstwritable = pdir->mounts[i];
+            if (!firstwritable && !(pdir->mounts.a[i]->flags & VFS_ReadOnly)) {
+                firstwritable = pdir->mounts.a[i];
                 strDup(&firstwpath, curpath);
             }
 
-            if (cowmount && (pdir->mounts[i]->flags & VFS_AlwaysCOW)) {
+            if (cowmount && (pdir->mounts.a[i]->flags & VFS_AlwaysCOW)) {
                 // this provider wants to get COW copies for any write
-                *cowmount = pdir->mounts[i];
+                *cowmount = pdir->mounts.a[i];
                 strDup(cowrpath, curpath);
                 cowmount = NULL;        // don't let anything else set it
             }
 
-            VFSProvider *provif = objInstIf(pdir->mounts[i]->provider, VFSProvider);
+            VFSProvider *provif = objInstIf(pdir->mounts.a[i]->provider, VFSProvider);
             if (!provif)
                 continue;
 
             int stat;
-            if (!(vfs->flags & VFS_CaseSensitive) && (pdir->mounts[i]->flags & VFS_CaseSensitive)) {
+            if (!(vfs->flags & VFS_CaseSensitive) && (pdir->mounts.a[i]->flags & VFS_CaseSensitive)) {
                 // case-sensitive file system on insensitive VFS, find the real underlying path
-                stat = _vfsFindCIHelper(vfs, vfsdir, &curpath, relcomp, pdir->mounts[i], provif);
+                stat = _vfsFindCIHelper(vfs, vfsdir, &curpath, relcomp, pdir->mounts.a[i], provif);
             } else {
                 // check if this exists
                 // drop the lock here to avoid deadlocking on a loopback VFSVFS
                 rwlockReleaseRead(&vfs->vfslock);
-                stat = provif->stat(pdir->mounts[i]->provider, curpath, NULL);
+                stat = provif->stat(pdir->mounts.a[i]->provider, curpath, NULL);
                 rwlockAcquireRead(&vfs->vfslock);
             }
 
             if (stat == FS_Directory) {
                 // found a directory, don't cache this as a file
-                ret = pdir->mounts[i];
+                ret = pdir->mounts.a[i];
                 strDup(rpath, curpath);
                 flcache = false;
                 goto done;
             } else if (stat == FS_File) {
                 // found an existing file
-                ret = pdir->mounts[i];
+                ret = pdir->mounts.a[i];
                 strDup(rpath, curpath);
                 goto done;
             }
 
             // do we capture new files on this layer?
-            if (flcreate && (pdir->mounts[i]->flags & VFS_NewFiles)) {
-                ret = pdir->mounts[i];
+            if (flcreate && (pdir->mounts.a[i]->flags & VFS_NewFiles)) {
+                ret = pdir->mounts.a[i];
                 strDup(rpath, curpath);
                 // do not exit, keep searching to see if it exists in a lower layer
             }
 
             // if this layer is opaque, the buck stops here
-            if (pdir->mounts[i]->flags & VFS_Opaque)
+            if (pdir->mounts.a[i]->flags & VFS_Opaque)
                 goto done;
         }
 
@@ -475,7 +478,7 @@ done:
     if (ret && flcache && !(ret->flags & VFS_NoCache)) {
         rwlockAcquireWrite(&vfs->vfslock);
         VFSCacheEnt *newent = _vfsCacheEntCreate(ret, *rpath);
-        htInsertC(&vfsdir->files, string, components[saSize(&components) - 1], ptr, &newent, Ignore);
+        htInsertC(&vfsdir->files, string, components.a[saSize(&components) - 1], ptr, &newent, Ignore);
         rwlockReleaseWrite(&vfs->vfslock);
     }
     rwlockReleaseRead(&vfs->vfsdlock);

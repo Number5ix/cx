@@ -21,7 +21,7 @@ void Param_destroy(Param *self)
 bool Method_init(Method *self)
 {
     // Autogen begins -----
-    self->params = saCreate(object, 1);
+    saInit(&self->params, object, 1);
     return true;
     // Autogen ends -------
 }
@@ -49,8 +49,8 @@ void Method_destroy(Method *self)
 bool Interface_init(Interface *self)
 {
     // Autogen begins -----
-    self->methods = saCreate(object, 1);
-    self->allmethods = saCreate(object, 1);
+    saInit(&self->methods, object, 1);
+    saInit(&self->allmethods, object, 1);
     return true;
     // Autogen ends -------
 }
@@ -96,13 +96,13 @@ void Member_destroy(Member *self)
 bool Class_init(Class *self)
 {
     // Autogen begins -----
-    self->implements = saCreate(object, 1);
-    self->uses = saCreate(object, 1);
-    self->members = saCreate(object, 1);
-    self->methods = saCreate(object, 1);
-    self->overrides = saCreate(string, 1);
-    self->allmembers = saCreate(object, 1);
-    self->allmethods = saCreate(object, 1);
+    saInit(&self->implements, object, 1);
+    saInit(&self->uses, object, 1);
+    saInit(&self->members, object, 1);
+    saInit(&self->methods, object, 1);
+    saInit(&self->overrides, string, 1);
+    saInit(&self->allmembers, object, 1);
+    saInit(&self->allmethods, object, 1);
     return true;
     // Autogen ends -------
 }
@@ -193,7 +193,7 @@ Method *Method_clone(Method *self)
     strDup(&ret->predecr, self->predecr);
     strDup(&ret->name, self->name);
     stCopy(sarray, &ret->params, self->params);
-    if (self->annotations)
+    if (self->annotations.a)
         stCopy(sarray, &ret->annotations, self->annotations);
 
     ret->isinit = self->isinit;
@@ -203,6 +203,27 @@ Method *Method_clone(Method *self)
     ret->unbound = self->unbound;
     ret->mixin = self->mixin;
     return ret;
+}
+
+ComplexArrayType *ComplexArrayType_create()
+{
+    ComplexArrayType *self;
+    self = objInstCreate(ComplexArrayType);
+
+    if (!objInstInit(self)) {
+        objRelease(self);
+        return NULL;
+    }
+
+    return self;
+}
+
+void ComplexArrayType_destroy(ComplexArrayType *self)
+{
+    // Autogen begins -----
+    strDestroy(&self->tname);
+    strDestroy(&self->tsubtype);
+    // Autogen ends -------
 }
 
 // Autogen begins -----

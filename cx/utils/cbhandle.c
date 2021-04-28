@@ -6,16 +6,17 @@ typedef struct CallbackHandle {
     void *func;
     char *type;
 } CallbackHandle;
+saDeclare(CallbackHandle);
 
 static LazyInitState cbinit;
-static CallbackHandle *handles;
+static sa_CallbackHandle handles;
 static hashtable handleidx;
 
 static void callbackInit(void *data)
 {
     CallbackHandle nhandle = { 0 };
 
-    handles = saCreate(opaque(CallbackHandle), 0);
+    saInit(&handles, opaque(CallbackHandle), 0);
     saPush(&handles, opaque, nhandle);          // so that 0 is not a valid handle
     handleidx = htCreate(ptr, int32, 16);
 }
@@ -46,8 +47,8 @@ GenericCallback _callbackGetFunc(const char *cbtype, int handle)
     if (handle < 1 || handle >= saSize(&handles))
         return NULL;
 
-    if (strcmp(cbtype, handles[handle].type) != 0)
+    if (strcmp(cbtype, handles.a[handle].type) != 0)
         return NULL;
 
-    return handles[handle].func;
+    return handles.a[handle].func;
 }

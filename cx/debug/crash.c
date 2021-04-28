@@ -10,8 +10,10 @@ Mutex _dbgCrashMutex;
 
 LazyInitState _dbgCrashInitState;
 atomic(uint32) _dbgCrashMode;
-static dbgCrashCallback *callbacks;
-CrashExtraMeta *_dbgCrashExtraMeta;
+
+saDeclare(dbgCrashCallback);
+static sa_dbgCrashCallback callbacks;
+sa_CrashExtraMeta _dbgCrashExtraMeta;
 
 void dbgCrashSetMode(uint32 mode)
 {
@@ -29,8 +31,8 @@ void dbgCrashAddCallback(dbgCrashCallback cb)
 {
     lazyInit(&_dbgCrashInitState, _dbgCrashInit, 0);
     mutexAcquire(&_dbgCrashMutex);
-    if (!callbacks)
-        callbacks = saCreate(ptr, 0);
+    if (!callbacks.a)
+        saInit(&callbacks, ptr, 0);
 
     saPush(&callbacks, ptr, cb, Unique);
     mutexRelease(&_dbgCrashMutex);
@@ -40,7 +42,7 @@ void dbgCrashRemoveCallback(dbgCrashCallback cb)
 {
     lazyInit(&_dbgCrashInitState, _dbgCrashInit, 0);
     mutexAcquire(&_dbgCrashMutex);
-    saFind(&cb, ptr, cb, Destroy);
+    saFind(&callbacks, ptr, cb, Destroy);
     mutexRelease(&_dbgCrashMutex);
 }
 
@@ -167,7 +169,7 @@ void dbgCrashAddVersionInt(const char *name, int val)
 void _dbgCrashInit(void *data)
 {
     mutexInit(&_dbgCrashMutex);
-    _dbgCrashExtraMeta = saCreate(custom(opaque(CrashExtraMeta), extraMetaOps), 1, Sorted);
+    saInit(&_dbgCrashExtraMeta, custom(opaque(CrashExtraMeta), extraMetaOps), 1, Sorted);
     bboxInit();
 
     _dbgCrashPlatformInit();

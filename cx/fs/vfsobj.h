@@ -7,6 +7,8 @@
 typedef struct VFSDir VFSDir;
 typedef struct VFS VFS;
 typedef struct VFSMount VFSMount;
+saDeclarePtr(VFS);
+saDeclarePtr(VFSMount);
 
 typedef struct VFS {
     ObjIface *_;

@@ -12,16 +12,18 @@ typedef struct CrashExtraMeta {
     int val;
     bool version;
 } CrashExtraMeta;
+saDeclare(CrashExtraMeta);
 
 typedef struct CrashMemRange {
     uintptr start;
     uintptr end;
 } CrashMemRange;
+saDeclare(CrashMemRange);
 
 extern LazyInitState _dbgCrashInitState;
 extern atomic(uint32) _dbgCrashMode;
-extern CrashExtraMeta *_dbgCrashExtraMeta;
-extern CrashMemRange *_dbgCrashDumpMem;
+extern sa_CrashExtraMeta _dbgCrashExtraMeta;
+extern sa_CrashMemRange _dbgCrashDumpMem;
 extern Mutex _dbgCrashMutex;
 
 void _dbgCrashInit(void *data);

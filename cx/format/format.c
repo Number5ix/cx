@@ -69,7 +69,7 @@ static void fmtVarReset(FMTVar *v)
 
 static void fmtVarCreate(FMTVar *v)
 {
-    v->fmtopts = saCreate(string, 4);
+    saInit(&v->fmtopts, string, 4);
 }
 
 static void fmtVarDestroy(FMTVar *v)

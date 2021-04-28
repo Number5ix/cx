@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cx/cx.h>
+#include <cx/container/sarray.h>
 
 // ---------- Platform-indepedent path manipulation ----------
 // All pathnames are UTF-8!
@@ -21,10 +22,10 @@ void pathNormalize(string *path);
 
 // Same as pathNormalize, but outputs an sarray of strings
 // returns true if it was an absolute path, false for relative
-bool pathDecompose(string *ns, string **components, strref path);
+bool pathDecompose(string *ns, sa_string *components, strref path);
 
 // Recomposes a path
-bool pathCompose(string *out, strref ns, string *components);
+bool pathCompose(string *out, strref ns, sa_string components);
 
 // Is this an absolute or relative path?
 bool pathIsAbsolute(strref path);

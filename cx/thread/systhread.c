@@ -10,8 +10,9 @@ typedef struct SysThread {
     Event notify;
 } SysThread;
 
+saDeclarePtr(SysThread);
 static Mutex systhreadLock;
-static SysThread** systhreads;
+static sa_SysThread systhreads;
 static LazyInitState systhreadInitState;
 
 static void SysThread_destroy(stype st, stgeneric *gen, uint32 flags)
@@ -37,8 +38,8 @@ static void systhreadAtExit(void)
 
     mutexAcquire(&systhreadLock);
     for (int idx = 0, idxmax = saSize(&systhreads); idx < idxmax; idx++) {
-        thrRequestExit(systhreads[idx]->thr);
-        eventSignalLock(&systhreads[idx]->notify);
+        thrRequestExit(systhreads.a[idx]->thr);
+        eventSignalLock(&systhreads.a[idx]->notify);
     }
 
     // this will call SysThread_destroy, and destroying threads with thrDestroy
@@ -51,7 +52,7 @@ static void systhreadAtExit(void)
 static void systhreadInit(void *unused)
 {
     mutexInit(&systhreadLock);
-    systhreads = saCreate(custom(ptr, SysThread_ops), 8);
+    saInit(&systhreads, custom(ptr, SysThread_ops), 8);
     atexit(systhreadAtExit);
 }
 

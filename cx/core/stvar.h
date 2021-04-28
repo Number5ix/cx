@@ -34,7 +34,8 @@ typedef struct stvlist {
 void stvlInit(stvlist *list, int count, stvar *vars);
 
 // Initialize a list from an sarray of stvars
-void stvlInitSA(stvlist *list, stvar *vararray);
+void _stvlInitSA(stvlist *list, stvar *vara);
+#define stvlInitSA(list, vararray) _stvlInitSA(list, (vararray).a)
 
 // Get the next variable of the specific type, if it exists
 bool _stvlNext(stvlist *list, stype type, stgeneric *out);

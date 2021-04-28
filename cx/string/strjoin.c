@@ -1,9 +1,9 @@
 #include "string_private.h"
 #include "cx/container/sarray.h"
 
-bool strJoin(string *o, string *arr, strref sep)
+bool strJoin(string *o, sa_string arr, strref sep)
 {
-    if (!o || !arr)
+    if (!o)
         return false;
 
     uint32 seplen = strLen(sep), seglen;
@@ -20,23 +20,23 @@ bool strJoin(string *o, string *arr, strref sep)
 
     uint32 sz = 0;
     for (i = 0; i < arrsize; i++) {
-        sz += strLen(arr[i]) + (i > 0 ? seplen : 0);
-        encoding &= STR_HDR(arr[i]) & STR_ENCODING_MASK;
+        sz += strLen(arr.a[i]) + (i > 0 ? seplen : 0);
+        encoding &= STR_HDR(arr.a[i]) & STR_ENCODING_MASK;
     }
 
     _strReset(o, sz);
     char *p = STR_BUFFER(*o);
 
-    seglen = _strFastLen(arr[0]);
-    _strFastCopy(arr[0], 0, p, seglen);
+    seglen = _strFastLen(arr.a[0]);
+    _strFastCopy(arr.a[0], 0, p, seglen);
     p += seglen;
     for (i = 1; i < arrsize; i++) {
-        if (STR_CHECK_VALID(arr[i])) {
+        if (STR_CHECK_VALID(arr.a[i])) {
             _strFastCopy(sep, 0, p, seplen);
             p += seplen;
 
-            seglen = _strFastLen(arr[i]);
-            _strFastCopy(arr[i], 0, p, seglen);
+            seglen = _strFastLen(arr.a[i]);
+            _strFastCopy(arr.a[i], 0, p, seglen);
             p += seglen;
         }
     }

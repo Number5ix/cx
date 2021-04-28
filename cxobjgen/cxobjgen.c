@@ -3,14 +3,16 @@
 #include <cx/string.h>
 #include <cx/utils.h>
 
-Interface **ifaces;
+sa_Interface ifaces;
 hashtable ifidx;
-Class **classes;
+sa_Class classes;
 hashtable clsidx;
-string *includes;
-string *implincludes;
-string *deps;
-string *structs;
+sa_string includes;
+sa_string implincludes;
+sa_string deps;
+sa_string structs;
+sa_ComplexArrayType artypes;
+hashtable knownartypes;
 string cpassthrough;
 bool needmixinimpl;
 
@@ -19,20 +21,22 @@ bool upToDate(string fname);
 int main(int argc, char *argv[])
 {
     bool force = false;
-    string *sidlfiles;
-    string *searchpath;
+    sa_string sidlfiles;
+    sa_string searchpath;
     string fname = 0;
-    ifaces = saCreate(object, 16);
+    saInit(&ifaces, object, 16);
     ifidx = htCreate(string, object, 16);
-    classes = saCreate(object, 16);
+    saInit(&classes, object, 16);
     clsidx = htCreate(string, object, 16);
-    includes = saCreate(string, 8);
-    implincludes = saCreate(string, 4);
-    deps = saCreate(string, 8);
-    structs = saCreate(string, 8);
+    saInit(&includes, string, 8);
+    saInit(&implincludes, string, 4);
+    saInit(&deps, string, 8);
+    saInit(&structs, string, 8);
+    saInit(&artypes, object, 8);
+    knownartypes = htCreate(string, bool, 16);
 
-    searchpath = saCreate(string, 8);
-    sidlfiles = saCreate(string, 4);
+    saInit(&searchpath, string, 8);
+    saInit(&sidlfiles, string, 4);
 
     string tmp = 0;
     for (int i = 1; i < argc; i++) {
@@ -58,18 +62,20 @@ int main(int argc, char *argv[])
         saClear(&includes);
         saClear(&implincludes);
         saClear(&structs);
+        saClear(&artypes);
+        htClear(&knownartypes);
         strDestroy(&cpassthrough);
         needmixinimpl = false;
 
         // standard interfaces should always be available, but it's non-fatal if
         // the file can't be located
-        if (!strEndsWith(sidlfiles[i], _S"objstdif.sidl")) {
+        if (!strEndsWith(sidlfiles.a[i], _S"objstdif.sidl")) {
             strDup(&fname, _S"cx/core/objstdif.sidl");
             parseFile(fname, NULL, searchpath, true, false);
             strClear(&fname);
         }
 
-        if (!parseFile(sidlfiles[i], &fname, searchpath, false, true))
+        if (!parseFile(sidlfiles.a[i], &fname, searchpath, false, true))
             break;
 
         if (strEmpty(fname))        // already parsed this file
@@ -127,7 +133,7 @@ bool upToDate(string fname)
     fsStat(fname, &statv);
     int64 newestsrc = statv.modified;
     for (int i = 0; i < saSize(&deps); i++) {
-        if (fsStat(deps[i], &statv))
+        if (fsStat(deps.a[i], &statv))
             newestsrc = max(newestsrc, statv.modified);
     }
 

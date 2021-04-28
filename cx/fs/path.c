@@ -191,7 +191,7 @@ static bool pathNormalized(strref path)
     return true;
 }
 
-bool pathDecompose(string *ns, string **components, strref pathin)
+bool pathDecompose(string *ns, sa_string *components, strref pathin)
 {
     string(rpath);
 
@@ -205,11 +205,11 @@ bool pathDecompose(string *ns, string **components, strref pathin)
     strSplit(components, rpath, fsPathSepStr, true);
 
     for (int32 i = 0, csz = saSize(components); i < csz; i++) {
-        if (i > 0 && strEmpty((*components)[i])) {
+        if (i > 0 && strEmpty(components->a[i])) {
             // remove empty components, but not from position 0 (absolute path)
             saRemove(components, i--);
             csz--;
-        } else if (i > 0 && strEq((*components)[i], _S"..")) {
+        } else if (i > 0 && strEq(components->a[i], _S"..")) {
             // eat previous component
             // only allowed work in position 1 or later to avoid breaking relative paths
             saRemove(components, i--);
@@ -219,7 +219,7 @@ bool pathDecompose(string *ns, string **components, strref pathin)
                 saRemove(components, i--);
                 csz--;
             }
-        } else if (strEq((*components)[i], _S".")) {
+        } else if (strEq(components->a[i], _S".")) {
             // does nothing, just delete this component
             saRemove(components, i--);
             csz--;
@@ -227,7 +227,7 @@ bool pathDecompose(string *ns, string **components, strref pathin)
     }
 
     // handle degenerate case of namespace: or namespace:path with no /
-    if (absolute && (saSize(components) == 0 || !strEmpty((*components)[0]))) {
+    if (absolute && (saSize(components) == 0 || !strEmpty(components->a[0]))) {
         saInsert(components, 0, string, _S);
     }
 
@@ -235,12 +235,12 @@ bool pathDecompose(string *ns, string **components, strref pathin)
     return absolute;
 }
 
-bool pathCompose(string *out, strref ns, string *components)
+bool pathCompose(string *out, strref ns, sa_string components)
 {
     string(rpath);
 
     strJoin(&rpath, components, fsPathSepStr);
-    if (saSize(&components) == 1 && strEmpty(components[0]))
+    if (saSize(&components) == 1 && strEmpty(components.a[0]))
         strAppend(&rpath, fsPathSepStr);                // this was absolute with only a root
 
     if (!strEmpty(ns))
@@ -255,9 +255,10 @@ bool pathCompose(string *out, strref ns, string *components)
 void pathNormalize(string *path)
 {
     string(nspace);
-    string *components = 0;
-
+    
     if (!pathNormalized(*path)) {
+        sa_string components;
+        saInit(&components, string, 8, Grow(Aggressive));
         pathDecompose(&nspace, &components, *path);
         pathCompose(path, nspace, components);
         saDestroy(&components);

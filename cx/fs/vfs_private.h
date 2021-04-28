@@ -22,11 +22,12 @@ typedef struct VFSDirEnt {
     int type;
     FSStat stat;
 } VFSDirEnt;
+saDeclare(VFSDirEnt);
 
 typedef struct VFSSearch {
     VFS *vfs;
 
-    VFSDirEnt *ents;
+    sa_VFSDirEnt ents;
     int32 idx;
 } VFSSearch;
 
@@ -46,7 +47,7 @@ typedef struct VFSDir VFSDir;
 typedef struct VFSDir {
     string name;
     VFSDir *parent;
-    VFSMount **mounts;      // sarray of VFS providers mounted in this directory
+    sa_VFSMount mounts;     // VFS providers mounted in this directory
 
     hashtable subdirs;      // hashtable of string/VFSDir*
 
@@ -75,7 +76,7 @@ VFSMount *_vfsFindMount(VFS *vfs, string *rpath, strref path, VFSMount **cowmoun
 void _vfsInvalidateCache(VFS *vfs, strref path);
 void _vfsInvalidateRecursive(VFS *vfs, VFSDir *dir, bool havelock);
 void _vfsAbsPath(VFS *vfs, string *out, strref path);
-int _vfsFindCIHelper(VFS *vfs, VFSDir *vdir, string *out, string *components, VFSMount *mount, VFSProvider *provif);
+int _vfsFindCIHelper(VFS *vfs, VFSDir *vdir, string *out, sa_string components, VFSMount *mount, VFSProvider *provif);
 
 bool _vfsAddPlatformSpecificMounts(VFS *vfs);
 bool _vfsIsPlatformCaseSensitive();

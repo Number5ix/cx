@@ -12,7 +12,7 @@ Thread* _thrCreate(threadFunc func, int n, stvar args[])
         return NULL;
 
     ret->entry = func;
-    ret->_argsa = saCreate(stvar, 1);
+    saInit(&ret->_argsa, stvar, 1);
     for (int i = 0; i < n; i++) {
         saPush(&ret->_argsa, stvar, args[i]);
     }

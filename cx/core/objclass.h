@@ -36,7 +36,7 @@ typedef struct ObjClassInfo {
     // internal cache of certain functions so the interface doesn't have to be looked up
     intptr (*_cmp)(void *self, void *other, uint32 flags);
     uint32 (*_hash)(void *self, uint32 flags);
-    ObjIface **_impl;           // storage for hydrated implementations
+    sa_ObjIface _impl;          // storage for hydrated implementations
     hashtable _tmpl;            // mapping of interface templates to implementations
 } ObjClassInfo;
 

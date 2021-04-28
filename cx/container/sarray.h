@@ -2,6 +2,46 @@
 
 #include <cx/cx.h>
 #include <cx/debug/assert.h>
+#include <cx/container/sarray_types.h>
+
+#define sarrayref(typ) sa_##typ
+#define sarrayhdl(typ) sa_##typ*
+
+// for creating a named sarray type that can be passed between functions
+#define saDeclareType(name, typ) typedef union sa_##name { \
+    void *_is_sarray; \
+    void *_is_sarray_##name; \
+    typ *a; \
+} sa_##name
+#define saDeclare(name) saDeclareType(name, name)
+#define saDeclarePtr(name) saDeclareType(name, name*)
+#define saTHandle(name, h) ((sa_##name*)((h) && &((h)->is_sarray_##name), (h)))
+#define saInitNone { .a = 0 }
+
+// sarray type declarations
+typedef sa_gen sa_opaque;
+saDeclare(int8);
+saDeclare(int16);
+saDeclare(int32);
+saDeclare(int64);
+saDeclare(intptr);
+saDeclare(uint8);
+saDeclare(uint16);
+saDeclare(uint32);
+saDeclare(uint64);
+saDeclare(uintptr);
+saDeclare(bool);
+saDeclareType(size, size_t);
+saDeclare(float32);
+saDeclare(float64);
+saDeclareType(ptr, void*);
+saDeclare(string);
+// strref doesn't make sense in an sarray
+saDeclareType(object, ObjInst);
+saDeclareType(suid, SUID);
+saDeclare(stvar);
+saDeclareType(sarray, sa_gen);
+saDeclare(hashtable);
 
 typedef struct SArrayHeader {
     // sarray extended header begins here (only valid if SAINT_Extended is set)
@@ -83,70 +123,69 @@ enum SARRAY_FUNC_FLAGS_ENUM {
 #define SA_GET_GROW(flags) ((flags) >> 24)
 
 #define SARRAY_HDRSIZE (offsetof(SArrayHeader, data))
-#define SARRAY_HDR(handle) ((SArrayHeader*)(((uintptr)(handle)) - SARRAY_HDRSIZE))
+#define SARRAY_HDR(handle) ((SArrayHeader*)(((uintptr)(handle)->a) - SARRAY_HDRSIZE))
 
-#define saSize(handle) (*(handle) ? SARRAY_HDR(*(handle))->count : 0)
-#define saCapacity(handle) (*(handle) ? SARRAY_HDR(*(handle))->capacity : 0)
-#define saElemSize(handle) (*(handle) ? stGetSize(SARRAY_HDR(*(handle))->elemtype) : 0)
-#define saElemType(handle) (*(handle) ? SARRAY_HDR(*(handle))->elemtype : 0)
+#define saSize(handle) ((handle)->_is_sarray ? SARRAY_HDR(handle)->count : 0)
+#define saCapacity(handle) ((handle)->_is_sarray ? SARRAY_HDR(handle)->capacity : 0)
+#define saElemSize(handle) ((handle)->_is_sarray ? stGetSize(SARRAY_HDR(handle)->elemtype) : 0)
+#define saElemType(handle) ((handle)->_is_sarray ? SARRAY_HDR(handle)->elemtype : 0)
+#define saValid(handle) ((handle) && (handle)->a)
 
-#define SAHANDLE(h) ((void**)(h))
+void _saInit(sahandle out, stype elemtype, STypeOps *ops, int32 capacity, uint32 flags);
+#define saInit(out, type, capacity, ...) _saInit(SAHANDLE(out), stFullType(type), capacity, func_flags(SA, __VA_ARGS__))
 
-void *_saCreate(stype elemtype, STypeOps *ops, int32 capacity, uint32 flags);
-#define saCreate(type, capacity, ...) _saCreate(stFullType(type), capacity, func_flags(SA, __VA_ARGS__))
-
-void _saDestroy(void **handle);
+void _saDestroy(sahandle handle);
 #define saDestroy(handle) _saDestroy(SAHANDLE(handle));
 
-void _saReserve(void **handle, int32 capacity);
+void _saReserve(sahandle handle, int32 capacity);
 #define saReserve(handle, capacity) _saReserve(SAHANDLE(handle), capacity)
-void _saShrink(void **handle, int32 capacity);
+void _saShrink(sahandle handle, int32 capacity);
 #define saShrink(handle, capacity) _saShrink(SAHANDLE(handle), capacity)
-void _saSetSize(void **handle, int32 size);
+void _saSetSize(sahandle handle, int32 size);
 #define saSetSize(handle, size) _saSetSize(SAHANDLE(handle), size)
 
-void _saClear(void **handle);
+void _saClear(sahandle handle);
 #define saClear(handle) _saClear(SAHANDLE(handle))
 
-int32 _saPush(void **handle, stype elemtype, stgeneric elem, uint32 flags);
-int32 _saPushPtr(void **handle, stype elemtype, stgeneric *elem, uint32 flags);
+int32 _saPush(sahandle handle, stype elemtype, stgeneric elem, uint32 flags);
+int32 _saPushPtr(sahandle handle, stype elemtype, stgeneric *elem, uint32 flags);
 #define saPush(handle, type, elem, ...) _saPush(SAHANDLE(handle), stChecked(type, elem), func_flags(SAFUNC, __VA_ARGS__))
 // Consume version of push, requires that elem be a pointer
 #define saPushC(handle, type, elem, ...) _saPushPtr(SAHANDLE(handle), stCheckedPtr(type, elem), func_flags(SAFUNC, __VA_ARGS__) | SAFUNCINT_Consume)
 
 // Pointer pop transfers ownership to the caller and does not call the destructor
-void *_saPopPtr(void **handle, int32 idx);
+void *_saPopPtr(sahandle handle, int32 idx);
 #define saPopPtr(handle) _saPopPtr(SAHANDLE(handle), -1)
 #define saPopPtrI(handle, idx) _saPopPtr(SAHANDLE(handle), idx)
 
-int32 _saFind(void **handle, stgeneric elem, uint32 flags);
-_meta_inline int32 _saFindChecked(void **handle, stype elemtype, stgeneric elem, uint32 flags)
+int32 _saFind(sahandle handle, stgeneric elem, uint32 flags);
+_meta_inline int32 _saFindChecked(sahandle handle, stype elemtype, stgeneric elem, uint32 flags)
 {
-    if (!*handle)
+    if (!handle->_is_sarray)
         return -1;
     devAssert(stEq(saElemType(handle), elemtype));
     return _saFind(handle, elem, flags);
 }
 #define saFind(handle, type, elem, ...) _saFindChecked(SAHANDLE(handle), stChecked(type, elem), func_flags(SAFUNC, __VA_ARGS__))
 
-int32 _saInsert(void **handle, int32 idx, stgeneric elem);
-_meta_inline int32 _saInsertChecked(void **handle, int32 idx, stype elemtype, stgeneric elem)
+int32 _saInsert(sahandle, int32 idx, stgeneric elem);
+_meta_inline int32 _saInsertChecked(sahandle handle, int32 idx, stype elemtype, stgeneric elem)
 {
-    devAssert(*handle);
+    devAssert(handle->_is_sarray);
     devAssert(stEq(saElemType(handle), elemtype));
     return _saInsert(handle, idx, elem);
 }
 #define saInsert(handle, idx, type, elem) _saInsertChecked(SAHANDLE(handle), idx, stChecked(type, elem))
 
-bool _saRemove(void **handle, int32 idx, uint32 flags);
+bool _saRemove(sahandle handle, int32 idx, uint32 flags);
 #define saRemove(handle, idx, ...) _saRemove(SAHANDLE(handle), idx, func_flags(SAFUNC, __VA_ARGS__))
 
-void _saSort(void **handle, bool keep);
+void _saSort(sahandle handle, bool keep);
 #define saSort(handle, keep) _saSort(SAHANDLE(handle), keep)
 
-void *_saSlice(void **handle, int32 start, int32 end);
-#define saSlice(handle, start, end) _saSlice(SAHANDLE(handle), start, end)
+void _saSlice(sahandle out, sahandle handle, int32 start, int32 end);
+#define saSlice(out, handle, start, end) _saSlice(SAHANDLE(out), SAHANDLE(handle), start, end)
 
-void *_saMerge(int n, void **handles, uint32 flags);
-#define saMerge(...) _saMerge(sizeof((void*[]){ __VA_ARGS__ })/sizeof(void*), (void*[]){ __VA_ARGS__ }, 0)
-#define saMergeF(flags, ...) _saMerge(sizeof((void*[]){ __VA_ARGS__ })/sizeof(void*), (void*[]){ __VA_ARGS__ }, func_flags(SAFUNC, flags))
+void _saMerge(sahandle out, int n, sahandle *handles, uint32 flags);
+#define saMerge(out, ...) _saMerge(SAHANDLE(out), sizeof((sahandle[]){ __VA_ARGS__ })/sizeof(sahandle), (sahandle[]){ __VA_ARGS__ }, 0)
+#define saMergeF(out, flags, ...) _saMerge(SAHANDLE(out), sizeof((sahandle[]){ __VA_ARGS__ })/sizeof(sahandle), (sahandle[]){ __VA_ARGS__ }, func_flags(SAFUNC, flags))
