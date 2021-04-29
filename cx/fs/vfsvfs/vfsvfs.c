@@ -30,7 +30,7 @@ uint32 VFSVFS_flags(VFSVFS *self)
 
 ObjInst *VFSVFS_open(VFSVFS *self, strref path, int flags)
 {
-    string(vfspath);
+    string vfspath = 0;
     pathJoin(&vfspath, self->root, path);
 
     VFSFile *file = _vfsOpen(self->vfs, vfspath, flags);
@@ -44,7 +44,7 @@ ObjInst *VFSVFS_open(VFSVFS *self, strref path, int flags)
 
 int VFSVFS_stat(VFSVFS *self, strref path, FSStat *stat)
 {
-    string(vfspath);
+    string vfspath = 0;
     pathJoin(&vfspath, self->root, path);
 
     int ret = vfsStat(self->vfs, vfspath, stat);
@@ -55,7 +55,7 @@ int VFSVFS_stat(VFSVFS *self, strref path, FSStat *stat)
 
 bool VFSVFS_setTimes(VFSVFS *self, strref path, int64 modified, int64 accessed)
 {
-    string(vfspath);
+    string vfspath = 0;
     pathJoin(&vfspath, self->root, path);
 
     bool ret = vfsSetTimes(self->vfs, vfspath, modified, accessed);
@@ -66,7 +66,7 @@ bool VFSVFS_setTimes(VFSVFS *self, strref path, int64 modified, int64 accessed)
 
 bool VFSVFS_createDir(VFSVFS *self, strref path)
 {
-    string(vfspath);
+    string vfspath = 0;
     pathJoin(&vfspath, self->root, path);
 
     bool ret = vfsCreateDir(self->vfs, vfspath);
@@ -77,7 +77,7 @@ bool VFSVFS_createDir(VFSVFS *self, strref path)
 
 bool VFSVFS_removeDir(VFSVFS *self, strref path)
 {
-    string(vfspath);
+    string vfspath = 0;
     pathJoin(&vfspath, self->root, path);
 
     bool ret = vfsRemoveDir(self->vfs, vfspath);
@@ -88,7 +88,7 @@ bool VFSVFS_removeDir(VFSVFS *self, strref path)
 
 bool VFSVFS_deleteFile(VFSVFS *self, strref path)
 {
-    string(vfspath);
+    string vfspath = 0;
     pathJoin(&vfspath, self->root, path);
 
     bool ret = vfsDelete(self->vfs, vfspath);
@@ -99,7 +99,7 @@ bool VFSVFS_deleteFile(VFSVFS *self, strref path)
 
 bool VFSVFS_rename(VFSVFS *self, strref oldpath, strref newpath)
 {
-    string(vfsoldpath); string(vfsnewpath);
+    string vfsoldpath = 0, vfsnewpath = 0;
     pathJoin(&vfsoldpath, self->root, oldpath);
     pathJoin(&vfsnewpath, self->root, newpath);
 
@@ -120,7 +120,7 @@ void VFSVFS_destroy(VFSVFS *self)
 
 bool VFSVFS_searchInit(VFSVFS *self, FSSearchIter *iter, strref path, strref pattern, bool stat)
 {
-    string(vfspath);
+    string vfspath = 0;
 
     pathJoin(&vfspath, self->root, path);
     bool ret = vfsSearchInit(iter, self->vfs, vfspath, pattern, 0, stat);
@@ -140,7 +140,7 @@ void VFSVFS_searchFinish(VFSVFS *self, FSSearchIter *iter)
 
 bool VFSVFS_getFSPath(VFSVFS *self, string *out, strref path)
 {
-    string(vfspath);
+    string vfspath = 0;
     pathJoin(&vfspath, self->root, path);
 
     bool ret = vfsGetFSPath(out, self->vfs, vfspath);

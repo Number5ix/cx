@@ -5,9 +5,9 @@ VFSFile *_vfsOpen(VFS *vfs, strref path, int flags)
 {
     VFSFile *ret = 0;
 
-    string(rpath);
+    string rpath = 0;
     VFSMount *cowmount = 0;
-    string(cowrpath);
+    string cowrpath = 0;
     uint32 pflags = VFS_FindCache;
 
     // get the provider
@@ -85,7 +85,7 @@ bool vfsRead(VFSFile *file, void *buf, size_t sz, size_t *bytesread)
 
 static void vfsCOWCreateAll(ObjInst *cowprov, VFSProvider *cowprovif, strref path)
 {
-    string(parent);
+    string parent = 0;
     pathParent(&parent, path);
     if (!strEmpty(parent) && cowprovif->stat(cowprov, parent, NULL) == FS_Nonexistent)
         vfsCOWCreateAll(cowprov, cowprovif, parent);
@@ -117,7 +117,7 @@ static bool vfsCOWFile(VFSFile *file)
         goto error;
 
     // make sure the path exists
-    string(dirname);
+    string dirname = 0;
     pathParent(&dirname, file->cowrpath);
     vfsCOWCreateAll(file->cowprov, cowprovif, dirname);
     strDestroy(&dirname);

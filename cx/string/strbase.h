@@ -11,10 +11,6 @@ typedef struct str_ref {
 // IMPORTANT NOTE!
 // Always initialize sstring to NULL or 0 first!
 typedef struct str_ref* string;
-// helper for declaring string variables
-#ifndef __cplusplus
-#define string(name) string name = 0
-#endif
 
 // String references are borrowed references to strings, for
 // controlled situations such as passing as function arguments.
@@ -26,10 +22,13 @@ typedef struct str_ref* string;
 // need to destroy it)
 typedef const struct str_ref* strref;
 
+// Prepare a string variable for use.
+#define strInit(o) *(o) = NULL
+
 // Create a new empty string with preallocated storage.
 //        o: output string, will be destroyed if it exists
 // sizehint: Amount of memory to preallocate for string storage.
-void strInit(string *o, uint32 sizehint);
+void strReset(string *o, uint32 sizehint);
 
 // Duplicate an existing string, making an efficient reference if possible.
 //       o: output string, will be destroyed if it exists

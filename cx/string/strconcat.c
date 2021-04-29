@@ -14,7 +14,7 @@ bool _strNConcat(string *o, int n, strref *_args)
 
     // Pass 1: Build a plan for concatenating the strings
     uint32 len = 0;
-    string(firstarg);
+    string firstarg = 0;
     uint8 encoding = STR_ENCODING_MASK;
     for (i = 0; i < n; ++i) {
         if (!STR_CHECK_VALID(args[i])) {
@@ -64,7 +64,7 @@ bool _strNConcat(string *o, int n, strref *_args)
         _strSetLen(*o, len);
     } else {
         // final length is over the threshold to make this a rope instead
-        string(curtop); string(curright); string(newtop);
+        string curtop = 0, curright = 0, newtop = 0;
         strDup(&curtop, args[0]);
 
         // build up new rope
@@ -106,7 +106,7 @@ bool _strNConcatC(string *o, int n, string **args)
 
     // Pass 1: Build a plan for concatenating the strings
     uint32 len = 0;
-    string(firstarg);
+    string firstarg = 0;
     uint8 encoding = STR_ENCODING_MASK;
     for (i = 0; i < n; ++i) {
         if (!args[i] || !STR_CHECK_VALID(*args[i])) {
@@ -157,7 +157,7 @@ bool _strNConcatC(string *o, int n, string **args)
         _strSetLen(*o, len);
     } else {
         // final length is over the threshold to make this a rope instead
-        string(curtop); string(curright); string(newtop);
+        string curtop = 0, curright = 0, newtop = 0;
         strDup(&curtop, *args[0]);
 
         // build up new rope
@@ -280,9 +280,10 @@ bool strAppend(string *io, strref s)
 
 bool strPrepend(strref s, string *io)
 {
-    string(out);
+    string out;
     bool ret;
 
+    strInit(&out);
     ret = strConcat(&out, s, *io);
     strDestroy(io);
     *io = out;

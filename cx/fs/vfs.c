@@ -75,7 +75,7 @@ static VFSDir *_vfsGetDirInternal(VFS *vfs, VFSDir *root, string *path, int32 pl
 VFSDir *_vfsGetDir(VFS *vfs, strref path, bool isfile, bool cache, bool writelockheld)
 {
     VFSDir *d, *ret = 0;
-    string(ns);
+    string ns = 0;
     sa_string components;
 
     saInit(&components, string, 8, Grow(Aggressive));
@@ -98,7 +98,7 @@ out:
 
 bool _vfsMountProvider(VFS *vfs, ObjInst *provider, strref path, uint32 flags)
 {
-    string(ns); string(rpath);
+    string ns = 0, rpath = 0;
     VFSProvider *provif;
     bool ret = false;
 
@@ -143,7 +143,7 @@ out:
 
 bool vfsUnmount(VFS *vfs, strref path)
 {
-    string(ns); string(rpath);
+    string ns = 0, rpath = 0;
     bool ret = false;
 
     rwlockAcquireWrite(&vfs->vfsdlock);
@@ -211,7 +211,7 @@ VFSCacheEnt *_vfsGetFile(VFS *vfs, strref path, bool writelockheld)
 {
     VFSDir *pdir = _vfsGetDir(vfs, path, true, true, writelockheld);
     VFSCacheEnt *ret = 0;
-    string(fname);
+    string fname = 0;
 
     if (!pdir)
         return NULL;
@@ -280,7 +280,7 @@ static int vfsFindCISub(VFSDir *vdir, string *out, strref path,
         VFSMount *mount, VFSProvider *provif)
 {
     int ret = FS_Nonexistent;
-    string(filepath);
+    string filepath = 0;
     VFSDir *cvdir = vdir;
 
     // walk backwards up vdir tree to current depth for caching
@@ -351,7 +351,7 @@ int _vfsFindCIHelper(VFS *vfs, VFSDir *vdir, string *out, sa_string components, 
 VFSMount *_vfsFindMount(VFS *vfs, string *rpath, strref path, VFSMount **cowmount, string *cowrpath, uint32 flags)
 {
     VFSMount *ret = 0;
-    string(abspath); string(curpath);
+    string abspath = 0, curpath = 0;
 
     if (!vfs)
         return NULL;
@@ -382,8 +382,8 @@ VFSMount *_vfsFindMount(VFS *vfs, string *rpath, strref path, VFSMount **cowmoun
 
     VFSDir *vfsdir = _vfsGetDir(vfs, abspath, true, true, false), *pdir = vfsdir;
     VFSMount *firstwritable = 0;
-    string(firstwpath);
-    string(ns);
+    string firstwpath = 0;
+    string ns = 0;
     sa_string components;
     sa_string relcomp = saInitNone;
 

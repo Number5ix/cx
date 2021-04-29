@@ -47,7 +47,7 @@ static STypeOps VFSDirEnt_ops_cs = {
 
 bool vfsSearchInit(FSSearchIter *iter, VFS *vfs, strref path, strref pattern, int typefilter, bool stat)
 {
-    string(abspath); string(curpath); string(filepath);
+    string abspath = 0, curpath = 0, filepath = 0;
     hashtable names;
     int32 idx;
 
@@ -65,7 +65,7 @@ bool vfsSearchInit(FSSearchIter *iter, VFS *vfs, strref path, strref pattern, in
     _vfsAbsPath(vfs, &abspath, path);
 
     VFSDir *vfsdir = _vfsGetDir(vfs, abspath, false, false, true), *pdir = vfsdir;
-    string(ns);
+    string ns = 0;
     sa_string components;
     sa_string relcomp = saInitNone;
 

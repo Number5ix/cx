@@ -46,7 +46,7 @@ static bool fsIsUNC(strref path)
 
 wchar_t* fsPathToNT(strref path)
 {
-    string(npath); string(ntpath);
+    string npath = 0, ntpath = 0;
     wchar_t *ret;
     pathMakeAbsolute(&npath, path);
     pathNormalize(&npath);
@@ -68,9 +68,9 @@ wchar_t* fsPathToNT(strref path)
 
 void pathFromPlatform(string *out, strref platformpath)
 {
-    string(ns);
-    string(rpath);
-    string(ret);
+    string ns = 0;
+    string rpath = 0;
+    string ret = 0;
 
     strDup(&rpath, platformpath);
 
@@ -126,8 +126,8 @@ void pathFromPlatform(string *out, strref platformpath)
 
 void pathToPlatform(string *out, strref path)
 {
-    string(ns); string(rpath);
-    string(ret);
+    string ns = 0, rpath = 0;
+    string ret = 0;
     pathSplitNS(&ns, &rpath, path);
     strUpper(&ns);
 
@@ -159,7 +159,7 @@ bool pathMakeAbsolute(string *out, strref path)
     }
     lazyInit(&fsCurDirInit, initCurDir, NULL);
 
-    string(tmp);
+    string tmp = 0;
     rwlockAcquireRead(&_fsCurDirLock);
     pathJoin(&tmp, _fsCurDir, path);
     rwlockReleaseRead(&_fsCurDirLock);
@@ -181,7 +181,7 @@ bool fsSetCurDir(strref cur)
     if (strEmpty(cur))
         return false;
 
-    string(ncur);
+    string ncur = 0;
     strDup(&ncur, cur);
 
     // be paranoid about what we set our current directory to
@@ -220,7 +220,7 @@ static void fsExeInit(void *data)
 void fsExe(string *out)
 {
     static LazyInitState execache;
-    static string(exepath);
+    static string exepath = 0;
     lazyInit(&execache, fsExeInit, &exepath);
 
     strDup(out, exepath);
@@ -282,7 +282,7 @@ bool fsCreateDir(strref path)
 
 bool fsCreateAll(strref path)
 {
-    string(parent);
+    string parent = 0;
     pathParent(&parent, path);
     if (!strEmpty(parent) && !fsExist(parent))
         fsCreateAll(parent);
@@ -331,7 +331,7 @@ typedef struct FSSearch {
 
 bool fsSearchInit(FSSearchIter *iter, strref path, strref pattern, bool stat)
 {
-    string(spath);
+    string spath = 0;
 
     memset(iter, 0, sizeof(FSSearchIter));
 

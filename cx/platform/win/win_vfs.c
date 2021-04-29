@@ -5,7 +5,7 @@ bool _vfsAddPlatformSpecificMounts(VFS *vfs)
 {
     DWORD ldrives = GetLogicalDrives();
     bool ret = true;
-    string(drive);
+    string drive = 0;
     char drivestr[4];
 
     drivestr[1] = ':';
@@ -19,7 +19,7 @@ bool _vfsAddPlatformSpecificMounts(VFS *vfs)
         }
     }
 
-    string(curdir);
+    string curdir = 0;
     fsCurDir(&curdir);
     // mount current drive as root
     strSubStr(&drive, _fsCurDir, 0, 3);

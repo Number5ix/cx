@@ -11,7 +11,7 @@ enum FloatOpts {
 
 bool _fmtParseFloatOpt(FMTVar *v, strref opt)
 {
-    string(tmp);
+    string tmp = 0;
     int32 val;
     if (strEq(opt, _S"fixed")) {
         v->flags |= FMT_FloatFixed;

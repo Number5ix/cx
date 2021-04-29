@@ -158,7 +158,7 @@ static void _strRebalanceRope(string *ptop)
 // create a new rope node
 string _strCreateRope(strref left, uint32 left_off, uint32 left_len, strref right, uint32 right_off, uint32 right_len, bool balance)
 {
-    string(ret);
+    string ret = 0;
     uint8 encoding = STR_ENCODING_MASK;
 
     if (!left)
@@ -171,7 +171,7 @@ string _strCreateRope(strref left, uint32 left_off, uint32 left_len, strref righ
     if (right) {
         right_len = right_len ? min(right_len, _strFastLen(right) - right_off) : _strFastLen(right) - right_off;
         if (left_len + right_len < ROPE_MIN_SIZE * 2) {
-            string(ltemp); string(rtemp);
+            string ltemp = 0, rtemp = 0;
             if (left_off > 0 || left_len < _strFastLen(left))
                 strSubStr(&ltemp, left, left_off, left_off + left_len);
             if (right_off > 0 || right_len < _strFastLen(right))
@@ -212,7 +212,7 @@ string _strCreateRope(strref left, uint32 left_off, uint32 left_len, strref righ
 // create a rope node with only half a rope -- this is mostly used for making substrings
 string _strCreateRope1(strref s, uint32 off, uint32 len)
 {
-    string(ret);
+    string ret = 0;
 
     if (!s)
         return NULL;
@@ -255,7 +255,7 @@ string _strCreateRope1(strref s, uint32 off, uint32 len)
 // quick and dirty rope node cloning for makeunique
 string _strCloneRope(strref s)
 {
-    string(ret);
+    string ret = 0;
 
     _strInitRope(&ret);
     if (!ret)

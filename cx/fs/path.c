@@ -33,7 +33,7 @@ bool pathFilename(string *out, strref path)
 
 bool _pathJoin(string *out, int n, strref* elements)
 {
-    string(npath);
+    string npath = 0;
     bool donefirst = false;
     bool lastroot = false;
 
@@ -119,7 +119,7 @@ bool pathSplitNS(string *nspart, string *pathpart, strref path)
 {
     int32 idx = strFind(path, 0, fsNSSepStr);
 
-    string(rns); string(rpath);
+    string rns = 0, rpath = 0;
     if (!nspart || !pathpart)
         return false;
 
@@ -193,7 +193,7 @@ static bool pathNormalized(strref path)
 
 bool pathDecompose(string *ns, sa_string *components, strref pathin)
 {
-    string(rpath);
+    string rpath = 0;
 
     pathSplitNS(ns, &rpath, pathin);
     // if there are any backslashes, turn them to forward slashes
@@ -237,7 +237,7 @@ bool pathDecompose(string *ns, sa_string *components, strref pathin)
 
 bool pathCompose(string *out, strref ns, sa_string components)
 {
-    string(rpath);
+    string rpath = 0;
 
     strJoin(&rpath, components, fsPathSepStr);
     if (saSize(&components) == 1 && strEmpty(components.a[0]))
@@ -254,8 +254,8 @@ bool pathCompose(string *out, strref ns, sa_string components)
 
 void pathNormalize(string *path)
 {
-    string(nspace);
-    
+    string nspace = 0;
+
     if (!pathNormalized(*path)) {
         sa_string components;
         saInit(&components, string, 8, Grow(Aggressive));

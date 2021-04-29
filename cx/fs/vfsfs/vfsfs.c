@@ -41,7 +41,7 @@ uint32 VFSFS_flags(VFSFS *self)
 
 ObjInst *VFSFS_open(VFSFS *self, strref path, int flags)
 {
-    string(fspath);
+    string fspath = 0;
     pathJoin(&fspath, self->root, path);
 
     FSFile *file = _fsOpen(fspath, flags);
@@ -55,7 +55,7 @@ ObjInst *VFSFS_open(VFSFS *self, strref path, int flags)
 
 int VFSFS_stat(VFSFS *self, strref path, FSStat *stat)
 {
-    string(fspath);
+    string fspath = 0;
     pathJoin(&fspath, self->root, path);
 
     int ret = fsStat(fspath, stat);
@@ -66,7 +66,7 @@ int VFSFS_stat(VFSFS *self, strref path, FSStat *stat)
 
 bool VFSFS_setTimes(VFSFS *self, strref path, int64 modified, int64 accessed)
 {
-    string(fspath);
+    string fspath = 0;
     pathJoin(&fspath, self->root, path);
 
     bool ret = fsSetTimes(fspath, modified, accessed);
@@ -78,7 +78,7 @@ bool VFSFS_setTimes(VFSFS *self, strref path, int64 modified, int64 accessed)
 
 bool VFSFS_createDir(VFSFS *self, strref path)
 {
-    string(fspath);
+    string fspath = 0;
     pathJoin(&fspath, self->root, path);
 
     bool ret = fsCreateDir(fspath);
@@ -89,7 +89,7 @@ bool VFSFS_createDir(VFSFS *self, strref path)
 
 bool VFSFS_removeDir(VFSFS *self, strref path)
 {
-    string(fspath);
+    string fspath = 0;
     pathJoin(&fspath, self->root, path);
 
     bool ret = fsRemoveDir(fspath);
@@ -100,7 +100,7 @@ bool VFSFS_removeDir(VFSFS *self, strref path)
 
 bool VFSFS_deleteFile(VFSFS *self, strref path)
 {
-    string(fspath);
+    string fspath = 0;
     pathJoin(&fspath, self->root, path);
 
     bool ret = fsDelete(fspath);
@@ -111,7 +111,7 @@ bool VFSFS_deleteFile(VFSFS *self, strref path)
 
 bool VFSFS_rename(VFSFS *self, strref oldpath, strref newpath)
 {
-    string(fsoldpath); string(fsnewpath);
+    string fsoldpath = 0, fsnewpath = 0;
     pathJoin(&fsoldpath, self->root, oldpath);
     pathJoin(&fsnewpath, self->root, newpath);
 
@@ -124,7 +124,7 @@ bool VFSFS_rename(VFSFS *self, strref oldpath, strref newpath)
 
 bool VFSFS_searchInit(VFSFS *self, FSSearchIter *iter, strref path, strref pattern, bool stat)
 {
-    string(fspath);
+    string fspath = 0;
 
     pathJoin(&fspath, self->root, path);
     bool ret = fsSearchInit(iter, fspath, pattern, stat);

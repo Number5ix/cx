@@ -97,7 +97,7 @@ static void fmtApplyGenWidth(string *vstr, int32 width, uint32 flags)
         return;
     }
 
-    string(pad);
+    string pad = 0;
     int32 wdiff = width - strLen(*vstr);
     if (flags & FMTVar_Right) {
         fillPad(&pad, wdiff);
@@ -131,7 +131,7 @@ static void fmtApplyGenFlags(FMTContext *ctx, string *vstr)
 
 void _fmtFormat(FMTContext *ctx)
 {
-    string(vstr);
+    string vstr = 0;
     bool success = false;
 
     if (_fmtTypeFormat[ctx->v.vtype])

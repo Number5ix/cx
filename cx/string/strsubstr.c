@@ -4,7 +4,7 @@ static bool _strSubStr(string *o, string *ps, int32 b, int32 e, bool consume)
 {
     uint32 off, len, slen;
     string s = STR_SAFE_DEREF(ps);
-    string(ret);
+    string ret = 0;
 
     if (!o || !s) {
         strDestroy(o);
@@ -42,7 +42,7 @@ static bool _strSubStr(string *o, string *ps, int32 b, int32 e, bool consume)
             *o = NULL;
             _strReset(&ret, len);       // try to reuse buffer space
         } else {
-            strInit(&ret, len);         // *o == *ps, destination needs to be separate
+            strReset(&ret, len);        // *o == *ps, destination needs to be separate
         }
 
         *STR_HDRP(ret) &= ~STR_ENCODING_MASK;

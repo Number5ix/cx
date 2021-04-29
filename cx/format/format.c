@@ -93,7 +93,7 @@ bool _strFormat(string *out, strref fmt, int n, stvar *args)
     ctx.args = args;
     fmtVarCreate(&ctx.v);
 
-    string(frag);
+    string frag = 0;
 
     // main format string scan loop
     for (;;) {

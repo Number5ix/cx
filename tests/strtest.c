@@ -113,8 +113,8 @@ static int test_long()
     string t1 = _S"Relatively long substring test data";       // 35 characters
     string s1 = NULL;
 
-    strInit(&o1, 100);            // sizehint here is intentionally a LIE ;)
-    strInit(&o2, 1);
+    strReset(&o1, 100);           // sizehint here is intentionally a LIE ;)
+    strReset(&o2, 1);
 
     for (int i = 0; i < 1000; ++i) {
         strAppend(&o1, t1);
@@ -248,7 +248,7 @@ static int test_rope()
     // manually fill in a buffer to avoid creating a rope.
     // need a single string to avoid rope segment optimizations or it
     // gets a lot harder to check the refcount.
-    strInit(&s2, 1000);
+    strReset(&s2, 1000);
     char *buf = strBuffer(&s2, 1000);
     for (i = 0; i < 1000; i += 25) {
         memcpy(&buf[i], "1234567890123456789012345", 25);

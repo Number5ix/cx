@@ -604,7 +604,7 @@ bool parseClass(ParseState *ps, string *tok)
                         strNConcat(&nmem->vartype, _S"sa_", artl.a[0]);
                     } else {
                         // build up a complex array type
-                        string(lasttname);
+                        string lasttname = 0;
                         for (int i = saSize(&artl) - 2; i >= 0; --i) {
                             if (!strEq(artl.a[i], _S"sarray"))
                                 continue;

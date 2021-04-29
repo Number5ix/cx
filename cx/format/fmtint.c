@@ -10,7 +10,7 @@ enum IntOpts {
 
 bool _fmtParseIntOpt(FMTVar *v, strref opt)
 {
-    string(tmp);
+    string tmp = 0;
     uint32 val;
     if (strEq(opt, _S"prefix")) {
         v->flags |= FMT_IntPrefix;

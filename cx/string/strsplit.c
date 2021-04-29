@@ -10,7 +10,7 @@ int32 strSplit(sa_string *out, strref s, strref sep, bool empty)
 
     uint32 seplen = strLen(sep);
     int32 start = 0, next;
-    string(seg);
+    string seg = 0;
     while ((next = strFind(s, start, sep)) != -1) {
         if (start != next || empty) {
             if (next != 0)      // degenerate case for starting with separator

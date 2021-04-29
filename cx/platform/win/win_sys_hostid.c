@@ -65,7 +65,7 @@ int32 hostIdPlatformInit(mbedtls_md_context_t *shactx)
         if (RegQueryValueExW(key, L"MachineGuid", NULL, NULL, NULL, &sz) == ERROR_SUCCESS) {
             wchar_t *buf = scratchGet(sz);
             RegQueryValueExW(key, L"MachineGuid", NULL, NULL, (uint8*)buf, &sz);
-            string(guid);
+            string guid = 0;
             strFromUTF16(&guid, buf, cstrLenw(buf));
             mbedtls_md_update(shactx, strC(guid), strLen(guid));
             strDestroy(&guid);

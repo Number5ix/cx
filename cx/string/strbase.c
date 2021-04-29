@@ -96,8 +96,8 @@ string _strCopy(strref s, uint32 minsz)
 {
     uint32 len = _strFastLen(s);
 
-    string(ret);
-    strInit(&ret, max(len, minsz));
+    string ret =  0;
+    strReset(&ret, max(len, minsz));
     if (!ret)
         return NULL;
     _strSetLen(ret, len);
@@ -203,7 +203,7 @@ bool _strFlatten(string *ps, uint32 minszforcopy)
     }
 }
 
-void strInit(string *o, uint32 sizehint)
+void strReset(string *o, uint32 sizehint)
 {
     if (!o)
         return;
@@ -280,7 +280,7 @@ void _strReset(string *s, uint32 minsz)
     if (!STR_CHECK_VALID(*s) || !(STR_HDR(*s) & STR_ALLOC) ||
         !!(STR_HDR(*s) & STR_ROPE) || _strFastRef(*s) != 1) {
         // can't do anything with these, just re-init them
-        strInit(s, minsz);
+        strReset(s, minsz);
         return;
     }
 
@@ -292,7 +292,7 @@ void _strReset(string *s, uint32 minsz)
 
     if (bufsz < minsz + 1) {
         // just destroy and create new rather than copy useless data
-        strInit(s, minsz);
+        strReset(s, minsz);
         return;
     }
 

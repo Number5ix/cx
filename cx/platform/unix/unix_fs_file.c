@@ -20,7 +20,7 @@ FSFile *_fsOpen(strref path, int flags)
 {
     FSFile *ret;
     int oflags = 0;
-    string(npath);
+    string npath = 0;
 
     strDup(&npath, path);
     pathNormalize(&npath);

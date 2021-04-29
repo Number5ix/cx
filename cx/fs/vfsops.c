@@ -5,7 +5,7 @@
 int vfsStat(VFS *vfs, strref path, FSStat *stat)
 {
     int ret = FS_Nonexistent;
-    string(rpath);
+    string rpath = 0;
 
     VFSMount *m = _vfsFindMount(vfs, &rpath, path, NULL, NULL, VFS_FindCache);
     if (!m) {
@@ -30,7 +30,7 @@ out:
 bool vfsSetTimes(VFS *vfs, strref path, int64 modified, int64 accessed)
 {
     bool ret = false;
-    string(rpath);
+    string rpath = 0;
 
     VFSMount *m = _vfsFindMount(vfs, &rpath, path, NULL, NULL, VFS_FindCache);
     if (!m)
@@ -50,7 +50,7 @@ out:
 bool vfsCreateDir(VFS *vfs, strref path)
 {
     bool ret = false;
-    string(rpath);
+    string rpath = 0;
 
     VFSMount *m = _vfsFindMount(vfs, &rpath, path, NULL, NULL, VFS_FindCreate);
     if (!m) {
@@ -77,7 +77,7 @@ out:
 
 bool vfsCreateAll(VFS *vfs, strref path)
 {
-    string(parent);
+    string parent = 0;
     pathParent(&parent, path);
     if (!strEmpty(parent) && !vfsExist(vfs, parent))
         vfsCreateAll(vfs, parent);
@@ -89,7 +89,7 @@ bool vfsCreateAll(VFS *vfs, strref path)
 bool vfsRemoveDir(VFS *vfs, strref path)
 {
     bool ret = false;
-    string(rpath);
+    string rpath = 0;
 
     VFSMount *m = _vfsFindMount(vfs, &rpath, path, NULL, NULL, VFS_FindDelete);
     if (!m) {
@@ -116,7 +116,7 @@ out:
 bool vfsDelete(VFS *vfs, strref path)
 {
     bool ret = false;
-    string(rpath);
+    string rpath = 0;
 
     VFSMount *m = _vfsFindMount(vfs, &rpath, path, NULL, NULL, VFS_FindDelete);
     if (!m) {
@@ -182,7 +182,7 @@ out:
 bool vfsRename(VFS *vfs, strref from, strref to)
 {
     bool ret = false;
-    string(rpathfrom); string(rpathto);
+    string rpathfrom = 0, rpathto = 0;
 
     VFSMount *mfrom = _vfsFindMount(vfs, &rpathfrom, from, NULL, NULL, VFS_FindCache);
     VFSMount *mto = _vfsFindMount(vfs, &rpathto, to, NULL, NULL, VFS_FindWriteFile | VFS_FindCreate | VFS_FindCache);
@@ -227,7 +227,7 @@ out:
 bool vfsGetFSPath(string *out, VFS *vfs, strref path)
 {
     bool ret = false;
-    string(rpath);
+    string rpath = 0;
 
     VFSMount *m = _vfsFindMount(vfs, &rpath, path, NULL, NULL, 0);
     if (!m) {

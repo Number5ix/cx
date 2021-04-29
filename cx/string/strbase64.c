@@ -59,7 +59,7 @@ bool strB64Encode(string *out, const uint8 *buf, uint32 bufsz, bool urlsafe)
     char *c;
 
     uint32 elen = b64EncodedLen(bufsz);
-    strInit(out, elen);
+    strReset(out, elen);
     c = strBuffer(out, elen);
 
     // loop over data, turning every 3 bytes into 4 characters

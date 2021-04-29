@@ -4,7 +4,7 @@
 bool _fmtExtractVar(FMTContext *ctx)
 {
     int32 eatchar = 0;
-    string(frag);
+    string frag = 0;
 
     // "loop" to handle escaped start sequences
 retry_start:
@@ -163,7 +163,7 @@ bool _fmtParseVar(FMTContext *ctx)
     if (vnend == 0)
         vnend = len;
 
-    string(frag);
+    string frag = 0;
 
     // check if we have default first, because it will be a fallback in case of parse error
     if (defstart > 0) {
