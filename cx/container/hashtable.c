@@ -485,7 +485,7 @@ bool htiInit(htiter *iter, hashtable *htbl)
 {
     if (!iter)
         return false;
-    if (!htbl) {
+    if (!(htbl && *htbl)) {
         iter->hdr = NULL;
         iter->elem = NULL;
         return false;
