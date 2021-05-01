@@ -57,12 +57,15 @@ typedef struct Event Event;
 void thrRegisterSysThread(Thread *thread, Event **notify_out);
 
 // stype glue for custom type
+saDeclarePtr(Thread);
 extern STypeOps _thread_ops;
 #define SType_Thread Thread*
 #define STStorageType_Thread Thread*
 #define stType_Thread _stype_mkcustom(stType_ptr)
 #define stFullType_Thread _stype_mkcustom(stType_ptr), (&_thread_ops)
-#define STypeArg_Thread(type, val) stgeneric(ptr, val)
-#define STypeArgPtr_Thread(type, val) (stgeneric*)stCheckPtr(ptr, (void**)(val))
-#define STypeChecked_Thread(type, val) stType_ptr, stArg(type, val)
-#define STypeCheckedPtr_Thread(type, val) stType_ptr, stArgPtr(type, val)
+#define STypeCheck_Thread(type, val) ((val) && &((val)->requestExit), (val))
+#define STypeCheckPtr_Thread(type, val) ((val) && (*val) && &((*val)->requestExit), (val))
+#define STypeArg_Thread(type, val) stgeneric_unchecked(ptr, stCheck(Thread, val))
+#define STypeArgPtr_Thread(type, val) (stgeneric*)stCheckPtr(Thread, val)
+#define STypeCheckedArg_Thread(type, val) stType_ptr, stArg(type, val)
+#define STypeCheckedPtrArg_Thread(type, val) stType_ptr, stArgPtr(type, val)
