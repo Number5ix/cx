@@ -227,12 +227,11 @@ VFSCacheEnt *_vfsGetFile(VFS *vfs, strref path, bool writelockheld)
 
 void _vfsInvalidateCache(VFS *vfs, strref path)
 {
-    string (abspath);
+    string abspath = 0, fname = 0;
 
     rwlockAcquireWrite(&vfs->vfsdlock);
     _vfsAbsPath(vfs, &abspath, path);
     VFSDir *pdir = _vfsGetDir(vfs, abspath, true, true, true);
-    string (fname);
 
     if (!pdir) {
         rwlockReleaseWrite(&vfs->vfsdlock);
