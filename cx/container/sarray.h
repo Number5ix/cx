@@ -35,7 +35,7 @@ saDeclare(float64);
 saDeclareType(ptr, void*);
 saDeclare(string);
 // strref doesn't make sense in an sarray
-saDeclareType(object, ObjInst);
+saDeclareType(object, ObjInst*);
 saDeclareType(suid, SUID);
 saDeclare(stvar);
 saDeclareType(sarray, sa_ref);
