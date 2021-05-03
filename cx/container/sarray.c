@@ -667,8 +667,10 @@ void _saSort(sahandle handle, bool keep)
 
 void _saSlice(sahandle out, sahandle handle, int32 start, int32 end)
 {
-    if (!handle->a)
+    if (!handle->a) {
+        out->a = NULL;
         return;
+    }
 
     SArrayHeader *hdr = SARRAY_HDR(handle);
     stype elemtype = hdr->elemtype;
