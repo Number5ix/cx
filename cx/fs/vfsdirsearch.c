@@ -83,9 +83,9 @@ bool vfsSearchInit(FSSearchIter *iter, VFS *vfs, strref path, strref pattern, in
     saInit(&search->ents, custom(opaque(VFSDirEnt), direntops), 16, Grow(Aggressive));
 
     // add child mount points as subdirectories
-    foreach(hashtable, sdi, &vfsdir->subdirs) {
+    foreach(hashtable, sdi, vfsdir->subdirs) {
         VFSDir *sd = (VFSDir*)htiVal(sdi, ptr);
-        if (saSize(&sd->mounts) > 0) {
+        if (saSize(sd->mounts) > 0) {
             VFSDirEnt ent = { 0 };
             strDup(&ent.name, sd->name);
             ent.type = FS_Directory;
@@ -96,16 +96,16 @@ bool vfsSearchInit(FSSearchIter *iter, VFS *vfs, strref path, strref pattern, in
 
     // start at the target directory and recurse upwards to see if any providers know about
     // this directory
-    int32 relstart = saSize(&components);
+    int32 relstart = saSize(components);
     while (pdir) {
         devAssert(relstart >= 0);
         saDestroy(&relcomp);
-        saSlice(&relcomp, &components, relstart, 0);
+        saSlice(&relcomp, components, relstart, 0);
         strJoin(&curpath, relcomp, fsPathSepStr);
 
         // traverse list of registered providers backwards, as providers registered later
         // are "higher" on the stack
-        for (int i = saSize(&pdir->mounts) - 1; i >= 0; --i) {
+        for (int i = saSize(pdir->mounts) - 1; i >= 0; --i) {
             ObjInst *provider = pdir->mounts.a[i]->provider;
             VFSProvider *provif = objInstIf(provider, VFSProvider);
             if (!provif)
@@ -125,7 +125,7 @@ bool vfsSearchInit(FSSearchIter *iter, VFS *vfs, strref path, strref pattern, in
             do {
                 // have we seen this file already on a higher layer?
                 if ((!typefilter || (dsiter.type & typefilter) == typefilter) &&
-                    !htHasKey(&names, string, dsiter.name)) {
+                    !htHasKey(names, string, dsiter.name)) {
                     // add to list and hash table of seen files
                     VFSDirEnt ent = {
                         .name = dsiter.name,        // borrowed ref!
@@ -176,7 +176,7 @@ bool vfsSearchNext(FSSearchIter *iter)
     if (!search)
         return false;
 
-    if (search->idx >= saSize(&search->ents)) {
+    if (search->idx >= saSize(search->ents)) {
         vfsSearchFinish(iter);
         return false;
     }

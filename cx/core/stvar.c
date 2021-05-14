@@ -13,7 +13,7 @@ void _stvlInitSA(stvlist *list, stvar *vara)
 {
     // slightly ugly here since we want stvar to be usable without including sarray.h
     sarrayref(stvar) vararray = { .a = vara };
-    list->count = saSize(&vararray);
+    list->count = saSize(vararray);
     list->vars = vara;
     list->cursor = 0;
 }

@@ -19,7 +19,7 @@ static int test_int()
         saPush(&t1, int32, (int32)i);
     }
 
-    if (saSize(&t1) != 51)
+    if (saSize(t1) != 51)
         return 1;
 
     if (t1.a[0] != 500)
@@ -34,7 +34,7 @@ static int test_int()
         saPush(&t2, int64, i);
     }
 
-    if (saSize(&t2) != 51)
+    if (saSize(t2) != 51)
         return 1;
 
     if (t2.a[0] != 500)
@@ -61,7 +61,7 @@ static int test_sorted_int()
         saPush(&t1, int32, (int32)i);
     }
 
-    if (saSize(&t1) != 51)
+    if (saSize(t1) != 51)
         return 1;
 
     if (t1.a[0] != 0)
@@ -79,7 +79,7 @@ static int test_sorted_int()
         saPush(&t2, int64, i);
     }
 
-    if (saSize(&t2) != 51)
+    if (saSize(t2) != 51)
         return 1;
 
     if (t2.a[0] != 0)
@@ -118,7 +118,7 @@ static int test_string()
         saPush(&t1, string, st3);
     }
 
-    if (saSize(&t1) != 150)
+    if (saSize(t1) != 150)
         return 1;
 
     if (strTestRefCount(st1) != 51)
@@ -136,7 +136,7 @@ static int test_string()
         return 1;
 
     saClear(&t1);
-    if (saSize(&t1) != 0)
+    if (saSize(t1) != 0)
         return 1;
 
     if (strTestRefCount(st1) != 1)
@@ -187,7 +187,7 @@ static int test_sort()
         saPush(&t1, int32, (int32)i);
     }
 
-    if (saSize(&t1) != 51)
+    if (saSize(t1) != 51)
         return 1;
 
     if (t1.a[0] != 500)
@@ -214,7 +214,7 @@ static int test_sort()
         saPush(&t2, int64, i);
     }
 
-    if (saSize(&t2) != 51)
+    if (saSize(t2) != 51)
         return 1;
 
     if (t2.a[0] != 500)

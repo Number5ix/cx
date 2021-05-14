@@ -21,14 +21,14 @@
 
 #define foreach_sarray(...) _foreach_array_msvc_workaround((__VA_ARGS__))
 #define _foreach_array_msvc_workaround(args) _foreach_sarray args
-#define _foreach_sarray(type, itervar, elemtype, elemvar, arrptr) if ((arrptr) && ((arrptr)->_is_sarray)) { \
-        int32 itervar, _##itervar##_max = saSize(arrptr); \
+#define _foreach_sarray(type, itervar, elemtype, elemvar, arrref) if ((arrref)._is_sarray) { \
+        int32 itervar, _##itervar##_max = saSize(arrref); \
         elemtype elemvar; \
-        for (itervar = 0; elemvar = (arrptr)->a[itervar], itervar < _##itervar##_max; ++itervar)
+        for (itervar = 0; elemvar = (arrref).a[itervar], itervar < _##itervar##_max; ++itervar)
 
 #define foreach_hashtable foreach_generic
 #define ForEachIterType_hashtable htiter
-#define ForEachInit_hashtable(itervar, htptr) htiInit(&itervar, htptr)
+#define ForEachInit_hashtable(itervar, ht) htiInit(&itervar, ht)
 #define ForEachValid_hashtable(itervar) htiValid(&itervar)
 #define ForEachNext_hashtable(itervar) htiNext(&itervar)
 #define ForEachFinish_hashtable(itervar) htiFinish(&itervar)

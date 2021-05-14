@@ -6,7 +6,7 @@
 
 static void vfsUnmountAll(VFSDir *dir)
 {
-    foreach(hashtable, sdi, &dir->subdirs)
+    foreach(hashtable, sdi, dir->subdirs)
     {
         vfsUnmountAll((VFSDir*)htiVal(sdi, ptr));
     } endforeach;
@@ -21,7 +21,7 @@ void vfsDestroy(VFS *vfs)
     // being mounted to.
 
     rwlockAcquireWrite(&vfs->vfsdlock);
-    foreach(hashtable, nsi, &vfs->namespaces)
+    foreach(hashtable, nsi, vfs->namespaces)
     {
         vfsUnmountAll((VFSDir*)htiVal(nsi, ptr));
     } endforeach;
@@ -88,7 +88,7 @@ VFSDir *_vfsGetDir(VFS *vfs, strref path, bool isfile, bool cache, bool writeloc
         goto out;
     }
 
-    ret = _vfsGetDirInternal(vfs, d, components.a, saSize(&components) - (isfile ? 1 : 0), cache, clockTimer(), writelockheld);
+    ret = _vfsGetDirInternal(vfs, d, components.a, saSize(components) - (isfile ? 1 : 0), cache, clockTimer(), writelockheld);
 
 out:
     strDestroy(&ns);
@@ -115,7 +115,7 @@ bool _vfsMountProvider(VFS *vfs, ObjInst *provider, strref path, uint32 flags)
     pathSplitNS(&ns, &rpath, path);
     strDestroy(&rpath);
 
-    if (!strEmpty(ns) && !htHasKey(&vfs->namespaces, string, ns)) {
+    if (!strEmpty(ns) && !htHasKey(vfs->namespaces, string, ns)) {
         // namespace hasn't been added yet, create it now
         htInsert(&vfs->namespaces, string, ns, ptr, _vfsDirCreate(vfs, NULL));
     }
@@ -256,7 +256,7 @@ void _vfsInvalidateRecursive(VFS *vfs, VFSDir *dir, bool havelock)
         htRemove(&dir->parent->subdirs, string, dir->name);
     } else {
         htClear(&dir->files);
-        foreach(hashtable, sdi, &dir->subdirs)
+        foreach(hashtable, sdi, dir->subdirs)
         {
             _vfsInvalidateRecursive(vfs, (VFSDir*)htiVal(sdi, ptr), true);
         } endforeach;
@@ -330,7 +330,7 @@ int _vfsFindCIHelper(VFS *vfs, VFSDir *vdir, string *out, sa_string components, 
     // VFS cache helps take the edge off. All these dir searches help populate
     // the cache for neighboring files as well.
 
-    if (saSize(&components) == 0)
+    if (saSize(components) == 0)
         return FS_Nonexistent;
 
     int ret;
@@ -338,7 +338,7 @@ int _vfsFindCIHelper(VFS *vfs, VFSDir *vdir, string *out, sa_string components, 
     rwlockReleaseRead(&vfs->vfslock);
     rwlockAcquireWrite(&vfs->vfslock);
 
-    ret = vfsFindCISub(vdir, out, NULL, components.a, 0, saSize(&components) - 1, mount, provif);
+    ret = vfsFindCISub(vdir, out, NULL, components.a, 0, saSize(components) - 1, mount, provif);
 
     rwlockReleaseWrite(&vfs->vfslock);
     rwlockAcquireRead(&vfs->vfslock);
@@ -389,16 +389,16 @@ VFSMount *_vfsFindMount(VFS *vfs, string *rpath, strref path, VFSMount **cowmoun
     saInit(&components, string, 8, Grow(Aggressive));
     pathDecompose(&ns, &components, abspath);
 
-    int32 relstart = saSize(&components) - 1;
+    int32 relstart = saSize(components) - 1;
     while (pdir) {
         devAssert(relstart >= 0);
         saDestroy(&relcomp);
-        saSlice(&relcomp, &components, relstart, 0);
+        saSlice(&relcomp, components, relstart, 0);
         strJoin(&curpath, relcomp, fsPathSepStr);
 
         // traverse list of registered providers backwards, as providers registered later
         // are "higher" on the stack
-        for (int i = saSize(&pdir->mounts) - 1; i >= 0; --i) {
+        for (int i = saSize(pdir->mounts) - 1; i >= 0; --i) {
             // save first writable provider we find
             if (!firstwritable && !(pdir->mounts.a[i]->flags & VFS_ReadOnly)) {
                 firstwritable = pdir->mounts.a[i];
@@ -477,7 +477,7 @@ done:
     if (ret && flcache && !(ret->flags & VFS_NoCache)) {
         rwlockAcquireWrite(&vfs->vfslock);
         VFSCacheEnt *newent = _vfsCacheEntCreate(ret, *rpath);
-        htInsertC(&vfsdir->files, string, components.a[saSize(&components) - 1], ptr, &newent, Ignore);
+        htInsertC(&vfsdir->files, string, components.a[saSize(components) - 1], ptr, &newent, Ignore);
         rwlockReleaseWrite(&vfs->vfslock);
     }
     rwlockReleaseRead(&vfs->vfsdlock);

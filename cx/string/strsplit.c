@@ -26,5 +26,5 @@ int32 strSplit(sa_string *out, strref s, strref sep, bool empty)
         saPushC(out, string, &seg);
     }
 
-    return saSize(out);
+    return saSize(*out);
 }

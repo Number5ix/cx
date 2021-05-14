@@ -54,7 +54,7 @@ int main(int argc, char *argv[])
     }
     strDestroy(&tmp);
 
-    for (int i = 0; i < saSize(&sidlfiles); i++) {
+    for (int i = 0; i < saSize(sidlfiles); i++) {
         saClear(&ifaces);
         htClear(&ifidx);
         saClear(&classes);
@@ -132,7 +132,7 @@ bool upToDate(string fname)
     // get the newest timestamp of the input file and all includes
     fsStat(fname, &statv);
     int64 newestsrc = statv.modified;
-    for (int i = 0; i < saSize(&deps); i++) {
+    for (int i = 0; i < saSize(deps); i++) {
         if (fsStat(deps.a[i], &statv))
             newestsrc = max(newestsrc, statv.modified);
     }

@@ -223,12 +223,12 @@ bool parseAnnotation(ParseState *ps, string *tok)
     return true;
 }
 
-bool getAnnotation(sa_string *out, sa_sarray_string *annotations, string afind)
+bool getAnnotation(sa_string *out, sa_sarray_string annotations, string afind)
 {
     for (int i = 0; i < saSize(annotations); i++) {
-        if (strEqi(annotations->a[i].a[0], afind)) {
+        if (strEqi(annotations.a[i].a[0], afind)) {
             if (out)
-                *out = annotations->a[i];
+                *out = annotations.a[i];
             return true;
         }
     }
@@ -560,7 +560,7 @@ bool parseClassPre(ParseState *ps, string *tok)
 bool parseClass(ParseState *ps, string *tok)
 {
     if (strEq(*tok, _S"}")) {
-        if (saSize(&ps->tokstack) > 0) {
+        if (saSize(ps->tokstack) > 0) {
             fprintf(stderr, "Extra junk in class definition\n");
             return false;
         }
@@ -573,7 +573,7 @@ bool parseClass(ParseState *ps, string *tok)
     } else if (strEq(*tok, _S";")) {
         if (ps->curmethod) {
             saPushC(&ps->curcls->methods, object, &ps->curmethod);
-        } else if (saSize(&ps->tokstack) >= 2) {
+        } else if (saSize(ps->tokstack) >= 2) {
             // this must be a class member
             if (!isvalidname(ps->tokstack.a[0])) {
                 fprintf(stderr, "Invalid member type '%s'\n", strC(ps->tokstack.a[0]));
@@ -593,19 +593,19 @@ bool parseClass(ParseState *ps, string *tok)
                 } else if (strEq(vartype.a[0], _S"sarray")) {
                     sa_string artl;
                     saInit(&artl, string, 4);
-                    for (int i = 1; i < saSize(&vartype); i++) {
+                    for (int i = 1; i < saSize(vartype); i++) {
                         // objects declare their array types as pointers already
                         if (!strEq(vartype.a[i], _S"object")) {
                             saPush(&artl, strref, vartype.a[i]);
                         }
                     }
 
-                    if (saSize(&artl) == 1) {
+                    if (saSize(artl) == 1) {
                         strNConcat(&nmem->vartype, _S"sa_", artl.a[0]);
                     } else {
                         // build up a complex array type
                         string lasttname = 0;
-                        for (int i = saSize(&artl) - 2; i >= 0; --i) {
+                        for (int i = saSize(artl) - 2; i >= 0; --i) {
                             if (!strEq(artl.a[i], _S"sarray"))
                                 continue;
 
@@ -614,7 +614,7 @@ bool parseClass(ParseState *ps, string *tok)
                             sa_string artypessub2;
                             saInit(&artypessub1, string, 4);
                             saInit(&artypessub2, string, 4);
-                            for (int j = i; j < saSize(&artl); j++) {
+                            for (int j = i; j < saSize(artl); j++) {
                                 saPush(&artypessub1, string, artl.a[j]);
                                 if (j > i) {
                                     saPush(&artypessub2, string, artl.a[j]);
@@ -626,7 +626,7 @@ bool parseClass(ParseState *ps, string *tok)
                             strJoin(&cat->tname, artypessub1, _S"_");
                             strJoin(&cat->tsubtype, artypessub2, _S"_");
 
-                            if (!ps->included && !htHasKey(&knownartypes, string, cat->tname))
+                            if (!ps->included && !htHasKey(knownartypes, string, cat->tname))
                                 saPush(&artypes, object, cat);
 
                             strDup(&lasttname, cat->tname);
@@ -641,9 +641,9 @@ bool parseClass(ParseState *ps, string *tok)
                     }
                     saDestroy(&artl);
                 } else if (strEq(vartype.a[0], _S"atomic")) {
-                    strNConcat(&nmem->vartype, _S, _S"atomic(", vartype.a[saSize(&vartype) - 1], _S")");
+                    strNConcat(&nmem->vartype, _S, _S"atomic(", vartype.a[saSize(vartype) - 1], _S")");
                 } else {
-                    strDup(&nmem->vartype, vartype.a[saSize(&vartype) - 1]);
+                    strDup(&nmem->vartype, vartype.a[saSize(vartype) - 1]);
                 }
 
                 nmem->fulltype = vartype;
@@ -652,7 +652,7 @@ bool parseClass(ParseState *ps, string *tok)
                 strDup(&nmem->vartype, ps->tokstack.a[0]);
             }
             saDestroy(&vartype);
-            for (int32 i = 1; i < saSize(&ps->tokstack); i++) {
+            for (int32 i = 1; i < saSize(ps->tokstack); i++) {
                 if (!nmem->name && onlyspecial(ps->tokstack.a[i])) {
                     strAppend(&nmem->predecr, ps->tokstack.a[i]);
                 } else if (!nmem->name && isvalidname(ps->tokstack.a[i])) {
@@ -680,7 +680,7 @@ bool parseClass(ParseState *ps, string *tok)
         fprintf(stderr, "Invalid token '%s' in class definition\n", strC(*tok));
         return false;
     } else if (strEq(*tok, _S"(")) {
-        if (saSize(&ps->tokstack) == 1) {
+        if (saSize(ps->tokstack) == 1) {
             if (strEq(ps->tokstack.a[0], _S"destroy")) {
                 ps->curcls->hasdestroy = true;
                 string dummy = 0;
@@ -703,7 +703,7 @@ bool parseClass(ParseState *ps, string *tok)
                 return true;
             }
         }
-        if (saSize(&ps->tokstack) == 0) {
+        if (saSize(ps->tokstack) == 0) {
             fprintf(stderr, "Syntax error in class definition\n");
             return false;
         }
@@ -746,7 +746,7 @@ bool parseClass(ParseState *ps, string *tok)
         }
 
         strDup(&ps->curmethod->returntype, ps->tokstack.a[0]);
-        for (int32 i = 1; i < saSize(&ps->tokstack); i++) {
+        for (int32 i = 1; i < saSize(ps->tokstack); i++) {
             if (!ps->curmethod->name && onlyspecial(ps->tokstack.a[i])) {
                 strAppend(&ps->curmethod->predecr, ps->tokstack.a[i]);
             } else if (!ps->curmethod->name && isvalidname(ps->tokstack.a[i])) {
@@ -792,7 +792,7 @@ bool parseFile(string fname, string *realfn, sa_string searchpath, bool included
     if (pathIsAbsolute(fname)) {
         strDup(&fpath, fname);
     } else {
-        for (int i = 0; i < saSize(&searchpath); i++) {
+        for (int i = 0; i < saSize(searchpath); i++) {
             pathJoin(&fpath, searchpath.a[i], fname);
             if (fsExist(fpath))
                 break;
@@ -804,7 +804,7 @@ bool parseFile(string fname, string *realfn, sa_string searchpath, bool included
 
     pathNormalize(&fpath);
 
-    if (!saValid(&already_parsed)) {
+    if (!saValid(already_parsed)) {
         saInit(&already_parsed, string, 10, Sorted);
     }
     if (saPush(&already_parsed, string, fpath, Unique) == -1) {

@@ -121,14 +121,15 @@ enum SARRAY_FUNC_FLAGS_ENUM {
 #define SA_GET_GROW(flags) ((flags) >> 24)
 
 #define SARRAY_HDRSIZE (offsetof(SArrayHeader, data))
-#define SARRAY_HDR(handle) ((SArrayHeader*)(((uintptr)(handle)->a) - SARRAY_HDRSIZE))
+#define SARRAY_HDR(ref) ((SArrayHeader*)(((uintptr)((ref).a)) - SARRAY_HDRSIZE))
+#define SAREF(r) ((&((r)._is_sarray), *(sa_ref*)(&(r))))
 #define SAHANDLE(h) ((sahandle)((h) && &((h)->_is_sarray), (h)))
 
-#define saSize(handle) ((handle)->_is_sarray ? SARRAY_HDR(handle)->count : 0)
-#define saCapacity(handle) ((handle)->_is_sarray ? SARRAY_HDR(handle)->capacity : 0)
-#define saElemSize(handle) ((handle)->_is_sarray ? stGetSize(SARRAY_HDR(handle)->elemtype) : 0)
-#define saElemType(handle) ((handle)->_is_sarray ? SARRAY_HDR(handle)->elemtype : 0)
-#define saValid(handle) ((handle) && (handle)->a)
+#define saSize(ref) ((ref)._is_sarray ? SARRAY_HDR(ref)->count : 0)
+#define saCapacity(ref) ((ref)._is_sarray ? SARRAY_HDR(ref)->capacity : 0)
+#define saElemSize(ref) ((ref)._is_sarray ? stGetSize(SARRAY_HDR(ref)->elemtype) : 0)
+#define saElemType(ref) ((ref)._is_sarray ? SARRAY_HDR(ref)->elemtype : 0)
+#define saValid(ref) ((ref).a)
 
 void _saInit(sahandle out, stype elemtype, STypeOps *ops, int32 capacity, uint32 flags);
 #define saInit(out, type, capacity, ...) _saInit(SAHANDLE(out), stFullType(type), capacity, func_flags(SA, __VA_ARGS__))
@@ -160,9 +161,9 @@ void *_saPopPtr(sahandle handle, int32 idx);
 int32 _saFind(sahandle handle, stgeneric elem, uint32 flags);
 _meta_inline int32 _saFindChecked(sahandle handle, stype elemtype, stgeneric elem, uint32 flags)
 {
-    if (!handle->_is_sarray)
+    if (!handle->a)
         return -1;
-    devAssert(stEq(saElemType(handle), elemtype));
+    devAssert(stEq(saElemType(*handle), elemtype));
     return _saFind(handle, elem, flags);
 }
 #define saFind(handle, type, elem, ...) _saFindChecked(SAHANDLE(handle), stCheckedArg(type, elem), func_flags(SAFUNC, __VA_ARGS__))
@@ -171,7 +172,7 @@ int32 _saInsert(sahandle, int32 idx, stgeneric elem);
 _meta_inline int32 _saInsertChecked(sahandle handle, int32 idx, stype elemtype, stgeneric elem)
 {
     devAssert(handle->_is_sarray);
-    devAssert(stEq(saElemType(handle), elemtype));
+    devAssert(stEq(saElemType(*handle), elemtype));
     return _saInsert(handle, idx, elem);
 }
 #define saInsert(handle, idx, type, elem) _saInsertChecked(SAHANDLE(handle), idx, stCheckedArg(type, elem))
@@ -182,9 +183,9 @@ bool _saRemove(sahandle handle, int32 idx, uint32 flags);
 void _saSort(sahandle handle, bool keep);
 #define saSort(handle, keep) _saSort(SAHANDLE(handle), keep)
 
-void _saSlice(sahandle out, sahandle handle, int32 start, int32 end);
-#define saSlice(out, handle, start, end) _saSlice(SAHANDLE(out), SAHANDLE(handle), start, end)
+void _saSlice(sahandle out, sa_ref ref, int32 start, int32 end);
+#define saSlice(out, src, start, end) _saSlice(SAHANDLE(out), SAREF(src), start, end)
 
-void _saMerge(sahandle out, int n, sahandle *handles, uint32 flags);
-#define saMerge(out, ...) _saMerge(SAHANDLE(out), sizeof((sahandle[]){ __VA_ARGS__ })/sizeof(sahandle), (sahandle[]){ __VA_ARGS__ }, 0)
-#define saMergeF(out, flags, ...) _saMerge(SAHANDLE(out), sizeof((sahandle[]){ __VA_ARGS__ })/sizeof(sahandle), (sahandle[]){ __VA_ARGS__ }, func_flags(SAFUNC, flags))
+void _saMerge(sahandle out, int n, sa_ref *refs, uint32 flags);
+#define saMerge(out, ...) _saMerge(SAHANDLE(out), sizeof((sa_ref[]){ __VA_ARGS__ })/sizeof(sa_ref), (sa_ref[]){ __VA_ARGS__ }, 0)
+#define saMergeF(out, flags, ...) _saMerge(SAHANDLE(out), sizeof((sa_ref[]){ __VA_ARGS__ })/sizeof(sa_ref), (sa_ref[]){ __VA_ARGS__ }, func_flags(SAFUNC, flags))

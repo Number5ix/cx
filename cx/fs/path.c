@@ -204,7 +204,7 @@ bool pathDecompose(string *ns, sa_string *components, strref pathin)
     bool absolute = pathIsAbsolute(rpath);
     strSplit(components, rpath, fsPathSepStr, true);
 
-    for (int32 i = 0, csz = saSize(components); i < csz; i++) {
+    for (int32 i = 0, csz = saSize(*components); i < csz; i++) {
         if (i > 0 && strEmpty(components->a[i])) {
             // remove empty components, but not from position 0 (absolute path)
             saRemove(components, i--);
@@ -227,7 +227,7 @@ bool pathDecompose(string *ns, sa_string *components, strref pathin)
     }
 
     // handle degenerate case of namespace: or namespace:path with no /
-    if (absolute && (saSize(components) == 0 || !strEmpty(components->a[0]))) {
+    if (absolute && (saSize(*components) == 0 || !strEmpty(components->a[0]))) {
         saInsert(components, 0, string, _S);
     }
 
@@ -240,7 +240,7 @@ bool pathCompose(string *out, strref ns, sa_string components)
     string rpath = 0;
 
     strJoin(&rpath, components, fsPathSepStr);
-    if (saSize(&components) == 1 && strEmpty(components.a[0]))
+    if (saSize(components) == 1 && strEmpty(components.a[0]))
         strAppend(&rpath, fsPathSepStr);                // this was absolute with only a root
 
     if (!strEmpty(ns))

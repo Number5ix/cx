@@ -196,7 +196,7 @@ bool _fmtParseVar(FMTContext *ctx)
         strSubStr(&frag, ctx->v.var, fostart, foend);
         strSplit(&ctx->v.fmtopts, frag, _S",", false);
         // look for all-numeric width
-        for (int32 i = saSize(&ctx->v.fmtopts) - 1; i >= 0; --i) {
+        for (int32 i = saSize(ctx->v.fmtopts) - 1; i >= 0; --i) {
             int32 w;
             if (strToInt32(&w, ctx->v.fmtopts.a[i], 10, true)) {
                 if (ctx->v.width != -1)

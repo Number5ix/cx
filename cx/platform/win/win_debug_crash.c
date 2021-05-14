@@ -118,7 +118,7 @@ _no_inline static LONG WINAPI dbgExceptionFilter(LPEXCEPTION_POINTERS info)
         WriteStatic("  \"build\": {\r\n");
         _ef_prefix = "    ";
         // write out version metadata
-        for (_ef_i = 0; _ef_i < saSize(&_dbgCrashExtraMeta); _ef_i++) {
+        for (_ef_i = 0; _ef_i < saSize(_dbgCrashExtraMeta); _ef_i++) {
             if (!_dbgCrashExtraMeta.a[_ef_i].version)
                 continue;
             WriteStr(_ef_prefix);
@@ -128,13 +128,13 @@ _no_inline static LONG WINAPI dbgExceptionFilter(LPEXCEPTION_POINTERS info)
             if (_dbgCrashExtraMeta.a[_ef_i].str) {
                 WriteStatic("\"");
                 WriteStr(_dbgCrashExtraMeta.a[_ef_i].str);
-                if (_ef_i < saSize(&_dbgCrashExtraMeta) - 1)
+                if (_ef_i < saSize(_dbgCrashExtraMeta) - 1)
                     WriteStatic("\",\r\n");
                 else
                     WriteStatic("\"\r\n");
             } else {
                 WriteNum(_dbgCrashExtraMeta.a[_ef_i].val);
-                if (_ef_i < saSize(&_dbgCrashExtraMeta) - 1)
+                if (_ef_i < saSize(_dbgCrashExtraMeta) - 1)
                     WriteStatic(",\r\n");
                 else
                     WriteStatic("\r\n");
@@ -196,7 +196,7 @@ _no_inline static LONG WINAPI dbgExceptionFilter(LPEXCEPTION_POINTERS info)
         }
 
         // write out custom metadata (mostly from assert failures)
-        for (_ef_i = 0; _ef_i < saSize(&_dbgCrashExtraMeta); _ef_i++) {
+        for (_ef_i = 0; _ef_i < saSize(_dbgCrashExtraMeta); _ef_i++) {
             if (_dbgCrashExtraMeta.a[_ef_i].version)
                 continue;
             WriteStr(_ef_prefix);
@@ -225,14 +225,14 @@ _no_inline static LONG WINAPI dbgExceptionFilter(LPEXCEPTION_POINTERS info)
             WriteValNQ("exceptionthread", WriteUNum, GetCurrentThreadId(), ",");
             WriteVal("exceptioninfo", WriteHex, (uintptr_t)info, ",");
         }
-        if (saSize(&_dbgCrashDumpMem) > 0) {
+        if (saSize(_dbgCrashDumpMem) > 0) {
             WriteCustom("dumpmem", "[\r\n");
-            for (_ef_i = 0; _ef_i < saSize(&_dbgCrashDumpMem); _ef_i++) {
+            for (_ef_i = 0; _ef_i < saSize(_dbgCrashDumpMem); _ef_i++) {
                 WriteStatic("      { \"start\": \"");
                 WriteHex(_dbgCrashDumpMem.a[_ef_i].start);
                 WriteStatic("\", \"end\": \"");
                 WriteHex(_dbgCrashDumpMem.a[_ef_i].end);
-                if (_ef_i < saSize(&_dbgCrashDumpMem) - 1)
+                if (_ef_i < saSize(_dbgCrashDumpMem) - 1)
                     WriteStatic("\" },\r\n");
                 else
                     WriteStatic("\" }\r\n");

@@ -7,7 +7,7 @@ bool strJoin(string *o, sa_string arr, strref sep)
         return false;
 
     uint32 seplen = strLen(sep), seglen;
-    int32 arrsize = saSize(&arr);
+    int32 arrsize = saSize(arr);
     uint8 encoding = STR_ENCODING_MASK;
     int32 i;
 

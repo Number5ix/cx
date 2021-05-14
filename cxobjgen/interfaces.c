@@ -8,7 +8,7 @@ static void fillMethods(sa_Method *methods, Interface *iface)
     if (iface->parent)
         fillMethods(methods, iface->parent);
 
-    for (int i = 0; i < saSize(&iface->methods); i++) {
+    for (int i = 0; i < saSize(iface->methods); i++) {
         saPush(methods, object, iface->methods.a[i], Unique);
     }
 }
@@ -31,7 +31,7 @@ bool processInterface(Interface *iface)
 
 bool processInterfaces()
 {
-    for (int i = 0; i < saSize(&ifaces); i++) {
+    for (int i = 0; i < saSize(ifaces); i++) {
         if (!processInterface(ifaces.a[i])) {
             printf("Error processing interface '%s'\n", strC(ifaces.a[i]->name));
             return false;

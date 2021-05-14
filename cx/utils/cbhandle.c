@@ -36,15 +36,15 @@ int _callbackGetHandle(const char *cbtype, GenericCallback func)
     nhandle.func = func;
     nhandle.type = cstrDup(cbtype);
     saPush(&handles, opaque, nhandle);
-    htInsert(&handleidx, ptr, func, int32, saSize(&handles) - 1);
-    return saSize(&handles) - 1;
+    htInsert(&handleidx, ptr, func, int32, saSize(handles) - 1);
+    return saSize(handles) - 1;
 }
 
 GenericCallback _callbackGetFunc(const char *cbtype, int handle)
 {
     lazyInit(&cbinit, callbackInit, 0);
 
-    if (handle < 1 || handle >= saSize(&handles))
+    if (handle < 1 || handle >= saSize(handles))
         return NULL;
 
     if (strcmp(cbtype, handles.a[handle].type) != 0)

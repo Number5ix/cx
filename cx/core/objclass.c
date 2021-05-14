@@ -31,7 +31,7 @@ static void hydrateIfaces(ObjClassInfo *cls, sa_ObjIface *impls, hashtable *impl
         hydrateIfaces(cls->parent, impls, impltbl);
 }
 
-bool _objCheckIfaces(sa_ObjIface *impls)
+bool _objCheckIfaces(sa_ObjIface impls)
 {
     foreach(sarray, i, ObjIface*, impl, impls) {
         if (!_objCheckIface(impl))
@@ -69,7 +69,7 @@ static void classInitImpl(ObjClassInfo *cls, bool locked)
 
     // Sanity check
     if (!cls->_abstract)
-        devAssertMsg(_objCheckIfaces(&impl), "Interface not fully implemented");
+        devAssertMsg(_objCheckIfaces(impl), "Interface not fully implemented");
 
     // Perform some slight of hand and swap the classif from the template to the hydrated
     // method table.

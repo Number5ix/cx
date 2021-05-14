@@ -50,14 +50,14 @@ static void writeMethodProto(BufFile *bf, Class *cls, Method *m, bool protoonly,
 
             strNConcat(&ln, _S"#define ", _S"parent_", m->name, _S"(");
             saPush(&parentmacros, string, m->name, Unique);
-            for (int j = 0; j < saSize(&pm->params); j++) {
+            for (int j = 0; j < saSize(pm->params); j++) {
                 if (j > 0)
                     strNConcat(&ln, ln, _S", ", pm->params.a[j]->name);
                 else
                     strAppend(&ln, pm->params.a[j]->name);
             }
             strNConcat(&ln, ln, _S") ", pmname, _S"((", pclass->name, _S"*)(self)");
-            for (int j = 0; j < saSize(&pm->params); j++) {
+            for (int j = 0; j < saSize(pm->params); j++) {
                 strNConcat(&ln, ln, _S", ", pm->params.a[j]->name);
             }
             strAppend(&ln, _S")");
@@ -78,7 +78,7 @@ static void writeMethodProto(BufFile *bf, Class *cls, Method *m, bool protoonly,
     if (mixinimpl)
         strPrepend(_S"_meta_inline ", &ln);
 
-    for (int j = 0; j < saSize(&m->params); j++) {
+    for (int j = 0; j < saSize(m->params); j++) {
         Param *p = m->params.a[j];
         string ptype = p->type;
         string ppre = p->predecr;
@@ -109,7 +109,7 @@ static void writeMethodProto(BufFile *bf, Class *cls, Method *m, bool protoonly,
 static void writeMethods(BufFile *bf, Class *cls, sa_string *seen, bool mixinimpl)
 {
     string ln = 0, mname = 0;
-    for (int i = 0; i < saSize(&cls->methods); i++) {
+    for (int i = 0; i < saSize(cls->methods); i++) {
         Method *m = cls->methods.a[i];
         if (m->mixin != mixinimpl)
             continue;
@@ -158,7 +158,7 @@ static void writeMethods(BufFile *bf, Class *cls, sa_string *seen, bool mixinimp
 static void writeMixinStubs(BufFile *bf, Class *cls, bool *wroteany)
 {
     string ln = 0, mname = 0, vname = 0;
-    for (int i = 0; i < saSize(&cls->methods); i++) {
+    for (int i = 0; i < saSize(cls->methods); i++) {
         Method *m = cls->methods.a[i];
         if (!m->mixin || cls->mixin)
             continue;
@@ -174,7 +174,7 @@ static void writeMixinStubs(BufFile *bf, Class *cls, bool *wroteany)
         mixinMemberName(&vname, m->mixinsrc);
         strNConcat(&ln, ln, mname, _S"((", m->srcclass->name, _S"*)&self->", vname);
 
-        for (int j = 0; j < saSize(&m->params); j++) {
+        for (int j = 0; j < saSize(m->params); j++) {
             Param *p = m->params.a[j];
             strNConcat(&ln, ln, _S", ", p->name);
         }
@@ -198,7 +198,7 @@ typedef struct MethodPair {
 static void indexMethods(Class *cls, hashtable *htbl)
 {
     string mname = 0;
-    for (int i = 0; i < saSize(&cls->methods); i++) {
+    for (int i = 0; i < saSize(cls->methods); i++) {
         Method *m = cls->methods.a[i];
         methodImplName(&mname, cls, m->name);
         htInsert(htbl, string, mname, opaque, ((MethodPair){ .c = cls, .m = m }));
@@ -212,7 +212,7 @@ static void writeAutoInit(BufFile *bf, Class *cls)
 
     bfWriteLine(bf, autogenBeginShortIndent);
 
-    for (int i = 0; i < saSize(&cls->members); i++) {
+    for (int i = 0; i < saSize(cls->members); i++) {
         Member *m = cls->members.a[i];
         if (!m->init)
             continue;
@@ -231,28 +231,28 @@ static void writeAutoInit(BufFile *bf, Class *cls)
             continue;
         } else if (m->initstr) {
             strNConcat(&ln, _S"    self->", m->name, _S" = ", m->initstr, _S";");
-        } else if (saSize(&m->fulltype) > 1) {
+        } else if (saSize(m->fulltype) > 1) {
             if (strEq(m->fulltype.a[0], _S"sarray")) {
                 sa_string flagarr;
                 saInit(&flagarr, string, 1);
                 string size = _S"1";
                 sa_string an;
 
-                if (getAnnotation(NULL, &m->annotations, _S"ref"))
+                if (getAnnotation(NULL, m->annotations, _S"ref"))
                     saPush(&flagarr, string, _S"Ref");
-                if (getAnnotation(NULL, &m->annotations, _S"sorted"))
+                if (getAnnotation(NULL, m->annotations, _S"sorted"))
                     saPush(&flagarr, string, _S"Sorted");
-                getAnnotation(&an, &m->annotations, _S"grow");
-                if (saSize(&an) == 2) {
+                getAnnotation(&an, m->annotations, _S"grow");
+                if (saSize(an) == 2) {
                     strNConcat(&tmp, _S"Grow(", an.a[1], _S")");
                     saPush(&flagarr, string, tmp);
                 }
-                getAnnotation(&an, &m->annotations, _S"size");
-                if (saSize(&an) == 2)
+                getAnnotation(&an, m->annotations, _S"size");
+                if (saSize(an) == 2)
                     size = an.a[1];
 
                 strClear(&flags);
-                if (saSize(&flagarr) != 0) {
+                if (saSize(flagarr) != 0) {
                     saInsert(&flagarr, 0, string, _S"");
                     strJoin(&flags, flagarr, _S", ");
                 }
@@ -260,29 +260,29 @@ static void writeAutoInit(BufFile *bf, Class *cls)
                            _S", ", size, flags, _S");");
                 saDestroy(&flagarr);
             }
-            if (strEq(m->fulltype.a[0], _S"hashtable") && saSize(&m->fulltype) == 3) {
+            if (strEq(m->fulltype.a[0], _S"hashtable") && saSize(m->fulltype) == 3) {
                 sa_string flagarr;
                 saInit(&flagarr, string, 1);
                 string size = _S"16";
                 sa_string an;
 
-                if (getAnnotation(NULL, &m->annotations, _S"ref"))
+                if (getAnnotation(NULL, m->annotations, _S"ref"))
                     saPush(&flagarr, string, _S"Ref");
-                if (getAnnotation(NULL, &m->annotations, _S"refkeys"))
+                if (getAnnotation(NULL, m->annotations, _S"refkeys"))
                     saPush(&flagarr, string, _S"RefKeys");
-                if (getAnnotation(NULL, &m->annotations, _S"caseinsensitive"))
+                if (getAnnotation(NULL, m->annotations, _S"caseinsensitive"))
                     saPush(&flagarr, string, _S"CaseInsensitive");
-                getAnnotation(&an, &m->annotations, _S"grow");
-                if (saSize(&an) == 2) {
+                getAnnotation(&an, m->annotations, _S"grow");
+                if (saSize(an) == 2) {
                     strNConcat(&tmp, _S"Grow(", an.a[1], _S")");
                     saPush(&flagarr, string, tmp);
                 }
-                getAnnotation(&an, &m->annotations, _S"size");
-                if (saSize(&an) == 2)
+                getAnnotation(&an, m->annotations, _S"size");
+                if (saSize(an) == 2)
                     size = an.a[1];
 
                 strClear(&flags);
-                if (saSize(&flagarr) != 0) {
+                if (saSize(flagarr) != 0) {
                     saInsert(&flagarr, 0, string, _S"");
                     strJoin(&flags, flagarr, _S", ");
                 }
@@ -310,7 +310,7 @@ static void writeAutoDtors(BufFile *bf, Class *cls)
 
     bfWriteLine(bf, autogenBeginShortIndent);
 
-    for (int i = 0; i < saSize(&cls->members); i++) {
+    for (int i = 0; i < saSize(cls->members); i++) {
         Member *m = cls->members.a[i];
         if (!m->destroy)
             continue;
@@ -329,7 +329,7 @@ static void writeAutoDtors(BufFile *bf, Class *cls)
                 }
             }
             continue;
-        } else if (saSize(&m->fulltype) > 1) {
+        } else if (saSize(m->fulltype) > 1) {
             if (strEq(m->fulltype.a[0], _S"sarray"))
                 strNConcat(&mdtor, _S"    saDestroy(&self->", m->name, _S");");
             else if (strEq(m->fulltype.a[0], _S"hashtable"))
@@ -353,7 +353,7 @@ static void writeAutoDtors(BufFile *bf, Class *cls)
 
 static void writeMixinProtos(BufFile *bf, Class *cls)
 {
-    for (int i = 0; i < saSize(&cls->methods); i++) {
+    for (int i = 0; i < saSize(cls->methods); i++) {
         Method *m = cls->methods.a[i];
         if (m->isinit || m->isdestroy) {
             writeMethodProto(bf, cls, m, true, false, false);
@@ -383,7 +383,7 @@ static void writeIfaceTmpl(BufFile *bf, Interface *iface, bool *wroteany)
 
 static Method *findIfaceMethod(Interface *iface, string name)
 {
-    for (int i = 0; i < saSize(&iface->allmethods); i++) {
+    for (int i = 0; i < saSize(iface->allmethods); i++) {
         if (strEq(iface->allmethods.a[i]->name, name))
             return iface->allmethods.a[i];
     }
@@ -401,7 +401,7 @@ static void writeClassIfaceTbl(BufFile *bf, Class *cls, Interface *iface)
     strNConcat(&ln, _S"    ._implements = (ObjIface*)&", iface->name, _S"_tmpl,");
     bfWriteLine(bf, ln);
 
-    for (int i = 0; i < saSize(&cls->methods); i++) {
+    for (int i = 0; i < saSize(cls->methods); i++) {
         if (cls->methods.a[i]->internal)
             continue;
 
@@ -412,7 +412,7 @@ static void writeClassIfaceTbl(BufFile *bf, Class *cls, Interface *iface)
 
         methodImplName(&implname, cls, m->name);
         strNConcat(&ln, _S"    .", m->name, _S" = (", m->returntype, _S" ", m->predecr, _S"(*)(void*");
-        for (int j = 0; j < saSize(&m->params); j++) {
+        for (int j = 0; j < saSize(m->params); j++) {
             Param *p = m->params.a[j];
             string ptype = p->type;
             string ppre = p->predecr;
@@ -441,7 +441,7 @@ static void writeClassIfaceList(BufFile *bf, Class *cls)
     strNConcat(&ln, _S"static ObjIface *_ifimpl_", cls->name, _S"[] = {");
     bfWriteLine(bf, ln);
 
-    for (int i = 0; i < saSize(&cls->implements); i++) {
+    for (int i = 0; i < saSize(cls->implements); i++) {
         strNConcat(&ln, _S"    (ObjIface*)&_impl_", cls->name, _S"_", cls->implements.a[i]->name, _S",");
         bfWriteLine(bf, ln);
     }
@@ -458,7 +458,7 @@ static void writeClassImpl(BufFile *bf, Class *cls, bool *wroteany)
 
     *wroteany = true;
 
-    for (int i = 0; i < saSize(&cls->implements); i++) {
+    for (int i = 0; i < saSize(cls->implements); i++) {
         writeClassIfaceTbl(bf, cls, cls->implements.a[i]);
     }
     writeClassIfaceList(bf, cls);
@@ -542,7 +542,7 @@ bool writeImpl(string fname, bool mixinimpl)
     if (!mixinimpl) {
         strNConcat(&ln, _S"#include \"", hname, _S"\"");
         bfWriteLine(nbf, ln);
-        for (int i = 0; i < saSize(&implincludes); i++) {
+        for (int i = 0; i < saSize(implincludes); i++) {
             strNConcat(&ln, _S"#include ", implincludes.a[i]);
             bfWriteLine(nbf, ln);
         }
@@ -561,7 +561,7 @@ bool writeImpl(string fname, bool mixinimpl)
     pcre2_code *reProto = pcre2_compile((PCRE2_SPTR)"(?:_meta_inline )?[A-Za-z0-9_]+ \\**([A-Za-z0-9_]+)\\(.*\\)(;)?", PCRE2_ZERO_TERMINATED, PCRE2_ANCHORED | PCRE2_ENDANCHORED, &err, &eoffset, NULL);
     pcre2_match_data *match = pcre2_match_data_create_from_pattern(reProto, NULL);
 
-    for (int i = 0; i < saSize(&classes); i++) {
+    for (int i = 0; i < saSize(classes); i++) {
         indexMethods(classes.a[i], &implidx);
     }
 
@@ -627,7 +627,7 @@ bool writeImpl(string fname, bool mixinimpl)
         bfWriteLine(nbf, NULL);
     }
 
-    for (int i = 0; i < saSize(&classes); i++) {
+    for (int i = 0; i < saSize(classes); i++) {
         if (!classes.a[i]->included)
             writeMethods(nbf, classes.a[i], &seen, mixinimpl);
     }
@@ -637,15 +637,15 @@ bool writeImpl(string fname, bool mixinimpl)
 
         bfWriteLine(ibf, autogenBegin);
         bfWriteLine(ibf, autogenNotice);
-        for (int i = 0; i < saSize(&classes); i++) {
+        for (int i = 0; i < saSize(classes); i++) {
             if (!classes.a[i]->included)
                 writeMixinStubs(ibf, classes.a[i], &wroteany);
         }
-        for (int i = 0; i < saSize(&ifaces); i++) {
+        for (int i = 0; i < saSize(ifaces); i++) {
             if (!ifaces.a[i]->included)
                 writeIfaceTmpl(ibf, ifaces.a[i], &wroteany);
         }
-        for (int i = 0; i < saSize(&classes); i++) {
+        for (int i = 0; i < saSize(classes); i++) {
             if (!classes.a[i]->included && !classes.a[i]->mixin)
                 writeClassImpl(ibf, classes.a[i], &wroteany);
         }
@@ -664,7 +664,7 @@ bool writeImpl(string fname, bool mixinimpl)
         }
     } else {
         bfWriteLine(nbf, autogenBeginShort);
-        for (int i = 0; i < saSize(&classes); i++) {
+        for (int i = 0; i < saSize(classes); i++) {
             if (!classes.a[i]->included)
                 writeMixinProtos(nbf, classes.a[i]);
         }

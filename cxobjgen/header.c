@@ -11,7 +11,7 @@ static bool isObjectType(Param *param)
     if (strEq(param->type, _S"ObjInst"))
         return true;
 
-    if (htHasKey(&clsidx, string, param->type))
+    if (htHasKey(clsidx, string, param->type))
         return true;
 
     return false;
@@ -21,7 +21,7 @@ static void writeUnbound(BufFile *bf, Class *cls, Class *cur, sa_Method *done)
 {
     string ln = 0, implname = 0, callname = 0;
 
-    for (int i = 0; i < saSize(&cur->methods); i++) {
+    for (int i = 0; i < saSize(cur->methods); i++) {
         Method *m = cur->methods.a[i];
         if (!m->unbound)
             continue;
@@ -36,7 +36,7 @@ static void writeUnbound(BufFile *bf, Class *cls, Class *cur, sa_Method *done)
             else
                 strNConcat(&ln, m->returntype, _S" ", m->predecr, implname, _S"(");
 
-            for (int j = 0; j < saSize(&m->params); j++) {
+            for (int j = 0; j < saSize(m->params); j++) {
                 Param *p = m->params.a[j];
                 string ptype = p->type;
                 string ppre = p->predecr;
@@ -55,7 +55,7 @@ static void writeUnbound(BufFile *bf, Class *cls, Class *cur, sa_Method *done)
 
             methodCallName(&callname, cls, m->name);
             strNConcat(&ln, _S"#define ", callname, m->standalone ? _S"(" : _S"(self");
-            for (int j = 0; j < saSize(&m->params); j++) {
+            for (int j = 0; j < saSize(m->params); j++) {
                 if (!m->standalone || j > 0)
                     strNConcat(&ln, ln, _S", ", m->params.a[j]->name);
                 else
@@ -65,7 +65,7 @@ static void writeUnbound(BufFile *bf, Class *cls, Class *cur, sa_Method *done)
                 strNConcat(&ln, ln, _S") ", implname, _S"(");
             else
                 strNConcat(&ln, ln, _S") ", implname, _S"(", cur->name, _S"(self)");
-            for (int j = 0; j < saSize(&m->params); j++) {
+            for (int j = 0; j < saSize(m->params); j++) {
                 string extra1 = 0, extra2 = 0;
                 // use cast macro for classes that we know about
                 if (isObjectType(m->params.a[j])) {
@@ -87,12 +87,12 @@ static void writeUnbound(BufFile *bf, Class *cls, Class *cur, sa_Method *done)
 
             methodCallName(&callname, cls, m->name);
             strNConcat(&ln, _S"#define ", callname, _S"(self");
-            for (int j = 0; j < saSize(&m->params); j++) {
+            for (int j = 0; j < saSize(m->params); j++) {
                 strNConcat(&ln, ln, _S", ", m->params.a[j]->name);
             }
             methodImplName(&implname, cur, m->name);
             strNConcat(&ln, ln, _S") ", implname, _S"(", cur->name, _S"(self)");
-            for (int j = 0; j < saSize(&m->params); j++) {
+            for (int j = 0; j < saSize(m->params); j++) {
                 // use cast macro for classes that we know about
                 if (isObjectType(m->params.a[j]))
                     strNConcat(&ln, ln, _S", ", m->params.a[j]->type, _S"(", m->params.a[j]->name, _S")");
@@ -125,10 +125,10 @@ void writeIfDecl(BufFile *bf, Interface *iface)
     bfWriteLine(bf, _S"    size_t _size;");
     bfWriteLine(bf, NULL);
 
-    for (int i = 0; i < saSize(&iface->allmethods); i++) {
+    for (int i = 0; i < saSize(iface->allmethods); i++) {
         Method *m = iface->allmethods.a[i];
         strNConcat(&ln, _S"    ", m->returntype, _S" ", m->predecr, _S"(*", m->name, _S")(void *self");
-        for (int j = 0; j < saSize(&m->params); j++) {
+        for (int j = 0; j < saSize(m->params); j++) {
             Param *p = m->params.a[j];
             string ptype = p->type;
             string ppre = p->predecr;
@@ -187,9 +187,9 @@ static void writeClassMember(BufFile *bf, Class *cls, Member *m)
     strDup(&predecr, m->predecr);
 
     if (!strEq(m->vartype, _S"hashtable") &&
-        saSize(&m->fulltype) > 0 &&
+        saSize(m->fulltype) > 0 &&
         !strEq(m->fulltype.a[0], _S"sarray")) {
-        for (int i = 0; i < saSize(&m->fulltype); i++) {
+        for (int i = 0; i < saSize(m->fulltype); i++) {
             if (strEq(m->fulltype.a[i], _S"object")) {
                 strPrepend(_S"*", &predecr);
             }
@@ -236,7 +236,7 @@ void writeClassDecl(BufFile *bf, Class *cls)
         bfWriteLine(bf, NULL);
     }
 
-    for (int i = 0; i < saSize(&cls->allmembers); i++) {
+    for (int i = 0; i < saSize(cls->allmembers); i++) {
         Member *m = cls->allmembers.a[i];
         writeClassMember(bf, cls, m);
     }
@@ -263,17 +263,17 @@ void writeClassDecl(BufFile *bf, Class *cls)
     writeUnbound(bf, cls, cls, &unboundDone);
     saDestroy(&unboundDone);
 
-    for (int i = 0; i < saSize(&cls->allmethods); i++) {
+    for (int i = 0; i < saSize(cls->allmethods); i++) {
         Method *m = cls->allmethods.a[i];
         if (m->internal)
             continue;
         methodCallName(&mname, cls, m->name);
         strNConcat(&ln, _S"#define ", mname, _S"(self");
-        for (int j = 0; j < saSize(&m->params); j++) {
+        for (int j = 0; j < saSize(m->params); j++) {
             strNConcat(&ln, ln, _S", ", m->params.a[j]->name);
         }
         strNConcat(&ln, ln, _S") (self)->_->", m->name, _S"(", cls->name, _S"(self)");
-        for (int j = 0; j < saSize(&m->params); j++) {
+        for (int j = 0; j < saSize(m->params); j++) {
             // use cast macro for classes that we know about
             if (isObjectType(m->params.a[j]))
                 strNConcat(&ln, ln, _S", ", m->params.a[j]->type, _S"(", m->params.a[j]->name, _S")");
@@ -306,37 +306,37 @@ bool writeHeader(string fname)
     bfWriteLine(bf, _S"// This header file is auto-generated!");
     bfWriteLine(bf, _S"// Do not make changes to this file or they will be overwritten.");
     bfWriteLine(bf, _S"#include <cx/obj.h>");
-    for (int i = 0; i < saSize(&includes); i++) {
+    for (int i = 0; i < saSize(includes); i++) {
         strNConcat(&ln, _S"#include ", includes.a[i]);
         bfWriteLine(bf, ln);
     }
     bfWriteLine(bf, NULL);
 
-    for (int i = 0; i < saSize(&structs); i++) {
+    for (int i = 0; i < saSize(structs); i++) {
         writeForwardDecl(bf, structs.a[i]);
     }
 
-    for (int i = 0; i < saSize(&classes); i++) {
+    for (int i = 0; i < saSize(classes); i++) {
         if (!classes.a[i]->included)
             writeForwardDecl(bf, classes.a[i]->name);
     }
-    for (int i = 0; i < saSize(&classes); i++) {
+    for (int i = 0; i < saSize(classes); i++) {
         if (!classes.a[i]->included)
             writeSArrayDecl(bf, classes.a[i]->name);
     }
-    for (int i = 0; i < saSize(&artypes); i++) {
+    for (int i = 0; i < saSize(artypes); i++) {
         writeComplexArrayDecl(bf, artypes.a[i]);
     }
     if (!strEmpty(cpassthrough))
         bfWriteStr(bf, cpassthrough);
     bfWriteLine(bf, NULL);
 
-    for (int i = 0; i < saSize(&ifaces); i++) {
+    for (int i = 0; i < saSize(ifaces); i++) {
         if (!ifaces.a[i]->included)
             writeIfDecl(bf, ifaces.a[i]);
     }
 
-    for (int i = 0; i < saSize(&classes); i++) {
+    for (int i = 0; i < saSize(classes); i++) {
         if (!classes.a[i]->included)
             writeClassDecl(bf, classes.a[i]);
     }

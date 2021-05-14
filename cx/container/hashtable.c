@@ -468,9 +468,9 @@ bool _htRemove(hashtable *htbl, stgeneric key)
     return found;
 }
 
-htelem _htFindElem(hashtable *htbl, stgeneric key)
+htelem _htFindElem(hashtable htbl, stgeneric key)
 {
-    HashTableHeader *hdr = HTABLE_HDR(*htbl);
+    HashTableHeader *hdr = HTABLE_HDR(htbl);
     uint32 elemsz = _htElemSz(hdr);
     int32 slot;
     bool found = htFindInternal(hdr, key, &slot, NULL);
@@ -481,17 +481,17 @@ htelem _htFindElem(hashtable *htbl, stgeneric key)
     return NULL;
 }
 
-bool htiInit(htiter *iter, hashtable *htbl)
+bool htiInit(htiter *iter, hashtable htbl)
 {
     if (!iter)
         return false;
-    if (!(htbl && *htbl)) {
+    if (!(htbl)) {
         iter->hdr = NULL;
         iter->elem = NULL;
         return false;
     }
 
-    iter->hdr = HTABLE_HDR(*htbl);
+    iter->hdr = HTABLE_HDR(htbl);
     iter->slot = -1;
     iter->elem = NULL;
     return htiNext(iter);

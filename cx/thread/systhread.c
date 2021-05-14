@@ -37,7 +37,7 @@ static void systhreadAtExit(void)
     once = false;
 
     mutexAcquire(&systhreadLock);
-    for (int idx = 0, idxmax = saSize(&systhreads); idx < idxmax; idx++) {
+    for (int idx = 0, idxmax = saSize(systhreads); idx < idxmax; idx++) {
         thrRequestExit(systhreads.a[idx]->thr);
         eventSignalLock(&systhreads.a[idx]->notify);
     }

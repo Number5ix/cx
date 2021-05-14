@@ -24,7 +24,7 @@ bool processInterfaces();
 bool processClasses();
 bool writeHeader(string fname);
 bool writeImpl(string fname, bool mixinimpl);
-bool getAnnotation(sa_string *out, sa_sarray_string *annotations, string afind);
+bool getAnnotation(sa_string *out, sa_sarray_string annotations, string afind);
 
 void methodImplName(string *out, Class *cls, string mname);
 void methodCallName(string *out, Class *cls, string mname);

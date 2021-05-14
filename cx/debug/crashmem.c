@@ -36,7 +36,7 @@ void dbgCrashIncludeMemory(void *ptr, size_t sz)
     if (idx > 0 && _dbgCrashDumpMem.a[idx - 1].end == r.start) {
         // extend the previous block
         _dbgCrashDumpMem.a[idx - 1].end = r.end;
-    } else if (idx >= 0 && idx < saSize(&_dbgCrashDumpMem) && _dbgCrashDumpMem.a[idx].start == r.end) {
+    } else if (idx >= 0 && idx < saSize(_dbgCrashDumpMem) && _dbgCrashDumpMem.a[idx].start == r.end) {
         // extend the following block
         _dbgCrashDumpMem.a[idx].start = r.start;
     } else {
@@ -57,7 +57,7 @@ void dbgCrashExcludeMemory(void *ptr, size_t sz)
     // back up one index entry to catch partial overlap
     idx = max(idx - 1, 0);
 
-    for (; idx < saSize(&_dbgCrashDumpMem); idx++) {
+    for (; idx < saSize(_dbgCrashDumpMem); idx++) {
         CrashMemRange *ir = &_dbgCrashDumpMem.a[idx];
         if (r.start <= ir->start && r.end >= ir->end) {
             // completely inside removal range, delete it
