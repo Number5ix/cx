@@ -88,7 +88,7 @@ intptr TestCls5_cmp(TestCls5 *self, TestCls5 *other, uint32 flags)
     // Uncomment unless this function can compare different object classes
     devAssert(objClsInfo(self) == objClsInfo(other));
 
-    return self->data - other->data;
+    return objDefaultCmp(self, other, flags);
 }
 
 TestCls4b *TestCls4b_create()
