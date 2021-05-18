@@ -28,7 +28,7 @@ static int logthread_func(Thread *self)
                 continue;
 
             foreach(sarray, idx, LogDest*, dest, _log_dests) {
-                if (ent->level <= dest->maxlevel && !dest->catfilter || dest->catfilter == ent->cat) {
+                if (ent->level <= dest->maxlevel && (!dest->catfilter || dest->catfilter == ent->cat)) {
                     // dispatch to log destination
                     dest->func(ent->level, ent->cat, ent->timestamp, ent->msg, dest->userdata);
                 }

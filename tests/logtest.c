@@ -47,8 +47,8 @@ static int test_log_levels()
     LogTestData td = { 0 };
     eventInit(&logtestevent);
 
-    LogDest *tdest1 = logRegisterDest(LOG_Info, NULL, testdest, &td);
-    LogDest *tdest2 = logRegisterDest(LOG_Error, NULL, testdest, &td);
+    logRegisterDest(LOG_Info, NULL, testdest, &td);
+    logRegisterDest(LOG_Error, NULL, testdest, &td);
 
     td.test = 1;
     td.count = 0;
@@ -106,7 +106,7 @@ static int test_log_shutdown()
     LogTestData td = { 0 };
     eventInit(&logtestevent);
 
-    LogDest *tdest1 = logRegisterDest(LOG_Info, NULL, testdest, &td);
+    logRegisterDest(LOG_Info, NULL, testdest, &td);
 
     td.test = 1000;
     td.fail = true;
