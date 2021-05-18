@@ -12,6 +12,7 @@ set(PLATFORM_UNIX_SRCS
     platform/unix/unix_os.c
     platform/unix/unix_sys_hostid.c
     platform/unix/unix_thread_thread.c
+    platform/unix/unix_time.c
     platform/unix/unix_time_clock.c
     platform/unix/unix_vfs.c)
 set(PLATFORM_UNIX_INCLUDES

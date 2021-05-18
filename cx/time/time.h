@@ -34,6 +34,9 @@ typedef struct TimeParts {
 bool timeDecompose(TimeParts *out, int64 time);
 int64 timeCompose(TimeParts *parts);
 
+// convert a time to local time, optionally returning the offset
+int64 timeLocal(int64 time, int64 *offset);
+
 // time interval conversion
 _meta_inline int64 timeToSeconds(int64 time)
 {
