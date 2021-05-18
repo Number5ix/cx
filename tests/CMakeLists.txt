@@ -2,6 +2,7 @@ create_test_sourcelist(testsrc
     test_runner.c
     cxmemtest.c
     fmttest.c
+    logtest.c
     objtest.c
     sarraytest.c
     strtest.c
@@ -40,6 +41,8 @@ add_test(NAME "\"format: Array indexing\"" COMMAND test_runner fmttest array)
 add_test(NAME "\"format: Hashtable lookup\"" COMMAND test_runner fmttest hash)
 add_test(NAME "\"format: Defaults\"" COMMAND test_runner fmttest default)
 add_test(NAME "\"format: Error handling\"" COMMAND test_runner fmttest error)
+add_test(NAME "\"log: Log Levels\"" COMMAND test_runner logtest levels)
+add_test(NAME "\"log: Shutdown\"" COMMAND test_runner logtest shutdown)
 add_test(NAME "\"object: Interface\"" COMMAND test_runner objtest iface)
 add_test(NAME "\"object: Class Inheritance\"" COMMAND test_runner objtest inherit)
 add_test(NAME "\"object: Interface Inheritance\"" COMMAND test_runner objtest ifinherit)
