@@ -38,7 +38,7 @@ typedef struct htiter {
 } htiter;
 
 #define HTABLE_HDRSIZE (offsetof(HashTableHeader, data))
-#define HTABLE_HDR(ref) ((HashTableHeader*)(((uintptr)(((ref) && &((ref)->_is_hashtable), ref))) - HTABLE_HDRSIZE))
+#define HTABLE_HDR(ref) ((HashTableHeader*)(((uintptr)(&((ref)->_is_hashtable))) - HTABLE_HDRSIZE))
 
 #define htSlots(ref) ((ref) ? HTABLE_HDR((ref))->slots : 0)
 #define htUsed(ref) ((ref)) ? HTABLE_HDR((ref))->used : 0)
