@@ -59,9 +59,11 @@ bool logUnregisterDest(LogDest *dhandle)
     return ret;
 }
 
-void logShutdown()
+void logShutdown(void)
 {
     logCheckInit();
+
+    logFlush();
 
     // remove all log destinations
     mutexAcquire(&_log_dests_lock);

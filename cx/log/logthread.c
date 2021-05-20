@@ -4,6 +4,7 @@
 
 Thread *_log_thread;
 Event *_log_event;
+static Event _log_done_event;
 _Thread_local sa_LogEntry _log_thread_batch;
 
 static int logthread_func(Thread *self)
@@ -51,6 +52,7 @@ static int logthread_func(Thread *self)
 
         saClear(&ents);
 
+        eventSignal(&_log_done_event);
         eventWait(_log_event);
     }
 
@@ -60,6 +62,24 @@ static int logthread_func(Thread *self)
 void logThreadCreate(void)
 {
     devAssert(!_log_thread);
+    eventInit(&_log_done_event);
     _log_thread = thrCreate(logthread_func, stvNone);
     thrRegisterSysThread(_log_thread, &_log_event);
+}
+
+void logFlush(void)
+{
+    for(;;) {
+        rwlockAcquireRead(&_log_buffer_lock);
+        int32 rdptr = atomicLoad(int32, &_log_buf_readptr, Relaxed);
+        int32 wrptr = atomicLoad(int32, &_log_buf_writeptr, Acquire);
+        rwlockReleaseRead(&_log_buffer_lock);
+
+        // nothing to process, all done
+        if (rdptr == wrptr)
+            break;
+
+        eventSignal(_log_event);
+        eventWait(&_log_done_event);
+    }
 }

@@ -36,10 +36,11 @@ typedef void(*LogDestFunc)(int level, LogCategory *cat, int64 timestamp, strref 
 
 LogDest *logRegisterDest(int maxlevel, LogCategory *catfilter, LogDestFunc dest, void *userdata);
 bool logUnregisterDest(LogDest *dhandle);
-void logShutdown();
+void logFlush(void);
+void logShutdown(void);
 
-void logBatchBegin();
-void logBatchEnd();
+void logBatchBegin(void);
+void logBatchEnd(void);
 
 #define strFormat(out, fmt, ...) _strFormat(out, fmt, count_macro_args(__VA_ARGS__), (stvar[]){ __VA_ARGS__ })
 

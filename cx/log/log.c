@@ -104,13 +104,13 @@ void _logFmt(int level, LogCategory *cat, strref fmtstr, int n, stvar *args)
     strDestroy(&logmsg);
 }
 
-void logBatchBegin()
+void logBatchBegin(void)
 {
     devAssert(!_log_thread_batch.a);
     saInit(&_log_thread_batch, ptr, LOG_INITIAL_BUFFER_SIZE / 2);
 }
 
-void logBatchEnd()
+void logBatchEnd(void)
 {
     devAssert(_log_thread_batch.a);
     logBufferAddBatch(_log_thread_batch);
