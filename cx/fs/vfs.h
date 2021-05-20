@@ -29,6 +29,7 @@ bool _vfsMountVFS(VFS *vfs, strref path, VFS *vfs2, strref vfs2root, uint32 flag
 // Get / set current directory
 void vfsCurDir(VFS *vfs, string *out);
 bool vfsSetCurDir(VFS *vfs, strref cur);
+void vfsAbsolutePath(VFS *vfs, string *out, strref path);
 
 int vfsStat(VFS *vfs, strref path, FSStat *stat);
 

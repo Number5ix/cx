@@ -274,6 +274,11 @@ void _vfsAbsPath(VFS *vfs, string *out, strref path)
         pathJoin(out, vfs->curdir, path);
 }
 
+void vfsAbsolutePath(VFS *vfs, string *out, strref path)
+{
+    _vfsAbsPath(vfs, out, path);
+}
+
 static int vfsFindCISub(VFSDir *vdir, string *out, strref path,
         string *components, int depth, int target,
         VFSMount *mount, VFSProvider *provif)
