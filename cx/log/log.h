@@ -50,25 +50,25 @@ void logBatchEnd();
 
 #if DEBUG_LEVEL >= 2
 #define _logStr_Trace(level, cat, str) _logStr(level, cat, str)
-#define _logFmt_Trace(level, cat, str) _logFmt(level, cat, str)
+#define _logFmt_Trace(level, cat, fmt, nargs, args) _logFmt(level, cat, fmt, nargs, args)
 #else
 #define _logStr_Trace(level, cat, str) ((void)0)
-#define _logFmt_Trace(level, cat, str) ((void)0)
+#define _logFmt_Trace(level, cat, fmt, nargs, args) ((void)0)
 #endif
 
 #if DEBUG_LEVEL >= 1
 #define _logStr_Debug(level, cat, str) _logStr(level, cat, str)
-#define _logFmt_Debug(level, cat, str) _logFmt(level, cat, str)
+#define _logFmt_Debug(level, cat, fmt, nargs, args) _logFmt(level, cat, fmt, nargs, args)
 #define _logStr_DevVerbose(level, cat, str) _logStr(LOG_Verbose, cat, str)
-#define _logFmt_DevVerbose(level, cat, str) _logFmt(LOG_Verbose, cat, str)
+#define _logFmt_DevVerbose(level, cat, fmt, nargs, args) _logFmt(LOG_Verbose, cat, fmt, nargs, args)
 #define _logStr_DevInfo(level, cat, str) _logStr(LOG_Info, cat, str)
-#define _logFmt_DevInfo(level, cat, str) _logFmt(LOG_Info, cat, str)
+#define _logFmt_DevInfo(level, cat, fmt, nargs, args) _logFmt(LOG_Info, cat, fmt, nargs, args)
 #define _logStr_DevNotice(level, cat, str) _logStr(LOG_Notice, cat, str)
-#define _logFmt_DevNotice(level, cat, str) _logFmt(LOG_Notice, cat, str)
+#define _logFmt_DevNotice(level, cat, fmt, nargs, args) _logFmt(LOG_Notice, cat, fmt, nargs, args)
 #define _logStr_DevWarn(level, cat, str) _logStr(LOG_Warn, cat, str)
-#define _logFmt_DevWarn(level, cat, str) _logFmt(LOG_Warn, cat, str)
+#define _logFmt_DevWarn(level, cat, fmt, nargs, args) _logFmt(LOG_Warn, cat, fmt, nargs, args)
 #define _logStr_DevError(level, cat, str) _logStr(LOG_Error, cat, str)
-#define _logFmt_DevError(level, cat, str) _logFmt(LOG_Error, cat, str)
+#define _logFmt_DevError(level, cat, fmt, nargs, args) _logFmt(LOG_Error, cat, fmt, nargs, args)
 #else
 #define _logStr_Debug(level, cat, str) ((void)0)
 #define _logFmt_Debug(level, cat, str) ((void)0)
@@ -85,14 +85,14 @@ void logBatchEnd();
 #endif
 
 #define _logStr_Verbose(level, cat, str) _logStr(level, cat, str)
-#define _logFmt_Verbose(level, cat, str) _logFmt(level, cat, str)
+#define _logFmt_Verbose(level, cat, fmt, nargs, args) _logFmt(level, cat, fmt, nargs, args)
 #define _logStr_Info(level, cat, str) _logStr(level, cat, str)
-#define _logFmt_Info(level, cat, str) _logFmt(level, cat, str)
+#define _logFmt_Info(level, cat, fmt, nargs, args) _logFmt(level, cat, fmt, nargs, args)
 #define _logStr_Notice(level, cat, str) _logStr(level, cat, str)
-#define _logFmt_Notice(level, cat, str) _logFmt(level, cat, str)
+#define _logFmt_Notice(level, cat, fmt, nargs, args) _logFmt(level, cat, fmt, nargs, args)
 #define _logStr_Warn(level, cat, str) _logStr(level, cat, str)
-#define _logFmt_Warn(level, cat, str) _logFmt(level, cat, str)
+#define _logFmt_Warn(level, cat, fmt, nargs, args) _logFmt(level, cat, fmt, nargs, args)
 #define _logStr_Error(level, cat, str) _logStr(level, cat, str)
-#define _logFmt_Error(level, cat, str) _logFmt(level, cat, str)
+#define _logFmt_Error(level, cat, fmt, nargs, args) _logFmt(level, cat, fmt, nargs, args)
 #define _logStr_Fatal(level, cat, str) _logStr(level, cat, str)
-#define _logFmt_Fatal(level, cat, str) _logFmt(level, cat, str)
+#define _logFmt_Fatal(level, cat, fmt, nargs, args) _logFmt(level, cat, fmt, nargs, args)
