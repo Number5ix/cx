@@ -16,6 +16,10 @@ enum WEEKDAYS {
     Friday,
     Saturday
 };
+extern strref timeDayName[];
+extern strref timeDayAbbrev[];
+extern strref timeMonthName[];
+extern strref timeMonthAbbrev[];
 
 typedef struct TimeParts {
     uint32 usec;    // first for structure alignment reasons
