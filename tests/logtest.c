@@ -58,6 +58,8 @@ static int test_log_levels()
     LogTestData td = { 0 };
     eventInit(&logtestevent);
 
+    LogMembufData *lmd = logmembufCreate(4096);
+    logRegisterDest(LOG_Verbose, NULL, logmembufDest, lmd);
     logRegisterDest(LOG_Info, NULL, testdest, &td);
     logRegisterDest(LOG_Error, NULL, testdest, &td);
 
@@ -105,6 +107,9 @@ static int test_log_levels()
     if (td.fail || td.count != 2)
         ret = 1;
 
+    if (lmd->cur != 284)
+        ret = 1;
+
     logShutdown();
 
     eventDestroy(&logtestevent);
@@ -136,6 +141,8 @@ static int test_log_batch()
     LogTestData td = { 0 };
     eventInit(&logtestevent);
 
+    LogMembufData *lmd = logmembufCreate(128 * 1024);
+    logRegisterDest(LOG_Verbose, NULL, logmembufDest, lmd);
     logRegisterDest(LOG_Info, NULL, testdest, &td);
     logRegisterDest(LOG_Error, NULL, testdest, &td);
 
@@ -166,6 +173,9 @@ static int test_log_batch()
     logBatchEnd();
     eventWait(&logtestevent);
     if (td.fail || td.count != 1600)
+        ret = 1;
+
+    if (lmd->cur != 46864)
         ret = 1;
 
     logShutdown();

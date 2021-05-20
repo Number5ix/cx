@@ -3,6 +3,7 @@
 #include <cx/container.h>
 #include <cx/time.h>
 #include <cx/format.h>
+#include <cx/utils.h>
 
 typedef struct LogFileData {
     LogFileConfig config;
@@ -84,7 +85,6 @@ LogFileData *logfileCreate(VFS *vfs, strref filename, LogFileConfig *config)
     // the modify timestamp to make sure it works correctly across sessions
     FSStat stat;
     if (config->rotateMode == LOG_RotateTime && vfsStat(vfs, ret->fname, &stat) == FS_File) {
-        int64 now = (config->flags & LOG_LocalTime) ? clockWallLocal() : clockWall();
         if (config->flags & LOG_LocalTime)
             stat.modified = timeLocal(stat.modified, NULL);
 

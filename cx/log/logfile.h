@@ -1,3 +1,5 @@
+#pragma once
+
 #include <cx/log/log.h>
 #include <cx/fs/vfs.h>
 
