@@ -70,10 +70,14 @@ void logThreadCreate(void)
 void logFlush(void)
 {
     for(;;) {
-        rwlockAcquireRead(&_log_buffer_lock);
+        // acquire destination lock, then buffer write lock to ensure that rdptr
+        // reflects log entries that have been fully written
+        mutexAcquire(&_log_dests_lock);
+        mutexRelease(&_log_dests_lock);
+        rwlockAcquireWrite(&_log_buffer_lock);
         int32 rdptr = atomicLoad(int32, &_log_buf_readptr, Relaxed);
         int32 wrptr = atomicLoad(int32, &_log_buf_writeptr, Acquire);
-        rwlockReleaseRead(&_log_buffer_lock);
+        rwlockReleaseWrite(&_log_buffer_lock);
 
         // nothing to process, all done
         if (rdptr == wrptr)
