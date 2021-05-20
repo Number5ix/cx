@@ -8,7 +8,7 @@ bool _fmtExtractVar(FMTContext *ctx)
 
     // "loop" to handle escaped start sequences
 retry_start:
-    ctx->vstart = strFind(ctx->fmt, ctx->vend, _S"${");
+    ctx->vstart = strFind(ctx->fmt, ctx->vend, (strref)"\xE1\xC1\x02""${");
     if (ctx->vstart == -1) {        // no more vars
         strDestroy(&frag);
         return true;
@@ -20,7 +20,7 @@ retry_start:
             // skip over the backtick
             strSubStr(&frag, ctx->fmt, ctx->vend, ctx->vstart - 1);
             strAppend(&ctx->dest, frag);
-            strAppend(&ctx->dest, _S"${");
+            strAppend(&ctx->dest, (strref)"\xE1\xC1\x02""${");
             ctx->vend = (ctx->vstart += 2);
             goto retry_start;
         }
@@ -37,7 +37,7 @@ retry_start:
     ctx->vend = ctx->vstart + 1;
 
 retry_end:
-    ctx->vend = strFind(ctx->fmt, ctx->vend, _S"}");
+    ctx->vend = strFind(ctx->fmt, ctx->vend, (strref)"\xE1\xC1\x01""}");
     if (ctx->vend == -1) {          // broken format string
         strDestroy(&frag);
         return false;
@@ -66,15 +66,15 @@ retry_end:
 
 static bool fmtParseOpt(FMTContext *ctx, strref opt, int32 vtype)
 {
-    if (strEq(opt, _S"left"))
+    if (strEq(opt, (strref)"\xE1\xC1\x04""left"))
         ctx->v.flags |= FMTVar_Left;
-    else if (strEq(opt, _S"center"))
+    else if (strEq(opt, (strref)"\xE1\xC1\x06""center"))
         ctx->v.flags |= FMTVar_Center;
-    else if (strEq(opt, _S"right"))
+    else if (strEq(opt, (strref)"\xE1\xC1\x05""right"))
         ctx->v.flags |= FMTVar_Right;
-    else if (strEq(opt, _S"upper"))
+    else if (strEq(opt, (strref)"\xE1\xC1\x05""upper"))
         ctx->v.flags |= FMTVar_Upper;
-    else if (strEq(opt, _S"lower"))
+    else if (strEq(opt, (strref)"\xE1\xC1\x05""lower"))
         ctx->v.flags |= FMTVar_Lower;
     else if (_fmtTypeParseOpt[vtype])
         return _fmtTypeParseOpt[vtype](&ctx->v, opt);
@@ -194,7 +194,7 @@ bool _fmtParseVar(FMTContext *ctx)
     // format options?
     if (fostart > 0) {
         strSubStr(&frag, ctx->v.var, fostart, foend);
-        strSplit(&ctx->v.fmtopts, frag, _S",", false);
+        strSplit(&ctx->v.fmtopts, frag, (strref)"\xE1\xC1\x01"",", false);
         // look for all-numeric width
         for (int32 i = saSize(ctx->v.fmtopts) - 1; i >= 0; --i) {
             int32 w;
