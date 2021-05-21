@@ -24,6 +24,8 @@ static string loglineend = _S"\r\n";
 static string loglineend = _S"\n";
 #endif
 
+static void deleteOldFiles(LogFileData *lfd);
+
 static void logfileDestroy(LogFileData *data)
 {
     vfsClose(data->curfile);
@@ -106,6 +108,9 @@ LogFileData *logfileCreate(VFS *vfs, strref filename, LogFileConfig *config)
         return NULL;
     }
 
+    // clear out any old rotated files
+    deleteOldFiles(ret);
+
     return ret;
 }
 
@@ -135,8 +140,9 @@ static void deleteOldFiles(LogFileData *lfd)
             int num;
             if (strToInt32(&num, splits.a[1], 10, true) && num < 10000) {
                 // this is a numbered file, not one with a date
-                // delete the last one in the sequence so the others can be renumbered
-                if (lfd->config.rotateKeepFiles > 0 && num >= lfd->config.rotateKeepFiles) {
+                // deletion is usually handled at rotation time, but check anyway in case
+                // the config changed
+                if (lfd->config.rotateKeepFiles > 0 && num > lfd->config.rotateKeepFiles) {
                     saPush(&todelete, string, fsi.name);
                 } else {
                     lfd->numseen = max(lfd->numseen, num);
