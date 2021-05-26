@@ -185,3 +185,14 @@ void _objDestroy(ObjInst *inst)
     instDtor(inst, inst->_clsinfo);
     xaFree(inst);
 }
+
+void _objRelease(ObjInst **instp)
+{
+    if (!*instp)
+        return;
+
+    if (refcountDec(&(*instp)->_ref))
+        _objDestroy(*instp);
+
+    *instp = NULL;
+}

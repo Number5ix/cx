@@ -3,6 +3,7 @@
 #include <cx/core/objiface.h>
 #include <cx/container/hashtable.h>
 #include <cx/thread/atomic.h>
+#include <cx/utils/refcount.h>
 
 // A class stores arbitrary per-instance data and may implement one or more interfaces.
 // The class info structure contains runtime meta-information about the class.
@@ -49,12 +50,13 @@ typedef struct ObjInst {
         ObjClassInfo *_clsinfo;
         void *_is_ObjInst;
     };
-    atomic(intptr) _ref;        // reference count
+    refcount _ref;
 
     // user data members here
 } ObjInst;
 
 #define ObjInst(inst) ((ObjInst*)(&((inst)->_is_ObjInst), (inst)))
+#define ObjInstPtr(pinst) ((ObjInst**)(&((*(pinst))->_is_ObjInst), (pinst)))
 #define objInstBase(inst) ObjInst(inst)
 #define objClsInfo(inst) (inst->_clsinfo)
 
@@ -63,24 +65,11 @@ void _objDestroy(ObjInst *inst);
 
 _meta_inline void _objAcquire(ObjInst *inst)
 {
-    if (inst)
-        atomicFetchAdd(intptr, &inst->_ref, 1, Relaxed);
+    refcountInc(&inst->_ref);
 }
-#define objAcquire(inst) (_objAcquire(objInstBase(inst)), (inst))
-
-_meta_inline void _objRelease(ObjInst **instp)
-{
-    if (!*instp)
-        return;
-
-    if (atomicFetchSub(intptr, &(*instp)->_ref, 1, Release) == 1) {
-        atomicFence(Acquire);
-        _objDestroy(*instp);
-    }
-
-    *instp = NULL;
-}
-#define objRelease(pinst) (&((*(pinst))->_is_ObjInst), _objRelease((ObjInst**)(pinst)))
+#define objAcquire(inst) (_objAcquire(ObjInst(inst)), (inst))
+void _objRelease(ObjInst **instp);
+#define objRelease(pinst) _objRelease(ObjInstPtr(pinst))
 
 // Functions to get a populated interface from a class or instance
 ObjIface *_objClassIf(ObjClassInfo *cls, ObjIface *iftmpl);
