@@ -42,7 +42,7 @@ typedef struct htiter {
 
 #define htSlots(ref) ((ref) ? HTABLE_HDR((ref))->slots : 0)
 #define htUsed(ref) ((ref)) ? HTABLE_HDR((ref))->used : 0)
-#define htValid(ref) ((ref) ? HTABLE_HDR((ref))->valid : 0)
+#define htSize(ref) ((ref) ? HTABLE_HDR((ref))->valid : 0)
 #define htKeyType(ref) ((ref) ? HTABLE_HDR((ref))->keytype : 0)
 #define htValType(ref) ((ref) ? HTABLE_HDR((ref))->valtype : 0)
 #define hteKeyPtr(ref, elem, type) ((stStorageType(type)*)((ref) ? ((elem) && &((elem)->_is_htelem), (elem)) : 0))
