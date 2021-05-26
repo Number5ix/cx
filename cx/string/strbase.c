@@ -60,6 +60,20 @@ void _strSetLen(string s, uint32 len)
     // STR_LEN0 -- Bad Things
 }
 
+void _strInitRef(string s)
+{
+    int l = STR_HDR(s) & STR_LEN_MASK;
+
+    // don't waste time with atomic stores on init since nothing else can possibly be accessing it yet
+
+    if (l <= STR_LEN8)
+        STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), uint8) = 1;
+    else // STR_LEN16 and STR_LEN32 both have 16-bit ref count
+        STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), uint16) = 1;
+
+    // and if you called this function on something without STR_ALLOC set, woe be upon you...
+}
+
 void _strSetRef(string s, uint16 ref)
 {
     int l = STR_HDR(s) & STR_LEN_MASK;
@@ -72,7 +86,7 @@ void _strSetRef(string s, uint16 ref)
     // and if you called this function on something without STR_ALLOC set, woe be upon you...
 }
 
-void _strIncRef(string s)
+static void _strIncRef(string s)
 {
     int l = STR_HDR(s) & STR_LEN_MASK;
 
@@ -82,7 +96,7 @@ void _strIncRef(string s)
         atomicFetchAdd(uint16, &STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), atomic(uint16)), 1, Relaxed);
 }
 
-uint16 _strDecRef(string s)
+static uint16 _strDecRef(string s)
 {
     int l = STR_HDR(s) & STR_LEN_MASK;
 
@@ -223,7 +237,7 @@ void strReset(string *o, uint32 sizehint)
     STR_BUFFER(ret)[0] = 0;
 
     _strSetLen(ret, 0);
-    _strSetRef(ret, 1);
+    _strInitRef(ret);
 
     *o = ret;
 }

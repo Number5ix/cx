@@ -21,7 +21,7 @@ static void _strInitRope(string *o)
     STR_BUFFER(ret)[0] = 0;
 
     _strSetLen(ret, 0);
-    _strSetRef(ret, 1);
+    _strInitRef(ret);
 
     *o = ret;
 }

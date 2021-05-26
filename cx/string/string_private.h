@@ -109,9 +109,8 @@ void _strReset(string *s, uint32 minsz);
 // these change the structure internally and can result in inconsistent state
 // if not used with care
 void _strSetLen(string s, uint32 len);
+void _strInitRef(string s);
 void _strSetRef(string s, uint16 ref);
-void _strIncRef(string s);
-uint16 _strDecRef(string s);
 
 // ensure that ps is allocated by us and has a single reference
 bool _strMakeUnique(string *ps, uint32 minszforcopy);
