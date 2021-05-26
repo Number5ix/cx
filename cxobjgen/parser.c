@@ -47,16 +47,16 @@ static bool parseEnd(ParseState *ps, bool retval)
     saDestroy(&ps->annotations);
     saDestroy(&ps->includepath);
     if (ps->curif) {
-        objRelease(ps->curif);
+        objRelease(&ps->curif);
     }
     if (ps->curcls) {
-        objRelease(ps->curcls);
+        objRelease(&ps->curcls);
     }
     if (ps->curmethod) {
-        objRelease(ps->curmethod);
+        objRelease(&ps->curmethod);
     }
     if (ps->curparam) {
-        objRelease(ps->curparam);
+        objRelease(&ps->curparam);
     }
     return retval;
 }
@@ -544,7 +544,7 @@ bool parseClassPre(ParseState *ps, string *tok)
             return false;
         }
         saPush(&structs, string, ps->curcls->name);
-        objRelease(ps->curcls);
+        objRelease(&ps->curcls);
         saClear(&ps->annotations);
         ps->context = Context_Global;
         return true;
@@ -632,7 +632,7 @@ bool parseClass(ParseState *ps, string *tok)
                             strDup(&lasttname, cat->tname);
                             htInsert(&knownartypes, string, cat->tname, bool, true);
 
-                            objRelease(cat);
+                            objRelease(&cat);
                             saDestroy(&artypessub1);
                             saDestroy(&artypessub2);
                         }
@@ -661,13 +661,13 @@ bool parseClass(ParseState *ps, string *tok)
                     strAppend(&nmem->postdecr, ps->tokstack.a[i]);
                 } else {
                     fprintf(stderr, "Parse error in class member definition\n");
-                    objRelease(nmem);
+                    objRelease(&nmem);
                     return false;
                 }
             }
             if (strEmpty(nmem->name)) {
                 fprintf(stderr, "Incomplete class member definition\n");
-                objRelease(nmem);
+                objRelease(&nmem);
                 return false;
             }
             saPushC(&ps->curcls->members, object, &nmem);

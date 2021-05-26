@@ -29,7 +29,7 @@ static void deleteOldFiles(LogFileData *lfd);
 static void logfileDestroy(LogFileData *data)
 {
     vfsClose(data->curfile);
-    objRelease(data->vfs);
+    objRelease(&data->vfs);
     strDestroy(&data->fname);
     strDestroy(&data->pathname);
     strDestroy(&data->basename);

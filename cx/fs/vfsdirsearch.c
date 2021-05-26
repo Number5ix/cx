@@ -196,6 +196,6 @@ void vfsSearchFinish(FSSearchIter *iter)
         return;
 
     saDestroy(&search->ents);
-    objRelease(search->vfs);
+    objRelease(&search->vfs);
     xaSFree(iter->_search);
 }

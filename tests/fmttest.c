@@ -196,11 +196,11 @@ static int test_object()
     if (!strEq(res, _S"This is a Object(Test:Five), Object(Lest:Four), Object(Best:Three), Object(Fest:Two), Object(Behest:One) test"))
         return 1;
 
-    objRelease(o1);
-    objRelease(o2);
-    objRelease(o3);
-    objRelease(o4);
-    objRelease(o5);
+    objRelease(&o1);
+    objRelease(&o2);
+    objRelease(&o3);
+    objRelease(&o4);
+    objRelease(&o5);
     strDestroy(&res);
     return 0;
 }

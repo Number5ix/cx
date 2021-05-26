@@ -119,7 +119,7 @@ void Class_destroy(Class *self)
 {
     // Autogen begins -----
     strDestroy(&self->name);
-    objRelease(self->classif);
+    objRelease(&self->classif);
     saDestroy(&self->implements);
     saDestroy(&self->uses);
     saDestroy(&self->members);
@@ -211,7 +211,7 @@ ComplexArrayType *ComplexArrayType_create()
     self = objInstCreate(ComplexArrayType);
 
     if (!objInstInit(self)) {
-        objRelease(self);
+        objRelease(&self);
         return NULL;
     }
 

@@ -66,9 +66,9 @@ bool vfsClose(VFSFile *file)
     if (!file)
         return false;
 
-    objRelease(file->fileprov);
-    objRelease(file->cowprov);
-    objRelease(file->vfs);
+    objRelease(&file->fileprov);
+    objRelease(&file->cowprov);
+    objRelease(&file->vfs);
     strDestroy(&file->cowpath);
     strDestroy(&file->cowrpath);
     xaFree(file);
@@ -144,10 +144,10 @@ static bool vfsCOWFile(VFSFile *file)
     // file data is copied, now reset file pointer and swap the providers around
     cowfileif->seek(cowfile, curpos, FS_Set);
     file->fileprovif->close(file->fileprov);
-    objRelease(file->fileprov);
+    objRelease(&file->fileprov);
     file->fileprov = cowfile;
     file->fileprovif = cowfileif;
-    objRelease(file->cowprov);
+    objRelease(&file->cowprov);
     xaFree(buf);
     rwlockReleaseWrite(&file->vfs->vfslock);
     rwlockReleaseRead(&file->vfs->vfsdlock);
@@ -157,12 +157,12 @@ static bool vfsCOWFile(VFSFile *file)
 
 error:
     if (cowfile) {
-        objRelease(cowfile);
+        objRelease(&cowfile);
         if (cowprovif)
             cowprovif->deleteFile(file->cowprov, file->cowrpath);
     }
-    objRelease(file->cowprov);
-    objRelease(file->fileprov);
+    objRelease(&file->cowprov);
+    objRelease(&file->fileprov);
     xaFree(buf);
     return false;
 }

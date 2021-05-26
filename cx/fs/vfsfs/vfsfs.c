@@ -25,7 +25,7 @@ VFSFS *VFSFS_create(strref rootpath)
     pathNormalize(&ret->root);
 
     if (!objInstInit(ret))
-        objRelease(ret);
+        objRelease(&ret);
     return ret;
 }
 
