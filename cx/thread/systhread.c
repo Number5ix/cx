@@ -44,7 +44,7 @@ static void systhreadAtExit(void)
 
     // this will call SysThread_destroy, and destroying threads with thrDestroy
     // waits for them to exit (up to 30 sec)
-    saDestroy(&systhreads);
+    saRelease(&systhreads);
 
     mutexDestroy(&systhreadLock);
 }

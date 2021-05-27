@@ -9,8 +9,7 @@ void stDtor_obj(stype st, stgeneric *gen, uint32 flags)
 
 void stCopy_obj(stype st, stgeneric *dest, stgeneric src, uint32 flags)
 {
-    objAcquire(src.st_object);
-    dest->st_object = src.st_object;
+    dest->st_object = objAcquire(src.st_object);
 }
 
 intptr stCmp_obj(stype st, stgeneric gen1, stgeneric gen2, uint32 flags)

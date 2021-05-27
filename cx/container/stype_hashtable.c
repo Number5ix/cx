@@ -3,12 +3,12 @@
 
 void stDtor_hashtable(stype st, stgeneric *gen, uint32 flags)
 {
-    htDestroy(&gen->st_hashtable);
+    htRelease(&gen->st_hashtable);
 }
 
 void stCopy_hashtable(stype st, stgeneric *dest, stgeneric src, uint32 flags)
 {
-    dest->st_hashtable = _htClone(&src.st_hashtable, 0, NULL, false);
+    dest->st_hashtable = htAcquire(src.st_hashtable);
 }
 
 uint32 stHash_hashtable(stype st, stgeneric gen, uint32 flags)

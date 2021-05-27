@@ -37,7 +37,7 @@ void VFS_destroy(VFS *self)
     rwlockDestroy(&self->vfsdlock);
     rwlockDestroy(&self->vfslock);
     // Autogen begins -----
-    htDestroy(&self->namespaces);
+    htRelease(&self->namespaces);
     strDestroy(&self->curdir);
     // Autogen ends -------
 }

@@ -74,7 +74,7 @@ static void fmtVarCreate(FMTVar *v)
 
 static void fmtVarDestroy(FMTVar *v)
 {
-    saDestroy(&v->fmtopts);
+    saRelease(&v->fmtopts);
     strDestroy(&v->var);
     strDestroy(&v->def);
     strDestroy(&v->hashkey);

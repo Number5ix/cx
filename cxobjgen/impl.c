@@ -258,7 +258,7 @@ static void writeAutoInit(BufFile *bf, Class *cls)
                 }
                 strNConcat(&ln, _S"    saInit(&self->", m->name, _S", ", m->fulltype.a[1],
                            _S", ", size, flags, _S");");
-                saDestroy(&flagarr);
+                saRelease(&flagarr);
             }
             if (strEq(m->fulltype.a[0], _S"hashtable") && saSize(m->fulltype) == 3) {
                 sa_string flagarr;
@@ -288,7 +288,7 @@ static void writeAutoInit(BufFile *bf, Class *cls)
                 }
                 strNConcat(&ln, _S"    htInit(&self->", m->name, _S", ", m->fulltype.a[1], _S", ",
                            m->fulltype.a[2], _S", ", size, flags, _S");");
-                saDestroy(&flagarr);
+                saRelease(&flagarr);
             }
         }
 
@@ -331,15 +331,15 @@ static void writeAutoDtors(BufFile *bf, Class *cls)
             continue;
         } else if (saSize(m->fulltype) > 1) {
             if (strEq(m->fulltype.a[0], _S"sarray"))
-                strNConcat(&mdtor, _S"    saDestroy(&self->", m->name, _S");");
+                strNConcat(&mdtor, _S"    saRelease(&self->", m->name, _S");");
             else if (strEq(m->fulltype.a[0], _S"hashtable"))
-                strNConcat(&mdtor, _S"    htDestroy(&self->", m->name, _S");");
+                strNConcat(&mdtor, _S"    htRelease(&self->", m->name, _S");");
             else if (strEq(m->fulltype.a[0], _S"object"))
                 strNConcat(&mdtor, _S"    objRelease(&self->", m->name, _S");");
         } else if (strEq(m->vartype, _S"string")) {
             strNConcat(&mdtor, _S"    strDestroy(&self->", m->name, _S");");
         } else if (strEq(m->vartype, _S"hashtable")) {
-            strNConcat(&mdtor, _S"    htDestroy(&self->", m->name, _S");");
+            strNConcat(&mdtor, _S"    htRelease(&self->", m->name, _S");");
         } else if (strEq(m->vartype, _S"stvar")) {
             strNConcat(&mdtor, _S"    _stDestroy(self->", m->name, _S".type, NULL, &self->", m->name, _S".data, 0);");
         }
@@ -687,8 +687,8 @@ bool writeImpl(string fname, bool mixinimpl)
     strDestroy(&hname);
     strDestroy(&cname);
     strDestroy(&newcname);
-    htDestroy(&implidx);
-    saDestroy(&seen);
-    saDestroy(&parentmacros);
+    htRelease(&implidx);
+    saRelease(&seen);
+    saRelease(&parentmacros);
     return true;
 }

@@ -37,9 +37,9 @@ VFSDir *_vfsDirCreate(VFS *vfs, VFSDir *parent)
 static void _vfsDirDestroy(stype st, stgeneric *g, uint32 flags)
 {
     VFSDir *d = (VFSDir*)g->st_ptr;
-    saDestroy(&d->mounts);
-    htDestroy(&d->files);
-    htDestroy(&d->subdirs);
+    saRelease(&d->mounts);
+    htRelease(&d->files);
+    htRelease(&d->subdirs);
     strDestroy(&d->name);
     xaFree(d);
 }

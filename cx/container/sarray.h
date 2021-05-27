@@ -2,6 +2,7 @@
 
 #include <cx/cx.h>
 #include <cx/debug/assert.h>
+#include <cx/utils/refcount.h>
 
 #define sarrayref(typ) sa_##typ
 #define sarrayhdl(typ) sa_##typ*
@@ -45,6 +46,7 @@ typedef struct SArrayHeader {
     // sarray extended header begins here (only valid if SAINT_Extended is set)
     STypeOps typeops;
     // sarray header begins here
+    refcount ref;
     stype elemtype;
     int32 count;
     int32 capacity;
@@ -134,8 +136,13 @@ enum SARRAY_FUNC_FLAGS_ENUM {
 void _saInit(sahandle out, stype elemtype, STypeOps *ops, int32 capacity, uint32 flags);
 #define saInit(out, type, capacity, ...) _saInit(SAHANDLE(out), stFullType(type), capacity, func_flags(SA, __VA_ARGS__))
 
-void _saDestroy(sahandle handle);
-#define saDestroy(handle) _saDestroy(SAHANDLE(handle));
+_meta_inline void _saAcquire(sa_ref r)
+{
+    refcountInc(&SARRAY_HDR(r)->ref);
+}
+#define saAcquire(r) (_saAcquire(SAREF(r)), (r))
+void _saRelease(sahandle handle);
+#define saRelease(handle) _saRelease(SAHANDLE(handle));
 
 void _saReserve(sahandle handle, int32 capacity);
 #define saReserve(handle, capacity) _saReserve(SAHANDLE(handle), capacity)
@@ -185,6 +192,7 @@ void _saSort(sahandle handle, bool keep);
 
 void _saSlice(sahandle out, sa_ref ref, int32 start, int32 end);
 #define saSlice(out, src, start, end) _saSlice(SAHANDLE(out), SAREF(src), start, end)
+#define saClone(out, src) _saSlice(SAHANDLE(out), SAREF(src), 0, 0)
 
 void _saMerge(sahandle out, int n, sa_ref *refs, uint32 flags);
 #define saMerge(out, ...) _saMerge(SAHANDLE(out), sizeof((sa_ref[]){ __VA_ARGS__ })/sizeof(sa_ref), (sa_ref[]){ __VA_ARGS__ }, 0)

@@ -261,7 +261,7 @@ void writeClassDecl(BufFile *bf, Class *cls)
     sa_Method unboundDone;
     saInit(&unboundDone, object, 16);
     writeUnbound(bf, cls, cls, &unboundDone);
-    saDestroy(&unboundDone);
+    saRelease(&unboundDone);
 
     for (int i = 0; i < saSize(cls->allmethods); i++) {
         Method *m = cls->allmethods.a[i];

@@ -182,7 +182,7 @@ static int test_obj_array()
     if (if1->testfunc(arr.a[49]) != 42)
         return 1;
 
-    saDestroy(&arr);
+    saRelease(&arr);
 
     if (atomicLoad(intptr, &cls5->_ref, AcqRel) != 1)
         return 1;
@@ -196,7 +196,7 @@ static int test_obj_array()
     if (atomicLoad(intptr, &cls5->_ref, AcqRel) != 2)
         return 1;
 
-    saDestroy(&arr);
+    saRelease(&arr);
     objRelease(&cls5);
 
     return 0;

@@ -43,9 +43,9 @@ static bool parseEnd(ParseState *ps, bool retval)
     if (ps->fp)
         fsClose(ps->fp);
     strDestroy(&ps->fname);
-    saDestroy(&ps->tokstack);
-    saDestroy(&ps->annotations);
-    saDestroy(&ps->includepath);
+    saRelease(&ps->tokstack);
+    saRelease(&ps->annotations);
+    saRelease(&ps->includepath);
     if (ps->curif) {
         objRelease(&ps->curif);
     }
@@ -208,7 +208,7 @@ bool parseAnnotation(ParseState *ps, string *tok)
 
     nextTok(ps, &part);
     if (!part || strEq(part, _S"]")) {
-        saDestroy(&anparts);
+        saRelease(&anparts);
         return false;
     }
     saPushC(&anparts, string, &part);
@@ -633,13 +633,13 @@ bool parseClass(ParseState *ps, string *tok)
                             htInsert(&knownartypes, string, cat->tname, bool, true);
 
                             objRelease(&cat);
-                            saDestroy(&artypessub1);
-                            saDestroy(&artypessub2);
+                            saRelease(&artypessub1);
+                            saRelease(&artypessub2);
                         }
 
                         strNConcat(&nmem->vartype, _S"sa_", lasttname);
                     }
-                    saDestroy(&artl);
+                    saRelease(&artl);
                 } else if (strEq(vartype.a[0], _S"atomic")) {
                     strNConcat(&nmem->vartype, _S, _S"atomic(", vartype.a[saSize(vartype) - 1], _S")");
                 } else {
@@ -651,7 +651,7 @@ bool parseClass(ParseState *ps, string *tok)
             } else {
                 strDup(&nmem->vartype, ps->tokstack.a[0]);
             }
-            saDestroy(&vartype);
+            saRelease(&vartype);
             for (int32 i = 1; i < saSize(ps->tokstack); i++) {
                 if (!nmem->name && onlyspecial(ps->tokstack.a[i])) {
                     strAppend(&nmem->predecr, ps->tokstack.a[i]);

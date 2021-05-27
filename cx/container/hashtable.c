@@ -94,9 +94,9 @@ static _meta_inline uint32 clampHash(HashTableHeader *hdr, uint32 hash)
         return hash % hdr->slots;
 }
 
-hashtable _htClone(hashtable *htbl, int32 minsz, int32 *origslot, bool move)
+hashtable _htClone(hashtable htbl, int32 minsz, int32 *origslot, bool move)
 {
-    HashTableHeader *hdr = HTABLE_HDR(*htbl);
+    HashTableHeader *hdr = HTABLE_HDR(htbl);
     HashTableHeader *nhdr;
     hashtable ntbl;
     uint32 elemsz = _htElemSz(hdr);
@@ -174,7 +174,7 @@ static void htResizeTable(hashtable *htbl, int32 newsz, int32 *origslot)
 {
     HashTableHeader *hdr = HTABLE_HDR(*htbl);
 
-    *htbl = _htClone(htbl, newsz, origslot, true);
+    *htbl = _htClone(*htbl, newsz, origslot, true);
 
     // free old table
     if (hdr->flags & HTINT_Extended) {
@@ -261,6 +261,11 @@ static bool htFindInternal(HashTableHeader *hdr, stgeneric key, int32 *indexOut,
             hash++;
         }
     }
+}
+
+void htClone(hashtable *out, hashtable ref)
+{
+    *out = _htClone(ref, 0, NULL, false);
 }
 
 //static _meta_inline void htSetValueInternal(HashTableHeader *hdr, int32 slot, void *val, bool consume)
@@ -396,20 +401,23 @@ void htClear(hashtable *htbl)
     hdr->valid = 0;
 }
 
-void htDestroy(hashtable *htbl)
+void htRelease(hashtable *htbl)
 {
     if (!(htbl && *htbl))
         return;
 
-    htClear(htbl);
-
     HashTableHeader *hdr = HTABLE_HDR(*htbl);
-    if (hdr->flags & HTINT_Extended) {
-        xaFree(hdr);
-    } else {
-        void *smbase = (void*)((uintptr_t)hdr + HT_SMALLHDR_OFFSET);
-        xaFree(smbase);
+    if (refcountDec(&hdr->ref)) {
+        htClear(htbl);
+
+        if (hdr->flags & HTINT_Extended) {
+            xaFree(hdr);
+        } else {
+            void *smbase = (void*)((uintptr_t)hdr + HT_SMALLHDR_OFFSET);
+            xaFree(smbase);
+        }
     }
+    *htbl = NULL;
 }
 
 void htSetSize(hashtable *htbl, int32 newsz)

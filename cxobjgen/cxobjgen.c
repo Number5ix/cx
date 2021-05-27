@@ -96,18 +96,18 @@ int main(int argc, char *argv[])
             break;
     }
 
-    htDestroy(&ifidx);
-    saDestroy(&ifaces);
-    htDestroy(&clsidx);
-    saDestroy(&classes);
-    saDestroy(&implincludes);
-    saDestroy(&includes);
-    saDestroy(&deps);
-    saDestroy(&structs);
+    htRelease(&ifidx);
+    saRelease(&ifaces);
+    htRelease(&clsidx);
+    saRelease(&classes);
+    saRelease(&implincludes);
+    saRelease(&includes);
+    saRelease(&deps);
+    saRelease(&structs);
     strDestroy(&cpassthrough);
     strDestroy(&fname);
-    saDestroy(&searchpath);
-    saDestroy(&sidlfiles);
+    saRelease(&searchpath);
+    saRelease(&sidlfiles);
 
     return 0;
 }

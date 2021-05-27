@@ -2,6 +2,7 @@
 
 #include <cx/cx.h>
 #include <cx/debug/assert.h>
+#include <cx/utils/refcount.h>
 
 typedef struct hashtable_ref {
     void *_is_hashtable;
@@ -20,6 +21,7 @@ typedef struct HashTableHeader {
     STypeOps valtypeops;
 
     // hashtable header begins here
+    refcount ref;
     int32 slots;            // table size
     int32 used;             // number of used slots (including deleted)
     int32 valid;            // number of slots containing valid data
@@ -110,9 +112,15 @@ enum HASHTABLE_FUNC_FLAGS_ENUM {
 void _htInit(hashtable *out, stype keytype, STypeOps *keyops, stype valtype, STypeOps *valops, int32 initsz, uint32 flags);
 #define htInit(out, keytype, valtype, initsz, ...) _htInit(out, stFullType(keytype), stFullType(valtype), initsz, func_flags(HT, __VA_ARGS__))
 
-void htDestroy(hashtable *htbl);
+_meta_inline hashtable htAcquire(hashtable htbl)
+{
+    refcountInc(&HTABLE_HDR(htbl)->ref);
+    return htbl;
+}
+void htRelease(hashtable *htbl);
 void htClear(hashtable *htbl);
 void htSetSize(hashtable *htbl, int32 newsz);
+void htClone(hashtable *out, hashtable ref);
 
 htelem _htInsert(hashtable *htbl, stgeneric key, stgeneric val, uint32 flags);
 _meta_inline htelem _htInsertChecked(hashtable *htbl, stype keytype, stgeneric key, stype valtype, stgeneric val, uint32 flags)

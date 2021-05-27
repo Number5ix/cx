@@ -6,7 +6,7 @@
 #define HTDATA(hdr) ((void*)((uintptr)(&(hdr)->data[0]) + sizeof(HashTableHeader)))
 #define HTKEY(hdr, elemsz, slot) ((void*)((uintptr)(&(hdr)->data[0]) + slot*elemsz))
 #define HTVAL(hdr, elemsz, slot) ((void*)((uintptr)(&(hdr)->data[0]) + slot*elemsz + stGetSize((hdr)->keytype)))
-#define HT_SMALLHDR_OFFSET (offsetof(HashTableHeader, slots))
+#define HT_SMALLHDR_OFFSET (offsetof(HashTableHeader, ref))
 
 #define HDRKEYOPS(hdr) ((hdr->flags & HTINT_Extended) ? &hdr->keytypeops : NULL)
 #define HDRVALOPS(hdr) ((hdr->flags & HTINT_Extended) ? &hdr->valtypeops : NULL)
@@ -20,4 +20,4 @@ static _meta_inline uint32 _htElemSz(HashTableHeader *hdr)
     return clamplow(stGetSize(hdr->keytype) + stGetSize(hdr->valtype), 8);
 }
 
-hashtable _htClone(hashtable *htbl, int32 minsz, int32 *origslot, bool move);
+hashtable _htClone(hashtable htbl, int32 minsz, int32 *origslot, bool move);

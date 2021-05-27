@@ -92,7 +92,7 @@ VFSDir *_vfsGetDir(VFS *vfs, strref path, bool isfile, bool cache, bool writeloc
 
 out:
     strDestroy(&ns);
-    saDestroy(&components);
+    saRelease(&components);
     return ret;
 }
 
@@ -397,7 +397,7 @@ VFSMount *_vfsFindMount(VFS *vfs, string *rpath, strref path, VFSMount **cowmoun
     int32 relstart = saSize(components) - 1;
     while (pdir) {
         devAssert(relstart >= 0);
-        saDestroy(&relcomp);
+        saRelease(&relcomp);
         saSlice(&relcomp, components, relstart, 0);
         strJoin(&curpath, relcomp, fsPathSepStr);
 
@@ -491,8 +491,8 @@ done:
     strDestroy(&abspath);
     strDestroy(&curpath);
     strDestroy(&firstwpath);
-    saDestroy(&relcomp);
-    saDestroy(&components);
+    saRelease(&relcomp);
+    saRelease(&components);
     return ret;
 }
 
