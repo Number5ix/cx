@@ -681,11 +681,16 @@ void _saSlice(sahandle out, sa_ref ref, int32 start, int32 end)
     // negative start indicates distance from end of array
     if (start < 0)
         start = clamphigh(clamplow(start + hdr->count, 0), hdr->count);
+    else
+        start = clamphigh(start, hdr->count);
+
     // negative end can indicate that as well
     if (end < 0)
         end = clamphigh(clamplow(end + hdr->count, 0), hdr->count);
     else if (end == 0)
         end = hdr->count;       // 0 end means rest of array
+    else
+        end = clamphigh(end, hdr->count);
 
     _saInit(out, elemtype, HDRTYPEOPS(hdr), clamplow(end - start, 1), hdr->flags);
     SArrayHeader *newhdr = SARRAY_HDR(*out);
