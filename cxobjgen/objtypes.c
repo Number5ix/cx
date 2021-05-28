@@ -192,9 +192,9 @@ Method *Method_clone(Method *self)
     strDup(&ret->returntype, self->returntype);
     strDup(&ret->predecr, self->predecr);
     strDup(&ret->name, self->name);
-    stCopy(sarray, &ret->params, self->params);
+    saClone(&ret->params, self->params);
     if (self->annotations.a)
-        stCopy(sarray, &ret->annotations, self->annotations);
+        saClone(&ret->annotations, self->annotations);
 
     ret->isinit = self->isinit;
     ret->isdestroy = self->isdestroy;

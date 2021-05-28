@@ -822,7 +822,7 @@ bool parseFile(string fname, string *realfn, sa_string searchpath, bool included
         return parseEnd(&ps, false);
     }
 
-    stCopy(sarray, &ps.includepath, searchpath);
+    saClone(&ps.includepath, searchpath);
     string fdir = 0;
     pathParent(&fdir, fpath);
     saPushC(&ps.includepath, string, &fdir, Unique);
