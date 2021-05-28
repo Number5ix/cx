@@ -59,8 +59,8 @@ typedef struct htiter {
 enum HASHTABLE_FLAGS_ENUM {
     HT_                = 0x0000,
     HT_CaseInsensitive = 0x0001,    // only for string keys
-    HT_RefKeys         = 0x0002,    // only reference keys rather than copying them
-    HT_Ref             = 0x0004,    // only reference values rather than copying them
+    HT_RefKeys         = 0x0002,    // use a borrowed reference for keys rather than copying them
+    HT_Ref             = 0x0004,    // use a borrowed reference for values rather than copying them
 
     // internal use only, do not set manually
     HTINT_Quadratic    = 0x2000,    // use quadratic probing rather than linear
@@ -93,12 +93,9 @@ enum HASHTABLE_FUNC_FLAGS_ENUM {
     HTFUNC_Ignore       = 0x00010000,
 
     // Valid for: htFind
-    // Removes key if found.
-    HTFUNC_Destroy      = 0x00020000,
-
-    // Valid for: htFind
-    // Removes key if found (does not destroy).
-    HTFUNC_RemoveOnly   = 0x00040000,
+    // If copying out an object-type variable, copy a borrowed reference rather
+    // than acquiring a reference or making a copy.
+    HTFUNC_Borrow       = 0x00020000,
 
     // internal use only
     HTFUNCINT_Consume   = 0x10000000,
@@ -140,42 +137,35 @@ _meta_inline htelem _htInsertCheckedC(hashtable *htbl, stype keytype, stgeneric 
 // Consumes *value*, not key
 #define htInsertC(htbl, ktype, key, vtype, val, ...) _htInsertCheckedC(htbl, stCheckedArg(ktype, key), stCheckedPtrArg(vtype, val), func_flags(HTFUNC, __VA_ARGS__) | HTFUNCINT_Consume)
 
-bool _htFind(hashtable *htbl, stgeneric key, stgeneric *val, uint32 flags);
-_meta_inline bool _htFindChecked(hashtable *htbl, stype keytype, stgeneric key, stype valtype, stgeneric *val, uint32 flags)
-{
-    devAssert(*htbl);
-    devAssert(stEq(htKeyType(*htbl), keytype) && stEq(htValType(*htbl), valtype));
-    return _htFind(htbl, key, val, flags);
-}
-#define htFind(htbl, ktype, key, vtype, val_out, ...) _htFindChecked(htbl, stCheckedArg(ktype, key), stCheckedPtrArg(vtype, val_out), func_flags(HTFUNC, __VA_ARGS__))
-
-// Always destroys; use htFind with HT_RemoveOnly if you want to get a reference out of a hashtable
-// without destroying it.
-bool _htRemove(hashtable *htbl, stgeneric key);
-_meta_inline bool _htRemoveChecked(hashtable *htbl, stype keytype, stgeneric key)
-{
-    devAssert(*htbl);
-    devAssert(stEq(htKeyType(*htbl), keytype));
-    return _htRemove(htbl, key);
-}
-#define htRemove(htbl, ktype, key) _htRemoveChecked(htbl, stCheckedArg(ktype, key))
-
-// Gets a pointer to the key/value data inside the hashtable rather than copying it out
-htelem _htFindElem(hashtable htbl, stgeneric key);
-_meta_inline htelem _htFindElemChecked(hashtable htbl, stype keytype, stgeneric key)
+htelem _htFind(hashtable htbl, stgeneric key, stgeneric *val, uint32 flags);
+_meta_inline htelem _htFindChecked(hashtable htbl, stype keytype, stgeneric key, stype valtype, stgeneric *val, uint32 flags)
 {
     devAssert(htbl);
     devAssert(stEq(htKeyType(htbl), keytype));
-    return _htFindElem(htbl, key);
+    devAssert(stGetId(valtype) == stTypeId(none) || stEq(htValType(htbl), valtype));
+    return _htFind(htbl, key, val, flags);
 }
-#define htFindElem(htbl, ktype, key) _htFindElemChecked(htbl, stCheckedArg(ktype, key))
+#define htFind(htbl, ktype, key, vtype, val_copy_out, ...) _htFindChecked(htbl, stCheckedArg(ktype, key), stCheckedPtrArg(vtype, val_copy_out), func_flags(HTFUNC, __VA_ARGS__))
+
+// If val_copy_out is provided, the value is extracted into it rather than being destroyed
+bool _htExtract(hashtable *htbl, stgeneric key, stgeneric *val);
+_meta_inline bool _htExtractChecked(hashtable *htbl, stype keytype, stgeneric key, stype valtype, stgeneric *val)
+{
+    devAssert(*htbl);
+    devAssert(stEq(htKeyType(*htbl), keytype));
+    devAssert(stGetId(valtype) == stTypeId(none) || stEq(htValType(*htbl), valtype));
+    return _htExtract(htbl, key, val);
+}
+#define htExtract(htbl, ktype, key, vtype, val_copy_out) _htExtractChecked(htbl, stCheckedArg(ktype, key), stCheckedPtrArg(vtype, val_copy_out))
+#define htRemove(htbl, ktype, key) _htExtractChecked(htbl, stCheckedArg(ktype, key), stType(none), NULL)
 
 // Just checks for the existence of a key
+bool _htHasKey(hashtable htbl, stgeneric key);
 _meta_inline bool _htHasKeyChecked(hashtable htbl, stype keytype, stgeneric key)
 {
     devAssert(htbl);
     devAssert(stEq(htKeyType(htbl), keytype));
-    return _htFindElem(htbl, key);
+    return _htHasKey(htbl, key);
 }
 #define htHasKey(htbl, ktype, key) _htHasKeyChecked(htbl, stCheckedArg(ktype, key))
 

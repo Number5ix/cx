@@ -74,7 +74,7 @@ static void classInitImpl(ObjClassInfo *cls, bool locked)
     // Perform some slight of hand and swap the classif from the template to the hydrated
     // method table.
     if (cls->classif)
-        relAssert(htFind(&cls->_tmpl, ptr, cls->classif, ptr, &cls->classif));
+        relAssert(htFind(cls->_tmpl, ptr, cls->classif, ptr, &cls->classif));
 
     // Go ahead and init parent class, in case child class needs to call parent
     // class functions by interface.
@@ -84,11 +84,11 @@ static void classInitImpl(ObjClassInfo *cls, bool locked)
     // If this class implements Sortable or Hashable (even through a parent), cache the
     // function pointer to avoid having to check them again.
     Sortable *sortableIf;
-    if (htFind(&cls->_tmpl, ptr, &Sortable_tmpl, ptr, &sortableIf))
+    if (htFind(cls->_tmpl, ptr, &Sortable_tmpl, ptr, &sortableIf))
         cls->_cmp = sortableIf->cmp;
 
     Hashable *hashableIf;
-    if (htFind(&cls->_tmpl, ptr, &Hashable_tmpl, ptr, &hashableIf))
+    if (htFind(cls->_tmpl, ptr, &Hashable_tmpl, ptr, &hashableIf))
         cls->_hash = hashableIf->hash;
 
     // This must be done immediately before unlocking, since other threads check it
@@ -142,7 +142,7 @@ bool _objInstInit(ObjInst *inst, ObjClassInfo *cls)
 ObjIface *_objClassIf(ObjClassInfo *cls, ObjIface *iftmpl)
 {
     ObjIface *ret = NULL;
-    htFind(&cls->_tmpl, ptr, iftmpl, ptr, &ret);
+    htFind(cls->_tmpl, ptr, iftmpl, ptr, &ret);
     return ret;
 }
 

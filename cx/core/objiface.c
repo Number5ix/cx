@@ -54,7 +54,7 @@ void _objHydrateIface(ObjIface *ifimpl, sa_ObjIface *impls, hashtable *impltbl)
     ObjIface *destif = NULL, *tmp = NULL;
 
     devAssert(ifimpl->_implements);
-    if (!htFind(impltbl, ptr, ifimpl->_implements, ptr, &destif)) {
+    if (!htFind(*impltbl, ptr, ifimpl->_implements, ptr, &destif)) {
         // we didn't find an existing table entry, so add one
         destif = xaAlloc(ifimpl->_size, Zero);
         destif->_implements = ifimpl->_implements;
@@ -74,7 +74,7 @@ void _objHydrateIface(ObjIface *ifimpl, sa_ObjIface *impls, hashtable *impltbl)
         // and IfB containing pointers to ClsB's implementation.
 
         for (ObjIface *pif = ifimpl->_implements->_parent; pif; pif = pif->_parent) {
-            if (htFind(impltbl, ptr, pif, ptr, &tmp))
+            if (htFind(*impltbl, ptr, pif, ptr, &tmp))
                 mergeIface(destif, tmp);
         }
 
@@ -87,7 +87,7 @@ void _objHydrateIface(ObjIface *ifimpl, sa_ObjIface *impls, hashtable *impltbl)
     // register interface tables for this interface and all its parents,
     // or merge them with tables registered by child classes
     for (ObjIface *pif = destif->_implements; pif; pif = pif->_parent) {
-        if (htFind(impltbl, ptr, pif, ptr, &tmp))
+        if (htFind(*impltbl, ptr, pif, ptr, &tmp))
             mergeIface(tmp, destif);
         else
             htInsert(impltbl, ptr, pif, ptr, destif);

@@ -357,7 +357,7 @@ bool parseInterfacePre(ParseState *ps, string *tok)
             strDestroy(&name);
             return false;
         }
-        if (!htFind(&ifidx, string, name, object, &ps->curif->parent)) {
+        if (!htFind(ifidx, string, name, object, &ps->curif->parent)) {
             fprintf(stderr, "Could not find interface '%s'\n", strC(name));
             strDestroy(&name);
             return false;
@@ -491,7 +491,7 @@ bool parseClassPre(ParseState *ps, string *tok)
             strDestroy(&name);
             return false;
         }
-        if (!htFind(&clsidx, string, name, object, &ps->curcls->parent)) {
+        if (!htFind(clsidx, string, name, object, &ps->curcls->parent)) {
             fprintf(stderr, "Could not find class '%s'\n", strC(name));
             strDestroy(&name);
             return false;
@@ -507,7 +507,7 @@ bool parseClassPre(ParseState *ps, string *tok)
             strDestroy(&name);
             return false;
         }
-        if (!htFind(&clsidx, string, name, object, &uses)) {
+        if (!htFind(clsidx, string, name, object, &uses)) {
             fprintf(stderr, "Could not find class '%s'\n", strC(name));
             strDestroy(&name);
             return false;
@@ -529,7 +529,7 @@ bool parseClassPre(ParseState *ps, string *tok)
             return false;
         }
         Interface *tempif = 0;
-        if (!htFind(&ifidx, string, name, object, &tempif)) {
+        if (!htFind(ifidx, string, name, object, &tempif)) {
             fprintf(stderr, "Could not find interface '%s'\n", strC(name));
             strDestroy(&name);
             return false;

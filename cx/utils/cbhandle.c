@@ -29,7 +29,7 @@ int _callbackGetHandle(const char *cbtype, GenericCallback func)
         return 0;
 
     int idx = 0;
-    if (htFind(&handleidx, ptr, func, int32, &idx))
+    if (htFind(handleidx, ptr, func, int32, &idx))
         return idx;
 
     CallbackHandle nhandle = { 0 };

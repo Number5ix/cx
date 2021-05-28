@@ -590,7 +590,7 @@ bool writeImpl(string fname, bool mixinimpl)
                 strSubStr(&funcname, ln, (int32)ovector[2], (int32)ovector[3]);
                 MethodPair mp;
 
-                if (htFind(&implidx, string, funcname, opaque, &mp)) {
+                if (htFind(implidx, string, funcname, opaque, &mp)) {
                     if (nmatches == 2) {
                         if (mp.m->isinit)
                             ininit = mp.c;

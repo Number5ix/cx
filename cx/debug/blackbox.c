@@ -119,9 +119,8 @@ void bboxInit()
 static void _bboxDeleteInternal(uint16 idx)
 {
     BlackBoxEnt *ent = (BlackBoxEnt*)&dbgBlackBox[idx];
-    uint16 dummy = 0;
 
-    htFind(&bbindex, string, (string)ent->name, uint16, &dummy, Destroy);
+    htRemove(&bbindex, string, (string)ent->name);
 
     if (dbgBlackBoxHead == idx)
         dbgBlackBoxHead = ent->next;
@@ -148,7 +147,7 @@ void bboxSet(strref name, strref val, uint8 flags)
     BlackBoxEnt *ent = 0, *tail;
     uint16 idx = 0;
 
-    if (htFind(&bbindex, strref, name, uint16, &idx)) {
+    if (htFind(bbindex, strref, name, uint16, &idx)) {
         // already exists in index
         ent = (BlackBoxEnt*)&dbgBlackBox[idx];
         // is it big enough that we can overwrite in place?
@@ -222,7 +221,7 @@ void bboxDelete(strref name)
     mutexAcquire(&bbmtx);
     uint16 idx = 0;
 
-    if (htFind(&bbindex, strref, name, uint16, &idx))
+    if (htFind(bbindex, strref, name, uint16, &idx))
         _bboxDeleteInternal(idx);
 
     mutexRelease(&bbmtx);

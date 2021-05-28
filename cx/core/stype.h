@@ -434,7 +434,7 @@ _meta_inline stype _stype_mkcustom(stype base)
 // Macros for passing arguments by value
 
 // none ignores the value
-#define STypeArg_none(type, val) stgeneric(type, 0)
+#define STypeArg_none(type, val) ((stgeneric){ 0 })
 // opqaue is a special case that must always be passed by pointer, and
 // the caller must supply an lvalue
 #define STypeArg_opaque(type, val) stgeneric(type, &(val))
@@ -467,7 +467,7 @@ _meta_inline stype _stype_mkcustom(stype base)
 // And for passing a pointer-to-pointer, mostly for functions that want to
 // consume or reallocate the object
 
-#define STypeArgPtr_none(type, val) &stgeneric(type, 0)
+#define STypeArgPtr_none(type, val) NULL
 // opaque is already passed in as a pointer
 #define STypeArgPtr_opaque(type, val) &stgeneric(type, val)
 #define STypeArgPtr_int8(type, val) (stgeneric*)stCheckPtr(type, val)

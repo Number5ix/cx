@@ -48,14 +48,14 @@ static VFSDir *_vfsGetDirInternal(VFS *vfs, VFSDir *root, string *path, int32 pl
     if (strEmpty(path[0]))
         child = root;
     else
-        htFind(&root->subdirs, string, path[0], ptr, &child);
+        htFind(root->subdirs, string, path[0], ptr, &child);
 
     if (!child) {
         if (!writelockheld) {
             rwlockReleaseRead(&vfs->vfslock);
             rwlockAcquireWrite(&vfs->vfslock);
             // try again with the write lock held
-            htFind(&root->subdirs, string, path[0], ptr, &child);
+            htFind(root->subdirs, string, path[0], ptr, &child);
         }
         if (!child) {
             child = _vfsDirCreate(vfs, root);
@@ -83,7 +83,7 @@ VFSDir *_vfsGetDir(VFS *vfs, strref path, bool isfile, bool cache, bool writeloc
 
     if (strEmpty(ns)) {
         d = vfs->root;
-    } else if (!htFind(&vfs->namespaces, string, ns, ptr, &d)) {
+    } else if (!htFind(vfs->namespaces, string, ns, ptr, &d)) {
         cxerr = CX_FileNotFound;
         goto out;
     }
@@ -218,7 +218,7 @@ VFSCacheEnt *_vfsGetFile(VFS *vfs, strref path, bool writelockheld)
 
     pathFilename(&fname, path);
 
-    if (!htFind(&pdir->files, string, fname, ptr, &ret))
+    if (!htFind(pdir->files, string, fname, ptr, &ret))
         cxerr = CX_FileNotFound;
 
     strDestroy(&fname);

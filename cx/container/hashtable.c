@@ -430,32 +430,34 @@ void htSetSize(hashtable *htbl, int32 newsz)
         htResizeTable(htbl, newsz, NULL);
 }
 
-bool _htFind(hashtable *htbl, stgeneric key, stgeneric *val, uint32 flags)
+htelem _htFind(hashtable htbl, stgeneric key, stgeneric *val, uint32 flags)
 {
-    HashTableHeader *hdr = HTABLE_HDR(*htbl);
+    HashTableHeader *hdr = HTABLE_HDR(htbl);
     uint32 elemsz = _htElemSz(hdr);
     int32 slot;
     bool found = htFindInternal(hdr, key, &slot, NULL);
 
     if (found) {
-        if (val)
-            memcpy(stGenPtr(hdr->valtype, *val), HTVAL(hdr, elemsz, slot), stGetSize(hdr->valtype));
-        if ((flags & HTFUNC_Destroy) && !(hdr->flags & HT_Ref))
-            _stDestroy(hdr->valtype, HDRVALOPS(hdr),
-                       stStoredPtr(hdr->valtype, HTVAL(hdr, elemsz, slot)), 0);
-        if (flags & (HTFUNC_Destroy | HTFUNC_RemoveOnly)) {
-            if (!(hdr->flags & HT_RefKeys))
-                _stDestroy(hdr->keytype, HDRKEYOPS(hdr),
-                           stStoredPtr(hdr->keytype, HTKEY(hdr, elemsz, slot)), 0);
-            *(uint64*)HTKEY(hdr, elemsz, slot) = hashDeleted;
-            hdr->valid--;
+        if (val) {
+            if ((flags & HTFUNC_Borrow) || (hdr->flags & HT_Ref))
+                memcpy(stGenPtr(hdr->valtype, *val), HTVAL(hdr, elemsz, slot), stGetSize(hdr->valtype));
+            else
+                _stCopy(hdr->valtype, HDRVALOPS(hdr),
+                        val, stStored(hdr->valtype, HTVAL(hdr, _htElemSz(hdr), slot)), 0);
         }
+        return HTKEY(hdr, elemsz, slot);
     }
 
-    return found;
+    return NULL;
 }
 
-bool _htRemove(hashtable *htbl, stgeneric key)
+bool _htHasKey(hashtable htbl, stgeneric key)
+{
+    HashTableHeader *hdr = HTABLE_HDR(htbl);
+    return htFindInternal(hdr, key, NULL, NULL);
+}
+
+bool _htExtract(hashtable *htbl, stgeneric key, stgeneric *val)
 {
     HashTableHeader *hdr = HTABLE_HDR(*htbl);
     uint32 elemsz = _htElemSz(hdr);
@@ -463,7 +465,10 @@ bool _htRemove(hashtable *htbl, stgeneric key)
     bool found = htFindInternal(hdr, key, &slot, NULL);
 
     if (found) {
-        if (!(hdr->flags & HT_Ref))
+        // either extract the value by stealing any reference, or destroy it
+        if (val)
+            memcpy(stGenPtr(hdr->valtype, *val), HTVAL(hdr, elemsz, slot), stGetSize(hdr->valtype));
+        else if (!(hdr->flags & HT_Ref))
             _stDestroy(hdr->valtype, HDRVALOPS(hdr),
                        stStoredPtr(hdr->valtype, HTVAL(hdr, elemsz, slot)), 0);
         if (!(hdr->flags & HT_RefKeys))
@@ -474,19 +479,6 @@ bool _htRemove(hashtable *htbl, stgeneric key)
     }
 
     return found;
-}
-
-htelem _htFindElem(hashtable htbl, stgeneric key)
-{
-    HashTableHeader *hdr = HTABLE_HDR(htbl);
-    uint32 elemsz = _htElemSz(hdr);
-    int32 slot;
-    bool found = htFindInternal(hdr, key, &slot, NULL);
-
-    if (found)
-        return HTKEY(hdr, elemsz, slot);
-
-    return NULL;
 }
 
 bool htiInit(htiter *iter, hashtable htbl)
