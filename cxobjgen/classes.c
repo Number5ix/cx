@@ -312,7 +312,7 @@ bool processClass(Class *cls)
             string pname = 0;
             strDup(&pname, cls->parent->name);
             strAppend(&pname, _S"_ClassIf");
-            htFind(ifidx, string, pname, object, &clsif->parent);
+            htFind(ifidx, string, pname, object, &clsif->parent, Borrow);
             strDestroy(&pname);
         }
         fillMethods(&clsif->methods, cls);
