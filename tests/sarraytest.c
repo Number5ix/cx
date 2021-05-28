@@ -71,7 +71,7 @@ static int test_sorted_int()
     if (t1.a[40] != 400)
         return 1;
 
-    if (saFind(&t1, int32, 320) != 32)
+    if (saFind(t1, int32, 320) != 32)
         return 1;
 
     saInit(&t2, int64, 10, Sorted);
@@ -89,7 +89,7 @@ static int test_sorted_int()
     if (t2.a[40] != 400)
         return 1;
 
-    if (saFind(&t2, int64, 320) != 32)
+    if (saFind(t2, int64, 320) != 32)
         return 1;
 
     saRelease(&t1);
@@ -128,11 +128,11 @@ static int test_string()
     if (strTestRefCount(st3) != 51)
         return 1;
 
-    if (saFind(&t1, string, st1) != 0)
+    if (saFind(t1, string, st1) != 0)
         return 1;
-    if (saFind(&t1, string, st2) != 1)
+    if (saFind(t1, string, st2) != 1)
         return 1;
-    if (saFind(&t1, string, st3) != 2)
+    if (saFind(t1, string, st3) != 2)
         return 1;
 
     saClear(&t1);
@@ -153,11 +153,11 @@ static int test_string()
     saPush(&t1, string, st2);
     saPush(&t1, string, st3);
 
-    if (saFind(&t1, string, st1) != 1)
+    if (saFind(t1, string, st1) != 1)
         return 1;
-    if (saFind(&t1, string, st2) != 2)
+    if (saFind(t1, string, st2) != 2)
         return 1;
-    if (saFind(&t1, string, st3) != 0)
+    if (saFind(t1, string, st3) != 0)
         return 1;
 
     saRelease(&t1);
@@ -206,7 +206,7 @@ static int test_sort()
     if (t1.a[40] != 400)
         return 1;
 
-    if (saFind(&t1, int32, 320) != 32)
+    if (saFind(t1, int32, 320) != 32)
         return 1;
 
     saInit(&t2, int64, 10);
@@ -233,7 +233,7 @@ static int test_sort()
     if (t2.a[40] != 400)
         return 1;
 
-    if (saFind(&t2, int64, 320) != 32)
+    if (saFind(t2, int64, 320) != 32)
         return 1;
 
     saRelease(&t1);
@@ -259,20 +259,20 @@ static int test_string_sort()
     saPush(&t1, string, st2);
     saPush(&t1, string, st3);
 
-    if (saFind(&t1, string, st1) != 0)
+    if (saFind(t1, string, st1) != 0)
         return 1;
-    if (saFind(&t1, string, st2) != 1)
+    if (saFind(t1, string, st2) != 1)
         return 1;
-    if (saFind(&t1, string, st3) != 2)
+    if (saFind(t1, string, st3) != 2)
         return 1;
 
     saSort(&t1, true);
 
-    if (saFind(&t1, string, st1) != 1)
+    if (saFind(t1, string, st1) != 1)
         return 1;
-    if (saFind(&t1, string, st2) != 2)
+    if (saFind(t1, string, st2) != 2)
         return 1;
-    if (saFind(&t1, string, st3) != 0)
+    if (saFind(t1, string, st3) != 0)
         return 1;
 
     saRelease(&t1);

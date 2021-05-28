@@ -92,19 +92,11 @@ enum SARRAY_FUNC_FLAGS_ENUM {
     // Does not insert if a matching element already exists.
     SAFUNC_Unique       = 0x00010000,
 
-    // Valid for: saFind, saRemove
-    // Destroys element if found.
-    SAFUNC_Destroy      = 0x00020000,
-
-    // Valid for: saFind
-    // Removes element if found (does not destroy, caller becomes owner).
-    SAFUNC_RemoveOnly   = 0x00040000,
-
-    // Valid for: saFind, saRemove
+    // Valid for: saExtract, saRemove, saFindRemove
     // When removing/destroying an element, swaps with last element,
     // disrupting the order but removing the element much faster.
     // Not valid for sorted arrays.
-    SAFUNC_Fast         = 0x00080000,
+    SAFUNC_Fast         = 0x00020000,
 
     // Valid for: saFind
     // Only valid for sorted arrays, setting this flag will return
@@ -165,17 +157,27 @@ void *_saPopPtr(sahandle handle, int32 idx);
 #define saPopPtr(handle) _saPopPtr(SAHANDLE(handle), -1)
 #define saPopPtrI(handle, idx) _saPopPtr(SAHANDLE(handle), idx)
 
-int32 _saFind(sahandle handle, stgeneric elem, uint32 flags);
-_meta_inline int32 _saFindChecked(sahandle handle, stype elemtype, stgeneric elem, uint32 flags)
+int32 _saFind(sa_ref ref, stgeneric elem, uint32 flags);
+_meta_inline int32 _saFindChecked(sa_ref ref, stype elemtype, stgeneric elem, uint32 flags)
+{
+    if (!ref.a)
+        return -1;
+    devAssert(stEq(saElemType(ref), elemtype));
+    return _saFind(ref, elem, flags);
+}
+#define saFind(ref, type, elem, ...) _saFindChecked(SAREF(ref), stCheckedArg(type, elem), func_flags(SAFUNC, __VA_ARGS__))
+
+bool _saFindRemove(sahandle handle, stgeneric elem, uint32 flags);
+_meta_inline bool _saFindRemoveChecked(sahandle handle, stype elemtype, stgeneric elem, uint32 flags)
 {
     if (!handle->a)
         return -1;
     devAssert(stEq(saElemType(*handle), elemtype));
-    return _saFind(handle, elem, flags);
+    return _saFindRemove(handle, elem, flags);
 }
-#define saFind(handle, type, elem, ...) _saFindChecked(SAHANDLE(handle), stCheckedArg(type, elem), func_flags(SAFUNC, __VA_ARGS__))
+#define saFindRemove(handle, type, elem, ...) _saFindRemoveChecked(SAHANDLE(handle), stCheckedArg(type, elem), func_flags(SAFUNC, __VA_ARGS__))
 
-int32 _saInsert(sahandle, int32 idx, stgeneric elem);
+int32 _saInsert(sahandle handle, int32 idx, stgeneric elem);
 _meta_inline int32 _saInsertChecked(sahandle handle, int32 idx, stype elemtype, stgeneric elem)
 {
     devAssert(handle->_is_sarray);
@@ -184,8 +186,17 @@ _meta_inline int32 _saInsertChecked(sahandle handle, int32 idx, stype elemtype, 
 }
 #define saInsert(handle, idx, type, elem) _saInsertChecked(SAHANDLE(handle), idx, stCheckedArg(type, elem))
 
-bool _saRemove(sahandle handle, int32 idx, uint32 flags);
-#define saRemove(handle, idx, ...) _saRemove(SAHANDLE(handle), idx, func_flags(SAFUNC, __VA_ARGS__))
+bool _saExtract(sahandle handle, int32 idx, stgeneric *elem, uint32 flags);
+_meta_inline bool _saExtractChecked(sahandle handle, int32 idx, stype elemtype, stgeneric *elem, uint32 flags)
+{
+    if (!handle->a)
+        return false;
+    devAssert(stGetId(elemtype) == stTypeId(none) || stEq(saElemType(*handle), elemtype));
+    return _saExtract(handle, idx, elem, flags);
+}
+#define htExtract(htbl, ktype, key, vtype, val_copy_out) _htExtractChecked(htbl, stCheckedArg(ktype, key), stCheckedPtrArg(vtype, val_copy_out))
+#define saExtract(handle, idx, type, elem_copy_out, ...) _saExtractChecked(SAHANDLE(handle), idx, stCheckedPtrArg(type, elem_copy_out), func_flags(SAFUNC, __VA_ARGS__))
+#define saRemove(handle, idx, ...) _saExtractChecked(SAHANDLE(handle), idx, stType(none), NULL, func_flags(SAFUNC, __VA_ARGS__))
 
 void _saSort(sahandle handle, bool keep);
 #define saSort(handle, keep) _saSort(SAHANDLE(handle), keep)

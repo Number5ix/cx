@@ -28,7 +28,7 @@ static void fillMethods(sa_Method *methods, Class *cls)
     // then add in actual implemented methods, overriding where applicable
     for (int i = 0; i < saSize(cls->methods); i++) {
         if (!cls->methods.a[i]->unbound && !cls->methods.a[i]->internal) {
-            int32 idx = saFind(methods, object, cls->methods.a[i]);
+            int32 idx = saFind(*methods, object, cls->methods.a[i]);
             if (idx == -1) {
                 saPush(methods, object, cls->methods.a[i], Unique);
             } else {
@@ -46,7 +46,7 @@ static Method *findClassMethod(string name, Class *search, Interface *iface)
         return NULL;
 
     // ensure the class providing the method actually implements the interface
-    if (!iface || saFind(&search->implements, object, iface) != -1) {
+    if (!iface || saFind(search->implements, object, iface) != -1) {
         for (int i = 0; i < saSize(search->methods); i++) {
             if (strEq(name, search->methods.a[i]->name))
                 return search->methods.a[i];
@@ -238,7 +238,7 @@ static void pruneInterfaces(Class *cls)
                 continue;
 
             // see if this class method is part of the interface
-            if (saFind(&cls->implements.a[i]->allmethods, object,
+            if (saFind(cls->implements.a[i]->allmethods, object,
                         cls->methods.a[j]) != -1)
                 break;
         }

@@ -31,7 +31,7 @@ void dbgCrashIncludeMemory(void *ptr, size_t sz)
     dbgCrashExcludeMemory(ptr, sz);
 
     CrashMemRange r = { .start = (uintptr)ptr,.end = (uintptr)ptr + sz };
-    int32 idx = saFind(&_dbgCrashDumpMem, opaque, r, Inexact);
+    int32 idx = saFind(_dbgCrashDumpMem, opaque, r, Inexact);
 
     if (idx > 0 && _dbgCrashDumpMem.a[idx - 1].end == r.start) {
         // extend the previous block
@@ -53,7 +53,7 @@ void dbgCrashExcludeMemory(void *ptr, size_t sz)
     CrashMemRange r = { .start = (uintptr)ptr,.end = (uintptr)ptr + sz };
 
     // use bsearch to quickly get to the starting index to scan
-    idx = saFind(&_dbgCrashDumpMem, opaque, r, Inexact);
+    idx = saFind(_dbgCrashDumpMem, opaque, r, Inexact);
     // back up one index entry to catch partial overlap
     idx = max(idx - 1, 0);
 

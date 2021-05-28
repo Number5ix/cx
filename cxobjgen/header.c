@@ -26,7 +26,7 @@ static void writeUnbound(BufFile *bf, Class *cls, Class *cur, sa_Method *done)
         if (!m->unbound)
             continue;
 
-        if (saFind(done, object, m) != -1)
+        if (saFind(*done, object, m) != -1)
             continue;
 
         if (cls == cur) {

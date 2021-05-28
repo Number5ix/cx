@@ -582,7 +582,7 @@ static void sa_remove_internal(sahandle handle, SArrayHeader *hdr, int32 idx, bo
     hdr->count--;
 }
 
-bool _saRemove(sahandle handle, int32 idx, uint32 flags)
+bool _saExtract(sahandle handle, int32 idx, stgeneric *elem, uint32 flags)
 {
     if (!handle->a)
         return false;
@@ -595,7 +595,10 @@ bool _saRemove(sahandle handle, int32 idx, uint32 flags)
     if (idx < 0 || idx >= hdr->count)
         return false;
 
-    if (!(hdr->flags & SA_Ref) && !(flags & SAFUNC_RemoveOnly))
+    // either extract into a variable if one is provided, or just destroy it
+    if (elem)
+        memcpy(stGenPtr(hdr->elemtype, *elem), ELEMPTR(hdr, idx), stGetSize(hdr->elemtype));
+    else if (!(hdr->flags & SA_Ref))
         _stDestroy(hdr->elemtype, HDRTYPEOPS(hdr),
                    stStoredPtr(hdr->elemtype, ELEMPTR(hdr, idx)), 0);
 
@@ -638,7 +641,22 @@ void *_saPopPtr(sahandle handle, int32 idx)
     return ret;
 }
 
-int32 _saFind(sahandle handle, stgeneric elem, uint32 flags)
+int32 _saFind(sa_ref ref, stgeneric elem, uint32 flags)
+{
+    SArrayHeader *hdr = SARRAY_HDR(ref);
+
+    int32 idx = -1;
+    bool found = false;
+
+    idx = sa_find_internal(hdr, elem, &found);
+
+    if (!found && !((flags & SAFUNC_Inexact) && (hdr->flags & SA_Sorted)))
+        return -1;
+
+    return idx;
+}
+
+bool _saFindRemove(sahandle handle, stgeneric elem, uint32 flags)
 {
     SArrayHeader *hdr = SARRAY_HDR(*handle);
 
@@ -647,13 +665,10 @@ int32 _saFind(sahandle handle, stgeneric elem, uint32 flags)
 
     idx = sa_find_internal(hdr, elem, &found);
 
-    if (found && ((flags & SAFUNC_Destroy) || (flags & SAFUNC_RemoveOnly)))
-        _saRemove(handle, idx, flags);
+    if (found)
+        _saExtract(handle, idx, NULL, flags);
 
-    if (!found && !((flags & SAFUNC_Inexact) && (hdr->flags & SA_Sorted)))
-        return -1;
-
-    return idx;
+    return found;
 }
 
 void _saSort(sahandle handle, bool keep)

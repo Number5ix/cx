@@ -42,7 +42,7 @@ void dbgCrashRemoveCallback(dbgCrashCallback cb)
 {
     lazyInit(&_dbgCrashInitState, _dbgCrashInit, 0);
     mutexAcquire(&_dbgCrashMutex);
-    saFind(&callbacks, ptr, cb, Destroy);
+    saFindRemove(&callbacks, ptr, cb);
     mutexRelease(&_dbgCrashMutex);
 }
 

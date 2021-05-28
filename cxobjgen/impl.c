@@ -29,7 +29,7 @@ static void writeMethodProto(BufFile *bf, Class *cls, Method *m, bool protoonly,
         Method *pm = 0;
 
         while (pclass) {
-            int32 idx = saFind(&pclass->methods, object, m);
+            int32 idx = saFind(pclass->methods, object, m);
             if (idx != -1) {
                 pm = pclass->methods.a[idx];
                 break;
@@ -43,7 +43,7 @@ static void writeMethodProto(BufFile *bf, Class *cls, Method *m, bool protoonly,
             string pmname = 0;
             methodImplName(&pmname, pclass, pm->name);
 
-            if (saFind(&parentmacros, string, m->name) != -1) {
+            if (saFind(parentmacros, string, m->name) != -1) {
                 strNConcat(&ln, _S"#undef ", _S"parent_", m->name);
                 bfWriteLine(bf, ln);
             }
@@ -114,7 +114,7 @@ static void writeMethods(BufFile *bf, Class *cls, sa_string *seen, bool mixinimp
         if (m->mixin != mixinimpl)
             continue;
         methodImplName(&mname, cls, m->name);
-        if (saFind(seen, string, mname) == -1) {
+        if (saFind(*seen, string, mname) == -1) {
             writeMethodProto(bf, cls, m, false, mixinimpl, false);
             bfWriteLine(bf, _S"{");
             if (m->isinit) {
