@@ -65,7 +65,8 @@ void _objDestroy(ObjInst *inst);
 
 _meta_inline void _objAcquire(ObjInst *inst)
 {
-    refcountInc(&inst->_ref);
+    if (inst)
+        refcountInc(&inst->_ref);
 }
 #define objAcquire(inst) (_objAcquire(ObjInst(inst)), (inst))
 void _objRelease(ObjInst **instp);
