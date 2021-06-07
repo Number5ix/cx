@@ -130,7 +130,8 @@ void _saInit(sahandle out, stype elemtype, STypeOps *ops, int32 capacity, uint32
 
 _meta_inline void _saAcquire(sa_ref r)
 {
-    refcountInc(&SARRAY_HDR(r)->ref);
+    if (r.a)
+        refcountInc(&SARRAY_HDR(r)->ref);
 }
 #define saAcquire(r) (_saAcquire(SAREF(r)), (r))
 void _saRelease(sahandle handle);

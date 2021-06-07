@@ -111,7 +111,8 @@ void _htInit(hashtable *out, stype keytype, STypeOps *keyops, stype valtype, STy
 
 _meta_inline hashtable htAcquire(hashtable htbl)
 {
-    refcountInc(&HTABLE_HDR(htbl)->ref);
+    if (htbl)
+        refcountInc(&HTABLE_HDR(htbl)->ref);
     return htbl;
 }
 void htRelease(hashtable *htbl);
