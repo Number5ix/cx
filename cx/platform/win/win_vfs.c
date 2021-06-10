@@ -1,5 +1,6 @@
 #include "cx/fs/fs_private.h"
 #include "cx/fs/vfs.h"
+#include "cx/platform/win.h"
 
 bool _vfsAddPlatformSpecificMounts(VFS *vfs)
 {

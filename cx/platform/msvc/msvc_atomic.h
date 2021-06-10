@@ -1,6 +1,21 @@
 #pragma once
 
-#include "cx/platform/win.h"
+#if defined(_M_X64)
+#define CX_MemoryBarrier __faststorefence
+#define CX_ReadWriteBarrier _ReadWriteBarrier
+#elif defined(_M_IX86)
+__forceinline void CX_MemoryBarrier(void)
+{
+    long Barrier;
+
+    _InterlockedOr(&Barrier, 0);
+    return;
+}
+#define CX_ReadWriteBarrier _ReadWriteBarrier
+#else
+#error "Don't know how to create atomics for this platform for MSVC."
+#endif
+
 #include "cx/utils/macros.h"
 
 #define atomicInit(...) {__VA_ARGS__}
@@ -21,21 +36,21 @@ typedef __int64 _cx_atomic_repr_3_t;
 _meta_inline void
 _atomicFence(AtmoicMemoryOrder mo)
 {
-    _ReadWriteBarrier();
+    CX_ReadWriteBarrier();
 #  if defined(_M_ARM) || defined(_M_ARM64)
         /* ARM needs a barrier for everything but relaxed. */
     if (mo != ATOMIC_MO_Relaxed) {
-        MemoryBarrier();
+        CX_MemoryBarrier();
     }
 #  elif defined(_M_IX86) || defined (_M_X64)
         /* x86 needs a barrier only for seq_cst. */
     if (mo == ATOMIC_MO_SeqCst) {
-        MemoryBarrier();
+        CX_MemoryBarrier();
     }
 #  else
 #  error "Don't know how to create atomics for this platform for MSVC."
 #  endif
-    _ReadWriteBarrier();
+    CX_ReadWriteBarrier();
 }
 #define atomicFence(order) _atomicFence(ATOMIC_MO_##order)
 
