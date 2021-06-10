@@ -172,7 +172,7 @@ bool _saFindRemove(sahandle handle, stgeneric elem, uint32 flags);
 _meta_inline bool _saFindRemoveChecked(sahandle handle, stype elemtype, stgeneric elem, uint32 flags)
 {
     if (!handle->a)
-        return -1;
+        return false;
     devAssert(stEq(saElemType(*handle), elemtype));
     return _saFindRemove(handle, elem, flags);
 }
