@@ -49,6 +49,8 @@ static void logBufferGrow(int32 minsize)
 // the buffer is about to overflow and needs to be expanded
 void logBufferAdd(LogEntry *ent)
 {
+    bool ret;
+
     rwlockAcquireRead(&_log_buffer_lock);
     for (;;) {
         int32 bsize = saSize(_log_buffer);
@@ -69,7 +71,7 @@ void logBufferAdd(LogEntry *ent)
             continue;
 
         // we succeeded, should be impossible to get a conflict on the write pointer but be paranoid in dev mode
-        bool ret = atomicCompareExchange(int32, weak, &_log_buf_writeptr, &wrptr, nwrptr, AcqRel, Relaxed);
+        ret = atomicCompareExchange(int32, weak, &_log_buf_writeptr, &wrptr, nwrptr, AcqRel, Relaxed);
         devAssert(ret);
         break;
     }
@@ -79,6 +81,8 @@ void logBufferAdd(LogEntry *ent)
 
 void logBufferAddBatch(sa_LogEntry batch)
 {
+    bool ret;
+
     rwlockAcquireRead(&_log_buffer_lock);
     for (;;) {
         int32 bsize = saSize(_log_buffer);
@@ -120,7 +124,7 @@ void logBufferAddBatch(sa_LogEntry batch)
 
         // everything succeeded, update the write pointer
         int nwrptr = (wrptr + saSize(batch)) % bsize;
-        bool ret = atomicCompareExchange(int32, weak, &_log_buf_writeptr, &wrptr, nwrptr, AcqRel, Relaxed);
+        ret = atomicCompareExchange(int32, weak, &_log_buf_writeptr, &wrptr, nwrptr, AcqRel, Relaxed);
         devAssert(ret);
         break;
     }
