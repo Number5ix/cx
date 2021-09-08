@@ -42,8 +42,6 @@ void logShutdown(void);
 void logBatchBegin(void);
 void logBatchEnd(void);
 
-#define strFormat(out, fmt, ...) _strFormat(out, fmt, count_macro_args(__VA_ARGS__), (stvar[]){ __VA_ARGS__ })
-
 #define logStr(level, str)       _logStr_##level(LOG_##level, LogDefault, str)
 #define logStrC(level, cat, str) _logStr_##level(LOG_##level, cat, str)
 #define logFmt(level, fmt, ...)       _logFmt_##level(LOG_##level, LogDefault, fmt, count_macro_args(__VA_ARGS__), (stvar[]){ __VA_ARGS__ })
