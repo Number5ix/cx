@@ -1,3 +1,8 @@
+// absolutely NEVER debug locks in this file because lock debugging calls log*
+#ifdef CX_LOCK_DEBUG
+#undef CX_LOCK_DEBUG
+#endif
+
 #include "log_private.h"
 #include <cx/format.h>
 #include <cx/string.h>

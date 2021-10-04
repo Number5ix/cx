@@ -4,6 +4,10 @@
 #include <cx/platform/base.h>
 #include "sema.h"
 
+#ifdef CX_LOCK_DEBUG
+#include <cx/log/log.h>
+#endif
+
 CX_C_BEGIN
 
 #define RWLOCK_READER_MAX 4095
@@ -71,6 +75,19 @@ _meta_inline bool rwlockAcquireRead(RWLock *l)
     return _rwlockContendedAcquireRead(l, timeForever);
 }
 
+#ifdef CX_LOCK_DEBUG
+#define _logFmtRwlockArgComp2(level, fmt, nargs, args) _logFmt_##level(LOG_##level, LogDefault, fmt, nargs, args)
+#define _logFmtRwlockArgComp(level, fmt, ...)          _logFmtRwlockArgComp2(level, fmt, count_macro_args(__VA_ARGS__), (stvar[]){ __VA_ARGS__ })
+_meta_inline bool rwlockLogAndAcquireRead(RWLock *l, const char *name, const char *filename, int line)
+{
+    _logFmtRwlockArgComp(CX_LOCK_DEBUG, _S"Locking rwlock ${string} for READ at ${string}:${int}",
+                         stvar(string, (string)name), stvar(string, (string)filename), stvar(int32, line));
+    return rwlockAcquireRead(l);
+}
+
+#define rwlockAcquireRead(l) rwlockLogAndAcquireRead(l, #l, __FILE__, __LINE__)
+#endif
+
 _meta_inline bool rwlockTryAcquireReadTimeout(RWLock *l, int64 timeout)
 {
     // try lightweight no-contention path inline
@@ -88,6 +105,17 @@ _meta_inline bool rwlockAcquireWrite(RWLock *l)
 
     return _rwlockContendedAcquireWrite(l, timeForever);
 }
+
+#ifdef CX_LOCK_DEBUG
+_meta_inline bool rwlockLogAndAcquireWrite(RWLock *l, const char *name, const char *filename, int line)
+{
+    _logFmtRwlockArgComp(CX_LOCK_DEBUG, _S"Locking rwlock ${string} for WRITE at ${string}:${int}",
+                         stvar(string, (string)name), stvar(string, (string)filename), stvar(int32, line));
+    return rwlockAcquireWrite(l);
+}
+
+#define rwlockAcquireWrite(l) rwlockLogAndAcquireWrite(l, #l, __FILE__, __LINE__)
+#endif
 
 _meta_inline bool rwlockTryAcquireWriteTimeout(RWLock *l, int64 timeout)
 {
@@ -110,7 +138,30 @@ _meta_inline bool rwlockReleaseRead(RWLock *l)
     return true;
 }
 
+#ifdef CX_LOCK_DEBUG
+_meta_inline bool rwlockLogAndReleaseRead(RWLock *l, const char *name, const char *filename, int line)
+{
+    _logRFmtHack(CX_LOCK_DEBUG, _S"Releasing rwlock ${string} for READ at ${string}:${int}",
+                 stvar(string, (string)name), stvar(string, (string)filename), stvar(int32, line));
+    return rwlockReleaseRead(l);
+}
+
+#define rwlockReleaseRead(l) rwlockLogAndReleaseRead(l, #l, __FILE__, __LINE__)
+#endif
+
 bool rwlockReleaseWrite(RWLock *l);
+
+#ifdef CX_LOCK_DEBUG
+_meta_inline bool rwlockLogAndReleaseWrite(RWLock *l, const char *name, const char *filename, int line)
+{
+    _logRFmtHack(CX_LOCK_DEBUG, _S"Releasing rwlock ${string} for WRITE at ${string}:${int}",
+                 stvar(string, (string)name), stvar(string, (string)filename), stvar(int32, line));
+    return rwlockReleaseWrite(l);
+}
+
+#define rwlockReleaseWrite(l) rwlockLogAndReleaseWrite(l, #l, __FILE__, __LINE__)
+#endif
+
 void rwlockDestroy(RWLock *l);
 
 CX_C_END
