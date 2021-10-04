@@ -141,8 +141,8 @@ _meta_inline bool rwlockReleaseRead(RWLock *l)
 #ifdef CX_LOCK_DEBUG
 _meta_inline bool rwlockLogAndReleaseRead(RWLock *l, const char *name, const char *filename, int line)
 {
-    _logRFmtHack(CX_LOCK_DEBUG, _S"Releasing rwlock ${string} for READ at ${string}:${int}",
-                 stvar(string, (string)name), stvar(string, (string)filename), stvar(int32, line));
+    _logFmtRwlockArgComp(CX_LOCK_DEBUG, _S"Releasing rwlock ${string} for READ at ${string}:${int}",
+                         stvar(string, (string)name), stvar(string, (string)filename), stvar(int32, line));
     return rwlockReleaseRead(l);
 }
 
@@ -154,8 +154,8 @@ bool rwlockReleaseWrite(RWLock *l);
 #ifdef CX_LOCK_DEBUG
 _meta_inline bool rwlockLogAndReleaseWrite(RWLock *l, const char *name, const char *filename, int line)
 {
-    _logRFmtHack(CX_LOCK_DEBUG, _S"Releasing rwlock ${string} for WRITE at ${string}:${int}",
-                 stvar(string, (string)name), stvar(string, (string)filename), stvar(int32, line));
+    _logFmtRwlockArgComp(CX_LOCK_DEBUG, _S"Releasing rwlock ${string} for WRITE at ${string}:${int}",
+                         stvar(string, (string)name), stvar(string, (string)filename), stvar(int32, line));
     return rwlockReleaseWrite(l);
 }
 
