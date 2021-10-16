@@ -23,12 +23,14 @@
 #define XAFUNC_Align(la) ((int)(la))
 #define XAFUNC_Zero ((int)0x40)
 
-#if XALLOC_USE_JEMALLOC
+#if XALLOC_USE_MIMALLOC
+#include "xalloc_mimalloc.h"
+#elif XALLOC_USE_JEMALLOC
 #include "xalloc_jemalloc.h"
 #elif XALLOC_USE_MSVCRT
 #include "xalloc_msvcrt.h"
 #else
-#error cxmem requires either XALLOC_USE_JEMALLOC or XALLOC_USE_MSVCRT to be set!
+#error cxmem requires XALLOC_USE_MIMALLOC, XALLOC_USE_JEMALLOC or XALLOC_USE_MSVCRT to be set!
 #endif
 
 // String utilities because cstrDup is tied in with xalloc

@@ -12,6 +12,10 @@ include (${CMAKE_CURRENT_SOURCE_DIR}/cmake/sidl.cmake)
 set(CX_TOP_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(CX_TOP_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
 
+set(CX_ALLOCATOR jemalloc)
+#set(CX_ALLOCATOR mimalloc)
+#set(CX_ALLOCATOR msvcrt)
+
 project (cx)
 enable_language(C)
 

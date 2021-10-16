@@ -93,4 +93,4 @@ void xaFlush();
 #define xa_realloc je_realloc
 #define xa_free je_free
 #endif
-#define xa_strdup _xa_jestrdup
+#define xa_strdup cstrDup

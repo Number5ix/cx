@@ -80,6 +80,10 @@
 #define XALLOC_STATIC_CONFIG CX_C const char *je_malloc_conf = "dirty_decay_ms:60000,muzzy_decay_ms:120000" \
     _XA_BACKGROUND_THREAD _XA_ABORT _XA_ZERO _XA_JUNK _XA_ARENA _XA_TCACHE _XA_CUSTOM;
 
+#elif defined(XALLOC_USE_MIMALLOC)
+
+#define XALLOC_STATIC_CONFIG
+
 #elif defined(XALLOC_USE_MSVCRT)
 
 #ifdef XALLOC_DEBUG_CHECKS

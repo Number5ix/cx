@@ -5,10 +5,12 @@
 
 // Exactly one of these must be defined
 
+// Use mimalloc as default allocator
+#cmakedefine XALLOC_USE_MIMALLOC 1
 // Use jemalloc as default allocator
-#define XALLOC_USE_JEMALLOC 1
+#cmakedefine XALLOC_USE_JEMALLOC 1
 // Use MSVCRT malloc
-// #define XALLOC_USE_MSVCRT 1
+#cmakedefine XALLOC_USE_MSVCRT 1
 
 // -------------------------- Local Options --------------------------
 // These can be project-specific but must be set in every C file,
