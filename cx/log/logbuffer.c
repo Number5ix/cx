@@ -39,7 +39,7 @@ static void logBufferGrow(int32 minsize)
     }
 
     // swap out buffers
-    saRelease(&_log_buffer);
+    saDestroy(&_log_buffer);
     _log_buffer = newbuf;
 
     // read pointer goes to start

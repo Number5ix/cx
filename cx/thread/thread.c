@@ -30,7 +30,7 @@ Thread* _thrCreate(threadFunc func, int n, stvar args[])
 void _thrDestroy(Thread *thread)
 {
     _thrPlatformDestroy(thread);
-    saRelease(&thread->_argsa);
+    saDestroy(&thread->_argsa);
     xaFree(thread);
 }
 

@@ -41,8 +41,8 @@ void Method_destroy(Method *self)
     strDestroy(&self->returntype);
     strDestroy(&self->predecr);
     strDestroy(&self->name);
-    saRelease(&self->params);
-    saRelease(&self->annotations);
+    saDestroy(&self->params);
+    saDestroy(&self->annotations);
     // Autogen ends -------
 }
 
@@ -67,8 +67,8 @@ void Interface_destroy(Interface *self)
 {
     // Autogen begins -----
     strDestroy(&self->name);
-    saRelease(&self->methods);
-    saRelease(&self->allmethods);
+    saDestroy(&self->methods);
+    saDestroy(&self->allmethods);
     // Autogen ends -------
 }
 
@@ -83,12 +83,12 @@ intptr Member_cmp(Member *self, Member *other, uint32 flags)
 void Member_destroy(Member *self)
 {
     // Autogen begins -----
-    saRelease(&self->fulltype);
+    saDestroy(&self->fulltype);
     strDestroy(&self->vartype);
     strDestroy(&self->predecr);
     strDestroy(&self->name);
     strDestroy(&self->postdecr);
-    saRelease(&self->annotations);
+    saDestroy(&self->annotations);
     strDestroy(&self->initstr);
     // Autogen ends -------
 }
@@ -120,15 +120,15 @@ void Class_destroy(Class *self)
     // Autogen begins -----
     strDestroy(&self->name);
     objRelease(&self->classif);
-    saRelease(&self->implements);
-    saRelease(&self->uses);
-    saRelease(&self->members);
-    saRelease(&self->methods);
-    saRelease(&self->overrides);
-    saRelease(&self->annotations);
+    saDestroy(&self->implements);
+    saDestroy(&self->uses);
+    saDestroy(&self->members);
+    saDestroy(&self->methods);
+    saDestroy(&self->overrides);
+    saDestroy(&self->annotations);
     strDestroy(&self->methodprefix);
-    saRelease(&self->allmembers);
-    saRelease(&self->allmethods);
+    saDestroy(&self->allmembers);
+    saDestroy(&self->allmethods);
     // Autogen ends -------
 }
 

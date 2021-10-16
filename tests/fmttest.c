@@ -250,8 +250,8 @@ static int test_array()
     if (!strEq(res, _S"This is an Awesome Test Of Test Formatting"))
         return 1;
 
-    saRelease(&intarray);
-    saRelease(&strarray);
+    saDestroy(&intarray);
+    saDestroy(&strarray);
 
     strDestroy(&res);
     return 0;
@@ -289,7 +289,7 @@ static int test_hash()
     if (!strEq(res, _S"sqrt(2) = 1.41421"))
         return 1;
 
-    htRelease(&testht);
+    htDestroy(&testht);
     strDestroy(&res);
     return 0;
 }

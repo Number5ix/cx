@@ -99,7 +99,7 @@ bool vfsSearchInit(FSSearchIter *iter, VFS *vfs, strref path, strref pattern, in
     int32 relstart = saSize(components);
     while (pdir) {
         devAssert(relstart >= 0);
-        saRelease(&relcomp);
+        saDestroy(&relcomp);
         saSlice(&relcomp, components, relstart, 0);
         strJoin(&curpath, relcomp, fsPathSepStr);
 
@@ -163,9 +163,9 @@ done:
     strDestroy(&abspath);
     strDestroy(&curpath);
     strDestroy(&filepath);
-    saRelease(&relcomp);
-    saRelease(&components);
-    htRelease(&names);
+    saDestroy(&relcomp);
+    saDestroy(&components);
+    htDestroy(&names);
     return vfsSearchNext(iter);
 }
 
@@ -195,7 +195,7 @@ void vfsSearchFinish(FSSearchIter *iter)
     if (!search)
         return;
 
-    saRelease(&search->ents);
+    saDestroy(&search->ents);
     objRelease(&search->vfs);
     xaSFree(iter->_search);
 }

@@ -44,8 +44,8 @@ static int test_int()
     if (t2.a[40] != 100)
         return 1;
 
-    saRelease(&t1);
-    saRelease(&t2);
+    saDestroy(&t1);
+    saDestroy(&t2);
 
     return 0;
 }
@@ -92,8 +92,8 @@ static int test_sorted_int()
     if (saFind(t2, int64, 320) != 32)
         return 1;
 
-    saRelease(&t1);
-    saRelease(&t2);
+    saDestroy(&t1);
+    saDestroy(&t2);
 
     return 0;
 }
@@ -146,7 +146,7 @@ static int test_string()
     if (strTestRefCount(st3) != 1)
         return 1;
 
-    saRelease(&t1);
+    saDestroy(&t1);
     saInit(&t1, string, 10, Sorted);
 
     saPush(&t1, string, st1);
@@ -160,7 +160,7 @@ static int test_string()
     if (saFind(t1, string, st3) != 0)
         return 1;
 
-    saRelease(&t1);
+    saDestroy(&t1);
 
     if (strTestRefCount(st1) != 1)
         return 1;
@@ -236,8 +236,8 @@ static int test_sort()
     if (saFind(t2, int64, 320) != 32)
         return 1;
 
-    saRelease(&t1);
-    saRelease(&t2);
+    saDestroy(&t1);
+    saDestroy(&t2);
 
     return 0;
 }
@@ -275,7 +275,7 @@ static int test_string_sort()
     if (saFind(t1, string, st3) != 0)
         return 1;
 
-    saRelease(&t1);
+    saDestroy(&t1);
 
     strDestroy(&st1);
     strDestroy(&st2);

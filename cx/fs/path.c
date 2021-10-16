@@ -261,7 +261,7 @@ void pathNormalize(string *path)
         saInit(&components, string, 8, Grow(Aggressive));
         pathDecompose(&nspace, &components, *path);
         pathCompose(path, nspace, components);
-        saRelease(&components);
+        saDestroy(&components);
         strDestroy(&nspace);
     }
 }

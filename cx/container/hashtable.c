@@ -401,21 +401,19 @@ void htClear(hashtable *htbl)
     hdr->valid = 0;
 }
 
-void htRelease(hashtable *htbl)
+void htDestroy(hashtable *htbl)
 {
     if (!(htbl && *htbl))
         return;
 
-    HashTableHeader *hdr = HTABLE_HDR(*htbl);
-    if (refcountDec(&hdr->ref)) {
-        htClear(htbl);
+    htClear(htbl);
 
-        if (hdr->flags & HTINT_Extended) {
-            xaFree(hdr);
-        } else {
-            void *smbase = (void*)((uintptr_t)hdr + HT_SMALLHDR_OFFSET);
-            xaFree(smbase);
-        }
+    HashTableHeader *hdr = HTABLE_HDR(*htbl);
+    if (hdr->flags & HTINT_Extended) {
+        xaFree(hdr);
+    } else {
+        void *smbase = (void*)((uintptr_t)hdr + HT_SMALLHDR_OFFSET);
+        xaFree(smbase);
     }
     *htbl = NULL;
 }

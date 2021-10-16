@@ -2,7 +2,6 @@
 
 #include <cx/cx.h>
 #include <cx/debug/assert.h>
-#include <cx/utils/refcount.h>
 
 #define sarrayref(typ) sa_##typ
 #define sarrayhdl(typ) sa_##typ*
@@ -46,7 +45,6 @@ typedef struct SArrayHeader {
     // sarray extended header begins here (only valid if SAINT_Extended is set)
     STypeOps typeops;
     // sarray header begins here
-    refcount ref;
     stype elemtype;
     int32 count;
     int32 capacity;
@@ -128,14 +126,8 @@ enum SARRAY_FUNC_FLAGS_ENUM {
 void _saInit(sahandle out, stype elemtype, STypeOps *ops, int32 capacity, uint32 flags);
 #define saInit(out, type, capacity, ...) _saInit(SAHANDLE(out), stFullType(type), capacity, func_flags(SA, __VA_ARGS__))
 
-_meta_inline void _saAcquire(sa_ref r)
-{
-    if (r.a)
-        refcountInc(&SARRAY_HDR(r)->ref);
-}
-#define saAcquire(r) (_saAcquire(SAREF(r)), (r))
-void _saRelease(sahandle handle);
-#define saRelease(handle) _saRelease(SAHANDLE(handle));
+void _saDestroy(sahandle handle);
+#define saDestroy(handle) _saDestroy(SAHANDLE(handle));
 
 void _saReserve(sahandle handle, int32 capacity);
 #define saReserve(handle, capacity) _saReserve(SAHANDLE(handle), capacity)

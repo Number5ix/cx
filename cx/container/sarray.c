@@ -318,7 +318,6 @@ void _saInit(sahandle out, stype elemtype, STypeOps *ops, int32 capacity, uint32
     hdr->count = 0;
     hdr->capacity = capacity;
     hdr->flags = flags;
-    refcountInit(&hdr->ref);
     out->a = &hdr->data[0];
 }
 
@@ -387,20 +386,18 @@ static void _saGrow(sahandle handle, SArrayHeader **hdr, int32 minsz)
     saRealloc(handle, hdr, cap);
 }
 
-void _saRelease(sahandle handle)
+void _saDestroy(sahandle handle)
 {
     if (!handle->a)
         return;
 
     SArrayHeader *hdr = SARRAY_HDR(*handle);
-    if (refcountDec(&hdr->ref)) {
-        _saClear(handle);           // to call dtors
-        if (hdr->flags & SAINT_Extended) {
-            xaFree(hdr);
-        } else {
-            void *smbase = (void*)((uintptr_t)hdr + SARRAY_SMALLHDR_OFFSET);
-            xaFree(smbase);
-        }
+    _saClear(handle);           // to call dtors
+    if (hdr->flags & SAINT_Extended) {
+        xaFree(hdr);
+    } else {
+        void *smbase = (void*)((uintptr_t)hdr + SARRAY_SMALLHDR_OFFSET);
+        xaFree(smbase);
     }
     handle->a = NULL;
 }

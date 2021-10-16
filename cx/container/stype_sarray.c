@@ -2,12 +2,12 @@
 
 void stDtor_sarray(stype st, stgeneric *gen, uint32 flags)
 {
-    _saRelease(&gen->st_sarray);
+    _saDestroy(&gen->st_sarray);
 }
 
 void stCopy_sarray(stype st, stgeneric *dest, stgeneric src, uint32 flags)
 {
-    dest->st_sarray = saAcquire(src.st_sarray);
+    saSlice(&dest->st_sarray, src.st_sarray, 0, 0);
 }
 
 uint32 stHash_sarray(stype st, stgeneric gen, uint32 flags)

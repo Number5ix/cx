@@ -163,8 +163,8 @@ static void deleteOldFiles(LogFileData *lfd)
         vfsDelete(lfd->vfs, temp);
     } endforeach;
 
-    saRelease(&todelete);
-    saRelease(&splits);
+    saDestroy(&todelete);
+    saDestroy(&splits);
     strDestroy(&pattern);
     strDestroy(&temp);
 }

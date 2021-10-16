@@ -119,5 +119,5 @@ void logBatchEnd(void)
 {
     devAssert(_log_thread_batch.a);
     logBufferAddBatch(_log_thread_batch);
-    saRelease(&_log_thread_batch);
+    saDestroy(&_log_thread_batch);
 }
