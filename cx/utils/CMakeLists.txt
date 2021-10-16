@@ -9,7 +9,6 @@ set(UTILS_INCLUDES
     utils/lazyinit.h
     utils/macros.h
     utils/murmur.h
-    utils/refcount.h
     utils/scratch.h)
 
 set(CX_SRCS
