@@ -76,7 +76,7 @@ void logBufferAdd(LogEntry *ent)
             continue;
 
         // we succeeded, should be impossible to get a conflict on the write pointer but be paranoid in dev mode
-        ret = atomicCompareExchange(int32, weak, &_log_buf_writeptr, &wrptr, nwrptr, AcqRel, Relaxed);
+        ret = atomicCompareExchange(int32, strong, &_log_buf_writeptr, &wrptr, nwrptr, AcqRel, Relaxed);
         devAssert(ret);
         break;
     }
@@ -129,7 +129,7 @@ void logBufferAddBatch(sa_LogEntry batch)
 
         // everything succeeded, update the write pointer
         int nwrptr = (wrptr + saSize(batch)) % bsize;
-        ret = atomicCompareExchange(int32, weak, &_log_buf_writeptr, &wrptr, nwrptr, AcqRel, Relaxed);
+        ret = atomicCompareExchange(int32, strong, &_log_buf_writeptr, &wrptr, nwrptr, AcqRel, Relaxed);
         devAssert(ret);
         break;
     }
