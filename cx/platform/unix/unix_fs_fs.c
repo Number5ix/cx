@@ -9,9 +9,9 @@
 #include <errno.h>
 #include <unistd.h>
 #include <dirent.h>
+#include <limits.h>
 
 #ifdef _PLATFORM_FBSD
-#include <limits.h>
 #include <sys/types.h>
 #include <sys/sysctl.h>
 #endif
