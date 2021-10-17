@@ -208,7 +208,7 @@ static int thrproc4w(Thread *self)
 
 #define RW_WTHREADS 4
 #define RW_RTHREADS 16
-#define RW_COUNT 262144
+#define RW_COUNT 32768
 static int test_rwlock()
 {
     atomicStore(bool, &fail, false, Release);
@@ -251,7 +251,7 @@ static Event testev;
 
 #define EVENT_CONSUMERS 32
 #define EVENT_PRODUCERS 4
-#define EVENT_COUNT 2097152
+#define EVENT_COUNT 32768
 
 static int32 evthrcount[EVENT_CONSUMERS];
 static atomic(int32) evwork;
