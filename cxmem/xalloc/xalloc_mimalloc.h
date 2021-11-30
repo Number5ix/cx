@@ -2,6 +2,7 @@
 
 #include "mimalloc.h"
 #include <cx/utils/macros.h>
+#include <string.h>
 
 #define XA_LG_ALIGN_MASK ((int)0x3f)
 
