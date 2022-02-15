@@ -149,11 +149,11 @@ bool vfsCopy(VFS *vfs, strref from, strref to)
     bool ret = false;
     size_t bytes;
 
-    uint8 *buf = xaAlloc(COPYBLOCKSIZE);
-    srcfile = vfsOpen(vfs, from, Read);
+    uint8 *buf = xaAlloc(COPYBLOCKSIZE, 0);
+    srcfile = vfsOpen(vfs, from, FS_Read);
     if (!srcfile)
         goto out;
-    dstfile = vfsOpen(vfs, to, Overwrite);
+    dstfile = vfsOpen(vfs, to, FS_Overwrite);
     if (!dstfile)
         goto out;
 

@@ -210,21 +210,21 @@ static int test_array()
     string res = 0;
 
     sa_int32 intarray;
-    saInit(&intarray, int32, 5);
+    saInit(&intarray, int32, 5, 0);
     sa_string strarray;
-    saInit(&strarray, string, 5);
+    saInit(&strarray, string, 5, 0);
 
-    saPush(&intarray, int32, 32);
-    saPush(&intarray, int32, 33);
-    saPush(&intarray, int32, 34);
-    saPush(&intarray, int32, 35);
-    saPush(&intarray, int32, 36);
+    saPush(&intarray, int32, 32, 0);
+    saPush(&intarray, int32, 33, 0);
+    saPush(&intarray, int32, 34, 0);
+    saPush(&intarray, int32, 35, 0);
+    saPush(&intarray, int32, 36, 0);
 
-    saPush(&strarray, string, _S"Test");
-    saPush(&strarray, string, _S"Of");
-    saPush(&strarray, string, _S"Array");
-    saPush(&strarray, string, _S"Formatting");
-    saPush(&strarray, string, _S"Awesome");
+    saPush(&strarray, string, _S"Test", 0);
+    saPush(&strarray, string, _S"Of", 0);
+    saPush(&strarray, string, _S"Array", 0);
+    saPush(&strarray, string, _S"Formatting", 0);
+    saPush(&strarray, string, _S"Awesome", 0);
 
     strFormat(&res, _S"This is a ${int[4]}, ${int[1]}, ${int[3]}, ${int[0]}, ${int[2]} test",
               stvar(sarray, intarray));
@@ -261,15 +261,15 @@ static int test_hash()
 {
     string res = 0;
     hashtable testht;
-    htInit(&testht, string, float64, 8);
+    htInit(&testht, string, float64, 8, 0);
 
-    htInsert(&testht, string, _S"one", float64, 1);
-    htInsert(&testht, string, _S"sqrttwo", float64, 1.41421);
-    htInsert(&testht, string, _S"two", float64, 2);
-    htInsert(&testht, string, _S"e", float64, 2.71828);
-    htInsert(&testht, string, _S"three", float64, 3);
-    htInsert(&testht, string, _S"pi", float64, 3.14159);
-    htInsert(&testht, string, _S"four", float64, 4);
+    htInsert(&testht, string, _S"one", float64, 1, 0);
+    htInsert(&testht, string, _S"sqrttwo", float64, 1.41421, 0);
+    htInsert(&testht, string, _S"two", float64, 2, 0);
+    htInsert(&testht, string, _S"e", float64, 2.71828, 0);
+    htInsert(&testht, string, _S"three", float64, 3, 0);
+    htInsert(&testht, string, _S"pi", float64, 3.14159, 0);
+    htInsert(&testht, string, _S"four", float64, 4, 0);
 
     strFormat(&res, _S"It's easy as ${float:one}, ${float:two}, ${float:three}",
               stvar(hashtable, testht));

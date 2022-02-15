@@ -29,7 +29,7 @@ static void writeMethodProto(BufFile *bf, Class *cls, Method *m, bool protoonly,
         Method *pm = 0;
 
         while (pclass) {
-            int32 idx = saFind(pclass->methods, object, m);
+            int32 idx = saFind(pclass->methods, object, m, 0);
             if (idx != -1) {
                 pm = pclass->methods.a[idx];
                 break;
@@ -43,13 +43,13 @@ static void writeMethodProto(BufFile *bf, Class *cls, Method *m, bool protoonly,
             string pmname = 0;
             methodImplName(&pmname, pclass, pm->name);
 
-            if (saFind(parentmacros, string, m->name) != -1) {
+            if (saFind(parentmacros, string, m->name, 0) != -1) {
                 strNConcat(&ln, _S"#undef ", _S"parent_", m->name);
                 bfWriteLine(bf, ln);
             }
 
             strNConcat(&ln, _S"#define ", _S"parent_", m->name, _S"(");
-            saPush(&parentmacros, string, m->name, Unique);
+            saPush(&parentmacros, string, m->name, SA_Unique);
             for (int j = 0; j < saSize(pm->params); j++) {
                 if (j > 0)
                     strNConcat(&ln, ln, _S", ", pm->params.a[j]->name);
@@ -114,7 +114,7 @@ static void writeMethods(BufFile *bf, Class *cls, sa_string *seen, bool mixinimp
         if (m->mixin != mixinimpl)
             continue;
         methodImplName(&mname, cls, m->name);
-        if (saFind(*seen, string, mname) == -1) {
+        if (saFind(*seen, string, mname, 0) == -1) {
             writeMethodProto(bf, cls, m, false, mixinimpl, false);
             bfWriteLine(bf, _S"{");
             if (m->isinit) {
@@ -201,7 +201,7 @@ static void indexMethods(Class *cls, hashtable *htbl)
     for (int i = 0; i < saSize(cls->methods); i++) {
         Method *m = cls->methods.a[i];
         methodImplName(&mname, cls, m->name);
-        htInsert(htbl, string, mname, opaque, ((MethodPair){ .c = cls, .m = m }));
+        htInsert(htbl, string, mname, opaque, ((MethodPair){ .c = cls, .m = m }), 0);
     }
     strDestroy(&mname);
 }
@@ -234,18 +234,18 @@ static void writeAutoInit(BufFile *bf, Class *cls)
         } else if (saSize(m->fulltype) > 1) {
             if (strEq(m->fulltype.a[0], _S"sarray")) {
                 sa_string flagarr;
-                saInit(&flagarr, string, 1);
+                saInit(&flagarr, string, 1, 0);
                 string size = _S"1";
                 sa_string an;
 
                 if (getAnnotation(NULL, m->annotations, _S"ref"))
-                    saPush(&flagarr, string, _S"Ref");
+                    saPush(&flagarr, string, _S"SA_Ref", 0);
                 if (getAnnotation(NULL, m->annotations, _S"sorted"))
-                    saPush(&flagarr, string, _S"Sorted");
+                    saPush(&flagarr, string, _S"SA_Sorted", 0);
                 getAnnotation(&an, m->annotations, _S"grow");
                 if (saSize(an) == 2) {
-                    strNConcat(&tmp, _S"Grow(", an.a[1], _S")");
-                    saPush(&flagarr, string, tmp);
+                    strNConcat(&tmp, _S"SA_Grow(", an.a[1], _S")");
+                    saPush(&flagarr, string, tmp, 0);
                 }
                 getAnnotation(&an, m->annotations, _S"size");
                 if (saSize(an) == 2)
@@ -253,29 +253,30 @@ static void writeAutoInit(BufFile *bf, Class *cls)
 
                 strClear(&flags);
                 if (saSize(flagarr) != 0) {
-                    saInsert(&flagarr, 0, string, _S"");
-                    strJoin(&flags, flagarr, _S", ");
+                    strJoin(&flags, flagarr, _S" | ");
+                } else {
+                    strDup(&flags, _S"0");
                 }
                 strNConcat(&ln, _S"    saInit(&self->", m->name, _S", ", m->fulltype.a[1],
-                           _S", ", size, flags, _S");");
+                           _S", ", size, _S", ", flags, _S");");
                 saDestroy(&flagarr);
             }
             if (strEq(m->fulltype.a[0], _S"hashtable") && saSize(m->fulltype) == 3) {
                 sa_string flagarr;
-                saInit(&flagarr, string, 1);
+                saInit(&flagarr, string, 1, 0);
                 string size = _S"16";
                 sa_string an;
 
                 if (getAnnotation(NULL, m->annotations, _S"ref"))
-                    saPush(&flagarr, string, _S"Ref");
+                    saPush(&flagarr, string, _S"HT_Ref", 0);
                 if (getAnnotation(NULL, m->annotations, _S"refkeys"))
-                    saPush(&flagarr, string, _S"RefKeys");
+                    saPush(&flagarr, string, _S"HT_RefKeys", 0);
                 if (getAnnotation(NULL, m->annotations, _S"caseinsensitive"))
-                    saPush(&flagarr, string, _S"CaseInsensitive");
+                    saPush(&flagarr, string, _S"HT_CaseInsensitive", 0);
                 getAnnotation(&an, m->annotations, _S"grow");
                 if (saSize(an) == 2) {
-                    strNConcat(&tmp, _S"Grow(", an.a[1], _S")");
-                    saPush(&flagarr, string, tmp);
+                    strNConcat(&tmp, _S"HT_Grow(", an.a[1], _S")");
+                    saPush(&flagarr, string, tmp, 0);
                 }
                 getAnnotation(&an, m->annotations, _S"size");
                 if (saSize(an) == 2)
@@ -283,11 +284,12 @@ static void writeAutoInit(BufFile *bf, Class *cls)
 
                 strClear(&flags);
                 if (saSize(flagarr) != 0) {
-                    saInsert(&flagarr, 0, string, _S"");
-                    strJoin(&flags, flagarr, _S", ");
+                    strJoin(&flags, flagarr, _S" | ");
+                } else {
+                    strDup(&flags, _S"0");
                 }
                 strNConcat(&ln, _S"    htInit(&self->", m->name, _S", ", m->fulltype.a[1], _S", ",
-                           m->fulltype.a[2], _S", ", size, flags, _S");");
+                           m->fulltype.a[2], _S", ", size, _S", ", flags, _S");");
                 saDestroy(&flagarr);
             }
         }
@@ -507,7 +509,7 @@ bool writeImpl(string fname, bool mixinimpl)
     string incname = 0;
     pathSetExt(&incname, fname, _S"auto.inc");
 
-    FSFile *newf = fsOpen(newcname, Overwrite);
+    FSFile *newf = fsOpen(newcname, FS_Overwrite);
     if (!newf) {
         fprintf(stderr, "Failed to open %s for writing", lazyPlatformPath(newcname));
         return false;
@@ -517,7 +519,7 @@ bool writeImpl(string fname, bool mixinimpl)
     FSFile *incf = 0;
     BufFile *ibf = 0;
     if (!mixinimpl) {
-        incf = fsOpen(incname, Overwrite);
+        incf = fsOpen(incname, FS_Overwrite);
         if (!incf) {
             fprintf(stderr, "Failed to open %s for writing", lazyPlatformPath(incname));
             bfClose(nbf);
@@ -526,7 +528,7 @@ bool writeImpl(string fname, bool mixinimpl)
         ibf = bfCreate(incf, true);
     }
 
-    FSFile *oldf = fsOpen(cname, Read);
+    FSFile *oldf = fsOpen(cname, FS_Read);
     BufFile *obf = NULL;
     if (oldf)
         obf = bfCreate(oldf, false);
@@ -550,10 +552,10 @@ bool writeImpl(string fname, bool mixinimpl)
     bfWriteLine(nbf, autogenEnd);
 
     sa_string seen;
-    saInit(&seen, string, 16, Sorted);
-    saInit(&parentmacros, string, 16, Sorted);
+    saInit(&seen, string, 16, SA_Sorted);
+    saInit(&parentmacros, string, 16, SA_Sorted);
     hashtable implidx;
-    htInit(&implidx, string, opaque(MethodPair), 16);
+    htInit(&implidx, string, opaque(MethodPair), 16, 0);
     int err;
     PCRE2_SIZE eoffset;
     pcre2_code *reParentProto = pcre2_compile((PCRE2_SPTR)"extern [A-Za-z0-9_]+ \\**([A-Za-z0-9_]+)\\(.*\\); // parent", PCRE2_ZERO_TERMINATED, PCRE2_ANCHORED | PCRE2_ENDANCHORED, &err, &eoffset, NULL);
@@ -590,14 +592,14 @@ bool writeImpl(string fname, bool mixinimpl)
                 strSubStr(&funcname, ln, (int32)ovector[2], (int32)ovector[3]);
                 MethodPair mp;
 
-                if (htFind(implidx, string, funcname, opaque, &mp)) {
+                if (htFind(implidx, string, funcname, opaque, &mp, 0)) {
                     if (nmatches == 2) {
                         if (mp.m->isinit)
                             ininit = mp.c;
                         if (mp.m->isdestroy)
                             indestroy = mp.c;
                     }
-                    saPush(&seen, string, funcname, Unique);
+                    saPush(&seen, string, funcname, SA_Unique);
                     writeMethodProto(nbf, mp.c, mp.m, nmatches == 3, mixinimpl, false);
                 } else {
                     bfWriteLine(nbf, ln);

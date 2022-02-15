@@ -6,8 +6,8 @@
 // inline functions get emitted in this translation unit
 // Needed as technically C99 doesn't guarantee inlining, but disabled for now
 // as all of our supported compilers have a way to enforce a guarantee.
-extern inline int32 _saPushChecked(sahandle handle, stype elemtype, void *elem, uint32 flags)
-extern inline int32 _saFindChecked(sahandle handle, stype elemtype, void *elem, uint32 flags);
+extern inline int32 _saPushChecked(sahandle handle, stype elemtype, void *elem, flags_t flags)
+extern inline int32 _saFindChecked(sahandle handle, stype elemtype, void *elem, flags_t flags);
 extern inline int32 _saInsertChecked(sahandle handle, int32 idx, stype elemtype, void *elem);
 #endif
 
@@ -216,9 +216,9 @@ static sa_qsort_spec *qsort_spec;
 
 static void sa_spec_init(void *user)
 {
-    find_spec = xaAlloc(256 * sizeof(sa_find_spec), Zero);
-    bsearch_spec = xaAlloc(256 * sizeof(sa_find_spec), Zero);
-    qsort_spec = xaAlloc(256 * sizeof(sa_qsort_spec), Zero);
+    find_spec = xaAlloc(256 * sizeof(sa_find_spec), XA_Zero);
+    bsearch_spec = xaAlloc(256 * sizeof(sa_find_spec), XA_Zero);
+    qsort_spec = xaAlloc(256 * sizeof(sa_qsort_spec), XA_Zero);
 
     SA_SPEC_INIT_ONE(string);
     SA_SPEC_INIT_ONE(int8);
@@ -277,7 +277,7 @@ static void sa_qsort_internal(SArrayHeader *hdr)
         sa_qsort_internal_stype(hdr, hdr->data, hdr->count);
 }
 
-void _saInit(sahandle out, stype elemtype, STypeOps *ops, int32 capacity, uint32 flags)
+void _saInit(sahandle out, stype elemtype, STypeOps *ops, int32 capacity, flags_t flags)
 {
     SArrayHeader *hdr;
 
@@ -295,23 +295,23 @@ void _saInit(sahandle out, stype elemtype, STypeOps *ops, int32 capacity, uint32
     if (ops) {
         // need the full header
         flags |= SAINT_Extended;
-        hdr = xaAlloc(SARRAY_HDRSIZE + capacity * stGetSize(elemtype));
+        hdr = xaAlloc(SARRAY_HDRSIZE + capacity * stGetSize(elemtype), 0);
         hdr->typeops = *ops;
     } else {
         // use the smaller header that saves a few bytes for each array
         // yes, this is evil
         // hdr technically points to unallocated memory, but we're careful to not touch the first part
-        hdr = (SArrayHeader*)((uintptr_t)xaAlloc((SARRAY_HDRSIZE + capacity * stGetSize(elemtype)) - SARRAY_SMALLHDR_OFFSET) - SARRAY_SMALLHDR_OFFSET);
+        hdr = (SArrayHeader*)((uintptr_t)xaAlloc((SARRAY_HDRSIZE + capacity * stGetSize(elemtype)) - SARRAY_SMALLHDR_OFFSET, 0) - SARRAY_SMALLHDR_OFFSET);
     }
 
     if (SA_GET_GROW(flags) == SA_GROW_Auto) {
         // auto growth based on element size
         if (stGetSize(elemtype) <= 8)
-            flags |= saGrow(Aggressive);
+            flags |= SA_Grow(Aggressive);
         else if (stGetSize(elemtype) <= 256)
-            flags |= saGrow(Normal);
+            flags |= SA_Grow(Normal);
         else
-            flags |= saGrow(Slow);
+            flags |= SA_Grow(Slow);
     }
 
     hdr->elemtype = elemtype;
@@ -324,11 +324,11 @@ void _saInit(sahandle out, stype elemtype, STypeOps *ops, int32 capacity, uint32
 static void saRealloc(sahandle handle, SArrayHeader **hdr, int32 cap)
 {
     if ((*hdr)->flags & SAINT_Extended) {
-        *hdr = xaResize(*hdr, SARRAY_HDRSIZE + cap * stGetSize((*hdr)->elemtype));
+        *hdr = xaResize(*hdr, SARRAY_HDRSIZE + cap * stGetSize((*hdr)->elemtype), 0);
     } else {
         // ugly non-extended header
         void *smlbase = (void*)((uintptr_t)(*hdr) + SARRAY_SMALLHDR_OFFSET);
-        smlbase = xaResize(smlbase, (SARRAY_HDRSIZE + cap * stGetSize((*hdr)->elemtype)) - SARRAY_SMALLHDR_OFFSET);
+        smlbase = xaResize(smlbase, (SARRAY_HDRSIZE + cap * stGetSize((*hdr)->elemtype)) - SARRAY_SMALLHDR_OFFSET, 0);
         *hdr = (SArrayHeader*)((uintptr_t)smlbase - SARRAY_SMALLHDR_OFFSET);
     }
     (*hdr)->capacity = cap;
@@ -456,7 +456,7 @@ void _saSetSize(sahandle handle, int32 size)
     STypeOps *ops = HDRTYPEOPS(hdr);
 
     if (size > hdr->count) {
-        memset(ELEMPTR(hdr, hdr->count), 0, (size - hdr->count) * stGetSize(hdr->elemtype));
+        memset(ELEMPTR(hdr, hdr->count), 0, ((uintptr)size - hdr->count) * stGetSize(hdr->elemtype));
     } else if (!(hdr->flags & SA_Ref)) {
         for (int i = size; i < hdr->count; i++) {
             _stDestroy(hdr->elemtype, ops,
@@ -519,7 +519,7 @@ int32 _saInsert(sahandle handle, int32 idx, stgeneric elem)
     return sa_insert_internal(handle, hdr, idx, &elem, false);
 }
 
-int32 _saPushPtr(sahandle handle, stype elemtype, stgeneric *elem, uint32 flags)
+int32 _saPushPtr(sahandle handle, stype elemtype, stgeneric *elem, flags_t flags)
 {
     if (!handle->a)
         _saInit(handle, elemtype, NULL, 0, 0);
@@ -531,20 +531,20 @@ int32 _saPushPtr(sahandle handle, stype elemtype, stgeneric *elem, uint32 flags)
     if (hdr->flags & SA_Sorted) {
         bool found = false;
         int32 idx = sa_find_internal(hdr, *elem, &found);
-        if (found && (flags & SAFUNC_Unique)) {
-            if (flags & SAFUNCINT_Consume)
+        if (found && (flags & SA_Unique)) {
+            if (flags & SAINT_Consume)
                 _stDestroy(hdr->elemtype, ops, elem, 0);
             return -1;          // don't insert if we already have it
         }
 
-        idx = sa_insert_internal(handle, hdr, idx, elem, flags & SAFUNCINT_Consume);
+        idx = sa_insert_internal(handle, hdr, idx, elem, flags & SAINT_Consume);
         return idx;
     } else {
-        if (flags & SAFUNC_Unique) {
+        if (flags & SA_Unique) {
             bool found = false;
             sa_find_internal(hdr, *elem, &found);
             if (found) {
-                if (flags & SAFUNCINT_Consume)
+                if (flags & SAINT_Consume)
                     _stDestroy(hdr->elemtype, ops, elem, 0);
                 return -1;
             }
@@ -553,14 +553,14 @@ int32 _saPushPtr(sahandle handle, stype elemtype, stgeneric *elem, uint32 flags)
         if (hdr->count == hdr->capacity)
             _saGrow(handle, &hdr, hdr->count + 1);
 
-        sa_set_elem_internal(hdr, hdr->count, elem, flags & SAFUNCINT_Consume);
+        sa_set_elem_internal(hdr, hdr->count, elem, flags & SAINT_Consume);
 
         hdr->count++;
         return hdr->count - 1;
     }
 }
 
-int32 _saPush(sahandle handle, stype elemtype, stgeneric elem, uint32 flags)
+int32 _saPush(sahandle handle, stype elemtype, stgeneric elem, flags_t flags)
 {
     return _saPushPtr(handle, elemtype, &elem, flags);
 }
@@ -579,7 +579,7 @@ static void sa_remove_internal(sahandle handle, SArrayHeader *hdr, int32 idx, bo
     hdr->count--;
 }
 
-bool _saExtract(sahandle handle, int32 idx, stgeneric *elem, uint32 flags)
+bool _saExtract(sahandle handle, int32 idx, stgeneric *elem, flags_t flags)
 {
     if (!handle->a)
         return false;
@@ -599,7 +599,7 @@ bool _saExtract(sahandle handle, int32 idx, stgeneric *elem, uint32 flags)
         _stDestroy(hdr->elemtype, HDRTYPEOPS(hdr),
                    stStoredPtr(hdr->elemtype, ELEMPTR(hdr, idx)), 0);
 
-    sa_remove_internal(handle, hdr, idx, flags & SAFUNC_Fast);
+    sa_remove_internal(handle, hdr, idx, flags & SA_Fast);
 
     if (hdr->flags & SA_AutoShrink) {
         saRealloc(handle, &hdr, hdr->count);
@@ -638,7 +638,7 @@ void *_saPopPtr(sahandle handle, int32 idx)
     return ret;
 }
 
-int32 _saFind(sa_ref ref, stgeneric elem, uint32 flags)
+int32 _saFind(sa_ref ref, stgeneric elem, flags_t flags)
 {
     SArrayHeader *hdr = SARRAY_HDR(ref);
 
@@ -647,13 +647,13 @@ int32 _saFind(sa_ref ref, stgeneric elem, uint32 flags)
 
     idx = sa_find_internal(hdr, elem, &found);
 
-    if (!found && !((flags & SAFUNC_Inexact) && (hdr->flags & SA_Sorted)))
+    if (!found && !((flags & SA_Inexact) && (hdr->flags & SA_Sorted)))
         return -1;
 
     return idx;
 }
 
-bool _saFindRemove(sahandle handle, stgeneric elem, uint32 flags)
+bool _saFindRemove(sahandle handle, stgeneric elem, flags_t flags)
 {
     SArrayHeader *hdr = SARRAY_HDR(*handle);
 
@@ -719,7 +719,7 @@ void _saSlice(sahandle out, sa_ref ref, int32 start, int32 end)
     newhdr->flags = hdr->flags;
 }
 
-void _saMerge(sahandle out, int n, sa_ref *refs, uint32 flags)
+void _saMerge(sahandle out, int n, sa_ref *refs, flags_t flags)
 {
     int32 newsize = 0;
 

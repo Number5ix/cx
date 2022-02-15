@@ -23,7 +23,7 @@ static void logBufferGrow(int32 minsize)
         nsize += nsize >> 1;            // grow by 50%
 
     sa_atomicptr newbuf;
-    saInit(&newbuf, ptr, nsize);
+    saInit(&newbuf, ptr, nsize, 0);
     saSetSize(&newbuf, nsize);
 
     // these are guaranteed to not change while we hold the write lock

@@ -16,7 +16,7 @@ typedef struct FSFile {
     int fd;
 } FSFile;
 
-FSFile *_fsOpen(strref path, int flags)
+FSFile *fsOpen(strref path, flags_t flags)
 {
     FSFile *ret;
     int oflags = 0;
@@ -45,7 +45,7 @@ FSFile *_fsOpen(strref path, int flags)
         return NULL;
     }
 
-    ret = xaAlloc(sizeof(FSFile));
+    ret = xaAlloc(sizeof(FSFile), 0);
     ret->fd = fd;
     strDestroy(&npath);
     return ret;

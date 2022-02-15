@@ -151,7 +151,7 @@ bool _strResize(string *ps, uint32 newsz, bool unique)
         uint8 lencl = _strLenClass(newsz, 1);
         if (_strFastRef(*ps) == 1 && lencl == (STR_HDR(*ps) & STR_LEN_MASK)) {
             // same length class, can just realloc and not have to change the header
-            *ps = xaResize(*ps, _strAllocSz(STR_HDR(*ps), newsz));
+            *ps = xaResize(*ps, _strAllocSz(STR_HDR(*ps), newsz), 0);
             return true;
         } else {
             // can't reallocate, just copy it and deref the original
@@ -228,7 +228,7 @@ void strReset(string *o, uint32 sizehint)
     // UTF-8 and ASCII are set on empty string so concats pick up the other string
     uint8 newhdr = STR_CX | STR_ALLOC | STR_UTF8 | STR_ASCII | lencl;
 
-    string ret = xaAlloc(_strAllocSz(newhdr, sizehint));
+    string ret = xaAlloc(_strAllocSz(newhdr, sizehint), 0);
     if (!ret)
         return;
 
@@ -301,7 +301,7 @@ void _strReset(string *s, uint32 minsz)
     uint32 bufsz = (uint32)xaSize(*s) - (uint32)((char*)STR_BUFFER(*s) - (char*)(*s));
     if (bufsz < minsz + 1 && _strLenClass(minsz, 1) == (STR_HDR(*s) & STR_LEN_MASK)) {
         // attempt to expand the allocation in place (does not copy)
-        bufsz = (uint32)xaExpand(*s, _strAllocSz(STR_HDR(*s), minsz), 0) - (uint32)((char*)STR_BUFFER(*s) - (char*)(*s));
+        bufsz = (uint32)xaExpand(*s, _strAllocSz(STR_HDR(*s), minsz), 0, 0) - (uint32)((char*)STR_BUFFER(*s) - (char*)(*s));
     }
 
     if (bufsz < minsz + 1) {

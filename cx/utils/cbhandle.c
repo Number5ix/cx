@@ -16,9 +16,9 @@ static void callbackInit(void *data)
 {
     CallbackHandle nhandle = { 0 };
 
-    saInit(&handles, opaque(CallbackHandle), 0);
-    saPush(&handles, opaque, nhandle);          // so that 0 is not a valid handle
-    htInit(&handleidx, ptr, int32, 16);
+    saInit(&handles, opaque(CallbackHandle), 0, 0);
+    saPush(&handles, opaque, nhandle, 0);       // so that 0 is not a valid handle
+    htInit(&handleidx, ptr, int32, 16, 0);
 }
 
 int _callbackGetHandle(const char *cbtype, GenericCallback func)
@@ -29,14 +29,14 @@ int _callbackGetHandle(const char *cbtype, GenericCallback func)
         return 0;
 
     int idx = 0;
-    if (htFind(handleidx, ptr, func, int32, &idx))
+    if (htFind(handleidx, ptr, func, int32, &idx, 0))
         return idx;
 
     CallbackHandle nhandle = { 0 };
     nhandle.func = func;
     nhandle.type = cstrDup(cbtype);
-    saPush(&handles, opaque, nhandle);
-    htInsert(&handleidx, ptr, func, int32, saSize(handles) - 1);
+    saPush(&handles, opaque, nhandle, 0);
+    htInsert(&handleidx, ptr, func, int32, saSize(handles) - 1, 0);
     return saSize(handles) - 1;
 }
 

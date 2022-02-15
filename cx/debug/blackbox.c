@@ -50,7 +50,7 @@ static void freeSpaceAdd(uint16 start, uint16 size)
     }
 
     // insert a new one
-    BBoxFreelistNode *fn = xaAlloc(sizeof(BBoxFreelistNode));
+    BBoxFreelistNode *fn = xaAlloc(sizeof(BBoxFreelistNode), 0);
     fn->start = start;
     fn->size = size;
     fn->next = n;
@@ -92,7 +92,7 @@ static void freeSpaceRemove(uint16 start, uint16 size)
                 n->size = start - n->start;
             } else if (start > n->start && start + size < n->start + n->size) {
                 // splitting the block :/
-                BBoxFreelistNode *fn = xaAlloc(sizeof(BBoxFreelistNode));
+                BBoxFreelistNode *fn = xaAlloc(sizeof(BBoxFreelistNode), 0);
                 fn->start = start + size;
                 fn->size = n->start + n->size - (start + size);
                 fn->next = n->next;
@@ -109,8 +109,8 @@ static void freeSpaceRemove(uint16 start, uint16 size)
 void bboxInit()
 {
     mutexInit(&bbmtx);
-    htInit(&bbindex, string, uint16, 0);
-    freelist = xaAlloc(sizeof(BBoxFreelistNode));
+    htInit(&bbindex, string, uint16, 0, 0);
+    freelist = xaAlloc(sizeof(BBoxFreelistNode), 0);
     freelist->next = 0;
     freelist->start = sizeof(int16) * 2;            // after the head and tail pointers
     freelist->size = BLACKBOX_SIZE - sizeof(int16) * 2;
@@ -147,7 +147,7 @@ void bboxSet(strref name, strref val, uint8 flags)
     BlackBoxEnt *ent = 0, *tail;
     uint16 idx = 0;
 
-    if (htFind(bbindex, strref, name, uint16, &idx)) {
+    if (htFind(bbindex, strref, name, uint16, &idx, 0)) {
         // already exists in index
         ent = (BlackBoxEnt*)&dbgBlackBox[idx];
         // is it big enough that we can overwrite in place?
@@ -204,7 +204,7 @@ void bboxSet(strref name, strref val, uint8 flags)
         strCopyOut(val, 0, bboxGetVal(ent), ent->vallen);
 
         // add to index
-        htInsert(&bbindex, string, (string)ent->name, uint16, best->start);
+        htInsert(&bbindex, string, (string)ent->name, uint16, best->start, 0);
 
         freeSpaceRemove(best->start, needsz);
     } else {
@@ -221,7 +221,7 @@ void bboxDelete(strref name)
     mutexAcquire(&bbmtx);
     uint16 idx = 0;
 
-    if (htFind(bbindex, strref, name, uint16, &idx))
+    if (htFind(bbindex, strref, name, uint16, &idx, 0))
         _bboxDeleteInternal(idx);
 
     mutexRelease(&bbmtx);

@@ -17,13 +17,13 @@ int32 strSplit(sa_string *out, strref s, strref sep, bool empty)
                 strSubStr(&seg, s, start, next);
             else
                 strClear(&seg);
-            saPushC(out, string, &seg);
+            saPushC(out, string, &seg, 0);
         }
         start = next + seplen;
     }
     if (start < (int32)strLen(s) || empty) {
         strSubStr(&seg, s, start, strLen(s));
-        saPushC(out, string, &seg);
+        saPushC(out, string, &seg, 0);
     }
 
     return saSize(*out);

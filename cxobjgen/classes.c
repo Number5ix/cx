@@ -9,7 +9,7 @@ static void fillMembers(sa_Member *members, Class *cls)
         fillMembers(members, cls->parent);
 
     for (int i = 0; i < saSize(cls->members); i++) {
-        saPush(members, object, cls->members.a[i]);
+        saPush(members, object, cls->members.a[i], 0);
     }
 }
 
@@ -21,19 +21,19 @@ static void fillMethods(sa_Method *methods, Class *cls)
         for (int i = 0; i < saSize(cls->parent->allmethods); i++) {
             Method *m = cls->parent->allmethods.a[i];
             if (!m->unbound && !m->internal)
-                saPush(methods, object, m, Unique);
+                saPush(methods, object, m, SA_Unique);
         }
     }
 
     // then add in actual implemented methods, overriding where applicable
     for (int i = 0; i < saSize(cls->methods); i++) {
         if (!cls->methods.a[i]->unbound && !cls->methods.a[i]->internal) {
-            int32 idx = saFind(*methods, object, cls->methods.a[i]);
+            int32 idx = saFind(*methods, object, cls->methods.a[i], 0);
             if (idx == -1) {
-                saPush(methods, object, cls->methods.a[i], Unique);
+                saPush(methods, object, cls->methods.a[i], SA_Unique);
             } else {
                 // already exists, replace with child class version
-                saRemove(methods, idx);
+                saRemove(methods, idx, 0);
                 saInsert(methods, idx, object, cls->methods.a[i]);
             }
         }
@@ -46,7 +46,7 @@ static Method *findClassMethod(string name, Class *search, Interface *iface)
         return NULL;
 
     // ensure the class providing the method actually implements the interface
-    if (!iface || saFind(search->implements, object, iface) != -1) {
+    if (!iface || saFind(search->implements, object, iface, 0) != -1) {
         for (int i = 0; i < saSize(search->methods); i++) {
             if (strEq(name, search->methods.a[i]->name))
                 return search->methods.a[i];
@@ -87,7 +87,7 @@ static void addInterfaceImpl(Class *cls, Interface *iface)
         Method *m = findClassMethod(iface->methods.a[i]->name, cls, iface->methods.a[i]->srcif);  // already have it?
         if (!m) {
             m = methodClone(iface->methods.a[i]);
-            saPushC(&cls->methods, object, &m);
+            saPushC(&cls->methods, object, &m, 0);
         }
     }
 }
@@ -98,7 +98,7 @@ static void addAbstractInterfaces(sa_Method *methods, Interface *iface)
         addAbstractInterfaces(methods, iface->parent);
 
     for (int i = 0; i < saSize(iface->methods); i++) {
-        saPush(methods, object, iface->methods.a[i], Unique);
+        saPush(methods, object, iface->methods.a[i], SA_Unique);
     }
 }
 
@@ -158,8 +158,8 @@ static void addMixin(Class *cls, Class *uses)
             pathSetExt(&hfile, hfile, _S"impl.h");
             strPrepend(_S"\"", &hfile);
             strAppend(&hfile, _S"\"");
-            saPushC(&implincludes, string, &hfile, Unique);
-            saPushC(&cls->methods, object, &m);
+            saPushC(&implincludes, string, &hfile, SA_Unique);
+            saPushC(&cls->methods, object, &m, 0);
         }
     }
     strDestroy(&hfile);
@@ -174,7 +174,7 @@ static void addMixin(Class *cls, Class *uses)
 
         // any interfaces implemented by the mixin tree need to be copied, too
         for (int i = 0; i < saSize(mixin->implements); i++)
-            saPush(&cls->implements, object, mixin->implements.a[i], Unique);
+            saPush(&cls->implements, object, mixin->implements.a[i], SA_Unique);
     }
 
     // if the mixin class has any data members, embed the mixin struct
@@ -185,7 +185,7 @@ static void addMixin(Class *cls, Class *uses)
         mixindata->destroy = true;
         strDup(&mixindata->vartype, uses->name);
         mixinMemberName(&mixindata->name, uses);
-        saPushC(&cls->members, object, &mixindata, Unique);
+        saPushC(&cls->members, object, &mixindata, SA_Unique);
     }
 }
 
@@ -215,7 +215,7 @@ static void pruneInterfaces(Class *cls)
     // their children.
     for (int i = saSize(cls->implements) - 1; i >= 0; --i) {
         if (implementsChild(cls, cls->implements.a[i]))
-            saRemove(&cls->implements, i);
+            saRemove(&cls->implements, i, 0);
     }
 
     // abstract classes need to keep empty interfaces to pass them on to children
@@ -239,13 +239,13 @@ static void pruneInterfaces(Class *cls)
 
             // see if this class method is part of the interface
             if (saFind(cls->implements.a[i]->allmethods, object,
-                        cls->methods.a[j]) != -1)
+                        cls->methods.a[j], 0) != -1)
                 break;
         }
 
         // did we find one that's implemented?
         if (j < 0)
-            saRemove(&cls->implements, i);          // nope
+            saRemove(&cls->implements, i, 0);       // nope
     }
 }
 
@@ -267,7 +267,7 @@ bool processClass(Class *cls)
     // if our parent class implements any interfaces, we implement them too
     if (cls->parent) {
         for (int i = 0; i < saSize(cls->parent->implements); i++) {
-            saPush(&cls->implements, object, cls->parent->implements.a[i], Unique);
+            saPush(&cls->implements, object, cls->parent->implements.a[i], SA_Unique);
         }
     }
 
@@ -285,7 +285,7 @@ bool processClass(Class *cls)
         // clone and reset source class
         m = methodClone(m);
         m->srcclass = cls;
-        saPushC(&cls->methods, object, &m, Unique);
+        saPushC(&cls->methods, object, &m, SA_Unique);
     }
 
     // if this is not an abstract class, add any missing interface implementations
@@ -312,7 +312,7 @@ bool processClass(Class *cls)
             string pname = 0;
             strDup(&pname, cls->parent->name);
             strAppend(&pname, _S"_ClassIf");
-            htFind(ifidx, string, pname, object, &clsif->parent, Borrow);
+            htFind(ifidx, string, pname, object, &clsif->parent, HT_Borrow);
             strDestroy(&pname);
         }
         fillMethods(&clsif->methods, cls);
@@ -324,9 +324,9 @@ bool processClass(Class *cls)
                 addAbstractInterfaces(&clsif->allmethods, cls->implements.a[i]);
         }
         if (saSize(clsif->allmethods) > 0) {
-            htInsert(&ifidx, string, clsif->name, object, clsif, Ignore);
-            saPush(&cls->implements, object, clsif);
-            saPush(&ifaces, object, clsif, Unique);
+            htInsert(&ifidx, string, clsif->name, object, clsif, HT_Ignore);
+            saPush(&cls->implements, object, clsif, 0);
+            saPush(&ifaces, object, clsif, SA_Unique);
             cls->classif = clsif;
         } else {
             objRelease(&clsif);
@@ -350,7 +350,7 @@ bool processClass(Class *cls)
         m->isinit = true;
         strDup(&m->returntype, _S"bool");
         strDup(&m->name, _S"init");
-        saPushC(&cls->methods, object, &m);
+        saPushC(&cls->methods, object, &m, 0);
     }
     if (cls->hasdestroy) {
         Method *m = methodCreate();
@@ -358,7 +358,7 @@ bool processClass(Class *cls)
         m->isdestroy = true;
         strDup(&m->returntype, _S"void");
         strDup(&m->name, _S"destroy");
-        saPushC(&cls->methods, object, &m);
+        saPushC(&cls->methods, object, &m, 0);
     }
     fillMembers(&cls->allmembers, cls);
     fillMethods(&cls->allmethods, cls);
@@ -372,7 +372,7 @@ bool processClass(Class *cls)
         // delete any methods that are explictly marked abstract (no implementation)
         for (int i = saSize(cls->methods) - 1; i >= 0; --i) {
             if (getAnnotation(NULL, cls->methods.a[i]->annotations, _S"abstract"))
-                saRemove(&cls->methods, i);
+                saRemove(&cls->methods, i, 0);
         }
     }
 

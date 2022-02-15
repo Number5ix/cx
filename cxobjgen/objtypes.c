@@ -21,7 +21,7 @@ void Param_destroy(Param *self)
 bool Method_init(Method *self)
 {
     // Autogen begins -----
-    saInit(&self->params, object, 1);
+    saInit(&self->params, object, 1, 0);
     return true;
     // Autogen ends -------
 }
@@ -49,8 +49,8 @@ void Method_destroy(Method *self)
 bool Interface_init(Interface *self)
 {
     // Autogen begins -----
-    saInit(&self->methods, object, 1);
-    saInit(&self->allmethods, object, 1);
+    saInit(&self->methods, object, 1, 0);
+    saInit(&self->allmethods, object, 1, 0);
     return true;
     // Autogen ends -------
 }
@@ -96,13 +96,13 @@ void Member_destroy(Member *self)
 bool Class_init(Class *self)
 {
     // Autogen begins -----
-    saInit(&self->implements, object, 1);
-    saInit(&self->uses, object, 1);
-    saInit(&self->members, object, 1);
-    saInit(&self->methods, object, 1);
-    saInit(&self->overrides, string, 1);
-    saInit(&self->allmembers, object, 1);
-    saInit(&self->allmethods, object, 1);
+    saInit(&self->implements, object, 1, 0);
+    saInit(&self->uses, object, 1, 0);
+    saInit(&self->members, object, 1, 0);
+    saInit(&self->methods, object, 1, 0);
+    saInit(&self->overrides, string, 1, 0);
+    saInit(&self->allmembers, object, 1, 0);
+    saInit(&self->allmethods, object, 1, 0);
     return true;
     // Autogen ends -------
 }

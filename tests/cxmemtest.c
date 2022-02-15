@@ -10,19 +10,19 @@ static int test_malloc()
     char *blk1 = 0, *blk2 = 0, *blk3 = 0;
     int i;
 
-    blk1 = (char*)xaAlloc(50);
+    blk1 = (char*)xaAlloc(50, 0);
     if (!blk1)
         return 1;
     for (i = 0; i < 50; i++)
         blk1[i] = '0' + (i % 10);
 
-    blk2 = (char*)xaAlloc(90000);
+    blk2 = (char*)xaAlloc(90000, 0);
     if (!blk2)
         return 1;
     for (i = 0; i < 90000; i++)
         blk2[i] = '0' + (i % 10);
 
-    blk3 = (char*)xaAlloc(67108865);
+    blk3 = (char*)xaAlloc(67108865, 0);
     if (!blk3)
         return 1;
     for (i = 0; i < 67108865; i++)
@@ -34,9 +34,9 @@ static int test_malloc()
 static int test_usable_size()
 {
     char *blk1 = 0, *blk2 = 0, *blk3 = 0;
-    blk1 = (char*)xaAlloc(50);
-    blk2 = (char*)xaAlloc(90000);
-    blk3 = (char*)xaAlloc(67108865);
+    blk1 = (char*)xaAlloc(50, 0);
+    blk2 = (char*)xaAlloc(90000, 0);
+    blk3 = (char*)xaAlloc(67108865, 0);
 
     if (!blk1 || xaSize(blk1) < 50)
         return 1;
@@ -53,19 +53,19 @@ static int test_free()
     char *blk1 = 0, *blk2 = 0, *blk3 = 0;
     int i;
 
-    blk3 = (char*)xaAlloc(67108865);
+    blk3 = (char*)xaAlloc(67108865, 0);
     for (i = 0; i < 67108865; i++)
         blk3[i] = '0' + (i % 10);
 
     xaFree(blk3);
 
-    blk2 = (char*)xaAlloc(90000);
+    blk2 = (char*)xaAlloc(90000, 0);
     for (i = 0; i < 90000; i++)
         blk2[i] = '0' + (i % 10);
 
     xaFree(blk2);
 
-    blk1 = (char*)xaAlloc(50);
+    blk1 = (char*)xaAlloc(50, 0);
     for (i = 0; i < 50; i++)
         blk1[i] = '0' + (i % 10);
 
@@ -79,19 +79,19 @@ static int test_realloc()
     char *blk1 = 0;
     int i;
 
-    blk1 = (char*)xaAlloc(50);
+    blk1 = (char*)xaAlloc(50, 0);
     if (!blk1)
         return 1;
     for (i = 0; i < 50; i++)
         blk1[i] = '0' + (i % 10);
 
-    blk1 = (char*)xaResize(blk1, 90000);
+    blk1 = (char*)xaResize(blk1, 90000, 0);
     if (!blk1)
         return 1;
     for (i = 0; i < 90000; i++)
         blk1[i] = '0' + (i % 10);
 
-    blk1 = (char*)xaResize(blk1, 67108865);
+    blk1 = (char*)xaResize(blk1, 67108865, 0);
     if (!blk1)
         return 1;
     for (i = 0; i < 67108865; i++)

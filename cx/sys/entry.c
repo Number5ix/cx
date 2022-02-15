@@ -8,7 +8,7 @@ sa_string cmdArgs;
 void _entryParseArgs(int argc, const char **argv)
 {
     strDestroy(&cmdProgram);
-    saInit(&cmdArgs, string, 1);
+    saInit(&cmdArgs, string, 1, 0);
 
     if (argc < 1)
         return;
@@ -16,14 +16,14 @@ void _entryParseArgs(int argc, const char **argv)
     strDup(&cmdProgram, (string)argv[0]);
 
     for (int i = 1; i < argc; i++) {
-        saPush(&cmdArgs, string, (string)argv[i]);
+        saPush(&cmdArgs, string, (string)argv[i], 0);
     }
 }
 
 void _entryParseArgsU16(int argc, const uint16 **argv)
 {
     strDestroy(&cmdProgram);
-    saInit(&cmdArgs, string, 1);
+    saInit(&cmdArgs, string, 1, 0);
 
     if (argc < 1)
         return;
@@ -35,7 +35,7 @@ void _entryParseArgsU16(int argc, const uint16 **argv)
 
     for (int i = 1; i < argc; i++) {
         strFromUTF16(&temp, argv[i], cstrLenw(argv[i]));
-        saPush(&cmdArgs, string, temp);
+        saPush(&cmdArgs, string, temp, 0);
     }
     strDestroy(&temp);
 }

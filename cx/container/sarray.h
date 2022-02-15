@@ -54,7 +54,6 @@ typedef struct SArrayHeader {
 
 enum SARRAY_CREATE_FLAGS_ENUM
 {
-    SA_             = 0x0000,   // for the variable function flags macro
     SA_Ref          = 0x0010,   // the array references other data and does not copy/own/destroy it.
                                 // only has an effect on pointer or object-type arrays
     SA_Sorted       = 0x0020,   // array is maintined in sorted order
@@ -84,31 +83,28 @@ enum SARRAY_GROW_ENUM {
 };
 
 enum SARRAY_FUNC_FLAGS_ENUM {
-    SAFUNC_             = 0,
-
     // Valid for: saPush, saMerge
     // Does not insert if a matching element already exists.
-    SAFUNC_Unique       = 0x00010000,
+    SA_Unique           = 0x00010000,
 
     // Valid for: saExtract, saRemove, saFindRemove
     // When removing/destroying an element, swaps with last element,
     // disrupting the order but removing the element much faster.
     // Not valid for sorted arrays.
-    SAFUNC_Fast         = 0x00020000,
+    SA_Fast             = 0x00020000,
 
     // Valid for: saFind
     // Only valid for sorted arrays, setting this flag will return
     // the index where the element would be inserted if there is no
     // exact match.
-    SAFUNC_Inexact      = 0x00100000,
+    SA_Inexact          = 0x00100000,
 
     // ----- INTERNAL USE ONLY -----
     // Destroys original element after inserting.
-    SAFUNCINT_Consume   = 0x10000000,
+    SAINT_Consume       = 0x10000000,
 };
 
 #define SA_GROW_MASK (0xff000000)
-#define saGrow(rate) (((uint32)SA_GROW_##rate) << 24)
 #define SA_Grow(rate) (((uint32)SA_GROW_##rate) << 24)
 #define SA_GET_GROW(flags) ((flags) >> 24)
 
@@ -123,8 +119,8 @@ enum SARRAY_FUNC_FLAGS_ENUM {
 #define saElemType(ref) ((ref)._is_sarray ? SARRAY_HDR(ref)->elemtype : 0)
 #define saValid(ref) ((ref).a)
 
-void _saInit(sahandle out, stype elemtype, STypeOps *ops, int32 capacity, uint32 flags);
-#define saInit(out, type, capacity, ...) _saInit(SAHANDLE(out), stFullType(type), capacity, func_flags(SA, __VA_ARGS__))
+void _saInit(sahandle out, stype elemtype, STypeOps *ops, int32 capacity, flags_t flags);
+#define saInit(out, type, capacity, flags) _saInit(SAHANDLE(out), stFullType(type), capacity, flags)
 
 void _saDestroy(sahandle handle);
 #define saDestroy(handle) _saDestroy(SAHANDLE(handle));
@@ -139,36 +135,36 @@ void _saSetSize(sahandle handle, int32 size);
 void _saClear(sahandle handle);
 #define saClear(handle) _saClear(SAHANDLE(handle))
 
-int32 _saPush(sahandle handle, stype elemtype, stgeneric elem, uint32 flags);
-int32 _saPushPtr(sahandle handle, stype elemtype, stgeneric *elem, uint32 flags);
-#define saPush(handle, type, elem, ...) _saPush(SAHANDLE(handle), stCheckedArg(type, elem), func_flags(SAFUNC, __VA_ARGS__))
+int32 _saPush(sahandle handle, stype elemtype, stgeneric elem, flags_t flags);
+int32 _saPushPtr(sahandle handle, stype elemtype, stgeneric *elem, flags_t flags);
+#define saPush(handle, type, elem, flags) _saPush(SAHANDLE(handle), stCheckedArg(type, elem), flags)
 // Consume version of push, requires that elem be a pointer
-#define saPushC(handle, type, elem, ...) _saPushPtr(SAHANDLE(handle), stCheckedPtrArg(type, elem), func_flags(SAFUNC, __VA_ARGS__) | SAFUNCINT_Consume)
+#define saPushC(handle, type, elem, flags) _saPushPtr(SAHANDLE(handle), stCheckedPtrArg(type, elem), flags | SAINT_Consume)
 
 // Pointer pop transfers ownership to the caller and does not call the destructor
 void *_saPopPtr(sahandle handle, int32 idx);
 #define saPopPtr(handle) _saPopPtr(SAHANDLE(handle), -1)
 #define saPopPtrI(handle, idx) _saPopPtr(SAHANDLE(handle), idx)
 
-int32 _saFind(sa_ref ref, stgeneric elem, uint32 flags);
-_meta_inline int32 _saFindChecked(sa_ref ref, stype elemtype, stgeneric elem, uint32 flags)
+int32 _saFind(sa_ref ref, stgeneric elem, flags_t flags);
+_meta_inline int32 _saFindChecked(sa_ref ref, stype elemtype, stgeneric elem, flags_t flags)
 {
     if (!ref.a)
         return -1;
     devAssert(stEq(saElemType(ref), elemtype));
     return _saFind(ref, elem, flags);
 }
-#define saFind(ref, type, elem, ...) _saFindChecked(SAREF(ref), stCheckedArg(type, elem), func_flags(SAFUNC, __VA_ARGS__))
+#define saFind(ref, type, elem, flags) _saFindChecked(SAREF(ref), stCheckedArg(type, elem), flags)
 
-bool _saFindRemove(sahandle handle, stgeneric elem, uint32 flags);
-_meta_inline bool _saFindRemoveChecked(sahandle handle, stype elemtype, stgeneric elem, uint32 flags)
+bool _saFindRemove(sahandle handle, stgeneric elem, flags_t flags);
+_meta_inline bool _saFindRemoveChecked(sahandle handle, stype elemtype, stgeneric elem, flags_t flags)
 {
     if (!handle->a)
         return false;
     devAssert(stEq(saElemType(*handle), elemtype));
     return _saFindRemove(handle, elem, flags);
 }
-#define saFindRemove(handle, type, elem, ...) _saFindRemoveChecked(SAHANDLE(handle), stCheckedArg(type, elem), func_flags(SAFUNC, __VA_ARGS__))
+#define saFindRemove(handle, type, elem, flags) _saFindRemoveChecked(SAHANDLE(handle), stCheckedArg(type, elem), flags)
 
 int32 _saInsert(sahandle handle, int32 idx, stgeneric elem);
 _meta_inline int32 _saInsertChecked(sahandle handle, int32 idx, stype elemtype, stgeneric elem)
@@ -179,8 +175,8 @@ _meta_inline int32 _saInsertChecked(sahandle handle, int32 idx, stype elemtype, 
 }
 #define saInsert(handle, idx, type, elem) _saInsertChecked(SAHANDLE(handle), idx, stCheckedArg(type, elem))
 
-bool _saExtract(sahandle handle, int32 idx, stgeneric *elem, uint32 flags);
-_meta_inline bool _saExtractChecked(sahandle handle, int32 idx, stype elemtype, stgeneric *elem, uint32 flags)
+bool _saExtract(sahandle handle, int32 idx, stgeneric *elem, flags_t flags);
+_meta_inline bool _saExtractChecked(sahandle handle, int32 idx, stype elemtype, stgeneric *elem, flags_t flags)
 {
     if (!handle->a)
         return false;
@@ -188,8 +184,8 @@ _meta_inline bool _saExtractChecked(sahandle handle, int32 idx, stype elemtype, 
     return _saExtract(handle, idx, elem, flags);
 }
 #define htExtract(htbl, ktype, key, vtype, val_copy_out) _htExtractChecked(htbl, stCheckedArg(ktype, key), stCheckedPtrArg(vtype, val_copy_out))
-#define saExtract(handle, idx, type, elem_copy_out, ...) _saExtractChecked(SAHANDLE(handle), idx, stCheckedPtrArg(type, elem_copy_out), func_flags(SAFUNC, __VA_ARGS__))
-#define saRemove(handle, idx, ...) _saExtractChecked(SAHANDLE(handle), idx, stType(none), NULL, func_flags(SAFUNC, __VA_ARGS__))
+#define saExtract(handle, idx, type, elem_copy_out, flags) _saExtractChecked(SAHANDLE(handle), idx, stCheckedPtrArg(type, elem_copy_out), flags)
+#define saRemove(handle, idx, flags) _saExtractChecked(SAHANDLE(handle), idx, stType(none), NULL, flags)
 
 void _saSort(sahandle handle, bool keep);
 #define saSort(handle, keep) _saSort(SAHANDLE(handle), keep)
@@ -198,6 +194,5 @@ void _saSlice(sahandle out, sa_ref ref, int32 start, int32 end);
 #define saSlice(out, src, start, end) _saSlice(SAHANDLE(out), SAREF(src), start, end)
 #define saClone(out, src) _saSlice(SAHANDLE(out), SAREF(src), 0, 0)
 
-void _saMerge(sahandle out, int n, sa_ref *refs, uint32 flags);
-#define saMerge(out, ...) _saMerge(SAHANDLE(out), sizeof((sa_ref[]){ __VA_ARGS__ })/sizeof(sa_ref), (sa_ref[]){ __VA_ARGS__ }, 0)
-#define saMergeF(out, flags, ...) _saMerge(SAHANDLE(out), sizeof((sa_ref[]){ __VA_ARGS__ })/sizeof(sa_ref), (sa_ref[]){ __VA_ARGS__ }, func_flags(SAFUNC, flags))
+void _saMerge(sahandle out, int n, sa_ref *refs, flags_t flags);
+#define saMerge(out, flags, ...) _saMerge(SAHANDLE(out), sizeof((sa_ref[]){ __VA_ARGS__ })/sizeof(sa_ref), (sa_ref[]){ __VA_ARGS__ }, flags)

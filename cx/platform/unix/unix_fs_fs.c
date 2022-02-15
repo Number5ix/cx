@@ -35,7 +35,7 @@ static void initCurDir(void *data)
     do {
         xaSFree(buf);
         bufsz *= 2;
-        buf = xaAlloc(bufsz);
+        buf = xaAlloc(bufsz, 0);
 
         pcur = getcwd(buf, bufsz);
     } while (!pcur && errno == ERANGE);
@@ -138,7 +138,7 @@ static void fsExeInit(void *data)
     mib[3] = -1;
     size_t sz = 0;
     sysctl(mib, 4, NULL, &sz, NULL, 0);
-    char *buf = xaAlloc(sz);
+    char *buf = xaAlloc(sz, 0);
     sysctl(mib, 4, buf, &sz, NULL, 0);
     pathFromPlatform(exepath, (string)buf);
     xaFree(buf);
@@ -150,7 +150,7 @@ static void fsExeInit(void *data)
     do {
         xaSFree(buf);
         sz *= 2;
-        buf = xaAlloc(sz);
+        buf = xaAlloc(sz, 0);
         lsz = readlink("/proc/self/exe", buf, sz);
     } while (lsz != -1 && lsz == sz);
     if (lsz == -1) {
@@ -305,7 +305,7 @@ bool fsSearchInit(FSSearchIter *iter, strref path, strref pattern, bool stat)
 
     memset(iter, 0, sizeof(FSSearchIter));
 
-    FSSearch *search = xaAlloc(sizeof(FSSearch), Zero);
+    FSSearch *search = xaAlloc(sizeof(FSSearch), XA_Zero);
     iter->_search = search;
     search->d = opendir(strC(ppath));
     strDestroy(&ppath);

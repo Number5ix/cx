@@ -161,7 +161,7 @@ uint16 *strToUTF16A(strref s)
     if (sz == 0)
         return NULL;
 
-    uint16 *ret = xaAlloc(sz * sizeof(uint16));
+    uint16 *ret = xaAlloc(sz * sizeof(uint16), 0);
     strToUTF16(s, ret, sz);
     return ret;
 }

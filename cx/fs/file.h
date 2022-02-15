@@ -13,7 +13,6 @@ CX_C_BEGIN
 typedef struct FSFile FSFile;
 
 enum FSOpenFlags {
-    FS_         = 0,
     FS_Read     = 1,
     FS_Write    = 2,
     FS_Create   = 4,
@@ -23,13 +22,12 @@ enum FSOpenFlags {
 };
 
 enum FSSeekType {
-    FS_Set,
-    FS_Cur,
-    FS_End
+    FS_Set      = 0x00010000,
+    FS_Cur      = 0x00020000,
+    FS_End      = 0x00030000,
 };
 
-FSFile *_fsOpen(strref path, int flags);
-#define fsOpen(path, ...) _fsOpen(path, func_flags(FS, __VA_ARGS__))
+FSFile *fsOpen(strref path, flags_t flags);
 bool fsClose(FSFile *file);
 
 bool fsRead(FSFile *file, void *buf, size_t sz, size_t *bytesread);

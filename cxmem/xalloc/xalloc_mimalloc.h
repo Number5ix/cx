@@ -6,51 +6,52 @@
 
 #define XA_LG_ALIGN_MASK ((int)0x3f)
 
+// This looks scary, but the optimizer settings on everything except for DEBUG_LEVEL=2 builds collapse
+// almost all of these down into a single mi_* call depending on the flags.
+
 // Allocate memory of at least sz
 // Returns: pointer to memory
-inline void *_xaAlloc(size_t size, int flags)
+inline void *xaAlloc(size_t size, unsigned int flags)
 {
     if (flags & XA_LG_ALIGN_MASK) {
-        if (flags & XAFUNC_Zero) {
+        if (flags & XA_Zero) {
             return mi_zalloc_aligned(size, (size_t)1 << (flags & XA_LG_ALIGN_MASK));
         } else {
             return mi_malloc_aligned(size, (size_t)1 << (flags & XA_LG_ALIGN_MASK));
         }
     }
 
-    if (flags & XAFUNC_Zero)
+    if (flags & XA_Zero)
         return mi_zalloc(size);
     else
         return mi_malloc(size);
 }
-#define xaAlloc(size, ...) _xaAlloc(size, func_flags(XAFUNC, __VA_ARGS__))
 
 // Reallocate ptr to be at least sz byte large, copying it if necessary.
 // NOTE: Unlike realloc, ptr cannot be NULL!
 // Returns: pointer to memory
-inline void *_xaResize(void *ptr, size_t size, int flags)
+inline void *xaResize(void *ptr, size_t size, unsigned int flags)
 {
     if (flags & XA_LG_ALIGN_MASK) {
-        if (flags & XAFUNC_Zero) {
+        if (flags & XA_Zero) {
             return mi_rezalloc_aligned(ptr, size, (size_t)1 << (flags & XA_LG_ALIGN_MASK));
         } else {
             return mi_realloc_aligned(ptr, size, (size_t)1 << (flags & XA_LG_ALIGN_MASK));
         }
     }
 
-    if (flags & XAFUNC_Zero) {
+    if (flags & XA_Zero) {
         return mi_rezalloc(ptr, size);
     }
     return mi_realloc(ptr, size);
 }
-#define xaResize(ptr, size, ...) _xaResize(ptr, size, func_flags(XAFUNC, __VA_ARGS__))
 
 // Tries to expand ptr to at least size, and at most size+extra.
 // If it cannot be expanded without copying, returns the current size.
 // Returns: size of memory at ptr
-inline size_t _xaExpand(void *ptr, size_t size, size_t extra, int flags)
+inline size_t xaExpand(void *ptr, size_t size, size_t extra, unsigned int flags)
 {
-    if (flags & XAFUNC_Zero) {
+    if (flags & XA_Zero) {
         size_t oldsz = mi_usable_size(ptr);
         if (mi_expand(ptr, size)) {
             size_t newsz = mi_usable_size(ptr);
@@ -64,7 +65,6 @@ inline size_t _xaExpand(void *ptr, size_t size, size_t extra, int flags)
     mi_expand(ptr, size);
     return mi_usable_size(ptr);
 }
-#define xaExpand(ptr, size, extra, ...) _xaExpand(ptr, size, extra, func_flags(XAFUNC, __VA_ARGS__))
 
 // Returns: size of memory at ptr
 inline size_t xaSize(void *ptr)

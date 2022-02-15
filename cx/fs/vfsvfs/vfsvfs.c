@@ -28,12 +28,12 @@ uint32 VFSVFS_flags(VFSVFS *self)
     return 0;
 }
 
-ObjInst *VFSVFS_open(VFSVFS *self, strref path, int flags)
+ObjInst *VFSVFS_open(VFSVFS *self, strref path, uint32 flags)
 {
     string vfspath = 0;
     pathJoin(&vfspath, self->root, path);
 
-    VFSFile *file = _vfsOpen(self->vfs, vfspath, flags);
+    VFSFile *file = vfsOpen(self->vfs, vfspath, flags);
     strDestroy(&vfspath);
     if (!file)
         return NULL;

@@ -13,7 +13,7 @@ LogDest *logRegisterDest(int maxlevel, LogCategory *catfilter, LogDestFunc dest,
 {
     logCheckInit();
 
-    LogDest *ndest = xaAlloc(sizeof(LogDest), Zero);
+    LogDest *ndest = xaAlloc(sizeof(LogDest), XA_Zero);
     if (!ndest)
         return NULL;
 
@@ -23,7 +23,7 @@ LogDest *logRegisterDest(int maxlevel, LogCategory *catfilter, LogDestFunc dest,
     ndest->userdata = userdata;
 
     mutexAcquire(&_log_dests_lock);
-    saPush(&_log_dests, ptr, ndest);
+    saPush(&_log_dests, ptr, ndest, 0);
     if (maxlevel > _log_max_level)
         _log_max_level = maxlevel;
     mutexRelease(&_log_dests_lock);
@@ -39,7 +39,7 @@ static bool logUnregisterDestLocked(LogDest *dhandle)
 
     for (int i = saSize(_log_dests) - 1; i >= 0; --i) {
         if (_log_dests.a[i] == dhandle) {
-            saRemove(&_log_dests, i);
+            saRemove(&_log_dests, i, 0);
             ret = true;
         } else if (_log_dests.a[i]->maxlevel > _log_max_level) {
             _log_max_level = _log_dests.a[i]->maxlevel;

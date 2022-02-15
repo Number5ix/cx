@@ -2,7 +2,7 @@
 
 VFSCacheEnt *_vfsCacheEntCreate(VFSMount *m, strref opath)
 {
-    VFSCacheEnt *c = xaAlloc(sizeof(VFSCacheEnt), Zero);
+    VFSCacheEnt *c = xaAlloc(sizeof(VFSCacheEnt), XA_Zero);
     c->mount = m;
     strDup(&c->origpath, opath);
     return c;
@@ -21,15 +21,15 @@ STypeOps VFSCacheEnt_ops = {
 
 VFSDir *_vfsDirCreate(VFS *vfs, VFSDir *parent)
 {
-    VFSDir *d = xaAlloc(sizeof(VFSDir), Zero);
+    VFSDir *d = xaAlloc(sizeof(VFSDir), XA_Zero);
     d->parent = parent;             // weak ref
-    saInit(&d->mounts, object, 1);
+    saInit(&d->mounts, object, 1, 0);
     if (vfs->flags & VFS_CaseSensitive) {
-        htInit(&d->subdirs, string, custom(ptr, VFSDir_ops), 8);
-        htInit(&d->files, string, custom(ptr, VFSCacheEnt_ops), 8);
+        htInit(&d->subdirs, string, custom(ptr, VFSDir_ops), 8, 0);
+        htInit(&d->files, string, custom(ptr, VFSCacheEnt_ops), 8, 0);
     } else {
-        htInit(&d->subdirs, string, custom(ptr, VFSDir_ops), 8, CaseInsensitive);
-        htInit(&d->files, string, custom(ptr, VFSCacheEnt_ops), 8, CaseInsensitive);
+        htInit(&d->subdirs, string, custom(ptr, VFSDir_ops), 8, HT_CaseInsensitive);
+        htInit(&d->files, string, custom(ptr, VFSCacheEnt_ops), 8, HT_CaseInsensitive);
     }
     return d;
 }

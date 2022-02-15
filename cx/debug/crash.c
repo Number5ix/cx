@@ -32,9 +32,9 @@ void dbgCrashAddCallback(dbgCrashCallback cb)
     lazyInit(&_dbgCrashInitState, _dbgCrashInit, 0);
     mutexAcquire(&_dbgCrashMutex);
     if (!callbacks.a)
-        saInit(&callbacks, ptr, 0);
+        saInit(&callbacks, ptr, 0, 0);
 
-    saPush(&callbacks, ptr, cb, Unique);
+    saPush(&callbacks, ptr, cb, SA_Unique);
     mutexRelease(&_dbgCrashMutex);
 }
 
@@ -42,7 +42,7 @@ void dbgCrashRemoveCallback(dbgCrashCallback cb)
 {
     lazyInit(&_dbgCrashInitState, _dbgCrashInit, 0);
     mutexAcquire(&_dbgCrashMutex);
-    saFindRemove(&callbacks, ptr, cb);
+    saFindRemove(&callbacks, ptr, cb, 0);
     mutexRelease(&_dbgCrashMutex);
 }
 
@@ -84,7 +84,7 @@ static void _dbgCrashAddMetaStr(const char *name, const char *val, bool version)
     CrashExtraMeta nmeta = { 0 };
     size_t origlen = cstrLen(val);
     size_t len = origlen, ci = 0;
-    char *valcopy = xaAlloc(len + 1);
+    char *valcopy = xaAlloc(len + 1, 0);
 
     // do JSON escaping here so the exception handler doesn't have to deal with it
     for (size_t i = 0; i < origlen; i++) {
@@ -117,7 +117,7 @@ static void _dbgCrashAddMetaStr(const char *name, const char *val, bool version)
             valcopy[ci++] = val[i];
         } else {
             len++;
-            valcopy = xaResize(valcopy, len + 1);
+            valcopy = xaResize(valcopy, len + 1, 0);
             valcopy[ci++] = '\\';
             valcopy[ci++] = extra;
         }
@@ -129,7 +129,7 @@ static void _dbgCrashAddMetaStr(const char *name, const char *val, bool version)
     nmeta.name = name;
     nmeta.str = valcopy;
     nmeta.version = version;
-    saPush(&_dbgCrashExtraMeta, opaque, nmeta, Unique);
+    saPush(&_dbgCrashExtraMeta, opaque, nmeta, SA_Unique);
     mutexRelease(&_dbgCrashMutex);
 }
 
@@ -142,7 +142,7 @@ static void _dbgCrashAddMetaInt(const char *name, int val, bool version)
     nmeta.name = name;
     nmeta.val = val;
     nmeta.version = version;
-    saPush(&_dbgCrashExtraMeta, opaque, nmeta, Unique);
+    saPush(&_dbgCrashExtraMeta, opaque, nmeta, SA_Unique);
     mutexRelease(&_dbgCrashMutex);
 }
 
@@ -169,7 +169,7 @@ void dbgCrashAddVersionInt(const char *name, int val)
 void _dbgCrashInit(void *data)
 {
     mutexInit(&_dbgCrashMutex);
-    saInit(&_dbgCrashExtraMeta, custom(opaque(CrashExtraMeta), extraMetaOps), 1, Sorted);
+    saInit(&_dbgCrashExtraMeta, custom(opaque(CrashExtraMeta), extraMetaOps), 1, SA_Sorted);
     bboxInit();
 
     _dbgCrashPlatformInit();

@@ -15,9 +15,9 @@ typedef struct BufFile {
 
 BufFile *bfCreate(FSFile *file, bool write)
 {
-    BufFile *ret = xaAlloc(sizeof(BufFile), Zero);
+    BufFile *ret = xaAlloc(sizeof(BufFile), XA_Zero);
     ret->file = file;
-    ret->buf = xaAlloc(BUFSIZE);
+    ret->buf = xaAlloc(BUFSIZE, 0);
     ret->bufsz = BUFSIZE;
     ret->write = write;
     return ret;
@@ -38,7 +38,7 @@ void bfWriteStr(BufFile *bf, string str)
     while (bf->bufsz < len + 1) {
         bf->bufsz *= 2;
         xaFree(bf->buf);
-        bf->buf = xaAlloc(bf->bufsz);
+        bf->buf = xaAlloc(bf->bufsz, 0);
     }
 
     strCopyOut(str, 0, bf->buf + bf->bufused, bf->bufsz - bf->bufused);
@@ -81,7 +81,7 @@ bool bfReadLine(BufFile *bf, string *out)
             }
             if (bf->bufused == bf->bufsz) {
                 bf->bufsz *= 2;
-                bf->buf = xaResize(bf->buf, bf->bufsz);
+                bf->buf = xaResize(bf->buf, bf->bufsz, 0);
             }
             size_t didread;
             if (!fsRead(bf->file, bf->buf + bf->bufused, bf->bufsz - bf->bufused, &didread) || didread == 0)
