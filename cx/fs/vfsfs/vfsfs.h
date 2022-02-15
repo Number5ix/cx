@@ -39,7 +39,7 @@ typedef struct VFSFS {
     string root;
 } VFSFS;
 extern ObjClassInfo VFSFS_clsinfo;
-#define VFSFS(inst) ((VFSFS*)((inst) && &((inst)->_is_VFSFS), (inst)))
+#define VFSFS(inst) ((VFSFS*)((void)((inst) && &((inst)->_is_VFSFS)), (inst)))
 #define VFSFSNone ((VFSFS*)NULL)
 
 VFSFS *VFSFS_create(strref rootpath);

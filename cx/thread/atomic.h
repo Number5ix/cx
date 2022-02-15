@@ -7,7 +7,7 @@
 
 #if defined(_COMPILER_MSVC)
 #include <cx/platform/msvc/msvc_atomic.h>
-#elif defined(_COMPILER_CLANG)
+#elif defined(_COMPILER_CLANG) || defined(_COMPILER_GCC)
 #include <cx/platform/clang/clang_atomic.h>
 #endif
 

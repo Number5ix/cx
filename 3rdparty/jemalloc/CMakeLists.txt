@@ -11,7 +11,7 @@ set (jemalloc_version_bugfix 1)
 set (jemalloc_version_nrev 0)
 set (jemalloc_version_gid "ea6b3e973b477b8061e0076bb257dbd7f3faa756")
 
-if(CX_COMPILER_IS_CLANG)
+if(CX_COMPILER_IS_CLANG OR CX_COMPILER_IS_GNU)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-unused-variable")
 endif()
 

@@ -274,7 +274,7 @@ bool parseGlobal(ParseState *ps, string *tok)
         return true;
     } else if (strEq(*tok, _S"#include")) {
         string fname = 0;
-        bool brackets;
+        bool brackets = false;
         nextTok(ps, &fname);
         striter it;
         striInit(&it, fname);

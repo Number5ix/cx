@@ -102,7 +102,7 @@ typedef struct Method {
     bool mixin;
 } Method;
 extern ObjClassInfo Method_clsinfo;
-#define Method(inst) ((Method*)((inst) && &((inst)->_is_Method), (inst)))
+#define Method(inst) ((Method*)((void)((inst) && &((inst)->_is_Method)), (inst)))
 #define MethodNone ((Method*)NULL)
 
 Method *Method_create();

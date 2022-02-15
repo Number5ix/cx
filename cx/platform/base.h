@@ -39,9 +39,13 @@
 #error Unsupported architecture
 #endif
 
-#elif defined (__clang__)
+#elif defined (__clang__) || (defined(__GNUC__) && __GNUC__ > 4)
 
+#if defined(__clang__)
 #define _COMPILER_CLANG 1
+#elif defined(__GNUC__)
+#define _COMPILER_GCC 1
+#endif
 
 // C11 thread local is already supported
 

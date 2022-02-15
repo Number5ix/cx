@@ -248,7 +248,7 @@ void writeClassDecl(BufFile *bf, Class *cls)
         bfWriteLine(bf, ln);
     }
     strNConcat(&ln, _S"#define ", cls->name, _S"(inst) ((", cls->name,
-               _S"*)((inst) && &((inst)->_is_", cls->name, _S"), (inst)))");
+               _S"*)((void)((inst) && &((inst)->_is_", cls->name, _S")), (inst)))");
     bfWriteLine(bf, ln);
     strNConcat(&ln, _S"#define ", cls->name, _S"None ((", cls->name,
                _S"*)NULL)");

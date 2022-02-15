@@ -65,7 +65,7 @@ bool _fmtParseIntFinalize(FMTVar *v)
 
 bool _fmtInt(FMTVar *v, string *out)
 {
-    uint64 val;
+    uint64 val = 0;
     bool neg = false;
     // explicitly use two's complement to make unsigned/positive and handle the edge case
     // see also strnum_int.c

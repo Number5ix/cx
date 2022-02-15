@@ -26,7 +26,8 @@ int TEST_FILE(int argc, char *argv[])
         printf("To run a test, enter the test number: ");
         fflush(stdout);
         do {
-            fgets(buf, 64, stdin);
+            if (!fgets(buf, 64, stdin))
+                return -1;
         } while (buf[0] == '\n' || buf[0] == '\r');
         testnum = strtol(buf, &t, 10);
         if (t == buf) {

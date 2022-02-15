@@ -146,7 +146,7 @@ uint32 strB64Decode(strref str, uint8 *d, uint32 bufsz)
     striBorrow(&sti, str);
 
     /* loop over each set of 4 characters, decoding 3 bytes */
-    uint8 ch;
+    uint8 ch = 0;
     for (i = 0; i < len - 3; i += 4) {
         striChar(&sti, (char*)&ch);
         hextet = _base64_invcharmap[ch];

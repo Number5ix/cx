@@ -1,6 +1,6 @@
 #pragma once
 
-_meta_inline static uint32 _strUTF8SeqLen(uint8 u)
+_meta_inline uint32 _strUTF8SeqLen(uint8 u)
 {
     // single byte encoding aka ASCII
     if (u < 0x80)

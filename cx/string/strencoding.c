@@ -59,7 +59,7 @@ bool strValidASCII(strref s)
 size_t strToUTF16(strref s, uint16 *buf, size_t wsz)
 {
     size_t bufidx = 0;
-    int32 codepoint;
+    int32 codepoint = 0;
     if (!strValidUTF8(s))
         return 0;
 
