@@ -12,7 +12,8 @@ include (${CMAKE_CURRENT_SOURCE_DIR}/cmake/sidl.cmake)
 set(CX_TOP_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(CX_TOP_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
 
-set(CX_ALLOCATOR jemalloc)
+# Uncomment one of these to manually select an allocator
+#set(CX_ALLOCATOR jemalloc)
 #set(CX_ALLOCATOR mimalloc)
 #set(CX_ALLOCATOR msvcrt)
 
@@ -46,6 +47,29 @@ elseif(CX_COMPILER_IS_MSVC)
     set(CMAKE_C_FLAGS_RELEASE "/O2 /Ob2 /Zc:inline /fp:precise /fp:except- /GF /Ot /GS /guard:cf /Gy /GL /DNDEBUG")
 	set(CMAKE_EXE_LINKER_FLAGS_DEV ${CMAKE_EXE_LINKER_FLAGS_DEBUG})
 	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /debug")
+endif()
+
+# Autodetect allocator of none specified
+if(NOT CX_ALLOCATOR)
+    if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+        if(${CMAKE_GENERATOR_PLATFORM} MATCHES "x64")
+            # Default to mimalloc on Win64
+            set(CX_ALLOCATOR "mimalloc" CACHE STRING "Memory allocator to build against" FORCE)
+        else()
+            # But can't be used on Win32 due to lack of 64-bit atomics
+            set(CX_ALLOCATOR "jemalloc" CACHE STRING "memory allocator to build against" FORCE)
+        endif()
+    elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+        if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "aarch64")
+            # jemalloc outperforms mimalloc by a lot on ARM
+            set(CX_ALLOCATOR "jemalloc" CACHE STRING "Memory allocator to build against" FORCE)
+        else()
+            # but not x86
+            set(CX_ALLOCATOR "mimalloc" CACHE STRING "Memory allocator to build against" FORCE)
+        endif()
+    else()
+        set(CX_ALLOCATOR "jemalloc" CACHE STRING "memory allocator to build against" FORCE)
+    endif()
 endif()
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)            # for MSVC
