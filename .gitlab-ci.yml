@@ -1,0 +1,96 @@
+variables:
+  CMAKE_EXE: 'C:\Program Files\CMake\bin\cmake.exe'
+  CTEST_EXE: 'C:\Program Files\CMake\bin\ctest.exe'
+  MSBUILD_EXE: 'C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\MSBuild\Current\Bin\MSBuild.exe'
+
+stages:
+  - build
+  - test
+
+build_freebsd:
+  stage: build
+  tags:
+    - freebsd
+  script:
+    - 'cmake -S . -B _build -DCMAKE_INSTALL_PREFIX=${CI_PROJECT_DIR}'
+    - 'make -C _build -j4'
+  artifacts:
+    name: cx-build-freebsd-$CI_COMMIT_REF_SLUG-$CI_PIPELINE_ID
+    paths:
+      - '_build/tests/CTestTestfile.cmake'
+      - '_build/tests/test_runner'
+
+build_linux:
+  stage: build
+  tags:
+    - linux
+  script:
+    - 'cmake -S . -B _build -DCMAKE_INSTALL_PREFIX=${CI_PROJECT_DIR}'
+    - 'make -C _build -j4'
+  artifacts:
+    name: cx-build-linux-$CI_COMMIT_REF_SLUG-$CI_PIPELINE_ID
+    paths:
+      - '_build/tests/CTestTestfile.cmake'
+      - '_build/tests/test_runner'
+
+build_win64:
+  stage: build
+  tags:
+    - windows
+  script:
+    - '& "$env:CMAKE_EXE" -G "Visual Studio 16 2019" -A x64 -S . -B _build "-DCMAKE_INSTALL_PREFIX=$env:CI_PROJECT_DIR"'
+    - '& "$env:MSBUILD_EXE" /m /p:Configuration=dev _build/cx.sln'
+  artifacts:
+    name: cx-build-win64-$CI_COMMIT_REF_SLUG-$CI_PIPELINE_ID
+    paths:
+      - '_build/tests/CTestTestfile.cmake'
+      - '_build/tests/dev/test_runner.exe'
+
+build_win32:
+  stage: build
+  tags:
+    - windows
+  script:
+    - '& "$env:CMAKE_EXE" -G "Visual Studio 16 2019" -A Win32 -S . -B _build "-DCMAKE_INSTALL_PREFIX=$env:CI_PROJECT_DIR"'
+    - '& "$env:MSBUILD_EXE" /m /p:Configuration=dev _build/cx.sln'
+  artifacts:
+    name: cx-build-win32-$CI_COMMIT_REF_SLUG-$CI_PIPELINE_ID
+    paths:
+      - '_build/tests/CTestTestfile.cmake'
+      - '_build/tests/dev/test_runner.exe'
+
+test_freebsd:
+  stage: test
+  tags:
+    - freebsd
+  dependencies:
+    - build_freebsd
+  script:
+    'cd _build/tests && ctest'
+
+test_linux:
+  stage: test
+  tags:
+    - linux
+  dependencies:
+    - build_linux
+  script:
+    'cd _build/tests && ctest'
+
+test_win64:
+  stage: test
+  tags:
+    - windows
+  dependencies:
+    - build_win64
+  script:
+    '& "$env:CTEST_EXE" -C dev --test-dir _build/tests'
+
+test_win32:
+  stage: test
+  tags:
+    - windows
+  dependencies:
+    - build_win32
+  script:
+    '& "$env:CTEST_EXE" -C dev --test-dir _build/tests'
