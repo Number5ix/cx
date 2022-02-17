@@ -15,7 +15,7 @@ typedef struct BufFile {
 
 BufFile *bfCreate(FSFile *file, bool write)
 {
-    BufFile *ret = xaAlloc(sizeof(BufFile), Zero);
+    BufFile *ret = xaAlloc(sizeof(BufFile), XA_Zero);
     ret->file = file;
     ret->buf = xaAlloc(BUFSIZE);
     ret->bufsz = BUFSIZE;

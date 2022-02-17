@@ -190,7 +190,7 @@ static int test_obj_array()
     saInit(&arr, object, 10);
 
     for (int i = 0; i < 50; i++) {
-        saPush(&arr, object, cls5, Unique);
+        saPush(&arr, object, cls5, SA_Unique);
     }
 
     if (atomicLoad(intptr, &cls5->_ref, AcqRel) != 2)

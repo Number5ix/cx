@@ -56,7 +56,7 @@ static int test_sorted_int()
     sa_int64 t2;
     int64 i;
 
-    saInit(&t1, int32, 10, Sorted);
+    saInit(&t1, int32, 10, SA_Sorted);
     for (i = 500; i >= 0; i -= 10) {
         saPush(&t1, int32, (int32)i);
     }
@@ -74,7 +74,7 @@ static int test_sorted_int()
     if (saFind(t1, int32, 320) != 32)
         return 1;
 
-    saInit(&t2, int64, 10, Sorted);
+    saInit(&t2, int64, 10, SA_Sorted);
     for (i = 500; i >= 0; i -= 10) {
         saPush(&t2, int64, i);
     }
@@ -147,7 +147,7 @@ static int test_string()
         return 1;
 
     saDestroy(&t1);
-    saInit(&t1, string, 10, Sorted);
+    saInit(&t1, string, 10, SA_Sorted);
 
     saPush(&t1, string, st1);
     saPush(&t1, string, st2);

@@ -301,7 +301,7 @@ static int test_event_sub(bool spin)
     atomicStore(bool, &rthread_exit, false, Release);
 
     if (spin)
-        eventInit(&testev, Spin);
+        eventInit(&testev, EV_Spin);
     else
         eventInit(&testev);
 

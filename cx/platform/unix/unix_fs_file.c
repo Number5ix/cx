@@ -16,7 +16,7 @@ typedef struct FSFile {
     int fd;
 } FSFile;
 
-FSFile *_fsOpen(strref path, int flags)
+FSFile *fsOpen(strref path, flags_t flags)
 {
     FSFile *ret;
     int oflags = 0;

@@ -22,7 +22,7 @@ static unsigned __stdcall _thrEntryPoint(void *data)
 }
 
 Thread *_thrPlatformAlloc() {
-    return xaAlloc(sizeof(WinThread), Zero);
+    return xaAlloc(sizeof(WinThread), XA_Zero);
 }
 
 bool _thrPlatformStart(Thread *thread)

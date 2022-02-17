@@ -34,7 +34,7 @@ void dbgCrashAddCallback(dbgCrashCallback cb)
     if (!callbacks.a)
         saInit(&callbacks, ptr, 0);
 
-    saPush(&callbacks, ptr, cb, Unique);
+    saPush(&callbacks, ptr, cb, SA_Unique);
     mutexRelease(&_dbgCrashMutex);
 }
 
@@ -129,7 +129,7 @@ static void _dbgCrashAddMetaStr(const char *name, const char *val, bool version)
     nmeta.name = name;
     nmeta.str = valcopy;
     nmeta.version = version;
-    saPush(&_dbgCrashExtraMeta, opaque, nmeta, Unique);
+    saPush(&_dbgCrashExtraMeta, opaque, nmeta, SA_Unique);
     mutexRelease(&_dbgCrashMutex);
 }
 
@@ -142,7 +142,7 @@ static void _dbgCrashAddMetaInt(const char *name, int val, bool version)
     nmeta.name = name;
     nmeta.val = val;
     nmeta.version = version;
-    saPush(&_dbgCrashExtraMeta, opaque, nmeta, Unique);
+    saPush(&_dbgCrashExtraMeta, opaque, nmeta, SA_Unique);
     mutexRelease(&_dbgCrashMutex);
 }
 
@@ -169,7 +169,7 @@ void dbgCrashAddVersionInt(const char *name, int val)
 void _dbgCrashInit(void *data)
 {
     mutexInit(&_dbgCrashMutex);
-    saInit(&_dbgCrashExtraMeta, custom(opaque(CrashExtraMeta), extraMetaOps), 1, Sorted);
+    saInit(&_dbgCrashExtraMeta, custom(opaque(CrashExtraMeta), extraMetaOps), 1, SA_Sorted);
     bboxInit();
 
     _dbgCrashPlatformInit();

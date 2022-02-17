@@ -3,7 +3,7 @@
 
 bool _vfsAddPlatformSpecificMounts(VFS *vfs)
 {
-    bool ret = vfsMountFS(vfs, _S"/", _S"/", CaseSensitive);
+    bool ret = vfsMountFS(vfs, _S"/", _S"/", VFS_CaseSensitive);
 
     string curdir = 0;
     fsCurDir(&curdir);

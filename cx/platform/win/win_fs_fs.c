@@ -338,7 +338,7 @@ bool fsSearchInit(FSSearchIter *iter, strref path, strref pattern, bool stat)
     // stat is ignored for Windows since the API always returns file
     // size and timestamps
 
-    FSSearch *search = xaAlloc(sizeof(FSSearch), Zero);
+    FSSearch *search = xaAlloc(sizeof(FSSearch), XA_Zero);
     iter->_search = search;
     pathJoin(&spath, path, strEmpty(pattern) ? _S"*" : pattern);
 

@@ -37,7 +37,7 @@ VFSFile *_vfsOpen(VFS *vfs, strref path, int flags)
     }
 
     // finally actually set up the VFSFile structure
-    ret = xaAlloc(sizeof(VFSFile), Zero);
+    ret = xaAlloc(sizeof(VFSFile), XA_Zero);
     ret->fileprov = provif->open(m->provider, rpath, flags);
     ret->fileprovif = objInstIf(ret->fileprov, VFSFileProvider);
     if (!(ret->fileprov && ret->fileprovif)) {

@@ -54,9 +54,9 @@ bool vfsSearchInit(FSSearchIter *iter, VFS *vfs, strref path, strref pattern, in
     memset(iter, 0, sizeof(FSSearchIter));
 
     if ((vfs->flags & VFS_CaseSensitive))
-        htInit(&names, string, intptr, 8, RefKeys, Grow(MaxSpeed));
+        htInit(&names, string, intptr, 8, HT_RefKeys | HT_Grow(MaxSpeed));
     else
-        htInit(&names, string, intptr, 8, CaseInsensitive, RefKeys, Grow(MaxSpeed));
+        htInit(&names, string, intptr, 8, HT_CaseInsensitive | HT_RefKeys | HT_Grow(MaxSpeed));
 
     // just hold the write lock for this since we'll be adding entries to the cache throughout
     rwlockAcquireRead(&vfs->vfsdlock);
@@ -72,15 +72,15 @@ bool vfsSearchInit(FSSearchIter *iter, VFS *vfs, strref path, strref pattern, in
     if (!vfsdir)
         return false;
 
-    saInit(&components, string, 8, Grow(Aggressive));
+    saInit(&components, string, 8, SA_Grow(Aggressive));
     pathDecompose(&ns, &components, abspath);
 
-    VFSSearch *search = xaAlloc(sizeof(VFSSearch), Zero);
+    VFSSearch *search = xaAlloc(sizeof(VFSSearch), XA_Zero);
     iter->_search = search;
     search->vfs = objAcquire(vfs);
     search->idx = 0;
     STypeOps direntops = (vfs->flags & VFS_CaseSensitive) ? VFSDirEnt_ops_cs : VFSDirEnt_ops;
-    saInit(&search->ents, custom(opaque(VFSDirEnt), direntops), 16, Grow(Aggressive));
+    saInit(&search->ents, custom(opaque(VFSDirEnt), direntops), 16, SA_Grow(Aggressive));
 
     // add child mount points as subdirectories
     foreach(hashtable, sdi, vfsdir->subdirs) {
@@ -139,7 +139,7 @@ bool vfsSearchInit(FSSearchIter *iter, VFS *vfs, strref path, strref pattern, in
                         // go ahead and add it to the cache while we're here
                         pathJoin(&filepath, curpath, dsiter.name);
                         VFSCacheEnt *newent = _vfsCacheEntCreate(pdir->mounts.a[i], filepath);
-                        htInsertC(&vfsdir->files, string, dsiter.name, ptr, &newent, Ignore);
+                        htInsertC(&vfsdir->files, string, dsiter.name, ptr, &newent, HT_Ignore);
                     }
                 }
             } while (provif->searchNext(provider, &dsiter));

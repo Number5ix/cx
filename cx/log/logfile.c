@@ -45,7 +45,7 @@ static void logfileDestroy(LogFileData *data)
 static bool logfileOpen(LogFileData *data)
 {
     devAssert(!data->curfile);
-    data->curfile = vfsOpen(data->vfs, data->fname, Create, Write);
+    data->curfile = vfsOpen(data->vfs, data->fname, FS_Create | FS_Write);
     if (!data->curfile)
         return false;
     vfsSeek(data->curfile, 0, FS_End);
@@ -65,7 +65,7 @@ static bool logfileClose(LogFileData *data)
 
 LogFileData *logfileCreate(VFS *vfs, strref filename, LogFileConfig *config)
 {
-    LogFileData *ret = xaAlloc(sizeof(LogFileData), Zero);
+    LogFileData *ret = xaAlloc(sizeof(LogFileData), XA_Zero);
     string realfile = 0;
     if (!ret)
         return NULL;

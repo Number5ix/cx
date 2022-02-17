@@ -1,7 +1,7 @@
 #include "hashtable_private.h"
 #include "cx/debug/assert.h"
 
-static int32 _htInsertInternal(hashtable *htbl, stgeneric key, stgeneric *val, uint32 flags);
+static int32 _htInsertInternal(hashtable *htbl, stgeneric key, stgeneric *val, flags_t flags);
 
 static int npow2(int val)
 {
@@ -15,7 +15,7 @@ static int npow2(int val)
     return 16;
 }
 
-void _htInit(hashtable *out, stype keytype, STypeOps *keyops, stype valtype, STypeOps *valops, int32 initsz, uint32 flags)
+void _htInit(hashtable *out, stype keytype, STypeOps *keyops, stype valtype, STypeOps *valops, int32 initsz, flags_t flags)
 {
     HashTableHeader *ret;
     uint32 elemsz = clamplow(stGetSize(keytype) + stGetSize(valtype), 8);
@@ -217,7 +217,7 @@ static void htGrowTable(hashtable *htbl, int32 *origslot)
 static bool htFindInternal(HashTableHeader *hdr, stgeneric key, int32 *indexOut, int32 *deletedOut)
 {
     uint32 elemsz = _htElemSz(hdr);
-    uint32 opsflags = (hdr->flags & HT_CaseInsensitive) ? STOPS_CaseInsensitive : 0;
+    uint32 opsflags = (hdr->flags & HT_CaseInsensitive) ? ST_CaseInsensitive : 0;
     uint32 probes = 1;
 
     if (deletedOut)
@@ -292,7 +292,7 @@ static void htSetValueInternal(HashTableHeader *hdr, int32 slot, stgeneric *val,
                stGetSize(hdr->valtype));
 }
 
-static int32 _htInsertInternal(hashtable *htbl, stgeneric key, stgeneric *val, uint32 flags)
+static int32 _htInsertInternal(hashtable *htbl, stgeneric key, stgeneric *val, flags_t flags)
 {
     HashTableHeader *hdr = HTABLE_HDR(*htbl);
     int32 slot, deleted;
@@ -301,9 +301,9 @@ static int32 _htInsertInternal(hashtable *htbl, stgeneric key, stgeneric *val, u
     found = htFindInternal(hdr, key, &slot, &deleted);
 
     if (found) {
-        if (flags & HTFUNC_Ignore) {
+        if (flags & HT_Ignore) {
             // already exists and set to ignore, so do not set value
-            if (flags & HTFUNCINT_Consume)
+            if (flags & HTINT_Consume)
                 _stDestroy(hdr->valtype, HDRVALOPS(hdr), val, 0);
             return slot;
         }
@@ -313,7 +313,7 @@ static int32 _htInsertInternal(hashtable *htbl, stgeneric key, stgeneric *val, u
             _stDestroy(hdr->valtype, HDRVALOPS(hdr),
                        stStoredPtr(hdr->valtype, HTVAL(hdr, _htElemSz(hdr), slot)), 0);
 
-        htSetValueInternal(hdr, slot, val, flags & HTFUNCINT_Consume);
+        htSetValueInternal(hdr, slot, val, flags & HTINT_Consume);
         return slot;
     }
 
@@ -330,7 +330,7 @@ static int32 _htInsertInternal(hashtable *htbl, stgeneric key, stgeneric *val, u
     else
         memcpy(HTKEY(hdr, _htElemSz(hdr), slot), stGenPtr(hdr->keytype, key), stGetSize(hdr->keytype));
 
-    htSetValueInternal(hdr, slot, val, flags & HTFUNCINT_Consume);
+    htSetValueInternal(hdr, slot, val, flags & HTINT_Consume);
 
     hdr->valid++;
 
@@ -357,7 +357,7 @@ static int32 _htInsertInternal(hashtable *htbl, stgeneric key, stgeneric *val, u
     return slot;
 }
 
-htelem _htInsertPtr(hashtable *htbl, stgeneric key, stgeneric *val, uint32 flags)
+htelem _htInsertPtr(hashtable *htbl, stgeneric key, stgeneric *val, flags_t flags)
 {
     int32 slot = _htInsertInternal(htbl, key, val, flags);
     if (slot == -1)
@@ -367,7 +367,7 @@ htelem _htInsertPtr(hashtable *htbl, stgeneric key, stgeneric *val, uint32 flags
     return HTKEY(hdr, _htElemSz(hdr), slot);
 }
 
-htelem _htInsert(hashtable *htbl, stgeneric key, stgeneric val, uint32 flags)
+htelem _htInsert(hashtable *htbl, stgeneric key, stgeneric val, flags_t flags)
 {
     return _htInsertPtr(htbl, key, &val, flags);
 }
@@ -428,7 +428,7 @@ void htSetSize(hashtable *htbl, int32 newsz)
         htResizeTable(htbl, newsz, NULL);
 }
 
-htelem _htFind(hashtable htbl, stgeneric key, stgeneric *val, uint32 flags)
+htelem _htFind(hashtable htbl, stgeneric key, stgeneric *val, flags_t flags)
 {
     HashTableHeader *hdr = HTABLE_HDR(htbl);
     uint32 elemsz = _htElemSz(hdr);
@@ -437,7 +437,7 @@ htelem _htFind(hashtable htbl, stgeneric key, stgeneric *val, uint32 flags)
 
     if (found) {
         if (val) {
-            if ((flags & HTFUNC_Borrow) || (hdr->flags & HT_Ref))
+            if ((flags & HT_Borrow) || (hdr->flags & HT_Ref))
                 memcpy(stGenPtr(hdr->valtype, *val), HTVAL(hdr, elemsz, slot), stGetSize(hdr->valtype));
             else
                 _stCopy(hdr->valtype, HDRVALOPS(hdr),

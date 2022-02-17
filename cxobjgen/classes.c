@@ -21,7 +21,7 @@ static void fillMethods(sa_Method *methods, Class *cls)
         for (int i = 0; i < saSize(cls->parent->allmethods); i++) {
             Method *m = cls->parent->allmethods.a[i];
             if (!m->unbound && !m->internal)
-                saPush(methods, object, m, Unique);
+                saPush(methods, object, m, SA_Unique);
         }
     }
 
@@ -30,7 +30,7 @@ static void fillMethods(sa_Method *methods, Class *cls)
         if (!cls->methods.a[i]->unbound && !cls->methods.a[i]->internal) {
             int32 idx = saFind(*methods, object, cls->methods.a[i]);
             if (idx == -1) {
-                saPush(methods, object, cls->methods.a[i], Unique);
+                saPush(methods, object, cls->methods.a[i], SA_Unique);
             } else {
                 // already exists, replace with child class version
                 saRemove(methods, idx);
@@ -98,7 +98,7 @@ static void addAbstractInterfaces(sa_Method *methods, Interface *iface)
         addAbstractInterfaces(methods, iface->parent);
 
     for (int i = 0; i < saSize(iface->methods); i++) {
-        saPush(methods, object, iface->methods.a[i], Unique);
+        saPush(methods, object, iface->methods.a[i], SA_Unique);
     }
 }
 
@@ -158,7 +158,7 @@ static void addMixin(Class *cls, Class *uses)
             pathSetExt(&hfile, hfile, _S"impl.h");
             strPrepend(_S"\"", &hfile);
             strAppend(&hfile, _S"\"");
-            saPushC(&implincludes, string, &hfile, Unique);
+            saPushC(&implincludes, string, &hfile, SA_Unique);
             saPushC(&cls->methods, object, &m);
         }
     }
@@ -174,7 +174,7 @@ static void addMixin(Class *cls, Class *uses)
 
         // any interfaces implemented by the mixin tree need to be copied, too
         for (int i = 0; i < saSize(mixin->implements); i++)
-            saPush(&cls->implements, object, mixin->implements.a[i], Unique);
+            saPush(&cls->implements, object, mixin->implements.a[i], SA_Unique);
     }
 
     // if the mixin class has any data members, embed the mixin struct
@@ -185,7 +185,7 @@ static void addMixin(Class *cls, Class *uses)
         mixindata->destroy = true;
         strDup(&mixindata->vartype, uses->name);
         mixinMemberName(&mixindata->name, uses);
-        saPushC(&cls->members, object, &mixindata, Unique);
+        saPushC(&cls->members, object, &mixindata, SA_Unique);
     }
 }
 
@@ -267,7 +267,7 @@ bool processClass(Class *cls)
     // if our parent class implements any interfaces, we implement them too
     if (cls->parent) {
         for (int i = 0; i < saSize(cls->parent->implements); i++) {
-            saPush(&cls->implements, object, cls->parent->implements.a[i], Unique);
+            saPush(&cls->implements, object, cls->parent->implements.a[i], SA_Unique);
         }
     }
 
@@ -285,7 +285,7 @@ bool processClass(Class *cls)
         // clone and reset source class
         m = methodClone(m);
         m->srcclass = cls;
-        saPushC(&cls->methods, object, &m, Unique);
+        saPushC(&cls->methods, object, &m, SA_Unique);
     }
 
     // if this is not an abstract class, add any missing interface implementations
@@ -312,7 +312,7 @@ bool processClass(Class *cls)
             string pname = 0;
             strDup(&pname, cls->parent->name);
             strAppend(&pname, _S"_ClassIf");
-            htFind(ifidx, string, pname, object, &clsif->parent, Borrow);
+            htFind(ifidx, string, pname, object, &clsif->parent, HT_Borrow);
             strDestroy(&pname);
         }
         fillMethods(&clsif->methods, cls);
@@ -324,9 +324,9 @@ bool processClass(Class *cls)
                 addAbstractInterfaces(&clsif->allmethods, cls->implements.a[i]);
         }
         if (saSize(clsif->allmethods) > 0) {
-            htInsert(&ifidx, string, clsif->name, object, clsif, Ignore);
             saPush(&cls->implements, object, clsif);
-            saPush(&ifaces, object, clsif, Unique);
+            htInsert(&ifidx, string, clsif->name, object, clsif, HT_Ignore);
+            saPush(&ifaces, object, clsif, SA_Unique);
             cls->classif = clsif;
         } else {
             objRelease(&clsif);

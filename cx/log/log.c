@@ -37,7 +37,7 @@ strref LogLevelAbbrev[LOG_Count] = {
 static LazyInitState logInitState;
 static void logInit(void *dummy)
 {
-    LogDefault = xaAlloc(sizeof(LogCategory), Zero);
+    LogDefault = xaAlloc(sizeof(LogCategory), XA_Zero);
     saInit(&_log_dests, ptr, 8);
     mutexInit(&_log_dests_lock);
     rwlockInit(&_log_buffer_lock);
@@ -59,14 +59,14 @@ void logDestroyEnt(LogEntry *ent)
 
 LogCategory *logCreateCat(strref name)
 {
-    LogCategory *ret = xaAlloc(sizeof(LogCategory), Zero);
+    LogCategory *ret = xaAlloc(sizeof(LogCategory), XA_Zero);
     strDup(&ret->name, name);
     return ret;
 }
 
 static void _logStrInternal(int level, LogCategory *cat, strref str)
 {
-    LogEntry *ent = xaAlloc(sizeof(LogEntry), Zero);
+    LogEntry *ent = xaAlloc(sizeof(LogEntry), XA_Zero);
     if (!ent)
         return;
 

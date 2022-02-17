@@ -78,7 +78,7 @@ VFSDir *_vfsGetDir(VFS *vfs, strref path, bool isfile, bool cache, bool writeloc
     string ns = 0;
     sa_string components;
 
-    saInit(&components, string, 8, Grow(Aggressive));
+    saInit(&components, string, 8, SA_Grow(Aggressive));
     pathDecompose(&ns, &components, path);
 
     if (strEmpty(ns)) {
@@ -96,7 +96,7 @@ out:
     return ret;
 }
 
-bool _vfsMountProvider(VFS *vfs, ObjInst *provider, strref path, uint32 flags)
+bool _vfsMountProvider(VFS *vfs, ObjInst *provider, strref path, flags_t flags)
 {
     string ns = 0, rpath = 0;
     VFSProvider *provif;
@@ -184,7 +184,7 @@ out:
 }
 
 // Mounts the built-in OS filesystem provider to the given VFS
-bool _vfsMountFS(VFS *vfs, strref path, strref fsroot, uint32 flags)
+bool vfsMountFS(VFS *vfs, strref path, strref fsroot, flags_t flags)
 {
     VFSFS *fsprovider = vfsfsCreate(fsroot);
     if (!fsprovider)
@@ -196,7 +196,7 @@ bool _vfsMountFS(VFS *vfs, strref path, strref fsroot, uint32 flags)
 }
 
 // Mounts one VFS underneath another
-bool _vfsMountVFS(VFS *vfs, strref path, VFS *vfs2, strref vfs2root, uint32 flags)
+bool vfsMountVFS(VFS *vfs, strref path, VFS *vfs2, strref vfs2root, flags_t flags)
 {
     VFSVFS *vfsprovider = vfsvfsCreate(vfs2, vfs2root);
     if (!vfsprovider)
@@ -320,7 +320,7 @@ static int vfsFindCISub(VFSDir *vdir, string *out, strref path,
         if (cvdir && dsiter.type == FS_File && !(mount->flags & VFS_NoCache)) {
             // go ahead and add it to the cache while we're here
             VFSCacheEnt *newent = _vfsCacheEntCreate(mount, filepath);
-            htInsertC(&cvdir->files, string, dsiter.name, ptr, &newent, Ignore);
+            htInsertC(&cvdir->files, string, dsiter.name, ptr, &newent, HT_Ignore);
         }
     } while (provif->searchNext(mount->provider, &dsiter));
     provif->searchFinish(mount->provider, &dsiter);
@@ -391,7 +391,7 @@ VFSMount *_vfsFindMount(VFS *vfs, string *rpath, strref path, VFSMount **cowmoun
     sa_string components;
     sa_string relcomp = saInitNone;
 
-    saInit(&components, string, 8, Grow(Aggressive));
+    saInit(&components, string, 8, SA_Grow(Aggressive));
     pathDecompose(&ns, &components, abspath);
 
     int32 relstart = saSize(components) - 1;
@@ -482,7 +482,7 @@ done:
     if (ret && flcache && !(ret->flags & VFS_NoCache)) {
         rwlockAcquireWrite(&vfs->vfslock);
         VFSCacheEnt *newent = _vfsCacheEntCreate(ret, *rpath);
-        htInsertC(&vfsdir->files, string, components.a[saSize(components) - 1], ptr, &newent, Ignore);
+        htInsertC(&vfsdir->files, string, components.a[saSize(components) - 1], ptr, &newent, HT_Ignore);
         rwlockReleaseWrite(&vfs->vfslock);
     }
     rwlockReleaseRead(&vfs->vfsdlock);

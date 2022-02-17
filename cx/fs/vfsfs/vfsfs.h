@@ -12,8 +12,8 @@ typedef struct VFSFS_ClassIf {
     ObjIface *_parent;
     size_t _size;
 
-    uint32 (*flags)(void *self);
-    ObjInst *(*open)(void *self, strref path, int flags);
+    flags_t (*flags)(void *self);
+    ObjInst *(*open)(void *self, strref path, flags_t flags);
     int (*stat)(void *self, strref path, FSStat *stat);
     bool (*setTimes)(void *self, strref path, int64 modified, int64 accessed);
     bool (*createDir)(void *self, strref path);

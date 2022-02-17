@@ -13,7 +13,7 @@ LogDest *logRegisterDest(int maxlevel, LogCategory *catfilter, LogDestFunc dest,
 {
     logCheckInit();
 
-    LogDest *ndest = xaAlloc(sizeof(LogDest), Zero);
+    LogDest *ndest = xaAlloc(sizeof(LogDest), XA_Zero);
     if (!ndest)
         return NULL;
 

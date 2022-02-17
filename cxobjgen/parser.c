@@ -307,21 +307,21 @@ bool parseGlobal(ParseState *ps, string *tok)
             pathFromPlatform(&rname, fname);
             ret = parseFile(rname, &realfname, ps->includepath, true, true);
             pathSetExt(&fname, fname, _S"h");
-            saPushC(&deps, string, &realfname, Unique);
+            saPushC(&deps, string, &realfname, SA_Unique);
             strDestroy(&rname);
         }
 
         strPrepend(brackets ? _S"<" : _S"\"", &fname);
         strAppend(&fname, brackets ? _S">" : _S"\"");
         if (!ps->included)
-            saPushC(&includes, string, &fname, Unique);
+            saPushC(&includes, string, &fname, SA_Unique);
         else
             strDestroy(&fname);
         strDestroy(&ext);
         return ret;
     } else if (strEq(*tok, _S"struct")) {
         nextTok(ps, tok);
-        saPush(&structs, string, *tok, Unique);
+        saPush(&structs, string, *tok, SA_Unique);
         nextTok(ps, tok);
         if (!strEq(*tok, _S";")) {
             fprintf(stderr, "parse error in structure forward declaration\n");
@@ -357,7 +357,7 @@ bool parseInterfacePre(ParseState *ps, string *tok)
             strDestroy(&name);
             return false;
         }
-        if (!htFind(ifidx, string, name, object, &ps->curif->parent, Borrow)) {
+        if (!htFind(ifidx, string, name, object, &ps->curif->parent, HT_Borrow)) {
             fprintf(stderr, "Could not find interface '%s'\n", strC(name));
             strDestroy(&name);
             return false;
@@ -491,7 +491,7 @@ bool parseClassPre(ParseState *ps, string *tok)
             strDestroy(&name);
             return false;
         }
-        if (!htFind(clsidx, string, name, object, &ps->curcls->parent, Borrow)) {
+        if (!htFind(clsidx, string, name, object, &ps->curcls->parent, HT_Borrow)) {
             fprintf(stderr, "Could not find class '%s'\n", strC(name));
             strDestroy(&name);
             return false;
@@ -507,7 +507,7 @@ bool parseClassPre(ParseState *ps, string *tok)
             strDestroy(&name);
             return false;
         }
-        if (!htFind(clsidx, string, name, object, &uses, Borrow)) {
+        if (!htFind(clsidx, string, name, object, &uses, HT_Borrow)) {
             fprintf(stderr, "Could not find class '%s'\n", strC(name));
             strDestroy(&name);
             return false;
@@ -517,7 +517,7 @@ bool parseClassPre(ParseState *ps, string *tok)
             strDestroy(&name);
             return false;
         }
-        saPush(&ps->curcls->uses, object, uses, Unique);
+        saPush(&ps->curcls->uses, object, uses, SA_Unique);
         strDestroy(&name);
         return true;
     } else if (strEq(*tok, _S"implements")) {
@@ -529,12 +529,12 @@ bool parseClassPre(ParseState *ps, string *tok)
             return false;
         }
         Interface *tempif = 0;
-        if (!htFind(ifidx, string, name, object, &tempif, Borrow)) {
+        if (!htFind(ifidx, string, name, object, &tempif, HT_Borrow)) {
             fprintf(stderr, "Could not find interface '%s'\n", strC(name));
             strDestroy(&name);
             return false;
         }
-        saPush(&ps->curcls->implements, object, tempif, Unique);
+        saPush(&ps->curcls->implements, object, tempif, SA_Unique);
         strDestroy(&name);
         return true;
     } else if (strEq(*tok, _S";")) {
@@ -773,7 +773,7 @@ bool parseClass(ParseState *ps, string *tok)
             fprintf(stderr, "Invalid override '%s'\n", strC(name));
             return false;
         }
-        saPushC(&ps->curcls->overrides, string, &name, Unique);
+        saPushC(&ps->curcls->overrides, string, &name, SA_Unique);
         return true;
     }
 
@@ -805,16 +805,16 @@ bool parseFile(string fname, string *realfn, sa_string searchpath, bool included
     pathNormalize(&fpath);
 
     if (!saValid(already_parsed)) {
-        saInit(&already_parsed, string, 10, Sorted);
+        saInit(&already_parsed, string, 10, SA_Sorted);
     }
-    if (saPush(&already_parsed, string, fpath, Unique) == -1) {
+    if (saPush(&already_parsed, string, fpath, SA_Unique) == -1) {
         strDestroy(&fpath);
         if (realfn)
             strClear(realfn);
         return parseEnd(&ps, true);
     }
 
-    ps.fp = fsOpen(fpath, Read);
+    ps.fp = fsOpen(fpath, FS_Read);
     if (!ps.fp) {
         if (required)
             fprintf(stderr, "Could not open %s\n", lazyPlatformPath(fpath));
@@ -825,7 +825,7 @@ bool parseFile(string fname, string *realfn, sa_string searchpath, bool included
     saClone(&ps.includepath, searchpath);
     string fdir = 0;
     pathParent(&fdir, fpath);
-    saPushC(&ps.includepath, string, &fdir, Unique);
+    saPushC(&ps.includepath, string, &fdir, SA_Unique);
 
     if (realfn)
         strDup(realfn, fpath);

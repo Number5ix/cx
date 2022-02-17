@@ -38,7 +38,7 @@ extern _Thread_local ScratchPerThreadInfo *_scratch_pti;
 inline void *scratchGet(size_t sz)
 {
     if (!_scratch_pti) {
-        _scratch_pti = (ScratchPerThreadInfo*)xaAlloc(sizeof(ScratchPerThreadInfo), Zero);
+        _scratch_pti = (ScratchPerThreadInfo*)xaAlloc(sizeof(ScratchPerThreadInfo), XA_Zero);
     }
 
     int32 cur = _scratch_pti->next;

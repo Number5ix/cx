@@ -29,7 +29,7 @@ VFSFS *VFSFS_create(strref rootpath)
     return ret;
 }
 
-uint32 VFSFS_flags(VFSFS *self)
+flags_t VFSFS_flags(VFSFS *self)
 {
 #ifdef _PLATFORM_UNIX
     return VFS_CaseSensitive;
@@ -39,12 +39,12 @@ uint32 VFSFS_flags(VFSFS *self)
 #endif
 }
 
-ObjInst *VFSFS_open(VFSFS *self, strref path, int flags)
+ObjInst *VFSFS_open(VFSFS *self, strref path, flags_t flags)
 {
     string fspath = 0;
     pathJoin(&fspath, self->root, path);
 
-    FSFile *file = _fsOpen(fspath, flags);
+    FSFile *file = fsOpen(fspath, flags);
     strDestroy(&fspath);
     if (!file)
         return NULL;

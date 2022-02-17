@@ -258,7 +258,7 @@ void pathNormalize(string *path)
 
     if (!pathNormalized(*path)) {
         sa_string components;
-        saInit(&components, string, 8, Grow(Aggressive));
+        saInit(&components, string, 8, SA_Grow(Aggressive));
         pathDecompose(&nspace, &components, *path);
         pathCompose(path, nspace, components);
         saDestroy(&components);

@@ -305,7 +305,7 @@ bool fsSearchInit(FSSearchIter *iter, strref path, strref pattern, bool stat)
 
     memset(iter, 0, sizeof(FSSearchIter));
 
-    FSSearch *search = xaAlloc(sizeof(FSSearch), Zero);
+    FSSearch *search = xaAlloc(sizeof(FSSearch), XA_Zero);
     iter->_search = search;
     search->d = opendir(strC(ppath));
     strDestroy(&ppath);

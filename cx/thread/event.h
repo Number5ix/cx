@@ -22,9 +22,8 @@ typedef struct Event {
 } Event;
 
 enum EVENTINITFUNC_FLAGS {
-    EVENTINITFUNC_ = 0,
-    EVENTINITFUNC_Spin = 1,
-    EVENTINITFUNC_PlatformEvents = 2,
+    EV_Spin = 1,
+    EV_PlatformEvents = 2,
 };
 
 // Events normally use the "NoSpin" type semaphores.
@@ -37,7 +36,7 @@ enum EVENTINITFUNC_FLAGS {
 // there will usually be work to do, the caller should initialize the Event with a "Spin" flag,
 // which will cause the event to use the normal adapative semaphore.
 bool _eventInit(Event *e, uint32 flags);
-#define eventInit(e, ...) _eventInit(e, func_flags(EVENTINITFUNC, __VA_ARGS__))
+#define eventInit(e, ...) _eventInit(e, opt_flags(__VA_ARGS__))
 
 #define eventSignal(e) eventSignalMany(e, 1)
 bool eventSignalMany(Event *e, int32 count);

@@ -10,7 +10,7 @@ typedef struct FSFile {
     HANDLE h;
 } FSFile;
 
-FSFile *_fsOpen(strref path, int flags)
+FSFile *fsOpen(strref path, flags_t flags)
 {
     FSFile *ret;
     DWORD access = 0;

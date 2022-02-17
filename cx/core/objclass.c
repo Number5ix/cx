@@ -59,8 +59,8 @@ static void classInitImpl(ObjClassInfo *cls, bool locked)
     // computation, as well as to allocate and never free memory.
 
     sa_ObjIface impl;
-    saInit(&impl, ptr, 4, Grow(Minimal));
-    htInit(&cls->_tmpl, ptr, ptr, 8, Grow(At50));
+    saInit(&impl, ptr, 4, SA_Grow(Minimal));
+    htInit(&cls->_tmpl, ptr, ptr, 8, HT_Grow(At50));
 
     // Fully hydrated interface implementation tables include methods that are
     // implemented by the parent class, but not any children. Fill them in by recursing
@@ -107,7 +107,7 @@ ObjInst *_objInstCreate(ObjClassInfo *cls)
         return NULL;
     }
 
-    ret = xaAlloc(cls->instsize, Zero);
+    ret = xaAlloc(cls->instsize, XA_Zero);
     ret->_clsinfo = cls;
     atomicStore(intptr, &ret->_ref, 1, Relaxed);
 

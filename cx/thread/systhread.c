@@ -61,7 +61,7 @@ void thrRegisterSysThread(Thread *thread, Event **notify_out)
     lazyInit(&systhreadInitState, systhreadInit, NULL);
     mutexAcquire(&systhreadLock);
 
-    SysThread *st = xaAlloc(sizeof(SysThread), Zero);
+    SysThread *st = xaAlloc(sizeof(SysThread), XA_Zero);
     st->thr = thread;
     eventInit(&st->notify);
     saPush(&systhreads, ptr, st);

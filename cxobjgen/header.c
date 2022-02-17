@@ -294,7 +294,7 @@ bool writeHeader(string fname)
     string hname = 0;
     pathSetExt(&hname, fname, _S"h");
 
-    FSFile *file = fsOpen(hname, Overwrite);
+    FSFile *file = fsOpen(hname, FS_Overwrite);
     if (!file) {
         fprintf(stderr, "Failed to open %s for writing", lazyPlatformPath(hname));
         return false;
