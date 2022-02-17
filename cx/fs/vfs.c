@@ -48,20 +48,20 @@ static VFSDir *_vfsGetDirInternal(VFS *vfs, VFSDir *root, string *path, int32 pl
     if (strEmpty(path[0]))
         child = root;
     else
-        htFind(root->subdirs, string, path[0], ptr, &child, 0);
+        htFind(root->subdirs, string, path[0], ptr, &child);
 
     if (!child) {
         if (!writelockheld) {
             rwlockReleaseRead(&vfs->vfslock);
             rwlockAcquireWrite(&vfs->vfslock);
             // try again with the write lock held
-            htFind(root->subdirs, string, path[0], ptr, &child, 0);
+            htFind(root->subdirs, string, path[0], ptr, &child);
         }
         if (!child) {
             child = _vfsDirCreate(vfs, root);
             child->cache = cache;
             strDup(&child->name, path[0]);
-            htInsert(&root->subdirs, string, path[0], ptr, child, 0);
+            htInsert(&root->subdirs, string, path[0], ptr, child);
         }
         if (!writelockheld) {
             rwlockReleaseWrite(&vfs->vfslock);
@@ -78,12 +78,12 @@ VFSDir *_vfsGetDir(VFS *vfs, strref path, bool isfile, bool cache, bool writeloc
     string ns = 0;
     sa_string components;
 
-    saInit(&components, string, 8, SA_Grow(Aggressive));
+    saInit(&components, string, 8, Grow(Aggressive));
     pathDecompose(&ns, &components, path);
 
     if (strEmpty(ns)) {
         d = vfs->root;
-    } else if (!htFind(vfs->namespaces, string, ns, ptr, &d, 0)) {
+    } else if (!htFind(vfs->namespaces, string, ns, ptr, &d)) {
         cxerr = CX_FileNotFound;
         goto out;
     }
@@ -96,7 +96,7 @@ out:
     return ret;
 }
 
-bool _vfsMountProvider(VFS *vfs, ObjInst *provider, strref path, flags_t flags)
+bool _vfsMountProvider(VFS *vfs, ObjInst *provider, strref path, uint32 flags)
 {
     string ns = 0, rpath = 0;
     VFSProvider *provif;
@@ -117,7 +117,7 @@ bool _vfsMountProvider(VFS *vfs, ObjInst *provider, strref path, flags_t flags)
 
     if (!strEmpty(ns) && !htHasKey(vfs->namespaces, string, ns)) {
         // namespace hasn't been added yet, create it now
-        htInsert(&vfs->namespaces, string, ns, ptr, _vfsDirCreate(vfs, NULL), 0);
+        htInsert(&vfs->namespaces, string, ns, ptr, _vfsDirCreate(vfs, NULL));
     }
 
     VFSDir *dir = _vfsGetDir(vfs, path, false, false, true);
@@ -131,7 +131,7 @@ bool _vfsMountProvider(VFS *vfs, ObjInst *provider, strref path, flags_t flags)
         flags |= VFS_NoCache;
 
     VFSMount *nmount = vfsmountCreate(provider, flags | provif->flags(provider));
-    saPushC(&dir->mounts, object, &nmount, 0);
+    saPushC(&dir->mounts, object, &nmount);
     _vfsInvalidateRecursive(vfs, dir, true);
     ret = true;
 
@@ -184,7 +184,7 @@ out:
 }
 
 // Mounts the built-in OS filesystem provider to the given VFS
-bool vfsMountFS(VFS *vfs, strref path, strref fsroot, flags_t flags)
+bool _vfsMountFS(VFS *vfs, strref path, strref fsroot, uint32 flags)
 {
     VFSFS *fsprovider = vfsfsCreate(fsroot);
     if (!fsprovider)
@@ -196,7 +196,7 @@ bool vfsMountFS(VFS *vfs, strref path, strref fsroot, flags_t flags)
 }
 
 // Mounts one VFS underneath another
-bool vfsMountVFS(VFS *vfs, strref path, VFS *vfs2, strref vfs2root, flags_t flags)
+bool _vfsMountVFS(VFS *vfs, strref path, VFS *vfs2, strref vfs2root, uint32 flags)
 {
     VFSVFS *vfsprovider = vfsvfsCreate(vfs2, vfs2root);
     if (!vfsprovider)
@@ -218,7 +218,7 @@ VFSCacheEnt *_vfsGetFile(VFS *vfs, strref path, bool writelockheld)
 
     pathFilename(&fname, path);
 
-    if (!htFind(pdir->files, string, fname, ptr, &ret, 0))
+    if (!htFind(pdir->files, string, fname, ptr, &ret))
         cxerr = CX_FileNotFound;
 
     strDestroy(&fname);
@@ -320,7 +320,7 @@ static int vfsFindCISub(VFSDir *vdir, string *out, strref path,
         if (cvdir && dsiter.type == FS_File && !(mount->flags & VFS_NoCache)) {
             // go ahead and add it to the cache while we're here
             VFSCacheEnt *newent = _vfsCacheEntCreate(mount, filepath);
-            htInsertC(&cvdir->files, string, dsiter.name, ptr, &newent, HT_Ignore);
+            htInsertC(&cvdir->files, string, dsiter.name, ptr, &newent, Ignore);
         }
     } while (provif->searchNext(mount->provider, &dsiter));
     provif->searchFinish(mount->provider, &dsiter);
@@ -352,7 +352,7 @@ int _vfsFindCIHelper(VFS *vfs, VFSDir *vdir, string *out, sa_string components, 
 
 // This function does all the heavy lifting of the VFS system.
 // It's a bit hard to follow as a result.
-VFSMount *_vfsFindMount(VFS *vfs, string *rpath, strref path, VFSMount **cowmount, string *cowrpath, flags_t flags)
+VFSMount *_vfsFindMount(VFS *vfs, string *rpath, strref path, VFSMount **cowmount, string *cowrpath, uint32 flags)
 {
     VFSMount *ret = 0;
     string abspath = 0, curpath = 0;
@@ -391,7 +391,7 @@ VFSMount *_vfsFindMount(VFS *vfs, string *rpath, strref path, VFSMount **cowmoun
     sa_string components;
     sa_string relcomp = saInitNone;
 
-    saInit(&components, string, 8, SA_Grow(Aggressive));
+    saInit(&components, string, 8, Grow(Aggressive));
     pathDecompose(&ns, &components, abspath);
 
     int32 relstart = saSize(components) - 1;
@@ -482,7 +482,7 @@ done:
     if (ret && flcache && !(ret->flags & VFS_NoCache)) {
         rwlockAcquireWrite(&vfs->vfslock);
         VFSCacheEnt *newent = _vfsCacheEntCreate(ret, *rpath);
-        htInsertC(&vfsdir->files, string, components.a[saSize(components) - 1], ptr, &newent, HT_Ignore);
+        htInsertC(&vfsdir->files, string, components.a[saSize(components) - 1], ptr, &newent, Ignore);
         rwlockReleaseWrite(&vfs->vfslock);
     }
     rwlockReleaseRead(&vfs->vfsdlock);

@@ -21,7 +21,7 @@ static STypeOps crashMemOps = {
 
 static void crashMemInit(void *data)
 {
-    saInit(&_dbgCrashDumpMem, custom(opaque(CrashMemRange), crashMemOps), 10, SA_Sorted | SA_Grow(Slow));
+    saInit(&_dbgCrashDumpMem, custom(opaque(CrashMemRange), crashMemOps), 10, Sorted, Grow(Slow));
 }
 
 void dbgCrashIncludeMemory(void *ptr, size_t sz)
@@ -31,7 +31,7 @@ void dbgCrashIncludeMemory(void *ptr, size_t sz)
     dbgCrashExcludeMemory(ptr, sz);
 
     CrashMemRange r = { .start = (uintptr)ptr,.end = (uintptr)ptr + sz };
-    int32 idx = saFind(_dbgCrashDumpMem, opaque, r, SA_Inexact);
+    int32 idx = saFind(_dbgCrashDumpMem, opaque, r, Inexact);
 
     if (idx > 0 && _dbgCrashDumpMem.a[idx - 1].end == r.start) {
         // extend the previous block
@@ -41,7 +41,7 @@ void dbgCrashIncludeMemory(void *ptr, size_t sz)
         _dbgCrashDumpMem.a[idx].start = r.start;
     } else {
         // insert a new block
-        saPush(&_dbgCrashDumpMem, opaque, r, SA_Unique);
+        saPush(&_dbgCrashDumpMem, opaque, r, Unique);
     }
 }
 
@@ -53,7 +53,7 @@ void dbgCrashExcludeMemory(void *ptr, size_t sz)
     CrashMemRange r = { .start = (uintptr)ptr,.end = (uintptr)ptr + sz };
 
     // use bsearch to quickly get to the starting index to scan
-    idx = saFind(_dbgCrashDumpMem, opaque, r, SA_Inexact);
+    idx = saFind(_dbgCrashDumpMem, opaque, r, Inexact);
     // back up one index entry to catch partial overlap
     idx = max(idx - 1, 0);
 
@@ -61,7 +61,7 @@ void dbgCrashExcludeMemory(void *ptr, size_t sz)
         CrashMemRange *ir = &_dbgCrashDumpMem.a[idx];
         if (r.start <= ir->start && r.end >= ir->end) {
             // completely inside removal range, delete it
-            saRemove(&_dbgCrashDumpMem, idx--, 0);
+            saRemove(&_dbgCrashDumpMem, idx--);
         } else if (r.start <= ir->start && r.end > ir->start) {
             // cut off the start of the range
             ir->start = r.end;
@@ -78,7 +78,7 @@ void dbgCrashExcludeMemory(void *ptr, size_t sz)
 #if DEBUG_LEVEL == 0
             saPush(&_dbgCrashDumpMem, opaque, nr, Unique);
 #else
-            int32 nidx = saPush(&_dbgCrashDumpMem, opaque, nr, SA_Unique);
+            int32 nidx = saPush(&_dbgCrashDumpMem, opaque, nr, Unique);
             devAssert(nidx == idx + 1);
 #endif
         } else if (r.end <= ir->start) {

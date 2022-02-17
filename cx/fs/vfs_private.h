@@ -67,12 +67,12 @@ VFSDir *_vfsGetDir(VFS *vfs, strref path, bool isfile, bool cache, bool writeloc
 VFSCacheEnt *_vfsGetFile(VFS *vfs, strref path, bool writelockheld);
 // finds a suitable provider for a particular file
 enum VFS_FIND_PROVIDER_ENUM {
-    VFS_FindWriteFile = 0x0100,
-    VFS_FindCreate =    0x0200,
-    VFS_FindDelete =    0x0400,
-    VFS_FindCache =     0x1000,
+    VFS_FindWriteFile = 0x01,
+    VFS_FindCreate =    0x02,
+    VFS_FindDelete =    0x04,
+    VFS_FindCache =   0x1000,
 };
-VFSMount *_vfsFindMount(VFS *vfs, string *rpath, strref path, VFSMount **cowmount, string *cowrpath, flags_t flags);
+VFSMount *_vfsFindMount(VFS *vfs, string *rpath, strref path, VFSMount **cowmount, string *cowrpath, uint32 flags);
 void _vfsInvalidateCache(VFS *vfs, strref path);
 void _vfsInvalidateRecursive(VFS *vfs, VFSDir *dir, bool havelock);
 void _vfsAbsPath(VFS *vfs, string *out, strref path);

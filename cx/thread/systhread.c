@@ -52,7 +52,7 @@ static void systhreadAtExit(void)
 static void systhreadInit(void *unused)
 {
     mutexInit(&systhreadLock);
-    saInit(&systhreads, custom(ptr, SysThread_ops), 8, 0);
+    saInit(&systhreads, custom(ptr, SysThread_ops), 8);
     atexit(systhreadAtExit);
 }
 
@@ -61,10 +61,10 @@ void thrRegisterSysThread(Thread *thread, Event **notify_out)
     lazyInit(&systhreadInitState, systhreadInit, NULL);
     mutexAcquire(&systhreadLock);
 
-    SysThread *st = xaAlloc(sizeof(SysThread), XA_Zero);
+    SysThread *st = xaAlloc(sizeof(SysThread), Zero);
     st->thr = thread;
-    eventInit(&st->notify, 0);
-    saPush(&systhreads, ptr, st, 0);
+    eventInit(&st->notify);
+    saPush(&systhreads, ptr, st);
 
     *notify_out = &st->notify;
     mutexRelease(&systhreadLock);

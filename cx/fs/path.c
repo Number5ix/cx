@@ -207,21 +207,21 @@ bool pathDecompose(string *ns, sa_string *components, strref pathin)
     for (int32 i = 0, csz = saSize(*components); i < csz; i++) {
         if (i > 0 && strEmpty(components->a[i])) {
             // remove empty components, but not from position 0 (absolute path)
-            saRemove(components, i--, 0);
+            saRemove(components, i--);
             csz--;
         } else if (i > 0 && strEq(components->a[i], _S"..")) {
             // eat previous component
             // only allowed work in position 1 or later to avoid breaking relative paths
-            saRemove(components, i--, 0);
+            saRemove(components, i--);
             csz--;
             if (!absolute || i > 0) {
                 // and absolute paths cannot remove the first empty component
-                saRemove(components, i--, 0);
+                saRemove(components, i--);
                 csz--;
             }
         } else if (strEq(components->a[i], _S".")) {
             // does nothing, just delete this component
-            saRemove(components, i--, 0);
+            saRemove(components, i--);
             csz--;
         }
     }
@@ -258,7 +258,7 @@ void pathNormalize(string *path)
 
     if (!pathNormalized(*path)) {
         sa_string components;
-        saInit(&components, string, 8, SA_Grow(Aggressive));
+        saInit(&components, string, 8, Grow(Aggressive));
         pathDecompose(&nspace, &components, *path);
         pathCompose(path, nspace, components);
         saDestroy(&components);

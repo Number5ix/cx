@@ -56,7 +56,7 @@ static int test_log_levels()
 {
     int ret = 0;
     LogTestData td = { 0 };
-    eventInit(&logtestevent, 0);
+    eventInit(&logtestevent);
 
     LogMembufData *lmd = logmembufCreate(4096);
     logRegisterDest(LOG_Verbose, NULL, logmembufDest, lmd);
@@ -121,7 +121,7 @@ static int test_log_shutdown()
 {
     int ret = 0;
     LogTestData td = { 0 };
-    eventInit(&logtestevent, 0);
+    eventInit(&logtestevent);
 
     logRegisterDest(LOG_Info, NULL, testdest, &td);
 
@@ -139,7 +139,7 @@ static int test_log_batch()
 {
     int ret = 0;
     LogTestData td = { 0 };
-    eventInit(&logtestevent, 0);
+    eventInit(&logtestevent);
 
     LogMembufData *lmd = logmembufCreate(128 * 1024);
     logRegisterDest(LOG_Verbose, NULL, logmembufDest, lmd);

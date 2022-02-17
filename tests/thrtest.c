@@ -301,9 +301,9 @@ static int test_event_sub(bool spin)
     atomicStore(bool, &rthread_exit, false, Release);
 
     if (spin)
-        eventInit(&testev, EV_Spin);
+        eventInit(&testev, Spin);
     else
-        eventInit(&testev, 0);
+        eventInit(&testev);
 
     int i;
     Thread *cthreads[EVENT_CONSUMERS];

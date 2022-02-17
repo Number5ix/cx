@@ -1,15 +1,15 @@
 #include "event.h"
 
-bool eventInit(Event *e, flags_t flags)
+bool _eventInit(Event *e, uint32 flags)
 {
     memset(e, 0, sizeof(Event));
     semaInit(&e->sema, 0);
 
     // Default to no-spin semaphore unless requested otherwise
     // See the comments in event.h
-    if (!(flags & EV_Spin))
+    if (!(flags & EVENTINITFUNC_Spin))
         e->sema.flags |= SEMA_NoSpin;
-    if (flags & EV_PlatformEvents)
+    if (flags & EVENTINITFUNC_PlatformEvents)
         e->sema.flags |= SEMA_PlatformEvents;
     return true;
 }

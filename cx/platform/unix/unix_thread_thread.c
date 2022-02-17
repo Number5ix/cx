@@ -35,7 +35,7 @@ static void* _thrEntryPoint(void *data)
 }
 
 Thread *_thrPlatformAlloc() {
-    return xaAlloc(sizeof(UnixThread), XA_Zero);
+    return xaAlloc(sizeof(UnixThread), Zero);
 }
 
 bool _thrPlatformStart(Thread *thread)

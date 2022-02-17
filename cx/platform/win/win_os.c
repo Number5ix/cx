@@ -51,7 +51,7 @@ static void initCoreCache(void *dummy)
     if (len == 0)
         goto out;
 
-    buf = (PSYSTEM_LOGICAL_PROCESSOR_INFORMATION)xaAlloc(len, 0);
+    buf = (PSYSTEM_LOGICAL_PROCESSOR_INFORMATION)xaAlloc(len);
     if (GetLogicalProcessorInformation(buf, &len)) {
         PSYSTEM_LOGICAL_PROCESSOR_INFORMATION p = buf;
         DWORD off = 0;

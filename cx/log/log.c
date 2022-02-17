@@ -37,11 +37,11 @@ strref LogLevelAbbrev[LOG_Count] = {
 static LazyInitState logInitState;
 static void logInit(void *dummy)
 {
-    LogDefault = xaAlloc(sizeof(LogCategory), XA_Zero);
-    saInit(&_log_dests, ptr, 8, 0);
+    LogDefault = xaAlloc(sizeof(LogCategory), Zero);
+    saInit(&_log_dests, ptr, 8);
     mutexInit(&_log_dests_lock);
     rwlockInit(&_log_buffer_lock);
-    saInit(&_log_buffer, ptr, LOG_INITIAL_BUFFER_SIZE, 0);
+    saInit(&_log_buffer, ptr, LOG_INITIAL_BUFFER_SIZE);
     saSetSize(&_log_buffer, LOG_INITIAL_BUFFER_SIZE);
     logThreadCreate();
 }
@@ -59,14 +59,14 @@ void logDestroyEnt(LogEntry *ent)
 
 LogCategory *logCreateCat(strref name)
 {
-    LogCategory *ret = xaAlloc(sizeof(LogCategory), XA_Zero);
+    LogCategory *ret = xaAlloc(sizeof(LogCategory), Zero);
     strDup(&ret->name, name);
     return ret;
 }
 
 static void _logStrInternal(int level, LogCategory *cat, strref str)
 {
-    LogEntry *ent = xaAlloc(sizeof(LogEntry), XA_Zero);
+    LogEntry *ent = xaAlloc(sizeof(LogEntry), Zero);
     if (!ent)
         return;
 
@@ -80,7 +80,7 @@ static void _logStrInternal(int level, LogCategory *cat, strref str)
         logBufferAdd(ent);
     } else {
         // this thread is preparing a batch
-        saPush(&_log_thread_batch, ptr, ent, 0);
+        saPush(&_log_thread_batch, ptr, ent);
     }
 }
 
@@ -112,7 +112,7 @@ void _logFmt(int level, LogCategory *cat, strref fmtstr, int n, stvar *args)
 void logBatchBegin(void)
 {
     devAssert(!_log_thread_batch.a);
-    saInit(&_log_thread_batch, ptr, LOG_INITIAL_BUFFER_SIZE / 2, 0);
+    saInit(&_log_thread_batch, ptr, LOG_INITIAL_BUFFER_SIZE / 2);
 }
 
 void logBatchEnd(void)

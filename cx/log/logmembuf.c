@@ -9,9 +9,9 @@
 
 LogMembufData *logmembufCreate(uint32 size)
 {
-    LogMembufData *ret = xaAlloc(sizeof(LogMembufData), XA_Zero);
+    LogMembufData *ret = xaAlloc(sizeof(LogMembufData), Zero);
     ret->size = size;
-    ret->buf = xaAlloc(size, XA_Zero);
+    ret->buf = xaAlloc(size, Zero);
     return ret;
 }
 

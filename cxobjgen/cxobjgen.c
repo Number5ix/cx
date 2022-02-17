@@ -24,19 +24,19 @@ int main(int argc, char *argv[])
     sa_string sidlfiles;
     sa_string searchpath;
     string fname = 0;
-    saInit(&ifaces, object, 16, 0);
-    htInit(&ifidx, string, object, 16, 0);
-    saInit(&classes, object, 16, 0);
-    htInit(&clsidx, string, object, 16, 0);
-    saInit(&includes, string, 8, 0);
-    saInit(&implincludes, string, 4, 0);
-    saInit(&deps, string, 8, 0);
-    saInit(&structs, string, 8, 0);
-    saInit(&artypes, object, 8, 0);
-    htInit(&knownartypes, string, bool, 16, 0);
+    saInit(&ifaces, object, 16);
+    htInit(&ifidx, string, object, 16);
+    saInit(&classes, object, 16);
+    htInit(&clsidx, string, object, 16);
+    saInit(&includes, string, 8);
+    saInit(&implincludes, string, 4);
+    saInit(&deps, string, 8);
+    saInit(&structs, string, 8);
+    saInit(&artypes, object, 8);
+    htInit(&knownartypes, string, bool, 16);
 
-    saInit(&searchpath, string, 8, 0);
-    saInit(&sidlfiles, string, 4, 0);
+    saInit(&searchpath, string, 8);
+    saInit(&sidlfiles, string, 4);
 
     string tmp = 0;
     for (int i = 1; i < argc; i++) {
@@ -44,12 +44,12 @@ int main(int argc, char *argv[])
         if (strEq(tmp, _S"-I")) {
             strSubStr(&tmp, (string)argv[i], 2, strEnd);
             pathFromPlatform(&tmp, tmp);
-            saPush(&searchpath, string, tmp, 0);
+            saPush(&searchpath, string, tmp);
         } else if (strEq((string)argv[i], _S"-f")) {
             force = true;
         } else {
             pathFromPlatform(&tmp, (string)argv[i]);
-            saPush(&sidlfiles, string, tmp, 0);
+            saPush(&sidlfiles, string, tmp);
         }
     }
     strDestroy(&tmp);

@@ -16,7 +16,7 @@ bool _vfsAddPlatformSpecificMounts(VFS *vfs)
         if (ldrives & 1 << (dletter - 'a')) {
             drivestr[0] = dletter;
             strCopy(&drive, (string)drivestr);
-            ret &= vfsMountFS(vfs, drive, drive, 0);
+            ret &= vfsMountFS(vfs, drive, drive);
         }
     }
 
@@ -24,7 +24,7 @@ bool _vfsAddPlatformSpecificMounts(VFS *vfs)
     fsCurDir(&curdir);
     // mount current drive as root
     strSubStr(&drive, _fsCurDir, 0, 3);
-    vfsMountFS(vfs, _S"/", drive, 0);
+    vfsMountFS(vfs, _S"/", drive);
     vfsSetCurDir(vfs, curdir);
     strDestroy(&curdir);
     strDestroy(&drive);

@@ -13,7 +13,7 @@ interface VFSFileProvider {
 interface VFSProvider {
     uint32 flags();                             // VFSProviderFlags enforced for this provider
 
-    ObjInst *open(strref path, uint32 flags);   // returns an object that implements VFSFileProvider
+    ObjInst *open(strref path, int flags);      // returns an object that implements VFSFileProvider
     int stat(strref path, FSStat *stat);
     bool setTimes(strref path, int64 modified, int64 accessed);
     bool createDir(strref path);

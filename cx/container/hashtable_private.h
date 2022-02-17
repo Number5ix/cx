@@ -4,8 +4,8 @@
 #include "cx/utils.h"
 
 #define HTDATA(hdr) ((void*)((uintptr)(&(hdr)->data[0]) + sizeof(HashTableHeader)))
-#define HTKEY(hdr, elemsz, slot) ((void*)((uintptr)(&(hdr)->data[0]) + ((uintptr)slot)*elemsz))
-#define HTVAL(hdr, elemsz, slot) ((void*)((uintptr)(&(hdr)->data[0]) + ((uintptr)slot)*elemsz + stGetSize((hdr)->keytype)))
+#define HTKEY(hdr, elemsz, slot) ((void*)((uintptr)(&(hdr)->data[0]) + slot*elemsz))
+#define HTVAL(hdr, elemsz, slot) ((void*)((uintptr)(&(hdr)->data[0]) + slot*elemsz + stGetSize((hdr)->keytype)))
 #define HT_SMALLHDR_OFFSET (offsetof(HashTableHeader, slots))
 
 #define HDRKEYOPS(hdr) ((hdr->flags & HTINT_Extended) ? &hdr->keytypeops : NULL)

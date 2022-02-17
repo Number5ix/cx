@@ -202,7 +202,7 @@ bool _fmtParseVar(FMTContext *ctx)
                 if (ctx->v.width != -1)
                     goto out;           // already have one!
                 ctx->v.width = w;
-                saRemove(&ctx->v.fmtopts, i, 0);
+                saRemove(&ctx->v.fmtopts, i);
             } else {
                 fmtParseOpt(ctx, ctx->v.fmtopts.a[i], vtype);
             }

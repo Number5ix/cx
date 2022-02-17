@@ -54,9 +54,9 @@ bool vfsSearchInit(FSSearchIter *iter, VFS *vfs, strref path, strref pattern, in
     memset(iter, 0, sizeof(FSSearchIter));
 
     if ((vfs->flags & VFS_CaseSensitive))
-        htInit(&names, string, intptr, 8, HT_RefKeys | HT_Grow(MaxSpeed));
+        htInit(&names, string, intptr, 8, RefKeys, Grow(MaxSpeed));
     else
-        htInit(&names, string, intptr, 8, HT_CaseInsensitive | HT_RefKeys | HT_Grow(MaxSpeed));
+        htInit(&names, string, intptr, 8, CaseInsensitive, RefKeys, Grow(MaxSpeed));
 
     // just hold the write lock for this since we'll be adding entries to the cache throughout
     rwlockAcquireRead(&vfs->vfsdlock);
@@ -72,15 +72,15 @@ bool vfsSearchInit(FSSearchIter *iter, VFS *vfs, strref path, strref pattern, in
     if (!vfsdir)
         return false;
 
-    saInit(&components, string, 8, SA_Grow(Aggressive));
+    saInit(&components, string, 8, Grow(Aggressive));
     pathDecompose(&ns, &components, abspath);
 
-    VFSSearch *search = xaAlloc(sizeof(VFSSearch), XA_Zero);
+    VFSSearch *search = xaAlloc(sizeof(VFSSearch), Zero);
     iter->_search = search;
     search->vfs = objAcquire(vfs);
     search->idx = 0;
     STypeOps direntops = (vfs->flags & VFS_CaseSensitive) ? VFSDirEnt_ops_cs : VFSDirEnt_ops;
-    saInit(&search->ents, custom(opaque(VFSDirEnt), direntops), 16, SA_Grow(Aggressive));
+    saInit(&search->ents, custom(opaque(VFSDirEnt), direntops), 16, Grow(Aggressive));
 
     // add child mount points as subdirectories
     foreach(hashtable, sdi, vfsdir->subdirs) {
@@ -89,8 +89,8 @@ bool vfsSearchInit(FSSearchIter *iter, VFS *vfs, strref path, strref pattern, in
             VFSDirEnt ent = { 0 };
             strDup(&ent.name, sd->name);
             ent.type = FS_Directory;
-            saPushC(&search->ents, opaque, &ent, 0);
-            htInsert(&names, string, sd->name, intptr, 1, 0);
+            saPushC(&search->ents, opaque, &ent);
+            htInsert(&names, string, sd->name, intptr, 1);
         }
     } endforeach;
 
@@ -132,14 +132,14 @@ bool vfsSearchInit(FSSearchIter *iter, VFS *vfs, strref path, strref pattern, in
                         .type = dsiter.type,
                         .stat = dsiter.stat
                     };
-                    idx = saPush(&search->ents, opaque, ent, 0);
-                    htInsert(&names, string, search->ents.a[idx].name, intptr, 1, 0);
+                    idx = saPush(&search->ents, opaque, ent);
+                    htInsert(&names, string, search->ents.a[idx].name, intptr, 1);
 
                     if (dsiter.type == FS_File && !(pdir->mounts.a[i]->flags & VFS_NoCache)) {
                         // go ahead and add it to the cache while we're here
                         pathJoin(&filepath, curpath, dsiter.name);
                         VFSCacheEnt *newent = _vfsCacheEntCreate(pdir->mounts.a[i], filepath);
-                        htInsertC(&vfsdir->files, string, dsiter.name, ptr, &newent, HT_Ignore);
+                        htInsertC(&vfsdir->files, string, dsiter.name, ptr, &newent, Ignore);
                     }
                 }
             } while (provif->searchNext(provider, &dsiter));

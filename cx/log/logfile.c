@@ -45,7 +45,7 @@ static void logfileDestroy(LogFileData *data)
 static bool logfileOpen(LogFileData *data)
 {
     devAssert(!data->curfile);
-    data->curfile = vfsOpen(data->vfs, data->fname, FS_Create | FS_Write);
+    data->curfile = vfsOpen(data->vfs, data->fname, Create, Write);
     if (!data->curfile)
         return false;
     vfsSeek(data->curfile, 0, FS_End);
@@ -65,7 +65,7 @@ static bool logfileClose(LogFileData *data)
 
 LogFileData *logfileCreate(VFS *vfs, strref filename, LogFileConfig *config)
 {
-    LogFileData *ret = xaAlloc(sizeof(LogFileData), XA_Zero);
+    LogFileData *ret = xaAlloc(sizeof(LogFileData), Zero);
     string realfile = 0;
     if (!ret)
         return NULL;
@@ -129,8 +129,8 @@ static void deleteOldFiles(LogFileData *lfd)
     int64 now = clockWall();
 
     strNConcat(&pattern, lfd->basename, _S".*.", lfd->ext);
-    saInit(&todelete, string, 4, 0);
-    saInit(&splits, string, 4, 0);
+    saInit(&todelete, string, 4);
+    saInit(&splits, string, 4);
 
     // count the number of rotated (NON-DATE) files so that unlimited retention can work...
     // unlimited up to 10k files anyway
@@ -140,7 +140,7 @@ static void deleteOldFiles(LogFileData *lfd)
     while (vfsSearchValid(&fsi)) {
         if (lfd->config.rotateKeepTime > 0 &&
             (now - fsi.stat.modified) > lfd->config.rotateKeepTime) {
-            saPush(&todelete, string, fsi.name, 0);
+            saPush(&todelete, string, fsi.name);
         } else if (strSplit(&splits, fsi.name, _S".", false) == 3) {
             int num;
             if (strToInt32(&num, splits.a[1], 10, true) && num < 10000) {
@@ -148,7 +148,7 @@ static void deleteOldFiles(LogFileData *lfd)
                 // deletion is usually handled at rotation time, but check anyway in case
                 // the config changed
                 if (lfd->config.rotateKeepFiles > 0 && num > lfd->config.rotateKeepFiles) {
-                    saPush(&todelete, string, fsi.name, 0);
+                    saPush(&todelete, string, fsi.name);
                 } else {
                     lfd->numseen = max(lfd->numseen, num);
                 }

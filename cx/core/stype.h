@@ -59,9 +59,6 @@ typedef double float64;
 
 typedef uint32 stype;
 
-// standardize on uint32 for function call flags
-typedef uint32 flags_t;
-
 // sarrays are special because of the pointer union
 typedef union sa_ref {
     void *_is_sarray;
@@ -558,16 +555,18 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define stCheckedPtrArg(type, val) STypeCheckedPtrArg_##type(type, val)
 
 enum STYPE_OPS_FLAGS {
+    STOPS_ = 0,
+
     // Valid for: cmp, hash
     // Perform a case-insensitive hash or compare operation if the
     // underlying type supports it
-    ST_CaseInsensitive = 0x00000001,
+    STOPS_CaseInsensitive = 0x00000001,
 };
 
-typedef void (*stDtorFunc)(stype st, stgeneric*, flags_t flags);
-typedef intptr (*stCmpFunc)(stype st, stgeneric, stgeneric, flags_t flags);
-typedef uint32 (*stHashFunc)(stype st, stgeneric, flags_t flags);
-typedef void (*stCopyFunc)(stype st, stgeneric*, stgeneric, flags_t flags);
+typedef void (*stDtorFunc)(stype st, stgeneric*, uint32 flags);
+typedef intptr (*stCmpFunc)(stype st, stgeneric, stgeneric, uint32 flags);
+typedef uint32 (*stHashFunc)(stype st, stgeneric, uint32 flags);
+typedef void (*stCopyFunc)(stype st, stgeneric*, stgeneric, uint32 flags);
 
 extern stDtorFunc _stDefaultDtor[256];
 extern stCmpFunc _stDefaultCmp[256];
@@ -610,7 +609,7 @@ _meta_inline stgeneric _stStoredVal(stype st, const void *storage)
 
 // inlining these lets most of it get optimized out and specialized if the type is known at compile-time
 
-_meta_inline void _stDestroy(stype st, STypeOps *ops, stgeneric *gen, flags_t flags)
+_meta_inline void _stDestroy(stype st, STypeOps *ops, stgeneric *gen, uint32 flags)
 {
     // ops is mandatory for custom type
     devAssert(!stHasFlag(st, Custom) || ops);
@@ -620,9 +619,9 @@ _meta_inline void _stDestroy(stype st, STypeOps *ops, stgeneric *gen, flags_t fl
     else if (_stDefaultDtor[stGetId(st)])
         _stDefaultDtor[stGetId(st)](st, gen, flags);
 }
-#define stDestroy(type, pobj, flags) _stDestroy(stFullType(type), stArgPtr(type, pobj), flags)
+#define stDestroy(type, pobj, ...) _stDestroy(stFullType(type), stArgPtr(type, pobj), func_flags(STOPS, __VA_ARGS__))
 
-_meta_inline intptr _stCmp(stype st, STypeOps *ops, stgeneric gen1, stgeneric gen2, flags_t flags)
+_meta_inline intptr _stCmp(stype st, STypeOps *ops, stgeneric gen1, stgeneric gen2, uint32 flags)
 {
     // ops is mandatory for custom type
     devAssert(!stHasFlag(st, Custom) || ops);
@@ -638,9 +637,9 @@ _meta_inline intptr _stCmp(stype st, STypeOps *ops, stgeneric gen1, stgeneric ge
     else
         return memcmp(gen1.st_ptr, gen2.st_ptr, stGetSize(st));
 }
-#define stCmp(type, obj1, obj2, flags) _stCmp(stFullType(type), stArg(type, obj1), stArg(type, obj2), flags)
+#define stCmp(type, obj1, obj2, ...) _stCmp(stFullType(type), stArg(type, obj1), stArg(type, obj2), func_flags(STOPS, __VA_ARGS__))
 
-_meta_inline void _stCopy(stype st, STypeOps *ops, stgeneric *dest, stgeneric src, flags_t flags)
+_meta_inline void _stCopy(stype st, STypeOps *ops, stgeneric *dest, stgeneric src, uint32 flags)
 {
     // ops is mandatory for custom type
     devAssert(!stHasFlag(st, Custom) || ops);
@@ -654,10 +653,10 @@ _meta_inline void _stCopy(stype st, STypeOps *ops, stgeneric *dest, stgeneric sr
     else
         memcpy(dest->st_ptr, src.st_ptr, stGetSize(st));
 }
-#define stCopy(type, pdest, src, flags) _stCopy(stFullType(type), stArgPtr(type, pdest), stArg(type, src), flags)
+#define stCopy(type, pdest, src, ...) _stCopy(stFullType(type), stArgPtr(type, pdest), stArg(type, src), func_flags(STOPS, __VA_ARGS__))
 
-uint32 stHash_gen(stype st, stgeneric stgen, flags_t flags);
-_meta_inline uint32 _stHash(stype st, STypeOps *ops, stgeneric gen, flags_t flags)
+uint32 stHash_gen(stype st, stgeneric stgen, uint32 flags);
+_meta_inline uint32 _stHash(stype st, STypeOps *ops, stgeneric gen, uint32 flags)
 {
     // ops is mandatory for custom type
     devAssert(!stHasFlag(st, Custom) || ops);
@@ -669,6 +668,6 @@ _meta_inline uint32 _stHash(stype st, STypeOps *ops, stgeneric gen, flags_t flag
     else
         return stHash_gen(st, gen, flags);
 }
-#define stHash(type, obj, flags) _stHash(stFullType(type), stArg(type, obj), flags)
+#define stHash(type, obj, ...) _stHash(stFullType(type), stArg(type, obj), func_flags(STOPS, __VA_ARGS__))
 
 CX_C_END

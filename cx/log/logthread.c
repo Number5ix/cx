@@ -20,7 +20,7 @@ static int logthread_func(Thread *self)
     while (!_log_event)
         osYield();
 
-    saInit(&ents, ptr, 16, 0);
+    saInit(&ents, ptr, 16);
 
     while (!atomicLoad(bool, &self->requestExit, Acquire)) {
         rwlockAcquireRead(&_log_buffer_lock);
@@ -35,7 +35,7 @@ static int logthread_func(Thread *self)
             if (!ent)
                 continue;
 
-            saPush(&ents, ptr, ent, 0);
+            saPush(&ents, ptr, ent);
             atomicStore(ptr, &_log_buffer.a[rdptr], NULL, Release);
             rdptr = (rdptr + 1) % bsize;
             atomicStore(int32, &_log_buf_readptr, rdptr, Release);
@@ -67,7 +67,7 @@ static int logthread_func(Thread *self)
 void logThreadCreate(void)
 {
     devAssert(!_log_thread);
-    eventInit(&_log_done_event, 0);
+    eventInit(&_log_done_event);
     _log_thread = thrCreate(logthread_func, stvNone);
     thrRegisterSysThread(_log_thread, &_log_event);
 }

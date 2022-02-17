@@ -38,7 +38,7 @@ extern _Thread_local ScratchPerThreadInfo *_scratch_pti;
 inline void *scratchGet(size_t sz)
 {
     if (!_scratch_pti) {
-        _scratch_pti = (ScratchPerThreadInfo*)xaAlloc(sizeof(ScratchPerThreadInfo), XA_Zero);
+        _scratch_pti = (ScratchPerThreadInfo*)xaAlloc(sizeof(ScratchPerThreadInfo), Zero);
     }
 
     int32 cur = _scratch_pti->next;
@@ -46,7 +46,7 @@ inline void *scratchGet(size_t sz)
 
     sz = clamplow(sz, SCRATCH_MIN_BUFFER_SIZE);
     if (!_scratch_pti->buf[cur]) {
-        _scratch_pti->buf[cur] = xaAlloc(sz, 0);
+        _scratch_pti->buf[cur] = xaAlloc(sz);
     } else {
         size_t cursz = xaSize(_scratch_pti->buf[cur]);
 
@@ -55,7 +55,7 @@ inline void *scratchGet(size_t sz)
              && sz < SCRATCH_MAX_REASONABLE_BUFFER_SIZE)) {
             // xaResize would copy data we don't care about
             xaFree(_scratch_pti->buf[cur]);
-            _scratch_pti->buf[cur] = xaAlloc(sz, 0);
+            _scratch_pti->buf[cur] = xaAlloc(sz);
         }
     }
 

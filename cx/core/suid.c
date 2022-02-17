@@ -20,7 +20,7 @@ static _Thread_local SuidTLSData *suidTls;
 
 SuidTLSData *suidTlsCreate()
 {
-    SuidTLSData *ret = xaAlloc(sizeof(*suidTls), XA_Zero);
+    SuidTLSData *ret = xaAlloc(sizeof(*suidTls), Zero);
     pcgAutoSeed(&ret->pcg);
     return ret;
 }

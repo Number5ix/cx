@@ -25,7 +25,7 @@ bool VFS_init(VFS *self)
     strDup(&self->curdir, fsPathSepStr);
     rwlockInit(&self->vfslock);
     rwlockInit(&self->vfsdlock);
-    htInit(&self->namespaces, string, custom(ptr, VFSDir_ops), 4, HT_CaseInsensitive);
+    htInit(&self->namespaces, string, custom(ptr, VFSDir_ops), 4, CaseInsensitive);
     // Autogen begins -----
     return true;
     // Autogen ends -------
