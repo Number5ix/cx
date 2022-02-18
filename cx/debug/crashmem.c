@@ -76,7 +76,7 @@ void dbgCrashExcludeMemory(void *ptr, size_t sz)
             ir->end = r.start;
 
 #if DEBUG_LEVEL == 0
-            saPush(&_dbgCrashDumpMem, opaque, nr, Unique);
+            saPush(&_dbgCrashDumpMem, opaque, nr, SA_Unique);
 #else
             int32 nidx = saPush(&_dbgCrashDumpMem, opaque, nr, SA_Unique);
             devAssert(nidx == idx + 1);
