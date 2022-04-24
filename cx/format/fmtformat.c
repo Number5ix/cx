@@ -134,7 +134,7 @@ void _fmtFormat(FMTContext *ctx)
     string vstr = 0;
     bool success = false;
 
-    if (_fmtTypeFormat[ctx->v.vtype])
+    if (ctx->v.vtype != -1 && _fmtTypeFormat[ctx->v.vtype])
         success = _fmtTypeFormat[ctx->v.vtype](&ctx->v, &vstr);
 
     if (!success) {
