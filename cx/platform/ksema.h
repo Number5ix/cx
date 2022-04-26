@@ -14,6 +14,8 @@
 #include <cx/platform/win/win_ksema.h>
 #elif defined(_PLATFORM_UNIX)
 #include <cx/platform/unix/unix_ksema.h>
+#elif defined(_PLATFORM_WASM)
+#include <cx/platform/wasm/unix_ksema.h>
 #endif
 
 typedef char kernelSema[KERNEL_SEMA_SIZE];

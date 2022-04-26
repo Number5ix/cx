@@ -66,6 +66,9 @@
 #define _PLATFORM_UNIX 1
 #define _PLATFORM_FBSD 1
 #define _PLATFORM_STR "fbsd"
+#elif defined(__EMSCRIPTEN__)
+#define _PLATFORM_WASM 1
+#define _PLATFORM_STR "wasm"
 #else
 #error Unsupported operating system
 #endif
@@ -82,6 +85,10 @@
 #define _ARCH_ARM64 1
 #define _ARCH_STR "arm64"
 #define _64BIT 1
+#elif defined(__EMSCRIPTEN__)
+#define _ARCH_WASM 1
+#define _ARCH_STR "wasm32"
+#define _32BIT 1
 #else
 #error Unsupported architecture
 #endif

@@ -14,6 +14,8 @@ if(CX_PLATFORM_IS_UNIX)
     add_subdirectory(unix)
 elseif(CX_PLATFORM_IS_WINDOWS)
     add_subdirectory(win)
+elseif(CX_PLATFORM_IS_WASM)
+    add_subdirectory(wasm)
 endif()
 
 set(CX_SRCS
