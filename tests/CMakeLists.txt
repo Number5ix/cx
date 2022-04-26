@@ -25,6 +25,10 @@ add_executable(test_runner ${test_runner_files})
 target_include_directories(test_runner PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(test_runner cx)
 
+if(CX_PLATFORM_IS_WASM)
+    target_link_options(test_runner PRIVATE "-sPTHREAD_POOL_SIZE=16" "-sPROXY_TO_PTHREAD" "-sEXIT_RUNTIME")
+endif()
+
 set_property(TARGET test_runner PROPERTY FOLDER "tests")
 
 add_test(NAME "\"cxmem: Allocation\"" COMMAND test_runner cxmemtest alloc)
