@@ -2,6 +2,7 @@
 
 #include <stdbool.h>
 #include <cx/core/cpp.h>
+#include <cx/utils/macros.h>
 
 #if DEBUG_LEVEL >= 1
 CX_C bool _cxAssertFail(const char *expr, const char *msg, const char *file, int ln);
@@ -13,8 +14,8 @@ CX_C bool _cxAssertFail(const char *expr, const char *msg);
 #define dbgAssert(expr) ((expr) || _cxAssertFail(#expr, NULL, __FILE__, __LINE__))
 #define dbgAssertMsg(expr, msg) ((expr) || _cxAssertFail(#expr, msg, __FILE__, __LINE__))
 #else
-#define dbgAssert(expr) ((void)0)
-#define dbgAssertMsg(expr, msg) ((void)0)
+#define dbgAssert(expr) unused_noeval(expr)
+#define dbgAssertMsg(expr, msg) unused_noeval(expr)
 #endif
 
 #if DEBUG_LEVEL >= 1
@@ -25,8 +26,8 @@ CX_C bool _cxAssertFail(const char *expr, const char *msg);
 #define devFatalError(msg) _cxAssertFail(NULL, msg, __FILE__, __LINE__)
 #define relFatalError(msg) _cxAssertFail(NULL, msg, __FILE__, __LINE__)
 #else
-#define devAssert(expr) ((void)0)
-#define devAssertMsg(expr, msg) ((void)0)
+#define devAssert(expr) unused_noeval(expr)
+#define devAssertMsg(expr, msg) unused_noeval(expr)
 #define relAssert(expr) ((expr) || _cxAssertFail(#expr, NULL))
 #define relAssertMsg(expr, msg) ((expr) || _cxAssertFail(#expr, msg))
 #define devFatalError(msg) ((void)0)
