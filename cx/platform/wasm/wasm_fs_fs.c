@@ -130,19 +130,6 @@ static void fsExeInit(void *data)
 {
     string *exepath = (string*)data;
 
-#if defined(_PLATFORM_FBSD)
-    int mib[4];
-    mib[0] = CTL_KERN;
-    mib[1] = KERN_PROC;
-    mib[2] = KERN_PROC_PATHNAME;
-    mib[3] = -1;
-    size_t sz = 0;
-    sysctl(mib, 4, NULL, &sz, NULL, 0);
-    char *buf = xaAlloc(sz);
-    sysctl(mib, 4, buf, &sz, NULL, 0);
-    pathFromPlatform(exepath, (string)buf);
-    xaFree(buf);
-#elif defined(_PLATFORM_LINUX)
     size_t sz = 1024 / 2;
     char *buf = 0;
     ssize_t lsz;
@@ -161,9 +148,6 @@ static void fsExeInit(void *data)
         pathFromPlatform(exepath, (string)buf);
     }
     xaFree(buf);
-#else
-#error Unknown Platform
-#endif
     pathNormalize(exepath);
 }
 
