@@ -1,5 +1,6 @@
 find_package (Threads REQUIRED)
 
+if(NOT CMAKE_CROSSCOMPILING)
 if(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD" OR ${CMAKE_SYSTEM_NAME} MATCHES "Linux")
     set(CX_PLATFORM_SRCS
 	../cx/platform/unix/unix_error.c
@@ -16,6 +17,8 @@ elseif(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 	../cx/platform/win/win_ksema.c
 	../cx/platform/win/win_os.c
 	../cx/platform/win/win_time_clock.c)
+else()
+    message(FATAL_ERROR "Unsupported platform")
 endif()
 
 set(CXOBJGEN_SRCS
@@ -85,3 +88,7 @@ add_executable(cxobjgen
 
 target_link_libraries(cxobjgen ${CMAKE_THREAD_LIBS_INIT} ${CMAKE_DL_LIBS} cxmem mbedtls pcre2-8)
 target_include_directories(cxobjgen SYSTEM PUBLIC ${CX_TOP_SOURCE_DIR} ${CX_TOP_BINARY_DIR})
+
+export(TARGETS cxobjgen FILE "${CMAKE_BINARY_DIR}/cxobjgen-config.cmake")
+
+endif()     # NOT CMAKE_CROSSCOMPILING

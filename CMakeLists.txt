@@ -7,8 +7,6 @@ endif()
 
 set(CMAKE_CONFIGURATION_TYPES "debug" "dev" "release")
 
-include (${CMAKE_CURRENT_SOURCE_DIR}/cmake/sidl.cmake)
-
 set(CX_TOP_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(CX_TOP_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
 
@@ -19,6 +17,8 @@ set(CX_TOP_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
 
 project (cx)
 enable_language(C)
+
+include (${CMAKE_CURRENT_SOURCE_DIR}/cmake/sidl.cmake)
 
 string(REGEX MATCH "Clang" CX_COMPILER_IS_CLANG "${CMAKE_C_COMPILER_ID}")
 string(REGEX MATCH "GNU" CX_COMPILER_IS_GNU "${CMAKE_C_COMPILER_ID}")
