@@ -9,6 +9,8 @@
 #cmakedefine XALLOC_USE_MIMALLOC 1
 // Use jemalloc as default allocator
 #cmakedefine XALLOC_USE_JEMALLOC 1
+// Use emscripten allocator for WebAssembly
+#cmakedefine XALLOC_USE_EMMALLOC 1
 // Use MSVCRT malloc
 #cmakedefine XALLOC_USE_MSVCRT 1
 

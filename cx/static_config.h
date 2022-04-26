@@ -84,6 +84,10 @@
 
 #define XALLOC_STATIC_CONFIG
 
+#elif defined(XALLOC_USE_EMMALLOC)
+
+#define XALLOC_STATIC_CONFIG
+
 #elif defined(XALLOC_USE_MSVCRT)
 
 #ifdef XALLOC_DEBUG_CHECKS

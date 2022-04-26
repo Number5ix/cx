@@ -28,8 +28,10 @@
 #include "xalloc_jemalloc.h"
 #elif XALLOC_USE_MSVCRT
 #include "xalloc_msvcrt.h"
+#elif XALLOC_USE_EMMALLOC
+#include "xalloc_emmalloc.h"
 #else
-#error cxmem requires XALLOC_USE_MIMALLOC, XALLOC_USE_JEMALLOC or XALLOC_USE_MSVCRT to be set!
+#error cxmem requires XALLOC_USE_MIMALLOC, XALLOC_USE_JEMALLOC, XALLOC_USE_EMMALLOC or XALLOC_USE_MSVCRT to be set!
 #endif
 
 // String utilities because cstrDup is tied in with xalloc

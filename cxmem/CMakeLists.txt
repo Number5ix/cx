@@ -24,6 +24,12 @@ elseif (${CX_ALLOCATOR} STREQUAL "msvcrt")
         ${XALLOC_SRCS}
         xalloc/xalloc_msvcrt.c
         xalloc/xalloc_msvcrt.h)
+elseif (${CX_ALLOCATOR} STREQUAL "emmalloc")
+    set(XALLOC_USE_EMMALLOC 1)
+    set(XALLOC_SRCS
+        ${XALLOC_SRCS}
+        xalloc/xalloc_emmalloc.c
+        xalloc/xalloc_emmalloc.h)
 else()
     message(FATAL_ERROR "No allocator selected")
 endif()

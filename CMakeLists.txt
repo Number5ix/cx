@@ -26,11 +26,20 @@ string(REGEX MATCH "MSVC" CX_COMPILER_IS_MSVC "${CMAKE_C_COMPILER_ID}")
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     set(CX_PLATFORM_IS_WINDOWS 1)
+elseif(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+    set(CX_PLATFORM_IS_WASM 1)
 else()
     set(CX_PLATFORM_IS_UNIX 1)
 endif()
 
-if(CX_COMPILER_IS_CLANG)
+if(CX_PLATFORM_IS_WASM)
+    # emcc needs to handle debug info differently in release builds,
+    # but it's technically clang so check for it first
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Werror")
+    set(CMAKE_C_FLAGS_DEBUG "-O0 -g")
+    set(CMAKE_C_FLAGS_DEV "-O1 -g")
+    set(CMAKE_C_FLAGS_RELEASE "-O3")
+elseif(CX_COMPILER_IS_CLANG)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -Wall -Werror")
     set(CMAKE_C_FLAGS_DEBUG "-O0")
     set(CMAKE_C_FLAGS_DEV "-O1")
@@ -49,7 +58,7 @@ elseif(CX_COMPILER_IS_MSVC)
 	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /debug")
 endif()
 
-# Autodetect allocator of none specified
+# Autodetect allocator if none specified
 if(NOT CX_ALLOCATOR)
     if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
         if(${CMAKE_GENERATOR_PLATFORM} MATCHES "x64")
@@ -70,6 +79,13 @@ if(NOT CX_ALLOCATOR)
     else()
         set(CX_ALLOCATOR "jemalloc" CACHE STRING "memory allocator to build against" FORCE)
     endif()
+endif()
+
+if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+    # WASM requires a specific allocator, forcibly enable it
+    set(CX_ALLOCATOR "emmalloc")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pthread")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pthread -sMALLOC=emmalloc -sINITIAL_MEMORY=2047MB")
 endif()
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)            # for MSVC
