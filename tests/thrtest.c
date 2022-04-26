@@ -299,6 +299,9 @@ static int thrproc5p(Thread *self)
 static int test_event_sub(bool spin)
 {
     atomicStore(bool, &rthread_exit, false, Release);
+    atomicStore(int32, &evwork, 0, Release);
+    atomicStore(int32, &evdone, 0, Release);
+    memset(evthrcount, 0, sizeof(evthrcount));
 
     if (spin)
         eventInit(&testev, EV_Spin);
