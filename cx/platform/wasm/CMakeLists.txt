@@ -1,5 +1,8 @@
 set(CMAKE_EXTRA_INCLUDE_FILES semaphore.h)
-check_type_size("sem_t" KERNEL_SEMA_SIZE)
+
+# check_type_size doesn't seem to work with the node emulation layer
+set(KERNEL_SEMA_SIZE 16)
+
 unset(CMAKE_EXTRA_INCLUDE_FILES)
 configure_file(wasm_ksema.h.in wasm_ksema.h)
 
