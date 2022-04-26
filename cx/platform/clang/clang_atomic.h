@@ -2,7 +2,7 @@
 
 #include <stdatomic.h>
 
-#define atomicInit(...) ATOMIC_VAR_INIT(__VA_ARGS__)
+#define atomicInit(...) (__VA_ARGS__)
 
 #define AtomicMemoryOrder memory_order
 #define ATOMIC_MO_Relaxed memory_order_relaxed
