@@ -6,7 +6,8 @@ create_test_sourcelist(testsrc
     objtest.c
     sarraytest.c
     strtest.c
-    thrtest.c)
+    thrtest.c
+    alltests.c)
 add_sidl(fmttestobj.sidl
     objtestobj.sidl)
 set(test_runner_files
