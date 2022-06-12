@@ -69,7 +69,7 @@ bool _strNConcat(string *o, int n, strref *_args)
 
         // build up new rope
         for (i = 1; i < n;) {
-            if (_strFastLen(curtop) < ROPE_MIN_SIZE && _strFastLen(args[i]) < ROPE_MAX_MERGE) {
+            if (!curright && _strFastLen(curtop) < ROPE_MIN_SIZE && _strFastLen(args[i]) < ROPE_MAX_MERGE) {
                 _strAppendNoRope(&curtop, args[i++]);
             } else if (!curright) {
                 strDup(&curright, args[i++]);
@@ -162,7 +162,7 @@ bool _strNConcatC(string *o, int n, string **args)
 
         // build up new rope
         for (i = 1; i < n;) {
-            if (_strFastLen(curtop) < ROPE_MIN_SIZE && _strFastLen(*args[i]) < ROPE_MAX_MERGE) {
+            if (!curright && _strFastLen(curtop) < ROPE_MIN_SIZE && _strFastLen(*args[i]) < ROPE_MAX_MERGE) {
                 _strAppendNoRope(&curtop, *args[i++]);
             } else if (!curright) {
                 strDup(&curright, *args[i++]);
