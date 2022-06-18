@@ -90,7 +90,7 @@ bool _semaContendedDec(Semaphore *sema, int64 timeout)
         // try to decrement
         curcount = atomicLoad(int32, &sema->count, Acquire);
         if (curcount > 0 && atomicCompareExchange(int32, strong, &sema->count, &curcount,
-                                                  curcount - 1, Acquire, Relaxed)) {
+                                                  curcount - 1, Acquire, Acquire)) {
             // successfully decremented semaphore on fast path
             // adjust adaptive target if we had to spin, perfect synchronization
             // is not necessary
@@ -163,7 +163,7 @@ bool _semaContendedDec(Semaphore *sema, int64 timeout)
         for (;;) {
             curcount = atomicLoad(int32, &sema->count, Acquire);
             if (curcount > 0 && atomicCompareExchange(int32, strong, &sema->count, &curcount,
-                                                      curcount - 1, Acquire, Relaxed))
+                                                      curcount - 1, Acquire, Acquire))
                 return true;
 
             osYield();

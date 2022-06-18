@@ -52,7 +52,7 @@ _meta_inline bool eventWait(Event *e)
 {
     int32 waiting = atomicLoad(int32, &e->waiting, Relaxed);
     while (waiting != -2 && !atomicCompareExchange(int32, weak, &e->waiting, &waiting,
-                                                   waiting + 1, Acquire, Relaxed)) {}
+                                                   waiting + 1, Acquire, Acquire)) {}
 
     // if event was signaled, return immediately
     if (waiting < 0)
@@ -65,7 +65,7 @@ _meta_inline bool eventWaitTimeout(Event *e, uint64 timeout)
 {
     int32 waiting = atomicLoad(int32, &e->waiting, Relaxed);
     while (waiting != -2 && !atomicCompareExchange(int32, weak, &e->waiting, &waiting,
-                                                   waiting + 1, Acquire, Relaxed)) {}
+                                                   waiting + 1, Acquire, Acquire)) {}
 
     // if event was signaled, return immediately
     if (waiting < 0)

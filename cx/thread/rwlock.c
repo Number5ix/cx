@@ -34,7 +34,7 @@ bool _rwlockContendedAcquireRead(RWLock *l, int64 timeout)
                 return false;           // too many already
             nstate = state + RWLOCK_READ_ADD;
         }
-    } while (!atomicCompareExchange(uint32, weak, &l->state, &state, nstate, Acquire, Relaxed));
+    } while (!atomicCompareExchange(uint32, weak, &l->state, &state, nstate, Acquire, Acquire));
 
     // if there are any writers (and we incremented readwait instead of read),
     // wait for them to release the lock and signal rwait
@@ -61,7 +61,7 @@ bool _rwlockContendedAcquireWrite(RWLock *l, int64 timeout)
         // make sure we didn't hit the limit
         if (RWLOCK_WRITERS(state) == RWLOCK_WRITER_MAX)
             return false;
-    } while (!atomicCompareExchange(uint32, weak, &l->state, &state, state + RWLOCK_WRITE_ADD, Acquire, Relaxed));
+    } while (!atomicCompareExchange(uint32, weak, &l->state, &state, state + RWLOCK_WRITE_ADD, Acquire, Acquire));
 
     // if there were any other readers or writers we must wait on them
     if (RWLOCK_READERS(state) > 0 || RWLOCK_WRITERS(state) > 0) {

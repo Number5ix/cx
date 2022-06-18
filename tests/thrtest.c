@@ -269,7 +269,7 @@ static int thrproc5c(Thread *self)
 
         do {
             work = atomicLoad(int32, &evwork, Relaxed);
-            if (work > 0 && atomicCompareExchange(int32, strong, &evwork, &work, work - 1, Acquire, Relaxed)) {
+            if (work > 0 && atomicCompareExchange(int32, strong, &evwork, &work, work - 1, Acquire, Acquire)) {
                 evthrcount[thrid]++;
                 atomicFetchAdd(int32, &evdone, 1, Release);
             }
