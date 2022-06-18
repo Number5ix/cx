@@ -72,11 +72,11 @@ void logBufferAdd(LogEntry *ent)
 
         // try to fill in the next slot
         void *empty = NULL;
-        if (!atomicCompareExchange(ptr, strong, &_log_buffer.a[wrptr], &empty, ent, AcqRel, Relaxed))
+        if (!atomicCompareExchange(ptr, weak, &_log_buffer.a[wrptr], &empty, ent, AcqRel, Acquire))
             continue;
 
         // we succeeded, should be impossible to get a conflict on the write pointer but be paranoid in dev mode
-        ret = atomicCompareExchange(int32, strong, &_log_buf_writeptr, &wrptr, nwrptr, AcqRel, Relaxed);
+        ret = atomicCompareExchange(int32, strong, &_log_buf_writeptr, &wrptr, nwrptr, Release, Acquire);
         devAssert(ret);
         break;
     }
@@ -114,7 +114,7 @@ void logBufferAddBatch(sa_LogEntry batch)
         bool fail = false;
         foreach(sarray, idx, LogEntry*, ent, batch) {
             void *empty = NULL;
-            if (!atomicCompareExchange(ptr, strong, &_log_buffer.a[cwrptr], &empty, ent, AcqRel, Relaxed)) {
+            if (!atomicCompareExchange(ptr, weak, &_log_buffer.a[cwrptr], &empty, ent, AcqRel, Acquire)) {
                 // once we get past the first entry, it *should* be impossible for another thread to claim one
                 // until we update the write pointer
                 devAssert(idx == 0);
@@ -129,7 +129,7 @@ void logBufferAddBatch(sa_LogEntry batch)
 
         // everything succeeded, update the write pointer
         int nwrptr = (wrptr + saSize(batch)) % bsize;
-        ret = atomicCompareExchange(int32, strong, &_log_buf_writeptr, &wrptr, nwrptr, AcqRel, Relaxed);
+        ret = atomicCompareExchange(int32, strong, &_log_buf_writeptr, &wrptr, nwrptr, Release, Acquire);
         devAssert(ret);
         break;
     }
