@@ -82,6 +82,9 @@ static bool logBufferAddInternal(LogEntry *ent)
     int nfail = 0;
     bool ret = false;
 
+    if (!ent)
+        return true;
+
     rwlockAcquireRead(&_log_buffer_lock);
 
 retry:
