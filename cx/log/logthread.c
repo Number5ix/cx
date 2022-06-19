@@ -24,18 +24,18 @@ static int logthread_func(Thread *self)
     while (!atomicLoad(bool, &self->requestExit, Acquire)) {
         rwlockAcquireRead(&_log_buffer_lock);
         int32 bsize = saSize(_log_buffer);      // size cannot change while read lock is held
-        int32 rdptr = atomicLoad(int32, &_log_buf_readptr, Relaxed);
         int32 wrptr = atomicLoad(int32, &_log_buf_writeptr, Acquire);
+        int32 rdptr = atomicLoad(int32, &_log_buf_readptr, Acquire);
 
         // grab available log entries
         while (rdptr != wrptr) {
             LogEntry *ent = atomicLoad(ptr, &_log_buffer.a[rdptr], Acquire);
             devAssert(ent);
-            if (!ent)
-                continue;
 
-            saPush(&ents, ptr, ent);
-            atomicStore(ptr, &_log_buffer.a[rdptr], NULL, Release);
+            if (ent) {
+                saPush(&ents, ptr, ent);
+                atomicStore(ptr, &_log_buffer.a[rdptr], NULL, Release);
+            }
             rdptr = (rdptr + 1) % bsize;
         }
         atomicStore(int32, &_log_buf_readptr, rdptr, Release);
