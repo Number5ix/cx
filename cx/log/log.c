@@ -12,6 +12,13 @@
 int _log_max_level = -1;
 LogCategory* LogDefault;
 
+typedef struct LogBatchTLS {
+    LogEntry *head;
+    LogEntry *tail;
+    int level;
+} LogBatchTLS;
+static _Thread_local LogBatchTLS _log_batch;
+
 strref LogLevelNames[LOG_Count] = {
     (strref)"\xE1\xC1\x05""Fatal",
     (strref)"\xE1\xC1\x05""Error",
@@ -75,12 +82,18 @@ static void _logStrInternal(int level, LogCategory *cat, strref str)
     ent->cat = cat;
     strDup(&ent->msg, str);
 
-    if (!_log_thread_batch.a) {
+    if (!_log_batch.level) {
         // to the global log buffer
         logBufferAdd(ent);
     } else {
         // this thread is preparing a batch
-        saPush(&_log_thread_batch, ptr, ent);
+        if (_log_batch.tail) {
+            _log_batch.tail->_next = ent;
+            _log_batch.tail = ent;
+        } else {
+            _log_batch.head = ent;
+            _log_batch.tail = ent;
+        }
     }
 }
 
@@ -111,13 +124,15 @@ void _logFmt(int level, LogCategory *cat, strref fmtstr, int n, stvar *args)
 
 void logBatchBegin(void)
 {
-    devAssert(!_log_thread_batch.a);
-    saInit(&_log_thread_batch, ptr, LOG_INITIAL_BUFFER_SIZE / 2);
+    _log_batch.level++;
 }
 
 void logBatchEnd(void)
 {
-    devAssert(_log_thread_batch.a);
-    logBufferAddBatch(_log_thread_batch);
-    saDestroy(&_log_thread_batch);
+    devAssert(_log_batch.level > 0);
+    if (--_log_batch.level == 0) {
+        logBufferAdd(_log_batch.head);
+        _log_batch.head = NULL;
+        _log_batch.tail = NULL;
+    }
 }

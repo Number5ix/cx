@@ -16,15 +16,15 @@ typedef struct LogDest {
 } LogDest;
 saDeclarePtr(LogDest);
 
+typedef struct LogEntry LogEntry;
 typedef struct LogEntry {
+    LogEntry *_next;        // chain for log batches, internal use only
     int64 timestamp;
     LogCategory *cat;
     string msg;
     int level;
 } LogEntry;
 saDeclarePtr(LogEntry);
-
-extern _Thread_local sa_LogEntry _log_thread_batch;
 
 // cached for performance, can safely be non-atomic
 extern int _log_max_level;
@@ -41,5 +41,4 @@ extern sa_LogDest _log_dests;
 void logCheckInit(void);
 void logDestroyEnt(LogEntry *ent);
 void logBufferAdd(LogEntry *ent);
-void logBufferAddBatch(sa_LogEntry batch);
 void logThreadCreate(void);

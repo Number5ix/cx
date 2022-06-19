@@ -10,7 +10,6 @@
 Thread *_log_thread;
 Event *_log_event;
 static Event _log_done_event;
-_Thread_local sa_LogEntry _log_thread_batch;
 
 static int logthread_func(Thread *self)
 {
@@ -38,20 +37,24 @@ static int logthread_func(Thread *self)
             saPush(&ents, ptr, ent);
             atomicStore(ptr, &_log_buffer.a[rdptr], NULL, Release);
             rdptr = (rdptr + 1) % bsize;
-            atomicStore(int32, &_log_buf_readptr, rdptr, Release);
         }
+        atomicStore(int32, &_log_buf_readptr, rdptr, Release);
         rwlockReleaseRead(&_log_buffer_lock);
 
-        // now that we have a batch of log entries, process them
+        // now that we have a bunch of log entries and batches, process them
         mutexAcquire(&_log_dests_lock);
         foreach(sarray, ent__idx, LogEntry*, ent, ents) {
-            foreach(sarray, dest_idx, LogDest*, dest, _log_dests) {
-                if (ent->level <= dest->maxlevel && (!dest->catfilter || dest->catfilter == ent->cat)) {
-                    // dispatch to log destination
-                    dest->func(ent->level, ent->cat, ent->timestamp, ent->msg, dest->userdata);
-                }
-            } endforeach;
-            logDestroyEnt(ent);
+            while (ent) {
+                LogEntry *next = ent->_next;
+                foreach(sarray, dest_idx, LogDest *, dest, _log_dests) {
+                    if (ent->level <= dest->maxlevel && (!dest->catfilter || dest->catfilter == ent->cat)) {
+                        // dispatch to log destination
+                        dest->func(ent->level, ent->cat, ent->timestamp, ent->msg, dest->userdata);
+                    }
+                } endforeach;
+                logDestroyEnt(ent);
+                ent = next;         // process the rest of the batch
+            }
         } endforeach;
         mutexRelease(&_log_dests_lock);
 

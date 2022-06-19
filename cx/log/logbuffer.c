@@ -5,11 +5,30 @@
 
 #include "log_private.h"
 #include <cx/container/foreach.h>
+#include <cx/utils/compare.h>
+#include <cx/time/clock.h>
+#include <cx/platform/os.h>
+
+#define LOG_BUFFER_MAXENT       262144
+#define OVERFLOW_BATCH_MAXENT   65536
+
+// try to keep this low to avoid stalling too much when there's contention
+#define MAX_CAS_TRIES           30
 
 RWLock _log_buffer_lock;
 sa_atomicptr _log_buffer;
 atomic(int32) _log_buf_readptr;
 atomic(int32) _log_buf_writeptr;
+
+// per-thread overflow log batch if the main buffer fills up or is under
+// high contention
+typedef struct LogOverflowTLS {
+    LogEntry *head;
+    LogEntry *tail;
+    int count;
+    bool lost;
+} LogOverflowTLS;
+static _Thread_local LogOverflowTLS _log_overflow;
 
 // MUST be called with _log_buffer_lock held in read mode
 static void logBufferGrow(int32 minsize)
@@ -21,6 +40,11 @@ static void logBufferGrow(int32 minsize)
     int32 nsize = bsize;
     while (nsize < minsize)
         nsize += nsize >> 1;            // grow by 50%
+    nsize = clamphigh(nsize, LOG_BUFFER_MAXENT);
+
+    // another thread may have grown the buffer when we released the read lock
+    if (bsize >= nsize)
+        goto out;
 
     sa_atomicptr newbuf;
     saInit(&newbuf, ptr, nsize);
@@ -46,93 +70,124 @@ static void logBufferGrow(int32 minsize)
     atomicStore(int32, &_log_buf_readptr, 0, Release);
     atomicStore(int32, &_log_buf_writeptr, nents, Release);
 
+out:
     rwlockReleaseWrite(&_log_buffer_lock);
     rwlockAcquireRead(&_log_buffer_lock);
+}
+
+static bool logBufferAddInternal(LogEntry *ent)
+{
+    int32 bsize, rdptr, wrptr, nwrptr;
+    void *empty;
+    int nfail = 0;
+    bool ret = false;
+
+    rwlockAcquireRead(&_log_buffer_lock);
+
+retry:
+    if (nfail > MAX_CAS_TRIES)
+        goto out;           // give up, it'll have to go to overflow
+
+    bsize = saSize(_log_buffer);
+    rdptr = atomicLoad(int32, &_log_buf_readptr, Acquire);
+    wrptr = atomicLoad(int32, &_log_buf_writeptr, Acquire);
+
+    // calculate next write pointer position
+    nwrptr = (wrptr + 1) % bsize;
+    if (nwrptr == rdptr) {
+        // ringbuffer is full, need to expand it
+        if (bsize >= LOG_BUFFER_MAXENT)
+            goto out;           // can't expand further, they'll have to go to overflow
+        logBufferGrow(bsize + 1);
+        goto retry;
+    }
+
+    // fill in the next slot, this is where the real race happens
+    empty = NULL;
+    if (!atomicCompareExchange(ptr, weak, &_log_buffer.a[wrptr], &empty, ent, AcqRel, Acquire)) {
+        osYield();
+        nfail++;
+        goto retry;
+    }
+
+    // update the write pointer once we've committed the log entry, otherwise no other thread
+    // can possibly write to the buffer due to _log_buffer.a[wrptr] being non-NULL
+
+    atomicStore(int32, &_log_buf_writeptr, nwrptr, Release);
+    eventSignal(_log_event);
+    ret = true;
+
+out:
+    rwlockReleaseRead(&_log_buffer_lock);
+
+    return ret;
+}
+
+static void logBufferOverflow(LogEntry *ent)
+{
+    if (_log_overflow.count >= OVERFLOW_BATCH_MAXENT) {
+        // if the overflow is full, we have no choice but to drop events
+        if (!_log_overflow.lost) {
+            devAssert(_log_overflow.tail);
+            if (!_log_overflow.tail)
+                return;
+            // insert a message that events were lost
+            LogEntry *lostent = xaAlloc(sizeof(LogEntry), XA_Zero);
+            strDup(&lostent->msg, _S"One or more log entries were lost due to log buffer overflow.");
+            lostent->timestamp = clockWall();
+            lostent->level = LOG_Warn;
+            _log_overflow.tail->_next = lostent;
+            _log_overflow.tail = lostent;
+            ++_log_overflow.count;
+            _log_overflow.lost = 1;
+        }
+
+        while (ent) {
+            LogEntry *next = ent->_next;
+            logDestroyEnt(ent);
+            ent = next;
+        }
+
+        return;
+    }
+
+    if (_log_overflow.tail) {
+        _log_overflow.tail->_next = ent;
+        _log_overflow.tail = ent;
+    } else {
+        _log_overflow.head = ent;
+        _log_overflow.tail = ent;
+    }
+
+    ++_log_overflow.count;
+
+    // this might have itself been a batch, so chase the tail if necessary
+    while (_log_overflow.tail->_next) {
+        _log_overflow.tail = _log_overflow.tail->_next;
+        ++_log_overflow.count;
+    }
+}
+
+static bool logBufferRetryOverflow()
+{
+    if (!_log_overflow.head)
+        return true;
+
+    if (logBufferAddInternal(_log_overflow.head)) {
+        _log_overflow.head = NULL;
+        _log_overflow.tail = NULL;
+        _log_overflow.count = 0;
+        _log_overflow.lost = false;
+        return true;
+    }
+
+    return false;
 }
 
 // these should almost never block, the only time that happens is if
 // the buffer is about to overflow and needs to be expanded
 void logBufferAdd(LogEntry *ent)
 {
-    bool ret;
-
-    rwlockAcquireRead(&_log_buffer_lock);
-    for (;;) {
-        int32 bsize = saSize(_log_buffer);
-        int32 rdptr = atomicLoad(int32, &_log_buf_readptr, Acquire);
-        int32 wrptr = atomicLoad(int32, &_log_buf_writeptr, Acquire);
-
-        // calculate next write pointer position
-        int nwrptr = (wrptr + 1) % bsize;
-        if (nwrptr == rdptr) {
-            // ringbuffer is full, need to expand it
-            logBufferGrow(bsize + 1);
-            continue;
-        }
-
-        // try to fill in the next slot
-        void *empty = NULL;
-        if (!atomicCompareExchange(ptr, weak, &_log_buffer.a[wrptr], &empty, ent, AcqRel, Acquire))
-            continue;
-
-        // we succeeded, should be impossible to get a conflict on the write pointer but be paranoid in dev mode
-        ret = atomicCompareExchange(int32, strong, &_log_buf_writeptr, &wrptr, nwrptr, Release, Acquire);
-        devAssert(ret);
-        break;
-    }
-    eventSignal(_log_event);
-    rwlockReleaseRead(&_log_buffer_lock);
-}
-
-void logBufferAddBatch(sa_LogEntry batch)
-{
-    bool ret;
-
-    rwlockAcquireRead(&_log_buffer_lock);
-    for (;;) {
-        int32 bsize = saSize(_log_buffer);
-        int32 rdptr = atomicLoad(int32, &_log_buf_readptr, Acquire);
-        int32 wrptr = atomicLoad(int32, &_log_buf_writeptr, Acquire);
-
-        // calculate how much room is left in the buffer
-        int32 navail;
-        if (wrptr >= rdptr)
-            navail = bsize - wrptr + rdptr;
-        else
-            navail = rdptr - wrptr;
-
-        // make sure there's enough room for the whole batch,
-        // +1 because we have to leave one open slot always to keep
-        // rdptr == wrptr from being ambiguous
-        if (navail < saSize(batch) + 1) {
-            logBufferGrow(bsize + saSize(batch) + 1 - navail);
-            continue;
-        }
-
-        // try to fill in the slots
-        int32 cwrptr = wrptr;
-        bool fail = false;
-        foreach(sarray, idx, LogEntry*, ent, batch) {
-            void *empty = NULL;
-            if (!atomicCompareExchange(ptr, weak, &_log_buffer.a[cwrptr], &empty, ent, AcqRel, Acquire)) {
-                // once we get past the first entry, it *should* be impossible for another thread to claim one
-                // until we update the write pointer
-                devAssert(idx == 0);
-                fail = true;
-                break;
-            }
-            cwrptr = (cwrptr + 1) % bsize;
-        } endforeach;
-
-        if (fail)
-            continue;
-
-        // everything succeeded, update the write pointer
-        int nwrptr = (wrptr + saSize(batch)) % bsize;
-        ret = atomicCompareExchange(int32, strong, &_log_buf_writeptr, &wrptr, nwrptr, Release, Acquire);
-        devAssert(ret);
-        break;
-    }
-    eventSignal(_log_event);
-    rwlockReleaseRead(&_log_buffer_lock);
+    if (!logBufferRetryOverflow() || !logBufferAddInternal(ent))
+        logBufferOverflow(ent);
 }
