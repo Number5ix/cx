@@ -24,9 +24,9 @@ typedef struct LogFileData {
 } LogFileData;
 
 #ifdef _PLATFORM_WIN
-static string loglineend = _S"\r\n";
+static strref loglineend = (strref)"\xE1\xC1\x02""\r\n";
 #else
-static string loglineend = _S"\n";
+static strref loglineend = (strref)"\xE1\xC1\x01""\n";
 #endif
 
 static void deleteOldFiles(LogFileData *lfd);
