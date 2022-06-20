@@ -30,7 +30,7 @@ saDeclarePtr(LogEntry);
 extern int _log_max_level;
 
 saDeclareType(atomicptr, atomic(ptr));
-extern RWLock _log_buffer_lock;            // used for expanding the buffer
+extern RWLock _log_buffer_lock;             // used for expanding the buffer
 extern sa_atomicptr _log_buffer;            // ring buffer
 extern atomic(int32) _log_buf_readptr;
 extern atomic(int32) _log_buf_writeptr;

@@ -114,9 +114,26 @@ retry:
     }
 
     // update the write pointer once we've committed the log entry, otherwise no other thread
-    // can possibly write to the buffer due to _log_buffer.a[wrptr] being non-NULL
-
-    atomicStore(int32, &_log_buf_writeptr, nwrptr, Release);
+    // can write to the buffer due to _log_buffer.a[wrptr] being non-NULL. See comments below for why
+    // this needs to be another CAS and not a simple store.
+    for(;;) {
+        int32 oldwrptr = wrptr;
+        if (atomicCompareExchange(int32, weak, &_log_buf_writeptr, &oldwrptr, nwrptr, AcqRel, Release))
+            break;
+        if (oldwrptr != wrptr) {
+            // In rare cases under high contention, it's possible for a long context switch to stall
+            // this thead in just the wrong spot to cause us to end up with a stale wrptr that has
+            // been passed up by *rdptr*. In that case the buffer will look empty because the reader
+            // thread has already cleared it out and the initial CAS will succeed, but when we try to
+            // update wrptr we find that another thread has already advanced it.
+            //
+            // To handle this correctly we need to back out the incorrect buffer entry so that it
+            // doesn't block another thread and then retry.
+            atomicStore(ptr, &_log_buffer.a[wrptr], NULL, Release);
+            nfail++;
+            goto retry;
+        }
+    }
     eventSignal(_log_event);
     ret = true;
 
