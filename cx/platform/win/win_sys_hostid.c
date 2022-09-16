@@ -5,6 +5,103 @@
 
 #include <mbedtls/entropy.h>
 
+typedef int (*GetSystemFirmwareTable_t)(DWORD FirmwareTableProviderSignature, DWORD FirmwareTableID, PVOID pFirmwareTableBuffer, DWORD BufferSize);
+
+typedef struct DMIHeader {
+    BYTE type;
+    BYTE length;
+    WORD handle;
+} DMIHeader;
+
+typedef struct RawSMBIOSData {
+    BYTE    Used20CallingMethod;
+    BYTE    SMBIOSMajorVersion;
+    BYTE    SMBIOSMinorVersion;
+    BYTE    DmiRevision;
+    DWORD   Length;
+    BYTE    SMBIOSTableData[];
+} RawSMBIOSData;
+
+static int32 hostIdTrySMBIOS(mbedtls_md_context_t *shactx)
+{
+    int32 ret = 0;
+    char *buf = 0;
+
+    GetSystemFirmwareTable_t pGetSystemFirmwareTable;
+    HANDLE hDll = LoadLibrary(TEXT("kernel32.dll"));
+    if (!hDll)
+        goto out;
+    pGetSystemFirmwareTable = (GetSystemFirmwareTable_t)GetProcAddress(hDll, "GetSystemFirmwareTable");
+    if (!pGetSystemFirmwareTable)
+        goto out;
+
+    int bufsize = pGetSystemFirmwareTable('RSMB', 0, 0, 0);
+    if (!bufsize)
+        goto out;
+
+    buf = xaAlloc(bufsize);
+    if (!pGetSystemFirmwareTable('RSMB', 0, buf, bufsize))
+        goto out;
+
+    RawSMBIOSData *smb = (RawSMBIOSData *)buf;
+    BYTE *p = smb->SMBIOSTableData;
+
+    bufsize -= 8;       // reuse bufsize as data length remaining
+    if (smb->Length != bufsize)
+    {
+        // invalid smbios data
+        goto out;
+    }
+
+    for (int i = 0; i < (int)smb->Length; i++) {
+        DMIHeader *h = h = (DMIHeader*)p;
+        if (h->length > bufsize) {
+            // tried to run off the end of the buffer
+            goto out;
+        }
+
+        if (h->type == 1 && h->length >= 0x19) {
+            bool allzero = true, allones = true;
+            BYTE *uuid = (p + 8);
+
+            // check for either a completely zero UUID, or all 0xFF, both of which
+            // are invalid
+            for (int j = 0; j < 16; j++) {
+                if (uuid[j] != 0x00)
+                    allzero = false;
+                if (uuid[j] != 0xFF)
+                    allones = false;
+            }
+
+            if (allzero || allones)
+                goto out;
+
+            // okay, we have a valid UUID!
+            // theoretically some byte swapping should be done to get it into the
+            // proper order per smbios 2.6 spec, but since all we need is a fingerprint
+            // to hash, it doesn't matter. A given system will always be consistent
+            // about the ordering it uses so just hash it as-is.
+
+            mbedtls_md_update(shactx, uuid, 16);
+            ret = HID_SourceBIOSUUID;
+            goto out;
+        }
+
+        // move to next header, skip over NULLs, being careful about overflow
+        p += h->length;
+        bufsize -= h->length;
+        while (bufsize > 0 && (*(WORD *)p) != 0) { p++; bufsize--; }
+        p += 2;
+        bufsize -= 2;
+    }
+
+out:
+    if (hDll)
+        FreeLibrary(hDll);
+    xaSFree(buf);
+    return ret;
+}
+
 static int32 hostIdTryRegistry(HKEY hive, int32 retval, mbedtls_md_context_t *shactx)
 {
     int32 ret = 0;
@@ -51,8 +148,12 @@ int32 hostIdPlatformInit(mbedtls_md_context_t *shactx)
     int32 ret = 0;
     HKEY key;
 
-    // prefer machine-wide registry entry if possible
-    ret = hostIdTryRegistry(HKEY_LOCAL_MACHINE, HID_SourceMachineRegistry, shactx);
+    // prefer SMBIOS UUID if possible
+    ret = hostIdTrySMBIOS(shactx);
+
+    // next best is machine-wide registry entry
+    if (!ret)
+        ret = hostIdTryRegistry(HKEY_LOCAL_MACHINE, HID_SourceMachineRegistry, shactx);
 
     // but if running as non-admin it's not likely it can be created, so save it per-user instead
     if (!ret)
