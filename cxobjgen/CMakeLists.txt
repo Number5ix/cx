@@ -14,6 +14,7 @@ elseif(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 	../cx/platform/win/win_error.c
 	../cx/platform/win/win_fs_file.c
 	../cx/platform/win/win_fs_fs.c
+	../cx/platform/win/win_futex.c
 	../cx/platform/win/win_ksema.c
 	../cx/platform/win/win_os.c
 	../cx/platform/win/win_time_clock.c)

@@ -1,0 +1,53 @@
+#pragma once
+
+#include <cx/cx.h>
+#include <cx/thread/atomic.h>
+
+enum FUTEX_Flags {
+    FUTEX_Alertable = 0x01,     // may be interrupted by platform-specific events
+};
+
+enum FUTEX_Status {
+    FUTEX_Error   = 0,          // unexpected error
+    FUTEX_Waited  = 0x1,        // successfully waited for wakeup
+    FUTEX_Retry   = 0x2,        // old value was not what was expected, try again
+    FUTEX_Timeout = 0x4,        // timeout reached
+};
+#define FUTEX_LOOP 0x3          // convenient mask for certain futex loops
+
+typedef struct Futex {
+    atomic(int32) val;
+    atomic(uint16) _ps;                 // platform-specific value
+    atomic(uint8) _ps_lock;             // _ps spinlock
+    uint8 flags;
+} Futex;
+
+_Static_assert(sizeof(Futex) <= sizeof(int64), "Invalid Futex structure packing");
+
+bool futexInit(Futex *ftx, int32 val, int32 flags);
+
+_meta_inline int32 futexVal(Futex *ftx) {
+    return atomicLoad(int32, &ftx->val, Relaxed);
+}
+
+// sets the value but does NOT wake up any waiting threads; use with caution
+// and pair with either futexWake or futexWakeAll
+_meta_inline void futexSet(Futex *ftx, int32 val) {
+    atomicStore(int32, &ftx->val, val, Relaxed);
+}
+
+// See futexWait, but also allows the thread to be alerted on certain
+// platform-specific events. Sets the alerted parameter to true or false
+// depending on if one of these events occurred.
+int futexWaitAlertable(Futex *ftx, int32 oldval, int64 timeout, bool *alerted);
+
+// If futex value is equal to oldval, puts the thread to sleep until futexWake
+// is called on the same futex, or until the timeout expires.
+// Returns true only if the thread actually slept.
+_meta_inline int futexWait(Futex *ftx, int32 oldval, int64 timeout)
+{
+    return futexWaitAlertable(ftx, oldval, timeout, NULL);
+}
+
+void futexWake(Futex *ftx);
+void futexWakeAll(Futex *ftx);

@@ -9,6 +9,7 @@ set(THREAD_SRCS
 set(THREAD_INCLUDES
     thread/atomic.h
     thread/event.h
+    thread/futex.h
     thread/mutex.h
     thread/rwlock.h
     thread/sema.h
