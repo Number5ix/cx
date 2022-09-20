@@ -1,6 +1,7 @@
 set(MATH_SRCS
     math/pcg.c)
 set(MATH_INCLUDES
+    math/lcg.h
     math/pcg.h)
 
 set(CX_SRCS

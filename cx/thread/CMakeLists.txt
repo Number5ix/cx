@@ -7,6 +7,7 @@ set(THREAD_SRCS
     thread/systhread.c
     thread/thread.c)
 set(THREAD_INCLUDES
+    thread/aspin.h
     thread/atomic.h
     thread/event.h
     thread/futex.h
