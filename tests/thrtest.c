@@ -1,7 +1,7 @@
 #include <cx/thread.h>
 #include <cx/string/strtest.h>
 #include <cx/container.h>
-#include <cx/thread/sema.h>
+#include <cx/thread/futex.h>
 #include <cx/thread/event.h>
 #include <cx/thread/mutex.h>
 #include <cx/thread/rwlock.h>
@@ -53,7 +53,7 @@ static int test_basic()
     return ret;
 }
 
-static Semaphore testsem;
+static Futex testftx;
 
 static int thrproc2(Thread *self)
 {
@@ -65,47 +65,53 @@ static int thrproc2(Thread *self)
         return 0;
 
     for (int i = 0; i < count; i++) {
-        if (dec)
-            semaDec(&testsem);
-        else
-            semaInc(&testsem, 1);
+        if (dec) {
+            int32 val = 1;
+            while (!atomicCompareExchange(int32, weak, &testftx.val, &val, val - 1, Acquire, Relaxed)) {
+                if (val == 0) {
+                    futexWait(&testftx, 0, timeForever);
+                    val = 1;
+                }
+            }
+        }
+        else {
+            atomicFetchAdd(int32, &testftx.val, 1, Relaxed);
+            futexWake(&testftx);
+        }
     }
 
     return 0;
 }
 
-#define SEMA_PRODUCERS 4
-#define SEMA_CONSUMERS 16
-#define SEMA_COUNT 1048576
-static int test_sema()
+#define FUTEX_PRODUCERS 4
+#define FUTEX_CONSUMERS 16
+#define FUTEX_COUNT 1048576
+static int test_futex()
 {
     int ret = 0;
-    if (!semaInit(&testsem, 0))
+    if (!futexInit(&testftx, 0, 0))
         return 1;
 
     int i;
-    Thread *producers[SEMA_PRODUCERS];
-    Thread *consumers[SEMA_CONSUMERS];
-    for (i = 0; i < SEMA_CONSUMERS; i++) {
-        consumers[i] = thrCreate(thrproc2, stvar(uint8, 1), stvar(int32, SEMA_COUNT / SEMA_CONSUMERS));
+    Thread *producers[FUTEX_PRODUCERS];
+    Thread *consumers[FUTEX_CONSUMERS];
+    for (i = 0; i < FUTEX_CONSUMERS; i++) {
+        consumers[i] = thrCreate(thrproc2, stvar(uint8, 1), stvar(int32, FUTEX_COUNT / FUTEX_CONSUMERS));
     }
-    for (i = 0; i < SEMA_PRODUCERS; i++) {
-        producers[i] = thrCreate(thrproc2, stvar(uint8, 0), stvar(int32, SEMA_COUNT / SEMA_PRODUCERS));
+    for (i = 0; i < FUTEX_PRODUCERS; i++) {
+        producers[i] = thrCreate(thrproc2, stvar(uint8, 0), stvar(int32, FUTEX_COUNT / FUTEX_PRODUCERS));
     }
 
-    for (i = 0; i < SEMA_PRODUCERS; i++) {
+    for (i = 0; i < FUTEX_PRODUCERS; i++) {
         thrWait(producers[i], timeForever);
         thrDestroy(&producers[i]);
     }
-    for (i = 0; i < SEMA_CONSUMERS; i++) {
+    for (i = 0; i < FUTEX_CONSUMERS; i++) {
         thrWait(consumers[i], timeForever);
         thrDestroy(&consumers[i]);
     }
 
-    if (atomicLoad(int32, &testsem.count, Acquire) != 0)
-        ret = 1;
-
-    if (!semaDestroy(&testsem))
+    if (atomicLoad(int32, &testftx.val, Acquire) != 0)
         ret = 1;
 
     return ret;
@@ -383,12 +389,16 @@ static int test_event_s()
 static int thrproc6(Thread *self)
 {
     // first test should take less than half a second
-    if (!semaTryDecTimeout(&testsem, timeFromMsec(500)))
+    if (futexWait(&testftx, 0, timeFromMsec(500)) != FUTEX_Waited)
         atomicStore(bool, &fail, true, Release);
 
+    atomicFetchSub(int32, &testftx.val, 1, Relaxed);
+
     // second test should take more than half a second
-    if (semaTryDecTimeout(&testsem, timeFromMsec(500)))
+    if (futexWait(&testftx, 0, timeFromMsec(500)) != FUTEX_Timeout)
         atomicStore(bool, &fail, true, Release);
+
+    atomicFetchSub(int32, &testftx.val, 1, Relaxed);
 
     return 0;
 }
@@ -396,15 +406,17 @@ static int thrproc6(Thread *self)
 static int test_timeout()
 {
     atomicStore(bool, &fail, false, Release);
-    semaInit(&testsem, 0);
+    futexInit(&testftx, 0, 0);
 
     Thread *testthr = thrCreate(thrproc6, stvNone);
 
     osSleep(timeFromMsec(250));
-    semaInc(&testsem, 1);
+    atomicFetchAdd(int32, &testftx.val, 1, Relaxed);
+    futexWake(&testftx);
 
     osSleep(timeFromMsec(750));
-    semaInc(&testsem, 1);
+    atomicFetchAdd(int32, &testftx.val, 1, Relaxed);
+    futexWake(&testftx);
 
     thrWait(testthr, timeForever);
     thrDestroy(&testthr);
@@ -415,7 +427,7 @@ static int test_timeout()
 
 testfunc thrtest_funcs[] = {
     { "basic", test_basic },
-    { "sema", test_sema },
+    { "futex", test_futex },
     { "mutex", test_mutex },
     { "rwlock", test_rwlock },
     { "event", test_event },
