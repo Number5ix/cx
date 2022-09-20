@@ -1,24 +1,60 @@
 #include "mutex.h"
+#include <cx/time/clock.h>
 
-bool mutexInit(Mutex *m)
+bool _mutexInit(Mutex *m, uint32 flags)
 {
-    memset(m, 0, sizeof(Mutex));
-    semaInit(&m->sema, 0);
+    futexInit(&m->ftx, 0, 0);
+    aspinInit(&m->aspin, flags & MUTEX_NoSpin);
     return true;
 }
 
-bool _mutexContendedAcquire(Mutex *m, int64 timeout)
+bool mutexTryAcquireTimeout(Mutex *m, int64 timeout)
 {
-    if (atomicFetchAdd(int32, &m->waiting, 1, Acquire) > 0) {
-        if (timeout == timeForever)
-            return semaDec(&m->sema);
-        else
-            return semaTryDecTimeout(&m->sema, timeout);
+    // try simple lock first
+    int32 curstate = 0;
+    if (atomicCompareExchange(int32, strong, &m->ftx.val, &curstate, 1, AcqRel, Acquire)) {
+        aspinRecordUncontended(&m->aspin);
+        return true;
     }
+
+    // nope, have to wait
+    AdaptiveSpinState astate;
+    aspinBegin(&m->aspin, &astate, timeout);
+    do {
+        do {
+            if (curstate == 2 || atomicCompareExchange(int32, weak, &m->ftx.val, &curstate, 2, AcqRel, Acquire)) {
+                if (!aspinSpin(&m->aspin, &astate))
+                    futexWait(&m->ftx, 2, aspinTimeoutRemaining(&astate));
+            }
+
+            curstate = atomicLoad(int32, &m->ftx.val, Relaxed);
+            if (curstate != 2)          // the CAS above failed
+                aspinHandleContention(&m->aspin, &astate);
+
+            if (aspinTimeout(&m->aspin, &astate))
+                return false;
+        } while (curstate != 0);
+
+        // try to lock it again
+    } while (!atomicCompareExchange(int32, strong, &m->ftx.val, &curstate, 2, AcqRel, Acquire));
+
+    aspinAdapt(&m->aspin, &astate);
     return true;
+}
+
+bool mutexRelease(Mutex *m)
+{
+    int prevstate = atomicFetchSub(int32, &m->ftx.val, 1, Release);
+    devAssert(prevstate > 0);
+    if (prevstate > 1) {
+        futexSet(&m->ftx, 0);
+        futexWake(&m->ftx);
+        return true;
+    }
+    return (prevstate > 0);
 }
 
 void mutexDestroy(Mutex *m)
 {
-    semaDestroy(&m->sema);
+    memset(m, 0, sizeof(Mutex));
 }

@@ -1,8 +1,10 @@
 #pragma once
 
 #include <cx/cx.h>
-#include <cx/platform/base.h>
-#include "sema.h"
+#include <cx/time/time.h>
+#include <cx/utils/macros.h>
+#include "futex.h"
+#include "aspin.h"
 
 #ifdef CX_LOCK_DEBUG
 #include <cx/log/log.h>
@@ -10,28 +12,36 @@
 
 CX_C_BEGIN
 
+enum MUTEX_Flags {
+    MUTEX_NoSpin = 1,           // do not use adaptive spin, use kernel futex only
+};
+
 typedef struct Mutex {
-    atomic(int32) waiting;
-    Semaphore sema;
+    // Futex values:
+    // 0 - Lock is not held
+    // 1 - Lock is held
+    // 2 - Lock is held and there is contention
+    Futex ftx;
+    AdaptiveSpin aspin;
 } Mutex;
 
-bool mutexInit(Mutex *m);
-bool _mutexContendedAcquire(Mutex *m, int64 timeout);
+bool _mutexInit(Mutex *m, uint32 flags);
+#define mutexInit(m, ...) _mutexInit(m, opt_flags(__VA_ARGS__))
+bool mutexTryAcquireTimeout(Mutex *m, int64 timeout);
+bool mutexRelease(Mutex *m);
 _meta_inline bool mutexTryAcquire(Mutex *m)
 {
-    if (atomicLoad(int32, &m->waiting, Relaxed) != 0)
-        return false;
-    int nowait = 0;
-    return atomicCompareExchange(int32, strong, &m->waiting, &nowait, 1, Acquire, Acquire);
+    int32 unlocked = 0;
+    if (atomicCompareExchange(int32, strong, &m->ftx.val, &unlocked, 1, AcqRel, Relaxed)) {
+        aspinRecordUncontended(&m->aspin);
+        return true;
+    }
+    return false;
 }
 
 _meta_inline bool mutexAcquire(Mutex *m)
 {
-    // try lightweight no-contention path inline
-    if (mutexTryAcquire(m))
-        return true;
-
-    return _mutexContendedAcquire(m, timeForever);
+    return mutexTryAcquireTimeout(m, timeForever);
 }
 
 #ifdef CX_LOCK_DEBUG
@@ -46,26 +56,6 @@ _meta_inline bool mutexLogAndAcquire(Mutex *m, const char *name, const char *fil
 
 #define mutexAcquire(m) mutexLogAndAcquire(m, #m, __FILE__, __LINE__)
 #endif
-
-_meta_inline bool mutexTryAcquireTimeout(Mutex *m, int64 timeout)
-{
-    // try lightweight no-contention path inline
-    if (mutexTryAcquire(m))
-        return true;
-
-    return _mutexContendedAcquire(m, timeout);
-}
-
-_meta_inline bool mutexRelease(Mutex *m)
-{
-    int waiters = atomicFetchSub(int32, &m->waiting, 1, Release);
-    devAssert(waiters > 0);
-    if (waiters > 1) {
-        semaInc(&m->sema, 1);
-        return true;
-    }
-    return false;
-}
 
 #ifdef CX_LOCK_DEBUG
 _meta_inline bool mutexLogAndRelease(Mutex *m, const char *name, const char *filename, int line)
