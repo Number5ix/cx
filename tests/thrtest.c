@@ -254,6 +254,7 @@ static Event testev;
 #define EVENT_COUNT 32768
 
 static int32 evthrcount[EVENT_CONSUMERS];
+static atomic(int32) evsignaled;
 static atomic(int32) evwork;
 static atomic(int32) evdone;
 
@@ -267,16 +268,24 @@ static int thrproc5c(Thread *self)
     for (;;) {
         eventWait(&testev);
 
+        if (atomicLoad(bool, &rthread_exit, Acquire))
+            break;
+
+        int32 sig = atomicLoad(int32, &evsignaled, Relaxed);
+        // we shouldn't wake up if the event hasn't been signaled
+        if (sig == 0)
+            atomicStore(bool, &fail, true, Relaxed);
+        else
+            atomicFetchSub(int32, &evsignaled, 1, Relaxed);
+
+        work = atomicLoad(int32, &evwork, Relaxed);
         do {
-            work = atomicLoad(int32, &evwork, Relaxed);
             if (work > 0 && atomicCompareExchange(int32, strong, &evwork, &work, work - 1, Acquire, Acquire)) {
                 evthrcount[thrid]++;
                 atomicFetchAdd(int32, &evdone, 1, Release);
             }
+            work = atomicLoad(int32, &evwork, Relaxed);
         } while (work > 0);
-
-        if (atomicLoad(bool, &rthread_exit, Acquire))
-            break;
     }
 
     return 0;
@@ -290,7 +299,10 @@ static int thrproc5p(Thread *self)
 
     for (int i = 0; i < count; i++) {
         atomicFetchAdd(int32, &evwork, 1, Acquire);
-        eventSignal(&testev);
+        atomicFetchAdd(int32, &evsignaled, 1, Acquire);
+        while (!eventSignal(&testev)) {
+            osYield();
+        }
     }
 
     return 0;
@@ -299,6 +311,7 @@ static int thrproc5p(Thread *self)
 static int test_event_sub(bool spin)
 {
     atomicStore(bool, &rthread_exit, false, Release);
+    atomicStore(bool, &fail, false, Release);
     atomicStore(int32, &evwork, 0, Release);
     atomicStore(int32, &evdone, 0, Release);
     memset(evthrcount, 0, sizeof(evthrcount));
@@ -341,6 +354,12 @@ static int test_event_sub(bool spin)
     for (int i = 0; i < EVENT_CONSUMERS; i++) {
         tcount += evthrcount[i];
     }
+
+    if (atomicLoad(bool, &fail, Acquire))
+        return 1;
+
+    if (atomicLoad(int32, &evsignaled, Acquire) != 0)
+        return 1;
 
     if (atomicLoad(int32, &evdone, Acquire) != EVENT_COUNT)
         return 1;
