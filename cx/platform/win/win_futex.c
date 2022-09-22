@@ -84,7 +84,7 @@ bool futexInit(Futex *ftx, int32 val, int32 flags) {
     return true;
 }
 
-int futexWaitAlertable(Futex *ftx, int32 oldval, int64 timeout, bool *alerted) {
+int futexWait(Futex *ftx, int32 oldval, int64 timeout) {
     // early out if the value already doesn't match
     if (atomicLoad(int32, &ftx->val, Relaxed) != oldval)
         return FUTEX_Retry;
@@ -124,8 +124,11 @@ int futexWaitAlertable(Futex *ftx, int32 oldval, int64 timeout, bool *alerted) {
 
         // double check the the value didn't change on us, with the lock held
         uint8 oldwait = 0;
+        int32 count = 0;
         while (!atomicCompareExchange(uint8, weak, &ftx->_ps_lock, &oldwait, 1, Acquire, Relaxed)) {
             _CPU_PAUSE;
+            if (++count > 2)
+                osYield();      // relieve some pressure if we can't get it
             oldwait = 0;
         }
         if (atomicLoad(int32, &ftx->val, Relaxed) != oldval) {
@@ -139,9 +142,9 @@ int futexWaitAlertable(Futex *ftx, int32 oldval, int64 timeout, bool *alerted) {
 
         long status = pNtWaitForKeyedEvent(ftxke, &ftx->val, alertable, (timeout == timeForever) ? NULL : &ketimeout);
         atomicFetchSub(uint16, &ftx->_ps, 1, Release);
-        if (alerted)
-            *alerted = (status == STATUS_ALERTED);
 
+        if (status == STATUS_ALERTED)
+            return FUTEX_Alerted;
         if (status == STATUS_TIMEOUT)
             return FUTEX_Timeout;
         if (status == STATUS_SUCCESS)

@@ -12,8 +12,9 @@ enum FUTEX_Status {
     FUTEX_Waited  = 0x1,        // successfully waited for wakeup
     FUTEX_Retry   = 0x2,        // old value was not what was expected, try again
     FUTEX_Timeout = 0x4,        // timeout reached
+    FUTEX_Alerted = 0x8,        // a platform-specific event interrupted the wait
 };
-#define FUTEX_LOOP 0x3          // convenient mask for certain futex loops
+#define FUTEX_LOOP 0x3          // convenient mask for certain futex loops (Waited or Retry)
 
 typedef struct Futex {
     atomic(int32) val;
@@ -36,18 +37,10 @@ _meta_inline void futexSet(Futex *ftx, int32 val) {
     atomicStore(int32, &ftx->val, val, Relaxed);
 }
 
-// See futexWait, but also allows the thread to be alerted on certain
-// platform-specific events. Sets the alerted parameter to true or false
-// depending on if one of these events occurred.
-int futexWaitAlertable(Futex *ftx, int32 oldval, int64 timeout, bool *alerted);
-
 // If futex value is equal to oldval, puts the thread to sleep until futexWake
 // is called on the same futex, or until the timeout expires.
 // Returns true only if the thread actually slept.
-_meta_inline int futexWait(Futex *ftx, int32 oldval, int64 timeout)
-{
-    return futexWaitAlertable(ftx, oldval, timeout, NULL);
-}
+int futexWait(Futex *ftx, int32 oldval, int64 timeout);
 
 void futexWake(Futex *ftx);
 void futexWakeAll(Futex *ftx);
