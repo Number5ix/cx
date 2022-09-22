@@ -78,7 +78,7 @@ int alltests(int argc, const char *argv[])
     {
         int64 tstart = clockTimer();
         printf("%4d/%d: %s ", i + 1, ntests, tests[i].descr);
-        int ndots = 40 - strlen(tests[i].descr);
+        int ndots = 40 - (int)strlen(tests[i].descr);
         for (int j = 0; j < ndots; j++)
             putchar('.');
         fflush(stdout);
