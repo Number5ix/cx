@@ -2,29 +2,46 @@
 
 // Reader/writer lock implementation
 
-// Heavily inspired by Jeff Preshing's semaphore-based RW locks
+// Inspired by Jeff Preshing's semaphore-based RW locks
 // https://github.com/preshing/cpp11-on-multicore/blob/master/common/rwlock.h
 
 // Reworked to support timeouts for both read and write lock acquisition. Also
 // does not assert if the maximum number of readers, waiters, or writers is
 // reached but rather fails to acquire the lock.
 
-bool rwlockInit(RWLock *l)
+// Further reworked to use futexes instead of semaphores.
+
+bool _rwlockInit(RWLock *l, uint32 flags)
 {
-    memset(l, 0, sizeof(RWLock));
-    semaInit(&l->rwait, 0);
-    semaInit(&l->wwait, 0);
+    atomicStore(uint32, &l->state, 0, Relaxed);
+    futexInit(&l->rftx, 0, 0);
+    futexInit(&l->wftx, 0, 0);
+    aspinInit(&l->aspin, flags & RWLOCK_NoSpin);
     return true;
 }
 
-bool _rwlockContendedAcquireRead(RWLock *l, int64 timeout)
+bool rwlockTryAcquireReadTimeout(RWLock *l, int64 timeout)
 {
     uint32 state = atomicLoad(uint32, &l->state, Relaxed);
-    uint32 nstate;
+    // Try lightweight path first, if there aren't any writers and there's no contention
+    if (RWLOCK_WRITERS(state) == 0) {
+        // cannot acquire if we are at the max
+        if (RWLOCK_READERS(state) == RWLOCK_READER_MAX)
+            return false;
+        if (atomicCompareExchange(uint32, weak, &l->state, &state, state + RWLOCK_READ_ADD, Acquire, Acquire)) {
+            aspinRecordUncontended(&l->aspin);
+            return true;        // got the lock
+        }
+    }
 
-    do {
+    // Nope, do full loop
+    AdaptiveSpinState astate;
+    uint32 nstate;
+    aspinBegin(&l->aspin, &astate, timeout);
+    // first register as either a reader or a waiting reader
+    for (;;) {
         if (RWLOCK_WRITERS(state) > 0) {
-            // if there are any writer we must go into readwait state
+            // if there are any writers we must go into readwait state
             if (RWLOCK_READWAIT(state) == RWLOCK_READWAIT_MAX)
                 return false;           // too many already
             nstate = state + RWLOCK_READWAIT_ADD;
@@ -34,49 +51,99 @@ bool _rwlockContendedAcquireRead(RWLock *l, int64 timeout)
                 return false;           // too many already
             nstate = state + RWLOCK_READ_ADD;
         }
-    } while (!atomicCompareExchange(uint32, weak, &l->state, &state, nstate, Acquire, Acquire));
 
-    // if there are any writers (and we incremented readwait instead of read),
-    // wait for them to release the lock and signal rwait
-    if (RWLOCK_WRITERS(state) > 0) {
-        if (timeout == timeForever)
-            return semaDec(&l->rwait);
-        else {
-            if (!semaTryDecTimeout(&l->rwait, timeout)) {
-                // timed out, must undo our increment of readwait
-                atomicFetchSub(uint32, &l->state, RWLOCK_READWAIT_ADD, Release);
-                return false;
+        // try to update the new state
+        if (atomicCompareExchange(uint32, weak, &l->state, &state, nstate, Acquire, Relaxed))
+            break;
+        else
+            aspinHandleContention(&l->aspin, &astate);
+    }
+
+    // if were weren't any writers on the state we successfully swapped, then we're done
+    if (RWLOCK_WRITERS(state) == 0) {
+        aspinRecordUncontended(&l->aspin);
+        return true;
+    }
+
+    // otherwise have to wait in the read queue until released
+
+    int rval = 1;
+    while (!atomicCompareExchange(int32, weak, &l->rftx.val, &rval, rval - 1, Acquire, Relaxed))
+    {
+        if (aspinTimeout(&l->aspin, &astate)) {
+            // have to undo the add of RWLOCK_READWAIT_ADD from above,
+            // but be careful to avoid a race with rwlockReleaseWrite
+            state = atomicLoad(uint32, &l->state, Relaxed);
+            while (RWLOCK_READWAIT(state) > 0 &&
+                   !atomicCompareExchange(uint32, weak, &l->state, &state, state - RWLOCK_READWAIT_ADD, Release, Relaxed)) {
+                aspinHandleContention(&l->aspin, &astate);
             }
+            return false;
+        }
+
+        if (rval == 0) {
+            if (!aspinSpin(&l->aspin, &astate))
+                futexWait(&l->rftx, rval, aspinTimeoutRemaining(&astate));
+            rval = 1;
         }
     }
 
+    // got a read lock finally
+    aspinAdapt(&l->aspin, &astate);
     return true;
 }
 
-bool _rwlockContendedAcquireWrite(RWLock *l, int64 timeout)
+bool rwlockTryAcquireWriteTimeout(RWLock *l, int64 timeout)
 {
     uint32 state = atomicLoad(uint32, &l->state, Relaxed);
-
-    do {
+    // Try lightweight path first if there's no contention and the lock is wide open
+    if (RWLOCK_WRITERS(state) == 0 && RWLOCK_READERS(state) == 0) {
         // make sure we didn't hit the limit
         if (RWLOCK_WRITERS(state) == RWLOCK_WRITER_MAX)
             return false;
-    } while (!atomicCompareExchange(uint32, weak, &l->state, &state, state + RWLOCK_WRITE_ADD, Acquire, Acquire));
-
-    // if there were any other readers or writers we must wait on them
-    if (RWLOCK_READERS(state) > 0 || RWLOCK_WRITERS(state) > 0) {
-        if (timeout == timeForever)
-            return semaDec(&l->wwait);
-        else {
-            if (!semaTryDecTimeout(&l->wwait, timeout)) {
-                // timed out, must undo our increment of writers
-                atomicFetchSub(uint32, &l->state, RWLOCK_WRITE_ADD, Release);
-                return false;
-            }
+        if (atomicCompareExchange(uint32, weak, &l->state, &state, state + RWLOCK_WRITE_ADD, Acquire, Acquire)) {
+            aspinRecordUncontended(&l->aspin);
+            return true;        // got the lock
         }
     }
 
-    // turned out not to be any contention after all
+    AdaptiveSpinState astate;
+    aspinBegin(&l->aspin, &astate, timeout);
+    for (;;) {
+        // make sure we didn't hit the limit
+        if (RWLOCK_WRITERS(state) == RWLOCK_WRITER_MAX)
+            return false;
+
+        if (atomicCompareExchange(uint32, weak, &l->state, &state, state + RWLOCK_WRITE_ADD, Acquire, Acquire))
+            break;
+        else
+            aspinHandleContention(&l->aspin, &astate);
+    }
+
+    // if there were any other readers or writers we must wait on them
+    if (RWLOCK_READERS(state) > 0 || RWLOCK_WRITERS(state) > 0) {
+        // wait in the write queue
+        int32 wval = 1;
+        while (!atomicCompareExchange(int32, weak, &l->wftx.val, &wval, wval - 1, Acquire, Relaxed)) {
+            if (aspinTimeout(&l->aspin, &astate)) {
+                // nothing else can remove a writer except the writer itself, so we can just subtract in this case
+                // (see comments in rwlockTryAcquireReadTimeout)
+                atomicFetchSub(uint32, &l->state, RWLOCK_WRITE_ADD, Release);
+                return false;
+            }
+
+            if (wval == 0) {
+                if (!aspinSpin(&l->aspin, &astate))
+                    futexWait(&l->wftx, wval, aspinTimeoutRemaining(&astate));
+                wval = 1;
+            } else {
+                aspinHandleContention(&l->aspin, &astate);
+            }
+        }
+
+        aspinAdapt(&l->aspin, &astate);
+    }
+
     return true;
 }
 
@@ -85,6 +152,8 @@ bool rwlockReleaseWrite(RWLock *l)
     uint32 state = atomicLoad(uint32, &l->state, Relaxed);
     uint32 nstate, rwait;
 
+    AdaptiveSpinState astate;
+    aspinBegin(&l->aspin, &astate, timeForever);
     do {
         devAssert(RWLOCK_WRITERS(state) > 0 && RWLOCK_READERS(state) == 0);
 
@@ -102,20 +171,25 @@ bool rwlockReleaseWrite(RWLock *l)
             //      is less bits wide than readers)
             nstate = (nstate & RWLOCK_WRITER_MASK) | rwait;
         }
+
+        // don't use aspinHandleContention; releasing write lock should be top priority
     } while (!atomicCompareExchange(uint32, weak, &l->state, &state, nstate, Release, Relaxed));
 
-    // if any threads are waiting to read, release them
-    // waiting readers get priority over writers so that they take turns
-    if (rwait > 0)
-        semaInc(&l->rwait, rwait);
-    else if (RWLOCK_WRITERS(state) > 1)     // otherwise if anyone else is waiting
-        semaInc(&l->wwait, 1);              // release one thread
+    if (rwait > 0) {
+        // if any threads are waiting to read, release them
+        // waiting readers get priority over writers so that they take turns
+        atomicFetchAdd(int32, &l->rftx.val, rwait, Relaxed);
+        futexWakeAll(&l->rftx);
+    } else if (RWLOCK_WRITERS(state) > 1) {
+        // otherwise if anyone else is waiting, release one thread
+        atomicFetchAdd(int32, &l->wftx.val, 1, Relaxed);
+        futexWake(&l->wftx);
+    }
 
     return true;
 }
 
 void rwlockDestroy(RWLock *l)
 {
-    semaDestroy(&l->rwait);
-    semaDestroy(&l->wwait);
+    memset(l, 0, sizeof(RWLock));
 }

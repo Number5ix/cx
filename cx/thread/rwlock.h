@@ -2,13 +2,18 @@
 
 #include <cx/cx.h>
 #include <cx/platform/base.h>
-#include "sema.h"
+#include "futex.h"
+#include "aspin.h"
 
 #ifdef CX_LOCK_DEBUG
 #include <cx/log/log.h>
 #endif
 
 CX_C_BEGIN
+
+enum RWLOCK_Flags {
+    RWLOCK_NoSpin = 1,          // do not use adaptive spin, use kernel futex only
+};
 
 #define RWLOCK_READER_MAX 4095
 #define RWLOCK_READWAIT_MAX 2047
@@ -17,33 +22,37 @@ CX_C_BEGIN
 #define RWLOCK_READER_MASK              (0x00000fff)
 #define RWLOCK_READWAIT_MASK            (0x007ff000)
 #define RWLOCK_WRITER_MASK              (0xff800000)
-#define RWLOCK_READERS(state)   (state & RWLOCK_READER_MASK)
-#define RWLOCK_READWAIT(state) ((state & RWLOCK_READWAIT_MASK) >> 12)
-#define RWLOCK_WRITERS(state)  ((state & RWLOCK_WRITER_MASK)   >> 23)
+#define RWLOCK_READERS(state)   ((state) & RWLOCK_READER_MASK)
+#define RWLOCK_READWAIT(state) (((state) & RWLOCK_READWAIT_MASK) >> 12)
+#define RWLOCK_WRITERS(state)  (((state) & RWLOCK_WRITER_MASK)   >> 23)
 #define RWLOCK_READ_ADD                  0x00000001
 #define RWLOCK_READWAIT_ADD              0x00001000
 #define RWLOCK_WRITE_ADD                 0x00800000
 
 typedef struct RWLock {
-    atomic(uint32) state;
-    Semaphore rwait;
-    Semaphore wwait;
+    atomic(uint32) state;   // main lock state
+    Futex rftx;             // read queue
+    Futex wftx;             // write queue
+    AdaptiveSpin aspin;
 } RWLock;
 
-bool rwlockInit(RWLock *l);
-bool _rwlockContendedAcquireRead(RWLock *l, int64 timeout);
-bool _rwlockContendedAcquireWrite(RWLock *l, int64 timeout);
+bool _rwlockInit(RWLock *l, uint32 flags);
+#define rwlockInit(l, ...) _rwlockInit(l, opt_flags(__VA_ARGS__))
+bool rwlockTryAcquireReadTimeout(RWLock *l, int64 timeout);
+bool rwlockTryAcquireWriteTimeout(RWLock *l, int64 timeout);
 
 _meta_inline bool rwlockTryAcquireRead(RWLock *l)
 {
     uint32 state = atomicLoad(uint32, &l->state, Relaxed);
-    // only valid when no writer locks are held
-    while (RWLOCK_WRITERS(state) == 0) {
+    // only valid when no writer locks are held or pending
+    if (RWLOCK_WRITERS(state) == 0) {
         // cannot acquire if we are at the max
         if (RWLOCK_READERS(state) == RWLOCK_READER_MAX)
             return false;
-        if (atomicCompareExchange(uint32, weak, &l->state, &state, state + RWLOCK_READ_ADD, Acquire, Acquire))
+        if (atomicCompareExchange(uint32, weak, &l->state, &state, state + RWLOCK_READ_ADD, Acquire, Acquire)) {
+            aspinRecordUncontended(&l->aspin);
             return true;        // got the lock
+        }
     }
 
     // no longer have valid conditions in which this lock can be acquired
@@ -54,12 +63,14 @@ _meta_inline bool rwlockTryAcquireWrite(RWLock *l)
 {
     uint32 state = atomicLoad(uint32, &l->state, Relaxed);
     // only valid when no other writer locks are held, and there are no (active) readers
-    while (RWLOCK_WRITERS(state) == 0 && RWLOCK_READERS(state) == 0) {
+    if (RWLOCK_WRITERS(state) == 0 && RWLOCK_READERS(state) == 0) {
         // make sure we didn't hit the limit
         if (RWLOCK_WRITERS(state) == RWLOCK_WRITER_MAX)
             return false;
-        if (atomicCompareExchange(uint32, weak, &l->state, &state, state + RWLOCK_WRITE_ADD, Acquire, Acquire))
+        if (atomicCompareExchange(uint32, weak, &l->state, &state, state + RWLOCK_WRITE_ADD, Acquire, Acquire)) {
+            aspinRecordUncontended(&l->aspin);
             return true;        // got the lock
+        }
     }
 
     // no longer have valid conditions in which this lock can be acquired
@@ -68,11 +79,7 @@ _meta_inline bool rwlockTryAcquireWrite(RWLock *l)
 
 _meta_inline bool rwlockAcquireRead(RWLock *l)
 {
-    // try lightweight no-contention path inline
-    if (rwlockTryAcquireRead(l))
-        return true;
-
-    return _rwlockContendedAcquireRead(l, timeForever);
+    return rwlockTryAcquireReadTimeout(l, timeForever);
 }
 
 #ifdef CX_LOCK_DEBUG
@@ -88,22 +95,9 @@ _meta_inline bool rwlockLogAndAcquireRead(RWLock *l, const char *name, const cha
 #define rwlockAcquireRead(l) rwlockLogAndAcquireRead(l, #l, __FILE__, __LINE__)
 #endif
 
-_meta_inline bool rwlockTryAcquireReadTimeout(RWLock *l, int64 timeout)
-{
-    // try lightweight no-contention path inline
-    if (rwlockTryAcquireRead(l))
-        return true;
-
-    return _rwlockContendedAcquireRead(l, timeout);
-}
-
 _meta_inline bool rwlockAcquireWrite(RWLock *l)
 {
-    // try lightweight no-contention path inline
-    if (rwlockTryAcquireWrite(l))
-        return true;
-
-    return _rwlockContendedAcquireWrite(l, timeForever);
+    return rwlockTryAcquireWriteTimeout(l, timeForever);
 }
 
 #ifdef CX_LOCK_DEBUG
@@ -117,23 +111,17 @@ _meta_inline bool rwlockLogAndAcquireWrite(RWLock *l, const char *name, const ch
 #define rwlockAcquireWrite(l) rwlockLogAndAcquireWrite(l, #l, __FILE__, __LINE__)
 #endif
 
-_meta_inline bool rwlockTryAcquireWriteTimeout(RWLock *l, int64 timeout)
-{
-    // try lightweight no-contention path inline
-    if (rwlockTryAcquireWrite(l))
-        return true;
-
-    return _rwlockContendedAcquireWrite(l, timeout);
-}
-
 _meta_inline bool rwlockReleaseRead(RWLock *l)
 {
     devAssert(RWLOCK_READERS(atomicLoad(uint32, &l->state, Relaxed)) > 0);
     uint32 oldstate = atomicFetchSub(uint32, &l->state, RWLOCK_READ_ADD, Release);
 
     // If we were the last reader and any writers are waiting, unblock one
-    if (RWLOCK_READERS(oldstate) == 1 && RWLOCK_WRITERS(oldstate) > 0)
-        semaInc(&l->wwait, 1);
+    if (RWLOCK_READERS(oldstate) == 1 && RWLOCK_WRITERS(oldstate) > 0) {
+        int32 oldrval = atomicFetchAdd(int32, &l->wftx.val, 1, Relaxed);
+        devAssert(oldrval == 0);
+        futexWake(&l->wftx);
+    }
 
     return true;
 }
