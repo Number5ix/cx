@@ -6,11 +6,13 @@
 #include <cx/time/time.h>
 #include <cx/platform/cpu.h>
 #include <cx/platform/os.h>
+#include <cx/utils/compare.h>
 
 // Common functions for adaptive spin threading primitives
 
 #define ASPIN_MAX_USEC 10                    // hard cap in microseconds
-#define ASPIN_INITIAL_TARGET 500             // initial number of cycles to spin
+#define ASPIN_INITIAL_TARGET 10              // initial number of cycles to spin
+#define ASPIN_NOSPIN (-2147483647 - 1)
 
 #if DEBUG_LEVEL >= 2
 #define ASPIN_PERF_STATS
@@ -91,7 +93,7 @@ _meta_inline void aspinInit(AdaptiveSpin *aspin, bool nospin)
     if (osPhysicalCPUs() == 1)
         nospin = true;
 
-    atomicStore(int32, &aspin->spintarget, nospin ? -1 : ASPIN_INITIAL_TARGET, Relaxed);
+    atomicStore(int32, &aspin->spintarget, nospin ? ASPIN_NOSPIN : ASPIN_INITIAL_TARGET, Relaxed);
 }
 
 _meta_inline void aspinBegin(AdaptiveSpin *aspin, AdaptiveSpinState *ass, int64 timeout)
@@ -101,15 +103,24 @@ _meta_inline void aspinBegin(AdaptiveSpin *aspin, AdaptiveSpinState *ass, int64 
     ass->spincap = ass->start + ASPIN_MAX_USEC;
     ass->endtime = (timeout == timeForever) ? timeForever : ass->start + timeout;
     ass->curtarget = atomicLoad(int32, &aspin->spintarget, Relaxed);
-    ass->spincount = (ass->curtarget == -1) ? 0 : ass->curtarget * 2;       // -1 == nospin
+    if (ass->curtarget < 1 && ass->curtarget != ASPIN_NOSPIN)
+        ass->curtarget = ASPIN_INITIAL_TARGET;
+    ass->spincount = (ass->curtarget == ASPIN_NOSPIN) ? 0 : ass->curtarget * 2;       // -1 == nospin
     ass->contention = 0;
     ass->rstate = (ass->now & 0xffffffff);
 }
 
 _meta_inline bool aspinSpin(AdaptiveSpin *aspin, AdaptiveSpinState *ass)
 {
+    // clockTimer may be an expensive system call on some platforms.
+    // Only update clock once every 8 loops, for a tighter spin and less latency.
+    if ((ass->spincount & 7) == 7)
+        ass->now = clockTimer();
+
     // check if we hit the hard cap on spin time
     if (ass->spincount > 0 && ass->now > ass->spincap) {
+        // this sets the target to half the current spincount, since the cap will be double that
+        atomicStore(int32, &aspin->spintarget, (ass->curtarget * 2 - ass->spincount) / 2, Relaxed);
         ass->spincount = 0;
         aspinRecordCapped(aspin);
     }
@@ -125,7 +136,15 @@ _meta_inline bool aspinSpin(AdaptiveSpin *aspin, AdaptiveSpinState *ass)
 
 _meta_inline bool aspinTimeout(AdaptiveSpin *aspin, AdaptiveSpinState *ass)
 {
-    ass->now = clockTimer();
+    // early out if we don't have a timeout -- skip clock update
+    if (ass->endtime == timeForever)
+        return false;
+
+    // if spinloop is done, update clock here instead since the futex wait
+    // could be a very long time
+    if (ass->spincount == 0)
+        ass->now = clockTimer();
+
     if (ass->now > ass->endtime) {
         aspinRecordTimeout(aspin);
         return true;
@@ -139,15 +158,16 @@ _meta_inline void aspinAdapt(AdaptiveSpin *aspin, AdaptiveSpinState *ass)
     if (ass->now > ass->endtime)
         return;
 
-    if (ass->curtarget != -1) {
+    if (ass->curtarget != ASPIN_NOSPIN) {
         if (ass->spincount > 0) {
             // adjust adaptive target based on how much spinning we did
-            atomicFetchAdd(int32, &aspin->spintarget, (ass->curtarget - ass->spincount) / 8 + 1, Relaxed);
+            int32 realtarget = atomicLoad(int32, &aspin->spintarget, Relaxed);
+            atomicFetchAdd(int32, &aspin->spintarget, clamp(ass->curtarget - ass->spincount, -realtarget, realtarget) / 8 + 1, Relaxed);
             aspinRecordSpin(aspin);
         } else {
             if (ass->now <= ass->spincap) {
-                // we had to go to futuxes, give it a big boost
-                atomicFetchAdd(int32, &aspin->spintarget, ass->curtarget + 2, Relaxed);
+                // we had to go to futuxes, give it a boost
+                atomicFetchAdd(int32, &aspin->spintarget, ass->curtarget / 8 + 1, Relaxed);
             }
             aspinRecordFutex(aspin);
         }
@@ -177,8 +197,10 @@ _meta_inline void aspinHandleContention(AdaptiveSpin *aspin, AdaptiveSpinState *
     // We use a poor quality but fast LCG pseudorandom number generator that is good enough
     // for this purpose.
 
-    if (lcgRandom(&ass->rstate) % ++ass->contention > 0) {
+    if (lcgRandom(&ass->rstate) % ++ass->contention > 1) {
         aspinRecordYield(aspin);
         osYield();
+    } else {
+        _CPU_PAUSE;
     }
 }
