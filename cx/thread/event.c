@@ -92,8 +92,11 @@ bool eventSignalLock(Event *e)
 bool eventWaitTimeout(Event *e, uint64 timeout)
 {
     // try fast path first
-    int32 val = 1;
-    if (atomicCompareExchange(int32, weak, &e->ftx.val, &val, 0, Acquire, Relaxed)) {
+    int32 val = atomicLoad(int32, &e->ftx.val, Relaxed);
+    if (val == -1)
+        return true;
+
+    if (val == 1 && atomicCompareExchange(int32, strong, &e->ftx.val, &val, 0, Acquire, Relaxed)) {
         aspinRecordUncontended(&e->aspin);
         return true;
     }
