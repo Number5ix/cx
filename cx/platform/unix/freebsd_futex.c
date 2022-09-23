@@ -51,6 +51,11 @@ void futexWake(Futex *ftx)
     _umtx_op(&ftx->val, UMTX_OP_WAKE_PRIVATE, 1, NULL, NULL);
 }
 
+void futexWakeMany(Futex *ftx, int count)
+{
+    _umtx_op(&ftx->val, UMTX_OP_WAKE_PRIVATE, count, NULL, NULL);
+}
+
 void futexWakeAll(Futex *ftx)
 {
     _umtx_op(&ftx->val, UMTX_OP_WAKE_PRIVATE, INT_MAX, NULL, NULL);

@@ -199,6 +199,44 @@ void futexWake(Futex *ftx)
     }
 }
 
+void futexWakeMany(Futex *ftx, int count)
+{
+    bool alertable = ftx->flags & FUTEX_Alertable;
+
+    if (pWaitOnAddress && !alertable) {
+        // fast path, this happens most of the time
+        while (count > 0) {
+            pWakeByAddressSingle(&ftx->val);
+            --count;
+        }
+    } else {
+        LARGE_INTEGER ketimeout = { 0 };
+        uint16 nwaiters;
+
+        // get spinlock
+        uint8 oldwait = 0;
+        while (!atomicCompareExchange(uint8, weak, &ftx->_ps_lock, &oldwait, 1, Acquire, Relaxed)) {
+            _CPU_PAUSE;
+            oldwait = 0;
+        }
+        nwaiters = atomicLoad(uint16, &ftx->_ps, Relaxed);
+        // unlock spinlock
+        atomicFetchSub(uint8, &ftx->_ps_lock, 1, Relaxed);
+
+        ketimeout.QuadPart = -10000;                // max 1ms delays
+
+        // try to wake up all the threads requested, if there are enough waiters
+        count = min(nwaiters, count);
+        for (int i = 0; i < count; i++) {
+            pNtReleaseKeyedEvent(ftxke, &ftx->val, 0, &ketimeout);
+
+            // but early out rather than waiting on timeouts if we hit 0 (concurrent wake)
+            if ((atomicLoad(uint16, &ftx->_ps, Relaxed)) == 0)
+                return;
+        }
+    }
+}
+
 void futexWakeAll(Futex *ftx)
 {
     bool alertable = ftx->flags & FUTEX_Alertable;

@@ -45,6 +45,11 @@ void futexWake(Futex *ftx)
     syscall(SYS_futex, (uint32_t*)&ftx->val, FUTEX_WAKE_PRIVATE, 1, NULL, NULL, 0);
 }
 
+void futexWakeMany(Futex *ftx, int count)
+{
+    syscall(SYS_futex, (uint32_t *)&ftx->val, FUTEX_WAKE_PRIVATE, count, NULL, NULL, 0);
+}
+
 void futexWakeAll(Futex *ftx)
 {
     syscall(SYS_futex, (uint32_t*)&ftx->val, FUTEX_WAKE_PRIVATE, INT_MAX, NULL, NULL, 0);

@@ -19,7 +19,6 @@ bool _eventInit(Event *e, flags_t flags)
 
 bool eventSignalMany(Event *e, int32 count)
 {
-    bool ret = false;
     devAssert(count > 0);
     AdaptiveSpinState astate;
     aspinBegin(&e->aspin, &astate, timeForever);
@@ -43,14 +42,10 @@ bool eventSignalMany(Event *e, int32 count)
         aspinHandleContention(&e->aspin, &astate);
     }
 
-    while (count) {
-        ret = true;
-        futexWake(&e->ftx);
-        --count;
-    }
+    futexWakeMany(&e->ftx, count);
 
     // return true if we woke something up or signaled the event
-    return ret || val == 0;
+    return count || val == 0;
 }
 
 bool eventSignalAll(Event *e)

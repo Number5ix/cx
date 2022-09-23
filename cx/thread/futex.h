@@ -43,4 +43,5 @@ _meta_inline void futexSet(Futex *ftx, int32 val) {
 int futexWait(Futex *ftx, int32 oldval, int64 timeout);
 
 void futexWake(Futex *ftx);
+void futexWakeMany(Futex *ftx, int count);
 void futexWakeAll(Futex *ftx);
