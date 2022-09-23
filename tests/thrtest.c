@@ -5,6 +5,7 @@
 #include <cx/thread/event.h>
 #include <cx/thread/mutex.h>
 #include <cx/thread/rwlock.h>
+#include <cx/thread/sema.h>
 #include <cx/platform/os.h>
 
 #define TEST_FILE thrtest
@@ -113,6 +114,64 @@ static int test_futex()
     }
 
     if (atomicLoad(int32, &testftx.val, Acquire) != 0)
+        ret = 1;
+
+    return ret;
+}
+
+static Semaphore testsem;
+
+static int thrproc2s(Thread *self)
+{
+    bool dec;
+    int32 count;
+
+    if (!(stvlNext(&self->args, uint8, &dec) &&
+          stvlNext(&self->args, int32, &count)))
+        return 0;
+
+    for (int i = 0; i < count; i++) {
+        if (dec)
+            semaDec(&testsem);
+        else
+            semaInc(&testsem, 1);
+    }
+
+    return 0;
+}
+
+#define SEMA_PRODUCERS 2
+#define SEMA_CONSUMERS 8
+#define SEMA_COUNT 524288
+static int test_sema()
+{
+    int ret = 0;
+    if (!semaInit(&testsem, 0))
+        return 1;
+
+    int i;
+    Thread *producers[SEMA_PRODUCERS];
+    Thread *consumers[SEMA_CONSUMERS];
+    for (i = 0; i < SEMA_CONSUMERS; i++) {
+        consumers[i] = thrCreate(thrproc2s, stvar(uint8, 1), stvar(int32, SEMA_COUNT / SEMA_CONSUMERS));
+    }
+    for (i = 0; i < SEMA_PRODUCERS; i++) {
+        producers[i] = thrCreate(thrproc2s, stvar(uint8, 0), stvar(int32, SEMA_COUNT / SEMA_PRODUCERS));
+    }
+
+    for (i = 0; i < SEMA_PRODUCERS; i++) {
+        thrWait(producers[i], timeForever);
+        thrDestroy(&producers[i]);
+    }
+    for (i = 0; i < SEMA_CONSUMERS; i++) {
+        thrWait(consumers[i], timeForever);
+        thrDestroy(&consumers[i]);
+    }
+
+    if (atomicLoad(int32, &testsem.ftx.val, Acquire) != 0)
+        ret = 1;
+
+    if (!semaDestroy(&testsem))
         ret = 1;
 
     return ret;
@@ -429,6 +488,7 @@ static int test_timeout()
 testfunc thrtest_funcs[] = {
     { "basic", test_basic },
     { "futex", test_futex },
+    { "sema", test_sema },
     { "mutex", test_mutex },
     { "rwlock", test_rwlock },
     { "event", test_event },

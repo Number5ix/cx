@@ -48,6 +48,7 @@ static const testspec tests[] = {
 { "thread: Basic multithreading", "thrtest", "basic" },
 { "thread: Futex", "thrtest", "futex" },
 { "thread: Futex with timeout", "thrtest", "timeout" },
+{ "thread: Semaphore", "thrtest", "sema" },
 { "thread: Mutex", "thrtest", "mutex" },
 { "thread: Reader/writer lock", "thrtest", "rwlock" },
 { "thread: Event", "thrtest", "event" },
