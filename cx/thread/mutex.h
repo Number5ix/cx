@@ -31,8 +31,8 @@ bool mutexTryAcquireTimeout(Mutex *m, int64 timeout);
 bool mutexRelease(Mutex *m);
 _meta_inline bool mutexTryAcquire(Mutex *m)
 {
-    int32 unlocked = 0;
-    if (atomicCompareExchange(int32, strong, &m->ftx.val, &unlocked, 1, AcqRel, Relaxed)) {
+    int32 curstate = atomicLoad(int32, &m->ftx.val, Relaxed);
+    if (curstate == 0 && atomicCompareExchange(int32, strong, &m->ftx.val, &curstate, 1, Acquire, Relaxed)) {
         aspinRecordUncontended(&m->aspin);
         return true;
     }

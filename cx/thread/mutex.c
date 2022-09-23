@@ -11,8 +11,8 @@ bool _mutexInit(Mutex *m, uint32 flags)
 bool mutexTryAcquireTimeout(Mutex *m, int64 timeout)
 {
     // try simple lock first
-    int32 curstate = 0;
-    if (atomicCompareExchange(int32, strong, &m->ftx.val, &curstate, 1, AcqRel, Acquire)) {
+    int32 curstate = atomicLoad(int32, &m->ftx.val, Relaxed);
+    if (curstate == 0 && atomicCompareExchange(int32, strong, &m->ftx.val, &curstate, 1, Acquire, Relaxed)) {
         aspinRecordUncontended(&m->aspin);
         return true;
     }
@@ -22,7 +22,7 @@ bool mutexTryAcquireTimeout(Mutex *m, int64 timeout)
     aspinBegin(&m->aspin, &astate, timeout);
     do {
         do {
-            if (curstate == 2 || atomicCompareExchange(int32, weak, &m->ftx.val, &curstate, 2, AcqRel, Acquire)) {
+            if (curstate == 2 || (curstate == 1 && atomicCompareExchange(int32, weak, &m->ftx.val, &curstate, 2, Relaxed, Relaxed))) {
                 if (!aspinSpin(&m->aspin, &astate))
                     futexWait(&m->ftx, 2, aspinTimeoutRemaining(&astate));
             }
@@ -36,7 +36,7 @@ bool mutexTryAcquireTimeout(Mutex *m, int64 timeout)
         } while (curstate != 0);
 
         // try to lock it again
-    } while (!atomicCompareExchange(int32, strong, &m->ftx.val, &curstate, 2, AcqRel, Acquire));
+    } while (!atomicCompareExchange(int32, strong, &m->ftx.val, &curstate, 2, Acquire, Relaxed));
 
     aspinAdapt(&m->aspin, &astate);
     return true;
