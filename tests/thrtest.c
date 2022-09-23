@@ -66,12 +66,13 @@ static int thrproc2(Thread *self)
 
     for (int i = 0; i < count; i++) {
         if (dec) {
-            int32 val = 1;
-            while (!atomicCompareExchange(int32, weak, &testftx.val, &val, val - 1, Acquire, Relaxed)) {
+            int32 val = atomicLoad(int32, &testftx.val, Relaxed);
+            while (val == 0 || !atomicCompareExchange(int32, weak, &testftx.val, &val, val - 1, Acquire, Relaxed)) {
                 if (val == 0) {
                     futexWait(&testftx, 0, timeForever);
-                    val = 1;
-                }
+                } else
+                    osYield();
+                val = atomicLoad(int32, &testftx.val, Relaxed);
             }
         }
         else {
@@ -83,9 +84,9 @@ static int thrproc2(Thread *self)
     return 0;
 }
 
-#define FUTEX_PRODUCERS 4
-#define FUTEX_CONSUMERS 16
-#define FUTEX_COUNT 1048576
+#define FUTEX_PRODUCERS 2
+#define FUTEX_CONSUMERS 8
+#define FUTEX_COUNT 524288
 static int test_futex()
 {
     int ret = 0;
@@ -255,7 +256,7 @@ static int test_rwlock()
 
 static Event testev;
 
-#define EVENT_CONSUMERS 32
+#define EVENT_CONSUMERS 4
 #define EVENT_PRODUCERS 4
 #define EVENT_COUNT 32768
 
@@ -388,14 +389,14 @@ static int test_event_s()
 
 static int thrproc6(Thread *self)
 {
-    // first test should take less than half a second
-    if (futexWait(&testftx, 0, timeFromMsec(500)) != FUTEX_Waited)
+    // first test should take less than 100ms
+    if (futexWait(&testftx, 0, timeFromMsec(100)) != FUTEX_Waited)
         atomicStore(bool, &fail, true, Release);
 
     atomicFetchSub(int32, &testftx.val, 1, Relaxed);
 
-    // second test should take more than half a second
-    if (futexWait(&testftx, 0, timeFromMsec(500)) != FUTEX_Timeout)
+    // second test should take more than 100ms
+    if (futexWait(&testftx, 0, timeFromMsec(100)) != FUTEX_Timeout)
         atomicStore(bool, &fail, true, Release);
 
     atomicFetchSub(int32, &testftx.val, 1, Relaxed);
@@ -410,11 +411,11 @@ static int test_timeout()
 
     Thread *testthr = thrCreate(thrproc6, stvNone);
 
-    osSleep(timeFromMsec(250));
+    osSleep(timeFromMsec(50));
     atomicFetchAdd(int32, &testftx.val, 1, Relaxed);
     futexWake(&testftx);
 
-    osSleep(timeFromMsec(750));
+    osSleep(timeFromMsec(150));
     atomicFetchAdd(int32, &testftx.val, 1, Relaxed);
     futexWake(&testftx);
 
