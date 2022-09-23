@@ -5,7 +5,6 @@ set(PLATFORM_WIN_SRCS
     platform/win/win_fs_file.c
     platform/win/win_fs_fs.c
     platform/win/win_futex.c
-    platform/win/win_ksema.c
     platform/win/win_os.c
     platform/win/win_sys_entry.c
     platform/win/win_sys_hostid.c
@@ -16,7 +15,6 @@ set(PLATFORM_WIN_SRCS
 set(PLATFORM_WIN_INCLUDES
     platform/win/win_fs.h
     platform/win/win_hostid.h
-    platform/win/win_ksema.h
     platform/win/win_os.h
     platform/win/win_stacktrace.h
     platform/win/win_sys_entry.h

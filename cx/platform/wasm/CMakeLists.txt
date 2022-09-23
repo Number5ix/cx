@@ -4,14 +4,12 @@ set(CMAKE_EXTRA_INCLUDE_FILES semaphore.h)
 set(KERNEL_SEMA_SIZE 16)
 
 unset(CMAKE_EXTRA_INCLUDE_FILES)
-configure_file(wasm_ksema.h.in wasm_ksema.h)
 
 set(PLATFORM_WASM_SRCS
     platform/wasm/wasm_debug_crash.c
     platform/wasm/wasm_error.c
     platform/wasm/wasm_fs_file.c
     platform/wasm/wasm_fs_fs.c
-    platform/wasm/wasm_ksema.c
     platform/wasm/wasm_os.c
     platform/wasm/wasm_sys_hostid.c
     platform/wasm/wasm_thread_thread.c
@@ -20,7 +18,6 @@ set(PLATFORM_WASM_SRCS
     platform/wasm/wasm_vfs.c)
 set(PLATFORM_WASM_INCLUDES
     platform/wasm/wasm_hostid.h
-    platform/wasm/wasm_ksema.h
     platform/wasm/wasm_os.h
     platform/wasm/wasm_sys_entry.h)
 

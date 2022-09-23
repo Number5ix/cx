@@ -1,7 +1,6 @@
 set(PLATFORM_INCLUDES
     platform/base.h
     platform/cpu.h
-    platform/ksema.h
     platform/os.h)
 
 if(CX_COMPILER_IS_CLANG)
