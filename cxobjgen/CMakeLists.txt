@@ -9,6 +9,15 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD" OR ${CMAKE_SYSTEM_NAME} MATCHES "Linux
 	../cx/platform/unix/unix_ksema.c
 	../cx/platform/unix/unix_os.c
 	../cx/platform/unix/unix_time_clock.c)
+    if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+        set(CX_PLATFORM_SRCS
+            ${CX_PLATFORM_SRCS}
+            ../cx/platform/unix/linux_futex.c)
+    elseif(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
+        set(CX_PLATFORM_SRCS
+            ${CX_PLATFORM_SRCS}
+            ../cx/platform/unix/freebsd_futex.c)
+    endif()
 elseif(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     set(CX_PLATFORM_SRCS
 	../cx/platform/win/win_error.c

@@ -21,6 +21,16 @@ set(PLATFORM_UNIX_INCLUDES
     platform/unix/unix_os.h
     platform/unix/unix_sys_entry.h)
 
+if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+    set(PLATFORM_UNIX_SRCS
+        ${PLATFORM_UNIX_SRCS}
+        platform/unix/linux_futex.c)
+elseif(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
+    set(PLATFORM_UNIX_SRCS
+        ${PLATFORM_UNIX_SRCS}
+        platform/unix/freebsd_futex.c)
+endif()
+
 set(PLATFORM_INCLUDES
     ${PLATFORM_INCLUDES}
     platform/unix.h
