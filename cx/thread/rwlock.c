@@ -23,21 +23,7 @@ bool _rwlockInit(RWLock *l, uint32 flags)
 bool rwlockTryAcquireReadTimeout(RWLock *l, int64 timeout)
 {
     uint32 state = atomicLoad(uint32, &l->state, Relaxed);
-    // Try lightweight path first, if there aren't any writers and there's no contention
-    if (RWLOCK_WRITERS(state) == 0) {
-        // cannot acquire if we are at the max
-        if (RWLOCK_READERS(state) == RWLOCK_READER_MAX)
-            return false;
-        if (atomicCompareExchange(uint32, weak, &l->state, &state, state + RWLOCK_READ_ADD, Acquire, Acquire)) {
-            aspinRecordUncontended(&l->aspin);
-            return true;        // got the lock
-        }
-    }
-
-    // Nope, do full loop
-    AdaptiveSpinState astate;
     uint32 nstate;
-    aspinBegin(&l->aspin, &astate, timeout);
     // first register as either a reader or a waiting reader
     for (;;) {
         if (RWLOCK_WRITERS(state) > 0) {
@@ -45,37 +31,42 @@ bool rwlockTryAcquireReadTimeout(RWLock *l, int64 timeout)
             if (RWLOCK_READWAIT(state) == RWLOCK_READWAIT_MAX)
                 return false;           // too many already
             nstate = state + RWLOCK_READWAIT_ADD;
+
+            // try to update the new state
+            if (atomicCompareExchange(uint32, weak, &l->state, &state, nstate, Relaxed, Relaxed))
+                break;
+            else
+                osYield();      // we're likely to have to wait anyway
         } else {
             // otherwise we're just a normal read lock
             if (RWLOCK_READERS(state) == RWLOCK_READER_MAX)
                 return false;           // too many already
             nstate = state + RWLOCK_READ_ADD;
-        }
 
-        // try to update the new state
-        if (atomicCompareExchange(uint32, weak, &l->state, &state, nstate, Acquire, Relaxed))
-            break;
-        else
-            aspinHandleContention(&l->aspin, &astate);
+            // try to update the new state, there should be no conflicting writers on this path
+            if (atomicCompareExchange(uint32, weak, &l->state, &state, nstate, Acquire, Relaxed))
+                break;
+        }
     }
 
-    // if were weren't any writers on the state we successfully swapped, then we're done
+    // if there weren't any writers on the state we successfully swapped, then we're done
     if (RWLOCK_WRITERS(state) == 0) {
         aspinRecordUncontended(&l->aspin);
         return true;
     }
 
     // otherwise have to wait in the read queue until released
-
-    int rval = 1;
-    while (!atomicCompareExchange(int32, weak, &l->rftx.val, &rval, rval - 1, Acquire, Relaxed))
+    AdaptiveSpinState astate;
+    aspinBegin(&l->aspin, &astate, timeout);
+    int rval = atomicLoad(int32, &l->rftx.val, Relaxed);
+    while (rval == 0 || !atomicCompareExchange(int32, weak, &l->rftx.val, &rval, rval - 1, Relaxed, Relaxed))
     {
         if (aspinTimeout(&l->aspin, &astate)) {
             // have to undo the add of RWLOCK_READWAIT_ADD from above,
             // but be careful to avoid a race with rwlockReleaseWrite
             state = atomicLoad(uint32, &l->state, Relaxed);
             while (RWLOCK_READWAIT(state) > 0 &&
-                   !atomicCompareExchange(uint32, weak, &l->state, &state, state - RWLOCK_READWAIT_ADD, Release, Relaxed)) {
+                   !atomicCompareExchange(uint32, weak, &l->state, &state, state - RWLOCK_READWAIT_ADD, Relaxed, Relaxed)) {
                 aspinHandleContention(&l->aspin, &astate);
             }
             return false;
@@ -84,7 +75,7 @@ bool rwlockTryAcquireReadTimeout(RWLock *l, int64 timeout)
         if (rval == 0) {
             if (!aspinSpin(&l->aspin, &astate))
                 futexWait(&l->rftx, rval, aspinTimeoutRemaining(&astate));
-            rval = 1;
+            rval = atomicLoad(int32, &l->rftx.val, Relaxed);
         }
     }
 
@@ -101,7 +92,7 @@ bool rwlockTryAcquireWriteTimeout(RWLock *l, int64 timeout)
         // make sure we didn't hit the limit
         if (RWLOCK_WRITERS(state) == RWLOCK_WRITER_MAX)
             return false;
-        if (atomicCompareExchange(uint32, weak, &l->state, &state, state + RWLOCK_WRITE_ADD, Acquire, Acquire)) {
+        if (atomicCompareExchange(uint32, strong, &l->state, &state, state + RWLOCK_WRITE_ADD, Acquire, Relaxed)) {
             aspinRecordUncontended(&l->aspin);
             return true;        // got the lock
         }
@@ -114,28 +105,26 @@ bool rwlockTryAcquireWriteTimeout(RWLock *l, int64 timeout)
         if (RWLOCK_WRITERS(state) == RWLOCK_WRITER_MAX)
             return false;
 
-        if (atomicCompareExchange(uint32, weak, &l->state, &state, state + RWLOCK_WRITE_ADD, Acquire, Acquire))
+        if (atomicCompareExchange(uint32, weak, &l->state, &state, state + RWLOCK_WRITE_ADD, Relaxed, Relaxed))
             break;
-        else
-            aspinHandleContention(&l->aspin, &astate);
     }
 
     // if there were any other readers or writers we must wait on them
     if (RWLOCK_READERS(state) > 0 || RWLOCK_WRITERS(state) > 0) {
         // wait in the write queue
-        int32 wval = 1;
-        while (!atomicCompareExchange(int32, weak, &l->wftx.val, &wval, wval - 1, Acquire, Relaxed)) {
+        int32 wval = atomicLoad(int32, &l->wftx.val, Relaxed);
+        while (wval == 0 || !atomicCompareExchange(int32, weak, &l->wftx.val, &wval, wval - 1, Relaxed, Relaxed)) {
             if (aspinTimeout(&l->aspin, &astate)) {
                 // nothing else can remove a writer except the writer itself, so we can just subtract in this case
                 // (see comments in rwlockTryAcquireReadTimeout)
-                atomicFetchSub(uint32, &l->state, RWLOCK_WRITE_ADD, Release);
+                atomicFetchSub(uint32, &l->state, RWLOCK_WRITE_ADD, Relaxed);
                 return false;
             }
 
             if (wval == 0) {
                 if (!aspinSpin(&l->aspin, &astate))
                     futexWait(&l->wftx, wval, aspinTimeoutRemaining(&astate));
-                wval = 1;
+                wval = atomicLoad(int32, &l->wftx.val, Relaxed);
             } else {
                 aspinHandleContention(&l->aspin, &astate);
             }
@@ -152,8 +141,6 @@ bool rwlockReleaseWrite(RWLock *l)
     uint32 state = atomicLoad(uint32, &l->state, Relaxed);
     uint32 nstate, rwait;
 
-    AdaptiveSpinState astate;
-    aspinBegin(&l->aspin, &astate, timeForever);
     do {
         devAssert(RWLOCK_WRITERS(state) > 0 && RWLOCK_READERS(state) == 0);
 

@@ -49,7 +49,7 @@ _meta_inline bool rwlockTryAcquireRead(RWLock *l)
         // cannot acquire if we are at the max
         if (RWLOCK_READERS(state) == RWLOCK_READER_MAX)
             return false;
-        if (atomicCompareExchange(uint32, weak, &l->state, &state, state + RWLOCK_READ_ADD, Acquire, Acquire)) {
+        if (atomicCompareExchange(uint32, strong, &l->state, &state, state + RWLOCK_READ_ADD, Acquire, Relaxed)) {
             aspinRecordUncontended(&l->aspin);
             return true;        // got the lock
         }
@@ -67,7 +67,7 @@ _meta_inline bool rwlockTryAcquireWrite(RWLock *l)
         // make sure we didn't hit the limit
         if (RWLOCK_WRITERS(state) == RWLOCK_WRITER_MAX)
             return false;
-        if (atomicCompareExchange(uint32, weak, &l->state, &state, state + RWLOCK_WRITE_ADD, Acquire, Acquire)) {
+        if (atomicCompareExchange(uint32, strong, &l->state, &state, state + RWLOCK_WRITE_ADD, Acquire, Relaxed)) {
             aspinRecordUncontended(&l->aspin);
             return true;        // got the lock
         }
