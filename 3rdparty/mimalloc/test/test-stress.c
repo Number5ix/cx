@@ -39,12 +39,12 @@ static size_t use_one_size = 0;              // use single object size of `N * s
 
 // #define USE_STD_MALLOC
 #ifdef USE_STD_MALLOC
-#define custom_calloc(n,s)    calloc(n,s)
+#define custom_calloc(n,s)    malloc(n*s)
 #define custom_realloc(p,s)   realloc(p,s)
 #define custom_free(p)        free(p)
 #else
 #include <mimalloc.h>
-#define custom_calloc(n,s)    mi_calloc(n,s)
+#define custom_calloc(n,s)    mi_malloc(n*s)
 #define custom_realloc(p,s)   mi_realloc(p,s)
 #define custom_free(p)        mi_free(p)
 #endif
@@ -189,11 +189,13 @@ static void test_stress(void) {
         free_items(p);
       }
     }
+    #ifndef NDEBUG
     //mi_collect(false);
-    //mi_debug_show_arenas();    
-#if !defined(NDEBUG) || defined(MI_TSAN)
+    //mi_debug_show_arenas();
+    #endif    
+    #if !defined(NDEBUG) || defined(MI_TSAN)
     if ((n + 1) % 10 == 0) { printf("- iterations left: %3d\n", ITER - (n + 1)); }
-#endif
+    #endif
   }
 }
 
