@@ -8,6 +8,7 @@ unset(CMAKE_EXTRA_INCLUDE_FILES)
 set(PLATFORM_WASM_SRCS
     platform/wasm/wasm_debug_crash.c
     platform/wasm/wasm_error.c
+    platform/wasm/wasm_futex.c
     platform/wasm/wasm_fs_file.c
     platform/wasm/wasm_fs_fs.c
     platform/wasm/wasm_os.c
