@@ -21,9 +21,17 @@ make these features available in a compact, unobtrusive way.
   to your project or require a complex build environment.
   
 ## Currently supported platforms and compilers
-* FreeBSD + Clang
+* FreeBSD + Clang *or* GCC
 * Windows + MSVC 2015 or later
-* Linux + Clang (GCC support is planned but not a high priority)
+* Linux + GCC *or* Clang
+* WebAssembly + Emscripten
+
+## Currently supported hardware architectures
+
+* x86-64
+* x86 (32 bit)
+* ARM64
+* WebAssembly
 
 ## Why not just use C++, C# or one of 1,000 interpreted languages?
 Those are valid choices for many projects. cx is intended for situations where you either
