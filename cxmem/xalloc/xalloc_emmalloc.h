@@ -7,7 +7,8 @@
 
 #define XA_LG_ALIGN_MASK ((int)0x3f)
 
-#define XA_MALLOC_ALIGNMENT alignof(max_align_t)
+typedef struct { long long __ll; long double __ld; } _emmalloc_max_align_t;
+#define XA_MALLOC_ALIGNMENT alignof(_emmalloc_max_align_t)
 #define XA_SMALLEST_ALLOCATION_SIZE (2*sizeof(void*))
 #define XA_ALIGN_UP(ptr, alignment) ((unsigned char*)((((unsigned long)(ptr)) + ((alignment)-1)) & ~((alignment)-1)))
 #define XA_BUCKET_SIZE(size) (size > XA_SMALLEST_ALLOCATION_SIZE ? (size_t)XA_ALIGN_UP(size, sizeof(void*)) : XA_SMALLEST_ALLOCATION_SIZE)
