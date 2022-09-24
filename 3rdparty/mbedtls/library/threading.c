@@ -19,7 +19,7 @@
 
 /*
  * Ensure gmtime_r is available even with -std=c99; must be defined before
- * config.h, which pulls in glibc's features.h. Harmless on other platforms.
+ * mbedtls_config.h, which pulls in glibc's features.h. Harmless on other platforms.
  */
 #if !defined(_POSIX_C_SOURCE)
 #define _POSIX_C_SOURCE 200112L
@@ -67,6 +67,12 @@ static void threading_mutex_init_pthread( mbedtls_threading_mutex_t *mutex )
     if( mutex == NULL )
         return;
 
+    /* A nonzero value of is_valid indicates a successfully initialized
+     * mutex. This is a workaround for not being able to return an error
+     * code for this function. The lock/unlock functions return an error
+     * if is_valid is nonzero. The Mbed TLS unit test code uses this field
+     * to distinguish more states of the mutex; see
+     * tests/src/threading_helpers for details. */
     mutex->is_valid = pthread_mutex_init( &mutex->mutex, NULL ) == 0;
 }
 
@@ -107,7 +113,7 @@ int (*mbedtls_mutex_lock)( mbedtls_threading_mutex_t * ) = threading_mutex_lock_
 int (*mbedtls_mutex_unlock)( mbedtls_threading_mutex_t * ) = threading_mutex_unlock_pthread;
 
 /*
- * With phtreads we can statically initialize mutexes
+ * With pthreads we can statically initialize mutexes
  */
 #define MUTEX_INIT  = { PTHREAD_MUTEX_INITIALIZER, 1 }
 
