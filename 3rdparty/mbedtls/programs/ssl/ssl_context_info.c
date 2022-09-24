@@ -17,11 +17,10 @@
  *  limitations under the License.
  */
 
-#if !defined(MBEDTLS_CONFIG_FILE)
-#include "mbedtls/config.h"
-#else
-#include MBEDTLS_CONFIG_FILE
-#endif
+#define MBEDTLS_ALLOW_PRIVATE_ACCESS
+
+#include "mbedtls/build_info.h"
+#include "mbedtls/debug.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -43,12 +42,13 @@ int main( void )
 #include <stdint.h>
 #include <stdarg.h>
 #include <string.h>
+#if defined(MBEDTLS_HAVE_TIME)
 #include <time.h>
+#endif
 #include "mbedtls/ssl.h"
 #include "mbedtls/error.h"
 #include "mbedtls/base64.h"
 #include "mbedtls/md.h"
-#include "mbedtls/md_internal.h"
 #include "mbedtls/x509_crt.h"
 #include "mbedtls/ssl_ciphersuites.h"
 
@@ -164,6 +164,7 @@ void printf_dbg( const char *str, ... )
     }
 }
 
+MBEDTLS_PRINTF_ATTRIBUTE( 1, 2 )
 void printf_err( const char *str, ... )
 {
     va_list args;
@@ -222,7 +223,13 @@ void parse_arguments( int argc, char *argv[] )
                 error_exit();
             }
 
-            if( ( b64_file = fopen( argv[i], "r" ) ) == NULL )
+            if( NULL != b64_file )
+            {
+                printf_err( "Cannot specify more than one file with -f\n" );
+                error_exit( );
+            }
+
+            if( ( b64_file = fopen( argv[i], "r" )) == NULL )
             {
                 printf_err( "Cannot find file \"%s\"\n", argv[i] );
                 error_exit();
@@ -302,10 +309,11 @@ void print_hex( const uint8_t *b, size_t len,
 /*
  *  Print the value of time_t in format e.g. 2020-01-23 13:05:59
  */
-void print_time( const time_t *time )
+void print_time( const uint64_t *time )
 {
+#if defined(MBEDTLS_HAVE_TIME)
     char buf[20];
-    struct tm *t = gmtime( time );
+    struct tm *t = gmtime( (time_t*) time );
     static const char format[] = "%Y-%m-%d %H:%M:%S";
     if( NULL != t )
     {
@@ -316,6 +324,10 @@ void print_time( const time_t *time )
     {
         printf( "unknown\n" );
     }
+#else
+    (void) time;
+    printf( "not supported\n" );
+#endif
 }
 
 /*
@@ -464,7 +476,8 @@ size_t read_next_b64_code( uint8_t **b64, size_t *max_len )
             }
             else if( len > *max_len )
             {
-                printf_err( "The code found is too large by %u bytes.\n", len - *max_len );
+                printf_err( "The code found is too large by %" MBEDTLS_PRINTF_SIZET " bytes.\n",
+                            len - *max_len );
                 len = pad = 0;
             }
             else if( len % 4 != 0 )
@@ -495,6 +508,7 @@ size_t read_next_b64_code( uint8_t **b64, size_t *max_len )
     return 0;
 }
 
+#if !defined(MBEDTLS_X509_REMOVE_INFO)
 /*
  * This function deserializes and prints to the stdout all obtained information
  * about the certificates from provided data.
@@ -549,6 +563,7 @@ void print_deserialized_ssl_cert( const uint8_t *ssl, uint32_t len )
 
    mbedtls_x509_crt_free( &crt );
 }
+#endif /* !MBEDTLS_X509_REMOVE_INFO */
 
 /*
  * This function deserializes and prints to the stdout all obtained information
@@ -600,7 +615,7 @@ void print_deserialized_ssl_session( const uint8_t *ssl, uint32_t len,
                 ( (uint64_t) ssl[7] );
         ssl += 8;
         printf( "\tstart time     : " );
-        print_time( (time_t*) &start );
+        print_time( &start );
     }
 
     CHECK_SSL_END( 2 );
@@ -638,7 +653,7 @@ void print_deserialized_ssl_session( const uint8_t *ssl, uint32_t len,
         }
         else
         {
-            printf( "\tMessage-Digest : %s\n", md_info->name );
+            printf( "\tMessage-Digest : %s\n", mbedtls_md_get_name( md_info ) );
         }
     }
 
@@ -681,7 +696,9 @@ void print_deserialized_ssl_session( const uint8_t *ssl, uint32_t len,
             if( cert_len > 0 )
             {
                 CHECK_SSL_END( cert_len );
+#if !defined(MBEDTLS_X509_REMOVE_INFO)
                 print_deserialized_ssl_cert( ssl, cert_len );
+#endif
                 ssl += cert_len;
             }
         }
@@ -694,12 +711,6 @@ void print_deserialized_ssl_session( const uint8_t *ssl, uint32_t len,
             {
                 case MBEDTLS_MD_NONE:
                     printf( "none\n" );
-                    break;
-                case MBEDTLS_MD_MD2:
-                    printf( "MD2\n" );
-                    break;
-                case MBEDTLS_MD_MD4:
-                    printf( "MD4\n" );
                     break;
                 case MBEDTLS_MD_MD5:
                     printf( "MD5\n" );
@@ -863,13 +874,11 @@ void print_deserialized_ssl_context( const uint8_t *ssl, size_t len )
     print_if_bit( "MBEDTLS_HAVE_TIME", SESSION_CONFIG_TIME_BIT, session_cfg_flag );
     print_if_bit( "MBEDTLS_X509_CRT_PARSE_C", SESSION_CONFIG_CRT_BIT, session_cfg_flag );
     print_if_bit( "MBEDTLS_SSL_MAX_FRAGMENT_LENGTH", SESSION_CONFIG_MFL_BIT, session_cfg_flag );
-    print_if_bit( "MBEDTLS_SSL_TRUNCATED_HMAC", SESSION_CONFIG_TRUNC_HMAC_BIT, session_cfg_flag );
     print_if_bit( "MBEDTLS_SSL_ENCRYPT_THEN_MAC", SESSION_CONFIG_ETM_BIT, session_cfg_flag );
     print_if_bit( "MBEDTLS_SSL_SESSION_TICKETS", SESSION_CONFIG_TICKET_BIT, session_cfg_flag );
     print_if_bit( "MBEDTLS_SSL_SESSION_TICKETS and client", SESSION_CONFIG_CLIENT_TICKET_BIT, session_cfg_flag );
 
     print_if_bit( "MBEDTLS_SSL_DTLS_CONNECTION_ID", CONTEXT_CONFIG_DTLS_CONNECTION_ID_BIT, context_cfg_flag );
-    print_if_bit( "MBEDTLS_SSL_DTLS_BADMAC_LIMIT", CONTEXT_CONFIG_DTLS_BADMAC_LIMIT_BIT, context_cfg_flag );
     print_if_bit( "MBEDTLS_SSL_DTLS_ANTI_REPLAY", CONTEXT_CONFIG_DTLS_ANTI_REPLAY_BIT, context_cfg_flag );
     print_if_bit( "MBEDTLS_SSL_ALPN", CONTEXT_CONFIG_ALPN_BIT, context_cfg_flag );
 
