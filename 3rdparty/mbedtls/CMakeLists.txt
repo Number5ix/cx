@@ -92,6 +92,41 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
         FORCE)
 endif()
 
+# Create a symbolic link from ${base_name} in the binary directory
+# to the corresponding path in the source directory.
+function(link_to_source base_name)
+    # Get OS dependent path to use in `execute_process`
+    if (CMAKE_HOST_WIN32)
+        #mklink is an internal command of cmd.exe it can only work with \
+        string(REPLACE "/" "\\" link "${CMAKE_CURRENT_BINARY_DIR}/${base_name}")
+        string(REPLACE "/" "\\" target "${CMAKE_CURRENT_SOURCE_DIR}/${base_name}")
+    else()
+        set(link "${CMAKE_CURRENT_BINARY_DIR}/${base_name}")
+        set(target "${CMAKE_CURRENT_SOURCE_DIR}/${base_name}")
+    endif()
+
+    if (NOT EXISTS ${link})
+        message(${link})
+        if (CMAKE_HOST_UNIX)
+            set(command ln -s ${target} ${link})
+        else()
+            if (IS_DIRECTORY ${target})
+                set(command cmd.exe /c mklink /j ${link} ${target})
+            else()
+                set(command cmd.exe /c mklink /h ${link} ${target})
+            endif()
+        endif()
+
+        execute_process(COMMAND ${command}
+            RESULT_VARIABLE result
+            ERROR_VARIABLE output)
+
+        if (NOT ${result} EQUAL 0)
+            message(FATAL_ERROR "Could not create symbolic link for: ${target} --> ${output}")
+        endif()
+    endif()
+endfunction(link_to_source)
+
 string(REGEX MATCH "Clang" CMAKE_COMPILER_IS_CLANG "${CMAKE_C_COMPILER_ID}")
 
 include(CheckCCompilerFlag)
