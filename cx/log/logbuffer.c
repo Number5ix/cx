@@ -71,8 +71,7 @@ static void logBufferGrow(int32 minsize)
     atomicStore(int32, &_log_buf_writeptr, nents, Release);
 
 out:
-    rwlockReleaseWrite(&_log_buffer_lock);
-    rwlockAcquireRead(&_log_buffer_lock);
+    rwlockDowngradeWrite(&_log_buffer_lock);
 }
 
 static bool logBufferAddInternal(LogEntry *ent)

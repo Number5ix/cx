@@ -267,7 +267,17 @@ static int thrproc4w(Thread *self)
         testint1++;
         testint2++;
         testint3++;
-        rwlockReleaseWrite(&testrw);
+        if (i % 16 == 0) {
+            // every so often try a downgrade and make sure read consistency is good
+            rwlockDowngradeWrite(&testrw);
+            for (int j = 0; j < 16; j++) {
+                if (testint1 != testint2 || testint2 != testint3)
+                    atomicStore(bool, &fail, true, Release);
+            }
+            rwlockReleaseRead(&testrw);
+        } else {
+            rwlockReleaseWrite(&testrw);
+        }
     }
 
     return 0;

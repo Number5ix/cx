@@ -150,6 +150,9 @@ _meta_inline bool rwlockLogAndReleaseWrite(RWLock *l, const char *name, const ch
 #define rwlockReleaseWrite(l) rwlockLogAndReleaseWrite(l, #l, __FILE__, __LINE__)
 #endif
 
+// Atomically release write lock and acquire read lock, guaranteed not to wait
+bool rwlockDowngradeWrite(RWLock *l);
+
 void rwlockDestroy(RWLock *l);
 
 CX_C_END

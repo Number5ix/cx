@@ -64,8 +64,7 @@ static VFSDir *_vfsGetDirInternal(VFS *vfs, VFSDir *root, string *path, int32 pl
             htInsert(&root->subdirs, string, path[0], ptr, child);
         }
         if (!writelockheld) {
-            rwlockReleaseWrite(&vfs->vfslock);
-            rwlockAcquireRead(&vfs->vfslock);
+            rwlockDowngradeWrite(&vfs->vfslock);
         }
     }
 
@@ -345,8 +344,7 @@ int _vfsFindCIHelper(VFS *vfs, VFSDir *vdir, string *out, sa_string components, 
 
     ret = vfsFindCISub(vdir, out, NULL, components.a, 0, saSize(components) - 1, mount, provif);
 
-    rwlockReleaseWrite(&vfs->vfslock);
-    rwlockAcquireRead(&vfs->vfslock);
+    rwlockDowngradeWrite(&vfs->vfslock);
     return ret;
 }
 

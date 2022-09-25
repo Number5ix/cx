@@ -136,7 +136,7 @@ bool rwlockTryAcquireWriteTimeout(RWLock *l, int64 timeout)
     return true;
 }
 
-bool rwlockReleaseWrite(RWLock *l)
+_meta_inline bool _rwlockReleaseWriteInternal(RWLock *l, bool downgrade)
 {
     uint32 state = atomicLoad(uint32, &l->state, Relaxed);
     uint32 nstate, rwait;
@@ -149,20 +149,21 @@ bool rwlockReleaseWrite(RWLock *l)
 
         // but if any threads are waiting to read...
         rwait = RWLOCK_READWAIT(state);
-        if (rwait > 0) {
+        if (rwait > 0 || downgrade) {
             // build a new state:
             //   writers  is carried over from the old state (minus 1)
             //   readwait is set to 0
             //   readers  is set to what was in readwait
             //     (readwait does not need to be masked because it
             //      is less bits wide than readers)
-            nstate = (nstate & RWLOCK_WRITER_MASK) | rwait;
+            //     ...plus one if this is a downgrade unlock
+            nstate = (nstate & RWLOCK_WRITER_MASK) | (rwait + (downgrade ? 1 : 0));
         }
 
         // don't use aspinHandleContention; releasing write lock should be top priority
     } while (!atomicCompareExchange(uint32, weak, &l->state, &state, nstate, Release, Relaxed));
 
-    if (rwait > 0) {
+    if (rwait > 0 || downgrade) {
         // if any threads are waiting to read, release them
         // waiting readers get priority over writers so that they take turns
         atomicFetchAdd(int32, &l->rftx.val, rwait, Relaxed);
@@ -174,6 +175,16 @@ bool rwlockReleaseWrite(RWLock *l)
     }
 
     return true;
+}
+
+bool rwlockReleaseWrite(RWLock *l)
+{
+    return _rwlockReleaseWriteInternal(l, false);
+}
+
+bool rwlockDowngradeWrite(RWLock *l)
+{
+    return _rwlockReleaseWriteInternal(l, true);
 }
 
 void rwlockDestroy(RWLock *l)
