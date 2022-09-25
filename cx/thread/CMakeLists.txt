@@ -1,5 +1,6 @@
 set(THREAD_SRCS
     thread/atomic.c
+    thread/condvar.c
     thread/event.c
     thread/mutex.c
     thread/rwlock.c
@@ -9,6 +10,7 @@ set(THREAD_SRCS
 set(THREAD_INCLUDES
     thread/aspin.h
     thread/atomic.h
+    thread/condvar.h
     thread/event.h
     thread/futex.h
     thread/mutex.h

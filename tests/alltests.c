@@ -53,6 +53,7 @@ static const testspec tests[] = {
 { "thread: Reader/writer lock", "thrtest", "rwlock" },
 { "thread: Event", "thrtest", "event" },
 { "thread: Event (with spin)", "thrtest", "event_s" },
+{ "thread: Condition Variable", "thrtest", "condvar" },
 { 0 }
 };
 

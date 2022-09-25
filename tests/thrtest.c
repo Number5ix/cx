@@ -1,6 +1,7 @@
 #include <cx/thread.h>
 #include <cx/string/strtest.h>
 #include <cx/container.h>
+#include <cx/thread/condvar.h>
 #include <cx/thread/futex.h>
 #include <cx/thread/event.h>
 #include <cx/thread/mutex.h>
@@ -485,6 +486,115 @@ static int test_timeout()
     return ret;
 }
 
+#define CV_CONSUMERS 4
+#define CV_PRODUCERS 4
+#define CV_COUNT 32768
+
+static Mutex cvmtx;
+static CondVar dataneeded;
+static CondVar dataready;
+static int cvready;
+static int cvin;
+static int cvout;
+static int cvproduced[CV_PRODUCERS];
+static int cvconsumed[CV_CONSUMERS];
+
+static int thrproc7p(Thread *self)
+{
+    int slot, count;
+    if (!stvlNext(&self->args, int32, &slot))
+        return 0;
+    if (!stvlNext(&self->args, int32, &count))
+        return 0;
+
+    for (int i = 0; i < count; i++) {
+        mutexAcquire(&cvmtx);
+        while (cvready == 1)
+            cvarWait(&dataneeded, &cvmtx);
+        cvin++;
+        cvproduced[slot]++;
+        cvready = 1;
+        cvarSignal(&dataready);
+        mutexRelease(&cvmtx);
+    }
+
+    return 0;
+}
+
+static int thrproc7c(Thread *self)
+{
+    int slot, count;
+    if (!stvlNext(&self->args, int32, &slot))
+        return 0;
+    if (!stvlNext(&self->args, int32, &count))
+        return 0;
+
+    for (int i = 0; i < count; i++) {
+        mutexAcquire(&cvmtx);
+        while (cvready == 0)
+            cvarWait(&dataready, &cvmtx);
+        cvin--;
+        cvout++;
+        cvconsumed[slot]++;
+        cvready = 0;
+        cvarSignal(&dataneeded);
+        mutexRelease(&cvmtx);
+    }
+
+    return 0;
+}
+
+static int test_condvar()
+{
+    mutexInit(&cvmtx);
+    cvarInit(&dataneeded);
+    cvarInit(&dataready);
+
+    int i;
+    Thread *cthreads[CV_CONSUMERS];
+    Thread *pthreads[CV_PRODUCERS];
+
+    for (i = 0; i < CV_CONSUMERS; i++) {
+        cthreads[i] = thrCreate(thrproc7c, stvar(int32, i), stvar(int32, CV_COUNT / CV_CONSUMERS));
+    }
+    for (i = 0; i < CV_PRODUCERS; i++) {
+        pthreads[i] = thrCreate(thrproc7p, stvar(int32, i), stvar(int32, CV_COUNT / CV_PRODUCERS));
+    }
+
+    for (i = 0; i < CV_PRODUCERS; i++) {
+        thrWait(pthreads[i], timeForever);
+        thrDestroy(&pthreads[i]);
+    }
+
+    for (i = 0; i < CV_CONSUMERS; i++) {
+        thrWait(cthreads[i], timeForever);
+        thrDestroy(&cthreads[i]);
+    }
+
+    cvarDestroy(&dataneeded);
+    cvarDestroy(&dataready);
+    mutexDestroy(&cvmtx);
+
+    if (cvin != 0 || cvout != CV_COUNT || cvready != 0)
+        return 1;
+
+    int tcount = 0;
+    for (int i = 0; i < CV_CONSUMERS; i++) {
+        tcount += cvconsumed[i];
+    }
+    if (tcount != CV_COUNT)
+        return 1;
+
+    tcount = 0;
+    for (int i = 0; i < CV_PRODUCERS; i++) {
+        tcount += cvproduced[i];
+    }
+    if (tcount != CV_COUNT)
+        return 1;
+
+    return 0;
+}
+
 testfunc thrtest_funcs[] = {
     { "basic", test_basic },
     { "futex", test_futex },
@@ -494,5 +604,6 @@ testfunc thrtest_funcs[] = {
     { "event", test_event },
     { "event_s", test_event_s },
     { "timeout", test_timeout },
+    { "condvar", test_condvar },
     { 0, 0 }
 };

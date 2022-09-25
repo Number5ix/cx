@@ -31,7 +31,7 @@ typedef struct AdaptiveSpin
 #endif
 } AdaptiveSpin;
 
-typedef struct AdapativeSpinState
+typedef struct AdaptiveSpinState
 {
     int64 now;
     int64 start;
