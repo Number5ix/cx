@@ -91,6 +91,7 @@ void logFlush(void)
         if (rdptr == wrptr)
             break;
 
+        eventReset(&_log_done_event);
         eventSignal(_log_event);
         eventWait(&_log_done_event);
     }

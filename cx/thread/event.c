@@ -140,7 +140,7 @@ bool eventReset(Event *e)
     int32 val = atomicLoad(int32, &e->ftx.val, Relaxed);
 
     do {
-        if (val >= 0)
+        if (val == 0)
             return false;
     } while (!atomicCompareExchange(int32, weak, &e->ftx.val, &val, 0, Release, Relaxed));
 
