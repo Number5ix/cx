@@ -25,7 +25,7 @@ bool eventSignalMany(Event *e, int32 count)
 
     // get the number of waiting threads and reduce it by the amount we're about to wake up
     int32 waiters = atomicLoad(int32, &e->waiters, Relaxed);
-    while (!atomicCompareExchange(int32, weak, &e->waiters, &waiters, clamplow(waiters - count, 0), Relaxed, Relaxed)) {
+    while (waiters > 0 && !atomicCompareExchange(int32, weak, &e->waiters, &waiters, clamplow(waiters - count, 0), Relaxed, Relaxed)) {
         aspinHandleContention(&e->aspin, &astate);
     }
 
@@ -42,7 +42,8 @@ bool eventSignalMany(Event *e, int32 count)
         aspinHandleContention(&e->aspin, &astate);
     }
 
-    futexWakeMany(&e->ftx, count);
+    if (count > 0)
+        futexWakeMany(&e->ftx, count);
 
     // return true if we woke something up or signaled the event
     return count || val == 0;
@@ -55,7 +56,10 @@ bool eventSignalAll(Event *e)
 
     // get the number of waiting threads and set it to 0
     int32 waiters = atomicLoad(int32, &e->waiters, Relaxed);
-    while (waiters > 0 && !atomicCompareExchange(int32, weak, &e->waiters, &waiters, 0, Relaxed, Relaxed)) {
+    if (waiters == 0)
+        return false;
+
+    while (!atomicCompareExchange(int32, weak, &e->waiters, &waiters, 0, Relaxed, Relaxed)) {
         aspinHandleContention(&e->aspin, &astate);
     }
 
@@ -68,12 +72,8 @@ bool eventSignalAll(Event *e)
     }
 
     // let the herd come thundering
-    if (waiters > 0) {
-        futexWakeAll(&e->ftx);
-        return true;
-    }
-
-    return false;
+    futexWakeAll(&e->ftx);
+    return true;
 }
 
 bool eventSignalLock(Event *e)
