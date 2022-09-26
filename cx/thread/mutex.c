@@ -3,7 +3,7 @@
 
 bool _mutexInit(Mutex *m, uint32 flags)
 {
-    futexInit(&m->ftx, 0, 0);
+    futexInit(&m->ftx, 0);
     aspinInit(&m->aspin, flags & MUTEX_NoSpin);
     return true;
 }

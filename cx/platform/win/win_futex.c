@@ -17,9 +17,6 @@ typedef long (NTAPI *NtReleaseKeyedEvent_t)(HANDLE KeyedEventHandle, PVOID Key, 
 #ifndef STATUS_SUCCESS
 #define STATUS_SUCCESS 0
 #endif
-#ifndef STATUS_ALERTED
-#define STATUS_ALERTED 0x00000101
-#endif
 #ifndef STATUS_TIMEOUT
 #define STATUS_TIMEOUT 0x00000102
 #endif
@@ -74,12 +71,11 @@ static void _futexInit(void *unused)
     }
 }
 
-bool futexInit(Futex *ftx, int32 val, int32 flags) {
+bool futexInit(Futex *ftx, int32 val) {
     lazyInit(&_futexInitState, _futexInit, NULL);
     atomicStore(int32, &ftx->val, val, Relaxed);
     atomicStore(uint16, &ftx->_ps, 0, Relaxed);
     atomicStore(uint8, &ftx->_ps_lock, 0, Relaxed);
-    ftx->flags = flags;
 
     return true;
 }
@@ -89,10 +85,8 @@ int futexWait(Futex *ftx, int32 oldval, int64 timeout) {
     if (atomicLoad(int32, &ftx->val, Relaxed) != oldval)
         return FUTEX_Retry;
 
-    bool alertable = ftx->flags & FUTEX_Alertable;
-
-    if (pWaitOnAddress && !alertable) {
-        // Use WaitOnAddress if it's available and we don't need to be woken up by other events
+    if (pWaitOnAddress) {
+        // Use WaitOnAddress if it's available
         if (pWaitOnAddress(&ftx->val, &oldval, sizeof(int32), (timeout == timeForever) ? INFINITE : (DWORD)timeToMsec(timeout)))
             return FUTEX_Waited;
         else if (GetLastError() == ERROR_TIMEOUT)
@@ -119,8 +113,7 @@ int futexWait(Futex *ftx, int32 oldval, int64 timeout) {
         // To avert this, we use a spinlock to ensure that NtReleaseKeyedEvent is not called during
         // that small window, while updating a second atomic to tell the wakeup that it needs to
         // keep trying to wake something up. It's not optimal, but since the keyed event path is
-        // only used on old OSes and for a single thread listening for platform events, it's an
-        // acceptable compromise.
+        // only used on old OSes, it's an acceptable compromise.
 
         // double check the the value didn't change on us, with the lock held
         uint8 oldwait = 0;
@@ -140,11 +133,9 @@ int futexWait(Futex *ftx, int32 oldval, int64 timeout) {
         // unlock spinlock
         atomicFetchSub(uint8, &ftx->_ps_lock, 1, Release);
 
-        long status = pNtWaitForKeyedEvent(ftxke, &ftx->val, alertable, (timeout == timeForever) ? NULL : &ketimeout);
+        long status = pNtWaitForKeyedEvent(ftxke, &ftx->val, 0, (timeout == timeForever) ? NULL : &ketimeout);
         atomicFetchSub(uint16, &ftx->_ps, 1, Release);
 
-        if (status == STATUS_ALERTED)
-            return FUTEX_Alerted;
         if (status == STATUS_TIMEOUT)
             return FUTEX_Timeout;
         if (status == STATUS_SUCCESS)
@@ -155,9 +146,7 @@ int futexWait(Futex *ftx, int32 oldval, int64 timeout) {
 
 void futexWake(Futex *ftx)
 {
-    bool alertable = ftx->flags & FUTEX_Alertable;
-
-    if (pWaitOnAddress && !alertable) {
+    if (pWaitOnAddress) {
         // fast path, this happens most of the time
         pWakeByAddressSingle(&ftx->val);
     } else {
@@ -201,9 +190,7 @@ void futexWake(Futex *ftx)
 
 void futexWakeMany(Futex *ftx, int count)
 {
-    bool alertable = ftx->flags & FUTEX_Alertable;
-
-    if (pWaitOnAddress && !alertable) {
+    if (pWaitOnAddress) {
         // fast path, this happens most of the time
         while (count > 0) {
             pWakeByAddressSingle(&ftx->val);
@@ -239,9 +226,7 @@ void futexWakeMany(Futex *ftx, int count)
 
 void futexWakeAll(Futex *ftx)
 {
-    bool alertable = ftx->flags & FUTEX_Alertable;
-
-    if (pWaitOnAddress && !alertable) {
+    if (pWaitOnAddress) {
         // fast path, this happens most of the time
         pWakeByAddressAll(&ftx->val);
     }

@@ -9,11 +9,10 @@
 #include <limits.h>
 #include <math.h>
 
-bool futexInit(Futex *ftx, int32 val, int32 flags) {
+bool futexInit(Futex *ftx, int32 val) {
     atomicStore(int32, &ftx->val, val, Relaxed);
     atomicStore(uint16, &ftx->_ps, 0, Relaxed);
     atomicStore(uint8, &ftx->_ps_lock, 0, Relaxed);
-    ftx->flags = flags;
 
     return true;
 }

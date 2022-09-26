@@ -1,7 +1,8 @@
 set(PLATFORM_INCLUDES
     platform/base.h
     platform/cpu.h
-    platform/os.h)
+    platform/os.h
+    platform/uievent.h)
 
 if(CX_COMPILER_IS_CLANG)
     add_subdirectory(clang)

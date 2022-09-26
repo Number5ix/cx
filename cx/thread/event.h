@@ -14,6 +14,7 @@
 
 CX_C_BEGIN
 
+typedef struct UIEvent UIEvent;
 typedef struct Event {
     // Futex values:
     //  0 - Event is not signaled, any thread will have to wait
@@ -23,11 +24,12 @@ typedef struct Event {
     Futex ftx;
     atomic(int32) waiters;
     AdaptiveSpin aspin;
+    UIEvent *uiev;
 } Event;
 
 enum EVENTINITFUNC_FLAGS {
     EV_Spin = 1,            // Use adaptive spinloop instead of going straight to sleep
-    EV_Alertable = 2,       // May be woken up early by platform-specific events
+    EV_UIEvent = 2,         // May be woken up early by platform-specific UI events
 };
 
 // Events normally do not use the adaptive spin framework.

@@ -3,16 +3,11 @@
 #include <cx/cx.h>
 #include <cx/thread/atomic.h>
 
-enum FUTEX_Flags {
-    FUTEX_Alertable = 0x01,     // may be interrupted by platform-specific events
-};
-
 enum FUTEX_Status {
     FUTEX_Error   = 0,          // unexpected error
     FUTEX_Waited  = 0x1,        // successfully waited for wakeup
     FUTEX_Retry   = 0x2,        // old value was not what was expected, try again
     FUTEX_Timeout = 0x4,        // timeout reached
-    FUTEX_Alerted = 0x8,        // a platform-specific event interrupted the wait
 };
 #define FUTEX_LOOP 0x3          // convenient mask for certain futex loops (Waited or Retry)
 
@@ -20,12 +15,11 @@ typedef struct Futex {
     atomic(int32) val;
     atomic(uint16) _ps;                 // platform-specific value
     atomic(uint8) _ps_lock;             // _ps spinlock
-    uint8 flags;
 } Futex;
 
 _Static_assert(sizeof(Futex) <= sizeof(int64), "Invalid Futex structure packing");
 
-bool futexInit(Futex *ftx, int32 val, int32 flags);
+bool futexInit(Futex *ftx, int32 val);
 
 _meta_inline int32 futexVal(Futex *ftx) {
     return atomicLoad(int32, &ftx->val, Relaxed);

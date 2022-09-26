@@ -8,7 +8,7 @@ bool _semaInit(Semaphore *sema, int32 count, uint32 flags)
 {
     devAssert(count >= 0);
     memset(sema, 0, sizeof(Semaphore));
-    futexInit(&sema->ftx, count, 0);
+    futexInit(&sema->ftx, count);
     aspinInit(&sema->aspin, flags & SEMA_NoSpin);
     return true;
 }

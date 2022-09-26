@@ -2,7 +2,7 @@
 
 bool _cvarInit(CondVar *cv, uint32 flags)
 {
-    futexInit(&cv->seq, 0, 0);
+    futexInit(&cv->seq, 0);
     atomicStore(uint32, &cv->lastseq, 0, Relaxed);
     aspinInit(&cv->aspin, flags & CONDVAR_NoSpin);
     return true;

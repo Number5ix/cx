@@ -16,6 +16,7 @@ set(PLATFORM_WASM_SRCS
     platform/wasm/wasm_thread_thread.c
     platform/wasm/wasm_time.c
     platform/wasm/wasm_time_clock.c
+    platform/wasm/wasm_uievent.c
     platform/wasm/wasm_vfs.c)
 set(PLATFORM_WASM_INCLUDES
     platform/wasm/wasm_hostid.h

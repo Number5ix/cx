@@ -14,8 +14,8 @@
 bool _rwlockInit(RWLock *l, uint32 flags)
 {
     atomicStore(uint32, &l->state, 0, Relaxed);
-    futexInit(&l->rftx, 0, 0);
-    futexInit(&l->wftx, 0, 0);
+    futexInit(&l->rftx, 0);
+    futexInit(&l->wftx, 0);
     aspinInit(&l->aspin, flags & RWLOCK_NoSpin);
     return true;
 }

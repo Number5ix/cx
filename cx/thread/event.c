@@ -2,18 +2,23 @@
 #include <cx/time/time.h>
 #include <cx/utils/compare.h>
 #include <cx/platform/os.h>
+#include <cx/platform/uievent.h>
 
 bool _eventInit(Event *e, flags_t flags)
 {
-    int32 ftxflags = 0;
-    if (flags & EV_Alertable)
-        ftxflags = FUTEX_Alertable;
-    futexInit(&e->ftx, 0, ftxflags);
+    futexInit(&e->ftx, 0);
     atomicStore(int32, &e->waiters, 0, Relaxed);
 
     // Default to not spin unless requested otherwise
     // See the comments in event.h
     aspinInit(&e->aspin, !(flags & EV_Spin));
+
+    e->uiev = NULL;
+#ifdef _UIEVENT_SUPPORTED
+    if (flags & EV_UIEvent)
+        e->uiev = uieventCreate();
+#endif
+
     return true;
 }
 
@@ -42,8 +47,12 @@ bool eventSignalMany(Event *e, int32 count)
         aspinHandleContention(&e->aspin, &astate);
     }
 
-    if (count > 0)
-        futexWakeMany(&e->ftx, count);
+    if (count > 0) {
+        if (!e->uiev)
+            futexWakeMany(&e->ftx, count);
+        else
+            uieventSignal(e->uiev, count);
+    }
 
     // return true if we woke something up or signaled the event
     return count || val == 0;
@@ -72,7 +81,10 @@ bool eventSignalAll(Event *e)
     }
 
     // let the herd come thundering
-    futexWakeAll(&e->ftx);
+    if (!e->uiev)
+        futexWakeAll(&e->ftx);
+    else
+        uieventSignal(e->uiev, waiters);
     return true;
 }
 
@@ -111,8 +123,25 @@ bool eventWaitTimeout(Event *e, uint64 timeout)
             if (!aspinSpin(&e->aspin, &astate)) {
                 // track waiters for wakeup purposes
                 atomicFetchAdd(int32, &e->waiters, 1, Relaxed);
-                int fret = futexWait(&e->ftx, val, aspinTimeoutRemaining(&astate));
-                if (fret == FUTEX_Alerted || fret == FUTEX_Timeout) {
+
+                // shortwait is set if we weren't woken up by another thread and need to undo the waiter
+                // tracking. earlyret is set if we need to exit the loop now rather than waiting for the
+                // actual timeout based on the clock.
+                bool shortwait = false, earlyret = false;
+
+                if (!e->uiev)
+                    shortwait = (futexWait(&e->ftx, val, aspinTimeoutRemaining(&astate)) == FUTEX_Timeout);
+                else {
+                    int uievret = uieventWaitTimeout(e->uiev, aspinTimeoutRemaining(&astate));
+                    if (uievret == UIEVENT_Timeout) {
+                        shortwait = true;
+                    } else if (uievret == UIEVENT_UI) {
+                        shortwait = true;
+                        earlyret = true;
+                    }
+                }
+
+                if (shortwait) {
                     // Wait finished early: need to undo the add above, but be careful because another
                     // thread may have signaled the event in the meantime. This MAY produce a spurious
                     // wakeup of another thread if we lose the race with eventSignalMany. Keep that in
@@ -123,8 +152,9 @@ bool eventWaitTimeout(Event *e, uint64 timeout)
                         aspinHandleContention(&e->aspin, &astate);
                     }
                 }
-                if (fret == FUTEX_Alerted)
-                    return true;    // immediate out if we were alerted, don't update spin stats
+
+                if (earlyret)
+                    return false;
             }
 
             val = atomicLoad(int32, &e->ftx.val, Relaxed);
@@ -149,5 +179,7 @@ bool eventReset(Event *e)
 
 void eventDestroy(Event *e)
 {
+    if (e->uiev)
+        uieventDestroy(e->uiev);
     memset(e, 0, sizeof(Event));
 }

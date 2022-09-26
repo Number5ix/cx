@@ -11,6 +11,7 @@ set(PLATFORM_WIN_SRCS
     platform/win/win_thread_thread.c
     platform/win/win_time.c
     platform/win/win_time_clock.c
+    platform/win/win_uievent.c
     platform/win/win_vfs.c)
 set(PLATFORM_WIN_INCLUDES
     platform/win/win_fs.h

@@ -92,7 +92,7 @@ static int thrproc2(Thread *self)
 static int test_futex()
 {
     int ret = 0;
-    if (!futexInit(&testftx, 0, 0))
+    if (!futexInit(&testftx, 0))
         return 1;
 
     int i;
@@ -477,7 +477,7 @@ static int thrproc6(Thread *self)
 static int test_timeout()
 {
     atomicStore(bool, &fail, false, Release);
-    futexInit(&testftx, 0, 0);
+    futexInit(&testftx, 0);
 
     Thread *testthr = thrCreate(thrproc6, stvNone);
 
