@@ -104,6 +104,7 @@ uint32 strCopyRaw(strref s, uint32 off, char *buf, uint32 maxlen);
 #ifdef _WIN32
 // definition of _S interferes with this header, so include it first
 #include <wchar.h>
+#include <mmintrin.h>
 #endif
 
 // Macros for creating string objects out of string literals by tacking on a basic header
