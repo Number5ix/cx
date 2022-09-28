@@ -1,4 +1,7 @@
 #include <cx/thread.h>
+#include <cx/string.h>
+#include <cx/utils/lazyinit.h>
+#include <unistd.h>
 #define _GNU_SOURCE
 #define __USE_GNU
 #include <pthread.h>
@@ -10,6 +13,26 @@ typedef struct UnixThread {
     pthread_t pthr;
     bool joined;
 } UnixThread;
+
+static UnixThread mainthread;
+static _Thread_local UnixThread *curthread;
+
+static LazyInitState platformThreadInitState;
+static void platformThreadInit(void *dummy)
+{
+    // synthesize a Thread structure for the main thread, so thrCurrent can work
+
+    // We assume that the first thread that creates another thread is the main thread.
+    // This may not be a correct assumption, but is the best we can do consistently
+    // across all platforms without shenanigans.
+
+    mainthread.pthr = pthread_self();
+    strDup(&mainthread.base.name, _S"Main");
+    atomicStore(bool, &mainthread.base.running, true, Relaxed);
+
+    curthread = &mainthread;
+}
+
 
 static void _thrCancelCleanup(void *data)
 {
@@ -35,6 +58,8 @@ Thread *_thrPlatformAlloc() {
 
 bool _thrPlatformStart(Thread *thread)
 {
+    lazyInit(&platformThreadInitState, &platformThreadInit, NULL);
+
     UnixThread *thr = (UnixThread*)thread;
 
     if (thr->pthr)
@@ -81,4 +106,22 @@ bool _thrPlatformWait(Thread *thread, int64 timeout)
 // WebAssembly doesn't support thread priority at all
 bool _thrPlatformSetPriority(Thread *thread, int prio) {
     return false;
+}
+
+Thread *thrCurrent(void)
+{
+    return &curthread->base;
+}
+
+// WebAssembly doesn't have OS-visible thread IDs to speak of, so fake it
+// by just using the value of the thread pointer.
+
+intptr thrOSThreadID(Thread *thread)
+{
+    return (intptr)thread;
+}
+
+intptr thrCurrentOSThreadID(void)
+{
+    return (intptr)curthread;
 }

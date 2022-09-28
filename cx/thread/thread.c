@@ -1,16 +1,18 @@
 #include "thread_private.h"
 #include <cx/container/sarray.h>
 #include <cx/time/time.h>
+#include <cx/string.h>
 
 _Thread_local uintptr _thrCurrentHelper;
 #define THREAD_DESTORY_TIMEOUT timeFromSeconds(30)
 
-Thread* _thrCreate(threadFunc func, int n, stvar args[])
+Thread* _thrCreate(threadFunc func, strref name, int n, stvar args[])
 {
     Thread *ret = _thrPlatformAlloc();
     if (!ret)
         return NULL;
 
+    strDup(&ret->name, name);
     ret->entry = func;
     saInit(&ret->_argsa, stvar, 1);
     for (int i = 0; i < n; i++) {

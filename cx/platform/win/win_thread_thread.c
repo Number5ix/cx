@@ -1,18 +1,54 @@
 #include <cx/thread/thread_private.h>
 #include <cx/platform/win.h>
+#include <cx/string.h>
 #include <cx/time/time.h>
+#include <cx/utils/lazyinit.h>
 #include <process.h>
+
+typedef HRESULT (WINAPI *SetThreadDescription_t)(HANDLE hThread, PCWSTR lpThreadDescription);
+static SetThreadDescription_t pSetThreadDescription;
 
 typedef struct WinThread {
     Thread base;
     bool background;
 
     HANDLE handle;
+    DWORD id;
 } WinThread;
+
+static WinThread mainthread;
+static _Thread_local WinThread *curthread;
+
+static LazyInitState platformThreadInitState;
+static void platformThreadInit(void *dummy)
+{
+    // synthesize a Thread structure for the main thread, so thrCurrent can work
+
+    // We assume that the first thread that creates another thread is the main thread.
+    // This may not be a correct assumption, but is the best we can do consistently
+    // across all platforms without shenanigans.
+
+    mainthread.handle = GetCurrentThread();
+    mainthread.id = GetCurrentThreadId();
+    strDup(&mainthread.base.name, _S"Main");
+    atomicStore(bool, &mainthread.base.running, true, Relaxed);
+
+    curthread = &mainthread;
+
+    // See if the SetThreadDescription API is available for setting thread names
+    // on Windows 10 and later
+    HANDLE hDll = LoadLibrary(TEXT("kernel32.dll"));
+    pSetThreadDescription = (SetThreadDescription_t)GetProcAddress(hDll, "SetThreadDescription");
+}
 
 static unsigned __stdcall _thrEntryPoint(void *data)
 {
     WinThread *thr = (WinThread*)data;
+    thr->id = GetCurrentThreadId();
+    curthread = thr;
+
+    if (pSetThreadDescription)
+        pSetThreadDescription(thr->handle, strToUTF16S(thr->base.name));
 
     thr->base.entry(&thr->base);
 
@@ -27,6 +63,8 @@ Thread *_thrPlatformAlloc() {
 
 bool _thrPlatformStart(Thread *thread)
 {
+    lazyInit(&platformThreadInitState, &platformThreadInit, NULL);
+
     WinThread *thr = (WinThread*)thread;
 
     if (thr->handle)
@@ -94,4 +132,19 @@ bool _thrPlatformSetPriority(Thread *thread, int prio)
     }
 
     return SetThreadPriority(thr->handle, winprio);
+}
+
+Thread *thrCurrent(void)
+{
+    return &curthread->base;
+}
+
+intptr thrOSThreadID(Thread *thread)
+{
+    return ((WinThread *)thread)->id;
+}
+
+intptr thrCurrentOSThreadID(void)
+{
+    return GetCurrentThreadId();
 }

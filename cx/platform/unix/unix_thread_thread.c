@@ -1,20 +1,59 @@
 #include <cx/thread.h>
+#include <cx/string.h>
+#include <cx/utils/lazyinit.h>
+#include <unistd.h>
 #if defined(_PLATFORM_FBSD)
 #include <pthread.h>
 #include <pthread_np.h>
+#include <sys/thr.h>
 #elif defined(_PLATFORM_LINUX)
 #define _GNU_SOURCE
 #define __USE_GNU
 #include <pthread.h>
+#include <sys/syscall.h>
 #endif
 #include <sched.h>
+
+static int getThreadId()
+{
+#if defined(_PLATFORM_LINUX)
+    return syscall(SYS_gettid);
+#elif defined(_PLATFORM_FBSD)
+    long tid;
+    thr_self(&tid);
+    return (int)tid;
+#else
+    return getpid();
+#endif
+}
 
 typedef struct UnixThread {
     Thread base;
 
     pthread_t pthr;
+    int id;
     bool joined;
 } UnixThread;
+
+static UnixThread mainthread;
+static _Thread_local UnixThread *curthread;
+
+static LazyInitState platformThreadInitState;
+static void platformThreadInit(void *dummy)
+{
+    // synthesize a Thread structure for the main thread, so thrCurrent can work
+
+    // We assume that the first thread that creates another thread is the main thread.
+    // This may not be a correct assumption, but is the best we can do consistently
+    // across all platforms without shenanigans.
+
+    mainthread.pthr = pthread_self();
+    mainthread.id = getThreadId();
+    strDup(&mainthread.base.name, _S"Main");
+    atomicStore(bool, &mainthread.base.running, true, Relaxed);
+
+    curthread = &mainthread;
+}
 
 static void _thrCancelCleanup(void *data)
 {
@@ -26,7 +65,11 @@ static void* _thrEntryPoint(void *data)
 {
     UnixThread *thr = (UnixThread*)data;
 
+    thr->id = getThreadId();
+
     pthread_cleanup_push(_thrCancelCleanup, thr);
+    pthread_setname_np(thr->pthr, strC(thr->base.name));
+
     thr->base.entry(&thr->base);
     pthread_cleanup_pop(true);
 
@@ -40,6 +83,8 @@ Thread *_thrPlatformAlloc() {
 
 bool _thrPlatformStart(Thread *thread)
 {
+    lazyInit(&platformThreadInitState, &platformThreadInit, NULL);
+
     UnixThread *thr = (UnixThread*)thread;
 
     if (thr->pthr)
@@ -87,7 +132,7 @@ bool _thrPlatformWait(Thread *thread, int64 timeout)
 // Linux pthreads sucks because it doesn't have any higher-than-normal
 // priority levels other than realtime. It can do per-thread nice (maybe,
 // seems to depend on kernel version and particular implementation) which
-// would work except that there isn't a way to set it for anthing other
+// would work except that there isn't a way to set it for anything other
 // than the current thread. That makes things awkward and doesn't fit well
 // with our API. For now we just don't support THREAD_High or Higher.
 bool _thrPlatformSetPriority(Thread *thread, int prio) {
@@ -164,3 +209,18 @@ bool _thrPlatformSetPriority(Thread *thread, int prio) {
     return !pthread_setschedparam(thr->pthr, policy, &param);
 }
 #endif
+
+Thread *thrCurrent(void)
+{
+    return &curthread->base;
+}
+
+intptr thrOSThreadID(Thread *thread)
+{
+    return ((UnixThread *)thread)->id;
+}
+
+intptr thrCurrentOSThreadID(void)
+{
+    return getThreadId();
+}

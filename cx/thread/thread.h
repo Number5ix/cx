@@ -13,6 +13,8 @@ typedef int(*threadFunc)(Thread *self);
 // not the entire structure; platform specific data may be after it
 typedef struct Thread {
     threadFunc entry;
+    string name;
+
     stvlist args;
     sa_stvar _argsa;            // should use the stvlist instead where possible
 
@@ -30,13 +32,14 @@ enum ThreadPriority {
     THREAD_Realtime
 };
 
-// trick to get an opaque pointer-sized identifier that synchronization primitives
-// can use to uniquely identify a thread (inlcuding ones created by native methods)
-extern _Thread_local uintptr _thrCurrentHelper;
-#define thrCurrent() ((uintptr)&_thrCurrentHelper)
+// defined in platform-specific thread module
+Thread *thrCurrent(void);
+intptr thrOSThreadID(Thread *thread);
+intptr thrCurrentOSThreadID(void);      // works even on non-cx threads
 
-Thread* _thrCreate(threadFunc func, int n, stvar args[]);
-#define thrCreate(func, ...) _thrCreate(func, count_macro_args(__VA_ARGS__), (stvar[]) { __VA_ARGS__ })
+Thread* _thrCreate(threadFunc func, strref name, int n, stvar args[]);
+// Thread* thrCreate(threadFunc func, strref name, ...)
+#define thrCreate(func, name, ...) _thrCreate(func, name, count_macro_args(__VA_ARGS__), (stvar[]) { __VA_ARGS__ })
 
 _meta_inline bool thrRunning(Thread *thread)
 {
