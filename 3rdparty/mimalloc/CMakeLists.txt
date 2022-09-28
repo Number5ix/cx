@@ -186,7 +186,7 @@ endif()
 
 # Compiler flags
 if(CMAKE_C_COMPILER_ID MATCHES "AppleClang|Clang|GNU")
-  list(APPEND mi_cflags -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden)
+  list(APPEND mi_cflags -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wno-unused-parameter)
   if(NOT MI_USE_CXX)
     list(APPEND mi_cflags -Wstrict-prototypes)
   endif()  
