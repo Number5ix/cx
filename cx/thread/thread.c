@@ -33,6 +33,7 @@ void _thrDestroy(Thread *thread)
 {
     _thrPlatformDestroy(thread);
     saDestroy(&thread->_argsa);
+    strDestroy(&thread->name);
     xaFree(thread);
 }
 
