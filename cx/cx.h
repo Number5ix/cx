@@ -9,8 +9,6 @@
 #error("Do not include cx.h after windows.h!");
 #endif
 
-#include <cxmem/config.h>
-
 #include <string.h>
 #include <ctype.h>
 #include <time.h>

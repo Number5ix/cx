@@ -274,6 +274,12 @@ if(MI_BUILD_TESTS)
   list(APPEND mi_build_targets "tests")
 endif()
 
+list(APPEND mi_defines
+    $<$<CONFIG:debug>:MI_DEBUG=3>
+    $<$<CONFIG:dev>:MI_DEBUG=2>
+    $<$<CONFIG:release>:MI_DEBUG=0>
+    $<$<CONFIG:release>:MI_SECURE=4>)
+
 message(STATUS "")
 message(STATUS "Library base name: ${mi_basename}")
 message(STATUS "Version          : ${mi_version}")

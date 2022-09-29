@@ -2,10 +2,6 @@
 #include "cx/debug/crash.h"
 #include <stdlib.h>
 
-// static assert to prove that cx/static_config.h was included somewhere
-extern const int you_forgot_to_include_cx_static_config_h;
-const void *_cx_invariant = &you_forgot_to_include_cx_static_config_h;
-
 #if DEBUG_LEVEL >= 1
 _no_inline bool _cxAssertFail(const char *expr, const char *msg, const char *file, int ln)
 #else

@@ -56,9 +56,9 @@ target_include_directories(cx SYSTEM PUBLIC ${CX_TOP_SOURCE_DIR} ${CX_TOP_BINARY
 target_compile_definitions(cx PRIVATE UNICODE _UNICODE)
 
 target_compile_definitions(cx PUBLIC
-    $<$<CONFIG:Debug>:DEBUG_BUILD>
-    $<$<OR:$<CONFIG:Dev>,$<CONFIG:Debug>>:DEV_BUILD>
-    $<$<CONFIG:Release>:RELEASE_BUILD>
-    $<$<CONFIG:Debug>:DEBUG_LEVEL=2>
-    $<$<CONFIG:Dev>:DEBUG_LEVEL=1>
-    $<$<CONFIG:Release>:DEBUG_LEVEL=0>)
+    $<$<CONFIG:debug>:DEBUG_BUILD>
+    $<$<OR:$<CONFIG:dev>,$<CONFIG:debug>>:DEV_BUILD>
+    $<$<CONFIG:release>:RELEASE_BUILD>
+    $<$<CONFIG:debug>:DEBUG_LEVEL=2>
+    $<$<CONFIG:dev>:DEBUG_LEVEL=1>
+    $<$<CONFIG:release>:DEBUG_LEVEL=0>)
