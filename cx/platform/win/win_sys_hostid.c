@@ -5,7 +5,7 @@
 
 #include <mbedtls/entropy.h>
 
-typedef int (*GetSystemFirmwareTable_t)(DWORD FirmwareTableProviderSignature, DWORD FirmwareTableID, PVOID pFirmwareTableBuffer, DWORD BufferSize);
+typedef int (WINAPI *GetSystemFirmwareTable_t)(DWORD FirmwareTableProviderSignature, DWORD FirmwareTableID, PVOID pFirmwareTableBuffer, DWORD BufferSize);
 
 typedef struct DMIHeader {
     BYTE type;
