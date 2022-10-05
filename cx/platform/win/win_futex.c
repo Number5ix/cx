@@ -63,9 +63,8 @@ static void _futexInit(void *unused)
             ftxke = NULL;
     }
 
-    // make sure we have at least one usable synchronization primitive, and we always need keyed events
-    // for FUTEX_PlatformEvents
-    if (!ftxke) {
+    // make sure we have at least one usable synchronization primitive
+    if (!(pWaitOnAddress || ftxke)) {
         MessageBox(NULL, TEXT("Incompatible operating system"), TEXT("Error"), MB_ICONERROR | MB_OK);
         exit(1);
     }
