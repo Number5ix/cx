@@ -97,7 +97,7 @@ bool _thrPlatformWait(Thread *thread, int64 timeout)
     else {
         struct timespec ts;
 	void *unused;
-        timeToRelTimespec(&ts, timeout);
+        timeToAbsTimespec(&ts, clockWall() + timeout);
         thr->joined = !pthread_timedjoin_np(thr->pthr, &unused, &ts);
     }
     return thr->joined;
