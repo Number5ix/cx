@@ -348,7 +348,7 @@ static bool _mi_heap_done(mi_heap_t* heap) {
 // 1. windows dynamic library:
 //     call from DllMain on DLL_THREAD_DETACH
 // 2. windows static library:
-//     use `FlsAlloc` to call a destructor when the thread is done
+//     call from C runtime's thread callback mechanism
 // 3. unix, pthreads:
 //     use a pthread key to call a destructor when a pthread is done
 //
@@ -361,19 +361,33 @@ static void _mi_thread_done(mi_heap_t* default_heap);
 #if defined(_WIN32) && defined(MI_SHARED_LIB)
   // nothing to do as it is done in DllMain
 #elif defined(_WIN32) && !defined(MI_SHARED_LIB)
-  // use thread local storage keys to detect thread ending
+static BOOL WINAPI
+_tls_callback(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
+{
+	switch (fdwReason) {
+	case DLL_THREAD_DETACH:
+		_mi_thread_done(_mi_heap_default);
+		break;
+	default:
+		break;
+	}
+	return true;
+}
+
+  // use CRT TLS callbacks
   #include <windows.h>
-  #include <fibersapi.h>
-  #if (_WIN32_WINNT < 0x600)  // before Windows Vista 
-  WINBASEAPI DWORD WINAPI FlsAlloc( _In_opt_ PFLS_CALLBACK_FUNCTION lpCallback );
-  WINBASEAPI PVOID WINAPI FlsGetValue( _In_ DWORD dwFlsIndex );
-  WINBASEAPI BOOL  WINAPI FlsSetValue( _In_ DWORD dwFlsIndex, _In_opt_ PVOID lpFlsData );
-  WINBASEAPI BOOL  WINAPI FlsFree(_In_ DWORD dwFlsIndex);
-  #endif
-  static DWORD mi_fls_key = (DWORD)(-1);
-  static void NTAPI mi_fls_done(PVOID value) {
-    if (value!=NULL) _mi_thread_done((mi_heap_t*)value);
-  }
+
+#ifdef _M_IX86
+#  pragma comment(linker, "/INCLUDE:__tls_used")
+#  pragma comment(linker, "/INCLUDE:_tls_callback")
+#else
+#  pragma comment(linker, "/INCLUDE:_tls_used")
+#  pragma comment(linker, "/INCLUDE:tls_callback")
+#endif
+#pragma section(".CRT$XLY",long,read)
+mi_decl_externc __declspec(allocate(".CRT$XLY")) BOOL(WINAPI *const tls_callback)(HINSTANCE hinstDLL,
+								 DWORD fdwReason, LPVOID lpvReserved) = _tls_callback;
+
 #elif defined(MI_USE_PTHREADS)
   // use pthread local storage keys to detect thread ending
   // (and used with MI_TLS_PTHREADS for the default heap)
@@ -395,7 +409,7 @@ static void mi_process_setup_auto_thread_done(void) {
   #if defined(_WIN32) && defined(MI_SHARED_LIB)
     // nothing to do as it is done in DllMain
   #elif defined(_WIN32) && !defined(MI_SHARED_LIB)
-    mi_fls_key = FlsAlloc(&mi_fls_done);
+    // handled by CRT callback
   #elif defined(MI_USE_PTHREADS)
     mi_assert_internal(_mi_heap_default_key == (pthread_key_t)(-1));
     pthread_key_create(&_mi_heap_default_key, &mi_pthread_done);
@@ -462,8 +476,7 @@ void _mi_heap_set_default_direct(mi_heap_t* heap)  {
   #if defined(_WIN32) && defined(MI_SHARED_LIB)
     // nothing to do as it is done in DllMain
   #elif defined(_WIN32) && !defined(MI_SHARED_LIB)
-    mi_assert_internal(mi_fls_key != 0);
-    FlsSetValue(mi_fls_key, heap);
+    // handled by CRT callback
   #elif defined(MI_USE_PTHREADS)
   if (_mi_heap_default_key != (pthread_key_t)(-1)) {  // can happen during recursive invocation on freeBSD
     pthread_setspecific(_mi_heap_default_key, heap);
@@ -579,13 +592,6 @@ void mi_process_init(void) mi_attr_noexcept {
   _mi_verbose_message("secure level: %d\n", MI_SECURE);
   mi_thread_init();
 
-  #if defined(_WIN32) && !defined(MI_SHARED_LIB)
-  // When building as a static lib the FLS cleanup happens to early for the main thread.
-  // To avoid this, set the FLS value for the main thread to NULL so the fls cleanup
-  // will not call _mi_thread_done on the (still executing) main thread. See issue #508.
-  FlsSetValue(mi_fls_key, NULL);
-  #endif
-
   mi_stats_reset();  // only call stat reset *after* thread init (or the heap tld == NULL)
 
   if (mi_option_is_enabled(mi_option_reserve_huge_os_pages)) {
@@ -614,10 +620,6 @@ static void mi_process_done(void) {
   if (process_done) return;
   process_done = true;
 
-  #if defined(_WIN32) && !defined(MI_SHARED_LIB)
-  FlsFree(mi_fls_key);  // call thread-done on all threads (except the main thread) to prevent dangling callback pointer if statically linked with a DLL; Issue #208
-  #endif
-  
   #ifndef MI_SKIP_COLLECT_ON_EXIT
     #if (MI_DEBUG != 0) || !defined(MI_SHARED_LIB)  
     // free all memory if possible on process exit. This is not needed for a stand-alone process

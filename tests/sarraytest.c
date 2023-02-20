@@ -2,8 +2,6 @@
 #include <cx/string.h>
 #include <cx/string/strtest.h>
 
-#include <cx/static_config.h>
-
 #define TEST_FILE sarraytest
 #define TEST_FUNCS sarraytest_funcs
 #include "common.h"

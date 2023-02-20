@@ -163,9 +163,13 @@ static PNtAllocateVirtualMemoryEx pNtAllocateVirtualMemoryEx = NULL;
 // Similarly, GetNumaProcesorNodeEx is only supported since Windows 7
 typedef struct MI_PROCESSOR_NUMBER_S { WORD Group; BYTE Number; BYTE Reserved; } MI_PROCESSOR_NUMBER;
 
+typedef SIZE_T (__stdcall *PGetLargePageMinimum)();
+typedef DWORD (__stdcall *PGetCurrentProcessorNumber)();
 typedef VOID (__stdcall *PGetCurrentProcessorNumberEx)(MI_PROCESSOR_NUMBER* ProcNumber);
 typedef BOOL (__stdcall *PGetNumaProcessorNodeEx)(MI_PROCESSOR_NUMBER* Processor, PUSHORT NodeNumber);
 typedef BOOL (__stdcall* PGetNumaNodeProcessorMaskEx)(USHORT Node, PGROUP_AFFINITY ProcessorMask);
+static PGetLargePageMinimum         pGetLargePageMinimum = NULL;
+static PGetCurrentProcessorNumber   pGetCurrentProcessorNumber = NULL;
 static PGetCurrentProcessorNumberEx pGetCurrentProcessorNumberEx = NULL;
 static PGetNumaProcessorNodeEx      pGetNumaProcessorNodeEx = NULL;
 static PGetNumaNodeProcessorMaskEx  pGetNumaNodeProcessorMaskEx = NULL;
@@ -180,7 +184,7 @@ static bool mi_win_enable_large_os_pages(void)
   // <https://devblogs.microsoft.com/oldnewthing/20110128-00/?p=11643>
   unsigned long err = 0;
   HANDLE token = NULL;
-  BOOL ok = OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &token);
+  BOOL ok = pGetLargePageMinimum && OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &token);
   if (ok) {
     TOKEN_PRIVILEGES tp;
     ok = LookupPrivilegeValue(NULL, TEXT("SeLockMemoryPrivilege"), &tp.Privileges[0].Luid);
@@ -192,7 +196,7 @@ static bool mi_win_enable_large_os_pages(void)
         err = GetLastError();
         ok = (err == ERROR_SUCCESS);
         if (ok) {
-          large_os_page_size = GetLargePageMinimum();
+          large_os_page_size = pGetLargePageMinimum();
         }
       }
     }
@@ -231,7 +235,9 @@ void _mi_os_init(void)
   // Try to use Win7+ numa API
   hDll = LoadLibrary(TEXT("kernel32.dll"));
   if (hDll != NULL) {
-    pGetCurrentProcessorNumberEx = (PGetCurrentProcessorNumberEx)(void (*)(void))GetProcAddress(hDll, "GetCurrentProcessorNumberEx");
+	pGetLargePageMinimum = (PGetLargePageMinimum)(void(*)(void))GetProcAddress(hDll, "GetLargePageMinimum");
+	pGetCurrentProcessorNumber = (PGetCurrentProcessorNumber)(void(*)(void))GetProcAddress(hDll, "GetCurrentProcessorNumber");
+	pGetCurrentProcessorNumberEx = (PGetCurrentProcessorNumberEx)(void (*)(void))GetProcAddress(hDll, "GetCurrentProcessorNumberEx");
     pGetNumaProcessorNodeEx = (PGetNumaProcessorNodeEx)(void (*)(void))GetProcAddress(hDll, "GetNumaProcessorNodeEx");
     pGetNumaNodeProcessorMaskEx = (PGetNumaNodeProcessorMaskEx)(void (*)(void))GetProcAddress(hDll, "GetNumaNodeProcessorMaskEx");
     FreeLibrary(hDll);
@@ -1316,9 +1322,10 @@ static size_t mi_os_numa_nodex(void) {
     BOOL ok = (*pGetNumaProcessorNodeEx)(&pnum, &nnode);
     if (ok) numa_node = nnode;
   }
-  else {
+  else if (pGetCurrentProcessorNumber) {
     // Vista or earlier, use older API that is limited to 64 processors. Issue #277
-    DWORD pnum = GetCurrentProcessorNumber();
+	// Unless they're running XP which doesn't even have GetCurrentProcessorNumber
+    DWORD pnum = pGetCurrentProcessorNumber();
     UCHAR nnode = 0;
     BOOL ok = GetNumaProcessorNode((UCHAR)pnum, &nnode);
     if (ok) numa_node = nnode;    

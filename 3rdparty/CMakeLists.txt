@@ -1,8 +1,3 @@
-if(${CX_ALLOCATOR} STREQUAL "jemalloc" AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
-add_subdirectory(jemalloc)
-endif()
-if(${CX_ALLOCATOR} STREQUAL "mimalloc")
 add_subdirectory(mimalloc)
-endif()
 add_subdirectory(mbedtls)
 add_subdirectory(pcre2)

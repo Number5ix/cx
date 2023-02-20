@@ -10,11 +10,6 @@ set(CMAKE_CONFIGURATION_TYPES "debug" "dev" "release")
 set(CX_TOP_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(CX_TOP_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
 
-# Uncomment one of these to manually select an allocator
-#set(CX_ALLOCATOR jemalloc)
-#set(CX_ALLOCATOR mimalloc)
-#set(CX_ALLOCATOR msvcrt)
-
 project (cx)
 enable_language(C)
 
@@ -36,19 +31,19 @@ if(CX_PLATFORM_IS_WASM)
     # emcc needs to handle debug info differently in release builds,
     # but it's technically clang so check for it first
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Werror")
-    set(CMAKE_C_FLAGS_DEBUG "-O0 -g")
-    set(CMAKE_C_FLAGS_DEV "-O1 -g")
-    set(CMAKE_C_FLAGS_RELEASE "-O3")
+    set(CMAKE_C_FLAGS_DEBUG "-O0 -g -DDEBUG")
+    set(CMAKE_C_FLAGS_DEV "-O1 -g -DNDEBUG")
+    set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG")
 elseif(CX_COMPILER_IS_CLANG)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -Wall -Werror")
-    set(CMAKE_C_FLAGS_DEBUG "-O0")
-    set(CMAKE_C_FLAGS_DEV "-O1")
-    set(CMAKE_C_FLAGS_RELEASE "-O3")
+    set(CMAKE_C_FLAGS_DEBUG "-O0 -DDEBUG")
+    set(CMAKE_C_FLAGS_DEV "-O1 -DNDEBUG")
+    set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG")
 elseif(CX_COMPILER_IS_GNU)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -Wall -Werror -fno-strict-aliasing")
-    set(CMAKE_C_FLAGS_DEBUG "-O0")
-    set(CMAKE_C_FLAGS_DEV "-O1")
-    set(CMAKE_C_FLAGS_RELEASE "-O3")
+    set(CMAKE_C_FLAGS_DEBUG "-O0 -DDEBUG")
+    set(CMAKE_C_FLAGS_DEV "-O1 -DNDEBUG")
+    set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG")
 elseif(CX_COMPILER_IS_MSVC)
     set(CMAKE_C_FLAGS "/MP /Zi /Gm- /fp:precise /fp:except- /Zc:forScope /GR- /Gd /Oi /MD /FC /EHsc- /DWIN32 /D_WINDOWS /W3 /WX")
     set(CMAKE_C_FLAGS_DEBUG "/Od /Ob1 /GF- /RTC1 /DDEBUG /D_DEBUG /MDd")
@@ -62,32 +57,7 @@ elseif(CX_COMPILER_IS_MSVC)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /debug")
 endif()
 
-# Autodetect allocator if none specified
-if(NOT CX_ALLOCATOR)
-    if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-        if(${CMAKE_GENERATOR_PLATFORM} MATCHES "x64" OR ${CMAKE_VS_PLATFORM_NAME} MATCHES "x64")
-            # Default to mimalloc on Win64
-            set(CX_ALLOCATOR "mimalloc" CACHE STRING "Memory allocator to build against" FORCE)
-        else()
-            # But can't be used on Win32 due to lack of 64-bit atomics
-            set(CX_ALLOCATOR "jemalloc" CACHE STRING "memory allocator to build against" FORCE)
-        endif()
-    elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-        if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "aarch64")
-            # jemalloc outperforms mimalloc by a lot on ARM
-            set(CX_ALLOCATOR "jemalloc" CACHE STRING "Memory allocator to build against" FORCE)
-        else()
-            # but not x86
-            set(CX_ALLOCATOR "mimalloc" CACHE STRING "Memory allocator to build against" FORCE)
-        endif()
-    else()
-        set(CX_ALLOCATOR "jemalloc" CACHE STRING "memory allocator to build against" FORCE)
-    endif()
-endif()
-
 if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
-    # WASM requires a specific allocator, forcibly enable it
-    set(CX_ALLOCATOR "emmalloc")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pthread")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pthread -sMALLOC=emmalloc -sINITIAL_MEMORY=2047MB")
 endif()
