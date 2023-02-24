@@ -101,6 +101,22 @@ uint32 strCopyOut(strref s, uint32 off, char *buf, uint32 bufsz);
 // Returns: Number of bytes copied (may be smaller than requested if string length is exceeded).
 uint32 strCopyRaw(strref s, uint32 off, char *buf, uint32 maxlen);
 
+uint32 _strStackAllocSize(uint32 maxlen);
+void _strInitStack(string *ps, uint32 maxlen);
+// Creates a stack-allocated temporary string. This string may be used as a buffer
+// to hold results of string operations, but it must NOT be returned or stored in a
+// way the survives the execution of the scope in which it is initialized.
+//
+// When used as a destination parameter, string functions do not promote strings
+// to ropes if the destination is a stack-allocated string.
+//
+// String functions MAY replace the handle with one to a standard heap-allocated
+// string if there is not enough buffer space for the result. Because of this,
+// the caller MUST call strDestroy on the handle initialized by strTemp before
+// leaving the scope in which it is defined.
+#define strTemp(ps, maxlen) (*(ps)) = (string)stackAlloc(_strStackAllocSize(maxlen)); \
+    _strInitStack(ps, maxlen);
+
 #ifdef _WIN32
 // definition of _S interferes with this header, so include it first
 #include <wchar.h>

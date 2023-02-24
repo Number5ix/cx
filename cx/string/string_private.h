@@ -12,6 +12,7 @@
 #define STR_LEN32    0x03       // 32-bit length, 16-bit ref count if STR_ALLOC
 #define STR_LEN_MASK 0x03
 
+#define STR_STACK    0x04       // string is allocated on the stack, ref count is buffer size
 #define STR_ROPE     0x08       // string is a rope node
 #define STR_ALLOC    0x10       // string allocated by us, ref count field present
 #define STR_UTF8     0x20       // string is UTF-8
@@ -116,7 +117,8 @@ void _strSetRef(string s, uint16 ref);
 bool _strMakeUnique(string *ps, uint32 minszforcopy);
 // like _strMakeUnique but also flattens ropes into plain strings
 bool _strFlatten(string *ps, uint32 minszforcopy);
-// resize ps in place if possible, or copy if necessary (changing ps)
+// resize ps in place if possible, or copy if necessary (changing ps).
+// resizes buffer only, does NOT zero buffer or set length header
 bool _strResize(string *ps, uint32 len, bool unique);
 // duplicates s and returns a copy, optionally with more reserved space allocated
 string _strCopy(strref s, uint32 minsz);

@@ -49,7 +49,7 @@ static void _striInit(striter *iter, strref s, bool reverse)
 
     iter->_borrowed = false;
     // if this is an allocated string, grab a ref, otherwise just store it
-    if (STR_HDR(s) & STR_ALLOC) {
+    if ((STR_HDR(s) & STR_ALLOC) && !(STR_HDR(s) & STR_STACK)) {
         iter->_str = 0;
         strDup(&iter->_str, s);
     } else {

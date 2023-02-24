@@ -2,6 +2,7 @@
 #include "strtest.h"
 #include "cx/platform/base.h"
 #include "cx/utils/scratch.h"
+#include "cx/debug/assert.h"
 
 // lookup table for structure positions, lives in a single cache line
 // Len, Refcount, String, 0
@@ -116,7 +117,7 @@ string _strCopy(strref s, uint32 minsz)
         return NULL;
     _strSetLen(ret, len);
     _strFastCopy(s, 0, STR_BUFFER(ret), len);
-    STR_BUFFER(ret)[len] = 0;           // termianting NULL
+    STR_BUFFER(ret)[len] = 0;           // terminating NULL
     // copy encoding bits to new string
     *STR_HDRP(ret) &= ~STR_ENCODING_MASK;
     *STR_HDRP(ret) |= STR_HDR(s) & STR_ENCODING_MASK;
@@ -137,10 +138,12 @@ uint32 _strFastCopy(strref s, uint32 off, char *buf, uint32 bytes)
 
 bool _strResize(string *ps, uint32 newsz, bool unique)
 {
-    // TODO: add assert that this isn't a rope?
+    devAssert(!(STR_HDR(*ps) & STR_ROPE));
+    bool isstack = STR_HDR(*ps) & STR_STACK;
+
     // see if we are the only owner and can just realloc in place
-    if (STR_HDR(*ps) & STR_ALLOC) {
-        uint32 bufsz = (uint32)xaSize(*ps) - (uint32)((char*)STR_BUFFER(*ps) - (char*)(*ps));
+    if (STR_HDR(*ps) & STR_ALLOC && !isstack) {
+        uint32 bufsz = (uint32)xaSize(*ps) - (uint32)((char *)STR_BUFFER(*ps) - (char *)(*ps));
         if (bufsz >= newsz + 1) {       // check for room for string + terminator
             // room already, good to go
             if (unique)
@@ -160,6 +163,15 @@ bool _strResize(string *ps, uint32 newsz, bool unique)
             strDestroy(&s);
             return true;
         }
+    } else if (isstack) {
+        // stack allocated string, check the buffer size
+        uint32 bufsz = _strFastRefNoSync(*ps);
+        if (bufsz >= newsz + 1)
+            return true;
+
+        // not enough room, replace it with a normal string from the heap
+        *ps = _strCopy(*ps, newsz);
+        return (*ps != NULL);
     } else {
         // not allocated by us, make a copy
         *ps = _strCopy(*ps, newsz);
@@ -170,6 +182,10 @@ bool _strResize(string *ps, uint32 newsz, bool unique)
 bool _strMakeUnique(string *ps, uint32 minszforcopy)
 {
     string s = *ps;         // borrow ref
+
+    // stack allocated strings are always unique
+    if (STR_HDR(s) & STR_STACK)
+        return true;
 
     if (STR_HDR(s) & STR_ALLOC) {
         uint16 ref = _strFastRef(s);
@@ -196,6 +212,10 @@ bool _strMakeUnique(string *ps, uint32 minszforcopy)
 bool _strFlatten(string *ps, uint32 minszforcopy)
 {
     string s = *ps;     // borrow ref
+
+    // stack allocated strings are always flat
+    if (STR_HDR(s) & STR_STACK)
+        return true;
 
     if (STR_HDR(s) & STR_ALLOC) {
         uint16 ref = _strFastRef(s);
@@ -242,20 +262,46 @@ void strReset(string *o, uint32 sizehint)
     *o = ret;
 }
 
+static void strDupIntoStack(string *o, strref s)
+{
+    uint32 bufsz = _strFastRefNoSync(*o);
+    uint32 srclen = _strFastLen(s);
+
+    // see if there's enough room in the buffer
+    if (srclen > bufsz - 1) {
+        // if not, replace it with a heap-allocated copy
+        *o = _strCopy(s, 0);
+        return;
+    }
+
+    _strFastCopy(s, 0, STR_BUFFER(*o), srclen);
+    STR_BUFFER(*o)[srclen] = 0;
+    _strSetLen(*o, srclen);
+}
+
 void strDup(string *o, strref s)
 {
-    if (o && *o == s)
+    if (!o || !STR_CHECK_VALID(s)) return;
+    if (*o == s)
         return;
 
+    // special case for duplicating into a stack-allocated string
+    // do a copy into the buffer instead
+    if (STR_CHECK_VALID(*o) && (STR_HDR(*o) & STR_STACK)) {
+        strDupIntoStack(o, s);
+        return;
+    }
+
     strDestroy(o);
-    if (!o || !STR_CHECK_VALID(s)) return;
 
     int l = STR_HDR(s) & STR_LEN_MASK;
 
-    if (!(STR_HDR(s) & STR_CX)) {
+    if (!(STR_HDR(s) & STR_CX) || (STR_HDR(s) & STR_STACK)) {
         // if this is a plain C string, copy it, because we can't
         // make any assumptions about the lifetime of the underlying
-        // buffer
+        // buffer.
+        // also copy if the source is a stack allocated string, since
+        // it can't be referenced.
         *o = _strCopy(s, 0);
         return;
     } else if (!(STR_HDR(s) & STR_ALLOC)) {
@@ -292,22 +338,32 @@ void strCopy(string *o, strref s)
 void _strReset(string *s, uint32 minsz)
 {
     if (!STR_CHECK_VALID(*s) || !(STR_HDR(*s) & STR_ALLOC) ||
-        !!(STR_HDR(*s) & STR_ROPE) || _strFastRef(*s) != 1) {
+        !!(STR_HDR(*s) & STR_ROPE) ||
+        (!(STR_HDR(*s) & STR_STACK) && _strFastRef(*s) != 1)) {
         // can't do anything with these, just re-init them
         strReset(s, minsz);
         return;
     }
 
-    uint32 bufsz = (uint32)xaSize(*s) - (uint32)((char*)STR_BUFFER(*s) - (char*)(*s));
-    if (bufsz < minsz + 1 && _strLenClass(minsz, 1) == (STR_HDR(*s) & STR_LEN_MASK)) {
-        // attempt to expand the allocation in place (does not copy)
-        bufsz = (uint32)xaExpand(*s, _strAllocSz(STR_HDR(*s), minsz), 0) - (uint32)((char*)STR_BUFFER(*s) - (char*)(*s));
-    }
+    if (!(STR_HDR(*s) & STR_STACK)) {
+        uint32 bufsz = (uint32)xaSize(*s) - (uint32)((char *)STR_BUFFER(*s) - (char *)(*s));
+        if (bufsz < minsz + 1 && _strLenClass(minsz, 1) == (STR_HDR(*s) & STR_LEN_MASK)) {
+            // attempt to expand the allocation in place (does not copy)
+            bufsz = (uint32)xaExpand(*s, _strAllocSz(STR_HDR(*s), minsz), 0) - (uint32)((char *)STR_BUFFER(*s) - (char *)(*s));
+        }
 
-    if (bufsz < minsz + 1) {
-        // just destroy and create new rather than copy useless data
-        strReset(s, minsz);
-        return;
+        if (bufsz < minsz + 1) {
+            // just destroy and create new rather than copy useless data
+            strReset(s, minsz);
+            return;
+        }
+    } else {
+        // stack allocated string, just verify that the buffer is big enough
+        uint32 bufsz = _strFastRefNoSync(*s);
+        if (bufsz < minsz + 1) {
+            strReset(s, minsz);
+            return;
+        }
     }
 
     // yay, we can actually be efficient!
@@ -350,7 +406,7 @@ void strDestroy(string *ps)
     string s = STR_SAFE_DEREF(ps);
     if (!s) return;
 
-    if (!(STR_HDR(s) & STR_ALLOC)) {
+    if (!(STR_HDR(s) & STR_ALLOC) || (STR_HDR(s) & STR_STACK)) {
         // don't deallocate strings we didn't alloc, but still clear the handle
         *ps = NULL;
         return;
@@ -394,7 +450,7 @@ char *strBuffer(string *ps, uint32 minsz)
     if (!ps)
         return NULL;
     if (!STR_CHECK_VALID(*ps))
-        _strReset(ps, minsz);
+        strReset(ps, minsz);
 
     // make sure ps points to a flat string with only 1 reference
     if (!_strFlatten(ps, minsz))
@@ -459,8 +515,53 @@ bool strSetLen(string *ps, uint32 len)
 
 int strTestRefCount(strref s)
 {
-    if (!STR_CHECK_VALID(s) || !(STR_HDR(s) & STR_ALLOC))
+    if (!STR_CHECK_VALID(s) || !(STR_HDR(s) & STR_ALLOC) || (STR_HDR(s) & STR_STACK))
         return 0;
 
     return _strFastRef(s);
+}
+
+uint32 _strStackAllocSize(uint32 maxlen)
+{
+    if (maxlen == 0)
+        return 0;
+    if (maxlen < 255)
+        return maxlen + 5;      // 2 bytes header, 1 byte ref, 1 bytes len, 1 byte null terminator
+    if (maxlen < 65535)
+        return maxlen + 7;      // 2 bytes header, 2 byte ref, 2 bytes len, 1 byte null terminator
+    devFatalError("Tried to stack allocate too long of a string");
+    return 0;
+}
+
+void _strInitStack(string *ps, uint32 maxlen)
+{
+    devAssert(*ps);
+    if (!*ps || maxlen == 0 || maxlen >= 65535) {
+        *ps = NULL;
+        return;
+    }
+    string s = *ps;
+
+    uint8 lencl = 0;
+    if (maxlen < 255)
+        lencl = STR_LEN8;
+    else
+        lencl = STR_LEN16;
+
+    uint8 newhdr = STR_CX | STR_ALLOC | STR_STACK | STR_UTF8 | STR_ASCII | lencl;
+
+    *(uint8*)s = newhdr;
+    ((uint8*)s)[1] = 0xc1;      // magic string header
+
+    // stack-allocated only ever have a single reference but set STR_ALLOC, so we
+    // can stash the size of the buffer in the reference count field.
+    if (lencl == STR_LEN8) {
+        STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), uint8) = (uint8)maxlen;
+        STR_FIELD(s, STR_OFF_LEN(STR_HDR(s)), uint8) = (uint8)0;
+    } else {
+        STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), uint16) = (uint16)maxlen;
+        STR_FIELD(s, STR_OFF_LEN(STR_HDR(s)), uint16) = (uint16)0;
+    }
+
+    STR_BUFFER(s)[0] = 0;
 }

@@ -38,7 +38,7 @@ bool _strNConcat(string *o, int n, strref *_args)
     if (n == 2 && *o && *o == firstarg && _strFastLen(*o) == 0) {
         // special optimization for appending to an empty string
         strDup(o, args[1]);
-    } else if (n == 1 || len < ROPE_JOIN_THRESH) {
+    } else if (n == 1 || len < ROPE_JOIN_THRESH || (*o && (STR_HDR(*o) & STR_STACK))) {
         // regular string concatenation
         // set up destination
         if (*o && *o == firstarg && !(STR_HDR(*o) & STR_ROPE)) {
@@ -131,7 +131,7 @@ bool _strNConcatC(string *o, int n, string **args)
     if (n == 2 && *o && *o == firstarg && _strFastLen(*o) == 0) {
         // special optimization for appending to an empty string
         strDup(o, *args[1]);
-    } else if (n == 1 || len < ROPE_JOIN_THRESH) {
+    } else if (n == 1 || len < ROPE_JOIN_THRESH || (*o && (STR_HDR(*o) & STR_STACK))) {
         // regular string concatenation
         // set up destination
         if (*o && *o == firstarg && !(STR_HDR(*o) & STR_ROPE)) {
@@ -243,7 +243,8 @@ static bool _strAppend(string *io, strref s)
 
     if (len < ROPE_JOIN_THRESH ||
         (iolen < ROPE_MIN_SIZE && slen < ROPE_MAX_MERGE) ||
-        (slen < ROPE_MIN_SIZE && iolen < ROPE_MAX_MERGE)) {
+        (slen < ROPE_MIN_SIZE && iolen < ROPE_MAX_MERGE) ||
+        (*io && (STR_HDR(*io) & STR_STACK))) {
         // regular string concatenation
 
         if (STR_HDR(*io) & STR_ROPE)                // have to flatten first to append in place
@@ -355,7 +356,8 @@ bool strConcat(string *o, strref s1, strref s2)
 
     if (len < ROPE_JOIN_THRESH ||
         (s1len < ROPE_MIN_SIZE && s2len < ROPE_MAX_MERGE) ||
-        (s2len < ROPE_MIN_SIZE && s1len < ROPE_MAX_MERGE)) {
+        (s2len < ROPE_MIN_SIZE && s1len < ROPE_MAX_MERGE) ||
+        (*o && (STR_HDR(*o) & STR_STACK))) {
         // regular string concatenation
 
         _strReset(o, len);
