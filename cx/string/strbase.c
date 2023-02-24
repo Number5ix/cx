@@ -525,9 +525,9 @@ uint32 _strStackAllocSize(uint32 maxlen)
 {
     if (maxlen == 0)
         return 0;
-    if (maxlen < 255)
+    if (maxlen < 254)
         return maxlen + 5;      // 2 bytes header, 1 byte ref, 1 bytes len, 1 byte null terminator
-    if (maxlen < 65535)
+    if (maxlen < 65529)
         return maxlen + 7;      // 2 bytes header, 2 byte ref, 2 bytes len, 1 byte null terminator
     devFatalError("Tried to stack allocate too long of a string");
     return 0;
@@ -536,14 +536,14 @@ uint32 _strStackAllocSize(uint32 maxlen)
 void _strInitStack(string *ps, uint32 maxlen)
 {
     devAssert(*ps);
-    if (!*ps || maxlen == 0 || maxlen >= 65535) {
+    if (!*ps || maxlen == 0 || maxlen >= 65529) {
         *ps = NULL;
         return;
     }
     string s = *ps;
 
     uint8 lencl = 0;
-    if (maxlen < 255)
+    if (maxlen < 254)
         lencl = STR_LEN8;
     else
         lencl = STR_LEN16;
@@ -556,10 +556,10 @@ void _strInitStack(string *ps, uint32 maxlen)
     // stack-allocated only ever have a single reference but set STR_ALLOC, so we
     // can stash the size of the buffer in the reference count field.
     if (lencl == STR_LEN8) {
-        STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), uint8) = (uint8)maxlen;
+        STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), uint8) = (uint8)maxlen + 1;
         STR_FIELD(s, STR_OFF_LEN(STR_HDR(s)), uint8) = (uint8)0;
     } else {
-        STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), uint16) = (uint16)maxlen;
+        STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), uint16) = (uint16)maxlen + 1;
         STR_FIELD(s, STR_OFF_LEN(STR_HDR(s)), uint16) = (uint16)0;
     }
 

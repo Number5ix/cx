@@ -2,6 +2,11 @@
 
 #include <cx/cx.h>
 
+#ifdef _WIN32
+// don't warn about _alloca
+#pragma warning (disable:6255)
+#endif
+
 CX_C_BEGIN
 
 typedef struct str_ref {
