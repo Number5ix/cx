@@ -52,6 +52,7 @@ bool _fmtParseFloatFinalize(FMTVar *v);
 bool _fmtFloat(FMTVar *v, string *out);
 bool _fmtParsePtrOpt(FMTVar *v, strref opt);
 bool _fmtParsePtrFinalize(FMTVar *v);
+bool _fmtParseObjectOpt(FMTVar *v, strref opt);
 bool _fmtPtr(FMTVar *v, string *out);
 bool _fmtSUID(FMTVar *v, string *out);
 bool _fmtObject(FMTVar *v, string *out);

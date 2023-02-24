@@ -193,19 +193,27 @@ bool _fmtParseVar(FMTContext *ctx)
 
     // format options?
     if (fostart > 0) {
-        strSubStr(&frag, ctx->v.var, fostart, foend);
-        strSplit(&ctx->v.fmtopts, frag, (strref)"\xE1\xC1\x01"",", false);
-        // look for all-numeric width
-        for (int32 i = saSize(ctx->v.fmtopts) - 1; i >= 0; --i) {
-            int32 w;
-            if (strToInt32(&w, ctx->v.fmtopts.a[i], 10, true)) {
+        int32 ostart = fostart;
+        int32 i, w;
+        while (ostart < foend) {
+            i = strFind(ctx->v.var, ostart, (strref)"\xE1\xC1\x01"",");
+            if (i == -1)
+                i = foend;
+            else if (i > foend)
+                break;
+
+            strSubStr(&frag, ctx->v.var, ostart, i);
+
+            // look for all-numeric width
+            if (strToInt32(&w, frag, 10, true)) {
                 if (ctx->v.width != -1)
                     goto out;           // already have one!
                 ctx->v.width = w;
-                saRemove(&ctx->v.fmtopts, i);
             } else {
-                fmtParseOpt(ctx, ctx->v.fmtopts.a[i], vtype);
+                fmtParseOpt(ctx, frag, vtype);
             }
+
+            ostart = i + 1;
         }
     }
 

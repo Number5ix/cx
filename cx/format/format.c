@@ -28,7 +28,7 @@ bool(*_fmtTypeParseOpt[FMT_count])(FMTVar *v, strref opt) = {
     _fmtParseFloatOpt,
     _fmtParsePtrOpt,
     0,          // suid
-    0,          // object
+    _fmtParseObjectOpt,
 };
 
 bool(*_fmtTypeParseFinalize[FMT_count])(FMTVar *v) = {
@@ -69,7 +69,6 @@ static void fmtVarReset(FMTVar *v)
 
 static void fmtVarCreate(FMTVar *v)
 {
-    saInit(&v->fmtopts, string, 4);
 }
 
 static void fmtVarDestroy(FMTVar *v)
