@@ -232,8 +232,8 @@ static bool _strAppend(string *io, strref s)
     uint32 len = iolen + slen;
     uint8 encoding = STR_ENCODING_MASK;
 
-    if (iolen == 0) {
-        // special optimization for appending to an empty string
+    if (!*io) {
+        // dest doesn't exist, replace it with source
         strDup(io, s);
         return true;
     }

@@ -21,7 +21,7 @@
  *
  * type is a type name (see below), and the number indicates the n-th instance of that
  * particular type in the format arguments. The type is REQUIRED and the number is
- * OPTIONAL. If the number is ommitted, an internal count is maintaned, and each time
+ * OPTIONAL. If the number is omitted, an internal count is maintained, and each time
  * that type name is used, the count is increased.
  *
  * For example, ${string} indicates the next string in the argument sequence, and
@@ -34,7 +34,7 @@
  *
  * fmtopts is a comma-delimited list of formatting options, most of which are specific
  * to particular types -- see below for details. A formatting option that is just a
- * number by itself is interpred to be the field width.
+ * number by itself is interpreted to be the field width.
  *
  * Most types right-justify within the field width if it is present -- this can be
  * overridden with the formatting options of left, or center.

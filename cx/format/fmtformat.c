@@ -145,6 +145,6 @@ void _fmtFormat(FMTContext *ctx)
     // apply generic formatting options
     fmtApplyGenFlags(ctx, &vstr);
 
-    strAppend(&ctx->dest, vstr);
+    strAppend(ctx->dest, vstr);
     strDestroy(&vstr);
 }

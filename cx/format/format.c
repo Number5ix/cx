@@ -85,12 +85,15 @@ bool _strFormat(string *out, strref fmt, int n, stvar *args)
     if (!(out && fmt))
         return false;
 
+    strClear(out);
+
     FMTContext ctx = { 0 };
     bool ret = false;
     ctx.fmt = fmt;              // borrows caller's ref, do not modify!
     ctx.flen = strLen(fmt);
     ctx.nargs = n;
     ctx.args = args;
+    ctx.dest = out;
     fmtVarCreate(&ctx.v);
 
     string frag = 0;
@@ -116,17 +119,14 @@ bool _strFormat(string *out, strref fmt, int n, stvar *args)
     // add any text after the last variable
     if (ctx.vend < ctx.flen) {
         strSubStr(&frag, fmt, ctx.vend, strEnd);
-        strAppend(&ctx.dest, frag);
+        strAppend(ctx.dest, frag);
     }
 
     ret = true;
 
 out:
-    if (ret) {
-        strDestroy(out);
-        *out = ctx.dest;
-    } else {
-        strDestroy(&ctx.dest);
+    if (!ret) {
+        strClear(ctx.dest);
     }
     strDestroy(&frag);
     fmtVarDestroy(&ctx.v);

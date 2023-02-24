@@ -26,7 +26,7 @@ typedef struct FMTContext {
     int32 startarg[FMT_count];      // where to start searching for each type
     int32 arrayidx;                 // arrary index counter
 
-    string dest;                    // output string so far
+    string *dest;                   // output string so far
 
     strref fmt;                     // format string parse state
     int32 vstart;

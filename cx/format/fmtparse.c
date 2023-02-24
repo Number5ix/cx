@@ -19,8 +19,8 @@ retry_start:
         if (!(ctx->vstart > ctx->vend && strGetChar(ctx->fmt, ctx->vstart - 2) == '`')) {
             // skip over the backtick
             strSubStr(&frag, ctx->fmt, ctx->vend, ctx->vstart - 1);
-            strAppend(&ctx->dest, frag);
-            strAppend(&ctx->dest, (strref)"\xE1\xC1\x02""${");
+            strAppend(ctx->dest, frag);
+            strAppend(ctx->dest, (strref)"\xE1\xC1\x02""${");
             ctx->vend = (ctx->vstart += 2);
             goto retry_start;
         }
@@ -30,7 +30,7 @@ retry_start:
 
     // add any text between last variable (or start) and this one
     strSubStr(&frag, ctx->fmt, ctx->vend, ctx->vstart - eatchar);
-    strAppend(&ctx->dest, frag);
+    strAppend(ctx->dest, frag);
 
     // now find the end
     eatchar = 0;
