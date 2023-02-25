@@ -133,6 +133,7 @@ typedef struct FMTVar {
     int32 width;                    // field width
     sa_string fmtopts;              // variable format options (other than width)
     string def;                     // default text
+    string tmp;                     // temporary storage for variable-level operations
 
     int32 arrayidx;                 // array index (or -1)
     string hashkey;                 // hash key

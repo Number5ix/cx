@@ -11,7 +11,6 @@ enum FloatOpts {
 
 bool _fmtParseFloatOpt(FMTVar *v, strref opt)
 {
-    string tmp = 0;
     int32 val;
     if (strEq(opt, _S"fixed")) {
         v->flags |= FMT_FloatFixed;
@@ -20,18 +19,16 @@ bool _fmtParseFloatOpt(FMTVar *v, strref opt)
         v->flags |= FMT_FloatZero;
         return true;
     } else if (strBeginsWith(opt, _S"sig:")) {
-        strSubStr(&tmp, opt, 4, strEnd);
-        if (strToInt32(&val, tmp, 10, true) && val >= 1 && val < 18)
+        strSubStr(&v->tmp, opt, 4, strEnd);
+        if (strToInt32(&val, v->tmp, 10, true) && val >= 1 && val < 18)
             v->fmtdata[0] = val;
-        strDestroy(&tmp);
         return true;
     } else if (strBeginsWith(opt, _S"dec:")) {
-        strSubStr(&tmp, opt, 4, strEnd);
-        if (strToInt32(&val, tmp, 10, true) && val >= 0) {
+        strSubStr(&v->tmp, opt, 4, strEnd);
+        if (strToInt32(&val, v->tmp, 10, true) && val >= 0) {
             v->fmtdata[1] = val;
             v->flags |= FMT_FloatDecDigits;
         }
-        strDestroy(&tmp);
         return true;
     }
     return false;

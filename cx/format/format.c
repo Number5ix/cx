@@ -1,4 +1,5 @@
 #include "format_private.h"
+#include "cx/string/string_private.h"
 
 // literal strings with embedded length for maximum efficiency
 string _fmtTypeNames[FMT_count] = {
@@ -74,6 +75,7 @@ static void fmtVarCreate(FMTVar *v)
 static void fmtVarDestroy(FMTVar *v)
 {
     saDestroy(&v->fmtopts);
+    strDestroy(&v->tmp);
     strDestroy(&v->var);
     strDestroy(&v->def);
     strDestroy(&v->hashkey);
@@ -84,18 +86,56 @@ bool _strFormat(string *out, strref fmt, int n, stvar *args)
     if (!(out && fmt))
         return false;
 
-    strClear(out);
+    // pre-allocate space in output string
+    // this is a ROUGH GUESS and string growth may still be necessary
+    uint32 fmtlen = strLen(fmt);
+    _strReset(out, fmtlen + (fmtlen >> 3));
 
     FMTContext ctx = { 0 };
     bool ret = false;
-    ctx.fmt = fmt;              // borrows caller's ref, do not modify!
     ctx.flen = strLen(fmt);
     ctx.nargs = n;
     ctx.args = args;
     ctx.dest = out;
     fmtVarCreate(&ctx.v);
 
-    string frag = 0;
+    // Crazy optimizations -- in performance profiling, strFormat spends a lot of time in
+    // cStrLen. This is because most format strings are literals that don't have an
+    // embedded length, so strFind ends up counting the characters every time it needs
+    // to check the length.
+    if (fmtlen < 64) {
+        // for small ones we just copy it to the stack
+        strTemp(&ctx.fmt, fmtlen);
+        strDup(&ctx.fmt, fmt);
+    } else {
+        // For longer strings, we create a fake rope structure on the stack that wraps the
+        // literal, so the string API knows the length up front. Kids don't try this at home!
+
+        uint8 newhdr = STR_CX | STR_ALLOC | STR_STACK | STR_ROPE | STR_LEN32;
+        ctx.fmt = (string)stackAlloc(STR_OFF_STR(newhdr) + sizeof(str_ropedata));
+        *(uint8 *)ctx.fmt = newhdr;
+        ((uint8 *)ctx.fmt)[1] = 0xc1;        // magic string header
+        _strSetLen(ctx.fmt, fmtlen);
+        _strInitRef(ctx.fmt);
+        str_ropedata *ropedata = STR_ROPEDATA(ctx.fmt);
+        ropedata->depth = 0;
+        ropedata->left.str = (string)fmt;
+        ropedata->left.len = fmtlen;
+        ropedata->left.off = 0;
+        ropedata->right.str = NULL;
+        ropedata->right.len = 0;
+        ropedata->right.off = 0;
+    }
+
+    // For performance, strFormat tries very hard to avoid allocating a bunch of strings
+    // on the heap. These temporary strings live in the stack of the strFormat() function
+    // and passed down to the various parsing and formatting functions through the
+    // context structure. They are reused for each variable that is parsed.
+    strTemp(&ctx.v.var, 64);
+    strTemp(&ctx.v.def, 64);
+    strTemp(&ctx.v.hashkey, 32);
+    strTemp(&ctx.v.tmp, 128);
+    strTemp(&ctx.tmp, 128);
 
     // main format string scan loop
     for (;;) {
@@ -117,8 +157,8 @@ bool _strFormat(string *out, strref fmt, int n, stvar *args)
 
     // add any text after the last variable
     if (ctx.vend < ctx.flen) {
-        strSubStr(&frag, fmt, ctx.vend, strEnd);
-        strAppend(ctx.dest, frag);
+        strSubStr(&ctx.v.tmp, fmt, ctx.vend, strEnd);
+        strAppend(ctx.dest, ctx.v.tmp);
     }
 
     ret = true;
@@ -127,7 +167,7 @@ out:
     if (!ret) {
         strClear(ctx.dest);
     }
-    strDestroy(&frag);
     fmtVarDestroy(&ctx.v);
+    strDestroy(&ctx.tmp);
     return ret;
 }

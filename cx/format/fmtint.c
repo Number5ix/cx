@@ -10,7 +10,6 @@ enum IntOpts {
 
 bool _fmtParseIntOpt(FMTVar *v, strref opt)
 {
-    string tmp = 0;
     uint32 val;
     if (strEq(opt, _S"prefix")) {
         v->flags |= FMT_IntPrefix;
@@ -28,18 +27,16 @@ bool _fmtParseIntOpt(FMTVar *v, strref opt)
         v->fmtdata[0] = 2;
         return true;
     } else if (strBeginsWith(opt, _S"base:")) {
-        strSubStr(&tmp, opt, 5, strEnd);
-        if (strToUInt32(&val, tmp, 10, true) && val >= 2 && val <= 36)
+        strSubStr(&v->tmp, opt, 5, strEnd);
+        if (strToUInt32(&val, v->tmp, 10, true) && val >= 2 && val <= 36)
             v->fmtdata[0] = val;
-        strDestroy(&tmp);
         return true;
     } else if (strBeginsWith(opt, _S"min:")) {
-        strSubStr(&tmp, opt, 4, strEnd);
-        if (strToUInt32(&val, tmp, 10, true)) {
+        strSubStr(&v->tmp, opt, 4, strEnd);
+        if (strToUInt32(&val, v->tmp, 10, true)) {
             v->flags |= FMT_IntMin;
             v->fmtdata[1] = val;
         }
-        strDestroy(&tmp);
         return true;
     }
     return false;

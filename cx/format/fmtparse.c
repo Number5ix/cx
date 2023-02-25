@@ -4,13 +4,11 @@
 bool _fmtExtractVar(FMTContext *ctx)
 {
     int32 eatchar = 0;
-    string frag = 0;
 
     // "loop" to handle escaped start sequences
 retry_start:
     ctx->vstart = strFind(ctx->fmt, ctx->vend, (strref)"\xE1\xC1\x02""${");
     if (ctx->vstart == -1) {        // no more vars
-        strDestroy(&frag);
         return true;
     }
 
@@ -18,8 +16,8 @@ retry_start:
         // it's escaped, keep searching
         if (!(ctx->vstart > ctx->vend && strGetChar(ctx->fmt, ctx->vstart - 2) == '`')) {
             // skip over the backtick
-            strSubStr(&frag, ctx->fmt, ctx->vend, ctx->vstart - 1);
-            strAppend(ctx->dest, frag);
+            strSubStr(&ctx->tmp, ctx->fmt, ctx->vend, ctx->vstart - 1);
+            strAppend(ctx->dest, ctx->tmp);
             strAppend(ctx->dest, (strref)"\xE1\xC1\x02""${");
             ctx->vend = (ctx->vstart += 2);
             goto retry_start;
@@ -29,8 +27,8 @@ retry_start:
     }
 
     // add any text between last variable (or start) and this one
-    strSubStr(&frag, ctx->fmt, ctx->vend, ctx->vstart - eatchar);
-    strAppend(ctx->dest, frag);
+    strSubStr(&ctx->tmp, ctx->fmt, ctx->vend, ctx->vstart - eatchar);
+    strAppend(ctx->dest, ctx->tmp);
 
     // now find the end
     eatchar = 0;
@@ -39,7 +37,6 @@ retry_start:
 retry_end:
     ctx->vend = strFind(ctx->fmt, ctx->vend, (strref)"\xE1\xC1\x01""}");
     if (ctx->vend == -1) {          // broken format string
-        strDestroy(&frag);
         return false;
     }
 
@@ -47,8 +44,8 @@ retry_end:
         // it's escaped
         if (strGetChar(ctx->fmt, ctx->vend - 2) != '`') {
             // skip over the backtick
-            strSubStr(&frag, ctx->fmt, ctx->vstart + 2, ctx->vend - 1);
-            strAppend(&ctx->v.var, frag);
+            strSubStr(&ctx->tmp, ctx->fmt, ctx->vstart + 2, ctx->vend - 1);
+            strAppend(&ctx->v.var, ctx->tmp);
             ctx->vstart = (ctx->vend++) - 2;
             goto retry_end;
         }
@@ -56,11 +53,10 @@ retry_end:
         eatchar = 1;
     }
 
-    strSubStr(&frag, ctx->fmt, ctx->vstart + 2, ctx->vend - eatchar);
-    strAppend(&ctx->v.var, frag);
+    strSubStr(&ctx->tmp, ctx->fmt, ctx->vstart + 2, ctx->vend - eatchar);
+    strAppend(&ctx->v.var, ctx->tmp);
     ctx->vend++;
 
-    strDestroy(&frag);
     return true;
 }
 
@@ -163,8 +159,6 @@ bool _fmtParseVar(FMTContext *ctx)
     if (vnend == 0)
         vnend = len;
 
-    string frag = 0;
-
     // check if we have default first, because it will be a fallback in case of parse error
     if (defstart > 0) {
         strSubStr(&ctx->v.def, ctx->v.var, defstart, len);
@@ -172,9 +166,9 @@ bool _fmtParseVar(FMTContext *ctx)
     bool ret = !strEmpty(ctx->v.def);
 
     // first extract the type and check it
-    strSubStr(&frag, ctx->v.var, vtstart, vtend);
+    strSubStr(&ctx->tmp, ctx->v.var, vtstart, vtend);
     for (int i = 0; i < FMT_count; i++) {
-        if (strEq(frag, _fmtTypeNames[i])) {
+        if (strEq(ctx->tmp, _fmtTypeNames[i])) {
             vtype = i;
             break;
         }
@@ -186,8 +180,8 @@ bool _fmtParseVar(FMTContext *ctx)
 
     if (vtend != vnend) {
         // have a number after the type name
-        strSubStr(&frag, ctx->v.var, vtend, vnend);
-        if (!strToInt32(&ctx->v.idx, frag, 10, true))
+        strSubStr(&ctx->tmp, ctx->v.var, vtend, vnend);
+        if (!strToInt32(&ctx->v.idx, ctx->tmp, 10, true))
             goto out;
     }
 
@@ -202,15 +196,15 @@ bool _fmtParseVar(FMTContext *ctx)
             else if (i > foend)
                 break;
 
-            strSubStr(&frag, ctx->v.var, ostart, i);
+            strSubStr(&ctx->tmp, ctx->v.var, ostart, i);
 
             // look for all-numeric width
-            if (strToInt32(&w, frag, 10, true)) {
+            if (strToInt32(&w, ctx->tmp, 10, true)) {
                 if (ctx->v.width != -1)
                     goto out;           // already have one!
                 ctx->v.width = w;
             } else {
-                fmtParseOpt(ctx, frag, vtype);
+                fmtParseOpt(ctx, ctx->tmp, vtype);
             }
 
             ostart = i + 1;
@@ -223,8 +217,8 @@ bool _fmtParseVar(FMTContext *ctx)
     if (xtype == X_Array) {
         // these can be the same for [], which is legal
         if (xstart != xend) {
-            strSubStr(&frag, ctx->v.var, xstart, xend);
-            if (!strToInt32(&ctx->v.arrayidx, frag, 10, true))
+            strSubStr(&ctx->tmp, ctx->v.var, xstart, xend);
+            if (!strToInt32(&ctx->v.arrayidx, ctx->tmp, 10, true))
                 goto out;
         } else {
             ctx->v.arrayidx = ctx->arrayidx++;
@@ -242,6 +236,5 @@ bool _fmtParseVar(FMTContext *ctx)
     ret = true;
 
 out:
-    strDestroy(&frag);
     return ret;
 }

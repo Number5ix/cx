@@ -87,7 +87,7 @@ static inline void fillPad(string *pad, int32 len)
         buf[i] = ' ';
 }
 
-static void fmtApplyGenWidth(string *vstr, int32 width, uint32 flags)
+static void fmtApplyGenWidth(FMTVar *v, string *vstr, int32 width, uint32 flags)
 {
     if (width <= 0 || strLen(*vstr) == width)
         return;
@@ -97,23 +97,21 @@ static void fmtApplyGenWidth(string *vstr, int32 width, uint32 flags)
         return;
     }
 
-    string pad = 0;
     int32 wdiff = width - strLen(*vstr);
     if (flags & FMTVar_Right) {
-        fillPad(&pad, wdiff);
-        strPrepend(pad, vstr);
+        fillPad(&v->tmp, wdiff);
+        strPrepend(v->tmp, vstr);
     } else if (flags & FMTVar_Center) {
         int32 lpart = wdiff / 2;
-        fillPad(&pad, lpart);
-        strPrepend(pad, vstr);
-        fillPad(&pad, wdiff - lpart);
-        strAppend(vstr, pad);
+        fillPad(&v->tmp, lpart);
+        strPrepend(v->tmp, vstr);
+        fillPad(&v->tmp, wdiff - lpart);
+        strAppend(vstr, v->tmp);
     } else {
         // FMTVar_Left implied
-        fillPad(&pad, wdiff);
-        strAppend(vstr, pad);
+        fillPad(&v->tmp, wdiff);
+        strAppend(vstr, v->tmp);
     }
-    strDestroy(&pad);
 }
 
 static void fmtApplyGenFlags(FMTContext *ctx, string *vstr)
@@ -126,25 +124,24 @@ static void fmtApplyGenFlags(FMTContext *ctx, string *vstr)
     }
 
     if (!(ctx->v.flags & FMTVar_NoGenWidth))
-        fmtApplyGenWidth(vstr, ctx->v.width, ctx->v.flags);
+        fmtApplyGenWidth(&ctx->v, vstr, ctx->v.width, ctx->v.flags);
 }
 
 void _fmtFormat(FMTContext *ctx)
 {
-    string vstr = 0;
     bool success = false;
 
+    strClear(&ctx->tmp);
     if (ctx->v.vtype != -1 && _fmtTypeFormat[ctx->v.vtype])
-        success = _fmtTypeFormat[ctx->v.vtype](&ctx->v, &vstr);
+        success = _fmtTypeFormat[ctx->v.vtype](&ctx->v, &ctx->tmp);
 
     if (!success) {
         // use the default value
-        strDup(&vstr, ctx->v.def);
+        strDup(&ctx->tmp, ctx->v.def);
     }
 
     // apply generic formatting options
-    fmtApplyGenFlags(ctx, &vstr);
+    fmtApplyGenFlags(ctx, &ctx->tmp);
 
-    strAppend(ctx->dest, vstr);
-    strDestroy(&vstr);
+    strAppend(ctx->dest, ctx->tmp);
 }
