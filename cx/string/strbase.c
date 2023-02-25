@@ -329,8 +329,18 @@ void strDup(string *o, strref s)
 
 void strCopy(string *o, strref s)
 {
-    strDestroy(o);
     if (!o || !STR_CHECK_VALID(s)) return;
+    if (*o == s)
+        return;
+
+    // special case for copying into a stack-allocated string
+    // do a copy into the buffer instead
+    if (STR_CHECK_VALID(*o) && (STR_HDR(*o) & STR_STACK)) {
+        strDupIntoStack(o, s);
+        return;
+    }
+
+    strDestroy(o);
 
     *o = _strCopy(s, 0);
 }
@@ -507,6 +517,8 @@ bool strSetLen(string *ps, uint32 len)
     if (cursz < len) {
         _strResize(ps, len, false);
         memset(&STR_BUFFER(*ps)[cursz], 0, len - cursz + 1);
+    } else {
+        STR_BUFFER(*ps)[len] = 0;
     }
 
     _strSetLen(*ps, len);
