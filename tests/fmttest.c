@@ -317,37 +317,37 @@ static int test_error()
     if (strFormat(&res, _S"This ${int} ${int} ${int} test should fail",
         stvar(int32, 5), stvar(int32, 10)) != false)
         return 1;
-    if (!strEq(res, _S"canary"))
+    if (!strEmpty(res))
         return 1;
 
     if (strFormat(&res, _S"This ${int[0]} test should fail",
                   stvar(int32, 5), stvar(int32, 10)) != false)
         return 1;
-    if (!strEq(res, _S"canary"))
+    if (!strEmpty(res))
         return 1;
 
     if (strFormat(&res, _S"This ${string} test should fail",
                   stvar(int32, 5), stvar(int32, 10)) != false)
         return 1;
-    if (!strEq(res, _S"canary"))
+    if (!strEmpty(res))
         return 1;
 
     if (strFormat(&res, _S"This ${int:hash} test should fail",
                   stvar(int32, 5), stvar(int32, 10)) != false)
         return 1;
-    if (!strEq(res, _S"canary"))
+    if (!strEmpty(res))
         return 1;
 
     if (strFormat(&res, _S"This ${int test should fail",
                   stvar(int32, 5), stvar(int32, 10)) != false)
         return 1;
-    if (!strEq(res, _S"canary"))
+    if (!strEmpty(res))
         return 1;
 
     if (strFormat(&res, _S"This ${int(asdf} test should fail",
                   stvar(int32, 5), stvar(int32, 10)) != false)
         return 1;
-    if (!strEq(res, _S"canary"))
+    if (!strEmpty(res))
         return 1;
 
     strDestroy(&res);
