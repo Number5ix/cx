@@ -21,11 +21,12 @@ extern strref LogLevelAbbrev[];
 
 typedef struct LogCategory {
     string name;
+    bool priv;
 } LogCategory;
 typedef struct LogDest LogDest;
 extern LogCategory* LogDefault;
 
-LogCategory *logCreateCat(strref name);
+LogCategory *logCreateCat(strref name, bool priv);
 void _logStr(int level, LogCategory *cat, strref str);
 void _logFmt(int level, LogCategory *cat, strref fmtstr, int n, stvar *args);
 

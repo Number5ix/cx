@@ -14,6 +14,7 @@ typedef struct LogTestData {
     int test;
     int count;
     bool fail;
+    LogCategory *lastcat;
 } LogTestData;
 
 static void testdest(int level, LogCategory *cat, int64 timestamp, strref msg, void *userdata)
@@ -22,6 +23,7 @@ static void testdest(int level, LogCategory *cat, int64 timestamp, strref msg, v
     bool signal = true;
 
     td->count++;
+    td->lastcat = cat;
 
     if (td->test == 1) {
         td->fail = !strEq(msg, _S"Info test");
@@ -93,6 +95,7 @@ static int test_log_levels()
     td.count = 0;
     td.fail = false;
     logStr(Verbose, _S"Verbose test");
+    osSleep(timeMS(100));
     if (td.fail || td.count != 0)
         ret = 1;
 
@@ -184,9 +187,73 @@ static int test_log_batch()
     return ret;
 }
 
+static int test_log_categories()
+{
+    int ret = 0;
+    LogTestData td = { 0 };
+    eventInit(&logtestevent);
+
+    LogMembufData *lmd = logmembufCreate(4096);
+    LogCategory *cat1 = logCreateCat(_S"cat1", false);
+    LogCategory *cat2 = logCreateCat(_S"cat2", true);
+    LogCategory *cat3 = logCreateCat(_S"cat3", true);
+    logRegisterDest(LOG_Verbose, NULL, logmembufDest, lmd);
+    logRegisterDest(LOG_Info, NULL, testdest, &td);
+    logRegisterDest(LOG_Info, cat1, testdest, &td);
+    logRegisterDest(LOG_Info, cat2, testdest, &td);
+
+    // should only be received by the NULL filter
+    td.test = 1;
+    td.count = 0;
+    td.fail = true;
+    logStr(Info, _S"Info test");
+    eventWait(&logtestevent);
+    if (td.fail || td.count != 1)
+        ret = 1;
+
+    // should be received by cat1 and NULL filter
+    td.lastcat = NULL;
+    td.test = 3;
+    td.count = 0;
+    td.fail = true;
+    logStrC(Info, cat1, _S"Info test");
+    eventWait(&logtestevent);
+    if (td.fail || td.count != 2 || td.lastcat != cat1)
+        ret = 1;
+
+    // should ONLY be received by cat2 filter
+    td.lastcat = NULL;
+    td.test = 1;
+    td.count = 0;
+    td.fail = false;
+    logStrC(Info, cat2, _S"Info test");
+    eventWait(&logtestevent);
+    if (td.fail || td.count != 1 || td.lastcat != cat2)
+        ret = 1;
+
+    // should not be received by ANY destination
+    td.lastcat = NULL;
+    td.test = 4;
+    td.count = 0;
+    td.fail = false;
+    logStrC(Info, cat3, _S"Info test");
+    osSleep(timeMS(100));
+    if (td.fail || td.count != 0 || td.lastcat != NULL)
+        ret = 1;
+
+    if (lmd->cur != 65)
+        ret = 1;
+
+    logShutdown();
+
+    eventDestroy(&logtestevent);
+    return ret;
+}
+
 testfunc logtest_funcs[] = {
     { "levels", test_log_levels },
     { "shutdown", test_log_shutdown },
     { "batch", test_log_batch },
+    { "categories", test_log_categories },
     { 0, 0 }
 };

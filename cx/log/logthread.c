@@ -11,6 +11,16 @@ Thread *_log_thread;
 Event *_log_event;
 static Event _log_done_event;
 
+static inline bool applyCatFilter(LogCategory *filtercat, LogCategory *testcat)
+{
+    if (!filtercat) {
+        // no filter, we want all categories except for private categories
+        return !testcat || !testcat->priv;
+    }
+
+    return filtercat == testcat;
+}
+
 static int logthread_func(Thread *self)
 {
     sa_LogEntry ents;
@@ -47,7 +57,7 @@ static int logthread_func(Thread *self)
             while (ent) {
                 LogEntry *next = ent->_next;
                 foreach(sarray, dest_idx, LogDest *, dest, _log_dests) {
-                    if (ent->level <= dest->maxlevel && (!dest->catfilter || dest->catfilter == ent->cat)) {
+                    if (ent->level <= dest->maxlevel && applyCatFilter(dest->catfilter, ent->cat)) {
                         // dispatch to log destination
                         dest->func(ent->level, ent->cat, ent->timestamp, ent->msg, dest->userdata);
                     }

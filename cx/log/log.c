@@ -64,10 +64,11 @@ void logDestroyEnt(LogEntry *ent)
     xaFree(ent);
 }
 
-LogCategory *logCreateCat(strref name)
+LogCategory *logCreateCat(strref name, bool priv)
 {
     LogCategory *ret = xaAlloc(sizeof(LogCategory), XA_Zero);
     strDup(&ret->name, name);
+    ret->priv = priv;
     return ret;
 }
 
