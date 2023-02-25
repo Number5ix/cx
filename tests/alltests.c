@@ -98,7 +98,7 @@ int alltests(int argc, const char *argv[])
 
     int64 totalend = clockTimer();
     printf("\n%d%% tests passed, %d tests failed out of %d, total elapsed %d msec\n",
-            ntests * 100 / npassed, ntests - npassed, ntests,
+            npassed * 100 / ntests, ntests - npassed, ntests,
             (int)timeToMsec(totalend - totalstart));
 
     return ntests - npassed;
