@@ -64,39 +64,39 @@ enum ThreadGlobalNotifyId {
 //           processes notifications.
 // handlers: 0-terminated array of notificaiton handlers to populate the thread with.
 //           If NULL, any notification handlers must be registered by the thread proc.
-WorkThread *thrCreate(ThreadProc proc, ThreadNotifyHandler *handlers);
+WorkThread *owthrCreate(ThreadProc proc, ThreadNotifyHandler *handlers);
 
 // The Ex variant lets you specify parameters to the NGLOBAL_CREATE notification
-WorkThread *thrCreateEx(ThreadProc proc, ThreadNotifyHandler *handlers, bool suspended,
+WorkThread *owthrCreateEx(ThreadProc proc, ThreadNotifyHandler *handlers, bool suspended,
                         uint32_t param, void *data, MemoryDestructor dtor);
 
-void thrDestroy(WorkThread *thr);
+void owthrDestroy(WorkThread *thr);
 
 // Send an NGLOBAL_SHUTDOWN notification to every thread, wait for them to terminate, and
 // destroy all the threads that did terminate. If force is true, don't take no for an
 // answer and kill any thread that times out.
-bool thrShutdown(int32_t ms, bool force);
+bool owthrShutdown(int32_t ms, bool force);
 
-bool thrNotify(WorkThread *dest, uint32_t id, uint32_t param);
+bool owthrNotify(WorkThread *dest, uint32_t id, uint32_t param);
 // Be aware that data is not copied but the pointer is sent cross-thread, so you
 // have to deal with that! If owndata is true, the event handler takes care of calling
 // free() on data whether or not a handler receives it.
-bool thrNotifyEx(WorkThread *dest, uint32_t id, uint32_t param, void *data, MemoryDestructor dtor);
+bool owthrNotifyEx(WorkThread *dest, uint32_t id, uint32_t param, void *data, MemoryDestructor dtor);
 
-bool thrRemoteCall(WorkThread *dest, ThreadRemoteCall func, uint32_t param, void *data, MemoryDestructor dtor);
+bool owthrRemoteCall(WorkThread *dest, ThreadRemoteCall func, uint32_t param, void *data, MemoryDestructor dtor);
 
 // Sets a specific window to get dialog processing by the therad's message loop
-HWND thrSetDialog(HWND dialog);
+HWND owthrSetDialog(HWND dialog);
 
 // These functions operate on the current thread! -----------------------------
-WorkThread *thrCurrent();
-bool thrRegisterHandler(uint32_t id, ThreadNotifyCallback cb);
-bool thrWait(int32_t ms);                   // 0 for poll, -1 for infinite
-bool thrHandleAll();                        // returns false if the thread should exit
+WorkThread *owthrCurrent();
+bool owthrRegisterHandler(uint32_t id, ThreadNotifyCallback cb);
+bool owthrWait(int32_t ms);                   // 0 for poll, -1 for infinite
+bool owthrHandleAll();                        // returns false if the thread should exit
 
 // Block until specific notification is received, or timeout is up, while continuing
 // to process other notifications.
-bool thrWaitFor(uint32_t id, int32_t ms);
+bool owthrWaitFor(uint32_t id, int32_t ms);
 
 // Only call from main thread, sets stuff up. Don't try to destroy the returned thread!
 WorkThread *initMasterThread(ThreadNotifyHandler *handlers);

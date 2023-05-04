@@ -129,8 +129,8 @@ static unsigned __stdcall workThreadProc(void *pvtci)
         tci->thread->shutdown = true;
     } else {
         // no main thread procedure provided, just process notifications
-        while (thrHandleAll())
-            thrWait(-1);
+        while (owthrHandleAll())
+            owthrWait(-1);
     }
 
     xa_free(tci);
@@ -138,7 +138,7 @@ static unsigned __stdcall workThreadProc(void *pvtci)
     return ret;
 }
 
-WorkThread *thrCreateEx(ThreadProc proc, ThreadNotifyHandler *handlers, bool suspended,
+WorkThread *owthrCreateEx(ThreadProc proc, ThreadNotifyHandler *handlers, bool suspended,
                         uint32_t param, void *data, MemoryDestructor dtor)
 {
     WorkThread *thr = workThreadCreate();
@@ -170,16 +170,16 @@ WorkThread *thrCreateEx(ThreadProc proc, ThreadNotifyHandler *handlers, bool sus
     return thr;
 }
 
-WorkThread *thrCreate(ThreadProc proc, ThreadNotifyHandler *handlers)
+WorkThread *owthrCreate(ThreadProc proc, ThreadNotifyHandler *handlers)
 {
-    return thrCreateEx(proc, handlers, false, 0, NULL, NULL);
+    return owthrCreateEx(proc, handlers, false, 0, NULL, NULL);
 }
 
-void thrDestroy(WorkThread *thr)
+void owthrDestroy(WorkThread *thr)
 {
     // try to let it shut down first if possible
     if (!thr->shutdown)
-        thrNotify(thr, NGLOBAL_SHUTDOWN, 0);
+        owthrNotify(thr, NGLOBAL_SHUTDOWN, 0);
 
     // Make sure the thread has exited
     if (WaitForSingleObject(thr->hThread, 10000) == WAIT_TIMEOUT)
@@ -188,7 +188,7 @@ void thrDestroy(WorkThread *thr)
     workThreadDestroy(thr);
 }
 
-bool thrNotifyEx(WorkThread *dest, uint32_t id, uint32_t param, void *data, MemoryDestructor dtor)
+bool owthrNotifyEx(WorkThread *dest, uint32_t id, uint32_t param, void *data, MemoryDestructor dtor)
 {
     ThreadNotify *pq;
 
@@ -199,7 +199,7 @@ bool thrNotifyEx(WorkThread *dest, uint32_t id, uint32_t param, void *data, Memo
         EnterCriticalSection(&cstl);
         for (i = 0; i < szThreadList; i++) {
             if (threadList[i] != cur_thread)        // don't send to self
-                thrNotifyEx(threadList[i], id, param, data, NULL);
+                owthrNotifyEx(threadList[i], id, param, data, NULL);
         }
         LeaveCriticalSection(&cstl);
         return true;
@@ -226,12 +226,12 @@ bool thrNotifyEx(WorkThread *dest, uint32_t id, uint32_t param, void *data, Memo
     return true;
 }
 
-bool thrNotify(WorkThread *dest, uint32_t id, uint32_t param)
+bool owthrNotify(WorkThread *dest, uint32_t id, uint32_t param)
 {
-    return thrNotifyEx(dest, id, param, NULL, NULL);
+    return owthrNotifyEx(dest, id, param, NULL, NULL);
 }
 
-bool thrRemoteCall(WorkThread *dest, ThreadRemoteCall func, uint32_t param, void *data, MemoryDestructor dtor)
+bool owthrRemoteCall(WorkThread *dest, ThreadRemoteCall func, uint32_t param, void *data, MemoryDestructor dtor)
 {
     ThreadNotify *pq;
 
@@ -256,12 +256,12 @@ bool thrRemoteCall(WorkThread *dest, ThreadRemoteCall func, uint32_t param, void
     return true;
 }
 
-WorkThread *thrCurrent()
+WorkThread *owthrCurrent()
 {
     return cur_thread;
 }
 
-bool thrRegisterHandler(uint32_t id, ThreadNotifyCallback cb)
+bool owthrRegisterHandler(uint32_t id, ThreadNotifyCallback cb)
 {
     registerHandlerInternal(cur_thread, id, cb);
     return true;
@@ -274,11 +274,11 @@ static void runWinQueue(WorkThread *thr)
     // keep the windows message queue going
     while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
         if (msg.message == WM_QUIT) {
-            thrNotify(thr, NGLOBAL_WMQUIT, (uint32_t)msg.wParam);
+            owthrNotify(thr, NGLOBAL_WMQUIT, (uint32_t)msg.wParam);
         } else if (msg.hwnd == NULL) {
             msgcopy = xa_malloc(sizeof(MSG));
             memcpy(msgcopy, &msg, sizeof(MSG));
-            thrNotifyEx(thr, NGLOBAL_WMTHREAD, msg.message, msgcopy, xa_free);
+            owthrNotifyEx(thr, NGLOBAL_WMTHREAD, msg.message, msgcopy, xa_free);
         } else {
             if (!hDialog || !IsDialogMessage(hDialog, &msg)) {
                 TranslateMessage(&msg);
@@ -288,14 +288,14 @@ static void runWinQueue(WorkThread *thr)
     }
 }
 
-HWND thrSetDialog(HWND dialog)
+HWND owthrSetDialog(HWND dialog)
 {
     HWND old = hDialog;
     hDialog = dialog;
     return old;
 }
 
-bool thrWait(int32_t ms)
+bool owthrWait(int32_t ms)
 {
     WorkThread *thr = cur_thread;
     HANDLE *hptr = &thr->hNotify;
@@ -353,7 +353,7 @@ static bool handleEventsInternal(WorkThread *thr, uint32_t lookfor)
     return ret;
 }
 
-bool thrHandleAll()
+bool owthrHandleAll()
 {
     WorkThread *thr = cur_thread;
     if (thr->shutdown)
@@ -362,7 +362,7 @@ bool thrHandleAll()
     return !thr->shutdown;
 }
 
-bool thrWaitFor(uint32_t id, int32_t ms)
+bool owthrWaitFor(uint32_t id, int32_t ms)
 {
     WorkThread *thr = cur_thread;
     DWORD start = GetTickCount(), cur, elapsed;
@@ -376,7 +376,7 @@ bool thrWaitFor(uint32_t id, int32_t ms)
         if (thr->shutdown)
             return false;
 
-        thrWait(ms);                // this does Win32 message loop processing too
+        owthrWait(ms);                // this does Win32 message loop processing too
 
         if (ms > 0) {
             cur = GetTickCount();
@@ -392,7 +392,7 @@ bool thrWaitFor(uint32_t id, int32_t ms)
     return false;                   // timed out
 }
 
-bool thrShutdown(int32_t ms, bool force)
+bool owthrShutdown(int32_t ms, bool force)
 {
     HANDLE *hlist;
     bool ret = true;
@@ -400,7 +400,7 @@ bool thrShutdown(int32_t ms, bool force)
     size_t i, n;
 
     // give threads a chance to shut down gracefully
-    thrNotify(NULL, NGLOBAL_SHUTDOWN, 0);
+    owthrNotify(NULL, NGLOBAL_SHUTDOWN, 0);
 
     if (ms == -1)               // TODO: warn because it's a bad idea to wait
         wait = INFINITE;        // forever on this?
