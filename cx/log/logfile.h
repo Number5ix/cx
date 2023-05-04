@@ -7,7 +7,8 @@ enum LOG_DATE_FORMATS {
     LOG_DateISO,
     LOG_DateISOCompact,
     LOG_DateNCSA,
-    LOG_DateSyslog
+    LOG_DateSyslog,
+    LOG_DateISOCompactMsec
 };
 
 enum LOG_FLAGS {

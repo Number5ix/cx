@@ -320,7 +320,19 @@ static void formatDate(LogFileData *lfd, string *out, int64 timestamp)
                   stvar(uint8, tp.minute),
                   stvar(uint8, tp.second));
         break;
+    case LOG_DateISOCompactMsec:
+        // simplifed ISO-like format with no time zone and milliseconds
+        strFormat(out, _S"${0int(4)}-${0uint(2)}-${0uint(2)} ${0uint(2)}:${0uint(2)}:${0uint(2)}.${0uint(3)}",
+                  stvar(int32, tp.year),
+                  stvar(uint8, tp.month),
+                  stvar(uint8, tp.day),
+                  stvar(uint8, tp.hour),
+                  stvar(uint8, tp.minute),
+                  stvar(uint8, tp.second),
+                  stvar(uint32, tp.usec / 1000));
+        break;
     }
+
 }
 
 // this function is always called from the log thread and does not need to worry about concurrency
