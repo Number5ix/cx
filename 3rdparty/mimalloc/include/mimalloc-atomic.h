@@ -202,6 +202,7 @@ static inline void mi_atomic_store_explicit(_Atomic(uintptr_t)*p, uintptr_t x, m
   mi_atomic_exchange_explicit(p, x, mo);
 #endif
 }
+
 static inline int64_t mi_atomic_loadi64_explicit(_Atomic(int64_t)*p, mi_memory_order mo) {
   (void)(mo);
 #if defined(_M_X64)
@@ -209,7 +210,7 @@ static inline int64_t mi_atomic_loadi64_explicit(_Atomic(int64_t)*p, mi_memory_o
 #else
   int64_t old = *p;
   int64_t x = old;
-  while ((old = InterlockedCompareExchange64(p, x, old)) != x) {
+  while ((old = _InterlockedCompareExchange64(p, x, old)) != x) {
     x = old;
   }
   return x;
@@ -220,7 +221,10 @@ static inline void mi_atomic_storei64_explicit(_Atomic(int64_t)*p, int64_t x, mi
 #if defined(x_M_IX86) || defined(_M_X64)
   *p = x;
 #else
-  InterlockedExchange64(p, x);
+  int64_t old;
+  do {
+    old = *p;
+  } while (_InterlockedCompareExchange64(p, x, old) != old);
 #endif
 }
 
