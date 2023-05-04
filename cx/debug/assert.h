@@ -25,6 +25,13 @@ CX_C bool _cxAssertFail(const char *expr, const char *msg);
 #define relAssertMsg(expr, msg) ((expr) || _cxAssertFail(#expr, msg, __FILE__, __LINE__))
 #define devFatalError(msg) _cxAssertFail(NULL, msg, __FILE__, __LINE__)
 #define relFatalError(msg) _cxAssertFail(NULL, msg, __FILE__, __LINE__)
+#elif DIAGNOSTIC
+#define devAssert(expr) ((expr) || _cxAssertFail(#expr, NULL))
+#define devAssertMsg(expr, msg) ((expr) || _cxAssertFail(#expr, msg))
+#define relAssert(expr) ((expr) || _cxAssertFail(#expr, NULL))
+#define relAssertMsg(expr, msg) ((expr) || _cxAssertFail(#expr, msg))
+#define devFatalError(msg) _cxAssertFail(NULL, msg)
+#define relFatalError(msg) _cxAssertFail(NULL, msg)
 #else
 #define devAssert(expr) unused_noeval(expr)
 #define devAssertMsg(expr, msg) unused_noeval(expr)
