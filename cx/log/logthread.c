@@ -61,11 +61,11 @@ static int logthread_func(Thread *self)
                         // dispatch to log destination
                         dest->func(ent->level, ent->cat, ent->timestamp, ent->msg, dest->userdata);
                     }
-                } endforeach;
+                }
                 logDestroyEnt(ent);
                 ent = next;         // process the rest of the batch
             }
-        } endforeach;
+        }
         mutexRelease(&_log_dests_lock);
 
         saClear(&ents);

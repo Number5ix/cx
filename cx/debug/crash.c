@@ -52,7 +52,7 @@ bool _dbgCrashTriggerCallbacks(bool after)
     foreach(sarray, i, dbgCrashCallback, callback, callbacks) {
         if (!callback(after))
             return false;
-    } endforeach;
+    }
 
     return true;
 }

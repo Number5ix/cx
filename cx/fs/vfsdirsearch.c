@@ -92,7 +92,7 @@ bool vfsSearchInit(FSSearchIter *iter, VFS *vfs, strref path, strref pattern, in
             saPushC(&search->ents, opaque, &ent);
             htInsert(&names, string, sd->name, intptr, 1);
         }
-    } endforeach;
+    }
 
     // start at the target directory and recurse upwards to see if any providers know about
     // this directory

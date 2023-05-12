@@ -36,7 +36,7 @@ bool _objCheckIfaces(sa_ObjIface impls)
     foreach(sarray, i, ObjIface*, impl, impls) {
         if (!_objCheckIface(impl))
             return false;
-    } endforeach;
+    }
     return true;
 }
 

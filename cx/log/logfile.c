@@ -161,7 +161,7 @@ static void deleteOldFiles(LogFileData *lfd)
     foreach(sarray, idx, string, fn, todelete) {
         pathJoin(&temp, lfd->pathname, fn);
         vfsDelete(lfd->vfs, temp);
-    } endforeach;
+    }
 
     saDestroy(&todelete);
     saDestroy(&splits);

@@ -74,7 +74,7 @@ void logShutdown(void)
     mutexAcquire(&_log_dests_lock);
     foreach(sarray, idx, LogDest*, dest, _log_dests) {
         dest->func(-1, NULL, 0, NULL, dest->userdata);
-    } endforeach;
+    }
     saClear(&_log_dests);
     _log_max_level = -1;
     mutexRelease(&_log_dests_lock);

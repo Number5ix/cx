@@ -6,10 +6,9 @@
 
 static void vfsUnmountAll(VFSDir *dir)
 {
-    foreach(hashtable, sdi, dir->subdirs)
-    {
+    foreach(hashtable, sdi, dir->subdirs) {
         vfsUnmountAll((VFSDir*)htiVal(sdi, ptr));
-    } endforeach;
+    }
     saClear(&dir->mounts);
 }
 
@@ -21,10 +20,9 @@ void vfsDestroy(VFS *vfs)
     // being mounted to.
 
     rwlockAcquireWrite(&vfs->vfsdlock);
-    foreach(hashtable, nsi, vfs->namespaces)
-    {
+    foreach(hashtable, nsi, vfs->namespaces) {
         vfsUnmountAll((VFSDir*)htiVal(nsi, ptr));
-    } endforeach;
+    }
     vfsUnmountAll(vfs->root);
     rwlockReleaseWrite(&vfs->vfsdlock);
 
@@ -255,10 +253,9 @@ void _vfsInvalidateRecursive(VFS *vfs, VFSDir *dir, bool havelock)
         htRemove(&dir->parent->subdirs, string, dir->name);
     } else {
         htClear(&dir->files);
-        foreach(hashtable, sdi, dir->subdirs)
-        {
+        foreach(hashtable, sdi, dir->subdirs) {
             _vfsInvalidateRecursive(vfs, (VFSDir*)htiVal(sdi, ptr), true);
-        } endforeach;
+        }
     }
 
     if (!havelock)
