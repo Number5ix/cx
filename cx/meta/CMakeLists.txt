@@ -1,7 +1,8 @@
 set(META_SRCS
     meta/meta.c)
 set(META_INCLUDES
-    meta/block.h)
+    meta/block.h
+    meta/pblock.h)
 
 set(CX_SRCS
     ${CX_SRCS}
