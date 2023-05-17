@@ -1,7 +1,6 @@
 set(UTILS_SRCS
     utils/cbhandle.c
     utils/lazyinit.c
-    utils/macros.c
     utils/murmur.c
     utils/scratch.c)
 set(UTILS_INCLUDES
@@ -12,7 +11,6 @@ set(UTILS_INCLUDES
     utils/murmur.h
     utils/scratch.h
     utils/macros/args.h
-    utils/macros/blocks.h
     utils/macros/optflags.h
     utils/macros/tokens.h)
 

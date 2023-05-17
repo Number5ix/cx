@@ -1,5 +1,4 @@
-#include "macros.h"
-#include "macros/blocks.h"
+#include "block.h"
 
 // define a few globals used by the macro library
 

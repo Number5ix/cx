@@ -8,6 +8,7 @@ add_subdirectory(format)
 add_subdirectory(fs)
 add_subdirectory(log)
 add_subdirectory(math)
+add_subdirectory(meta)
 add_subdirectory(platform)
 add_subdirectory(string)
 add_subdirectory(sys)
@@ -22,6 +23,7 @@ set(CX_BASE_INCLUDES
     debug.h
     fs.h
     math.h
+    meta.h
     obj.h
     platform.h
     static_config.h
