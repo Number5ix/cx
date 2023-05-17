@@ -2,7 +2,7 @@
 
 #include <stdbool.h>
 #include <cx/core/cpp.h>
-#include <cx/utils/macros.h>
+#include <cx/utils/macros/unused.h>
 
 #if DEBUG_LEVEL >= 1
 CX_C bool _cxAssertFail(const char *expr, const char *msg, const char *file, int ln);

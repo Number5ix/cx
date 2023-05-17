@@ -9,7 +9,10 @@ set(UTILS_INCLUDES
     utils/lazyinit.h
     utils/macros.h
     utils/murmur.h
-    utils/scratch.h)
+    utils/scratch.h
+    utils/macros/args.h
+    utils/macros/optflags.h
+    utils/macros/tokens.h)
 
 set(CX_SRCS
     ${CX_SRCS}
