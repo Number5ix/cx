@@ -55,6 +55,8 @@ static const testspec tests[] = {
 { "thread: Event", "thrtest", "event" },
 { "thread: Event (with spin)", "thrtest", "event_s" },
 { "thread: Condition Variable", "thrtest", "condvar" },
+{ "meta: Block Wrapping", "metatest", "wrap" },
+{ "meta: Protected Blocks", "metatest", "protect" },
 { 0 }
 };
 

@@ -7,6 +7,7 @@ create_test_sourcelist(testsrc
     sarraytest.c
     strtest.c
     thrtest.c
+    metatest.c
     alltests.c)
 add_sidl(fmttestobj.sidl
     objtestobj.sidl)
@@ -77,3 +78,5 @@ add_test(NAME "\"thread: Reader/writer lock\"" COMMAND test_runner thrtest rwloc
 add_test(NAME "\"thread: Event\"" COMMAND test_runner thrtest event)
 add_test(NAME "\"thread: Event (with spin)\"" COMMAND test_runner thrtest event_s)
 add_test(NAME "\"thread: Condition Variable\"" COMMAND test_runner thrtest condvar)
+add_test(NAME "\"meta: Block Wrapping\"" COMMAND test_runner metatest wrap)
+add_test(NAME "\"meta: Protected Blocks\"" COMMAND test_runner metatest protect)
