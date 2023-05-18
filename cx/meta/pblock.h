@@ -134,16 +134,16 @@ _meta_inline void _pblockUnwind(void *top, int cond)
      * protected blocks */                                                                                      \
     switch (setjmp(_pblock_unwind_return.buf))                                                                  \
         case 0:                                                                                                 \
-        if(1) {                                                                                                 \
+        for(                                                                                                    \
             /* Flag the pblock loop to jump to the return buffer at the end of its AFTER phase */               \
-            _pblock_unwind_return.returning = 1;                                                                \
+            _pblock_unwind_return.returning = 1,                                                                \
             /* Unwind everything. */                                                                            \
             pblockUnwind(-1);                                                                                   \
-        }                                                                                                       \
+            0;)                                                                                                 \
         /* Set the returning flag back to 0 right before doing the actual return, since the return buffer       \
          * is shared between all blocks in the thread and this function might have been called from within a    \
          * protected block. Finally, after we've longjumped back here, return the expression that the user      \
          * placed after the pblockReturn statement.                                                             \
          * It's important to note that the value is NOT captured before unwinding, so it may need to be         \
          * volatile if it references local variables. */                                                        \
-        else case 1: inhibitAllow(RETURN) _blkDef(_pblock_unwind_return.returning = 0) return
+        case 1: inhibitAllow(RETURN) _blkDef(_pblock_unwind_return.returning = 0) return
