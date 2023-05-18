@@ -70,7 +70,7 @@ extern _Thread_local _pblock_jmp_buf_node _pblock_unwind_return;
         /* AFTER */ (_pblock_unwind ?                                                                           \
             pblockUnwind(_pblock_target <= 0 ? _pblock_target : _pblock_target - 1) : nop_stmt))                \
     /* unwind_prev is not actually used here, but is for integration with the try/catch exceptions */           \
-    _blkDef(_pblock_jmp_buf_node *_pblock_unwind_prev = _pblock_unwind_top)                                     \
+    _blkDef(_pblock_jmp_buf_node *_pblock_unwind_prev = (void*)_pblock_unwind_top)                              \
     /* allocate a jump buffer on the stack for this level of recursion */                                       \
     _blkDef(_pblock_jmp_buf _pblock_unwind_top = tokeval(BLOCK_JMPBUF_INIT))                                    \
     /* set the longjump target to be within the inntermost loop and coerce the return value to 1 or 0 */        \
@@ -86,6 +86,8 @@ extern _Thread_local _pblock_jmp_buf_node _pblock_unwind_return;
                  * next target in the chain and we'll stop unwinding early. */                                  \
                 _pblock_target = _pblock_unwind_top[0].target;                                                  \
                 _pblock_unwind = !!_pblock_target;                                                              \
+                /* quell compiler warnings about unused variable */                                             \
+                (void)_pblock_unwind_prev;                                                                      \
         } else                                                                                                  \
         /* This is the case for when we get here the first time, right after calling setjmp. The user-provided  \
          * block slots in directly after this label. */                                                         \
@@ -101,7 +103,7 @@ _meta_inline void _pblockUnwind(void *top, int cond)
 // Exits the current protected block early. num may be the number of nested blocks to break out of,
 // starting at 1 for the current block only. It may also be -1 which breaks out of any number of protected
 // blocks and returns to the instruction immediately after the outermost layer.
-#define pblockUnwind(num) _pblockUnwind(_pblock_unwind_top, (num))
+#define pblockUnwind(num) _pblockUnwind((void*)_pblock_unwind_top, (num))
 
 // PBLOCK_AFTER:
 // This pseudo-label is similar to a finally clause in exception handling. It is guaranteed to be
@@ -114,9 +116,9 @@ _meta_inline void _pblockUnwind(void *top, int cond)
          * When the user provides a PBLOCK_AFTER target, it defines this case 1 which overrides the default     \
          * case label (the one that's hidden in the if(0) after the case 2:) and comes here instead. */         \
         case 1:                                                                                                 \
-            _pblock_target = _pblock_unwind_top[0].target;                                                      \
-            _pblock_unwind = !!_pblock_target;                                                                  \
-            /* Execution falls through to the statement below. */                                               \
+        _pblock_target = _pblock_unwind_top[0].target;                                                          \
+        _pblock_unwind = !!_pblock_target;                                                                      \
+        /* Execution falls through to the statement below. */                                                   \
     }                                                                                                           \
     /* This odd looking construct exists to swallow the ':' after the fake PBLOCK_AFTER label. */               \
     switch(0) case 0
@@ -130,16 +132,18 @@ _meta_inline void _pblockUnwind(void *top, int cond)
 #define pblockReturn                                                                                            \
     /* Set up the thread-local unwind return buffer to jump back here after unwinding all of the                \
      * protected blocks */                                                                                      \
-    if (!setjmp(_pblock_unwind_return.buf)) {                                                                   \
-        /* Flag the pblock loop to jump to the return buffer at the end of its AFTER phase */                   \
-        _pblock_unwind_return.returning = 1;                                                                    \
-        /* Unwind everything. */                                                                                \
-        pblockUnwind(-1);                                                                                       \
-    }                                                                                                           \
-    /* Set the returning flag back to 0 right before doing the actual return, since the return buffer is shared \
-     * between all blocks in the thread and this function might have been called from within a protected block. \
-     * Finally, after we've longjumped back here, return the expression that the user placed after the          \
-     * pblockReturn statement.                                                                                  \
-     * It's important to note that the value is NOT captured before unwinding, so it may need to be volatile    \
-     * if it depends on anything that changes during the unwinding process. */                                  \
-    else inhibitAllow(RETURN) _blkDef(_pblock_unwind_return.returning = 0) return
+    switch (setjmp(_pblock_unwind_return.buf))                                                                  \
+        case 0:                                                                                                 \
+        if(1) {                                                                                                 \
+            /* Flag the pblock loop to jump to the return buffer at the end of its AFTER phase */               \
+            _pblock_unwind_return.returning = 1;                                                                \
+            /* Unwind everything. */                                                                            \
+            pblockUnwind(-1);                                                                                   \
+        }                                                                                                       \
+        /* Set the returning flag back to 0 right before doing the actual return, since the return buffer       \
+         * is shared between all blocks in the thread and this function might have been called from within a    \
+         * protected block. Finally, after we've longjumped back here, return the expression that the user      \
+         * placed after the pblockReturn statement.                                                             \
+         * It's important to note that the value is NOT captured before unwinding, so it may need to be         \
+         * volatile if it references local variables. */                                                        \
+        else case 1: inhibitAllow(RETURN) _blkDef(_pblock_unwind_return.returning = 0) return
