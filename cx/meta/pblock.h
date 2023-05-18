@@ -74,9 +74,11 @@ extern _Thread_local _pblock_jmp_buf_node _pblock_unwind_return;
     /* allocate a jump buffer on the stack for this level of recursion */                                       \
     _blkDef(_pblock_jmp_buf _pblock_unwind_top = tokeval(BLOCK_JMPBUF_INIT))                                    \
     /* set the longjump target to be within the inntermost loop and coerce the return value to 1 or 0 */        \
-    switch(setjmp(_pblock_unwind_top[0].buf) ? 0 : 1)                                                           \
-        /* case 2 doesn't actually exist, it's guarding a default case label that acts as a fallback for        \
-         * if case 0 isn't defined, which can happen if the user does not include a PBLOCK_AFTER label. */      \
+    switch(setjmp(_pblock_unwind_top[0].buf))                                                                   \
+        /* case 2 doesn't actually exist, it serves as a place to hang an if-else construct so we can define    \
+           two case labels here instead of only one - case 0 for the user block to execute, and a default       \
+           case label that acts as a fallback for case 1 not being defined, which can happen if the user does   \
+           not include a PBLOCK_AFTER label. */                                                                 \
         case 2: if (0) {                                                                                        \
             default:                                                                                            \
                 /* if there isn't a PBLOCK_AFTER but we got here as a longjmp target, we need to take care of   \
@@ -87,7 +89,7 @@ extern _Thread_local _pblock_jmp_buf_node _pblock_unwind_return;
         } else                                                                                                  \
         /* This is the case for when we get here the first time, right after calling setjmp. The user-provided  \
          * block slots in directly after this label. */                                                         \
-        case 1:
+        case 0:
 
 
 _meta_inline void _pblockUnwind(void *top, int cond)
@@ -107,11 +109,11 @@ _meta_inline void _pblockUnwind(void *top, int cond)
 // of how that occurs (except for abnormal control flow like longjmp).
 #define PBLOCK_AFTER                                                                                            \
     if (0) {                                                                                                    \
-        /* Even though this case 0 label is placed into the user-defined block, it technically exists within    \
+        /* Even though this case 1 label is placed into the user-defined block, it technically exists within    \
          * the switch statement at the end of the pblock macro.                                                 \
-         * When the user provides a PBLOCK_AFTER target, it defines this case 0 which overrides the default     \
+         * When the user provides a PBLOCK_AFTER target, it defines this case 1 which overrides the default     \
          * case label (the one that's hidden in the if(0) after the case 2:) and comes here instead. */         \
-        case 0:                                                                                                 \
+        case 1:                                                                                                 \
             _pblock_target = _pblock_unwind_top[0].target;                                                      \
             _pblock_unwind = !!_pblock_target;                                                                  \
             /* Execution falls through to the statement below. */                                               \
@@ -123,6 +125,8 @@ _meta_inline void _pblockUnwind(void *top, int cond)
 // Acts as a substitute for the 'return' keyword within a protected block.
 // pblockReturn triggers a return to the calling function, but correctly unwinds all protected blocks
 // first and allows their PBLOCK_AFTER sections to perform any needed cleanup.
+// IMPORTANT: The expression to be returned is evaluated after a longjmp back to this context, so any local
+// variables used in it must be declared volatile.
 #define pblockReturn                                                                                            \
     /* Set up the thread-local unwind return buffer to jump back here after unwinding all of the                \
      * protected blocks */                                                                                      \

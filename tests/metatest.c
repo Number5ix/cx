@@ -171,8 +171,10 @@ static void test_meta_pblock_unwind_nested(string *pout, int depth, int unwind)
 
 // "A1B1C1D1E1F1G1G2G3F2F3E2E3D2D3C2C3B2B3A2A3"
 
-static int test_meta_pblock_return_sub(string *pout, int depthf1, int depthf2, int rval)
+static int test_meta_pblock_return_sub(string *pout, int depthf1, int depthf2, int rv)
 {
+    volatile int rval = rv;
+
     pblock{
         strAppend(pout, _S"D1");
         pblock{
@@ -196,9 +198,12 @@ static int test_meta_pblock_return_sub(string *pout, int depthf1, int depthf2, i
     return 0;
 }
 
-static int test_meta_pblock_return(string *pout, int depthf1, int depthf2, int rval)
+static int test_meta_pblock_return(string *pout, int depthf1, int depthf2, int rv)
 {
-    int ret = 0;
+    // For strict adherence to the spec these need to be volatile, since the pblockReturn
+    // expression is evaluated after a longjmp back from the outer blocks.
+    volatile int rval = rv;
+    volatile int ret = 0;
 
     strClear(pout);
     pblock{
