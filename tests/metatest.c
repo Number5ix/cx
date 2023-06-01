@@ -171,67 +171,6 @@ static void test_meta_pblock_unwind_nested(string *pout, int depth, int unwind)
 
 // "A1B1C1D1E1F1G1G2G3F2F3E2E3D2D3C2C3B2B3A2A3"
 
-static int test_meta_pblock_return_sub(string *pout, int depthf1, int depthf2, int rv)
-{
-    volatile int rval = rv;
-
-    pblock{
-        strAppend(pout, _S"D1");
-        pblock{
-            strAppend(pout, _S"E1");
-            pblock {
-                strAppend(pout, _S"F1");
-                if (depthf2 == 3) pblockReturn rval * 1000;
-                strAppend(pout, _S"F2");
-                PBLOCK_AFTER: strAppend(pout, _S"F3");
-            };
-            if (depthf2 == 2) pblockReturn rval * 1000;
-            strAppend(pout, _S"E2");
-            PBLOCK_AFTER: strAppend(pout, _S"E3");
-        };
-        if (depthf2 == 1) pblockReturn rval * 1000;
-        strAppend(pout, _S"D2");
-        PBLOCK_AFTER: strAppend(pout, _S"D3");
-    };
-
-    strAppend(pout, _S"_func2_");
-    return 0;
-}
-
-static int test_meta_pblock_return(string *pout, int depthf1, int depthf2, int rv)
-{
-    // For strict adherence to the spec these need to be volatile, since the pblockReturn
-    // expression is evaluated after a longjmp back from the outer blocks.
-    volatile int rval = rv;
-    volatile int ret = 0;
-
-    strClear(pout);
-    pblock{
-        strAppend(pout, _S"A1");
-        pblock {
-            strAppend(pout, _S"B1");
-            pblock {
-                strAppend(pout, _S"C1");
-                if (depthf1 == 3) pblockReturn rval + ret + 1;
-                // test calling another function that uses pblockReturn from inside a pblock
-                ret = test_meta_pblock_return_sub(pout, depthf1, depthf2, rval);
-                strAppend(pout, _S"C2");
-                PBLOCK_AFTER: strAppend(pout, _S"C3");
-            };
-            if (depthf1 == 2) pblockReturn rval + ret + 1;
-            strAppend(pout, _S"B2");
-            PBLOCK_AFTER: strAppend(pout, _S"B3");
-        };
-        if (depthf1 == 1) pblockReturn rval + ret + 1;
-        strAppend(pout, _S"A2");
-        PBLOCK_AFTER: strAppend(pout, _S"A3");
-    };
-
-    strAppend(pout, _S"_func1_");
-
-    return ret;
-}
-
 static int test_meta_protect()
 {
     int ret = 0;
@@ -291,34 +230,6 @@ static int test_meta_protect()
     if (!strEq(out, _S"A1B1C1D1E1F1G1G2G3F3E3D3C3B2B3A2A3")) ret = 1;
     test_meta_pblock_unwind_nested(&out, 7, 4);
     if (!strEq(out, _S"A1B1C1D1E1F1G1G3F3E3D3C2C3B2B3A2A3")) ret = 1;
-
-    int rval;
-    rval = test_meta_pblock_return(&out, 0, 0, 5);
-    if (rval != 0 || !strEq(out, _S"A1B1C1D1E1F1F2F3E2E3D2D3_func2_C2C3B2B3A2A3_func1_")) ret = 1;
-    rval = test_meta_pblock_return(&out, 1, 0, 6);
-    if (rval != 7 || !strEq(out, _S"A1B1C1D1E1F1F2F3E2E3D2D3_func2_C2C3B2B3A3")) ret = 1;
-    rval = test_meta_pblock_return(&out, 2, 0, 7);
-    if (rval != 8 || !strEq(out, _S"A1B1C1D1E1F1F2F3E2E3D2D3_func2_C2C3B3A3")) ret = 1;
-    rval = test_meta_pblock_return(&out, 3, 0, 8);
-    if (rval != 9 || !strEq(out, _S"A1B1C1C3B3A3")) ret = 1;
-
-
-    rval = test_meta_pblock_return(&out, 0, 1, 9);
-    if (rval != 9000 || !strEq(out, _S"A1B1C1D1E1F1F2F3E2E3D3C2C3B2B3A2A3_func1_")) ret = 1;
-    rval = test_meta_pblock_return(&out, 0, 2, 10);
-    if (rval != 10000 || !strEq(out, _S"A1B1C1D1E1F1F2F3E3D3C2C3B2B3A2A3_func1_")) ret = 1;
-    rval = test_meta_pblock_return(&out, 0, 3, 11);
-    if (rval != 11000 || !strEq(out, _S"A1B1C1D1E1F1F3E3D3C2C3B2B3A2A3_func1_")) ret = 1;
-
-
-    rval = test_meta_pblock_return(&out, 2, 1, 12);
-    if (rval != 12013 || !strEq(out, _S"A1B1C1D1E1F1F2F3E2E3D3C2C3B3A3")) ret = 1;
-    rval = test_meta_pblock_return(&out, 1, 3, 13);
-    if (rval != 13014 || !strEq(out, _S"A1B1C1D1E1F1F3E3D3C2C3B2B3A3")) ret = 1;
-    rval = test_meta_pblock_return(&out, 3, 3, 14);
-    if (rval != 15 || !strEq(out, _S"A1B1C1C3B3A3")) ret = 1;
-    rval = test_meta_pblock_return(&out, 2, 1, 15);
-    if (rval != 15016 || !strEq(out, _S"A1B1C1D1E1F1F2F3E2E3D3C2C3B3A3")) ret = 1;
 
     strDestroy(&out);
     return ret;
