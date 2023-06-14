@@ -3,8 +3,7 @@
 #include <cx/meta/block.h>
 
 enum _pblock_unwind_const {
-    _pblock_unwind_top = 0,
-    _pblock_unwind_prev = 0,
+    _pblock_unwind_top = 0
 };
 
 typedef struct _pblock_jmp_buf_node _pblock_jmp_buf_node;
@@ -55,8 +54,6 @@ _meta_inline /*noreturn*/ void _pbLongjmp(_pblock_jmp_buf_node *node, int val)
          * If _pblock_target reaches 0, this will also exit the loop and continue execution as normal. */       \
         /* AFTER */ (_pblock_unwind ?                                                                           \
             pblockUnwind(_pblock_target <= 0 ? _pblock_target : _pblock_target - 1) : nop_stmt))                \
-    /* unwind_prev is not actually used here, but is for integration with the try/catch exceptions */           \
-    _blkDef(_pblock_jmp_buf_node *_pblock_unwind_prev = (void*)_pblock_unwind_top)                              \
     /* allocate a jump buffer on the stack for this level of recursion */                                       \
     _blkDef(_pblock_jmp_buf _pblock_unwind_top = tokeval(BLOCK_JMPBUF_INIT))                                    \
     /* set the longjump target to be within the inntermost loop and coerce the return value to 1 or 0 */        \
@@ -72,8 +69,6 @@ _meta_inline /*noreturn*/ void _pbLongjmp(_pblock_jmp_buf_node *node, int val)
                  * next target in the chain and we'll stop unwinding early. */                                  \
                 _pblock_target = _pblock_unwind_top[0].target;                                                  \
                 _pblock_unwind = !!_pblock_target;                                                              \
-                /* quell compiler warnings about unused variable */                                             \
-                (void)_pblock_unwind_prev;                                                                      \
         } else                                                                                                  \
         /* This is the case for when we get here the first time, right after calling setjmp. The user-provided  \
          * block slots in directly after this label. */                                                         \

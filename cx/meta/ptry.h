@@ -71,9 +71,9 @@ _meta_inline void _ptry_pop_until(_pblock_jmp_buf_node *node)
 }
 
 #if DEBUG_LEVEL >= 1
-_meta_inline void _ptry_throw(int code, const char *msg, const char *file, int ln, _pblock_jmp_buf_node *target)
+_meta_inline void _ptry_throw(int code, const char *msg, const char *file, int ln)
 #else
-_meta_inline void _ptry_throw(int code, const char *msg, _pblock_jmp_buf_node *target)
+_meta_inline void _ptry_throw(int code, const char *msg)
 #endif
 {
     // populate the thread-local exception info as we go into exception-handling mode
@@ -84,12 +84,8 @@ _meta_inline void _ptry_throw(int code, const char *msg, _pblock_jmp_buf_node *t
     _ptry_exc.ln = ln;
 #endif
 
-    // look for a local handler first (a ptTry block) which is passed in from the caller macro.
-    // If one does not exist, fall back to the thread-local stack to look for a handler earlier in the call graph.
-    if (!target) target = _ptry_top;
-
     // jump to the handler block if we have one, in most cases this function stops executing here
-    if (target) _pbLongjmp(target, -1);
+    if (_ptry_top) _pbLongjmp(_ptry_top, -1);
 
     // otherwise call the unhandled exception handler, this will probably abort and never return
     _ptry_handle_unhandled(&_ptry_exc);
@@ -103,9 +99,9 @@ _meta_inline void _ptry_throw(int code, const char *msg, _pblock_jmp_buf_node *t
 // There are two parts to an exception, the numeric code, which is an application-specific constant, and a message.
 // The message MUST be a static string literal and can NOT be heap or stack allocated.
 #if DEBUG_LEVEL >= 1
-#define ptThrow(code, msg) _ptry_throw(code, msg, __FILE__, __LINE__, _pblock_unwind_top)
+#define ptThrow(code, msg) _ptry_throw(code, msg, __FILE__, __LINE__)
 #else
-#define ptThrow(code, msg) _ptry_throw(code, msg, _pblock_unwind_top)
+#define ptThrow(code, msg) _ptry_throw(code, msg)
 #endif
 
 // ptRethrow
@@ -113,9 +109,9 @@ _meta_inline void _ptry_throw(int code, const char *msg, _pblock_jmp_buf_node *t
 // up the call graph. This is most commonly used when filtering specific exceptions by code to be handled
 // locally.
 #if DEBUG_LEVEL >= 1
-#define ptRethrow _ptry_throw(_ptry_exc.code, _ptry_exc.msg, _ptry_exc.file, _ptry_exc.ln, 0)
+#define ptRethrow _ptry_throw(_ptry_exc.code, _ptry_exc.msg, _ptry_exc.file, _ptry_exc.ln)
 #else
-#define ptRethrow _ptry_throw(_ptry_exc.code, _ptry_exc.msg, 0)
+#define ptRethrow _ptry_throw(_ptry_exc.code, _ptry_exc.msg)
 #endif
 
 // ptTry { }
@@ -148,11 +144,8 @@ _meta_inline void _ptry_throw(int code, const char *msg, _pblock_jmp_buf_node *t
     _blkStart                                                                                       \
     /* make sure that this phase isn't executed again (if we got here via longjmp) */               \
     _blkBefore(_ptry_phase = 2)                                                                     \
-    /* unwind the handler stack to match where we currently are */                                  \
-    _blkBefore(_ptry_pop_until(_pblock_unwind_top))                                                 \
-    /* in case something is thrown from inside the catch block, we want to make sure to jump to the \
-     * handler above this one, so hide the real unwind_top. */                                      \
-    _blkDef(_pblock_jmp_buf_node* _pblock_unwind_top = _pblock_unwind_prev)
+    /* unwind the handler stack to one level above where we currently are */                        \
+    _blkBefore(_ptry_pop_until(_pblock_unwind_top))
 
 // ptFinally {}
 // The ptFinally block must immediately follow a ptTry. It is executed after the ptTry block either
