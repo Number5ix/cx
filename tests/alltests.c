@@ -57,6 +57,10 @@ static const testspec tests[] = {
 { "thread: Condition Variable", "thrtest", "condvar" },
 { "meta: Block Wrapping", "metatest", "wrap" },
 { "meta: Protected Blocks", "metatest", "protect" },
+{ "meta: Basic Try/Catch" , "metatest", "ptry" },
+{ "meta: Unhandled Exceptions" , "metatest", "unhandled" },
+{ "meta: Rethrow" , "metatest", "rethrow" },
+{ "meta: Cross-function Exception Handling" , "metatest", "xfunc" },
 { 0 }
 };
 

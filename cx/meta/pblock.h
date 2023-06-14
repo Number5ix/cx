@@ -12,7 +12,6 @@ typedef struct _pblock_jmp_buf_node {
     _pblock_jmp_buf_node *next;                 // used for link list in try/catch code
     jmp_buf buf;                                // longjmp destination to exit the current block
     volatile int target;                        // how many levels of nesting are we unwinding
-
 } _pblock_jmp_buf_node;
 
 typedef _pblock_jmp_buf_node _pblock_jmp_buf[1];

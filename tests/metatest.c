@@ -235,8 +235,286 @@ static int test_meta_protect()
     return ret;
 }
 
+static int test_meta_ptry()
+{
+    int var1 = 0, var2 = 0, var3 = 0;
+    int ret = 0;
+
+    // test try/finally/catch blocks with no exceptions
+    ptTry {
+        var1 += 1;
+        ptTry {
+            var1 += 10;
+            var2 += 20;
+        } ptFinally {
+            var3 += 30;
+        }
+        var2 += 2;
+    } ptCatch {
+        if (ptCode == -7)
+            var3 += 3;
+    }
+
+    if (var1 != 11 || var2 != 22 || var3 != 30)
+        ret = 1;
+
+    // test try/finally/catch blocks with an exception in the inner block
+    var1 = var2 = var3 = 0;
+    ptTry {
+        var1 += 1;
+        ptTry {
+            var1 += 10;
+            ptThrow(-7, "test");
+            var2 += 20;
+        } ptFinally {
+            var3 += 30;
+        }
+        var2 += 2;
+    } ptCatch {
+        if (ptCode == -7)
+            var3 += 3;
+    }
+
+    if (var1 != 11 || var2 != 0 || var3 != 33)
+        ret = 1;
+
+    // test try/finally/catch blocks with an exception caught in the inner block
+    var1 = var2 = var3 = 0;
+    ptTry{
+        var1 += 1;
+        ptTry {
+            var1 += 10;
+            ptThrow(-7, "test");
+            var2 += 20;
+        } ptCatch {
+            if (ptCode == -7)
+                var3 += 30;
+        }
+        var2 += 2;
+    } ptCatch {
+        if (ptCode == -7)
+            var3 += 3;
+    }
+
+    if (var1 != 11 || var2 != 2 || var3 != 30)
+        ret = 1;
+
+    return ret;
+}
+
+static int test_meta_ptry_rethrow()
+{
+    int var1 = 0, var2 = 0, var3 = 0;
+    int ret = 0;
+
+    ptTry{
+        var1 += 1;
+        ptTry {
+            var1 += 10;
+            ptThrow(-7, "test");
+            var2 += 20;
+        } ptCatch {
+            if (ptCode == -7) {
+                var3 += 30;
+                ptRethrow;
+            }
+        }
+        var2 += 2;
+    } ptCatch {
+        if (ptCode == -7)
+            var3 += 3;
+    }
+
+    if (var1 != 11 || var2 != 0 || var3 != 33)
+        ret = 1;
+
+    return ret;
+}
+
+static bool unhandled = false;
+
+static int test_meta_ptry_unhandled_handler(ExceptionInfo *einfo)
+{
+    unhandled = true;
+
+    if (einfo->code == -7 || einfo->code == 1)
+        return 1;
+
+    return 0;
+}
+
+static int test_meta_ptry_unhandled()
+{
+    int var1 = 0, var2 = 0, var3 = 0;
+    int ret = 0;
+
+    ptRegisterUnhandled(test_meta_ptry_unhandled_handler);
+    unhandled = false;
+
+    // properly handled exception
+    ptTry{
+        var1 += 1;
+        ptTry {
+            var1 += 10;
+            ptThrow(-7, "test");
+            var2 += 20;
+        } ptFinally {
+            var3 += 30;
+        }
+        var2 += 2;
+    } ptCatch {
+        if (ptCode == -7)
+            var3 += 3;
+    }
+
+    if (var1 != 11 || var2 != 0 || var3 != 33 || unhandled)
+        ret = 1;
+
+    var1 = var2 = var3 = 0;
+    unhandled = false;
+    // unhandled exception!
+    ptTry {
+        var1 += 1;
+        ptTry {
+            var1 += 10;
+            ptThrow(-7, "test");
+            var2 += 20;
+        } ptFinally {
+            var3 += 30;
+        }
+        var2 += 2;
+    } ptFinally {
+        var3 += 3;
+    }
+
+    if (var1 != 11 || var2 != 0 || var3 != 33 || !unhandled)
+        ret = 1;
+
+    ptUnregisterUnhandled(test_meta_ptry_unhandled_handler);
+
+    return ret;
+}
+
+#define TEST_XFUNC_RECURSE test_meta_ptry_xfunc_sub(pout, level + 1, p2, p3, p4, p5, p6, 0)
+
+static void test_meta_ptry_xfunc_sub(string *pout, int level, int p1, int p2, int p3, int p4, int p5, int p6)
+{
+    char t1[2] = { 0 };
+    t1[0] = 'A' + level;
+
+    strNConcat(pout, *pout, (strref)t1, _S"1");
+
+    if (p1 == 0) {
+        // no recursion
+    } else if (p1 == 1) {
+        // recurse outside of a try block
+        TEST_XFUNC_RECURSE;
+        strNConcat(pout, *pout, (strref)t1, _S"2");
+    } else if (p1 == 2) {
+        // recurse inside a try block, catch an exception at this level
+        ptTry {
+            TEST_XFUNC_RECURSE;
+            strNConcat(pout, *pout, (strref)t1, _S"2");
+        } ptCatch {
+            if (ptCode == 1) {
+                strNConcat(pout, *pout, (strref)t1, _S"c");
+            } else if (ptCode == 2) {
+                strNConcat(pout, *pout, (strref)t1, _S"z");
+            }
+            strNConcat(pout, *pout, (strref)t1, _S"3");
+        }
+    } else if (p1 == 3) {
+        // recurse inside a try block, do NOT catch an exception at this level
+        ptTry {
+            TEST_XFUNC_RECURSE;
+            strNConcat(pout, *pout, (strref)t1, _S"2");
+        } ptFinally {
+            strNConcat(pout, *pout, (strref)t1, _S"3");
+        }
+    } else if (p1 == 4) {
+        // throw an exception at this level
+        strNConcat(pout, *pout, (strref)t1, _S"e");
+        ptThrow(1, "test");
+        TEST_XFUNC_RECURSE;
+        strNConcat(pout, *pout, (strref)t1, _S"2");
+    } else if (p1 == 5) {
+        // recurse inside a try block, catch an exception at this level,
+        // but throw a different exception inside the catch
+        ptTry {
+            TEST_XFUNC_RECURSE;
+            strNConcat(pout, *pout, (strref)t1, _S"2");
+        } ptCatch {
+            if (ptCode == 1) {
+                strNConcat(pout, *pout, (strref)t1, _S"c");
+            } else if (ptCode == 2) {
+                strNConcat(pout, *pout, (strref)t1, _S"z");
+            }
+            strNConcat(pout, *pout, (strref)t1, _S"e");
+            ptThrow(2, "test");
+            strNConcat(pout, *pout, (strref)t1, _S"3");
+        }
+    }
+
+    if (unhandled)
+        return;
+
+    strNConcat(pout, *pout, (strref)t1, _S"4");
+}
+
+static int test_meta_ptry_xfunc()
+{
+    string out = 0;
+    int ret = 0;
+    unhandled = false;
+
+    // test basic recursion logic
+    test_meta_ptry_xfunc_sub(&out, 0, 1, 1, 1, 0, 0, 0);
+    if (!strEq(out, _S"A1B1C1D1D4C2C4B2B4A2A4"))
+        ret = 1;
+
+    // throwing an exception from several levels deep in the call chain
+    strClear(&out);
+    test_meta_ptry_xfunc_sub(&out, 0, 2, 1, 1, 3, 1, 4);
+    if (!strEq(out, _S"A1B1C1D1E1F1FeD3AcA3A4"))
+        ret = 1;
+
+    // catching an exception at a lower level
+    strClear(&out);
+    test_meta_ptry_xfunc_sub(&out, 0, 2, 1, 3, 2, 1, 4);
+    if (!strEq(out, _S"A1B1C1D1E1F1FeDcD3D4C2C3C4B2B4A2A3A4"))
+        ret = 1;
+
+    // making sure execution terminates at the exception
+    strClear(&out);
+    test_meta_ptry_xfunc_sub(&out, 0, 2, 1, 4, 1, 4, 2);
+    if (!strEq(out, _S"A1B1C1CeAcA3A4"))
+        ret = 1;
+
+    // check unhandled exceptions in a function chain
+    ptRegisterUnhandled(test_meta_ptry_unhandled_handler);
+    unhandled = false;
+    strClear(&out);
+    test_meta_ptry_xfunc_sub(&out, 0, 3, 1, 3, 1, 4, 0);
+    if (!strEq(out, _S"A1B1C1D1E1EeC3A3") || !unhandled)
+        ret = 1;
+    ptUnregisterUnhandled(test_meta_ptry_unhandled_handler);
+
+    // throwing an exception in a catch block
+    unhandled = false;
+    strClear(&out);
+    test_meta_ptry_xfunc_sub(&out, 0, 2, 1, 3, 5, 1, 4);
+    if (!strEq(out, _S"A1B1C1D1E1F1FeDcDeC3AzA3A4"))
+        ret = 1;
+
+    return ret;
+}
+
 testfunc metatest_funcs[] = {
     { "wrap", test_meta_wrap },
     { "protect", test_meta_protect },
+    { "ptry", test_meta_ptry },
+    { "unhandled", test_meta_ptry_unhandled },
+    { "rethrow", test_meta_ptry_rethrow },
+    { "xfunc", test_meta_ptry_xfunc },
     { 0, 0 }
 };

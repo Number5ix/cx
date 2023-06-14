@@ -80,3 +80,7 @@ add_test(NAME "\"thread: Event (with spin)\"" COMMAND test_runner thrtest event_
 add_test(NAME "\"thread: Condition Variable\"" COMMAND test_runner thrtest condvar)
 add_test(NAME "\"meta: Block Wrapping\"" COMMAND test_runner metatest wrap)
 add_test(NAME "\"meta: Protected Blocks\"" COMMAND test_runner metatest protect)
+add_test(NAME "\"meta: Basic Try/Catch\"" COMMAND test_runner metatest ptry)
+add_test(NAME "\"meta: Unhandled Exceptions\"" COMMAND test_runner metatest unhandled)
+add_test(NAME "\"meta: Rethrow\"" COMMAND test_runner metatest rethrow)
+add_test(NAME "\"meta: Cross-function Exception Handling\"" COMMAND test_runner metatest xfunc)
