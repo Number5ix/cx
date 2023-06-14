@@ -237,7 +237,7 @@ static int test_meta_protect()
 
 static int test_meta_ptry()
 {
-    int var1 = 0, var2 = 0, var3 = 0;
+    volatile int var1 = 0, var2 = 0, var3 = 0;
     int ret = 0;
 
     // test try/finally/catch blocks with no exceptions
@@ -304,7 +304,7 @@ static int test_meta_ptry()
 
 static int test_meta_ptry_rethrow()
 {
-    int var1 = 0, var2 = 0, var3 = 0;
+    volatile int var1 = 0, var2 = 0, var3 = 0;
     int ret = 0;
 
     ptTry{
@@ -345,7 +345,7 @@ static int test_meta_ptry_unhandled_handler(ExceptionInfo *einfo)
 
 static int test_meta_ptry_unhandled()
 {
-    int var1 = 0, var2 = 0, var3 = 0;
+    volatile int var1 = 0, var2 = 0, var3 = 0;
     int ret = 0;
 
     ptRegisterUnhandled(test_meta_ptry_unhandled_handler);
