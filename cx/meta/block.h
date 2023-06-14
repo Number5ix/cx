@@ -8,8 +8,6 @@
 #include <cx/core/stype.h>
 #include <cx/platform/base.h>
 #include <cx/utils/macros/tokens.h>
-#include <cx/utils/macros/unused.h>
-#include <setjmp.h>
 
 // Compile-time checks for inhibited features
 // This are declared here rather than a separate include file because they are co-dependent

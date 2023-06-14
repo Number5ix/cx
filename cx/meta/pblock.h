@@ -1,6 +1,8 @@
 #pragma once
 
 #include <cx/meta/block.h>
+#include <cx/utils/macros/unused.h>
+#include <setjmp.h>
 
 enum _pblock_unwind_const {
     _pblock_unwind_top = 0
