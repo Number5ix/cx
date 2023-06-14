@@ -2,6 +2,7 @@
 
 #include <cx/cx.h>
 #include <cx/platform/base.h>
+#include <cx/meta/block.h>
 #include "futex.h"
 #include "aspin.h"
 
@@ -81,6 +82,9 @@ _meta_inline bool rwlockAcquireRead(RWLock *l)
 {
     return rwlockTryAcquireReadTimeout(l, timeForever);
 }
+
+#define withReadLock(l) blkWrap(rwlockAcquireRead(l), rwlockReleaseRead(l))
+#define withWriteLock(l) blkWrap(rwlockAcquireWrite(l), rwlockReleaseWrite(l))
 
 #ifdef CX_LOCK_DEBUG
 #define _logFmtRwlockArgComp2(level, fmt, nargs, args) _logFmt_##level(LOG_##level, LogDefault, fmt, nargs, args)

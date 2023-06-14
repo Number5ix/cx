@@ -2,6 +2,7 @@
 
 #include <cx/cx.h>
 #include <cx/time/time.h>
+#include <cx/meta/block.h>
 #include <cx/utils/macros.h>
 #include "futex.h"
 #include "aspin.h"
@@ -43,6 +44,8 @@ _meta_inline bool mutexAcquire(Mutex *m)
 {
     return mutexTryAcquireTimeout(m, timeForever);
 }
+
+#define withMutex(m) blkWrap(mutexAcquire(m), mutexRelease(m))
 
 #ifdef CX_LOCK_DEBUG
 #define _logFmtMutexArgComp2(level, fmt, nargs, args) _logFmt_##level(LOG_##level, LogDefault, fmt, nargs, args)

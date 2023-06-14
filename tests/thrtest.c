@@ -197,10 +197,10 @@ static int thrproc3(Thread *self)
         testint3++;
         mutexRelease(&testmtx);
 
-        mutexAcquire(&testmtx);
-        if (testint1 != testint2 || testint2 != testint3)
-            atomicStore(bool, &fail, true, Release);
-        mutexRelease(&testmtx);
+        withMutex(&testmtx) {
+            if (testint1 != testint2 || testint2 != testint3)
+                atomicStore(bool, &fail, true, Release);
+        }
     }
 
     return 0;
@@ -243,13 +243,13 @@ static atomic(bool) rthread_exit = atomicInit(false);
 static int thrproc4r(Thread *self)
 {
     while (!atomicLoad(bool, &rthread_exit, Acquire)) {
-        rwlockAcquireRead(&testrw);
-        for (int i = 0; i < 16; i++) {
-            if (testint1 != testint2 || testint2 != testint3)
-                atomicStore(bool, &fail, true, Release);
+        withReadLock(&testrw) {
+            for (int i = 0; i < 16; i++) {
+                if (testint1 != testint2 || testint2 != testint3)
+                    atomicStore(bool, &fail, true, Release);
 
+            }
         }
-        rwlockReleaseRead(&testrw);
         osYield();
     }
 
