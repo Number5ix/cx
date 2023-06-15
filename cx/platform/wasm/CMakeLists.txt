@@ -14,6 +14,7 @@ set(PLATFORM_WASM_SRCS
     platform/wasm/wasm_os.c
     platform/wasm/wasm_sys_hostid.c
     platform/wasm/wasm_thread_thread.c
+    platform/wasm/wasm_thread_threadobj.c
     platform/wasm/wasm_time.c
     platform/wasm/wasm_time_clock.c
     platform/wasm/wasm_uievent.c
@@ -21,7 +22,10 @@ set(PLATFORM_WASM_SRCS
 set(PLATFORM_WASM_INCLUDES
     platform/wasm/wasm_hostid.h
     platform/wasm/wasm_os.h
-    platform/wasm/wasm_sys_entry.h)
+    platform/wasm/wasm_sys_entry.h
+    platform/wasm/wasm_thread_threadobj.h)
+set(PLATFORM_WASM_SIDL
+    platform/wasm/wasm_thread_threadobj.sidl)
 
 set(PLATFORM_INCLUDES
     ${PLATFORM_INCLUDES}
@@ -35,6 +39,10 @@ set(CX_SRCS
 set(CX_INCLUDES
     ${CX_INCLUDES}
     ${PLATFORM_WASM_INCLUDES}
+    PARENT_SCOPE)
+set(CX_SIDL
+    ${CX_SIDL}
+    ${PLATFORM_WASM_SIDL}
     PARENT_SCOPE)
 
 set(CX_CMAKE_FILES

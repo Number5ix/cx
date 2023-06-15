@@ -8,7 +8,6 @@
 #include <cx/platform/os.h>
 
 Thread *_log_thread;
-Event *_log_event;
 static Event _log_done_event;
 
 static inline bool applyCatFilter(LogCategory *filtercat, LogCategory *testcat)
@@ -24,11 +23,6 @@ static inline bool applyCatFilter(LogCategory *filtercat, LogCategory *testcat)
 static int logthread_func(Thread *self)
 {
     sa_LogEntry ents;
-
-    // wait for systhread registration to complete
-    while (!_log_event)
-        osYield();
-
     saInit(&ents, ptr, 16);
 
     while (!atomicLoad(bool, &self->requestExit, Acquire)) {
@@ -71,7 +65,7 @@ static int logthread_func(Thread *self)
         saClear(&ents);
 
         eventSignal(&_log_done_event);
-        eventWait(_log_event);
+        eventWait(&self->notify);
     }
 
     return 0;
@@ -82,11 +76,14 @@ void logThreadCreate(void)
     devAssert(!_log_thread);
     eventInit(&_log_done_event);
     _log_thread = thrCreate(logthread_func, _S"CX Log Writer", stvNone);
-    thrRegisterSysThread(_log_thread, &_log_event);
+    thrRegisterSysThread(_log_thread);
 }
 
 void logFlush(void)
 {
+    if (!_log_thread)
+        return;
+
     for(;;) {
         // acquire destination lock, then buffer write lock to ensure that rdptr
         // reflects log entries that have been fully written
@@ -102,7 +99,7 @@ void logFlush(void)
             break;
 
         eventReset(&_log_done_event);
-        eventSignal(_log_event);
+        eventSignal(&_log_thread->notify);
         eventWait(&_log_done_event);
     }
 }

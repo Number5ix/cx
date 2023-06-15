@@ -133,7 +133,8 @@ retry:
             goto retry;
         }
     }
-    eventSignal(_log_event);
+    if (_log_thread)
+        eventSignal(&_log_thread->notify);
     ret = true;
 
 out:

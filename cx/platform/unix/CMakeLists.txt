@@ -10,6 +10,7 @@ set(PLATFORM_UNIX_SRCS
     platform/unix/unix_os.c
     platform/unix/unix_sys_hostid.c
     platform/unix/unix_thread_thread.c
+    platform/unix/unix_thread_threadobj.c
     platform/unix/unix_time.c
     platform/unix/unix_time_clock.c
     platform/unix/unix_uievent.c
@@ -17,7 +18,10 @@ set(PLATFORM_UNIX_SRCS
 set(PLATFORM_UNIX_INCLUDES
     platform/unix/unix_hostid.h
     platform/unix/unix_os.h
-    platform/unix/unix_sys_entry.h)
+    platform/unix/unix_sys_entry.h
+    platform/unix/unix_thread_threadobj.h)
+set(PLATFORM_UNIX_SIDL
+    platform/unix/unix_thread_threadobj.sidl)
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
     set(PLATFORM_UNIX_SRCS
@@ -41,6 +45,10 @@ set(CX_SRCS
 set(CX_INCLUDES
     ${CX_INCLUDES}
     ${PLATFORM_UNIX_INCLUDES}
+    PARENT_SCOPE)
+set(CX_SIDL
+    ${CX_SIDL}
+    ${PLATFORM_UNIX_SIDL}
     PARENT_SCOPE)
 
 set(CX_CMAKE_FILES

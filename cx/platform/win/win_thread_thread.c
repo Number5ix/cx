@@ -4,19 +4,12 @@
 #include <cx/time/time.h>
 #include <cx/utils/lazyinit.h>
 #include <process.h>
+#include "win_thread_threadobj.h"
 
 typedef HRESULT (WINAPI *SetThreadDescription_t)(HANDLE hThread, PCWSTR lpThreadDescription);
 static SetThreadDescription_t pSetThreadDescription;
 
-typedef struct WinThread {
-    Thread base;
-    bool background;
-
-    HANDLE handle;
-    DWORD id;
-} WinThread;
-
-static WinThread mainthread;
+static WinThread *mainthread;
 static _Thread_local WinThread *curthread;
 
 static LazyInitState platformThreadInitState;
@@ -28,12 +21,15 @@ static void platformThreadInit(void *dummy)
     // This may not be a correct assumption, but is the best we can do consistently
     // across all platforms without shenanigans.
 
-    mainthread.handle = GetCurrentThread();
-    mainthread.id = GetCurrentThreadId();
-    strDup(&mainthread.base.name, _S"Main");
-    atomicStore(bool, &mainthread.base.running, true, Relaxed);
+    mainthread = _winthrobjCreate();
 
-    curthread = &mainthread;
+    mainthread->handle = GetCurrentThread();
+    mainthread->id = GetCurrentThreadId();
+    strDup(&mainthread->name, _S"Main");
+
+    atomicStore(bool, &mainthread->running, true, Relaxed);
+
+    curthread = mainthread;
 
     // See if the SetThreadDescription API is available for setting thread names
     // on Windows 10 and later
@@ -44,58 +40,55 @@ static void platformThreadInit(void *dummy)
 static unsigned __stdcall _thrEntryPoint(void *data)
 {
     WinThread *thr = (WinThread*)data;
+    if (!thr)
+        goto out;
+
     thr->id = GetCurrentThreadId();
     curthread = thr;
 
     if (pSetThreadDescription)
-        pSetThreadDescription(thr->handle, strToUTF16S(thr->base.name));
+        pSetThreadDescription(thr->handle, strToUTF16S(thr->name));
 
-    thr->base.entry(&thr->base);
+    thr->exitCode = thr->entry(Thread(thr));
 
-    atomicStore(bool, &thr->base.running, false, AcqRel);
+    atomicStore(bool, &thr->running, false, AcqRel);
+    objRelease(&thr);
+
+out:
     _endthreadex(0);
     return 0;
 }
 
-Thread *_thrPlatformAlloc() {
-    return xaAlloc(sizeof(WinThread), XA_Zero);
+Thread *_thrPlatformCreate() {
+    WinThread *wthr = _winthrobjCreate();
+    return Thread(wthr);
 }
 
 bool _thrPlatformStart(Thread *thread)
 {
     lazyInit(&platformThreadInitState, &platformThreadInit, NULL);
 
-    WinThread *thr = (WinThread*)thread;
+    WinThread *thr = objDynCast(thread, WinThread);
 
-    if (thr->handle)
+    if (!thr || thr->handle)
         return false;
 
     thr->handle = (HANDLE)_beginthreadex(NULL, 0, _thrEntryPoint, thr, 0, NULL);
     return !!thr->handle;
 }
 
-void _thrPlatformDestroy(Thread *thread)
-{
-    WinThread *thr = (WinThread*)thread;
-    CloseHandle(thr->handle);
-}
-
-bool _thrPlatformKill(Thread *thread)
-{
-    WinThread *thr = (WinThread*)thread;
-    return TerminateThread(thr->handle, -1);
-}
-
 bool _thrPlatformWait(Thread *thread, int64 timeout)
 {
-    WinThread *thr = (WinThread*)thread;
+    WinThread *thr = objDynCast(thread, WinThread);
+    if (!thr) return false;
 
     return WaitForSingleObject(thr->handle, (timeout == timeForever) ? INFINITE : (DWORD)timeToMsec(timeout)) == WAIT_OBJECT_0;
 }
 
 bool _thrPlatformSetPriority(Thread *thread, int prio)
 {
-    WinThread *thr = (WinThread*)thread;
+    WinThread *thr = objDynCast(thread, WinThread);
+    if (!thr) return false;
 
     if (prio == THREAD_Batch) {
         // background mode only works on the current thread, so also adjust priority below
@@ -136,12 +129,15 @@ bool _thrPlatformSetPriority(Thread *thread, int prio)
 
 Thread *thrCurrent(void)
 {
-    return &curthread->base;
+    return Thread(curthread);
 }
 
 intptr thrOSThreadID(Thread *thread)
 {
-    return ((WinThread *)thread)->id;
+    WinThread *thr = objDynCast(thread, WinThread);
+    if (!thr) return 0;
+
+    return thr->id;
 }
 
 intptr thrCurrentOSThreadID(void)

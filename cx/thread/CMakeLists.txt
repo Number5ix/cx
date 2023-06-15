@@ -6,7 +6,8 @@ set(THREAD_SRCS
     thread/rwlock.c
     thread/sema.c
     thread/systhread.c
-    thread/thread.c)
+    thread/thread.c
+    thread/threadobj.c)
 set(THREAD_INCLUDES
     thread/aspin.h
     thread/atomic.h
@@ -17,7 +18,11 @@ set(THREAD_INCLUDES
     thread/rwlock.h
     thread/sema.h
     thread/thread.h
+    thread/threadbase.h
+    thread/threadobj.h
     thread/thread_private.h)
+set(THREAD_SIDL
+    thread/threadobj.sidl)
 
 set(CX_SRCS
     ${CX_SRCS}
@@ -26,6 +31,10 @@ set(CX_SRCS
 set(CX_INCLUDES
     ${CX_INCLUDES}
     ${THREAD_INCLUDES}
+    PARENT_SCOPE)
+set(CX_SIDL
+    ${CX_SIDL}
+    ${THREAD_SIDL}
     PARENT_SCOPE)
 
 set(CX_CMAKE_FILES

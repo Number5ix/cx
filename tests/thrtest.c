@@ -47,7 +47,8 @@ static int test_basic()
 
     for (i = 0; i < BASIC_THREADS; i++) {
         thrWait(threads[i], timeForever);
-        thrDestroy(&threads[i]);
+        thrShutdown(threads[i]);
+        thrRelease(&threads[i]);
         if (thrtest1[i] != 1000000 + i * 100000)
             ret = 1;
     }
@@ -107,11 +108,13 @@ static int test_futex()
 
     for (i = 0; i < FUTEX_PRODUCERS; i++) {
         thrWait(producers[i], timeForever);
-        thrDestroy(&producers[i]);
+        thrShutdown(producers[i]);
+        thrRelease(&producers[i]);
     }
     for (i = 0; i < FUTEX_CONSUMERS; i++) {
         thrWait(consumers[i], timeForever);
-        thrDestroy(&consumers[i]);
+        thrShutdown(consumers[i]);
+        thrRelease(&consumers[i]);
     }
 
     if (atomicLoad(int32, &testftx.val, Acquire) != 0)
@@ -162,11 +165,13 @@ static int test_sema()
 
     for (i = 0; i < SEMA_PRODUCERS; i++) {
         thrWait(producers[i], timeForever);
-        thrDestroy(&producers[i]);
+        thrShutdown(producers[i]);
+        thrRelease(&producers[i]);
     }
     for (i = 0; i < SEMA_CONSUMERS; i++) {
         thrWait(consumers[i], timeForever);
-        thrDestroy(&consumers[i]);
+        thrShutdown(consumers[i]);
+        thrRelease(&consumers[i]);
     }
 
     if (atomicLoad(int32, &testsem.ftx.val, Acquire) != 0)
@@ -225,7 +230,8 @@ static int test_mutex()
 
     for (i = 0; i < MTX_THREADS; i++) {
         thrWait(threads[i], timeForever);
-        thrDestroy(&threads[i]);
+        thrShutdown(threads[i]);
+        thrRelease(&threads[i]);
     }
 
     int ret = atomicLoad(bool, &fail, Acquire) ? 1 : 0;
@@ -307,12 +313,14 @@ static int test_rwlock()
 
     for (i = 0; i < RW_WTHREADS; i++) {
         thrWait(wthreads[i], timeForever);
-        thrDestroy(&wthreads[i]);
+        thrShutdown(wthreads[i]);
+        thrRelease(&wthreads[i]);
     }
     atomicStore(bool, &rthread_exit, true, Release);
     for (i = 0; i < RW_RTHREADS; i++) {
         thrWait(rthreads[i], timeForever);
-        thrDestroy(&rthreads[i]);
+        thrShutdown(rthreads[i]);
+        thrRelease(&rthreads[i]);
     }
 
     rwlockDestroy(&testrw);
@@ -411,7 +419,8 @@ static int test_event_sub(bool spin)
 
     for (i = 0; i < EVENT_PRODUCERS; i++) {
         thrWait(pthreads[i], timeForever);
-        thrDestroy(&pthreads[i]);
+        thrShutdown(pthreads[i]);
+        thrRelease(&pthreads[i]);
     }
 
     while (atomicLoad(int32, &evwork, Relaxed) > 0) {
@@ -422,7 +431,8 @@ static int test_event_sub(bool spin)
     eventSignalLock(&testev);
     for (i = 0; i < EVENT_CONSUMERS; i++) {
         thrWait(cthreads[i], timeForever);
-        thrDestroy(&cthreads[i]);
+        thrShutdown(cthreads[i]);
+        thrRelease(&cthreads[i]);
     }
 
     eventDestroy(&testev);
@@ -490,7 +500,8 @@ static int test_timeout()
     futexWake(&testftx);
 
     thrWait(testthr, timeForever);
-    thrDestroy(&testthr);
+    thrShutdown(testthr);
+    thrRelease(&testthr);
 
     int ret = atomicLoad(bool, &fail, Acquire) ? 1 : 0;
     return ret;
@@ -573,12 +584,14 @@ static int test_condvar()
 
     for (i = 0; i < CV_PRODUCERS; i++) {
         thrWait(pthreads[i], timeForever);
-        thrDestroy(&pthreads[i]);
+        thrShutdown(pthreads[i]);
+        thrRelease(&pthreads[i]);
     }
 
     for (i = 0; i < CV_CONSUMERS; i++) {
         thrWait(cthreads[i], timeForever);
-        thrDestroy(&cthreads[i]);
+        thrShutdown(cthreads[i]);
+        thrRelease(&cthreads[i]);
     }
 
     cvarDestroy(&dataneeded);

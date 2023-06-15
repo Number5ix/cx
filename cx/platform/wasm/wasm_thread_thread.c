@@ -6,15 +6,9 @@
 #define __USE_GNU
 #include <pthread.h>
 #include <sched.h>
+#include "wasm_thread_threadobj.h"
 
-typedef struct UnixThread {
-    Thread base;
-
-    pthread_t pthr;
-    bool joined;
-} UnixThread;
-
-static UnixThread mainthread;
+static UnixThread *mainthread;
 static _Thread_local UnixThread *curthread;
 
 static LazyInitState platformThreadInitState;
@@ -26,43 +20,52 @@ static void platformThreadInit(void *dummy)
     // This may not be a correct assumption, but is the best we can do consistently
     // across all platforms without shenanigans.
 
-    mainthread.pthr = pthread_self();
-    strDup(&mainthread.base.name, _S"Main");
-    atomicStore(bool, &mainthread.base.running, true, Relaxed);
+    mainthread = _unixthrobjCreate();
 
-    curthread = &mainthread;
+    mainthread->pthr = pthread_self();
+    strDup(&mainthread->name, _S"Main");
+    atomicStore(bool, &mainthread->running, true, Relaxed);
+
+    curthread = mainthread;
 }
 
 
 static void _thrCancelCleanup(void *data)
 {
     UnixThread *thr = (UnixThread*)data;
-    atomicStore(bool, &thr->base.running, false, Release);
+    atomicStore(bool, &thr->running, false, Release);
 }
 
 static void* _thrEntryPoint(void *data)
 {
     UnixThread *thr = (UnixThread*)data;
+    if (!thr)
+        goto out;
+
+    curthread = thr;
 
     pthread_cleanup_push(_thrCancelCleanup, thr);
-    thr->base.entry(&thr->base);
+    thr->exitCode = thr->entry(Thread(thr));
     pthread_cleanup_pop(true);
+    objRelease(&thr);
 
+out:
     pthread_exit(NULL);
     return NULL;
 }
 
-Thread *_thrPlatformAlloc() {
-    return xaAlloc(sizeof(UnixThread), XA_Zero);
+Thread *_thrPlatformCreate() {
+    UnixThread *uthr = _unixthrobjCreate();
+    return Thread(uthr);
 }
 
 bool _thrPlatformStart(Thread *thread)
 {
     lazyInit(&platformThreadInitState, &platformThreadInit, NULL);
 
-    UnixThread *thr = (UnixThread*)thread;
+    UnixThread *thr = objDynCast(thread, UnixThread);
 
-    if (thr->pthr)
+    if (!thr || thr->pthr)
         return 0;
 
     bool ret = !pthread_create(&thr->pthr, NULL, _thrEntryPoint, thr);
@@ -73,20 +76,11 @@ bool _thrPlatformStart(Thread *thread)
     return ret;
 }
 
-void _thrPlatformDestroy(Thread *thread)
-{
-    // cleanup happens in _thrPlatformWait on UNIX
-}
-
-bool _thrPlatformKill(Thread *thread)
-{
-    UnixThread *thr = (UnixThread*)thread;
-    return !pthread_cancel(thr->pthr);
-}
-
 bool _thrPlatformWait(Thread *thread, int64 timeout)
 {
-    UnixThread *thr = (UnixThread*)thread;
+    UnixThread *thr = objDynCast(thread, UnixThread);
+    if (!thr) return false;
+
     // some pthreads implementations will crash if you try to join
     // a thread that's already been joined
     if (thr->joined)
@@ -110,7 +104,7 @@ bool _thrPlatformSetPriority(Thread *thread, int prio) {
 
 Thread *thrCurrent(void)
 {
-    return &curthread->base;
+    return Thread(curthread);
 }
 
 // WebAssembly doesn't have OS-visible thread IDs to speak of, so fake it

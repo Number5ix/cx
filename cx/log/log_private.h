@@ -6,7 +6,6 @@
 #define LOG_INITIAL_BUFFER_SIZE 32
 
 extern Thread *_log_thread;
-extern Event *_log_event;
 
 typedef struct LogDest {
     LogCategory *catfilter;
