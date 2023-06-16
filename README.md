@@ -17,6 +17,7 @@ make these features available in a compact, unobtrusive way.
 * Optional object-oriented programming system that supports classes, runtime polymorphism,
   interfaces, and mixins. The OO framework is designed to minimize the amount of boilerplate
   code involved in creating new classes.
+* Optional try/catch/finally exception handling with stack unwinding.
 * Designed to be self contained and statically linked, so it does not add extra dependencies
   to your project or require a complex build environment.
   
