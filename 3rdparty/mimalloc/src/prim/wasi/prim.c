@@ -12,6 +12,17 @@ terms of the MIT license. A copy of the license can be found in the file
 #include "mimalloc/atomic.h"
 #include "mimalloc/prim.h"
 
+#include <stdlib.h>
+#include <stdio.h>
+
+static void* mi_align_up_ptr(void* p, size_t alignment) {
+  return (void*)_mi_align_up((uintptr_t)p, alignment);
+}
+
+static void* mi_align_down_ptr(void* p, size_t alignment) {
+  return (void*)_mi_align_down((uintptr_t)p, alignment);
+}
+
 //---------------------------------------------
 // Initialize
 //---------------------------------------------
@@ -43,12 +54,12 @@ int _mi_prim_free(void* addr, size_t size ) {
   static void* mi_memory_grow( size_t size ) {
     void* p = sbrk(size);
     if (p == (void*)(-1)) return NULL;
-    #if !defined(__wasi__) // on wasi this is always zero initialized already (?)
+    #if !defined(__wasi__) && !defined(__EMSCRIPTEN__) // on wasi this is always zero initialized already (?)
     memset(p,0,size);
     #endif
     return p;
   }
-#elif defined(__wasi__)
+#elif defined(__wasi__) || defined(__EMSCRIPTEN__)
   static void* mi_memory_grow( size_t size ) {
     size_t base = (size > 0 ? __builtin_wasm_memory_grow(0,_mi_divide_up(size, _mi_os_page_size()))
                             : __builtin_wasm_memory_size(0));
