@@ -7,7 +7,7 @@ and semantics are as close as possible to those of the Perl 5 language.
 
                        Written by Philip Hazel
      Original API code Copyright (c) 1997-2012 University of Cambridge
-          New API code Copyright (c) 2016-2019 University of Cambridge
+          New API code Copyright (c) 2016-2022 University of Cambridge
 
 -----------------------------------------------------------------------------
 Redistribution and use in source and binary forms, with or without
@@ -92,20 +92,6 @@ changed. This #define is a copy of the one in pcre2_internal.h. */
 #include "pcre2.h"
 #include "pcre2posix.h"
 
-/* When compiling with the MSVC compiler, it is sometimes necessary to include
-a "calling convention" before exported function names. (This is secondhand
-information; I know nothing about MSVC myself). For example, something like
-
-  void __cdecl function(....)
-
-might be needed. In order to make this easy, all the exported functions have
-PCRE2_CALL_CONVENTION just before their names. It is rarely needed; if not
-set, we ensure here that it has no effect. */
-
-#ifndef PCRE2_CALL_CONVENTION
-#define PCRE2_CALL_CONVENTION
-#endif
-
 /* Table to translate PCRE2 compile time error codes into POSIX error codes.
 Only a few PCRE2 errors with a value greater than 23 turn into special POSIX
 codes: most go to REG_BADPAT. The second table lists, in pairs, those that
@@ -148,6 +134,7 @@ static const int eint2[] = {
   37, REG_EESCAPE, /* PCRE2 does not support \L, \l, \N{name}, \U, or \u */
   56, REG_INVARG,  /* internal error: unknown newline setting */
   92, REG_INVARG,  /* invalid option bits with PCRE2_LITERAL */
+  99, REG_EESCAPE  /* \K in lookaround */
 };
 
 /* Table of texts corresponding to POSIX error codes */
@@ -173,6 +160,20 @@ static const char *const pstring[] = {
   "match failed"                     /* NOMATCH    */
 };
 
+
+
+#if 0  /* REMOVE THIS CODE */
+
+The code below was created for 10.33 (see ChangeLog 10.33 #4) when the
+POSIX functions were given pcre2_... names instead of the traditional POSIX
+names. However, it has proved to be more troublesome than useful. There have
+been at least two cases where a program links with two others, one of which
+uses the POSIX library and the other uses the PCRE2 POSIX functions, thus
+causing two instances of the POSIX runctions to exist, leading to trouble. For
+10.37 this code is commented out. In due course it can be removed if there are
+no issues. The only small worry is the comment below about languages that do
+not include pcre2posix.h. If there are any such cases, they will have to use
+the PCRE2 names.
 
 
 /*************************************************
@@ -218,7 +219,7 @@ regexec(const regex_t *preg, const char *string, size_t nmatch,
 {
 return pcre2_regexec(preg, string, nmatch, pmatch, eflags);
 }
-
+#endif
 
 
 /*************************************************
@@ -327,8 +328,10 @@ preg->re_erroffset = (size_t)(-1);  /* No meaning after successful compile */
 
 if (preg->re_match_data == NULL)
   {
+  /* LCOV_EXCL_START */
   pcre2_code_free(preg->re_pcre2_code);
   return REG_ESPACE;
+  /* LCOV_EXCL_STOP */
   }
 
 return 0;
@@ -352,6 +355,8 @@ pcre2_regexec(const regex_t *preg, const char *string, size_t nmatch,
 int rc, so, eo;
 int options = 0;
 pcre2_match_data *md = (pcre2_match_data *)preg->re_match_data;
+
+if (string == NULL) return REG_INVARG;
 
 if ((eflags & REG_NOTBOL) != 0) options |= PCRE2_NOTBOL;
 if ((eflags & REG_NOTEOL) != 0) options |= PCRE2_NOTEOL;
@@ -406,17 +411,24 @@ if (rc >= 0)
 if (rc <= PCRE2_ERROR_UTF8_ERR1 && rc >= PCRE2_ERROR_UTF8_ERR21)
   return REG_INVARG;
 
+/* Most of these are events that won't occur during testing, so exclude them
+from coverage. */
+
 switch(rc)
   {
-  default: return REG_ASSERT;
+  case PCRE2_ERROR_HEAPLIMIT: return REG_ESPACE;
+  case PCRE2_ERROR_NOMATCH: return REG_NOMATCH;
+
+  /* LCOV_EXCL_START */
   case PCRE2_ERROR_BADMODE: return REG_INVARG;
   case PCRE2_ERROR_BADMAGIC: return REG_INVARG;
   case PCRE2_ERROR_BADOPTION: return REG_INVARG;
   case PCRE2_ERROR_BADUTFOFFSET: return REG_INVARG;
   case PCRE2_ERROR_MATCHLIMIT: return REG_ESPACE;
-  case PCRE2_ERROR_NOMATCH: return REG_NOMATCH;
   case PCRE2_ERROR_NOMEMORY: return REG_ESPACE;
   case PCRE2_ERROR_NULL: return REG_INVARG;
+  default: return REG_ASSERT;
+  /* LCOV_EXCL_STOP */
   }
 }
 
