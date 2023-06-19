@@ -269,7 +269,7 @@ if(CMAKE_SYSTEM_NAME MATCHES "Haiku")
 
 # Compiler flags
 if(CMAKE_C_COMPILER_ID MATCHES "AppleClang|Clang|GNU")
-  list(APPEND mi_cflags -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wno-unused-parameter)
+  list(APPEND mi_cflags -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wno-unused-parameter -Wno-unused-function)
   if(NOT MI_USE_CXX)
     list(APPEND mi_cflags -Wstrict-prototypes)
   endif()
