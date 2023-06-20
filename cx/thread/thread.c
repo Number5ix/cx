@@ -27,6 +27,21 @@ Thread* _thrCreate(threadFunc func, strref name, int n, stvar args[], bool ui)
     return ret;
 }
 
+bool _thrRun(threadFunc func, strref name, int n, stvar args[])
+{
+    Thread *ret = _throbjCreate(func, name, n, args, false);
+    if (!ret)
+        return false;
+
+    atomicStore(bool, &ret->running, true, Relaxed);
+    if (!_thrPlatformStart(ret)) {
+        objRelease(&ret);
+        return false;
+    }
+
+    return true;
+}
+
 bool thrWait(Thread *thread, int64 timeout)
 {
     if (!atomicLoad(bool, &thread->running, Acquire))

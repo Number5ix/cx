@@ -22,8 +22,16 @@ intptr thrCurrentOSThreadID(void);      // works even on non-cx threads
 
 Thread *_thrCreate(threadFunc func, strref name, int n, stvar args[], bool ui);
 // Thread* thrCreate(threadFunc func, strref name, ...)
+//
+// Creates and starts a thread. The return value MUST be released with thrRelease to avoid leaking memory.
 #define thrCreate(func, name, ...) _thrCreate(func, name, count_macro_args(__VA_ARGS__), (stvar[]) { __VA_ARGS__ }, false)
 #define thrCreateUI(func, name, ...) _thrCreate(func, name, count_macro_args(__VA_ARGS__), (stvar[]) { __VA_ARGS__ }, true)
+
+bool _thrRun(threadFunc func, strref name, int n, stvar args[]);
+// bool thrRun(threadFunc func, strref name, ...)
+//
+// Creates and starts a thread.
+#define thrRun(func, name, ...) _thrRun(func, name, count_macro_args(__VA_ARGS__), (stvar[]) { __VA_ARGS__ })
 
 _meta_inline bool thrRunning(Thread *thread)
 {
