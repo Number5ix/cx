@@ -22,6 +22,8 @@ Thread *Thread_create(threadFunc func, strref name, int n, stvar args[], bool ui
         saPush(&self->_argsa, stvar, args[i]);
     }
 
+    eventInit(&self->notify, ui ? EV_UIEvent: 0);
+
     if (!objInstInit(self)) {
         objRelease(&self);
         return NULL;
@@ -33,7 +35,6 @@ Thread *Thread_create(threadFunc func, strref name, int n, stvar args[], bool ui
 bool Thread_init(Thread *self)
 {
     stvlInitSA(&self->args, self->_argsa);
-    eventInit(&self->notify);
 
     // Autogen begins -----
     return true;
