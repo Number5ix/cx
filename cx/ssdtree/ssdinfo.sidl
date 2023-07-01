@@ -1,0 +1,10 @@
+#include <cx/ssdtree/ssdshared.h>
+
+class SSDInfo {
+    RWLock lock;
+    uint32 flags;
+
+    factory create(uint32 flags);
+    init();
+    destroy();
+}

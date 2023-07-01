@@ -10,6 +10,7 @@ add_subdirectory(log)
 add_subdirectory(math)
 add_subdirectory(meta)
 add_subdirectory(platform)
+add_subdirectory(ssdtree)
 add_subdirectory(string)
 add_subdirectory(sys)
 add_subdirectory(thread)
@@ -26,6 +27,7 @@ set(CX_BASE_INCLUDES
     meta.h
     obj.h
     platform.h
+    ssdtree.h
     static_config.h
     string.h
     sys.h

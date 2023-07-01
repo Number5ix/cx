@@ -1,0 +1,30 @@
+set(SSDTREE_SRCS
+    ssdtree/ssdinfo.c
+    ssdtree/ssdnode.c
+    ssdtree/ssdtree.c)
+set(SSDTREE_INCLUDES
+    ssdtree/ssdinfo.h
+    ssdtree/ssdnode.h
+    ssdtree/ssdshared.h
+    ssdtree/ssdtree.h)
+set(SSDTREE_SIDL
+    ssdtree/ssdinfo.sidl
+    ssdtree/ssdnode.sidl)
+
+set(CX_SRCS
+    ${CX_SRCS}
+    ${SSDTREE_SRCS}
+    PARENT_SCOPE)
+set(CX_INCLUDES
+    ${CX_INCLUDES}
+    ${SSDTREE_INCLUDES}
+    PARENT_SCOPE)
+set(CX_SIDL
+    ${CX_SIDL}
+    ${SSDTREE_SIDL}
+    PARENT_SCOPE)
+
+set(CX_CMAKE_FILES
+    ${CX_CMAKE_FILES}
+    ${CMAKE_CURRENT_SOURCE_DIR}/CMakeLists.txt
+    PARENT_SCOPE)

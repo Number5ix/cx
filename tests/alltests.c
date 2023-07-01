@@ -61,6 +61,9 @@ static const testspec tests[] = {
 { "meta: Unhandled Exceptions" , "metatest", "unhandled" },
 { "meta: Rethrow" , "metatest", "rethrow" },
 { "meta: Cross-function Exception Handling" , "metatest", "xfunc" },
+{ "ssd: Semi-structured data tree" , "ssdtest", "tree" },
+{ "ssd: Single value root" , "ssdtest", "single" },
+{ "ssd: Subtrees" , "ssdtest", "subtree" },
 { 0 }
 };
 

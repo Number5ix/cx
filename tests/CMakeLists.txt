@@ -8,6 +8,7 @@ create_test_sourcelist(testsrc
     strtest.c
     thrtest.c
     metatest.c
+    ssdtest.c
     alltests.c)
 add_sidl(fmttestobj.sidl
     objtestobj.sidl)
@@ -84,3 +85,6 @@ add_test(NAME "\"meta: Basic Try/Catch\"" COMMAND test_runner metatest ptry)
 add_test(NAME "\"meta: Unhandled Exceptions\"" COMMAND test_runner metatest unhandled)
 add_test(NAME "\"meta: Rethrow\"" COMMAND test_runner metatest rethrow)
 add_test(NAME "\"meta: Cross-function Exception Handling\"" COMMAND test_runner metatest xfunc)
+add_test(NAME "\"ssd: Semi-structured data tree\"" COMMAND test_runner ssdtest tree)
+add_test(NAME "\"ssd: Single value root\"" COMMAND test_runner ssdtest single)
+add_test(NAME "\"ssd: Subtrees\"" COMMAND test_runner ssdtest subtree)
