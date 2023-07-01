@@ -7,7 +7,7 @@
 #include <cx/debug/assert.h>
 #include <cx/core/cpp.h>
 #include <cx/platform/base.h>
-#include <cx/utils/macros/optflags.h>
+#include <cx/utils/macros/optarg.h>
 
 // extra files that can be included for specific functions
 #define STYPE_FOREACH_ALL <cx/core/alltypes.inc>

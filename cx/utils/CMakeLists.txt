@@ -11,7 +11,7 @@ set(UTILS_INCLUDES
     utils/murmur.h
     utils/scratch.h
     utils/macros/args.h
-    utils/macros/optflags.h
+    utils/macros/optarg.h
     utils/macros/tokens.h)
 
 set(CX_SRCS
