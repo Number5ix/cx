@@ -1,4 +1,5 @@
 #include <cx/serialize/streambuf.h>
+#include <cxmem/xalloc/xalloc.h>
 
 #define TEST_FILE serialtest
 #define TEST_FUNCS serialtest_funcs
@@ -16,7 +17,7 @@ typedef struct TestCtx1 {
     bool usesend;
 } TestCtx1;
 
-static bool sbpush1(StreamBuffer *sb, const char *buf, size_t sz, void *ctx, int _streambuf_lock_recursion_level)
+static bool sbpush1(StreamBuffer *sb, const char *buf, size_t sz, void *ctx)
 {
     TestCtx1 *tc = (TestCtx1 *)ctx;
     if (tc->outp + sz > TESTBUF_SZ)
@@ -27,7 +28,7 @@ static bool sbpush1(StreamBuffer *sb, const char *buf, size_t sz, void *ctx, int
     return true;
 }
 
-static void sbnotify1(StreamBuffer *sb, size_t sz, void *ctx, int _streambuf_lock_recursion_level)
+static void sbnotify1(StreamBuffer *sb, size_t sz, void *ctx)
 {
     TestCtx1 * tc = (TestCtx1 *)ctx;
     if (tc->outp + sz > TESTBUF_SZ)
@@ -59,7 +60,7 @@ static int test_streambuf_push()
     c1.out = xaAlloc(TESTBUF_SZ);
 
     for (int usesend = 0; usesend < 2; usesend++) {
-        ptest = sbufCreate(32, false);
+        ptest = sbufCreate(32);
         if (!sbufPRegisterPush(ptest, NULL, 0)) {
             ret = 1;
             goto out;
@@ -128,8 +129,9 @@ static int test_streambuf_push()
 
         // flush everything that's left
         c1.shouldread = 10000;
-        // this should cause sbclean1 to be called
         sbufPFinish(ptest);
+        // this should cause sbclean1 to be called
+        sbufRelease(&ptest);
 
         if (memcmp(c1.out, testdata1, 60) ||
             c1.outp != 60)
@@ -149,7 +151,7 @@ typedef struct TestCtx2 {
     bool didclean;
 } TestCtx2;
 
-static size_t sbpull2(StreamBuffer *sb, char *buf, size_t sz, void *ctx, int _streambuf_lock_recursion_level)
+static size_t sbpull2(StreamBuffer *sb, char *buf, size_t sz, void *ctx)
 {
     TestCtx2 *tc = (TestCtx2 *)ctx;
     size_t bytes = min(sz, sizeof(testdata1) - tc->inp);
@@ -173,7 +175,7 @@ static int test_streambuf_pull()
 {
     int ret = 0;
 
-    StreamBuffer *ptest = sbufCreate(32, false);
+    StreamBuffer *ptest = sbufCreate(32);
     TestCtx2 ctx = { 0 };
     char out[TESTBUF_SZ];
     size_t p = 0;
@@ -227,6 +229,9 @@ static int test_streambuf_pull()
         memcmp(out, testdata1, sizeof(testdata1)))
         ret = 1;
 
+    // test releasing in opposite order
+    StreamBuffer *temp = ptest;
+    sbufRelease(&temp);
     sbufCFinish(ptest);
 
     if (!ctx.didclean)
@@ -241,7 +246,7 @@ typedef struct TestCtx3 {
     bool didclean;
 } TestCtx3;
 
-static bool sbpush3(StreamBuffer *sb, const char *buf, size_t sz, void *ctx, int _streambuf_lock_recursion_level)
+static bool sbpush3(StreamBuffer *sb, const char *buf, size_t sz, void *ctx)
 {
     TestCtx3 *tc = (TestCtx3 *)ctx;
 
@@ -269,7 +274,7 @@ static int test_streambuf_direct()
     StreamBuffer *ptest;
     TestCtx3 c3 = { 0 };
     c3.out = xaAlloc(TESTBUF_SZ);
-    ptest = sbufCreate(0, false);
+    ptest = sbufCreate(0);
     if (!sbufPRegisterPush(ptest, NULL, 0)) {
         ret = 1;
         goto out;
@@ -297,8 +302,9 @@ static int test_streambuf_direct()
         c3.outp != sizeof(testdata1))
         ret = 1;
 
-    // this should cause sbclean3 to be called
     sbufPFinish(ptest);
+    // this should cause sbclean3 to be called
+    sbufRelease(&ptest);
 
     if (!c3.didclean)
         ret = 1;

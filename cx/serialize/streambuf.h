@@ -1,21 +1,8 @@
 #pragma once
 
 #include <cx/core/stype.h>
-#include <cx/thread/mutex.h>
 
 typedef struct StreamBuffer StreamBuffer;
-
-// Thread-safety note:
-// For correct function in threadsafe mode, the last parameter of the callbacks MUST be an
-// integer named _streambuf_lock_recursion_level. There are some macros that include this
-// as a hidden parameter in API calls in order to track if the current thread has already
-// acquired the streambuf mutex.
-
-// This enum acts as a default for the hidden parameter. It's hidden by the actual variable
-// inside the callback functions.
-enum {
-    _streambuf_lock_recursion_level = 0
-};
 
 // Pull callback
 // sz is set to the maximum amount of data the may be written to buf.
@@ -24,19 +11,19 @@ enum {
 // The callback may return 0 if no data is currently available but will likely
 // be immediately called again, so a performing a blocking wait is advisable.
 // If sz is 0, check if the consumer is finished and/or for error state.
-typedef size_t(*sbufPullCB)(StreamBuffer *sb, char *buf, size_t sz, void *ctx, int _streambuf_lock_recursion_level);
+typedef size_t(*sbufPullCB)(StreamBuffer *sb, char *buf, size_t sz, void *ctx);
 
 // Push callback
 // When this callback is used (in direct mode), the data is pushed once to the
 // callback and MUST all be written in one go or it will be lost.
 // If sz is 0, check if the producer is finished and/or for error state.
-typedef bool(*sbufPushCB)(StreamBuffer *sb, const char *buf, size_t sz, void *ctx, int _streambuf_lock_recursion_level);
+typedef bool(*sbufPushCB)(StreamBuffer *sb, const char *buf, size_t sz, void *ctx);
 
 // Notify callback
 // Notification to a consumer that data is available. The sbufC* functions may be
 // used to read all or part of the available data.
 // If sz is 0, check if the producer is finished and/or for error state.
-typedef void(*sbufNotifyCB)(StreamBuffer *sb, size_t sz, void *ctx, int _streambuf_lock_recursion_level);
+typedef void(*sbufNotifyCB)(StreamBuffer *sb, size_t sz, void *ctx);
 
 // Cleanup callback
 // Called just before the structure is deallocated, should perform any needed
@@ -53,8 +40,6 @@ enum STREAM_BUFFER_FLAGS_ENUM {
     SBUF_Push =                 0x0001,
     SBUF_Pull =                 0x0002,
     SBUF_Direct =               0x0010,
-    SBUF_Thread_Safe =          0x0100,
-    SBUF_Defer_Destroy =        0x0200,
     SBUF_Error =                0x0800,
     SBUF_Producer_Registered =  0x1000,
     SBUF_Consumer_Registered =  0x2000,
@@ -85,23 +70,21 @@ typedef struct StreamBuffer {
     sbufCleanupCB consumerCleanup;
     void *consumerCtx;
 
-    Mutex lock;
+    int refcount;
     uint32 flags;
 } StreamBuffer;
 
 // Create a stream buffer
-// Set threadsafe to true if the stream buffer may be accessed from multiple threads,
-// i.e. a producer in a thread pool in push mode. Note that consumer callbacks will be
-// called in whatever thread the producer pushes from!
-// Otherwise leave it false for best performance in a single thread, which is the
-// typical use case.
 // targetsz may be set to 0 if direct mode is going to be used.
-StreamBuffer *sbufCreate(size_t targetsz, bool threadsafe);
+// Caller must free the returned pointer with sbufRelease when done.
+StreamBuffer *sbufCreate(size_t targetsz);
+
+// Release a reference to a streambuffer
+void sbufRelease(StreamBuffer **sb);
 
 // Puts a stream buffer into error state. Processing will be aborted and both consumers
 // and producers should call the Finish function as soon as is practical.
-#define sbufError(sb) _sbufError(sb, _streambuf_lock_recursion_level)
-void _sbufError(StreamBuffer *sb, int _streambuf_lock_recursion_level);
+void sbufError(StreamBuffer *sb);
 
 _meta_inline bool sbufIsPull(StreamBuffer *sb)
 {
@@ -139,17 +122,14 @@ bool sbufPRegisterPull(StreamBuffer *sb, sbufPullCB ppull, sbufCleanupCB pcleanu
 bool sbufPRegisterPush(StreamBuffer *sb, sbufCleanupCB pcleanup, void *ctx);
 
 // Returns the available space for writing to the buffer
-#define sbufPAvail(sb) _sbufPAvail(sb, _streambuf_lock_recursion_level)
-size_t _sbufPAvail(StreamBuffer *sb, int _streambuf_lock_recursion_level);
+size_t sbufPAvail(StreamBuffer *sb);
 // Writes data to the buffer. This will always succeed unless the system is out of memory.
 // Overflow buffer is used if more written data exceeds current buffer size.
 // For use in push mode only!
-#define sbufPWrite(sb, buf, sz) _sbufPWrite(sb, buf, sz, _streambuf_lock_recursion_level)
-bool _sbufPWrite(StreamBuffer *sb, const char *buf, size_t sz, int _streambuf_lock_recursion_level);
+bool sbufPWrite(StreamBuffer *sb, const char *buf, size_t sz);
 // Mark the producer as finished. The producer MUST NOT touch the stream buffer after
 // call as it maybe immediately deallocated.
-#define sbufPFinish(sb) _sbufPFinish(sb, _streambuf_lock_recursion_level)
-void _sbufPFinish(StreamBuffer *sb, int _streambuf_lock_recursion_level);
+void sbufPFinish(StreamBuffer *sb);
 
 // ---------------------------------------------------------------------------- Consumer Functions
 
@@ -161,21 +141,18 @@ bool sbufCRegisterPush(StreamBuffer *sb, sbufNotifyCB cnotify, sbufCleanupCB ccl
 bool sbufCRegisterPushDirect(StreamBuffer *sb, sbufPushCB cpush, sbufCleanupCB ccleanup, void *ctx);
 
 // Returns how much data is currently buffered waiting to be consumed.
-#define sbufCAvail(sb) _sbufCAvail(sb, _streambuf_lock_recursion_level)
-size_t _sbufCAvail(StreamBuffer *sb, int _streambuf_lock_recursion_level);
+size_t sbufCAvail(StreamBuffer *sb);
 // Reads sz bytes from the producer.
 // If in pull mode, this will repeatedly call the producer's callback in order to completely
 // satisfy the request. It will short read only when the producer is finished (EOF).
 // If in push mode, this will fail if more data is requested than is available.
-#define sbufCRead(sb, buf, sz) _sbufCRead(sb, buf, sz, _streambuf_lock_recursion_level)
-size_t _sbufCRead(StreamBuffer *sb, char *buf, size_t sz, int _streambuf_lock_recursion_level);
+size_t sbufCRead(StreamBuffer *sb, char *buf, size_t sz);
 
 // Peeks at data in the buffer without consuming it.
 // In pull mode this will NOT call the callback and only read unconsumed data left in
 // the buffer.
 // Will never short read, will fail if there is not enough in the buffer (check sbufCAvail).
-#define sbufCPeek(sb, buf, sz) _sbufCPeek(sb, buf, sz, _streambuf_lock_recursion_level)
-bool _sbufCPeek(StreamBuffer *sb, char *buf, size_t sz, int _streambuf_lock_recursion_level);
+bool sbufCPeek(StreamBuffer *sb, char *buf, size_t sz);
 
 // Sends at most sz bytes from the buffer to a callback function.
 // The callback may be called multiple times in order to send the requested data, it is not
@@ -187,14 +164,11 @@ bool _sbufCPeek(StreamBuffer *sb, char *buf, size_t sz, int _streambuf_lock_recu
 // If used in pull mode, it functions like sbufCRead and will try to fill the buffer with
 // the requested amount of data before calling the callback.
 // The callback should return true if it consumed the data, or false if it is only peeking.
-#define sbufCSend(sb, func, sz) _sbufCSend(sb, func, sz, _streambuf_lock_recursion_level)
-bool _sbufCSend(StreamBuffer *sb, sbufPushCB func, size_t sz, int _streambuf_lock_recursion_level);
+bool sbufCSend(StreamBuffer *sb, sbufPushCB func, size_t sz);
 
 // Skip over bytes in the buffer, can be used in conjunction with sbufCPeek.
-#define sbufCSkip(sb, bytes) _sbufCSkip(sb, bytes, _streambuf_lock_recursion_level)
-bool _sbufCSkip(StreamBuffer *sb, size_t bytes, int _streambuf_lock_recursion_level);
+bool sbufCSkip(StreamBuffer *sb, size_t bytes);
 
 // Mark the consumer as finished. The consumer MUST NOT touch the stream buffer after
 // call as it maybe immediately deallocated.
-#define sbufCFinish(sb) _sbufCFinish(sb, _streambuf_lock_recursion_level)
-void _sbufCFinish(StreamBuffer *sb, int _streambuf_lock_recursion_level);
+void sbufCFinish(StreamBuffer *sb);
