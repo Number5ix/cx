@@ -18,7 +18,7 @@ class SSDNode
     unbound bool getValue(strref name, stvar *out, SSDLock *lock);
 
     // Gets a pointer to a value. This points to the hastable entry in children,
-    // so it is only guaranteed to be valid while the read lock is  held.
+    // so it is only guaranteed to be valid while the read lock is held.
     unbound stvar *getPtr(strref name, SSDLock *lock);
 
     // Sets the given value

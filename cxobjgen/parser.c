@@ -25,6 +25,8 @@ typedef struct ParseState {
     bool included;
     bool allowannotations;
 
+    sa_string comments;
+    sa_string *curlinecomments;
     sa_sarray_string annotations;
     sa_string tokstack;
     int context;
@@ -44,6 +46,7 @@ static bool parseEnd(ParseState *ps, bool retval)
         fsClose(ps->fp);
     strDestroy(&ps->fname);
     saDestroy(&ps->tokstack);
+    saDestroy(&ps->comments);
     saDestroy(&ps->annotations);
     saDestroy(&ps->includepath);
     if (ps->curif) {
@@ -126,6 +129,8 @@ static bool nextTok(ParseState *ps, string *tok)
                 return false;           // eof or error
         }
         ch[0] = ps->buf[ps->bpos++];
+        if (ch[0] == '\n')
+            ps->curlinecomments = NULL;
         if (!quote && isspace(ch[0])) {
             if (strEmpty(*tok))
                 continue;
@@ -151,9 +156,10 @@ static bool nextTok(ParseState *ps, string *tok)
     }
 }
 
-static bool nextCustomTok(ParseState *ps, string *tok, char ends)
+static bool nextCustomTok(ParseState *ps, string *tok, char ends, const char *ignore)
 {
     char ch[2] = { 0 };
+    int nignore = ignore ? (int)strlen(ignore) : 0;
 
     strClear(tok);
     for (;;) {
@@ -163,6 +169,15 @@ static bool nextCustomTok(ParseState *ps, string *tok, char ends)
                 return false;           // eof or error
         }
         ch[0] = ps->buf[ps->bpos++];
+        bool ignored = false;
+        for (int i = 0; i < nignore; ++i) {
+            if (ch[0] == ignore[i]) {
+                ignored = true;
+                break;
+            }
+        }
+        if (ignored)
+            continue;
         if (ch[0] == ends) {
             return true;
         }
@@ -213,7 +228,7 @@ bool parseAnnotation(ParseState *ps, string *tok)
     }
     saPushC(&anparts, string, &part);
 
-    nextCustomTok(ps, &part, ']');
+    nextCustomTok(ps, &part, ']', NULL);
     if (!strEmpty(part))
         saPushC(&anparts, string, &part);
     else
@@ -258,12 +273,14 @@ bool parseGlobal(ParseState *ps, string *tok)
     }
 
     if (strEq(*tok, _S"interface")) {
+        saClear(&ps->comments);
         saClear(&ps->annotations);
         ps->curif = interfaceCreate();
         ps->context = Context_InterfacePre;
         ps->curif->included = ps->included;
         return true;
     } else if (strEq(*tok, _S"class")) {
+        saClear(&ps->comments);
         ps->curcls = classCreate();
         ps->curcls->abstract = abstract || mixin;   // mixin implies abstract
         ps->curcls->mixin = mixin;
@@ -396,6 +413,9 @@ bool parseInterface(ParseState *ps, string *tok)
             return false;
         }
         ps->curmethod = methodCreate();
+        ps->curmethod->comments = ps->comments;
+        ps->curlinecomments = &ps->curmethod->comments;
+        saInit(&ps->comments, string, 4);
         ps->curmethod->annotations = ps->annotations;
         ps->curmethod->srcif = ps->curif;
         strDup(&ps->curmethod->srcfile, ps->fname);
@@ -581,8 +601,10 @@ bool parseClass(ParseState *ps, string *tok)
             }
             Member *nmem = memberCreate();
             nmem->annotations = ps->annotations;
-            ps->annotations.a = NULL;
             saInit(&ps->annotations, sarray, 4);
+            nmem->comments = ps->comments;
+            ps->curlinecomments = &nmem->comments;
+            saInit(&ps->comments, string, 4);
 
             sa_string vartype;
             saInit(&vartype, string, 8);
@@ -709,6 +731,9 @@ bool parseClass(ParseState *ps, string *tok)
         }
 
         ps->curmethod = methodCreate();
+        ps->curmethod->comments = ps->comments;
+        ps->curlinecomments = &ps->curmethod->comments;
+        saInit(&ps->comments, string, 4);
         ps->curmethod->annotations = ps->annotations;
         saInit(&ps->annotations, sarray, 4);
         ps->curmethod->srcclass = ps->curcls;
@@ -833,6 +858,7 @@ bool parseFile(string fname, string *realfn, sa_string searchpath, bool included
 
     ps.context = Context_Global;
     saInit(&ps.tokstack, string, 8);
+    saInit(&ps.comments, string, 4);
     saInit(&ps.annotations, sarray, 4);
     ps.included = included;
     ps.allowannotations = true;
@@ -840,7 +866,15 @@ bool parseFile(string fname, string *realfn, sa_string searchpath, bool included
     string tok = 0;
     while ((nextTok(&ps, &tok))) {
         if (strEq(tok, _S"//")) {
-            nextCustomTok(&ps, &tok, '\n');
+            nextCustomTok(&ps, &tok, '\n', "\r");
+            if (ps.curlinecomments) {
+                // If this is a comment on the same line as something (method declaration, etc),
+                // add it to that list instead of the pending one for the next item.
+                saPush(ps.curlinecomments, string, tok);
+                ps.curlinecomments = NULL;
+            } else {
+                saPush(&ps.comments, string, tok);
+            }
             continue;
         }
 

@@ -24,7 +24,9 @@ typedef struct VFSProvider {
     ObjIface *_parent;
     size_t _size;
 
+    // VFSProviderFlags enforced for this provider
     flags_t (*flags)(void *self);
+    // returns an object that implements VFSFileProvider
     ObjInst *(*open)(void *self, strref path, flags_t flags);
     int (*stat)(void *self, strref path, FSStat *stat);
     bool (*setTimes)(void *self, strref path, int64 modified, int64 accessed);

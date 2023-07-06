@@ -20,9 +20,9 @@ typedef struct UnixThread {
 
     threadFunc entry;
     string name;
-    int exitCode;
+    int exitCode;        // only valid once 'running' become false
     stvlist args;
-    sa_stvar _argsa;
+    sa_stvar _argsa;        // should use the stvlist instead where possible
     atomic(bool) running;
     atomic(bool) requestExit;
     Event notify;
@@ -35,5 +35,7 @@ extern ObjClassInfo UnixThread_clsinfo;
 #define UnixThreadNone ((UnixThread*)NULL)
 
 UnixThread *UnixThread_create();
+// UnixThread *_unixthrobjCreate();
 #define _unixthrobjCreate() UnixThread_create()
+
 

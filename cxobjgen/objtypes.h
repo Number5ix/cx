@@ -69,11 +69,13 @@ typedef struct Param {
     string postdecr;
 } Param;
 extern ObjClassInfo Param_clsinfo;
-#define Param(inst) ((Param*)((inst) && &((inst)->_is_Param), (inst)))
+#define Param(inst) ((Param*)((void)((inst) && &((inst)->_is_Param)), (inst)))
 #define ParamNone ((Param*)NULL)
 
 Param *Param_create();
+// Param *paramCreate();
 #define paramCreate() Param_create()
+
 
 typedef struct Method {
     Method_ClassIf *_;
@@ -92,6 +94,7 @@ typedef struct Method {
     string predecr;
     string name;
     sa_Param params;
+    sa_string comments;
     sa_sarray_string annotations;
     bool isinit;
     bool isdestroy;
@@ -106,8 +109,12 @@ extern ObjClassInfo Method_clsinfo;
 #define MethodNone ((Method*)NULL)
 
 Method *Method_create();
+// Method *methodCreate();
 #define methodCreate() Method_create()
+
+// Method *methodClone(Method *self);
 #define methodClone(self) (self)->_->clone(Method(self))
+// intptr methodCmp(Method *self, Method *other, uint32 flags);
 #define methodCmp(self, other, flags) (self)->_->cmp(Method(self), other, flags)
 
 typedef struct Interface {
@@ -128,11 +135,14 @@ typedef struct Interface {
     sa_Method allmethods;
 } Interface;
 extern ObjClassInfo Interface_clsinfo;
-#define Interface(inst) ((Interface*)((inst) && &((inst)->_is_Interface), (inst)))
+#define Interface(inst) ((Interface*)((void)((inst) && &((inst)->_is_Interface)), (inst)))
 #define InterfaceNone ((Interface*)NULL)
 
 Interface *Interface_create();
+// Interface *interfaceCreate();
 #define interfaceCreate() Interface_create()
+
+// intptr interfaceCmp(Interface *self, Interface *other, uint32 flags);
 #define interfaceCmp(self, other, flags) (self)->_->cmp(Interface(self), other, flags)
 
 typedef struct Member {
@@ -149,6 +159,7 @@ typedef struct Member {
     string predecr;
     string name;
     string postdecr;
+    sa_string comments;
     sa_sarray_string annotations;
     Class *mixinsrc;
     string initstr;
@@ -156,11 +167,14 @@ typedef struct Member {
     bool destroy;
 } Member;
 extern ObjClassInfo Member_clsinfo;
-#define Member(inst) ((Member*)((inst) && &((inst)->_is_Member), (inst)))
+#define Member(inst) ((Member*)((void)((inst) && &((inst)->_is_Member)), (inst)))
 #define MemberNone ((Member*)NULL)
 
 Member *Member_create();
+// Member *memberCreate();
 #define memberCreate() Member_create()
+
+// intptr memberCmp(Member *self, Member *other, uint32 flags);
 #define memberCmp(self, other, flags) (self)->_->cmp(Member(self), other, flags)
 
 typedef struct Class {
@@ -190,15 +204,18 @@ typedef struct Class {
     bool hasautoinit;
     bool hasautodtors;
     string methodprefix;
-    sa_Member allmembers;
+    sa_Member allmembers;        // runtime stuff
     sa_Method allmethods;
 } Class;
 extern ObjClassInfo Class_clsinfo;
-#define Class(inst) ((Class*)((inst) && &((inst)->_is_Class), (inst)))
+#define Class(inst) ((Class*)((void)((inst) && &((inst)->_is_Class)), (inst)))
 #define ClassNone ((Class*)NULL)
 
 Class *Class_create();
+// Class *classCreate();
 #define classCreate() Class_create()
+
+// intptr classCmp(Class *self, Class *other, uint32 flags);
 #define classCmp(self, other, flags) (self)->_->cmp(Class(self), other, flags)
 
 typedef struct ComplexArrayType {
@@ -214,9 +231,11 @@ typedef struct ComplexArrayType {
     string tsubtype;
 } ComplexArrayType;
 extern ObjClassInfo ComplexArrayType_clsinfo;
-#define ComplexArrayType(inst) ((ComplexArrayType*)((inst) && &((inst)->_is_ComplexArrayType), (inst)))
+#define ComplexArrayType(inst) ((ComplexArrayType*)((void)((inst) && &((inst)->_is_ComplexArrayType)), (inst)))
 #define ComplexArrayTypeNone ((ComplexArrayType*)NULL)
 
 ComplexArrayType *ComplexArrayType_create();
+// ComplexArrayType *complexarraytypeCreate();
 #define complexarraytypeCreate() ComplexArrayType_create()
+
 

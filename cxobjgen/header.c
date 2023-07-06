@@ -17,6 +17,58 @@ static bool isObjectType(Param *param)
     return false;
 }
 
+static void writeComments(BufFile *bf, sa_string comments, int column, bool spacer)
+{
+    string ln = 0;
+    string spaces = 0;
+
+    if (column > 0) {
+        char *tmp = strBuffer(&spaces, column);
+        memset(tmp, ' ', column);
+    }
+
+    if (spacer && saSize(comments) > 0) {
+        strConcat(&ln, spaces, _S"//");
+        bfWriteLine(bf, ln);
+    }
+    for (int i = 0; i < saSize(comments); ++i) {
+        strNConcat(&ln, spaces, _S"// ", comments.a[i]);
+        bfWriteLine(bf, ln);
+    }
+    strDestroy(&ln);
+    strDestroy(&spaces);
+}
+
+static void writeFuncComment(BufFile *bf, strref name, Class *cls, Method *m)
+{
+    if (!name)
+        name = m->name;
+
+    string ln = 0;
+    if (!m->standalone)
+        strNConcat(&ln, _S"// ", m->returntype, _S" ", m->predecr, name, _S"(", cls->name, _S" *self");
+    else
+        strNConcat(&ln, _S"// ", m->returntype, _S" ", m->predecr, name, _S"(");
+
+    for (int j = 0; j < saSize(m->params); j++) {
+        Param *p = m->params.a[j];
+        string ptype = p->type;
+        string ppre = p->predecr;
+
+        if (strEq(ptype, _S"object") && strEmpty(ppre)) {
+            ptype = cls->name;
+            ppre = _S"*";
+        }
+
+        if (!m->standalone || j > 0)
+            strNConcat(&ln, ln, _S", ");
+        strNConcat(&ln, ln, ptype, _S" ", ppre, p->name, p->postdecr);
+    }
+    strAppend(&ln, _S");");
+    bfWriteLine(bf, ln);
+    strDestroy(&ln);
+}
+
 static void writeUnbound(BufFile *bf, Class *cls, Class *cur, sa_Method *done)
 {
     string ln = 0, implname = 0, callname = 0;
@@ -54,6 +106,8 @@ static void writeUnbound(BufFile *bf, Class *cls, Class *cur, sa_Method *done)
             bfWriteLine(bf, ln);
 
             methodCallName(&callname, cls, m->name);
+            writeFuncComment(bf, callname, cls, m);
+            writeComments(bf, m->comments, 0, true);
             strNConcat(&ln, _S"#define ", callname, m->standalone ? _S"(" : _S"(self");
             for (int j = 0; j < saSize(m->params); j++) {
                 if (!m->standalone || j > 0)
@@ -80,12 +134,15 @@ static void writeUnbound(BufFile *bf, Class *cls, Class *cur, sa_Method *done)
             }
             strAppend(&ln, _S")");
             bfWriteLine(bf, ln);
+            bfWriteLine(bf, NULL);
         } else {
             // only emit standalone functions for the current class
             if (m->standalone)
                 continue;
 
             methodCallName(&callname, cls, m->name);
+            writeFuncComment(bf, callname, cls, m);
+            writeComments(bf, m->comments, 0, true);
             strNConcat(&ln, _S"#define ", callname, _S"(self");
             for (int j = 0; j < saSize(m->params); j++) {
                 strNConcat(&ln, ln, _S", ", m->params.a[j]->name);
@@ -101,6 +158,7 @@ static void writeUnbound(BufFile *bf, Class *cls, Class *cur, sa_Method *done)
             }
             strAppend(&ln, _S")");
             bfWriteLine(bf, ln);
+            bfWriteLine(bf, NULL);
         }
 
         saPush(done, object, m);
@@ -127,6 +185,7 @@ void writeIfDecl(BufFile *bf, Interface *iface)
 
     for (int i = 0; i < saSize(iface->allmethods); i++) {
         Method *m = iface->allmethods.a[i];
+        writeComments(bf, m->comments, 4, false);
         strNConcat(&ln, _S"    ", m->returntype, _S" ", m->predecr, _S"(*", m->name, _S")(void *self");
         for (int j = 0; j < saSize(m->params); j++) {
             Param *p = m->params.a[j];
@@ -186,6 +245,9 @@ static void writeClassMember(BufFile *bf, Class *cls, Member *m)
 
     strDup(&predecr, m->predecr);
 
+    if (saSize(m->comments) > 1)
+        writeComments(bf, m->comments, 4, false);
+
     if (!strEq(m->vartype, _S"hashtable") &&
         saSize(m->fulltype) > 0 &&
         !strEq(m->fulltype.a[0], _S"sarray")) {
@@ -197,6 +259,10 @@ static void writeClassMember(BufFile *bf, Class *cls, Member *m)
     }
 
     strNConcat(&ln, _S"    ", m->vartype, _S" ", predecr, m->name, m->postdecr, _S";");
+
+    if (saSize(m->comments) == 1)
+        strNConcat(&ln, ln, _S"        // ", m->comments.a[0]);
+
     bfWriteLine(bf, ln);
 
     strDestroy(&predecr);
@@ -268,6 +334,8 @@ void writeClassDecl(BufFile *bf, Class *cls)
         if (m->internal)
             continue;
         methodCallName(&mname, cls, m->name);
+        writeFuncComment(bf, mname, cls, m);
+        writeComments(bf, m->comments, 0, true);
         strNConcat(&ln, _S"#define ", mname, _S"(self");
         for (int j = 0; j < saSize(m->params); j++) {
             strNConcat(&ln, ln, _S", ", m->params.a[j]->name);

@@ -24,5 +24,7 @@ extern ObjClassInfo SSDInfo_clsinfo;
 #define SSDInfoNone ((SSDInfo*)NULL)
 
 SSDInfo *SSDInfo_create(uint32 flags);
+// SSDInfo *ssdinfoCreate(uint32 flags);
 #define ssdinfoCreate(flags) SSDInfo_create(flags)
+
 

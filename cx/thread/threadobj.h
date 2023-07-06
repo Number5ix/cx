@@ -22,9 +22,9 @@ typedef struct Thread {
 
     threadFunc entry;
     string name;
-    int exitCode;
+    int exitCode;        // only valid once 'running' become false
     stvlist args;
-    sa_stvar _argsa;
+    sa_stvar _argsa;        // should use the stvlist instead where possible
     atomic(bool) running;
     atomic(bool) requestExit;
     Event notify;
@@ -34,5 +34,7 @@ extern ObjClassInfo Thread_clsinfo;
 #define ThreadNone ((Thread*)NULL)
 
 Thread *Thread_create(threadFunc func, strref name, int n, stvar args[], bool ui);
+// Thread *_throbjCreate(threadFunc func, strref name, int n, stvar args[], bool ui);
 #define _throbjCreate(func, name, n, args, ui) Thread_create(func, name, n, args, ui)
+
 

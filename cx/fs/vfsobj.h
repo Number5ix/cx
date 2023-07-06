@@ -19,10 +19,14 @@ typedef struct VFS {
     };
     atomic(intptr) _ref;
 
-    VFSDir *root;
+    VFSDir *root;        // root for namespaceless paths
+    // namespaces are never case sensitive even if the paths are
+    // hashtable of string/VFSDir
     hashtable namespaces;
     string curdir;
-    RWLock vfslock;
+    RWLock vfslock;        // vfslock is for adding entires to the directory cache
+    // vfsdlock is for operations such as mounting / unmounting / invalidating cache
+    // that may destroy VFSDir entries and remove mounts
     RWLock vfsdlock;
     uint32 flags;
 } VFS;
@@ -31,9 +35,19 @@ extern ObjClassInfo VFS_clsinfo;
 #define VFSNone ((VFS*)NULL)
 
 VFS *VFS_create(uint32 flags);
+// VFS *vfsCreate(uint32 flags);
+//
+// Create an empty VFS with nothing mounted
 #define vfsCreate(flags) VFS_create(flags)
+
 VFS *VFS_createFromFS();
+// VFS *vfsCreateFromFS();
+//
+// Create a VFS object configured to pass everything through to the
+// underlying OS filesystem. The exact VFS namespace that is created
+// is platform dependant.
 #define vfsCreateFromFS() VFS_createFromFS()
+
 
 typedef struct VFSMount {
     ObjIface *_;
@@ -52,5 +66,7 @@ extern ObjClassInfo VFSMount_clsinfo;
 #define VFSMountNone ((VFSMount*)NULL)
 
 VFSMount *VFSMount_create(ObjInst *provider, uint32 flags);
+// VFSMount *vfsmountCreate(ObjInst *provider, uint32 flags);
 #define vfsmountCreate(provider, flags) VFSMount_create(ObjInst(provider), flags)
+
 

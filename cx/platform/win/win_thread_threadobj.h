@@ -20,9 +20,9 @@ typedef struct WinThread {
 
     threadFunc entry;
     string name;
-    int exitCode;
+    int exitCode;        // only valid once 'running' become false
     stvlist args;
-    sa_stvar _argsa;
+    sa_stvar _argsa;        // should use the stvlist instead where possible
     atomic(bool) running;
     atomic(bool) requestExit;
     Event notify;
@@ -35,5 +35,7 @@ extern ObjClassInfo WinThread_clsinfo;
 #define WinThreadNone ((WinThread*)NULL)
 
 WinThread *WinThread_create();
+// WinThread *_winthrobjCreate();
 #define _winthrobjCreate() WinThread_create()
+
 

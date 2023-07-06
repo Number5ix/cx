@@ -17,6 +17,7 @@ class Method implements Sortable {
     string name;
     sarray:object:Param params;
 
+    [noinit] sarray:string comments;
     [noinit] sarray:sarray:string annotations;
 
     bool isinit;
@@ -49,6 +50,7 @@ class Member implements Sortable {
     string predecr;
     string name;
     string postdecr;
+    [noinit] sarray:string comments;
     [noinit] sarray:sarray:string annotations;
 
     Class *mixinsrc;

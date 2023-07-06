@@ -38,11 +38,19 @@ extern ObjClassInfo VFSFSFile_clsinfo;
 #define VFSFSFileNone ((VFSFSFile*)NULL)
 
 VFSFSFile *VFSFSFile_create(FSFile *f);
+// VFSFSFile *vfsfsfileCreate(FSFile *f);
 #define vfsfsfileCreate(f) VFSFSFile_create(f)
+
+// bool vfsfsfileClose(VFSFSFile *self);
 #define vfsfsfileClose(self) (self)->_->close(VFSFSFile(self))
+// bool vfsfsfileRead(VFSFSFile *self, void *buf, size_t sz, size_t *bytesread);
 #define vfsfsfileRead(self, buf, sz, bytesread) (self)->_->read(VFSFSFile(self), buf, sz, bytesread)
+// bool vfsfsfileWrite(VFSFSFile *self, void *buf, size_t sz, size_t *byteswritten);
 #define vfsfsfileWrite(self, buf, sz, byteswritten) (self)->_->write(VFSFSFile(self), buf, sz, byteswritten)
+// int64 vfsfsfileTell(VFSFSFile *self);
 #define vfsfsfileTell(self) (self)->_->tell(VFSFSFile(self))
+// int64 vfsfsfileSeek(VFSFSFile *self, int64 off, int seektype);
 #define vfsfsfileSeek(self, off, seektype) (self)->_->seek(VFSFSFile(self), off, seektype)
+// bool vfsfsfileFlush(VFSFSFile *self);
 #define vfsfsfileFlush(self) (self)->_->flush(VFSFSFile(self))
 

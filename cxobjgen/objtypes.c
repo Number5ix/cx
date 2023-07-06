@@ -42,6 +42,7 @@ void Method_destroy(Method *self)
     strDestroy(&self->predecr);
     strDestroy(&self->name);
     saDestroy(&self->params);
+    saDestroy(&self->comments);
     saDestroy(&self->annotations);
     // Autogen ends -------
 }
@@ -88,6 +89,7 @@ void Member_destroy(Member *self)
     strDestroy(&self->predecr);
     strDestroy(&self->name);
     strDestroy(&self->postdecr);
+    saDestroy(&self->comments);
     saDestroy(&self->annotations);
     strDestroy(&self->initstr);
     // Autogen ends -------
@@ -193,6 +195,8 @@ Method *Method_clone(Method *self)
     strDup(&ret->predecr, self->predecr);
     strDup(&ret->name, self->name);
     saClone(&ret->params, self->params);
+    if (self->comments.a)
+        saClone(&ret->comments, self->comments);
     if (self->annotations.a)
         saClone(&ret->annotations, self->annotations);
 
