@@ -173,7 +173,6 @@ bool sbufPWrite(StreamBuffer *sb, const char *buf, size_t sz)
     if (sz == 0)
         return true;
 
-    devAssert(sbufIsPush(sb));
     devAssert(sb->flags & SBUF_Producer_Registered);
     devAssert(!(sb->flags & SBUF_Producer_Done));
     devAssert(sb->flags & SBUF_Consumer_Registered);
@@ -210,8 +209,12 @@ bool sbufPWrite(StreamBuffer *sb, const char *buf, size_t sz)
             sb->overflowtail += sz;
         }
 
-        // notify consumer there's data in the buffer
-        sb->consumerNotify(sb, sbufCAvail(sb), sb->consumerCtx);
+        // Notify consumer there's data in the buffer, but only in push mode.
+        // This function may also be used in pull mode if the callback doesn't have
+        // enough buffer space to write what it wants.
+        if (sbufIsPush(sb)) {
+            sb->consumerNotify(sb, sbufCAvail(sb), sb->consumerCtx);
+        }
     }
 
     return true;

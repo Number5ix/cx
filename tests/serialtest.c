@@ -156,8 +156,14 @@ static size_t sbpull2(StreamBuffer *sb, char *buf, size_t sz, void *ctx)
     TestCtx2 *tc = (TestCtx2 *)ctx;
     size_t bytes = min(sz, sizeof(testdata1) - tc->inp);
 
-    memcpy(buf, testdata1 + tc->inp, bytes);
-    tc->inp += bytes;
+    if (sz % 2 == 1) {
+        memcpy(buf, testdata1 + tc->inp, bytes);
+        tc->inp += bytes;
+    } else {
+        sbufPWrite(sb, testdata1 + tc->inp, bytes);
+        tc->inp += bytes;
+        bytes = 0;
+    }
 
     if (tc->inp == sizeof(testdata1))
         sbufPFinish(sb);

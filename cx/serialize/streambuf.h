@@ -10,6 +10,11 @@ typedef struct StreamBuffer StreamBuffer;
 // of bytes that were written.
 // The callback may return 0 if no data is currently available but will likely
 // be immediately called again, so a performing a blocking wait is advisable.
+//
+// If the callback needs to write an amount of data that is larger than the
+// space available as indicated by sz, it may instead call sbufPWrite with the
+// full amount (which will expand the buffer in the process) and return 0.
+// 
 // If sz is 0, check if the consumer is finished and/or for error state.
 typedef size_t(*sbufPullCB)(StreamBuffer *sb, char *buf, size_t sz, void *ctx);
 
@@ -125,7 +130,6 @@ bool sbufPRegisterPush(StreamBuffer *sb, sbufCleanupCB pcleanup, void *ctx);
 size_t sbufPAvail(StreamBuffer *sb);
 // Writes data to the buffer. This will always succeed unless the system is out of memory.
 // Overflow buffer is used if more written data exceeds current buffer size.
-// For use in push mode only!
 bool sbufPWrite(StreamBuffer *sb, const char *buf, size_t sz);
 // Mark the producer as finished. The producer MUST NOT touch the stream buffer after
 // call as it maybe immediately deallocated.
