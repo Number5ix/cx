@@ -395,8 +395,10 @@ bool writeHeader(string fname)
     for (int i = 0; i < saSize(artypes); i++) {
         writeComplexArrayDecl(bf, artypes.a[i]);
     }
-    if (!strEmpty(cpassthrough))
+    if (!strEmpty(cpassthrough)) {
+        bfWriteLine(bf, NULL);
         bfWriteStr(bf, cpassthrough);
+    }
     bfWriteLine(bf, NULL);
 
     for (int i = 0; i < saSize(ifaces); i++) {

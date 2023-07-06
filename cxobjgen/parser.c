@@ -19,11 +19,13 @@ typedef struct ParseState {
     string fname;
     FSFile *fp;
     char buf[1024];
+    string rawtok;
     size_t blen;
     size_t bpos;
 
     bool included;
     bool allowannotations;
+    bool ptemptyok;
 
     sa_string comments;
     sa_string *curlinecomments;
@@ -122,13 +124,17 @@ static bool nextTok(ParseState *ps, string *tok)
     char ch[2] = { 0 };
 
     strClear(tok);
+    strClear(&ps->rawtok);
     for (;;) {
         if (ps->bpos == ps->blen) {
             ps->bpos = 0;
             if (!fsRead(ps->fp, ps->buf, sizeof(ps->buf), &ps->blen) || ps->blen == 0)
                 return false;           // eof or error
         }
+
         ch[0] = ps->buf[ps->bpos++];
+        strAppend(&ps->rawtok, (string)ch);
+
         if (ch[0] == '\n')
             ps->curlinecomments = NULL;
         if (!quote && isspace(ch[0])) {
@@ -141,6 +147,7 @@ static bool nextTok(ParseState *ps, string *tok)
                 strAppend(tok, (string)ch);
                 return true;
             } else {
+                strSetLen(&ps->rawtok, strLen(ps->rawtok) - 1);
                 ps->bpos--;
                 return true;
             }
@@ -273,6 +280,7 @@ bool parseGlobal(ParseState *ps, string *tok)
     }
 
     if (strEq(*tok, _S"interface")) {
+        ps->ptemptyok = false;
         saClear(&ps->comments);
         saClear(&ps->annotations);
         ps->curif = interfaceCreate();
@@ -280,6 +288,7 @@ bool parseGlobal(ParseState *ps, string *tok)
         ps->curif->included = ps->included;
         return true;
     } else if (strEq(*tok, _S"class")) {
+        ps->ptemptyok = false;
         saClear(&ps->comments);
         ps->curcls = classCreate();
         ps->curcls->abstract = abstract || mixin;   // mixin implies abstract
@@ -296,6 +305,8 @@ bool parseGlobal(ParseState *ps, string *tok)
         striter it;
         striInit(&it, fname);
         bool ret = true;
+
+        ps->ptemptyok = false;
 
         if (it.len < 1)
             ret = false;
@@ -337,6 +348,7 @@ bool parseGlobal(ParseState *ps, string *tok)
         strDestroy(&ext);
         return ret;
     } else if (strEq(*tok, _S"struct")) {
+        ps->ptemptyok = false;
         nextTok(ps, tok);
         saPush(&structs, string, *tok, SA_Unique);
         nextTok(ps, tok);
@@ -347,8 +359,23 @@ bool parseGlobal(ParseState *ps, string *tok)
         return true;
     }
 
-    fprintf(stderr, "Invalid token '%s' in global context\n", strC(*tok));
-    return false;
+    // anything not explicitly parsed at the global level gets passed through
+    if (!ps->included) {
+        char ch;
+        if (!ps->ptemptyok) {
+            while (ch = strGetChar(ps->rawtok, 0), ch == '\r' || ch == '\n') {
+                strSubStr(&ps->rawtok, ps->rawtok, 1, strEnd);
+            }
+            ps->ptemptyok = true;
+        }
+        strAppend(&cpassthrough, ps->rawtok);
+    }
+    nextCustomTok(ps, tok, '\n', NULL);
+    if (!ps->included) {
+        strNConcat(&cpassthrough, cpassthrough, *tok, _S"\n");
+    }
+
+    return true;
 }
 
 bool parseInterfacePre(ParseState *ps, string *tok)
@@ -875,13 +902,6 @@ bool parseFile(string fname, string *realfn, sa_string searchpath, bool included
             } else {
                 saPush(&ps.comments, string, tok);
             }
-            continue;
-        }
-
-        if (strEq(tok, _S"<<<")) {
-            nextCustomTok2(&ps, &tok, _S">>>");
-            if (!included)
-                strAppend(&cpassthrough, tok);
             continue;
         }
 
