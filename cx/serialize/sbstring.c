@@ -1,11 +1,12 @@
 #include "sbstring.h"
 #include <cx/string.h>
+#include <cx/utils/compare.h>
 
 typedef struct SbufStrInCtx {
     striter iter;
 } SbufStrInCtx;
 
-static sbufStrInCleanup(void *ctx)
+static void sbufStrInCleanup(void *ctx)
 {
     SbufStrInCtx *sbc = (SbufStrInCtx *)ctx;
     striFinish(&sbc->iter);

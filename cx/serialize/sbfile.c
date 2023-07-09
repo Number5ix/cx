@@ -5,7 +5,7 @@ typedef struct SbufFileCtx {
     bool close;
 } SbufFileCtx;
 
-static sbufFileCleanup(void *ctx)
+static void sbufFileCleanup(void *ctx)
 {
     SbufFileCtx *sbc = (SbufFileCtx *)ctx;
     if (sbc->close)
@@ -15,8 +15,6 @@ static sbufFileCleanup(void *ctx)
 
 bool sbufFileIn(StreamBuffer *sb, VFSFile *file, bool close)
 {
-    uint32 i = 0;
-
     if (!sbufPRegisterPush(sb, NULL, NULL))
         return false;
 
@@ -84,8 +82,6 @@ static bool sbufFilePushCB(StreamBuffer *sb, const char *buf, size_t sz, void *c
 
 static void sbufFileNotifyCB(StreamBuffer *sb, size_t sz, void *ctx)
 {
-    SbufFileCtx *sbc = (SbufFileCtx *)ctx;
-
     if (sz >= sb->targetsz) {
         sbufCSend(sb, sbufFilePushCB, sz);
     } else if (sz == 0) {

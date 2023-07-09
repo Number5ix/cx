@@ -3,6 +3,7 @@
 #include <cxmem/xalloc/xalloc.h>
 #include <cx/string.h>
 #include <cx/string/strtest.h>
+#include <cx/utils/compare.h>
 
 #define TEST_FILE serialtest
 #define TEST_FUNCS serialtest_funcs
