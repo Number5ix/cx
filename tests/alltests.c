@@ -67,6 +67,7 @@ static const testspec tests[] = {
 { "serialize: Streambuffer (push)" , "serialtest", "sbpush" },
 { "serialize: Streambuffer (direct push)" , "serialtest", "sbdirect" },
 { "serialize: Streambuffer (pull)" , "serialtest", "sbpull" },
+{ "serialize: Streambuffer String Adapter", "serialtest", "sbstring" },
 { 0 }
 };
 

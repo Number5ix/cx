@@ -1,5 +1,8 @@
 #include <cx/serialize/streambuf.h>
+#include <cx/serialize/sbstring.h>
 #include <cxmem/xalloc/xalloc.h>
+#include <cx/string.h>
+#include <cx/string/strtest.h>
 
 #define TEST_FILE serialtest
 #define TEST_FUNCS serialtest_funcs
@@ -320,9 +323,77 @@ out:
     return ret;
 }
 
+static int test_streambuf_string()
+{
+    int ret = 0;
+    string s1 = 0, s2 = 0;
+    char buf[128];
+    strCopy(&s1, _S"This is a string test... This is a string test... This is a string test...");
+
+    StreamBuffer *ptest;
+    ptest = sbufCreate(16);
+    sbufCRegisterPull(ptest, NULL, NULL);
+    sbufStrPRegisterPull(ptest, s1);
+
+    if (strTestRefCount(s1) != 2)
+        ret = 1;
+
+    sbufCRead(ptest, buf, 12);
+    if (memcmp(buf, strC(s1), 12))
+        ret = 1;
+
+    sbufCRead(ptest, buf, 40);
+    if (memcmp(buf, strC(s1) + 12, 40))
+        ret = 1;
+
+    if (sbufCRead(ptest, buf, 22) != 22)
+        ret = 1;
+    if (memcmp(buf, strC(s1) + 52, 22))
+        ret = 1;
+
+    sbufCFinish(ptest);
+    if (!sbufIsPFinished(ptest))
+        ret = 1;
+
+    sbufRelease(&ptest);
+
+    // hook up a string consumer and use the string producer to push to it
+
+    ptest = sbufCreate(16);
+    sbufStrCRegisterPush(ptest, &s2);
+    sbufStrIn(ptest, s1);
+
+    if (!strEq(s1, s2))
+        ret = 1;
+
+    if (!sbufIsPFinished(ptest) || !sbufIsCFinished(ptest))
+        ret = 1;
+
+    sbufRelease(&ptest);
+    strDestroy(&s2);
+
+    // then the reverse
+
+    ptest = sbufCreate(16);
+    sbufStrPRegisterPull(ptest, s1);
+    sbufStrOut(ptest, &s2);
+    if (!strEq(s1, s2))
+        ret = 1;
+
+    if (!sbufIsPFinished(ptest) || !sbufIsCFinished(ptest))
+        ret = 1;
+
+    sbufRelease(&ptest);
+    strDestroy(&s2);
+
+    strDestroy(&s1);
+    return ret;
+}
+
 testfunc serialtest_funcs[] = {
     { "sbpush", test_streambuf_push },
     { "sbpull", test_streambuf_pull },
     { "sbdirect", test_streambuf_direct },
+    { "sbstring", test_streambuf_string },
     { 0, 0 }
 };
