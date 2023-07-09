@@ -193,6 +193,7 @@ static bool nextCustomTok(ParseState *ps, string *tok, char ends, const char *ig
     }
 }
 
+#if 0
 static bool nextCustomTok2(ParseState *ps, string *tok, string ends)
 {
     char ch[2] = { 0 };
@@ -219,6 +220,7 @@ static bool nextCustomTok2(ParseState *ps, string *tok, string ends)
         }
     }
 }
+#endif
 
 bool parseAnnotation(ParseState *ps, string *tok)
 {
