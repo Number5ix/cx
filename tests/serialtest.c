@@ -16,7 +16,7 @@ _Static_assert(TESTBUF_SZ > sizeof(testdata1), "TESTBUF_SZ must be big enough to
 typedef struct TestCtx1 {
     char *out;
     size_t outp;
-    int shouldread;
+    size_t shouldread;
     bool didclean;
     bool usesend;
 } TestCtx1;
