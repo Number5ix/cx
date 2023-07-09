@@ -128,12 +128,14 @@ size_t sbufCAvail(StreamBuffer *sb)
 
 static size_t adjustSize(size_t startsz, size_t needed, size_t targetsz)
 {
-    while (startsz < needed) {
+    // size the buffer for 1 byte larger than needed because actual capacity
+    // loses a byte due to head == tail meaning empty.
+    while (startsz < needed + 1) {
         startsz += startsz >> 1;
     }
 
     // try not to go over target if possible
-    if (startsz > targetsz && needed <= targetsz)
+    if (startsz > targetsz && needed + 1 <= targetsz)
         startsz = targetsz;
 
     return startsz;
@@ -384,7 +386,7 @@ static void feedBuffer(StreamBuffer *sb, size_t want)
 {
     size_t needed = want - sbufCAvail(sb);
     size_t count;
-    if (sb->head <= sb->tail && sb->tail < sb->bufsz) {
+    if (sb->head <= sb->tail && sb->tail < sb->bufsz - (sb->head == 0 ? 1 : 0)) {
         // writing at the end of a buffer
         count = sb->producerPull(sb, sb->buf + sb->tail,
                                  sb->bufsz - sb->tail - (sb->head == 0 ? 1 : 0),    // fill as much of the buffer as we can
