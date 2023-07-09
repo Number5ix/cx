@@ -85,7 +85,20 @@ static int test_meta_wrap()
     if (tvar1 != 10 || tvar2 != 18)
         ret = 1;
 
-    return ret;
+    // This compiles incorrectly on some older MSVC versions and results in an infinite loop
+    // if return inhibit checking is enabled. Add this to the test suite to make sure we catch
+    // it if the bug reoccurs at some point.
+    // TODO: Possibly move this to another thread so the test can fail rather than just hang.
+    int switchvar = 2;
+    switch (switchvar) {
+    case 1:
+        return 1;
+    case 2:
+        return ret;
+    case 3:
+        return 1;
+    }
+    return 1;
 }
 
 static int test_meta_pblock_basic(string *pout)

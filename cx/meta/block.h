@@ -19,7 +19,13 @@
 #define inhibitDeclare(name) enum { _inhibit_name(name) = 0 }
 
 // Results in a compile error if the specific feature is inhibited in the current block
+// This switch construct triggers a compiler bug on versions of the MSVC compiler prior to VS2022,
+// so disable it on those versions.
+#if !defined(_MSC_VER) || _MSC_VER > 1930
 #define inhibitCheck(name) switch(tokstring(_inhibit_name(name))[_inhibit_name(name)]) default:
+#else
+#define inhibitCheck(name)
+#endif
 
 // The internal versions are for contexts when we know we're guaranteed to already have a var and not
 // need another _blockStart
