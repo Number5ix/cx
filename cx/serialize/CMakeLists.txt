@@ -1,8 +1,10 @@
 set(SERIALIZE_SRCS
+    serialize/lineparse.c
     serialize/sbfile.c
     serialize/sbstring.c
     serialize/streambuf.c)
 set(SERIALIZE_INCLUDES
+    serialize/lineparse.h
     serialize/sbfile.h
     serialize/sbstring.h
     serialize/streambuf.h)

@@ -10,6 +10,7 @@ create_test_sourcelist(testsrc
     metatest.c
     ssdtest.c
     sbtest.c
+    lineparsetest.c
     alltests.c)
 add_sidl(fmttestobj.sidl
     objtestobj.sidl)
@@ -94,3 +95,6 @@ add_test(NAME "\"streambuffer: Direct Push\"" COMMAND test_runner sbtest direct)
 add_test(NAME "\"streambuffer: Pull\"" COMMAND test_runner sbtest pull)
 add_test(NAME "\"streambuffer: Peek-ahead\"" COMMAND test_runner sbtest peek)
 add_test(NAME "\"streambuffer: String Adapter\"" COMMAND test_runner sbtest string)
+add_test(NAME "\"lineparse: Explicit EOL\"" COMMAND test_runner lineparsetest explicit)
+add_test(NAME "\"lineparse: Auto EOL\"" COMMAND test_runner lineparsetest auto)
+add_test(NAME "\"lineparse: Mixed EOL\"" COMMAND test_runner lineparsetest mixed)

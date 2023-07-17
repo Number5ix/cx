@@ -69,6 +69,9 @@ static const testspec tests[] = {
 { "streambuffer: Pull" , "sbtest", "pull" },
 { "streambuffer: Peek-ahead" , "sbtest", "peek" },
 { "streambuffer: String Adapter", "sbtest", "string" },
+{ "lineparse: Explicit EOL", "lineparsetest", "explicit" },
+{ "lineparse: Auto EOL", "lineparsetest", "auto" },
+{ "lineparse: Mixed EOL", "lineparsetest", "mixed" },
 { 0 }
 };
 
