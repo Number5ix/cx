@@ -64,11 +64,11 @@ static const testspec tests[] = {
 { "ssd: Semi-structured data tree" , "ssdtest", "tree" },
 { "ssd: Single value root" , "ssdtest", "single" },
 { "ssd: Subtrees" , "ssdtest", "subtree" },
-{ "serialize: Streambuffer (push)" , "serialtest", "sbpush" },
-{ "serialize: Streambuffer (direct push)" , "serialtest", "sbdirect" },
-{ "serialize: Streambuffer (pull)" , "serialtest", "sbpull" },
-{ "serialize: Streambuffer (peek-ahead)" , "serialtest", "sbpeek" },
-{ "serialize: Streambuffer String Adapter", "serialtest", "sbstring" },
+{ "streambuffer: Push" , "sbtest", "push" },
+{ "streambuffer: Direct Push" , "sbtest", "direct" },
+{ "streambuffer: Pull" , "sbtest", "pull" },
+{ "streambuffer: Peek-ahead" , "sbtest", "peek" },
+{ "streambuffer: String Adapter", "sbtest", "string" },
 { 0 }
 };
 

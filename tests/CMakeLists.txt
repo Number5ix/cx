@@ -9,7 +9,7 @@ create_test_sourcelist(testsrc
     thrtest.c
     metatest.c
     ssdtest.c
-    serialtest.c
+    sbtest.c
     alltests.c)
 add_sidl(fmttestobj.sidl
     objtestobj.sidl)
@@ -89,8 +89,8 @@ add_test(NAME "\"meta: Cross-function Exception Handling\"" COMMAND test_runner 
 add_test(NAME "\"ssd: Semi-structured data tree\"" COMMAND test_runner ssdtest tree)
 add_test(NAME "\"ssd: Single value root\"" COMMAND test_runner ssdtest single)
 add_test(NAME "\"ssd: Subtrees\"" COMMAND test_runner ssdtest subtree)
-add_test(NAME "\"serialize: Streambuffer (push)\"" COMMAND test_runner serialtest sbpush)
-add_test(NAME "\"serialize: Streambuffer (direct push)\"" COMMAND test_runner serialtest sbdirect)
-add_test(NAME "\"serialize: Streambuffer (pull)\"" COMMAND test_runner serialtest sbpull)
-add_test(NAME "\"serialize: Streambuffer (peek-ahead)\"" COMMAND test_runner serialtest sbpeek)
-add_test(NAME "\"serialize: Streambuffer String Adapter\"" COMMAND test_runner serialtest sbstring)
+add_test(NAME "\"streambuffer: Push\"" COMMAND test_runner sbtest push)
+add_test(NAME "\"streambuffer: Direct Push\"" COMMAND test_runner sbtest direct)
+add_test(NAME "\"streambuffer: Pull\"" COMMAND test_runner sbtest pull)
+add_test(NAME "\"streambuffer: Peek-ahead\"" COMMAND test_runner sbtest peek)
+add_test(NAME "\"streambuffer: String Adapter\"" COMMAND test_runner sbtest string)

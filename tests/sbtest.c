@@ -5,8 +5,8 @@
 #include <cx/string/strtest.h>
 #include <cx/utils/compare.h>
 
-#define TEST_FILE serialtest
-#define TEST_FUNCS serialtest_funcs
+#define TEST_FILE sbtest
+#define TEST_FUNCS sbtest_funcs
 #include "common.h"
 
 static const char testdata1[] = "This is a test. This is a test. This is a test. This is a test. This is a test. This is a test.";
@@ -473,11 +473,11 @@ static int test_streambuf_string()
     return ret;
 }
 
-testfunc serialtest_funcs[] = {
-    { "sbpush", test_streambuf_push },
-    { "sbpull", test_streambuf_pull },
-    { "sbdirect", test_streambuf_direct },
-    { "sbpeek", test_streambuf_peek },
-    { "sbstring", test_streambuf_string },
+testfunc sbtest_funcs[] = {
+    { "push", test_streambuf_push },
+    { "pull", test_streambuf_pull },
+    { "direct", test_streambuf_direct },
+    { "peek", test_streambuf_peek },
+    { "string", test_streambuf_string },
     { 0, 0 }
 };
