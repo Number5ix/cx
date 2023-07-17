@@ -462,6 +462,19 @@ bool sbufCPeek(StreamBuffer *sb, char *buf, size_t sz)
     return true;
 }
 
+bool sbufCFeed(StreamBuffer *sb, size_t minsz)
+{
+    if (!sbufIsPull(sb))
+        return false;
+
+    // loop until we have enough data to satisfy the request
+    while (!sbufIsPFinished(sb) && minsz > sbufCAvail(sb)) {
+        feedBuffer(sb, minsz);
+    }
+
+    return sbufCAvail(sb) >= minsz;
+}
+
 bool sbufCSkip(StreamBuffer *sb, size_t bytes)
 {
     if ((sb->flags & SBUF_Direct) || sbufIsError(sb))

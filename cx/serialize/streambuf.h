@@ -158,6 +158,13 @@ size_t sbufCRead(StreamBuffer *sb, char *buf, size_t sz);
 // Will never short read, will fail if there is not enough in the buffer (check sbufCAvail).
 bool sbufCPeek(StreamBuffer *sb, char *buf, size_t sz);
 
+// For pull mode only, feeds the buffer until it has at least minsz bytes. This is similar
+// to what sbufCRead does and will keep retrying until it either has enough or the producer
+// finishes. This is useful for feeding the buffer without reading it in order to peek ahead.
+// Returns true if the feed request was completely satisfied, or false if the producer finished
+// before producing enough bytes.
+bool sbufCFeed(StreamBuffer *sb, size_t minsz);
+
 // Sends at most sz bytes from the buffer to a callback function.
 // The callback may be called multiple times in order to send the requested data, it is not
 // guaranteed that it will arrive in a single chunk.
