@@ -156,7 +156,7 @@ size_t sbufCRead(StreamBuffer *sb, char *buf, size_t sz);
 // In pull mode this will NOT call the callback and only read unconsumed data left in
 // the buffer.
 // Will never short read, will fail if there is not enough in the buffer (check sbufCAvail).
-bool sbufCPeek(StreamBuffer *sb, char *buf, size_t sz);
+bool sbufCPeek(StreamBuffer *sb, char *buf, size_t off, size_t sz);
 
 // For pull mode only, feeds the buffer until it has at least minsz bytes. This is similar
 // to what sbufCRead does and will keep retrying until it either has enough or the producer

@@ -304,64 +304,78 @@ bool sbufCRegisterPushDirect(StreamBuffer *sb, sbufPushCB cpush, sbufCleanupCB c
     return true;
 }
 
-static inline void _readWriteBuf(StreamBuffer *sb, char *out, size_t p, const char *in, size_t sz, bool movehead, sbufPushCB pushcb)
+static inline void _readWriteBuf(StreamBuffer *sb, char *out, size_t *p, size_t *total, const char *in, size_t sz, size_t *skip, bool movehead, sbufPushCB pushcb)
 {
-    if (out) {
-        memcpy(out + p, in, sz);
-        if (movehead)
-            sb->head = (sb->head + sz) % sb->bufsz;
-    } else if (pushcb) {
-        if (pushcb(sb, in, sz, sb->consumerCtx))
-            sb->head = (sb->head + sz) % sb->bufsz;
+    size_t skipsz = min(*skip, sz);
+    *skip -= skipsz;
+    *total -= skipsz;
+    sz -= skipsz;
+    if (movehead)
+        sb->head = (sb->head + skipsz) % sb->bufsz;
+
+    if (sz > 0) {
+        if (out) {
+            memcpy(out + *p, in + skipsz, sz);
+            if (movehead)
+                sb->head = (sb->head + sz) % sb->bufsz;
+        } else if (pushcb) {
+            if (pushcb(sb, in + skipsz, sz, sb->consumerCtx))
+                sb->head = (sb->head + skipsz + sz) % sb->bufsz;        // no real good way to handle skipsz here
+        }
+        *total -= sz;
+        *p += sz;
     }
 }
-#define readWriteBuf(out, p, in, sz) _readWriteBuf(sb, out, p, in, sz, movehead, pushcb)
+#define readWriteBuf(out, p, in, sz) _readWriteBuf(sb, out, &p, &total, in, sz, &skip, movehead, pushcb)
 
 // caller must verify there's enough data in the buffer first!!!!
-static void readCommon(StreamBuffer *sb, char *buf, size_t sz, bool movehead, sbufPushCB pushcb)
+static void readCommon(StreamBuffer *sb, char *buf, size_t skip, size_t bsz, bool movehead, sbufPushCB pushcb)
 {
-    size_t count;
+    size_t total = skip + bsz;
+    size_t count, skipcount;
     size_t p = 0;
 
     if (sb->head <= sb->tail) {
-        count = min(sb->tail - sb->head, sz);
+        count = min(sb->tail - sb->head, total);
         readWriteBuf(buf, p, sb->buf + sb->head, count);
-        sz -= count;
-        p += count;
     } else {
         // wraparound buffer
-        count = min(sb->bufsz - sb->head, sz);
+        count = min(sb->bufsz - sb->head, total);
         readWriteBuf(buf, p, sb->buf + sb->head, count);
-        sz -= count;
-        p += count;
 
-        count = min(sb->tail, sz);
+        count = min(sb->tail, total);
         if (count > 0) {
             readWriteBuf(buf, p, sb->buf, count);
-            sz -= count;
-            p += count;
         }
     }
 
     // get the rest from overflow
     if (sb->overflowsz > 0) {
-        if (sz > 0) {
+        if (total > 0) {
             if (movehead)
                 devAssert(sb->head == sb->tail);
 
-            count = min(sb->overflowsz, sz);
-            if (buf) {
-                memcpy(buf + p, sb->overflow, count);
-                // don't advance the head, that happens when the buffer swaps
-            } else if (pushcb) {
-                // if push callback returns false, it doesn't want to consume the overflow data, so set
-                // count to 0. If the buffer rotation happens (because all non-overflow data was consumed),
-                // this ensures that the new head points to the start of the overflow.
-                if (!pushcb(sb, sb->overflow, count, sb->consumerCtx))
-                    count = 0;
+            count = min(sb->overflowsz, total);
+            skipcount = min(skip, count);
+            skip -= skipcount;
+            total -= skipcount;
+            count -= skipcount;
+
+            if (count > 0) {
+                if (buf) {
+                    memcpy(buf + p, sb->overflow + skipcount, count);
+                    // don't advance the head, that happens when the buffer swaps
+                } else if (pushcb) {
+                    // if push callback returns false, it doesn't want to consume the overflow data, so set
+                    // count to 0. If the buffer rotation happens (because all non-overflow data was consumed),
+                    // this ensures that the new head points to the start of the overflow.
+                    if (!pushcb(sb, sb->overflow + skipcount, count, sb->consumerCtx))
+                        count = 0;
+                }
             }
         } else {
             count = 0;
+            skipcount = 0;
         }
 
         if (sb->head == sb->tail) {
@@ -369,18 +383,18 @@ static void readCommon(StreamBuffer *sb, char *buf, size_t sz, bool movehead, sb
             xaFree(sb->buf);
             sb->buf = sb->overflow;
             sb->bufsz = sb->overflowsz;
-            sb->head = count % sb->bufsz;
+            sb->head = (count + skipcount) % sb->bufsz;
             sb->tail = sb->overflowtail % sb->bufsz;
 
             sb->overflow = NULL;
             sb->overflowsz = 0;
             sb->overflowtail = 0;
         }
-        sz -= count;
+        total -= count;
         p += count;
     }
 
-    devAssert(sz == 0);
+    devAssert(total == 0);
 }
 
 static void feedBuffer(StreamBuffer *sb, size_t want)
@@ -440,11 +454,11 @@ size_t sbufCRead(StreamBuffer *sb, char *buf, size_t sz)
         return 0;
     }
 
-    readCommon(sb, buf, sz, true, NULL);
+    readCommon(sb, buf, 0, sz, true, NULL);
     return sz;
 }
 
-bool sbufCPeek(StreamBuffer *sb, char *buf, size_t sz)
+bool sbufCPeek(StreamBuffer *sb, char *buf, size_t off, size_t sz)
 {
     if ((sb->flags & SBUF_Direct) || sbufIsError(sb))
         return false;               // can't peek in direct mode!
@@ -452,12 +466,12 @@ bool sbufCPeek(StreamBuffer *sb, char *buf, size_t sz)
     if (sz == 0)
         return true;
 
-    if (sz > sbufCAvail(sb)) {
+    if (off + sz > sbufCAvail(sb)) {
         // we don't have enough!
         return false;
     }
 
-    readCommon(sb, buf, sz, false, NULL);
+    readCommon(sb, buf, off, sz, false, NULL);
 
     return true;
 }
@@ -549,7 +563,7 @@ bool sbufCSend(StreamBuffer *sb, sbufPushCB func, size_t sz)
     // cap sz at actual data available
     sz = min(sz, sbufCAvail(sb));
 
-    readCommon(sb, NULL, sz, true, func);
+    readCommon(sb, NULL, 0, sz, true, func);
 
     return true;
 }

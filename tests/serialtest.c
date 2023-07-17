@@ -250,6 +250,88 @@ static int test_streambuf_pull()
     return ret;
 }
 
+static int test_streambuf_peek()
+{
+    int ret = 0;
+
+    StreamBuffer *ptest = sbufCreate(32);
+    TestCtx2 ctx = { 0 };
+    char out[TESTBUF_SZ];
+    size_t p = 0;
+
+    if (!sbufPRegisterPull(ptest, sbpull2, sbclean2, &ctx))
+        return false;
+
+    if (!sbufCRegisterPull(ptest, NULL, NULL))
+        return false;
+
+    if (!sbufCFeed(ptest, 5))
+        ret = 1;
+
+    if (!sbufCPeek(ptest, out + p, 0, 5))
+        ret = 1;
+    if (memcmp(out + p, testdata1 + p, 5))
+        ret = 1;
+    if (!sbufCSkip(ptest, 5))
+        ret = 1;
+    p += 5;
+
+    // try peeking at future data
+    if (!sbufCFeed(ptest, 15))
+        ret = 1;
+
+    if (!sbufCPeek(ptest, out + p + 10, 10, 5))
+        ret = 1;
+    if (memcmp(out + p + 10, testdata1 + p + 10, 5))
+        ret = 1;
+
+    // now fill in the gap
+
+    if (!sbufCRead(ptest, out + p, 10))
+        ret = 1;
+    if (memcmp(out + p, testdata1 + p, 10))
+        ret = 1;
+    p += 10;
+
+    // and skip over what we already read
+    if (!sbufCSkip(ptest, 5))
+        ret = 1;
+    p += 5;
+
+    // populate the whole rest of the buffer
+    if (!sbufCFeed(ptest, sizeof(testdata1) - p))
+        ret = 1;
+
+    // read the rest out of order
+    if (!sbufCPeek(ptest, out + p + 41, 41, 35))
+        ret = 1;
+    if (memcmp(out + p + 41, testdata1 + p + 41, 35))
+        ret = 1;
+
+    if (!sbufCPeek(ptest, out + p, 0, 41))
+        ret = 1;
+    if (memcmp(out + p, testdata1 + p, 41))
+        ret = 1;
+
+    // skip to the end
+    if (!sbufCSkip(ptest, 76))
+        ret = 1;
+    p += 76;
+
+    // check entire buffer
+    if (p != sizeof(testdata1) ||
+        memcmp(out, testdata1, sizeof(testdata1)))
+        ret = 1;
+
+    sbufCFinish(ptest);
+    sbufRelease(&ptest);
+
+    if (!ctx.didclean)
+        ret = 1;
+
+    return ret;
+}
+
 typedef struct TestCtx3 {
     char *out;
     size_t outp;
@@ -395,6 +477,7 @@ testfunc serialtest_funcs[] = {
     { "sbpush", test_streambuf_push },
     { "sbpull", test_streambuf_pull },
     { "sbdirect", test_streambuf_direct },
+    { "sbpeek", test_streambuf_peek },
     { "sbstring", test_streambuf_string },
     { 0, 0 }
 };
