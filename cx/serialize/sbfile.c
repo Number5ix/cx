@@ -69,7 +69,7 @@ bool sbufFilePRegisterPull(StreamBuffer *sb, VFSFile *file, bool close)
     return true;
 }
 
-static bool sbufFilePushCB(StreamBuffer *sb, const char *buf, size_t sz, void *ctx)
+static bool sbufFileSendCB(StreamBuffer *sb, const char *buf, size_t off, size_t sz, void *ctx)
 {
     SbufFileCtx *sbc = (SbufFileCtx *)ctx;
 
@@ -83,10 +83,10 @@ static bool sbufFilePushCB(StreamBuffer *sb, const char *buf, size_t sz, void *c
 static void sbufFileNotifyCB(StreamBuffer *sb, size_t sz, void *ctx)
 {
     if (sz >= sb->targetsz) {
-        sbufCSend(sb, sbufFilePushCB, sz);
+        sbufCSend(sb, sbufFileSendCB, sz);
     } else if (sz == 0) {
         // flush anything that's left in the streambuf
-        sbufCSend(sb, sbufFilePushCB, sbufCAvail(sb));
+        sbufCSend(sb, sbufFileSendCB, sbufCAvail(sb));
     }
 
     if (sbufIsPFinished(sb))

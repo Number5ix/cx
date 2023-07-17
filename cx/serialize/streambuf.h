@@ -22,7 +22,17 @@ typedef size_t(*sbufPullCB)(StreamBuffer *sb, char *buf, size_t sz, void *ctx);
 // When this callback is used (in direct mode), the data is pushed once to the
 // callback and MUST all be written in one go or it will be lost.
 // If sz is 0, check if the producer is finished and/or for error state.
-typedef bool(*sbufPushCB)(StreamBuffer *sb, const char *buf, size_t sz, void *ctx);
+typedef void(*sbufPushCB)(StreamBuffer *sb, const char *buf, size_t sz, void *ctx);
+
+// Send callback
+// This callback is used with sbufCSend. It may be called multiple times with varying
+// offsets. The offset passed is always from the start of the available bytes in the
+// buffer.
+// If this function returns true, the sent bytes will be consumed and removed from the
+// buffer. If it returns false, it behaves like the peek functions and does not remove
+// the bytes from the buffer.
+// If sz is 0, check if the producer is finished and/or for error state.
+typedef bool(*sbufSendCB)(StreamBuffer *sb, const char *buf, size_t off, size_t sz, void *ctx);
 
 // Notify callback
 // Notification to a consumer that data is available. The sbufC* functions may be
@@ -175,7 +185,7 @@ bool sbufCFeed(StreamBuffer *sb, size_t minsz);
 // If used in pull mode, it functions like sbufCRead and will try to fill the buffer with
 // the requested amount of data before calling the callback.
 // The callback should return true if it consumed the data, or false if it is only peeking.
-bool sbufCSend(StreamBuffer *sb, sbufPushCB func, size_t sz);
+bool sbufCSend(StreamBuffer *sb, sbufSendCB func, size_t sz);
 
 // Skip over bytes in the buffer, can be used in conjunction with sbufCPeek.
 bool sbufCSkip(StreamBuffer *sb, size_t bytes);

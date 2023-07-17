@@ -21,7 +21,7 @@ typedef struct TestCtx1 {
     bool usesend;
 } TestCtx1;
 
-static bool sbpush1(StreamBuffer *sb, const char *buf, size_t sz, void *ctx)
+static bool sbsend1(StreamBuffer *sb, const char *buf, size_t off, size_t sz, void *ctx)
 {
     TestCtx1 *tc = (TestCtx1 *)ctx;
     if (tc->outp + sz > TESTBUF_SZ)
@@ -42,7 +42,7 @@ static void sbnotify1(StreamBuffer *sb, size_t sz, void *ctx)
     if (!tc->usesend) {
         tc->outp += sbufCRead(sb, tc->out + tc->outp, min(sz, tc->shouldread));
     } else {
-        sbufCSend(sb, sbpush1, min(sz, tc->shouldread));
+        sbufCSend(sb, sbsend1, min(sz, tc->shouldread));
     }
 
     if (sbufIsPFinished(sb))
@@ -338,20 +338,18 @@ typedef struct TestCtx3 {
     bool didclean;
 } TestCtx3;
 
-static bool sbpush3(StreamBuffer *sb, const char *buf, size_t sz, void *ctx)
+static void sbpush3(StreamBuffer *sb, const char *buf, size_t sz, void *ctx)
 {
     TestCtx3 *tc = (TestCtx3 *)ctx;
 
     if (tc->outp + sz > TESTBUF_SZ)
-        return false;
+        return;
 
     memcpy(tc->out + tc->outp, buf, sz);
     tc->outp += sz;
 
     if (sbufIsPFinished(sb))
         sbufCFinish(sb);
-
-    return true;
 }
 
 static void sbclean3(void *ctx)

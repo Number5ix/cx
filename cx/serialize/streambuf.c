@@ -304,11 +304,12 @@ bool sbufCRegisterPushDirect(StreamBuffer *sb, sbufPushCB cpush, sbufCleanupCB c
     return true;
 }
 
-static inline void _readWriteBuf(StreamBuffer *sb, char *out, size_t *p, size_t *total, const char *in, size_t sz, size_t *skip, bool movehead, sbufPushCB pushcb)
+static inline void _readWriteBuf(StreamBuffer *sb, char *out, size_t *p, size_t *total, const char *in, size_t *off, size_t sz, size_t *skip, bool movehead, sbufSendCB sendcb)
 {
     size_t skipsz = min(*skip, sz);
     *skip -= skipsz;
     *total -= skipsz;
+    *off += skipsz;
     sz -= skipsz;
     if (movehead)
         sb->head = (sb->head + skipsz) % sb->bufsz;
@@ -318,22 +319,25 @@ static inline void _readWriteBuf(StreamBuffer *sb, char *out, size_t *p, size_t 
             memcpy(out + *p, in + skipsz, sz);
             if (movehead)
                 sb->head = (sb->head + sz) % sb->bufsz;
-        } else if (pushcb) {
-            if (pushcb(sb, in + skipsz, sz, sb->consumerCtx))
+        } else if (sendcb) {
+            if (sendcb(sb, in + skipsz, *off, sz, sb->consumerCtx))
                 sb->head = (sb->head + skipsz + sz) % sb->bufsz;        // no real good way to handle skipsz here
         }
         *total -= sz;
         *p += sz;
+        *off += sz;
     }
 }
-#define readWriteBuf(out, p, in, sz) _readWriteBuf(sb, out, &p, &total, in, sz, &skip, movehead, pushcb)
+#define readWriteBuf(out, p, in, sz) _readWriteBuf(sb, out, &p, &total, in, &off, sz, &skip, movehead, sendcb)
 
 // caller must verify there's enough data in the buffer first!!!!
-static void readCommon(StreamBuffer *sb, char *buf, size_t skip, size_t bsz, bool movehead, sbufPushCB pushcb)
+static void readCommon(StreamBuffer *sb, char *buf, size_t skip, size_t bsz, bool movehead, sbufSendCB sendcb)
 {
+    // TODO: These don't really all need to be separate variables; some can be redefined as a calculation
     size_t total = skip + bsz;
     size_t count, skipcount;
     size_t p = 0;
+    size_t off = 0;
 
     if (sb->head <= sb->tail) {
         count = min(sb->tail - sb->head, total);
@@ -360,17 +364,20 @@ static void readCommon(StreamBuffer *sb, char *buf, size_t skip, size_t bsz, boo
             skip -= skipcount;
             total -= skipcount;
             count -= skipcount;
+            off += skipcount;
 
             if (count > 0) {
                 if (buf) {
                     memcpy(buf + p, sb->overflow + skipcount, count);
                     // don't advance the head, that happens when the buffer swaps
-                } else if (pushcb) {
+                } else if (sendcb) {
                     // if push callback returns false, it doesn't want to consume the overflow data, so set
                     // count to 0. If the buffer rotation happens (because all non-overflow data was consumed),
                     // this ensures that the new head points to the start of the overflow.
-                    if (!pushcb(sb, sb->overflow + skipcount, count, sb->consumerCtx))
+                    if (!sendcb(sb, sb->overflow + skipcount, off, count, sb->consumerCtx)) {
                         count = 0;
+                        skipcount = 0;
+                    }
                 }
             }
         } else {
@@ -392,6 +399,7 @@ static void readCommon(StreamBuffer *sb, char *buf, size_t skip, size_t bsz, boo
         }
         total -= count;
         p += count;
+        off += count;
     }
 
     devAssert(total == 0);
@@ -545,7 +553,7 @@ bool sbufCSkip(StreamBuffer *sb, size_t bytes)
     return true;
 }
 
-bool sbufCSend(StreamBuffer *sb, sbufPushCB func, size_t sz)
+bool sbufCSend(StreamBuffer *sb, sbufSendCB func, size_t sz)
 {
     if ((sb->flags & SBUF_Direct) || sbufIsError(sb))
         return false;                   // can't pull in direct mode!
