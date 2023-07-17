@@ -99,7 +99,7 @@ size_t sbufPAvail(StreamBuffer *sb)
 {
     if (sb->overflowsz > 0) {
         // we're writing to the overflow buffer
-        return sb->overflowsz - sb->overflowtail;
+        return sb->overflowsz - sb->overflowtail - 1;
     } else if (sb->head <= sb->tail) {
         // simple buffer
         // remaining space is the space left to the end of the buffer, plus any gap at the beginning,
@@ -147,7 +147,7 @@ static void pushMakeBufSpace(StreamBuffer *sb, size_t sz)
     // check if there's space
     if (sb->overflowsz > 0) {
         // if we already have an overflow buffer, increase it if necessary
-        if (sz > sb->overflowsz - sb->overflowtail) {
+        if (sz > sb->overflowsz - sb->overflowtail - 1) {
             sb->overflowsz = adjustSize(sb->overflowsz, sb->overflowtail + sz, sb->targetsz);
             sb->overflow = xaResize(sb->overflow, sb->overflowsz);
         }
@@ -207,7 +207,7 @@ bool sbufPWrite(StreamBuffer *sb, const char *buf, size_t sz)
             }
         } else {
             // writing to overflow buffer
-            devAssert(sb->overflowtail + sz <= sb->overflowsz);
+            devAssert(sb->overflowtail + sz < sb->overflowsz);
             memcpy(sb->overflow + sb->overflowtail, buf, sz);
             sb->overflowtail += sz;
         }
@@ -425,7 +425,7 @@ static void feedBuffer(StreamBuffer *sb, size_t want)
         return;
     } else {
         // off to overflow!
-        if (sb->overflowsz < needed) {
+        if (sb->overflowsz - sb->overflowtail < needed + 1) {
             if (sb->overflowsz == 0) {
                 sb->overflowsz = adjustSize(sb->bufsz + (sb->bufsz >> 1), needed, sb->targetsz);
                 sb->overflowtail = 0;
@@ -436,7 +436,7 @@ static void feedBuffer(StreamBuffer *sb, size_t want)
             }
         }
         count = sb->producerPull(sb, sb->overflow + sb->overflowtail,
-                                 sb->overflowsz - sb->overflowtail, // fill as much of the buffer as we can
+                                 sb->overflowsz - sb->overflowtail - 1, // fill as much of the buffer as we can
                                  sb->producerCtx);
         sb->overflowtail += count;
     }
