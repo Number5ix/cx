@@ -421,7 +421,6 @@ static string line1 = _S"This is a test of the lineparser code. This is line 1."
 static string line5 = _S"This is line 5.";
 static string line8 = _S"This is line 8.";
 static string line9 = _S"This is line 9.";
-static string line10 = _S"This is line 10.";
 static string linerepeat = _S"Up to 90 more lines may follow.";
 static string line99 = _S"(99) THIS IS THE NEXT TO LAST LINE!";
 static string line100 = _S"(100) THIS IS THE LAST LINE!";

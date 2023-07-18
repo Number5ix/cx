@@ -88,7 +88,7 @@ static bool (*eolfuncs[])(EOLFindInfo *ei, const char *buf, size_t sz, LineParse
     findEOLMixed
 };
 
-_Static_assert((sizeof(eolfuncs) / sizeof(eolfuncs[0]) == LPARSE_EOL_COUNT));
+_Static_assert((sizeof(eolfuncs) / sizeof(eolfuncs[0]) == LPARSE_EOL_COUNT), "Wrong number of EOL functions");
 
 static void lpcCleanup(void *ctx)
 {
