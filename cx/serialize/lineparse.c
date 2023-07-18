@@ -1,6 +1,7 @@
 #include "lineparse.h"
 #include <cx/cx.h>
 #include <cx/string.h>
+#include <cx/utils/compare.h>
 
 #define LPCHUNK 128
 
