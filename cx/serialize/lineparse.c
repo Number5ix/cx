@@ -102,10 +102,8 @@ bool lparseRegisterPull(StreamBuffer *sb, uint32 flags)
 {
     LineParserContext *lpc = xaAlloc(sizeof(LineParserContext), XA_Zero);
 
-    if (!sbufCRegisterPull(sb, lpcCleanup, lpc)) {
-        lpcCleanup(lpc);
+    if (!sbufCRegisterPull(sb, lpcCleanup, lpc))
         return false;
-    }
 
     lpc->flags = flags;
 

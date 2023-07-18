@@ -59,12 +59,11 @@ bool sbufStrPRegisterPull(StreamBuffer *sb, strref str)
 {
     SbufStrInCtx *sbc = xaAlloc(sizeof(SbufStrInCtx));
 
-    if (!sbufPRegisterPull(sb, sbufStrPullCB, sbufStrInCleanup, sbc)) {
-        xaFree(sbc);
-        return false;
-    }
-
     striInit(&sbc->iter, str);
+
+    if (!sbufPRegisterPull(sb, sbufStrPullCB, sbufStrInCleanup, sbc))
+        return false;
+
     return true;
 }
 
@@ -128,10 +127,8 @@ bool sbufStrCRegisterPush(StreamBuffer *sb, string *strout)
     SbufStrOutCtx *sbc = xaAlloc(sizeof(SbufStrOutCtx));
     sbc->out = strout;
 
-    if (!sbufCRegisterPush(sb, sbufStrNotifyCB, sbufStrOutCleanup, sbc)) {
-        xaFree(sbc);
+    if (!sbufCRegisterPush(sb, sbufStrNotifyCB, sbufStrOutCleanup, sbc))
         return false;
-    }
 
     return true;
 }

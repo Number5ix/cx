@@ -65,6 +65,9 @@ bool sbufPRegisterPull(StreamBuffer *sb, sbufPullCB ppull, sbufCleanupCB pcleanu
     if (sbufIsPush(sb) ||
         (sb->flags & SBUF_Producer_Registered) ||
         !ppull) {
+        if (pcleanup)
+            pcleanup(ctx);
+
         cxerr = CX_InvalidArgument;
         return false;
     }  
@@ -83,6 +86,9 @@ bool sbufPRegisterPush(StreamBuffer *sb, sbufCleanupCB pcleanup, void *ctx)
     // can only register once, if it's not already a pull buffer
     if (sbufIsPull(sb) ||
         (sb->flags & SBUF_Producer_Registered)) {
+        if (pcleanup)
+            pcleanup(ctx);
+
         cxerr = CX_InvalidArgument;
         return false;
     }
@@ -253,6 +259,9 @@ bool sbufCRegisterPull(StreamBuffer *sb, sbufCleanupCB ccleanup, void *ctx)
     // can only register once, if it's not already a push buffer
     if (sbufIsPush(sb) ||
         (sb->flags & SBUF_Consumer_Registered)) {
+        if (ccleanup)
+            ccleanup(ctx);
+
         cxerr = CX_InvalidArgument;
         return false;
     }
@@ -272,6 +281,9 @@ bool sbufCRegisterPush(StreamBuffer *sb, sbufNotifyCB cnotify, sbufCleanupCB ccl
         (sb->flags & SBUF_Consumer_Registered) ||
         sb->bufsz == 0 ||
         !cnotify) {
+        if (ccleanup)
+            ccleanup(ctx);
+
         cxerr = CX_InvalidArgument;
         return false;
     }
@@ -291,6 +303,9 @@ bool sbufCRegisterPushDirect(StreamBuffer *sb, sbufPushCB cpush, sbufCleanupCB c
     if (sbufIsPull(sb) ||
         (sb->flags & SBUF_Consumer_Registered) ||
         !cpush) {
+        if (ccleanup)
+            ccleanup(ctx);
+
         cxerr = CX_InvalidArgument;
         return false;
     }
