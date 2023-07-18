@@ -783,9 +783,88 @@ int test_lineparse_mixed()
     return ret;
 }
 
+typedef struct LineParsePushTestCtx {
+    int ret;
+    int lines;
+    bool didclean;
+} LineParsePushTestCtx;
+
+static void test_ctxcleanup(void *ctx)
+{
+    LineParsePushTestCtx *lppt = (LineParsePushTestCtx *)ctx;
+    lppt->didclean = true;
+}
+
+static bool test_linecb(strref line, void *ctx)
+{
+    LineParsePushTestCtx *lppt = (LineParsePushTestCtx *)ctx;
+
+    lppt->lines++;
+    if (lppt->lines == 1 && !strEq(line, line1))
+        lppt->ret = 1;
+    if (lppt->lines == 5 && !strEq(line, line5))
+        lppt->ret = 1;
+    if (lppt->lines > 10 && lppt->lines < 99 && !strEq(line, linerepeat))
+        lppt->ret = 1;
+    if (lppt->lines == 99 && !strEq(line, line99))
+        lppt->ret = 1;
+    if (lppt->lines == 100 && !strEq(line, line100))
+        lppt->ret = 1;
+
+    return true;
+}
+
+int test_lineparse_push()
+{
+    StreamBuffer *sb;
+    int ret = 0;
+    LineParsePushTestCtx lppt = { 0 };
+    string teststr_cr = 0;
+    string teststr_crlf = 0;
+
+    strCopy(&teststr_cr, (strref)testdata_cr);
+    strCopy(&teststr_crlf, (strref)testdata_crlf);
+
+    // test with a large buffer
+    sb = sbufCreate(8192);
+    lparseRegisterPush(sb, test_linecb, test_ctxcleanup, &lppt, 0);
+    sbufStrIn(sb, teststr_cr);
+
+    if (lppt.lines != 100)
+        ret = 1;
+
+    sbufRelease(&sb);
+
+    if (!lppt.didclean)
+        ret = 1;
+    ret |= lppt.ret;
+
+    // test with a very small buffer
+    lppt = (LineParsePushTestCtx){ 0 };
+
+    sb = sbufCreate(5);
+    lparseRegisterPush(sb, test_linecb, test_ctxcleanup, &lppt, 0);
+    sbufStrIn(sb, teststr_crlf);
+
+    if (lppt.lines != 100)
+        ret = 1;
+    ret |= lppt.ret;
+
+    sbufRelease(&sb);
+
+    if (!lppt.didclean)
+        ret = 1;
+
+    strDestroy(&teststr_cr);
+    strDestroy(&teststr_crlf);
+
+    return ret;
+}
+
 testfunc lineparsetest_funcs[] = {
     { "explicit", test_lineparse_explicit },
     { "auto", test_lineparse_auto },
     { "mixed", test_lineparse_mixed },
+    { "push", test_lineparse_push },
     { 0, 0 }
 };

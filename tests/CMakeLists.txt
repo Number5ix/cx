@@ -98,3 +98,4 @@ add_test(NAME "\"streambuffer: String Adapter\"" COMMAND test_runner sbtest stri
 add_test(NAME "\"lineparse: Explicit EOL\"" COMMAND test_runner lineparsetest explicit)
 add_test(NAME "\"lineparse: Auto EOL\"" COMMAND test_runner lineparsetest auto)
 add_test(NAME "\"lineparse: Mixed EOL\"" COMMAND test_runner lineparsetest mixed)
+add_test(NAME "\"lineparse: Push Mode\"" COMMAND test_runner lineparsetest push)

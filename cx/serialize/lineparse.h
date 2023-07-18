@@ -34,4 +34,4 @@ bool lparseLine(StreamBuffer *sb, string *out);
 // or false to stop.
 typedef bool (*lparseLineCB)(strref line, void *ctx);
 
-bool lparseRegisterPush(StreamBuffer *sb, lparseLineCB pline, sbufCleanupCB pcleanup);
+bool lparseRegisterPush(StreamBuffer *sb, lparseLineCB pline, sbufCleanupCB pcleanup, void *ctx, uint32 flags);

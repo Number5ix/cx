@@ -72,6 +72,7 @@ static const testspec tests[] = {
 { "lineparse: Explicit EOL", "lineparsetest", "explicit" },
 { "lineparse: Auto EOL", "lineparsetest", "auto" },
 { "lineparse: Mixed EOL", "lineparsetest", "mixed" },
+{ "lineparse: Push Mode", "lineparsetest", "push" },
 { 0 }
 };
 

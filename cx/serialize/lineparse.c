@@ -8,6 +8,7 @@ typedef struct LineParserContext {
     uint32 flags;
 
     size_t checked;     // buffer offset that has already been checked for EOL
+    string out;         // cached output string
 
     lparseLineCB lineCB;
     void *userCtx;
@@ -95,6 +96,8 @@ static void lpcCleanup(void *ctx)
     if (lpc->userCleanupCB)
         lpc->userCleanupCB(lpc->userCtx);
 
+    strDestroy(&lpc->out);
+
     xaFree(lpc);
 }
 
@@ -174,8 +177,73 @@ bool lparseLine(StreamBuffer *sb, string *out)
 
 // -------- Push mode --------
 
-// Callback to pass to lparseRegisterPush. Should return true to continue parsing
-// or false to stop.
-typedef bool (*lparseLineCB)(strref line, void *ctx);
+static void lpcNotify(StreamBuffer *sb, size_t sz, void *ctx)
+{
+    LineParserContext *lpc = (LineParserContext *)ctx;
+    EOLFindInfo ei;
+    char buf[LPCHUNK];
+    char *outbuf;
 
-bool lparseRegisterPush(StreamBuffer *sb, lparseLineCB pline, sbufCleanupCB pcleanup);
+    // keep looking for lines as long as there's data in the buffer
+    while (sbufCAvail(sb) > 0 && lpc->checked < sbufCAvail(sb) - (sbufIsPFinished(sb) ? 0 : 1)) {
+        size_t tocheck = min(sbufCAvail(sb) - lpc->checked, LPCHUNK);
+        if (!sbufCPeek(sb, buf, lpc->checked, tocheck))
+            break;
+
+        if (eolfuncs[lpc->flags & LPARSE_EOL_MASK](&ei, buf, tocheck, lpc)) {
+            // adjust offset since we only started looking at lpc->checked
+            ei.off += lpc->checked;
+
+            // found one!
+            strClear(&lpc->out);
+            if (!(lpc->flags & LPARSE_IncludeEOL)) {
+                // EOL in string (default)
+                outbuf = strBuffer(&lpc->out, (uint32)ei.off);
+                sbufCRead(sb, outbuf, (uint32)ei.off);
+                sbufCSkip(sb, ei.len);
+            } else {
+                // include EOL character(s) in string
+                outbuf = strBuffer(&lpc->out, (uint32)ei.off + ei.len);
+                sbufCRead(sb, outbuf, (uint32)ei.off + ei.len);
+            }
+            // buffer has been advanced to right after the EOL
+            lpc->checked = 0;
+
+            if (!lpc->lineCB(lpc->out, lpc->userCtx)) {
+                sbufCFinish(sb);
+                return;
+            }
+        } else {
+            lpc->checked += tocheck - (sbufIsPFinished(sb) ? 0 : 1);
+        }
+    }
+
+    if (sbufIsPFinished(sb)) {
+        if (sbufCAvail(sb) > 0 && !(lpc->flags & LPARSE_NoIncomplete)) {
+            // no EOL but we have everything we're going to get
+            strClear(&lpc->out);
+            outbuf = strBuffer(&lpc->out, (uint32)sbufCAvail(sb));
+            sbufCRead(sb, outbuf, sbufCAvail(sb));
+            lpc->lineCB(lpc->out, lpc->userCtx);
+        }
+
+        sbufCFinish(sb);
+    }
+}
+
+bool lparseRegisterPush(StreamBuffer *sb, lparseLineCB pline, sbufCleanupCB pcleanup, void *ctx, uint32 flags)
+{
+    LineParserContext *lpc = xaAlloc(sizeof(LineParserContext), XA_Zero);
+
+    lpc->userCtx = ctx;
+    lpc->userCleanupCB = pcleanup;
+
+    if (!pline || !sbufCRegisterPush(sb, lpcNotify, lpcCleanup, lpc))
+        return false;
+
+    lpc->lineCB = pline;
+    lpc->flags = flags;
+
+    return true;
+
+}
