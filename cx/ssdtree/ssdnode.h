@@ -59,6 +59,12 @@ void SSDNode_setValueC(SSDNode *self, strref name, stvar *val, SSDLock *lock);
 // Same as setValue but consumes the value
 #define ssdnodeSetValueC(self, name, val, lock) SSDNode_setValueC(SSDNode(self), name, val, lock)
 
+bool SSDNode_removeValue(SSDNode *self, strref name, SSDLock *lock);
+// bool ssdnodeRemoveValue(SSDNode *self, strref name, SSDLock *lock);
+//
+// Remove a value or child node
+#define ssdnodeRemoveValue(self, name, lock) SSDNode_removeValue(SSDNode(self), name, lock)
+
 SSDNode *SSDNode_create(SSDInfo *info);
 // SSDNode *ssdnodeCreate(SSDInfo *info);
 #define ssdnodeCreate(info) SSDNode_create(SSDInfo(info))

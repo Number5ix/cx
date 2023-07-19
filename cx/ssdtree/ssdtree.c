@@ -175,6 +175,31 @@ bool ssdSetValue(SSDNode *tree, strref path, stvar val, SSDLock *lock)
     return ret;
 }
 
+bool ssdRemoveValue(SSDNode *tree, strref path, SSDLock *lock)
+{
+    SSDLock transient_lock = { 0 };
+    if (!lock) lock = &transient_lock;
+
+    // this is likely going to need the write lock, even if it technically
+    // doesn't 100% of the time (i.e. if the key doesn't exist)
+    ssdLockWrite(tree, lock);
+
+    SSDNode *node = NULL;
+    string name = 0;
+    bool ret = false;
+
+    if (ssdResolvePath(tree, path, &node, &name, true, lock)) {
+        ret = ssdnodeRemoveValue(node, name, lock);
+    }
+
+    if (transient_lock.init)
+        ssdLockEnd(tree, &transient_lock);
+
+    objRelease(&node);
+    strDestroy(&name);
+    return ret;
+}
+
 SSDNode *ssdGetSubtree(SSDNode *tree, strref path, bool create, SSDLock *lock)
 {
     SSDLock transient_lock = { 0 };

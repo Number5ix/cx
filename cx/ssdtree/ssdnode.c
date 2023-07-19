@@ -119,6 +119,12 @@ void SSDNode_setValueC(SSDNode *self, strref name, stvar *val, SSDLock *lock)
     htInsertC(&self->children, strref, name, stvar, val);
 }
 
+bool SSDNode_removeValue(SSDNode *self, strref name, SSDLock *lock)
+{
+    ssdLockWrite(self, lock);
+    return htRemove(&self->children, strref, name);
+}
+
 // Autogen begins -----
 #include "ssdnode.auto.inc"
 // Autogen ends -------

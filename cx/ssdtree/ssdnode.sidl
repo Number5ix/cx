@@ -27,5 +27,8 @@ class SSDNode
     // Same as setValue but consumes the value
     unbound void setValueC(strref name, stvar *val, SSDLock *lock);
 
+    // Remove a value or child node
+    unbound bool removeValue(strref name, SSDLock *lock);
+
     factory create(SSDInfo *info);
 }

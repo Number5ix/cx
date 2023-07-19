@@ -37,6 +37,7 @@ SSDNode *_ssdCreateRoot(bool singleval, stvar initval, uint32 flags);
 // management, ssdGetPtr can be used instead.
 bool ssdGetValue(SSDNode *tree, strref path, stvar *out, SSDLock *lock);
 bool ssdSetValue(SSDNode *tree, strref path, stvar val, SSDLock *lock);
+bool ssdRemoveValue(SSDNode *tree, strref path, SSDLock *lock);
 
 // Unlike the other ssdtree functions, the lock parameter for ssdGetPtr is REQUIRED.
 // This function should be used as part of a larger locked transaction.
