@@ -12,23 +12,23 @@ class SSDNode
     bool singleval;
 
     // Retrieves a child node with the given name, creating it if create is set
-    unbound SSDNode *getChild(strref name, bool create, SSDLock *lock);
+    SSDNode *getChild(strref name, bool create, SSDLock *lock);
 
     // Gets a value. Caller owns the value and must destroy it with stDestroy!
-    unbound bool getValue(strref name, stvar *out, SSDLock *lock);
+    bool getValue(strref name, stvar *out, SSDLock *lock);
 
     // Gets a pointer to a value. This points to the hastable entry in children,
     // so it is only guaranteed to be valid while the read lock is held.
-    unbound stvar *getPtr(strref name, SSDLock *lock);
+    stvar *getPtr(strref name, SSDLock *lock);
 
     // Sets the given value
-    unbound void setValue(strref name, stvar val, SSDLock *lock);
+    void setValue(strref name, stvar val, SSDLock *lock);
 
     // Same as setValue but consumes the value
-    unbound void setValueC(strref name, stvar *val, SSDLock *lock);
+    void setValueC(strref name, stvar *val, SSDLock *lock);
 
     // Remove a value or child node
-    unbound bool removeValue(strref name, SSDLock *lock);
+    bool removeValue(strref name, SSDLock *lock);
 
     factory create(SSDInfo *info);
 }
