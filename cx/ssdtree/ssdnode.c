@@ -73,7 +73,7 @@ SSDNode *SSDNode_getChild(SSDNode *self, strref name, bool create, SSDLock *lock
                 continue;
 
             // share our info and locks with the child
-            ret = SSDNode_create(self->info);
+            ret = ssdnodeCreateLike(self, self->info);
             htInsert(&self->children, strref, name, stvar, stvar(object, ret));
             return ret;
         }
@@ -106,7 +106,6 @@ stvar *SSDNode_getPtr(SSDNode *self, strref name, SSDLock *lock)
     return NULL;
 }
 
-
 void SSDNode_setValue(SSDNode *self, strref name, stvar val, SSDLock *lock)
 {
     ssdLockWrite(self, lock);
@@ -123,6 +122,11 @@ bool SSDNode_removeValue(SSDNode *self, strref name, SSDLock *lock)
 {
     ssdLockWrite(self, lock);
     return htRemove(&self->children, strref, name);
+}
+
+SSDNode *SSDNode_createLike(SSDNode *self, SSDInfo *info)
+{
+    return ssdnodeCreate(info);
 }
 
 // Autogen begins -----

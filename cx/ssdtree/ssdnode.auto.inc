@@ -13,6 +13,7 @@ static SSDNode_ClassIf _impl_SSDNode_SSDNode_ClassIf = {
     .setValue = (void (*)(void*, strref, stvar, SSDLock*))SSDNode_setValue,
     .setValueC = (void (*)(void*, strref, stvar*, SSDLock*))SSDNode_setValueC,
     .removeValue = (bool (*)(void*, strref, SSDLock*))SSDNode_removeValue,
+    .createLike = (SSDNode *(*)(void*, SSDInfo*))SSDNode_createLike,
 };
 
 static ObjIface *_ifimpl_SSDNode[] = {

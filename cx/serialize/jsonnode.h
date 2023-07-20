@@ -2,13 +2,12 @@
 // This header file is auto-generated!
 // Do not make changes to this file or they will be overwritten.
 #include <cx/obj.h>
-#include <cx/ssdtree/ssdinfo.h>
-#include <cx/core/stvar.h>
+#include <cx/ssdtree/ssdnode.h>
 
-typedef struct SSDNode SSDNode;
-saDeclarePtr(SSDNode);
+typedef struct JSONNode JSONNode;
+saDeclarePtr(JSONNode);
 
-typedef struct SSDNode_ClassIf {
+typedef struct JSONNode_ClassIf {
     ObjIface *_implements;
     ObjIface *_parent;
     size_t _size;
@@ -29,13 +28,14 @@ typedef struct SSDNode_ClassIf {
     // This is called internally by getChild when it needs to create a new node.
     // It can be overridden by child classes to avoid having to re-implement all of getChild.
     SSDNode *(*createLike)(void *self, SSDInfo *info);
-} SSDNode_ClassIf;
-extern SSDNode_ClassIf SSDNode_ClassIf_tmpl;
+} JSONNode_ClassIf;
+extern JSONNode_ClassIf JSONNode_ClassIf_tmpl;
 
-typedef struct SSDNode {
-    SSDNode_ClassIf *_;
+typedef struct JSONNode {
+    JSONNode_ClassIf *_;
     union {
         ObjClassInfo *_clsinfo;
+        void *_is_JSONNode;
         void *_is_SSDNode;
         void *_is_ObjInst;
     };
@@ -47,43 +47,44 @@ typedef struct SSDNode {
     // This exists mainly for JSON compatibility; if this is true the value
     // is stored in the children hashtable under the empty string ("")
     bool singleval;
-} SSDNode;
-extern ObjClassInfo SSDNode_clsinfo;
-#define SSDNode(inst) ((SSDNode*)((void)((inst) && &((inst)->_is_SSDNode)), (inst)))
-#define SSDNodeNone ((SSDNode*)NULL)
+    sa_string keyorder;        // order of keys in the children hashtable
+} JSONNode;
+extern ObjClassInfo JSONNode_clsinfo;
+#define JSONNode(inst) ((JSONNode*)((void)((inst) && &((inst)->_is_JSONNode)), (inst)))
+#define JSONNodeNone ((JSONNode*)NULL)
 
-SSDNode *SSDNode_create(SSDInfo *info);
-// SSDNode *ssdnodeCreate(SSDInfo *info);
-#define ssdnodeCreate(info) SSDNode_create(SSDInfo(info))
+JSONNode *JSONNode_create(SSDInfo *info);
+// JSONNode *jsonnodeCreate(SSDInfo *info);
+#define jsonnodeCreate(info) JSONNode_create(SSDInfo(info))
 
-// SSDNode *ssdnodeGetChild(SSDNode *self, strref name, bool create, SSDLock *lock);
+// SSDNode *jsonnodeGetChild(JSONNode *self, strref name, bool create, SSDLock *lock);
 //
 // Retrieves a child node with the given name, creating it if create is set
-#define ssdnodeGetChild(self, name, create, lock) (self)->_->getChild(SSDNode(self), name, create, lock)
-// bool ssdnodeGetValue(SSDNode *self, strref name, stvar *out, SSDLock *lock);
+#define jsonnodeGetChild(self, name, create, lock) (self)->_->getChild(JSONNode(self), name, create, lock)
+// bool jsonnodeGetValue(JSONNode *self, strref name, stvar *out, SSDLock *lock);
 //
 // Gets a value. Caller owns the value and must destroy it with stDestroy!
-#define ssdnodeGetValue(self, name, out, lock) (self)->_->getValue(SSDNode(self), name, out, lock)
-// stvar *ssdnodeGetPtr(SSDNode *self, strref name, SSDLock *lock);
+#define jsonnodeGetValue(self, name, out, lock) (self)->_->getValue(JSONNode(self), name, out, lock)
+// stvar *jsonnodeGetPtr(JSONNode *self, strref name, SSDLock *lock);
 //
 // Gets a pointer to a value. This points to the hastable entry in children,
 // so it is only guaranteed to be valid while the read lock is held.
-#define ssdnodeGetPtr(self, name, lock) (self)->_->getPtr(SSDNode(self), name, lock)
-// void ssdnodeSetValue(SSDNode *self, strref name, stvar val, SSDLock *lock);
+#define jsonnodeGetPtr(self, name, lock) (self)->_->getPtr(JSONNode(self), name, lock)
+// void jsonnodeSetValue(JSONNode *self, strref name, stvar val, SSDLock *lock);
 //
 // Sets the given value
-#define ssdnodeSetValue(self, name, val, lock) (self)->_->setValue(SSDNode(self), name, val, lock)
-// void ssdnodeSetValueC(SSDNode *self, strref name, stvar *val, SSDLock *lock);
+#define jsonnodeSetValue(self, name, val, lock) (self)->_->setValue(JSONNode(self), name, val, lock)
+// void jsonnodeSetValueC(JSONNode *self, strref name, stvar *val, SSDLock *lock);
 //
 // Same as setValue but consumes the value
-#define ssdnodeSetValueC(self, name, val, lock) (self)->_->setValueC(SSDNode(self), name, val, lock)
-// bool ssdnodeRemoveValue(SSDNode *self, strref name, SSDLock *lock);
+#define jsonnodeSetValueC(self, name, val, lock) (self)->_->setValueC(JSONNode(self), name, val, lock)
+// bool jsonnodeRemoveValue(JSONNode *self, strref name, SSDLock *lock);
 //
 // Remove a value or child node
-#define ssdnodeRemoveValue(self, name, lock) (self)->_->removeValue(SSDNode(self), name, lock)
-// SSDNode *ssdnodeCreateLike(SSDNode *self, SSDInfo *info);
+#define jsonnodeRemoveValue(self, name, lock) (self)->_->removeValue(JSONNode(self), name, lock)
+// SSDNode *jsonnodeCreateLike(JSONNode *self, SSDInfo *info);
 //
 // This is called internally by getChild when it needs to create a new node.
 // It can be overridden by child classes to avoid having to re-implement all of getChild.
-#define ssdnodeCreateLike(self, info) (self)->_->createLike(SSDNode(self), SSDInfo(info))
+#define jsonnodeCreateLike(self, info) (self)->_->createLike(JSONNode(self), SSDInfo(info))
 

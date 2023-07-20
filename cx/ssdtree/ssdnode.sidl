@@ -30,5 +30,9 @@ class SSDNode
     // Remove a value or child node
     bool removeValue(strref name, SSDLock *lock);
 
+    // This is called internally by getChild when it needs to create a new node.
+    // It can be overridden by child classes to avoid having to re-implement all of getChild.
+    SSDNode *createLike(SSDInfo *info);
+
     factory create(SSDInfo *info);
 }

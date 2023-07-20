@@ -11,6 +11,7 @@ create_test_sourcelist(testsrc
     ssdtest.c
     sbtest.c
     lineparsetest.c
+    jsontest.c
     alltests.c)
 add_sidl(fmttestobj.sidl
     objtestobj.sidl)
@@ -99,3 +100,4 @@ add_test(NAME "\"lineparse: Explicit EOL\"" COMMAND test_runner lineparsetest ex
 add_test(NAME "\"lineparse: Auto EOL\"" COMMAND test_runner lineparsetest auto)
 add_test(NAME "\"lineparse: Mixed EOL\"" COMMAND test_runner lineparsetest mixed)
 add_test(NAME "\"lineparse: Push Mode\"" COMMAND test_runner lineparsetest push)
+add_test(NAME "\"json: Parse\"" COMMAND test_runner jsontest parse)

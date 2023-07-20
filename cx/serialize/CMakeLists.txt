@@ -1,13 +1,21 @@
 set(SERIALIZE_SRCS
+    serialize/jsonnode.c
+    serialize/jsonparse.c
     serialize/lineparse.c
     serialize/sbfile.c
     serialize/sbstring.c
     serialize/streambuf.c)
 set(SERIALIZE_INCLUDES
+    serialize/jsoncommon.h
+    serialize/jsonnode.h
+    serialize/jsonout.h
+    serialize/jsonparse.h
     serialize/lineparse.h
     serialize/sbfile.h
     serialize/sbstring.h
     serialize/streambuf.h)
+set(SERIALIZE_SIDL
+    serialize/jsonnode.sidl)
 
 set(CX_SRCS
     ${CX_SRCS}
@@ -16,6 +24,10 @@ set(CX_SRCS
 set(CX_INCLUDES
     ${CX_INCLUDES}
     ${SERIALIZE_INCLUDES}
+    PARENT_SCOPE)
+set(CX_SIDL
+    ${CX_SIDL}
+    ${SERIALIZE_SIDL}
     PARENT_SCOPE)
 
 set(CX_CMAKE_FILES
