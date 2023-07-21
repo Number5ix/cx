@@ -32,7 +32,7 @@
 
 #define foreach_string foreach_generic
 #define ForEachIterType_string striter
-#define ForEachIterInit_string 0
+#define ForEachIterInit_string {0}
 #define ForEachInit_string(itervar, str) striInit(&itervar, str)
 #define ForEachValid_string(itervar) striValid(&itervar)
 #define ForEachNext_string(itervar) striNext(&itervar)
