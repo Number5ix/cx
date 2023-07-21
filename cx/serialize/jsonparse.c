@@ -4,8 +4,11 @@
 #include <cx/string/string_private_utf8.h>
 #include <cx/format.h>
 
+#define MAX_PARSE_DEPTH 1000
+
 typedef struct ParseState {
     int line;
+    int depth;
     string errmsg;
     jsonParseCB callback;
     void *userdata;
@@ -340,6 +343,7 @@ static void pushCtx(StreamBuffer *sb, ParseState *ps, int newctype)
     ctx->ctype = newctype;
     ctx->parent = ps->ctx;
     ps->ctx = ctx;
+    ps->depth++;
 }
 
 static bool popCtx(StreamBuffer *sb, ParseState *ps)
@@ -349,6 +353,7 @@ static bool popCtx(StreamBuffer *sb, ParseState *ps)
 
     JSONParseContext *ctx = ps->ctx;
     ps->ctx = ps->ctx->parent;
+    ps->depth--;
 
     jsonCtxDestroy(ctx);
 
@@ -376,6 +381,11 @@ static bool parseValue(StreamBuffer *sb, ParseState *ps)
         ps->ev.etype = JSON_Object_Begin;
         jsonCallback(&ps->ev, ps);
 
+        if (ps->depth >= MAX_PARSE_DEPTH) {
+            strDup(&ps->errmsg, _S"Exceeded recursion limit");
+            break;
+        }
+
         pushCtx(sb, ps, JSON_Object);
         ret = parseObject(sb, ps);
         popCtx(sb, ps);
@@ -385,6 +395,11 @@ static bool parseValue(StreamBuffer *sb, ParseState *ps)
         sbufCSkip(sb, 1);
         ps->ev.etype = JSON_Array_Begin;
         jsonCallback(&ps->ev, ps);
+
+        if (ps->depth >= MAX_PARSE_DEPTH) {
+            strDup(&ps->errmsg, _S"Exceeded recursion limit");
+            break;
+        }
 
         pushCtx(sb, ps, JSON_Array);
         ret = parseArray(sb, ps);
