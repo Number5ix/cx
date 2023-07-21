@@ -59,13 +59,13 @@ static bool parseString(StreamBuffer *sb, string *out, ParseState *ps)
     int useq = 0;               // digits reamining in unicode hex escape sequence
     int32 ucp;                  // unicode code point being built
     int32 lastucp = 0;          // for surrogate pairs
-    char ch;
+    unsigned char ch;
 
     strClear(out);
 
     while (sbufCRead(sb, &ch, 1)) {
         if (ch < 0x20) {
-            strFormat(&ps->errmsg, _S"Invalid character code 0x${int} in string", stvar(int32, ch));
+            strFormat(&ps->errmsg, _S"Invalid character code 0x${uint(hex)} in string", stvar(uint8, ch));
             break;
         }
 
@@ -196,7 +196,7 @@ static bool parseNumInt(StreamBuffer *sb, bool neg, size_t intoff, size_t intlen
 {
     int64 res = 0;
     int64 mult = 1;
-    char ch;
+    unsigned char ch;
 
     if (intlen > 19)
         return false;       // can't possibly fit in an int64
@@ -242,7 +242,7 @@ static bool parseNumFloat(StreamBuffer *sb, bool neg, size_t intoff, size_t intl
 
 static bool parseNumber(StreamBuffer *sb, JSONParseEvent *ev, ParseState *ps)
 {
-    char ch;
+    unsigned char ch;
     int phase = 0;
     size_t off = 0;
     size_t intoff = 0;
@@ -318,7 +318,7 @@ static bool parseNumber(StreamBuffer *sb, JSONParseEvent *ev, ParseState *ps)
 
 static void skipWS(StreamBuffer *sb, ParseState *ps)
 {
-    char ch;
+    unsigned char ch;
 
     while (sbufCFeed(sb, 1) && sbufCPeek(sb, &ch, 0, 1)) {
         switch (ch) {
@@ -367,7 +367,7 @@ static bool parseValue(StreamBuffer *sb, ParseState *ps)
 {
     char tmp[4];
     bool ret = false;
-    char ch;
+    unsigned char ch;
 
     jsonClearEvent(&ps->ev);
     skipWS(sb, ps);
@@ -476,7 +476,7 @@ static bool parseObject(StreamBuffer *sb, ParseState *ps)
 {
     bool ret = false;
     bool first = true;
-    char ch;
+    unsigned char ch;
 
     skipWS(sb, ps);
 
@@ -535,7 +535,7 @@ static bool parseArray(StreamBuffer *sb, ParseState *ps)
 {
     bool ret = false;
     bool first = true;
-    char ch;
+    unsigned char ch;
 
     skipWS(sb, ps);
 
