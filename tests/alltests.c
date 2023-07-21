@@ -74,6 +74,7 @@ static const testspec tests[] = {
 { "lineparse: Mixed EOL", "lineparsetest", "mixed" },
 { "lineparse: Push Mode", "lineparsetest", "push" },
 { "json: Parse", "jsontest", "parse" },
+{ "json: Output", "jsontest", "out" },
 { 0 }
 };
 
