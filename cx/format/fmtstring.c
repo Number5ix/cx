@@ -34,7 +34,7 @@ bool _fmtString(FMTVar *v, string *out)
     if (v->flags & FMT_StringNameCase) {
         strLower(out);
         if (strLen(s) > 0) {
-            char ch = strGetChar(*out, 0);
+            uint8 ch = strGetChar(*out, 0);
             strSetChar(out, 0, toupper(ch));
         }
     }

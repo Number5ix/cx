@@ -80,7 +80,7 @@ void pathFromPlatform(string *out, strref platformpath)
         strSetChar(&rpath, idx, '/');
 
     uint32 origlen = strLen(rpath);
-    char *buf = strBuffer(&rpath, 4);
+    uint8 *buf = strBuffer(&rpath, 4);
 
     if (buf[0] == '/' && (buf[1] == '/' || buf[1] == '?') &&
         (buf[2] == '?' || buf[2] == '.') && buf[3] == '/') {

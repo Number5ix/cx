@@ -44,7 +44,7 @@ bool suidGenPrivate(SUID *out, uint8 idtype);
 
 // Encodes a SUID into string form
 bool suidEncode(string *out, const SUID *id);
-bool suidEncodeBytes(char buf[26], const SUID *id);
+bool suidEncodeBytes(uint8 buf[26], const SUID *id);
 
 // Decodes a SUID from a string
 bool suidDecode(SUID *out, strref str);

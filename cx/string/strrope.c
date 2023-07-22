@@ -288,7 +288,7 @@ void _strDestroyRope(string s)
 // copy bytes out of a rope
 // as in _strFastCopy, we assume the caller has done the math
 // and knows what they're doing
-uint32 _strRopeFastCopy(strref s, uint32 off, char *buf, uint32 bytes)
+uint32 _strRopeFastCopy(strref s, uint32 off, uint8 *buf, uint32 bytes)
 {
     uint32 leftcopy = 0, rightcopy = 0;
     str_ropedata *data = STR_ROPEDATA(s);

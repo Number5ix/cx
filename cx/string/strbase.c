@@ -124,7 +124,7 @@ string _strCopy(strref s, uint32 minsz)
     return ret;
 }
 
-uint32 _strFastCopy(strref s, uint32 off, char *buf, uint32 bytes)
+uint32 _strFastCopy(strref s, uint32 off, uint8 *buf, uint32 bytes)
 {
     if (!(STR_HDR(s) & STR_ROPE)) {
         // easy, just copy the buffer
@@ -143,7 +143,7 @@ bool _strResize(string *ps, uint32 newsz, bool unique)
 
     // see if we are the only owner and can just realloc in place
     if (STR_HDR(*ps) & STR_ALLOC && !isstack) {
-        uint32 bufsz = (uint32)xaSize(*ps) - (uint32)((char *)STR_BUFFER(*ps) - (char *)(*ps));
+        uint32 bufsz = (uint32)xaSize(*ps) - (uint32)((uint8 *)STR_BUFFER(*ps) - (uint8 *)(*ps));
         if (bufsz >= newsz + 1) {       // check for room for string + terminator
             // room already, good to go
             if (unique)
@@ -356,10 +356,10 @@ void _strReset(string *s, uint32 minsz)
     }
 
     if (!(STR_HDR(*s) & STR_STACK)) {
-        uint32 bufsz = (uint32)xaSize(*s) - (uint32)((char *)STR_BUFFER(*s) - (char *)(*s));
+        uint32 bufsz = (uint32)xaSize(*s) - (uint32)((uint8 *)STR_BUFFER(*s) - (uint8 *)(*s));
         if (bufsz < minsz + 1 && _strLenClass(minsz, 1) == (STR_HDR(*s) & STR_LEN_MASK)) {
             // attempt to expand the allocation in place (does not copy)
-            bufsz = (uint32)xaExpand(*s, _strAllocSz(STR_HDR(*s), minsz), 0) - (uint32)((char *)STR_BUFFER(*s) - (char *)(*s));
+            bufsz = (uint32)xaExpand(*s, _strAllocSz(STR_HDR(*s), minsz), 0) - (uint32)((uint8 *)STR_BUFFER(*s) - (uint8 *)(*s));
         }
 
         if (bufsz < minsz + 1) {
@@ -404,7 +404,7 @@ bool strEmpty(strref s)
     // avoid calling cstrLen by checking first byte of strings
     // that don't have the length embedded
     if (!(STR_HDR(s) & STR_CX))
-        return !((const char*)s)[0];
+        return !((const uint8*)s)[0];
     if ((STR_HDR(s) & STR_LEN_MASK) == STR_LEN0)
         return !STR_BUFFER(s)[0];
 
@@ -445,17 +445,17 @@ const char *strC(strref s)
 
     if (!(STR_HDR(s) & STR_ROPE)) {
         // simple string, can just return the buffer
-        return STR_BUFFER(s);
+        return (char*)STR_BUFFER(s);
     } else {
         uint32 len = _strFastLen(s);
         char *buf = scratchGet(len + 1);
-        _strRopeFastCopy(s, 0, buf, len);
+        _strRopeFastCopy(s, 0, (uint8*)buf, len);
         buf[len] = 0;
         return buf;
     }
 }
 
-char *strBuffer(string *ps, uint32 minsz)
+uint8 *strBuffer(string *ps, uint32 minsz)
 {
     if (!ps)
         return NULL;
@@ -479,7 +479,7 @@ char *strBuffer(string *ps, uint32 minsz)
     return STR_BUFFER(*ps);
 }
 
-uint32 strCopyOut(strref s, uint32 off, char *buf, uint32 bufsz)
+uint32 strCopyOut(strref s, uint32 off, uint8 *buf, uint32 bufsz)
 {
     if (!STR_CHECK_VALID(s) || !buf || !bufsz)
         return 0;
@@ -491,7 +491,7 @@ uint32 strCopyOut(strref s, uint32 off, char *buf, uint32 bufsz)
     return _strFastCopy(s, off, buf, len);
 }
 
-uint32 strCopyRaw(strref s, uint32 off, char *buf, uint32 maxlen)
+uint32 strCopyRaw(strref s, uint32 off, uint8 *buf, uint32 maxlen)
 {
     if (!STR_CHECK_VALID(s) || !buf || !maxlen)
         return 0;

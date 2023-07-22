@@ -58,8 +58,8 @@ int32 strSplit(sa_string *out, strref s, strref sep, bool empty);
 bool strJoin(string *out, sa_string arr, strref sep);
 
 // get a single byte
-char strGetChar(strref str, int32 i);
+uint8 strGetChar(strref str, int32 i);
 // set a single byte
-void strSetChar(string *str, int32 i, char ch);
+void strSetChar(string *str, int32 i, uint8 ch);
 
 CX_C_END

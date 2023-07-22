@@ -87,7 +87,7 @@ const char *strC(strref s);
 //   minsz: If string is shorter than minsz, it will be zero-padded
 //          up to this length. Useful for copying data into a string.
 // Returns: Memory buffer.
-char *strBuffer(string *ps, uint32 minsz);
+uint8 *strBuffer(string *ps, uint32 minsz);
 
 // Copies up to bufsz bytes from the string to an external buffer.
 // The resulting C-style string in buf will always be null terminated.
@@ -96,7 +96,7 @@ char *strBuffer(string *ps, uint32 minsz);
 //     buf: Pointer to memory buffer.
 //   bufsz: Size of memory buffer.
 // Returns: Number of bytes copied (may be smaller than requested if string length is exceeded).
-uint32 strCopyOut(strref s, uint32 off, char *buf, uint32 bufsz);
+uint32 strCopyOut(strref s, uint32 off, uint8 *buf, uint32 bufsz);
 
 // Copies raw bytes out of a string without null terminating.
 //       s: String handle.
@@ -104,7 +104,7 @@ uint32 strCopyOut(strref s, uint32 off, char *buf, uint32 bufsz);
 //     buf: Pointer to memory buffer.
 //  maxlen: Maximum number of bytes to copy.
 // Returns: Number of bytes copied (may be smaller than requested if string length is exceeded).
-uint32 strCopyRaw(strref s, uint32 off, char *buf, uint32 maxlen);
+uint32 strCopyRaw(strref s, uint32 off, uint8 *buf, uint32 maxlen);
 
 uint32 _strStackAllocSize(uint32 maxlen);
 void _strInitStack(string *ps, uint32 maxlen);

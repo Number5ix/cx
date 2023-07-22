@@ -411,7 +411,7 @@ void methodCallName(string *out, Class *cls, string mname)
     }
 
     strDup(&mname2, mname);
-    char *tmp = strBuffer(&mname2, 1);
+    uint8 *tmp = strBuffer(&mname2, 1);
     tmp[0] = toupper(tmp[0]);
 
     strConcatC(out, &clsname2, &mname2);
@@ -422,6 +422,6 @@ void methodCallName(string *out, Class *cls, string mname)
 void mixinMemberName(string *out, Class *cls)
 {
     strConcat(out, _S"_", cls->name);
-    char *tmp = strBuffer(out, 2);
+    uint8 *tmp = strBuffer(out, 2);
     tmp[1] = tolower(tmp[1]);
 }

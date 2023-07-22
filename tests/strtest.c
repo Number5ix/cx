@@ -249,7 +249,7 @@ static int test_rope()
     // need a single string to avoid rope segment optimizations or it
     // gets a lot harder to check the refcount.
     strReset(&s2, 1000);
-    char *buf = strBuffer(&s2, 1000);
+    uint8 *buf = strBuffer(&s2, 1000);
     for (i = 0; i < 1000; i += 25) {
         memcpy(&buf[i], "1234567890123456789012345", 25);
     }

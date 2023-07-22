@@ -80,7 +80,7 @@ bool suidGenPrivate(SUID *out, uint8 idtype)
 
 static const char b32encode[33] = "0123456789abcdefghjkmnpqrstvwxyz";
 
-bool suidEncodeBytes(char dst[26], const SUID *id)
+bool suidEncodeBytes(uint8 dst[26], const SUID *id)
 {
     dst[0] = b32encode[id->high >> 61];
     dst[1] = b32encode[(id->high & 0x1F00000000000000ULL) >> 56];
@@ -115,7 +115,7 @@ bool suidEncodeBytes(char dst[26], const SUID *id)
 bool suidEncode(string *out, const SUID *id)
 {
     strClear(out);
-    char *dst = strBuffer(out, 26);
+    uint8 *dst = strBuffer(out, 26);
     if (!dst)
         return false;
 

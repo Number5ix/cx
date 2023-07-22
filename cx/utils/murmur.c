@@ -117,7 +117,7 @@ uint32 hashMurmur3Str(strref s)
         uint32 off = 0;
         do {
             uint32_t k;
-            strCopyRaw(s, off, (char*)&k, sizeof(k));
+            strCopyRaw(s, off, (uint8*)&k, sizeof(k));
             off += sizeof(k);
             k *= 0xcc9e2d51;
             k = (k << 15) | (k >> 17);
@@ -162,7 +162,7 @@ uint32 hashMurmur3Stri(strref s)
         uint32 off = 0;
         do {
             uint32_t k;
-            strCopyRaw(s, off, (char*)&k, sizeof(k));
+            strCopyRaw(s, off, (uint8*)&k, sizeof(k));
             k |= 0x20202020;
             off += sizeof(k);
             k *= 0xcc9e2d51;

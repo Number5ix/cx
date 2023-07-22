@@ -15,9 +15,9 @@ extern inline int32 _saInsertChecked(sahandle handle, int32 idx, stype elemtype,
 static _meta_inline void
 sa_swap(void *av, void *bv, size_t sz)
 {
-    char *a = av;
-    char *b = bv;
-    char t;
+    uint8 *a = av;
+    uint8 *b = bv;
+    uint8 t;
 
     do {
         t = *a;

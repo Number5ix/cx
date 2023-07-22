@@ -99,7 +99,7 @@ bool _fmtInt(FMTVar *v, string *out)
 
     if (v->flags & FMT_IntUtfChar) {
         // this doesn't actually print an integer, but does something different entirely
-        char buf[5];
+        uint8 buf[5];
         uint32 len = _strUTF8Encode(buf, (int32)val);
         if (len == 0)
             return false;
@@ -108,11 +108,11 @@ bool _fmtInt(FMTVar *v, string *out)
         return true;
     }
 
-    char buf[STRNUM_INTBUF];
+    uint8 buf[STRNUM_INTBUF];
     char sign = 0;
     char prefix[2] = { 0 };
     uint32 buflen, pfxlen = 0;
-    char *p;
+    uint8 *p;
     // we always pass positive unsigned values to strFromNum because extra leading zeros
     // may need to be added after the sign
     p = _strnum_u64toa(buf, &buflen, val, (uint16)v->fmtdata[0], (v->flags & FMT_IntMin) ? (uint32)v->fmtdata[1] : 0,
@@ -140,8 +140,8 @@ bool _fmtInt(FMTVar *v, string *out)
     uint32 totallen = buflen + pfxlen + (sign ? 1 : 0);
     uint32 width = clamplow(v->width, 0);
     uint32 diff = width - totallen;
-    char *obuf = strBuffer(out, max(totallen, width));
-    char *start = obuf;
+    uint8 *obuf = strBuffer(out, max(totallen, width));
+    uint8 *start = obuf;
 
     // integers never truncate to width, only expand
     if (totallen < width) {

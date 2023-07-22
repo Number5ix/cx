@@ -177,7 +177,7 @@ static void pushMakeBufSpace(StreamBuffer *sb, size_t sz)
     }
 }
 
-bool sbufPWrite(StreamBuffer *sb, const char *buf, size_t sz)
+bool sbufPWrite(StreamBuffer *sb, const uint8 *buf, size_t sz)
 {
     if (sz == 0)
         return true;
@@ -319,7 +319,7 @@ bool sbufCRegisterPushDirect(StreamBuffer *sb, sbufPushCB cpush, sbufCleanupCB c
     return true;
 }
 
-static inline void _readWriteBuf(StreamBuffer *sb, char *out, size_t *p, size_t *total, const char *in, size_t *off, size_t sz, size_t *skip, bool movehead, sbufSendCB sendcb)
+static inline void _readWriteBuf(StreamBuffer *sb, uint8 *out, size_t *p, size_t *total, const uint8 *in, size_t *off, size_t sz, size_t *skip, bool movehead, sbufSendCB sendcb)
 {
     size_t skipsz = min(*skip, sz);
     *skip -= skipsz;
@@ -346,7 +346,7 @@ static inline void _readWriteBuf(StreamBuffer *sb, char *out, size_t *p, size_t 
 #define readWriteBuf(out, p, in, sz) _readWriteBuf(sb, out, &p, &total, in, &off, sz, &skip, movehead, sendcb)
 
 // caller must verify there's enough data in the buffer first!!!!
-static void readCommon(StreamBuffer *sb, char *buf, size_t skip, size_t bsz, bool movehead, sbufSendCB sendcb)
+static void readCommon(StreamBuffer *sb, uint8 *buf, size_t skip, size_t bsz, bool movehead, sbufSendCB sendcb)
 {
     // TODO: These don't really all need to be separate variables; some can be redefined as a calculation
     size_t total = skip + bsz;
@@ -457,7 +457,7 @@ static void feedBuffer(StreamBuffer *sb, size_t want)
     }
 }
 
-size_t sbufCRead(StreamBuffer *sb, char *buf, size_t sz)
+size_t sbufCRead(StreamBuffer *sb, uint8 *buf, size_t sz)
 {
     if ((sb->flags & SBUF_Direct) || sbufIsError(sb))
         return 0;                   // can't pull in direct mode!
@@ -481,7 +481,7 @@ size_t sbufCRead(StreamBuffer *sb, char *buf, size_t sz)
     return sz;
 }
 
-bool sbufCPeek(StreamBuffer *sb, char *buf, size_t off, size_t sz)
+bool sbufCPeek(StreamBuffer *sb, uint8 *buf, size_t off, size_t sz)
 {
     if ((sb->flags & SBUF_Direct) || sbufIsError(sb))
         return false;               // can't peek in direct mode!

@@ -6,7 +6,7 @@ bool pathMatch(strref path, strref pattern, uint32 flags)
 {
     striter bt_pathi = { 0 }, bt_pati = { 0 };
     striter pathi, pati;
-    char pathc, patc, c;
+    uint8 pathc, patc, c;
 
     striBorrow(&pathi, path);
     striBorrow(&pati, pattern);

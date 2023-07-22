@@ -9,7 +9,7 @@ static bool _strAppendNoRope(string *io, strref s);
 bool _strNConcat(string *o, int n, strref *_args)
 {
     string *args = (string*)_args;          // we know what we doing
-    char *ptr;
+    uint8 *ptr;
     int i, start = 0;
 
     // Pass 1: Build a plan for concatenating the strings
@@ -101,7 +101,7 @@ bool _strNConcat(string *o, int n, strref *_args)
 
 bool _strNConcatC(string *o, int n, string **args)
 {
-    char *ptr;
+    uint8 *ptr;
     int i, start = 0;
 
     // Pass 1: Build a plan for concatenating the strings
@@ -215,7 +215,7 @@ static bool _strAppendNoRope(string *io, strref s)
         _strFlatten(io, len);
 
     _strResize(io, len, true);
-    char *buf = STR_BUFFER(*io);
+    uint8 *buf = STR_BUFFER(*io);
     _strFastCopy(s, 0, &buf[iolen], slen);      // copy second string after first
     buf[len] = 0;                               // add null terminator
 
@@ -251,7 +251,7 @@ static bool _strAppend(string *io, strref s)
             _strFlatten(io, len);
 
         _strResize(io, len, true);
-        char *buf = STR_BUFFER(*io);
+        uint8 *buf = STR_BUFFER(*io);
         _strFastCopy(s, 0, &buf[iolen], slen);      // copy second string after first
         buf[len] = 0;                               // add null terminator
 
@@ -317,7 +317,7 @@ bool _strConcatNoRope(string *o, strref s1, strref s2)
     // regular string concatenation
 
     _strReset(o, len);
-    char *buf = STR_BUFFER(*o);
+    uint8 *buf = STR_BUFFER(*o);
     _strFastCopy(s1, 0, buf, s1len);
     _strFastCopy(s2, 0, &buf[s1len], s2len);
     buf[len] = 0;                               // add null terminator
@@ -361,7 +361,7 @@ bool strConcat(string *o, strref s1, strref s2)
         // regular string concatenation
 
         _strReset(o, len);
-        char *buf = STR_BUFFER(*o);
+        uint8 *buf = STR_BUFFER(*o);
         _strFastCopy(s1, 0, buf, s1len);
         _strFastCopy(s2, 0, &buf[s1len], s2len);
         buf[len] = 0;                               // add null terminator

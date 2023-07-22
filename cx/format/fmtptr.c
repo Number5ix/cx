@@ -28,8 +28,8 @@ bool _fmtParsePtrFinalize(FMTVar *v)
 
 bool _fmtPtr(FMTVar *v, string *out)
 {
-    char buf[BUFSZ];
-    char *p = buf + BUFSZ;
+    uint8 buf[BUFSZ];
+    uint8 *p = buf + BUFSZ;
     char *cset;
     uint64 val = 0;
     uint32 val32;

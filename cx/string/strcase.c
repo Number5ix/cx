@@ -3,7 +3,7 @@
 void strUpper(string *io)
 {
     uint32 i, len;
-    char *buf;
+    uint8 *buf;
 
     if (!io || !STR_CHECK_VALID(*io))
         return;
@@ -18,7 +18,7 @@ void strUpper(string *io)
 void strLower(string *io)
 {
     uint32 i, len;
-    char *buf;
+    uint8 *buf;
 
     if (!io || !STR_CHECK_VALID(*io))
         return;

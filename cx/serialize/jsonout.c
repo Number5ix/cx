@@ -30,14 +30,14 @@ static void writeStrEOL(JSONOut *jo, strref str)
 
     if (jo->flags & JSON_Single_Line) {
         if (!(jo->flags & JSON_Compact))
-            sbufPWrite(jo->sb, " ", 1);
+            sbufPWrite(jo->sb, (uint8*)" ", 1);
         return;
     }
 
     if (jo->flags & JSON_Unix_EOL)
-        sbufPWrite(jo->sb, "\n", 1);
+        sbufPWrite(jo->sb, (uint8*)"\n", 1);
     else if (jo->flags & JSON_Windows_EOL)
-        sbufPWrite(jo->sb, "\r\n", 2);
+        sbufPWrite(jo->sb, (uint8*)"\r\n", 2);
 }
 
 JSONOut *jsonOutBegin(StreamBuffer *sb, uint32 flags)
@@ -63,7 +63,7 @@ JSONOut *jsonOutBegin(StreamBuffer *sb, uint32 flags)
 
     // pre-compute indent spacing to use
     if (!(flags & JSON_Single_Line) && (flags & JSON_Indent_Mask) > 0) {
-        char *buf = strBuffer(&jo->indent, flags & JSON_Indent_Mask);
+        uint8 *buf = strBuffer(&jo->indent, flags & JSON_Indent_Mask);
         memset(buf, ' ', flags & JSON_Indent_Mask);
     }
 
@@ -158,7 +158,7 @@ static void utfEscapedEncode(string *out, int32 codepoint)
 static void writeEscapedString(JSONOut *jo, strref val)
 {
     string escaped = 0;
-    char buf[5];
+    uint8 buf[5];
     striter it;
     int32 code;
 

@@ -10,7 +10,7 @@ char _strnum_ldigits[] = "0123456789abcdefghijklmnopqrstuvwxyz";
 bool name(type *out, strref s, int base, bool strict)        \
 {                                                            \
     utype acc;                                               \
-    char c;                                                  \
+    uint8 c;                                                 \
     utype cutoff;                                            \
     bool neg, any;                                           \
     int cutlim;                                              \
@@ -31,8 +31,8 @@ bool name(type *out, strref s, int base, bool strict)        \
             c = _strFastChar(s, i++);                        \
     }                                                        \
                                                              \
-    char s1 = strGetChar(s, i);                              \
-    char s2 = strGetChar(s, i + 1);                          \
+    uint8 s1 = strGetChar(s, i);                             \
+    uint8 s2 = strGetChar(s, i + 1);                         \
     if ((base == 0 || base == 16) &&                         \
         c == '0' && (s1 == 'x' || s1 == 'X') &&              \
         ((s2 >= '0' && s2 <= '9') ||                         \
@@ -94,9 +94,9 @@ STRNUM_IMPL(uint64, int64, uint64, strToUInt64, 0xffffffffffffffffULL)
 
 // integer to string -------------------------------------------------------------------
 
-char *_strnum_u64toa(char buf[STRNUM_INTBUF], uint32 *len, uint64 val, uint16 base, uint32 mindigits, char sign, bool upper)
+uint8 *_strnum_u64toa(uint8 buf[STRNUM_INTBUF], uint32 *len, uint64 val, uint16 base, uint32 mindigits, char sign, bool upper)
 {
-    char *p = buf + STRNUM_INTBUF;
+    uint8 *p = buf + STRNUM_INTBUF;
     char *cset;
     uint32 val32;
 
@@ -137,17 +137,17 @@ char *_strnum_u64toa(char buf[STRNUM_INTBUF], uint32 *len, uint64 val, uint16 ba
 
 static _meta_inline bool _strFromIntHelper(string *out, uint64 val, uint16 base, uint32 mindigits, char sign, bool upper)
 {
-    char buf[STRNUM_INTBUF];
+    uint8 buf[STRNUM_INTBUF];
     uint32 buflen;
 
-    char *p = _strnum_u64toa(buf, &buflen, val, base, mindigits, sign, upper);
+    uint8 *p = _strnum_u64toa(buf, &buflen, val, base, mindigits, sign, upper);
 
     strClear(out);
 
     if (buflen == 0)
         return false;
 
-    char *obuf = strBuffer(out, buflen);
+    uint8 *obuf = strBuffer(out, buflen);
     memcpy(obuf, p, buflen);
 
     return true;

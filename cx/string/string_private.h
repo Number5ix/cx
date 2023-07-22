@@ -43,7 +43,7 @@ extern const uint8 _str_off[32];
 #define STR_LEN8_REF(s) STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), uint8)
 #define STR_LEN16_REF(s) STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), uint16)
 
-#define STR_BUFFER(s) (&STR_FIELD(s, STR_OFF_STR(STR_HDR(s)), char))
+#define STR_BUFFER(s) (&STR_FIELD(s, STR_OFF_STR(STR_HDR(s)), uint8))
 #define STR_ROPEDATA(s) (&STR_FIELD(s, STR_OFF_STR(STR_HDR(s)), str_ropedata))
 
 #define STR_CHECK_VALID(s) (s && *(uint8*)s)
@@ -61,7 +61,7 @@ _meta_inline uint32 _strFastLen(strref s)
     case STR_LEN32:
         return STR_LEN32_LEN(s);
     default: // STR_LEN0
-        return (uint32)cstrLen(STR_BUFFER(s));
+        return (uint32)cstrLen((const char*)STR_BUFFER(s));
     }
 }
 
@@ -123,7 +123,7 @@ bool _strResize(string *ps, uint32 len, bool unique);
 // duplicates s and returns a copy, optionally with more reserved space allocated
 string _strCopy(strref s, uint32 minsz);
 // direct copy of string buffer or rope internals, does not check destination size!
-uint32 _strFastCopy(strref s, uint32 off, char *buf, uint32 bytes);
+uint32 _strFastCopy(strref s, uint32 off, uint8 *buf, uint32 bytes);
 
 // faster concatenation for internal use
 bool _strConcatNoRope(string *o, strref s1, strref s2);
@@ -144,7 +144,7 @@ string _strCreateRope(strref left, uint32 left_off, uint32 left_len, strref righ
 string _strCreateRope1(strref s, uint32 off, uint32 len);
 string _strCloneRope(strref s);
 void _strDestroyRope(string s);
-uint32 _strRopeFastCopy(strref s, uint32 off, char *buf, uint32 bytes);
+uint32 _strRopeFastCopy(strref s, uint32 off, uint8 *buf, uint32 bytes);
 bool _strRopeRealStr(string *s, uint32 off, string *rs, uint32 *rsoff, uint32 *rslen, uint32 *rsstart, bool writable);
 
 // Finds first occurrence of find in s at or after start
@@ -153,7 +153,7 @@ int32 _strFindChar(strref s, int32 start, char find);
 // end can be 0 to indicate end of the string
 int32 _strFindCharR(strref s, int32 end, char find);
 
-_meta_inline char _strFastChar(strref s, uint32 i)
+_meta_inline uint8 _strFastChar(strref s, uint32 i)
 {
     if (!(STR_HDR(s) & STR_ROPE)) {
         return STR_BUFFER(s)[i];

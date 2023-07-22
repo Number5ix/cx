@@ -210,7 +210,7 @@ static Fp multiply(Fp* a, Fp* b)
     return fp;
 }
 
-static void round_digit(char* digits, int ndigits, uint64_t delta, uint64_t rem, uint64_t kappa, uint64_t frac)
+static void round_digit(uint8* digits, int ndigits, uint64_t delta, uint64_t rem, uint64_t kappa, uint64_t frac)
 {
     while (rem < frac && delta - rem >= kappa &&
         (rem + kappa < frac || frac - rem > rem + kappa - frac)) {
@@ -220,7 +220,7 @@ static void round_digit(char* digits, int ndigits, uint64_t delta, uint64_t rem,
     }
 }
 
-static int generate_digits(Fp* fp, Fp* upper, Fp* lower, char* digits, int* K)
+static int generate_digits(Fp* fp, Fp* upper, Fp* lower, uint8* digits, int* K)
 {
     uint64_t wfrac = upper->frac - fp->frac;
     uint64_t delta = upper->frac - lower->frac;
@@ -280,7 +280,7 @@ static int generate_digits(Fp* fp, Fp* upper, Fp* lower, char* digits, int* K)
     }
 }
 
-int32 _strnum_grisu2_64(float64 d, char* digits, int32* K)
+int32 _strnum_grisu2_64(float64 d, uint8* digits, int32* K)
 {
     Fp w = build_fp_64(d);
 
@@ -304,7 +304,7 @@ int32 _strnum_grisu2_64(float64 d, char* digits, int32* K)
     return generate_digits(&w, &upper, &lower, digits, K);
 }
 
-int32 _strnum_grisu2_32(float32 f, char* digits, int32* K)
+int32 _strnum_grisu2_32(float32 f, uint8* digits, int32* K)
 {
     Fp w = build_fp_32(f);
 
@@ -328,7 +328,7 @@ int32 _strnum_grisu2_32(float32 f, char* digits, int32* K)
     return generate_digits(&w, &upper, &lower, digits, K);
 }
 
-static int emit_digits(char* digits, int ndigits, char* dest, int32 K, bool neg)
+static int emit_digits(uint8* digits, int ndigits, uint8* dest, int32 K, bool neg)
 {
     int exp = absv(K + ndigits - 1);
 
@@ -401,7 +401,7 @@ static int emit_digits(char* digits, int ndigits, char* dest, int32 K, bool neg)
     return idx;
 }
 
-static int filter_special_64(double fp, char* dest)
+static int filter_special_64(double fp, uint8* dest)
 {
     if (fp == 0.0) {
         dest[0] = '0';
@@ -426,7 +426,7 @@ static int filter_special_64(double fp, char* dest)
     return 3;
 }
 
-static int filter_special_32(float fp, char* dest)
+static int filter_special_32(float fp, uint8* dest)
 {
     if (fp == 0.0) {
         dest[0] = '0';
@@ -451,9 +451,9 @@ static int filter_special_32(float fp, char* dest)
     return 3;
 }
 
-uint32 _strnum_f64toa(float64 d, char dest[STRNUM_FPBUF])
+uint32 _strnum_f64toa(float64 d, uint8 dest[STRNUM_FPBUF])
 {
-    char digits[18];
+    uint8 digits[18];
 
     uint32 str_len = 0;
     bool neg = false;
@@ -479,9 +479,9 @@ uint32 _strnum_f64toa(float64 d, char dest[STRNUM_FPBUF])
     return str_len;
 }
 
-uint32 _strnum_f32toa(float32 f, char dest[STRNUM_FPBUF])
+uint32 _strnum_f32toa(float32 f, uint8 dest[STRNUM_FPBUF])
 {
-    char digits[18];
+    uint8 digits[18];
 
     uint32 str_len = 0;
     bool neg = false;
@@ -510,7 +510,7 @@ uint32 _strnum_f32toa(float32 f, char dest[STRNUM_FPBUF])
 
 bool strFromFloat32(string *out, float32 f)
 {
-    char buf[STRNUM_FPBUF];
+    uint8 buf[STRNUM_FPBUF];
     uint32 buflen;
 
     buflen = _strnum_f32toa(f, buf);
@@ -520,7 +520,7 @@ bool strFromFloat32(string *out, float32 f)
     if (buflen == 0)
         return false;
 
-    char *obuf = strBuffer(out, buflen);
+    uint8 *obuf = strBuffer(out, buflen);
     memcpy(obuf, buf, buflen);
 
     return true;
@@ -528,7 +528,7 @@ bool strFromFloat32(string *out, float32 f)
 
 bool strFromFloat64(string *out, float64 d)
 {
-    char buf[STRNUM_FPBUF];
+    uint8 buf[STRNUM_FPBUF];
     uint32 buflen;
 
     buflen = _strnum_f64toa(d, buf);
@@ -538,7 +538,7 @@ bool strFromFloat64(string *out, float64 d)
     if (buflen == 0)
         return false;
 
-    char *obuf = strBuffer(out, buflen);
+    uint8 *obuf = strBuffer(out, buflen);
     memcpy(obuf, buf, buflen);
 
     return true;

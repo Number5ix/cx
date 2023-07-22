@@ -16,13 +16,13 @@ typedef struct StreamBuffer StreamBuffer;
 // full amount (which will expand the buffer in the process) and return 0.
 // 
 // If sz is 0, check if the consumer is finished and/or for error state.
-typedef size_t(*sbufPullCB)(StreamBuffer *sb, char *buf, size_t sz, void *ctx);
+typedef size_t(*sbufPullCB)(StreamBuffer *sb, uint8 *buf, size_t sz, void *ctx);
 
 // Push callback
 // When this callback is used (in direct mode), the data is pushed once to the
 // callback and MUST all be written in one go or it will be lost.
 // If sz is 0, check if the producer is finished and/or for error state.
-typedef void(*sbufPushCB)(StreamBuffer *sb, const char *buf, size_t sz, void *ctx);
+typedef void(*sbufPushCB)(StreamBuffer *sb, const uint8 *buf, size_t sz, void *ctx);
 
 // Send callback
 // This callback is used with sbufCSend. It may be called multiple times with varying
@@ -32,7 +32,7 @@ typedef void(*sbufPushCB)(StreamBuffer *sb, const char *buf, size_t sz, void *ct
 // buffer. If it returns false, it behaves like the peek functions and does not remove
 // the bytes from the buffer.
 // If sz is 0, check if the producer is finished and/or for error state.
-typedef bool(*sbufSendCB)(StreamBuffer *sb, const char *buf, size_t off, size_t sz, void *ctx);
+typedef bool(*sbufSendCB)(StreamBuffer *sb, const uint8 *buf, size_t off, size_t sz, void *ctx);
 
 // Notify callback
 // Notification to a consumer that data is available. The sbufC* functions may be
@@ -63,11 +63,11 @@ enum STREAM_BUFFER_FLAGS_ENUM {
 };
 
 typedef struct StreamBuffer {
-    char *buf;
+    uint8 *buf;
     size_t bufsz;               // current buffer size
     size_t targetsz;            // desired max size (can be exceeded in push mode)
 
-    char *overflow;             // for buffering writes when expanding the main buffer
+    uint8 *overflow;            // for buffering writes when expanding the main buffer
     size_t overflowtail;        // where in the overflow buffer to start writing
     size_t overflowsz;          // size of overflow buffer, >0 serves as flag that we're swapping buffers
 
@@ -140,7 +140,7 @@ bool sbufPRegisterPush(StreamBuffer *sb, sbufCleanupCB pcleanup, void *ctx);
 size_t sbufPAvail(StreamBuffer *sb);
 // Writes data to the buffer. This will always succeed unless the system is out of memory.
 // Overflow buffer is used if more written data exceeds current buffer size.
-bool sbufPWrite(StreamBuffer *sb, const char *buf, size_t sz);
+bool sbufPWrite(StreamBuffer *sb, const uint8 *buf, size_t sz);
 // Mark the producer as finished. The producer MUST NOT touch the stream buffer after
 // call as it maybe immediately deallocated.
 void sbufPFinish(StreamBuffer *sb);
@@ -160,13 +160,13 @@ size_t sbufCAvail(StreamBuffer *sb);
 // If in pull mode, this will repeatedly call the producer's callback in order to completely
 // satisfy the request. It will short read only when the producer is finished (EOF).
 // If in push mode, this will fail if more data is requested than is available.
-size_t sbufCRead(StreamBuffer *sb, char *buf, size_t sz);
+size_t sbufCRead(StreamBuffer *sb, uint8 *buf, size_t sz);
 
 // Peeks at data in the buffer without consuming it.
 // In pull mode this will NOT call the callback and only read unconsumed data left in
 // the buffer.
 // Will never short read, will fail if there is not enough in the buffer (check sbufCAvail).
-bool sbufCPeek(StreamBuffer *sb, char *buf, size_t off, size_t sz);
+bool sbufCPeek(StreamBuffer *sb, uint8 *buf, size_t off, size_t sz);
 
 // For pull mode only, feeds the buffer until it has at least minsz bytes. This is similar
 // to what sbufCRead does and will keep retrying until it either has enough or the producer

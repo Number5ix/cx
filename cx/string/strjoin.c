@@ -25,7 +25,7 @@ bool strJoin(string *o, sa_string arr, strref sep)
     }
 
     _strReset(o, sz);
-    char *p = STR_BUFFER(*o);
+    uint8 *p = STR_BUFFER(*o);
 
     seglen = _strFastLen(arr.a[0]);
     _strFastCopy(arr.a[0], 0, p, seglen);

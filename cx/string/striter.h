@@ -11,7 +11,7 @@ CX_C_BEGIN
 // basis.
 typedef struct striter {
     // public-facing members
-    char *bytes;
+    uint8 *bytes;
     uint32 off;
     uint32 len;
     uint32 cursor;
@@ -47,7 +47,7 @@ void striBorrowRev(striter *i, strref s);
 // This is less efficient as it has to check the cursor position for each character,
 // but vastly simplifies the code.
 
-_meta_inline bool striChar(striter *i, char *out)
+_meta_inline bool striChar(striter *i, uint8 *out)
 {
     while (i->cursor >= i->len) {
         striNext(i);
@@ -59,7 +59,7 @@ _meta_inline bool striChar(striter *i, char *out)
     return true;
 }
 
-_meta_inline bool striPeekChar(striter *i, char *out)
+_meta_inline bool striPeekChar(striter *i, uint8 *out)
 {
     while (i->cursor >= i->len) {
         striNext(i);

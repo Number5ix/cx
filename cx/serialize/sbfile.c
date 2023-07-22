@@ -18,7 +18,7 @@ bool sbufFileIn(StreamBuffer *sb, VFSFile *file, bool close)
     if (!sbufPRegisterPush(sb, NULL, NULL))
         return false;
 
-    char *buf = xaAlloc(sb->targetsz);
+    uint8 *buf = xaAlloc(sb->targetsz);
     size_t didread = 0;
     for(;;) {
         if (!vfsRead(file, buf, sb->targetsz, &didread)) {
@@ -41,7 +41,7 @@ bool sbufFileIn(StreamBuffer *sb, VFSFile *file, bool close)
     return ret;
 }
 
-static size_t sbufFilePullCB(StreamBuffer *sb, char *buf, size_t sz, void *ctx)
+static size_t sbufFilePullCB(StreamBuffer *sb, uint8 *buf, size_t sz, void *ctx)
 {
     SbufFileCtx *sbc = (SbufFileCtx *)ctx;
 
@@ -69,7 +69,7 @@ bool sbufFilePRegisterPull(StreamBuffer *sb, VFSFile *file, bool close)
     return true;
 }
 
-static bool sbufFileSendCB(StreamBuffer *sb, const char *buf, size_t off, size_t sz, void *ctx)
+static bool sbufFileSendCB(StreamBuffer *sb, const uint8 *buf, size_t off, size_t sz, void *ctx)
 {
     SbufFileCtx *sbc = (SbufFileCtx *)ctx;
 
@@ -98,7 +98,7 @@ bool sbufFileOut(StreamBuffer *sb, VFSFile *file, bool close)
     if (!sbufCRegisterPull(sb, NULL, NULL))
         return false;
 
-    char *buf = xaAlloc(sb->targetsz);
+    uint8 *buf = xaAlloc(sb->targetsz);
     size_t sz;
     do {
         // grab targetsz at a time from the buffer

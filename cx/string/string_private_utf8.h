@@ -34,7 +34,7 @@ _meta_inline bool _strUTF8DecodeSeq(striter *it, uint32 len, uint8 ch, int32 *co
         return false;
 
     for (; len > 1; --len) {
-        if (!striChar(it, (char*)&ch))
+        if (!striChar(it, (uint8*)&ch))
             return false;
 
         if (ch < 0x80 || ch > 0xbf)
@@ -59,7 +59,7 @@ _meta_inline bool _strUTF8DecodeSeq(striter *it, uint32 len, uint8 ch, int32 *co
 _meta_inline uint32 _strUTF8Decode(striter *it, int32 *codepoint)
 {
     uint8 first;
-    if (!striChar(it, (char*)&first))
+    if (!striChar(it, (uint8*)&first))
         return 0;
 
     uint32 len = _strUTF8SeqLen(first);
@@ -75,12 +75,12 @@ _meta_inline uint32 _strUTF8Decode(striter *it, int32 *codepoint)
     return 0;
 }
 
-_meta_inline uint32 _strUTF8Encode(char *buffer, int32 codepoint)
+_meta_inline uint32 _strUTF8Encode(uint8 *buffer, int32 codepoint)
 {
     if (codepoint < 0)
         return 0;
     else if (codepoint < 0x80) {
-        buffer[0] = (char)codepoint;
+        buffer[0] = (uint8)codepoint;
         return 1;
     } else if (codepoint < 0x800) {
         buffer[0] = 0xc0 | ((codepoint & 0x7c0) >> 6);

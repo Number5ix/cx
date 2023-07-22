@@ -145,11 +145,11 @@ out:
     return ret;
 }
 
-char *lazyPlatformPath(string path)
+uint8 *lazyPlatformPath(string path)
 {
     string tmp = 0;
     pathToPlatform(&tmp, path);
-    char *out = scratchGet(strLen(tmp) + 1);
+    uint8 *out = scratchGet(strLen(tmp) + 1);
     strCopyOut(tmp, 0, out, strLen(tmp) + 1);
     strDestroy(&tmp);
     return out;

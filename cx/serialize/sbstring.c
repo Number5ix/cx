@@ -39,7 +39,7 @@ bool sbufStrIn(StreamBuffer *sb, strref str)
     return ret;
 }
 
-static size_t sbufStrPullCB(StreamBuffer *sb, char *buf, size_t sz, void *ctx)
+static size_t sbufStrPullCB(StreamBuffer *sb, uint8 *buf, size_t sz, void *ctx)
 {
     SbufStrInCtx *sbc = (SbufStrInCtx *)ctx;
 
@@ -82,7 +82,7 @@ static void sbufStrNotifyCB(StreamBuffer *sb, size_t sz, void *ctx)
     SbufStrOutCtx *sbc = (SbufStrOutCtx *)ctx;
 
     string temp = 0;
-    char *tbuf = strBuffer(&temp, (uint32)sz);
+    uint8 *tbuf = strBuffer(&temp, (uint32)sz);
     sz = sbufCRead(sb, tbuf, sz);
     if (sz > 0) {
         strSetLen(&temp, (uint32)sz);
@@ -106,7 +106,7 @@ bool sbufStrOut(StreamBuffer *sb, string *strout)
     do {
         // grab targetsz at a time from the buffer
         strClear(&temp);
-        char *tbuf = strBuffer(&temp, (uint32)sb->targetsz);
+        uint8 *tbuf = strBuffer(&temp, (uint32)sb->targetsz);
 
         sz = (uint32)sbufCRead(sb, tbuf, sb->targetsz);
         if (sz > 0) {

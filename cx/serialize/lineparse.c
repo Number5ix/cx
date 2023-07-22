@@ -22,7 +22,7 @@ typedef struct EOLFindInfo
     int len;
 } EOLFindInfo;
 
-static bool findEOLCR(EOLFindInfo *ei, const char *buf, size_t sz, LineParserContext *lpc)
+static bool findEOLCR(EOLFindInfo *ei, const uint8 *buf, size_t sz, LineParserContext *lpc)
 {
     for (size_t i = 0; i < sz; i++) {
         if (buf[i] == '\n') {
@@ -34,7 +34,7 @@ static bool findEOLCR(EOLFindInfo *ei, const char *buf, size_t sz, LineParserCon
     return false;
 }
 
-static bool findEOLCRLF(EOLFindInfo *ei, const char *buf, size_t sz, LineParserContext *lpc)
+static bool findEOLCRLF(EOLFindInfo *ei, const uint8 *buf, size_t sz, LineParserContext *lpc)
 {
     for (size_t i = 0; i + 1 < sz; i++) {
         if (buf[i] == '\r' && buf[i + 1] == '\n') {
@@ -46,7 +46,7 @@ static bool findEOLCRLF(EOLFindInfo *ei, const char *buf, size_t sz, LineParserC
     return false;
 }
 
-static bool findEOLMixed(EOLFindInfo *ei, const char *buf, size_t sz, LineParserContext *lpc)
+static bool findEOLMixed(EOLFindInfo *ei, const uint8 *buf, size_t sz, LineParserContext *lpc)
 {
     for (size_t i = 0; i < sz; i++) {
         if (i + 1 < sz && buf[i] == '\r' && buf[i + 1] == '\n') {
@@ -62,7 +62,7 @@ static bool findEOLMixed(EOLFindInfo *ei, const char *buf, size_t sz, LineParser
     return false;
 }
 
-static bool findEOLAuto(EOLFindInfo *ei, const char *buf, size_t sz, LineParserContext *lpc)
+static bool findEOLAuto(EOLFindInfo *ei, const uint8 *buf, size_t sz, LineParserContext *lpc)
 {
     for (size_t i = 0; i < sz; i++) {
         if (i + 1 < sz && buf[i] == '\r' && buf[i + 1] == '\n') {
@@ -81,7 +81,7 @@ static bool findEOLAuto(EOLFindInfo *ei, const char *buf, size_t sz, LineParserC
 }
 
 // these must be kept in the same order as the flags 0-3 in LINEPARSER_FLAGS_ENUM!
-static bool (*eolfuncs[])(EOLFindInfo *ei, const char *buf, size_t sz, LineParserContext *lpc) = {
+static bool (*eolfuncs[])(EOLFindInfo *ei, const uint8 *buf, size_t sz, LineParserContext *lpc) = {
     findEOLAuto,
     findEOLCRLF,
     findEOLCR,
@@ -119,8 +119,8 @@ bool lparseLine(StreamBuffer *sb, string *out)
 {
     LineParserContext *lpc = (LineParserContext *)sb->consumerCtx;
     EOLFindInfo ei;
-    char buf[LPCHUNK];
-    char *outbuf;
+    uint8 buf[LPCHUNK];
+    uint8 *outbuf;
 
     strClear(out);
 
@@ -182,8 +182,8 @@ static void lpcNotify(StreamBuffer *sb, size_t sz, void *ctx)
 {
     LineParserContext *lpc = (LineParserContext *)ctx;
     EOLFindInfo ei;
-    char buf[LPCHUNK];
-    char *outbuf;
+    uint8 buf[LPCHUNK];
+    uint8 *outbuf;
 
     // keep looking for lines as long as there's data in the buffer
     while (sbufCAvail(sb) > 0 && lpc->checked < sbufCAvail(sb) - (sbufIsPFinished(sb) ? 0 : 1)) {

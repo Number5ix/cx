@@ -86,7 +86,7 @@ bool _fmtParseVar(FMTContext *ctx)
 
     int32 len = strLen(ctx->v.var);
     for (int32 i = 0; i < len; i++) {
-        char ch = strGetChar(ctx->v.var, i);
+        uint8 ch = strGetChar(ctx->v.var, i);
         switch (phase) {
         case 0:
             if (i == 0 && ch == '0') {

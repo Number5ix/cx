@@ -354,7 +354,7 @@ void logfileDest(int level, LogCategory *cat, int64 timestamp, strref msg, void 
     string logdate = 0, loglevel = 0, logcat = 0, logspaces = 0;
 
     int nspaces = lfd->config.spacing ? lfd->config.spacing : 2;
-    char *sbuf = strBuffer(&logspaces, nspaces + (lfd->config.flags & LOG_AddColon ? 1 : 0));
+    uint8 *sbuf = strBuffer(&logspaces, nspaces + (lfd->config.flags & LOG_AddColon ? 1 : 0));
     memset(sbuf, ' ', nspaces);
     if (lfd->config.flags & LOG_AddColon)
         sbuf[0] = ':';
@@ -369,7 +369,7 @@ void logfileDest(int level, LogCategory *cat, int64 timestamp, strref msg, void 
             if (lfd->config.flags & LOG_JustifyLevel) {
                 // justified with brackets... yuck
                 int llen = strLen(lvarr[level]);
-                char *temp = strBuffer(&loglevel, lvmaxlen + 3);
+                uint8 *temp = strBuffer(&loglevel, lvmaxlen + 3);
                 memset(temp, ' ', lvmaxlen + 3);
                 temp[1] = '[';
                 temp[llen + 2] = ']';

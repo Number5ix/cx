@@ -72,7 +72,7 @@ static bool parseString(StreamBuffer *sb, string *out, ParseState *ps)
         if (useq > 0) {
             // Unicode character hex escape sequence in progress
             int32 hexval = 0;
-            char utf[5];
+            uint8 utf[5];
             int utflen;
 
             useq--;
@@ -232,7 +232,7 @@ static bool parseNumFloat(StreamBuffer *sb, bool neg, size_t intoff, size_t intl
     size_t total = max(max(intoff + intlen, fracoff + fraclen), expoff + explen);
     char *buf = xaAlloc(total + 1);
     buf[total] = '\0';
-    if (!sbufCPeek(sb, buf, 0, total))
+    if (!sbufCPeek(sb, (uint8*)buf, 0, total))
         return false;
 
     *out = strtod(buf, NULL);
@@ -365,7 +365,7 @@ static bool parseArray(StreamBuffer *sb, ParseState *ps);
 
 static bool parseValue(StreamBuffer *sb, ParseState *ps)
 {
-    char tmp[4];
+    uint8 tmp[4];
     bool ret = false;
     unsigned char ch;
 

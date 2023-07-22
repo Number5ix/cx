@@ -23,7 +23,7 @@ static void writeComments(BufFile *bf, sa_string comments, int column, bool spac
     string spaces = 0;
 
     if (column > 0) {
-        char *tmp = strBuffer(&spaces, column);
+        uint8 *tmp = strBuffer(&spaces, column);
         memset(tmp, ' ', column);
     }
 

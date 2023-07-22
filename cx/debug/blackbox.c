@@ -157,7 +157,7 @@ void bboxSet(strref name, strref val, uint8 flags)
             devAssert(ent->namelen == strLen(name) + 1);
             ent->vallen = strLen(val) + 1;
             ent->flags = flags;
-            strCopyOut(val, 0, bboxGetVal(ent), ent->vallen);
+            strCopyOut(val, 0, (uint8*)bboxGetVal(ent), ent->vallen);
             if (bboxEntSize(ent) < origsz)
                 freeSpaceAdd(idx + bboxEntSize(ent), origsz - bboxEntSize(ent));
             goto out;
@@ -200,8 +200,8 @@ void bboxSet(strref name, strref val, uint8 flags)
         ent->namelen = strLen(name) + 1;
         ent->vallen = strLen(val) + 1;
         ent->flags = flags;
-        strCopyOut(name, 0, ent->name, ent->namelen);
-        strCopyOut(val, 0, bboxGetVal(ent), ent->vallen);
+        strCopyOut(name, 0, (uint8*)ent->name, ent->namelen);
+        strCopyOut(val, 0, (uint8*)bboxGetVal(ent), ent->vallen);
 
         // add to index
         htInsert(&bbindex, string, (string)ent->name, uint16, best->start);

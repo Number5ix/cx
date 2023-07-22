@@ -77,7 +77,7 @@ bool strSubStrI(string *io, int32 b, int32 e)
     return _strSubStr(io, io, b, e, false);
 }
 
-char strGetChar(strref s, int32 i)
+uint8 strGetChar(strref s, int32 i)
 {
     if (!STR_CHECK_VALID(s))
         return 0;
@@ -96,7 +96,7 @@ char strGetChar(strref s, int32 i)
     return _strFastChar(s, off);
 }
 
-void strSetChar(string *s, int32 i, char ch)
+void strSetChar(string *s, int32 i, uint8 ch)
 {
     if (!s || !STR_CHECK_VALID(*s))
         return;

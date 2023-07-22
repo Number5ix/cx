@@ -28,7 +28,7 @@ bool strFromFloat64(string *out, float64 f);
 // must contain enough characters to represent a 64-bit integer in base 2
 // with preceding sign and null terminator
 #define STRNUM_INTBUF 66
-char *_strnum_u64toa(char buf[STRNUM_INTBUF], uint32 *len, uint64 val, uint16 base, uint32 mindigits, char sign, bool upper);
+uint8 *_strnum_u64toa(uint8 buf[STRNUM_INTBUF], uint32 *len, uint64 val, uint16 base, uint32 mindigits, char sign, bool upper);
 
 // 18 floating point digits is the maximum representable with 53 bit mantissa
 #define STRNUM_FPDIGITS 18
@@ -36,10 +36,10 @@ char *_strnum_u64toa(char buf[STRNUM_INTBUF], uint32 *len, uint64 val, uint16 ba
 #define STRNUM_FPBUF 25
 
 // higher level interface -- gets actual number
-uint32 _strnum_f64toa(float64 d, char dest[STRNUM_FPBUF]);
-uint32 _strnum_f32toa(float32 f, char dest[STRNUM_FPBUF]);
+uint32 _strnum_f64toa(float64 d, uint8 dest[STRNUM_FPBUF]);
+uint32 _strnum_f32toa(float32 f, uint8 dest[STRNUM_FPBUF]);
 // low level interface -- gets digits and exponent only
-int32 _strnum_grisu2_32(float32 f, char* digits, int32* K);
-int32 _strnum_grisu2_64(float64 d, char* digits, int32* K);
+int32 _strnum_grisu2_32(float32 f, uint8* digits, int32* K);
+int32 _strnum_grisu2_64(float64 d, uint8* digits, int32* K);
 
 CX_C_END

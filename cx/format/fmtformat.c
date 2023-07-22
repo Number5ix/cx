@@ -82,7 +82,7 @@ bool _fmtFindData(FMTContext *ctx)
 static inline void fillPad(string *pad, int32 len)
 {
     strClear(pad);
-    char *buf = strBuffer(pad, len);
+    uint8 *buf = strBuffer(pad, len);
     for (int32 i = 0; i < len; i++)
         buf[i] = ' ';
 }

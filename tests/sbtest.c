@@ -9,19 +9,19 @@
 #define TEST_FUNCS sbtest_funcs
 #include "common.h"
 
-static const char testdata1[] = "This is a test. This is a test. This is a test. This is a test. This is a test. This is a test.";
+static const uint8 testdata1[] = "This is a test. This is a test. This is a test. This is a test. This is a test. This is a test.";
 #define TESTBUF_SZ 128
 _Static_assert(TESTBUF_SZ > sizeof(testdata1), "TESTBUF_SZ must be big enough to hold the test data");
 
 typedef struct TestCtx1 {
-    char *out;
+    uint8 *out;
     size_t outp;
     size_t shouldread;
     bool didclean;
     bool usesend;
 } TestCtx1;
 
-static bool sbsend1(StreamBuffer *sb, const char *buf, size_t off, size_t sz, void *ctx)
+static bool sbsend1(StreamBuffer *sb, const uint8 *buf, size_t off, size_t sz, void *ctx)
 {
     TestCtx1 *tc = (TestCtx1 *)ctx;
     if (tc->outp + sz > TESTBUF_SZ)
@@ -155,7 +155,7 @@ typedef struct TestCtx2 {
     bool didclean;
 } TestCtx2;
 
-static size_t sbpull2(StreamBuffer *sb, char *buf, size_t sz, void *ctx)
+static size_t sbpull2(StreamBuffer *sb, uint8 *buf, size_t sz, void *ctx)
 {
     TestCtx2 *tc = (TestCtx2 *)ctx;
     size_t bytes = min(sz, sizeof(testdata1) - tc->inp);
@@ -187,7 +187,7 @@ static int test_streambuf_pull()
 
     StreamBuffer *ptest = sbufCreate(32);
     TestCtx2 ctx = { 0 };
-    char out[TESTBUF_SZ];
+    uint8 out[TESTBUF_SZ];
     size_t p = 0;
 
     if (!sbufPRegisterPull(ptest, sbpull2, sbclean2, &ctx))
@@ -256,7 +256,7 @@ static int test_streambuf_peek()
 
     StreamBuffer *ptest = sbufCreate(32);
     TestCtx2 ctx = { 0 };
-    char out[TESTBUF_SZ];
+    uint8 out[TESTBUF_SZ];
     size_t p = 0;
 
     if (!sbufPRegisterPull(ptest, sbpull2, sbclean2, &ctx))
@@ -333,12 +333,12 @@ static int test_streambuf_peek()
 }
 
 typedef struct TestCtx3 {
-    char *out;
+    uint8 *out;
     size_t outp;
     bool didclean;
 } TestCtx3;
 
-static void sbpush3(StreamBuffer *sb, const char *buf, size_t sz, void *ctx)
+static void sbpush3(StreamBuffer *sb, const uint8 *buf, size_t sz, void *ctx)
 {
     TestCtx3 *tc = (TestCtx3 *)ctx;
 
@@ -408,7 +408,7 @@ static int test_streambuf_string()
 {
     int ret = 0;
     string s1 = 0, s2 = 0;
-    char buf[128];
+    uint8 buf[128];
     strCopy(&s1, _S"This is a string test... This is a string test... This is a string test...");
 
     StreamBuffer *ptest;

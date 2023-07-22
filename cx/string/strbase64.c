@@ -56,7 +56,7 @@ bool strB64Encode(string *out, const uint8 *buf, uint32 bufsz, bool urlsafe)
 {
     const char *charmap = urlsafe ? _base64_charmap_urlsafe : _base64_charmap;
     uint32 word, hextet, i;
-    char *c;
+    uint8 *c;
 
     uint32 elen = b64EncodedLen(bufsz);
     _strReset(out, elen);
@@ -148,19 +148,19 @@ uint32 strB64Decode(strref str, uint8 *d, uint32 bufsz)
     /* loop over each set of 4 characters, decoding 3 bytes */
     uint8 ch = 0;
     for (i = 0; i < len - 3; i += 4) {
-        striChar(&sti, (char*)&ch);
+        striChar(&sti, &ch);
         hextet = _base64_invcharmap[ch];
         if (hextet & 0xC0) break;
         word = hextet << 18;
-        striChar(&sti, (char*)&ch);
+        striChar(&sti, &ch);
         hextet = _base64_invcharmap[ch];
         if (hextet & 0xC0) break;
         word |= hextet << 12;
-        striChar(&sti, (char*)&ch);
+        striChar(&sti, &ch);
         hextet = _base64_invcharmap[ch];
         if (hextet & 0xC0) break;
         word |= hextet << 6;
-        striChar(&sti, (char*)&ch);
+        striChar(&sti, &ch);
         hextet = _base64_invcharmap[ch];
         if (hextet & 0xC0) break;
         word |= hextet;

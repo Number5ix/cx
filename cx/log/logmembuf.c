@@ -51,11 +51,11 @@ void logmembufDest(int level, LogCategory *cat, int64 timestamp, strref msg, voi
     uint32 len = strLen(logline);
     if (len < lmd->size) {
         if (len + 1 < lmd->size - lmd->cur) {
-            strCopyOut(logline, 0, lmd->buf + lmd->cur, lmd->size - lmd->cur);
+            strCopyOut(logline, 0, (uint8*)lmd->buf + lmd->cur, lmd->size - lmd->cur);
             lmd->cur += len;
         } else {
             // overflow, go back to the beginning
-            strCopyOut(logline, 0, lmd->buf, lmd->size);
+            strCopyOut(logline, 0, (uint8*)lmd->buf, lmd->size);
             lmd->cur = len;
         }
     }

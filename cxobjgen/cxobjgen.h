@@ -18,7 +18,7 @@ extern hashtable knownartypes;
 extern string cpassthrough;
 extern bool needmixinimpl;
 
-char *lazyPlatformPath(string path);
+uint8 *lazyPlatformPath(string path);
 bool parseFile(string fname, string *realfn, sa_string searchpath, bool included, bool required);
 bool processInterfaces();
 bool processClasses();

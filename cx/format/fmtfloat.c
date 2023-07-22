@@ -64,7 +64,7 @@ static bool fmtFloatSpecial(FMTVar *v, string *out, strref str)
 
 bool _fmtFloat(FMTVar *v, string *out)
 {
-    char digits[18];
+    uint8 digits[18];
     int32 K, ndigits;
     bool neg;
 
@@ -245,8 +245,8 @@ ndigits_changed:
 
     // okay, now construct the string
     strClear(out);
-    char *obuf = strBuffer(out, max(totallen, width));
-    char *start = obuf;
+    uint8 *obuf = strBuffer(out, max(totallen, width));
+    uint8 *start = obuf;
 
     int32 diff = width - totallen;
     if (totallen < width) {

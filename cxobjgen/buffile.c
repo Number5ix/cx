@@ -6,7 +6,7 @@
 
 typedef struct BufFile {
     FSFile *file;
-    char *buf;
+    uint8 *buf;
     uint32 bufsz;
     uint32 bufused;
     uint32 bufpos;
@@ -90,7 +90,7 @@ bool bfReadLine(BufFile *bf, string *out)
             continue;
         }
 
-        char *dest = strBuffer(out, eol - bf->bufpos);
+        uint8 *dest = strBuffer(out, eol - bf->bufpos);
         memcpy(dest, bf->buf + bf->bufpos, eol - bf->bufpos);
         if (bf->buf[eol] == '\n')
             bf->bufpos = eol + 1;
