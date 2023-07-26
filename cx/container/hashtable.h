@@ -18,6 +18,7 @@ typedef struct HashTableHeader {
     // hashtable header begins here
     uint32 idxsz;               // index size
     uint32 idxused;             // number of used index entries (including deleted)
+    uint32 storsz;              // number of chunks in storage array
     uint32 storused;            // number of used storage slots (including deleted)
     uint32 valid;               // number of valid items in the hash table
 

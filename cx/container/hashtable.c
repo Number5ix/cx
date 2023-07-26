@@ -14,6 +14,23 @@ static uint32 npow2(uint32 val)
     return 16;
 }
 
+static _meta_inline uint32 calcGrowth(HashTableHeader *hdr, uint32 sz)
+{
+    switch (HT_GET_GROW(hdr->flags) & HT_GROW_BY_MASK) {
+    case HT_GROW_By100:
+        return sz << 1;
+    case HT_GROW_By200:
+        return sz * 3;
+    case HT_GROW_By300:
+        return sz << 2;
+    case HT_GROW_By50:
+        return sz + (sz >> 1);
+    default:
+        devFatalError("Invalid hashtable grow amount");
+        return sz << 1;
+    }
+}
+
 static void _htNewChunk(HashTableHeader *hdr)
 {
     // this should only ever be called when we're at a chunk boundary
@@ -21,14 +38,14 @@ static void _htNewChunk(HashTableHeader *hdr)
     uint32 chunk = HT_SLOT_CHUNK(hdr->storused);
 
     if (hdr->storage) {
-        // we allocate chunk pointers 4 at a time
-        if ((chunk & 3) == 0) {
-            hdr->storage = xaResize(hdr->storage, (chunk + 4) * sizeof(void *));
-            memset(&hdr->storage[chunk + 1], 0, 3 * sizeof(void *));
+        // grow chunk array
+        if (chunk >= hdr->storsz) {
+            hdr->storsz = calcGrowth(hdr, hdr->storsz);
+            hdr->storage = xaResize(hdr->storage, hdr->storsz * sizeof(void *));
         }
     } else {
-        hdr->storage = xaAlloc(4 * sizeof(void *));
-        memset(&hdr->storage[1], 0, 3 * sizeof(void *));
+        hdr->storage = xaAlloc(4 * sizeof(void *), XA_Zero);
+        hdr->storsz = 4;
     }
 
     uint32 elemsz = _htElemSz(hdr);
@@ -181,7 +198,41 @@ void _htInit(hashtable *out, stype keytype, STypeOps *keyops, stype valtype, STy
     *out = (hashtable)&ret->index[0];
 }
 
-static bool htFindIndex(HashTableHeader *hdr, stgeneric key, uint32 *indexOut, uint32 *deletedOut);
+static _meta_inline uint32 clampHash(HashTableHeader *hdr, uint32 hash)
+{
+    if (hdr->flags & HTINT_Pow2)
+        return hash & (hdr->idxsz - 1);
+    else
+        return hash % hdr->idxsz;
+}
+
+// variant of htFindIndex optimized for reindexing
+// just finds the first empty index where this key can fit
+static _meta_inline uint32 htFastFindIndex(HashTableHeader *hdr, stgeneric key)
+{
+    uint32 opsflags = (hdr->flags & HT_CaseInsensitive) ? ST_CaseInsensitive : 0;
+    uint32 probes = 1;
+
+    uint32 *idx = hdr->index;
+    uint32 hash = _stHash(hdr->keytype, HDRKEYOPS(hdr), key, opsflags);
+
+    for (;;) {
+        hash = clampHash(hdr, hash);
+        uint32 slot = idx[hash];
+        if (slot == hashIndexEmpty)
+            return hash;
+
+        // keep searching
+        if (hdr->flags & HTINT_Quadratic) {
+            hash += probes * probes;
+            probes++;
+        } else {
+            // linear probing
+            hash++;
+        }
+    }
+}
+
 static hashtable _htClone(hashtable htbl, uint32 minsz, bool move, bool repack)
 {
     HashTableHeader *hdr = HTABLE_HDR(htbl);
@@ -245,19 +296,13 @@ static hashtable _htClone(hashtable htbl, uint32 minsz, bool move, bool repack)
     } else {
         // we're moving and not repacking, just link to the old storage
         nhdr->storage = hdr->storage;
+        nhdr->storsz = hdr->storsz;
         nhdr->storused = hdr->storused;
 
         // and reindex
-        bool found;
-        uint32 idxent, deleted;
+        uint32 idxent;
         for (uint32 slot = _htNextSlot(hdr, 0); slot != 0; slot = _htNextSlot(hdr, slot)) {
-            found = htFindIndex(nhdr, stStored(hdr->keytype, HT_SLOT_PTR(hdr, elemsz, slot)),
-                                &idxent, &deleted);
-
-            // these should be impossible during reindexing
-            devAssert(!found);
-            devAssert(deleted == hashIndexDeleted);
-
+            idxent = htFastFindIndex(nhdr, stStored(hdr->keytype, HT_SLOT_PTR(hdr, elemsz, slot)));
             nhdr->idxused++;
             nhdr->index[idxent] = slot;
         }
@@ -315,38 +360,14 @@ void htRepack(hashtable *htbl)
 static void htGrowIndex(hashtable *htbl)
 {
     HashTableHeader *hdr = HTABLE_HDR(*htbl);
-    int32 newsz = hdr->idxsz;
+    uint32 newsz = hdr->idxsz;
 
     if (hdr->flags & HTINT_Pow2)
         newsz = npow2(newsz);
 
-    switch (HT_GET_GROW(hdr->flags) & HT_GROW_BY_MASK) {
-    case HT_GROW_By100:
-        newsz = newsz << 1;
-        break;
-    case HT_GROW_By200:
-        newsz = newsz * 3;
-        break;
-    case HT_GROW_By300:
-        newsz = newsz << 2;
-        break;
-    case HT_GROW_By50:
-        newsz += newsz >> 1;
-        break;
-    default:
-        devFatalError("Invalid hashtable grow amount");
-        return;
-    }
+    newsz = calcGrowth(hdr, newsz);
 
     htReindex(htbl, newsz);
-}
-
-static _meta_inline uint32 clampHash(HashTableHeader *hdr, uint32 hash)
-{
-    if (hdr->flags & HTINT_Pow2)
-        return hash & (hdr->idxsz - 1);
-    else
-        return hash % hdr->idxsz;
 }
 
 static bool htFindIndex(HashTableHeader *hdr, stgeneric key, uint32 *indexOut, uint32 *deletedOut)
@@ -546,6 +567,7 @@ static void _htClear(HashTableHeader *hdr, bool reuse)
 
     if (reuse) {
         hdr->storage = xaResize(hdr->storage, 4 * sizeof(void *));
+        hdr->storsz = 4;
 
         if (hdr->storage[0]) {
             // recycle first chunk
