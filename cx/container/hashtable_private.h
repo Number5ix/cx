@@ -3,6 +3,12 @@
 #include "hashtable.h"
 #include "cx/utils.h"
 
+#ifdef _64BIT
+#define HT_ELEM_MINSZ 16
+#else
+#define HT_ELEM_MINSZ 8
+#endif
+
 // The first slot of each chunk is reserved for the chunk metadata.
 // This header must fit within the minimum slot size (128 bits)
 typedef struct HTChunkHeader {
@@ -11,7 +17,7 @@ typedef struct HTChunkHeader {
 } HTChunkHeader;
 
 _Static_assert((HT_SLOTS_PER_CHUNK >> 8) < sizeof(((HTChunkHeader*)0)->nalloc), "HT_SLOTS_PER_CHUNK too high to fit into nalloc");
-_Static_assert(sizeof(HTChunkHeader) <= 16, "Hash chunk header too large!");
+_Static_assert(sizeof(HTChunkHeader) <= HT_ELEM_MINSZ, "Hash chunk header too large!");
 
 #define HT_IDXENT_SZ (sizeof(uint32))
 #define HT_SLOT_CHUNK(slot) ((slot) >> HT_CHUNK_SHIFT)
@@ -34,5 +40,5 @@ uint32 _htNextSlot(HashTableHeader *hdr, uint32 slot);
 
 static _meta_inline uint32 _htElemSz(HashTableHeader *hdr)
 {
-    return clamplow(stGetSize(hdr->keytype) + stGetSize(hdr->valtype), 8);
+    return clamplow(stGetSize(hdr->keytype) + stGetSize(hdr->valtype), HT_ELEM_MINSZ);
 }
