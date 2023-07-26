@@ -7,12 +7,8 @@ typedef struct hashtable_ref {
     void *_is_hashtable;
 } hashtable_ref;
 
-typedef struct htelem_ref {
-    void *_is_htelem;
-} htelem_ref;
-
-typedef struct hashtable_ref* hashtable;
-typedef struct htelem_ref* htelem;
+typedef struct hashtable_ref *hashtable;
+typedef struct HTChunkHeader HTChunkHeader;
 
 typedef struct HashTableHeader {
     // extended header, present only if HT_Extended is set
@@ -20,37 +16,48 @@ typedef struct HashTableHeader {
     STypeOps valtypeops;
 
     // hashtable header begins here
-    int32 slots;            // table size
-    int32 used;             // number of used slots (including deleted)
-    int32 valid;            // number of slots containing valid data
+    uint32 idxsz;               // index size
+    uint32 idxused;             // number of used index entries (including deleted)
+    uint32 storused;            // number of used storage slots (including deleted)
+    uint32 valid;               // number of valid items in the hash table
 
     stype keytype;
     stype valtype;
     uint32 flags;
 
-    void *data[1];
+    HTChunkHeader **storage;    // array of storage chunks
+    uint32 index[1];
 } HashTableHeader;
+
+// htelem is just the slot number (0 is reserved for "null")
+typedef uint32 htelem;
 
 typedef struct htiter {
     HashTableHeader *hdr;
-    int32 slot;
-    htelem elem;
+    uint32 slot;
 } htiter;
 
-#define HTABLE_HDRSIZE (offsetof(HashTableHeader, data))
+// HT_SLOTS_PER_CHUNK MUST BE A POWER OF TWO!
+#define HT_SLOTS_PER_CHUNK 64
+#define HT_CHUNK_MASK (HT_SLOTS_PER_CHUNK - 1)
+#define HT_CHUNK_SHIFT 6
+#define HT_QUARTER_CHUNK (HT_SLOTS_PER_CHUNK >> 2)
+#define HT_QCHUNK_MASK (HT_QUARTER_CHUNK - 1)
+
+#define HTABLE_HDRSIZE (offsetof(HashTableHeader, index))
 #define HTABLE_HDR(ref) ((HashTableHeader*)(((uintptr)(&((ref)->_is_hashtable))) - HTABLE_HDRSIZE))
 
-#define htSlots(ref) ((ref) ? HTABLE_HDR((ref))->slots : 0)
-#define htUsed(ref) ((ref)) ? HTABLE_HDR((ref))->used : 0)
 #define htSize(ref) ((ref) ? HTABLE_HDR((ref))->valid : 0)
 #define htKeyType(ref) ((ref) ? HTABLE_HDR((ref))->keytype : 0)
 #define htValType(ref) ((ref) ? HTABLE_HDR((ref))->valtype : 0)
-#define hteKeyPtr(ref, elem, type) ((stStorageType(type)*)((ref) ? ((elem) && &((elem)->_is_htelem), (elem)) : 0))
-#define hteValPtr(ref, elem, type) ((stStorageType(type)*)(((ref) && (elem)) ? ((uintptr)((elem) && &((elem)->_is_htelem), (elem)) + stGetSize(HTABLE_HDR((ref))->keytype)) : 0))
+#define hteKeyPtrHdr(hdr, elem, type) ((stStorageType(type)*)(((hdr) && (elem)) ? _hteElemPtr(hdr, elem) : 0))
+#define hteValPtrHdr(hdr, elem, type) ((stStorageType(type)*)(((hdr) && (elem)) ? _hteElemValPtr(hdr, elem) : 0))
+#define hteKeyPtr(ref, elem, type) hteKeyPtrHdr(HTABLE_HDR(ref), elem, type)
+#define hteValPtr(ref, elem, type) hteValPtrHdr(HTABLE_HDR(ref), elem, type)
 #define hteKey(ref, elem, type) (*hteKeyPtr(ref, elem, type))
 #define hteVal(ref, elem, type) (*hteValPtr(ref, elem, type))
-#define htiKeyPtr(iter, type) (((stStorageType(type)*)((iter).elem)))
-#define htiValPtr(iter, type) (((stStorageType(type)*)((uintptr)((iter).elem) + stGetSize((iter).hdr->keytype))))
+#define htiKeyPtr(iter, type) (hteKeyPtrHdr((iter).hdr, (iter).slot, type))
+#define htiValPtr(iter, type) (hteValPtrHdr((iter).hdr, (iter).slot, type))
 #define htiKey(iter, type) (*htiKeyPtr(iter, type))
 #define htiVal(iter, type) (*htiValPtr(iter, type))
 
@@ -58,6 +65,14 @@ enum HASHTABLE_FLAGS_ENUM {
     HT_CaseInsensitive = 0x0001,    // only for string keys
     HT_RefKeys         = 0x0002,    // use a borrowed reference for keys rather than copying them
     HT_Ref             = 0x0004,    // use a borrowed reference for values rather than copying them
+
+    // By default the storage array grows by quarter-chunks to avoid wasting too much memory. High
+    // traffic hash tables can set this flag to always allocate full chunks for better insert performance.
+    HT_InsertOpt       = 0x0008,
+
+    // Ultra-compact mode does not preallocate any storage memory. Inserts will be slow!
+    // This is useful for tables that should be as small as possible and are used for read-mostly lookups.
+    HT_Compact         = 0x0010,
 
     // internal use only, do not set manually
     HTINT_Quadratic    = 0x2000,    // use quadratic probing rather than linear
@@ -85,38 +100,39 @@ enum HASHTABLE_GROW_ENUM {
 enum HASHTABLE_FUNC_FLAGS_ENUM {
     // Valid for: htInsert
     // Does not insert if a matching key already exists.
-    HT_Ignore           = 0x00010000,
+    HT_Ignore     = 0x00010000,
 
     // Valid for: htFind
     // If copying out an object-type variable, copy a borrowed reference rather
     // than acquiring a reference or making a copy.
-    HT_Borrow           = 0x00020000,
+    HT_Borrow     = 0x00020000,
 
     // internal use only
-    HTINT_Consume       = 0x10000000,
+    HTINT_Consume = 0x10000000,
 };
 
 #define HT_GROW_MASK (0xff000000)
 #define HT_Grow(flag) (((uint32)HT_GROW_##flag) << 24)
 #define HT_GET_GROW(flags) ((flags) >> 24)
 
-void _htInit(hashtable *out, stype keytype, STypeOps *keyops, stype valtype, STypeOps *valops, int32 initsz, uint32 flags);
+void _htInit(hashtable *out, stype keytype, STypeOps *keyops, stype valtype, STypeOps *valops, uint32 initsz, flags_t flags);
 #define htInit(out, keytype, valtype, initsz, ...) _htInit(out, stFullType(keytype), stFullType(valtype), initsz, opt_flags(__VA_ARGS__))
 
 void htDestroy(hashtable *htbl);
 void htClear(hashtable *htbl);
-void htSetSize(hashtable *htbl, int32 newsz);
+void htReindex(hashtable *htbl, uint32 minsz);
+void htRepack(hashtable *htbl);
 void htClone(hashtable *out, hashtable ref);
 
-htelem _htInsert(hashtable *htbl, stgeneric key, stgeneric val, uint32 flags);
-_meta_inline htelem _htInsertChecked(hashtable *htbl, stype keytype, stgeneric key, stype valtype, stgeneric val, uint32 flags)
+htelem _htInsert(hashtable *htbl, stgeneric key, stgeneric val, flags_t flags);
+_meta_inline htelem _htInsertChecked(hashtable *htbl, stype keytype, stgeneric key, stype valtype, stgeneric val, flags_t flags)
 {
     devAssert(*htbl);
     devAssert(stEq(htKeyType(*htbl), keytype) && stEq(htValType(*htbl), valtype));
     return _htInsert(htbl, key, val, flags);
 }
-htelem _htInsertPtr(hashtable *htbl, stgeneric key, stgeneric *val, uint32 flags);
-_meta_inline htelem _htInsertCheckedC(hashtable *htbl, stype keytype, stgeneric key, stype valtype, stgeneric *val, uint32 flags)
+htelem _htInsertPtr(hashtable *htbl, stgeneric key, stgeneric *val, flags_t flags);
+_meta_inline htelem _htInsertCheckedC(hashtable *htbl, stype keytype, stgeneric key, stype valtype, stgeneric *val, flags_t flags)
 {
     devAssert(*htbl);
     devAssert(stEq(htKeyType(*htbl), keytype) && stEq(htValType(*htbl), valtype));
@@ -126,8 +142,8 @@ _meta_inline htelem _htInsertCheckedC(hashtable *htbl, stype keytype, stgeneric 
 // Consumes *value*, not key
 #define htInsertC(htbl, ktype, key, vtype, val, ...) _htInsertCheckedC(htbl, stCheckedArg(ktype, key), stCheckedPtrArg(vtype, val), opt_flags(__VA_ARGS__) | HTINT_Consume)
 
-htelem _htFind(hashtable htbl, stgeneric key, stgeneric *val, uint32 flags);
-_meta_inline htelem _htFindChecked(hashtable htbl, stype keytype, stgeneric key, stype valtype, stgeneric *val, uint32 flags)
+htelem _htFind(hashtable htbl, stgeneric key, stgeneric *val, flags_t flags);
+_meta_inline htelem _htFindChecked(hashtable htbl, stype keytype, stgeneric key, stype valtype, stgeneric *val, flags_t flags)
 {
     devAssert(htbl);
     devAssert(stEq(htKeyType(htbl), keytype));
@@ -158,8 +174,17 @@ _meta_inline bool _htHasKeyChecked(hashtable htbl, stype keytype, stgeneric key)
 }
 #define htHasKey(htbl, ktype, key) _htHasKeyChecked(htbl, stCheckedArg(ktype, key))
 
+void *_hteElemPtr(HashTableHeader *hdr, htelem elem);
+_meta_inline void *_hteElemValPtr(HashTableHeader *hdr, htelem elem)
+{
+    uintptr eptr = (uintptr)_hteElemPtr(hdr, elem);
+    if (eptr == 0)
+        return NULL;
+    return (void *)(eptr + stGetSize(hdr->keytype));
+}
+
 // Hash table iterator
 bool htiInit(htiter *iter, hashtable htbl);
 bool htiNext(htiter *iter);
 void htiFinish(htiter *iter);
-_meta_inline bool htiValid(htiter *iter) { return iter->elem; }
+_meta_inline bool htiValid(htiter *iter) { return iter->slot > 0; }

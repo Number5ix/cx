@@ -8,7 +8,7 @@ void stDtor_hashtable(stype st, stgeneric *gen, flags_t flags)
 
 void stCopy_hashtable(stype st, stgeneric *dest, stgeneric src, flags_t flags)
 {
-    dest->st_hashtable = _htClone(src.st_hashtable, 0, NULL, false);
+    htClone(&dest->st_hashtable, src.st_hashtable);
 }
 
 uint32 stHash_hashtable(stype st, stgeneric gen, flags_t flags)
@@ -18,15 +18,11 @@ uint32 stHash_hashtable(stype st, stgeneric gen, flags_t flags)
     uint32 elemsz = _htElemSz(hdr);
     uint32 ret = 0;
 
-    for (int32 i = 0; i < hdr->slots; i++) {
-        uint64 *skey = HTKEY(hdr, elemsz, i);
-        if (*skey == hashEmpty || *skey == hashDeleted)
-            continue;
-
+    for (uint32 i = _htNextSlot(hdr, 0); i != hashIndexEmpty; i = _htNextSlot(hdr, i)) {
         ret ^= _stHash(hdr->keytype, HDRKEYOPS(hdr),
-                       stStored(hdr->keytype, HTKEY(hdr, elemsz, i)), 0);
+                       stStored(hdr->keytype, HT_SLOT_PTR(hdr, elemsz, i)), 0);
         ret ^= _stHash(hdr->valtype, HDRVALOPS(hdr),
-                       stStored(hdr->valtype, HTVAL(hdr, elemsz, i)), 0);
+                       stStored(hdr->valtype, HT_SLOT_VAL_PTR(hdr, elemsz, i)), 0);
     }
 
     return ret;
