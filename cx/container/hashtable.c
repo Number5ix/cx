@@ -675,11 +675,12 @@ bool _htExtract(hashtable *htbl, stgeneric key, stgeneric *val)
             // chunk of the array, which may be partially filled.
             devAssert(chunkhdr->nalloc == HT_SLOTS_PER_CHUNK);
 
-            bool left = false;
-            for (int i = 0; i < HT_SLOTS_PER_CHUNK >> 3; ++i) {
+            // the first slot is metadata that is never marked deleted, it needs to be ignored
+            // when doing this check.
+            bool left = (chunkhdr->deleted[0] != 0xfe);
+            for (int i = 1; !left && i < HT_SLOTS_PER_CHUNK >> 3; ++i) {
                 if (chunkhdr->deleted[i] != 0xff) {
                     left = true;
-                    break;
                 }
             }
 
