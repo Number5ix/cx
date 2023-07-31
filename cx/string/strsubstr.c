@@ -98,8 +98,10 @@ uint8 strGetChar(strref s, int32 i)
 
 void strSetChar(string *s, int32 i, uint8 ch)
 {
-    if (!s || !STR_CHECK_VALID(*s))
+    if (!s)
         return;
+    if (!STR_CHECK_VALID(*s))
+        strReset(s, 1);
 
     uint32 off;
 
