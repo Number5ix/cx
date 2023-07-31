@@ -55,6 +55,21 @@ typedef _Bool bool;
 typedef bool _Bool;
 #endif
 
+// limits for integer types
+
+#define MIN_INT8    (-0x7f - 1)
+#define MAX_INT8      0x7f
+#define MAX_UINT8     0xff
+#define MIN_INT16   (-0x7fff - 1)
+#define MAX_INT16     0x7fff
+#define MAX_UINT16    0xffff
+#define MIN_INT32   (-0x7fffffffL - 1)
+#define MAX_INT32     0x7fffffffL
+#define MAX_UINT32    0xffffffffUL
+#define MAX_INT64     0x7fffffffffffffffLL
+#define MIN_INT64   (-0x7fffffffffffffffLL - 1)
+#define MAX_UINT64    0xffffffffffffffffULL
+
 typedef float float32;
 typedef double float64;
 
