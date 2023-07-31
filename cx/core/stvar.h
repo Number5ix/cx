@@ -22,6 +22,18 @@ _meta_inline stvar _stvar(stype st, stgeneric val)
 #define stvNone _stvar(0, stArg(int64, 0))
 #endif
 
+_meta_inline void stvarDestroy(stvar *stv)
+{
+    _stDestroy(stv->type, NULL, &stv->data, 0);
+    stv->type = 0;
+}
+
+_meta_inline void stvarCopy(stvar *dvar, stvar svar)
+{
+    dvar->type = svar.type;
+    _stCopy(svar.type, NULL, &dvar->data, svar.data, 0);
+}
+
 // Structure for walking a list of stvars with the convenience functions
 typedef struct stvlist {
     int count;
