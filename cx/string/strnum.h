@@ -7,6 +7,9 @@ CX_C_BEGIN
 // Convert a string to a number
 // strict indicates whether the entire string must be a number or if
 // it may be followed by non-numeric characters
+// NOTE: Unlike typical C library functions, a leading 0 does NOT imply base 8.
+// Base 10 is the default unless otherwise specified, or the string begins with "0x".
+
 bool strToInt32(int32 *out, strref s, int base, bool strict);
 bool strToUInt32(uint32 *out, strref s, int base, bool strict);
 bool strToInt64(int64 *out, strref s, int base, bool strict);

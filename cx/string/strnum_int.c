@@ -43,7 +43,7 @@ bool name(type *out, strref s, int base, bool strict)        \
         base = 16;                                           \
     }                                                        \
     if (base == 0)                                           \
-        base = (c == '0') ? 8 : 10;                          \
+        base = 10;                                           \
     acc = 0;                                                 \
     any = false;                                             \
     if (base < 2 || base > 36) {                             \
