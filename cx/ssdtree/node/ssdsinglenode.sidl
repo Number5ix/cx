@@ -1,0 +1,16 @@
+#include <cx/ssdtree/node/ssdnode.sidl>
+
+class SSDSingleNode extends SSDNode
+{
+    stvar storage;
+
+    factory create(SSDInfo *info, stvar initval);
+}
+
+class SSDSingleIter extends SSDIterator
+{
+    object:SSDSingleNode node;
+    bool done;
+
+    factory create(SSDSingleNode *node);
+}

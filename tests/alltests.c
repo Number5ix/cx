@@ -64,6 +64,7 @@ static const testspec tests[] = {
 { "ssd: Semi-structured data tree" , "ssdtest", "tree" },
 { "ssd: Single value root" , "ssdtest", "single" },
 { "ssd: Subtrees" , "ssdtest", "subtree" },
+{ "ssd: Arrays" , "ssdtest", "array" },
 { "streambuffer: Push" , "sbtest", "push" },
 { "streambuffer: Direct Push" , "sbtest", "direct" },
 { "streambuffer: Pull" , "sbtest", "pull" },

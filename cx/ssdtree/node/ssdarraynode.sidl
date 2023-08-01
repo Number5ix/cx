@@ -1,0 +1,17 @@
+#include <cx/ssdtree/node/ssdnode.sidl>
+
+class SSDArrayNode extends SSDNode
+{
+    sarray:stvar storage;
+
+    override isArray;
+    factory create(SSDInfo *info);
+}
+
+class SSDArrayIter extends SSDIterator
+{
+    object:SSDArrayNode node;
+    int32 idx;
+
+    factory create(SSDArrayNode *node);
+}

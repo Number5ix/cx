@@ -91,6 +91,7 @@ add_test(NAME "\"meta: Cross-function Exception Handling\"" COMMAND test_runner 
 add_test(NAME "\"ssd: Semi-structured data tree\"" COMMAND test_runner ssdtest tree)
 add_test(NAME "\"ssd: Single value root\"" COMMAND test_runner ssdtest single)
 add_test(NAME "\"ssd: Subtrees\"" COMMAND test_runner ssdtest subtree)
+add_test(NAME "\"ssd: Arrays\"" COMMAND test_runner ssdtest array)
 add_test(NAME "\"streambuffer: Push\"" COMMAND test_runner sbtest push)
 add_test(NAME "\"streambuffer: Direct Push\"" COMMAND test_runner sbtest direct)
 add_test(NAME "\"streambuffer: Pull\"" COMMAND test_runner sbtest pull)
