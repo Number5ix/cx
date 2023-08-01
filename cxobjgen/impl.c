@@ -2,7 +2,7 @@
 #include <cx/container.h>
 #include <cx/fs/file.h>
 #include <cx/string.h>
-#include <pcre2.h>
+#include <3rdparty/pcre2/pcre2.h>
 
 static const string autogenBegin =  _S"// ==================== Auto-generated section begins ====================";
 static const string autogenNotice = _S"// Do not modify the contents of this section; any changes will be lost!";
