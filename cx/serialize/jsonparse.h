@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cx/serialize/jsoncommon.h>
-#include <cx/ssdtree/ssdnode.h>
+#include <cx/ssdtree/node/ssdnode.h>
 
 typedef void (*jsonParseCB)(JSONParseEvent *ev, void *userdata);
 
