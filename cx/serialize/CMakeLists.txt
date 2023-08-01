@@ -1,6 +1,8 @@
 set(SERIALIZE_SRCS
     serialize/jsonout.c
+    serialize/jsonouttree.c
     serialize/jsonparse.c
+    serialize/jsonparsetree.c
     serialize/lineparse.c
     serialize/sbfile.c
     serialize/sbstring.c

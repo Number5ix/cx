@@ -3,6 +3,7 @@
 #include <cx/string.h>
 #include <cx/string/string_private_utf8.h>
 #include <cx/format.h>
+#include <cx/utils/compare.h>
 
 #define MAX_PARSE_DEPTH 1000
 

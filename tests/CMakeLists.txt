@@ -103,3 +103,5 @@ add_test(NAME "\"lineparse: Mixed EOL\"" COMMAND test_runner lineparsetest mixed
 add_test(NAME "\"lineparse: Push Mode\"" COMMAND test_runner lineparsetest push)
 add_test(NAME "\"json: Parse\"" COMMAND test_runner jsontest parse)
 add_test(NAME "\"json: Output\"" COMMAND test_runner jsontest out)
+add_test(NAME "\"json: Tree Parse\"" COMMAND test_runner jsontest treeparse)
+add_test(NAME "\"json: Tree Output\"" COMMAND test_runner jsontest treeout)

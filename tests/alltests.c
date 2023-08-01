@@ -76,6 +76,8 @@ static const testspec tests[] = {
 { "lineparse: Push Mode", "lineparsetest", "push" },
 { "json: Parse", "jsontest", "parse" },
 { "json: Output", "jsontest", "out" },
+{ "json: Tree Parse", "jsontest", "treeparse" },
+{ "json: Tree Output", "jsontest", "treeout" },
 { 0 }
 };
 

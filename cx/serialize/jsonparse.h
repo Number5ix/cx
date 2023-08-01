@@ -1,8 +1,8 @@
 #pragma once
 
 #include <cx/serialize/jsoncommon.h>
-#include <cx/ssdtree/node/ssdnode.h>
 
+typedef struct SSDNode SSDNode;
 typedef void (*jsonParseCB)(JSONParseEvent *ev, void *userdata);
 
 // JSON STREAM PARSER

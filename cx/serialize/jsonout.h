@@ -3,6 +3,7 @@
 #include "jsoncommon.h"
 
 typedef struct JSONOut JSONOut;
+typedef struct SSDNode SSDNode;
 
 #define JSON_Indent(x) (x & JSON_Indent_Mask)
 enum JSON_OUT_FLAGS {
@@ -26,3 +27,7 @@ enum JSON_OUT_FLAGS {
 JSONOut *jsonOutBegin(StreamBuffer *sb, uint32 flags);
 bool jsonOut(JSONOut *jo, JSONParseEvent *ev);
 void jsonOutEnd(JSONOut **jo);
+
+// JSON TREE OUTPUT
+// Serialize an SSD tree to a streambuffer as JSON
+bool jsonOutTree(StreamBuffer *sb, SSDNode *tree, uint32 flags);
