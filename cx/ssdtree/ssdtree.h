@@ -30,15 +30,15 @@ bool ssdLockEnd(SSDNode *tree, SSDLock *lock);
 
 enum SSD_CREATE_TYPE_ENUM {
     SSD_Create_None = 0,
-    SSD_Create_Object,
+    SSD_Create_Hashtable,
     SSD_Create_Array,
     SSD_Create_Single
 };
 
 SSDNode *_ssdCreateRoot(int crtype, stvar initval, uint32 flags);
-// Creates a new semi-structured tree with an object (i.e. hashtable or name/value mapping) as its root.
+// Creates a new semi-structured tree with an hashtable as its root.
 // Returns a reference-counted object that must be disposed of with objRelease
-#define ssdCreateObject(...) _ssdCreateRoot(SSD_Create_Object, stvNone, opt_flags(__VA_ARGS__))
+#define ssdCreateHashtable(...) _ssdCreateRoot(SSD_Create_Hashtable, stvNone, opt_flags(__VA_ARGS__))
 // Creates a new semi-structured tree with an array as its root.
 // Returns a reference-counted object that must be disposed of with objRelease
 #define ssdCreateArray(...) _ssdCreateRoot(SSD_Create_Array, stvNone, opt_flags(__VA_ARGS__))
@@ -48,7 +48,7 @@ SSDNode *_ssdCreateRoot(int crtype, stvar initval, uint32 flags);
 // Returns a reference-counted object that must be disposed of with objRelease
 #define ssdCreateSingle(val, ...) _ssdCreateRoot(SSD_Create_Single, val, opt_flags(__VA_ARGS__))
 
-// Returns a node representing a subtree or sub-object
+// Returns a node representing a subtree
 // If this node does not exist and the create parameter is any value other than SSD_Create_None,
 // a node of the specified type is created at the given path.
 SSDNode *ssdSubtree(SSDNode *tree, strref path, int create, SSDLock *lock);
@@ -61,8 +61,8 @@ SSDNode *ssdSubtree(SSDNode *tree, strref path, int create, SSDLock *lock);
 //
 //     bucket/paints[2]/yellow
 //
-// Represents a path to a value with the key 'yellow', which is the third object in an array of objects
-// that is named 'paints' inside of an object called 'bucket' inside of the unnamed root object. To make
+// Represents a path to a value with the key 'yellow', which is the third hashtable in an array of hashtables
+// that is named 'paints' inside of an hashtable called 'bucket' inside of the unnamed root hashtable. To make
 // it easier to understand, see the corresponding JSON representation:
 //
 // {
@@ -89,7 +89,7 @@ SSDNode *ssdSubtree(SSDNode *tree, strref path, int create, SSDLock *lock);
 // If automatic path traversal is not desired, the SSDNode interface can instead be directly used.
 
 // CAUTION: The output stvar MUST be destroyed with stDestroy or it could cause a memory leak if the
-// value is a string or if a sub-object or array exists at that name. To avoid the hassle of memory
+// value is a string or if a hashtable or array exists at that name. To avoid the hassle of memory
 // management, ssdPtr can be used instead.
 bool ssdGet(SSDNode *tree, strref path, stvar *out, SSDLock *lock);
 

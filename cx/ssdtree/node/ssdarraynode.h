@@ -15,7 +15,7 @@ typedef struct SSDArrayNode_ClassIf {
     size_t _size;
 
     // This node is an object that contains values or objects by name
-    bool (*isObject)(void *self);
+    bool (*isHashtable)(void *self);
     // This node is an array that contains values or objects by array index
     bool (*isArray)(void *self);
     // Gets a value. Caller owns the value and must destroy it with stDestroy!
@@ -73,10 +73,10 @@ SSDArrayNode *SSDArrayNode_create(SSDInfo *info);
 // SSDArrayNode *ssdarraynodeCreate(SSDInfo *info);
 #define ssdarraynodeCreate(info) SSDArrayNode_create(SSDInfo(info))
 
-// bool ssdarraynodeIsObject(SSDArrayNode *self);
+// bool ssdarraynodeIsHashtable(SSDArrayNode *self);
 //
 // This node is an object that contains values or objects by name
-#define ssdarraynodeIsObject(self) (self)->_->isObject(SSDArrayNode(self))
+#define ssdarraynodeIsHashtable(self) (self)->_->isHashtable(SSDArrayNode(self))
 // bool ssdarraynodeIsArray(SSDArrayNode *self);
 //
 // This node is an array that contains values or objects by array index

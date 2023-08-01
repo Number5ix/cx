@@ -69,7 +69,7 @@ SSDNode *_ssdCreateRoot(int crtype, stvar initval, uint32 flags)
     SSDNode *ret = NULL;
 
     switch (crtype) {
-    case SSD_Create_Object:
+    case SSD_Create_Hashtable:
         ret = (SSDNode*)ssdhashnodeCreate(info);
         break;
     case SSD_Create_Array:
@@ -98,7 +98,7 @@ static SSDNode *getChild(SSDNode *node, strref name, int checktype, int create, 
         SSDNode *child = val ? (stEq(val->type, stType(object)) ? objDynCast(val->data.st_object, SSDNode) : NULL) : NULL;
 
         // check if existing child is the correct type for the context
-        if (child && checktype == SSD_Create_Object && !ssdnodeIsObject(child))
+        if (child && checktype == SSD_Create_Hashtable && !ssdnodeIsHashtable(child))
             child = NULL;
         if (child && checktype == SSD_Create_Array && !ssdnodeIsArray(child))
             child = NULL;
@@ -117,7 +117,7 @@ static SSDNode *getChild(SSDNode *node, strref name, int checktype, int create, 
                 continue;
 
             switch (create) {
-            case SSD_Create_Object:
+            case SSD_Create_Hashtable:
                 ret = (SSDNode*)ssdhashnodeCreate(node->info);
                 break;
             case SSD_Create_Array:
@@ -159,7 +159,7 @@ static bool ssdResolvePath(SSDNode *tree, strref path, SSDNode **nodeout, string
                 // check if existing child is the correct type for the context
                 int childtype = 0;
                 if (ch == '/')
-                    childtype = SSD_Create_Object;
+                    childtype = SSD_Create_Hashtable;
                 if (ch == '[')
                     childtype = SSD_Create_Array;
 

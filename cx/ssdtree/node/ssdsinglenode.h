@@ -15,7 +15,7 @@ typedef struct SSDSingleNode_ClassIf {
     size_t _size;
 
     // This node is an object that contains values or objects by name
-    bool (*isObject)(void *self);
+    bool (*isHashtable)(void *self);
     // This node is an array that contains values or objects by array index
     bool (*isArray)(void *self);
     // Gets a value. Caller owns the value and must destroy it with stDestroy!
@@ -73,10 +73,10 @@ SSDSingleNode *SSDSingleNode_create(SSDInfo *info, stvar initval);
 // SSDSingleNode *ssdsinglenodeCreate(SSDInfo *info, stvar initval);
 #define ssdsinglenodeCreate(info, initval) SSDSingleNode_create(SSDInfo(info), initval)
 
-// bool ssdsinglenodeIsObject(SSDSingleNode *self);
+// bool ssdsinglenodeIsHashtable(SSDSingleNode *self);
 //
 // This node is an object that contains values or objects by name
-#define ssdsinglenodeIsObject(self) (self)->_->isObject(SSDSingleNode(self))
+#define ssdsinglenodeIsHashtable(self) (self)->_->isHashtable(SSDSingleNode(self))
 // bool ssdsinglenodeIsArray(SSDSingleNode *self);
 //
 // This node is an array that contains values or objects by array index

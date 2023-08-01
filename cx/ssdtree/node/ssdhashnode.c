@@ -109,9 +109,9 @@ int32 SSDHashNode_count(SSDHashNode *self, SSDLock *lock)
     return htSize(self->storage);
 }
 
-extern bool SSDNode_isObject(SSDNode *self); // parent
-#define parent_isObject() SSDNode_isObject((SSDNode*)(self))
-bool SSDHashNode_isObject(SSDHashNode *self)
+extern bool SSDNode_isHashtable(SSDNode *self); // parent
+#define parent_isHashtable() SSDNode_isHashtable((SSDNode*)(self))
+bool SSDHashNode_isHashtable(SSDHashNode *self)
 {
     return true;
 }

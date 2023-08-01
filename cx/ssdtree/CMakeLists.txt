@@ -7,6 +7,7 @@ set(SSDTREE_SRCS
     ssdtree/node/ssdsinglenode.c)
 set(SSDTREE_INCLUDES
     ssdtree/ssdinfo.h
+    ssdtree/ssdnodes.h
     ssdtree/ssdshared.h
     ssdtree/ssdtree.h
     ssdtree/node/ssdnode.h

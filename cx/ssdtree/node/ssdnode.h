@@ -73,7 +73,7 @@ typedef struct SSDNode_ClassIf {
     size_t _size;
 
     // This node is an object that contains values or objects by name
-    bool (*isObject)(void *self);
+    bool (*isHashtable)(void *self);
     // This node is an array that contains values or objects by array index
     bool (*isArray)(void *self);
     // Gets a value. Caller owns the value and must destroy it with stDestroy!
@@ -138,10 +138,10 @@ extern ObjClassInfo SSDNode_clsinfo;
 #define SSDNode(inst) ((SSDNode*)((void)((inst) && &((inst)->_is_SSDNode)), (inst)))
 #define SSDNodeNone ((SSDNode*)NULL)
 
-// bool ssdnodeIsObject(SSDNode *self);
+// bool ssdnodeIsHashtable(SSDNode *self);
 //
 // This node is an object that contains values or objects by name
-#define ssdnodeIsObject(self) (self)->_->isObject(SSDNode(self))
+#define ssdnodeIsHashtable(self) (self)->_->isHashtable(SSDNode(self))
 // bool ssdnodeIsArray(SSDNode *self);
 //
 // This node is an array that contains values or objects by array index

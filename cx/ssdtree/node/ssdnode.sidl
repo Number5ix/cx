@@ -48,7 +48,7 @@ abstract class SSDNode implements SSDNodeIf implements Iterable
     object:SSDInfo info;
 
     // This node is an object that contains values or objects by name
-    bool isObject();
+    bool isHashtable();
 
     // This node is an array that contains values or objects by array index
     bool isArray();

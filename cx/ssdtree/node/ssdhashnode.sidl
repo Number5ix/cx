@@ -4,7 +4,7 @@ class SSDHashNode extends SSDNode
 {
     [noinit] hashtable:string:stvar storage;
 
-    override isObject;
+    override isHashtable;
     factory create(SSDInfo *info);
     init();
 }

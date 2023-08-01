@@ -53,7 +53,7 @@ static Iterable _impl_SSDNode_Iterable = {
 static SSDNode_ClassIf _impl_SSDNode_SSDNode_ClassIf = {
     ._size = sizeof(SSDNode_ClassIf),
     ._implements = (ObjIface*)&SSDNode_ClassIf_tmpl,
-    .isObject = (bool (*)(void*))SSDNode_isObject,
+    .isHashtable = (bool (*)(void*))SSDNode_isHashtable,
     .isArray = (bool (*)(void*))SSDNode_isArray,
 };
 

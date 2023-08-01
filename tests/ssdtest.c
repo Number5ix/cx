@@ -13,7 +13,7 @@
 static int test_ssd_tree()
 {
     int ret = 0;
-    SSDNode *tree = ssdCreateObject();
+    SSDNode *tree = ssdCreateHashtable();
 
     // basic test
     stvar outvar = { 0 };
@@ -40,7 +40,7 @@ static int test_ssd_tree()
     // make sure copies are happening where they're supposed to
     string teststr = 0;
     strCopy(&teststr, _S"test123");
-    tree = ssdCreateObject();
+    tree = ssdCreateHashtable();
 
     ssdSet(tree, _S"l1/l2/l3/test2", true, stvar(string, teststr), NULL);
     if (strTestRefCount(teststr) != 2)
@@ -125,7 +125,7 @@ static int test_ssd_single()
 static int test_ssd_subtree()
 {
     int ret = 0;
-    SSDNode *tree = ssdCreateObject();
+    SSDNode *tree = ssdCreateHashtable();
 
     stvar outvar = { 0 };
     string teststr = 0;
@@ -195,7 +195,7 @@ out:
 static int test_ssd_array()
 {
     int ret = 0;
-    SSDNode *tree = ssdCreateObject();
+    SSDNode *tree = ssdCreateHashtable();
 
     string teststr = 0;
     strCopy(&teststr, _S"test123");

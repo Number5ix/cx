@@ -15,7 +15,7 @@ void SSDNode_destroy(SSDNode *self)
     // Autogen ends -------
 }
 
-bool SSDNode_isObject(SSDNode *self)
+bool SSDNode_isHashtable(SSDNode *self)
 {
     return false;
 }
