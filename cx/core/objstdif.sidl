@@ -7,3 +7,16 @@ interface Sortable {
 interface Hashable {
     uint32 hash(uint32 flags);
 }
+
+interface IteratorIf {
+    bool valid();
+    bool next();
+    bool get(stvar *out);
+}
+
+abstract class Iterator implements IteratorIf {
+}
+
+interface Iterable {
+    Iterator *iter();               // Caller owns the iterator and must release it with objRelease
+}

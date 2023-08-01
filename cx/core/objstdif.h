@@ -3,6 +3,8 @@
 // Do not make changes to this file or they will be overwritten.
 #include <cx/obj.h>
 
+typedef struct Iterator Iterator;
+saDeclarePtr(Iterator);
 
 typedef struct Sortable {
     ObjIface *_implements;
@@ -21,4 +23,57 @@ typedef struct Hashable {
     uint32 (*hash)(void *self, uint32 flags);
 } Hashable;
 extern Hashable Hashable_tmpl;
+
+typedef struct IteratorIf {
+    ObjIface *_implements;
+    ObjIface *_parent;
+    size_t _size;
+
+    bool (*valid)(void *self);
+    bool (*next)(void *self);
+    bool (*get)(void *self, stvar *out);
+} IteratorIf;
+extern IteratorIf IteratorIf_tmpl;
+
+typedef struct Iterable {
+    ObjIface *_implements;
+    ObjIface *_parent;
+    size_t _size;
+
+    // Caller owns the iterator and must release it with objRelease
+    Iterator *(*iter)(void *self);
+} Iterable;
+extern Iterable Iterable_tmpl;
+
+typedef struct Iterator_ClassIf {
+    ObjIface *_implements;
+    ObjIface *_parent;
+    size_t _size;
+
+    bool (*valid)(void *self);
+    bool (*next)(void *self);
+    bool (*get)(void *self, stvar *out);
+} Iterator_ClassIf;
+extern Iterator_ClassIf Iterator_ClassIf_tmpl;
+
+typedef struct Iterator {
+    Iterator_ClassIf *_;
+    union {
+        ObjClassInfo *_clsinfo;
+        void *_is_Iterator;
+        void *_is_ObjInst;
+    };
+    atomic(intptr) _ref;
+
+} Iterator;
+extern ObjClassInfo Iterator_clsinfo;
+#define Iterator(inst) ((Iterator*)((void)((inst) && &((inst)->_is_Iterator)), (inst)))
+#define IteratorNone ((Iterator*)NULL)
+
+// bool iteratorValid(Iterator *self);
+#define iteratorValid(self) (self)->_->valid(Iterator(self))
+// bool iteratorNext(Iterator *self);
+#define iteratorNext(self) (self)->_->next(Iterator(self))
+// bool iteratorGet(Iterator *self, stvar *out);
+#define iteratorGet(self, out) (self)->_->get(Iterator(self), out)
 
