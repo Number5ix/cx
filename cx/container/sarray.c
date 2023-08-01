@@ -616,7 +616,8 @@ void *_saPopPtr(sahandle handle, int32 idx)
     // giving our reference to the caller.
 
     SArrayHeader *hdr = SARRAY_HDR(*handle);
-    devAssert(stGetId(hdr->elemtype) == stTypeId(ptr));
+    devAssert(stGetId(hdr->elemtype) == stTypeId(ptr) ||
+              stGetId(hdr->elemtype) == stTypeId(object));
 
     if (hdr->count == 0)
         return NULL;
