@@ -103,7 +103,7 @@
 
 # Increased minimum to 2.8.5 to support GNUInstallDirs.
 # Increased minimum to 3.1 to support imported targets.
-CMAKE_MINIMUM_REQUIRED(VERSION 3.1)
+CMAKE_MINIMUM_REQUIRED(VERSION 3.9)
 PROJECT(PCRE2 C)
 
 # Set policy CMP0026 to avoid warnings for the use of LOCATION in
