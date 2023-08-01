@@ -1,6 +1,6 @@
 #pragma once
 
-#include "mimalloc.h"
+#include <mimalloc.h>
 #include <cx/utils/macros.h>
 #include <string.h>
 
