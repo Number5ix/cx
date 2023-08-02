@@ -1,6 +1,6 @@
 #pragma once
 
-#include <cx/core/cpp.h>
+#include <cx/platform/cpp.h>
 
 CX_C_BEGIN
 

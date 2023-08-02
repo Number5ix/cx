@@ -535,8 +535,8 @@ bool writeImpl(string fname, bool mixinimpl)
     bfWriteLine(nbf, autogenBegin);
     bfWriteLine(nbf, autogenNotice);
     bfWriteLine(nbf, _S"#include <cx/obj.h>");
-    bfWriteLine(nbf, _S"#include <cx/core/objstdif.h>");
     bfWriteLine(nbf, _S"#include <cx/debug/assert.h>");
+    bfWriteLine(nbf, _S"#include <cx/obj/objstdif.h>");
     bfWriteLine(nbf, _S"#include <cx/container.h>");
     bfWriteLine(nbf, _S"#include <cx/string.h>");
     if (!mixinimpl) {

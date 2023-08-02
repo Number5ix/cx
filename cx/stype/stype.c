@@ -1,12 +1,12 @@
 #include "cx/cx.h"
 #include "cx/utils/murmur.h"
 
-#include "cx/core/stype_obj.h"
+#include "cx/obj/stype_obj.h"
 #include "cx/container/stype_sarray.h"
 #include "cx/string/stype_string.h"
 #include "cx/container/stype_hashtable.h"
-#include "cx/core/stype_stvar.h"
-#include "cx/core/stype_suid.h"
+#include "cx/stype/stype_stvar.h"
+#include "cx/suid/stype_suid.h"
 
 // extern inline stype _stype_mktype(uint8 id, uint8 flags, uint16 sz);
 // extern inline void stDestroy(stype st, void *ptr, STypeOps *ops);

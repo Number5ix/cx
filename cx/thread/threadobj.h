@@ -2,7 +2,7 @@
 // This header file is auto-generated!
 // Do not make changes to this file or they will be overwritten.
 #include <cx/obj.h>
-#include <cx/core/stvar.h>
+#include <cx/stype/stvar.h>
 #include <cx/container/sarray.h>
 #include <cx/thread/atomic.h>
 #include <cx/thread/event.h>

@@ -1,5 +1,5 @@
 #include "string_private.h"
-#include "cx/core/error.h"
+#include "cx/debug/error.h"
 
 char _strnum_udigits[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 char _strnum_ldigits[] = "0123456789abcdefghijklmnopqrstuvwxyz";

@@ -1,5 +1,5 @@
 #include "cx/platform/unix.h"
-#include "cx/core/error.h"
+#include "cx/debug/error.h"
 
 #include <errno.h>
 

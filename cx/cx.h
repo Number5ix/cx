@@ -14,9 +14,9 @@
 #include <time.h>
 
 #include <cx/platform/base.h>
-#include <cx/core/cpp.h>
-#include <cx/core/stype.h>
-#include <cx/core/suid.h>
+#include <cx/platform/cpp.h>
+#include <cx/stype/stype.h>
+#include <cx/suid/suid.h>
 #include <cxmem/xalloc/xalloc.h>
 
 #ifdef __cplusplus

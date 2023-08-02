@@ -70,7 +70,7 @@ int main(int argc, char *argv[])
         // standard interfaces should always be available, but it's non-fatal if
         // the file can't be located
         if (!strEndsWith(sidlfiles.a[i], _S"objstdif.sidl")) {
-            strDup(&fname, _S"cx/core/objstdif.sidl");
+            strDup(&fname, _S"cx/obj/objstdif.sidl");
             parseFile(fname, NULL, searchpath, true, false);
             strClear(&fname);
         }

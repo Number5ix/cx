@@ -22,6 +22,6 @@
  *                    interface methods this class implements
  */
 
-#include <cx/core/objiface.h>
-#include <cx/core/objclass.h>
-#include <cx/core/objimpl.h>
+#include <cx/obj/objiface.h>
+#include <cx/obj/objclass.h>
+#include <cx/obj/objimpl.h>

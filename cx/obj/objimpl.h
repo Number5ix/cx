@@ -1,7 +1,7 @@
 #pragma once
 
-#include <cx/core/objiface.h>
-#include <cx/core/objclass.h>
+#include <cx/obj/objiface.h>
+#include <cx/obj/objclass.h>
 
 // Only use the functions in this file for implementing a class or interface!
 

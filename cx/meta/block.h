@@ -5,7 +5,7 @@
 // to fit with CX design philosophy.
 // https://gustedt.gitlabpages.inria.fr/p99/p99-html/
 
-#include <cx/core/stype.h>
+#include <cx/stype/stype.h>
 #include <cx/platform/base.h>
 #include <cx/utils/macros/tokens.h>
 

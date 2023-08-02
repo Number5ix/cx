@@ -1,4 +1,4 @@
-#include <cx/core/stvar.h>
+#include <cx/stype/stvar.h>
 #include <cx/container/sarray.h>
 #include <cx/thread/atomic.h>
 #include <cx/thread/event.h>

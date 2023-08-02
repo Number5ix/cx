@@ -1,5 +1,5 @@
 #include <cx/ssdtree/ssdinfo.sidl>
-#include <cx/core/stvar.h>
+#include <cx/stype/stvar.h>
 
 enum SSD_INDEX_MARKER {
     SSD_ByName = -1             // Pass as index to address a child by name

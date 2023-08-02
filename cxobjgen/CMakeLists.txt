@@ -44,14 +44,14 @@ set(CX_SRCS
     ../cx/container/sarray.c
     ../cx/container/stype_hashtable.c
     ../cx/container/stype_sarray.c
-    ../cx/core/error.c
-    ../cx/core/objclass.c
-    ../cx/core/objiface.c
-    ../cx/core/objimpl.c
-    ../cx/core/objstdif.c
-    ../cx/core/stype.c
-    ../cx/core/stype_obj.c
-    ../cx/core/stype_stvar.c
+    ../cx/debug/error.c
+    ../cx/obj/objclass.c
+    ../cx/obj/objiface.c
+    ../cx/obj/objimpl.c
+    ../cx/obj/objstdif.c
+    ../cx/obj/stype_obj.c
+    ../cx/stype/stype.c
+    ../cx/stype/stype_stvar.c
     ${CX_PLATFORM_SRCS}
     ../cx/string/strbase.c
     ../cx/string/strbase64.c

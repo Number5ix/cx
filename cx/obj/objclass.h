@@ -1,6 +1,6 @@
 #pragma once
 
-#include <cx/core/objiface.h>
+#include <cx/obj/objiface.h>
 #include <cx/container/hashtable.h>
 #include <cx/thread/atomic.h>
 

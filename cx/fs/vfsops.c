@@ -1,5 +1,5 @@
 #include "vfs_private.h"
-#include "cx/core/error.h"
+#include "cx/debug/error.h"
 #include "vfsfs/vfsfs.h"
 
 int vfsStat(VFS *vfs, strref path, FSStat *stat)

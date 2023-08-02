@@ -1,5 +1,5 @@
 #include "vfs_private.h"
-#include "cx/core/error.h"
+#include "cx/debug/error.h"
 
 VFSFile *vfsOpen(VFS *vfs, strref path, flags_t flags)
 {

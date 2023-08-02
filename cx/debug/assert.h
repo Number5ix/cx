@@ -1,7 +1,7 @@
 #pragma once
 
 #include <stdbool.h>
-#include <cx/core/cpp.h>
+#include <cx/platform/cpp.h>
 #include <cx/utils/macros/unused.h>
 
 #if DEBUG_LEVEL >= 1

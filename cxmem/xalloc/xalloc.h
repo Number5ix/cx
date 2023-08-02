@@ -1,6 +1,6 @@
 #pragma once
 
-#include <cx/core/cpp.h>
+#include <cx/platform/cpp.h>
 
 /* XAlloc: Memory allocation interface based on jemalloc's mallocx family of functions */
 

@@ -5,8 +5,8 @@
 // https://github.com/ulid/
 
 #include <cx/platform/base.h>
-#include <cx/core/cpp.h>
-#include <cx/core/stype.h>
+#include <cx/platform/cpp.h>
+#include <cx/stype/stype.h>
 
 CX_C_BEGIN
 

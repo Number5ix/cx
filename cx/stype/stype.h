@@ -5,12 +5,12 @@
 #include <stddef.h>
 #include <string.h>
 #include <cx/debug/assert.h>
-#include <cx/core/cpp.h>
+#include <cx/platform/cpp.h>
 #include <cx/platform/base.h>
 #include <cx/utils/macros/optarg.h>
 
 // extra files that can be included for specific functions
-#define STYPE_FOREACH_ALL <cx/core/alltypes.inc>
+#define STYPE_FOREACH_ALL <cx/stype/alltypes.inc>
 
 CX_C_BEGIN
 

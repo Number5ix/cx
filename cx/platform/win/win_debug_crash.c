@@ -1,6 +1,6 @@
 #include "cx/debug/crash_private.h"
 #include "cx/debug/blackbox.h"
-#include "cx/core/suid.h"
+#include "cx/suid/suid.h"
 #include "cx/debug/stacktrace.h"
 #include "cx/fs/path.h"
 #include "cx/container/sarray.h"

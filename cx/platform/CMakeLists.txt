@@ -1,5 +1,6 @@
 set(PLATFORM_INCLUDES
     platform/base.h
+    platform/cpp.h
     platform/cpu.h
     platform/os.h
     platform/uievent.h)

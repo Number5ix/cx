@@ -1,5 +1,5 @@
 #include "streambuf.h"
-#include <cx/core/error.h>
+#include <cx/debug/error.h>
 #include <cx/meta/block.h>
 #include <cx/utils/compare.h>
 

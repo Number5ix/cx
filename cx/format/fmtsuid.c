@@ -1,5 +1,5 @@
 #include "format_private.h"
-#include "cx/core/suid.h"
+#include "cx/suid/suid.h"
 
 bool _fmtSUID(FMTVar *v, string *out)
 {

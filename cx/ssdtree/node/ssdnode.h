@@ -3,7 +3,7 @@
 // Do not make changes to this file or they will be overwritten.
 #include <cx/obj.h>
 #include <cx/ssdtree/ssdinfo.h>
-#include <cx/core/stvar.h>
+#include <cx/stype/stvar.h>
 
 typedef struct SSDIterator SSDIterator;
 typedef struct SSDNode SSDNode;

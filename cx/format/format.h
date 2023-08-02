@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cx/cx.h>
-#include <cx/core/stvar.h>
+#include <cx/stype/stvar.h>
 #include <cx/container/sarray.h>
 
 /* String formatter =====================================================================

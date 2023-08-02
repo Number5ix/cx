@@ -2,7 +2,7 @@
 
 #include <cx/cx.h>
 #include <cx/string.h>
-#include <cx/core/stvar.h>
+#include <cx/stype/stvar.h>
 
 enum LOG_LEVEL_ENUM {
     LOG_Fatal,

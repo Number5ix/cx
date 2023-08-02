@@ -3,13 +3,15 @@ set(DEBUG_SRCS
     debug/blackbox.c
     debug/crash.c
     debug/crashmem.c
-    debug/dbglog.c)
+    debug/dbglog.c
+    debug/error.c)
 set(DEBUG_INCLUDES
     debug/assert.h
     debug/blackbox.h
     debug/crash.h
     debug/crash_private.h
     debug/dbglog.h
+    debug/error.h
     debug/stacktrace.h)
 
 set(CX_SRCS

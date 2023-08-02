@@ -1,6 +1,6 @@
 #pragma once
 
-#include <cx/core/stype.h>
+#include <cx/stype/stype.h>
 
 typedef struct StreamBuffer StreamBuffer;
 

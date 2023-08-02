@@ -1,5 +1,5 @@
 #include "vfs_private.h"
-#include "cx/core/error.h"
+#include "cx/debug/error.h"
 #include "cx/time/clock.h"
 #include "vfsfs/vfsfs.h"
 #include "vfsvfs/vfsvfs.h"
