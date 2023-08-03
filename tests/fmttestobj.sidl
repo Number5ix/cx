@@ -6,3 +6,10 @@ class FmtTestClass implements Formattable
     string sv;
     factory create(int32 ival, string sval);
 }
+
+class FmtTestClass2 implements Convertible
+{
+    int32 iv;
+    string sv;
+    factory create(int32 ival, string sval);
+}

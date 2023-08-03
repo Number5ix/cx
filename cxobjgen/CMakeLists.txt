@@ -50,6 +50,7 @@ set(CX_SRCS
     ../cx/obj/objimpl.c
     ../cx/obj/objstdif.c
     ../cx/obj/stype_obj.c
+    ../cx/stype/stconvert.c
     ../cx/stype/stype.c
     ../cx/stype/stype_stvar.c
     ${CX_PLATFORM_SRCS}
@@ -62,6 +63,8 @@ set(CX_SRCS
     ../cx/string/strfind.c
     ../cx/string/striter.c
     ../cx/string/strjoin.c
+    ../cx/string/strnum_fp.c
+    ../cx/string/strnum_int.c
     ../cx/string/strrope.c
     ../cx/string/strsplit.c
     ../cx/string/strsubstr.c

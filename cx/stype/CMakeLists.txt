@@ -1,9 +1,11 @@
 set(STYPE_SRCS
+    stype/stconvert.c
     stype/stvar.c
     stype/stype.c
     stype/stype_stvar.c)
 set(STYPE_INCLUDES
     stype/alltypes.inc
+    stype/stconvert.h
     stype/stvar.h
     stype/stype.h
     stype/stype_stvar.h)

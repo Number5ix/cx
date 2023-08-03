@@ -70,6 +70,16 @@ typedef bool _Bool;
 #define MIN_INT64   (-0x7fffffffffffffffLL - 1)
 #define MAX_UINT64    0xffffffffffffffffULL
 
+#if defined(_64BIT)
+#define MIN_INTPTR MIN_INT64
+#define MAX_INTPTR MAX_INT64
+#define MAX_UINTPTR MAX_UINT64
+#elif defined(_32BIT)
+#define MIN_INTPTR MIN_INT32
+#define MAX_INTPTR MAX_INT32
+#define MAX_UINTPTR MAX_UINT32
+#endif
+
 typedef float float32;
 typedef double float64;
 
@@ -577,24 +587,42 @@ enum STYPE_OPS_FLAGS {
     // Valid for: cmp, hash
     // Perform a case-insensitive hash or compare operation if the
     // underlying type supports it
-    ST_CaseInsensitive = 0x00000001,
+    ST_CaseInsensitive  = 0x00000001,
+
+    // Valid for: convert
+    // Conversion normally checks the range of the destination type and the conversion
+    // will fail if it would fall outside the range that a value can be represented.
+    // This flag disables range checking and allows overflow/underflow. This may result
+    // in sign flips for signed integers.
+    ST_Overflow         = 0x00000002,
+
+    // Valid for: convert
+    // Some types cannot accurately represent all values within their range. For example,
+    // not all 32-bit integers can be uniquely represented by a 32-bit float despite being
+    // well within the numeric range.
+    // This flag enables extra checks that will fail the conversion if it could not be
+    // uniquely reversed.
+    ST_Lossless         = 0x00000004,
 };
 
-typedef void (*stDtorFunc)(stype st, stgeneric*, flags_t flags);
-typedef intptr (*stCmpFunc)(stype st, stgeneric, stgeneric, flags_t flags);
-typedef uint32 (*stHashFunc)(stype st, stgeneric, flags_t flags);
-typedef void (*stCopyFunc)(stype st, stgeneric*, stgeneric, flags_t flags);
+typedef void (*stDtorFunc)(stype st, stgeneric* gen, flags_t flags);
+typedef intptr (*stCmpFunc)(stype st, stgeneric gen1, stgeneric gen2, flags_t flags);
+typedef uint32 (*stHashFunc)(stype st, stgeneric gen, flags_t flags);
+typedef void (*stCopyFunc)(stype st, stgeneric* dest, stgeneric src, flags_t flags);
+typedef bool (*stConvertFunc)(stype destst, stgeneric *dest, stype srcst, stgeneric src, flags_t flags);
 
 extern stDtorFunc _stDefaultDtor[256];
 extern stCmpFunc _stDefaultCmp[256];
 extern stHashFunc _stDefaultHash[256];
 extern stCopyFunc _stDefaultCopy[256];
+extern stConvertFunc _stDefaultConvert[256];
 
 typedef struct STypeOps {
     stDtorFunc dtor;
     stCmpFunc cmp;
     stHashFunc hash;
     stCopyFunc copy;
+    stConvertFunc convert;
 } STypeOps;
 
 _meta_inline stgeneric _stStoredVal(stype st, const void *storage)
@@ -686,5 +714,20 @@ _meta_inline uint32 _stHash(stype st, STypeOps *ops, stgeneric gen, flags_t flag
         return stHash_gen(st, gen, flags);
 }
 #define stHash(type, obj, ...) _stHash(stFullType(type), stArg(type, obj), opt_flags(__VA_ARGS__))
+
+_meta_inline bool _stConvert(stype destst, stgeneric *dest, stype srcst, STypeOps *srcops, stgeneric src, flags_t flags)
+{
+    // ops is mandatory for custom type
+    devAssert(!stHasFlag(srcst, Custom) || srcops);
+
+    // The *source* stype is responsible for handling conversions to other types
+    if (srcops && srcops->convert)
+        return srcops->convert(destst, dest, srcst, src, flags);
+    else if (_stDefaultConvert[stGetId(srcst)])
+        return _stDefaultConvert[stGetId(srcst)](destst, dest, srcst, src, flags);
+    else
+        return false;               // can't convert it if we don't know how!
+}
+#define stConvert(desttype, pdest, srctype, src, ...) _stConvert(stType(desttype), stArgPtr(desttype, pdest), stFullType(srctype), stArg(srctype, src), opt_flags(__VA_ARGS__))
 
 CX_C_END

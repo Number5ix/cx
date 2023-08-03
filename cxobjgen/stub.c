@@ -18,3 +18,7 @@ CX_C bool _cxAssertFail(const char *expr, const char *msg) { exit(1); }
 #endif
 
 intptr_t stCmp_suid(stype st, void *a, void *b) { return 0; }
+
+bool stConvert_suid(stype destst, stgeneric *dest, stype srcst, stgeneric src, uint32 flags) { return false; }
+
+bool suidDecode(SUID *out, strref str) { return false; }

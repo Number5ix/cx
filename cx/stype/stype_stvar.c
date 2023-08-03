@@ -33,3 +33,9 @@ uint32 stHash_stvar(stype st, stgeneric gen, uint32 flags)
     stvar *stv = gen.st_stvar;
     return _stHash(stv->type, NULL, stv->data, flags);
 }
+
+bool stConvert_stvar(stype destst, stgeneric *dest, stype srcst, stgeneric src, uint32 flags)
+{
+    stvar *svar = src.st_stvar;
+    return _stConvert(destst, dest, svar->type, NULL, svar->data, flags);
+}

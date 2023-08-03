@@ -56,6 +56,60 @@ void FmtTestClass_destroy(FmtTestClass *self)
     // Autogen ends -------
 }
 
+FmtTestClass2 *FmtTestClass2_create(int32 ival, string sval)
+{
+    FmtTestClass2 *self;
+    self = objInstCreate(FmtTestClass2);
+
+    self->iv = ival;
+    strDup(&self->sv, sval);
+
+    if (!objInstInit(self)) {
+        objRelease(&self);
+        return NULL;
+    }
+
+    return self;
+}
+
+bool FmtTestClass2_convert(FmtTestClass2 *self, stype st, stgeneric *dest, uint32 flags)
+{
+    if (!stEq(st, stType(string)))
+        return false;
+
+    string snum;
+    switch (self->iv) {
+    case 1:
+        snum = _S"One";
+        break;
+    case 2:
+        snum = _S"Two";
+        break;
+    case 3:
+        snum = _S"Three";
+        break;
+    case 4:
+        snum = _S"Four";
+        break;
+    case 5:
+        snum = _S"Five";
+        break;
+    default:
+        return false;
+    }
+
+    dest->st_string = 0;
+    strNConcat(&dest->st_string, _S"Object(", self->sv, _S":", snum, _S")");
+    return true;
+}
+
+void FmtTestClass2_destroy(FmtTestClass2 *self)
+{
+    // Autogen begins -----
+    strDestroy(&self->sv);
+    // Autogen ends -------
+}
+
 // Autogen begins -----
 #include "fmttestobj.auto.inc"
 // Autogen ends -------

@@ -8,6 +8,10 @@ Hashable Hashable_tmpl = {
     ._size = sizeof(Hashable),
 };
 
+Convertible Convertible_tmpl = {
+    ._size = sizeof(Convertible),
+};
+
 IteratorIf IteratorIf_tmpl = {
     ._size = sizeof(IteratorIf),
 };

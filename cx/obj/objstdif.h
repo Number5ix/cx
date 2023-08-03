@@ -24,6 +24,15 @@ typedef struct Hashable {
 } Hashable;
 extern Hashable Hashable_tmpl;
 
+typedef struct Convertible {
+    ObjIface *_implements;
+    ObjIface *_parent;
+    size_t _size;
+
+    bool (*convert)(void *self, stype st, stgeneric *dest, uint32 flags);
+} Convertible;
+extern Convertible Convertible_tmpl;
+
 typedef struct IteratorIf {
     ObjIface *_implements;
     ObjIface *_parent;

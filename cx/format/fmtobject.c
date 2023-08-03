@@ -1,5 +1,6 @@
 #include "format_private.h"
 #include "formattable.h"
+#include <cx/obj/objstdif.h>
 
 bool _fmtParseObjectOpt(FMTVar *v, strref opt)
 {
@@ -12,5 +13,15 @@ bool _fmtParseObjectOpt(FMTVar *v, strref opt)
 bool _fmtObject(FMTVar *v, string *out)
 {
     Formattable *fmtif = (Formattable*)v->fmtdata[0];
-    return fmtif->format(*(ObjInst**)v->data, v, out);
+    Convertible *cvtif = (Convertible*)v->fmtdata[1];
+
+    if (fmtif)
+        return fmtif->format(*(ObjInst**)v->data, v, out);
+
+    // if the object doesn't implement Formattable, it might implement
+    // Convertible and can be converted to a string
+    if (cvtif)
+        return cvtif->convert(*(ObjInst **)v->data, stType(string), stArgPtr(string, out), 0);
+
+    return false;
 }

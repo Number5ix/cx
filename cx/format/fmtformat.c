@@ -1,4 +1,5 @@
 #include "format_private.h"
+#include "cx/obj/objstdif.h"
 #include "cx/utils/compare.h"
 #include "formattable.h"
 
@@ -71,9 +72,15 @@ bool _fmtFindData(FMTContext *ctx)
         if (fmtif) {
             ctx->v.fmtdata[0] = (uintptr)fmtif;
         } else {
-            ctx->v.vtype = -1;
-            ctx->v.data = NULL;
-            return ret;
+            // If an object doesn't implement Formattable, it might implement Convertible
+            Convertible *cvtif = objInstIf(*(ObjInst **)ctx->v.data, Convertible);
+            if (cvtif) {
+                ctx->v.fmtdata[1] = (uintptr)cvtif;
+            } else {
+                ctx->v.vtype = -1;
+                ctx->v.data = NULL;
+                return ret;
+            }
         }
     }
     return true;

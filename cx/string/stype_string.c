@@ -1,4 +1,5 @@
 #include "cx/string.h"
+#include <cx/stype/stconvert.h>
 #include "cx/utils/murmur.h"
 
 void stDtor_string(stype st, stgeneric *gen, uint32 flags)
@@ -27,4 +28,69 @@ uint32 stHash_string(stype st, stgeneric gen, uint32 flags)
         return hashMurmur3Str(gen.st_string);
     else
         return hashMurmur3Stri(gen.st_string);
+}
+
+bool stConvert_string(stype destst, stgeneric *dest, stype srcst, stgeneric src, uint32 flags)
+{
+    switch (stGetId(destst)) {
+    case stTypeId(int8):
+    case stTypeId(int16):
+    {
+        // ehhh, see if it'll fit
+        int32 temp;
+        if (!strToInt32(&temp, src.st_string, 0, true))
+            return false;
+        return stConvert_int(destst, dest, stType(int32), stgeneric(int32, temp), flags);
+    }
+    case stTypeId(uint8):
+    case stTypeId(uint16):
+    {
+        uint32 temp;
+        if (!strToUInt32(&temp, src.st_string, 0, true))
+            return false;
+        return stConvert_int(destst, dest, stType(uint32), stgeneric(uint32, temp), flags);
+    }
+    case stTypeId(int32):
+        return strToInt32(&dest->st_int32, src.st_string, 0, true);
+    case stTypeId(uint32):
+        return strToUInt32(&dest->st_uint32, src.st_string, 0, true);
+    case stTypeId(int64):
+        return strToInt64(&dest->st_int64, src.st_string, 0, true);
+    case stTypeId(uint64):
+        return strToUInt64(&dest->st_uint64, src.st_string, 0, true);
+    case stTypeId(float32):
+    case stTypeId(float64):
+    {
+        double temp;
+        const char *in = strC(src.st_string);
+        char *endp;
+
+        temp = strtod(in, &endp);
+        if (in == (const char*)endp)
+            return false;               // strtod failed
+
+        // TODO: What does 'lossy' mean in the context of converting a string to a float32?
+        if (stGetId(destst) == stTypeId(float64))
+            dest->st_float64 = temp;
+        else
+            dest->st_float32 = (float32)temp;
+
+        return true;
+    }
+    case stTypeId(stvar):
+        // okay, sure, we can put it in one
+        dest->st_stvar->type = srcst;
+        dest->st_stvar->data = src;
+        return true;
+    case stTypeId(bool):
+        dest->st_bool = !strEmpty(src.st_string);
+        return true;
+    case stTypeId(suid):
+        return suidDecode(dest->st_suid, src.st_string);
+    case stTypeId(string):
+        stCopy_string(destst, dest, src, flags);
+        return true;
+    }
+
+    return false;
 }

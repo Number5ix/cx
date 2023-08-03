@@ -202,6 +202,38 @@ static int test_object()
     objRelease(&o4);
     objRelease(&o5);
     strDestroy(&res);
+
+    // try it again but using a class that implements Convertible instead of Formattable
+    FmtTestClass2 *oo1, *oo2, *oo3, *oo4, *oo5;
+
+    oo1 = fmttestclass2Create(1, _S"Test");
+    oo2 = fmttestclass2Create(2, _S"Lest");
+    oo3 = fmttestclass2Create(3, _S"Best");
+    oo4 = fmttestclass2Create(4, _S"Fest");
+    oo5 = fmttestclass2Create(5, _S"Behest");
+
+    strFormat(&res, _S"This is a ${object}, ${object}, ${object}, ${object}, ${object} test",
+              stvar(object, oo1), stvar(object, oo2), stvar(object, oo3), stvar(object, oo4), stvar(object, oo5));
+
+    if (!strEq(res, _S"This is a Object(Test:One), Object(Lest:Two), Object(Best:Three), Object(Fest:Four), Object(Behest:Five) test"))
+        return 1;
+
+    oo1->iv = 5;
+    oo2->iv = 4;
+    oo4->iv = 2;
+    oo5->iv = 1;
+
+    strFormat(&res, _S"This is a ${object}, ${object}, ${object}, ${object}, ${object} test",
+              stvar(object, oo1), stvar(object, oo2), stvar(object, oo3), stvar(object, oo4), stvar(object, oo5));
+
+    if (!strEq(res, _S"This is a Object(Test:Five), Object(Lest:Four), Object(Best:Three), Object(Fest:Two), Object(Behest:One) test"))
+        return 1;
+
+    objRelease(&oo1);
+    objRelease(&oo2);
+    objRelease(&oo3);
+    objRelease(&oo4);
+    objRelease(&oo5);
     return 0;
 }
 

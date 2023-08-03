@@ -12,8 +12,10 @@ create_test_sourcelist(testsrc
     sbtest.c
     lineparsetest.c
     jsontest.c
+    converttest.c
     alltests.c)
-add_sidl(fmttestobj.sidl
+add_sidl(converttestobj.sidl
+    fmttestobj.sidl
     objtestobj.sidl)
 set(test_runner_files
     ${testsrc}
@@ -23,6 +25,9 @@ set(test_runner_files
     objtestobj.c
     objtestobj.h
     objtestobj.sidl
+    converttestobj.c
+    converttestobj.h
+    converttestobj.sidl
     common.h)
 
 source_group("" FILES ${test_runner_files})
@@ -73,6 +78,9 @@ add_test(NAME "\"string: Substrings\"" COMMAND test_runner strtest substr)
 add_test(NAME "\"string: Compare\"" COMMAND test_runner strtest compare)
 add_test(NAME "\"string: Long Strings\"" COMMAND test_runner strtest longstring)
 add_test(NAME "\"string: Ropes\"" COMMAND test_runner strtest rope)
+add_test(NAME "\"convert: Numeric Types\"" COMMAND test_runner converttest numeric)
+add_test(NAME "\"convert: Strings\"" COMMAND test_runner converttest string)
+add_test(NAME "\"convert: Objects\"" COMMAND test_runner converttest object)
 add_test(NAME "\"thread: Basic multithreading\"" COMMAND test_runner thrtest basic)
 add_test(NAME "\"thread: Futex\"" COMMAND test_runner thrtest futex)
 add_test(NAME "\"thread: Futex with timeout\"" COMMAND test_runner thrtest timeout)

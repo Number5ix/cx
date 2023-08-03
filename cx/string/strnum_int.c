@@ -87,10 +87,10 @@ bool name(type *out, strref s, int base, bool strict)        \
     return true;                                             \
 }
 
-STRNUM_IMPL(int32, int32, uint32, strToInt32, neg ? (uint32)-(INT32_MIN + INT32_MAX) + INT32_MAX : INT32_MAX)
-STRNUM_IMPL(uint32, int32, uint32, strToUInt32, INT32_MAX)
-STRNUM_IMPL(int64, int64, uint64, strToInt64, neg ? (uint64)-(INT64_MIN + INT64_MAX) + INT64_MAX : INT64_MAX)
-STRNUM_IMPL(uint64, int64, uint64, strToUInt64, INT64_MAX)
+STRNUM_IMPL(int32, int32, uint32, strToInt32, neg ? (uint32)-(MIN_INT32 + MAX_INT32) + MAX_INT32 : MAX_INT32)
+STRNUM_IMPL(uint32, int32, uint32, strToUInt32, MAX_UINT32)
+STRNUM_IMPL(int64, int64, uint64, strToInt64, neg ? (uint64)-(MIN_INT64 + MAX_INT64) + MAX_INT64 : MAX_INT64)
+STRNUM_IMPL(uint64, int64, uint64, strToUInt64, MAX_UINT64)
 
 // integer to string -------------------------------------------------------------------
 

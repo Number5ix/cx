@@ -1,6 +1,7 @@
 #include "cx/obj.h"
 #include "cx/debug/assert.h"
 #include "cx/utils/murmur.h"
+#include "objstdif.h"
 
 void stDtor_obj(stype st, stgeneric *gen, uint32 flags)
 {
@@ -34,4 +35,15 @@ uint32 stHash_obj(stype st, stgeneric gen, uint32 flags)
 
     devFatalError("Tried to hash an unhashable object");
     return 0;
+}
+
+bool stConvert_obj(stype destst, stgeneric *dest, stype srcst, stgeneric src, uint32 flags)
+{
+    ObjInst *inst = src.st_object;
+
+    Convertible *cvtif = objInstIf(src.st_object, Convertible);
+    if (cvtif)
+        return cvtif->convert(inst, destst, dest, flags);
+
+    return false;
 }

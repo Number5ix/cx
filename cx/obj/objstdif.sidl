@@ -8,6 +8,10 @@ interface Hashable {
     uint32 hash(uint32 flags);
 }
 
+interface Convertible {
+    bool convert(stype st, stgeneric *dest, uint32 flags);
+}
+
 interface IteratorIf {
     bool valid();
     bool next();
