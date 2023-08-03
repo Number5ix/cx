@@ -39,7 +39,7 @@ enum STYPE_CLASS_ID {
 #define STYPE_CLASS_MASK 0xf0
 #define STYPE_CLASS(v) ((v) & STYPE_CLASS_MASK)
 
-typedef char int8;
+typedef signed char int8;
 typedef unsigned char uint8;
 typedef short int16;
 typedef unsigned short uint16;
