@@ -23,6 +23,12 @@ typedef struct FmtTestClass2_ClassIf {
     ObjIface *_parent;
     size_t _size;
 
+    // NOTE: While this is used by stConvert, the object interface is a higher level interface.
+    // The normal convention of blindly overwriting the destination does not apply here. For
+    // example, when called to convert to a string, the destination should be properly reused
+    // or destroyed first.
+    // The layer between stConvert and Convertible takes care of making sure the destination is
+    // always initialized.
     bool (*convert)(void *self, stype st, stgeneric *dest, uint32 flags);
 } FmtTestClass2_ClassIf;
 extern FmtTestClass2_ClassIf FmtTestClass2_ClassIf_tmpl;
@@ -71,5 +77,12 @@ FmtTestClass2 *FmtTestClass2_create(int32 ival, string sval);
 #define fmttestclass2Create(ival, sval) FmtTestClass2_create(ival, sval)
 
 // bool fmttestclass2Convert(FmtTestClass2 *self, stype st, stgeneric *dest, uint32 flags);
+//
+// NOTE: While this is used by stConvert, the object interface is a higher level interface.
+// The normal convention of blindly overwriting the destination does not apply here. For
+// example, when called to convert to a string, the destination should be properly reused
+// or destroyed first.
+// The layer between stConvert and Convertible takes care of making sure the destination is
+// always initialized.
 #define fmttestclass2Convert(self, st, dest, flags) (self)->_->convert(FmtTestClass2(self), st, dest, flags)
 

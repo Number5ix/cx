@@ -34,7 +34,6 @@ bool ConvertTestClass_convert(ConvertTestClass *self, stype st, stgeneric *dest,
         return stConvert_float64(st, dest, stCheckedArg(float64, self->fval), flags);
 
     if (stEq(st, stType(string))) {
-        dest->st_string = 0;
         strDup(&dest->st_string, self->sval);
         return true;
     }

@@ -605,6 +605,14 @@ enum STYPE_OPS_FLAGS {
     ST_Lossless         = 0x00000004,
 };
 
+// Implementation notes:
+// stype ops are LOW LEVEL operations for dealing with data types at the most basic level.
+// In particular, stCopy and stConvert will OVERWRITE the destination without checking.
+// This allows them to be used to efficiently initialize otherwise initialized memory,
+// but caution should be used with higher level types to avoid leaking memory.
+// For example, using stCopy to overwrite an existing string or sarray will leak the
+// destination because stCopy does not destroy the existing object first.
+
 typedef void (*stDtorFunc)(stype st, stgeneric* gen, flags_t flags);
 typedef intptr (*stCmpFunc)(stype st, stgeneric gen1, stgeneric gen2, flags_t flags);
 typedef uint32 (*stHashFunc)(stype st, stgeneric gen, flags_t flags);

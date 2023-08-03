@@ -98,7 +98,6 @@ bool FmtTestClass2_convert(FmtTestClass2 *self, stype st, stgeneric *dest, uint3
         return false;
     }
 
-    dest->st_string = 0;
     strNConcat(&dest->st_string, _S"Object(", self->sv, _S":", snum, _S")");
     return true;
 }
