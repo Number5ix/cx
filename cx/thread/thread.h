@@ -38,6 +38,12 @@ _meta_inline bool thrRunning(Thread *thread)
     return atomicLoad(bool, &thread->running, Acquire);
 }
 
+// for use in a thread loop, returns false if the thread should exit
+_meta_inline bool thrLoop(Thread *thread)
+{
+    return !atomicLoad(bool, &thread->requestExit, Acquire);
+}
+
 bool thrRequestExit(Thread *thread);
 bool thrWait(Thread *thread, int64 timeout);
 bool thrShutdown(Thread *thread);

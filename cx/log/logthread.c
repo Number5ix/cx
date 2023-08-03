@@ -25,7 +25,7 @@ static int logthread_func(Thread *self)
     sa_LogEntry ents;
     saInit(&ents, ptr, 16);
 
-    while (!atomicLoad(bool, &self->requestExit, Acquire)) {
+    while (thrLoop(self)) {
         rwlockAcquireRead(&_log_buffer_lock);
         int32 bsize = saSize(_log_buffer);      // size cannot change while read lock is held
         int32 wrptr = atomicLoad(int32, &_log_buf_writeptr, Acquire);
