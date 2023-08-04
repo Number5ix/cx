@@ -7,6 +7,7 @@
 #include <cx/string.h>
 #include "ssdnode.h"
 // ==================== Auto-generated section ends ======================
+#include <cx/time/clock.h>
 
 void SSDNode_destroy(SSDNode *self)
 {
@@ -23,6 +24,11 @@ bool SSDNode_isHashtable(SSDNode *self)
 bool SSDNode_isArray(SSDNode *self)
 {
     return false;
+}
+
+void SSDNode_updateModified(SSDNode *self)
+{
+    self->modified = self->info->modified = clockTimer();
 }
 
 // Autogen begins -----

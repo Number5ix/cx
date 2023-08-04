@@ -15,6 +15,7 @@ SSDArrayNode *SSDArrayNode_create(SSDInfo *info)
     self = objInstCreate(SSDArrayNode);
 
     self->info = objAcquire(info);
+    ssdnodeUpdateModified(self);
 
     if (!objInstInit(self)) {
         objRelease(&self);
@@ -32,22 +33,18 @@ bool SSDArrayNode_init(SSDArrayNode *self)
     // Autogen ends -------
 }
 
-static bool getInternal(SSDArrayNode *self, int32 idx, stvar *out)
-{
-    if (idx < 0 || idx >= saSize(self->storage))
-        return false;
-
-    stvarCopy(out, self->storage.a[idx]);
-    return true;
-}
-
 bool SSDArrayNode_get(SSDArrayNode *self, int32 idx, strref name, stvar *out, SSDLock *lock)
 {
     if (idx == SSD_ByName && !strToInt32(&idx, name, 0, true))
         return false;
 
     ssdLockRead(self, lock);
-    return getInternal(self, idx, out);
+
+    if (idx < 0 || idx >= saSize(self->storage))
+        return false;
+
+    stvarCopy(out, self->storage.a[idx]);
+    return true;
 }
 
 static stvar *ptrInternal(SSDArrayNode *self, int32 idx)
@@ -81,6 +78,7 @@ bool SSDArrayNode_set(SSDArrayNode *self, int32 idx, strref name, stvar val, SSD
 
     stvarDestroy(&self->storage.a[idx]);
     stvarCopy(&self->storage.a[idx], val);
+    ssdnodeUpdateModified(self);
     return true;
 }
 
@@ -101,6 +99,7 @@ bool SSDArrayNode_setC(SSDArrayNode *self, int32 idx, strref name, stvar *val, S
 
     stvarDestroy(&self->storage.a[idx]);
     self->storage.a[idx] = *val;
+    ssdnodeUpdateModified(self);
     ret = true;
 
 out:
@@ -117,8 +116,13 @@ bool SSDArrayNode_remove(SSDArrayNode *self, int32 idx, strref name, SSDLock *lo
     if (idx == SSD_ByName && !strToInt32(&idx, name, 0, true))
         return false;
 
+    ssdLockWrite(self, lock);
+
     // upper bounds check for idx happens in saRemove
-    return saRemove(&self->storage, idx);
+    bool ret = saRemove(&self->storage, idx);
+    if (ret)
+        ssdnodeUpdateModified(self);
+    return ret;
 }
 
 SSDIterator *SSDArrayNode_iter(SSDArrayNode *self)

@@ -63,6 +63,7 @@ typedef struct SSDSingleNode {
     atomic(intptr) _ref;
 
     SSDInfo *info;
+    int64 modified;        // The timestamp this node was last modified
     stvar storage;
 } SSDSingleNode;
 extern ObjClassInfo SSDSingleNode_clsinfo;

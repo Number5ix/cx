@@ -16,6 +16,7 @@ SSDSingleNode *SSDSingleNode_create(SSDInfo *info, stvar initval)
 
     self->info = objAcquire(info);
     stvarCopy(&self->storage, initval);
+    ssdnodeUpdateModified(self);
 
     if (!objInstInit(self)) {
         objRelease(&self);
@@ -43,6 +44,7 @@ bool SSDSingleNode_set(SSDSingleNode *self, int32 idx, strref name, stvar val, S
     ssdLockWrite(self, lock);
     stvarDestroy(&self->storage);
     stvarCopy(&self->storage, val);
+    ssdnodeUpdateModified(self);
     return true;
 }
 
@@ -52,6 +54,7 @@ bool SSDSingleNode_setC(SSDSingleNode *self, int32 idx, strref name, stvar *val,
     stvarDestroy(&self->storage);
     self->storage = *val;
     *val = stvNone;
+    ssdnodeUpdateModified(self);
     return true;
 }
 

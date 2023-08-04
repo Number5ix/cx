@@ -4,6 +4,9 @@ class SSDInfo {
     RWLock lock;
     uint32 flags;
 
+    // The most recent last-modified timestamp of any node in the tree
+    int64 modified;
+
     factory create(uint32 flags);
     init();
     destroy();

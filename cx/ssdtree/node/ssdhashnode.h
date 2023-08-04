@@ -63,6 +63,7 @@ typedef struct SSDHashNode {
     atomic(intptr) _ref;
 
     SSDInfo *info;
+    int64 modified;        // The timestamp this node was last modified
     hashtable storage;
 } SSDHashNode;
 extern ObjClassInfo SSDHashNode_clsinfo;

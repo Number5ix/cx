@@ -133,10 +133,15 @@ typedef struct SSDNode {
     atomic(intptr) _ref;
 
     SSDInfo *info;
+    int64 modified;        // The timestamp this node was last modified
 } SSDNode;
 extern ObjClassInfo SSDNode_clsinfo;
 #define SSDNode(inst) ((SSDNode*)((void)((inst) && &((inst)->_is_SSDNode)), (inst)))
 #define SSDNodeNone ((SSDNode*)NULL)
+
+void SSDNode_updateModified(SSDNode *self);
+// void ssdnodeUpdateModified(SSDNode *self);
+#define ssdnodeUpdateModified(self) SSDNode_updateModified(SSDNode(self))
 
 // bool ssdnodeIsHashtable(SSDNode *self);
 //

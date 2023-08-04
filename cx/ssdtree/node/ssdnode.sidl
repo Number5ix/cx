@@ -47,9 +47,14 @@ abstract class SSDNode implements SSDNodeIf implements Iterable
 {
     object:SSDInfo info;
 
+    // The timestamp this node was last modified
+    int64 modified;
+
     // This node is an object that contains values or objects by name
     bool isHashtable();
 
     // This node is an array that contains values or objects by array index
     bool isArray();
+
+    unbound void updateModified();
 }

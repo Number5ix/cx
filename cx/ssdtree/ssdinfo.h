@@ -18,6 +18,7 @@ typedef struct SSDInfo {
 
     RWLock lock;
     uint32 flags;
+    int64 modified;        // The most recent last-modified timestamp of any node in the tree
 } SSDInfo;
 extern ObjClassInfo SSDInfo_clsinfo;
 #define SSDInfo(inst) ((SSDInfo*)((void)((inst) && &((inst)->_is_SSDInfo)), (inst)))

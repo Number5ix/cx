@@ -15,6 +15,7 @@ SSDHashNode *SSDHashNode_create(SSDInfo *info)
     self = objInstCreate(SSDHashNode);
 
     self->info = objAcquire(info);
+    ssdnodeUpdateModified(self);
 
     if (!objInstInit(self)) {
         objRelease(&self);
@@ -73,6 +74,7 @@ bool SSDHashNode_set(SSDHashNode *self, int32 idx, strref name, stvar val, SSDLo
 
     ssdLockWrite(self, lock);
     htInsert(&self->storage, strref, name, stvar, val);
+    ssdnodeUpdateModified(self);
     return true;
 }
 
@@ -85,6 +87,7 @@ bool SSDHashNode_setC(SSDHashNode *self, int32 idx, strref name, stvar *val, SSD
 
     ssdLockWrite(self, lock);
     htInsertC(&self->storage, strref, name, stvar, val);
+    ssdnodeUpdateModified(self);
     return true;
 }
 
@@ -94,7 +97,10 @@ bool SSDHashNode_remove(SSDHashNode *self, int32 idx, strref name, SSDLock *lock
         return false;
 
     ssdLockWrite(self, lock);
-    return htRemove(&self->storage, strref, name);
+    bool ret = htRemove(&self->storage, strref, name);
+    if (ret)
+        ssdnodeUpdateModified(self);
+    return ret;
 }
 
 SSDIterator *SSDHashNode_iter(SSDHashNode *self)

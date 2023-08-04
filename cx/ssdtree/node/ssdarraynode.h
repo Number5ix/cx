@@ -63,6 +63,7 @@ typedef struct SSDArrayNode {
     atomic(intptr) _ref;
 
     SSDInfo *info;
+    int64 modified;        // The timestamp this node was last modified
     sa_stvar storage;
 } SSDArrayNode;
 extern ObjClassInfo SSDArrayNode_clsinfo;
