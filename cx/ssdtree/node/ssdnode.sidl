@@ -1,4 +1,4 @@
-#include <cx/ssdtree/ssdinfo.sidl>
+#include <cx/ssdtree/ssdtreeobj.sidl>
 #include <cx/stype/stvar.h>
 
 enum SSD_INDEX_MARKER {
@@ -45,7 +45,7 @@ interface SSDNodeIf
 
 abstract class SSDNode implements SSDNodeIf implements Iterable
 {
-    object:SSDInfo info;
+    object:SSDTree tree;
 
     // The timestamp this node was last modified
     int64 modified;

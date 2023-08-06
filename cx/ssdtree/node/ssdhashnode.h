@@ -62,7 +62,7 @@ typedef struct SSDHashNode {
     };
     atomic(intptr) _ref;
 
-    SSDInfo *info;
+    SSDTree *tree;
     int64 modified;        // The timestamp this node was last modified
     hashtable storage;
 } SSDHashNode;
@@ -70,9 +70,12 @@ extern ObjClassInfo SSDHashNode_clsinfo;
 #define SSDHashNode(inst) ((SSDHashNode*)((void)((inst) && &((inst)->_is_SSDHashNode)), (inst)))
 #define SSDHashNodeNone ((SSDHashNode*)NULL)
 
-SSDHashNode *SSDHashNode_create(SSDInfo *info);
-// SSDHashNode *ssdhashnodeCreate(SSDInfo *info);
-#define ssdhashnodeCreate(info) SSDHashNode_create(SSDInfo(info))
+SSDHashNode *SSDHashNode__create(SSDTree *tree);
+// SSDHashNode *ssdhashnode_create(SSDTree *tree);
+#define ssdhashnode_create(tree) SSDHashNode__create(SSDTree(tree))
+
+// void ssdhashnodeUpdateModified(SSDHashNode *self);
+#define ssdhashnodeUpdateModified(self) SSDNode_updateModified(SSDNode(self))
 
 // bool ssdhashnodeIsHashtable(SSDHashNode *self);
 //

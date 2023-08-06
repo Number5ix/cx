@@ -1,21 +1,21 @@
 set(SSDTREE_SRCS
-    ssdtree/ssdinfo.c
     ssdtree/ssdtree.c
+    ssdtree/ssdtreeobj.c
     ssdtree/node/ssdnode.c
     ssdtree/node/ssdarraynode.c
     ssdtree/node/ssdhashnode.c
     ssdtree/node/ssdsinglenode.c)
 set(SSDTREE_INCLUDES
-    ssdtree/ssdinfo.h
     ssdtree/ssdnodes.h
     ssdtree/ssdshared.h
     ssdtree/ssdtree.h
+    ssdtree/ssdtreeobj.h
     ssdtree/node/ssdnode.h
     ssdtree/node/ssdarraynode.h
     ssdtree/node/ssdhashnode.h
     ssdtree/node/ssdsinglenode.h)
 set(SSDTREE_SIDL
-    ssdtree/ssdinfo.sidl
+    ssdtree/ssdtreeobj.sidl
     ssdtree/node/ssdnode.sidl
     ssdtree/node/ssdarraynode.sidl
     ssdtree/node/ssdhashnode.sidl

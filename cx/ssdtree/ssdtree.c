@@ -11,9 +11,9 @@ void ssdLockInit(SSDLock *lock)
     lock->rdlock = lock->wrlock = false;
 }
 
-bool _ssdLockRead(SSDNode *tree, SSDLock *lock)
+bool _ssdLockRead(SSDNode *root, SSDLock *lock)
 {
-    if (!tree || !lock)
+    if (!root || !lock)
         return false;
     if (!lock->init)
         ssdLockInit(lock);
@@ -22,14 +22,14 @@ bool _ssdLockRead(SSDNode *tree, SSDLock *lock)
         return true;
 
     lock->rdlock = true;
-    rwlockAcquireRead(&tree->info->lock);
+    rwlockAcquireRead(&root->tree->lock);
 
     return true;
 }
 
-bool _ssdLockWrite(SSDNode *tree, SSDLock *lock)
+bool _ssdLockWrite(SSDNode *root, SSDLock *lock)
 {
-    if (!tree || !lock)
+    if (!root || !lock)
         return false;
     if (!lock->init)
         ssdLockInit(lock);
@@ -39,48 +39,37 @@ bool _ssdLockWrite(SSDNode *tree, SSDLock *lock)
 
     if (lock->rdlock) {
         lock->rdlock = false;
-        rwlockReleaseRead(&tree->info->lock);
+        rwlockReleaseRead(&root->tree->lock);
     }
 
-    rwlockAcquireWrite(&tree->info->lock);
+    rwlockAcquireWrite(&root->tree->lock);
     lock->wrlock = true;
 
     return true;
 }
 
-bool ssdLockEnd(SSDNode *tree, SSDLock *lock)
+bool ssdLockEnd(SSDNode *root, SSDLock *lock)
 {
-    if (!tree || !lock || !lock->init)
+    if (!root || !lock || !lock->init)
         return false;
 
     if (lock->wrlock)
-        rwlockReleaseWrite(&tree->info->lock);
+        rwlockReleaseWrite(&root->tree->lock);
     else if (lock->rdlock)
-        rwlockReleaseRead(&tree->info->lock);
+        rwlockReleaseRead(&root->tree->lock);
 
     lock->wrlock = lock->rdlock = false;
 
     return true;
 }
 
-SSDNode *_ssdCreateRoot(int crtype, stvar initval, uint32 flags)
+SSDNode *_ssdCreateRoot(int crtype, SSDTree *tree, uint32 flags)
 {
-    SSDInfo *info = ssdinfoCreate(flags);
-    SSDNode *ret = NULL;
+    if (!tree)
+        tree = ssdtreeCreate(flags);
+    SSDNode *ret = ssdtreeCreateNode(tree, crtype);
 
-    switch (crtype) {
-    case SSD_Create_Hashtable:
-        ret = (SSDNode*)ssdhashnodeCreate(info);
-        break;
-    case SSD_Create_Array:
-        ret = (SSDNode*)ssdarraynodeCreate(info);
-        break;
-    case SSD_Create_Single:
-        ret = (SSDNode*)ssdsinglenodeCreate(info, initval);
-        break;
-    }
-
-    objRelease(&info);
+    objRelease(&tree);
     return ret;
 }
 
@@ -116,17 +105,9 @@ static SSDNode *getChild(SSDNode *node, strref name, int checktype, int create, 
             if (!havewrite)
                 continue;
 
-            switch (create) {
-            case SSD_Create_Hashtable:
-                ret = (SSDNode*)ssdhashnodeCreate(node->info);
-                break;
-            case SSD_Create_Array:
-                ret = (SSDNode*)ssdarraynodeCreate(node->info);
-                break;
-            default:
-                // invalid create type
+            ret = ssdtreeCreateNode(node->tree, create);
+            if (!ret)
                 return NULL;
-            }
 
             // create or overwrite
             ssdnodeSet(node, SSD_ByName, name, stvar(object, ret), lock);
@@ -137,9 +118,9 @@ static SSDNode *getChild(SSDNode *node, strref name, int checktype, int create, 
     return ret;
 }
 
-static bool ssdResolvePath(SSDNode *tree, strref path, SSDNode **nodeout, string *nameout, bool create, SSDLock *lock)
+static bool ssdResolvePath(SSDNode *root, strref path, SSDNode **nodeout, string *nameout, bool create, SSDLock *lock)
 {
-    SSDNode *node = objAcquire(tree);
+    SSDNode *node = objAcquire(root);
     string name = 0;
     int arrstate = 0;
     bool ret = false;
@@ -208,7 +189,7 @@ out:
     return ret;
 }
 
-bool ssdGet(SSDNode *tree, strref path, stvar *out, SSDLock *lock)
+bool ssdGet(SSDNode *root, strref path, stvar *out, SSDLock *lock)
 {
     SSDLock transient_lock = { 0 };
     if (!lock) lock = &transient_lock;
@@ -217,18 +198,18 @@ bool ssdGet(SSDNode *tree, strref path, stvar *out, SSDLock *lock)
     string name = 0;
     bool ret = false;
 
-    if (ssdResolvePath(tree, path, &node, &name, false, lock))
+    if (ssdResolvePath(root, path, &node, &name, false, lock))
         ret = ssdnodeGet(node, SSD_ByName, name, out, lock);
 
     if (transient_lock.init)
-        ssdLockEnd(tree, &transient_lock);
+        ssdLockEnd(root, &transient_lock);
 
     objRelease(&node);
     strDestroy(&name);
     return ret;
 }
 
-stvar *ssdPtr(SSDNode *tree, strref path, SSDLock *lock)
+stvar *ssdPtr(SSDNode *root, strref path, SSDLock *lock)
 {
     SSDNode *node = NULL;
     string name = 0;
@@ -236,7 +217,7 @@ stvar *ssdPtr(SSDNode *tree, strref path, SSDLock *lock)
 
     devAssert(lock);            // lock parameter is mandatory
 
-    if (ssdResolvePath(tree, path, &node, &name, false, lock))
+    if (ssdResolvePath(root, path, &node, &name, false, lock))
         ret = ssdnodePtr(node, SSD_ByName, name, lock);
 
     objRelease(&node);
@@ -244,57 +225,57 @@ stvar *ssdPtr(SSDNode *tree, strref path, SSDLock *lock)
     return ret;
 }
 
-bool ssdSet(SSDNode *tree, strref path, bool createpath, stvar val, SSDLock *lock)
+bool ssdSet(SSDNode *root, strref path, bool createpath, stvar val, SSDLock *lock)
 {
     SSDLock transient_lock = { 0 };
     if (!lock) lock = &transient_lock;
 
     // we know we're going to need the write lock for the duration regardless
-    ssdLockWrite(tree, lock);
+    ssdLockWrite(root, lock);
 
     SSDNode *node = NULL;
     string name = 0;
     bool ret = false;
 
-    if (ssdResolvePath(tree, path, &node, &name, createpath, lock)) {
+    if (ssdResolvePath(root, path, &node, &name, createpath, lock)) {
         ssdnodeSet(node, SSD_ByName, name, val, lock);
         ret = true;
     }
 
     if (transient_lock.init)
-        ssdLockEnd(tree, &transient_lock);
+        ssdLockEnd(root, &transient_lock);
 
     objRelease(&node);
     strDestroy(&name);
     return ret;
 }
 
-bool ssdRemove(SSDNode *tree, strref path, SSDLock *lock)
+bool ssdRemove(SSDNode *root, strref path, SSDLock *lock)
 {
     SSDLock transient_lock = { 0 };
     if (!lock) lock = &transient_lock;
 
     // this is likely going to need the write lock, even if it technically
     // doesn't 100% of the time (i.e. if the key doesn't exist)
-    ssdLockWrite(tree, lock);
+    ssdLockWrite(root, lock);
 
     SSDNode *node = NULL;
     string name = 0;
     bool ret = false;
 
-    if (ssdResolvePath(tree, path, &node, &name, false, lock)) {
+    if (ssdResolvePath(root, path, &node, &name, false, lock)) {
         ret = ssdnodeRemove(node, SSD_ByName, name, lock);
     }
 
     if (transient_lock.init)
-        ssdLockEnd(tree, &transient_lock);
+        ssdLockEnd(root, &transient_lock);
 
     objRelease(&node);
     strDestroy(&name);
     return ret;
 }
 
-SSDNode *ssdSubtree(SSDNode *tree, strref path, int create, SSDLock *lock)
+SSDNode *ssdSubtree(SSDNode *root, strref path, int create, SSDLock *lock)
 {
     SSDLock transient_lock = { 0 };
     if (!lock) lock = &transient_lock;
@@ -303,12 +284,12 @@ SSDNode *ssdSubtree(SSDNode *tree, strref path, int create, SSDLock *lock)
     SSDNode *node = NULL;
     string name = 0;
 
-    if (ssdResolvePath(tree, path, &node, &name, create != SSD_Create_None, lock)) {
+    if (ssdResolvePath(root, path, &node, &name, create != SSD_Create_None, lock)) {
         ret = getChild(node, name, create, create, lock);
     }
 
     if (transient_lock.init)
-        ssdLockEnd(tree, &transient_lock);
+        ssdLockEnd(root, &transient_lock);
 
     objRelease(&node);
     strDestroy(&name);

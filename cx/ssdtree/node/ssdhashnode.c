@@ -9,12 +9,12 @@
 // ==================== Auto-generated section ends ======================
 #include "../ssdtree.h"
 
-SSDHashNode *SSDHashNode_create(SSDInfo *info)
+SSDHashNode *SSDHashNode__create(SSDTree *tree)
 {
     SSDHashNode *self;
     self = objInstCreate(SSDHashNode);
 
-    self->info = objAcquire(info);
+    self->tree = objAcquire(tree);
     ssdnodeUpdateModified(self);
 
     if (!objInstInit(self)) {
@@ -28,7 +28,7 @@ SSDHashNode *SSDHashNode_create(SSDInfo *info)
 bool SSDHashNode_init(SSDHashNode *self)
 {
     flags_t htflags = 0;
-    if (self->info->flags & SSD_CaseInsensitive)
+    if (self->tree->flags & SSD_CaseInsensitive)
         htflags = HT_CaseInsensitive;
     htInit(&self->storage, string, stvar, 16, htflags);
 

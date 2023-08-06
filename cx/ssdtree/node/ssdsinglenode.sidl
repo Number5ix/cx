@@ -4,7 +4,7 @@ class SSDSingleNode extends SSDNode
 {
     stvar storage;
 
-    factory create(SSDInfo *info, stvar initval);
+    factory _create(SSDTree *tree);
 }
 
 class SSDSingleIter extends SSDIterator

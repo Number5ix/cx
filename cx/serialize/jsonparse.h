@@ -3,6 +3,7 @@
 #include <cx/serialize/jsoncommon.h>
 
 typedef struct SSDNode SSDNode;
+typedef struct SSDTree SSDTree;
 typedef void (*jsonParseCB)(JSONParseEvent *ev, void *userdata);
 
 // JSON STREAM PARSER
@@ -14,3 +15,4 @@ bool jsonParse(StreamBuffer *sb, jsonParseCB callback, void *userdata);
 // Parses JSON data from a streambuffer, which must support PULL mode.
 // Fully loads the data into a semi-structured data tree.
 SSDNode *jsonParseTree(StreamBuffer *sb);
+SSDNode *jsonParseTreeCustom(StreamBuffer *sb, SSDTree *tree);

@@ -62,7 +62,7 @@ typedef struct SSDArrayNode {
     };
     atomic(intptr) _ref;
 
-    SSDInfo *info;
+    SSDTree *tree;
     int64 modified;        // The timestamp this node was last modified
     sa_stvar storage;
 } SSDArrayNode;
@@ -70,9 +70,12 @@ extern ObjClassInfo SSDArrayNode_clsinfo;
 #define SSDArrayNode(inst) ((SSDArrayNode*)((void)((inst) && &((inst)->_is_SSDArrayNode)), (inst)))
 #define SSDArrayNodeNone ((SSDArrayNode*)NULL)
 
-SSDArrayNode *SSDArrayNode_create(SSDInfo *info);
-// SSDArrayNode *ssdarraynodeCreate(SSDInfo *info);
-#define ssdarraynodeCreate(info) SSDArrayNode_create(SSDInfo(info))
+SSDArrayNode *SSDArrayNode__create(SSDTree *tree);
+// SSDArrayNode *ssdarraynode_create(SSDTree *tree);
+#define ssdarraynode_create(tree) SSDArrayNode__create(SSDTree(tree))
+
+// void ssdarraynodeUpdateModified(SSDArrayNode *self);
+#define ssdarraynodeUpdateModified(self) SSDNode_updateModified(SSDNode(self))
 
 // bool ssdarraynodeIsHashtable(SSDArrayNode *self);
 //

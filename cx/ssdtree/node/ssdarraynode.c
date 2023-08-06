@@ -9,12 +9,12 @@
 // ==================== Auto-generated section ends ======================
 #include "../ssdtree.h"
 
-SSDArrayNode *SSDArrayNode_create(SSDInfo *info)
+SSDArrayNode *SSDArrayNode__create(SSDTree *tree)
 {
     SSDArrayNode *self;
     self = objInstCreate(SSDArrayNode);
 
-    self->info = objAcquire(info);
+    self->tree = objAcquire(tree);
     ssdnodeUpdateModified(self);
 
     if (!objInstInit(self)) {

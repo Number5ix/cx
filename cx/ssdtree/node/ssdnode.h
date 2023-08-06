@@ -2,7 +2,7 @@
 // This header file is auto-generated!
 // Do not make changes to this file or they will be overwritten.
 #include <cx/obj.h>
-#include <cx/ssdtree/ssdinfo.h>
+#include <cx/ssdtree/ssdtreeobj.h>
 #include <cx/stype/stvar.h>
 
 typedef struct SSDIterator SSDIterator;
@@ -132,7 +132,7 @@ typedef struct SSDNode {
     };
     atomic(intptr) _ref;
 
-    SSDInfo *info;
+    SSDTree *tree;
     int64 modified;        // The timestamp this node was last modified
 } SSDNode;
 extern ObjClassInfo SSDNode_clsinfo;

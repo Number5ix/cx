@@ -9,14 +9,12 @@
 // ==================== Auto-generated section ends ======================
 #include "../ssdtree.h"
 
-SSDSingleNode *SSDSingleNode_create(SSDInfo *info, stvar initval)
+SSDSingleNode *SSDSingleNode__create(SSDTree *tree)
 {
     SSDSingleNode *self;
     self = objInstCreate(SSDSingleNode);
 
-    self->info = objAcquire(info);
-    stvarCopy(&self->storage, initval);
-    ssdnodeUpdateModified(self);
+    self->tree = objAcquire(tree);
 
     if (!objInstInit(self)) {
         objRelease(&self);

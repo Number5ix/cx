@@ -62,7 +62,7 @@ typedef struct SSDSingleNode {
     };
     atomic(intptr) _ref;
 
-    SSDInfo *info;
+    SSDTree *tree;
     int64 modified;        // The timestamp this node was last modified
     stvar storage;
 } SSDSingleNode;
@@ -70,9 +70,12 @@ extern ObjClassInfo SSDSingleNode_clsinfo;
 #define SSDSingleNode(inst) ((SSDSingleNode*)((void)((inst) && &((inst)->_is_SSDSingleNode)), (inst)))
 #define SSDSingleNodeNone ((SSDSingleNode*)NULL)
 
-SSDSingleNode *SSDSingleNode_create(SSDInfo *info, stvar initval);
-// SSDSingleNode *ssdsinglenodeCreate(SSDInfo *info, stvar initval);
-#define ssdsinglenodeCreate(info, initval) SSDSingleNode_create(SSDInfo(info), initval)
+SSDSingleNode *SSDSingleNode__create(SSDTree *tree);
+// SSDSingleNode *ssdsinglenode_create(SSDTree *tree);
+#define ssdsinglenode_create(tree) SSDSingleNode__create(SSDTree(tree))
+
+// void ssdsinglenodeUpdateModified(SSDSingleNode *self);
+#define ssdsinglenodeUpdateModified(self) SSDNode_updateModified(SSDNode(self))
 
 // bool ssdsinglenodeIsHashtable(SSDSingleNode *self);
 //

@@ -5,7 +5,7 @@ class SSDArrayNode extends SSDNode
     sarray:stvar storage;
 
     override isArray;
-    factory create(SSDInfo *info);
+    factory _create(SSDTree *tree);
 }
 
 class SSDArrayIter extends SSDIterator

@@ -86,7 +86,8 @@ static int test_ssd_tree()
 static int test_ssd_single()
 {
     int ret = 0;
-    SSDNode *tree = ssdCreateSingle(stvar(int64, 200000));
+    SSDNode *tree = ssdCreateSingle();
+    ssdnodeSet(tree, 0, NULL, stvar(int64, 200000), NULL);
 
     stvar outvar = { 0 };
     if (!ssdGet(tree, _S"", &outvar, NULL) ||
@@ -98,7 +99,8 @@ static int test_ssd_single()
 
     string teststr = 0;
     strCopy(&teststr, _S"test123");
-    tree = ssdCreateSingle(stvar(string, teststr));
+    tree = ssdCreateSingle();
+    ssdnodeSet(tree, 0, NULL, stvar(string, teststr), NULL);
 
     if (strTestRefCount(teststr) != 2)
         ret = 1;
@@ -202,18 +204,18 @@ static int test_ssd_array()
 
     SSDNode *sub = ssdSubtree(tree, _S"test/arr", SSD_Create_Array, NULL);
 
-    SSDHashNode *h1 = ssdhashnodeCreate(sub->info);
+    SSDNode *h1 = ssdtreeCreateNode(sub->tree, SSD_Create_Hashtable);
     ssdnodeSet(h1, SSD_ByName, _S"test1", stvar(int32, 1), NULL);
     ssdnodeSet(sub, 0, NULL, stvar(object, h1), NULL);
     objRelease(&h1);
 
     ssdnodeSet(sub, 1, NULL, stvar(int64, 128), NULL);
     ssdnodeSet(sub, 2, NULL, stvar(float64, 5), NULL);
-    h1 = ssdhashnodeCreate(sub->info);
+    h1 = ssdtreeCreateNode(sub->tree, SSD_Create_Hashtable);
     ssdnodeSet(h1, SSD_ByName, _S"test2", stvar(strref, _S"it's a test"), NULL);
     ssdnodeSet(sub, 3, NULL, stvar(object, h1), NULL);
     objRelease(&h1);
-    SSDArrayNode *a1 = ssdarraynodeCreate(sub->info);
+    SSDNode *a1 = ssdtreeCreateNode(sub->tree, SSD_Create_Array);
     ssdnodeSet(a1, 0, NULL, stvar(int32, 101), NULL);
     ssdnodeSet(a1, 1, NULL, stvar(int32, 102), NULL);
     ssdnodeSet(a1, 2, NULL, stvar(int32, 103), NULL);

@@ -5,6 +5,7 @@
 #include <cx/string.h>
 
 typedef struct JSONTreeState {
+    SSDTree *tree;
     SSDLock lock;
     SSDNode *root;
     SSDNode *cur;
@@ -27,26 +28,26 @@ static void setValDirect(JSONTreeState *jts, JSONParseContext *ctx, stvar val)
 static void pushObject(JSONTreeState *jts, JSONParseContext *ctx)
 {
     if (!jts->root) {
-        jts->root = ssdCreateHashtable();
+        jts->root = ssdCreateCustom(SSD_Create_Hashtable, jts->tree);
         jts->cur = objAcquire(jts->root);
     } else {
-        SSDHashNode *node = ssdhashnodeCreate(jts->root->info);
+        SSDNode *node = ssdtreeCreateNode(jts->root->tree, SSD_Create_Hashtable);
         setValDirect(jts, ctx, stvar(object, node));
         saPushC(&jts->nodestack, object, &jts->cur);
-        jts->cur = SSDNode(node);
+        jts->cur = node;
     }
 }
 
 static void pushArray(JSONTreeState *jts, JSONParseContext *ctx)
 {
     if (!jts->root) {
-        jts->root = ssdCreateArray();
+        jts->root = ssdCreateCustom(SSD_Create_Array, jts->tree);
         jts->cur = objAcquire(jts->root);
     } else {
-        SSDArrayNode *node = ssdarraynodeCreate(jts->root->info);
+        SSDNode *node = ssdtreeCreateNode(jts->root->tree, SSD_Create_Array);
         setValDirect(jts, ctx, stvar(object, node));
         saPushC(&jts->nodestack, object, &jts->cur);
-        jts->cur = SSDNode(node);
+        jts->cur = node;
     }
 }
 
@@ -59,8 +60,9 @@ static void popNode(JSONTreeState *jts)
 static void setVal(JSONTreeState *jts, JSONParseContext *ctx, stvar val)
 {
     if (!jts->root) {
-        jts->root = ssdCreateSingle(val);
+        jts->root = ssdCreateCustom(SSD_Create_Single, jts->tree);
         jts->cur = jts->root;
+        ssdnodeSet(jts->root, 0, NULL, val, &jts->lock);
     }
 
     devAssert(jts->cur);
@@ -108,10 +110,10 @@ void jsonTreeCB(JSONParseEvent *ev, void *userdata)
     }
 }
 
-SSDNode *jsonParseTree(StreamBuffer *sb)
+SSDNode *jsonParseTreeCustom(StreamBuffer *sb, SSDTree *tree)
 {
     SSDNode *ret = NULL;
-    JSONTreeState jts = { 0 };
+    JSONTreeState jts = { .tree = tree };
     saInit(&jts.nodestack, object, 8);
     ssdLockInit(&jts.lock);
 
@@ -125,4 +127,9 @@ SSDNode *jsonParseTree(StreamBuffer *sb)
     saDestroy(&jts.nodestack);
     objRelease(&jts.root);
     return ret;
+}
+
+SSDNode *jsonParseTree(StreamBuffer *sb)
+{
+    return jsonParseTreeCustom(sb, NULL);
 }

@@ -1,11 +1,16 @@
 #include <cx/ssdtree/ssdshared.h>
 
-class SSDInfo {
+class SSDTree {
     RWLock lock;
     uint32 flags;
 
     // The most recent last-modified timestamp of any node in the tree
     int64 modified;
+
+    // Factory functions for if this tree wants to use derived node classes
+    SSDNodeFactory factories[SSD_Create_Count];
+
+    SSDNode *createNode(int crtype);
 
     factory create(uint32 flags);
     init();

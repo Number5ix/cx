@@ -12,7 +12,7 @@
 void SSDNode_destroy(SSDNode *self)
 {
     // Autogen begins -----
-    objRelease(&self->info);
+    objRelease(&self->tree);
     // Autogen ends -------
 }
 
@@ -28,7 +28,7 @@ bool SSDNode_isArray(SSDNode *self)
 
 void SSDNode_updateModified(SSDNode *self)
 {
-    self->modified = self->info->modified = clockTimer();
+    self->modified = self->tree->modified = clockTimer();
 }
 
 // Autogen begins -----
