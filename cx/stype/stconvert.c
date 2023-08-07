@@ -38,6 +38,39 @@ bool stConvert_none(stype destst, stgeneric *dest, stype srcst, stgeneric src, u
     return false;
 }
 
+#define stConvertBoolNum(type) case stTypeId(type):     \
+    dest->st_##type = src.st_bool ?                     \
+        (stTypeDef(type))(1) : (stTypeDef(type))(0);    \
+    return true
+bool stConvert_bool(stype destst, stgeneric *dest, stype srcst, stgeneric src, uint32 flags)
+{
+    switch (stGetId(destst)) {
+    case stTypeId(bool):
+        dest->st_bool = src.st_bool;
+        return true;
+    stConvertBoolNum(int8);
+    stConvertBoolNum(int16);
+    stConvertBoolNum(int32);
+    stConvertBoolNum(int64);
+    stConvertBoolNum(uint8);
+    stConvertBoolNum(uint16);
+    stConvertBoolNum(uint32);
+    stConvertBoolNum(uint64);
+    stConvertBoolNum(float32);
+    stConvertBoolNum(float64);
+    case stTypeId(string):
+        dest->st_string = 0;
+        strDup(&dest->st_string, src.st_bool ? (string)"\xE1\xC1\x04""True" : (string)"\xE1\xC1\x05""False");
+        return true;
+    case stTypeId(stvar):
+        dest->st_stvar->type = srcst;
+        dest->st_stvar->data = src;
+        return true;
+    }
+
+    return false;
+}
+
 #define stConvertSIntInput(type) case stTypeId(type): \
     v.s = (int64)src.st_##type;                       \
     break
@@ -249,7 +282,7 @@ alignMem(64) stConvertFunc _stDefaultConvert[256] = {
     stConvert_none, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, stConvert_int, stConvert_int, 0, stConvert_int, 0, 0, 0, stConvert_int, 0, 0, 0, 0, 0, 0, 0,
     // STCLASS_UINT
-    0, stConvert_int, stConvert_int, 0, stConvert_int, 0, 0, 0, stConvert_int, 0, 0, 0, 0, 0, 0, 0,
+    0, stConvert_int, stConvert_int, stConvert_bool, stConvert_int, 0, 0, 0, stConvert_int, 0, 0, 0, 0, 0, 0, 0,
     // STCLASS_FLOAT
     0, 0, 0, 0, stConvert_float32, 0, 0, 0, stConvert_float64, 0, 0, 0, 0, 0, 0, 0,
     // STCLASS_PTR

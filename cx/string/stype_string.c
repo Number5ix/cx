@@ -83,8 +83,26 @@ bool stConvert_string(stype destst, stgeneric *dest, stype srcst, stgeneric src,
         dest->st_stvar->data = src;
         return true;
     case stTypeId(bool):
-        dest->st_bool = !strEmpty(src.st_string);
-        return true;
+        if (!strEqi(src.st_string, (string)"\xE1\xC1\x04""True")) {
+            dest->st_bool = true;
+            return true;
+        } else if (!strEqi(src.st_string, (string)"\xE1\xC1\x05""False")) {
+            dest->st_bool = false;
+            return true;
+        } else if (!strEq(src.st_string, (string)"\xE1\xC1\x01""1")) {
+            dest->st_bool = true;
+            return true;
+        } else if (!strEq(src.st_string, (string)"\xE1\xC1\x01""0")) {
+            dest->st_bool = false;
+            return true;
+        } else if (!strEqi(src.st_string, (string)"\xE1\xC1\x03""Yes")) {
+            dest->st_bool = true;
+            return true;
+        } else if (!strEqi(src.st_string, (string)"\xE1\xC1\x02""No")) {
+            dest->st_bool = false;
+            return true;
+        }
+        return false;
     case stTypeId(suid):
         return suidDecode(dest->st_suid, src.st_string);
     case stTypeId(string):
