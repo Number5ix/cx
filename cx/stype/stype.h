@@ -731,6 +731,8 @@ _meta_inline bool _stConvert(stype destst, stgeneric *dest, stype srcst, STypeOp
     // The *source* stype is responsible for handling conversions to other types
     if (srcops && srcops->convert)
         return srcops->convert(destst, dest, srcst, src, flags);
+    else if (srcst == destst)
+        return _stCopy(destst, NULL, dest, src, flags), true;
     else if (_stDefaultConvert[stGetId(srcst)])
         return _stDefaultConvert[stGetId(srcst)](destst, dest, srcst, src, flags);
     else
