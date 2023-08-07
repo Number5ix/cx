@@ -84,7 +84,7 @@ static void sbufFileNotifyCB(StreamBuffer *sb, size_t sz, void *ctx)
 {
     if (sz >= sb->targetsz) {
         sbufCSend(sb, sbufFileSendCB, sz);
-    } else if (sz == 0) {
+    } else if (sz == 0 || sbufIsPFinished(sb)) {
         // flush anything that's left in the streambuf
         sbufCSend(sb, sbufFileSendCB, sbufCAvail(sb));
     }
