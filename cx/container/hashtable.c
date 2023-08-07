@@ -656,7 +656,7 @@ bool _htExtract(hashtable *htbl, stgeneric key, stgeneric *val)
                        stStoredPtr(hdr->valtype, HT_SLOT_VAL_PTR(hdr, elemsz, slot)), 0);
         if (!(hdr->flags & HT_RefKeys))
             _stDestroy(hdr->keytype, HDRKEYOPS(hdr),
-                       stStoredPtr(hdr->keytype, HT_SLOT_VAL_PTR(hdr, elemsz, slot)), 0);
+                       stStoredPtr(hdr->keytype, HT_SLOT_PTR(hdr, elemsz, slot)), 0);
 
         // mark deleted in index
         hdr->index[idxent] = hashIndexDeleted;
