@@ -65,11 +65,18 @@ bool ssdLockEnd(SSDNode *root, SSDLock *lock)
 
 SSDNode *_ssdCreateRoot(int crtype, SSDTree *tree, uint32 flags)
 {
-    if (!tree)
+    bool created = false;
+
+    if (!tree) {
+        created = true;
         tree = ssdtreeCreate(flags);
+    }
+
     SSDNode *ret = ssdtreeCreateNode(tree, crtype);
 
-    objRelease(&tree);
+    if (created)
+        objRelease(&tree);
+
     return ret;
 }
 

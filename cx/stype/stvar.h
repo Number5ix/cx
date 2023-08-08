@@ -34,6 +34,43 @@ _meta_inline void stvarCopy(stvar *dvar, stvar svar)
     _stCopy(svar.type, NULL, &dvar->data, svar.data, 0);
 }
 
+_meta_inline bool _stvarIs(stvar *svar, stype styp)
+{
+    return svar && stEq(svar->type, styp);
+}
+#define stvarIs(svar, type) _stvarIs(svar, stType(type))
+
+// Convenience functions for quick access to several common types
+_meta_inline string stvarString(stvar *svar)
+{
+    if (stvarIs(svar, string))
+        return svar->data.st_string;
+    return NULL;
+}
+
+_meta_inline string *stvarStringPtr(stvar *svar)
+{
+    if (stvarIs(svar, string))
+        return &svar->data.st_string;
+    return NULL;
+}
+
+_meta_inline ObjInst *stvarObjInst(stvar *svar)
+{
+    if (stvarIs(svar, object))
+        return svar->data.st_object;
+    return NULL;
+}
+
+_meta_inline ObjInst **stvarObjInstPtr(stvar *svar)
+{
+    if (stvarIs(svar, object))
+        return &svar->data.st_object;
+    return NULL;
+}
+
+#define stvarObj(svar, class) (objDynCast(stvarObjInst(svar), class))
+
 // Structure for walking a list of stvars with the convenience functions
 typedef struct stvlist {
     int count;
