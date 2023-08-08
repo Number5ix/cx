@@ -2,6 +2,7 @@
 #include <cx/ssdtree.h>
 #include <cx/string.h>
 #include <cx/string/strtest.h>
+#include <cx/container/foreach.h>
 
 #include <cx/ssdtree/node/ssdarraynode.h>
 #include <cx/ssdtree/node/ssdhashnode.h>
@@ -207,6 +208,34 @@ static int test_ssd_subtree()
         atomicLoad(intptr, &btree->_ref, Acquire) != oldref)
         ret = 1;
 
+    btree = ssdSubtreeB(tree, _S"l1/b2/l3", &lock);
+
+    // try the iterator
+    int icount = 0;
+    foreach(object, oiter, SSDIterator, btree)
+    {
+        string name = 0;
+        ssditeratorName(oiter, &name);
+        stvar *val;
+        val = ssditeratorPtr(oiter);
+
+        // this also checks insertion order retention
+        if (icount == 0 &&
+            !(strEq(name, _S"test1") &&
+              stvarIs(val, int32) && val->data.st_int32 == 39294))
+            ret = 1;
+
+        if (icount == 1 &&
+            !(strEq(name, _S"test2") &&
+              strEq(stvarString(val), teststr)))
+            ret = 1;
+
+        icount++;
+
+        strDestroy(&name);
+    }
+    if (icount != 2)
+        ret = 1;
 
     ssdLockEnd(subtree, &lock);
 

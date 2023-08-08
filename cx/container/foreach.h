@@ -45,3 +45,10 @@
 #define ForEachValid_vfssearch(itervar) vfsSearchValid(&itervar)
 #define ForEachNext_vfssearch(itervar) vfsSearchNext(&itervar)
 #define ForEachFinish_vfssearch(itervar) vfsSearchFinish(&itervar)
+
+#define foreach_object(...) _foreach_object_msvc_workaround((__VA_ARGS__))
+#define _foreach_object_msvc_workaround(args) _foreach_object args
+#define _foreach_object(type, itervar, ivartype, obj) for (register char _foreach_outer = 1; _foreach_outer; _foreach_outer = 0) \
+        for(ivartype *itervar = (obj)->_->iter(obj); _foreach_outer; _foreach_outer = 0) \
+        for(; _foreach_outer; objRelease(&itervar), _foreach_outer = 0) \
+        for(; itervar->_->valid(itervar); itervar->_->next(itervar))
