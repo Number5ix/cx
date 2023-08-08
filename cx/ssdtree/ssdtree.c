@@ -329,7 +329,7 @@ bool _ssdCopyOut(SSDNode *root, strref path, stype valtype, stgeneric *val, SSDL
     SSDLock transient_lock = { 0 };
     if (!lock) lock = &transient_lock;
 
-    stvar *temp;
+    stvar *temp = NULL;
     SSDNode *node = NULL;
     string name = 0;
     bool ret = false;
@@ -354,7 +354,7 @@ bool _ssdCopyOutD(SSDNode *root, strref path, stype valtype, stgeneric *val, stg
     SSDLock transient_lock = { 0 };
     if (!lock) lock = &transient_lock;
 
-    stvar *temp;
+    stvar *temp = NULL;
     SSDNode *node = NULL;
     string name = 0;
     bool ret = false;
