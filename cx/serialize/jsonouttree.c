@@ -164,18 +164,21 @@ static void outVal(JSONOut *jo, stvar val, SSDLock *lock, bool *error)
     }
 }
 
-bool jsonOutTree(StreamBuffer *sb, SSDNode *tree, uint32 flags)
+bool jsonOutTree(StreamBuffer *sb, SSDNode *tree, uint32 flags, SSDLock *lock)
 {
+    SSDLock transient_lock = { 0 };
+    if (!lock) lock = &transient_lock;
+
     JSONOut *jo = jsonOutBegin(sb, flags);
     if (!jo)
         return false;
 
     bool error = false;
-    SSDLock lock;
-    ssdLockInit(&lock);
-    ssdLockRead(tree, &lock);
-    outVal(jo, stvar(object, tree), &lock, &error);
-    ssdLockEnd(tree, &lock);
+    ssdLockRead(tree, lock);
+    outVal(jo, stvar(object, tree), lock, &error);
+
+    if (transient_lock.init)
+        ssdLockEnd(tree, &transient_lock);
 
     jsonOutEnd(&jo);
 

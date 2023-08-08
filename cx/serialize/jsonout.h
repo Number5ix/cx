@@ -4,6 +4,7 @@
 
 typedef struct JSONOut JSONOut;
 typedef struct SSDNode SSDNode;
+typedef struct SSDLock SSDLock;
 
 #define JSON_Indent(x) (x & JSON_Indent_Mask)
 enum JSON_OUT_FLAGS {
@@ -30,4 +31,4 @@ void jsonOutEnd(JSONOut **jo);
 
 // JSON TREE OUTPUT
 // Serialize an SSD tree to a streambuffer as JSON
-bool jsonOutTree(StreamBuffer *sb, SSDNode *tree, uint32 flags);
+bool jsonOutTree(StreamBuffer *sb, SSDNode *tree, uint32 flags, SSDLock *lock_opt);

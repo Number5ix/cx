@@ -646,7 +646,7 @@ static int test_json_treeout()
     if (!sbufStrCRegisterPush(sb, &out))
         return 1;
 
-    if (!jsonOutTree(sb, tree, JSON_Indent(4) | JSON_Unix_EOL | JSON_ASCII_Only))
+    if (!jsonOutTree(sb, tree, JSON_Indent(4) | JSON_Unix_EOL | JSON_ASCII_Only, NULL))
         ret = 1;
 
     objRelease(&tree);
