@@ -72,8 +72,15 @@ static int test_ssd_tree()
         pval->data.st_string != teststr ||
         strTestRefCount(teststr) != 2)
         ret = 1;
-    ssdLockEnd(tree, &tlock);
 
+    // this should also get a pointer
+    strref pstr = ssdStrRef(tree, _S"l1/l2/l3/test2", &tlock);
+    if (!pstr || !strEq(pstr, _S"test123")
+        || pstr != teststr ||
+        strTestRefCount(teststr) != 2)
+        ret = 1;
+
+    ssdLockEnd(tree, &tlock);
     objRelease(&tree);
 
     if (strTestRefCount(teststr) != 1)
@@ -131,6 +138,7 @@ static int test_ssd_subtree()
 
     stvar outvar = { 0 };
     string teststr = 0;
+    string teststr2 = 0;
     strCopy(&teststr, _S"test123");
 
     ssdSet(tree, _S"l1/b1/l3/test1", true, stvar(int32, 10743), NULL);
@@ -163,6 +171,45 @@ static int test_ssd_subtree()
     if (strTestRefCount(teststr) != 3)
         ret = 1;
 
+    // test some various type conversions
+    if (ssdGet_float64(tree, _S"l1/b1/l3/test1", 1829.5, NULL) != 10743)
+        ret = 1;
+    if (ssdGet_float64(tree, _S"l1/b1/l3/DOESNOTEXIST", 1829.5, NULL) != 1829.5)
+        ret = 1;
+    if (ssdGet_int64(tree, _S"l1/b1/l3/test1", 43434, NULL) != 10743)
+        ret = 1;
+    if (ssdGet_uint16(tree, _S"l1/b1/l3/test1", 332, NULL) != 10743)
+        ret = 1;
+
+    ssdGet_string(tree, _S"l1/b1/l3/test1", &teststr2, _S"Default String", NULL);
+    if (!strEq(teststr2, _S"10743"))
+        ret = 1;
+    ssdGet_string(tree, _S"l1/b1/l3/DOESNOTEXIST", &teststr2, _S"Default String", NULL);
+    if (!strEq(teststr2, _S"Default String"))
+        ret = 1;
+
+    // borrowed subtree should NOT increase refcount
+    intptr oldref = atomicLoad(intptr, &subtree->_ref, Acquire);
+
+    SSDLock lock;
+    ssdLockInit(&lock);
+    SSDNode *btree = ssdSubtreeB(tree, _S"l1/b2", &lock);
+
+    if (btree != subtree ||
+        atomicLoad(intptr, &btree->_ref, Acquire) != oldref)
+        ret = 1;
+    btree = NULL;
+
+    // try object instance casting
+    // this is effectively the same thing as ssdSubtreeB
+    btree = ssdObjPtr(tree, _S"l1/b2", SSDNode, &lock);
+    if (btree != subtree ||
+        atomicLoad(intptr, &btree->_ref, Acquire) != oldref)
+        ret = 1;
+
+
+    ssdLockEnd(subtree, &lock);
+
     // releasing the main tree shouldn't affect the subtree
     objRelease(&tree);
 
@@ -190,6 +237,7 @@ out:
     if (strTestRefCount(teststr) != 1)
         ret = 1;
     strDestroy(&teststr);
+    strDestroy(&teststr2);
 
     return ret;
 }

@@ -48,7 +48,7 @@ bool _ssdLockWrite(SSDNode *root, SSDLock *lock)
     return true;
 }
 
-bool ssdLockEnd(SSDNode *root, SSDLock *lock)
+bool _ssdLockEnd(SSDNode *root, SSDLock *lock)
 {
     if (!root || !lock || !lock->init)
         return false;
@@ -300,5 +300,79 @@ SSDNode *ssdSubtree(SSDNode *root, strref path, int create, SSDLock *lock)
 
     objRelease(&node);
     strDestroy(&name);
+    return ret;
+}
+
+SSDNode *ssdSubtreeB(SSDNode *root, strref path, SSDLock *lock)
+{
+    devAssert(lock);
+    if (!lock)
+        return NULL;
+
+    SSDNode *ret = NULL;
+    SSDNode *node = NULL;
+    string name = 0;
+
+    ssdLockRead(root, lock);
+    if (ssdResolvePath(root, path, &node, &name, false, lock)) {
+        stvar *val = ssdnodePtr(node, SSD_ByName, name, lock);
+        ret = val ? (stEq(val->type, stType(object)) ? objDynCast(val->data.st_object, SSDNode) : NULL) : NULL;
+    }
+
+    objRelease(&node);
+    strDestroy(&name);
+    return ret;
+}
+
+bool _ssdCopyOut(SSDNode *root, strref path, stype valtype, stgeneric *val, SSDLock *lock)
+{
+    SSDLock transient_lock = { 0 };
+    if (!lock) lock = &transient_lock;
+
+    stvar *temp;
+    SSDNode *node = NULL;
+    string name = 0;
+    bool ret = false;
+
+    if (ssdResolvePath(root, path, &node, &name, false, lock))
+        temp = ssdnodePtr(node, SSD_ByName, name, lock);
+
+    if (temp)
+        ret = _stConvert(valtype, val, temp->type, NULL, temp->data, 0);
+
+    if (transient_lock.init)
+        ssdLockEnd(root, &transient_lock);
+
+    objRelease(&node);
+    strDestroy(&name);
+
+    return ret;
+}
+
+bool _ssdCopyOutD(SSDNode *root, strref path, stype valtype, stgeneric *val, stgeneric def, SSDLock *lock)
+{
+    SSDLock transient_lock = { 0 };
+    if (!lock) lock = &transient_lock;
+
+    stvar *temp;
+    SSDNode *node = NULL;
+    string name = 0;
+    bool ret = false;
+
+    if (ssdResolvePath(root, path, &node, &name, false, lock))
+        temp = ssdnodePtr(node, SSD_ByName, name, lock);
+
+    if (temp)
+        ret = _stConvert(valtype, val, temp->type, NULL, temp->data, 0);
+
+    if (transient_lock.init)
+        ssdLockEnd(root, &transient_lock);
+
+    objRelease(&node);
+    strDestroy(&name);
+
+    if (!ret)
+        _stCopy(valtype, NULL, val, def, 0);
+
     return ret;
 }
