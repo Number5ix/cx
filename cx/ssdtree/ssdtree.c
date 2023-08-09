@@ -376,3 +376,114 @@ bool _ssdCopyOutD(SSDNode *root, strref path, stype valtype, stgeneric *val, stg
 
     return ret;
 }
+
+bool ssdExportArray(SSDNode *root, strref path, sa_stvar *out, SSDLock *lock)
+{
+    SSDLock transient_lock = { 0 };
+    if (!lock) lock = &transient_lock;
+
+    bool ret = false;
+
+    ssdLockRead(root, lock);
+    SSDArrayNode *node = ssdObjPtr(root, path, SSDArrayNode, lock);
+    if (node) {
+        saDestroy(out);
+        saClone(out, node->storage);
+        ret = true;
+    }
+
+    if (transient_lock.init)
+        ssdLockEnd(root, &transient_lock);
+
+    return ret;
+}
+
+bool _ssdExportTypedArray(SSDNode *root, strref path, sahandle out, stype elemtype, bool strict, SSDLock *lock)
+{
+    SSDLock transient_lock = { 0 };
+    if (!lock) lock = &transient_lock;
+
+    bool ret = false;
+
+    ssdLockRead(root, lock);
+    SSDArrayNode *node = ssdObjPtr(root, path, SSDArrayNode, lock);
+    if (node) {
+        saClear(out);
+        for (int i = 0, sz = saSize(node->storage); i < sz; ++i) {
+            if (!stEq(node->storage.a[i].type, elemtype)) {
+                // is the same type as the output array?
+                if (strict)
+                    goto out;
+                continue;               // just skip over
+            }
+
+            _saPushPtr(out, elemtype, stStoredPtr(elemtype, &node->storage.a[i].data), 0);
+        }
+        ret = true;
+    }
+
+out:
+    if (transient_lock.init)
+        ssdLockEnd(root, &transient_lock);
+
+    if (!ret)
+        saClear(out);
+
+    return ret;
+}
+
+bool ssdImportArray(SSDNode *root, strref path, sa_stvar arr, SSDLock *lock)
+{
+    devAssert(stEq(saElemType(arr), stType(stvar)));            // double check this is the right kind of array
+
+    SSDLock transient_lock = { 0 };
+    if (!lock) lock = &transient_lock;
+
+    bool ret = false;
+
+    ssdLockWrite(root, lock);
+    SSDNode *stree = ssdSubtree(root, path, SSD_Create_Array, lock);
+    SSDArrayNode *node = objDynCast(stree, SSDArrayNode);
+    if (node) {
+        saDestroy(&node->storage);
+        saClone(&node->storage, arr);
+        ssdnodeUpdateModified(node);
+        ret = true;
+    }
+    objRelease(&stree);
+
+    if (transient_lock.init)
+        ssdLockEnd(root, &transient_lock);
+
+    return ret;
+}
+
+bool _ssdImportTypedArray(SSDNode *root, strref path, sa_ref arr, stype elemtype, SSDLock *lock)
+{
+    devAssert(stEq(saElemType(arr), elemtype));             // double check this is the right kind of array
+
+    SSDLock transient_lock = { 0 };
+    if (!lock) lock = &transient_lock;
+
+    bool ret = false;
+    stvar val = { .type = elemtype };
+
+    ssdLockWrite(root, lock);
+    SSDNode *stree = ssdSubtree(root, path, SSD_Create_Array, lock);
+    SSDArrayNode *node = objDynCast(stree, SSDArrayNode);
+    if (node) {
+        saClear(&node->storage);
+        for (int i = 0, sz = saSize(arr); i < sz; ++i) {
+            val.data = stStored(elemtype, (void*)((uintptr)arr.a + i * saElemSize(arr)));       // low-budget ELEMPTR
+            saPush(&node->storage, stvar, val);
+        }
+        ssdnodeUpdateModified(node);
+        ret = true;
+    }
+    objRelease(&stree);
+
+    if (transient_lock.init)
+        ssdLockEnd(root, &transient_lock);
+
+    return ret;
+}

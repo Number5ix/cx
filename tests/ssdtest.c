@@ -355,6 +355,49 @@ static int test_ssd_array()
     if (!out || !stEq(out->type, stType(int32)) || out->data.st_int32 != 103)
         ret = 1;
 
+    sa_stvar arr1 = saInitNone;
+    if (!ssdExportArray(tree, _S"test/arr", &arr1, &lock) ||
+        saSize(arr1) != 5 ||
+        !stvarIs(&arr1.a[2], float64) ||
+        arr1.a[2].data.st_float64 != 5)
+        ret = 1;
+
+    // paste the array back in as a child of itself
+    ssdImportArray(tree, _S"test/arr[5]", arr1, &lock);
+
+    out = ssdPtr(tree, _S"test/arr[5][3]/test2", &lock);
+    if (!out || !stEq(out->type, stType(string)) || !strEq(out->data.st_string, _S"it's a test"))
+        ret = 1;
+
+    saDestroy(&arr1);
+
+    sa_int32 arr2 = saInitNone;
+    if (!ssdExportTypedArray(tree, _S"test/arr[4]", &arr2, int32, true, &lock) ||
+        saSize(arr2) != 3 ||
+        arr2.a[0] != 101 ||
+        arr2.a[1] != 102 ||
+        arr2.a[2] != 103)
+        ret = 1;
+
+    ssdImportTypedArray(tree, _S"test/another", arr2, int32, &lock);
+    saDestroy(&arr2);
+
+    if (ssdGet_int32(tree, _S"test/another[1]", -1, &lock) != 102)
+        ret = 1;
+
+    // should fail with strict == true
+    if (ssdExportTypedArray(tree, _S"test/arr", &arr2, int32, true, &lock) ||
+        saSize(arr2) != 0)
+        ret = 1;
+
+    // should filter out everything except the one int64
+    sa_int64 arr3 = saInitNone;
+    if (!ssdExportTypedArray(tree, _S"test/arr", &arr3, int64, false, &lock) ||
+        saSize(arr3) != 1 ||
+        arr3.a[0] != 128)
+        ret = 1;
+    saDestroy(&arr3);
+
     ssdLockEnd(tree, &lock);
 
     objRelease(&sub);
