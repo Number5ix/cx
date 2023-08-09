@@ -170,10 +170,10 @@ ssdget_spec(uint64)
 ssdget_spec(float32)
 ssdget_spec(float64)
 
-_meta_inline void ssdGet_string(SSDNode *root, strref path, string *out, strref def, SSDLock *lock_opt)
+_meta_inline bool ssdGet_string(SSDNode *root, strref path, string *out, strref def, SSDLock *lock_opt)
 {
     strDestroy(out);
-    ssdCopyOutD(root, path, string, out, (string)def, lock_opt);
+    return ssdCopyOutD(root, path, string, out, (string)def, lock_opt);
 }
 
 // out must be an initialized array or a pointer to NULL.
