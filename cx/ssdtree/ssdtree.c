@@ -398,7 +398,7 @@ bool ssdExportArray(SSDNode *root, strref path, sa_stvar *out, SSDLock *lock)
     return ret;
 }
 
-bool _ssdExportTypedArray(SSDNode *root, strref path, sahandle out, stype elemtype, bool strict, SSDLock *lock)
+bool _ssdExportTypedArray(SSDNode *root, strref path, stype elemtype, sahandle out, bool strict, SSDLock *lock)
 {
     SSDLock transient_lock = { 0 };
     if (!lock) lock = &transient_lock;
@@ -458,7 +458,7 @@ bool ssdImportArray(SSDNode *root, strref path, sa_stvar arr, SSDLock *lock)
     return ret;
 }
 
-bool _ssdImportTypedArray(SSDNode *root, strref path, sa_ref arr, stype elemtype, SSDLock *lock)
+bool _ssdImportTypedArray(SSDNode *root, strref path, stype elemtype, sa_ref arr, SSDLock *lock)
 {
     devAssert(stEq(saElemType(arr), elemtype));             // double check this is the right kind of array
 

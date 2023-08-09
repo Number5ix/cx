@@ -417,27 +417,27 @@ static int test_ssd_array()
     saDestroy(&arr1);
 
     sa_int32 arr2 = saInitNone;
-    if (!ssdExportTypedArray(tree, _S"test/arr[4]", &arr2, int32, true, &lock) ||
+    if (!ssdExportTypedArray(tree, _S"test/arr[4]", int32, &arr2, true, &lock) ||
         saSize(arr2) != 3 ||
         arr2.a[0] != 101 ||
         arr2.a[1] != 102 ||
         arr2.a[2] != 103)
         ret = 1;
 
-    ssdImportTypedArray(tree, _S"test/another", arr2, int32, &lock);
+    ssdImportTypedArray(tree, _S"test/another", int32, arr2, &lock);
     saDestroy(&arr2);
 
     if (ssdVal(int32, tree, _S"test/another[1]", -1, &lock) != 102)
         ret = 1;
 
     // should fail with strict == true
-    if (ssdExportTypedArray(tree, _S"test/arr", &arr2, int32, true, &lock) ||
+    if (ssdExportTypedArray(tree, _S"test/arr", int32, &arr2, true, &lock) ||
         saSize(arr2) != 0)
         ret = 1;
 
     // should filter out everything except the one int64
     sa_int64 arr3 = saInitNone;
-    if (!ssdExportTypedArray(tree, _S"test/arr", &arr3, int64, false, &lock) ||
+    if (!ssdExportTypedArray(tree, _S"test/arr", int64, &arr3, false, &lock) ||
         saSize(arr3) != 1 ||
         arr3.a[0] != 128)
         ret = 1;

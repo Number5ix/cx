@@ -188,14 +188,14 @@ _meta_inline bool ssdStringOutD(SSDNode *root, strref path, string *out, strref 
 bool ssdExportArray(SSDNode *root, strref path, sa_stvar *out, SSDLock *lock_opt);
 bool ssdImportArray(SSDNode *root, strref path, sa_stvar arr, SSDLock *lock_opt);
 
-bool _ssdExportTypedArray(SSDNode *root, strref path, sahandle out, stype elemtype, bool strict, SSDLock *lock_opt);
-bool _ssdImportTypedArray(SSDNode *root, strref path, sa_ref arr, stype elemtype, SSDLock *lock_opt);
+bool _ssdExportTypedArray(SSDNode *root, strref path, stype elemtype, sahandle out, bool strict, SSDLock *lock_opt);
+bool _ssdImportTypedArray(SSDNode *root, strref path, stype elemtype, sa_ref arr, SSDLock *lock_opt);
 
 // out must be an initialized array or a pointer to NULL.
 // If strict is set, will cause the export to fail if any items of the wrong type are encountered,
 // otherwise they are simply skipped over.
-#define ssdExportTypedArray(root, path, out, type, strict, lock_opt) _ssdExportTypedArray(root, path, SAHANDLE(out), stType(type), strict, lock_opt)
-#define ssdImportTypedArray(root, path, arr, type, lock_opt) _ssdImportTypedArray(root, path, SAREF(arr), stType(type), lock_opt)
+#define ssdExportTypedArray(root, path, type, out, strict, lock_opt) _ssdExportTypedArray(root, path, stType(type), SAHANDLE(out), strict, lock_opt)
+#define ssdImportTypedArray(root, path, type, arr, lock_opt) _ssdImportTypedArray(root, path, stType(type), SAREF(arr), lock_opt)
 
 // Grafts a subtree of the source tree onto the dest tree.
 // This deep copies the tree and associates the resulting nodes with the destination tree (creating them
