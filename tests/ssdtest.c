@@ -206,10 +206,10 @@ static int test_ssd_subtree()
     if (ssdVal(uint16, tree, _S"l1/b1/l3/test1", 332, NULL) != 10743)
         ret = 1;
 
-    ssdGet_string(tree, _S"l1/b1/l3/test1", &teststr2, _S"Default String", NULL);
+    ssdStringOutD(tree, _S"l1/b1/l3/test1", &teststr2, _S"Default String", NULL);
     if (!strEq(teststr2, _S"10743"))
         ret = 1;
-    ssdGet_string(tree, _S"l1/b1/l3/DOESNOTEXIST", &teststr2, _S"Default String", NULL);
+    ssdStringOutD(tree, _S"l1/b1/l3/DOESNOTEXIST", &teststr2, _S"Default String", NULL);
     if (!strEq(teststr2, _S"Default String"))
         ret = 1;
 

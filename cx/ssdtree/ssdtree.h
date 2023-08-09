@@ -171,6 +171,14 @@ ssdval_spec(float32)
 ssdval_spec(float64)
 #define ssdVal(type, root, path, def, lock_opt) \
     ssdVal_##type(root, path, def, lock_opt)
+
+_meta_inline bool ssdStringOut(SSDNode *root, strref path, string *out, SSDLock *lock_opt)
+{
+    strDestroy(out);
+    return ssdCopyOut(root, path, string, out, lock_opt);
+}
+
+_meta_inline bool ssdStringOutD(SSDNode *root, strref path, string *out, strref def, SSDLock *lock_opt)
 {
     strDestroy(out);
     return ssdCopyOutD(root, path, string, out, (string)def, lock_opt);
