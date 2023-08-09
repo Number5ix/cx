@@ -197,13 +197,13 @@ static int test_ssd_subtree()
         ret = 1;
 
     // test some various type conversions
-    if (ssdGet_float64(tree, _S"l1/b1/l3/test1", 1829.5, NULL) != 10743)
+    if (ssdVal(float64, tree, _S"l1/b1/l3/test1", 1829.5, NULL) != 10743)
         ret = 1;
-    if (ssdGet_float64(tree, _S"l1/b1/l3/DOESNOTEXIST", 1829.5, NULL) != 1829.5)
+    if (ssdVal(float64, tree, _S"l1/b1/l3/DOESNOTEXIST", 1829.5, NULL) != 1829.5)
         ret = 1;
-    if (ssdGet_int64(tree, _S"l1/b1/l3/test1", 43434, NULL) != 10743)
+    if (ssdVal(int64, tree, _S"l1/b1/l3/test1", 43434, NULL) != 10743)
         ret = 1;
-    if (ssdGet_uint16(tree, _S"l1/b1/l3/test1", 332, NULL) != 10743)
+    if (ssdVal(uint16, tree, _S"l1/b1/l3/test1", 332, NULL) != 10743)
         ret = 1;
 
     ssdGet_string(tree, _S"l1/b1/l3/test1", &teststr2, _S"Default String", NULL);
@@ -264,24 +264,24 @@ static int test_ssd_subtree()
     ssdLockEnd(subtree, &lock);
 
     // check for the grafted values
-    if (ssdGet_int32(tree, _S"grafted/k1/aabb", -1, NULL) != 1122 ||
-        ssdGet_int32(tree, _S"grafted/k1/bbaa", -1, NULL) != 2211 ||
-        ssdGet_int32(tree, _S"grafted/k1/nums[1]", -1, NULL) != 101 ||
-        ssdGet_int32(tree, _S"grafted/k2/aabb", -1, NULL) != 4488 ||
-        ssdGet_int32(tree, _S"grafted/k2/bbaa", -1, NULL) != 8844 ||
-        ssdGet_int32(tree, _S"grafted/k2/nums[3]", -1, NULL) != 203)
+    if (ssdVal(int32, tree, _S"grafted/k1/aabb", -1, NULL) != 1122 ||
+        ssdVal(int32, tree, _S"grafted/k1/bbaa", -1, NULL) != 2211 ||
+        ssdVal(int32, tree, _S"grafted/k1/nums[1]", -1, NULL) != 101 ||
+        ssdVal(int32, tree, _S"grafted/k2/aabb", -1, NULL) != 4488 ||
+        ssdVal(int32, tree, _S"grafted/k2/bbaa", -1, NULL) != 8844 ||
+        ssdVal(int32, tree, _S"grafted/k2/nums[3]", -1, NULL) != 203)
         ret = 1;
     if (!ssdGet(tree, _S"grafted/alt", &outvar, NULL) ||
         !strEq(stvarString(&outvar), _S"yes, alt"))
         ret = 1;
     stvarDestroy(&outvar);
 
-    if (ssdGet_int32(tree, _S"l1/b3/aabb", -1, NULL) != 1122 ||
-        ssdGet_int32(tree, _S"l1/b3/bbaa", -1, NULL) != 2211 ||
-        ssdGet_int32(tree, _S"l1/b3/nums[0]", -1, NULL) != 100 ||
-        ssdGet_int32(tree, _S"l1/b4/aabb", -1, NULL) != 4488 ||
-        ssdGet_int32(tree, _S"l1/b4/bbaa", -1, NULL) != 8844 ||
-        ssdGet_int32(tree, _S"l1/b4/nums[4]", -1, NULL) != 204)
+    if (ssdVal(int32, tree, _S"l1/b3/aabb", -1, NULL) != 1122 ||
+        ssdVal(int32, tree, _S"l1/b3/bbaa", -1, NULL) != 2211 ||
+        ssdVal(int32, tree, _S"l1/b3/nums[0]", -1, NULL) != 100 ||
+        ssdVal(int32, tree, _S"l1/b4/aabb", -1, NULL) != 4488 ||
+        ssdVal(int32, tree, _S"l1/b4/bbaa", -1, NULL) != 8844 ||
+        ssdVal(int32, tree, _S"l1/b4/nums[4]", -1, NULL) != 204)
         ret = 1;
 
     // releasing the main tree shouldn't affect the subtree
@@ -427,7 +427,7 @@ static int test_ssd_array()
     ssdImportTypedArray(tree, _S"test/another", arr2, int32, &lock);
     saDestroy(&arr2);
 
-    if (ssdGet_int32(tree, _S"test/another[1]", -1, &lock) != 102)
+    if (ssdVal(int32, tree, _S"test/another[1]", -1, &lock) != 102)
         ret = 1;
 
     // should fail with strict == true

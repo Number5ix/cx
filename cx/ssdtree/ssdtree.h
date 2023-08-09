@@ -150,27 +150,27 @@ _meta_inline ObjInst *ssdObjInstPtr(SSDNode *root, strref path, SSDLock *lock_re
 #define ssdObjPtr(root, path, clsname, lock_req) objDynCast(ssdObjInstPtr(root, path, lock_req), clsname)
 
 // convenience functions to get various types inline with a default
-#define ssdget_spec(type) \
-    _meta_inline stTypeDef(type) ssdGet_##type(SSDNode *root, strref path, stTypeDef(type) def, SSDLock *lock_opt)      \
+#define ssdval_spec(type) \
+    _meta_inline stTypeDef(type) ssdVal_##type(SSDNode *root, strref path, stTypeDef(type) def, SSDLock *lock_opt)      \
     {                                                                                                                   \
         stTypeDef(type) out;                                                                                            \
         ssdCopyOutD(root, path, type, &out, def, lock_opt);                                                             \
         return out;                                                                                                     \
     }
 
-ssdget_spec(bool)
-ssdget_spec(int8)
-ssdget_spec(int16)
-ssdget_spec(int32)
-ssdget_spec(int64)
-ssdget_spec(uint8)
-ssdget_spec(uint16)
-ssdget_spec(uint32)
-ssdget_spec(uint64)
-ssdget_spec(float32)
-ssdget_spec(float64)
-
-_meta_inline bool ssdGet_string(SSDNode *root, strref path, string *out, strref def, SSDLock *lock_opt)
+ssdval_spec(bool)
+ssdval_spec(int8)
+ssdval_spec(int16)
+ssdval_spec(int32)
+ssdval_spec(int64)
+ssdval_spec(uint8)
+ssdval_spec(uint16)
+ssdval_spec(uint32)
+ssdval_spec(uint64)
+ssdval_spec(float32)
+ssdval_spec(float64)
+#define ssdVal(type, root, path, def, lock_opt) \
+    ssdVal_##type(root, path, def, lock_opt)
 {
     strDestroy(out);
     return ssdCopyOutD(root, path, string, out, (string)def, lock_opt);
