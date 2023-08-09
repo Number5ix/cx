@@ -189,3 +189,8 @@ bool _ssdImportTypedArray(SSDNode *root, strref path, sa_ref arr, stype elemtype
 #define ssdExportTypedArray(root, path, out, type, strict, lock_opt) _ssdExportTypedArray(root, path, SAHANDLE(out), stType(type), strict, lock_opt)
 #define ssdImportTypedArray(root, path, arr, type, lock_opt) _ssdImportTypedArray(root, path, SAREF(arr), stType(type), lock_opt)
 
+// Grafts a subtree of the source tree onto the dest tree.
+// This deep copies the tree and associates the resulting nodes with the destination tree (creating them
+// using its customized node classes if needed).
+bool ssdGraft(SSDNode *dest, strref destpath, SSDLock *dest_lock_opt,
+              SSDNode *src, strref srcpath, SSDLock *src_lock_opt);

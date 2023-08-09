@@ -147,6 +147,30 @@ static int test_ssd_subtree()
     ssdSet(tree, _S"l1/b2/l3/test1", true, stvar(int32, 39294), NULL);
     ssdSet(tree, _S"l1/b2/l3/test2", true, stvar(string, teststr), NULL);
 
+    SSDNode *tree2 = ssdCreateHashtable();
+    ssdSet(tree2, _S"k1/aabb", true, stvar(int32, 1122), NULL);
+    ssdSet(tree2, _S"k1/bbaa", true, stvar(int32, 2211), NULL);
+    ssdSet(tree2, _S"k1/nums[0]", true, stvar(int32, 100), NULL);
+    ssdSet(tree2, _S"k1/nums[1]", true, stvar(int32, 101), NULL);
+    ssdSet(tree2, _S"k1/nums[2]", true, stvar(int32, 102), NULL);
+    ssdSet(tree2, _S"k1/nums[3]", true, stvar(int32, 103), NULL);
+    ssdSet(tree2, _S"k1/nums[4]", true, stvar(int32, 104), NULL);
+    ssdSet(tree2, _S"k2/aabb", true, stvar(int32, 4488), NULL);
+    ssdSet(tree2, _S"k2/bbaa", true, stvar(int32, 8844), NULL);
+    ssdSet(tree2, _S"k2/nums[0]", true, stvar(int32, 200), NULL);
+    ssdSet(tree2, _S"k2/nums[1]", true, stvar(int32, 201), NULL);
+    ssdSet(tree2, _S"k2/nums[2]", true, stvar(int32, 202), NULL);
+    ssdSet(tree2, _S"k2/nums[3]", true, stvar(int32, 203), NULL);
+    ssdSet(tree2, _S"k2/nums[4]", true, stvar(int32, 204), NULL);
+    ssdSet(tree2, _S"alt", true, stvar(string, _S"yes, alt"), NULL);
+    // graft tree2 onto tree
+    ssdGraft(tree, _S"grafted", NULL, tree2, 0, NULL);
+    // and graft the subtrees a couple places
+    ssdGraft(tree, _S"l1/b3", NULL, tree2, _S"k1", NULL);
+    ssdGraft(tree, _S"l1/b4", NULL, tree2, _S"k2", NULL);
+    // then destroy it
+    objRelease(&tree2);
+
     if (strTestRefCount(teststr) != 3)
         ret = 1;
 
@@ -238,6 +262,27 @@ static int test_ssd_subtree()
         ret = 1;
 
     ssdLockEnd(subtree, &lock);
+
+    // check for the grafted values
+    if (ssdGet_int32(tree, _S"grafted/k1/aabb", -1, NULL) != 1122 ||
+        ssdGet_int32(tree, _S"grafted/k1/bbaa", -1, NULL) != 2211 ||
+        ssdGet_int32(tree, _S"grafted/k1/nums[1]", -1, NULL) != 101 ||
+        ssdGet_int32(tree, _S"grafted/k2/aabb", -1, NULL) != 4488 ||
+        ssdGet_int32(tree, _S"grafted/k2/bbaa", -1, NULL) != 8844 ||
+        ssdGet_int32(tree, _S"grafted/k2/nums[3]", -1, NULL) != 203)
+        ret = 1;
+    if (!ssdGet(tree, _S"grafted/alt", &outvar, NULL) ||
+        !strEq(stvarString(&outvar), _S"yes, alt"))
+        ret = 1;
+    stvarDestroy(&outvar);
+
+    if (ssdGet_int32(tree, _S"l1/b3/aabb", -1, NULL) != 1122 ||
+        ssdGet_int32(tree, _S"l1/b3/bbaa", -1, NULL) != 2211 ||
+        ssdGet_int32(tree, _S"l1/b3/nums[0]", -1, NULL) != 100 ||
+        ssdGet_int32(tree, _S"l1/b4/aabb", -1, NULL) != 4488 ||
+        ssdGet_int32(tree, _S"l1/b4/bbaa", -1, NULL) != 8844 ||
+        ssdGet_int32(tree, _S"l1/b4/nums[4]", -1, NULL) != 204)
+        ret = 1;
 
     // releasing the main tree shouldn't affect the subtree
     objRelease(&tree);

@@ -487,3 +487,127 @@ bool _ssdImportTypedArray(SSDNode *root, strref path, sa_ref arr, stype elemtype
 
     return ret;
 }
+
+static bool ssdGraftNode(SSDNode *dest, int32 idx, strref name, SSDNode *src, SSDLock *destlock, SSDLock *srclock);
+
+static bool ssdGraftHashtable(SSDNode *dest, int32 idx, strref name, SSDNode *src, SSDLock *destlock, SSDLock *srclock)
+{
+    bool ret = true;
+    SSDNode *dnode = ssdtreeCreateNode(dest->tree, SSD_Create_Hashtable);
+    string srcname = 0;
+
+    if (!ssdnodeSet(dest, idx, name, stvar(object, dnode), destlock)) {
+        ret = false;
+        goto out;
+    }
+
+    foreach(object, iter, SSDIterator, src)
+    {
+        stvar *val = ssditeratorPtr(iter);
+        if (!val || !ssditeratorName(iter, &srcname)) {
+            ret = false;
+            goto out;
+        }
+
+        SSDNode *child = stvarObj(val, SSDNode);
+        if (child) {
+            // if this is a node, recurse into it
+            ret &= ssdGraftNode(dnode, SSD_ByName, srcname, child, destlock, srclock);
+        } else {
+            // otherwise just copy the value
+            ret &= ssdnodeSet(dnode, SSD_ByName, srcname, *val, destlock);
+        }
+    }
+
+out:
+    strDestroy(&srcname);
+    objRelease(&dnode);
+    return ret;
+}
+
+static bool ssdGraftArray(SSDNode *dest, int32 idx, strref name, SSDNode *src, SSDLock *destlock, SSDLock *srclock)
+{
+    bool ret = true;
+    SSDNode *dnode = ssdtreeCreateNode(dest->tree, SSD_Create_Array);
+
+    if (!ssdnodeSet(dest, idx, name, stvar(object, dnode), destlock)) {
+        ret = false;
+        goto out;
+    }
+
+    int srcidx = 0;
+    foreach(object, iter, SSDIterator, src)
+    {
+        stvar *val = ssditeratorPtr(iter);
+        if (!val) {
+            ret = false;
+            goto out;
+        }
+
+        SSDNode *child = stvarObj(val, SSDNode);
+        if (child) {
+            // if this is a node, recurse into it
+            ret &= ssdGraftNode(dnode, srcidx, NULL, child, destlock, srclock);
+        } else {
+            // otherwise just copy the value
+            ret &= ssdnodeSet(dnode, srcidx, NULL, *val, destlock);
+        }
+
+        srcidx++;
+    }
+
+out:
+    objRelease(&dnode);
+    return ret;
+}
+
+static bool ssdGraftNode(SSDNode *dest, int32 idx, strref name, SSDNode *src, SSDLock *destlock, SSDLock *srclock)
+{
+    if (ssdnodeIsHashtable(src))
+        return ssdGraftHashtable(dest, idx, name, src, destlock, srclock);
+    else if (ssdnodeIsArray(src))
+        return ssdGraftArray(dest, idx, name, src, destlock, srclock);
+    else
+        return false;
+}
+
+bool ssdGraft(SSDNode *dest, strref destpath, SSDLock *dest_lock_opt,
+              SSDNode *src, strref srcpath, SSDLock *src_lock_opt)
+{
+    SSDLock transient_lock_dest = { 0 };
+    if (!dest_lock_opt) dest_lock_opt = &transient_lock_dest;
+    SSDLock transient_lock_src = { 0 };
+    if (!src_lock_opt) src_lock_opt = &transient_lock_src;
+
+    bool ret = false;
+
+    ssdLockRead(src, src_lock_opt);
+    ssdLockWrite(dest, dest_lock_opt);
+
+    SSDNode *stree;
+    SSDNode *dpnode = NULL;
+    string dname = 0;
+
+    if (!strEmpty(srcpath))
+        stree = ssdSubtreeB(src, srcpath, src_lock_opt);
+    else
+        stree = src;
+
+    if (!stree)
+        goto out;
+
+    if (!ssdResolvePath(dest, destpath, &dpnode, &dname, true, dest_lock_opt))
+        goto out;
+
+    ret = ssdGraftNode(dpnode, SSD_ByName, dname, stree, dest_lock_opt, src_lock_opt);
+
+out:
+    objRelease(&dpnode);
+    strDestroy(&dname);
+    if (transient_lock_src.init)
+        ssdLockEnd(src, &transient_lock_src);
+    if (transient_lock_dest.init)
+        ssdLockEnd(dest, &transient_lock_dest);
+
+    return ret;
+}
