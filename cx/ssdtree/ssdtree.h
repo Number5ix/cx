@@ -45,6 +45,12 @@ SSDNode *_ssdCreateRoot(int crtype, SSDTree *tree, uint32 flags);
 #define ssdCreateSingle(...) _ssdCreateRoot(SSD_Create_Single, NULL, opt_flags(__VA_ARGS__))
 #define ssdCreateCustom(crtype, tree) _ssdCreateRoot(crtype, tree, 0)
 
+// Creates a deep clone of root. If desttree is not NULL, associates the clone with that tree -- the
+// resulting node will be an isolated branch not yet attached to the rest of the tree but part of the
+// same "forest".
+// Otherwise creates a new tree.
+SSDNode *ssdClone(SSDNode *root, SSDTree *desttree, SSDLock *lock_opt);
+
 // Returns a node representing a subtree
 // If this node does not exist and the create parameter is any value other than SSD_Create_None,
 // a node of the specified type is created at the given path.
