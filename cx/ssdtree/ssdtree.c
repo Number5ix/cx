@@ -101,7 +101,7 @@ static SSDNode *getChild(SSDNode *node, strref name, int checktype, int create, 
 
         // there's a valid child there with the correct type, just return it
         if (child)
-            return objAcquire(child);
+            return child;
 
         // didn't exist (or was the wrong type), so create it
         if (create != SSD_Create_None) {
@@ -117,7 +117,8 @@ static SSDNode *getChild(SSDNode *node, strref name, int checktype, int create, 
                 return NULL;
 
             // create or overwrite
-            ssdnodeSet(node, SSD_ByName, name, stvar(object, ret), lock);
+            ssdnodeSetC(node, SSD_ByName, name, &stvar(object, ret), lock);
+            // return a borrowed reference to the node that was just inserted into the tree
             return ret;
         }
     } while ((create != SSD_Create_None) && !havewrite);    // loop if we're in create mode but didn't have the write lock
@@ -127,11 +128,13 @@ static SSDNode *getChild(SSDNode *node, strref name, int checktype, int create, 
 
 static bool ssdResolvePath(SSDNode *root, strref path, SSDNode **nodeout, string *nameout, bool create, SSDLock *lock)
 {
-    SSDNode *node = objAcquire(root);
+    SSDNode *node = root;
     string name = 0;
     int arrstate = 0;
     bool ret = false;
     bool first = true;
+
+    ssdLockRead(root, lock);
 
     foreach(string, it, path) {
         for (uint32 i = 0; i < it.len; ++i) {
@@ -158,7 +161,6 @@ static bool ssdResolvePath(SSDNode *root, strref path, SSDNode **nodeout, string
                 }
 
                 // rotate child into 'current' node
-                objRelease(&node);
                 node = child;
                 strClear(&name);
             }
@@ -185,11 +187,8 @@ static bool ssdResolvePath(SSDNode *root, strref path, SSDNode **nodeout, string
 
 out:
     if (ret) {
-        // give caller the temp reference we're holding in node
         *nodeout = node;
         strDup(nameout, name);
-    } else {
-        objRelease(&node);
     }
 
     strDestroy(&name);
@@ -211,7 +210,6 @@ bool ssdGet(SSDNode *root, strref path, stvar *out, SSDLock *lock)
     if (transient_lock.init)
         ssdLockEnd(root, &transient_lock);
 
-    objRelease(&node);
     strDestroy(&name);
     return ret;
 }
@@ -227,7 +225,6 @@ stvar *ssdPtr(SSDNode *root, strref path, SSDLock *lock)
     if (ssdResolvePath(root, path, &node, &name, false, lock))
         ret = ssdnodePtr(node, SSD_ByName, name, lock);
 
-    objRelease(&node);
     strDestroy(&name);
     return ret;
 }
@@ -252,7 +249,6 @@ bool ssdSet(SSDNode *root, strref path, bool createpath, stvar val, SSDLock *loc
     if (transient_lock.init)
         ssdLockEnd(root, &transient_lock);
 
-    objRelease(&node);
     strDestroy(&name);
     return ret;
 }
@@ -277,7 +273,6 @@ bool ssdRemove(SSDNode *root, strref path, SSDLock *lock)
     if (transient_lock.init)
         ssdLockEnd(root, &transient_lock);
 
-    objRelease(&node);
     strDestroy(&name);
     return ret;
 }
@@ -292,13 +287,12 @@ SSDNode *ssdSubtree(SSDNode *root, strref path, int create, SSDLock *lock)
     string name = 0;
 
     if (ssdResolvePath(root, path, &node, &name, create != SSD_Create_None, lock)) {
-        ret = getChild(node, name, create, create, lock);
+        ret = objAcquire(getChild(node, name, create, create, lock));
     }
 
     if (transient_lock.init)
         ssdLockEnd(root, &transient_lock);
 
-    objRelease(&node);
     strDestroy(&name);
     return ret;
 }
@@ -319,7 +313,6 @@ SSDNode *ssdSubtreeB(SSDNode *root, strref path, SSDLock *lock)
         ret = val ? (stEq(val->type, stType(object)) ? objDynCast(val->data.st_object, SSDNode) : NULL) : NULL;
     }
 
-    objRelease(&node);
     strDestroy(&name);
     return ret;
 }
@@ -343,7 +336,6 @@ bool _ssdCopyOut(SSDNode *root, strref path, stype valtype, stgeneric *val, SSDL
     if (transient_lock.init)
         ssdLockEnd(root, &transient_lock);
 
-    objRelease(&node);
     strDestroy(&name);
 
     return ret;
@@ -368,7 +360,6 @@ bool _ssdCopyOutD(SSDNode *root, strref path, stype valtype, stgeneric *val, stg
     if (transient_lock.init)
         ssdLockEnd(root, &transient_lock);
 
-    objRelease(&node);
     strDestroy(&name);
 
     if (!ret)
@@ -616,7 +607,6 @@ bool ssdGraft(SSDNode *dest, strref destpath, SSDLock *dest_lock_opt,
     }
 
 out:
-    objRelease(&dpnode);
     strDestroy(&dname);
     if (transient_lock_src.init)
         ssdLockEnd(src, &transient_lock_src);
