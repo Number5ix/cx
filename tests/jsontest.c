@@ -76,7 +76,7 @@ static const char json_testdata1_exact[] = "{\n"
 "        true,\n"
 "        123.456\n"
 "    ]\n"
-"}";
+"}\n";
 
 static const char json_testdata1_err[] = "{\n"
 "    \"num\" : 574,\n"
@@ -152,7 +152,7 @@ static const char json_testdata2[] = "[\n"
 "    ],\n"
 "    { },\n"
 "    [ ]\n"
-"]";
+"]\n";
 
 static const char json_testdata3[] = "42";
 

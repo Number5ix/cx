@@ -311,7 +311,6 @@ bool jsonOut(JSONOut *jo, JSONParseEvent *ev)
         break;
     case JSON_Error:
     case JSON_End:
-        sbufPFinish(jo->sb);
         break;
     default:
         ret = false;
@@ -322,6 +321,8 @@ bool jsonOut(JSONOut *jo, JSONParseEvent *ev)
 
 void jsonOutEnd(JSONOut **jo)
 {
+    if (!((*jo)->flags & JSON_Single_Line))
+        writeStrEOL((*jo), _S"");
     sbufPFinish((*jo)->sb);
     strDestroy(&(*jo)->indent);
 
