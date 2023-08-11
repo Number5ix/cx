@@ -87,6 +87,7 @@ bool SSDHashNode_setC(SSDHashNode *self, int32 idx, strref name, stvar *val, SSD
 
     ssdLockWrite(self, lock);
     htInsertC(&self->storage, strref, name, stvar, val);
+    *val = stvNone;
     ssdnodeUpdateModified(self);
     return true;
 }

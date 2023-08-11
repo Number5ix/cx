@@ -99,6 +99,7 @@ bool SSDArrayNode_setC(SSDArrayNode *self, int32 idx, strref name, stvar *val, S
 
     stvarDestroy(&self->storage.a[idx]);
     self->storage.a[idx] = *val;
+    *val = stvNone;
     ssdnodeUpdateModified(self);
     ret = true;
 
