@@ -189,6 +189,8 @@ static void writeEscapedString(JSONOut *jo, strref val)
             }
         } else if (code == '"') {
             strAppend(&escaped, _S"\\\"");
+        } else if (code == '\\') {
+            strAppend(&escaped, _S"\\\\");
         } else if (code >= 0x20 && code <= 0x7f) {
             strSetChar(&escaped, strEnd, (char)code);
         } else {
