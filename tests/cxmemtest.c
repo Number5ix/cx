@@ -28,6 +28,10 @@ static int test_malloc()
     for (i = 0; i < 67108865; i++)
         blk3[i] = '0' + (i % 10);
 
+    xaFree(blk1);
+    xaFree(blk2);
+    xaFree(blk3);
+
     return 0;
 }
 
@@ -44,6 +48,10 @@ static int test_usable_size()
         return 1;
     if (!blk3 || xaSize(blk3) < 67108865)
         return 1;
+
+    xaFree(blk1);
+    xaFree(blk2);
+    xaFree(blk3);
 
     return 0;
 }
@@ -96,6 +104,8 @@ static int test_realloc()
         return 1;
     for (i = 0; i < 67108865; i++)
         blk1[i] = '0' + (i % 10);
+
+    xaFree(blk1);
 
     return 0;
 }

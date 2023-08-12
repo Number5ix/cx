@@ -121,6 +121,7 @@ int alltests(int argc, const char *argv[])
                 res ? "Failed" : "Passed", (int)timeToMsec(tend - tstart));
         if (!res)
             npassed++;
+        xaFlush();
     }
 
     int64 totalend = clockTimer();
