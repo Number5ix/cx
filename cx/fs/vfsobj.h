@@ -11,12 +11,12 @@ saDeclarePtr(VFS);
 saDeclarePtr(VFSMount);
 
 typedef struct VFS {
-    ObjIface *_;
     union {
-        ObjClassInfo *_clsinfo;
+        ObjIface *_;
         void *_is_VFS;
         void *_is_ObjInst;
     };
+    ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
 
     VFSDir *root;        // root for namespaceless paths
@@ -31,7 +31,7 @@ typedef struct VFS {
     uint32 flags;
 } VFS;
 extern ObjClassInfo VFS_clsinfo;
-#define VFS(inst) ((VFS*)((void)((inst) && &((inst)->_is_VFS)), (inst)))
+#define VFS(inst) ((VFS*)(&((inst)->_is_VFS)))
 #define VFSNone ((VFS*)NULL)
 
 VFS *VFS_create(uint32 flags);
@@ -50,19 +50,19 @@ VFS *VFS_createFromFS();
 
 
 typedef struct VFSMount {
-    ObjIface *_;
     union {
-        ObjClassInfo *_clsinfo;
+        ObjIface *_;
         void *_is_VFSMount;
         void *_is_ObjInst;
     };
+    ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
 
     ObjInst *provider;
     uint32 flags;
 } VFSMount;
 extern ObjClassInfo VFSMount_clsinfo;
-#define VFSMount(inst) ((VFSMount*)((void)((inst) && &((inst)->_is_VFSMount)), (inst)))
+#define VFSMount(inst) ((VFSMount*)(&((inst)->_is_VFSMount)))
 #define VFSMountNone ((VFSMount*)NULL)
 
 VFSMount *VFSMount_create(ObjInst *provider, uint32 flags);

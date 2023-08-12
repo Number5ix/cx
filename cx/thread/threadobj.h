@@ -12,12 +12,12 @@ typedef struct Thread Thread;
 saDeclarePtr(Thread);
 
 typedef struct Thread {
-    ObjIface *_;
     union {
-        ObjClassInfo *_clsinfo;
+        ObjIface *_;
         void *_is_Thread;
         void *_is_ObjInst;
     };
+    ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
 
     threadFunc entry;
@@ -30,7 +30,7 @@ typedef struct Thread {
     Event notify;
 } Thread;
 extern ObjClassInfo Thread_clsinfo;
-#define Thread(inst) ((Thread*)((void)((inst) && &((inst)->_is_Thread)), (inst)))
+#define Thread(inst) ((Thread*)(&((inst)->_is_Thread)))
 #define ThreadNone ((Thread*)NULL)
 
 Thread *Thread_create(threadFunc func, strref name, int n, stvar args[], bool ui);

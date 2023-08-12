@@ -17,12 +17,12 @@ typedef struct SSDTree_ClassIf {
 extern SSDTree_ClassIf SSDTree_ClassIf_tmpl;
 
 typedef struct SSDTree {
-    SSDTree_ClassIf *_;
     union {
-        ObjClassInfo *_clsinfo;
+        SSDTree_ClassIf *_;
         void *_is_SSDTree;
         void *_is_ObjInst;
     };
+    ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
 
     RWLock lock;
@@ -31,7 +31,7 @@ typedef struct SSDTree {
     SSDNodeFactory factories[SSD_Create_Count];        // Factory functions for if this tree wants to use derived node classes
 } SSDTree;
 extern ObjClassInfo SSDTree_clsinfo;
-#define SSDTree(inst) ((SSDTree*)((void)((inst) && &((inst)->_is_SSDTree)), (inst)))
+#define SSDTree(inst) ((SSDTree*)(&((inst)->_is_SSDTree)))
 #define SSDTreeNone ((SSDTree*)NULL)
 
 SSDTree *SSDTree_create(uint32 flags);

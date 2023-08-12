@@ -34,19 +34,19 @@ typedef struct FmtTestClass2_ClassIf {
 extern FmtTestClass2_ClassIf FmtTestClass2_ClassIf_tmpl;
 
 typedef struct FmtTestClass {
-    FmtTestClass_ClassIf *_;
     union {
-        ObjClassInfo *_clsinfo;
+        FmtTestClass_ClassIf *_;
         void *_is_FmtTestClass;
         void *_is_ObjInst;
     };
+    ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
 
     int32 iv;
     string sv;
 } FmtTestClass;
 extern ObjClassInfo FmtTestClass_clsinfo;
-#define FmtTestClass(inst) ((FmtTestClass*)((void)((inst) && &((inst)->_is_FmtTestClass)), (inst)))
+#define FmtTestClass(inst) ((FmtTestClass*)(&((inst)->_is_FmtTestClass)))
 #define FmtTestClassNone ((FmtTestClass*)NULL)
 
 FmtTestClass *FmtTestClass_create(int32 ival, string sval);
@@ -57,19 +57,19 @@ FmtTestClass *FmtTestClass_create(int32 ival, string sval);
 #define fmttestclassFormat(self, v, out) (self)->_->format(FmtTestClass(self), v, out)
 
 typedef struct FmtTestClass2 {
-    FmtTestClass2_ClassIf *_;
     union {
-        ObjClassInfo *_clsinfo;
+        FmtTestClass2_ClassIf *_;
         void *_is_FmtTestClass2;
         void *_is_ObjInst;
     };
+    ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
 
     int32 iv;
     string sv;
 } FmtTestClass2;
 extern ObjClassInfo FmtTestClass2_clsinfo;
-#define FmtTestClass2(inst) ((FmtTestClass2*)((void)((inst) && &((inst)->_is_FmtTestClass2)), (inst)))
+#define FmtTestClass2(inst) ((FmtTestClass2*)(&((inst)->_is_FmtTestClass2)))
 #define FmtTestClass2None ((FmtTestClass2*)NULL)
 
 FmtTestClass2 *FmtTestClass2_create(int32 ival, string sval);

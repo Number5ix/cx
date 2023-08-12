@@ -288,16 +288,16 @@ void writeClassDecl(BufFile *bf, Class *cls)
     bfWriteLine(bf, ln);
 
     if (!cls->mixin) {
-        if (cls->classif)
-            strNConcat(&ln, _S"    ", cls->name, _S"_ClassIf *_;");
-        else
-            strDup(&ln, _S"    ObjIface *_;");
-        bfWriteLine(bf, ln);
         bfWriteLine(bf, _S"    union {");
-        bfWriteLine(bf, _S"        ObjClassInfo *_clsinfo;");
+        if (cls->classif)
+            strNConcat(&ln, _S"        ", cls->name, _S"_ClassIf *_;");
+        else
+            strDup(&ln, _S"        ObjIface *_;");
+        bfWriteLine(bf, ln);
         writeClassTypeMarkers(bf, cls);
         bfWriteLine(bf, _S"        void *_is_ObjInst;");
         bfWriteLine(bf, _S"    };");
+        bfWriteLine(bf, _S"    ObjClassInfo *_clsinfo;");
         bfWriteLine(bf, _S"    atomic(intptr) _ref;");
         bfWriteLine(bf, NULL);
     }
@@ -314,7 +314,7 @@ void writeClassDecl(BufFile *bf, Class *cls)
         bfWriteLine(bf, ln);
     }
     strNConcat(&ln, _S"#define ", cls->name, _S"(inst) ((", cls->name,
-               _S"*)((void)((inst) && &((inst)->_is_", cls->name, _S")), (inst)))");
+               _S"*)(&((inst)->_is_", cls->name, _S")))");
     bfWriteLine(bf, ln);
     strNConcat(&ln, _S"#define ", cls->name, _S"None ((", cls->name,
                _S"*)NULL)");

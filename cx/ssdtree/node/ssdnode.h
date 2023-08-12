@@ -111,12 +111,12 @@ typedef struct SSDNode_ClassIf {
 extern SSDNode_ClassIf SSDNode_ClassIf_tmpl;
 
 typedef struct SSDIterator {
-    SSDIterator_ClassIf *_;
     union {
-        ObjClassInfo *_clsinfo;
+        SSDIterator_ClassIf *_;
         void *_is_SSDIterator;
         void *_is_ObjInst;
     };
+    ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
 
     SSDNode *node;
@@ -124,7 +124,7 @@ typedef struct SSDIterator {
     SSDLock transient_lock;
 } SSDIterator;
 extern ObjClassInfo SSDIterator_clsinfo;
-#define SSDIterator(inst) ((SSDIterator*)((void)((inst) && &((inst)->_is_SSDIterator)), (inst)))
+#define SSDIterator(inst) ((SSDIterator*)(&((inst)->_is_SSDIterator)))
 #define SSDIteratorNone ((SSDIterator*)NULL)
 
 ObjInst *SSDIterator_objInst(SSDIterator *self);
@@ -151,19 +151,19 @@ ObjInst *SSDIterator_objInst(SSDIterator *self);
 #define ssditeratorIterOut(self, idx, name, val) (self)->_->iterOut(SSDIterator(self), idx, name, val)
 
 typedef struct SSDNode {
-    SSDNode_ClassIf *_;
     union {
-        ObjClassInfo *_clsinfo;
+        SSDNode_ClassIf *_;
         void *_is_SSDNode;
         void *_is_ObjInst;
     };
+    ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
 
     SSDTree *tree;
     int64 modified;        // The timestamp this node was last modified
 } SSDNode;
 extern ObjClassInfo SSDNode_clsinfo;
-#define SSDNode(inst) ((SSDNode*)((void)((inst) && &((inst)->_is_SSDNode)), (inst)))
+#define SSDNode(inst) ((SSDNode*)(&((inst)->_is_SSDNode)))
 #define SSDNodeNone ((SSDNode*)NULL)
 
 void SSDNode_updateModified(SSDNode *self);

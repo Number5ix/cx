@@ -44,17 +44,17 @@ typedef struct ObjClassInfo {
 
 // Generic class instance and implicit base for all dynamic objects
 typedef struct ObjInst {
-    ObjIface *_classif;         // basically vtable, this is called _ in class instances for less typing
     union {
-        ObjClassInfo *_clsinfo;
+        ObjIface *_classif;         // basically vtable, this is called _ in class instances for less typing
         void *_is_ObjInst;
     };
+    ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;        // reference count
 
     // user data members here
 } ObjInst;
 
-#define ObjInst(inst) ((ObjInst*)(&((inst)->_is_ObjInst), (inst)))
+#define ObjInst(inst) ((ObjInst*)(&((inst)->_is_ObjInst)))
 #define objInstBase(inst) ObjInst(inst)
 #define objClsInfo(inst) (inst->_clsinfo)
 

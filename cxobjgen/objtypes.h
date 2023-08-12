@@ -55,12 +55,12 @@ typedef struct Class_ClassIf {
 extern Class_ClassIf Class_ClassIf_tmpl;
 
 typedef struct Param {
-    ObjIface *_;
     union {
-        ObjClassInfo *_clsinfo;
+        ObjIface *_;
         void *_is_Param;
         void *_is_ObjInst;
     };
+    ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
 
     string type;
@@ -69,7 +69,7 @@ typedef struct Param {
     string postdecr;
 } Param;
 extern ObjClassInfo Param_clsinfo;
-#define Param(inst) ((Param*)((void)((inst) && &((inst)->_is_Param)), (inst)))
+#define Param(inst) ((Param*)(&((inst)->_is_Param)))
 #define ParamNone ((Param*)NULL)
 
 Param *Param_create();
@@ -78,12 +78,12 @@ Param *Param_create();
 
 
 typedef struct Method {
-    Method_ClassIf *_;
     union {
-        ObjClassInfo *_clsinfo;
+        Method_ClassIf *_;
         void *_is_Method;
         void *_is_ObjInst;
     };
+    ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
 
     Class *srcclass;
@@ -105,7 +105,7 @@ typedef struct Method {
     bool mixin;
 } Method;
 extern ObjClassInfo Method_clsinfo;
-#define Method(inst) ((Method*)((void)((inst) && &((inst)->_is_Method)), (inst)))
+#define Method(inst) ((Method*)(&((inst)->_is_Method)))
 #define MethodNone ((Method*)NULL)
 
 Method *Method_create();
@@ -118,12 +118,12 @@ Method *Method_create();
 #define methodCmp(self, other, flags) (self)->_->cmp(Method(self), other, flags)
 
 typedef struct Interface {
-    Interface_ClassIf *_;
     union {
-        ObjClassInfo *_clsinfo;
+        Interface_ClassIf *_;
         void *_is_Interface;
         void *_is_ObjInst;
     };
+    ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
 
     string name;
@@ -135,7 +135,7 @@ typedef struct Interface {
     sa_Method allmethods;
 } Interface;
 extern ObjClassInfo Interface_clsinfo;
-#define Interface(inst) ((Interface*)((void)((inst) && &((inst)->_is_Interface)), (inst)))
+#define Interface(inst) ((Interface*)(&((inst)->_is_Interface)))
 #define InterfaceNone ((Interface*)NULL)
 
 Interface *Interface_create();
@@ -146,12 +146,12 @@ Interface *Interface_create();
 #define interfaceCmp(self, other, flags) (self)->_->cmp(Interface(self), other, flags)
 
 typedef struct Member {
-    Member_ClassIf *_;
     union {
-        ObjClassInfo *_clsinfo;
+        Member_ClassIf *_;
         void *_is_Member;
         void *_is_ObjInst;
     };
+    ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
 
     sa_string fulltype;
@@ -167,7 +167,7 @@ typedef struct Member {
     bool destroy;
 } Member;
 extern ObjClassInfo Member_clsinfo;
-#define Member(inst) ((Member*)((void)((inst) && &((inst)->_is_Member)), (inst)))
+#define Member(inst) ((Member*)(&((inst)->_is_Member)))
 #define MemberNone ((Member*)NULL)
 
 Member *Member_create();
@@ -178,12 +178,12 @@ Member *Member_create();
 #define memberCmp(self, other, flags) (self)->_->cmp(Member(self), other, flags)
 
 typedef struct Class {
-    Class_ClassIf *_;
     union {
-        ObjClassInfo *_clsinfo;
+        Class_ClassIf *_;
         void *_is_Class;
         void *_is_ObjInst;
     };
+    ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
 
     string name;
@@ -208,7 +208,7 @@ typedef struct Class {
     sa_Method allmethods;
 } Class;
 extern ObjClassInfo Class_clsinfo;
-#define Class(inst) ((Class*)((void)((inst) && &((inst)->_is_Class)), (inst)))
+#define Class(inst) ((Class*)(&((inst)->_is_Class)))
 #define ClassNone ((Class*)NULL)
 
 Class *Class_create();
@@ -219,19 +219,19 @@ Class *Class_create();
 #define classCmp(self, other, flags) (self)->_->cmp(Class(self), other, flags)
 
 typedef struct ComplexArrayType {
-    ObjIface *_;
     union {
-        ObjClassInfo *_clsinfo;
+        ObjIface *_;
         void *_is_ComplexArrayType;
         void *_is_ObjInst;
     };
+    ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
 
     string tname;
     string tsubtype;
 } ComplexArrayType;
 extern ObjClassInfo ComplexArrayType_clsinfo;
-#define ComplexArrayType(inst) ((ComplexArrayType*)((void)((inst) && &((inst)->_is_ComplexArrayType)), (inst)))
+#define ComplexArrayType(inst) ((ComplexArrayType*)(&((inst)->_is_ComplexArrayType)))
 #define ComplexArrayTypeNone ((ComplexArrayType*)NULL)
 
 ComplexArrayType *ComplexArrayType_create();

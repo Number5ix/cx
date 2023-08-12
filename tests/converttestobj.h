@@ -22,12 +22,12 @@ typedef struct ConvertTestClass_ClassIf {
 extern ConvertTestClass_ClassIf ConvertTestClass_ClassIf_tmpl;
 
 typedef struct ConvertTestClass {
-    ConvertTestClass_ClassIf *_;
     union {
-        ObjClassInfo *_clsinfo;
+        ConvertTestClass_ClassIf *_;
         void *_is_ConvertTestClass;
         void *_is_ObjInst;
     };
+    ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
 
     int32 ival;
@@ -35,7 +35,7 @@ typedef struct ConvertTestClass {
     string sval;
 } ConvertTestClass;
 extern ObjClassInfo ConvertTestClass_clsinfo;
-#define ConvertTestClass(inst) ((ConvertTestClass*)((void)((inst) && &((inst)->_is_ConvertTestClass)), (inst)))
+#define ConvertTestClass(inst) ((ConvertTestClass*)(&((inst)->_is_ConvertTestClass)))
 #define ConvertTestClassNone ((ConvertTestClass*)NULL)
 
 ConvertTestClass *ConvertTestClass_create(int32 ival, float64 fval, string sval);

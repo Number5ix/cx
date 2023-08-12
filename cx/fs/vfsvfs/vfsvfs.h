@@ -32,19 +32,19 @@ typedef struct VFSVFS_ClassIf {
 extern VFSVFS_ClassIf VFSVFS_ClassIf_tmpl;
 
 typedef struct VFSVFS {
-    VFSVFS_ClassIf *_;
     union {
-        ObjClassInfo *_clsinfo;
+        VFSVFS_ClassIf *_;
         void *_is_VFSVFS;
         void *_is_ObjInst;
     };
+    ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
 
     VFS *vfs;
     string root;
 } VFSVFS;
 extern ObjClassInfo VFSVFS_clsinfo;
-#define VFSVFS(inst) ((VFSVFS*)((void)((inst) && &((inst)->_is_VFSVFS)), (inst)))
+#define VFSVFS(inst) ((VFSVFS*)(&((inst)->_is_VFSVFS)))
 #define VFSVFSNone ((VFSVFS*)NULL)
 
 VFSVFS *VFSVFS_create(VFS *vfs, strref rootpath);

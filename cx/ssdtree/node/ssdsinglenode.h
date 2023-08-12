@@ -60,13 +60,13 @@ typedef struct SSDSingleIter_ClassIf {
 extern SSDSingleIter_ClassIf SSDSingleIter_ClassIf_tmpl;
 
 typedef struct SSDSingleNode {
-    SSDSingleNode_ClassIf *_;
     union {
-        ObjClassInfo *_clsinfo;
+        SSDSingleNode_ClassIf *_;
         void *_is_SSDSingleNode;
         void *_is_SSDNode;
         void *_is_ObjInst;
     };
+    ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
 
     SSDTree *tree;
@@ -74,7 +74,7 @@ typedef struct SSDSingleNode {
     stvar storage;
 } SSDSingleNode;
 extern ObjClassInfo SSDSingleNode_clsinfo;
-#define SSDSingleNode(inst) ((SSDSingleNode*)((void)((inst) && &((inst)->_is_SSDSingleNode)), (inst)))
+#define SSDSingleNode(inst) ((SSDSingleNode*)(&((inst)->_is_SSDSingleNode)))
 #define SSDSingleNodeNone ((SSDSingleNode*)NULL)
 
 SSDSingleNode *SSDSingleNode__create(SSDTree *tree);
@@ -130,13 +130,13 @@ SSDSingleNode *SSDSingleNode__create(SSDTree *tree);
 #define ssdsinglenodeIterLocked(self, lock) (self)->_->iterLocked(SSDSingleNode(self), lock)
 
 typedef struct SSDSingleIter {
-    SSDSingleIter_ClassIf *_;
     union {
-        ObjClassInfo *_clsinfo;
+        SSDSingleIter_ClassIf *_;
         void *_is_SSDSingleIter;
         void *_is_SSDIterator;
         void *_is_ObjInst;
     };
+    ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
 
     SSDNode *node;
@@ -145,7 +145,7 @@ typedef struct SSDSingleIter {
     bool done;
 } SSDSingleIter;
 extern ObjClassInfo SSDSingleIter_clsinfo;
-#define SSDSingleIter(inst) ((SSDSingleIter*)((void)((inst) && &((inst)->_is_SSDSingleIter)), (inst)))
+#define SSDSingleIter(inst) ((SSDSingleIter*)(&((inst)->_is_SSDSingleIter)))
 #define SSDSingleIterNone ((SSDSingleIter*)NULL)
 
 SSDSingleIter *SSDSingleIter_create(SSDSingleNode *node, SSDLock *lock);

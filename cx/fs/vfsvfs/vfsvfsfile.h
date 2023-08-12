@@ -24,18 +24,18 @@ typedef struct VFSVFSFile_ClassIf {
 extern VFSVFSFile_ClassIf VFSVFSFile_ClassIf_tmpl;
 
 typedef struct VFSVFSFile {
-    VFSVFSFile_ClassIf *_;
     union {
-        ObjClassInfo *_clsinfo;
+        VFSVFSFile_ClassIf *_;
         void *_is_VFSVFSFile;
         void *_is_ObjInst;
     };
+    ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
 
     VFSFile *file;
 } VFSVFSFile;
 extern ObjClassInfo VFSVFSFile_clsinfo;
-#define VFSVFSFile(inst) ((VFSVFSFile*)((void)((inst) && &((inst)->_is_VFSVFSFile)), (inst)))
+#define VFSVFSFile(inst) ((VFSVFSFile*)(&((inst)->_is_VFSVFSFile)))
 #define VFSVFSFileNone ((VFSVFSFile*)NULL)
 
 VFSVFSFile *VFSVFSFile_create(VFSFile *f);

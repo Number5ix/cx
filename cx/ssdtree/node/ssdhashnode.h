@@ -60,13 +60,13 @@ typedef struct SSDHashIter_ClassIf {
 extern SSDHashIter_ClassIf SSDHashIter_ClassIf_tmpl;
 
 typedef struct SSDHashNode {
-    SSDHashNode_ClassIf *_;
     union {
-        ObjClassInfo *_clsinfo;
+        SSDHashNode_ClassIf *_;
         void *_is_SSDHashNode;
         void *_is_SSDNode;
         void *_is_ObjInst;
     };
+    ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
 
     SSDTree *tree;
@@ -74,7 +74,7 @@ typedef struct SSDHashNode {
     hashtable storage;
 } SSDHashNode;
 extern ObjClassInfo SSDHashNode_clsinfo;
-#define SSDHashNode(inst) ((SSDHashNode*)((void)((inst) && &((inst)->_is_SSDHashNode)), (inst)))
+#define SSDHashNode(inst) ((SSDHashNode*)(&((inst)->_is_SSDHashNode)))
 #define SSDHashNodeNone ((SSDHashNode*)NULL)
 
 SSDHashNode *SSDHashNode__create(SSDTree *tree);
@@ -130,13 +130,13 @@ SSDHashNode *SSDHashNode__create(SSDTree *tree);
 #define ssdhashnodeIterLocked(self, lock) (self)->_->iterLocked(SSDHashNode(self), lock)
 
 typedef struct SSDHashIter {
-    SSDHashIter_ClassIf *_;
     union {
-        ObjClassInfo *_clsinfo;
+        SSDHashIter_ClassIf *_;
         void *_is_SSDHashIter;
         void *_is_SSDIterator;
         void *_is_ObjInst;
     };
+    ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
 
     SSDNode *node;
@@ -145,7 +145,7 @@ typedef struct SSDHashIter {
     htiter iter;
 } SSDHashIter;
 extern ObjClassInfo SSDHashIter_clsinfo;
-#define SSDHashIter(inst) ((SSDHashIter*)((void)((inst) && &((inst)->_is_SSDHashIter)), (inst)))
+#define SSDHashIter(inst) ((SSDHashIter*)(&((inst)->_is_SSDHashIter)))
 #define SSDHashIterNone ((SSDHashIter*)NULL)
 
 SSDHashIter *SSDHashIter_create(SSDHashNode *node, SSDLock *lock);

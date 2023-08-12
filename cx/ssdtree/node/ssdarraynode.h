@@ -60,13 +60,13 @@ typedef struct SSDArrayIter_ClassIf {
 extern SSDArrayIter_ClassIf SSDArrayIter_ClassIf_tmpl;
 
 typedef struct SSDArrayNode {
-    SSDArrayNode_ClassIf *_;
     union {
-        ObjClassInfo *_clsinfo;
+        SSDArrayNode_ClassIf *_;
         void *_is_SSDArrayNode;
         void *_is_SSDNode;
         void *_is_ObjInst;
     };
+    ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
 
     SSDTree *tree;
@@ -74,7 +74,7 @@ typedef struct SSDArrayNode {
     sa_stvar storage;
 } SSDArrayNode;
 extern ObjClassInfo SSDArrayNode_clsinfo;
-#define SSDArrayNode(inst) ((SSDArrayNode*)((void)((inst) && &((inst)->_is_SSDArrayNode)), (inst)))
+#define SSDArrayNode(inst) ((SSDArrayNode*)(&((inst)->_is_SSDArrayNode)))
 #define SSDArrayNodeNone ((SSDArrayNode*)NULL)
 
 SSDArrayNode *SSDArrayNode__create(SSDTree *tree);
@@ -130,13 +130,13 @@ SSDArrayNode *SSDArrayNode__create(SSDTree *tree);
 #define ssdarraynodeIterLocked(self, lock) (self)->_->iterLocked(SSDArrayNode(self), lock)
 
 typedef struct SSDArrayIter {
-    SSDArrayIter_ClassIf *_;
     union {
-        ObjClassInfo *_clsinfo;
+        SSDArrayIter_ClassIf *_;
         void *_is_SSDArrayIter;
         void *_is_SSDIterator;
         void *_is_ObjInst;
     };
+    ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
 
     SSDNode *node;
@@ -146,7 +146,7 @@ typedef struct SSDArrayIter {
     string lastName;
 } SSDArrayIter;
 extern ObjClassInfo SSDArrayIter_clsinfo;
-#define SSDArrayIter(inst) ((SSDArrayIter*)((void)((inst) && &((inst)->_is_SSDArrayIter)), (inst)))
+#define SSDArrayIter(inst) ((SSDArrayIter*)(&((inst)->_is_SSDArrayIter)))
 #define SSDArrayIterNone ((SSDArrayIter*)NULL)
 
 SSDArrayIter *SSDArrayIter_create(SSDArrayNode *node, SSDLock *lock);

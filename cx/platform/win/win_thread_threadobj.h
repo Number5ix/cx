@@ -9,13 +9,13 @@ typedef struct WinThread WinThread;
 saDeclarePtr(WinThread);
 
 typedef struct WinThread {
-    ObjIface *_;
     union {
-        ObjClassInfo *_clsinfo;
+        ObjIface *_;
         void *_is_WinThread;
         void *_is_Thread;
         void *_is_ObjInst;
     };
+    ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
 
     threadFunc entry;
@@ -31,7 +31,7 @@ typedef struct WinThread {
     DWORD id;
 } WinThread;
 extern ObjClassInfo WinThread_clsinfo;
-#define WinThread(inst) ((WinThread*)((void)((inst) && &((inst)->_is_WinThread)), (inst)))
+#define WinThread(inst) ((WinThread*)(&((inst)->_is_WinThread)))
 #define WinThreadNone ((WinThread*)NULL)
 
 WinThread *WinThread_create();

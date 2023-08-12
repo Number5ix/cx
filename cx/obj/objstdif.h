@@ -72,17 +72,17 @@ typedef struct Iterator_ClassIf {
 extern Iterator_ClassIf Iterator_ClassIf_tmpl;
 
 typedef struct Iterator {
-    Iterator_ClassIf *_;
     union {
-        ObjClassInfo *_clsinfo;
+        Iterator_ClassIf *_;
         void *_is_Iterator;
         void *_is_ObjInst;
     };
+    ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
 
 } Iterator;
 extern ObjClassInfo Iterator_clsinfo;
-#define Iterator(inst) ((Iterator*)((void)((inst) && &((inst)->_is_Iterator)), (inst)))
+#define Iterator(inst) ((Iterator*)(&((inst)->_is_Iterator)))
 #define IteratorNone ((Iterator*)NULL)
 
 // bool iteratorValid(Iterator *self);
