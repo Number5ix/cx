@@ -9,13 +9,13 @@ typedef struct UnixThread UnixThread;
 saDeclarePtr(UnixThread);
 
 typedef struct UnixThread {
-    ObjIface *_;
     union {
-        ObjClassInfo *_clsinfo;
+        ObjIface *_;
         void *_is_UnixThread;
         void *_is_Thread;
         void *_is_ObjInst;
     };
+    ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
 
     threadFunc entry;
@@ -31,7 +31,7 @@ typedef struct UnixThread {
     bool joined;
 } UnixThread;
 extern ObjClassInfo UnixThread_clsinfo;
-#define UnixThread(inst) ((UnixThread*)((void)((inst) && &((inst)->_is_UnixThread)), (inst)))
+#define UnixThread(inst) ((UnixThread*)(&((inst)->_is_UnixThread)))
 #define UnixThreadNone ((UnixThread*)NULL)
 
 UnixThread *UnixThread_create();

@@ -333,16 +333,23 @@ _meta_inline stype _stype_mkcustom(stype base)
 }
 
 // Static type checks
-// Note the magic of the comma operator -- these prevent compilation if something is wrong,
-// but get optimized away entirely and do not emit any code.
-#define saCheckType(name, h) ((sa_##name*)((h) && &((h)->is_sarray_##name), (h)))
-#define saCheck(s) (&((s)._is_sarray), (s.a))
-#define saCheckPtr(h) ((h) && &((h)->_is_sarray), (h))
-#define htCheck(h) ((h) && &((h)->_is_hashtable), (h))
+// These types all include the marker as either the first member, or as part of
+// a union that coincides with the first member. Therefore we can take their address
+// and get the address of the parent structure that we already had (essentially a no-op)
+// while checking that they exist, thus verifying the type is correct.
+#define saCheckType(name, h) ((sa_##name*)(&((h)->is_sarray_##name)))
+#define saCheck(s) (*(sa_ref*)&((s)._is_sarray))
+#define saCheckPtr(h) ((sahandle)&((h)->_is_sarray))
+#define htCheck(h) ((hashtable)&((h)->_is_hashtable))
+// htCheckPtr has to evaluate its argument multiple times and may cause issues with side effects!
+// In practice almost every situation where this is used is one where a pointer to an actual variable
+// is required, however, making this less likely to be an issue.
 #define htCheckPtr(h) ((h) && (*h) && &((*h)->_is_hashtable), (h))
-#define objInstCheck(o) ((o) && &((o)->_is_ObjInst), (o))
+#define objInstCheck(o) ((ObjInst*)&((o)->_is_ObjInst))
 #define objInstCheckPtr(o) ((o) && (*o) && &((*o)->_is_ObjInst), (o))
-#define strCheck(s) ((s) && &((s)->_is_string), (s))
+#define strCheck(s) ((string)&((s)->_is_string))
+// see comment for htCheckPtr above.
+// TODO: see if it's viable to change these to a structure similar to how the sarray types work
 #define strCheckPtr(s) ((s) && (*s) && &((*s)->_is_string), (s))
 
 // most of these are no-ops, but some can do extra type checking
@@ -485,7 +492,7 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define STypeArg_ptr(type, val) stgeneric(type, val)
 #define STypeArg_string(type, val) stgeneric(type, val)
 #define STypeArg_strref(type, val) stgeneric(type, val)
-#define STypeArg_object(type, val) stgeneric(type, objInstBase(val))
+#define STypeArg_object(type, val) stgeneric(type, val)
 // SUID and stvar are too big, so make a copy and pass a pointer
 #define STypeArg_suid(type, val) stgeneric_unchecked(type, stRvalAddr(type, stCheck(type, val)))
 #define STypeArg_stvar(type, val) stgeneric_unchecked(type, stRvalAddr(type, stCheck(type, val)))
