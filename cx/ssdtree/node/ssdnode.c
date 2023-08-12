@@ -31,6 +31,11 @@ void SSDNode_updateModified(SSDNode *self)
     self->modified = self->tree->modified = clockTimer();
 }
 
+ObjInst *SSDIterator_objInst(SSDIterator *self)
+{
+    return stvarObjInst(self->_->ptr(self));
+}
+
 // Autogen begins -----
 #include "ssdnode.auto.inc"
 // Autogen ends -------

@@ -5,6 +5,8 @@ enum SSD_INDEX_MARKER {
     SSD_ByName = -1             // Pass as index to address a child by name
 };
 
+#define ssditeratorObj(self, clsname) objDynCast(ssditeratorObjInst(self), clsname)
+
 interface SSDIteratorIf extends IteratorIf
 {
     stvar *ptr();
@@ -14,6 +16,7 @@ interface SSDIteratorIf extends IteratorIf
 
 abstract class SSDIterator implements SSDIteratorIf
 {
+    unbound ObjInst *objInst();
 }
 
 interface SSDNodeIf
