@@ -11,9 +11,10 @@ class SSDHashNode extends SSDNode
 
 class SSDHashIter extends SSDIterator
 {
-    object:SSDHashNode node;
     htiter iter;
 
-    factory create(SSDHashNode *node);
+    override isHashtable;
+
+    factory create(SSDHashNode *node, SSDLock *lock);
     destroy();
 }

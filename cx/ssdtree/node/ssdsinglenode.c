@@ -64,7 +64,13 @@ bool SSDSingleNode_remove(SSDSingleNode *self, int32 idx, strref name, SSDLock *
 
 SSDIterator *SSDSingleNode_iter(SSDSingleNode *self)
 {
-    SSDSingleIter *iter = ssdsingleiterCreate(self);
+    SSDSingleIter *iter = ssdsingleiterCreate(self, NULL);
+    return SSDIterator(iter);
+}
+
+SSDIterator *SSDSingleNode_iterLocked(SSDSingleNode *self, SSDLock *lock)
+{
+    SSDSingleIter *iter = ssdsingleiterCreate(self, lock);
     return SSDIterator(iter);
 }
 
@@ -72,7 +78,6 @@ int32 SSDSingleNode_count(SSDSingleNode *self, SSDLock *lock)
 {
     return 1;
 }
-
 
 void SSDSingleNode_destroy(SSDSingleNode *self)
 {
@@ -83,12 +88,13 @@ void SSDSingleNode_destroy(SSDSingleNode *self)
 
 // -------------------------------- ITERATOR --------------------------------
 
-SSDSingleIter *SSDSingleIter_create(SSDSingleNode *node)
+SSDSingleIter *SSDSingleIter_create(SSDSingleNode *node, SSDLock *lock)
 {
     SSDSingleIter *self;
     self = objInstCreate(SSDSingleIter);
 
-    self->node = objAcquire(node);
+    self->node = (SSDNode*)objAcquire(node);
+    self->lock = lock;
 
     if (!objInstInit(self)) {
         objRelease(&self);
@@ -114,7 +120,7 @@ stvar *SSDSingleIter_ptr(SSDSingleIter *self)
     if (self->done)
         return NULL;
 
-    return &self->node->storage;
+    return &((SSDSingleNode*)self->node)->storage;
 }
 
 bool SSDSingleIter_get(SSDSingleIter *self, stvar *out)
@@ -122,7 +128,7 @@ bool SSDSingleIter_get(SSDSingleIter *self, stvar *out)
     if (self->done)
         return false;
 
-    stvarCopy(out, self->node->storage);
+    stvarCopy(out, ((SSDSingleNode *)self->node)->storage);
     return true;
 }
 
@@ -131,16 +137,20 @@ int32 SSDSingleIter_idx(SSDSingleIter *self)
     return 0;
 }
 
-bool SSDSingleIter_name(SSDSingleIter *self, string *out)
+strref SSDSingleIter_name(SSDSingleIter *self)
 {
-    return false;
+    return _S"0";
 }
 
-void SSDSingleIter_destroy(SSDSingleIter *self)
+bool SSDSingleIter_iterOut(SSDSingleIter *self, int32 *idx, strref *name, stvar **val)
 {
-    // Autogen begins -----
-    objRelease(&self->node);
-    // Autogen ends -------
+    if (self->done)
+        return false;
+
+    *idx = 0;
+    *name = _S"0";
+    *val = &((SSDSingleNode *)self->node)->storage;
+    return true;
 }
 
 // Autogen begins -----

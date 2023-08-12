@@ -31,9 +31,38 @@ void SSDNode_updateModified(SSDNode *self)
     self->modified = self->tree->modified = clockTimer();
 }
 
+bool SSDIterator_init(SSDIterator *self)
+{
+    if (!self->lock)
+        self->lock = &self->transient_lock;
+    ssdLockRead(self->node, self->lock);
+    // Autogen begins -----
+    return true;
+    // Autogen ends -------
+}
+
+bool SSDIterator_isHashtable(SSDIterator *self)
+{
+    return false;
+}
+
+bool SSDIterator_isArray(SSDIterator *self)
+{
+    return false;
+}
+
 ObjInst *SSDIterator_objInst(SSDIterator *self)
 {
     return stvarObjInst(self->_->ptr(self));
+}
+
+void SSDIterator_destroy(SSDIterator *self)
+{
+    if (self->transient_lock.init)
+        ssdLockEnd(self->node, &self->transient_lock);
+    // Autogen begins -----
+    objRelease(&self->node);
+    // Autogen ends -------
 }
 
 // Autogen begins -----

@@ -32,9 +32,13 @@ typedef struct SSDHashNode_ClassIf {
     bool (*remove)(void *self, int32 idx, strref name, SSDLock *lock);
     // How many values / objects does this node contain?
     int32 (*count)(void *self, SSDLock *lock);
-    // IMPORTANT NOTE: Iterator interface cannot acquire the lock automatically;
-    // to use this you MUST first call ssdLockRead on the node!
+    // IMPORTANT NOTE: The generic object iterator interface cannot take any parameters;
+    // thus it always acquires a transient read lock and holds it until the iterator is
+    // destroyed. The caller MUST NOT already have an SSDLock held.
+    // If you want to use iterators inside a larger locked transaction or modify the tree,
+    // use iterLocked() instead.
     SSDIterator *(*iter)(void *self);
+    SSDIterator *(*iterLocked)(void *self, SSDLock *lock);
 } SSDHashNode_ClassIf;
 extern SSDHashNode_ClassIf SSDHashNode_ClassIf_tmpl;
 
@@ -43,12 +47,15 @@ typedef struct SSDHashIter_ClassIf {
     ObjIface *_parent;
     size_t _size;
 
+    bool (*isHashtable)(void *self);
+    bool (*isArray)(void *self);
     bool (*valid)(void *self);
     bool (*next)(void *self);
     bool (*get)(void *self, stvar *out);
     stvar *(*ptr)(void *self);
+    strref (*name)(void *self);
     int32 (*idx)(void *self);
-    bool (*name)(void *self, string *out);
+    bool (*iterOut)(void *self, int32 *idx, strref *name, stvar **val);
 } SSDHashIter_ClassIf;
 extern SSDHashIter_ClassIf SSDHashIter_ClassIf_tmpl;
 
@@ -113,9 +120,14 @@ SSDHashNode *SSDHashNode__create(SSDTree *tree);
 #define ssdhashnodeCount(self, lock) (self)->_->count(SSDHashNode(self), lock)
 // SSDIterator *ssdhashnodeIter(SSDHashNode *self);
 //
-// IMPORTANT NOTE: Iterator interface cannot acquire the lock automatically;
-// to use this you MUST first call ssdLockRead on the node!
+// IMPORTANT NOTE: The generic object iterator interface cannot take any parameters;
+// thus it always acquires a transient read lock and holds it until the iterator is
+// destroyed. The caller MUST NOT already have an SSDLock held.
+// If you want to use iterators inside a larger locked transaction or modify the tree,
+// use iterLocked() instead.
 #define ssdhashnodeIter(self) (self)->_->iter(SSDHashNode(self))
+// SSDIterator *ssdhashnodeIterLocked(SSDHashNode *self, SSDLock *lock);
+#define ssdhashnodeIterLocked(self, lock) (self)->_->iterLocked(SSDHashNode(self), lock)
 
 typedef struct SSDHashIter {
     SSDHashIter_ClassIf *_;
@@ -127,17 +139,26 @@ typedef struct SSDHashIter {
     };
     atomic(intptr) _ref;
 
-    SSDHashNode *node;
+    SSDNode *node;
+    SSDLock *lock;
+    SSDLock transient_lock;
     htiter iter;
 } SSDHashIter;
 extern ObjClassInfo SSDHashIter_clsinfo;
 #define SSDHashIter(inst) ((SSDHashIter*)((void)((inst) && &((inst)->_is_SSDHashIter)), (inst)))
 #define SSDHashIterNone ((SSDHashIter*)NULL)
 
-SSDHashIter *SSDHashIter_create(SSDHashNode *node);
-// SSDHashIter *ssdhashiterCreate(SSDHashNode *node);
-#define ssdhashiterCreate(node) SSDHashIter_create(SSDHashNode(node))
+SSDHashIter *SSDHashIter_create(SSDHashNode *node, SSDLock *lock);
+// SSDHashIter *ssdhashiterCreate(SSDHashNode *node, SSDLock *lock);
+#define ssdhashiterCreate(node, lock) SSDHashIter_create(SSDHashNode(node), lock)
 
+// ObjInst *ssdhashiterObjInst(SSDHashIter *self);
+#define ssdhashiterObjInst(self) SSDIterator_objInst(SSDIterator(self))
+
+// bool ssdhashiterIsHashtable(SSDHashIter *self);
+#define ssdhashiterIsHashtable(self) (self)->_->isHashtable(SSDHashIter(self))
+// bool ssdhashiterIsArray(SSDHashIter *self);
+#define ssdhashiterIsArray(self) (self)->_->isArray(SSDHashIter(self))
 // bool ssdhashiterValid(SSDHashIter *self);
 #define ssdhashiterValid(self) (self)->_->valid(SSDHashIter(self))
 // bool ssdhashiterNext(SSDHashIter *self);
@@ -146,8 +167,10 @@ SSDHashIter *SSDHashIter_create(SSDHashNode *node);
 #define ssdhashiterGet(self, out) (self)->_->get(SSDHashIter(self), out)
 // stvar *ssdhashiterPtr(SSDHashIter *self);
 #define ssdhashiterPtr(self) (self)->_->ptr(SSDHashIter(self))
+// strref ssdhashiterName(SSDHashIter *self);
+#define ssdhashiterName(self) (self)->_->name(SSDHashIter(self))
 // int32 ssdhashiterIdx(SSDHashIter *self);
 #define ssdhashiterIdx(self) (self)->_->idx(SSDHashIter(self))
-// bool ssdhashiterName(SSDHashIter *self, string *out);
-#define ssdhashiterName(self, out) (self)->_->name(SSDHashIter(self), out)
+// bool ssdhashiterIterOut(SSDHashIter *self, int32 *idx, strref *name, stvar **val);
+#define ssdhashiterIterOut(self, idx, name, val) (self)->_->iterOut(SSDHashIter(self), idx, name, val)
 

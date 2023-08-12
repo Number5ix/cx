@@ -15,9 +15,9 @@ static void outHashtable(JSONOut *jo, SSDNode *node, SSDLock *lock, bool *error)
     }
 
     SSDIterator *iter;
-    for (iter = ssdnodeIter(node); !*error && ssditeratorValid(iter); ssditeratorNext(iter)) {
+    for (iter = ssdnodeIterLocked(node, lock); !*error && ssditeratorValid(iter); ssditeratorNext(iter)) {
         ev = (JSONParseEvent){ .etype = JSON_Object_Key };
-        ssditeratorName(iter, &ev.edata.strData);
+        strDup(&ev.edata.strData, ssditeratorName(iter));
         if (!jsonOut(jo, &ev))
             *error = true;
         strDestroy(&ev.edata.strData);
@@ -44,7 +44,7 @@ static void outArray(JSONOut *jo, SSDNode *node, SSDLock *lock, bool *error)
     }
 
     SSDIterator *iter;
-    for (iter = ssdnodeIter(node); !*error && ssditeratorValid(iter); ssditeratorNext(iter)) {
+    for (iter = ssdnodeIterLocked(node, lock); !*error && ssditeratorValid(iter); ssditeratorNext(iter)) {
         stvar *val = ssditeratorPtr(iter);
         if (val)
             outVal(jo, *val, lock, error);

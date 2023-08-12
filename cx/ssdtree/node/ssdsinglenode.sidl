@@ -9,8 +9,7 @@ class SSDSingleNode extends SSDNode
 
 class SSDSingleIter extends SSDIterator
 {
-    object:SSDSingleNode node;
     bool done;
 
-    factory create(SSDSingleNode *node);
+    factory create(SSDSingleNode *node, SSDLock *lock);
 }

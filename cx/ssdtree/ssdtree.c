@@ -479,68 +479,28 @@ bool _ssdImportTypedArray(SSDNode *root, strref path, stype elemtype, sa_ref arr
     return ret;
 }
 
-static SSDNode *ssdCloneNode(SSDNode *src, SSDTree *desttree, SSDLock *destlock);
-
-static SSDNode *ssdCloneHashtable(SSDNode *src, SSDTree *desttree, SSDLock *destlock)
+static SSDNode *ssdCloneNode(SSDNode *src, SSDLock *srclock, SSDTree *desttree, SSDLock *destlock)
 {
-    SSDNode *dnode = ssdtreeCreateNode(desttree, SSD_Create_Hashtable);
-    string srcname = 0;
-
-    foreach(object, iter, SSDIterator, src)
-    {
-        stvar *val = ssditeratorPtr(iter);
-        if (!val || !ssditeratorName(iter, &srcname)) {
-            objRelease(&dnode);
-            goto out;
-        }
-
-        SSDNode *child = stvarObj(val, SSDNode);
-        if (child) {
-            // if this is a node, clone it first
-            val->data.st_object = (ObjInst*)ssdCloneNode(child, desttree, destlock);
-        }
-
-        ssdnodeSet(dnode, SSD_ByName, srcname, *val, destlock);
-    }
-
-out:
-    strDestroy(&srcname);
-    return dnode;
-}
-
-static SSDNode *ssdCloneArray(SSDNode *src, SSDTree *desttree, SSDLock *destlock)
-{
-    SSDNode *dnode = ssdtreeCreateNode(desttree, SSD_Create_Array);
-
-    int srcidx = 0;
-    foreach(object, iter, SSDIterator, src)
-    {
-        stvar *val = ssditeratorPtr(iter);
-        if (!val) {
-            objRelease(&dnode);
-            return NULL;
-        }
-
-        SSDNode *child = stvarObj(val, SSDNode);
-        if (child) {
-            // if this is a node, clone it first
-            val->data.st_object = (ObjInst*)ssdCloneNode(child, desttree, destlock);
-        }
-
-        ssdnodeSet(dnode, srcidx++, NULL, *val, destlock);
-    }
-
-    return dnode;
-}
-
-static SSDNode *ssdCloneNode(SSDNode *src, SSDTree *desttree, SSDLock *destlock)
-{
+    SSDNode *dnode;
     if (ssdnodeIsHashtable(src))
-        return ssdCloneHashtable(src, desttree, destlock);
+        dnode = ssdtreeCreateNode(desttree, SSD_Create_Hashtable);
     else if (ssdnodeIsArray(src))
-        return ssdCloneArray(src, desttree, destlock);
+        dnode = ssdtreeCreateNode(desttree, SSD_Create_Array);
     else
         return NULL;
+
+
+    foreach(ssd, iter, srcidx, srcname, val, src, srclock)
+    {
+        SSDNode *child = ssditeratorObj(iter, SSDNode);
+        if (child) {
+            // if this is a node, clone it first
+            val->data.st_object = (ObjInst *)ssdCloneNode(child, srclock, desttree, destlock);
+        }
+        ssdnodeSet(dnode, srcidx, srcname, *val, destlock);
+    }
+
+    return dnode;
 }
 
 SSDNode *ssdClone(SSDNode *root, SSDTree *desttree, SSDLock *lock_opt)
@@ -559,7 +519,7 @@ SSDNode *ssdClone(SSDNode *root, SSDTree *desttree, SSDLock *lock_opt)
 
     SSDLock destlock;
     ssdLockInit(&destlock);
-    SSDNode *ret = ssdCloneNode(root, desttree, &destlock);
+    SSDNode *ret = ssdCloneNode(root, lock_opt, desttree, &destlock);
     if (ret)
         ssdLockEnd(ret, &destlock);
 
@@ -600,7 +560,7 @@ bool ssdGraft(SSDNode *dest, strref destpath, SSDLock *dest_lock_opt,
     if (!ssdResolvePath(dest, destpath, &dpnode, &dname, true, dest_lock_opt))
         goto out;
 
-    SSDNode *dnode = ssdCloneNode(stree, dest->tree, dest_lock_opt);
+    SSDNode *dnode = ssdCloneNode(stree, src_lock_opt, dest->tree, dest_lock_opt);
     if (dnode) {
         ret = ssdnodeSet(dpnode, SSD_ByName, dname, stvar(object, dnode), dest_lock_opt);
         objRelease(&dnode);

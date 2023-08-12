@@ -10,8 +10,10 @@ class SSDArrayNode extends SSDNode
 
 class SSDArrayIter extends SSDIterator
 {
-    object:SSDArrayNode node;
     int32 idx;
+    string lastName;
 
-    factory create(SSDArrayNode *node);
+    override isArray;
+
+    factory create(SSDArrayNode *node, SSDLock *lock);
 }

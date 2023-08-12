@@ -32,9 +32,13 @@ typedef struct SSDArrayNode_ClassIf {
     bool (*remove)(void *self, int32 idx, strref name, SSDLock *lock);
     // How many values / objects does this node contain?
     int32 (*count)(void *self, SSDLock *lock);
-    // IMPORTANT NOTE: Iterator interface cannot acquire the lock automatically;
-    // to use this you MUST first call ssdLockRead on the node!
+    // IMPORTANT NOTE: The generic object iterator interface cannot take any parameters;
+    // thus it always acquires a transient read lock and holds it until the iterator is
+    // destroyed. The caller MUST NOT already have an SSDLock held.
+    // If you want to use iterators inside a larger locked transaction or modify the tree,
+    // use iterLocked() instead.
     SSDIterator *(*iter)(void *self);
+    SSDIterator *(*iterLocked)(void *self, SSDLock *lock);
 } SSDArrayNode_ClassIf;
 extern SSDArrayNode_ClassIf SSDArrayNode_ClassIf_tmpl;
 
@@ -43,12 +47,15 @@ typedef struct SSDArrayIter_ClassIf {
     ObjIface *_parent;
     size_t _size;
 
+    bool (*isHashtable)(void *self);
+    bool (*isArray)(void *self);
     bool (*valid)(void *self);
     bool (*next)(void *self);
     bool (*get)(void *self, stvar *out);
     stvar *(*ptr)(void *self);
+    strref (*name)(void *self);
     int32 (*idx)(void *self);
-    bool (*name)(void *self, string *out);
+    bool (*iterOut)(void *self, int32 *idx, strref *name, stvar **val);
 } SSDArrayIter_ClassIf;
 extern SSDArrayIter_ClassIf SSDArrayIter_ClassIf_tmpl;
 
@@ -113,9 +120,14 @@ SSDArrayNode *SSDArrayNode__create(SSDTree *tree);
 #define ssdarraynodeCount(self, lock) (self)->_->count(SSDArrayNode(self), lock)
 // SSDIterator *ssdarraynodeIter(SSDArrayNode *self);
 //
-// IMPORTANT NOTE: Iterator interface cannot acquire the lock automatically;
-// to use this you MUST first call ssdLockRead on the node!
+// IMPORTANT NOTE: The generic object iterator interface cannot take any parameters;
+// thus it always acquires a transient read lock and holds it until the iterator is
+// destroyed. The caller MUST NOT already have an SSDLock held.
+// If you want to use iterators inside a larger locked transaction or modify the tree,
+// use iterLocked() instead.
 #define ssdarraynodeIter(self) (self)->_->iter(SSDArrayNode(self))
+// SSDIterator *ssdarraynodeIterLocked(SSDArrayNode *self, SSDLock *lock);
+#define ssdarraynodeIterLocked(self, lock) (self)->_->iterLocked(SSDArrayNode(self), lock)
 
 typedef struct SSDArrayIter {
     SSDArrayIter_ClassIf *_;
@@ -127,17 +139,27 @@ typedef struct SSDArrayIter {
     };
     atomic(intptr) _ref;
 
-    SSDArrayNode *node;
+    SSDNode *node;
+    SSDLock *lock;
+    SSDLock transient_lock;
     int32 idx;
+    string lastName;
 } SSDArrayIter;
 extern ObjClassInfo SSDArrayIter_clsinfo;
 #define SSDArrayIter(inst) ((SSDArrayIter*)((void)((inst) && &((inst)->_is_SSDArrayIter)), (inst)))
 #define SSDArrayIterNone ((SSDArrayIter*)NULL)
 
-SSDArrayIter *SSDArrayIter_create(SSDArrayNode *node);
-// SSDArrayIter *ssdarrayiterCreate(SSDArrayNode *node);
-#define ssdarrayiterCreate(node) SSDArrayIter_create(SSDArrayNode(node))
+SSDArrayIter *SSDArrayIter_create(SSDArrayNode *node, SSDLock *lock);
+// SSDArrayIter *ssdarrayiterCreate(SSDArrayNode *node, SSDLock *lock);
+#define ssdarrayiterCreate(node, lock) SSDArrayIter_create(SSDArrayNode(node), lock)
 
+// ObjInst *ssdarrayiterObjInst(SSDArrayIter *self);
+#define ssdarrayiterObjInst(self) SSDIterator_objInst(SSDIterator(self))
+
+// bool ssdarrayiterIsHashtable(SSDArrayIter *self);
+#define ssdarrayiterIsHashtable(self) (self)->_->isHashtable(SSDArrayIter(self))
+// bool ssdarrayiterIsArray(SSDArrayIter *self);
+#define ssdarrayiterIsArray(self) (self)->_->isArray(SSDArrayIter(self))
 // bool ssdarrayiterValid(SSDArrayIter *self);
 #define ssdarrayiterValid(self) (self)->_->valid(SSDArrayIter(self))
 // bool ssdarrayiterNext(SSDArrayIter *self);
@@ -146,8 +168,10 @@ SSDArrayIter *SSDArrayIter_create(SSDArrayNode *node);
 #define ssdarrayiterGet(self, out) (self)->_->get(SSDArrayIter(self), out)
 // stvar *ssdarrayiterPtr(SSDArrayIter *self);
 #define ssdarrayiterPtr(self) (self)->_->ptr(SSDArrayIter(self))
+// strref ssdarrayiterName(SSDArrayIter *self);
+#define ssdarrayiterName(self) (self)->_->name(SSDArrayIter(self))
 // int32 ssdarrayiterIdx(SSDArrayIter *self);
 #define ssdarrayiterIdx(self) (self)->_->idx(SSDArrayIter(self))
-// bool ssdarrayiterName(SSDArrayIter *self, string *out);
-#define ssdarrayiterName(self, out) (self)->_->name(SSDArrayIter(self), out)
+// bool ssdarrayiterIterOut(SSDArrayIter *self, int32 *idx, strref *name, stvar **val);
+#define ssdarrayiterIterOut(self, idx, name, val) (self)->_->iterOut(SSDArrayIter(self), idx, name, val)
 

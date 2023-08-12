@@ -25,6 +25,8 @@ static SSDIteratorIf _impl_SSDIterator_SSDIteratorIf = {
 static SSDIterator_ClassIf _impl_SSDIterator_SSDIterator_ClassIf = {
     ._size = sizeof(SSDIterator_ClassIf),
     ._implements = (ObjIface*)&SSDIterator_ClassIf_tmpl,
+    .isHashtable = (bool (*)(void*))SSDIterator_isHashtable,
+    .isArray = (bool (*)(void*))SSDIterator_isArray,
 };
 
 static ObjIface *_ifimpl_SSDIterator[] = {
@@ -36,6 +38,8 @@ static ObjIface *_ifimpl_SSDIterator[] = {
 ObjClassInfo SSDIterator_clsinfo = {
     .instsize = sizeof(SSDIterator),
     .classif = (ObjIface*)&SSDIterator_ClassIf_tmpl,
+    .init = (bool(*)(void*))SSDIterator_init,
+    .destroy = (void(*)(void*))SSDIterator_destroy,
     ._abstract = true,
     .ifimpl = _ifimpl_SSDIterator,
 };

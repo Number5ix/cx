@@ -25,8 +25,9 @@ typedef struct SSDIteratorIf {
     bool (*next)(void *self);
     bool (*get)(void *self, stvar *out);
     stvar *(*ptr)(void *self);
+    strref (*name)(void *self);
     int32 (*idx)(void *self);
-    bool (*name)(void *self, string *out);
+    bool (*iterOut)(void *self, int32 *idx, strref *name, stvar **val);
 } SSDIteratorIf;
 extern SSDIteratorIf SSDIteratorIf_tmpl;
 
@@ -49,9 +50,13 @@ typedef struct SSDNodeIf {
     bool (*remove)(void *self, int32 idx, strref name, SSDLock *lock);
     // How many values / objects does this node contain?
     int32 (*count)(void *self, SSDLock *lock);
-    // IMPORTANT NOTE: Iterator interface cannot acquire the lock automatically;
-    // to use this you MUST first call ssdLockRead on the node!
+    // IMPORTANT NOTE: The generic object iterator interface cannot take any parameters;
+    // thus it always acquires a transient read lock and holds it until the iterator is
+    // destroyed. The caller MUST NOT already have an SSDLock held.
+    // If you want to use iterators inside a larger locked transaction or modify the tree,
+    // use iterLocked() instead.
     SSDIterator *(*iter)(void *self);
+    SSDIterator *(*iterLocked)(void *self, SSDLock *lock);
 } SSDNodeIf;
 extern SSDNodeIf SSDNodeIf_tmpl;
 
@@ -60,12 +65,15 @@ typedef struct SSDIterator_ClassIf {
     ObjIface *_parent;
     size_t _size;
 
+    bool (*isHashtable)(void *self);
+    bool (*isArray)(void *self);
     bool (*valid)(void *self);
     bool (*next)(void *self);
     bool (*get)(void *self, stvar *out);
     stvar *(*ptr)(void *self);
+    strref (*name)(void *self);
     int32 (*idx)(void *self);
-    bool (*name)(void *self, string *out);
+    bool (*iterOut)(void *self, int32 *idx, strref *name, stvar **val);
 } SSDIterator_ClassIf;
 extern SSDIterator_ClassIf SSDIterator_ClassIf_tmpl;
 
@@ -92,9 +100,13 @@ typedef struct SSDNode_ClassIf {
     bool (*remove)(void *self, int32 idx, strref name, SSDLock *lock);
     // How many values / objects does this node contain?
     int32 (*count)(void *self, SSDLock *lock);
-    // IMPORTANT NOTE: Iterator interface cannot acquire the lock automatically;
-    // to use this you MUST first call ssdLockRead on the node!
+    // IMPORTANT NOTE: The generic object iterator interface cannot take any parameters;
+    // thus it always acquires a transient read lock and holds it until the iterator is
+    // destroyed. The caller MUST NOT already have an SSDLock held.
+    // If you want to use iterators inside a larger locked transaction or modify the tree,
+    // use iterLocked() instead.
     SSDIterator *(*iter)(void *self);
+    SSDIterator *(*iterLocked)(void *self, SSDLock *lock);
 } SSDNode_ClassIf;
 extern SSDNode_ClassIf SSDNode_ClassIf_tmpl;
 
@@ -107,6 +119,9 @@ typedef struct SSDIterator {
     };
     atomic(intptr) _ref;
 
+    SSDNode *node;
+    SSDLock *lock;
+    SSDLock transient_lock;
 } SSDIterator;
 extern ObjClassInfo SSDIterator_clsinfo;
 #define SSDIterator(inst) ((SSDIterator*)((void)((inst) && &((inst)->_is_SSDIterator)), (inst)))
@@ -116,6 +131,10 @@ ObjInst *SSDIterator_objInst(SSDIterator *self);
 // ObjInst *ssditeratorObjInst(SSDIterator *self);
 #define ssditeratorObjInst(self) SSDIterator_objInst(SSDIterator(self))
 
+// bool ssditeratorIsHashtable(SSDIterator *self);
+#define ssditeratorIsHashtable(self) (self)->_->isHashtable(SSDIterator(self))
+// bool ssditeratorIsArray(SSDIterator *self);
+#define ssditeratorIsArray(self) (self)->_->isArray(SSDIterator(self))
 // bool ssditeratorValid(SSDIterator *self);
 #define ssditeratorValid(self) (self)->_->valid(SSDIterator(self))
 // bool ssditeratorNext(SSDIterator *self);
@@ -124,10 +143,12 @@ ObjInst *SSDIterator_objInst(SSDIterator *self);
 #define ssditeratorGet(self, out) (self)->_->get(SSDIterator(self), out)
 // stvar *ssditeratorPtr(SSDIterator *self);
 #define ssditeratorPtr(self) (self)->_->ptr(SSDIterator(self))
+// strref ssditeratorName(SSDIterator *self);
+#define ssditeratorName(self) (self)->_->name(SSDIterator(self))
 // int32 ssditeratorIdx(SSDIterator *self);
 #define ssditeratorIdx(self) (self)->_->idx(SSDIterator(self))
-// bool ssditeratorName(SSDIterator *self, string *out);
-#define ssditeratorName(self, out) (self)->_->name(SSDIterator(self), out)
+// bool ssditeratorIterOut(SSDIterator *self, int32 *idx, strref *name, stvar **val);
+#define ssditeratorIterOut(self, idx, name, val) (self)->_->iterOut(SSDIterator(self), idx, name, val)
 
 typedef struct SSDNode {
     SSDNode_ClassIf *_;
@@ -185,7 +206,12 @@ void SSDNode_updateModified(SSDNode *self);
 #define ssdnodeCount(self, lock) (self)->_->count(SSDNode(self), lock)
 // SSDIterator *ssdnodeIter(SSDNode *self);
 //
-// IMPORTANT NOTE: Iterator interface cannot acquire the lock automatically;
-// to use this you MUST first call ssdLockRead on the node!
+// IMPORTANT NOTE: The generic object iterator interface cannot take any parameters;
+// thus it always acquires a transient read lock and holds it until the iterator is
+// destroyed. The caller MUST NOT already have an SSDLock held.
+// If you want to use iterators inside a larger locked transaction or modify the tree,
+// use iterLocked() instead.
 #define ssdnodeIter(self) (self)->_->iter(SSDNode(self))
+// SSDIterator *ssdnodeIterLocked(SSDNode *self, SSDLock *lock);
+#define ssdnodeIterLocked(self, lock) (self)->_->iterLocked(SSDNode(self), lock)
 

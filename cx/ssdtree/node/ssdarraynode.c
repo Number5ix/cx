@@ -128,7 +128,13 @@ bool SSDArrayNode_remove(SSDArrayNode *self, int32 idx, strref name, SSDLock *lo
 
 SSDIterator *SSDArrayNode_iter(SSDArrayNode *self)
 {
-    SSDArrayIter *ret = ssdarrayiterCreate(self);
+    SSDArrayIter *ret = ssdarrayiterCreate(self, NULL);
+    return SSDIterator(ret);
+}
+
+SSDIterator *SSDArrayNode_iterLocked(SSDArrayNode *self, SSDLock *lock)
+{
+    SSDArrayIter *ret = ssdarrayiterCreate(self, lock);
     return SSDIterator(ret);
 }
 
@@ -154,12 +160,13 @@ void SSDArrayNode_destroy(SSDArrayNode *self)
 
 // -------------------------------- ITERATOR --------------------------------
 
-SSDArrayIter *SSDArrayIter_create(SSDArrayNode *node)
+SSDArrayIter *SSDArrayIter_create(SSDArrayNode *node, SSDLock *lock)
 {
     SSDArrayIter *self;
     self = objInstCreate(SSDArrayIter);
 
-    self->node = objAcquire(node);
+    self->node = (SSDNode*)objAcquire(node);
+    self->lock = lock;
 
     if (!objInstInit(self)) {
         objRelease(&self);
@@ -171,12 +178,12 @@ SSDArrayIter *SSDArrayIter_create(SSDArrayNode *node)
 
 bool SSDArrayIter_valid(SSDArrayIter *self)
 {
-    return self->idx >= 0 && self->idx < saSize(self->node->storage);
+    return self->idx >= 0 && self->idx < saSize(((SSDArrayNode*)self->node)->storage);
 }
 
 bool SSDArrayIter_next(SSDArrayIter *self)
 {
-    if (self->idx >= 0 && self->idx < saSize(self->node->storage) - 1) {
+    if (self->idx >= 0 && self->idx < saSize(((SSDArrayNode*)self->node)->storage) - 1) {
         self->idx++;
         return true;
     } else {
@@ -187,12 +194,12 @@ bool SSDArrayIter_next(SSDArrayIter *self)
 
 stvar *SSDArrayIter_ptr(SSDArrayIter *self)
 {
-    return ptrInternal(self->node, self->idx);
+    return ptrInternal((SSDArrayNode*)self->node, self->idx);
 }
 
 bool SSDArrayIter_get(SSDArrayIter *self, stvar *out)
 {
-    stvar *ptr = ptrInternal(self->node, self->idx);
+    stvar *ptr = ptrInternal((SSDArrayNode*)self->node, self->idx);
     if (ptr) {
         stvarCopy(out, *ptr);
         return true;
@@ -200,21 +207,42 @@ bool SSDArrayIter_get(SSDArrayIter *self, stvar *out)
     return false;
 }
 
-void SSDArrayIter_destroy(SSDArrayIter *self)
-{
-    // Autogen begins -----
-    objRelease(&self->node);
-    // Autogen ends -------
-}
-
 int32 SSDArrayIter_idx(SSDArrayIter *self)
 {
     return self->idx;
 }
 
-bool SSDArrayIter_name(SSDArrayIter *self, string *out)
+strref SSDArrayIter_name(SSDArrayIter *self)
 {
-    return strFromInt32(out, self->idx, 0);
+    strFromInt32(&self->lastName, self->idx, 0);
+    return self->lastName;
+}
+
+bool SSDArrayIter_iterOut(SSDArrayIter *self, int32 *idx, strref *name, stvar **val)
+{
+    if (self->idx < 0 || self->idx >= saSize(((SSDArrayNode *)self->node)->storage))
+        return false;
+
+    *idx = self->idx;
+    strFromInt32(&self->lastName, self->idx, 0);
+    *name = self->lastName;
+    *val = ptrInternal((SSDArrayNode *)self->node, self->idx);
+    return true;
+}
+
+extern bool SSDIterator_isArray(SSDIterator *self); // parent
+#undef parent_isArray
+#define parent_isArray() SSDIterator_isArray((SSDIterator*)(self))
+bool SSDArrayIter_isArray(SSDArrayIter *self)
+{
+    return true;
+}
+
+void SSDArrayIter_destroy(SSDArrayIter *self)
+{
+    // Autogen begins -----
+    strDestroy(&self->lastName);
+    // Autogen ends -------
 }
 
 // Autogen begins -----

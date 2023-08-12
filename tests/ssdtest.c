@@ -238,10 +238,8 @@ static int test_ssd_subtree()
     int icount = 0;
     foreach(object, oiter, SSDIterator, btree)
     {
-        string name = 0;
-        ssditeratorName(oiter, &name);
-        stvar *val;
-        val = ssditeratorPtr(oiter);
+        strref name = ssditeratorName(oiter);
+        stvar *val = ssditeratorPtr(oiter);
 
         // this also checks insertion order retention
         if (icount == 0 &&
@@ -255,8 +253,6 @@ static int test_ssd_subtree()
             ret = 1;
 
         icount++;
-
-        strDestroy(&name);
     }
     if (icount != 2)
         ret = 1;

@@ -106,7 +106,13 @@ bool SSDHashNode_remove(SSDHashNode *self, int32 idx, strref name, SSDLock *lock
 
 SSDIterator *SSDHashNode_iter(SSDHashNode *self)
 {
-    SSDHashIter *ret = ssdhashiterCreate(self);
+    SSDHashIter *ret = ssdhashiterCreate(self, NULL);
+    return SSDIterator(ret);
+}
+
+SSDIterator *SSDHashNode_iterLocked(SSDHashNode *self, SSDLock *lock)
+{
+    SSDHashIter *ret = ssdhashiterCreate(self, lock);
     return SSDIterator(ret);
 }
 
@@ -132,18 +138,22 @@ void SSDHashNode_destroy(SSDHashNode *self)
 
 // -------------------------------- ITERATOR --------------------------------
 
-SSDHashIter *SSDHashIter_create(SSDHashNode *node)
+SSDHashIter *SSDHashIter_create(SSDHashNode *node, SSDLock *lock)
 {
     SSDHashIter *self;
     self = objInstCreate(SSDHashIter);
 
-    self->node = objAcquire(node);
-    htiInit(&self->iter, self->node->storage);
+    self->node = (SSDNode*)objAcquire(node);
+    self->lock = lock;
 
     if (!objInstInit(self)) {
         objRelease(&self);
         return NULL;
     }
+
+    // grab iterator after object init because base SSDIterator will lock the tree
+    // for read access during the above call to objInstInit
+    htiInit(&self->iter, ((SSDHashNode*)self->node)->storage);
 
     return self;
 }
@@ -180,22 +190,37 @@ int32 SSDHashIter_idx(SSDHashIter *self)
     return SSD_ByName;
 }
 
-bool SSDHashIter_name(SSDHashIter *self, string *out)
+strref SSDHashIter_name(SSDHashIter *self)
 {
     if (!htiValid(&self->iter))
         return false;
 
-    strDup(out, htiKey(self->iter, strref));
+    return htiKey(self->iter, strref);
+}
+
+bool SSDHashIter_iterOut(SSDHashIter *self, int32 *idx, strref *name, stvar **val)
+{
+    if (!htiValid(&self->iter))
+        return false;
+
+    *idx = SSD_ByName;
+    *name = htiKey(self->iter, strref);
+    *val = htiValPtr(self->iter, stvar);
+
     return true;
 }
 
 void SSDHashIter_destroy(SSDHashIter *self)
 {
     htiFinish(&self->iter);
+}
 
-    // Autogen begins -----
-    objRelease(&self->node);
-    // Autogen ends -------
+extern bool SSDIterator_isHashtable(SSDIterator *self); // parent
+#undef parent_isHashtable
+#define parent_isHashtable() SSDIterator_isHashtable((SSDIterator*)(self))
+bool SSDHashIter_isHashtable(SSDHashIter *self)
+{
+    return true;
 }
 
 // Autogen begins -----

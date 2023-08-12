@@ -20,6 +20,7 @@ static SSDNodeIf _impl_SSDSingleNode_SSDNodeIf = {
     .remove = (bool (*)(void*, int32, strref, SSDLock*))SSDSingleNode_remove,
     .count = (int32 (*)(void*, SSDLock*))SSDSingleNode_count,
     .iter = (SSDIterator *(*)(void*))SSDSingleNode_iter,
+    .iterLocked = (SSDIterator *(*)(void*, SSDLock*))SSDSingleNode_iterLocked,
 };
 
 static Iterable _impl_SSDSingleNode_Iterable = {
@@ -38,6 +39,7 @@ static SSDSingleNode_ClassIf _impl_SSDSingleNode_SSDSingleNode_ClassIf = {
     .remove = (bool (*)(void*, int32, strref, SSDLock*))SSDSingleNode_remove,
     .count = (int32 (*)(void*, SSDLock*))SSDSingleNode_count,
     .iter = (SSDIterator *(*)(void*))SSDSingleNode_iter,
+    .iterLocked = (SSDIterator *(*)(void*, SSDLock*))SSDSingleNode_iterLocked,
 };
 
 static ObjIface *_ifimpl_SSDSingleNode[] = {
@@ -62,8 +64,9 @@ static SSDIteratorIf _impl_SSDSingleIter_SSDIteratorIf = {
     .next = (bool (*)(void*))SSDSingleIter_next,
     .get = (bool (*)(void*, stvar*))SSDSingleIter_get,
     .ptr = (stvar *(*)(void*))SSDSingleIter_ptr,
+    .name = (strref (*)(void*))SSDSingleIter_name,
     .idx = (int32 (*)(void*))SSDSingleIter_idx,
-    .name = (bool (*)(void*, string*))SSDSingleIter_name,
+    .iterOut = (bool (*)(void*, int32*, strref*, stvar**))SSDSingleIter_iterOut,
 };
 
 static SSDSingleIter_ClassIf _impl_SSDSingleIter_SSDSingleIter_ClassIf = {
@@ -73,8 +76,9 @@ static SSDSingleIter_ClassIf _impl_SSDSingleIter_SSDSingleIter_ClassIf = {
     .next = (bool (*)(void*))SSDSingleIter_next,
     .get = (bool (*)(void*, stvar*))SSDSingleIter_get,
     .ptr = (stvar *(*)(void*))SSDSingleIter_ptr,
+    .name = (strref (*)(void*))SSDSingleIter_name,
     .idx = (int32 (*)(void*))SSDSingleIter_idx,
-    .name = (bool (*)(void*, string*))SSDSingleIter_name,
+    .iterOut = (bool (*)(void*, int32*, strref*, stvar**))SSDSingleIter_iterOut,
 };
 
 static ObjIface *_ifimpl_SSDSingleIter[] = {
@@ -87,7 +91,6 @@ ObjClassInfo SSDSingleIter_clsinfo = {
     .instsize = sizeof(SSDSingleIter),
     .classif = (ObjIface*)&SSDSingleIter_ClassIf_tmpl,
     .parent = &SSDIterator_clsinfo,
-    .destroy = (void(*)(void*))SSDSingleIter_destroy,
     .ifimpl = _ifimpl_SSDSingleIter,
 };
 

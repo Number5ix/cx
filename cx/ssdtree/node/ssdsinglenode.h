@@ -32,9 +32,13 @@ typedef struct SSDSingleNode_ClassIf {
     bool (*remove)(void *self, int32 idx, strref name, SSDLock *lock);
     // How many values / objects does this node contain?
     int32 (*count)(void *self, SSDLock *lock);
-    // IMPORTANT NOTE: Iterator interface cannot acquire the lock automatically;
-    // to use this you MUST first call ssdLockRead on the node!
+    // IMPORTANT NOTE: The generic object iterator interface cannot take any parameters;
+    // thus it always acquires a transient read lock and holds it until the iterator is
+    // destroyed. The caller MUST NOT already have an SSDLock held.
+    // If you want to use iterators inside a larger locked transaction or modify the tree,
+    // use iterLocked() instead.
     SSDIterator *(*iter)(void *self);
+    SSDIterator *(*iterLocked)(void *self, SSDLock *lock);
 } SSDSingleNode_ClassIf;
 extern SSDSingleNode_ClassIf SSDSingleNode_ClassIf_tmpl;
 
@@ -43,12 +47,15 @@ typedef struct SSDSingleIter_ClassIf {
     ObjIface *_parent;
     size_t _size;
 
+    bool (*isHashtable)(void *self);
+    bool (*isArray)(void *self);
     bool (*valid)(void *self);
     bool (*next)(void *self);
     bool (*get)(void *self, stvar *out);
     stvar *(*ptr)(void *self);
+    strref (*name)(void *self);
     int32 (*idx)(void *self);
-    bool (*name)(void *self, string *out);
+    bool (*iterOut)(void *self, int32 *idx, strref *name, stvar **val);
 } SSDSingleIter_ClassIf;
 extern SSDSingleIter_ClassIf SSDSingleIter_ClassIf_tmpl;
 
@@ -113,9 +120,14 @@ SSDSingleNode *SSDSingleNode__create(SSDTree *tree);
 #define ssdsinglenodeCount(self, lock) (self)->_->count(SSDSingleNode(self), lock)
 // SSDIterator *ssdsinglenodeIter(SSDSingleNode *self);
 //
-// IMPORTANT NOTE: Iterator interface cannot acquire the lock automatically;
-// to use this you MUST first call ssdLockRead on the node!
+// IMPORTANT NOTE: The generic object iterator interface cannot take any parameters;
+// thus it always acquires a transient read lock and holds it until the iterator is
+// destroyed. The caller MUST NOT already have an SSDLock held.
+// If you want to use iterators inside a larger locked transaction or modify the tree,
+// use iterLocked() instead.
 #define ssdsinglenodeIter(self) (self)->_->iter(SSDSingleNode(self))
+// SSDIterator *ssdsinglenodeIterLocked(SSDSingleNode *self, SSDLock *lock);
+#define ssdsinglenodeIterLocked(self, lock) (self)->_->iterLocked(SSDSingleNode(self), lock)
 
 typedef struct SSDSingleIter {
     SSDSingleIter_ClassIf *_;
@@ -127,17 +139,26 @@ typedef struct SSDSingleIter {
     };
     atomic(intptr) _ref;
 
-    SSDSingleNode *node;
+    SSDNode *node;
+    SSDLock *lock;
+    SSDLock transient_lock;
     bool done;
 } SSDSingleIter;
 extern ObjClassInfo SSDSingleIter_clsinfo;
 #define SSDSingleIter(inst) ((SSDSingleIter*)((void)((inst) && &((inst)->_is_SSDSingleIter)), (inst)))
 #define SSDSingleIterNone ((SSDSingleIter*)NULL)
 
-SSDSingleIter *SSDSingleIter_create(SSDSingleNode *node);
-// SSDSingleIter *ssdsingleiterCreate(SSDSingleNode *node);
-#define ssdsingleiterCreate(node) SSDSingleIter_create(SSDSingleNode(node))
+SSDSingleIter *SSDSingleIter_create(SSDSingleNode *node, SSDLock *lock);
+// SSDSingleIter *ssdsingleiterCreate(SSDSingleNode *node, SSDLock *lock);
+#define ssdsingleiterCreate(node, lock) SSDSingleIter_create(SSDSingleNode(node), lock)
 
+// ObjInst *ssdsingleiterObjInst(SSDSingleIter *self);
+#define ssdsingleiterObjInst(self) SSDIterator_objInst(SSDIterator(self))
+
+// bool ssdsingleiterIsHashtable(SSDSingleIter *self);
+#define ssdsingleiterIsHashtable(self) (self)->_->isHashtable(SSDSingleIter(self))
+// bool ssdsingleiterIsArray(SSDSingleIter *self);
+#define ssdsingleiterIsArray(self) (self)->_->isArray(SSDSingleIter(self))
 // bool ssdsingleiterValid(SSDSingleIter *self);
 #define ssdsingleiterValid(self) (self)->_->valid(SSDSingleIter(self))
 // bool ssdsingleiterNext(SSDSingleIter *self);
@@ -146,8 +167,10 @@ SSDSingleIter *SSDSingleIter_create(SSDSingleNode *node);
 #define ssdsingleiterGet(self, out) (self)->_->get(SSDSingleIter(self), out)
 // stvar *ssdsingleiterPtr(SSDSingleIter *self);
 #define ssdsingleiterPtr(self) (self)->_->ptr(SSDSingleIter(self))
+// strref ssdsingleiterName(SSDSingleIter *self);
+#define ssdsingleiterName(self) (self)->_->name(SSDSingleIter(self))
 // int32 ssdsingleiterIdx(SSDSingleIter *self);
 #define ssdsingleiterIdx(self) (self)->_->idx(SSDSingleIter(self))
-// bool ssdsingleiterName(SSDSingleIter *self, string *out);
-#define ssdsingleiterName(self, out) (self)->_->name(SSDSingleIter(self), out)
+// bool ssdsingleiterIterOut(SSDSingleIter *self, int32 *idx, strref *name, stvar **val);
+#define ssdsingleiterIterOut(self, idx, name, val) (self)->_->iterOut(SSDSingleIter(self), idx, name, val)
 
