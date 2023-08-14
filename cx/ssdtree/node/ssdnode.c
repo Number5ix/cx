@@ -59,7 +59,7 @@ ObjInst *SSDIterator_objInst(SSDIterator *self)
 void SSDIterator_destroy(SSDIterator *self)
 {
     if (self->transient_lock.init)
-        ssdLockEnd(self->node, &self->transient_lock);
+        ssdEndLock(self->node, &self->transient_lock);
     // Autogen begins -----
     objRelease(&self->node);
     // Autogen ends -------

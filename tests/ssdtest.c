@@ -34,7 +34,7 @@ static int test_ssd_tree()
         !stEq(pval->type, stType(int32)) ||
         pval->data.st_int32 != 1920)
         ret = 1;
-    ssdLockEnd(tree, &tlock);
+    ssdEndLock(tree, &tlock);
 
     objRelease(&tree);
 
@@ -81,7 +81,7 @@ static int test_ssd_tree()
         strTestRefCount(teststr) != 2)
         ret = 1;
 
-    ssdLockEnd(tree, &tlock);
+    ssdEndLock(tree, &tlock);
     objRelease(&tree);
 
     if (strTestRefCount(teststr) != 1)
@@ -257,7 +257,7 @@ static int test_ssd_subtree()
     if (icount != 2)
         ret = 1;
 
-    ssdLockEnd(subtree, &lock);
+    ssdEndLock(subtree, &lock);
 
     // check for the grafted values
     if (ssdVal(int32, tree, _S"grafted/k1/aabb", -1, NULL) != 1122 ||
@@ -439,7 +439,7 @@ static int test_ssd_array()
         ret = 1;
     saDestroy(&arr3);
 
-    ssdLockEnd(tree, &lock);
+    ssdEndLock(tree, &lock);
 
     objRelease(&sub);
     objRelease(&tree);

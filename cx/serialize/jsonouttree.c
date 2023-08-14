@@ -178,7 +178,7 @@ bool jsonOutTree(StreamBuffer *sb, SSDNode *tree, uint32 flags, SSDLock *lock)
     outVal(jo, stvar(object, tree), lock, &error);
 
     if (transient_lock.init)
-        ssdLockEnd(tree, &transient_lock);
+        ssdEndLock(tree, &transient_lock);
 
     jsonOutEnd(&jo);
 

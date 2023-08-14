@@ -90,7 +90,7 @@ bool _ssdLockWrite(SSDNode *root, SSDLock *lock)
     return true;
 }
 
-bool _ssdLockEnd(SSDNode *root, SSDLock *lock)
+bool _ssdUnlock(SSDNode *root, SSDLock *lock)
 {
     if (!root || !lock || !lock->init)
         return false;
@@ -112,6 +112,15 @@ bool _ssdLockEnd(SSDNode *root, SSDLock *lock)
     lock->wrlock = lock->rdlock = false;
 
     return true;
+}
+
+bool _ssdEndLock(SSDNode *root, SSDLock *lock)
+{
+    if (!lock)
+        return false;
+    bool ret = _ssdUnlock(root, lock);
+    lock->init = false;
+    return ret;
 }
 
 SSDNode *_ssdCreateRoot(int crtype, SSDTree *tree, uint32 flags)
@@ -259,7 +268,7 @@ bool ssdGet(SSDNode *root, strref path, stvar *out, SSDLock *lock)
         ret = ssdnodeGet(node, SSD_ByName, name, out, lock);
 
     if (transient_lock.init)
-        ssdLockEnd(root, &transient_lock);
+        ssdEndLock(root, &transient_lock);
 
     strDestroy(&name);
     return ret;
@@ -298,7 +307,7 @@ bool ssdSet(SSDNode *root, strref path, bool createpath, stvar val, SSDLock *loc
     }
 
     if (transient_lock.init)
-        ssdLockEnd(root, &transient_lock);
+        ssdEndLock(root, &transient_lock);
 
     strDestroy(&name);
     return ret;
@@ -322,7 +331,7 @@ bool ssdRemove(SSDNode *root, strref path, SSDLock *lock)
     }
 
     if (transient_lock.init)
-        ssdLockEnd(root, &transient_lock);
+        ssdEndLock(root, &transient_lock);
 
     strDestroy(&name);
     return ret;
@@ -342,7 +351,7 @@ SSDNode *ssdSubtree(SSDNode *root, strref path, int create, SSDLock *lock)
     }
 
     if (transient_lock.init)
-        ssdLockEnd(root, &transient_lock);
+        ssdEndLock(root, &transient_lock);
 
     strDestroy(&name);
     return ret;
@@ -385,7 +394,7 @@ bool _ssdCopyOut(SSDNode *root, strref path, stype valtype, stgeneric *val, SSDL
         ret = _stConvert(valtype, val, temp->type, NULL, temp->data, 0);
 
     if (transient_lock.init)
-        ssdLockEnd(root, &transient_lock);
+        ssdEndLock(root, &transient_lock);
 
     strDestroy(&name);
 
@@ -409,7 +418,7 @@ bool _ssdCopyOutD(SSDNode *root, strref path, stype valtype, stgeneric *val, stg
         ret = _stConvert(valtype, val, temp->type, NULL, temp->data, 0);
 
     if (transient_lock.init)
-        ssdLockEnd(root, &transient_lock);
+        ssdEndLock(root, &transient_lock);
 
     strDestroy(&name);
 
@@ -435,7 +444,7 @@ bool ssdExportArray(SSDNode *root, strref path, sa_stvar *out, SSDLock *lock)
     }
 
     if (transient_lock.init)
-        ssdLockEnd(root, &transient_lock);
+        ssdEndLock(root, &transient_lock);
 
     return ret;
 }
@@ -466,7 +475,7 @@ bool _ssdExportTypedArray(SSDNode *root, strref path, stype elemtype, sahandle o
 
 out:
     if (transient_lock.init)
-        ssdLockEnd(root, &transient_lock);
+        ssdEndLock(root, &transient_lock);
 
     if (!ret)
         saClear(out);
@@ -495,7 +504,7 @@ bool ssdImportArray(SSDNode *root, strref path, sa_stvar arr, SSDLock *lock)
     objRelease(&stree);
 
     if (transient_lock.init)
-        ssdLockEnd(root, &transient_lock);
+        ssdEndLock(root, &transient_lock);
 
     return ret;
 }
@@ -525,7 +534,7 @@ bool _ssdImportTypedArray(SSDNode *root, strref path, stype elemtype, sa_ref arr
     objRelease(&stree);
 
     if (transient_lock.init)
-        ssdLockEnd(root, &transient_lock);
+        ssdEndLock(root, &transient_lock);
 
     return ret;
 }
@@ -572,10 +581,10 @@ SSDNode *ssdClone(SSDNode *root, SSDTree *desttree, SSDLock *lock_opt)
     ssdLockInit(&destlock);
     SSDNode *ret = ssdCloneNode(root, lock_opt, desttree, &destlock);
     if (ret)
-        ssdLockEnd(ret, &destlock);
+        ssdEndLock(ret, &destlock);
 
     if (transient_lock.init)
-        ssdLockEnd(root, &transient_lock);
+        ssdEndLock(root, &transient_lock);
     if (createdtree) {
         objRelease(&desttree);
     }
@@ -620,9 +629,9 @@ bool ssdGraft(SSDNode *dest, strref destpath, SSDLock *dest_lock_opt,
 out:
     strDestroy(&dname);
     if (transient_lock_src.init)
-        ssdLockEnd(src, &transient_lock_src);
+        ssdEndLock(src, &transient_lock_src);
     if (transient_lock_dest.init)
-        ssdLockEnd(dest, &transient_lock_dest);
+        ssdEndLock(dest, &transient_lock_dest);
 
     return ret;
 }

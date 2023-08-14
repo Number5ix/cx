@@ -121,8 +121,7 @@ SSDNode *jsonParseTreeCustom(StreamBuffer *sb, SSDTree *tree)
         ret = objAcquire(jts.root);
     }
 
-    if (jts.root)
-        ssdLockEnd(jts.root, &jts.lock);
+    ssdEndLock(jts.root, &jts.lock);
 
     saDestroy(&jts.nodestack);
     objRelease(&jts.root);

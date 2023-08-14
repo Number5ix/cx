@@ -74,8 +74,12 @@ bool _ssdLockWrite(SSDNode *root, SSDLock *lock, const char *fn, int lnum);
 bool _ssdLockWrite(SSDNode *root, SSDLock *lock);
 #endif
 
-// Ends a locked operation
-#define ssdLockEnd(root, lock) _ssdLockEnd(SSDNode(root), lock)
-bool _ssdLockEnd(SSDNode *root, SSDLock *lock);
+// Unlocks the lock, potentially for re-use laster
+#define ssdUnlock(root, lock) ssdUnlock(SSDNode(root), lock)
+bool _ssdUnlock(SSDNode *root, SSDLock *lock);
 
-#define withSSDLock(root, name) blkWrap(SSDLock name = { .init = true }, ssdLockEnd(root, &name))
+// Ends a locked operation; destroys the lock
+#define ssdEndLock(root, lock) _ssdEndLock(SSDNode(root), lock)
+bool _ssdEndLock(SSDNode *root, SSDLock *lock);
+
+#define withSSDLock(root, name) blkWrap(SSDLock name = { .init = true }, ssdEndLock(root, &name))

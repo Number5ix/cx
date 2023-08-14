@@ -592,7 +592,7 @@ static int test_json_treeparse()
     if (!val || !stEq(val->type, stType(int64)) || val->data.st_int64 != 5)
         ret = 1;
 
-    ssdLockEnd(tree, &lock);
+    ssdEndLock(tree, &lock);
     objRelease(&tree);
 
     return ret;
@@ -639,7 +639,7 @@ static int test_json_treeout()
     objRelease(&sub);
     sub = ssdSubtree(tree, _S"[16]", SSD_Create_Array, &lock);
     objRelease(&sub);
-    ssdLockEnd(tree, &lock);
+    ssdEndLock(tree, &lock);
 
     // output the tree to a string and compare
     sb = sbufCreate(256);
