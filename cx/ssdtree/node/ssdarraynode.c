@@ -178,33 +178,50 @@ SSDArrayIter *SSDArrayIter_create(SSDArrayNode *node, SSDLock *lock)
 
 bool SSDArrayIter_valid(SSDArrayIter *self)
 {
-    return self->idx >= 0 && self->idx < saSize(((SSDArrayNode*)self->node)->storage);
+    ssdLockRead(self->node, self->lock);
+    bool ret = self->idx >= 0 && self->idx < saSize(((SSDArrayNode *)self->node)->storage);
+    if (self->transient_lock.init)
+        ssdUnlock(self->node, self->lock);
+    return ret;
 }
 
 bool SSDArrayIter_next(SSDArrayIter *self)
 {
+    bool ret = false;
+    ssdLockRead(self->node, self->lock);
     if (self->idx >= 0 && self->idx < saSize(((SSDArrayNode*)self->node)->storage) - 1) {
         self->idx++;
-        return true;
+        ret = true;
     } else {
         self->idx = -1;
-        return false;
     }
+    if (self->transient_lock.init)
+        ssdUnlock(self->node, self->lock);
+    return ret;
 }
 
 stvar *SSDArrayIter_ptr(SSDArrayIter *self)
 {
+    ssdLockRead(self->node, self->lock);
+    // this does not unlock the transient lock!
+    // you really shouldn't be using ptr() with the transient lock anyway...
+    devAssert(!self->transient_lock.init);
     return ptrInternal((SSDArrayNode*)self->node, self->idx);
 }
 
 bool SSDArrayIter_get(SSDArrayIter *self, stvar *out)
 {
+    ssdLockRead(self->node, self->lock);
     stvar *ptr = ptrInternal((SSDArrayNode*)self->node, self->idx);
+    bool ret = false;
     if (ptr) {
         stvarCopy(out, *ptr);
-        return true;
+        ret = true;
     }
-    return false;
+
+    if (self->transient_lock.init)
+        ssdUnlock(self->node, self->lock);
+    return ret;
 }
 
 int32 SSDArrayIter_idx(SSDArrayIter *self)
@@ -220,6 +237,10 @@ strref SSDArrayIter_name(SSDArrayIter *self)
 
 bool SSDArrayIter_iterOut(SSDArrayIter *self, int32 *idx, strref *name, stvar **val)
 {
+    ssdLockRead(self->node, self->lock);
+    // see comments in SSDArrayIter_ptr about the transient lock
+    devAssert(!self->transient_lock.init);
+
     if (self->idx < 0 || self->idx >= saSize(((SSDArrayNode *)self->node)->storage))
         return false;
 

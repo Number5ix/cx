@@ -120,6 +120,10 @@ stvar *SSDSingleIter_ptr(SSDSingleIter *self)
     if (self->done)
         return NULL;
 
+    ssdLockRead(self->node, self->lock);
+    // this shouldn't be used in transient lock mode
+    devAssert(!self->transient_lock.init);
+
     return &((SSDSingleNode*)self->node)->storage;
 }
 
@@ -128,7 +132,11 @@ bool SSDSingleIter_get(SSDSingleIter *self, stvar *out)
     if (self->done)
         return false;
 
+    ssdLockRead(self->node, self->lock);
     stvarCopy(out, ((SSDSingleNode *)self->node)->storage);
+
+    if (self->transient_lock.init)
+        ssdUnlock(self->node, self->lock);
     return true;
 }
 
@@ -146,6 +154,10 @@ bool SSDSingleIter_iterOut(SSDSingleIter *self, int32 *idx, strref *name, stvar 
 {
     if (self->done)
         return false;
+
+    ssdLockRead(self->node, self->lock);
+    // this shouldn't be used in transient lock mode
+    devAssert(!self->transient_lock.init);
 
     *idx = 0;
     *name = _S"0";

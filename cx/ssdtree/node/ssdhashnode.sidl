@@ -12,6 +12,7 @@ class SSDHashNode extends SSDNode
 class SSDHashIter extends SSDIterator
 {
     htiter iter;
+    string lastName;
 
     override isHashtable;
 

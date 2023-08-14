@@ -35,7 +35,6 @@ bool SSDIterator_init(SSDIterator *self)
 {
     if (!self->lock)
         self->lock = &self->transient_lock;
-    ssdLockRead(self->node, self->lock);
     // Autogen begins -----
     return true;
     // Autogen ends -------

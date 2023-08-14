@@ -160,16 +160,29 @@ SSDHashIter *SSDHashIter_create(SSDHashNode *node, SSDLock *lock)
 
 bool SSDHashIter_valid(SSDHashIter *self)
 {
-    return htiValid(&self->iter);
+    ssdLockRead(self->node, self->lock);
+    bool ret = htiValid(&self->iter);
+    if (self->transient_lock.init)
+        ssdUnlock(self->node, self->lock);
+    return ret;
 }
 
 bool SSDHashIter_next(SSDHashIter *self)
 {
-    return htiNext(&self->iter);
+    ssdLockRead(self->node, self->lock);
+    bool ret = htiNext(&self->iter);
+    if (self->transient_lock.init)
+        ssdUnlock(self->node, self->lock);
+    return ret;
 }
 
 stvar *SSDHashIter_ptr(SSDHashIter *self)
 {
+    ssdLockRead(self->node, self->lock);
+    // this does not unlock the transient lock!
+    // you really shouldn't be using ptr() with the transient lock anyway...
+    devAssert(!self->transient_lock.init);
+
     if (!htiValid(&self->iter))
         return NULL;
 
@@ -178,11 +191,17 @@ stvar *SSDHashIter_ptr(SSDHashIter *self)
 
 bool SSDHashIter_get(SSDHashIter *self, stvar *out)
 {
-    if (!htiValid(&self->iter))
-        return false;
+    bool ret = false;
+    ssdLockRead(self->node, self->lock);
 
-    stvarCopy(out, htiVal(self->iter, stvar));
-    return true;
+    if (htiValid(&self->iter)) {
+        stvarCopy(out, htiVal(self->iter, stvar));
+        ret = true;
+    }
+
+    if (self->transient_lock.init)
+        ssdUnlock(self->node, self->lock);
+    return ret;
 }
 
 int32 SSDHashIter_idx(SSDHashIter *self)
@@ -192,14 +211,29 @@ int32 SSDHashIter_idx(SSDHashIter *self)
 
 strref SSDHashIter_name(SSDHashIter *self)
 {
-    if (!htiValid(&self->iter))
-        return false;
+    strref ret = NULL;
+    ssdLockRead(self->node, self->lock);
 
-    return htiKey(self->iter, strref);
+    if (htiValid(&self->iter)) {
+        // Have to duplicate this into the iterator because it would be dangerous to
+        // return the reference directly to the hash key without the lock held,
+        // which is the case if the transient lock is being used. Thankfully refcounted
+        // strings make this fairly cheap.
+        strDup(&self->lastName, htiKey(self->iter, strref));
+        ret = self->lastName;
+    }
+
+    if (self->transient_lock.init)
+        ssdUnlock(self->node, self->lock);
+    return ret;
 }
 
 bool SSDHashIter_iterOut(SSDHashIter *self, int32 *idx, strref *name, stvar **val)
 {
+    ssdLockRead(self->node, self->lock);
+    // this shouldn't be used in transient lock mode
+    devAssert(!self->transient_lock.init);
+
     if (!htiValid(&self->iter))
         return false;
 
@@ -213,6 +247,9 @@ bool SSDHashIter_iterOut(SSDHashIter *self, int32 *idx, strref *name, stvar **va
 void SSDHashIter_destroy(SSDHashIter *self)
 {
     htiFinish(&self->iter);
+    // Autogen begins -----
+    strDestroy(&self->lastName);
+    // Autogen ends -------
 }
 
 extern bool SSDIterator_isHashtable(SSDIterator *self); // parent

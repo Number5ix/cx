@@ -75,7 +75,7 @@ bool _ssdLockWrite(SSDNode *root, SSDLock *lock);
 #endif
 
 // Unlocks the lock, potentially for re-use laster
-#define ssdUnlock(root, lock) ssdUnlock(SSDNode(root), lock)
+#define ssdUnlock(root, lock) _ssdUnlock(SSDNode(root), lock)
 bool _ssdUnlock(SSDNode *root, SSDLock *lock);
 
 // Ends a locked operation; destroys the lock

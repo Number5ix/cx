@@ -143,6 +143,7 @@ typedef struct SSDHashIter {
     SSDLock *lock;
     SSDLock transient_lock;
     htiter iter;
+    string lastName;
 } SSDHashIter;
 extern ObjClassInfo SSDHashIter_clsinfo;
 #define SSDHashIter(inst) ((SSDHashIter*)(&((inst)->_is_SSDHashIter)))

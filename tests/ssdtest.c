@@ -239,19 +239,21 @@ static int test_ssd_subtree()
     foreach(object, oiter, SSDIterator, btree)
     {
         strref name = ssditeratorName(oiter);
-        stvar *val = ssditeratorPtr(oiter);
+        stvar val;
+        ssditeratorGet(oiter, &val);
 
         // this also checks insertion order retention
         if (icount == 0 &&
             !(strEq(name, _S"test1") &&
-              stvarIs(val, int32) && val->data.st_int32 == 39294))
+              stvarIs(&val, int32) && val.data.st_int32 == 39294))
             ret = 1;
 
         if (icount == 1 &&
             !(strEq(name, _S"test2") &&
-              strEq(stvarString(val), teststr)))
+              strEq(stvarString(&val), teststr)))
             ret = 1;
 
+        stvarDestroy(&val);
         icount++;
     }
     if (icount != 2)
