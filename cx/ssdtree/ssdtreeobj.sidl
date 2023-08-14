@@ -1,7 +1,21 @@
 #include <cx/ssdtree/ssdshared.h>
+#include <cx/thread/mutex.h>
+
+#ifdef SSD_LOCK_DEBUG
+typedef struct SSDTreeDebug {
+    Mutex mtx;
+    sa_SSDLockDebug readlocks;
+    sa_SSDLockDebug writelocks;
+} SSDTreeDebug;
+#else
+typedef struct SSDTreeDebug {
+    uint32 _dummy;
+} SSDTreeDebug;
+#endif
 
 class SSDTree {
     RWLock lock;
+    SSDTreeDebug dbg;
     uint32 flags;
 
     // The most recent last-modified timestamp of any node in the tree

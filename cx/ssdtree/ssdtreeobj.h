@@ -3,9 +3,22 @@
 // Do not make changes to this file or they will be overwritten.
 #include <cx/obj.h>
 #include <cx/ssdtree/ssdshared.h>
+#include <cx/thread/mutex.h>
 
 typedef struct SSDTree SSDTree;
 saDeclarePtr(SSDTree);
+
+#ifdef SSD_LOCK_DEBUG
+typedef struct SSDTreeDebug {
+    Mutex mtx;
+    sa_SSDLockDebug readlocks;
+    sa_SSDLockDebug writelocks;
+} SSDTreeDebug;
+#else
+typedef struct SSDTreeDebug {
+    uint32 _dummy;
+} SSDTreeDebug;
+#endif
 
 typedef struct SSDTree_ClassIf {
     ObjIface *_implements;
@@ -26,6 +39,7 @@ typedef struct SSDTree {
     atomic(intptr) _ref;
 
     RWLock lock;
+    SSDTreeDebug dbg;
     uint32 flags;
     int64 modified;        // The most recent last-modified timestamp of any node in the tree
     SSDNodeFactory factories[SSD_Create_Count];        // Factory functions for if this tree wants to use derived node classes

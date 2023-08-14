@@ -34,6 +34,12 @@ bool SSDTree_init(SSDTree *self)
     if (!self->factories[SSD_Create_Single])
         self->factories[SSD_Create_Single] = (SSDNodeFactory)SSDSingleNode__create;
 
+#ifdef SSD_LOCK_DEBUG
+    mutexInit(&self->dbg.mtx);
+    saInit(&self->dbg.readlocks, opaque(SSDLockDebug), 16);
+    saInit(&self->dbg.writelocks, opaque(SSDLockDebug), 16);
+#endif
+
     rwlockInit(&self->lock);
     // Autogen begins -----
     return true;
@@ -51,6 +57,11 @@ SSDNode *SSDTree_createNode(SSDTree *self, int crtype)
 
 void SSDTree_destroy(SSDTree *self)
 {
+#ifdef SSD_LOCK_DEBUG
+    saDestroy(&self->dbg.readlocks);
+    saDestroy(&self->dbg.writelocks);
+    mutexDestroy(&self->dbg.mtx);
+#endif
     rwlockDestroy(&self->lock);
 }
 

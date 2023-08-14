@@ -5,44 +5,86 @@
 #include "node/ssdhashnode.h"
 #include "node/ssdsinglenode.h"
 
+#ifdef SSD_LOCK_DEBUG
+#include <cx/format.h>
+#include <cx/time.h>
+void _ssdLockInit(SSDLock *lock, const char *fn, int lnum)
+#else
 void ssdLockInit(SSDLock *lock)
+#endif
 {
+#ifdef SSD_LOCK_DEBUG
+    lock->dbg.time = clockTimer();
+    lock->dbg.file = fn;
+    lock->dbg.line = lnum;
+#endif
     lock->init = true;
     lock->rdlock = lock->wrlock = false;
 }
 
+#ifdef SSD_LOCK_DEBUG
+bool _ssdLockRead(SSDNode *root, SSDLock *lock, const char *fn, int lnum)
+#else
 bool _ssdLockRead(SSDNode *root, SSDLock *lock)
+#endif
 {
     if (!root || !lock)
         return false;
     if (!lock->init)
+#ifdef SSD_LOCK_DEBUG
+        _ssdLockInit(lock, fn, lnum);
+#else
         ssdLockInit(lock);
+#endif
 
     if (lock->rdlock || lock->wrlock)
         return true;
 
-    lock->rdlock = true;
     rwlockAcquireRead(&root->tree->lock);
+    lock->rdlock = true;
+#ifdef SSD_LOCK_DEBUG
+    mutexAcquire(&root->tree->dbg.mtx);
+    saPush(&root->tree->dbg.readlocks, opaque, lock->dbg);
+    mutexRelease(&root->tree->dbg.mtx);
+#endif
 
     return true;
 }
 
+#ifdef SSD_LOCK_DEBUG
+bool _ssdLockWrite(SSDNode *root, SSDLock *lock, const char *fn, int lnum)
+#else
 bool _ssdLockWrite(SSDNode *root, SSDLock *lock)
+#endif
 {
     if (!root || !lock)
         return false;
     if (!lock->init)
+#ifdef SSD_LOCK_DEBUG
+        _ssdLockInit(lock, fn, lnum);
+#else
         ssdLockInit(lock);
+#endif
 
     if (lock->wrlock)
         return true;
 
     if (lock->rdlock) {
-        lock->rdlock = false;
         rwlockReleaseRead(&root->tree->lock);
+#ifdef SSD_LOCK_DEBUG
+        mutexAcquire(&root->tree->dbg.mtx);
+        saFindRemove(&root->tree->dbg.readlocks, opaque, lock->dbg);
+        mutexRelease(&root->tree->dbg.mtx);
+#endif
+        lock->rdlock = false;
     }
 
     rwlockAcquireWrite(&root->tree->lock);
+#ifdef SSD_LOCK_DEBUG
+    mutexAcquire(&root->tree->dbg.mtx);
+    saPush(&root->tree->dbg.writelocks, opaque, lock->dbg);
+    mutexRelease(&root->tree->dbg.mtx);
+#endif
     lock->wrlock = true;
 
     return true;
@@ -57,6 +99,15 @@ bool _ssdLockEnd(SSDNode *root, SSDLock *lock)
         rwlockReleaseWrite(&root->tree->lock);
     else if (lock->rdlock)
         rwlockReleaseRead(&root->tree->lock);
+
+#ifdef SSD_LOCK_DEBUG
+    mutexAcquire(&root->tree->dbg.mtx);
+    if (lock->wrlock)
+        saFindRemove(&root->tree->dbg.writelocks, opaque, lock->dbg);
+    else if (lock->rdlock)
+        saFindRemove(&root->tree->dbg.readlocks, opaque, lock->dbg);
+    mutexRelease(&root->tree->dbg.mtx);
+#endif
 
     lock->wrlock = lock->rdlock = false;
 
