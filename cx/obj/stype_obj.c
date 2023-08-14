@@ -21,6 +21,10 @@ intptr stCmp_obj(stype st, stgeneric gen1, stgeneric gen2, uint32 flags)
     if (inst1->_clsinfo->_cmp)
         return inst1->_clsinfo->_cmp(inst1, inst2, flags);
 
+    // If they only care about equality, a pointer compare will suffice for non-sortable objects
+    if (flags & ST_Equality)
+        return (intptr)inst1 - (intptr)inst2;
+
     devFatalError("Tried to sort an unsortable object");
     return -1;
 }

@@ -30,7 +30,7 @@ sa_swap(void *av, void *bv, size_t sz)
     if ((n) > 0) sa_swap(a, b, n)
 
 // specializations for various data types for performance
-#define SA_SPECIALIZE(name, typ, comptyp, compfunc) \
+#define SA_SPECIALIZE_FINDONLY(name, typ, comptyp, compfunc) \
 static int32 sa_find_internal_##name(SArrayHeader *hdr, const void *elem, bool *found) \
 { \
     int32 i; \
@@ -43,8 +43,9 @@ static int32 sa_find_internal_##name(SArrayHeader *hdr, const void *elem, bool *
     } \
 \
     return hdr->count; \
-} \
-\
+}
+
+#define SA_SPECIALIZE_BSEARCHONLY(name, typ, comptyp, compfunc) \
 static int32 sa_bsearch_internal_##name(SArrayHeader *hdr, const void *elem, bool *found) \
 { \
     int32 low, high, i; \
@@ -66,8 +67,9 @@ static int32 sa_bsearch_internal_##name(SArrayHeader *hdr, const void *elem, boo
             low = i; \
     } \
     return low; \
-}\
-\
+}
+
+#define SA_SPECIALIZE_QSORTONLY(name, typ, comptyp, compfunc) \
 static _meta_inline char * \
 med3_##name(SArrayHeader *hdr, void *a, void *b, void *c) \
 { \
@@ -180,8 +182,16 @@ loop: \
     } \
 }
 
+#define SA_SPECIALIZE(name, typ, comptyp, compfunc) \
+SA_SPECIALIZE_FINDONLY(name, typ, comptyp, compfunc) \
+SA_SPECIALIZE_BSEARCHONLY(name, typ, comptyp, compfunc) \
+SA_SPECIALIZE_QSORTONLY(name, typ, comptyp, compfunc)
+
 #define compfunc_stype(st, a, b) _stCmp(st, NULL, stStored(st, a), stStored(st, b), 0)
-SA_SPECIALIZE(stype, void*, intptr, compfunc_stype)
+SA_SPECIALIZE_BSEARCHONLY(stype, void*, intptr, compfunc_stype)
+SA_SPECIALIZE_QSORTONLY(stype, void *, intptr, compfunc_stype)
+#define compfunc_stype_eq(st, a, b) _stCmp(st, NULL, stStored(st, a), stStored(st, b), ST_Equality)
+SA_SPECIALIZE_FINDONLY(stypeeq, void *, intptr, compfunc_stype_eq)
 #define compfunc_stype_cmp(st, a, b) _stCmp(st, &hdr->typeops, stStored(st, a), stStored(st, b), 0)
 SA_SPECIALIZE(stypecmp, void*, intptr, compfunc_stype_cmp)
 #define compfunc_str(st, a, b) strCmp(*(string*)(a), *(string*)(b))
@@ -258,7 +268,7 @@ static int32 sa_find_internal(SArrayHeader *hdr, stgeneric stelem, bool *found)
 
         if (find_spec[type])
             return find_spec[type](hdr, elem, found);
-        return sa_find_internal_stype(hdr, elem, found);
+        return sa_find_internal_stypeeq(hdr, elem, found);
     }
 
     // unreachable

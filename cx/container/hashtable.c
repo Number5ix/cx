@@ -396,7 +396,7 @@ static bool htFindIndex(HashTableHeader *hdr, stgeneric key, uint32 *indexOut, u
             // not deleted, so check the key
             void *skey = HT_SLOT_PTR(hdr, elemsz, slot);
             if (_stCmp(hdr->keytype, HDRKEYOPS(hdr), key,
-                       stStored(hdr->keytype, skey), opsflags) == 0) {
+                       stStored(hdr->keytype, skey), opsflags | ST_Equality) == 0) {
                 // found it!
                 if (indexOut)
                     *indexOut = hash;

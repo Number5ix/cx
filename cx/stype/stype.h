@@ -596,12 +596,19 @@ enum STYPE_OPS_FLAGS {
     // underlying type supports it
     ST_CaseInsensitive  = 0x00000001,
 
+    // Valid for: cmp
+    // Indicates that the caller only cares about equality and not ordering. Cmp is
+    // allowed to return 0 for equal and any nonzero value for not equal. This is mostly
+    // important for objects that do not implement the Sortable interface to be able to
+    // be compared, especially when inside stvar or similar.
+    ST_Equality         = 0x00000002,
+
     // Valid for: convert
     // Conversion normally checks the range of the destination type and the conversion
     // will fail if it would fall outside the range that a value can be represented.
     // This flag disables range checking and allows overflow/underflow. This may result
     // in sign flips for signed integers.
-    ST_Overflow         = 0x00000002,
+    ST_Overflow         = 0x00000004,
 
     // Valid for: convert
     // Some types cannot accurately represent all values within their range. For example,
@@ -609,7 +616,7 @@ enum STYPE_OPS_FLAGS {
     // well within the numeric range.
     // This flag enables extra checks that will fail the conversion if it could not be
     // uniquely reversed.
-    ST_Lossless         = 0x00000004,
+    ST_Lossless         = 0x00000008,
 };
 
 // Implementation notes:
