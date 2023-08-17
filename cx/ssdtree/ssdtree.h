@@ -108,7 +108,7 @@ bool _ssdCopyOutD(SSDNode *root, strref path, stype valtype, stgeneric *val, stg
 // bool ssdCopyOutD(SSDNode *root, strref path, stype valtype, stgeneric *val, stgeneric def);
 // Variant of ssdGet that copies the value out of the tree to an arbitrary destination, converting
 // it in the process. Copies the default if the value is not found or can't be converted.
-#define ssdCopyOutD(root, path, vtype, val_copy_out, def, lock_opt) _ssdCopyOutD(root, path, stCheckedPtrArg(vtype, val_copy_out), stArg(vtype, def), (SSDLockState*)_ssdCurrentLockState)
+#define ssdCopyOutD(root, path, vtype, val_copy_out, def) _ssdCopyOutD(root, path, stCheckedPtrArg(vtype, val_copy_out), stArg(vtype, def), (SSDLockState*)_ssdCurrentLockState)
 
 bool _ssdSet(SSDNode *root, strref path, bool createpath, stvar val, SSDLockState *lstate);
 // bool ssdSet(SSDNode *root, strref path, bool createpath, stvar val);
