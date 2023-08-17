@@ -251,6 +251,10 @@ void sbufPFinish(StreamBuffer *sb)
             sb->consumerPush(sb, NULL, 0, sb->consumerCtx);
     }
 
+    // if buffer is in push mode, consumer has gotten all the callbacks they're going to get
+    if (sbufIsPush(sb))
+        sbufCFinish(sb);
+
     sbufRelease(&sb);
 }
 
@@ -593,6 +597,14 @@ bool sbufCSend(StreamBuffer *sb, sbufSendCB func, size_t sz)
 
 void sbufCFinish(StreamBuffer *sb)
 {
+    if (sb->flags & SBUF_Consumer_Done)
+        return;
+
     sb->flags |= SBUF_Consumer_Done;
+
+    // if buffer is in pull mode, producer has gotten all the callbacks they're going to get
+    if (sbufIsPull(sb))
+        sbufPFinish(sb);
+
     sbufRelease(&sb);
 }

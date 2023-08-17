@@ -88,9 +88,6 @@ static void sbufFileNotifyCB(StreamBuffer *sb, size_t sz, void *ctx)
         // flush anything that's left in the streambuf
         sbufCSend(sb, sbufFileSendCB, sbufCAvail(sb));
     }
-
-    if (sbufIsPFinished(sb))
-        sbufCFinish(sb);
 }
 
 bool sbufFileOut(StreamBuffer *sb, VFSFile *file, bool close)

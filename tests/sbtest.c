@@ -44,9 +44,6 @@ static void sbnotify1(StreamBuffer *sb, size_t sz, void *ctx)
     } else {
         sbufCSend(sb, sbsend1, min(sz, tc->shouldread));
     }
-
-    if (sbufIsPFinished(sb))
-        sbufCFinish(sb);
 }
 
 static void sbclean1(void *ctx)
@@ -347,9 +344,6 @@ static void sbpush3(StreamBuffer *sb, const uint8 *buf, size_t sz, void *ctx)
 
     memcpy(tc->out + tc->outp, buf, sz);
     tc->outp += sz;
-
-    if (sbufIsPFinished(sb))
-        sbufCFinish(sb);
 }
 
 static void sbclean3(void *ctx)

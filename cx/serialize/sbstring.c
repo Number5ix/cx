@@ -89,11 +89,6 @@ static void sbufStrNotifyCB(StreamBuffer *sb, size_t sz, void *ctx)
         strAppend(sbc->out, temp);
     }
     strDestroy(&temp);
-
-    if (sbufIsPFinished(sb)) {
-        devAssert(sbufCAvail(sb) == 0);
-        sbufCFinish(sb);
-    }
 }
 
 bool sbufStrOut(StreamBuffer *sb, string *strout)
