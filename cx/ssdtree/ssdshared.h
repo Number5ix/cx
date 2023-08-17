@@ -97,7 +97,8 @@ bool _ssdLockEnd(SSDNode *root, SSDLockState *lstate);
 // Wraps a locked transaction. Should be used around a group of SSD transactions that
 // should be executed together.
 #define ssdLockedTransaction(root) _blkStart                                                    \
-    _blkBeforeAfter(SSDLockState _ssdTransientLockState = { 0 },                                \
+    _inhibitReturn                                                                              \
+    _blkFull(SSDLockState _ssdTransientLockState = { 0 }, (root),                               \
         _ssdLockEnd(SSDNode(root), &_ssdTransientLockState))                                    \
     _blkBefore(SSDLockState *_ssdCurrentLockStateShadow = (SSDLockState*)_ssdCurrentLockState)  \
     _blkBefore(SSDLockState *_ssdCurrentLockState = _ssdCurrentLockStateShadow ?                \
