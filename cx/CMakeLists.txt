@@ -26,10 +26,12 @@ set(CX_BASE_INCLUDES
     cx.h
     debug.h
     fs.h
+    json.h
     math.h
     meta.h
     obj.h
     platform.h
+    serialize.h
     ssdtree.h
     static_config.h
     string.h
@@ -37,10 +39,9 @@ set(CX_BASE_INCLUDES
     thread.h
     time.h
     utils.h)
-source_group("include" FILES
-    ${CX_BASE_INCLUDES})
 
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES
+    ${CX_BASE_INCLUDES}
     ${CX_SRCS}
     ${CX_SIDL}
     ${CX_SIDL_NODEP}
