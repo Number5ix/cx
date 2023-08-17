@@ -615,5 +615,60 @@ out:
     return ret;
 }
 
+int32 _ssdCount(SSDNode *root, strref path, bool arrayonly, SSDLockState *_ssdCurrentLockState)
+{
+    int32 ret = 0;
+
+    ssdLockedTransaction(root)
+    {
+        SSDNode *node;
+        if (strEmpty(path))
+            node = root;
+        else
+            node = ssdSubtreeB(root, path);
+
+        if (node && (!arrayonly || ssdnodeIsArray(node)))
+            ret = ssdnodeCount(node, _ssdCurrentLockState);
+    }
+
+    return ret;
+}
+
+stvar *_ssdIndex(SSDNode *root, strref path, int32 idx, SSDLockState *_ssdCurrentLockState)
+{
+    if (!devAssert(_ssdCurrentLockState))
+        return NULL;                            // lock parameter is mandatory
+
+    SSDNode *node;
+    if (strEmpty(path))
+        node = root;
+    else
+        node = ssdSubtreeB(root, path);
+
+    if (node)
+        return ssdnodePtr(node, idx, NULL, _ssdCurrentLockState);
+
+    return NULL;
+}
+
+bool _ssdAppend(SSDNode *root, strref path, bool createpath, stvar val, SSDLockState *_ssdCurrentLockState)
+{
+    bool ret = false;
+
+    ssdLockedTransaction(root)
+    {
+        SSDNode *node = NULL;
+        if (strEmpty(path)) {
+            node = objAcquire(root);
+        } else {
+            node = ssdSubtree(root, path, createpath ? SSD_Create_Array : SSD_Create_None);
+        }
+
+        SSDArrayNode *arrn = objDynCast(node, SSDArrayNode);
+        if (arrn)
+            ret = ssdarraynodeAppend(arrn, val, _ssdCurrentLockState);
+        objRelease(&node);
+    }
+
     return ret;
 }

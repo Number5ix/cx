@@ -39,6 +39,7 @@ typedef struct SSDArrayNode_ClassIf {
     // use iterLocked() instead.
     SSDIterator *(*iter)(void *self);
     SSDIterator *(*_iterLocked)(void *self, SSDLockState *_ssdCurrentLockState);
+    bool (*append)(void *self, stvar val, SSDLockState *_ssdCurrentLockState);
 } SSDArrayNode_ClassIf;
 extern SSDArrayNode_ClassIf SSDArrayNode_ClassIf_tmpl;
 
@@ -128,6 +129,8 @@ SSDArrayNode *SSDArrayNode__create(SSDTree *tree);
 #define ssdarraynodeIter(self) (self)->_->iter(SSDArrayNode(self))
 // SSDIterator *ssdarraynode_iterLocked(SSDArrayNode *self, SSDLockState *_ssdCurrentLockState);
 #define ssdarraynode_iterLocked(self, _ssdCurrentLockState) (self)->_->_iterLocked(SSDArrayNode(self), _ssdCurrentLockState)
+// bool ssdarraynodeAppend(SSDArrayNode *self, stvar val, SSDLockState *_ssdCurrentLockState);
+#define ssdarraynodeAppend(self, val, _ssdCurrentLockState) (self)->_->append(SSDArrayNode(self), val, _ssdCurrentLockState)
 
 typedef struct SSDArrayIter {
     union {

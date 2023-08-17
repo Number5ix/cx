@@ -112,6 +112,14 @@ out:
     return ret;
 }
 
+bool SSDArrayNode_append(SSDArrayNode *self, stvar val, SSDLockState *_ssdCurrentLockState)
+{
+    ssdLockWrite(self);
+    saPush(&self->storage, stvar, val);
+    ssdnodeUpdateModified(self);
+    return true;
+}
+
 bool SSDArrayNode_remove(SSDArrayNode *self, int32 idx, strref name, SSDLockState *_ssdCurrentLockState)
 {
     if (idx == SSD_ByName && !strToInt32(&idx, name, 0, true))

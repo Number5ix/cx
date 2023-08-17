@@ -207,6 +207,24 @@ bool _ssdImportTypedArray(SSDNode *root, strref path, stype elemtype, sa_ref arr
 // bool ssdImportTypedArray(SSDNode *root, strref path, stype elemtype, sa_ref arr)
 #define ssdImportTypedArray(root, path, type, arr) _ssdImportTypedArray(root, path, stType(type), SAREF(arr), (SSDLockState*)_ssdCurrentLockState)
 
+int32 _ssdCount(SSDNode *root, strref path, bool arrayonly, SSDLockState *lstate);
+// int32 ssdCount(SSDNode * root, strref path, bool arrayonly)
+// Returns the number of children of the given path.
+// If arrayonly is true, ssdCount will return 0 for hashtable nodes.
+#define ssdCount(root, path, arrayonly) _ssdCount(root, path, arrayonly, (SSDLockState*)_ssdCurrentLockState)
+
+stvar *_ssdIndex(SSDNode *root, strref path, int32 idx, SSDLockState *lstate);
+// stvar *ssdIndex(SSDNode *root, strref path, int32 idx)
+// Gets a pointer to a given array index.
+// Like ssdPtr this requires lock state to be passed.
+#define ssdIndex(root, path, idx) _ssdIndex(root, path, idx, (SSDLockState*)&_ssdCurrentLockState->_is_SSDLockState)
+
+bool _ssdAppend(SSDNode *root, strref path, bool createpath, stvar val, SSDLockState *lstate);
+// bool ssdAppend(SSDNode *root, strref path, bool createpath, stvar val)
+// Similar to SSDSet, but appends the value to an array at the given path, creating the array
+// if necessary and createpath is true.
+#define ssdAppend(root, path, createpath, val) _ssdAppend(root, path, createpath, val, (SSDLockState*)_ssdCurrentLockState)
+
 bool _ssdGraft(SSDNode *dest, strref destpath, SSDLockState *dest_lstate, SSDNode *src, strref srcpath, SSDLockState *src_lstate);
 // bool ssdGraft(SSDNode *dest, strref destpath, SSDNode *src, strref srcpath)
 // Grafts a subtree of the source tree onto the dest tree.

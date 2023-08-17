@@ -4,6 +4,8 @@ class SSDArrayNode extends SSDNode
 {
     sarray:stvar storage;
 
+    bool append(stvar val, SSDLockState *_ssdCurrentLockState);
+
     override isArray;
     factory _create(SSDTree *tree);
 }
