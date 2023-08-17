@@ -61,7 +61,7 @@ SSDLockState *_ssdLockStateInit(SSDLockState *lstate);
 //
 // Starts a locked operation in read mode
 #ifdef SSD_LOCK_DEBUG
-#define ssdLockRead(root) _ssdLockRead(SSDNode(root), _ssdCurrentLockState, __FILE__, __LINE__)
+#define ssdLockRead(root) _ssdLockRead(SSDNode(root), (SSDLockState*)&_ssdCurrentLockState->_is_SSDLockState, __FILE__, __LINE__)
 #define _ssdManualLockRead(root, lstate) _ssdLockRead(SSDNode(root), lstate, __FILE__, __LINE__)
 bool _ssdLockRead(SSDNode *root, SSDLockState *lstate, const char *fn, int lnum);
 #else
@@ -77,7 +77,7 @@ bool _ssdLockRead(SSDNode *root, SSDLockState *lstate);
 // got the write lock in between! State may be changed between dropping the
 // read lock and getting the write lock.
 #ifdef SSD_LOCK_DEBUG
-#define ssdLockWrite(root) _ssdLockWrite(SSDNode(root), _ssdCurrentLockState, __FILE__, __LINE__)
+#define ssdLockWrite(root) _ssdLockWrite(SSDNode(root), (SSDLockState*)&_ssdCurrentLockState->_is_SSDLockState, __FILE__, __LINE__)
 #define _ssdManualLockWrite(root, lstate) _ssdLockWrite(SSDNode(root), lstate, __FILE__, __LINE__)
 bool _ssdLockWrite(SSDNode *root, SSDLockState *lstate, const char *fn, int lnum);
 #else
@@ -87,11 +87,11 @@ bool _ssdLockWrite(SSDNode *root, SSDLockState *lstate);
 #endif
 
 // Unlocks the lock, potentially for re-use laster
-#define ssdUnlock(root) _ssdUnlock(SSDNode(root), _ssdCurrentLockState)
+#define ssdUnlock(root) _ssdUnlock(SSDNode(root), (SSDLockState*)&_ssdCurrentLockState->_is_SSDLockState)
 bool _ssdUnlock(SSDNode *root, SSDLockState *lstate);
 
 // Ends a locked operation; destroys the lock
-#define ssdLockEnd(root) _ssdLockEnd(SSDNode(root), _ssdCurrentLockState)
+#define ssdLockEnd(root) _ssdLockEnd(SSDNode(root), (SSDLockState*)&_ssdCurrentLockState->_is_SSDLockState)
 bool _ssdLockEnd(SSDNode *root, SSDLockState *lstate);
 
 // Wraps a locked transaction. Should be used around a group of SSD transactions that
