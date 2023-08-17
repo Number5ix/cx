@@ -181,3 +181,16 @@ bool _jsonOutTree(StreamBuffer *sb, SSDNode *tree, uint32 flags, SSDLockState *_
 
     return !error;
 }
+
+bool _jsonTreeToString(string *out, SSDNode *tree, uint32 flags, SSDLockState *_ssdCurrentLockState)
+{
+    if (!out || !tree)
+        return false;
+
+    StreamBuffer *sb = sbufCreate(1024);
+    sbufStrCRegisterPush(sb, out);
+    bool ret = jsonOutTree(sb, tree, flags);
+    sbufRelease(&sb);
+
+    return ret;
+}

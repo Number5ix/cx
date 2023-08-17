@@ -33,4 +33,10 @@ void jsonOutEnd(JSONOut **jo);
 bool _jsonOutTree(StreamBuffer *sb, SSDNode *tree, uint32 flags, SSDLockState *_ssdCurrentLockState);
 // bool jsonOutTree(StreamBuffer *sb, SSDNode *tree, uint32 flags)
 // Serialize an SSD tree to a streambuffer as JSON
-#define jsonOutTree(sb, tree, flags) _jsonOutTree(sb, tree, flags, _ssdCurrentLockState)
+#define jsonOutTree(sb, tree, flags) _jsonOutTree(sb, tree, flags, (SSDLockState*)_ssdCurrentLockState)
+
+bool _jsonTreeToString(string *out, SSDNode *tree, uint32 flags, SSDLockState *_ssdCurrentLockState);
+// Serialize an SSD tree to a string
+// bool jsonTreeToString(string *out, SSDNode *tree, uint32 flags)
+#define jsonTreeToString(out, tree, flags) _jsonTreeToString(out, tree, flags, (SSDLockState*)_ssdCurrentLockState)
+

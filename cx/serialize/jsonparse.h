@@ -16,3 +16,6 @@ bool jsonParse(StreamBuffer *sb, jsonParseCB callback, void *userdata);
 // Fully loads the data into a semi-structured data tree.
 SSDNode *jsonParseTree(StreamBuffer *sb);
 SSDNode *jsonParseTreeCustom(StreamBuffer *sb, SSDTree *tree);
+
+// Parses JSON data from a string.
+SSDNode *jsonTreeFromString(strref str);

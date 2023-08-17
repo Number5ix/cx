@@ -133,3 +133,12 @@ SSDNode *jsonParseTree(StreamBuffer *sb)
 {
     return jsonParseTreeCustom(sb, NULL);
 }
+
+SSDNode *jsonTreeFromString(strref str)
+{
+    StreamBuffer *sb = sbufCreate(128);
+    sbufStrPRegisterPull(sb, str);
+    SSDNode *ret = jsonParseTreeCustom(sb, NULL);
+    sbufRelease(&sb);
+    return ret;
+}
