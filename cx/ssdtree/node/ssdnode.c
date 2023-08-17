@@ -33,8 +33,8 @@ void SSDNode_updateModified(SSDNode *self)
 
 bool SSDIterator_init(SSDIterator *self)
 {
-    if (!self->lock)
-        self->lock = &self->transient_lock;
+    if (!self->lstate)
+        self->lstate = &self->transient_lock_state;
     // Autogen begins -----
     return true;
     // Autogen ends -------
@@ -57,8 +57,8 @@ ObjInst *SSDIterator_objInst(SSDIterator *self)
 
 void SSDIterator_destroy(SSDIterator *self)
 {
-    if (self->transient_lock.init)
-        ssdEndLock(self->node, &self->transient_lock);
+    if (self->transient_lock_state.init)
+        _ssdLockEnd(self->node, &self->transient_lock_state);
     // Autogen begins -----
     objRelease(&self->node);
     // Autogen ends -------

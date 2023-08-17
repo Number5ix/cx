@@ -24,31 +24,31 @@ SSDSingleNode *SSDSingleNode__create(SSDTree *tree)
     return self;
 }
 
-bool SSDSingleNode_get(SSDSingleNode *self, int32 idx, strref name, stvar *out, SSDLock *lock)
+bool SSDSingleNode_get(SSDSingleNode *self, int32 idx, strref name, stvar *out, SSDLockState *_ssdCurrentLockState)
 {
-    ssdLockRead(self, lock);
+    ssdLockRead(self);
     stvarCopy(out, self->storage);
     return true;
 }
 
-stvar *SSDSingleNode_ptr(SSDSingleNode *self, int32 idx, strref name, SSDLock *lock)
+stvar *SSDSingleNode_ptr(SSDSingleNode *self, int32 idx, strref name, SSDLockState *_ssdCurrentLockState)
 {
-    ssdLockRead(self, lock);
+    ssdLockRead(self);
     return &self->storage;
 }
 
-bool SSDSingleNode_set(SSDSingleNode *self, int32 idx, strref name, stvar val, SSDLock *lock)
+bool SSDSingleNode_set(SSDSingleNode *self, int32 idx, strref name, stvar val, SSDLockState *_ssdCurrentLockState)
 {
-    ssdLockWrite(self, lock);
+    ssdLockWrite(self);
     stvarDestroy(&self->storage);
     stvarCopy(&self->storage, val);
     ssdnodeUpdateModified(self);
     return true;
 }
 
-bool SSDSingleNode_setC(SSDSingleNode *self, int32 idx, strref name, stvar *val, SSDLock *lock)
+bool SSDSingleNode_setC(SSDSingleNode *self, int32 idx, strref name, stvar *val, SSDLockState *_ssdCurrentLockState)
 {
-    ssdLockWrite(self, lock);
+    ssdLockWrite(self);
     stvarDestroy(&self->storage);
     self->storage = *val;
     *val = stvNone;
@@ -56,7 +56,7 @@ bool SSDSingleNode_setC(SSDSingleNode *self, int32 idx, strref name, stvar *val,
     return true;
 }
 
-bool SSDSingleNode_remove(SSDSingleNode *self, int32 idx, strref name, SSDLock *lock)
+bool SSDSingleNode_remove(SSDSingleNode *self, int32 idx, strref name, SSDLockState *_ssdCurrentLockState)
 {
     // can't remove a single node!
     return false;
@@ -68,13 +68,13 @@ SSDIterator *SSDSingleNode_iter(SSDSingleNode *self)
     return SSDIterator(iter);
 }
 
-SSDIterator *SSDSingleNode_iterLocked(SSDSingleNode *self, SSDLock *lock)
+SSDIterator *SSDSingleNode__iterLocked(SSDSingleNode *self, SSDLockState *_ssdCurrentLockState)
 {
-    SSDSingleIter *iter = ssdsingleiterCreate(self, lock);
+    SSDSingleIter *iter = ssdsingleiterCreate(self, _ssdCurrentLockState);
     return SSDIterator(iter);
 }
 
-int32 SSDSingleNode_count(SSDSingleNode *self, SSDLock *lock)
+int32 SSDSingleNode_count(SSDSingleNode *self, SSDLockState *_ssdCurrentLockState)
 {
     return 1;
 }
@@ -88,13 +88,13 @@ void SSDSingleNode_destroy(SSDSingleNode *self)
 
 // -------------------------------- ITERATOR --------------------------------
 
-SSDSingleIter *SSDSingleIter_create(SSDSingleNode *node, SSDLock *lock)
+SSDSingleIter *SSDSingleIter_create(SSDSingleNode *node, SSDLockState *lstate)
 {
     SSDSingleIter *self;
     self = objInstCreate(SSDSingleIter);
 
     self->node = (SSDNode*)objAcquire(node);
-    self->lock = lock;
+    self->lstate = lstate;
 
     if (!objInstInit(self)) {
         objRelease(&self);
@@ -120,9 +120,9 @@ stvar *SSDSingleIter_ptr(SSDSingleIter *self)
     if (self->done)
         return NULL;
 
-    ssdLockRead(self->node, self->lock);
+    _ssdManualLockRead(self->node, self->lstate);
     // this shouldn't be used in transient lock mode
-    devAssert(!self->transient_lock.init);
+    devAssert(!self->transient_lock_state.init);
 
     return &((SSDSingleNode*)self->node)->storage;
 }
@@ -132,11 +132,10 @@ bool SSDSingleIter_get(SSDSingleIter *self, stvar *out)
     if (self->done)
         return false;
 
-    ssdLockRead(self->node, self->lock);
+    _ssdManualLockRead(self->node, self->lstate);
     stvarCopy(out, ((SSDSingleNode *)self->node)->storage);
 
-    if (self->transient_lock.init)
-        ssdUnlock(self->node, self->lock);
+    _ssdUnlock(self->node, &self->transient_lock_state);
     return true;
 }
 
@@ -155,9 +154,9 @@ bool SSDSingleIter_iterOut(SSDSingleIter *self, int32 *idx, strref *name, stvar 
     if (self->done)
         return false;
 
-    ssdLockRead(self->node, self->lock);
+    _ssdManualLockRead(self->node, self->lstate);
     // this shouldn't be used in transient lock mode
-    devAssert(!self->transient_lock.init);
+    devAssert(!self->transient_lock_state.init);
 
     *idx = 0;
     *name = _S"0";

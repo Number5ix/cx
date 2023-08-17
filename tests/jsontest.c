@@ -548,51 +548,51 @@ static int test_json_treeparse()
     strDestroy(&teststr);
 
     stvar *val;
-    SSDLock lock;
-    ssdLockInit(&lock);
-    ssdLockRead(tree, &lock);
 
-    val = ssdPtr(tree, _S"num", &lock);
-    if (!val || !stEq(val->type, stType(int64)) || val->data.st_int64 != 574)
-        ret = 1;
+    ssdLockedTransaction(tree)
+    {
+        ssdLockRead(tree);
 
-    val = ssdPtr(tree, _S"str", &lock);
-    if (!val || !stEq(val->type, stType(string)) || !strEq(val->data.st_string, _S"This is a test."))
-        ret = 1;
+        val = ssdPtr(tree, _S"num");
+        if (!val || !stEq(val->type, stType(int64)) || val->data.st_int64 != 574)
+            ret = 1;
 
-    val = ssdPtr(tree, _S"fl", &lock);
-    if (!val || !stEq(val->type, stType(bool)) || val->data.st_bool != false)
-        ret = 1;
+        val = ssdPtr(tree, _S"str");
+        if (!val || !stEq(val->type, stType(string)) || !strEq(val->data.st_string, _S"This is a test."))
+            ret = 1;
 
-    val = ssdPtr(tree, _S"tr", &lock);
-    if (!val || !stEq(val->type, stType(bool)) || val->data.st_bool != true)
-        ret = 1;
+        val = ssdPtr(tree, _S"fl");
+        if (!val || !stEq(val->type, stType(bool)) || val->data.st_bool != false)
+            ret = 1;
 
-    val = ssdPtr(tree, _S"nl", &lock);
-    if (!val || !stEq(val->type, stType(none)))
-        ret = 1;
+        val = ssdPtr(tree, _S"tr");
+        if (!val || !stEq(val->type, stType(bool)) || val->data.st_bool != true)
+            ret = 1;
 
-    val = ssdPtr(tree, _S"fltnum", &lock);
-    if (!val || !stEq(val->type, stType(float64)) || val->data.st_float64 != 109.3)
-        ret = 1;
+        val = ssdPtr(tree, _S"nl");
+        if (!val || !stEq(val->type, stType(none)))
+            ret = 1;
 
-    val = ssdPtr(tree, _S"obj/substr", &lock);
-    if (!val || !stEq(val->type, stType(string)) || !strEq(val->data.st_string, _S"A string in a sub-object."))
-        ret = 1;
+        val = ssdPtr(tree, _S"fltnum");
+        if (!val || !stEq(val->type, stType(float64)) || val->data.st_float64 != 109.3)
+            ret = 1;
 
-    val = ssdPtr(tree, _S"obj/subnum", &lock);
-    if (!val || !stEq(val->type, stType(int64)) || val->data.st_int64 != -3491)
-        ret = 1;
+        val = ssdPtr(tree, _S"obj/substr");
+        if (!val || !stEq(val->type, stType(string)) || !strEq(val->data.st_string, _S"A string in a sub-object."))
+            ret = 1;
 
-    val = ssdPtr(tree, _S"obj/array[0]", &lock);
-    if (!val || !stEq(val->type, stType(int64)) || val->data.st_int64 != 1)
-        ret = 1;
+        val = ssdPtr(tree, _S"obj/subnum");
+        if (!val || !stEq(val->type, stType(int64)) || val->data.st_int64 != -3491)
+            ret = 1;
 
-    val = ssdPtr(tree, _S"obj/array[4]", &lock);
-    if (!val || !stEq(val->type, stType(int64)) || val->data.st_int64 != 5)
-        ret = 1;
+        val = ssdPtr(tree, _S"obj/array[0]");
+        if (!val || !stEq(val->type, stType(int64)) || val->data.st_int64 != 1)
+            ret = 1;
 
-    ssdEndLock(tree, &lock);
+        val = ssdPtr(tree, _S"obj/array[4]");
+        if (!val || !stEq(val->type, stType(int64)) || val->data.st_int64 != 5)
+            ret = 1;
+    }
     objRelease(&tree);
 
     return ret;
@@ -608,45 +608,45 @@ static int test_json_treeout()
 
     // build up a tree representation of testdata2
     tree = ssdCreateArray();
-    SSDLock lock;
-    ssdLockInit(&lock);
-    ssdSet(tree, _S"[0]", true, stvar(int64, 574), &lock);
-    ssdSet(tree, _S"[1]", true, stvar(string, _S"This is a test."), &lock);
-    ssdSet(tree, _S"[2]", true, stvar(string, _S"Some so-called \"escape\" characters\ncan be used."), &lock);
-    ssdSet(tree, _S"[3]", true, stvar(string, _S"Even \xEF\xB4\xBEunicode\xEF\xB4\xBF and \xF0\x90\xA4\x88"), &lock);
-    ssdSet(tree, _S"[4]", true, stvar(bool, false), &lock);
-    ssdSet(tree, _S"[5]", true, stvar(bool, true), &lock);
-    ssdSet(tree, _S"[6]", true, stvNone, &lock);
-    ssdSet(tree, _S"[7]", true, stvar(float64, 109.3), &lock);
-    ssdSet(tree, _S"[8]", true, stvar(float64, -3.4134e34), &lock);
-    ssdSet(tree, _S"[9]/substr", true, stvar(string, _S"A string in a sub-object."), &lock);
-    ssdSet(tree, _S"[9]/subnum", true, stvar(int64, -3491), &lock);
-    ssdSet(tree, _S"[9]/array[0]", true, stvar(int64, 1), &lock);
-    ssdSet(tree, _S"[9]/array[1]", true, stvar(int64, 2), &lock);
-    ssdSet(tree, _S"[9]/array[2]", true, stvar(int64, 3), &lock);
-    ssdSet(tree, _S"[9]/array[3]", true, stvar(int64, 4), &lock);
-    ssdSet(tree, _S"[9]/array[4]", true, stvar(int64, 5), &lock);
-    ssdSet(tree, _S"[10]", true, stvar(int64, 9223372036854775807LL), &lock);
-    ssdSet(tree, _S"[11]", true, stvar(int64, -9223372036854775807LL - 1), &lock);
-    ssdSet(tree, _S"[12]", true, stvar(float64, 9223372036854776000.0), &lock);
-    ssdSet(tree, _S"[13]", true, stvar(float64, -9223372036854776000.0), &lock);
-    ssdSet(tree, _S"[14][0]", true, stvar(string, _S"array index 0"), &lock);
-    ssdSet(tree, _S"[14][1]", true, stvar(int32, 573), &lock);
-    ssdSet(tree, _S"[14][2]", true, stvar(bool, true), &lock);
-    ssdSet(tree, _S"[14][3]", true, stvar(float64, 123.456), &lock);
+    ssdLockedTransaction(tree)
+    {
+        ssdSet(tree, _S"[0]", true, stvar(int64, 574));
+        ssdSet(tree, _S"[1]", true, stvar(string, _S"This is a test."));
+        ssdSet(tree, _S"[2]", true, stvar(string, _S"Some so-called \"escape\" characters\ncan be used."));
+        ssdSet(tree, _S"[3]", true, stvar(string, _S"Even \xEF\xB4\xBEunicode\xEF\xB4\xBF and \xF0\x90\xA4\x88"));
+        ssdSet(tree, _S"[4]", true, stvar(bool, false));
+        ssdSet(tree, _S"[5]", true, stvar(bool, true));
+        ssdSet(tree, _S"[6]", true, stvNone);
+        ssdSet(tree, _S"[7]", true, stvar(float64, 109.3));
+        ssdSet(tree, _S"[8]", true, stvar(float64, -3.4134e34));
+        ssdSet(tree, _S"[9]/substr", true, stvar(string, _S"A string in a sub-object."));
+        ssdSet(tree, _S"[9]/subnum", true, stvar(int64, -3491));
+        ssdSet(tree, _S"[9]/array[0]", true, stvar(int64, 1));
+        ssdSet(tree, _S"[9]/array[1]", true, stvar(int64, 2));
+        ssdSet(tree, _S"[9]/array[2]", true, stvar(int64, 3));
+        ssdSet(tree, _S"[9]/array[3]", true, stvar(int64, 4));
+        ssdSet(tree, _S"[9]/array[4]", true, stvar(int64, 5));
+        ssdSet(tree, _S"[10]", true, stvar(int64, 9223372036854775807LL));
+        ssdSet(tree, _S"[11]", true, stvar(int64, -9223372036854775807LL - 1));
+        ssdSet(tree, _S"[12]", true, stvar(float64, 9223372036854776000.0));
+        ssdSet(tree, _S"[13]", true, stvar(float64, -9223372036854776000.0));
+        ssdSet(tree, _S"[14][0]", true, stvar(string, _S"array index 0"));
+        ssdSet(tree, _S"[14][1]", true, stvar(int32, 573));
+        ssdSet(tree, _S"[14][2]", true, stvar(bool, true));
+        ssdSet(tree, _S"[14][3]", true, stvar(float64, 123.456));
 
-    SSDNode *sub = ssdSubtree(tree, _S"[15]", SSD_Create_Hashtable, &lock);
-    objRelease(&sub);
-    sub = ssdSubtree(tree, _S"[16]", SSD_Create_Array, &lock);
-    objRelease(&sub);
-    ssdEndLock(tree, &lock);
+        SSDNode *sub = ssdSubtree(tree, _S"[15]", SSD_Create_Hashtable);
+        objRelease(&sub);
+        sub = ssdSubtree(tree, _S"[16]", SSD_Create_Array);
+        objRelease(&sub);
+    }
 
     // output the tree to a string and compare
     sb = sbufCreate(256);
     if (!sbufStrCRegisterPush(sb, &out))
         return 1;
 
-    if (!jsonOutTree(sb, tree, JSON_Indent(4) | JSON_Unix_EOL | JSON_ASCII_Only, NULL))
+    if (!jsonOutTree(sb, tree, JSON_Indent(4) | JSON_Unix_EOL | JSON_ASCII_Only))
         ret = 1;
 
     objRelease(&tree);

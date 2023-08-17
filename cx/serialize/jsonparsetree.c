@@ -1,4 +1,5 @@
 #include "jsonparse.h"
+#include "sbstring.h"
 
 #include <cx/ssdtree/ssdnodes.h>
 #include <cx/ssdtree/ssdtree.h>
@@ -6,7 +7,7 @@
 
 typedef struct JSONTreeState {
     SSDTree *tree;
-    SSDLock lock;
+    SSDLockState lstate;
     SSDNode *root;
     SSDNode *cur;
     sa_SSDNode nodestack;
@@ -17,10 +18,10 @@ static void setValDirect(JSONTreeState *jts, JSONParseContext *ctx, stvar val)
 {
     switch (ctx->ctype) {
     case JSON_Object:
-        ssdnodeSet(jts->cur, SSD_ByName, ctx->cdata.curKey, val, &jts->lock);
+        ssdnodeSet(jts->cur, SSD_ByName, ctx->cdata.curKey, val, &jts->lstate);
         break;
     case JSON_Array:
-        ssdnodeSet(jts->cur, ctx->cdata.curIdx, NULL, val, &jts->lock);
+        ssdnodeSet(jts->cur, ctx->cdata.curIdx, NULL, val, &jts->lstate);
         break;
     }
 }
@@ -62,7 +63,7 @@ static void setVal(JSONTreeState *jts, JSONParseContext *ctx, stvar val)
     if (!jts->root) {
         jts->root = ssdCreateCustom(SSD_Create_Single, jts->tree);
         jts->cur = jts->root;
-        ssdnodeSet(jts->root, 0, NULL, val, &jts->lock);
+        ssdnodeSet(jts->root, 0, NULL, val, &jts->lstate);
     }
 
     devAssert(jts->cur);
@@ -115,13 +116,13 @@ SSDNode *jsonParseTreeCustom(StreamBuffer *sb, SSDTree *tree)
     SSDNode *ret = NULL;
     JSONTreeState jts = { .tree = tree };
     saInit(&jts.nodestack, object, 8);
-    ssdLockInit(&jts.lock);
+    _ssdLockStateInit(&jts.lstate);
 
     if (jsonParse(sb, jsonTreeCB, &jts) && ! jts.error) {
         ret = objAcquire(jts.root);
     }
 
-    ssdEndLock(jts.root, &jts.lock);
+    _ssdLockEnd(jts.root, &jts.lstate);
 
     saDestroy(&jts.nodestack);
     objRelease(&jts.root);

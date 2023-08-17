@@ -1,10 +1,9 @@
 #pragma once
 
 #include "jsoncommon.h"
+#include <cx/ssdtree/ssdshared.h>
 
 typedef struct JSONOut JSONOut;
-typedef struct SSDNode SSDNode;
-typedef struct SSDLock SSDLock;
 
 #define JSON_Indent(x) (x & JSON_Indent_Mask)
 enum JSON_OUT_FLAGS {
@@ -30,5 +29,8 @@ bool jsonOut(JSONOut *jo, JSONParseEvent *ev);
 void jsonOutEnd(JSONOut **jo);
 
 // JSON TREE OUTPUT
+
+bool _jsonOutTree(StreamBuffer *sb, SSDNode *tree, uint32 flags, SSDLockState *_ssdCurrentLockState);
+// bool jsonOutTree(StreamBuffer *sb, SSDNode *tree, uint32 flags)
 // Serialize an SSD tree to a streambuffer as JSON
-bool jsonOutTree(StreamBuffer *sb, SSDNode *tree, uint32 flags, SSDLock *lock_opt);
+#define jsonOutTree(sb, tree, flags) _jsonOutTree(sb, tree, flags, _ssdCurrentLockState)

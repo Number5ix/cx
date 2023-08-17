@@ -2,6 +2,7 @@
 
 #include <cx/thread/rwlock.h>
 #include <cx/meta/block.h>
+#include <cx/container/sarray.h>
 
 #if DEBUG_LEVEL > 0
 #define SSD_LOCK_DEBUG 1
@@ -31,55 +32,74 @@ typedef struct SSDLockDebug {
 } SSDLockDebug;
 saDeclare(SSDLockDebug);
 
-typedef struct SSDLock
+typedef struct SSDLockState
 {
-    bool init;                          // lock structure initialized
+    union {
+        bool _is_SSDLockState;
+        bool init;                      // lock state structure initialized
+    };
     bool rdlock;                        // read lock held by current thread
     bool wrlock;                        // write lock held by current thread
 #ifdef SSD_LOCK_DEBUG
     SSDLockDebug dbg;
 #endif
-} SSDLock;
+} SSDLockState;
+
+enum SSD_LOCK_STATE_ENUM {
+    _ssdCurrentLockState = 0
+};
 
 // Initializes a lock structure
 #ifdef SSD_LOCK_DEBUG
-void _ssdLockInit(SSDLock *lock, const char *fn, int lnum);
-#define ssdLockInit(lock) _ssdLockInit(lock, __FILE__, __LINE__)
+SSDLockState *__ssdLockStateInit(SSDLockState *lstate, const char *fn, int lnum);
+#define _ssdLockStateInit(lstate) __ssdLockStateInit(lstate, __FILE__, __LINE__)
 #else
-void ssdLockInit(SSDLock *lock);
+SSDLockState *_ssdLockStateInit(SSDLockState *lstate);
 #endif
 
-// bool ssdLockRead(SSDNode *root, SSDLock *lock);
+// bool ssdLockRead(SSDNode *root)
 //
 // Starts a locked operation in read mode
 #ifdef SSD_LOCK_DEBUG
-#define ssdLockRead(root, lock) _ssdLockRead(SSDNode(root), lock, __FILE__, __LINE__)
-bool _ssdLockRead(SSDNode *root, SSDLock *lock, const char *fn, int lnum);
+#define ssdLockRead(root) _ssdLockRead(SSDNode(root), _ssdCurrentLockState, __FILE__, __LINE__)
+#define _ssdManualLockRead(root, lstate) _ssdLockRead(SSDNode(root), lstate, __FILE__, __LINE__)
+bool _ssdLockRead(SSDNode *root, SSDLockState *lstate, const char *fn, int lnum);
 #else
-#define ssdLockRead(root, lock) _ssdLockRead(SSDNode(root), lock)
-bool _ssdLockRead(SSDNode *root, SSDLock *lock);
+#define ssdLockRead(root) _ssdLockRead(SSDNode(root), _ssdCurrentLockState)
+#define _ssdManualLockRead(root, lstate) _ssdLockRead(SSDNode(root), lstate)
+bool _ssdLockRead(SSDNode *root, SSDLockState *lstate);
 #endif
 
-// bool ssdLockWrite(SSDNode *root, SSDLock *lock);
+// bool ssdLockWrite(SSDNode *root)
 //
 // Starts a operation in write mode or upgrades one from read to write
 // NOTE, upgrading the lock drops it briefly, do not assume that no one else
 // got the write lock in between! State may be changed between dropping the
 // read lock and getting the write lock.
 #ifdef SSD_LOCK_DEBUG
-#define ssdLockWrite(root, lock) _ssdLockWrite(SSDNode(root), lock, __FILE__, __LINE__)
-bool _ssdLockWrite(SSDNode *root, SSDLock *lock, const char *fn, int lnum);
+#define ssdLockWrite(root) _ssdLockWrite(SSDNode(root), _ssdCurrentLockState, __FILE__, __LINE__)
+#define _ssdManualLockWrite(root, lstate) _ssdLockWrite(SSDNode(root), lstate, __FILE__, __LINE__)
+bool _ssdLockWrite(SSDNode *root, SSDLockState *lstate, const char *fn, int lnum);
 #else
-#define ssdLockWrite(root, lock) _ssdLockWrite(SSDNode(root), lock)
-bool _ssdLockWrite(SSDNode *root, SSDLock *lock);
+#define ssdLockWrite(root) _ssdLockWrite(SSDNode(root), _ssdCurrentLockState)
+#define _ssdManualLockWrite(root, lstate) _ssdLockWrite(SSDNode(root), lstate)
+bool _ssdLockWrite(SSDNode *root, SSDLockState *lstate);
 #endif
 
 // Unlocks the lock, potentially for re-use laster
-#define ssdUnlock(root, lock) _ssdUnlock(SSDNode(root), lock)
-bool _ssdUnlock(SSDNode *root, SSDLock *lock);
+#define ssdUnlock(root) _ssdUnlock(SSDNode(root), _ssdCurrentLockState)
+bool _ssdUnlock(SSDNode *root, SSDLockState *lstate);
 
 // Ends a locked operation; destroys the lock
-#define ssdEndLock(root, lock) _ssdEndLock(SSDNode(root), lock)
-bool _ssdEndLock(SSDNode *root, SSDLock *lock);
+#define ssdLockEnd(root) _ssdLockEnd(SSDNode(root), _ssdCurrentLockState)
+bool _ssdLockEnd(SSDNode *root, SSDLockState *lstate);
 
-#define withSSDLock(root, name) blkWrap(SSDLock name = { .init = true }, ssdEndLock(root, &name))
+// Wraps a locked transaction. Should be used around a group of SSD transactions that
+// should be executed together.
+#define ssdLockedTransaction(root) _blkStart                                                    \
+    _blkBeforeAfter(SSDLockState _ssdTransientLockState = { 0 },                                \
+        _ssdLockEnd(SSDNode(root), &_ssdTransientLockState))                                    \
+    _blkBefore(SSDLockState *_ssdCurrentLockStateShadow = (SSDLockState*)_ssdCurrentLockState)  \
+    _blkBefore(SSDLockState *_ssdCurrentLockState = _ssdCurrentLockStateShadow ?                \
+        _ssdCurrentLockStateShadow : _ssdLockStateInit(&_ssdTransientLockState))                \
+    _blkEnd

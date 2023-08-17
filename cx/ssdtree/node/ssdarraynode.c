@@ -33,12 +33,12 @@ bool SSDArrayNode_init(SSDArrayNode *self)
     // Autogen ends -------
 }
 
-bool SSDArrayNode_get(SSDArrayNode *self, int32 idx, strref name, stvar *out, SSDLock *lock)
+bool SSDArrayNode_get(SSDArrayNode *self, int32 idx, strref name, stvar *out, SSDLockState *_ssdCurrentLockState)
 {
     if (idx == SSD_ByName && !strToInt32(&idx, name, 0, true))
         return false;
 
-    ssdLockRead(self, lock);
+    ssdLockRead(self);
 
     if (idx < 0 || idx >= saSize(self->storage))
         return false;
@@ -54,16 +54,16 @@ static stvar *ptrInternal(SSDArrayNode *self, int32 idx)
     return &self->storage.a[idx];
 }
 
-stvar *SSDArrayNode_ptr(SSDArrayNode *self, int32 idx, strref name, SSDLock *lock)
+stvar *SSDArrayNode_ptr(SSDArrayNode *self, int32 idx, strref name, SSDLockState *_ssdCurrentLockState)
 {
     if (idx == SSD_ByName && !strToInt32(&idx, name, 0, true))
         return NULL;
 
-    ssdLockRead(self, lock);
+    ssdLockRead(self);
     return ptrInternal(self, idx);
 }
 
-bool SSDArrayNode_set(SSDArrayNode *self, int32 idx, strref name, stvar val, SSDLock *lock)
+bool SSDArrayNode_set(SSDArrayNode *self, int32 idx, strref name, stvar val, SSDLockState *_ssdCurrentLockState)
 {
     if (idx == SSD_ByName && !strToInt32(&idx, name, 0, true))
         return false;
@@ -71,7 +71,7 @@ bool SSDArrayNode_set(SSDArrayNode *self, int32 idx, strref name, stvar val, SSD
     if (idx < 0)
         return false;
 
-    ssdLockWrite(self, lock);
+    ssdLockWrite(self);
 
     if (idx >= saSize(self->storage))
         saSetSize(&self->storage, idx + 1);
@@ -82,7 +82,7 @@ bool SSDArrayNode_set(SSDArrayNode *self, int32 idx, strref name, stvar val, SSD
     return true;
 }
 
-bool SSDArrayNode_setC(SSDArrayNode *self, int32 idx, strref name, stvar *val, SSDLock *lock)
+bool SSDArrayNode_setC(SSDArrayNode *self, int32 idx, strref name, stvar *val, SSDLockState *_ssdCurrentLockState)
 {
     bool ret = false;
 
@@ -92,7 +92,7 @@ bool SSDArrayNode_setC(SSDArrayNode *self, int32 idx, strref name, stvar *val, S
     if (idx < 0)
         goto out;
 
-    ssdLockWrite(self, lock);
+    ssdLockWrite(self);
 
     if (idx >= saSize(self->storage))
         saSetSize(&self->storage, idx + 1);
@@ -112,12 +112,12 @@ out:
     return ret;
 }
 
-bool SSDArrayNode_remove(SSDArrayNode *self, int32 idx, strref name, SSDLock *lock)
+bool SSDArrayNode_remove(SSDArrayNode *self, int32 idx, strref name, SSDLockState *_ssdCurrentLockState)
 {
     if (idx == SSD_ByName && !strToInt32(&idx, name, 0, true))
         return false;
 
-    ssdLockWrite(self, lock);
+    ssdLockWrite(self);
 
     // upper bounds check for idx happens in saRemove
     bool ret = saRemove(&self->storage, idx);
@@ -132,15 +132,15 @@ SSDIterator *SSDArrayNode_iter(SSDArrayNode *self)
     return SSDIterator(ret);
 }
 
-SSDIterator *SSDArrayNode_iterLocked(SSDArrayNode *self, SSDLock *lock)
+SSDIterator *SSDArrayNode__iterLocked(SSDArrayNode *self, SSDLockState *_ssdCurrentLockState)
 {
-    SSDArrayIter *ret = ssdarrayiterCreate(self, lock);
+    SSDArrayIter *ret = ssdarrayiterCreate(self, _ssdCurrentLockState);
     return SSDIterator(ret);
 }
 
-int32 SSDArrayNode_count(SSDArrayNode *self, SSDLock *lock)
+int32 SSDArrayNode_count(SSDArrayNode *self, SSDLockState *_ssdCurrentLockState)
 {
-    ssdLockRead(self, lock);
+    ssdLockRead(self);
     return saSize(self->storage);
 }
 
@@ -160,13 +160,13 @@ void SSDArrayNode_destroy(SSDArrayNode *self)
 
 // -------------------------------- ITERATOR --------------------------------
 
-SSDArrayIter *SSDArrayIter_create(SSDArrayNode *node, SSDLock *lock)
+SSDArrayIter *SSDArrayIter_create(SSDArrayNode *node, SSDLockState *lstate)
 {
     SSDArrayIter *self;
     self = objInstCreate(SSDArrayIter);
 
     self->node = (SSDNode*)objAcquire(node);
-    self->lock = lock;
+    self->lstate = lstate;
 
     if (!objInstInit(self)) {
         objRelease(&self);
@@ -178,40 +178,38 @@ SSDArrayIter *SSDArrayIter_create(SSDArrayNode *node, SSDLock *lock)
 
 bool SSDArrayIter_valid(SSDArrayIter *self)
 {
-    ssdLockRead(self->node, self->lock);
+    _ssdManualLockRead(self->node, self->lstate);
     bool ret = self->idx >= 0 && self->idx < saSize(((SSDArrayNode *)self->node)->storage);
-    if (self->transient_lock.init)
-        ssdUnlock(self->node, self->lock);
+    _ssdUnlock(self->node, &self->transient_lock_state);
     return ret;
 }
 
 bool SSDArrayIter_next(SSDArrayIter *self)
 {
     bool ret = false;
-    ssdLockRead(self->node, self->lock);
+    _ssdManualLockRead(self->node, self->lstate);
     if (self->idx >= 0 && self->idx < saSize(((SSDArrayNode*)self->node)->storage) - 1) {
         self->idx++;
         ret = true;
     } else {
         self->idx = -1;
     }
-    if (self->transient_lock.init)
-        ssdUnlock(self->node, self->lock);
+    _ssdUnlock(self->node, &self->transient_lock_state);
     return ret;
 }
 
 stvar *SSDArrayIter_ptr(SSDArrayIter *self)
 {
-    ssdLockRead(self->node, self->lock);
+    _ssdManualLockRead(self->node, self->lstate);
     // this does not unlock the transient lock!
     // you really shouldn't be using ptr() with the transient lock anyway...
-    devAssert(!self->transient_lock.init);
+    devAssert(!self->transient_lock_state.init);
     return ptrInternal((SSDArrayNode*)self->node, self->idx);
 }
 
 bool SSDArrayIter_get(SSDArrayIter *self, stvar *out)
 {
-    ssdLockRead(self->node, self->lock);
+    _ssdManualLockRead(self->node, self->lstate);
     stvar *ptr = ptrInternal((SSDArrayNode*)self->node, self->idx);
     bool ret = false;
     if (ptr) {
@@ -219,8 +217,7 @@ bool SSDArrayIter_get(SSDArrayIter *self, stvar *out)
         ret = true;
     }
 
-    if (self->transient_lock.init)
-        ssdUnlock(self->node, self->lock);
+    _ssdUnlock(self->node, &self->transient_lock_state);
     return ret;
 }
 
@@ -237,9 +234,9 @@ strref SSDArrayIter_name(SSDArrayIter *self)
 
 bool SSDArrayIter_iterOut(SSDArrayIter *self, int32 *idx, strref *name, stvar **val)
 {
-    ssdLockRead(self->node, self->lock);
+    _ssdManualLockRead(self->node, self->lstate);
     // see comments in SSDArrayIter_ptr about the transient lock
-    devAssert(!self->transient_lock.init);
+    devAssert(!self->transient_lock_state.init);
 
     if (self->idx < 0 || self->idx >= saSize(((SSDArrayNode *)self->node)->storage))
         return false;

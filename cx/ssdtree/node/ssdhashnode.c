@@ -37,14 +37,14 @@ bool SSDHashNode_init(SSDHashNode *self)
     // Autogen ends -------
 }
 
-bool SSDHashNode_get(SSDHashNode *self, int32 idx, strref name, stvar *out, SSDLock *lock)
+bool SSDHashNode_get(SSDHashNode *self, int32 idx, strref name, stvar *out, SSDLockState *_ssdCurrentLockState)
 {
     bool ret = false;
 
     if (idx != SSD_ByName)
         goto out;
 
-    ssdLockRead(self, lock);
+    ssdLockRead(self);
     ret = htFind(self->storage, strref, name, stvar, out);
 
 out:
@@ -53,12 +53,12 @@ out:
     return ret;
 }
 
-stvar *SSDHashNode_ptr(SSDHashNode *self, int32 idx, strref name, SSDLock *lock)
+stvar *SSDHashNode_ptr(SSDHashNode *self, int32 idx, strref name, SSDLockState *_ssdCurrentLockState)
 {
     if (idx != SSD_ByName)
         return NULL;
 
-    ssdLockRead(self, lock);
+    ssdLockRead(self);
 
     htelem elem = htFind(self->storage, strref, name, none, NULL);
     if (elem)
@@ -67,37 +67,37 @@ stvar *SSDHashNode_ptr(SSDHashNode *self, int32 idx, strref name, SSDLock *lock)
     return NULL;
 }
 
-bool SSDHashNode_set(SSDHashNode *self, int32 idx, strref name, stvar val, SSDLock *lock)
+bool SSDHashNode_set(SSDHashNode *self, int32 idx, strref name, stvar val, SSDLockState *_ssdCurrentLockState)
 {
     if (idx != SSD_ByName)
         return false;
 
-    ssdLockWrite(self, lock);
+    ssdLockWrite(self);
     htInsert(&self->storage, strref, name, stvar, val);
     ssdnodeUpdateModified(self);
     return true;
 }
 
-bool SSDHashNode_setC(SSDHashNode *self, int32 idx, strref name, stvar *val, SSDLock *lock)
+bool SSDHashNode_setC(SSDHashNode *self, int32 idx, strref name, stvar *val, SSDLockState *_ssdCurrentLockState)
 {
     if (idx != SSD_ByName) {
         stvarDestroy(val);
         return false;
     }
 
-    ssdLockWrite(self, lock);
+    ssdLockWrite(self);
     htInsertC(&self->storage, strref, name, stvar, val);
     *val = stvNone;
     ssdnodeUpdateModified(self);
     return true;
 }
 
-bool SSDHashNode_remove(SSDHashNode *self, int32 idx, strref name, SSDLock *lock)
+bool SSDHashNode_remove(SSDHashNode *self, int32 idx, strref name, SSDLockState *_ssdCurrentLockState)
 {
     if (idx != SSD_ByName)
         return false;
 
-    ssdLockWrite(self, lock);
+    ssdLockWrite(self);
     bool ret = htRemove(&self->storage, strref, name);
     if (ret)
         ssdnodeUpdateModified(self);
@@ -110,15 +110,15 @@ SSDIterator *SSDHashNode_iter(SSDHashNode *self)
     return SSDIterator(ret);
 }
 
-SSDIterator *SSDHashNode_iterLocked(SSDHashNode *self, SSDLock *lock)
+SSDIterator *SSDHashNode__iterLocked(SSDHashNode *self, SSDLockState *_ssdCurrentLockState)
 {
-    SSDHashIter *ret = ssdhashiterCreate(self, lock);
+    SSDHashIter *ret = ssdhashiterCreate(self, _ssdCurrentLockState);
     return SSDIterator(ret);
 }
 
-int32 SSDHashNode_count(SSDHashNode *self, SSDLock *lock)
+int32 SSDHashNode_count(SSDHashNode *self, SSDLockState *_ssdCurrentLockState)
 {
-    ssdLockRead(self, lock);
+    ssdLockRead(self);
     return htSize(self->storage);
 }
 
@@ -138,13 +138,13 @@ void SSDHashNode_destroy(SSDHashNode *self)
 
 // -------------------------------- ITERATOR --------------------------------
 
-SSDHashIter *SSDHashIter_create(SSDHashNode *node, SSDLock *lock)
+SSDHashIter *SSDHashIter_create(SSDHashNode *node, SSDLockState *lstate)
 {
     SSDHashIter *self;
     self = objInstCreate(SSDHashIter);
 
     self->node = (SSDNode*)objAcquire(node);
-    self->lock = lock;
+    self->lstate = lstate;
 
     if (!objInstInit(self)) {
         objRelease(&self);
@@ -160,28 +160,26 @@ SSDHashIter *SSDHashIter_create(SSDHashNode *node, SSDLock *lock)
 
 bool SSDHashIter_valid(SSDHashIter *self)
 {
-    ssdLockRead(self->node, self->lock);
+    _ssdManualLockRead(self->node, self->lstate);
     bool ret = htiValid(&self->iter);
-    if (self->transient_lock.init)
-        ssdUnlock(self->node, self->lock);
+    _ssdUnlock(self->node, &self->transient_lock_state);
     return ret;
 }
 
 bool SSDHashIter_next(SSDHashIter *self)
 {
-    ssdLockRead(self->node, self->lock);
+    _ssdManualLockRead(self->node, self->lstate);
     bool ret = htiNext(&self->iter);
-    if (self->transient_lock.init)
-        ssdUnlock(self->node, self->lock);
+    _ssdUnlock(self->node, &self->transient_lock_state);
     return ret;
 }
 
 stvar *SSDHashIter_ptr(SSDHashIter *self)
 {
-    ssdLockRead(self->node, self->lock);
+    _ssdManualLockRead(self->node, self->lstate);
     // this does not unlock the transient lock!
     // you really shouldn't be using ptr() with the transient lock anyway...
-    devAssert(!self->transient_lock.init);
+    devAssert(!self->transient_lock_state.init);
 
     if (!htiValid(&self->iter))
         return NULL;
@@ -192,15 +190,14 @@ stvar *SSDHashIter_ptr(SSDHashIter *self)
 bool SSDHashIter_get(SSDHashIter *self, stvar *out)
 {
     bool ret = false;
-    ssdLockRead(self->node, self->lock);
+    _ssdManualLockRead(self->node, self->lstate);
 
     if (htiValid(&self->iter)) {
         stvarCopy(out, htiVal(self->iter, stvar));
         ret = true;
     }
 
-    if (self->transient_lock.init)
-        ssdUnlock(self->node, self->lock);
+    _ssdUnlock(self->node, &self->transient_lock_state);
     return ret;
 }
 
@@ -212,7 +209,7 @@ int32 SSDHashIter_idx(SSDHashIter *self)
 strref SSDHashIter_name(SSDHashIter *self)
 {
     strref ret = NULL;
-    ssdLockRead(self->node, self->lock);
+    _ssdManualLockRead(self->node, self->lstate);
 
     if (htiValid(&self->iter)) {
         // Have to duplicate this into the iterator because it would be dangerous to
@@ -223,16 +220,15 @@ strref SSDHashIter_name(SSDHashIter *self)
         ret = self->lastName;
     }
 
-    if (self->transient_lock.init)
-        ssdUnlock(self->node, self->lock);
+    _ssdUnlock(self->node, &self->transient_lock_state);
     return ret;
 }
 
 bool SSDHashIter_iterOut(SSDHashIter *self, int32 *idx, strref *name, stvar **val)
 {
-    ssdLockRead(self->node, self->lock);
+    _ssdManualLockRead(self->node, self->lstate);
     // this shouldn't be used in transient lock mode
-    devAssert(!self->transient_lock.init);
+    devAssert(!self->transient_lock_state.init);
 
     if (!htiValid(&self->iter))
         return false;

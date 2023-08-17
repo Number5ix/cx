@@ -13,14 +13,14 @@ SSDHashIter_ClassIf SSDHashIter_ClassIf_tmpl = {
 static SSDNodeIf _impl_SSDHashNode_SSDNodeIf = {
     ._size = sizeof(SSDNodeIf),
     ._implements = (ObjIface*)&SSDNodeIf_tmpl,
-    .get = (bool (*)(void*, int32, strref, stvar*, SSDLock*))SSDHashNode_get,
-    .ptr = (stvar *(*)(void*, int32, strref, SSDLock*))SSDHashNode_ptr,
-    .set = (bool (*)(void*, int32, strref, stvar, SSDLock*))SSDHashNode_set,
-    .setC = (bool (*)(void*, int32, strref, stvar*, SSDLock*))SSDHashNode_setC,
-    .remove = (bool (*)(void*, int32, strref, SSDLock*))SSDHashNode_remove,
-    .count = (int32 (*)(void*, SSDLock*))SSDHashNode_count,
+    .get = (bool (*)(void*, int32, strref, stvar*, SSDLockState*))SSDHashNode_get,
+    .ptr = (stvar *(*)(void*, int32, strref, SSDLockState*))SSDHashNode_ptr,
+    .set = (bool (*)(void*, int32, strref, stvar, SSDLockState*))SSDHashNode_set,
+    .setC = (bool (*)(void*, int32, strref, stvar*, SSDLockState*))SSDHashNode_setC,
+    .remove = (bool (*)(void*, int32, strref, SSDLockState*))SSDHashNode_remove,
+    .count = (int32 (*)(void*, SSDLockState*))SSDHashNode_count,
     .iter = (SSDIterator *(*)(void*))SSDHashNode_iter,
-    .iterLocked = (SSDIterator *(*)(void*, SSDLock*))SSDHashNode_iterLocked,
+    ._iterLocked = (SSDIterator *(*)(void*, SSDLockState*))SSDHashNode__iterLocked,
 };
 
 static Iterable _impl_SSDHashNode_Iterable = {
@@ -33,14 +33,14 @@ static SSDHashNode_ClassIf _impl_SSDHashNode_SSDHashNode_ClassIf = {
     ._size = sizeof(SSDHashNode_ClassIf),
     ._implements = (ObjIface*)&SSDHashNode_ClassIf_tmpl,
     .isHashtable = (bool (*)(void*))SSDHashNode_isHashtable,
-    .get = (bool (*)(void*, int32, strref, stvar*, SSDLock*))SSDHashNode_get,
-    .ptr = (stvar *(*)(void*, int32, strref, SSDLock*))SSDHashNode_ptr,
-    .set = (bool (*)(void*, int32, strref, stvar, SSDLock*))SSDHashNode_set,
-    .setC = (bool (*)(void*, int32, strref, stvar*, SSDLock*))SSDHashNode_setC,
-    .remove = (bool (*)(void*, int32, strref, SSDLock*))SSDHashNode_remove,
-    .count = (int32 (*)(void*, SSDLock*))SSDHashNode_count,
+    .get = (bool (*)(void*, int32, strref, stvar*, SSDLockState*))SSDHashNode_get,
+    .ptr = (stvar *(*)(void*, int32, strref, SSDLockState*))SSDHashNode_ptr,
+    .set = (bool (*)(void*, int32, strref, stvar, SSDLockState*))SSDHashNode_set,
+    .setC = (bool (*)(void*, int32, strref, stvar*, SSDLockState*))SSDHashNode_setC,
+    .remove = (bool (*)(void*, int32, strref, SSDLockState*))SSDHashNode_remove,
+    .count = (int32 (*)(void*, SSDLockState*))SSDHashNode_count,
     .iter = (SSDIterator *(*)(void*))SSDHashNode_iter,
-    .iterLocked = (SSDIterator *(*)(void*, SSDLock*))SSDHashNode_iterLocked,
+    ._iterLocked = (SSDIterator *(*)(void*, SSDLockState*))SSDHashNode__iterLocked,
 };
 
 static ObjIface *_ifimpl_SSDHashNode[] = {

@@ -16,6 +16,6 @@ class SSDHashIter extends SSDIterator
 
     override isHashtable;
 
-    factory create(SSDHashNode *node, SSDLock *lock);
+    factory create(SSDHashNode *node, SSDLockState *lstate);
     destroy();
 }

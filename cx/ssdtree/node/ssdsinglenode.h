@@ -19,26 +19,26 @@ typedef struct SSDSingleNode_ClassIf {
     // This node is an array that contains values or objects by array index
     bool (*isArray)(void *self);
     // Gets a value. Caller owns the value and must destroy it with stDestroy!
-    bool (*get)(void *self, int32 idx, strref name, stvar *out, SSDLock *lock);
+    bool (*get)(void *self, int32 idx, strref name, stvar *out, SSDLockState *_ssdCurrentLockState);
     // Gets a pointer to a value. This points to the internal storage within the node
     // so it is only guaranteed to be valid while the read lock is held.
-    stvar *(*ptr)(void *self, int32 idx, strref name, SSDLock *lock);
+    stvar *(*ptr)(void *self, int32 idx, strref name, SSDLockState *_ssdCurrentLockState);
     // Sets the given value
-    bool (*set)(void *self, int32 idx, strref name, stvar val, SSDLock *lock);
+    bool (*set)(void *self, int32 idx, strref name, stvar val, SSDLockState *_ssdCurrentLockState);
     // Same as setValue but consumes the value
     // (consumes even on failure)
-    bool (*setC)(void *self, int32 idx, strref name, stvar *val, SSDLock *lock);
+    bool (*setC)(void *self, int32 idx, strref name, stvar *val, SSDLockState *_ssdCurrentLockState);
     // Removes a value
-    bool (*remove)(void *self, int32 idx, strref name, SSDLock *lock);
+    bool (*remove)(void *self, int32 idx, strref name, SSDLockState *_ssdCurrentLockState);
     // How many values / objects does this node contain?
-    int32 (*count)(void *self, SSDLock *lock);
+    int32 (*count)(void *self, SSDLockState *_ssdCurrentLockState);
     // IMPORTANT NOTE: The generic object iterator interface cannot take any parameters;
     // thus it always acquires a transient read lock and holds it until the iterator is
     // destroyed. The caller MUST NOT already have an SSDLock held.
     // If you want to use iterators inside a larger locked transaction or modify the tree,
     // use iterLocked() instead.
     SSDIterator *(*iter)(void *self);
-    SSDIterator *(*iterLocked)(void *self, SSDLock *lock);
+    SSDIterator *(*_iterLocked)(void *self, SSDLockState *_ssdCurrentLockState);
 } SSDSingleNode_ClassIf;
 extern SSDSingleNode_ClassIf SSDSingleNode_ClassIf_tmpl;
 
@@ -92,32 +92,32 @@ SSDSingleNode *SSDSingleNode__create(SSDTree *tree);
 //
 // This node is an array that contains values or objects by array index
 #define ssdsinglenodeIsArray(self) (self)->_->isArray(SSDSingleNode(self))
-// bool ssdsinglenodeGet(SSDSingleNode *self, int32 idx, strref name, stvar *out, SSDLock *lock);
+// bool ssdsinglenodeGet(SSDSingleNode *self, int32 idx, strref name, stvar *out, SSDLockState *_ssdCurrentLockState);
 //
 // Gets a value. Caller owns the value and must destroy it with stDestroy!
-#define ssdsinglenodeGet(self, idx, name, out, lock) (self)->_->get(SSDSingleNode(self), idx, name, out, lock)
-// stvar *ssdsinglenodePtr(SSDSingleNode *self, int32 idx, strref name, SSDLock *lock);
+#define ssdsinglenodeGet(self, idx, name, out, _ssdCurrentLockState) (self)->_->get(SSDSingleNode(self), idx, name, out, _ssdCurrentLockState)
+// stvar *ssdsinglenodePtr(SSDSingleNode *self, int32 idx, strref name, SSDLockState *_ssdCurrentLockState);
 //
 // Gets a pointer to a value. This points to the internal storage within the node
 // so it is only guaranteed to be valid while the read lock is held.
-#define ssdsinglenodePtr(self, idx, name, lock) (self)->_->ptr(SSDSingleNode(self), idx, name, lock)
-// bool ssdsinglenodeSet(SSDSingleNode *self, int32 idx, strref name, stvar val, SSDLock *lock);
+#define ssdsinglenodePtr(self, idx, name, _ssdCurrentLockState) (self)->_->ptr(SSDSingleNode(self), idx, name, _ssdCurrentLockState)
+// bool ssdsinglenodeSet(SSDSingleNode *self, int32 idx, strref name, stvar val, SSDLockState *_ssdCurrentLockState);
 //
 // Sets the given value
-#define ssdsinglenodeSet(self, idx, name, val, lock) (self)->_->set(SSDSingleNode(self), idx, name, val, lock)
-// bool ssdsinglenodeSetC(SSDSingleNode *self, int32 idx, strref name, stvar *val, SSDLock *lock);
+#define ssdsinglenodeSet(self, idx, name, val, _ssdCurrentLockState) (self)->_->set(SSDSingleNode(self), idx, name, val, _ssdCurrentLockState)
+// bool ssdsinglenodeSetC(SSDSingleNode *self, int32 idx, strref name, stvar *val, SSDLockState *_ssdCurrentLockState);
 //
 // Same as setValue but consumes the value
 // (consumes even on failure)
-#define ssdsinglenodeSetC(self, idx, name, val, lock) (self)->_->setC(SSDSingleNode(self), idx, name, val, lock)
-// bool ssdsinglenodeRemove(SSDSingleNode *self, int32 idx, strref name, SSDLock *lock);
+#define ssdsinglenodeSetC(self, idx, name, val, _ssdCurrentLockState) (self)->_->setC(SSDSingleNode(self), idx, name, val, _ssdCurrentLockState)
+// bool ssdsinglenodeRemove(SSDSingleNode *self, int32 idx, strref name, SSDLockState *_ssdCurrentLockState);
 //
 // Removes a value
-#define ssdsinglenodeRemove(self, idx, name, lock) (self)->_->remove(SSDSingleNode(self), idx, name, lock)
-// int32 ssdsinglenodeCount(SSDSingleNode *self, SSDLock *lock);
+#define ssdsinglenodeRemove(self, idx, name, _ssdCurrentLockState) (self)->_->remove(SSDSingleNode(self), idx, name, _ssdCurrentLockState)
+// int32 ssdsinglenodeCount(SSDSingleNode *self, SSDLockState *_ssdCurrentLockState);
 //
 // How many values / objects does this node contain?
-#define ssdsinglenodeCount(self, lock) (self)->_->count(SSDSingleNode(self), lock)
+#define ssdsinglenodeCount(self, _ssdCurrentLockState) (self)->_->count(SSDSingleNode(self), _ssdCurrentLockState)
 // SSDIterator *ssdsinglenodeIter(SSDSingleNode *self);
 //
 // IMPORTANT NOTE: The generic object iterator interface cannot take any parameters;
@@ -126,8 +126,8 @@ SSDSingleNode *SSDSingleNode__create(SSDTree *tree);
 // If you want to use iterators inside a larger locked transaction or modify the tree,
 // use iterLocked() instead.
 #define ssdsinglenodeIter(self) (self)->_->iter(SSDSingleNode(self))
-// SSDIterator *ssdsinglenodeIterLocked(SSDSingleNode *self, SSDLock *lock);
-#define ssdsinglenodeIterLocked(self, lock) (self)->_->iterLocked(SSDSingleNode(self), lock)
+// SSDIterator *ssdsinglenode_iterLocked(SSDSingleNode *self, SSDLockState *_ssdCurrentLockState);
+#define ssdsinglenode_iterLocked(self, _ssdCurrentLockState) (self)->_->_iterLocked(SSDSingleNode(self), _ssdCurrentLockState)
 
 typedef struct SSDSingleIter {
     union {
@@ -140,17 +140,17 @@ typedef struct SSDSingleIter {
     atomic(intptr) _ref;
 
     SSDNode *node;
-    SSDLock *lock;
-    SSDLock transient_lock;
+    SSDLockState *lstate;
+    SSDLockState transient_lock_state;
     bool done;
 } SSDSingleIter;
 extern ObjClassInfo SSDSingleIter_clsinfo;
 #define SSDSingleIter(inst) ((SSDSingleIter*)(&((inst)->_is_SSDSingleIter)))
 #define SSDSingleIterNone ((SSDSingleIter*)NULL)
 
-SSDSingleIter *SSDSingleIter_create(SSDSingleNode *node, SSDLock *lock);
-// SSDSingleIter *ssdsingleiterCreate(SSDSingleNode *node, SSDLock *lock);
-#define ssdsingleiterCreate(node, lock) SSDSingleIter_create(SSDSingleNode(node), lock)
+SSDSingleIter *SSDSingleIter_create(SSDSingleNode *node, SSDLockState *lstate);
+// SSDSingleIter *ssdsingleiterCreate(SSDSingleNode *node, SSDLockState *lstate);
+#define ssdsingleiterCreate(node, lstate) SSDSingleIter_create(SSDSingleNode(node), lstate)
 
 // ObjInst *ssdsingleiterObjInst(SSDSingleIter *self);
 #define ssdsingleiterObjInst(self) SSDIterator_objInst(SSDIterator(self))

@@ -8,43 +8,44 @@
 #ifdef SSD_LOCK_DEBUG
 #include <cx/format.h>
 #include <cx/time.h>
-void _ssdLockInit(SSDLock *lock, const char *fn, int lnum)
+SSDLockState *__ssdLockStateInit(SSDLockState *lstate, const char *fn, int lnum)
 #else
-void ssdLockInit(SSDLock *lock)
+SSDLockState *_ssdLockStateInit(SSDLockState *lstate)
 #endif
 {
 #ifdef SSD_LOCK_DEBUG
-    lock->dbg.time = clockTimer();
-    lock->dbg.file = fn;
-    lock->dbg.line = lnum;
+    lstate->dbg.time = clockTimer();
+    lstate->dbg.file = fn;
+    lstate->dbg.line = lnum;
 #endif
-    lock->init = true;
-    lock->rdlock = lock->wrlock = false;
+    lstate->init = true;
+    lstate->rdlock = lstate->wrlock = false;
+    return lstate;
 }
 
 #ifdef SSD_LOCK_DEBUG
-bool _ssdLockRead(SSDNode *root, SSDLock *lock, const char *fn, int lnum)
+bool _ssdLockRead(SSDNode *root, SSDLockState *lstate, const char *fn, int lnum)
 #else
-bool _ssdLockRead(SSDNode *root, SSDLock *lock)
+bool _ssdLockRead(SSDNode *root, SSDLockState *lstate)
 #endif
 {
-    if (!root || !lock)
+    if (!root || !lstate)
         return false;
-    if (!lock->init)
+    if (!lstate->init)
 #ifdef SSD_LOCK_DEBUG
-        _ssdLockInit(lock, fn, lnum);
+        __ssdLockStateInit(lstate, fn, lnum);
 #else
-        ssdLockInit(lock);
+        _ssdLockStateInit(lstate);
 #endif
 
-    if (lock->rdlock || lock->wrlock)
+    if (lstate->rdlock || lstate->wrlock)
         return true;
 
     rwlockAcquireRead(&root->tree->lock);
-    lock->rdlock = true;
+    lstate->rdlock = true;
 #ifdef SSD_LOCK_DEBUG
     mutexAcquire(&root->tree->dbg.mtx);
-    saPush(&root->tree->dbg.readlocks, opaque, lock->dbg);
+    saPush(&root->tree->dbg.readlocks, opaque, lstate->dbg);
     mutexRelease(&root->tree->dbg.mtx);
 #endif
 
@@ -52,74 +53,74 @@ bool _ssdLockRead(SSDNode *root, SSDLock *lock)
 }
 
 #ifdef SSD_LOCK_DEBUG
-bool _ssdLockWrite(SSDNode *root, SSDLock *lock, const char *fn, int lnum)
+bool _ssdLockWrite(SSDNode *root, SSDLockState *lstate, const char *fn, int lnum)
 #else
-bool _ssdLockWrite(SSDNode *root, SSDLock *lock)
+bool _ssdLockWrite(SSDNode *root, SSDLockState *lstate)
 #endif
 {
-    if (!root || !lock)
+    if (!root || !lstate)
         return false;
-    if (!lock->init)
+    if (!lstate->init)
 #ifdef SSD_LOCK_DEBUG
-        _ssdLockInit(lock, fn, lnum);
+        __ssdLockStateInit(lstate, fn, lnum);
 #else
-        ssdLockInit(lock);
+        _ssdLockStateInit(lstate);
 #endif
 
-    if (lock->wrlock)
+    if (lstate->wrlock)
         return true;
 
-    if (lock->rdlock) {
+    if (lstate->rdlock) {
         rwlockReleaseRead(&root->tree->lock);
 #ifdef SSD_LOCK_DEBUG
         mutexAcquire(&root->tree->dbg.mtx);
-        saFindRemove(&root->tree->dbg.readlocks, opaque, lock->dbg);
+        saFindRemove(&root->tree->dbg.readlocks, opaque, lstate->dbg);
         mutexRelease(&root->tree->dbg.mtx);
 #endif
-        lock->rdlock = false;
+        lstate->rdlock = false;
     }
 
     rwlockAcquireWrite(&root->tree->lock);
 #ifdef SSD_LOCK_DEBUG
     mutexAcquire(&root->tree->dbg.mtx);
-    saPush(&root->tree->dbg.writelocks, opaque, lock->dbg);
+    saPush(&root->tree->dbg.writelocks, opaque, lstate->dbg);
     mutexRelease(&root->tree->dbg.mtx);
 #endif
-    lock->wrlock = true;
+    lstate->wrlock = true;
 
     return true;
 }
 
-bool _ssdUnlock(SSDNode *root, SSDLock *lock)
+bool _ssdUnlock(SSDNode *root, SSDLockState *lstate)
 {
-    if (!root || !lock || !lock->init)
+    if (!root || !lstate || !lstate->init)
         return false;
 
-    if (lock->wrlock)
+    if (lstate->wrlock)
         rwlockReleaseWrite(&root->tree->lock);
-    else if (lock->rdlock)
+    else if (lstate->rdlock)
         rwlockReleaseRead(&root->tree->lock);
 
 #ifdef SSD_LOCK_DEBUG
     mutexAcquire(&root->tree->dbg.mtx);
-    if (lock->wrlock)
-        saFindRemove(&root->tree->dbg.writelocks, opaque, lock->dbg);
-    else if (lock->rdlock)
-        saFindRemove(&root->tree->dbg.readlocks, opaque, lock->dbg);
+    if (lstate->wrlock)
+        saFindRemove(&root->tree->dbg.writelocks, opaque, lstate->dbg);
+    else if (lstate->rdlock)
+        saFindRemove(&root->tree->dbg.readlocks, opaque, lstate->dbg);
     mutexRelease(&root->tree->dbg.mtx);
 #endif
 
-    lock->wrlock = lock->rdlock = false;
+    lstate->wrlock = lstate->rdlock = false;
 
     return true;
 }
 
-bool _ssdEndLock(SSDNode *root, SSDLock *lock)
+bool _ssdLockEnd(SSDNode *root, SSDLockState *lstate)
 {
-    if (!lock)
+    if (!lstate)
         return false;
-    bool ret = _ssdUnlock(root, lock);
-    lock->init = false;
+    bool ret = _ssdUnlock(root, lstate);
+    lstate->init = false;
     return ret;
 }
 
@@ -140,17 +141,17 @@ SSDNode *_ssdCreateRoot(int crtype, SSDTree *tree, uint32 flags)
     return ret;
 }
 
-static SSDNode *getChild(SSDNode *node, strref name, int checktype, int create, SSDLock *lock)
+static SSDNode *getChild(SSDNode *node, strref name, int checktype, int create, SSDLockState *_ssdCurrentLockState)
 {
 
-    ssdLockRead(node, lock);
+    ssdLockRead(node);
     bool havewrite;
     SSDNode *ret = NULL;
 
     do {
-        havewrite = lock->wrlock;
+        havewrite = _ssdCurrentLockState->wrlock;
 
-        stvar *val = ssdnodePtr(node, SSD_ByName, name, lock);
+        stvar *val = ssdnodePtr(node, SSD_ByName, name, _ssdCurrentLockState);
         SSDNode *child = val ? (stEq(val->type, stType(object)) ? objDynCast(val->data.st_object, SSDNode) : NULL) : NULL;
 
         // check if existing child is the correct type for the context
@@ -165,7 +166,7 @@ static SSDNode *getChild(SSDNode *node, strref name, int checktype, int create, 
 
         // didn't exist (or was the wrong type), so create it
         if (create != SSD_Create_None) {
-            ssdLockWrite(node, lock);
+            ssdLockWrite(node);
 
             // check again with write lock held, since we do drop the lock
             // briefly, another thread may have created it
@@ -177,7 +178,7 @@ static SSDNode *getChild(SSDNode *node, strref name, int checktype, int create, 
                 return NULL;
 
             // create or overwrite
-            ssdnodeSetC(node, SSD_ByName, name, &stvar(object, ret), lock);
+            ssdnodeSetC(node, SSD_ByName, name, &stvar(object, ret), _ssdCurrentLockState);
             // return a borrowed reference to the node that was just inserted into the tree
             return ret;
         }
@@ -186,7 +187,7 @@ static SSDNode *getChild(SSDNode *node, strref name, int checktype, int create, 
     return ret;
 }
 
-static bool ssdResolvePath(SSDNode *root, strref path, SSDNode **nodeout, string *nameout, bool create, SSDLock *lock)
+static bool ssdResolvePath(SSDNode *root, strref path, SSDNode **nodeout, string *nameout, bool create, SSDLockState *_ssdCurrentLockState)
 {
     SSDNode *node = root;
     string name = 0;
@@ -194,7 +195,7 @@ static bool ssdResolvePath(SSDNode *root, strref path, SSDNode **nodeout, string
     bool ret = false;
     bool first = true;
 
-    ssdLockRead(root, lock);
+    ssdLockRead(root);
 
     foreach(string, it, path) {
         for (uint32 i = 0; i < it.len; ++i) {
@@ -214,7 +215,7 @@ static bool ssdResolvePath(SSDNode *root, strref path, SSDNode **nodeout, string
                 if (ch == '[')
                     childtype = SSD_Create_Array;
 
-                SSDNode *child = getChild(node, name, childtype, create ? childtype : SSD_Create_None, lock);
+                SSDNode *child = getChild(node, name, childtype, create ? childtype : SSD_Create_None, _ssdCurrentLockState);
                 if (!child) {
                     // failed to recurse, did not create
                     goto out;
@@ -255,121 +256,110 @@ out:
     return ret;
 }
 
-bool ssdGet(SSDNode *root, strref path, stvar *out, SSDLock *lock)
+bool _ssdGet(SSDNode *root, strref path, stvar *out, SSDLockState *_ssdCurrentLockState)
 {
-    SSDLock transient_lock = { 0 };
-    if (!lock) lock = &transient_lock;
-
-    SSDNode *node = NULL;
     string name = 0;
     bool ret = false;
 
-    if (ssdResolvePath(root, path, &node, &name, false, lock))
-        ret = ssdnodeGet(node, SSD_ByName, name, out, lock);
-
-    if (transient_lock.init)
-        ssdEndLock(root, &transient_lock);
+    ssdLockedTransaction(root)
+    {
+        SSDNode *node = NULL;
+        if (ssdResolvePath(root, path, &node, &name, false, _ssdCurrentLockState))
+            ret = ssdnodeGet(node, SSD_ByName, name, out, _ssdCurrentLockState);
+    }
 
     strDestroy(&name);
     return ret;
 }
 
-stvar *ssdPtr(SSDNode *root, strref path, SSDLock *lock)
+stvar *_ssdPtr(SSDNode *root, strref path, SSDLockState *_ssdCurrentLockState)
 {
     SSDNode *node = NULL;
     string name = 0;
     stvar *ret = NULL;
 
-    devAssert(lock);            // lock parameter is mandatory
+    if (!devAssert(_ssdCurrentLockState))       // lock parameter is mandatory
+        return NULL;
 
-    if (ssdResolvePath(root, path, &node, &name, false, lock))
-        ret = ssdnodePtr(node, SSD_ByName, name, lock);
+    if (ssdResolvePath(root, path, &node, &name, false, _ssdCurrentLockState))
+        ret = ssdnodePtr(node, SSD_ByName, name, _ssdCurrentLockState);
 
     strDestroy(&name);
     return ret;
 }
 
-bool ssdSet(SSDNode *root, strref path, bool createpath, stvar val, SSDLock *lock)
+bool _ssdSet(SSDNode *root, strref path, bool createpath, stvar val, SSDLockState *_ssdCurrentLockState)
 {
-    SSDLock transient_lock = { 0 };
-    if (!lock) lock = &transient_lock;
-
-    // we know we're going to need the write lock for the duration regardless
-    ssdLockWrite(root, lock);
-
-    SSDNode *node = NULL;
     string name = 0;
     bool ret = false;
 
-    if (ssdResolvePath(root, path, &node, &name, createpath, lock)) {
-        ssdnodeSet(node, SSD_ByName, name, val, lock);
-        ret = true;
-    }
+    ssdLockedTransaction(root)
+    {
+        // we know we're going to need the write lock for the duration regardless
+        ssdLockWrite(root);
 
-    if (transient_lock.init)
-        ssdEndLock(root, &transient_lock);
+        SSDNode *node = NULL;
+        if (ssdResolvePath(root, path, &node, &name, createpath, _ssdCurrentLockState)) {
+            ssdnodeSet(node, SSD_ByName, name, val, _ssdCurrentLockState);
+            ret = true;
+        }
+    }
 
     strDestroy(&name);
     return ret;
 }
 
-bool ssdRemove(SSDNode *root, strref path, SSDLock *lock)
+bool _ssdRemove(SSDNode *root, strref path, SSDLockState *_ssdCurrentLockState)
 {
-    SSDLock transient_lock = { 0 };
-    if (!lock) lock = &transient_lock;
-
-    // this is likely going to need the write lock, even if it technically
-    // doesn't 100% of the time (i.e. if the key doesn't exist)
-    ssdLockWrite(root, lock);
-
-    SSDNode *node = NULL;
     string name = 0;
     bool ret = false;
 
-    if (ssdResolvePath(root, path, &node, &name, false, lock)) {
-        ret = ssdnodeRemove(node, SSD_ByName, name, lock);
-    }
+    ssdLockedTransaction(root)
+    {
+        // this is likely going to need the write lock, even if it technically
+        // doesn't 100% of the time (i.e. if the key doesn't exist)
+        ssdLockWrite(root);
 
-    if (transient_lock.init)
-        ssdEndLock(root, &transient_lock);
+        SSDNode *node = NULL;
+        if (ssdResolvePath(root, path, &node, &name, false, _ssdCurrentLockState)) {
+            ret = ssdnodeRemove(node, SSD_ByName, name, _ssdCurrentLockState);
+        }
+    }
 
     strDestroy(&name);
     return ret;
 }
 
-SSDNode *ssdSubtree(SSDNode *root, strref path, int create, SSDLock *lock)
+SSDNode *_ssdSubtree(SSDNode *root, strref path, int create, SSDLockState *_ssdCurrentLockState)
 {
-    SSDLock transient_lock = { 0 };
-    if (!lock) lock = &transient_lock;
-
     SSDNode *ret = NULL;
-    SSDNode *node = NULL;
     string name = 0;
 
-    if (ssdResolvePath(root, path, &node, &name, create != SSD_Create_None, lock)) {
-        ret = objAcquire(getChild(node, name, create, create, lock));
-    }
+    ssdLockedTransaction(root)
+    {
+        SSDNode *node = NULL;
 
-    if (transient_lock.init)
-        ssdEndLock(root, &transient_lock);
+        if (ssdResolvePath(root, path, &node, &name, create != SSD_Create_None, _ssdCurrentLockState)) {
+            ret = objAcquire(getChild(node, name, create, create, _ssdCurrentLockState));
+        }
+    }
 
     strDestroy(&name);
     return ret;
 }
 
-SSDNode *ssdSubtreeB(SSDNode *root, strref path, SSDLock *lock)
+SSDNode *_ssdSubtreeB(SSDNode *root, strref path, SSDLockState *_ssdCurrentLockState)
 {
-    devAssert(lock);
-    if (!lock)
+    if (!devAssert(_ssdCurrentLockState))
         return NULL;
 
     SSDNode *ret = NULL;
     SSDNode *node = NULL;
     string name = 0;
 
-    ssdLockRead(root, lock);
-    if (ssdResolvePath(root, path, &node, &name, false, lock)) {
-        stvar *val = ssdnodePtr(node, SSD_ByName, name, lock);
+    ssdLockRead(root);
+    if (ssdResolvePath(root, path, &node, &name, false, _ssdCurrentLockState)) {
+        stvar *val = ssdnodePtr(node, SSD_ByName, name, _ssdCurrentLockState);
         ret = val ? (stEq(val->type, stType(object)) ? objDynCast(val->data.st_object, SSDNode) : NULL) : NULL;
     }
 
@@ -377,49 +367,41 @@ SSDNode *ssdSubtreeB(SSDNode *root, strref path, SSDLock *lock)
     return ret;
 }
 
-bool _ssdCopyOut(SSDNode *root, strref path, stype valtype, stgeneric *val, SSDLock *lock)
+bool _ssdCopyOut(SSDNode *root, strref path, stype valtype, stgeneric *val, SSDLockState *_ssdCurrentLockState)
 {
-    SSDLock transient_lock = { 0 };
-    if (!lock) lock = &transient_lock;
-
-    stvar *temp = NULL;
-    SSDNode *node = NULL;
-    string name = 0;
     bool ret = false;
+    string name = 0;
 
-    if (ssdResolvePath(root, path, &node, &name, false, lock))
-        temp = ssdnodePtr(node, SSD_ByName, name, lock);
+    ssdLockedTransaction(root)
+    {
+        SSDNode *node = NULL;
+        stvar *temp = NULL;
+        if (ssdResolvePath(root, path, &node, &name, false, _ssdCurrentLockState))
+            temp = ssdnodePtr(node, SSD_ByName, name, _ssdCurrentLockState);
 
-    if (temp)
-        ret = _stConvert(valtype, val, temp->type, NULL, temp->data, 0);
-
-    if (transient_lock.init)
-        ssdEndLock(root, &transient_lock);
-
+        if (temp)
+            ret = _stConvert(valtype, val, temp->type, NULL, temp->data, 0);
+    }
     strDestroy(&name);
 
     return ret;
 }
 
-bool _ssdCopyOutD(SSDNode *root, strref path, stype valtype, stgeneric *val, stgeneric def, SSDLock *lock)
+bool _ssdCopyOutD(SSDNode *root, strref path, stype valtype, stgeneric *val, stgeneric def, SSDLockState *_ssdCurrentLockState)
 {
-    SSDLock transient_lock = { 0 };
-    if (!lock) lock = &transient_lock;
-
-    stvar *temp = NULL;
-    SSDNode *node = NULL;
-    string name = 0;
     bool ret = false;
+    string name = 0;
 
-    if (ssdResolvePath(root, path, &node, &name, false, lock))
-        temp = ssdnodePtr(node, SSD_ByName, name, lock);
+    ssdLockedTransaction(root)
+    {
+        SSDNode *node = NULL;
+        stvar *temp = NULL;
+        if (ssdResolvePath(root, path, &node, &name, false, _ssdCurrentLockState))
+            temp = ssdnodePtr(node, SSD_ByName, name, _ssdCurrentLockState);
 
-    if (temp)
-        ret = _stConvert(valtype, val, temp->type, NULL, temp->data, 0);
-
-    if (transient_lock.init)
-        ssdEndLock(root, &transient_lock);
-
+        if (temp)
+            ret = _stConvert(valtype, val, temp->type, NULL, temp->data, 0);
+    }
     strDestroy(&name);
 
     if (!ret)
@@ -428,54 +410,49 @@ bool _ssdCopyOutD(SSDNode *root, strref path, stype valtype, stgeneric *val, stg
     return ret;
 }
 
-bool ssdExportArray(SSDNode *root, strref path, sa_stvar *out, SSDLock *lock)
+bool _ssdExportArray(SSDNode *root, strref path, sa_stvar *out, SSDLockState *_ssdCurrentLockState)
 {
-    SSDLock transient_lock = { 0 };
-    if (!lock) lock = &transient_lock;
-
     bool ret = false;
 
-    ssdLockRead(root, lock);
-    SSDArrayNode *node = ssdObjPtr(root, path, SSDArrayNode, lock);
-    if (node) {
-        saDestroy(out);
-        saClone(out, node->storage);
-        ret = true;
+    ssdLockedTransaction(root)
+    {
+        ssdLockRead(root);
+        SSDArrayNode *node = ssdObjPtr(root, path, SSDArrayNode);
+        if (node) {
+            saDestroy(out);
+            saClone(out, node->storage);
+            ret = true;
+        }
     }
-
-    if (transient_lock.init)
-        ssdEndLock(root, &transient_lock);
 
     return ret;
 }
 
-bool _ssdExportTypedArray(SSDNode *root, strref path, stype elemtype, sahandle out, bool strict, SSDLock *lock)
+bool _ssdExportTypedArray(SSDNode *root, strref path, stype elemtype, sahandle out, bool strict, SSDLockState *_ssdCurrentLockState)
 {
-    SSDLock transient_lock = { 0 };
-    if (!lock) lock = &transient_lock;
-
     bool ret = false;
 
-    ssdLockRead(root, lock);
-    SSDArrayNode *node = ssdObjPtr(root, path, SSDArrayNode, lock);
-    if (node) {
-        saClear(out);
-        for (int i = 0, sz = saSize(node->storage); i < sz; ++i) {
-            if (!stEq(node->storage.a[i].type, elemtype)) {
-                // is the same type as the output array?
-                if (strict)
-                    goto out;
-                continue;               // just skip over
+    ssdLockedTransaction(root)
+    {
+        ssdLockRead(root);
+        SSDArrayNode *node = ssdObjPtr(root, path, SSDArrayNode);
+        if (node) {
+            saClear(out);
+            for (int i = 0, sz = saSize(node->storage); i < sz; ++i) {
+                if (!stEq(node->storage.a[i].type, elemtype)) {
+                    // is the same type as the output array?
+                    if (strict)
+                        goto out;
+                    continue;               // just skip over
+                }
+
+                _saPushPtr(out, elemtype, stStoredPtr(elemtype, &node->storage.a[i].data), 0);
             }
-
-            _saPushPtr(out, elemtype, stStoredPtr(elemtype, &node->storage.a[i].data), 0);
+            ret = true;
         }
-        ret = true;
-    }
-
 out:
-    if (transient_lock.init)
-        ssdEndLock(root, &transient_lock);
+        continue;
+    }
 
     if (!ret)
         saClear(out);
@@ -483,63 +460,58 @@ out:
     return ret;
 }
 
-bool ssdImportArray(SSDNode *root, strref path, sa_stvar arr, SSDLock *lock)
+bool _ssdImportArray(SSDNode *root, strref path, sa_stvar arr, SSDLockState *_ssdCurrentLockState)
 {
     devAssert(stEq(saElemType(arr), stType(stvar)));            // double check this is the right kind of array
 
-    SSDLock transient_lock = { 0 };
-    if (!lock) lock = &transient_lock;
-
     bool ret = false;
 
-    ssdLockWrite(root, lock);
-    SSDNode *stree = ssdSubtree(root, path, SSD_Create_Array, lock);
-    SSDArrayNode *node = objDynCast(stree, SSDArrayNode);
-    if (node) {
-        saDestroy(&node->storage);
-        saClone(&node->storage, arr);
-        ssdnodeUpdateModified(node);
-        ret = true;
+    ssdLockedTransaction(root)
+    {
+        ssdLockWrite(root);
+        SSDNode *stree = ssdSubtree(root, path, SSD_Create_Array);
+        SSDArrayNode *node = objDynCast(stree, SSDArrayNode);
+        if (node) {
+            saDestroy(&node->storage);
+            saClone(&node->storage, arr);
+            ssdnodeUpdateModified(node);
+            ret = true;
+        }
+        objRelease(&stree);
     }
-    objRelease(&stree);
-
-    if (transient_lock.init)
-        ssdEndLock(root, &transient_lock);
 
     return ret;
 }
 
-bool _ssdImportTypedArray(SSDNode *root, strref path, stype elemtype, sa_ref arr, SSDLock *lock)
+bool _ssdImportTypedArray(SSDNode *root, strref path, stype elemtype, sa_ref arr, SSDLockState *_ssdCurrentLockState)
 {
     devAssert(stEq(saElemType(arr), elemtype));             // double check this is the right kind of array
 
-    SSDLock transient_lock = { 0 };
-    if (!lock) lock = &transient_lock;
-
     bool ret = false;
-    stvar val = { .type = elemtype };
 
-    ssdLockWrite(root, lock);
-    SSDNode *stree = ssdSubtree(root, path, SSD_Create_Array, lock);
-    SSDArrayNode *node = objDynCast(stree, SSDArrayNode);
-    if (node) {
-        saClear(&node->storage);
-        for (int i = 0, sz = saSize(arr); i < sz; ++i) {
-            val.data = stStored(elemtype, (void*)((uintptr)arr.a + i * saElemSize(arr)));       // low-budget ELEMPTR
-            saPush(&node->storage, stvar, val);
+    ssdLockedTransaction(root)
+    {
+        stvar val = { .type = elemtype };
+
+        ssdLockWrite(root);
+        SSDNode *stree = ssdSubtree(root, path, SSD_Create_Array);
+        SSDArrayNode *node = objDynCast(stree, SSDArrayNode);
+        if (node) {
+            saClear(&node->storage);
+            for (int i = 0, sz = saSize(arr); i < sz; ++i) {
+                val.data = stStored(elemtype, (void *)((uintptr)arr.a + i * saElemSize(arr)));       // low-budget ELEMPTR
+                saPush(&node->storage, stvar, val);
+            }
+            ssdnodeUpdateModified(node);
+            ret = true;
         }
-        ssdnodeUpdateModified(node);
-        ret = true;
+        objRelease(&stree);
     }
-    objRelease(&stree);
-
-    if (transient_lock.init)
-        ssdEndLock(root, &transient_lock);
 
     return ret;
 }
 
-static SSDNode *ssdCloneNode(SSDNode *src, SSDLock *srclock, SSDTree *desttree, SSDLock *destlock)
+static SSDNode *ssdCloneNode(SSDNode *src, SSDLockState *srclstate, SSDTree *desttree, SSDLockState *destlstate)
 {
     SSDNode *dnode;
     if (ssdnodeIsHashtable(src))
@@ -549,42 +521,49 @@ static SSDNode *ssdCloneNode(SSDNode *src, SSDLock *srclock, SSDTree *desttree, 
     else
         return NULL;
 
+    SSDIterator *iter = ssdnode_iterLocked(src, srclstate);
+    for (; ssditeratorValid(iter); ssditeratorNext(iter)) {
+        int32 srcidx = 0;
+        strref srcname = 0;
+        stvar *val = NULL;
+        if (!ssditeratorIterOut(iter, &srcidx, &srcname, &val))
+            break;
 
-    foreach(ssd, iter, srcidx, srcname, val, src, srclock)
-    {
-        SSDNode *child = ssditeratorObj(iter, SSDNode);
+        SSDNode *child = stvarObj(val, SSDNode);
         if (child) {
             // if this is a node, clone it first
-            val->data.st_object = (ObjInst *)ssdCloneNode(child, srclock, desttree, destlock);
+            val->data.st_object = (ObjInst *)ssdCloneNode(child, srclstate, desttree, destlstate);
         }
-        ssdnodeSet(dnode, srcidx, srcname, *val, destlock);
+
+        ssdnodeSet(dnode, srcidx, srcname, *val, destlstate);
+
     }
+    objRelease(&iter);
 
     return dnode;
 }
 
-SSDNode *ssdClone(SSDNode *root, SSDTree *desttree, SSDLock *lock_opt)
+SSDNode *_ssdClone(SSDNode *root, SSDTree *desttree, SSDLockState *_ssdCurrentLockState)
 {
-    SSDLock transient_lock = { 0 };
-    if (!lock_opt) lock_opt = &transient_lock;
-
+    SSDNode *ret = NULL;
     bool createdtree = false;
     if (!desttree) {
         desttree = ssdtreeCreate(0);
         createdtree = true;
     }
 
-    // lock source tree while we're working on it
-    ssdLockRead(root, lock_opt);
+    ssdLockedTransaction(root)
+    {
+        // lock source tree while we're working on it
+        ssdLockRead(root);
 
-    SSDLock destlock;
-    ssdLockInit(&destlock);
-    SSDNode *ret = ssdCloneNode(root, lock_opt, desttree, &destlock);
-    if (ret)
-        ssdEndLock(ret, &destlock);
+        // manually create lock state for destination, inherent state already used for source
+        SSDLockState destlock;
+        _ssdLockStateInit(&destlock);
+        ret = ssdCloneNode(root, _ssdCurrentLockState, desttree, &destlock);
+        _ssdLockEnd(ret, &destlock);
+    }
 
-    if (transient_lock.init)
-        ssdEndLock(root, &transient_lock);
     if (createdtree) {
         objRelease(&desttree);
     }
@@ -592,46 +571,49 @@ SSDNode *ssdClone(SSDNode *root, SSDTree *desttree, SSDLock *lock_opt)
     return ret;
 }
 
-bool ssdGraft(SSDNode *dest, strref destpath, SSDLock *dest_lock_opt,
-              SSDNode *src, strref srcpath, SSDLock *src_lock_opt)
+bool _ssdGraft(SSDNode *dest, strref destpath, SSDLockState *dest_lstate, SSDNode *src, strref srcpath, SSDLockState *src_lstate)
 {
-    SSDLock transient_lock_dest = { 0 };
-    if (!dest_lock_opt) dest_lock_opt = &transient_lock_dest;
-    SSDLock transient_lock_src = { 0 };
-    if (!src_lock_opt) src_lock_opt = &transient_lock_src;
+    // have to do this the old fashioned way; _ssdCurrentLockState only works for one at a time
+    SSDLockState transient_lock_state_dest = { 0 };
+    if (!dest_lstate) dest_lstate = &transient_lock_state_dest;
+    SSDLockState transient_lock_state_src = { 0 };
+    if (!src_lstate) src_lstate = &transient_lock_state_src;
 
     bool ret = false;
 
-    ssdLockRead(src, src_lock_opt);
-    ssdLockWrite(dest, dest_lock_opt);
+    _ssdManualLockRead(src, src_lstate);
+    _ssdManualLockWrite(dest, dest_lstate);
 
     SSDNode *stree;
     SSDNode *dpnode = NULL;
     string dname = 0;
 
     if (!strEmpty(srcpath))
-        stree = ssdSubtreeB(src, srcpath, src_lock_opt);
+        stree = _ssdSubtreeB(src, srcpath, src_lstate);
     else
         stree = src;
 
     if (!stree)
         goto out;
 
-    if (!ssdResolvePath(dest, destpath, &dpnode, &dname, true, dest_lock_opt))
+    if (!ssdResolvePath(dest, destpath, &dpnode, &dname, true, dest_lstate))
         goto out;
 
-    SSDNode *dnode = ssdCloneNode(stree, src_lock_opt, dest->tree, dest_lock_opt);
+    SSDNode *dnode = ssdCloneNode(stree, src_lstate, dest->tree, dest_lstate);
     if (dnode) {
-        ret = ssdnodeSet(dpnode, SSD_ByName, dname, stvar(object, dnode), dest_lock_opt);
+        ret = ssdnodeSet(dpnode, SSD_ByName, dname, stvar(object, dnode), dest_lstate);
         objRelease(&dnode);
     }
 
 out:
     strDestroy(&dname);
-    if (transient_lock_src.init)
-        ssdEndLock(src, &transient_lock_src);
-    if (transient_lock_dest.init)
-        ssdEndLock(dest, &transient_lock_dest);
+    if (transient_lock_state_src.init)
+        _ssdLockEnd(src, &transient_lock_state_src);
+    if (transient_lock_state_dest.init)
+        _ssdLockEnd(dest, &transient_lock_state_dest);
+
+    return ret;
+}
 
     return ret;
 }

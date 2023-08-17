@@ -15,5 +15,5 @@ class SSDArrayIter extends SSDIterator
 
     override isArray;
 
-    factory create(SSDArrayNode *node, SSDLock *lock);
+    factory create(SSDArrayNode *node, SSDLockState *lstate);
 }

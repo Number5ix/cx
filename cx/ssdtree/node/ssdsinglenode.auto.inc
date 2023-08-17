@@ -13,14 +13,14 @@ SSDSingleIter_ClassIf SSDSingleIter_ClassIf_tmpl = {
 static SSDNodeIf _impl_SSDSingleNode_SSDNodeIf = {
     ._size = sizeof(SSDNodeIf),
     ._implements = (ObjIface*)&SSDNodeIf_tmpl,
-    .get = (bool (*)(void*, int32, strref, stvar*, SSDLock*))SSDSingleNode_get,
-    .ptr = (stvar *(*)(void*, int32, strref, SSDLock*))SSDSingleNode_ptr,
-    .set = (bool (*)(void*, int32, strref, stvar, SSDLock*))SSDSingleNode_set,
-    .setC = (bool (*)(void*, int32, strref, stvar*, SSDLock*))SSDSingleNode_setC,
-    .remove = (bool (*)(void*, int32, strref, SSDLock*))SSDSingleNode_remove,
-    .count = (int32 (*)(void*, SSDLock*))SSDSingleNode_count,
+    .get = (bool (*)(void*, int32, strref, stvar*, SSDLockState*))SSDSingleNode_get,
+    .ptr = (stvar *(*)(void*, int32, strref, SSDLockState*))SSDSingleNode_ptr,
+    .set = (bool (*)(void*, int32, strref, stvar, SSDLockState*))SSDSingleNode_set,
+    .setC = (bool (*)(void*, int32, strref, stvar*, SSDLockState*))SSDSingleNode_setC,
+    .remove = (bool (*)(void*, int32, strref, SSDLockState*))SSDSingleNode_remove,
+    .count = (int32 (*)(void*, SSDLockState*))SSDSingleNode_count,
     .iter = (SSDIterator *(*)(void*))SSDSingleNode_iter,
-    .iterLocked = (SSDIterator *(*)(void*, SSDLock*))SSDSingleNode_iterLocked,
+    ._iterLocked = (SSDIterator *(*)(void*, SSDLockState*))SSDSingleNode__iterLocked,
 };
 
 static Iterable _impl_SSDSingleNode_Iterable = {
@@ -32,14 +32,14 @@ static Iterable _impl_SSDSingleNode_Iterable = {
 static SSDSingleNode_ClassIf _impl_SSDSingleNode_SSDSingleNode_ClassIf = {
     ._size = sizeof(SSDSingleNode_ClassIf),
     ._implements = (ObjIface*)&SSDSingleNode_ClassIf_tmpl,
-    .get = (bool (*)(void*, int32, strref, stvar*, SSDLock*))SSDSingleNode_get,
-    .ptr = (stvar *(*)(void*, int32, strref, SSDLock*))SSDSingleNode_ptr,
-    .set = (bool (*)(void*, int32, strref, stvar, SSDLock*))SSDSingleNode_set,
-    .setC = (bool (*)(void*, int32, strref, stvar*, SSDLock*))SSDSingleNode_setC,
-    .remove = (bool (*)(void*, int32, strref, SSDLock*))SSDSingleNode_remove,
-    .count = (int32 (*)(void*, SSDLock*))SSDSingleNode_count,
+    .get = (bool (*)(void*, int32, strref, stvar*, SSDLockState*))SSDSingleNode_get,
+    .ptr = (stvar *(*)(void*, int32, strref, SSDLockState*))SSDSingleNode_ptr,
+    .set = (bool (*)(void*, int32, strref, stvar, SSDLockState*))SSDSingleNode_set,
+    .setC = (bool (*)(void*, int32, strref, stvar*, SSDLockState*))SSDSingleNode_setC,
+    .remove = (bool (*)(void*, int32, strref, SSDLockState*))SSDSingleNode_remove,
+    .count = (int32 (*)(void*, SSDLockState*))SSDSingleNode_count,
     .iter = (SSDIterator *(*)(void*))SSDSingleNode_iter,
-    .iterLocked = (SSDIterator *(*)(void*, SSDLock*))SSDSingleNode_iterLocked,
+    ._iterLocked = (SSDIterator *(*)(void*, SSDLockState*))SSDSingleNode__iterLocked,
 };
 
 static ObjIface *_ifimpl_SSDSingleNode[] = {

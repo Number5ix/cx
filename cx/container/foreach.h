@@ -49,14 +49,14 @@
 #define foreach_object(...) _foreach_object_msvc_workaround((__VA_ARGS__))
 #define _foreach_object_msvc_workaround(args) _foreach_object args
 #define _foreach_object(type, itervar, ivartype, obj) for (register char _foreach_outer = 1; _foreach_outer; _foreach_outer = 0) \
-        for(ivartype *itervar = (obj) ? (obj)->_->iter(obj) : NULL; _foreach_outer; _foreach_outer = 0) \
-        for(; _foreach_outer; objRelease(&itervar), _foreach_outer = 0) \
+        for(ivartype *itervar = (obj) ? (obj)->_->iter(obj) : NULL; _foreach_outer; objRelease(&itervar), _foreach_outer = 0) \
         for(; itervar && itervar->_->valid(itervar); itervar->_->next(itervar))
 
 #define foreach_ssd(...) _foreach_ssd_msvc_workaround((__VA_ARGS__))
 #define _foreach_ssd_msvc_workaround(args) _foreach_ssd args
-#define _foreach_ssd(type, itervar, idxvar, keyvar, valvar, obj, lock) for (register char _foreach_outer = 1; _foreach_outer; _foreach_outer = 0) \
-        for(SSDIterator *itervar = (obj) ? (obj)->_->iterLocked(obj, lock) : NULL; _foreach_outer; _foreach_outer = 0) \
+#define _foreach_ssd(type, itervar, idxvar, keyvar, valvar, root) for (register char _foreach_outer = 1; _foreach_outer; _foreach_outer = 0) \
+        ssdLockedTransaction(root) \
+        for(SSDIterator *itervar = (root) ? (root)->_->_iterLocked(root, _ssdCurrentLockState) : NULL; _foreach_outer; objRelease(&itervar), _foreach_outer = 0) \
         for(int32 idxvar = 0; _foreach_outer; _foreach_outer = 0) \
         for(strref keyvar = 0; _foreach_outer; _foreach_outer = 0) \
         for(stvar *valvar = 0; itervar && itervar->_->iterOut(itervar, &idxvar, &keyvar, &valvar); itervar->_->next(itervar))

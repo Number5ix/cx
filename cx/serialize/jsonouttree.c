@@ -1,12 +1,13 @@
 #include "jsonout.h"
+#include "sbstring.h"
 
 #include <cx/ssdtree/ssdnodes.h>
 #include <cx/ssdtree/ssdtree.h>
 #include <cx/string.h>
 
-static void outVal(JSONOut *jo, stvar val, SSDLock *lock, bool *error);
+static void outVal(JSONOut *jo, stvar val, SSDLockState *lstate, bool *error);
 
-static void outHashtable(JSONOut *jo, SSDNode *node, SSDLock *lock, bool *error)
+static void outHashtable(JSONOut *jo, SSDNode *node, SSDLockState *lstate, bool *error)
 {
     JSONParseEvent ev = { .etype = JSON_Object_Begin };
     if (!jsonOut(jo, &ev)) {
@@ -15,7 +16,7 @@ static void outHashtable(JSONOut *jo, SSDNode *node, SSDLock *lock, bool *error)
     }
 
     SSDIterator *iter;
-    for (iter = ssdnodeIterLocked(node, lock); !*error && ssditeratorValid(iter); ssditeratorNext(iter)) {
+    for (iter = ssdnode_iterLocked(node, lstate); !*error && ssditeratorValid(iter); ssditeratorNext(iter)) {
         ev = (JSONParseEvent){ .etype = JSON_Object_Key };
         strDup(&ev.edata.strData, ssditeratorName(iter));
         if (!jsonOut(jo, &ev))
@@ -24,7 +25,7 @@ static void outHashtable(JSONOut *jo, SSDNode *node, SSDLock *lock, bool *error)
 
         stvar *val = ssditeratorPtr(iter);
         if (val)
-            outVal(jo, *val, lock, error);
+            outVal(jo, *val, lstate, error);
         else
             *error = true;
     }
@@ -35,7 +36,7 @@ static void outHashtable(JSONOut *jo, SSDNode *node, SSDLock *lock, bool *error)
         *error = true;
 }
 
-static void outArray(JSONOut *jo, SSDNode *node, SSDLock *lock, bool *error)
+static void outArray(JSONOut *jo, SSDNode *node, SSDLockState *lstate, bool *error)
 {
     JSONParseEvent ev = { .etype = JSON_Array_Begin };
     if (!jsonOut(jo, &ev)) {
@@ -44,10 +45,10 @@ static void outArray(JSONOut *jo, SSDNode *node, SSDLock *lock, bool *error)
     }
 
     SSDIterator *iter;
-    for (iter = ssdnodeIterLocked(node, lock); !*error && ssditeratorValid(iter); ssditeratorNext(iter)) {
+    for (iter = ssdnode_iterLocked(node, lstate); !*error && ssditeratorValid(iter); ssditeratorNext(iter)) {
         stvar *val = ssditeratorPtr(iter);
         if (val)
-            outVal(jo, *val, lock, error);
+            outVal(jo, *val, lstate, error);
         else
             *error = true;
     }
@@ -58,7 +59,7 @@ static void outArray(JSONOut *jo, SSDNode *node, SSDLock *lock, bool *error)
         *error = true;
 }
 
-static void outObject(JSONOut *jo, ObjInst *val, SSDLock *lock, bool *error)
+static void outObject(JSONOut *jo, ObjInst *val, SSDLockState *lstate, bool *error)
 {
     SSDNode *node = objDynCast(val, SSDNode);
     if (!node) {
@@ -67,14 +68,14 @@ static void outObject(JSONOut *jo, ObjInst *val, SSDLock *lock, bool *error)
     }
 
     if (ssdnodeIsHashtable(node)) {
-        outHashtable(jo, node, lock, error);
+        outHashtable(jo, node, lstate, error);
     } else if (ssdnodeIsArray(node)) {
-        outArray(jo, node, lock, error);
+        outArray(jo, node, lstate, error);
     } else {
         // this is a single value node
-        stvar *subval = ssdnodePtr(node, 0, NULL, lock);
+        stvar *subval = ssdnodePtr(node, 0, NULL, lstate);
         if (subval)
-            outVal(jo, *subval, lock, error);
+            outVal(jo, *subval, lstate, error);
     }
 }
 
@@ -116,11 +117,11 @@ static void outNull(JSONOut *jo, bool *error)
         *error = true;
 }
 
-static void outVal(JSONOut *jo, stvar val, SSDLock *lock, bool *error)
+static void outVal(JSONOut *jo, stvar val, SSDLockState *lstate, bool *error)
 {
     switch (stGetId(val.type)) {
     case stTypeId(object):
-        outObject(jo, val.data.st_object, lock, error);
+        outObject(jo, val.data.st_object, lstate, error);
         break;
     case stTypeId(int8):
         outInt(jo, val.data.st_int8, error);
@@ -164,22 +165,18 @@ static void outVal(JSONOut *jo, stvar val, SSDLock *lock, bool *error)
     }
 }
 
-bool jsonOutTree(StreamBuffer *sb, SSDNode *tree, uint32 flags, SSDLock *lock)
+bool _jsonOutTree(StreamBuffer *sb, SSDNode *tree, uint32 flags, SSDLockState *_ssdCurrentLockState)
 {
-    SSDLock transient_lock = { 0 };
-    if (!lock) lock = &transient_lock;
-
+    bool error = false;
     JSONOut *jo = jsonOutBegin(sb, flags);
     if (!jo)
         return false;
 
-    bool error = false;
-    ssdLockRead(tree, lock);
-    outVal(jo, stvar(object, tree), lock, &error);
-
-    if (transient_lock.init)
-        ssdEndLock(tree, &transient_lock);
-
+    ssdLockedTransaction(tree)
+    {
+        ssdLockRead(tree);
+        outVal(jo, stvar(object, tree), _ssdCurrentLockState, &error);
+    }
     jsonOutEnd(&jo);
 
     return !error;

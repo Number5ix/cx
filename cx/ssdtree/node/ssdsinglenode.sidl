@@ -11,5 +11,5 @@ class SSDSingleIter extends SSDIterator
 {
     bool done;
 
-    factory create(SSDSingleNode *node, SSDLock *lock);
+    factory create(SSDSingleNode *node, SSDLockState *lstate);
 }
