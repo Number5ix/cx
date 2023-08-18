@@ -17,5 +17,5 @@ _no_inline bool _cxAssertFail(const char *expr, const char *msg)
     dbgCrashAddMetaInt("assertline", ln);
 #endif
     dbgCrashNow(1);
-    return true;
+    return false;
 }
