@@ -115,6 +115,12 @@ bool _ssdSet(SSDNode *root, strref path, bool createpath, stvar val, SSDLockStat
 // If createpath is true, the path to the value is automatically created if necessary
 #define ssdSet(root, path, createpath, val) _ssdSet(root, path, createpath, val, (SSDLockState*)_ssdCurrentLockState)
 
+bool _ssdSetC(SSDNode *root, strref path, bool createpath, stvar *val, SSDLockState *lstate);
+// bool ssdSetC(SSDNode *root, strref path, bool createpath, stvar *val)
+// Consumes the given value even on failure.
+// If createpath is true, the path to the value is automatically created if necessary
+#define ssdSetC(root, path, createpath, val) _ssdSetC(root, path, createpath, val, (SSDLockState*)_ssdCurrentLockState)
+
 bool _ssdRemove(SSDNode *root, strref path, SSDLockState *lstate);
 // bool ssdRemove(SSDNode *root, strref path);
 #define ssdRemove(root, path) _ssdRemove(root, path, (SSDLockState*)_ssdCurrentLockState)

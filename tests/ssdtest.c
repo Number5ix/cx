@@ -44,7 +44,12 @@ static int test_ssd_tree()
     strCopy(&teststr, _S"test123");
     tree = ssdCreateHashtable();
 
-    ssdSet(tree, _S"l1/l2/l3/test2", true, stvar(string, teststr));
+    stvar tempst = { .type = stType(string) };
+    strDup(&tempst.data.st_string, teststr);
+    if (strTestRefCount(teststr) != 2)
+        ret = 1;
+
+    ssdSetC(tree, _S"l1/l2/l3/test2", true, &tempst);
     if (strTestRefCount(teststr) != 2)
         ret = 1;
 

@@ -300,8 +300,29 @@ bool _ssdSet(SSDNode *root, strref path, bool createpath, stvar val, SSDLockStat
 
         SSDNode *node = NULL;
         if (ssdResolvePath(root, path, &node, &name, createpath, _ssdCurrentLockState)) {
-            ssdnodeSet(node, SSD_ByName, name, val, _ssdCurrentLockState);
-            ret = true;
+            ret = ssdnodeSet(node, SSD_ByName, name, val, _ssdCurrentLockState);
+        }
+    }
+
+    strDestroy(&name);
+    return ret;
+}
+
+bool _ssdSetC(SSDNode *root, strref path, bool createpath, stvar *val, SSDLockState *_ssdCurrentLockState)
+{
+    string name = 0;
+    bool ret = false;
+
+    ssdLockedTransaction(root)
+    {
+        // we know we're going to need the write lock for the duration regardless
+        ssdLockWrite(root);
+
+        SSDNode *node = NULL;
+        if (ssdResolvePath(root, path, &node, &name, createpath, _ssdCurrentLockState)) {
+            ret = ssdnodeSetC(node, SSD_ByName, name, val, _ssdCurrentLockState);
+        } else {
+            stvarDestroy(val);
         }
     }
 
