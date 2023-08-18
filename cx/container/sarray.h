@@ -2,6 +2,7 @@
 
 #include <cx/cx.h>
 #include <cx/debug/assert.h>
+#include <cx/utils/macros/unused.h>
 
 #define sarrayref(typ) sa_##typ
 #define sarrayhdl(typ) sa_##typ*
@@ -110,8 +111,8 @@ enum SARRAY_FUNC_FLAGS_ENUM {
 
 #define SARRAY_HDRSIZE (offsetof(SArrayHeader, data))
 #define SARRAY_HDR(ref) ((SArrayHeader*)(((uintptr)((ref).a)) - SARRAY_HDRSIZE))
-#define SAREF(r) (((void)&((r)._is_sarray), *(sa_ref*)(&(r))))
-#define SAHANDLE(h) ((sahandle)((void)((h) && &((h)->_is_sarray)), (h)))
+#define SAREF(r) (unused_noeval(&((r)._is_sarray)), *(sa_ref*)(&(r)))
+#define SAHANDLE(h) ((sahandle)(unused_noeval((h) && &((h)->_is_sarray)), (h)))
 
 #define saSize(ref) ((ref)._is_sarray ? SARRAY_HDR(ref)->count : 0)
 #define saCapacity(ref) ((ref)._is_sarray ? SARRAY_HDR(ref)->capacity : 0)

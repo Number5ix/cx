@@ -46,7 +46,7 @@ typedef struct FmtTestClass {
     string sv;
 } FmtTestClass;
 extern ObjClassInfo FmtTestClass_clsinfo;
-#define FmtTestClass(inst) ((FmtTestClass*)(&((inst)->_is_FmtTestClass)))
+#define FmtTestClass(inst) ((FmtTestClass*)(unused_noeval((inst) && &((inst)->_is_FmtTestClass)), (inst)))
 #define FmtTestClassNone ((FmtTestClass*)NULL)
 
 FmtTestClass *FmtTestClass_create(int32 ival, string sval);
@@ -69,7 +69,7 @@ typedef struct FmtTestClass2 {
     string sv;
 } FmtTestClass2;
 extern ObjClassInfo FmtTestClass2_clsinfo;
-#define FmtTestClass2(inst) ((FmtTestClass2*)(&((inst)->_is_FmtTestClass2)))
+#define FmtTestClass2(inst) ((FmtTestClass2*)(unused_noeval((inst) && &((inst)->_is_FmtTestClass2)), (inst)))
 #define FmtTestClass2None ((FmtTestClass2*)NULL)
 
 FmtTestClass2 *FmtTestClass2_create(int32 ival, string sval);

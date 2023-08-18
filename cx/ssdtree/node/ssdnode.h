@@ -125,7 +125,7 @@ typedef struct SSDIterator {
     SSDLockState transient_lock_state;
 } SSDIterator;
 extern ObjClassInfo SSDIterator_clsinfo;
-#define SSDIterator(inst) ((SSDIterator*)(&((inst)->_is_SSDIterator)))
+#define SSDIterator(inst) ((SSDIterator*)(unused_noeval((inst) && &((inst)->_is_SSDIterator)), (inst)))
 #define SSDIteratorNone ((SSDIterator*)NULL)
 
 ObjInst *SSDIterator_objInst(SSDIterator *self);
@@ -164,7 +164,7 @@ typedef struct SSDNode {
     int64 modified;        // The timestamp this node was last modified
 } SSDNode;
 extern ObjClassInfo SSDNode_clsinfo;
-#define SSDNode(inst) ((SSDNode*)(&((inst)->_is_SSDNode)))
+#define SSDNode(inst) ((SSDNode*)(unused_noeval((inst) && &((inst)->_is_SSDNode)), (inst)))
 #define SSDNodeNone ((SSDNode*)NULL)
 
 void SSDNode_updateModified(SSDNode *self);

@@ -74,7 +74,7 @@ typedef struct SSDHashNode {
     hashtable storage;
 } SSDHashNode;
 extern ObjClassInfo SSDHashNode_clsinfo;
-#define SSDHashNode(inst) ((SSDHashNode*)(&((inst)->_is_SSDHashNode)))
+#define SSDHashNode(inst) ((SSDHashNode*)(unused_noeval((inst) && &((inst)->_is_SSDHashNode)), (inst)))
 #define SSDHashNodeNone ((SSDHashNode*)NULL)
 
 SSDHashNode *SSDHashNode__create(SSDTree *tree);
@@ -146,7 +146,7 @@ typedef struct SSDHashIter {
     string lastName;
 } SSDHashIter;
 extern ObjClassInfo SSDHashIter_clsinfo;
-#define SSDHashIter(inst) ((SSDHashIter*)(&((inst)->_is_SSDHashIter)))
+#define SSDHashIter(inst) ((SSDHashIter*)(unused_noeval((inst) && &((inst)->_is_SSDHashIter)), (inst)))
 #define SSDHashIterNone ((SSDHashIter*)NULL)
 
 SSDHashIter *SSDHashIter_create(SSDHashNode *node, SSDLockState *lstate);

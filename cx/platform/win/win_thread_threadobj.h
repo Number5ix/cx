@@ -31,7 +31,7 @@ typedef struct WinThread {
     DWORD id;
 } WinThread;
 extern ObjClassInfo WinThread_clsinfo;
-#define WinThread(inst) ((WinThread*)(&((inst)->_is_WinThread)))
+#define WinThread(inst) ((WinThread*)(unused_noeval((inst) && &((inst)->_is_WinThread)), (inst)))
 #define WinThreadNone ((WinThread*)NULL)
 
 WinThread *WinThread_create();

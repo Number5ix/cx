@@ -69,7 +69,7 @@ typedef struct Param {
     string postdecr;
 } Param;
 extern ObjClassInfo Param_clsinfo;
-#define Param(inst) ((Param*)(&((inst)->_is_Param)))
+#define Param(inst) ((Param*)(unused_noeval((inst) && &((inst)->_is_Param)), (inst)))
 #define ParamNone ((Param*)NULL)
 
 Param *Param_create();
@@ -105,7 +105,7 @@ typedef struct Method {
     bool mixin;
 } Method;
 extern ObjClassInfo Method_clsinfo;
-#define Method(inst) ((Method*)(&((inst)->_is_Method)))
+#define Method(inst) ((Method*)(unused_noeval((inst) && &((inst)->_is_Method)), (inst)))
 #define MethodNone ((Method*)NULL)
 
 Method *Method_create();
@@ -135,7 +135,7 @@ typedef struct Interface {
     sa_Method allmethods;
 } Interface;
 extern ObjClassInfo Interface_clsinfo;
-#define Interface(inst) ((Interface*)(&((inst)->_is_Interface)))
+#define Interface(inst) ((Interface*)(unused_noeval((inst) && &((inst)->_is_Interface)), (inst)))
 #define InterfaceNone ((Interface*)NULL)
 
 Interface *Interface_create();
@@ -167,7 +167,7 @@ typedef struct Member {
     bool destroy;
 } Member;
 extern ObjClassInfo Member_clsinfo;
-#define Member(inst) ((Member*)(&((inst)->_is_Member)))
+#define Member(inst) ((Member*)(unused_noeval((inst) && &((inst)->_is_Member)), (inst)))
 #define MemberNone ((Member*)NULL)
 
 Member *Member_create();
@@ -208,7 +208,7 @@ typedef struct Class {
     sa_Method allmethods;
 } Class;
 extern ObjClassInfo Class_clsinfo;
-#define Class(inst) ((Class*)(&((inst)->_is_Class)))
+#define Class(inst) ((Class*)(unused_noeval((inst) && &((inst)->_is_Class)), (inst)))
 #define ClassNone ((Class*)NULL)
 
 Class *Class_create();
@@ -231,7 +231,7 @@ typedef struct ComplexArrayType {
     string tsubtype;
 } ComplexArrayType;
 extern ObjClassInfo ComplexArrayType_clsinfo;
-#define ComplexArrayType(inst) ((ComplexArrayType*)(&((inst)->_is_ComplexArrayType)))
+#define ComplexArrayType(inst) ((ComplexArrayType*)(unused_noeval((inst) && &((inst)->_is_ComplexArrayType)), (inst)))
 #define ComplexArrayTypeNone ((ComplexArrayType*)NULL)
 
 ComplexArrayType *ComplexArrayType_create();

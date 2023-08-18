@@ -31,7 +31,7 @@ typedef struct UnixThread {
     bool joined;
 } UnixThread;
 extern ObjClassInfo UnixThread_clsinfo;
-#define UnixThread(inst) ((UnixThread*)(&((inst)->_is_UnixThread)))
+#define UnixThread(inst) ((UnixThread*)(unused_noeval((inst) && &((inst)->_is_UnixThread)), (inst)))
 #define UnixThreadNone ((UnixThread*)NULL)
 
 UnixThread *UnixThread_create();

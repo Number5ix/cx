@@ -130,6 +130,53 @@ static int test_abstract()
     return 0;
 }
 
+static TestCls4b *getptr(TestCls4b *ptr, int *counter)
+{
+    (*counter)++;
+    return ptr;
+}
+
+static int test_cast()
+{
+    TestCls4b *cls4b = TestCls4b_create();
+
+    // counter is to test for side effects from the macro evaluating the expression more than once
+    int counter = 0;
+    TestCls4a *cls4a = TestCls4a(getptr(cls4b, &counter));
+    if ((uintptr)cls4a != (uintptr)cls4b || counter != 1)
+        return 1;
+
+    TestCls4 *cls4 = TestCls4(getptr(cls4b, &counter));
+    if ((uintptr)cls4 != (uintptr)cls4a || counter != 2)
+        return 1;
+
+    TestCls3 *cls3 = TestCls3(getptr(cls4b, &counter));
+    if ((uintptr)cls3 != (uintptr)cls4b || counter != 3)
+        return 1;
+
+    TestCls2 *cls2 = TestCls2(getptr(cls4b, &counter));
+    if ((uintptr)cls2 != (uintptr)cls4b || counter != 4)
+        return 1;
+
+    TestCls1 *cls1 = TestCls1(getptr(cls4b, &counter));
+    if ((uintptr)cls1 != (uintptr)cls4b || counter != 5)
+        return 1;
+
+    // Remove ifdefs for full test; this should fail to compile
+#if 0
+    TestCls1 *cls2a = TestCls2(cls1);
+    if ((uintptr)cls2a != (uintptr)cls4b || counter != 5)
+        return 1;
+#endif
+
+    ObjInst *obj = ObjInst(getptr(cls4b, &counter));
+    if ((uintptr)obj != (uintptr)cls4b || counter != 6)
+        return 1;
+
+    objRelease(&cls4);
+    return 0;
+}
+
 static int test_dyncast()
 {
     TestCls4b *cls4 = TestCls4b_create();
@@ -208,6 +255,7 @@ testfunc objtest_funcs[] = {
     { "ifinherit", test_ifinherit },
     { "override", test_override },
     { "abstract", test_abstract },
+    { "cast", test_cast },
     { "dyncast", test_dyncast },
     { "obj_array", test_obj_array },
     { 0, 0 }

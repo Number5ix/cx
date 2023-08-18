@@ -33,6 +33,7 @@ static const testspec tests[] = {
 { "object: Interface Inheritance", "objtest", "ifinherit" },
 { "object: Override", "objtest", "override" },
 { "object: Abstract Class", "objtest", "abstract" },
+{ "object: Static Cast", "objtest", "cast" },
 { "object: Dynamic Cast", "objtest", "dyncast" },
 { "object: Object Array", "objtest", "obj_array" },
 { "sarray: Int Array", "sarraytest", "int" },

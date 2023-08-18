@@ -65,6 +65,7 @@ add_test(NAME "\"object: Class Inheritance\"" COMMAND test_runner objtest inheri
 add_test(NAME "\"object: Interface Inheritance\"" COMMAND test_runner objtest ifinherit)
 add_test(NAME "\"object: Override\"" COMMAND test_runner objtest override)
 add_test(NAME "\"object: Abstract Class\"" COMMAND test_runner objtest abstract)
+add_test(NAME "\"object: Static Cast\"" COMMAND test_runner objtest cast)
 add_test(NAME "\"object: Dynamic Cast\"" COMMAND test_runner objtest dyncast)
 add_test(NAME "\"object: Object Array\"" COMMAND test_runner objtest obj_array)
 add_test(NAME "\"sarray: Int Array\"" COMMAND test_runner sarraytest int)

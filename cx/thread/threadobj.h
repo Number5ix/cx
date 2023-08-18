@@ -30,7 +30,7 @@ typedef struct Thread {
     Event notify;
 } Thread;
 extern ObjClassInfo Thread_clsinfo;
-#define Thread(inst) ((Thread*)(&((inst)->_is_Thread)))
+#define Thread(inst) ((Thread*)(unused_noeval((inst) && &((inst)->_is_Thread)), (inst)))
 #define ThreadNone ((Thread*)NULL)
 
 Thread *Thread_create(threadFunc func, strref name, int n, stvar args[], bool ui);

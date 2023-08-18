@@ -75,7 +75,7 @@ typedef struct SSDArrayNode {
     sa_stvar storage;
 } SSDArrayNode;
 extern ObjClassInfo SSDArrayNode_clsinfo;
-#define SSDArrayNode(inst) ((SSDArrayNode*)(&((inst)->_is_SSDArrayNode)))
+#define SSDArrayNode(inst) ((SSDArrayNode*)(unused_noeval((inst) && &((inst)->_is_SSDArrayNode)), (inst)))
 #define SSDArrayNodeNone ((SSDArrayNode*)NULL)
 
 SSDArrayNode *SSDArrayNode__create(SSDTree *tree);
@@ -149,7 +149,7 @@ typedef struct SSDArrayIter {
     string lastName;
 } SSDArrayIter;
 extern ObjClassInfo SSDArrayIter_clsinfo;
-#define SSDArrayIter(inst) ((SSDArrayIter*)(&((inst)->_is_SSDArrayIter)))
+#define SSDArrayIter(inst) ((SSDArrayIter*)(unused_noeval((inst) && &((inst)->_is_SSDArrayIter)), (inst)))
 #define SSDArrayIterNone ((SSDArrayIter*)NULL)
 
 SSDArrayIter *SSDArrayIter_create(SSDArrayNode *node, SSDLockState *lstate);

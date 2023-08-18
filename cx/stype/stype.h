@@ -8,6 +8,7 @@
 #include <cx/platform/cpp.h>
 #include <cx/platform/base.h>
 #include <cx/utils/macros/optarg.h>
+#include <cx/utils/macros/unused.h>
 
 // extra files that can be included for specific functions
 #define STYPE_FOREACH_ALL <cx/stype/alltypes.inc>
@@ -337,20 +338,22 @@ _meta_inline stype _stype_mkcustom(stype base)
 // a union that coincides with the first member. Therefore we can take their address
 // and get the address of the parent structure that we already had (essentially a no-op)
 // while checking that they exist, thus verifying the type is correct.
-#define saCheckType(name, h) ((sa_##name*)(&((h)->is_sarray_##name)))
-#define saCheck(s) (*(sa_ref*)&((s)._is_sarray))
-#define saCheckPtr(h) ((sahandle)&((h)->_is_sarray))
-#define htCheck(h) ((hashtable)&((h)->_is_hashtable))
-// htCheckPtr has to evaluate its argument multiple times and may cause issues with side effects!
-// In practice almost every situation where this is used is one where a pointer to an actual variable
-// is required, however, making this less likely to be an issue.
-#define htCheckPtr(h) ((h) && (*h) && &((*h)->_is_hashtable), (h))
-#define objInstCheck(o) ((ObjInst*)&((o)->_is_ObjInst))
-#define objInstCheckPtr(o) ((o) && (*o) && &((*o)->_is_ObjInst), (o))
-#define strCheck(s) ((string)&((s)->_is_string))
-// see comment for htCheckPtr above.
-// TODO: see if it's viable to change these to a structure similar to how the sarray types work
-#define strCheckPtr(s) ((s) && (*s) && &((*s)->_is_string), (s))
+// Note the magic of the comma operator -- these prevent compilation if something is wrong,
+// but get optimized away entirely and do not emit any code.
+// The use of unused_noeval further improves this by hiding it in a conditional branch that
+// is guaranteed to not be evaluated, preventing any side effects such as function calls or
+// postfix operators.
+// The seemingly redundant (h) && portions of the expression are there solely to suppress
+// warnings from stupid compilers that don't understand it can never actually be dereferenced.
+#define saCheckType(name, h) ((sa_##name*)(unused_noeval((h) && &((h)->is_sarray_##name)), (h)))
+#define saCheck(s) (unused_noeval(&((s)._is_sarray)), (s.a))
+#define saCheckPtr(h) (unused_noeval((h) && &((h)->_is_sarray)), (h))
+#define htCheck(h) (unused_noeval((h) && &((h)->_is_hashtable)), (h))
+#define htCheckPtr(h) (unused_noeval((h) && (*h) && &((*h)->_is_hashtable)), (h))
+#define objInstCheck(o) (unused_noeval((o) && &((o)->_is_ObjInst)), (o))
+#define objInstCheckPtr(o) (unused_noeval((o) && (*o) && &((*o)->_is_ObjInst)), (o))
+#define strCheck(s) (unused_noeval((s) && &((s)->_is_string)), (s))
+#define strCheckPtr(s) (unused_noeval((s) && (*s) && &((*s)->_is_string)), (s))
 
 // most of these are no-ops, but some can do extra type checking
 #define STypeCheck_opaque(type, val) (val)
@@ -372,13 +375,13 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define STypeCheck_string(type, val) strCheck(val)
 #define STypeCheck_strref(type, val) strCheck(val)
 #define STypeCheck_object(type, val) objInstCheck(val)
-#define STypeCheck_suid(type, val) (((val).low), ((val).high), (val))
-#define STypeCheck_stvar(_type, val) (((val).data), ((val).type), (val))
+#define STypeCheck_suid(type, val) (unused_noeval((((val).low), ((val).high))), (val))
+#define STypeCheck_stvar(_type, val) (unused_noeval((((val).data), ((val).type))), (val))
 #define STypeCheck_sarray(type, val) saCheck(val)
 #define STypeCheck_hashtable(type, val) htCheck(val)
 #define stCheck(type, val) STypeCheck_##type(type, val)
 
-#define STypeCheckPtr_gen(type, ptr) ((stTypeDef(type)*)(ptr), ptr)
+#define STypeCheckPtr_gen(type, ptr) (unused_noeval((stTypeDef(type)*)(ptr)), ptr)
 #define STypeCheckPtr_opaque(type, ptr) (ptr)
 #define STypeCheckPtr_int8(type, ptr) (ptr)
 #define STypeCheckPtr_int16(type, ptr) (ptr)
@@ -398,8 +401,8 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define STypeCheckPtr_string(type, ptr) strCheckPtr(ptr)
 #define STypeCheckPtr_strref(type, ptr) strCheckPtr(ptr)
 #define STypeCheckPtr_object(type, ptr) objInstCheckPtr(ptr)
-#define STypeCheckPtr_suid(type, ptr) (((ptr)->low), ((ptr)->high), (ptr))
-#define STypeCheckPtr_stvar(_type, ptr) (((ptr)->data), ((ptr)->type), (ptr))
+#define STypeCheckPtr_suid(type, ptr) (unused_noeval((((ptr)->low), ((ptr)->high))), (ptr))
+#define STypeCheckPtr_stvar(_type, ptr) (unused_noeval((((ptr)->data), ((ptr)->type))), (ptr))
 #define STypeCheckPtr_sarray(type, ptr) saCheckPtr(ptr)
 #define STypeCheckPtr_hashtable(type, ptr) htCheckPtr(ptr)
 #define stCheckPtr(type, ptr) STypeCheckPtr_##type(type, ptr)
@@ -492,7 +495,7 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define STypeArg_ptr(type, val) stgeneric(type, val)
 #define STypeArg_string(type, val) stgeneric(type, val)
 #define STypeArg_strref(type, val) stgeneric(type, val)
-#define STypeArg_object(type, val) stgeneric(type, val)
+#define STypeArg_object(type, val) stgeneric(type, objInstBase(val))
 // SUID and stvar are too big, so make a copy and pass a pointer
 #define STypeArg_suid(type, val) stgeneric_unchecked(type, stRvalAddr(type, stCheck(type, val)))
 #define STypeArg_stvar(type, val) stgeneric_unchecked(type, stRvalAddr(type, stCheck(type, val)))

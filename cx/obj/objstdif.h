@@ -82,7 +82,7 @@ typedef struct Iterator {
 
 } Iterator;
 extern ObjClassInfo Iterator_clsinfo;
-#define Iterator(inst) ((Iterator*)(&((inst)->_is_Iterator)))
+#define Iterator(inst) ((Iterator*)(unused_noeval((inst) && &((inst)->_is_Iterator)), (inst)))
 #define IteratorNone ((Iterator*)NULL)
 
 // bool iteratorValid(Iterator *self);

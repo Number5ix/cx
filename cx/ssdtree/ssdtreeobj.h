@@ -20,7 +20,6 @@ typedef struct SSDTreeDebug {
 } SSDTreeDebug;
 #endif
 
-
 typedef struct SSDTree_ClassIf {
     ObjIface *_implements;
     ObjIface *_parent;
@@ -46,7 +45,7 @@ typedef struct SSDTree {
     SSDNodeFactory factories[SSD_Create_Count];        // Factory functions for if this tree wants to use derived node classes
 } SSDTree;
 extern ObjClassInfo SSDTree_clsinfo;
-#define SSDTree(inst) ((SSDTree*)(&((inst)->_is_SSDTree)))
+#define SSDTree(inst) ((SSDTree*)(unused_noeval((inst) && &((inst)->_is_SSDTree)), (inst)))
 #define SSDTreeNone ((SSDTree*)NULL)
 
 SSDTree *SSDTree_create(uint32 flags);

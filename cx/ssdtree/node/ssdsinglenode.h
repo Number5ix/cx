@@ -74,7 +74,7 @@ typedef struct SSDSingleNode {
     stvar storage;
 } SSDSingleNode;
 extern ObjClassInfo SSDSingleNode_clsinfo;
-#define SSDSingleNode(inst) ((SSDSingleNode*)(&((inst)->_is_SSDSingleNode)))
+#define SSDSingleNode(inst) ((SSDSingleNode*)(unused_noeval((inst) && &((inst)->_is_SSDSingleNode)), (inst)))
 #define SSDSingleNodeNone ((SSDSingleNode*)NULL)
 
 SSDSingleNode *SSDSingleNode__create(SSDTree *tree);
@@ -145,7 +145,7 @@ typedef struct SSDSingleIter {
     bool done;
 } SSDSingleIter;
 extern ObjClassInfo SSDSingleIter_clsinfo;
-#define SSDSingleIter(inst) ((SSDSingleIter*)(&((inst)->_is_SSDSingleIter)))
+#define SSDSingleIter(inst) ((SSDSingleIter*)(unused_noeval((inst) && &((inst)->_is_SSDSingleIter)), (inst)))
 #define SSDSingleIterNone ((SSDSingleIter*)NULL)
 
 SSDSingleIter *SSDSingleIter_create(SSDSingleNode *node, SSDLockState *lstate);

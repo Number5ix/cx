@@ -35,7 +35,7 @@ typedef struct ConvertTestClass {
     string sval;
 } ConvertTestClass;
 extern ObjClassInfo ConvertTestClass_clsinfo;
-#define ConvertTestClass(inst) ((ConvertTestClass*)(&((inst)->_is_ConvertTestClass)))
+#define ConvertTestClass(inst) ((ConvertTestClass*)(unused_noeval((inst) && &((inst)->_is_ConvertTestClass)), (inst)))
 #define ConvertTestClassNone ((ConvertTestClass*)NULL)
 
 ConvertTestClass *ConvertTestClass_create(int32 ival, float64 fval, string sval);

@@ -3,6 +3,7 @@
 #include <cx/obj/objiface.h>
 #include <cx/container/hashtable.h>
 #include <cx/thread/atomic.h>
+#include <cx/utils/macros/unused.h>
 
 // A class stores arbitrary per-instance data and may implement one or more interfaces.
 // The class info structure contains runtime meta-information about the class.
@@ -54,7 +55,7 @@ typedef struct ObjInst {
     // user data members here
 } ObjInst;
 
-#define ObjInst(inst) ((ObjInst*)(&((inst)->_is_ObjInst)))
+#define ObjInst(inst) ((ObjInst*)(unused_noeval(&((inst)->_is_ObjInst)), (inst)))
 #define objInstBase(inst) ObjInst(inst)
 #define objClsInfo(inst) (inst->_clsinfo)
 
