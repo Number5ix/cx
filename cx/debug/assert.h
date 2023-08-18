@@ -4,6 +4,23 @@
 #include <cx/platform/cpp.h>
 #include <cx/utils/macros/unused.h>
 
+// Callback function on assertion failure
+
+enum ASSERT_ACTION_ENUM {
+    ASSERT_Crash = 0,               // Intentionally crash in order to invoke a crash handler / reporter or get a memory dump
+    ASSERT_Exit,                    // Immediately terminate the process    
+    ASSERT_Ignore                   // Ignore the failure and try to continue
+};
+
+// Should return one of the ASSERT_ACTION_ENUM constants above.
+// expr and/or msg may be NULL depending on if a message was given, or FatalError function called.
+// file will be NULL in release builds (DEBUG_LEVEL == 0).
+typedef int(*dbgAssertCallback)(const char *expr, const char *msg, const char *file, int ln);
+
+// Install function to call upon assertion failure
+void dbgAssertAddCallback(dbgAssertCallback cb);
+void dbgAssertRemoveCallback(dbgAssertCallback cb);
+
 #if DEBUG_LEVEL >= 1
 CX_C bool _cxAssertFail(const char *expr, const char *msg, const char *file, int ln);
 #else

@@ -10,6 +10,7 @@ typedef struct testspec {
 } testspec;
 
 static const testspec tests[] = {
+{ "debug: Assertions", "debugtest", "assert" },
 { "cxmem: Allocation", "cxmemtest", "alloc" },
 { "cxmem: Usable Size", "cxmemtest", "usable_size" },
 { "cxmem: Free", "cxmemtest", "free" },

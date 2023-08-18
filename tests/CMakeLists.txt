@@ -1,5 +1,6 @@
 create_test_sourcelist(testsrc
     test_runner.c
+    debugtest.c
     cxmemtest.c
     fmttest.c
     logtest.c
@@ -42,6 +43,7 @@ endif()
 
 set_property(TARGET test_runner PROPERTY FOLDER "tests")
 
+add_test(NAME "\"debug: Assertions\"" COMMAND test_runner debugtest assert)
 add_test(NAME "\"cxmem: Allocation\"" COMMAND test_runner cxmemtest alloc)
 add_test(NAME "\"cxmem: Usable Size\"" COMMAND test_runner cxmemtest usable_size)
 add_test(NAME "\"cxmem: Free\"" COMMAND test_runner cxmemtest free)
