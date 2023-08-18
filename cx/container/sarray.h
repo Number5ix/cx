@@ -123,7 +123,7 @@ void _saInit(sahandle out, stype elemtype, STypeOps *ops, int32 capacity, flags_
 #define saInit(out, type, capacity, ...) _saInit(SAHANDLE(out), stFullType(type), capacity, opt_flags(__VA_ARGS__))
 
 void _saDestroy(sahandle handle);
-#define saDestroy(handle) _saDestroy(SAHANDLE(handle));
+#define saDestroy(handle) _saDestroy(SAHANDLE(handle))
 
 void _saReserve(sahandle handle, int32 capacity);
 #define saReserve(handle, capacity) _saReserve(SAHANDLE(handle), capacity)
