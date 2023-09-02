@@ -278,7 +278,7 @@ stvar *_ssdPtr(SSDNode *root, strref path, SSDLockState *_ssdCurrentLockState)
     string name = 0;
     stvar *ret = NULL;
 
-    if (!devAssert(_ssdCurrentLockState))       // lock parameter is mandatory
+    if (!devVerifyMsg(_ssdCurrentLockState, "ssdPtr must be used within a locked transaction"))
         return NULL;
 
     if (ssdResolvePath(root, path, &node, &name, false, _ssdCurrentLockState))
@@ -371,7 +371,7 @@ SSDNode *_ssdSubtree(SSDNode *root, strref path, int create, SSDLockState *_ssdC
 
 SSDNode *_ssdSubtreeB(SSDNode *root, strref path, SSDLockState *_ssdCurrentLockState)
 {
-    if (!devAssert(_ssdCurrentLockState))
+    if (!devVerifyMsg(_ssdCurrentLockState, "ssdSubtreeB must be used within a locked transaction"))
         return NULL;
 
     SSDNode *ret = NULL;
@@ -657,7 +657,7 @@ int32 _ssdCount(SSDNode *root, strref path, bool arrayonly, SSDLockState *_ssdCu
 
 stvar *_ssdIndex(SSDNode *root, strref path, int32 idx, SSDLockState *_ssdCurrentLockState)
 {
-    if (!devAssert(_ssdCurrentLockState))
+    if (!devVerifyMsg(_ssdCurrentLockState, "ssdIndex must be used within a locked transaction"))
         return NULL;                            // lock parameter is mandatory
 
     SSDNode *node;

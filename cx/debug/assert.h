@@ -28,32 +28,42 @@ CX_C bool _cxAssertFail(const char *expr, const char *msg);
 #endif
 
 #if DEBUG_LEVEL >= 2
-#define dbgAssert(expr) (!!(expr) || _cxAssertFail(#expr, NULL, __FILE__, __LINE__))
-#define dbgAssertMsg(expr, msg) (!!(expr) || _cxAssertFail(#expr, msg, __FILE__, __LINE__))
+#define dbgAssert(expr) (void)(!!(expr) || _cxAssertFail(#expr, NULL, __FILE__, __LINE__))
+#define dbgAssertMsg(expr, msg) (void)(!!(expr) || _cxAssertFail(#expr, msg, __FILE__, __LINE__))
+#define dbgVerify(expr) (!!(expr) || _cxAssertFail(#expr, NULL, __FILE__, __LINE__))
+#define dbgVerifyMsg(expr, msg) (!!(expr) || _cxAssertFail(#expr, msg, __FILE__, __LINE__))
 #else
-#define dbgAssert(expr) ((unused_noeval(expr), true))
-#define dbgAssertMsg(expr, msg) ((unused_noeval(expr), true))
+#define dbgAssert(expr) unused_noeval(expr)
+#define dbgAssertMsg(expr, msg) unused_noeval(expr)
+#define dbgVerify(expr) (!!(expr))
+#define dbgVerifyMsg(expr, msg) (!!(expr))
 #endif
 
 #if DEBUG_LEVEL >= 1
-#define devAssert(expr) (!!(expr) || _cxAssertFail(#expr, NULL, __FILE__, __LINE__))
-#define devAssertMsg(expr, msg) (!!(expr) || _cxAssertFail(#expr, msg, __FILE__, __LINE__))
-#define relAssert(expr) (!!(expr) || _cxAssertFail(#expr, NULL, __FILE__, __LINE__))
-#define relAssertMsg(expr, msg) (!!(expr) || _cxAssertFail(#expr, msg, __FILE__, __LINE__))
+#define devAssert(expr) (void)(!!(expr) || _cxAssertFail(#expr, NULL, __FILE__, __LINE__))
+#define devAssertMsg(expr, msg) (void)(!!(expr) || _cxAssertFail(#expr, msg, __FILE__, __LINE__))
+#define devVerify(expr) (!!(expr) || _cxAssertFail(#expr, NULL, __FILE__, __LINE__))
+#define devVerifyMsg(expr, msg) (!!(expr) || _cxAssertFail(#expr, msg, __FILE__, __LINE__))
+#define relAssert(expr) (void)(!!(expr) || _cxAssertFail(#expr, NULL, __FILE__, __LINE__))
+#define relAssertMsg(expr, msg) (void)(!!(expr) || _cxAssertFail(#expr, msg, __FILE__, __LINE__))
 #define devFatalError(msg) _cxAssertFail(NULL, msg, __FILE__, __LINE__)
 #define relFatalError(msg) _cxAssertFail(NULL, msg, __FILE__, __LINE__)
 #elif DIAGNOSTIC
-#define devAssert(expr) (!!(expr) || _cxAssertFail(#expr, NULL))
-#define devAssertMsg(expr, msg) ((expr) || _cxAssertFail(#expr, msg))
-#define relAssert(expr) (!!(expr) || _cxAssertFail(#expr, NULL))
-#define relAssertMsg(expr, msg) (!!(expr) || _cxAssertFail(#expr, msg))
+#define devAssert(expr) (void)(!!(expr) || _cxAssertFail(#expr, NULL))
+#define devAssertMsg(expr, msg) (void)(!!(expr) || _cxAssertFail(#expr, msg))
+#define devVerify(expr) (!!(expr) || _cxAssertFail(#expr, NULL, __FILE__, __LINE__))
+#define devVerifyMsg(expr, msg) (!!(expr) || _cxAssertFail(#expr, msg, __FILE__, __LINE__))
+#define relAssert(expr) (void)(!!(expr) || _cxAssertFail(#expr, NULL))
+#define relAssertMsg(expr, msg) (void)(!!(expr) || _cxAssertFail(#expr, msg))
 #define devFatalError(msg) _cxAssertFail(NULL, msg)
 #define relFatalError(msg) _cxAssertFail(NULL, msg)
 #else
-#define devAssert(expr) ((unused_noeval(expr), true))
-#define devAssertMsg(expr, msg) ((unused_noeval(expr), true))
-#define relAssert(expr) (!!(expr) || _cxAssertFail(#expr, NULL))
-#define relAssertMsg(expr, msg) (!!(expr) || _cxAssertFail(#expr, msg))
+#define devAssert(expr) unused_noeval(expr)
+#define devAssertMsg(expr, msg) unused_noeval(expr)
+#define devVerify(expr) (!!(expr))
+#define devVerifyMsg(expr, msg) (!!(expr))
+#define relAssert(expr) (void)(!!(expr) || _cxAssertFail(#expr, NULL))
+#define relAssertMsg(expr, msg) (void)(!!(expr) || _cxAssertFail(#expr, msg))
 #define devFatalError(msg) ((void)0)
 #define relFatalError(msg) _cxAssertFail(NULL, msg)
 #endif

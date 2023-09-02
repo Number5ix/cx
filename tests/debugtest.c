@@ -47,35 +47,26 @@ static int test_assert()
     // install assertion handler so these don't all crash
     dbgAssertAddCallback(assertCb);
 
-    if (relAssert(0 == 1))
-        ret = 1;
+    relAssert(0 == 1);
     asserttest++;
     if (assertfail || assertcount != asserttest)
         ret = 1;
 
-    if (relAssertMsg(0 == 1, "Test 1-2-3"))
-        ret = 1;
+    relAssertMsg(0 == 1, "Test 1-2-3");
     asserttest++;
     if (assertfail || assertcount != asserttest)
         ret = 1;
 
     lasttest = asserttest;
-    if (!relAssert(5 == 5))
-        ret = 1;
+    relAssert(5 == 5);
     asserttest++;
     if (assertfail || assertcount != lasttest)
         ret = 1;
     assertcount = asserttest;           // resync
 
-#if DEBUG_LEVEL > 0
-    // always returns false in development builds
-    if (devAssertMsg(false, "Dev Only"))
+    if (devVerifyMsg(false, "Dev Only"))
         ret = 1;
-#else
-    // always returns true in release builds
-    if (!devAssertMsg(false, "Dev Only"))
-        ret = 1;
-#endif
+
     asserttest++;
 #if DEBUG_LEVEL > 0
     // Should have asserted in dev / debug builds

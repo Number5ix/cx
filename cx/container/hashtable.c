@@ -678,7 +678,7 @@ bool _htHasKey(hashtable htbl, stgeneric key)
 bool _htExtract(hashtable *htbl, stgeneric key, stgeneric *val)
 {
     HashTableHeader *hdr = HTABLE_HDR(*htbl);
-    if (!devAssert(!val || stGetSize(hdr->valtype) > 0))
+    if (!devVerifyMsg(!val || stGetSize(hdr->valtype) > 0, "hashed sets cannot return a value"))
         return false;
 
     uint32 idxent;
