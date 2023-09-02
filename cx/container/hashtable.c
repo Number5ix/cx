@@ -37,86 +37,95 @@ static void _htNewChunk(HashTableHeader *hdr)
     devAssert((hdr->storused & HT_CHUNK_MASK) == 0);
     uint32 chunk = HT_SLOT_CHUNK(hdr->storused);
 
-    if (hdr->storage) {
+    if (hdr->chunks) {
         // grow chunk array
         if (chunk >= hdr->storsz) {
             hdr->storsz = calcGrowth(hdr, hdr->storsz);
-            hdr->storage = xaResize(hdr->storage, hdr->storsz * sizeof(void *));
+            hdr->chunks = xaResize(hdr->chunks, hdr->storsz * sizeof(HTChunkInfo));
+            hdr->keystorage = xaResize(hdr->keystorage, hdr->storsz * sizeof(void *));
+            if (stGetSize(hdr->valtype) > 0)
+                hdr->valstorage = xaResize(hdr->valstorage, hdr->storsz * sizeof(void *));
         }
     } else {
-        hdr->storage = xaAlloc(4 * sizeof(void *), XA_Zero);
+        hdr->chunks = xaAlloc(4 * sizeof(HTChunkInfo));
+        hdr->keystorage = xaAlloc(4 * sizeof(void *));
+        if (stGetSize(hdr->valtype) > 0)
+            hdr->valstorage = xaAlloc(4 * sizeof(void *));
         hdr->storsz = 4;
     }
 
-    uint32 elemsz = _htElemSz(hdr);
-    HTChunkHeader *chunkhdr;
+    HTChunkInfo *chunkinfo = &hdr->chunks[chunk];
     if (!(hdr->flags & (HT_InsertOpt | HT_Compact))) {
         // default chunk allocation strategy
         // allocate a quarter-chunk
-        hdr->storage[chunk] = xaAlloc(HT_QUARTER_CHUNK * elemsz);
-        chunkhdr = hdr->storage[chunk];
-        chunkhdr->nalloc = HT_QUARTER_CHUNK;
+        hdr->keystorage[chunk] = xaAlloc(HT_QUARTER_CHUNK * stGetSize(hdr->keytype));
+        if (stGetSize(hdr->valtype) > 0)
+            hdr->valstorage[chunk] = xaAlloc(HT_QUARTER_CHUNK * stGetSize(hdr->valtype));
+        chunkinfo->nalloc = HT_QUARTER_CHUNK;
     } else if (hdr->flags & HT_InsertOpt) {
         // insert-optimized case, allocate a whole chunk
-        hdr->storage[chunk] = xaAlloc(HT_SLOTS_PER_CHUNK * elemsz);
-        chunkhdr = hdr->storage[chunk];
-        chunkhdr->nalloc = HT_SLOTS_PER_CHUNK;
+        hdr->keystorage[chunk] = xaAlloc(HT_SLOTS_PER_CHUNK * stGetSize(hdr->keytype));
+        if (stGetSize(hdr->valtype) > 0)
+            hdr->valstorage[chunk] = xaAlloc(HT_SLOTS_PER_CHUNK * stGetSize(hdr->valtype));
+        chunkinfo->nalloc = HT_SLOTS_PER_CHUNK;
     } else { // if (hdr->flags & HT_Compact)
-        // compact mode, allocate only the metadata
-        hdr->storage[chunk] = xaAlloc(elemsz);
-        chunkhdr = hdr->storage[chunk];
-        chunkhdr->nalloc = 1;
+        // compact mode, allocate only the first slot
+        hdr->keystorage[chunk] = xaAlloc(stGetSize(hdr->keytype));
+        if (stGetSize(hdr->valtype) > 0)
+            hdr->valstorage[chunk] = xaAlloc(stGetSize(hdr->valtype));
+        chunkinfo->nalloc = 1;
     }
-    memset(chunkhdr->deleted, 0, sizeof(chunkhdr->deleted));
-
-    // the first slot of each chunk is reserved for metadata
-    hdr->storused++;
+    memset(chunkinfo->deleted, 0, sizeof(chunkinfo->deleted));
 }
 
 static uint32 _htNewSlot(HashTableHeader *hdr)
 {
+    uint32 chunk = HT_SLOT_CHUNK(hdr->storused);
+    if (!(hdr->flags & (HT_InsertOpt | HT_Compact))) {
+        // standard chunk allocation strategy - we need to check if this goes over a quarter-chunk boundary
+        if ((hdr->storused & HT_QCHUNK_MASK) == 0 && (hdr->storused & HT_CHUNK_MASK) != 0) {
+            // need to resize chunk
+            devAssert(hdr->chunks[chunk].nalloc == (hdr->storused & HT_CHUNK_MASK));
+            hdr->chunks[chunk].nalloc += HT_QUARTER_CHUNK;
+            devAssert(hdr->chunks[chunk].nalloc <= HT_SLOTS_PER_CHUNK);
+            hdr->keystorage[chunk] = xaResize(hdr->keystorage[chunk], hdr->chunks[chunk].nalloc * stGetSize(hdr->keytype));
+            if (stGetSize(hdr->valtype) > 0)
+                hdr->valstorage[chunk] = xaResize(hdr->valstorage[chunk], hdr->chunks[chunk].nalloc * stGetSize(hdr->valtype));
+        }
+    } else if (hdr->flags & HT_Compact) {
+        // compact allocation strategy; always resize the chunk for the new item
+        // first slot always gets allocated with the chunk though
+        if ((hdr->storused & HT_CHUNK_MASK) > 0) {
+            devAssert(hdr->chunks[chunk].nalloc == (hdr->storused & HT_CHUNK_MASK));
+            hdr->chunks[chunk].nalloc++;
+            devAssert(hdr->chunks[chunk].nalloc <= HT_SLOTS_PER_CHUNK);
+            hdr->keystorage[chunk] = xaResize(hdr->keystorage[chunk], hdr->chunks[chunk].nalloc * stGetSize(hdr->keytype));
+            if (stGetSize(hdr->valtype) > 0)
+                hdr->valstorage[chunk] = xaResize(hdr->valstorage[chunk], hdr->chunks[chunk].nalloc * stGetSize(hdr->valtype));
+        }
+    }
+    // implied else -- insert-optimized always allocates full chunks, nothing to do here
+
+    uint32 ret = hdr->storused++;
     if ((hdr->storused & HT_CHUNK_MASK) == 0) {
         // crossed the boundary into a new chunk, add one
         _htNewChunk(hdr);
     }
-
-    uint32 chunk = HT_SLOT_CHUNK(hdr->storused);
-    if (!(hdr->flags & (HT_InsertOpt | HT_Compact))) {
-        // standard chunk allocation strategy - we need to check if this goes over a quarter-chunk boundary
-        if ((hdr->storused & HT_QCHUNK_MASK) == 0) {
-            // need to resize chunk
-            devAssert(hdr->storage[chunk]->nalloc == (hdr->storused & HT_CHUNK_MASK));
-            hdr->storage[chunk]->nalloc += HT_QUARTER_CHUNK;
-            devAssert(hdr->storage[chunk]->nalloc <= HT_SLOTS_PER_CHUNK);
-            hdr->storage[chunk] = xaResize(hdr->storage[chunk], hdr->storage[chunk]->nalloc * _htElemSz(hdr));
-        }
-    } else if (hdr->flags & HT_Compact) {
-        // compact allocation strategy; always resize the chunk for the new item
-        hdr->storage[chunk]->nalloc++;
-        devAssert(hdr->storage[chunk]->nalloc <= HT_SLOTS_PER_CHUNK);
-        hdr->storage[chunk] = xaResize(hdr->storage[chunk], hdr->storage[chunk]->nalloc * _htElemSz(hdr));
-    }
-    // implied else -- insert-optimized always allocates full chunks, nothing to do here
-
-    return hdr->storused++;
+    return ret;
 }
 
 uint32 _htNextSlot(HashTableHeader *hdr, uint32 slot)
 {
     for (++slot; slot < hdr->storused; ++slot) {
-        // skip over metadata slots
-        if ((slot & HT_CHUNK_MASK) == 0)
-            continue;
-
         // skip over completely deallocated chunks
         uint32 chunk = HT_SLOT_CHUNK(slot);
-        if (!hdr->storage[chunk]) {
+        if (!hdr->keystorage[chunk]) {
             slot = HT_SLOTS_PER_CHUNK * (chunk + 1) - 1;
             continue;
         }
 
         // skip over deleted slots
-        if (hdr->storage[chunk]->deleted[HT_DELETED_IDX(slot)] & HT_DELETED_BIT(slot))
+        if (hdr->chunks[chunk].deleted[HT_DELETED_IDX(slot)] & HT_DELETED_BIT(slot))
             continue;
 
         // this is a valid slot!
@@ -131,7 +140,6 @@ void _htInit(hashtable *out, stype keytype, STypeOps *keyops, stype valtype, STy
     HashTableHeader *ret;
 
     relAssert(stGetSize(keytype) > 0);
-    relAssert(stGetSize(valtype) > 0);
 
     if (initsz == 0)
         initsz = HT_QUARTER_CHUNK * 2;
@@ -142,7 +150,7 @@ void _htInit(hashtable *out, stype keytype, STypeOps *keyops, stype valtype, STy
     // logic and just use straight memory copies for speed.
     if (!keyops && !(stHasFlag(keytype, Object)))
         flags |= HT_RefKeys;
-    if (!valops && !(stHasFlag(valtype, Object)))
+    if (stGetSize(valtype) == 0 || (!valops && !(stHasFlag(valtype, Object))))
         flags |= HT_Ref;
 
     if ((HT_GET_GROW(flags) & HT_GROW_AT_MASK) != HT_GROW_At50) {
@@ -180,8 +188,11 @@ void _htInit(hashtable *out, stype keytype, STypeOps *keyops, stype valtype, STy
     ret->flags = flags;
 
     // prep the first storage chunk
-    ret->storage = NULL;
+    ret->chunks = NULL;
+    ret->valstorage = NULL;
     _htNewChunk(ret);
+    // we reserve slot 0 to make things like htFind be able to return 0 when not found, which nicely converts to a boolean
+    ret->storused = 1;
 
     if (keyops) {
         ret->keytypeops = *keyops;
@@ -238,7 +249,6 @@ static hashtable _htClone(hashtable htbl, uint32 minsz, bool move, bool repack)
     HashTableHeader *hdr = HTABLE_HDR(htbl);
     HashTableHeader *nhdr;
     hashtable ntbl;
-    uint32 elemsz = _htElemSz(hdr);
 
     if (minsz == 0)
         minsz = hdr->idxsz;
@@ -285,24 +295,35 @@ static hashtable _htClone(hashtable htbl, uint32 minsz, bool move, bool repack)
     if (!move || repack) {
         // if we're cloning or repacking, copy the actual data
         // this also re-indexes as we go
-        nhdr->storage = NULL;
-        for (uint32 slot = _htNextSlot(hdr, 0); slot != 0; slot = _htNextSlot(hdr, slot)) {
-            _htInsertInternal(&ntbl, stStored(hdr->keytype, HT_SLOT_PTR(hdr, elemsz, slot)),
-                              stStoredPtr(hdr->valtype, HT_SLOT_VAL_PTR(hdr, elemsz, slot)), 0);
+        nhdr->chunks = NULL;
+        nhdr->valstorage = NULL;
+        _htNewChunk(nhdr);
+        nhdr->storused = 1;
+        if (stGetSize(hdr->valtype) > 0) {
+            for (uint32 slot = _htNextSlot(hdr, 0); slot != 0; slot = _htNextSlot(hdr, slot)) {
+                _htInsertInternal(&ntbl, stStored(hdr->keytype, HT_SLOT_KEY_PTR(hdr, slot)),
+                                  stStoredPtr(hdr->valtype, HT_SLOT_VAL_PTR(hdr, slot)), 0);
+            }
+        } else {
+            for (uint32 slot = _htNextSlot(hdr, 0); slot != 0; slot = _htNextSlot(hdr, slot)) {
+                _htInsertInternal(&ntbl, stStored(hdr->keytype, HT_SLOT_KEY_PTR(hdr, slot)), NULL, 0);
+            }
         }
         // this *shouldn't* actually change since the new index is preallocated
         devAssert(nhdr == HTABLE_HDR(ntbl));
         nhdr = HTABLE_HDR(ntbl);
     } else {
         // we're moving and not repacking, just link to the old storage
-        nhdr->storage = hdr->storage;
+        nhdr->chunks = hdr->chunks;
+        nhdr->keystorage = hdr->keystorage;
+        nhdr->valstorage = hdr->valstorage;
         nhdr->storsz = hdr->storsz;
         nhdr->storused = hdr->storused;
 
         // and reindex
         uint32 idxent;
         for (uint32 slot = _htNextSlot(hdr, 0); slot != 0; slot = _htNextSlot(hdr, slot)) {
-            idxent = htFastFindIndex(nhdr, stStored(hdr->keytype, HT_SLOT_PTR(hdr, elemsz, slot)));
+            idxent = htFastFindIndex(nhdr, stStored(hdr->keytype, HT_SLOT_KEY_PTR(hdr, slot)));
             nhdr->idxused++;
             nhdr->index[idxent] = slot;
         }
@@ -344,9 +365,14 @@ void htRepack(hashtable *htbl)
 
     // free all chunks
     for (uint32 chunk = 0; chunk < HT_SLOT_CHUNK(hdr->storused + HT_SLOTS_PER_CHUNK - 1); ++chunk) {
-        xaFree(hdr->storage[chunk]);
+        xaFree(hdr->keystorage[chunk]);
+        if (stGetSize(hdr->valtype) > 0)
+            xaFree(hdr->valstorage[chunk]);
     }
-    xaFree(hdr->storage);
+    xaFree(hdr->keystorage);
+    if (stGetSize(hdr->valtype) > 0)
+        xaFree(hdr->valstorage);
+    xaFree(hdr->chunks);
 
     // free old table
     if (hdr->flags & HTINT_Extended) {
@@ -372,7 +398,6 @@ static void htGrowIndex(hashtable *htbl)
 
 static bool htFindIndex(HashTableHeader *hdr, stgeneric key, uint32 *indexOut, uint32 *deletedOut)
 {
-    uint32 elemsz = _htElemSz(hdr);
     uint32 opsflags = (hdr->flags & HT_CaseInsensitive) ? ST_CaseInsensitive : 0;
     uint32 probes = 1;
 
@@ -394,7 +419,7 @@ static bool htFindIndex(HashTableHeader *hdr, stgeneric key, uint32 *indexOut, u
 
         if (slot != hashIndexDeleted) {
             // not deleted, so check the key
-            void *skey = HT_SLOT_PTR(hdr, elemsz, slot);
+            void *skey = HT_SLOT_KEY_PTR(hdr, slot);
             if (_stCmp(hdr->keytype, HDRKEYOPS(hdr), key,
                        stStored(hdr->keytype, skey), opsflags | ST_Equality) == 0) {
                 // found it!
@@ -441,7 +466,7 @@ static void htSetValueInternal(HashTableHeader *hdr, uint32 slot, stgeneric *val
     if (consume) {
         // special case: if we're consuming, just steal the element instead of deep copying it,
         // even if we're the owner
-        memcpy(HT_SLOT_VAL_PTR(hdr, _htElemSz(hdr), slot), stGenPtr(hdr->valtype, *val), stGetSize(hdr->valtype));
+        memcpy(HT_SLOT_VAL_PTR(hdr, slot), stGenPtr(hdr->valtype, *val), stGetSize(hdr->valtype));
 
         // destroy source
         if (hdr->flags & HT_Ref)        // this combination doesn't make much sense, but should respect it
@@ -453,9 +478,9 @@ static void htSetValueInternal(HashTableHeader *hdr, uint32 slot, stgeneric *val
 
     if (!(hdr->flags & HT_Ref))
         _stCopy(hdr->valtype, HDRVALOPS(hdr),
-                stStoredPtr(hdr->valtype, HT_SLOT_VAL_PTR(hdr, _htElemSz(hdr), slot)), *val, 0);
+                stStoredPtr(hdr->valtype, HT_SLOT_VAL_PTR(hdr, slot)), *val, 0);
     else
-        memcpy(HT_SLOT_VAL_PTR(hdr, _htElemSz(hdr), slot), stGenPtr(hdr->valtype, *val),
+        memcpy(HT_SLOT_VAL_PTR(hdr, slot), stGenPtr(hdr->valtype, *val),
                stGetSize(hdr->valtype));
 }
 
@@ -478,12 +503,14 @@ static uint32 _htInsertInternal(hashtable *htbl, stgeneric key, stgeneric *val, 
             return slot;
         }
 
-        // replacing existing value, destroy it first if necessary
-        if (!(hdr->flags & HT_Ref))
-            _stDestroy(hdr->valtype, HDRVALOPS(hdr),
-                       stStoredPtr(hdr->valtype, HT_SLOT_VAL_PTR(hdr, _htElemSz(hdr), slot)), 0);
+        if (stGetSize(hdr->valtype) > 0) {
+            // replacing existing value, destroy it first if necessary
+            if (!(hdr->flags & HT_Ref))
+                _stDestroy(hdr->valtype, HDRVALOPS(hdr),
+                           stStoredPtr(hdr->valtype, HT_SLOT_VAL_PTR(hdr, slot)), 0);
 
-        htSetValueInternal(hdr, slot, val, flags & HTINT_Consume);
+            htSetValueInternal(hdr, slot, val, flags & HTINT_Consume);
+        }
         return slot;
     }
 
@@ -500,16 +527,17 @@ static uint32 _htInsertInternal(hashtable *htbl, stgeneric key, stgeneric *val, 
     // set key
     if (!(hdr->flags & HT_RefKeys))
         _stCopy(hdr->keytype, HDRKEYOPS(hdr),
-                stStoredPtr(hdr->keytype, HT_SLOT_PTR(hdr, _htElemSz(hdr), slot)), key, 0);
+                stStoredPtr(hdr->keytype, HT_SLOT_KEY_PTR(hdr, slot)), key, 0);
     else
-        memcpy(HT_SLOT_PTR(hdr, _htElemSz(hdr), slot), stGenPtr(hdr->keytype, key), stGetSize(hdr->keytype));
+        memcpy(HT_SLOT_KEY_PTR(hdr, slot), stGenPtr(hdr->keytype, key), stGetSize(hdr->keytype));
 
-    htSetValueInternal(hdr, slot, val, flags & HTINT_Consume);
+    if (stGetSize(hdr->valtype) > 0)
+        htSetValueInternal(hdr, slot, val, flags & HTINT_Consume);
 
     hdr->index[idxent] = slot;
     hdr->valid++;
 
-    // check to see if table needs to be grown
+    // check to see if index needs to be grown
     uint32 growsz;
     switch (HT_GET_GROW(hdr->flags) & HT_GROW_AT_MASK) {
     case HT_GROW_At50:
@@ -544,39 +572,42 @@ htelem _htInsert(hashtable *htbl, stgeneric key, stgeneric val, flags_t flags)
 
 static void _htClear(HashTableHeader *hdr, bool reuse)
 {
-    uint32 elemsz = _htElemSz(hdr);
-
     // destroy all valid elements
     if (!((hdr->flags & HT_Ref) && (hdr->flags & HT_RefKeys))) {
         // destroy data in storage slots
         for (uint32 slot = _htNextSlot(hdr, 0); slot != 0; slot = _htNextSlot(hdr, slot)) {
             if (!(hdr->flags & HT_RefKeys))
                 _stDestroy(hdr->keytype, HDRKEYOPS(hdr),
-                           stStoredPtr(hdr->keytype, HT_SLOT_PTR(hdr, elemsz, slot)), 0);
+                           stStoredPtr(hdr->keytype, HT_SLOT_KEY_PTR(hdr, slot)), 0);
             if (!(hdr->flags & HT_Ref))
                 _stDestroy(hdr->valtype, HDRVALOPS(hdr),
-                           stStoredPtr(hdr->valtype, HT_SLOT_VAL_PTR(hdr, elemsz, slot)), 0);
+                           stStoredPtr(hdr->valtype, HT_SLOT_VAL_PTR(hdr, slot)), 0);
         }
     }
 
     // free all chunks (except for the first one if we're planning to reuse it)
     for (uint32 chunk = reuse ? 1 : 0; chunk < HT_SLOT_CHUNK(hdr->storused + HT_SLOTS_PER_CHUNK - 1); ++chunk) {
-        xaFree(hdr->storage[chunk]);
+        xaFree(hdr->keystorage[chunk]);
+        if (stGetSize(hdr->valtype) > 0)
+            xaFree(hdr->valstorage[chunk]);
     }
     hdr->storused = 0;
 
     if (reuse) {
-        hdr->storage = xaResize(hdr->storage, 4 * sizeof(void *));
+        hdr->chunks = xaResize(hdr->chunks, 4 * sizeof(HTChunkInfo));
+        hdr->keystorage = xaResize(hdr->keystorage, 4 * sizeof(void *));
+        if (stGetSize(hdr->valtype) > 0)
+            hdr->valstorage = xaResize(hdr->valstorage, 4 * sizeof(void *));
         hdr->storsz = 4;
 
-        if (hdr->storage[0]) {
+        if (hdr->keystorage[0]) {
             // recycle first chunk
-            memset(hdr->storage[0]->deleted, 0, sizeof(hdr->storage[0]->deleted));
-            hdr->storused = 1;
+            memset(hdr->chunks[0].deleted, 0, sizeof(hdr->chunks[0].deleted));
         } else {
             // it was previously freed, get a new one
             _htNewChunk(hdr);
         }
+        hdr->storused = 1;
 
         // clear index
         for (uint32 i = 0; i < hdr->idxsz; i++) {
@@ -603,7 +634,10 @@ void htDestroy(hashtable *htbl)
     _htClear(HTABLE_HDR(*htbl), false);
 
     HashTableHeader *hdr = HTABLE_HDR(*htbl);
-    xaFree(hdr->storage);
+    xaFree(hdr->keystorage);
+    if (stGetSize(hdr->valtype) > 0)
+        xaFree(hdr->valstorage);
+    xaFree(hdr->chunks);
     if (hdr->flags & HTINT_Extended) {
         xaFree(hdr);
     } else {
@@ -616,16 +650,18 @@ void htDestroy(hashtable *htbl)
 htelem _htFind(hashtable htbl, stgeneric key, stgeneric *val, flags_t flags)
 {
     HashTableHeader *hdr = HTABLE_HDR(htbl);
+
     uint32 slot;
     bool found = htFindSlot(hdr, key, &slot);
 
     if (found) {
         if (val) {
+            devAssert(stGetSize(hdr->valtype) > 0);
             if ((flags & HT_Borrow) || (hdr->flags & HT_Ref))
-                memcpy(stGenPtr(hdr->valtype, *val), HT_SLOT_VAL_PTR(hdr, _htElemSz(hdr), slot), stGetSize(hdr->valtype));
+                memcpy(stGenPtr(hdr->valtype, *val), HT_SLOT_VAL_PTR(hdr, slot), stGetSize(hdr->valtype));
             else
                 _stCopy(hdr->valtype, HDRVALOPS(hdr),
-                        val, stStored(hdr->valtype, HT_SLOT_VAL_PTR(hdr, _htElemSz(hdr), slot)), 0);
+                        val, stStored(hdr->valtype, HT_SLOT_VAL_PTR(hdr, slot)), 0);
         }
         return slot;
     }
@@ -642,7 +678,9 @@ bool _htHasKey(hashtable htbl, stgeneric key)
 bool _htExtract(hashtable *htbl, stgeneric key, stgeneric *val)
 {
     HashTableHeader *hdr = HTABLE_HDR(*htbl);
-    uint32 elemsz = _htElemSz(hdr);
+    if (!devAssert(!val || stGetSize(hdr->valtype) > 0))
+        return false;
+
     uint32 idxent;
     bool found = htFindIndex(hdr, key, &idxent, NULL);
 
@@ -650,20 +688,20 @@ bool _htExtract(hashtable *htbl, stgeneric key, stgeneric *val)
         uint32 slot = hdr->index[idxent];
         // either extract the value by stealing any reference, or destroy it
         if (val)
-            memcpy(stGenPtr(hdr->valtype, *val), HT_SLOT_VAL_PTR(hdr, elemsz, slot), stGetSize(hdr->valtype));
+            memcpy(stGenPtr(hdr->valtype, *val), HT_SLOT_VAL_PTR(hdr, slot), stGetSize(hdr->valtype));
         else if (!(hdr->flags & HT_Ref))
             _stDestroy(hdr->valtype, HDRVALOPS(hdr),
-                       stStoredPtr(hdr->valtype, HT_SLOT_VAL_PTR(hdr, elemsz, slot)), 0);
+                       stStoredPtr(hdr->valtype, HT_SLOT_VAL_PTR(hdr, slot)), 0);
         if (!(hdr->flags & HT_RefKeys))
             _stDestroy(hdr->keytype, HDRKEYOPS(hdr),
-                       stStoredPtr(hdr->keytype, HT_SLOT_PTR(hdr, elemsz, slot)), 0);
+                       stStoredPtr(hdr->keytype, HT_SLOT_KEY_PTR(hdr, slot)), 0);
 
         // mark deleted in index
         hdr->index[idxent] = hashIndexDeleted;
         // mark deleted in storage
         uint32 chunk = HT_SLOT_CHUNK(slot);
-        HTChunkHeader *chunkhdr = hdr->storage[chunk];
-        chunkhdr->deleted[HT_DELETED_IDX(slot)] |= HT_DELETED_BIT(slot);
+        HTChunkInfo *chunkinfo = &hdr->chunks[chunk];
+        chunkinfo->deleted[HT_DELETED_IDX(slot)] |= HT_DELETED_BIT(slot);
 
         hdr->valid--;
 
@@ -673,21 +711,23 @@ bool _htExtract(hashtable *htbl, stgeneric key, stgeneric *val)
         } else if (chunk < HT_SLOT_CHUNK(hdr->storused)){
             // Check if the chunk is completely empty. This check does NOT happen on the last
             // chunk of the array, which may be partially filled.
-            devAssert(chunkhdr->nalloc == HT_SLOTS_PER_CHUNK);
+            devAssert(chunkinfo->nalloc == HT_SLOTS_PER_CHUNK);
 
-            // the first slot is metadata that is never marked deleted, it needs to be ignored
-            // when doing this check.
-            bool left = (chunkhdr->deleted[0] != 0xfe);
-            for (int i = 1; !left && i < HT_SLOTS_PER_CHUNK >> 3; ++i) {
-                if (chunkhdr->deleted[i] != 0xff) {
+            bool left = false;
+            for (int i = 0; !left && i < HT_SLOTS_PER_CHUNK >> 3; ++i) {
+                if (chunkinfo->deleted[i] != 0xff) {
                     left = true;
                 }
             }
 
             if (!left) {
                 // deallocate the empty chunk
-                xaFree(hdr->storage[chunk]);
-                hdr->storage[chunk] = NULL;
+                xaFree(hdr->keystorage[chunk]);
+                hdr->keystorage[chunk] = NULL;
+                if (stGetSize(hdr->valtype) > 0) {
+                    xaFree(hdr->valstorage[chunk]);
+                    hdr->valstorage[chunk] = NULL;
+                }
             }
         }
     }
@@ -729,16 +769,30 @@ void htiFinish(htiter *iter)
     memset(iter, 0, sizeof(htiter));
 }
 
-// HT_SLOT_PTR wrapper with safety checks
-void *_hteElemPtr(HashTableHeader *hdr, htelem elem)
+// HT_SLOT_KEY_PTR wrapper with safety checks
+void *_hteElemKeyPtr(HashTableHeader *hdr, htelem elem)
 {
     uint32 chunk = HT_SLOT_CHUNK(elem);
-    if (!hdr || !hdr->storage[chunk])
+    if (!hdr || elem >= hdr->storused || !hdr->keystorage[chunk])
         return NULL;
 
-    if (hdr->storage[chunk]->deleted[HT_DELETED_IDX(elem)] & HT_DELETED_BIT(elem))
+    if (hdr->chunks[chunk].deleted[HT_DELETED_IDX(elem)] & HT_DELETED_BIT(elem))
         return NULL;
 
     // this is a valid slot!
-    return HT_SLOT_PTR(hdr, _htElemSz(hdr), elem);
+    return HT_SLOT_KEY_PTR(hdr, elem);
+}
+
+// HT_SLOT_VAL_PTR wrapper with safety checks
+void *_hteElemValPtr(HashTableHeader *hdr, htelem elem)
+{
+    uint32 chunk = HT_SLOT_CHUNK(elem);
+    if (!hdr || elem >= hdr->storused || !hdr->valstorage || !hdr->valstorage[chunk])
+        return NULL;
+
+    if (hdr->chunks[chunk].deleted[HT_DELETED_IDX(elem)] & HT_DELETED_BIT(elem))
+        return NULL;
+
+    // this is a valid slot!
+    return HT_SLOT_VAL_PTR(hdr, elem);
 }

@@ -8,7 +8,7 @@ typedef struct hashtable_ref {
 } hashtable_ref;
 
 typedef struct hashtable_ref *hashtable;
-typedef struct HTChunkHeader HTChunkHeader;
+typedef struct HTChunkInfo HTChunkInfo;
 
 typedef struct HashTableHeader {
     // extended header, present only if HT_Extended is set
@@ -26,7 +26,9 @@ typedef struct HashTableHeader {
     stype valtype;
     uint32 flags;
 
-    HTChunkHeader **storage;    // array of storage chunks
+    HTChunkInfo *chunks;
+    void **keystorage;
+    void **valstorage;
     uint32 index[1];
 } HashTableHeader;
 
@@ -56,7 +58,7 @@ typedef struct htiter {
 #define htSize(ref) ((ref) ? HTABLE_HDR((ref))->valid : 0)
 #define htKeyType(ref) ((ref) ? HTABLE_HDR((ref))->keytype : 0)
 #define htValType(ref) ((ref) ? HTABLE_HDR((ref))->valtype : 0)
-#define hteKeyPtrHdr(hdr, elem, type) ((stStorageType(type)*)(((hdr) && (elem)) ? _hteElemPtr(hdr, elem) : 0))
+#define hteKeyPtrHdr(hdr, elem, type) ((stStorageType(type)*)(((hdr) && (elem)) ? _hteElemKeyPtr(hdr, elem) : 0))
 #define hteValPtrHdr(hdr, elem, type) ((stStorageType(type)*)(((hdr) && (elem)) ? _hteElemValPtr(hdr, elem) : 0))
 #define hteKeyPtr(ref, elem, type) hteKeyPtrHdr(HTABLE_HDR(ref), elem, type)
 #define hteValPtr(ref, elem, type) hteValPtrHdr(HTABLE_HDR(ref), elem, type)
@@ -180,14 +182,8 @@ _meta_inline bool _htHasKeyChecked(hashtable htbl, stype keytype, stgeneric key)
 }
 #define htHasKey(htbl, ktype, key) _htHasKeyChecked(htbl, stCheckedArg(ktype, key))
 
-void *_hteElemPtr(HashTableHeader *hdr, htelem elem);
-_meta_inline void *_hteElemValPtr(HashTableHeader *hdr, htelem elem)
-{
-    uintptr eptr = (uintptr)_hteElemPtr(hdr, elem);
-    if (eptr == 0)
-        return NULL;
-    return (void *)(eptr + stGetSize(hdr->keytype));
-}
+void *_hteElemKeyPtr(HashTableHeader *hdr, htelem elem);
+void *_hteElemValPtr(HashTableHeader *hdr, htelem elem);
 
 // Hash table iterator
 bool htiInit(htiter *iter, hashtable htbl);
