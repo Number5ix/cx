@@ -1,6 +1,6 @@
 #include <cx/serialize/streambuf.h>
 #include <cx/serialize/sbstring.h>
-#include <cxmem/xalloc/xalloc.h>
+#include <cx/xalloc/xalloc.h>
 #include <cx/string.h>
 #include <cx/string/strtest.h>
 #include <cx/utils/compare.h>

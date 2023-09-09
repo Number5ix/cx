@@ -41,10 +41,10 @@ static void _htNewChunk(HashTableHeader *hdr)
         // grow chunk array
         if (chunk >= hdr->storsz) {
             hdr->storsz = calcGrowth(hdr, hdr->storsz);
-            hdr->chunks = xaResize(hdr->chunks, hdr->storsz * sizeof(HTChunkInfo));
-            hdr->keystorage = xaResize(hdr->keystorage, hdr->storsz * sizeof(void *));
+            xaResize(&hdr->chunks, hdr->storsz * sizeof(HTChunkInfo));
+            xaResize(&hdr->keystorage, hdr->storsz * sizeof(void *));
             if (stGetSize(hdr->valtype) > 0)
-                hdr->valstorage = xaResize(hdr->valstorage, hdr->storsz * sizeof(void *));
+                xaResize(&hdr->valstorage, hdr->storsz * sizeof(void *));
         }
     } else {
         hdr->chunks = xaAlloc(4 * sizeof(HTChunkInfo));
@@ -88,9 +88,9 @@ static uint32 _htNewSlot(HashTableHeader *hdr)
             devAssert(hdr->chunks[chunk].nalloc == (hdr->storused & HT_CHUNK_MASK));
             hdr->chunks[chunk].nalloc += HT_QUARTER_CHUNK;
             devAssert(hdr->chunks[chunk].nalloc <= HT_SLOTS_PER_CHUNK);
-            hdr->keystorage[chunk] = xaResize(hdr->keystorage[chunk], hdr->chunks[chunk].nalloc * stGetSize(hdr->keytype));
+            xaResize(&hdr->keystorage[chunk], hdr->chunks[chunk].nalloc * stGetSize(hdr->keytype));
             if (stGetSize(hdr->valtype) > 0)
-                hdr->valstorage[chunk] = xaResize(hdr->valstorage[chunk], hdr->chunks[chunk].nalloc * stGetSize(hdr->valtype));
+                xaResize(&hdr->valstorage[chunk], hdr->chunks[chunk].nalloc * stGetSize(hdr->valtype));
         }
     } else if (hdr->flags & HT_Compact) {
         // compact allocation strategy; always resize the chunk for the new item
@@ -99,9 +99,9 @@ static uint32 _htNewSlot(HashTableHeader *hdr)
             devAssert(hdr->chunks[chunk].nalloc == (hdr->storused & HT_CHUNK_MASK));
             hdr->chunks[chunk].nalloc++;
             devAssert(hdr->chunks[chunk].nalloc <= HT_SLOTS_PER_CHUNK);
-            hdr->keystorage[chunk] = xaResize(hdr->keystorage[chunk], hdr->chunks[chunk].nalloc * stGetSize(hdr->keytype));
+            xaResize(&hdr->keystorage[chunk], hdr->chunks[chunk].nalloc * stGetSize(hdr->keytype));
             if (stGetSize(hdr->valtype) > 0)
-                hdr->valstorage[chunk] = xaResize(hdr->valstorage[chunk], hdr->chunks[chunk].nalloc * stGetSize(hdr->valtype));
+                xaResize(&hdr->valstorage[chunk], hdr->chunks[chunk].nalloc * stGetSize(hdr->valtype));
         }
     }
     // implied else -- insert-optimized always allocates full chunks, nothing to do here
@@ -594,10 +594,10 @@ static void _htClear(HashTableHeader *hdr, bool reuse)
     hdr->storused = 0;
 
     if (reuse) {
-        hdr->chunks = xaResize(hdr->chunks, 4 * sizeof(HTChunkInfo));
-        hdr->keystorage = xaResize(hdr->keystorage, 4 * sizeof(void *));
+        xaResize(&hdr->chunks, 4 * sizeof(HTChunkInfo));
+        xaResize(&hdr->keystorage, 4 * sizeof(void *));
         if (stGetSize(hdr->valtype) > 0)
-            hdr->valstorage = xaResize(hdr->valstorage, 4 * sizeof(void *));
+            xaResize(&hdr->valstorage, 4 * sizeof(void *));
         hdr->storsz = 4;
 
         if (hdr->keystorage[0]) {

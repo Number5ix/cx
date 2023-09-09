@@ -4,16 +4,19 @@ set(CSTRUTIL_SRCS
 source_group("cstrutil" FILES ${CSTRUTIL_SRCS})
 
 set(XALLOC_SRCS
-    xalloc/xalloc.h)
+    xalloc_core/xalloc_core.c
+    xalloc_core/xalloc_core.h
+    xalloc_core/xalloc_core_private.h)
 
-set(XALLOC_SRCS
-    ${XALLOC_SRCS}
-    xalloc/xalloc_mimalloc.c
-    xalloc/xalloc_mimalloc.h)
+source_group("xalloc_core" FILES ${XALLOC_SRCS})
 
-source_group("xalloc" FILES ${XALLOC_SRCS})
+set(CXMEM_SRCS
+    cxmem.h)
+
+source_group("" FILES ${CXMEM_SRCS})
 
 add_library (cxmem STATIC
+    ${CXMEM_SRCS}
     ${CSTRUTIL_SRCS}
     ${XALLOC_SRCS})
 

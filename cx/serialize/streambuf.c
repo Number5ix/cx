@@ -155,7 +155,7 @@ static void pushMakeBufSpace(StreamBuffer *sb, size_t sz)
         // if we already have an overflow buffer, increase it if necessary
         if (sz > sb->overflowsz - sb->overflowtail - 1) {
             sb->overflowsz = adjustSize(sb->overflowsz, sb->overflowtail + sz, sb->targetsz);
-            sb->overflow = xaResize(sb->overflow, sb->overflowsz);
+            xaResize(&sb->overflow, sb->overflowsz);
         }
     } else {
         // no overflow, check regular buffer size
@@ -451,7 +451,7 @@ static void feedBuffer(StreamBuffer *sb, size_t want)
                 sb->overflow = xaAlloc(sb->overflowsz);
             } else {
                 sb->overflowsz = adjustSize(sb->overflowsz, sb->overflowtail + needed, sb->targetsz);
-                sb->overflow = xaResize(sb->overflow, sb->overflowsz);
+                xaResize(&sb->overflow, sb->overflowsz);
             }
         }
         count = sb->producerPull(sb, sb->overflow + sb->overflowtail,

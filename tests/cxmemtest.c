@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include <cxmem/xalloc/xalloc.h>
+#include <cx/xalloc/xalloc.h>
 
 #define TEST_FILE cxmemtest
 #define TEST_FUNCS cxmemtest_funcs
@@ -93,13 +93,13 @@ static int test_realloc()
     for (i = 0; i < 50; i++)
         blk1[i] = '0' + (i % 10);
 
-    blk1 = (char*)xaResize(blk1, 90000);
+    xaResize(&blk1, 90000);
     if (!blk1)
         return 1;
     for (i = 0; i < 90000; i++)
         blk1[i] = '0' + (i % 10);
 
-    blk1 = (char*)xaResize(blk1, 67108865);
+    xaResize(&blk1, 67108865);
     if (!blk1)
         return 1;
     for (i = 0; i < 67108865; i++)

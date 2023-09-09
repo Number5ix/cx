@@ -3654,7 +3654,7 @@
 
 /* To Use Function Macros MBEDTLS_PLATFORM_C must be enabled */
 /* MBEDTLS_PLATFORM_XXX_MACRO and MBEDTLS_PLATFORM_XXX_ALT cannot both be defined */
-#include <cxmem/xalloc/xalloc.h>
+#include <cxmem/cxmem.h>
 #define MBEDTLS_PLATFORM_CALLOC_MACRO        xa_calloc /**< Default allocator macro to use, can be undefined */
 #define MBEDTLS_PLATFORM_FREE_MACRO            xa_free /**< Default free macro to use, can be undefined */
 //#define MBEDTLS_PLATFORM_EXIT_MACRO            exit /**< Default exit macro to use, can be undefined */

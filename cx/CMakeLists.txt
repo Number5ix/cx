@@ -19,6 +19,7 @@ add_subdirectory(sys)
 add_subdirectory(thread)
 add_subdirectory(time)
 add_subdirectory(utils)
+add_subdirectory(xalloc)
 
 set(CX_BASE_INCLUDES
     common.h
@@ -38,7 +39,8 @@ set(CX_BASE_INCLUDES
     sys.h
     thread.h
     time.h
-    utils.h)
+    utils.h
+    xalloc.h)
 
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES
     ${CX_BASE_INCLUDES}

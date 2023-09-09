@@ -117,7 +117,7 @@ static void _dbgCrashAddMetaStr(const char *name, const char *val, bool version)
             valcopy[ci++] = val[i];
         } else {
             len++;
-            valcopy = xaResize(valcopy, len + 1);
+            xaResize(&valcopy, len + 1);
             valcopy[ci++] = '\\';
             valcopy[ci++] = extra;
         }

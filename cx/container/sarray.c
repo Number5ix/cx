@@ -334,11 +334,11 @@ void _saInit(sahandle out, stype elemtype, STypeOps *ops, int32 capacity, flags_
 static void saRealloc(sahandle handle, SArrayHeader **hdr, int32 cap)
 {
     if ((*hdr)->flags & SAINT_Extended) {
-        *hdr = xaResize(*hdr, SARRAY_HDRSIZE + cap * stGetSize((*hdr)->elemtype));
+        xaResize(hdr, SARRAY_HDRSIZE + cap * stGetSize((*hdr)->elemtype));
     } else {
         // ugly non-extended header
         void *smlbase = (void*)((uintptr_t)(*hdr) + SARRAY_SMALLHDR_OFFSET);
-        smlbase = xaResize(smlbase, (SARRAY_HDRSIZE + cap * stGetSize((*hdr)->elemtype)) - SARRAY_SMALLHDR_OFFSET);
+        xaResize(&smlbase, (SARRAY_HDRSIZE + cap * stGetSize((*hdr)->elemtype)) - SARRAY_SMALLHDR_OFFSET);
         *hdr = (SArrayHeader*)((uintptr_t)smlbase - SARRAY_SMALLHDR_OFFSET);
     }
     (*hdr)->capacity = cap;

@@ -77,6 +77,7 @@ set(CX_SRCS
     ../cx/utils/lazyinit.c
     ../cx/utils/murmur.c
     ../cx/utils/scratch.c
+    ../cx/xalloc/xalloc.c
     )
 source_group("cx" FILES
     ${CX_SRCS})

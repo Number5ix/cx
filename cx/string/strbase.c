@@ -33,7 +33,7 @@ static inline uint32 _strAllocSz(uint8 hdr, uint32 strsz)
 {
     uint32 sz = STR_OFF_STR(hdr) + strsz + 1;
     sz = (sz + (STR_ALLOC_SIZE - 1)) / STR_ALLOC_SIZE;
-    return max(sz, 1) * STR_ALLOC_SIZE;
+    return (uint32)xaOptSize(max(sz, 1) * STR_ALLOC_SIZE);
 }
 
 // fairly arbitrary numbers to start with, can tune if needed
@@ -154,7 +154,7 @@ bool _strResize(string *ps, uint32 newsz, bool unique)
         uint8 lencl = _strLenClass(newsz, 1);
         if (_strFastRef(*ps) == 1 && lencl == (STR_HDR(*ps) & STR_LEN_MASK)) {
             // same length class, can just realloc and not have to change the header
-            *ps = xaResize(*ps, _strAllocSz(STR_HDR(*ps), newsz));
+            xaResize(ps, _strAllocSz(STR_HDR(*ps), newsz));
             return true;
         } else {
             // can't reallocate, just copy it and deref the original
@@ -357,11 +357,6 @@ void _strReset(string *s, uint32 minsz)
 
     if (!(STR_HDR(*s) & STR_STACK)) {
         uint32 bufsz = (uint32)xaSize(*s) - (uint32)((uint8 *)STR_BUFFER(*s) - (uint8 *)(*s));
-        if (bufsz < minsz + 1 && _strLenClass(minsz, 1) == (STR_HDR(*s) & STR_LEN_MASK)) {
-            // attempt to expand the allocation in place (does not copy)
-            bufsz = (uint32)xaExpand(*s, _strAllocSz(STR_HDR(*s), minsz), 0) - (uint32)((uint8 *)STR_BUFFER(*s) - (uint8 *)(*s));
-        }
-
         if (bufsz < minsz + 1) {
             // just destroy and create new rather than copy useless data
             strReset(s, minsz);

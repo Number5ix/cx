@@ -12,7 +12,8 @@ set(UTILS_INCLUDES
     utils/scratch.h
     utils/macros/args.h
     utils/macros/optarg.h
-    utils/macros/tokens.h)
+    utils/macros/tokens.h
+    utils/macros/unused.h)
 
 set(CX_SRCS
     ${CX_SRCS}

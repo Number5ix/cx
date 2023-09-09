@@ -44,7 +44,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #endif
 
 #include "pcre2_internal.h"
-#include <cxmem/xalloc/xalloc.h>
+#include <cxmem/cxmem.h>
 
 
 /*************************************************

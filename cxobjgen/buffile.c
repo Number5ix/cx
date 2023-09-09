@@ -81,7 +81,7 @@ bool bfReadLine(BufFile *bf, string *out)
             }
             if (bf->bufused == bf->bufsz) {
                 bf->bufsz *= 2;
-                bf->buf = xaResize(bf->buf, bf->bufsz);
+                xaResize(&bf->buf, bf->bufsz);
             }
             size_t didread;
             if (!fsRead(bf->file, bf->buf + bf->bufused, bf->bufsz - bf->bufused, &didread) || didread == 0)

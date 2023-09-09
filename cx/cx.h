@@ -17,7 +17,7 @@
 #include <cx/platform/cpp.h>
 #include <cx/stype/stype.h>
 #include <cx/suid/suid.h>
-#include <cxmem/xalloc/xalloc.h>
+#include <cx/xalloc/xalloc.h>
 
 #ifdef __cplusplus
 #include <cstdio>
