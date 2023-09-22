@@ -22,6 +22,18 @@ typedef struct RawSMBIOSData {
     BYTE    SMBIOSTableData[];
 } RawSMBIOSData;
 
+// UUIDs known to know be unique
+static uint8 uuid_blacklist[][16] = {
+    // 00000000-0000-0000-0000-000000000000 - Empty or missing UUID
+    { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
+    // FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF - Sometimes used as error code
+    { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff },
+    // 03000200-0400-0500-0006-000700080009 - Gigabyte motherboard
+    { 0x00, 0x02, 0x00, 0x03, 0x00, 0x04, 0x00, 0x05, 0x00, 0x06, 0x00, 0x07, 0x00, 0x08, 0x00, 0x09 },
+    // 4C4C4544-0000-2010-8020-80C04F202020 - Dell generic (missing service tag)
+    { 0x44, 0x45, 0x4c, 0x4c, 0x00, 0x00, 0x10, 0x20, 0x80, 0x20, 0x80, 0xc0, 0x4f, 0x20, 0x20, 0x20 },
+};
+
 static int32 hostIdTrySMBIOS(mbedtls_md_context_t *shactx)
 {
     int32 ret = 0;
@@ -61,20 +73,13 @@ static int32 hostIdTrySMBIOS(mbedtls_md_context_t *shactx)
         }
 
         if (h->type == 1 && h->length >= 0x19) {
-            bool allzero = true, allones = true;
             BYTE *uuid = (p + 8);
 
-            // check for either a completely zero UUID, or all 0xFF, both of which
-            // are invalid
-            for (int j = 0; j < 16; j++) {
-                if (uuid[j] != 0x00)
-                    allzero = false;
-                if (uuid[j] != 0xFF)
-                    allones = false;
+            // check the uuid against the blacklist
+            for (int j = 0; j < sizeof(uuid_blacklist) / 16; j++) {
+                if (memcmp(uuid, uuid_blacklist[j], 16) == 0)
+                    goto out;
             }
-
-            if (allzero || allones)
-                goto out;
 
             // okay, we have a valid UUID!
             // theoretically some byte swapping should be done to get it into the
