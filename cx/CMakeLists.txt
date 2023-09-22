@@ -61,7 +61,7 @@ add_library(cx STATIC
     ${CX_BASE_INCLUDES}
     ${CX_CMAKE_FILES})
 
-target_link_libraries(cx ${CMAKE_THREAD_LIBS_INIT} ${CMAKE_DL_LIBS} cxmem mbedtls)
+target_link_libraries(cx ${CMAKE_THREAD_LIBS_INIT} ${CMAKE_DL_LIBS} cxmem mimalloc mbedtls mbedx509 mbedcrypto)
 target_include_directories(cx SYSTEM PUBLIC ${CX_TOP_SOURCE_DIR} ${CX_TOP_BINARY_DIR})
 target_compile_definitions(cx PRIVATE UNICODE _UNICODE)
 

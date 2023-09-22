@@ -20,7 +20,8 @@ option(MI_OSX_ZONE          "Use malloc zone to override standard malloc on macO
 option(MI_WIN_REDIRECT      "Use redirection module ('mimalloc-redirect') on Windows if compiling mimalloc as a DLL" OFF)
 option(MI_LOCAL_DYNAMIC_TLS "Use slightly slower, dlopen-compatible TLS mechanism (Unix)" OFF)
 option(MI_BUILD_SHARED      "Build shared library" OFF)
-option(MI_BUILD_STATIC      "Build static library" ON)
+option(MI_BUILD_STATIC      "Build static library" OFF)
+option(MI_BUILD_OBJLIB      "Build object library like a static library would be built" ON)
 option(MI_BUILD_OBJECT      "Build object library" OFF)
 option(MI_BUILD_TESTS       "Build test executables" OFF)
 option(MI_DEBUG_TSAN        "Build with thread sanitizer (needs clang)" OFF)
@@ -449,6 +450,20 @@ if (MI_BUILD_STATIC)
 
   install(TARGETS mimalloc-static EXPORT mimalloc DESTINATION ${mi_install_objdir} LIBRARY)
   install(EXPORT mimalloc DESTINATION ${mi_install_cmakedir})
+endif()
+
+# object library
+if (MI_BUILD_OBJLIB)
+  add_library(mimalloc OBJECT ${mi_sources})
+  set_property(TARGET mimalloc PROPERTY POSITION_INDEPENDENT_CODE ON)
+  set_property(TARGET mimalloc PROPERTY FOLDER "3rdparty")
+  target_compile_definitions(mimalloc PRIVATE ${mi_defines} MI_STATIC_LIB)
+  target_compile_options(mimalloc PRIVATE ${mi_cflags})
+  target_link_libraries(mimalloc PRIVATE ${mi_libraries})
+  target_include_directories(mimalloc PUBLIC
+      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+      $<INSTALL_INTERFACE:${mi_install_incdir}>
+  )
 endif()
 
 # install include files

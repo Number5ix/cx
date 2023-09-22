@@ -15,10 +15,10 @@ set(CXMEM_SRCS
 
 source_group("" FILES ${CXMEM_SRCS})
 
-add_library (cxmem STATIC
+add_library (cxmem OBJECT
     ${CXMEM_SRCS}
     ${CSTRUTIL_SRCS}
     ${XALLOC_SRCS})
 
 target_include_directories(cxmem SYSTEM PUBLIC ${CX_TOP_SOURCE_DIR} ${CX_TOP_BINARY_DIR})
-target_link_libraries(cxmem mimalloc-static)
+target_link_libraries(cxmem mimalloc)
