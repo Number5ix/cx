@@ -233,8 +233,6 @@ if(LINK_WITH_TRUSTED_STORAGE)
     set(libs ${libs} trusted_storage)
 endif()
 
-set(libs ${libs} cxmem mimalloc)
-
 if (NOT USE_STATIC_MBEDTLS_LIBRARY AND NOT USE_SHARED_MBEDTLS_LIBRARY AND NOT USE_OBJECT_MBEDTLS_LIBRARY)
     message(FATAL_ERROR "Need to choose static or shared mbedtls build!")
 endif(NOT USE_STATIC_MBEDTLS_LIBRARY AND NOT USE_SHARED_MBEDTLS_LIBRARY AND NOT USE_OBJECT_MBEDTLS_LIBRARY)
@@ -345,7 +343,8 @@ foreach(target IN LISTS target_libraries)
     target_include_directories(${target}
         PUBLIC $<BUILD_INTERFACE:${MBEDTLS_DIR}/include/>
                $<INSTALL_INTERFACE:include/>
-        PRIVATE ${MBEDTLS_DIR}/library/)
+        PRIVATE ${MBEDTLS_DIR}/library/
+               ${CX_TOP_SOURCE_DIR})
     install(
         TARGETS ${target}
         EXPORT MbedTLSTargets

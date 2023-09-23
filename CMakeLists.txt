@@ -67,7 +67,6 @@ set(CMAKE_CODELITE_USE_TARGETS ON)
 
 add_subdirectory(3rdparty)
 add_subdirectory(cx)
-add_subdirectory(cxmem)
 add_subdirectory(cxobjgen)
 #add_subdirectory(misc)
 

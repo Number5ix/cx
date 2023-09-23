@@ -4,7 +4,7 @@
 #include "cx/debug/stacktrace.h"
 #include "cx/fs/path.h"
 #include "cx/container/sarray.h"
-#include "cxmem/cstrutil/cstrutil.h"
+#include "cx/xalloc/cstrutil.h"
 #include "cx/platform/os.h"
 #include "cx/platform/win.h"
 #include "win_fs.h"

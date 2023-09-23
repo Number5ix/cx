@@ -2,7 +2,7 @@
 #include <string.h>
 #include <cx/cx.h>
 #include <cx/platform/base.h>
-#include <cxmem/xalloc_core/xalloc_core.h>
+#include "xalloc.h"
 #include "cstrutil.h"
 
 // Why does this file exist? Because Microsoft is stupid and renamed strdup,

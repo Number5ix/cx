@@ -11,10 +11,10 @@ typedef struct testspec {
 
 static const testspec tests[] = {
 { "debug: Assertions", "debugtest", "assert" },
-{ "cxmem: Allocation", "cxmemtest", "alloc" },
-{ "cxmem: Usable Size", "cxmemtest", "usable_size" },
-{ "cxmem: Free", "cxmemtest", "free" },
-{ "cxmem: Reallocation", "cxmemtest", "realloc" },
+{ "xalloc: Allocation", "cxmemtest", "alloc" },
+{ "xalloc: Usable Size", "cxmemtest", "usable_size" },
+{ "xalloc: Free", "cxmemtest", "free" },
+{ "xalloc: Reallocation", "cxmemtest", "realloc" },
 { "format: Integers", "fmttest", "int" },
 { "format: Floating Point", "fmttest", "float" },
 { "format: Objects", "fmttest", "object" },

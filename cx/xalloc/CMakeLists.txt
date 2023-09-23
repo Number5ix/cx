@@ -1,6 +1,8 @@
 set(XALLOC_SRCS
+    xalloc/cstrutil.c
     xalloc/xalloc.c)
 set(XALLOC_INCLUDES
+    xalloc/cstrutil.h
     xalloc/xalloc.h)
 
 set(CX_SRCS
