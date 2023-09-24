@@ -1,6 +1,6 @@
 #pragma once
 
-#if defined(__GNUC__)
+#if !defined(__clang__) && defined(__GNUC__)
 #include <stdint.h>
 __attribute__((always_inline)) inline int _unused_helper(__attribute__((ununsed)) intptr_t a) { return 0; }
 #define unused_noeval(x) (_unused_helper(true ? (intptr_t)0 : (intptr_t)(x)))
