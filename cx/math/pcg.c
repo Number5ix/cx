@@ -51,6 +51,9 @@ uint32 pcgRandom(PcgState *rng)
 
 uint32 pcgBounded(PcgState *rng, uint32 bound)
 {
+    if (bound == 0)
+        return 0;
+
     // To avoid bias, we need to make the range of the RNG a multiple of
     // bound, which we do by dropping output less than a threshold.
     // A naive scheme to calculate the threshold would be
@@ -107,4 +110,43 @@ void pcgAdvance(PcgState *rng, uint64 delta)
         delta /= 2;
     }
     rng->state = acc_mult * rng->state + acc_plus;
+}
+
+uint64 pcgRandom64(PcgState *rng)
+{
+    uint64 ret = pcgRandom(rng);
+    ret |= (uint64)pcgRandom(rng) << 32;
+    return ret;
+}
+
+uint64 pcgBounded64(PcgState *rng, uint64 bound)
+{
+    // See implementation comments in pcgBounded
+
+    if (bound == 0)
+        return 0;
+
+    uint64 threshold = (1 + ~bound) % bound;
+
+    for (;;) {
+        uint64 r = pcgRandom64(rng);
+        if (r >= threshold)
+            return r % bound;
+    }
+}
+
+float32 pcgFloatRange(PcgState *rng, float32 lower, float32 upper)
+{
+    float32 range = upper - lower;
+    if (range <= 0) return lower;
+
+    return ((float32)pcgRandom(rng) / (float32)UINT_MAX * range) + lower;
+}
+
+float64 pcgFloatRange64(PcgState *rng, float64 lower, float64 upper)
+{
+    float64 range = upper - lower;
+    if (range <= 0) return lower;
+
+    return ((float64)pcgRandom64(rng) / (float64)UINT64_MAX * range) + lower;
 }

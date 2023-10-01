@@ -14,6 +14,7 @@ create_test_sourcelist(testsrc
     lineparsetest.c
     jsontest.c
     converttest.c
+    mathtest.c
     alltests.c)
 add_sidl(converttestobj.sidl
     fmttestobj.sidl
@@ -116,3 +117,6 @@ add_test(NAME "\"json: Parse\"" COMMAND test_runner jsontest parse)
 add_test(NAME "\"json: Output\"" COMMAND test_runner jsontest out)
 add_test(NAME "\"json: Tree Parse\"" COMMAND test_runner jsontest treeparse)
 add_test(NAME "\"json: Tree Output\"" COMMAND test_runner jsontest treeout)
+add_test(NAME "\"math: PCG Random Integer\"" COMMAND test_runner mathtest pcgint)
+add_test(NAME "\"math: PCG Random Float\"" COMMAND test_runner mathtest pcgfloat)
+add_test(NAME "\"math: PCG Error Condition\"" COMMAND test_runner mathtest pcgerror)

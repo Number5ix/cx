@@ -20,7 +20,6 @@ typedef struct SSDTreeDebug {
 } SSDTreeDebug;
 #endif
 
-
 typedef struct SSDTree_ClassIf {
     ObjIface *_implements;
     ObjIface *_parent;

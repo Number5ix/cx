@@ -43,8 +43,51 @@ uint32 pcgBounded(PcgState *rng, uint32 bound);
 // Generates a random integer from [lower..upper]
 _meta_inline uint32 pcgRange(PcgState *rng, uint32 lower, uint32 upper)
 {
+    if (lower >= upper)
+        return lower;
+
     return lower + pcgBounded(rng, upper - lower + 1);
 }
+
+// Generates a random integer from [lower..upper]
+_meta_inline int32 pcgSignedRange(PcgState *rng, int32 lower, int32 upper)
+{
+    if (lower >= upper)
+        return lower;
+
+    return (int32)(lower + pcgBounded(rng, (uint32)(upper - lower + 1)));
+}
+
+// Generates a random integer from [0..UINT64_MAX]
+uint64 pcgRandom64(PcgState *rng);
+
+// Generates a random integer from [0..bound)
+// unlike pcgRandom() % bound, does not suffer from bias
+uint64 pcgBounded64(PcgState *rng, uint64 bound);
+
+// Generates a random integer from [lower..upper]
+_meta_inline uint64 pcgRange64(PcgState *rng, uint64 lower, uint64 upper)
+{
+    if (lower >= upper)
+        return lower;
+
+    return lower + pcgBounded64(rng, upper - lower + 1);
+}
+
+// Generates a random integer from [lower..upper]
+_meta_inline int64 pcgSignedRange64(PcgState *rng, int64 lower, int64 upper)
+{
+    if (lower >= upper)
+        return lower;
+
+    return (int64)(lower + pcgBounded64(rng, (uint64)(upper - lower + 1)));
+}
+
+// Generates a random floating point number from [lower..upper]
+float32 pcgFloatRange(PcgState *rng, float32 lower, float32 upper);
+
+// Generates a random floating point number from [lower..upper]
+float64 pcgFloatRange64(PcgState *rng, float64 lower, float64 upper);
 
 // Advances the RNG state by delta iterations
 void pcgAdvance(PcgState *rng, uint64 delta);
