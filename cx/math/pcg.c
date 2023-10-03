@@ -42,8 +42,9 @@ void pcgAutoSeed(PcgState* rng)
 
 uint32 pcgRandom(PcgState *rng)
 {
+    devAssertMsg(rng->inc, "Use of PCG random number generator without seeding");
     uint64 oldstate = rng->state;
-    rng->state = oldstate * 6364136223846793005ULL + rng->inc;
+    rng->state = oldstate * 6364136223846793005ULL + (rng->inc | 1u);
     uint32 xorshifted = (uint32)(((oldstate >> 18u) ^ oldstate) >> 27u);
     uint32 rot = oldstate >> 59u;
     return (xorshifted >> rot) | (xorshifted << ((1+~rot) & 31));
@@ -82,6 +83,12 @@ uint32 pcgBounded(PcgState *rng, uint32 bound)
         if (r >= threshold)
             return r % bound;
     }
+}
+
+bool pcgFlip(PcgState *rng)
+{
+    // pick an arbitrary bit to use
+    return !!(pcgRandom(rng) & 0x800);
 }
 
 /* Multi-step advance functions (jump-ahead, jump-back)
@@ -135,7 +142,7 @@ uint64 pcgBounded64(PcgState *rng, uint64 bound)
     }
 }
 
-float32 pcgFloatRange(PcgState *rng, float32 lower, float32 upper)
+float32 pcgFRange(PcgState *rng, float32 lower, float32 upper)
 {
     float32 range = upper - lower;
     if (range <= 0) return lower;
@@ -143,7 +150,7 @@ float32 pcgFloatRange(PcgState *rng, float32 lower, float32 upper)
     return ((float32)pcgRandom(rng) / (float32)UINT_MAX * range) + lower;
 }
 
-float64 pcgFloatRange64(PcgState *rng, float64 lower, float64 upper)
+float64 pcgFRange64(PcgState *rng, float64 lower, float64 upper)
 {
     float64 range = upper - lower;
     if (range <= 0) return lower;

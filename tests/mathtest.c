@@ -31,7 +31,7 @@ static int test_math_pcgint()
         }
 
         for (int32 i = 0; i + (i >> 2) + 1 > i; i += (i >> 2) + 1) {
-            sr = pcgSignedRange(&rng, -i, i);
+            sr = pcgSRange(&rng, -i, i);
             if (sr < -i || sr > i)
                 return 1;
         }
@@ -49,7 +49,7 @@ static int test_math_pcgint()
         }
 
         for (int64 i = 0; i + (i >> 2) + 1 > i; i += (i >> 2) + 1) {
-            sv = pcgSignedRange64(&rng, (i >> 2), i);
+            sv = pcgSRange64(&rng, (i >> 2), i);
             if (sv < (i >> 2) || sv > i)
                 return 1;
         }
@@ -68,13 +68,13 @@ static int test_math_pcgfloat()
 
     for (int loop = 0; loop < 10000; loop++) {
         for (float32 i = 0; i < 1e+20; i += i/2 + 1) {
-            r = pcgFloatRange(&rng, -i, i);
+            r = pcgFRange(&rng, -i, i);
             if (r < -i || r > i)
                 return 1;
         }
 
         for (float64 i = 0; i < 1e+40; i += i/2 + 1) {
-            v = pcgFloatRange64(&rng, -i, i);
+            v = pcgFRange64(&rng, -i, i);
             if (v < -i || v > i)
                 return 1;
         }
@@ -106,13 +106,13 @@ static int test_math_pcgerror()
     if (pcgRange64(&rng, 9000000000000LL, 5000000000000LL) != 9000000000000LL)
         return 1;
 
-    if (pcgSignedRange(&rng, -50, -90) != -50)
+    if (pcgSRange(&rng, -50, -90) != -50)
         return 1;
 
-    if (pcgFloatRange(&rng, 401, 5) != 401)
+    if (pcgFRange(&rng, 401, 5) != 401)
         return 1;
 
-    if (pcgFloatRange64(&rng, -4029413, -9999999999) != -4029413)
+    if (pcgFRange64(&rng, -4029413, -9999999999) != -4029413)
         return 1;
 
     return 0;

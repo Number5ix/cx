@@ -16,6 +16,7 @@
 */
 
 #include <cx/cx.h>
+#include <cx/debug/assert.h>
 
 CX_C_BEGIN
 
@@ -40,6 +41,17 @@ uint32 pcgRandom(PcgState *rng);
 // unlike pcgRandom() % bound, does not suffer from bias
 uint32 pcgBounded(PcgState *rng, uint32 bound);
 
+// Simulates a coin flip, returns true or false
+bool pcgFlip(PcgState *rng);
+
+// Generates a random integer from [0..bound)
+// unlike pcgRandom() % bound, does not suffer from bias
+_meta_inline int32 pcgSBounded(PcgState *rng, int32 bound)
+{
+    devAssert(bound >= 0);
+    return (int32)pcgBounded(rng, bound);
+}
+
 // Generates a random integer from [lower..upper]
 _meta_inline uint32 pcgRange(PcgState *rng, uint32 lower, uint32 upper)
 {
@@ -50,7 +62,7 @@ _meta_inline uint32 pcgRange(PcgState *rng, uint32 lower, uint32 upper)
 }
 
 // Generates a random integer from [lower..upper]
-_meta_inline int32 pcgSignedRange(PcgState *rng, int32 lower, int32 upper)
+_meta_inline int32 pcgSRange(PcgState *rng, int32 lower, int32 upper)
 {
     if (lower >= upper)
         return lower;
@@ -75,7 +87,7 @@ _meta_inline uint64 pcgRange64(PcgState *rng, uint64 lower, uint64 upper)
 }
 
 // Generates a random integer from [lower..upper]
-_meta_inline int64 pcgSignedRange64(PcgState *rng, int64 lower, int64 upper)
+_meta_inline int64 pcgSRange64(PcgState *rng, int64 lower, int64 upper)
 {
     if (lower >= upper)
         return lower;
@@ -84,10 +96,10 @@ _meta_inline int64 pcgSignedRange64(PcgState *rng, int64 lower, int64 upper)
 }
 
 // Generates a random floating point number from [lower..upper]
-float32 pcgFloatRange(PcgState *rng, float32 lower, float32 upper);
+float32 pcgFRange(PcgState *rng, float32 lower, float32 upper);
 
 // Generates a random floating point number from [lower..upper]
-float64 pcgFloatRange64(PcgState *rng, float64 lower, float64 upper);
+float64 pcgFRange64(PcgState *rng, float64 lower, float64 upper);
 
 // Advances the RNG state by delta iterations
 void pcgAdvance(PcgState *rng, uint64 delta);
