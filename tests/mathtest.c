@@ -55,6 +55,37 @@ static int test_math_pcgint()
         }
     }
 
+    // check that range actually returns everything
+    // count should never reach anywhere remotely close to 10000,
+    // it's an extreme limit to keep it from running forever if generation is broken
+
+    uint32 seen = 0;
+    int count = 0;
+
+    for (count = 0; seen != 0x3ff && count < 10000; count++) {
+        r = pcgBounded(&rng, 10);
+        if (r >= 10)
+            return 1;
+
+        seen |= 1 << r;
+    }
+
+    if (seen != 0x3ff)
+        return 1;
+
+    seen = 0;
+
+    for (count = 0; seen != 0x3ff && count < 10000; count++) {
+        r = pcgRange(&rng, 31, 40);
+        if (r < 31 || r > 40)
+            return 1;
+
+        seen |= 1 << (r-31);
+    }
+
+    if (seen != 0x3ff)
+        return 1;
+
     return 0;
 }
 
@@ -79,6 +110,36 @@ static int test_math_pcgfloat()
                 return 1;
         }
     }
+
+    // check floating point range
+    uint32 seen = 0;
+    int count = 0;
+    uint32 bit = 0;
+
+    for (count = 0; seen != 0xffffffff && count < 100000; count++) {
+        r = pcgFRange(&rng, 7, 10.1f);
+        bit = (uint32)((r - 7) * 10 + 0.5);
+        if (bit > 31)
+            return 1;
+
+        seen |= (1 << bit);
+    }
+
+    if (seen != 0xffffffff)
+        return 1;
+    seen = 0;
+
+    for (count = 0; seen != 0xffffffff && count < 100000; count++) {
+        v = pcgFRange64(&rng, -18.1, -15);
+        bit = (uint32)((-v - 15) * 10 + 0.5);
+        if (bit > 31)
+            return 1;
+
+        seen |= (1 << bit);
+    }
+
+    if (seen != 0xffffffff)
+        return 1;
 
     return 0;
 }
