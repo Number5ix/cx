@@ -1,0 +1,25 @@
+#pragma once
+
+#include "xalloc.h"
+#include <cx/platform/base.h>
+#include <mimalloc.h>
+static _meta_inline int _xaMaxOOMPhase(unsigned int flags)
+{
+    if (!(flags & XA_Optional_Mask))
+        return XA_Urgent;
+
+    if (flags & XA_Optional_High)
+        return XA_HighEffort;
+    if (flags & XA_Optional_Low)
+        return XA_LowEffort;
+
+    // XA_Optional_None doesn't do any OOM freeing at all
+    return 0;
+}
+
+// go through OOM callbacks to try to free up some memory
+void _xaFreeUpMemory(int phase, size_t allocsz);
+
+// If flags do not include one of the optional flags, this function
+// asserts and does not return.
+void _xaAllocFailure(size_t allocsz, unsigned int flags);

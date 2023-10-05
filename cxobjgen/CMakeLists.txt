@@ -78,6 +78,7 @@ set(CX_SRCS
     ../cx/utils/murmur.c
     ../cx/utils/scratch.c
     ../cx/xalloc/cstrutil.c
+    ../cx/xalloc/oom.c
     ../cx/xalloc/xalloc.c
     )
 source_group("cx" FILES

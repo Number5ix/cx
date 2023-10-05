@@ -1,9 +1,11 @@
 set(XALLOC_SRCS
     xalloc/cstrutil.c
+    xalloc/oom.c
     xalloc/xalloc.c)
 set(XALLOC_INCLUDES
     xalloc/cstrutil.h
-    xalloc/xalloc.h)
+    xalloc/xalloc.h
+    xalloc/xalloc_private.h)
 
 set(CX_SRCS
     ${CX_SRCS}

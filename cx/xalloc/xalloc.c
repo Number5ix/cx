@@ -1,7 +1,6 @@
 #include <cx/cx.h>
-#include "xalloc.h"
+#include "xalloc_private.h"
 
-#include <mimalloc.h>
 #include <cx/utils/macros.h>
 #include <string.h>
 
@@ -9,25 +8,29 @@ void *_xaAlloc(size_t size, unsigned int flags)
 {
     void *ret = NULL;
 
-    if (flags & XA_LG_ALIGN_MASK) {
-        if (flags & XA_Zero) {
-            ret = mi_zalloc_aligned(size, (size_t)1 << (flags & XA_LG_ALIGN_MASK));
+    for (int oomphase = 0, oommaxphase = _xaMaxOOMPhase(flags); oomphase <= oommaxphase; oomphase++) {
+        if (flags & XA_LG_ALIGN_MASK) {
+            if (flags & XA_Zero) {
+                ret = mi_zalloc_aligned(size, (size_t)1 << (flags & XA_LG_ALIGN_MASK));
+            } else {
+                ret = mi_malloc_aligned(size, (size_t)1 << (flags & XA_LG_ALIGN_MASK));
+            }
         } else {
-            ret = mi_malloc_aligned(size, (size_t)1 << (flags & XA_LG_ALIGN_MASK));
+            if (flags & XA_Zero)
+                ret = mi_zalloc(size);
+            else
+                ret = mi_malloc(size);
         }
-    } else {
-        if (flags & XA_Zero)
-            ret = mi_zalloc(size);
-        else
-            ret = mi_malloc(size);
+
+        if (ret)
+            return ret;
+
+        // allocation failed; try to free up some memory and try again
+        _xaFreeUpMemory(oomphase, size);
     }
 
-    if (ret)
-        return ret;
-
-    if (!(flags & XA_Opt)) {
-        exit(1);
-    }
+    // if this isn't an optional allocation, assert rather than return NULL
+    _xaAllocFailure(size, flags);
 
     return NULL;
 }
@@ -37,32 +40,37 @@ void *_xaAlloc(size_t size, unsigned int flags)
 // Returns: pointer to memory
 bool _xaResize(void **ptr, size_t size, unsigned int flags)
 {
+    void *ret = NULL;
+
     if (!ptr)
         return false;
 
-    void *ret = NULL;
-    if (flags & XA_LG_ALIGN_MASK) {
-        if (flags & XA_Zero) {
-            ret = mi_rezalloc_aligned(*ptr, size, (size_t)1 << (flags & XA_LG_ALIGN_MASK));
+    for (int oomphase = 0, oommaxphase = _xaMaxOOMPhase(flags); oomphase <= oommaxphase; oomphase++) {
+        if (flags & XA_LG_ALIGN_MASK) {
+            if (flags & XA_Zero) {
+                ret = mi_rezalloc_aligned(*ptr, size, (size_t)1 << (flags & XA_LG_ALIGN_MASK));
+            } else {
+                ret = mi_realloc_aligned(*ptr, size, (size_t)1 << (flags & XA_LG_ALIGN_MASK));
+            }
         } else {
-            ret = mi_realloc_aligned(*ptr, size, (size_t)1 << (flags & XA_LG_ALIGN_MASK));
+            if (flags & XA_Zero) {
+                ret = mi_rezalloc(*ptr, size);
+            } else {
+                ret = mi_realloc(*ptr, size);
+            }
         }
-    } else {
-        if (flags & XA_Zero) {
-            ret = mi_rezalloc(*ptr, size);
-        } else {
-            ret = mi_realloc(*ptr, size);
+
+        if (ret) {
+            *ptr = ret;
+            return true;
         }
+
+        // allocation failed; try to free up some memory and try again
+        _xaFreeUpMemory(oomphase, size);
     }
 
-    if (ret) {
-        *ptr = ret;
-        return true;
-    }
-
-    if (!(flags & XA_Opt)) {
-        exit(1);
-    }
+    // if this isn't an optional allocation, assert rather than return false
+    _xaAllocFailure(size, flags);
 
     return false;
 }

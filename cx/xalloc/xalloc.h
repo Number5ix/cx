@@ -19,6 +19,8 @@
 #endif
 #endif
 
+CX_C_BEGIN
+
 #define XA_LG_ALIGN_MASK ((unsigned int)0x3f)
 
 // Align to a 2^exp byte boundary.
@@ -44,7 +46,40 @@ enum XA_OPTIONAL_FLAG_ENUM {
 // None = Don't try at all, simply fail if no memory is available
 #define XA_Opt XA_Optional(High)
 
-CX_C_BEGIN
+enum XA_OOM_PHASE_ENUM {
+    // In the low-effort phase, the OOM handler should try to free memory that is low-hanging fruit.
+    // It MUST NOT acquire any locks, even optimistically.
+    // This phase is best suited for freeing memory that is known garbage and is for certain not in
+    // use, such as a deferred-free scenario.
+    XA_LowEffort = 1,
+
+    // In the high-effort phase, the OOM handler may optimistically acquire locks in a non-blocking
+    // manner, but MUST NOT wait on a lock. This phase is suited for cleaning up cache memory or other
+    // nonessential resources.
+    XA_HighEffort,
+
+    // In the urgent phase, the OOM handler should go to any lengths necessary to free memory, including
+    // waiting on locks, but be careful to avoid possible deadlocks. The urgent phase is only invoked as
+    // a last-ditch effort before asserting and crashing the program.
+    XA_Urgent,
+
+    // The fatal phase occurs only if a non-optional allocation has exhausted all options and is about
+    // to trigger an assertion. It can be used for a program to intervene and exit in some other manner,
+    // but be aware that it is quite likely there is little or no memory available and any allocations
+    // will fail.
+    XA_Fatal = -1
+};
+
+// In an out-of-memory situation, all registered OOM callbacks will be called.
+// Depending on the type of allocation, they may be called repeatedly with different phases -- see the
+// phase enum above for details on how to handle each phase.
+// It is guaranteed that only one thread will be inside an OOM callback at a time -- all other threads
+// must wait on the first thread to enter the callback to return.
+typedef void(*xaOOMCallback)(int phase, size_t allocsz);
+
+// Install function to call in out-of-memory conditions
+void xaAddOOMCallback(xaOOMCallback cb);
+void xaRemoveOOMCallback(xaOOMCallback cb);
 
 // void *xaAlloc(size_t size, [flags])
 // Allocate memory of at least sz
