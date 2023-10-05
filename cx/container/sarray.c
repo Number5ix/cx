@@ -287,7 +287,7 @@ static void sa_qsort_internal(SArrayHeader *hdr)
         sa_qsort_internal_stype(hdr, hdr->data, hdr->count);
 }
 
-void _saInit(sahandle out, stype elemtype, STypeOps *ops, int32 capacity, flags_t flags)
+bool _saInit(sahandle out, stype elemtype, STypeOps *ops, int32 capacity, bool canfail, flags_t flags)
 {
     SArrayHeader *hdr;
 
@@ -305,13 +305,22 @@ void _saInit(sahandle out, stype elemtype, STypeOps *ops, int32 capacity, flags_
     if (ops) {
         // need the full header
         flags |= SAINT_Extended;
-        hdr = xaAlloc(SARRAY_HDRSIZE + capacity * stGetSize(elemtype));
+        hdr = xaAlloc(SARRAY_HDRSIZE + capacity * stGetSize(elemtype),
+                      canfail ? XA_Optional(High) : 0);
+        if (!hdr)
+            return false;
+
         hdr->typeops = *ops;
     } else {
         // use the smaller header that saves a few bytes for each array
         // yes, this is evil
         // hdr technically points to unallocated memory, but we're careful to not touch the first part
-        hdr = (SArrayHeader*)((uintptr_t)xaAlloc((SARRAY_HDRSIZE + capacity * stGetSize(elemtype)) - SARRAY_SMALLHDR_OFFSET) - SARRAY_SMALLHDR_OFFSET);
+        void *hbase = xaAlloc((SARRAY_HDRSIZE + capacity * stGetSize(elemtype)) - SARRAY_SMALLHDR_OFFSET,
+                              canfail ? XA_Optional(High) : 0);
+        if (!hbase)
+            return false;
+
+        hdr = (SArrayHeader*)((uintptr_t)hbase - SARRAY_SMALLHDR_OFFSET);
     }
 
     if (SA_GET_GROW(flags) == SA_GROW_Auto) {
@@ -329,23 +338,31 @@ void _saInit(sahandle out, stype elemtype, STypeOps *ops, int32 capacity, flags_
     hdr->capacity = capacity;
     hdr->flags = flags;
     out->a = &hdr->data[0];
+
+    return true;
 }
 
-static void saRealloc(sahandle handle, SArrayHeader **hdr, int32 cap)
+static bool saRealloc(sahandle handle, SArrayHeader **hdr, int32 cap, bool canfail)
 {
+    bool ret = false;
     if ((*hdr)->flags & SAINT_Extended) {
-        xaResize(hdr, SARRAY_HDRSIZE + cap * stGetSize((*hdr)->elemtype));
+        ret = xaResize(hdr, SARRAY_HDRSIZE + cap * stGetSize((*hdr)->elemtype), canfail ? XA_Optional(High) : 0);
     } else {
         // ugly non-extended header
         void *smlbase = (void*)((uintptr_t)(*hdr) + SARRAY_SMALLHDR_OFFSET);
-        xaResize(&smlbase, (SARRAY_HDRSIZE + cap * stGetSize((*hdr)->elemtype)) - SARRAY_SMALLHDR_OFFSET);
-        *hdr = (SArrayHeader*)((uintptr_t)smlbase - SARRAY_SMALLHDR_OFFSET);
+        ret = xaResize(&smlbase, (SARRAY_HDRSIZE + cap * stGetSize((*hdr)->elemtype)) - SARRAY_SMALLHDR_OFFSET, canfail ? XA_Optional(High) : 0);
+        if (ret)
+            *hdr = (SArrayHeader*)((uintptr_t)smlbase - SARRAY_SMALLHDR_OFFSET);
     }
-    (*hdr)->capacity = cap;
-    handle->a = &(*hdr)->data[0];
+
+    if (ret) {
+        (*hdr)->capacity = cap;
+        handle->a = &(*hdr)->data[0];
+    }
+    return ret;
 }
 
-static void _saGrow(sahandle handle, SArrayHeader **hdr, int32 minsz)
+static bool _saGrow(sahandle handle, SArrayHeader **hdr, int32 minsz, bool canfail)
 {
     int32 cap = (*hdr)->capacity;
 
@@ -393,7 +410,7 @@ static void _saGrow(sahandle handle, SArrayHeader **hdr, int32 minsz)
         }
     }
 
-    saRealloc(handle, hdr, cap);
+    return saRealloc(handle, hdr, cap, canfail);
 }
 
 void _saDestroy(sahandle handle)
@@ -430,16 +447,17 @@ void _saClear(sahandle handle)
     hdr->count = 0;
 }
 
-void _saReserve(sahandle handle, int32 capacity)
+bool _saReserve(sahandle handle, int32 capacity, bool canfail)
 {
     if (!handle->a)
-        return;
+        return false;
 
     SArrayHeader *hdr = SARRAY_HDR(*handle);
     int32 newcap = max((capacity == 0) ? 1 : capacity, hdr->count);
     if (newcap > hdr->capacity) {
-        _saGrow(handle, &hdr, newcap);
+        return _saGrow(handle, &hdr, newcap, canfail);
     }
+    return true;
 }
 
 void _saShrink(sahandle handle, int32 capacity)
@@ -450,8 +468,8 @@ void _saShrink(sahandle handle, int32 capacity)
     SArrayHeader *hdr = SARRAY_HDR(*handle);
     int32 newcap = (capacity == 0) ? 1 : capacity;
     if (newcap < hdr->capacity) {
-        saRealloc(handle, &hdr, newcap);
-        if (capacity > hdr->count)
+        saRealloc(handle, &hdr, newcap, true);
+        if (capacity < hdr->count)
             hdr->count = capacity;
     }
 }
@@ -461,7 +479,7 @@ void _saSetSize(sahandle handle, int32 size)
     if (!handle->a)
         return;
 
-    _saReserve(handle, size);
+    _saReserve(handle, size, false);
     SArrayHeader *hdr = SARRAY_HDR(*handle);
     STypeOps *ops = HDRTYPEOPS(hdr);
 
@@ -501,7 +519,7 @@ static _meta_inline void sa_set_elem_internal(SArrayHeader *hdr, int32 idx, stge
 static int32 sa_insert_internal(sahandle handle, SArrayHeader *hdr, int32 idx, stgeneric *elem, bool consume)
 {
     if (hdr->count == hdr->capacity)
-        _saGrow(handle, &hdr, hdr->count + 1);
+        _saGrow(handle, &hdr, hdr->count + 1, false);
 
     memmove(ELEMPTR(hdr, idx + 1), ELEMPTR(hdr, idx), (hdr->count - idx) * stGetSize(hdr->elemtype));
     hdr->count++;
@@ -532,7 +550,7 @@ int32 _saInsert(sahandle handle, int32 idx, stgeneric elem)
 int32 _saPushPtr(sahandle handle, stype elemtype, stgeneric *elem, flags_t flags)
 {
     if (!handle->a)
-        _saInit(handle, elemtype, NULL, 0, 0);
+        _saInit(handle, elemtype, NULL, 0, false, 0);
     devAssert(stEq(saElemType(*handle), elemtype));
 
     SArrayHeader *hdr = SARRAY_HDR(*handle);
@@ -561,7 +579,7 @@ int32 _saPushPtr(sahandle handle, stype elemtype, stgeneric *elem, flags_t flags
         }
 
         if (hdr->count == hdr->capacity)
-            _saGrow(handle, &hdr, hdr->count + 1);
+            _saGrow(handle, &hdr, hdr->count + 1, false);
 
         sa_set_elem_internal(hdr, hdr->count, elem, flags & SAINT_Consume);
 
@@ -612,7 +630,7 @@ bool _saExtract(sahandle handle, int32 idx, stgeneric *elem, flags_t flags)
     sa_remove_internal(handle, hdr, idx, flags & SA_Fast);
 
     if (hdr->flags & SA_AutoShrink) {
-        saRealloc(handle, &hdr, hdr->count);
+        saRealloc(handle, &hdr, hdr->count, true);
     }
     return true;
 }
@@ -715,7 +733,7 @@ void _saSlice(sahandle out, sa_ref ref, int32 start, int32 end)
     else
         end = clamphigh(end, hdr->count);
 
-    _saInit(out, elemtype, HDRTYPEOPS(hdr), clamplow(end - start, 1), hdr->flags);
+    _saInit(out, elemtype, HDRTYPEOPS(hdr), clamplow(end - start, 1), false, hdr->flags);
     SArrayHeader *newhdr = SARRAY_HDR(*out);
 
     // mask out sorted flag for now to speed up inserts
@@ -749,7 +767,7 @@ void _saMerge(sahandle out, int n, sa_ref *refs, flags_t flags)
         newsize += shdr->count;
     }
 
-    _saInit(out, fhdr->elemtype, HDRTYPEOPS(fhdr), newsize, fhdr->flags);
+    _saInit(out, fhdr->elemtype, HDRTYPEOPS(fhdr), newsize, false, fhdr->flags);
 
     for (int i = 0; i < n; i++) {
         SArrayHeader *shdr = SARRAY_HDR(refs[i]);

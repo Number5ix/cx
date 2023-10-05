@@ -120,14 +120,15 @@ enum SARRAY_FUNC_FLAGS_ENUM {
 #define saElemType(ref) ((ref)._is_sarray ? SARRAY_HDR(ref)->elemtype : 0)
 #define saValid(ref) ((ref).a)
 
-void _saInit(sahandle out, stype elemtype, STypeOps *ops, int32 capacity, flags_t flags);
-#define saInit(out, type, capacity, ...) _saInit(SAHANDLE(out), stFullType(type), capacity, opt_flags(__VA_ARGS__))
+bool _saInit(sahandle out, stype elemtype, STypeOps *ops, int32 capacity, bool canfail, flags_t flags);
+#define saInit(out, type, capacity, ...) _saInit(SAHANDLE(out), stFullType(type), capacity, false, opt_flags(__VA_ARGS__))
+#define saTryInit(out, type, capacity, ...) _saInit(SAHANDLE(out), stFullType(type), capacity, true, opt_flags(__VA_ARGS__))
 
 void _saDestroy(sahandle handle);
 #define saDestroy(handle) _saDestroy(SAHANDLE(handle))
 
-void _saReserve(sahandle handle, int32 capacity);
-#define saReserve(handle, capacity) _saReserve(SAHANDLE(handle), capacity)
+bool _saReserve(sahandle handle, int32 capacity, bool canfail);
+#define saReserve(handle, capacity) _saReserve(SAHANDLE(handle), capacity, true)
 void _saShrink(sahandle handle, int32 capacity);
 #define saShrink(handle, capacity) _saShrink(SAHANDLE(handle), capacity)
 void _saSetSize(sahandle handle, int32 size);
