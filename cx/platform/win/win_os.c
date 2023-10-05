@@ -51,7 +51,7 @@ static void initCoreCache(void *dummy)
     if (len == 0)
         goto out;
 
-    buf = (PSYSTEM_LOGICAL_PROCESSOR_INFORMATION)xaAlloc(len);
+    buf = (PSYSTEM_LOGICAL_PROCESSOR_INFORMATION)stackAlloc(len);
     if (GetLogicalProcessorInformation(buf, &len)) {
         PSYSTEM_LOGICAL_PROCESSOR_INFORMATION p = buf;
         DWORD off = 0;
@@ -64,7 +64,6 @@ static void initCoreCache(void *dummy)
             p++;
         }
     }
-    xaFree(buf);
 
 out:
     // fallback to prevent bad things like dividing by zero
