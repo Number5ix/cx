@@ -8,6 +8,7 @@
 #include <cx/container.h>
 #include <cx/time.h>
 #include <cx/format.h>
+#include <cx/string.h>
 #include <cx/utils.h>
 
 typedef struct LogFileData {

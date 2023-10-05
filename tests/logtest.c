@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <cx/log.h>
+#include <cx/string.h>
 #include <cx/thread.h>
 #include <cx/platform/os.h>
 

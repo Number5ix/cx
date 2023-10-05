@@ -22,6 +22,10 @@ static void xaMimallocError(int err, void *arg)
 static void _xaInit(void *data)
 {
     mi_register_error(xaMimallocError, NULL);
+
+#ifndef CX_BUILDING_CXOBJGEN
+    _xaInitOutput();
+#endif
 }
 
 void *_xaAlloc(size_t size, unsigned int flags)

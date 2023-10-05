@@ -1,7 +1,8 @@
 set(XALLOC_SRCS
     xalloc/cstrutil.c
     xalloc/oom.c
-    xalloc/xalloc.c)
+    xalloc/xalloc.c
+    xalloc/xaoutput.c)
 set(XALLOC_INCLUDES
     xalloc/cstrutil.h
     xalloc/xalloc.h

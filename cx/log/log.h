@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cx/cx.h>
-#include <cx/string.h>
+#include <cx/string/strbase.h>
 #include <cx/stype/stvar.h>
 
 enum LOG_LEVEL_ENUM {

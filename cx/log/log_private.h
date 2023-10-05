@@ -2,6 +2,7 @@
 
 #include "log.h"
 #include <cx/thread.h>
+#include <cx/utils/lazyinit.h>
 
 #define LOG_INITIAL_BUFFER_SIZE 32
 
@@ -36,6 +37,8 @@ extern atomic(int32) _log_buf_writeptr;
 
 extern Mutex _log_dests_lock;
 extern sa_LogDest _log_dests;
+
+extern LazyInitState _logInitState;
 
 void logCheckInit(void);
 void logDestroyEnt(LogEntry *ent);
