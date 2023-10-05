@@ -139,7 +139,7 @@ Param *Param_create()
     Param *ret;
     ret = objInstCreate(Param);
     if (!objInstInit(ret)) {
-        xaSFree(ret);
+        xaRelease(&ret);
     }
     return ret;
 }
@@ -149,7 +149,7 @@ Method *Method_create()
     Method *ret;
     ret = objInstCreate(Method);
     if (!objInstInit(ret)) {
-        xaSFree(ret);
+        xaRelease(&ret);
     }
     return ret;
 }
@@ -159,7 +159,7 @@ Interface *Interface_create()
     Interface *ret;
     ret = objInstCreate(Interface);
     if (!objInstInit(ret)) {
-        xaSFree(ret);
+        xaRelease(&ret);
     }
     return ret;
 }
@@ -169,7 +169,7 @@ Member *Member_create()
     Member *ret;
     ret = objInstCreate(Member);
     if (!objInstInit(ret)) {
-        xaSFree(ret);
+        xaRelease(&ret);
     }
     return ret;
 }
@@ -179,7 +179,7 @@ Class *Class_create()
     Class *ret;
     ret = objInstCreate(Class);
     if (!objInstInit(ret)) {
-        xaSFree(ret);
+        xaRelease(&ret);
     }
     return ret;
 }

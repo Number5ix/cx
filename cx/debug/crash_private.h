@@ -8,7 +8,7 @@
 
 typedef struct CrashExtraMeta {
     const char *name;
-    const char *str;
+    char *str;
     int val;
     bool version;
 } CrashExtraMeta;

@@ -103,7 +103,7 @@ static int32 hostIdTrySMBIOS(mbedtls_md_context_t *shactx)
 out:
     if (hDll)
         FreeLibrary(hDll);
-    xaSFree(buf);
+    xaFree(buf);
     return ret;
 }
 

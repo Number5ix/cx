@@ -347,7 +347,7 @@ bool fsSearchInit(FSSearchIter *iter, strref path, strref pattern, bool stat)
 
     if (search->h == INVALID_HANDLE_VALUE) {
         winMapLastError();
-        xaSFree(iter->_search);
+        xaRelease(&iter->_search);
         return false;
     }
 
@@ -400,7 +400,7 @@ void fsSearchFinish(FSSearchIter *iter)
 
     strDestroy(&iter->name);
     FindClose(search->h);
-    xaSFree(iter->_search);
+    xaRelease(&iter->_search);
 }
 
 bool fsSetTimes(strref path, int64 modified, int64 accessed)

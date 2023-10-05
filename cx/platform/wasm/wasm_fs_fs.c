@@ -33,7 +33,7 @@ static void initCurDir(void *data)
 
     // POSIX doesn't actually limit this to PATH_MAX, so expand as necessary
     do {
-        xaSFree(buf);
+        xaFree(buf);
         bufsz *= 2;
         buf = xaAlloc(bufsz);
 
@@ -42,14 +42,14 @@ static void initCurDir(void *data)
 
     if (!pcur) {
         // failed??? punt...
-        xaSFree(buf);
+        xaFree(buf);
         strCopy(&_fsCurDir, _S"/");
         return;
     }
 
     pathFromPlatform(&_fsCurDir, (string)buf);
     pathNormalize(&_fsCurDir);
-    xaSFree(buf);
+    xaFree(buf);
 }
 
 void pathFromPlatform(string *out, strref platformpath)
@@ -135,7 +135,7 @@ static void fsExeInit(void *data)
     ssize_t lsz;
     // loop until we're sure the buffer was big enough
     do {
-        xaSFree(buf);
+        xaFree(buf);
         sz *= 2;
         buf = xaAlloc(sz);
         lsz = readlink("/proc/self/exe", buf, sz);
@@ -296,7 +296,7 @@ bool fsSearchInit(FSSearchIter *iter, strref path, strref pattern, bool stat)
 
     if (!search->d) {
         unixMapErrno();
-        xaSFree(iter->_search);
+        xaRelease(&iter->_search);
         return NULL;
     }
 
@@ -351,7 +351,7 @@ void fsSearchFinish(FSSearchIter *iter)
     closedir(search->d);
     strDestroy(&search->path);
     strDestroy(&search->pattern);
-    xaSFree(iter->_search);
+    xaRelease(&iter->_search);
 }
 
 bool fsSetTimes(strref path, int64 modified, int64 accessed)

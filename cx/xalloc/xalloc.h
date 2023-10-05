@@ -70,6 +70,15 @@ enum XA_OOM_PHASE_ENUM {
     XA_Fatal = -1
 };
 
+#ifndef _MSC_VER
+// &* is a safe way to ensure the operand is a pointer, even a pointer to void
+#define _xa_ptr_ptr_verify(ptr) unused_noeval(&*(*(ptr)))
+#else
+// &* doesn't work for void* on MSVC, check for void* conversion instead, but this results
+// in a false negative for intptr_t* or pointer-sized ints
+#define _xa_ptr_ptr_verify(ptr) unused_noeval((void*)(*(ptr)))
+#endif
+
 // In an out-of-memory situation, all registered OOM callbacks will be called.
 // Depending on the type of allocation, they may be called repeatedly with different phases -- see the
 // phase enum above for details on how to handle each phase.
@@ -93,20 +102,18 @@ void *_xaAlloc(size_t size, unsigned int flags);
 // If ptr points to NULL, allocates new memory.
 // Returns: True if successfully resized and ptr updated.
 // If XA_Opt is set, returns false on failure and ptr is unchanged.
-#ifndef _MSC_VER
-// &* is a safe way to ensure the operand is a pointer, even a pointer to void
-#define _xa_ptr_ptr_verify(ptr) unused_noeval(&*(*(ptr)))
-#else
-// &* doesn't work for void* on MSVC, check for void* conversion instead, but this results
-// in a false negative for intptr_t* or pointer-sized ints
-#define _xa_ptr_ptr_verify(ptr) unused_noeval((void*)(*(ptr)))
-#endif
 #define xaResize(ptr, size, ...) (_xa_ptr_ptr_verify(ptr), _xaResize((void**)(ptr), size, opt_flags(__VA_ARGS__)))
 bool _xaResize(void **ptr, size_t size, unsigned int flags);
 
 // Frees the memory at ptr
 // Does nothing if ptr is NULL
 void xaFree(void *ptr);
+
+// bool xaRelease(void **ptr)
+// Frees the pointer with release semantics.
+// This frees *ptr (if it is non-NULL) and sets it to NULL.
+#define xaRelease(ptr) (_xa_ptr_ptr_verify(ptr), _xaRelease((void**)(ptr)))
+bool _xaRelease(void **ptr);
 
 // Returns: size of memory at ptr
 // In normal (max performance mode), this will have a lower bound at the number of bytes that
@@ -135,10 +142,6 @@ CX_C_END
 // String utilities because cstrDup is tied in with xalloc
 // and there's no better place for them
 #include <cx/xalloc/cstrutil.h>
-
-// Safe free
-// TODO: Remove this!
-#define xaSFree(ptr) if (ptr) { xaFree((void*)ptr); (ptr) = NULL; }
 
 #ifdef XALLOC_REMAP_MALLOC
 #define malloc(sz) xa_malloc(sz)

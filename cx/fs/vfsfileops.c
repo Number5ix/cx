@@ -42,7 +42,7 @@ VFSFile *vfsOpen(VFS *vfs, strref path, flags_t flags)
     ret->fileprovif = objInstIf(ret->fileprov, VFSFileProvider);
     if (!(ret->fileprov && ret->fileprovif)) {
         // failed to actually open the file, cxerr set by provider
-        xaSFree(ret);
+        xaRelease(&ret);
         _vfsInvalidateCache(vfs, path);
         goto out;
     }

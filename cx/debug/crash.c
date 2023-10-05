@@ -69,7 +69,7 @@ static intptr extraMetaCmp(stype st, stgeneric a, stgeneric b, uint32 flags)
 static void extraMetaDtor(stype st, stgeneric *gen, uint32 flags)
 {
     CrashExtraMeta *m = (CrashExtraMeta*)gen->st_opaque;
-    xaSFree(m->str);
+    xaFree(m->str);
 }
 
 static STypeOps extraMetaOps = {

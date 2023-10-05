@@ -110,6 +110,17 @@ void xaFree(void *ptr)
     mi_free(ptr);
 }
 
+bool _xaRelease(void **ptr)
+{
+    if (!ptr) return false;
+
+    void *origptr = *ptr;
+    *ptr = NULL;
+
+    xaFree(origptr);            // origptr may be NULL but will be ignored by xaFree
+    return origptr != NULL;
+}
+
 size_t xaSize(void *ptr)
 {
     lazyInit(&_xaInitState, _xaInit, NULL);
