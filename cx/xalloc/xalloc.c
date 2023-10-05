@@ -1,12 +1,34 @@
 #include <cx/cx.h>
 #include "xalloc_private.h"
 
+#include <cx/debug/assert.h>
 #include <cx/utils/macros.h>
 #include <string.h>
+#include <errno.h>
+
+LazyInitState _xaInitState;
+
+static void xaMimallocError(int err, void *arg)
+{
+    if (err == EFAULT) {
+        relFatalError("Heap corruption detected");
+    } else if (err == EAGAIN) {
+        devFatalError("Double free detected");
+    } else if (err == EINVAL) {
+        devFatalError("Tried to free an invalid pointer");
+    }
+}
+
+static void _xaInit(void *data)
+{
+    mi_register_error(xaMimallocError, NULL);
+}
 
 void *_xaAlloc(size_t size, unsigned int flags)
 {
     void *ret = NULL;
+
+    lazyInit(&_xaInitState, _xaInit, NULL);
 
     for (int oomphase = 0, oommaxphase = _xaMaxOOMPhase(flags); oomphase <= oommaxphase; oomphase++) {
         if (flags & XA_LG_ALIGN_MASK) {
@@ -45,6 +67,8 @@ bool _xaResize(void **ptr, size_t size, unsigned int flags)
     if (!ptr)
         return false;
 
+    lazyInit(&_xaInitState, _xaInit, NULL);
+
     for (int oomphase = 0, oommaxphase = _xaMaxOOMPhase(flags); oomphase <= oommaxphase; oomphase++) {
         if (flags & XA_LG_ALIGN_MASK) {
             if (flags & XA_Zero) {
@@ -78,11 +102,13 @@ bool _xaResize(void **ptr, size_t size, unsigned int flags)
 // Frees the memory at ptr
 void xaFree(void *ptr)
 {
+    lazyInit(&_xaInitState, _xaInit, NULL);
     mi_free(ptr);
 }
 
 size_t xaSize(void *ptr)
 {
+    lazyInit(&_xaInitState, _xaInit, NULL);
     return mi_usable_size(ptr);
 }
 
@@ -93,6 +119,7 @@ size_t xaOptSize(size_t sz)
 
 void xaFlush()
 {
+    lazyInit(&_xaInitState, _xaInit, NULL);
     mi_collect(true);
 }
 

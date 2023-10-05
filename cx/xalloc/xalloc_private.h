@@ -2,7 +2,11 @@
 
 #include "xalloc.h"
 #include <cx/platform/base.h>
+#include <cx/utils/lazyinit.h>
 #include <mimalloc.h>
+
+extern LazyInitState _xaInitState;
+
 static _meta_inline int _xaMaxOOMPhase(unsigned int flags)
 {
     if (!(flags & XA_Optional_Mask))
