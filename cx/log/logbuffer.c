@@ -31,8 +31,9 @@ typedef struct LogOverflowTLS {
 static _Thread_local LogOverflowTLS _log_overflow;
 
 // MUST be called with _log_buffer_lock held in read mode
-static void logBufferGrow(int32 minsize)
+static bool logBufferGrow(int32 minsize)
 {
+    bool ret = true;
     rwlockReleaseRead(&_log_buffer_lock);
     rwlockAcquireWrite(&_log_buffer_lock);
 
@@ -47,7 +48,11 @@ static void logBufferGrow(int32 minsize)
         goto out;
 
     sa_atomicptr newbuf;
-    saInit(&newbuf, ptr, nsize);
+    if (!saTryInit(&newbuf, ptr, nsize)) {
+        ret = false;
+        goto out;           // out of memory, stuff the log entry in overflow for now
+    }
+
     saSetSize(&newbuf, nsize);
 
     // these are guaranteed to not change while we hold the write lock
@@ -72,6 +77,7 @@ static void logBufferGrow(int32 minsize)
 
 out:
     rwlockDowngradeWrite(&_log_buffer_lock);
+    return ret;
 }
 
 static bool logBufferAddInternal(LogEntry *ent)
@@ -98,9 +104,8 @@ retry:
     nwrptr = (wrptr + 1) % bsize;
     if (nwrptr == rdptr) {
         // ringbuffer is full, need to expand it
-        if (bsize >= LOG_BUFFER_MAXENT)
+        if (bsize >= LOG_BUFFER_MAXENT || !logBufferGrow(bsize + 1))
             goto out;           // can't expand further, they'll have to go to overflow
-        logBufferGrow(bsize + 1);
         goto retry;
     }
 

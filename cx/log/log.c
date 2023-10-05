@@ -74,7 +74,7 @@ LogCategory *logCreateCat(strref name, bool priv)
 
 static void _logStrInternal(int level, LogCategory *cat, strref str)
 {
-    LogEntry *ent = xaAlloc(sizeof(LogEntry), XA_Zero);
+    LogEntry *ent = xaAlloc(sizeof(LogEntry), XA_Zero | XA_Optional(High));
     if (!ent)
         return;
 
