@@ -35,6 +35,9 @@ void *_xaAlloc(size_t size, unsigned int flags)
     lazyInit(&_xaInitState, _xaInit, NULL);
 
     for (int oomphase = 0, oommaxphase = _xaMaxOOMPhase(flags); oomphase <= oommaxphase; oomphase++) {
+        if (oomphase > 0)
+            _xaFreeUpMemory(oomphase, size);    // previous loop's allocation failed; try to free up some memory and try again
+
         if (flags & XA_LG_ALIGN_MASK) {
             if (flags & XA_Zero) {
                 ret = mi_zalloc_aligned(size, (size_t)1 << (flags & XA_LG_ALIGN_MASK));
@@ -50,9 +53,6 @@ void *_xaAlloc(size_t size, unsigned int flags)
 
         if (ret)
             return ret;
-
-        // allocation failed; try to free up some memory and try again
-        _xaFreeUpMemory(oomphase, size);
     }
 
     // if this isn't an optional allocation, assert rather than return NULL
@@ -74,6 +74,9 @@ bool _xaResize(void **ptr, size_t size, unsigned int flags)
     lazyInit(&_xaInitState, _xaInit, NULL);
 
     for (int oomphase = 0, oommaxphase = _xaMaxOOMPhase(flags); oomphase <= oommaxphase; oomphase++) {
+        if (oomphase > 0)
+            _xaFreeUpMemory(oomphase, size);    // previous loop's allocation failed; try to free up some memory and try again
+
         if (flags & XA_LG_ALIGN_MASK) {
             if (flags & XA_Zero) {
                 ret = mi_rezalloc_aligned(*ptr, size, (size_t)1 << (flags & XA_LG_ALIGN_MASK));
@@ -92,9 +95,6 @@ bool _xaResize(void **ptr, size_t size, unsigned int flags)
             *ptr = ret;
             return true;
         }
-
-        // allocation failed; try to free up some memory and try again
-        _xaFreeUpMemory(oomphase, size);
     }
 
     // if this isn't an optional allocation, assert rather than return false
