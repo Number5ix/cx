@@ -23,27 +23,41 @@
 
 // Align to a 2^exp byte boundary.
 // exp may be 1-63
-#define XA_Align(exp) ((unsigned int)(exp & XA_LG_ALIGN_MASK))
+#define XA_Align(exp)   ((unsigned int)(exp & XA_LG_ALIGN_MASK))
 // Zero-fills returned memory
-#define XA_Zero ((unsigned int)0x40)
+#define XA_Zero         ((unsigned int)0x0040)
+
+enum XA_OPTIONAL_FLAG_ENUM {
+    XA_Optional_High =  0x0100,
+    XA_Optional_Low  =  0x0200,
+    XA_Optional_None =  0x0400
+};
+#define XA_Optional(typ) ((unsigned int)XA_Optional_##typ)
+#define XA_Optional_Mask (XA_Optional_High|XA_Optional_Low|XA_Optional_None)
+
 // Allows the function to fail and return NULL rather than triggering an out-of-memory assertion.
-// Recommended but not required if using XA_Align
-#define XA_Opt ((unsigned int)0x80)
+// Recommended but not required if using XA_Align.
+// May be invoked as XA_Optional(High|Low|None) to inform the allocator how hard it should try to find
+// memory if there is none available. The default if not specified is High.
+// High = Try somewhat hard, it would be nice to have this memory
+// Low = This memory isn't that important, don't try particularly hard
+// None = Don't try at all, simply fail if no memory is available
+#define XA_Opt XA_Optional(High)
 
 CX_C_BEGIN
 
-// void xaAlloc(size_t size, [flags])
+// void *xaAlloc(size_t size, [flags])
 // Allocate memory of at least sz
-// Flags include XA_Align(pow), XA_Zero, XA_Opt
+// Flags include XA_Align(pow), XA_Zero, XA_Optional(tier)
 // Returns: pointer to memory
 #define xaAlloc(size, ...) _xaAlloc(size, opt_flags(__VA_ARGS__))
 void *_xaAlloc(size_t size, unsigned int flags);
 
+// bool xaResize(void **ptr, size_t size, [flags])
 // Reallocate ptr to be at least sz bytes large, copying it if necessary.
 // If ptr points to NULL, allocates new memory.
 // Returns: True if successfully resized and ptr updated.
 // If XA_Opt is set, returns false on failure and ptr is unchanged.
-bool _xaResize(void **ptr, size_t size, unsigned int flags);
 #ifndef _MSC_VER
 // &* is a safe way to ensure the operand is a pointer, even a pointer to void
 #define _xa_ptr_ptr_verify(ptr) unused_noeval(&*(*(ptr)))
@@ -53,6 +67,7 @@ bool _xaResize(void **ptr, size_t size, unsigned int flags);
 #define _xa_ptr_ptr_verify(ptr) unused_noeval((void*)(*(ptr)))
 #endif
 #define xaResize(ptr, size, ...) (_xa_ptr_ptr_verify(ptr), _xaResize((void**)(ptr), size, opt_flags(__VA_ARGS__)))
+bool _xaResize(void **ptr, size_t size, unsigned int flags);
 
 // Frees the memory at ptr
 // Does nothing if ptr is NULL
@@ -129,9 +144,7 @@ inline void *xa_calloc(size_t number, size_t size)
 
 inline void *xa_realloc(void *ptr, size_t size)
 {
-    if (_xaResize(&ptr, size, XA_Opt))
-        return ptr;
-    return (void *)0;
+    return _xaResize(&ptr, size, XA_Opt) ? ptr : (void *)0;
 }
 
 inline void xa_free(void *ptr)
