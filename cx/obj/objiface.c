@@ -11,7 +11,7 @@ typedef struct iface_hdr {
 } iface_hdr;
 #define IFACE_FIRST_FPTR offsetof(iface_hdr, first)
 
-static int ifNumFuncs(ObjIface *iface)
+static int ifNumFuncs(_In_ ObjIface *iface)
 {
     // size of anything extra after interface header
     size_t sze = iface->_size - IFACE_FIRST_FPTR;
@@ -26,7 +26,7 @@ static int ifNumFuncs(ObjIface *iface)
 
 // merge interface implementations from src to dest, ignoring any functions that are
 // already populated in dest
-static void mergeIface(ObjIface *dest, ObjIface *src)
+static void mergeIface(_Inout_ ObjIface *dest, _In_ ObjIface *src)
 {
     genfunc *intbl, *outtbl;
     int nfsrc, nfdst;
@@ -49,7 +49,7 @@ static void mergeIface(ObjIface *dest, ObjIface *src)
 // impls is a handle to an array of pointers to interfaces that have been hydrated
 // so far. The impltbl hashtable maps the interface template pointer to the
 // implementation.
-void _objHydrateIface(ObjIface *ifimpl, sa_ObjIface *impls, hashtable *impltbl)
+void _objHydrateIface(_In_ ObjIface *ifimpl, _Inout_ sa_ObjIface *impls, _Inout_ hashtable *impltbl)
 {
     ObjIface *destif = NULL, *tmp = NULL;
 
@@ -94,7 +94,7 @@ void _objHydrateIface(ObjIface *ifimpl, sa_ObjIface *impls, hashtable *impltbl)
     }
 }
 
-bool _objCheckIface(ObjIface *iface)
+bool _objCheckIface(_In_ ObjIface *iface)
 {
     genfunc *tbl;
     int nf;

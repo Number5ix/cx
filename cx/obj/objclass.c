@@ -98,14 +98,11 @@ static void classInitImpl(ObjClassInfo *cls, bool locked)
         mutexRelease(&classMutex);
 }
 
-ObjInst *_objInstCreate(ObjClassInfo *cls)
+_Ret_notnull_ ObjInst *_objInstCreate(_In_ ObjClassInfo *cls)
 {
     ObjInst *ret;
 
-    if (cls->_abstract) {
-        devFatalError("Tried to create an instance of an abstract class");
-        return NULL;
-    }
+    devAssertMsg(!cls->_abstract, "Tried to create an instance of an abstract class");
 
     ret = xaAlloc(cls->instsize, XA_Zero);
     ret->_clsinfo = cls;
@@ -125,7 +122,7 @@ ObjInst *_objInstCreate(ObjClassInfo *cls)
     return ret;
 }
 
-bool _objInstInit(ObjInst *inst, ObjClassInfo *cls)
+bool _objInstInit(_Inout_ ObjInst *inst, _In_ ObjClassInfo *cls)
 {
     bool ret = true;
 
@@ -139,14 +136,14 @@ bool _objInstInit(ObjInst *inst, ObjClassInfo *cls)
     return ret;
 }
 
-ObjIface *_objClassIf(ObjClassInfo *cls, ObjIface *iftmpl)
+_Ret_maybenull_ ObjIface *_objClassIf(_In_ ObjClassInfo *cls, _In_ ObjIface *iftmpl)
 {
     ObjIface *ret = NULL;
     htFind(cls->_tmpl, ptr, iftmpl, ptr, &ret);
     return ret;
 }
 
-ObjIface *_objInstIf(ObjInst *inst, ObjIface *iftmpl)
+_Ret_maybenull_ ObjIface *_objInstIf(_In_opt_ ObjInst *inst, _In_ ObjIface *iftmpl)
 {
     if (!inst)
         return NULL;
@@ -154,22 +151,21 @@ ObjIface *_objInstIf(ObjInst *inst, ObjIface *iftmpl)
     return _objClassIf(inst->_clsinfo, iftmpl);
 }
 
-ObjInst *_objDynCast(ObjInst *inst, ObjClassInfo *cls)
+_Ret_maybenull_ ObjInst *_objDynCast(_In_opt_ ObjInst *inst, _In_ ObjClassInfo *cls)
 {
-    if (!inst)
-        return NULL;
-
-    ObjClassInfo *test = inst->_clsinfo;
-    while (test) {
-        if (test == cls)
-            return inst;
-        test = test->parent;
+    if (inst) {
+        ObjClassInfo *test = inst->_clsinfo;
+        while (test) {
+            if (test == cls)
+                return inst;
+            test = test->parent;
+        }
     }
 
     return NULL;
 }
 
-static void instDtor(ObjInst *inst, ObjClassInfo *cls)
+static void instDtor(_In_ ObjInst *inst, _In_ ObjClassInfo *cls)
 {
     // call destructors on child classes first
     if (cls->destroy)
@@ -179,7 +175,7 @@ static void instDtor(ObjInst *inst, ObjClassInfo *cls)
         instDtor(inst, cls->parent);
 }
 
-void _objDestroy(ObjInst *inst)
+void _objDestroy(_Pre_notnull_ _Post_invalid_ ObjInst *inst)
 {
     devAssert(atomicLoad(intptr, &inst->_ref, AcqRel) == 0);
     instDtor(inst, inst->_clsinfo);

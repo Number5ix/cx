@@ -60,38 +60,36 @@ typedef struct ObjInst {
 #define objClsInfo(inst) (inst->_clsinfo)
 
 // DO NOT CALL DIRECTLY! Use objRelease instead
-void _objDestroy(ObjInst *inst);
+void _objDestroy(_Pre_notnull_ _Post_invalid_ ObjInst *inst);
 
-_meta_inline void _objAcquire(ObjInst *inst)
+_meta_inline void _objAcquire(_In_opt_ ObjInst *inst)
 {
     if (inst)
         atomicFetchAdd(intptr, &inst->_ref, 1, Relaxed);
 }
 #define objAcquire(inst) (_objAcquire(objInstBase(inst)), (inst))
 
-_meta_inline void _objRelease(ObjInst **instp)
+_At_(*instp, _Pre_maybenull_ _Post_invalid_)
+_meta_inline void _objRelease(_Inout_ ObjInst **instp)
 {
-    if (!*instp)
-        return;
-
-    if (atomicFetchSub(intptr, &(*instp)->_ref, 1, Release) == 1) {
+    if (*instp && atomicFetchSub(intptr, &(*instp)->_ref, 1, Release) == 1) {
         atomicFence(Acquire);
         _objDestroy(*instp);
     }
 
     *instp = NULL;
 }
-#define objRelease(pinst) (&((*(pinst))->_is_ObjInst), _objRelease((ObjInst**)(pinst)))
+#define objRelease(pinst) (unused_noeval(&((*(pinst))->_is_ObjInst)), _objRelease((ObjInst**)(pinst)))
 
 // Functions to get a populated interface from a class or instance
-ObjIface *_objClassIf(ObjClassInfo *cls, ObjIface *iftmpl);
+_Ret_maybenull_ ObjIface *_objClassIf(_In_ ObjClassInfo *cls, _In_ ObjIface *iftmpl);
 #define objClassIf(clsname, ifname) ((ifname*)_objClassIf(&objClassInfoName(clsname), objIfBase(&objIfTmplName(ifname))))
-ObjIface *_objInstIf(ObjInst *inst, ObjIface *iftmpl);
+_Ret_maybenull_ ObjIface *_objInstIf(_In_opt_ ObjInst *inst, _In_ ObjIface *iftmpl);
 #define objInstIf(inst, ifname) ((ifname*)_objInstIf(objInstBase(inst), objIfBase(&objIfTmplName(ifname))))
 
 // Dynamic object casting within the hierarchy
 // Returns instance pointer if it's safe to cast inst to the given class, NULL otherwise
-ObjInst *_objDynCast(ObjInst *inst, ObjClassInfo *cls);
+_Ret_maybenull_ ObjInst *_objDynCast(_In_opt_ ObjInst *inst, _In_ ObjClassInfo *cls);
 #define objDynCast(inst, clsname) ((clsname*)_objDynCast(objInstBase(inst), &objClassInfoName(clsname)))
 
 CX_C_END

@@ -7,10 +7,10 @@
 
 // Instance create and init must ONLY be called by factory functions associated
 // with the class, not by outside parties.
-ObjInst *_objInstCreate(ObjClassInfo *cls);
+_Ret_notnull_ ObjInst *_objInstCreate(_In_ ObjClassInfo *cls);
 #define objInstCreate(clsname) (clsname*)_objInstCreate(&objClassInfoName(clsname))
-bool _objInstInit(ObjInst *inst, ObjClassInfo *cls);
+bool _objInstInit(_Inout_ ObjInst *inst, _In_ ObjClassInfo *cls);
 #define objInstInit(inst) _objInstInit(objInstBase(inst), (inst)->_clsinfo)
 
-intptr objDefaultCmp(void *self, void *other, uint32 flags);
-uint32 objDefaultHash(void *self, uint32 flags);
+intptr objDefaultCmp(_In_ void *self, _In_ void *other, uint32 flags);
+uint32 objDefaultHash(_In_ void *self, uint32 flags);

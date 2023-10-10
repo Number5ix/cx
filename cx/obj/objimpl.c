@@ -1,7 +1,7 @@
 #include "objimpl.h"
 #include "cx/utils/murmur.h"
 
-intptr objDefaultCmp(void *_self, void *_other, uint32 flags)
+intptr objDefaultCmp(_In_ void *_self, _In_ void *_other, uint32 flags)
 {
     ObjInst *self = (ObjInst*)_self;
     ObjInst *other = (ObjInst*)_other;
@@ -14,7 +14,7 @@ intptr objDefaultCmp(void *_self, void *_other, uint32 flags)
                   objClsInfo(self)->instsize - sizeof(ObjInst));
 }
 
-uint32 objDefaultHash(void *_self, uint32 flags)
+uint32 objDefaultHash(_In_ void *_self, uint32 flags)
 {
     ObjInst *self = (ObjInst*)_self;
 
