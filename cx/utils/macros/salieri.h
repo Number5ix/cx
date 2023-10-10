@@ -1051,12 +1051,60 @@
 #  define SALIERI_DEFINED_Pre_equal_to
 #endif
 
+#if defined(_Pre_notnull_) && defined(SALIERI_DEFINED_Pre_notnull)
+#  undef _Pre_notnull_
+#endif
+#if !defined(_Pre_notnull_)
+#  define _Pre_notnull_
+#  define SALIERI_DEFINED_Pre_notnull
+#endif
+
+#if defined(_Pre_maybenull_) && defined(SALIERI_DEFINED_Pre_maybenull)
+#  undef _Pre_maybenull_
+#endif
+#if !defined(_Pre_maybenull_)
+#  define _Pre_maybenull_
+#  define SALIERI_DEFINED_Pre_maybenull
+#endif
+
+#if defined(_Pre_null_) && defined(SALIERI_DEFINED_Pre_null)
+#  undef _Pre_null_
+#endif
+#if !defined(_Pre_null_)
+#  define _Pre_null_
+#  define SALIERI_DEFINED_Pre_null
+#endif
+
 #if defined(_Post_equal_to_) && defined(SALIERI_DEFINED_Post_equal_to)
 #  undef _Post_equal_to_
 #endif
 #if !defined(_Post_equal_to_)
 #  define _Post_equal_to_(expr)
 #  define SALIERI_DEFINED_Post_equal_to
+#endif
+
+#if defined(_Post_invalid_) && defined(SALIERI_DEFINED_Post_invalid)
+#  undef _Post_invalid_
+#endif
+#if !defined(_Post_invalid_)
+#  define _Post_invalid_
+#  define SALIERI_DEFINED_Post_invalid
+#endif
+
+#if defined(_Post_valid_) && defined(SALIERI_DEFINED_Post_valid)
+#  undef _Post_valid_
+#endif
+#if !defined(_Post_valid_)
+#  define _Post_valid_
+#  define SALIERI_DEFINED_Post_valid
+#endif
+
+#if defined(_Post_writable_byte_size_) && defined(SALIERI_DEFINED_Post_equal_to)
+#  undef _Post_writable_byte_size_
+#endif
+#if !defined(_Post_writable_byte_size_)
+#  define _Post_writable_byte_size_(expr)
+#  define SALIERI_DEFINED_Post_writable_byte_size
 #endif
 
 #if defined(_Struct_size_bytes_) && defined(SALIERI_DEFINED_Struct_size_bytes)

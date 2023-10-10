@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cx/platform/cpp.h>
+#include <cx/utils/macros/salieri.h>
 #include <cx/utils/macros/optarg.h>
 #include <cx/utils/macros/unused.h>
 #include <stdbool.h>

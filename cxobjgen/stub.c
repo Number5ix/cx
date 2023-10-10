@@ -19,7 +19,13 @@ CX_C bool _cxAssertFail(const char *expr, const char *msg) { exit(1); }
 
 _no_inline _no_return void dbgCrashNow(int skip)
 {
-    *(char *)(0) = 0;
+#if defined(COMPLIER_CLANG) || defined(COMPILER_GCC)
+    __builtin_trap();
+#else
+    volatile char *badptr = 0;
+    *badptr = 0;
+#endif
+    exit(-1);
 }
 
 intptr_t stCmp_suid(stype st, void *a, void *b) { return 0; }
