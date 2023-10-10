@@ -1497,6 +1497,8 @@
 #  define SALIERI_DEFINED_When
 #endif
 
+#if !defined(_MSC_VER)
+
 /* Intrinsic Functions
  *
  * https://msdn.microsoft.com/en-us/library/jj159527.aspx
@@ -1552,6 +1554,24 @@
 #if !defined(_String_length_)
 #  define _String_length_(param)
 #  define SALIERI_DEFINED_String_length
+#endif
+
+#endif
+
+#ifndef _Analysis_assume_
+#define _Analysis_assume_(expr)
+#endif
+
+#ifndef _Analysis_noreturn_
+#define _Analysis_noreturn_
+#endif
+
+#ifndef _Return_
+#if defined(_MSC_VER)
+#define _Return_ ret ## urn
+#else
+#define _Return_
+#endif
 #endif
 
 #if defined(SALIERI_VERSION)

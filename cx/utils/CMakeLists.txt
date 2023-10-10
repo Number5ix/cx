@@ -12,6 +12,7 @@ set(UTILS_INCLUDES
     utils/scratch.h
     utils/macros/args.h
     utils/macros/optarg.h
+    utils/macros/salieri.h
     utils/macros/tokens.h
     utils/macros/unused.h)
 
