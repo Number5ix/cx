@@ -19,6 +19,9 @@
 // Sometimes things need to be aligned precisely
 #define alignMem(bytes) __declspec(align(bytes))
 
+// Hint that some functions never return
+#define _no_return __declspec(noreturn)
+
 #if defined(_WIN32)
 #define _PLATFORM_WIN 1
 #define _PLATFORM_STR "win"
@@ -57,6 +60,9 @@
 
 // Sometimes things need to be aligned precisely
 #define alignMem(bytes) __attribute__((aligned(bytes)))
+
+// Hint that some functions never return
+#define _no_return __attribute__((noreturn))
 
 #if defined(__linux__)
 #define _PLATFORM_UNIX 1

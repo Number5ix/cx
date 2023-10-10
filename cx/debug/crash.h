@@ -59,6 +59,6 @@ void dbgCrashAddMetaInt(const char *name, int val);
 void dbgCrashAddVersionStr(const char *name, const char *val);
 void dbgCrashAddVersionInt(const char *name, int val);
 
-void dbgCrashNow(int skipframes);
+void _no_return dbgCrashNow(int skipframes);
 
 CX_C_END

@@ -460,7 +460,7 @@ bool dbgCrashSetPath(strref path)
     return true;
 }
 
-_no_inline void dbgCrashNow(int skip)
+_no_inline _no_return void dbgCrashNow(int skip)
 {
     lazyInit(&_dbgCrashInitState, _dbgCrashInit, 0);
 
