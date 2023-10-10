@@ -7,6 +7,7 @@
 #include <cx/debug/assert.h>
 #include <cx/platform/cpp.h>
 #include <cx/platform/base.h>
+#include <cx/utils/macros/salieri.h>
 #include <cx/utils/macros/optarg.h>
 #include <cx/utils/macros/unused.h>
 
@@ -630,11 +631,11 @@ enum STYPE_OPS_FLAGS {
 // For example, using stCopy to overwrite an existing string or sarray will leak the
 // destination because stCopy does not destroy the existing object first.
 
-typedef void (*stDtorFunc)(stype st, stgeneric* gen, flags_t flags);
-typedef intptr (*stCmpFunc)(stype st, stgeneric gen1, stgeneric gen2, flags_t flags);
-typedef uint32 (*stHashFunc)(stype st, stgeneric gen, flags_t flags);
-typedef void (*stCopyFunc)(stype st, stgeneric* dest, stgeneric src, flags_t flags);
-typedef bool (*stConvertFunc)(stype destst, stgeneric *dest, stype srcst, stgeneric src, flags_t flags);
+typedef void (*stDtorFunc)(_In_ stype st, _Pre_notnull_ _Post_invalid_ stgeneric* gen, _In_ flags_t flags);
+typedef intptr (*stCmpFunc)(_In_ stype st, _In_ stgeneric gen1, _In_ stgeneric gen2, _In_ flags_t flags);
+typedef uint32 (*stHashFunc)(_In_ stype st, _In_ stgeneric gen, _In_ flags_t flags);
+typedef void (*stCopyFunc)(_In_ stype st, _Out_ stgeneric* dest, _In_ stgeneric src, _In_ flags_t flags);
+typedef bool (*stConvertFunc)(_In_ stype destst, _Out_ stgeneric *dest, _In_ stype srcst, _In_ stgeneric src, _In_ flags_t flags);
 
 extern stDtorFunc _stDefaultDtor[256];
 extern stCmpFunc _stDefaultCmp[256];
@@ -650,7 +651,7 @@ typedef struct STypeOps {
     stConvertFunc convert;
 } STypeOps;
 
-_meta_inline stgeneric _stStoredVal(stype st, const void *storage)
+_meta_inline stgeneric _stStoredVal(_In_ stype st, _In_ const void *storage)
 {
     stgeneric ret;
     switch (stGetSize(st)) {
@@ -668,6 +669,7 @@ _meta_inline stgeneric _stStoredVal(stype st, const void *storage)
         break;
     default:
         devFatalError("Invalid small stype size");
+        ret.st_uint64 = 0;
     }
     return ret;
 }
@@ -679,7 +681,7 @@ _meta_inline stgeneric _stStoredVal(stype st, const void *storage)
 
 // inlining these lets most of it get optimized out and specialized if the type is known at compile-time
 
-_meta_inline void _stDestroy(stype st, STypeOps *ops, stgeneric *gen, flags_t flags)
+_meta_inline void _stDestroy(_In_ stype st, _In_opt_ STypeOps *ops, _Pre_notnull_ _Post_invalid_ stgeneric *gen, _In_ flags_t flags)
 {
     // ops is mandatory for custom type
     devAssert(!stHasFlag(st, Custom) || ops);
@@ -691,7 +693,7 @@ _meta_inline void _stDestroy(stype st, STypeOps *ops, stgeneric *gen, flags_t fl
 }
 #define stDestroy(type, pobj, ...) _stDestroy(stFullType(type), stArgPtr(type, pobj), opt_flags(__VA_ARGS__))
 
-_meta_inline intptr _stCmp(stype st, STypeOps *ops, stgeneric gen1, stgeneric gen2, flags_t flags)
+_meta_inline intptr _stCmp(_In_ stype st, _In_opt_ STypeOps *ops, _In_ stgeneric gen1, _In_ stgeneric gen2, _In_ flags_t flags)
 {
     // ops is mandatory for custom type
     devAssert(!stHasFlag(st, Custom) || ops);
@@ -709,15 +711,17 @@ _meta_inline intptr _stCmp(stype st, STypeOps *ops, stgeneric gen1, stgeneric ge
 }
 #define stCmp(type, obj1, obj2, ...) _stCmp(stFullType(type), stArg(type, obj1), stArg(type, obj2), opt_flags(__VA_ARGS__))
 
-_meta_inline void _stCopy(stype st, STypeOps *ops, stgeneric *dest, stgeneric src, flags_t flags)
+_meta_inline void _stCopy(_In_ stype st, _In_opt_ STypeOps *ops, _Out_ stgeneric *dest, _In_ stgeneric src, _In_ flags_t flags)
 {
     // ops is mandatory for custom type
     devAssert(!stHasFlag(st, Custom) || ops);
 
+    stCopyFunc defCopy = _stDefaultCopy[stGetId(st)];
+
     if (ops && ops->copy)
         ops->copy(st, dest, src, flags);
-    else if (_stDefaultCopy[stGetId(st)])
-        _stDefaultCopy[stGetId(st)](st, dest, src, flags);
+    else if (defCopy)
+        defCopy(st, dest, src, flags);
     else if (!stHasFlag(st, PassPtr))
         memcpy(dest, &src, stGetSize(st));
     else
@@ -725,8 +729,8 @@ _meta_inline void _stCopy(stype st, STypeOps *ops, stgeneric *dest, stgeneric sr
 }
 #define stCopy(type, pdest, src, ...) _stCopy(stFullType(type), stArgPtr(type, pdest), stArg(type, src), opt_flags(__VA_ARGS__))
 
-uint32 stHash_gen(stype st, stgeneric stgen, flags_t flags);
-_meta_inline uint32 _stHash(stype st, STypeOps *ops, stgeneric gen, flags_t flags)
+uint32 stHash_gen(_In_ stype st, _In_ stgeneric stgen, _In_ flags_t flags);
+_meta_inline uint32 _stHash(_In_ stype st, _In_opt_ STypeOps *ops, _In_ stgeneric gen, _In_ flags_t flags)
 {
     // ops is mandatory for custom type
     devAssert(!stHasFlag(st, Custom) || ops);
@@ -740,18 +744,21 @@ _meta_inline uint32 _stHash(stype st, STypeOps *ops, stgeneric gen, flags_t flag
 }
 #define stHash(type, obj, ...) _stHash(stFullType(type), stArg(type, obj), opt_flags(__VA_ARGS__))
 
-_meta_inline bool _stConvert(stype destst, stgeneric *dest, stype srcst, STypeOps *srcops, stgeneric src, flags_t flags)
+_Success_(_Return_ != false) _Check_return_
+_meta_inline bool _stConvert(_In_ stype destst, _Out_ stgeneric *dest, _In_ stype srcst, _In_opt_ STypeOps *srcops, _In_ stgeneric src, _In_ flags_t flags)
 {
     // ops is mandatory for custom type
     devAssert(!stHasFlag(srcst, Custom) || srcops);
+
+    stConvertFunc defConvert = _stDefaultConvert[stGetId(srcst)];
 
     // The *source* stype is responsible for handling conversions to other types
     if (srcops && srcops->convert)
         return srcops->convert(destst, dest, srcst, src, flags);
     else if (srcst == destst)
         return _stCopy(destst, NULL, dest, src, flags), true;
-    else if (_stDefaultConvert[stGetId(srcst)])
-        return _stDefaultConvert[stGetId(srcst)](destst, dest, srcst, src, flags);
+    else if (defConvert)
+        return defConvert(destst, dest, srcst, src, flags);
     else
         return false;               // can't convert it if we don't know how!
 }
