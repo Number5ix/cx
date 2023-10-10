@@ -26,6 +26,7 @@ void _xaFreeUpMemory(int phase, size_t allocsz);
 
 // If flags do not include one of the optional flags, this function
 // asserts and does not return.
+_When_(!(flags & XA_Optional_Mask), _Analysis_noreturn_)
 void _xaAllocFailure(size_t allocsz, unsigned int flags);
 
 void _xaInitOutput(void);

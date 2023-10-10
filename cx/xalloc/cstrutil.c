@@ -14,21 +14,19 @@
 // compiler intrinsics for those will be faster than anything that could be
 // supplied here.
 
-char *cstrDup(const char *src)
+_Ret_z_ char *cstrDup(_In_z_ const char *src)
 {
     if (!src)
         return NULL;
 
     size_t len = cstrLen(src) + 1;
     char *ret = xaAlloc(len);
-    if (!ret)
-        return NULL;
 
     memcpy(ret, src, len);
     return ret;
 }
 
-size_t cstrLenw(const unsigned short *s)
+size_t cstrLenw(_In_z_ const unsigned short *s)
 {
     const unsigned short *p = s;
     while (*p)
@@ -36,15 +34,13 @@ size_t cstrLenw(const unsigned short *s)
     return p - s;
 }
 
-unsigned short *cstrDupw(const unsigned short *src)
+_Ret_z_ unsigned short *cstrDupw(_In_z_ const unsigned short *src)
 {
     if (!src)
         return NULL;
 
     size_t len = (cstrLenw(src) + 1) * 2;
     unsigned short *ret = xaAlloc(len);
-    if (!ret)
-        return NULL;
 
     memcpy(ret, src, len);
     return ret;
@@ -126,7 +122,7 @@ static const uintptr_t mask80 = 0x8080808080808080;
                     return (p - str + x);       \
         } while (0)
 
-size_t cstrLen(const char *str)
+size_t cstrLen(_In_z_ const char *str)
 {
     const char *p;
     const uintptr_t *lp;
@@ -176,7 +172,7 @@ size_t cstrLen(const char *str)
 }
 
 // case insensitive compare since it's not consistently available
-int cstrCmpi(const char *s1, const char *s2)
+int cstrCmpi(_In_z_ const char *s1, _In_z_ const char *s2)
 {
     const uint8
         *us1 = (const uint8*)s1,

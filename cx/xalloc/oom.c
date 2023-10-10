@@ -60,6 +60,7 @@ void _xaFreeUpMemory(int phase, size_t allocsz)
         xaFlush();
 }
 
+_When_(!(flags & XA_Optional_Mask), _Analysis_noreturn_)
 void _xaAllocFailure(size_t allocsz, unsigned int flags)
 {
     if (flags & XA_Optional_Mask)

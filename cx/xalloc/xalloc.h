@@ -95,6 +95,12 @@ void xaRemoveOOMCallback(xaOOMCallback cb);
 // Flags include XA_Align(pow), XA_Zero, XA_Optional(tier)
 // Returns: pointer to memory
 #define xaAlloc(size, ...) _xaAlloc(size, opt_flags(__VA_ARGS__))
+
+_Check_return_
+_When_(flags & XA_Optional_Mask, _Must_inspect_result_ _Ret_maybenull_)
+_When_(!(flags & XA_Optional_Mask), _Ret_notnull_)
+_When_(!(flags & XA_Optional_Mask) && (flags & XA_Zero), _Ret_valid_)
+_Post_writable_byte_size_(size)
 void *_xaAlloc(size_t size, unsigned int flags);
 
 // bool xaResize(void **ptr, size_t size, [flags])
@@ -103,17 +109,20 @@ void *_xaAlloc(size_t size, unsigned int flags);
 // Returns: True if successfully resized and ptr updated.
 // If XA_Opt is set, returns false on failure and ptr is unchanged.
 #define xaResize(ptr, size, ...) (_xa_ptr_ptr_verify(ptr), _xaResize((void**)(ptr), size, opt_flags(__VA_ARGS__)))
-bool _xaResize(void **ptr, size_t size, unsigned int flags);
+_At_(*ptr, _Pre_maybenull_)
+_When_(!(flags & XA_Optional_Mask), _At_(*ptr, _Post_valid_))
+bool _xaResize(_Inout_ void **ptr, size_t size, unsigned int flags);
 
 // Frees the memory at ptr
 // Does nothing if ptr is NULL
-void xaFree(void *ptr);
+void xaFree(_Pre_maybenull_ _Post_invalid_ void *ptr);
 
 // bool xaRelease(void **ptr)
 // Frees the pointer with release semantics.
 // This frees *ptr (if it is non-NULL) and sets it to NULL.
 #define xaRelease(ptr) (_xa_ptr_ptr_verify(ptr), _xaRelease((void**)(ptr)))
-bool _xaRelease(void **ptr);
+_At_(*ptr, _Pre_maybenull_ _Post_invalid_)
+bool _xaRelease(_Inout_ void **ptr);
 
 // Returns: size of memory at ptr
 // In normal (max performance mode), this will have a lower bound at the number of bytes that
@@ -124,7 +133,7 @@ bool _xaRelease(void **ptr);
 // is filled with padding and used to check for buffer overruns.
 // See also xaOptSize(), which is useful for determining the optimal size to allocate in
 // secure mode to allow room for buffer growth.
-size_t xaSize(void *ptr);
+size_t xaSize(_In_ void *ptr);
 
 // Returns the optimal size to allocate to fit a given number of bytes. This returns the
 // underlying size class that fits the given number of bytes.
