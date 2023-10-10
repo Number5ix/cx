@@ -22,7 +22,7 @@ static void initSeed(void *unused)
 #endif
 }
 
-uint32 hashMurmur3(const uint8* key, size_t len)
+uint32 hashMurmur3(_In_reads_bytes_(len) const uint8* key, size_t len)
 {
     lazyInit(&msInit, initSeed, NULL);
 
@@ -67,7 +67,7 @@ uint32 hashMurmur3(const uint8* key, size_t len)
 // Note that it will also cause some extra hash collisions if used on binary
 // data, and of course does not work for UTF-8 strings that use a non-english
 // alphabet
-uint32 hashMurmur3i(const uint8* key, size_t len)
+uint32 hashMurmur3i(_In_reads_bytes_(len) const uint8* key, size_t len)
 {
     lazyInit(&msInit, initSeed, NULL);
 
@@ -108,7 +108,7 @@ uint32 hashMurmur3i(const uint8* key, size_t len)
     return h;
 }
 
-uint32 hashMurmur3Str(strref s)
+uint32 hashMurmur3Str(_In_opt_ strref s)
 {
     lazyInit(&msInit, initSeed, NULL);
 
@@ -153,7 +153,7 @@ uint32 hashMurmur3Str(strref s)
     return h;
 }
 
-uint32 hashMurmur3Stri(strref s)
+uint32 hashMurmur3Stri(_In_opt_ strref s)
 {
     lazyInit(&msInit, initSeed, NULL);
 
