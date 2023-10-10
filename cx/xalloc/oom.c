@@ -2,6 +2,7 @@
 
 #include <cx/container/foreach.h>
 #include <cx/container/sarray.h>
+#include <cx/debug/crash.h>
 #include <cx/thread/mutex.h>
 #include <cx/utils/lazyinit.h>
 
@@ -67,5 +68,5 @@ void _xaAllocFailure(size_t allocsz, unsigned int flags)
         return;
 
    _xaFreeUpMemory(XA_Fatal, allocsz);      // notify OOM handlers we're about to crash
-    relFatalError("Out of memory");
+   dbgCrashNow(0);
 }
