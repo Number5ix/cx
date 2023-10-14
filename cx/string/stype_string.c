@@ -2,12 +2,12 @@
 #include <cx/stype/stconvert.h>
 #include "cx/utils/murmur.h"
 
-void stDtor_string(stype st, stgeneric *gen, uint32 flags)
+void stDtor_string(stype st, _Pre_notnull_ _Post_invalid_ stgeneric *gen, uint32 flags)
 {
     strDestroy(&gen->st_string);
 }
 
-intptr stCmp_string(stype st, stgeneric gen1, stgeneric gen2, uint32 flags)
+intptr stCmp_string(stype st, _In_ stgeneric gen1, _In_ stgeneric gen2, uint32 flags)
 {
     if (!(flags & ST_CaseInsensitive))
         return strCmp(gen1.st_string, gen2.st_string);
@@ -15,14 +15,14 @@ intptr stCmp_string(stype st, stgeneric gen1, stgeneric gen2, uint32 flags)
         return strCmpi(gen1.st_string, gen2.st_string);
 }
 
-void stCopy_string(stype st, stgeneric *dest, stgeneric src, uint32 flags)
+void stCopy_string(stype st, _Out_ stgeneric *dest, _In_ stgeneric src, uint32 flags)
 {
     string temp = 0;
     strDup(&temp, src.st_string);
     dest->st_string = temp;
 }
 
-uint32 stHash_string(stype st, stgeneric gen, uint32 flags)
+uint32 stHash_string(stype st, _In_ stgeneric gen, uint32 flags)
 {
     if (!(flags & ST_CaseInsensitive))
         return hashMurmur3Str(gen.st_string);
@@ -30,7 +30,7 @@ uint32 stHash_string(stype st, stgeneric gen, uint32 flags)
         return hashMurmur3Stri(gen.st_string);
 }
 
-bool stConvert_string(stype destst, stgeneric *dest, stype srcst, stgeneric src, uint32 flags)
+bool stConvert_string(stype destst, _Out_ stgeneric *dest, stype srcst, _In_ stgeneric src, uint32 flags)
 {
     switch (stGetId(destst)) {
     case stTypeId(int8):

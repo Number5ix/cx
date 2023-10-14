@@ -1,7 +1,7 @@
 #include "string_private.h"
 #include "cx/utils/scratch.h"
 
-bool strValidUTF8(strref s)
+bool strValidUTF8(_In_opt_ strref s)
 {
     if (!STR_CHECK_VALID(s))
         return false;
@@ -32,7 +32,7 @@ bool strValidUTF8(strref s)
     return true;
 }
 
-bool strValidASCII(strref s)
+bool strValidASCII(_In_opt_ strref s)
 {
     if (!STR_CHECK_VALID(s))
         return false;
@@ -56,7 +56,7 @@ bool strValidASCII(strref s)
     return true;
 }
 
-size_t strToUTF16(strref s, uint16 *buf, size_t wsz)
+size_t strToUTF16(_In_opt_ strref s, _Out_writes_opt_(wsz) uint16 *buf, size_t wsz)
 {
     size_t bufidx = 0;
     int32 codepoint = 0;
@@ -103,7 +103,7 @@ size_t strToUTF16(strref s, uint16 *buf, size_t wsz)
     return bufidx;
 }
 
-bool strFromUTF16(string *o, const uint16 *buf, size_t wsz)
+bool strFromUTF16(_Inout_ string *o, _In_reads_(wsz) const uint16 *buf, size_t wsz)
 {
     bool surrogate = false;
     int nexpand = 1;
@@ -155,7 +155,7 @@ fail:
     return false;
 }
 
-uint16 *strToUTF16A(strref s)
+uint16 *strToUTF16A(_In_opt_ strref s)
 {
     size_t sz = strToUTF16(s, NULL, 0);
     if (sz == 0)
@@ -166,7 +166,7 @@ uint16 *strToUTF16A(strref s)
     return ret;
 }
 
-uint16 *strToUTF16S(strref s)
+uint16 *strToUTF16S(_In_opt_ strref s)
 {
     size_t sz = strToUTF16(s, NULL, 0);
     if (sz == 0)

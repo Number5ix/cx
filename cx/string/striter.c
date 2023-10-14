@@ -1,9 +1,9 @@
 #include "string_private.h"
 
-static void _striClear(striter *iter);
-static bool _striRewindU8(striter *i, uint32 off);
+static void _striClear(_Inout_ striter *iter);
+static bool _striRewindU8(_Inout_ striter *i, uint32 off);
 
-static void _striSetup(striter *iter, uint32 off, uint32 newcursor, bool reverse)
+static void _striSetup(_Inout_ striter *iter, uint32 off, uint32 newcursor, bool reverse)
 {
     uint32 slen = _strFastLen(iter->_str);
 
@@ -34,7 +34,7 @@ static void _striSetup(striter *iter, uint32 off, uint32 newcursor, bool reverse
     iter->cursor = newcursor;
 }
 
-static void _striClear(striter *iter)
+static void _striClear(_Inout_ striter *iter)
 {
     iter->bytes = NULL;
     iter->off = _strFastLen(iter->_str);
@@ -42,7 +42,7 @@ static void _striClear(striter *iter)
     iter->cursor = 0;
 }
 
-static void _striInit(striter *iter, strref s, bool reverse)
+static void _striInit(_Out_ striter *iter, _In_opt_ strref s, bool reverse)
 {
     if (!STR_CHECK_VALID(s))
         s = _strEmpty;
@@ -63,17 +63,17 @@ static void _striInit(striter *iter, strref s, bool reverse)
         _striSetup(iter, strLen(s) - 1, 0, true);
 }
 
-void striInit(striter *iter, strref s)
+void striInit(_Out_ striter *iter, _In_opt_ strref s)
 {
     _striInit(iter, s, false);
 }
 
-void striInitRev(striter *iter, strref s)
+void striInitRev(_Out_ striter *iter, _In_opt_ strref s)
 {
     _striInit(iter, s, true);
 }
 
-static void _striBorrow(striter *iter, strref s, bool reverse)
+static void _striBorrow(_Out_ striter *iter, _In_opt_ strref s, bool reverse)
 {
     if (!STR_CHECK_VALID(s))
         s = _strEmpty;
@@ -88,17 +88,17 @@ static void _striBorrow(striter *iter, strref s, bool reverse)
         _striSetup(iter, strLen(s) - 1, 0, true);
 }
 
-void striBorrow(striter *iter, strref s)
+void striBorrow(_Out_ striter *iter, _In_opt_ strref s)
 {
     _striBorrow(iter, s, false);
 }
 
-void striBorrowRev(striter *iter, strref s)
+void striBorrowRev(_Out_ striter *iter, _In_opt_ strref s)
 {
     _striBorrow(iter, s, true);
 }
 
-bool striNext(striter *iter)
+bool striNext(_Inout_ striter *iter)
 {
     if (!(iter && STR_CHECK_VALID(iter->_str)))
         return false;
@@ -120,7 +120,7 @@ bool striNext(striter *iter)
     return true;
 }
 
-bool striPrev(striter *iter)
+bool striPrev(_Inout_ striter *iter)
 {
     if (!(iter && STR_CHECK_VALID(iter->_str)))
         return false;
@@ -142,7 +142,7 @@ bool striPrev(striter *iter)
     return true;
 }
 
-bool striSeek(striter *iter, int32 off, STRI_SEEK_TYPE type, STRI_SEEK_WHENCE whence)
+bool striSeek(_Inout_ striter *iter, int32 off, STRI_SEEK_TYPE type, STRI_SEEK_WHENCE whence)
 {
     if (!(iter && STR_CHECK_VALID(iter->_str)))
         return false;
@@ -210,7 +210,7 @@ bool striSeek(striter *iter, int32 off, STRI_SEEK_TYPE type, STRI_SEEK_WHENCE wh
     return false;
 }
 
-void striFinish(striter *iter)
+void striFinish(_Inout_ striter *iter)
 {
     if (!iter)
         return;
@@ -224,12 +224,12 @@ void striFinish(striter *iter)
     }
 }
 
-bool striU8Char(striter *iter, int32 *out)
+_Success_(_Return_) _Must_inspect_result_ bool striU8Char(_Inout_ striter *iter, _Out_ int32 *out)
 {
     return _strUTF8Decode(iter, out);
 }
 
-bool striPeekU8Char(striter *iter, int32 *out)
+_Success_(_Return_) _Must_inspect_result_ bool striPeekU8Char(_Inout_ striter *iter, _Out_ int32 *out)
 {
     striter saved = *iter;
 
@@ -238,7 +238,7 @@ bool striPeekU8Char(striter *iter, int32 *out)
     return ret;
 }
 
-bool striAdvanceU8(striter *iter, uint32 by)
+_Check_return_ bool striAdvanceU8(_Inout_ striter *iter, uint32 by)
 {
     for (uint32 idx = 0; idx < by; idx++) {
         uint32 seqlen = _strUTF8Decode(iter, NULL);
@@ -250,7 +250,7 @@ bool striAdvanceU8(striter *iter, uint32 by)
 }
 
 // this is going to be painful
-static bool _striRewindU8(striter *iter, uint32 by)
+static bool _striRewindU8(_Inout_ striter *iter, uint32 by)
 {
     int ncont = 0;
     uint32 off = iter->off, seqlen;

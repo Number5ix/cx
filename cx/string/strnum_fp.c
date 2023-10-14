@@ -280,7 +280,7 @@ static int generate_digits(Fp* fp, Fp* upper, Fp* lower, uint8* digits, int* K)
     }
 }
 
-int32 _strnum_grisu2_64(float64 d, uint8* digits, int32* K)
+int32 _strnum_grisu2_64(float64 d, _Out_writes_(18) uint8* digits, _Inout_ int32* K)
 {
     Fp w = build_fp_64(d);
 
@@ -304,7 +304,7 @@ int32 _strnum_grisu2_64(float64 d, uint8* digits, int32* K)
     return generate_digits(&w, &upper, &lower, digits, K);
 }
 
-int32 _strnum_grisu2_32(float32 f, uint8* digits, int32* K)
+int32 _strnum_grisu2_32(float32 f, _Out_writes_(18) uint8* digits, _Inout_ int32* K)
 {
     Fp w = build_fp_32(f);
 
@@ -451,7 +451,7 @@ static int filter_special_32(float fp, uint8* dest)
     return 3;
 }
 
-uint32 _strnum_f64toa(float64 d, uint8 dest[STRNUM_FPBUF])
+uint32 _strnum_f64toa(float64 d, _Out_writes_(STRNUM_FPBUF) uint8 dest[STRNUM_FPBUF])
 {
     uint8 digits[18];
 
@@ -479,7 +479,7 @@ uint32 _strnum_f64toa(float64 d, uint8 dest[STRNUM_FPBUF])
     return str_len;
 }
 
-uint32 _strnum_f32toa(float32 f, uint8 dest[STRNUM_FPBUF])
+uint32 _strnum_f32toa(float32 f, _Out_writes_(STRNUM_FPBUF) uint8 dest[STRNUM_FPBUF])
 {
     uint8 digits[18];
 
@@ -508,7 +508,7 @@ uint32 _strnum_f32toa(float32 f, uint8 dest[STRNUM_FPBUF])
     return str_len;
 }
 
-bool strFromFloat32(string *out, float32 f)
+bool strFromFloat32(_Inout_ string *out, float32 f)
 {
     uint8 buf[STRNUM_FPBUF];
     uint32 buflen;
@@ -526,7 +526,7 @@ bool strFromFloat32(string *out, float32 f)
     return true;
 }
 
-bool strFromFloat64(string *out, float64 d)
+bool strFromFloat64(_Inout_ string *out, float64 d)
 {
     uint8 buf[STRNUM_FPBUF];
     uint32 buflen;

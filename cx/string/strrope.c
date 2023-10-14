@@ -3,7 +3,7 @@
 
 #define MAX_REBALANCE_ITER 3            // really should only take 2
 
-static void _strInitRope(string *o)
+static void _strInitRope(_Inout_ string *o)
 {
     strDestroy(o);
 
@@ -26,7 +26,7 @@ static void _strInitRope(string *o)
     *o = ret;
 }
 
-static void _strMkOptimalRoperef(str_roperef *out, strref s, uint32 off, uint32 len)
+static void _strMkOptimalRoperef(_Inout_ str_roperef *out, _In_ strref s, uint32 off, uint32 len)
 {
     // create a roperef, but if the input string is already a rope, try to see if we
     // can steal one of its source strings rather than referencing the rope node
@@ -53,7 +53,7 @@ static void _strMkOptimalRoperef(str_roperef *out, strref s, uint32 off, uint32 
     out->len = len;
 }
 
-static int _strRopeDepth(strref s)
+static int _strRopeDepth(_In_opt_ strref s)
 {
     if (!s || !(STR_HDR(s) & STR_ROPE))
         return 0;
@@ -62,7 +62,7 @@ static int _strRopeDepth(strref s)
     return data->depth;
 }
 
-static void _strRotateLeft(string *top)
+static void _strRotateLeft(_In_ string *top)
 {
     string oldtop = *top, newtop = NULL, newleft = NULL;
     str_ropedata *tdata = STR_ROPEDATA(oldtop);
@@ -97,7 +97,7 @@ static void _strRotateLeft(string *top)
     *top = newtop;
 }
 
-static void _strRotateRight(string *top)
+static void _strRotateRight(_In_ string *top)
 {
     string oldtop = *top, newtop = NULL, newright = NULL;
     str_ropedata *tdata = STR_ROPEDATA(oldtop);
@@ -131,7 +131,7 @@ static void _strRotateRight(string *top)
     *top = newtop;
 }
 
-static void _strRebalanceRope(string *ptop)
+static void _strRebalanceRope(_In_ string *ptop)
 {
     int i, bal, lastbal = 0;
 
@@ -156,7 +156,7 @@ static void _strRebalanceRope(string *ptop)
 }
 
 // create a new rope node
-string _strCreateRope(strref left, uint32 left_off, uint32 left_len, strref right, uint32 right_off, uint32 right_len, bool balance)
+string _strCreateRope(_In_opt_ strref left, uint32 left_off, uint32 left_len, _In_opt_ strref right, uint32 right_off, uint32 right_len, bool balance)
 {
     string ret = 0;
     uint8 encoding = STR_ENCODING_MASK;
@@ -210,7 +210,7 @@ string _strCreateRope(strref left, uint32 left_off, uint32 left_len, strref righ
 }
 
 // create a rope node with only half a rope -- this is mostly used for making substrings
-string _strCreateRope1(strref s, uint32 off, uint32 len)
+string _strCreateRope1(_In_opt_ strref s, uint32 off, uint32 len)
 {
     string ret = 0;
 
@@ -253,7 +253,7 @@ string _strCreateRope1(strref s, uint32 off, uint32 len)
 }
 
 // quick and dirty rope node cloning for makeunique
-string _strCloneRope(strref s)
+string _strCloneRope(_In_ strref s)
 {
     string ret = 0;
 
@@ -277,7 +277,7 @@ string _strCloneRope(strref s)
     return ret;
 }
 
-void _strDestroyRope(string s)
+void _strDestroyRope(_Inout_ string s)
 {
     str_ropedata *data = STR_ROPEDATA(s);
 
@@ -288,7 +288,7 @@ void _strDestroyRope(string s)
 // copy bytes out of a rope
 // as in _strFastCopy, we assume the caller has done the math
 // and knows what they're doing
-uint32 _strRopeFastCopy(strref s, uint32 off, uint8 *buf, uint32 bytes)
+uint32 _strRopeFastCopy(_In_ strref s, uint32 off, _Out_writes_bytes_(bytes) uint8 *buf, uint32 bytes)
 {
     uint32 leftcopy = 0, rightcopy = 0;
     str_ropedata *data = STR_ROPEDATA(s);
@@ -304,7 +304,7 @@ uint32 _strRopeFastCopy(strref s, uint32 off, uint8 *buf, uint32 bytes)
     return leftcopy + rightcopy;    // should equal bytes
 }
 
-static bool _strRopeRealStrPart(str_roperef *ref, uint32 off, string *rs, uint32 *rsoff, uint32 *rslen, uint32 *rsstart, bool writable)
+static bool _strRopeRealStrPart(_Inout_ str_roperef *ref, uint32 off, _Out_ string *rs, _Out_ uint32 *rsoff, _Out_ uint32 *rslen, _Out_ uint32 *rsstart, bool writable)
 {
     // is it part of our ref?
     if (off >= ref->len)
@@ -328,7 +328,7 @@ static bool _strRopeRealStrPart(str_roperef *ref, uint32 off, string *rs, uint32
 // get the actual string and offset of a particular offset within a rope.
 // note that rs gets a borrowed reference put into it, so caller must dup
 // if it wants to hold on to it and doesn't otherwise hold a ref!
-bool _strRopeRealStr(string *s, uint32 off, string *rs, uint32 *rsoff, uint32 *rslen, uint32 *rsstart, bool writable)
+bool _strRopeRealStr(_Inout_ string *s, uint32 off, _Out_ string *rs, _Out_ uint32 *rsoff, _Out_ uint32 *rslen, _Out_ uint32 *rsstart, bool writable)
 {
     if (!(STR_HDR(*s) & STR_ROPE))
         return false;
@@ -345,12 +345,12 @@ bool _strRopeRealStr(string *s, uint32 off, string *rs, uint32 *rsoff, uint32 *r
     return false;
 }
 
-int strTestRopeDepth(strref s)
+int strTestRopeDepth(_In_opt_ strref s)
 {
     return _strRopeDepth(s);
 }
 
-bool strTestRopeNode(string *o, strref s, bool left)
+bool strTestRopeNode(_Inout_ string *o, _In_opt_ strref s, bool left)
 {
     if (!s || !(STR_HDR(s) & STR_ROPE))
         return false;

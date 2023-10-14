@@ -49,7 +49,7 @@ extern const uint8 _str_off[32];
 #define STR_CHECK_VALID(s) (s && *(uint8*)s)
 #define STR_SAFE_DEREF(ps) ((ps && *ps) ? *ps : 0)
 
-_meta_inline uint32 _strFastLen(strref s)
+_meta_inline uint32 _strFastLen(_In_ strref s)
 {
     if (!(STR_HDR(s) & STR_CX))
         return (uint32)cstrLen((const char*)s);
@@ -66,7 +66,7 @@ _meta_inline uint32 _strFastLen(strref s)
 }
 
 // must only be used on STR_CX | STR_ALLOC strings!
-_meta_inline uint16 _strFastRef(strref s)
+_meta_inline uint16 _strFastRef(_In_ strref s)
 {
     int l = STR_HDR(s) & STR_LEN_MASK;
 
@@ -76,7 +76,7 @@ _meta_inline uint16 _strFastRef(strref s)
         return atomicLoad(uint16, &STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), atomic(uint16)), Acquire);
 }
 
-_meta_inline uint16 _strFastRefNoSync(strref s)
+_meta_inline uint16 _strFastRefNoSync(_In_ strref s)
 {
     int l = STR_HDR(s) & STR_LEN_MASK;
 
@@ -105,28 +105,28 @@ _meta_inline uint16 _strFastRefNoSync(strref s)
 extern string _strEmpty;
 
 // resets the string internals, re-use memory if possible
-void _strReset(string *s, uint32 minsz);
+void _strReset(_Inout_ string *s, uint32 minsz);
 
 // these change the structure internally and can result in inconsistent state
 // if not used with care
-void _strSetLen(string s, uint32 len);
-void _strInitRef(string s);
-void _strSetRef(string s, uint16 ref);
+void _strSetLen(_Inout_ string s, uint32 len);
+void _strInitRef(_Inout_ string s);
+void _strSetRef(_Inout_ string s, uint16 ref);
 
 // ensure that ps is allocated by us and has a single reference
-bool _strMakeUnique(string *ps, uint32 minszforcopy);
+bool _strMakeUnique(_Inout_ string *ps, uint32 minszforcopy);
 // like _strMakeUnique but also flattens ropes into plain strings
-bool _strFlatten(string *ps, uint32 minszforcopy);
+bool _strFlatten(_Inout_ string *ps, uint32 minszforcopy);
 // resize ps in place if possible, or copy if necessary (changing ps).
 // resizes buffer only, does NOT zero buffer or set length header
-bool _strResize(string *ps, uint32 len, bool unique);
+bool _strResize(_Inout_ string *ps, uint32 len, bool unique);
 // duplicates s and returns a copy, optionally with more reserved space allocated
-string _strCopy(strref s, uint32 minsz);
+_Ret_maybenull_ string _strCopy(_In_ strref s, uint32 minsz);
 // direct copy of string buffer or rope internals, does not check destination size!
-uint32 _strFastCopy(strref s, uint32 off, uint8 *buf, uint32 bytes);
+uint32 _strFastCopy(_In_ strref s, uint32 off, _Out_writes_bytes_(bytes) uint8 *buf, uint32 bytes);
 
 // faster concatenation for internal use
-bool _strConcatNoRope(string *o, strref s1, strref s2);
+bool _strConcatNoRope(_Inout_ string *o, _In_opt_ strref s1, _In_opt_ strref s2);
 
 // rope data comes directly after string header if STR_ROPE is set
 typedef struct str_roperef {
@@ -140,20 +140,20 @@ typedef struct str_ropedata {
     int depth;
 } str_ropedata;
 
-string _strCreateRope(strref left, uint32 left_off, uint32 left_len, strref right, uint32 right_off, uint32 right_len, bool balance);
-string _strCreateRope1(strref s, uint32 off, uint32 len);
-string _strCloneRope(strref s);
-void _strDestroyRope(string s);
-uint32 _strRopeFastCopy(strref s, uint32 off, uint8 *buf, uint32 bytes);
-bool _strRopeRealStr(string *s, uint32 off, string *rs, uint32 *rsoff, uint32 *rslen, uint32 *rsstart, bool writable);
+string _strCreateRope(_In_opt_ strref left, uint32 left_off, uint32 left_len, _In_opt_ strref right, uint32 right_off, uint32 right_len, bool balance);
+string _strCreateRope1(_In_opt_ strref s, uint32 off, uint32 len);
+string _strCloneRope(_In_ strref s);
+void _strDestroyRope(_Inout_ string s);
+uint32 _strRopeFastCopy(_In_ strref s, uint32 off, _Out_writes_bytes_(bytes) uint8 *buf, uint32 bytes);
+bool _strRopeRealStr(_Inout_ string *s, uint32 off, _Out_ string *rs, _Out_ uint32 *rsoff, _Out_ uint32 *rslen, _Out_ uint32 *rsstart, bool writable);
 
 // Finds first occurrence of find in s at or after start
-int32 _strFindChar(strref s, int32 start, char find);
+int32 _strFindChar(_In_ strref s, int32 start, char find);
 // Finds last occurrence of find in s before end
 // end can be 0 to indicate end of the string
-int32 _strFindCharR(strref s, int32 end, char find);
+int32 _strFindCharR(_In_ strref s, int32 end, char find);
 
-_meta_inline uint8 _strFastChar(strref s, uint32 i)
+_meta_inline uint8 _strFastChar(_In_ strref s, uint32 i)
 {
     if (!(STR_HDR(s) & STR_ROPE)) {
         return STR_BUFFER(s)[i];

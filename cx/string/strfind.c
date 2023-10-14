@@ -1,6 +1,6 @@
 #include "string_private.h"
 
-int32 _strFindChar(strref s, int32 b, char find)
+int32 _strFindChar(_In_ strref s, int32 b, char find)
 {
     uint32 slen, i;
 
@@ -25,7 +25,7 @@ int32 _strFindChar(strref s, int32 b, char find)
     return -1;
 }
 
-int32 _strFindCharR(strref s, int32 e, char find)
+int32 _strFindCharR(_In_ strref s, int32 e, char find)
 {
     // Conventional wisdom was wrong. Actually scanning backwards turns out to be
     // about 20% faster on average, probably because the conditions to check are
@@ -59,7 +59,7 @@ int32 _strFindCharR(strref s, int32 e, char find)
 // comparison helper that can handle degenerate case where
 // string and substring are both ropes and don't have segments
 // that line up cleanly
-static inline bool striterEq(striter *istr_in, striter *isub_in)
+static inline bool striterEq(_In_ striter *istr_in, _In_ striter *isub_in)
 {
     // borrow iterator state
     striter istr = *istr_in;
@@ -79,7 +79,7 @@ static inline bool striterEq(striter *istr_in, striter *isub_in)
     return false;
 }
 
-int32 strFind(strref s, int32 b, strref find)
+int32 strFind(_In_opt_ strref s, int32 b, _In_opt_ strref find)
 {
     uint32 off, slen, i;
 
@@ -123,7 +123,7 @@ int32 strFind(strref s, int32 b, strref find)
     return -1;
 }
 
-int32 strFindR(strref s, int32 e, strref find)
+int32 strFindR(_In_opt_ strref s, int32 e, _In_opt_ strref find)
 {
     // see _strFindCharR and strFind for implementation notes
     uint32 slen;

@@ -7,25 +7,25 @@ CX_C_BEGIN
 // Compare two strings
 // Slightly faster than strCmp you only care about equality.
 // Returns: true if the strings are equal, otherwise false
-bool strEq(strref s1, strref s2);
-bool strEqi(strref s1, strref s2);
+bool strEq(_In_opt_ strref s1, _In_opt_ strref s2);
+bool strEqi(_In_opt_ strref s1, _In_opt_ strref s2);
 
 // Compare two strings
 // This is purely a binary comparison and is not intended for lexical sorting.
 // Returns: < 0 if s1 comes before s2
 //            0 if the strings are equal
 //          > 0 if s1 comes after s2
-int32 strCmp(strref s1, strref s2);
-int32 strCmpi(strref s1, strref s2);
+int32 strCmp(_In_opt_ strref s1, _In_opt_ strref s2);
+int32 strCmpi(_In_opt_ strref s1, _In_opt_ strref s2);
 
-bool strRangeEq(strref str, strref sub, int32 off, uint32 len);
-bool strRangeEqi(strref str, strref sub, int32 off, uint32 len);
-int32 strRangeCmp(strref str, strref sub, int32 off, uint32 len);
-int32 strRangeCmpi(strref str, strref sub, int32 off, uint32 len);
+bool strRangeEq(_In_opt_ strref str, _In_opt_ strref sub, int32 off, uint32 len);
+bool strRangeEqi(_In_opt_ strref str, _In_opt_ strref sub, int32 off, uint32 len);
+int32 strRangeCmp(_In_opt_ strref str, _In_opt_ strref sub, int32 off, uint32 len);
+int32 strRangeCmpi(_In_opt_ strref str, _In_opt_ strref sub, int32 off, uint32 len);
 
-bool strBeginsWith(strref str, strref sub);
-bool strBeginsWithi(strref str, strref sub);
-bool strEndsWith(strref str, strref sub);
-bool strEndsWithi(strref str, strref sub);
+bool strBeginsWith(_In_opt_ strref str, _In_opt_ strref sub);
+bool strBeginsWithi(_In_opt_ strref str, _In_opt_ strref sub);
+bool strEndsWith(_In_opt_ strref str, _In_opt_ strref sub);
+bool strEndsWithi(_In_opt_ strref str, _In_opt_ strref sub);
 
 CX_C_END

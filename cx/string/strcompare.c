@@ -1,6 +1,6 @@
 #include "string_private.h"
 
-bool strEq(strref s1, strref s2)
+bool strEq(_In_opt_ strref s1, _In_opt_ strref s2)
 {
     if (!STR_CHECK_VALID(s1))
         s1 = _strEmpty;
@@ -28,7 +28,7 @@ bool strEq(strref s1, strref s2)
     return false;       // unreachable
 }
 
-int32 strCmp(strref s1, strref s2)
+int32 strCmp(_In_opt_ strref s1, _In_opt_ strref s2)
 {
     if (!STR_CHECK_VALID(s1))
         s1 = _strEmpty;
@@ -61,7 +61,7 @@ int32 strCmp(strref s1, strref s2)
     return 0;       // unreachable
 }
 
-bool strEqi(strref s1, strref s2)
+bool strEqi(_In_opt_ strref s1, _In_opt_ strref s2)
 {
     if (!STR_CHECK_VALID(s1))
         s1 = _strEmpty;
@@ -92,7 +92,7 @@ bool strEqi(strref s1, strref s2)
     return false;           // unreachacle
 }
 
-int32 strCmpi(strref s1, strref s2)
+int32 strCmpi(_In_opt_ strref s1, _In_opt_ strref s2)
 {
     if (!STR_CHECK_VALID(s1))
         s1 = _strEmpty;
@@ -127,7 +127,7 @@ int32 strCmpi(strref s1, strref s2)
     return 0;           // unreachable
 }
 
-bool strRangeEq(strref s1, strref s2, int32 off, uint32 len)
+bool strRangeEq(_In_opt_ strref s1, _In_opt_ strref s2, int32 off, uint32 len)
 {
     if (!STR_CHECK_VALID(s1))
         s1 = _strEmpty;
@@ -163,7 +163,7 @@ bool strRangeEq(strref s1, strref s2, int32 off, uint32 len)
     return false;       // unreachable
 }
 
-int32 strRangeCmp(strref s1, strref s2, int32 off, uint32 len)
+int32 strRangeCmp(_In_opt_ strref s1, _In_opt_ strref s2, int32 off, uint32 len)
 {
     if (!STR_CHECK_VALID(s1))
         s1 = _strEmpty;
@@ -202,7 +202,7 @@ int32 strRangeCmp(strref s1, strref s2, int32 off, uint32 len)
     return 0;       // unreachable
 }
 
-bool strRangeEqi(strref s1, strref s2, int32 off, uint32 len)
+bool strRangeEqi(_In_opt_ strref s1, _In_opt_ strref s2, int32 off, uint32 len)
 {
     if (!STR_CHECK_VALID(s1))
         s1 = _strEmpty;
@@ -239,7 +239,7 @@ bool strRangeEqi(strref s1, strref s2, int32 off, uint32 len)
     return false;           // unreachacle
 }
 
-int32 strRangeCmpi(strref s1, strref s2, int32 off, uint32 len)
+int32 strRangeCmpi(_In_opt_ strref s1, _In_opt_ strref s2, int32 off, uint32 len)
 {
     if (!STR_CHECK_VALID(s1))
         s1 = _strEmpty;
@@ -280,22 +280,22 @@ int32 strRangeCmpi(strref s1, strref s2, int32 off, uint32 len)
     return 0;           // unreachable
 }
 
-bool strBeginsWith(strref s1, strref s2)
+bool strBeginsWith(_In_opt_ strref s1, _In_opt_ strref s2)
 {
     return strRangeEq(s1, s2, 0, strLen(s2));
 }
 
-bool strBeginsWithi(strref s1, strref s2)
+bool strBeginsWithi(_In_opt_ strref s1, _In_opt_ strref s2)
 {
     return strRangeEqi(s1, s2, 0, strLen(s2));
 }
 
-bool strEndsWith(strref s1, strref s2)
+bool strEndsWith(_In_opt_ strref s1, _In_opt_ strref s2)
 {
     return strRangeEq(s1, s2, -(int32)strLen(s2), strLen(s2));
 }
 
-bool strEndsWithi(strref s1, strref s2)
+bool strEndsWithi(_In_opt_ strref s1, _In_opt_ strref s2)
 {
     return strRangeEqi(s1, s2, -(int32)strLen(s2), strLen(s2));
 }

@@ -7,7 +7,7 @@ char _strnum_ldigits[] = "0123456789abcdefghijklmnopqrstuvwxyz";
 // string to integer -------------------------------------------------------------------
 
 #define STRNUM_IMPL(type, stype, utype, name, CUTOFF)        \
-bool name(type *out, strref s, int base, bool strict)        \
+bool name(_Out_ type *out, _In_opt_ strref s, int base, bool strict)        \
 {                                                            \
     utype acc;                                               \
     uint8 c;                                                 \
@@ -94,7 +94,7 @@ STRNUM_IMPL(uint64, int64, uint64, strToUInt64, MAX_UINT64)
 
 // integer to string -------------------------------------------------------------------
 
-uint8 *_strnum_u64toa(uint8 buf[STRNUM_INTBUF], uint32 *len, uint64 val, uint16 base, uint32 mindigits, char sign, bool upper)
+_Ret_maybenull_ uint8 *_strnum_u64toa(_Out_writes_(STRNUM_INTBUF) uint8 buf[STRNUM_INTBUF], _Out_opt_ uint32 *len, uint64 val, uint16 base, uint32 mindigits, char sign, bool upper)
 {
     uint8 *p = buf + STRNUM_INTBUF;
     char *cset;
@@ -154,7 +154,7 @@ static _meta_inline bool _strFromIntHelper(string *out, uint64 val, uint16 base,
 }
 
 // TODO: localize the sign character
-bool strFromInt32(string *out, int32 i, uint16 base)
+bool strFromInt32(_Inout_ string *out, int32 i, uint16 base)
 {
     if (i >= 0)
         return _strFromIntHelper(out, (uint64)i, base, 0, 0, false);
@@ -162,19 +162,19 @@ bool strFromInt32(string *out, int32 i, uint16 base)
     return _strFromIntHelper(out, (uint32)(~i) + 1, base, 0, '-', false);
 }
 
-bool strFromUInt32(string *out, uint32 i, uint16 base)
+bool strFromUInt32(_Inout_ string *out, uint32 i, uint16 base)
 {
     return _strFromIntHelper(out, i, base, 0, 0, false);
 }
 
-bool strFromInt64(string *out, int64 i, uint16 base)
+bool strFromInt64(_Inout_ string *out, int64 i, uint16 base)
 {
     if (i >= 0)
         return _strFromIntHelper(out, (uint64)i, base, 0, 0, false);
     return _strFromIntHelper(out, (uint64)(~i) + 1, base, 0, '-', false);
 }
 
-bool strFromUInt64(string *out, uint64 i, uint16 base)
+bool strFromUInt64(_Inout_ string *out, uint64 i, uint16 base)
 {
     return _strFromIntHelper(out, i, base, 0, 0, false);
 }

@@ -1,12 +1,12 @@
 #include "string_private.h"
 
-static bool _strAppendNoRope(string *io, strref s);
+static bool _strAppendNoRope(_Inout_ string *io, _In_opt_ strref s);
 
 // This is the master algorithm for concatenating strings!
 // All of the other versions are simplified copies with parts removed.
 // If you change this function, be sure to update the two-argument versions,
 // append, etc.
-bool _strNConcat(string *o, int n, strref *_args)
+bool _strNConcat(_Inout_ string *o, int n, _In_ strref *_args)
 {
     string *args = (string*)_args;          // we know what we doing
     uint8 *ptr;
@@ -99,7 +99,7 @@ bool _strNConcat(string *o, int n, strref *_args)
     return true;
 }
 
-bool _strNConcatC(string *o, int n, string **args)
+bool _strNConcatC(_Inout_ string *o, int n, _Inout_ string **args)
 {
     uint8 *ptr;
     int i, start = 0;
@@ -196,7 +196,7 @@ bool _strNConcatC(string *o, int n, string **args)
     return true;
 }
 
-static bool _strAppendNoRope(string *io, strref s)
+static bool _strAppendNoRope(_Inout_ string *io, _In_opt_ strref s)
 {
     uint32 iolen = strLen(*io), slen = _strFastLen(s);
     uint32 len = iolen + slen;
@@ -226,7 +226,7 @@ static bool _strAppendNoRope(string *io, strref s)
     return true;
 }
 
-static bool _strAppend(string *io, strref s)
+static bool _strAppend(_Inout_ string *io, _In_opt_ strref s)
 {
     uint32 iolen = strLen(*io), slen = _strFastLen(s);
     uint32 len = iolen + slen;
@@ -268,7 +268,7 @@ static bool _strAppend(string *io, strref s)
     return true;
 }
 
-bool strAppend(string *io, strref s)
+bool strAppend(_Inout_ string *io, _In_opt_ strref s)
 {
     if (!io)
         return false;
@@ -279,7 +279,7 @@ bool strAppend(string *io, strref s)
     return _strAppend(io, s);
 }
 
-bool strPrepend(strref s, string *io)
+bool strPrepend(_In_opt_ strref s, _Inout_ string *io)
 {
     string out;
     bool ret;
@@ -292,7 +292,7 @@ bool strPrepend(strref s, string *io)
 }
 
 // for use by the rope module
-bool _strConcatNoRope(string *o, strref s1, strref s2)
+bool _strConcatNoRope(_Inout_ string *o, _In_opt_ strref s1, _In_opt_ strref s2)
 {
     // you really should be calling append...
     if (*o == s1)
@@ -329,7 +329,7 @@ bool _strConcatNoRope(string *o, strref s1, strref s2)
     return true;
 }
 
-bool strConcat(string *o, strref s1, strref s2)
+bool strConcat(_Inout_ string *o, _In_opt_ strref s1, _In_opt_ strref s2)
 {
     if (!o)
         return false;
@@ -379,7 +379,7 @@ bool strConcat(string *o, strref s1, strref s2)
     return true;
 }
 
-bool strConcatC(string *o, string *sc1, string *sc2)
+bool strConcatC(_Inout_ string *o, _Inout_ string *sc1, _Inout_ string *sc2)
 {
     bool append = (o == sc1);
     if (!(o && sc1 && sc2))
