@@ -34,7 +34,7 @@ static bool _strSubStr(_Inout_ string *o, _Inout_ string *ps, int32 b, int32 e, 
             // optimization for reducing the length of a string
             _strFlatten(o, len);
             _strSetLen(*o, len);
-            STR_BUFFER(*o)[len] = 0;
+            _strBuffer(*o)[len] = 0;
             // TODO: Make sure we didn't slice in the middle of a UTF-8 sequence?
             return true;
         } else if (*o != *ps) {
@@ -45,10 +45,10 @@ static bool _strSubStr(_Inout_ string *o, _Inout_ string *ps, int32 b, int32 e, 
             strReset(&ret, len);        // *o == *ps, destination needs to be separate
         }
 
-        *STR_HDRP(ret) &= ~STR_ENCODING_MASK;
-        *STR_HDRP(ret) |= STR_HDR(s) & STR_ENCODING_MASK;
-        _strFastCopy(s, off, STR_BUFFER(ret), len);
-        STR_BUFFER(ret)[len] = 0;
+        *_strHdrP(ret) &= ~STR_ENCODING_MASK;
+        *_strHdrP(ret) |= _strHdr(s) & STR_ENCODING_MASK;
+        _strFastCopy(s, off, _strBuffer(ret), len);
+        _strBuffer(ret)[len] = 0;
         _strSetLen(ret, len);
 
         // TODO: Make sure we didn't slice in the middle of a UTF-8 sequence?
@@ -116,13 +116,13 @@ void strSetChar(_Inout_ string *s, int32 i, uint8 ch)
     if (off >= _strFastLen(*s))
         strSetLen(s, off + 1);
 
-    if (!(STR_HDR(*s) & STR_ROPE)) {
+    if (!(_strHdr(*s) & STR_ROPE)) {
         _strMakeUnique(s, 0);
-        STR_BUFFER(*s)[off] = ch;
+        _strBuffer(*s)[off] = ch;
     } else {
         string realstr;
         uint32 realoff, reallen, realstart;
         if (_strRopeRealStr(s, off, &realstr, &realoff, &reallen, &realstart, true))
-            STR_BUFFER(realstr)[realoff] = ch;
+            _strBuffer(realstr)[realoff] = ch;
     }
 }

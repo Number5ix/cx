@@ -10,7 +10,7 @@ static void _strInitRope(_Inout_ string *o)
     // ropes are all STR_LEN32 to get the full header
     uint8 newhdr = STR_CX | STR_ALLOC | STR_ROPE | STR_LEN32;
 
-    uint32 sz = STR_OFF_STR(newhdr) + sizeof(str_ropedata);
+    uint32 sz = _strOffStr(newhdr) + sizeof(str_ropedata);
 
     string ret = xaAlloc(sz);
     if (!ret)
@@ -18,7 +18,7 @@ static void _strInitRope(_Inout_ string *o)
 
     *(uint8*)ret = newhdr;
     ((uint8*)ret)[1] = 0xc1;        // magic string header
-    STR_BUFFER(ret)[0] = 0;
+    _strBuffer(ret)[0] = 0;
 
     _strSetLen(ret, 0);
     _strInitRef(ret);
@@ -31,8 +31,8 @@ static void _strMkOptimalRoperef(_Inout_ str_roperef *out, _In_ strref s, uint32
     // create a roperef, but if the input string is already a rope, try to see if we
     // can steal one of its source strings rather than referencing the rope node
 
-    if (STR_HDR(s) & STR_ROPE) {
-        str_ropedata *data = STR_ROPEDATA(s);
+    if (_strHdr(s) & STR_ROPE) {
+        str_ropedata *data = _strRopeData(s);
         if (off + len <= data->left.len) {
             // can get this entirely from the left node, recurse as far down as possible
             _strMkOptimalRoperef(out, data->left.str, data->left.off + off, len);
@@ -55,9 +55,9 @@ static void _strMkOptimalRoperef(_Inout_ str_roperef *out, _In_ strref s, uint32
 
 static int _strRopeDepth(_In_opt_ strref s)
 {
-    if (!s || !(STR_HDR(s) & STR_ROPE))
+    if (!s || !(_strHdr(s) & STR_ROPE))
         return 0;
-    str_ropedata *data = STR_ROPEDATA(s);
+    str_ropedata *data = _strRopeData(s);
 
     return data->depth;
 }
@@ -65,12 +65,12 @@ static int _strRopeDepth(_In_opt_ strref s)
 static void _strRotateLeft(_In_ string *top)
 {
     string oldtop = *top, newtop = NULL, newleft = NULL;
-    str_ropedata *tdata = STR_ROPEDATA(oldtop);
-    if (!(STR_HDR(tdata->right.str) & STR_ROPE))
+    str_ropedata *tdata = _strRopeData(oldtop);
+    if (!(_strHdr(tdata->right.str) & STR_ROPE))
         return;                                 // nothing on the right side to rotate!
 
     // cdata is the right child, but ends up being moved to left child
-    str_ropedata *cdata = STR_ROPEDATA(tdata->right.str);
+    str_ropedata *cdata = _strRopeData(tdata->right.str);
 
     if (cdata->right.str) {
         // create a rope from our left node followed by the child's left node
@@ -100,12 +100,12 @@ static void _strRotateLeft(_In_ string *top)
 static void _strRotateRight(_In_ string *top)
 {
     string oldtop = *top, newtop = NULL, newright = NULL;
-    str_ropedata *tdata = STR_ROPEDATA(oldtop);
-    if (!(STR_HDR(tdata->left.str) & STR_ROPE))
+    str_ropedata *tdata = _strRopeData(oldtop);
+    if (!(_strHdr(tdata->left.str) & STR_ROPE))
         return;                                 // nothing on the left side to rotate!
 
     // cdata is the left child, but ends up being moved to right child
-    str_ropedata *cdata = STR_ROPEDATA(tdata->left.str);
+    str_ropedata *cdata = _strRopeData(tdata->left.str);
 
     if (cdata->right.str) {
         // create a rope from the child's right node followed by our original right node
@@ -136,7 +136,7 @@ static void _strRebalanceRope(_In_ string *ptop)
     int i, bal, lastbal = 0;
 
     for (i = 0; i < MAX_REBALANCE_ITER; i++) {
-        str_ropedata *tdata = STR_ROPEDATA(*ptop);
+        str_ropedata *tdata = _strRopeData(*ptop);
         bal = _strRopeDepth(tdata->right.str) - _strRopeDepth(tdata->left.str);
 
         if (bal == lastbal || bal == -lastbal)
@@ -187,20 +187,20 @@ string _strCreateRope(_In_opt_ strref left, uint32 left_off, uint32 left_len, _I
     _strInitRope(&ret);
     if (!ret)
         return NULL;
-    str_ropedata *data = STR_ROPEDATA(ret);
+    str_ropedata *data = _strRopeData(ret);
     memset(data, 0, sizeof(str_ropedata));
 
     _strMkOptimalRoperef(&data->left, left, left_off, left_len);
-    encoding &= STR_HDR(left) & STR_ENCODING_MASK;
+    encoding &= _strHdr(left) & STR_ENCODING_MASK;
 
     if (right) {
         _strMkOptimalRoperef(&data->right, right, right_off, right_len);
-        encoding &= STR_HDR(right) & STR_ENCODING_MASK;
+        encoding &= _strHdr(right) & STR_ENCODING_MASK;
     }
 
     data->depth = max(_strRopeDepth(data->left.str) + 1, _strRopeDepth(data->right.str) + 1);
     _strSetLen(ret, data->left.len + data->right.len);
-    *STR_HDRP(ret) |= encoding;
+    *_strHdrP(ret) |= encoding;
 
     // make sure we return balanced ropes
     if (balance)
@@ -218,17 +218,17 @@ string _strCreateRope1(_In_opt_ strref s, uint32 off, uint32 len)
         return NULL;
 
     // if left is a plain old string, don't do anything differently than normal
-    if (!(STR_HDR(s) & STR_ROPE))
+    if (!(_strHdr(s) & STR_ROPE))
         return _strCreateRope(s, off, len, NULL, 0, 0, false);
 
     // we're making a substring of an existing rope, here's where things get interesting
-    str_ropedata *sdata = STR_ROPEDATA(s);
+    str_ropedata *sdata = _strRopeData(s);
 
     _strInitRope(&ret);
     if (!ret)
         return NULL;
 
-    str_ropedata *data = STR_ROPEDATA(ret);
+    str_ropedata *data = _strRopeData(ret);
     memset(data, 0, sizeof(str_ropedata));
 
     if (off + len <= sdata->left.len ||
@@ -247,7 +247,7 @@ string _strCreateRope1(_In_opt_ strref s, uint32 off, uint32 len)
     }
 
     _strSetLen(ret, data->left.len + data->right.len);
-    *STR_HDRP(ret) |= STR_HDR(s) & STR_ENCODING_MASK;
+    *_strHdrP(ret) |= _strHdr(s) & STR_ENCODING_MASK;
 
     return ret;
 }
@@ -261,8 +261,8 @@ string _strCloneRope(_In_ strref s)
     if (!ret)
         return NULL;
 
-    str_ropedata *sdata = STR_ROPEDATA(s);
-    str_ropedata *data = STR_ROPEDATA(ret);
+    str_ropedata *sdata = _strRopeData(s);
+    str_ropedata *data = _strRopeData(ret);
     memset(data, 0, sizeof(str_ropedata));
 
     data->depth = sdata->depth;
@@ -279,7 +279,7 @@ string _strCloneRope(_In_ strref s)
 
 void _strDestroyRope(_Inout_ string s)
 {
-    str_ropedata *data = STR_ROPEDATA(s);
+    str_ropedata *data = _strRopeData(s);
 
     strDestroy(&data->left.str);
     strDestroy(&data->right.str);
@@ -291,7 +291,7 @@ void _strDestroyRope(_Inout_ string s)
 uint32 _strRopeFastCopy(_In_ strref s, uint32 off, _Out_writes_bytes_(bytes) uint8 *buf, uint32 bytes)
 {
     uint32 leftcopy = 0, rightcopy = 0;
-    str_ropedata *data = STR_ROPEDATA(s);
+    str_ropedata *data = _strRopeData(s);
 
     if (off < data->left.len)
         leftcopy = _strFastCopy(data->left.str, off + data->left.off, buf, min(bytes, data->left.len - off));
@@ -311,7 +311,7 @@ static bool _strRopeRealStrPart(_Inout_ str_roperef *ref, uint32 off, _Out_ stri
         return false;
 
     // if ref string is a rope, recurse into it
-    if (STR_HDR(ref->str) & STR_ROPE)
+    if (_strHdr(ref->str) & STR_ROPE)
         return _strRopeRealStr(&ref->str, ref->off + off, rs, rsoff, rslen, rsstart, writable);
 
     if (writable)
@@ -330,13 +330,13 @@ static bool _strRopeRealStrPart(_Inout_ str_roperef *ref, uint32 off, _Out_ stri
 // if it wants to hold on to it and doesn't otherwise hold a ref!
 bool _strRopeRealStr(_Inout_ string *s, uint32 off, _Out_ string *rs, _Out_ uint32 *rsoff, _Out_ uint32 *rslen, _Out_ uint32 *rsstart, bool writable)
 {
-    if (!(STR_HDR(*s) & STR_ROPE))
+    if (!(_strHdr(*s) & STR_ROPE))
         return false;
 
     if (writable)
         _strMakeUnique(s, 0);
 
-    str_ropedata *data = STR_ROPEDATA(*s);
+    str_ropedata *data = _strRopeData(*s);
     if (_strRopeRealStrPart(&data->left, off, rs, rsoff, rslen, rsstart, writable))
         return true;
     if (_strRopeRealStrPart(&data->right, off - data->left.len, rs, rsoff, rslen, rsstart, writable))
@@ -352,9 +352,9 @@ int strTestRopeDepth(_In_opt_ strref s)
 
 bool strTestRopeNode(_Inout_ string *o, _In_opt_ strref s, bool left)
 {
-    if (!s || !(STR_HDR(s) & STR_ROPE))
+    if (!s || !(_strHdr(s) & STR_ROPE))
         return false;
-    str_ropedata *data = STR_ROPEDATA(s);
+    str_ropedata *data = _strRopeData(s);
 
     if (left && data->left.str) {
         strDup(o, data->left.str);

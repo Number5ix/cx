@@ -21,11 +21,11 @@ bool strJoin(_Inout_ string *o, _In_ sa_string arr, _In_opt_ strref sep)
     uint32 sz = 0;
     for (i = 0; i < arrsize; i++) {
         sz += strLen(arr.a[i]) + (i > 0 ? seplen : 0);
-        encoding &= STR_HDR(arr.a[i]) & STR_ENCODING_MASK;
+        encoding &= _strHdr(arr.a[i]) & STR_ENCODING_MASK;
     }
 
     _strReset(o, sz);
-    uint8 *p = STR_BUFFER(*o);
+    uint8 *p = _strBuffer(*o);
 
     seglen = _strFastLen(arr.a[0]);
     _strFastCopy(arr.a[0], 0, p, seglen);
@@ -43,8 +43,8 @@ bool strJoin(_Inout_ string *o, _In_ sa_string arr, _In_opt_ strref sep)
 
     *p = 0;             // null terminator
 
-    *STR_HDRP(*o) &= ~STR_ENCODING_MASK;
-    *STR_HDRP(*o) |= encoding;
+    *_strHdrP(*o) &= ~STR_ENCODING_MASK;
+    *_strHdrP(*o) |= encoding;
     _strSetLen(*o, sz);
 
     return true;

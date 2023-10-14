@@ -7,7 +7,7 @@ bool strValidUTF8(_In_opt_ strref s)
         return false;
 
     // check if it's cached
-    if (STR_HDR(s) & STR_UTF8)
+    if (_strHdr(s) & STR_UTF8)
         return true;
 
     striter it;
@@ -26,8 +26,8 @@ bool strValidUTF8(_In_opt_ strref s)
     devAssert(len == 0);
 
     // if we allocated this string, mark it as UTF-8
-    if (STR_HDR(s) & STR_ALLOC)
-        *STR_HDRP(s) |= STR_UTF8;
+    if (_strHdr(s) & STR_ALLOC)
+        *_strHdrP(s) |= STR_UTF8;
 
     return true;
 }
@@ -38,7 +38,7 @@ bool strValidASCII(_In_opt_ strref s)
         return false;
 
     // check if it's cached
-    if (STR_HDR(s) & STR_ASCII)
+    if (_strHdr(s) & STR_ASCII)
         return true;
 
     striter it;
@@ -50,8 +50,8 @@ bool strValidASCII(_In_opt_ strref s)
     }
 
     // if we allocated this string, mark it as ASCII
-    if (STR_HDR(s) & STR_ALLOC)
-        *STR_HDRP(s) |= STR_ASCII | STR_UTF8;           // ASCII is UTF-8 by default
+    if (_strHdr(s) & STR_ALLOC)
+        *_strHdrP(s) |= STR_ASCII | STR_UTF8;           // ASCII is UTF-8 by default
 
     return true;
 }
@@ -142,10 +142,10 @@ bool strFromUTF16(_Inout_ string *o, _In_reads_(wsz) const uint16 *buf, size_t w
             _strResize(o, osz, false);
         }
 
-        olen += _strUTF8Encode(STR_BUFFER(*o) + olen, codepoint);
+        olen += _strUTF8Encode(_strBuffer(*o) + olen, codepoint);
     }
 
-    *(STR_BUFFER(*o) + olen) = 0;
+    *(_strBuffer(*o) + olen) = 0;
     _strSetLen(*o, olen);
 
     return true;

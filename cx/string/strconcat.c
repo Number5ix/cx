@@ -31,28 +31,28 @@ bool _strNConcat(_Inout_ string *o, int n, _In_ strref *_args)
         len += _strFastLen(args[i]);
 
         // AND all the encoding bits together to get the least common denominator
-        encoding &= STR_HDR(args[i]) & STR_ENCODING_MASK;
+        encoding &= _strHdr(args[i]) & STR_ENCODING_MASK;
     }
 
     // Pass 2: Do the concatenation
     if (n == 2 && *o && *o == firstarg && _strFastLen(*o) == 0) {
         // special optimization for appending to an empty string
         strDup(o, args[1]);
-    } else if (n == 1 || len < ROPE_JOIN_THRESH || (*o && (STR_HDR(*o) & STR_STACK))) {
+    } else if (n == 1 || len < ROPE_JOIN_THRESH || (*o && (_strHdr(*o) & STR_STACK))) {
         // regular string concatenation
         // set up destination
-        if (*o && *o == firstarg && !(STR_HDR(*o) & STR_ROPE)) {
+        if (*o && *o == firstarg && !(_strHdr(*o) & STR_ROPE)) {
             // optimize this case by leaving first string in place and skipping the arg
             _strResize(o, len, true);
-            ptr = &STR_BUFFER(*o)[_strFastLen(*o)];
+            ptr = &_strBuffer(*o)[_strFastLen(*o)];
             start = 1;
         } else {
             _strReset(o, len);
-            ptr = STR_BUFFER(*o);
+            ptr = _strBuffer(*o);
         }
 
-        *STR_HDRP(*o) &= ~STR_ENCODING_MASK;
-        *STR_HDRP(*o) |= encoding;
+        *_strHdrP(*o) &= ~STR_ENCODING_MASK;
+        *_strHdrP(*o) |= encoding;
 
         for (i = start; i < n; ++i) {
             uint32 alen = _strFastLen(args[i]);
@@ -124,28 +124,28 @@ bool _strNConcatC(_Inout_ string *o, int n, _Inout_ string **args)
         len += _strFastLen(*args[i]);
 
         // AND all the encoding bits together to get the least common denominator
-        encoding &= STR_HDR(*args[i]) & STR_ENCODING_MASK;
+        encoding &= _strHdr(*args[i]) & STR_ENCODING_MASK;
     }
 
     // Pass 2: Do the concatenation
     if (n == 2 && *o && *o == firstarg && _strFastLen(*o) == 0) {
         // special optimization for appending to an empty string
         strDup(o, *args[1]);
-    } else if (n == 1 || len < ROPE_JOIN_THRESH || (*o && (STR_HDR(*o) & STR_STACK))) {
+    } else if (n == 1 || len < ROPE_JOIN_THRESH || (*o && (_strHdr(*o) & STR_STACK))) {
         // regular string concatenation
         // set up destination
-        if (*o && *o == firstarg && !(STR_HDR(*o) & STR_ROPE)) {
+        if (*o && *o == firstarg && !(_strHdr(*o) & STR_ROPE)) {
             // optimize this case by leaving first string in place and skipping the arg
             _strResize(o, len, true);
-            ptr = &STR_BUFFER(*o)[_strFastLen(*o)];
+            ptr = &_strBuffer(*o)[_strFastLen(*o)];
             start = 1;
         } else {
             _strReset(o, len);
-            ptr = STR_BUFFER(*o);
+            ptr = _strBuffer(*o);
         }
 
-        *STR_HDRP(*o) &= ~STR_ENCODING_MASK;
-        *STR_HDRP(*o) |= encoding;
+        *_strHdrP(*o) &= ~STR_ENCODING_MASK;
+        *_strHdrP(*o) |= encoding;
 
         for (i = start; i < n; ++i) {
             uint32 alen = _strFastLen(*args[i]);
@@ -208,19 +208,19 @@ static bool _strAppendNoRope(_Inout_ string *io, _In_opt_ strref s)
         return true;
     }
 
-    encoding &= STR_HDR(*io) & STR_ENCODING_MASK;
-    encoding &= STR_HDR(s) & STR_ENCODING_MASK;
+    encoding &= _strHdr(*io) & STR_ENCODING_MASK;
+    encoding &= _strHdr(s) & STR_ENCODING_MASK;
 
-    if (STR_HDR(*io) & STR_ROPE)                // have to flatten first to append in place
+    if (_strHdr(*io) & STR_ROPE)                // have to flatten first to append in place
         _strFlatten(io, len);
 
     _strResize(io, len, true);
-    uint8 *buf = STR_BUFFER(*io);
+    uint8 *buf = _strBuffer(*io);
     _strFastCopy(s, 0, &buf[iolen], slen);      // copy second string after first
     buf[len] = 0;                               // add null terminator
 
-    *STR_HDRP(*io) &= ~STR_ENCODING_MASK;
-    *STR_HDRP(*io) |= encoding;
+    *_strHdrP(*io) &= ~STR_ENCODING_MASK;
+    *_strHdrP(*io) |= encoding;
     _strSetLen(*io, len);
 
     return true;
@@ -238,25 +238,25 @@ static bool _strAppend(_Inout_ string *io, _In_opt_ strref s)
         return true;
     }
 
-    encoding &= STR_HDR(*io) & STR_ENCODING_MASK;
-    encoding &= STR_HDR(s) & STR_ENCODING_MASK;
+    encoding &= _strHdr(*io) & STR_ENCODING_MASK;
+    encoding &= _strHdr(s) & STR_ENCODING_MASK;
 
     if (len < ROPE_JOIN_THRESH ||
         (iolen < ROPE_MIN_SIZE && slen < ROPE_MAX_MERGE) ||
         (slen < ROPE_MIN_SIZE && iolen < ROPE_MAX_MERGE) ||
-        (*io && (STR_HDR(*io) & STR_STACK))) {
+        (*io && (_strHdr(*io) & STR_STACK))) {
         // regular string concatenation
 
-        if (STR_HDR(*io) & STR_ROPE)                // have to flatten first to append in place
+        if (_strHdr(*io) & STR_ROPE)                // have to flatten first to append in place
             _strFlatten(io, len);
 
         _strResize(io, len, true);
-        uint8 *buf = STR_BUFFER(*io);
+        uint8 *buf = _strBuffer(*io);
         _strFastCopy(s, 0, &buf[iolen], slen);      // copy second string after first
         buf[len] = 0;                               // add null terminator
 
-        *STR_HDRP(*io) &= ~STR_ENCODING_MASK;
-        *STR_HDRP(*io) |= encoding;
+        *_strHdrP(*io) &= ~STR_ENCODING_MASK;
+        *_strHdrP(*io) |= encoding;
         _strSetLen(*io, len);
     } else {
         // final length is over the threshold to make this a rope instead
@@ -311,19 +311,19 @@ bool _strConcatNoRope(_Inout_ string *o, _In_opt_ strref s1, _In_opt_ strref s2)
     uint32 len = s1len + s2len;
     uint8 encoding = STR_ENCODING_MASK;
 
-    encoding &= STR_HDR(s1) & STR_ENCODING_MASK;
-    encoding &= STR_HDR(s2) & STR_ENCODING_MASK;
+    encoding &= _strHdr(s1) & STR_ENCODING_MASK;
+    encoding &= _strHdr(s2) & STR_ENCODING_MASK;
 
     // regular string concatenation
 
     _strReset(o, len);
-    uint8 *buf = STR_BUFFER(*o);
+    uint8 *buf = _strBuffer(*o);
     _strFastCopy(s1, 0, buf, s1len);
     _strFastCopy(s2, 0, &buf[s1len], s2len);
     buf[len] = 0;                               // add null terminator
 
-    *STR_HDRP(*o) &= ~STR_ENCODING_MASK;
-    *STR_HDRP(*o) |= encoding;
+    *_strHdrP(*o) &= ~STR_ENCODING_MASK;
+    *_strHdrP(*o) |= encoding;
     _strSetLen(*o, len);
 
     return true;
@@ -351,23 +351,23 @@ bool strConcat(_Inout_ string *o, _In_opt_ strref s1, _In_opt_ strref s2)
     uint32 len = s1len + s2len;
     uint8 encoding = STR_ENCODING_MASK;
 
-    encoding &= STR_HDR(s1) & STR_ENCODING_MASK;
-    encoding &= STR_HDR(s2) & STR_ENCODING_MASK;
+    encoding &= _strHdr(s1) & STR_ENCODING_MASK;
+    encoding &= _strHdr(s2) & STR_ENCODING_MASK;
 
     if (len < ROPE_JOIN_THRESH ||
         (s1len < ROPE_MIN_SIZE && s2len < ROPE_MAX_MERGE) ||
         (s2len < ROPE_MIN_SIZE && s1len < ROPE_MAX_MERGE) ||
-        (*o && (STR_HDR(*o) & STR_STACK))) {
+        (*o && (_strHdr(*o) & STR_STACK))) {
         // regular string concatenation
 
         _strReset(o, len);
-        uint8 *buf = STR_BUFFER(*o);
+        uint8 *buf = _strBuffer(*o);
         _strFastCopy(s1, 0, buf, s1len);
         _strFastCopy(s2, 0, &buf[s1len], s2len);
         buf[len] = 0;                               // add null terminator
 
-        *STR_HDRP(*o) &= ~STR_ENCODING_MASK;
-        *STR_HDRP(*o) |= encoding;
+        *_strHdrP(*o) &= ~STR_ENCODING_MASK;
+        *_strHdrP(*o) |= encoding;
         _strSetLen(*o, len);
     } else {
         // final length is over the threshold to make this a rope instead

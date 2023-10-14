@@ -112,12 +112,12 @@ bool _strFormat(string *out, strref fmt, int n, stvar *args)
         // literal, so the string API knows the length up front. Kids don't try this at home!
 
         uint8 newhdr = STR_CX | STR_ALLOC | STR_STACK | STR_ROPE | STR_LEN32;
-        ctx.fmt = (string)stackAlloc(STR_OFF_STR(newhdr) + sizeof(str_ropedata));
+        ctx.fmt = (string)stackAlloc(_strOffStr(newhdr) + sizeof(str_ropedata));
         *(uint8 *)ctx.fmt = newhdr;
         ((uint8 *)ctx.fmt)[1] = 0xc1;        // magic string header
         _strSetLen(ctx.fmt, fmtlen);
         _strInitRef(ctx.fmt);
-        str_ropedata *ropedata = STR_ROPEDATA(ctx.fmt);
+        str_ropedata *ropedata = _strRopeData(ctx.fmt);
         ropedata->depth = 0;
         ropedata->left.str = (string)fmt;
         ropedata->left.len = fmtlen;

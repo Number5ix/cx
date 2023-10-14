@@ -86,9 +86,9 @@ int32 strFind(_In_opt_ strref s, int32 b, _In_opt_ strref find)
     if (!STR_CHECK_VALID(s) || strEmpty(find))
         return -1;
 
-    if (_strFastLen(find) == 1 && !(STR_HDR(find) & STR_ROPE)) {
+    if (_strFastLen(find) == 1 && !(_strHdr(find) & STR_ROPE)) {
         // optimization for simple case
-        return _strFindChar(s, b, STR_BUFFER(find)[0]);
+        return _strFindChar(s, b, _strBuffer(find)[0]);
     }
 
     slen = _strFastLen(s);
@@ -131,9 +131,9 @@ int32 strFindR(_In_opt_ strref s, int32 e, _In_opt_ strref find)
     if (!STR_CHECK_VALID(s) || strEmpty(find))
         return -1;
 
-    if (_strFastLen(find) == 1 && !(STR_HDR(find) & STR_ROPE)) {
+    if (_strFastLen(find) == 1 && !(_strHdr(find) & STR_ROPE)) {
         // optimization for simple case
-        return _strFindCharR(s, e, STR_BUFFER(find)[0]);
+        return _strFindCharR(s, e, _strBuffer(find)[0]);
     }
 
     slen = _strFastLen(s);

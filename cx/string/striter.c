@@ -7,10 +7,10 @@ static void _striSetup(_Inout_ striter *iter, uint32 off, uint32 newcursor, bool
 {
     uint32 slen = _strFastLen(iter->_str);
 
-    if (!(STR_HDR(iter->_str) & STR_ROPE)) {
+    if (!(_strHdr(iter->_str) & STR_ROPE)) {
         if (reverse)
             off = 0;
-        iter->bytes = STR_BUFFER(iter->_str) + off;
+        iter->bytes = _strBuffer(iter->_str) + off;
         iter->off = off;
         iter->len = slen - off;
     } else {
@@ -20,10 +20,10 @@ static void _striSetup(_Inout_ striter *iter, uint32 off, uint32 newcursor, bool
             // this is safe because we're holding a reference to the top-level rope,
             // which in turn makes sure the child strings don't get destroyed
             if (!reverse) {
-                iter->bytes = STR_BUFFER(realstr) + realoff;
+                iter->bytes = _strBuffer(realstr) + realoff;
                 iter->off = off;
             } else {
-                iter->bytes = STR_BUFFER(realstr) + realstart;
+                iter->bytes = _strBuffer(realstr) + realstart;
                 iter->off = off - (realoff - realstart);
                 iter->len += (realoff - realstart);
             }
@@ -49,7 +49,7 @@ static void _striInit(_Out_ striter *iter, _In_opt_ strref s, bool reverse)
 
     iter->_borrowed = false;
     // if this is an allocated string, grab a ref, otherwise just store it
-    if ((STR_HDR(s) & STR_ALLOC) && !(STR_HDR(s) & STR_STACK)) {
+    if ((_strHdr(s) & STR_ALLOC) && !(_strHdr(s) & STR_STACK)) {
         iter->_str = 0;
         strDup(&iter->_str, s);
     } else {

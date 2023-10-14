@@ -32,7 +32,7 @@ string _strEmpty = _S;
 _Post_equal_to_(STR_ALLOC_SIZE)
 static inline uint32 _strAllocSz(uint8 hdr, uint32 strsz)
 {
-    uint32 sz = STR_OFF_STR(hdr) + strsz + 1;
+    uint32 sz = _strOffStr(hdr) + strsz + 1;
     sz = (sz + (STR_ALLOC_SIZE - 1)) / STR_ALLOC_SIZE;
     return (uint32)xaOptSize((size_t)max(sz, 1) * STR_ALLOC_SIZE);
 }
@@ -49,63 +49,63 @@ static inline uint8 _strLenClass(uint32 dlen, uint32 dref)
 
 void _strSetLen(_Inout_ string s, uint32 len)
 {
-    switch (STR_HDR(s) & STR_LEN_MASK) {
+    switch (_strHdr(s) & STR_LEN_MASK) {
     case STR_LEN8:
-        STR_FIELD(s, STR_OFF_LEN(STR_HDR(s)), uint8) = (uint8)len;
+        STR_FIELD(s, _strOffLen(_strHdr(s)), uint8) = (uint8)len;
         break;
     case STR_LEN16:
-        STR_FIELD(s, STR_OFF_LEN(STR_HDR(s)), uint16) = (uint16)len;
+        STR_FIELD(s, _strOffLen(_strHdr(s)), uint16) = (uint16)len;
         break;
     case STR_LEN32:
-        STR_FIELD(s, STR_OFF_LEN(STR_HDR(s)), uint32) = len;
+        STR_FIELD(s, _strOffLen(_strHdr(s)), uint32) = len;
     }
     // STR_LEN0 -- Bad Things
 }
 
 void _strInitRef(_Inout_ string s)
 {
-    int l = STR_HDR(s) & STR_LEN_MASK;
+    int l = _strHdr(s) & STR_LEN_MASK;
 
     // don't waste time with atomic stores on init since nothing else can possibly be accessing it yet
 
     if (l <= STR_LEN8)
-        STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), uint8) = 1;
+        STR_FIELD(s, _strOffRef(_strHdr(s)), uint8) = 1;
     else // STR_LEN16 and STR_LEN32 both have 16-bit ref count
-        STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), uint16) = 1;
+        STR_FIELD(s, _strOffRef(_strHdr(s)), uint16) = 1;
 
     // and if you called this function on something without STR_ALLOC set, woe be upon you...
 }
 
 void _strSetRef(_Inout_ string s, uint16 ref)
 {
-    int l = STR_HDR(s) & STR_LEN_MASK;
+    int l = _strHdr(s) & STR_LEN_MASK;
 
     if (l <= STR_LEN8)
-        atomicStore(uint8, &STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), atomic(uint8)), (uint8)ref, AcqRel);
+        atomicStore(uint8, &STR_FIELD(s, _strOffRef(_strHdr(s)), atomic(uint8)), (uint8)ref, AcqRel);
     else // STR_LEN16 and STR_LEN32 both have 16-bit ref count
-        atomicStore(uint16, &STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), atomic(uint16)), (uint16)ref, AcqRel);
+        atomicStore(uint16, &STR_FIELD(s, _strOffRef(_strHdr(s)), atomic(uint16)), (uint16)ref, AcqRel);
 
     // and if you called this function on something without STR_ALLOC set, woe be upon you...
 }
 
 static void _strIncRef(_Inout_ string s)
 {
-    int l = STR_HDR(s) & STR_LEN_MASK;
+    int l = _strHdr(s) & STR_LEN_MASK;
 
     if (l <= STR_LEN8)
-        atomicFetchAdd(uint8, &STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), atomic(uint8)), 1, Relaxed);
+        atomicFetchAdd(uint8, &STR_FIELD(s, _strOffRef(_strHdr(s)), atomic(uint8)), 1, Relaxed);
     else // STR_LEN16 and STR_LEN32 both have 16-bit ref count
-        atomicFetchAdd(uint16, &STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), atomic(uint16)), 1, Relaxed);
+        atomicFetchAdd(uint16, &STR_FIELD(s, _strOffRef(_strHdr(s)), atomic(uint16)), 1, Relaxed);
 }
 
 static uint16 _strDecRef(_Inout_ string s)
 {
-    int l = STR_HDR(s) & STR_LEN_MASK;
+    int l = _strHdr(s) & STR_LEN_MASK;
 
     if (l <= STR_LEN8)
-        return atomicFetchSub(uint8, &STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), atomic(uint8)), 1, Release);
+        return atomicFetchSub(uint8, &STR_FIELD(s, _strOffRef(_strHdr(s)), atomic(uint8)), 1, Release);
     else // STR_LEN16 and STR_LEN32 both have 16-bit ref count
-        return atomicFetchSub(uint16, &STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), atomic(uint16)), 1, Release);
+        return atomicFetchSub(uint16, &STR_FIELD(s, _strOffRef(_strHdr(s)), atomic(uint16)), 1, Release);
 }
 
 _Ret_notnull_ string _strCopy(_In_ strref s, uint32 minsz)
@@ -115,19 +115,19 @@ _Ret_notnull_ string _strCopy(_In_ strref s, uint32 minsz)
     string ret = 0;
     strReset(&ret, max(len, minsz));
     _strSetLen(ret, len);
-    _strFastCopy(s, 0, STR_BUFFER(ret), len);
-    STR_BUFFER(ret)[len] = 0;           // terminating NULL
+    _strFastCopy(s, 0, _strBuffer(ret), len);
+    _strBuffer(ret)[len] = 0;           // terminating NULL
     // copy encoding bits to new string
-    *STR_HDRP(ret) &= ~STR_ENCODING_MASK;
-    *STR_HDRP(ret) |= STR_HDR(s) & STR_ENCODING_MASK;
+    *_strHdrP(ret) &= ~STR_ENCODING_MASK;
+    *_strHdrP(ret) |= _strHdr(s) & STR_ENCODING_MASK;
     return ret;
 }
 
 uint32 _strFastCopy(_In_ strref s, uint32 off, _Out_writes_bytes_(bytes) uint8 *buf, uint32 bytes)
 {
-    if (!(STR_HDR(s) & STR_ROPE)) {
+    if (!(_strHdr(s) & STR_ROPE)) {
         // easy, just copy the buffer
-        memcpy(buf, STR_BUFFER(s) + off, bytes);
+        memcpy(buf, _strBuffer(s) + off, bytes);
         return bytes;
     } else {
         // harder, punt to rope module
@@ -137,12 +137,12 @@ uint32 _strFastCopy(_In_ strref s, uint32 off, _Out_writes_bytes_(bytes) uint8 *
 
 void _strResize(_Inout_ string *ps, uint32 newsz, bool unique)
 {
-    devAssert(!(STR_HDR(*ps) & STR_ROPE));
-    bool isstack = STR_HDR(*ps) & STR_STACK;
+    devAssert(!(_strHdr(*ps) & STR_ROPE));
+    bool isstack = _strHdr(*ps) & STR_STACK;
 
     // see if we are the only owner and can just realloc in place
-    if (STR_HDR(*ps) & STR_ALLOC && !isstack) {
-        uint32 bufsz = (uint32)xaSize(*ps) - (uint32)((uint8 *)STR_BUFFER(*ps) - (uint8 *)(*ps));
+    if (_strHdr(*ps) & STR_ALLOC && !isstack) {
+        uint32 bufsz = (uint32)xaSize(*ps) - (uint32)((uint8 *)_strBuffer(*ps) - (uint8 *)(*ps));
         if (bufsz >= newsz + 1) {       // check for room for string + terminator
             // room already, good to go
             if (unique)
@@ -151,9 +151,9 @@ void _strResize(_Inout_ string *ps, uint32 newsz, bool unique)
         }
 
         uint8 lencl = _strLenClass(newsz, 1);
-        if (_strFastRef(*ps) == 1 && lencl == (STR_HDR(*ps) & STR_LEN_MASK)) {
+        if (_strFastRef(*ps) == 1 && lencl == (_strHdr(*ps) & STR_LEN_MASK)) {
             // same length class, can just realloc and not have to change the header
-            xaResize(ps, _strAllocSz(STR_HDR(*ps), newsz));
+            xaResize(ps, _strAllocSz(_strHdr(*ps), newsz));
             return;
         } else {
             // can't reallocate, just copy it and deref the original
@@ -183,17 +183,17 @@ void _strMakeUnique(_Inout_ string *ps, uint32 minszforcopy)
     string s = *ps;         // borrow ref
 
     // stack allocated strings are always unique
-    if (STR_HDR(s) & STR_STACK)
+    if (_strHdr(s) & STR_STACK)
         return;
 
-    if (STR_HDR(s) & STR_ALLOC) {
+    if (_strHdr(s) & STR_ALLOC) {
         uint16 ref = _strFastRef(s);
         // if there's only a single ref, it's already unique
         if (ref == 1)
             return;
 
         // replace caller's handle with a fresh unique copy
-        if (STR_HDR(s) & STR_ROPE)
+        if (_strHdr(s) & STR_ROPE)
             *ps = _strCloneRope(s);
         else
             *ps = _strCopy(s, minszforcopy);
@@ -213,14 +213,14 @@ void _strFlatten(_Inout_ string *ps, uint32 minszforcopy)
     string s = *ps;     // borrow ref
 
     // stack allocated strings are always flat
-    if (STR_HDR(s) & STR_STACK)
+    if (_strHdr(s) & STR_STACK)
         return;
 
-    if (STR_HDR(s) & STR_ALLOC) {
+    if (_strHdr(s) & STR_ALLOC) {
         uint16 ref = _strFastRef(s);
         // if there's only a single ref, it's already unique
         // but if this is a rope, we do want to flatten it
-        if (!(STR_HDR(s) & STR_ROPE) && ref == 1)
+        if (!(_strHdr(s) & STR_ROPE) && ref == 1)
             return;
 
         // replace caller's handle with a fresh unique copy
@@ -253,7 +253,7 @@ void strReset(_Inout_ string *o, uint32 sizehint)
 
     *(uint8*)ret = newhdr;
     ((uint8*)ret)[1] = 0xc1;        // magic string header
-    STR_BUFFER(ret)[0] = 0;
+    _strBuffer(ret)[0] = 0;
 
     _strSetLen(ret, 0);
     _strInitRef(ret);
@@ -273,8 +273,8 @@ static void strDupIntoStack(_Inout_ string *o, _In_ strref s)
         return;
     }
 
-    _strFastCopy(s, 0, STR_BUFFER(*o), srclen);
-    STR_BUFFER(*o)[srclen] = 0;
+    _strFastCopy(s, 0, _strBuffer(*o), srclen);
+    _strBuffer(*o)[srclen] = 0;
     _strSetLen(*o, srclen);
 }
 
@@ -286,16 +286,16 @@ void strDup(_Inout_ string *o, _In_opt_ strref s)
 
     // special case for duplicating into a stack-allocated string
     // do a copy into the buffer instead
-    if (STR_CHECK_VALID(*o) && (STR_HDR(*o) & STR_STACK)) {
+    if (STR_CHECK_VALID(*o) && (_strHdr(*o) & STR_STACK)) {
         strDupIntoStack(o, s);
         return;
     }
 
     strDestroy(o);
 
-    int l = STR_HDR(s) & STR_LEN_MASK;
+    int l = _strHdr(s) & STR_LEN_MASK;
 
-    if (!(STR_HDR(s) & STR_CX) || (STR_HDR(s) & STR_STACK)) {
+    if (!(_strHdr(s) & STR_CX) || (_strHdr(s) & STR_STACK)) {
         // if this is a plain C string, copy it, because we can't
         // make any assumptions about the lifetime of the underlying
         // buffer.
@@ -303,7 +303,7 @@ void strDup(_Inout_ string *o, _In_opt_ strref s)
         // it can't be referenced.
         *o = _strCopy(s, 0);
         return;
-    } else if (!(STR_HDR(s) & STR_ALLOC)) {
+    } else if (!(_strHdr(s) & STR_ALLOC)) {
         // assume strings we don't control are immutable
         // makeunique will copy this string if we need to modify it
         *o = (string)s;
@@ -334,7 +334,7 @@ void strCopy(_Inout_ string *o, _In_opt_ strref s)
 
     // special case for copying into a stack-allocated string
     // do a copy into the buffer instead
-    if (STR_CHECK_VALID(*o) && (STR_HDR(*o) & STR_STACK)) {
+    if (STR_CHECK_VALID(*o) && (_strHdr(*o) & STR_STACK)) {
         strDupIntoStack(o, s);
         return;
     }
@@ -348,16 +348,16 @@ _At_(*s, _Pre_maybenull_)
 _At_(*s, _Post_notnull_)
 void _strReset(_Inout_ string *s, uint32 minsz)
 {
-    if (!STR_CHECK_VALID(*s) || !(STR_HDR(*s) & STR_ALLOC) ||
-        !!(STR_HDR(*s) & STR_ROPE) ||
-        (!(STR_HDR(*s) & STR_STACK) && _strFastRef(*s) != 1)) {
+    if (!STR_CHECK_VALID(*s) || !(_strHdr(*s) & STR_ALLOC) ||
+        !!(_strHdr(*s) & STR_ROPE) ||
+        (!(_strHdr(*s) & STR_STACK) && _strFastRef(*s) != 1)) {
         // can't do anything with these, just re-init them
         strReset(s, minsz);
         return;
     }
 
-    if (!(STR_HDR(*s) & STR_STACK)) {
-        uint32 bufsz = (uint32)xaSize(*s) - (uint32)((uint8 *)STR_BUFFER(*s) - (uint8 *)(*s));
+    if (!(_strHdr(*s) & STR_STACK)) {
+        uint32 bufsz = (uint32)xaSize(*s) - (uint32)((uint8 *)_strBuffer(*s) - (uint8 *)(*s));
         if (bufsz < minsz + 1) {
             // just destroy and create new rather than copy useless data
             strReset(s, minsz);
@@ -373,8 +373,8 @@ void _strReset(_Inout_ string *s, uint32 minsz)
     }
 
     // yay, we can actually be efficient!
-    *STR_HDRP(*s) |= STR_ASCII | STR_UTF8;
-    STR_BUFFER(*s)[0] = 0;
+    *_strHdrP(*s) |= STR_ASCII | STR_UTF8;
+    _strBuffer(*s)[0] = 0;
     _strSetLen(*s, 0);
 }
 
@@ -399,10 +399,10 @@ bool strEmpty(_In_opt_ strref s)
 
     // avoid calling cstrLen by checking first byte of strings
     // that don't have the length embedded
-    if (!(STR_HDR(s) & STR_CX))
+    if (!(_strHdr(s) & STR_CX))
         return !((const uint8*)s)[0];
-    if ((STR_HDR(s) & STR_LEN_MASK) == STR_LEN0)
-        return !STR_BUFFER(s)[0];
+    if ((_strHdr(s) & STR_LEN_MASK) == STR_LEN0)
+        return !_strBuffer(s)[0];
 
     return _strFastLen(s) == 0;
 }
@@ -412,7 +412,7 @@ void strDestroy(_Inout_ string *ps)
     string s = STR_SAFE_DEREF(ps);
     if (!s) return;
 
-    if (!(STR_HDR(s) & STR_ALLOC) || (STR_HDR(s) & STR_STACK)) {
+    if (!(_strHdr(s) & STR_ALLOC) || (_strHdr(s) & STR_STACK)) {
         // don't deallocate strings we didn't alloc, but still clear the handle
         *ps = NULL;
         return;
@@ -426,7 +426,7 @@ void strDestroy(_Inout_ string *ps)
     }
 
     atomicFence(Acquire);
-    if (STR_HDR(s) & STR_ROPE) {
+    if (_strHdr(s) & STR_ROPE) {
         _strDestroyRope(s);
     }
 
@@ -439,9 +439,9 @@ _Ret_notnull_ const char *strC(_In_opt_ strref s)
 {
     if (!STR_CHECK_VALID(s)) return "";
 
-    if (!(STR_HDR(s) & STR_ROPE)) {
+    if (!(_strHdr(s) & STR_ROPE)) {
         // simple string, can just return the buffer
-        return (char*)STR_BUFFER(s);
+        return (char*)_strBuffer(s);
     } else {
         uint32 len = _strFastLen(s);
         char *buf = scratchGet((size_t)len + 1);
@@ -464,14 +464,14 @@ _Ret_notnull_ uint8 *strBuffer(_Inout_ string *ps, uint32 minsz)
     uint32 cursz = _strFastLen(*ps);
     if (cursz < minsz) {
         _strResize(ps, minsz, false);
-        memset(&STR_BUFFER(*ps)[cursz], 0, (size_t)minsz - cursz + 1);
+        memset(&_strBuffer(*ps)[cursz], 0, (size_t)minsz - cursz + 1);
         _strSetLen(*ps, minsz);
     }
 
     // we can't guarantee any encodings will still be valid after the buffer is modified
-    *STR_HDRP(*ps) &= ~STR_ENCODING_MASK;
+    *_strHdrP(*ps) &= ~STR_ENCODING_MASK;
 
-    return STR_BUFFER(*ps);
+    return _strBuffer(*ps);
 }
 
 uint32 strCopyOut(_In_opt_ strref s, uint32 off, _Out_writes_bytes_(bufsz) uint8 *buf, uint32 bufsz)
@@ -510,9 +510,9 @@ void strSetLen(_Inout_ string *ps, uint32 len)
     uint32 cursz = _strFastLen(*ps);
     if (cursz < len) {
         _strResize(ps, len, false);
-        memset(&STR_BUFFER(*ps)[cursz], 0, (size_t)len - cursz + 1);
+        memset(&_strBuffer(*ps)[cursz], 0, (size_t)len - cursz + 1);
     } else {
-        STR_BUFFER(*ps)[len] = 0;
+        _strBuffer(*ps)[len] = 0;
     }
 
     _strSetLen(*ps, len);
@@ -520,7 +520,7 @@ void strSetLen(_Inout_ string *ps, uint32 len)
 
 int strTestRefCount(_In_opt_ strref s)
 {
-    if (!STR_CHECK_VALID(s) || !(STR_HDR(s) & STR_ALLOC) || (STR_HDR(s) & STR_STACK))
+    if (!STR_CHECK_VALID(s) || !(_strHdr(s) & STR_ALLOC) || (_strHdr(s) & STR_STACK))
         return 0;
 
     return _strFastRef(s);
@@ -563,12 +563,12 @@ void _strInitStack(_Inout_ string *ps, uint32 maxlen)
     // stack-allocated only ever have a single reference but set STR_ALLOC, so we
     // can stash the size of the buffer in the reference count field.
     if (lencl == STR_LEN8) {
-        STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), uint8) = (uint8)maxlen + 1;
-        STR_FIELD(s, STR_OFF_LEN(STR_HDR(s)), uint8) = (uint8)0;
+        STR_FIELD(s, _strOffRef(_strHdr(s)), uint8) = (uint8)maxlen + 1;
+        STR_FIELD(s, _strOffLen(_strHdr(s)), uint8) = (uint8)0;
     } else {
-        STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), uint16) = (uint16)maxlen + 1;
-        STR_FIELD(s, STR_OFF_LEN(STR_HDR(s)), uint16) = (uint16)0;
+        STR_FIELD(s, _strOffRef(_strHdr(s)), uint16) = (uint16)maxlen + 1;
+        STR_FIELD(s, _strOffLen(_strHdr(s)), uint16) = (uint16)0;
     }
 
-    STR_BUFFER(s)[0] = 0;
+    _strBuffer(s)[0] = 0;
 }

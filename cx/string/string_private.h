@@ -36,15 +36,47 @@ extern const uint8 _str_off[32];
 #define STR_OFF_REF(hdr) (_str_off[STR_OFF_BASE(hdr) | STR_OT_REF])
 #define STR_OFF_STR(hdr) (hdr & STR_CX ? (_str_off[STR_OFF_BASE(hdr) | STR_OT_STR]) : 0)
 
-#define STR_LEN8_LEN(s) STR_FIELD(s, STR_OFF_LEN(STR_HDR(s)), uint8)
-#define STR_LEN16_LEN(s) STR_FIELD(s, STR_OFF_LEN(STR_HDR(s)), uint16)
-#define STR_LEN32_LEN(s) STR_FIELD(s, STR_OFF_LEN(STR_HDR(s)), uint32)
+#define STR_LEN8_LEN(s) STR_FIELD(s, _strOffLen(_strHdr(s)), uint8)
+#define STR_LEN16_LEN(s) STR_FIELD(s, _strOffLen(_strHdr(s)), uint16)
+#define STR_LEN32_LEN(s) STR_FIELD(s, _strOffLen(_strHdr(s)), uint32)
 
-#define STR_LEN8_REF(s) STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), uint8)
-#define STR_LEN16_REF(s) STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), uint16)
+#define STR_LEN8_REF(s) STR_FIELD(s, _strOffRef(_strHdr(s)), uint8)
+#define STR_LEN16_REF(s) STR_FIELD(s, _strOffRef(_strHdr(s)), uint16)
 
-#define STR_BUFFER(s) (&STR_FIELD(s, STR_OFF_STR(STR_HDR(s)), uint8))
-#define STR_ROPEDATA(s) (&STR_FIELD(s, STR_OFF_STR(STR_HDR(s)), str_ropedata))
+#define STR_BUFFER(s) (&STR_FIELD(s, _strOffStr(_strHdr(s)), uint8))
+#define STR_ROPEDATA(s) (&STR_FIELD(s, _strOffStr(_strHdr(s)), str_ropedata))
+
+_meta_inline uint8 _strOffLen(uint8 hdr)
+{
+    return STR_OFF_LEN(hdr);
+}
+
+_meta_inline uint8 _strOffRef(uint8 hdr)
+{
+    return STR_OFF_REF(hdr);
+}
+
+_meta_inline uint8 _strOffStr(uint8 hdr)
+{
+    return STR_OFF_STR(hdr);
+}
+
+_Ret_notnull_
+_meta_inline uint8 *_strHdrP(_In_ strref s)
+{
+    return STR_HDRP(s);
+}
+
+_meta_inline uint8 _strHdr(_In_ strref s)
+{
+    return STR_HDR(s);
+}
+
+_Ret_notnull_
+_meta_inline uint8 *_strBuffer(_In_ strref s)
+{
+    return STR_BUFFER(s);
+}
 
 #define STR_CHECK_VALID(s) (s && *(uint8*)s)
 #define STR_SAFE_DEREF(ps) ((ps && *ps) ? *ps : 0)
@@ -61,7 +93,7 @@ _meta_inline uint32 _strFastLen(_In_ strref s)
     case STR_LEN32:
         return STR_LEN32_LEN(s);
     default: // STR_LEN0
-        return (uint32)cstrLen((const char*)STR_BUFFER(s));
+        return (uint32)cstrLen((const char*)_strBuffer(s));
     }
 }
 
@@ -142,6 +174,12 @@ typedef struct str_ropedata {
     int depth;
 } str_ropedata;
 
+_Ret_notnull_
+_meta_inline str_ropedata *_strRopeData(_In_ strref s)
+{
+    return STR_ROPEDATA(s);
+}
+
 string _strCreateRope(_In_opt_ strref left, uint32 left_off, uint32 left_len, _In_opt_ strref right, uint32 right_off, uint32 right_len, bool balance);
 string _strCreateRope1(_In_opt_ strref s, uint32 off, uint32 len);
 string _strCloneRope(_In_ strref s);
@@ -158,12 +196,12 @@ int32 _strFindCharR(_In_ strref s, int32 end, char find);
 _meta_inline uint8 _strFastChar(_In_ strref s, uint32 i)
 {
     if (!(STR_HDR(s) & STR_ROPE)) {
-        return STR_BUFFER(s)[i];
+        return _strBuffer(s)[i];
     } else {
         string realstr;
         uint32 realoff, reallen, realstart;
         if (_strRopeRealStr((string*)&s, i, &realstr, &realoff, &reallen, &realstart, false))
-            return STR_BUFFER(realstr)[realoff];
+            return _strBuffer(realstr)[realoff];
     }
     return 0;
 }
