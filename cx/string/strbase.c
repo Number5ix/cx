@@ -108,14 +108,12 @@ static uint16 _strDecRef(_Inout_ string s)
         return atomicFetchSub(uint16, &STR_FIELD(s, STR_OFF_REF(STR_HDR(s)), atomic(uint16)), 1, Release);
 }
 
-_Ret_maybenull_ string _strCopy(_In_ strref s, uint32 minsz)
+_Ret_notnull_ string _strCopy(_In_ strref s, uint32 minsz)
 {
     uint32 len = _strFastLen(s);
 
-    string ret =  0;
+    string ret = 0;
     strReset(&ret, max(len, minsz));
-    if (!ret)
-        return NULL;
     _strSetLen(ret, len);
     _strFastCopy(s, 0, STR_BUFFER(ret), len);
     STR_BUFFER(ret)[len] = 0;           // terminating NULL
@@ -137,7 +135,7 @@ uint32 _strFastCopy(_In_ strref s, uint32 off, _Out_writes_bytes_(bytes) uint8 *
     }
 }
 
-bool _strResize(_Inout_ string *ps, uint32 newsz, bool unique)
+void _strResize(_Inout_ string *ps, uint32 newsz, bool unique)
 {
     devAssert(!(STR_HDR(*ps) & STR_ROPE));
     bool isstack = STR_HDR(*ps) & STR_STACK;
@@ -148,51 +146,51 @@ bool _strResize(_Inout_ string *ps, uint32 newsz, bool unique)
         if (bufsz >= newsz + 1) {       // check for room for string + terminator
             // room already, good to go
             if (unique)
-                return _strMakeUnique(ps, newsz);
-            return true;
+                _strMakeUnique(ps, newsz);
+            return;
         }
 
         uint8 lencl = _strLenClass(newsz, 1);
         if (_strFastRef(*ps) == 1 && lencl == (STR_HDR(*ps) & STR_LEN_MASK)) {
             // same length class, can just realloc and not have to change the header
             xaResize(ps, _strAllocSz(STR_HDR(*ps), newsz));
-            return true;
+            return;
         } else {
             // can't reallocate, just copy it and deref the original
             string s = *ps;
             *ps = _strCopy(*ps, newsz);
             strDestroy(&s);
-            return true;
+            return;
         }
     } else if (isstack) {
         // stack allocated string, check the buffer size
         uint32 bufsz = _strFastRefNoSync(*ps);
         if (bufsz >= newsz + 1)
-            return true;
+            return;
 
         // not enough room, replace it with a normal string from the heap
         *ps = _strCopy(*ps, newsz);
-        return (*ps != NULL);
+        return;
     } else {
         // not allocated by us, make a copy
         *ps = _strCopy(*ps, newsz);
-        return (*ps != NULL);
+        return;
     }
 }
 
-bool _strMakeUnique(_Inout_ string *ps, uint32 minszforcopy)
+void _strMakeUnique(_Inout_ string *ps, uint32 minszforcopy)
 {
     string s = *ps;         // borrow ref
 
     // stack allocated strings are always unique
     if (STR_HDR(s) & STR_STACK)
-        return true;
+        return;
 
     if (STR_HDR(s) & STR_ALLOC) {
         uint16 ref = _strFastRef(s);
         // if there's only a single ref, it's already unique
         if (ref == 1)
-            return true;
+            return;
 
         // replace caller's handle with a fresh unique copy
         if (STR_HDR(s) & STR_ROPE)
@@ -202,42 +200,44 @@ bool _strMakeUnique(_Inout_ string *ps, uint32 minszforcopy)
 
         // and remove the ref that the caller held
         strDestroy(&s);
-        return true;
+        return;
     } else {
         // wasn't allocated by us, so copy it into one that is
         *ps = _strCopy(s, minszforcopy);
-        return (*ps != NULL);
+        return;
     }
 }
 
-bool _strFlatten(_Inout_ string *ps, uint32 minszforcopy)
+void _strFlatten(_Inout_ string *ps, uint32 minszforcopy)
 {
     string s = *ps;     // borrow ref
 
     // stack allocated strings are always flat
     if (STR_HDR(s) & STR_STACK)
-        return true;
+        return;
 
     if (STR_HDR(s) & STR_ALLOC) {
         uint16 ref = _strFastRef(s);
         // if there's only a single ref, it's already unique
         // but if this is a rope, we do want to flatten it
         if (!(STR_HDR(s) & STR_ROPE) && ref == 1)
-            return true;
+            return;
 
         // replace caller's handle with a fresh unique copy
         *ps = _strCopy(s, minszforcopy);
 
         // and remove the ref that the caller held
         strDestroy(&s);
-        return true;
+        return;
     } else {
         // wasn't allocated by us, so copy it into one that is
         *ps = _strCopy(s, minszforcopy);
-        return (*ps != NULL);
+        return;
     }
 }
 
+_At_(*o, _Pre_maybenull_)
+_At_(*o, _Post_notnull_)
 void strReset(_Inout_ string *o, uint32 sizehint)
 {
     if (!o)
@@ -250,8 +250,6 @@ void strReset(_Inout_ string *o, uint32 sizehint)
     uint8 newhdr = STR_CX | STR_ALLOC | STR_UTF8 | STR_ASCII | lencl;
 
     string ret = xaAlloc(_strAllocSz(newhdr, sizehint));
-    if (!ret)
-        return;
 
     *(uint8*)ret = newhdr;
     ((uint8*)ret)[1] = 0xc1;        // magic string header
@@ -263,7 +261,7 @@ void strReset(_Inout_ string *o, uint32 sizehint)
     *o = ret;
 }
 
-static void strDupIntoStack(string *o, strref s)
+static void strDupIntoStack(_Inout_ string *o, _In_ strref s)
 {
     uint32 bufsz = _strFastRefNoSync(*o);
     uint32 srclen = _strFastLen(s);
@@ -346,6 +344,8 @@ void strCopy(_Inout_ string *o, _In_opt_ strref s)
     *o = _strCopy(s, 0);
 }
 
+_At_(*s, _Pre_maybenull_)
+_At_(*s, _Post_notnull_)
 void _strReset(_Inout_ string *s, uint32 minsz)
 {
     if (!STR_CHECK_VALID(*s) || !(STR_HDR(*s) & STR_ALLOC) ||
@@ -435,7 +435,7 @@ void strDestroy(_Inout_ string *ps)
     *ps = NULL;
 }
 
-const char *strC(_In_opt_ strref s)
+_Ret_notnull_ const char *strC(_In_opt_ strref s)
 {
     if (!STR_CHECK_VALID(s)) return "";
 
@@ -451,7 +451,7 @@ const char *strC(_In_opt_ strref s)
     }
 }
 
-_Ret_maybenull_ uint8 *strBuffer(_Inout_ string *ps, uint32 minsz)
+_Ret_notnull_ uint8 *strBuffer(_Inout_ string *ps, uint32 minsz)
 {
     if (!ps)
         return NULL;
@@ -459,8 +459,7 @@ _Ret_maybenull_ uint8 *strBuffer(_Inout_ string *ps, uint32 minsz)
         strReset(ps, minsz);
 
     // make sure ps points to a flat string with only 1 reference
-    if (!_strFlatten(ps, minsz))
-        return NULL;
+    _strFlatten(ps, minsz);
 
     uint32 cursz = _strFastLen(*ps);
     if (cursz < minsz) {
@@ -498,16 +497,15 @@ uint32 strCopyRaw(_In_opt_ strref s, uint32 off, _Out_writes_bytes_(maxlen) uint
     return _strFastCopy(s, off, buf, len);
 }
 
-bool strSetLen(_Inout_ string *ps, uint32 len)
+void strSetLen(_Inout_ string *ps, uint32 len)
 {
     if (!ps)
-        return false;
+        return;
     if (!STR_CHECK_VALID(*ps))
         _strReset(ps, len);
 
     // make sure ps points to a flat string with only 1 reference
-    if (!_strFlatten(ps, len))
-        return false;
+    _strFlatten(ps, len);
 
     uint32 cursz = _strFastLen(*ps);
     if (cursz < len) {
@@ -518,7 +516,6 @@ bool strSetLen(_Inout_ string *ps, uint32 len)
     }
 
     _strSetLen(*ps, len);
-    return true;
 }
 
 int strTestRefCount(_In_opt_ strref s)
@@ -541,6 +538,8 @@ uint32 _strStackAllocSize(uint32 maxlen)
     return 0;
 }
 
+_At_(*ps, _Pre_notnull_)
+_At_(*ps, _Post_maybenull_)
 void _strInitStack(_Inout_ string *ps, uint32 maxlen)
 {
     devAssert(*ps);

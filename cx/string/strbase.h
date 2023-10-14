@@ -33,6 +33,8 @@ typedef const struct str_ref* strref;
 // Create a new empty string with preallocated storage.
 //        o: output string, will be destroyed if it exists
 // sizehint: Amount of memory to preallocate for string storage.
+_At_(*o, _Pre_maybenull_)
+_At_(*o, _Post_notnull_)
 void strReset(_Inout_ string *o, uint32 sizehint);
 
 // Duplicate an existing string, making an efficient reference if possible.
@@ -59,7 +61,7 @@ uint32 strLen(_In_opt_ strref s);
 // Sets the length of a string, truncating or filling with null-characters.
 //      ps: Pointer to string handle.
 //     len: New length
-bool strSetLen(_Inout_ string *ps, uint32 len);
+void strSetLen(_Inout_ string *ps, uint32 len);
 
 // Checks if a string is empty. Nonexistent strings are considered empty.
 //       s: String handle
@@ -78,7 +80,7 @@ void strDestroy(_Inout_ string *ps);
 // used or copied as soon as possible if it must persist.
 //      s: String reference
 // Returns: C-style string
-const char *strC(_In_opt_ strref s);
+_Ret_notnull_ const char *strC(_In_opt_ strref s);
 
 // Obtains a read-write pointer to a string's backing memory buffer.
 // This causes string memory to no longer be shared with duplicates.
@@ -87,7 +89,7 @@ const char *strC(_In_opt_ strref s);
 //   minsz: If string is shorter than minsz, it will be zero-padded
 //          up to this length. Useful for copying data into a string.
 // Returns: Memory buffer.
-_Ret_maybenull_ uint8 *strBuffer(_Inout_ string *ps, uint32 minsz);
+_Ret_notnull_ uint8 *strBuffer(_Inout_ string *ps, uint32 minsz);
 
 // Copies up to bufsz bytes from the string to an external buffer.
 // The resulting C-style string in buf will always be null terminated.
@@ -107,6 +109,8 @@ uint32 strCopyOut(_In_opt_ strref s, uint32 off, _Out_writes_bytes_(bufsz) uint8
 uint32 strCopyRaw(_In_opt_ strref s, uint32 off, _Out_writes_bytes_(maxlen) uint8 *buf, uint32 maxlen);
 
 uint32 _strStackAllocSize(uint32 maxlen);
+_At_(*ps, _Pre_notnull_)
+_At_(*ps, _Post_maybenull_)
 void _strInitStack(_Inout_ string *ps, uint32 maxlen);
 // Creates a stack-allocated temporary string. This string may be used as a buffer
 // to hold results of string operations, but it must NOT be returned or stored in a
