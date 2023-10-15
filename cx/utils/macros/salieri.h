@@ -209,6 +209,14 @@
 #  define SALIERI_DEFINED_Out_writes_bytes_all
 #endif
 
+#if defined(_Out_writes_bytes_opt_) && defined(SALIERI_DEFINED_Out_writes_bytes_opt)
+#  undef _Out_writes_bytes_opt_
+#endif
+#if !defined(_Out_writes_bytes_opt_)
+#  define _Out_writes_bytes_opt_(s)
+#  define SALIERI_DEFINED_Out_writes_bytes_opt
+#endif
+
 #if defined(_In_updates_to_) && defined(SALIERI_DEFINED_In_updates_to)
 #  undef _In_updates_to_
 #endif
@@ -1075,6 +1083,30 @@
 #  define SALIERI_DEFINED_Pre_null
 #endif
 
+#if defined(_Deref_pre_opt_valid_) && defined(SALIERI_DEFINED_Deref_pre_opt_valid)
+#  undef _Deref_pre_opt_valid_
+#endif
+#if !defined(_Deref_pre_opt_valid_)
+#  define _Deref_pre_opt_valid_
+#  define SALIERI_DEFINED_Deref_pre_opt_valid
+#endif
+
+#if defined(_Deref_pre_valid_) && defined(SALIERI_DEFINED_Deref_pre_valid)
+#  undef _Deref_pre_valid_
+#endif
+#if !defined(_Deref_pre_valid_)
+#  define _Deref_pre_valid_
+#  define SALIERI_DEFINED_Deref_pre_valid
+#endif
+
+#if defined(_Deref_prepost_valid_) && defined(SALIERI_DEFINED_Deref_prepost_valid)
+#  undef _Deref_prepost_valid_
+#endif
+#if !defined(_Deref_prepost_valid_)
+#  define _Deref_prepost_valid_
+#  define SALIERI_DEFINED_Deref_prepost_valid
+#endif
+
 #if defined(_Post_equal_to_) && defined(SALIERI_DEFINED_Post_equal_to)
 #  undef _Post_equal_to_
 #endif
@@ -1105,6 +1137,22 @@
 #if !defined(_Post_writable_byte_size_)
 #  define _Post_writable_byte_size_(expr)
 #  define SALIERI_DEFINED_Post_writable_byte_size
+#endif
+
+#if defined(_Deref_post_opt_valid_) && defined(SALIERI_DEFINED_Deref_post_opt_valid)
+#  undef _Deref_post_opt_valid_
+#endif
+#if !defined(_Deref_post_opt_valid_)
+#  define _Deref_post_opt_valid_
+#  define SALIERI_DEFINED_Deref_post_opt_valid
+#endif
+
+#if defined(_Deref_post_valid_) && defined(SALIERI_DEFINED_Deref_post_valid)
+#  undef _Deref_post_valid_
+#endif
+#if !defined(_Deref_post_valid_)
+#  define _Deref_post_valid_
+#  define SALIERI_DEFINED_Deref_post_valid
 #endif
 
 #if defined(_Struct_size_bytes_) && defined(SALIERI_DEFINED_Struct_size_bytes)
