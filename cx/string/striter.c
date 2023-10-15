@@ -238,7 +238,7 @@ _Success_(return) _Must_inspect_result_ bool striPeekU8Char(_Inout_ striter *ite
     return ret;
 }
 
-_Check_return_ bool striAdvanceU8(_Inout_ striter *iter, uint32 by)
+bool striAdvanceU8(_Inout_ striter *iter, uint32 by)
 {
     for (uint32 idx = 0; idx < by; idx++) {
         uint32 seqlen = _strUTF8Decode(iter, NULL);

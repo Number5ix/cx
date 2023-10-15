@@ -71,7 +71,7 @@ _meta_inline _Success_(return) _Must_inspect_result_ bool striPeekChar(_Inout_ s
     return true;
 }
 
-_meta_inline _Check_return_ bool striAdvance(_Inout_ striter *i, uint32 by)
+_meta_inline bool striAdvance(_Inout_ striter *i, uint32 by)
 {
     i->cursor += by;
     while (i->cursor >= i->len) {
@@ -85,6 +85,6 @@ _meta_inline _Check_return_ bool striAdvance(_Inout_ striter *i, uint32 by)
 // UTF-8 versions of char and advance functions that operate on unicode code points
 _Success_(return) _Must_inspect_result_ bool striU8Char(_Inout_ striter *i, _Out_ int32 *out);
 _Success_(return) _Must_inspect_result_ bool striPeekU8Char(_Inout_ striter *i, _Out_ int32 *out);
-_Check_return_ bool striAdvanceU8(_Inout_ striter *i, uint32 by);
+bool striAdvanceU8(_Inout_ striter *i, uint32 by);
 
 CX_C_END
