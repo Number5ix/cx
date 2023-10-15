@@ -14,8 +14,6 @@ static void _strInitRope(_Inout_ string *o)
     _Analysis_assume_(sz >= sizeof(str_ropedata));
 
     string ret = xaAlloc(sz);
-    if (!ret)
-        return;
 
     *(uint8*)ret = newhdr;
     ((uint8*)ret)[1] = 0xc1;        // magic string header
