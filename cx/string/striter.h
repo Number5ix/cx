@@ -47,7 +47,7 @@ void striBorrowRev(_Out_ striter *i, _In_opt_ strref s);
 // This is less efficient as it has to check the cursor position for each character,
 // but vastly simplifies the code.
 
-_meta_inline _Success_(_Return_) _Must_inspect_result_ bool striChar(_Inout_ striter *i, _Out_ uint8 *out)
+_meta_inline _Success_(return) _Must_inspect_result_ bool striChar(_Inout_ striter *i, _Out_ uint8 *out)
 {
     while (i->cursor >= i->len) {
         striNext(i);
@@ -59,7 +59,7 @@ _meta_inline _Success_(_Return_) _Must_inspect_result_ bool striChar(_Inout_ str
     return true;
 }
 
-_meta_inline _Success_(_Return_) _Must_inspect_result_ bool striPeekChar(_Inout_ striter *i, _Out_ uint8 *out)
+_meta_inline _Success_(return) _Must_inspect_result_ bool striPeekChar(_Inout_ striter *i, _Out_ uint8 *out)
 {
     while (i->cursor >= i->len) {
         striNext(i);
@@ -83,8 +83,8 @@ _meta_inline _Check_return_ bool striAdvance(_Inout_ striter *i, uint32 by)
 }
 
 // UTF-8 versions of char and advance functions that operate on unicode code points
-_Success_(_Return_) _Must_inspect_result_ bool striU8Char(_Inout_ striter *i, _Out_ int32 *out);
-_Success_(_Return_) _Must_inspect_result_ bool striPeekU8Char(_Inout_ striter *i, _Out_ int32 *out);
+_Success_(return) _Must_inspect_result_ bool striU8Char(_Inout_ striter *i, _Out_ int32 *out);
+_Success_(return) _Must_inspect_result_ bool striPeekU8Char(_Inout_ striter *i, _Out_ int32 *out);
 _Check_return_ bool striAdvanceU8(_Inout_ striter *i, uint32 by);
 
 CX_C_END

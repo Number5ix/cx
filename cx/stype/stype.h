@@ -744,7 +744,7 @@ _meta_inline uint32 _stHash(stype st, _In_opt_ STypeOps *ops, _In_ stgeneric gen
 }
 #define stHash(type, obj, ...) _stHash(stFullType(type), stArg(type, obj), opt_flags(__VA_ARGS__))
 
-_Success_(_Return_ != false) _Check_return_
+_Success_(return != false) _Check_return_
 _meta_inline bool _stConvert(stype destst, _Out_ stgeneric *dest, stype srcst, _In_opt_ STypeOps *srcops, _In_ stgeneric src, flags_t flags)
 {
     // ops is mandatory for custom type

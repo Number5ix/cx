@@ -42,7 +42,7 @@
 // The "RETURN" feature is used internally for correctness checks
 
 // If this is being compiled in debug/dev mode, redefine "return" to check it for correctness
-#if DEBUG_LEVEL >= 1
+#if DEBUG_LEVEL >= 1 && !defined(_PREFAST_)
 inhibitDeclare(RETURN);
 #define _inhibitReturn _inhibitDisallow(RETURN)
 #define _allowReturn _inhibitAllow(RETURN)

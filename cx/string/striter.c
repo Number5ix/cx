@@ -224,12 +224,12 @@ void striFinish(_Inout_ striter *iter)
     }
 }
 
-_Success_(_Return_) _Must_inspect_result_ bool striU8Char(_Inout_ striter *iter, _Out_ int32 *out)
+_Success_(return) _Must_inspect_result_ bool striU8Char(_Inout_ striter *iter, _Out_ int32 *out)
 {
     return _strUTF8Decode(iter, out);
 }
 
-_Success_(_Return_) _Must_inspect_result_ bool striPeekU8Char(_Inout_ striter *iter, _Out_ int32 *out)
+_Success_(return) _Must_inspect_result_ bool striPeekU8Char(_Inout_ striter *iter, _Out_ int32 *out)
 {
     striter saved = *iter;
 

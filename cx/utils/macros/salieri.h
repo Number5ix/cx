@@ -1614,13 +1614,6 @@
 #define _Analysis_noreturn_
 #endif
 
-#ifndef _Return_
-#if defined(_MSC_VER)
-#define _Return_ ret ## urn
-#else
-#define _Return_
-#endif
-#endif
 
 #if defined(SALIERI_VERSION)
 #  undef SALIERI_VERSION
