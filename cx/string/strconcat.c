@@ -1,6 +1,6 @@
 #include "string_private.h"
 
-static bool _strAppendNoRope(_Inout_ string *io, _In_opt_ strref s);
+static bool _strAppendNoRope(_Inout_ string *io, _In_ strref s);
 
 // This is the master algorithm for concatenating strings!
 // All of the other versions are simplified copies with parts removed.
@@ -196,7 +196,7 @@ bool _strNConcatC(_Inout_ string *o, int n, _Inout_ string **args)
     return true;
 }
 
-static bool _strAppendNoRope(_Inout_ string *io, _In_opt_ strref s)
+static bool _strAppendNoRope(_Inout_ string *io, _In_ strref s)
 {
     uint32 iolen = strLen(*io), slen = _strFastLen(s);
     uint32 len = iolen + slen;
@@ -226,7 +226,7 @@ static bool _strAppendNoRope(_Inout_ string *io, _In_opt_ strref s)
     return true;
 }
 
-static bool _strAppend(_Inout_ string *io, _In_opt_ strref s)
+static bool _strAppend(_Inout_ string *io, _In_ strref s)
 {
     uint32 iolen = strLen(*io), slen = _strFastLen(s);
     uint32 len = iolen + slen;

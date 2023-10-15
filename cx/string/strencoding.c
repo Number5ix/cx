@@ -1,6 +1,7 @@
 #include "string_private.h"
 #include "cx/utils/scratch.h"
 
+_When_(s == NULL, _Post_equal_to_(false))
 bool strValidUTF8(_In_opt_ strref s)
 {
     if (!STR_CHECK_VALID(s))
@@ -32,6 +33,7 @@ bool strValidUTF8(_In_opt_ strref s)
     return true;
 }
 
+_When_(s == NULL, _Post_equal_to_(false))
 bool strValidASCII(_In_opt_ strref s)
 {
     if (!STR_CHECK_VALID(s))

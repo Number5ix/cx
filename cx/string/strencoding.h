@@ -7,7 +7,9 @@
 
 CX_C_BEGIN
 
+_When_(s == NULL, _Post_equal_to_(false))
 bool strValidUTF8(_In_opt_ strref s);
+_When_(s == NULL, _Post_equal_to_(false))
 bool strValidASCII(_In_opt_ strref s);
 
 // Returns the number of code points required for the buffer, or 0 on error

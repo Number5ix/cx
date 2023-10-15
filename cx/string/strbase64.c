@@ -101,7 +101,7 @@ bool strB64Encode(_Inout_ string *out, _In_reads_bytes_(bufsz) const uint8 *buf,
     return true;
 }
 
-static uint32 b64DecodedSize(_In_opt_ strref str)
+static uint32 b64DecodedSize(_In_ strref str)
 {
     uint32 len = strLen(str);
     int nudge;

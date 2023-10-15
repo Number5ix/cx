@@ -43,7 +43,7 @@ static intptr stCmp_sarray(stype st, stgeneric gen1, stgeneric gen2, uint32 flag
     return (intptr)((char*)gen1.st_sarray.a - (char*)gen2.st_sarray.a);
 }
 
-uint32 stHash_gen(stype st, stgeneric gen, uint32 flags)
+uint32 stHash_gen(stype st, _In_ stgeneric stgen, flags_t flags)
 {
     if (!stHasFlag(st, PassPtr))
         return hashMurmur3((uint8*)&gen, stGetSize(st));

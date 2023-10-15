@@ -304,6 +304,7 @@ uint32 _strRopeFastCopy(_In_ strref s, uint32 off, _Out_writes_bytes_(bytes) uin
     return leftcopy + rightcopy;    // should equal bytes
 }
 
+_Success_(return)
 static bool _strRopeRealStrPart(_Inout_ str_roperef *ref, uint32 off, _Out_ string *rs, _Out_ uint32 *rsoff, _Out_ uint32 *rslen, _Out_ uint32 *rsstart, bool writable)
 {
     // is it part of our ref?
@@ -328,6 +329,7 @@ static bool _strRopeRealStrPart(_Inout_ str_roperef *ref, uint32 off, _Out_ stri
 // get the actual string and offset of a particular offset within a rope.
 // note that rs gets a borrowed reference put into it, so caller must dup
 // if it wants to hold on to it and doesn't otherwise hold a ref!
+_Success_(return)
 bool _strRopeRealStr(_Inout_ string *s, uint32 off, _Out_ string *rs, _Out_ uint32 *rsoff, _Out_ uint32 *rslen, _Out_ uint32 *rsstart, bool writable)
 {
     if (!(_strHdr(*s) & STR_ROPE))

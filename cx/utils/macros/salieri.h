@@ -1614,6 +1614,10 @@
 #define _Analysis_noreturn_
 #endif
 
+#define _Inout_ptr_ _Inout_ _Deref_prepost_valid_
+// _Deref_prepost_opt_valid_ gets this wrong and uses _Deref_post_opt_valid_
+// odd because _Prepost_opt_valid_ is correct
+#define _Inout_ptr_opt_ _Inout_ _Deref_pre_opt_valid_ _Deref_post_valid_
 
 #if defined(SALIERI_VERSION)
 #  undef SALIERI_VERSION

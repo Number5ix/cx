@@ -33,9 +33,7 @@ typedef const struct str_ref* strref;
 // Create a new empty string with preallocated storage.
 //        o: output string, will be destroyed if it exists
 // sizehint: Amount of memory to preallocate for string storage.
-_At_(*o, _Pre_maybenull_)
-_At_(*o, _Post_notnull_)
-void strReset(_Inout_ string *o, uint32 sizehint);
+void strReset(_Inout_ptr_opt_ string *o, uint32 sizehint);
 
 // Duplicate an existing string, making an efficient reference if possible.
 //       o: output string, will be destroyed if it exists
@@ -56,6 +54,7 @@ void strClear(_Inout_ string *ps);
 // Retrieve the length of a string. This does not include preallocated memory.
 //       s: String handle.
 // Returns: String length.
+_When_(s == NULL, _Post_equal_to_(0))
 uint32 strLen(_In_opt_ strref s);
 
 // Sets the length of a string, truncating or filling with null-characters.
@@ -66,6 +65,7 @@ void strSetLen(_Inout_ string *ps, uint32 len);
 // Checks if a string is empty. Nonexistent strings are considered empty.
 //       s: String handle
 // Returns: true if string is empty
+_When_(s == NULL, _Post_equal_to_(true))
 bool strEmpty(_In_opt_ strref s);
 
 // Disposes of a string handle.
@@ -109,9 +109,7 @@ uint32 strCopyOut(_In_opt_ strref s, uint32 off, _Out_writes_bytes_(bufsz) uint8
 uint32 strCopyRaw(_In_opt_ strref s, uint32 off, _Out_writes_bytes_(maxlen) uint8 *buf, uint32 maxlen);
 
 uint32 _strStackAllocSize(uint32 maxlen);
-_At_(*ps, _Pre_notnull_)
-_At_(*ps, _Post_maybenull_)
-void _strInitStack(_Inout_ string *ps, uint32 maxlen);
+void _strInitStack(_Inout_ _Deref_pre_valid_ _Deref_post_opt_valid_ string *ps, uint32 maxlen);
 // Creates a stack-allocated temporary string. This string may be used as a buffer
 // to hold results of string operations, but it must NOT be returned or stored in a
 // way the survives the execution of the scope in which it is initialized.

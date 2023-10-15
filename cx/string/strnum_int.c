@@ -7,6 +7,7 @@ char _strnum_ldigits[] = "0123456789abcdefghijklmnopqrstuvwxyz";
 // string to integer -------------------------------------------------------------------
 
 #define STRNUM_IMPL(type, stype, utype, name, CUTOFF)        \
+_Success_(return)                                          \
 bool name(_Out_ type *out, _In_opt_ strref s, int base, bool strict)        \
 {                                                            \
     utype acc;                                               \
@@ -94,7 +95,7 @@ STRNUM_IMPL(uint64, int64, uint64, strToUInt64, MAX_UINT64)
 
 // integer to string -------------------------------------------------------------------
 
-_Ret_maybenull_ uint8 *_strnum_u64toa(_Out_writes_(STRNUM_INTBUF) uint8 buf[STRNUM_INTBUF], _Out_opt_ uint32 *len, uint64 val, uint16 base, uint32 mindigits, char sign, bool upper)
+_Ret_notnull_ uint8 *_strnum_u64toa(_Out_writes_(STRNUM_INTBUF) uint8 buf[STRNUM_INTBUF], _Out_opt_ uint32 *len, uint64 val, uint16 base, uint32 mindigits, char sign, bool upper)
 {
     uint8 *p = buf + STRNUM_INTBUF;
     char *cset;

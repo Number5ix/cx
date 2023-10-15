@@ -135,7 +135,7 @@ uint32 _strFastCopy(_In_ strref s, uint32 off, _Out_writes_bytes_(bytes) uint8 *
     }
 }
 
-void _strResize(_Inout_ string *ps, uint32 newsz, bool unique)
+void _strResize(_Inout_ptr_ string *ps, uint32 newsz, bool unique)
 {
     devAssert(!(_strHdr(*ps) & STR_ROPE));
     bool isstack = _strHdr(*ps) & STR_STACK;
@@ -178,7 +178,7 @@ void _strResize(_Inout_ string *ps, uint32 newsz, bool unique)
     }
 }
 
-void _strMakeUnique(_Inout_ string *ps, uint32 minszforcopy)
+void _strMakeUnique(_Inout_ptr_ string *ps, uint32 minszforcopy)
 {
     string s = *ps;         // borrow ref
 
@@ -208,7 +208,7 @@ void _strMakeUnique(_Inout_ string *ps, uint32 minszforcopy)
     }
 }
 
-void _strFlatten(_Inout_ string *ps, uint32 minszforcopy)
+void _strFlatten(_Inout_ptr_ string *ps, uint32 minszforcopy)
 {
     string s = *ps;     // borrow ref
 
@@ -236,9 +236,7 @@ void _strFlatten(_Inout_ string *ps, uint32 minszforcopy)
     }
 }
 
-_At_(*o, _Pre_maybenull_)
-_At_(*o, _Post_notnull_)
-void strReset(_Inout_ string *o, uint32 sizehint)
+void strReset(_Inout_ptr_opt_ string *o, uint32 sizehint)
 {
     if (!o)
         return;
@@ -344,9 +342,7 @@ void strCopy(_Inout_ string *o, _In_opt_ strref s)
     *o = _strCopy(s, 0);
 }
 
-_At_(*s, _Pre_maybenull_)
-_At_(*s, _Post_notnull_)
-void _strReset(_Inout_ string *s, uint32 minsz)
+void _strReset(_Inout_ptr_opt_ string *s, uint32 minsz)
 {
     if (!STR_CHECK_VALID(*s) || !(_strHdr(*s) & STR_ALLOC) ||
         !!(_strHdr(*s) & STR_ROPE) ||
@@ -386,6 +382,7 @@ void strClear(_Inout_ string *s)
     _strReset(s, 0);
 }
 
+_When_(s == NULL, _Post_equal_to_(0))
 uint32 strLen(_In_opt_ strref s)
 {
     if (!STR_CHECK_VALID(s)) return 0;
@@ -393,6 +390,7 @@ uint32 strLen(_In_opt_ strref s)
     return _strFastLen(s);
 }
 
+_When_(s == NULL, _Post_equal_to_(true))
 bool strEmpty(_In_opt_ strref s)
 {
     if (!STR_CHECK_VALID(s)) return true;
@@ -538,9 +536,7 @@ uint32 _strStackAllocSize(uint32 maxlen)
     return 0;
 }
 
-_At_(*ps, _Pre_notnull_)
-_At_(*ps, _Post_maybenull_)
-void _strInitStack(_Inout_ string *ps, uint32 maxlen)
+void _strInitStack(_Inout_ _Deref_pre_valid_ _Deref_post_opt_valid_ string *ps, uint32 maxlen)
 {
     devAssert(*ps);
     if (!*ps || maxlen == 0 || maxlen >= 65529) {

@@ -137,9 +137,7 @@ _meta_inline uint16 _strFastRefNoSync(_In_ strref s)
 extern string _strEmpty;
 
 // resets the string internals, re-use memory if possible
-_At_(*s, _Pre_maybenull_)
-_At_(*s, _Post_notnull_)
-void _strReset(_Inout_ string *s, uint32 minsz);
+void _strReset(_Inout_ptr_opt_ string *s, uint32 minsz);
 
 // these change the structure internally and can result in inconsistent state
 // if not used with care
@@ -148,12 +146,12 @@ void _strInitRef(_Inout_ string s);
 void _strSetRef(_Inout_ string s, uint16 ref);
 
 // ensure that ps is allocated by us and has a single reference
-void _strMakeUnique(_Inout_ string *ps, uint32 minszforcopy);
+void _strMakeUnique(_Inout_ptr_ string *ps, uint32 minszforcopy);
 // like _strMakeUnique but also flattens ropes into plain strings
-void _strFlatten(_Inout_ string *ps, uint32 minszforcopy);
+void _strFlatten(_Inout_ptr_ string *ps, uint32 minszforcopy);
 // resize ps in place if possible, or copy if necessary (changing ps).
 // resizes buffer only, does NOT zero buffer or set length header
-void _strResize(_Inout_ string *ps, uint32 len, bool unique);
+void _strResize(_Inout_ptr_ string *ps, uint32 len, bool unique);
 // duplicates s and returns a copy, optionally with more reserved space allocated
 _Ret_notnull_ string _strCopy(_In_ strref s, uint32 minsz);
 // direct copy of string buffer or rope internals, does not check destination size!
@@ -185,7 +183,7 @@ string _strCreateRope1(_In_opt_ strref s, uint32 off, uint32 len);
 string _strCloneRope(_In_ strref s);
 void _strDestroyRope(_Inout_ string s);
 uint32 _strRopeFastCopy(_In_ strref s, uint32 off, _Out_writes_bytes_(bytes) uint8 *buf, uint32 bytes);
-bool _strRopeRealStr(_Inout_ string *s, uint32 off, _Out_ string *rs, _Out_ uint32 *rsoff, _Out_ uint32 *rslen, _Out_ uint32 *rsstart, bool writable);
+_Success_(return) bool _strRopeRealStr(_Inout_ string *s, uint32 off, _Out_ string *rs, _Out_ uint32 *rsoff, _Out_ uint32 *rslen, _Out_ uint32 *rsstart, bool writable);
 
 // Finds first occurrence of find in s at or after start
 int32 _strFindChar(_In_ strref s, int32 start, char find);

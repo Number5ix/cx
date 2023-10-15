@@ -30,6 +30,7 @@ uint32 stHash_string(stype st, _In_ stgeneric gen, uint32 flags)
         return hashMurmur3Stri(gen.st_string);
 }
 
+_Success_(return) _Check_return_
 bool stConvert_string(stype destst, _Out_ stgeneric *dest, stype srcst, _In_ stgeneric src, uint32 flags)
 {
     switch (stGetId(destst)) {
