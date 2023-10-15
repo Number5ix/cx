@@ -58,15 +58,15 @@ static void _htNewChunk(HashTableHeader *hdr)
     if (!(hdr->flags & (HT_InsertOpt | HT_Compact))) {
         // default chunk allocation strategy
         // allocate a quarter-chunk
-        hdr->keystorage[chunk] = xaAlloc(HT_QUARTER_CHUNK * stGetSize(hdr->keytype));
+        hdr->keystorage[chunk] = xaAlloc((size_t)HT_QUARTER_CHUNK * stGetSize(hdr->keytype));
         if (stGetSize(hdr->valtype) > 0)
-            hdr->valstorage[chunk] = xaAlloc(HT_QUARTER_CHUNK * stGetSize(hdr->valtype));
+            hdr->valstorage[chunk] = xaAlloc((size_t)HT_QUARTER_CHUNK * stGetSize(hdr->valtype));
         chunkinfo->nalloc = HT_QUARTER_CHUNK;
     } else if (hdr->flags & HT_InsertOpt) {
         // insert-optimized case, allocate a whole chunk
-        hdr->keystorage[chunk] = xaAlloc(HT_SLOTS_PER_CHUNK * stGetSize(hdr->keytype));
+        hdr->keystorage[chunk] = xaAlloc((size_t)HT_SLOTS_PER_CHUNK * stGetSize(hdr->keytype));
         if (stGetSize(hdr->valtype) > 0)
-            hdr->valstorage[chunk] = xaAlloc(HT_SLOTS_PER_CHUNK * stGetSize(hdr->valtype));
+            hdr->valstorage[chunk] = xaAlloc((size_t)HT_SLOTS_PER_CHUNK * stGetSize(hdr->valtype));
         chunkinfo->nalloc = HT_SLOTS_PER_CHUNK;
     } else { // if (hdr->flags & HT_Compact)
         // compact mode, allocate only the first slot
@@ -88,9 +88,9 @@ static uint32 _htNewSlot(HashTableHeader *hdr)
             devAssert(hdr->chunks[chunk].nalloc == (hdr->storused & HT_CHUNK_MASK));
             hdr->chunks[chunk].nalloc += HT_QUARTER_CHUNK;
             devAssert(hdr->chunks[chunk].nalloc <= HT_SLOTS_PER_CHUNK);
-            xaResize(&hdr->keystorage[chunk], hdr->chunks[chunk].nalloc * stGetSize(hdr->keytype));
+            xaResize(&hdr->keystorage[chunk], (size_t)hdr->chunks[chunk].nalloc * stGetSize(hdr->keytype));
             if (stGetSize(hdr->valtype) > 0)
-                xaResize(&hdr->valstorage[chunk], hdr->chunks[chunk].nalloc * stGetSize(hdr->valtype));
+                xaResize(&hdr->valstorage[chunk], (size_t)hdr->chunks[chunk].nalloc * stGetSize(hdr->valtype));
         }
     } else if (hdr->flags & HT_Compact) {
         // compact allocation strategy; always resize the chunk for the new item
@@ -99,9 +99,9 @@ static uint32 _htNewSlot(HashTableHeader *hdr)
             devAssert(hdr->chunks[chunk].nalloc == (hdr->storused & HT_CHUNK_MASK));
             hdr->chunks[chunk].nalloc++;
             devAssert(hdr->chunks[chunk].nalloc <= HT_SLOTS_PER_CHUNK);
-            xaResize(&hdr->keystorage[chunk], hdr->chunks[chunk].nalloc * stGetSize(hdr->keytype));
+            xaResize(&hdr->keystorage[chunk], (size_t)hdr->chunks[chunk].nalloc * stGetSize(hdr->keytype));
             if (stGetSize(hdr->valtype) > 0)
-                xaResize(&hdr->valstorage[chunk], hdr->chunks[chunk].nalloc * stGetSize(hdr->valtype));
+                xaResize(&hdr->valstorage[chunk], (size_t)hdr->chunks[chunk].nalloc * stGetSize(hdr->valtype));
         }
     }
     // implied else -- insert-optimized always allocates full chunks, nothing to do here

@@ -305,7 +305,7 @@ bool _saInit(sahandle out, stype elemtype, STypeOps *ops, int32 capacity, bool c
     if (ops) {
         // need the full header
         flags |= SAINT_Extended;
-        hdr = xaAlloc(SARRAY_HDRSIZE + capacity * stGetSize(elemtype),
+        hdr = xaAlloc(SARRAY_HDRSIZE + (size_t)capacity * stGetSize(elemtype),
                       canfail ? XA_Optional(High) : 0);
         if (!hdr)
             return false;
@@ -315,7 +315,7 @@ bool _saInit(sahandle out, stype elemtype, STypeOps *ops, int32 capacity, bool c
         // use the smaller header that saves a few bytes for each array
         // yes, this is evil
         // hdr technically points to unallocated memory, but we're careful to not touch the first part
-        void *hbase = xaAlloc((SARRAY_HDRSIZE + capacity * stGetSize(elemtype)) - SARRAY_SMALLHDR_OFFSET,
+        void *hbase = xaAlloc((SARRAY_HDRSIZE + (size_t)capacity * stGetSize(elemtype)) - SARRAY_SMALLHDR_OFFSET,
                               canfail ? XA_Optional(High) : 0);
         if (!hbase)
             return false;
@@ -346,11 +346,11 @@ static bool saRealloc(sahandle handle, SArrayHeader **hdr, int32 cap, bool canfa
 {
     bool ret = false;
     if ((*hdr)->flags & SAINT_Extended) {
-        ret = xaResize(hdr, SARRAY_HDRSIZE + cap * stGetSize((*hdr)->elemtype), canfail ? XA_Optional(High) : 0);
+        ret = xaResize(hdr, SARRAY_HDRSIZE + (size_t)cap * stGetSize((*hdr)->elemtype), canfail ? XA_Optional(High) : 0);
     } else {
         // ugly non-extended header
         void *smlbase = (void*)((uintptr_t)(*hdr) + SARRAY_SMALLHDR_OFFSET);
-        ret = xaResize(&smlbase, (SARRAY_HDRSIZE + cap * stGetSize((*hdr)->elemtype)) - SARRAY_SMALLHDR_OFFSET, canfail ? XA_Optional(High) : 0);
+        ret = xaResize(&smlbase, (SARRAY_HDRSIZE + (size_t)cap * stGetSize((*hdr)->elemtype)) - SARRAY_SMALLHDR_OFFSET, canfail ? XA_Optional(High) : 0);
         if (ret)
             *hdr = (SArrayHeader*)((uintptr_t)smlbase - SARRAY_SMALLHDR_OFFSET);
     }
@@ -521,7 +521,7 @@ static int32 sa_insert_internal(sahandle handle, SArrayHeader *hdr, int32 idx, s
     if (hdr->count == hdr->capacity)
         _saGrow(handle, &hdr, hdr->count + 1, false);
 
-    memmove(ELEMPTR(hdr, idx + 1), ELEMPTR(hdr, idx), (hdr->count - idx) * stGetSize(hdr->elemtype));
+    memmove(ELEMPTR(hdr, (size_t)idx + 1), ELEMPTR(hdr, idx), ((size_t)hdr->count - idx) * stGetSize(hdr->elemtype));
     hdr->count++;
 
     sa_set_elem_internal(hdr, idx, elem, consume);
@@ -599,9 +599,9 @@ static void sa_remove_internal(sahandle handle, SArrayHeader *hdr, int32 idx, bo
         // swap last element with the one being removed -- this changes the order!
         if ((hdr->flags & SA_Sorted))
             hdr->flags &= ~SA_Sorted;
-        memcpy(ELEMPTR(hdr, idx), ELEMPTR(hdr, hdr->count - 1), stGetSize(hdr->elemtype));
+        memcpy(ELEMPTR(hdr, idx), ELEMPTR(hdr, (size_t)hdr->count - 1), stGetSize(hdr->elemtype));
     } else {
-        memmove(ELEMPTR(hdr, idx), ELEMPTR(hdr, idx + 1), (hdr->count - idx - 1) * stGetSize(hdr->elemtype));
+        memmove(ELEMPTR(hdr, idx), ELEMPTR(hdr, (size_t)idx + 1), ((size_t)hdr->count - idx - 1) * stGetSize(hdr->elemtype));
     }
 
     hdr->count--;

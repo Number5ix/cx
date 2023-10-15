@@ -15,8 +15,8 @@ _Static_assert((HT_SLOTS_PER_CHUNK >> 8) < sizeof(((HTChunkInfo*)0)->nalloc), "H
 #define HT_SLOT_KEY_CHUNK_PTR(hdr, slot) ((uintptr)hdr->keystorage[HT_SLOT_CHUNK(slot)])
 #define HT_SLOT_VAL_CHUNK_PTR(hdr, slot) ((uintptr)hdr->valstorage[HT_SLOT_CHUNK(slot)])
 #define HT_SLOT_OFF(slot, elemsz) ((uintptr)((slot) & HT_CHUNK_MASK) * elemsz)
-#define HT_SLOT_KEY_PTR(hdr, slot) ((void*)(HT_SLOT_KEY_CHUNK_PTR(hdr, slot) + ((slot) & HT_CHUNK_MASK) * stGetSize(hdr->keytype)))
-#define HT_SLOT_VAL_PTR(hdr, slot) ((void*)(HT_SLOT_VAL_CHUNK_PTR(hdr, slot) + ((slot) & HT_CHUNK_MASK) * stGetSize(hdr->valtype)))
+#define HT_SLOT_KEY_PTR(hdr, slot) ((void*)(HT_SLOT_KEY_CHUNK_PTR(hdr, slot) + (size_t)((slot) & HT_CHUNK_MASK) * stGetSize(hdr->keytype)))
+#define HT_SLOT_VAL_PTR(hdr, slot) ((void*)(HT_SLOT_VAL_CHUNK_PTR(hdr, slot) + (size_t)((slot) & HT_CHUNK_MASK) * stGetSize(hdr->valtype)))
 
 #define HT_DELETED_IDX(slot) ((slot & HT_CHUNK_MASK) >> 3)
 #define HT_DELETED_BIT(slot) (1 << (slot & 7))
