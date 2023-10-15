@@ -6,7 +6,7 @@ void stDtor_hashtable(stype st, stgeneric *gen, flags_t flags)
     htDestroy(&gen->st_hashtable);
 }
 
-void stCopy_hashtable(stype st, stgeneric *dest, stgeneric src, flags_t flags)
+void stCopy_hashtable(stype st, _stCopyDest_Anno_(st) stgeneric *dest, _In_ stgeneric src, flags_t flags)
 {
     htClone(&dest->st_hashtable, src.st_hashtable);
 }

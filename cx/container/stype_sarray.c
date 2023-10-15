@@ -5,7 +5,7 @@ void stDtor_sarray(stype st, stgeneric *gen, flags_t flags)
     _saDestroy(&gen->st_sarray);
 }
 
-void stCopy_sarray(stype st, stgeneric *dest, stgeneric src, flags_t flags)
+void stCopy_sarray(stype st, _stCopyDest_Anno_(st) stgeneric *dest, _In_ stgeneric src, flags_t flags)
 {
     saSlice(&dest->st_sarray, src.st_sarray, 0, 0);
 }

@@ -23,6 +23,7 @@ _no_inline _no_return void dbgCrashNow(int skip)
     __builtin_trap();
 #else
     volatile char *badptr = 0;
+    _Analysis_assume_(badptr != NULL);
     *badptr = 0;
 #endif
     exit(-1);
@@ -30,6 +31,8 @@ _no_inline _no_return void dbgCrashNow(int skip)
 
 intptr_t stCmp_suid(stype st, void *a, void *b) { return 0; }
 
-bool stConvert_suid(stype destst, stgeneric *dest, stype srcst, stgeneric src, uint32 flags) { return false; }
+_Success_(return) _Check_return_
+bool stConvert_suid(stype destst, _stCopyDest_Anno_(destst) stgeneric * dest, stype srcst, _In_ stgeneric src, uint32 flags)
+{ return false; }
 
 bool suidDecode(SUID *out, strref str) { return false; }

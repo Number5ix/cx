@@ -16,7 +16,8 @@
 #define STCMP_GEN(type) \
 static intptr stCmp_##type(stype st, stgeneric gen1, stgeneric gen2, uint32 flags) \
 { \
-    return (intptr)(gen1.st_##type - gen2.st_##type); \
+    type tmp = gen1.st_##type - gen2.st_##type; \
+    return (intptr)tmp; \
 }
 #define STCMP_GEN_OVR(type, ovrtype) \
 static intptr stCmp_##type(stype st, stgeneric gen1, stgeneric gen2, uint32 flags) \
@@ -43,7 +44,7 @@ static intptr stCmp_sarray(stype st, stgeneric gen1, stgeneric gen2, uint32 flag
     return (intptr)((char*)gen1.st_sarray.a - (char*)gen2.st_sarray.a);
 }
 
-uint32 stHash_gen(stype st, _In_ stgeneric stgen, flags_t flags)
+uint32 stHash_gen(stype st, _In_ stgeneric gen, flags_t flags)
 {
     if (!stHasFlag(st, PassPtr))
         return hashMurmur3((uint8*)&gen, stGetSize(st));
@@ -62,7 +63,7 @@ static uint32 stHash_none(stype st, stgeneric gen, uint32 flags)
     return 0;
 }
 
-static void stCopy_none(stype st, stgeneric *dest, stgeneric src, uint32 flags)
+static void stCopy_none(stype st, _stCopyDest_Anno_(st) stgeneric *dest, _In_ stgeneric src, flags_t flags)
 {
 }
 

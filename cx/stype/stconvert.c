@@ -11,7 +11,8 @@
 #define stConvertNoneZero(type) case stTypeId(type): \
     dest->st_##type = 0;                             \
     return true
-bool stConvert_none(stype destst, stgeneric *dest, stype srcst, stgeneric src, uint32 flags)
+_Success_(return) _Check_return_
+bool stConvert_none(stype destst, _stCopyDest_Anno_(destst) stgeneric * dest, stype srcst, _In_ stgeneric src, uint32 flags)
 {
     switch (stGetId(destst)) {
     case stTypeId(bool):
@@ -42,7 +43,8 @@ bool stConvert_none(stype destst, stgeneric *dest, stype srcst, stgeneric src, u
     dest->st_##type = src.st_bool ?                     \
         (stTypeDef(type))(1) : (stTypeDef(type))(0);    \
     return true
-bool stConvert_bool(stype destst, stgeneric *dest, stype srcst, stgeneric src, uint32 flags)
+_Success_(return) _Check_return_
+bool stConvert_bool(stype destst, _stCopyDest_Anno_(destst) stgeneric *dest, stype srcst, _In_ stgeneric src, uint32 flags)
 {
     switch (stGetId(destst)) {
     case stTypeId(bool):
@@ -90,7 +92,8 @@ bool stConvert_bool(stype destst, stgeneric *dest, stype srcst, stgeneric src, u
     dest->st_##type = (stTypeDef(type))v.u;                             \
     return true 
 
-bool stConvert_int(stype destst, stgeneric *dest, stype srcst, stgeneric src, uint32 flags)
+_Success_(return) _Check_return_
+bool stConvert_int(stype destst, _stCopyDest_Anno_(destst) stgeneric * dest, stype srcst, _In_ stgeneric src, uint32 flags)
 {
     bool norange = flags & ST_Overflow;
     bool lossless = flags & ST_Lossless;
@@ -173,7 +176,8 @@ bool stConvert_int(stype destst, stgeneric *dest, stype srcst, stgeneric src, ui
     return false;
 }
 
-bool stConvert_float32(stype destst, stgeneric *dest, stype srcst, stgeneric src, uint32 flags)
+_Success_(return) _Check_return_
+bool stConvert_float32(stype destst, _stCopyDest_Anno_(destst) stgeneric *dest, stype srcst, _In_ stgeneric src, uint32 flags)
 {
     bool norange = flags & ST_Overflow;
     float32 val = src.st_float32;
@@ -211,7 +215,8 @@ bool stConvert_float32(stype destst, stgeneric *dest, stype srcst, stgeneric src
     return false;
 }
 
-bool stConvert_float64(stype destst, stgeneric *dest, stype srcst, stgeneric src, uint32 flags)
+_Success_(return) _Check_return_
+bool stConvert_float64(stype destst, _stCopyDest_Anno_(destst) stgeneric *dest, stype srcst, _In_ stgeneric src, uint32 flags)
 {
     bool norange = flags & ST_Overflow;
     bool lossless = flags & ST_Lossless;
@@ -254,7 +259,8 @@ bool stConvert_float64(stype destst, stgeneric *dest, stype srcst, stgeneric src
     return false;
 }
 
-bool stConvert_ptr(stype destst, stgeneric *dest, stype srcst, stgeneric src, uint32 flags)
+_Success_(return) _Check_return_
+bool stConvert_ptr(stype destst, _stCopyDest_Anno_(destst) stgeneric *dest, stype srcst, _In_ stgeneric src, uint32 flags)
 {
     // special handling for string
     if (stGetId(destst) == stTypeId(string)) {

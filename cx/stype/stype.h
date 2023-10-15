@@ -631,11 +631,13 @@ enum STYPE_OPS_FLAGS {
 // For example, using stCopy to overwrite an existing string or sarray will leak the
 // destination because stCopy does not destroy the existing object first.
 
+#define _stCopyDest_Anno_(typvar) _When_(!stHasFlag(typvar, PassPtr), _Out_) _When_(stHasFlag(typvar, PassPtr), _Inout_)
+
 typedef void (*stDtorFunc)(stype st, _Pre_notnull_ _Post_invalid_ stgeneric* gen, flags_t flags);
 typedef intptr (*stCmpFunc)(stype st, _In_ stgeneric gen1, _In_ stgeneric gen2, flags_t flags);
 typedef uint32 (*stHashFunc)(stype st, _In_ stgeneric gen, flags_t flags);
-typedef void (*stCopyFunc)(stype st, _Out_ stgeneric* dest, _In_ stgeneric src, flags_t flags);
-typedef bool (*stConvertFunc)(stype destst, _Out_ stgeneric *dest, stype srcst, _In_ stgeneric src, flags_t flags);
+typedef void (*stCopyFunc)(stype st, _stCopyDest_Anno_(st) stgeneric* dest, _In_ stgeneric src, flags_t flags);
+typedef _Success_(return) _Check_return_ bool (*stConvertFunc)(stype destst, _stCopyDest_Anno_(destst) stgeneric *dest, stype srcst, _In_ stgeneric src, flags_t flags);
 
 extern stDtorFunc _stDefaultDtor[256];
 extern stCmpFunc _stDefaultCmp[256];
@@ -711,7 +713,7 @@ _meta_inline intptr _stCmp(stype st, _In_opt_ STypeOps *ops, _In_ stgeneric gen1
 }
 #define stCmp(type, obj1, obj2, ...) _stCmp(stFullType(type), stArg(type, obj1), stArg(type, obj2), opt_flags(__VA_ARGS__))
 
-_meta_inline void _stCopy(stype st, _In_opt_ STypeOps *ops, _Out_ stgeneric *dest, _In_ stgeneric src, flags_t flags)
+_meta_inline void _stCopy(stype st, _In_opt_ STypeOps *ops, _stCopyDest_Anno_(st) stgeneric *dest, _In_ stgeneric src, flags_t flags)
 {
     // ops is mandatory for custom type
     devAssert(!stHasFlag(st, Custom) || ops);
@@ -744,8 +746,8 @@ _meta_inline uint32 _stHash(stype st, _In_opt_ STypeOps *ops, _In_ stgeneric gen
 }
 #define stHash(type, obj, ...) _stHash(stFullType(type), stArg(type, obj), opt_flags(__VA_ARGS__))
 
-_Success_(return != false) _Check_return_
-_meta_inline bool _stConvert(stype destst, _Out_ stgeneric *dest, stype srcst, _In_opt_ STypeOps *srcops, _In_ stgeneric src, flags_t flags)
+_Success_(return) _Check_return_
+_meta_inline bool _stConvert(stype destst, _stCopyDest_Anno_(destst) stgeneric *dest, stype srcst, _In_opt_ STypeOps *srcops, _In_ stgeneric src, flags_t flags)
 {
     // ops is mandatory for custom type
     devAssert(!stHasFlag(srcst, Custom) || srcops);

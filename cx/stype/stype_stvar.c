@@ -19,7 +19,7 @@ intptr stCmp_stvar(stype st, stgeneric gen1, stgeneric gen2, uint32 flags)
     return _stCmp(stv1->type, NULL, stv1->data, stv2->data, flags);
 }
 
-void stCopy_stvar(stype st, stgeneric *dest, stgeneric src, uint32 flags)
+void stCopy_stvar(stype st, _stCopyDest_Anno_(st) stgeneric *dest, _In_ stgeneric src, flags_t flags)
 {
     stvar *dvar = dest->st_stvar;
     stvar *svar = src.st_stvar;
@@ -34,7 +34,8 @@ uint32 stHash_stvar(stype st, stgeneric gen, uint32 flags)
     return _stHash(stv->type, NULL, stv->data, flags);
 }
 
-bool stConvert_stvar(stype destst, stgeneric *dest, stype srcst, stgeneric src, uint32 flags)
+_Success_(return) _Check_return_
+bool stConvert_stvar(stype destst, _stCopyDest_Anno_(destst) stgeneric * dest, stype srcst, _In_ stgeneric src, uint32 flags)
 {
     stvar *svar = src.st_stvar;
     return _stConvert(destst, dest, svar->type, NULL, svar->data, flags);

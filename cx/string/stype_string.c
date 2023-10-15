@@ -15,7 +15,7 @@ intptr stCmp_string(stype st, _In_ stgeneric gen1, _In_ stgeneric gen2, uint32 f
         return strCmpi(gen1.st_string, gen2.st_string);
 }
 
-void stCopy_string(stype st, _Out_ stgeneric *dest, _In_ stgeneric src, uint32 flags)
+void stCopy_string(stype st, _stCopyDest_Anno_(st) stgeneric *dest, _In_ stgeneric src, flags_t flags)
 {
     string temp = 0;
     strDup(&temp, src.st_string);
@@ -31,7 +31,7 @@ uint32 stHash_string(stype st, _In_ stgeneric gen, uint32 flags)
 }
 
 _Success_(return) _Check_return_
-bool stConvert_string(stype destst, _Out_ stgeneric *dest, stype srcst, _In_ stgeneric src, uint32 flags)
+bool stConvert_string(stype destst, _stCopyDest_Anno_(destst) stgeneric *dest, stype srcst, _In_ stgeneric src, uint32 flags)
 {
     switch (stGetId(destst)) {
     case stTypeId(int8):
