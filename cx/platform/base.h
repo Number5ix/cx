@@ -14,6 +14,7 @@
 // to be inlined
 #define _meta_inline __forceinline
 #define _no_inline __declspec(noinline)
+#pragma warning (disable:6255)
 #define stackAlloc(sz) _alloca(sz)
 
 // Sometimes things need to be aligned precisely
