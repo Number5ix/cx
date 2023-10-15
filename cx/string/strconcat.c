@@ -295,7 +295,7 @@ bool strPrepend(_In_opt_ strref s, _Inout_ string *io)
 bool _strConcatNoRope(_Inout_ string *o, _In_opt_ strref s1, _In_opt_ strref s2)
 {
     // you really should be calling append...
-    if (*o == s1)
+    if (*o == s1 && s2)
         return _strAppendNoRope(o, s2);
 
     // short-circuit missing args
