@@ -11,6 +11,7 @@ static void _strInitRope(_Inout_ string *o)
     uint8 newhdr = STR_CX | STR_ALLOC | STR_ROPE | STR_LEN32;
 
     uint32 sz = _strOffStr(newhdr) + sizeof(str_ropedata);
+    _Analysis_assume_(sz >= sizeof(str_ropedata));
 
     string ret = xaAlloc(sz);
     if (!ret)

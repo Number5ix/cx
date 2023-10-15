@@ -158,8 +158,7 @@ static void get_normalized_boundaries_64(Fp* fp, Fp* lower, Fp* upper)
     lower->frac = (fp->frac << l_shift) - 1;
     lower->exp = fp->exp - l_shift;
 
-
-    lower->frac <<= lower->exp - upper->exp;
+    lower->frac = lower->frac << (lower->exp - upper->exp);
     lower->exp = upper->exp;
 }
 
@@ -185,7 +184,7 @@ static void get_normalized_boundaries_32(Fp* fp, Fp* lower, Fp* upper)
     lower->exp = fp->exp - l_shift;
 
 
-    lower->frac <<= lower->exp - upper->exp;
+    lower->frac = lower->frac << (lower->exp - upper->exp);
     lower->exp = upper->exp;
 }
 
@@ -357,7 +356,7 @@ static int emit_digits(uint8* digits, int ndigits, uint8* dest, int32 K, bool ne
         } else {
             memcpy(dest, digits, offset);
             dest[offset] = '.';
-            memcpy(dest + offset + 1, digits + offset, ndigits - offset);
+            memcpy(dest + offset + 1, digits + offset, (size_t)ndigits - offset);
 
             return ndigits + 1;
         }
@@ -371,7 +370,7 @@ static int emit_digits(uint8* digits, int ndigits, uint8* dest, int32 K, bool ne
 
     if (ndigits > 1) {
         dest[idx++] = '.';
-        memcpy(dest + idx, digits + 1, ndigits - 1);
+        memcpy(dest + idx, digits + 1, (size_t)ndigits - 1);
         idx += ndigits - 1;
     }
 

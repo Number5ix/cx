@@ -160,7 +160,8 @@ bool strFromInt32(_Inout_ string *out, int32 i, uint16 base)
     if (i >= 0)
         return _strFromIntHelper(out, (uint64)i, base, 0, 0, false);
     // this looks strange but it properly handles the 'weird' minimum signed int
-    return _strFromIntHelper(out, (uint32)(~i) + 1, base, 0, '-', false);
+    uint32 val = (uint32)(~i) + 1;
+    return _strFromIntHelper(out, val, base, 0, '-', false);
 }
 
 bool strFromUInt32(_Inout_ string *out, uint32 i, uint16 base)

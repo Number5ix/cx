@@ -17,9 +17,10 @@ bool _strNConcat(_Inout_ string *o, int n, _In_ strref *_args)
     string firstarg = 0;
     uint8 encoding = STR_ENCODING_MASK;
     for (i = 0; i < n; ++i) {
+        // remove any NULL arguments
         if (!STR_CHECK_VALID(args[i])) {
             if (n - i > 1) {
-                memmove(&args[i], &args[i + 1], (n - i - 1) * sizeof(string));
+                memmove(&args[i], &args[i + 1], ((size_t)n - i - 1) * sizeof(string));
                 --i;
             }
             --n;
@@ -55,6 +56,7 @@ bool _strNConcat(_Inout_ string *o, int n, _In_ strref *_args)
         *_strHdrP(*o) |= encoding;
 
         for (i = start; i < n; ++i) {
+            _Analysis_assume_(args[i] != NULL);         // guaranteed by loop in phase 1
             uint32 alen = _strFastLen(args[i]);
             _strFastCopy(args[i], 0, ptr, alen);
             ptr += alen;
@@ -69,6 +71,7 @@ bool _strNConcat(_Inout_ string *o, int n, _In_ strref *_args)
 
         // build up new rope
         for (i = 1; i < n;) {
+            _Analysis_assume_(args[i] != NULL);         // guaranteed by loop in phase 1
             if (!curright && _strFastLen(curtop) < ROPE_MIN_SIZE && _strFastLen(args[i]) < ROPE_MAX_MERGE) {
                 _strAppendNoRope(&curtop, args[i++]);
             } else if (!curright) {
@@ -111,7 +114,7 @@ bool _strNConcatC(_Inout_ string *o, int n, _Inout_ string **args)
     for (i = 0; i < n; ++i) {
         if (!args[i] || !STR_CHECK_VALID(*args[i])) {
             if (n - i > 1) {
-                memmove(&args[i], &args[i + 1], (n - i - 1) * sizeof(string*));
+                memmove(&args[i], &args[i + 1], ((size_t)n - i - 1) * sizeof(string*));
                 --i;
             }
             --n;
@@ -146,22 +149,24 @@ bool _strNConcatC(_Inout_ string *o, int n, _Inout_ string **args)
 
         *_strHdrP(*o) &= ~STR_ENCODING_MASK;
         *_strHdrP(*o) |= encoding;
+        _strSetLen(*o, len);
 
         for (i = start; i < n; ++i) {
+            _Analysis_assume_(args[i] != NULL && *args[i] != NULL); // guaranteed by loop in phase 1
             uint32 alen = _strFastLen(*args[i]);
             _strFastCopy(*args[i], 0, ptr, alen);
             ptr += alen;
         }
         *ptr = 0;           // add null terminator
-
-        _strSetLen(*o, len);
     } else {
         // final length is over the threshold to make this a rope instead
         string curtop = 0, curright = 0, newtop = 0;
+        _Analysis_assume_(args[0] != NULL && *args[0] != NULL);     // guaranteed by loop in phase 1
         strDup(&curtop, *args[0]);
 
         // build up new rope
         for (i = 1; i < n;) {
+            _Analysis_assume_(*args[i] != NULL);                    // guaranteed by loop in phase 1
             if (!curright && _strFastLen(curtop) < ROPE_MIN_SIZE && _strFastLen(*args[i]) < ROPE_MAX_MERGE) {
                 _strAppendNoRope(&curtop, *args[i++]);
             } else if (!curright) {
