@@ -1,7 +1,8 @@
 #include "hashtable_private.h"
 #include "cx/debug/assert.h"
 
-static uint32 _htInsertInternal(hashtable *htbl, stgeneric key, stgeneric *val, flags_t flags);
+#define _ht_Consume_Arg_Opt_ _When_(flags & HTINT_Consume, _Pre_notnull_ _Post_invalid_) _When_(!(flags & HTINT_Consume), _In_opt_) 
+static uint32 _htInsertInternal(_Inout_ptr_ hashtable *htbl, _In_ stgeneric key, _ht_Consume_Arg_Opt_ stgeneric *val, flags_t flags);
 
 static uint32 npow2(uint32 val)
 {
@@ -14,7 +15,7 @@ static uint32 npow2(uint32 val)
     return 16;
 }
 
-static _meta_inline uint32 calcGrowth(HashTableHeader *hdr, uint32 sz)
+static _meta_inline uint32 calcGrowth(_In_ HashTableHeader *hdr, uint32 sz)
 {
     switch (HT_GET_GROW(hdr->flags) & HT_GROW_BY_MASK) {
     case HT_GROW_By100:
@@ -31,7 +32,7 @@ static _meta_inline uint32 calcGrowth(HashTableHeader *hdr, uint32 sz)
     }
 }
 
-static void _htNewChunk(HashTableHeader *hdr)
+static void _htNewChunk(_Inout_ HashTableHeader *hdr)
 {
     // this should only ever be called when we're at a chunk boundary
     devAssert((hdr->storused & HT_CHUNK_MASK) == 0);
@@ -78,7 +79,7 @@ static void _htNewChunk(HashTableHeader *hdr)
     memset(chunkinfo->deleted, 0, sizeof(chunkinfo->deleted));
 }
 
-static uint32 _htNewSlot(HashTableHeader *hdr)
+static uint32 _htNewSlot(_Inout_ HashTableHeader *hdr)
 {
     uint32 chunk = HT_SLOT_CHUNK(hdr->storused);
     if (!(hdr->flags & (HT_InsertOpt | HT_Compact))) {
@@ -114,6 +115,7 @@ static uint32 _htNewSlot(HashTableHeader *hdr)
     return ret;
 }
 
+_Use_decl_annotations_
 uint32 _htNextSlot(HashTableHeader *hdr, uint32 slot)
 {
     for (++slot; slot < hdr->storused; ++slot) {
@@ -135,6 +137,7 @@ uint32 _htNextSlot(HashTableHeader *hdr, uint32 slot)
     return hashIndexEmpty;
 }
 
+_Use_decl_annotations_
 void _htInit(hashtable *out, stype keytype, STypeOps *keyops, stype valtype, STypeOps *valops, uint32 initsz, flags_t flags)
 {
     HashTableHeader *ret;
@@ -209,7 +212,7 @@ void _htInit(hashtable *out, stype keytype, STypeOps *keyops, stype valtype, STy
     *out = (hashtable)&ret->index[0];
 }
 
-static _meta_inline uint32 clampHash(HashTableHeader *hdr, uint32 hash)
+static _meta_inline uint32 clampHash(_In_ HashTableHeader *hdr, uint32 hash)
 {
     if (hdr->flags & HTINT_Pow2)
         return hash & (hdr->idxsz - 1);
@@ -219,7 +222,7 @@ static _meta_inline uint32 clampHash(HashTableHeader *hdr, uint32 hash)
 
 // variant of htFindIndex optimized for reindexing
 // just finds the first empty index where this key can fit
-static _meta_inline uint32 htFastFindIndex(HashTableHeader *hdr, stgeneric key)
+static _meta_inline uint32 htFastFindIndex(_In_ HashTableHeader *hdr, _In_ stgeneric key)
 {
     uint32 opsflags = (hdr->flags & HT_CaseInsensitive) ? ST_CaseInsensitive : 0;
     uint32 probes = 1;
@@ -244,9 +247,10 @@ static _meta_inline uint32 htFastFindIndex(HashTableHeader *hdr, stgeneric key)
     }
 }
 
-static hashtable _htClone(hashtable htbl, uint32 minsz, bool move, bool repack)
+_Ret_notnull_
+static hashtable _htClone(_In_ hashtable htbl, uint32 minsz, bool move, bool repack)
 {
-    HashTableHeader *hdr = HTABLE_HDR(htbl);
+    HashTableHeader *hdr = _htHdr(htbl);
     HashTableHeader *nhdr;
     hashtable ntbl;
 
@@ -311,7 +315,7 @@ static hashtable _htClone(hashtable htbl, uint32 minsz, bool move, bool repack)
         }
         // this *shouldn't* actually change since the new index is preallocated
         devAssert(nhdr == HTABLE_HDR(ntbl));
-        nhdr = HTABLE_HDR(ntbl);
+        nhdr = _htHdr(ntbl);
     } else {
         // we're moving and not repacking, just link to the old storage
         nhdr->chunks = hdr->chunks;
@@ -342,9 +346,10 @@ static hashtable _htClone(hashtable htbl, uint32 minsz, bool move, bool repack)
     return ntbl;
 }
 
+_Use_decl_annotations_
 void htReindex(hashtable *htbl, uint32 minsz)
 {
-    HashTableHeader *hdr = HTABLE_HDR(*htbl);
+    HashTableHeader *hdr = _htHdr(*htbl);
 
     *htbl = _htClone(*htbl, minsz, true, false);
 
@@ -357,9 +362,10 @@ void htReindex(hashtable *htbl, uint32 minsz)
     }
 }
 
+_Use_decl_annotations_
 void htRepack(hashtable *htbl)
 {
-    HashTableHeader *hdr = HTABLE_HDR(*htbl);
+    HashTableHeader *hdr = _htHdr(*htbl);
 
     *htbl = _htClone(*htbl, 0, true, true);
 
@@ -383,9 +389,9 @@ void htRepack(hashtable *htbl)
     }
 }
 
-static void htGrowIndex(hashtable *htbl)
+static void htGrowIndex(_Inout_ptr_ hashtable *htbl)
 {
-    HashTableHeader *hdr = HTABLE_HDR(*htbl);
+    HashTableHeader *hdr = _htHdr(*htbl);
     uint32 newsz = hdr->idxsz;
 
     if (hdr->flags & HTINT_Pow2)
@@ -396,7 +402,7 @@ static void htGrowIndex(hashtable *htbl)
     htReindex(htbl, newsz);
 }
 
-static bool htFindIndex(HashTableHeader *hdr, stgeneric key, uint32 *indexOut, uint32 *deletedOut)
+static bool htFindIndex(_In_ HashTableHeader *hdr, _In_ stgeneric key, _Out_opt_ uint32 *indexOut, _Out_opt_ uint32 *deletedOut)
 {
     uint32 opsflags = (hdr->flags & HT_CaseInsensitive) ? ST_CaseInsensitive : 0;
     uint32 probes = 1;
@@ -445,7 +451,8 @@ static bool htFindIndex(HashTableHeader *hdr, stgeneric key, uint32 *indexOut, u
     }
 }
 
-static bool htFindSlot(HashTableHeader *hdr, stgeneric key, uint32 *slotOut)
+_Success_(return)
+static bool htFindSlot(_In_ HashTableHeader *hdr, _In_ stgeneric key, _Out_ uint32 *slotOut)
 {
     uint32 idx;
     if (htFindIndex(hdr, key, &idx, NULL)) {
@@ -455,13 +462,14 @@ static bool htFindSlot(HashTableHeader *hdr, stgeneric key, uint32 *slotOut)
     return false;
 }
 
+_Use_decl_annotations_
 void htClone(hashtable *out, hashtable ref)
 {
     *out = _htClone(ref, 0, false, false);
 }
 
 //static _meta_inline void htSetValueInternal(HashTableHeader *hdr, int32 slot, void *val, bool consume)
-static void htSetValueInternal(HashTableHeader *hdr, uint32 slot, stgeneric *val, bool consume)
+static void htSetValueInternal(_Inout_ HashTableHeader *hdr, uint32 slot, _When_(!consume, _In_) _When_(consume, _Pre_notnull_ _Post_invalid_) stgeneric *val, bool consume)
 {
     if (consume) {
         // special case: if we're consuming, just steal the element instead of deep copying it,
@@ -484,9 +492,10 @@ static void htSetValueInternal(HashTableHeader *hdr, uint32 slot, stgeneric *val
                stGetSize(hdr->valtype));
 }
 
+_Use_decl_annotations_
 static uint32 _htInsertInternal(hashtable *htbl, stgeneric key, stgeneric *val, flags_t flags)
 {
-    HashTableHeader *hdr = HTABLE_HDR(*htbl);
+    HashTableHeader *hdr = _htHdr(*htbl);
     uint32 idxent, deleted, slot;
     bool found;
 
@@ -560,17 +569,19 @@ static uint32 _htInsertInternal(hashtable *htbl, stgeneric key, stgeneric *val, 
     return slot;
 }
 
+_Use_decl_annotations_
 htelem _htInsertPtr(hashtable *htbl, stgeneric key, stgeneric *val, flags_t flags)
 {
     return _htInsertInternal(htbl, key, val, flags);
 }
 
+_Use_decl_annotations_
 htelem _htInsert(hashtable *htbl, stgeneric key, stgeneric val, flags_t flags)
 {
     return _htInsertInternal(htbl, key, &val, flags);
 }
 
-static void _htClear(HashTableHeader *hdr, bool reuse)
+static void _htClear(_Inout_ HashTableHeader *hdr, bool reuse)
 {
     // destroy all valid elements
     if (!((hdr->flags & HT_Ref) && (hdr->flags & HT_RefKeys))) {
@@ -618,22 +629,24 @@ static void _htClear(HashTableHeader *hdr, bool reuse)
     hdr->valid = 0;
 }
 
+_Use_decl_annotations_
 void htClear(hashtable *htbl)
 {
     if (!(htbl && *htbl))
         return;
 
-    _htClear(HTABLE_HDR(*htbl), true);
+    _htClear(_htHdr(*htbl), true);
 }
 
+_Use_decl_annotations_
 void htDestroy(hashtable *htbl)
 {
     if (!(htbl && *htbl))
         return;
 
-    _htClear(HTABLE_HDR(*htbl), false);
+    _htClear(_htHdr(*htbl), false);
 
-    HashTableHeader *hdr = HTABLE_HDR(*htbl);
+    HashTableHeader *hdr = _htHdr(*htbl);
     xaFree(hdr->keystorage);
     if (stGetSize(hdr->valtype) > 0)
         xaFree(hdr->valstorage);
@@ -647,9 +660,11 @@ void htDestroy(hashtable *htbl)
     *htbl = NULL;
 }
 
+_Static_assert(0 == hashIndexEmpty, "0 must equal hashIndexEmpty");
+_Use_decl_annotations_
 htelem _htFind(hashtable htbl, stgeneric key, stgeneric *val, flags_t flags)
 {
-    HashTableHeader *hdr = HTABLE_HDR(htbl);
+    HashTableHeader *hdr = _htHdr(htbl);
 
     uint32 slot;
     bool found = htFindSlot(hdr, key, &slot);
@@ -669,15 +684,17 @@ htelem _htFind(hashtable htbl, stgeneric key, stgeneric *val, flags_t flags)
     return hashIndexEmpty;
 }
 
+_Use_decl_annotations_
 bool _htHasKey(hashtable htbl, stgeneric key)
 {
-    HashTableHeader *hdr = HTABLE_HDR(htbl);
+    HashTableHeader *hdr = _htHdr(htbl);
     return htFindIndex(hdr, key, NULL, NULL);
 }
 
+_Use_decl_annotations_
 bool _htExtract(hashtable *htbl, stgeneric key, stgeneric *val)
 {
-    HashTableHeader *hdr = HTABLE_HDR(*htbl);
+    HashTableHeader *hdr = _htHdr(*htbl);
     if (!devVerifyMsg(!val || stGetSize(hdr->valtype) > 0, "hashed sets cannot return a value"))
         return false;
 
@@ -735,6 +752,7 @@ bool _htExtract(hashtable *htbl, stgeneric key, stgeneric *val)
     return found;
 }
 
+_Use_decl_annotations_
 bool htiInit(htiter *iter, hashtable htbl)
 {
     if (!iter)
@@ -745,11 +763,12 @@ bool htiInit(htiter *iter, hashtable htbl)
         return false;
     }
 
-    iter->hdr = HTABLE_HDR(htbl);
+    iter->hdr = _htHdr(htbl);
     iter->slot = 0;
     return htiNext(iter);
 }
 
+_Use_decl_annotations_
 bool htiNext(htiter *iter)
 {
     if (!(iter && iter->hdr))
@@ -764,14 +783,19 @@ bool htiNext(htiter *iter)
     return true;
 }
 
+_Use_decl_annotations_
 void htiFinish(htiter *iter)
 {
     memset(iter, 0, sizeof(htiter));
 }
 
 // HT_SLOT_KEY_PTR wrapper with safety checks
+_Use_decl_annotations_
 void *_hteElemKeyPtr(HashTableHeader *hdr, htelem elem)
 {
+    if (elem == 0)
+        return NULL;
+
     uint32 chunk = HT_SLOT_CHUNK(elem);
     if (!hdr || elem >= hdr->storused || !hdr->keystorage[chunk])
         return NULL;
@@ -784,6 +808,7 @@ void *_hteElemKeyPtr(HashTableHeader *hdr, htelem elem)
 }
 
 // HT_SLOT_VAL_PTR wrapper with safety checks
+_Use_decl_annotations_
 void *_hteElemValPtr(HashTableHeader *hdr, htelem elem)
 {
     uint32 chunk = HT_SLOT_CHUNK(elem);

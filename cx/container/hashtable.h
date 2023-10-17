@@ -54,13 +54,19 @@ typedef struct htiter {
 #define HTABLE_HDRSIZE (offsetof(HashTableHeader, index))
 #define HTABLE_HDR(ref) ((HashTableHeader*)(((uintptr)(&((ref)->_is_hashtable))) - HTABLE_HDRSIZE))
 
-#define htSize(ref) ((ref) ? HTABLE_HDR((ref))->valid : 0)
-#define htKeyType(ref) ((ref) ? HTABLE_HDR((ref))->keytype : 0)
-#define htValType(ref) ((ref) ? HTABLE_HDR((ref))->valtype : 0)
-#define hteKeyPtrHdr(hdr, elem, type) ((stStorageType(type)*)(((hdr) && (elem)) ? _hteElemKeyPtr(hdr, elem) : 0))
-#define hteValPtrHdr(hdr, elem, type) ((stStorageType(type)*)(((hdr) && (elem)) ? _hteElemValPtr(hdr, elem) : 0))
-#define hteKeyPtr(ref, elem, type) hteKeyPtrHdr(HTABLE_HDR(ref), elem, type)
-#define hteValPtr(ref, elem, type) hteValPtrHdr(HTABLE_HDR(ref), elem, type)
+_Ret_notnull_
+_meta_inline HashTableHeader *_htHdr(_In_ hashtable ref)
+{
+    return HTABLE_HDR(ref);
+}
+
+#define htSize(ref) ((ref) ? _htHdr((ref))->valid : 0)
+#define htKeyType(ref) ((ref) ? _htHdr((ref))->keytype : 0)
+#define htValType(ref) ((ref) ? _htHdr((ref))->valtype : 0)
+#define hteKeyPtrHdr(hdr, elem, type) ((stStorageType(type)*)_hteElemKeyPtr(hdr, elem))
+#define hteValPtrHdr(hdr, elem, type) ((stStorageType(type)*)_hteElemValPtr(hdr, elem))
+#define hteKeyPtr(ref, elem, type) hteKeyPtrHdr(_htHdr(ref), elem, type)
+#define hteValPtr(ref, elem, type) hteValPtrHdr(_htHdr(ref), elem, type)
 #define hteKey(ref, elem, type) (*hteKeyPtr(ref, elem, type))
 #define hteVal(ref, elem, type) (*hteValPtr(ref, elem, type))
 #define htiKeyPtr(iter, type) (hteKeyPtrHdr((iter).hdr, (iter).slot, type))
@@ -122,24 +128,25 @@ enum HASHTABLE_FUNC_FLAGS_ENUM {
 #define HT_Grow(flag) (((uint32)HT_GROW_##flag) << 24)
 #define HT_GET_GROW(flags) ((flags) >> 24)
 
-void _htInit(hashtable *out, stype keytype, STypeOps *keyops, stype valtype, STypeOps *valops, uint32 initsz, flags_t flags);
+void _htInit(_Outptr_ hashtable *out, stype keytype, _In_opt_ STypeOps *keyops, stype valtype, _In_opt_ STypeOps *valops, uint32 initsz, flags_t flags);
 #define htInit(out, keytype, valtype, initsz, ...) _htInit(out, stFullType(keytype), stFullType(valtype), initsz, opt_flags(__VA_ARGS__))
 
-void htDestroy(hashtable *htbl);
-void htClear(hashtable *htbl);
-void htReindex(hashtable *htbl, uint32 minsz);
-void htRepack(hashtable *htbl);
-void htClone(hashtable *out, hashtable ref);
+void htDestroy(_Inout_ptr_uninit_ hashtable *htbl);
+void htClear(_Inout_ptr_ hashtable *htbl);
+void htReindex(_Inout_ptr_ hashtable *htbl, uint32 minsz);
+void htRepack(_Inout_ptr_ hashtable *htbl);
+void htClone(_Outptr_ hashtable *out, _In_ hashtable ref);
 
-htelem _htInsert(hashtable *htbl, stgeneric key, stgeneric val, flags_t flags);
-_meta_inline htelem _htInsertChecked(hashtable *htbl, stype keytype, stgeneric key, stype valtype, stgeneric val, flags_t flags)
+htelem _htInsert(_Inout_ptr_ hashtable *htbl, _In_ stgeneric key, _In_ stgeneric val, flags_t flags);
+_meta_inline htelem _htInsertChecked(_Inout_ptr_ hashtable *htbl, stype keytype, _In_ stgeneric key, stype valtype, _In_ stgeneric val, flags_t flags)
 {
     devAssert(*htbl);
     devAssert(stEq(htKeyType(*htbl), keytype) && stEq(htValType(*htbl), valtype));
     return _htInsert(htbl, key, val, flags);
 }
-htelem _htInsertPtr(hashtable *htbl, stgeneric key, stgeneric *val, flags_t flags);
-_meta_inline htelem _htInsertCheckedC(hashtable *htbl, stype keytype, stgeneric key, stype valtype, stgeneric *val, flags_t flags)
+#define _ht_Consume_Arg_ _When_(flags & HTINT_Consume, _Pre_notnull_ _Post_invalid_) _When_(!(flags & HTINT_Consume), _Inout_) 
+htelem _htInsertPtr(_Inout_ptr_ hashtable *htbl, _In_ stgeneric key, _ht_Consume_Arg_ stgeneric *val, flags_t flags);
+_meta_inline htelem _htInsertCheckedC(_Inout_ptr_ hashtable *htbl, stype keytype, _In_ stgeneric key, stype valtype, _ht_Consume_Arg_ stgeneric *val, flags_t flags)
 {
     devAssert(*htbl);
     devAssert(stEq(htKeyType(*htbl), keytype) && stEq(htValType(*htbl), valtype));
@@ -149,8 +156,10 @@ _meta_inline htelem _htInsertCheckedC(hashtable *htbl, stype keytype, stgeneric 
 // Consumes *value*, not key
 #define htInsertC(htbl, ktype, key, vtype, val, ...) _htInsertCheckedC(htbl, stCheckedArg(ktype, key), stCheckedPtrArg(vtype, val), opt_flags(__VA_ARGS__) | HTINT_Consume)
 
-htelem _htFind(hashtable htbl, stgeneric key, stgeneric *val, flags_t flags);
-_meta_inline htelem _htFindChecked(hashtable htbl, stype keytype, stgeneric key, stype valtype, stgeneric *val, flags_t flags)
+_Success_(return != 0)
+htelem _htFind(_In_ hashtable htbl, _In_ stgeneric key, _Inout_ stgeneric *val, flags_t flags);
+_Success_(return != 0)
+_meta_inline htelem _htFindChecked(_In_ hashtable htbl, stype keytype, _In_ stgeneric key, stype valtype, _stCopyDest_Anno_(valtype) stgeneric *val, flags_t flags)
 {
     devAssert(htbl);
     devAssert(stEq(htKeyType(htbl), keytype));
@@ -160,8 +169,10 @@ _meta_inline htelem _htFindChecked(hashtable htbl, stype keytype, stgeneric key,
 #define htFind(htbl, ktype, key, vtype, val_copy_out, ...) _htFindChecked(htbl, stCheckedArg(ktype, key), stCheckedPtrArg(vtype, val_copy_out), opt_flags(__VA_ARGS__))
 
 // If val_copy_out is provided, the value is extracted into it rather than being destroyed
-bool _htExtract(hashtable *htbl, stgeneric key, stgeneric *val);
-_meta_inline bool _htExtractChecked(hashtable *htbl, stype keytype, stgeneric key, stype valtype, stgeneric *val)
+_Success_(return)
+bool _htExtract(_Inout_ptr_ hashtable *htbl, _In_ stgeneric key, _Inout_ stgeneric *val);
+_Success_(return)
+_meta_inline bool _htExtractChecked(_Inout_ptr_ hashtable *htbl, stype keytype, _In_ stgeneric key, stype valtype, _stCopyDest_Anno_(valtype) stgeneric *val)
 {
     devAssert(*htbl);
     devAssert(stEq(htKeyType(*htbl), keytype));
@@ -172,8 +183,8 @@ _meta_inline bool _htExtractChecked(hashtable *htbl, stype keytype, stgeneric ke
 #define htRemove(htbl, ktype, key) _htExtractChecked(htbl, stCheckedArg(ktype, key), stType(none), NULL)
 
 // Just checks for the existence of a key
-bool _htHasKey(hashtable htbl, stgeneric key);
-_meta_inline bool _htHasKeyChecked(hashtable htbl, stype keytype, stgeneric key)
+bool _htHasKey(_In_ hashtable htbl, _In_ stgeneric key);
+_meta_inline bool _htHasKeyChecked(_In_ hashtable htbl, stype keytype, _In_ stgeneric key)
 {
     devAssert(htbl);
     devAssert(stEq(htKeyType(htbl), keytype));
@@ -181,11 +192,23 @@ _meta_inline bool _htHasKeyChecked(hashtable htbl, stype keytype, stgeneric key)
 }
 #define htHasKey(htbl, ktype, key) _htHasKeyChecked(htbl, stCheckedArg(ktype, key))
 
-void *_hteElemKeyPtr(HashTableHeader *hdr, htelem elem);
-void *_hteElemValPtr(HashTableHeader *hdr, htelem elem);
+_Pre_satisfies_(elem > 0)
+void *_hteElemKeyPtr(_Inout_ HashTableHeader *hdr, htelem elem);
+_Pre_satisfies_(elem > 0)
+void *_hteElemValPtr(_Inout_ HashTableHeader *hdr, htelem elem);
 
 // Hash table iterator
-bool htiInit(htiter *iter, hashtable htbl);
-bool htiNext(htiter *iter);
-void htiFinish(htiter *iter);
-_meta_inline bool htiValid(htiter *iter) { return iter->slot > 0; }
+_Success_(return)
+_Post_satisfies_(iter->slot > 0)
+_On_failure_(_Post_satisfies_(iter->slot == 0))
+bool htiInit(_Out_ htiter *iter, _In_ hashtable htbl);
+
+_Success_(return)
+_Post_satisfies_(iter->slot > 0)
+_On_failure_(_Post_satisfies_(iter->slot == 0))
+bool htiNext(_Inout_ htiter *iter);
+
+void htiFinish(_Pre_notnull_ _Post_invalid_ htiter *iter);
+
+_Post_equal_to_(iter->slot > 0)
+_meta_inline bool htiValid(_In_ htiter *iter) { return iter->slot > 0; }

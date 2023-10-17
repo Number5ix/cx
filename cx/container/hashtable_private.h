@@ -28,4 +28,4 @@ _Static_assert((HT_SLOTS_PER_CHUNK >> 8) < sizeof(((HTChunkInfo*)0)->nalloc), "H
 #define hashIndexDeleted (0xffffffffUL)
 #define hashIndexEmpty   (0UL)
 
-uint32 _htNextSlot(HashTableHeader *hdr, uint32 slot);
+uint32 _htNextSlot(_Inout_ HashTableHeader *hdr, uint32 slot);

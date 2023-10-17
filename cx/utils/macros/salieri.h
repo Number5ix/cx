@@ -1667,6 +1667,8 @@
 // odd because _Prepost_opt_valid_ is correct
 #define _Inout_ptr_opt_ _Inout_ _Deref_pre_opt_valid_ _Deref_post_valid_
 
+#define _Inout_ptr_uninit_ _Inout_ _Deref_pre_valid_ _Deref_post_null_
+
 #if defined(SALIERI_VERSION)
 #  undef SALIERI_VERSION
 #endif
