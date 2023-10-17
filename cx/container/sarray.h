@@ -114,42 +114,66 @@ enum SARRAY_FUNC_FLAGS_ENUM {
 #define SAREF(r) (unused_noeval(&((r)._is_sarray)), *(sa_ref*)(&(r)))
 #define SAHANDLE(h) ((sahandle)(unused_noeval((h) && &((h)->_is_sarray)), (h)))
 
-#define saSize(ref) ((ref)._is_sarray ? SARRAY_HDR(ref)->count : 0)
-#define saCapacity(ref) ((ref)._is_sarray ? SARRAY_HDR(ref)->capacity : 0)
-#define saElemSize(ref) ((ref)._is_sarray ? stGetSize(SARRAY_HDR(ref)->elemtype) : 0)
-#define saElemType(ref) ((ref)._is_sarray ? SARRAY_HDR(ref)->elemtype : 0)
+#define saSize(ref) ((ref)._is_sarray ? _saHdr(SAREF(ref))->count : 0)
+#define saCapacity(ref) ((ref)._is_sarray ? _saHdr(SAREF(ref))->capacity : 0)
+#define saElemSize(ref) ((ref)._is_sarray ? stGetSize(_saHdr(SAREF(ref))->elemtype) : 0)
+#define saElemType(ref) ((ref)._is_sarray ? _saHdr(SAREF(ref))->elemtype : 0)
 #define saValid(ref) ((ref).a)
 
-bool _saInit(sahandle out, stype elemtype, STypeOps *ops, int32 capacity, bool canfail, flags_t flags);
+_Ret_notnull_
+_meta_inline SArrayHeader *_saHdr(_In_ sa_ref ref)
+{
+    return SARRAY_HDR(ref);
+}
+
+_Success_(!canfail || return)
+_When_(canfail, _Check_return_)
+_At_(out->a, _Post_notnull_)
+bool _saInit(_Out_ sahandle out, stype elemtype, _In_opt_ STypeOps *ops, int32 capacity, bool canfail, flags_t flags);
 #define saInit(out, type, capacity, ...) _saInit(SAHANDLE(out), stFullType(type), capacity, false, opt_flags(__VA_ARGS__))
 #define saTryInit(out, type, capacity, ...) _saInit(SAHANDLE(out), stFullType(type), capacity, true, opt_flags(__VA_ARGS__))
 
-void _saDestroy(sahandle handle);
+_At_(handle->a, _Pre_maybenull_ _Post_null_)
+void _saDestroy(_Inout_ sahandle handle);
 #define saDestroy(handle) _saDestroy(SAHANDLE(handle))
 
-bool _saReserve(sahandle handle, int32 capacity, bool canfail);
+_When_(canfail, _Check_return_)
+_At_(handle->a, _Pre_notnull_ _Post_notnull_)
+bool _saReserve(_Inout_ sahandle handle, int32 capacity, bool canfail);
 #define saReserve(handle, capacity) _saReserve(SAHANDLE(handle), capacity, true)
-void _saShrink(sahandle handle, int32 capacity);
+
+_At_(handle->a, _Pre_notnull_ _Post_notnull_)
+void _saShrink(_Inout_ sahandle handle, int32 capacity);
 #define saShrink(handle, capacity) _saShrink(SAHANDLE(handle), capacity)
-void _saSetSize(sahandle handle, int32 size);
+
+_At_(handle->a, _Pre_notnull_ _Post_notnull_)
+void _saSetSize(_Inout_ sahandle handle, int32 size);
 #define saSetSize(handle, size) _saSetSize(SAHANDLE(handle), size)
 
-void _saClear(sahandle handle);
+_At_(handle->a, _Pre_maybenull_ _When_(handle->a, _Post_notnull_))
+void _saClear(_Inout_ sahandle handle);
 #define saClear(handle) _saClear(SAHANDLE(handle))
 
-int32 _saPush(sahandle handle, stype elemtype, stgeneric elem, flags_t flags);
-int32 _saPushPtr(sahandle handle, stype elemtype, stgeneric *elem, flags_t flags);
+#define _sa_Consume_Arg_ _When_(flags & SAINT_Consume, _Pre_notnull_ _Post_invalid_) _When_(!(flags & SAINT_Consume), _Inout_) 
+_At_(handle->a, _Pre_maybenull_ _Post_notnull_)
+int32 _saPush(_Inout_ sahandle handle, stype elemtype, _In_ stgeneric elem, flags_t flags);
+_At_(handle->a, _Pre_maybenull_ _Post_notnull_)
+int32 _saPushPtr(_Inout_ sahandle handle, stype elemtype, _sa_Consume_Arg_ stgeneric *elem, flags_t flags);
 #define saPush(handle, type, elem, ...) _saPush(SAHANDLE(handle), stCheckedArg(type, elem), opt_flags(__VA_ARGS__))
 // Consume version of push, requires that elem be a pointer
 #define saPushC(handle, type, elem, ...) _saPushPtr(SAHANDLE(handle), stCheckedPtrArg(type, elem), opt_flags(__VA_ARGS__) | SAINT_Consume)
 
 // Pointer pop transfers ownership to the caller and does not call the destructor
-void *_saPopPtr(sahandle handle, int32 idx);
+_Ret_maybenull_
+_At_(handle->a, _Pre_maybenull_ _When_(handle->a, _Post_notnull_))
+void *_saPopPtr(_Inout_ sahandle handle, int32 idx);
 #define saPopPtr(handle) _saPopPtr(SAHANDLE(handle), -1)
 #define saPopPtrI(handle, idx) _saPopPtr(SAHANDLE(handle), idx)
 
-int32 _saFind(sa_ref ref, stgeneric elem, flags_t flags);
-_meta_inline int32 _saFindChecked(sa_ref ref, stype elemtype, stgeneric elem, flags_t flags)
+_At_(ref.a, _Pre_notnull_)
+int32 _saFind(_In_ sa_ref ref, _In_ stgeneric elem, flags_t flags);
+_At_(ref.a, _Pre_maybenull_)
+_meta_inline int32 _saFindChecked(_In_ sa_ref ref, stype elemtype, _In_ stgeneric elem, flags_t flags)
 {
     if (!ref.a)
         return -1;
@@ -158,8 +182,10 @@ _meta_inline int32 _saFindChecked(sa_ref ref, stype elemtype, stgeneric elem, fl
 }
 #define saFind(ref, type, elem, ...) _saFindChecked(SAREF(ref), stCheckedArg(type, elem), opt_flags(__VA_ARGS__))
 
-bool _saFindRemove(sahandle handle, stgeneric elem, flags_t flags);
-_meta_inline bool _saFindRemoveChecked(sahandle handle, stype elemtype, stgeneric elem, flags_t flags)
+_At_(handle->a, _Pre_notnull_ _Post_notnull_)
+bool _saFindRemove(_Inout_ sahandle handle, _In_ stgeneric elem, flags_t flags);
+_At_(handle->a, _Pre_maybenull_ _When_(handle->a, _Post_notnull_))
+_meta_inline bool _saFindRemoveChecked(_Inout_ sahandle handle, stype elemtype, _In_ stgeneric elem, flags_t flags)
 {
     if (!handle->a)
         return false;
@@ -168,8 +194,10 @@ _meta_inline bool _saFindRemoveChecked(sahandle handle, stype elemtype, stgeneri
 }
 #define saFindRemove(handle, type, elem, ...) _saFindRemoveChecked(SAHANDLE(handle), stCheckedArg(type, elem), opt_flags(__VA_ARGS__))
 
-int32 _saInsert(sahandle handle, int32 idx, stgeneric elem);
-_meta_inline int32 _saInsertChecked(sahandle handle, int32 idx, stype elemtype, stgeneric elem)
+_At_(handle->a, _Pre_notnull_ _Post_notnull_)
+int32 _saInsert(_Inout_ sahandle handle, int32 idx, _In_ stgeneric elem);
+_At_(handle->a, _Pre_notnull_ _Post_notnull_)
+_meta_inline int32 _saInsertChecked(_Inout_ sahandle handle, int32 idx, stype elemtype, _In_ stgeneric elem)
 {
     devAssert(handle->_is_sarray);
     devAssert(stEq(saElemType(*handle), elemtype));
@@ -177,8 +205,11 @@ _meta_inline int32 _saInsertChecked(sahandle handle, int32 idx, stype elemtype, 
 }
 #define saInsert(handle, idx, type, elem) _saInsertChecked(SAHANDLE(handle), idx, stCheckedArg(type, elem))
 
-bool _saExtract(sahandle handle, int32 idx, stgeneric *elem, flags_t flags);
-_meta_inline bool _saExtractChecked(sahandle handle, int32 idx, stype elemtype, stgeneric *elem, flags_t flags)
+_At_(handle->a, _Pre_notnull_ _Post_notnull_)
+bool _saExtract(_Inout_ sahandle handle, int32 idx, _Inout_opt_ stgeneric *elem, flags_t flags);
+
+_At_(handle->a, _Pre_maybenull_ _When_(handle->a, _Post_notnull_))
+_meta_inline bool _saExtractChecked(_Inout_ sahandle handle, int32 idx, stype elemtype, _stCopyDest_Anno_opt_(elemtype) stgeneric *elem, flags_t flags)
 {
     if (!handle->a)
         return false;
@@ -189,13 +220,16 @@ _meta_inline bool _saExtractChecked(sahandle handle, int32 idx, stype elemtype, 
 #define saExtract(handle, idx, type, elem_copy_out, ...) _saExtractChecked(SAHANDLE(handle), idx, stCheckedPtrArg(type, elem_copy_out), opt_flags(__VA_ARGS__))
 #define saRemove(handle, idx, ...) _saExtractChecked(SAHANDLE(handle), idx, stType(none), NULL, opt_flags(__VA_ARGS__))
 
-void _saSort(sahandle handle, bool keep);
+_At_(handle->a, _Pre_maybenull_ _When_(handle->a, _Post_notnull_))
+void _saSort(_Inout_ sahandle handle, bool keep);
 #define saSort(handle, keep) _saSort(SAHANDLE(handle), keep)
 
-void _saSlice(sahandle out, sa_ref ref, int32 start, int32 end);
+_At_(out->a, _When_(ref.a, _Post_notnull_))
+void _saSlice(_Out_ sahandle out, _In_ sa_ref ref, int32 start, int32 end);
 #define saSlice(out, src, start, end) _saSlice(SAHANDLE(out), SAREF(src), start, end)
 #define saClone(out, src) _saSlice(SAHANDLE(out), SAREF(src), 0, 0)
 
-void _saMerge(sahandle out, int n, sa_ref *refs, flags_t flags);
+_At_(out->a, _Post_maybenull_)
+void _saMerge(_Out_ sahandle out, int n, _In_ sa_ref *refs, flags_t flags);
 #define saMerge(out, ...) _saMerge(SAHANDLE(out), sizeof((sa_ref[]){ __VA_ARGS__ })/sizeof(sa_ref), (sa_ref[]){ __VA_ARGS__ }, 0)
 #define saMergeF(out, flags, ...) _saMerge(SAHANDLE(out), sizeof((sa_ref[]){ __VA_ARGS__ })/sizeof(sa_ref), (sa_ref[]){ __VA_ARGS__ }, flags)

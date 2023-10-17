@@ -13,7 +13,7 @@ extern inline int32 _saInsertChecked(sahandle handle, int32 idx, stype elemtype,
 
 // qsort routine from Bentley & McIlroy's "Engineering a Sort Function"
 static _meta_inline void
-sa_swap(void *av, void *bv, size_t sz)
+sa_swap(_Inout_updates_bytes_(sz) void *av, _Inout_updates_bytes_(sz) void *bv, size_t sz)
 {
     uint8 *a = av;
     uint8 *b = bv;
@@ -31,7 +31,7 @@ sa_swap(void *av, void *bv, size_t sz)
 
 // specializations for various data types for performance
 #define SA_SPECIALIZE_FINDONLY(name, typ, comptyp, compfunc) \
-static int32 sa_find_internal_##name(SArrayHeader *hdr, const void *elem, bool *found) \
+static int32 sa_find_internal_##name(_In_ SArrayHeader *hdr, _In_ const void *elem, _Inout_ bool *found) \
 { \
     int32 i; \
 \
@@ -46,7 +46,7 @@ static int32 sa_find_internal_##name(SArrayHeader *hdr, const void *elem, bool *
 }
 
 #define SA_SPECIALIZE_BSEARCHONLY(name, typ, comptyp, compfunc) \
-static int32 sa_bsearch_internal_##name(SArrayHeader *hdr, const void *elem, bool *found) \
+static int32 sa_bsearch_internal_##name(_In_ SArrayHeader *hdr, _In_ const void *elem, _Inout_ bool *found) \
 { \
     int32 low, high, i; \
     comptyp comp; \
@@ -71,14 +71,14 @@ static int32 sa_bsearch_internal_##name(SArrayHeader *hdr, const void *elem, boo
 
 #define SA_SPECIALIZE_QSORTONLY(name, typ, comptyp, compfunc) \
 static _meta_inline char * \
-med3_##name(SArrayHeader *hdr, void *a, void *b, void *c) \
+med3_##name(_In_ SArrayHeader *hdr, _In_ void *a, _In_ void *b, _In_ void *c) \
 { \
     return (char*)(compfunc(hdr->elemtype, a, b) < 0 ? \
         (compfunc(hdr->elemtype, b, c) < 0 ? b : (compfunc(hdr->elemtype, a, c) < 0 ? c : a )) \
        :(compfunc(hdr->elemtype, b, c) > 0 ? b : (compfunc(hdr->elemtype, a, c) < 0 ? a : c ))); \
 } \
 \
-static void sa_qsort_internal_##name(SArrayHeader *hdr, void *a, size_t n) \
+static void sa_qsort_internal_##name(_Inout_ SArrayHeader *hdr, _Inout_ void *a, size_t n) \
 { \
     char *pa, *pb, *pc, *pd, *pm, *pn; \
     size_t es, d1, d2; \
@@ -211,8 +211,8 @@ SA_SPECIALIZE_BUILTIN(float32, float32, float32)
 SA_SPECIALIZE_BUILTIN(float64, float64, float64)
 SA_SPECIALIZE_BUILTIN(ptr, char*, intptr)
 
-typedef int32(*sa_find_spec)(SArrayHeader *hdr, const void *elem, bool *found);
-typedef void(*sa_qsort_spec)(SArrayHeader *hdr, void *a, size_t n);
+typedef int32(*sa_find_spec)(_In_ SArrayHeader *hdr, _In_ const void *elem, _Out_ bool *found);
+typedef void(*sa_qsort_spec)(_Inout_ SArrayHeader *hdr, _Inout_ void *a, size_t n);
 
 static LazyInitState spec_init_state;
 static sa_find_spec *find_spec;
@@ -248,7 +248,7 @@ static void sa_spec_init(void *user)
 case caseval: \
     return func##_##name(hdr, elem, found);
 
-static int32 sa_find_internal(SArrayHeader *hdr, stgeneric stelem, bool *found)
+static int32 sa_find_internal(_In_ SArrayHeader *hdr, _In_ stgeneric stelem, _Out_ bool *found)
 {
     uint8 type = stGetId(hdr->elemtype);
     lazyInit(&spec_init_state, sa_spec_init, NULL);
@@ -274,7 +274,7 @@ static int32 sa_find_internal(SArrayHeader *hdr, stgeneric stelem, bool *found)
     // unreachable
 }
 
-static void sa_qsort_internal(SArrayHeader *hdr)
+static void sa_qsort_internal(_Inout_ SArrayHeader *hdr)
 {
     uint8 type = stGetId(hdr->elemtype);
     lazyInit(&spec_init_state, sa_spec_init, NULL);
@@ -287,6 +287,7 @@ static void sa_qsort_internal(SArrayHeader *hdr)
         sa_qsort_internal_stype(hdr, hdr->data, hdr->count);
 }
 
+_Use_decl_annotations_
 bool _saInit(sahandle out, stype elemtype, STypeOps *ops, int32 capacity, bool canfail, flags_t flags)
 {
     SArrayHeader *hdr;
@@ -307,7 +308,7 @@ bool _saInit(sahandle out, stype elemtype, STypeOps *ops, int32 capacity, bool c
         flags |= SAINT_Extended;
         hdr = xaAlloc(SARRAY_HDRSIZE + (size_t)capacity * stGetSize(elemtype),
                       canfail ? XA_Optional(High) : 0);
-        if (!hdr)
+        if (canfail && !hdr)
             return false;
 
         hdr->typeops = *ops;
@@ -317,7 +318,7 @@ bool _saInit(sahandle out, stype elemtype, STypeOps *ops, int32 capacity, bool c
         // hdr technically points to unallocated memory, but we're careful to not touch the first part
         void *hbase = xaAlloc((SARRAY_HDRSIZE + (size_t)capacity * stGetSize(elemtype)) - SARRAY_SMALLHDR_OFFSET,
                               canfail ? XA_Optional(High) : 0);
-        if (!hbase)
+        if (canfail && !hbase)
             return false;
 
         hdr = (SArrayHeader*)((uintptr_t)hbase - SARRAY_SMALLHDR_OFFSET);
@@ -342,7 +343,7 @@ bool _saInit(sahandle out, stype elemtype, STypeOps *ops, int32 capacity, bool c
     return true;
 }
 
-static bool saRealloc(sahandle handle, SArrayHeader **hdr, int32 cap, bool canfail)
+static bool saRealloc(_Inout_ sahandle handle, _Inout_ptr_ SArrayHeader **hdr, int32 cap, bool canfail)
 {
     bool ret = false;
     if ((*hdr)->flags & SAINT_Extended) {
@@ -362,7 +363,7 @@ static bool saRealloc(sahandle handle, SArrayHeader **hdr, int32 cap, bool canfa
     return ret;
 }
 
-static bool _saGrow(sahandle handle, SArrayHeader **hdr, int32 minsz, bool canfail)
+static bool _saGrow(_Inout_ sahandle handle, _Inout_ptr_ SArrayHeader **hdr, int32 minsz, bool canfail)
 {
     int32 cap = (*hdr)->capacity;
 
@@ -413,6 +414,7 @@ static bool _saGrow(sahandle handle, SArrayHeader **hdr, int32 minsz, bool canfa
     return saRealloc(handle, hdr, cap, canfail);
 }
 
+_Use_decl_annotations_
 void _saDestroy(sahandle handle)
 {
     if (!handle->a)
@@ -429,6 +431,7 @@ void _saDestroy(sahandle handle)
     handle->a = NULL;
 }
 
+_Use_decl_annotations_
 void _saClear(sahandle handle)
 {
     if (!handle->a)
@@ -447,6 +450,7 @@ void _saClear(sahandle handle)
     hdr->count = 0;
 }
 
+_Use_decl_annotations_
 bool _saReserve(sahandle handle, int32 capacity, bool canfail)
 {
     if (!handle->a)
@@ -460,6 +464,7 @@ bool _saReserve(sahandle handle, int32 capacity, bool canfail)
     return true;
 }
 
+_Use_decl_annotations_
 void _saShrink(sahandle handle, int32 capacity)
 {
     if (!handle->a)
@@ -474,6 +479,7 @@ void _saShrink(sahandle handle, int32 capacity)
     }
 }
 
+_Use_decl_annotations_
 void _saSetSize(sahandle handle, int32 size)
 {
     if (!handle->a)
@@ -494,7 +500,7 @@ void _saSetSize(sahandle handle, int32 size)
     hdr->count = size;
 }
 
-static _meta_inline void sa_set_elem_internal(SArrayHeader *hdr, int32 idx, stgeneric *elem, bool consume)
+static _meta_inline void sa_set_elem_internal(_Inout_ SArrayHeader *hdr, int32 idx, _When_(!consume, _In_) _When_(consume, _Pre_notnull_ _Post_invalid_) stgeneric *elem, bool consume)
 {
     if (consume) {
         // special case: if we're consuming, just steal the element instead of deep copying it,
@@ -516,7 +522,7 @@ static _meta_inline void sa_set_elem_internal(SArrayHeader *hdr, int32 idx, stge
         memcpy(ELEMPTR(hdr, idx), stGenPtr(hdr->elemtype, *elem), stGetSize(hdr->elemtype));
 }
 
-static int32 sa_insert_internal(sahandle handle, SArrayHeader *hdr, int32 idx, stgeneric *elem, bool consume)
+static int32 sa_insert_internal(_Inout_ sahandle handle, _Inout_ SArrayHeader *hdr, int32 idx, _When_(!consume, _In_) _When_(consume, _Pre_notnull_ _Post_invalid_) stgeneric *elem, bool consume)
 {
     if (hdr->count == hdr->capacity)
         _saGrow(handle, &hdr, hdr->count + 1, false);
@@ -529,6 +535,7 @@ static int32 sa_insert_internal(sahandle handle, SArrayHeader *hdr, int32 idx, s
     return idx;
 }
 
+_Use_decl_annotations_
 int32 _saInsert(sahandle handle, int32 idx, stgeneric elem)
 {
     SArrayHeader *hdr = SARRAY_HDR(*handle);
@@ -547,6 +554,7 @@ int32 _saInsert(sahandle handle, int32 idx, stgeneric elem)
     return sa_insert_internal(handle, hdr, idx, &elem, false);
 }
 
+_Use_decl_annotations_
 int32 _saPushPtr(sahandle handle, stype elemtype, stgeneric *elem, flags_t flags)
 {
     if (!handle->a)
@@ -588,12 +596,13 @@ int32 _saPushPtr(sahandle handle, stype elemtype, stgeneric *elem, flags_t flags
     }
 }
 
+_Use_decl_annotations_
 int32 _saPush(sahandle handle, stype elemtype, stgeneric elem, flags_t flags)
 {
     return _saPushPtr(handle, elemtype, &elem, flags);
 }
 
-static void sa_remove_internal(sahandle handle, SArrayHeader *hdr, int32 idx, bool fast)
+static void sa_remove_internal(_Inout_ sahandle handle, _Inout_ SArrayHeader *hdr, int32 idx, bool fast)
 {
     if (fast) {
         // swap last element with the one being removed -- this changes the order!
@@ -607,6 +616,7 @@ static void sa_remove_internal(sahandle handle, SArrayHeader *hdr, int32 idx, bo
     hdr->count--;
 }
 
+_Use_decl_annotations_
 bool _saExtract(sahandle handle, int32 idx, stgeneric *elem, flags_t flags)
 {
     if (!handle->a)
@@ -635,6 +645,7 @@ bool _saExtract(sahandle handle, int32 idx, stgeneric *elem, flags_t flags)
     return true;
 }
 
+_Use_decl_annotations_
 void *_saPopPtr(sahandle handle, int32 idx)
 {
     if (!handle->a)
@@ -667,6 +678,7 @@ void *_saPopPtr(sahandle handle, int32 idx)
     return ret;
 }
 
+_Use_decl_annotations_
 int32 _saFind(sa_ref ref, stgeneric elem, flags_t flags)
 {
     SArrayHeader *hdr = SARRAY_HDR(ref);
@@ -682,6 +694,7 @@ int32 _saFind(sa_ref ref, stgeneric elem, flags_t flags)
     return idx;
 }
 
+_Use_decl_annotations_
 bool _saFindRemove(sahandle handle, stgeneric elem, flags_t flags)
 {
     SArrayHeader *hdr = SARRAY_HDR(*handle);
@@ -697,6 +710,7 @@ bool _saFindRemove(sahandle handle, stgeneric elem, flags_t flags)
     return found;
 }
 
+_Use_decl_annotations_
 void _saSort(sahandle handle, bool keep)
 {
     if (!handle->a)
@@ -709,6 +723,7 @@ void _saSort(sahandle handle, bool keep)
         hdr->flags |= SA_Sorted;
 }
 
+_Use_decl_annotations_
 void _saSlice(sahandle out, sa_ref ref, int32 start, int32 end)
 {
     if (!ref.a) {
@@ -748,6 +763,7 @@ void _saSlice(sahandle out, sa_ref ref, int32 start, int32 end)
     newhdr->flags = hdr->flags;
 }
 
+_Use_decl_annotations_
 void _saMerge(sahandle out, int n, sa_ref *refs, flags_t flags)
 {
     int32 newsize = 0;

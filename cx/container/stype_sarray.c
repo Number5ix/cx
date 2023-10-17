@@ -1,15 +1,19 @@
 #include "sarray_private.h"
+#include "stype_sarray.h"
 
+_Use_decl_annotations_
 void stDtor_sarray(stype st, stgeneric *gen, flags_t flags)
 {
     _saDestroy(&gen->st_sarray);
 }
 
-void stCopy_sarray(stype st, _stCopyDest_Anno_(st) stgeneric *dest, _In_ stgeneric src, flags_t flags)
+_Use_decl_annotations_
+void stCopy_sarray(stype st, stgeneric *dest, stgeneric src, flags_t flags)
 {
     saSlice(&dest->st_sarray, src.st_sarray, 0, 0);
 }
 
+_Use_decl_annotations_
 uint32 stHash_sarray(stype st, stgeneric gen, flags_t flags)
 {
     sa_ref ref = gen.st_sarray;
