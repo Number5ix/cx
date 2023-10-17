@@ -42,12 +42,11 @@ typedef struct htiter {
 
 // HT_SLOTS_PER_CHUNK MUST BE A POWER OF TWO!
 #ifdef _64BIT
-#define HT_SLOTS_PER_CHUNK 64
 #define HT_CHUNK_SHIFT 6
 #else
-#define HT_SLOTS_PER_CHUNK 32
 #define HT_CHUNK_SHIFT 5
 #endif
+#define HT_SLOTS_PER_CHUNK (1 << HT_CHUNK_SHIFT)
 #define HT_CHUNK_MASK (HT_SLOTS_PER_CHUNK - 1)
 #define HT_QUARTER_CHUNK (HT_SLOTS_PER_CHUNK >> 2)
 #define HT_QCHUNK_MASK (HT_QUARTER_CHUNK - 1)
