@@ -1083,6 +1083,14 @@
 #  define SALIERI_DEFINED_Pre_null
 #endif
 
+#if defined(_Pre_satisfies_) && defined(SALIERI_DEFINED_Pre_satisfies)
+#  undef _Pre_satisfies_
+#endif
+#if !defined(_Pre_satisfies_)
+#  define _Pre_satisfies_(expr)
+#  define SALIERI_DEFINED_Pre_satisfies
+#endif
+
 #if defined(_Deref_pre_opt_valid_) && defined(SALIERI_DEFINED_Deref_pre_opt_valid)
 #  undef _Deref_pre_opt_valid_
 #endif
@@ -1139,6 +1147,14 @@
 #  define SALIERI_DEFINED_Post_writable_byte_size
 #endif
 
+#if defined(_Post_satisfies_) && defined(SALIERI_DEFINED_Post_satisfies)
+#  undef _Post_satisfies_
+#endif
+#if !defined(_Post_satisfies_)
+#  define _Post_satisfies_(expr)
+#  define SALIERI_DEFINED_Post_satisfies
+#endif
+
 #if defined(_Deref_post_opt_valid_) && defined(SALIERI_DEFINED_Deref_post_opt_valid)
 #  undef _Deref_post_opt_valid_
 #endif
@@ -1153,6 +1169,14 @@
 #if !defined(_Deref_post_valid_)
 #  define _Deref_post_valid_
 #  define SALIERI_DEFINED_Deref_post_valid
+#endif
+
+#if defined(_Deref_post_null_) && defined(SALIERI_DEFINED_Deref_post_null)
+#  undef _Deref_post_null_
+#endif
+#if !defined(_Deref_post_null_)
+#  define _Deref_post_null_
+#  define SALIERI_DEFINED_Deref_post_null
 #endif
 
 #if defined(_Struct_size_bytes_) && defined(SALIERI_DEFINED_Struct_size_bytes)
