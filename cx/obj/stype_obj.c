@@ -56,7 +56,7 @@ bool stConvert_obj(stype destst, stgeneric *dest, stype srcst, stgeneric src, ui
         // zero out dest first
         // stConvert may be used with an uninitialized destination,
         // but the Convertible interface cannot
-        memset(dest, 0, stHasFlag(destst, PassPtr) ? sizeof(void *) : stGetSize(destst));
+        memset(stGenPtr(destst, *dest), 0, stGetSize(destst));
         return cvtif->convert(inst, destst, dest, flags);
     }
 
