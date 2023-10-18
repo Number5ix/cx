@@ -294,8 +294,8 @@ ndigits_changed:
             memset(start, '0', -(ndigits + K));
             start += -(ndigits + K);
         }
-        memcpy(start, digits + offset, ndigits - offset);
-        start += ndigits - offset;
+        memcpy(start, digits + offset, (intptr)ndigits - offset);
+        start += (intptr)ndigits - offset;
         if (fraczlen > 0) {
             memset(start, '0', fraczlen);
             start += fraczlen;

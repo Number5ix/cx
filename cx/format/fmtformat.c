@@ -51,7 +51,7 @@ bool _fmtFindData(FMTContext *ctx)
         }
 
         ctx->v.type = saElemType(arr);
-        ctx->v.data = (void*)((uintptr)arr.a + saElemSize(arr)*ctx->v.arrayidx);
+        ctx->v.data = (void*)((uintptr)arr.a + (size_t)saElemSize(arr)*ctx->v.arrayidx);
     } else if (ishash) {
         hashtable htbl = ctx->args[idx - 1].data.st_hashtable;
         htelem elem = htFind(htbl, string, ctx->v.hashkey, none, 0);

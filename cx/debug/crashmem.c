@@ -48,6 +48,7 @@ void dbgCrashIncludeMemory(void *ptr, size_t sz)
 void dbgCrashExcludeMemory(void *ptr, size_t sz)
 {
     lazyInit(&crashMemInitState, crashMemInit, 0);
+    _Analysis_assume_(_dbgCrashDumpMem.a != NULL);
 
     int32 idx;
     CrashMemRange r = { .start = (uintptr)ptr,.end = (uintptr)ptr + sz };

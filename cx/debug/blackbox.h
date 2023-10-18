@@ -26,7 +26,7 @@ enum BLACKBOX_FLAGS {
 };
 
 void bboxInit();
-void bboxSet(strref name, strref val, uint8 flags);
-void bboxDelete(strref name);
+void bboxSet(_In_ strref name, _In_ strref val, uint8 flags);
+void bboxDelete(_In_ strref name);
 
 CX_C_END

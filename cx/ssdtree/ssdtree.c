@@ -520,7 +520,7 @@ bool _ssdImportTypedArray(SSDNode *root, strref path, stype elemtype, sa_ref arr
         if (node) {
             saClear(&node->storage);
             for (int i = 0, sz = saSize(arr); i < sz; ++i) {
-                val.data = stStored(elemtype, (void *)((uintptr)arr.a + i * saElemSize(arr)));       // low-budget ELEMPTR
+                val.data = stStored(elemtype, (void *)((uintptr)arr.a + (uintptr)i * saElemSize(arr)));       // low-budget ELEMPTR
                 saPush(&node->storage, stvar, val);
             }
             ssdnodeUpdateModified(node);

@@ -3,6 +3,7 @@
 #include <stdio.h>
 
 #if DEBUG_LEVEL >= 1
+_Use_decl_annotations_
 CX_C bool _cxAssertFail(const char *expr, const char *msg, const char *file, int ln){
     printf("Assertion failure!\n");
     if (msg)
@@ -14,6 +15,7 @@ CX_C bool _cxAssertFail(const char *expr, const char *msg, const char *file, int
     exit(1);
 }
 #else
+_Use_decl_annotations_
 CX_C bool _cxAssertFail(const char *expr, const char *msg) { exit(1); }
 #endif
 

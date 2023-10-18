@@ -140,6 +140,7 @@ static void _bboxDeleteInternal(uint16 idx)
     freeSpaceAdd(idx, bboxEntSize(ent));
 }
 
+_Use_decl_annotations_
 void bboxSet(strref name, strref val, uint8 flags)
 {
     mutexAcquire(&bbmtx);
@@ -216,6 +217,7 @@ out:
     mutexRelease(&bbmtx);
 }
 
+_Use_decl_annotations_
 void bboxDelete(strref name)
 {
     mutexAcquire(&bbmtx);

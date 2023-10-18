@@ -35,7 +35,7 @@ void dbgAssertRemoveCallback(dbgAssertCallback cb)
     }
 }
 
-static int dbgAssertTriggerCallbacks(const char *expr, const char *msg, const char *file, int ln)
+static int dbgAssertTriggerCallbacks(_In_opt_z_ const char *expr, _In_opt_z_ const char *msg, _In_opt_z_ const char *file, int ln)
 {
     int ret = ASSERT_Crash;
     // caller should be holding mutex
@@ -53,6 +53,7 @@ static int dbgAssertTriggerCallbacks(const char *expr, const char *msg, const ch
     return ret;
 }
 
+_Use_decl_annotations_
 #if DEBUG_LEVEL >= 1
 _no_inline bool _cxAssertFail(const char *expr, const char *msg, const char *file, int ln)
 #else

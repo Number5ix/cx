@@ -2,17 +2,21 @@
 #include "cx/debug/assert.h"
 #include "cx/utils/murmur.h"
 #include "objstdif.h"
+#include "stype_obj.h"
 
+_Use_decl_annotations_
 void stDtor_obj(stype st, stgeneric *gen, uint32 flags)
 {
     objRelease(&gen->st_object);
 }
 
+_Use_decl_annotations_
 void stCopy_obj(stype st, stgeneric *dest, stgeneric src, uint32 flags)
 {
     dest->st_object = objAcquire(src.st_object);
 }
 
+_Use_decl_annotations_
 intptr stCmp_obj(stype st, stgeneric gen1, stgeneric gen2, uint32 flags)
 {
     ObjInst* inst1 = gen1.st_object;
@@ -29,6 +33,7 @@ intptr stCmp_obj(stype st, stgeneric gen1, stgeneric gen2, uint32 flags)
     return -1;
 }
 
+_Use_decl_annotations_
 uint32 stHash_obj(stype st, stgeneric gen, uint32 flags)
 {
     ObjInst *inst = gen.st_object;
@@ -41,6 +46,7 @@ uint32 stHash_obj(stype st, stgeneric gen, uint32 flags)
     return 0;
 }
 
+_Use_decl_annotations_
 bool stConvert_obj(stype destst, stgeneric *dest, stype srcst, stgeneric src, uint32 flags)
 {
     ObjInst *inst = src.st_object;

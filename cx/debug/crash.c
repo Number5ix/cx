@@ -77,13 +77,14 @@ static STypeOps extraMetaOps = {
     .dtor = extraMetaDtor
 };
 
-static void _dbgCrashAddMetaStr(const char *name, const char *val, bool version)
+static void _dbgCrashAddMetaStr(_In_z_ const char *name, _In_z_ const char *val, bool version)
 {
     lazyInit(&_dbgCrashInitState, _dbgCrashInit, 0);
 
     CrashExtraMeta nmeta = { 0 };
     size_t origlen = cstrLen(val);
     size_t len = origlen, ci = 0;
+    _Analysis_assume_(len > 1);
     char *valcopy = xaAlloc(len + 1);
 
     // do JSON escaping here so the exception handler doesn't have to deal with it
@@ -133,7 +134,7 @@ static void _dbgCrashAddMetaStr(const char *name, const char *val, bool version)
     mutexRelease(&_dbgCrashMutex);
 }
 
-static void _dbgCrashAddMetaInt(const char *name, int val, bool version)
+static void _dbgCrashAddMetaInt(_In_z_ const char *name, int val, bool version)
 {
     lazyInit(&_dbgCrashInitState, _dbgCrashInit, 0);
     mutexAcquire(&_dbgCrashMutex);
@@ -146,21 +147,25 @@ static void _dbgCrashAddMetaInt(const char *name, int val, bool version)
     mutexRelease(&_dbgCrashMutex);
 }
 
+_Use_decl_annotations_
 void dbgCrashAddMetaStr(const char *name, const char *val)
 {
     _dbgCrashAddMetaStr(name, val, false);
 }
 
+_Use_decl_annotations_
 void dbgCrashAddMetaInt(const char *name, int val)
 {
     _dbgCrashAddMetaInt(name, val, false);
 }
 
+_Use_decl_annotations_
 void dbgCrashAddVersionStr(const char *name, const char *val)
 {
     _dbgCrashAddMetaStr(name, val, true);
 }
 
+_Use_decl_annotations_
 void dbgCrashAddVersionInt(const char *name, int val)
 {
     _dbgCrashAddMetaInt(name, val, true);

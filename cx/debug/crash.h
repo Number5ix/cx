@@ -28,7 +28,7 @@ void dbgCrashSetMode(uint32 mode);
 uint32 dbgCrashGetMode();
 
 // Set crash dump location
-bool dbgCrashSetPath(strref path);
+bool dbgCrashSetPath(_In_ strref path);
 
 // Callback function when a crash occurs
 //     after: false when called the first time (immediately after exception)
@@ -51,13 +51,13 @@ void dbgCrashExcludeMemory(void *ptr, size_t sz);
 // Adding custom metadata to crash report
 // Should be strictly related to the crash, i.e. just before calling dbgCrashNow.
 // For normal runtime metadata the blackbox system should be used instead.
-void dbgCrashAddMetaStr(const char *name, const char *val);
-void dbgCrashAddMetaInt(const char *name, int val);
+void dbgCrashAddMetaStr(_In_z_ const char *name, _In_z_ const char *val);
+void dbgCrashAddMetaInt(_In_z_ const char *name, int val);
 
 // Adding version metadata to crash report
 // This goes into the root of the crash report
-void dbgCrashAddVersionStr(const char *name, const char *val);
-void dbgCrashAddVersionInt(const char *name, int val);
+void dbgCrashAddVersionStr(_In_z_ const char *name, _In_z_ const char *val);
+void dbgCrashAddVersionInt(_In_z_ const char *name, int val);
 
 void _no_return dbgCrashNow(int skipframes);
 

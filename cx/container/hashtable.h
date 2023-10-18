@@ -157,9 +157,9 @@ _meta_inline htelem _htInsertCheckedC(_Inout_ptr_ hashtable *htbl, stype keytype
 #define htInsertC(htbl, ktype, key, vtype, val, ...) _htInsertCheckedC(htbl, stCheckedArg(ktype, key), stCheckedPtrArg(vtype, val), opt_flags(__VA_ARGS__) | HTINT_Consume)
 
 _Success_(return != 0)
-htelem _htFind(_In_ hashtable htbl, _In_ stgeneric key, _Inout_ stgeneric *val, flags_t flags);
+htelem _htFind(_In_ hashtable htbl, _In_ stgeneric key, _Inout_opt_ stgeneric *val, flags_t flags);
 _Success_(return != 0)
-_meta_inline htelem _htFindChecked(_In_ hashtable htbl, stype keytype, _In_ stgeneric key, stype valtype, _stCopyDest_Anno_(valtype) stgeneric *val, flags_t flags)
+_meta_inline htelem _htFindChecked(_In_ hashtable htbl, stype keytype, _In_ stgeneric key, stype valtype, _stCopyDest_Anno_opt_(valtype) stgeneric *val, flags_t flags)
 {
     devAssert(htbl);
     devAssert(stEq(htKeyType(htbl), keytype));
@@ -170,9 +170,9 @@ _meta_inline htelem _htFindChecked(_In_ hashtable htbl, stype keytype, _In_ stge
 
 // If val_copy_out is provided, the value is extracted into it rather than being destroyed
 _Success_(return)
-bool _htExtract(_Inout_ptr_ hashtable *htbl, _In_ stgeneric key, _Inout_ stgeneric *val);
+bool _htExtract(_Inout_ptr_ hashtable *htbl, _In_ stgeneric key, _Inout_opt_ stgeneric *val);
 _Success_(return)
-_meta_inline bool _htExtractChecked(_Inout_ptr_ hashtable *htbl, stype keytype, _In_ stgeneric key, stype valtype, _stCopyDest_Anno_(valtype) stgeneric *val)
+_meta_inline bool _htExtractChecked(_Inout_ptr_ hashtable *htbl, stype keytype, _In_ stgeneric key, stype valtype, _stCopyDest_Anno_opt_(valtype) stgeneric *val)
 {
     devAssert(*htbl);
     devAssert(stEq(htKeyType(*htbl), keytype));

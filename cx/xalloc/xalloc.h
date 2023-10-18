@@ -111,7 +111,7 @@ void *_xaAlloc(size_t size, unsigned int flags);
 // If XA_Opt is set, returns false on failure and ptr is unchanged.
 #define xaResize(ptr, size, ...) (_xa_ptr_ptr_verify(ptr), _xaResize((void**)(ptr), size, opt_flags(__VA_ARGS__)))
 _At_(*ptr, _Pre_maybenull_)
-_When_(!(flags & XA_Optional_Mask), _At_(*ptr, _Post_valid_))
+_When_(!(flags & XA_Optional_Mask), _At_(*ptr, _Post_writable_byte_size_(size)))
 bool _xaResize(_Inout_ void **ptr, size_t size, unsigned int flags);
 
 // Frees the memory at ptr
