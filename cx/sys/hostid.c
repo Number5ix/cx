@@ -27,10 +27,10 @@ static void hostIdInit(void *data)
     mbedtls_md_free(&shactx);
 }
 
-bool hostId(HostID *id)
+_Use_decl_annotations_
+void hostId(HostID *id)
 {
     lazyInit(&hostIdState, hostIdInit, 0);
 
     *id = hidCache;
-    return true;
 }

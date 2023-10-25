@@ -13,6 +13,7 @@ static const char *errormsgs[] = {
     "Read-only Filesystem",
 };
 
+_Use_decl_annotations_
 const char *cxErrMsg(int err)
 {
     if (err < 0 || err > sizeof(errormsgs) / sizeof(errormsgs[0]))
