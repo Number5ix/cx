@@ -39,7 +39,7 @@ static void xaMimallocOutput(const char *msg, void *arg)
         goto out;
 
     strSetLen(&tmp, strLen(tmp) - 1);           // chop off \n
-    _logStr(lastLevel, NULL, tmp);
+    _logStr(lastLevel, LogDefault, tmp);
 
 out:
     strDestroy(&tmp);
