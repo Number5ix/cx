@@ -21,6 +21,7 @@ static void callbackInit(void *data)
     htInit(&handleidx, ptr, int32, 16);
 }
 
+_Use_decl_annotations_
 int _callbackGetHandle(const char *cbtype, GenericCallback func)
 {
     lazyInit(&cbinit, callbackInit, 0);
@@ -40,6 +41,7 @@ int _callbackGetHandle(const char *cbtype, GenericCallback func)
     return saSize(handles) - 1;
 }
 
+_Use_decl_annotations_
 GenericCallback _callbackGetFunc(const char *cbtype, int handle)
 {
     lazyInit(&cbinit, callbackInit, 0);

@@ -18,6 +18,7 @@ enum CX_ERROR {
     CX_Range,                   // Value out of range
 };
 
+_Ret_z_
 const char *cxErrMsg(int err);
 
 CX_C_END

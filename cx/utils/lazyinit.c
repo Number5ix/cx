@@ -4,6 +4,7 @@
 
 // extern inline void lazyInit(LazyInitState *state, LazyInitCallback initfunc, void *userData);
 
+_Use_decl_annotations_
 void _lazyInitInternal(bool *init, bool *initProgress, LazyInitCallback initfunc, void *userData)
 {
     bool concurrent = atomicExchange(bool, (atomic(bool)*)initProgress, true, AcqRel);

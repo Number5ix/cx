@@ -28,11 +28,7 @@ static void _xaInit(void *data)
 #endif
 }
 
-_Check_return_
-_When_(flags & XA_Optional_Mask, _Must_inspect_result_ _Ret_maybenull_)
-_When_(!(flags & XA_Optional_Mask), _Ret_notnull_)
-_When_(!(flags & XA_Optional_Mask) && (flags & XA_Zero), _Ret_valid_)
-_Post_writable_byte_size_(size)
+_Use_decl_annotations_
 void *_xaAlloc(size_t size, unsigned int flags)
 {
     void *ret = NULL;
@@ -69,9 +65,8 @@ void *_xaAlloc(size_t size, unsigned int flags)
 // Reallocate ptr to be at least sz byte large, copying it if necessary.
 // NOTE: Unlike realloc, ptr cannot be NULL!
 // Returns: pointer to memory
-_At_(*ptr, _Pre_maybenull_)
-_When_(!(flags & XA_Optional_Mask), _At_(*ptr, _Post_valid_))
-bool _xaResize(_Inout_ void **ptr, size_t size, unsigned int flags)
+_Use_decl_annotations_
+bool _xaResize(void **ptr, size_t size, unsigned int flags)
 {
     void *ret = NULL;
 
@@ -111,14 +106,15 @@ bool _xaResize(_Inout_ void **ptr, size_t size, unsigned int flags)
 }
 
 // Frees the memory at ptr
-void xaFree(_Pre_maybenull_ _Post_invalid_ void *ptr)
+_Use_decl_annotations_
+void xaFree(void *ptr)
 {
     lazyInit(&_xaInitState, _xaInit, NULL);
     mi_free(ptr);
 }
 
-_At_(*ptr, _Pre_maybenull_ _Post_invalid_)
-bool _xaRelease(_Inout_ void **ptr)
+_Use_decl_annotations_
+bool _xaRelease(void **ptr)
 {
     if (!ptr) return false;
 
@@ -129,7 +125,8 @@ bool _xaRelease(_Inout_ void **ptr)
     return origptr != NULL;
 }
 
-size_t xaSize(_In_ void *ptr)
+_Use_decl_annotations_
+size_t xaSize(void *ptr)
 {
     lazyInit(&_xaInitState, _xaInit, NULL);
     return mi_usable_size(ptr);

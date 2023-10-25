@@ -35,6 +35,7 @@ typedef struct ScratchPerThreadInfo {
 extern _Thread_local ScratchPerThreadInfo *_scratch_pti;
 
 // scratchGet does not clear memory, do not assume it's zero-filled!
+_Ret_notnull_
 inline void *scratchGet(size_t sz)
 {
     if (!_scratch_pti) {

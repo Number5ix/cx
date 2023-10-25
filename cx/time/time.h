@@ -35,11 +35,13 @@ typedef struct TimeParts {
     uint16 yday;    // day of year
 } TimeParts;
 
-bool timeDecompose(TimeParts *out, int64 time);
-int64 timeCompose(TimeParts *parts);
+_Success_(return) _Check_return_
+bool timeDecompose(_Out_ TimeParts *out, int64 time);
+int64 timeCompose(_In_ TimeParts *parts);
 
 // convert a time to local time, optionally returning the offset
-int64 timeLocal(int64 time, int64 *offset);
+_Success_(return > 0)
+int64 timeLocal(int64 time, _Out_opt_ int64 *offset);
 
 // time interval conversion
 _meta_inline int64 timeToSeconds(int64 time)

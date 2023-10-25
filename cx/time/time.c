@@ -56,6 +56,7 @@ strref timeMonthAbbrev[13] = {
     (strref)"\xE1\xC1\x03""Dec"
 };
 
+_Use_decl_annotations_
 bool timeDecompose(TimeParts *out, int64 time)
 {
     if (time < 0)
@@ -102,6 +103,7 @@ bool timeDecompose(TimeParts *out, int64 time)
     return true;
 }
 
+_Use_decl_annotations_
 int64 timeCompose(TimeParts *parts)
 {
     int64 time;

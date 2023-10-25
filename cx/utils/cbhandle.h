@@ -6,8 +6,9 @@
 
 typedef void(*GenericCallback)();
 
-int _callbackGetHandle(const char *cbtype, GenericCallback func);
-GenericCallback _callbackGetFunc(const char *cbtype, int handle);
+int _callbackGetHandle(_In_z_ const char *cbtype, _In_ GenericCallback func);
+_Ret_maybenull_
+GenericCallback _callbackGetFunc(_In_z_ const char *cbtype, int handle);
 
 #define callbackGetHandle(cbtype, func) _callbackGetHandle(#cbtype, (GenericCallback)((cbtype)func))
 #define callbackGetFunc(cbtype, handle) ((cbtype)_callbackGetFunc(#cbtype, handle))

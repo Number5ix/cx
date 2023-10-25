@@ -2,6 +2,7 @@
 #include "cx/platform/win.h"
 #include "cx/time/time.h"
 
+_Use_decl_annotations_
 int64 timeLocal(int64 time, int64 *offset)
 {
     FILETIME ft, lt;

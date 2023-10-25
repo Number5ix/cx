@@ -19,6 +19,7 @@
 
 // extern inline uint32 pcgRange(PcgState *rng, uint32 lower, uint32 upper);
 
+_Use_decl_annotations_
 void pcgSeed(PcgState* rng, uint64 initstate, uint64 initseq)
 {
     rng->state = 0U;
@@ -28,6 +29,7 @@ void pcgSeed(PcgState* rng, uint64 initstate, uint64 initseq)
     pcgRandom(rng);
 }
 
+_Use_decl_annotations_
 void pcgAutoSeed(PcgState* rng)
 {
     mbedtls_entropy_context entropy;
@@ -40,6 +42,7 @@ void pcgAutoSeed(PcgState* rng)
     pcgSeed(rng, randbuf[0], randbuf[1]);
 }
 
+_Use_decl_annotations_
 uint32 pcgRandom(PcgState *rng)
 {
     devAssertMsg(rng->inc, "Use of PCG random number generator without seeding");
@@ -50,6 +53,7 @@ uint32 pcgRandom(PcgState *rng)
     return (xorshifted >> rot) | (xorshifted << ((1+~rot) & 31));
 }
 
+_Use_decl_annotations_
 uint32 pcgBounded(PcgState *rng, uint32 bound)
 {
     if (bound == 0)
@@ -85,6 +89,7 @@ uint32 pcgBounded(PcgState *rng, uint32 bound)
     }
 }
 
+_Use_decl_annotations_
 bool pcgFlip(PcgState *rng)
 {
     // pick an arbitrary bit to use
@@ -101,6 +106,7 @@ bool pcgFlip(PcgState *rng)
 * Even though delta is an unsigned integer, we can pass a
 * signed integer to go backwards, it just goes "the long way round".
 */
+_Use_decl_annotations_
 void pcgAdvance(PcgState *rng, uint64 delta)
 {
     uint64 cur_mult = 6364136223846793005ULL;
@@ -119,6 +125,7 @@ void pcgAdvance(PcgState *rng, uint64 delta)
     rng->state = acc_mult * rng->state + acc_plus;
 }
 
+_Use_decl_annotations_
 uint64 pcgRandom64(PcgState *rng)
 {
     uint64 ret = pcgRandom(rng);
@@ -126,6 +133,7 @@ uint64 pcgRandom64(PcgState *rng)
     return ret;
 }
 
+_Use_decl_annotations_
 uint64 pcgBounded64(PcgState *rng, uint64 bound)
 {
     // See implementation comments in pcgBounded
@@ -142,6 +150,7 @@ uint64 pcgBounded64(PcgState *rng, uint64 bound)
     }
 }
 
+_Use_decl_annotations_
 float32 pcgFRange(PcgState *rng, float32 lower, float32 upper)
 {
     float32 range = upper - lower;
@@ -150,6 +159,7 @@ float32 pcgFRange(PcgState *rng, float32 lower, float32 upper)
     return ((float32)pcgRandom(rng) / (float32)UINT_MAX * range) + lower;
 }
 
+_Use_decl_annotations_
 float64 pcgFRange64(PcgState *rng, float64 lower, float64 upper)
 {
     float64 range = upper - lower;
