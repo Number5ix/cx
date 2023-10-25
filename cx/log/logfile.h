@@ -46,7 +46,7 @@ typedef struct LogFileConfig {
 
 typedef struct LogFileData LogFileData;
 
-LogFileData *logfileCreate(VFS *vfs, strref filename, LogFileConfig *config);
+LogFileData *logfileCreate(_Inout_ VFS *vfs, _In_ strref filename, _In_ LogFileConfig *config);
 
 // for use with logRegisterDest along with the userdata returned from logfileCreate
-void logfileDest(int level, LogCategory *cat, int64 timestamp, strref msg, void *userdata);
+void logfileDest(int level, _In_opt_ LogCategory *cat, int64 timestamp, _In_opt_ strref msg, _In_opt_ void *userdata);

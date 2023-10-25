@@ -26,17 +26,17 @@ typedef struct LogCategory {
 typedef struct LogDest LogDest;
 extern LogCategory* LogDefault;
 
-LogCategory *logCreateCat(strref name, bool priv);
-void _logStr(int level, LogCategory *cat, strref str);
-void _logFmt(int level, LogCategory *cat, strref fmtstr, int n, stvar *args);
+LogCategory *logCreateCat(_In_ strref name, bool priv);
+void _logStr(int level, _In_ LogCategory *cat, _In_ strref str);
+void _logFmt(int level, _In_ LogCategory *cat, _In_ strref fmtstr, int n, _In_ stvar *args);
 
 // NOTE: will be called with level == -1 to indicate that the destination has been removed or the
 // log system is shutting down. The destination provider should assume it will never be called again
 // and close log files, etc.
-typedef void(*LogDestFunc)(int level, LogCategory *cat, int64 timestamp, strref msg, void *userdata);
+typedef void(*LogDestFunc)(int level, _In_opt_ LogCategory *cat, int64 timestamp, _In_opt_ strref msg, _In_opt_ void *userdata);
 
-LogDest *logRegisterDest(int maxlevel, LogCategory *catfilter, LogDestFunc dest, void *userdata);
-bool logUnregisterDest(LogDest *dhandle);
+LogDest *logRegisterDest(int maxlevel, _In_opt_ LogCategory *catfilter, _In_ LogDestFunc dest, _In_opt_ void *userdata);
+bool logUnregisterDest(_In_ LogDest *dhandle);
 void logFlush(void);
 void logShutdown(void);
 

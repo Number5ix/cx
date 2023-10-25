@@ -9,6 +9,7 @@
 Mutex _log_dests_lock;
 sa_LogDest _log_dests;
 
+_Use_decl_annotations_
 LogDest *logRegisterDest(int maxlevel, LogCategory *catfilter, LogDestFunc dest, void *userdata)
 {
     logCheckInit();
@@ -30,7 +31,7 @@ LogDest *logRegisterDest(int maxlevel, LogCategory *catfilter, LogDestFunc dest,
     return ndest;
 }
 
-static bool logUnregisterDestLocked(LogDest *dhandle)
+static bool logUnregisterDestLocked(_In_ LogDest *dhandle)
 {
     bool ret = false;
 
@@ -49,6 +50,7 @@ static bool logUnregisterDestLocked(LogDest *dhandle)
     return ret;
 }
 
+_Use_decl_annotations_
 bool logUnregisterDest(LogDest *dhandle)
 {
     logCheckInit();

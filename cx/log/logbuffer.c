@@ -33,6 +33,9 @@ static _Thread_local LogOverflowTLS _log_overflow;
 // MUST be called with _log_buffer_lock held in read mode
 static bool logBufferGrow(int32 minsize)
 {
+    if (!_log_buffer.a)
+        return false;
+
     bool ret = true;
     rwlockReleaseRead(&_log_buffer_lock);
     rwlockAcquireWrite(&_log_buffer_lock);
@@ -80,7 +83,7 @@ out:
     return ret;
 }
 
-static bool logBufferAddInternal(LogEntry *ent)
+static bool logBufferAddInternal(_In_ LogEntry *ent)
 {
     int32 bsize, rdptr, wrptr, nwrptr;
     void *empty;
@@ -89,6 +92,8 @@ static bool logBufferAddInternal(LogEntry *ent)
 
     if (!ent)
         return true;
+    if (!_log_buffer.a)
+        return false;
 
     rwlockAcquireRead(&_log_buffer_lock);
 
@@ -148,7 +153,7 @@ out:
     return ret;
 }
 
-static void logBufferOverflow(LogEntry *ent)
+static void logBufferOverflow(_In_ LogEntry *ent)
 {
     if (_log_overflow.count >= OVERFLOW_BATCH_MAXENT) {
         // if the overflow is full, we have no choice but to drop events
@@ -211,6 +216,7 @@ static bool logBufferRetryOverflow()
 
 // these should almost never block, the only time that happens is if
 // the buffer is about to overflow and needs to be expanded
+_Use_decl_annotations_
 void logBufferAdd(LogEntry *ent)
 {
     if (!logBufferRetryOverflow() || !logBufferAddInternal(ent))

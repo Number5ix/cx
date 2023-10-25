@@ -41,6 +41,6 @@ extern sa_LogDest _log_dests;
 extern LazyInitState _logInitState;
 
 void logCheckInit(void);
-void logDestroyEnt(LogEntry *ent);
-void logBufferAdd(LogEntry *ent);
+void logDestroyEnt(_In_ LogEntry *ent);
+void logBufferAdd(_In_ LogEntry *ent);
 void logThreadCreate(void);

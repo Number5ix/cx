@@ -30,9 +30,9 @@ static strref loglineend = (strref)"\xE1\xC1\x02""\r\n";
 static strref loglineend = (strref)"\xE1\xC1\x01""\n";
 #endif
 
-static void deleteOldFiles(LogFileData *lfd);
+static void deleteOldFiles(_Inout_ LogFileData *lfd);
 
-static void logfileDestroy(LogFileData *data)
+static void logfileDestroy(_Pre_valid_ _Post_invalid_ LogFileData *data)
 {
     vfsClose(data->curfile);
     objRelease(&data->vfs);
@@ -43,7 +43,7 @@ static void logfileDestroy(LogFileData *data)
     xaFree(data);
 }
 
-static bool logfileOpen(LogFileData *data)
+static bool logfileOpen(_Inout_ LogFileData *data)
 {
     devAssert(!data->curfile);
     data->curfile = vfsOpen(data->vfs, data->fname, FS_Create | FS_Write);
@@ -55,7 +55,7 @@ static bool logfileOpen(LogFileData *data)
     return true;
 }
 
-static bool logfileClose(LogFileData *data)
+static bool logfileClose(_Inout_ LogFileData *data)
 {
     devAssert(data->curfile);
     vfsClose(data->curfile);
@@ -64,6 +64,7 @@ static bool logfileClose(LogFileData *data)
     return true;
 }
 
+_Use_decl_annotations_
 LogFileData *logfileCreate(VFS *vfs, strref filename, LogFileConfig *config)
 {
     LogFileData *ret = xaAlloc(sizeof(LogFileData), XA_Zero);
@@ -120,6 +121,7 @@ LogFileData *logfileCreate(VFS *vfs, strref filename, LogFileConfig *config)
     return ret;
 }
 
+_Use_decl_annotations_
 static void deleteOldFiles(LogFileData *lfd)
 {
     FSSearchIter fsi;
@@ -170,7 +172,7 @@ static void deleteOldFiles(LogFileData *lfd)
     strDestroy(&temp);
 }
 
-static void doSizeRotation(LogFileData *lfd)
+static void doSizeRotation(_Inout_ LogFileData *lfd)
 {
     if (lfd->config.rotateSize == 0 || lfd->cursize < lfd->config.rotateSize)
         return;         // file isn't big enough yet
@@ -208,7 +210,7 @@ static void doSizeRotation(LogFileData *lfd)
     strDestroy(&nameimo);
 }
 
-static void doTimeRotation(LogFileData *lfd)
+static void doTimeRotation(_Inout_ LogFileData *lfd)
 {
     int64 lastrotate = lfd->lastrotate;
 
@@ -247,7 +249,7 @@ static void doTimeRotation(LogFileData *lfd)
     logfileOpen(lfd);
 }
 
-static void checkRotate(LogFileData *lfd)
+static void checkRotate(_Inout_ LogFileData *lfd)
 {
     if (lfd->config.rotateMode == LOG_RotateSize)
         doSizeRotation(lfd);
@@ -255,7 +257,7 @@ static void checkRotate(LogFileData *lfd)
         doTimeRotation(lfd);
 }
 
-static void formatDate(LogFileData *lfd, string *out, int64 timestamp)
+static void formatDate(_In_ LogFileData *lfd, _Inout_ string *out, int64 timestamp)
 {
     int64 toffsetraw = 0;
     TimeParts tp = { 0 };
@@ -337,6 +339,7 @@ static void formatDate(LogFileData *lfd, string *out, int64 timestamp)
 }
 
 // this function is always called from the log thread and does not need to worry about concurrency
+_Use_decl_annotations_
 void logfileDest(int level, LogCategory *cat, int64 timestamp, strref msg, void *userdata)
 {
     LogFileData *lfd = (LogFileData*)userdata;
@@ -371,7 +374,7 @@ void logfileDest(int level, LogCategory *cat, int64 timestamp, strref msg, void 
                 // justified with brackets... yuck
                 int llen = strLen(lvarr[level]);
                 uint8 *temp = strBuffer(&loglevel, lvmaxlen + 3);
-                memset(temp, ' ', lvmaxlen + 3);
+                memset(temp, ' ', (size_t)lvmaxlen + 3);
                 temp[1] = '[';
                 temp[llen + 2] = ']';
                 memcpy(temp + 2, strC(lvarr[level]), llen);

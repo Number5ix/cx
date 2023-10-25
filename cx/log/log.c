@@ -57,12 +57,14 @@ void logCheckInit(void)
     lazyInit(&_logInitState, logInit, NULL);
 }
 
+_Use_decl_annotations_
 void logDestroyEnt(LogEntry *ent)
 {
     strDestroy(&ent->msg);
     xaFree(ent);
 }
 
+_Use_decl_annotations_
 LogCategory *logCreateCat(strref name, bool priv)
 {
     LogCategory *ret = xaAlloc(sizeof(LogCategory), XA_Zero);
@@ -71,7 +73,7 @@ LogCategory *logCreateCat(strref name, bool priv)
     return ret;
 }
 
-static void _logStrInternal(int level, LogCategory *cat, strref str)
+static void _logStrInternal(int level, _In_ LogCategory *cat, _In_ strref str)
 {
     LogEntry *ent = xaAlloc(sizeof(LogEntry), XA_Zero | XA_Optional(High));
     if (!ent)
@@ -97,6 +99,7 @@ static void _logStrInternal(int level, LogCategory *cat, strref str)
     }
 }
 
+_Use_decl_annotations_
 void _logStr(int level, LogCategory *cat, strref str)
 {
     lazyInit(&_logInitState, logInit, NULL);
@@ -108,6 +111,7 @@ void _logStr(int level, LogCategory *cat, strref str)
     _logStrInternal(level, cat, str);
 }
 
+_Use_decl_annotations_
 void _logFmt(int level, LogCategory *cat, strref fmtstr, int n, stvar *args)
 {
     lazyInit(&_logInitState, logInit, NULL);

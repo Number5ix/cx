@@ -7,6 +7,7 @@
 #include <cx/time.h>
 #include <cx/format.h>
 
+_Use_decl_annotations_
 LogMembufData *logmembufCreate(uint32 size)
 {
     LogMembufData *ret = xaAlloc(sizeof(LogMembufData), XA_Zero);
@@ -16,6 +17,7 @@ LogMembufData *logmembufCreate(uint32 size)
 }
 
 // for use with logRegisterDest along with the userdata returned from logmembufCreate
+_Use_decl_annotations_
 void logmembufDest(int level, LogCategory *cat, int64 timestamp, strref msg, void *userdata)
 {
     LogMembufData *lmd = (LogMembufData*)userdata;
