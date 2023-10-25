@@ -25,7 +25,7 @@ SuidTLSData *suidTlsCreate()
     return ret;
 }
 
-static void _suidGen(SUID *out, uint8 idtype, uint64 hid)
+static void _suidGen(_Out_ SUID *out, uint8 idtype, uint64 hid)
 {
     hid &= 0xFFFFFFFFFFULL;             // mask off the part that we actually use
 
@@ -51,20 +51,20 @@ static void _suidGen(SUID *out, uint8 idtype, uint64 hid)
     out->low |= suidTls->lastrng;       // low 32 bits are random
 }
 
-bool suidGen(SUID *out, uint8 idtype)
+_Use_decl_annotations_
+void suidGen(SUID *out, uint8 idtype)
 {
     checktls;
 
     HostID hostid;
-    if (!hostId(&hostid))
-        return false;
+    hostId(&hostid);
 
     uint64 id = hostid.id[0] ^ hostid.id[1] ^ hostid.id[2] ^ hostid.id[3];
     _suidGen(out, idtype, id);
-    return true;
 }
 
-bool suidGenPrivate(SUID *out, uint8 idtype)
+_Use_decl_annotations_
+void suidGenPrivate(SUID *out, uint8 idtype)
 {
     uint64 hid;
     checktls;
@@ -75,12 +75,12 @@ bool suidGenPrivate(SUID *out, uint8 idtype)
     hid |= pcgRandom(&suidTls->pcg);
 
     _suidGen(out, idtype, hid);
-    return true;
 }
 
 static const char b32encode[33] = "0123456789abcdefghjkmnpqrstvwxyz";
 
-bool suidEncodeBytes(uint8 dst[26], const SUID *id)
+_Use_decl_annotations_
+void suidEncodeBytes(uint8 dst[26], const SUID *id)
 {
     dst[0] = b32encode[id->high >> 61];
     dst[1] = b32encode[(id->high & 0x1F00000000000000ULL) >> 56];
@@ -108,18 +108,14 @@ bool suidEncodeBytes(uint8 dst[26], const SUID *id)
     dst[23] = b32encode[(id->low & 0x7C00) >> 10];
     dst[24] = b32encode[(id->low & 0x3E0) >> 5];
     dst[25] = b32encode[id->low & 0x1F];
-
-    return true;
 }
 
-bool suidEncode(string *out, const SUID *id)
+_Use_decl_annotations_
+void suidEncode(string *out, const SUID *id)
 {
     strClear(out);
     uint8 *dst = strBuffer(out, 26);
-    if (!dst)
-        return false;
-
-    return suidEncodeBytes(dst, id);
+    suidEncodeBytes(dst, id);
 }
 
 static const uint8_t dec[256] = {
@@ -173,6 +169,7 @@ static const uint8_t dec[256] = {
     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
 };
 
+_Use_decl_annotations_
 bool suidDecodeBytes(SUID *out, const char buf[26])
 {
     // validate input
@@ -211,6 +208,7 @@ bool suidDecodeBytes(SUID *out, const char buf[26])
     return true;
 }
 
+_Use_decl_annotations_
 bool suidDecode(SUID *out, strref str)
 {
     if (!str || strLen(str) < 26)

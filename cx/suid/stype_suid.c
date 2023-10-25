@@ -11,7 +11,8 @@ bool stConvert_suid(stype destst, _stCopyDest_Anno_(destst) stgeneric * dest, st
     switch (stGetId(destst)) {
     case stTypeId(string):
         dest->st_string = 0;
-        return suidEncode(&dest->st_string, src.st_suid);
+        suidEncode(&dest->st_string, src.st_suid);
+        return true;
     }
 
     return false;

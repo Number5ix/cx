@@ -404,10 +404,8 @@ bool dbgCrashSetPath(strref path)
     xaRelease(&crashhandlercmdline);
 
     // generate an SUID to use as a unique crash identifier
-    if (!suidGenPrivate(&crashsuid, 0xff))
-        return false;
-    if (!suidEncodeBytes(crashid, &crashsuid))
-        return false;
+    suidGenPrivate(&crashsuid, 0xff);
+    suidEncodeBytes(crashid, &crashsuid);
 
     string exename = 0, report = 0, exedir = 0, chandler = 0, cmdl = 0;
     wchar_t *tmp;

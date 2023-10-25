@@ -15,12 +15,12 @@ typedef struct SUID {
     uint64 low;
 } SUID;
 
-_meta_inline bool suidEq(const SUID *a, const SUID *b)
+_meta_inline bool suidEq(_In_ const SUID *a, _In_ const SUID *b)
 {
     return (a->high == b->high) && (a->low == b->low);
 }
 
-_meta_inline int suidCmp(const SUID *a, const SUID *b)
+_meta_inline int suidCmp(_In_ const SUID *a, _In_ const SUID *b)
 {
     // can't just subtract since it might overflow even a signed int64
     if (a->high > b->high)
@@ -36,18 +36,20 @@ _meta_inline int suidCmp(const SUID *a, const SUID *b)
 
 // Generate a unique ID (SUID)
 // idtype is an application-specific identifier
-bool suidGen(SUID *out, uint8 idtype);
+void suidGen(_Out_ SUID *out, uint8 idtype);
 
 // Generate a unique ID (SUID)
 // use a random host ID
-bool suidGenPrivate(SUID *out, uint8 idtype);
+void suidGenPrivate(_Out_ SUID *out, uint8 idtype);
 
 // Encodes a SUID into string form
-bool suidEncode(string *out, const SUID *id);
-bool suidEncodeBytes(uint8 buf[26], const SUID *id);
+void suidEncode(_Inout_ string *out, _In_ const SUID *id);
+void suidEncodeBytes(_Out_writes_all_(26) uint8 buf[26], _In_ const SUID *id);
 
 // Decodes a SUID from a string
-bool suidDecode(SUID *out, strref str);
-bool suidDecodeBytes(SUID *out, const char buf[26]);
+_Success_(return) _Check_return_
+bool suidDecode(_Out_ SUID *out, _In_ strref str);
+_Success_(return) _Check_return_
+bool suidDecodeBytes(_Out_ SUID *out, _In_reads_(26) const char buf[26]);
 
 CX_C_END
