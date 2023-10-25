@@ -6,6 +6,7 @@ enum StringOpts {
     FMT_StringNameCase  = 0x00040000,
 };
 
+_Use_decl_annotations_
 bool _fmtParseStringOpt(FMTVar *v, strref opt)
 {
     if (strEq(opt, _S"empty")) {
@@ -21,6 +22,7 @@ bool _fmtParseStringOpt(FMTVar *v, strref opt)
     return false;
 }
 
+_Use_decl_annotations_
 bool _fmtString(FMTVar *v, string *out)
 {
     strref s = *(strref*)v->data;

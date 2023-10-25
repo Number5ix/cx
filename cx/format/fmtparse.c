@@ -1,6 +1,7 @@
 #include "format_private.h"
 
 // try to parse the next variable
+_Use_decl_annotations_
 bool _fmtExtractVar(FMTContext *ctx)
 {
     int32 eatchar = 0;
@@ -60,7 +61,7 @@ retry_end:
     return true;
 }
 
-static bool fmtParseOpt(FMTContext *ctx, strref opt, int32 vtype)
+static bool fmtParseOpt(_Inout_ FMTContext *ctx, _In_ strref opt, int32 vtype)
 {
     if (strEq(opt, (strref)"\xE1\xC1\x04""left"))
         ctx->v.flags |= FMTVar_Left;
@@ -77,6 +78,7 @@ static bool fmtParseOpt(FMTContext *ctx, strref opt, int32 vtype)
     return false;
 }
 
+_Use_decl_annotations_
 bool _fmtParseVar(FMTContext *ctx)
 {
     int32 vtstart = 0, vtend = 0, vnend = 0, fostart = 0, foend = 0, xstart = 0, xend = 0, defstart = 0;

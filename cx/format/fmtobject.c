@@ -2,6 +2,7 @@
 #include "formattable.h"
 #include <cx/obj/objstdif.h>
 
+_Use_decl_annotations_
 bool _fmtParseObjectOpt(FMTVar *v, strref opt)
 {
     // only for objects, save all options into an array in the FMTVar structure so
@@ -10,6 +11,7 @@ bool _fmtParseObjectOpt(FMTVar *v, strref opt)
     return true;
 }
 
+_Use_decl_annotations_
 bool _fmtObject(FMTVar *v, string *out)
 {
     Formattable *fmtif = (Formattable*)v->fmtdata[0];

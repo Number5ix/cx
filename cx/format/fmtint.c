@@ -8,6 +8,7 @@ enum IntOpts {
     FMT_IntUtfChar  = 0x00040000,
 };
 
+_Use_decl_annotations_
 bool _fmtParseIntOpt(FMTVar *v, strref opt)
 {
     uint32 val;
@@ -42,6 +43,7 @@ bool _fmtParseIntOpt(FMTVar *v, strref opt)
     return false;
 }
 
+_Use_decl_annotations_
 bool _fmtParseIntFinalize(FMTVar *v)
 {
     // default to base 10
@@ -60,6 +62,7 @@ bool _fmtParseIntFinalize(FMTVar *v)
     return true;
 }
 
+_Use_decl_annotations_
 bool _fmtInt(FMTVar *v, string *out)
 {
     uint64 val = 0;

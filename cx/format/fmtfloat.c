@@ -9,6 +9,7 @@ enum FloatOpts {
     FMT_FloatDecDigits = 0x00040000,
 };
 
+_Use_decl_annotations_
 bool _fmtParseFloatOpt(FMTVar *v, strref opt)
 {
     int32 val;
@@ -34,6 +35,7 @@ bool _fmtParseFloatOpt(FMTVar *v, strref opt)
     return false;
 }
 
+_Use_decl_annotations_
 bool _fmtParseFloatFinalize(FMTVar *v)
 {
     if (v->flags & FMT_FloatFixed && !(v->flags & FMT_FloatDecDigits)) {
@@ -53,7 +55,7 @@ bool _fmtParseFloatFinalize(FMTVar *v)
 }
 
 // for special return values
-static bool fmtFloatSpecial(FMTVar *v, string *out, strref str)
+static bool fmtFloatSpecial(_Inout_ FMTVar *v, _Inout_ string *out, _In_ strref str)
 {
     v->flags &= (~FMTVar_NoGenCase | ~FMTVar_NoGenWidth);
     if (!(v->flags & (FMTVar_Left | FMTVar_Center)))
@@ -62,6 +64,7 @@ static bool fmtFloatSpecial(FMTVar *v, string *out, strref str)
     return true;
 }
 
+_Use_decl_annotations_
 bool _fmtFloat(FMTVar *v, string *out)
 {
     uint8 digits[18];

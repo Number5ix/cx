@@ -37,23 +37,23 @@ typedef struct FMTContext {
     FMTVar v;                       // current variable
 } FMTContext;
 
-bool _fmtExtractVar(FMTContext *ctx);
-bool _fmtParseVar(FMTContext *ctx);
-bool _fmtFindData(FMTContext *ctx);
-void _fmtFormat(FMTContext *ctx);
+bool _fmtExtractVar(_Inout_ FMTContext *ctx);
+bool _fmtParseVar(_Inout_ FMTContext *ctx);
+bool _fmtFindData(_Inout_ FMTContext *ctx);
+void _fmtFormat(_Inout_ FMTContext *ctx);
 
 // type-specific formatters
-bool _fmtParseStringOpt(FMTVar *v, strref opt);
-bool _fmtString(FMTVar *v, string *out);
-bool _fmtParseIntOpt(FMTVar *v, strref opt);
-bool _fmtParseIntFinalize(FMTVar *v);
-bool _fmtInt(FMTVar *v, string *out);
-bool _fmtParseFloatOpt(FMTVar *v, strref opt);
-bool _fmtParseFloatFinalize(FMTVar *v);
-bool _fmtFloat(FMTVar *v, string *out);
-bool _fmtParsePtrOpt(FMTVar *v, strref opt);
-bool _fmtParsePtrFinalize(FMTVar *v);
-bool _fmtParseObjectOpt(FMTVar *v, strref opt);
-bool _fmtPtr(FMTVar *v, string *out);
-bool _fmtSUID(FMTVar *v, string *out);
-bool _fmtObject(FMTVar *v, string *out);
+bool _fmtParseStringOpt(_Inout_ FMTVar *v, _In_ strref opt);
+bool _fmtString(_Inout_ FMTVar *v, _Inout_ string *out);
+bool _fmtParseIntOpt(_Inout_ FMTVar *v, _In_ strref opt);
+bool _fmtParseIntFinalize(_Inout_ FMTVar *v);
+bool _fmtInt(_Inout_ FMTVar *v, _Inout_ string *out);
+bool _fmtParseFloatOpt(_Inout_ FMTVar *v, _In_ strref opt);
+bool _fmtParseFloatFinalize(_Inout_ FMTVar *v);
+bool _fmtFloat(_Inout_ FMTVar *v, _Inout_ string *out);
+bool _fmtParsePtrOpt(_Inout_ FMTVar *v, _In_ strref opt);
+bool _fmtParsePtrFinalize(_Inout_ FMTVar *v);
+bool _fmtParseObjectOpt(_Inout_ FMTVar *v, _In_ strref opt);
+bool _fmtPtr(_Inout_ FMTVar *v, _Inout_ string *out);
+bool _fmtSUID(_Inout_ FMTVar *v, _Inout_ string *out);
+bool _fmtObject(_Inout_ FMTVar *v, _Inout_ string *out);

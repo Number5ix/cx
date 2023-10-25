@@ -3,6 +3,7 @@
 #include "cx/utils/compare.h"
 #include "formattable.h"
 
+_Use_decl_annotations_
 bool _fmtFindData(FMTContext *ctx)
 {
     bool ret = !strEmpty(ctx->v.def);
@@ -86,7 +87,7 @@ bool _fmtFindData(FMTContext *ctx)
     return true;
 }
 
-static inline void fillPad(string *pad, int32 len)
+static inline void fillPad(_Inout_ string *pad, int32 len)
 {
     strClear(pad);
     uint8 *buf = strBuffer(pad, len);
@@ -94,7 +95,7 @@ static inline void fillPad(string *pad, int32 len)
         buf[i] = ' ';
 }
 
-static void fmtApplyGenWidth(FMTVar *v, string *vstr, int32 width, uint32 flags)
+static void fmtApplyGenWidth(_Inout_ FMTVar *v, _Inout_ string *vstr, int32 width, uint32 flags)
 {
     if (width <= 0 || strLen(*vstr) == width)
         return;
@@ -121,7 +122,7 @@ static void fmtApplyGenWidth(FMTVar *v, string *vstr, int32 width, uint32 flags)
     }
 }
 
-static void fmtApplyGenFlags(FMTContext *ctx, string *vstr)
+static void fmtApplyGenFlags(_Inout_ FMTContext *ctx, _Inout_ string *vstr)
 {
     if (!(ctx->v.flags & FMTVar_NoGenCase)) {
         if (ctx->v.flags & FMTVar_Upper)
@@ -134,6 +135,7 @@ static void fmtApplyGenFlags(FMTContext *ctx, string *vstr)
         fmtApplyGenWidth(&ctx->v, vstr, ctx->v.width, ctx->v.flags);
 }
 
+_Use_decl_annotations_
 void _fmtFormat(FMTContext *ctx)
 {
     bool success = false;

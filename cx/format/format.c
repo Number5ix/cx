@@ -81,6 +81,7 @@ static void fmtVarDestroy(FMTVar *v)
     strDestroy(&v->hashkey);
 }
 
+_Use_decl_annotations_
 bool _strFormat(string *out, strref fmt, int n, stvar *args)
 {
     if (!(out && fmt))

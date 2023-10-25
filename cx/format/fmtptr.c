@@ -9,6 +9,7 @@ enum PtrOpts {
     FMT_PtrPrefix = 0x00010000,
 };
 
+_Use_decl_annotations_
 bool _fmtParsePtrOpt(FMTVar *v, strref opt)
 {
     if (strEq(opt, _S"prefix")) {
@@ -18,6 +19,7 @@ bool _fmtParsePtrOpt(FMTVar *v, strref opt)
     return false;
 }
 
+_Use_decl_annotations_
 bool _fmtParsePtrFinalize(FMTVar *v)
 {
     // we handle upper/lower in the ptr formatter itself to exclude the prefix
@@ -26,6 +28,7 @@ bool _fmtParsePtrFinalize(FMTVar *v)
     return true;
 }
 
+_Use_decl_annotations_
 bool _fmtPtr(FMTVar *v, string *out)
 {
     uint8 buf[BUFSZ];
