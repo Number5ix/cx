@@ -34,7 +34,9 @@ static void platformThreadInit(void *dummy)
     // See if the SetThreadDescription API is available for setting thread names
     // on Windows 10 and later
     HANDLE hDll = LoadLibrary(TEXT("kernel32.dll"));
-    pSetThreadDescription = (SetThreadDescription_t)GetProcAddress(hDll, "SetThreadDescription");
+    relAssertMsg(hDll, "Failed to load kernel32.dll");
+    if (hDll)
+        pSetThreadDescription = (SetThreadDescription_t)GetProcAddress(hDll, "SetThreadDescription");
 }
 
 static unsigned __stdcall _thrEntryPoint(void *data)
