@@ -9,7 +9,8 @@
 #include <cx/time.h>
 
 int _log_max_level = -1;
-LogCategory* LogDefault;
+static LogCategory _logDefault;
+LogCategory* LogDefault = &_logDefault;
 
 typedef struct LogBatchTLS {
     LogEntry *head;
@@ -43,7 +44,6 @@ strref LogLevelAbbrev[LOG_Count] = {
 LazyInitState _logInitState;
 static void logInit(void *dummy)
 {
-    LogDefault = xaAlloc(sizeof(LogCategory), XA_Zero);
     saInit(&_log_dests, ptr, 8);
     mutexInit(&_log_dests_lock);
     rwlockInit(&_log_buffer_lock);
