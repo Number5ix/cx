@@ -349,12 +349,12 @@ static void dbgInvalidParameterHandler(const wchar_t *w_exp,
         strDestroy(&exp);
     }
     if (w_func) {
-        strFromUTF16(&func, w_exp, cstrLenw(w_func));
+        strFromUTF16(&func, w_func, cstrLenw(w_func));
         dbgCrashAddMetaStr("assertfunc", strC(func));
         strDestroy(&func);
     }
     if (w_file) {
-        strFromUTF16(&file, w_exp, cstrLenw(w_file));
+        strFromUTF16(&file, w_file, cstrLenw(w_file));
         dbgCrashAddMetaStr("assertfile", strC(file));
         strDestroy(&file);
     }
