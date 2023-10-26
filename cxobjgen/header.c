@@ -84,9 +84,12 @@ static void writeUnbound(BufFile *bf, Class *cls, Class *cur, sa_Method *done)
         if (cls == cur) {
             methodImplName(&implname, cls, m->name);
             if (!m->standalone)
-                strNConcat(&ln, m->returntype, _S" ", m->predecr, implname, _S"(", cls->name, _S" *self");
+                strNConcat(&ln, m->returntype, _S" ", m->predecr, implname, _S"(_Inout_ ", cls->name, _S" *self");
             else
                 strNConcat(&ln, m->returntype, _S" ", m->predecr, implname, _S"(");
+
+            if (m->isfactory)
+                strPrepend(_S"_objfactory ", &ln);
 
             for (int j = 0; j < saSize(m->params); j++) {
                 Param *p = m->params.a[j];
@@ -186,7 +189,7 @@ void writeIfDecl(BufFile *bf, Interface *iface)
     for (int i = 0; i < saSize(iface->allmethods); i++) {
         Method *m = iface->allmethods.a[i];
         writeComments(bf, m->comments, 4, false);
-        strNConcat(&ln, _S"    ", m->returntype, _S" ", m->predecr, _S"(*", m->name, _S")(void *self");
+        strNConcat(&ln, _S"    ", m->returntype, _S" ", m->predecr, _S"(*", m->name, _S")(_Inout_ void *self");
         for (int j = 0; j < saSize(m->params); j++) {
             Param *p = m->params.a[j];
             string ptype = p->type;

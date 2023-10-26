@@ -22,8 +22,8 @@ typedef struct Method_ClassIf {
     ObjIface *_parent;
     size_t _size;
 
-    Method *(*clone)(void *self);
-    intptr (*cmp)(void *self, void *other, uint32 flags);
+    Method *(*clone)(_Inout_ void *self);
+    intptr (*cmp)(_Inout_ void *self, void *other, uint32 flags);
 } Method_ClassIf;
 extern Method_ClassIf Method_ClassIf_tmpl;
 
@@ -32,7 +32,7 @@ typedef struct Interface_ClassIf {
     ObjIface *_parent;
     size_t _size;
 
-    intptr (*cmp)(void *self, void *other, uint32 flags);
+    intptr (*cmp)(_Inout_ void *self, void *other, uint32 flags);
 } Interface_ClassIf;
 extern Interface_ClassIf Interface_ClassIf_tmpl;
 
@@ -41,7 +41,7 @@ typedef struct Member_ClassIf {
     ObjIface *_parent;
     size_t _size;
 
-    intptr (*cmp)(void *self, void *other, uint32 flags);
+    intptr (*cmp)(_Inout_ void *self, void *other, uint32 flags);
 } Member_ClassIf;
 extern Member_ClassIf Member_ClassIf_tmpl;
 
@@ -50,7 +50,7 @@ typedef struct Class_ClassIf {
     ObjIface *_parent;
     size_t _size;
 
-    intptr (*cmp)(void *self, void *other, uint32 flags);
+    intptr (*cmp)(_Inout_ void *self, void *other, uint32 flags);
 } Class_ClassIf;
 extern Class_ClassIf Class_ClassIf_tmpl;
 
@@ -72,7 +72,7 @@ extern ObjClassInfo Param_clsinfo;
 #define Param(inst) ((Param*)(unused_noeval((inst) && &((inst)->_is_Param)), (inst)))
 #define ParamNone ((Param*)NULL)
 
-Param *Param_create();
+_objfactory Param *Param_create();
 // Param *paramCreate();
 #define paramCreate() Param_create()
 
@@ -108,7 +108,7 @@ extern ObjClassInfo Method_clsinfo;
 #define Method(inst) ((Method*)(unused_noeval((inst) && &((inst)->_is_Method)), (inst)))
 #define MethodNone ((Method*)NULL)
 
-Method *Method_create();
+_objfactory Method *Method_create();
 // Method *methodCreate();
 #define methodCreate() Method_create()
 
@@ -138,7 +138,7 @@ extern ObjClassInfo Interface_clsinfo;
 #define Interface(inst) ((Interface*)(unused_noeval((inst) && &((inst)->_is_Interface)), (inst)))
 #define InterfaceNone ((Interface*)NULL)
 
-Interface *Interface_create();
+_objfactory Interface *Interface_create();
 // Interface *interfaceCreate();
 #define interfaceCreate() Interface_create()
 
@@ -170,7 +170,7 @@ extern ObjClassInfo Member_clsinfo;
 #define Member(inst) ((Member*)(unused_noeval((inst) && &((inst)->_is_Member)), (inst)))
 #define MemberNone ((Member*)NULL)
 
-Member *Member_create();
+_objfactory Member *Member_create();
 // Member *memberCreate();
 #define memberCreate() Member_create()
 
@@ -211,7 +211,7 @@ extern ObjClassInfo Class_clsinfo;
 #define Class(inst) ((Class*)(unused_noeval((inst) && &((inst)->_is_Class)), (inst)))
 #define ClassNone ((Class*)NULL)
 
-Class *Class_create();
+_objfactory Class *Class_create();
 // Class *classCreate();
 #define classCreate() Class_create()
 
@@ -234,7 +234,7 @@ extern ObjClassInfo ComplexArrayType_clsinfo;
 #define ComplexArrayType(inst) ((ComplexArrayType*)(unused_noeval((inst) && &((inst)->_is_ComplexArrayType)), (inst)))
 #define ComplexArrayTypeNone ((ComplexArrayType*)NULL)
 
-ComplexArrayType *ComplexArrayType_create();
+_objfactory ComplexArrayType *ComplexArrayType_create();
 // ComplexArrayType *complexarraytypeCreate();
 #define complexarraytypeCreate() ComplexArrayType_create()
 

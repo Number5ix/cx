@@ -8,7 +8,7 @@
 #include "objtypes.h"
 // ==================== Auto-generated section ends ======================
 
-void Param_destroy(Param *self)
+void Param_destroy(_Inout_ Param *self)
 {
     // Autogen begins -----
     strDestroy(&self->type);
@@ -18,7 +18,7 @@ void Param_destroy(Param *self)
     // Autogen ends -------
 }
 
-bool Method_init(Method *self)
+bool Method_init(_Inout_ Method *self)
 {
     // Autogen begins -----
     saInit(&self->params, object, 1);
@@ -26,7 +26,7 @@ bool Method_init(Method *self)
     // Autogen ends -------
 }
 
-intptr Method_cmp(Method *self, Method *other, uint32 flags)
+intptr Method_cmp(_Inout_ Method *self, Method *other, uint32 flags)
 {
     // Uncomment unless this function can compare across different object classes
     devAssert(self->_clsinfo == other->_clsinfo);
@@ -34,7 +34,7 @@ intptr Method_cmp(Method *self, Method *other, uint32 flags)
     return strCmp(self->name, other->name);
 }
 
-void Method_destroy(Method *self)
+void Method_destroy(_Inout_ Method *self)
 {
     // Autogen begins -----
     strDestroy(&self->srcfile);
@@ -47,7 +47,7 @@ void Method_destroy(Method *self)
     // Autogen ends -------
 }
 
-bool Interface_init(Interface *self)
+bool Interface_init(_Inout_ Interface *self)
 {
     // Autogen begins -----
     saInit(&self->methods, object, 1);
@@ -56,7 +56,7 @@ bool Interface_init(Interface *self)
     // Autogen ends -------
 }
 
-intptr Interface_cmp(Interface *self, Interface *other, uint32 flags)
+intptr Interface_cmp(_Inout_ Interface *self, Interface *other, uint32 flags)
 {
     // Uncomment unless this function can compare across different object classes
     devAssert(self->_clsinfo == other->_clsinfo);
@@ -64,7 +64,7 @@ intptr Interface_cmp(Interface *self, Interface *other, uint32 flags)
     return strCmp(self->name, other->name);
 }
 
-void Interface_destroy(Interface *self)
+void Interface_destroy(_Inout_ Interface *self)
 {
     // Autogen begins -----
     strDestroy(&self->name);
@@ -73,7 +73,7 @@ void Interface_destroy(Interface *self)
     // Autogen ends -------
 }
 
-intptr Member_cmp(Member *self, Member *other, uint32 flags)
+intptr Member_cmp(_Inout_ Member *self, Member *other, uint32 flags)
 {
     // Uncomment unless this function can compare across different object classes
     devAssert(self->_clsinfo == other->_clsinfo);
@@ -81,7 +81,7 @@ intptr Member_cmp(Member *self, Member *other, uint32 flags)
     return strCmp(self->name, other->name);
 }
 
-void Member_destroy(Member *self)
+void Member_destroy(_Inout_ Member *self)
 {
     // Autogen begins -----
     saDestroy(&self->fulltype);
@@ -95,7 +95,7 @@ void Member_destroy(Member *self)
     // Autogen ends -------
 }
 
-bool Class_init(Class *self)
+bool Class_init(_Inout_ Class *self)
 {
     // Autogen begins -----
     saInit(&self->implements, object, 1);
@@ -109,7 +109,7 @@ bool Class_init(Class *self)
     // Autogen ends -------
 }
 
-intptr Class_cmp(Class *self, Class *other, uint32 flags)
+intptr Class_cmp(_Inout_ Class *self, Class *other, uint32 flags)
 {
     // Uncomment unless this function can compare across different object classes
     devAssert(self->_clsinfo == other->_clsinfo);
@@ -117,7 +117,7 @@ intptr Class_cmp(Class *self, Class *other, uint32 flags)
     return strCmp(self->name, other->name);
 }
 
-void Class_destroy(Class *self)
+void Class_destroy(_Inout_ Class *self)
 {
     // Autogen begins -----
     strDestroy(&self->name);
@@ -134,7 +134,7 @@ void Class_destroy(Class *self)
     // Autogen ends -------
 }
 
-Param *Param_create()
+_objfactory Param *Param_create()
 {
     Param *ret;
     ret = objInstCreate(Param);
@@ -144,7 +144,7 @@ Param *Param_create()
     return ret;
 }
 
-Method *Method_create()
+_objfactory Method *Method_create()
 {
     Method *ret;
     ret = objInstCreate(Method);
@@ -154,7 +154,7 @@ Method *Method_create()
     return ret;
 }
 
-Interface *Interface_create()
+_objfactory Interface *Interface_create()
 {
     Interface *ret;
     ret = objInstCreate(Interface);
@@ -164,7 +164,7 @@ Interface *Interface_create()
     return ret;
 }
 
-Member *Member_create()
+_objfactory Member *Member_create()
 {
     Member *ret;
     ret = objInstCreate(Member);
@@ -174,7 +174,7 @@ Member *Member_create()
     return ret;
 }
 
-Class *Class_create()
+_objfactory Class *Class_create()
 {
     Class *ret;
     ret = objInstCreate(Class);
@@ -184,7 +184,7 @@ Class *Class_create()
     return ret;
 }
 
-Method *Method_clone(Method *self)
+Method *Method_clone(_Inout_ Method *self)
 {
     Method *ret = methodCreate();
     ret->srcclass = self->srcclass;
@@ -209,7 +209,7 @@ Method *Method_clone(Method *self)
     return ret;
 }
 
-ComplexArrayType *ComplexArrayType_create()
+_objfactory ComplexArrayType *ComplexArrayType_create()
 {
     ComplexArrayType *self;
     self = objInstCreate(ComplexArrayType);
@@ -222,7 +222,7 @@ ComplexArrayType *ComplexArrayType_create()
     return self;
 }
 
-void ComplexArrayType_destroy(ComplexArrayType *self)
+void ComplexArrayType_destroy(_Inout_ ComplexArrayType *self)
 {
     // Autogen begins -----
     strDestroy(&self->tname);
