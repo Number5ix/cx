@@ -42,6 +42,8 @@ static int test_basic()
 
     for (i = 0; i < BASIC_THREADS; i++) {
         threads[i] = thrCreate(thrproc1, _S"Basic Test Thread", stvar(int32, i), stvar(int32, 1000000 + i * 100000));
+        if (!threads[i])
+            return 1;
         thrSetPriorityV(threads[i], i % (THREAD_Realtime + 1));
     }
 
@@ -100,9 +102,13 @@ static int test_futex()
     Thread *consumers[FUTEX_CONSUMERS];
     for (i = 0; i < FUTEX_CONSUMERS; i++) {
         consumers[i] = thrCreate(thrproc2, _S"Futex Consumer", stvar(uint8, 1), stvar(int32, FUTEX_COUNT / FUTEX_CONSUMERS));
+        if (!consumers[i])
+            return 1;
     }
     for (i = 0; i < FUTEX_PRODUCERS; i++) {
         producers[i] = thrCreate(thrproc2, _S"Futex Producer", stvar(uint8, 0), stvar(int32, FUTEX_COUNT / FUTEX_PRODUCERS));
+        if (!producers[i])
+            return 1;
     }
 
     for (i = 0; i < FUTEX_PRODUCERS; i++) {
@@ -152,13 +158,17 @@ static int test_sema()
     semaInit(&testsem, 0);
 
     int i;
-    Thread *producers[SEMA_PRODUCERS];
-    Thread *consumers[SEMA_CONSUMERS];
+    Thread *producers[SEMA_PRODUCERS] = { 0 };
+    Thread *consumers[SEMA_CONSUMERS] = { 0 };
     for (i = 0; i < SEMA_CONSUMERS; i++) {
         consumers[i] = thrCreate(thrproc2s, _S"Semaphore Consumer", stvar(uint8, 1), stvar(int32, SEMA_COUNT / SEMA_CONSUMERS));
+        if (!consumers[i])
+            return 1;
     }
     for (i = 0; i < SEMA_PRODUCERS; i++) {
         producers[i] = thrCreate(thrproc2s, _S"Semaphore Producer", stvar(uint8, 0), stvar(int32, SEMA_COUNT / SEMA_PRODUCERS));
+        if (!producers[i])
+            return 1;
     }
 
     for (i = 0; i < SEMA_PRODUCERS; i++) {
@@ -224,6 +234,8 @@ static int test_mutex()
 
     for (i = 0; i < MTX_THREADS; i++) {
         threads[i] = thrCreate(thrproc3, _S"Mutex Test", stvar(int32, MTX_COUNT / MTX_THREADS));
+        if (!threads[i])
+            return 1;
     }
 
     for (i = 0; i < MTX_THREADS; i++) {
@@ -304,9 +316,13 @@ static int test_rwlock()
 
     for (i = 0; i < RW_RTHREADS; i++) {
         rthreads[i] = thrCreate(thrproc4r, _S"Reader Thread", stvar(int32, 0));
+        if (!rthreads[i])
+            return 1;
     }
     for (i = 0; i < RW_WTHREADS; i++) {
         wthreads[i] = thrCreate(thrproc4w, _S"Writer Thread", stvar(int32, RW_COUNT / RW_WTHREADS));
+        if (!wthreads[i])
+            return 1;
     }
 
     for (i = 0; i < RW_WTHREADS; i++) {
@@ -410,9 +426,13 @@ static int test_event_sub(bool spin)
 
     for (i = 0; i < EVENT_CONSUMERS; i++) {
         cthreads[i] = thrCreate(thrproc5c, _S"Event Consumer", stvar(int32, i));
+        if (!cthreads[i])
+            return 1;
     }
     for (i = 0; i < EVENT_PRODUCERS; i++) {
         pthreads[i] = thrCreate(thrproc5p, _S"Event Producer", stvar(int32, EVENT_COUNT / EVENT_PRODUCERS));
+        if (!pthreads[i])
+            return 1;
     }
 
     for (i = 0; i < EVENT_PRODUCERS; i++) {
@@ -488,6 +508,8 @@ static int test_timeout()
     futexInit(&testftx, 0);
 
     Thread *testthr = thrCreate(thrproc6, _S"Timeout Test", stvNone);
+    if (!testthr)
+        return 1;
 
     osSleep(timeFromMsec(50));
     atomicFetchAdd(int32, &testftx.val, 1, Relaxed);
@@ -575,9 +597,13 @@ static int test_condvar()
 
     for (i = 0; i < CV_CONSUMERS; i++) {
         cthreads[i] = thrCreate(thrproc7c, _S"Condition Variable Consumer", stvar(int32, i), stvar(int32, CV_COUNT / CV_CONSUMERS));
+        if (!cthreads[i])
+            return 1;
     }
     for (i = 0; i < CV_PRODUCERS; i++) {
         pthreads[i] = thrCreate(thrproc7p, _S"Condition Variable Producer", stvar(int32, i), stvar(int32, CV_COUNT / CV_PRODUCERS));
+        if (!pthreads[i])
+            return 1;
     }
 
     for (i = 0; i < CV_PRODUCERS; i++) {

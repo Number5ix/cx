@@ -16,13 +16,13 @@ enum ThreadPriority {
 };
 
 // defined in platform-specific thread module
-_Ret_maybenull_
+_Ret_opt_valid_
 Thread *thrCurrent(void);
 
 intptr thrOSThreadID(_In_ Thread *thread);
 intptr thrCurrentOSThreadID(void);      // works even on non-cx threads
 
-_Ret_maybenull_ _Check_return_
+_Ret_opt_valid_ _Check_return_
 Thread *_thrCreate(_In_ threadFunc func, _In_ strref name, int n, _In_ stvar args[], bool ui);
 // Thread* thrCreate(threadFunc func, strref name, ...)
 //

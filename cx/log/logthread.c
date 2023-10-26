@@ -76,6 +76,8 @@ void logThreadCreate(void)
     devAssert(!_log_thread);
     eventInit(&_log_done_event);
     _log_thread = thrCreate(logthread_func, _S"CX Log Writer", stvNone);
+    if (!_log_thread)
+        relFatalError("Failed to create log thread");
     thrRegisterSysThread(_log_thread);
 }
 
