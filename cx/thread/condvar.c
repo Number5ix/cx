@@ -44,7 +44,8 @@ bool cvarWaitTimeout(CondVar *cv, Mutex *m, int64 timeout)
     // condvar algorithm to take advantage of that on Linux only.
 
     if (timeout == timeForever) {
-        return mutexAcquire(m);
+        mutexAcquire(m);
+        return true;
     } else {
         if (aspinTimeout(&cv->aspin, &astate))
             return false;
