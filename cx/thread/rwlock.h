@@ -91,9 +91,10 @@ _meta_inline bool rwlockTryAcquireWrite(_Inout_ RWLock *l)
 }
 
 _Acquires_shared_lock_(*l)
-_meta_inline bool rwlockAcquireRead(_Inout_ RWLock *l)
+_meta_inline void rwlockAcquireRead(_Inout_ RWLock *l)
 {
-    return rwlockTryAcquireReadTimeout(l, timeForever);
+    if (!rwlockTryAcquireReadTimeout(l, timeForever))
+        relFatalError("Failed to acquire read lock (too many waiting readers?)");
 }
 
 #define withReadLock(l) blkWrap(rwlockAcquireRead(l), rwlockReleaseRead(l))
@@ -114,9 +115,10 @@ _meta_inline bool rwlockLogAndAcquireRead(_Inout_ RWLock *l, const char *name, c
 #endif
 
 _Acquires_exclusive_lock_(*l)
-_meta_inline bool rwlockAcquireWrite(_Inout_ RWLock *l)
+_meta_inline void rwlockAcquireWrite(_Inout_ RWLock *l)
 {
-    return rwlockTryAcquireWriteTimeout(l, timeForever);
+    if (!rwlockTryAcquireWriteTimeout(l, timeForever))
+        relFatalError("Failed to acquire write lock (too many waiting writers?)");
 }
 
 #ifdef CX_LOCK_DEBUG
