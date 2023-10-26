@@ -961,6 +961,22 @@
 #  define SALIERI_DEFINED_Ret_notnull
 #endif
 
+#if defined(_Ret_valid_) && defined(SALIERI_DEFINED_Ret_valid)
+#  undef _Ret_valid_
+#endif
+#if !defined(_Ret_valid_)
+#  define _Ret_valid_
+#  define SALIERI_DEFINED_Ret_valid
+#endif
+
+#if defined(_Ret_opt_valid_) && defined(SALIERI_DEFINED_Ret_opt_valid)
+#  undef _Ret_opt_valid_
+#endif
+#if !defined(_Ret_opt_valid_)
+#  define _Ret_opt_valid_
+#  define SALIERI_DEFINED_Ret_opt_valid
+#endif
+
 #if defined(_Ret_writes_bytes_to_) && defined(SALIERI_DEFINED_Ret_writes_bytes_to)
 #  undef _Ret_writes_bytes_to_
 #endif
