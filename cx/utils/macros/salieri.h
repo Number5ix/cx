@@ -1091,6 +1091,14 @@
 #  define SALIERI_DEFINED_Pre_satisfies
 #endif
 
+#if defined(_Pre_valid_) && defined(SALIERI_DEFINED_Pre_valid)
+#  undef _Pre_valid_
+#endif
+#if !defined(_Pre_valid_)
+#  define _Pre_valid_
+#  define SALIERI_DEFINED_Pre_valid
+#endif
+
 #if defined(_Deref_pre_opt_valid_) && defined(SALIERI_DEFINED_Deref_pre_opt_valid)
 #  undef _Deref_pre_opt_valid_
 #endif
