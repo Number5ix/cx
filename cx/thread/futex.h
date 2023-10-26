@@ -19,23 +19,23 @@ typedef struct Futex {
 
 _Static_assert(sizeof(Futex) <= sizeof(int64), "Invalid Futex structure packing");
 
-bool futexInit(Futex *ftx, int32 val);
+void futexInit(_Out_ Futex *ftx, int32 val);
 
-_meta_inline int32 futexVal(Futex *ftx) {
+_meta_inline int32 futexVal(_Inout_ Futex *ftx) {
     return atomicLoad(int32, &ftx->val, Relaxed);
 }
 
 // sets the value but does NOT wake up any waiting threads; use with caution
 // and pair with either futexWake or futexWakeAll
-_meta_inline void futexSet(Futex *ftx, int32 val) {
+_meta_inline void futexSet(_Inout_ Futex *ftx, int32 val) {
     atomicStore(int32, &ftx->val, val, Relaxed);
 }
 
 // If futex value is equal to oldval, puts the thread to sleep until futexWake
 // is called on the same futex, or until the timeout expires.
 // Returns true only if the thread actually slept.
-int futexWait(Futex *ftx, int32 oldval, int64 timeout);
+int futexWait(_Inout_ Futex *ftx, int32 oldval, int64 timeout);
 
-void futexWake(Futex *ftx);
-void futexWakeMany(Futex *ftx, int count);
-void futexWakeAll(Futex *ftx);
+void futexWake(_Inout_ Futex *ftx);
+void futexWakeMany(_Inout_ Futex *ftx, int count);
+void futexWakeAll(_Inout_ Futex *ftx);

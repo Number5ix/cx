@@ -6,6 +6,7 @@
 
 #define THREAD_SHUTDOWN_TIMEOUT timeFromSeconds(30)
 
+_Use_decl_annotations_
 Thread* _thrCreate(threadFunc func, strref name, int n, stvar args[], bool ui)
 {
     Thread *ret = _throbjCreate(func, name, n, args, ui);
@@ -27,6 +28,7 @@ Thread* _thrCreate(threadFunc func, strref name, int n, stvar args[], bool ui)
     return ret;
 }
 
+_Use_decl_annotations_
 bool _thrRun(threadFunc func, strref name, int n, stvar args[])
 {
     Thread *ret = _throbjCreate(func, name, n, args, false);
@@ -42,6 +44,7 @@ bool _thrRun(threadFunc func, strref name, int n, stvar args[])
     return true;
 }
 
+_Use_decl_annotations_
 bool thrWait(Thread *thread, int64 timeout)
 {
     if (!atomicLoad(bool, &thread->running, Acquire))
@@ -56,6 +59,7 @@ bool thrWait(Thread *thread, int64 timeout)
     return ret;
 }
 
+_Use_decl_annotations_
 bool thrShutdown(Thread *thread)
 {
     if (!thread)
@@ -75,6 +79,7 @@ bool thrShutdown(Thread *thread)
     return ret;
 }
 
+_Use_decl_annotations_
 int thrShutdownMany(sa_Thread threads)
 {
     int64 start = clockTimer();
@@ -102,6 +107,7 @@ int thrShutdownMany(sa_Thread threads)
     return count;
 }
 
+_Use_decl_annotations_
 bool thrRequestExit(Thread *thread)
 {
     if (!thread || !atomicLoad(bool, &thread->running, Acquire))

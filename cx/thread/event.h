@@ -41,24 +41,24 @@ enum EVENTINITFUNC_FLAGS {
 // For events used by high-performance queues or other situations where it is expected that
 // there will usually be work to do, the caller should initialize the Event with a "Spin" flag,
 // which will cause the event to use adaptive spinning.
-bool _eventInit(Event *e, uint32 flags);
+void _eventInit(_Out_ Event *e, uint32 flags);
 #define eventInit(e, ...) _eventInit(e, opt_flags(__VA_ARGS__))
 
 #define eventSignal(e) eventSignalMany(e, 1)
-bool eventSignalMany(Event *e, int32 count);
-bool eventSignalAll(Event *e);
+bool eventSignalMany(_Inout_ Event *e, int32 count);
+bool eventSignalAll(_Inout_ Event *e);
 
-bool eventWaitTimeout(Event *e, uint64 timeout);
-_meta_inline bool eventWait(Event *e)
+bool eventWaitTimeout(_Inout_ Event *e, uint64 timeout);
+_meta_inline bool eventWait(_Inout_ Event *e)
 {
     return eventWaitTimeout(e, timeForever);
 }
 
 // signals the event and locks it in the signaled state, so threads attempting to wait on it
 // always return immediately
-bool eventSignalLock(Event *e);
+bool eventSignalLock(_Inout_ Event *e);
 // manually reset the event to an unsignaled state
-bool eventReset(Event *e);
-void eventDestroy(Event *e);
+bool eventReset(_Inout_ Event *e);
+void eventDestroy(_Pre_valid_ _Post_invalid_ Event *e);
 
 CX_C_END

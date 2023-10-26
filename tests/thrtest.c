@@ -93,8 +93,7 @@ static int thrproc2(Thread *self)
 static int test_futex()
 {
     int ret = 0;
-    if (!futexInit(&testftx, 0))
-        return 1;
+    futexInit(&testftx, 0);
 
     int i;
     Thread *producers[FUTEX_PRODUCERS];
@@ -150,8 +149,7 @@ static int thrproc2s(Thread *self)
 static int test_sema()
 {
     int ret = 0;
-    if (!semaInit(&testsem, 0))
-        return 1;
+    semaInit(&testsem, 0);
 
     int i;
     Thread *producers[SEMA_PRODUCERS];

@@ -4,15 +4,16 @@
 #include <cx/platform/os.h>
 #include <cx/utils/compare.h>
 
-bool _semaInit(Semaphore *sema, int32 count, uint32 flags)
+_Use_decl_annotations_
+void _semaInit(Semaphore *sema, int32 count, uint32 flags)
 {
     devAssert(count >= 0);
     memset(sema, 0, sizeof(Semaphore));
     futexInit(&sema->ftx, count);
     aspinInit(&sema->aspin, flags & SEMA_NoSpin);
-    return true;
 }
 
+_Use_decl_annotations_
 bool semaDestroy(Semaphore *sema)
 {
     devAssert(atomicLoad(int32, &sema->ftx.val, AcqRel) >= 0);
@@ -21,6 +22,7 @@ bool semaDestroy(Semaphore *sema)
     return true;
 }
 
+_Use_decl_annotations_
 bool semaTryDecTimeout(Semaphore *sema, int64 timeout)
 {
     int32 val = atomicLoad(int32, &sema->ftx.val, Relaxed);

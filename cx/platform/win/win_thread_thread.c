@@ -87,6 +87,7 @@ bool _thrPlatformWait(Thread *thread, int64 timeout)
     return WaitForSingleObject(thr->handle, (timeout == timeForever) ? INFINITE : (DWORD)timeToMsec(timeout)) == WAIT_OBJECT_0;
 }
 
+_Use_decl_annotations_
 bool _thrPlatformSetPriority(Thread *thread, int prio)
 {
     WinThread *thr = objDynCast(thread, WinThread);
@@ -134,6 +135,7 @@ Thread *thrCurrent(void)
     return Thread(curthread);
 }
 
+_Use_decl_annotations_
 intptr thrOSThreadID(Thread *thread)
 {
     WinThread *thr = objDynCast(thread, WinThread);

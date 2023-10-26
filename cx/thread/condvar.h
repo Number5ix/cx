@@ -17,14 +17,14 @@ typedef struct CondVar {
     AdaptiveSpin aspin;
 } CondVar;
 
-bool _cvarInit(CondVar *cv, uint32 flags);
+void _cvarInit(_Out_ CondVar *cv, uint32 flags);
 #define cvarInit(cv, ...) _cvarInit(cv, opt_flags(__VA_ARGS__))
 
-void cvarDestroy(CondVar *cv);
-bool cvarWaitTimeout(CondVar *cv, Mutex *m, int64 timeout);
-_meta_inline bool cvarWait(CondVar *cv, Mutex *m)
+void cvarDestroy(_Inout_ CondVar *cv);
+bool cvarWaitTimeout(_Inout_ CondVar *cv, _Inout_ Mutex *m, int64 timeout);
+_meta_inline bool cvarWait(_Inout_ CondVar *cv, _Inout_ Mutex *m)
 {
     return cvarWaitTimeout(cv, m, timeForever);
 }
-bool cvarSignal(CondVar *cv);
-bool cvarBroadcast(CondVar *cv);
+bool cvarSignal(_Inout_ CondVar *cv);
+bool cvarBroadcast(_Inout_ CondVar *cv);

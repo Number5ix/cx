@@ -1,13 +1,14 @@
 #include "mutex.h"
 #include <cx/time/clock.h>
 
-bool _mutexInit(Mutex *m, uint32 flags)
+_Use_decl_annotations_
+void _mutexInit(Mutex *m, uint32 flags)
 {
     futexInit(&m->ftx, 0);
     aspinInit(&m->aspin, flags & MUTEX_NoSpin);
-    return true;
 }
 
+_Use_decl_annotations_
 bool mutexTryAcquireTimeout(Mutex *m, int64 timeout)
 {
     // try simple lock first
@@ -42,6 +43,7 @@ bool mutexTryAcquireTimeout(Mutex *m, int64 timeout)
     return true;
 }
 
+_Use_decl_annotations_
 bool mutexRelease(Mutex *m)
 {
     int prevstate = atomicFetchSub(int32, &m->ftx.val, 1, Release);
@@ -54,6 +56,7 @@ bool mutexRelease(Mutex *m)
     return (prevstate > 0);
 }
 
+_Use_decl_annotations_
 void mutexDestroy(Mutex *m)
 {
     memset(m, 0, sizeof(Mutex));

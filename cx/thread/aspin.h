@@ -43,49 +43,49 @@ typedef struct AdaptiveSpinState
     uint32 rstate;
 } AdaptiveSpinState;
 
-_meta_inline void aspinRecordUncontended(AdaptiveSpin *aspin)
+_meta_inline void aspinRecordUncontended(_Inout_ AdaptiveSpin *aspin)
 {
 #ifdef ASPIN_PERF_STATS
     atomicFetchAdd(intptr, &aspin->stats_uncontended, 1, Relaxed);
 #endif
 }
 
-_meta_inline void aspinRecordSpin(AdaptiveSpin *aspin)
+_meta_inline void aspinRecordSpin(_Inout_ AdaptiveSpin *aspin)
 {
 #ifdef ASPIN_PERF_STATS
     atomicFetchAdd(intptr, &aspin->stats_spin, 1, Relaxed);
 #endif
 }
 
-_meta_inline void aspinRecordFutex(AdaptiveSpin *aspin)
+_meta_inline void aspinRecordFutex(_Inout_ AdaptiveSpin *aspin)
 {
 #ifdef ASPIN_PERF_STATS
     atomicFetchAdd(intptr, &aspin->stats_futex, 1, Relaxed);
 #endif
 }
 
-_meta_inline void aspinRecordCapped(AdaptiveSpin *aspin)
+_meta_inline void aspinRecordCapped(_Inout_ AdaptiveSpin *aspin)
 {
 #ifdef ASPIN_PERF_STATS
     atomicFetchAdd(intptr, &aspin->stats_capped, 1, Relaxed);
 #endif
 }
 
-_meta_inline void aspinRecordTimeout(AdaptiveSpin *aspin)
+_meta_inline void aspinRecordTimeout(_Inout_ AdaptiveSpin *aspin)
 {
 #ifdef ASPIN_PERF_STATS
     atomicFetchAdd(intptr, &aspin->stats_timeout, 1, Relaxed);
 #endif
 }
 
-_meta_inline void aspinRecordYield(AdaptiveSpin *aspin)
+_meta_inline void aspinRecordYield(_Inout_ AdaptiveSpin *aspin)
 {
 #ifdef ASPIN_PERF_STATS
     atomicFetchAdd(intptr, &aspin->stats_yield, 1, Relaxed);
 #endif
 }
 
-_meta_inline void aspinInit(AdaptiveSpin *aspin, bool nospin)
+_meta_inline void aspinInit(_Out_ AdaptiveSpin *aspin, bool nospin)
 {
     memset(aspin, 0, sizeof(AdaptiveSpin));
 
@@ -96,7 +96,7 @@ _meta_inline void aspinInit(AdaptiveSpin *aspin, bool nospin)
     atomicStore(int32, &aspin->spintarget, nospin ? ASPIN_NOSPIN : ASPIN_INITIAL_TARGET, Relaxed);
 }
 
-_meta_inline void aspinBegin(AdaptiveSpin *aspin, AdaptiveSpinState *ass, int64 timeout)
+_meta_inline void aspinBegin(_Inout_ AdaptiveSpin *aspin, _Out_ AdaptiveSpinState *ass, int64 timeout)
 {
     ass->now = clockTimer();
     ass->start = ass->now;
@@ -110,7 +110,7 @@ _meta_inline void aspinBegin(AdaptiveSpin *aspin, AdaptiveSpinState *ass, int64 
     ass->rstate = (ass->now & 0xffffffff);
 }
 
-_meta_inline bool aspinSpin(AdaptiveSpin *aspin, AdaptiveSpinState *ass)
+_meta_inline bool aspinSpin(_Inout_ AdaptiveSpin *aspin, _Inout_ AdaptiveSpinState *ass)
 {
     // clockTimer may be an expensive system call on some platforms.
     // Only update clock once every 8 loops, for a tighter spin and less latency.
@@ -134,7 +134,7 @@ _meta_inline bool aspinSpin(AdaptiveSpin *aspin, AdaptiveSpinState *ass)
     return false;
 }
 
-_meta_inline bool aspinTimeout(AdaptiveSpin *aspin, AdaptiveSpinState *ass)
+_meta_inline bool aspinTimeout(_Inout_ AdaptiveSpin *aspin, _Inout_ AdaptiveSpinState *ass)
 {
     // early out if we don't have a timeout -- skip clock update
     if (ass->endtime == timeForever)
@@ -152,7 +152,7 @@ _meta_inline bool aspinTimeout(AdaptiveSpin *aspin, AdaptiveSpinState *ass)
     return false;
 }
 
-_meta_inline void aspinAdapt(AdaptiveSpin *aspin, AdaptiveSpinState *ass)
+_meta_inline void aspinAdapt(_Inout_ AdaptiveSpin *aspin, _Inout_ AdaptiveSpinState *ass)
 {
     // don't adapt if we timed out entirely
     if (ass->now > ass->endtime)
@@ -176,16 +176,16 @@ _meta_inline void aspinAdapt(AdaptiveSpin *aspin, AdaptiveSpinState *ass)
     }
 }
 
-_meta_inline int64 aspinTimeoutRemaining(AdaptiveSpinState *ass)
+_meta_inline int64 aspinTimeoutRemaining(_In_ AdaptiveSpinState *ass)
 {
     return (ass->endtime == timeForever) ? timeForever : ass->endtime - ass->now;
 }
 
 // call this function when there is contention on a CAS
-_meta_inline void aspinHandleContention(AdaptiveSpin *aspin, AdaptiveSpinState *ass)
+_meta_inline void aspinHandleContention(_Inout_ AdaptiveSpin *aspin, _Inout_ AdaptiveSpinState *ass)
 {
     // This algorithm is cruicial to maintaining high performance even under extreme contention.
-    // Earlier versions of these primitives started to suffer degredation when many concurrent
+    // Earlier versions of these primitives started to suffer degradation when many concurrent
     // threads attempted to get the mutex/etc simultaneously. They would spend a lot of time
     // spinning on a CAS on the underlying atomic, attempting to get into a state where they
     // could wait with a futex/semaphore.

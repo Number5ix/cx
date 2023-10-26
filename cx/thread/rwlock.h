@@ -37,12 +37,22 @@ typedef struct RWLock {
     AdaptiveSpin aspin;
 } RWLock;
 
-bool _rwlockInit(RWLock *l, uint32 flags);
+void _rwlockInit(_Out_ RWLock *l, uint32 flags);
 #define rwlockInit(l, ...) _rwlockInit(l, opt_flags(__VA_ARGS__))
-bool rwlockTryAcquireReadTimeout(RWLock *l, int64 timeout);
-bool rwlockTryAcquireWriteTimeout(RWLock *l, int64 timeout);
 
-_meta_inline bool rwlockTryAcquireRead(RWLock *l)
+_When_(return == true, _Acquires_shared_lock_(*l))
+_When_(timeout == timeForever, _Acquires_shared_lock_(*l))
+_When_(timeout != timeForever, _Must_inspect_result_)
+bool rwlockTryAcquireReadTimeout(_Inout_ RWLock *l, int64 timeout);
+
+_When_(return == true, _Acquires_exclusive_lock_(*l))
+_When_(timeout == timeForever, _Acquires_exclusive_lock_(*l))
+_When_(timeout != timeForever, _Must_inspect_result_)
+bool rwlockTryAcquireWriteTimeout(_Inout_ RWLock *l, int64 timeout);
+
+_When_(return == true, _Acquires_shared_lock_(*l))
+_Must_inspect_result_
+_meta_inline bool rwlockTryAcquireRead(_Inout_ RWLock *l)
 {
     uint32 state = atomicLoad(uint32, &l->state, Relaxed);
     // only valid when no writer locks are held or pending
@@ -60,7 +70,9 @@ _meta_inline bool rwlockTryAcquireRead(RWLock *l)
     return false;
 }
 
-_meta_inline bool rwlockTryAcquireWrite(RWLock *l)
+_When_(return == true, _Acquires_exclusive_lock_(*l))
+_Must_inspect_result_
+_meta_inline bool rwlockTryAcquireWrite(_Inout_ RWLock *l)
 {
     uint32 state = atomicLoad(uint32, &l->state, Relaxed);
     // only valid when no other writer locks are held, and there are no (active) readers
@@ -78,7 +90,8 @@ _meta_inline bool rwlockTryAcquireWrite(RWLock *l)
     return false;
 }
 
-_meta_inline bool rwlockAcquireRead(RWLock *l)
+_Acquires_shared_lock_(*l)
+_meta_inline bool rwlockAcquireRead(_Inout_ RWLock *l)
 {
     return rwlockTryAcquireReadTimeout(l, timeForever);
 }
@@ -89,7 +102,8 @@ _meta_inline bool rwlockAcquireRead(RWLock *l)
 #ifdef CX_LOCK_DEBUG
 #define _logFmtRwlockArgComp2(level, fmt, nargs, args) _logFmt_##level(LOG_##level, LogDefault, fmt, nargs, args)
 #define _logFmtRwlockArgComp(level, fmt, ...)          _logFmtRwlockArgComp2(level, fmt, count_macro_args(__VA_ARGS__), (stvar[]){ __VA_ARGS__ })
-_meta_inline bool rwlockLogAndAcquireRead(RWLock *l, const char *name, const char *filename, int line)
+_Acquires_shared_lock_(*l)
+_meta_inline bool rwlockLogAndAcquireRead(_Inout_ RWLock *l, const char *name, const char *filename, int line)
 {
     _logFmtRwlockArgComp(CX_LOCK_DEBUG, _S"Locking rwlock ${string} for READ at ${string}:${int}",
                          stvar(string, (string)name), stvar(string, (string)filename), stvar(int32, line));
@@ -99,13 +113,15 @@ _meta_inline bool rwlockLogAndAcquireRead(RWLock *l, const char *name, const cha
 #define rwlockAcquireRead(l) rwlockLogAndAcquireRead(l, #l, __FILE__, __LINE__)
 #endif
 
-_meta_inline bool rwlockAcquireWrite(RWLock *l)
+_Acquires_exclusive_lock_(*l)
+_meta_inline bool rwlockAcquireWrite(_Inout_ RWLock *l)
 {
     return rwlockTryAcquireWriteTimeout(l, timeForever);
 }
 
 #ifdef CX_LOCK_DEBUG
-_meta_inline bool rwlockLogAndAcquireWrite(RWLock *l, const char *name, const char *filename, int line)
+_Acquires_exclusive_lock_(*l)
+_meta_inline bool rwlockLogAndAcquireWrite(_Inout_ RWLock *l, const char *name, const char *filename, int line)
 {
     _logFmtRwlockArgComp(CX_LOCK_DEBUG, _S"Locking rwlock ${string} for WRITE at ${string}:${int}",
                          stvar(string, (string)name), stvar(string, (string)filename), stvar(int32, line));
@@ -115,7 +131,8 @@ _meta_inline bool rwlockLogAndAcquireWrite(RWLock *l, const char *name, const ch
 #define rwlockAcquireWrite(l) rwlockLogAndAcquireWrite(l, #l, __FILE__, __LINE__)
 #endif
 
-_meta_inline bool rwlockReleaseRead(RWLock *l)
+_Releases_shared_lock_(*l)
+_meta_inline bool rwlockReleaseRead(_Inout_ RWLock *l)
 {
     devAssert(RWLOCK_READERS(atomicLoad(uint32, &l->state, Relaxed)) > 0);
     uint32 oldstate = atomicFetchSub(uint32, &l->state, RWLOCK_READ_ADD, Release);
@@ -131,7 +148,8 @@ _meta_inline bool rwlockReleaseRead(RWLock *l)
 }
 
 #ifdef CX_LOCK_DEBUG
-_meta_inline bool rwlockLogAndReleaseRead(RWLock *l, const char *name, const char *filename, int line)
+_Releases_shared_lock_(*l)
+_meta_inline bool rwlockLogAndReleaseRead(_Inout_ RWLock *l, const char *name, const char *filename, int line)
 {
     _logFmtRwlockArgComp(CX_LOCK_DEBUG, _S"Releasing rwlock ${string} for READ at ${string}:${int}",
                          stvar(string, (string)name), stvar(string, (string)filename), stvar(int32, line));
@@ -141,10 +159,12 @@ _meta_inline bool rwlockLogAndReleaseRead(RWLock *l, const char *name, const cha
 #define rwlockReleaseRead(l) rwlockLogAndReleaseRead(l, #l, __FILE__, __LINE__)
 #endif
 
-bool rwlockReleaseWrite(RWLock *l);
+_Releases_exclusive_lock_(*l)
+bool rwlockReleaseWrite(_Inout_ RWLock *l);
 
 #ifdef CX_LOCK_DEBUG
-_meta_inline bool rwlockLogAndReleaseWrite(RWLock *l, const char *name, const char *filename, int line)
+_Releases_exclusive_lock_(*l)
+_meta_inline bool rwlockLogAndReleaseWrite(_Inout_ RWLock *l, const char *name, const char *filename, int line)
 {
     _logFmtRwlockArgComp(CX_LOCK_DEBUG, _S"Releasing rwlock ${string} for WRITE at ${string}:${int}",
                          stvar(string, (string)name), stvar(string, (string)filename), stvar(int32, line));
@@ -155,8 +175,10 @@ _meta_inline bool rwlockLogAndReleaseWrite(RWLock *l, const char *name, const ch
 #endif
 
 // Atomically release write lock and acquire read lock, guaranteed not to wait
-bool rwlockDowngradeWrite(RWLock *l);
+_Releases_exclusive_lock_(*l)
+_Acquires_shared_lock_(*l)
+bool rwlockDowngradeWrite(_Inout_ RWLock *l);
 
-void rwlockDestroy(RWLock *l);
+void rwlockDestroy(_Pre_valid_ _Post_invalid_ RWLock *l);
 
 CX_C_END

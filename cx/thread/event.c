@@ -4,7 +4,8 @@
 #include <cx/platform/os.h>
 #include <cx/platform/uievent.h>
 
-bool _eventInit(Event *e, flags_t flags)
+_Use_decl_annotations_
+void _eventInit(Event *e, flags_t flags)
 {
     futexInit(&e->ftx, 0);
     atomicStore(int32, &e->waiters, 0, Relaxed);
@@ -18,10 +19,9 @@ bool _eventInit(Event *e, flags_t flags)
     if (flags & EV_UIEvent)
         e->uiev = uieventCreate();
 #endif
-
-    return true;
 }
 
+_Use_decl_annotations_
 bool eventSignalMany(Event *e, int32 count)
 {
     devAssert(count > 0);
@@ -58,6 +58,7 @@ bool eventSignalMany(Event *e, int32 count)
     return count || val == 0;
 }
 
+_Use_decl_annotations_
 bool eventSignalAll(Event *e)
 {
     AdaptiveSpinState astate;
@@ -88,6 +89,7 @@ bool eventSignalAll(Event *e)
     return true;
 }
 
+_Use_decl_annotations_
 bool eventSignalLock(Event *e)
 {
     atomicStore(int32, &e->ftx.val, -1, Release);
@@ -96,6 +98,7 @@ bool eventSignalLock(Event *e)
     return true;
 }
 
+_Use_decl_annotations_
 bool eventWaitTimeout(Event *e, uint64 timeout)
 {
     // try fast path first
@@ -165,6 +168,7 @@ bool eventWaitTimeout(Event *e, uint64 timeout)
     return true;
 }
 
+_Use_decl_annotations_
 bool eventReset(Event *e)
 {
     int32 val = atomicLoad(int32, &e->ftx.val, Relaxed);
@@ -177,6 +181,7 @@ bool eventReset(Event *e)
     return true;
 }
 
+_Use_decl_annotations_
 void eventDestroy(Event *e)
 {
     if (e->uiev)

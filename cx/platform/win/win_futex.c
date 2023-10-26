@@ -70,15 +70,15 @@ static void _futexInit(void *unused)
     }
 }
 
-bool futexInit(Futex *ftx, int32 val) {
+_Use_decl_annotations_
+void futexInit(Futex *ftx, int32 val) {
     lazyInit(&_futexInitState, _futexInit, NULL);
     atomicStore(int32, &ftx->val, val, Relaxed);
     atomicStore(uint16, &ftx->_ps, 0, Relaxed);
     atomicStore(uint8, &ftx->_ps_lock, 0, Relaxed);
-
-    return true;
 }
 
+_Use_decl_annotations_
 int futexWait(Futex *ftx, int32 oldval, int64 timeout) {
     // early out if the value already doesn't match
     if (atomicLoad(int32, &ftx->val, Relaxed) != oldval)
@@ -143,6 +143,7 @@ int futexWait(Futex *ftx, int32 oldval, int64 timeout) {
     }
 }
 
+_Use_decl_annotations_
 void futexWake(Futex *ftx)
 {
     if (pWaitOnAddress) {
@@ -187,6 +188,7 @@ void futexWake(Futex *ftx)
     }
 }
 
+_Use_decl_annotations_
 void futexWakeMany(Futex *ftx, int count)
 {
     if (pWaitOnAddress) {
@@ -223,6 +225,7 @@ void futexWakeMany(Futex *ftx, int count)
     }
 }
 
+_Use_decl_annotations_
 void futexWakeAll(Futex *ftx)
 {
     if (pWaitOnAddress) {

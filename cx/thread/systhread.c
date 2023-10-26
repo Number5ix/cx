@@ -32,6 +32,7 @@ static void systhreadInit(void *unused)
     atexit(systhreadAtExit);
 }
 
+_Use_decl_annotations_
 void thrRegisterSysThread(Thread *thread)
 {
     lazyInit(&systhreadInitState, systhreadInit, NULL);

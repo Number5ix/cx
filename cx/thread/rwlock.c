@@ -11,15 +11,16 @@
 
 // Further reworked to use futexes instead of semaphores.
 
-bool _rwlockInit(RWLock *l, uint32 flags)
+_Use_decl_annotations_
+void _rwlockInit(RWLock *l, uint32 flags)
 {
     atomicStore(uint32, &l->state, 0, Relaxed);
     futexInit(&l->rftx, 0);
     futexInit(&l->wftx, 0);
     aspinInit(&l->aspin, flags & RWLOCK_NoSpin);
-    return true;
 }
 
+_Use_decl_annotations_
 bool rwlockTryAcquireReadTimeout(RWLock *l, int64 timeout)
 {
     uint32 state = atomicLoad(uint32, &l->state, Relaxed);
@@ -84,6 +85,7 @@ bool rwlockTryAcquireReadTimeout(RWLock *l, int64 timeout)
     return true;
 }
 
+_Use_decl_annotations_
 bool rwlockTryAcquireWriteTimeout(RWLock *l, int64 timeout)
 {
     uint32 state = atomicLoad(uint32, &l->state, Relaxed);
@@ -136,13 +138,15 @@ bool rwlockTryAcquireWriteTimeout(RWLock *l, int64 timeout)
     return true;
 }
 
-_meta_inline bool _rwlockReleaseWriteInternal(RWLock *l, bool downgrade)
+_meta_inline bool _rwlockReleaseWriteInternal(_Inout_ RWLock *l, bool downgrade)
 {
     uint32 state = atomicLoad(uint32, &l->state, Relaxed);
     uint32 nstate, rwait;
 
     do {
         devAssert(RWLOCK_WRITERS(state) > 0 && RWLOCK_READERS(state) == 0);
+        if (RWLOCK_WRITERS(state) == 0)
+            return false;
 
         // normally we just subtract a writer
         nstate = state - RWLOCK_WRITE_ADD;
@@ -177,16 +181,19 @@ _meta_inline bool _rwlockReleaseWriteInternal(RWLock *l, bool downgrade)
     return true;
 }
 
+_Use_decl_annotations_
 bool rwlockReleaseWrite(RWLock *l)
 {
     return _rwlockReleaseWriteInternal(l, false);
 }
 
+_Use_decl_annotations_
 bool rwlockDowngradeWrite(RWLock *l)
 {
     return _rwlockReleaseWriteInternal(l, true);
 }
 
+_Use_decl_annotations_
 void rwlockDestroy(RWLock *l)
 {
     memset(l, 0, sizeof(RWLock));
