@@ -9,12 +9,10 @@
 #include <limits.h>
 #include <math.h>
 
-bool futexInit(Futex *ftx, int32 val) {
+void futexInit(Futex *ftx, int32 val) {
     atomicStore(int32, &ftx->val, val, Relaxed);
     atomicStore(uint16, &ftx->_ps, 0, Relaxed);
     atomicStore(uint8, &ftx->_ps_lock, 0, Relaxed);
-
-    return true;
 }
 
 int futexWait(Futex *ftx, int32 oldval, int64 timeout) {
