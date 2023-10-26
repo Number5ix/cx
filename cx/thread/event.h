@@ -49,9 +49,9 @@ bool eventSignalMany(_Inout_ Event *e, int32 count);
 bool eventSignalAll(_Inout_ Event *e);
 
 bool eventWaitTimeout(_Inout_ Event *e, uint64 timeout);
-_meta_inline bool eventWait(_Inout_ Event *e)
+_meta_inline void eventWait(_Inout_ Event *e)
 {
-    return eventWaitTimeout(e, timeForever);
+    eventWaitTimeout(e, timeForever);
 }
 
 // signals the event and locks it in the signaled state, so threads attempting to wait on it
