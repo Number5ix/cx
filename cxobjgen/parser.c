@@ -362,19 +362,45 @@ bool parseGlobal(ParseState *ps, string *tok)
     }
 
     // anything not explicitly parsed at the global level gets passed through
+    bool singletok = (strGetChar(ps->rawtok, -1) == '\n');      // is the line just one token followed by LF?
+    char ch;
+
     if (!ps->included) {
-        char ch;
+        // strip line endings from end of line (only relevant for singletok)
+        while (ch = strGetChar(ps->rawtok, -1), ch == '\r' || ch == '\n')
+            strSubStrI(&ps->rawtok, 0, -1);
+
+        // ptemptyok resets every time we enter a parsed section and is used to
+        // eat any whitespace between the parsed lines and the unparsed lines
         if (!ps->ptemptyok) {
+            // strip line endings from beginning of line (empty lines after previous token)
             while (ch = strGetChar(ps->rawtok, 0), ch == '\r' || ch == '\n') {
                 strSubStr(&ps->rawtok, ps->rawtok, 1, strEnd);
             }
             ps->ptemptyok = true;
         }
+
         strAppend(&cpassthrough, ps->rawtok);
     }
-    nextCustomTok(ps, tok, '\n', NULL);
+
+    if (!singletok) {
+        // non-single token lines need to read the rest of the line,
+        // this is done by reading a custom token that looks for the EOL
+        nextCustomTok(ps, tok, '\n', NULL);
+        // eat a DOS-style CR character if it exists
+        while (strGetChar(*tok, -1) == '\r')
+            strSubStrI(tok, 0, -1);
+
+        if (!ps->included)
+            strAppend(&cpassthrough, *tok);
+    }
+
     if (!ps->included) {
-        strNConcat(&cpassthrough, cpassthrough, *tok, _S"\n");
+#ifdef _PLATFORM_WIN
+        strAppend(&cpassthrough, _S"\r\n");
+#else
+        strAppend(&cpassthrough, _S"\n");
+#endif
     }
 
     return true;
