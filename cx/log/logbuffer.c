@@ -31,6 +31,7 @@ typedef struct LogOverflowTLS {
 static _Thread_local LogOverflowTLS _log_overflow;
 
 // MUST be called with _log_buffer_lock held in read mode
+_Requires_shared_lock_held_(_log_buffer_lock)
 static bool logBufferGrow(int32 minsize)
 {
     if (!_log_buffer.a)

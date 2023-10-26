@@ -130,6 +130,7 @@ bool _thrPlatformSetPriority(Thread *thread, int prio)
     return SetThreadPriority(thr->handle, winprio);
 }
 
+_Use_decl_annotations_
 Thread *thrCurrent(void)
 {
     return Thread(curthread);

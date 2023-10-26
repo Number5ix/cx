@@ -148,7 +148,7 @@ bool lparseLine(StreamBuffer *sb, string *out)
             } else {
                 // include EOL character(s) in string
                 outbuf = strBuffer(out, (uint32)ei.off + ei.len);
-                sbufCRead(sb, outbuf, (uint32)ei.off + ei.len);
+                sbufCRead(sb, outbuf, ei.off + ei.len);
             }
             // buffer has been advanced to right after the EOL
             lpc->checked = 0;
@@ -205,7 +205,7 @@ static void lpcNotify(StreamBuffer *sb, size_t sz, void *ctx)
             } else {
                 // include EOL character(s) in string
                 outbuf = strBuffer(&lpc->out, (uint32)ei.off + ei.len);
-                sbufCRead(sb, outbuf, (uint32)ei.off + ei.len);
+                sbufCRead(sb, outbuf, ei.off + ei.len);
             }
             // buffer has been advanced to right after the EOL
             lpc->checked = 0;

@@ -23,7 +23,7 @@ void dbgAssertAddCallback(dbgAssertCallback cb);
 void dbgAssertRemoveCallback(dbgAssertCallback cb);
 
 #if DEBUG_LEVEL >= 1
-CX_C bool _cxAssertFail(_In_opt_z_ const char *expr, _In_opt_z_ const char *msg, _In_opt_z_ const char *file, int ln);
+CX_C bool _cxAssertFail(_In_opt_z_ const char *expr, _In_opt_z_ const char *msg, _In_z_ const char *file, int ln);
 #else
 CX_C bool _cxAssertFail(_In_opt_z_ const char *expr, _In_opt_z_ const char *msg);
 #endif

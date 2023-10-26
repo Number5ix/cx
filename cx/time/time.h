@@ -35,8 +35,9 @@ typedef struct TimeParts {
     uint16 yday;    // day of year
 } TimeParts;
 
-_Success_(return) _Check_return_
-bool timeDecompose(_Out_ TimeParts *out, int64 time);
+bool timeDecompose(_Out_ TimeParts *out, _In_range_(0, timeForever) int64 time);
+
+_Ret_range_(0, timeForever)
 int64 timeCompose(_In_ TimeParts *parts);
 
 // convert a time to local time, optionally returning the offset
@@ -66,14 +67,15 @@ _meta_inline int64 timeFromMsec(int64 msec)
 
 // relative timespec
 
-_meta_inline int64 timeFromRelTimespec(struct timespec *ts)
+_Ret_range_(0, timeForever)
+_meta_inline int64 timeFromRelTimespec(_In_ struct timespec *ts)
 {
     int64 ret = (int64)ts->tv_sec * 1000000;
     ret += ts->tv_nsec / 1000;
     return ret;
 }
 
-_meta_inline void timeToRelTimespec(struct timespec *ts, int64 time)
+_meta_inline void timeToRelTimespec(_Out_ struct timespec *ts, int64 time)
 {
     ts->tv_sec = time / 1000000;
     ts->tv_nsec = (time % 1000000) * 1000;
@@ -81,7 +83,8 @@ _meta_inline void timeToRelTimespec(struct timespec *ts, int64 time)
 
 // unix absolute timespec
 
-_meta_inline int64 timeFromAbsTimespec(struct timespec *ts)
+_Ret_range_(0, timeForever)
+_meta_inline int64 timeFromAbsTimespec(_In_ struct timespec *ts)
 {
     int64 ret = (int64)ts->tv_sec * 1000000;
     ret += ts->tv_nsec / 1000;
@@ -97,7 +100,7 @@ _meta_inline int64 timeFromAbsTimespec(struct timespec *ts)
     return ret;
 }
 
-_meta_inline void timeToAbsTimespec(struct timespec *ts, int64 time)
+_meta_inline void timeToAbsTimespec(_Out_ struct timespec *ts, int64 time)
 {
     time -= 210866760000000000LL;       // adjust epoch
 
@@ -107,6 +110,7 @@ _meta_inline void timeToAbsTimespec(struct timespec *ts, int64 time)
 
 // unix time_t
 
+_Ret_range_(0, timeForever)
 _meta_inline int64 timeFromTimeT(time_t tt)
 {
     int64 ret = (int64)tt * 1000000;

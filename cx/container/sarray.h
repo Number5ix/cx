@@ -150,7 +150,7 @@ _At_(handle->a, _Pre_notnull_ _Post_notnull_)
 void _saSetSize(_Inout_ sahandle handle, int32 size);
 #define saSetSize(handle, size) _saSetSize(SAHANDLE(handle), size)
 
-_At_(handle->a, _Pre_maybenull_ _When_(handle->a, _Post_notnull_))
+_At_(handle->a, _Pre_maybenull_)
 void _saClear(_Inout_ sahandle handle);
 #define saClear(handle) _saClear(SAHANDLE(handle))
 
@@ -165,7 +165,7 @@ int32 _saPushPtr(_Inout_ sahandle handle, stype elemtype, _sa_Consume_Arg_ stgen
 
 // Pointer pop transfers ownership to the caller and does not call the destructor
 _Ret_maybenull_
-_At_(handle->a, _Pre_maybenull_ _When_(handle->a, _Post_notnull_))
+_At_(handle->a, _Pre_maybenull_)
 void *_saPopPtr(_Inout_ sahandle handle, int32 idx);
 #define saPopPtr(handle) _saPopPtr(SAHANDLE(handle), -1)
 #define saPopPtrI(handle, idx) _saPopPtr(SAHANDLE(handle), idx)
@@ -184,7 +184,7 @@ _meta_inline int32 _saFindChecked(_In_ sa_ref ref, stype elemtype, _In_ stgeneri
 
 _At_(handle->a, _Pre_notnull_ _Post_notnull_)
 bool _saFindRemove(_Inout_ sahandle handle, _In_ stgeneric elem, flags_t flags);
-_At_(handle->a, _Pre_maybenull_ _When_(handle->a, _Post_notnull_))
+_At_(handle->a, _Pre_maybenull_)
 _meta_inline bool _saFindRemoveChecked(_Inout_ sahandle handle, stype elemtype, _In_ stgeneric elem, flags_t flags)
 {
     if (!handle->a)
@@ -208,7 +208,7 @@ _meta_inline int32 _saInsertChecked(_Inout_ sahandle handle, int32 idx, stype el
 _At_(handle->a, _Pre_notnull_ _Post_notnull_)
 bool _saExtract(_Inout_ sahandle handle, int32 idx, _Inout_opt_ stgeneric *elem, flags_t flags);
 
-_At_(handle->a, _Pre_maybenull_ _When_(handle->a, _Post_notnull_))
+_At_(handle->a, _Pre_maybenull_)
 _meta_inline bool _saExtractChecked(_Inout_ sahandle handle, int32 idx, stype elemtype, _stCopyDest_Anno_opt_(elemtype) stgeneric *elem, flags_t flags)
 {
     if (!handle->a)
@@ -220,7 +220,7 @@ _meta_inline bool _saExtractChecked(_Inout_ sahandle handle, int32 idx, stype el
 #define saExtract(handle, idx, type, elem_copy_out, ...) _saExtractChecked(SAHANDLE(handle), idx, stCheckedPtrArg(type, elem_copy_out), opt_flags(__VA_ARGS__))
 #define saRemove(handle, idx, ...) _saExtractChecked(SAHANDLE(handle), idx, stType(none), NULL, opt_flags(__VA_ARGS__))
 
-_At_(handle->a, _Pre_maybenull_ _When_(handle->a, _Post_notnull_))
+_At_(handle->a, _Pre_maybenull_)
 void _saSort(_Inout_ sahandle handle, bool keep);
 #define saSort(handle, keep) _saSort(SAHANDLE(handle), keep)
 

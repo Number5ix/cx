@@ -24,8 +24,9 @@ static void initCurDir(void *data)
 
     DWORD sz = GetCurrentDirectoryW(0, NULL);
     wchar_t *p = xaAlloc(sz * sizeof(wchar_t));
-    sz = GetCurrentDirectoryW(sz, p);
-    strFromUTF16(&_fsCurDir, p, sz);
+    DWORD ret = GetCurrentDirectoryW(sz, p);
+    if (ret != 0 && ret < sz)
+        strFromUTF16(&_fsCurDir, p, ret);
     xaFree(p);
 
     pathFromPlatform(&_fsCurDir, _fsCurDir);
