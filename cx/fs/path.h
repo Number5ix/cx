@@ -18,36 +18,36 @@
 CX_C_BEGIN
 
 // Eliminate redundant path elements, convert backslashes, etc
-void pathNormalize(string *path);
+void pathNormalize(_Inout_ string *path);
 
 // Same as pathNormalize, but outputs an sarray of strings
 // returns true if it was an absolute path, false for relative
-bool pathDecompose(string *ns, sa_string *components, strref path);
+bool pathDecompose(_Inout_ string *ns, _In_ sa_string *components, _In_opt_ strref path);
 
 // Recomposes a path
-bool pathCompose(string *out, strref ns, sa_string components);
+bool pathCompose(_Inout_ string *out, _In_opt_ strref ns, _In_ sa_string components);
 
 // Is this an absolute or relative path?
-bool pathIsAbsolute(strref path);
+bool pathIsAbsolute(_In_opt_ strref path);
 
 // Get parent directory
-bool pathParent(string *out, strref path);
+bool pathParent(_Inout_ string *out, _In_opt_ strref path);
 
 // Get filename
-bool pathFilename(string *out, strref path);
+bool pathFilename(_Inout_ string *out, _In_opt_ strref path);
 
 // Split a full path into a namespace/path components
-bool pathSplitNS(string *nspart, string *pathpart, strref path);
+bool pathSplitNS(_Inout_ string *nspart, _Inout_ string *pathpart, _In_opt_ strref path);
 
 // For convenience, just string concats with the path separator
-bool _pathJoin(string *out, int n, strref* elements);
+bool _pathJoin(_Inout_ string *out, int n, _In_ strref* elements);
 #define pathJoin(out, ...) _pathJoin(out, count_macro_args(__VA_ARGS__), (strref[]){ __VA_ARGS__ })
 
 // Add filename extension
-void pathAddExt(string *out, strref path, strref ext);
-bool pathRemoveExt(string *out, strref path);
-bool pathGetExt(string *out, strref path);
-void pathSetExt(string *out, strref path, strref ext);
+void pathAddExt(_Inout_ string *out, _In_opt_ strref path, _In_opt_ strref ext);
+bool pathRemoveExt(_Inout_ string *out, _In_opt_ strref path);
+bool pathGetExt(_Inout_ string *out, _In_opt_ strref path);
+void pathSetExt(_Inout_ string *out, _In_opt_ strref path, _In_opt_ strref ext);
 
 // Path wildcard matching
 enum PathMatchFlags {
@@ -55,6 +55,6 @@ enum PathMatchFlags {
     PATH_IgnorePath       = 2,      // match slashes as regular character
     PATH_CaseInsensitive  = 4,      // Ignore case differences
 };
-bool pathMatch(strref path, strref pattern, uint32 flags);
+bool pathMatch(_In_opt_ strref path, _In_opt_ strref pattern, uint32 flags);
 
 CX_C_END

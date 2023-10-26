@@ -2,6 +2,7 @@
 #include "cx/string.h"
 #include "cx/debug/assert.h"
 
+_Use_decl_annotations_
 bool pathMatch(strref path, strref pattern, uint32 flags)
 {
     striter bt_pathi = { 0 }, bt_pati = { 0 };

@@ -7,6 +7,7 @@ string fsPathSepStr = _S"/";
 string fsNSSepStr = _S":";
 
 // Get parent directory
+_Use_decl_annotations_
 bool pathParent(string *out, strref path)
 {
     int32 len = strLen(path);
@@ -21,6 +22,7 @@ bool pathParent(string *out, strref path)
     return strSubStr(out, path, 0, sep);
 }
 
+_Use_decl_annotations_
 bool pathFilename(string *out, strref path)
 {
     int sep = strFindR(path, strEnd, fsPathSepStr);
@@ -31,6 +33,7 @@ bool pathFilename(string *out, strref path)
     return false;
 }
 
+_Use_decl_annotations_
 bool _pathJoin(string *out, int n, strref* elements)
 {
     string npath = 0;
@@ -66,11 +69,13 @@ bool _pathJoin(string *out, int n, strref* elements)
     return true;
 }
 
+_Use_decl_annotations_
 void pathAddExt(string *out, strref path, strref ext)
 {
     strNConcat(out, path, _S".", ext);
 }
 
+_Use_decl_annotations_
 bool pathRemoveExt(string *out, strref path)
 {
     if (strEmpty(path))
@@ -85,6 +90,7 @@ bool pathRemoveExt(string *out, strref path)
     return true;
 }
 
+_Use_decl_annotations_
 bool pathGetExt(string *out, strref path)
 {
     if (!path)
@@ -99,12 +105,14 @@ bool pathGetExt(string *out, strref path)
     return true;
 }
 
+_Use_decl_annotations_
 void pathSetExt(string *out, strref path, strref ext)
 {
     pathRemoveExt(out, path);
     pathAddExt(out, *out, ext);
 }
 
+_Use_decl_annotations_
 bool pathIsAbsolute(strref path)
 {
     // namespaced paths are always absolute
@@ -115,6 +123,7 @@ bool pathIsAbsolute(strref path)
     return false;
 }
 
+_Use_decl_annotations_
 bool pathSplitNS(string *nspart, string *pathpart, strref path)
 {
     int32 idx = strFind(path, 0, fsNSSepStr);
@@ -137,7 +146,7 @@ bool pathSplitNS(string *nspart, string *pathpart, strref path)
     return true;
 }
 
-static bool pathNormalized(strref path)
+static bool pathNormalized(_In_opt_ strref path)
 {
     striter pi;
     striBorrow(&pi, path);
@@ -191,6 +200,7 @@ static bool pathNormalized(strref path)
     return true;
 }
 
+_Use_decl_annotations_
 bool pathDecompose(string *ns, sa_string *components, strref pathin)
 {
     string rpath = 0;
@@ -235,6 +245,7 @@ bool pathDecompose(string *ns, sa_string *components, strref pathin)
     return absolute;
 }
 
+_Use_decl_annotations_
 bool pathCompose(string *out, strref ns, sa_string components)
 {
     string rpath = 0;
@@ -252,6 +263,7 @@ bool pathCompose(string *out, strref ns, sa_string components)
     return true;
 }
 
+_Use_decl_annotations_
 void pathNormalize(string *path)
 {
     string nspace = 0;
