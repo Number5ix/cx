@@ -13,19 +13,19 @@ typedef struct VFSFS_ClassIf {
     size_t _size;
 
     // VFSProviderFlags enforced for this provider
-    flags_t (*flags)(void *self);
+    flags_t (*flags)(_Inout_ void *self);
     // returns an object that implements VFSFileProvider
-    ObjInst *(*open)(void *self, strref path, flags_t flags);
-    int (*stat)(void *self, strref path, FSStat *stat);
-    bool (*setTimes)(void *self, strref path, int64 modified, int64 accessed);
-    bool (*createDir)(void *self, strref path);
-    bool (*removeDir)(void *self, strref path);
-    bool (*deleteFile)(void *self, strref path);
-    bool (*rename)(void *self, strref oldpath, strref newpath);
-    bool (*getFSPath)(void *self, string *out, strref path);
-    bool (*searchInit)(void *self, FSSearchIter *iter, strref path, strref pattern, bool stat);
-    bool (*searchNext)(void *self, FSSearchIter *iter);
-    void (*searchFinish)(void *self, FSSearchIter *iter);
+    ObjInst *(*open)(_Inout_ void *self, strref path, flags_t flags);
+    int (*stat)(_Inout_ void *self, strref path, FSStat *stat);
+    bool (*setTimes)(_Inout_ void *self, strref path, int64 modified, int64 accessed);
+    bool (*createDir)(_Inout_ void *self, strref path);
+    bool (*removeDir)(_Inout_ void *self, strref path);
+    bool (*deleteFile)(_Inout_ void *self, strref path);
+    bool (*rename)(_Inout_ void *self, strref oldpath, strref newpath);
+    bool (*getFSPath)(_Inout_ void *self, string *out, strref path);
+    bool (*searchInit)(_Inout_ void *self, FSSearchIter *iter, strref path, strref pattern, bool stat);
+    bool (*searchNext)(_Inout_ void *self, FSSearchIter *iter);
+    void (*searchFinish)(_Inout_ void *self, FSSearchIter *iter);
 } VFSFS_ClassIf;
 extern VFSFS_ClassIf VFSFS_ClassIf_tmpl;
 
@@ -44,7 +44,7 @@ extern ObjClassInfo VFSFS_clsinfo;
 #define VFSFS(inst) ((VFSFS*)(unused_noeval((inst) && &((inst)->_is_VFSFS)), (inst)))
 #define VFSFSNone ((VFSFS*)NULL)
 
-VFSFS *VFSFS_create(strref rootpath);
+_objfactory VFSFS *VFSFS_create(strref rootpath);
 // VFSFS *vfsfsCreate(strref rootpath);
 #define vfsfsCreate(rootpath) VFSFS_create(rootpath)
 

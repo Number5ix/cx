@@ -9,7 +9,7 @@
 // ==================== Auto-generated section ends ======================
 #include "../ssdtree.h"
 
-SSDSingleNode *SSDSingleNode__create(SSDTree *tree)
+_objfactory SSDSingleNode *SSDSingleNode__create(SSDTree *tree)
 {
     SSDSingleNode *self;
     self = objInstCreate(SSDSingleNode);
@@ -24,20 +24,20 @@ SSDSingleNode *SSDSingleNode__create(SSDTree *tree)
     return self;
 }
 
-bool SSDSingleNode_get(SSDSingleNode *self, int32 idx, strref name, stvar *out, SSDLockState *_ssdCurrentLockState)
+bool SSDSingleNode_get(_Inout_ SSDSingleNode *self, int32 idx, strref name, stvar *out, SSDLockState *_ssdCurrentLockState)
 {
     ssdLockRead(self);
     stvarCopy(out, self->storage);
     return true;
 }
 
-stvar *SSDSingleNode_ptr(SSDSingleNode *self, int32 idx, strref name, SSDLockState *_ssdCurrentLockState)
+stvar *SSDSingleNode_ptr(_Inout_ SSDSingleNode *self, int32 idx, strref name, SSDLockState *_ssdCurrentLockState)
 {
     ssdLockRead(self);
     return &self->storage;
 }
 
-bool SSDSingleNode_set(SSDSingleNode *self, int32 idx, strref name, stvar val, SSDLockState *_ssdCurrentLockState)
+bool SSDSingleNode_set(_Inout_ SSDSingleNode *self, int32 idx, strref name, stvar val, SSDLockState *_ssdCurrentLockState)
 {
     ssdLockWrite(self);
     stvarDestroy(&self->storage);
@@ -46,7 +46,7 @@ bool SSDSingleNode_set(SSDSingleNode *self, int32 idx, strref name, stvar val, S
     return true;
 }
 
-bool SSDSingleNode_setC(SSDSingleNode *self, int32 idx, strref name, stvar *val, SSDLockState *_ssdCurrentLockState)
+bool SSDSingleNode_setC(_Inout_ SSDSingleNode *self, int32 idx, strref name, stvar *val, SSDLockState *_ssdCurrentLockState)
 {
     ssdLockWrite(self);
     stvarDestroy(&self->storage);
@@ -56,30 +56,30 @@ bool SSDSingleNode_setC(SSDSingleNode *self, int32 idx, strref name, stvar *val,
     return true;
 }
 
-bool SSDSingleNode_remove(SSDSingleNode *self, int32 idx, strref name, SSDLockState *_ssdCurrentLockState)
+bool SSDSingleNode_remove(_Inout_ SSDSingleNode *self, int32 idx, strref name, SSDLockState *_ssdCurrentLockState)
 {
     // can't remove a single node!
     return false;
 }
 
-SSDIterator *SSDSingleNode_iter(SSDSingleNode *self)
+SSDIterator *SSDSingleNode_iter(_Inout_ SSDSingleNode *self)
 {
     SSDSingleIter *iter = ssdsingleiterCreate(self, NULL);
     return SSDIterator(iter);
 }
 
-SSDIterator *SSDSingleNode__iterLocked(SSDSingleNode *self, SSDLockState *_ssdCurrentLockState)
+SSDIterator *SSDSingleNode__iterLocked(_Inout_ SSDSingleNode *self, SSDLockState *_ssdCurrentLockState)
 {
     SSDSingleIter *iter = ssdsingleiterCreate(self, _ssdCurrentLockState);
     return SSDIterator(iter);
 }
 
-int32 SSDSingleNode_count(SSDSingleNode *self, SSDLockState *_ssdCurrentLockState)
+int32 SSDSingleNode_count(_Inout_ SSDSingleNode *self, SSDLockState *_ssdCurrentLockState)
 {
     return 1;
 }
 
-void SSDSingleNode_destroy(SSDSingleNode *self)
+void SSDSingleNode_destroy(_Inout_ SSDSingleNode *self)
 {
     // Autogen begins -----
     _stDestroy(self->storage.type, NULL, &self->storage.data, 0);
@@ -88,7 +88,7 @@ void SSDSingleNode_destroy(SSDSingleNode *self)
 
 // -------------------------------- ITERATOR --------------------------------
 
-SSDSingleIter *SSDSingleIter_create(SSDSingleNode *node, SSDLockState *lstate)
+_objfactory SSDSingleIter *SSDSingleIter_create(SSDSingleNode *node, SSDLockState *lstate)
 {
     SSDSingleIter *self;
     self = objInstCreate(SSDSingleIter);
@@ -104,18 +104,18 @@ SSDSingleIter *SSDSingleIter_create(SSDSingleNode *node, SSDLockState *lstate)
     return self;
 }
 
-bool SSDSingleIter_valid(SSDSingleIter *self)
+bool SSDSingleIter_valid(_Inout_ SSDSingleIter *self)
 {
     return !self->done;
 }
 
-bool SSDSingleIter_next(SSDSingleIter *self)
+bool SSDSingleIter_next(_Inout_ SSDSingleIter *self)
 {
     self->done = true;
     return true;
 }
 
-stvar *SSDSingleIter_ptr(SSDSingleIter *self)
+stvar *SSDSingleIter_ptr(_Inout_ SSDSingleIter *self)
 {
     if (self->done)
         return NULL;
@@ -127,7 +127,7 @@ stvar *SSDSingleIter_ptr(SSDSingleIter *self)
     return &((SSDSingleNode*)self->node)->storage;
 }
 
-bool SSDSingleIter_get(SSDSingleIter *self, stvar *out)
+bool SSDSingleIter_get(_Inout_ SSDSingleIter *self, stvar *out)
 {
     if (self->done)
         return false;
@@ -139,17 +139,17 @@ bool SSDSingleIter_get(SSDSingleIter *self, stvar *out)
     return true;
 }
 
-int32 SSDSingleIter_idx(SSDSingleIter *self)
+int32 SSDSingleIter_idx(_Inout_ SSDSingleIter *self)
 {
     return 0;
 }
 
-strref SSDSingleIter_name(SSDSingleIter *self)
+strref SSDSingleIter_name(_Inout_ SSDSingleIter *self)
 {
     return _S"0";
 }
 
-bool SSDSingleIter_iterOut(SSDSingleIter *self, int32 *idx, strref *name, stvar **val)
+bool SSDSingleIter_iterOut(_Inout_ SSDSingleIter *self, int32 *idx, strref *name, stvar **val)
 {
     if (self->done)
         return false;

@@ -8,7 +8,7 @@
 #include "vfsvfsfile.h"
 // ==================== Auto-generated section ends ======================
 
-VFSVFSFile *VFSVFSFile_create(VFSFile *f)
+_objfactory VFSVFSFile *VFSVFSFile_create(VFSFile *f)
 {
     VFSVFSFile *ret;
     ret = objInstCreate(VFSVFSFile);
@@ -18,7 +18,7 @@ VFSVFSFile *VFSVFSFile_create(VFSFile *f)
     return ret;
 }
 
-bool VFSVFSFile_close(VFSVFSFile *self)
+bool VFSVFSFile_close(_Inout_ VFSVFSFile *self)
 {
     bool ret = false;
     if (self->file)
@@ -27,42 +27,42 @@ bool VFSVFSFile_close(VFSVFSFile *self)
     return ret;
 }
 
-bool VFSVFSFile_read(VFSVFSFile *self, void *buf, size_t sz, size_t *bytesread)
+bool VFSVFSFile_read(_Inout_ VFSVFSFile *self, void *buf, size_t sz, size_t *bytesread)
 {
     if (!self->file)
         return false;
     return vfsRead(self->file, buf, sz, bytesread);
 }
 
-bool VFSVFSFile_write(VFSVFSFile *self, void *buf, size_t sz, size_t *byteswritten)
+bool VFSVFSFile_write(_Inout_ VFSVFSFile *self, void *buf, size_t sz, size_t *byteswritten)
 {
     if (!self->file)
         return false;
     return vfsWrite(self->file, buf, sz, byteswritten);
 }
 
-int64 VFSVFSFile_tell(VFSVFSFile *self)
+int64 VFSVFSFile_tell(_Inout_ VFSVFSFile *self)
 {
     if (!self->file)
         return -1;
     return vfsTell(self->file);
 }
 
-int64 VFSVFSFile_seek(VFSVFSFile *self, int64 off, int seektype)
+int64 VFSVFSFile_seek(_Inout_ VFSVFSFile *self, int64 off, int seektype)
 {
     if (!self->file)
         return -1;
     return vfsSeek(self->file, off, seektype);
 }
 
-bool VFSVFSFile_flush(VFSVFSFile *self)
+bool VFSVFSFile_flush(_Inout_ VFSVFSFile *self)
 {
     if (!self->file)
         return false;
     return vfsFlush(self->file);
 }
 
-void VFSVFSFile_destroy(VFSVFSFile *self)
+void VFSVFSFile_destroy(_Inout_ VFSVFSFile *self)
 {
     VFSVFSFile_close(self);
 }

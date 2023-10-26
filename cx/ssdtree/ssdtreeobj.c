@@ -9,7 +9,7 @@
 // ==================== Auto-generated section ends ======================
 #include "ssdnodes.h"
 
-SSDTree *SSDTree_create(uint32 flags)
+_objfactory SSDTree *SSDTree_create(uint32 flags)
 {
     SSDTree *self;
     self = objInstCreate(SSDTree);
@@ -24,7 +24,7 @@ SSDTree *SSDTree_create(uint32 flags)
     return self;
 }
 
-bool SSDTree_init(SSDTree *self)
+bool SSDTree_init(_Inout_ SSDTree *self)
 {
     // default factories
     if (!self->factories[SSD_Create_Hashtable])
@@ -46,7 +46,7 @@ bool SSDTree_init(SSDTree *self)
     // Autogen ends -------
 }
 
-SSDNode *SSDTree_createNode(SSDTree *self, int crtype)
+SSDNode *SSDTree_createNode(_Inout_ SSDTree *self, int crtype)
 {
     devAssert(crtype >= 0 && crtype < SSD_Create_Count);
     if (!(crtype >= 0 && crtype < SSD_Create_Count) || !self->factories[crtype])
@@ -55,7 +55,7 @@ SSDNode *SSDTree_createNode(SSDTree *self, int crtype)
     return self->factories[crtype](self);
 }
 
-void SSDTree_destroy(SSDTree *self)
+void SSDTree_destroy(_Inout_ SSDTree *self)
 {
 #ifdef SSD_LOCK_DEBUG
     saDestroy(&self->dbg.readlocks);

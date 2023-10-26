@@ -11,7 +11,7 @@ typedef struct Sortable {
     ObjIface *_parent;
     size_t _size;
 
-    intptr (*cmp)(void *self, void *other, uint32 flags);
+    intptr (*cmp)(_Inout_ void *self, void *other, uint32 flags);
 } Sortable;
 extern Sortable Sortable_tmpl;
 
@@ -20,7 +20,7 @@ typedef struct Hashable {
     ObjIface *_parent;
     size_t _size;
 
-    uint32 (*hash)(void *self, uint32 flags);
+    uint32 (*hash)(_Inout_ void *self, uint32 flags);
 } Hashable;
 extern Hashable Hashable_tmpl;
 
@@ -35,7 +35,7 @@ typedef struct Convertible {
     // or destroyed first.
     // The layer between stConvert and Convertible takes care of making sure the destination is
     // always initialized.
-    bool (*convert)(void *self, stype st, stgeneric *dest, uint32 flags);
+    bool (*convert)(_Inout_ void *self, stype st, stgeneric *dest, uint32 flags);
 } Convertible;
 extern Convertible Convertible_tmpl;
 
@@ -44,9 +44,9 @@ typedef struct IteratorIf {
     ObjIface *_parent;
     size_t _size;
 
-    bool (*valid)(void *self);
-    bool (*next)(void *self);
-    bool (*get)(void *self, stvar *out);
+    bool (*valid)(_Inout_ void *self);
+    bool (*next)(_Inout_ void *self);
+    bool (*get)(_Inout_ void *self, stvar *out);
 } IteratorIf;
 extern IteratorIf IteratorIf_tmpl;
 
@@ -56,7 +56,7 @@ typedef struct Iterable {
     size_t _size;
 
     // Caller owns the iterator and must release it with objRelease
-    Iterator *(*iter)(void *self);
+    Iterator *(*iter)(_Inout_ void *self);
 } Iterable;
 extern Iterable Iterable_tmpl;
 
@@ -65,9 +65,9 @@ typedef struct Iterator_ClassIf {
     ObjIface *_parent;
     size_t _size;
 
-    bool (*valid)(void *self);
-    bool (*next)(void *self);
-    bool (*get)(void *self, stvar *out);
+    bool (*valid)(_Inout_ void *self);
+    bool (*next)(_Inout_ void *self);
+    bool (*get)(_Inout_ void *self, stvar *out);
 } Iterator_ClassIf;
 extern Iterator_ClassIf Iterator_ClassIf_tmpl;
 

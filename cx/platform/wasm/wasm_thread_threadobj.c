@@ -8,7 +8,7 @@
 #include "wasm_thread_threadobj.h"
 // ==================== Auto-generated section ends ======================
 
-UnixThread *UnixThread_create()
+_objfactory UnixThread *UnixThread_create()
 {
     UnixThread *self;
     self = objInstCreate(UnixThread);

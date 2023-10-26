@@ -10,7 +10,7 @@ typedef struct Formattable {
     ObjIface *_parent;
     size_t _size;
 
-    bool (*format)(void *self, FMTVar *v, string *out);
+    bool (*format)(_Inout_ void *self, FMTVar *v, string *out);
 } Formattable;
 extern Formattable Formattable_tmpl;
 

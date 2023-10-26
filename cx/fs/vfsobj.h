@@ -34,13 +34,13 @@ extern ObjClassInfo VFS_clsinfo;
 #define VFS(inst) ((VFS*)(unused_noeval((inst) && &((inst)->_is_VFS)), (inst)))
 #define VFSNone ((VFS*)NULL)
 
-VFS *VFS_create(uint32 flags);
+_objfactory VFS *VFS_create(uint32 flags);
 // VFS *vfsCreate(uint32 flags);
 //
 // Create an empty VFS with nothing mounted
 #define vfsCreate(flags) VFS_create(flags)
 
-VFS *VFS_createFromFS();
+_objfactory VFS *VFS_createFromFS();
 // VFS *vfsCreateFromFS();
 //
 // Create a VFS object configured to pass everything through to the
@@ -65,7 +65,7 @@ extern ObjClassInfo VFSMount_clsinfo;
 #define VFSMount(inst) ((VFSMount*)(unused_noeval((inst) && &((inst)->_is_VFSMount)), (inst)))
 #define VFSMountNone ((VFSMount*)NULL)
 
-VFSMount *VFSMount_create(ObjInst *provider, uint32 flags);
+_objfactory VFSMount *VFSMount_create(ObjInst *provider, uint32 flags);
 // VFSMount *vfsmountCreate(ObjInst *provider, uint32 flags);
 #define vfsmountCreate(provider, flags) VFSMount_create(ObjInst(provider), flags)
 

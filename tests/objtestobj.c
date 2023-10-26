@@ -8,7 +8,7 @@
 #include "objtestobj.h"
 // ==================== Auto-generated section ends ======================
 
-TestCls1 *TestCls1_create()
+_objfactory TestCls1 *TestCls1_create()
 {
     TestCls1 *ret;
     ret = objInstCreate(TestCls1);
@@ -17,12 +17,12 @@ TestCls1 *TestCls1_create()
     return ret;
 }
 
-int TestCls1_testfunc(TestCls1 *self)
+int TestCls1_testfunc(_Inout_ TestCls1 *self)
 {
     return self->data;
 }
 
-TestCls2 *TestCls2_create()
+_objfactory TestCls2 *TestCls2_create()
 {
     TestCls2 *ret;
     ret = objInstCreate(TestCls2);
@@ -31,7 +31,7 @@ TestCls2 *TestCls2_create()
     return ret;
 }
 
-TestCls3 *TestCls3_create()
+_objfactory TestCls3 *TestCls3_create()
 {
     TestCls3 *ret;
     ret = objInstCreate(TestCls3);
@@ -40,12 +40,12 @@ TestCls3 *TestCls3_create()
     return ret;
 }
 
-int TestCls3_testfunc2(TestCls3 *self)
+int TestCls3_testfunc2(_Inout_ TestCls3 *self)
 {
     return self->data2;
 }
 
-TestCls4 *TestCls4_create()
+_objfactory TestCls4 *TestCls4_create()
 {
     TestCls4 *ret;
     ret = objInstCreate(TestCls4);
@@ -54,27 +54,27 @@ TestCls4 *TestCls4_create()
     return ret;
 }
 
-extern int TestCls1_testfunc(TestCls1 *self); // parent
+extern int TestCls1_testfunc(_Inout_ TestCls1 *self); // parent
 #define parent_testfunc() TestCls1_testfunc((TestCls1*)(self))
-int TestCls4_testfunc(TestCls4 *self)
+int TestCls4_testfunc(_Inout_ TestCls4 *self)
 {
     return self->data3;
 }
 
-extern int TestCls4_testfunc(TestCls4 *self); // parent
+extern int TestCls4_testfunc(_Inout_ TestCls4 *self); // parent
 #undef parent_testfunc
 #define parent_testfunc() TestCls4_testfunc((TestCls4*)(self))
-int TestCls4a_testfunc(TestCls4a *self)
+int TestCls4a_testfunc(_Inout_ TestCls4a *self)
 {
     return self->data4;
 }
 
-int TestCls4b_testfunc3(TestCls4b *self)
+int TestCls4b_testfunc3(_Inout_ TestCls4b *self)
 {
     return self->data5;
 }
 
-TestCls5 *TestCls5_create()
+_objfactory TestCls5 *TestCls5_create()
 {
     TestCls5 *ret;
     ret = objInstCreate(TestCls5);
@@ -83,7 +83,7 @@ TestCls5 *TestCls5_create()
     return ret;
 }
 
-intptr TestCls5_cmp(TestCls5 *self, TestCls5 *other, uint32 flags)
+intptr TestCls5_cmp(_Inout_ TestCls5 *self, TestCls5 *other, uint32 flags)
 {
     // Uncomment unless this function can compare different object classes
     devAssert(objClsInfo(self) == objClsInfo(other));
@@ -91,7 +91,7 @@ intptr TestCls5_cmp(TestCls5 *self, TestCls5 *other, uint32 flags)
     return objDefaultCmp(self, other, flags);
 }
 
-TestCls4b *TestCls4b_create()
+_objfactory TestCls4b *TestCls4b_create()
 {
     TestCls4b *ret;
     ret = objInstCreate(TestCls4b);

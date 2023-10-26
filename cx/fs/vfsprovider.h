@@ -10,12 +10,12 @@ typedef struct VFSFileProvider {
     ObjIface *_parent;
     size_t _size;
 
-    bool (*close)(void *self);
-    bool (*read)(void *self, void *buf, size_t sz, size_t *bytesread);
-    bool (*write)(void *self, void *buf, size_t sz, size_t *byteswritten);
-    int64 (*tell)(void *self);
-    int64 (*seek)(void *self, int64 off, int seektype);
-    bool (*flush)(void *self);
+    bool (*close)(_Inout_ void *self);
+    bool (*read)(_Inout_ void *self, void *buf, size_t sz, size_t *bytesread);
+    bool (*write)(_Inout_ void *self, void *buf, size_t sz, size_t *byteswritten);
+    int64 (*tell)(_Inout_ void *self);
+    int64 (*seek)(_Inout_ void *self, int64 off, int seektype);
+    bool (*flush)(_Inout_ void *self);
 } VFSFileProvider;
 extern VFSFileProvider VFSFileProvider_tmpl;
 
@@ -25,19 +25,19 @@ typedef struct VFSProvider {
     size_t _size;
 
     // VFSProviderFlags enforced for this provider
-    flags_t (*flags)(void *self);
+    flags_t (*flags)(_Inout_ void *self);
     // returns an object that implements VFSFileProvider
-    ObjInst *(*open)(void *self, strref path, flags_t flags);
-    int (*stat)(void *self, strref path, FSStat *stat);
-    bool (*setTimes)(void *self, strref path, int64 modified, int64 accessed);
-    bool (*createDir)(void *self, strref path);
-    bool (*removeDir)(void *self, strref path);
-    bool (*deleteFile)(void *self, strref path);
-    bool (*rename)(void *self, strref oldpath, strref newpath);
-    bool (*getFSPath)(void *self, string *out, strref path);
-    bool (*searchInit)(void *self, FSSearchIter *iter, strref path, strref pattern, bool stat);
-    bool (*searchNext)(void *self, FSSearchIter *iter);
-    void (*searchFinish)(void *self, FSSearchIter *iter);
+    ObjInst *(*open)(_Inout_ void *self, strref path, flags_t flags);
+    int (*stat)(_Inout_ void *self, strref path, FSStat *stat);
+    bool (*setTimes)(_Inout_ void *self, strref path, int64 modified, int64 accessed);
+    bool (*createDir)(_Inout_ void *self, strref path);
+    bool (*removeDir)(_Inout_ void *self, strref path);
+    bool (*deleteFile)(_Inout_ void *self, strref path);
+    bool (*rename)(_Inout_ void *self, strref oldpath, strref newpath);
+    bool (*getFSPath)(_Inout_ void *self, string *out, strref path);
+    bool (*searchInit)(_Inout_ void *self, FSSearchIter *iter, strref path, strref pattern, bool stat);
+    bool (*searchNext)(_Inout_ void *self, FSSearchIter *iter);
+    void (*searchFinish)(_Inout_ void *self, FSSearchIter *iter);
 } VFSProvider;
 extern VFSProvider VFSProvider_tmpl;
 

@@ -8,7 +8,7 @@
 #include "fmttestobj.h"
 // ==================== Auto-generated section ends ======================
 
-FmtTestClass *FmtTestClass_create(int32 ival, string sval)
+_objfactory FmtTestClass *FmtTestClass_create(int32 ival, string sval)
 {
     FmtTestClass *ret;
     ret = objInstCreate(FmtTestClass);
@@ -21,7 +21,7 @@ FmtTestClass *FmtTestClass_create(int32 ival, string sval)
     return ret;
 }
 
-bool FmtTestClass_format(FmtTestClass *self, FMTVar *v, string *out)
+bool FmtTestClass_format(_Inout_ FmtTestClass *self, FMTVar *v, string *out)
 {
     string snum;
     switch (self->iv) {
@@ -49,14 +49,14 @@ bool FmtTestClass_format(FmtTestClass *self, FMTVar *v, string *out)
     return true;
 }
 
-void FmtTestClass_destroy(FmtTestClass *self)
+void FmtTestClass_destroy(_Inout_ FmtTestClass *self)
 {
     // Autogen begins -----
     strDestroy(&self->sv);
     // Autogen ends -------
 }
 
-FmtTestClass2 *FmtTestClass2_create(int32 ival, string sval)
+_objfactory FmtTestClass2 *FmtTestClass2_create(int32 ival, string sval)
 {
     FmtTestClass2 *self;
     self = objInstCreate(FmtTestClass2);
@@ -72,7 +72,7 @@ FmtTestClass2 *FmtTestClass2_create(int32 ival, string sval)
     return self;
 }
 
-bool FmtTestClass2_convert(FmtTestClass2 *self, stype st, stgeneric *dest, uint32 flags)
+bool FmtTestClass2_convert(_Inout_ FmtTestClass2 *self, stype st, stgeneric *dest, uint32 flags)
 {
     if (!stEq(st, stType(string)))
         return false;
@@ -102,7 +102,7 @@ bool FmtTestClass2_convert(FmtTestClass2 *self, stype st, stgeneric *dest, uint3
     return true;
 }
 
-void FmtTestClass2_destroy(FmtTestClass2 *self)
+void FmtTestClass2_destroy(_Inout_ FmtTestClass2 *self)
 {
     // Autogen begins -----
     strDestroy(&self->sv);

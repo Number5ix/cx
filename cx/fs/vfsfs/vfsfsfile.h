@@ -13,12 +13,12 @@ typedef struct VFSFSFile_ClassIf {
     ObjIface *_parent;
     size_t _size;
 
-    bool (*close)(void *self);
-    bool (*read)(void *self, void *buf, size_t sz, size_t *bytesread);
-    bool (*write)(void *self, void *buf, size_t sz, size_t *byteswritten);
-    int64 (*tell)(void *self);
-    int64 (*seek)(void *self, int64 off, int seektype);
-    bool (*flush)(void *self);
+    bool (*close)(_Inout_ void *self);
+    bool (*read)(_Inout_ void *self, void *buf, size_t sz, size_t *bytesread);
+    bool (*write)(_Inout_ void *self, void *buf, size_t sz, size_t *byteswritten);
+    int64 (*tell)(_Inout_ void *self);
+    int64 (*seek)(_Inout_ void *self, int64 off, int seektype);
+    bool (*flush)(_Inout_ void *self);
 } VFSFSFile_ClassIf;
 extern VFSFSFile_ClassIf VFSFSFile_ClassIf_tmpl;
 
@@ -37,7 +37,7 @@ extern ObjClassInfo VFSFSFile_clsinfo;
 #define VFSFSFile(inst) ((VFSFSFile*)(unused_noeval((inst) && &((inst)->_is_VFSFSFile)), (inst)))
 #define VFSFSFileNone ((VFSFSFile*)NULL)
 
-VFSFSFile *VFSFSFile_create(FSFile *f);
+_objfactory VFSFSFile *VFSFSFile_create(FSFile *f);
 // VFSFSFile *vfsfsfileCreate(FSFile *f);
 #define vfsfsfileCreate(f) VFSFSFile_create(f)
 

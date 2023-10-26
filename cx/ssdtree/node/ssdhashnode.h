@@ -15,30 +15,30 @@ typedef struct SSDHashNode_ClassIf {
     size_t _size;
 
     // This node is an object that contains values or objects by name
-    bool (*isHashtable)(void *self);
+    bool (*isHashtable)(_Inout_ void *self);
     // This node is an array that contains values or objects by array index
-    bool (*isArray)(void *self);
+    bool (*isArray)(_Inout_ void *self);
     // Gets a value. Caller owns the value and must destroy it with stDestroy!
-    bool (*get)(void *self, int32 idx, strref name, stvar *out, SSDLockState *_ssdCurrentLockState);
+    bool (*get)(_Inout_ void *self, int32 idx, strref name, stvar *out, SSDLockState *_ssdCurrentLockState);
     // Gets a pointer to a value. This points to the internal storage within the node
     // so it is only guaranteed to be valid while the read lock is held.
-    stvar *(*ptr)(void *self, int32 idx, strref name, SSDLockState *_ssdCurrentLockState);
+    stvar *(*ptr)(_Inout_ void *self, int32 idx, strref name, SSDLockState *_ssdCurrentLockState);
     // Sets the given value
-    bool (*set)(void *self, int32 idx, strref name, stvar val, SSDLockState *_ssdCurrentLockState);
+    bool (*set)(_Inout_ void *self, int32 idx, strref name, stvar val, SSDLockState *_ssdCurrentLockState);
     // Same as setValue but consumes the value
     // (consumes even on failure)
-    bool (*setC)(void *self, int32 idx, strref name, stvar *val, SSDLockState *_ssdCurrentLockState);
+    bool (*setC)(_Inout_ void *self, int32 idx, strref name, stvar *val, SSDLockState *_ssdCurrentLockState);
     // Removes a value
-    bool (*remove)(void *self, int32 idx, strref name, SSDLockState *_ssdCurrentLockState);
+    bool (*remove)(_Inout_ void *self, int32 idx, strref name, SSDLockState *_ssdCurrentLockState);
     // How many values / objects does this node contain?
-    int32 (*count)(void *self, SSDLockState *_ssdCurrentLockState);
+    int32 (*count)(_Inout_ void *self, SSDLockState *_ssdCurrentLockState);
     // IMPORTANT NOTE: The generic object iterator interface cannot take any parameters;
     // thus it always acquires a transient read lock and holds it until the iterator is
     // destroyed. The caller MUST NOT already have an SSDLock held.
     // If you want to use iterators inside a larger locked transaction or modify the tree,
     // use iterLocked() instead.
-    SSDIterator *(*iter)(void *self);
-    SSDIterator *(*_iterLocked)(void *self, SSDLockState *_ssdCurrentLockState);
+    SSDIterator *(*iter)(_Inout_ void *self);
+    SSDIterator *(*_iterLocked)(_Inout_ void *self, SSDLockState *_ssdCurrentLockState);
 } SSDHashNode_ClassIf;
 extern SSDHashNode_ClassIf SSDHashNode_ClassIf_tmpl;
 
@@ -47,15 +47,15 @@ typedef struct SSDHashIter_ClassIf {
     ObjIface *_parent;
     size_t _size;
 
-    bool (*isHashtable)(void *self);
-    bool (*isArray)(void *self);
-    bool (*valid)(void *self);
-    bool (*next)(void *self);
-    bool (*get)(void *self, stvar *out);
-    stvar *(*ptr)(void *self);
-    strref (*name)(void *self);
-    int32 (*idx)(void *self);
-    bool (*iterOut)(void *self, int32 *idx, strref *name, stvar **val);
+    bool (*isHashtable)(_Inout_ void *self);
+    bool (*isArray)(_Inout_ void *self);
+    bool (*valid)(_Inout_ void *self);
+    bool (*next)(_Inout_ void *self);
+    bool (*get)(_Inout_ void *self, stvar *out);
+    stvar *(*ptr)(_Inout_ void *self);
+    strref (*name)(_Inout_ void *self);
+    int32 (*idx)(_Inout_ void *self);
+    bool (*iterOut)(_Inout_ void *self, int32 *idx, strref *name, stvar **val);
 } SSDHashIter_ClassIf;
 extern SSDHashIter_ClassIf SSDHashIter_ClassIf_tmpl;
 
@@ -77,7 +77,7 @@ extern ObjClassInfo SSDHashNode_clsinfo;
 #define SSDHashNode(inst) ((SSDHashNode*)(unused_noeval((inst) && &((inst)->_is_SSDHashNode)), (inst)))
 #define SSDHashNodeNone ((SSDHashNode*)NULL)
 
-SSDHashNode *SSDHashNode__create(SSDTree *tree);
+_objfactory SSDHashNode *SSDHashNode__create(SSDTree *tree);
 // SSDHashNode *ssdhashnode_create(SSDTree *tree);
 #define ssdhashnode_create(tree) SSDHashNode__create(SSDTree(tree))
 
@@ -149,7 +149,7 @@ extern ObjClassInfo SSDHashIter_clsinfo;
 #define SSDHashIter(inst) ((SSDHashIter*)(unused_noeval((inst) && &((inst)->_is_SSDHashIter)), (inst)))
 #define SSDHashIterNone ((SSDHashIter*)NULL)
 
-SSDHashIter *SSDHashIter_create(SSDHashNode *node, SSDLockState *lstate);
+_objfactory SSDHashIter *SSDHashIter_create(SSDHashNode *node, SSDLockState *lstate);
 // SSDHashIter *ssdhashiterCreate(SSDHashNode *node, SSDLockState *lstate);
 #define ssdhashiterCreate(node, lstate) SSDHashIter_create(SSDHashNode(node), lstate)
 

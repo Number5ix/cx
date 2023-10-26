@@ -8,7 +8,7 @@
 #include "win_thread_threadobj.h"
 // ==================== Auto-generated section ends ======================
 
-WinThread *WinThread_create()
+_objfactory WinThread *WinThread_create()
 {
     WinThread *self;
     self = objInstCreate(WinThread);
@@ -21,7 +21,7 @@ WinThread *WinThread_create()
     return self;
 }
 
-void WinThread_destroy(WinThread *self)
+void WinThread_destroy(_Inout_ WinThread *self)
 {
      CloseHandle(self->handle);
 }

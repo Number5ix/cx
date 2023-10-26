@@ -33,7 +33,7 @@ extern ObjClassInfo Thread_clsinfo;
 #define Thread(inst) ((Thread*)(unused_noeval((inst) && &((inst)->_is_Thread)), (inst)))
 #define ThreadNone ((Thread*)NULL)
 
-Thread *Thread_create(threadFunc func, strref name, int n, stvar args[], bool ui);
+_objfactory Thread *Thread_create(threadFunc func, strref name, int n, stvar args[], bool ui);
 // Thread *_throbjCreate(threadFunc func, strref name, int n, stvar args[], bool ui);
 #define _throbjCreate(func, name, n, args, ui) Thread_create(func, name, n, args, ui)
 

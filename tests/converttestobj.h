@@ -17,7 +17,7 @@ typedef struct ConvertTestClass_ClassIf {
     // or destroyed first.
     // The layer between stConvert and Convertible takes care of making sure the destination is
     // always initialized.
-    bool (*convert)(void *self, stype st, stgeneric *dest, uint32 flags);
+    bool (*convert)(_Inout_ void *self, stype st, stgeneric *dest, uint32 flags);
 } ConvertTestClass_ClassIf;
 extern ConvertTestClass_ClassIf ConvertTestClass_ClassIf_tmpl;
 
@@ -38,7 +38,7 @@ extern ObjClassInfo ConvertTestClass_clsinfo;
 #define ConvertTestClass(inst) ((ConvertTestClass*)(unused_noeval((inst) && &((inst)->_is_ConvertTestClass)), (inst)))
 #define ConvertTestClassNone ((ConvertTestClass*)NULL)
 
-ConvertTestClass *ConvertTestClass_create(int32 ival, float64 fval, string sval);
+_objfactory ConvertTestClass *ConvertTestClass_create(int32 ival, float64 fval, string sval);
 // ConvertTestClass *converttestclassCreate(int32 ival, float64 fval, string sval);
 #define converttestclassCreate(ival, fval, sval) ConvertTestClass_create(ival, fval, sval)
 
