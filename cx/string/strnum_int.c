@@ -1,6 +1,11 @@
 #include "string_private.h"
 #include "cx/debug/error.h"
 
+#ifdef _MSC_VER
+// this function make use of intentional integer overflow
+#pragma warning(disable:26450)
+#endif
+
 char _strnum_udigits[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 char _strnum_ldigits[] = "0123456789abcdefghijklmnopqrstuvwxyz";
 

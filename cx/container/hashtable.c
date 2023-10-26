@@ -540,7 +540,7 @@ static uint32 _htInsertInternal(hashtable *htbl, stgeneric key, stgeneric *val, 
     else
         memcpy(HT_SLOT_KEY_PTR(hdr, slot), stGenPtr(hdr->keytype, key), stGetSize(hdr->keytype));
 
-    if (stGetSize(hdr->valtype) > 0)
+    if (val && stGetSize(hdr->valtype) > 0)         // handle 'none' typed hashed sets
         htSetValueInternal(hdr, slot, val, flags & HTINT_Consume);
 
     hdr->index[idxent] = slot;

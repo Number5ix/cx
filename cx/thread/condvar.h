@@ -21,7 +21,10 @@ void _cvarInit(_Out_ CondVar *cv, uint32 flags);
 #define cvarInit(cv, ...) _cvarInit(cv, opt_flags(__VA_ARGS__))
 
 void cvarDestroy(_Inout_ CondVar *cv);
+
+_Requires_lock_held_(*m)
 bool cvarWaitTimeout(_Inout_ CondVar *cv, _Inout_ Mutex *m, int64 timeout);
+_Requires_lock_held_(*m)
 _meta_inline bool cvarWait(_Inout_ CondVar *cv, _Inout_ Mutex *m)
 {
     return cvarWaitTimeout(cv, m, timeForever);

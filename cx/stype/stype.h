@@ -631,8 +631,8 @@ enum STYPE_OPS_FLAGS {
 // For example, using stCopy to overwrite an existing string or sarray will leak the
 // destination because stCopy does not destroy the existing object first.
 
-#define _stCopyDest_Anno_(typvar) _When_(!stHasFlag(typvar, PassPtr), _Out_) _When_(stHasFlag(typvar, PassPtr), _Inout_)
-#define _stCopyDest_Anno_opt_(typvar) _When_(!stHasFlag(typvar, PassPtr), _Out_opt_) _When_(stHasFlag(typvar, PassPtr), _Inout_opt_)
+#define _stCopyDest_Anno_(typvar) _Post_valid_ _When_(stHasFlag(typvar, PassPtr), _Pre_valid_)
+#define _stCopyDest_Anno_opt_(typvar) _Out_opt_ _When_(stHasFlag(typvar, PassPtr), _Pre_opt_valid_)
 
 typedef void (*stDtorFunc)(stype st, _Pre_notnull_ _Post_invalid_ stgeneric* gen, flags_t flags);
 typedef intptr (*stCmpFunc)(stype st, _In_ stgeneric gen1, _In_ stgeneric gen2, flags_t flags);
