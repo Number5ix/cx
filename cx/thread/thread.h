@@ -30,8 +30,7 @@ Thread *_thrCreate(_In_ threadFunc func, _In_ strref name, int n, _In_ stvar arg
 #define thrCreate(func, name, ...) _thrCreate(func, name, count_macro_args(__VA_ARGS__), (stvar[]) { __VA_ARGS__ }, false)
 #define thrCreateUI(func, name, ...) _thrCreate(func, name, count_macro_args(__VA_ARGS__), (stvar[]) { __VA_ARGS__ }, true)
 
-_Check_return_
-bool _thrRun(_In_ threadFunc func, _In_ strref name, int n, _In_ stvar args[]);
+void _thrRun(_In_ threadFunc func, _In_ strref name, int n, _In_ stvar args[]);
 // bool thrRun(threadFunc func, strref name, ...)
 //
 // Creates and starts a thread.

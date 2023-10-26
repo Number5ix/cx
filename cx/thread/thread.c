@@ -29,19 +29,17 @@ Thread* _thrCreate(threadFunc func, strref name, int n, stvar args[], bool ui)
 }
 
 _Use_decl_annotations_
-bool _thrRun(threadFunc func, strref name, int n, stvar args[])
+void _thrRun(threadFunc func, strref name, int n, stvar args[])
 {
     Thread *ret = _throbjCreate(func, name, n, args, false);
     if (!ret)
-        return false;
+        relFatalError("Could not create thread object");
 
     atomicStore(bool, &ret->running, true, Relaxed);
     if (!_thrPlatformStart(ret)) {
         objRelease(&ret);
-        return false;
+        relFatalError("Failed to start thread");
     }
-
-    return true;
 }
 
 _Use_decl_annotations_
