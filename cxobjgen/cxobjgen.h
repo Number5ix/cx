@@ -29,3 +29,5 @@ bool getAnnotation(sa_string *out, sa_sarray_string annotations, string afind);
 void methodImplName(string *out, Class *cls, string mname);
 void methodCallName(string *out, Class *cls, string mname);
 void mixinMemberName(string *out, Class *cls);
+void methodAnnotations(string *out, Method *m);
+void paramAnnotations(string *out, Param *p);

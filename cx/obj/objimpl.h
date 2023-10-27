@@ -2,6 +2,7 @@
 
 #include <cx/obj/objiface.h>
 #include <cx/obj/objclass.h>
+#include <cx/utils/macros/salieri.h>
 
 // Only use the functions in this file for implementing a class or interface!
 

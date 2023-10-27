@@ -507,6 +507,8 @@ bool parseParamList(ParseState *ps, string *tok)
                 fprintf(stderr, "Incomplete method parameter\n");
                 return false;
             }
+            ps->curparam->annotations = ps->annotations;
+            saInit(&ps->annotations, sarray, 4);
             saPushC(&ps->curmethod->params, object, &ps->curparam);
         }
         saClear(&ps->annotations);
@@ -518,7 +520,10 @@ bool parseParamList(ParseState *ps, string *tok)
             fprintf(stderr, "Incomplete method parameter\n");
             return false;
         }
+        ps->curparam->annotations = ps->annotations;
+        saInit(&ps->annotations, sarray, 4);
         saPushC(&ps->curmethod->params, object, &ps->curparam);
+        ps->allowannotations = true;
         return true;
     } else if (!ps->curparam) {
         if (!isvalidname(*tok)) {
@@ -530,9 +535,11 @@ bool parseParamList(ParseState *ps, string *tok)
         return true;
     } else if (!ps->curparam->name && onlyspecial(*tok)) {
         strAppend(&ps->curparam->predecr, *tok);
+        ps->allowannotations = false;
         return true;
     } else if (!ps->curparam->name && isvalidname(*tok)) {
         strDup(&ps->curparam->name, *tok);
+        ps->allowannotations = false;
         return true;
     } else if (ps->curparam->name) {
         strAppend(&ps->curparam->postdecr, *tok);
@@ -843,7 +850,7 @@ bool parseClass(ParseState *ps, string *tok)
 
         ps->lastcontext = ps->context;
         saClear(&ps->annotations);
-        ps->allowannotations = false;
+        ps->allowannotations = true;
         ps->context = Context_ParamList;
         return true;
     } else if (strEq(*tok, _S"override")) {

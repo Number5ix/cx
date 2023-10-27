@@ -67,6 +67,7 @@ typedef struct Param {
     string predecr;
     string name;
     string postdecr;
+    sa_sarray_string annotations;
 } Param;
 extern ObjClassInfo Param_clsinfo;
 #define Param(inst) ((Param*)(unused_noeval((inst) && &((inst)->_is_Param)), (inst)))

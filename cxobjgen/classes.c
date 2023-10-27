@@ -425,3 +425,62 @@ void mixinMemberName(string *out, Class *cls)
     uint8 *tmp = strBuffer(out, 2);
     tmp[1] = tolower(tmp[1]);
 }
+
+void methodAnnotations(string *out, Method *m)
+{
+    string tmp = 0;
+    strClear(out);
+
+    bool isvalid = getAnnotation(NULL, m->annotations, _S"valid");
+    bool isopt = getAnnotation(NULL, m->annotations, _S"opt");
+
+    if (isvalid || isopt) {
+        if (isopt)
+            strAppend(out, _S"_Ret_opt_valid_ ");
+        else
+            strAppend(out, _S"_Ret_valid_ ");
+    }
+
+    sa_string sal = saInitNone;
+    if (getAnnotation(&sal, m->annotations, _S"sal") && saSize(sal) >= 2) {
+        strNConcat(out, *out, sal.a[1], _S" ");
+    }
+
+    if (m->isfactory)
+        strAppend(out, _S"_objfactory ");
+
+    strDestroy(&tmp);
+}
+
+void paramAnnotations(string *out, Param *p)
+{
+    string tmp = 0;
+    strClear(out);
+
+    bool isin = getAnnotation(NULL, p->annotations, _S"in");
+    bool isout = getAnnotation(NULL, p->annotations, _S"out");
+    bool isopt = getAnnotation(NULL, p->annotations, _S"opt");
+    if (getAnnotation(NULL, p->annotations, _S"inout"))
+        isin = isout = true;
+
+    if (isin || isout) {
+        if (isin && isout)
+            strDup(&tmp, _S"_Inout_");
+        else if (isin)
+            strDup(&tmp, _S"_In_");
+        else if (isout)
+            strDup(&tmp, _S"_Out_");
+
+        if (isopt)
+            strAppend(&tmp, _S"opt_");
+
+        strNConcat(out, *out, tmp, _S" ");
+    }
+
+    sa_string sal = saInitNone;
+    if (getAnnotation(&sal, p->annotations, _S"sal") && saSize(sal) >= 2) {
+        strNConcat(out, *out, sal.a[1], _S" ");
+    }
+
+    strDestroy(&tmp);
+}

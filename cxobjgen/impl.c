@@ -19,7 +19,7 @@ static void writeAutoDtors(BufFile *bf, Class *cls);
 
 static void writeMethodProto(BufFile *bf, Class *cls, Method *m, bool protoonly, bool mixinimpl, bool forparent)
 {
-    string mname = 0, ln = 0, tmp = 0;
+    string mname = 0, ln = 0, tmp = 0, annos = 0;
     methodImplName(&mname, cls, m->name);
 
     if (!protoonly && !forparent && !mixinimpl &&
@@ -68,18 +68,16 @@ static void writeMethodProto(BufFile *bf, Class *cls, Method *m, bool protoonly,
         }
     }
 
+    methodAnnotations(&tmp, m);
     if (!m->standalone)
-        strNConcat(&ln, m->returntype, _S" ", m->predecr, mname, _S"(_Inout_ ", cls->name, _S" *self");
+        strNConcat(&ln, tmp, m->returntype, _S" ", m->predecr, mname, _S"(_Inout_ ", cls->name, _S" *self");
     else
-        strNConcat(&ln, m->returntype, _S" ", m->predecr, mname, _S"(");
+        strNConcat(&ln, tmp, m->returntype, _S" ", m->predecr, mname, _S"(");
 
     if (forparent)
         strPrepend(_S"extern ", &ln);
     if (mixinimpl)
         strPrepend(_S"_meta_inline ", &ln);
-
-    if (m->isfactory)
-        strPrepend(_S"_objfactory ", &ln);
 
     for (int j = 0; j < saSize(m->params); j++) {
         Param *p = m->params.a[j];
@@ -91,10 +89,11 @@ static void writeMethodProto(BufFile *bf, Class *cls, Method *m, bool protoonly,
             ppre = _S"*";
         }
 
+        paramAnnotations(&annos, p);
         if (!m->standalone || j > 0)
-            strNConcat(&tmp, _S", ", ptype, _S" ", ppre, p->name, p->postdecr);
+            strNConcat(&tmp, _S", ", annos, ptype, _S" ", ppre, p->name, p->postdecr);
         else
-            strNConcat(&tmp, ptype, _S" ", ppre, p->name, p->postdecr);
+            strNConcat(&tmp, annos, ptype, _S" ", ppre, p->name, p->postdecr);
         strAppend(&ln, tmp);
     }
     strAppend(&ln, _S")");
@@ -106,6 +105,7 @@ static void writeMethodProto(BufFile *bf, Class *cls, Method *m, bool protoonly,
 
     bfWriteLine(bf, ln);
     strDestroy(&tmp);
+    strDestroy(&annos);
     strDestroy(&ln);
 }
 
@@ -561,7 +561,7 @@ bool writeImpl(string fname, bool mixinimpl)
     PCRE2_SIZE eoffset;
     pcre2_code *reParentProto = pcre2_compile((PCRE2_SPTR)"extern [A-Za-z0-9_]+ \\**([A-Za-z0-9_]+)\\(.*\\); // parent", PCRE2_ZERO_TERMINATED, PCRE2_ANCHORED | PCRE2_ENDANCHORED, &err, &eoffset, NULL);
     pcre2_code *reParentMacro = pcre2_compile((PCRE2_SPTR)"#(?:define|undef) parent_[A-Za-z0-9_]+(?:\\(.*\\) [A-Za-z0-9_]+\\(.*\\))?", PCRE2_ZERO_TERMINATED, PCRE2_ANCHORED | PCRE2_ENDANCHORED, &err, &eoffset, NULL);
-    pcre2_code *reProto = pcre2_compile((PCRE2_SPTR)"(?:_objfactory )?(?:_meta_inline )?[A-Za-z0-9_]+ \\**([A-Za-z0-9_]+)\\(.*\\)(;)?", PCRE2_ZERO_TERMINATED, PCRE2_ANCHORED | PCRE2_ENDANCHORED, &err, &eoffset, NULL);
+    pcre2_code *reProto = pcre2_compile((PCRE2_SPTR)"(?:_.*_(?:\\(.*\\))? )*(?:_objfactory )?(?:_meta_inline )?[A-Za-z0-9_]+ \\**([A-Za-z0-9_]+)\\(.*\\)(;)?", PCRE2_ZERO_TERMINATED, PCRE2_ANCHORED | PCRE2_ENDANCHORED, &err, &eoffset, NULL);
     pcre2_match_data *match = pcre2_match_data_create_from_pattern(reProto, NULL);
 
     for (int i = 0; i < saSize(classes); i++) {

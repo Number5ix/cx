@@ -4,6 +4,8 @@ class Param {
     string name;
     string postdecr;
 
+    [noinit] sarray:sarray:string annotations;
+
     factory create();
 }
 

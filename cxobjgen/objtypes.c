@@ -15,6 +15,7 @@ void Param_destroy(_Inout_ Param *self)
     strDestroy(&self->predecr);
     strDestroy(&self->name);
     strDestroy(&self->postdecr);
+    saDestroy(&self->annotations);
     // Autogen ends -------
 }
 
