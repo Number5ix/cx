@@ -69,7 +69,7 @@ _meta_inline void _objAcquire(_In_opt_ ObjInst *inst)
 }
 #define objAcquire(inst) (_objAcquire(objInstBase(inst)), (inst))
 
-_At_(*instp, _Pre_maybenull_ _Post_invalid_)
+_At_(*instp, _Pre_maybenull_ _Post_null_)
 _meta_inline void _objRelease(_Inout_ ObjInst **instp)
 {
     if (*instp && atomicFetchSub(intptr, &(*instp)->_ref, 1, Release) == 1) {
