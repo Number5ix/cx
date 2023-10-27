@@ -22,10 +22,13 @@ static void platformThreadInit(void *dummy)
     // across all platforms without shenanigans.
 
     mainthread = _winthrobjCreate();
-
-    mainthread->handle = GetCurrentThread();
-    mainthread->id = GetCurrentThreadId();
-    strDup(&mainthread->name, _S"Main");
+    if (mainthread) {
+        mainthread->handle = GetCurrentThread();
+        mainthread->id = GetCurrentThreadId();
+        strDup(&mainthread->name, _S"Main");
+    } else {
+        relFatalError("Failed to create main thread");
+    }
 
     atomicStore(bool, &mainthread->running, true, Relaxed);
 
