@@ -122,7 +122,7 @@ void xaFree(_Pre_maybenull_ _Post_invalid_ void *ptr);
 // Frees the pointer with release semantics.
 // This frees *ptr (if it is non-NULL) and sets it to NULL.
 #define xaRelease(ptr) (_xa_ptr_ptr_verify(ptr), _xaRelease((void**)(ptr)))
-_At_(*ptr, _Pre_maybenull_ _Post_invalid_)
+_At_(*ptr, _Pre_maybenull_ _Post_null_)
 bool _xaRelease(_Inout_ void **ptr);
 
 // Returns: size of memory at ptr

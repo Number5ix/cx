@@ -15,4 +15,4 @@ bool _objInstInit(_Inout_ ObjInst *inst, _In_ ObjClassInfo *cls);
 intptr objDefaultCmp(_In_ void *self, _In_ void *other, uint32 flags);
 uint32 objDefaultHash(_In_ void *self, uint32 flags);
 
-#define _objfactory _Ret_maybenull_ _Check_return_
+#define _objfactory _Ret_opt_valid_ _Check_return_
