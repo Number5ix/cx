@@ -10,7 +10,7 @@ typedef struct LogMembufData {
     char *buf;
 } LogMembufData;
 
-_Ret_notnull_
+_Ret_valid_
 LogMembufData *logmembufCreate(uint32 size);
 
 // for use with logRegisterDest along with the userdata returned from logmembufCreate

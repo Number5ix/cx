@@ -247,7 +247,7 @@ static _meta_inline uint32 htFastFindIndex(_In_ HashTableHeader *hdr, _In_ stgen
     }
 }
 
-_Ret_notnull_
+_Ret_valid_
 static hashtable _htClone(_In_ hashtable htbl, uint32 minsz, bool move, bool repack)
 {
     HashTableHeader *hdr = _htHdr(htbl);

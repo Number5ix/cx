@@ -31,7 +31,7 @@ bool strFromFloat64(_Inout_ string *out, float64 f);
 // must contain enough characters to represent a 64-bit integer in base 2
 // with preceding sign and null terminator
 #define STRNUM_INTBUF 66
-_Ret_notnull_ uint8 *_strnum_u64toa(_Out_writes_(STRNUM_INTBUF) uint8 buf[STRNUM_INTBUF], _Out_opt_ uint32 *len, uint64 val, uint16 base, uint32 mindigits, char sign, bool upper);
+_Ret_valid_ uint8 *_strnum_u64toa(_Out_writes_(STRNUM_INTBUF) uint8 buf[STRNUM_INTBUF], _Out_opt_ uint32 *len, uint64 val, uint16 base, uint32 mindigits, char sign, bool upper);
 
 // 18 floating point digits is the maximum representable with 53 bit mantissa
 #define STRNUM_FPDIGITS 18

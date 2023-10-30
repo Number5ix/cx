@@ -75,7 +75,7 @@ void strDestroy(_Inout_ string *ps);
 // used or copied as soon as possible if it must persist.
 //      s: String reference
 // Returns: C-style string
-_Ret_notnull_ const char *strC(_In_opt_ strref s);
+_Ret_valid_ const char *strC(_In_opt_ strref s);
 
 // Obtains a read-write pointer to a string's backing memory buffer.
 // This causes string memory to no longer be shared with duplicates.
@@ -84,7 +84,7 @@ _Ret_notnull_ const char *strC(_In_opt_ strref s);
 //   minsz: If string is shorter than minsz, it will be zero-padded
 //          up to this length. Useful for copying data into a string.
 // Returns: Memory buffer.
-_Ret_notnull_ uint8 *strBuffer(_Inout_ string *ps, uint32 minsz);
+_Ret_valid_ uint8 *strBuffer(_Inout_ string *ps, uint32 minsz);
 
 // Copies up to bufsz bytes from the string to an external buffer.
 // The resulting C-style string in buf will always be null terminated.

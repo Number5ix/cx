@@ -54,7 +54,7 @@ typedef struct htiter {
 #define HTABLE_HDRSIZE (offsetof(HashTableHeader, index))
 #define HTABLE_HDR(ref) ((HashTableHeader*)(((uintptr)(&((ref)->_is_hashtable))) - HTABLE_HDRSIZE))
 
-_Ret_notnull_
+_Ret_valid_
 _meta_inline HashTableHeader *_htHdr(_In_ hashtable ref)
 {
     return HTABLE_HDR(ref);

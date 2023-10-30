@@ -100,7 +100,7 @@ STRNUM_IMPL(uint64, int64, uint64, strToUInt64, MAX_UINT64)
 
 // integer to string -------------------------------------------------------------------
 
-_Ret_notnull_ uint8 *_strnum_u64toa(_Out_writes_(STRNUM_INTBUF) uint8 buf[STRNUM_INTBUF], _Out_opt_ uint32 *len, uint64 val, uint16 base, uint32 mindigits, char sign, bool upper)
+_Ret_valid_ uint8 *_strnum_u64toa(_Out_writes_(STRNUM_INTBUF) uint8 buf[STRNUM_INTBUF], _Out_opt_ uint32 *len, uint64 val, uint16 base, uint32 mindigits, char sign, bool upper)
 {
     uint8 *p = buf + STRNUM_INTBUF;
     char *cset;

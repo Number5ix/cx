@@ -61,7 +61,7 @@ _meta_inline uint8 _strOffStr(uint8 hdr)
     return STR_OFF_STR(hdr);
 }
 
-_Ret_notnull_
+_Ret_valid_
 _meta_inline uint8 *_strHdrP(_In_ strref s)
 {
     return STR_HDRP(s);
@@ -72,7 +72,7 @@ _meta_inline uint8 _strHdr(_In_ strref s)
     return STR_HDR(s);
 }
 
-_Ret_notnull_
+_Ret_valid_
 _meta_inline uint8 *_strBuffer(_In_ strref s)
 {
     return STR_BUFFER(s);
@@ -153,7 +153,7 @@ void _strFlatten(_Inout_ptr_ string *ps, uint32 minszforcopy);
 // resizes buffer only, does NOT zero buffer or set length header
 void _strResize(_Inout_ptr_ string *ps, uint32 len, bool unique);
 // duplicates s and returns a copy, optionally with more reserved space allocated
-_Ret_notnull_ string _strCopy(_In_ strref s, uint32 minsz);
+_Ret_valid_ string _strCopy(_In_ strref s, uint32 minsz);
 // direct copy of string buffer or rope internals, does not check destination size!
 uint32 _strFastCopy(_In_ strref s, uint32 off, _Out_writes_bytes_(bytes) uint8 *buf, uint32 bytes);
 
@@ -172,7 +172,7 @@ typedef struct str_ropedata {
     int depth;
 } str_ropedata;
 
-_Ret_notnull_
+_Ret_valid_
 _meta_inline str_ropedata *_strRopeData(_In_ strref s)
 {
     return STR_ROPEDATA(s);

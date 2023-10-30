@@ -108,7 +108,7 @@ static uint16 _strDecRef(_Inout_ string s)
         return atomicFetchSub(uint16, &STR_FIELD(s, _strOffRef(_strHdr(s)), atomic(uint16)), 1, Release);
 }
 
-_Ret_notnull_ string _strCopy(_In_ strref s, uint32 minsz)
+_Ret_valid_ string _strCopy(_In_ strref s, uint32 minsz)
 {
     uint32 len = _strFastLen(s);
 
@@ -433,7 +433,7 @@ void strDestroy(_Inout_ string *ps)
     *ps = NULL;
 }
 
-_Ret_notnull_ const char *strC(_In_opt_ strref s)
+_Ret_valid_ const char *strC(_In_opt_ strref s)
 {
     if (!STR_CHECK_VALID(s)) return "";
 
@@ -449,7 +449,7 @@ _Ret_notnull_ const char *strC(_In_opt_ strref s)
     }
 }
 
-_Ret_notnull_ uint8 *strBuffer(_Inout_ string *ps, uint32 minsz)
+_Ret_valid_ uint8 *strBuffer(_Inout_ string *ps, uint32 minsz)
 {
     if (!ps)
         return NULL;

@@ -164,7 +164,7 @@ int32 _saPushPtr(_Inout_ sahandle handle, stype elemtype, _sa_Consume_Arg_ stgen
 #define saPushC(handle, type, elem, ...) _saPushPtr(SAHANDLE(handle), stCheckedPtrArg(type, elem), opt_flags(__VA_ARGS__) | SAINT_Consume)
 
 // Pointer pop transfers ownership to the caller and does not call the destructor
-_Ret_maybenull_
+_Ret_opt_valid_
 _At_(handle->a, _Pre_maybenull_)
 void *_saPopPtr(_Inout_ sahandle handle, int32 idx);
 #define saPopPtr(handle) _saPopPtr(SAHANDLE(handle), -1)

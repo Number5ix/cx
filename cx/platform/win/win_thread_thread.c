@@ -64,6 +64,7 @@ out:
     return 0;
 }
 
+_Use_decl_annotations_
 Thread *_thrPlatformCreate() {
     WinThread *wthr = _winthrobjCreate();
     return Thread(wthr);
