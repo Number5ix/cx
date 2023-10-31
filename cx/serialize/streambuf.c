@@ -3,6 +3,10 @@
 #include <cx/meta/block.h>
 #include <cx/utils/compare.h>
 
+static void sbufPFinishInternal(_Inout_ StreamBuffer *sb);
+static void sbufCFinishInternal(_Inout_ StreamBuffer *sb);
+
+_Use_decl_annotations_
 StreamBuffer *sbufCreate(size_t targetsz)
 {
     StreamBuffer *ret = xaAlloc(sizeof(StreamBuffer), XA_Zero);
@@ -23,7 +27,7 @@ StreamBuffer *sbufCreate(size_t targetsz)
     return ret;
 }
 
-static void sbufDestroy(StreamBuffer *sb)
+static void sbufDestroy(_Pre_valid_ _Post_invalid_ StreamBuffer *sb)
 {
     if (sb->consumerCleanup)
         sb->consumerCleanup(sb->consumerCtx);
@@ -36,6 +40,7 @@ static void sbufDestroy(StreamBuffer *sb)
     xaFree(sb);
 }
 
+_Use_decl_annotations_
 void sbufRelease(StreamBuffer **sb)
 {
     (*sb)->refcount--;
@@ -44,6 +49,7 @@ void sbufRelease(StreamBuffer **sb)
     (*sb) = NULL;
 }
 
+_Use_decl_annotations_
 void sbufError(StreamBuffer *sb)
 {
     sb->flags |= SBUF_Error;
@@ -59,6 +65,7 @@ void sbufError(StreamBuffer *sb)
         sb->producerPull(sb, NULL, 0, sb->producerCtx);
 }
 
+_Use_decl_annotations_
 bool sbufPRegisterPull(StreamBuffer *sb, sbufPullCB ppull, sbufCleanupCB pcleanup, void *ctx)
 {
     // can only register once, if it's not already a push buffer
@@ -81,6 +88,7 @@ bool sbufPRegisterPull(StreamBuffer *sb, sbufPullCB ppull, sbufCleanupCB pcleanu
     return true;
 }
 
+_Use_decl_annotations_
 bool sbufPRegisterPush(StreamBuffer *sb, sbufCleanupCB pcleanup, void *ctx)
 {
     // can only register once, if it's not already a pull buffer
@@ -101,6 +109,7 @@ bool sbufPRegisterPush(StreamBuffer *sb, sbufCleanupCB pcleanup, void *ctx)
     return true;
 }
 
+_Use_decl_annotations_
 size_t sbufPAvail(StreamBuffer *sb)
 {
     if (sb->overflowsz > 0) {
@@ -119,6 +128,7 @@ size_t sbufPAvail(StreamBuffer *sb)
     }
 }
 
+_Use_decl_annotations_
 size_t sbufCAvail(StreamBuffer *sb)
 {
     if (sb->head <= sb->tail) {
@@ -148,7 +158,7 @@ static size_t adjustSize(size_t startsz, size_t needed, size_t targetsz)
     return startsz;
 }
 
-static void pushMakeBufSpace(StreamBuffer *sb, size_t sz)
+static void pushMakeBufSpace(_Inout_ StreamBuffer *sb, size_t sz)
 {
     // check if there's space
     if (sb->overflowsz > 0) {
@@ -177,6 +187,7 @@ static void pushMakeBufSpace(StreamBuffer *sb, size_t sz)
     }
 }
 
+_Use_decl_annotations_
 bool sbufPWrite(StreamBuffer *sb, const uint8 *buf, size_t sz)
 {
     if (sz == 0)
@@ -229,7 +240,8 @@ bool sbufPWrite(StreamBuffer *sb, const uint8 *buf, size_t sz)
     return true;
 }
 
-void sbufPFinish(StreamBuffer *sb)
+_Use_decl_annotations_
+static void sbufPFinishInternal(StreamBuffer *sb)
 {
     if (sb->flags & SBUF_Producer_Done)
         return;
@@ -253,11 +265,18 @@ void sbufPFinish(StreamBuffer *sb)
 
     // if buffer is in push mode, consumer has gotten all the callbacks they're going to get
     if (sbufIsPush(sb))
-        sbufCFinish(sb);
+        sbufCFinishInternal(sb);
 
     sbufRelease(&sb);
 }
 
+_Use_decl_annotations_
+void sbufPFinish(StreamBuffer *sb)
+{
+    sbufPFinishInternal(sb);
+}
+
+_Use_decl_annotations_
 bool sbufCRegisterPull(StreamBuffer *sb, sbufCleanupCB ccleanup, void *ctx)
 {
     // can only register once, if it's not already a push buffer
@@ -278,6 +297,7 @@ bool sbufCRegisterPull(StreamBuffer *sb, sbufCleanupCB ccleanup, void *ctx)
     return true;
 }
 
+_Use_decl_annotations_
 bool sbufCRegisterPush(StreamBuffer *sb, sbufNotifyCB cnotify, sbufCleanupCB ccleanup, void *ctx)
 {
     // can only register once, if it's not already a pull buffer, and is not set as a direct buffer
@@ -301,6 +321,7 @@ bool sbufCRegisterPush(StreamBuffer *sb, sbufNotifyCB cnotify, sbufCleanupCB ccl
     return true;
 }
 
+_Use_decl_annotations_
 bool sbufCRegisterPushDirect(StreamBuffer *sb, sbufPushCB cpush, sbufCleanupCB ccleanup, void *ctx)
 {
     // can only register once, if it's not already a pull buffer, and is not set as a direct buffer
@@ -323,7 +344,7 @@ bool sbufCRegisterPushDirect(StreamBuffer *sb, sbufPushCB cpush, sbufCleanupCB c
     return true;
 }
 
-static inline void _readWriteBuf(StreamBuffer *sb, uint8 *out, size_t *p, size_t *total, const uint8 *in, size_t *off, size_t sz, size_t *skip, bool movehead, sbufSendCB sendcb)
+static inline void _readWriteBuf(_Inout_ StreamBuffer *sb, _Out_writes_bytes_opt_(sz) uint8 *out, _Inout_ size_t *p, _Inout_ size_t *total, _In_reads_bytes_(sz) const uint8 *in, _Inout_ size_t *off, size_t sz, _Inout_ size_t *skip, bool movehead, _In_opt_ sbufSendCB sendcb)
 {
     size_t skipsz = min(*skip, sz);
     *skip -= skipsz;
@@ -350,7 +371,7 @@ static inline void _readWriteBuf(StreamBuffer *sb, uint8 *out, size_t *p, size_t
 #define readWriteBuf(out, p, in, sz) _readWriteBuf(sb, out, &p, &total, in, &off, sz, &skip, movehead, sendcb)
 
 // caller must verify there's enough data in the buffer first!!!!
-static void readCommon(StreamBuffer *sb, uint8 *buf, size_t skip, size_t bsz, bool movehead, sbufSendCB sendcb)
+static void readCommon(_Inout_ StreamBuffer *sb, _Out_writes_bytes_opt_(skip + bsz) uint8 *buf, size_t skip, size_t bsz, bool movehead, _In_opt_ sbufSendCB sendcb)
 {
     // TODO: These don't really all need to be separate variables; some can be redefined as a calculation
     size_t total = skip + bsz;
@@ -424,7 +445,7 @@ static void readCommon(StreamBuffer *sb, uint8 *buf, size_t skip, size_t bsz, bo
     devAssert(total == 0);
 }
 
-static void feedBuffer(StreamBuffer *sb, size_t want)
+static void feedBuffer(_Inout_ StreamBuffer *sb, size_t want)
 {
     size_t needed = want - sbufCAvail(sb);
     size_t count;
@@ -461,6 +482,7 @@ static void feedBuffer(StreamBuffer *sb, size_t want)
     }
 }
 
+_Use_decl_annotations_
 size_t sbufCRead(StreamBuffer *sb, uint8 *buf, size_t sz)
 {
     if ((sb->flags & SBUF_Direct) || sbufIsError(sb))
@@ -485,6 +507,7 @@ size_t sbufCRead(StreamBuffer *sb, uint8 *buf, size_t sz)
     return sz;
 }
 
+_Use_decl_annotations_
 bool sbufCPeek(StreamBuffer *sb, uint8 *buf, size_t off, size_t sz)
 {
     if ((sb->flags & SBUF_Direct) || sbufIsError(sb))
@@ -503,6 +526,7 @@ bool sbufCPeek(StreamBuffer *sb, uint8 *buf, size_t off, size_t sz)
     return true;
 }
 
+_Use_decl_annotations_
 bool sbufCFeed(StreamBuffer *sb, size_t minsz)
 {
     if (!sbufIsPull(sb))
@@ -516,6 +540,7 @@ bool sbufCFeed(StreamBuffer *sb, size_t minsz)
     return sbufCAvail(sb) >= minsz;
 }
 
+_Use_decl_annotations_
 bool sbufCSkip(StreamBuffer *sb, size_t bytes)
 {
     if ((sb->flags & SBUF_Direct) || sbufIsError(sb))
@@ -572,6 +597,7 @@ bool sbufCSkip(StreamBuffer *sb, size_t bytes)
     return true;
 }
 
+_Use_decl_annotations_
 bool sbufCSend(StreamBuffer *sb, sbufSendCB func, size_t sz)
 {
     if ((sb->flags & SBUF_Direct) || sbufIsError(sb))
@@ -595,7 +621,8 @@ bool sbufCSend(StreamBuffer *sb, sbufSendCB func, size_t sz)
     return true;
 }
 
-void sbufCFinish(StreamBuffer *sb)
+_Use_decl_annotations_
+static void sbufCFinishInternal(StreamBuffer *sb)
 {
     if (sb->flags & SBUF_Consumer_Done)
         return;
@@ -604,7 +631,13 @@ void sbufCFinish(StreamBuffer *sb)
 
     // if buffer is in pull mode, producer has gotten all the callbacks they're going to get
     if (sbufIsPull(sb))
-        sbufPFinish(sb);
+        sbufPFinishInternal(sb);
 
     sbufRelease(&sb);
+}
+
+_Use_decl_annotations_
+void sbufCFinish(StreamBuffer *sb)
+{
+    sbufCFinishInternal(sb);
 }

@@ -16,13 +16,13 @@ typedef struct StreamBuffer StreamBuffer;
 // full amount (which will expand the buffer in the process) and return 0.
 // 
 // If sz is 0, check if the consumer is finished and/or for error state.
-typedef size_t(*sbufPullCB)(StreamBuffer *sb, uint8 *buf, size_t sz, void *ctx);
+typedef size_t(*sbufPullCB)(_Inout_ StreamBuffer *sb, _Out_writes_bytes_(sz) uint8 *buf, size_t sz, _Inout_opt_ void *ctx);
 
 // Push callback
 // When this callback is used (in direct mode), the data is pushed once to the
 // callback and MUST all be written in one go or it will be lost.
 // If sz is 0, check if the producer is finished and/or for error state.
-typedef void(*sbufPushCB)(StreamBuffer *sb, const uint8 *buf, size_t sz, void *ctx);
+typedef void(*sbufPushCB)(_Inout_ StreamBuffer *sb, _In_reads_bytes_(sz) const uint8 *buf, size_t sz, _Inout_opt_ void *ctx);
 
 // Send callback
 // This callback is used with sbufCSend. It may be called multiple times with varying
@@ -32,18 +32,18 @@ typedef void(*sbufPushCB)(StreamBuffer *sb, const uint8 *buf, size_t sz, void *c
 // buffer. If it returns false, it behaves like the peek functions and does not remove
 // the bytes from the buffer.
 // If sz is 0, check if the producer is finished and/or for error state.
-typedef bool(*sbufSendCB)(StreamBuffer *sb, const uint8 *buf, size_t off, size_t sz, void *ctx);
+typedef bool(*sbufSendCB)(_Inout_ StreamBuffer *sb, _In_reads_bytes_(sz) const uint8 *buf, size_t off, size_t sz, _Inout_opt_ void *ctx);
 
 // Notify callback
 // Notification to a consumer that data is available. The sbufC* functions may be
 // used to read all or part of the available data.
 // If sz is 0, check if the producer is finished and/or for error state.
-typedef void(*sbufNotifyCB)(StreamBuffer *sb, size_t sz, void *ctx);
+typedef void(*sbufNotifyCB)(_Inout_ StreamBuffer *sb, size_t sz, _Inout_opt_ void *ctx);
 
 // Cleanup callback
 // Called just before the structure is deallocated, should perform any needed
 // cleanup of the user-supplied ctx.
-typedef void(*sbufCleanupCB)(void *ctx);
+typedef void(*sbufCleanupCB)(_Inout_opt_ void *ctx);
 
 // Push mode:   Producer repeatedly calls sbufPWrite.
 //              Consumer is either notified that data is available via callback,
@@ -92,39 +92,39 @@ typedef struct StreamBuffer {
 // Create a stream buffer
 // targetsz may be set to 0 if direct mode is going to be used.
 // Caller must free the returned pointer with sbufRelease when done.
-StreamBuffer *sbufCreate(size_t targetsz);
+_Ret_valid_ StreamBuffer *sbufCreate(size_t targetsz);
 
 // Release a reference to a streambuffer
-void sbufRelease(StreamBuffer **sb);
+void sbufRelease(_Inout_ptr_uninit_ StreamBuffer **sb);
 
 // Puts a stream buffer into error state. Processing will be aborted and both consumers
 // and producers should call the Finish function as soon as is practical.
-void sbufError(StreamBuffer *sb);
+void sbufError(_Inout_ StreamBuffer *sb);
 
-_meta_inline bool sbufIsPull(StreamBuffer *sb)
+_meta_inline bool sbufIsPull(_In_ StreamBuffer *sb)
 {
     return sb->flags & SBUF_Pull;
 }
 
-_meta_inline bool sbufIsPush(StreamBuffer *sb)
+_meta_inline bool sbufIsPush(_In_ StreamBuffer *sb)
 {
     return sb->flags & SBUF_Push;
 }
 
 // Checks if the stream buffer is in an error state
-_meta_inline bool sbufIsError(StreamBuffer *sb)
+_meta_inline bool sbufIsError(_In_ StreamBuffer *sb)
 {
     return sb->flags & SBUF_Error;
 }
 
 // Returns true if the producer is finished (EOF)
-_meta_inline bool sbufIsPFinished(StreamBuffer *sb)
+_meta_inline bool sbufIsPFinished(_In_ StreamBuffer *sb)
 {
     return (sb->flags & SBUF_Producer_Done) || sbufIsError(sb);
 }
 
 // Returns true if the consumer is finished (early out, data no longer need be produced)
-_meta_inline bool sbufIsCFinished(StreamBuffer *sb)
+_meta_inline bool sbufIsCFinished(_In_ StreamBuffer *sb)
 {
     return (sb->flags & SBUF_Consumer_Done) || sbufIsError(sb);
 }
@@ -132,48 +132,51 @@ _meta_inline bool sbufIsCFinished(StreamBuffer *sb)
 // ---------------------------------------------------------------------------- Producer Functions
 
 // Registers a producer with the stream buffer in pull mode
-bool sbufPRegisterPull(StreamBuffer *sb, sbufPullCB ppull, sbufCleanupCB pcleanup, void *ctx);
+bool sbufPRegisterPull(_Inout_ StreamBuffer *sb, _In_ sbufPullCB ppull, _In_opt_ sbufCleanupCB pcleanup, _Inout_opt_ void *ctx);
 // Registers a producer with the stream buffer in push mode
-bool sbufPRegisterPush(StreamBuffer *sb, sbufCleanupCB pcleanup, void *ctx);
+bool sbufPRegisterPush(_Inout_ StreamBuffer *sb, _In_opt_ sbufCleanupCB pcleanup, _Inout_opt_ void *ctx);
 
 // Returns the available space for writing to the buffer
-size_t sbufPAvail(StreamBuffer *sb);
+size_t sbufPAvail(_In_ StreamBuffer *sb);
 // Writes data to the buffer. This will always succeed unless the system is out of memory.
 // Overflow buffer is used if more written data exceeds current buffer size.
-bool sbufPWrite(StreamBuffer *sb, const uint8 *buf, size_t sz);
+bool sbufPWrite(_Inout_ StreamBuffer *sb, _In_reads_bytes_(sz) const uint8 *buf, size_t sz);
 // Mark the producer as finished. The producer MUST NOT touch the stream buffer after
 // call as it maybe immediately deallocated.
-void sbufPFinish(StreamBuffer *sb);
+void sbufPFinish(_Pre_valid_ _Post_invalid_ StreamBuffer *sb);
 
 // ---------------------------------------------------------------------------- Consumer Functions
 
 // Registers a consumer with the stream buffer in pull mode
-bool sbufCRegisterPull(StreamBuffer *sb, sbufCleanupCB ccleanup, void *ctx);
+bool sbufCRegisterPull(_Inout_ StreamBuffer *sb, _In_opt_ sbufCleanupCB ccleanup, _Inout_opt_ void *ctx);
 // Registers a consumer with the stream buffer in push mode
-bool sbufCRegisterPush(StreamBuffer *sb, sbufNotifyCB cnotify, sbufCleanupCB ccleanup, void *ctx);
+bool sbufCRegisterPush(_Inout_ StreamBuffer *sb, _In_ sbufNotifyCB cnotify, _In_opt_ sbufCleanupCB ccleanup, _Inout_opt_ void *ctx);
 // Registers a consumer with the stream buffer in direct push mode
-bool sbufCRegisterPushDirect(StreamBuffer *sb, sbufPushCB cpush, sbufCleanupCB ccleanup, void *ctx);
+bool sbufCRegisterPushDirect(_Inout_ StreamBuffer *sb, _In_ sbufPushCB cpush, _In_opt_ sbufCleanupCB ccleanup, _Inout_opt_ void *ctx);
 
 // Returns how much data is currently buffered waiting to be consumed.
-size_t sbufCAvail(StreamBuffer *sb);
+size_t sbufCAvail(_Inout_ StreamBuffer *sb);
 // Reads sz bytes from the producer.
 // If in pull mode, this will repeatedly call the producer's callback in order to completely
 // satisfy the request. It will short read only when the producer is finished (EOF).
 // If in push mode, this will fail if more data is requested than is available.
-size_t sbufCRead(StreamBuffer *sb, uint8 *buf, size_t sz);
+_Success_(return > 0)
+_Ret_range_(0, sz)
+size_t sbufCRead(_Inout_ StreamBuffer *sb, _Out_writes_bytes_(sz) uint8 *buf, size_t sz);
 
 // Peeks at data in the buffer without consuming it.
 // In pull mode this will NOT call the callback and only read unconsumed data left in
 // the buffer.
 // Will never short read, will fail if there is not enough in the buffer (check sbufCAvail).
-bool sbufCPeek(StreamBuffer *sb, uint8 *buf, size_t off, size_t sz);
+_Success_(return > 0)
+bool sbufCPeek(_Inout_ StreamBuffer *sb, _Out_writes_bytes_(sz) uint8 *buf, size_t off, size_t sz);
 
 // For pull mode only, feeds the buffer until it has at least minsz bytes. This is similar
 // to what sbufCRead does and will keep retrying until it either has enough or the producer
 // finishes. This is useful for feeding the buffer without reading it in order to peek ahead.
 // Returns true if the feed request was completely satisfied, or false if the producer finished
 // before producing enough bytes.
-bool sbufCFeed(StreamBuffer *sb, size_t minsz);
+bool sbufCFeed(_Inout_ StreamBuffer *sb, size_t minsz);
 
 // Sends at most sz bytes from the buffer to a callback function.
 // The callback may be called multiple times in order to send the requested data, it is not
@@ -185,11 +188,11 @@ bool sbufCFeed(StreamBuffer *sb, size_t minsz);
 // If used in pull mode, it functions like sbufCRead and will try to fill the buffer with
 // the requested amount of data before calling the callback.
 // The callback should return true if it consumed the data, or false if it is only peeking.
-bool sbufCSend(StreamBuffer *sb, sbufSendCB func, size_t sz);
+bool sbufCSend(_Inout_ StreamBuffer *sb, _In_ sbufSendCB func, size_t sz);
 
 // Skip over bytes in the buffer, can be used in conjunction with sbufCPeek.
-bool sbufCSkip(StreamBuffer *sb, size_t bytes);
+bool sbufCSkip(_Inout_ StreamBuffer *sb, size_t bytes);
 
 // Mark the consumer as finished. The consumer MUST NOT touch the stream buffer after
 // call as it maybe immediately deallocated.
-void sbufCFinish(StreamBuffer *sb);
+void sbufCFinish(_Pre_valid_ _Post_invalid_ StreamBuffer *sb);
