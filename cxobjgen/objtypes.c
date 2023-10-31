@@ -195,6 +195,7 @@ _Ret_valid_ Method *Method_clone(_Inout_ Method *self)
     ret->isdestroy = self->isdestroy;
     ret->isfactory = self->isfactory;
     ret->internal = self->internal;
+    ret->canfail = self->canfail;
     ret->unbound = self->unbound;
     ret->mixin = self->mixin;
     return ret;
