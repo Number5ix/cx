@@ -7,12 +7,13 @@
 
 // Pushes the entire contents of a string into a streambuffer.
 // Will auto-chunk based on the streambuffer's target size.
-bool sbufStrIn(StreamBuffer *sb, strref str);
+bool sbufStrIn(_Pre_valid_ _Post_invalid_ StreamBuffer *sb, _In_opt_ strref str);
 
 // -- or --
 // 
 // Registers as a producer with the streambuffer in pull mode.
-bool sbufStrPRegisterPull(StreamBuffer *sb, strref str);
+_Check_return_
+bool sbufStrPRegisterPull(_Inout_ StreamBuffer *sb, _In_opt_ strref str);
 
 // ======================================================================
 
@@ -20,10 +21,11 @@ bool sbufStrPRegisterPull(StreamBuffer *sb, strref str);
 
 // Consumes all available data from the buffer and outputs to a string.
 // This overwrites any existing string.
-bool sbufStrOut(StreamBuffer *sb, string *strout);
+bool sbufStrOut(_Pre_valid_ _Post_invalid_ StreamBuffer *sb, _Inout_ string *strout);
 
 // -- or -- 
 
 // Registers as a consumer with the streambuffer in push mode.
 // This consumer appends all output to the given string.
-bool sbufStrCRegisterPush(StreamBuffer *sb, string *strout);
+_Check_return_
+bool sbufStrCRegisterPush(_Inout_ StreamBuffer *sb, _Inout_ string *strout);

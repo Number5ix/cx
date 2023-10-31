@@ -24,14 +24,17 @@ enum LINEPARSER_FLAGS_ENUM {
 
 // Register the line parser in pull mode. Once registered, repeatedly call
 // lparseLine() to get the next line.
-bool lparseRegisterPull(StreamBuffer *sb, uint32 flags);
+_Check_return_
+bool lparseRegisterPull(_Inout_ StreamBuffer *sb, uint32 flags);
 // Returns false when there are no more lines.
-bool lparseLine(StreamBuffer *sb, string *out);
+_Success_(return) _Check_return_
+bool lparseLine(_Inout_ _On_failure_(_Post_invalid_) StreamBuffer *sb, _Inout_ string *out);
 
 // -------- Push mode --------
 
 // Callback to pass to lparseRegisterPush. Should return true to continue parsing
 // or false to stop.
-typedef bool (*lparseLineCB)(strref line, void *ctx);
+typedef bool (*lparseLineCB)(_In_opt_ strref line, _Pre_opt_valid_ void *ctx);
 
-bool lparseRegisterPush(StreamBuffer *sb, lparseLineCB pline, sbufCleanupCB pcleanup, void *ctx, uint32 flags);
+_Check_return_
+bool lparseRegisterPush(_Inout_ StreamBuffer *sb, _In_ lparseLineCB pline, _In_opt_ sbufCleanupCB pcleanup, _Inout_opt_ void *ctx, uint32 flags);

@@ -5,7 +5,7 @@ typedef struct SbufFileCtx {
     bool close;
 } SbufFileCtx;
 
-static void sbufFileCleanup(void *ctx)
+static void sbufFileCleanup(_Pre_valid_ void *ctx)
 {
     SbufFileCtx *sbc = (SbufFileCtx *)ctx;
     if (sbc->close)
@@ -13,6 +13,7 @@ static void sbufFileCleanup(void *ctx)
     xaFree(sbc);
 }
 
+_Use_decl_annotations_
 bool sbufFileIn(StreamBuffer *sb, VFSFile *file, bool close)
 {
     if (!sbufPRegisterPush(sb, NULL, NULL))
@@ -41,9 +42,11 @@ bool sbufFileIn(StreamBuffer *sb, VFSFile *file, bool close)
     return ret;
 }
 
-static size_t sbufFilePullCB(StreamBuffer *sb, uint8 *buf, size_t sz, void *ctx)
+static size_t sbufFilePullCB(_Pre_valid_ StreamBuffer *sb, _Out_writes_bytes_(sz) uint8 *buf, size_t sz, _Pre_opt_valid_ void *ctx)
 {
     SbufFileCtx *sbc = (SbufFileCtx *)ctx;
+    if (!sbc)
+        return 0;
 
     size_t didread = 0;
     if (!vfsRead(sbc->file, buf, sz, &didread))
@@ -55,6 +58,7 @@ static size_t sbufFilePullCB(StreamBuffer *sb, uint8 *buf, size_t sz, void *ctx)
     return didread;
 }
 
+_Use_decl_annotations_
 bool sbufFilePRegisterPull(StreamBuffer *sb, VFSFile *file, bool close)
 {
     SbufFileCtx *sbc = xaAlloc(sizeof(SbufFileCtx));
@@ -69,9 +73,11 @@ bool sbufFilePRegisterPull(StreamBuffer *sb, VFSFile *file, bool close)
     return true;
 }
 
-static bool sbufFileSendCB(StreamBuffer *sb, const uint8 *buf, size_t off, size_t sz, void *ctx)
+static bool sbufFileSendCB(_Pre_valid_ StreamBuffer *sb, _In_reads_bytes_(sz) const uint8 *buf, size_t off, size_t sz, _Pre_opt_valid_ void *ctx)
 {
     SbufFileCtx *sbc = (SbufFileCtx *)ctx;
+    if (!sbc)
+        return false;
 
     size_t didwrite = 0;
     if (!vfsWrite(sbc->file, (void*)buf, sz, &didwrite))
@@ -80,7 +86,7 @@ static bool sbufFileSendCB(StreamBuffer *sb, const uint8 *buf, size_t off, size_
     return true;
 }
 
-static void sbufFileNotifyCB(StreamBuffer *sb, size_t sz, void *ctx)
+static void sbufFileNotifyCB(_Pre_valid_ StreamBuffer *sb, size_t sz, _Pre_opt_valid_ void *ctx)
 {
     if (sz >= sb->targetsz) {
         sbufCSend(sb, sbufFileSendCB, sz);
@@ -90,6 +96,7 @@ static void sbufFileNotifyCB(StreamBuffer *sb, size_t sz, void *ctx)
     }
 }
 
+_Use_decl_annotations_
 bool sbufFileOut(StreamBuffer *sb, VFSFile *file, bool close)
 {
     if (!sbufCRegisterPull(sb, NULL, NULL))
@@ -118,6 +125,7 @@ bool sbufFileOut(StreamBuffer *sb, VFSFile *file, bool close)
     return ret;
 }
 
+_Use_decl_annotations_
 bool sbufFileCRegisterPush(StreamBuffer *sb, VFSFile *file, bool close)
 {
     SbufFileCtx *sbc = xaAlloc(sizeof(SbufFileCtx));

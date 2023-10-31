@@ -8,13 +8,16 @@
 // Reads a file and pushes the its entire contents into a streambuffer.
 // Will auto-chunk based on the streambuffer's target size.
 // File will be closed when finished if close is set to true.
-bool sbufFileIn(StreamBuffer *sb, VFSFile *file, bool close);
+bool sbufFileIn(_Pre_valid_ _Post_invalid_ StreamBuffer *sb,
+                _Pre_valid_ _When_(close, _Post_invalid_) VFSFile *file,
+                bool close);
 
 // -- or --
 // 
 // Registers as a producer with the streambuffer in pull mode.
 // File will be closed when finished if close is set to true.
-bool sbufFilePRegisterPull(StreamBuffer *sb, VFSFile *file, bool close);
+_Check_return_
+bool sbufFilePRegisterPull(_Inout_ StreamBuffer *sb, _Inout_ VFSFile *file, bool close);
 
 // ======================================================================
 
@@ -22,10 +25,13 @@ bool sbufFilePRegisterPull(StreamBuffer *sb, VFSFile *file, bool close);
 
 // Consumes all available data from the buffer and writes it to a file.
 // File will be closed when finished if close is set to true.
-bool sbufFileOut(StreamBuffer *sb, VFSFile *file, bool close);
+bool sbufFileOut(_Pre_valid_ _Post_invalid_ StreamBuffer *sb,
+                 _Pre_valid_ _When_(close, _Post_invalid_) VFSFile *file,
+                 bool close);
 
 // -- or -- 
 
 // Registers as a consumer with the streambuffer in push mode.
 // File will be closed when finished if close is set to true.
-bool sbufFileCRegisterPush(StreamBuffer *sb, VFSFile *file, bool close);
+_Check_return_
+bool sbufFileCRegisterPush(_Inout_ StreamBuffer *sb, _Inout_ VFSFile *file, bool close);

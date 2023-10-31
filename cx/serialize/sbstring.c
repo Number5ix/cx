@@ -6,13 +6,17 @@ typedef struct SbufStrInCtx {
     striter iter;
 } SbufStrInCtx;
 
-static void sbufStrInCleanup(void *ctx)
+static void sbufStrInCleanup(_Pre_opt_valid_ void *ctx)
 {
+    if (!ctx)
+        return;
+
     SbufStrInCtx *sbc = (SbufStrInCtx *)ctx;
     striFinish(&sbc->iter);
     xaFree(sbc);
 }
 
+_Use_decl_annotations_
 bool sbufStrIn(StreamBuffer *sb, strref str)
 {
     striter si;
@@ -39,9 +43,11 @@ bool sbufStrIn(StreamBuffer *sb, strref str)
     return ret;
 }
 
-static size_t sbufStrPullCB(StreamBuffer *sb, uint8 *buf, size_t sz, void *ctx)
+static size_t sbufStrPullCB(_Pre_valid_ StreamBuffer *sb, _Out_writes_bytes_(sz) uint8 *buf, size_t sz, _Pre_opt_valid_ void *ctx)
 {
     SbufStrInCtx *sbc = (SbufStrInCtx *)ctx;
+    if (!sbc)
+        return 0;
 
     uint32 nbytes = min(sbc->iter.len - sbc->iter.cursor, (uint32)sz);
     if (nbytes > 0) {
@@ -55,6 +61,7 @@ static size_t sbufStrPullCB(StreamBuffer *sb, uint8 *buf, size_t sz, void *ctx)
     return nbytes;
 }
 
+_Use_decl_annotations_
 bool sbufStrPRegisterPull(StreamBuffer *sb, strref str)
 {
     SbufStrInCtx *sbc = xaAlloc(sizeof(SbufStrInCtx));
@@ -71,15 +78,17 @@ typedef struct SbufStrOutCtx {
     string *out;
 } SbufStrOutCtx;
 
-static void sbufStrOutCleanup(void *ctx)
+static void sbufStrOutCleanup(_Pre_opt_valid_ void *ctx)
 {
     SbufStrOutCtx *sbc = (SbufStrOutCtx *)ctx;
     xaFree(sbc);
 }
 
-static void sbufStrNotifyCB(StreamBuffer *sb, size_t sz, void *ctx)
+static void sbufStrNotifyCB(_Pre_valid_ StreamBuffer *sb, size_t sz, _Pre_opt_valid_ void *ctx)
 {
     SbufStrOutCtx *sbc = (SbufStrOutCtx *)ctx;
+    if (!sbc)
+        return;
 
     string temp = 0;
     uint8 *tbuf = strBuffer(&temp, (uint32)sz);
@@ -91,6 +100,7 @@ static void sbufStrNotifyCB(StreamBuffer *sb, size_t sz, void *ctx)
     strDestroy(&temp);
 }
 
+_Use_decl_annotations_
 bool sbufStrOut(StreamBuffer *sb, string *strout)
 {
     if (!sbufCRegisterPull(sb, NULL, NULL))
@@ -117,6 +127,7 @@ bool sbufStrOut(StreamBuffer *sb, string *strout)
     return ret;
 }
 
+_Use_decl_annotations_
 bool sbufStrCRegisterPush(StreamBuffer *sb, string *strout)
 {
     SbufStrOutCtx *sbc = xaAlloc(sizeof(SbufStrOutCtx));
