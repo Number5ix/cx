@@ -34,7 +34,7 @@ extern ObjClassInfo WinThread_clsinfo;
 #define WinThread(inst) ((WinThread*)(unused_noeval((inst) && &((inst)->_is_WinThread)), (inst)))
 #define WinThreadNone ((WinThread*)NULL)
 
-_objfactory WinThread *WinThread_create();
+_objfactory_guaranteed WinThread *WinThread_create();
 // WinThread *_winthrobjCreate();
 #define _winthrobjCreate() WinThread_create()
 

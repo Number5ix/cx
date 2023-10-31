@@ -8,15 +8,12 @@
 #include "win_thread_threadobj.h"
 // ==================== Auto-generated section ends ======================
 
-_objfactory WinThread *WinThread_create()
+_objfactory_guaranteed WinThread *WinThread_create()
 {
     WinThread *self;
     self = objInstCreate(WinThread);
 
-    if (!objInstInit(self)) {
-        objRelease(&self);
-        return NULL;
-    }
+    objInstInit(self);
 
     return self;
 }

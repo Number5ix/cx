@@ -10,8 +10,6 @@ _Use_decl_annotations_
 Thread* _thrCreate(threadFunc func, strref name, int n, stvar args[], bool ui)
 {
     Thread *ret = _throbjCreate(func, name, n, args, ui);
-    if (!ret)
-        return NULL;
 
     atomicStore(bool, &ret->running, true, Relaxed);
     // This is the reference for the newly created thread, it gets released inside the
@@ -32,8 +30,6 @@ _Use_decl_annotations_
 void _thrRun(threadFunc func, strref name, int n, stvar args[])
 {
     Thread *ret = _throbjCreate(func, name, n, args, false);
-    if (!ret)
-        relFatalError("Could not create thread object");
 
     atomicStore(bool, &ret->running, true, Relaxed);
     if (!_thrPlatformStart(ret)) {

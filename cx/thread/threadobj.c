@@ -9,7 +9,7 @@
 // ==================== Auto-generated section ends ======================
 #include "thread_private.h"
 
-_objfactory Thread *Thread_create(threadFunc func, strref name, int n, stvar args[], bool ui)
+_objfactory_guaranteed Thread *Thread_create(threadFunc func, strref name, int n, stvar args[], bool ui)
 {
     Thread *self;
     self = _thrPlatformCreate();
@@ -24,15 +24,12 @@ _objfactory Thread *Thread_create(threadFunc func, strref name, int n, stvar arg
 
     eventInit(&self->notify, ui ? EV_UIEvent: 0);
 
-    if (!objInstInit(self)) {
-        objRelease(&self);
-        return NULL;
-    }
+    objInstInit(self);
 
     return self;
 }
 
-bool Thread_init(_Inout_ Thread *self)
+_objinit_guaranteed bool Thread_init(_Inout_ Thread *self)
 {
     stvlInitSA(&self->args, self->_argsa);
 

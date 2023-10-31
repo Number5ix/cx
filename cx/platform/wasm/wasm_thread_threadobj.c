@@ -8,15 +8,12 @@
 #include "wasm_thread_threadobj.h"
 // ==================== Auto-generated section ends ======================
 
-_objfactory UnixThread *UnixThread_create()
+_objfactory_guaranteed UnixThread *UnixThread_create()
 {
     UnixThread *self;
     self = objInstCreate(UnixThread);
 
-    if (!objInstInit(self)) {
-        objRelease(&self);
-        return NULL;
-    }
+    objInstInit(self);
 
     return self;
 }

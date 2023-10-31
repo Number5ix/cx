@@ -34,7 +34,7 @@ extern ObjClassInfo UnixThread_clsinfo;
 #define UnixThread(inst) ((UnixThread*)(unused_noeval((inst) && &((inst)->_is_UnixThread)), (inst)))
 #define UnixThreadNone ((UnixThread*)NULL)
 
-_objfactory UnixThread *UnixThread_create();
+_objfactory_guaranteed UnixThread *UnixThread_create();
 // UnixThread *_unixthrobjCreate();
 #define _unixthrobjCreate() UnixThread_create()
 
