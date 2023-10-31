@@ -21,11 +21,11 @@ enum FSOpenFlags {
     FS_Overwrite = (FS_Write | FS_Create | FS_Truncate),
 };
 
-enum FSSeekType {
+typedef enum FSSeekTypeEnum {
     FS_Set      = 0x00010000,
     FS_Cur      = 0x00020000,
     FS_End      = 0x00030000,
-};
+} FSSeekType;
 
 FSFile *fsOpen(strref path, flags_t flags);
 bool fsClose(FSFile *file);
@@ -33,7 +33,7 @@ bool fsClose(FSFile *file);
 bool fsRead(FSFile *file, void *buf, size_t sz, size_t *bytesread);
 bool fsWrite(FSFile *file, void *buf, size_t sz, size_t *byteswritten);
 int64 fsTell(FSFile *file);
-int64 fsSeek(FSFile *file, int64 off, int seektype);
+int64 fsSeek(FSFile *file, int64 off, FSSeekType seektype);
 
 bool fsFlush(FSFile *file);
 

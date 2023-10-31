@@ -48,7 +48,7 @@ int64 VFSFSFile_tell(_Inout_ VFSFSFile *self)
     return fsTell(self->file);
 }
 
-int64 VFSFSFile_seek(_Inout_ VFSFSFile *self, int64 off, int seektype)
+int64 VFSFSFile_seek(_Inout_ VFSFSFile *self, int64 off, FSSeekType seektype)
 {
     if (!self->file)
         return -1;

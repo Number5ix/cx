@@ -14,7 +14,7 @@ typedef struct VFSFileProvider {
     bool (*read)(_Inout_ void *self, void *buf, size_t sz, size_t *bytesread);
     bool (*write)(_Inout_ void *self, void *buf, size_t sz, size_t *byteswritten);
     int64 (*tell)(_Inout_ void *self);
-    int64 (*seek)(_Inout_ void *self, int64 off, int seektype);
+    int64 (*seek)(_Inout_ void *self, int64 off, FSSeekType seektype);
     bool (*flush)(_Inout_ void *self);
 } VFSFileProvider;
 extern VFSFileProvider VFSFileProvider_tmpl;

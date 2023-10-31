@@ -18,7 +18,7 @@ typedef struct VFSVFSFile_ClassIf {
     bool (*read)(_Inout_ void *self, void *buf, size_t sz, size_t *bytesread);
     bool (*write)(_Inout_ void *self, void *buf, size_t sz, size_t *byteswritten);
     int64 (*tell)(_Inout_ void *self);
-    int64 (*seek)(_Inout_ void *self, int64 off, int seektype);
+    int64 (*seek)(_Inout_ void *self, int64 off, FSSeekType seektype);
     bool (*flush)(_Inout_ void *self);
 } VFSVFSFile_ClassIf;
 extern VFSVFSFile_ClassIf VFSVFSFile_ClassIf_tmpl;
@@ -50,7 +50,7 @@ _objfactory VFSVFSFile *VFSVFSFile_create(VFSFile *f);
 #define vfsvfsfileWrite(self, buf, sz, byteswritten) (self)->_->write(VFSVFSFile(self), buf, sz, byteswritten)
 // int64 vfsvfsfileTell(VFSVFSFile *self);
 #define vfsvfsfileTell(self) (self)->_->tell(VFSVFSFile(self))
-// int64 vfsvfsfileSeek(VFSVFSFile *self, int64 off, int seektype);
+// int64 vfsvfsfileSeek(VFSVFSFile *self, int64 off, FSSeekType seektype);
 #define vfsvfsfileSeek(self, off, seektype) (self)->_->seek(VFSVFSFile(self), off, seektype)
 // bool vfsvfsfileFlush(VFSVFSFile *self);
 #define vfsvfsfileFlush(self) (self)->_->flush(VFSVFSFile(self))

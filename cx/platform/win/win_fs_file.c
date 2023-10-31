@@ -132,7 +132,7 @@ int64 fsTell(FSFile *file)
     return out.QuadPart;
 }
 
-int64 fsSeek(FSFile *file, int64 off, int seektype)
+int64 fsSeek(FSFile *file, int64 off, FSSeekType seektype)
 {
     LARGE_INTEGER move;
     LARGE_INTEGER out;

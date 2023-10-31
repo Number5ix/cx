@@ -140,7 +140,7 @@ int64 fsTell(FSFile *file)
     return off;
 }
 
-int64 fsSeek(FSFile *file, int64 off, int seektype)
+int64 fsSeek(FSFile *file, int64 off, FSSeekType seektype)
 {
     int method;
     off_t out;

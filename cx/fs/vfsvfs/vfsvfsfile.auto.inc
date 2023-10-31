@@ -11,7 +11,7 @@ static VFSFileProvider _impl_VFSVFSFile_VFSFileProvider = {
     .read = (bool (*)(void*, void*, size_t, size_t*))VFSVFSFile_read,
     .write = (bool (*)(void*, void*, size_t, size_t*))VFSVFSFile_write,
     .tell = (int64 (*)(void*))VFSVFSFile_tell,
-    .seek = (int64 (*)(void*, int64, int))VFSVFSFile_seek,
+    .seek = (int64 (*)(void*, int64, FSSeekType))VFSVFSFile_seek,
     .flush = (bool (*)(void*))VFSVFSFile_flush,
 };
 
@@ -22,7 +22,7 @@ static VFSVFSFile_ClassIf _impl_VFSVFSFile_VFSVFSFile_ClassIf = {
     .read = (bool (*)(void*, void*, size_t, size_t*))VFSVFSFile_read,
     .write = (bool (*)(void*, void*, size_t, size_t*))VFSVFSFile_write,
     .tell = (int64 (*)(void*))VFSVFSFile_tell,
-    .seek = (int64 (*)(void*, int64, int))VFSVFSFile_seek,
+    .seek = (int64 (*)(void*, int64, FSSeekType))VFSVFSFile_seek,
     .flush = (bool (*)(void*))VFSVFSFile_flush,
 };
 
