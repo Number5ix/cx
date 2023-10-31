@@ -509,6 +509,8 @@ void paramAnnotations(string *out, Param *p)
             strAppend(&tmp, _S"opt_");
 
         strNConcat(out, *out, tmp, _S" ");
+    } else if (strEmpty(p->predecr) && strEq(p->type, _S"strref")) {
+        strAppend(out, _S"_In_opt_ ");
     }
 
     sa_string sal = saInitNone;
