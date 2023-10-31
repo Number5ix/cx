@@ -25,12 +25,13 @@ class Method implements Sortable {
     bool isinit;
     bool isdestroy;
     bool isfactory;
+    bool canfail;
     bool internal;
     bool unbound;
     bool standalone;
     bool mixin;
 
-    Method *clone();
+    [valid] Method *clone();
     factory create();
 }
 
@@ -77,6 +78,7 @@ class Class implements Sortable {
     bool mixin;
     bool hasinit;
     bool hasdestroy;
+    bool initcanfail;
     bool included;
     bool processed;
     bool hasautoinit;

@@ -19,7 +19,7 @@ void Param_destroy(_Inout_ Param *self)
     // Autogen ends -------
 }
 
-bool Method_init(_Inout_ Method *self)
+_objinit_guaranteed bool Method_init(_Inout_ Method *self)
 {
     // Autogen begins -----
     saInit(&self->params, object, 1);
@@ -48,7 +48,7 @@ void Method_destroy(_Inout_ Method *self)
     // Autogen ends -------
 }
 
-bool Interface_init(_Inout_ Interface *self)
+_objinit_guaranteed bool Interface_init(_Inout_ Interface *self)
 {
     // Autogen begins -----
     saInit(&self->methods, object, 1);
@@ -96,7 +96,7 @@ void Member_destroy(_Inout_ Member *self)
     // Autogen ends -------
 }
 
-bool Class_init(_Inout_ Class *self)
+_objinit_guaranteed bool Class_init(_Inout_ Class *self)
 {
     // Autogen begins -----
     saInit(&self->implements, object, 1);
@@ -135,57 +135,47 @@ void Class_destroy(_Inout_ Class *self)
     // Autogen ends -------
 }
 
-_objfactory Param *Param_create()
+_objfactory_guaranteed Param *Param_create()
 {
     Param *ret;
     ret = objInstCreate(Param);
-    if (!objInstInit(ret)) {
-        xaRelease(&ret);
-    }
+    objInstInit(ret);
     return ret;
 }
 
-_objfactory Method *Method_create()
+_objfactory_guaranteed Method *Method_create()
 {
     Method *ret;
     ret = objInstCreate(Method);
-    if (!objInstInit(ret)) {
-        xaRelease(&ret);
-    }
+    objInstInit(ret);
     return ret;
 }
 
-_objfactory Interface *Interface_create()
+_objfactory_guaranteed Interface *Interface_create()
 {
     Interface *ret;
     ret = objInstCreate(Interface);
-    if (!objInstInit(ret)) {
-        xaRelease(&ret);
-    }
+    objInstInit(ret);
     return ret;
 }
 
-_objfactory Member *Member_create()
+_objfactory_guaranteed Member *Member_create()
 {
     Member *ret;
     ret = objInstCreate(Member);
-    if (!objInstInit(ret)) {
-        xaRelease(&ret);
-    }
+    objInstInit(ret);
     return ret;
 }
 
-_objfactory Class *Class_create()
+_objfactory_guaranteed Class *Class_create()
 {
     Class *ret;
     ret = objInstCreate(Class);
-    if (!objInstInit(ret)) {
-        xaRelease(&ret);
-    }
+    objInstInit(ret);
     return ret;
 }
 
-Method *Method_clone(_Inout_ Method *self)
+_Ret_valid_ Method *Method_clone(_Inout_ Method *self)
 {
     Method *ret = methodCreate();
     ret->srcclass = self->srcclass;
@@ -210,15 +200,12 @@ Method *Method_clone(_Inout_ Method *self)
     return ret;
 }
 
-_objfactory ComplexArrayType *ComplexArrayType_create()
+_objfactory_guaranteed ComplexArrayType *ComplexArrayType_create()
 {
     ComplexArrayType *self;
     self = objInstCreate(ComplexArrayType);
 
-    if (!objInstInit(self)) {
-        objRelease(&self);
-        return NULL;
-    }
+    objInstInit(self);
 
     return self;
 }

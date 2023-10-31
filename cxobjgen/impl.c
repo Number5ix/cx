@@ -132,10 +132,14 @@ static void writeMethods(BufFile *bf, Class *cls, sa_string *seen, bool mixinimp
                 bfWriteLine(bf, NULL);
                 bfWriteLine(bf, _S"    // Insert any pre-initialization object construction here");
                 bfWriteLine(bf, NULL);
-                bfWriteLine(bf, _S"    if (!objInstInit(self)) {");
-                bfWriteLine(bf, _S"        objRelease(&self);");
-                bfWriteLine(bf, _S"        return NULL;");
-                bfWriteLine(bf, _S"    }");
+                if (m->canfail) {
+                    bfWriteLine(bf, _S"    if (!objInstInit(self)) {");
+                    bfWriteLine(bf, _S"        objRelease(&self);");
+                    bfWriteLine(bf, _S"        return NULL;");
+                    bfWriteLine(bf, _S"    }");
+                } else {
+                    bfWriteLine(bf, _S"    objInstInit(self);");
+                }
                 bfWriteLine(bf, NULL);
                 bfWriteLine(bf, _S"    // Insert any post-initialization object construction here");
                 bfWriteLine(bf, NULL);
@@ -225,10 +229,16 @@ static void writeAutoInit(BufFile *bf, Class *cls)
             for (Class *mixin = m->mixinsrc; mixin; mixin = mixin->parent) {
                 if (mixin->hasinit) {
                     mixinMemberName(&tmp, m->mixinsrc);
-                    strNConcat(&ln, _S"    if (!", mixin->name, _S"_init((", mixin->name,
-                               _S"*)&self->", tmp, _S"))");
-                    bfWriteLine(bf, ln);
-                    bfWriteLine(bf, _S"        return false;");
+                    if (mixin->initcanfail) {
+                        strNConcat(&ln, _S"    if (!", mixin->name, _S"_init((", mixin->name,
+                                   _S"*)&self->", tmp, _S"))");
+                        bfWriteLine(bf, ln);
+                        bfWriteLine(bf, _S"        return false;");
+                    } else {
+                        strNConcat(&ln, _S"    ", mixin->name, _S"_init((", mixin->name,
+                                   _S"*)&self->", tmp, _S");");
+                        bfWriteLine(bf, ln);
+                    }
                 }
             }
             continue;
@@ -561,7 +571,7 @@ bool writeImpl(string fname, bool mixinimpl)
     PCRE2_SIZE eoffset;
     pcre2_code *reParentProto = pcre2_compile((PCRE2_SPTR)"extern [A-Za-z0-9_]+ \\**([A-Za-z0-9_]+)\\(.*\\); // parent", PCRE2_ZERO_TERMINATED, PCRE2_ANCHORED | PCRE2_ENDANCHORED, &err, &eoffset, NULL);
     pcre2_code *reParentMacro = pcre2_compile((PCRE2_SPTR)"#(?:define|undef) parent_[A-Za-z0-9_]+(?:\\(.*\\) [A-Za-z0-9_]+\\(.*\\))?", PCRE2_ZERO_TERMINATED, PCRE2_ANCHORED | PCRE2_ENDANCHORED, &err, &eoffset, NULL);
-    pcre2_code *reProto = pcre2_compile((PCRE2_SPTR)"(?:_.*_(?:\\(.*\\))? )*(?:_objfactory )?(?:_meta_inline )?[A-Za-z0-9_]+ \\**([A-Za-z0-9_]+)\\(.*\\)(;)?", PCRE2_ZERO_TERMINATED, PCRE2_ANCHORED | PCRE2_ENDANCHORED, &err, &eoffset, NULL);
+    pcre2_code *reProto = pcre2_compile((PCRE2_SPTR)"(?:_.*_(?:\\(.*\\))? )*(?:_objfactory(?:_[a-z]+)? )?(?:_objinit(?:_[a-z]+)? )?(?:_meta_inline )?[A-Za-z0-9_]+ \\**([A-Za-z0-9_]+)\\(.*\\)(;)?", PCRE2_ZERO_TERMINATED, PCRE2_ANCHORED | PCRE2_ENDANCHORED, &err, &eoffset, NULL);
     pcre2_match_data *match = pcre2_match_data_create_from_pattern(reProto, NULL);
 
     for (int i = 0; i < saSize(classes); i++) {

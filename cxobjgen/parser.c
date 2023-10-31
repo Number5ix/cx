@@ -777,6 +777,9 @@ bool parseClass(ParseState *ps, string *tok)
                 return true;
             } else if (strEq(ps->tokstack.a[0], _S"init")) {
                 ps->curcls->hasinit = true;
+                if (getAnnotation(NULL, ps->annotations, _S"canfail"))
+                    ps->curcls->initcanfail = true;
+                saClear(&ps->annotations);
                 string dummy = 0;
                 nextTok(ps, &dummy);
                 if (!strEq(dummy, _S")")) {
@@ -800,6 +803,9 @@ bool parseClass(ParseState *ps, string *tok)
         saInit(&ps->annotations, sarray, 4);
         ps->curmethod->srcclass = ps->curcls;
         strDup(&ps->curmethod->srcfile, ps->fname);
+
+        if (getAnnotation(NULL, ps->curmethod->annotations, _S"canfail"))
+            ps->curmethod->canfail = true;
 
         if (strEq(ps->tokstack.a[0], _S"unbound")) {
             if (ps->curcls->mixin) {
@@ -836,6 +842,8 @@ bool parseClass(ParseState *ps, string *tok)
         for (int32 i = 1; i < saSize(ps->tokstack); i++) {
             if (!ps->curmethod->name && onlyspecial(ps->tokstack.a[i])) {
                 strAppend(&ps->curmethod->predecr, ps->tokstack.a[i]);
+            } else if (!ps->curmethod->name && strEq(ps->tokstack.a[i], _S"canfail")) {
+                ps->curmethod->canfail = true;
             } else if (!ps->curmethod->name && isvalidname(ps->tokstack.a[i])) {
                 strDup(&ps->curmethod->name, ps->tokstack.a[i]);
             } else {
@@ -845,6 +853,13 @@ bool parseClass(ParseState *ps, string *tok)
         }
         if (strEmpty(ps->curmethod->name)) {
             fprintf(stderr, "Incomplete class method definition\n");
+            return false;
+        }
+
+        if (ps->curmethod->canfail && !ps->curmethod->isfactory) {
+            fprintf(stderr, "Method '%s' in class '%s' is declared as canfail but is not a factory\n",
+                    strC(ps->curmethod->name),
+                    strC(ps->curcls->name));
             return false;
         }
 

@@ -249,6 +249,30 @@ static void pruneInterfaces(Class *cls)
     }
 }
 
+static void checkClassInitFail(Class *cls)
+{
+    // check if any parent classes can fail, if so, this one can as well
+    Class *pc = cls->parent;
+    while (!cls->initcanfail && pc) {
+        cls->initcanfail |= pc->initcanfail;
+        pc = pc->parent;
+    }
+
+    // do the same for mixins
+    for (int i = 0; i < saSize(cls->uses); i++) {
+        checkClassInitFail(cls->uses.a[i]);
+        cls->initcanfail |= cls->uses.a[i]->initcanfail;
+    }
+}
+
+static void propagateCanFailToFactories(Class *cls)
+{
+    for (int i = saSize(cls->methods) - 1; i >= 0; --i) {
+        if (cls->methods.a[i]->isfactory)
+            cls->methods.a[i]->canfail |= cls->initcanfail;
+    }
+}
+
 bool processClass(Class *cls)
 {
     if (cls->processed)
@@ -343,11 +367,18 @@ bool processClass(Class *cls)
     // check for member init/destroy requirements
     checkMemberInitDestroy(cls);
 
+    // check for whether class init can fail
+    checkClassInitFail(cls);
+
+    // if init can fail, so can any factories
+    propagateCanFailToFactories(cls);
+
     // create internal methods if needed
     if (cls->hasinit) {
         Method *m = methodCreate();
         m->internal = true;
         m->isinit = true;
+        m->canfail = cls->initcanfail;
         strDup(&m->returntype, _S"bool");
         strDup(&m->name, _S"init");
         saPushC(&cls->methods, object, &m);
@@ -447,7 +478,10 @@ void methodAnnotations(string *out, Method *m)
     }
 
     if (m->isfactory)
-        strAppend(out, _S"_objfactory ");
+        strAppend(out, m->canfail ? _S"_objfactory_check " : _S"_objfactory_guaranteed ");
+
+    if (m->isinit && !m->canfail)
+        strAppend(out, _S"_objinit_guaranteed ");
 
     strDestroy(&tmp);
 }

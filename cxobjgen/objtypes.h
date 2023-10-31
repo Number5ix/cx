@@ -22,7 +22,7 @@ typedef struct Method_ClassIf {
     ObjIface *_parent;
     size_t _size;
 
-    Method *(*clone)(_Inout_ void *self);
+    _Ret_valid_ Method *(*clone)(_Inout_ void *self);
     intptr (*cmp)(_Inout_ void *self, void *other, uint32 flags);
 } Method_ClassIf;
 extern Method_ClassIf Method_ClassIf_tmpl;
@@ -73,7 +73,7 @@ extern ObjClassInfo Param_clsinfo;
 #define Param(inst) ((Param*)(unused_noeval((inst) && &((inst)->_is_Param)), (inst)))
 #define ParamNone ((Param*)NULL)
 
-_objfactory Param *Param_create();
+_objfactory_guaranteed Param *Param_create();
 // Param *paramCreate();
 #define paramCreate() Param_create()
 
@@ -100,6 +100,7 @@ typedef struct Method {
     bool isinit;
     bool isdestroy;
     bool isfactory;
+    bool canfail;
     bool internal;
     bool unbound;
     bool standalone;
@@ -109,7 +110,7 @@ extern ObjClassInfo Method_clsinfo;
 #define Method(inst) ((Method*)(unused_noeval((inst) && &((inst)->_is_Method)), (inst)))
 #define MethodNone ((Method*)NULL)
 
-_objfactory Method *Method_create();
+_objfactory_guaranteed Method *Method_create();
 // Method *methodCreate();
 #define methodCreate() Method_create()
 
@@ -139,7 +140,7 @@ extern ObjClassInfo Interface_clsinfo;
 #define Interface(inst) ((Interface*)(unused_noeval((inst) && &((inst)->_is_Interface)), (inst)))
 #define InterfaceNone ((Interface*)NULL)
 
-_objfactory Interface *Interface_create();
+_objfactory_guaranteed Interface *Interface_create();
 // Interface *interfaceCreate();
 #define interfaceCreate() Interface_create()
 
@@ -171,7 +172,7 @@ extern ObjClassInfo Member_clsinfo;
 #define Member(inst) ((Member*)(unused_noeval((inst) && &((inst)->_is_Member)), (inst)))
 #define MemberNone ((Member*)NULL)
 
-_objfactory Member *Member_create();
+_objfactory_guaranteed Member *Member_create();
 // Member *memberCreate();
 #define memberCreate() Member_create()
 
@@ -200,6 +201,7 @@ typedef struct Class {
     bool mixin;
     bool hasinit;
     bool hasdestroy;
+    bool initcanfail;
     bool included;
     bool processed;
     bool hasautoinit;
@@ -212,7 +214,7 @@ extern ObjClassInfo Class_clsinfo;
 #define Class(inst) ((Class*)(unused_noeval((inst) && &((inst)->_is_Class)), (inst)))
 #define ClassNone ((Class*)NULL)
 
-_objfactory Class *Class_create();
+_objfactory_guaranteed Class *Class_create();
 // Class *classCreate();
 #define classCreate() Class_create()
 
@@ -235,7 +237,7 @@ extern ObjClassInfo ComplexArrayType_clsinfo;
 #define ComplexArrayType(inst) ((ComplexArrayType*)(unused_noeval((inst) && &((inst)->_is_ComplexArrayType)), (inst)))
 #define ComplexArrayTypeNone ((ComplexArrayType*)NULL)
 
-_objfactory ComplexArrayType *ComplexArrayType_create();
+_objfactory_guaranteed ComplexArrayType *ComplexArrayType_create();
 // ComplexArrayType *complexarraytypeCreate();
 #define complexarraytypeCreate() ComplexArrayType_create()
 
