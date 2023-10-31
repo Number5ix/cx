@@ -10,6 +10,7 @@ typedef struct FSFile {
     HANDLE h;
 } FSFile;
 
+_Use_decl_annotations_
 FSFile *fsOpen(strref path, flags_t flags)
 {
     FSFile *ret;
@@ -46,6 +47,7 @@ FSFile *fsOpen(strref path, flags_t flags)
     return ret;
 }
 
+_Use_decl_annotations_
 bool fsClose(FSFile *file)
 {
     int ret = true;
@@ -55,17 +57,19 @@ bool fsClose(FSFile *file)
     return ret;
 }
 
+_Use_decl_annotations_
 bool fsRead(FSFile *file, void *buf, size_t sz, size_t *bytesread)
 {
     DWORD didread = 0;
 
     if (sz < MAX_TRANSFER_SIZE) {
         // fast path, can do it in a single call
-        if (!ReadFile(file->h, buf, (DWORD)sz, &didread, NULL))
+        if (!ReadFile(file->h, buf, (DWORD)sz, &didread, NULL)) {
+            *bytesread = 0;
             return winMapLastError();
+        }
 
-        if (bytesread)
-            *bytesread = didread;
+        *bytesread = didread;
         return true;
     }
 
@@ -73,8 +77,10 @@ bool fsRead(FSFile *file, void *buf, size_t sz, size_t *bytesread)
     size_t actuallyread = 0;
     uint8 *bufp = (uint8*)buf;
     while (sz > 0) {
-        if (!ReadFile(file->h, bufp, (DWORD)clamphigh(sz, MAX_TRANSFER_SIZE), &didread, NULL))
+        if (!ReadFile(file->h, bufp, (DWORD)clamphigh(sz, MAX_TRANSFER_SIZE), &didread, NULL)) {
+            *bytesread = 0;
             return winMapLastError();
+        }
         if (didread == 0)       // EOF
             break;
 
@@ -83,19 +89,22 @@ bool fsRead(FSFile *file, void *buf, size_t sz, size_t *bytesread)
         sz -= didread;
     }
 
-    if (bytesread)
-        *bytesread = actuallyread;
+    *bytesread = actuallyread;
     return true;
 }
 
+_Use_decl_annotations_
 bool fsWrite(FSFile *file, void *buf, size_t sz, size_t *byteswritten)
 {
     DWORD didwrite = 0;
 
     if (sz < MAX_TRANSFER_SIZE) {
         // fast path, can do it in a single call
-        if (!WriteFile(file->h, buf, (DWORD)sz, &didwrite, NULL))
+        if (!WriteFile(file->h, buf, (DWORD)sz, &didwrite, NULL)) {
+            if (byteswritten)
+                *byteswritten = 0;
             return winMapLastError();
+        }
 
         if (byteswritten)
             *byteswritten = didwrite;
@@ -106,8 +115,11 @@ bool fsWrite(FSFile *file, void *buf, size_t sz, size_t *byteswritten)
     size_t actuallywrote = 0;
     uint8 *bufp = (uint8*)buf;
     while (sz > 0) {
-        if (!WriteFile(file->h, bufp, (DWORD)clamphigh(sz, MAX_TRANSFER_SIZE), &didwrite, NULL))
+        if (!WriteFile(file->h, bufp, (DWORD)clamphigh(sz, MAX_TRANSFER_SIZE), &didwrite, NULL)) {
+            if (byteswritten)
+                *byteswritten = 0;
             return winMapLastError();
+        }
 
         bufp += didwrite;
         actuallywrote += didwrite;
@@ -119,6 +131,7 @@ bool fsWrite(FSFile *file, void *buf, size_t sz, size_t *byteswritten)
     return true;
 }
 
+_Use_decl_annotations_
 int64 fsTell(FSFile *file)
 {
     LARGE_INTEGER zero = { 0 };
@@ -132,6 +145,7 @@ int64 fsTell(FSFile *file)
     return out.QuadPart;
 }
 
+_Use_decl_annotations_
 int64 fsSeek(FSFile *file, int64 off, FSSeekType seektype)
 {
     LARGE_INTEGER move;
@@ -161,6 +175,7 @@ int64 fsSeek(FSFile *file, int64 off, FSSeekType seektype)
     return out.QuadPart;
 }
 
+_Use_decl_annotations_
 bool fsFlush(FSFile *file)
 {
     if (!FlushFileBuffers(file->h))

@@ -3,5 +3,5 @@
 class VFSFS implements VFSProvider {
     string root;
 
-    factory create(strref rootpath);
+    [canfail] factory create(strref rootpath);
 }

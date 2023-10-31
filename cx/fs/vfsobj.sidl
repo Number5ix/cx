@@ -20,7 +20,7 @@ class VFS {
     // Create a VFS object configured to pass everything through to the
     // underlying OS filesystem. The exact VFS namespace that is created
     // is platform dependant.
-    factory createFromFS();
+    [canfail] factory createFromFS();
     init();
 }
 

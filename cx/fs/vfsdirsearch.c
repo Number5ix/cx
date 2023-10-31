@@ -45,6 +45,7 @@ static STypeOps VFSDirEnt_ops_cs = {
     .dtor = dirEntDestroy,
 };
 
+_Use_decl_annotations_
 bool vfsSearchInit(FSSearchIter *iter, VFS *vfs, strref path, strref pattern, int typefilter, bool stat)
 {
     string abspath = 0, curpath = 0, filepath = 0;
@@ -169,6 +170,7 @@ done:
     return vfsSearchNext(iter);
 }
 
+_Use_decl_annotations_
 bool vfsSearchNext(FSSearchIter *iter)
 {
     VFSSearch *search = (VFSSearch*)iter->_search;
@@ -180,6 +182,8 @@ bool vfsSearchNext(FSSearchIter *iter)
         vfsSearchFinish(iter);
         return false;
     }
+
+    _Analysis_assume_(search->ents.a != NULL);      // because saSize returned > 0
     VFSDirEnt *ent = &search->ents.a[search->idx];
     strDup(&iter->name, ent->name);
     iter->type = ent->type;
@@ -189,6 +193,7 @@ bool vfsSearchNext(FSSearchIter *iter)
     return true;
 }
 
+_Use_decl_annotations_
 void vfsSearchFinish(FSSearchIter *iter)
 {
     VFSSearch *search = (VFSSearch*)iter->_search;

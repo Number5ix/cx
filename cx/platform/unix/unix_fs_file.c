@@ -67,11 +67,12 @@ bool fsRead(FSFile *file, void *buf, size_t sz, size_t *bytesread)
     if (sz < MAX_TRANSFER_SIZE) {
         // fast path, can do it in a single call
         didread = read(file->fd, buf, sz);
-        if (didread < 0)
+        if (didread < 0) {
+            *bytesread = 0;
             return unixMapErrno();
+        }
 
-        if (bytesread)
-            *bytesread = (size_t)didread;
+        *bytesread = (size_t)didread;
         return true;
     }
 
@@ -80,8 +81,10 @@ bool fsRead(FSFile *file, void *buf, size_t sz, size_t *bytesread)
     uint8 *bufp = (uint8*)buf;
     while (sz > 0) {
         didread = read(file->fd, bufp, clamphigh(sz, MAX_TRANSFER_SIZE));
-        if (didread < 0)
+        if (didread < 0) {
+            *bytesread = 0;
             return unixMapErrno();
+        }
         if (didread == 0)       // EOF
             break;
 
@@ -90,8 +93,7 @@ bool fsRead(FSFile *file, void *buf, size_t sz, size_t *bytesread)
         sz -= didread;
     }
 
-    if (bytesread)
-        *bytesread = actuallyread;
+    *bytesread = actuallyread;
     return true;
 }
 
@@ -102,8 +104,11 @@ bool fsWrite(FSFile *file, void *buf, size_t sz, size_t *byteswritten)
     if (sz < MAX_TRANSFER_SIZE) {
         // fast path, can do it in a single call
         didwrite = write(file->fd, buf, sz);
-        if (didwrite < 0)
+        if (didwrite < 0) {
+            if (byteswritten)
+                *byteswritten = 0;
             return unixMapErrno();
+        }
 
         if (byteswritten)
             *byteswritten = didwrite;
@@ -115,8 +120,11 @@ bool fsWrite(FSFile *file, void *buf, size_t sz, size_t *byteswritten)
     uint8 *bufp = (uint8*)buf;
     while (sz > 0) {
         didwrite = write(file->fd, bufp, clamphigh(sz, MAX_TRANSFER_SIZE));
-        if (didwrite < 0)
+        if (didwrite < 0) {
+            if (byteswritten)
+                *byteswritten = 0;
             return unixMapErrno();
+        }
 
         bufp += didwrite;
         actuallywrote += didwrite;

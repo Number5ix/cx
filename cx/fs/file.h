@@ -27,14 +27,16 @@ typedef enum FSSeekTypeEnum {
     FS_End      = 0x00030000,
 } FSSeekType;
 
-FSFile *fsOpen(strref path, flags_t flags);
-bool fsClose(FSFile *file);
+_Ret_opt_valid_ FSFile *fsOpen(_In_opt_ strref path, flags_t flags);
+bool fsClose(_Pre_valid_ _Post_invalid_ FSFile *file);
 
-bool fsRead(FSFile *file, void *buf, size_t sz, size_t *bytesread);
-bool fsWrite(FSFile *file, void *buf, size_t sz, size_t *byteswritten);
-int64 fsTell(FSFile *file);
-int64 fsSeek(FSFile *file, int64 off, FSSeekType seektype);
+_Success_(return)
+bool fsRead(_Inout_ FSFile *file, _Out_writes_bytes_to_(sz, *bytesread) void *buf, size_t sz, _Out_ size_t *bytesread);
+_Success_(return)
+bool fsWrite(_Inout_ FSFile *file, _In_reads_bytes_(sz) void *buf, size_t sz, _Out_opt_ size_t *byteswritten);
+int64 fsTell(_Inout_ FSFile *file);
+int64 fsSeek(_Inout_ FSFile *file, int64 off, FSSeekType seektype);
 
-bool fsFlush(FSFile *file);
+bool fsFlush(_Inout_ FSFile *file);
 
 CX_C_END

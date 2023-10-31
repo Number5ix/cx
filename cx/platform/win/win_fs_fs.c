@@ -11,7 +11,7 @@ RWLock _fsCurDirLock;
 string _fsCurDir = 0;
 string fsPlatformPathSepStr = _S"\\";
 
-static void fsPathFromWinW(string *out, wchar_t *winpath)
+static void fsPathFromWinW(_Inout_ string *out, _In_z_ wchar_t *winpath)
 {
     strFromUTF16(out, winpath, cstrLenw(winpath));
     pathFromPlatform(out, *out);
@@ -33,7 +33,7 @@ static void initCurDir(void *data)
     pathNormalize(&_fsCurDir);
 }
 
-static bool fsIsUNC(strref path)
+static bool fsIsUNC(_In_opt_ strref path)
 {
     striter it;
     striBorrow(&it, path);
@@ -45,6 +45,7 @@ static bool fsIsUNC(strref path)
     return false;
 }
 
+_Use_decl_annotations_
 wchar_t* fsPathToNT(strref path)
 {
     string npath = 0, ntpath = 0;
@@ -67,6 +68,7 @@ wchar_t* fsPathToNT(strref path)
     return ret;
 }
 
+_Use_decl_annotations_
 void pathFromPlatform(string *out, strref platformpath)
 {
     string ns = 0;
@@ -125,6 +127,7 @@ void pathFromPlatform(string *out, strref platformpath)
     *out = ret;
 }
 
+_Use_decl_annotations_
 void pathToPlatform(string *out, strref path)
 {
     string ns = 0, rpath = 0;
@@ -152,6 +155,7 @@ void pathToPlatform(string *out, strref path)
     *out = ret;
 }
 
+_Use_decl_annotations_
 bool pathMakeAbsolute(string *out, strref path)
 {
     if (pathIsAbsolute(path)) {
@@ -169,6 +173,7 @@ bool pathMakeAbsolute(string *out, strref path)
     return true;
 }
 
+_Use_decl_annotations_
 void fsCurDir(string *out)
 {
     lazyInit(&fsCurDirInit, initCurDir, NULL);
@@ -177,6 +182,7 @@ void fsCurDir(string *out)
     rwlockReleaseRead(&_fsCurDirLock);
 }
 
+_Use_decl_annotations_
 bool fsSetCurDir(strref cur)
 {
     if (strEmpty(cur))
@@ -218,6 +224,7 @@ static void fsExeInit(void *data)
     xaFree(buf);
 }
 
+_Use_decl_annotations_
 void fsExe(string *out)
 {
     static LazyInitState execache;
@@ -227,13 +234,15 @@ void fsExe(string *out)
     strDup(out, exepath);
 }
 
+_Use_decl_annotations_
 void fsExeDir(string *out)
 {
     fsExe(out);
     pathParent(out, *out);
 }
 
-int fsStat(strref path, FSStat *stat)
+_Use_decl_annotations_
+FSPathStat fsStat(strref path, FSStat *stat)
 {
     if (strEmpty(path))
         return FS_Nonexistent;
@@ -270,6 +279,7 @@ int fsStat(strref path, FSStat *stat)
     return FS_File;
 }
 
+_Use_decl_annotations_
 bool fsCreateDir(strref path)
 {
     if (strEmpty(path))
@@ -281,6 +291,7 @@ bool fsCreateDir(strref path)
     return true;
 }
 
+_Use_decl_annotations_
 bool fsCreateAll(strref path)
 {
     string parent = 0;
@@ -292,6 +303,7 @@ bool fsCreateAll(strref path)
     return fsCreateDir(path);
 }
 
+_Use_decl_annotations_
 bool fsRemoveDir(strref path)
 {
     if (strEmpty(path))
@@ -303,6 +315,7 @@ bool fsRemoveDir(strref path)
     return true;
 }
 
+_Use_decl_annotations_
 bool fsDelete(strref path)
 {
     if (strEmpty(path))
@@ -314,6 +327,7 @@ bool fsDelete(strref path)
     return true;
 }
 
+_Use_decl_annotations_
 bool fsRename(strref from, strref to)
 {
     if (strEmpty(from) || strEmpty(to))
@@ -330,6 +344,7 @@ typedef struct FSSearch {
     WIN32_FIND_DATAW first;
 } FSSearch;
 
+_Use_decl_annotations_
 bool fsSearchInit(FSSearchIter *iter, strref path, strref pattern, bool stat)
 {
     string spath = 0;
@@ -355,6 +370,7 @@ bool fsSearchInit(FSSearchIter *iter, strref path, strref pattern, bool stat)
     return fsSearchNext(iter);
 }
 
+_Use_decl_annotations_
 bool fsSearchNext(FSSearchIter *iter)
 {
     FSSearch *search = (FSSearch*)iter->_search;
@@ -393,6 +409,7 @@ bool fsSearchNext(FSSearchIter *iter)
     return true;
 }
 
+_Use_decl_annotations_
 void fsSearchFinish(FSSearchIter *iter)
 {
     FSSearch *search = (FSSearch*)iter->_search;
@@ -404,6 +421,7 @@ void fsSearchFinish(FSSearchIter *iter)
     xaRelease(&iter->_search);
 }
 
+_Use_decl_annotations_
 bool fsSetTimes(strref path, int64 modified, int64 accessed)
 {
     FILETIME mtime, atime;

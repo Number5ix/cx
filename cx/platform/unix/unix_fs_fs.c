@@ -182,7 +182,7 @@ void fsExeDir(string *out)
     pathParent(out, *out);
 }
 
-int fsStat(strref path, FSStat *fsstat)
+FSPathStat fsStat(strref path, FSStat *fsstat)
 {
     if (strEmpty(path))
         return FS_Nonexistent;

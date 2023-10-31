@@ -11,69 +11,71 @@ typedef struct VFSFile VFSFile;
 CX_C_BEGIN
 
 // vfsCreate() is in vfsobj.h
-void vfsDestroy(VFS *vfs);
+void vfsDestroy(_Pre_valid_ _Post_invalid_ VFS *vfs);
 
-bool vfsUnmount(VFS *vfs, strref path);
+bool vfsUnmount(_Inout_ VFS *vfs, _In_opt_ strref path);
 
-bool _vfsMountProvider(VFS *vfs, ObjInst *provider, strref path, flags_t flags);
+bool _vfsMountProvider(_Inout_ VFS *vfs, _Inout_ ObjInst *provider, _In_opt_ strref path, flags_t flags);
 #define vfsMountProvider(vfs, provider, path, ...) _vfsMountProvider(vfs, objInstBase(provider), path, opt_flags(__VA_ARGS__))
 
 // Mounts the built-in OS filesystem provider to the given VFS
-bool _vfsMountFS(VFS *vfs, strref path, strref fsroot, flags_t flags);
+bool _vfsMountFS(_Inout_ VFS *vfs, _In_opt_ strref path, _In_opt_ strref fsroot, flags_t flags);
 #define vfsMountFS(vfs, path, fsroot, ...) _vfsMountFS(vfs, path, fsroot, opt_flags(__VA_ARGS__))
 
 // Mounts one VFS under another (loopback mode)
-bool _vfsMountVFS(VFS *vfs, strref path, VFS *vfs2, strref vfs2root, flags_t flags);
+bool _vfsMountVFS(_Inout_ VFS *vfs, _In_opt_ strref path, _Inout_ VFS *vfs2, _In_opt_ strref vfs2root, flags_t flags);
 #define vfsMountVFS(vfs, path, vfs2, vfs2root, ...) _vfsMountVFS(vfs, path, vfs2, vfs2root, opt_flags(__VA_ARGS__))
 
 // Get / set current directory
-void vfsCurDir(VFS *vfs, string *out);
-bool vfsSetCurDir(VFS *vfs, strref cur);
-void vfsAbsolutePath(VFS *vfs, string *out, strref path);
+void vfsCurDir(_Inout_ VFS *vfs, _Inout_ string *out);
+bool vfsSetCurDir(_Inout_ VFS *vfs, _In_opt_ strref cur);
+void vfsAbsolutePath(_Inout_ VFS *vfs, _Inout_ string *out, _In_opt_ strref path);
 
-int vfsStat(VFS *vfs, strref path, FSStat *stat);
+_Success_(return != FS_Nonexistent)
+FSPathStat vfsStat(_Inout_ VFS *vfs, _In_opt_ strref path, _Out_opt_ FSStat *stat);
 
-_meta_inline bool vfsExist(VFS *vfs, strref path)
+_meta_inline bool vfsExist(_Inout_ VFS *vfs, _In_opt_ strref path)
 {
     return vfsStat(vfs, path, NULL) != FS_Nonexistent;
 }
-_meta_inline bool vfsIsDir(VFS *vfs, strref path)
+_meta_inline bool vfsIsDir(_Inout_ VFS *vfs, _In_opt_ strref path)
 {
     return vfsStat(vfs, path, NULL) == FS_Directory;
 }
-_meta_inline bool vfsIsFile(VFS *vfs, strref path)
+_meta_inline bool vfsIsFile(_Inout_ VFS *vfs, _In_opt_ strref path)
 {
     return vfsStat(vfs, path, NULL) == FS_File;
 }
 
-bool vfsSetTimes(VFS *vfs, strref path, int64 modified, int64 accessed);
+bool vfsSetTimes(_Inout_ VFS *vfs, _In_opt_ strref path, int64 modified, int64 accessed);
 
-bool vfsCreateDir(VFS *vfs, strref path);
-bool vfsCreateAll(VFS *vfs, strref path);
-bool vfsRemoveDir(VFS *vfs, strref path);
-bool vfsDelete(VFS *vfs, strref path);
-bool vfsCopy(VFS *vfs, strref from, strref to);
-bool vfsRename(VFS *vfs, strref from, strref to);
+bool vfsCreateDir(_Inout_ VFS *vfs, _In_opt_ strref path);
+bool vfsCreateAll(_Inout_ VFS *vfs, _In_opt_ strref path);
+bool vfsRemoveDir(_Inout_ VFS *vfs, _In_opt_ strref path);
+bool vfsDelete(_Inout_ VFS *vfs, _In_opt_ strref path);
+bool vfsCopy(_Inout_ VFS *vfs, _In_opt_ strref from, _In_opt_ strref to);
+bool vfsRename(_Inout_ VFS *vfs, _In_opt_ strref from, _In_opt_ strref to);
 
 // Special case to get the actual underlying path from VFSFS, works *only* if the path
 // in question is backed by a VFSFS provider.
-bool vfsGetFSPath(string *out, VFS *vfs, strref path);
+bool vfsGetFSPath(_Inout_ string *out, _Inout_ VFS *vfs, _In_opt_ strref path);
 
 typedef struct FSSearchIter FSSearchIter;
-bool vfsSearchInit(FSSearchIter *iter, VFS *vfs, strref path, strref pattern, int typefilter, bool stat);
-bool vfsSearchNext(FSSearchIter *iter);
-void vfsSearchFinish(FSSearchIter *iter);
-_meta_inline bool vfsSearchValid(FSSearchIter *iter) { return iter->_search; }
+bool vfsSearchInit(_Out_ FSSearchIter *iter, _Inout_ VFS *vfs, _In_opt_ strref path,
+                   _In_opt_ strref pattern, int typefilter, bool stat);
+bool vfsSearchNext(_Inout_ FSSearchIter *iter);
+void vfsSearchFinish(_Inout_ FSSearchIter *iter);
+_meta_inline bool vfsSearchValid(_In_ FSSearchIter *iter) { return iter->_search; }
 
-VFSFile *vfsOpen(VFS *vfs, strref path, flags_t flags);
-bool vfsClose(VFSFile *file);
-bool vfsRead(VFSFile *file, void *buf, size_t sz, size_t *bytesread);
-bool vfsWrite(VFSFile *file, void *buf, size_t sz, size_t *byteswritten);
-bool vfsWriteString(VFSFile *file, strref str, size_t *byteswritten);
-int64 vfsTell(VFSFile *file);
-int64 vfsSeek(VFSFile *file, int64 off, int seektype);
+_Ret_opt_valid_ VFSFile *vfsOpen(_Inout_ VFS *vfs, _In_opt_ strref path, flags_t flags);
+bool vfsClose(_Pre_opt_valid_ _Post_invalid_ VFSFile *file);
+bool vfsRead(_Inout_ VFSFile *file, _Out_writes_bytes_to_(sz, *bytesread) void *buf, size_t sz, _Out_ size_t *bytesread);
+bool vfsWrite(_Inout_ VFSFile *file, _In_reads_bytes_(sz) void *buf, size_t sz, _Out_opt_ size_t *byteswritten);
+bool vfsWriteString(_Inout_ VFSFile *file, _In_opt_ strref str, _Out_opt_ size_t *byteswritten);
+int64 vfsTell(_Inout_ VFSFile *file);
+int64 vfsSeek(_Inout_ VFSFile *file, int64 off, FSSeekType seektype);
 
-bool vfsFlush(VFSFile *file);
+bool vfsFlush(_Inout_ VFSFile *file);
 
 enum VFSFlags {
     // Flags that are valid for both VFS creation and VFS providers

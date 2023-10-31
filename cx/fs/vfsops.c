@@ -2,7 +2,8 @@
 #include "cx/debug/error.h"
 #include "vfsfs/vfsfs.h"
 
-int vfsStat(VFS *vfs, strref path, FSStat *stat)
+_Use_decl_annotations_
+FSPathStat vfsStat(VFS *vfs, strref path, FSStat *stat)
 {
     int ret = FS_Nonexistent;
     string rpath = 0;
@@ -27,6 +28,7 @@ out:
     return ret;
 }
 
+_Use_decl_annotations_
 bool vfsSetTimes(VFS *vfs, strref path, int64 modified, int64 accessed)
 {
     bool ret = false;
@@ -47,6 +49,7 @@ out:
     return ret;
 }
 
+_Use_decl_annotations_
 bool vfsCreateDir(VFS *vfs, strref path)
 {
     bool ret = false;
@@ -75,6 +78,7 @@ out:
     return ret;
 }
 
+_Use_decl_annotations_
 bool vfsCreateAll(VFS *vfs, strref path)
 {
     string parent = 0;
@@ -86,6 +90,7 @@ bool vfsCreateAll(VFS *vfs, strref path)
     return vfsCreateDir(vfs, path);
 }
 
+_Use_decl_annotations_
 bool vfsRemoveDir(VFS *vfs, strref path)
 {
     bool ret = false;
@@ -113,6 +118,7 @@ out:
     return ret;
 }
 
+_Use_decl_annotations_
 bool vfsDelete(VFS *vfs, strref path)
 {
     bool ret = false;
@@ -143,6 +149,7 @@ out:
 }
 
 #define COPYBLOCKSIZE 65536
+_Use_decl_annotations_
 bool vfsCopy(VFS *vfs, strref from, strref to)
 {
     VFSFile *srcfile = 0, *dstfile = 0;
@@ -179,6 +186,7 @@ out:
     return ret;
 }
 
+_Use_decl_annotations_
 bool vfsRename(VFS *vfs, strref from, strref to)
 {
     bool ret = false;
@@ -224,6 +232,7 @@ out:
     return ret;
 }
 
+_Use_decl_annotations_
 bool vfsGetFSPath(string *out, VFS *vfs, strref path)
 {
     bool ret = false;

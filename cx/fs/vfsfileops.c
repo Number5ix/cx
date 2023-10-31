@@ -1,6 +1,7 @@
 #include "vfs_private.h"
 #include "cx/debug/error.h"
 
+_Use_decl_annotations_
 VFSFile *vfsOpen(VFS *vfs, strref path, flags_t flags)
 {
     VFSFile *ret = 0;
@@ -61,6 +62,7 @@ out:
     return ret;
 }
 
+_Use_decl_annotations_
 bool vfsClose(VFSFile *file)
 {
     if (!file)
@@ -75,15 +77,18 @@ bool vfsClose(VFSFile *file)
     return true;
 }
 
+_Use_decl_annotations_
 bool vfsRead(VFSFile *file, void *buf, size_t sz, size_t *bytesread)
 {
-    if (!(file && file->fileprov))
+    if (!(file && file->fileprov)) {
+        *bytesread = 0;
         return false;
+    }
 
     return file->fileprovif->read(file->fileprov, buf, sz, bytesread);
 }
 
-static void vfsCOWCreateAll(ObjInst *cowprov, VFSProvider *cowprovif, strref path)
+static void vfsCOWCreateAll(_Inout_ ObjInst *cowprov, _Inout_ VFSProvider *cowprovif, _In_opt_ strref path)
 {
     string parent = 0;
     pathParent(&parent, path);
@@ -96,7 +101,7 @@ static void vfsCOWCreateAll(ObjInst *cowprov, VFSProvider *cowprovif, strref pat
 }
 
 #define COWBLOCKSIZE 65536
-static bool vfsCOWFile(VFSFile *file)
+static bool vfsCOWFile(_Inout_ VFSFile *file)
 {
     ObjInst *cowfile = 0;
     size_t bytes;
@@ -127,6 +132,8 @@ static bool vfsCOWFile(VFSFile *file)
     if (!cowfile)
         goto error;
     VFSFileProvider *cowfileif = objInstIf(cowfile, VFSFileProvider);
+    if (!cowfileif)
+        goto error;
 
     int64 curpos = file->fileprovif->tell(file->fileprov);
     file->fileprovif->seek(file->fileprov, 0, FS_Set);
@@ -167,19 +174,27 @@ error:
     return false;
 }
 
+_Use_decl_annotations_
 bool vfsWrite(VFSFile *file, void *buf, size_t sz, size_t *byteswritten)
 {
-    if (!(file && file->fileprov))
+    if (!(file && file->fileprov)) {
+        if (byteswritten)
+            *byteswritten = 0;
         return false;
+    }
 
     if (file->cowprov) {
-        if (!vfsCOWFile(file))
+        if (!vfsCOWFile(file)) {
+            if (byteswritten)
+                *byteswritten = 0;
             return false;
+        }
     }
 
     return file->fileprovif->write(file->fileprov, buf, sz, byteswritten);
 }
 
+_Use_decl_annotations_
 bool vfsWriteString(VFSFile *file, strref str, size_t *byteswritten)
 {
     size_t written = 0, wstep = 0;
@@ -201,6 +216,7 @@ bool vfsWriteString(VFSFile *file, strref str, size_t *byteswritten)
     return ret;
 }
 
+_Use_decl_annotations_
 int64 vfsTell(VFSFile *file)
 {
     if (!(file && file->fileprov))
@@ -208,13 +224,15 @@ int64 vfsTell(VFSFile *file)
     return file->fileprovif->tell(file->fileprov);
 }
 
-int64 vfsSeek(VFSFile *file, int64 off, int seektype)
+_Use_decl_annotations_
+int64 vfsSeek(VFSFile *file, int64 off, FSSeekType seektype)
 {
     if (!(file && file->fileprov))
         return -1;
     return file->fileprovif->seek(file->fileprov, off, seektype);
 }
 
+_Use_decl_annotations_
 bool vfsFlush(VFSFile *file)
 {
     if (!(file && file->fileprov))

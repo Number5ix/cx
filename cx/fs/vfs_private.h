@@ -56,15 +56,20 @@ typedef struct VFSDir {
     uint64 touched;         // timestamp of last use
     bool cache;             // only exists to cache directory entries, can be discarded
 } VFSDir;
-VFSDir *_vfsDirCreate(VFS *vfs, VFSDir *parent);
+_Ret_valid_
+VFSDir *_vfsDirCreate(_Inout_ VFS *vfs, _In_opt_ VFSDir *parent);
 extern STypeOps VFSDir_ops;
 
 // gets (and creates) path in VFS cache
 // must be called with vfslock read (or write) lock held!
-VFSDir *_vfsGetDir(VFS *vfs, strref path, bool isfile, bool cache, bool writelockheld);
+_Ret_valid_
+_When_(!writelockheld, _Requires_shared_lock_held_(vfs->vfslock))
+VFSDir *_vfsGetDir(_Inout_ VFS *vfs, _In_opt_ strref path, bool isfile, bool cache, bool writelockheld);
 // gets a file from VFS cache if it exists
 // must be called with vfslock read (or write) lock held!
-VFSCacheEnt *_vfsGetFile(VFS *vfs, strref path, bool writelockheld);
+_Ret_valid_
+_When_(!writelockheld, _Requires_shared_lock_held_(vfs->vfslock))
+VFSCacheEnt *_vfsGetFile(_Inout_ VFS *vfs, _In_opt_ strref path, bool writelockheld);
 // finds a suitable provider for a particular file
 enum VFS_FIND_PROVIDER_ENUM {
     VFS_FindWriteFile = 0x0100,
@@ -72,11 +77,14 @@ enum VFS_FIND_PROVIDER_ENUM {
     VFS_FindDelete =    0x0400,
     VFS_FindCache =     0x1000,
 };
-VFSMount *_vfsFindMount(VFS *vfs, string *rpath, strref path, VFSMount **cowmount, string *cowrpath, flags_t flags);
-void _vfsInvalidateCache(VFS *vfs, strref path);
-void _vfsInvalidateRecursive(VFS *vfs, VFSDir *dir, bool havelock);
-void _vfsAbsPath(VFS *vfs, string *out, strref path);
-int _vfsFindCIHelper(VFS *vfs, VFSDir *vdir, string *out, sa_string components, VFSMount *mount, VFSProvider *provif);
+_Ret_opt_valid_
+VFSMount *_vfsFindMount(_Inout_ VFS *vfs, _Inout_ string *rpath, _In_opt_ strref path, _Out_opt_ VFSMount **cowmount, _Inout_opt_ string *cowrpath, flags_t flags);
+void _vfsInvalidateCache(_Inout_ VFS *vfs, _In_opt_ strref path);
+void _vfsInvalidateRecursive(_Inout_ VFS *vfs, _In_ VFSDir *dir, bool havelock);
+void _vfsAbsPath(_Inout_ VFS *vfs, _Inout_ string *out, _In_opt_ strref path);
 
-bool _vfsAddPlatformSpecificMounts(VFS *vfs);
+_Requires_shared_lock_held_(vfs->vfslock)
+int _vfsFindCIHelper(_Inout_ VFS *vfs, _In_ VFSDir *vdir, _Inout_ string *out, _In_ sa_string components, _Inout_ VFSMount *mount, _Inout_ VFSProvider *provif);
+
+bool _vfsAddPlatformSpecificMounts(_Inout_ VFS *vfs);
 bool _vfsIsPlatformCaseSensitive();

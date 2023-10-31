@@ -19,6 +19,7 @@ STypeOps VFSCacheEnt_ops = {
     .dtor = _vfsCacheEntDestroy
 };
 
+_Use_decl_annotations_
 VFSDir *_vfsDirCreate(VFS *vfs, VFSDir *parent)
 {
     VFSDir *d = xaAlloc(sizeof(VFSDir), XA_Zero);

@@ -8,13 +8,12 @@
 #include "vfsfsfile.h"
 // ==================== Auto-generated section ends ======================
 
-_objfactory VFSFSFile *VFSFSFile_create(FSFile *f)
+_objfactory_guaranteed VFSFSFile *VFSFSFile_create(FSFile *f)
 {
     VFSFSFile *ret;
     ret = objInstCreate(VFSFSFile);
     ret->file = f;
-    if (!objInstInit(ret))
-        objRelease(&ret);
+    objInstInit(ret);
     return ret;
 }
 
@@ -27,17 +26,22 @@ bool VFSFSFile_close(_Inout_ VFSFSFile *self)
     return ret;
 }
 
-bool VFSFSFile_read(_Inout_ VFSFSFile *self, void *buf, size_t sz, size_t *bytesread)
+bool VFSFSFile_read(_Inout_ VFSFSFile *self, _Out_writes_bytes_to_(sz, *bytesread) void *buf, size_t sz, _Out_ size_t *bytesread)
 {
-    if (!self->file)
+    if (!self->file) {
+        *bytesread = 0;
         return false;
+    }
     return fsRead(self->file, buf, sz, bytesread);
 }
 
-bool VFSFSFile_write(_Inout_ VFSFSFile *self, void *buf, size_t sz, size_t *byteswritten)
+bool VFSFSFile_write(_Inout_ VFSFSFile *self, _In_reads_bytes_(sz) void *buf, size_t sz, _Out_opt_ size_t *byteswritten)
 {
-    if (!self->file)
+    if (!self->file) {
+        if (byteswritten)
+            *byteswritten = 0;
         return false;
+    }
     return fsWrite(self->file, buf, sz, byteswritten);
 }
 
