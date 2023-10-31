@@ -484,7 +484,7 @@ bool parseInterface(ParseState *ps, string *tok)
         }
         ps->lastcontext = ps->context;
         saClear(&ps->annotations);
-        ps->allowannotations = false;
+        ps->allowannotations = true;
         ps->context = Context_ParamList;
         return true;
     } else if (ps->curmethod && !ps->curmethod->name && onlyspecial(*tok)) {
