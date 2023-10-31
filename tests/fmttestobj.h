@@ -49,7 +49,7 @@ extern ObjClassInfo FmtTestClass_clsinfo;
 #define FmtTestClass(inst) ((FmtTestClass*)(unused_noeval((inst) && &((inst)->_is_FmtTestClass)), (inst)))
 #define FmtTestClassNone ((FmtTestClass*)NULL)
 
-_objfactory FmtTestClass *FmtTestClass_create(int32 ival, string sval);
+_objfactory_guaranteed FmtTestClass *FmtTestClass_create(int32 ival, string sval);
 // FmtTestClass *fmttestclassCreate(int32 ival, string sval);
 #define fmttestclassCreate(ival, sval) FmtTestClass_create(ival, sval)
 
@@ -72,7 +72,7 @@ extern ObjClassInfo FmtTestClass2_clsinfo;
 #define FmtTestClass2(inst) ((FmtTestClass2*)(unused_noeval((inst) && &((inst)->_is_FmtTestClass2)), (inst)))
 #define FmtTestClass2None ((FmtTestClass2*)NULL)
 
-_objfactory FmtTestClass2 *FmtTestClass2_create(int32 ival, string sval);
+_objfactory_guaranteed FmtTestClass2 *FmtTestClass2_create(int32 ival, string sval);
 // FmtTestClass2 *fmttestclass2Create(int32 ival, string sval);
 #define fmttestclass2Create(ival, sval) FmtTestClass2_create(ival, sval)
 

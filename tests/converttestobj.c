@@ -9,7 +9,7 @@
 // ==================== Auto-generated section ends ======================
 #include <cx/stype/stconvert.h>
 
-_objfactory ConvertTestClass *ConvertTestClass_create(int32 ival, float64 fval, string sval)
+_objfactory_guaranteed ConvertTestClass *ConvertTestClass_create(int32 ival, float64 fval, string sval)
 {
     ConvertTestClass *self;
     self = objInstCreate(ConvertTestClass);

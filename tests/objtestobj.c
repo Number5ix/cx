@@ -8,7 +8,7 @@
 #include "objtestobj.h"
 // ==================== Auto-generated section ends ======================
 
-_objfactory TestCls1 *TestCls1_create()
+_objfactory_guaranteed TestCls1 *TestCls1_create()
 {
     TestCls1 *ret;
     ret = objInstCreate(TestCls1);
@@ -22,7 +22,7 @@ int TestCls1_testfunc(_Inout_ TestCls1 *self)
     return self->data;
 }
 
-_objfactory TestCls2 *TestCls2_create()
+_objfactory_guaranteed TestCls2 *TestCls2_create()
 {
     TestCls2 *ret;
     ret = objInstCreate(TestCls2);
@@ -31,7 +31,7 @@ _objfactory TestCls2 *TestCls2_create()
     return ret;
 }
 
-_objfactory TestCls3 *TestCls3_create()
+_objfactory_guaranteed TestCls3 *TestCls3_create()
 {
     TestCls3 *ret;
     ret = objInstCreate(TestCls3);
@@ -45,7 +45,7 @@ int TestCls3_testfunc2(_Inout_ TestCls3 *self)
     return self->data2;
 }
 
-_objfactory TestCls4 *TestCls4_create()
+_objfactory_guaranteed TestCls4 *TestCls4_create()
 {
     TestCls4 *ret;
     ret = objInstCreate(TestCls4);
@@ -74,7 +74,7 @@ int TestCls4b_testfunc3(_Inout_ TestCls4b *self)
     return self->data5;
 }
 
-_objfactory TestCls5 *TestCls5_create()
+_objfactory_guaranteed TestCls5 *TestCls5_create()
 {
     TestCls5 *ret;
     ret = objInstCreate(TestCls5);
@@ -91,7 +91,7 @@ intptr TestCls5_cmp(_Inout_ TestCls5 *self, TestCls5 *other, uint32 flags)
     return objDefaultCmp(self, other, flags);
 }
 
-_objfactory TestCls4b *TestCls4b_create()
+_objfactory_guaranteed TestCls4b *TestCls4b_create()
 {
     TestCls4b *ret;
     ret = objInstCreate(TestCls4b);

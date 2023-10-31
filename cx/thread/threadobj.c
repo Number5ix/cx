@@ -9,7 +9,7 @@
 // ==================== Auto-generated section ends ======================
 #include "thread_private.h"
 
-_objfactory_guaranteed Thread *Thread_create(threadFunc func, strref name, int n, stvar args[], bool ui)
+_objfactory_guaranteed Thread *Thread_create(threadFunc func, _In_opt_ strref name, int n, stvar args[], bool ui)
 {
     Thread *self;
     self = _thrPlatformCreate();

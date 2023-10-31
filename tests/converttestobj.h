@@ -38,7 +38,7 @@ extern ObjClassInfo ConvertTestClass_clsinfo;
 #define ConvertTestClass(inst) ((ConvertTestClass*)(unused_noeval((inst) && &((inst)->_is_ConvertTestClass)), (inst)))
 #define ConvertTestClassNone ((ConvertTestClass*)NULL)
 
-_objfactory ConvertTestClass *ConvertTestClass_create(int32 ival, float64 fval, string sval);
+_objfactory_guaranteed ConvertTestClass *ConvertTestClass_create(int32 ival, float64 fval, string sval);
 // ConvertTestClass *converttestclassCreate(int32 ival, float64 fval, string sval);
 #define converttestclassCreate(ival, fval, sval) ConvertTestClass_create(ival, fval, sval)
 

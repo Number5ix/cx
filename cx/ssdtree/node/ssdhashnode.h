@@ -19,17 +19,17 @@ typedef struct SSDHashNode_ClassIf {
     // This node is an array that contains values or objects by array index
     bool (*isArray)(_Inout_ void *self);
     // Gets a value. Caller owns the value and must destroy it with stDestroy!
-    bool (*get)(_Inout_ void *self, int32 idx, strref name, stvar *out, SSDLockState *_ssdCurrentLockState);
+    bool (*get)(_Inout_ void *self, int32 idx, _In_opt_ strref name, stvar *out, SSDLockState *_ssdCurrentLockState);
     // Gets a pointer to a value. This points to the internal storage within the node
     // so it is only guaranteed to be valid while the read lock is held.
-    stvar *(*ptr)(_Inout_ void *self, int32 idx, strref name, SSDLockState *_ssdCurrentLockState);
+    stvar *(*ptr)(_Inout_ void *self, int32 idx, _In_opt_ strref name, SSDLockState *_ssdCurrentLockState);
     // Sets the given value
-    bool (*set)(_Inout_ void *self, int32 idx, strref name, stvar val, SSDLockState *_ssdCurrentLockState);
+    bool (*set)(_Inout_ void *self, int32 idx, _In_opt_ strref name, stvar val, SSDLockState *_ssdCurrentLockState);
     // Same as setValue but consumes the value
     // (consumes even on failure)
-    bool (*setC)(_Inout_ void *self, int32 idx, strref name, stvar *val, SSDLockState *_ssdCurrentLockState);
+    bool (*setC)(_Inout_ void *self, int32 idx, _In_opt_ strref name, stvar *val, SSDLockState *_ssdCurrentLockState);
     // Removes a value
-    bool (*remove)(_Inout_ void *self, int32 idx, strref name, SSDLockState *_ssdCurrentLockState);
+    bool (*remove)(_Inout_ void *self, int32 idx, _In_opt_ strref name, SSDLockState *_ssdCurrentLockState);
     // How many values / objects does this node contain?
     int32 (*count)(_Inout_ void *self, SSDLockState *_ssdCurrentLockState);
     // IMPORTANT NOTE: The generic object iterator interface cannot take any parameters;
@@ -77,7 +77,7 @@ extern ObjClassInfo SSDHashNode_clsinfo;
 #define SSDHashNode(inst) ((SSDHashNode*)(unused_noeval((inst) && &((inst)->_is_SSDHashNode)), (inst)))
 #define SSDHashNodeNone ((SSDHashNode*)NULL)
 
-_objfactory SSDHashNode *SSDHashNode__create(SSDTree *tree);
+_objfactory_guaranteed SSDHashNode *SSDHashNode__create(SSDTree *tree);
 // SSDHashNode *ssdhashnode_create(SSDTree *tree);
 #define ssdhashnode_create(tree) SSDHashNode__create(SSDTree(tree))
 
@@ -149,7 +149,7 @@ extern ObjClassInfo SSDHashIter_clsinfo;
 #define SSDHashIter(inst) ((SSDHashIter*)(unused_noeval((inst) && &((inst)->_is_SSDHashIter)), (inst)))
 #define SSDHashIterNone ((SSDHashIter*)NULL)
 
-_objfactory SSDHashIter *SSDHashIter_create(SSDHashNode *node, SSDLockState *lstate);
+_objfactory_guaranteed SSDHashIter *SSDHashIter_create(SSDHashNode *node, SSDLockState *lstate);
 // SSDHashIter *ssdhashiterCreate(SSDHashNode *node, SSDLockState *lstate);
 #define ssdhashiterCreate(node, lstate) SSDHashIter_create(SSDHashNode(node), lstate)
 

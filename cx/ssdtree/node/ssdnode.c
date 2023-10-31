@@ -31,7 +31,7 @@ void SSDNode_updateModified(_Inout_ SSDNode *self)
     self->modified = self->tree->modified = clockTimer();
 }
 
-bool SSDIterator_init(_Inout_ SSDIterator *self)
+_objinit_guaranteed bool SSDIterator_init(_Inout_ SSDIterator *self)
 {
     if (!self->lstate)
         self->lstate = &self->transient_lock_state;

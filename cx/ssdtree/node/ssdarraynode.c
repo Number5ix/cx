@@ -9,7 +9,7 @@
 // ==================== Auto-generated section ends ======================
 #include "../ssdtree.h"
 
-_objfactory SSDArrayNode *SSDArrayNode__create(SSDTree *tree)
+_objfactory_guaranteed SSDArrayNode *SSDArrayNode__create(SSDTree *tree)
 {
     SSDArrayNode *self;
     self = objInstCreate(SSDArrayNode);
@@ -25,7 +25,7 @@ _objfactory SSDArrayNode *SSDArrayNode__create(SSDTree *tree)
     return self;
 }
 
-bool SSDArrayNode_init(_Inout_ SSDArrayNode *self)
+_objinit_guaranteed bool SSDArrayNode_init(_Inout_ SSDArrayNode *self)
 {
     // Autogen begins -----
     saInit(&self->storage, stvar, 1);
@@ -33,7 +33,7 @@ bool SSDArrayNode_init(_Inout_ SSDArrayNode *self)
     // Autogen ends -------
 }
 
-bool SSDArrayNode_get(_Inout_ SSDArrayNode *self, int32 idx, strref name, stvar *out, SSDLockState *_ssdCurrentLockState)
+bool SSDArrayNode_get(_Inout_ SSDArrayNode *self, int32 idx, _In_opt_ strref name, stvar *out, SSDLockState *_ssdCurrentLockState)
 {
     if (idx == SSD_ByName && !strToInt32(&idx, name, 0, true))
         return false;
@@ -54,7 +54,7 @@ static stvar *ptrInternal(SSDArrayNode *self, int32 idx)
     return &self->storage.a[idx];
 }
 
-stvar *SSDArrayNode_ptr(_Inout_ SSDArrayNode *self, int32 idx, strref name, SSDLockState *_ssdCurrentLockState)
+stvar *SSDArrayNode_ptr(_Inout_ SSDArrayNode *self, int32 idx, _In_opt_ strref name, SSDLockState *_ssdCurrentLockState)
 {
     if (idx == SSD_ByName && !strToInt32(&idx, name, 0, true))
         return NULL;
@@ -63,7 +63,7 @@ stvar *SSDArrayNode_ptr(_Inout_ SSDArrayNode *self, int32 idx, strref name, SSDL
     return ptrInternal(self, idx);
 }
 
-bool SSDArrayNode_set(_Inout_ SSDArrayNode *self, int32 idx, strref name, stvar val, SSDLockState *_ssdCurrentLockState)
+bool SSDArrayNode_set(_Inout_ SSDArrayNode *self, int32 idx, _In_opt_ strref name, stvar val, SSDLockState *_ssdCurrentLockState)
 {
     if (idx == SSD_ByName && !strToInt32(&idx, name, 0, true))
         return false;
@@ -82,7 +82,7 @@ bool SSDArrayNode_set(_Inout_ SSDArrayNode *self, int32 idx, strref name, stvar 
     return true;
 }
 
-bool SSDArrayNode_setC(_Inout_ SSDArrayNode *self, int32 idx, strref name, stvar *val, SSDLockState *_ssdCurrentLockState)
+bool SSDArrayNode_setC(_Inout_ SSDArrayNode *self, int32 idx, _In_opt_ strref name, stvar *val, SSDLockState *_ssdCurrentLockState)
 {
     bool ret = false;
 
@@ -120,7 +120,7 @@ bool SSDArrayNode_append(_Inout_ SSDArrayNode *self, stvar val, SSDLockState *_s
     return true;
 }
 
-bool SSDArrayNode_remove(_Inout_ SSDArrayNode *self, int32 idx, strref name, SSDLockState *_ssdCurrentLockState)
+bool SSDArrayNode_remove(_Inout_ SSDArrayNode *self, int32 idx, _In_opt_ strref name, SSDLockState *_ssdCurrentLockState)
 {
     if (idx == SSD_ByName && !strToInt32(&idx, name, 0, true))
         return false;
@@ -168,7 +168,7 @@ void SSDArrayNode_destroy(_Inout_ SSDArrayNode *self)
 
 // -------------------------------- ITERATOR --------------------------------
 
-_objfactory SSDArrayIter *SSDArrayIter_create(SSDArrayNode *node, SSDLockState *lstate)
+_objfactory_guaranteed SSDArrayIter *SSDArrayIter_create(SSDArrayNode *node, SSDLockState *lstate)
 {
     SSDArrayIter *self;
     self = objInstCreate(SSDArrayIter);

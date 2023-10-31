@@ -9,7 +9,7 @@
 // ==================== Auto-generated section ends ======================
 #include "ssdnodes.h"
 
-_objfactory SSDTree *SSDTree_create(uint32 flags)
+_objfactory_guaranteed SSDTree *SSDTree_create(uint32 flags)
 {
     SSDTree *self;
     self = objInstCreate(SSDTree);
@@ -24,7 +24,7 @@ _objfactory SSDTree *SSDTree_create(uint32 flags)
     return self;
 }
 
-bool SSDTree_init(_Inout_ SSDTree *self)
+_objinit_guaranteed bool SSDTree_init(_Inout_ SSDTree *self)
 {
     // default factories
     if (!self->factories[SSD_Create_Hashtable])

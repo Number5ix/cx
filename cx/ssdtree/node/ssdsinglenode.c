@@ -9,7 +9,7 @@
 // ==================== Auto-generated section ends ======================
 #include "../ssdtree.h"
 
-_objfactory SSDSingleNode *SSDSingleNode__create(SSDTree *tree)
+_objfactory_guaranteed SSDSingleNode *SSDSingleNode__create(SSDTree *tree)
 {
     SSDSingleNode *self;
     self = objInstCreate(SSDSingleNode);
@@ -24,20 +24,20 @@ _objfactory SSDSingleNode *SSDSingleNode__create(SSDTree *tree)
     return self;
 }
 
-bool SSDSingleNode_get(_Inout_ SSDSingleNode *self, int32 idx, strref name, stvar *out, SSDLockState *_ssdCurrentLockState)
+bool SSDSingleNode_get(_Inout_ SSDSingleNode *self, int32 idx, _In_opt_ strref name, stvar *out, SSDLockState *_ssdCurrentLockState)
 {
     ssdLockRead(self);
     stvarCopy(out, self->storage);
     return true;
 }
 
-stvar *SSDSingleNode_ptr(_Inout_ SSDSingleNode *self, int32 idx, strref name, SSDLockState *_ssdCurrentLockState)
+stvar *SSDSingleNode_ptr(_Inout_ SSDSingleNode *self, int32 idx, _In_opt_ strref name, SSDLockState *_ssdCurrentLockState)
 {
     ssdLockRead(self);
     return &self->storage;
 }
 
-bool SSDSingleNode_set(_Inout_ SSDSingleNode *self, int32 idx, strref name, stvar val, SSDLockState *_ssdCurrentLockState)
+bool SSDSingleNode_set(_Inout_ SSDSingleNode *self, int32 idx, _In_opt_ strref name, stvar val, SSDLockState *_ssdCurrentLockState)
 {
     ssdLockWrite(self);
     stvarDestroy(&self->storage);
@@ -46,7 +46,7 @@ bool SSDSingleNode_set(_Inout_ SSDSingleNode *self, int32 idx, strref name, stva
     return true;
 }
 
-bool SSDSingleNode_setC(_Inout_ SSDSingleNode *self, int32 idx, strref name, stvar *val, SSDLockState *_ssdCurrentLockState)
+bool SSDSingleNode_setC(_Inout_ SSDSingleNode *self, int32 idx, _In_opt_ strref name, stvar *val, SSDLockState *_ssdCurrentLockState)
 {
     ssdLockWrite(self);
     stvarDestroy(&self->storage);
@@ -56,7 +56,7 @@ bool SSDSingleNode_setC(_Inout_ SSDSingleNode *self, int32 idx, strref name, stv
     return true;
 }
 
-bool SSDSingleNode_remove(_Inout_ SSDSingleNode *self, int32 idx, strref name, SSDLockState *_ssdCurrentLockState)
+bool SSDSingleNode_remove(_Inout_ SSDSingleNode *self, int32 idx, _In_opt_ strref name, SSDLockState *_ssdCurrentLockState)
 {
     // can't remove a single node!
     return false;
@@ -88,7 +88,7 @@ void SSDSingleNode_destroy(_Inout_ SSDSingleNode *self)
 
 // -------------------------------- ITERATOR --------------------------------
 
-_objfactory SSDSingleIter *SSDSingleIter_create(SSDSingleNode *node, SSDLockState *lstate)
+_objfactory_guaranteed SSDSingleIter *SSDSingleIter_create(SSDSingleNode *node, SSDLockState *lstate)
 {
     SSDSingleIter *self;
     self = objInstCreate(SSDSingleIter);

@@ -131,7 +131,7 @@ extern ObjClassInfo TestCls1_clsinfo;
 #define TestCls1(inst) ((TestCls1*)(unused_noeval((inst) && &((inst)->_is_TestCls1)), (inst)))
 #define TestCls1None ((TestCls1*)NULL)
 
-_objfactory TestCls1 *TestCls1_create();
+_objfactory_guaranteed TestCls1 *TestCls1_create();
 // TestCls1 *testcls1Create();
 #define testcls1Create() TestCls1_create()
 
@@ -154,7 +154,7 @@ extern ObjClassInfo TestCls2_clsinfo;
 #define TestCls2(inst) ((TestCls2*)(unused_noeval((inst) && &((inst)->_is_TestCls2)), (inst)))
 #define TestCls2None ((TestCls2*)NULL)
 
-_objfactory TestCls2 *TestCls2_create();
+_objfactory_guaranteed TestCls2 *TestCls2_create();
 // TestCls2 *testcls2Create();
 #define testcls2Create() TestCls2_create()
 
@@ -179,7 +179,7 @@ extern ObjClassInfo TestCls3_clsinfo;
 #define TestCls3(inst) ((TestCls3*)(unused_noeval((inst) && &((inst)->_is_TestCls3)), (inst)))
 #define TestCls3None ((TestCls3*)NULL)
 
-_objfactory TestCls3 *TestCls3_create();
+_objfactory_guaranteed TestCls3 *TestCls3_create();
 // TestCls3 *testcls3Create();
 #define testcls3Create() TestCls3_create()
 
@@ -208,7 +208,7 @@ extern ObjClassInfo TestCls4_clsinfo;
 #define TestCls4(inst) ((TestCls4*)(unused_noeval((inst) && &((inst)->_is_TestCls4)), (inst)))
 #define TestCls4None ((TestCls4*)NULL)
 
-_objfactory TestCls4 *TestCls4_create();
+_objfactory_guaranteed TestCls4 *TestCls4_create();
 // TestCls4 *testcls4Create();
 #define testcls4Create() TestCls4_create()
 
@@ -270,7 +270,7 @@ extern ObjClassInfo TestCls4b_clsinfo;
 #define TestCls4b(inst) ((TestCls4b*)(unused_noeval((inst) && &((inst)->_is_TestCls4b)), (inst)))
 #define TestCls4bNone ((TestCls4b*)NULL)
 
-_objfactory TestCls4b *TestCls4b_create();
+_objfactory_guaranteed TestCls4b *TestCls4b_create();
 // TestCls4b *testcls4bCreate();
 #define testcls4bCreate() TestCls4b_create()
 
@@ -297,7 +297,7 @@ extern ObjClassInfo TestCls5_clsinfo;
 #define TestCls5(inst) ((TestCls5*)(unused_noeval((inst) && &((inst)->_is_TestCls5)), (inst)))
 #define TestCls5None ((TestCls5*)NULL)
 
-_objfactory TestCls5 *TestCls5_create();
+_objfactory_guaranteed TestCls5 *TestCls5_create();
 // TestCls5 *testcls5Create();
 #define testcls5Create() TestCls5_create()
 

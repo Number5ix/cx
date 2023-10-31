@@ -48,7 +48,7 @@ extern ObjClassInfo SSDTree_clsinfo;
 #define SSDTree(inst) ((SSDTree*)(unused_noeval((inst) && &((inst)->_is_SSDTree)), (inst)))
 #define SSDTreeNone ((SSDTree*)NULL)
 
-_objfactory SSDTree *SSDTree_create(uint32 flags);
+_objfactory_guaranteed SSDTree *SSDTree_create(uint32 flags);
 // SSDTree *ssdtreeCreate(uint32 flags);
 #define ssdtreeCreate(flags) SSDTree_create(flags)
 

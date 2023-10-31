@@ -8,7 +8,7 @@
 #include "fmttestobj.h"
 // ==================== Auto-generated section ends ======================
 
-_objfactory FmtTestClass *FmtTestClass_create(int32 ival, string sval)
+_objfactory_guaranteed FmtTestClass *FmtTestClass_create(int32 ival, string sval)
 {
     FmtTestClass *ret;
     ret = objInstCreate(FmtTestClass);
@@ -56,7 +56,7 @@ void FmtTestClass_destroy(_Inout_ FmtTestClass *self)
     // Autogen ends -------
 }
 
-_objfactory FmtTestClass2 *FmtTestClass2_create(int32 ival, string sval)
+_objfactory_guaranteed FmtTestClass2 *FmtTestClass2_create(int32 ival, string sval)
 {
     FmtTestClass2 *self;
     self = objInstCreate(FmtTestClass2);

@@ -19,17 +19,17 @@ typedef struct SSDSingleNode_ClassIf {
     // This node is an array that contains values or objects by array index
     bool (*isArray)(_Inout_ void *self);
     // Gets a value. Caller owns the value and must destroy it with stDestroy!
-    bool (*get)(_Inout_ void *self, int32 idx, strref name, stvar *out, SSDLockState *_ssdCurrentLockState);
+    bool (*get)(_Inout_ void *self, int32 idx, _In_opt_ strref name, stvar *out, SSDLockState *_ssdCurrentLockState);
     // Gets a pointer to a value. This points to the internal storage within the node
     // so it is only guaranteed to be valid while the read lock is held.
-    stvar *(*ptr)(_Inout_ void *self, int32 idx, strref name, SSDLockState *_ssdCurrentLockState);
+    stvar *(*ptr)(_Inout_ void *self, int32 idx, _In_opt_ strref name, SSDLockState *_ssdCurrentLockState);
     // Sets the given value
-    bool (*set)(_Inout_ void *self, int32 idx, strref name, stvar val, SSDLockState *_ssdCurrentLockState);
+    bool (*set)(_Inout_ void *self, int32 idx, _In_opt_ strref name, stvar val, SSDLockState *_ssdCurrentLockState);
     // Same as setValue but consumes the value
     // (consumes even on failure)
-    bool (*setC)(_Inout_ void *self, int32 idx, strref name, stvar *val, SSDLockState *_ssdCurrentLockState);
+    bool (*setC)(_Inout_ void *self, int32 idx, _In_opt_ strref name, stvar *val, SSDLockState *_ssdCurrentLockState);
     // Removes a value
-    bool (*remove)(_Inout_ void *self, int32 idx, strref name, SSDLockState *_ssdCurrentLockState);
+    bool (*remove)(_Inout_ void *self, int32 idx, _In_opt_ strref name, SSDLockState *_ssdCurrentLockState);
     // How many values / objects does this node contain?
     int32 (*count)(_Inout_ void *self, SSDLockState *_ssdCurrentLockState);
     // IMPORTANT NOTE: The generic object iterator interface cannot take any parameters;
@@ -77,7 +77,7 @@ extern ObjClassInfo SSDSingleNode_clsinfo;
 #define SSDSingleNode(inst) ((SSDSingleNode*)(unused_noeval((inst) && &((inst)->_is_SSDSingleNode)), (inst)))
 #define SSDSingleNodeNone ((SSDSingleNode*)NULL)
 
-_objfactory SSDSingleNode *SSDSingleNode__create(SSDTree *tree);
+_objfactory_guaranteed SSDSingleNode *SSDSingleNode__create(SSDTree *tree);
 // SSDSingleNode *ssdsinglenode_create(SSDTree *tree);
 #define ssdsinglenode_create(tree) SSDSingleNode__create(SSDTree(tree))
 
@@ -148,7 +148,7 @@ extern ObjClassInfo SSDSingleIter_clsinfo;
 #define SSDSingleIter(inst) ((SSDSingleIter*)(unused_noeval((inst) && &((inst)->_is_SSDSingleIter)), (inst)))
 #define SSDSingleIterNone ((SSDSingleIter*)NULL)
 
-_objfactory SSDSingleIter *SSDSingleIter_create(SSDSingleNode *node, SSDLockState *lstate);
+_objfactory_guaranteed SSDSingleIter *SSDSingleIter_create(SSDSingleNode *node, SSDLockState *lstate);
 // SSDSingleIter *ssdsingleiterCreate(SSDSingleNode *node, SSDLockState *lstate);
 #define ssdsingleiterCreate(node, lstate) SSDSingleIter_create(SSDSingleNode(node), lstate)
 
