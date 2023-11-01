@@ -14,8 +14,8 @@ typedef struct VFSFSFile_ClassIf {
     size_t _size;
 
     bool (*close)(_Inout_ void *self);
-    bool (*read)(_Inout_ void *self, _Out_writes_bytes_to_(sz, *bytesread) void *buf, size_t sz, _Out_ size_t *bytesread);
-    bool (*write)(_Inout_ void *self, _In_reads_bytes_(sz) void *buf, size_t sz, _Out_opt_ size_t *byteswritten);
+    bool (*read)(_Inout_ void *self, _Out_writes_bytes_to_(sz, *bytesread) void *buf, size_t sz, _Out_ _Deref_out_range_(0, sz) size_t *bytesread);
+    bool (*write)(_Inout_ void *self, _In_reads_bytes_(sz) void *buf, size_t sz, _Out_opt_ _Deref_out_range_(0, sz) size_t *byteswritten);
     int64 (*tell)(_Inout_ void *self);
     int64 (*seek)(_Inout_ void *self, int64 off, FSSeekType seektype);
     bool (*flush)(_Inout_ void *self);

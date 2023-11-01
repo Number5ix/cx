@@ -26,7 +26,7 @@ bool VFSVFSFile_close(_Inout_ VFSVFSFile *self)
     return ret;
 }
 
-bool VFSVFSFile_read(_Inout_ VFSVFSFile *self, _Out_writes_bytes_to_(sz, *bytesread) void *buf, size_t sz, _Out_ size_t *bytesread)
+bool VFSVFSFile_read(_Inout_ VFSVFSFile *self, _Out_writes_bytes_to_(sz, *bytesread) void *buf, size_t sz, _Out_ _Deref_out_range_(0, sz) size_t *bytesread)
 {
     if (!self->file) {
         *bytesread = 0;
@@ -35,7 +35,7 @@ bool VFSVFSFile_read(_Inout_ VFSVFSFile *self, _Out_writes_bytes_to_(sz, *bytesr
     return vfsRead(self->file, buf, sz, bytesread);
 }
 
-bool VFSVFSFile_write(_Inout_ VFSVFSFile *self, _In_reads_bytes_(sz) void *buf, size_t sz, _Out_opt_ size_t *byteswritten)
+bool VFSVFSFile_write(_Inout_ VFSVFSFile *self, _In_reads_bytes_(sz) void *buf, size_t sz, _Out_opt_ _Deref_out_range_(0, sz) size_t *byteswritten)
 {
     if (!self->file) {
         if (byteswritten)

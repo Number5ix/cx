@@ -69,8 +69,8 @@ _meta_inline bool vfsSearchValid(_In_ FSSearchIter *iter) { return iter->_search
 
 _Ret_opt_valid_ VFSFile *vfsOpen(_Inout_ VFS *vfs, _In_opt_ strref path, flags_t flags);
 bool vfsClose(_Pre_opt_valid_ _Post_invalid_ VFSFile *file);
-bool vfsRead(_Inout_ VFSFile *file, _Out_writes_bytes_to_(sz, *bytesread) void *buf, size_t sz, _Out_ size_t *bytesread);
-bool vfsWrite(_Inout_ VFSFile *file, _In_reads_bytes_(sz) void *buf, size_t sz, _Out_opt_ size_t *byteswritten);
+bool vfsRead(_Inout_ VFSFile *file, _Out_writes_bytes_to_(sz, *bytesread) void *buf, size_t sz, _Out_ _Deref_out_range_(0, sz) size_t *bytesread);
+bool vfsWrite(_Inout_ VFSFile *file, _In_reads_bytes_(sz) void *buf, size_t sz, _Out_opt_ _Deref_out_range_(0, sz) size_t *byteswritten);
 bool vfsWriteString(_Inout_ VFSFile *file, _In_opt_ strref str, _Out_opt_ size_t *byteswritten);
 int64 vfsTell(_Inout_ VFSFile *file);
 int64 vfsSeek(_Inout_ VFSFile *file, int64 off, FSSeekType seektype);
