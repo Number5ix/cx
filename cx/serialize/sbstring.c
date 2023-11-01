@@ -92,8 +92,7 @@ static void sbufStrNotifyCB(_Pre_valid_ StreamBuffer *sb, size_t sz, _Pre_opt_va
 
     string temp = 0;
     uint8 *tbuf = strBuffer(&temp, (uint32)sz);
-    sz = sbufCRead(sb, tbuf, sz);
-    if (sz > 0) {
+    if (sbufCRead(sb, tbuf, sz, &sz)) {
         strSetLen(&temp, (uint32)sz);
         strAppend(sbc->out, temp);
     }
@@ -107,15 +106,14 @@ bool sbufStrOut(StreamBuffer *sb, string *strout)
         return false;
 
     string temp = 0;
-    uint32 sz;
+    size_t sz;
     do {
         // grab targetsz at a time from the buffer
         strClear(&temp);
         uint8 *tbuf = strBuffer(&temp, (uint32)sb->targetsz);
 
-        sz = (uint32)sbufCRead(sb, tbuf, sb->targetsz);
-        if (sz > 0) {
-            strSetLen(&temp, sz);
+        if (sbufCRead(sb, tbuf, sb->targetsz, &sz)) {
+            strSetLen(&temp, (uint32)sz);
             strAppend(strout, temp);
         }
     } while (sz > 0 || !sbufIsPFinished(sb));

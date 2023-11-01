@@ -165,9 +165,8 @@ size_t sbufCAvail(_Inout_ StreamBuffer *sb);
 // If in pull mode, this will repeatedly call the producer's callback in order to completely
 // satisfy the request. It will short read only when the producer is finished (EOF).
 // If in push mode, this will fail if more data is requested than is available.
-_Success_(return > 0)
-_Ret_range_(0, sz)
-size_t sbufCRead(_Inout_ StreamBuffer *sb, _Out_writes_bytes_(sz) uint8 *buf, size_t sz);
+_Success_(return)
+bool sbufCRead(_Inout_ StreamBuffer *sb, _Out_writes_bytes_to_(sz, *bytesread) uint8 *buf, size_t sz, _Out_ _Deref_out_range_(0, sz) size_t *bytesread);
 
 // Peeks at data in the buffer without consuming it.
 // In pull mode this will NOT call the callback and only read unconsumed data left in

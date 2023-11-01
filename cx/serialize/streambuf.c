@@ -483,13 +483,12 @@ static void feedBuffer(_Inout_ StreamBuffer *sb, size_t want)
 }
 
 _Use_decl_annotations_
-size_t sbufCRead(StreamBuffer *sb, uint8 *buf, size_t sz)
+bool sbufCRead(StreamBuffer *sb, uint8 *buf, size_t sz, size_t *bytesread)
 {
-    if ((sb->flags & SBUF_Direct) || sbufIsError(sb))
-        return 0;                   // can't pull in direct mode!
-
-    if (sz == 0)
-        return 0;
+    if ((sb->flags & SBUF_Direct) || sbufIsError(sb) || sz == 0) {
+        *bytesread = 0;
+        return false;               // can't pull in direct mode!
+    }
 
     if (sbufIsPull(sb)) {
         // loop until we have enough data to satisfy the request
@@ -500,11 +499,12 @@ size_t sbufCRead(StreamBuffer *sb, uint8 *buf, size_t sz)
         sz = min(sz, sbufCAvail(sb));
     } else if (sz > sbufCAvail(sb)) {
         // we don't have enough!
-        return 0;
+        return false;
     }
 
     readCommon(sb, buf, 0, sz, true, NULL);
-    return sz;
+    *bytesread = sz;
+    return (sz > 0);
 }
 
 _Use_decl_annotations_

@@ -106,8 +106,7 @@ bool sbufFileOut(StreamBuffer *sb, VFSFile *file, bool close)
     size_t sz;
     do {
         // grab targetsz at a time from the buffer
-        sz = sbufCRead(sb, buf, sb->targetsz);
-        if (sz > 0) {
+        if (sbufCRead(sb, buf, sb->targetsz, &sz)) {
             size_t didwrite;
             if (!vfsWrite(file, buf, sz, &didwrite)) {
                 sbufError(sb);

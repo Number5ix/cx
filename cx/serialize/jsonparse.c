@@ -64,7 +64,8 @@ static bool parseString(StreamBuffer *sb, string *out, ParseState *ps)
 
     strClear(out);
 
-    while (sbufCRead(sb, &ch, 1)) {
+    size_t didread;
+    while (sbufCRead(sb, &ch, 1, &didread)) {
         if (ch < 0x20) {
             strFormat(&ps->errmsg, _S"Invalid character code 0x${uint(hex)} in string", stvar(uint8, ch));
             break;
@@ -478,6 +479,7 @@ static bool parseObject(StreamBuffer *sb, ParseState *ps)
     bool ret = false;
     bool first = true;
     unsigned char ch;
+    size_t didread;
 
     skipWS(sb, ps);
 
@@ -502,8 +504,7 @@ static bool parseObject(StreamBuffer *sb, ParseState *ps)
 
         // first get the key
         skipWS(sb, ps);
-        sbufCRead(sb, &ch, 1);
-        if (ch != '"') {
+        if (!sbufCRead(sb, &ch, 1, &didread) || ch != '"') {
             strFormat(&ps->errmsg, _S"Expected '\"' to begin object key, got '${int(utfchar)}' instead",
                       stvar(int32, ch));
             break;
@@ -517,7 +518,7 @@ static bool parseObject(StreamBuffer *sb, ParseState *ps)
         jsonCallback(&ps->ev, ps);
         skipWS(sb, ps);
 
-        if (!sbufCRead(sb, &ch, 1) || ch != ':') {
+        if (!sbufCRead(sb, &ch, 1, &didread) || ch != ':') {
             strFormat(&ps->errmsg, _S"Expected ':' in member \"${string}\" of object, got '${int(utfchar)}' instead",
                    stvar(strref, ps->ctx->cdata.curKey), stvar(int32, ch));
             break;

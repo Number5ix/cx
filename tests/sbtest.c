@@ -40,7 +40,10 @@ static void sbnotify1(StreamBuffer *sb, size_t sz, void *ctx)
 
     // test both read and send
     if (!tc->usesend) {
-        tc->outp += sbufCRead(sb, tc->out + tc->outp, min(sz, tc->shouldread));
+        size_t didread;
+        sbufCRead(sb, tc->out + tc->outp, min(sz, tc->shouldread), &didread);
+        tc->outp += didread;
+        devAssert(didread == min(sz, tc->shouldread));
     } else {
         sbufCSend(sb, sbsend1, min(sz, tc->shouldread));
     }
@@ -195,38 +198,38 @@ static int test_streambuf_pull()
 
     size_t didread;
 
-    didread = sbufCRead(ptest, out + p, 5);
+    sbufCRead(ptest, out + p, 5, &didread);
     if (didread != 5 ||
         memcmp(out + p, testdata1 + p, didread))
         ret = 1;
     p += didread;
 
-    didread = sbufCRead(ptest, out + p, 15);
+    sbufCRead(ptest, out + p, 15, &didread);
     if (didread != 15 ||
         memcmp(out + p, testdata1 + p, didread))
         ret = 1;
     p += didread;
 
-    didread = sbufCRead(ptest, out + p, 3);
+    sbufCRead(ptest, out + p, 3, &didread);
     if (didread != 3 ||
         memcmp(out + p, testdata1 + p, didread))
         ret = 1;
     p += didread;
 
-    didread = sbufCRead(ptest, out + p, 40);
+    sbufCRead(ptest, out + p, 40, &didread);
     if (didread != 40 ||
         memcmp(out + p, testdata1 + p, didread))
         ret = 1;
     p += didread;
 
-    didread = sbufCRead(ptest, out + p, 13);
+    sbufCRead(ptest, out + p, 13, &didread);
     if (didread != 13 ||
         memcmp(out + p, testdata1 + p, didread))
         ret = 1;
     p += didread;
 
     // this should hit the end of the input
-    didread = sbufCRead(ptest, out + p, 25);
+    sbufCRead(ptest, out + p, 25, &didread);
     if (didread != 20 ||
         memcmp(out + p, testdata1 + p, didread))
         ret = 1;
@@ -254,7 +257,7 @@ static int test_streambuf_peek()
     StreamBuffer *ptest = sbufCreate(32);
     TestCtx2 ctx = { 0 };
     uint8 out[TESTBUF_SZ];
-    size_t p = 0;
+    size_t p = 0, didread;
 
     if (!sbufPRegisterPull(ptest, sbpull2, sbclean2, &ctx))
         return false;
@@ -284,7 +287,7 @@ static int test_streambuf_peek()
 
     // now fill in the gap
 
-    if (!sbufCRead(ptest, out + p, 10))
+    if (!sbufCRead(ptest, out + p, 10, &didread))
         ret = 1;
     if (memcmp(out + p, testdata1 + p, 10))
         ret = 1;
@@ -403,6 +406,7 @@ static int test_streambuf_string()
     int ret = 0;
     string s1 = 0, s2 = 0;
     uint8 buf[128];
+    size_t didread;
     strCopy(&s1, _S"This is a string test... This is a string test... This is a string test...");
 
     StreamBuffer *ptest;
@@ -413,15 +417,16 @@ static int test_streambuf_string()
     if (strTestRefCount(s1) != 2)
         ret = 1;
 
-    sbufCRead(ptest, buf, 12);
+    sbufCRead(ptest, buf, 12, &didread);
     if (memcmp(buf, strC(s1), 12))
         ret = 1;
 
-    sbufCRead(ptest, buf, 40);
+    sbufCRead(ptest, buf, 40, &didread);
     if (memcmp(buf, strC(s1) + 12, 40))
         ret = 1;
 
-    if (sbufCRead(ptest, buf, 22) != 22)
+    sbufCRead(ptest, buf, 22, &didread);
+    if (didread != 22)
         ret = 1;
     if (memcmp(buf, strC(s1) + 52, 22))
         ret = 1;

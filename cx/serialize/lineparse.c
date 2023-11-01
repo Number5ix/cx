@@ -123,6 +123,7 @@ bool lparseLine(StreamBuffer *sb, string *out)
     EOLFindInfo ei;
     uint8 buf[LPCHUNK];
     uint8 *outbuf;
+    size_t didread;
 
     strClear(out);
 
@@ -145,12 +146,14 @@ bool lparseLine(StreamBuffer *sb, string *out)
             if (!(lpc->flags & LPARSE_IncludeEOL)) {
                 // EOL in string (default)
                 outbuf = strBuffer(out, (uint32)ei.off);
-                sbufCRead(sb, outbuf, (uint32)ei.off);
+                sbufCRead(sb, outbuf, (uint32)ei.off, &didread);
+                devAssert(didread == ei.off);
                 sbufCSkip(sb, ei.len);
             } else {
                 // include EOL character(s) in string
                 outbuf = strBuffer(out, (uint32)ei.off + ei.len);
-                sbufCRead(sb, outbuf, ei.off + ei.len);
+                sbufCRead(sb, outbuf, ei.off + ei.len, &didread);
+                devAssert(didread == ei.off + ei.len);
             }
             // buffer has been advanced to right after the EOL
             lpc->checked = 0;
@@ -161,7 +164,7 @@ bool lparseLine(StreamBuffer *sb, string *out)
             // no EOL but we have everything we're going to get
             if (sbufCAvail(sb) > 0 && !(lpc->flags & LPARSE_NoIncomplete)) {
                 outbuf = strBuffer(out, (uint32)sbufCAvail(sb));
-                sbufCRead(sb, outbuf, sbufCAvail(sb));
+                sbufCRead(sb, outbuf, sbufCAvail(sb), &didread);
                 return true;
             }
 
@@ -186,6 +189,7 @@ static void lpcNotify(_Pre_valid_ StreamBuffer *sb, size_t sz, _Pre_opt_valid_ v
     EOLFindInfo ei;
     uint8 buf[LPCHUNK];
     uint8 *outbuf;
+    size_t didread;
 
     // keep looking for lines as long as there's data in the buffer
     while (sbufCAvail(sb) > 0 && lpc->checked < sbufCAvail(sb) - (sbufIsPFinished(sb) ? 0 : 1)) {
@@ -202,12 +206,14 @@ static void lpcNotify(_Pre_valid_ StreamBuffer *sb, size_t sz, _Pre_opt_valid_ v
             if (!(lpc->flags & LPARSE_IncludeEOL)) {
                 // EOL in string (default)
                 outbuf = strBuffer(&lpc->out, (uint32)ei.off);
-                sbufCRead(sb, outbuf, (uint32)ei.off);
+                sbufCRead(sb, outbuf, (uint32)ei.off, &didread);
+                devAssert(didread == ei.off);
                 sbufCSkip(sb, ei.len);
             } else {
                 // include EOL character(s) in string
                 outbuf = strBuffer(&lpc->out, (uint32)ei.off + ei.len);
-                sbufCRead(sb, outbuf, ei.off + ei.len);
+                sbufCRead(sb, outbuf, ei.off + ei.len, &didread);
+                devAssert(didread == ei.off + ei.len);
             }
             // buffer has been advanced to right after the EOL
             lpc->checked = 0;
@@ -226,7 +232,7 @@ static void lpcNotify(_Pre_valid_ StreamBuffer *sb, size_t sz, _Pre_opt_valid_ v
             // no EOL but we have everything we're going to get
             strClear(&lpc->out);
             outbuf = strBuffer(&lpc->out, (uint32)sbufCAvail(sb));
-            sbufCRead(sb, outbuf, sbufCAvail(sb));
+            sbufCRead(sb, outbuf, sbufCAvail(sb), &didread);
             lpc->lineCB(lpc->out, lpc->userCtx);
         }
 
