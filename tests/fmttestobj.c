@@ -16,8 +16,7 @@ _objfactory_guaranteed FmtTestClass *FmtTestClass_create(int32 ival, string sval
     ret->iv = ival;
     strDup(&ret->sv, sval);
 
-    if (!objInstInit(ret))
-        objRelease(&ret);
+    objInstInit(ret);
     return ret;
 }
 
@@ -64,11 +63,7 @@ _objfactory_guaranteed FmtTestClass2 *FmtTestClass2_create(int32 ival, string sv
     self->iv = ival;
     strDup(&self->sv, sval);
 
-    if (!objInstInit(self)) {
-        objRelease(&self);
-        return NULL;
-    }
-
+    objInstInit(self);
     return self;
 }
 

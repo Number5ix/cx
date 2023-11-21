@@ -439,8 +439,9 @@ int test_lineparse_explicit()
     string line = 0;
 
     sb = sbufCreate(512);
-    sbufStrPRegisterPull(sb, teststr_cr);
-    lparseRegisterPull(sb, LPARSE_CR);
+    if (!sbufStrPRegisterPull(sb, teststr_cr) ||
+        !lparseRegisterPull(sb, LPARSE_CR))
+        return 1;
 
     lines = 0;
     while (lparseLine(sb, &line)) {
@@ -464,8 +465,9 @@ int test_lineparse_explicit()
 
     // retest with NoIncomplete
     sb = sbufCreate(512);
-    sbufStrPRegisterPull(sb, teststr_cr);
-    lparseRegisterPull(sb, LPARSE_CR | LPARSE_NoIncomplete);
+    if (!sbufStrPRegisterPull(sb, teststr_cr) ||
+        !lparseRegisterPull(sb, LPARSE_CR | LPARSE_NoIncomplete))
+        return 1;
 
     lines = 0;
     while (lparseLine(sb, &line)) {
@@ -488,8 +490,9 @@ int test_lineparse_explicit()
     // CRLF
 
     sb = sbufCreate(512);
-    sbufStrPRegisterPull(sb, teststr_crlf);
-    lparseRegisterPull(sb, LPARSE_CRLF);
+    if (!sbufStrPRegisterPull(sb, teststr_crlf) ||
+        !lparseRegisterPull(sb, LPARSE_CRLF))
+        return 1;
 
     lines = 0;
     while (lparseLine(sb, &line)) {
@@ -513,8 +516,9 @@ int test_lineparse_explicit()
 
     // retest with NoIncomplete
     sb = sbufCreate(512);
-    sbufStrPRegisterPull(sb, teststr_crlf);
-    lparseRegisterPull(sb, LPARSE_CRLF | LPARSE_NoIncomplete);
+    if (!sbufStrPRegisterPull(sb, teststr_crlf) ||
+        !lparseRegisterPull(sb, LPARSE_CRLF | LPARSE_NoIncomplete))
+        return 1;
 
     lines = 0;
     while (lparseLine(sb, &line)) {
@@ -539,8 +543,9 @@ int test_lineparse_explicit()
     // finally a quick test with includeeol
 
     sb = sbufCreate(512);
-    sbufStrPRegisterPull(sb, teststr_crlf);
-    lparseRegisterPull(sb, LPARSE_CRLF | LPARSE_IncludeEOL);
+    if (!sbufStrPRegisterPull(sb, teststr_crlf) ||
+        !lparseRegisterPull(sb, LPARSE_CRLF | LPARSE_IncludeEOL))
+        return 1;
     string temp = 0;
 
     lines = 0;
@@ -594,8 +599,9 @@ int test_lineparse_auto()
     string line = 0;
 
     sb = sbufCreate(512);
-    sbufStrPRegisterPull(sb, teststr_cr);
-    lparseRegisterPull(sb, LPARSE_Auto);
+    if (!sbufStrPRegisterPull(sb, teststr_cr) ||
+        !lparseRegisterPull(sb, LPARSE_Auto))
+        return 1;
 
     lines = 0;
     while (lparseLine(sb, &line)) {
@@ -620,8 +626,9 @@ int test_lineparse_auto()
     // CRLF
 
     sb = sbufCreate(512);
-    sbufStrPRegisterPull(sb, teststr_crlf);
-    lparseRegisterPull(sb, LPARSE_Auto);
+    if (!sbufStrPRegisterPull(sb, teststr_crlf) ||
+        !lparseRegisterPull(sb, LPARSE_Auto))
+        return 1;
 
     lines = 0;
     while (lparseLine(sb, &line)) {
@@ -647,8 +654,9 @@ int test_lineparse_auto()
     string temp = 0;
 
     sb = sbufCreate(512);
-    sbufStrPRegisterPull(sb, teststr_mixed1);
-    lparseRegisterPull(sb, LPARSE_Auto);
+    if (!sbufStrPRegisterPull(sb, teststr_mixed1) ||
+        !lparseRegisterPull(sb, LPARSE_Auto))
+        return 1;
 
     lines = 0;
     while (lparseLine(sb, &line)) {
@@ -679,8 +687,9 @@ int test_lineparse_auto()
     // Mixed 1 (should detect CRLF)
 
     sb = sbufCreate(512);
-    sbufStrPRegisterPull(sb, teststr_mixed2);
-    lparseRegisterPull(sb, LPARSE_Auto);
+    if (!sbufStrPRegisterPull(sb, teststr_mixed2) ||
+        !lparseRegisterPull(sb, LPARSE_Auto))
+        return 1;
 
     lines = 0;
     while (lparseLine(sb, &line)) {
@@ -726,8 +735,9 @@ int test_lineparse_mixed()
     string line = 0;
 
     sb = sbufCreate(512);
-    sbufStrPRegisterPull(sb, teststr_mixed1);
-    lparseRegisterPull(sb, LPARSE_Mixed);
+    if (!sbufStrPRegisterPull(sb, teststr_mixed1) ||
+        !lparseRegisterPull(sb, LPARSE_Mixed))
+        return 1;
 
     lines = 0;
     while (lparseLine(sb, &line)) {
@@ -752,8 +762,9 @@ int test_lineparse_mixed()
     // Mixed2
 
     sb = sbufCreate(512);
-    sbufStrPRegisterPull(sb, teststr_mixed2);
-    lparseRegisterPull(sb, LPARSE_Mixed);
+    if (!sbufStrPRegisterPull(sb, teststr_mixed2) ||
+        !lparseRegisterPull(sb, LPARSE_Mixed))
+        return 1;
 
     lines = 0;
     while (lparseLine(sb, &line)) {
@@ -826,7 +837,8 @@ int test_lineparse_push()
 
     // test with a large buffer
     sb = sbufCreate(8192);
-    lparseRegisterPush(sb, test_linecb, test_ctxcleanup, &lppt, 0);
+    if (!lparseRegisterPush(sb, test_linecb, test_ctxcleanup, &lppt, 0))
+        return 1;
     sbufStrIn(sb, teststr_cr);
 
     if (lppt.lines != 100)
@@ -842,7 +854,8 @@ int test_lineparse_push()
     lppt = (LineParsePushTestCtx){ 0 };
 
     sb = sbufCreate(5);
-    lparseRegisterPush(sb, test_linecb, test_ctxcleanup, &lppt, 0);
+    if (!lparseRegisterPush(sb, test_linecb, test_ctxcleanup, &lppt, 0))
+        return 1;
     sbufStrIn(sb, teststr_crlf);
 
     if (lppt.lines != 100)

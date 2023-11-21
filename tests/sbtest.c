@@ -411,8 +411,9 @@ static int test_streambuf_string()
 
     StreamBuffer *ptest;
     ptest = sbufCreate(16);
-    sbufCRegisterPull(ptest, NULL, NULL);
-    sbufStrPRegisterPull(ptest, s1);
+    if (!sbufCRegisterPull(ptest, NULL, NULL) ||
+        !sbufStrPRegisterPull(ptest, s1))
+        return 1;
 
     if (strTestRefCount(s1) != 2)
         ret = 1;
@@ -440,7 +441,8 @@ static int test_streambuf_string()
     // hook up a string consumer and use the string producer to push to it
 
     ptest = sbufCreate(16);
-    sbufStrCRegisterPush(ptest, &s2);
+    if (!sbufStrCRegisterPush(ptest, &s2))
+        return 1;
     sbufStrIn(ptest, s1);
 
     if (!strEq(s1, s2))
@@ -455,7 +457,8 @@ static int test_streambuf_string()
     // then the reverse
 
     ptest = sbufCreate(16);
-    sbufStrPRegisterPull(ptest, s1);
+    if (!sbufStrPRegisterPull(ptest, s1))
+        return 1;
     sbufStrOut(ptest, &s2);
     if (!strEq(s1, s2))
         ret = 1;

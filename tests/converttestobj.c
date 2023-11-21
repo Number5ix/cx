@@ -18,11 +18,7 @@ _objfactory_guaranteed ConvertTestClass *ConvertTestClass_create(int32 ival, flo
     self->fval = fval;
     strDup(&self->sval, sval);
 
-    if (!objInstInit(self)) {
-        objRelease(&self);
-        return NULL;
-    }
-
+    objInstInit(self);
     return self;
 }
 

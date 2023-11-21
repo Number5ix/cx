@@ -370,7 +370,8 @@ static int test_json_parse()
     RESETCBD(expectedEvents1);
 
     sb = sbufCreate(256);
-    sbufStrPRegisterPull(sb, teststr);
+    if (!sbufStrPRegisterPull(sb, teststr))
+        return 1;
     if (!jsonParse(sb, parsecb1, &cbd))
         ret = 1;
     if (cbd.failed || cbd.count != cbd.expectedCount)
@@ -383,7 +384,8 @@ static int test_json_parse()
     RESETCBD(expectedEvents1_err);
 
     sb = sbufCreate(256);
-    sbufStrPRegisterPull(sb, teststr);
+    if (!sbufStrPRegisterPull(sb, teststr))
+        return 1;
     if (jsonParse(sb, parsecb1, &cbd))              // should return false from failure!
         ret = 1;
     if (cbd.failed || cbd.count != cbd.expectedCount)
@@ -396,7 +398,8 @@ static int test_json_parse()
     RESETCBD(expectedEvents1_err2);
 
     sb = sbufCreate(256);
-    sbufStrPRegisterPull(sb, teststr);
+    if (!sbufStrPRegisterPull(sb, teststr))
+        return 1;
     if (jsonParse(sb, parsecb1, &cbd))              // should return false from failure!
         ret = 1;
     if (cbd.failed || cbd.count != cbd.expectedCount)
@@ -409,7 +412,8 @@ static int test_json_parse()
     RESETCBD(expectedEvents2);
 
     sb = sbufCreate(256);
-    sbufStrPRegisterPull(sb, teststr);
+    if (!sbufStrPRegisterPull(sb, teststr))
+        return 1;
     if (!jsonParse(sb, parsecb1, &cbd))
         ret = 1;
     if (cbd.failed || cbd.count != cbd.expectedCount)
@@ -423,7 +427,8 @@ static int test_json_parse()
     RESETCBD(expectedEvents3);
 
     sb = sbufCreate(256);
-    sbufStrPRegisterPull(sb, teststr);
+    if (!sbufStrPRegisterPull(sb, teststr))
+        return 1;
     if (!jsonParse(sb, parsecb1, &cbd))
         ret = 1;
     if (cbd.failed || cbd.count != cbd.expectedCount)
@@ -436,7 +441,8 @@ static int test_json_parse()
     RESETCBD(expectedEvents4);
 
     sb = sbufCreate(256);
-    sbufStrPRegisterPull(sb, teststr);
+    if (!sbufStrPRegisterPull(sb, teststr))
+        return 1;
     if (!jsonParse(sb, parsecb1, &cbd))
         ret = 1;
     if (cbd.failed || cbd.count != cbd.expectedCount)
@@ -449,7 +455,8 @@ static int test_json_parse()
     RESETCBD(expectedEvents5);
 
     sb = sbufCreate(256);
-    sbufStrPRegisterPull(sb, teststr);
+    if (!sbufStrPRegisterPull(sb, teststr))
+        return 1;
     if (!jsonParse(sb, parsecb1, &cbd))
         ret = 1;
     if (cbd.failed || cbd.count != cbd.expectedCount)
@@ -515,7 +522,8 @@ static int test_json_out()
     RESETCBD(expectedEvents2);
 
     sb = sbufCreate(256);
-    sbufStrPRegisterPull(sb, out);
+    if (!sbufStrPRegisterPull(sb, out))
+        return 1;
     if (!jsonParse(sb, parsecb1, &cbd))
         ret = 1;
     if (cbd.failed || cbd.count != cbd.expectedCount)
@@ -536,7 +544,8 @@ static int test_json_treeparse()
     strCopy(&teststr, (string)json_testdata1);
 
     sb = sbufCreate(256);
-    sbufStrPRegisterPull(sb, teststr);
+    if (!sbufStrPRegisterPull(sb, teststr))
+        return 1;
     SSDNode *tree = jsonParseTree(sb);
     if (!tree) {
         sbufRelease(&sb);
