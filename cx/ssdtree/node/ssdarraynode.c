@@ -60,7 +60,7 @@ _Ret_opt_valid_ stvar *SSDArrayNode_ptr(_Inout_ SSDArrayNode *self, int32 idx, _
 }
 
 _At_(storage->a, _Post_valid_)
-static _meta_inline verifySize(_Inout_ sa_stvar *storage, int32 idx)
+static _meta_inline void verifySize(_Inout_ sa_stvar *storage, int32 idx)
 {
     if (idx >= saSize(*storage))
         saSetSize(storage, idx + 1);
