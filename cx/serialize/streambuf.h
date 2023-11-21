@@ -95,7 +95,8 @@ typedef struct StreamBuffer {
 _Ret_valid_ StreamBuffer *sbufCreate(size_t targetsz);
 
 // Release a reference to a streambuffer
-void sbufRelease(_Inout_ptr_uninit_ StreamBuffer **sb);
+_At_(*sb, _Pre_maybenull_ _Post_null_)
+void sbufRelease(_Inout_ StreamBuffer **sb);
 
 // Puts a stream buffer into error state. Processing will be aborted and both consumers
 // and producers should call the Finish function as soon as is practical.

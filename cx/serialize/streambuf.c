@@ -43,10 +43,12 @@ static void sbufDestroy(_Pre_valid_ _Post_invalid_ StreamBuffer *sb)
 _Use_decl_annotations_
 void sbufRelease(StreamBuffer **sb)
 {
-    (*sb)->refcount--;
-    if ((*sb)->refcount <= 0)
-        sbufDestroy(*sb);
-    (*sb) = NULL;
+    if (*sb) {
+        (*sb)->refcount--;
+        if ((*sb)->refcount <= 0)
+            sbufDestroy(*sb);
+        (*sb) = NULL;
+    }
 }
 
 _Use_decl_annotations_
