@@ -2,13 +2,13 @@
 
 #include <cx/serialize/streambuf.h>
 
-enum JSON_PARSE_CONTEXT {
+typedef enum JSON_PARSE_CONTEXT {
     JSON_Top,
     JSON_Object,
     JSON_Array,
-};
+} JsonContextType;
 
-enum JSON_PARSE_EVENT {
+typedef enum JSON_PARSE_EVENT {
     JSON_Parse_Unknown,             // never actually sent, this would result in a parse error
     JSON_Object_Begin,              // a new object starts at the current context
     JSON_Object_Key,                // a valid json string was parsed in an object key context
@@ -25,12 +25,12 @@ enum JSON_PARSE_EVENT {
                                     // JSON_End will be the next event and the parser will return false.
     JSON_End                        // parsing finished, any user-passed context should be cleaned
                                     // up if desired
-};
+} JsonEventType;
 
 typedef struct JSONParseContext JSONParseContext;
 typedef struct JSONParseContext {
     JSONParseContext *parent;
-    int ctype;                      // type of context
+    JsonContextType ctype;          // type of context
 
     union {
         string curKey;              // current key being parsed if this is an object
@@ -41,7 +41,7 @@ typedef struct JSONParseContext {
 typedef struct JSONParseEvent {
     JSONParseContext *ctx;
 
-    int etype;                      // type of event
+    JsonEventType etype;            // type of event
     union {
         int64 intData;
         double floatData;

@@ -16,7 +16,7 @@ typedef struct JSONOut {
     bool needeol;
 } JSONOut;
 
-static void writeStr(JSONOut *jo, strref str)
+static void writeStr(_Inout_ JSONOut *jo, _In_opt_ strref str)
 {
     foreach(string, si, str)
     {
@@ -24,7 +24,7 @@ static void writeStr(JSONOut *jo, strref str)
     }
 }
 
-static void writeStrEOL(JSONOut *jo, strref str)
+static void writeStrEOL(_Inout_ JSONOut *jo, _In_opt_ strref str)
 {
     writeStr(jo, str);
 
@@ -40,7 +40,8 @@ static void writeStrEOL(JSONOut *jo, strref str)
         sbufPWrite(jo->sb, (uint8*)"\r\n", 2);
 }
 
-JSONOut *jsonOutBegin(StreamBuffer *sb, uint32 flags)
+_Use_decl_annotations_
+JSONOut *jsonOutBegin(StreamBuffer *sb, flags_t flags)
 {
     JSONOut *jo = xaAlloc(sizeof(JSONOut), XA_Zero);
     jo->sb = sb;
@@ -70,7 +71,7 @@ JSONOut *jsonOutBegin(StreamBuffer *sb, uint32 flags)
     return jo;
 }
 
-static void writeIndent(JSONOut *jo)
+static void writeIndent(_Inout_ JSONOut *jo)
 {
     if (!strEmpty(jo->indent)) {
         for (int i = 0; i < jo->depth; i++) {
@@ -79,7 +80,7 @@ static void writeIndent(JSONOut *jo)
     }
 }
 
-static void beginVal(JSONOut *jo)
+static void beginVal(_Inout_ JSONOut *jo)
 {
     // we're an object in a key/value pair, this has already been done for the key
     if (jo->isobjval) {
@@ -99,7 +100,7 @@ static void beginVal(JSONOut *jo)
     writeIndent(jo);
 }
 
-static bool writeIntVal(JSONOut *jo, int64 val)
+static bool writeIntVal(_Inout_ JSONOut *jo, int64 val)
 {
     string temp = 0;
     if (!strFromInt64(&temp, val, 10))
@@ -111,7 +112,7 @@ static bool writeIntVal(JSONOut *jo, int64 val)
     return true;
 }
 
-static bool writeFloatVal(JSONOut *jo, double val)
+static bool writeFloatVal(_Inout_ JSONOut *jo, double val)
 {
     string temp = 0;
     if (!strFromFloat64(&temp, val))
@@ -123,7 +124,7 @@ static bool writeFloatVal(JSONOut *jo, double val)
     return true;
 }
 
-static void utfEscapedEncode(string *out, int32 codepoint)
+static void utfEscapedEncode(_Inout_ string *out, int32 codepoint)
 {
     string temp = 0;
     if (codepoint < 0x10000) {
@@ -155,7 +156,7 @@ static void utfEscapedEncode(string *out, int32 codepoint)
     strDestroy(&temp);
 }
 
-static void writeEscapedString(JSONOut *jo, strref val)
+static void writeEscapedString(_Inout_ JSONOut *jo, _In_opt_ strref val)
 {
     string escaped = 0;
     uint8 buf[5];
@@ -211,7 +212,7 @@ static void writeEscapedString(JSONOut *jo, strref val)
     strDestroy(&escaped);
 }
 
-static bool writeStringVal(JSONOut *jo, strref val)
+static bool writeStringVal(_Inout_ JSONOut *jo, _In_opt_ strref val)
 {
     writeStr(jo, _S"\"");
     writeEscapedString(jo, val);
@@ -220,6 +221,7 @@ static bool writeStringVal(JSONOut *jo, strref val)
     return true;
 }
 
+_Use_decl_annotations_
 bool jsonOut(JSONOut *jo, JSONParseEvent *ev)
 {
     bool ret = true;
@@ -319,6 +321,7 @@ bool jsonOut(JSONOut *jo, JSONParseEvent *ev)
     return ret;
 }
 
+_Use_decl_annotations_
 void jsonOutEnd(JSONOut **jo)
 {
     if (!((*jo)->flags & JSON_Single_Line))

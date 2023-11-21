@@ -24,19 +24,20 @@ enum JSON_OUT_FLAGS {
 // JSON OUTPUT
 // These functions write to a streambuffer in PUSH mode.
 // They should be repeatedly called with parse events in order to build the output.
-JSONOut *jsonOutBegin(StreamBuffer *sb, uint32 flags);
-bool jsonOut(JSONOut *jo, JSONParseEvent *ev);
-void jsonOutEnd(JSONOut **jo);
+_Ret_opt_valid_ JSONOut *jsonOutBegin(_Inout_ StreamBuffer *sb, flags_t flags);
+bool jsonOut(_Inout_ JSONOut *jo, _In_ JSONParseEvent *ev);
+_At_(*jo, _Pre_valid_ _Post_invalid_)
+void jsonOutEnd(_Inout_ JSONOut **jo);
 
 // JSON TREE OUTPUT
 
-bool _jsonOutTree(StreamBuffer *sb, SSDNode *tree, uint32 flags, SSDLockState *_ssdCurrentLockState);
-// bool jsonOutTree(StreamBuffer *sb, SSDNode *tree, uint32 flags)
+bool _jsonOutTree(_Inout_ StreamBuffer *sb, _In_ SSDNode *tree, flags_t flags, _Inout_opt_ SSDLockState *_ssdCurrentLockState);
+// bool jsonOutTree(StreamBuffer *sb, SSDNode *tree, flags_t flags)
 // Serialize an SSD tree to a streambuffer as JSON
 #define jsonOutTree(sb, tree, flags) _jsonOutTree(sb, tree, flags, (SSDLockState*)_ssdCurrentLockState)
 
-bool _jsonTreeToString(string *out, SSDNode *tree, uint32 flags, SSDLockState *_ssdCurrentLockState);
+bool _jsonTreeToString(_Inout_ string *out, _In_ SSDNode *tree, flags_t flags, _Inout_opt_ SSDLockState *_ssdCurrentLockState);
 // Serialize an SSD tree to a string
-// bool jsonTreeToString(string *out, SSDNode *tree, uint32 flags)
+// bool jsonTreeToString(string *out, SSDNode *tree, flags_t flags)
 #define jsonTreeToString(out, tree, flags) _jsonTreeToString(out, tree, flags, (SSDLockState*)_ssdCurrentLockState)
 

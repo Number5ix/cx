@@ -18,7 +18,7 @@ typedef struct ParseState {
     JSONParseContext *ctx;
 } ParseState;
 
-static void jsonCtxDestroy(JSONParseContext *ctx)
+static void jsonCtxDestroy(_Pre_valid_ _Post_invalid_ JSONParseContext *ctx)
 {
     if (ctx->ctype == JSON_Object) {
         strDestroy(&ctx->cdata.curKey);
@@ -27,7 +27,7 @@ static void jsonCtxDestroy(JSONParseContext *ctx)
     xaFree(ctx);
 }
 
-static void jsonClearEvent(JSONParseEvent *ev)
+static void jsonClearEvent(_Inout_ JSONParseEvent *ev)
 {
     if (ev->etype == JSON_Object_Key || ev->etype == JSON_String || ev->etype == JSON_Error) {
         strDestroy(&ev->edata.strData);
@@ -37,7 +37,7 @@ static void jsonClearEvent(JSONParseEvent *ev)
     ev->ctx = NULL;
 }
 
-static void jsonCallback(JSONParseEvent *ev, ParseState *ps)
+static void jsonCallback(_Inout_ JSONParseEvent *ev, _In_ ParseState *ps)
 {
     ev->ctx = ps->ctx;
     ps->callback(ev, ps->userdata);
@@ -50,7 +50,7 @@ static void jsonCallback(JSONParseEvent *ev, ParseState *ps)
         scratchp = 0; \
     }
 
-static bool parseString(StreamBuffer *sb, string *out, ParseState *ps)
+static bool parseString(_Inout_ StreamBuffer *sb, _Inout_ string *out, _Inout_ ParseState *ps)
 {
     bool ret = false;
     char scratch[SCRATCH_SZ+1] = { 0 };
@@ -194,7 +194,8 @@ static bool parseString(StreamBuffer *sb, string *out, ParseState *ps)
     return ret;
 }
 
-static bool parseNumInt(StreamBuffer *sb, bool neg, size_t intoff, size_t intlen, int64 *out, ParseState *ps)
+_Success_(return)
+static bool parseNumInt(_Inout_ StreamBuffer *sb, bool neg, size_t intoff, size_t intlen, _Out_ int64 *out, _Inout_ ParseState *ps)
 {
     int64 res = 0;
     int64 mult = 1;
@@ -227,7 +228,8 @@ static bool parseNumInt(StreamBuffer *sb, bool neg, size_t intoff, size_t intlen
     return true;
 }
 
-static bool parseNumFloat(StreamBuffer *sb, bool neg, size_t intoff, size_t intlen, size_t fracoff, size_t fraclen, bool expneg, size_t expoff, size_t explen, double *out, ParseState *ps)
+_Success_(return)
+static bool parseNumFloat(_Inout_ StreamBuffer *sb, bool neg, size_t intoff, size_t intlen, size_t fracoff, size_t fraclen, bool expneg, size_t expoff, size_t explen, _Out_ double *out, _Inout_ ParseState *ps)
 {
     // TODO: convert to cx strToFloat if/when those are implemented.
     // For now use system strtod because these algorithms are very complex.
@@ -242,7 +244,7 @@ static bool parseNumFloat(StreamBuffer *sb, bool neg, size_t intoff, size_t intl
     return true;
 }
 
-static bool parseNumber(StreamBuffer *sb, JSONParseEvent *ev, ParseState *ps)
+static bool parseNumber(_Inout_ StreamBuffer *sb, _Inout_ JSONParseEvent *ev, _Inout_ ParseState *ps)
 {
     unsigned char ch;
     int phase = 0;
@@ -318,7 +320,7 @@ static bool parseNumber(StreamBuffer *sb, JSONParseEvent *ev, ParseState *ps)
     return false;
 }
 
-static void skipWS(StreamBuffer *sb, ParseState *ps)
+static void skipWS(_Inout_ StreamBuffer *sb, _Inout_ ParseState *ps)
 {
     unsigned char ch;
 
@@ -339,7 +341,7 @@ static void skipWS(StreamBuffer *sb, ParseState *ps)
     }
 }
 
-static void pushCtx(StreamBuffer *sb, ParseState *ps, int newctype)
+static void pushCtx(_Inout_ StreamBuffer *sb, _Inout_ ParseState *ps, int newctype)
 {
     JSONParseContext *ctx = xaAlloc(sizeof(JSONParseContext), XA_Zero);
     ctx->ctype = newctype;
@@ -348,7 +350,7 @@ static void pushCtx(StreamBuffer *sb, ParseState *ps, int newctype)
     ps->depth++;
 }
 
-static bool popCtx(StreamBuffer *sb, ParseState *ps)
+static bool popCtx(_Inout_ StreamBuffer *sb, _Inout_ ParseState *ps)
 {
     if (!ps->ctx->parent)
         return false;
@@ -362,10 +364,10 @@ static bool popCtx(StreamBuffer *sb, ParseState *ps)
     return true;
 }
 
-static bool parseObject(StreamBuffer *sb, ParseState *ps);
-static bool parseArray(StreamBuffer *sb, ParseState *ps);
+static bool parseObject(_Inout_ StreamBuffer *sb, _Inout_ ParseState *ps);
+static bool parseArray(_Inout_ StreamBuffer *sb, _Inout_ ParseState *ps);
 
-static bool parseValue(StreamBuffer *sb, ParseState *ps)
+static bool parseValue(_Inout_ StreamBuffer *sb, _Inout_ ParseState *ps)
 {
     uint8 tmp[4];
     bool ret = false;
@@ -474,6 +476,7 @@ static bool parseValue(StreamBuffer *sb, ParseState *ps)
     return ret;
 }
 
+_Use_decl_annotations_
 static bool parseObject(StreamBuffer *sb, ParseState *ps)
 {
     bool ret = false;
@@ -533,6 +536,7 @@ static bool parseObject(StreamBuffer *sb, ParseState *ps)
     return ret;
 }
 
+_Use_decl_annotations_
 static bool parseArray(StreamBuffer *sb, ParseState *ps)
 {
     bool ret = false;
@@ -575,13 +579,14 @@ static bool parseArray(StreamBuffer *sb, ParseState *ps)
 }
 
 
-static bool parseTop(StreamBuffer *sb, ParseState *ps)
+static bool parseTop(_Inout_ StreamBuffer *sb, _Inout_ ParseState *ps)
 {
     ps->ctx->ctype = JSON_Top;
     // top-level context is really just a bare value
     return parseValue(sb, ps);
 }
 
+_Use_decl_annotations_
 bool jsonParse(StreamBuffer *sb, jsonParseCB callback, void *userdata)
 {
     bool ret = false;
