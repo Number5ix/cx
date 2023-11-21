@@ -16,14 +16,14 @@ enum SSD_FLAGS_ENUM {
     SSD_CaseInsensitive = 0x0001,       // keys in hashtables are case-insensitive
 };
 
-enum SSD_CREATE_TYPE_ENUM {
+typedef enum SSD_CREATE_TYPE_ENUM {
     SSD_Create_None = 0,
     SSD_Create_Hashtable,
     SSD_Create_Array,
     SSD_Create_Single,
 
     SSD_Create_Count
-};
+} SSDCreateType;
 
 typedef struct SSDLockDebug {
     int64 time;
@@ -51,10 +51,10 @@ enum SSD_LOCK_STATE_ENUM {
 
 // Initializes a lock structure
 #ifdef SSD_LOCK_DEBUG
-SSDLockState *__ssdLockStateInit(SSDLockState *lstate, const char *fn, int lnum);
+SSDLockState *__ssdLockStateInit(_Out_ SSDLockState *lstate, _In_z_ const char *fn, int lnum);
 #define _ssdLockStateInit(lstate) __ssdLockStateInit(lstate, __FILE__, __LINE__)
 #else
-SSDLockState *_ssdLockStateInit(SSDLockState *lstate);
+SSDLockState *_ssdLockStateInit(_Out_ SSDLockState *lstate);
 #endif
 
 // bool ssdLockRead(SSDNode *root)
@@ -63,11 +63,11 @@ SSDLockState *_ssdLockStateInit(SSDLockState *lstate);
 #ifdef SSD_LOCK_DEBUG
 #define ssdLockRead(root) _ssdLockRead(SSDNode(root), (SSDLockState*)&_ssdCurrentLockState->_is_SSDLockState, __FILE__, __LINE__)
 #define _ssdManualLockRead(root, lstate) _ssdLockRead(SSDNode(root), lstate, __FILE__, __LINE__)
-bool _ssdLockRead(SSDNode *root, SSDLockState *lstate, const char *fn, int lnum);
+bool _ssdLockRead(_Inout_ SSDNode *root, _Inout_ SSDLockState *lstate, _In_z_ const char *fn, int lnum);
 #else
 #define ssdLockRead(root) _ssdLockRead(SSDNode(root), _ssdCurrentLockState)
 #define _ssdManualLockRead(root, lstate) _ssdLockRead(SSDNode(root), lstate)
-bool _ssdLockRead(SSDNode *root, SSDLockState *lstate);
+bool _ssdLockRead(_Inout_ SSDNode *root, _Inout_ SSDLockState *lstate);
 #endif
 
 // bool ssdLockWrite(SSDNode *root)
@@ -79,20 +79,20 @@ bool _ssdLockRead(SSDNode *root, SSDLockState *lstate);
 #ifdef SSD_LOCK_DEBUG
 #define ssdLockWrite(root) _ssdLockWrite(SSDNode(root), (SSDLockState*)&_ssdCurrentLockState->_is_SSDLockState, __FILE__, __LINE__)
 #define _ssdManualLockWrite(root, lstate) _ssdLockWrite(SSDNode(root), lstate, __FILE__, __LINE__)
-bool _ssdLockWrite(SSDNode *root, SSDLockState *lstate, const char *fn, int lnum);
+bool _ssdLockWrite(_Inout_ SSDNode *root, _Inout_ SSDLockState *lstate, _In_z_ const char *fn, int lnum);
 #else
 #define ssdLockWrite(root) _ssdLockWrite(SSDNode(root), _ssdCurrentLockState)
 #define _ssdManualLockWrite(root, lstate) _ssdLockWrite(SSDNode(root), lstate)
-bool _ssdLockWrite(SSDNode *root, SSDLockState *lstate);
+bool _ssdLockWrite(_Inout_ SSDNode *root, _Inout_ SSDLockState *lstate);
 #endif
 
 // Unlocks the lock, potentially for re-use laster
 #define ssdUnlock(root) _ssdUnlock(SSDNode(root), (SSDLockState*)&_ssdCurrentLockState->_is_SSDLockState)
-bool _ssdUnlock(SSDNode *root, SSDLockState *lstate);
+bool _ssdUnlock(_Inout_ SSDNode *root, _Inout_ SSDLockState *lstate);
 
 // Ends a locked operation; destroys the lock
 #define ssdLockEnd(root) _ssdLockEnd(SSDNode(root), (SSDLockState*)&_ssdCurrentLockState->_is_SSDLockState)
-bool _ssdLockEnd(SSDNode *root, SSDLockState *lstate);
+bool _ssdLockEnd(_Inout_ SSDNode *root, _Inout_ SSDLockState *lstate);
 
 // Wraps a locked transaction. Should be used around a group of SSD transactions that
 // should be executed together.

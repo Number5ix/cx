@@ -6,7 +6,8 @@
 
 // Semi-Structured data tree
 
-SSDNode *_ssdCreateRoot(int crtype, SSDTree *tree, uint32 flags);
+_Ret_valid_
+SSDNode *_ssdCreateRoot(int crtype, _In_opt_ SSDTree *tree, uint32 flags);
 // Creates a new semi-structured tree with a hashtable as its root.
 // Returns a reference-counted object that must be disposed of with objRelease
 #define ssdCreateHashtable(...) _ssdCreateRoot(SSD_Create_Hashtable, NULL, opt_flags(__VA_ARGS__))
@@ -20,7 +21,8 @@ SSDNode *_ssdCreateRoot(int crtype, SSDTree *tree, uint32 flags);
 #define ssdCreateSingle(...) _ssdCreateRoot(SSD_Create_Single, NULL, opt_flags(__VA_ARGS__))
 #define ssdCreateCustom(crtype, tree) _ssdCreateRoot(crtype, tree, 0)
 
-SSDNode *_ssdClone(SSDNode *root, SSDTree *desttree, SSDLockState *lstate);
+_Ret_opt_valid_
+SSDNode *_ssdClone(_In_ SSDNode *root, _In_opt_ SSDTree *desttree, _Inout_opt_ SSDLockState *lstate);
 // SSDNode *ssdClone(SSDNode *root, SSDTree *desttree);
 // Creates a deep clone of root. If desttree is not NULL, associates the clone with that tree -- the
 // resulting node will be an isolated branch not yet attached to the rest of the tree but part of the
@@ -28,7 +30,8 @@ SSDNode *_ssdClone(SSDNode *root, SSDTree *desttree, SSDLockState *lstate);
 // Otherwise creates a new tree.
 #define ssdClone(root, desttree) _ssdClone(root, desttree, (SSDLockState*)_ssdCurrentLockState)
 
-SSDNode *_ssdSubtree(SSDNode *root, strref path, int create, SSDLockState *lstate);
+_Ret_opt_valid_
+SSDNode *_ssdSubtree(_In_ SSDNode *root, _In_opt_ strref path, SSDCreateType create, _Inout_opt_ SSDLockState *lstate);
 // SSDNode *ssdSubtree(SSDNode *root, strref path, int create);
 // Returns a node representing a subtree
 // If this node does not exist and the create parameter is any value other than SSD_Create_None,
@@ -36,7 +39,8 @@ SSDNode *_ssdSubtree(SSDNode *root, strref path, int create, SSDLockState *lstat
 // The caller inherits an object reference that must be freed with objRelease()
 #define ssdSubtree(root, path, create) _ssdSubtree(root, path, create, (SSDLockState*)_ssdCurrentLockState)
 
-SSDNode *_ssdSubtreeB(SSDNode *root, strref path, SSDLockState *lstate);
+_Ret_opt_valid_
+SSDNode *_ssdSubtreeB(_In_ SSDNode *root, _In_opt_ strref path, _Inout_opt_ SSDLockState *lstate);
 // SSDNode *ssdSubtreeB(SSDNode *root, strref path);
 // Borrowed version of ssdSubtree that does not acquire an object reference.
 // This version cannot be used standalone and must be part of a locked transaction.
@@ -78,14 +82,16 @@ SSDNode *_ssdSubtreeB(SSDNode *root, strref path, SSDLockState *lstate);
 // 
 // If automatic path traversal is not desired, the SSDNode interface can instead be directly used.
 
-bool _ssdGet(SSDNode *root, strref path, stvar *out, SSDLockState *lstate);
+_Success_(return)
+bool _ssdGet(_In_ SSDNode *root, _In_opt_ strref path, _Out_ stvar *out, _Inout_opt_ SSDLockState *lstate);
 // bool ssdGet(SSDNode *root, strref path, stvar *out);
 // CAUTION: The output stvar MUST be destroyed with stDestroy or it could cause a memory leak if the
 // value is a string or if a hashtable or array exists at that name. To avoid the hassle of memory
 // management, ssdPtr can be used instead.
 #define ssdGet(root, path, out) _ssdGet(root, path, out, (SSDLockState*)_ssdCurrentLockState)
 
-_meta_inline bool _ssdGetD(SSDNode *root, strref path, stvar *out, stvar def, SSDLockState *lstate)
+_Success_(return)
+_meta_inline bool _ssdGetD(_In_ SSDNode *root, _In_opt_ strref path, _Out_ stvar *out, stvar def, _Inout_opt_ SSDLockState *lstate)
 {
     if (_ssdGet(root, path, out, lstate))
         return true;
@@ -98,41 +104,44 @@ _meta_inline bool _ssdGetD(SSDNode *root, strref path, stvar *out, stvar def, SS
 // returns false in that case.
 #define ssdGetD(root, path, out, def) _ssdGetD(root, path, out, def, (SSDLockState*)_ssdCurrentLockState)
 
-bool _ssdCopyOut(SSDNode *root, strref path, stype valtype, stgeneric *val, SSDLockState *lstate);
+_Success_(return)
+bool _ssdCopyOut(_In_ SSDNode *root, _In_opt_ strref path, stype valtype, _stCopyDest_Anno_(valtype) stgeneric *val, _Inout_opt_ SSDLockState *lstate);
 // bool ssdCopyOut(SSDNode *root, strref path, stype valtype, stgeneric *val);
 // Variant of ssdGet that copies the value out of the tree to an arbitrary destination, converting
 // it in the process
 #define ssdCopyOut(root, path, vtype, val_copy_out) _ssdCopyOut(root, path, stCheckedPtrArg(vtype, val_copy_out), (SSDLockState*)_ssdCurrentLockState)
 
-bool _ssdCopyOutD(SSDNode *root, strref path, stype valtype, stgeneric *val, stgeneric def, SSDLockState *lstate);
+_Success_(return)
+bool _ssdCopyOutD(_In_ SSDNode *root, _In_opt_ strref path, stype valtype, _stCopyDest_Anno_(valtype) stgeneric *val, stgeneric def, _Inout_opt_ SSDLockState *lstate);
 // bool ssdCopyOutD(SSDNode *root, strref path, stype valtype, stgeneric *val, stgeneric def);
 // Variant of ssdGet that copies the value out of the tree to an arbitrary destination, converting
 // it in the process. Copies the default if the value is not found or can't be converted.
 #define ssdCopyOutD(root, path, vtype, val_copy_out, def) _ssdCopyOutD(root, path, stCheckedPtrArg(vtype, val_copy_out), stArg(vtype, def), (SSDLockState*)_ssdCurrentLockState)
 
-bool _ssdSet(SSDNode *root, strref path, bool createpath, stvar val, SSDLockState *lstate);
+bool _ssdSet(_Inout_ SSDNode *root, _In_opt_ strref path, bool createpath, stvar val, _Inout_opt_ SSDLockState *lstate);
 // bool ssdSet(SSDNode *root, strref path, bool createpath, stvar val);
 // If createpath is true, the path to the value is automatically created if necessary
 #define ssdSet(root, path, createpath, val) _ssdSet(root, path, createpath, val, (SSDLockState*)_ssdCurrentLockState)
 
-bool _ssdSetC(SSDNode *root, strref path, bool createpath, stvar *val, SSDLockState *lstate);
+bool _ssdSetC(_Inout_ SSDNode *root, _In_opt_ strref path, bool createpath, _Pre_notnull_ _Post_invalid_ stvar *val, _Inout_opt_ SSDLockState *lstate);
 // bool ssdSetC(SSDNode *root, strref path, bool createpath, stvar *val)
 // Consumes the given value even on failure.
 // If createpath is true, the path to the value is automatically created if necessary
 #define ssdSetC(root, path, createpath, val) _ssdSetC(root, path, createpath, val, (SSDLockState*)_ssdCurrentLockState)
 
-bool _ssdRemove(SSDNode *root, strref path, SSDLockState *lstate);
+bool _ssdRemove(_Inout_ SSDNode *root, _In_opt_ strref path, _Inout_opt_ SSDLockState *lstate);
 // bool ssdRemove(SSDNode *root, strref path);
 #define ssdRemove(root, path) _ssdRemove(root, path, (SSDLockState*)_ssdCurrentLockState)
 
-stvar *_ssdPtr(SSDNode *root, strref path, SSDLockState *lstate);
+stvar *_ssdPtr(_In_ SSDNode *root, _In_opt_ strref path, _Inout_ SSDLockState *lstate);
 // stvar *ssdPtr(SSDNode *root, strref path);
 // Unlike the other ssdtree functions, ssdPtr MUST be used within a locked transaction..
 // That is because the pointer returned by this function is only guaranteed to be valid so long as
 // the read or write lock is held.
 #define ssdPtr(root, path) _ssdPtr(root, path, (SSDLockState*)&_ssdCurrentLockState->_is_SSDLockState)
 
-_meta_inline strref _ssdStrRef(SSDNode *root, strref path, SSDLockState *lstate)
+_Ret_opt_valid_
+_meta_inline strref _ssdStrRef(_In_ SSDNode *root, _In_opt_ strref path, _Inout_ SSDLockState *lstate)
 {
     stvar *temp = _ssdPtr(root, path, lstate);
     return stvarIs(temp, string) ? temp->data.st_string : NULL;
@@ -142,7 +151,9 @@ _meta_inline strref _ssdStrRef(SSDNode *root, strref path, SSDLockState *lstate)
 // the internal storage!
 #define ssdStrRef(root, path) _ssdStrRef(root, path, (SSDLockState*)&_ssdCurrentLockState->_is_SSDLockState)
 
-_meta_inline ObjInst *_ssdObjInstPtr(SSDNode *root, strref path, SSDLockState *lstate)
+_Must_inspect_result_
+_Ret_opt_valid_
+_meta_inline ObjInst *_ssdObjInstPtr(_In_ SSDNode *root, _In_opt_ strref path, _Inout_ SSDLockState *lstate)
 {
     stvar *temp = _ssdPtr(root, path, lstate);
     return stvarIs(temp, object) ? temp->data.st_object : NULL;
@@ -157,7 +168,7 @@ _meta_inline ObjInst *_ssdObjInstPtr(SSDNode *root, strref path, SSDLockState *l
 
 // convenience functions to get various types inline with a default
 #define ssdval_spec(type) \
-    _meta_inline stTypeDef(type) _ssdVal_##type(SSDNode *root, strref path, stTypeDef(type) def, SSDLockState *lstate)  \
+    _meta_inline stTypeDef(type) _ssdVal_##type(_In_ SSDNode *root, _In_opt_ strref path, stTypeDef(type) def, _Inout_opt_ SSDLockState *lstate)  \
     {                                                                                                                   \
         stTypeDef(type) out;                                                                                            \
         _ssdCopyOutD(root, path, stCheckedPtrArg(type, &out), stArg(type, def), lstate);                                \
@@ -178,7 +189,7 @@ ssdval_spec(float64)
 #define ssdVal(type, root, path, def) \
     _ssdVal_##type(root, path, def, (SSDLockState*)_ssdCurrentLockState)
 
-_meta_inline bool _ssdStringOut(SSDNode *root, strref path, string *out, SSDLockState *lstate)
+_meta_inline bool _ssdStringOut(_In_ SSDNode *root, _In_opt_ strref path, _Inout_ string *out, _Inout_opt_ SSDLockState *lstate)
 {
     strDestroy(out);
     return _ssdCopyOut(root, path, stCheckedPtrArg(string, out), lstate);
@@ -186,7 +197,7 @@ _meta_inline bool _ssdStringOut(SSDNode *root, strref path, string *out, SSDLock
 // bool ssdStringOut(SSDNode *root, strref path, string *out)
 #define ssdStringOut(root, path, out) _ssdStringOut(root, path, out, (SSDLockState*)_ssdCurrentLockState)
 
-_meta_inline bool _ssdStringOutD(SSDNode *root, strref path, string *out, strref def, SSDLockState *lstate)
+_meta_inline bool _ssdStringOutD(_In_ SSDNode *root, _In_opt_ strref path, _Inout_ string *out, _In_opt_ strref def, _Inout_opt_ SSDLockState *lstate)
 {
     strDestroy(out);
     return _ssdCopyOutD(root, path, stCheckedPtrArg(string, out), stArg(strref, def), lstate);
@@ -195,15 +206,15 @@ _meta_inline bool _ssdStringOutD(SSDNode *root, strref path, string *out, strref
 #define ssdStringOutD(root, path, out, def) _ssdStringOutD(root, path, out, def, (SSDLockState*)_ssdCurrentLockState)
 
 // out must be an initialized array or a pointer to NULL.
-bool _ssdExportArray(SSDNode *root, strref path, sa_stvar *out, SSDLockState *lstate);
+bool _ssdExportArray(_In_ SSDNode *root, _In_opt_ strref path, _Inout_ sa_stvar *out, _Inout_opt_ SSDLockState *lstate);
 // bool ssdExportArray(SSDNode *root, strref path, sa_stvar *out)
 #define ssdExportArray(root, path, out) _ssdExportArray(root, path, out, (SSDLockState*)_ssdCurrentLockState)
-bool _ssdImportArray(SSDNode *root, strref path, sa_stvar arr, SSDLockState *lstate);
+bool _ssdImportArray(_Inout_ SSDNode *root, _In_opt_ strref path, _In_ sa_stvar arr, _Inout_opt_ SSDLockState *lstate);
 // bool ssdImportArray(SSDNode *root, strref path, sa_stvar arr)
 #define ssdImportArray(root, path, arr) _ssdImportArray(root, path, arr, (SSDLockState*)_ssdCurrentLockState)
 
-bool _ssdExportTypedArray(SSDNode *root, strref path, stype elemtype, sahandle out, bool strict, SSDLockState *lstate);
-bool _ssdImportTypedArray(SSDNode *root, strref path, stype elemtype, sa_ref arr, SSDLockState *lstate);
+bool _ssdExportTypedArray(_In_ SSDNode *root, _In_opt_ strref path, stype elemtype, _Inout_ sahandle out, bool strict, _Inout_opt_ SSDLockState *lstate);
+bool _ssdImportTypedArray(_Inout_ SSDNode *root, _In_opt_ strref path, stype elemtype, _In_ sa_ref arr, _Inout_opt_ SSDLockState *lstate);
 
 // bool ssdExportTypedArray(SSDNode *root, strref path, stype elemtype, sahandle out, bool strict)
 // out must be an initialized array or a pointer to NULL.
@@ -213,25 +224,26 @@ bool _ssdImportTypedArray(SSDNode *root, strref path, stype elemtype, sa_ref arr
 // bool ssdImportTypedArray(SSDNode *root, strref path, stype elemtype, sa_ref arr)
 #define ssdImportTypedArray(root, path, type, arr) _ssdImportTypedArray(root, path, stType(type), SAREF(arr), (SSDLockState*)_ssdCurrentLockState)
 
-int32 _ssdCount(SSDNode *root, strref path, bool arrayonly, SSDLockState *lstate);
+int32 _ssdCount(_In_ SSDNode *root, _In_opt_ strref path, bool arrayonly, _Inout_opt_ SSDLockState *lstate);
 // int32 ssdCount(SSDNode * root, strref path, bool arrayonly)
 // Returns the number of children of the given path.
 // If arrayonly is true, ssdCount will return 0 for hashtable nodes.
 #define ssdCount(root, path, arrayonly) _ssdCount(root, path, arrayonly, (SSDLockState*)_ssdCurrentLockState)
 
-stvar *_ssdIndex(SSDNode *root, strref path, int32 idx, SSDLockState *lstate);
+_Ret_opt_valid_
+stvar *_ssdIndex(_In_ SSDNode *root, _In_opt_ strref path, int32 idx, _Inout_ SSDLockState *lstate);
 // stvar *ssdIndex(SSDNode *root, strref path, int32 idx)
 // Gets a pointer to a given array index.
 // Like ssdPtr this requires lock state to be passed.
 #define ssdIndex(root, path, idx) _ssdIndex(root, path, idx, (SSDLockState*)&_ssdCurrentLockState->_is_SSDLockState)
 
-bool _ssdAppend(SSDNode *root, strref path, bool createpath, stvar val, SSDLockState *lstate);
+bool _ssdAppend(_Inout_ SSDNode *root, _In_opt_ strref path, bool createpath, stvar val, _Inout_opt_ SSDLockState *lstate);
 // bool ssdAppend(SSDNode *root, strref path, bool createpath, stvar val)
 // Similar to SSDSet, but appends the value to an array at the given path, creating the array
 // if necessary and createpath is true.
 #define ssdAppend(root, path, createpath, val) _ssdAppend(root, path, createpath, val, (SSDLockState*)_ssdCurrentLockState)
 
-bool _ssdGraft(SSDNode *dest, strref destpath, SSDLockState *dest_lstate, SSDNode *src, strref srcpath, SSDLockState *src_lstate);
+bool _ssdGraft(_Inout_ SSDNode *dest, _In_opt_ strref destpath, _Inout_opt_ SSDLockState *dest_lstate, _In_ SSDNode *src, _In_opt_ strref srcpath, _Inout_opt_ SSDLockState *src_lstate);
 // bool ssdGraft(SSDNode *dest, strref destpath, SSDNode *src, strref srcpath)
 // Grafts a subtree of the source tree onto the dest tree.
 // This deep copies the tree and associates the resulting nodes with the destination tree (creating them

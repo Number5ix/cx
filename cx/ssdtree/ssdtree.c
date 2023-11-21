@@ -8,8 +8,10 @@
 #ifdef SSD_LOCK_DEBUG
 #include <cx/format.h>
 #include <cx/time.h>
+_Use_decl_annotations_
 SSDLockState *__ssdLockStateInit(SSDLockState *lstate, const char *fn, int lnum)
 #else
+_Use_decl_annotations_
 SSDLockState *_ssdLockStateInit(SSDLockState *lstate)
 #endif
 {
@@ -24,8 +26,10 @@ SSDLockState *_ssdLockStateInit(SSDLockState *lstate)
 }
 
 #ifdef SSD_LOCK_DEBUG
+_Use_decl_annotations_
 bool _ssdLockRead(SSDNode *root, SSDLockState *lstate, const char *fn, int lnum)
 #else
+_Use_decl_annotations_
 bool _ssdLockRead(SSDNode *root, SSDLockState *lstate)
 #endif
 {
@@ -53,8 +57,10 @@ bool _ssdLockRead(SSDNode *root, SSDLockState *lstate)
 }
 
 #ifdef SSD_LOCK_DEBUG
+_Use_decl_annotations_
 bool _ssdLockWrite(SSDNode *root, SSDLockState *lstate, const char *fn, int lnum)
 #else
+_Use_decl_annotations_
 bool _ssdLockWrite(SSDNode *root, SSDLockState *lstate)
 #endif
 {
@@ -91,10 +97,13 @@ bool _ssdLockWrite(SSDNode *root, SSDLockState *lstate)
     return true;
 }
 
+_Use_decl_annotations_
 bool _ssdUnlock(SSDNode *root, SSDLockState *lstate)
 {
     if (!root || !lstate || !lstate->init)
         return false;
+
+    _Analysis_assume_lock_held_(root->tree->lock);
 
     if (lstate->wrlock)
         rwlockReleaseWrite(&root->tree->lock);
@@ -115,6 +124,7 @@ bool _ssdUnlock(SSDNode *root, SSDLockState *lstate)
     return true;
 }
 
+_Use_decl_annotations_
 bool _ssdLockEnd(SSDNode *root, SSDLockState *lstate)
 {
     if (!lstate)
@@ -124,6 +134,7 @@ bool _ssdLockEnd(SSDNode *root, SSDLockState *lstate)
     return ret;
 }
 
+_Use_decl_annotations_
 SSDNode *_ssdCreateRoot(int crtype, SSDTree *tree, uint32 flags)
 {
     bool created = false;
@@ -141,7 +152,8 @@ SSDNode *_ssdCreateRoot(int crtype, SSDTree *tree, uint32 flags)
     return ret;
 }
 
-static SSDNode *getChild(SSDNode *node, strref name, int checktype, int create, SSDLockState *_ssdCurrentLockState)
+_Ret_opt_valid_
+static SSDNode *getChild(_In_ SSDNode *node, _In_opt_ strref name, int checktype, int create, _Inout_ SSDLockState *_ssdCurrentLockState)
 {
 
     ssdLockRead(node);
@@ -187,7 +199,8 @@ static SSDNode *getChild(SSDNode *node, strref name, int checktype, int create, 
     return ret;
 }
 
-static bool ssdResolvePath(SSDNode *root, strref path, SSDNode **nodeout, string *nameout, bool create, SSDLockState *_ssdCurrentLockState)
+_Success_(return)
+static bool ssdResolvePath(_In_ SSDNode *root, _In_opt_ strref path, _Out_ SSDNode **nodeout, _Inout_ string *nameout, bool create, _Inout_ SSDLockState *_ssdCurrentLockState)
 {
     SSDNode *node = root;
     string name = 0;
@@ -256,6 +269,7 @@ out:
     return ret;
 }
 
+_Use_decl_annotations_
 bool _ssdGet(SSDNode *root, strref path, stvar *out, SSDLockState *_ssdCurrentLockState)
 {
     string name = 0;
@@ -272,6 +286,7 @@ bool _ssdGet(SSDNode *root, strref path, stvar *out, SSDLockState *_ssdCurrentLo
     return ret;
 }
 
+_Use_decl_annotations_
 stvar *_ssdPtr(SSDNode *root, strref path, SSDLockState *_ssdCurrentLockState)
 {
     SSDNode *node = NULL;
@@ -288,6 +303,7 @@ stvar *_ssdPtr(SSDNode *root, strref path, SSDLockState *_ssdCurrentLockState)
     return ret;
 }
 
+_Use_decl_annotations_
 bool _ssdSet(SSDNode *root, strref path, bool createpath, stvar val, SSDLockState *_ssdCurrentLockState)
 {
     string name = 0;
@@ -308,6 +324,7 @@ bool _ssdSet(SSDNode *root, strref path, bool createpath, stvar val, SSDLockStat
     return ret;
 }
 
+_Use_decl_annotations_
 bool _ssdSetC(SSDNode *root, strref path, bool createpath, stvar *val, SSDLockState *_ssdCurrentLockState)
 {
     string name = 0;
@@ -330,6 +347,7 @@ bool _ssdSetC(SSDNode *root, strref path, bool createpath, stvar *val, SSDLockSt
     return ret;
 }
 
+_Use_decl_annotations_
 bool _ssdRemove(SSDNode *root, strref path, SSDLockState *_ssdCurrentLockState)
 {
     string name = 0;
@@ -351,7 +369,8 @@ bool _ssdRemove(SSDNode *root, strref path, SSDLockState *_ssdCurrentLockState)
     return ret;
 }
 
-SSDNode *_ssdSubtree(SSDNode *root, strref path, int create, SSDLockState *_ssdCurrentLockState)
+_Use_decl_annotations_
+SSDNode *_ssdSubtree(SSDNode *root, strref path, SSDCreateType create, SSDLockState *_ssdCurrentLockState)
 {
     SSDNode *ret = NULL;
     string name = 0;
@@ -369,6 +388,7 @@ SSDNode *_ssdSubtree(SSDNode *root, strref path, int create, SSDLockState *_ssdC
     return ret;
 }
 
+_Use_decl_annotations_
 SSDNode *_ssdSubtreeB(SSDNode *root, strref path, SSDLockState *_ssdCurrentLockState)
 {
     if (!devVerifyMsg(_ssdCurrentLockState, "ssdSubtreeB must be used within a locked transaction"))
@@ -388,6 +408,7 @@ SSDNode *_ssdSubtreeB(SSDNode *root, strref path, SSDLockState *_ssdCurrentLockS
     return ret;
 }
 
+_Use_decl_annotations_
 bool _ssdCopyOut(SSDNode *root, strref path, stype valtype, stgeneric *val, SSDLockState *_ssdCurrentLockState)
 {
     bool ret = false;
@@ -408,6 +429,7 @@ bool _ssdCopyOut(SSDNode *root, strref path, stype valtype, stgeneric *val, SSDL
     return ret;
 }
 
+_Use_decl_annotations_
 bool _ssdCopyOutD(SSDNode *root, strref path, stype valtype, stgeneric *val, stgeneric def, SSDLockState *_ssdCurrentLockState)
 {
     bool ret = false;
@@ -431,6 +453,7 @@ bool _ssdCopyOutD(SSDNode *root, strref path, stype valtype, stgeneric *val, stg
     return ret;
 }
 
+_Use_decl_annotations_
 bool _ssdExportArray(SSDNode *root, strref path, sa_stvar *out, SSDLockState *_ssdCurrentLockState)
 {
     bool ret = false;
@@ -449,6 +472,7 @@ bool _ssdExportArray(SSDNode *root, strref path, sa_stvar *out, SSDLockState *_s
     return ret;
 }
 
+_Use_decl_annotations_
 bool _ssdExportTypedArray(SSDNode *root, strref path, stype elemtype, sahandle out, bool strict, SSDLockState *_ssdCurrentLockState)
 {
     bool ret = false;
@@ -481,6 +505,7 @@ out:
     return ret;
 }
 
+_Use_decl_annotations_
 bool _ssdImportArray(SSDNode *root, strref path, sa_stvar arr, SSDLockState *_ssdCurrentLockState)
 {
     devAssert(stEq(saElemType(arr), stType(stvar)));            // double check this is the right kind of array
@@ -504,6 +529,7 @@ bool _ssdImportArray(SSDNode *root, strref path, sa_stvar arr, SSDLockState *_ss
     return ret;
 }
 
+_Use_decl_annotations_
 bool _ssdImportTypedArray(SSDNode *root, strref path, stype elemtype, sa_ref arr, SSDLockState *_ssdCurrentLockState)
 {
     devAssert(stEq(saElemType(arr), elemtype));             // double check this is the right kind of array
@@ -532,7 +558,8 @@ bool _ssdImportTypedArray(SSDNode *root, strref path, stype elemtype, sa_ref arr
     return ret;
 }
 
-static SSDNode *ssdCloneNode(SSDNode *src, SSDLockState *srclstate, SSDTree *desttree, SSDLockState *destlstate)
+_Ret_opt_valid_
+static SSDNode *ssdCloneNode(_In_ SSDNode *src, _Inout_opt_ SSDLockState *srclstate, _In_ SSDTree *desttree, _Inout_opt_ SSDLockState *destlstate)
 {
     SSDNode *dnode;
     if (ssdnodeIsHashtable(src))
@@ -564,6 +591,7 @@ static SSDNode *ssdCloneNode(SSDNode *src, SSDLockState *srclstate, SSDTree *des
     return dnode;
 }
 
+_Use_decl_annotations_
 SSDNode *_ssdClone(SSDNode *root, SSDTree *desttree, SSDLockState *_ssdCurrentLockState)
 {
     SSDNode *ret = NULL;
@@ -582,7 +610,8 @@ SSDNode *_ssdClone(SSDNode *root, SSDTree *desttree, SSDLockState *_ssdCurrentLo
         SSDLockState destlock;
         _ssdLockStateInit(&destlock);
         ret = ssdCloneNode(root, _ssdCurrentLockState, desttree, &destlock);
-        _ssdLockEnd(ret, &destlock);
+        if (ret)
+            _ssdLockEnd(ret, &destlock);
     }
 
     if (createdtree) {
@@ -592,6 +621,7 @@ SSDNode *_ssdClone(SSDNode *root, SSDTree *desttree, SSDLockState *_ssdCurrentLo
     return ret;
 }
 
+_Use_decl_annotations_
 bool _ssdGraft(SSDNode *dest, strref destpath, SSDLockState *dest_lstate, SSDNode *src, strref srcpath, SSDLockState *src_lstate)
 {
     // have to do this the old fashioned way; _ssdCurrentLockState only works for one at a time
@@ -636,6 +666,7 @@ out:
     return ret;
 }
 
+_Use_decl_annotations_
 int32 _ssdCount(SSDNode *root, strref path, bool arrayonly, SSDLockState *_ssdCurrentLockState)
 {
     int32 ret = 0;
@@ -655,6 +686,7 @@ int32 _ssdCount(SSDNode *root, strref path, bool arrayonly, SSDLockState *_ssdCu
     return ret;
 }
 
+_Use_decl_annotations_
 stvar *_ssdIndex(SSDNode *root, strref path, int32 idx, SSDLockState *_ssdCurrentLockState)
 {
     if (!devVerifyMsg(_ssdCurrentLockState, "ssdIndex must be used within a locked transaction"))
@@ -672,6 +704,7 @@ stvar *_ssdIndex(SSDNode *root, strref path, int32 idx, SSDLockState *_ssdCurren
     return NULL;
 }
 
+_Use_decl_annotations_
 bool _ssdAppend(SSDNode *root, strref path, bool createpath, stvar val, SSDLockState *_ssdCurrentLockState)
 {
     bool ret = false;

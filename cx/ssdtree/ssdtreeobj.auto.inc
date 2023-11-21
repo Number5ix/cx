@@ -7,7 +7,7 @@ SSDTree_ClassIf SSDTree_ClassIf_tmpl = {
 static SSDTree_ClassIf _impl_SSDTree_SSDTree_ClassIf = {
     ._size = sizeof(SSDTree_ClassIf),
     ._implements = (ObjIface*)&SSDTree_ClassIf_tmpl,
-    .createNode = (SSDNode *(*)(void*, int))SSDTree_createNode,
+    .createNode = (SSDNode *(*)(void*, SSDCreateType))SSDTree_createNode,
 };
 
 static ObjIface *_ifimpl_SSDTree[] = {

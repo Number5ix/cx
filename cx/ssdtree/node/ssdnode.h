@@ -28,7 +28,7 @@ typedef struct SSDIteratorIf {
     stvar *(*ptr)(_Inout_ void *self);
     strref (*name)(_Inout_ void *self);
     int32 (*idx)(_Inout_ void *self);
-    bool (*iterOut)(_Inout_ void *self, int32 *idx, strref *name, stvar **val);
+    bool (*iterOut)(_Inout_ void *self, _When_(return == true, _Out_) int32 *idx, _When_(return == true, _Out_) strref *name, _When_(return == true, _Out_) stvar **val);
 } SSDIteratorIf;
 extern SSDIteratorIf SSDIteratorIf_tmpl;
 
@@ -38,26 +38,26 @@ typedef struct SSDNodeIf {
     size_t _size;
 
     // Gets a value. Caller owns the value and must destroy it with stDestroy!
-    bool (*get)(_Inout_ void *self, int32 idx, _In_opt_ strref name, stvar *out, SSDLockState *_ssdCurrentLockState);
+    bool (*get)(_Inout_ void *self, int32 idx, _In_opt_ strref name, _When_(return == true, _Out_) stvar *out, _Inout_ SSDLockState *_ssdCurrentLockState);
     // Gets a pointer to a value. This points to the internal storage within the node
     // so it is only guaranteed to be valid while the read lock is held.
-    stvar *(*ptr)(_Inout_ void *self, int32 idx, _In_opt_ strref name, SSDLockState *_ssdCurrentLockState);
+    _Ret_opt_valid_ stvar *(*ptr)(_Inout_ void *self, int32 idx, _In_opt_ strref name, _Inout_ SSDLockState *_ssdCurrentLockState);
     // Sets the given value
-    bool (*set)(_Inout_ void *self, int32 idx, _In_opt_ strref name, stvar val, SSDLockState *_ssdCurrentLockState);
+    bool (*set)(_Inout_ void *self, int32 idx, _In_opt_ strref name, stvar val, _Inout_ SSDLockState *_ssdCurrentLockState);
     // Same as setValue but consumes the value
     // (consumes even on failure)
-    bool (*setC)(_Inout_ void *self, int32 idx, _In_opt_ strref name, stvar *val, SSDLockState *_ssdCurrentLockState);
+    bool (*setC)(_Inout_ void *self, int32 idx, _In_opt_ strref name, _Inout_ stvar *val, _Inout_ SSDLockState *_ssdCurrentLockState);
     // Removes a value
-    bool (*remove)(_Inout_ void *self, int32 idx, _In_opt_ strref name, SSDLockState *_ssdCurrentLockState);
+    bool (*remove)(_Inout_ void *self, int32 idx, _In_opt_ strref name, _Inout_ SSDLockState *_ssdCurrentLockState);
     // How many values / objects does this node contain?
-    int32 (*count)(_Inout_ void *self, SSDLockState *_ssdCurrentLockState);
+    int32 (*count)(_Inout_ void *self, _Inout_ SSDLockState *_ssdCurrentLockState);
     // IMPORTANT NOTE: The generic object iterator interface cannot take any parameters;
     // thus it always acquires a transient read lock and holds it until the iterator is
     // destroyed. The caller MUST NOT already have an SSDLock held.
     // If you want to use iterators inside a larger locked transaction or modify the tree,
     // use iterLocked() instead.
-    SSDIterator *(*iter)(_Inout_ void *self);
-    SSDIterator *(*_iterLocked)(_Inout_ void *self, SSDLockState *_ssdCurrentLockState);
+    _Ret_valid_ SSDIterator *(*iter)(_Inout_ void *self);
+    SSDIterator *(*_iterLocked)(_Inout_ void *self, _Inout_ SSDLockState *_ssdCurrentLockState);
 } SSDNodeIf;
 extern SSDNodeIf SSDNodeIf_tmpl;
 
@@ -74,7 +74,7 @@ typedef struct SSDIterator_ClassIf {
     stvar *(*ptr)(_Inout_ void *self);
     strref (*name)(_Inout_ void *self);
     int32 (*idx)(_Inout_ void *self);
-    bool (*iterOut)(_Inout_ void *self, int32 *idx, strref *name, stvar **val);
+    bool (*iterOut)(_Inout_ void *self, _When_(return == true, _Out_) int32 *idx, _When_(return == true, _Out_) strref *name, _When_(return == true, _Out_) stvar **val);
 } SSDIterator_ClassIf;
 extern SSDIterator_ClassIf SSDIterator_ClassIf_tmpl;
 
@@ -88,26 +88,26 @@ typedef struct SSDNode_ClassIf {
     // This node is an array that contains values or objects by array index
     bool (*isArray)(_Inout_ void *self);
     // Gets a value. Caller owns the value and must destroy it with stDestroy!
-    bool (*get)(_Inout_ void *self, int32 idx, _In_opt_ strref name, stvar *out, SSDLockState *_ssdCurrentLockState);
+    bool (*get)(_Inout_ void *self, int32 idx, _In_opt_ strref name, _When_(return == true, _Out_) stvar *out, _Inout_ SSDLockState *_ssdCurrentLockState);
     // Gets a pointer to a value. This points to the internal storage within the node
     // so it is only guaranteed to be valid while the read lock is held.
-    stvar *(*ptr)(_Inout_ void *self, int32 idx, _In_opt_ strref name, SSDLockState *_ssdCurrentLockState);
+    _Ret_opt_valid_ stvar *(*ptr)(_Inout_ void *self, int32 idx, _In_opt_ strref name, _Inout_ SSDLockState *_ssdCurrentLockState);
     // Sets the given value
-    bool (*set)(_Inout_ void *self, int32 idx, _In_opt_ strref name, stvar val, SSDLockState *_ssdCurrentLockState);
+    bool (*set)(_Inout_ void *self, int32 idx, _In_opt_ strref name, stvar val, _Inout_ SSDLockState *_ssdCurrentLockState);
     // Same as setValue but consumes the value
     // (consumes even on failure)
-    bool (*setC)(_Inout_ void *self, int32 idx, _In_opt_ strref name, stvar *val, SSDLockState *_ssdCurrentLockState);
+    bool (*setC)(_Inout_ void *self, int32 idx, _In_opt_ strref name, _Inout_ stvar *val, _Inout_ SSDLockState *_ssdCurrentLockState);
     // Removes a value
-    bool (*remove)(_Inout_ void *self, int32 idx, _In_opt_ strref name, SSDLockState *_ssdCurrentLockState);
+    bool (*remove)(_Inout_ void *self, int32 idx, _In_opt_ strref name, _Inout_ SSDLockState *_ssdCurrentLockState);
     // How many values / objects does this node contain?
-    int32 (*count)(_Inout_ void *self, SSDLockState *_ssdCurrentLockState);
+    int32 (*count)(_Inout_ void *self, _Inout_ SSDLockState *_ssdCurrentLockState);
     // IMPORTANT NOTE: The generic object iterator interface cannot take any parameters;
     // thus it always acquires a transient read lock and holds it until the iterator is
     // destroyed. The caller MUST NOT already have an SSDLock held.
     // If you want to use iterators inside a larger locked transaction or modify the tree,
     // use iterLocked() instead.
-    SSDIterator *(*iter)(_Inout_ void *self);
-    SSDIterator *(*_iterLocked)(_Inout_ void *self, SSDLockState *_ssdCurrentLockState);
+    _Ret_valid_ SSDIterator *(*iter)(_Inout_ void *self);
+    SSDIterator *(*_iterLocked)(_Inout_ void *self, _Inout_ SSDLockState *_ssdCurrentLockState);
 } SSDNode_ClassIf;
 extern SSDNode_ClassIf SSDNode_ClassIf_tmpl;
 
@@ -128,7 +128,7 @@ extern ObjClassInfo SSDIterator_clsinfo;
 #define SSDIterator(inst) ((SSDIterator*)(unused_noeval((inst) && &((inst)->_is_SSDIterator)), (inst)))
 #define SSDIteratorNone ((SSDIterator*)NULL)
 
-ObjInst *SSDIterator_objInst(_Inout_ SSDIterator *self);
+_Ret_opt_valid_ ObjInst *SSDIterator_objInst(_Inout_ SSDIterator *self);
 // ObjInst *ssditeratorObjInst(SSDIterator *self);
 #define ssditeratorObjInst(self) SSDIterator_objInst(SSDIterator(self))
 

@@ -50,7 +50,7 @@ bool SSDIterator_isArray(_Inout_ SSDIterator *self)
     return false;
 }
 
-ObjInst *SSDIterator_objInst(_Inout_ SSDIterator *self)
+_Ret_opt_valid_ ObjInst *SSDIterator_objInst(_Inout_ SSDIterator *self)
 {
     return stvarObjInst(self->_->ptr(self));
 }

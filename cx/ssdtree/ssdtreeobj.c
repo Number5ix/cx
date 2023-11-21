@@ -16,11 +16,7 @@ _objfactory_guaranteed SSDTree *SSDTree_create(uint32 flags)
 
     self->flags = flags;
 
-    if (!objInstInit(self)) {
-        objRelease(&self);
-        return NULL;
-    }
-
+    objInstInit(self);
     return self;
 }
 
@@ -46,10 +42,14 @@ _objinit_guaranteed bool SSDTree_init(_Inout_ SSDTree *self)
     // Autogen ends -------
 }
 
-SSDNode *SSDTree_createNode(_Inout_ SSDTree *self, int crtype)
+_objfactory_guaranteed SSDNode *SSDTree_createNode(_Inout_ SSDTree *self, _In_range_(SSD_Create_None+1, SSD_Create_Count-1) SSDCreateType crtype)
 {
-    devAssert(crtype >= 0 && crtype < SSD_Create_Count);
-    if (!(crtype >= 0 && crtype < SSD_Create_Count) || !self->factories[crtype])
+    devAssert(crtype > SSD_Create_None && crtype < SSD_Create_Count);
+
+    bool valid = crtype > SSD_Create_None && crtype < SSD_Create_Count && self->factories[crtype];
+
+    _Analysis_assume_(valid == true);
+    if (!valid)
         return NULL;
 
     return self->factories[crtype](self);

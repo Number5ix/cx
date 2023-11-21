@@ -17,11 +17,7 @@ _objfactory_guaranteed SSDHashNode *SSDHashNode__create(SSDTree *tree)
     self->tree = objAcquire(tree);
     ssdnodeUpdateModified(self);
 
-    if (!objInstInit(self)) {
-        objRelease(&self);
-        return NULL;
-    }
-
+    objInstInit(self);
     return self;
 }
 
@@ -37,7 +33,7 @@ _objinit_guaranteed bool SSDHashNode_init(_Inout_ SSDHashNode *self)
     // Autogen ends -------
 }
 
-bool SSDHashNode_get(_Inout_ SSDHashNode *self, int32 idx, _In_opt_ strref name, stvar *out, SSDLockState *_ssdCurrentLockState)
+bool SSDHashNode_get(_Inout_ SSDHashNode *self, int32 idx, _In_opt_ strref name, _When_(return == true, _Out_) stvar *out, _Inout_ SSDLockState *_ssdCurrentLockState)
 {
     bool ret = false;
 
@@ -53,7 +49,7 @@ out:
     return ret;
 }
 
-stvar *SSDHashNode_ptr(_Inout_ SSDHashNode *self, int32 idx, _In_opt_ strref name, SSDLockState *_ssdCurrentLockState)
+_Ret_opt_valid_ stvar *SSDHashNode_ptr(_Inout_ SSDHashNode *self, int32 idx, _In_opt_ strref name, _Inout_ SSDLockState *_ssdCurrentLockState)
 {
     if (idx != SSD_ByName)
         return NULL;
@@ -67,7 +63,7 @@ stvar *SSDHashNode_ptr(_Inout_ SSDHashNode *self, int32 idx, _In_opt_ strref nam
     return NULL;
 }
 
-bool SSDHashNode_set(_Inout_ SSDHashNode *self, int32 idx, _In_opt_ strref name, stvar val, SSDLockState *_ssdCurrentLockState)
+bool SSDHashNode_set(_Inout_ SSDHashNode *self, int32 idx, _In_opt_ strref name, stvar val, _Inout_ SSDLockState *_ssdCurrentLockState)
 {
     if (idx != SSD_ByName)
         return false;
@@ -78,7 +74,7 @@ bool SSDHashNode_set(_Inout_ SSDHashNode *self, int32 idx, _In_opt_ strref name,
     return true;
 }
 
-bool SSDHashNode_setC(_Inout_ SSDHashNode *self, int32 idx, _In_opt_ strref name, stvar *val, SSDLockState *_ssdCurrentLockState)
+bool SSDHashNode_setC(_Inout_ SSDHashNode *self, int32 idx, _In_opt_ strref name, _Inout_ stvar *val, _Inout_ SSDLockState *_ssdCurrentLockState)
 {
     if (idx != SSD_ByName) {
         stvarDestroy(val);
@@ -92,7 +88,7 @@ bool SSDHashNode_setC(_Inout_ SSDHashNode *self, int32 idx, _In_opt_ strref name
     return true;
 }
 
-bool SSDHashNode_remove(_Inout_ SSDHashNode *self, int32 idx, _In_opt_ strref name, SSDLockState *_ssdCurrentLockState)
+bool SSDHashNode_remove(_Inout_ SSDHashNode *self, int32 idx, _In_opt_ strref name, _Inout_ SSDLockState *_ssdCurrentLockState)
 {
     if (idx != SSD_ByName)
         return false;
@@ -104,19 +100,19 @@ bool SSDHashNode_remove(_Inout_ SSDHashNode *self, int32 idx, _In_opt_ strref na
     return ret;
 }
 
-SSDIterator *SSDHashNode_iter(_Inout_ SSDHashNode *self)
+_Ret_valid_ SSDIterator *SSDHashNode_iter(_Inout_ SSDHashNode *self)
 {
     SSDHashIter *ret = ssdhashiterCreate(self, NULL);
     return SSDIterator(ret);
 }
 
-SSDIterator *SSDHashNode__iterLocked(_Inout_ SSDHashNode *self, SSDLockState *_ssdCurrentLockState)
+SSDIterator *SSDHashNode__iterLocked(_Inout_ SSDHashNode *self, _Inout_ SSDLockState *_ssdCurrentLockState)
 {
     SSDHashIter *ret = ssdhashiterCreate(self, _ssdCurrentLockState);
     return SSDIterator(ret);
 }
 
-int32 SSDHashNode_count(_Inout_ SSDHashNode *self, SSDLockState *_ssdCurrentLockState)
+int32 SSDHashNode_count(_Inout_ SSDHashNode *self, _Inout_ SSDLockState *_ssdCurrentLockState)
 {
     ssdLockRead(self);
     return htSize(self->storage);
@@ -146,10 +142,7 @@ _objfactory_guaranteed SSDHashIter *SSDHashIter_create(SSDHashNode *node, SSDLoc
     self->node = (SSDNode*)objAcquire(node);
     self->lstate = lstate;
 
-    if (!objInstInit(self)) {
-        objRelease(&self);
-        return NULL;
-    }
+    objInstInit(self);
 
     // grab iterator after object init because base SSDIterator will lock the tree
     // for read access during the above call to objInstInit
@@ -224,7 +217,7 @@ strref SSDHashIter_name(_Inout_ SSDHashIter *self)
     return ret;
 }
 
-bool SSDHashIter_iterOut(_Inout_ SSDHashIter *self, int32 *idx, strref *name, stvar **val)
+bool SSDHashIter_iterOut(_Inout_ SSDHashIter *self, _When_(return == true, _Out_) int32 *idx, _When_(return == true, _Out_) strref *name, _When_(return == true, _Out_) stvar **val)
 {
     _ssdManualLockRead(self->node, self->lstate);
     // this shouldn't be used in transient lock mode

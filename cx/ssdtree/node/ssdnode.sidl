@@ -14,7 +14,9 @@ interface SSDIteratorIf extends IteratorIf
     strref name();
     int32 idx();
 
-    bool iterOut(int32 *idx, strref *name, stvar **val);
+    bool iterOut([sal _When_(return == true, _Out_)] int32 *idx,
+        [sal _When_(return == true, _Out_)] strref *name,
+        [sal _When_(return == true, _Out_)] stvar **val);
 }
 
 abstract class SSDIterator implements SSDIteratorIf
@@ -26,7 +28,7 @@ abstract class SSDIterator implements SSDIteratorIf
 
     bool isHashtable();
     bool isArray();
-    unbound ObjInst *objInst();
+    [opt] [valid] unbound ObjInst *objInst();
 
     init();
     destroy();
@@ -35,33 +37,33 @@ abstract class SSDIterator implements SSDIteratorIf
 interface SSDNodeIf
 {
     // Gets a value. Caller owns the value and must destroy it with stDestroy!
-    bool get(int32 idx, strref name, stvar *out, SSDLockState *_ssdCurrentLockState);
+    bool get(int32 idx, strref name, [sal _When_(return == true, _Out_)] stvar *out, [inout] SSDLockState *_ssdCurrentLockState);
 
     // Gets a pointer to a value. This points to the internal storage within the node
     // so it is only guaranteed to be valid while the read lock is held.
-    stvar *ptr(int32 idx, strref name, SSDLockState *_ssdCurrentLockState);
+    [opt] [valid] stvar *ptr(int32 idx, strref name, [inout] SSDLockState *_ssdCurrentLockState);
 
     // Sets the given value
-    bool set(int32 idx, strref name, stvar val, SSDLockState *_ssdCurrentLockState);
+    bool set(int32 idx, strref name, stvar val, [inout] SSDLockState *_ssdCurrentLockState);
 
     // Same as setValue but consumes the value
     // (consumes even on failure)
-    bool setC(int32 idx, strref name, stvar *val, SSDLockState *_ssdCurrentLockState);
+    bool setC(int32 idx, strref name, [inout] stvar *val, [inout] SSDLockState *_ssdCurrentLockState);
 
     // Removes a value
-    bool remove(int32 idx, strref name, SSDLockState *_ssdCurrentLockState);
+    bool remove(int32 idx, strref name, [inout] SSDLockState *_ssdCurrentLockState);
 
     // How many values / objects does this node contain?
-    int32 count(SSDLockState *_ssdCurrentLockState);
+    int32 count([inout] SSDLockState *_ssdCurrentLockState);
 
     // IMPORTANT NOTE: The generic object iterator interface cannot take any parameters;
     // thus it always acquires a transient read lock and holds it until the iterator is
     // destroyed. The caller MUST NOT already have an SSDLock held.
     // If you want to use iterators inside a larger locked transaction or modify the tree,
     // use iterLocked() instead.
-    SSDIterator *iter();
+    [valid] SSDIterator *iter();
 
-    SSDIterator *_iterLocked(SSDLockState *_ssdCurrentLockState);
+    SSDIterator *_iterLocked([inout] SSDLockState *_ssdCurrentLockState);
 }
 
 abstract class SSDNode implements SSDNodeIf implements Iterable
