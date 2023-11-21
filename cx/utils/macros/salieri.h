@@ -1714,6 +1714,10 @@
 #define _Analysis_assume_(expr)
 #endif
 
+#ifndef _Analysis_assume_lock_held_
+#define _Analysis_assume_lock_held_(expr)
+#endif
+
 #ifndef _Analysis_noreturn_
 #define _Analysis_noreturn_
 #endif
