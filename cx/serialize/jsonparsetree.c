@@ -111,8 +111,9 @@ void jsonTreeCB(_In_ JSONParseEvent *ev, _Inout_opt_ void *userdata)
         setVal(jts, ev->ctx, stvNone);
         break;
     case JSON_Error:
-    default:
         jts->error = true;
+        break;
+    default:
         break;
     }
 }
