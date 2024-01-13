@@ -43,11 +43,11 @@ bool pathMatch(strref path, strref pattern, uint32 flags)
             // optimize for pattern with * at end or before /
             if (c == 0) {
                 if (!(flags & PATH_IgnorePath))
-                    return ((flags & PATH_LeadingDir) || strFind(path, pathi.off, fsPathSepStr) == -1) ? true : false;
+                    return ((flags & PATH_LeadingDir) || strFind(path, pathi.off + pathi.cursor, fsPathSepStr) == -1) ? true : false;
                 else
                     return true;
             } else if (c == '/' && !(flags & PATH_IgnorePath)) {
-                int32 off = strFind(path, pathi.off, fsPathSepStr);
+                int32 off = strFind(path, pathi.off + pathi.cursor, fsPathSepStr);
                 if (off == -1)
                     return false;
                 striSeek(&pathi, off, STRI_BYTE, STRI_SET);
