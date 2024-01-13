@@ -12,6 +12,23 @@ bool pathMatch(strref path, strref pattern, uint32 flags)
     striBorrow(&pathi, path);
     striBorrow(&pati, pattern);
 
+    if (flags & PATH_Smart) {
+        if (striPeekChar(&pati, &patc) && patc == '/') {
+            // leading /, pattern is a full path
+            striSeek(&pati, 1, STRI_BYTE, STRI_SET);
+            flags |= PATH_LeadingDir;
+
+            // skip any leading / in pathname too
+            if (striPeekChar(&pathi, &pathc) && pathc == '/')
+                striSeek(&pathi, 1, STRI_BYTE, STRI_SET);
+        } else {
+            // not a full path, do a filename match only
+            int32 lslash = strFindR(path, strEnd, fsPathSepStr);
+            if (lslash != -1)
+                striSeek(&pathi, lslash + 1, STRI_BYTE, STRI_SET);
+        }
+    }
+
     for (;;) {
         if (!striChar(&pati, &patc))
             patc = 0;
