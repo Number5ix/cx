@@ -15,6 +15,7 @@ create_test_sourcelist(testsrc
     jsontest.c
     converttest.c
     mathtest.c
+    fstest.c
     alltests.c)
 add_sidl(converttestobj.sidl
     fmttestobj.sidl
@@ -120,3 +121,4 @@ add_test(NAME "\"json: Tree Output\"" COMMAND test_runner jsontest treeout)
 add_test(NAME "\"math: PCG Random Integer\"" COMMAND test_runner mathtest pcgint)
 add_test(NAME "\"math: PCG Random Float\"" COMMAND test_runner mathtest pcgfloat)
 add_test(NAME "\"math: PCG Error Condition\"" COMMAND test_runner mathtest pcgerror)
+add_test(NAME "\"fs: Path Matching\"" COMMAND test_runner fstest pathmatch)
