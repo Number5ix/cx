@@ -4,7 +4,7 @@
 #include <cx/meta/block.h>
 #include <cx/container/sarray.h>
 
-#if DEBUG_LEVEL > 0
+#if DEBUG_LEVEL > 1
 #define SSD_LOCK_DEBUG 1
 #endif
 
