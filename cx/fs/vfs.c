@@ -302,8 +302,10 @@ static int vfsFindCISub(_Inout_ VFSDir *vdir, _Inout_ string *out, _In_opt_ strr
 
     // get a directory listing from the current depth
     FSSearchIter dsiter;
-    if (!provif->searchInit(mount->provider, &dsiter, path, NULL, false))
+    if (!provif->searchInit(mount->provider, &dsiter, path, NULL, false)) {
+        provif->searchFinish(mount->provider, &dsiter);
         return ret;
+    }
 
     do {
         pathJoin(&filepath, path, dsiter.name);

@@ -119,8 +119,10 @@ bool vfsSearchInit(FSSearchIter *iter, VFS *vfs, strref path, strref pattern, in
 
             // see if we can get a directory listing out of it
             FSSearchIter dsiter;
-            if (!provif->searchInit(provider, &dsiter, curpath, pattern, stat))
+            if (!provif->searchInit(provider, &dsiter, curpath, pattern, stat)) {
+                provif->searchFinish(provider, &dsiter);
                 continue;
+            }
 
             // we did! so gather up all the files
             do {
