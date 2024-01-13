@@ -202,6 +202,8 @@ void vfsSearchFinish(FSSearchIter *iter)
     if (!search)
         return;
 
+    strDestroy(&iter->name);
+
     saDestroy(&search->ents);
     objRelease(&search->vfs);
     xaRelease(&iter->_search);
