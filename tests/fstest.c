@@ -67,9 +67,9 @@ static int test_fs_pathmatch()
         ret = 1;
     if (!pathMatch(tpath1, _S"/abs/p*h/to/dir1/file7.txt", 0))
         ret = 1;
-    if (pathMatch(tpath1, _S"/????/p*h/to/dir1/file7.txt", 0))
+    if (pathMatch(tpath1, _S"/???\?/p*h/to/dir1/file7.txt", 0))
         ret = 1;
-    if (!pathMatch(tpath1, _S"/???/p*h/to/dir1/file7.txt", 0))
+    if (!pathMatch(tpath1, _S"/??\?/p*h/to/dir1/file7.txt", 0))
         ret = 1;
 
     // ignoring paths
@@ -105,9 +105,9 @@ static int test_fs_pathmatch()
         ret = 1;
     if (!pathMatch(tpath1, _S"/abs/path", PATH_Smart))
         ret = 1;
-    if (pathMatch(tpath2, _S"/abs/other/s???/dir2", 0))
+    if (pathMatch(tpath2, _S"/abs/other/s??\?/dir2", 0))
         ret = 1;
-    if (!pathMatch(tpath2, _S"/abs/other/s???/dir2", PATH_Smart))
+    if (!pathMatch(tpath2, _S"/abs/other/s??\?/dir2", PATH_Smart))
         ret = 1;
     if (pathMatch(tpath3, _S"/rel/path", 0))
         ret = 1;
