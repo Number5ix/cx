@@ -47,8 +47,8 @@ void logBatchEnd(void);
 
 #define logStr(level, str)       _logStr_##level(LOG_##level, LogDefault, str)
 #define logStrC(level, cat, str) _logStr_##level(LOG_##level, cat, str)
-#define logFmt(level, fmt, ...)       _logFmt_##level(LOG_##level, LogDefault, fmt, count_macro_args(__VA_ARGS__), (stvar[]){ __VA_ARGS__ })
-#define logFmtC(level, cat, fmt, ...) _logFmt_##level(LOG_##level, cat, fmt, count_macro_args(__VA_ARGS__), (stvar[]){ __VA_ARGS__ })
+#define logFmt(level, fmt, ...)       _logFmt_##level(LOG_##level, LogDefault, fmt, count_macro_args(__VA_ARGS__), ((stvar[]){ __VA_ARGS__ }))
+#define logFmtC(level, cat, fmt, ...) _logFmt_##level(LOG_##level, cat, fmt, count_macro_args(__VA_ARGS__), ((stvar[]){ __VA_ARGS__ }))
 
 #if DEBUG_LEVEL >= 2
 #define _logStr_Trace(level, cat, str) _logStr(level, cat, str)

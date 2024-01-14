@@ -165,7 +165,7 @@ static int test_log_batch()
     td.fail = true;
     logBatchBegin();
     for (int i = 0; i < 16; i++) {
-        logStr(Info, _S"Info test");
+        logFmt(Info, _S"${string} test", stvar(string, _S"Info"));
     }
     if (td.count != 0)
         ret = 1;
@@ -180,7 +180,7 @@ static int test_log_batch()
     td.fail = true;
     logBatchBegin();
     for (int i = 0; i < 1600; i++) {
-        logStr(Info, _S"Info test");
+        logFmt(Info, _S"${string} ${string}", stvar(strref, _S"Info"), stvar(strref, _S"test"));
     }
     osSleep(timeMS(100));
     if (td.count != 0)
