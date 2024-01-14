@@ -97,6 +97,12 @@ void xaRemoveOOMCallback(xaOOMCallback cb);
 // Returns: pointer to memory
 #define xaAlloc(size, ...) _xaAlloc(size, opt_flags(__VA_ARGS__))
 
+// void *xaAllocStruct(typename, [flags])
+// Convenience function to allocate a struct-sized block of memory.
+// Flags include XA_Align(pow), XA_Zero, XA_Optional(tier)
+// Returns: pointer to memory
+#define xaAllocStruct(typn, ...) (typn*)_xaAlloc(sizeof(typn), opt_flags(__VA_ARGS__))
+
 _Check_return_
 _When_(flags & XA_Optional_Mask, _Must_inspect_result_ _Ret_maybenull_)
 _When_(!(flags & XA_Optional_Mask), _Ret_notnull_)
