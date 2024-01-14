@@ -47,6 +47,12 @@ static void testdest(int level, LogCategory *cat, int64 timestamp, strref msg, v
     } else if (td->test == 21) {
         signal = (td->count == 1600);
         td->fail = false;
+    } else if (td->test == 31) {
+        signal = (td->count == 5);
+        td->fail = !(td->count == 5);
+    } else if (td->test == 32) {
+        signal = (td->count == 3);
+        td->fail = !(td->count == 3);
     } else {
         td->fail = true;
     }
@@ -260,10 +266,78 @@ static int test_log_categories()
     return ret;
 }
 
+static int test_log_defer()
+{
+    int ret = 0;
+    LogTestData td = { 0 };
+    eventInit(&logtestevent);
+
+    LogDeferData *ldata1 = logDeferCreate();
+    LogDeferData *ldata2 = logDeferCreate();
+
+    LogDest *ldd1 = logRegisterDest(LOG_Verbose, NULL, logDeferDest, ldata1);
+    LogDest *ldd2 = logRegisterDest(LOG_Verbose, NULL, logDeferDest, ldata2);
+
+    td.test = 31;
+    td.count = 0;
+    td.fail = true;
+
+    logStr(Info, _S"Info test");
+    logStr(Notice, _S"Notice test");
+    logStr(Warn, _S"Warn test");
+    logStr(Verbose, _S"Verbose test");
+    logStr(Error, _S"Error test");
+    logStr(Info, _S"Info test 2");
+
+    // nothing should be received yet, should all be in defer buffers
+    osSleep(timeMS(100));
+    if (td.count != 0)
+        ret = 1;
+
+    // Everything should have gone to the defer buffers during the osSleep above,
+    // but for testing purposes make absolutely sure that nothing is still in-flight.
+    // In a real-world scenario that would be fine as they'd just end up going to the
+    // real destination instead, but we are specifically are testing the defer handoff.
+    logFlush();
+
+    LogMembufData *lmd = logmembufCreate(4096);
+    logRegisterDestWithDefer(LOG_Verbose, NULL, logmembufDest, lmd, ldd1);
+    logRegisterDestWithDefer(LOG_Info, NULL, testdest, &td, ldd2);
+
+    // Specifically check for 5 events. The Verbose level entry went into the defer buffer
+    // because it was registered at that level, but should have been filtered before going to
+    // the actual destination.
+    if (!eventWaitTimeout(&logtestevent, timeS(1)))
+        ret = 1;
+    if (td.fail || td.count != 5)
+        ret = 1;
+
+    td.test = 32;
+    td.count = 0;
+    td.fail = true;
+    logStr(Info, _S"Info test");
+    logStr(Notice, _S"Notice test");
+    logStr(Warn, _S"Warn test");
+    if (!eventWaitTimeout(&logtestevent, timeS(1)))
+        ret = 1;
+    if (td.fail || td.count != 3)
+        ret = 1;
+
+    // LMD buffer *should* include the Verbose entry
+    if (lmd->cur != 271)
+        ret = 1;
+
+    logShutdown();
+
+    eventDestroy(&logtestevent);
+    return ret;
+}
+
 testfunc logtest_funcs[] = {
     { "levels", test_log_levels },
     { "shutdown", test_log_shutdown },
     { "batch", test_log_batch },
     { "categories", test_log_categories },
+    { "defer", test_log_defer },
     { 0, 0 }
 };

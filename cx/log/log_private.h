@@ -44,3 +44,14 @@ void logCheckInit(void);
 void logDestroyEnt(_In_ LogEntry *ent);
 void logBufferAdd(_In_ LogEntry *ent);
 void logThreadCreate(void);
+bool logUnregisterDestLocked(_In_ LogDest *dhandle);
+
+_meta_inline bool applyCatFilter(_In_opt_ LogCategory *filtercat, _In_ LogCategory *testcat)
+{
+    if (!filtercat) {
+        // no filter, we want all categories except for private categories
+        return !testcat || !testcat->priv;
+    }
+
+    return filtercat == testcat;
+}

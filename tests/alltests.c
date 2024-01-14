@@ -29,6 +29,7 @@ static const testspec tests[] = {
 { "log: Batch", "logtest", "batch" },
 { "log: Shutdown", "logtest", "shutdown" },
 { "log: Categories", "logtest", "categories" },
+{ "log: Deferred logging", "logtest", "defer" },
 { "object: Interface", "objtest", "iface" },
 { "object: Class Inheritance", "objtest", "inherit" },
 { "object: Interface Inheritance", "objtest", "ifinherit" },

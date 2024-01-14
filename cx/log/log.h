@@ -38,7 +38,7 @@ typedef void(*LogDestFunc)(int level, _In_opt_ LogCategory *cat, int64 timestamp
 
 _Ret_valid_
 LogDest *logRegisterDest(int maxlevel, _In_opt_ LogCategory *catfilter, _In_ LogDestFunc dest, _In_opt_ void *userdata);
-bool logUnregisterDest(_In_ LogDest *dhandle);
+bool logUnregisterDest(_Pre_valid_ _Post_invalid_ LogDest *dhandle);
 void logFlush(void);
 void logShutdown(void);
 

@@ -29,7 +29,8 @@ LogDest *logRegisterDest(int maxlevel, LogCategory *catfilter, LogDestFunc dest,
     return ndest;
 }
 
-static bool logUnregisterDestLocked(_In_ LogDest *dhandle)
+_Use_decl_annotations_
+bool logUnregisterDestLocked(LogDest *dhandle)
 {
     bool ret = false;
 

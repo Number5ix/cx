@@ -10,16 +10,6 @@
 Thread *_log_thread;
 static Event _log_done_event;
 
-static inline bool applyCatFilter(_In_opt_ LogCategory *filtercat, _In_ LogCategory *testcat)
-{
-    if (!filtercat) {
-        // no filter, we want all categories except for private categories
-        return !testcat || !testcat->priv;
-    }
-
-    return filtercat == testcat;
-}
-
 static int logthread_func(_Inout_ Thread *self)
 {
     sa_LogEntry ents;
