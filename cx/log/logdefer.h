@@ -20,4 +20,4 @@ void logDeferDest(int level, _In_opt_ LogCategory *cat, int64 timestamp, _In_opt
 // during the process and may not be re-used.
 _Ret_valid_
 LogDest *logRegisterDestWithDefer(int maxlevel, _In_opt_ LogCategory *catfilter, _In_ LogDestFunc dest, _In_opt_ void *userdata,
-                                  _Pre_valid_ _Post_invalid_ LogDest *deferdest);
+                                  _In_opt_ _Post_invalid_ LogDest *deferdest);

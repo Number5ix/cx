@@ -37,6 +37,11 @@ LogDest *logRegisterDestWithDefer(int maxlevel, LogCategory *catfilter, LogDestF
 {
     logCheckInit();
 
+    if (!deferdest) {
+        // just a regular registration in this case
+        return logRegisterDest(maxlevel, catfilter, dest, userdata);
+    }
+
     LogDest *ndest = xaAlloc(sizeof(LogDest), XA_Zero);
 
     ndest->maxlevel = maxlevel;
