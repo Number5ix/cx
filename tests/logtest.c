@@ -70,7 +70,8 @@ static int test_log_levels()
     td.count = 0;
     td.fail = true;
     logStr(Info, _S"Info test");
-    eventWait(&logtestevent);
+    if (!eventWaitTimeout(&logtestevent, timeS(1)))
+        ret = 1;
     if (td.fail || td.count != 1)
         ret = 1;
 
@@ -78,7 +79,8 @@ static int test_log_levels()
     td.count = 0;
     td.fail = true;
     logStr(Notice, _S"Notice test");
-    eventWait(&logtestevent);
+    if (!eventWaitTimeout(&logtestevent, timeS(1)))
+        ret = 1;
     if (td.fail || td.count != 1)
         ret = 1;
 
@@ -87,7 +89,8 @@ static int test_log_levels()
     td.fail = true;
     logStr(Info, _S"Info test");
     logStr(Notice, _S"Notice test");
-    eventWait(&logtestevent);
+    if (!eventWaitTimeout(&logtestevent, timeS(1)))
+        ret = 1;
     if (td.fail || td.count != 2)
         ret = 1;
 
@@ -107,7 +110,8 @@ static int test_log_levels()
     logStr(Verbose, _S"Verbose test 3");
     logStr(Verbose, _S"Verbose test 4");
     logStr(Error, _S"Error test");
-    eventWait(&logtestevent);
+    if (!eventWaitTimeout(&logtestevent, timeS(1)))
+        ret = 1;
     if (td.fail || td.count != 2)
         ret = 1;
 
@@ -160,7 +164,8 @@ static int test_log_batch()
     if (td.count != 0)
         ret = 1;
     logBatchEnd();
-    eventWait(&logtestevent);
+    if (!eventWaitTimeout(&logtestevent, timeS(1)))
+        ret = 1;
     if (td.fail || td.count != 16)
         ret = 1;
 
@@ -175,7 +180,8 @@ static int test_log_batch()
     if (td.count != 0)
         ret = 1;
     logBatchEnd();
-    eventWait(&logtestevent);
+    if (!eventWaitTimeout(&logtestevent, timeS(1)))
+        ret = 1;
     if (td.fail || td.count != 1600)
         ret = 1;
 
@@ -208,7 +214,8 @@ static int test_log_categories()
     td.count = 0;
     td.fail = true;
     logStr(Info, _S"Info test");
-    eventWait(&logtestevent);
+    if (!eventWaitTimeout(&logtestevent, timeS(1)))
+        ret = 1;
     if (td.fail || td.count != 1)
         ret = 1;
 
@@ -218,7 +225,8 @@ static int test_log_categories()
     td.count = 0;
     td.fail = true;
     logStrC(Info, cat1, _S"Info test");
-    eventWait(&logtestevent);
+    if (!eventWaitTimeout(&logtestevent, timeS(1)))
+        ret = 1;
     if (td.fail || td.count != 2 || td.lastcat != cat1)
         ret = 1;
 
@@ -228,7 +236,8 @@ static int test_log_categories()
     td.count = 0;
     td.fail = false;
     logStrC(Info, cat2, _S"Info test");
-    eventWait(&logtestevent);
+    if (!eventWaitTimeout(&logtestevent, timeS(1)))
+        ret = 1;
     if (td.fail || td.count != 1 || td.lastcat != cat2)
         ret = 1;
 
