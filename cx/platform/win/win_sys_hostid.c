@@ -22,7 +22,7 @@ typedef struct RawSMBIOSData {
     BYTE    SMBIOSTableData[];
 } RawSMBIOSData;
 
-// UUIDs known to know be unique
+// UUIDs known to not be unique
 static uint8 uuid_blacklist[][16] = {
     // 00000000-0000-0000-0000-000000000000 - Empty or missing UUID
     { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
