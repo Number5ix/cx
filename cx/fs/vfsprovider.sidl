@@ -24,6 +24,7 @@ interface VFSProvider {
     bool getFSPath([inout] string *out, strref path);
 
     bool searchInit([out] FSSearchIter *iter, strref path, strref pattern, bool stat);
+    bool searchValid([in] FSSearchIter *iter);
     bool searchNext([inout] FSSearchIter *iter);
     void searchFinish([inout] FSSearchIter *iter);
 }

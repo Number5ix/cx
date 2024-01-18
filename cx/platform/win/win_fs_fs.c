@@ -367,7 +367,8 @@ bool fsSearchInit(FSSearchIter *iter, strref path, strref pattern, bool stat)
         return false;
     }
 
-    return fsSearchNext(iter);
+    fsSearchNext(iter);
+    return true;
 }
 
 _Use_decl_annotations_

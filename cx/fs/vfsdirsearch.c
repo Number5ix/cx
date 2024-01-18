@@ -1,4 +1,5 @@
 #include "vfs_private.h"
+#include <cx/debug/error.h>
 
 static intptr dirEntCmp(stype st, stgeneric g1, stgeneric g2, uint32 flags)
 {
@@ -51,7 +52,9 @@ bool vfsSearchInit(FSSearchIter *iter, VFS *vfs, strref path, strref pattern, in
     string abspath = 0, curpath = 0, filepath = 0;
     hashtable names;
     int32 idx;
+    bool exists = false;
 
+    cxerr = CX_Success;
     memset(iter, 0, sizeof(FSSearchIter));
 
     if ((vfs->flags & VFS_CaseSensitive))
@@ -70,8 +73,12 @@ bool vfsSearchInit(FSSearchIter *iter, VFS *vfs, strref path, strref pattern, in
     sa_string components;
     sa_string relcomp = saInitNone;
 
-    if (!vfsdir)
+    if (!vfsdir) {
+        cxerr = CX_InvalidArgument;
+        rwlockReleaseWrite(&vfs->vfslock);
+        rwlockReleaseRead(&vfs->vfsdlock);
         return false;
+    }
 
     saInit(&components, string, 8, SA_Grow(Aggressive));
     pathDecompose(&ns, &components, abspath);
@@ -119,13 +126,12 @@ bool vfsSearchInit(FSSearchIter *iter, VFS *vfs, strref path, strref pattern, in
 
             // see if we can get a directory listing out of it
             FSSearchIter dsiter;
-            if (!provif->searchInit(provider, &dsiter, curpath, pattern, stat)) {
-                provif->searchFinish(provider, &dsiter);
+            if (!provif->searchInit(provider, &dsiter, curpath, pattern, stat))
                 continue;
-            }
 
             // we did! so gather up all the files
-            do {
+            exists = true;
+            while (provif->searchValid(provider, &dsiter)) {
                 // have we seen this file already on a higher layer?
                 if ((!typefilter || (dsiter.type & typefilter) == typefilter) &&
                     !htHasKey(names, string, dsiter.name)) {
@@ -145,7 +151,8 @@ bool vfsSearchInit(FSSearchIter *iter, VFS *vfs, strref path, strref pattern, in
                         htInsertC(&vfsdir->files, string, dsiter.name, ptr, &newent, HT_Ignore);
                     }
                 }
-            } while (provif->searchNext(provider, &dsiter));
+                provif->searchNext(provider, &dsiter);
+            }
             provif->searchFinish(provider, &dsiter);
 
             // if this layer is opaque, the buck stops here
@@ -169,7 +176,16 @@ done:
     saDestroy(&relcomp);
     saDestroy(&components);
     htDestroy(&names);
-    return vfsSearchNext(iter);
+
+    // did the path exist somewhere in the VFS?
+    if (exists) {
+        vfsSearchNext(iter);
+        return true;
+    } else {
+        vfsSearchFinish(iter);
+        cxerr = CX_FileNotFound;
+        return false;
+    }
 }
 
 _Use_decl_annotations_

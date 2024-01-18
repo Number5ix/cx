@@ -313,13 +313,14 @@ bool fsSearchInit(FSSearchIter *iter, strref path, strref pattern, bool stat)
     if (!search->d) {
         unixMapErrno();
         xaRelease(&iter->_search);
-        return NULL;
+        return false;
     }
 
     strDup(&search->path, path);
     strDup(&search->pattern, pattern);
     search->stat = stat;
-    return fsSearchNext(iter);
+    fsSearchNext(iter);
+    return true;
 }
 
 bool fsSearchNext(FSSearchIter *iter)

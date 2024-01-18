@@ -37,6 +37,7 @@ typedef struct VFSProvider {
     bool (*rename)(_Inout_ void *self, _In_opt_ strref oldpath, _In_opt_ strref newpath);
     bool (*getFSPath)(_Inout_ void *self, _Inout_ string *out, _In_opt_ strref path);
     bool (*searchInit)(_Inout_ void *self, _Out_ FSSearchIter *iter, _In_opt_ strref path, _In_opt_ strref pattern, bool stat);
+    bool (*searchValid)(_Inout_ void *self, _In_ FSSearchIter *iter);
     bool (*searchNext)(_Inout_ void *self, _Inout_ FSSearchIter *iter);
     void (*searchFinish)(_Inout_ void *self, _Inout_ FSSearchIter *iter);
 } VFSProvider;

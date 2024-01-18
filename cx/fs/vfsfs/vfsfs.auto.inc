@@ -17,6 +17,7 @@ static VFSProvider _impl_VFSFS_VFSProvider = {
     .rename = (bool (*)(void*, strref, strref))VFSFS_rename,
     .getFSPath = (bool (*)(void*, string*, strref))VFSFS_getFSPath,
     .searchInit = (bool (*)(void*, FSSearchIter*, strref, strref, bool))VFSFS_searchInit,
+    .searchValid = (bool (*)(void*, FSSearchIter*))VFSFS_searchValid,
     .searchNext = (bool (*)(void*, FSSearchIter*))VFSFS_searchNext,
     .searchFinish = (void (*)(void*, FSSearchIter*))VFSFS_searchFinish,
 };
@@ -34,6 +35,7 @@ static VFSFS_ClassIf _impl_VFSFS_VFSFS_ClassIf = {
     .rename = (bool (*)(void*, strref, strref))VFSFS_rename,
     .getFSPath = (bool (*)(void*, string*, strref))VFSFS_getFSPath,
     .searchInit = (bool (*)(void*, FSSearchIter*, strref, strref, bool))VFSFS_searchInit,
+    .searchValid = (bool (*)(void*, FSSearchIter*))VFSFS_searchValid,
     .searchNext = (bool (*)(void*, FSSearchIter*))VFSFS_searchNext,
     .searchFinish = (void (*)(void*, FSSearchIter*))VFSFS_searchFinish,
 };

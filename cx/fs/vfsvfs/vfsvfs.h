@@ -26,6 +26,7 @@ typedef struct VFSVFS_ClassIf {
     bool (*rename)(_Inout_ void *self, _In_opt_ strref oldpath, _In_opt_ strref newpath);
     bool (*getFSPath)(_Inout_ void *self, _Inout_ string *out, _In_opt_ strref path);
     bool (*searchInit)(_Inout_ void *self, _Out_ FSSearchIter *iter, _In_opt_ strref path, _In_opt_ strref pattern, bool stat);
+    bool (*searchValid)(_Inout_ void *self, _In_ FSSearchIter *iter);
     bool (*searchNext)(_Inout_ void *self, _Inout_ FSSearchIter *iter);
     void (*searchFinish)(_Inout_ void *self, _Inout_ FSSearchIter *iter);
 } VFSVFS_ClassIf;
@@ -75,6 +76,8 @@ _objfactory_guaranteed VFSVFS *VFSVFS_create(VFS *vfs, _In_opt_ strref rootpath)
 #define vfsvfsGetFSPath(self, out, path) (self)->_->getFSPath(VFSVFS(self), out, path)
 // bool vfsvfsSearchInit(VFSVFS *self, FSSearchIter *iter, strref path, strref pattern, bool stat);
 #define vfsvfsSearchInit(self, iter, path, pattern, stat) (self)->_->searchInit(VFSVFS(self), iter, path, pattern, stat)
+// bool vfsvfsSearchValid(VFSVFS *self, FSSearchIter *iter);
+#define vfsvfsSearchValid(self, iter) (self)->_->searchValid(VFSVFS(self), iter)
 // bool vfsvfsSearchNext(VFSVFS *self, FSSearchIter *iter);
 #define vfsvfsSearchNext(self, iter) (self)->_->searchNext(VFSVFS(self), iter)
 // void vfsvfsSearchFinish(VFSVFS *self, FSSearchIter *iter);

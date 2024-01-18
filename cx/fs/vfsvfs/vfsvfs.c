@@ -127,6 +127,11 @@ bool VFSVFS_searchInit(_Inout_ VFSVFS *self, _Out_ FSSearchIter *iter, _In_opt_ 
     return ret;
 }
 
+bool VFSVFS_searchValid(_Inout_ VFSVFS *self, _In_ FSSearchIter *iter)
+{
+    return vfsSearchValid(iter);
+}
+
 bool VFSVFS_searchNext(_Inout_ VFSVFS *self, _Inout_ FSSearchIter *iter)
 {
     return vfsSearchNext(iter);
