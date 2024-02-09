@@ -179,9 +179,69 @@ static int test_math_pcgerror()
     return 0;
 }
 
+static int test_math_floatcmp()
+{
+    // these two numbers are only 1 ULP apart
+    float32 float1 = 80087352;
+    float32 float2 = 80087360;
+
+    // IEEE-754 sanity check
+    if (float1 == float2)
+        return 1;
+
+    if (stCmp(float32, float1, float2) != 0)
+        return 1;
+
+    float64 float3 = 0.865887489;
+    float64 float4 = 8.65887489000000121208699965791E-1;
+    float64 float5 = 0.865887488;
+    float64 float6 = 0.865887490;
+
+    if (float1 == float2)
+        return 1;
+
+    if (stCmp(float64, float3, float4) != 0)
+        return 1;
+
+    if (stCmp(float64, float3, float5) != 1)
+        return 1;
+
+    if (stCmp(float64, float3, float6) != -1)
+        return 1;
+
+    float32 fz1 = 0.0;
+    float32 fz2 = -0.0;
+    float32 fnz1 = 1.40129846432e-45f;
+    float32 fnz2 = -1.40129846432e-45f;
+
+    // 0 should equal -0
+    if (stCmp(float32, fz1, fz2) != 0)
+        return 1;
+
+    // these are close enough to zero they should be considered equivalent
+    if (stCmp(float32, fz1, fnz1) != 0)
+        return 1;
+    if (stCmp(float32, fz2, fnz2) != 0)
+        return 1;
+
+    // but differ by sign even though they're within the threshold
+    if (stCmp(float32, fnz1, fnz2) != 1)
+        return 1;
+    if (stCmp(float32, fnz2, fnz1) != -1)
+        return 1;
+
+    if (stCmp(float32, fz2, fnz1) != -1)
+        return 1;
+    if (stCmp(float32, fz1, fnz2) != 1)
+        return 1;
+
+    return 0;
+}
+
 testfunc mathtest_funcs[] = {
     { "pcgint", test_math_pcgint },
     { "pcgfloat", test_math_pcgfloat },
     { "pcgerror", test_math_pcgerror },
+    { "floatcmp", test_math_floatcmp },
     { 0, 0 }
 };

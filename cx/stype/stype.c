@@ -33,8 +33,40 @@ STCMP_GEN(uint8)
 STCMP_GEN(uint16)
 STCMP_GEN(uint32)
 STCMP_GEN(uint64)
-STCMP_GEN(float32)
-STCMP_GEN(float64)
+
+// 'equal enough' values good enough for general use while taking into account small
+// amounts of floating-point error.
+//
+// Notably this does NOT handle the problem of subtracting numbers that are very close
+// together, perhaps only 1 representable float apart, and ending up with a value that
+// is near zero but also a long way away in floating point space due to having more
+// precision closer to zero.
+//
+// stCmp is mostly used for things like sorting lists or detecting changes, so this is
+// good enough to reach a stable result.
+// 
+// Specialized applications will need to decide their own tolerance for comparison
+
+// Implementation note: Checks for equality early to handle NaN and Inf, then uses
+// integer representation which in IEEE-754 helpfully means that representable floats
+// right next to each other in FP space are also adjacent in integer space because
+// the mantissa comes last.
+
+#define STCMP_FLOAT_ULP_EPSILON (2)
+
+#define STCMP_FLOAT(type, itype) \
+static intptr stCmp_##type(stype st, stgeneric gen1, stgeneric gen2, uint32 flags) \
+{ \
+    if (gen1.st_##type == gen2.st_##type) \
+        return 0; \
+    itype idiff = gen1.st_##itype - gen2.st_##itype; \
+    if (idiff <= STCMP_FLOAT_ULP_EPSILON && idiff >= -STCMP_FLOAT_ULP_EPSILON) \
+        return 0; \
+    return (gen1.st_##type < gen2.st_##type) ? -1 : 1; \
+}
+STCMP_FLOAT(float32, int32)
+STCMP_FLOAT(float64, int64)
+
 // compiler is stupid about void* comparisons
 STCMP_GEN_OVR(ptr, char*)
 STCMP_GEN_OVR(hashtable, char*)

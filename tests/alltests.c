@@ -87,6 +87,7 @@ static const testspec tests[] = {
 { "math: PCG Random Integer", "mathtest", "pcgint" },
 { "math: PCG Random Float", "mathtest", "pcgfloat" },
 { "math: PCG Error Condition", "mathtest", "pcgerror" },
+{ "math: FP Comparison", "mathtest", "floatcmp" },
 { "fs: Path Matching", "fstest", "pathmatch" },
 { 0 }
 };
