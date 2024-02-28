@@ -10,6 +10,7 @@ bool winMapLastError()
         cxerr = CX_FileNotFound;
         break;
     case ERROR_ACCESS_DENIED:
+    case ERROR_SHARING_VIOLATION:
         cxerr = CX_AccessDenied;
         break;
     default:

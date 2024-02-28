@@ -4,9 +4,12 @@
 #include "cx/fs/fs_private.h"
 #include "cx/utils/compare.h"
 #include "cx/platform/unix.h"
+#include "cx/debug/error.h"
 
 #include <fcntl.h>
 #include <unistd.h>
+#include <errno.h>
+#include <sys/file.h>
 
 // biggest I/O request the OS will let us do
 // BSD doesn't need this but Linux does
@@ -14,6 +17,7 @@
 
 typedef struct FSFile {
     int fd;
+    bool locked;
 } FSFile;
 
 FSFile *fsOpen(strref path, flags_t flags)
@@ -45,8 +49,27 @@ FSFile *fsOpen(strref path, flags_t flags)
         return NULL;
     }
 
+    int lockop = 0;
+    if (flags & FS_Lock)
+        lockop = LOCK_EX;       // for locking the file we need exclusive access
+    else if (flags & FS_Write)
+        lockop = LOCK_SH;       // for writing, need a shared lock
+
+    // do we need a lock
+    if (lockop != 0) {
+        if (flock(fd, lockop | LOCK_NB) == EWOULDBLOCK) {
+            // could not get the lock
+            cxerr = CX_AccessDenied;
+            close(fd);
+        }
+        // other types of failures like locking not supported on the
+        // filesystem are silently ignored; not a great way to handle it
+        // but the alternative is to just not work at all in those cases
+    }
+
     ret = xaAlloc(sizeof(FSFile));
     ret->fd = fd;
+    ret->locked = (lockop != 0);
     strDestroy(&npath);
     return ret;
 }
@@ -54,6 +77,8 @@ FSFile *fsOpen(strref path, flags_t flags)
 bool fsClose(FSFile *file)
 {
     int ret = true;
+    if (file->locked)
+        flock(file->fd, LOCK_UN);
     if (!close(file->fd))
         ret = unixMapErrno();
     xaFree(file);

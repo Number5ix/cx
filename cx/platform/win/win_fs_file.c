@@ -32,9 +32,10 @@ FSFile *fsOpen(strref path, flags_t flags)
     else
         disp = OPEN_EXISTING;
 
-    // be nice and allow other readers
-    if (!(flags & FS_Lock))
+    if (flags & FS_Lock)
         share = FILE_SHARE_READ;
+    else
+        share = FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE;
 
     HANDLE handle = CreateFileW(fsPathToNT(path), access, share, NULL, disp, FILE_ATTRIBUTE_NORMAL, NULL);
     if (handle == INVALID_HANDLE_VALUE) {
