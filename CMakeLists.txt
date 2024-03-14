@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 3.9)
+cmake_minimum_required (VERSION 3.21)
 
 set(CX_TOP_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(CX_TOP_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
@@ -32,5 +32,7 @@ add_subdirectory(cx)
 add_subdirectory(cxobjgen)
 #add_subdirectory(misc)
 
-enable_testing()
-add_subdirectory(tests)
+if(PROJECT_IS_TOP_LEVEL)
+    enable_testing()
+    add_subdirectory(tests)
+endif()
