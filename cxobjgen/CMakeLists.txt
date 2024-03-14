@@ -1,5 +1,7 @@
 find_package (Threads REQUIRED)
 
+include (${CX_TOP_SOURCE_DIR}/cmake/werror.cmake)
+
 if(NOT CMAKE_CROSSCOMPILING)
 if(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD" OR ${CMAKE_SYSTEM_NAME} MATCHES "Linux")
     set(CX_PLATFORM_SRCS

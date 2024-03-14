@@ -1,3 +1,5 @@
+include (${CX_TOP_SOURCE_DIR}/cmake/werror.cmake)
+
 create_test_sourcelist(testsrc
     test_runner.c
     debugtest.c

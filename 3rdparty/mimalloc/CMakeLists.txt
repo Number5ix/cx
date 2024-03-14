@@ -372,11 +372,12 @@ if(MI_BUILD_TESTS)
   list(APPEND mi_build_targets "tests")
 endif()
 
+include (${CX_TOP_SOURCE_DIR}/cmake/buildtype.cmake)
 list(APPEND mi_defines
-    $<$<CONFIG:debug>:MI_DEBUG=3>
-    $<$<CONFIG:dev>:MI_DEBUG=2>
-    $<$<CONFIG:release>:MI_DEBUG=0>
-    $<$<CONFIG:release>:MI_SECURE=4>)
+    $<${isdebug}:MI_DEBUG=3>
+    $<${isdev}:MI_DEBUG=2>
+    $<${isrelease}:MI_DEBUG=0>
+    $<${isrelease}:MI_SECURE=4>)
 
 message(STATUS "")
 message(STATUS "Library base name: ${mi_basename}")

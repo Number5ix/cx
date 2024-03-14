@@ -1,6 +1,9 @@
 include (CheckTypeSize)
 find_package (Threads REQUIRED)
 
+include (${CX_TOP_SOURCE_DIR}/cmake/werror.cmake)
+include (${CX_TOP_SOURCE_DIR}/cmake/buildtype.cmake)
+
 add_subdirectory(container)
 add_subdirectory(debug)
 add_subdirectory(format)
@@ -66,9 +69,9 @@ target_include_directories(cx SYSTEM PUBLIC ${CX_TOP_SOURCE_DIR} ${CX_TOP_BINARY
 target_compile_definitions(cx PRIVATE UNICODE _UNICODE)
 
 target_compile_definitions(cx PUBLIC
-    $<$<CONFIG:debug>:DEBUG_BUILD>
-    $<$<OR:$<CONFIG:dev>,$<CONFIG:debug>>:DEV_BUILD>
-    $<$<CONFIG:release>:RELEASE_BUILD>
-    $<$<CONFIG:debug>:DEBUG_LEVEL=2>
-    $<$<CONFIG:dev>:DEBUG_LEVEL=1>
-    $<$<CONFIG:release>:DEBUG_LEVEL=0>)
+    $<${isdebug}:DEBUG_BUILD>
+    $<${isdevordebug}:DEV_BUILD>
+    $<${isrelease}:RELEASE_BUILD>
+    $<${isdebug}:DEBUG_LEVEL=2>
+    $<${isdev}:DEBUG_LEVEL=1>
+    $<${isrelease}:DEBUG_LEVEL=0>)
