@@ -15,7 +15,7 @@ build_freebsd:
   tags:
     - freebsd
   script:
-    - 'cmake -S . -B _build -DCMAKE_INSTALL_PREFIX=${CI_PROJECT_DIR}'
+    - 'cmake -S . -DCMAKE_BUILD_TYPE=Release -B _build -DCMAKE_INSTALL_PREFIX=${CI_PROJECT_DIR}'
     - 'make -C _build -j4'
   artifacts:
     name: cx-build-freebsd-$CI_COMMIT_REF_SLUG-$CI_PIPELINE_ID
@@ -31,7 +31,7 @@ build_linux:
   tags:
     - linux
   script:
-    - 'cmake -S . -B _build -DCMAKE_INSTALL_PREFIX=${CI_PROJECT_DIR}'
+    - 'cmake -S . -DCMAKE_BUILD_TYPE=Release -B _build -DCMAKE_INSTALL_PREFIX=${CI_PROJECT_DIR}'
     - 'make -C _build -j4'
   artifacts:
     name: cx-build-linux-$CI_COMMIT_REF_SLUG-$CI_PIPELINE_ID
@@ -48,12 +48,12 @@ build_win64:
     - windows
   script:
     - '& "$env:CMAKE_EXE" -G "Visual Studio 16 2019" -A x64 -S . -B _build "-DCMAKE_INSTALL_PREFIX=$env:CI_PROJECT_DIR"'
-    - '& "$env:MSBUILD_EXE" /m /p:Configuration=dev _build/cx.sln'
+    - '& "$env:MSBUILD_EXE" /m /p:Configuration=Release _build/cx.sln'
   artifacts:
     name: cx-build-win64-$CI_COMMIT_REF_SLUG-$CI_PIPELINE_ID
     paths:
       - '_build/tests/CTestTestfile.cmake'
-      - '_build/tests/dev/test_runner.exe'
+      - '_build/tests/Release/test_runner.exe'
 
 build_win32:
   stage: build
@@ -64,12 +64,12 @@ build_win32:
     - windows
   script:
     - '& "$env:CMAKE_EXE" -G "Visual Studio 16 2019" -A Win32 -S . -B _build "-DCMAKE_INSTALL_PREFIX=$env:CI_PROJECT_DIR"'
-    - '& "$env:MSBUILD_EXE" /m /p:Configuration=dev _build/cx.sln'
+    - '& "$env:MSBUILD_EXE" /m /p:Configuration=Release _build/cx.sln'
   artifacts:
     name: cx-build-win32-$CI_COMMIT_REF_SLUG-$CI_PIPELINE_ID
     paths:
       - '_build/tests/CTestTestfile.cmake'
-      - '_build/tests/dev/test_runner.exe'
+      - '_build/tests/Release/test_runner.exe'
 
 build_wasm:
   stage: build
@@ -80,9 +80,9 @@ build_wasm:
     - docker
   image: 'emscripten/emsdk'
   script:
-    - 'cmake -S . -B _native'
+    - 'cmake -S . -DCMAKE_BUILD_TYPE=Release -B _native'
     - 'make -C _native -j4 cxobjgen'
-    - 'emcmake cmake -S . -B _build -Dcxobjgen_DIR=_native -DCMAKE_INSTALL_PREFIX=${CI_PROJECT_DIR}'
+    - 'emcmake cmake -S . -DCMAKE_BUILD_TYPE=Release -B _build -Dcxobjgen_DIR=_native -DCMAKE_INSTALL_PREFIX=${CI_PROJECT_DIR}'
     - 'make -C _build -j4'
   artifacts:
     name: cx-build-wasm-$CI_COMMIT_REF_SLUG-$CI_PIPELINE_ID
@@ -126,7 +126,7 @@ test_win64:
   dependencies:
     - build_win64
   script:
-    '& "$env:CTEST_EXE" -C dev --test-dir _build/tests'
+    '& "$env:CTEST_EXE" -C Release --test-dir _build/tests'
 
 test_win32:
   stage: test
@@ -138,7 +138,7 @@ test_win32:
   dependencies:
     - build_win32
   script:
-    '& "$env:CTEST_EXE" -C dev --test-dir _build/tests'
+    '& "$env:CTEST_EXE" -C Release --test-dir _build/tests'
 
 test_wasm:
   stage: test
