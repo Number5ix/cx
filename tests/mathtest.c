@@ -18,37 +18,37 @@ static int test_math_pcgint()
     // generate a bunch of random numbers and verify they fall in the expected range
 
     for (int loop = 0; loop < 10000; loop++) {
-        for (uint32 i = 0; i + (i >> 2) + 1 > i; i += (i >> 2) + 1) {
+        for (uint32 i = 0; i < 2147483647; i += (i >> 2) + 1) {
             r = pcgBounded(&rng, i);
             if (r >= i && i != 0)
                 return 1;
         }
 
-        for (uint32 i = 0; i + (i >> 2) + 1 > i; i += (i >> 2) + 1) {
+        for (uint32 i = 0; i < 2147483647; i += (i >> 2) + 1) {
             r = pcgRange(&rng, (i >> 2), i);
             if (r < (i >> 2) || r > i)
                 return 1;
         }
 
-        for (int32 i = 0; i + (i >> 2) + 1 > i; i += (i >> 2) + 1) {
+        for (int32 i = 0; i < 1073741823; i += (i >> 2) + 1) {
             sr = pcgSRange(&rng, -i, i);
             if (sr < -i || sr > i)
                 return 1;
         }
 
-        for (uint64 i = 0; i + (i >> 2) + 1 > i; i += (i >> 2) + 1) {
+        for (uint64 i = 0; i < 9223372036854775807ULL; i += (i >> 2) + 1) {
             v = pcgBounded64(&rng, i);
             if (v >= i && v != 0)
                 return 1;
         }
 
-        for (uint64 i = 0; i + (i >> 2) + 1 > i; i += (i >> 2) + 1) {
+        for (uint64 i = 0; i < 9223372036854775807ULL; i += (i >> 2) + 1) {
             v = pcgRange64(&rng, (i >> 2), i);
             if (v < (i >> 2) || v > i)
                 return 1;
         }
 
-        for (int64 i = 0; i + (i >> 2) + 1 > i; i += (i >> 2) + 1) {
+        for (int64 i = 0; i < 4611686018427387903LL; i += (i >> 2) + 1) {
             sv = pcgSRange64(&rng, (i >> 2), i);
             if (sv < (i >> 2) || sv > i)
                 return 1;
