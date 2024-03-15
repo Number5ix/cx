@@ -20,6 +20,13 @@
 #endif
 #endif
 
+// If this macro is defined, causes the xalloc system to use the
+// system-provided allocator rather than mimalloc. There may be some
+// loss of functionality and performance when this option is in use,
+// but it may be neeed on systems with very tightly constrainted limits
+// on virtual address space allocation.
+// #define XALLOC_USE_SYSTEM_MALLOC 1
+
 CX_C_BEGIN
 
 #define XA_LG_ALIGN_MASK ((unsigned int)0x3f)

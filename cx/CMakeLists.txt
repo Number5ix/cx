@@ -4,6 +4,8 @@ find_package (Threads REQUIRED)
 include (${CX_TOP_SOURCE_DIR}/cmake/werror.cmake)
 include (${CX_TOP_SOURCE_DIR}/cmake/buildtype.cmake)
 
+option (CX_USE_SYSTEM_MALLOC "Use system allocator rather than mimalloc" OFF)
+
 add_subdirectory(container)
 add_subdirectory(debug)
 add_subdirectory(format)
@@ -67,6 +69,10 @@ add_library(cx STATIC
 target_link_libraries(cx ${CMAKE_THREAD_LIBS_INIT} ${CMAKE_DL_LIBS} mimalloc mbedtls mbedx509 mbedcrypto)
 target_include_directories(cx SYSTEM PUBLIC ${CX_TOP_SOURCE_DIR} ${CX_TOP_BINARY_DIR})
 target_compile_definitions(cx PRIVATE UNICODE _UNICODE)
+
+if (CX_USE_SYSTEM_MALLOC)
+    target_compile_definitions(cx PRIVATE XALLOC_USE_SYSTEM_MALLOC)
+endif()
 
 target_compile_definitions(cx PUBLIC
     $<${isdebug}:DEBUG_BUILD>

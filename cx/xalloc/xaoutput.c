@@ -4,6 +4,8 @@
 #include <cx/log/log_private.h>
 #include <cx/string/strmanip.h>
 
+#ifndef XALLOC_USE_SYSTEM_MALLOC
+
 static void xaMimallocOutput(const char *msg, void *arg)
 {
     static _Thread_local int lastLevel = LOG_Warn;
@@ -63,3 +65,5 @@ void _xaInitOutput(void)
     atomicStore(bool, (atomic(bool) *) & _xaInitState.init, true, Relaxed);
     logCheckInit();
 }
+
+#endif

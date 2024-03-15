@@ -29,4 +29,6 @@ void _xaFreeUpMemory(int phase, size_t allocsz);
 _When_(!(flags & XA_Optional_Mask), _Analysis_noreturn_)
 void _xaAllocFailure(size_t allocsz, unsigned int flags);
 
+#ifndef XALLOC_USE_SYSTEM_MALLOC
 void _xaInitOutput(void);
+#endif
