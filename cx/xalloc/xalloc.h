@@ -192,20 +192,34 @@ CX_C_END
 #endif
 #endif
 
+// Normally the compatibility interface uses optional allocations to emulate
+// the behavior of malloc() returning NULL when out of memory. Some applications
+// may not wish to do that and would rather assert and/or install an XA_Fatal
+// handler.
+
+// These applications can define XALLOC_COMPAT_REQUIRE before including xalloc.h
+// to force the interface to use required allocations instead.
+
+#ifdef XALLOC_COMPAT_REQUIRE
+#define XA_COMPAT_OPT_FLAG 0
+#else
+#define XA_COMPAT_OPT_FLAG XA_Opt
+#endif
+
 // for compatibility with 3rd party libraries only
 inline void *xa_malloc(size_t size)
 {
-    return _xaAlloc(size, XA_Opt);
+    return _xaAlloc(size, XA_COMPAT_OPT_FLAG);
 }
 
 inline void *xa_calloc(size_t number, size_t size)
 {
-    return _xaAlloc(number * size, XA_Zero | XA_Opt);
+    return _xaAlloc(number * size, XA_Zero | XA_COMPAT_OPT_FLAG);
 }
 
 inline void *xa_realloc(void *ptr, size_t size)
 {
-    return _xaResize(&ptr, size, XA_Opt) ? ptr : (void *)0;
+    return _xaResize(&ptr, size, XA_COMPAT_OPT_FLAG) ? ptr : (void *)0;
 }
 
 inline void xa_free(void *ptr)
