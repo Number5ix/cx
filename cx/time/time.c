@@ -28,7 +28,7 @@ strref timeDayAbbrev[7] = {
 strref timeMonthName[13] = {
     (strref)"\xE1\xC1\x00",
     (strref)"\xE1\xC1\x07""January",
-    (strref)"\xE1\xC1\x08""Feburary",
+    (strref)"\xE1\xC1\x08""February",
     (strref)"\xE1\xC1\x05""March",
     (strref)"\xE1\xC1\x05""April",
     (strref)"\xE1\xC1\x03""May",
