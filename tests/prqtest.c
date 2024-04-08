@@ -79,14 +79,10 @@ static int test_prqtest_basic()
     return ret;
 }
 
-//#define PRQ_PRODUCERS 4
-//#define PRQ_RELAYS 3
-//#define PRQ_CONSUMERS 6
-//#define PRQ_NUM 6144
 #define PRQ_PRODUCERS 4
 #define PRQ_RELAYS 3
 #define PRQ_CONSUMERS 6
-#define PRQ_NUM 6144000
+#define PRQ_NUM 61440
 
 static atomic(bool) mtfail;
 static atomic(uint64) pushfail;
@@ -230,8 +226,165 @@ static int test_prqtest_mt()
     return ret;
 }
 
+static int test_prqtest_grow()
+{
+    int ret = 0;
+    PrQueue queue;
+
+    prqInit(&queue, 8, 64, PRQ_Grow_100);
+
+    int testdata[117];
+    int i;
+    for(i = 0; i < 117; i++) {
+        testdata[i] = i;
+    }
+
+    // This should expand the queue 3 times, filling
+    // the original 7 slots, then 15, then 31, finally 63 more
+    for(i = 0; i < 116; i++) {
+        if(!prqPush(&queue, &testdata[i]))
+            ret = 1;
+    }
+
+    // queue should be full as one slot is reserved
+    if(prqPush(&queue, &testdata[116]))
+        ret = 1;
+
+    for(i = 0; i < 116; i++) {
+        int *pint = prqPop(&queue);
+        if(!pint || *pint != i)
+            ret = 1;
+    }
+
+    // queue should be empty now
+    if(prqPop(&queue) != NULL)
+        ret = 1;
+
+    // now that it's expanded, we should only have 63 usable slots, so repeat the test and ensure it fulls up at the right time
+
+    for(i = 0; i < 117; i++) {
+        testdata[i] = i + 117;
+    }
+
+    for(i = 0; i < 63; i++) {
+        if(!prqPush(&queue, &testdata[i]))
+            ret = 1;
+    }
+
+    // queue should be full as one slot is reserved
+    if(prqPush(&queue, &testdata[63]))
+        ret = 1;
+
+    for(i = 0; i < 63; i++) {
+        int *pint = prqPop(&queue);
+        if(!pint || *pint != testdata[i])
+            ret = 1;
+    }
+
+    // queue should be empty now
+    if(prqPop(&queue) != NULL)
+        ret = 1;
+
+    return ret;
+}
+
+static int test_prqtest_gc()
+{
+    int ret = 0;
+    PrQueue queue;
+
+    prqInit(&queue, 8, 64, PRQ_Grow_100);
+
+    int testdata[117];
+    int i;
+    for(i = 0; i < 117; i++) {
+        testdata[i] = i;
+    }
+
+    // fill up first segment, then 1 more to force an expansion
+    for(i = 0; i < 8; i++) {
+        if(!prqPush(&queue, &testdata[i]))
+            ret = 1;
+    }
+
+    PrqSegment *seg1 = atomicLoad(ptr, &queue.current, Acquire);
+    if(!atomicLoad(ptr, &seg1->nextseg, Acquire) || seg1->size != 8)
+        ret = 1;
+
+    for(i = 0; i < 7; i++) {
+        int *pint = prqPop(&queue);
+        if(!pint || *pint != testdata[i])
+            ret = 1;
+    }
+
+    prqCollect(&queue);
+
+    // seg1 should be retired and freed, seg2 should not have a next
+    PrqSegment *seg2 = atomicLoad(ptr, &queue.current, Acquire);
+    if(seg1 == seg2 || atomicLoad(ptr, &seg2->nextseg, Acquire) || seg2->size != 16)
+        ret = 1;
+
+    // should be able to push 14 more without allocating a new segment
+    for (i = 8; i < 22; i++) {
+        if(!prqPush(&queue, &testdata[i]))
+            ret = 1;
+    }
+    if(atomicLoad(ptr, &seg2->nextseg, Acquire))
+        ret = 1;
+
+    // should do nothing
+    prqCollect(&queue);
+
+    if(!prqPush(&queue, &testdata[22]))
+        ret = 1;
+
+    PrqSegment *seg3 = atomicLoad(ptr, &seg2->nextseg, Acquire);
+    if(!seg3 || seg3->size != 32)
+        ret = 1;
+
+    // should still do nothing
+    prqCollect(&queue);
+    if(atomicLoad(ptr, &queue.current, Acquire) != seg2)
+        ret = 1;
+
+    // pop all of them but one
+    for(i = 7; i < 21; i++) {
+        int *pint = prqPop(&queue);
+        if(!pint || *pint != testdata[i])
+            ret = 1;
+    }
+
+    // should STILL do nothing
+    prqCollect(&queue);
+    if(atomicLoad(ptr, &queue.current, Acquire) != seg2)
+        ret = 1;
+
+    for(i = 21; i < 22; i++) {
+        int *pint = prqPop(&queue);
+        if(!pint || *pint != testdata[i])
+            ret = 1;
+    }
+
+    // finally should collect the segment
+    prqCollect(&queue);
+    if(atomicLoad(ptr, &queue.current, Acquire) != seg3)
+        ret = 1;
+
+    // should be 1 item left in the queue
+    if(prqPop(&queue) == NULL)          // 22
+        ret = 1;
+
+    // queue should be empty now
+    if(prqPop(&queue) != NULL)
+        ret = 1;
+
+    return ret;
+}
+
 testfunc prqtest_funcs[] = {
     { "basic", test_prqtest_basic },
     { "mt", test_prqtest_mt },
+    { "grow", test_prqtest_grow },
+    { "gc", test_prqtest_gc },
     { 0, 0 }
 };

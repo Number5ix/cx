@@ -258,8 +258,7 @@ void *prqPop(PrQueue *prq)
 
     // check if the buffer APPEARS empty, it may still be EFFECTIVELY empty
     // if there are incomplete writes in progress
-    if(head == tail)
-        empty = true;
+    empty = (head == tail);
 
 retry:
     if(empty) {
@@ -274,6 +273,7 @@ retry:
                 tail_un = atomicLoad(uint32, &seg->tail, Acquire);
                 NORMALIZE;
                 INCSTAT(prq, pop_segtraverse);
+                empty = (head == tail);
                 goto retry;
             }
 
@@ -380,11 +380,15 @@ bool prqCollect(PrQueue *prq)
             atomicStore(ptr, &prq->current, nextseg, Release);
 
             // Add to the end of the retired segment chain
-            retired = prq->retired;
-            while(retired->nextretired) {
-                retired = retired->nextretired;
+            if(prq->retired) {
+                retired = prq->retired;
+                while(retired->nextretired) {
+                    retired = retired->nextretired;
+                }
+                retired->nextretired = seg;
+            } else {
+                prq->retired = seg;
             }
-            retired->nextretired = seg;
 
             INCSTAT(prq, seg_retired);
         }
