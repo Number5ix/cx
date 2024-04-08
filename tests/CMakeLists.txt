@@ -18,6 +18,7 @@ create_test_sourcelist(testsrc
     converttest.c
     mathtest.c
     fstest.c
+    prqtest.c
     alltests.c)
 add_sidl(converttestobj.sidl
     fmttestobj.sidl
@@ -126,3 +127,5 @@ add_test(NAME "\"math: PCG Random Float\"" COMMAND test_runner mathtest pcgfloat
 add_test(NAME "\"math: PCG Error Condition\"" COMMAND test_runner mathtest pcgerror)
 add_test(NAME "\"math: FP Comparison\"" COMMAND test_runner mathtest floatcmp)
 add_test(NAME "\"fs: Path Matching\"" COMMAND test_runner fstest pathmatch)
+add_test(NAME "\"prqueue: Basic Pointer-Ring Buffer\"" COMMAND test_runner prqtest basic)
+add_test(NAME "\"prqueue: Multithreaded Queue\"" COMMAND test_runner prqtest mt)

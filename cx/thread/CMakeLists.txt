@@ -3,6 +3,7 @@ set(THREAD_SRCS
     thread/condvar.c
     thread/event.c
     thread/mutex.c
+    thread/prqueue.c
     thread/rwlock.c
     thread/sema.c
     thread/systhread.c
@@ -15,6 +16,7 @@ set(THREAD_INCLUDES
     thread/event.h
     thread/futex.h
     thread/mutex.h
+    thread/prqueue.h
     thread/rwlock.h
     thread/sema.h
     thread/thread.h

@@ -6,3 +6,4 @@
 #include <cx/thread/mutex.h>
 #include <cx/thread/rwlock.h>
 #include <cx/thread/event.h>
+#include <cx/thread/prqueue.h>

@@ -89,6 +89,8 @@ static const testspec tests[] = {
 { "math: PCG Error Condition", "mathtest", "pcgerror" },
 { "math: FP Comparison", "mathtest", "floatcmp" },
 { "fs: Path Matching", "fstest", "pathmatch" },
+{ "prqueue: Basic Pointer-Ring Buffer", "prqtest", "basic" },
+{ "prqueue: Multithreaded Queue", "prqtest", "mt" },
 { 0 }
 };
 
