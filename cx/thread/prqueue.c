@@ -76,6 +76,7 @@ fullretry:
             INCSTAT(prq, reserved_contention);
             aspinHandleContention(&prq->aspin, &astate);
         }
+        aspinEndContention(&astate);
         didreserve = false;
     }
 
@@ -160,6 +161,7 @@ fullretry:
             // if the segment is being retired, or if we somehow hit 2 billion writers, need to retry instead
             if(retiring || reserved == RESERVED_MASK) {
                 INCSTAT(prq, push_noreserve_retiring);
+                aspinEndContention(&astate);
                 goto fullretry;
             }
 
@@ -168,6 +170,7 @@ fullretry:
             INCSTAT(prq, reserved_contention);
             aspinHandleContention(&prq->aspin, &astate);
         }
+        aspinEndContention(&astate);
 
         didreserve = true;
     }
@@ -203,6 +206,7 @@ retry:
                 INCSTAT(prq, push_collision);
             }
         }
+        aspinEndContention(&astate);
     }
 
     if(!success) {
@@ -236,6 +240,7 @@ retry:
             INCSTAT(prq, reserved_contention);
             aspinHandleContention(&prq->aspin, &astate);
         }
+        aspinEndContention(&astate);
         didreserve = false;
     }
 
@@ -318,8 +323,6 @@ retry:
                 success = true;
                 break;
             } else {
-                ptr = NULL;
-                aspinHandleContention(&prq->aspin, &astate);
                 INCSTAT(prq, pop_collision);
             }
         }
@@ -354,6 +357,7 @@ retry:
                 aspinHandleContention(&prq->aspin, &astate);
             }
         }
+        aspinEndContention(&astate);
     } else if (slot - head > assist_thresh || havenext) {
         // we may need to assist another thread
         if(atomicCompareExchange(uint32, weak, &seg->head, &head, (slot + 1) % seg->size, Relaxed, Relaxed))

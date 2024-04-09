@@ -197,10 +197,17 @@ _meta_inline void aspinHandleContention(_Inout_ AdaptiveSpin *aspin, _Inout_ Ada
     // We use a poor quality but fast LCG pseudorandom number generator that is good enough
     // for this purpose.
 
-    if (lcgRandom(&ass->rstate) % ++ass->contention > 1) {
+    if (lcgRandom(&ass->rstate) % (++ass->contention + 7) > 8) {
         aspinRecordYield(aspin);
         osYield();
     } else {
-        _CPU_PAUSE;
+        for(int i = ass->contention * ass->contention; i >= 0; --i) {
+            _CPU_PAUSE;
+        }
     }
+}
+
+_meta_inline void aspinEndContention(_Inout_ AdaptiveSpinState *ass)
+{
+    ass->contention = 0;
 }
