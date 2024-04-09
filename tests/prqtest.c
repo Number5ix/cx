@@ -11,7 +11,7 @@ static int test_prqtest_basic()
     int ret = 0;
     PrQueue queue;
 
-    prqInit(&queue, 64, 64, PRQ_Grow_None);
+    prqInitFixed(&queue, 64);
 
     int testdata[65];
     int i;
@@ -182,8 +182,8 @@ static int test_prqtest_mt()
     Event ev;
     atomic(uint32) total = atomicInit(0), done = atomicInit(0);
 
-    prqInit(&queue1, 65, 65, PRQ_Grow_None);
-    prqInit(&queue2, 65, 65, PRQ_Grow_None);
+    prqInitFixed(&queue1, 65);
+    prqInitFixed(&queue2, 65);
 
     unsigned int *testdata = xaAlloc(sizeof(int) * PRQ_NUM);
     unsigned int expected = 0;
@@ -240,7 +240,7 @@ static int test_prqtest_grow()
     int ret = 0;
     PrQueue queue;
 
-    prqInit(&queue, 8, 64, PRQ_Grow_100);
+    prqInitDynamic(&queue, 8, 16, 64, PRQ_Grow_100, PRQ_Grow_None);
 
     int testdata[121];
     int i;
@@ -302,7 +302,7 @@ static int test_prqtest_gc()
     int ret = 0;
     PrQueue queue;
 
-    prqInit(&queue, 8, 64, PRQ_Grow_100);
+    prqInitDynamic(&queue, 8, 16, 64, PRQ_Grow_100, PRQ_Grow_None);
 
     int testdata[121];
     int i;
@@ -409,8 +409,8 @@ static int test_prqtest_mpmc()
 
     atomicStore(bool, &mtfail, false, Release);
 
-    prqInit(&queue1, 4, 10240, PRQ_Grow_25);
-    prqInit(&queue2, 4, 10240, PRQ_Grow_150);
+    prqInitDynamic(&queue1, 4, 1024, 10240, PRQ_Grow_25, PRQ_Grow_100);
+    prqInitDynamic(&queue2, 4, 1024, 10240, PRQ_Grow_150, PRQ_Grow_100);
 
     atomicStore(bool, &mtfail, false, Release);
 
@@ -447,15 +447,18 @@ static int test_prqtest_mpmc()
     }
 
     int64 starttime = clockWall();
+    bool nofree = false;
     while(atomicLoad(uint32, &done, Acquire) < MPMC_CONSUMERS) {
         eventWaitTimeout(&ev, timeS(10));
         if(atomicLoad(bool, &mtfail, Acquire) || clockWall() > starttime + timeS(60)) {
             ret = 1;
+            nofree = true;          // threads are still running
             break;
         }
     }
 
-    xaFree(testdata);
+    if (!nofree)
+        xaFree(testdata);
 
     unsigned int result = atomicLoad(uint32, &total, Acquire);
     if(result != expected)

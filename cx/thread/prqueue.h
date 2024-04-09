@@ -76,6 +76,8 @@ typedef struct PrqSegment PrqSegment;
 typedef struct PrqPerfStats {
     atomic(uint64) grow;
     atomic(uint64) grow_collision;
+    atomic(uint64) shrink;
+    atomic(uint64) shrink_collision;
     atomic(uint64) head_contention;
     atomic(uint64) reserved_contention;
     atomic(uint64) push;
@@ -106,15 +108,23 @@ typedef struct PrqPerfStats {
 
 typedef struct PrQueue
 {
-    // Initial size of the queue. Not used in general operation, but may be useful at
-    // some point for more advanced growth options.
-    uint32 initsz;
+    // Initial size of the queue as well as minimum size.
+    uint32 minsz;
 
-    // Maximum size of the queue. Must be equal to initsz for the PRQ_Grow_None growth mode.
+    // Ideal size of the queue.
+    uint32 targetsz;
+
+    // Maximum size of the queue.
     uint32 maxsz;
 
-    // How much to grow the queue when it fills up.
+    // Is this queue dynamically sized?
+    bool dynamic;
+
+    // How much to grow the queue at a time.
     PrqGrowth growth;
+
+    // How much to shrink the queue at a time.
+    PrqGrowth shrink;
 
     // Concurrence factor. Defaults to the number of logcal CPUs in the system. This value is
     // used to determine how many queue entries there must be before threads start assisting
@@ -135,6 +145,16 @@ typedef struct PrQueue
     // the current segment pointers and when it increments the use counter, since it cannot do that
     // atomically while another thread is retiring the segment.
     atomic(int32) access;
+
+    // Timestamp of the last time a segment was added to grow or shrink the queue.
+    atomic(int64) chgtime;
+
+    // Minimum time the queue must wait to shrink after growing or shrinking (default 500ms).
+    int64 shrinkinterval;
+
+    // Running average to track the total queue size across GC cycles for possible shrinking.
+    uint32 avgcount;
+    uint32 avgcount_num;
 
     // Only 1 thread may run the garbage collection operation at a time. It's recommended to try to
     // run GC optimistcally when a thread has nothing else to do. For example, a consumer thread
@@ -191,8 +211,17 @@ typedef struct PrqSegment
     atomic(ptr) buffer[];
 } PrqSegment;
 
-// Initialize a ringbuffer. Guaranteed to succeed, or assert.
-void prqInit(_Out_ PrQueue *prq, uint32 initsz, uint32 maxsz, PrqGrowth growth);
+// Initialize a fixed-sized ringbuffer. Guaranteed to succeed, or assert.
+void prqInitFixed(_Out_ PrQueue *prq, uint32 sz);
+
+// Initialize a dynamic buffer chain. Guaranteed to succeed, or assert.
+// minsz: Minimum & initial size
+// targetsz: Ideal size the buffer should try to reach
+// maxsz: Maximum size
+// growth: How much to grow at a time
+// shrink: How much to shrink at a time
+void prqInitDynamic(_Out_ PrQueue *prq, uint32 minsz, uint32 targetsz, uint32 maxsz,
+                      PrqGrowth growth, PrqGrowth shrink);
 
 // TODO? We do not currently provide a prqDestroy function because destroying a highly concurrent
 // queue is fraught and very difficult/complex to do correctly.

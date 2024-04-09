@@ -1,8 +1,6 @@
 #include "prqueue.h"
 #include <cx/utils/macros/unused.h>
-
-#define NOGROW(prq) (prq->growth == PRQ_Grow_None)
-#define ONLYGROW(prq) (prq->growth != PRQ_Grow_None)
+#include <cx/time.h>
 
 #define RESERVED_RETIRING 0x80000000
 #define RESERVED_MASK 0x7fffffff
@@ -13,26 +11,27 @@
 #define INCSTAT(prq, sname) nop_stmt
 #endif
 
-_Use_decl_annotations_
-void prqInit(PrQueue *prq, uint32 initsz, uint32 maxsz, PrqGrowth growth)
+static void _prqInit(_Out_ PrQueue *prq, uint32 minsz, uint32 targetsz, uint32 maxsz,
+                    PrqGrowth growth, PrqGrowth shrink)
 {
-    if(growth == 0)
-        growth = PRQ_Grow_100;
-    if(maxsz == 0)
-        maxsz = MAX_UINT32;
-
-    prq->initsz = initsz;
-    prq->maxsz = (growth == PRQ_Grow_None) ? initsz : maxsz;
+    prq->minsz = minsz;
+    prq->targetsz = targetsz;
+    prq->maxsz = maxsz;
     prq->growth = growth;
+    prq->shrink = shrink;
+    prq->dynamic = !(growth == PRQ_Grow_None && shrink == PRQ_Grow_None);
     prq->concurrence = clamplow(osLogicalCPUs() * 2, 4);
     prq->retired = NULL;
+    prq->shrinkinterval = timeMS(500);
+    prq->avgcount = 0;
+    prq->avgcount_num = 0;
     atomicStore(int32, &prq->access, 0, Relaxed);
 
-    PrqSegment *seg = xaAlloc(initsz * sizeof(void*) + offsetof(PrqSegment, buffer), XA_Zero);
-    seg->size = initsz;
+    PrqSegment *seg = xaAlloc(minsz * sizeof(void*) + offsetof(PrqSegment, buffer), XA_Zero);
+    seg->size = minsz;
     atomicStore(ptr, &prq->current, seg, Release);
 
-    if(!NOGROW(prq)) {
+    if(prq->dynamic) {
         mutexInit(&prq->gcmtx);
     }
 
@@ -44,18 +43,136 @@ void prqInit(PrQueue *prq, uint32 initsz, uint32 maxsz, PrqGrowth growth)
 }
 
 _Use_decl_annotations_
+void prqInitFixed(PrQueue *prq, uint32 sz)
+{
+    _prqInit(prq, sz, sz, sz, PRQ_Grow_None, PRQ_Grow_None);
+}
+
+_Use_decl_annotations_
+void prqInitDynamic(PrQueue *prq, uint32 minsz, uint32 targetsz, uint32 maxsz,
+                    PrqGrowth growth, PrqGrowth shrink)
+{
+    if(growth == 0)
+        growth = PRQ_Grow_100;
+    if(shrink == 0)
+        shrink = PRQ_Grow_100;
+    if(maxsz == 0)
+        maxsz = MAX_UINT32;
+    if(targetsz == 0)
+        targetsz = minsz;
+
+    _prqInit(prq, minsz, targetsz, maxsz, growth, shrink);
+}
+
+static uint32 prqGrowSize(PrqGrowth growth, uint32 size)
+{
+    switch(growth) {
+    case PRQ_Grow_25:
+        return clamplow(size + (size >> 2), size + 1);
+    case PRQ_Grow_50:
+        return clamplow(size + (size >> 1), size + 1);
+    case PRQ_Grow_100:
+    default:
+        return clamplow(size << 1, size + 1);
+    case PRQ_Grow_150:
+        return clamplow((size << 1) + (size >> 1), size + 1);
+    case PRQ_Grow_200:
+        return clamplow(size * 3, size + 1);
+    }
+}
+
+static PrqSegment *prqGrow(PrQueue *prq, PrqSegment *seg, uint32 newsz, bool *collision)
+{
+    PrqSegment *newseg = NULL;
+
+    newsz = clamphigh(newsz, prq->maxsz);
+    if(collision)
+        *collision = false;
+
+    if(newsz <= seg->size)
+        return NULL;
+
+    newseg = xaAlloc(newsz * sizeof(void *) + offsetof(PrqSegment, buffer), XA_Zero);
+    void *expected = NULL;
+    newseg->size = newsz;
+    if(atomicCompareExchange(ptr, strong, &seg->nextseg, &expected, newseg, Release, Relaxed)) {
+        INCSTAT(prq, grow);
+        atomicStore(int64, &prq->chgtime, clockTimer(), Release);
+        return newseg;
+    } else {
+        // failed to swap the pointer, this means another thread grew/shrank the buffer first
+        INCSTAT(prq, grow_collision);
+        xaFree(newseg);
+        if(collision)
+            *collision = true;
+        return NULL;
+    }
+}
+
+static uint32 prqShrinkSize(PrqGrowth shrink, uint32 size)
+{
+    switch(shrink) {
+    case PRQ_Grow_25:
+        return clamphigh(size - (size >> 4), size - 1);
+        break;
+    case PRQ_Grow_50:
+        return clamphigh(size - (size >> 2), size - 1);
+        break;
+    case PRQ_Grow_100:
+    default:
+        return clamphigh(size >> 1, size - 1);
+        break;
+    case PRQ_Grow_150:
+        return clamphigh((size >> 1) - (size >> 2), size - 1);
+        break;
+    case PRQ_Grow_200:
+        return clamphigh(size / 3, size - 1);
+        break;
+    }
+}
+
+static PrqSegment *prqShrink(PrQueue *prq, PrqSegment *seg, uint32 newsz, bool *collision)
+{
+    PrqSegment *newseg = NULL;
+
+    newsz = clamplow(newsz, prq->minsz);
+    if (collision)
+        *collision = false;
+
+    if(newsz >= seg->size)
+        return NULL;
+
+    newseg = xaAlloc(newsz * sizeof(void *) + offsetof(PrqSegment, buffer), XA_Zero);
+    void *expected = NULL;
+    newseg->size = newsz;
+    if(atomicCompareExchange(ptr, strong, &seg->nextseg, &expected, newseg, Release, Relaxed)) {
+        INCSTAT(prq, shrink);
+        atomicStore(int64, &prq->chgtime, clockTimer(), Release);
+        return newseg;
+    } else {
+        // failed to swap the pointer, this means another thread grew/shrank the buffer first
+        INCSTAT(prq, shrink_collision);
+        xaFree(newseg);
+        if(collision)
+            *collision = true;
+        return NULL;
+    }
+}
+
+_Use_decl_annotations_
 bool prqPush(PrQueue *prq, void *ptr)
 {
     if(!ptr)
         return false;           // invalid to push a NULL pointer
 
     AdaptiveSpinState astate = { 0 };
+    const bool dynamic = prq->dynamic;
 
     // Safely get the current segment and indicate that we're using it
-    if(ONLYGROW(prq))
+    if(dynamic)
         atomicFetchAdd(int32, &prq->access, 1, AcqRel);
     PrqSegment *seg = atomicLoad(ptr, &prq->current, Acquire);
-    if(ONLYGROW(prq)) {
+    if(dynamic) {
         atomicFetchAdd(int32, &seg->inuse, 1, AcqRel);
         atomicFetchAdd(int32, &prq->access, -1, Relaxed);
     }
@@ -81,7 +198,7 @@ fullretry:
     }
 
     // Chase the segment chain if needed
-    if(ONLYGROW(prq)) {
+    if(dynamic) {
         while((nextseg = atomicLoad(ptr, &seg->nextseg, Acquire))) {
             atomicFetchAdd(int32, &nextseg->inuse, 1, AcqRel);
             atomicFetchAdd(int32, &seg->inuse, -1, Relaxed);
@@ -99,52 +216,26 @@ fullretry:
     // If we are still able to grow, prefer to do that if the segment appears full.
     // The reason is that growing preserves queue ordering better. We should only fall back
     // to scavenging for an empty slot if there's no other choice.
-    if((ONLYGROW(prq) && seg->size < prq->maxsz) && count >= seg->size)
+    if((dynamic && seg->size < prq->maxsz) && count >= seg->size)
         full = true;
 
     // grow if segment is actually full, usually can only happen on retry
     if(full) {
-        if(ONLYGROW(prq) && seg->size < prq->maxsz) {
-            // need to create a new segment to grow the queue
-            uint32 newsz;
-            switch(prq->growth) {
-            case PRQ_Grow_25:
-                newsz = clamp(seg->size + (seg->size >> 2), seg->size + 1, prq->maxsz);
-                break;
-            case PRQ_Grow_50:
-                newsz = clamp(seg->size + (seg->size >> 1), seg->size + 1, prq->maxsz);
-                break;
-            case PRQ_Grow_100:
-            default:
-                newsz = clamp(seg->size << 1, seg->size + 1, prq->maxsz);
-                break;
-            case PRQ_Grow_150:
-                newsz = clamp((seg->size << 1) + (seg->size >> 1), seg->size + 1, prq->maxsz);
-                break;
-            case PRQ_Grow_200:
-                newsz = clamp(seg->size * 3, seg->size + 1, prq->maxsz);
-                break;
-            }
-
-            PrqSegment *newseg = xaAlloc(newsz * sizeof(void *) + offsetof(PrqSegment, buffer), XA_Zero);
-            void *expected = NULL;
-            newseg->size = newsz;
-            if(atomicCompareExchange(ptr, strong, &seg->nextseg, &expected, newseg, Release, Relaxed)) {
-                INCSTAT(prq, grow);
+        if(dynamic && seg->size < prq->maxsz) {
+            bool gcoll;
+            if (prqGrow(prq, seg, prqGrowSize(prq->growth, seg->size), &gcoll)) {
                 full = false;
                 goto fullretry;         // will follow nextseg into the new segment we just allocated
-            } else {
+            } else if (gcoll) {
                 // failed to swap the pointer, this means another thread grew the buffer first
-                INCSTAT(prq, grow_collision);
-                xaFree(newseg);
                 goto fullretry;         // will follow nextseg into the new segment the other thread allocated
             }
-        } else {
-            // cannot grow any more, return failure
-            if(ONLYGROW(prq))
-                atomicFetchAdd(int32, &seg->inuse, -1, Relaxed);
-            return false;
         }
+
+        // cannot grow any more, return failure
+        if(dynamic)
+            atomicFetchAdd(int32, &seg->inuse, -1, Relaxed);
+        return false;
     } else if(count >= seg->size) {
         // Segment APPEARS full, but we can't be certain until an insert is attempted.
         // This is a suboptimal path so we should try to avoid it when possible.
@@ -153,7 +244,7 @@ fullretry:
     }
 
     // get a write reservation if we need one
-    if(ONLYGROW(prq)) {
+    if(dynamic) {
         uint32 reserved = atomicLoad(uint32, &seg->reserved, Relaxed);
         for(;;) {
             bool retiring = (reserved & RESERVED_RETIRING);
@@ -245,7 +336,7 @@ retry:
     }
 
     // all done, release the buffer segment
-    if(ONLYGROW(prq))
+    if(dynamic)
         atomicFetchAdd(int32, &seg->inuse, -1, Relaxed);
 
     INCSTAT(prq, push);
@@ -256,12 +347,13 @@ _Use_decl_annotations_
 void *prqPop(PrQueue *prq)
 {
     AdaptiveSpinState astate = { 0 };
+    const bool dynamic = prq->dynamic;
 
     // Safely get the current segment and indicate that we're using it
-    if(ONLYGROW(prq))
+    if(dynamic)
         atomicFetchAdd(int32, &prq->access, 1, AcqRel);
     PrqSegment *seg = atomicLoad(ptr, &prq->current, Acquire);
-    if(ONLYGROW(prq)) {
+    if(dynamic) {
         atomicFetchAdd(int32, &seg->inuse, 1, AcqRel);
         atomicFetchAdd(int32, &prq->access, -1, Relaxed);
     }
@@ -281,8 +373,8 @@ void *prqPop(PrQueue *prq)
 
 retry:
     if(empty) {
-        if(ONLYGROW(prq)) {
-            // if this is a growable queue, check the next segment
+        if(dynamic) {
+            // if this is a dynamic queue, check the next segment
             PrqSegment *nextseg = atomicLoad(ptr, &seg->nextseg, Acquire);
             if(nextseg) {
                 atomicFetchAdd(int32, &nextseg->inuse, 1, AcqRel);
@@ -299,7 +391,7 @@ retry:
         }
             
         return NULL;                // queue is actually empty!
-    } else if(ONLYGROW(prq)) {
+    } else if(dynamic) {
         havenext = (atomicLoad(ptr, &seg->nextseg, Relaxed) != NULL);
     }
 
@@ -331,7 +423,7 @@ retry:
     if(!success) {
         INCSTAT(prq, pop_nonobvious_empty);
 
-        if(NOGROW(prq))
+        if(!dynamic)
             return NULL;
 
         // didn't find anything, try again with another segment if possible
@@ -366,7 +458,7 @@ retry:
             INCSTAT(prq, pop_assist_fail);
     }
 
-    if (ONLYGROW(prq))
+    if (dynamic)
         atomicFetchAdd(int32, &seg->inuse, -1, Relaxed);
 
     return ptr;
@@ -375,7 +467,8 @@ retry:
 _Use_decl_annotations_
 bool prqCollect(PrQueue *prq)
 {
-    if(NOGROW(prq))
+    uint32 totalcount = 0;
+    if(!prq->dynamic)
         return true;            // GC not needed for queues that can't grow
 
     if(!mutexTryAcquire(&prq->gcmtx))
@@ -383,26 +476,26 @@ bool prqCollect(PrQueue *prq)
 
     INCSTAT(prq, gc_run);
 
-    // try to retire the current segment if it's been replaced
+    bool canshrink = clockTimer() - atomicLoad(int64, &prq->chgtime, Acquire) > prq->shrinkinterval;
+
+    // try to retire the oldest segment if it's been replaced
+    // ONLY safe to do this with the current segment as it's protected directly by prq->access
     PrqSegment *seg = atomicLoad(ptr, &prq->current, Acquire);
     PrqSegment *nextseg = atomicLoad(ptr, &seg->nextseg, Acquire);
     PrqSegment *retired;
-    bool candealloc = true;
 
     if(nextseg) {
-        uint32 count = atomicLoad(uint32, &seg->count, Relaxed);
+        uint32 count = atomicLoad(uint32, &seg->count, Acquire);
         uint32 reserved = atomicLoad(uint32, &seg->reserved, Relaxed);
 
         if(!(reserved & RESERVED_RETIRING)) {
             // Phase 1: Add retired bit to block further writes
             atomicFetchOr(uint32, &seg->reserved, RESERVED_RETIRING, Relaxed);
-            candealloc = false;             // no more work this cycle
+            goto out;                       // no more work this cycle
         } else if(count == 0 && (reserved & RESERVED_MASK) == 0) {
             // Phase 2: Retire segment when it's empty and there are no pending writes
             // CAS is not needed on current because nothing else is allowed to change this pointer except GC, and we have the mutex
             atomicStore(ptr, &prq->current, nextseg, Release);
-
-            candealloc = false;             // no more work this cycle
 
             // Add to the end of the retired segment chain
             if(prq->retired) {
@@ -416,27 +509,57 @@ bool prqCollect(PrQueue *prq)
             }
 
             INCSTAT(prq, seg_retired);
+            goto out;                       // no more work this cycle
         }
     }
 
-    if(candealloc) {
-        // try to deallocate the oldest retired segment
-        retired = prq->retired;
-        if(retired) {
-            uint32 access = atomicLoad(int32, &prq->access, Acquire);
-            uint32 inuse = atomicLoad(int32, &retired->inuse, Acquire);
-            // can only safely do this if both values are 0.
-            // as they are interlocked, prq->access MUST be read first!
-            if(access == 0 && inuse == 0) {
-                prq->retired = retired->nextretired;
-                xaFree(retired);
-                INCSTAT(prq, seg_dealloc);
-            } else {
-                INCSTAT(prq, seg_dealloc_failinuse);
+    // try to shrink the active segment at the end of the chain
+    while(nextseg) {
+        uint32 count = atomicLoad(uint32, &seg->count, Acquire);
+        totalcount += count;
+        seg = nextseg;
+        nextseg = atomicLoad(ptr, &seg->nextseg, Acquire);
+    }
+
+    // keep a running average of how big the queue is -- but reset it if the number
+    // of samples grows too large and we'd start losing too much precision
+    if(prq->avgcount_num == 0 || prq->avgcount_num > seg->size / 4) {
+        prq->avgcount = totalcount;
+        prq->avgcount_num = 1;
+    } else {
+        prq->avgcount_num++;
+        prq->avgcount += totalcount / prq->avgcount_num - prq->avgcount / prq->avgcount_num;
+    }
+
+    if(canshrink && prq->avgcount_num > 4 && seg->size > prq->targetsz) {
+        uint32 shrinksz = clamplow(prqShrinkSize(prq->shrink, seg->size), prq->targetsz);
+
+        // failsafe size check to make sure we're not shrinking too much
+        if(prq->avgcount <= shrinksz) {
+            if(prqShrink(prq, seg, shrinksz, NULL)) {
+                prq->avgcount_num = 0;
+                goto out;
             }
         }
     }
 
+    // try to deallocate the oldest retired segment
+    retired = prq->retired;
+    if(retired) {
+        uint32 access = atomicLoad(int32, &prq->access, Acquire);
+        uint32 inuse = atomicLoad(int32, &retired->inuse, Acquire);
+        // can only safely do this if both values are 0.
+        // as they are interlocked, prq->access MUST be read first!
+        if(access == 0 && inuse == 0) {
+            prq->retired = retired->nextretired;
+            xaFree(retired);
+            INCSTAT(prq, seg_dealloc);
+        } else {
+            INCSTAT(prq, seg_dealloc_failinuse);
+        }
+    }
+
+out:
     mutexRelease(&prq->gcmtx);
     return true;
 }
