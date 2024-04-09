@@ -91,7 +91,9 @@ static const testspec tests[] = {
 { "fs: Path Matching", "fstest", "pathmatch" },
 { "prqueue: Basic Pointer-Ring Buffer", "prqtest", "basic" },
 { "prqueue: Multithreaded Queue", "prqtest", "mt" },
+{ "prqueue: Queue Growth", "prqtest", "grow" },
 { "prqueue: Garbage Collection", "prqtest", "gc" },
+{ "prqueue: Expandable MPMC", "prqtest", "mpmc" },
 { 0 }
 };
 

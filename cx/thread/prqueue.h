@@ -77,20 +77,21 @@ typedef struct PrqPerfStats {
     atomic(uint64) grow;
     atomic(uint64) grow_collision;
     atomic(uint64) head_contention;
-    atomic(uint64) tail_contention;
+    atomic(uint64) reserved_contention;
     atomic(uint64) push;
     atomic(uint64) push_optimal;
-    atomic(uint64) push_other;
+    atomic(uint64) push_fast;
+    atomic(uint64) push_slow;
     atomic(uint64) push_appeared_full;
     atomic(uint64) push_actually_full;
     atomic(uint64) push_collision;
     atomic(uint64) push_retry;
     atomic(uint64) push_full_retry;
-    atomic(uint64) push_out_of_range;
-    atomic(uint64) push_unnecessary_backout;
+    atomic(uint64) push_noreserve_retiring;
     atomic(uint64) pop;
     atomic(uint64) pop_optimal;
-    atomic(uint64) pop_other;
+    atomic(uint64) pop_fast;
+    atomic(uint64) pop_slow;
     atomic(uint64) pop_nonobvious_empty;
     atomic(uint64) pop_assist;
     atomic(uint64) pop_assist_fail;
@@ -168,18 +169,23 @@ typedef struct PrqSegment
     // a chance that a thread may still be reading from it (or about to read from it).
     atomic(int32) inuse;
 
-    // Total number of queue slots in this buffer. The actual capacity of the buffer is size - 1,
-    // as we enforce the invariant that there is always a minimum of 1 empty slot. Without the
-    // empty slot it would be impossible to differentiate between a full segment and an empty
-    // segment without doing extra checks that are extremely complex when the structure is being
-    // used by multiple threads.
+    // Total number of queue slots in this buffer.
     uint32 size;
 
-    // Head of the queue; points at the slot that is first in line to be read.
+    // Number of queue slots in this buffer that are used. This number may be slightly higher
+    // than the actual number of slots that has been written to. This is the authoritative
+    // source for how much of the queue is used.
+    atomic(uint32) count;
+
+    // Head of the queue; points at the slot that is first in line to be read. This is cached
+    // information for performance optimization only and is not authoritative.
     atomic(uint32) head;
 
-    // Tail of the queue; points at the slot that the next push will go to.
-    atomic(uint32) tail;
+    // Number of write reservations on this segment. Only used when the buffer is expandable, to
+    // prevent GC from retiring the segment while there are pending write operations. The high
+    // bit is used to signal that the segment is transitioning to the retired status and further
+    // writes may not be started.
+    atomic(uint32) reserved;
 
     // The actual ringbuffer
     atomic(ptr) buffer[];

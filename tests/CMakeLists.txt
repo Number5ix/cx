@@ -131,3 +131,4 @@ add_test(NAME "\"prqueue: Basic Pointer-Ring Buffer\"" COMMAND test_runner prqte
 add_test(NAME "\"prqueue: Multithreaded Queue\"" COMMAND test_runner prqtest mt)
 add_test(NAME "\"prqueue: Queue Growth\"" COMMAND test_runner prqtest grow)
 add_test(NAME "\"prqueue: Garbage Collection\"" COMMAND test_runner prqtest gc)
+add_test(NAME "\"prqueue: Expandable MPMC\"" COMMAND test_runner prqtest mpmc)
