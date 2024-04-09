@@ -8,7 +8,7 @@
 #define RESERVED_MASK 0x7fffffff
 
 #ifdef PRQ_PERF_STATS
-#define INCSTAT(prq, sname) atomicFetchAdd(uint64, &(prq)->stats.##sname, 1, Relaxed)
+#define INCSTAT(prq, sname) atomicFetchAdd(uint64, &(prq)->stats.sname, 1, Relaxed)
 #else
 #define INCSTAT(prq, sname) nop_stmt
 #endif
@@ -126,7 +126,7 @@ fullretry:
             }
 
             PrqSegment *newseg = xaAlloc(newsz * sizeof(void *) + offsetof(PrqSegment, buffer), XA_Zero);
-            PrqSegment *expected = NULL;
+            void *expected = NULL;
             newseg->size = newsz;
             if(atomicCompareExchange(ptr, strong, &seg->nextseg, &expected, newseg, Release, Relaxed)) {
                 INCSTAT(prq, grow);
