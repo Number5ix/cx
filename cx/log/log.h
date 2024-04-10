@@ -11,6 +11,7 @@ enum LOG_LEVEL_ENUM {
     LOG_Notice,
     LOG_Info,
     LOG_Verbose,
+    LOG_Diag,           // Release build diagnostics not normally needed
     LOG_Debug,          // Compiled out of non-development builds
     LOG_Trace,          // Only available in debug builds
 
@@ -61,6 +62,8 @@ void logBatchEnd(void);
 #if DEBUG_LEVEL >= 1
 #define _logStr_Debug(level, cat, str) _logStr(level, cat, str)
 #define _logFmt_Debug(level, cat, fmt, nargs, args) _logFmt(level, cat, fmt, nargs, args)
+#define _logStr_DevDiag(level, cat, str) _logStr(LOG_Diag, cat, str)
+#define _logFmt_DevDiag(level, cat, fmt, nargs, args) _logFmt(LOG_Diag, cat, fmt, nargs, args)
 #define _logStr_DevVerbose(level, cat, str) _logStr(LOG_Verbose, cat, str)
 #define _logFmt_DevVerbose(level, cat, fmt, nargs, args) _logFmt(LOG_Verbose, cat, fmt, nargs, args)
 #define _logStr_DevInfo(level, cat, str) _logStr(LOG_Info, cat, str)
@@ -74,6 +77,8 @@ void logBatchEnd(void);
 #else
 #define _logStr_Debug(level, cat, str) ((void)0)
 #define _logFmt_Debug(level, cat, str) ((void)0)
+#define _logStr_DevDiag(level, cat, str) ((void)0)
+#define _logFmt_DevDiag(level, cat, str) ((void)0)
 #define _logStr_DevVerbose(level, cat, str) ((void)0)
 #define _logFmt_DevVerbose(level, cat, str) ((void)0)
 #define _logStr_DevInfo(level, cat, str) ((void)0)
@@ -86,6 +91,8 @@ void logBatchEnd(void);
 #define _logFmt_DevError(level, cat, str) ((void)0)
 #endif
 
+#define _logStr_Diag(level, cat, str) _logStr(level, cat, str)
+#define _logFmt_Diag(level, cat, fmt, nargs, args) _logFmt(level, cat, fmt, nargs, args)
 #define _logStr_Verbose(level, cat, str) _logStr(level, cat, str)
 #define _logFmt_Verbose(level, cat, fmt, nargs, args) _logFmt(level, cat, fmt, nargs, args)
 #define _logStr_Info(level, cat, str) _logStr(level, cat, str)

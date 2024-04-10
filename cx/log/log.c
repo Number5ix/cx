@@ -26,6 +26,7 @@ strref LogLevelNames[LOG_Count] = {
     (strref)"\xE1\xC1\x06""Notice",
     (strref)"\xE1\xC1\x04""Info",
     (strref)"\xE1\xC1\x07""Verbose",
+    (strref)"\xE1\xC1\x05""Diag",
     (strref)"\xE1\xC1\x05""Debug",
     (strref)"\xE1\xC1\x05""Trace"
 };
@@ -37,6 +38,7 @@ strref LogLevelAbbrev[LOG_Count] = {
     (strref)"\xE1\xC1\x01""N",
     (strref)"\xE1\xC1\x01""I",
     (strref)"\xE1\xC1\x01""V",
+    (strref)"\xE1\xC1\x01""D",
     (strref)"\xE1\xC1\x01""D",
     (strref)"\xE1\xC1\x01""T"
 };
