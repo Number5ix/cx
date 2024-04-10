@@ -1,10 +1,19 @@
 #include "log_private.h"
 #include "logdefer.h"
 
-typedef struct LogDeferData {
-    LogEntry *head;
-    LogEntry *tail;
+typedef struct LogDeferEntry LogDeferEntry;
+typedef struct LogDeferData
+{
+    LogDeferEntry *head;
+    LogDeferEntry *tail;
 } LogDeferData;
+
+typedef struct LogDeferEntry
+{
+    LogDeferEntry *next;
+    LogEntry ent;
+    uint32 batchid;
+} LogDeferEntry;
 
 _Use_decl_annotations_
 LogDeferData *logDeferCreate(void)
@@ -14,22 +23,23 @@ LogDeferData *logDeferCreate(void)
 }
 
 _Use_decl_annotations_
-void logDeferDest(int level, LogCategory *cat, int64 timestamp, strref msg, void *userdata)
+void logDeferDest(int level, LogCategory *cat, int64 timestamp, strref msg, uint32 batchid, void *userdata)
 {
     LogDeferData *dd = (LogDeferData *)userdata;
     if (!dd || level == -1)
         return;
 
-    LogEntry *ent = xaAllocStruct(LogEntry, XA_Zero);
-    ent->level = level;
-    ent->cat = cat;
-    ent->timestamp = timestamp;
-    strDup(&ent->msg, msg);
+    LogDeferEntry *de = xaAllocStruct(LogDeferEntry, XA_Zero);
+    de->ent.level = level;
+    de->ent.cat = cat;
+    de->ent.timestamp = timestamp;
+    de->batchid = batchid;
+    strDup(&de->ent.msg, msg);
     if (!dd->head)
-        dd->head = ent;
+        dd->head = de;
     if (dd->tail)
-        dd->tail->_next = ent;
-    dd->tail = ent;
+        dd->tail->next = de;
+    dd->tail = de;
 }
 
 _Use_decl_annotations_
@@ -61,17 +71,18 @@ LogDest *logRegisterDestWithDefer(int maxlevel, LogCategory *catfilter, LogDestF
         // sanity check
         if (deferdest->userdata && deferdest->func == logDeferDest) {
             LogDeferData *dd = (LogDeferData *)deferdest->userdata;
-            LogEntry *head = dd->head;
+            LogDeferEntry *head = dd->head;
             dd->tail = NULL;
             dd->head = NULL;
 
             // go through linked list and send them all to the real destination
-            LogEntry *next;
+            LogDeferEntry *next;
             while (head) {
-                next = head->_next;
-                if (head->level <= maxlevel && applyCatFilter(catfilter, head->cat))
-                    dest(head->level, head->cat, head->timestamp, head->msg, userdata);
-                logDestroyEnt(head);
+                next = head->next;
+                if (head->ent.level <= maxlevel && applyCatFilter(catfilter, head->ent.cat))
+                    dest(head->ent.level, head->ent.cat, head->ent.timestamp, head->ent.msg, head->batchid, userdata);
+                strDestroy(&head->ent.msg);
+                xaFree(head);
                 head = next;
             }
 

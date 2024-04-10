@@ -60,7 +60,7 @@ bool logUnregisterDest(LogDest *dhandle)
     mutexRelease(&_log_dests_lock);
 
     // notify dest that it's no longer needed
-    dhandle->func(-1, NULL, 0, NULL, dhandle->userdata);
+    dhandle->func(-1, NULL, 0, NULL, 0, dhandle->userdata);
     xaFree(dhandle);
     return ret;
 }
@@ -74,7 +74,7 @@ void logShutdown(void)
     // remove all log destinations
     mutexAcquire(&_log_dests_lock);
     foreach(sarray, idx, LogDest*, dest, _log_dests) {
-        dest->func(-1, NULL, 0, NULL, dest->userdata);
+        dest->func(-1, NULL, 0, NULL, 0, dest->userdata);
     }
     saClear(&_log_dests);
     _log_max_level = -1;

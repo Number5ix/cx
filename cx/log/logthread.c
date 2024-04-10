@@ -15,6 +15,7 @@ static Event _log_done_event;
 static int logthread_func(_Inout_ Thread *self)
 {
     sa_LogEntry ents;
+    uint32 batchid = 0;
     saInit(&ents, ptr, 16);
 
     while (thrLoop(self)) {
@@ -33,12 +34,13 @@ static int logthread_func(_Inout_ Thread *self)
         // now that we have a bunch of log entries and batches, process them
         mutexAcquire(&_log_dests_lock);
         foreach(sarray, ent__idx, LogEntry*, ent, ents) {
+            ++batchid;
             while (ent) {
                 LogEntry *next = ent->_next;
                 foreach(sarray, dest_idx, LogDest *, dest, _log_dests) {
                     if (ent->level <= dest->maxlevel && applyCatFilter(dest->catfilter, ent->cat)) {
                         // dispatch to log destination
-                        dest->func(ent->level, ent->cat, ent->timestamp, ent->msg, dest->userdata);
+                        dest->func(ent->level, ent->cat, ent->timestamp, ent->msg, batchid, dest->userdata);
                     }
                 }
                 logDestroyEnt(ent);

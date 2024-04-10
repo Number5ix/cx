@@ -22,6 +22,7 @@ typedef struct LogFileData {
     int numseen;
     int64 lastrotate;
     int64 cursize;
+    uint32 lastbatch;
 } LogFileData;
 
 #ifdef _PLATFORM_WIN
@@ -340,7 +341,7 @@ static void formatDate(_In_ LogFileData *lfd, _Inout_ string *out, int64 timesta
 
 // this function is always called from the log thread and does not need to worry about concurrency
 _Use_decl_annotations_
-void logfileDest(int level, LogCategory *cat, int64 timestamp, strref msg, void *userdata)
+void logfileDest(int level, LogCategory *cat, int64 timestamp, strref msg, uint32 batchid, void *userdata)
 {
     LogFileData *lfd = (LogFileData*)userdata;
     if (!lfd)
@@ -352,7 +353,10 @@ void logfileDest(int level, LogCategory *cat, int64 timestamp, strref msg, void 
         return;
     }
 
-    checkRotate(lfd);
+    // don't rotate log files in the middle of a batch
+    if (batchid != lfd->lastbatch)
+        checkRotate(lfd);
+    lfd->lastbatch = batchid;
 
     string logline = 0;
     string logdate = 0, loglevel = 0, logcat = 0, logspaces = 0;

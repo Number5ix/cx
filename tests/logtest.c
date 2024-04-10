@@ -18,7 +18,7 @@ typedef struct LogTestData {
     LogCategory *lastcat;
 } LogTestData;
 
-static void testdest(int level, LogCategory *cat, int64 timestamp, strref msg, void *userdata)
+static void testdest(int level, LogCategory *cat, int64 timestamp, strref msg, uint32 batchid, void *userdata)
 {
     LogTestData *td = (LogTestData*)userdata;
     bool signal = true;

@@ -13,7 +13,7 @@ _Ret_valid_
 LogDeferData *logDeferCreate(void);
 
 // for use with logRegisterDest along with the userdata returned from logdeferCreate
-void logDeferDest(int level, _In_opt_ LogCategory *cat, int64 timestamp, _In_opt_ strref msg, _In_opt_ void *userdata);
+void logDeferDest(int level, _In_opt_ LogCategory *cat, int64 timestamp, _In_opt_ strref msg, uint32 batchid, _In_opt_ void *userdata);
 
 // Atomically registers a new destination with the logging system, while also transferring
 // the contents of the defer buffer to the new destination. The defer buffer is destroyed

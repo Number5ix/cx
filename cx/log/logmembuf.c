@@ -18,7 +18,7 @@ LogMembufData *logmembufCreate(uint32 size)
 
 // for use with logRegisterDest along with the userdata returned from logmembufCreate
 _Use_decl_annotations_
-void logmembufDest(int level, LogCategory *cat, int64 timestamp, strref msg, void *userdata)
+void logmembufDest(int level, LogCategory *cat, int64 timestamp, strref msg, uint32 batchid, void *userdata)
 {
     LogMembufData *lmd = (LogMembufData*)userdata;
     if (!lmd)

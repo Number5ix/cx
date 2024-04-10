@@ -14,4 +14,4 @@ _Ret_valid_
 LogMembufData *logmembufCreate(uint32 size);
 
 // for use with logRegisterDest along with the userdata returned from logmembufCreate
-void logmembufDest(int level, _In_opt_ LogCategory *cat, int64 timestamp, _In_opt_ strref msg, _In_opt_ void *userdata);
+void logmembufDest(int level, _In_opt_ LogCategory *cat, int64 timestamp, _In_opt_ strref msg, uint32 batchid, _In_opt_ void *userdata);

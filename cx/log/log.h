@@ -35,7 +35,10 @@ void _logFmt(int level, _In_ LogCategory *cat, _In_ strref fmtstr, int n, _In_ s
 // NOTE: will be called with level == -1 to indicate that the destination has been removed or the
 // log system is shutting down. The destination provider should assume it will never be called again
 // and close log files, etc.
-typedef void(*LogDestFunc)(int level, _In_opt_ LogCategory *cat, int64 timestamp, _In_opt_ strref msg, _In_opt_ void *userdata);
+// A log destination should try to keep messages with the same batchid together, i.e. not split logfiles
+// across the batch if possible. The batch ID should be treated as opaque and for comparison purposes only;
+// it has no particular ordering.
+typedef void(*LogDestFunc)(int level, _In_opt_ LogCategory *cat, int64 timestamp, _In_opt_ strref msg, uint32 batchid, _In_opt_ void *userdata);
 
 _Ret_valid_
 LogDest *logRegisterDest(int maxlevel, _In_opt_ LogCategory *catfilter, _In_ LogDestFunc dest, _In_opt_ void *userdata);
