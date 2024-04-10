@@ -3,7 +3,7 @@
 #include <cx/thread/aspin.h>
 #include <cx/thread/mutex.h>
 
-// Pointer-ring buffer FIFO queue
+// Pointer-ring FIFO queue
 // Lock-free thread-safe expandable ringbuffer implementation.
 //
 // This is in thread/ rather than container/ because it is a low-level structure intended for use

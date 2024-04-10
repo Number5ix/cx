@@ -89,11 +89,11 @@ static const testspec tests[] = {
 { "math: PCG Error Condition", "mathtest", "pcgerror" },
 { "math: FP Comparison", "mathtest", "floatcmp" },
 { "fs: Path Matching", "fstest", "pathmatch" },
-{ "prqueue: Basic Pointer-Ring Buffer", "prqtest", "basic" },
+{ "prqueue: Basic Pointer-Ring Queue", "prqtest", "basic" },
 { "prqueue: Multithreaded Queue", "prqtest", "mt" },
 { "prqueue: Queue Growth", "prqtest", "grow" },
 { "prqueue: Garbage Collection", "prqtest", "gc" },
-{ "prqueue: Expandable MPMC", "prqtest", "mpmc" },
+{ "prqueue: Dynamic MPMC", "prqtest", "mpmc" },
 { 0 }
 };
 
