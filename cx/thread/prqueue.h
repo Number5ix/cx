@@ -224,8 +224,12 @@ void prqInitFixed(_Out_ PrQueue *prq, uint32 sz);
 void prqInitDynamic(_Out_ PrQueue *prq, uint32 minsz, uint32 targetsz, uint32 maxsz,
                       PrqGrowth growth, PrqGrowth shrink);
 
-// TODO? We do not currently provide a prqDestroy function because destroying a highly concurrent
-// queue is fraught and very difficult/complex to do correctly.
+// Attempts to destroy the queue. Will fail if there are still entries in the queue, because
+// this is a low-level API that has no idea what the pointers stored in it point to or what
+// kind of cleanup needs to be done on them. It is the caller's responsibility to ensure that
+// all entires have been popped and no threads are still trying to push new ones!
+_Success_(return)
+bool prqDestroy(_Pre_valid_ _Post_invalid_ PrQueue *prq);
 
 // Attempt to push a pointer into the queue. Returns true on success, false if the queue
 // is full and cannot be grown. Upon success, the pointer should be considered to be

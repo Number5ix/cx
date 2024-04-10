@@ -173,6 +173,12 @@ bool prqPush(PrQueue *prq, void *ptr)
     if(dynamic)
         atomicFetchAdd(int32, &prq->access, 1, AcqRel);
     PrqSegment *seg = atomicLoad(ptr, &prq->current, Acquire);
+    if(!seg) {
+        if(dynamic) {
+            atomicFetchAdd(int32, &prq->access, -1, Relaxed);
+            return false;
+        }
+    }
     if(dynamic) {
         atomicFetchAdd(int32, &seg->inuse, 1, AcqRel);
         atomicFetchAdd(int32, &prq->access, -1, Relaxed);
@@ -354,6 +360,12 @@ void *prqPop(PrQueue *prq)
     if(dynamic)
         atomicFetchAdd(int32, &prq->access, 1, AcqRel);
     PrqSegment *seg = atomicLoad(ptr, &prq->current, Acquire);
+    if(!seg) {
+        if(dynamic) {
+            atomicFetchAdd(int32, &prq->access, -1, Relaxed);
+            return false;
+        }
+    }
     if(dynamic) {
         atomicFetchAdd(int32, &seg->inuse, 1, AcqRel);
         atomicFetchAdd(int32, &prq->access, -1, Relaxed);
@@ -565,4 +577,84 @@ bool prqCollect(PrQueue *prq)
 out:
     mutexRelease(&prq->gcmtx);
     return true;
+}
+
+_Use_decl_annotations_
+bool prqDestroy(PrQueue *prq)
+{
+    bool ret = false;
+    if (prq->dynamic)
+        mutexAcquire(&prq->gcmtx);
+
+    uint64 totalcount = 0;
+    bool writepending = false;
+    // forcibly retire all active segments
+    PrqSegment *seg = atomicLoad(ptr, &prq->current, Acquire);
+    while(seg) {
+        uint32 reserved = atomicFetchOr(uint32, &seg->reserved, RESERVED_RETIRING, AcqRel);
+        if((reserved & RESERVED_MASK) > 0)
+            writepending = true;
+        totalcount += atomicLoad(uint32, &seg->count, Acquire);
+        seg = atomicLoad(ptr, &seg->nextseg, Acquire);
+    }
+
+    if(totalcount > 0 || writepending)
+        goto out;       // queue isn't empty and idle! abort!
+
+    // this effectively shuts down the queue; no new segments can be added
+    seg = atomicLoad(ptr, &prq->current, Acquire);
+    if(!atomicCompareExchange(ptr, strong, &prq->current, (void**)&seg, NULL, Release, Relaxed))
+        goto out;
+
+    // move them all to retired list to be able to do it all in one go
+    PrqSegment *retired;
+    while(seg) {
+        // Add to the end of the retired segment chain
+        if(prq->retired) {
+            retired = prq->retired;
+            while(retired->nextretired) {
+                retired = retired->nextretired;
+            }
+            retired->nextretired = seg;
+        } else {
+            prq->retired = seg;
+        }
+
+        INCSTAT(prq, seg_retired);
+        seg = atomicLoad(ptr, &seg->nextseg, Acquire);
+    }
+
+    // now clear out the whole retired list
+    ret = true;
+    PrqSegment **rptr = &prq->retired;
+    retired = prq->retired;
+    while(retired) {
+        PrqSegment *nextretired = retired->nextretired;
+        uint32 access = atomicLoad(int32, &prq->access, Acquire);
+        uint32 inuse = atomicLoad(int32, &retired->inuse, Acquire);
+        if(access == 0 && inuse == 0) {
+            *rptr = nextretired;
+            xaFree(retired);
+            INCSTAT(prq, seg_dealloc);
+        } else {
+            // Couldn't deallocate this segment, still in use.
+            // Return failure, leave things in a state that could possibly succeed if
+            // the caller tries again.
+            rptr = &retired->nextretired;
+            ret = false;
+            INCSTAT(prq, seg_dealloc_failinuse);
+        }
+
+        retired = nextretired;
+    }
+
+out:
+    if(prq->dynamic) {
+        mutexRelease(&prq->gcmtx);
+        if(ret) {
+            mutexDestroy(&prq->gcmtx);
+        }
+    }
+
+    return ret;
 }
