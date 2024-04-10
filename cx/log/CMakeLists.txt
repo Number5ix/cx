@@ -1,10 +1,10 @@
 set(LOG_SRCS
     log/log.c
-    log/logbuffer.c
     log/logdefer.c
     log/logdest.c
     log/logfile.c
     log/logmembuf.c
+    log/logqueue.c
     log/logthread.c)
 set(LOG_INCLUDES
     log/log.h

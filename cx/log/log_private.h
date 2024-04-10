@@ -4,7 +4,8 @@
 #include <cx/thread.h>
 #include <cx/utils/lazyinit.h>
 
-#define LOG_INITIAL_BUFFER_SIZE 32
+#define LOG_INITIAL_QUEUE_SIZE 32
+#define LOG_MAX_QUEUE_SIZE 262144
 
 extern Thread *_log_thread;
 
@@ -29,11 +30,7 @@ saDeclarePtr(LogEntry);
 // cached for performance, can safely be non-atomic
 extern int _log_max_level;
 
-saDeclareType(atomicptr, atomic(ptr));
-extern RWLock _log_buffer_lock;             // used for expanding the buffer
-extern sa_atomicptr _log_buffer;            // ring buffer
-extern atomic(int32) _log_buf_readptr;
-extern atomic(int32) _log_buf_writeptr;
+extern PrQueue _log_queue;
 
 extern Mutex _log_dests_lock;
 extern sa_LogDest _log_dests;
@@ -42,7 +39,7 @@ extern LazyInitState _logInitState;
 
 void logCheckInit(void);
 void logDestroyEnt(_In_ LogEntry *ent);
-void logBufferAdd(_In_ LogEntry *ent);
+void logQueueAdd(_In_ LogEntry *ent);
 void logThreadCreate(void);
 bool logUnregisterDestLocked(_In_ LogDest *dhandle);
 

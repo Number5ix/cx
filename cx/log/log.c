@@ -48,9 +48,7 @@ static void logInit(void *dummy)
 {
     saInit(&_log_dests, ptr, 8);
     mutexInit(&_log_dests_lock);
-    rwlockInit(&_log_buffer_lock);
-    saInit(&_log_buffer, ptr, LOG_INITIAL_BUFFER_SIZE);
-    saSetSize(&_log_buffer, LOG_INITIAL_BUFFER_SIZE);
+    prqInitDynamic(&_log_queue, LOG_INITIAL_QUEUE_SIZE, LOG_INITIAL_QUEUE_SIZE * 2, LOG_MAX_QUEUE_SIZE, PRQ_Grow_100, PRQ_Grow_100);
     logThreadCreate();
 }
 
@@ -88,7 +86,7 @@ static void _logStrInternal(int level, _In_ LogCategory *cat, _In_ strref str)
 
     if (!_log_batch.level) {
         // to the global log buffer
-        logBufferAdd(ent);
+        logQueueAdd(ent);
     } else {
         // this thread is preparing a batch
         if (_log_batch.tail) {
@@ -137,7 +135,7 @@ void logBatchEnd(void)
 {
     devAssert(_log_batch.level > 0);
     if (--_log_batch.level == 0) {
-        logBufferAdd(_log_batch.head);
+        logQueueAdd(_log_batch.head);
         _log_batch.head = NULL;
         _log_batch.tail = NULL;
     }

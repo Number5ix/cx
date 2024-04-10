@@ -10,30 +10,25 @@
 Thread *_log_thread;
 static Event _log_done_event;
 
+#define LOG_BATCH_SIZE 256
+
 static int logthread_func(_Inout_ Thread *self)
 {
     sa_LogEntry ents;
     saInit(&ents, ptr, 16);
 
     while (thrLoop(self)) {
-        rwlockAcquireRead(&_log_buffer_lock);
-        int32 bsize = saSize(_log_buffer);      // size cannot change while read lock is held
-        int32 wrptr = atomicLoad(int32, &_log_buf_writeptr, Acquire);
-        int32 rdptr = atomicLoad(int32, &_log_buf_readptr, Acquire);
-
-        // grab available log entries
-        while (rdptr != wrptr) {
-            LogEntry *ent = atomicLoad(ptr, &_log_buffer.a[rdptr], Acquire);
-            devAssert(ent);
-
-            if (ent) {
+        bool empty = false;
+        // grab some available log entries
+        for(int i = 0; i < LOG_BATCH_SIZE; i++) {
+            LogEntry *ent = (LogEntry *)prqPop(&_log_queue);
+            if(ent) {
                 saPush(&ents, ptr, ent);
-                atomicStore(ptr, &_log_buffer.a[rdptr], NULL, Release);
+            } else {
+                empty = true;
+                break;              // queue empty
             }
-            rdptr = (rdptr + 1) % bsize;
         }
-        atomicStore(int32, &_log_buf_readptr, rdptr, Release);
-        rwlockReleaseRead(&_log_buffer_lock);
 
         // now that we have a bunch of log entries and batches, process them
         mutexAcquire(&_log_dests_lock);
@@ -54,8 +49,11 @@ static int logthread_func(_Inout_ Thread *self)
 
         saClear(&ents);
 
-        eventSignal(&_log_done_event);
-        eventWait(&self->notify);
+        if(empty) {
+            prqCollect(&_log_queue);            // run GC before event signal so it's not running during shutdown
+            eventSignal(&_log_done_event);
+            eventWait(&self->notify);
+        }
     }
 
     return 0;
@@ -76,22 +74,14 @@ void logFlush(void)
     if (!_log_thread)
         return;
 
-    for(;;) {
-        // acquire destination lock, then buffer write lock to ensure that rdptr
-        // reflects log entries that have been fully written
-        mutexAcquire(&_log_dests_lock);
-        mutexRelease(&_log_dests_lock);
-        rwlockAcquireWrite(&_log_buffer_lock);
-        int32 rdptr = atomicLoad(int32, &_log_buf_readptr, Relaxed);
-        int32 wrptr = atomicLoad(int32, &_log_buf_writeptr, Acquire);
-        rwlockReleaseWrite(&_log_buffer_lock);
+    eventReset(&_log_done_event);
+    eventSignal(&_log_thread->notify);
+    eventWait(&_log_done_event);
 
-        // nothing to process, all done
-        if (rdptr == wrptr)
-            break;
+    // signal the thread twice because the event above may be from a partially-complete run
+    // that was already processing when this function was called
 
-        eventReset(&_log_done_event);
-        eventSignal(&_log_thread->notify);
-        eventWait(&_log_done_event);
-    }
+    eventReset(&_log_done_event);
+    eventSignal(&_log_thread->notify);
+    eventWait(&_log_done_event);
 }

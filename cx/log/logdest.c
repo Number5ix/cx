@@ -79,4 +79,6 @@ void logShutdown(void)
     saClear(&_log_dests);
     _log_max_level = -1;
     mutexRelease(&_log_dests_lock);
+
+    logFlush();
 }
