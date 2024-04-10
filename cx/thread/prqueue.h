@@ -146,8 +146,9 @@ typedef struct PrQueue
     // atomically while another thread is retiring the segment.
     atomic(int32) access;
 
-    // Timestamp of the last time a segment was added to grow or shrink the queue.
-    atomic(int64) chgtime;
+    // Lower 32 bits of timestamp of the last time a segment was added to grow or shrink the queue,
+    // because this needs to be atomic and 64-bit atomics don't exist on all platforms.
+    atomic(uint32) chgtime;
 
     // Minimum time the queue must wait to shrink after growing or shrinking (default 500ms).
     int64 shrinkinterval;

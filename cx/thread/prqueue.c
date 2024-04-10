@@ -33,6 +33,7 @@ static void _prqInit(_Out_ PrQueue *prq, uint32 minsz, uint32 targetsz, uint32 m
 
     if(prq->dynamic) {
         mutexInit(&prq->gcmtx);
+        atomicStore(uint32, &prq->chgtime, (uint64)clockTimer() & 0xffffffff, Relaxed);
     }
 
     memset(&prq->aspin, 0, sizeof(prq->aspin));
@@ -97,7 +98,7 @@ static PrqSegment *prqGrow(PrQueue *prq, PrqSegment *seg, uint32 newsz, bool *co
     newseg->size = newsz;
     if(atomicCompareExchange(ptr, strong, &seg->nextseg, &expected, newseg, Release, Relaxed)) {
         INCSTAT(prq, grow);
-        atomicStore(int64, &prq->chgtime, clockTimer(), Release);
+        atomicStore(uint32, &prq->chgtime, (uint64)clockTimer() & 0xffffffff, Release);
         return newseg;
     } else {
         // failed to swap the pointer, this means another thread grew/shrank the buffer first
@@ -147,7 +148,7 @@ static PrqSegment *prqShrink(PrQueue *prq, PrqSegment *seg, uint32 newsz, bool *
     newseg->size = newsz;
     if(atomicCompareExchange(ptr, strong, &seg->nextseg, &expected, newseg, Release, Relaxed)) {
         INCSTAT(prq, shrink);
-        atomicStore(int64, &prq->chgtime, clockTimer(), Release);
+        atomicStore(uint32, &prq->chgtime, (uint64)clockTimer() & 0xffffffff, Release);
         return newseg;
     } else {
         // failed to swap the pointer, this means another thread grew/shrank the buffer first
@@ -476,7 +477,9 @@ bool prqCollect(PrQueue *prq)
 
     INCSTAT(prq, gc_run);
 
-    bool canshrink = clockTimer() - atomicLoad(int64, &prq->chgtime, Acquire) > prq->shrinkinterval;
+    uint32 chgtime = atomicLoad(uint32, &prq->chgtime, Acquire);
+    uint32 now = (uint64)clockTimer() & 0xffffffff;
+    bool canshrink = (now - chgtime > prq->shrinkinterval) || (now < chgtime);      // handle rollover
 
     // try to retire the oldest segment if it's been replaced
     // ONLY safe to do this with the current segment as it's protected directly by prq->access

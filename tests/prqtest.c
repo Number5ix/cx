@@ -85,7 +85,7 @@ static int test_prqtest_basic()
 #define PRQ_NUM 614400
 
 static atomic(bool) mtfail;
-static atomic(uint64) pushfail;
+static atomic(uint32) pushfail;
 
 static int mtTestProduce(Thread *self)
 {
@@ -100,7 +100,7 @@ static int mtTestProduce(Thread *self)
 
     for(int i = tdstart; i < tdend; i++) {
         while(!prqPush(queue, &testdata[i])) {
-            atomicFetchAdd(uint64, &pushfail, 1, Relaxed);
+            atomicFetchAdd(uint32, &pushfail, 1, Relaxed);
             osYield();
         }
     }
