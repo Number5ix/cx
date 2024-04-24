@@ -174,10 +174,9 @@ bool prqPush(PrQueue *prq, void *ptr)
         atomicFetchAdd(int32, &prq->access, 1, AcqRel);
     PrqSegment *seg = atomicLoad(ptr, &prq->current, Acquire);
     if(!seg) {
-        if(dynamic) {
+        if(dynamic)
             atomicFetchAdd(int32, &prq->access, -1, Relaxed);
-            return false;
-        }
+        return false;
     }
     if(dynamic) {
         atomicFetchAdd(int32, &seg->inuse, 1, AcqRel);
@@ -361,10 +360,9 @@ void *prqPop(PrQueue *prq)
         atomicFetchAdd(int32, &prq->access, 1, AcqRel);
     PrqSegment *seg = atomicLoad(ptr, &prq->current, Acquire);
     if(!seg) {
-        if(dynamic) {
+        if(dynamic)
             atomicFetchAdd(int32, &prq->access, -1, Relaxed);
-            return false;
-        }
+        return false;
     }
     if(dynamic) {
         atomicFetchAdd(int32, &seg->inuse, 1, AcqRel);
