@@ -21,6 +21,7 @@ add_subdirectory(string)
 add_subdirectory(stype)
 add_subdirectory(suid)
 add_subdirectory(sys)
+add_subdirectory(taskqueue)
 add_subdirectory(thread)
 add_subdirectory(time)
 add_subdirectory(utils)
@@ -42,6 +43,7 @@ set(CX_BASE_INCLUDES
     static_config.h
     string.h
     sys.h
+    taskqueue.h
     thread.h
     time.h
     utils.h

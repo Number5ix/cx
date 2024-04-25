@@ -1,0 +1,36 @@
+#include <cx/taskqueue/taskqueue_shared.h>
+#include <cx/taskqueue/worker.sidl>
+#include <cx/thread/event.h>
+#include <cx/thread/thread.h>
+#include <cx/thread/prqueue.h>
+
+typedef enum TaskQueueStateEnum {
+    TQState_Init,
+    TQState_Starting,
+    TQState_Running,
+    TQState_Stopping,
+    TQState_Shutdown,
+} TaskQueueStateEnum;
+
+class TaskQueue {
+    string name;
+    TaskQueueConfig tqconfig;
+
+    // State should *probably* be an atomic that is only modified via CAS,
+    // but for now we assume callers are reasonably well-behaved and don't try to do stupid
+    // things like start/stop the same queue concurrently from many different threads.
+    TaskQueueStateEnum state;
+
+    object:Thread manager;
+    sarray:object:TaskQueueWorker workers;       // [owned by manager]
+    Event workev;           // signaled when there is work to be done
+    Event shutdownev;       // signaled when queue is finished shutting down
+
+    PrQueue runq;           // tasks that are ready to be picked up by workers
+    PrQueue doneq;          // tasks that are either deferred or finished
+    [noinit] sarray:ptr deferred;    // tasks that are deferred for later, sorted by defer time [owned by manager]
+
+    bool start(Event *notify);
+
+    factory create(strref name, [in] TaskQueueConfig *tqconfig);
+}

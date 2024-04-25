@@ -1,0 +1,12 @@
+#include <cx/taskqueue/task.sidl>
+#include <cx/thread.h>
+
+class TaskQueueWorker {
+    object:Thread thr;      // worker thread
+    atomic:ptr curtask;     // this worker's currently running task
+    int32 num;              // worker number
+    bool shutdown;
+
+    factory create(int32 num);
+    bool start(TaskQueue *tq);
+}

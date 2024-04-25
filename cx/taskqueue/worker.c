@@ -1,0 +1,140 @@
+// ==================== Auto-generated section begins ====================
+// Do not modify the contents of this section; any changes will be lost!
+#include <cx/obj.h>
+#include <cx/debug/assert.h>
+#include <cx/obj/objstdif.h>
+#include <cx/container.h>
+#include <cx/string.h>
+#include "worker.h"
+// ==================== Auto-generated section ends ======================
+#include <cx/format.h>
+#include "taskqueue_private.h"
+
+static int tqWorkerThread(Thread *thr)
+{
+    TaskQueue *tq;
+    TaskQueueWorker *self;
+
+    if(!stvlNext(&thr->args, ptr, &tq) ||
+       !stvlNext(&thr->args, ptr, &self))
+        return 1;
+
+    // this is not allowed to change while the queue is running
+    TQUICallback ui = tq->tqconfig.ui;
+
+    while(thrLoop(thr) && tq->state == TQState_Running) {
+        BasicTask *btask;
+
+        while ((btask = (BasicTask*)prqPop(&tq->runq))) {
+            bool doneq = true;
+
+            // Do UI stuff first if this is a UI task queue, to keep things responsive
+            if(ui)
+                ui(tq);
+
+            // IMPLEMENTATION NOTE: At this point we become the owner of the btask pointer
+            // and it does not exist anywhere else in the queue -- MOSTLY. We are not allowed
+            // to destroy the object because the manager/monitor thread may be accessing it
+            // concurrently through our curtask pointer.
+
+            // run it
+            atomicStore(int32, &btask->state, TASK_Running, Release);
+            atomicStore(ptr, &self->curtask, btask, Release);
+            TaskResult res = { 0 };
+            btaskRun(btask, tq, &res);          // <-- do the thing
+            atomicStore(ptr, &self->curtask, NULL, Release);
+
+            // See if this is a full-fledged Task or just a BasicTask
+            Task *task = objDynCast(btask, Task);
+
+            if(task) {
+                if(res.success) {
+                    atomicStore(int32, &btask->state, TASK_Succeeded, Release);
+                } else if(res.failure) {
+                    atomicStore(int32, &btask->state, TASK_Failed, Release);
+                } else {
+                    // Task did not succeed or fail, so it goes back into the queue.
+                    atomicStore(int32, &btask->state, TASK_Waiting, Release);
+                    // Progress counter only records that progress is being made, not how much!
+                    task->progress += res.progress ? 1 : 0;
+                    if(res.defer > 0) {
+                        // will go into defer list to be run at a certain time
+                        task->nextrun = clockTimer() + res.defer;
+                    } else if (res.progress) {
+                        // defer is 0 and we DID make progress, add it straight to the run queue so
+                        // we'll get right back to it.
+                        prqPush(&tq->runq, btask);
+                        // Note: We intentionally don't signal the worker event because we're
+                        // about to loop anyway, no need to wake up another thread. If something
+                        // else is added to the queue in the interim, that action will wake up a
+                        // different worker.
+                        doneq = false;
+                    } else {
+                        // defer is 0 and we did NOT make progress. In this case, it does still go
+                        // to the defer list, but nextrun is set to 0 which tells the manager to
+                        // release it only once some other task finishes.
+                        task->nextrun = 0;
+                    }
+                }
+            } else {
+                // basic tasks fail if they do not succeed
+                atomicStore(int32, &btask->state, res.success ? TASK_Succeeded : TASK_Failed, Release);
+            }
+
+            // In all cases except one the task needs to be moved to the done queue for the manager
+            // to either requeue later or destroy.
+            if(doneq) {
+                prqPush(&tq->doneq, btask);
+                eventSignal(&tq->manager->notify);
+            }
+        }
+
+        // Queue is empty; wait for some work to do unless we are a UI thread
+        // and there are STILL more unprocessed UI events.
+        if(!ui || ui(tq))
+            eventWait(&tq->workev);
+    }
+
+    // the manager might be waiting on us to exit
+    self->shutdown = true;
+    eventSignal(&tq->manager->notify);
+
+    return 0;
+}
+void TaskQueueWorker_destroy(_Inout_ TaskQueueWorker *self)
+{
+    // Autogen begins -----
+    objRelease(&self->thr);
+    // Autogen ends -------
+}
+
+_objfactory_guaranteed TaskQueueWorker *TaskQueueWorker_create(int32 num)
+{
+    TaskQueueWorker *self;
+    self = objInstCreate(TaskQueueWorker);
+
+    self->num = num;
+
+    objInstInit(self);
+
+    return self;
+}
+
+bool TaskQueueWorker_start(_Inout_ TaskQueueWorker *self, TaskQueue *tq)
+{
+    string thrname = 0;
+    strFormat(&thrname, _S"${string} Worker #${int}", stvar(string, tq->name), stvar(int32, self->num));
+
+    // may need to create a UI thread for the worker if there's a callback
+    if (tq->tqconfig.ui)
+        self->thr = thrCreateUI(tqWorkerThread, thrname, stvar(ptr, tq), stvar(ptr, self));
+    else
+        self->thr = thrCreate(tqWorkerThread, thrname, stvar(ptr, tq), stvar(ptr, self));
+
+    strDestroy(&thrname);
+    return self->thr;
+}
+
+// Autogen begins -----
+#include "worker.auto.inc"
+// Autogen ends -------

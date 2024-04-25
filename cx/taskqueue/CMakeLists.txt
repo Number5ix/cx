@@ -1,0 +1,37 @@
+set(TASKQUEUE_SRCS
+    taskqueue/basictask.c
+    taskqueue/manager.c
+    taskqueue/monitor.c
+    taskqueue/task.c
+    taskqueue/taskqueue.c
+    taskqueue/tqobject.c
+    taskqueue/userfunctask.c
+    taskqueue/worker.c)
+set(TASKQUEUE_INCLUDES
+    taskqueue/taskqueue.h
+    taskqueue/taskqueue_private.h
+    taskqueue/taskqueue_shared.h)
+set(TASKQUEUE_SIDL
+    taskqueue/basictask.sidl
+    taskqueue/task.sidl
+    taskqueue/tqobject.sidl
+    taskqueue/userfunctask.sidl
+    taskqueue/worker.sidl)
+
+set(CX_SRCS
+    ${CX_SRCS}
+    ${TASKQUEUE_SRCS}
+    PARENT_SCOPE)
+set(CX_INCLUDES
+    ${CX_INCLUDES}
+    ${TASKQUEUE_INCLUDES}
+    PARENT_SCOPE)
+set(CX_SIDL
+    ${CX_SIDL}
+    ${TASKQUEUE_SIDL}
+    PARENT_SCOPE)
+
+set(CX_CMAKE_FILES
+    ${CX_CMAKE_FILES}
+    ${CMAKE_CURRENT_SOURCE_DIR}/CMakeLists.txt
+    PARENT_SCOPE)
