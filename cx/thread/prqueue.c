@@ -578,6 +578,120 @@ out:
 }
 
 _Use_decl_annotations_
+uint32 prqCount(PrQueue *prq)
+{
+    const bool dynamic = prq->dynamic;
+
+    // Safely get the current segment and indicate that we're using it
+    if(dynamic)
+        atomicFetchAdd(int32, &prq->access, 1, AcqRel);
+    PrqSegment *seg = atomicLoad(ptr, &prq->current, Acquire);
+    if(!seg) {
+        if(dynamic)
+            atomicFetchAdd(int32, &prq->access, -1, Relaxed);
+        return false;
+    }
+    if(dynamic) {
+        atomicFetchAdd(int32, &seg->inuse, 1, AcqRel);
+        atomicFetchAdd(int32, &prq->access, -1, Relaxed);
+    }
+
+    uint32 count = atomicLoad(uint32, &seg->count, Acquire);
+
+    // dynamic queues also need to add the count from all chained segments
+    if(dynamic) {
+        PrqSegment *nextseg;
+        while((nextseg = atomicLoad(ptr, &seg->nextseg, Acquire))) {
+            atomicFetchAdd(int32, &nextseg->inuse, 1, AcqRel);
+            atomicFetchAdd(int32, &seg->inuse, -1, Relaxed);
+            seg = nextseg;
+            count += atomicLoad(uint32, &seg->count, Acquire);
+        }
+    }
+
+    if(dynamic)
+        atomicFetchAdd(int32, &seg->inuse, -1, Relaxed);
+
+    return count;
+}
+
+_Use_decl_annotations_
+void *prqPeek(PrQueue *prq, uint32 n)
+{
+    const bool dynamic = prq->dynamic;
+
+    // Safely get the current segment and indicate that we're using it
+    if(dynamic)
+        atomicFetchAdd(int32, &prq->access, 1, AcqRel);
+    PrqSegment *seg = atomicLoad(ptr, &prq->current, Acquire);
+    if(!seg) {
+        if(dynamic)
+            atomicFetchAdd(int32, &prq->access, -1, Relaxed);
+        return NULL;
+    }
+    if(dynamic) {
+        atomicFetchAdd(int32, &seg->inuse, 1, AcqRel);
+        atomicFetchAdd(int32, &prq->access, -1, Relaxed);
+    }
+
+    uint32 count = atomicLoad(uint32, &seg->count, Acquire);
+    uint32 found = 0;
+    void *ret = NULL;
+
+    // skip over full segments if we're looking for something deeper in the queue
+    if(dynamic) {
+        PrqSegment *nextseg;
+        while(n > count && (nextseg = atomicLoad(ptr, &seg->nextseg, Acquire))) {
+            n -= count;
+            atomicFetchAdd(int32, &nextseg->inuse, 1, AcqRel);
+            atomicFetchAdd(int32, &seg->inuse, -1, Relaxed);
+            seg = nextseg;
+            count = atomicLoad(uint32, &seg->count, Acquire);
+        }
+    }
+
+retry:
+    if((n - found) < count) {
+        // scan for the requested element
+        // A full scan is necessary instead of just adding (head + n) because there
+        // may be holes in the array from partially completed pushes, and head may
+        // also be lagging if there is contention.
+        uint32 head = atomicLoad(uint32, &seg->head, Relaxed);
+        uint32 slot;
+
+        for(slot = head; slot < head + seg->size; slot++) {
+            void *ptr = atomicLoad(ptr, &seg->buffer[slot % seg->size], Relaxed);
+            if(ptr)
+                found++;
+
+            if(found == n) {
+                // got it!
+                ret = ptr;
+                break;
+            }
+        }
+
+        // If we didn't find it yet, another thread probably concurrently popped from the queue.
+        // Try going to the next segment.
+        if(!ret && dynamic) {
+            PrqSegment *nextseg = atomicLoad(ptr, &seg->nextseg, Acquire);
+            if(nextseg) {
+                atomicFetchAdd(int32, &nextseg->inuse, 1, AcqRel);
+                atomicFetchAdd(int32, &seg->inuse, -1, Relaxed);
+                seg = nextseg;
+                count = atomicLoad(uint32, &seg->count, Acquire);
+                goto retry;
+            }
+        }
+    }
+
+    if(dynamic)
+        atomicFetchAdd(int32, &seg->inuse, -1, Relaxed);
+
+    return ret;
+}
+
+_Use_decl_annotations_
 bool prqDestroy(PrQueue *prq)
 {
     bool ret = false;

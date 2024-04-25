@@ -1,3 +1,5 @@
+#pragma once
+
 #include <cx/cx.h>
 #include <cx/thread/atomic.h>
 #include <cx/thread/aspin.h>
@@ -245,5 +247,21 @@ void *prqPop(_Inout_ PrQueue *prq);
 // Attempt to run a garbage collection cycle on the queue. Returns true if the cycle runs,
 // whether or not anything was collected.
 bool prqCollect(_Inout_ PrQueue *prq);
+
+// Retrieves an estimated count of the number of valid items in the queue. Accuracy
+// varies depending on how busy the queue is.
+uint32 prqCount(_In_ PrQueue *prq);
+
+// Attempt to fetch a copy of the nth pointer from the queue.
+// EXERCISE EXTREME CAUTION!
+// This is very dangerous and tricky to use safely! It is likely the pointer returned
+// by this function is being actively processed by another thread and may have already
+// been removed from the queue by the time you examine its contents. It is almost
+// certain to cause a crash unless you take precautions to prevent the pointed-to
+// data from being destroyed after being processed, and your underlying data must be
+// thread-safe.
+// This function is intended for use only in controlled situations where guarantees can
+// be made about which threads pop items from the queue and what they do with those items.
+void *prqPeek(_In_ PrQueue *prq, uint32 n);
 
 CX_C_END
