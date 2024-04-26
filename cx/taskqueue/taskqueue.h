@@ -40,7 +40,7 @@ bool _tqAdd(_Inout_ TaskQueue *tq, _In_ BasicTask *task);
 
 // void tqRun(TaskQueue *tq, BasicTask **ptask);
 // Convenience function to run a task and release it.
-#define tqRun(tq, ptask) do { _tqAdd(tq, BasicTask(*ptask)); objRelease(ptask) } while(0)
+#define tqRun(tq, ptask) do { _tqAdd(tq, BasicTask(*ptask)); objRelease(ptask); } while(0)
 
 bool _tqDefer(_Inout_ TaskQueue *tq, _In_ Task *task, int64 delay);
 // bool tqDefer(TaskQueue *tq, Task *task, int64 delay);
@@ -52,6 +52,9 @@ typedef bool (*UserTaskCB)(TaskQueue *tq, void *data);
 
 // Runs a custom function on a thread in a task queue's worker pool
 bool tqCall(_Inout_ TaskQueue *tq, _In_ UserTaskCB func, _In_opt_ void *userdata);
+
+// Returns the current number of worker threads
+int32 tqWorkers(_In_ TaskQueue *tq);
 
 _meta_inline int32 _btaskState(BasicTask *bt)
 {

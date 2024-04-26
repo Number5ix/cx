@@ -23,6 +23,7 @@ class TaskQueue {
 
     object:Thread manager;
     sarray:object:TaskQueueWorker workers;       // [owned by manager]
+    atomic:int32 nworkers;
     Event workev;           // signaled when there is work to be done
     Event shutdownev;       // signaled when queue is finished shutting down
 

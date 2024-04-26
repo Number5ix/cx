@@ -153,6 +153,11 @@ bool tqCall(TaskQueue *tq, UserTaskCB func, void *userdata)
     return ret;
 }
 
+int32 tqWorkers(_In_ TaskQueue *tq)
+{
+    return atomicLoad(int32, &tq->nworkers, Relaxed);       // no ordering requirements
+}
+
 _Use_decl_annotations_
 bool tqShutdown(TaskQueue *tq, int64 wait)
 {

@@ -5,10 +5,11 @@
 
 static bool addWorker(TaskQueue *tq)
 {
-    TaskQueueWorker *worker = taskqueueworkerCreate(saSize(tq->workers) + 1);
+    TaskQueueWorker *worker = taskqueueworkerCreate(atomicLoad(int32, &tq->nworkers, Relaxed) + 1);
     bool ret = taskqueueworkerStart(worker, tq);
     if(ret && worker->thr) {
         saPush(&tq->workers, object, worker);
+        atomicFetchAdd(int32, &tq->nworkers, 1, AcqRel);
     }
     objRelease(&worker);
     return ret;
@@ -20,6 +21,7 @@ static bool removeWorker(Thread *self, TaskQueue *tq)
     int nrm = saSize(tq->workers) - 1;
     TaskQueueWorker *worker = NULL;
     if(saExtract(&tq->workers, nrm, object, &worker) && worker) {
+        atomicFetchAdd(int32, &tq->nworkers, -1, AcqRel);
         thrShutdown(worker->thr);
 
         // Unfortunately we need to wake up ALL the workers to ensure that this one
@@ -58,7 +60,7 @@ static bool managerStartup(TaskQueue *tq, Event *startev)
         eventSignalLock(&tq->workev);
         
         // shut down any workers we did manage to start
-        for(int i = 0; i < saSize(tq->workers); i++) {
+        for(int i = 0; i < atomicLoad(int32, &tq->nworkers, Relaxed); i++) {
             if (tq->workers.a[i]->thr)
             thrShutdown(tq->workers.a[i]->thr);
         }
@@ -153,7 +155,7 @@ static void managerRun(Thread *thr, TaskQueue *tq)
 
         // finally see if we need to grow or shrink the thread pool
         uint32 qcount = prqCount(&tq->runq);
-        uint32 nworkers = saSize(tq->workers);
+        uint32 nworkers = atomicLoad(int32, &tq->nworkers, Relaxed);        // relaxed is fine, only ever changed from this thread
         uint32 targetw = nworkers;
         uint32 qperw = qcount / nworkers;
 
@@ -228,7 +230,8 @@ int tqManagerThread(Thread *self)
     // wait for all workers to shut down
     for(;;) {
         bool running = false;
-        for(int i = 0; i < saSize(tq->workers); i++) {
+        int32 nworkers = atomicLoad(int32, &tq->nworkers, Relaxed);
+        for(int i = 0; i < nworkers; i++) {
             running |= !tq->workers.a[i]->shutdown;
         }
 
@@ -238,6 +241,7 @@ int tqManagerThread(Thread *self)
         eventWaitTimeout(&self->notify, MAX_MANAGER_INTERVAL);
     }
     saClear(&tq->workers);
+    atomicStore(int32, &tq->nworkers, 0, Release);
     thrRelease(&tq->manager);       // we're about to exit
 
     // clear out anything left in the queues or defer list

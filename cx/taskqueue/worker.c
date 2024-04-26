@@ -37,15 +37,18 @@ static int tqWorkerThread(Thread *thr)
             // to destroy the object because the manager/monitor thread may be accessing it
             // concurrently through our curtask pointer.
 
+            // See if this is a full-fledged Task or just a BasicTask
+            Task *task = objDynCast(btask, Task);
+
+            if(task)
+                task->lastrun = clockTimer();
+
             // run it
             atomicStore(int32, &btask->state, TASK_Running, Release);
             atomicStore(ptr, &self->curtask, btask, Release);
             TaskControl tcon = { 0 };
             bool success = btaskRun(btask, tq, &tcon);      // <-- do the thing
             atomicStore(ptr, &self->curtask, NULL, Release);
-
-            // See if this is a full-fledged Task or just a BasicTask
-            Task *task = objDynCast(btask, Task);
 
             if(task && tcon.defer) {
                 // Task is being deferred, so it goes back into the queue.

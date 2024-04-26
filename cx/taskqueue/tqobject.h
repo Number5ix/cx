@@ -47,6 +47,7 @@ typedef struct TaskQueue {
     TaskQueueStateEnum state;
     Thread *manager;
     sa_TaskQueueWorker workers;        // [owned by manager]
+    atomic(int32) nworkers;
     Event workev;        // signaled when there is work to be done
     Event shutdownev;        // signaled when queue is finished shutting down
     PrQueue runq;        // tasks that are ready to be picked up by workers
