@@ -94,6 +94,10 @@ static const testspec tests[] = {
 { "prqueue: Queue Growth", "prqtest", "grow" },
 { "prqueue: Garbage Collection", "prqtest", "gc" },
 { "prqueue: Dynamic MPMC", "prqtest", "mpmc" },
+{ "taskqueue: Tasks", "tqtest", "call" },
+{ "taskqueue: Failed Tasks", "tqtest", "failure" },
+{ "taskqueue: Concurrency", "tqtest", "concurrency" },
+{ "taskqueue: Call", "tqtest", "call" },
 { 0 }
 };
 

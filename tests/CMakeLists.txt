@@ -19,10 +19,12 @@ create_test_sourcelist(testsrc
     mathtest.c
     fstest.c
     prqtest.c
+    tqtest.c
     alltests.c)
 add_sidl(converttestobj.sidl
     fmttestobj.sidl
-    objtestobj.sidl)
+    objtestobj.sidl
+    tqtestobj.sidl)
 set(test_runner_files
     ${testsrc}
     fmttestobj.c
@@ -34,6 +36,9 @@ set(test_runner_files
     converttestobj.c
     converttestobj.h
     converttestobj.sidl
+    tqtestobj.c
+    tqtestobj.h
+    tqtestobj.sidl
     common.h)
 
 source_group("" FILES ${test_runner_files})
@@ -132,3 +137,7 @@ add_test(NAME "\"prqueue: Multithreaded Queue\"" COMMAND test_runner prqtest mt)
 add_test(NAME "\"prqueue: Queue Growth\"" COMMAND test_runner prqtest grow)
 add_test(NAME "\"prqueue: Garbage Collection\"" COMMAND test_runner prqtest gc)
 add_test(NAME "\"prqueue: Dynamic MPMC\"" COMMAND test_runner prqtest mpmc)
+add_test(NAME "\"taskqueue: Tasks\"" COMMAND test_runner tqtest call)
+add_test(NAME "\"taskqueue: Failed Tasks\"" COMMAND test_runner tqtest failure)
+add_test(NAME "\"taskqueue: Concurrency\"" COMMAND test_runner tqtest concurrency)
+add_test(NAME "\"taskqueue: Call\"" COMMAND test_runner tqtest call)

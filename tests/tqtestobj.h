@@ -1,0 +1,188 @@
+#pragma once
+// This header file is auto-generated!
+// Do not make changes to this file or they will be overwritten.
+#include <cx/obj.h>
+#include <cx/taskqueue/task.h>
+#include <cx/thread/event.h>
+
+typedef struct TaskQueue TaskQueue;
+typedef struct TaskControl TaskControl;
+typedef struct TQTest1 TQTest1;
+typedef struct TQTestFail TQTestFail;
+typedef struct TQTestCC1 TQTestCC1;
+typedef struct TQTestCC2 TQTestCC2;
+saDeclarePtr(TQTest1);
+saDeclarePtr(TQTestFail);
+saDeclarePtr(TQTestCC1);
+saDeclarePtr(TQTestCC2);
+
+typedef struct TQTest1_ClassIf {
+    ObjIface *_implements;
+    ObjIface *_parent;
+    size_t _size;
+
+    bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon);
+} TQTest1_ClassIf;
+extern TQTest1_ClassIf TQTest1_ClassIf_tmpl;
+
+typedef struct TQTestFail_ClassIf {
+    ObjIface *_implements;
+    ObjIface *_parent;
+    size_t _size;
+
+    bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon);
+} TQTestFail_ClassIf;
+extern TQTestFail_ClassIf TQTestFail_ClassIf_tmpl;
+
+typedef struct TQTestCC1_ClassIf {
+    ObjIface *_implements;
+    ObjIface *_parent;
+    size_t _size;
+
+    bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon);
+} TQTestCC1_ClassIf;
+extern TQTestCC1_ClassIf TQTestCC1_ClassIf_tmpl;
+
+typedef struct TQTestCC2_ClassIf {
+    ObjIface *_implements;
+    ObjIface *_parent;
+    size_t _size;
+
+    bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon);
+} TQTestCC2_ClassIf;
+extern TQTestCC2_ClassIf TQTestCC2_ClassIf_tmpl;
+
+typedef struct TQTest1 {
+    union {
+        TQTest1_ClassIf *_;
+        void *_is_TQTest1;
+        void *_is_Task;
+        void *_is_BasicTask;
+        void *_is_ObjInst;
+    };
+    ObjClassInfo *_clsinfo;
+    atomic(intptr) _ref;
+
+    atomic(int32) state;
+    string name;        // task name to be shown in monitor output
+    int64 lastrun;        // the last time this task was run on a worker
+    int64 nextrun;        // next time for this task to run when deferred
+    uint32 progress;        // how much forward progress this task has made
+    uint32 _m_last_progress;        // internal use for the queue monitor to detect progress changes
+    atomic(bool) cancelled;        // request that the task should be cancelled
+    int num[2];
+    int total;
+    Event *notify;
+} TQTest1;
+extern ObjClassInfo TQTest1_clsinfo;
+#define TQTest1(inst) ((TQTest1*)(unused_noeval((inst) && &((inst)->_is_TQTest1)), (inst)))
+#define TQTest1None ((TQTest1*)NULL)
+
+_objfactory_guaranteed TQTest1 *TQTest1_create(int num1, int num2, Event *notify);
+// TQTest1 *tqtest1Create(int num1, int num2, Event *notify);
+#define tqtest1Create(num1, num2, notify) TQTest1_create(num1, num2, notify)
+
+// bool tqtest1Run(TQTest1 *self, TaskQueue *tq, TaskControl *tcon);
+#define tqtest1Run(self, tq, tcon) (self)->_->run(TQTest1(self), tq, tcon)
+
+typedef struct TQTestFail {
+    union {
+        TQTestFail_ClassIf *_;
+        void *_is_TQTestFail;
+        void *_is_Task;
+        void *_is_BasicTask;
+        void *_is_ObjInst;
+    };
+    ObjClassInfo *_clsinfo;
+    atomic(intptr) _ref;
+
+    atomic(int32) state;
+    string name;        // task name to be shown in monitor output
+    int64 lastrun;        // the last time this task was run on a worker
+    int64 nextrun;        // next time for this task to run when deferred
+    uint32 progress;        // how much forward progress this task has made
+    uint32 _m_last_progress;        // internal use for the queue monitor to detect progress changes
+    atomic(bool) cancelled;        // request that the task should be cancelled
+    int n;
+    Event *notify;
+} TQTestFail;
+extern ObjClassInfo TQTestFail_clsinfo;
+#define TQTestFail(inst) ((TQTestFail*)(unused_noeval((inst) && &((inst)->_is_TQTestFail)), (inst)))
+#define TQTestFailNone ((TQTestFail*)NULL)
+
+_objfactory_guaranteed TQTestFail *TQTestFail_create(int n, Event *notify);
+// TQTestFail *tqtestfailCreate(int n, Event *notify);
+#define tqtestfailCreate(n, notify) TQTestFail_create(n, notify)
+
+// bool tqtestfailRun(TQTestFail *self, TaskQueue *tq, TaskControl *tcon);
+#define tqtestfailRun(self, tq, tcon) (self)->_->run(TQTestFail(self), tq, tcon)
+
+typedef struct TQTestCC1 {
+    union {
+        TQTestCC1_ClassIf *_;
+        void *_is_TQTestCC1;
+        void *_is_Task;
+        void *_is_BasicTask;
+        void *_is_ObjInst;
+    };
+    ObjClassInfo *_clsinfo;
+    atomic(intptr) _ref;
+
+    atomic(int32) state;
+    string name;        // task name to be shown in monitor output
+    int64 lastrun;        // the last time this task was run on a worker
+    int64 nextrun;        // next time for this task to run when deferred
+    uint32 progress;        // how much forward progress this task has made
+    uint32 _m_last_progress;        // internal use for the queue monitor to detect progress changes
+    atomic(bool) cancelled;        // request that the task should be cancelled
+    int num[2];
+    TaskQueue *destq;
+    int *accum;
+    int *counter;
+    Event *notify;
+} TQTestCC1;
+extern ObjClassInfo TQTestCC1_clsinfo;
+#define TQTestCC1(inst) ((TQTestCC1*)(unused_noeval((inst) && &((inst)->_is_TQTestCC1)), (inst)))
+#define TQTestCC1None ((TQTestCC1*)NULL)
+
+_objfactory_guaranteed TQTestCC1 *TQTestCC1_create(int num1, int num2, TaskQueue *destq, int *accum, int *counter, Event *notify);
+// TQTestCC1 *tqtestcc1Create(int num1, int num2, TaskQueue *destq, int *accum, int *counter, Event *notify);
+#define tqtestcc1Create(num1, num2, destq, accum, counter, notify) TQTestCC1_create(num1, num2, destq, accum, counter, notify)
+
+// bool tqtestcc1Run(TQTestCC1 *self, TaskQueue *tq, TaskControl *tcon);
+#define tqtestcc1Run(self, tq, tcon) (self)->_->run(TQTestCC1(self), tq, tcon)
+
+typedef struct TQTestCC2 {
+    union {
+        TQTestCC2_ClassIf *_;
+        void *_is_TQTestCC2;
+        void *_is_Task;
+        void *_is_BasicTask;
+        void *_is_ObjInst;
+    };
+    ObjClassInfo *_clsinfo;
+    atomic(intptr) _ref;
+
+    atomic(int32) state;
+    string name;        // task name to be shown in monitor output
+    int64 lastrun;        // the last time this task was run on a worker
+    int64 nextrun;        // next time for this task to run when deferred
+    uint32 progress;        // how much forward progress this task has made
+    uint32 _m_last_progress;        // internal use for the queue monitor to detect progress changes
+    atomic(bool) cancelled;        // request that the task should be cancelled
+    int total;
+    int *accum;
+    int *counter;
+    Event *notify;
+} TQTestCC2;
+extern ObjClassInfo TQTestCC2_clsinfo;
+#define TQTestCC2(inst) ((TQTestCC2*)(unused_noeval((inst) && &((inst)->_is_TQTestCC2)), (inst)))
+#define TQTestCC2None ((TQTestCC2*)NULL)
+
+_objfactory_guaranteed TQTestCC2 *TQTestCC2_create(int total, int *accum, int *counter, Event *notify);
+// TQTestCC2 *tqtestcc2Create(int total, int *accum, int *counter, Event *notify);
+#define tqtestcc2Create(total, accum, counter, notify) TQTestCC2_create(total, accum, counter, notify)
+
+// bool tqtestcc2Run(TQTestCC2 *self, TaskQueue *tq, TaskControl *tcon);
+#define tqtestcc2Run(self, tq, tcon) (self)->_->run(TQTestCC2(self), tq, tcon)
+

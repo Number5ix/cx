@@ -1,0 +1,40 @@
+#include <cx/taskqueue/task.sidl>
+#include <cx/thread/event.h>
+
+class TQTest1 extends Task
+{
+    int num[2];
+    int total;
+    Event *notify;
+
+    factory create(int num1, int num2, Event *notify);
+}
+
+class TQTestFail extends Task
+{
+    int n;
+    Event *notify;
+
+    factory create(int n, Event *notify);
+}
+
+class TQTestCC1 extends Task
+{
+    int num[2];
+    TaskQueue *destq;
+    int *accum;
+    int *counter;
+    Event *notify;
+
+    factory create(int num1, int num2, TaskQueue *destq, int *accum, int *counter, Event *notify);
+}
+
+class TQTestCC2 extends Task
+{
+    int total;
+    int *accum;
+    int *counter;
+    Event *notify;
+
+    factory create(int total, int *accum, int *counter, Event *notify);
+}
