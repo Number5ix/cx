@@ -22,7 +22,7 @@ void tqPresetMinimal(TaskQueueConfig *tqconfig)
     *tqconfig = (TaskQueueConfig){
         .wInitial = 1,
         .wIdle = 1,
-        .wBusy = (ncpus > 2) ? ncpus / 2 : 1,
+        .wBusy = (ncpus > 2) ? (ncpus + 1) / 2 : 1,
         .wMax = ncpus,
         .tIdle = timeMS(1000),
         .tRampUp = timeMS(50),
@@ -34,13 +34,14 @@ void tqPresetMinimal(TaskQueueConfig *tqconfig)
 _Use_decl_annotations_
 void tqPresetBalanced(TaskQueueConfig *tqconfig)
 {
-    int ncpus = osLogicalCPUs();
+    int npcpus = osPhysicalCPUs();
+    int nlcpus = osLogicalCPUs();
 
     *tqconfig = (TaskQueueConfig){
         .wInitial = 1,
-        .wIdle = (ncpus >= 2) ? 2 : 1,
-        .wBusy = ncpus,
-        .wMax = ncpus + (ncpus >> 1),
+        .wIdle = (npcpus >= 2) ? 2 : 1,
+        .wBusy = npcpus,
+        .wMax = nlcpus,
         .tIdle = timeMS(5000),
         .tRampUp = timeMS(100),
         .tRampDown = timeMS(1000),
@@ -53,7 +54,8 @@ void tqEnableMonitor(TaskQueueConfig *tqconfig)
 {
     tqconfig->mInterval = timeS(5);
     tqconfig->mSuppress = timeS(60);
-    tqconfig->mTaskRunning = timeS(60);
+    tqconfig->mTaskRunning = timeS(120);
+    tqconfig->mTaskWaiting = timeS(30);
     tqconfig->mTaskStalled = timeS(60);
 }
 

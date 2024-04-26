@@ -25,10 +25,11 @@ typedef struct TaskQueueConfig
     // EV_UIEvent event, as well as call this callback from the worker
     // thread(s)
 
-// monitor configuration
+    // monitor configuration
     int64 mInterval;        // If nonzero, how often for the queue monitor to run
     int64 mSuppress;        // How long to suppress monitor output after a warning is emitted
     int64 mTaskRunning;     // Warn about tasks that have been running on a worker for longer than this time
+    int64 mTaskWaiting;     // Warn about tasks that have been waiting for a worker to run on longer than this time
     int64 mTaskStalled;     // Warn about deferred tasks that have not made forward process in this time
     LogCategory *mLogCat;   // If set, send monitor logs to a custom category
 } TaskQueueConfig;
