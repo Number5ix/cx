@@ -9,7 +9,7 @@
 #include <cx/thread/prqueue.h>
 
 typedef struct TaskQueue TaskQueue;
-typedef struct TaskResult TaskResult;
+typedef struct TaskControl TaskControl;
 typedef struct TaskQueue TaskQueue;
 saDeclarePtr(TaskQueue);
 

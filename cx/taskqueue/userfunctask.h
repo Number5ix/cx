@@ -6,7 +6,7 @@
 #include <cx/taskqueue/taskqueue.h>
 
 typedef struct TaskQueue TaskQueue;
-typedef struct TaskResult TaskResult;
+typedef struct TaskControl TaskControl;
 typedef struct UserFuncTask UserFuncTask;
 saDeclarePtr(UserFuncTask);
 
@@ -15,7 +15,7 @@ typedef struct UserFuncTask_ClassIf {
     ObjIface *_parent;
     size_t _size;
 
-    void (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _Inout_ TaskResult *result);
+    bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon);
 } UserFuncTask_ClassIf;
 extern UserFuncTask_ClassIf UserFuncTask_ClassIf_tmpl;
 
@@ -41,6 +41,6 @@ _objfactory_guaranteed UserFuncTask *UserFuncTask_create(UserTaskCB func, void *
 // UserFuncTask *userfunctaskCreate(UserTaskCB func, void *udata);
 #define userfunctaskCreate(func, udata) UserFuncTask_create(func, udata)
 
-// void userfunctaskRun(UserFuncTask *self, TaskQueue *tq, TaskResult *result);
-#define userfunctaskRun(self, tq, result) (self)->_->run(UserFuncTask(self), tq, result)
+// bool userfunctaskRun(UserFuncTask *self, TaskQueue *tq, TaskControl *tcon);
+#define userfunctaskRun(self, tq, tcon) (self)->_->run(UserFuncTask(self), tq, tcon)
 

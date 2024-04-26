@@ -4,7 +4,7 @@
 #include <cx/obj.h>
 
 typedef struct TaskQueue TaskQueue;
-typedef struct TaskResult TaskResult;
+typedef struct TaskControl TaskControl;
 typedef struct BasicTask BasicTask;
 saDeclarePtr(BasicTask);
 
@@ -13,7 +13,7 @@ typedef struct BasicTask_ClassIf {
     ObjIface *_parent;
     size_t _size;
 
-    void (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _Inout_ TaskResult *result);
+    bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon);
 } BasicTask_ClassIf;
 extern BasicTask_ClassIf BasicTask_ClassIf_tmpl;
 
@@ -32,6 +32,6 @@ extern ObjClassInfo BasicTask_clsinfo;
 #define BasicTask(inst) ((BasicTask*)(unused_noeval((inst) && &((inst)->_is_BasicTask)), (inst)))
 #define BasicTaskNone ((BasicTask*)NULL)
 
-// void btaskRun(BasicTask *self, TaskQueue *tq, TaskResult *result);
-#define btaskRun(self, tq, result) (self)->_->run(BasicTask(self), tq, result)
+// bool btaskRun(BasicTask *self, TaskQueue *tq, TaskControl *tcon);
+#define btaskRun(self, tq, tcon) (self)->_->run(BasicTask(self), tq, tcon)
 

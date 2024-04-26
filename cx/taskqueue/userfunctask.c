@@ -21,9 +21,9 @@ _objfactory_guaranteed UserFuncTask *UserFuncTask_create(UserTaskCB func, void *
     return self;
 }
 
-void UserFuncTask_run(_Inout_ UserFuncTask *self, _In_ TaskQueue *tq, _Inout_ TaskResult *result)
+bool UserFuncTask_run(_Inout_ UserFuncTask *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon)
 {
-    result->success = (self->func && self->func(tq, self->udata));
+    return self->func && self->func(tq, self->udata);
 }
 
 // Autogen begins -----

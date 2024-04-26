@@ -42,22 +42,20 @@ enum TaskStateEnum
     TASK_Failed,
 };
 
-typedef struct TaskResult
+typedef struct TaskControl
 {
-    bool success;           // set if the task has finished in success; task will not be run again
-    bool failure;           // set if the task ended in failure; task will not be run again
-
     // ------ NON-BASICTASK BELOW ------
     // The fields and information below this point only apply to the full Task object and derviates.
     // BasicTask objects can only be run a single time and either succeed or fail.
 
-    // If neither success not failure are true, the task will be returned to the queue to be run again.
-    // If defer is set to a nonzero value, it is interpreted as a relative timespan for how long to defer
+    // If defer is true, the task will be returned to the queue to be run again.
+    // If defertime is set to a nonzero value, it is interpreted as a relative timespan for how long to defer
     // the task before running it again.
 
-    // If defer is set to 0 and no progress was made, it will go back into the run queue, but will NOT
+    // If defertime is set to 0 and no progress was made, it will go back into the run queue, but will NOT
     // wake up any workers or cause the queue to run again until some other task is queued.
 
-    int64 defer;            // how long to defer this task
+    bool defer;             // set if the task needs to be returned to the queue to run again
+    int64 defertime;        // how long to defer this task
     bool progress;          // whether forward progress was made this iteration
-} TaskResult;
+} TaskControl;

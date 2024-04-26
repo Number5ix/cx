@@ -1,9 +1,9 @@
 // Bare minimum for a task object
 
 struct TaskQueue;
-struct TaskResult;
+struct TaskControl;
 
 [methodprefix btask] abstract class BasicTask {
     atomic:int32 state;
-    [abstract] void run([in] TaskQueue *tq, [inout] TaskResult *result);
+    [abstract] bool run([in] TaskQueue *tq, [inout] TaskControl *tcon);
 }

@@ -40,45 +40,39 @@ static int tqWorkerThread(Thread *thr)
             // run it
             atomicStore(int32, &btask->state, TASK_Running, Release);
             atomicStore(ptr, &self->curtask, btask, Release);
-            TaskResult res = { 0 };
-            btaskRun(btask, tq, &res);          // <-- do the thing
+            TaskControl tcon = { 0 };
+            bool success = btaskRun(btask, tq, &tcon);      // <-- do the thing
             atomicStore(ptr, &self->curtask, NULL, Release);
 
             // See if this is a full-fledged Task or just a BasicTask
             Task *task = objDynCast(btask, Task);
 
-            if(task) {
-                if(res.success) {
-                    atomicStore(int32, &btask->state, TASK_Succeeded, Release);
-                } else if(res.failure) {
-                    atomicStore(int32, &btask->state, TASK_Failed, Release);
+            if(task && tcon.defer) {
+                // Task is being deferred, so it goes back into the queue.
+                atomicStore(int32, &btask->state, TASK_Waiting, Release);
+                // Progress counter only records that progress is being made, not how much!
+                task->progress += tcon.progress ? 1 : 0;
+                if(tcon.defertime > 0) {
+                    // will go into defer list to be run at a certain time
+                    task->nextrun = clockTimer() + tcon.defertime;
+                } else if(tcon.progress) {
+                    // defertime is 0 and we DID make progress, add it straight to the run queue so
+                    // we'll get right back to it.
+                    prqPush(&tq->runq, btask);
+                    // Note: We intentionally don't signal the worker event because we're
+                    // about to loop anyway, no need to wake up another thread. If something
+                    // else is added to the queue in the interim, that action will wake up a
+                    // different worker.
+                    doneq = false;
                 } else {
-                    // Task did not succeed or fail, so it goes back into the queue.
-                    atomicStore(int32, &btask->state, TASK_Waiting, Release);
-                    // Progress counter only records that progress is being made, not how much!
-                    task->progress += res.progress ? 1 : 0;
-                    if(res.defer > 0) {
-                        // will go into defer list to be run at a certain time
-                        task->nextrun = clockTimer() + res.defer;
-                    } else if (res.progress) {
-                        // defer is 0 and we DID make progress, add it straight to the run queue so
-                        // we'll get right back to it.
-                        prqPush(&tq->runq, btask);
-                        // Note: We intentionally don't signal the worker event because we're
-                        // about to loop anyway, no need to wake up another thread. If something
-                        // else is added to the queue in the interim, that action will wake up a
-                        // different worker.
-                        doneq = false;
-                    } else {
-                        // defer is 0 and we did NOT make progress. In this case, it does still go
-                        // to the defer list, but nextrun is set to 0 which tells the manager to
-                        // release it only once some other task finishes.
-                        task->nextrun = 0;
-                    }
+                    // defertime is 0 and we did NOT make progress. In this case, it does still go
+                    // to the defer list, but nextrun is set to 0 which tells the manager to
+                    // release it only once some other task finishes.
+                    task->nextrun = 0;
                 }
             } else {
-                // basic tasks fail if they do not succeed
-                atomicStore(int32, &btask->state, res.success ? TASK_Succeeded : TASK_Failed, Release);
+                // tasks fail if they do not succeed
+                atomicStore(int32, &btask->state, success ? TASK_Succeeded : TASK_Failed, Release);
             }
 
             // In all cases except one the task needs to be moved to the done queue for the manager
