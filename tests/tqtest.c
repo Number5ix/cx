@@ -48,6 +48,7 @@ static int test_tqtest_task(void)
     }
 
     // wait for tasks
+    int64 timeStart = clockTimer();
     for(;;) {
         bool done = true;
         for(int i = 0; i < ntasks; i++) {
@@ -65,7 +66,8 @@ static int test_tqtest_task(void)
         if(done)
             break;
 
-        if(!eventWaitTimeout(&notifyev, timeS(60))) {
+        eventWaitTimeout(&notifyev, timeS(1));
+        if(clockTimer() - timeStart > timeS(60)) {
             ret = 1;
             break;
         }
@@ -122,6 +124,7 @@ static int test_tqtest_failure(void)
     }
 
     // wait for tasks
+    int64 timeStart = clockTimer();
     for(;;) {
         bool done = true;
         for(int i = 0; i < ntasks; i++) {
@@ -137,7 +140,8 @@ static int test_tqtest_failure(void)
         if(done)
             break;
 
-        if(!eventWaitTimeout(&notifyev, timeS(60))) {
+        eventWaitTimeout(&notifyev, timeS(1));
+        if(clockTimer() - timeStart > timeS(60)) {
             ret = 1;
             break;
         }
