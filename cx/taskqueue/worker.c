@@ -10,6 +10,8 @@
 #include <cx/format.h>
 #include "taskqueue_private.h"
 
+#define WORKER_FAILSAFE_TIMEOUT timeS(5)
+
 static int tqWorkerThread(Thread *thr)
 {
     TaskQueue *tq;
@@ -88,8 +90,8 @@ static int tqWorkerThread(Thread *thr)
 
         // Queue is empty; wait for some work to do unless we are a UI thread
         // and there are STILL more unprocessed UI events.
-        if(!ui || ui(tq))
-            eventWait(&tq->workev);
+        if(!ui || ui(tq) && !hadtasks)
+            eventWaitTimeout(&tq->workev, WORKER_FAILSAFE_TIMEOUT);
     }
 
     // the manager might be waiting on us to exit

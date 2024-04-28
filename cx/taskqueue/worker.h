@@ -6,7 +6,7 @@
 #include <cx/thread.h>
 
 typedef struct TaskQueue TaskQueue;
-typedef struct TaskResult TaskResult;
+typedef struct TaskControl TaskControl;
 typedef struct TaskQueueWorker TaskQueueWorker;
 saDeclarePtr(TaskQueueWorker);
 
