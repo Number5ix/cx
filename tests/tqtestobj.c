@@ -26,7 +26,7 @@ _objfactory_guaranteed TQTest1 *TQTest1_create(int num1, int num2, Event *notify
 bool TQTest1_run(_Inout_ TQTest1 *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon)
 {
     self->total = self->num[0] + self->num[1];
-    eventSignal(self->notify);
+    tcon->notifyev = self->notify;
 
     return true;
 }
@@ -46,6 +46,7 @@ _objfactory_guaranteed TQTestFail *TQTestFail_create(int n, Event *notify)
 
 bool TQTestFail_run(_Inout_ TQTestFail *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon)
 {
+    tcon->notifyev = self->notify;
     return self->n & 1;     // odd will succeed, even will fail
 }
 
@@ -92,7 +93,7 @@ bool TQTestCC2_run(_Inout_ TQTestCC2 *self, _In_ TaskQueue *tq, _Inout_ TaskCont
 {
     *self->accum += self->total;
     *self->counter += 1;
-    eventSignal(self->notify);
+    tcon->notifyev = self->notify;
     return true;
 }
 

@@ -2,6 +2,7 @@
 
 typedef struct TaskQueue TaskQueue;
 typedef struct LogCategory LogCategory;
+typedef struct Event Event;
 
 // Callback for UI events. Should return true if all UI events were processed,
 // or false if there are more pending and the worker should continue looping.
@@ -59,4 +60,6 @@ typedef struct TaskControl
     bool defer;             // set if the task needs to be returned to the queue to run again
     int64 defertime;        // how long to defer this task
     bool progress;          // whether forward progress was made this iteration
+
+    Event *notifyev;        // event to signal after task is completed or failed
 } TaskControl;

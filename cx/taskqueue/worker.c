@@ -26,9 +26,11 @@ static int tqWorkerThread(Thread *thr)
 
     while(thrLoop(thr) && tq->state == TQState_Running) {
         BasicTask *btask;
+        bool hadtasks = false;
 
         while ((btask = (BasicTask*)prqPop(&tq->runq))) {
             bool doneq = true;
+            hadtasks = true;
 
             // Do UI stuff first if this is a UI task queue, to keep things responsive
             if(ui)
@@ -80,6 +82,10 @@ static int tqWorkerThread(Thread *thr)
                 atomicStore(int32, &btask->state, success ? TASK_Succeeded : TASK_Failed, Release);
             }
 
+            if(tcon.notifyev) {
+                eventSignal(tcon.notifyev);
+            }
+
             // In all cases except one the task needs to be moved to the done queue for the manager
             // to either requeue later or destroy.
             if(doneq) {
@@ -87,6 +93,11 @@ static int tqWorkerThread(Thread *thr)
                 eventSignal(&tq->manager->notify);
             }
         }
+
+        // if we did some work, signal one of the other threads to wake up; this helps kickstart the
+        // queue faster after an idle period
+        if (hadtasks)
+            eventSignal(&tq->workev);
 
         // Queue is empty; wait for some work to do unless we are a UI thread
         // and there are STILL more unprocessed UI events.
