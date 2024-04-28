@@ -101,7 +101,7 @@ static int tqWorkerThread(Thread *thr)
 
         // Queue is empty; wait for some work to do unless we are a UI thread
         // and there are STILL more unprocessed UI events.
-        if(!ui || ui(tq) && !hadtasks)
+        if((!ui || ui(tq)) && !hadtasks)
             eventWaitTimeout(&tq->workev, WORKER_FAILSAFE_TIMEOUT);
     }
 
