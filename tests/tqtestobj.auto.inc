@@ -20,6 +20,21 @@ TQTestCC2_ClassIf TQTestCC2_ClassIf_tmpl = {
     ._parent = (ObjIface*)&Task_ClassIf_tmpl,
 };
 
+TQTestDefer_ClassIf TQTestDefer_ClassIf_tmpl = {
+    ._size = sizeof(TQTestDefer_ClassIf),
+    ._parent = (ObjIface*)&Task_ClassIf_tmpl,
+};
+
+TQTestD1_ClassIf TQTestD1_ClassIf_tmpl = {
+    ._size = sizeof(TQTestD1_ClassIf),
+    ._parent = (ObjIface*)&TQTestDefer_ClassIf_tmpl,
+};
+
+TQTestD2_ClassIf TQTestD2_ClassIf_tmpl = {
+    ._size = sizeof(TQTestD2_ClassIf),
+    ._parent = (ObjIface*)&TQTestDefer_ClassIf_tmpl,
+};
+
 static TQTest1_ClassIf _impl_TQTest1_TQTest1_ClassIf = {
     ._size = sizeof(TQTest1_ClassIf),
     ._implements = (ObjIface*)&TQTest1_ClassIf_tmpl,
@@ -90,6 +105,61 @@ ObjClassInfo TQTestCC2_clsinfo = {
     .classif = (ObjIface*)&TQTestCC2_ClassIf_tmpl,
     .parent = &Task_clsinfo,
     .ifimpl = _ifimpl_TQTestCC2,
+};
+
+static TQTestDefer_ClassIf _impl_TQTestDefer_TQTestDefer_ClassIf = {
+    ._size = sizeof(TQTestDefer_ClassIf),
+    ._implements = (ObjIface*)&TQTestDefer_ClassIf_tmpl,
+};
+
+static ObjIface *_ifimpl_TQTestDefer[] = {
+    (ObjIface*)&_impl_TQTestDefer_TQTestDefer_ClassIf,
+    NULL
+};
+
+ObjClassInfo TQTestDefer_clsinfo = {
+    .instsize = sizeof(TQTestDefer),
+    .classif = (ObjIface*)&TQTestDefer_ClassIf_tmpl,
+    .parent = &Task_clsinfo,
+    ._abstract = true,
+    .ifimpl = _ifimpl_TQTestDefer,
+};
+
+static TQTestD1_ClassIf _impl_TQTestD1_TQTestD1_ClassIf = {
+    ._size = sizeof(TQTestD1_ClassIf),
+    ._implements = (ObjIface*)&TQTestD1_ClassIf_tmpl,
+    .run = (bool (*)(void*, TaskQueue*, TaskControl*))TQTestD1_run,
+};
+
+static ObjIface *_ifimpl_TQTestD1[] = {
+    (ObjIface*)&_impl_TQTestD1_TQTestD1_ClassIf,
+    NULL
+};
+
+ObjClassInfo TQTestD1_clsinfo = {
+    .instsize = sizeof(TQTestD1),
+    .classif = (ObjIface*)&TQTestD1_ClassIf_tmpl,
+    .parent = &TQTestDefer_clsinfo,
+    .ifimpl = _ifimpl_TQTestD1,
+};
+
+static TQTestD2_ClassIf _impl_TQTestD2_TQTestD2_ClassIf = {
+    ._size = sizeof(TQTestD2_ClassIf),
+    ._implements = (ObjIface*)&TQTestD2_ClassIf_tmpl,
+    .run = (bool (*)(void*, TaskQueue*, TaskControl*))TQTestD2_run,
+};
+
+static ObjIface *_ifimpl_TQTestD2[] = {
+    (ObjIface*)&_impl_TQTestD2_TQTestD2_ClassIf,
+    NULL
+};
+
+ObjClassInfo TQTestD2_clsinfo = {
+    .instsize = sizeof(TQTestD2),
+    .classif = (ObjIface*)&TQTestD2_ClassIf_tmpl,
+    .parent = &TQTestDefer_clsinfo,
+    .destroy = (void(*)(void*))TQTestD2_destroy,
+    .ifimpl = _ifimpl_TQTestD2,
 };
 
 // ==================== Auto-generated section ends ======================

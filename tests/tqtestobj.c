@@ -101,6 +101,83 @@ bool TQTestCC2_run(_Inout_ TQTestCC2 *self, _In_ TaskQueue *tq, _Inout_ TaskCont
     return true;
 }
 
+static atomic(int32) tqtestd_order;
+
+_objfactory_guaranteed TQTestD1 *TQTestD1_create(int order, int64 dtime, Event *notify)
+{
+    TQTestD1 *self;
+    self = objInstCreate(TQTestD1);
+
+    self->name = _S"TQTestD1";
+    self->order = order;
+    self->dtime = dtime;
+    self->notify = notify;
+
+    objInstInit(self);
+
+    return self;
+}
+
+bool TQTestD1_run(_Inout_ TQTestD1 *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon)
+{
+    if(self->rantime == 0) {
+        tcon->defer = true;
+        tcon->defertime = self->dtime;
+        self->rantime = clockTimer();
+        return true;
+    }
+
+    tcon->notifyev = self->notify;
+    if(self->rantime + self->dtime > clockTimer())
+        return false;           // was run early!!!
+
+    if(atomicLoad(int32, &tqtestd_order, Acquire) > self->order)
+        return false;
+
+    atomicStore(int32, &tqtestd_order, self->order, Release);
+
+    return true;
+}
+
+_objfactory_guaranteed TQTestD2 *TQTestD2_create(Task *waitfor, Event *notify)
+{
+    TQTestD2 *self;
+    self = objInstCreate(TQTestD2);
+
+    self->name = _S"TQTestD2";
+    self->waitfor = objAcquire(waitfor);
+    self->notify = notify;
+
+    objInstInit(self);
+
+    // Insert any post-initialization object construction here
+
+    return self;
+}
+
+bool TQTestD2_run(_Inout_ TQTestD2 *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon)
+{
+    int state = btaskState(self->waitfor);
+    if(state == TASK_Succeeded) {
+        tcon->notifyev = self->notify;
+        return true;
+    }
+    if(state == TASK_Failed) {
+        tcon->notifyev = self->notify;
+        return false;
+    }
+
+    tcon->defer = true;     // still waiting
+    return true;
+}
+
+void TQTestD2_destroy(_Inout_ TQTestD2 *self)
+{
+    // Autogen begins -----
+    objRelease(&self->waitfor);
+    // Autogen ends -------
+}
+
 // Autogen begins -----
 #include "tqtestobj.auto.inc"
 // Autogen ends -------

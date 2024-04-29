@@ -280,10 +280,92 @@ static int test_tqtest_call(void)
     return ret;
 }
 
+#define NUM_DEFER_STEPS 10
+
+static int test_tqtest_defer(void)
+{
+    int ret = 0;
+    sa_TQTestDefer dtasks;
+
+    TaskQueueConfig conf;
+    tqPresetBalanced(&conf);
+    conf.wInitial = 4;
+    conf.wIdle = 4;
+    conf.wBusy = 4;
+    conf.wMax = 4;
+    TaskQueue *q = tqCreate(_S"Test", &conf);
+
+    if(!q || !tqStart(q))
+        return 1;
+
+    saInit(&dtasks, object, NUM_DEFER_STEPS);
+
+    eventInit(&notifyev);
+
+    // create tasks
+    int dtime = timeMS(20);
+    for(int i = 0; i < NUM_DEFER_STEPS; i++) {
+        TQTestD1 *d1 = tqtestd1Create(i, dtime, &notifyev);
+        TQTestD2 *d2 = tqtestd2Create(d1, &notifyev);
+        saPushC(&dtasks, object, &d2);           // run them in reverse order to test inversion
+        saPushC(&dtasks, object, &d1);
+        dtime += timeMS(20);
+    }
+
+    TQDelayTest *dlt = tqdelaytestCreate(timeMS(150));
+    tqRun(q, &dlt);
+
+    // run tasks
+    int ntasks = saSize(dtasks);
+    for(int i = 0; i < ntasks; i++) {
+        tqAdd(q, dtasks.a[i]);
+    }
+
+    // wait for tasks
+    int64 timeStart = clockTimer();
+    for(;;) {
+        bool done = true;
+        for(int i = 0; i < ntasks; i++) {
+            switch(btaskState(dtasks.a[i])) {
+            case TASK_Succeeded:
+                break;
+            case TASK_Failed:
+                ret = 1;
+                break;
+            default:
+                done = false;
+            }
+        }
+
+        if(done)
+            break;
+
+        eventWaitTimeout(&notifyev, timeS(5));
+        if(clockTimer() - timeStart > timeS(60)) {
+            ret = 1;
+            break;
+        }
+    }
+
+    eventDestroy(&notifyev);
+    tqShutdown(q, timeS(60));
+    tqRelease(&q);
+
+    for(int i = 0; i < ntasks; i++) {
+        if(btaskState(dtasks.a[i]) != TASK_Succeeded)
+            ret = 1;
+    }
+
+    saDestroy(&dtasks);
+
+    return ret;
+}
+
 testfunc tqtest_funcs[] = {
     { "task", test_tqtest_task },
     { "failure", test_tqtest_failure },
     { "concurrency", test_tqtest_concurrency },
     { "call", test_tqtest_call },
+    { "defer", test_tqtest_defer },
     { 0, 0 }
 };

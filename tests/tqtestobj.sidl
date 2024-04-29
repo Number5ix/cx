@@ -38,3 +38,22 @@ class TQTestCC2 extends Task
 
     factory create(int total, int *accum, int *counter, Event *notify);
 }
+
+abstract class TQTestDefer extends Task
+{
+    Event *notify;
+}
+
+class TQTestD1 extends TQTestDefer
+{
+    int order;
+    int64 dtime;
+    int64 rantime;
+    factory create(int order, int64 dtime, Event *notify);
+}
+
+class TQTestD2 extends TQTestDefer
+{
+    object:Task waitfor;
+    factory create(Task *waitfor, Event *notify);
+}
