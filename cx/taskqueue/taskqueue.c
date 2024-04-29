@@ -105,17 +105,21 @@ static _meta_inline bool tqStateCheck(_In_ BasicTask *task)
 }
 
 _Use_decl_annotations_
-bool _tqAdd(_Inout_ TaskQueue *tq, _In_ BasicTask *task)
+bool _tqAdd(_Inout_ TaskQueue *tq, _In_ BasicTask *btask)
 {
-    if(tq->state != TQState_Running || !tqStateCheck(task))
+    if(tq->state != TQState_Running || !tqStateCheck(btask))
         return false;
 
     // add a reference count which becomes owned by the queue
-    objAcquire(task);
+    objAcquire(btask);
 
-    atomicStore(int32, &task->state, TASK_Waiting, Release);
-    if(!prqPush(&tq->runq, task)) {
-        atomicStore(int32, &task->state, TASK_Failed, Release);
+    Task *task = objDynCast(btask, Task);
+    if(task)
+        task->last = clockTimer();          // record when it was put in run queue
+
+    atomicStore(int32, &btask->state, TASK_Waiting, Release);
+    if(!prqPush(&tq->runq, btask)) {
+        atomicStore(int32, &btask->state, TASK_Failed, Release);
         return false;
     }
     // Signal the worker pool

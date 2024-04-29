@@ -45,7 +45,7 @@ static int tqWorkerThread(Thread *thr)
             Task *task = objDynCast(btask, Task);
 
             if(task)
-                task->lastrun = clockTimer();
+                task->last = clockTimer();
 
             // run it
             atomicStore(int32, &btask->state, TASK_Running, Release);
@@ -57,8 +57,10 @@ static int tqWorkerThread(Thread *thr)
             if(task && tcon.defer) {
                 // Task is being deferred, so it goes back into the queue.
                 atomicStore(int32, &btask->state, TASK_Waiting, Release);
-                // Progress counter only records that progress is being made, not how much!
-                task->progress += tcon.progress ? 1 : 0;
+                // Record if forward progress was made
+                if(tcon.progress)
+                    task->lastprogress = clockTimer();
+
                 if(tcon.defertime > 0) {
                     // will go into defer list to be run at a certain time
                     task->nextrun = clockTimer() + tcon.defertime;

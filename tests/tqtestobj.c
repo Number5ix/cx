@@ -14,6 +14,7 @@ _objfactory_guaranteed TQTest1 *TQTest1_create(int num1, int num2, Event *notify
     TQTest1 *self;
     self = objInstCreate(TQTest1);
 
+    self->name = _S"TQTest1";
     self->num[0] = num1;
     self->num[1] = num2;
     self->notify = notify;
@@ -36,6 +37,7 @@ _objfactory_guaranteed TQTestFail *TQTestFail_create(int n, Event *notify)
     TQTestFail *self;
     self = objInstCreate(TQTestFail);
 
+    self->name = _S"TQTestFail";
     self->n = n;
     self->notify = notify;
 
@@ -55,6 +57,7 @@ _objfactory_guaranteed TQTestCC1 *TQTestCC1_create(int num1, int num2, TaskQueue
     TQTestCC1 *self;
     self = objInstCreate(TQTestCC1);
 
+    self->name = _S"TQTestCC1";
     self->num[0] = num1;
     self->num[1] = num2;
     self->destq = destq;
@@ -79,6 +82,7 @@ _objfactory_guaranteed TQTestCC2 *TQTestCC2_create(int total, int *accum, int *c
     TQTestCC2 *self;
     self = objInstCreate(TQTestCC2);
 
+    self->name = _S"TQTestCC2";
     self->total = total;
     self->accum = accum;
     self->counter = counter;

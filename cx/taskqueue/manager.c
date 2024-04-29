@@ -112,7 +112,11 @@ static void managerRun(Thread *thr, TaskQueue *tq)
             } else {
                 // task is deferred, move it to the defer list
                 // sanity check
-                if(devVerify(objDynCast(btask, Task))) {
+                Task *task = objDynCast(btask, Task);
+                if(devVerify(task)) {
+                    if(task->lastprogress == 0)
+                        task->lastprogress = now;
+                    task->last = now;
                     saPush(&tq->deferred, ptr, btask);
                 } else {
                     reapPtr(btask);     // shouldn't be possible, but don't leak it
@@ -130,6 +134,7 @@ static void managerRun(Thread *thr, TaskQueue *tq)
             // run now, put it back in the queue
             if((task->nextrun == 0 && ctasks) ||
                task->nextrun <= now) {
+                task->last = now;
                 prqPush(&tq->runq, task);
                 saRemove(&tq->deferred, i);
                 --i; --imax; ++dcount;

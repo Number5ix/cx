@@ -65,10 +65,9 @@ typedef struct TQTest1 {
 
     atomic(int32) state;
     string name;        // task name to be shown in monitor output
-    int64 lastrun;        // the last time this task was run on a worker
+    int64 last;        // the last time this task was moved between queues and/or run
     int64 nextrun;        // next time for this task to run when deferred
-    uint32 progress;        // how much forward progress this task has made
-    uint32 _m_last_progress;        // internal use for the queue monitor to detect progress changes
+    int64 lastprogress;        // timestamp of last progress change
     atomic(bool) cancelled;        // request that the task should be cancelled
     int num[2];
     int total;
@@ -98,10 +97,9 @@ typedef struct TQTestFail {
 
     atomic(int32) state;
     string name;        // task name to be shown in monitor output
-    int64 lastrun;        // the last time this task was run on a worker
+    int64 last;        // the last time this task was moved between queues and/or run
     int64 nextrun;        // next time for this task to run when deferred
-    uint32 progress;        // how much forward progress this task has made
-    uint32 _m_last_progress;        // internal use for the queue monitor to detect progress changes
+    int64 lastprogress;        // timestamp of last progress change
     atomic(bool) cancelled;        // request that the task should be cancelled
     int n;
     Event *notify;
@@ -130,10 +128,9 @@ typedef struct TQTestCC1 {
 
     atomic(int32) state;
     string name;        // task name to be shown in monitor output
-    int64 lastrun;        // the last time this task was run on a worker
+    int64 last;        // the last time this task was moved between queues and/or run
     int64 nextrun;        // next time for this task to run when deferred
-    uint32 progress;        // how much forward progress this task has made
-    uint32 _m_last_progress;        // internal use for the queue monitor to detect progress changes
+    int64 lastprogress;        // timestamp of last progress change
     atomic(bool) cancelled;        // request that the task should be cancelled
     int num[2];
     TaskQueue *destq;
@@ -165,10 +162,9 @@ typedef struct TQTestCC2 {
 
     atomic(int32) state;
     string name;        // task name to be shown in monitor output
-    int64 lastrun;        // the last time this task was run on a worker
+    int64 last;        // the last time this task was moved between queues and/or run
     int64 nextrun;        // next time for this task to run when deferred
-    uint32 progress;        // how much forward progress this task has made
-    uint32 _m_last_progress;        // internal use for the queue monitor to detect progress changes
+    int64 lastprogress;        // timestamp of last progress change
     atomic(bool) cancelled;        // request that the task should be cancelled
     int total;
     int *accum;
