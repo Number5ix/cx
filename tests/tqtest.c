@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <cx/string.h>
 #include <cx/taskqueue.h>
+#include <cx/log/logmembuf.h>
 #include "tqtestobj.h"
 
 #define TEST_FILE tqtest
@@ -282,6 +283,10 @@ static int test_tqtest_call(void)
 
 #define NUM_DEFER_STEPS 10
 
+static bool is_monitor_test = false;
+static LogCategory *moncat;
+atomic(int32) tqtestd_order;
+
 static int test_tqtest_defer(void)
 {
     int ret = 0;
@@ -289,6 +294,14 @@ static int test_tqtest_defer(void)
 
     TaskQueueConfig conf;
     tqPresetBalanced(&conf);
+    if(is_monitor_test) {
+        conf.mInterval = timeMS(5);
+        conf.mTaskStalled = timeMS(110);
+        conf.mTaskRunning = timeMS(20);
+        conf.mTaskWaiting = timeMS(20);
+        conf.mSuppress = timeMS(500);
+        conf.mLogCat = moncat;
+    }
     conf.wInitial = 4;
     conf.wIdle = 4;
     conf.wBusy = 4;
@@ -300,6 +313,7 @@ static int test_tqtest_defer(void)
 
     saInit(&dtasks, object, NUM_DEFER_STEPS);
 
+    atomicStore(int32, &tqtestd_order, 0, Relaxed);
     eventInit(&notifyev);
 
     // create tasks
@@ -361,11 +375,33 @@ static int test_tqtest_defer(void)
     return ret;
 }
 
+static int test_tqtest_monitor(void)
+{
+    LogMembufData *mbuf = logmembufCreate(65536);
+    moncat = logCreateCat(_S"MonitorTest", true);
+    logRegisterDest(LOG_Warn, moncat, logmembufDest, mbuf);
+
+    // reuse the defer test, but with the monitor enabled
+    is_monitor_test = true;
+    int ret = test_tqtest_defer();
+    is_monitor_test = false;
+
+    logFlush();
+
+    if(mbuf->buf[0] == 0)
+        ret = 1;
+
+    logShutdown();
+
+    return ret;
+}
+
 testfunc tqtest_funcs[] = {
     { "task", test_tqtest_task },
     { "failure", test_tqtest_failure },
     { "concurrency", test_tqtest_concurrency },
     { "call", test_tqtest_call },
     { "defer", test_tqtest_defer },
+    { "monitor", test_tqtest_monitor },
     { 0, 0 }
 };

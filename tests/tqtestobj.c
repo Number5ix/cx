@@ -101,7 +101,7 @@ bool TQTestCC2_run(_Inout_ TQTestCC2 *self, _In_ TaskQueue *tq, _Inout_ TaskCont
     return true;
 }
 
-static atomic(int32) tqtestd_order;
+extern atomic(int32) tqtestd_order;
 
 _objfactory_guaranteed TQTestD1 *TQTestD1_create(int order, int64 dtime, Event *notify)
 {
@@ -176,6 +176,25 @@ void TQTestD2_destroy(_Inout_ TQTestD2 *self)
     // Autogen begins -----
     objRelease(&self->waitfor);
     // Autogen ends -------
+}
+
+_objfactory_guaranteed TQDelayTest *TQDelayTest_create(int64 len)
+{
+    TQDelayTest *self;
+    self = objInstCreate(TQDelayTest);
+
+    self->name = _S"TQDelayTest";
+    self->len = len;
+
+    objInstInit(self);
+
+    return self;
+}
+
+bool TQDelayTest_run(_Inout_ TQDelayTest *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon)
+{
+    osSleep(self->len);
+    return true;
 }
 
 // Autogen begins -----

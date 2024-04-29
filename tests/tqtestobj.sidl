@@ -57,3 +57,9 @@ class TQTestD2 extends TQTestDefer
     object:Task waitfor;
     factory create(Task *waitfor, Event *notify);
 }
+
+class TQDelayTest extends Task
+{
+    int64 len;
+    factory create(int64 len);
+}

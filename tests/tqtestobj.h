@@ -14,6 +14,7 @@ typedef struct TQTestCC2 TQTestCC2;
 typedef struct TQTestDefer TQTestDefer;
 typedef struct TQTestD1 TQTestD1;
 typedef struct TQTestD2 TQTestD2;
+typedef struct TQDelayTest TQDelayTest;
 saDeclarePtr(TQTest1);
 saDeclarePtr(TQTestFail);
 saDeclarePtr(TQTestCC1);
@@ -21,6 +22,7 @@ saDeclarePtr(TQTestCC2);
 saDeclarePtr(TQTestDefer);
 saDeclarePtr(TQTestD1);
 saDeclarePtr(TQTestD2);
+saDeclarePtr(TQDelayTest);
 
 typedef struct TQTest1_ClassIf {
     ObjIface *_implements;
@@ -84,6 +86,15 @@ typedef struct TQTestD2_ClassIf {
     bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon);
 } TQTestD2_ClassIf;
 extern TQTestD2_ClassIf TQTestD2_ClassIf_tmpl;
+
+typedef struct TQDelayTest_ClassIf {
+    ObjIface *_implements;
+    ObjIface *_parent;
+    size_t _size;
+
+    bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon);
+} TQDelayTest_ClassIf;
+extern TQDelayTest_ClassIf TQDelayTest_ClassIf_tmpl;
 
 typedef struct TQTest1 {
     union {
@@ -306,4 +317,34 @@ _objfactory_guaranteed TQTestD2 *TQTestD2_create(Task *waitfor, Event *notify);
 
 // bool tqtestd2Run(TQTestD2 *self, TaskQueue *tq, TaskControl *tcon);
 #define tqtestd2Run(self, tq, tcon) (self)->_->run(TQTestD2(self), tq, tcon)
+
+typedef struct TQDelayTest {
+    union {
+        TQDelayTest_ClassIf *_;
+        void *_is_TQDelayTest;
+        void *_is_Task;
+        void *_is_BasicTask;
+        void *_is_ObjInst;
+    };
+    ObjClassInfo *_clsinfo;
+    atomic(intptr) _ref;
+
+    atomic(int32) state;
+    string name;        // task name to be shown in monitor output
+    int64 last;        // the last time this task was moved between queues and/or run
+    int64 nextrun;        // next time for this task to run when deferred
+    int64 lastprogress;        // timestamp of last progress change
+    atomic(bool) cancelled;        // request that the task should be cancelled
+    int64 len;
+} TQDelayTest;
+extern ObjClassInfo TQDelayTest_clsinfo;
+#define TQDelayTest(inst) ((TQDelayTest*)(unused_noeval((inst) && &((inst)->_is_TQDelayTest)), (inst)))
+#define TQDelayTestNone ((TQDelayTest*)NULL)
+
+_objfactory_guaranteed TQDelayTest *TQDelayTest_create(int64 len);
+// TQDelayTest *tqdelaytestCreate(int64 len);
+#define tqdelaytestCreate(len) TQDelayTest_create(len)
+
+// bool tqdelaytestRun(TQDelayTest *self, TaskQueue *tq, TaskControl *tcon);
+#define tqdelaytestRun(self, tq, tcon) (self)->_->run(TQDelayTest(self), tq, tcon)
 

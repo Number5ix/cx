@@ -156,6 +156,8 @@ static void managerRun(Thread *thr, TaskQueue *tq)
         if(conf->mInterval > 0 && now - mstate.lastrun > conf->mInterval) {
             tqMonitorRun(tq, now, &mstate);
             mstate.lastrun = now;
+        } else if (conf->mInterval > 0) {
+            waittime = min(waittime, conf->mInterval - (now - mstate.lastrun));
         }
 
         // finally see if we need to grow or shrink the thread pool

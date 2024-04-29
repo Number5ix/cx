@@ -7,6 +7,7 @@
 typedef struct TQMonitorState
 {
     int64 lastrun;
+    int64 lastwarn;
 } TQMonitorState;
 
 int tqManagerThread(Thread *self);

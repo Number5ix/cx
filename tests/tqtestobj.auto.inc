@@ -35,6 +35,11 @@ TQTestD2_ClassIf TQTestD2_ClassIf_tmpl = {
     ._parent = (ObjIface*)&TQTestDefer_ClassIf_tmpl,
 };
 
+TQDelayTest_ClassIf TQDelayTest_ClassIf_tmpl = {
+    ._size = sizeof(TQDelayTest_ClassIf),
+    ._parent = (ObjIface*)&Task_ClassIf_tmpl,
+};
+
 static TQTest1_ClassIf _impl_TQTest1_TQTest1_ClassIf = {
     ._size = sizeof(TQTest1_ClassIf),
     ._implements = (ObjIface*)&TQTest1_ClassIf_tmpl,
@@ -160,6 +165,24 @@ ObjClassInfo TQTestD2_clsinfo = {
     .parent = &TQTestDefer_clsinfo,
     .destroy = (void(*)(void*))TQTestD2_destroy,
     .ifimpl = _ifimpl_TQTestD2,
+};
+
+static TQDelayTest_ClassIf _impl_TQDelayTest_TQDelayTest_ClassIf = {
+    ._size = sizeof(TQDelayTest_ClassIf),
+    ._implements = (ObjIface*)&TQDelayTest_ClassIf_tmpl,
+    .run = (bool (*)(void*, TaskQueue*, TaskControl*))TQDelayTest_run,
+};
+
+static ObjIface *_ifimpl_TQDelayTest[] = {
+    (ObjIface*)&_impl_TQDelayTest_TQDelayTest_ClassIf,
+    NULL
+};
+
+ObjClassInfo TQDelayTest_clsinfo = {
+    .instsize = sizeof(TQDelayTest),
+    .classif = (ObjIface*)&TQDelayTest_ClassIf_tmpl,
+    .parent = &Task_clsinfo,
+    .ifimpl = _ifimpl_TQDelayTest,
 };
 
 // ==================== Auto-generated section ends ======================
