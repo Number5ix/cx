@@ -8,4 +8,5 @@ abstract class Task extends BasicTask
     uint32 progress;            // how much forward progress this task has made
     uint32 _m_last_progress;    // internal use for the queue monitor to detect progress changes
     atomic:bool cancelled;      // request that the task should be cancelled
+    init();
 }

@@ -19,6 +19,7 @@ ObjClassInfo Task_clsinfo = {
     .instsize = sizeof(Task),
     .classif = (ObjIface*)&Task_ClassIf_tmpl,
     .parent = &BasicTask_clsinfo,
+    .init = (bool(*)(void*))Task_init,
     .destroy = (void(*)(void*))Task_destroy,
     ._abstract = true,
     .ifimpl = _ifimpl_Task,

@@ -15,6 +15,15 @@ void Task_destroy(_Inout_ Task *self)
     // Autogen ends -------
 }
 
+_objinit_guaranteed bool Task_init(_Inout_ Task *self)
+{
+    if(!self->name)
+        self->name = _S"Task";
+    // Autogen begins -----
+    return true;
+    // Autogen ends -------
+}
+
 // Autogen begins -----
 #include "task.auto.inc"
 // Autogen ends -------
