@@ -67,7 +67,7 @@ static int test_tqtest_task(void)
         if(done)
             break;
 
-        eventWaitTimeout(&notifyev, timeS(5));
+        eventWaitTimeout(&notifyev, timeS(3));
         if(clockTimer() - timeStart > timeS(60)) {
             ret = 1;
             break;
@@ -141,7 +141,7 @@ static int test_tqtest_failure(void)
         if(done)
             break;
 
-        eventWaitTimeout(&notifyev, timeS(5));
+        eventWaitTimeout(&notifyev, timeS(3));
         if(clockTimer() - timeStart > timeS(60)) {
             ret = 1;
             break;
@@ -210,7 +210,7 @@ static int test_tqtest_concurrency(void)
     // wait for tasks
     int64 timeStart = clockTimer();
     while(count < NUM_TASK_TEST) {
-        eventWaitTimeout(&notifyev, timeS(5));
+        eventWaitTimeout(&notifyev, timeS(3));
         if(clockTimer() - timeStart > timeS(60)) {
             ret = 1;
             break;
@@ -262,7 +262,7 @@ static int test_tqtest_call(void)
 
     int64 timeStart = clockTimer();
     while(atomicLoad(intptr, &accum2, Acquire) < NUM_CALL_TEST) {
-        eventWaitTimeout(&notifyev, timeS(5));
+        eventWaitTimeout(&notifyev, timeS(3));
         if(clockTimer() - timeStart > timeS(60)) {
             ret = 1;
             break;
@@ -354,7 +354,7 @@ static int test_tqtest_defer(void)
         if(done)
             break;
 
-        eventWaitTimeout(&notifyev, timeS(5));
+        eventWaitTimeout(&notifyev, timeS(3));
         if(clockTimer() - timeStart > timeS(60)) {
             ret = 1;
             break;
