@@ -45,15 +45,15 @@ static bool managerStartup(TaskQueue *tq, Event *startev)
     eventReset(&tq->workev);
     eventReset(&tq->shutdownev);
 
+    tq->state = TQState_Running;
+
     // start initial workers
     bool ret = true;
     for(int i = 0; i < tq->tqconfig.wInitial; i++) {
         ret &= addWorker(tq);
     }
 
-    if(ret) {
-        tq->state = TQState_Running;
-    } else {
+    if (!ret) {
         // failed to create some workers!
         // lock the event so no workers get blocked on it
         tq->state = TQState_Stopping;
