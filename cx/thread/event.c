@@ -66,9 +66,6 @@ bool eventSignalAll(Event *e)
 
     // get the number of waiting threads and set it to 0
     int32 waiters = atomicLoad(int32, &e->waiters, Relaxed);
-    if (waiters == 0)
-        return false;
-
     while (!atomicCompareExchange(int32, weak, &e->waiters, &waiters, 0, Relaxed, Relaxed)) {
         aspinHandleContention(&e->aspin, &astate);
     }
