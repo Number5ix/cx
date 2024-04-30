@@ -42,8 +42,8 @@ bool eventSignalMany(Event *e, int32 count)
     // waited yet (i.e. they are currently in the process of waking up), we don't want to signal it again.
     // Because the event should end up in a signaled state when this is called, enforce a minimum of 1 to set
     // the futex value to, even if there are no waiters.
-    int32 val = atomicLoad(int32, &e->ftx.val, Acquire);
-    while (val >= 0 && !atomicCompareExchange(int32, weak, &e->ftx.val, &val, clamplow(val + count, 1), Release, Relaxed)) {
+    int32 val = atomicLoad(int32, &e->ftx.val, Relaxed);
+    while (val >= 0 && !atomicCompareExchange(int32, weak, &e->ftx.val, &val, clamplow(val + count, 1), AcqRel, Relaxed)) {
         aspinHandleContention(&e->aspin, &astate);
     }
 
@@ -76,8 +76,8 @@ bool eventSignalAll(Event *e)
     // set the futex value the number of waiters so they all wake up.
     // This is a broadcast event, so we don't need to worry about a race between the previous atomic
     // and this one -- any new waiters after we read the number will just have to wait.
-    int32 val = atomicLoad(int32, &e->ftx.val, Acquire);
-    while (val >= 0 && !atomicCompareExchange(int32, weak, &e->ftx.val, &val, val + waiters, Release, Relaxed)) {
+    int32 val = atomicLoad(int32, &e->ftx.val, Relaxed);
+    while (val >= 0 && !atomicCompareExchange(int32, weak, &e->ftx.val, &val, val + waiters, AcqRel, Relaxed)) {
         aspinHandleContention(&e->aspin, &astate);
     }
 
@@ -106,7 +106,7 @@ bool eventWaitTimeout(Event *e, uint64 timeout)
     if (val == -1)
         return true;
 
-    if (val == 1 && atomicCompareExchange(int32, strong, &e->ftx.val, &val, 0, Acquire, Relaxed)) {
+    if (val == 1 && atomicCompareExchange(int32, strong, &e->ftx.val, &val, 0, AcqRel, Relaxed)) {
         aspinRecordUncontended(&e->aspin);
         return true;
     }
@@ -114,7 +114,7 @@ bool eventWaitTimeout(Event *e, uint64 timeout)
     AdaptiveSpinState astate;
     aspinBegin(&e->aspin, &astate, timeout);
 
-    while (val <= 0 || !atomicCompareExchange(int32, weak, &e->ftx.val, &val, val - 1, Acquire, Relaxed)) {
+    while (val <= 0 || !atomicCompareExchange(int32, weak, &e->ftx.val, &val, val - 1, AcqRel, Relaxed)) {
         if (val == -1)
             return true;        // immediate out if event is locked, don't update any stats
 
@@ -176,7 +176,7 @@ bool eventReset(Event *e)
     do {
         if (val == 0)
             return false;
-    } while (!atomicCompareExchange(int32, weak, &e->ftx.val, &val, 0, Release, Relaxed));
+    } while (!atomicCompareExchange(int32, weak, &e->ftx.val, &val, 0, AcqRel, Relaxed));
 
     return true;
 }
