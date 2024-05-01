@@ -317,7 +317,7 @@ static int test_tqtest_defer(void)
     eventInit(&notifyev);
 
     // create tasks
-    int dtime = timeMS(20);
+    int64 dtime = timeMS(20);
     for(int i = 0; i < NUM_DEFER_STEPS; i++) {
         TQTestD1 *d1 = tqtestd1Create(i, dtime, &notifyev);
         TQTestD2 *d2 = tqtestd2Create(d1, &notifyev);

@@ -162,9 +162,9 @@ static void managerRun(Thread *thr, TaskQueue *tq)
 
         // finally see if we need to grow or shrink the thread pool
         uint32 qcount = prqCount(&tq->runq);
-        uint32 nworkers = atomicLoad(int32, &tq->nworkers, Relaxed);        // relaxed is fine, only ever changed from this thread
-        uint32 targetw = nworkers;
-        uint32 qperw = qcount / nworkers;
+        int32 nworkers = atomicLoad(int32, &tq->nworkers, Relaxed);         // relaxed is fine, only ever changed from this thread
+        int32 targetw = nworkers;
+        int32 qperw = qcount / nworkers;
 
         // LOAD FACTOR
         if(qcount > 0) {
