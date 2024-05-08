@@ -91,9 +91,6 @@ bool rwlockTryAcquireWriteTimeout(RWLock *l, int64 timeout)
     uint32 state = atomicLoad(uint32, &l->state, Relaxed);
     // Try lightweight path first if there's no contention and the lock is wide open
     if (RWLOCK_WRITERS(state) == 0 && RWLOCK_READERS(state) == 0) {
-        // make sure we didn't hit the limit
-        if (RWLOCK_WRITERS(state) == RWLOCK_WRITER_MAX)
-            return false;
         if (atomicCompareExchange(uint32, strong, &l->state, &state, state + RWLOCK_WRITE_ADD, Acquire, Relaxed)) {
             aspinRecordUncontended(&l->aspin);
             return true;        // got the lock
