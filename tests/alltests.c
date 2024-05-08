@@ -15,6 +15,8 @@ static const testspec tests[] = {
 { "xalloc: Usable Size", "cxmemtest", "usable_size" },
 { "xalloc: Free", "cxmemtest", "free" },
 { "xalloc: Reallocation", "cxmemtest", "realloc" },
+{ "closure: Basic Closure", "closuretest", "closure" },
+{ "closure: Closure Chain", "closuretest", "chain" },
 { "format: Integers", "fmttest", "int" },
 { "format: Floating Point", "fmttest", "float" },
 { "format: Objects", "fmttest", "object" },

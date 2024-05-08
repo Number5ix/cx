@@ -116,7 +116,9 @@ static void checkMemberInitDestroy(Class *cls)
             }
             if ((strEq(m->vartype, _S"string") && strEmpty(m->predecr)) ||
                 (strEq(m->vartype, _S"hashtable") && strEmpty(m->predecr)) ||
-                (strEq(m->vartype, _S"stvar") && strEmpty(m->predecr))) {
+                (strEq(m->vartype, _S"stvar") && strEmpty(m->predecr)) ||
+                (strEq(m->vartype, _S"closure") && strEmpty(m->predecr)) ||
+                (strEq(m->vartype, _S"cchain") && strEmpty(m->predecr))) {
                 m->destroy = true;
             }
         }

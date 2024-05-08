@@ -42,6 +42,9 @@ set(CXOBJGEN_SRCS
     cxobjgen.c
     stub.c)
 set(CX_SRCS
+    ../cx/closure/cchain.c
+    ../cx/closure/closure.c
+    ../cx/closure/stype_closure.c
     ../cx/container/hashtable.c
     ../cx/container/sarray.c
     ../cx/container/stype_hashtable.c
@@ -53,6 +56,7 @@ set(CX_SRCS
     ../cx/obj/objstdif.c
     ../cx/obj/stype_obj.c
     ../cx/stype/stconvert.c
+    ../cx/stype/stvar.c
     ../cx/stype/stype.c
     ../cx/stype/stype_stvar.c
     ${CX_PLATFORM_SRCS}

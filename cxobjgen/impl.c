@@ -355,6 +355,10 @@ static void writeAutoDtors(BufFile *bf, Class *cls)
             strNConcat(&mdtor, _S"    htDestroy(&self->", m->name, _S");");
         } else if (strEq(m->vartype, _S"stvar")) {
             strNConcat(&mdtor, _S"    _stDestroy(self->", m->name, _S".type, NULL, &self->", m->name, _S".data, 0);");
+        } else if(strEq(m->vartype, _S"closure")) {
+            strNConcat(&mdtor, _S"    closureDestroy(&self->", m->name, _S");");
+        } else if(strEq(m->vartype, _S"cchain")) {
+            strNConcat(&mdtor, _S"    cchainDestroy(&self->", m->name, _S");");
         }
         if (!strEmpty(mdtor))
             bfWriteLine(bf, mdtor);

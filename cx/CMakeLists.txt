@@ -6,6 +6,7 @@ include (${CX_TOP_SOURCE_DIR}/cmake/buildtype.cmake)
 
 option (CX_USE_SYSTEM_MALLOC "Use system allocator rather than mimalloc" OFF)
 
+add_subdirectory(closure)
 add_subdirectory(container)
 add_subdirectory(debug)
 add_subdirectory(format)
@@ -28,6 +29,7 @@ add_subdirectory(utils)
 add_subdirectory(xalloc)
 
 set(CX_BASE_INCLUDES
+    closure.h
     common.h
     container.h
     cx.h

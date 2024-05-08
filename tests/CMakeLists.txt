@@ -4,6 +4,7 @@ create_test_sourcelist(testsrc
     test_runner.c
     debugtest.c
     cxmemtest.c
+    closuretest.c
     fmttest.c
     logtest.c
     objtest.c
@@ -58,6 +59,8 @@ add_test(NAME "\"xalloc: Allocation\"" COMMAND test_runner cxmemtest alloc)
 add_test(NAME "\"xalloc: Usable Size\"" COMMAND test_runner cxmemtest usable_size)
 add_test(NAME "\"xalloc: Free\"" COMMAND test_runner cxmemtest free)
 add_test(NAME "\"xalloc: Reallocation\"" COMMAND test_runner cxmemtest realloc)
+add_test(NAME "\"closure: Basic Closure\"" COMMAND test_runner closuretest closure)
+add_test(NAME "\"closure: Closure Chain\"" COMMAND test_runner closuretest chain)
 add_test(NAME "\"format: Integers\"" COMMAND test_runner fmttest int)
 add_test(NAME "\"format: Floating Point\"" COMMAND test_runner fmttest float)
 add_test(NAME "\"format: Objects\"" COMMAND test_runner fmttest object)

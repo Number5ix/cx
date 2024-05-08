@@ -24,6 +24,8 @@ CX_C_BEGIN
 typedef struct str_ref* string;
 typedef const struct str_ref* strref;
 typedef struct hashtable_ref* hashtable;
+typedef struct closure_ref *closure;
+typedef struct cchain_ref *cchain;
 typedef struct ObjInst ObjInst;
 typedef struct SUID SUID;
 typedef struct stvar stvar;
@@ -123,6 +125,8 @@ typedef union sa_ref* sahandle;
 #define SType_stvar stvar*
 #define SType_sarray sa_ref
 #define SType_hashtable hashtable
+#define SType_closure closure
+#define SType_cchain cchain
 #define stTypeDef(name) SType_##name
 
 #define stTypeCast(name, v) ((SType_##name)(v))
@@ -156,6 +160,8 @@ typedef union stgeneric {
     CONTAINER_TYPE(stvar);
     CONTAINER_TYPE(sarray);
     CONTAINER_TYPE(hashtable);
+    CONTAINER_TYPE(closure);
+    CONTAINER_TYPE(cchain);
 } stgeneric;
 
 _Static_assert(sizeof(stgeneric) == sizeof(uint64), "stype container too large");
@@ -204,6 +210,8 @@ typedef struct stvar {
 #define STStorageType_stvar stvar
 #define STStorageType_sarray sa_ref
 #define STStorageType_hashtable hashtable
+#define STStorageType_closure closure
+#define STStorageType_cchain cchain
 #define stStorageType(name) STStorageType_##name
 
 enum STYPE_ID {
@@ -234,8 +242,10 @@ enum STYPE_ID {
     STypeId_object = STCLASS_CX | 1,
     STypeId_suid = STCLASS_CX | 2,        // notable exception
     STypeId_stvar = STCLASS_CX | 3,
+    STypeId_closure = STCLASS_CX | 4,
     STypeId_sarray = STCLASS_CX_CONTAINER | 0,
     STypeId_hashtable = STCLASS_CX_CONTAINER | 1,
+    STypeId_cchain = STCLASS_CX_CONTAINER | 2,
 };
 #define stTypeId(name) STypeId_##name
 
@@ -267,6 +277,8 @@ enum STYPE_SIZE {
     STypeSize_stvar = sizeof(stvar),
     STypeSize_sarray = sizeof(sa_ref),
     STypeSize_hashtable = sizeof(hashtable),
+    STypeSize_closure = sizeof(closure),
+    STypeSize_cchaiun = sizeof(cchain),
 };
 #define stTypeSize(name) STypeSize_##name
 
@@ -323,6 +335,8 @@ enum STYPE_DEFAULT_FLAGS {
     STypeFlags_stvar = stFlag(PassPtr) | stFlag(Object),
     STypeFlags_sarray = stFlag(Object),
     STypeFlags_hashtable = stFlag(Object),
+    STypeFlags_closure = stFlag(Object),
+    STypeFlags_cchain = stFlag(Object),
 };
 #define stTypeFlags(name) STypeFlags_##name
 
@@ -355,6 +369,10 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define objInstCheckPtr(o) (unused_noeval((o) && (*o) && &((*o)->_is_ObjInst)), (o))
 #define strCheck(s) (unused_noeval((s) && &((s)->_is_string)), (s))
 #define strCheckPtr(s) (unused_noeval((s) && (*s) && &((*s)->_is_string)), (s))
+#define closureCheck(c) (unused_noeval((c) && &((c)->_is_closure)), (c))
+#define closureCheckPtr(c) (unused_noeval((c) && (*c) && &((*c)->_is_closure)), (c))
+#define cchainCheck(c) (unused_noeval((c) && &((c)->_is_closure_chain)), (c))
+#define cchainCheckPtr(c) (unused_noeval((c) && (*c) && &((*c)->_is_closure_chain)), (c))
 
 // most of these are no-ops, but some can do extra type checking
 #define STypeCheck_opaque(type, val) (val)
@@ -380,6 +398,8 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define STypeCheck_stvar(_type, val) (unused_noeval((((val).data), ((val).type))), (val))
 #define STypeCheck_sarray(type, val) saCheck(val)
 #define STypeCheck_hashtable(type, val) htCheck(val)
+#define STypeCheck_closure(type, val) closureCheck(val)
+#define STypeCheck_cchain(type, val) cchainCheck(val)
 #define stCheck(type, val) STypeCheck_##type(type, val)
 
 #define STypeCheckPtr_gen(type, ptr) (unused_noeval((stTypeDef(type)*)(ptr)), ptr)
@@ -406,6 +426,8 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define STypeCheckPtr_stvar(_type, ptr) (unused_noeval((((ptr)->data), ((ptr)->type))), (ptr))
 #define STypeCheckPtr_sarray(type, ptr) saCheckPtr(ptr)
 #define STypeCheckPtr_hashtable(type, ptr) htCheckPtr(ptr)
+#define STypeCheckPtr_closure(type, ptr) closureCheckPtr(ptr)
+#define STypeCheckPtr_cchain(type, ptr) cchainCheckPtr(ptr)
 #define stCheckPtr(type, ptr) STypeCheckPtr_##type(type, ptr)
 
 // C99 compound literals are lvalues and can force the compiler to create a temporary
@@ -438,6 +460,8 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define stType_stvar stTypeInternal(stvar)
 #define stType_sarray stTypeInternal(sarray)
 #define stType_hashtable stTypeInternal(hashtable)
+#define stType_closure stTypeInternal(closure)
+#define stType_cchain stTypeInternal(cchain)
 #define stType_custom(basetype) _stype_mkcustom(stType_##basetype)
 #define stType(name) stType_##name
 
@@ -466,6 +490,8 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define stFullType_stvar stFullTypeInternal(stvar)
 #define stFullType_sarray stFullTypeInternal(sarray)
 #define stFullType_hashtable stFullTypeInternal(hashtable)
+#define stFullType_closure stFullTypeInternal(closure)
+#define stFullType_cchain stFullTypeInternal(cchain)
 // this will chain evaluate macros for stuff like custom(opaque(realtype), ops)
 // it gets token pasted as _stype_mkcustom(stType_opaque(realtype), ops)
 #define stFullType_custom(basetype, ops) _stype_mkcustom(stType_##basetype), (&ops)
@@ -502,6 +528,8 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define STypeArg_stvar(type, val) stgeneric_unchecked(type, stRvalAddr(type, stCheck(type, val)))
 #define STypeArg_sarray(type, val) stgensarray(val)
 #define STypeArg_hashtable(type, val) stgeneric(type, val)
+#define STypeArg_closure(type, val) stgeneric(type, val)
+#define STypeArg_cchain(type, val) stgeneric(type, val)
 #define stArg(type, val) STypeArg_##type(type, val)
 
 // And for passing a pointer-to-pointer, mostly for functions that want to
@@ -533,6 +561,8 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define STypeArgPtr_stvar(type, val) &stgeneric_unchecked(type, stCheckPtr(type, val))
 #define STypeArgPtr_sarray(type, val) (stgeneric*)stCheckPtr(type, val)
 #define STypeArgPtr_hashtable(type, val) (stgeneric*)stCheckPtr(type, val)
+#define STypeArgPtr_closure(type, val) (stgeneric*)stCheckPtr(type, val)
+#define STypeArgPtr_cchain(type, val) (stgeneric*)stCheckPtr(type, val)
 #define stArgPtr(type, val) STypeArgPtr_##type(type, val)
 
 // Macros for type-checked inline metafunctions.
@@ -562,6 +592,8 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define STypeCheckedArg_stvar(type, val) stTypeInternal(type), stArg(type, val)
 #define STypeCheckedArg_sarray(type, val) stTypeInternal(type), stArg(type, val)
 #define STypeCheckedArg_hashtable(type, val) stTypeInternal(type), stArg(type, val)
+#define STypeCheckedArg_closure(type, val) stTypeInternal(type), stArg(type, val)
+#define STypeCheckedArg_cchain(type, val) stTypeInternal(type), stArg(type, val)
 #define stCheckedArg(type, val) STypeCheckedArg_##type(type, val)
 
 // Type checking of pointers to types, mostly for functions that want to
@@ -592,6 +624,8 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define STypeCheckedPtrArg_stvar(type, val) stTypeInternal(type), stArgPtr(type, val)
 #define STypeCheckedPtrArg_sarray(type, val) stTypeInternal(type), stArgPtr(type, val)
 #define STypeCheckedPtrArg_hashtable(type, val) stTypeInternal(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_closure(type, val) stTypeInternal(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_cchain(type, val) stTypeInternal(type), stArgPtr(type, val)
 #define stCheckedPtrArg(type, val) STypeCheckedPtrArg_##type(type, val)
 
 enum STYPE_OPS_FLAGS {
