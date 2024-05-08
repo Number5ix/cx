@@ -90,5 +90,9 @@ void _stvlInitSA(stvlist *list, stvar *vara);
 bool _stvlNext(stvlist *list, stype type, stgeneric *out);
 #define stvlNext(list, type, pvar) _stvlNext(list, stCheckedPtrArg(type, pvar))
 
+void *_stvlNextPtr(stvlist *list, stype type);
+#define stvlNextPtr(list) _stvlNextPtr(list, stType(ptr))
+#define stvlNextObj(list, class) objDynCast((ObjInst*)_stvlNextPtr(list, stType(object)), class)
+
 // Rewind the list
 void stvlRewind(stvlist *list);

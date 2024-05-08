@@ -31,6 +31,23 @@ bool _stvlNext(stvlist *list, stype type, stgeneric *out)
     return false;
 }
 
+void *_stvlNextPtr(stvlist *list, stype type)
+{
+    // make sure this is a type that stores a pointer in stvars
+    if(!(stEq(type, stType(ptr)) ||
+         stHasFlag(type, Object) ||
+         stHasFlag(type, PassPtr)))
+        return NULL;
+
+    for(int i = list->cursor; i < list->count; i++) {
+        if(stEq(type, list->vars[i].type)) {
+            list->cursor = i + 1;
+            return list->vars[i].data.st_ptr;
+        }
+    }
+    return NULL;
+}
+
 // Rewind the list
 void stvlRewind(stvlist *list)
 {
