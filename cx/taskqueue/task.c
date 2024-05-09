@@ -12,6 +12,7 @@ void Task_destroy(_Inout_ Task *self)
 {
     // Autogen begins -----
     strDestroy(&self->name);
+    cchainDestroy(&self->oncomplete);
     // Autogen ends -------
 }
 

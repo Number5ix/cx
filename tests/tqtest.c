@@ -287,10 +287,28 @@ static bool is_monitor_test = false;
 static LogCategory *moncat;
 atomic(int32) tqtestd_order;
 
+static bool defer_oncomplete(stvlist *cvars, stvlist *args)
+{
+    atomic(int32) *nsucceed;
+    Task *task;
+
+    nsucceed = stvlNextPtr(cvars);
+    task = stvlNextObj(args, Task);
+    if(!(nsucceed && task))
+        return false;
+
+    if(btaskState(task) == TASK_Succeeded) {
+        atomicFetchAdd(int32, nsucceed, 1, AcqRel);
+    }
+
+    return true;
+}
+
 static int test_tqtest_defer(void)
 {
     int ret = 0;
     sa_TQTestDefer dtasks;
+    atomic(int32) nsucceed = atomicInit(0);
 
     TaskQueueConfig conf;
     tqPresetBalanced(&conf);
@@ -321,6 +339,11 @@ static int test_tqtest_defer(void)
     for(int i = 0; i < NUM_DEFER_STEPS; i++) {
         TQTestD1 *d1 = tqtestd1Create(i, dtime, &notifyev);
         TQTestD2 *d2 = tqtestd2Create(d1, &notifyev);
+
+        // completion callbacks
+        cchainAttach(&d1->oncomplete, defer_oncomplete, stvar(ptr, &nsucceed));
+        cchainAttach(&d2->oncomplete, defer_oncomplete, stvar(ptr, &nsucceed));
+
         saPushC(&dtasks, object, &d2);           // run them in reverse order to test inversion
         saPushC(&dtasks, object, &d1);
         dtime += timeMS(20);
@@ -369,6 +392,9 @@ static int test_tqtest_defer(void)
         if(btaskState(dtasks.a[i]) != TASK_Succeeded)
             ret = 1;
     }
+
+    if(atomicLoad(int32, &nsucceed, Acquire) != NUM_DEFER_STEPS * 2)
+        ret = 1;
 
     saDestroy(&dtasks);
 

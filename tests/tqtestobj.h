@@ -113,6 +113,7 @@ typedef struct TQTest1 {
     int64 nextrun;        // next time for this task to run when deferred
     int64 lastprogress;        // timestamp of last progress change
     atomic(bool) cancelled;        // request that the task should be cancelled
+    cchain oncomplete;        // functions that are called when this task has completed
     int num[2];
     int total;
     Event *notify;
@@ -145,6 +146,7 @@ typedef struct TQTestFail {
     int64 nextrun;        // next time for this task to run when deferred
     int64 lastprogress;        // timestamp of last progress change
     atomic(bool) cancelled;        // request that the task should be cancelled
+    cchain oncomplete;        // functions that are called when this task has completed
     int n;
     Event *notify;
 } TQTestFail;
@@ -176,6 +178,7 @@ typedef struct TQTestCC1 {
     int64 nextrun;        // next time for this task to run when deferred
     int64 lastprogress;        // timestamp of last progress change
     atomic(bool) cancelled;        // request that the task should be cancelled
+    cchain oncomplete;        // functions that are called when this task has completed
     int num[2];
     TaskQueue *destq;
     int *accum;
@@ -210,6 +213,7 @@ typedef struct TQTestCC2 {
     int64 nextrun;        // next time for this task to run when deferred
     int64 lastprogress;        // timestamp of last progress change
     atomic(bool) cancelled;        // request that the task should be cancelled
+    cchain oncomplete;        // functions that are called when this task has completed
     int total;
     int *accum;
     int *counter;
@@ -243,6 +247,7 @@ typedef struct TQTestDefer {
     int64 nextrun;        // next time for this task to run when deferred
     int64 lastprogress;        // timestamp of last progress change
     atomic(bool) cancelled;        // request that the task should be cancelled
+    cchain oncomplete;        // functions that are called when this task has completed
     Event *notify;
 } TQTestDefer;
 extern ObjClassInfo TQTestDefer_clsinfo;
@@ -270,6 +275,7 @@ typedef struct TQTestD1 {
     int64 nextrun;        // next time for this task to run when deferred
     int64 lastprogress;        // timestamp of last progress change
     atomic(bool) cancelled;        // request that the task should be cancelled
+    cchain oncomplete;        // functions that are called when this task has completed
     Event *notify;
     int order;
     int64 dtime;
@@ -304,6 +310,7 @@ typedef struct TQTestD2 {
     int64 nextrun;        // next time for this task to run when deferred
     int64 lastprogress;        // timestamp of last progress change
     atomic(bool) cancelled;        // request that the task should be cancelled
+    cchain oncomplete;        // functions that are called when this task has completed
     Event *notify;
     Task *waitfor;
 } TQTestD2;
@@ -335,6 +342,7 @@ typedef struct TQDelayTest {
     int64 nextrun;        // next time for this task to run when deferred
     int64 lastprogress;        // timestamp of last progress change
     atomic(bool) cancelled;        // request that the task should be cancelled
+    cchain oncomplete;        // functions that are called when this task has completed
     int64 len;
 } TQDelayTest;
 extern ObjClassInfo TQDelayTest_clsinfo;

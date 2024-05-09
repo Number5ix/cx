@@ -1,4 +1,5 @@
 #include <cx/taskqueue/basictask.sidl>
+#include <cx/closure.h>
 
 abstract class Task extends BasicTask
 {
@@ -7,5 +8,6 @@ abstract class Task extends BasicTask
     int64 nextrun;              // next time for this task to run when deferred
     int64 lastprogress;         // timestamp of last progress change
     atomic:bool cancelled;      // request that the task should be cancelled
+    cchain oncomplete;          // functions that are called when this task has completed
     init();
 }

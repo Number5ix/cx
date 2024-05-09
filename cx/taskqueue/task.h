@@ -3,6 +3,7 @@
 // Do not make changes to this file or they will be overwritten.
 #include <cx/obj.h>
 #include <cx/taskqueue/basictask.h>
+#include <cx/closure.h>
 
 typedef struct TaskQueue TaskQueue;
 typedef struct TaskControl TaskControl;
@@ -34,6 +35,7 @@ typedef struct Task {
     int64 nextrun;        // next time for this task to run when deferred
     int64 lastprogress;        // timestamp of last progress change
     atomic(bool) cancelled;        // request that the task should be cancelled
+    cchain oncomplete;        // functions that are called when this task has completed
 } Task;
 extern ObjClassInfo Task_clsinfo;
 #define Task(inst) ((Task*)(unused_noeval((inst) && &((inst)->_is_Task)), (inst)))

@@ -82,6 +82,10 @@ static int tqWorkerThread(Thread *thr)
             } else {
                 // tasks fail if they do not succeed
                 atomicStore(int32, &btask->state, success ? TASK_Succeeded : TASK_Failed, Release);
+
+                if(task && task->oncomplete) {
+                    cchainCall(&task->oncomplete, stvar(object, task));
+                }
             }
 
             if(tcon.notifyev) {
