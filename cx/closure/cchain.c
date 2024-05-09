@@ -45,7 +45,7 @@ void _cchainAttach(cchain *chain, closureFunc func, intptr token, int n, stvar c
 
     withReadLock(&cchainLock)
     {
-        ClosureChain *cur = atomicLoad(ptr, curptr, Relaxed);
+        void *cur = atomicLoad(ptr, curptr, Relaxed);
         do {
             atomicStore(ptr, &nchain->prev, cur, Relaxed);
         } while(!atomicCompareExchange(ptr, weak, curptr, &cur, nchain, AcqRel, Relaxed));
@@ -78,7 +78,7 @@ bool cchainDetach(cchain *chain, closureFunc func, intptr token)
                 ret = false;
                 break;
             }
-        } while(!atomicCompareExchange(ptr, strong, curptr, &cur, atomicLoad(ptr, &cur->prev, Relaxed), AcqRel, Relaxed));
+        } while(!atomicCompareExchange(ptr, strong, curptr, (void**)&cur, atomicLoad(ptr, &cur->prev, Relaxed), AcqRel, Relaxed));
     }
 
     if(ret) {
@@ -155,7 +155,7 @@ void cchainTransfer(cchain *dest, cchain *src)
     atomic(ptr) *destptr = (atomic(ptr) *)dest;
     atomic(ptr) *srcptr = (atomic(ptr) *)src;
 
-    ClosureChain *srcchain = atomicLoad(ptr, srcptr, Relaxed);
+    void *srcchain = atomicLoad(ptr, srcptr, Relaxed);
     withReadLock(&cchainLock)
     {
         do {

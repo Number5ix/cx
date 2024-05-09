@@ -1,4 +1,5 @@
 #include "closure_private.h"
+#include "cchain.h"
 #include "stype_closure.h"
 
 _Use_decl_annotations_
