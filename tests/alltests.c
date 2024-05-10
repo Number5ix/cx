@@ -40,6 +40,7 @@ static const testspec tests[] = {
 { "object: Static Cast", "objtest", "cast" },
 { "object: Dynamic Cast", "objtest", "dyncast" },
 { "object: Object Array", "objtest", "obj_array" },
+{ "object: Weak References", "objtest", "weakref" },
 { "sarray: Int Array", "sarraytest", "int" },
 { "sarray: Sorted Int Array", "sarraytest", "sorted_int" },
 { "sarray: String Array", "sarraytest", "string" },

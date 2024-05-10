@@ -4,7 +4,9 @@
 #include <cx/obj.h>
 
 typedef struct Iterator Iterator;
+typedef struct Iterator_WeakRef Iterator_WeakRef;
 saDeclarePtr(Iterator);
+saDeclarePtr(Iterator_WeakRef);
 
 typedef struct Sortable {
     ObjIface *_implements;
@@ -79,11 +81,23 @@ typedef struct Iterator {
     };
     ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
+    atomic(ptr) _weakref;
 
 } Iterator;
 extern ObjClassInfo Iterator_clsinfo;
 #define Iterator(inst) ((Iterator*)(unused_noeval((inst) && &((inst)->_is_Iterator)), (inst)))
 #define IteratorNone ((Iterator*)NULL)
+
+typedef struct Iterator_WeakRef {
+    union {
+        ObjInst *_inst;
+        void *_is_Iterator_WeakRef;
+        void *_is_ObjInst_WeakRef;
+    };
+    atomic(intptr) _ref;
+    RWLock _lock;
+} Iterator_WeakRef;
+#define Iterator_WeakRef(inst) ((Iterator_WeakRef*)(unused_noeval((inst) && &((inst)->_is_Iterator_WeakRef)), (inst)))
 
 // bool iteratorValid(Iterator *self);
 #define iteratorValid(self) (self)->_->valid(Iterator(self))

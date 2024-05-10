@@ -5,7 +5,9 @@
 #include <cx/fs/vfsprovider.h>
 
 typedef struct VFSFS VFSFS;
+typedef struct VFSFS_WeakRef VFSFS_WeakRef;
 saDeclarePtr(VFSFS);
+saDeclarePtr(VFSFS_WeakRef);
 
 typedef struct VFSFS_ClassIf {
     ObjIface *_implements;
@@ -38,12 +40,24 @@ typedef struct VFSFS {
     };
     ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
+    atomic(ptr) _weakref;
 
     string root;
 } VFSFS;
 extern ObjClassInfo VFSFS_clsinfo;
 #define VFSFS(inst) ((VFSFS*)(unused_noeval((inst) && &((inst)->_is_VFSFS)), (inst)))
 #define VFSFSNone ((VFSFS*)NULL)
+
+typedef struct VFSFS_WeakRef {
+    union {
+        ObjInst *_inst;
+        void *_is_VFSFS_WeakRef;
+        void *_is_ObjInst_WeakRef;
+    };
+    atomic(intptr) _ref;
+    RWLock _lock;
+} VFSFS_WeakRef;
+#define VFSFS_WeakRef(inst) ((VFSFS_WeakRef*)(unused_noeval((inst) && &((inst)->_is_VFSFS_WeakRef)), (inst)))
 
 _objfactory_check VFSFS *VFSFS_create(_In_opt_ strref rootpath);
 // VFSFS *vfsfsCreate(strref rootpath);

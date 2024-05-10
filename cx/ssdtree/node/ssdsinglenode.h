@@ -5,9 +5,13 @@
 #include <cx/ssdtree/node/ssdnode.h>
 
 typedef struct SSDSingleNode SSDSingleNode;
+typedef struct SSDSingleNode_WeakRef SSDSingleNode_WeakRef;
 typedef struct SSDSingleIter SSDSingleIter;
+typedef struct SSDSingleIter_WeakRef SSDSingleIter_WeakRef;
 saDeclarePtr(SSDSingleNode);
+saDeclarePtr(SSDSingleNode_WeakRef);
 saDeclarePtr(SSDSingleIter);
+saDeclarePtr(SSDSingleIter_WeakRef);
 
 typedef struct SSDSingleNode_ClassIf {
     ObjIface *_implements;
@@ -68,6 +72,7 @@ typedef struct SSDSingleNode {
     };
     ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
+    atomic(ptr) _weakref;
 
     SSDTree *tree;
     int64 modified;        // The timestamp this node was last modified
@@ -76,6 +81,18 @@ typedef struct SSDSingleNode {
 extern ObjClassInfo SSDSingleNode_clsinfo;
 #define SSDSingleNode(inst) ((SSDSingleNode*)(unused_noeval((inst) && &((inst)->_is_SSDSingleNode)), (inst)))
 #define SSDSingleNodeNone ((SSDSingleNode*)NULL)
+
+typedef struct SSDSingleNode_WeakRef {
+    union {
+        ObjInst *_inst;
+        void *_is_SSDSingleNode_WeakRef;
+        void *_is_SSDNode_WeakRef;
+        void *_is_ObjInst_WeakRef;
+    };
+    atomic(intptr) _ref;
+    RWLock _lock;
+} SSDSingleNode_WeakRef;
+#define SSDSingleNode_WeakRef(inst) ((SSDSingleNode_WeakRef*)(unused_noeval((inst) && &((inst)->_is_SSDSingleNode_WeakRef)), (inst)))
 
 _objfactory_guaranteed SSDSingleNode *SSDSingleNode__create(SSDTree *tree);
 // SSDSingleNode *ssdsinglenode_create(SSDTree *tree);
@@ -138,6 +155,7 @@ typedef struct SSDSingleIter {
     };
     ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
+    atomic(ptr) _weakref;
 
     SSDNode *node;
     SSDLockState *lstate;
@@ -147,6 +165,18 @@ typedef struct SSDSingleIter {
 extern ObjClassInfo SSDSingleIter_clsinfo;
 #define SSDSingleIter(inst) ((SSDSingleIter*)(unused_noeval((inst) && &((inst)->_is_SSDSingleIter)), (inst)))
 #define SSDSingleIterNone ((SSDSingleIter*)NULL)
+
+typedef struct SSDSingleIter_WeakRef {
+    union {
+        ObjInst *_inst;
+        void *_is_SSDSingleIter_WeakRef;
+        void *_is_SSDIterator_WeakRef;
+        void *_is_ObjInst_WeakRef;
+    };
+    atomic(intptr) _ref;
+    RWLock _lock;
+} SSDSingleIter_WeakRef;
+#define SSDSingleIter_WeakRef(inst) ((SSDSingleIter_WeakRef*)(unused_noeval((inst) && &((inst)->_is_SSDSingleIter_WeakRef)), (inst)))
 
 _objfactory_guaranteed SSDSingleIter *SSDSingleIter_create(SSDSingleNode *node, SSDLockState *lstate);
 // SSDSingleIter *ssdsingleiterCreate(SSDSingleNode *node, SSDLockState *lstate);

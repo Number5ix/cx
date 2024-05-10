@@ -47,7 +47,7 @@ uint32 stHash_obj(stype st, stgeneric gen, uint32 flags)
 }
 
 _Use_decl_annotations_
-bool stConvert_obj(stype destst, stgeneric *dest, stype srcst, stgeneric src, uint32 flags)
+bool stConvert_obj(stype    destst, stgeneric *dest, stype srcst, stgeneric src, uint32 flags)
 {
     ObjInst *inst = src.st_object;
 
@@ -61,4 +61,20 @@ bool stConvert_obj(stype destst, stgeneric *dest, stype srcst, stgeneric src, ui
     }
 
     return false;
+}
+
+void stDtor_weakref(stype st, _Pre_notnull_ _Post_invalid_ stgeneric *stgen, uint32 flags)
+{
+    objDestroyWeak(&stgen->st_weakref);
+}
+
+intptr stCmp_weakref(stype st, _In_ stgeneric stgen1, _In_ stgeneric stgen2, uint32 flags)
+{
+    // all weak references to the same object share the same pointer
+    return (intptr)stgen1.st_weakref - (intptr)stgen2.st_weakref;
+}
+
+void stCopy_weakref(stype st, _stCopyDest_Anno_(st) stgeneric *dest, _In_ stgeneric src, uint32 flags)
+{
+    dest->st_weakref = objCloneWeak(src.st_weakref);
 }

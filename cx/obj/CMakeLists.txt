@@ -3,6 +3,7 @@ set(OBJSRCS
     obj/objiface.c
     obj/objimpl.c
     obj/objstdif.c
+    obj/objweak.c
     obj/stype_obj.c)
 set(OBJINCLUDES
     obj/obj_private.h

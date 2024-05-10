@@ -305,7 +305,7 @@ alignMem(64) stConvertFunc _stDefaultConvert[256] = {
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     // STCLASS_CX
-    stConvert_string, stConvert_obj, stConvert_suid, stConvert_stvar, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    stConvert_string, stConvert_obj, 0, stConvert_suid, stConvert_stvar, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     // STCLASS_CX_CONTAINER
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 };

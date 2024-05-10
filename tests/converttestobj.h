@@ -4,7 +4,9 @@
 #include <cx/obj.h>
 
 typedef struct ConvertTestClass ConvertTestClass;
+typedef struct ConvertTestClass_WeakRef ConvertTestClass_WeakRef;
 saDeclarePtr(ConvertTestClass);
+saDeclarePtr(ConvertTestClass_WeakRef);
 
 typedef struct ConvertTestClass_ClassIf {
     ObjIface *_implements;
@@ -29,6 +31,7 @@ typedef struct ConvertTestClass {
     };
     ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
+    atomic(ptr) _weakref;
 
     int32 ival;
     float64 fval;
@@ -37,6 +40,17 @@ typedef struct ConvertTestClass {
 extern ObjClassInfo ConvertTestClass_clsinfo;
 #define ConvertTestClass(inst) ((ConvertTestClass*)(unused_noeval((inst) && &((inst)->_is_ConvertTestClass)), (inst)))
 #define ConvertTestClassNone ((ConvertTestClass*)NULL)
+
+typedef struct ConvertTestClass_WeakRef {
+    union {
+        ObjInst *_inst;
+        void *_is_ConvertTestClass_WeakRef;
+        void *_is_ObjInst_WeakRef;
+    };
+    atomic(intptr) _ref;
+    RWLock _lock;
+} ConvertTestClass_WeakRef;
+#define ConvertTestClass_WeakRef(inst) ((ConvertTestClass_WeakRef*)(unused_noeval((inst) && &((inst)->_is_ConvertTestClass_WeakRef)), (inst)))
 
 _objfactory_guaranteed ConvertTestClass *ConvertTestClass_create(int32 ival, float64 fval, string sval);
 // ConvertTestClass *converttestclassCreate(int32 ival, float64 fval, string sval);

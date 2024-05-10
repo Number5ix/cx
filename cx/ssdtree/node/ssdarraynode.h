@@ -5,9 +5,13 @@
 #include <cx/ssdtree/node/ssdnode.h>
 
 typedef struct SSDArrayNode SSDArrayNode;
+typedef struct SSDArrayNode_WeakRef SSDArrayNode_WeakRef;
 typedef struct SSDArrayIter SSDArrayIter;
+typedef struct SSDArrayIter_WeakRef SSDArrayIter_WeakRef;
 saDeclarePtr(SSDArrayNode);
+saDeclarePtr(SSDArrayNode_WeakRef);
 saDeclarePtr(SSDArrayIter);
+saDeclarePtr(SSDArrayIter_WeakRef);
 
 typedef struct SSDArrayNode_ClassIf {
     ObjIface *_implements;
@@ -69,6 +73,7 @@ typedef struct SSDArrayNode {
     };
     ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
+    atomic(ptr) _weakref;
 
     SSDTree *tree;
     int64 modified;        // The timestamp this node was last modified
@@ -77,6 +82,18 @@ typedef struct SSDArrayNode {
 extern ObjClassInfo SSDArrayNode_clsinfo;
 #define SSDArrayNode(inst) ((SSDArrayNode*)(unused_noeval((inst) && &((inst)->_is_SSDArrayNode)), (inst)))
 #define SSDArrayNodeNone ((SSDArrayNode*)NULL)
+
+typedef struct SSDArrayNode_WeakRef {
+    union {
+        ObjInst *_inst;
+        void *_is_SSDArrayNode_WeakRef;
+        void *_is_SSDNode_WeakRef;
+        void *_is_ObjInst_WeakRef;
+    };
+    atomic(intptr) _ref;
+    RWLock _lock;
+} SSDArrayNode_WeakRef;
+#define SSDArrayNode_WeakRef(inst) ((SSDArrayNode_WeakRef*)(unused_noeval((inst) && &((inst)->_is_SSDArrayNode_WeakRef)), (inst)))
 
 _objfactory_guaranteed SSDArrayNode *SSDArrayNode__create(SSDTree *tree);
 // SSDArrayNode *ssdarraynode_create(SSDTree *tree);
@@ -141,6 +158,7 @@ typedef struct SSDArrayIter {
     };
     ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
+    atomic(ptr) _weakref;
 
     SSDNode *node;
     SSDLockState *lstate;
@@ -151,6 +169,18 @@ typedef struct SSDArrayIter {
 extern ObjClassInfo SSDArrayIter_clsinfo;
 #define SSDArrayIter(inst) ((SSDArrayIter*)(unused_noeval((inst) && &((inst)->_is_SSDArrayIter)), (inst)))
 #define SSDArrayIterNone ((SSDArrayIter*)NULL)
+
+typedef struct SSDArrayIter_WeakRef {
+    union {
+        ObjInst *_inst;
+        void *_is_SSDArrayIter_WeakRef;
+        void *_is_SSDIterator_WeakRef;
+        void *_is_ObjInst_WeakRef;
+    };
+    atomic(intptr) _ref;
+    RWLock _lock;
+} SSDArrayIter_WeakRef;
+#define SSDArrayIter_WeakRef(inst) ((SSDArrayIter_WeakRef*)(unused_noeval((inst) && &((inst)->_is_SSDArrayIter_WeakRef)), (inst)))
 
 _objfactory_guaranteed SSDArrayIter *SSDArrayIter_create(SSDArrayNode *node, SSDLockState *lstate);
 // SSDArrayIter *ssdarrayiterCreate(SSDArrayNode *node, SSDLockState *lstate);

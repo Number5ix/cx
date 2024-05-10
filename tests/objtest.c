@@ -249,6 +249,86 @@ static int test_obj_array()
     return 0;
 }
 
+static int test_obj_weakref()
+{
+    TestCls4b *cls4 = TestCls4b_create();
+    int ret = 0;
+    if(!cls4)
+        return 1;
+
+    cls4->data = 12;
+    cls4->data2 = 99;
+    cls4->data3 = 15;
+    cls4->data4 = 33;
+    cls4->data5 = 73;
+
+    TestCls3 *cls3 = TestCls3(cls4);
+    Weak(TestCls3) *cls3w = objGetWeak(TestCls3, cls3);
+    if(atomicLoad(intptr, &cls4->_ref, AcqRel) != 1)
+        ret = 1;
+
+    TestCls3 *cls3a = objAcquireFromWeak(TestCls3, cls3w);
+    if(cls3a) {
+        if(atomicLoad(intptr, &cls3a->_ref, AcqRel) != 2)
+            ret = 1;
+
+        if(testcls3Testfunc2(cls3) != 99)
+            ret = 1;
+    } else {
+        ret = 1;
+    }
+
+    TestCls1 *cls1 = objAcquireFromWeak(TestCls1, cls3w);
+    if(cls1) {
+        if(atomicLoad(intptr, &cls1->_ref, AcqRel) != 3)
+            ret = 1;
+
+        if(cls1->data != 12 || testcls1Testfunc(cls1) != 33)
+            ret = 1;
+    } else {
+        ret = 1;
+    }
+
+    TestCls4b *cls4a = objAcquireFromWeakDyn(TestCls4b, cls3w);
+    if(cls4a) {
+        if(atomicLoad(intptr, &cls4a->_ref, AcqRel) != 4)
+            ret = 1;
+
+        if(testcls4Testfunc(cls4a) != 33)
+            ret = 1;
+    } else {
+        ret = 1;
+    }
+
+    // test weak references after object has been destroyed
+
+    objRelease(&cls4a);
+    objRelease(&cls1);
+    objRelease(&cls3a);
+
+    if(atomicLoad(intptr, &cls4->_ref, AcqRel) != 1)
+        ret = 1;
+
+    objRelease(&cls4);
+
+    // these should all fail
+    cls3a = objAcquireFromWeak(TestCls3, cls3w);
+    if(cls3a)
+        ret = 1;
+
+    cls1 = objAcquireFromWeak(TestCls1, cls3w);
+    if(cls1)
+        ret = 1;
+
+    cls4a = objAcquireFromWeakDyn(TestCls4b, cls3w);
+    if(cls4a)
+        ret = 1;
+
+    objDestroyWeak(&cls3w);
+
+    return ret;
+}
+
 testfunc objtest_funcs[] = {
     { "iface", test_iface },
     { "inherit", test_inherit },
@@ -258,5 +338,6 @@ testfunc objtest_funcs[] = {
     { "cast", test_cast },
     { "dyncast", test_dyncast },
     { "obj_array", test_obj_array },
+    { "weakref", test_obj_weakref },
     { 0, 0 }
 };

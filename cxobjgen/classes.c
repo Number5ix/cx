@@ -110,7 +110,7 @@ static void checkMemberInitDestroy(Class *cls)
         if (strEmpty(m->postdecr)) {
             if (saSize(m->fulltype) > 1 && !strEq(m->fulltype.a[0], _S"atomic")) {
                 // these have enough info to auto init without help
-                if (strEmpty(m->predecr) && !strEq(m->fulltype.a[0], _S"object"))
+                if (strEmpty(m->predecr) && !strEq(m->fulltype.a[0], _S"object") && !strEq(m->fulltype.a[0], _S"weak"))
                     m->init = true;
                 m->destroy = true;
             }

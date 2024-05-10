@@ -6,7 +6,9 @@
 #include <cx/platform/win.h>
 
 typedef struct WinThread WinThread;
+typedef struct WinThread_WeakRef WinThread_WeakRef;
 saDeclarePtr(WinThread);
+saDeclarePtr(WinThread_WeakRef);
 
 typedef struct WinThread {
     union {
@@ -17,6 +19,7 @@ typedef struct WinThread {
     };
     ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
+    atomic(ptr) _weakref;
 
     threadFunc entry;
     string name;
@@ -33,6 +36,18 @@ typedef struct WinThread {
 extern ObjClassInfo WinThread_clsinfo;
 #define WinThread(inst) ((WinThread*)(unused_noeval((inst) && &((inst)->_is_WinThread)), (inst)))
 #define WinThreadNone ((WinThread*)NULL)
+
+typedef struct WinThread_WeakRef {
+    union {
+        ObjInst *_inst;
+        void *_is_WinThread_WeakRef;
+        void *_is_Thread_WeakRef;
+        void *_is_ObjInst_WeakRef;
+    };
+    atomic(intptr) _ref;
+    RWLock _lock;
+} WinThread_WeakRef;
+#define WinThread_WeakRef(inst) ((WinThread_WeakRef*)(unused_noeval((inst) && &((inst)->_is_WinThread_WeakRef)), (inst)))
 
 _objfactory_guaranteed WinThread *WinThread_create();
 // WinThread *_winthrobjCreate();

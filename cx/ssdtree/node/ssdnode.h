@@ -6,9 +6,13 @@
 #include <cx/stype/stvar.h>
 
 typedef struct SSDIterator SSDIterator;
+typedef struct SSDIterator_WeakRef SSDIterator_WeakRef;
 typedef struct SSDNode SSDNode;
+typedef struct SSDNode_WeakRef SSDNode_WeakRef;
 saDeclarePtr(SSDIterator);
+saDeclarePtr(SSDIterator_WeakRef);
 saDeclarePtr(SSDNode);
+saDeclarePtr(SSDNode_WeakRef);
 
 enum SSD_INDEX_MARKER {
     SSD_ByName = -1             // Pass as index to address a child by name
@@ -119,6 +123,7 @@ typedef struct SSDIterator {
     };
     ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
+    atomic(ptr) _weakref;
 
     SSDNode *node;
     SSDLockState *lstate;
@@ -127,6 +132,17 @@ typedef struct SSDIterator {
 extern ObjClassInfo SSDIterator_clsinfo;
 #define SSDIterator(inst) ((SSDIterator*)(unused_noeval((inst) && &((inst)->_is_SSDIterator)), (inst)))
 #define SSDIteratorNone ((SSDIterator*)NULL)
+
+typedef struct SSDIterator_WeakRef {
+    union {
+        ObjInst *_inst;
+        void *_is_SSDIterator_WeakRef;
+        void *_is_ObjInst_WeakRef;
+    };
+    atomic(intptr) _ref;
+    RWLock _lock;
+} SSDIterator_WeakRef;
+#define SSDIterator_WeakRef(inst) ((SSDIterator_WeakRef*)(unused_noeval((inst) && &((inst)->_is_SSDIterator_WeakRef)), (inst)))
 
 _Ret_opt_valid_ ObjInst *SSDIterator_objInst(_Inout_ SSDIterator *self);
 // ObjInst *ssditeratorObjInst(SSDIterator *self);
@@ -159,6 +175,7 @@ typedef struct SSDNode {
     };
     ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
+    atomic(ptr) _weakref;
 
     SSDTree *tree;
     int64 modified;        // The timestamp this node was last modified
@@ -166,6 +183,17 @@ typedef struct SSDNode {
 extern ObjClassInfo SSDNode_clsinfo;
 #define SSDNode(inst) ((SSDNode*)(unused_noeval((inst) && &((inst)->_is_SSDNode)), (inst)))
 #define SSDNodeNone ((SSDNode*)NULL)
+
+typedef struct SSDNode_WeakRef {
+    union {
+        ObjInst *_inst;
+        void *_is_SSDNode_WeakRef;
+        void *_is_ObjInst_WeakRef;
+    };
+    atomic(intptr) _ref;
+    RWLock _lock;
+} SSDNode_WeakRef;
+#define SSDNode_WeakRef(inst) ((SSDNode_WeakRef*)(unused_noeval((inst) && &((inst)->_is_SSDNode_WeakRef)), (inst)))
 
 void SSDNode_updateModified(_Inout_ SSDNode *self);
 // void ssdnodeUpdateModified(SSDNode *self);

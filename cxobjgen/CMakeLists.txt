@@ -54,6 +54,7 @@ set(CX_SRCS
     ../cx/obj/objiface.c
     ../cx/obj/objimpl.c
     ../cx/obj/objstdif.c
+    ../cx/obj/objweak.c
     ../cx/obj/stype_obj.c
     ../cx/stype/stconvert.c
     ../cx/stype/stvar.c

@@ -14,6 +14,9 @@ static bool isObjectType(Param *param)
     if (htHasKey(clsidx, string, param->type))
         return true;
 
+    if(htHasKey(weakrefidx, string, param->type))
+        return true;
+
     return false;
 }
 
@@ -44,7 +47,7 @@ static void writeFuncComment(BufFile *bf, strref name, Class *cls, Method *m)
     if (!name)
         name = m->name;
 
-    string ln = 0;
+    string ln = 0, temp = 0;
     if (!m->standalone)
         strNConcat(&ln, _S"// ", m->returntype, _S" ", m->predecr, name, _S"(", cls->name, _S" *self");
     else
@@ -58,6 +61,10 @@ static void writeFuncComment(BufFile *bf, strref name, Class *cls, Method *m)
         if (strEq(ptype, _S"object") && strEmpty(ppre)) {
             ptype = cls->name;
             ppre = _S"*";
+        } else if(strEq(ptype, _S"weak") && strEmpty(ppre)) {
+            strNConcat(&temp, _S"Weak(", cls->name, _S")");
+            ptype = temp;
+            ppre = _S"*";
         }
 
         if (!m->standalone || j > 0)
@@ -66,12 +73,13 @@ static void writeFuncComment(BufFile *bf, strref name, Class *cls, Method *m)
     }
     strAppend(&ln, _S");");
     bfWriteLine(bf, ln);
+    strDestroy(&temp);
     strDestroy(&ln);
 }
 
 static void writeUnbound(BufFile *bf, Class *cls, Class *cur, sa_Method *done)
 {
-    string ln = 0, implname = 0, callname = 0, annos = 0;
+    string ln = 0, implname = 0, callname = 0, annos = 0, temp = 0;
 
     for (int i = 0; i < saSize(cur->methods); i++) {
         Method *m = cur->methods.a[i];
@@ -96,6 +104,10 @@ static void writeUnbound(BufFile *bf, Class *cls, Class *cur, sa_Method *done)
 
                 if (strEq(ptype, _S"object") && strEmpty(ppre)) {
                     ptype = cls->name;
+                    ppre = _S"*";
+                } else if(strEq(ptype, _S"weak") && strEmpty(ppre)) {
+                    strNConcat(&temp, _S"Weak(", cls->name, _S")");
+                    ptype = temp;
                     ppre = _S"*";
                 }
 
@@ -169,6 +181,7 @@ static void writeUnbound(BufFile *bf, Class *cls, Class *cur, sa_Method *done)
     strDestroy(&implname);
     strDestroy(&callname);
     strDestroy(&annos);
+    strDestroy(&temp);
     strDestroy(&ln);
     if (cur->parent)
         writeUnbound(bf, cls, cur->parent, done);
@@ -196,7 +209,7 @@ void writeIfDecl(BufFile *bf, Interface *iface)
             string ptype = p->type;
             string ppre = p->predecr;
 
-            if (strEq(ptype, _S"object") && strEmpty(ppre)) {
+            if ((strEq(ptype, _S"object") || strEq(ptype, _S"weak")) && strEmpty(ppre)) {
                 ptype = _S"void";
                 ppre = _S"*";
             }
@@ -228,10 +241,26 @@ void writeForwardDecl(BufFile *bf, string name)
     strDestroy(&ln);
 }
 
+void writeForwardWeakRefDecl(BufFile *bf, string name)
+{
+    string ln = 0;
+    strNConcat(&ln, _S"typedef struct ", name, _S"_WeakRef ", name, _S"_WeakRef;");
+    bfWriteLine(bf, ln);
+    strDestroy(&ln);
+}
+
 void writeSArrayDecl(BufFile *bf, string name)
 {
     string ln = 0;
     strNConcat(&ln, _S"saDeclarePtr(", name, _S");");
+    bfWriteLine(bf, ln);
+    strDestroy(&ln);
+}
+
+void writeSArrayWeakRefDecl(BufFile *bf, string name)
+{
+    string ln = 0;
+    strNConcat(&ln, _S"saDeclarePtr(", name, _S"_WeakRef);");
     bfWriteLine(bf, ln);
     strDestroy(&ln);
 }
@@ -258,7 +287,7 @@ static void writeClassMember(BufFile *bf, Class *cls, Member *m)
         saSize(m->fulltype) > 0 &&
         !strEq(m->fulltype.a[0], _S"sarray")) {
         for (int i = 0; i < saSize(m->fulltype); i++) {
-            if (strEq(m->fulltype.a[i], _S"object")) {
+            if (strEq(m->fulltype.a[i], _S"object") || strEq(m->fulltype.a[i], _S"weak")) {
                 strPrepend(_S"*", &predecr);
             }
         }
@@ -286,6 +315,17 @@ static void writeClassTypeMarkers(BufFile *bf, Class *cls)
         writeClassTypeMarkers(bf, cls->parent);
 }
 
+static void writeClassWeakRefTypeMarkers(BufFile *bf, Class *cls)
+{
+    string ln = 0;
+    strNConcat(&ln, _S"        void *_is_", cls->name, _S"_WeakRef;");
+    bfWriteLine(bf, ln);
+    strDestroy(&ln);
+
+    if(cls->parent)
+        writeClassWeakRefTypeMarkers(bf, cls->parent);
+}
+
 void writeClassDecl(BufFile *bf, Class *cls)
 {
     string ln = 0, mname = 0;
@@ -305,6 +345,7 @@ void writeClassDecl(BufFile *bf, Class *cls)
         bfWriteLine(bf, _S"    };");
         bfWriteLine(bf, _S"    ObjClassInfo *_clsinfo;");
         bfWriteLine(bf, _S"    atomic(intptr) _ref;");
+        bfWriteLine(bf, _S"    atomic(ptr) _weakref;");
         bfWriteLine(bf, NULL);
     }
 
@@ -329,6 +370,24 @@ void writeClassDecl(BufFile *bf, Class *cls)
 
     if (cls->mixin)
         return;
+
+    strNConcat(&ln, _S"typedef struct ", cls->name, _S"_WeakRef {");
+    bfWriteLine(bf, ln);
+
+    bfWriteLine(bf, _S"    union {");
+    bfWriteLine(bf, _S"        ObjInst *_inst;");
+    writeClassWeakRefTypeMarkers(bf, cls);
+    bfWriteLine(bf, _S"        void *_is_ObjInst_WeakRef;");
+    bfWriteLine(bf, _S"    };");
+    bfWriteLine(bf, _S"    atomic(intptr) _ref;");
+    bfWriteLine(bf, _S"    RWLock _lock;");
+
+    strNConcat(&ln, _S"} ", cls->name, _S"_WeakRef;");
+    bfWriteLine(bf, ln);
+    strNConcat(&ln, _S"#define ", cls->name, _S"_WeakRef(inst) ((", cls->name,
+               _S"_WeakRef*)(unused_noeval((inst) && &((inst)->_is_", cls->name, _S"_WeakRef)), (inst)))");
+    bfWriteLine(bf, ln);
+    bfWriteLine(bf, NULL);
 
     sa_Method unboundDone;
     saInit(&unboundDone, object, 16);
@@ -391,12 +450,16 @@ bool writeHeader(string fname)
     }
 
     for (int i = 0; i < saSize(classes); i++) {
-        if (!classes.a[i]->included)
+        if(!classes.a[i]->included) {
             writeForwardDecl(bf, classes.a[i]->name);
+            writeForwardWeakRefDecl(bf, classes.a[i]->name);
+        }
     }
-    for (int i = 0; i < saSize(classes); i++) {
-        if (!classes.a[i]->included)
+    for(int i = 0; i < saSize(classes); i++) {
+        if(!classes.a[i]->included) {
             writeSArrayDecl(bf, classes.a[i]->name);
+            writeSArrayWeakRefDecl(bf, classes.a[i]->name);
+        }
     }
     for (int i = 0; i < saSize(artypes); i++) {
         writeComplexArrayDecl(bf, artypes.a[i]);

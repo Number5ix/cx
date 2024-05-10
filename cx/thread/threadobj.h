@@ -9,7 +9,9 @@
 #include <cx/thread/threadbase.h>
 
 typedef struct Thread Thread;
+typedef struct Thread_WeakRef Thread_WeakRef;
 saDeclarePtr(Thread);
+saDeclarePtr(Thread_WeakRef);
 
 typedef struct Thread {
     union {
@@ -19,6 +21,7 @@ typedef struct Thread {
     };
     ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
+    atomic(ptr) _weakref;
 
     threadFunc entry;
     string name;
@@ -32,6 +35,17 @@ typedef struct Thread {
 extern ObjClassInfo Thread_clsinfo;
 #define Thread(inst) ((Thread*)(unused_noeval((inst) && &((inst)->_is_Thread)), (inst)))
 #define ThreadNone ((Thread*)NULL)
+
+typedef struct Thread_WeakRef {
+    union {
+        ObjInst *_inst;
+        void *_is_Thread_WeakRef;
+        void *_is_ObjInst_WeakRef;
+    };
+    atomic(intptr) _ref;
+    RWLock _lock;
+} Thread_WeakRef;
+#define Thread_WeakRef(inst) ((Thread_WeakRef*)(unused_noeval((inst) && &((inst)->_is_Thread_WeakRef)), (inst)))
 
 _objfactory_guaranteed Thread *Thread_create(threadFunc func, _In_opt_ strref name, int n, stvar args[], bool ui);
 // Thread *_throbjCreate(threadFunc func, strref name, int n, stvar args[], bool ui);

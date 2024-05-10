@@ -27,6 +27,7 @@ typedef struct hashtable_ref* hashtable;
 typedef struct closure_ref *closure;
 typedef struct cchain_ref *cchain;
 typedef struct ObjInst ObjInst;
+typedef struct ObjInst_WeakRef ObjInst_WeakRef;
 typedef struct SUID SUID;
 typedef struct stvar stvar;
 
@@ -121,6 +122,7 @@ typedef union sa_ref* sahandle;
 #define SType_string string
 #define SType_strref strref
 #define SType_object ObjInst*
+#define SType_weakref ObjInst_WeakRef*
 #define SType_suid SUID*
 #define SType_stvar stvar*
 #define SType_sarray sa_ref
@@ -156,6 +158,7 @@ typedef union stgeneric {
     CONTAINER_TYPE(string);
     CONTAINER_TYPE(strref);
     CONTAINER_TYPE(object);
+    CONTAINER_TYPE(weakref);
     CONTAINER_TYPE(suid);
     CONTAINER_TYPE(stvar);
     CONTAINER_TYPE(sarray);
@@ -206,6 +209,7 @@ typedef struct stvar {
 #define STStorageType_string string
 #define STStorageType_strref string
 #define STStorageType_object ObjInst*
+#define STStorageType_object ObjInst_WeakRef*
 #define STStorageType_suid SUID
 #define STStorageType_stvar stvar
 #define STStorageType_sarray sa_ref
@@ -240,9 +244,10 @@ enum STYPE_ID {
     STypeId_string = STCLASS_CX | 0,
     STypeId_strref = STCLASS_CX | 0,
     STypeId_object = STCLASS_CX | 1,
-    STypeId_suid = STCLASS_CX | 2,        // notable exception
-    STypeId_stvar = STCLASS_CX | 3,
-    STypeId_closure = STCLASS_CX | 4,
+    STypeId_weakref = STCLASS_CX | 2,
+    STypeId_suid = STCLASS_CX | 3,        // notable exception
+    STypeId_stvar = STCLASS_CX | 4,
+    STypeId_closure = STCLASS_CX | 5,
     STypeId_sarray = STCLASS_CX_CONTAINER | 0,
     STypeId_hashtable = STCLASS_CX_CONTAINER | 1,
     STypeId_cchain = STCLASS_CX_CONTAINER | 2,
@@ -272,6 +277,7 @@ enum STYPE_SIZE {
     STypeSize_string = sizeof(void*),
     STypeSize_strref = sizeof(void*),
     STypeSize_object = sizeof(ObjInst*),
+    STypeSize_weakref = sizeof(ObjInst_WeakRef*),
     // SUID is special because it's always passed by reference, but stored as the full 16 bytes
     STypeSize_suid = 16,
     STypeSize_stvar = sizeof(stvar),
@@ -331,6 +337,7 @@ enum STYPE_DEFAULT_FLAGS {
     STypeFlags_string = stFlag(Object),
     STypeFlags_strref = stFlag(Object),
     STypeFlags_object = stFlag(Object),
+    STypeFlags_weakref = stFlag(Object),
     STypeFlags_suid = stFlag(PassPtr),
     STypeFlags_stvar = stFlag(PassPtr) | stFlag(Object),
     STypeFlags_sarray = stFlag(Object),
@@ -367,6 +374,8 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define htCheckPtr(h) (unused_noeval((h) && (*h) && &((*h)->_is_hashtable)), (h))
 #define objInstCheck(o) (unused_noeval((o) && &((o)->_is_ObjInst)), (o))
 #define objInstCheckPtr(o) (unused_noeval((o) && (*o) && &((*o)->_is_ObjInst)), (o))
+#define objWeakRefCheck(o) (unused_noeval((o) && &((o)->_is_ObjInst_WeakRef)), (o))
+#define objWeakRefCheckPtr(o) (unused_noeval((o) && (*o) && &((*o)->_is_ObjInst_WeakRef)), (o))
 #define strCheck(s) (unused_noeval((s) && &((s)->_is_string)), (s))
 #define strCheckPtr(s) (unused_noeval((s) && (*s) && &((*s)->_is_string)), (s))
 #define closureCheck(c) (unused_noeval((c) && &((c)->_is_closure)), (c))
@@ -394,6 +403,7 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define STypeCheck_string(type, val) strCheck(val)
 #define STypeCheck_strref(type, val) strCheck(val)
 #define STypeCheck_object(type, val) objInstCheck(val)
+#define STypeCheck_weakref(type, val) objWeakRefCheck(val)
 #define STypeCheck_suid(type, val) (unused_noeval((((val).low), ((val).high))), (val))
 #define STypeCheck_stvar(_type, val) (unused_noeval((((val).data), ((val).type))), (val))
 #define STypeCheck_sarray(type, val) saCheck(val)
@@ -422,6 +432,7 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define STypeCheckPtr_string(type, ptr) strCheckPtr(ptr)
 #define STypeCheckPtr_strref(type, ptr) strCheckPtr(ptr)
 #define STypeCheckPtr_object(type, ptr) objInstCheckPtr(ptr)
+#define STypeCheckPtr_weakref(type, ptr) objWeakRefCheckPtr(ptr)
 #define STypeCheckPtr_suid(type, ptr) (unused_noeval((((ptr)->low), ((ptr)->high))), (ptr))
 #define STypeCheckPtr_stvar(_type, ptr) (unused_noeval((((ptr)->data), ((ptr)->type))), (ptr))
 #define STypeCheckPtr_sarray(type, ptr) saCheckPtr(ptr)
@@ -456,6 +467,7 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define stType_string stTypeInternal(string)
 #define stType_strref stTypeInternal(strref)
 #define stType_object stTypeInternal(object)
+#define stType_weakref stTypeInternal(weakref)
 #define stType_suid stTypeInternal(suid)
 #define stType_stvar stTypeInternal(stvar)
 #define stType_sarray stTypeInternal(sarray)
@@ -486,6 +498,7 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define stFullType_string stFullTypeInternal(string)
 #define stFullType_strref stFullTypeInternal(strref)
 #define stFullType_object stFullTypeInternal(object)
+#define stFullType_weakref stFullTypeInternal(weakref)
 #define stFullType_suid stFullTypeInternal(suid)
 #define stFullType_stvar stFullTypeInternal(stvar)
 #define stFullType_sarray stFullTypeInternal(sarray)
@@ -523,6 +536,7 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define STypeArg_string(type, val) stgeneric(type, val)
 #define STypeArg_strref(type, val) stgeneric(type, val)
 #define STypeArg_object(type, val) stgeneric(type, objInstBase(val))
+#define STypeArg_weakref(type, val) stgeneric(type, objWeakRefBase(val))
 // SUID and stvar are too big, so make a copy and pass a pointer
 #define STypeArg_suid(type, val) stgeneric_unchecked(type, stRvalAddr(type, stCheck(type, val)))
 #define STypeArg_stvar(type, val) stgeneric_unchecked(type, stRvalAddr(type, stCheck(type, val)))
@@ -556,6 +570,7 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define STypeArgPtr_string(type, val) (stgeneric*)stCheckPtr(type, val)
 #define STypeArgPtr_strref(type, val) (stgeneric*)stCheckPtr(type, val)
 #define STypeArgPtr_object(type, val) (stgeneric*)stCheckPtr(type, val)
+#define STypeArgPtr_weakref(type, val) (stgeneric*)stCheckPtr(type, val)
 // same for the other pass-by-pointer cases (SUID, stvar)
 #define STypeArgPtr_suid(type, val) &stgeneric_unchecked(type, stCheckPtr(type, val))
 #define STypeArgPtr_stvar(type, val) &stgeneric_unchecked(type, stCheckPtr(type, val))
@@ -588,6 +603,7 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define STypeCheckedArg_string(type, val) stTypeInternal(type), stArg(type, val)
 #define STypeCheckedArg_strref(type, val) stTypeInternal(type), stArg(type, val)
 #define STypeCheckedArg_object(type, val) stTypeInternal(type), stArg(type, val)
+#define STypeCheckedArg_weakref(type, val) stTypeInternal(type), stArg(type, val)
 #define STypeCheckedArg_suid(type, val) stTypeInternal(type), stArg(type, val)
 #define STypeCheckedArg_stvar(type, val) stTypeInternal(type), stArg(type, val)
 #define STypeCheckedArg_sarray(type, val) stTypeInternal(type), stArg(type, val)
@@ -620,6 +636,7 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define STypeCheckedPtrArg_string(type, val) stTypeInternal(type), stArgPtr(type, val)
 #define STypeCheckedPtrArg_strref(type, val) stTypeInternal(type), stArgPtr(type, val)
 #define STypeCheckedPtrArg_object(type, val) stTypeInternal(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_weakref(type, val) stTypeInternal(type), stArgPtr(type, val)
 #define STypeCheckedPtrArg_suid(type, val) stTypeInternal(type), stArgPtr(type, val)
 #define STypeCheckedPtrArg_stvar(type, val) stTypeInternal(type), stArgPtr(type, val)
 #define STypeCheckedPtrArg_sarray(type, val) stTypeInternal(type), stArgPtr(type, val)

@@ -181,3 +181,38 @@ void _objDestroy(_Pre_notnull_ _Post_invalid_ ObjInst *inst)
     instDtor(inst, inst->_clsinfo);
     xaFree(inst);
 }
+
+_Use_decl_annotations_
+void _objRelease(ObjInst **instp)
+{
+    if(*instp) {
+        // Relaxed because it's not valid for another thread to CREATE a weak reference
+        // while we hold the only remaining ref.
+        ObjInst_WeakRef *weakref = atomicLoad(ptr, &(*instp)->_weakref, Relaxed);
+
+        if(weakref)
+        {
+            // We normally assume that if this is the last reference it's impossible
+            // for another thread to increment the count concurrently (because they
+            // can't have a reference). However weak references can be converted at
+            // any time from any thread and violate that assumption, making a lock
+            // needed here if they are in use for this object.
+            rwlockAcquireWrite(&weakref->_lock);
+        }
+
+        if(atomicFetchSub(intptr, &(*instp)->_ref, 1, Release) == 1) {
+            if(weakref) {
+                weakref->_inst = NULL;          // object is about to be destroyed, invalidate weak refs
+                rwlockReleaseWrite(&weakref->_lock);
+                objDestroyWeak(&weakref);       // remove the extra weak ref the object itself holds
+            }
+
+            atomicFence(Acquire);
+            _objDestroy(*instp);
+        } else if(weakref) {
+            rwlockReleaseWrite(&weakref->_lock);
+        }
+    }
+
+    *instp = NULL;
+}

@@ -647,6 +647,12 @@ bool parseClass(ParseState *ps, string *tok)
             return false;
         }
         htInsert(&clsidx, string, ps->curcls->name, object, ps->curcls);
+
+        string temp = 0;
+        strNConcat(&temp, ps->curcls->name, _S"_WeakRef");
+        htInsert(&weakrefidx, string, temp, object, ps->curcls);
+        strDestroy(&temp);
+
         saPushC(&classes, object, &ps->curcls);
         saClear(&ps->annotations);
         ps->allowannotations = true;
@@ -679,7 +685,7 @@ bool parseClass(ParseState *ps, string *tok)
                     saInit(&artl, string, 4);
                     for (int i = 1; i < saSize(vartype); i++) {
                         // objects declare their array types as pointers already
-                        if (!strEq(vartype.a[i], _S"object")) {
+                        if (!strEq(vartype.a[i], _S"object") && !strEq(vartype.a[i], _S"weak")) {
                             saPush(&artl, strref, vartype.a[i]);
                         }
                     }
@@ -724,8 +730,10 @@ bool parseClass(ParseState *ps, string *tok)
                         strNConcat(&nmem->vartype, _S"sa_", lasttname);
                     }
                     saDestroy(&artl);
-                } else if (strEq(vartype.a[0], _S"atomic")) {
+                } else if(strEq(vartype.a[0], _S"atomic")) {
                     strNConcat(&nmem->vartype, _S, _S"atomic(", vartype.a[saSize(vartype) - 1], _S")");
+                } else if(strEq(vartype.a[0], _S"weak")) {
+                    strNConcat(&nmem->vartype, _S, _S"Weak(", vartype.a[saSize(vartype) - 1], _S")");
                 } else {
                     strDup(&nmem->vartype, vartype.a[saSize(vartype) - 1]);
                 }

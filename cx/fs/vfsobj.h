@@ -6,9 +6,13 @@
 
 typedef struct VFSDir VFSDir;
 typedef struct VFS VFS;
+typedef struct VFS_WeakRef VFS_WeakRef;
 typedef struct VFSMount VFSMount;
+typedef struct VFSMount_WeakRef VFSMount_WeakRef;
 saDeclarePtr(VFS);
+saDeclarePtr(VFS_WeakRef);
 saDeclarePtr(VFSMount);
+saDeclarePtr(VFSMount_WeakRef);
 
 typedef struct VFS {
     union {
@@ -18,6 +22,7 @@ typedef struct VFS {
     };
     ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
+    atomic(ptr) _weakref;
 
     VFSDir *root;        // root for namespaceless paths
     // namespaces are never case sensitive even if the paths are
@@ -33,6 +38,17 @@ typedef struct VFS {
 extern ObjClassInfo VFS_clsinfo;
 #define VFS(inst) ((VFS*)(unused_noeval((inst) && &((inst)->_is_VFS)), (inst)))
 #define VFSNone ((VFS*)NULL)
+
+typedef struct VFS_WeakRef {
+    union {
+        ObjInst *_inst;
+        void *_is_VFS_WeakRef;
+        void *_is_ObjInst_WeakRef;
+    };
+    atomic(intptr) _ref;
+    RWLock _lock;
+} VFS_WeakRef;
+#define VFS_WeakRef(inst) ((VFS_WeakRef*)(unused_noeval((inst) && &((inst)->_is_VFS_WeakRef)), (inst)))
 
 _objfactory_guaranteed VFS *VFS_create(uint32 flags);
 // VFS *vfsCreate(uint32 flags);
@@ -57,6 +73,7 @@ typedef struct VFSMount {
     };
     ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
+    atomic(ptr) _weakref;
 
     ObjInst *provider;
     uint32 flags;
@@ -64,6 +81,17 @@ typedef struct VFSMount {
 extern ObjClassInfo VFSMount_clsinfo;
 #define VFSMount(inst) ((VFSMount*)(unused_noeval((inst) && &((inst)->_is_VFSMount)), (inst)))
 #define VFSMountNone ((VFSMount*)NULL)
+
+typedef struct VFSMount_WeakRef {
+    union {
+        ObjInst *_inst;
+        void *_is_VFSMount_WeakRef;
+        void *_is_ObjInst_WeakRef;
+    };
+    atomic(intptr) _ref;
+    RWLock _lock;
+} VFSMount_WeakRef;
+#define VFSMount_WeakRef(inst) ((VFSMount_WeakRef*)(unused_noeval((inst) && &((inst)->_is_VFSMount_WeakRef)), (inst)))
 
 _objfactory_guaranteed VFSMount *VFSMount_create(ObjInst *provider, uint32 flags);
 // VFSMount *vfsmountCreate(ObjInst *provider, uint32 flags);

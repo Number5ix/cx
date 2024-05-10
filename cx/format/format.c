@@ -18,7 +18,7 @@ uint8 _fmtTypeIdMask[FMT_count][2] = {
     { 0x20, 0xf0 },     // uint
     { 0x30, 0xf0 },     // float
     { 0x40, 0xf0 },     // ptr
-    { 0xe2, 0xff },     // suid
+    { 0xe3, 0xff },     // suid
     { 0xe1, 0xff },     // object
 };
 

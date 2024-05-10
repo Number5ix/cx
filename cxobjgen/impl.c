@@ -19,7 +19,7 @@ static void writeAutoDtors(BufFile *bf, Class *cls);
 
 static void writeMethodProto(BufFile *bf, Class *cls, Method *m, bool protoonly, bool mixinimpl, bool forparent)
 {
-    string mname = 0, ln = 0, tmp = 0, annos = 0;
+    string mname = 0, ln = 0, tmp = 0, temp2 = 0, annos = 0;
     methodImplName(&mname, cls, m->name);
 
     if (!protoonly && !forparent && !mixinimpl &&
@@ -87,6 +87,10 @@ static void writeMethodProto(BufFile *bf, Class *cls, Method *m, bool protoonly,
         if (strEq(ptype, _S"object") && strEmpty(ppre)) {
             ptype = cls->name;
             ppre = _S"*";
+        } else if(strEq(ptype, _S"weak") && strEmpty(ppre)) {
+            strNConcat(&temp2, _S"Weak(", cls->name, _S")");
+            ptype = temp2;
+            ppre = _S"*";
         }
 
         paramAnnotations(&annos, p);
@@ -105,6 +109,7 @@ static void writeMethodProto(BufFile *bf, Class *cls, Method *m, bool protoonly,
 
     bfWriteLine(bf, ln);
     strDestroy(&tmp);
+    strDestroy(&temp2);
     strDestroy(&annos);
     strDestroy(&ln);
 }
@@ -349,6 +354,8 @@ static void writeAutoDtors(BufFile *bf, Class *cls)
                 strNConcat(&mdtor, _S"    htDestroy(&self->", m->name, _S");");
             else if (strEq(m->fulltype.a[0], _S"object"))
                 strNConcat(&mdtor, _S"    objRelease(&self->", m->name, _S");");
+            else if (strEq(m->fulltype.a[0], _S"weak"))
+                strNConcat(&mdtor, _S"    objDestroyWeak(&self->", m->name, _S");");
         } else if (strEq(m->vartype, _S"string")) {
             strNConcat(&mdtor, _S"    strDestroy(&self->", m->name, _S");");
         } else if (strEq(m->vartype, _S"hashtable")) {
@@ -434,7 +441,7 @@ static void writeClassIfaceTbl(BufFile *bf, Class *cls, Interface *iface)
             string ptype = p->type;
             string ppre = p->predecr;
 
-            if (strEq(ptype, _S"object") && strEmpty(ppre)) {
+            if ((strEq(ptype, _S"object") || strEq(ptype, _S"weak")) && strEmpty(ppre)) {
                 ptype = _S"void";
                 ppre = _S"*";
             }

@@ -122,7 +122,7 @@ alignMem(64) stDtorFunc _stDefaultDtor[256] = {
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     // STCLASS_CX
-    stDtor_string, stDtor_obj, 0, stDtor_stvar, stDtor_closure, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    stDtor_string, stDtor_obj, stDtor_weakref, 0, stDtor_stvar, stDtor_closure, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     // STCLASS_CX_CONTAINER
     stDtor_sarray, stDtor_hashtable, stDtor_cchain, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 };
@@ -150,7 +150,7 @@ alignMem(64) stCmpFunc _stDefaultCmp[256] = {
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     // STCLASS_CX
-    stCmp_string, stCmp_obj, stCmp_suid, stCmp_stvar, stCmp_closure, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    stCmp_string, stCmp_obj, stCmp_weakref, stCmp_suid, stCmp_stvar, stCmp_closure, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     // STCLASS_CX_CONTAINER
     stCmp_sarray, stCmp_hashtable, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 };
@@ -177,7 +177,7 @@ alignMem(64) stHashFunc _stDefaultHash[256] = {
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     // STCLASS_CX
-    stHash_string, stHash_obj, 0, stHash_stvar, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    stHash_string, stHash_obj, 0, 0, stHash_stvar, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     // STCLASS_CX_CONTAINER
     stHash_sarray, stHash_hashtable, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 };
@@ -204,7 +204,7 @@ alignMem(64) stCopyFunc _stDefaultCopy[256] = {
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     // STCLASS_CX
-    stCopy_string, stCopy_obj, 0, stCopy_stvar, stCopy_closure, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    stCopy_string, stCopy_obj, stCopy_weakref, 0, stCopy_stvar, stCopy_closure, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     // STCLASS_CX_CONTAINER
     stCopy_sarray, stCopy_hashtable, stCopy_cchain, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 };

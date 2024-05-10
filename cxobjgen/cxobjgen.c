@@ -7,6 +7,7 @@ sa_Interface ifaces;
 hashtable ifidx;
 sa_Class classes;
 hashtable clsidx;
+hashtable weakrefidx;
 sa_string includes;
 sa_string implincludes;
 sa_string deps;
@@ -28,6 +29,7 @@ int main(int argc, char *argv[])
     htInit(&ifidx, string, object, 16);
     saInit(&classes, object, 16);
     htInit(&clsidx, string, object, 16);
+    htInit(&weakrefidx, string, object, 16);
     saInit(&includes, string, 8);
     saInit(&implincludes, string, 4);
     saInit(&deps, string, 8);
@@ -59,6 +61,7 @@ int main(int argc, char *argv[])
         htClear(&ifidx);
         saClear(&classes);
         htClear(&clsidx);
+        htClear(&weakrefidx);
         saClear(&includes);
         saClear(&implincludes);
         saClear(&structs);
@@ -99,6 +102,7 @@ int main(int argc, char *argv[])
     htDestroy(&ifidx);
     saDestroy(&ifaces);
     htDestroy(&clsidx);
+    htDestroy(&weakrefidx);
     saDestroy(&classes);
     saDestroy(&implincludes);
     saDestroy(&includes);

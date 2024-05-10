@@ -8,7 +8,9 @@
 typedef struct TaskQueue TaskQueue;
 typedef struct TaskControl TaskControl;
 typedef struct UserFuncTask UserFuncTask;
+typedef struct UserFuncTask_WeakRef UserFuncTask_WeakRef;
 saDeclarePtr(UserFuncTask);
+saDeclarePtr(UserFuncTask_WeakRef);
 
 typedef struct UserFuncTask_ClassIf {
     ObjIface *_implements;
@@ -28,6 +30,7 @@ typedef struct UserFuncTask {
     };
     ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
+    atomic(ptr) _weakref;
 
     atomic(int32) state;
     UserTaskCB func;
@@ -36,6 +39,18 @@ typedef struct UserFuncTask {
 extern ObjClassInfo UserFuncTask_clsinfo;
 #define UserFuncTask(inst) ((UserFuncTask*)(unused_noeval((inst) && &((inst)->_is_UserFuncTask)), (inst)))
 #define UserFuncTaskNone ((UserFuncTask*)NULL)
+
+typedef struct UserFuncTask_WeakRef {
+    union {
+        ObjInst *_inst;
+        void *_is_UserFuncTask_WeakRef;
+        void *_is_BasicTask_WeakRef;
+        void *_is_ObjInst_WeakRef;
+    };
+    atomic(intptr) _ref;
+    RWLock _lock;
+} UserFuncTask_WeakRef;
+#define UserFuncTask_WeakRef(inst) ((UserFuncTask_WeakRef*)(unused_noeval((inst) && &((inst)->_is_UserFuncTask_WeakRef)), (inst)))
 
 _objfactory_guaranteed UserFuncTask *UserFuncTask_create(UserTaskCB func, void *udata);
 // UserFuncTask *userfunctaskCreate(UserTaskCB func, void *udata);

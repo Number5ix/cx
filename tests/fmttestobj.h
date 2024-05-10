@@ -5,9 +5,13 @@
 #include <cx/format/formattable.h>
 
 typedef struct FmtTestClass FmtTestClass;
+typedef struct FmtTestClass_WeakRef FmtTestClass_WeakRef;
 typedef struct FmtTestClass2 FmtTestClass2;
+typedef struct FmtTestClass2_WeakRef FmtTestClass2_WeakRef;
 saDeclarePtr(FmtTestClass);
+saDeclarePtr(FmtTestClass_WeakRef);
 saDeclarePtr(FmtTestClass2);
+saDeclarePtr(FmtTestClass2_WeakRef);
 
 typedef struct FmtTestClass_ClassIf {
     ObjIface *_implements;
@@ -41,6 +45,7 @@ typedef struct FmtTestClass {
     };
     ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
+    atomic(ptr) _weakref;
 
     int32 iv;
     string sv;
@@ -48,6 +53,17 @@ typedef struct FmtTestClass {
 extern ObjClassInfo FmtTestClass_clsinfo;
 #define FmtTestClass(inst) ((FmtTestClass*)(unused_noeval((inst) && &((inst)->_is_FmtTestClass)), (inst)))
 #define FmtTestClassNone ((FmtTestClass*)NULL)
+
+typedef struct FmtTestClass_WeakRef {
+    union {
+        ObjInst *_inst;
+        void *_is_FmtTestClass_WeakRef;
+        void *_is_ObjInst_WeakRef;
+    };
+    atomic(intptr) _ref;
+    RWLock _lock;
+} FmtTestClass_WeakRef;
+#define FmtTestClass_WeakRef(inst) ((FmtTestClass_WeakRef*)(unused_noeval((inst) && &((inst)->_is_FmtTestClass_WeakRef)), (inst)))
 
 _objfactory_guaranteed FmtTestClass *FmtTestClass_create(int32 ival, string sval);
 // FmtTestClass *fmttestclassCreate(int32 ival, string sval);
@@ -64,6 +80,7 @@ typedef struct FmtTestClass2 {
     };
     ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
+    atomic(ptr) _weakref;
 
     int32 iv;
     string sv;
@@ -71,6 +88,17 @@ typedef struct FmtTestClass2 {
 extern ObjClassInfo FmtTestClass2_clsinfo;
 #define FmtTestClass2(inst) ((FmtTestClass2*)(unused_noeval((inst) && &((inst)->_is_FmtTestClass2)), (inst)))
 #define FmtTestClass2None ((FmtTestClass2*)NULL)
+
+typedef struct FmtTestClass2_WeakRef {
+    union {
+        ObjInst *_inst;
+        void *_is_FmtTestClass2_WeakRef;
+        void *_is_ObjInst_WeakRef;
+    };
+    atomic(intptr) _ref;
+    RWLock _lock;
+} FmtTestClass2_WeakRef;
+#define FmtTestClass2_WeakRef(inst) ((FmtTestClass2_WeakRef*)(unused_noeval((inst) && &((inst)->_is_FmtTestClass2_WeakRef)), (inst)))
 
 _objfactory_guaranteed FmtTestClass2 *FmtTestClass2_create(int32 ival, string sval);
 // FmtTestClass2 *fmttestclass2Create(int32 ival, string sval);

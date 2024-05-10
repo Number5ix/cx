@@ -6,7 +6,9 @@
 #include <pthread.h>
 
 typedef struct UnixThread UnixThread;
+typedef struct UnixThread_WeakRef UnixThread_WeakRef;
 saDeclarePtr(UnixThread);
+saDeclarePtr(UnixThread_WeakRef);
 
 typedef struct UnixThread {
     union {
@@ -17,6 +19,7 @@ typedef struct UnixThread {
     };
     ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
+    atomic(ptr) _weakref;
 
     threadFunc entry;
     string name;
@@ -33,6 +36,18 @@ typedef struct UnixThread {
 extern ObjClassInfo UnixThread_clsinfo;
 #define UnixThread(inst) ((UnixThread*)(unused_noeval((inst) && &((inst)->_is_UnixThread)), (inst)))
 #define UnixThreadNone ((UnixThread*)NULL)
+
+typedef struct UnixThread_WeakRef {
+    union {
+        ObjInst *_inst;
+        void *_is_UnixThread_WeakRef;
+        void *_is_Thread_WeakRef;
+        void *_is_ObjInst_WeakRef;
+    };
+    atomic(intptr) _ref;
+    RWLock _lock;
+} UnixThread_WeakRef;
+#define UnixThread_WeakRef(inst) ((UnixThread_WeakRef*)(unused_noeval((inst) && &((inst)->_is_UnixThread_WeakRef)), (inst)))
 
 _objfactory_guaranteed UnixThread *UnixThread_create();
 // UnixThread *_unixthrobjCreate();

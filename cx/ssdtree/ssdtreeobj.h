@@ -6,7 +6,9 @@
 #include <cx/thread/mutex.h>
 
 typedef struct SSDTree SSDTree;
+typedef struct SSDTree_WeakRef SSDTree_WeakRef;
 saDeclarePtr(SSDTree);
+saDeclarePtr(SSDTree_WeakRef);
 
 #ifdef SSD_LOCK_DEBUG
 typedef struct SSDTreeDebug {
@@ -37,6 +39,7 @@ typedef struct SSDTree {
     };
     ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
+    atomic(ptr) _weakref;
 
     RWLock lock;
     SSDTreeDebug dbg;
@@ -47,6 +50,17 @@ typedef struct SSDTree {
 extern ObjClassInfo SSDTree_clsinfo;
 #define SSDTree(inst) ((SSDTree*)(unused_noeval((inst) && &((inst)->_is_SSDTree)), (inst)))
 #define SSDTreeNone ((SSDTree*)NULL)
+
+typedef struct SSDTree_WeakRef {
+    union {
+        ObjInst *_inst;
+        void *_is_SSDTree_WeakRef;
+        void *_is_ObjInst_WeakRef;
+    };
+    atomic(intptr) _ref;
+    RWLock _lock;
+} SSDTree_WeakRef;
+#define SSDTree_WeakRef(inst) ((SSDTree_WeakRef*)(unused_noeval((inst) && &((inst)->_is_SSDTree_WeakRef)), (inst)))
 
 _objfactory_guaranteed SSDTree *SSDTree_create(uint32 flags);
 // SSDTree *ssdtreeCreate(uint32 flags);

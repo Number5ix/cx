@@ -11,7 +11,9 @@
 typedef struct TaskQueue TaskQueue;
 typedef struct TaskControl TaskControl;
 typedef struct TaskQueue TaskQueue;
+typedef struct TaskQueue_WeakRef TaskQueue_WeakRef;
 saDeclarePtr(TaskQueue);
+saDeclarePtr(TaskQueue_WeakRef);
 
 typedef enum TaskQueueStateEnum {
     TQState_Init,
@@ -38,6 +40,7 @@ typedef struct TaskQueue {
     };
     ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
+    atomic(ptr) _weakref;
 
     string name;
     TaskQueueConfig tqconfig;
@@ -57,6 +60,17 @@ typedef struct TaskQueue {
 extern ObjClassInfo TaskQueue_clsinfo;
 #define TaskQueue(inst) ((TaskQueue*)(unused_noeval((inst) && &((inst)->_is_TaskQueue)), (inst)))
 #define TaskQueueNone ((TaskQueue*)NULL)
+
+typedef struct TaskQueue_WeakRef {
+    union {
+        ObjInst *_inst;
+        void *_is_TaskQueue_WeakRef;
+        void *_is_ObjInst_WeakRef;
+    };
+    atomic(intptr) _ref;
+    RWLock _lock;
+} TaskQueue_WeakRef;
+#define TaskQueue_WeakRef(inst) ((TaskQueue_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TaskQueue_WeakRef)), (inst)))
 
 _objfactory_guaranteed TaskQueue *TaskQueue_create(_In_opt_ strref name, _In_ TaskQueueConfig *tqconfig);
 // TaskQueue *taskqueueCreate(strref name, TaskQueueConfig *tqconfig);

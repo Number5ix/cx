@@ -6,7 +6,9 @@
 #include <cx/fs/file.h>
 
 typedef struct VFSFSFile VFSFSFile;
+typedef struct VFSFSFile_WeakRef VFSFSFile_WeakRef;
 saDeclarePtr(VFSFSFile);
+saDeclarePtr(VFSFSFile_WeakRef);
 
 typedef struct VFSFSFile_ClassIf {
     ObjIface *_implements;
@@ -30,12 +32,24 @@ typedef struct VFSFSFile {
     };
     ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
+    atomic(ptr) _weakref;
 
     FSFile *file;
 } VFSFSFile;
 extern ObjClassInfo VFSFSFile_clsinfo;
 #define VFSFSFile(inst) ((VFSFSFile*)(unused_noeval((inst) && &((inst)->_is_VFSFSFile)), (inst)))
 #define VFSFSFileNone ((VFSFSFile*)NULL)
+
+typedef struct VFSFSFile_WeakRef {
+    union {
+        ObjInst *_inst;
+        void *_is_VFSFSFile_WeakRef;
+        void *_is_ObjInst_WeakRef;
+    };
+    atomic(intptr) _ref;
+    RWLock _lock;
+} VFSFSFile_WeakRef;
+#define VFSFSFile_WeakRef(inst) ((VFSFSFile_WeakRef*)(unused_noeval((inst) && &((inst)->_is_VFSFSFile_WeakRef)), (inst)))
 
 _objfactory_guaranteed VFSFSFile *VFSFSFile_create(FSFile *f);
 // VFSFSFile *vfsfsfileCreate(FSFile *f);

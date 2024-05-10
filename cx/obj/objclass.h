@@ -4,6 +4,7 @@
 #include <cx/container/hashtable.h>
 #include <cx/thread/atomic.h>
 #include <cx/utils/macros/unused.h>
+#include <cx/thread/rwlock.h>
 
 // A class stores arbitrary per-instance data and may implement one or more interfaces.
 // The class info structure contains runtime meta-information about the class.
@@ -51,12 +52,28 @@ typedef struct ObjInst {
     };
     ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;        // reference count
+    atomic(ptr) _weakref;       // associated weak reference object
 
     // user data members here
 } ObjInst;
 
+typedef struct ObjInst_WeakRef
+{
+    union
+    {
+        ObjInst *_inst;
+        void *_is_ObjInst_WeakRef;
+    };
+    atomic(intptr) _ref;
+    RWLock _lock;
+} ObjInst_WeakRef;
+
+#define Weak(clsname) clsname##_WeakRef
+
 #define ObjInst(inst) ((ObjInst*)(unused_noeval(&((inst)->_is_ObjInst)), (inst)))
+#define ObjInst_WeakRef(ref) ((ObjInst_WeakRef*)(unused_noeval(&((ref)->_is_ObjInst_WeakRef)), (ref)))
 #define objInstBase(inst) ObjInst(inst)
+#define objWeakRefBase(ref) ObjInst_WeakRef(ref)
 #define objClsInfo(inst) (inst->_clsinfo)
 
 // DO NOT CALL DIRECTLY! Use objRelease instead
@@ -70,15 +87,7 @@ _meta_inline void _objAcquire(_In_opt_ ObjInst *inst)
 #define objAcquire(inst) (_objAcquire(objInstBase(inst)), (inst))
 
 _At_(*instp, _Pre_maybenull_ _Post_null_)
-_meta_inline void _objRelease(_Inout_ ObjInst **instp)
-{
-    if (*instp && atomicFetchSub(intptr, &(*instp)->_ref, 1, Release) == 1) {
-        atomicFence(Acquire);
-        _objDestroy(*instp);
-    }
-
-    *instp = NULL;
-}
+void _objRelease(_Inout_ ObjInst **instp);
 #define objRelease(pinst) (unused_noeval(&((*(pinst))->_is_ObjInst)), _objRelease((ObjInst**)(pinst)))
 
 // Functions to get a populated interface from a class or instance
@@ -87,9 +96,24 @@ _Ret_maybenull_ ObjIface *_objClassIf(_In_ ObjClassInfo *cls, _In_ ObjIface *ift
 _Ret_maybenull_ ObjIface *_objInstIf(_In_opt_ ObjInst *inst, _In_ ObjIface *iftmpl);
 #define objInstIf(inst, ifname) ((ifname*)_objInstIf(objInstBase(inst), objIfBase(&objIfTmplName(ifname))))
 
+_Ret_valid_ ObjInst_WeakRef *_objGetWeak(_In_ ObjInst *inst);
+#define objGetWeak(clsname, inst) ((Weak(clsname)*)_objGetWeak((ObjInst*)clsname(inst)))
+
+_Ret_maybenull_ ObjInst_WeakRef *_objCloneWeak(_In_opt_ ObjInst_WeakRef *ref);
+#define objCloneWeak(ref) (_objCloneWeak(objWeakRefBase(ref)))
+
+void _objDestroyWeak(_Inout_ ObjInst_WeakRef **refp);
+#define objDestroyWeak(pref) (unused_noeval(&((*(pref))->_is_ObjInst_WeakRef)), _objDestroyWeak((ObjInst_WeakRef**)(pref)))
+
+_Ret_maybenull_ ObjInst *_objAcquireFromWeak(_In_opt_ ObjInst_WeakRef *ref);
+#define objAcquireFromWeak(clsname, ref) ((clsname*)_objAcquireFromWeak((ObjInst_WeakRef*)Weak(clsname)(ref)))
+
 // Dynamic object casting within the hierarchy
 // Returns instance pointer if it's safe to cast inst to the given class, NULL otherwise
 _Ret_maybenull_ ObjInst *_objDynCast(_In_opt_ ObjInst *inst, _In_ ObjClassInfo *cls);
 #define objDynCast(inst, clsname) ((clsname*)_objDynCast(objInstBase(inst), &objClassInfoName(clsname)))
+
+_Ret_maybenull_ ObjInst *_objAcquireFromWeakDyn(_In_opt_ ObjInst_WeakRef *ref, _In_ ObjClassInfo *cls);
+#define objAcquireFromWeakDyn(clsname, ref) ((clsname*)_objAcquireFromWeakDyn(objWeakRefBase(ref), &objClassInfoName(clsname)))
 
 CX_C_END

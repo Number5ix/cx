@@ -5,9 +5,13 @@
 #include <cx/ssdtree/node/ssdnode.h>
 
 typedef struct SSDHashNode SSDHashNode;
+typedef struct SSDHashNode_WeakRef SSDHashNode_WeakRef;
 typedef struct SSDHashIter SSDHashIter;
+typedef struct SSDHashIter_WeakRef SSDHashIter_WeakRef;
 saDeclarePtr(SSDHashNode);
+saDeclarePtr(SSDHashNode_WeakRef);
 saDeclarePtr(SSDHashIter);
+saDeclarePtr(SSDHashIter_WeakRef);
 
 typedef struct SSDHashNode_ClassIf {
     ObjIface *_implements;
@@ -68,6 +72,7 @@ typedef struct SSDHashNode {
     };
     ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
+    atomic(ptr) _weakref;
 
     SSDTree *tree;
     int64 modified;        // The timestamp this node was last modified
@@ -76,6 +81,18 @@ typedef struct SSDHashNode {
 extern ObjClassInfo SSDHashNode_clsinfo;
 #define SSDHashNode(inst) ((SSDHashNode*)(unused_noeval((inst) && &((inst)->_is_SSDHashNode)), (inst)))
 #define SSDHashNodeNone ((SSDHashNode*)NULL)
+
+typedef struct SSDHashNode_WeakRef {
+    union {
+        ObjInst *_inst;
+        void *_is_SSDHashNode_WeakRef;
+        void *_is_SSDNode_WeakRef;
+        void *_is_ObjInst_WeakRef;
+    };
+    atomic(intptr) _ref;
+    RWLock _lock;
+} SSDHashNode_WeakRef;
+#define SSDHashNode_WeakRef(inst) ((SSDHashNode_WeakRef*)(unused_noeval((inst) && &((inst)->_is_SSDHashNode_WeakRef)), (inst)))
 
 _objfactory_guaranteed SSDHashNode *SSDHashNode__create(SSDTree *tree);
 // SSDHashNode *ssdhashnode_create(SSDTree *tree);
@@ -138,6 +155,7 @@ typedef struct SSDHashIter {
     };
     ObjClassInfo *_clsinfo;
     atomic(intptr) _ref;
+    atomic(ptr) _weakref;
 
     SSDNode *node;
     SSDLockState *lstate;
@@ -148,6 +166,18 @@ typedef struct SSDHashIter {
 extern ObjClassInfo SSDHashIter_clsinfo;
 #define SSDHashIter(inst) ((SSDHashIter*)(unused_noeval((inst) && &((inst)->_is_SSDHashIter)), (inst)))
 #define SSDHashIterNone ((SSDHashIter*)NULL)
+
+typedef struct SSDHashIter_WeakRef {
+    union {
+        ObjInst *_inst;
+        void *_is_SSDHashIter_WeakRef;
+        void *_is_SSDIterator_WeakRef;
+        void *_is_ObjInst_WeakRef;
+    };
+    atomic(intptr) _ref;
+    RWLock _lock;
+} SSDHashIter_WeakRef;
+#define SSDHashIter_WeakRef(inst) ((SSDHashIter_WeakRef*)(unused_noeval((inst) && &((inst)->_is_SSDHashIter_WeakRef)), (inst)))
 
 _objfactory_guaranteed SSDHashIter *SSDHashIter_create(SSDHashNode *node, SSDLockState *lstate);
 // SSDHashIter *ssdhashiterCreate(SSDHashNode *node, SSDLockState *lstate);
