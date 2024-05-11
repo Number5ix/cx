@@ -147,3 +147,4 @@ add_test(NAME "\"taskqueue: Concurrency\"" COMMAND test_runner tqtest concurrenc
 add_test(NAME "\"taskqueue: Call\"" COMMAND test_runner tqtest call)
 add_test(NAME "\"taskqueue: Deferred Tasks\"" COMMAND test_runner tqtest defer)
 add_test(NAME "\"taskqueue: Monitor\"" COMMAND test_runner tqtest monitor)
+add_test(NAME "\"taskqueue: MTask\"" COMMAND test_runner tqtest mtask)

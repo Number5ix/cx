@@ -197,6 +197,33 @@ bool TQDelayTest_run(_Inout_ TQDelayTest *self, _In_ TaskQueue *tq, _Inout_ Task
     return true;
 }
 
+_objfactory_guaranteed TQMTest *TQMTest_create(Event *notify, TaskQueue *tq, int limit)
+{
+    TQMTest *self;
+    self = objInstCreate(TQMTest);
+
+    self->notify = notify;
+    self->tq = objAcquire(tq);
+    self->limit = limit;
+
+    objInstInit(self);
+
+    return self;
+}
+
+extern bool MTask_run(_Inout_ MTask *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon); // parent
+#define parent_run(tq, tcon) MTask_run((MTask*)(self), tq, tcon)
+bool TQMTest_run(_Inout_ TQMTest *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon)
+{
+    bool ret = parent_run(tq, tcon);
+
+    if(self->done) {
+        eventSignal(self->notify);
+    }
+
+    return ret;
+}
+
 // Autogen begins -----
 #include "tqtestobj.auto.inc"
 // Autogen ends -------

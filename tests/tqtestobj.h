@@ -3,6 +3,7 @@
 // Do not make changes to this file or they will be overwritten.
 #include <cx/obj.h>
 #include <cx/taskqueue/task.h>
+#include <cx/taskqueue/mtask.h>
 #include <cx/thread/event.h>
 
 typedef struct TaskQueue TaskQueue;
@@ -24,6 +25,8 @@ typedef struct TQTestD2 TQTestD2;
 typedef struct TQTestD2_WeakRef TQTestD2_WeakRef;
 typedef struct TQDelayTest TQDelayTest;
 typedef struct TQDelayTest_WeakRef TQDelayTest_WeakRef;
+typedef struct TQMTest TQMTest;
+typedef struct TQMTest_WeakRef TQMTest_WeakRef;
 saDeclarePtr(TQTest1);
 saDeclarePtr(TQTest1_WeakRef);
 saDeclarePtr(TQTestFail);
@@ -40,6 +43,8 @@ saDeclarePtr(TQTestD2);
 saDeclarePtr(TQTestD2_WeakRef);
 saDeclarePtr(TQDelayTest);
 saDeclarePtr(TQDelayTest_WeakRef);
+saDeclarePtr(TQMTest);
+saDeclarePtr(TQMTest_WeakRef);
 
 typedef struct TQTest1_ClassIf {
     ObjIface *_implements;
@@ -112,6 +117,19 @@ typedef struct TQDelayTest_ClassIf {
     bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon);
 } TQDelayTest_ClassIf;
 extern TQDelayTest_ClassIf TQDelayTest_ClassIf_tmpl;
+
+typedef struct TQMTest_ClassIf {
+    ObjIface *_implements;
+    ObjIface *_parent;
+    size_t _size;
+
+    bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon);
+    // Add a task
+    void (*add)(_Inout_ void *self, Task *task);
+    // Run cycle of checking / queueing tasks as needed (private)
+    void (*_cycle)(_Inout_ void *self, _Out_opt_ int64 *progress);
+} TQMTest_ClassIf;
+extern TQMTest_ClassIf TQMTest_ClassIf_tmpl;
 
 typedef struct TQTest1 {
     union {
@@ -534,4 +552,72 @@ _objfactory_guaranteed TQDelayTest *TQDelayTest_create(int64 len);
 
 // bool tqdelaytestRun(TQDelayTest *self, TaskQueue *tq, TaskControl *tcon);
 #define tqdelaytestRun(self, tq, tcon) (self)->_->run(TQDelayTest(self), TaskQueue(tq), tcon)
+
+typedef struct TQMTest {
+    union {
+        TQMTest_ClassIf *_;
+        void *_is_TQMTest;
+        void *_is_MTask;
+        void *_is_Task;
+        void *_is_BasicTask;
+        void *_is_ObjInst;
+    };
+    ObjClassInfo *_clsinfo;
+    atomic(intptr) _ref;
+    atomic(ptr) _weakref;
+
+    atomic(int32) state;
+    string name;        // task name to be shown in monitor output
+    int64 last;        // the last time this task was moved between queues and/or run
+    int64 nextrun;        // next time for this task to run when deferred
+    int64 lastprogress;        // timestamp of last progress change
+    Weak(TaskQueue) *lastq;        // The last queue this task ran on before it was deferred
+    cchain oncomplete;        // functions that are called when this task has completed
+    atomic(bool) cancelled;        // request that the task should be cancelled
+    TaskQueue *tq;        // Queue to submit tasks to if they need to be run
+    int limit;        // If queueing tasks, only queue this many at once
+    Mutex lock;
+    sa_Task _pending;        // List of tasks this MTask is waiting on (private)
+    sa_Task tasks;        // Tasks go here once they're finished
+    bool done;        // cached state if all tasks are complete
+    bool failed;        // true if any tasks failed
+    Event *notify;
+} TQMTest;
+extern ObjClassInfo TQMTest_clsinfo;
+#define TQMTest(inst) ((TQMTest*)(unused_noeval((inst) && &((inst)->_is_TQMTest)), (inst)))
+#define TQMTestNone ((TQMTest*)NULL)
+
+typedef struct TQMTest_WeakRef {
+    union {
+        ObjInst *_inst;
+        void *_is_TQMTest_WeakRef;
+        void *_is_MTask_WeakRef;
+        void *_is_Task_WeakRef;
+        void *_is_BasicTask_WeakRef;
+        void *_is_ObjInst_WeakRef;
+    };
+    atomic(intptr) _ref;
+    RWLock _lock;
+} TQMTest_WeakRef;
+#define TQMTest_WeakRef(inst) ((TQMTest_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TQMTest_WeakRef)), (inst)))
+
+_objfactory_guaranteed TQMTest *TQMTest_create(Event *notify, TaskQueue *tq, int limit);
+// TQMTest *tqmtestCreate(Event *notify, TaskQueue *tq, int limit);
+#define tqmtestCreate(notify, tq, limit) TQMTest_create(notify, TaskQueue(tq), limit)
+
+// bool tqmtestAdvance(TQMTest *self);
+//
+// advance a deferred task to run as soon as possible
+#define tqmtestAdvance(self) Task_advance(Task(self))
+
+// bool tqmtestRun(TQMTest *self, TaskQueue *tq, TaskControl *tcon);
+#define tqmtestRun(self, tq, tcon) (self)->_->run(TQMTest(self), TaskQueue(tq), tcon)
+// void tqmtestAdd(TQMTest *self, Task *task);
+//
+// Add a task
+#define tqmtestAdd(self, task) (self)->_->add(TQMTest(self), Task(task))
+// void tqmtest_cycle(TQMTest *self, int64 *progress);
+//
+// Run cycle of checking / queueing tasks as needed (private)
+#define tqmtest_cycle(self, progress) (self)->_->_cycle(TQMTest(self), progress)
 

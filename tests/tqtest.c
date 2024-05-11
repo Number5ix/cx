@@ -422,6 +422,78 @@ static int test_tqtest_monitor(void)
     return ret;
 }
 
+#define NUM_MTASK_TASKS 500
+
+static int test_tqtest_mtask(void)
+{
+    Event notifyev;
+    Event dummy;
+    int ret = 0;
+    atomic(int32) nsucceed = atomicInit(0);
+
+    atomicStore(int32, &tqtestd_order, 0, Relaxed);
+    eventInit(&notifyev);
+    eventInit(&dummy);
+
+    TaskQueueConfig conf;
+    tqPresetBalanced(&conf);
+    conf.wInitial = 2;
+    conf.wIdle = 2;
+    conf.wBusy = 3;
+    conf.wMax = 16;
+    TaskQueue *q = tqCreate(_S"Test", &conf);
+    if(!q || !tqStart(q))
+        return 1;
+
+    TQMTest *tqmtest = tqmtestCreate(&notifyev, q, 10);
+
+    // create tasks
+    int64 dtime = timeMS(20);
+    for(int i = 0; i < NUM_DEFER_STEPS; i++) {
+        TQTestD1 *d1 = tqtestd1Create(i, dtime, &dummy);
+        TQTestD2 *d2 = tqtestd2Create(d1, &dummy);
+
+        mtaskAdd(tqmtest, d2);
+        mtaskAdd(tqmtest, d1);
+
+        // completion callbacks, ensure these get attached first
+        cchainAttach(&d1->oncomplete, defer_oncomplete, stvar(ptr, &nsucceed));
+        cchainAttach(&d2->oncomplete, defer_oncomplete, stvar(ptr, &nsucceed));
+
+        dtime += timeMS(20);
+    }
+
+    for(int i = 0; i < NUM_MTASK_TASKS; i++) {
+        TQTest1 *t = tqtest1Create(1, 1, &dummy);
+        mtaskAdd(tqmtest, t);
+        cchainAttach(&t->oncomplete, defer_oncomplete, stvar(ptr, &nsucceed));
+        objRelease(&t);
+    }
+
+    tqAdd(q, tqmtest);
+
+    if(!eventWaitTimeout(&notifyev, timeS(60)))
+        ret = 1;
+
+    if(atomicLoad(int32, &nsucceed, Acquire) != NUM_DEFER_STEPS * 2 + NUM_MTASK_TASKS)
+        ret = 1;
+
+    if(saSize(tqmtest->tasks) != NUM_DEFER_STEPS * 2 + NUM_MTASK_TASKS)
+        ret = 1;
+
+    if(!taskSucceeded(tqmtest))
+        ret = 1;
+
+    objRelease(&tqmtest);
+
+    eventDestroy(&dummy);
+    eventDestroy(&notifyev);
+    tqShutdown(q, timeS(60));
+    tqRelease(&q);
+
+    return ret;
+}
+
 testfunc tqtest_funcs[] = {
     { "task", test_tqtest_task },
     { "failure", test_tqtest_failure },
@@ -429,5 +501,6 @@ testfunc tqtest_funcs[] = {
     { "call", test_tqtest_call },
     { "defer", test_tqtest_defer },
     { "monitor", test_tqtest_monitor },
+    { "mtask", test_tqtest_mtask },
     { 0, 0 }
 };

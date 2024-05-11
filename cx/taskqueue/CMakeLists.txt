@@ -2,6 +2,7 @@ set(TASKQUEUE_SRCS
     taskqueue/basictask.c
     taskqueue/manager.c
     taskqueue/monitor.c
+    taskqueue/mtask.c
     taskqueue/task.c
     taskqueue/taskqueue.c
     taskqueue/tqobject.c
@@ -9,6 +10,7 @@ set(TASKQUEUE_SRCS
     taskqueue/worker.c)
 set(TASKQUEUE_INCLUDES
     taskqueue/basictask.h
+    taskqueue/mtask.h
     taskqueue/task.h
     taskqueue/taskqueue.h
     taskqueue/taskqueue_private.h
@@ -18,6 +20,7 @@ set(TASKQUEUE_INCLUDES
     taskqueue/worker.h)
 set(TASKQUEUE_SIDL
     taskqueue/basictask.sidl
+    taskqueue/mtask.sidl
     taskqueue/task.sidl
     taskqueue/tqobject.sidl
     taskqueue/userfunctask.sidl

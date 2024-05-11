@@ -1,0 +1,25 @@
+#include <cx/taskqueue/tqobject.sidl>
+#include <cx/taskqueue/task.sidl>
+
+// Multitask / metatask waits on other tasks to complete.
+// It can be used standalone or as an extensible base class, and can be used
+// to build dependency graphs.
+
+class MTask extends Task
+{
+    object:TaskQueue tq;                // Queue to submit tasks to if they need to be run
+    int limit;                          // If queueing tasks, only queue this many at once
+
+    Mutex lock;
+    sarray:object:Task _pending;        // List of tasks this MTask is waiting on (private)
+    sarray:object:Task tasks;           // Tasks go here once they're finished
+    bool done;                          // cached state if all tasks are complete
+    bool failed;                        // true if any tasks failed
+
+    void add(Task *task);               // Add a task
+
+    void _cycle([out] [opt] int64 *progress);   // Run cycle of checking / queueing tasks as needed (private)
+
+    factory create();
+    factory createWithQueue(TaskQueue *tq, int limit);
+}
