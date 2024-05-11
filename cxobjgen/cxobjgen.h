@@ -14,6 +14,7 @@ extern sa_string includes;
 extern sa_string implincludes;
 extern sa_string deps;
 extern sa_string structs;
+extern sa_string fwdclass;
 extern sa_ComplexArrayType artypes;
 extern hashtable knownartypes;
 extern string cpassthrough;

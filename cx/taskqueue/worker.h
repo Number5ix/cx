@@ -6,6 +6,7 @@
 #include <cx/thread.h>
 
 typedef struct TaskQueue TaskQueue;
+typedef struct TaskQueue_WeakRef TaskQueue_WeakRef;
 typedef struct TaskControl TaskControl;
 typedef struct TaskQueueWorker TaskQueueWorker;
 typedef struct TaskQueueWorker_WeakRef TaskQueueWorker_WeakRef;
@@ -56,5 +57,5 @@ _objfactory_guaranteed TaskQueueWorker *TaskQueueWorker_create(int32 num);
 #define taskqueueworkerCreate(num) TaskQueueWorker_create(num)
 
 // bool taskqueueworkerStart(TaskQueueWorker *self, TaskQueue *tq);
-#define taskqueueworkerStart(self, tq) (self)->_->start(TaskQueueWorker(self), tq)
+#define taskqueueworkerStart(self, tq) (self)->_->start(TaskQueueWorker(self), TaskQueue(tq))
 

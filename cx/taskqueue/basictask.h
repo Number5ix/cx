@@ -4,6 +4,7 @@
 #include <cx/obj.h>
 
 typedef struct TaskQueue TaskQueue;
+typedef struct TaskQueue_WeakRef TaskQueue_WeakRef;
 typedef struct TaskControl TaskControl;
 typedef struct BasicTask BasicTask;
 typedef struct BasicTask_WeakRef BasicTask_WeakRef;
@@ -47,5 +48,5 @@ typedef struct BasicTask_WeakRef {
 #define BasicTask_WeakRef(inst) ((BasicTask_WeakRef*)(unused_noeval((inst) && &((inst)->_is_BasicTask_WeakRef)), (inst)))
 
 // bool btaskRun(BasicTask *self, TaskQueue *tq, TaskControl *tcon);
-#define btaskRun(self, tq, tcon) (self)->_->run(BasicTask(self), tq, tcon)
+#define btaskRun(self, tq, tcon) (self)->_->run(BasicTask(self), TaskQueue(tq), tcon)
 

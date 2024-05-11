@@ -625,7 +625,7 @@ bool parseClassPre(ParseState *ps, string *tok)
             fprintf(stderr, "Class forward declaration missing a name!\n");
             return false;
         }
-        saPush(&structs, string, ps->curcls->name);
+        saPush(&fwdclass, string, ps->curcls->name);
         objRelease(&ps->curcls);
         saClear(&ps->annotations);
         ps->context = Context_Global;

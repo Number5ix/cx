@@ -17,6 +17,9 @@ static bool isObjectType(Param *param)
     if(htHasKey(weakrefidx, string, param->type))
         return true;
 
+    if(saFind(fwdclass, string, param->type) != -1)
+        return true;
+
     return false;
 }
 
@@ -445,6 +448,10 @@ bool writeHeader(string fname)
     }
     bfWriteLine(bf, NULL);
 
+    for(int i = 0; i < saSize(fwdclass); i++) {
+        writeForwardDecl(bf, fwdclass.a[i]);
+        writeForwardWeakRefDecl(bf, fwdclass.a[i]);
+    }
     for (int i = 0; i < saSize(structs); i++) {
         writeForwardDecl(bf, structs.a[i]);
     }

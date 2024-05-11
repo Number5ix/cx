@@ -9,6 +9,7 @@
 #include <cx/thread/prqueue.h>
 
 typedef struct TaskQueue TaskQueue;
+typedef struct TaskQueue_WeakRef TaskQueue_WeakRef;
 typedef struct TaskControl TaskControl;
 typedef struct TaskQueue TaskQueue;
 typedef struct TaskQueue_WeakRef TaskQueue_WeakRef;

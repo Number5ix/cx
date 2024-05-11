@@ -6,6 +6,7 @@
 #include <cx/thread/event.h>
 
 typedef struct TaskQueue TaskQueue;
+typedef struct TaskQueue_WeakRef TaskQueue_WeakRef;
 typedef struct TaskControl TaskControl;
 typedef struct TQTest1 TQTest1;
 typedef struct TQTest1_WeakRef TQTest1_WeakRef;
@@ -157,7 +158,7 @@ _objfactory_guaranteed TQTest1 *TQTest1_create(int num1, int num2, Event *notify
 #define tqtest1Create(num1, num2, notify) TQTest1_create(num1, num2, notify)
 
 // bool tqtest1Run(TQTest1 *self, TaskQueue *tq, TaskControl *tcon);
-#define tqtest1Run(self, tq, tcon) (self)->_->run(TQTest1(self), tq, tcon)
+#define tqtest1Run(self, tq, tcon) (self)->_->run(TQTest1(self), TaskQueue(tq), tcon)
 
 typedef struct TQTestFail {
     union {
@@ -203,7 +204,7 @@ _objfactory_guaranteed TQTestFail *TQTestFail_create(int n, Event *notify);
 #define tqtestfailCreate(n, notify) TQTestFail_create(n, notify)
 
 // bool tqtestfailRun(TQTestFail *self, TaskQueue *tq, TaskControl *tcon);
-#define tqtestfailRun(self, tq, tcon) (self)->_->run(TQTestFail(self), tq, tcon)
+#define tqtestfailRun(self, tq, tcon) (self)->_->run(TQTestFail(self), TaskQueue(tq), tcon)
 
 typedef struct TQTestCC1 {
     union {
@@ -252,7 +253,7 @@ _objfactory_guaranteed TQTestCC1 *TQTestCC1_create(int num1, int num2, TaskQueue
 #define tqtestcc1Create(num1, num2, destq, accum, counter, notify) TQTestCC1_create(num1, num2, destq, accum, counter, notify)
 
 // bool tqtestcc1Run(TQTestCC1 *self, TaskQueue *tq, TaskControl *tcon);
-#define tqtestcc1Run(self, tq, tcon) (self)->_->run(TQTestCC1(self), tq, tcon)
+#define tqtestcc1Run(self, tq, tcon) (self)->_->run(TQTestCC1(self), TaskQueue(tq), tcon)
 
 typedef struct TQTestCC2 {
     union {
@@ -300,7 +301,7 @@ _objfactory_guaranteed TQTestCC2 *TQTestCC2_create(int total, int *accum, int *c
 #define tqtestcc2Create(total, accum, counter, notify) TQTestCC2_create(total, accum, counter, notify)
 
 // bool tqtestcc2Run(TQTestCC2 *self, TaskQueue *tq, TaskControl *tcon);
-#define tqtestcc2Run(self, tq, tcon) (self)->_->run(TQTestCC2(self), tq, tcon)
+#define tqtestcc2Run(self, tq, tcon) (self)->_->run(TQTestCC2(self), TaskQueue(tq), tcon)
 
 typedef struct TQTestDefer {
     union {
@@ -341,7 +342,7 @@ typedef struct TQTestDefer_WeakRef {
 #define TQTestDefer_WeakRef(inst) ((TQTestDefer_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TQTestDefer_WeakRef)), (inst)))
 
 // bool tqtestdeferRun(TQTestDefer *self, TaskQueue *tq, TaskControl *tcon);
-#define tqtestdeferRun(self, tq, tcon) (self)->_->run(TQTestDefer(self), tq, tcon)
+#define tqtestdeferRun(self, tq, tcon) (self)->_->run(TQTestDefer(self), TaskQueue(tq), tcon)
 
 typedef struct TQTestD1 {
     union {
@@ -439,7 +440,7 @@ _objfactory_guaranteed TQTestD2 *TQTestD2_create(Task *waitfor, Event *notify);
 #define tqtestd2Create(waitfor, notify) TQTestD2_create(Task(waitfor), notify)
 
 // bool tqtestd2Run(TQTestD2 *self, TaskQueue *tq, TaskControl *tcon);
-#define tqtestd2Run(self, tq, tcon) (self)->_->run(TQTestD2(self), tq, tcon)
+#define tqtestd2Run(self, tq, tcon) (self)->_->run(TQTestD2(self), TaskQueue(tq), tcon)
 
 typedef struct TQDelayTest {
     union {

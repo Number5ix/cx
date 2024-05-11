@@ -12,6 +12,7 @@ sa_string includes;
 sa_string implincludes;
 sa_string deps;
 sa_string structs;
+sa_string fwdclass;
 sa_ComplexArrayType artypes;
 hashtable knownartypes;
 string cpassthrough;
@@ -34,6 +35,7 @@ int main(int argc, char *argv[])
     saInit(&implincludes, string, 4);
     saInit(&deps, string, 8);
     saInit(&structs, string, 8);
+    saInit(&fwdclass, string, 8);
     saInit(&artypes, object, 8);
     htInit(&knownartypes, string, bool, 16);
 
@@ -65,6 +67,7 @@ int main(int argc, char *argv[])
         saClear(&includes);
         saClear(&implincludes);
         saClear(&structs);
+        saClear(&fwdclass);
         saClear(&artypes);
         htClear(&knownartypes);
         strDestroy(&cpassthrough);
@@ -108,6 +111,7 @@ int main(int argc, char *argv[])
     saDestroy(&includes);
     saDestroy(&deps);
     saDestroy(&structs);
+    saDestroy(&fwdclass);
     strDestroy(&cpassthrough);
     strDestroy(&fname);
     saDestroy(&searchpath);

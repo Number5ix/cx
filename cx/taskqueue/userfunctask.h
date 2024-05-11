@@ -6,6 +6,7 @@
 #include <cx/taskqueue/taskqueue.h>
 
 typedef struct TaskQueue TaskQueue;
+typedef struct TaskQueue_WeakRef TaskQueue_WeakRef;
 typedef struct TaskControl TaskControl;
 typedef struct UserFuncTask UserFuncTask;
 typedef struct UserFuncTask_WeakRef UserFuncTask_WeakRef;
@@ -57,5 +58,5 @@ _objfactory_guaranteed UserFuncTask *UserFuncTask_create(UserTaskCB func, void *
 #define userfunctaskCreate(func, udata) UserFuncTask_create(func, udata)
 
 // bool userfunctaskRun(UserFuncTask *self, TaskQueue *tq, TaskControl *tcon);
-#define userfunctaskRun(self, tq, tcon) (self)->_->run(UserFuncTask(self), tq, tcon)
+#define userfunctaskRun(self, tq, tcon) (self)->_->run(UserFuncTask(self), TaskQueue(tq), tcon)
 

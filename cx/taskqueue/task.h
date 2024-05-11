@@ -6,6 +6,7 @@
 #include <cx/closure.h>
 
 typedef struct TaskQueue TaskQueue;
+typedef struct TaskQueue_WeakRef TaskQueue_WeakRef;
 typedef struct TaskControl TaskControl;
 typedef struct Task Task;
 typedef struct Task_WeakRef Task_WeakRef;
@@ -57,5 +58,5 @@ typedef struct Task_WeakRef {
 #define Task_WeakRef(inst) ((Task_WeakRef*)(unused_noeval((inst) && &((inst)->_is_Task_WeakRef)), (inst)))
 
 // bool taskRun(Task *self, TaskQueue *tq, TaskControl *tcon);
-#define taskRun(self, tq, tcon) (self)->_->run(Task(self), tq, tcon)
+#define taskRun(self, tq, tcon) (self)->_->run(Task(self), TaskQueue(tq), tcon)
 
