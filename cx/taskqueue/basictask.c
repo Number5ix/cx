@@ -7,6 +7,21 @@
 #include <cx/string.h>
 #include "basictask.h"
 // ==================== Auto-generated section ends ======================
+#include "taskqueue.h"
+
+bool BasicTask_reset(_Inout_ BasicTask *self)
+{
+    int32 oldval = atomicLoad(int32, &self->state, Relaxed);
+    if(oldval != TASK_Succeeded && oldval != TASK_Failed)
+        return false;
+
+    while(!atomicCompareExchange(int32, weak, &self->state, &oldval, TASK_Created, AcqRel, Relaxed)) {
+        if(oldval != TASK_Succeeded && oldval != TASK_Failed)
+            return false;
+    }
+
+    return true;
+}
 
 // Autogen begins -----
 #include "basictask.auto.inc"

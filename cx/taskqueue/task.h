@@ -19,6 +19,7 @@ typedef struct Task_ClassIf {
     size_t _size;
 
     bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon);
+    bool (*reset)(_Inout_ void *self);
 } Task_ClassIf;
 extern Task_ClassIf Task_ClassIf_tmpl;
 
@@ -66,4 +67,6 @@ bool Task_advance(_Inout_ Task *self);
 
 // bool taskRun(Task *self, TaskQueue *tq, TaskControl *tcon);
 #define taskRun(self, tq, tcon) (self)->_->run(Task(self), TaskQueue(tq), tcon)
+// bool taskReset(Task *self);
+#define taskReset(self) (self)->_->reset(Task(self))
 

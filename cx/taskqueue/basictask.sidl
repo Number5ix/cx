@@ -6,4 +6,5 @@ struct TaskControl;
 [methodprefix btask] abstract class BasicTask {
     atomic:int32 state;
     [abstract] bool run([in] TaskQueue *tq, [inout] TaskControl *tcon);
+    bool reset();
 }

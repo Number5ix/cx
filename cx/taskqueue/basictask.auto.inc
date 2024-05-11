@@ -7,6 +7,7 @@ BasicTask_ClassIf BasicTask_ClassIf_tmpl = {
 static BasicTask_ClassIf _impl_BasicTask_BasicTask_ClassIf = {
     ._size = sizeof(BasicTask_ClassIf),
     ._implements = (ObjIface*)&BasicTask_ClassIf_tmpl,
+    .reset = (bool (*)(void*))BasicTask_reset,
 };
 
 static ObjIface *_ifimpl_BasicTask[] = {

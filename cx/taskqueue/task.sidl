@@ -12,5 +12,6 @@ abstract class Task extends BasicTask
     atomic:bool cancelled;      // request that the task should be cancelled
 
     unbound bool advance();     // advance a deferred task to run as soon as possible
+    override reset;
     init();
 }

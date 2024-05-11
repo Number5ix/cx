@@ -52,6 +52,7 @@ typedef struct TQTest1_ClassIf {
     size_t _size;
 
     bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon);
+    bool (*reset)(_Inout_ void *self);
 } TQTest1_ClassIf;
 extern TQTest1_ClassIf TQTest1_ClassIf_tmpl;
 
@@ -61,6 +62,7 @@ typedef struct TQTestFail_ClassIf {
     size_t _size;
 
     bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon);
+    bool (*reset)(_Inout_ void *self);
 } TQTestFail_ClassIf;
 extern TQTestFail_ClassIf TQTestFail_ClassIf_tmpl;
 
@@ -70,6 +72,7 @@ typedef struct TQTestCC1_ClassIf {
     size_t _size;
 
     bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon);
+    bool (*reset)(_Inout_ void *self);
 } TQTestCC1_ClassIf;
 extern TQTestCC1_ClassIf TQTestCC1_ClassIf_tmpl;
 
@@ -79,6 +82,7 @@ typedef struct TQTestCC2_ClassIf {
     size_t _size;
 
     bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon);
+    bool (*reset)(_Inout_ void *self);
 } TQTestCC2_ClassIf;
 extern TQTestCC2_ClassIf TQTestCC2_ClassIf_tmpl;
 
@@ -88,6 +92,7 @@ typedef struct TQTestDefer_ClassIf {
     size_t _size;
 
     bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon);
+    bool (*reset)(_Inout_ void *self);
 } TQTestDefer_ClassIf;
 extern TQTestDefer_ClassIf TQTestDefer_ClassIf_tmpl;
 
@@ -97,6 +102,7 @@ typedef struct TQTestD1_ClassIf {
     size_t _size;
 
     bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon);
+    bool (*reset)(_Inout_ void *self);
 } TQTestD1_ClassIf;
 extern TQTestD1_ClassIf TQTestD1_ClassIf_tmpl;
 
@@ -106,6 +112,7 @@ typedef struct TQTestD2_ClassIf {
     size_t _size;
 
     bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon);
+    bool (*reset)(_Inout_ void *self);
 } TQTestD2_ClassIf;
 extern TQTestD2_ClassIf TQTestD2_ClassIf_tmpl;
 
@@ -115,6 +122,7 @@ typedef struct TQDelayTest_ClassIf {
     size_t _size;
 
     bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon);
+    bool (*reset)(_Inout_ void *self);
 } TQDelayTest_ClassIf;
 extern TQDelayTest_ClassIf TQDelayTest_ClassIf_tmpl;
 
@@ -124,6 +132,7 @@ typedef struct TQMTest_ClassIf {
     size_t _size;
 
     bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon);
+    bool (*reset)(_Inout_ void *self);
     // Add a task
     void (*add)(_Inout_ void *self, Task *task);
     // Run cycle of checking / queueing tasks as needed (private)
@@ -183,6 +192,8 @@ _objfactory_guaranteed TQTest1 *TQTest1_create(int num1, int num2, Event *notify
 
 // bool tqtest1Run(TQTest1 *self, TaskQueue *tq, TaskControl *tcon);
 #define tqtest1Run(self, tq, tcon) (self)->_->run(TQTest1(self), TaskQueue(tq), tcon)
+// bool tqtest1Reset(TQTest1 *self);
+#define tqtest1Reset(self) (self)->_->reset(TQTest1(self))
 
 typedef struct TQTestFail {
     union {
@@ -235,6 +246,8 @@ _objfactory_guaranteed TQTestFail *TQTestFail_create(int n, Event *notify);
 
 // bool tqtestfailRun(TQTestFail *self, TaskQueue *tq, TaskControl *tcon);
 #define tqtestfailRun(self, tq, tcon) (self)->_->run(TQTestFail(self), TaskQueue(tq), tcon)
+// bool tqtestfailReset(TQTestFail *self);
+#define tqtestfailReset(self) (self)->_->reset(TQTestFail(self))
 
 typedef struct TQTestCC1 {
     union {
@@ -290,6 +303,8 @@ _objfactory_guaranteed TQTestCC1 *TQTestCC1_create(int num1, int num2, TaskQueue
 
 // bool tqtestcc1Run(TQTestCC1 *self, TaskQueue *tq, TaskControl *tcon);
 #define tqtestcc1Run(self, tq, tcon) (self)->_->run(TQTestCC1(self), TaskQueue(tq), tcon)
+// bool tqtestcc1Reset(TQTestCC1 *self);
+#define tqtestcc1Reset(self) (self)->_->reset(TQTestCC1(self))
 
 typedef struct TQTestCC2 {
     union {
@@ -344,6 +359,8 @@ _objfactory_guaranteed TQTestCC2 *TQTestCC2_create(int total, int *accum, int *c
 
 // bool tqtestcc2Run(TQTestCC2 *self, TaskQueue *tq, TaskControl *tcon);
 #define tqtestcc2Run(self, tq, tcon) (self)->_->run(TQTestCC2(self), TaskQueue(tq), tcon)
+// bool tqtestcc2Reset(TQTestCC2 *self);
+#define tqtestcc2Reset(self) (self)->_->reset(TQTestCC2(self))
 
 typedef struct TQTestDefer {
     union {
@@ -391,6 +408,8 @@ typedef struct TQTestDefer_WeakRef {
 
 // bool tqtestdeferRun(TQTestDefer *self, TaskQueue *tq, TaskControl *tcon);
 #define tqtestdeferRun(self, tq, tcon) (self)->_->run(TQTestDefer(self), TaskQueue(tq), tcon)
+// bool tqtestdeferReset(TQTestDefer *self);
+#define tqtestdeferReset(self) (self)->_->reset(TQTestDefer(self))
 
 typedef struct TQTestD1 {
     union {
@@ -447,6 +466,8 @@ _objfactory_guaranteed TQTestD1 *TQTestD1_create(int order, int64 dtime, Event *
 
 // bool tqtestd1Run(TQTestD1 *self, TaskQueue *tq, TaskControl *tcon);
 #define tqtestd1Run(self, tq, tcon) (self)->_->run(TQTestD1(self), TaskQueue(tq), tcon)
+// bool tqtestd1Reset(TQTestD1 *self);
+#define tqtestd1Reset(self) (self)->_->reset(TQTestD1(self))
 
 typedef struct TQTestD2 {
     union {
@@ -501,6 +522,8 @@ _objfactory_guaranteed TQTestD2 *TQTestD2_create(Task *waitfor, Event *notify);
 
 // bool tqtestd2Run(TQTestD2 *self, TaskQueue *tq, TaskControl *tcon);
 #define tqtestd2Run(self, tq, tcon) (self)->_->run(TQTestD2(self), TaskQueue(tq), tcon)
+// bool tqtestd2Reset(TQTestD2 *self);
+#define tqtestd2Reset(self) (self)->_->reset(TQTestD2(self))
 
 typedef struct TQDelayTest {
     union {
@@ -552,6 +575,8 @@ _objfactory_guaranteed TQDelayTest *TQDelayTest_create(int64 len);
 
 // bool tqdelaytestRun(TQDelayTest *self, TaskQueue *tq, TaskControl *tcon);
 #define tqdelaytestRun(self, tq, tcon) (self)->_->run(TQDelayTest(self), TaskQueue(tq), tcon)
+// bool tqdelaytestReset(TQDelayTest *self);
+#define tqdelaytestReset(self) (self)->_->reset(TQDelayTest(self))
 
 typedef struct TQMTest {
     union {
@@ -612,6 +637,8 @@ _objfactory_guaranteed TQMTest *TQMTest_create(Event *notify, TaskQueue *tq, int
 
 // bool tqmtestRun(TQMTest *self, TaskQueue *tq, TaskControl *tcon);
 #define tqmtestRun(self, tq, tcon) (self)->_->run(TQMTest(self), TaskQueue(tq), tcon)
+// bool tqmtestReset(TQMTest *self);
+#define tqmtestReset(self) (self)->_->reset(TQMTest(self))
 // void tqmtestAdd(TQMTest *self, Task *task);
 //
 // Add a task

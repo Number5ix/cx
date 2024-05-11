@@ -19,6 +19,7 @@ typedef struct MTask_ClassIf {
     size_t _size;
 
     bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon);
+    bool (*reset)(_Inout_ void *self);
     // Add a task
     void (*add)(_Inout_ void *self, Task *task);
     // Run cycle of checking / queueing tasks as needed (private)
@@ -86,6 +87,8 @@ _objfactory_guaranteed MTask *MTask_createWithQueue(TaskQueue *tq, int limit);
 
 // bool mtaskRun(MTask *self, TaskQueue *tq, TaskControl *tcon);
 #define mtaskRun(self, tq, tcon) (self)->_->run(MTask(self), TaskQueue(tq), tcon)
+// bool mtaskReset(MTask *self);
+#define mtaskReset(self) (self)->_->reset(MTask(self))
 // void mtaskAdd(MTask *self, Task *task);
 //
 // Add a task

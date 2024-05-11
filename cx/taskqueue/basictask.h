@@ -17,6 +17,7 @@ typedef struct BasicTask_ClassIf {
     size_t _size;
 
     bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon);
+    bool (*reset)(_Inout_ void *self);
 } BasicTask_ClassIf;
 extern BasicTask_ClassIf BasicTask_ClassIf_tmpl;
 
@@ -49,4 +50,6 @@ typedef struct BasicTask_WeakRef {
 
 // bool btaskRun(BasicTask *self, TaskQueue *tq, TaskControl *tcon);
 #define btaskRun(self, tq, tcon) (self)->_->run(BasicTask(self), TaskQueue(tq), tcon)
+// bool btaskReset(BasicTask *self);
+#define btaskReset(self) (self)->_->reset(BasicTask(self))
 

@@ -19,6 +19,7 @@ typedef struct UserFuncTask_ClassIf {
     size_t _size;
 
     bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon);
+    bool (*reset)(_Inout_ void *self);
 } UserFuncTask_ClassIf;
 extern UserFuncTask_ClassIf UserFuncTask_ClassIf_tmpl;
 
@@ -59,4 +60,6 @@ _objfactory_guaranteed UserFuncTask *UserFuncTask_create(UserTaskCB func, void *
 
 // bool userfunctaskRun(UserFuncTask *self, TaskQueue *tq, TaskControl *tcon);
 #define userfunctaskRun(self, tq, tcon) (self)->_->run(UserFuncTask(self), TaskQueue(tq), tcon)
+// bool userfunctaskReset(UserFuncTask *self);
+#define userfunctaskReset(self) (self)->_->reset(UserFuncTask(self))
 
