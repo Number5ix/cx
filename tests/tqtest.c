@@ -405,7 +405,7 @@ static int test_tqtest_monitor(void)
 {
     LogMembufData *mbuf = logmembufCreate(65536);
     moncat = logCreateCat(_S"MonitorTest", true);
-    logRegisterDest(LOG_Warn, moncat, logmembufDest, mbuf);
+    logRegisterDest(LOG_Diag, moncat, logmembufDest, mbuf);
 
     // reuse the defer test, but with the monitor enabled
     is_monitor_test = true;

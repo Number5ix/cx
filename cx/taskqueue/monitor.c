@@ -16,7 +16,7 @@ static void dumpTask(LogCategory *cat, void *ptr, int64 now, int wnum, bool isde
 {
     if(!ptr) {
         if(wnum > -1) {
-            logFmtC(Warn, cat, _S"    ${int}: Idle", stvar(int32, wnum + 1));
+            logFmtC(Diag, cat, _S"    ${int}: Idle", stvar(int32, wnum + 1));
         }
         return;
     }
@@ -68,7 +68,7 @@ static void dumpTask(LogCategory *cat, void *ptr, int64 now, int wnum, bool isde
         }
     }
 
-    logFmtC(Warn, cat, _S"    ${string}${string}-${0uint(4,hex)} (${string})${string}",
+    logFmtC(Diag, cat, _S"    ${string}${string}-${0uint(4,hex)} (${string})${string}",
             stvar(strref, prefix),
             stvar(strref, task ? task->name : _S"BasicTask"),
             stvar(uint16, ptrHash(ptr)),
@@ -90,18 +90,18 @@ static void dumpPRQ(LogCategory *cat, PrQueue *prq, int64 now)
 static void dumpQueue(TaskQueue *tq, int64 now)
 {
     TaskQueueConfig *c = &tq->tqconfig;
-    logStrC(Warn, c->mLogCat, _S"  Worker Threads:");
+    logStrC(Diag, c->mLogCat, _S"  Worker Threads:");
     int32 nworkers = atomicLoad(int32, &tq->nworkers, Relaxed);
     for(int i = 0; i < nworkers; i++) {
         dumpTask(c->mLogCat, atomicLoad(ptr, &tq->workers.a[i]->curtask, Relaxed), now, i, false);
     }
 
-    logStrC(Warn, c->mLogCat, _S"  Run Queue:");
+    logStrC(Diag, c->mLogCat, _S"  Run Queue:");
     dumpPRQ(c->mLogCat, &tq->runq, now);
-    logStrC(Warn, c->mLogCat, _S"  Done Queue:");
+    logStrC(Diag, c->mLogCat, _S"  Done Queue:");
     dumpPRQ(c->mLogCat, &tq->doneq, now);
 
-    logStrC(Warn, c->mLogCat, _S"  Defer List:");
+    logStrC(Diag, c->mLogCat, _S"  Defer List:");
     for(int i = 0, ndefer = saSize(tq->deferred); i < ndefer; i++) {
         dumpTask(c->mLogCat, tq->deferred.a[i], now, -1, true);
     }
