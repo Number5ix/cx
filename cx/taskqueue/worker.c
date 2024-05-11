@@ -56,14 +56,14 @@ static int tqWorkerThread(Thread *thr)
 
             if(task && tcon.defer) {
                 // Task is being deferred, so it goes back into the queue.
-                atomicStore(int32, &btask->state, TASK_Waiting, Release);
+                atomicStore(int32, &btask->state, TASK_Deferred, Release);
                 // Record if forward progress was made
                 if(tcon.progress)
                     task->lastprogress = clockTimer();
 
                 if(tcon.defertime > 0) {
                     // will go into defer list to be run at a certain time
-                    task->nextrun = clockTimer() + tcon.defertime;
+                    task->nextrun = (tcon.defertime == timeForever) ? timeForever : clockTimer() + tcon.defertime;
                 } else if(tcon.progress) {
                     // defertime is 0 and we DID make progress, add it straight to the run queue so
                     // we'll get right back to it.
@@ -79,12 +79,17 @@ static int tqWorkerThread(Thread *thr)
                     // release it only once some other task finishes.
                     task->nextrun = 0;
                 }
+
+                // remember last queue so this task can be advanced if necessary
+                objDestroyWeak(&task->lastq);
+                task->lastq = objGetWeak(TaskQueue, tq);
             } else {
                 // tasks fail if they do not succeed
                 atomicStore(int32, &btask->state, success ? TASK_Succeeded : TASK_Failed, Release);
 
                 if(task && task->oncomplete) {
                     cchainCall(&task->oncomplete, stvar(object, task));
+                    cchainDestroy(&task->oncomplete);       // oncomplete callbacks are one-shots
                 }
             }
 

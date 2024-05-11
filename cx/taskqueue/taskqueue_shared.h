@@ -40,6 +40,7 @@ enum TaskStateEnum
     TASK_Created,
     TASK_Waiting,
     TASK_Running,
+    TASK_Deferred,
     TASK_Succeeded,
     TASK_Failed,
 };
@@ -54,8 +55,11 @@ typedef struct TaskControl
     // If defertime is set to a nonzero value, it is interpreted as a relative timespan for how long to defer
     // the task before running it again.
 
-    // If defertime is set to 0 and no progress was made, it will go back into the run queue, but will NOT
-    // wake up any workers or cause the queue to run again until some other task is queued.
+    // If defertime is set to 0 and no progress was made, it will be deferred and not retried until the
+    // queue processes at least one other task.
+
+    // defertime may also be set to timeForever, in which case it will stay in the deferred list (and
+    // be exempt from monitor warnings) until the task's advance method is called.
 
     bool defer;             // set if the task needs to be returned to the queue to run again
     int64 defertime;        // how long to defer this task

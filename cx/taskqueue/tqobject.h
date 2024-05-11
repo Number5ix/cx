@@ -56,6 +56,7 @@ typedef struct TaskQueue {
     Event shutdownev;        // signaled when queue is finished shutting down
     PrQueue runq;        // tasks that are ready to be picked up by workers
     PrQueue doneq;        // tasks that are either deferred or finished
+    PrQueue advanceq;        // tasks that are being advanced out of the defer queue
     sa_ptr deferred;        // tasks that are deferred for later, sorted by defer time [owned by manager]
 } TaskQueue;
 extern ObjClassInfo TaskQueue_clsinfo;

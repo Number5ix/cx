@@ -8,9 +8,14 @@ set(TASKQUEUE_SRCS
     taskqueue/userfunctask.c
     taskqueue/worker.c)
 set(TASKQUEUE_INCLUDES
+    taskqueue/basictask.h
+    taskqueue/task.h
     taskqueue/taskqueue.h
     taskqueue/taskqueue_private.h
-    taskqueue/taskqueue_shared.h)
+    taskqueue/taskqueue_shared.h
+    taskqueue/tqobject.h
+    taskqueue/userfunctask.h
+    taskqueue/worker.h)
 set(TASKQUEUE_SIDL
     taskqueue/basictask.sidl
     taskqueue/task.sidl

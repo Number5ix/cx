@@ -112,6 +112,7 @@ static void managerRun(Thread *thr, TaskQueue *tq)
             } else {
                 // task is deferred, move it to the defer list
                 // sanity check
+                devAssert(state == TASK_Deferred);
                 Task *task = objDynCast(btask, Task);
                 if(devVerify(task)) {
                     if(task->lastprogress == 0)
@@ -124,16 +125,32 @@ static void managerRun(Thread *thr, TaskQueue *tq)
             }
         }
 
-        // process deferred list
         int dcount = 0;
+        // move advance queue entries out of defer list before we process it
+        Task *task;
+        while((task = (Task *)prqPop(&tq->advanceq))) {
+            if(saFindRemove(&tq->deferred, ptr, task)) {
+                atomicStore(int32, &task->state, TASK_Waiting, Release);
+                task->last = now;
+                prqPush(&tq->runq, task);
+                ++dcount;
+            } else {
+                // might have just been put in doneq? Let it run ASAP if that's the case
+                task->nextrun = now;
+                waittime = 0;
+            }
+        }
+
+        // process deferred list
         for(int i = 0, imax = saSize(tq->deferred); i < imax; ++i) {
-            Task *task = (Task *)tq->deferred.a[i];
+            task = (Task *)tq->deferred.a[i];
 
             // if this task is deferred with a time of 0 and we completed some
             // tasks this run, or if it's a deferred task that's scheduled to
             // run now, put it back in the queue
             if((task->nextrun == 0 && ctasks) ||
                task->nextrun <= now) {
+                atomicStore(int32, &task->state, TASK_Waiting, Release);
                 task->last = now;
                 prqPush(&tq->runq, task);
                 saRemove(&tq->deferred, i);
@@ -154,7 +171,7 @@ static void managerRun(Thread *thr, TaskQueue *tq)
 
         // see if we need to run the monitor
         if(conf->mInterval > 0 && now - mstate.lastrun > conf->mInterval) {
-            tqMonitorRun(tq, now, &mstate);
+            _tqMonitorRun(tq, now, &mstate);
             mstate.lastrun = now;
         } else if (conf->mInterval > 0) {
             waittime = min(waittime, conf->mInterval - (now - mstate.lastrun));

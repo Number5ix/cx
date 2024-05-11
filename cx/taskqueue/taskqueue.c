@@ -164,6 +164,19 @@ int32 tqWorkers(_In_ TaskQueue *tq)
     return atomicLoad(int32, &tq->nworkers, Relaxed);       // no ordering requirements
 }
 
+bool _tqAdvanceTask(TaskQueue *tq, Task *task)
+{
+    if(tq->state != TQState_Running || taskState(task) != TASK_Deferred)
+        return false;
+
+    if(!prqPush(&tq->advanceq, task))
+        return false;
+
+    // Signal the manager to move it
+    eventSignal(&tq->manager->notify);
+    return true;
+}
+
 _Use_decl_annotations_
 bool tqShutdown(TaskQueue *tq, int64 wait)
 {

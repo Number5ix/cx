@@ -38,8 +38,9 @@ typedef struct Task {
     int64 last;        // the last time this task was moved between queues and/or run
     int64 nextrun;        // next time for this task to run when deferred
     int64 lastprogress;        // timestamp of last progress change
-    atomic(bool) cancelled;        // request that the task should be cancelled
+    Weak(TaskQueue) *lastq;        // The last queue this task ran on before it was deferred
     cchain oncomplete;        // functions that are called when this task has completed
+    atomic(bool) cancelled;        // request that the task should be cancelled
 } Task;
 extern ObjClassInfo Task_clsinfo;
 #define Task(inst) ((Task*)(unused_noeval((inst) && &((inst)->_is_Task)), (inst)))
@@ -56,6 +57,12 @@ typedef struct Task_WeakRef {
     RWLock _lock;
 } Task_WeakRef;
 #define Task_WeakRef(inst) ((Task_WeakRef*)(unused_noeval((inst) && &((inst)->_is_Task_WeakRef)), (inst)))
+
+bool Task_advance(_Inout_ Task *self);
+// bool taskAdvance(Task *self);
+//
+// advance a deferred task to run as soon as possible
+#define taskAdvance(self) Task_advance(Task(self))
 
 // bool taskRun(Task *self, TaskQueue *tq, TaskControl *tcon);
 #define taskRun(self, tq, tcon) (self)->_->run(Task(self), TaskQueue(tq), tcon)

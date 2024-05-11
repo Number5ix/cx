@@ -11,4 +11,5 @@ typedef struct TQMonitorState
 } TQMonitorState;
 
 int tqManagerThread(Thread *self);
-void tqMonitorRun(TaskQueue *tq, int64 now, TQMonitorState *s);
+void _tqMonitorRun(TaskQueue *tq, int64 now, TQMonitorState *s);
+bool _tqAdvanceTask(TaskQueue *tq, Task *task);

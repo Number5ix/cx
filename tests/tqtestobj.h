@@ -130,8 +130,9 @@ typedef struct TQTest1 {
     int64 last;        // the last time this task was moved between queues and/or run
     int64 nextrun;        // next time for this task to run when deferred
     int64 lastprogress;        // timestamp of last progress change
-    atomic(bool) cancelled;        // request that the task should be cancelled
+    Weak(TaskQueue) *lastq;        // The last queue this task ran on before it was deferred
     cchain oncomplete;        // functions that are called when this task has completed
+    atomic(bool) cancelled;        // request that the task should be cancelled
     int num[2];
     int total;
     Event *notify;
@@ -157,6 +158,11 @@ _objfactory_guaranteed TQTest1 *TQTest1_create(int num1, int num2, Event *notify
 // TQTest1 *tqtest1Create(int num1, int num2, Event *notify);
 #define tqtest1Create(num1, num2, notify) TQTest1_create(num1, num2, notify)
 
+// bool tqtest1Advance(TQTest1 *self);
+//
+// advance a deferred task to run as soon as possible
+#define tqtest1Advance(self) Task_advance(Task(self))
+
 // bool tqtest1Run(TQTest1 *self, TaskQueue *tq, TaskControl *tcon);
 #define tqtest1Run(self, tq, tcon) (self)->_->run(TQTest1(self), TaskQueue(tq), tcon)
 
@@ -177,8 +183,9 @@ typedef struct TQTestFail {
     int64 last;        // the last time this task was moved between queues and/or run
     int64 nextrun;        // next time for this task to run when deferred
     int64 lastprogress;        // timestamp of last progress change
-    atomic(bool) cancelled;        // request that the task should be cancelled
+    Weak(TaskQueue) *lastq;        // The last queue this task ran on before it was deferred
     cchain oncomplete;        // functions that are called when this task has completed
+    atomic(bool) cancelled;        // request that the task should be cancelled
     int n;
     Event *notify;
 } TQTestFail;
@@ -203,6 +210,11 @@ _objfactory_guaranteed TQTestFail *TQTestFail_create(int n, Event *notify);
 // TQTestFail *tqtestfailCreate(int n, Event *notify);
 #define tqtestfailCreate(n, notify) TQTestFail_create(n, notify)
 
+// bool tqtestfailAdvance(TQTestFail *self);
+//
+// advance a deferred task to run as soon as possible
+#define tqtestfailAdvance(self) Task_advance(Task(self))
+
 // bool tqtestfailRun(TQTestFail *self, TaskQueue *tq, TaskControl *tcon);
 #define tqtestfailRun(self, tq, tcon) (self)->_->run(TQTestFail(self), TaskQueue(tq), tcon)
 
@@ -223,8 +235,9 @@ typedef struct TQTestCC1 {
     int64 last;        // the last time this task was moved between queues and/or run
     int64 nextrun;        // next time for this task to run when deferred
     int64 lastprogress;        // timestamp of last progress change
-    atomic(bool) cancelled;        // request that the task should be cancelled
+    Weak(TaskQueue) *lastq;        // The last queue this task ran on before it was deferred
     cchain oncomplete;        // functions that are called when this task has completed
+    atomic(bool) cancelled;        // request that the task should be cancelled
     int num[2];
     TaskQueue *destq;
     int *accum;
@@ -250,7 +263,12 @@ typedef struct TQTestCC1_WeakRef {
 
 _objfactory_guaranteed TQTestCC1 *TQTestCC1_create(int num1, int num2, TaskQueue *destq, int *accum, int *counter, Event *notify);
 // TQTestCC1 *tqtestcc1Create(int num1, int num2, TaskQueue *destq, int *accum, int *counter, Event *notify);
-#define tqtestcc1Create(num1, num2, destq, accum, counter, notify) TQTestCC1_create(num1, num2, destq, accum, counter, notify)
+#define tqtestcc1Create(num1, num2, destq, accum, counter, notify) TQTestCC1_create(num1, num2, TaskQueue(destq), accum, counter, notify)
+
+// bool tqtestcc1Advance(TQTestCC1 *self);
+//
+// advance a deferred task to run as soon as possible
+#define tqtestcc1Advance(self) Task_advance(Task(self))
 
 // bool tqtestcc1Run(TQTestCC1 *self, TaskQueue *tq, TaskControl *tcon);
 #define tqtestcc1Run(self, tq, tcon) (self)->_->run(TQTestCC1(self), TaskQueue(tq), tcon)
@@ -272,8 +290,9 @@ typedef struct TQTestCC2 {
     int64 last;        // the last time this task was moved between queues and/or run
     int64 nextrun;        // next time for this task to run when deferred
     int64 lastprogress;        // timestamp of last progress change
-    atomic(bool) cancelled;        // request that the task should be cancelled
+    Weak(TaskQueue) *lastq;        // The last queue this task ran on before it was deferred
     cchain oncomplete;        // functions that are called when this task has completed
+    atomic(bool) cancelled;        // request that the task should be cancelled
     int total;
     int *accum;
     int *counter;
@@ -300,6 +319,11 @@ _objfactory_guaranteed TQTestCC2 *TQTestCC2_create(int total, int *accum, int *c
 // TQTestCC2 *tqtestcc2Create(int total, int *accum, int *counter, Event *notify);
 #define tqtestcc2Create(total, accum, counter, notify) TQTestCC2_create(total, accum, counter, notify)
 
+// bool tqtestcc2Advance(TQTestCC2 *self);
+//
+// advance a deferred task to run as soon as possible
+#define tqtestcc2Advance(self) Task_advance(Task(self))
+
 // bool tqtestcc2Run(TQTestCC2 *self, TaskQueue *tq, TaskControl *tcon);
 #define tqtestcc2Run(self, tq, tcon) (self)->_->run(TQTestCC2(self), TaskQueue(tq), tcon)
 
@@ -320,8 +344,9 @@ typedef struct TQTestDefer {
     int64 last;        // the last time this task was moved between queues and/or run
     int64 nextrun;        // next time for this task to run when deferred
     int64 lastprogress;        // timestamp of last progress change
-    atomic(bool) cancelled;        // request that the task should be cancelled
+    Weak(TaskQueue) *lastq;        // The last queue this task ran on before it was deferred
     cchain oncomplete;        // functions that are called when this task has completed
+    atomic(bool) cancelled;        // request that the task should be cancelled
     Event *notify;
 } TQTestDefer;
 extern ObjClassInfo TQTestDefer_clsinfo;
@@ -340,6 +365,11 @@ typedef struct TQTestDefer_WeakRef {
     RWLock _lock;
 } TQTestDefer_WeakRef;
 #define TQTestDefer_WeakRef(inst) ((TQTestDefer_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TQTestDefer_WeakRef)), (inst)))
+
+// bool tqtestdeferAdvance(TQTestDefer *self);
+//
+// advance a deferred task to run as soon as possible
+#define tqtestdeferAdvance(self) Task_advance(Task(self))
 
 // bool tqtestdeferRun(TQTestDefer *self, TaskQueue *tq, TaskControl *tcon);
 #define tqtestdeferRun(self, tq, tcon) (self)->_->run(TQTestDefer(self), TaskQueue(tq), tcon)
@@ -362,8 +392,9 @@ typedef struct TQTestD1 {
     int64 last;        // the last time this task was moved between queues and/or run
     int64 nextrun;        // next time for this task to run when deferred
     int64 lastprogress;        // timestamp of last progress change
-    atomic(bool) cancelled;        // request that the task should be cancelled
+    Weak(TaskQueue) *lastq;        // The last queue this task ran on before it was deferred
     cchain oncomplete;        // functions that are called when this task has completed
+    atomic(bool) cancelled;        // request that the task should be cancelled
     Event *notify;
     int order;
     int64 dtime;
@@ -391,8 +422,13 @@ _objfactory_guaranteed TQTestD1 *TQTestD1_create(int order, int64 dtime, Event *
 // TQTestD1 *tqtestd1Create(int order, int64 dtime, Event *notify);
 #define tqtestd1Create(order, dtime, notify) TQTestD1_create(order, dtime, notify)
 
+// bool tqtestd1Advance(TQTestD1 *self);
+//
+// advance a deferred task to run as soon as possible
+#define tqtestd1Advance(self) Task_advance(Task(self))
+
 // bool tqtestd1Run(TQTestD1 *self, TaskQueue *tq, TaskControl *tcon);
-#define tqtestd1Run(self, tq, tcon) (self)->_->run(TQTestD1(self), tq, tcon)
+#define tqtestd1Run(self, tq, tcon) (self)->_->run(TQTestD1(self), TaskQueue(tq), tcon)
 
 typedef struct TQTestD2 {
     union {
@@ -412,8 +448,9 @@ typedef struct TQTestD2 {
     int64 last;        // the last time this task was moved between queues and/or run
     int64 nextrun;        // next time for this task to run when deferred
     int64 lastprogress;        // timestamp of last progress change
-    atomic(bool) cancelled;        // request that the task should be cancelled
+    Weak(TaskQueue) *lastq;        // The last queue this task ran on before it was deferred
     cchain oncomplete;        // functions that are called when this task has completed
+    atomic(bool) cancelled;        // request that the task should be cancelled
     Event *notify;
     Task *waitfor;
 } TQTestD2;
@@ -439,6 +476,11 @@ _objfactory_guaranteed TQTestD2 *TQTestD2_create(Task *waitfor, Event *notify);
 // TQTestD2 *tqtestd2Create(Task *waitfor, Event *notify);
 #define tqtestd2Create(waitfor, notify) TQTestD2_create(Task(waitfor), notify)
 
+// bool tqtestd2Advance(TQTestD2 *self);
+//
+// advance a deferred task to run as soon as possible
+#define tqtestd2Advance(self) Task_advance(Task(self))
+
 // bool tqtestd2Run(TQTestD2 *self, TaskQueue *tq, TaskControl *tcon);
 #define tqtestd2Run(self, tq, tcon) (self)->_->run(TQTestD2(self), TaskQueue(tq), tcon)
 
@@ -459,8 +501,9 @@ typedef struct TQDelayTest {
     int64 last;        // the last time this task was moved between queues and/or run
     int64 nextrun;        // next time for this task to run when deferred
     int64 lastprogress;        // timestamp of last progress change
-    atomic(bool) cancelled;        // request that the task should be cancelled
+    Weak(TaskQueue) *lastq;        // The last queue this task ran on before it was deferred
     cchain oncomplete;        // functions that are called when this task has completed
+    atomic(bool) cancelled;        // request that the task should be cancelled
     int64 len;
 } TQDelayTest;
 extern ObjClassInfo TQDelayTest_clsinfo;
@@ -484,6 +527,11 @@ _objfactory_guaranteed TQDelayTest *TQDelayTest_create(int64 len);
 // TQDelayTest *tqdelaytestCreate(int64 len);
 #define tqdelaytestCreate(len) TQDelayTest_create(len)
 
+// bool tqdelaytestAdvance(TQDelayTest *self);
+//
+// advance a deferred task to run as soon as possible
+#define tqdelaytestAdvance(self) Task_advance(Task(self))
+
 // bool tqdelaytestRun(TQDelayTest *self, TaskQueue *tq, TaskControl *tcon);
-#define tqdelaytestRun(self, tq, tcon) (self)->_->run(TQDelayTest(self), tq, tcon)
+#define tqdelaytestRun(self, tq, tcon) (self)->_->run(TQDelayTest(self), TaskQueue(tq), tcon)
 

@@ -1,5 +1,6 @@
 #include "taskqueue_private.h"
 #include <cx/format.h>
+#include <cx/string/strmanip.h>
 
 static uint16 ptrHash(void *ptr)
 {
@@ -34,6 +35,9 @@ static void dumpTask(LogCategory *cat, void *ptr, int64 now, int wnum, bool isde
     case TASK_Waiting:
         state = _S"Waiting";
         break;
+    case TASK_Deferred:
+        state = _S"Deferred";
+        break;
     case TASK_Succeeded:
         state = _S"Succeeded";
         break;
@@ -53,6 +57,15 @@ static void dumpTask(LogCategory *cat, void *ptr, int64 now, int wnum, bool isde
 
     if(task && task->last > 0) {
         strFormat(&suffix, _S" [${int}ms]", stvar(int64, isdefer ? timeToMsec(now - task->lastprogress) : timeToMsec(now - task->last)));
+        if(isdefer && task->nextrun == timeForever) {
+            strAppend(&suffix, _S" [Defer Forever]");
+        } else if (isdefer && task->nextrun > now) {
+            string temp = 0;
+            strTemp(&temp, 32);
+            strFormat(&temp, _S" [Defer for ${int}ms]", stvar(int64, timeToMsec(task->nextrun - now)));
+            strAppend(&suffix, temp);
+            strDestroy(&temp);
+        }
     }
 
     logFmtC(Warn, cat, _S"    ${string}${string}-${0uint(4,hex)} (${string})${string}",
@@ -105,7 +118,7 @@ static void doWarn(TaskQueue *tq, bool *warned)
     *warned = true;
 }
 
-void tqMonitorRun(TaskQueue *tq, int64 now, TQMonitorState *s)
+void _tqMonitorRun(TaskQueue *tq, int64 now, TQMonitorState *s)
 {
     // monitor runs from the manager thread; so we can safely access all
     // the tasks and structures without locking
@@ -145,7 +158,7 @@ void tqMonitorRun(TaskQueue *tq, int64 now, TQMonitorState *s)
     int dcount = saSize(tq->deferred);
     for(int i = 0; i < dcount; i++) {
         Task *task = tq->deferred.a[i];
-        if(task && !dumpq && now > task->lastprogress + c->mTaskStalled) {
+        if(task && !dumpq && now > task->lastprogress + c->mTaskStalled && task->nextrun != timeForever) {
             doWarn(tq, &warned);
             dumpq = true;
             logFmtC(Warn, c->mLogCat, _S"  ${string}-${0uint(4,hex)} stalled for ${int} ms",

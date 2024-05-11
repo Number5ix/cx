@@ -30,8 +30,10 @@ _objinit_guaranteed bool TaskQueue_init(_Inout_ TaskQueue *self)
     int qsz = self->tqconfig.wBusy * 4;
     prqInitDynamic(&self->runq, qsz, qsz * 2, 0, PRQ_Grow_100, PRQ_Grow_25);
     prqInitDynamic(&self->doneq, qsz, qsz * 2, 0, PRQ_Grow_100, PRQ_Grow_25);
+    prqInitDynamic(&self->advanceq, 4, 16, 0, PRQ_Grow_100, PRQ_Grow_100);
     self->runq.shrinkinterval = timeS(5);
     self->doneq.shrinkinterval = timeS(5);
+    self->advanceq.shrinkinterval = timeS(5);
 
     // Autogen begins -----
     saInit(&self->workers, object, 1);
@@ -43,6 +45,7 @@ void TaskQueue_destroy(_Inout_ TaskQueue *self)
 {
     eventDestroy(&self->workev);
     eventDestroy(&self->shutdownev);
+    prqDestroy(&self->advanceq);
     prqDestroy(&self->runq);
     prqDestroy(&self->doneq);
     // Autogen begins -----

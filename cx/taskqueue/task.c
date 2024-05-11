@@ -7,11 +7,13 @@
 #include <cx/string.h>
 #include "task.h"
 // ==================== Auto-generated section ends ======================
+#include "taskqueue_private.h"
 
 void Task_destroy(_Inout_ Task *self)
 {
     // Autogen begins -----
     strDestroy(&self->name);
+    objDestroyWeak(&self->lastq);
     cchainDestroy(&self->oncomplete);
     // Autogen ends -------
 }
@@ -23,6 +25,19 @@ _objinit_guaranteed bool Task_init(_Inout_ Task *self)
     // Autogen begins -----
     return true;
     // Autogen ends -------
+}
+
+bool Task_advance(_Inout_ Task *self)
+{
+    TaskQueue *tq = objAcquireFromWeak(TaskQueue, self->lastq);
+    bool ret = false;
+
+    if(tq) {
+        ret = _tqAdvanceTask(tq, self);
+        objRelease(&tq);
+    }
+
+    return ret;
 }
 
 // Autogen begins -----

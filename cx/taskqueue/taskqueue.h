@@ -61,6 +61,52 @@ _meta_inline int32 _btaskState(BasicTask *bt)
     return atomicLoad(int32, &bt->state, Acquire);
 }
 #define btaskState(task) _btaskState(BasicTask(task))
+#define taskState(task) _btaskState(BasicTask(task))
+
+_meta_inline int32 _btaskIsRunning(BasicTask *bt)
+{
+    return _btaskState(bt) == TASK_Running;
+}
+#define btaskIsRunning(task) _btaskIsRunning(BasicTask(task))
+#define taskIsRunning(task) _btaskIsRunning(BasicTask(task))
+
+_meta_inline int32 _btaskIsPending(BasicTask *bt)
+{
+    int32 state = _btaskState(bt);
+    return state == TASK_Waiting || state == TASK_Deferred;
+}
+#define btaskIsPending(task) _btaskIsPending(BasicTask(task))
+#define taskIsPending(task) _btaskIsPending(BasicTask(task))
+
+_meta_inline int32 _btaskIsIdle(BasicTask *bt)
+{
+    int32 state = _btaskState(bt);
+    return state == TASK_Created || state == TASK_Waiting || state == TASK_Deferred;
+}
+#define btaskIsIdle(task) _btaskIsIdle(BasicTask(task))
+#define taskIsIdle(task) _btaskIsIdle(BasicTask(task))
+
+_meta_inline int32 _btaskIsComplete(BasicTask *bt)
+{
+    int32 state = _btaskState(bt);
+    return state == TASK_Succeeded || state == TASK_Failed;
+}
+#define btaskIsComplete(task) _btaskIsComplete(BasicTask(task))
+#define taskIsComplete(task) _btaskIsComplete(BasicTask(task))
+
+_meta_inline int32 _btaskSucceeded(BasicTask *bt)
+{
+    return _btaskState(bt) == TASK_Succeeded;
+}
+#define btaskSucceeded(task) _btaskSucceeded(BasicTask(task))
+#define taskSucceeded(task) _btaskSucceeded(BasicTask(task))
+
+_meta_inline int32 _btaskFailed(BasicTask *bt)
+{
+    return _btaskState(bt) == TASK_Failed;
+}
+#define btaskFailed(task) _btaskFailed(BasicTask(task))
+#define taskFailed(task) _btaskFailed(BasicTask(task))
 
 _meta_inline bool _taskCancelled(Task *t)
 {
