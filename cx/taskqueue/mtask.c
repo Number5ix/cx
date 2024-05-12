@@ -17,13 +17,13 @@ void MTask__cycle(_Inout_ MTask *self, _Out_opt_ int64 *progress)
     bool complete = true;
     bool cantstart = false;
 
-    if(self->done)
-        return;
-
     withMutex(&self->lock)
     {
+        if(self->done)
+            break;
+
         bool allstarted = true;
-        for (int i = saSize(self->_pending) - 1; i >= 0; --i) {
+        for(int i = saSize(self->_pending) - 1; i >= 0; --i) {
             Task *task = self->_pending.a[i];
 
             int32 state = btaskState(task);
@@ -68,15 +68,15 @@ void MTask__cycle(_Inout_ MTask *self, _Out_opt_ int64 *progress)
                 cantstart = true;           // can't start anything because we don't have a queue!
             }
         }
+
+        if(progress)
+            *progress = maxprogress;
+
+        if(cantstart)
+            self->failed = true;
+
+        self->done = complete || (nrunning == 0 && cantstart);
     } // withMutex
-
-    if(progress)
-        *progress = maxprogress;
-
-    if(cantstart)
-        self->failed = true;
-
-    self->done = complete || (nrunning == 0 && cantstart);
 }
 
 static bool mtaskCallback(stvlist *cvars, stvlist *args)
