@@ -14,7 +14,7 @@ static intptr deferTaskCmp(stype st, stgeneric a, stgeneric b, uint32 flags)
     Task *t1 = (Task *)a.st_ptr;
     Task *t2 = (Task *)b.st_ptr;
 
-    return t1->nextrun - t2->nextrun;
+    return stCmp(int64, t1->nextrun, t2->nextrun);
 }
 
 static STypeOps deferTaskOps = {

@@ -29,11 +29,27 @@ static intptr stCmp_##type(stype st, stgeneric gen1, stgeneric gen2, uint32 flag
 STCMP_GEN(int8)
 STCMP_GEN(int16)
 STCMP_GEN(int32)
-STCMP_GEN(int64)
 STCMP_GEN(uint8)
 STCMP_GEN(uint16)
 STCMP_GEN(uint32)
+#ifdef _64BIT
+STCMP_GEN(int64)
 STCMP_GEN(uint64)
+#else
+static intptr stCmp_int64(stype st, stgeneric gen1, stgeneric gen2, uint32 flags)
+{
+    if(gen1.st_int64 == gen2.st_int64)
+        return 0;
+    return (gen1.st_int64 < gen2.st_int64) ? -1 : 1;
+}
+
+static intptr stCmp_uint64(stype st, stgeneric gen1, stgeneric gen2, uint32 flags)
+{
+    if(gen1.st_uint64 == gen2.st_uint64)
+        return 0;
+    return (gen1.st_uint64 < gen2.st_uint64) ? -1 : 1;
+}
+#endif
 
 // 'equal enough' values good enough for general use while taking into account small
 // amounts of floating-point error.

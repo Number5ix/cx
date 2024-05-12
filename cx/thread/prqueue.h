@@ -57,7 +57,7 @@
 // they were inserted, but variations in timing among threads may cause them to not be processed
 // in the exact order.
 
-#if DEBUG_LEVEL >= 2
+#if DEBUG_LEVEL >= 2 && _64BIT
 #define PRQ_PERF_STATS
 #endif
 CX_C_BEGIN
