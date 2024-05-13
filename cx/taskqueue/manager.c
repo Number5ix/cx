@@ -22,7 +22,7 @@ static bool removeWorker(Thread *self, TaskQueue *tq)
     TaskQueueWorker *worker = NULL;
     if(saExtract(&tq->workers, nrm, object, &worker) && worker) {
         atomicFetchAdd(int32, &tq->nworkers, -1, AcqRel);
-        thrShutdown(worker->thr);
+        thrRequestExit(worker->thr);
 
         // Unfortunately we need to wake up ALL the workers to ensure that this one
         // sees the signal to shut down... WaitForMultipleObjects is great but not all
