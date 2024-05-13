@@ -28,8 +28,7 @@ static int tqWorkerThread(Thread *thr)
         BasicTask *btask;
         bool hadtasks = false;
 
-        while ((btask = (BasicTask*)prqPop(&tq->runq))) {
-            bool doneq = true;
+        while((btask = (BasicTask *)prqPop(&tq->runq))) {
             hadtasks = true;
 
             // Do UI stuff first if this is a UI task queue, to keep things responsive
@@ -67,12 +66,14 @@ static int tqWorkerThread(Thread *thr)
                 } else if(tcon.progress) {
                     // defertime is 0 and we DID make progress, add it straight to the run queue so
                     // we'll get right back to it.
+                    atomicStore(int32, &btask->state, TASK_Waiting, Release);
+                    task->last = clockTimer();
                     prqPush(&tq->runq, btask);
                     // Note: We intentionally don't signal the worker event because we're
                     // about to loop anyway, no need to wake up another thread. If something
                     // else is added to the queue in the interim, that action will wake up a
                     // different worker.
-                    doneq = false;
+                    continue;
                 } else {
                     // defertime is 0 and we did NOT make progress. In this case, it does still go
                     // to the defer list, but nextrun is set to 0 which tells the manager to
@@ -91,18 +92,16 @@ static int tqWorkerThread(Thread *thr)
                     cchainCall(&task->oncomplete, stvar(object, task));
                     cchainDestroy(&task->oncomplete);       // oncomplete callbacks are one-shots
                 }
+
+                if(tcon.notifyev) {
+                    eventSignal(tcon.notifyev);
+                }
             }
 
-            if(tcon.notifyev) {
-                eventSignal(tcon.notifyev);
-            }
-
-            // In all cases except one the task needs to be moved to the done queue for the manager
+            // In all remaining cases the task needs to be moved to the done queue for the manager
             // to either requeue later or destroy.
-            if(doneq) {
-                prqPush(&tq->doneq, btask);
-                eventSignal(&tq->manager->notify);
-            }
+            prqPush(&tq->doneq, btask);
+            eventSignal(&tq->manager->notify);
         }
 
         // if we did some work, signal one of the other threads to wake up; this helps kickstart the
