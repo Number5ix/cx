@@ -23,7 +23,7 @@ typedef struct MTask_ClassIf {
     // Add a task
     void (*add)(_Inout_ void *self, Task *task);
     // Run cycle of checking / queueing tasks as needed (private)
-    void (*_cycle)(_Inout_ void *self, _Out_opt_ int64 *progress);
+    bool (*_cycle)(_Inout_ void *self, _Out_opt_ int64 *progress);
 } MTask_ClassIf;
 extern MTask_ClassIf MTask_ClassIf_tmpl;
 
@@ -52,6 +52,7 @@ typedef struct MTask {
     Mutex lock;
     sa_Task _pending;        // List of tasks this MTask is waiting on (private)
     sa_Task tasks;        // Tasks go here once they're finished
+    atomic(int32) _ntasks;        // internal tracking, expected size of done array
     bool done;        // cached state if all tasks are complete
     bool failed;        // true if any tasks failed
 } MTask;
@@ -93,7 +94,7 @@ _objfactory_guaranteed MTask *MTask_createWithQueue(TaskQueue *tq, int limit);
 //
 // Add a task
 #define mtaskAdd(self, task) (self)->_->add(MTask(self), Task(task))
-// void mtask_cycle(MTask *self, int64 *progress);
+// bool mtask_cycle(MTask *self, int64 *progress);
 //
 // Run cycle of checking / queueing tasks as needed (private)
 #define mtask_cycle(self, progress) (self)->_->_cycle(MTask(self), progress)

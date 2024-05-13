@@ -136,7 +136,7 @@ typedef struct TQMTest_ClassIf {
     // Add a task
     void (*add)(_Inout_ void *self, Task *task);
     // Run cycle of checking / queueing tasks as needed (private)
-    void (*_cycle)(_Inout_ void *self, _Out_opt_ int64 *progress);
+    bool (*_cycle)(_Inout_ void *self, _Out_opt_ int64 *progress);
 } TQMTest_ClassIf;
 extern TQMTest_ClassIf TQMTest_ClassIf_tmpl;
 
@@ -604,6 +604,7 @@ typedef struct TQMTest {
     Mutex lock;
     sa_Task _pending;        // List of tasks this MTask is waiting on (private)
     sa_Task tasks;        // Tasks go here once they're finished
+    atomic(int32) _ntasks;        // internal tracking, expected size of done array
     bool done;        // cached state if all tasks are complete
     bool failed;        // true if any tasks failed
     Event *notify;
@@ -643,7 +644,7 @@ _objfactory_guaranteed TQMTest *TQMTest_create(Event *notify, TaskQueue *tq, int
 //
 // Add a task
 #define tqmtestAdd(self, task) (self)->_->add(TQMTest(self), Task(task))
-// void tqmtest_cycle(TQMTest *self, int64 *progress);
+// bool tqmtest_cycle(TQMTest *self, int64 *progress);
 //
 // Run cycle of checking / queueing tasks as needed (private)
 #define tqmtest_cycle(self, progress) (self)->_->_cycle(TQMTest(self), progress)

@@ -10,12 +10,13 @@
 #include <cx/closure.h>
 #include <cx/taskqueue.h>
 
-void MTask__cycle(_Inout_ MTask *self, _Out_opt_ int64 *progress)
+bool MTask__cycle(_Inout_ MTask *self, _Out_opt_ int64 *progress)
 {
     int64 maxprogress = 0;
     int nrunning = 0;
     bool complete = true;
     bool cantstart = false;
+    bool ret = true;
 
     withMutex(&self->lock)
     {
@@ -76,7 +77,11 @@ void MTask__cycle(_Inout_ MTask *self, _Out_opt_ int64 *progress)
             self->failed = true;
 
         self->done = complete || (nrunning == 0 && cantstart);
+
+        ret = (atomicLoad(int32, &self->_ntasks, Acquire) == saSize(self->tasks));
     } // withMutex
+
+    return ret;
 }
 
 static bool mtaskCallback(stvlist *cvars, stvlist *args)
@@ -87,12 +92,12 @@ static bool mtaskCallback(stvlist *cvars, stvlist *args)
 
     MTask *mtask = objAcquireFromWeak(MTask, wref);
     if(mtask) {
-        MTask__cycle(mtask, NULL);
-
-        // if we just finished, kick the task loose from the defer queue
-        if(mtask->done)
-            taskAdvance(mtask);
-
+        atomicFetchAdd(int32, &mtask->_ntasks, 1, AcqRel);
+        // Bump the mtask the front of the queue so the cycle can run.
+        // Originally this code tried to run the cycle directly in the callback,
+        // but even using optimistic locking it turned out to too much of a performance
+        // bottleneck. The task advance / undefer method is much less overhead.
+        taskAdvance(mtask);
         objRelease(&mtask);
     }
 
@@ -103,12 +108,12 @@ bool MTask_run(_Inout_ MTask *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tco
 {
     int64 progress = 0;
 
-    MTask__cycle(self, &progress);
+    bool runagain = !MTask__cycle(self, &progress);
     if (self->done)
         return !self->failed;
 
     tcon->defer = true;
-    tcon->defertime = timeForever;
+    tcon->defertime = runagain ? 0 : timeS(15);     // failsafe timer
     tcon->progress = (progress > self->lastprogress);
     return true;
 }

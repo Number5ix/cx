@@ -13,12 +13,13 @@ class MTask extends Task
     Mutex lock;
     sarray:object:Task _pending;        // List of tasks this MTask is waiting on (private)
     sarray:object:Task tasks;           // Tasks go here once they're finished
+    atomic:int32 _ntasks;               // internal tracking, expected size of done array
     bool done;                          // cached state if all tasks are complete
     bool failed;                        // true if any tasks failed
 
     void add(Task *task);               // Add a task
 
-    void _cycle([out] [opt] int64 *progress);   // Run cycle of checking / queueing tasks as needed (private)
+    bool _cycle([out] [opt] int64 *progress);   // Run cycle of checking / queueing tasks as needed (private)
 
     factory create();
     factory createWithQueue(TaskQueue *tq, int limit);

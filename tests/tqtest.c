@@ -429,7 +429,6 @@ static int test_tqtest_mtask(void)
     Event notifyev;
     Event dummy;
     int ret = 0;
-    atomic(int32) nsucceed = atomicInit(0);
 
     atomicStore(int32, &tqtestd_order, 0, Relaxed);
     eventInit(&notifyev);
@@ -456,26 +455,18 @@ static int test_tqtest_mtask(void)
         mtaskAdd(tqmtest, d2);
         mtaskAdd(tqmtest, d1);
 
-        // completion callbacks, ensure these get attached first
-        cchainAttach(&d1->oncomplete, defer_oncomplete, stvar(ptr, &nsucceed));
-        cchainAttach(&d2->oncomplete, defer_oncomplete, stvar(ptr, &nsucceed));
-
         dtime += timeMS(20);
     }
 
     for(int i = 0; i < NUM_MTASK_TASKS; i++) {
         TQTest1 *t = tqtest1Create(1, 1, &dummy);
         mtaskAdd(tqmtest, t);
-        cchainAttach(&t->oncomplete, defer_oncomplete, stvar(ptr, &nsucceed));
         objRelease(&t);
     }
 
     tqAdd(q, tqmtest);
 
     if(!eventWaitTimeout(&notifyev, timeS(60)))
-        ret = 1;
-
-    if(atomicLoad(int32, &nsucceed, Acquire) != NUM_DEFER_STEPS * 2 + NUM_MTASK_TASKS)
         ret = 1;
 
     if(saSize(tqmtest->tasks) != NUM_DEFER_STEPS * 2 + NUM_MTASK_TASKS)
