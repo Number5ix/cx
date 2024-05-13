@@ -218,7 +218,7 @@ bool TQMTest_run(_Inout_ TQMTest *self, _In_ TaskQueue *tq, _Inout_ TaskControl 
     bool ret = parent_run(tq, tcon);
 
     if(self->done) {
-        eventSignal(self->notify);
+        tcon->notifyev = self->notify;
     }
 
     return ret;
