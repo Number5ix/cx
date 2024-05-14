@@ -7,6 +7,8 @@
 
 typedef struct TaskQueue TaskQueue;
 typedef struct TaskQueue_WeakRef TaskQueue_WeakRef;
+typedef struct TaskQueueWorker TaskQueueWorker;
+typedef struct TaskQueueWorker_WeakRef TaskQueueWorker_WeakRef;
 typedef struct TaskControl TaskControl;
 typedef struct Task Task;
 typedef struct Task_WeakRef Task_WeakRef;
@@ -18,7 +20,7 @@ typedef struct Task_ClassIf {
     ObjIface *_parent;
     size_t _size;
 
-    bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon);
+    bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _In_ TaskQueueWorker *worker, _Inout_ TaskControl *tcon);
     bool (*reset)(_Inout_ void *self);
 } Task_ClassIf;
 extern Task_ClassIf Task_ClassIf_tmpl;
@@ -65,8 +67,8 @@ bool Task_advance(_Inout_ Task *self);
 // advance a deferred task to run as soon as possible
 #define taskAdvance(self) Task_advance(Task(self))
 
-// bool taskRun(Task *self, TaskQueue *tq, TaskControl *tcon);
-#define taskRun(self, tq, tcon) (self)->_->run(Task(self), TaskQueue(tq), tcon)
+// bool taskRun(Task *self, TaskQueue *tq, TaskQueueWorker *worker, TaskControl *tcon);
+#define taskRun(self, tq, worker, tcon) (self)->_->run(Task(self), TaskQueue(tq), TaskQueueWorker(worker), tcon)
 // bool taskReset(Task *self);
 #define taskReset(self) (self)->_->reset(Task(self))
 

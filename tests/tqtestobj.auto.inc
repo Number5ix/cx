@@ -48,7 +48,7 @@ TQMTest_ClassIf TQMTest_ClassIf_tmpl = {
 static TQTest1_ClassIf _impl_TQTest1_TQTest1_ClassIf = {
     ._size = sizeof(TQTest1_ClassIf),
     ._implements = (ObjIface*)&TQTest1_ClassIf_tmpl,
-    .run = (bool (*)(void*, TaskQueue*, TaskControl*))TQTest1_run,
+    .run = (bool (*)(void*, TaskQueue*, TaskQueueWorker*, TaskControl*))TQTest1_run,
 };
 
 static ObjIface *_ifimpl_TQTest1[] = {
@@ -66,7 +66,7 @@ ObjClassInfo TQTest1_clsinfo = {
 static TQTestFail_ClassIf _impl_TQTestFail_TQTestFail_ClassIf = {
     ._size = sizeof(TQTestFail_ClassIf),
     ._implements = (ObjIface*)&TQTestFail_ClassIf_tmpl,
-    .run = (bool (*)(void*, TaskQueue*, TaskControl*))TQTestFail_run,
+    .run = (bool (*)(void*, TaskQueue*, TaskQueueWorker*, TaskControl*))TQTestFail_run,
 };
 
 static ObjIface *_ifimpl_TQTestFail[] = {
@@ -84,7 +84,7 @@ ObjClassInfo TQTestFail_clsinfo = {
 static TQTestCC1_ClassIf _impl_TQTestCC1_TQTestCC1_ClassIf = {
     ._size = sizeof(TQTestCC1_ClassIf),
     ._implements = (ObjIface*)&TQTestCC1_ClassIf_tmpl,
-    .run = (bool (*)(void*, TaskQueue*, TaskControl*))TQTestCC1_run,
+    .run = (bool (*)(void*, TaskQueue*, TaskQueueWorker*, TaskControl*))TQTestCC1_run,
 };
 
 static ObjIface *_ifimpl_TQTestCC1[] = {
@@ -102,7 +102,7 @@ ObjClassInfo TQTestCC1_clsinfo = {
 static TQTestCC2_ClassIf _impl_TQTestCC2_TQTestCC2_ClassIf = {
     ._size = sizeof(TQTestCC2_ClassIf),
     ._implements = (ObjIface*)&TQTestCC2_ClassIf_tmpl,
-    .run = (bool (*)(void*, TaskQueue*, TaskControl*))TQTestCC2_run,
+    .run = (bool (*)(void*, TaskQueue*, TaskQueueWorker*, TaskControl*))TQTestCC2_run,
 };
 
 static ObjIface *_ifimpl_TQTestCC2[] = {
@@ -138,7 +138,7 @@ ObjClassInfo TQTestDefer_clsinfo = {
 static TQTestD1_ClassIf _impl_TQTestD1_TQTestD1_ClassIf = {
     ._size = sizeof(TQTestD1_ClassIf),
     ._implements = (ObjIface*)&TQTestD1_ClassIf_tmpl,
-    .run = (bool (*)(void*, TaskQueue*, TaskControl*))TQTestD1_run,
+    .run = (bool (*)(void*, TaskQueue*, TaskQueueWorker*, TaskControl*))TQTestD1_run,
 };
 
 static ObjIface *_ifimpl_TQTestD1[] = {
@@ -156,7 +156,7 @@ ObjClassInfo TQTestD1_clsinfo = {
 static TQTestD2_ClassIf _impl_TQTestD2_TQTestD2_ClassIf = {
     ._size = sizeof(TQTestD2_ClassIf),
     ._implements = (ObjIface*)&TQTestD2_ClassIf_tmpl,
-    .run = (bool (*)(void*, TaskQueue*, TaskControl*))TQTestD2_run,
+    .run = (bool (*)(void*, TaskQueue*, TaskQueueWorker*, TaskControl*))TQTestD2_run,
 };
 
 static ObjIface *_ifimpl_TQTestD2[] = {
@@ -175,7 +175,7 @@ ObjClassInfo TQTestD2_clsinfo = {
 static TQDelayTest_ClassIf _impl_TQDelayTest_TQDelayTest_ClassIf = {
     ._size = sizeof(TQDelayTest_ClassIf),
     ._implements = (ObjIface*)&TQDelayTest_ClassIf_tmpl,
-    .run = (bool (*)(void*, TaskQueue*, TaskControl*))TQDelayTest_run,
+    .run = (bool (*)(void*, TaskQueue*, TaskQueueWorker*, TaskControl*))TQDelayTest_run,
 };
 
 static ObjIface *_ifimpl_TQDelayTest[] = {
@@ -193,7 +193,7 @@ ObjClassInfo TQDelayTest_clsinfo = {
 static TQMTest_ClassIf _impl_TQMTest_TQMTest_ClassIf = {
     ._size = sizeof(TQMTest_ClassIf),
     ._implements = (ObjIface*)&TQMTest_ClassIf_tmpl,
-    .run = (bool (*)(void*, TaskQueue*, TaskControl*))TQMTest_run,
+    .run = (bool (*)(void*, TaskQueue*, TaskQueueWorker*, TaskControl*))TQMTest_run,
 };
 
 static ObjIface *_ifimpl_TQMTest[] = {

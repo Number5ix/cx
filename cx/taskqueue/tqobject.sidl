@@ -34,5 +34,7 @@ class TaskQueue {
 
     bool start(Event *notify);
 
+    [sal _objfactory_guaranteed] TaskQueueWorker *createWorker(int32 num);  // worker factory for custom queues to override
+
     factory create(strref name, [in] TaskQueueConfig *tqconfig);
 }

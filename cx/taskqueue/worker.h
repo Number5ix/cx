@@ -7,6 +7,8 @@
 
 typedef struct TaskQueue TaskQueue;
 typedef struct TaskQueue_WeakRef TaskQueue_WeakRef;
+typedef struct TaskQueueWorker TaskQueueWorker;
+typedef struct TaskQueueWorker_WeakRef TaskQueueWorker_WeakRef;
 typedef struct TaskControl TaskControl;
 typedef struct TaskQueueWorker TaskQueueWorker;
 typedef struct TaskQueueWorker_WeakRef TaskQueueWorker_WeakRef;
@@ -18,7 +20,14 @@ typedef struct TaskQueueWorker_ClassIf {
     ObjIface *_parent;
     size_t _size;
 
-    bool (*start)(_Inout_ void *self, TaskQueue *tq);
+    bool (*_startThread)(_Inout_ void *self, TaskQueue *tq);
+    // hooks for derived classes to override if desired
+    // worker is starting up
+    void (*startup)(_Inout_ void *self, TaskQueue *tq);
+    // worker should process tasks (call parent!)
+    void (*tick)(_Inout_ void *self, TaskQueue *tq, TQUICallback ui);
+    // worker is shutting down
+    void (*shutdown)(_Inout_ void *self, TaskQueue *tq);
 } TaskQueueWorker_ClassIf;
 extern TaskQueueWorker_ClassIf TaskQueueWorker_ClassIf_tmpl;
 
@@ -56,6 +65,19 @@ _objfactory_guaranteed TaskQueueWorker *TaskQueueWorker_create(int32 num);
 // TaskQueueWorker *taskqueueworkerCreate(int32 num);
 #define taskqueueworkerCreate(num) TaskQueueWorker_create(num)
 
-// bool taskqueueworkerStart(TaskQueueWorker *self, TaskQueue *tq);
-#define taskqueueworkerStart(self, tq) (self)->_->start(TaskQueueWorker(self), TaskQueue(tq))
+// bool taskqueueworker_startThread(TaskQueueWorker *self, TaskQueue *tq);
+#define taskqueueworker_startThread(self, tq) (self)->_->_startThread(TaskQueueWorker(self), TaskQueue(tq))
+// void taskqueueworkerStartup(TaskQueueWorker *self, TaskQueue *tq);
+//
+// hooks for derived classes to override if desired
+// worker is starting up
+#define taskqueueworkerStartup(self, tq) (self)->_->startup(TaskQueueWorker(self), TaskQueue(tq))
+// void taskqueueworkerTick(TaskQueueWorker *self, TaskQueue *tq, TQUICallback ui);
+//
+// worker should process tasks (call parent!)
+#define taskqueueworkerTick(self, tq, ui) (self)->_->tick(TaskQueueWorker(self), TaskQueue(tq), ui)
+// void taskqueueworkerShutdown(TaskQueueWorker *self, TaskQueue *tq);
+//
+// worker is shutting down
+#define taskqueueworkerShutdown(self, tq) (self)->_->shutdown(TaskQueueWorker(self), TaskQueue(tq))
 

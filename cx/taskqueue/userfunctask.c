@@ -21,7 +21,7 @@ _objfactory_guaranteed UserFuncTask *UserFuncTask_create(UserTaskCB func, void *
     return self;
 }
 
-bool UserFuncTask_run(_Inout_ UserFuncTask *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon)
+bool UserFuncTask_run(_Inout_ UserFuncTask *self, _In_ TaskQueue *tq, _In_ TaskQueueWorker *worker, _Inout_ TaskControl *tcon)
 {
     return self->func && self->func(tq, self->udata);
 }

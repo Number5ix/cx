@@ -93,6 +93,11 @@ bool TaskQueue_start(_Inout_ TaskQueue *self, Event *notify)
     return self->manager;
 }
 
+_objfactory_guaranteed TaskQueueWorker *TaskQueue_createWorker(_Inout_ TaskQueue *self, int32 num)
+{
+    return taskqueueworkerCreate(num);
+}
+
 // Autogen begins -----
 #include "tqobject.auto.inc"
 // Autogen ends -------

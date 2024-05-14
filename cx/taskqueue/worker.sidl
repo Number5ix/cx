@@ -8,5 +8,10 @@ class TaskQueueWorker {
     bool shutdown;
 
     factory create(int32 num);
-    bool start(TaskQueue *tq);
+    bool _startThread(TaskQueue *tq);
+
+    // hooks for derived classes to override if desired
+    void startup(TaskQueue *tq);        // worker is starting up
+    void tick(TaskQueue *tq, TQUICallback ui);      // worker should process tasks (call parent!)
+    void shutdown(TaskQueue *tq);       // worker is shutting down
 }

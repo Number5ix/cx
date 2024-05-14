@@ -104,7 +104,7 @@ static bool mtaskCallback(stvlist *cvars, stvlist *args)
     return true;
 }
 
-bool MTask_run(_Inout_ MTask *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon)
+bool MTask_run(_Inout_ MTask *self, _In_ TaskQueue *tq, _In_ TaskQueueWorker *worker, _Inout_ TaskControl *tcon)
 {
     int64 progress = 0;
 
@@ -112,10 +112,8 @@ bool MTask_run(_Inout_ MTask *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tco
     if (self->done)
         return !self->failed;
 
-    tcon->defer = true;
-    tcon->defertime = runagain ? 0 : timeS(15);     // failsafe timer
-    tcon->progress = (progress > self->lastprogress);
-    return true;
+    // 15 second failsafe timer
+    return taskRetDefer(tcon, runagain ? 0 : timeS(15), progress > self->lastprogress);
 }
 
 void MTask_add(_Inout_ MTask *self, Task *task)

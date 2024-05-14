@@ -7,6 +7,8 @@
 
 typedef struct TaskQueue TaskQueue;
 typedef struct TaskQueue_WeakRef TaskQueue_WeakRef;
+typedef struct TaskQueueWorker TaskQueueWorker;
+typedef struct TaskQueueWorker_WeakRef TaskQueueWorker_WeakRef;
 typedef struct TaskControl TaskControl;
 typedef struct UserFuncTask UserFuncTask;
 typedef struct UserFuncTask_WeakRef UserFuncTask_WeakRef;
@@ -18,7 +20,7 @@ typedef struct UserFuncTask_ClassIf {
     ObjIface *_parent;
     size_t _size;
 
-    bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon);
+    bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _In_ TaskQueueWorker *worker, _Inout_ TaskControl *tcon);
     bool (*reset)(_Inout_ void *self);
 } UserFuncTask_ClassIf;
 extern UserFuncTask_ClassIf UserFuncTask_ClassIf_tmpl;
@@ -58,8 +60,8 @@ _objfactory_guaranteed UserFuncTask *UserFuncTask_create(UserTaskCB func, void *
 // UserFuncTask *userfunctaskCreate(UserTaskCB func, void *udata);
 #define userfunctaskCreate(func, udata) UserFuncTask_create(func, udata)
 
-// bool userfunctaskRun(UserFuncTask *self, TaskQueue *tq, TaskControl *tcon);
-#define userfunctaskRun(self, tq, tcon) (self)->_->run(UserFuncTask(self), TaskQueue(tq), tcon)
+// bool userfunctaskRun(UserFuncTask *self, TaskQueue *tq, TaskQueueWorker *worker, TaskControl *tcon);
+#define userfunctaskRun(self, tq, worker, tcon) (self)->_->run(UserFuncTask(self), TaskQueue(tq), TaskQueueWorker(worker), tcon)
 // bool userfunctaskReset(UserFuncTask *self);
 #define userfunctaskReset(self) (self)->_->reset(UserFuncTask(self))
 

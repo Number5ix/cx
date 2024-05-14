@@ -1,10 +1,12 @@
+#include <cx/taskqueue/taskqueue_shared.h>
 // Bare minimum for a task object
 
 class TaskQueue;
+class TaskQueueWorker;
 struct TaskControl;
 
 [methodprefix btask] abstract class BasicTask {
     atomic:int32 state;
-    [abstract] bool run([in] TaskQueue *tq, [inout] TaskControl *tcon);
+    [abstract] bool run([in] TaskQueue *tq, [in] TaskQueueWorker *worker, [inout] TaskControl *tcon);
     bool reset();
 }

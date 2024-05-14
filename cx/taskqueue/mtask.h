@@ -7,6 +7,8 @@
 
 typedef struct TaskQueue TaskQueue;
 typedef struct TaskQueue_WeakRef TaskQueue_WeakRef;
+typedef struct TaskQueueWorker TaskQueueWorker;
+typedef struct TaskQueueWorker_WeakRef TaskQueueWorker_WeakRef;
 typedef struct TaskControl TaskControl;
 typedef struct MTask MTask;
 typedef struct MTask_WeakRef MTask_WeakRef;
@@ -18,7 +20,7 @@ typedef struct MTask_ClassIf {
     ObjIface *_parent;
     size_t _size;
 
-    bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon);
+    bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _In_ TaskQueueWorker *worker, _Inout_ TaskControl *tcon);
     bool (*reset)(_Inout_ void *self);
     // Add a task
     void (*add)(_Inout_ void *self, Task *task);
@@ -86,8 +88,8 @@ _objfactory_guaranteed MTask *MTask_createWithQueue(TaskQueue *tq, int limit);
 // advance a deferred task to run as soon as possible
 #define mtaskAdvance(self) Task_advance(Task(self))
 
-// bool mtaskRun(MTask *self, TaskQueue *tq, TaskControl *tcon);
-#define mtaskRun(self, tq, tcon) (self)->_->run(MTask(self), TaskQueue(tq), tcon)
+// bool mtaskRun(MTask *self, TaskQueue *tq, TaskQueueWorker *worker, TaskControl *tcon);
+#define mtaskRun(self, tq, worker, tcon) (self)->_->run(MTask(self), TaskQueue(tq), TaskQueueWorker(worker), tcon)
 // bool mtaskReset(MTask *self);
 #define mtaskReset(self) (self)->_->reset(MTask(self))
 // void mtaskAdd(MTask *self, Task *task);

@@ -8,6 +8,7 @@ static TaskQueue_ClassIf _impl_TaskQueue_TaskQueue_ClassIf = {
     ._size = sizeof(TaskQueue_ClassIf),
     ._implements = (ObjIface*)&TaskQueue_ClassIf_tmpl,
     .start = (bool (*)(void*, Event*))TaskQueue_start,
+    .createWorker = (TaskQueueWorker *(*)(void*, int32))TaskQueue_createWorker,
 };
 
 static ObjIface *_ifimpl_TaskQueue[] = {

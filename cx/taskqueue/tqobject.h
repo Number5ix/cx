@@ -10,6 +10,8 @@
 
 typedef struct TaskQueue TaskQueue;
 typedef struct TaskQueue_WeakRef TaskQueue_WeakRef;
+typedef struct TaskQueueWorker TaskQueueWorker;
+typedef struct TaskQueueWorker_WeakRef TaskQueueWorker_WeakRef;
 typedef struct TaskControl TaskControl;
 typedef struct TaskQueue TaskQueue;
 typedef struct TaskQueue_WeakRef TaskQueue_WeakRef;
@@ -30,6 +32,8 @@ typedef struct TaskQueue_ClassIf {
     size_t _size;
 
     bool (*start)(_Inout_ void *self, Event *notify);
+    // worker factory for custom queues to override
+    _objfactory_guaranteed TaskQueueWorker *(*createWorker)(_Inout_ void *self, int32 num);
 } TaskQueue_ClassIf;
 extern TaskQueue_ClassIf TaskQueue_ClassIf_tmpl;
 
@@ -80,4 +84,8 @@ _objfactory_guaranteed TaskQueue *TaskQueue_create(_In_opt_ strref name, _In_ Ta
 
 // bool taskqueueStart(TaskQueue *self, Event *notify);
 #define taskqueueStart(self, notify) (self)->_->start(TaskQueue(self), notify)
+// TaskQueueWorker *taskqueueCreateWorker(TaskQueue *self, int32 num);
+//
+// worker factory for custom queues to override
+#define taskqueueCreateWorker(self, num) (self)->_->createWorker(TaskQueue(self), num)
 

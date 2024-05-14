@@ -24,7 +24,7 @@ _objfactory_guaranteed TQTest1 *TQTest1_create(int num1, int num2, Event *notify
     return self;
 }
 
-bool TQTest1_run(_Inout_ TQTest1 *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon)
+bool TQTest1_run(_Inout_ TQTest1 *self, _In_ TaskQueue *tq, _In_ TaskQueueWorker *worker, _Inout_ TaskControl *tcon)
 {
     self->total = self->num[0] + self->num[1];
     tcon->notifyev = self->notify;
@@ -46,7 +46,7 @@ _objfactory_guaranteed TQTestFail *TQTestFail_create(int n, Event *notify)
     return self;
 }
 
-bool TQTestFail_run(_Inout_ TQTestFail *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon)
+bool TQTestFail_run(_Inout_ TQTestFail *self, _In_ TaskQueue *tq, _In_ TaskQueueWorker *worker, _Inout_ TaskControl *tcon)
 {
     tcon->notifyev = self->notify;
     return self->n & 1;     // odd will succeed, even will fail
@@ -70,7 +70,7 @@ _objfactory_guaranteed TQTestCC1 *TQTestCC1_create(int num1, int num2, TaskQueue
     return self;
 }
 
-bool TQTestCC1_run(_Inout_ TQTestCC1 *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon)
+bool TQTestCC1_run(_Inout_ TQTestCC1 *self, _In_ TaskQueue *tq, _In_ TaskQueueWorker *worker, _Inout_ TaskControl *tcon)
 {
     TQTestCC2 *task = tqtestcc2Create(self->num[0] + self->num[1], self->accum, self->counter, self->notify);
     tqRun(self->destq, &task);
@@ -93,7 +93,7 @@ _objfactory_guaranteed TQTestCC2 *TQTestCC2_create(int total, int *accum, int *c
     return self;
 }
 
-bool TQTestCC2_run(_Inout_ TQTestCC2 *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon)
+bool TQTestCC2_run(_Inout_ TQTestCC2 *self, _In_ TaskQueue *tq, _In_ TaskQueueWorker *worker, _Inout_ TaskControl *tcon)
 {
     *self->accum += self->total;
     *self->counter += 1;
@@ -118,13 +118,11 @@ _objfactory_guaranteed TQTestD1 *TQTestD1_create(int order, int64 dtime, Event *
     return self;
 }
 
-bool TQTestD1_run(_Inout_ TQTestD1 *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon)
+bool TQTestD1_run(_Inout_ TQTestD1 *self, _In_ TaskQueue *tq, _In_ TaskQueueWorker *worker, _Inout_ TaskControl *tcon)
 {
     if(self->rantime == 0) {
-        tcon->defer = true;
-        tcon->defertime = self->dtime;
         self->rantime = clockTimer();
-        return true;
+        return taskRetDefer(tcon, self->dtime, false);
     }
 
     tcon->notifyev = self->notify;
@@ -155,7 +153,7 @@ _objfactory_guaranteed TQTestD2 *TQTestD2_create(Task *waitfor, Event *notify)
     return self;
 }
 
-bool TQTestD2_run(_Inout_ TQTestD2 *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon)
+bool TQTestD2_run(_Inout_ TQTestD2 *self, _In_ TaskQueue *tq, _In_ TaskQueueWorker *worker, _Inout_ TaskControl *tcon)
 {
     int state = btaskState(self->waitfor);
     if(state == TASK_Succeeded) {
@@ -191,7 +189,7 @@ _objfactory_guaranteed TQDelayTest *TQDelayTest_create(int64 len)
     return self;
 }
 
-bool TQDelayTest_run(_Inout_ TQDelayTest *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon)
+bool TQDelayTest_run(_Inout_ TQDelayTest *self, _In_ TaskQueue *tq, _In_ TaskQueueWorker *worker, _Inout_ TaskControl *tcon)
 {
     osSleep(self->len);
     return true;
@@ -211,11 +209,11 @@ _objfactory_guaranteed TQMTest *TQMTest_create(Event *notify, TaskQueue *tq, int
     return self;
 }
 
-extern bool MTask_run(_Inout_ MTask *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon); // parent
-#define parent_run(tq, tcon) MTask_run((MTask*)(self), tq, tcon)
-bool TQMTest_run(_Inout_ TQMTest *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon)
+extern bool MTask_run(_Inout_ MTask *self, _In_ TaskQueue *tq, _In_ TaskQueueWorker *worker, _Inout_ TaskControl *tcon); // parent
+#define parent_run(tq, worker, tcon) MTask_run((MTask*)(self), tq, worker, tcon)
+bool TQMTest_run(_Inout_ TQMTest *self, _In_ TaskQueue *tq, _In_ TaskQueueWorker *worker, _Inout_ TaskControl *tcon)
 {
-    bool ret = parent_run(tq, tcon);
+    bool ret = parent_run(tq, worker, tcon);
 
     if(self->done) {
         tcon->notifyev = self->notify;

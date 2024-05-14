@@ -119,3 +119,12 @@ _meta_inline void _taskCancel(Task *t)
     atomicStore(bool, &t->cancelled, true, Release);
 }
 #define taskCancel(task) _taskCancel(Task(task))
+
+// convenience function for returning while filling out taskcontrol to defer the task
+_meta_inline bool taskRetDefer(TaskControl *tc, int64 time, bool progress)
+{
+    tc->defer = true;
+    tc->defertime = time;
+    tc->progress = progress;
+    return true;
+}

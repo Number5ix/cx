@@ -5,8 +5,8 @@
 
 static bool addWorker(TaskQueue *tq)
 {
-    TaskQueueWorker *worker = taskqueueworkerCreate(atomicLoad(int32, &tq->nworkers, Relaxed) + 1);
-    bool ret = taskqueueworkerStart(worker, tq);
+    TaskQueueWorker *worker = taskqueueCreateWorker(tq, atomicLoad(int32, &tq->nworkers, Relaxed) + 1);
+    bool ret = taskqueueworker_startThread(worker, tq);
     if(ret && worker->thr) {
         saPush(&tq->workers, object, worker);
         atomicFetchAdd(int32, &tq->nworkers, 1, AcqRel);

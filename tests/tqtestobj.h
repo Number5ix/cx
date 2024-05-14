@@ -8,6 +8,8 @@
 
 typedef struct TaskQueue TaskQueue;
 typedef struct TaskQueue_WeakRef TaskQueue_WeakRef;
+typedef struct TaskQueueWorker TaskQueueWorker;
+typedef struct TaskQueueWorker_WeakRef TaskQueueWorker_WeakRef;
 typedef struct TaskControl TaskControl;
 typedef struct TQTest1 TQTest1;
 typedef struct TQTest1_WeakRef TQTest1_WeakRef;
@@ -51,7 +53,7 @@ typedef struct TQTest1_ClassIf {
     ObjIface *_parent;
     size_t _size;
 
-    bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon);
+    bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _In_ TaskQueueWorker *worker, _Inout_ TaskControl *tcon);
     bool (*reset)(_Inout_ void *self);
 } TQTest1_ClassIf;
 extern TQTest1_ClassIf TQTest1_ClassIf_tmpl;
@@ -61,7 +63,7 @@ typedef struct TQTestFail_ClassIf {
     ObjIface *_parent;
     size_t _size;
 
-    bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon);
+    bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _In_ TaskQueueWorker *worker, _Inout_ TaskControl *tcon);
     bool (*reset)(_Inout_ void *self);
 } TQTestFail_ClassIf;
 extern TQTestFail_ClassIf TQTestFail_ClassIf_tmpl;
@@ -71,7 +73,7 @@ typedef struct TQTestCC1_ClassIf {
     ObjIface *_parent;
     size_t _size;
 
-    bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon);
+    bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _In_ TaskQueueWorker *worker, _Inout_ TaskControl *tcon);
     bool (*reset)(_Inout_ void *self);
 } TQTestCC1_ClassIf;
 extern TQTestCC1_ClassIf TQTestCC1_ClassIf_tmpl;
@@ -81,7 +83,7 @@ typedef struct TQTestCC2_ClassIf {
     ObjIface *_parent;
     size_t _size;
 
-    bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon);
+    bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _In_ TaskQueueWorker *worker, _Inout_ TaskControl *tcon);
     bool (*reset)(_Inout_ void *self);
 } TQTestCC2_ClassIf;
 extern TQTestCC2_ClassIf TQTestCC2_ClassIf_tmpl;
@@ -91,7 +93,7 @@ typedef struct TQTestDefer_ClassIf {
     ObjIface *_parent;
     size_t _size;
 
-    bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon);
+    bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _In_ TaskQueueWorker *worker, _Inout_ TaskControl *tcon);
     bool (*reset)(_Inout_ void *self);
 } TQTestDefer_ClassIf;
 extern TQTestDefer_ClassIf TQTestDefer_ClassIf_tmpl;
@@ -101,7 +103,7 @@ typedef struct TQTestD1_ClassIf {
     ObjIface *_parent;
     size_t _size;
 
-    bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon);
+    bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _In_ TaskQueueWorker *worker, _Inout_ TaskControl *tcon);
     bool (*reset)(_Inout_ void *self);
 } TQTestD1_ClassIf;
 extern TQTestD1_ClassIf TQTestD1_ClassIf_tmpl;
@@ -111,7 +113,7 @@ typedef struct TQTestD2_ClassIf {
     ObjIface *_parent;
     size_t _size;
 
-    bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon);
+    bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _In_ TaskQueueWorker *worker, _Inout_ TaskControl *tcon);
     bool (*reset)(_Inout_ void *self);
 } TQTestD2_ClassIf;
 extern TQTestD2_ClassIf TQTestD2_ClassIf_tmpl;
@@ -121,7 +123,7 @@ typedef struct TQDelayTest_ClassIf {
     ObjIface *_parent;
     size_t _size;
 
-    bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon);
+    bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _In_ TaskQueueWorker *worker, _Inout_ TaskControl *tcon);
     bool (*reset)(_Inout_ void *self);
 } TQDelayTest_ClassIf;
 extern TQDelayTest_ClassIf TQDelayTest_ClassIf_tmpl;
@@ -131,7 +133,7 @@ typedef struct TQMTest_ClassIf {
     ObjIface *_parent;
     size_t _size;
 
-    bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _Inout_ TaskControl *tcon);
+    bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _In_ TaskQueueWorker *worker, _Inout_ TaskControl *tcon);
     bool (*reset)(_Inout_ void *self);
     // Add a task
     void (*add)(_Inout_ void *self, Task *task);
@@ -190,8 +192,8 @@ _objfactory_guaranteed TQTest1 *TQTest1_create(int num1, int num2, Event *notify
 // advance a deferred task to run as soon as possible
 #define tqtest1Advance(self) Task_advance(Task(self))
 
-// bool tqtest1Run(TQTest1 *self, TaskQueue *tq, TaskControl *tcon);
-#define tqtest1Run(self, tq, tcon) (self)->_->run(TQTest1(self), TaskQueue(tq), tcon)
+// bool tqtest1Run(TQTest1 *self, TaskQueue *tq, TaskQueueWorker *worker, TaskControl *tcon);
+#define tqtest1Run(self, tq, worker, tcon) (self)->_->run(TQTest1(self), TaskQueue(tq), TaskQueueWorker(worker), tcon)
 // bool tqtest1Reset(TQTest1 *self);
 #define tqtest1Reset(self) (self)->_->reset(TQTest1(self))
 
@@ -244,8 +246,8 @@ _objfactory_guaranteed TQTestFail *TQTestFail_create(int n, Event *notify);
 // advance a deferred task to run as soon as possible
 #define tqtestfailAdvance(self) Task_advance(Task(self))
 
-// bool tqtestfailRun(TQTestFail *self, TaskQueue *tq, TaskControl *tcon);
-#define tqtestfailRun(self, tq, tcon) (self)->_->run(TQTestFail(self), TaskQueue(tq), tcon)
+// bool tqtestfailRun(TQTestFail *self, TaskQueue *tq, TaskQueueWorker *worker, TaskControl *tcon);
+#define tqtestfailRun(self, tq, worker, tcon) (self)->_->run(TQTestFail(self), TaskQueue(tq), TaskQueueWorker(worker), tcon)
 // bool tqtestfailReset(TQTestFail *self);
 #define tqtestfailReset(self) (self)->_->reset(TQTestFail(self))
 
@@ -301,8 +303,8 @@ _objfactory_guaranteed TQTestCC1 *TQTestCC1_create(int num1, int num2, TaskQueue
 // advance a deferred task to run as soon as possible
 #define tqtestcc1Advance(self) Task_advance(Task(self))
 
-// bool tqtestcc1Run(TQTestCC1 *self, TaskQueue *tq, TaskControl *tcon);
-#define tqtestcc1Run(self, tq, tcon) (self)->_->run(TQTestCC1(self), TaskQueue(tq), tcon)
+// bool tqtestcc1Run(TQTestCC1 *self, TaskQueue *tq, TaskQueueWorker *worker, TaskControl *tcon);
+#define tqtestcc1Run(self, tq, worker, tcon) (self)->_->run(TQTestCC1(self), TaskQueue(tq), TaskQueueWorker(worker), tcon)
 // bool tqtestcc1Reset(TQTestCC1 *self);
 #define tqtestcc1Reset(self) (self)->_->reset(TQTestCC1(self))
 
@@ -357,8 +359,8 @@ _objfactory_guaranteed TQTestCC2 *TQTestCC2_create(int total, int *accum, int *c
 // advance a deferred task to run as soon as possible
 #define tqtestcc2Advance(self) Task_advance(Task(self))
 
-// bool tqtestcc2Run(TQTestCC2 *self, TaskQueue *tq, TaskControl *tcon);
-#define tqtestcc2Run(self, tq, tcon) (self)->_->run(TQTestCC2(self), TaskQueue(tq), tcon)
+// bool tqtestcc2Run(TQTestCC2 *self, TaskQueue *tq, TaskQueueWorker *worker, TaskControl *tcon);
+#define tqtestcc2Run(self, tq, worker, tcon) (self)->_->run(TQTestCC2(self), TaskQueue(tq), TaskQueueWorker(worker), tcon)
 // bool tqtestcc2Reset(TQTestCC2 *self);
 #define tqtestcc2Reset(self) (self)->_->reset(TQTestCC2(self))
 
@@ -406,8 +408,8 @@ typedef struct TQTestDefer_WeakRef {
 // advance a deferred task to run as soon as possible
 #define tqtestdeferAdvance(self) Task_advance(Task(self))
 
-// bool tqtestdeferRun(TQTestDefer *self, TaskQueue *tq, TaskControl *tcon);
-#define tqtestdeferRun(self, tq, tcon) (self)->_->run(TQTestDefer(self), TaskQueue(tq), tcon)
+// bool tqtestdeferRun(TQTestDefer *self, TaskQueue *tq, TaskQueueWorker *worker, TaskControl *tcon);
+#define tqtestdeferRun(self, tq, worker, tcon) (self)->_->run(TQTestDefer(self), TaskQueue(tq), TaskQueueWorker(worker), tcon)
 // bool tqtestdeferReset(TQTestDefer *self);
 #define tqtestdeferReset(self) (self)->_->reset(TQTestDefer(self))
 
@@ -464,8 +466,8 @@ _objfactory_guaranteed TQTestD1 *TQTestD1_create(int order, int64 dtime, Event *
 // advance a deferred task to run as soon as possible
 #define tqtestd1Advance(self) Task_advance(Task(self))
 
-// bool tqtestd1Run(TQTestD1 *self, TaskQueue *tq, TaskControl *tcon);
-#define tqtestd1Run(self, tq, tcon) (self)->_->run(TQTestD1(self), TaskQueue(tq), tcon)
+// bool tqtestd1Run(TQTestD1 *self, TaskQueue *tq, TaskQueueWorker *worker, TaskControl *tcon);
+#define tqtestd1Run(self, tq, worker, tcon) (self)->_->run(TQTestD1(self), TaskQueue(tq), TaskQueueWorker(worker), tcon)
 // bool tqtestd1Reset(TQTestD1 *self);
 #define tqtestd1Reset(self) (self)->_->reset(TQTestD1(self))
 
@@ -520,8 +522,8 @@ _objfactory_guaranteed TQTestD2 *TQTestD2_create(Task *waitfor, Event *notify);
 // advance a deferred task to run as soon as possible
 #define tqtestd2Advance(self) Task_advance(Task(self))
 
-// bool tqtestd2Run(TQTestD2 *self, TaskQueue *tq, TaskControl *tcon);
-#define tqtestd2Run(self, tq, tcon) (self)->_->run(TQTestD2(self), TaskQueue(tq), tcon)
+// bool tqtestd2Run(TQTestD2 *self, TaskQueue *tq, TaskQueueWorker *worker, TaskControl *tcon);
+#define tqtestd2Run(self, tq, worker, tcon) (self)->_->run(TQTestD2(self), TaskQueue(tq), TaskQueueWorker(worker), tcon)
 // bool tqtestd2Reset(TQTestD2 *self);
 #define tqtestd2Reset(self) (self)->_->reset(TQTestD2(self))
 
@@ -573,8 +575,8 @@ _objfactory_guaranteed TQDelayTest *TQDelayTest_create(int64 len);
 // advance a deferred task to run as soon as possible
 #define tqdelaytestAdvance(self) Task_advance(Task(self))
 
-// bool tqdelaytestRun(TQDelayTest *self, TaskQueue *tq, TaskControl *tcon);
-#define tqdelaytestRun(self, tq, tcon) (self)->_->run(TQDelayTest(self), TaskQueue(tq), tcon)
+// bool tqdelaytestRun(TQDelayTest *self, TaskQueue *tq, TaskQueueWorker *worker, TaskControl *tcon);
+#define tqdelaytestRun(self, tq, worker, tcon) (self)->_->run(TQDelayTest(self), TaskQueue(tq), TaskQueueWorker(worker), tcon)
 // bool tqdelaytestReset(TQDelayTest *self);
 #define tqdelaytestReset(self) (self)->_->reset(TQDelayTest(self))
 
@@ -636,8 +638,8 @@ _objfactory_guaranteed TQMTest *TQMTest_create(Event *notify, TaskQueue *tq, int
 // advance a deferred task to run as soon as possible
 #define tqmtestAdvance(self) Task_advance(Task(self))
 
-// bool tqmtestRun(TQMTest *self, TaskQueue *tq, TaskControl *tcon);
-#define tqmtestRun(self, tq, tcon) (self)->_->run(TQMTest(self), TaskQueue(tq), tcon)
+// bool tqmtestRun(TQMTest *self, TaskQueue *tq, TaskQueueWorker *worker, TaskControl *tcon);
+#define tqmtestRun(self, tq, worker, tcon) (self)->_->run(TQMTest(self), TaskQueue(tq), TaskQueueWorker(worker), tcon)
 // bool tqmtestReset(TQMTest *self);
 #define tqmtestReset(self) (self)->_->reset(TQMTest(self))
 // void tqmtestAdd(TQMTest *self, Task *task);
