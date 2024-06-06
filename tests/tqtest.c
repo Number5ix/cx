@@ -469,7 +469,7 @@ static int test_tqtest_mtask(void)
     if(!eventWaitTimeout(&notifyev, timeS(60)))
         ret = 1;
 
-    if(saSize(tqmtest->tasks) != NUM_DEFER_STEPS * 2 + NUM_MTASK_TASKS)
+    if(saSize(tqmtest->finished) != NUM_DEFER_STEPS * 2 + NUM_MTASK_TASKS)
         ret = 1;
 
     if(!taskSucceeded(tqmtest))

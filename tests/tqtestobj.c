@@ -215,7 +215,7 @@ bool TQMTest_run(_Inout_ TQMTest *self, _In_ TaskQueue *tq, _In_ TaskQueueWorker
 {
     bool ret = parent_run(tq, worker, tcon);
 
-    if(self->done) {
+    if(mtaskAllDone(self)) {
         tcon->notifyev = self->notify;
     }
 

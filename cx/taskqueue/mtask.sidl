@@ -5,22 +5,28 @@
 // It can be used standalone or as an extensible base class, and can be used
 // to build dependency graphs.
 
+#define mtaskAllDone(mtask) atomicLoad(bool, &(MTask(mtask)->alldone), Acquire)
+
 class MTask extends Task
 {
     object:TaskQueue tq;                // Queue to submit tasks to if they need to be run
-    int limit;                          // If queueing tasks, only queue this many at once
+    int32 limit;                        // If queueing tasks, only queue this many at once
+    atomic:int32 _nfinished;            // internal tracking, expected size of finished array
 
-    Mutex lock;
+    Mutex _newlock;                     // Mutex protecting _new
+    int32 _newcursor;                   // How far in the new task lists we've progressed
+    sarray:object:Task _new;            // Tasks that have been added to run (private)
     sarray:object:Task _pending;        // List of tasks this MTask is waiting on (private)
-    sarray:object:Task tasks;           // Tasks go here once they're finished
-    atomic:int32 _ntasks;               // internal tracking, expected size of done array
-    bool done;                          // cached state if all tasks are complete
+    sarray:object:Task finished;        // Tasks go here once they're finished
+    int64 maxprogress;                  // aggregate progress timestamp
+    atomic:bool alldone;                // cached state if all tasks are complete
     bool failed;                        // true if any tasks failed
 
-    void add(Task *task);               // Add a task
+    void add([in] Task *task);          // Add a task
+    override reset;
 
-    bool _cycle([out] [opt] int64 *progress);   // Run cycle of checking / queueing tasks as needed (private)
+    bool _cycle();                      // Run cycle of checking / queueing tasks as needed (private)
 
     factory create();
-    factory createWithQueue(TaskQueue *tq, int limit);
+    factory createWithQueue([in] TaskQueue *tq, int limit);
 }

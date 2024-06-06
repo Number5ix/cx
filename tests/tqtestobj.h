@@ -136,9 +136,9 @@ typedef struct TQMTest_ClassIf {
     bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _In_ TaskQueueWorker *worker, _Inout_ TaskControl *tcon);
     bool (*reset)(_Inout_ void *self);
     // Add a task
-    void (*add)(_Inout_ void *self, Task *task);
+    void (*add)(_Inout_ void *self, _In_ Task *task);
     // Run cycle of checking / queueing tasks as needed (private)
-    bool (*_cycle)(_Inout_ void *self, _Out_opt_ int64 *progress);
+    bool (*_cycle)(_Inout_ void *self);
 } TQMTest_ClassIf;
 extern TQMTest_ClassIf TQMTest_ClassIf_tmpl;
 
@@ -602,12 +602,15 @@ typedef struct TQMTest {
     Weak(TaskQueue) *lastq;        // The last queue this task ran on before it was deferred
     cchain oncomplete;        // functions that are called when this task has completed
     TaskQueue *tq;        // Queue to submit tasks to if they need to be run
-    int limit;        // If queueing tasks, only queue this many at once
-    Mutex lock;
+    int32 limit;        // If queueing tasks, only queue this many at once
+    atomic(int32) _nfinished;        // internal tracking, expected size of finished array
+    Mutex _newlock;        // Mutex protecting _new
+    int32 _newcursor;        // How far in the new task lists we've progressed
+    sa_Task _new;        // Tasks that have been added to run (private)
     sa_Task _pending;        // List of tasks this MTask is waiting on (private)
-    sa_Task tasks;        // Tasks go here once they're finished
-    atomic(int32) _ntasks;        // internal tracking, expected size of done array
-    bool done;        // cached state if all tasks are complete
+    sa_Task finished;        // Tasks go here once they're finished
+    int64 maxprogress;        // aggregate progress timestamp
+    atomic(bool) alldone;        // cached state if all tasks are complete
     bool failed;        // true if any tasks failed
     Event *notify;
 } TQMTest;
@@ -646,8 +649,8 @@ _objfactory_guaranteed TQMTest *TQMTest_create(Event *notify, TaskQueue *tq, int
 //
 // Add a task
 #define tqmtestAdd(self, task) (self)->_->add(TQMTest(self), Task(task))
-// bool tqmtest_cycle(TQMTest *self, int64 *progress);
+// bool tqmtest_cycle(TQMTest *self);
 //
 // Run cycle of checking / queueing tasks as needed (private)
-#define tqmtest_cycle(self, progress) (self)->_->_cycle(TQMTest(self), progress)
+#define tqmtest_cycle(self) (self)->_->_cycle(TQMTest(self))
 

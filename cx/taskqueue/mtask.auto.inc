@@ -9,7 +9,8 @@ static MTask_ClassIf _impl_MTask_MTask_ClassIf = {
     ._size = sizeof(MTask_ClassIf),
     ._implements = (ObjIface*)&MTask_ClassIf_tmpl,
     .add = (void (*)(void*, Task*))MTask_add,
-    ._cycle = (bool (*)(void*, int64*))MTask__cycle,
+    ._cycle = (bool (*)(void*))MTask__cycle,
+    .reset = (bool (*)(void*))MTask_reset,
     .run = (bool (*)(void*, TaskQueue*, TaskQueueWorker*, TaskControl*))MTask_run,
 };
 
