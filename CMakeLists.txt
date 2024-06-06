@@ -5,6 +5,17 @@ set(CX_TOP_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}")
 
 project (cx C CXX)
 
+if(PROJECT_IS_TOP_LEVEL)
+  if(CMAKE_CONFIGURATION_TYPES)
+     list(APPEND CMAKE_CONFIGURATION_TYPES Dev)
+  endif()
+
+  set(CMAKE_C_FLAGS_DEV "${CMAKE_C_FLAGS_RELWITHDEBINFO}")
+  set(CMAKE_CXX_FLAGS_DEV "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
+  SET(CMAKE_EXE_LINKER_FLAGS_DEV "${CMAKE_EXE_LINKER_FLAGS_DEBUG}")
+  SET(CMAKE_SHARED_LINKER_FLAGS_DEV "${CMAKE_SHARD_LINKER_FLAGS_DEBUG}")
+endif()
+
 include (${CMAKE_CURRENT_SOURCE_DIR}/cmake/sidl.cmake)
 
 string(REGEX MATCH "Clang" CX_COMPILER_IS_CLANG "${CMAKE_C_COMPILER_ID}")
@@ -33,6 +44,6 @@ add_subdirectory(cxobjgen)
 #add_subdirectory(misc)
 
 if(PROJECT_IS_TOP_LEVEL)
-    enable_testing()
-    add_subdirectory(tests)
+  enable_testing()
+  add_subdirectory(tests)
 endif()
