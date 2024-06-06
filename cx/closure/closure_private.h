@@ -22,4 +22,3 @@ typedef struct ClosureChain
 } ClosureChain;
 
 intptr _closureCompare(_In_ closure cls1, _In_ closure cls2);
-intptr _cchainCompare(_In_ cchain cls1, _In_ cchain cls2);

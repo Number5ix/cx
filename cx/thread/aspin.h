@@ -182,7 +182,7 @@ _meta_inline int64 aspinTimeoutRemaining(_In_ AdaptiveSpinState *ass)
 }
 
 // call this function when there is contention on a CAS
-_meta_inline void aspinHandleContention(_Inout_ AdaptiveSpin *aspin, _Inout_ AdaptiveSpinState *ass)
+_meta_inline void aspinHandleContention(_Inout_opt_ AdaptiveSpin *aspin, _Inout_ AdaptiveSpinState *ass)
 {
     // This algorithm is cruicial to maintaining high performance even under extreme contention.
     // Earlier versions of these primitives started to suffer degradation when many concurrent
@@ -198,7 +198,8 @@ _meta_inline void aspinHandleContention(_Inout_ AdaptiveSpin *aspin, _Inout_ Ada
     // for this purpose.
 
     if (lcgRandom(&ass->rstate) % (++ass->contention + 7) > 8) {
-        aspinRecordYield(aspin);
+        if (aspin)
+            aspinRecordYield(aspin);
         osYield();
     } else {
         for(int i = ass->contention * ass->contention; i >= 0; --i) {

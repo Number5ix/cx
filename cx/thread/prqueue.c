@@ -11,6 +11,8 @@
 #define INCSTAT(prq, sname) nop_stmt
 #endif
 
+#define qdynamic(prq) (prq->growth != PRQ_Grow_None)
+
 static void _prqInit(_Out_ PrQueue *prq, uint32 minsz, uint32 targetsz, uint32 maxsz,
                     PrqGrowth growth, PrqGrowth shrink)
 {
@@ -18,11 +20,10 @@ static void _prqInit(_Out_ PrQueue *prq, uint32 minsz, uint32 targetsz, uint32 m
     prq->targetsz = targetsz;
     prq->maxsz = maxsz;
     prq->growth = growth;
-    prq->shrink = shrink;
-    prq->dynamic = !(growth == PRQ_Grow_None && shrink == PRQ_Grow_None);
+    prq->shrink = growth == PRQ_Grow_None ? PRQ_Grow_None : shrink;
     prq->concurrence = clamplow(osLogicalCPUs() * 2, 4);
     prq->retired = NULL;
-    prq->shrinkinterval = timeMS(500);
+    prq->shrinkms = 500;
     prq->avgcount = 0;
     prq->avgcount_num = 0;
     atomicStore(int32, &prq->access, 0, Relaxed);
@@ -31,12 +32,10 @@ static void _prqInit(_Out_ PrQueue *prq, uint32 minsz, uint32 targetsz, uint32 m
     seg->size = minsz;
     atomicStore(ptr, &prq->current, seg, Release);
 
-    if(prq->dynamic) {
+    if(qdynamic(prq)) {
         mutexInit(&prq->gcmtx);
         atomicStore(uint32, &prq->chgtime, (uint64)clockTimer() & 0xffffffff, Relaxed);
     }
-
-    memset(&prq->aspin, 0, sizeof(prq->aspin));
 
 #ifdef PRQ_PERF_STATS
     memset(&prq->stats, 0, sizeof(prq->stats));
@@ -167,7 +166,7 @@ bool prqPush(PrQueue *prq, void *ptr)
         return false;           // invalid to push a NULL pointer
 
     AdaptiveSpinState astate = { 0 };
-    const bool dynamic = prq->dynamic;
+    const bool dynamic = qdynamic(prq);
 
     // Safely get the current segment and indicate that we're using it
     if(dynamic)
@@ -197,7 +196,7 @@ fullretry:
                                      (reserved & RESERVED_RETIRING) | ((reserved & RESERVED_MASK) - 1), Release, Acquire))
                 break;
             INCSTAT(prq, reserved_contention);
-            aspinHandleContention(&prq->aspin, &astate);
+            aspinHandleContention(NULL, &astate);
         }
         aspinEndContention(&astate);
         didreserve = false;
@@ -265,7 +264,7 @@ fullretry:
             if(atomicCompareExchange(uint32, weak, &seg->reserved, &reserved, reserved + 1, Release, Acquire))
                 break;
             INCSTAT(prq, reserved_contention);
-            aspinHandleContention(&prq->aspin, &astate);
+            aspinHandleContention(NULL, &astate);
         }
         aspinEndContention(&astate);
 
@@ -299,7 +298,7 @@ retry:
                 success = true;
                 break;
             } else {
-                aspinHandleContention(&prq->aspin, &astate);
+                aspinHandleContention(NULL, &astate);
                 INCSTAT(prq, push_collision);
             }
         }
@@ -335,7 +334,7 @@ retry:
                                      (reserved & RESERVED_RETIRING) | ((reserved & RESERVED_MASK) - 1), Release, Acquire))
                 break;
             INCSTAT(prq, reserved_contention);
-            aspinHandleContention(&prq->aspin, &astate);
+            aspinHandleContention(NULL, &astate);
         }
         aspinEndContention(&astate);
         didreserve = false;
@@ -353,7 +352,7 @@ _Use_decl_annotations_
 void *prqPop(PrQueue *prq)
 {
     AdaptiveSpinState astate = { 0 };
-    const bool dynamic = prq->dynamic;
+    const bool dynamic = qdynamic(prq);
 
     // Safely get the current segment and indicate that we're using it
     if(dynamic)
@@ -457,7 +456,7 @@ retry:
                 else
                     oldhead = head;
                 INCSTAT(prq, head_contention);
-                aspinHandleContention(&prq->aspin, &astate);
+                aspinHandleContention(NULL, &astate);
             }
         }
         aspinEndContention(&astate);
@@ -479,7 +478,7 @@ _Use_decl_annotations_
 bool prqCollect(PrQueue *prq)
 {
     uint32 totalcount = 0;
-    if(!prq->dynamic)
+    if(!qdynamic(prq))
         return true;            // GC not needed for queues that can't grow
 
     if(!mutexTryAcquire(&prq->gcmtx))
@@ -489,7 +488,7 @@ bool prqCollect(PrQueue *prq)
 
     uint32 chgtime = atomicLoad(uint32, &prq->chgtime, Acquire);
     uint32 now = (uint64)clockTimer() & 0xffffffff;
-    bool canshrink = (now - chgtime > prq->shrinkinterval) || (now < chgtime);      // handle rollover
+    bool canshrink = (now - chgtime > timeMS(prq->shrinkms)) || (now < chgtime);      // handle rollover
 
     // try to retire the oldest segment if it's been replaced
     // ONLY safe to do this with the current segment as it's protected directly by prq->access
@@ -580,7 +579,7 @@ out:
 _Use_decl_annotations_
 uint32 prqCount(PrQueue *prq)
 {
-    const bool dynamic = prq->dynamic;
+    const bool dynamic = qdynamic(prq);
 
     // Safely get the current segment and indicate that we're using it
     if(dynamic)
@@ -618,7 +617,7 @@ uint32 prqCount(PrQueue *prq)
 _Use_decl_annotations_
 void *prqPeek(PrQueue *prq, uint32 n)
 {
-    const bool dynamic = prq->dynamic;
+    const bool dynamic = qdynamic(prq);
 
     // Safely get the current segment and indicate that we're using it
     if(dynamic)
@@ -695,7 +694,7 @@ _Use_decl_annotations_
 bool prqDestroy(PrQueue *prq)
 {
     bool ret = false;
-    if (prq->dynamic)
+    if (qdynamic(prq))
         mutexAcquire(&prq->gcmtx);
 
     uint64 totalcount = 0;
@@ -761,7 +760,7 @@ bool prqDestroy(PrQueue *prq)
     }
 
 out:
-    if(prq->dynamic) {
+    if(qdynamic(prq)) {
         mutexRelease(&prq->gcmtx);
         if(ret) {
             mutexDestroy(&prq->gcmtx);

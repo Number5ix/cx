@@ -42,13 +42,13 @@ typedef struct MTask {
     atomic(ptr) _weakref;
 
     atomic(int32) state;
+    atomic(bool) cancelled;        // request that the task should be cancelled
     string name;        // task name to be shown in monitor output
     int64 last;        // the last time this task was moved between queues and/or run
     int64 nextrun;        // next time for this task to run when deferred
     int64 lastprogress;        // timestamp of last progress change
     Weak(TaskQueue) *lastq;        // The last queue this task ran on before it was deferred
     cchain oncomplete;        // functions that are called when this task has completed
-    atomic(bool) cancelled;        // request that the task should be cancelled
     TaskQueue *tq;        // Queue to submit tasks to if they need to be run
     int limit;        // If queueing tasks, only queue this many at once
     Mutex lock;

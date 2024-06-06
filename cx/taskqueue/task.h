@@ -37,13 +37,13 @@ typedef struct Task {
     atomic(ptr) _weakref;
 
     atomic(int32) state;
+    atomic(bool) cancelled;        // request that the task should be cancelled
     string name;        // task name to be shown in monitor output
     int64 last;        // the last time this task was moved between queues and/or run
     int64 nextrun;        // next time for this task to run when deferred
     int64 lastprogress;        // timestamp of last progress change
     Weak(TaskQueue) *lastq;        // The last queue this task ran on before it was deferred
     cchain oncomplete;        // functions that are called when this task has completed
-    atomic(bool) cancelled;        // request that the task should be cancelled
 } Task;
 extern ObjClassInfo Task_clsinfo;
 #define Task(inst) ((Task*)(unused_noeval((inst) && &((inst)->_is_Task)), (inst)))

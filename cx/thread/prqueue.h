@@ -119,9 +119,6 @@ typedef struct PrQueue
     // Maximum size of the queue.
     uint32 maxsz;
 
-    // Is this queue dynamically sized?
-    bool dynamic;
-
     // How much to grow the queue at a time.
     PrqGrowth growth;
 
@@ -152,8 +149,8 @@ typedef struct PrQueue
     // because this needs to be atomic and 64-bit atomics don't exist on all platforms.
     atomic(uint32) chgtime;
 
-    // Minimum time the queue must wait to shrink after growing or shrinking (default 500ms).
-    int64 shrinkinterval;
+    // Minimum number of milliseconds the queue must wait to shrink after growing or shrinking (default 500ms).
+    uint32 shrinkms;
 
     // Running average to track the total queue size across GC cycles for possible shrinking.
     uint32 avgcount;
@@ -163,9 +160,6 @@ typedef struct PrQueue
     // run GC optimistcally when a thread has nothing else to do. For example, a consumer thread
     // that is about to sleep.
     Mutex gcmtx;
-
-    // For holding state related to backoff algorithm when under contention.
-    AdaptiveSpin aspin;
 
 #ifdef PRQ_PERF_STATS
     // Performance stats for debugging

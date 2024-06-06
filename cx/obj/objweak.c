@@ -11,7 +11,7 @@ ObjInst_WeakRef *_objGetWeak(ObjInst *inst)
             return ret;
         }
 
-        ObjInst_WeakRef *nref = xaAllocStruct(ObjInst_WeakRef, XA_Zero);
+        ObjInst_WeakRef *nref = xaAllocStruct(ObjInst_WeakRef);
         rwlockInit(&nref->_lock);
         atomicStore(intptr, &nref->_ref, 2, Relaxed);       // object itself holds 1 of the weak refs
         nref->_inst = inst;

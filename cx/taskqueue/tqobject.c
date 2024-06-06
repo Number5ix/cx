@@ -35,9 +35,9 @@ _objinit_guaranteed bool TaskQueue_init(_Inout_ TaskQueue *self)
     prqInitDynamic(&self->runq, qsz, qsz * 2, 0, PRQ_Grow_100, PRQ_Grow_25);
     prqInitDynamic(&self->doneq, qsz, qsz * 2, 0, PRQ_Grow_100, PRQ_Grow_25);
     prqInitDynamic(&self->advanceq, 4, 16, 0, PRQ_Grow_100, PRQ_Grow_100);
-    self->runq.shrinkinterval = timeS(5);
-    self->doneq.shrinkinterval = timeS(5);
-    self->advanceq.shrinkinterval = timeS(5);
+    self->runq.shrinkms = 5;
+    self->doneq.shrinkms = 5;
+    self->advanceq.shrinkms = 5;
 
     // Autogen begins -----
     saInit(&self->workers, object, 1);

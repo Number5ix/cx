@@ -53,9 +53,9 @@ typedef struct TaskQueue {
     // but for now we assume callers are reasonably well-behaved and don't try to do stupid
     // things like start/stop the same queue concurrently from many different threads.
     TaskQueueStateEnum state;
+    atomic(int32) nworkers;
     Thread *manager;
     sa_TaskQueueWorker workers;        // [owned by manager]
-    atomic(int32) nworkers;
     Event workev;        // signaled when there is work to be done
     Event shutdownev;        // signaled when queue is finished shutting down
     PrQueue runq;        // tasks that are ready to be picked up by workers

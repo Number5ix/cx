@@ -155,13 +155,13 @@ typedef struct TQTest1 {
     atomic(ptr) _weakref;
 
     atomic(int32) state;
+    atomic(bool) cancelled;        // request that the task should be cancelled
     string name;        // task name to be shown in monitor output
     int64 last;        // the last time this task was moved between queues and/or run
     int64 nextrun;        // next time for this task to run when deferred
     int64 lastprogress;        // timestamp of last progress change
     Weak(TaskQueue) *lastq;        // The last queue this task ran on before it was deferred
     cchain oncomplete;        // functions that are called when this task has completed
-    atomic(bool) cancelled;        // request that the task should be cancelled
     int num[2];
     int total;
     Event *notify;
@@ -210,13 +210,13 @@ typedef struct TQTestFail {
     atomic(ptr) _weakref;
 
     atomic(int32) state;
+    atomic(bool) cancelled;        // request that the task should be cancelled
     string name;        // task name to be shown in monitor output
     int64 last;        // the last time this task was moved between queues and/or run
     int64 nextrun;        // next time for this task to run when deferred
     int64 lastprogress;        // timestamp of last progress change
     Weak(TaskQueue) *lastq;        // The last queue this task ran on before it was deferred
     cchain oncomplete;        // functions that are called when this task has completed
-    atomic(bool) cancelled;        // request that the task should be cancelled
     int n;
     Event *notify;
 } TQTestFail;
@@ -264,13 +264,13 @@ typedef struct TQTestCC1 {
     atomic(ptr) _weakref;
 
     atomic(int32) state;
+    atomic(bool) cancelled;        // request that the task should be cancelled
     string name;        // task name to be shown in monitor output
     int64 last;        // the last time this task was moved between queues and/or run
     int64 nextrun;        // next time for this task to run when deferred
     int64 lastprogress;        // timestamp of last progress change
     Weak(TaskQueue) *lastq;        // The last queue this task ran on before it was deferred
     cchain oncomplete;        // functions that are called when this task has completed
-    atomic(bool) cancelled;        // request that the task should be cancelled
     int num[2];
     TaskQueue *destq;
     int *accum;
@@ -321,13 +321,13 @@ typedef struct TQTestCC2 {
     atomic(ptr) _weakref;
 
     atomic(int32) state;
+    atomic(bool) cancelled;        // request that the task should be cancelled
     string name;        // task name to be shown in monitor output
     int64 last;        // the last time this task was moved between queues and/or run
     int64 nextrun;        // next time for this task to run when deferred
     int64 lastprogress;        // timestamp of last progress change
     Weak(TaskQueue) *lastq;        // The last queue this task ran on before it was deferred
     cchain oncomplete;        // functions that are called when this task has completed
-    atomic(bool) cancelled;        // request that the task should be cancelled
     int total;
     int *accum;
     int *counter;
@@ -377,13 +377,13 @@ typedef struct TQTestDefer {
     atomic(ptr) _weakref;
 
     atomic(int32) state;
+    atomic(bool) cancelled;        // request that the task should be cancelled
     string name;        // task name to be shown in monitor output
     int64 last;        // the last time this task was moved between queues and/or run
     int64 nextrun;        // next time for this task to run when deferred
     int64 lastprogress;        // timestamp of last progress change
     Weak(TaskQueue) *lastq;        // The last queue this task ran on before it was deferred
     cchain oncomplete;        // functions that are called when this task has completed
-    atomic(bool) cancelled;        // request that the task should be cancelled
     Event *notify;
 } TQTestDefer;
 extern ObjClassInfo TQTestDefer_clsinfo;
@@ -427,13 +427,13 @@ typedef struct TQTestD1 {
     atomic(ptr) _weakref;
 
     atomic(int32) state;
+    atomic(bool) cancelled;        // request that the task should be cancelled
     string name;        // task name to be shown in monitor output
     int64 last;        // the last time this task was moved between queues and/or run
     int64 nextrun;        // next time for this task to run when deferred
     int64 lastprogress;        // timestamp of last progress change
     Weak(TaskQueue) *lastq;        // The last queue this task ran on before it was deferred
     cchain oncomplete;        // functions that are called when this task has completed
-    atomic(bool) cancelled;        // request that the task should be cancelled
     Event *notify;
     int order;
     int64 dtime;
@@ -485,13 +485,13 @@ typedef struct TQTestD2 {
     atomic(ptr) _weakref;
 
     atomic(int32) state;
+    atomic(bool) cancelled;        // request that the task should be cancelled
     string name;        // task name to be shown in monitor output
     int64 last;        // the last time this task was moved between queues and/or run
     int64 nextrun;        // next time for this task to run when deferred
     int64 lastprogress;        // timestamp of last progress change
     Weak(TaskQueue) *lastq;        // The last queue this task ran on before it was deferred
     cchain oncomplete;        // functions that are called when this task has completed
-    atomic(bool) cancelled;        // request that the task should be cancelled
     Event *notify;
     Task *waitfor;
 } TQTestD2;
@@ -540,13 +540,13 @@ typedef struct TQDelayTest {
     atomic(ptr) _weakref;
 
     atomic(int32) state;
+    atomic(bool) cancelled;        // request that the task should be cancelled
     string name;        // task name to be shown in monitor output
     int64 last;        // the last time this task was moved between queues and/or run
     int64 nextrun;        // next time for this task to run when deferred
     int64 lastprogress;        // timestamp of last progress change
     Weak(TaskQueue) *lastq;        // The last queue this task ran on before it was deferred
     cchain oncomplete;        // functions that are called when this task has completed
-    atomic(bool) cancelled;        // request that the task should be cancelled
     int64 len;
 } TQDelayTest;
 extern ObjClassInfo TQDelayTest_clsinfo;
@@ -594,13 +594,13 @@ typedef struct TQMTest {
     atomic(ptr) _weakref;
 
     atomic(int32) state;
+    atomic(bool) cancelled;        // request that the task should be cancelled
     string name;        // task name to be shown in monitor output
     int64 last;        // the last time this task was moved between queues and/or run
     int64 nextrun;        // next time for this task to run when deferred
     int64 lastprogress;        // timestamp of last progress change
     Weak(TaskQueue) *lastq;        // The last queue this task ran on before it was deferred
     cchain oncomplete;        // functions that are called when this task has completed
-    atomic(bool) cancelled;        // request that the task should be cancelled
     TaskQueue *tq;        // Queue to submit tasks to if they need to be run
     int limit;        // If queueing tasks, only queue this many at once
     Mutex lock;
