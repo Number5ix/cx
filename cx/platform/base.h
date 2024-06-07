@@ -2,6 +2,9 @@
 
 #if defined(_MSC_VER)
 
+#include <intrin.h>
+#include <assert.h>
+
 #define _COMPILER_MSVC 1
 
 // C11 thread local
