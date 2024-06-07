@@ -1,5 +1,8 @@
 // Standard interfaces that have special meaning within the framework
 
+// Autogeneration is disabled to prevent dependency loops while building.
+// If any changes are made to this file, cxobjgen must be manually run on it!
+
 interface Sortable {
     intptr cmp(object other, uint32 flags);
 }
