@@ -209,7 +209,7 @@ typedef struct stvar {
 #define STStorageType_string string
 #define STStorageType_strref string
 #define STStorageType_object ObjInst*
-#define STStorageType_object ObjInst_WeakRef*
+#define STStorageType_weakref ObjInst_WeakRef*
 #define STStorageType_suid SUID
 #define STStorageType_stvar stvar
 #define STStorageType_sarray sa_ref
