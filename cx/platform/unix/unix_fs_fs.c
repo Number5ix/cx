@@ -1,3 +1,7 @@
+#ifdef __STRICT_ANSI__
+#undef __STRICT_ANSI__
+#endif
+
 #include "cx/time/time.h"
 #include "cx/fs/fs_private.h"
 #include "cx/string.h"

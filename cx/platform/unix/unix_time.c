@@ -1,3 +1,7 @@
+#ifdef __STRICT_ANSI__
+#undef __STRICT_ANSI__
+#endif
+
 #include "cx/time/clock.h"
 #include "cx/time/time.h"
 

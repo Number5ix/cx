@@ -1,3 +1,7 @@
+#ifdef __STRICT_ANSI__
+#undef __STRICT_ANSI__
+#endif
+
 #include <cx/thread.h>
 #include <cx/string.h>
 #include <cx/utils/lazyinit.h>

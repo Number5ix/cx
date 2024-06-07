@@ -1,3 +1,7 @@
+#ifdef __STRICT_ANSI__
+#undef __STRICT_ANSI__
+#endif
+
 #include <cx/time.h>
 #include <cx/thread/futex.h>
 #include <cx/platform/cpu.h>
@@ -6,6 +10,7 @@
 
 #include <linux/futex.h>
 #include <sys/syscall.h>
+#include <features.h>
 #include <unistd.h>
 #include <errno.h>
 #include <limits.h>

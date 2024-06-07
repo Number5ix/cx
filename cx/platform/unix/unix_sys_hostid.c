@@ -1,3 +1,7 @@
+#ifdef __STRICT_ANSI__
+#undef __STRICT_ANSI__
+#endif
+
 #include "cx/sys/hostid_private.h"
 #include "cx/string.h"
 #include <mbedtls/entropy.h>
