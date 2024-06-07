@@ -58,7 +58,6 @@
 
 // We use inline functions for metaprogramming and really, REALLY want them
 // to be inlined
-#include <alloca.h>
 #define _meta_inline __attribute__((always_inline)) inline
 #define _no_inline __attribute__((noinline))
 #define stackAlloc(sz) alloca(sz)
@@ -70,6 +69,7 @@
 #define _no_return __attribute__((noreturn))
 
 #if defined(__linux__)
+#include <alloca.h>
 #define _PLATFORM_UNIX 1
 #define _PLATFORM_LINUX 1
 #define _PLATFORM_STR "linux"
