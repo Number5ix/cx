@@ -59,7 +59,6 @@ bool _fmtPtr(FMTVar *v, string *out)
     if ((v->flags & FMTVar_LeadingZeros) && buflen < sizeof(uintptr_t) * 2) {
         for (size_t i = 0; i < sizeof(uintptr_t) * 2 - buflen; i++)
             *--p = '0';
-        buflen = v->fmtdata[1];
     }
 
     if (v->flags & FMT_PtrPrefix) {

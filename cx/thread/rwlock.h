@@ -141,8 +141,7 @@ _meta_inline bool rwlockReleaseRead(_Inout_ RWLock *l)
 
     // If we were the last reader and any writers are waiting, unblock one
     if (RWLOCK_READERS(oldstate) == 1 && RWLOCK_WRITERS(oldstate) > 0) {
-        int32 oldrval = atomicFetchAdd(int32, &l->wftx.val, 1, Relaxed);
-        devAssert(oldrval == 0);
+        devVerify(atomicFetchAdd(int32, &l->wftx.val, 1, Relaxed) == 0);
         futexWake(&l->wftx);
     }
 

@@ -337,7 +337,6 @@ retry:
             aspinHandleContention(NULL, &astate);
         }
         aspinEndContention(&astate);
-        didreserve = false;
     }
 
     // all done, release the buffer segment

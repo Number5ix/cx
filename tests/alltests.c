@@ -118,6 +118,11 @@ int alltests(int argc, const char *argv[])
         ntests++;
     }
 
+    if (ntests == 0) {
+        puts("No tests to run!");
+        return 1;
+    }
+
     int npassed = 0;
     int64 totalstart = clockTimer();
     const char *fake_argv[3];
