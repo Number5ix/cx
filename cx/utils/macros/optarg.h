@@ -6,14 +6,14 @@
 // filled with 0 if not present
 
 #if !defined(_MSC_VER)
-#define opt_arg(...) _opt_arg_dispatch_1(count_macro_args(dummy, ##__VA_ARGS__), (dummy, ##__VA_ARGS__))
+#define opt_arg(...) _opt_arg_dispatch_1(count_macro_args(dummy __VA_OPT__(,) __VA_ARGS__), (dummy __VA_OPT__(,) __VA_ARGS__))
 #define _opt_arg_dispatch_1(n, args) _opt_arg_dispatch_2(n, args)
 #define _opt_arg_dispatch_2(n, args) _opt_arg_##n args
 #define _opt_arg_1(f1) 0
 #define _opt_arg_2(f1, f2) f2
 
 // legacy compatibility
-#define opt_flags(...) _opt_arg_dispatch_1(count_macro_args(dummy, ##__VA_ARGS__), (dummy, ##__VA_ARGS__))
+#define opt_flags(...) _opt_arg_dispatch_1(count_macro_args(dummy __VA_OPT__(,) __VA_ARGS__), (dummy __VA_OPT__(,) __VA_ARGS__))
 #else
 // Hacky workaround for MSVC's broken preprocessor
 #define opt_arg(...) _opt_arg_expand(_opt_arg_dispatch(_opt_arg_catch_empty##__VA_ARGS__, __VA_ARGS__))
