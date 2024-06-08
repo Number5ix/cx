@@ -4,7 +4,7 @@
 
 #if DEBUG_LEVEL >= 1
 _Use_decl_annotations_
-CX_C bool _cxAssertFail(const char *expr, const char *msg, const char *file, int ln){
+CX_C _no_inline bool _cxAssertFail(const char *expr, const char *msg, const char *file, int ln){
     printf("Assertion failure!\n");
     if (msg)
         printf("%s\n", msg);
@@ -16,7 +16,7 @@ CX_C bool _cxAssertFail(const char *expr, const char *msg, const char *file, int
 }
 #else
 _Use_decl_annotations_
-CX_C bool _cxAssertFail(const char *expr, const char *msg) { exit(1); }
+CX_C _no_inline bool _cxAssertFail(const char *expr, const char *msg) { exit(1); }
 #endif
 
 _no_inline _no_return void dbgCrashNow(int skip)

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <cx/platform/base.h>
 #include <cx/platform/cpp.h>
 #include <cx/utils/macros/salieri.h>
 #include <cx/utils/macros/unused.h>
@@ -23,9 +24,9 @@ void dbgAssertAddCallback(dbgAssertCallback cb);
 void dbgAssertRemoveCallback(dbgAssertCallback cb);
 
 #if DEBUG_LEVEL >= 1
-CX_C bool _cxAssertFail(_In_opt_z_ const char *expr, _In_opt_z_ const char *msg, _In_z_ const char *file, int ln);
+CX_C _no_inline bool _cxAssertFail(_In_opt_z_ const char *expr, _In_opt_z_ const char *msg, _In_z_ const char *file, int ln);
 #else
-CX_C bool _cxAssertFail(_In_opt_z_ const char *expr, _In_opt_z_ const char *msg);
+CX_C _no_inline bool _cxAssertFail(_In_opt_z_ const char *expr, _In_opt_z_ const char *msg);
 #endif
 
 #if DEBUG_LEVEL >= 2
