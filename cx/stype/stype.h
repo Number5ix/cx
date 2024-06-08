@@ -21,8 +21,8 @@ CX_C_BEGIN
 
 // IMPORTANT NOTE!
 // Always initialize string to NULL or 0 first!
-typedef struct str_ref* string;
-typedef const struct str_ref* strref;
+typedef struct str_ref* _Nullable string;
+typedef const struct str_ref* _Nullable strref;
 typedef struct hashtable_ref* hashtable;
 typedef struct closure_ref *closure;
 typedef struct cchain_ref *cchain;

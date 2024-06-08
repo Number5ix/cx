@@ -1,6 +1,7 @@
 #include "string_private.h"
 
-void strUpper(_Inout_ string *io)
+_Use_decl_annotations_
+void strUpper(strhandle io)
 {
     uint32 i, len;
     uint8 *buf;
@@ -15,7 +16,8 @@ void strUpper(_Inout_ string *io)
         buf[i] = (char)toupper(buf[i]);
 }
 
-void strLower(_Inout_ string *io)
+_Use_decl_annotations_
+void strLower(strhandle io)
 {
     uint32 i, len;
     uint8 *buf;

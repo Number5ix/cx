@@ -127,7 +127,7 @@ PenaltyBreakAssignment: 100
 PenaltyBreakBeforeFirstCallParameter: 100
 PenaltyBreakOpenParenthesis: 1000
 PenaltyIndentedWhitespace: 1
-PointerAlignment: Right
+PointerAlignment: Left
 QualifierAlignment: Leave
 ReflowComments: true
 RemoveBracesLLVM: false

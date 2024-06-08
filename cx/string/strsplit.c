@@ -1,11 +1,9 @@
 #include "string_private.h"
 #include "cx/container/sarray.h"
 
-int32 strSplit(_Inout_ sa_string *out, _In_opt_ strref s, _In_opt_ strref sep, bool empty)
+_Use_decl_annotations_
+int32 strSplit(sa_string *_Nonnull out, strref s, strref sep, bool empty)
 {
-    if (!out)
-        return 0;
-
     saClear(out);
 
     uint32 seplen = strLen(sep);

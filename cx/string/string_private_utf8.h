@@ -1,6 +1,6 @@
 #pragma once
 
-_meta_inline uint32 _strUTF8SeqLen(uint8 u)
+_meta_inline _Pure uint32 _strUTF8SeqLen(uint8 u)
 {
     // single byte encoding aka ASCII
     if (u < 0x80)
@@ -20,7 +20,7 @@ _meta_inline uint32 _strUTF8SeqLen(uint8 u)
     return 0;
 }
 
-_meta_inline bool _strUTF8DecodeSeq(striter *it, uint32 len, uint8 ch, int32 *codepoint)
+_meta_inline bool _strUTF8DecodeSeq(striter *_Nonnull it, uint32 len, uint8 ch, int32 *_Nullable codepoint)
 {
     int32 ret = 0;
 
@@ -56,7 +56,7 @@ _meta_inline bool _strUTF8DecodeSeq(striter *it, uint32 len, uint8 ch, int32 *co
     return true;
 }
 
-_meta_inline uint32 _strUTF8Decode(striter *it, int32 *codepoint)
+_meta_inline uint32 _strUTF8Decode(striter *_Nonnull it, int32 *_Nullable codepoint)
 {
     uint8 first;
     if (!striChar(it, (uint8*)&first))
@@ -75,7 +75,7 @@ _meta_inline uint32 _strUTF8Decode(striter *it, int32 *codepoint)
     return 0;
 }
 
-_meta_inline uint32 _strUTF8Encode(uint8 *buffer, int32 codepoint)
+_meta_inline uint32 _strUTF8Encode(uint8 *_Nonnull buffer, int32 codepoint)
 {
     if (codepoint < 0)
         return 0;

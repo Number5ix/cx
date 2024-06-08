@@ -1,6 +1,7 @@
 #include "string_private.h"
 
-int32 _strFindChar(_In_ strref s, int32 b, char find)
+_Use_decl_annotations_
+int32 _strFindChar(strref_v s, int32 b, char find)
 {
     uint32 slen, i;
 
@@ -25,7 +26,8 @@ int32 _strFindChar(_In_ strref s, int32 b, char find)
     return -1;
 }
 
-int32 _strFindCharR(_In_ strref s, int32 e, char find)
+_Use_decl_annotations_
+int32 _strFindCharR(strref_v s, int32 e, char find)
 {
     // Conventional wisdom was wrong. Actually scanning backwards turns out to be
     // about 20% faster on average, probably because the conditions to check are
@@ -59,7 +61,7 @@ int32 _strFindCharR(_In_ strref s, int32 e, char find)
 // comparison helper that can handle degenerate case where
 // string and substring are both ropes and don't have segments
 // that line up cleanly
-static inline bool striterEq(_In_ striter *istr_in, _In_ striter *isub_in)
+static inline bool striterEq(_In_ striter *_Nonnull istr_in, _In_ striter *_Nonnull isub_in)
 {
     // borrow iterator state
     striter istr = *istr_in;
@@ -79,14 +81,15 @@ static inline bool striterEq(_In_ striter *istr_in, _In_ striter *isub_in)
     return false;
 }
 
-int32 strFind(_In_opt_ strref s, int32 b, _In_opt_ strref find)
+_Use_decl_annotations_
+int32 strFind(strref s, int32 b, strref find)
 {
     uint32 off, slen, i;
 
     if (!STR_CHECK_VALID(s) || strEmpty(find))
         return -1;
 
-    if (_strFastLen(find) == 1 && !(_strHdr(find) & STR_ROPE)) {
+    if (_strFastLen((strref_v)find) == 1 && !(_strHdr(find) & STR_ROPE)) {
         // optimization for simple case
         return _strFindChar(s, b, _strBuffer(find)[0]);
     }
@@ -123,7 +126,8 @@ int32 strFind(_In_opt_ strref s, int32 b, _In_opt_ strref find)
     return -1;
 }
 
-int32 strFindR(_In_opt_ strref s, int32 e, _In_opt_ strref find)
+_Use_decl_annotations_
+int32 strFindR(strref s, int32 e, strref find)
 {
     // see _strFindCharR and strFind for implementation notes
     uint32 slen;
@@ -131,7 +135,7 @@ int32 strFindR(_In_opt_ strref s, int32 e, _In_opt_ strref find)
     if (!STR_CHECK_VALID(s) || strEmpty(find))
         return -1;
 
-    if (_strFastLen(find) == 1 && !(_strHdr(find) & STR_ROPE)) {
+    if (_strFastLen((strref_v)find) == 1 && !(_strHdr(find) & STR_ROPE)) {
         // optimization for simple case
         return _strFindCharR(s, e, _strBuffer(find)[0]);
     }

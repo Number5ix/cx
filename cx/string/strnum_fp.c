@@ -57,7 +57,7 @@ static uint64_t tens[] = {
     10U, 1U
 };
 
-static inline uint64_t get_dbits(double d)
+static _Pure inline uint64_t get_dbits(double d)
 {
     union {
         double   dbl;
@@ -67,7 +67,7 @@ static inline uint64_t get_dbits(double d)
     return dbl_bits.i;
 }
 
-static Fp build_fp_64(double d)
+static _Pure Fp build_fp_64(double d)
 {
     uint64_t bits = get_dbits(d);
 
@@ -85,7 +85,7 @@ static Fp build_fp_64(double d)
     return fp;
 }
 
-static inline uint32_t get_fbits(float f)
+static _Pure inline uint32_t get_fbits(float f)
 {
     union {
         float    flt;
@@ -95,7 +95,7 @@ static inline uint32_t get_fbits(float f)
     return float_bits.i;
 }
 
-static Fp build_fp_32(float f)
+static _Pure Fp build_fp_32(float f)
 {
     uint32_t bits = get_fbits(f);
 
@@ -113,7 +113,7 @@ static Fp build_fp_32(float f)
     return fp;
 }
 
-static void normalize_64(Fp* fp)
+static void normalize_64(Fp* _Nonnull fp)
 {
     while ((fp->frac & hiddenbit_64) == 0) {
         fp->frac <<= 1;
@@ -125,7 +125,7 @@ static void normalize_64(Fp* fp)
     fp->exp -= shift;
 }
 
-static void normalize_32(Fp* fp)
+static void normalize_32(Fp* _Nonnull fp)
 {
     while ((fp->frac & hiddenbit_32) == 0) {
         fp->frac <<= 1;
@@ -137,7 +137,7 @@ static void normalize_32(Fp* fp)
     fp->exp -= shift;
 }
 
-static void get_normalized_boundaries_64(Fp* fp, Fp* lower, Fp* upper)
+static void get_normalized_boundaries_64(Fp* _Nonnull fp, Fp* _Nonnull lower, Fp* _Nonnull upper)
 {
     upper->frac = (fp->frac << 1) + 1;
     upper->exp = fp->exp - 1;
@@ -162,7 +162,7 @@ static void get_normalized_boundaries_64(Fp* fp, Fp* lower, Fp* upper)
     lower->exp = upper->exp;
 }
 
-static void get_normalized_boundaries_32(Fp* fp, Fp* lower, Fp* upper)
+static void get_normalized_boundaries_32(Fp* _Nonnull fp, Fp* _Nonnull lower, Fp* _Nonnull upper)
 {
     upper->frac = (fp->frac << 1) + 1;
     upper->exp = fp->exp - 1;
@@ -188,7 +188,7 @@ static void get_normalized_boundaries_32(Fp* fp, Fp* lower, Fp* upper)
     lower->exp = upper->exp;
 }
 
-static Fp multiply(Fp* a, Fp* b)
+static Fp multiply(Fp* _Nonnull a, Fp* _Nonnull b)
 {
     const uint64_t lomask = 0x00000000FFFFFFFF;
 
@@ -209,9 +209,9 @@ static Fp multiply(Fp* a, Fp* b)
     return fp;
 }
 
-static void round_digit(uint8* digits, int ndigits, uint64_t delta, uint64_t rem, uint64_t kappa, uint64_t frac)
+static void round_digit(uint8* _Nonnull digits, int ndigits, uint64_t delta, uint64_t rem, uint64_t kappa, uint64_t frac)
 {
-    while (rem < frac && delta - rem >= kappa &&
+    while (ndigits > 0 && rem < frac && delta - rem >= kappa &&
         (rem + kappa < frac || frac - rem > rem + kappa - frac)) {
 
         digits[ndigits - 1]--;
@@ -219,7 +219,7 @@ static void round_digit(uint8* digits, int ndigits, uint64_t delta, uint64_t rem
     }
 }
 
-static int generate_digits(Fp* fp, Fp* upper, Fp* lower, uint8* digits, int* K)
+static int generate_digits(Fp* _Nonnull fp, Fp* _Nonnull upper, Fp* _Nonnull lower, uint8* _Nonnull digits, int* _Nonnull K)
 {
     uint64_t wfrac = upper->frac - fp->frac;
     uint64_t delta = upper->frac - lower->frac;
@@ -279,7 +279,7 @@ static int generate_digits(Fp* fp, Fp* upper, Fp* lower, uint8* digits, int* K)
     }
 }
 
-int32 _strnum_grisu2_64(float64 d, _Out_writes_(18) uint8* digits, _Inout_ int32* K)
+int32 _strnum_grisu2_64(float64 d, _Out_writes_(18) uint8* _Nonnull digits, _Inout_ int32* _Nonnull K)
 {
     Fp w = build_fp_64(d);
 
@@ -303,7 +303,7 @@ int32 _strnum_grisu2_64(float64 d, _Out_writes_(18) uint8* digits, _Inout_ int32
     return generate_digits(&w, &upper, &lower, digits, K);
 }
 
-int32 _strnum_grisu2_32(float32 f, _Out_writes_(18) uint8* digits, _Inout_ int32* K)
+int32 _strnum_grisu2_32(float32 f, _Out_writes_(18) uint8* _Nonnull digits, _Inout_ int32* _Nonnull K)
 {
     Fp w = build_fp_32(f);
 
@@ -469,6 +469,7 @@ uint32 _strnum_f64toa(float64 d, _Out_writes_(STRNUM_FPBUF) uint8 dest[STRNUM_FP
         return str_len + spec;
     }
 
+    digits[0] = '0';
     int32 K = 0;
     int32 ndigits = _strnum_grisu2_64(d, digits, &K);
 

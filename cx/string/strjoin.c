@@ -1,11 +1,9 @@
 #include "string_private.h"
 #include "cx/container/sarray.h"
 
-bool strJoin(_Inout_ string *o, _In_ sa_string arr, _In_opt_ strref sep)
+_Use_decl_annotations_
+bool strJoin(strhandle o, sa_string arr, strref sep)
 {
-    if (!o)
-        return false;
-
     uint32 seplen = strLen(sep), seglen;
     int32 arrsize = saSize(arr);
     uint8 encoding = STR_ENCODING_MASK;

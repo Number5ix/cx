@@ -1,6 +1,6 @@
 #include "string_private.h"
 
-static bool _strSubStr(_Inout_ string *o, _Inout_ string *ps, int32 b, int32 e, bool consume)
+static bool _strSubStr(_Inout_ strhandle o, _Inout_ strhandle ps, int32 b, int32 e, bool consume)
 {
     uint32 off, len, slen;
     string s = STR_SAFE_DEREF(ps);
@@ -62,22 +62,26 @@ static bool _strSubStr(_Inout_ string *o, _Inout_ string *ps, int32 b, int32 e, 
     return true;
 }
 
-bool strSubStr(_Inout_ string *o, _In_opt_ strref s, int32 b, int32 e)
+_Use_decl_annotations_
+bool strSubStr(strhandle o, strref s, int32 b, int32 e)
 {
     return _strSubStr(o, (string*)&s, b, e, false);
 }
 
-bool strSubStrC(_Inout_ string *o, _Inout_ string *c, int32 b, int32 e)
+_Use_decl_annotations_
+bool strSubStrC(strhandle o, strhandle c, int32 b, int32 e)
 {
     return _strSubStr(o, c, b, e, true);
 }
 
-bool strSubStrI(_Inout_ string *io, int32 b, int32 e)
+_Use_decl_annotations_
+bool strSubStrI(strhandle io, int32 b, int32 e)
 {
     return _strSubStr(io, io, b, e, false);
 }
 
-uint8 strGetChar(_In_opt_ strref s, int32 i)
+_Use_decl_annotations_
+uint8 strGetChar(strref s, int32 i)
 {
     if (!STR_CHECK_VALID(s))
         return 0;
@@ -96,10 +100,9 @@ uint8 strGetChar(_In_opt_ strref s, int32 i)
     return _strFastChar(s, off);
 }
 
-void strSetChar(_Inout_ string *s, int32 i, uint8 ch)
+_Use_decl_annotations_
+void strSetChar(strhandle s, int32 i, uint8 ch)
 {
-    if (!s)
-        return;
     if (!STR_CHECK_VALID(*s))
         strReset(s, 1);
 

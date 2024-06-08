@@ -27,10 +27,10 @@ alignMem(32) const uint8 _str_off[32] = {
     4, 2, 8, 0,
 };
 
-string _strEmpty = _S;
+string_v _strEmpty = _S;
 
 _Post_equal_to_(STR_ALLOC_SIZE)
-static inline uint32 _strAllocSz(uint8 hdr, uint32 strsz)
+static _Pure inline uint32 _strAllocSz(uint8 hdr, uint32 strsz)
 {
     uint32 sz = _strOffStr(hdr) + strsz + 1;
     sz = (sz + (STR_ALLOC_SIZE - 1)) / STR_ALLOC_SIZE;
@@ -38,7 +38,7 @@ static inline uint32 _strAllocSz(uint8 hdr, uint32 strsz)
 }
 
 // fairly arbitrary numbers to start with, can tune if needed
-static inline uint8 _strLenClass(uint32 dlen, uint32 dref)
+static _Pure inline uint8 _strLenClass(uint32 dlen, uint32 dref)
 {
     if (dref < 200 && dlen < 200)
         return STR_LEN8;
@@ -47,7 +47,8 @@ static inline uint8 _strLenClass(uint32 dlen, uint32 dref)
     return STR_LEN32;
 }
 
-void _strSetLen(_Inout_ string s, uint32 len)
+_Use_decl_annotations_
+void _strSetLen(string_v s, uint32 len)
 {
     switch (_strHdr(s) & STR_LEN_MASK) {
     case STR_LEN8:
@@ -62,7 +63,8 @@ void _strSetLen(_Inout_ string s, uint32 len)
     // STR_LEN0 -- Bad Things
 }
 
-void _strInitRef(_Inout_ string s)
+_Use_decl_annotations_
+void _strInitRef(string_v s)
 {
     int l = _strHdr(s) & STR_LEN_MASK;
 
@@ -76,7 +78,8 @@ void _strInitRef(_Inout_ string s)
     // and if you called this function on something without STR_ALLOC set, woe be upon you...
 }
 
-void _strSetRef(_Inout_ string s, uint16 ref)
+_Use_decl_annotations_
+void _strSetRef(string_v s, uint16 ref)
 {
     int l = _strHdr(s) & STR_LEN_MASK;
 
@@ -88,7 +91,7 @@ void _strSetRef(_Inout_ string s, uint16 ref)
     // and if you called this function on something without STR_ALLOC set, woe be upon you...
 }
 
-static void _strIncRef(_Inout_ string s)
+static void _strIncRef(_Inout_ string_v s)
 {
     int l = _strHdr(s) & STR_LEN_MASK;
 
@@ -98,7 +101,7 @@ static void _strIncRef(_Inout_ string s)
         atomicFetchAdd(uint16, &STR_FIELD(s, _strOffRef(_strHdr(s)), atomic(uint16)), 1, Relaxed);
 }
 
-static uint16 _strDecRef(_Inout_ string s)
+static uint16 _strDecRef(_Inout_ string_v s)
 {
     int l = _strHdr(s) & STR_LEN_MASK;
 
@@ -108,7 +111,8 @@ static uint16 _strDecRef(_Inout_ string s)
         return atomicFetchSub(uint16, &STR_FIELD(s, _strOffRef(_strHdr(s)), atomic(uint16)), 1, Release);
 }
 
-_Ret_valid_ string _strCopy(_In_ strref s, uint32 minsz)
+_Use_decl_annotations_
+string_v _strCopy(strref_v s, uint32 minsz)
 {
     uint32 len = _strFastLen(s);
 
@@ -123,7 +127,8 @@ _Ret_valid_ string _strCopy(_In_ strref s, uint32 minsz)
     return ret;
 }
 
-uint32 _strFastCopy(_In_ strref s, uint32 off, _Out_writes_bytes_(bytes) uint8 *buf, uint32 bytes)
+_Use_decl_annotations_
+uint32 _strFastCopy(strref_v s, uint32 off, uint8 *_Nonnull buf, uint32 bytes)
 {
     if (!(_strHdr(s) & STR_ROPE)) {
         // easy, just copy the buffer
@@ -135,7 +140,8 @@ uint32 _strFastCopy(_In_ strref s, uint32 off, _Out_writes_bytes_(bytes) uint8 *
     }
 }
 
-void _strResize(_Inout_ptr_ string *ps, uint32 newsz, bool unique)
+_Use_decl_annotations_
+void _strResize(strhandle_v ps, uint32 newsz, bool unique)
 {
     devAssert(!(_strHdr(*ps) & STR_ROPE));
     bool isstack = _strHdr(*ps) & STR_STACK;
@@ -178,9 +184,10 @@ void _strResize(_Inout_ptr_ string *ps, uint32 newsz, bool unique)
     }
 }
 
-void _strMakeUnique(_Inout_ptr_ string *ps, uint32 minszforcopy)
+_Use_decl_annotations_
+void _strMakeUnique(strhandle_v ps, uint32 minszforcopy)
 {
-    string s = *ps;         // borrow ref
+    string_v s = *ps;         // borrow ref
 
     // stack allocated strings are always unique
     if (_strHdr(s) & STR_STACK)
@@ -199,7 +206,7 @@ void _strMakeUnique(_Inout_ptr_ string *ps, uint32 minszforcopy)
             *ps = _strCopy(s, minszforcopy);
 
         // and remove the ref that the caller held
-        strDestroy(&s);
+        strDestroy((string*)&s);
         return;
     } else {
         // wasn't allocated by us, so copy it into one that is
@@ -208,7 +215,8 @@ void _strMakeUnique(_Inout_ptr_ string *ps, uint32 minszforcopy)
     }
 }
 
-void _strFlatten(_Inout_ptr_ string *ps, uint32 minszforcopy)
+_Use_decl_annotations_
+void _strFlatten(strhandle_v ps, uint32 minszforcopy)
 {
     string s = *ps;     // borrow ref
 
@@ -236,11 +244,9 @@ void _strFlatten(_Inout_ptr_ string *ps, uint32 minszforcopy)
     }
 }
 
-void strReset(_Inout_ptr_opt_ string *o, uint32 sizehint)
+_Use_decl_annotations_
+void strReset(strhandle o, uint32 sizehint)
 {
-    if (!o)
-        return;
-
     strDestroy(o);
     uint8 lencl = _strLenClass(sizehint, 0);
 
@@ -259,7 +265,7 @@ void strReset(_Inout_ptr_opt_ string *o, uint32 sizehint)
     *o = ret;
 }
 
-static void strDupIntoStack(_Inout_ string *o, _In_ strref s)
+static void strDupIntoStack(_Inout_ strhandle_v o, _In_ strref s)
 {
     uint32 bufsz = _strFastRefNoSync(*o);
     uint32 srclen = _strFastLen(s);
@@ -276,7 +282,8 @@ static void strDupIntoStack(_Inout_ string *o, _In_ strref s)
     _strSetLen(*o, srclen);
 }
 
-void strDup(_Inout_ string *o, _In_opt_ strref s)
+_Use_decl_annotations_
+void strDup(_Inout_ strhandle o, _In_opt_ strref s)
 {
     if (!o || !STR_CHECK_VALID(s)) return;
     if (*o == s)
@@ -324,7 +331,8 @@ void strDup(_Inout_ string *o, _In_opt_ strref s)
     *o = _strCopy(s, 0);
 }
 
-void strCopy(_Inout_ string *o, _In_opt_ strref s)
+_Use_decl_annotations_
+void strCopy(_Inout_ strhandle o, _In_opt_ strref s)
 {
     if (!o || !STR_CHECK_VALID(s)) return;
     if (*o == s)
@@ -342,7 +350,8 @@ void strCopy(_Inout_ string *o, _In_opt_ strref s)
     *o = _strCopy(s, 0);
 }
 
-void _strReset(_Inout_ptr_opt_ string *s, uint32 minsz)
+_Use_decl_annotations_
+void _strReset(strhandle s, uint32 minsz)
 {
     if (!STR_CHECK_VALID(*s) || !(_strHdr(*s) & STR_ALLOC) ||
         !!(_strHdr(*s) & STR_ROPE) ||
@@ -374,7 +383,8 @@ void _strReset(_Inout_ptr_opt_ string *s, uint32 minsz)
     _strSetLen(*s, 0);
 }
 
-void strClear(_Inout_ string *s)
+_Use_decl_annotations_
+void strClear(strhandle s)
 {
     if (!s)
         return;
@@ -382,16 +392,16 @@ void strClear(_Inout_ string *s)
     _strReset(s, 0);
 }
 
-_When_(s == NULL, _Post_equal_to_(0))
-uint32 strLen(_In_opt_ strref s)
+_Use_decl_annotations_
+_Pure uint32 strLen(strref s)
 {
     if (!STR_CHECK_VALID(s)) return 0;
 
     return _strFastLen(s);
 }
 
-_When_(s == NULL, _Post_equal_to_(true))
-bool strEmpty(_In_opt_ strref s)
+_Use_decl_annotations_
+_Pure bool strEmpty(strref s)
 {
     if (!STR_CHECK_VALID(s)) return true;
 
@@ -405,7 +415,8 @@ bool strEmpty(_In_opt_ strref s)
     return _strFastLen(s) == 0;
 }
 
-void strDestroy(_Inout_ string *ps)
+_Use_decl_annotations_
+void strDestroy(strhandle ps)
 {
     string s = STR_SAFE_DEREF(ps);
     if (!s) return;
@@ -433,7 +444,8 @@ void strDestroy(_Inout_ string *ps)
     *ps = NULL;
 }
 
-_Ret_valid_ const char *strC(_In_opt_ strref s)
+_Use_decl_annotations_
+const char *_Nonnull strC(strref s)
 {
     if (!STR_CHECK_VALID(s)) return "";
 
@@ -449,10 +461,9 @@ _Ret_valid_ const char *strC(_In_opt_ strref s)
     }
 }
 
-_Ret_valid_ uint8 *strBuffer(_Inout_ string *ps, uint32 minsz)
+_Use_decl_annotations_
+uint8 *_Nonnull strBuffer(strhandle ps, uint32 minsz)
 {
-    if (!ps)
-        return NULL;
     if (!STR_CHECK_VALID(*ps))
         strReset(ps, minsz);
 
@@ -472,9 +483,10 @@ _Ret_valid_ uint8 *strBuffer(_Inout_ string *ps, uint32 minsz)
     return _strBuffer(*ps);
 }
 
-uint32 strCopyOut(_In_opt_ strref s, uint32 off, _Out_writes_bytes_(bufsz) uint8 *buf, uint32 bufsz)
+_Use_decl_annotations_
+uint32 strCopyOut(strref s, uint32 off, uint8 *_Nonnull buf, uint32 bufsz)
 {
-    if (!STR_CHECK_VALID(s) || !buf || !bufsz)
+    if (!STR_CHECK_VALID(s) || bufsz == 0)
         return 0;
 
     uint32 len = _strFastLen(s);
@@ -484,7 +496,8 @@ uint32 strCopyOut(_In_opt_ strref s, uint32 off, _Out_writes_bytes_(bufsz) uint8
     return _strFastCopy(s, off, buf, len);
 }
 
-uint32 strCopyRaw(_In_opt_ strref s, uint32 off, _Out_writes_bytes_(maxlen) uint8 *buf, uint32 maxlen)
+_Use_decl_annotations_
+uint32 strCopyRaw(strref s, uint32 off, uint8 *_Nonnull buf, uint32 maxlen)
 {
     if (!STR_CHECK_VALID(s) || !buf || !maxlen)
         return 0;
@@ -495,10 +508,9 @@ uint32 strCopyRaw(_In_opt_ strref s, uint32 off, _Out_writes_bytes_(maxlen) uint
     return _strFastCopy(s, off, buf, len);
 }
 
-void strSetLen(_Inout_ string *ps, uint32 len)
+_Use_decl_annotations_
+void strSetLen(strhandle ps, uint32 len)
 {
-    if (!ps)
-        return;
     if (!STR_CHECK_VALID(*ps))
         _strReset(ps, len);
 
@@ -516,7 +528,8 @@ void strSetLen(_Inout_ string *ps, uint32 len)
     _strSetLen(*ps, len);
 }
 
-int strTestRefCount(_In_opt_ strref s)
+_Use_decl_annotations_
+int strTestRefCount(strref s)
 {
     if (!STR_CHECK_VALID(s) || !(_strHdr(s) & STR_ALLOC) || (_strHdr(s) & STR_STACK))
         return 0;
@@ -524,7 +537,7 @@ int strTestRefCount(_In_opt_ strref s)
     return _strFastRef(s);
 }
 
-uint32 _strStackAllocSize(uint32 maxlen)
+_Pure uint32 _strStackAllocSize(uint32 maxlen)
 {
     if (maxlen == 0)
         return 0;
@@ -536,7 +549,8 @@ uint32 _strStackAllocSize(uint32 maxlen)
     return 0;
 }
 
-void _strInitStack(_Inout_ _Deref_pre_valid_ _Deref_post_opt_valid_ string *ps, uint32 maxlen)
+_Use_decl_annotations_
+void _strInitStack(strhandle ps, uint32 maxlen)
 {
     devAssert(*ps);
     if (!*ps || maxlen == 0 || maxlen >= 65529) {

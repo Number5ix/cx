@@ -13,6 +13,17 @@
 // C11 static assert
 #define _Static_assert static_assert
 
+// Nullability qualifiers
+// SAL is much more powerful than these
+#define _Nonnull
+#define _Nullable
+#define _Null_unspecified
+
+// Pure functions
+#define _Pure
+
+#define _Analysis_noreturn _Analysis_noreturn_
+
 // We use inline functions for metaprogramming and really, REALLY want them
 // to be inlined
 #define _meta_inline __forceinline
@@ -50,8 +61,27 @@
 
 #if defined(__clang__)
 #define _COMPILER_CLANG 1
+
+// Nullability qualifiers
+#pragma clang diagnostic ignored "-Wnullability-completeness"
+
 #elif defined(__GNUC__)
 #define _COMPILER_GCC 1
+
+// Nullability qualifiers
+#define _Nonnull
+#define _Nullable
+#define _Null_unspecified
+
+#endif
+
+// Pure functions
+#define _Pure __attribute__((pure))
+
+#if defined(__clang_analyzer__)
+#define _Analysis_noreturn __attribute__((noreturn))
+#else
+#define _Analysis_noreturn
 #endif
 
 // C11 thread local is already supported

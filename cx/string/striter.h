@@ -11,7 +11,7 @@ CX_C_BEGIN
 // basis.
 typedef struct striter {
     // public-facing members
-    uint8 *bytes;
+    uint8 *_Nullable bytes;
     uint32 off;
     uint32 len;
     uint32 cursor;
@@ -24,19 +24,19 @@ typedef struct striter {
 typedef enum { STRI_BYTE, STRI_U8CHAR } STRI_SEEK_TYPE;
 typedef enum { STRI_SET, STRI_CUR, STRI_END } STRI_SEEK_WHENCE;
 
-void striInit(_Out_ striter *i, _In_opt_ strref s);
-void striInitRev(_Out_ striter *i, _In_opt_ strref s);
-bool striNext(_Inout_ striter *i);
-bool striPrev(_Inout_ striter *i);
-bool striSeek(_Inout_ striter *i, int32 off, STRI_SEEK_TYPE type, STRI_SEEK_WHENCE whence);
-void striFinish(_Inout_ striter *i);
-_meta_inline bool striValid(_In_ striter *i) { return i->len > 0; }
+void striInit(_Out_ striter *_Nonnull i, _In_opt_ strref s);
+void striInitRev(_Out_ striter *_Nonnull i, _In_opt_ strref s);
+bool striNext(_Inout_ striter *_Nonnull i);
+bool striPrev(_Inout_ striter *_Nonnull i);
+bool striSeek(_Inout_ striter *_Nonnull i, int32 off, STRI_SEEK_TYPE type, STRI_SEEK_WHENCE whence);
+void striFinish(_Inout_ striter *_Nonnull i);
+_meta_inline bool striValid(_In_ striter *_Nonnull i) { return i->len > 0; }
 
 // Borrowed iterators do not hold a reference to the string. They are intended for
 // carefully controlled circumstances where maximum performance is needed. They
 // may be discarded when finished.
-void striBorrow(_Out_ striter *i, _In_opt_ strref s);
-void striBorrowRev(_Out_ striter *i, _In_opt_ strref s);
+void striBorrow(_Out_ striter *_Nonnull i, _In_opt_ strref s);
+void striBorrowRev(_Out_ striter *_Nonnull i, _In_opt_ strref s);
 
 
 // It's preferred to for the caller to use striter->len to scan through bytes, but in
@@ -47,7 +47,7 @@ void striBorrowRev(_Out_ striter *i, _In_opt_ strref s);
 // This is less efficient as it has to check the cursor position for each character,
 // but vastly simplifies the code.
 
-_meta_inline _Success_(return) _Must_inspect_result_ bool striChar(_Inout_ striter *i, _Out_ uint8 *out)
+_meta_inline _Success_(return) _Must_inspect_result_ bool striChar(_Inout_ striter *_Nonnull i, _Out_ uint8 *_Nonnull out)
 {
     while (i->cursor >= i->len) {
         striNext(i);
@@ -59,7 +59,7 @@ _meta_inline _Success_(return) _Must_inspect_result_ bool striChar(_Inout_ strit
     return true;
 }
 
-_meta_inline _Success_(return) _Must_inspect_result_ bool striPeekChar(_Inout_ striter *i, _Out_ uint8 *out)
+_meta_inline _Success_(return) _Must_inspect_result_ bool striPeekChar(_Inout_ striter *_Nonnull i, _Out_ uint8 *_Nonnull out)
 {
     while (i->cursor >= i->len) {
         striNext(i);
@@ -71,7 +71,7 @@ _meta_inline _Success_(return) _Must_inspect_result_ bool striPeekChar(_Inout_ s
     return true;
 }
 
-_meta_inline bool striAdvance(_Inout_ striter *i, uint32 by)
+_meta_inline bool striAdvance(_Inout_ striter *_Nonnull i, uint32 by)
 {
     i->cursor += by;
     while (i->cursor >= i->len) {
@@ -83,8 +83,8 @@ _meta_inline bool striAdvance(_Inout_ striter *i, uint32 by)
 }
 
 // UTF-8 versions of char and advance functions that operate on unicode code points
-_Success_(return) _Must_inspect_result_ bool striU8Char(_Inout_ striter *i, _Out_ int32 *out);
-_Success_(return) _Must_inspect_result_ bool striPeekU8Char(_Inout_ striter *i, _Out_ int32 *out);
-bool striAdvanceU8(_Inout_ striter *i, uint32 by);
+_Success_(return) _Must_inspect_result_ bool striU8Char(_Inout_ striter *_Nonnull i, _Out_ int32 *out);
+_Success_(return) _Must_inspect_result_ bool striPeekU8Char(_Inout_ striter *_Nonnull i, _Out_ int32 *out);
+bool striAdvanceU8(_Inout_ striter *_Nonnull i, uint32 by);
 
 CX_C_END

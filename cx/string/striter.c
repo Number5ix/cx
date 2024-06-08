@@ -1,9 +1,9 @@
 #include "string_private.h"
 
-static void _striClear(_Inout_ striter *iter);
-static bool _striRewindU8(_Inout_ striter *i, uint32 off);
+static void _striClear(_Inout_ striter *_Nonnull iter);
+static bool _striRewindU8(_Inout_ striter *_Nonnull i, uint32 off);
 
-static void _striSetup(_Inout_ striter *iter, uint32 off, uint32 newcursor, bool reverse)
+static void _striSetup(_Inout_ striter *_Nonnull iter, uint32 off, uint32 newcursor, bool reverse)
 {
     uint32 slen = _strFastLen(iter->_str);
 
@@ -11,6 +11,7 @@ static void _striSetup(_Inout_ striter *iter, uint32 off, uint32 newcursor, bool
         if (reverse)
             off = 0;
         iter->bytes = _strBuffer(iter->_str) + off;
+        devAssert(iter->bytes);
         iter->off = off;
         iter->len = slen - off;
     } else {
@@ -21,9 +22,11 @@ static void _striSetup(_Inout_ striter *iter, uint32 off, uint32 newcursor, bool
             // which in turn makes sure the child strings don't get destroyed
             if (!reverse) {
                 iter->bytes = _strBuffer(realstr) + realoff;
+                devAssert(iter->bytes);
                 iter->off = off;
             } else {
                 iter->bytes = _strBuffer(realstr) + realstart;
+                devAssert(iter->bytes);
                 iter->off = off - (realoff - realstart);
                 iter->len += (realoff - realstart);
             }
@@ -34,7 +37,7 @@ static void _striSetup(_Inout_ striter *iter, uint32 off, uint32 newcursor, bool
     iter->cursor = newcursor;
 }
 
-static void _striClear(_Inout_ striter *iter)
+static void _striClear(_Inout_ striter *_Nonnull iter)
 {
     iter->bytes = NULL;
     iter->off = _strFastLen(iter->_str);
@@ -42,7 +45,7 @@ static void _striClear(_Inout_ striter *iter)
     iter->cursor = 0;
 }
 
-static void _striInit(_Out_ striter *iter, _In_opt_ strref s, bool reverse)
+static void _striInit(_Out_ striter *_Nonnull iter, _In_opt_ strref s, bool reverse)
 {
     if (!STR_CHECK_VALID(s))
         s = _strEmpty;
@@ -63,17 +66,20 @@ static void _striInit(_Out_ striter *iter, _In_opt_ strref s, bool reverse)
         _striSetup(iter, strLen(s) - 1, 0, true);
 }
 
-void striInit(_Out_ striter *iter, _In_opt_ strref s)
+_Use_decl_annotations_
+void striInit(striter *_Nonnull iter, strref s)
 {
     _striInit(iter, s, false);
 }
 
-void striInitRev(_Out_ striter *iter, _In_opt_ strref s)
+_Use_decl_annotations_
+void striInitRev(striter *_Nonnull iter, strref s)
 {
     _striInit(iter, s, true);
 }
 
-static void _striBorrow(_Out_ striter *iter, _In_opt_ strref s, bool reverse)
+_Use_decl_annotations_
+void _striBorrow(striter *_Nonnull  iter, strref s, bool reverse)
 {
     if (!STR_CHECK_VALID(s))
         s = _strEmpty;
@@ -88,19 +94,22 @@ static void _striBorrow(_Out_ striter *iter, _In_opt_ strref s, bool reverse)
         _striSetup(iter, strLen(s) - 1, 0, true);
 }
 
-void striBorrow(_Out_ striter *iter, _In_opt_ strref s)
+_Use_decl_annotations_
+void striBorrow(striter *_Nonnull  iter, strref s)
 {
     _striBorrow(iter, s, false);
 }
 
-void striBorrowRev(_Out_ striter *iter, _In_opt_ strref s)
+_Use_decl_annotations_
+void striBorrowRev(striter *_Nonnull iter, strref s)
 {
     _striBorrow(iter, s, true);
 }
 
-bool striNext(_Inout_ striter *iter)
+_Use_decl_annotations_
+bool striNext(striter *_Nonnull iter)
 {
-    if (!(iter && STR_CHECK_VALID(iter->_str)))
+    if (!STR_CHECK_VALID(iter->_str))
         return false;
 
     uint32 slen = _strFastLen(iter->_str);
@@ -120,9 +129,10 @@ bool striNext(_Inout_ striter *iter)
     return true;
 }
 
-bool striPrev(_Inout_ striter *iter)
+_Use_decl_annotations_
+bool striPrev(striter *_Nonnull iter)
 {
-    if (!(iter && STR_CHECK_VALID(iter->_str)))
+    if (!STR_CHECK_VALID(iter->_str))
         return false;
 
     uint32 lastcursor = iter->cursor;
@@ -142,9 +152,10 @@ bool striPrev(_Inout_ striter *iter)
     return true;
 }
 
-bool striSeek(_Inout_ striter *iter, int32 off, STRI_SEEK_TYPE type, STRI_SEEK_WHENCE whence)
+_Use_decl_annotations_
+bool striSeek(striter *_Nonnull iter, int32 off, STRI_SEEK_TYPE type, STRI_SEEK_WHENCE whence)
 {
-    if (!(iter && STR_CHECK_VALID(iter->_str)))
+    if (!STR_CHECK_VALID(iter->_str))
         return false;
 
     uint32 slen = _strFastLen(iter->_str);
@@ -210,11 +221,9 @@ bool striSeek(_Inout_ striter *iter, int32 off, STRI_SEEK_TYPE type, STRI_SEEK_W
     return false;
 }
 
-void striFinish(_Inout_ striter *iter)
+_Use_decl_annotations_
+void striFinish(striter *_Nonnull iter)
 {
-    if (!iter)
-        return;
-
     _striClear(iter);
     if (iter->_borrowed) {
         iter->_str = 0;
@@ -224,12 +233,14 @@ void striFinish(_Inout_ striter *iter)
     }
 }
 
-_Success_(return) _Must_inspect_result_ bool striU8Char(_Inout_ striter *iter, _Out_ int32 *out)
+_Use_decl_annotations_
+bool striU8Char(striter *_Nonnull iter, int32 *_Nonnull out)
 {
     return _strUTF8Decode(iter, out);
 }
 
-_Success_(return) _Must_inspect_result_ bool striPeekU8Char(_Inout_ striter *iter, _Out_ int32 *out)
+_Use_decl_annotations_
+bool striPeekU8Char(striter *_Nonnull iter, int32 *_Nonnull out)
 {
     striter saved = *iter;
 
@@ -238,7 +249,8 @@ _Success_(return) _Must_inspect_result_ bool striPeekU8Char(_Inout_ striter *ite
     return ret;
 }
 
-bool striAdvanceU8(_Inout_ striter *iter, uint32 by)
+_Use_decl_annotations_
+bool striAdvanceU8(striter *_Nonnull iter, uint32 by)
 {
     for (uint32 idx = 0; idx < by; idx++) {
         uint32 seqlen = _strUTF8Decode(iter, NULL);
@@ -250,7 +262,8 @@ bool striAdvanceU8(_Inout_ striter *iter, uint32 by)
 }
 
 // this is going to be painful
-static bool _striRewindU8(_Inout_ striter *iter, uint32 by)
+_Use_decl_annotations_
+static bool _striRewindU8(striter *_Nonnull iter, uint32 by)
 {
     int ncont = 0;
     uint32 off = iter->off, seqlen;
@@ -266,6 +279,9 @@ static bool _striRewindU8(_Inout_ striter *iter, uint32 by)
 
         off--;
         _striSetup(&temp, off, 0, false);
+        if (!temp.bytes)
+            goto out;
+
         u = temp.bytes[0];
         if (u >= 0x80 && u <= 0xbf) {
             // continuation character

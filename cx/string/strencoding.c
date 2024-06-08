@@ -1,8 +1,8 @@
 #include "string_private.h"
 #include "cx/utils/scratch.h"
 
-_When_(s == NULL, _Post_equal_to_(false))
-bool strValidUTF8(_In_opt_ strref s)
+_Use_decl_annotations_
+bool strValidUTF8(strref s)
 {
     if (!STR_CHECK_VALID(s))
         return false;
@@ -58,11 +58,12 @@ bool strValidASCII(_In_opt_ strref s)
     return true;
 }
 
-size_t strToUTF16(_In_opt_ strref s, _Out_writes_opt_(wsz) uint16 *buf, size_t wsz)
+_Use_decl_annotations_
+size_t strToUTF16(strref s, uint16 *_Nullable buf, size_t wsz)
 {
     size_t bufidx = 0;
     int32 codepoint = 0;
-    if (!strValidUTF8(s))
+    if (!STR_CHECK_VALID(s) || !strValidUTF8(s))
         return 0;
 
     striter it;
@@ -105,7 +106,8 @@ size_t strToUTF16(_In_opt_ strref s, _Out_writes_opt_(wsz) uint16 *buf, size_t w
     return bufidx;
 }
 
-bool strFromUTF16(_Inout_ string *o, _In_reads_(wsz) const uint16 *buf, size_t wsz)
+_Use_decl_annotations_
+bool strFromUTF16(strhandle o, const uint16 *_Nonnull buf, size_t wsz)
 {
     bool surrogate = false;
     int nexpand = 1;
@@ -157,7 +159,8 @@ fail:
     return false;
 }
 
-uint16 *strToUTF16A(_In_opt_ strref s)
+_Use_decl_annotations_
+uint16 *_Nullable strToUTF16A(strref s)
 {
     size_t sz = strToUTF16(s, NULL, 0);
     if (sz == 0)
@@ -168,7 +171,8 @@ uint16 *strToUTF16A(_In_opt_ strref s)
     return ret;
 }
 
-uint16 *strToUTF16S(_In_opt_ strref s)
+_Use_decl_annotations_
+uint16 *_Nullable strToUTF16S(strref s)
 {
     size_t sz = strToUTF16(s, NULL, 0);
     if (sz == 0)

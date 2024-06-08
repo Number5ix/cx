@@ -52,7 +52,8 @@ static uint32 b64EncodedLen(uint32 bufsz)
     return ((bufsz + 2) / 3) << 2;
 }
 
-bool strB64Encode(_Inout_ string *out, _In_reads_bytes_(bufsz) const uint8 *buf, uint32 bufsz, bool urlsafe)
+_Use_decl_annotations_
+bool strB64Encode(strhandle out, const uint8 *_Nonnull buf, uint32 bufsz, bool urlsafe)
 {
     const char *charmap = urlsafe ? _base64_charmap_urlsafe : _base64_charmap;
     uint32 word, hextet, i;
@@ -125,7 +126,8 @@ static uint32 b64DecodedSize(_In_ strref str)
     return 3 * (len >> 2) - nudge;
 }
 
-uint32 strB64Decode(_In_opt_ strref str, _Out_writes_bytes_opt_(bufsz) uint8 *d, uint32 bufsz)
+_Use_decl_annotations_
+uint32 strB64Decode(strref str, uint8 *_Nullable d, uint32 bufsz)
 {
     uint32 dlen;
     uint32 word, len, i;
@@ -133,7 +135,7 @@ uint32 strB64Decode(_In_opt_ strref str, _Out_writes_bytes_opt_(bufsz) uint8 *d,
 
     len = strLen(str);
     // len must be a multiple of 4
-    if (len & 0x03) return false;
+    if (!str || (len & 0x03)) return 0;
 
     dlen = b64DecodedSize(str);
     if (!d)

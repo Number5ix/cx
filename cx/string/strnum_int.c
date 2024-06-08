@@ -12,8 +12,8 @@ char _strnum_ldigits[] = "0123456789abcdefghijklmnopqrstuvwxyz";
 // string to integer -------------------------------------------------------------------
 
 #define STRNUM_IMPL(type, stype, utype, name, CUTOFF)        \
-_Success_(return)                                          \
-bool name(_Out_ type *out, _In_opt_ strref s, int base, bool strict)        \
+_Use_decl_annotations_                                          \
+bool name(type *_Nonnull out, strref s, int base, bool strict)        \
 {                                                            \
     utype acc;                                               \
     uint8 c;                                                 \
@@ -22,7 +22,7 @@ bool name(_Out_ type *out, _In_opt_ strref s, int base, bool strict)        \
     int cutlim;                                              \
     uint32 i = 0;                                            \
                                                              \
-    if(strEmpty(s))                                          \
+    if(!s || strEmpty(s))                                          \
         return false;                                        \
                                                              \
     do {                                                     \
@@ -100,7 +100,8 @@ STRNUM_IMPL(uint64, int64, uint64, strToUInt64, MAX_UINT64)
 
 // integer to string -------------------------------------------------------------------
 
-_Ret_valid_ uint8 *_strnum_u64toa(_Out_writes_(STRNUM_INTBUF) uint8 buf[STRNUM_INTBUF], _Out_opt_ uint32 *len, uint64 val, uint16 base, uint32 mindigits, char sign, bool upper)
+_Use_decl_annotations_
+uint8 *_Nonnull _strnum_u64toa(uint8 buf[STRNUM_INTBUF], uint32 *_Nullable len, uint64 val, uint16 base, uint32 mindigits, char sign, bool upper)
 {
     uint8 *p = buf + STRNUM_INTBUF;
     char *cset;
@@ -141,7 +142,7 @@ _Ret_valid_ uint8 *_strnum_u64toa(_Out_writes_(STRNUM_INTBUF) uint8 buf[STRNUM_I
     return p;
 }
 
-static _meta_inline bool _strFromIntHelper(string *out, uint64 val, uint16 base, uint32 mindigits, char sign, bool upper)
+static _meta_inline bool _strFromIntHelper(strhandle out, uint64 val, uint16 base, uint32 mindigits, char sign, bool upper)
 {
     uint8 buf[STRNUM_INTBUF];
     uint32 buflen;
@@ -160,7 +161,8 @@ static _meta_inline bool _strFromIntHelper(string *out, uint64 val, uint16 base,
 }
 
 // TODO: localize the sign character
-bool strFromInt32(_Inout_ string *out, int32 i, uint16 base)
+_Use_decl_annotations_
+bool strFromInt32(strhandle out, int32 i, uint16 base)
 {
     if (i >= 0)
         return _strFromIntHelper(out, (uint64)i, base, 0, 0, false);
@@ -169,19 +171,22 @@ bool strFromInt32(_Inout_ string *out, int32 i, uint16 base)
     return _strFromIntHelper(out, val, base, 0, '-', false);
 }
 
-bool strFromUInt32(_Inout_ string *out, uint32 i, uint16 base)
+_Use_decl_annotations_
+bool strFromUInt32(strhandle out, uint32 i, uint16 base)
 {
     return _strFromIntHelper(out, i, base, 0, 0, false);
 }
 
-bool strFromInt64(_Inout_ string *out, int64 i, uint16 base)
+_Use_decl_annotations_
+bool strFromInt64(strhandle out, int64 i, uint16 base)
 {
     if (i >= 0)
         return _strFromIntHelper(out, (uint64)i, base, 0, 0, false);
     return _strFromIntHelper(out, (uint64)(~i) + 1, base, 0, '-', false);
 }
 
-bool strFromUInt64(_Inout_ string *out, uint64 i, uint16 base)
+_Use_decl_annotations_
+bool strFromUInt64(strhandle out, uint64 i, uint16 base)
 {
     return _strFromIntHelper(out, i, base, 0, 0, false);
 }

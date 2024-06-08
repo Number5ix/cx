@@ -3,7 +3,7 @@
 
 #define MAX_REBALANCE_ITER 3            // really should only take 2
 
-static void _strInitRope(_Inout_ string *o)
+static void _strInitRope(_Inout_ strhandle o)
 {
     strDestroy(o);
 
@@ -61,9 +61,10 @@ static int _strRopeDepth(_In_opt_ strref s)
     return data->depth;
 }
 
-static void _strRotateLeft(_In_ string *top)
+static void _strRotateLeft(_In_ strhandle_v top)
 {
-    string oldtop = *top, newtop = NULL, newleft = NULL;
+    string_v oldtop = *top;
+    string_v newtop;
     str_ropedata *tdata = _strRopeData(oldtop);
     if (!(_strHdr(tdata->right.str) & STR_ROPE))
         return;                                 // nothing on the right side to rotate!
@@ -73,8 +74,9 @@ static void _strRotateLeft(_In_ string *top)
 
     if (cdata->right.str) {
         // create a rope from our left node followed by the child's left node
-        newleft = _strCreateRope(tdata->left.str, tdata->left.off, tdata->left.len,
-                                 cdata->left.str, cdata->left.off + tdata->right.off,
+        devAssert(tdata->left.str && cdata->left.str);
+        string_v newleft = _strCreateRope((strref_v)tdata->left.str, tdata->left.off, tdata->left.len,
+                                 (strref_v)cdata->left.str, cdata->left.off + tdata->right.off,
                                  min(cdata->left.len - tdata->right.off, tdata->right.len), true);
 
         // now create what will be the new root:
@@ -87,18 +89,22 @@ static void _strRotateLeft(_In_ string *top)
     } else {
         // child only has a left tree somehow, this is a degenerate tree so just move the left node up
         // and delete the child
-        newtop = _strCreateRope(tdata->left.str, tdata->left.off, tdata->left.len,
-                                cdata->left.str, cdata->left.off + tdata->right.off,
+        devAssert(tdata->left.str && cdata->left.str);
+        newtop = _strCreateRope((strref_v)tdata->left.str, tdata->left.off, tdata->left.len,
+                                (strref_v)cdata->left.str, cdata->left.off + tdata->right.off,
                                 min(cdata->left.len - tdata->right.off, tdata->right.len), false);
     }
 
     strDestroy(top);
+    devAssert(newtop);
     *top = newtop;
 }
 
-static void _strRotateRight(_In_ string *top)
+static void _strRotateRight(_In_ strhandle_v top)
 {
-    string oldtop = *top, newtop = NULL, newright = NULL;
+    string_v oldtop = *top;
+    string_v newtop;
+    string newright = NULL;
     str_ropedata *tdata = _strRopeData(oldtop);
     if (!(_strHdr(tdata->left.str) & STR_ROPE))
         return;                                 // nothing on the left side to rotate!
@@ -114,23 +120,26 @@ static void _strRotateRight(_In_ string *top)
                                   tdata->right.str, tdata->right.off, tdata->right.len, true);
         // now create what will be the new root:
         // the child's left node followed by the new right node we just created
-        newtop = _strCreateRope(cdata->left.str, cdata->left.off + tdata->left.off,
+        devAssert(cdata->left.str);
+        newtop = _strCreateRope((strref_v)cdata->left.str, cdata->left.off + tdata->left.off,
                                 min(cdata->left.len - tdata->left.off, tdata->left.len),
                                 newright, 0, 0, false);
         strDestroy(&newright);       // newtop grabbed a ref
     } else {
         // child only has a left tree somehow, this is a degenerate tree so just move the left node up
         // and delete the child
-        newtop = _strCreateRope(cdata->left.str, cdata->left.off + tdata->left.off,
+        devAssert(cdata->left.str);
+        newtop = _strCreateRope((strref_v)cdata->left.str, cdata->left.off + tdata->left.off,
                                 min(cdata->left.len - tdata->left.off, tdata->left.len),
                                 tdata->right.str, tdata->right.off, tdata->right.len, false);
     }
 
     strDestroy(top);
+    devAssert(newtop);
     *top = newtop;
 }
 
-static void _strRebalanceRope(_In_ string *ptop)
+static void _strRebalanceRope(_In_ strhandle_v ptop)
 {
     int i, bal, lastbal = 0;
 
@@ -155,13 +164,13 @@ static void _strRebalanceRope(_In_ string *ptop)
 }
 
 // create a new rope node
-string _strCreateRope(_In_opt_ strref left, uint32 left_off, uint32 left_len, _In_opt_ strref right, uint32 right_off, uint32 right_len, bool balance)
+_Use_decl_annotations_
+string_v _strCreateRope(strref_v left, uint32 left_off, uint32 left_len, strref right, uint32 right_off, uint32 right_len, bool balance)
 {
     string ret = 0;
     uint8 encoding = STR_ENCODING_MASK;
 
-    if (!left)
-        return NULL;
+    devAssert(left);
 
     // should this even be a rope?
     // nodes less than ROPE_MIN_SIZE can be created by leftovers on a join
@@ -184,8 +193,6 @@ string _strCreateRope(_In_opt_ strref left, uint32 left_off, uint32 left_len, _I
     }
 
     _strInitRope(&ret);
-    if (!ret)
-        return NULL;
     str_ropedata *data = _strRopeData(ret);
     memset(data, 0, sizeof(str_ropedata));
 
@@ -209,12 +216,12 @@ string _strCreateRope(_In_opt_ strref left, uint32 left_off, uint32 left_len, _I
 }
 
 // create a rope node with only half a rope -- this is mostly used for making substrings
-string _strCreateRope1(_In_opt_ strref s, uint32 off, uint32 len)
+_Use_decl_annotations_
+string_v _strCreateRope1(strref_v s, uint32 off, uint32 len)
 {
     string ret = 0;
 
-    if (!s)
-        return NULL;
+    devAssert(s);
 
     // if left is a plain old string, don't do anything differently than normal
     if (!(_strHdr(s) & STR_ROPE))
@@ -224,9 +231,6 @@ string _strCreateRope1(_In_opt_ strref s, uint32 off, uint32 len)
     str_ropedata *sdata = _strRopeData(s);
 
     _strInitRope(&ret);
-    if (!ret)
-        return NULL;
-
     str_ropedata *data = _strRopeData(ret);
     memset(data, 0, sizeof(str_ropedata));
 
@@ -252,13 +256,12 @@ string _strCreateRope1(_In_opt_ strref s, uint32 off, uint32 len)
 }
 
 // quick and dirty rope node cloning for makeunique
-string _strCloneRope(_In_ strref s)
+_Use_decl_annotations_
+string_v _strCloneRope(strref_v s)
 {
     string ret = 0;
 
     _strInitRope(&ret);
-    if (!ret)
-        return NULL;
 
     str_ropedata *sdata = _strRopeData(s);
     str_ropedata *data = _strRopeData(ret);
@@ -276,7 +279,7 @@ string _strCloneRope(_In_ strref s)
     return ret;
 }
 
-void _strDestroyRope(_Inout_ string s)
+void _strDestroyRope(string_v s)
 {
     str_ropedata *data = _strRopeData(s);
 
@@ -287,7 +290,8 @@ void _strDestroyRope(_Inout_ string s)
 // copy bytes out of a rope
 // as in _strFastCopy, we assume the caller has done the math
 // and knows what they're doing
-uint32 _strRopeFastCopy(_In_ strref s, uint32 off, _Out_writes_bytes_(bytes) uint8 *buf, uint32 bytes)
+_Use_decl_annotations_
+uint32 _strRopeFastCopy(strref_v s, uint32 off, uint8 * _Nonnull buf, uint32 bytes)
 {
     uint32 leftcopy = 0, rightcopy = 0;
     str_ropedata *data = _strRopeData(s);
@@ -304,7 +308,7 @@ uint32 _strRopeFastCopy(_In_ strref s, uint32 off, _Out_writes_bytes_(bytes) uin
 }
 
 _Success_(return)
-static bool _strRopeRealStrPart(_Inout_ str_roperef *ref, uint32 off, _Out_ string *rs, _Out_ uint32 *rsoff, _Out_ uint32 *rslen, _Out_ uint32 *rsstart, bool writable)
+static bool _strRopeRealStrPart(_Inout_ str_roperef *_Nonnull ref, uint32 off, _Out_ string *_Nonnull rs, _Out_ uint32 *_Nonnull rsoff, _Out_ uint32 *_Nonnull rslen, _Out_ uint32 *_Nonnull rsstart, bool writable)
 {
     // is it part of our ref?
     if (off >= ref->len)
@@ -329,7 +333,7 @@ static bool _strRopeRealStrPart(_Inout_ str_roperef *ref, uint32 off, _Out_ stri
 // note that rs gets a borrowed reference put into it, so caller must dup
 // if it wants to hold on to it and doesn't otherwise hold a ref!
 _Success_(return)
-bool _strRopeRealStr(_Inout_ string *s, uint32 off, _Out_ string *rs, _Out_ uint32 *rsoff, _Out_ uint32 *rslen, _Out_ uint32 *rsstart, bool writable)
+bool _strRopeRealStr(_Inout_ strhandle_v s, uint32 off, _Out_ string *_Nonnull rs, _Out_ uint32 *_Nonnull rsoff, _Out_ uint32 *_Nonnull rslen, _Out_ uint32 *_Nonnull rsstart, bool writable)
 {
     if (!(_strHdr(*s) & STR_ROPE))
         return false;
@@ -346,12 +350,14 @@ bool _strRopeRealStr(_Inout_ string *s, uint32 off, _Out_ string *rs, _Out_ uint
     return false;
 }
 
-int strTestRopeDepth(_In_opt_ strref s)
+_Use_decl_annotations_
+int strTestRopeDepth(strref s)
 {
     return _strRopeDepth(s);
 }
 
-bool strTestRopeNode(_Inout_ string *o, _In_opt_ strref s, bool left)
+_Use_decl_annotations_
+bool strTestRopeNode(strhandle o, strref s, bool left)
 {
     if (!s || !(_strHdr(s) & STR_ROPE))
         return false;
