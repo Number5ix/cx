@@ -78,14 +78,13 @@ void striInitRev(striter *_Nonnull iter, strref s)
     _striInit(iter, s, true);
 }
 
-_Use_decl_annotations_
-void _striBorrow(striter *_Nonnull  iter, strref s, bool reverse)
+static void _striBorrow(_Out_ striter* _Nonnull iter, strref s, bool reverse)
 {
     if (!STR_CHECK_VALID(s))
         s = _strEmpty;
 
     iter->_borrowed = true;
-    iter->_str = (string)s;
+    iter->_str      = (string)s;
 
     // prime iterator with first run
     if (!reverse)

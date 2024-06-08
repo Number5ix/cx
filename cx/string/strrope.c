@@ -279,6 +279,7 @@ string_v _strCloneRope(strref_v s)
     return ret;
 }
 
+_Use_decl_annotations_
 void _strDestroyRope(string_v s)
 {
     str_ropedata *data = _strRopeData(s);

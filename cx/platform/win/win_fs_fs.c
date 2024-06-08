@@ -62,6 +62,10 @@ wchar_t* fsPathToNT(strref path)
     }
 
     ret = strToUTF16S(ntpath);
+    if(!ret) {
+        ret = scratchGet(1);
+        ret[0] = 0;
+    }
 
     strDestroy(&npath);
     strDestroy(&ntpath);
