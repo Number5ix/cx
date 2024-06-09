@@ -104,6 +104,7 @@ static int test_math_pcgfloat()
                 return 1;
         }
 
+        //NOLINTNEXTLINE
         for (float64 i = 0; i < 1e+40; i += i/2 + 1) {
             v = pcgFRange64(&rng, -i, i);
             if (v < -i || v > i)

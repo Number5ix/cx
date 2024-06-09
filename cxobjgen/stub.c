@@ -26,7 +26,7 @@ _no_inline _no_return void dbgCrashNow(int skip)
 #else
     volatile char *badptr = 0;
     _Analysis_assume_(badptr != NULL);
-    *badptr = 0;
+    *badptr = 0;        // NOLINT
 #endif
     exit(-1);
 }
