@@ -9,7 +9,8 @@ target_include_directories(${p256m_target}
          $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/p256-m>
          $<BUILD_INTERFACE:${MBEDTLS_DIR}/include>
          $<INSTALL_INTERFACE:include>
-  PRIVATE ${MBEDTLS_DIR}/library/)
+  PRIVATE ${MBEDTLS_DIR}/library/
+          ${CX_TOP_SOURCE_DIR})
 
 # Pass-through MBEDTLS_CONFIG_FILE and MBEDTLS_USER_CONFIG_FILE
 # This must be duplicated from library/CMakeLists.txt because

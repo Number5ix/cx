@@ -11,6 +11,7 @@ target_include_directories(${everest_target}
          $<INSTALL_INTERFACE:include>
   PRIVATE include/everest
           include/everest/kremlib
+          ${CX_TOP_SOURCE_DIR}
           ${MBEDTLS_DIR}/library/)
 
 # Pass-through MBEDTLS_CONFIG_FILE and MBEDTLS_USER_CONFIG_FILE
