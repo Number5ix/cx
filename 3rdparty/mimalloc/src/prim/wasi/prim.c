@@ -12,8 +12,8 @@ terms of the MIT license. A copy of the license can be found in the file
 #include "mimalloc/atomic.h"
 #include "mimalloc/prim.h"
 
-#include <stdlib.h>
-#include <stdio.h>
+#include <stdio.h>   // fputs
+#include <stdlib.h>  // getenv
 
 static void* mi_align_up_ptr(void* p, size_t alignment) {
   return (void*)_mi_align_up((uintptr_t)p, alignment);
@@ -31,7 +31,7 @@ void _mi_prim_mem_init( mi_os_mem_config_t* config ) {
   config->page_size = 64*MI_KiB; // WebAssembly has a fixed page size: 64KiB
   config->alloc_granularity = 16;
   config->has_overcommit = false;  
-  config->must_free_whole = true;
+  config->has_partial_free = false;
   config->has_virtual_reserve = false;
 }
 
@@ -51,6 +51,8 @@ int _mi_prim_free(void* addr, size_t size ) {
 //---------------------------------------------
 
 #if defined(MI_USE_SBRK)
+  #include <unistd.h>  // for sbrk
+
   static void* mi_memory_grow( size_t size ) {
     void* p = sbrk(size);
     if (p == (void*)(-1)) return NULL;
