@@ -1,0 +1,23 @@
+buildType:
+  default: dev
+  choices:
+    debug:
+      short: Debug
+      long: No optimizations, all debugging options enabled
+      buildType: Debug
+    dev:
+      short: Dev
+      long: Optimizations, performance-friendly debugging options enabled
+      buildType: Dev
+    release:
+      short: Release
+      long: Full optimizations, no debug symbols
+      buildType: Release
+    relwidthdebinfo:
+      short: RelWithDebInfo
+      long: Optimizations, debug symbols generated
+      buildType: RelWithDebInfo
+    minsizerel:
+      short: MinSizeRel
+      long: Optimize for space, no debug symbols
+      buildType: MinSizeRel
