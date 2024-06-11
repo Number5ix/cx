@@ -1,8 +1,10 @@
 set(p256m_target ${MBEDTLS_TARGET_PREFIX}p256m)
 
-add_library(${p256m_target}
+add_library(${p256m_target} OBJECT
     p256-m_driver_entrypoints.c
     p256-m/p256-m.c)
+
+set_property(TARGET ${p256m_target} PROPERTY FOLDER "3rdparty")
 
 target_include_directories(${p256m_target}
   PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>

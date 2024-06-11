@@ -1,9 +1,11 @@
 set(everest_target "${MBEDTLS_TARGET_PREFIX}everest")
 
-add_library(${everest_target}
+add_library(${everest_target} OBJECT
   library/everest.c
   library/x25519.c
   library/Hacl_Curve25519_joined.c)
+
+  set_property(TARGET ${everest_target} PROPERTY FOLDER "3rdparty")
 
 target_include_directories(${everest_target}
   PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
