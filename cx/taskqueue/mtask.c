@@ -42,6 +42,8 @@ bool MTask__cycle(_Inout_ MTask *self)
         }
     }
 
+    _Analysis_assume_(self->_new.a != NULL);
+
     withMutex(&self->_newlock)
     {
         // try to start some tasks if we can
