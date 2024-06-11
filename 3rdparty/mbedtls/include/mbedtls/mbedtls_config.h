@@ -746,7 +746,7 @@
  * The Everest code is provided under the Apache 2.0 license only; therefore enabling this
  * option is not compatible with taking the library under the GPL v2.0-or-later license.
  */
-//#define MBEDTLS_ECDH_VARIANT_EVEREST_ENABLED
+#define MBEDTLS_ECDH_VARIANT_EVEREST_ENABLED
 
 /**
  * \def MBEDTLS_ECP_DP_SECP192R1_ENABLED

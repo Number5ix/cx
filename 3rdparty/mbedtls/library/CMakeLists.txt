@@ -311,9 +311,13 @@ if(USE_OBJECT_MBEDTLS_LIBRARY)
     set_target_properties(${mbedcrypto_object_target} PROPERTIES OUTPUT_NAME mbedcrypto)
     target_link_libraries(${mbedcrypto_object_target} PUBLIC ${libs})
 
-    if(TARGET everest)
-        target_link_libraries(${mbedcrypto_object_target} PUBLIC everest)
+    if(TARGET ${everest_target})
+        target_link_libraries(${mbedcrypto_object_target} PUBLIC ${everest_target} INTERFACE $<TARGET_OBJECTS:${everest_target}>)
     endif()
+
+    if(TARGET ${p256m_target})
+        target_link_libraries(${mbedcrypto_object_target} PUBLIC ${p256m_target} INTERFACE $<TARGET_OBJECTS:${p256m_target}>)
+    endif()    
 
     add_library(${mbedx509_object_target} OBJECT ${src_x509})
     set_target_properties(${mbedx509_object_target} PROPERTIES OUTPUT_NAME mbedx509)
