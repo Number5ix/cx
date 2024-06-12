@@ -7,7 +7,7 @@
     <Intrinsic Name="isalloc" Expression="(flags() &amp; 0x10) == 0x10" />
     <Intrinsic Name="isstack" Expression="(flags() &amp; 0x14) == 0x14" />
     <Intrinsic Name="isrope" Expression="(flags() &amp; 0x08) == 0x08" />
-    <Intrinsic Name="length" Expression="lentype() == 1 ? (unsigned short)*((unsigned char*)this + (isalloc() ? 3 : 2)) : (lentype() == 2 ? *(unsigned short*)((unsigned char*)this + (isalloc() ? 4 : 2)) : (lentype() == 3 ? *(unsigned long*)((unsigned char*)this + 4) : 0))" />
+    <Intrinsic Name="length" Expression="lentype() == 1 ? (unsigned short)*((unsigned char*)this + (isalloc() ? 3 : 2)) : (lentype() == 2 ? *(unsigned short*)((unsigned char*)this + (isalloc() ? 4 : 2)) : (lentype() == 3 ? *(unsigned int*)((unsigned char*)this + 4) : 0))" />
     <Intrinsic Name="stroffset" Expression="lentype() == 3 ? 8 : (isalloc() ? (lentype() == 2 ? 6 : (lentype() == 1 ? 4 : 3)) : (lentype() == 2 ? 4 : (lentype() == 1 ? 3 : 2)))" />
     <Intrinsic Name="strdata" Expression="(char*)this + stroffset()" />
     <DisplayString Condition="this == 0">[Empty]</DisplayString>
@@ -43,4 +43,10 @@
       </Synthetic>
     </Expand>
   </Type>
+
+  <Type Name="str_ref" Priority="Low">
+    <DisplayString Condition="this == 0">[Empty]</DisplayString>
+    <DisplayString>[Invalid cxa string]</DisplayString>
+  </Type>
+
 </AutoVisualizer>
