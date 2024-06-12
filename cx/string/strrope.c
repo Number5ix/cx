@@ -374,10 +374,3 @@ bool strTestRopeNode(strhandle o, strref s, bool left)
     }
     return false;
 }
-
-#ifdef _MSC_VER
-_str8 _dummy_str8 = { 0 };
-_str16 _dummy_str16 = { 0 };
-_str32 _dummy_str32 = { 0 };
-_rope _dummy_rope = { 0 };
-#endif

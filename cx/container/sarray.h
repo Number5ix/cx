@@ -2,6 +2,7 @@
 
 #include <cx/cx.h>
 #include <cx/debug/assert.h>
+#include <cx/debug/dbgtypes.h>
 #include <cx/utils/macros/unused.h>
 
 #define sarrayref(typ) sa_##typ
@@ -9,6 +10,7 @@
 
 // for creating a named sarray type that can be passed between functions
 #define saDeclareType(name, typ) typedef union sa_##name { \
+    _nv_sarray *_debug; \
     void *_is_sarray; \
     void *_is_sarray_##name; \
     typ *a; \
@@ -65,7 +67,7 @@ enum SARRAY_CREATE_FLAGS_ENUM
     SAINT_Extended  = 0x8000,   // includes extended header
 };
 
-enum SARRAY_GROW_ENUM {
+typedef enum SARRAY_GROW_ENUM {
     // automatically select based on element size
     SA_GROW_Auto,
 
@@ -81,7 +83,7 @@ enum SARRAY_GROW_ENUM {
 
     // always grow to exact size needed, never allocate extra
     SA_GROW_Minimal,
-};
+} SARRAY_GROW_ENUM;
 
 enum SARRAY_FUNC_FLAGS_ENUM {
     // Valid for: saPush, saMerge

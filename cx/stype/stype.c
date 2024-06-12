@@ -9,6 +9,8 @@
 #include "cx/suid/stype_suid.h"
 #include "cx/closure/stype_closure.h"
 
+#include "cx/debug/dbgtypes.h"
+
 // extern inline stype _stype_mktype(uint8 id, uint8 flags, uint16 sz);
 // extern inline void stDestroy(stype st, void *ptr, STypeOps *ops);
 // extern inline intptr stCmp(stype st, const void *ptr1, const void *ptr2, STypeOps *ops);
@@ -112,8 +114,13 @@ static uint32 stHash_none(stype st, stgeneric gen, uint32 flags)
     return 0;
 }
 
-static void stCopy_none(stype st, _stCopyDest_Anno_(st) stgeneric *dest, _In_ stgeneric src, flags_t flags)
+static void stCopy_none(stype st, _stCopyDest_Anno_(st) stgeneric* dest, _In_ stgeneric src,
+                        flags_t flags)
 {
+    // Ensure that the debug types are always available in debug builds.
+    // This spot was chosen because it's in a function that is virtually impossible to be omitted
+    // during linking.
+    devAssert(_unused_debug_types._unused == 0);
 }
 
 alignMem(64) stDtorFunc _stDefaultDtor[256] = {
