@@ -51,12 +51,18 @@ set(CX_BASE_INCLUDES
     utils.h
     xalloc.h)
 
+if (CX_COMPILER_IS_MSVC)
+    set(CX_NATVIS_FILES
+        cx.natvis)
+endif()
+
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES
     ${CX_BASE_INCLUDES}
     ${CX_SRCS}
     ${CX_SIDL}
     ${CX_SIDL_NODEP}
     ${CX_INCLUDES}
+    ${CX_NATVIS_FILES}
     ${CX_CMAKE_FILES})
 
 add_sidl(${CX_SIDL})
@@ -68,11 +74,15 @@ add_library(cx STATIC
     ${CX_SIDL_NODEP}
     ${CX_INCLUDES}
     ${CX_BASE_INCLUDES}
+    ${CX_NATVIS_FILES}
     ${CX_CMAKE_FILES})
 
 target_link_libraries(cx ${CMAKE_THREAD_LIBS_INIT} ${CMAKE_DL_LIBS} mimalloc mbedtls mbedx509 mbedcrypto)
 target_include_directories(cx SYSTEM PUBLIC ${CX_TOP_SOURCE_DIR} ${CX_TOP_BINARY_DIR})
 target_compile_definitions(cx PRIVATE UNICODE _UNICODE)
+if (CX_COMPILER_IS_MSVC)
+    target_link_options(cx PUBLIC /NATVIS:${CMAKE_CURRENT_SOURCE_DIR}/cx.natvis)
+endif()
 
 if (CX_USE_SYSTEM_MALLOC)
     target_compile_definitions(cx PRIVATE XALLOC_USE_SYSTEM_MALLOC)
