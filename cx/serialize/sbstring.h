@@ -29,3 +29,10 @@ bool sbufStrOut(_Pre_valid_ _Post_invalid_ StreamBuffer *sb, _Inout_ string *str
 // This consumer appends all output to the given string.
 _Check_return_
 bool sbufStrCRegisterPush(_Inout_ StreamBuffer *sb, _Inout_ string *strout);
+
+// ======================================================================
+
+// Shortcut for a common use case of creating a streambuffer that outputs
+// to a string and the caller intends to be a producer in push mode.
+_Check_return_ _Ret_opt_valid_ StreamBuffer*
+sbufStrCreatePush(_Inout_ string* strout, size_t targetsz);

@@ -136,3 +136,23 @@ bool sbufStrCRegisterPush(StreamBuffer *sb, string *strout)
 
     return true;
 }
+
+_Use_decl_annotations_
+StreamBuffer *sbufStrCreatePush(string *strout, size_t targetsz)
+{
+    StreamBuffer* ret = sbufCreate(targetsz);
+    if (!ret)
+        return NULL;
+
+    if(!sbufPRegisterPush(ret, NULL, NULL)) {
+        sbufRelease(&ret);
+        return NULL;
+    }
+
+    if(!sbufStrCRegisterPush(ret, strout)) {
+        sbufRelease(&ret);
+        return NULL;
+    }
+
+    return ret;
+}
