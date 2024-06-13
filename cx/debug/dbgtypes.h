@@ -21,7 +21,7 @@ NVTYPE(_nv_hashtable_data);
 NVTYPE(_nv_hashtable_flags);
 
 #undef NVTYPE
-#define NVTYPE(name) name* name##_var;
+#define NVTYPE(name) name* name##_var
 typedef union _debug_types {
     void* _unused;
     _nv_stype* _nv_stype_var;
