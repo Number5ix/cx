@@ -7,12 +7,63 @@
 static const string autogenBegin =  _S"// ==================== Auto-generated section begins ====================";
 static const string autogenNotice = _S"// Do not modify the contents of this section; any changes will be lost!";
 static const string autogenEnd =    _S"// ==================== Auto-generated section ends ======================";
-static const string autogenBeginShort = _S"// Autogen begins -----";
-static const string autogenEndShort =   _S"// Autogen ends -------";
+static const string autogenBeginShort       = _S"// Autogen begins -----";
+static const string autogenEndShort         = _S"// Autogen ends -------";
 static const string autogenBeginShortIndent = _S"    // Autogen begins -----";
 static const string autogenEndShortIndent   = _S"    // Autogen ends -------";
+static const string clangOff                = _S"// clang-format off";
+static const string clangOn                 = _S"// clang-format on";
 
 static sa_string parentmacros;
+
+static bool striCharNoWS(striter* iter, uint8* out)
+{
+    uint8 ch;
+    while (striChar(iter, &ch)) {
+        if (ch != ' ' && ch != '\t' && ch != '\r' && ch != '\n') {
+            *out = ch;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static bool strEqNoWS(strref s1, strref s2)
+{
+    striter i1, i2;
+    striBorrow(&i1, s1);
+    striBorrow(&i2, s2);
+
+    char ch1, ch2;
+    bool ret1, ret2;
+    for (;;) {
+        ret1 = striCharNoWS(&i1, &ch1);
+        ret2 = striCharNoWS(&i2, &ch2);
+
+        if (!ret1 && !ret2)
+            return true;    // Hit end at the same time
+        if (!ret1 || !ret2)
+            return false;   // One hit end but other didn't
+
+        if (ch1 != ch2)
+            return false;
+    }
+
+    return false;   // unreachable
+}
+
+static void strAppendLine(string *str, strref ln)
+{
+    if (!strEmpty(*str)) {
+#ifdef _PLATFORM_WIN
+        strAppend(str, _S"\r\n");
+#else
+        strAppend(str, _S"\n");
+#endif
+    }
+    strAppend(str, ln);
+}
 
 static void writeAutoInit(StreamBuffer *bf, Class *cls);
 static void writeAutoDtors(StreamBuffer *bf, Class *cls);
@@ -587,7 +638,9 @@ bool writeImpl(string fname, bool mixinimpl)
     }
 
     string ln = 0;
+    string olddecl = 0;
     sbufPWriteLine(nbf, autogenBegin);
+    sbufPWriteLine(nbf, clangOff);
     sbufPWriteLine(nbf, autogenNotice);
     sbufPWriteLine(nbf, _S"#include <cx/obj.h>");
     sbufPWriteLine(nbf, _S"#include <cx/debug/assert.h>");
@@ -602,6 +655,7 @@ bool writeImpl(string fname, bool mixinimpl)
             sbufPWriteLine(nbf, ln);
         }
     }
+    sbufPWriteLine(nbf, clangOn);
     sbufPWriteLine(nbf, autogenEnd);
 
     sa_string seen;
@@ -659,24 +713,25 @@ bool writeImpl(string fname, bool mixinimpl)
 
             for (int nline = 0; nline < saSize(linebuf); nline++) {
                 if (nline > 0) {
+                    // don't continue adding lines if we have one of these
+                    if (strEmpty(linebuf.a[nline]) || strFind(linebuf.a[nline], 0, _S"{") != -1)
+                        break;
+
                     // don't delete lines yet, only peek beyond first
-#ifdef _PLATFORM_WIN
-                    strAppend(&ln, _S"\r\n");
-#else
-                    strAppend(&ln, _S"\n");
-#endif
-                    strAppend(&ln, linebuf.a[nline]);
+                    strAppendLine(&ln, linebuf.a[nline]);
                 }
                 // ignore parent prototypes and macros
                 nmatches =
                     pcre2_match(reParentProto, (PCRE2_SPTR)strC(ln), strLen(ln), 0, 0, match, NULL);
                 if (nmatches >= 0) {
+                    strAppendLine(&olddecl, ln);
                     deleteLines(&linebuf, nline);
                     goto nextloop;
                 }
                 nmatches =
                     pcre2_match(reParentMacro, (PCRE2_SPTR)strC(ln), strLen(ln), 0, 0, match, NULL);
                 if (nmatches >= 0) {
+                    strAppendLine(&olddecl, ln);
                     deleteLines(&linebuf, nline);
                     goto nextloop;
                 }
@@ -685,13 +740,19 @@ bool writeImpl(string fname, bool mixinimpl)
                     pcre2_match(reProto, (PCRE2_SPTR)strC(ln), strLen(ln), 0, 0, match, NULL);
                 if (nmatches >= 0) {
                     // actually remove lines beyond the first
+                    strAppendLine(&olddecl, ln);
                     deleteLines(&linebuf, nline);
                     break;
                 }
+
+                // don't continue adding lines if we have one of these
+                if (strEmpty(linebuf.a[nline]) || strFind(linebuf.a[nline], 0, _S";") != -1)
+                    break;
             }
             if (nmatches >= 0) {
                 PCRE2_SIZE *ovector = pcre2_get_ovector_pointer(match);
-                string funcname = 0;
+                string newdecl      = 0;
+                string funcname     = 0;
                 strSubStr(&funcname, ln, (int32)ovector[2], (int32)ovector[3]);
                 MethodPair mp;
 
@@ -703,14 +764,30 @@ bool writeImpl(string fname, bool mixinimpl)
                             indestroy = mp.c;
                     }
                     saPush(&seen, string, funcname, SA_Unique);
-                    writeMethodProto(nbf, mp.c, mp.m, nmatches == 3, mixinimpl, false);
+
+                    // write the proto to a string buffer and make sure we aren't rewriting it
+                    // if only whitespace changed
+                    StreamBuffer* ssbf = sbufStrCreatePush(&newdecl, 256);
+                    if (!ssbf)
+                        return false;
+                    writeMethodProto(ssbf, mp.c, mp.m, nmatches == 3, mixinimpl, false);
+                    sbufPFinish(ssbf);
+                    sbufRelease(&ssbf);
+
+                    if(strEqNoWS(olddecl, newdecl)) {
+                        sbufPWriteLine(nbf, olddecl);
+                    } else {
+                        sbufPWriteStr(nbf, newdecl);   // EOL already added by writeMethodProto
+                    }
                 } else {
                     sbufPWriteLine(nbf, ln);
                 }
+                strDestroy(&newdecl);
                 strDestroy(&funcname);
             } else {
                 // revert back to a single line
                 strDup(&ln, linebuf.a[0]);                
+                strClear(&olddecl);
                 if (strEq(ln, _S"}")) {
                     if (ininit) {
                         writeAutoInit(nbf, ininit);
@@ -745,6 +822,7 @@ nextloop:
         bool wroteany = false;
 
         sbufPWriteLine(ibf, autogenBegin);
+        sbufPWriteLine(ibf, clangOff);
         sbufPWriteLine(ibf, autogenNotice);
         for (int i = 0; i < saSize(classes); i++) {
             if (!classes.a[i]->included)
@@ -799,6 +877,7 @@ nextloop:
     pcre2_code_free(reProto);
     saDestroy(&linebuf);
     strDestroy(&ln);
+    strDestroy(&olddecl);
     strDestroy(&incname);
     strDestroy(&hname);
     strDestroy(&cname);

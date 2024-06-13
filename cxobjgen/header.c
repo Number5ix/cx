@@ -445,6 +445,7 @@ bool writeHeader(string fname)
     sbufPWriteLine(bf, _S"#pragma once");
     sbufPWriteLine(bf, _S"// This header file is auto-generated!");
     sbufPWriteLine(bf, _S"// Do not make changes to this file or they will be overwritten.");
+    sbufPWriteLine(bf, _S"// clang-format off");
     sbufPWriteLine(bf, _S"#include <cx/obj.h>");
     for (int i = 0; i < saSize(includes); i++) {
         strNConcat(&ln, _S"#include ", includes.a[i]);
