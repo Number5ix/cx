@@ -35,7 +35,7 @@ static bool strEqNoWS(strref s1, strref s2)
     striBorrow(&i1, s1);
     striBorrow(&i2, s2);
 
-    char ch1, ch2;
+    uint8 ch1 = 0, ch2 = 0;
     bool ret1, ret2;
     for (;;) {
         ret1 = striCharNoWS(&i1, &ch1);

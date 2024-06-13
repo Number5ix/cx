@@ -263,9 +263,9 @@ bool sbufPWriteLine(StreamBuffer *sb, strref str)
             return false;
     }
 #ifdef _PLATFORM_WIN
-    return sbufPWrite(sb, "\r\n", 2);
+    return sbufPWrite(sb, (const uint8*)"\r\n", 2);
 #else
-    return sbufPWrite(sb, "\n", 1);
+    return sbufPWrite(sb, (const uint8*)"\n", 1);
 #endif
     return true;
 }
@@ -274,9 +274,9 @@ _Use_decl_annotations_
 bool sbufPWriteEOL(StreamBuffer* sb)
 {
 #ifdef _PLATFORM_WIN
-    return sbufPWrite(sb, "\r\n", 2);
+    return sbufPWrite(sb, (const uint8*)"\r\n", 2);
 #else
-    return sbufPWrite(sb, "\n", 1);
+    return sbufPWrite(sb, (const uint8*)"\n", 1);
 #endif
     return true;
 }
