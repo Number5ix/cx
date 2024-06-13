@@ -408,6 +408,12 @@ static inline void _readWriteBuf(_Inout_ StreamBuffer *sb, _Out_writes_bytes_opt
         *p += sz;
         *off += sz;
     }
+
+    if(sb->head == sb->tail) {
+        // If the buffer is empty, reset it to the start of the ring.
+        // This helps avoid having to split reads/writes.
+        sb->head = sb->tail = 0;
+    }
 }
 #define readWriteBuf(out, p, in, sz) _readWriteBuf(sb, out, &p, &total, in, &off, sz, &skip, movehead, sendcb)
 

@@ -88,7 +88,7 @@ static bool sbufFileSendCB(_Pre_valid_ StreamBuffer *sb, _In_reads_bytes_(sz) co
 
 static void sbufFileNotifyCB(_Pre_valid_ StreamBuffer *sb, size_t sz, _Pre_opt_valid_ void *ctx)
 {
-    if (sz >= sb->targetsz) {
+    if (sz >= (sb->targetsz >> 1) + (sb->targetsz >> 2)) {
         sbufCSend(sb, sbufFileSendCB, sz);
     } else if (sz == 0 || sbufIsPFinished(sb)) {
         // flush anything that's left in the streambuf
