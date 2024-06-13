@@ -9,7 +9,7 @@
 #define TEST_FUNCS lineparsetest_funcs
 #include "common.h"
 
-static const char testdata_cr[] = "This is a test of the lineparser code. This is line 1.\n"
+static const char testdata_lf[] = "This is a test of the lineparser code. This is line 1.\n"
 "This is line 2.\n"
 "This is line 3.\n"
 "This is line 4.\n"
@@ -428,10 +428,10 @@ static string line100 = _S"(100) THIS IS THE LAST LINE!";
 int test_lineparse_explicit()
 {
     int ret = 0;
-    string teststr_cr = 0;
+    string teststr_lf = 0;
     string teststr_crlf = 0;
 
-    strCopy(&teststr_cr, (strref)testdata_cr);
+    strCopy(&teststr_lf, (strref)testdata_lf);
     strCopy(&teststr_crlf, (strref)testdata_crlf);
 
     StreamBuffer *sb;
@@ -439,8 +439,8 @@ int test_lineparse_explicit()
     string line = 0;
 
     sb = sbufCreate(512);
-    if (!sbufStrPRegisterPull(sb, teststr_cr) ||
-        !lparseRegisterPull(sb, LPARSE_CR))
+    if (!sbufStrPRegisterPull(sb, teststr_lf) ||
+        !lparseRegisterPull(sb, LPARSE_LF))
         return 1;
 
     lines = 0;
@@ -465,8 +465,8 @@ int test_lineparse_explicit()
 
     // retest with NoIncomplete
     sb = sbufCreate(512);
-    if (!sbufStrPRegisterPull(sb, teststr_cr) ||
-        !lparseRegisterPull(sb, LPARSE_CR | LPARSE_NoIncomplete))
+    if (!sbufStrPRegisterPull(sb, teststr_lf) ||
+        !lparseRegisterPull(sb, LPARSE_LF | LPARSE_NoIncomplete))
         return 1;
 
     lines = 0;
@@ -575,7 +575,7 @@ int test_lineparse_explicit()
     sbufRelease(&sb);
 
     strDestroy(&line);
-    strDestroy(&teststr_cr);
+    strDestroy(&teststr_lf);
     strDestroy(&teststr_crlf);
 
     return ret;
@@ -584,12 +584,12 @@ int test_lineparse_explicit()
 int test_lineparse_auto()
 {
     int ret = 0;
-    string teststr_cr = 0;
+    string teststr_lf = 0;
     string teststr_crlf = 0;
     string teststr_mixed1 = 0;
     string teststr_mixed2 = 0;
 
-    strCopy(&teststr_cr, (strref)testdata_cr);
+    strCopy(&teststr_lf, (strref)testdata_lf);
     strCopy(&teststr_crlf, (strref)testdata_crlf);
     strCopy(&teststr_mixed1, (strref)testdata_mixed1);
     strCopy(&teststr_mixed2, (strref)testdata_mixed2);
@@ -599,7 +599,7 @@ int test_lineparse_auto()
     string line = 0;
 
     sb = sbufCreate(512);
-    if (!sbufStrPRegisterPull(sb, teststr_cr) ||
+    if (!sbufStrPRegisterPull(sb, teststr_lf) ||
         !lparseRegisterPull(sb, LPARSE_Auto))
         return 1;
 
@@ -713,7 +713,7 @@ int test_lineparse_auto()
 
     strDestroy(&temp);
     strDestroy(&line);
-    strDestroy(&teststr_cr);
+    strDestroy(&teststr_lf);
     strDestroy(&teststr_crlf);
     strDestroy(&teststr_mixed1);
     strDestroy(&teststr_mixed2);
@@ -829,17 +829,17 @@ int test_lineparse_push()
     StreamBuffer *sb;
     int ret = 0;
     LineParsePushTestCtx lppt = { 0 };
-    string teststr_cr = 0;
+    string teststr_lf = 0;
     string teststr_crlf = 0;
 
-    strCopy(&teststr_cr, (strref)testdata_cr);
+    strCopy(&teststr_lf, (strref)testdata_lf);
     strCopy(&teststr_crlf, (strref)testdata_crlf);
 
     // test with a large buffer
     sb = sbufCreate(8192);
     if (!lparseRegisterPush(sb, test_linecb, test_ctxcleanup, &lppt, 0))
         return 1;
-    sbufStrIn(sb, teststr_cr);
+    sbufStrIn(sb, teststr_lf);
 
     if (lppt.lines != 100)
         ret = 1;
@@ -867,7 +867,7 @@ int test_lineparse_push()
     if (!lppt.didclean)
         ret = 1;
 
-    strDestroy(&teststr_cr);
+    strDestroy(&teststr_lf);
     strDestroy(&teststr_crlf);
 
     return ret;

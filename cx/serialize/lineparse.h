@@ -6,7 +6,7 @@
 enum LINEPARSER_FLAGS_ENUM {
     LPARSE_Auto         = 0,
     LPARSE_CRLF         = 1,
-    LPARSE_CR           = 2,
+    LPARSE_LF           = 2,
     LPARSE_Mixed        = 3,
     LPARSE_EOL_MASK     = 3,
     LPARSE_EOL_COUNT    = 4,

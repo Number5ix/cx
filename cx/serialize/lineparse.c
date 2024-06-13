@@ -22,7 +22,7 @@ typedef struct EOLFindInfo
     int len;
 } EOLFindInfo;
 
-static bool findEOLCR(_Inout_ EOLFindInfo *ei, _In_reads_bytes_(sz) const uint8 *buf, size_t sz, _Inout_ LineParserContext *lpc)
+static bool findEOLLF(_Inout_ EOLFindInfo *ei, _In_reads_bytes_(sz) const uint8 *buf, size_t sz, _Inout_ LineParserContext *lpc)
 {
     for (size_t i = 0; i < sz; i++) {
         if (buf[i] == '\n') {
@@ -73,7 +73,7 @@ static bool findEOLAuto(_Inout_ EOLFindInfo *ei, _In_reads_bytes_(sz) const uint
         } else if (buf[i] == '\n') {
             ei->off = i;
             ei->len = 1;
-            lpc->flags |= LPARSE_CR;
+            lpc->flags |= LPARSE_LF;
             return true;
         }
     }
@@ -84,7 +84,7 @@ static bool findEOLAuto(_Inout_ EOLFindInfo *ei, _In_reads_bytes_(sz) const uint
 static bool (*eolfuncs[])(_Inout_ EOLFindInfo *ei, _In_reads_bytes_(sz) const uint8 *buf, size_t sz, _Inout_ LineParserContext *lpc) = {
     findEOLAuto,
     findEOLCRLF,
-    findEOLCR,
+    findEOLLF,
     findEOLMixed
 };
 
