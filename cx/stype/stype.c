@@ -117,10 +117,10 @@ static uint32 stHash_none(stype st, stgeneric gen, uint32 flags)
 static void stCopy_none(stype st, _stCopyDest_Anno_(st) stgeneric* dest, _In_ stgeneric src,
                         flags_t flags)
 {
-    // Ensure that the debug types are always available in debug builds.
+    // Ensure that the debug types are always available.
     // This spot was chosen because it's in a function that is virtually impossible to be omitted
     // during linking.
-    devAssert(_unused_debug_types._unused == 0);
+    relAssertMsg(_unused_debug_types._unused == 0, "Memory corruption");
 }
 
 alignMem(64) stDtorFunc _stDefaultDtor[256] = {

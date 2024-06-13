@@ -49,6 +49,7 @@ set(CX_SRCS
     ../cx/container/sarray.c
     ../cx/container/stype_hashtable.c
     ../cx/container/stype_sarray.c
+    ../cx/debug/dbgtypes.c
     ../cx/debug/error.c
     ../cx/obj/objclass.c
     ../cx/obj/objiface.c
