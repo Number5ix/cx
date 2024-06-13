@@ -1,6 +1,7 @@
 #pragma once
 // This header file is auto-generated!
 // Do not make changes to this file or they will be overwritten.
+// clang-format off
 #include <cx/obj.h>
 #include <cx/thread/threadobj.h>
 #include <pthread.h>
@@ -49,8 +50,8 @@ typedef struct UnixThread_WeakRef {
 } UnixThread_WeakRef;
 #define UnixThread_WeakRef(inst) ((UnixThread_WeakRef*)(unused_noeval((inst) && &((inst)->_is_UnixThread_WeakRef)), (inst)))
 
-_objfactory_guaranteed UnixThread *UnixThread_create();
-// UnixThread *_unixthrobjCreate();
+_objfactory_guaranteed UnixThread* UnixThread_create();
+// UnixThread* _unixthrobjCreate();
 #define _unixthrobjCreate() UnixThread_create()
 
 

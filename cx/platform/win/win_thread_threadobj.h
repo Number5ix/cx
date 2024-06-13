@@ -1,6 +1,7 @@
 #pragma once
 // This header file is auto-generated!
 // Do not make changes to this file or they will be overwritten.
+// clang-format off
 #include <cx/obj.h>
 #include <cx/thread/threadobj.h>
 #include <cx/platform/win.h>
@@ -49,8 +50,8 @@ typedef struct WinThread_WeakRef {
 } WinThread_WeakRef;
 #define WinThread_WeakRef(inst) ((WinThread_WeakRef*)(unused_noeval((inst) && &((inst)->_is_WinThread_WeakRef)), (inst)))
 
-_objfactory_guaranteed WinThread *WinThread_create();
-// WinThread *_winthrobjCreate();
+_objfactory_guaranteed WinThread* WinThread_create();
+// WinThread* _winthrobjCreate();
 #define _winthrobjCreate() WinThread_create()
 
 

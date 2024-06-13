@@ -1,4 +1,5 @@
 // ==================== Auto-generated section begins ====================
+// clang-format off
 // Do not modify the contents of this section; any changes will be lost!
 ConvertTestClass_ClassIf ConvertTestClass_ClassIf_tmpl = {
     ._size = sizeof(ConvertTestClass_ClassIf),

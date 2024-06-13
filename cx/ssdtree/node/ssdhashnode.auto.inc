@@ -1,4 +1,5 @@
 // ==================== Auto-generated section begins ====================
+// clang-format off
 // Do not modify the contents of this section; any changes will be lost!
 SSDHashNode_ClassIf SSDHashNode_ClassIf_tmpl = {
     ._size = sizeof(SSDHashNode_ClassIf),

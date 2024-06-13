@@ -1,6 +1,7 @@
 #pragma once
 // This header file is auto-generated!
 // Do not make changes to this file or they will be overwritten.
+// clang-format off
 #include <cx/obj.h>
 #include <cx/taskqueue/task.h>
 #include <cx/thread.h>

@@ -1,4 +1,5 @@
 // ==================== Auto-generated section begins ====================
+// clang-format off
 // Do not modify the contents of this section; any changes will be lost!
 TestIf1 TestIf1_tmpl = {
     ._size = sizeof(TestIf1),
