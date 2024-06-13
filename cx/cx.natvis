@@ -140,7 +140,7 @@
 			<Item Name="keytype">keytype(),na</Item>
 			<Item Name="valtype">valtype(),na</Item>
 			<Item Name="growat">(HASHTABLE_GROW_ENUM)((hdr()->flags &gt;&gt; 24) &amp; HT_GROW_AT_MASK)</Item>
-			<Item Name="growby">(HASHTABLE_GROW_ENUM)((hdr()->flags &gt;&gt; 24) &amp; HT_GROW_BY_MASK)</Item>
+			<Item Name="growby">(HASHTABLE_GROWBY_ENUM)((hdr()->flags &gt;&gt; 24) &amp; HT_GROW_BY_MASK)</Item>
 
 			<Item Name="Flags">(_nv_hashtable_flags*)hdr(),nanr</Item>
 			<Item Name="Data">(_nv_hashtable_data*)hdr(),nanr</Item>
