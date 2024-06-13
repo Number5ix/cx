@@ -9,7 +9,7 @@
 // ==================== Auto-generated section ends ======================
 #include "taskqueue_private.h"
 
-void Task_destroy(_Inout_ Task *self)
+void Task_destroy(_Inout_ Task* self)
 {
     // Autogen begins -----
     strDestroy(&self->name);
@@ -18,7 +18,7 @@ void Task_destroy(_Inout_ Task *self)
     // Autogen ends -------
 }
 
-_objinit_guaranteed bool Task_init(_Inout_ Task *self)
+_objinit_guaranteed bool Task_init(_Inout_ Task* self)
 {
     if(!self->name)
         self->name = _S"Task";
@@ -27,7 +27,7 @@ _objinit_guaranteed bool Task_init(_Inout_ Task *self)
     // Autogen ends -------
 }
 
-bool Task_advance(_Inout_ Task *self)
+bool Task_advance(_Inout_ Task* self)
 {
     TaskQueue *tq = objAcquireFromWeak(TaskQueue, self->lastq);
     bool ret = false;
@@ -40,9 +40,9 @@ bool Task_advance(_Inout_ Task *self)
     return ret;
 }
 
-extern bool BasicTask_reset(_Inout_ BasicTask *self); // parent
+extern bool BasicTask_reset(_Inout_ BasicTask* self);   // parent
 #define parent_reset() BasicTask_reset((BasicTask*)(self))
-bool Task_reset(_Inout_ Task *self)
+bool Task_reset(_Inout_ Task* self)
 {
     int32 oldval = atomicLoad(int32, &self->state, Relaxed);
     if(oldval != TASK_Succeeded && oldval != TASK_Failed)

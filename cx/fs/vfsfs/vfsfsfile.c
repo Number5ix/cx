@@ -8,7 +8,7 @@
 #include "vfsfsfile.h"
 // ==================== Auto-generated section ends ======================
 
-_objfactory_guaranteed VFSFSFile *VFSFSFile_create(FSFile *f)
+_objfactory_guaranteed VFSFSFile* VFSFSFile_create(FSFile* f)
 {
     VFSFSFile *ret;
     ret = objInstCreate(VFSFSFile);
@@ -17,7 +17,7 @@ _objfactory_guaranteed VFSFSFile *VFSFSFile_create(FSFile *f)
     return ret;
 }
 
-bool VFSFSFile_close(_Inout_ VFSFSFile *self)
+bool VFSFSFile_close(_Inout_ VFSFSFile* self)
 {
     bool ret = false;
     if (self->file)
@@ -26,7 +26,7 @@ bool VFSFSFile_close(_Inout_ VFSFSFile *self)
     return ret;
 }
 
-bool VFSFSFile_read(_Inout_ VFSFSFile *self, _Out_writes_bytes_to_(sz, *bytesread) void *buf, size_t sz, _Out_ _Deref_out_range_(0, sz) size_t *bytesread)
+bool VFSFSFile_read(_Inout_ VFSFSFile* self, _Out_writes_bytes_to_(sz, *bytesread) void* buf, size_t sz, _Out_ _Deref_out_range_(0, sz) size_t* bytesread)
 {
     if (!self->file) {
         *bytesread = 0;
@@ -35,7 +35,7 @@ bool VFSFSFile_read(_Inout_ VFSFSFile *self, _Out_writes_bytes_to_(sz, *bytesrea
     return fsRead(self->file, buf, sz, bytesread);
 }
 
-bool VFSFSFile_write(_Inout_ VFSFSFile *self, _In_reads_bytes_(sz) void *buf, size_t sz, _Out_opt_ _Deref_out_range_(0, sz) size_t *byteswritten)
+bool VFSFSFile_write(_Inout_ VFSFSFile* self, _In_reads_bytes_(sz) void* buf, size_t sz, _Out_opt_ _Deref_out_range_(0, sz) size_t* byteswritten)
 {
     if (!self->file) {
         if (byteswritten)
@@ -45,28 +45,28 @@ bool VFSFSFile_write(_Inout_ VFSFSFile *self, _In_reads_bytes_(sz) void *buf, si
     return fsWrite(self->file, buf, sz, byteswritten);
 }
 
-int64 VFSFSFile_tell(_Inout_ VFSFSFile *self)
+int64 VFSFSFile_tell(_Inout_ VFSFSFile* self)
 {
     if (!self->file)
         return -1;
     return fsTell(self->file);
 }
 
-int64 VFSFSFile_seek(_Inout_ VFSFSFile *self, int64 off, FSSeekType seektype)
+int64 VFSFSFile_seek(_Inout_ VFSFSFile* self, int64 off, FSSeekType seektype)
 {
     if (!self->file)
         return -1;
     return fsSeek(self->file, off, seektype);
 }
 
-bool VFSFSFile_flush(_Inout_ VFSFSFile *self)
+bool VFSFSFile_flush(_Inout_ VFSFSFile* self)
 {
     if (!self->file)
         return false;
     return fsFlush(self->file);
 }
 
-void VFSFSFile_destroy(_Inout_ VFSFSFile *self)
+void VFSFSFile_destroy(_Inout_ VFSFSFile* self)
 {
     VFSFSFile_close(self);
 }

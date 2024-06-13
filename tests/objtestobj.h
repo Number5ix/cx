@@ -37,7 +37,7 @@ typedef struct TestIf1 {
     ObjIface *_parent;
     size_t _size;
 
-    int (*testfunc)(_Inout_ void *self);
+    int (*testfunc)(_Inout_ void* self);
 } TestIf1;
 extern TestIf1 TestIf1_tmpl;
 
@@ -46,8 +46,8 @@ typedef struct TestIf2 {
     ObjIface *_parent;
     size_t _size;
 
-    int (*testfunc)(_Inout_ void *self);
-    int (*testfunc2)(_Inout_ void *self);
+    int (*testfunc)(_Inout_ void* self);
+    int (*testfunc2)(_Inout_ void* self);
 } TestIf2;
 extern TestIf2 TestIf2_tmpl;
 
@@ -56,7 +56,7 @@ typedef struct TestIf3 {
     ObjIface *_parent;
     size_t _size;
 
-    int (*testfunc3)(_Inout_ void *self);
+    int (*testfunc3)(_Inout_ void* self);
 } TestIf3;
 extern TestIf3 TestIf3_tmpl;
 
@@ -65,7 +65,7 @@ typedef struct TestCls1_ClassIf {
     ObjIface *_parent;
     size_t _size;
 
-    int (*testfunc)(_Inout_ void *self);
+    int (*testfunc)(_Inout_ void* self);
 } TestCls1_ClassIf;
 extern TestCls1_ClassIf TestCls1_ClassIf_tmpl;
 
@@ -74,7 +74,7 @@ typedef struct TestCls2_ClassIf {
     ObjIface *_parent;
     size_t _size;
 
-    int (*testfunc)(_Inout_ void *self);
+    int (*testfunc)(_Inout_ void* self);
 } TestCls2_ClassIf;
 extern TestCls2_ClassIf TestCls2_ClassIf_tmpl;
 
@@ -83,8 +83,8 @@ typedef struct TestCls3_ClassIf {
     ObjIface *_parent;
     size_t _size;
 
-    int (*testfunc)(_Inout_ void *self);
-    int (*testfunc2)(_Inout_ void *self);
+    int (*testfunc)(_Inout_ void* self);
+    int (*testfunc2)(_Inout_ void* self);
 } TestCls3_ClassIf;
 extern TestCls3_ClassIf TestCls3_ClassIf_tmpl;
 
@@ -93,8 +93,8 @@ typedef struct TestCls4_ClassIf {
     ObjIface *_parent;
     size_t _size;
 
-    int (*testfunc)(_Inout_ void *self);
-    int (*testfunc2)(_Inout_ void *self);
+    int (*testfunc)(_Inout_ void* self);
+    int (*testfunc2)(_Inout_ void* self);
 } TestCls4_ClassIf;
 extern TestCls4_ClassIf TestCls4_ClassIf_tmpl;
 
@@ -103,9 +103,9 @@ typedef struct TestCls4a_ClassIf {
     ObjIface *_parent;
     size_t _size;
 
-    int (*testfunc)(_Inout_ void *self);
-    int (*testfunc2)(_Inout_ void *self);
-    int (*testfunc3)(_Inout_ void *self);
+    int (*testfunc)(_Inout_ void* self);
+    int (*testfunc2)(_Inout_ void* self);
+    int (*testfunc3)(_Inout_ void* self);
 } TestCls4a_ClassIf;
 extern TestCls4a_ClassIf TestCls4a_ClassIf_tmpl;
 
@@ -114,9 +114,9 @@ typedef struct TestCls4b_ClassIf {
     ObjIface *_parent;
     size_t _size;
 
-    int (*testfunc)(_Inout_ void *self);
-    int (*testfunc2)(_Inout_ void *self);
-    int (*testfunc3)(_Inout_ void *self);
+    int (*testfunc)(_Inout_ void* self);
+    int (*testfunc2)(_Inout_ void* self);
+    int (*testfunc3)(_Inout_ void* self);
 } TestCls4b_ClassIf;
 extern TestCls4b_ClassIf TestCls4b_ClassIf_tmpl;
 
@@ -125,8 +125,8 @@ typedef struct TestCls5_ClassIf {
     ObjIface *_parent;
     size_t _size;
 
-    int (*testfunc)(_Inout_ void *self);
-    intptr (*cmp)(_Inout_ void *self, void *other, uint32 flags);
+    int (*testfunc)(_Inout_ void* self);
+    intptr (*cmp)(_Inout_ void* self, void* other, uint32 flags);
 } TestCls5_ClassIf;
 extern TestCls5_ClassIf TestCls5_ClassIf_tmpl;
 
@@ -157,11 +157,11 @@ typedef struct TestCls1_WeakRef {
 } TestCls1_WeakRef;
 #define TestCls1_WeakRef(inst) ((TestCls1_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TestCls1_WeakRef)), (inst)))
 
-_objfactory_guaranteed TestCls1 *TestCls1_create();
-// TestCls1 *testcls1Create();
+_objfactory_guaranteed TestCls1* TestCls1_create();
+// TestCls1* testcls1Create();
 #define testcls1Create() TestCls1_create()
 
-// int testcls1Testfunc(TestCls1 *self);
+// int testcls1Testfunc(TestCls1* self);
 #define testcls1Testfunc(self) (self)->_->testfunc(TestCls1(self))
 
 typedef struct TestCls2 {
@@ -193,11 +193,11 @@ typedef struct TestCls2_WeakRef {
 } TestCls2_WeakRef;
 #define TestCls2_WeakRef(inst) ((TestCls2_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TestCls2_WeakRef)), (inst)))
 
-_objfactory_guaranteed TestCls2 *TestCls2_create();
-// TestCls2 *testcls2Create();
+_objfactory_guaranteed TestCls2* TestCls2_create();
+// TestCls2* testcls2Create();
 #define testcls2Create() TestCls2_create()
 
-// int testcls2Testfunc(TestCls2 *self);
+// int testcls2Testfunc(TestCls2* self);
 #define testcls2Testfunc(self) (self)->_->testfunc(TestCls2(self))
 
 typedef struct TestCls3 {
@@ -232,13 +232,13 @@ typedef struct TestCls3_WeakRef {
 } TestCls3_WeakRef;
 #define TestCls3_WeakRef(inst) ((TestCls3_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TestCls3_WeakRef)), (inst)))
 
-_objfactory_guaranteed TestCls3 *TestCls3_create();
-// TestCls3 *testcls3Create();
+_objfactory_guaranteed TestCls3* TestCls3_create();
+// TestCls3* testcls3Create();
 #define testcls3Create() TestCls3_create()
 
-// int testcls3Testfunc(TestCls3 *self);
+// int testcls3Testfunc(TestCls3* self);
 #define testcls3Testfunc(self) (self)->_->testfunc(TestCls3(self))
-// int testcls3Testfunc2(TestCls3 *self);
+// int testcls3Testfunc2(TestCls3* self);
 #define testcls3Testfunc2(self) (self)->_->testfunc2(TestCls3(self))
 
 typedef struct TestCls4 {
@@ -276,13 +276,13 @@ typedef struct TestCls4_WeakRef {
 } TestCls4_WeakRef;
 #define TestCls4_WeakRef(inst) ((TestCls4_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TestCls4_WeakRef)), (inst)))
 
-_objfactory_guaranteed TestCls4 *TestCls4_create();
-// TestCls4 *testcls4Create();
+_objfactory_guaranteed TestCls4* TestCls4_create();
+// TestCls4* testcls4Create();
 #define testcls4Create() TestCls4_create()
 
-// int testcls4Testfunc(TestCls4 *self);
+// int testcls4Testfunc(TestCls4* self);
 #define testcls4Testfunc(self) (self)->_->testfunc(TestCls4(self))
-// int testcls4Testfunc2(TestCls4 *self);
+// int testcls4Testfunc2(TestCls4* self);
 #define testcls4Testfunc2(self) (self)->_->testfunc2(TestCls4(self))
 
 typedef struct TestCls4a {
@@ -323,11 +323,11 @@ typedef struct TestCls4a_WeakRef {
 } TestCls4a_WeakRef;
 #define TestCls4a_WeakRef(inst) ((TestCls4a_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TestCls4a_WeakRef)), (inst)))
 
-// int testcls4aTestfunc(TestCls4a *self);
+// int testcls4aTestfunc(TestCls4a* self);
 #define testcls4aTestfunc(self) (self)->_->testfunc(TestCls4a(self))
-// int testcls4aTestfunc2(TestCls4a *self);
+// int testcls4aTestfunc2(TestCls4a* self);
 #define testcls4aTestfunc2(self) (self)->_->testfunc2(TestCls4a(self))
-// int testcls4aTestfunc3(TestCls4a *self);
+// int testcls4aTestfunc3(TestCls4a* self);
 #define testcls4aTestfunc3(self) (self)->_->testfunc3(TestCls4a(self))
 
 typedef struct TestCls4b {
@@ -371,15 +371,15 @@ typedef struct TestCls4b_WeakRef {
 } TestCls4b_WeakRef;
 #define TestCls4b_WeakRef(inst) ((TestCls4b_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TestCls4b_WeakRef)), (inst)))
 
-_objfactory_guaranteed TestCls4b *TestCls4b_create();
-// TestCls4b *testcls4bCreate();
+_objfactory_guaranteed TestCls4b* TestCls4b_create();
+// TestCls4b* testcls4bCreate();
 #define testcls4bCreate() TestCls4b_create()
 
-// int testcls4bTestfunc(TestCls4b *self);
+// int testcls4bTestfunc(TestCls4b* self);
 #define testcls4bTestfunc(self) (self)->_->testfunc(TestCls4b(self))
-// int testcls4bTestfunc2(TestCls4b *self);
+// int testcls4bTestfunc2(TestCls4b* self);
 #define testcls4bTestfunc2(self) (self)->_->testfunc2(TestCls4b(self))
-// int testcls4bTestfunc3(TestCls4b *self);
+// int testcls4bTestfunc3(TestCls4b* self);
 #define testcls4bTestfunc3(self) (self)->_->testfunc3(TestCls4b(self))
 
 typedef struct TestCls5 {
@@ -411,12 +411,12 @@ typedef struct TestCls5_WeakRef {
 } TestCls5_WeakRef;
 #define TestCls5_WeakRef(inst) ((TestCls5_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TestCls5_WeakRef)), (inst)))
 
-_objfactory_guaranteed TestCls5 *TestCls5_create();
-// TestCls5 *testcls5Create();
+_objfactory_guaranteed TestCls5* TestCls5_create();
+// TestCls5* testcls5Create();
 #define testcls5Create() TestCls5_create()
 
-// int testcls5Testfunc(TestCls5 *self);
+// int testcls5Testfunc(TestCls5* self);
 #define testcls5Testfunc(self) (self)->_->testfunc(TestCls5(self))
-// intptr testcls5Cmp(TestCls5 *self, TestCls5 *other, uint32 flags);
+// intptr testcls5Cmp(TestCls5* self, TestCls5* other, uint32 flags);
 #define testcls5Cmp(self, other, flags) (self)->_->cmp(TestCls5(self), other, flags)
 

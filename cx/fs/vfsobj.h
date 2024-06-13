@@ -24,7 +24,7 @@ typedef struct VFS {
     atomic(intptr) _ref;
     atomic(ptr) _weakref;
 
-    VFSDir *root;        // root for namespaceless paths
+    VFSDir* root;        // root for namespaceless paths
     // namespaces are never case sensitive even if the paths are
     // hashtable of string/VFSDir
     hashtable namespaces;
@@ -50,14 +50,14 @@ typedef struct VFS_WeakRef {
 } VFS_WeakRef;
 #define VFS_WeakRef(inst) ((VFS_WeakRef*)(unused_noeval((inst) && &((inst)->_is_VFS_WeakRef)), (inst)))
 
-_objfactory_guaranteed VFS *VFS_create(uint32 flags);
-// VFS *vfsCreate(uint32 flags);
+_objfactory_guaranteed VFS* VFS_create(uint32 flags);
+// VFS* vfsCreate(uint32 flags);
 //
 // Create an empty VFS with nothing mounted
 #define vfsCreate(flags) VFS_create(flags)
 
-_objfactory_check VFS *VFS_createFromFS();
-// VFS *vfsCreateFromFS();
+_objfactory_check VFS* VFS_createFromFS();
+// VFS* vfsCreateFromFS();
 //
 // Create a VFS object configured to pass everything through to the
 // underlying OS filesystem. The exact VFS namespace that is created
@@ -75,7 +75,7 @@ typedef struct VFSMount {
     atomic(intptr) _ref;
     atomic(ptr) _weakref;
 
-    ObjInst *provider;
+    ObjInst* provider;
     uint32 flags;
 } VFSMount;
 extern ObjClassInfo VFSMount_clsinfo;
@@ -93,8 +93,8 @@ typedef struct VFSMount_WeakRef {
 } VFSMount_WeakRef;
 #define VFSMount_WeakRef(inst) ((VFSMount_WeakRef*)(unused_noeval((inst) && &((inst)->_is_VFSMount_WeakRef)), (inst)))
 
-_objfactory_guaranteed VFSMount *VFSMount_create(ObjInst *provider, uint32 flags);
-// VFSMount *vfsmountCreate(ObjInst *provider, uint32 flags);
+_objfactory_guaranteed VFSMount* VFSMount_create(ObjInst* provider, uint32 flags);
+// VFSMount* vfsmountCreate(ObjInst* provider, uint32 flags);
 #define vfsmountCreate(provider, flags) VFSMount_create(ObjInst(provider), flags)
 
 

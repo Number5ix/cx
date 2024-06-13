@@ -9,7 +9,7 @@
 // ==================== Auto-generated section ends ======================
 #include "thread_private.h"
 
-_objfactory_guaranteed Thread *Thread_create(threadFunc func, _In_opt_ strref name, int n, stvar args[], bool ui)
+_objfactory_guaranteed Thread* Thread_create(threadFunc func, _In_opt_ strref name, int n, stvar args[], bool ui)
 {
     Thread *self;
     self = _thrPlatformCreate();
@@ -29,7 +29,7 @@ _objfactory_guaranteed Thread *Thread_create(threadFunc func, _In_opt_ strref na
     return self;
 }
 
-_objinit_guaranteed bool Thread_init(_Inout_ Thread *self)
+_objinit_guaranteed bool Thread_init(_Inout_ Thread* self)
 {
     stvlInitSA(&self->args, self->_argsa);
 
@@ -38,7 +38,7 @@ _objinit_guaranteed bool Thread_init(_Inout_ Thread *self)
     // Autogen ends -------
 }
 
-void Thread_destroy(_Inout_ Thread *self)
+void Thread_destroy(_Inout_ Thread* self)
 {
     eventDestroy(&self->notify);
     // Autogen begins -----

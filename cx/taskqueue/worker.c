@@ -38,14 +38,14 @@ static int tqWorkerThread(Thread *thr)
 
     return 0;
 }
-void TaskQueueWorker_destroy(_Inout_ TaskQueueWorker *self)
+void TaskQueueWorker_destroy(_Inout_ TaskQueueWorker* self)
 {
     // Autogen begins -----
     objRelease(&self->thr);
     // Autogen ends -------
 }
 
-_objfactory_guaranteed TaskQueueWorker *TaskQueueWorker_create(int32 num)
+_objfactory_guaranteed TaskQueueWorker* TaskQueueWorker_create(int32 num)
 {
     TaskQueueWorker *self;
     self = objInstCreate(TaskQueueWorker);
@@ -57,7 +57,7 @@ _objfactory_guaranteed TaskQueueWorker *TaskQueueWorker_create(int32 num)
     return self;
 }
 
-bool TaskQueueWorker__startThread(_Inout_ TaskQueueWorker *self, TaskQueue *tq)
+bool TaskQueueWorker__startThread(_Inout_ TaskQueueWorker* self, TaskQueue* tq)
 {
     string thrname = 0;
     strFormat(&thrname, _S"${string} Worker #${int}", stvar(string, tq->name), stvar(int32, self->num));
@@ -72,17 +72,17 @@ bool TaskQueueWorker__startThread(_Inout_ TaskQueueWorker *self, TaskQueue *tq)
     return self->thr;
 }
 
-void TaskQueueWorker_startup(_Inout_ TaskQueueWorker *self, TaskQueue *tq)
+void TaskQueueWorker_startup(_Inout_ TaskQueueWorker* self, TaskQueue* tq)
 {
     // do nothing, this is here only for derived classes
 }
 
-void TaskQueueWorker_shutdown(_Inout_ TaskQueueWorker *self, TaskQueue *tq)
+void TaskQueueWorker_shutdown(_Inout_ TaskQueueWorker* self, TaskQueue* tq)
 {
     // do nothing, this is here only for derived classes
 }
 
-void TaskQueueWorker_tick(_Inout_ TaskQueueWorker *self, TaskQueue *tq, TQUICallback ui)
+void TaskQueueWorker_tick(_Inout_ TaskQueueWorker* self, TaskQueue* tq, TQUICallback ui)
 {
     BasicTask *btask;
     bool hadtasks = false;

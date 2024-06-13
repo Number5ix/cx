@@ -9,7 +9,7 @@
 // ==================== Auto-generated section ends ======================
 #include "vfs_private.h"
 
-_objfactory_guaranteed VFS *VFS_create(uint32 flags)
+_objfactory_guaranteed VFS* VFS_create(uint32 flags)
 {
     VFS *ret;
     ret = objInstCreate(VFS);
@@ -18,7 +18,7 @@ _objfactory_guaranteed VFS *VFS_create(uint32 flags)
     return ret;
 }
 
-_objinit_guaranteed bool VFS_init(_Inout_ VFS *self)
+_objinit_guaranteed bool VFS_init(_Inout_ VFS* self)
 {
     self->root = _vfsDirCreate(self, NULL);
     strDup(&self->curdir, fsPathSepStr);
@@ -30,7 +30,7 @@ _objinit_guaranteed bool VFS_init(_Inout_ VFS *self)
     // Autogen ends -------
 }
 
-void VFS_destroy(_Inout_ VFS *self)
+void VFS_destroy(_Inout_ VFS* self)
 {
     _stDestroy(stFullType(custom(ptr, VFSDir_ops)), &stgeneric(ptr, self->root), 0);
     rwlockDestroy(&self->vfsdlock);
@@ -41,7 +41,7 @@ void VFS_destroy(_Inout_ VFS *self)
     // Autogen ends -------
 }
 
-_objfactory_guaranteed VFSMount *VFSMount_create(ObjInst *provider, uint32 flags)
+_objfactory_guaranteed VFSMount* VFSMount_create(ObjInst* provider, uint32 flags)
 {
     VFSMount *ret;
     ret = objInstCreate(VFSMount);
@@ -53,14 +53,14 @@ _objfactory_guaranteed VFSMount *VFSMount_create(ObjInst *provider, uint32 flags
     return ret;
 }
 
-void VFSMount_destroy(_Inout_ VFSMount *self)
+void VFSMount_destroy(_Inout_ VFSMount* self)
 {
     // Autogen begins -----
     objRelease(&self->provider);
     // Autogen ends -------
 }
 
-_objfactory_check VFS *VFS_createFromFS()
+_objfactory_check VFS* VFS_createFromFS()
 {
     VFS *ret = VFS_create(_vfsIsPlatformCaseSensitive() ? VFS_CaseSensitive : 0);
 

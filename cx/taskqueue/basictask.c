@@ -9,7 +9,7 @@
 // ==================== Auto-generated section ends ======================
 #include "taskqueue.h"
 
-bool BasicTask_reset(_Inout_ BasicTask *self)
+bool BasicTask_reset(_Inout_ BasicTask* self)
 {
     int32 oldval = atomicLoad(int32, &self->state, Relaxed);
     if(oldval != TASK_Succeeded && oldval != TASK_Failed)

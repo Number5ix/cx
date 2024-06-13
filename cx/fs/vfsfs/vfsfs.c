@@ -12,7 +12,7 @@
 #include "cx/fs/vfs.h"
 #include "vfsfsfile.h"
 
-_objfactory_check VFSFS *VFSFS_create(_In_opt_ strref rootpath)
+_objfactory_check VFSFS* VFSFS_create(_In_opt_ strref rootpath)
 {
     VFSFS *ret;
 
@@ -29,7 +29,7 @@ _objfactory_check VFSFS *VFSFS_create(_In_opt_ strref rootpath)
     return ret;
 }
 
-flags_t VFSFS_flags(_Inout_ VFSFS *self)
+flags_t VFSFS_flags(_Inout_ VFSFS* self)
 {
 #ifdef _PLATFORM_UNIX
     return VFS_CaseSensitive;
@@ -39,7 +39,7 @@ flags_t VFSFS_flags(_Inout_ VFSFS *self)
 #endif
 }
 
-_Ret_opt_valid_ ObjInst *VFSFS_open(_Inout_ VFSFS *self, _In_opt_ strref path, flags_t flags)
+_Ret_opt_valid_ ObjInst* VFSFS_open(_Inout_ VFSFS* self, _In_opt_ strref path, flags_t flags)
 {
     string fspath = 0;
     pathJoin(&fspath, self->root, path);
@@ -53,7 +53,7 @@ _Ret_opt_valid_ ObjInst *VFSFS_open(_Inout_ VFSFS *self, _In_opt_ strref path, f
     return objInstBase(fileprov);
 }
 
-FSPathStat VFSFS_stat(_Inout_ VFSFS *self, _In_opt_ strref path, _When_(return != FS_Nonexistent, _Out_opt_) FSStat *stat)
+FSPathStat VFSFS_stat(_Inout_ VFSFS* self, _In_opt_ strref path, _When_(return != FS_Nonexistent, _Out_opt_) FSStat* stat)
 {
     string fspath = 0;
     pathJoin(&fspath, self->root, path);
@@ -64,7 +64,7 @@ FSPathStat VFSFS_stat(_Inout_ VFSFS *self, _In_opt_ strref path, _When_(return !
     return ret;
 }
 
-bool VFSFS_setTimes(_Inout_ VFSFS *self, _In_opt_ strref path, int64 modified, int64 accessed)
+bool VFSFS_setTimes(_Inout_ VFSFS* self, _In_opt_ strref path, int64 modified, int64 accessed)
 {
     string fspath = 0;
     pathJoin(&fspath, self->root, path);
@@ -76,7 +76,7 @@ bool VFSFS_setTimes(_Inout_ VFSFS *self, _In_opt_ strref path, int64 modified, i
 
 }
 
-bool VFSFS_createDir(_Inout_ VFSFS *self, _In_opt_ strref path)
+bool VFSFS_createDir(_Inout_ VFSFS* self, _In_opt_ strref path)
 {
     string fspath = 0;
     pathJoin(&fspath, self->root, path);
@@ -87,7 +87,7 @@ bool VFSFS_createDir(_Inout_ VFSFS *self, _In_opt_ strref path)
     return ret;
 }
 
-bool VFSFS_removeDir(_Inout_ VFSFS *self, _In_opt_ strref path)
+bool VFSFS_removeDir(_Inout_ VFSFS* self, _In_opt_ strref path)
 {
     string fspath = 0;
     pathJoin(&fspath, self->root, path);
@@ -98,7 +98,7 @@ bool VFSFS_removeDir(_Inout_ VFSFS *self, _In_opt_ strref path)
     return ret;
 }
 
-bool VFSFS_deleteFile(_Inout_ VFSFS *self, _In_opt_ strref path)
+bool VFSFS_deleteFile(_Inout_ VFSFS* self, _In_opt_ strref path)
 {
     string fspath = 0;
     pathJoin(&fspath, self->root, path);
@@ -109,7 +109,7 @@ bool VFSFS_deleteFile(_Inout_ VFSFS *self, _In_opt_ strref path)
     return ret;
 }
 
-bool VFSFS_rename(_Inout_ VFSFS *self, _In_opt_ strref oldpath, _In_opt_ strref newpath)
+bool VFSFS_rename(_Inout_ VFSFS* self, _In_opt_ strref oldpath, _In_opt_ strref newpath)
 {
     string fsoldpath = 0, fsnewpath = 0;
     pathJoin(&fsoldpath, self->root, oldpath);
@@ -122,7 +122,7 @@ bool VFSFS_rename(_Inout_ VFSFS *self, _In_opt_ strref oldpath, _In_opt_ strref 
     return ret;
 }
 
-bool VFSFS_searchInit(_Inout_ VFSFS *self, _Out_ FSSearchIter *iter, _In_opt_ strref path, _In_opt_ strref pattern, bool stat)
+bool VFSFS_searchInit(_Inout_ VFSFS* self, _Out_ FSSearchIter* iter, _In_opt_ strref path, _In_opt_ strref pattern, bool stat)
 {
     string fspath = 0;
 
@@ -132,28 +132,28 @@ bool VFSFS_searchInit(_Inout_ VFSFS *self, _Out_ FSSearchIter *iter, _In_opt_ st
     return ret;
 }
 
-bool VFSFS_searchValid(_Inout_ VFSFS *self, _In_ FSSearchIter *iter)
+bool VFSFS_searchValid(_Inout_ VFSFS* self, _In_ FSSearchIter* iter)
 {
     return fsSearchValid(iter);
 }
 
-bool VFSFS_searchNext(_Inout_ VFSFS *self, _Inout_ FSSearchIter *iter)
+bool VFSFS_searchNext(_Inout_ VFSFS* self, _Inout_ FSSearchIter* iter)
 {
     return fsSearchNext(iter);
 }
 
-void VFSFS_searchFinish(_Inout_ VFSFS *self, _Inout_ FSSearchIter *iter)
+void VFSFS_searchFinish(_Inout_ VFSFS* self, _Inout_ FSSearchIter* iter)
 {
     fsSearchFinish(iter);
 }
 
-bool VFSFS_getFSPath(_Inout_ VFSFS *self, _Inout_ string *out, _In_opt_ strref path)
+bool VFSFS_getFSPath(_Inout_ VFSFS* self, _Inout_ string* out, _In_opt_ strref path)
 {
     pathJoin(out, self->root, path);
     return true;
 }
 
-void VFSFS_destroy(_Inout_ VFSFS *self)
+void VFSFS_destroy(_Inout_ VFSFS* self)
 {
     // Autogen begins -----
     strDestroy(&self->root);

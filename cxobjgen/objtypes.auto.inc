@@ -35,7 +35,7 @@ static Sortable _impl_Method_Sortable = {
 static Method_ClassIf _impl_Method_Method_ClassIf = {
     ._size = sizeof(Method_ClassIf),
     ._implements = (ObjIface*)&Method_ClassIf_tmpl,
-    .clone = (Method *(*)(void*))Method_clone,
+    .clone = (Method* (*)(void*))Method_clone,
     .cmp = (intptr (*)(void*, void*, uint32))Method_cmp,
 };
 

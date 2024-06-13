@@ -8,7 +8,7 @@
 #include "unix_thread_threadobj.h"
 // ==================== Auto-generated section ends ======================
 
-_objfactory_guaranteed UnixThread *UnixThread_create()
+_objfactory_guaranteed UnixThread* UnixThread_create()
 {
     UnixThread *self;
     self = objInstCreate(UnixThread);

@@ -13,7 +13,7 @@ typedef struct Sortable {
     ObjIface *_parent;
     size_t _size;
 
-    intptr (*cmp)(_Inout_ void *self, void *other, uint32 flags);
+    intptr (*cmp)(_Inout_ void* self, void* other, uint32 flags);
 } Sortable;
 extern Sortable Sortable_tmpl;
 
@@ -22,7 +22,7 @@ typedef struct Hashable {
     ObjIface *_parent;
     size_t _size;
 
-    uint32 (*hash)(_Inout_ void *self, uint32 flags);
+    uint32 (*hash)(_Inout_ void* self, uint32 flags);
 } Hashable;
 extern Hashable Hashable_tmpl;
 
@@ -37,7 +37,7 @@ typedef struct Convertible {
     // or destroyed first.
     // The layer between stConvert and Convertible takes care of making sure the destination is
     // always initialized.
-    bool (*convert)(_Inout_ void *self, stype st, stgeneric *dest, uint32 flags);
+    bool (*convert)(_Inout_ void* self, stype st, stgeneric* dest, uint32 flags);
 } Convertible;
 extern Convertible Convertible_tmpl;
 
@@ -46,9 +46,9 @@ typedef struct IteratorIf {
     ObjIface *_parent;
     size_t _size;
 
-    bool (*valid)(_Inout_ void *self);
-    bool (*next)(_Inout_ void *self);
-    bool (*get)(_Inout_ void *self, stvar *out);
+    bool (*valid)(_Inout_ void* self);
+    bool (*next)(_Inout_ void* self);
+    bool (*get)(_Inout_ void* self, stvar* out);
 } IteratorIf;
 extern IteratorIf IteratorIf_tmpl;
 
@@ -58,7 +58,7 @@ typedef struct Iterable {
     size_t _size;
 
     // Caller owns the iterator and must release it with objRelease
-    Iterator *(*iter)(_Inout_ void *self);
+    Iterator* (*iter)(_Inout_ void* self);
 } Iterable;
 extern Iterable Iterable_tmpl;
 
@@ -67,9 +67,9 @@ typedef struct Iterator_ClassIf {
     ObjIface *_parent;
     size_t _size;
 
-    bool (*valid)(_Inout_ void *self);
-    bool (*next)(_Inout_ void *self);
-    bool (*get)(_Inout_ void *self, stvar *out);
+    bool (*valid)(_Inout_ void* self);
+    bool (*next)(_Inout_ void* self);
+    bool (*get)(_Inout_ void* self, stvar* out);
 } Iterator_ClassIf;
 extern Iterator_ClassIf Iterator_ClassIf_tmpl;
 
@@ -99,10 +99,10 @@ typedef struct Iterator_WeakRef {
 } Iterator_WeakRef;
 #define Iterator_WeakRef(inst) ((Iterator_WeakRef*)(unused_noeval((inst) && &((inst)->_is_Iterator_WeakRef)), (inst)))
 
-// bool iteratorValid(Iterator *self);
+// bool iteratorValid(Iterator* self);
 #define iteratorValid(self) (self)->_->valid(Iterator(self))
-// bool iteratorNext(Iterator *self);
+// bool iteratorNext(Iterator* self);
 #define iteratorNext(self) (self)->_->next(Iterator(self))
-// bool iteratorGet(Iterator *self, stvar *out);
+// bool iteratorGet(Iterator* self, stvar* out);
 #define iteratorGet(self, out) (self)->_->get(Iterator(self), out)
 

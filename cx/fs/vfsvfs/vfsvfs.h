@@ -17,20 +17,20 @@ typedef struct VFSVFS_ClassIf {
     size_t _size;
 
     // VFSProviderFlags enforced for this provider
-    flags_t (*flags)(_Inout_ void *self);
+    flags_t (*flags)(_Inout_ void* self);
     // returns an object that implements VFSFileProvider
-    _Ret_opt_valid_ ObjInst *(*open)(_Inout_ void *self, _In_opt_ strref path, flags_t flags);
-    FSPathStat (*stat)(_Inout_ void *self, _In_opt_ strref path, _When_(return != FS_Nonexistent, _Out_opt_) FSStat *stat);
-    bool (*setTimes)(_Inout_ void *self, _In_opt_ strref path, int64 modified, int64 accessed);
-    bool (*createDir)(_Inout_ void *self, _In_opt_ strref path);
-    bool (*removeDir)(_Inout_ void *self, _In_opt_ strref path);
-    bool (*deleteFile)(_Inout_ void *self, _In_opt_ strref path);
-    bool (*rename)(_Inout_ void *self, _In_opt_ strref oldpath, _In_opt_ strref newpath);
-    bool (*getFSPath)(_Inout_ void *self, _Inout_ string *out, _In_opt_ strref path);
-    bool (*searchInit)(_Inout_ void *self, _Out_ FSSearchIter *iter, _In_opt_ strref path, _In_opt_ strref pattern, bool stat);
-    bool (*searchValid)(_Inout_ void *self, _In_ FSSearchIter *iter);
-    bool (*searchNext)(_Inout_ void *self, _Inout_ FSSearchIter *iter);
-    void (*searchFinish)(_Inout_ void *self, _Inout_ FSSearchIter *iter);
+    _Ret_opt_valid_ ObjInst* (*open)(_Inout_ void* self, _In_opt_ strref path, flags_t flags);
+    FSPathStat (*stat)(_Inout_ void* self, _In_opt_ strref path, _When_(return != FS_Nonexistent, _Out_opt_) FSStat* stat);
+    bool (*setTimes)(_Inout_ void* self, _In_opt_ strref path, int64 modified, int64 accessed);
+    bool (*createDir)(_Inout_ void* self, _In_opt_ strref path);
+    bool (*removeDir)(_Inout_ void* self, _In_opt_ strref path);
+    bool (*deleteFile)(_Inout_ void* self, _In_opt_ strref path);
+    bool (*rename)(_Inout_ void* self, _In_opt_ strref oldpath, _In_opt_ strref newpath);
+    bool (*getFSPath)(_Inout_ void* self, _Inout_ string* out, _In_opt_ strref path);
+    bool (*searchInit)(_Inout_ void* self, _Out_ FSSearchIter* iter, _In_opt_ strref path, _In_opt_ strref pattern, bool stat);
+    bool (*searchValid)(_Inout_ void* self, _In_ FSSearchIter* iter);
+    bool (*searchNext)(_Inout_ void* self, _Inout_ FSSearchIter* iter);
+    void (*searchFinish)(_Inout_ void* self, _Inout_ FSSearchIter* iter);
 } VFSVFS_ClassIf;
 extern VFSVFS_ClassIf VFSVFS_ClassIf_tmpl;
 
@@ -44,7 +44,7 @@ typedef struct VFSVFS {
     atomic(intptr) _ref;
     atomic(ptr) _weakref;
 
-    VFS *vfs;
+    VFS* vfs;
     string root;
 } VFSVFS;
 extern ObjClassInfo VFSVFS_clsinfo;
@@ -62,38 +62,38 @@ typedef struct VFSVFS_WeakRef {
 } VFSVFS_WeakRef;
 #define VFSVFS_WeakRef(inst) ((VFSVFS_WeakRef*)(unused_noeval((inst) && &((inst)->_is_VFSVFS_WeakRef)), (inst)))
 
-_objfactory_guaranteed VFSVFS *VFSVFS_create(VFS *vfs, _In_opt_ strref rootpath);
-// VFSVFS *vfsvfsCreate(VFS *vfs, strref rootpath);
+_objfactory_guaranteed VFSVFS* VFSVFS_create(VFS* vfs, _In_opt_ strref rootpath);
+// VFSVFS* vfsvfsCreate(VFS* vfs, strref rootpath);
 #define vfsvfsCreate(vfs, rootpath) VFSVFS_create(VFS(vfs), rootpath)
 
-// flags_t vfsvfsFlags(VFSVFS *self);
+// flags_t vfsvfsFlags(VFSVFS* self);
 //
 // VFSProviderFlags enforced for this provider
 #define vfsvfsFlags(self) (self)->_->flags(VFSVFS(self))
-// ObjInst *vfsvfsOpen(VFSVFS *self, strref path, flags_t flags);
+// ObjInst* vfsvfsOpen(VFSVFS* self, strref path, flags_t flags);
 //
 // returns an object that implements VFSFileProvider
 #define vfsvfsOpen(self, path, flags) (self)->_->open(VFSVFS(self), path, flags)
-// FSPathStat vfsvfsStat(VFSVFS *self, strref path, FSStat *stat);
+// FSPathStat vfsvfsStat(VFSVFS* self, strref path, FSStat* stat);
 #define vfsvfsStat(self, path, stat) (self)->_->stat(VFSVFS(self), path, stat)
-// bool vfsvfsSetTimes(VFSVFS *self, strref path, int64 modified, int64 accessed);
+// bool vfsvfsSetTimes(VFSVFS* self, strref path, int64 modified, int64 accessed);
 #define vfsvfsSetTimes(self, path, modified, accessed) (self)->_->setTimes(VFSVFS(self), path, modified, accessed)
-// bool vfsvfsCreateDir(VFSVFS *self, strref path);
+// bool vfsvfsCreateDir(VFSVFS* self, strref path);
 #define vfsvfsCreateDir(self, path) (self)->_->createDir(VFSVFS(self), path)
-// bool vfsvfsRemoveDir(VFSVFS *self, strref path);
+// bool vfsvfsRemoveDir(VFSVFS* self, strref path);
 #define vfsvfsRemoveDir(self, path) (self)->_->removeDir(VFSVFS(self), path)
-// bool vfsvfsDeleteFile(VFSVFS *self, strref path);
+// bool vfsvfsDeleteFile(VFSVFS* self, strref path);
 #define vfsvfsDeleteFile(self, path) (self)->_->deleteFile(VFSVFS(self), path)
-// bool vfsvfsRename(VFSVFS *self, strref oldpath, strref newpath);
+// bool vfsvfsRename(VFSVFS* self, strref oldpath, strref newpath);
 #define vfsvfsRename(self, oldpath, newpath) (self)->_->rename(VFSVFS(self), oldpath, newpath)
-// bool vfsvfsGetFSPath(VFSVFS *self, string *out, strref path);
+// bool vfsvfsGetFSPath(VFSVFS* self, string* out, strref path);
 #define vfsvfsGetFSPath(self, out, path) (self)->_->getFSPath(VFSVFS(self), out, path)
-// bool vfsvfsSearchInit(VFSVFS *self, FSSearchIter *iter, strref path, strref pattern, bool stat);
+// bool vfsvfsSearchInit(VFSVFS* self, FSSearchIter* iter, strref path, strref pattern, bool stat);
 #define vfsvfsSearchInit(self, iter, path, pattern, stat) (self)->_->searchInit(VFSVFS(self), iter, path, pattern, stat)
-// bool vfsvfsSearchValid(VFSVFS *self, FSSearchIter *iter);
+// bool vfsvfsSearchValid(VFSVFS* self, FSSearchIter* iter);
 #define vfsvfsSearchValid(self, iter) (self)->_->searchValid(VFSVFS(self), iter)
-// bool vfsvfsSearchNext(VFSVFS *self, FSSearchIter *iter);
+// bool vfsvfsSearchNext(VFSVFS* self, FSSearchIter* iter);
 #define vfsvfsSearchNext(self, iter) (self)->_->searchNext(VFSVFS(self), iter)
-// void vfsvfsSearchFinish(VFSVFS *self, FSSearchIter *iter);
+// void vfsvfsSearchFinish(VFSVFS* self, FSSearchIter* iter);
 #define vfsvfsSearchFinish(self, iter) (self)->_->searchFinish(VFSVFS(self), iter)
 

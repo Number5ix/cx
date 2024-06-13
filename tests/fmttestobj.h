@@ -18,7 +18,7 @@ typedef struct FmtTestClass_ClassIf {
     ObjIface *_parent;
     size_t _size;
 
-    bool (*format)(_Inout_ void *self, FMTVar *v, string *out);
+    bool (*format)(_Inout_ void* self, FMTVar* v, string* out);
 } FmtTestClass_ClassIf;
 extern FmtTestClass_ClassIf FmtTestClass_ClassIf_tmpl;
 
@@ -33,7 +33,7 @@ typedef struct FmtTestClass2_ClassIf {
     // or destroyed first.
     // The layer between stConvert and Convertible takes care of making sure the destination is
     // always initialized.
-    bool (*convert)(_Inout_ void *self, stype st, stgeneric *dest, uint32 flags);
+    bool (*convert)(_Inout_ void* self, stype st, stgeneric* dest, uint32 flags);
 } FmtTestClass2_ClassIf;
 extern FmtTestClass2_ClassIf FmtTestClass2_ClassIf_tmpl;
 
@@ -65,11 +65,11 @@ typedef struct FmtTestClass_WeakRef {
 } FmtTestClass_WeakRef;
 #define FmtTestClass_WeakRef(inst) ((FmtTestClass_WeakRef*)(unused_noeval((inst) && &((inst)->_is_FmtTestClass_WeakRef)), (inst)))
 
-_objfactory_guaranteed FmtTestClass *FmtTestClass_create(int32 ival, string sval);
-// FmtTestClass *fmttestclassCreate(int32 ival, string sval);
+_objfactory_guaranteed FmtTestClass* FmtTestClass_create(int32 ival, string sval);
+// FmtTestClass* fmttestclassCreate(int32 ival, string sval);
 #define fmttestclassCreate(ival, sval) FmtTestClass_create(ival, sval)
 
-// bool fmttestclassFormat(FmtTestClass *self, FMTVar *v, string *out);
+// bool fmttestclassFormat(FmtTestClass* self, FMTVar* v, string* out);
 #define fmttestclassFormat(self, v, out) (self)->_->format(FmtTestClass(self), v, out)
 
 typedef struct FmtTestClass2 {
@@ -100,11 +100,11 @@ typedef struct FmtTestClass2_WeakRef {
 } FmtTestClass2_WeakRef;
 #define FmtTestClass2_WeakRef(inst) ((FmtTestClass2_WeakRef*)(unused_noeval((inst) && &((inst)->_is_FmtTestClass2_WeakRef)), (inst)))
 
-_objfactory_guaranteed FmtTestClass2 *FmtTestClass2_create(int32 ival, string sval);
-// FmtTestClass2 *fmttestclass2Create(int32 ival, string sval);
+_objfactory_guaranteed FmtTestClass2* FmtTestClass2_create(int32 ival, string sval);
+// FmtTestClass2* fmttestclass2Create(int32 ival, string sval);
 #define fmttestclass2Create(ival, sval) FmtTestClass2_create(ival, sval)
 
-// bool fmttestclass2Convert(FmtTestClass2 *self, stype st, stgeneric *dest, uint32 flags);
+// bool fmttestclass2Convert(FmtTestClass2* self, stype st, stgeneric* dest, uint32 flags);
 //
 // NOTE: While this is used by stConvert, the object interface is a higher level interface.
 // The normal convention of blindly overwriting the destination does not apply here. For

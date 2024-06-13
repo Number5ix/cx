@@ -31,9 +31,9 @@ typedef struct TaskQueue_ClassIf {
     ObjIface *_parent;
     size_t _size;
 
-    bool (*start)(_Inout_ void *self, Event *notify);
+    bool (*start)(_Inout_ void* self, Event* notify);
     // worker factory for custom queues to override
-    _objfactory_guaranteed TaskQueueWorker *(*createWorker)(_Inout_ void *self, int32 num);
+    _objfactory_guaranteed TaskQueueWorker* (*createWorker)(_Inout_ void* self, int32 num);
 } TaskQueue_ClassIf;
 extern TaskQueue_ClassIf TaskQueue_ClassIf_tmpl;
 
@@ -54,7 +54,7 @@ typedef struct TaskQueue {
     // things like start/stop the same queue concurrently from many different threads.
     TaskQueueStateEnum state;
     atomic(int32) nworkers;
-    Thread *manager;
+    Thread* manager;
     sa_TaskQueueWorker workers;        // [owned by manager]
     Event workev;        // signaled when there is work to be done
     Event shutdownev;        // signaled when queue is finished shutting down
@@ -78,13 +78,13 @@ typedef struct TaskQueue_WeakRef {
 } TaskQueue_WeakRef;
 #define TaskQueue_WeakRef(inst) ((TaskQueue_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TaskQueue_WeakRef)), (inst)))
 
-_objfactory_guaranteed TaskQueue *TaskQueue_create(_In_opt_ strref name, _In_ TaskQueueConfig *tqconfig);
-// TaskQueue *taskqueueCreate(strref name, TaskQueueConfig *tqconfig);
+_objfactory_guaranteed TaskQueue* TaskQueue_create(_In_opt_ strref name, _In_ TaskQueueConfig* tqconfig);
+// TaskQueue* taskqueueCreate(strref name, TaskQueueConfig* tqconfig);
 #define taskqueueCreate(name, tqconfig) TaskQueue_create(name, tqconfig)
 
-// bool taskqueueStart(TaskQueue *self, Event *notify);
+// bool taskqueueStart(TaskQueue* self, Event* notify);
 #define taskqueueStart(self, notify) (self)->_->start(TaskQueue(self), notify)
-// TaskQueueWorker *taskqueueCreateWorker(TaskQueue *self, int32 num);
+// TaskQueueWorker* taskqueueCreateWorker(TaskQueue* self, int32 num);
 //
 // worker factory for custom queues to override
 #define taskqueueCreateWorker(self, num) (self)->_->createWorker(TaskQueue(self), num)

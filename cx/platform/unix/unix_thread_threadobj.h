@@ -49,8 +49,8 @@ typedef struct UnixThread_WeakRef {
 } UnixThread_WeakRef;
 #define UnixThread_WeakRef(inst) ((UnixThread_WeakRef*)(unused_noeval((inst) && &((inst)->_is_UnixThread_WeakRef)), (inst)))
 
-_objfactory_guaranteed UnixThread *UnixThread_create();
-// UnixThread *_unixthrobjCreate();
+_objfactory_guaranteed UnixThread* UnixThread_create();
+// UnixThread* _unixthrobjCreate();
 #define _unixthrobjCreate() UnixThread_create()
 
 

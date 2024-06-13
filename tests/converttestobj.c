@@ -9,7 +9,7 @@
 // ==================== Auto-generated section ends ======================
 #include <cx/stype/stconvert.h>
 
-_objfactory_guaranteed ConvertTestClass *ConvertTestClass_create(int32 ival, float64 fval, string sval)
+_objfactory_guaranteed ConvertTestClass* ConvertTestClass_create(int32 ival, float64 fval, string sval)
 {
     ConvertTestClass *self;
     self = objInstCreate(ConvertTestClass);
@@ -22,7 +22,7 @@ _objfactory_guaranteed ConvertTestClass *ConvertTestClass_create(int32 ival, flo
     return self;
 }
 
-bool ConvertTestClass_convert(_Inout_ ConvertTestClass *self, stype st, stgeneric *dest, uint32 flags)
+bool ConvertTestClass_convert(_Inout_ ConvertTestClass* self, stype st, stgeneric* dest, uint32 flags)
 {
     if (STYPE_CLASS(st) == STCLASS_INT || STYPE_CLASS(st) == STCLASS_UINT)
         return stConvert_int(st, dest, stCheckedArg(int32, self->ival), flags);
@@ -37,7 +37,7 @@ bool ConvertTestClass_convert(_Inout_ ConvertTestClass *self, stype st, stgeneri
     return false;
 }
 
-void ConvertTestClass_destroy(_Inout_ ConvertTestClass *self)
+void ConvertTestClass_destroy(_Inout_ ConvertTestClass* self)
 {
     // Autogen begins -----
     strDestroy(&self->sval);

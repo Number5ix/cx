@@ -20,8 +20,8 @@ typedef struct Task_ClassIf {
     ObjIface *_parent;
     size_t _size;
 
-    bool (*run)(_Inout_ void *self, _In_ TaskQueue *tq, _In_ TaskQueueWorker *worker, _Inout_ TaskControl *tcon);
-    bool (*reset)(_Inout_ void *self);
+    bool (*run)(_Inout_ void* self, _In_ TaskQueue* tq, _In_ TaskQueueWorker* worker, _Inout_ TaskControl* tcon);
+    bool (*reset)(_Inout_ void* self);
 } Task_ClassIf;
 extern Task_ClassIf Task_ClassIf_tmpl;
 
@@ -42,7 +42,7 @@ typedef struct Task {
     int64 last;        // the last time this task was moved between queues and/or run
     int64 nextrun;        // next time for this task to run when deferred
     int64 lastprogress;        // timestamp of last progress change
-    Weak(TaskQueue) *lastq;        // The last queue this task ran on before it was deferred
+    Weak(TaskQueue)* lastq;        // The last queue this task ran on before it was deferred
     cchain oncomplete;        // functions that are called when this task has completed
 } Task;
 extern ObjClassInfo Task_clsinfo;
@@ -61,14 +61,14 @@ typedef struct Task_WeakRef {
 } Task_WeakRef;
 #define Task_WeakRef(inst) ((Task_WeakRef*)(unused_noeval((inst) && &((inst)->_is_Task_WeakRef)), (inst)))
 
-bool Task_advance(_Inout_ Task *self);
-// bool taskAdvance(Task *self);
+bool Task_advance(_Inout_ Task* self);
+// bool taskAdvance(Task* self);
 //
 // advance a deferred task to run as soon as possible
 #define taskAdvance(self) Task_advance(Task(self))
 
-// bool taskRun(Task *self, TaskQueue *tq, TaskQueueWorker *worker, TaskControl *tcon);
+// bool taskRun(Task* self, TaskQueue* tq, TaskQueueWorker* worker, TaskControl* tcon);
 #define taskRun(self, tq, worker, tcon) (self)->_->run(Task(self), TaskQueue(tq), TaskQueueWorker(worker), tcon)
-// bool taskReset(Task *self);
+// bool taskReset(Task* self);
 #define taskReset(self) (self)->_->reset(Task(self))
 

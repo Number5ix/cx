@@ -10,7 +10,7 @@
 #include <cx/closure.h>
 #include <cx/taskqueue.h>
 
-bool MTask__cycle(_Inout_ MTask *self)
+bool MTask__cycle(_Inout_ MTask* self)
 {
     bool ret = false;
     bool needcycle = false;
@@ -110,7 +110,7 @@ static bool mtaskCallback(stvlist *cvars, stvlist *args)
     return true;
 }
 
-bool MTask_run(_Inout_ MTask *self, _In_ TaskQueue *tq, _In_ TaskQueueWorker *worker, _Inout_ TaskControl *tcon)
+bool MTask_run(_Inout_ MTask* self, _In_ TaskQueue* tq, _In_ TaskQueueWorker* worker, _Inout_ TaskControl* tcon)
 {
     bool runagain = MTask__cycle(self);
     if (mtaskAllDone(self))
@@ -120,7 +120,7 @@ bool MTask_run(_Inout_ MTask *self, _In_ TaskQueue *tq, _In_ TaskQueueWorker *wo
     return taskRetDefer(tcon, runagain ? 0 : timeS(15), self->maxprogress > self->lastprogress);
 }
 
-void MTask_add(_Inout_ MTask *self, _In_ Task *task)
+void MTask_add(_Inout_ MTask* self, _In_ Task* task)
 {
     if(taskIsComplete(task)) {
         // task is already done, bump counter for when it gets processed during the cycle
@@ -146,7 +146,7 @@ void MTask_add(_Inout_ MTask *self, _In_ Task *task)
     taskAdvance(self);
 }
 
-_objinit_guaranteed bool MTask_init(_Inout_ MTask *self)
+_objinit_guaranteed bool MTask_init(_Inout_ MTask* self)
 {
     mutexInit(&self->_newlock);
     // Autogen begins -----
@@ -157,7 +157,7 @@ _objinit_guaranteed bool MTask_init(_Inout_ MTask *self)
     // Autogen ends -------
 }
 
-void MTask_destroy(_Inout_ MTask *self)
+void MTask_destroy(_Inout_ MTask* self)
 {
     mutexDestroy(&self->_newlock);
     // Autogen begins -----
@@ -168,7 +168,7 @@ void MTask_destroy(_Inout_ MTask *self)
     // Autogen ends -------
 }
 
-_objfactory_guaranteed MTask *MTask_create()
+_objfactory_guaranteed MTask* MTask_create()
 {
     MTask *self;
     self = objInstCreate(MTask);
@@ -178,7 +178,7 @@ _objfactory_guaranteed MTask *MTask_create()
     return self;
 }
 
-_objfactory_guaranteed MTask *MTask_createWithQueue(_In_ TaskQueue *tq, int limit)
+_objfactory_guaranteed MTask* MTask_createWithQueue(_In_ TaskQueue* tq, int limit)
 {
     MTask *self;
     self = objInstCreate(MTask);
@@ -191,9 +191,9 @@ _objfactory_guaranteed MTask *MTask_createWithQueue(_In_ TaskQueue *tq, int limi
     return self;
 }
 
-extern bool Task_reset(_Inout_ Task *self); // parent
+extern bool Task_reset(_Inout_ Task* self);   // parent
 #define parent_reset() Task_reset((Task*)(self))
-bool MTask_reset(_Inout_ MTask *self)
+bool MTask_reset(_Inout_ MTask* self)
 {
     saClear(&self->_pending);
     saClear(&self->finished);

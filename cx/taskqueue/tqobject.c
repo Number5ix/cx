@@ -25,7 +25,7 @@ static STypeOps deferTaskOps = {
     .cmp = deferTaskCmp,
 };
 
-_objinit_guaranteed bool TaskQueue_init(_Inout_ TaskQueue *self)
+_objinit_guaranteed bool TaskQueue_init(_Inout_ TaskQueue* self)
 {
     eventInit(&self->workev);
     eventInit(&self->shutdownev);
@@ -45,7 +45,7 @@ _objinit_guaranteed bool TaskQueue_init(_Inout_ TaskQueue *self)
     // Autogen ends -------
 }
 
-void TaskQueue_destroy(_Inout_ TaskQueue *self)
+void TaskQueue_destroy(_Inout_ TaskQueue* self)
 {
     eventDestroy(&self->workev);
     eventDestroy(&self->shutdownev);
@@ -60,7 +60,7 @@ void TaskQueue_destroy(_Inout_ TaskQueue *self)
     // Autogen ends -------
 }
 
-_objfactory_guaranteed TaskQueue *TaskQueue_create(_In_opt_ strref name, _In_ TaskQueueConfig *tqconfig)
+_objfactory_guaranteed TaskQueue* TaskQueue_create(_In_opt_ strref name, _In_ TaskQueueConfig* tqconfig)
 {
     TaskQueue *self;
     self = objInstCreate(TaskQueue);
@@ -74,7 +74,7 @@ _objfactory_guaranteed TaskQueue *TaskQueue_create(_In_opt_ strref name, _In_ Ta
     return self;
 }
 
-bool TaskQueue_start(_Inout_ TaskQueue *self, Event *notify)
+bool TaskQueue_start(_Inout_ TaskQueue* self, Event* notify)
 {
     if(!(self->state == TQState_Init || self->state == TQState_Shutdown))
         return false;
@@ -93,7 +93,7 @@ bool TaskQueue_start(_Inout_ TaskQueue *self, Event *notify)
     return self->manager;
 }
 
-_objfactory_guaranteed TaskQueueWorker *TaskQueue_createWorker(_Inout_ TaskQueue *self, int32 num)
+_objfactory_guaranteed TaskQueueWorker* TaskQueue_createWorker(_Inout_ TaskQueue* self, int32 num)
 {
     return taskqueueworkerCreate(num);
 }
