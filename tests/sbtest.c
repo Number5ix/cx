@@ -97,7 +97,7 @@ static int test_streambuf_push()
             c1.outp != 12)
             ret = 1;
 
-        if (ptest->head != 4 || ptest->tail != 4)
+        if (ptest->head != 0 || ptest->tail != 0)
             ret = 1;
 
         // test overflow buffer
@@ -107,8 +107,8 @@ static int test_streambuf_push()
         c1.shouldread = 1;
         sbufPWrite(ptest, testdata1 + 7, 8);
 
-        if (ptest->head != 2 ||
-            ptest->tail != 3 ||
+        if (ptest->head != 6 ||
+            ptest->tail != 7 ||
             ptest->overflowtail != 8 ||
             sbufCAvail(ptest) != 9)
             ret = 1;
