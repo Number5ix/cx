@@ -1,6 +1,8 @@
 #include "streambuf.h"
+#include <cx/container/foreach.h>
 #include <cx/debug/error.h>
 #include <cx/meta/block.h>
+#include <cx/string/striter.h>
 #include <cx/utils/compare.h>
 
 static void sbufPFinishInternal(_Inout_ StreamBuffer *sb);
@@ -239,6 +241,43 @@ bool sbufPWrite(StreamBuffer *sb, const uint8 *buf, size_t sz)
         }
     }
 
+    return true;
+}
+
+_Use_decl_annotations_
+bool sbufPWriteStr(StreamBuffer *sb, strref str)
+{
+    foreach(string, it, str)
+    {
+        if (!sbufPWrite(sb, it.bytes, it.len))
+            return false;
+    }
+    return true;
+}
+
+_Use_decl_annotations_
+bool sbufPWriteLine(StreamBuffer *sb, strref str)
+{
+    foreach (string, it, str) {
+        if (!sbufPWrite(sb, it.bytes, it.len))
+            return false;
+    }
+#ifdef _PLATFORM_WIN
+    return sbufPWrite(sb, "\r\n", 2);
+#else
+    return sbufPWrite(sb, "\n", 1);
+#endif
+    return true;
+}
+
+_Use_decl_annotations_
+bool sbufPWriteEOL(StreamBuffer* sb)
+{
+#ifdef _PLATFORM_WIN
+    return sbufPWrite(sb, "\r\n", 2);
+#else
+    return sbufPWrite(sb, "\n", 1);
+#endif
     return true;
 }
 

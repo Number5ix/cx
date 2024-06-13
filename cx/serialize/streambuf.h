@@ -144,6 +144,12 @@ size_t sbufPAvail(_In_ StreamBuffer *sb);
 // Writes data to the buffer. This will always succeed unless the system is out of memory.
 // Overflow buffer is used if more written data exceeds current buffer size.
 bool sbufPWrite(_Inout_ StreamBuffer *sb, _In_reads_bytes_(sz) const uint8 *buf, size_t sz);
+// Writes a string to the buffer.
+bool sbufPWriteStr(_Inout_ StreamBuffer* sb, _In_opt_ strref str);
+// Writes a string to the buffer along with a system-dependent EOL character.
+bool sbufPWriteLine(_Inout_ StreamBuffer* sb, _In_opt_ strref str);
+// Writes a system-dependent EOL character to the buffer.
+bool sbufPWriteEOL(_Inout_ StreamBuffer* sb);
 // Mark the producer as finished. The producer MUST NOT touch the stream buffer after
 // call as it maybe immediately deallocated.
 void sbufPFinish(_Pre_valid_ _Post_invalid_ StreamBuffer *sb);
