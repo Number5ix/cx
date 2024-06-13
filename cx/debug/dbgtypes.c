@@ -21,6 +21,10 @@ typedef struct _nv_stype_flags {
     void* unused;
 } _nv_stype_flags;
 
+typedef struct _nv_string {
+    void *unused;
+} _nv_string;
+
 typedef struct _nv_string_flags {
     void* unused;
 } _nv_string_flags;
@@ -32,6 +36,10 @@ typedef struct _nv_sarray {
 typedef struct _nv_sarray_flags {
     void* unused;
 } _nv_sarray_flags;
+
+typedef struct _nv_hashtable {
+    void* unused;
+} _nv_hashtable;
 
 typedef struct _nv_hashtable_data {
     void* unused;

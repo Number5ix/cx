@@ -67,7 +67,7 @@ enum SARRAY_CREATE_FLAGS_ENUM
     SAINT_Extended  = 0x8000,   // includes extended header
 };
 
-typedef enum SARRAY_GROW_ENUM {
+enum SARRAY_GROW_ENUM {
     // automatically select based on element size
     SA_GROW_Auto,
 
@@ -83,7 +83,7 @@ typedef enum SARRAY_GROW_ENUM {
 
     // always grow to exact size needed, never allocate extra
     SA_GROW_Minimal,
-} SARRAY_GROW_ENUM;
+};
 
 enum SARRAY_FUNC_FLAGS_ENUM {
     // Valid for: saPush, saMerge

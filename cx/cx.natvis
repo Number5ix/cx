@@ -14,12 +14,10 @@
 		<DisplayString Condition="!valid()">{(const char*)this,s}</DisplayString>
 		<DisplayString Condition="isrope()">[Rope]</DisplayString>
 		<DisplayString Condition="(flags() &amp; 0x20) == 0x20">{strdata(),s8}</DisplayString>
-		<DisplayString Condition="(flags() &amp; 0x10) == 0x10">{strdata(),s}</DisplayString>
-		<DisplayString Condition="valid()">{strdata(),[length()]na}</DisplayString>
+		<DisplayString Condition="valid()">{strdata(),s}</DisplayString>
 		<DisplayString>[Invalid cx string]</DisplayString>
 		<StringView Condition="(flags() &amp; 0x20) == 0x20">strdata(),s8</StringView>
-		<StringView Condition="(flags() &amp; 0x10) == 0x10">strdata(),s</StringView>
-		<StringView Condition="valid()">strdata(),[length()]</StringView>
+		<StringView Condition="valid()">strdata(),s</StringView>
 		<Expand>
 			<Item Name="Valid" Condition="this != 0">valid()</Item>
 			<Item Name="Length" Condition="lentype() != 0">length()</Item>
@@ -28,8 +26,7 @@
 			<Item Name="Refs" Condition="!isstack() &amp;&amp; isalloc() &amp;&amp; lentype() == 1">(unsigned short)*((unsigned char*)this + 2),d</Item>
 			<Item Name="Refs" Condition="!isstack() &amp;&amp; isalloc() &amp;&amp; (lentype() == 2 || lentype() == 3)">*(unsigned short*)((unsigned char*)this + 2),d</Item>
 			<Item Name="Data" Condition="!isrope() &amp;&amp; (flags() &amp; 0x20) == 0x20">strdata(),s8</Item>
-			<Item Name="Data" Condition="!isrope() &amp;&amp; (flags() &amp; 0x30) == 0x10">strdata(),s</Item>
-			<Item Name="Data" Condition="!isrope() &amp;&amp; (flags() &amp; 0x30) == 0x00">strdata(),[length()]</Item>
+			<Item Name="Data" Condition="!isrope() &amp;&amp; (flags() &amp; 0x20) == 0x00">strdata(),s</Item>
 			<Item Name="Rope" Condition="isrope()">(str_ropedata*)strdata(),na</Item>
 			<Item Name="Flags" Condition="valid()">(_nv_string_flags*)this,nanr</Item>
 		</Expand>

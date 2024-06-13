@@ -12,21 +12,27 @@
 typedef union _nv_stype _nv_stype;
 #define NVTYPE(name) typedef struct name name;
 NVTYPE(_nv_stype_flags);
+NVTYPE(_nv_string);
 NVTYPE(_nv_string_flags);
 NVTYPE(_nv_sarray);
 NVTYPE(_nv_sarray_flags);
+NVTYPE(_nv_hashtable);
 NVTYPE(_nv_hashtable_data);
 NVTYPE(_nv_hashtable_flags);
 
+#undef NVTYPE
+#define NVTYPE(name) name* name##_var;
 typedef union _debug_types {
     void* _unused;
     _nv_stype* _nv_stype_var;
-    _nv_stype_flags* _nv_stype_flags_var;
-    _nv_string_flags* _nv_string_flags_var;
-    _nv_sarray* _nv_sarray_var;
-    _nv_sarray_flags* _nv_sarray_flags_var;
-    _nv_hashtable_data* _nv_hashtable_data_var;
-    _nv_hashtable_flags* _nv_hashtable_flags_var;
+    NVTYPE(_nv_stype_flags);
+    NVTYPE(_nv_string);
+    NVTYPE(_nv_string_flags);
+    NVTYPE(_nv_sarray);
+    NVTYPE(_nv_sarray_flags);
+    NVTYPE(_nv_hashtable);
+    NVTYPE(_nv_hashtable_data);
+    NVTYPE(_nv_hashtable_flags);
 } _debug_types;
 
 extern _debug_types _unused_debug_types;

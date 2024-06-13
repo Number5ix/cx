@@ -93,22 +93,24 @@ enum HASHTABLE_FLAGS_ENUM {
     HTINT_Extended     = 0x8000,    // extended header is present
 };
 
-typedef enum HASHTABLE_GROW_ENUM {
-    HT_GROW_At75    = 0x00,     // Grow at 75% full (balanced)
-    HT_GROW_At50    = 0x01,     // Grow at 50% full (better performance)
-    HT_GROW_At90    = 0x02,     // Grow at 90% full (worse performance, memory efficient)
-    HT_GROW_AT_MASK = 0x0f,
-
+enum HASHTABLE_GROWBY_ENUM {
     HT_GROW_By100   = 0x00,     // Grow by 100% (balanced)
     HT_GROW_By200   = 0x10,     // Grow by 200%
     HT_GROW_By300   = 0x20,     // Grow by 300% (better performance)
     HT_GROW_By50    = 0x40,     // Grow by 50% (worse performance, memory efficient)
     HT_GROW_BY_MASK = 0xf0,
+};
+
+enum HASHTABLE_GROW_ENUM {
+    HT_GROW_At75    = 0x00,     // Grow at 75% full (balanced)
+    HT_GROW_At50    = 0x01,     // Grow at 50% full (better performance)
+    HT_GROW_At90    = 0x02,     // Grow at 90% full (worse performance, memory efficient)
+    HT_GROW_AT_MASK = 0x0f,
 
     // some presets
     HT_GROW_MaxSpeed = HT_GROW_At50 | HT_GROW_By300,
     HT_GROW_MinSize  = HT_GROW_At90 | HT_GROW_By50,
-} HASHTABLE_GROW_ENUM;
+};
 
 enum HASHTABLE_FUNC_FLAGS_ENUM {
     // Valid for: htInsert
