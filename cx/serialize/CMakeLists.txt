@@ -5,6 +5,7 @@ set(SERIALIZE_SRCS
     serialize/jsonparsetree.c
     serialize/lineparse.c
     serialize/sbfile.c
+    serialize/sbfsfile.c
     serialize/sbstring.c
     serialize/streambuf.c)
 set(SERIALIZE_INCLUDES
@@ -13,6 +14,7 @@ set(SERIALIZE_INCLUDES
     serialize/jsonparse.h
     serialize/lineparse.h
     serialize/sbfile.h
+    serialize/sbfsfile.h
     serialize/sbstring.h
     serialize/streambuf.h)
 
