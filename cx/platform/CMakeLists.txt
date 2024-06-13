@@ -11,13 +11,9 @@ elseif(CX_COMPILER_IS_MSVC)
     add_subdirectory(msvc)
 endif()
 
-if(CX_PLATFORM_IS_UNIX)
-    add_subdirectory(unix)
-elseif(CX_PLATFORM_IS_WINDOWS)
-    add_subdirectory(win)
-elseif(CX_PLATFORM_IS_WASM)
-    add_subdirectory(wasm)
-endif()
+add_subdirectory(unix)
+add_subdirectory(win)
+add_subdirectory(wasm)
 
 set(CX_SRCS
     ${CX_SRCS}
