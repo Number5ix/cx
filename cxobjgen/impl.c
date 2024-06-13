@@ -14,10 +14,10 @@ static const string autogenEndShortIndent   = _S"    // Autogen ends -------";
 
 static sa_string parentmacros;
 
-static void writeAutoInit(BufFile *bf, Class *cls);
-static void writeAutoDtors(BufFile *bf, Class *cls);
+static void writeAutoInit(StreamBuffer *bf, Class *cls);
+static void writeAutoDtors(StreamBuffer *bf, Class *cls);
 
-static void writeMethodProto(BufFile *bf, Class *cls, Method *m, bool protoonly, bool mixinimpl, bool forparent)
+static void writeMethodProto(StreamBuffer *bf, Class *cls, Method *m, bool protoonly, bool mixinimpl, bool forparent)
 {
     string mname = 0, ln = 0, tmp = 0, temp2 = 0, annos = 0;
     methodImplName(&mname, cls, m->name);
@@ -45,7 +45,7 @@ static void writeMethodProto(BufFile *bf, Class *cls, Method *m, bool protoonly,
 
             if (saFind(parentmacros, string, m->name) != -1) {
                 strNConcat(&ln, _S"#undef ", _S"parent_", m->name);
-                bfWriteLine(bf, ln);
+                sbufPWriteLine(bf, ln);
             }
 
             strNConcat(&ln, _S"#define ", _S"parent_", m->name, _S"(");
@@ -63,7 +63,7 @@ static void writeMethodProto(BufFile *bf, Class *cls, Method *m, bool protoonly,
             strAppend(&ln, _S")");
 
             strDestroy(&pmname);
-            bfWriteLine(bf, ln);
+            sbufPWriteLine(bf, ln);
             strClear(&ln);
         }
     }
@@ -107,14 +107,14 @@ static void writeMethodProto(BufFile *bf, Class *cls, Method *m, bool protoonly,
     if (forparent)
         strAppend(&ln, _S"   // parent");
 
-    bfWriteLine(bf, ln);
+    sbufPWriteLine(bf, ln);
     strDestroy(&tmp);
     strDestroy(&temp2);
     strDestroy(&annos);
     strDestroy(&ln);
 }
 
-static void writeMethods(BufFile *bf, Class *cls, sa_string *seen, bool mixinimpl)
+static void writeMethods(StreamBuffer *bf, Class *cls, sa_string *seen, bool mixinimpl)
 {
     string ln = 0, mname = 0;
     for (int i = 0; i < saSize(cls->methods); i++) {
@@ -124,50 +124,50 @@ static void writeMethods(BufFile *bf, Class *cls, sa_string *seen, bool mixinimp
         methodImplName(&mname, cls, m->name);
         if (saFind(*seen, string, mname) == -1) {
             writeMethodProto(bf, cls, m, false, mixinimpl, false);
-            bfWriteLine(bf, _S"{");
+            sbufPWriteLine(bf, _S"{");
             if (m->isinit) {
                 writeAutoInit(bf, cls);
             } else if (m->isdestroy) {
                 writeAutoDtors(bf, cls);
             } else if (m->isfactory) {
                 strNConcat(&ln, _S"    ", cls->name, _S"* self;");
-                bfWriteLine(bf, ln);
+                sbufPWriteLine(bf, ln);
                 strNConcat(&ln, _S"    self = objInstCreate(", cls->name, _S");");
-                bfWriteLine(bf, ln);
-                bfWriteLine(bf, NULL);
-                bfWriteLine(bf, _S"    // Insert any pre-initialization object construction here");
-                bfWriteLine(bf, NULL);
+                sbufPWriteLine(bf, ln);
+                sbufPWriteEOL(bf);
+                sbufPWriteLine(bf, _S"    // Insert any pre-initialization object construction here");
+                sbufPWriteEOL(bf);
                 if (m->canfail) {
-                    bfWriteLine(bf, _S"    if (!objInstInit(self)) {");
-                    bfWriteLine(bf, _S"        objRelease(&self);");
-                    bfWriteLine(bf, _S"        return NULL;");
-                    bfWriteLine(bf, _S"    }");
+                    sbufPWriteLine(bf, _S"    if (!objInstInit(self)) {");
+                    sbufPWriteLine(bf, _S"        objRelease(&self);");
+                    sbufPWriteLine(bf, _S"        return NULL;");
+                    sbufPWriteLine(bf, _S"    }");
                 } else {
-                    bfWriteLine(bf, _S"    objInstInit(self);");
+                    sbufPWriteLine(bf, _S"    objInstInit(self);");
                 }
-                bfWriteLine(bf, NULL);
-                bfWriteLine(bf, _S"    // Insert any post-initialization object construction here");
-                bfWriteLine(bf, NULL);
-                bfWriteLine(bf, _S"    return self;");
+                sbufPWriteEOL(bf);
+                sbufPWriteLine(bf, _S"    // Insert any post-initialization object construction here");
+                sbufPWriteEOL(bf);
+                sbufPWriteLine(bf, _S"    return self;");
             } else if (strEq(m->name, _S"cmp")) {
-                bfWriteLine(bf, _S"    // Uncomment unless this function can compare different object classes");
-                bfWriteLine(bf, _S"    // devAssert(objClsInfo(self) == objClsInfo(other));");
-                bfWriteLine(bf, NULL);
-                bfWriteLine(bf, _S"    return objDefaultCmp(self, other, flags);");
+                sbufPWriteLine(bf, _S"    // Uncomment unless this function can compare different object classes");
+                sbufPWriteLine(bf, _S"    // devAssert(objClsInfo(self) == objClsInfo(other));");
+                sbufPWriteEOL(bf);
+                sbufPWriteLine(bf, _S"    return objDefaultCmp(self, other, flags);");
             } else if (strEq(m->name, _S"hash")) {
-                bfWriteLine(bf, _S"    return objDefaultHash(self, flags);");
+                sbufPWriteLine(bf, _S"    return objDefaultHash(self, flags);");
             } else {
-                bfWriteLine(bf, _S"    #error Replace this line with your implementation");
+                sbufPWriteLine(bf, _S"    #error Replace this line with your implementation");
             }
-            bfWriteLine(bf, _S"}");
-            bfWriteLine(bf, NULL);
+            sbufPWriteLine(bf, _S"}");
+            sbufPWriteEOL(bf);
         }
     }
     strDestroy(&mname);
     strDestroy(&ln);
 }
 
-static void writeMixinStubs(BufFile *bf, Class *cls, bool *wroteany)
+static void writeMixinStubs(StreamBuffer *bf, Class *cls, bool *wroteany)
 {
     string ln = 0, mname = 0, vname = 0;
     for (int i = 0; i < saSize(cls->methods); i++) {
@@ -177,7 +177,7 @@ static void writeMixinStubs(BufFile *bf, Class *cls, bool *wroteany)
 
         *wroteany = true;
         writeMethodProto(bf, cls, m, false, false, false);
-        bfWriteLine(bf, _S"{");
+        sbufPWriteLine(bf, _S"{");
         strDup(&ln, _S"    ");
         if (!strEq(m->returntype, _S"void"))
             strAppend(&ln, _S"return ");
@@ -192,9 +192,9 @@ static void writeMixinStubs(BufFile *bf, Class *cls, bool *wroteany)
         }
 
         strNConcat(&ln, ln, _S");");
-        bfWriteLine(bf, ln);
-        bfWriteLine(bf, _S"}");
-        bfWriteLine(bf, NULL);
+        sbufPWriteLine(bf, ln);
+        sbufPWriteLine(bf, _S"}");
+        sbufPWriteEOL(bf);
     }
     strDestroy(&vname);
     strDestroy(&mname);
@@ -218,11 +218,11 @@ static void indexMethods(Class *cls, hashtable *htbl)
     strDestroy(&mname);
 }
 
-static void writeAutoInit(BufFile *bf, Class *cls)
+static void writeAutoInit(StreamBuffer *bf, Class *cls)
 {
     string ln = 0, tmp = 0, flags = 0;
 
-    bfWriteLine(bf, autogenBeginShortIndent);
+    sbufPWriteLine(bf, autogenBeginShortIndent);
 
     for (int i = 0; i < saSize(cls->members); i++) {
         Member *m = cls->members.a[i];
@@ -237,12 +237,12 @@ static void writeAutoInit(BufFile *bf, Class *cls)
                     if (mixin->initcanfail) {
                         strNConcat(&ln, _S"    if (!", mixin->name, _S"_init((", mixin->name,
                                    _S"*)&self->", tmp, _S"))");
-                        bfWriteLine(bf, ln);
-                        bfWriteLine(bf, _S"        return false;");
+                        sbufPWriteLine(bf, ln);
+                        sbufPWriteLine(bf, _S"        return false;");
                     } else {
                         strNConcat(&ln, _S"    ", mixin->name, _S"_init((", mixin->name,
                                    _S"*)&self->", tmp, _S");");
-                        bfWriteLine(bf, ln);
+                        sbufPWriteLine(bf, ln);
                     }
                 }
             }
@@ -311,22 +311,22 @@ static void writeAutoInit(BufFile *bf, Class *cls)
         }
 
         if (!strEmpty(ln))
-            bfWriteLine(bf, ln);
+            sbufPWriteLine(bf, ln);
     }
 
-    bfWriteLine(bf, _S"    return true;");
-    bfWriteLine(bf, autogenEndShortIndent);
+    sbufPWriteLine(bf, _S"    return true;");
+    sbufPWriteLine(bf, autogenEndShortIndent);
     strDestroy(&flags);
     strDestroy(&tmp);
     strDestroy(&ln);
 }
 
-static void writeAutoDtors(BufFile *bf, Class *cls)
+static void writeAutoDtors(StreamBuffer *bf, Class *cls)
 {
     if (!cls->hasautodtors)
         return;
 
-    bfWriteLine(bf, autogenBeginShortIndent);
+    sbufPWriteLine(bf, autogenBeginShortIndent);
 
     for (int i = 0; i < saSize(cls->members); i++) {
         Member *m = cls->members.a[i];
@@ -342,7 +342,7 @@ static void writeAutoDtors(BufFile *bf, Class *cls)
                     mixinMemberName(&tmp, m->mixinsrc);
                     strNConcat(&mdtor, _S"    ", mixin->name, _S"_destroy((", mixin->name,
                                _S"*)&self->", tmp, _S");");
-                    bfWriteLine(bf, mdtor);
+                    sbufPWriteLine(bf, mdtor);
                     strDestroy(&tmp);
                 }
             }
@@ -368,14 +368,14 @@ static void writeAutoDtors(BufFile *bf, Class *cls)
             strNConcat(&mdtor, _S"    cchainDestroy(&self->", m->name, _S");");
         }
         if (!strEmpty(mdtor))
-            bfWriteLine(bf, mdtor);
+            sbufPWriteLine(bf, mdtor);
         strDestroy(&mdtor);
     }
 
-    bfWriteLine(bf, autogenEndShortIndent);
+    sbufPWriteLine(bf, autogenEndShortIndent);
 }
 
-static void writeMixinProtos(BufFile *bf, Class *cls)
+static void writeMixinProtos(StreamBuffer *bf, Class *cls)
 {
     for (int i = 0; i < saSize(cls->methods); i++) {
         Method *m = cls->methods.a[i];
@@ -386,22 +386,22 @@ static void writeMixinProtos(BufFile *bf, Class *cls)
     }
 }
 
-static void writeIfaceTmpl(BufFile *bf, Interface *iface, bool *wroteany)
+static void writeIfaceTmpl(StreamBuffer *bf, Interface *iface, bool *wroteany)
 {
     string ln = 0;
 
     *wroteany = true;
     strNConcat(&ln, iface->name, _S" ", iface->name, _S"_tmpl = {");
-    bfWriteLine(bf, ln);
+    sbufPWriteLine(bf, ln);
     strNConcat(&ln, _S"    ._size = sizeof(", iface->name, _S"),");
-    bfWriteLine(bf, ln);
+    sbufPWriteLine(bf, ln);
     if (iface->parent) {
         strNConcat(&ln, _S"    ._parent = (ObjIface*)&", iface->parent->name, _S"_tmpl,");
-        bfWriteLine(bf, ln);
+        sbufPWriteLine(bf, ln);
     }
 
-    bfWriteLine(bf, _S"};");
-    bfWriteLine(bf, NULL);
+    sbufPWriteLine(bf, _S"};");
+    sbufPWriteEOL(bf);
     strDestroy(&ln);
 }
 
@@ -414,16 +414,16 @@ static Method *findIfaceMethod(Interface *iface, string name)
     return NULL;
 }
 
-static void writeClassIfaceTbl(BufFile *bf, Class *cls, Interface *iface)
+static void writeClassIfaceTbl(StreamBuffer *bf, Class *cls, Interface *iface)
 {
     string ln = 0, implname = 0;
 
     strNConcat(&ln, _S"static ", iface->name, _S" _impl_", cls->name, _S"_", iface->name, _S" = {");
-    bfWriteLine(bf, ln);
+    sbufPWriteLine(bf, ln);
     strNConcat(&ln, _S"    ._size = sizeof(", iface->name, _S"),");
-    bfWriteLine(bf, ln);
+    sbufPWriteLine(bf, ln);
     strNConcat(&ln, _S"    ._implements = (ObjIface*)&", iface->name, _S"_tmpl,");
-    bfWriteLine(bf, ln);
+    sbufPWriteLine(bf, ln);
 
     for (int i = 0; i < saSize(cls->methods); i++) {
         if (cls->methods.a[i]->internal)
@@ -449,34 +449,34 @@ static void writeClassIfaceTbl(BufFile *bf, Class *cls, Interface *iface)
             strNConcat(&ln, ln, _S", ", ptype, ppre, p->postdecr);
         }
         strNConcat(&ln, ln, _S"))", implname, _S",");
-        bfWriteLine(bf, ln);
+        sbufPWriteLine(bf, ln);
     }
 
-    bfWriteLine(bf, _S"};");
-    bfWriteLine(bf, NULL);
+    sbufPWriteLine(bf, _S"};");
+    sbufPWriteEOL(bf);
     strDestroy(&implname);
     strDestroy(&ln);
 }
 
-static void writeClassIfaceList(BufFile *bf, Class *cls)
+static void writeClassIfaceList(StreamBuffer *bf, Class *cls)
 {
     string ln = 0;
 
     strNConcat(&ln, _S"static ObjIface *_ifimpl_", cls->name, _S"[] = {");
-    bfWriteLine(bf, ln);
+    sbufPWriteLine(bf, ln);
 
     for (int i = 0; i < saSize(cls->implements); i++) {
         strNConcat(&ln, _S"    (ObjIface*)&_impl_", cls->name, _S"_", cls->implements.a[i]->name, _S",");
-        bfWriteLine(bf, ln);
+        sbufPWriteLine(bf, ln);
     }
 
-    bfWriteLine(bf, _S"    NULL");
-    bfWriteLine(bf, _S"};");
-    bfWriteLine(bf, NULL);
+    sbufPWriteLine(bf, _S"    NULL");
+    sbufPWriteLine(bf, _S"};");
+    sbufPWriteEOL(bf);
     strDestroy(&ln);
 }
 
-static void writeClassImpl(BufFile *bf, Class *cls, bool *wroteany)
+static void writeClassImpl(StreamBuffer *bf, Class *cls, bool *wroteany)
 {
     string ln = 0;
 
@@ -488,41 +488,41 @@ static void writeClassImpl(BufFile *bf, Class *cls, bool *wroteany)
     writeClassIfaceList(bf, cls);
 
     strNConcat(&ln, _S"ObjClassInfo ", cls->name, _S"_clsinfo = {");
-    bfWriteLine(bf, ln);
+    sbufPWriteLine(bf, ln);
     strNConcat(&ln, _S"    .instsize = sizeof(", cls->name, _S"),");
-    bfWriteLine(bf, ln);
+    sbufPWriteLine(bf, ln);
     if (cls->classif) {
         strNConcat(&ln, _S"    .classif = (ObjIface*)&", cls->classif->name, _S"_tmpl,");
-        bfWriteLine(bf, ln);
+        sbufPWriteLine(bf, ln);
     }
     if (cls->parent) {
         strNConcat(&ln, _S"    .parent = &", cls->parent->name, _S"_clsinfo,");
-        bfWriteLine(bf, ln);
+        sbufPWriteLine(bf, ln);
     }
     if (cls->hasinit) {
         strNConcat(&ln, _S"    .init = (bool(*)(void*))", cls->name, _S"_init,");
-        bfWriteLine(bf, ln);
+        sbufPWriteLine(bf, ln);
     }
     if (cls->hasdestroy) {
         strNConcat(&ln, _S"    .destroy = (void(*)(void*))", cls->name, _S"_destroy,");
-        bfWriteLine(bf, ln);
+        sbufPWriteLine(bf, ln);
     }
     if (cls->abstract) {
-        bfWriteLine(bf, _S"    ._abstract = true,");
+        sbufPWriteLine(bf, _S"    ._abstract = true,");
     }
     strNConcat(&ln, _S"    .ifimpl = _ifimpl_", cls->name, _S",");
-    bfWriteLine(bf, ln);
+    sbufPWriteLine(bf, ln);
 
-    bfWriteLine(bf, _S"};");
-    bfWriteLine(bf, NULL);
+    sbufPWriteLine(bf, _S"};");
+    sbufPWriteEOL(bf);
 
     strDestroy(&ln);
 }
 
-static bool fillBuf(BufFile *obf, sa_string *linebuf)
+static bool fillBuf(StreamBuffer *obf, sa_string *linebuf)
 {
     string ln = 0;
-    while (obf && saSize(*linebuf) < 5 && bfReadLine(obf, &ln)) {
+    while (obf && saSize(*linebuf) < 5 && lparseLine(obf, &ln)) {
         saPushC(linebuf, string, &ln);
     }
     return saSize(*linebuf) > 0;
@@ -553,42 +553,56 @@ bool writeImpl(string fname, bool mixinimpl)
         fprintf(stderr, "Failed to open %s for writing", lazyPlatformPath(newcname));
         return false;
     }
-    BufFile *nbf = bfCreate(newf, true);
+    StreamBuffer* nbf = sbufCreate(1024);
+    if (!sbufFSFileCRegisterPush(nbf, newf, true))
+        return false;
+    if (!sbufPRegisterPush(nbf, NULL, 0))
+        return false;
 
     FSFile *incf = 0;
-    BufFile *ibf = 0;
+    StreamBuffer *ibf = 0;
     if (!mixinimpl) {
         incf = fsOpen(incname, FS_Overwrite);
         if (!incf) {
             fprintf(stderr, "Failed to open %s for writing", lazyPlatformPath(incname));
-            bfClose(nbf);
+            sbufPFinish(nbf);
+            sbufRelease(&nbf);
             return false;
         }
-        ibf = bfCreate(incf, true);
+        ibf = sbufCreate(1024);
+        if (!sbufFSFileCRegisterPush(ibf, incf, true))
+            return false;
+        if (!sbufPRegisterPush(ibf, NULL, 0))
+            return false;
     }
 
     FSFile *oldf = fsOpen(cname, FS_Read);
-    BufFile *obf = NULL;
-    if (oldf)
-        obf = bfCreate(oldf, false);
+    StreamBuffer *obf = NULL;
+    if (oldf) {
+        obf = sbufCreate(1024);
+        if (!sbufFSFilePRegisterPull(obf, oldf, true))
+            return false;
+        if (!lparseRegisterPull(obf, 0))
+            return false;
+    }
 
     string ln = 0;
-    bfWriteLine(nbf, autogenBegin);
-    bfWriteLine(nbf, autogenNotice);
-    bfWriteLine(nbf, _S"#include <cx/obj.h>");
-    bfWriteLine(nbf, _S"#include <cx/debug/assert.h>");
-    bfWriteLine(nbf, _S"#include <cx/obj/objstdif.h>");
-    bfWriteLine(nbf, _S"#include <cx/container.h>");
-    bfWriteLine(nbf, _S"#include <cx/string.h>");
+    sbufPWriteLine(nbf, autogenBegin);
+    sbufPWriteLine(nbf, autogenNotice);
+    sbufPWriteLine(nbf, _S"#include <cx/obj.h>");
+    sbufPWriteLine(nbf, _S"#include <cx/debug/assert.h>");
+    sbufPWriteLine(nbf, _S"#include <cx/obj/objstdif.h>");
+    sbufPWriteLine(nbf, _S"#include <cx/container.h>");
+    sbufPWriteLine(nbf, _S"#include <cx/string.h>");
     if (!mixinimpl) {
         strNConcat(&ln, _S"#include \"", hname, _S"\"");
-        bfWriteLine(nbf, ln);
+        sbufPWriteLine(nbf, ln);
         for (int i = 0; i < saSize(implincludes); i++) {
             strNConcat(&ln, _S"#include ", implincludes.a[i]);
-            bfWriteLine(nbf, ln);
+            sbufPWriteLine(nbf, ln);
         }
     }
-    bfWriteLine(nbf, autogenEnd);
+    sbufPWriteLine(nbf, autogenEnd);
 
     sa_string seen;
     saInit(&seen, string, 16, SA_Sorted);
@@ -691,7 +705,7 @@ bool writeImpl(string fname, bool mixinimpl)
                     saPush(&seen, string, funcname, SA_Unique);
                     writeMethodProto(nbf, mp.c, mp.m, nmatches == 3, mixinimpl, false);
                 } else {
-                    bfWriteLine(nbf, ln);
+                    sbufPWriteLine(nbf, ln);
                 }
                 strDestroy(&funcname);
             } else {
@@ -707,7 +721,7 @@ bool writeImpl(string fname, bool mixinimpl)
                     }
                 }
 
-                bfWriteLine(nbf, ln);
+                sbufPWriteLine(nbf, ln);
             }
         }
         if (strEq(ln, autogenEnd) || strEq(ln, autogenEndShort) || strEq(ln, autogenEndShortIndent)) {
@@ -719,7 +733,7 @@ nextloop:
 
     if (wasempty) {
         // quick and dirty way to format correctly when the file started out empty
-        bfWriteLine(nbf, NULL);
+        sbufPWriteEOL(nbf);
     }
 
     for (int i = 0; i < saSize(classes); i++) {
@@ -730,8 +744,8 @@ nextloop:
     if (!mixinimpl) {
         bool wroteany = false;
 
-        bfWriteLine(ibf, autogenBegin);
-        bfWriteLine(ibf, autogenNotice);
+        sbufPWriteLine(ibf, autogenBegin);
+        sbufPWriteLine(ibf, autogenNotice);
         for (int i = 0; i < saSize(classes); i++) {
             if (!classes.a[i]->included)
                 writeMixinStubs(ibf, classes.a[i], &wroteany);
@@ -744,33 +758,39 @@ nextloop:
             if (!classes.a[i]->included && !classes.a[i]->mixin)
                 writeClassImpl(ibf, classes.a[i], &wroteany);
         }
-        bfWriteLine(ibf, autogenEnd);
+        sbufPWriteLine(ibf, autogenEnd);
 
         if (wroteany) {
-            bfWriteLine(nbf, autogenBeginShort);
+            sbufPWriteLine(nbf, autogenBeginShort);
             pathFilename(&incname, incname);
             strNConcat(&ln, _S"#include \"", incname, _S"\"");
-            bfWriteLine(nbf, ln);
-            bfWriteLine(nbf, autogenEndShort);
+            sbufPWriteLine(nbf, ln);
+            sbufPWriteLine(nbf, autogenEndShort);
         } else {
-            bfClose(ibf);
+            sbufPFinish(ibf);
+            sbufRelease(&ibf);
             ibf = NULL;
             fsDelete(incname);
         }
     } else {
-        bfWriteLine(nbf, autogenBeginShort);
+        sbufPWriteLine(nbf, autogenBeginShort);
         for (int i = 0; i < saSize(classes); i++) {
             if (!classes.a[i]->included)
                 writeMixinProtos(nbf, classes.a[i]);
         }
-        bfWriteLine(nbf, autogenEndShort);
+        sbufPWriteLine(nbf, autogenEndShort);
     }
 
-    if (obf)
-        bfClose(obf);
-    if (ibf)
-        bfClose(ibf);
-    bfClose(nbf);
+    if (obf) {
+        sbufCFinish(obf);
+        sbufRelease(&obf);
+    }
+    if (ibf) {
+        sbufPFinish(ibf);
+        sbufRelease(&ibf);
+    }
+    sbufPFinish(nbf);
+    sbufRelease(&nbf);
 
     fsDelete(cname);
     fsRename(newcname, cname);

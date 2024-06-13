@@ -23,7 +23,7 @@ static bool isObjectType(Param *param)
     return false;
 }
 
-static void writeComments(BufFile *bf, sa_string comments, int column, bool spacer)
+static void writeComments(StreamBuffer *bf, sa_string comments, int column, bool spacer)
 {
     string ln = 0;
     string spaces = 0;
@@ -35,17 +35,17 @@ static void writeComments(BufFile *bf, sa_string comments, int column, bool spac
 
     if (spacer && saSize(comments) > 0) {
         strConcat(&ln, spaces, _S"//");
-        bfWriteLine(bf, ln);
+        sbufPWriteLine(bf, ln);
     }
     for (int i = 0; i < saSize(comments); ++i) {
         strNConcat(&ln, spaces, _S"// ", comments.a[i]);
-        bfWriteLine(bf, ln);
+        sbufPWriteLine(bf, ln);
     }
     strDestroy(&ln);
     strDestroy(&spaces);
 }
 
-static void writeFuncComment(BufFile *bf, strref name, Class *cls, Method *m)
+static void writeFuncComment(StreamBuffer *bf, strref name, Class *cls, Method *m)
 {
     if (!name)
         name = m->name;
@@ -75,12 +75,12 @@ static void writeFuncComment(BufFile *bf, strref name, Class *cls, Method *m)
         strNConcat(&ln, ln, ptype, ppre, _S" ", p->name, p->postdecr);
     }
     strAppend(&ln, _S");");
-    bfWriteLine(bf, ln);
+    sbufPWriteLine(bf, ln);
     strDestroy(&temp);
     strDestroy(&ln);
 }
 
-static void writeUnbound(BufFile *bf, Class *cls, Class *cur, sa_Method *done)
+static void writeUnbound(StreamBuffer *bf, Class *cls, Class *cur, sa_Method *done)
 {
     string ln = 0, implname = 0, callname = 0, annos = 0, temp = 0;
 
@@ -120,7 +120,7 @@ static void writeUnbound(BufFile *bf, Class *cls, Class *cur, sa_Method *done)
                 strNConcat(&ln, ln, annos, ptype, ppre, _S" ", p->name, p->postdecr);
             }
             strAppend(&ln, _S");");
-            bfWriteLine(bf, ln);
+            sbufPWriteLine(bf, ln);
 
             methodCallName(&callname, cls, m->name);
             writeFuncComment(bf, callname, cls, m);
@@ -150,8 +150,8 @@ static void writeUnbound(BufFile *bf, Class *cls, Class *cur, sa_Method *done)
                 strDestroy(&extra1);
             }
             strAppend(&ln, _S")");
-            bfWriteLine(bf, ln);
-            bfWriteLine(bf, NULL);
+            sbufPWriteLine(bf, ln);
+            sbufPWriteEOL(bf);
         } else {
             // only emit standalone functions for the current class
             if (m->standalone)
@@ -174,8 +174,8 @@ static void writeUnbound(BufFile *bf, Class *cls, Class *cur, sa_Method *done)
                     strNConcat(&ln, ln, _S", ", m->params.a[j]->name);
             }
             strAppend(&ln, _S")");
-            bfWriteLine(bf, ln);
-            bfWriteLine(bf, NULL);
+            sbufPWriteLine(bf, ln);
+            sbufPWriteEOL(bf);
         }
 
         saPush(done, object, m);
@@ -190,17 +190,17 @@ static void writeUnbound(BufFile *bf, Class *cls, Class *cur, sa_Method *done)
         writeUnbound(bf, cls, cur->parent, done);
 }
 
-void writeIfDecl(BufFile *bf, Interface *iface)
+void writeIfDecl(StreamBuffer *bf, Interface *iface)
 {
     string ln = 0, tmp = 0, annos = 0;
 
     strNConcat(&ln, _S"typedef struct ", iface->name, _S" {");
-    bfWriteLine(bf, ln);
+    sbufPWriteLine(bf, ln);
 
-    bfWriteLine(bf, _S"    ObjIface *_implements;");
-    bfWriteLine(bf, _S"    ObjIface *_parent;");
-    bfWriteLine(bf, _S"    size_t _size;");
-    bfWriteLine(bf, NULL);
+    sbufPWriteLine(bf, _S"    ObjIface *_implements;");
+    sbufPWriteLine(bf, _S"    ObjIface *_parent;");
+    sbufPWriteLine(bf, _S"    size_t _size;");
+    sbufPWriteEOL(bf);
 
     for (int i = 0; i < saSize(iface->allmethods); i++) {
         Method *m = iface->allmethods.a[i];
@@ -222,61 +222,61 @@ void writeIfDecl(BufFile *bf, Interface *iface)
             strAppend(&ln, tmp);
         }
         strAppend(&ln, _S");");
-        bfWriteLine(bf, ln);
+        sbufPWriteLine(bf, ln);
     }
 
     strNConcat(&ln, _S"} ", iface->name, _S";");
-    bfWriteLine(bf, ln);
+    sbufPWriteLine(bf, ln);
     strNConcat(&ln, _S"extern ", iface->name, _S" ", iface->name, _S"_tmpl;");
-    bfWriteLine(bf, ln);
-    bfWriteLine(bf, NULL);
+    sbufPWriteLine(bf, ln);
+    sbufPWriteEOL(bf);
 
     strDestroy(&tmp);
     strDestroy(&annos);
     strDestroy(&ln);
 }
 
-void writeForwardDecl(BufFile *bf, string name)
+void writeForwardDecl(StreamBuffer *bf, string name)
 {
     string ln = 0;
     strNConcat(&ln, _S"typedef struct ", name, _S" ", name, _S";");
-    bfWriteLine(bf, ln);
+    sbufPWriteLine(bf, ln);
     strDestroy(&ln);
 }
 
-void writeForwardWeakRefDecl(BufFile *bf, string name)
+void writeForwardWeakRefDecl(StreamBuffer *bf, string name)
 {
     string ln = 0;
     strNConcat(&ln, _S"typedef struct ", name, _S"_WeakRef ", name, _S"_WeakRef;");
-    bfWriteLine(bf, ln);
+    sbufPWriteLine(bf, ln);
     strDestroy(&ln);
 }
 
-void writeSArrayDecl(BufFile *bf, string name)
+void writeSArrayDecl(StreamBuffer *bf, string name)
 {
     string ln = 0;
     strNConcat(&ln, _S"saDeclarePtr(", name, _S");");
-    bfWriteLine(bf, ln);
+    sbufPWriteLine(bf, ln);
     strDestroy(&ln);
 }
 
-void writeSArrayWeakRefDecl(BufFile *bf, string name)
+void writeSArrayWeakRefDecl(StreamBuffer *bf, string name)
 {
     string ln = 0;
     strNConcat(&ln, _S"saDeclarePtr(", name, _S"_WeakRef);");
-    bfWriteLine(bf, ln);
+    sbufPWriteLine(bf, ln);
     strDestroy(&ln);
 }
 
-void writeComplexArrayDecl(BufFile *bf, ComplexArrayType *cat)
+void writeComplexArrayDecl(StreamBuffer *bf, ComplexArrayType *cat)
 {
     string ln = 0;
     strNConcat(&ln, _S"saDeclareType(", cat->tname, _S", sa_", cat->tsubtype, _S");");
-    bfWriteLine(bf, ln);
+    sbufPWriteLine(bf, ln);
     strDestroy(&ln);
 }
 
-static void writeClassMember(BufFile *bf, Class *cls, Member *m)
+static void writeClassMember(StreamBuffer *bf, Class *cls, Member *m)
 {
     string ln = 0;
     string predecr = 0;
@@ -301,55 +301,55 @@ static void writeClassMember(BufFile *bf, Class *cls, Member *m)
     if (saSize(m->comments) == 1)
         strNConcat(&ln, ln, _S"        // ", m->comments.a[0]);
 
-    bfWriteLine(bf, ln);
+    sbufPWriteLine(bf, ln);
 
     strDestroy(&predecr);
     strDestroy(&ln);
 }
 
-static void writeClassTypeMarkers(BufFile *bf, Class *cls)
+static void writeClassTypeMarkers(StreamBuffer *bf, Class *cls)
 {
     string ln = 0;
     strNConcat(&ln, _S"        void *_is_", cls->name, _S";");
-    bfWriteLine(bf, ln);
+    sbufPWriteLine(bf, ln);
     strDestroy(&ln);
 
     if (cls->parent)
         writeClassTypeMarkers(bf, cls->parent);
 }
 
-static void writeClassWeakRefTypeMarkers(BufFile *bf, Class *cls)
+static void writeClassWeakRefTypeMarkers(StreamBuffer *bf, Class *cls)
 {
     string ln = 0;
     strNConcat(&ln, _S"        void *_is_", cls->name, _S"_WeakRef;");
-    bfWriteLine(bf, ln);
+    sbufPWriteLine(bf, ln);
     strDestroy(&ln);
 
     if(cls->parent)
         writeClassWeakRefTypeMarkers(bf, cls->parent);
 }
 
-void writeClassDecl(BufFile *bf, Class *cls)
+void writeClassDecl(StreamBuffer *bf, Class *cls)
 {
     string ln = 0, mname = 0;
 
     strNConcat(&ln, _S"typedef struct ", cls->name, _S" {");
-    bfWriteLine(bf, ln);
+    sbufPWriteLine(bf, ln);
 
     if (!cls->mixin) {
-        bfWriteLine(bf, _S"    union {");
+        sbufPWriteLine(bf, _S"    union {");
         if (cls->classif)
             strNConcat(&ln, _S"        ", cls->name, _S"_ClassIf *_;");
         else
             strDup(&ln, _S"        ObjIface *_;");
-        bfWriteLine(bf, ln);
+        sbufPWriteLine(bf, ln);
         writeClassTypeMarkers(bf, cls);
-        bfWriteLine(bf, _S"        void *_is_ObjInst;");
-        bfWriteLine(bf, _S"    };");
-        bfWriteLine(bf, _S"    ObjClassInfo *_clsinfo;");
-        bfWriteLine(bf, _S"    atomic(intptr) _ref;");
-        bfWriteLine(bf, _S"    atomic(ptr) _weakref;");
-        bfWriteLine(bf, NULL);
+        sbufPWriteLine(bf, _S"        void *_is_ObjInst;");
+        sbufPWriteLine(bf, _S"    };");
+        sbufPWriteLine(bf, _S"    ObjClassInfo *_clsinfo;");
+        sbufPWriteLine(bf, _S"    atomic(intptr) _ref;");
+        sbufPWriteLine(bf, _S"    atomic(ptr) _weakref;");
+        sbufPWriteEOL(bf);
     }
 
     for (int i = 0; i < saSize(cls->allmembers); i++) {
@@ -358,39 +358,39 @@ void writeClassDecl(BufFile *bf, Class *cls)
     }
 
     strNConcat(&ln, _S"} ", cls->name, _S";");
-    bfWriteLine(bf, ln);
+    sbufPWriteLine(bf, ln);
     if (!cls->mixin) {
         strNConcat(&ln, _S"extern ObjClassInfo ", cls->name, _S"_clsinfo;");
-        bfWriteLine(bf, ln);
+        sbufPWriteLine(bf, ln);
     }
     strNConcat(&ln, _S"#define ", cls->name, _S"(inst) ((", cls->name,
                _S"*)(unused_noeval((inst) && &((inst)->_is_", cls->name, _S")), (inst)))");
-    bfWriteLine(bf, ln);
+    sbufPWriteLine(bf, ln);
     strNConcat(&ln, _S"#define ", cls->name, _S"None ((", cls->name,
                _S"*)NULL)");
-    bfWriteLine(bf, ln);
-    bfWriteLine(bf, NULL);
+    sbufPWriteLine(bf, ln);
+    sbufPWriteEOL(bf);
 
     if (cls->mixin)
         return;
 
     strNConcat(&ln, _S"typedef struct ", cls->name, _S"_WeakRef {");
-    bfWriteLine(bf, ln);
+    sbufPWriteLine(bf, ln);
 
-    bfWriteLine(bf, _S"    union {");
-    bfWriteLine(bf, _S"        ObjInst *_inst;");
+    sbufPWriteLine(bf, _S"    union {");
+    sbufPWriteLine(bf, _S"        ObjInst *_inst;");
     writeClassWeakRefTypeMarkers(bf, cls);
-    bfWriteLine(bf, _S"        void *_is_ObjInst_WeakRef;");
-    bfWriteLine(bf, _S"    };");
-    bfWriteLine(bf, _S"    atomic(intptr) _ref;");
-    bfWriteLine(bf, _S"    RWLock _lock;");
+    sbufPWriteLine(bf, _S"        void *_is_ObjInst_WeakRef;");
+    sbufPWriteLine(bf, _S"    };");
+    sbufPWriteLine(bf, _S"    atomic(intptr) _ref;");
+    sbufPWriteLine(bf, _S"    RWLock _lock;");
 
     strNConcat(&ln, _S"} ", cls->name, _S"_WeakRef;");
-    bfWriteLine(bf, ln);
+    sbufPWriteLine(bf, ln);
     strNConcat(&ln, _S"#define ", cls->name, _S"_WeakRef(inst) ((", cls->name,
                _S"_WeakRef*)(unused_noeval((inst) && &((inst)->_is_", cls->name, _S"_WeakRef)), (inst)))");
-    bfWriteLine(bf, ln);
-    bfWriteLine(bf, NULL);
+    sbufPWriteLine(bf, ln);
+    sbufPWriteEOL(bf);
 
     sa_Method unboundDone;
     saInit(&unboundDone, object, 16);
@@ -417,9 +417,9 @@ void writeClassDecl(BufFile *bf, Class *cls)
                 strNConcat(&ln, ln, _S", ", m->params.a[j]->name);
         }
         strAppend(&ln, _S")");
-        bfWriteLine(bf, ln);
+        sbufPWriteLine(bf, ln);
     }
-    bfWriteLine(bf, NULL);
+    sbufPWriteEOL(bf);
 
     strDestroy(&mname);
     strDestroy(&ln);
@@ -435,18 +435,22 @@ bool writeHeader(string fname)
         fprintf(stderr, "Failed to open %s for writing", lazyPlatformPath(hname));
         return false;
     }
-    BufFile *bf = bfCreate(file, true);
+    StreamBuffer* bf = sbufCreate(1024);
+    if (!sbufFSFileCRegisterPush(bf, file, true))
+        return false;
+    if (!sbufPRegisterPush(bf, NULL, NULL))
+        return false;
 
     string ln = 0;
-    bfWriteLine(bf, _S"#pragma once");
-    bfWriteLine(bf, _S"// This header file is auto-generated!");
-    bfWriteLine(bf, _S"// Do not make changes to this file or they will be overwritten.");
-    bfWriteLine(bf, _S"#include <cx/obj.h>");
+    sbufPWriteLine(bf, _S"#pragma once");
+    sbufPWriteLine(bf, _S"// This header file is auto-generated!");
+    sbufPWriteLine(bf, _S"// Do not make changes to this file or they will be overwritten.");
+    sbufPWriteLine(bf, _S"#include <cx/obj.h>");
     for (int i = 0; i < saSize(includes); i++) {
         strNConcat(&ln, _S"#include ", includes.a[i]);
-        bfWriteLine(bf, ln);
+        sbufPWriteLine(bf, ln);
     }
-    bfWriteLine(bf, NULL);
+    sbufPWriteEOL(bf);
 
     for(int i = 0; i < saSize(fwdclass); i++) {
         writeForwardDecl(bf, fwdclass.a[i]);
@@ -472,10 +476,10 @@ bool writeHeader(string fname)
         writeComplexArrayDecl(bf, artypes.a[i]);
     }
     if (!strEmpty(cpassthrough)) {
-        bfWriteLine(bf, NULL);
-        bfWriteStr(bf, cpassthrough);
+        sbufPWriteEOL(bf);
+        sbufPWriteStr(bf, cpassthrough);
     }
-    bfWriteLine(bf, NULL);
+    sbufPWriteEOL(bf);
 
     for (int i = 0; i < saSize(ifaces); i++) {
         if (!ifaces.a[i]->included)
@@ -489,6 +493,7 @@ bool writeHeader(string fname)
 
     strDestroy(&ln);
     strDestroy(&hname);
-    bfClose(bf);
+    sbufPFinish(bf);
+    sbufRelease(&bf);
     return true;
 }

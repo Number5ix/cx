@@ -32,7 +32,6 @@ else()
 endif()
 
 set(CXOBJGEN_SRCS
-    buffile.c
     classes.c
     header.c
     impl.c
@@ -57,6 +56,10 @@ set(CX_SRCS
     ../cx/obj/objstdif.c
     ../cx/obj/objweak.c
     ../cx/obj/stype_obj.c
+    ../cx/serialize/lineparse.c
+    ../cx/serialize/sbfsfile.c
+    ../cx/serialize/sbstring.c
+    ../cx/serialize/streambuf.c
     ../cx/stype/stconvert.c
     ../cx/stype/stvar.c
     ../cx/stype/stype.c
@@ -93,7 +96,6 @@ source_group("cx" FILES
     ${CX_SRCS})
 
 set(CXOBJGEN_INCLUDES
-    buffile.h
     objtypes.h
     cxobjgen.h
     objtypes.sidl

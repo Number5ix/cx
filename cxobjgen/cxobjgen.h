@@ -1,9 +1,11 @@
 #pragma once
 
 #include "objtypes.h"
-#include "buffile.h"
 #include <cx/fs/fs.h>
 #include <cx/fs/path.h>
+#include <cx/serialize/lineparse.h>
+#include <cx/serialize/sbfsfile.h>
+#include <cx/serialize/sbstring.h>
 
 extern sa_Interface ifaces;
 extern hashtable ifidx;
