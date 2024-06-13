@@ -52,9 +52,9 @@ static void writeFuncComment(BufFile *bf, strref name, Class *cls, Method *m)
 
     string ln = 0, temp = 0;
     if (!m->standalone)
-        strNConcat(&ln, _S"// ", m->returntype, _S" ", m->predecr, name, _S"(", cls->name, _S" *self");
+        strNConcat(&ln, _S"// ", m->returntype, m->predecr, _S" ", name, _S"(", cls->name, _S"* self");
     else
-        strNConcat(&ln, _S"// ", m->returntype, _S" ", m->predecr, name, _S"(");
+        strNConcat(&ln, _S"// ", m->returntype, m->predecr, _S" ", name, _S"(");
 
     for (int j = 0; j < saSize(m->params); j++) {
         Param *p = m->params.a[j];
@@ -72,7 +72,7 @@ static void writeFuncComment(BufFile *bf, strref name, Class *cls, Method *m)
 
         if (!m->standalone || j > 0)
             strNConcat(&ln, ln, _S", ");
-        strNConcat(&ln, ln, ptype, _S" ", ppre, p->name, p->postdecr);
+        strNConcat(&ln, ln, ptype, ppre, _S" ", p->name, p->postdecr);
     }
     strAppend(&ln, _S");");
     bfWriteLine(bf, ln);
@@ -96,9 +96,9 @@ static void writeUnbound(BufFile *bf, Class *cls, Class *cur, sa_Method *done)
             methodImplName(&implname, cls, m->name);
             methodAnnotations(&annos, m);
             if (!m->standalone)
-                strNConcat(&ln, annos, m->returntype, _S" ", m->predecr, implname, _S"(_Inout_ ", cls->name, _S" *self");
+                strNConcat(&ln, annos, m->returntype, m->predecr, _S" ", implname, _S"(_Inout_ ", cls->name, _S"* self");
             else
-                strNConcat(&ln, annos, m->returntype, _S" ", m->predecr, implname, _S"(");
+                strNConcat(&ln, annos, m->returntype, m->predecr, _S" ", implname, _S"(");
 
             for (int j = 0; j < saSize(m->params); j++) {
                 Param *p = m->params.a[j];
@@ -117,7 +117,7 @@ static void writeUnbound(BufFile *bf, Class *cls, Class *cur, sa_Method *done)
                 if (!m->standalone || j > 0)
                     strNConcat(&ln, ln, _S", ");
                 paramAnnotations(&annos, p);
-                strNConcat(&ln, ln, annos, ptype, _S" ", ppre, p->name, p->postdecr);
+                strNConcat(&ln, ln, annos, ptype, ppre, _S" ", p->name, p->postdecr);
             }
             strAppend(&ln, _S");");
             bfWriteLine(bf, ln);
@@ -206,7 +206,7 @@ void writeIfDecl(BufFile *bf, Interface *iface)
         Method *m = iface->allmethods.a[i];
         writeComments(bf, m->comments, 4, false);
         methodAnnotations(&annos, m);
-        strNConcat(&ln, _S"    ", annos, m->returntype, _S" ", m->predecr, _S"(*", m->name, _S")(_Inout_ void *self");
+        strNConcat(&ln, _S"    ", annos, m->returntype, m->predecr, _S" ", _S"(*", m->name, _S")(_Inout_ void* self");
         for (int j = 0; j < saSize(m->params); j++) {
             Param *p = m->params.a[j];
             string ptype = p->type;
@@ -218,7 +218,7 @@ void writeIfDecl(BufFile *bf, Interface *iface)
             }
 
             paramAnnotations(&annos, p);
-            strNConcat(&tmp, _S", ", annos, ptype, _S" ", ppre, p->name, p->postdecr);
+            strNConcat(&tmp, _S", ", annos, ptype, ppre, _S" ", p->name, p->postdecr);
             strAppend(&ln, tmp);
         }
         strAppend(&ln, _S");");
@@ -296,7 +296,7 @@ static void writeClassMember(BufFile *bf, Class *cls, Member *m)
         }
     }
 
-    strNConcat(&ln, _S"    ", m->vartype, _S" ", predecr, m->name, m->postdecr, _S";");
+    strNConcat(&ln, _S"    ", m->vartype, predecr, _S" ", m->name, m->postdecr, _S";");
 
     if (saSize(m->comments) == 1)
         strNConcat(&ln, ln, _S"        // ", m->comments.a[0]);

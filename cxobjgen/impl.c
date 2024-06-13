@@ -70,9 +70,9 @@ static void writeMethodProto(BufFile *bf, Class *cls, Method *m, bool protoonly,
 
     methodAnnotations(&tmp, m);
     if (!m->standalone)
-        strNConcat(&ln, tmp, m->returntype, _S" ", m->predecr, mname, _S"(_Inout_ ", cls->name, _S" *self");
+        strNConcat(&ln, tmp, m->returntype, m->predecr, _S" ", mname, _S"(_Inout_ ", cls->name, _S"* self");
     else
-        strNConcat(&ln, tmp, m->returntype, _S" ", m->predecr, mname, _S"(");
+        strNConcat(&ln, tmp, m->returntype, m->predecr, _S" ", mname, _S"(");
 
     if (forparent)
         strPrepend(_S"extern ", &ln);
@@ -95,9 +95,9 @@ static void writeMethodProto(BufFile *bf, Class *cls, Method *m, bool protoonly,
 
         paramAnnotations(&annos, p);
         if (!m->standalone || j > 0)
-            strNConcat(&tmp, _S", ", annos, ptype, _S" ", ppre, p->name, p->postdecr);
+            strNConcat(&tmp, _S", ", annos, ptype,  ppre, _S" ", p->name, p->postdecr);
         else
-            strNConcat(&tmp, annos, ptype, _S" ", ppre, p->name, p->postdecr);
+            strNConcat(&tmp, annos, ptype, ppre, _S" ", p->name, p->postdecr);
         strAppend(&ln, tmp);
     }
     strAppend(&ln, _S")");
@@ -105,7 +105,7 @@ static void writeMethodProto(BufFile *bf, Class *cls, Method *m, bool protoonly,
         strAppend(&ln, _S";");
 
     if (forparent)
-        strAppend(&ln, _S" // parent");
+        strAppend(&ln, _S"   // parent");
 
     bfWriteLine(bf, ln);
     strDestroy(&tmp);
@@ -130,7 +130,7 @@ static void writeMethods(BufFile *bf, Class *cls, sa_string *seen, bool mixinimp
             } else if (m->isdestroy) {
                 writeAutoDtors(bf, cls);
             } else if (m->isfactory) {
-                strNConcat(&ln, _S"    ", cls->name, _S" *self;");
+                strNConcat(&ln, _S"    ", cls->name, _S"* self;");
                 bfWriteLine(bf, ln);
                 strNConcat(&ln, _S"    self = objInstCreate(", cls->name, _S");");
                 bfWriteLine(bf, ln);
@@ -435,7 +435,7 @@ static void writeClassIfaceTbl(BufFile *bf, Class *cls, Interface *iface)
             continue;
 
         methodImplName(&implname, cls, m->name);
-        strNConcat(&ln, _S"    .", m->name, _S" = (", m->returntype, _S" ", m->predecr, _S"(*)(void*");
+        strNConcat(&ln, _S"    .", m->name, _S" = (", m->returntype, m->predecr, _S" ", _S"(*)(void*");
         for (int j = 0; j < saSize(m->params); j++) {
             Param *p = m->params.a[j];
             string ptype = p->type;
@@ -519,6 +519,23 @@ static void writeClassImpl(BufFile *bf, Class *cls, bool *wroteany)
     strDestroy(&ln);
 }
 
+static bool fillBuf(BufFile *obf, sa_string *linebuf)
+{
+    string ln = 0;
+    while (obf && saSize(*linebuf) < 5 && bfReadLine(obf, &ln)) {
+        saPushC(linebuf, string, &ln);
+    }
+    return saSize(*linebuf) > 0;
+}
+
+static void deleteLines(sa_string *linebuf, int nlines)
+{
+    while (nlines > 0) {
+        saRemove(linebuf, 0);
+        nlines--;
+    }
+}
+
 bool writeImpl(string fname, bool mixinimpl)
 {
     string hname = 0;
@@ -580,9 +597,31 @@ bool writeImpl(string fname, bool mixinimpl)
     htInit(&implidx, string, opaque(MethodPair), 16);
     int err;
     PCRE2_SIZE eoffset;
-    pcre2_code *reParentProto = pcre2_compile((PCRE2_SPTR)"extern [A-Za-z0-9_]+ \\**([A-Za-z0-9_]+)\\(.*\\); // parent", PCRE2_ZERO_TERMINATED, PCRE2_ANCHORED | PCRE2_ENDANCHORED, &err, &eoffset, NULL);
-    pcre2_code *reParentMacro = pcre2_compile((PCRE2_SPTR)"#(?:define|undef) parent_[A-Za-z0-9_]+(?:\\(.*\\) [A-Za-z0-9_]+\\(.*\\))?", PCRE2_ZERO_TERMINATED, PCRE2_ANCHORED | PCRE2_ENDANCHORED, &err, &eoffset, NULL);
-    pcre2_code *reProto = pcre2_compile((PCRE2_SPTR)"(?:_.*_(?:\\(.*\\))? )*(?:_objfactory(?:_[a-z]+)? )?(?:_objinit(?:_[a-z]+)? )?(?:_meta_inline )?[A-Za-z0-9_]+ \\**([A-Za-z0-9_]+)\\(.*\\)(;)?", PCRE2_ZERO_TERMINATED, PCRE2_ANCHORED | PCRE2_ENDANCHORED, &err, &eoffset, NULL);
+    pcre2_code* reParentProto = pcre2_compile(
+        (PCRE2_SPTR) "^extern [A-Za-z0-9_]+(?:\\s\\**|\\**\\s)([A-Za-z0-9_]+)"
+        "\\([^;]*\\);\\s+// parent$",
+        PCRE2_ZERO_TERMINATED,
+        0,
+        &err,
+        &eoffset,
+        NULL);
+    pcre2_code* reParentMacro = pcre2_compile(
+        (PCRE2_SPTR) "^#(?:define|undef) parent_[A-Za-z0-9_]+"
+        "(?:\\([^;]*\\) [A-Za-z0-9_]+\\([^;]*\\))?$",
+        PCRE2_ZERO_TERMINATED,
+        0,
+        &err,
+        &eoffset,
+        NULL);
+    pcre2_code* reProto = pcre2_compile(
+        (PCRE2_SPTR) "^(?:_.*_(?:\\(.*\\))?\\s+)*(?:_objfactory(?:_[a-z]+)?\\s+)?"
+        "(?:_objinit(?:_[a-z]+)?\\s+)?(?:_meta_inline\\s+)?[A-Za-z0-9_]+"
+        "(?:\\s+\\**|\\**\\s+)([A-Za-z0-9_]+)\\([^;]*\\)(;)?$",
+        PCRE2_ZERO_TERMINATED,
+        0,
+        &err,
+        &eoffset,
+        NULL);
     pcre2_match_data *match = pcre2_match_data_create_from_pattern(reProto, NULL);
 
     for (int i = 0; i < saSize(classes); i++) {
@@ -593,21 +632,49 @@ bool writeImpl(string fname, bool mixinimpl)
     bool wasempty = true;
     Class *ininit = 0;
     Class *indestroy = 0;
-    while (obf && bfReadLine(obf, &ln)) {
-        if (strEq(ln, autogenBegin) || strEq(ln, autogenBeginShort) || strEq(ln, autogenBeginShortIndent))
+    sa_string linebuf;
+    saInit(&linebuf, string, 5);
+    while (obf && fillBuf(obf, &linebuf)) {
+        strDup(&ln, linebuf.a[0]);
+        if (strEq(ln, autogenBegin) || strEq(ln, autogenBeginShort) ||
+            strEq(ln, autogenBeginShortIndent))
             inautogen = true;
         if (!inautogen) {
             wasempty = false;
+            int nmatches = 0;
 
-            // ignore parent prototypes and macros
-            int nmatches = pcre2_match(reParentProto, (PCRE2_SPTR)strC(ln), strLen(ln), 0, 0, match, NULL);
-            if (nmatches >= 0)
-                continue;
-            nmatches = pcre2_match(reParentMacro, (PCRE2_SPTR)strC(ln), strLen(ln), 0, 0, match, NULL);
-            if (nmatches >= 0)
-                continue;
+            for (int nline = 0; nline < saSize(linebuf); nline++) {
+                if (nline > 0) {
+                    // don't delete lines yet, only peek beyond first
+#ifdef _PLATFORM_WIN
+                    strAppend(&ln, _S"\r\n");
+#else
+                    strAppend(&ln, _S"\n");
+#endif
+                    strAppend(&ln, linebuf.a[nline]);
+                }
+                // ignore parent prototypes and macros
+                nmatches =
+                    pcre2_match(reParentProto, (PCRE2_SPTR)strC(ln), strLen(ln), 0, 0, match, NULL);
+                if (nmatches >= 0) {
+                    deleteLines(&linebuf, nline);
+                    goto nextloop;
+                }
+                nmatches =
+                    pcre2_match(reParentMacro, (PCRE2_SPTR)strC(ln), strLen(ln), 0, 0, match, NULL);
+                if (nmatches >= 0) {
+                    deleteLines(&linebuf, nline);
+                    goto nextloop;
+                }
 
-            nmatches = pcre2_match(reProto, (PCRE2_SPTR)strC(ln), strLen(ln), 0, 0, match, NULL);
+                nmatches =
+                    pcre2_match(reProto, (PCRE2_SPTR)strC(ln), strLen(ln), 0, 0, match, NULL);
+                if (nmatches >= 0) {
+                    // actually remove lines beyond the first
+                    deleteLines(&linebuf, nline);
+                    break;
+                }
+            }
             if (nmatches >= 0) {
                 PCRE2_SIZE *ovector = pcre2_get_ovector_pointer(match);
                 string funcname = 0;
@@ -628,6 +695,8 @@ bool writeImpl(string fname, bool mixinimpl)
                 }
                 strDestroy(&funcname);
             } else {
+                // revert back to a single line
+                strDup(&ln, linebuf.a[0]);                
                 if (strEq(ln, _S"}")) {
                     if (ininit) {
                         writeAutoInit(nbf, ininit);
@@ -644,6 +713,8 @@ bool writeImpl(string fname, bool mixinimpl)
         if (strEq(ln, autogenEnd) || strEq(ln, autogenEndShort) || strEq(ln, autogenEndShortIndent)) {
             inautogen = false;
         }
+nextloop:
+        deleteLines(&linebuf, 1);
     }
 
     if (wasempty) {
@@ -706,6 +777,7 @@ bool writeImpl(string fname, bool mixinimpl)
 
     pcre2_match_data_free(match);
     pcre2_code_free(reProto);
+    saDestroy(&linebuf);
     strDestroy(&ln);
     strDestroy(&incname);
     strDestroy(&hname);
