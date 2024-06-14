@@ -21,7 +21,7 @@ static FmtTestClass_ClassIf _impl_FmtTestClass_FmtTestClass_ClassIf = {
     .format = (bool (*)(void*, FMTVar*, string*))FmtTestClass_format,
 };
 
-static ObjIface *_ifimpl_FmtTestClass[] = {
+static ObjIface* _ifimpl_FmtTestClass[] = {
     (ObjIface*)&_impl_FmtTestClass_Formattable,
     (ObjIface*)&_impl_FmtTestClass_FmtTestClass_ClassIf,
     NULL
@@ -46,7 +46,7 @@ static FmtTestClass2_ClassIf _impl_FmtTestClass2_FmtTestClass2_ClassIf = {
     .convert = (bool (*)(void*, stype, stgeneric*, uint32))FmtTestClass2_convert,
 };
 
-static ObjIface *_ifimpl_FmtTestClass2[] = {
+static ObjIface* _ifimpl_FmtTestClass2[] = {
     (ObjIface*)&_impl_FmtTestClass2_Convertible,
     (ObjIface*)&_impl_FmtTestClass2_FmtTestClass2_ClassIf,
     NULL

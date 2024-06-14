@@ -11,8 +11,8 @@ saDeclarePtr(VFSFS);
 saDeclarePtr(VFSFS_WeakRef);
 
 typedef struct VFSFS_ClassIf {
-    ObjIface *_implements;
-    ObjIface *_parent;
+    ObjIface* _implements;
+    ObjIface* _parent;
     size_t _size;
 
     // VFSProviderFlags enforced for this provider
@@ -35,11 +35,11 @@ extern VFSFS_ClassIf VFSFS_ClassIf_tmpl;
 
 typedef struct VFSFS {
     union {
-        VFSFS_ClassIf *_;
-        void *_is_VFSFS;
-        void *_is_ObjInst;
+        VFSFS_ClassIf* _;
+        void* _is_VFSFS;
+        void* _is_ObjInst;
     };
-    ObjClassInfo *_clsinfo;
+    ObjClassInfo* _clsinfo;
     atomic(intptr) _ref;
     atomic(ptr) _weakref;
 
@@ -51,9 +51,9 @@ extern ObjClassInfo VFSFS_clsinfo;
 
 typedef struct VFSFS_WeakRef {
     union {
-        ObjInst *_inst;
-        void *_is_VFSFS_WeakRef;
-        void *_is_ObjInst_WeakRef;
+        ObjInst* _inst;
+        void* _is_VFSFS_WeakRef;
+        void* _is_ObjInst_WeakRef;
     };
     atomic(intptr) _ref;
     RWLock _lock;

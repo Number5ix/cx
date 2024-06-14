@@ -17,7 +17,7 @@ static ConvertTestClass_ClassIf _impl_ConvertTestClass_ConvertTestClass_ClassIf 
     .convert = (bool (*)(void*, stype, stgeneric*, uint32))ConvertTestClass_convert,
 };
 
-static ObjIface *_ifimpl_ConvertTestClass[] = {
+static ObjIface* _ifimpl_ConvertTestClass[] = {
     (ObjIface*)&_impl_ConvertTestClass_Convertible,
     (ObjIface*)&_impl_ConvertTestClass_ConvertTestClass_ClassIf,
     NULL

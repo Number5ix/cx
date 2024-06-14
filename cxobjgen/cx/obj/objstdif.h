@@ -10,8 +10,8 @@ saDeclarePtr(Iterator);
 saDeclarePtr(Iterator_WeakRef);
 
 typedef struct Sortable {
-    ObjIface *_implements;
-    ObjIface *_parent;
+    ObjIface* _implements;
+    ObjIface* _parent;
     size_t _size;
 
     intptr (*cmp)(_Inout_ void* self, void* other, uint32 flags);
@@ -19,8 +19,8 @@ typedef struct Sortable {
 extern Sortable Sortable_tmpl;
 
 typedef struct Hashable {
-    ObjIface *_implements;
-    ObjIface *_parent;
+    ObjIface* _implements;
+    ObjIface* _parent;
     size_t _size;
 
     uint32 (*hash)(_Inout_ void* self, uint32 flags);
@@ -28,8 +28,8 @@ typedef struct Hashable {
 extern Hashable Hashable_tmpl;
 
 typedef struct Convertible {
-    ObjIface *_implements;
-    ObjIface *_parent;
+    ObjIface* _implements;
+    ObjIface* _parent;
     size_t _size;
 
     // NOTE: While this is used by stConvert, the object interface is a higher level interface.
@@ -43,8 +43,8 @@ typedef struct Convertible {
 extern Convertible Convertible_tmpl;
 
 typedef struct IteratorIf {
-    ObjIface *_implements;
-    ObjIface *_parent;
+    ObjIface* _implements;
+    ObjIface* _parent;
     size_t _size;
 
     bool (*valid)(_Inout_ void* self);
@@ -54,8 +54,8 @@ typedef struct IteratorIf {
 extern IteratorIf IteratorIf_tmpl;
 
 typedef struct Iterable {
-    ObjIface *_implements;
-    ObjIface *_parent;
+    ObjIface* _implements;
+    ObjIface* _parent;
     size_t _size;
 
     // Caller owns the iterator and must release it with objRelease
@@ -64,8 +64,8 @@ typedef struct Iterable {
 extern Iterable Iterable_tmpl;
 
 typedef struct Iterator_ClassIf {
-    ObjIface *_implements;
-    ObjIface *_parent;
+    ObjIface* _implements;
+    ObjIface* _parent;
     size_t _size;
 
     bool (*valid)(_Inout_ void* self);
@@ -76,11 +76,11 @@ extern Iterator_ClassIf Iterator_ClassIf_tmpl;
 
 typedef struct Iterator {
     union {
-        Iterator_ClassIf *_;
-        void *_is_Iterator;
-        void *_is_ObjInst;
+        Iterator_ClassIf* _;
+        void* _is_Iterator;
+        void* _is_ObjInst;
     };
-    ObjClassInfo *_clsinfo;
+    ObjClassInfo* _clsinfo;
     atomic(intptr) _ref;
     atomic(ptr) _weakref;
 
@@ -91,9 +91,9 @@ extern ObjClassInfo Iterator_clsinfo;
 
 typedef struct Iterator_WeakRef {
     union {
-        ObjInst *_inst;
-        void *_is_Iterator_WeakRef;
-        void *_is_ObjInst_WeakRef;
+        ObjInst* _inst;
+        void* _is_Iterator_WeakRef;
+        void* _is_ObjInst_WeakRef;
     };
     atomic(intptr) _ref;
     RWLock _lock;

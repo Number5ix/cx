@@ -43,7 +43,7 @@ static SSDSingleNode_ClassIf _impl_SSDSingleNode_SSDSingleNode_ClassIf = {
     ._iterLocked = (SSDIterator* (*)(void*, SSDLockState*))SSDSingleNode__iterLocked,
 };
 
-static ObjIface *_ifimpl_SSDSingleNode[] = {
+static ObjIface* _ifimpl_SSDSingleNode[] = {
     (ObjIface*)&_impl_SSDSingleNode_SSDNodeIf,
     (ObjIface*)&_impl_SSDSingleNode_Iterable,
     (ObjIface*)&_impl_SSDSingleNode_SSDSingleNode_ClassIf,
@@ -82,7 +82,7 @@ static SSDSingleIter_ClassIf _impl_SSDSingleIter_SSDSingleIter_ClassIf = {
     .iterOut = (bool (*)(void*, int32*, strref*, stvar**))SSDSingleIter_iterOut,
 };
 
-static ObjIface *_ifimpl_SSDSingleIter[] = {
+static ObjIface* _ifimpl_SSDSingleIter[] = {
     (ObjIface*)&_impl_SSDSingleIter_SSDIteratorIf,
     (ObjIface*)&_impl_SSDSingleIter_SSDSingleIter_ClassIf,
     NULL

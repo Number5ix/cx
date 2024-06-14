@@ -17,7 +17,7 @@ Class_ClassIf Class_ClassIf_tmpl = {
     ._size = sizeof(Class_ClassIf),
 };
 
-static ObjIface *_ifimpl_Param[] = {
+static ObjIface* _ifimpl_Param[] = {
     NULL
 };
 
@@ -40,7 +40,7 @@ static Method_ClassIf _impl_Method_Method_ClassIf = {
     .cmp = (intptr (*)(void*, void*, uint32))Method_cmp,
 };
 
-static ObjIface *_ifimpl_Method[] = {
+static ObjIface* _ifimpl_Method[] = {
     (ObjIface*)&_impl_Method_Sortable,
     (ObjIface*)&_impl_Method_Method_ClassIf,
     NULL
@@ -66,7 +66,7 @@ static Interface_ClassIf _impl_Interface_Interface_ClassIf = {
     .cmp = (intptr (*)(void*, void*, uint32))Interface_cmp,
 };
 
-static ObjIface *_ifimpl_Interface[] = {
+static ObjIface* _ifimpl_Interface[] = {
     (ObjIface*)&_impl_Interface_Sortable,
     (ObjIface*)&_impl_Interface_Interface_ClassIf,
     NULL
@@ -92,7 +92,7 @@ static Member_ClassIf _impl_Member_Member_ClassIf = {
     .cmp = (intptr (*)(void*, void*, uint32))Member_cmp,
 };
 
-static ObjIface *_ifimpl_Member[] = {
+static ObjIface* _ifimpl_Member[] = {
     (ObjIface*)&_impl_Member_Sortable,
     (ObjIface*)&_impl_Member_Member_ClassIf,
     NULL
@@ -117,7 +117,7 @@ static Class_ClassIf _impl_Class_Class_ClassIf = {
     .cmp = (intptr (*)(void*, void*, uint32))Class_cmp,
 };
 
-static ObjIface *_ifimpl_Class[] = {
+static ObjIface* _ifimpl_Class[] = {
     (ObjIface*)&_impl_Class_Sortable,
     (ObjIface*)&_impl_Class_Class_ClassIf,
     NULL
@@ -131,7 +131,7 @@ ObjClassInfo Class_clsinfo = {
     .ifimpl = _ifimpl_Class,
 };
 
-static ObjIface *_ifimpl_ComplexArrayType[] = {
+static ObjIface* _ifimpl_ComplexArrayType[] = {
     NULL
 };
 

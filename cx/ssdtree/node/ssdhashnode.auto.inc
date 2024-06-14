@@ -44,7 +44,7 @@ static SSDHashNode_ClassIf _impl_SSDHashNode_SSDHashNode_ClassIf = {
     ._iterLocked = (SSDIterator* (*)(void*, SSDLockState*))SSDHashNode__iterLocked,
 };
 
-static ObjIface *_ifimpl_SSDHashNode[] = {
+static ObjIface* _ifimpl_SSDHashNode[] = {
     (ObjIface*)&_impl_SSDHashNode_SSDNodeIf,
     (ObjIface*)&_impl_SSDHashNode_Iterable,
     (ObjIface*)&_impl_SSDHashNode_SSDHashNode_ClassIf,
@@ -85,7 +85,7 @@ static SSDHashIter_ClassIf _impl_SSDHashIter_SSDHashIter_ClassIf = {
     .iterOut = (bool (*)(void*, int32*, strref*, stvar**))SSDHashIter_iterOut,
 };
 
-static ObjIface *_ifimpl_SSDHashIter[] = {
+static ObjIface* _ifimpl_SSDHashIter[] = {
     (ObjIface*)&_impl_SSDHashIter_SSDIteratorIf,
     (ObjIface*)&_impl_SSDHashIter_SSDHashIter_ClassIf,
     NULL

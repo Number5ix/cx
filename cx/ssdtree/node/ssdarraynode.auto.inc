@@ -45,7 +45,7 @@ static SSDArrayNode_ClassIf _impl_SSDArrayNode_SSDArrayNode_ClassIf = {
     ._iterLocked = (SSDIterator* (*)(void*, SSDLockState*))SSDArrayNode__iterLocked,
 };
 
-static ObjIface *_ifimpl_SSDArrayNode[] = {
+static ObjIface* _ifimpl_SSDArrayNode[] = {
     (ObjIface*)&_impl_SSDArrayNode_SSDNodeIf,
     (ObjIface*)&_impl_SSDArrayNode_Iterable,
     (ObjIface*)&_impl_SSDArrayNode_SSDArrayNode_ClassIf,
@@ -86,7 +86,7 @@ static SSDArrayIter_ClassIf _impl_SSDArrayIter_SSDArrayIter_ClassIf = {
     .iterOut = (bool (*)(void*, int32*, strref*, stvar**))SSDArrayIter_iterOut,
 };
 
-static ObjIface *_ifimpl_SSDArrayIter[] = {
+static ObjIface* _ifimpl_SSDArrayIter[] = {
     (ObjIface*)&_impl_SSDArrayIter_SSDIteratorIf,
     (ObjIface*)&_impl_SSDArrayIter_SSDArrayIter_ClassIf,
     NULL

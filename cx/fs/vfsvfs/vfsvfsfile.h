@@ -13,8 +13,8 @@ saDeclarePtr(VFSVFSFile);
 saDeclarePtr(VFSVFSFile_WeakRef);
 
 typedef struct VFSVFSFile_ClassIf {
-    ObjIface *_implements;
-    ObjIface *_parent;
+    ObjIface* _implements;
+    ObjIface* _parent;
     size_t _size;
 
     bool (*close)(_Inout_ void* self);
@@ -28,11 +28,11 @@ extern VFSVFSFile_ClassIf VFSVFSFile_ClassIf_tmpl;
 
 typedef struct VFSVFSFile {
     union {
-        VFSVFSFile_ClassIf *_;
-        void *_is_VFSVFSFile;
-        void *_is_ObjInst;
+        VFSVFSFile_ClassIf* _;
+        void* _is_VFSVFSFile;
+        void* _is_ObjInst;
     };
-    ObjClassInfo *_clsinfo;
+    ObjClassInfo* _clsinfo;
     atomic(intptr) _ref;
     atomic(ptr) _weakref;
 
@@ -44,9 +44,9 @@ extern ObjClassInfo VFSVFSFile_clsinfo;
 
 typedef struct VFSVFSFile_WeakRef {
     union {
-        ObjInst *_inst;
-        void *_is_VFSVFSFile_WeakRef;
-        void *_is_ObjInst_WeakRef;
+        ObjInst* _inst;
+        void* _is_VFSVFSFile_WeakRef;
+        void* _is_ObjInst_WeakRef;
     };
     atomic(intptr) _ref;
     RWLock _lock;

@@ -10,8 +10,8 @@ saDeclarePtr(ConvertTestClass);
 saDeclarePtr(ConvertTestClass_WeakRef);
 
 typedef struct ConvertTestClass_ClassIf {
-    ObjIface *_implements;
-    ObjIface *_parent;
+    ObjIface* _implements;
+    ObjIface* _parent;
     size_t _size;
 
     // NOTE: While this is used by stConvert, the object interface is a higher level interface.
@@ -26,11 +26,11 @@ extern ConvertTestClass_ClassIf ConvertTestClass_ClassIf_tmpl;
 
 typedef struct ConvertTestClass {
     union {
-        ConvertTestClass_ClassIf *_;
-        void *_is_ConvertTestClass;
-        void *_is_ObjInst;
+        ConvertTestClass_ClassIf* _;
+        void* _is_ConvertTestClass;
+        void* _is_ObjInst;
     };
-    ObjClassInfo *_clsinfo;
+    ObjClassInfo* _clsinfo;
     atomic(intptr) _ref;
     atomic(ptr) _weakref;
 
@@ -44,9 +44,9 @@ extern ObjClassInfo ConvertTestClass_clsinfo;
 
 typedef struct ConvertTestClass_WeakRef {
     union {
-        ObjInst *_inst;
-        void *_is_ConvertTestClass_WeakRef;
-        void *_is_ObjInst_WeakRef;
+        ObjInst* _inst;
+        void* _is_ConvertTestClass_WeakRef;
+        void* _is_ObjInst_WeakRef;
     };
     atomic(intptr) _ref;
     RWLock _lock;

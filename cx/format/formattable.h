@@ -7,8 +7,8 @@
 
 
 typedef struct Formattable {
-    ObjIface *_implements;
-    ObjIface *_parent;
+    ObjIface* _implements;
+    ObjIface* _parent;
     size_t _size;
 
     bool (*format)(_Inout_ void* self, FMTVar* v, string* out);

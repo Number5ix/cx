@@ -35,7 +35,7 @@ static Iterator_ClassIf _impl_Iterator_Iterator_ClassIf = {
     ._implements = (ObjIface*)&Iterator_ClassIf_tmpl,
 };
 
-static ObjIface *_ifimpl_Iterator[] = {
+static ObjIface* _ifimpl_Iterator[] = {
     (ObjIface*)&_impl_Iterator_IteratorIf,
     (ObjIface*)&_impl_Iterator_Iterator_ClassIf,
     NULL

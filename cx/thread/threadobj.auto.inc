@@ -1,7 +1,7 @@
 // ==================== Auto-generated section begins ====================
 // clang-format off
 // Do not modify the contents of this section; any changes will be lost!
-static ObjIface *_ifimpl_Thread[] = {
+static ObjIface* _ifimpl_Thread[] = {
     NULL
 };
 

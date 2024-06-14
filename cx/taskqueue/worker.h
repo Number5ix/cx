@@ -17,8 +17,8 @@ saDeclarePtr(TaskQueueWorker);
 saDeclarePtr(TaskQueueWorker_WeakRef);
 
 typedef struct TaskQueueWorker_ClassIf {
-    ObjIface *_implements;
-    ObjIface *_parent;
+    ObjIface* _implements;
+    ObjIface* _parent;
     size_t _size;
 
     bool (*_startThread)(_Inout_ void* self, TaskQueue* tq);
@@ -34,11 +34,11 @@ extern TaskQueueWorker_ClassIf TaskQueueWorker_ClassIf_tmpl;
 
 typedef struct TaskQueueWorker {
     union {
-        TaskQueueWorker_ClassIf *_;
-        void *_is_TaskQueueWorker;
-        void *_is_ObjInst;
+        TaskQueueWorker_ClassIf* _;
+        void* _is_TaskQueueWorker;
+        void* _is_ObjInst;
     };
-    ObjClassInfo *_clsinfo;
+    ObjClassInfo* _clsinfo;
     atomic(intptr) _ref;
     atomic(ptr) _weakref;
 
@@ -53,9 +53,9 @@ extern ObjClassInfo TaskQueueWorker_clsinfo;
 
 typedef struct TaskQueueWorker_WeakRef {
     union {
-        ObjInst *_inst;
-        void *_is_TaskQueueWorker_WeakRef;
-        void *_is_ObjInst_WeakRef;
+        ObjInst* _inst;
+        void* _is_TaskQueueWorker_WeakRef;
+        void* _is_ObjInst_WeakRef;
     };
     atomic(intptr) _ref;
     RWLock _lock;

@@ -8,8 +8,8 @@
 
 
 typedef struct VFSFileProvider {
-    ObjIface *_implements;
-    ObjIface *_parent;
+    ObjIface* _implements;
+    ObjIface* _parent;
     size_t _size;
 
     bool (*close)(_Inout_ void* self);
@@ -22,8 +22,8 @@ typedef struct VFSFileProvider {
 extern VFSFileProvider VFSFileProvider_tmpl;
 
 typedef struct VFSProvider {
-    ObjIface *_implements;
-    ObjIface *_parent;
+    ObjIface* _implements;
+    ObjIface* _parent;
     size_t _size;
 
     // VFSProviderFlags enforced for this provider

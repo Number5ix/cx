@@ -41,7 +41,7 @@ static VFSVFS_ClassIf _impl_VFSVFS_VFSVFS_ClassIf = {
     .searchFinish = (void (*)(void*, FSSearchIter*))VFSVFS_searchFinish,
 };
 
-static ObjIface *_ifimpl_VFSVFS[] = {
+static ObjIface* _ifimpl_VFSVFS[] = {
     (ObjIface*)&_impl_VFSVFS_VFSProvider,
     (ObjIface*)&_impl_VFSVFS_VFSVFS_ClassIf,
     NULL

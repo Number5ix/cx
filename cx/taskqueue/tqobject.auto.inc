@@ -12,7 +12,7 @@ static TaskQueue_ClassIf _impl_TaskQueue_TaskQueue_ClassIf = {
     .createWorker = (TaskQueueWorker* (*)(void*, int32))TaskQueue_createWorker,
 };
 
-static ObjIface *_ifimpl_TaskQueue[] = {
+static ObjIface* _ifimpl_TaskQueue[] = {
     (ObjIface*)&_impl_TaskQueue_TaskQueue_ClassIf,
     NULL
 };

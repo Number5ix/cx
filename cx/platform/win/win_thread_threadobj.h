@@ -13,12 +13,12 @@ saDeclarePtr(WinThread_WeakRef);
 
 typedef struct WinThread {
     union {
-        ObjIface *_;
-        void *_is_WinThread;
-        void *_is_Thread;
-        void *_is_ObjInst;
+        ObjIface* _;
+        void* _is_WinThread;
+        void* _is_Thread;
+        void* _is_ObjInst;
     };
-    ObjClassInfo *_clsinfo;
+    ObjClassInfo* _clsinfo;
     atomic(intptr) _ref;
     atomic(ptr) _weakref;
 
@@ -40,10 +40,10 @@ extern ObjClassInfo WinThread_clsinfo;
 
 typedef struct WinThread_WeakRef {
     union {
-        ObjInst *_inst;
-        void *_is_WinThread_WeakRef;
-        void *_is_Thread_WeakRef;
-        void *_is_ObjInst_WeakRef;
+        ObjInst* _inst;
+        void* _is_WinThread_WeakRef;
+        void* _is_Thread_WeakRef;
+        void* _is_ObjInst_WeakRef;
     };
     atomic(intptr) _ref;
     RWLock _lock;

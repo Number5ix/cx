@@ -17,11 +17,11 @@ saDeclarePtr(VFSMount_WeakRef);
 
 typedef struct VFS {
     union {
-        ObjIface *_;
-        void *_is_VFS;
-        void *_is_ObjInst;
+        ObjIface* _;
+        void* _is_VFS;
+        void* _is_ObjInst;
     };
-    ObjClassInfo *_clsinfo;
+    ObjClassInfo* _clsinfo;
     atomic(intptr) _ref;
     atomic(ptr) _weakref;
 
@@ -42,9 +42,9 @@ extern ObjClassInfo VFS_clsinfo;
 
 typedef struct VFS_WeakRef {
     union {
-        ObjInst *_inst;
-        void *_is_VFS_WeakRef;
-        void *_is_ObjInst_WeakRef;
+        ObjInst* _inst;
+        void* _is_VFS_WeakRef;
+        void* _is_ObjInst_WeakRef;
     };
     atomic(intptr) _ref;
     RWLock _lock;
@@ -68,11 +68,11 @@ _objfactory_check VFS* VFS_createFromFS();
 
 typedef struct VFSMount {
     union {
-        ObjIface *_;
-        void *_is_VFSMount;
-        void *_is_ObjInst;
+        ObjIface* _;
+        void* _is_VFSMount;
+        void* _is_ObjInst;
     };
-    ObjClassInfo *_clsinfo;
+    ObjClassInfo* _clsinfo;
     atomic(intptr) _ref;
     atomic(ptr) _weakref;
 
@@ -85,9 +85,9 @@ extern ObjClassInfo VFSMount_clsinfo;
 
 typedef struct VFSMount_WeakRef {
     union {
-        ObjInst *_inst;
-        void *_is_VFSMount_WeakRef;
-        void *_is_ObjInst_WeakRef;
+        ObjInst* _inst;
+        void* _is_VFSMount_WeakRef;
+        void* _is_ObjInst_WeakRef;
     };
     atomic(intptr) _ref;
     RWLock _lock;

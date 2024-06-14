@@ -31,8 +31,8 @@ saDeclarePtr(ComplexArrayType_WeakRef);
 saDeclareType(sarray_string, sa_string);
 
 typedef struct Method_ClassIf {
-    ObjIface *_implements;
-    ObjIface *_parent;
+    ObjIface* _implements;
+    ObjIface* _parent;
     size_t _size;
 
     _Ret_valid_ Method* (*clone)(_Inout_ void* self);
@@ -41,8 +41,8 @@ typedef struct Method_ClassIf {
 extern Method_ClassIf Method_ClassIf_tmpl;
 
 typedef struct Interface_ClassIf {
-    ObjIface *_implements;
-    ObjIface *_parent;
+    ObjIface* _implements;
+    ObjIface* _parent;
     size_t _size;
 
     intptr (*cmp)(_Inout_ void* self, void* other, uint32 flags);
@@ -50,8 +50,8 @@ typedef struct Interface_ClassIf {
 extern Interface_ClassIf Interface_ClassIf_tmpl;
 
 typedef struct Member_ClassIf {
-    ObjIface *_implements;
-    ObjIface *_parent;
+    ObjIface* _implements;
+    ObjIface* _parent;
     size_t _size;
 
     intptr (*cmp)(_Inout_ void* self, void* other, uint32 flags);
@@ -59,8 +59,8 @@ typedef struct Member_ClassIf {
 extern Member_ClassIf Member_ClassIf_tmpl;
 
 typedef struct Class_ClassIf {
-    ObjIface *_implements;
-    ObjIface *_parent;
+    ObjIface* _implements;
+    ObjIface* _parent;
     size_t _size;
 
     intptr (*cmp)(_Inout_ void* self, void* other, uint32 flags);
@@ -69,11 +69,11 @@ extern Class_ClassIf Class_ClassIf_tmpl;
 
 typedef struct Param {
     union {
-        ObjIface *_;
-        void *_is_Param;
-        void *_is_ObjInst;
+        ObjIface* _;
+        void* _is_Param;
+        void* _is_ObjInst;
     };
-    ObjClassInfo *_clsinfo;
+    ObjClassInfo* _clsinfo;
     atomic(intptr) _ref;
     atomic(ptr) _weakref;
 
@@ -89,9 +89,9 @@ extern ObjClassInfo Param_clsinfo;
 
 typedef struct Param_WeakRef {
     union {
-        ObjInst *_inst;
-        void *_is_Param_WeakRef;
-        void *_is_ObjInst_WeakRef;
+        ObjInst* _inst;
+        void* _is_Param_WeakRef;
+        void* _is_ObjInst_WeakRef;
     };
     atomic(intptr) _ref;
     RWLock _lock;
@@ -105,11 +105,11 @@ _objfactory_guaranteed Param* Param_create();
 
 typedef struct Method {
     union {
-        Method_ClassIf *_;
-        void *_is_Method;
-        void *_is_ObjInst;
+        Method_ClassIf* _;
+        void* _is_Method;
+        void* _is_ObjInst;
     };
-    ObjClassInfo *_clsinfo;
+    ObjClassInfo* _clsinfo;
     atomic(intptr) _ref;
     atomic(ptr) _weakref;
 
@@ -138,9 +138,9 @@ extern ObjClassInfo Method_clsinfo;
 
 typedef struct Method_WeakRef {
     union {
-        ObjInst *_inst;
-        void *_is_Method_WeakRef;
-        void *_is_ObjInst_WeakRef;
+        ObjInst* _inst;
+        void* _is_Method_WeakRef;
+        void* _is_ObjInst_WeakRef;
     };
     atomic(intptr) _ref;
     RWLock _lock;
@@ -158,11 +158,11 @@ _objfactory_guaranteed Method* Method_create();
 
 typedef struct Interface {
     union {
-        Interface_ClassIf *_;
-        void *_is_Interface;
-        void *_is_ObjInst;
+        Interface_ClassIf* _;
+        void* _is_Interface;
+        void* _is_ObjInst;
     };
-    ObjClassInfo *_clsinfo;
+    ObjClassInfo* _clsinfo;
     atomic(intptr) _ref;
     atomic(ptr) _weakref;
 
@@ -180,9 +180,9 @@ extern ObjClassInfo Interface_clsinfo;
 
 typedef struct Interface_WeakRef {
     union {
-        ObjInst *_inst;
-        void *_is_Interface_WeakRef;
-        void *_is_ObjInst_WeakRef;
+        ObjInst* _inst;
+        void* _is_Interface_WeakRef;
+        void* _is_ObjInst_WeakRef;
     };
     atomic(intptr) _ref;
     RWLock _lock;
@@ -198,11 +198,11 @@ _objfactory_guaranteed Interface* Interface_create();
 
 typedef struct Member {
     union {
-        Member_ClassIf *_;
-        void *_is_Member;
-        void *_is_ObjInst;
+        Member_ClassIf* _;
+        void* _is_Member;
+        void* _is_ObjInst;
     };
-    ObjClassInfo *_clsinfo;
+    ObjClassInfo* _clsinfo;
     atomic(intptr) _ref;
     atomic(ptr) _weakref;
 
@@ -224,9 +224,9 @@ extern ObjClassInfo Member_clsinfo;
 
 typedef struct Member_WeakRef {
     union {
-        ObjInst *_inst;
-        void *_is_Member_WeakRef;
-        void *_is_ObjInst_WeakRef;
+        ObjInst* _inst;
+        void* _is_Member_WeakRef;
+        void* _is_ObjInst_WeakRef;
     };
     atomic(intptr) _ref;
     RWLock _lock;
@@ -242,11 +242,11 @@ _objfactory_guaranteed Member* Member_create();
 
 typedef struct Class {
     union {
-        Class_ClassIf *_;
-        void *_is_Class;
-        void *_is_ObjInst;
+        Class_ClassIf* _;
+        void* _is_Class;
+        void* _is_ObjInst;
     };
-    ObjClassInfo *_clsinfo;
+    ObjClassInfo* _clsinfo;
     atomic(intptr) _ref;
     atomic(ptr) _weakref;
 
@@ -278,9 +278,9 @@ extern ObjClassInfo Class_clsinfo;
 
 typedef struct Class_WeakRef {
     union {
-        ObjInst *_inst;
-        void *_is_Class_WeakRef;
-        void *_is_ObjInst_WeakRef;
+        ObjInst* _inst;
+        void* _is_Class_WeakRef;
+        void* _is_ObjInst_WeakRef;
     };
     atomic(intptr) _ref;
     RWLock _lock;
@@ -296,11 +296,11 @@ _objfactory_guaranteed Class* Class_create();
 
 typedef struct ComplexArrayType {
     union {
-        ObjIface *_;
-        void *_is_ComplexArrayType;
-        void *_is_ObjInst;
+        ObjIface* _;
+        void* _is_ComplexArrayType;
+        void* _is_ObjInst;
     };
-    ObjClassInfo *_clsinfo;
+    ObjClassInfo* _clsinfo;
     atomic(intptr) _ref;
     atomic(ptr) _weakref;
 
@@ -313,9 +313,9 @@ extern ObjClassInfo ComplexArrayType_clsinfo;
 
 typedef struct ComplexArrayType_WeakRef {
     union {
-        ObjInst *_inst;
-        void *_is_ComplexArrayType_WeakRef;
-        void *_is_ObjInst_WeakRef;
+        ObjInst* _inst;
+        void* _is_ComplexArrayType_WeakRef;
+        void* _is_ObjInst_WeakRef;
     };
     atomic(intptr) _ref;
     RWLock _lock;

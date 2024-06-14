@@ -60,7 +60,7 @@ static TestCls1_ClassIf _impl_TestCls1_TestCls1_ClassIf = {
     .testfunc = (int (*)(void*))TestCls1_testfunc,
 };
 
-static ObjIface *_ifimpl_TestCls1[] = {
+static ObjIface* _ifimpl_TestCls1[] = {
     (ObjIface*)&_impl_TestCls1_TestIf1,
     (ObjIface*)&_impl_TestCls1_TestCls1_ClassIf,
     NULL
@@ -77,7 +77,7 @@ static TestCls2_ClassIf _impl_TestCls2_TestCls2_ClassIf = {
     ._implements = (ObjIface*)&TestCls2_ClassIf_tmpl,
 };
 
-static ObjIface *_ifimpl_TestCls2[] = {
+static ObjIface* _ifimpl_TestCls2[] = {
     (ObjIface*)&_impl_TestCls2_TestCls2_ClassIf,
     NULL
 };
@@ -101,7 +101,7 @@ static TestCls3_ClassIf _impl_TestCls3_TestCls3_ClassIf = {
     .testfunc2 = (int (*)(void*))TestCls3_testfunc2,
 };
 
-static ObjIface *_ifimpl_TestCls3[] = {
+static ObjIface* _ifimpl_TestCls3[] = {
     (ObjIface*)&_impl_TestCls3_TestIf2,
     (ObjIface*)&_impl_TestCls3_TestCls3_ClassIf,
     NULL
@@ -126,7 +126,7 @@ static TestCls4_ClassIf _impl_TestCls4_TestCls4_ClassIf = {
     .testfunc = (int (*)(void*))TestCls4_testfunc,
 };
 
-static ObjIface *_ifimpl_TestCls4[] = {
+static ObjIface* _ifimpl_TestCls4[] = {
     (ObjIface*)&_impl_TestCls4_TestIf2,
     (ObjIface*)&_impl_TestCls4_TestCls4_ClassIf,
     NULL
@@ -156,7 +156,7 @@ static TestCls4a_ClassIf _impl_TestCls4a_TestCls4a_ClassIf = {
     .testfunc = (int (*)(void*))TestCls4a_testfunc,
 };
 
-static ObjIface *_ifimpl_TestCls4a[] = {
+static ObjIface* _ifimpl_TestCls4a[] = {
     (ObjIface*)&_impl_TestCls4a_TestIf3,
     (ObjIface*)&_impl_TestCls4a_TestIf2,
     (ObjIface*)&_impl_TestCls4a_TestCls4a_ClassIf,
@@ -183,7 +183,7 @@ static TestCls4b_ClassIf _impl_TestCls4b_TestCls4b_ClassIf = {
     .testfunc3 = (int (*)(void*))TestCls4b_testfunc3,
 };
 
-static ObjIface *_ifimpl_TestCls4b[] = {
+static ObjIface* _ifimpl_TestCls4b[] = {
     (ObjIface*)&_impl_TestCls4b_TestIf3,
     (ObjIface*)&_impl_TestCls4b_TestCls4b_ClassIf,
     NULL
@@ -208,7 +208,7 @@ static TestCls5_ClassIf _impl_TestCls5_TestCls5_ClassIf = {
     .cmp = (intptr (*)(void*, void*, uint32))TestCls5_cmp,
 };
 
-static ObjIface *_ifimpl_TestCls5[] = {
+static ObjIface* _ifimpl_TestCls5[] = {
     (ObjIface*)&_impl_TestCls5_Sortable,
     (ObjIface*)&_impl_TestCls5_TestCls5_ClassIf,
     NULL

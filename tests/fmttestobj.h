@@ -15,8 +15,8 @@ saDeclarePtr(FmtTestClass2);
 saDeclarePtr(FmtTestClass2_WeakRef);
 
 typedef struct FmtTestClass_ClassIf {
-    ObjIface *_implements;
-    ObjIface *_parent;
+    ObjIface* _implements;
+    ObjIface* _parent;
     size_t _size;
 
     bool (*format)(_Inout_ void* self, FMTVar* v, string* out);
@@ -24,8 +24,8 @@ typedef struct FmtTestClass_ClassIf {
 extern FmtTestClass_ClassIf FmtTestClass_ClassIf_tmpl;
 
 typedef struct FmtTestClass2_ClassIf {
-    ObjIface *_implements;
-    ObjIface *_parent;
+    ObjIface* _implements;
+    ObjIface* _parent;
     size_t _size;
 
     // NOTE: While this is used by stConvert, the object interface is a higher level interface.
@@ -40,11 +40,11 @@ extern FmtTestClass2_ClassIf FmtTestClass2_ClassIf_tmpl;
 
 typedef struct FmtTestClass {
     union {
-        FmtTestClass_ClassIf *_;
-        void *_is_FmtTestClass;
-        void *_is_ObjInst;
+        FmtTestClass_ClassIf* _;
+        void* _is_FmtTestClass;
+        void* _is_ObjInst;
     };
-    ObjClassInfo *_clsinfo;
+    ObjClassInfo* _clsinfo;
     atomic(intptr) _ref;
     atomic(ptr) _weakref;
 
@@ -57,9 +57,9 @@ extern ObjClassInfo FmtTestClass_clsinfo;
 
 typedef struct FmtTestClass_WeakRef {
     union {
-        ObjInst *_inst;
-        void *_is_FmtTestClass_WeakRef;
-        void *_is_ObjInst_WeakRef;
+        ObjInst* _inst;
+        void* _is_FmtTestClass_WeakRef;
+        void* _is_ObjInst_WeakRef;
     };
     atomic(intptr) _ref;
     RWLock _lock;
@@ -75,11 +75,11 @@ _objfactory_guaranteed FmtTestClass* FmtTestClass_create(int32 ival, string sval
 
 typedef struct FmtTestClass2 {
     union {
-        FmtTestClass2_ClassIf *_;
-        void *_is_FmtTestClass2;
-        void *_is_ObjInst;
+        FmtTestClass2_ClassIf* _;
+        void* _is_FmtTestClass2;
+        void* _is_ObjInst;
     };
-    ObjClassInfo *_clsinfo;
+    ObjClassInfo* _clsinfo;
     atomic(intptr) _ref;
     atomic(ptr) _weakref;
 
@@ -92,9 +92,9 @@ extern ObjClassInfo FmtTestClass2_clsinfo;
 
 typedef struct FmtTestClass2_WeakRef {
     union {
-        ObjInst *_inst;
-        void *_is_FmtTestClass2_WeakRef;
-        void *_is_ObjInst_WeakRef;
+        ObjInst* _inst;
+        void* _is_FmtTestClass2_WeakRef;
+        void* _is_ObjInst_WeakRef;
     };
     atomic(intptr) _ref;
     RWLock _lock;

@@ -52,7 +52,7 @@ static TQTest1_ClassIf _impl_TQTest1_TQTest1_ClassIf = {
     .run = (bool (*)(void*, TaskQueue*, TaskQueueWorker*, TaskControl*))TQTest1_run,
 };
 
-static ObjIface *_ifimpl_TQTest1[] = {
+static ObjIface* _ifimpl_TQTest1[] = {
     (ObjIface*)&_impl_TQTest1_TQTest1_ClassIf,
     NULL
 };
@@ -70,7 +70,7 @@ static TQTestFail_ClassIf _impl_TQTestFail_TQTestFail_ClassIf = {
     .run = (bool (*)(void*, TaskQueue*, TaskQueueWorker*, TaskControl*))TQTestFail_run,
 };
 
-static ObjIface *_ifimpl_TQTestFail[] = {
+static ObjIface* _ifimpl_TQTestFail[] = {
     (ObjIface*)&_impl_TQTestFail_TQTestFail_ClassIf,
     NULL
 };
@@ -88,7 +88,7 @@ static TQTestCC1_ClassIf _impl_TQTestCC1_TQTestCC1_ClassIf = {
     .run = (bool (*)(void*, TaskQueue*, TaskQueueWorker*, TaskControl*))TQTestCC1_run,
 };
 
-static ObjIface *_ifimpl_TQTestCC1[] = {
+static ObjIface* _ifimpl_TQTestCC1[] = {
     (ObjIface*)&_impl_TQTestCC1_TQTestCC1_ClassIf,
     NULL
 };
@@ -106,7 +106,7 @@ static TQTestCC2_ClassIf _impl_TQTestCC2_TQTestCC2_ClassIf = {
     .run = (bool (*)(void*, TaskQueue*, TaskQueueWorker*, TaskControl*))TQTestCC2_run,
 };
 
-static ObjIface *_ifimpl_TQTestCC2[] = {
+static ObjIface* _ifimpl_TQTestCC2[] = {
     (ObjIface*)&_impl_TQTestCC2_TQTestCC2_ClassIf,
     NULL
 };
@@ -123,7 +123,7 @@ static TQTestDefer_ClassIf _impl_TQTestDefer_TQTestDefer_ClassIf = {
     ._implements = (ObjIface*)&TQTestDefer_ClassIf_tmpl,
 };
 
-static ObjIface *_ifimpl_TQTestDefer[] = {
+static ObjIface* _ifimpl_TQTestDefer[] = {
     (ObjIface*)&_impl_TQTestDefer_TQTestDefer_ClassIf,
     NULL
 };
@@ -142,7 +142,7 @@ static TQTestD1_ClassIf _impl_TQTestD1_TQTestD1_ClassIf = {
     .run = (bool (*)(void*, TaskQueue*, TaskQueueWorker*, TaskControl*))TQTestD1_run,
 };
 
-static ObjIface *_ifimpl_TQTestD1[] = {
+static ObjIface* _ifimpl_TQTestD1[] = {
     (ObjIface*)&_impl_TQTestD1_TQTestD1_ClassIf,
     NULL
 };
@@ -160,7 +160,7 @@ static TQTestD2_ClassIf _impl_TQTestD2_TQTestD2_ClassIf = {
     .run = (bool (*)(void*, TaskQueue*, TaskQueueWorker*, TaskControl*))TQTestD2_run,
 };
 
-static ObjIface *_ifimpl_TQTestD2[] = {
+static ObjIface* _ifimpl_TQTestD2[] = {
     (ObjIface*)&_impl_TQTestD2_TQTestD2_ClassIf,
     NULL
 };
@@ -179,7 +179,7 @@ static TQDelayTest_ClassIf _impl_TQDelayTest_TQDelayTest_ClassIf = {
     .run = (bool (*)(void*, TaskQueue*, TaskQueueWorker*, TaskControl*))TQDelayTest_run,
 };
 
-static ObjIface *_ifimpl_TQDelayTest[] = {
+static ObjIface* _ifimpl_TQDelayTest[] = {
     (ObjIface*)&_impl_TQDelayTest_TQDelayTest_ClassIf,
     NULL
 };
@@ -197,7 +197,7 @@ static TQMTest_ClassIf _impl_TQMTest_TQMTest_ClassIf = {
     .run = (bool (*)(void*, TaskQueue*, TaskQueueWorker*, TaskControl*))TQMTest_run,
 };
 
-static ObjIface *_ifimpl_TQMTest[] = {
+static ObjIface* _ifimpl_TQMTest[] = {
     (ObjIface*)&_impl_TQMTest_TQMTest_ClassIf,
     NULL
 };

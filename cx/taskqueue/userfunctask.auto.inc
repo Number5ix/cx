@@ -12,7 +12,7 @@ static UserFuncTask_ClassIf _impl_UserFuncTask_UserFuncTask_ClassIf = {
     .run = (bool (*)(void*, TaskQueue*, TaskQueueWorker*, TaskControl*))UserFuncTask_run,
 };
 
-static ObjIface *_ifimpl_UserFuncTask[] = {
+static ObjIface* _ifimpl_UserFuncTask[] = {
     (ObjIface*)&_impl_UserFuncTask_UserFuncTask_ClassIf,
     NULL
 };

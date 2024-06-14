@@ -23,8 +23,8 @@ enum SSD_INDEX_MARKER {
 #define ssdnodeIterLocked(self) ssdnode_iterLocked(self, _ssdCurrentLockState)
 
 typedef struct SSDIteratorIf {
-    ObjIface *_implements;
-    ObjIface *_parent;
+    ObjIface* _implements;
+    ObjIface* _parent;
     size_t _size;
 
     bool (*valid)(_Inout_ void* self);
@@ -38,8 +38,8 @@ typedef struct SSDIteratorIf {
 extern SSDIteratorIf SSDIteratorIf_tmpl;
 
 typedef struct SSDNodeIf {
-    ObjIface *_implements;
-    ObjIface *_parent;
+    ObjIface* _implements;
+    ObjIface* _parent;
     size_t _size;
 
     // Gets a value. Caller owns the value and must destroy it with stDestroy!
@@ -67,8 +67,8 @@ typedef struct SSDNodeIf {
 extern SSDNodeIf SSDNodeIf_tmpl;
 
 typedef struct SSDIterator_ClassIf {
-    ObjIface *_implements;
-    ObjIface *_parent;
+    ObjIface* _implements;
+    ObjIface* _parent;
     size_t _size;
 
     bool (*isHashtable)(_Inout_ void* self);
@@ -84,8 +84,8 @@ typedef struct SSDIterator_ClassIf {
 extern SSDIterator_ClassIf SSDIterator_ClassIf_tmpl;
 
 typedef struct SSDNode_ClassIf {
-    ObjIface *_implements;
-    ObjIface *_parent;
+    ObjIface* _implements;
+    ObjIface* _parent;
     size_t _size;
 
     // This node is an object that contains values or objects by name
@@ -118,11 +118,11 @@ extern SSDNode_ClassIf SSDNode_ClassIf_tmpl;
 
 typedef struct SSDIterator {
     union {
-        SSDIterator_ClassIf *_;
-        void *_is_SSDIterator;
-        void *_is_ObjInst;
+        SSDIterator_ClassIf* _;
+        void* _is_SSDIterator;
+        void* _is_ObjInst;
     };
-    ObjClassInfo *_clsinfo;
+    ObjClassInfo* _clsinfo;
     atomic(intptr) _ref;
     atomic(ptr) _weakref;
 
@@ -136,9 +136,9 @@ extern ObjClassInfo SSDIterator_clsinfo;
 
 typedef struct SSDIterator_WeakRef {
     union {
-        ObjInst *_inst;
-        void *_is_SSDIterator_WeakRef;
-        void *_is_ObjInst_WeakRef;
+        ObjInst* _inst;
+        void* _is_SSDIterator_WeakRef;
+        void* _is_ObjInst_WeakRef;
     };
     atomic(intptr) _ref;
     RWLock _lock;
@@ -170,11 +170,11 @@ _Ret_opt_valid_ ObjInst* SSDIterator_objInst(_Inout_ SSDIterator* self);
 
 typedef struct SSDNode {
     union {
-        SSDNode_ClassIf *_;
-        void *_is_SSDNode;
-        void *_is_ObjInst;
+        SSDNode_ClassIf* _;
+        void* _is_SSDNode;
+        void* _is_ObjInst;
     };
-    ObjClassInfo *_clsinfo;
+    ObjClassInfo* _clsinfo;
     atomic(intptr) _ref;
     atomic(ptr) _weakref;
 
@@ -187,9 +187,9 @@ extern ObjClassInfo SSDNode_clsinfo;
 
 typedef struct SSDNode_WeakRef {
     union {
-        ObjInst *_inst;
-        void *_is_SSDNode_WeakRef;
-        void *_is_ObjInst_WeakRef;
+        ObjInst* _inst;
+        void* _is_SSDNode_WeakRef;
+        void* _is_ObjInst_WeakRef;
     };
     atomic(intptr) _ref;
     RWLock _lock;

@@ -1,7 +1,7 @@
 // ==================== Auto-generated section begins ====================
 // clang-format off
 // Do not modify the contents of this section; any changes will be lost!
-static ObjIface *_ifimpl_VFS[] = {
+static ObjIface* _ifimpl_VFS[] = {
     NULL
 };
 
@@ -12,7 +12,7 @@ ObjClassInfo VFS_clsinfo = {
     .ifimpl = _ifimpl_VFS,
 };
 
-static ObjIface *_ifimpl_VFSMount[] = {
+static ObjIface* _ifimpl_VFSMount[] = {
     NULL
 };
 

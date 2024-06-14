@@ -30,7 +30,7 @@ static SSDIterator_ClassIf _impl_SSDIterator_SSDIterator_ClassIf = {
     .isArray = (bool (*)(void*))SSDIterator_isArray,
 };
 
-static ObjIface *_ifimpl_SSDIterator[] = {
+static ObjIface* _ifimpl_SSDIterator[] = {
     (ObjIface*)&_impl_SSDIterator_SSDIteratorIf,
     (ObjIface*)&_impl_SSDIterator_SSDIterator_ClassIf,
     NULL
@@ -62,7 +62,7 @@ static SSDNode_ClassIf _impl_SSDNode_SSDNode_ClassIf = {
     .isArray = (bool (*)(void*))SSDNode_isArray,
 };
 
-static ObjIface *_ifimpl_SSDNode[] = {
+static ObjIface* _ifimpl_SSDNode[] = {
     (ObjIface*)&_impl_SSDNode_SSDNodeIf,
     (ObjIface*)&_impl_SSDNode_Iterable,
     (ObjIface*)&_impl_SSDNode_SSDNode_ClassIf,

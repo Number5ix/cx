@@ -14,7 +14,7 @@ static TaskQueueWorker_ClassIf _impl_TaskQueueWorker_TaskQueueWorker_ClassIf = {
     .shutdown = (void (*)(void*, TaskQueue*))TaskQueueWorker_shutdown,
 };
 
-static ObjIface *_ifimpl_TaskQueueWorker[] = {
+static ObjIface* _ifimpl_TaskQueueWorker[] = {
     (ObjIface*)&_impl_TaskQueueWorker_TaskQueueWorker_ClassIf,
     NULL
 };

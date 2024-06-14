@@ -11,7 +11,7 @@ static BasicTask_ClassIf _impl_BasicTask_BasicTask_ClassIf = {
     .reset = (bool (*)(void*))BasicTask_reset,
 };
 
-static ObjIface *_ifimpl_BasicTask[] = {
+static ObjIface* _ifimpl_BasicTask[] = {
     (ObjIface*)&_impl_BasicTask_BasicTask_ClassIf,
     NULL
 };

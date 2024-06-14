@@ -19,8 +19,8 @@ saDeclarePtr(MTask_WeakRef);
 #define mtaskAllDone(mtask) atomicLoad(bool, &(MTask(mtask)->alldone), Acquire)
 
 typedef struct MTask_ClassIf {
-    ObjIface *_implements;
-    ObjIface *_parent;
+    ObjIface* _implements;
+    ObjIface* _parent;
     size_t _size;
 
     bool (*run)(_Inout_ void* self, _In_ TaskQueue* tq, _In_ TaskQueueWorker* worker, _Inout_ TaskControl* tcon);
@@ -34,13 +34,13 @@ extern MTask_ClassIf MTask_ClassIf_tmpl;
 
 typedef struct MTask {
     union {
-        MTask_ClassIf *_;
-        void *_is_MTask;
-        void *_is_Task;
-        void *_is_BasicTask;
-        void *_is_ObjInst;
+        MTask_ClassIf* _;
+        void* _is_MTask;
+        void* _is_Task;
+        void* _is_BasicTask;
+        void* _is_ObjInst;
     };
-    ObjClassInfo *_clsinfo;
+    ObjClassInfo* _clsinfo;
     atomic(intptr) _ref;
     atomic(ptr) _weakref;
 
@@ -70,11 +70,11 @@ extern ObjClassInfo MTask_clsinfo;
 
 typedef struct MTask_WeakRef {
     union {
-        ObjInst *_inst;
-        void *_is_MTask_WeakRef;
-        void *_is_Task_WeakRef;
-        void *_is_BasicTask_WeakRef;
-        void *_is_ObjInst_WeakRef;
+        ObjInst* _inst;
+        void* _is_MTask_WeakRef;
+        void* _is_Task_WeakRef;
+        void* _is_BasicTask_WeakRef;
+        void* _is_ObjInst_WeakRef;
     };
     atomic(intptr) _ref;
     RWLock _lock;

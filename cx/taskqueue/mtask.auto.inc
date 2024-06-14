@@ -15,7 +15,7 @@ static MTask_ClassIf _impl_MTask_MTask_ClassIf = {
     .run = (bool (*)(void*, TaskQueue*, TaskQueueWorker*, TaskControl*))MTask_run,
 };
 
-static ObjIface *_ifimpl_MTask[] = {
+static ObjIface* _ifimpl_MTask[] = {
     (ObjIface*)&_impl_MTask_MTask_ClassIf,
     NULL
 };

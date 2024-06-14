@@ -27,7 +27,7 @@ static VFSVFSFile_ClassIf _impl_VFSVFSFile_VFSVFSFile_ClassIf = {
     .flush = (bool (*)(void*))VFSVFSFile_flush,
 };
 
-static ObjIface *_ifimpl_VFSVFSFile[] = {
+static ObjIface* _ifimpl_VFSVFSFile[] = {
     (ObjIface*)&_impl_VFSVFSFile_VFSFileProvider,
     (ObjIface*)&_impl_VFSVFSFile_VFSVFSFile_ClassIf,
     NULL

@@ -15,8 +15,8 @@ saDeclarePtr(SSDArrayIter);
 saDeclarePtr(SSDArrayIter_WeakRef);
 
 typedef struct SSDArrayNode_ClassIf {
-    ObjIface *_implements;
-    ObjIface *_parent;
+    ObjIface* _implements;
+    ObjIface* _parent;
     size_t _size;
 
     // This node is an object that contains values or objects by name
@@ -49,8 +49,8 @@ typedef struct SSDArrayNode_ClassIf {
 extern SSDArrayNode_ClassIf SSDArrayNode_ClassIf_tmpl;
 
 typedef struct SSDArrayIter_ClassIf {
-    ObjIface *_implements;
-    ObjIface *_parent;
+    ObjIface* _implements;
+    ObjIface* _parent;
     size_t _size;
 
     bool (*isHashtable)(_Inout_ void* self);
@@ -67,12 +67,12 @@ extern SSDArrayIter_ClassIf SSDArrayIter_ClassIf_tmpl;
 
 typedef struct SSDArrayNode {
     union {
-        SSDArrayNode_ClassIf *_;
-        void *_is_SSDArrayNode;
-        void *_is_SSDNode;
-        void *_is_ObjInst;
+        SSDArrayNode_ClassIf* _;
+        void* _is_SSDArrayNode;
+        void* _is_SSDNode;
+        void* _is_ObjInst;
     };
-    ObjClassInfo *_clsinfo;
+    ObjClassInfo* _clsinfo;
     atomic(intptr) _ref;
     atomic(ptr) _weakref;
 
@@ -86,10 +86,10 @@ extern ObjClassInfo SSDArrayNode_clsinfo;
 
 typedef struct SSDArrayNode_WeakRef {
     union {
-        ObjInst *_inst;
-        void *_is_SSDArrayNode_WeakRef;
-        void *_is_SSDNode_WeakRef;
-        void *_is_ObjInst_WeakRef;
+        ObjInst* _inst;
+        void* _is_SSDArrayNode_WeakRef;
+        void* _is_SSDNode_WeakRef;
+        void* _is_ObjInst_WeakRef;
     };
     atomic(intptr) _ref;
     RWLock _lock;
@@ -152,12 +152,12 @@ _objfactory_guaranteed SSDArrayNode* SSDArrayNode__create(SSDTree* tree);
 
 typedef struct SSDArrayIter {
     union {
-        SSDArrayIter_ClassIf *_;
-        void *_is_SSDArrayIter;
-        void *_is_SSDIterator;
-        void *_is_ObjInst;
+        SSDArrayIter_ClassIf* _;
+        void* _is_SSDArrayIter;
+        void* _is_SSDIterator;
+        void* _is_ObjInst;
     };
-    ObjClassInfo *_clsinfo;
+    ObjClassInfo* _clsinfo;
     atomic(intptr) _ref;
     atomic(ptr) _weakref;
 
@@ -173,10 +173,10 @@ extern ObjClassInfo SSDArrayIter_clsinfo;
 
 typedef struct SSDArrayIter_WeakRef {
     union {
-        ObjInst *_inst;
-        void *_is_SSDArrayIter_WeakRef;
-        void *_is_SSDIterator_WeakRef;
-        void *_is_ObjInst_WeakRef;
+        ObjInst* _inst;
+        void* _is_SSDArrayIter_WeakRef;
+        void* _is_SSDIterator_WeakRef;
+        void* _is_ObjInst_WeakRef;
     };
     atomic(intptr) _ref;
     RWLock _lock;

@@ -50,8 +50,8 @@ saDeclarePtr(TQMTest);
 saDeclarePtr(TQMTest_WeakRef);
 
 typedef struct TQTest1_ClassIf {
-    ObjIface *_implements;
-    ObjIface *_parent;
+    ObjIface* _implements;
+    ObjIface* _parent;
     size_t _size;
 
     bool (*run)(_Inout_ void* self, _In_ TaskQueue* tq, _In_ TaskQueueWorker* worker, _Inout_ TaskControl* tcon);
@@ -60,8 +60,8 @@ typedef struct TQTest1_ClassIf {
 extern TQTest1_ClassIf TQTest1_ClassIf_tmpl;
 
 typedef struct TQTestFail_ClassIf {
-    ObjIface *_implements;
-    ObjIface *_parent;
+    ObjIface* _implements;
+    ObjIface* _parent;
     size_t _size;
 
     bool (*run)(_Inout_ void* self, _In_ TaskQueue* tq, _In_ TaskQueueWorker* worker, _Inout_ TaskControl* tcon);
@@ -70,8 +70,8 @@ typedef struct TQTestFail_ClassIf {
 extern TQTestFail_ClassIf TQTestFail_ClassIf_tmpl;
 
 typedef struct TQTestCC1_ClassIf {
-    ObjIface *_implements;
-    ObjIface *_parent;
+    ObjIface* _implements;
+    ObjIface* _parent;
     size_t _size;
 
     bool (*run)(_Inout_ void* self, _In_ TaskQueue* tq, _In_ TaskQueueWorker* worker, _Inout_ TaskControl* tcon);
@@ -80,8 +80,8 @@ typedef struct TQTestCC1_ClassIf {
 extern TQTestCC1_ClassIf TQTestCC1_ClassIf_tmpl;
 
 typedef struct TQTestCC2_ClassIf {
-    ObjIface *_implements;
-    ObjIface *_parent;
+    ObjIface* _implements;
+    ObjIface* _parent;
     size_t _size;
 
     bool (*run)(_Inout_ void* self, _In_ TaskQueue* tq, _In_ TaskQueueWorker* worker, _Inout_ TaskControl* tcon);
@@ -90,8 +90,8 @@ typedef struct TQTestCC2_ClassIf {
 extern TQTestCC2_ClassIf TQTestCC2_ClassIf_tmpl;
 
 typedef struct TQTestDefer_ClassIf {
-    ObjIface *_implements;
-    ObjIface *_parent;
+    ObjIface* _implements;
+    ObjIface* _parent;
     size_t _size;
 
     bool (*run)(_Inout_ void* self, _In_ TaskQueue* tq, _In_ TaskQueueWorker* worker, _Inout_ TaskControl* tcon);
@@ -100,8 +100,8 @@ typedef struct TQTestDefer_ClassIf {
 extern TQTestDefer_ClassIf TQTestDefer_ClassIf_tmpl;
 
 typedef struct TQTestD1_ClassIf {
-    ObjIface *_implements;
-    ObjIface *_parent;
+    ObjIface* _implements;
+    ObjIface* _parent;
     size_t _size;
 
     bool (*run)(_Inout_ void* self, _In_ TaskQueue* tq, _In_ TaskQueueWorker* worker, _Inout_ TaskControl* tcon);
@@ -110,8 +110,8 @@ typedef struct TQTestD1_ClassIf {
 extern TQTestD1_ClassIf TQTestD1_ClassIf_tmpl;
 
 typedef struct TQTestD2_ClassIf {
-    ObjIface *_implements;
-    ObjIface *_parent;
+    ObjIface* _implements;
+    ObjIface* _parent;
     size_t _size;
 
     bool (*run)(_Inout_ void* self, _In_ TaskQueue* tq, _In_ TaskQueueWorker* worker, _Inout_ TaskControl* tcon);
@@ -120,8 +120,8 @@ typedef struct TQTestD2_ClassIf {
 extern TQTestD2_ClassIf TQTestD2_ClassIf_tmpl;
 
 typedef struct TQDelayTest_ClassIf {
-    ObjIface *_implements;
-    ObjIface *_parent;
+    ObjIface* _implements;
+    ObjIface* _parent;
     size_t _size;
 
     bool (*run)(_Inout_ void* self, _In_ TaskQueue* tq, _In_ TaskQueueWorker* worker, _Inout_ TaskControl* tcon);
@@ -130,8 +130,8 @@ typedef struct TQDelayTest_ClassIf {
 extern TQDelayTest_ClassIf TQDelayTest_ClassIf_tmpl;
 
 typedef struct TQMTest_ClassIf {
-    ObjIface *_implements;
-    ObjIface *_parent;
+    ObjIface* _implements;
+    ObjIface* _parent;
     size_t _size;
 
     bool (*run)(_Inout_ void* self, _In_ TaskQueue* tq, _In_ TaskQueueWorker* worker, _Inout_ TaskControl* tcon);
@@ -145,13 +145,13 @@ extern TQMTest_ClassIf TQMTest_ClassIf_tmpl;
 
 typedef struct TQTest1 {
     union {
-        TQTest1_ClassIf *_;
-        void *_is_TQTest1;
-        void *_is_Task;
-        void *_is_BasicTask;
-        void *_is_ObjInst;
+        TQTest1_ClassIf* _;
+        void* _is_TQTest1;
+        void* _is_Task;
+        void* _is_BasicTask;
+        void* _is_ObjInst;
     };
-    ObjClassInfo *_clsinfo;
+    ObjClassInfo* _clsinfo;
     atomic(intptr) _ref;
     atomic(ptr) _weakref;
 
@@ -173,11 +173,11 @@ extern ObjClassInfo TQTest1_clsinfo;
 
 typedef struct TQTest1_WeakRef {
     union {
-        ObjInst *_inst;
-        void *_is_TQTest1_WeakRef;
-        void *_is_Task_WeakRef;
-        void *_is_BasicTask_WeakRef;
-        void *_is_ObjInst_WeakRef;
+        ObjInst* _inst;
+        void* _is_TQTest1_WeakRef;
+        void* _is_Task_WeakRef;
+        void* _is_BasicTask_WeakRef;
+        void* _is_ObjInst_WeakRef;
     };
     atomic(intptr) _ref;
     RWLock _lock;
@@ -200,13 +200,13 @@ _objfactory_guaranteed TQTest1* TQTest1_create(int num1, int num2, Event* notify
 
 typedef struct TQTestFail {
     union {
-        TQTestFail_ClassIf *_;
-        void *_is_TQTestFail;
-        void *_is_Task;
-        void *_is_BasicTask;
-        void *_is_ObjInst;
+        TQTestFail_ClassIf* _;
+        void* _is_TQTestFail;
+        void* _is_Task;
+        void* _is_BasicTask;
+        void* _is_ObjInst;
     };
-    ObjClassInfo *_clsinfo;
+    ObjClassInfo* _clsinfo;
     atomic(intptr) _ref;
     atomic(ptr) _weakref;
 
@@ -227,11 +227,11 @@ extern ObjClassInfo TQTestFail_clsinfo;
 
 typedef struct TQTestFail_WeakRef {
     union {
-        ObjInst *_inst;
-        void *_is_TQTestFail_WeakRef;
-        void *_is_Task_WeakRef;
-        void *_is_BasicTask_WeakRef;
-        void *_is_ObjInst_WeakRef;
+        ObjInst* _inst;
+        void* _is_TQTestFail_WeakRef;
+        void* _is_Task_WeakRef;
+        void* _is_BasicTask_WeakRef;
+        void* _is_ObjInst_WeakRef;
     };
     atomic(intptr) _ref;
     RWLock _lock;
@@ -254,13 +254,13 @@ _objfactory_guaranteed TQTestFail* TQTestFail_create(int n, Event* notify);
 
 typedef struct TQTestCC1 {
     union {
-        TQTestCC1_ClassIf *_;
-        void *_is_TQTestCC1;
-        void *_is_Task;
-        void *_is_BasicTask;
-        void *_is_ObjInst;
+        TQTestCC1_ClassIf* _;
+        void* _is_TQTestCC1;
+        void* _is_Task;
+        void* _is_BasicTask;
+        void* _is_ObjInst;
     };
-    ObjClassInfo *_clsinfo;
+    ObjClassInfo* _clsinfo;
     atomic(intptr) _ref;
     atomic(ptr) _weakref;
 
@@ -284,11 +284,11 @@ extern ObjClassInfo TQTestCC1_clsinfo;
 
 typedef struct TQTestCC1_WeakRef {
     union {
-        ObjInst *_inst;
-        void *_is_TQTestCC1_WeakRef;
-        void *_is_Task_WeakRef;
-        void *_is_BasicTask_WeakRef;
-        void *_is_ObjInst_WeakRef;
+        ObjInst* _inst;
+        void* _is_TQTestCC1_WeakRef;
+        void* _is_Task_WeakRef;
+        void* _is_BasicTask_WeakRef;
+        void* _is_ObjInst_WeakRef;
     };
     atomic(intptr) _ref;
     RWLock _lock;
@@ -311,13 +311,13 @@ _objfactory_guaranteed TQTestCC1* TQTestCC1_create(int num1, int num2, TaskQueue
 
 typedef struct TQTestCC2 {
     union {
-        TQTestCC2_ClassIf *_;
-        void *_is_TQTestCC2;
-        void *_is_Task;
-        void *_is_BasicTask;
-        void *_is_ObjInst;
+        TQTestCC2_ClassIf* _;
+        void* _is_TQTestCC2;
+        void* _is_Task;
+        void* _is_BasicTask;
+        void* _is_ObjInst;
     };
-    ObjClassInfo *_clsinfo;
+    ObjClassInfo* _clsinfo;
     atomic(intptr) _ref;
     atomic(ptr) _weakref;
 
@@ -340,11 +340,11 @@ extern ObjClassInfo TQTestCC2_clsinfo;
 
 typedef struct TQTestCC2_WeakRef {
     union {
-        ObjInst *_inst;
-        void *_is_TQTestCC2_WeakRef;
-        void *_is_Task_WeakRef;
-        void *_is_BasicTask_WeakRef;
-        void *_is_ObjInst_WeakRef;
+        ObjInst* _inst;
+        void* _is_TQTestCC2_WeakRef;
+        void* _is_Task_WeakRef;
+        void* _is_BasicTask_WeakRef;
+        void* _is_ObjInst_WeakRef;
     };
     atomic(intptr) _ref;
     RWLock _lock;
@@ -367,13 +367,13 @@ _objfactory_guaranteed TQTestCC2* TQTestCC2_create(int total, int* accum, int* c
 
 typedef struct TQTestDefer {
     union {
-        TQTestDefer_ClassIf *_;
-        void *_is_TQTestDefer;
-        void *_is_Task;
-        void *_is_BasicTask;
-        void *_is_ObjInst;
+        TQTestDefer_ClassIf* _;
+        void* _is_TQTestDefer;
+        void* _is_Task;
+        void* _is_BasicTask;
+        void* _is_ObjInst;
     };
-    ObjClassInfo *_clsinfo;
+    ObjClassInfo* _clsinfo;
     atomic(intptr) _ref;
     atomic(ptr) _weakref;
 
@@ -393,11 +393,11 @@ extern ObjClassInfo TQTestDefer_clsinfo;
 
 typedef struct TQTestDefer_WeakRef {
     union {
-        ObjInst *_inst;
-        void *_is_TQTestDefer_WeakRef;
-        void *_is_Task_WeakRef;
-        void *_is_BasicTask_WeakRef;
-        void *_is_ObjInst_WeakRef;
+        ObjInst* _inst;
+        void* _is_TQTestDefer_WeakRef;
+        void* _is_Task_WeakRef;
+        void* _is_BasicTask_WeakRef;
+        void* _is_ObjInst_WeakRef;
     };
     atomic(intptr) _ref;
     RWLock _lock;
@@ -416,14 +416,14 @@ typedef struct TQTestDefer_WeakRef {
 
 typedef struct TQTestD1 {
     union {
-        TQTestD1_ClassIf *_;
-        void *_is_TQTestD1;
-        void *_is_TQTestDefer;
-        void *_is_Task;
-        void *_is_BasicTask;
-        void *_is_ObjInst;
+        TQTestD1_ClassIf* _;
+        void* _is_TQTestD1;
+        void* _is_TQTestDefer;
+        void* _is_Task;
+        void* _is_BasicTask;
+        void* _is_ObjInst;
     };
-    ObjClassInfo *_clsinfo;
+    ObjClassInfo* _clsinfo;
     atomic(intptr) _ref;
     atomic(ptr) _weakref;
 
@@ -446,12 +446,12 @@ extern ObjClassInfo TQTestD1_clsinfo;
 
 typedef struct TQTestD1_WeakRef {
     union {
-        ObjInst *_inst;
-        void *_is_TQTestD1_WeakRef;
-        void *_is_TQTestDefer_WeakRef;
-        void *_is_Task_WeakRef;
-        void *_is_BasicTask_WeakRef;
-        void *_is_ObjInst_WeakRef;
+        ObjInst* _inst;
+        void* _is_TQTestD1_WeakRef;
+        void* _is_TQTestDefer_WeakRef;
+        void* _is_Task_WeakRef;
+        void* _is_BasicTask_WeakRef;
+        void* _is_ObjInst_WeakRef;
     };
     atomic(intptr) _ref;
     RWLock _lock;
@@ -474,14 +474,14 @@ _objfactory_guaranteed TQTestD1* TQTestD1_create(int order, int64 dtime, Event* 
 
 typedef struct TQTestD2 {
     union {
-        TQTestD2_ClassIf *_;
-        void *_is_TQTestD2;
-        void *_is_TQTestDefer;
-        void *_is_Task;
-        void *_is_BasicTask;
-        void *_is_ObjInst;
+        TQTestD2_ClassIf* _;
+        void* _is_TQTestD2;
+        void* _is_TQTestDefer;
+        void* _is_Task;
+        void* _is_BasicTask;
+        void* _is_ObjInst;
     };
-    ObjClassInfo *_clsinfo;
+    ObjClassInfo* _clsinfo;
     atomic(intptr) _ref;
     atomic(ptr) _weakref;
 
@@ -502,12 +502,12 @@ extern ObjClassInfo TQTestD2_clsinfo;
 
 typedef struct TQTestD2_WeakRef {
     union {
-        ObjInst *_inst;
-        void *_is_TQTestD2_WeakRef;
-        void *_is_TQTestDefer_WeakRef;
-        void *_is_Task_WeakRef;
-        void *_is_BasicTask_WeakRef;
-        void *_is_ObjInst_WeakRef;
+        ObjInst* _inst;
+        void* _is_TQTestD2_WeakRef;
+        void* _is_TQTestDefer_WeakRef;
+        void* _is_Task_WeakRef;
+        void* _is_BasicTask_WeakRef;
+        void* _is_ObjInst_WeakRef;
     };
     atomic(intptr) _ref;
     RWLock _lock;
@@ -530,13 +530,13 @@ _objfactory_guaranteed TQTestD2* TQTestD2_create(Task* waitfor, Event* notify);
 
 typedef struct TQDelayTest {
     union {
-        TQDelayTest_ClassIf *_;
-        void *_is_TQDelayTest;
-        void *_is_Task;
-        void *_is_BasicTask;
-        void *_is_ObjInst;
+        TQDelayTest_ClassIf* _;
+        void* _is_TQDelayTest;
+        void* _is_Task;
+        void* _is_BasicTask;
+        void* _is_ObjInst;
     };
-    ObjClassInfo *_clsinfo;
+    ObjClassInfo* _clsinfo;
     atomic(intptr) _ref;
     atomic(ptr) _weakref;
 
@@ -556,11 +556,11 @@ extern ObjClassInfo TQDelayTest_clsinfo;
 
 typedef struct TQDelayTest_WeakRef {
     union {
-        ObjInst *_inst;
-        void *_is_TQDelayTest_WeakRef;
-        void *_is_Task_WeakRef;
-        void *_is_BasicTask_WeakRef;
-        void *_is_ObjInst_WeakRef;
+        ObjInst* _inst;
+        void* _is_TQDelayTest_WeakRef;
+        void* _is_Task_WeakRef;
+        void* _is_BasicTask_WeakRef;
+        void* _is_ObjInst_WeakRef;
     };
     atomic(intptr) _ref;
     RWLock _lock;
@@ -583,14 +583,14 @@ _objfactory_guaranteed TQDelayTest* TQDelayTest_create(int64 len);
 
 typedef struct TQMTest {
     union {
-        TQMTest_ClassIf *_;
-        void *_is_TQMTest;
-        void *_is_MTask;
-        void *_is_Task;
-        void *_is_BasicTask;
-        void *_is_ObjInst;
+        TQMTest_ClassIf* _;
+        void* _is_TQMTest;
+        void* _is_MTask;
+        void* _is_Task;
+        void* _is_BasicTask;
+        void* _is_ObjInst;
     };
-    ObjClassInfo *_clsinfo;
+    ObjClassInfo* _clsinfo;
     atomic(intptr) _ref;
     atomic(ptr) _weakref;
 
@@ -621,12 +621,12 @@ extern ObjClassInfo TQMTest_clsinfo;
 
 typedef struct TQMTest_WeakRef {
     union {
-        ObjInst *_inst;
-        void *_is_TQMTest_WeakRef;
-        void *_is_MTask_WeakRef;
-        void *_is_Task_WeakRef;
-        void *_is_BasicTask_WeakRef;
-        void *_is_ObjInst_WeakRef;
+        ObjInst* _inst;
+        void* _is_TQMTest_WeakRef;
+        void* _is_MTask_WeakRef;
+        void* _is_Task_WeakRef;
+        void* _is_BasicTask_WeakRef;
+        void* _is_ObjInst_WeakRef;
     };
     atomic(intptr) _ref;
     RWLock _lock;

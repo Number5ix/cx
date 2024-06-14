@@ -11,7 +11,7 @@ static SSDTree_ClassIf _impl_SSDTree_SSDTree_ClassIf = {
     .createNode = (SSDNode* (*)(void*, SSDCreateType))SSDTree_createNode,
 };
 
-static ObjIface *_ifimpl_SSDTree[] = {
+static ObjIface* _ifimpl_SSDTree[] = {
     (ObjIface*)&_impl_SSDTree_SSDTree_ClassIf,
     NULL
 };

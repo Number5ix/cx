@@ -24,8 +24,8 @@ typedef struct SSDTreeDebug {
 #endif
 
 typedef struct SSDTree_ClassIf {
-    ObjIface *_implements;
-    ObjIface *_parent;
+    ObjIface* _implements;
+    ObjIface* _parent;
     size_t _size;
 
     _objfactory_guaranteed SSDNode* (*createNode)(_Inout_ void* self, _In_range_(SSD_Create_None+1, SSD_Create_Count-1) SSDCreateType crtype);
@@ -34,11 +34,11 @@ extern SSDTree_ClassIf SSDTree_ClassIf_tmpl;
 
 typedef struct SSDTree {
     union {
-        SSDTree_ClassIf *_;
-        void *_is_SSDTree;
-        void *_is_ObjInst;
+        SSDTree_ClassIf* _;
+        void* _is_SSDTree;
+        void* _is_ObjInst;
     };
-    ObjClassInfo *_clsinfo;
+    ObjClassInfo* _clsinfo;
     atomic(intptr) _ref;
     atomic(ptr) _weakref;
 
@@ -54,9 +54,9 @@ extern ObjClassInfo SSDTree_clsinfo;
 
 typedef struct SSDTree_WeakRef {
     union {
-        ObjInst *_inst;
-        void *_is_SSDTree_WeakRef;
-        void *_is_ObjInst_WeakRef;
+        ObjInst* _inst;
+        void* _is_SSDTree_WeakRef;
+        void* _is_ObjInst_WeakRef;
     };
     atomic(intptr) _ref;
     RWLock _lock;

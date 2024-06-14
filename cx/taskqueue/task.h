@@ -17,8 +17,8 @@ saDeclarePtr(Task);
 saDeclarePtr(Task_WeakRef);
 
 typedef struct Task_ClassIf {
-    ObjIface *_implements;
-    ObjIface *_parent;
+    ObjIface* _implements;
+    ObjIface* _parent;
     size_t _size;
 
     bool (*run)(_Inout_ void* self, _In_ TaskQueue* tq, _In_ TaskQueueWorker* worker, _Inout_ TaskControl* tcon);
@@ -28,12 +28,12 @@ extern Task_ClassIf Task_ClassIf_tmpl;
 
 typedef struct Task {
     union {
-        Task_ClassIf *_;
-        void *_is_Task;
-        void *_is_BasicTask;
-        void *_is_ObjInst;
+        Task_ClassIf* _;
+        void* _is_Task;
+        void* _is_BasicTask;
+        void* _is_ObjInst;
     };
-    ObjClassInfo *_clsinfo;
+    ObjClassInfo* _clsinfo;
     atomic(intptr) _ref;
     atomic(ptr) _weakref;
 
@@ -52,10 +52,10 @@ extern ObjClassInfo Task_clsinfo;
 
 typedef struct Task_WeakRef {
     union {
-        ObjInst *_inst;
-        void *_is_Task_WeakRef;
-        void *_is_BasicTask_WeakRef;
-        void *_is_ObjInst_WeakRef;
+        ObjInst* _inst;
+        void* _is_Task_WeakRef;
+        void* _is_BasicTask_WeakRef;
+        void* _is_ObjInst_WeakRef;
     };
     atomic(intptr) _ref;
     RWLock _lock;
