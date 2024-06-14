@@ -197,8 +197,8 @@ void writeIfDecl(StreamBuffer *bf, Interface *iface)
     strNConcat(&ln, _S"typedef struct ", iface->name, _S" {");
     sbufPWriteLine(bf, ln);
 
-    sbufPWriteLine(bf, _S"    ObjIface *_implements;");
-    sbufPWriteLine(bf, _S"    ObjIface *_parent;");
+    sbufPWriteLine(bf, _S"    ObjIface* _implements;");
+    sbufPWriteLine(bf, _S"    ObjIface* _parent;");
     sbufPWriteLine(bf, _S"    size_t _size;");
     sbufPWriteEOL(bf);
 
@@ -310,7 +310,7 @@ static void writeClassMember(StreamBuffer *bf, Class *cls, Member *m)
 static void writeClassTypeMarkers(StreamBuffer *bf, Class *cls)
 {
     string ln = 0;
-    strNConcat(&ln, _S"        void *_is_", cls->name, _S";");
+    strNConcat(&ln, _S"        void* _is_", cls->name, _S";");
     sbufPWriteLine(bf, ln);
     strDestroy(&ln);
 
@@ -321,7 +321,7 @@ static void writeClassTypeMarkers(StreamBuffer *bf, Class *cls)
 static void writeClassWeakRefTypeMarkers(StreamBuffer *bf, Class *cls)
 {
     string ln = 0;
-    strNConcat(&ln, _S"        void *_is_", cls->name, _S"_WeakRef;");
+    strNConcat(&ln, _S"        void* _is_", cls->name, _S"_WeakRef;");
     sbufPWriteLine(bf, ln);
     strDestroy(&ln);
 
@@ -339,14 +339,14 @@ void writeClassDecl(StreamBuffer *bf, Class *cls)
     if (!cls->mixin) {
         sbufPWriteLine(bf, _S"    union {");
         if (cls->classif)
-            strNConcat(&ln, _S"        ", cls->name, _S"_ClassIf *_;");
+            strNConcat(&ln, _S"        ", cls->name, _S"_ClassIf* _;");
         else
-            strDup(&ln, _S"        ObjIface *_;");
+            strDup(&ln, _S"        ObjIface* _;");
         sbufPWriteLine(bf, ln);
         writeClassTypeMarkers(bf, cls);
-        sbufPWriteLine(bf, _S"        void *_is_ObjInst;");
+        sbufPWriteLine(bf, _S"        void* _is_ObjInst;");
         sbufPWriteLine(bf, _S"    };");
-        sbufPWriteLine(bf, _S"    ObjClassInfo *_clsinfo;");
+        sbufPWriteLine(bf, _S"    ObjClassInfo* _clsinfo;");
         sbufPWriteLine(bf, _S"    atomic(intptr) _ref;");
         sbufPWriteLine(bf, _S"    atomic(ptr) _weakref;");
         sbufPWriteEOL(bf);
@@ -378,9 +378,9 @@ void writeClassDecl(StreamBuffer *bf, Class *cls)
     sbufPWriteLine(bf, ln);
 
     sbufPWriteLine(bf, _S"    union {");
-    sbufPWriteLine(bf, _S"        ObjInst *_inst;");
+    sbufPWriteLine(bf, _S"        ObjInst* _inst;");
     writeClassWeakRefTypeMarkers(bf, cls);
-    sbufPWriteLine(bf, _S"        void *_is_ObjInst_WeakRef;");
+    sbufPWriteLine(bf, _S"        void* _is_ObjInst_WeakRef;");
     sbufPWriteLine(bf, _S"    };");
     sbufPWriteLine(bf, _S"    atomic(intptr) _ref;");
     sbufPWriteLine(bf, _S"    RWLock _lock;");

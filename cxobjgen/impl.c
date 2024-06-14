@@ -513,7 +513,7 @@ static void writeClassIfaceList(StreamBuffer *bf, Class *cls)
 {
     string ln = 0;
 
-    strNConcat(&ln, _S"static ObjIface *_ifimpl_", cls->name, _S"[] = {");
+    strNConcat(&ln, _S"static ObjIface* _ifimpl_", cls->name, _S"[] = {");
     sbufPWriteLine(bf, ln);
 
     for (int i = 0; i < saSize(cls->implements); i++) {
