@@ -1,30 +1,20 @@
 set(TASKQUEUE_SRCS
-    taskqueue/basictask.c
-    taskqueue/manager.c
-    taskqueue/monitor.c
-    taskqueue/mtask.c
-    taskqueue/task.c
     taskqueue/taskqueue.c
-    taskqueue/tqobject.c
-    taskqueue/userfunctask.c
-    taskqueue/worker.c)
+    taskqueue/userfunctask.c)
 set(TASKQUEUE_INCLUDES
-    taskqueue/basictask.h
-    taskqueue/mtask.h
-    taskqueue/task.h
     taskqueue/taskqueue.h
     taskqueue/taskqueue_private.h
     taskqueue/taskqueue_shared.h
-    taskqueue/tqobject.h
-    taskqueue/userfunctask.h
-    taskqueue/worker.h)
+    taskqueue/userfunctask.h)
 set(TASKQUEUE_SIDL
-    taskqueue/basictask.sidl
-    taskqueue/mtask.sidl
-    taskqueue/task.sidl
-    taskqueue/tqobject.sidl
-    taskqueue/userfunctask.sidl
-    taskqueue/worker.sidl)
+    taskqueue/userfunctask.sidl)
+
+add_subdirectory(manager)
+add_subdirectory(monitor)
+add_subdirectory(queue)
+add_subdirectory(runner)
+add_subdirectory(task)
+add_subdirectory(worker)
 
 set(CX_SRCS
     ${CX_SRCS}

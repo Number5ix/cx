@@ -1,4 +1,4 @@
-#include <cx/taskqueue/basictask.sidl>
+#include <cx/taskqueue/task/basictask.sidl>
 #include <cx/taskqueue/taskqueue.h>
 
 class UserFuncTask extends BasicTask {

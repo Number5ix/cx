@@ -1,15 +1,20 @@
 #pragma once
 #include "taskqueue.h"
-#include "tqobject.h"
-#include "task.h"
-#include "worker.h"
-
-typedef struct TQMonitorState
-{
-    int64 lastrun;
-    int64 lastwarn;
-} TQMonitorState;
-
-int tqManagerThread(Thread *self);
-void _tqMonitorRun(TaskQueue *tq, int64 now, TQMonitorState *s);
-bool _tqAdvanceTask(TaskQueue *tq, Task *task);
+#include "manager/tqmanager.h"
+#include "manager/tqmdedicated.h"
+#include "manager/tqminworker.h"
+#include "manager/tqmmanual.h"
+#include "manager/tqmthreadpool.h"
+#include "monitor/tqmonitor.h"
+#include "monitor/tqtpmonitor.h"
+#include "queue/tqcomplex.h"
+#include "queue/tqueue.h"
+#include "runner/tqrmanual.h"
+#include "runner/tqrthreadpool.h"
+#include "runner/tqrunner.h"
+#include "task/basictask.h"
+#include "task/complextask.h"
+#include "task/task.h"
+#include "worker/tqmanualworker.h"
+#include "worker/tqthreadworker.h"
+#include "worker/tqworker.h"

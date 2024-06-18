@@ -12,10 +12,10 @@
 
 _objfactory_guaranteed UserFuncTask* UserFuncTask_create(UserTaskCB func, void* udata)
 {
-    UserFuncTask *self;
+    UserFuncTask* self;
     self = objInstCreate(UserFuncTask);
 
-    self->func = func;
+    self->func  = func;
     self->udata = udata;
 
     objInstInit(self);
@@ -23,9 +23,10 @@ _objfactory_guaranteed UserFuncTask* UserFuncTask_create(UserTaskCB func, void* 
     return self;
 }
 
-bool UserFuncTask_run(_Inout_ UserFuncTask* self, _In_ TaskQueue* tq, _In_ TaskQueueWorker* worker, _Inout_ TaskControl* tcon)
+uint32 UserFuncTask_run(_Inout_ UserFuncTask* self, _In_ TaskQueue* tq, _In_ TQWorker* worker,
+                        _Inout_ TaskControl* tcon)
 {
-    return self->func && self->func(tq, self->udata);
+    return (self->func && self->func(tq, self->udata)) ? TASK_Result_Success : TASK_Result_Failure;
 }
 
 // Autogen begins -----

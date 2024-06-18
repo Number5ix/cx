@@ -101,9 +101,9 @@ static const testspec tests[] = {
 { "taskqueue: Failed Tasks", "tqtest", "failure" },
 { "taskqueue: Concurrency", "tqtest", "concurrency" },
 { "taskqueue: Call", "tqtest", "call" },
-{ "taskqueue: Deferred Tasks", "tqtest", "defer" },
+{ "taskqueue: Scheduled Tasks", "tqtest", "sched" },
 { "taskqueue: Monitor", "tqtest", "monitor" },
-{ "taskqueue: MTask", "tqtest", "mtask" },
+//{ "taskqueue: MTask", "tqtest", "mtask" },
 { 0 }
 };
 

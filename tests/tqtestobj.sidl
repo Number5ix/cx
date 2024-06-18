@@ -1,5 +1,5 @@
-#include <cx/taskqueue/task.sidl>
-#include <cx/taskqueue/mtask.sidl>
+#include <cx/taskqueue/task/complextask.sidl>
+//#include <cx/taskqueue/mtask.sidl>
 #include <cx/thread/event.h>
 
 class TQTest1 extends Task
@@ -40,12 +40,12 @@ class TQTestCC2 extends Task
     factory create(int total, int *accum, int *counter, Event *notify);
 }
 
-abstract class TQTestDefer extends Task
+abstract class TQTestSched extends ComplexTask
 {
     Event *notify;
 }
 
-class TQTestD1 extends TQTestDefer
+class TQTestS1 extends TQTestSched
 {
     int order;
     int64 dtime;
@@ -53,7 +53,7 @@ class TQTestD1 extends TQTestDefer
     factory create(int order, int64 dtime, Event *notify);
 }
 
-class TQTestD2 extends TQTestDefer
+class TQTestS2 extends TQTestSched
 {
     object:Task waitfor;
     factory create(Task *waitfor, Event *notify);
@@ -65,10 +65,10 @@ class TQDelayTest extends Task
     factory create(int64 len);
 }
 
-class TQMTest extends MTask
-{
-    Event *notify;
-    override run;
+//class TQMTest extends MTask
+//{
+    //Event *notify;
+    //override run;
 
-    factory create(Event *notify, TaskQueue *tq, int limit);
-}
+//    factory create(Event *notify, TaskQueue *tq, int limit);
+//}

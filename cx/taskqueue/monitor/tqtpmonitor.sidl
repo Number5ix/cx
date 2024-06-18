@@ -1,0 +1,12 @@
+#include "tqmonitor.sidl"
+#include <cx/thread/mutex.h>
+
+class TQThreadPoolMonitor extends TQMonitor {
+    Mutex monitorlock;
+    int64 lastrun;
+    int64 lastwarn;
+
+    init();
+    destroy();
+    factory create([in] TaskQueueMonitorConfig *config);
+}

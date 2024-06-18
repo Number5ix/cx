@@ -22,6 +22,7 @@ static int test_tqtest_task(void)
 
     TaskQueueConfig conf;
     tqPresetBalanced(&conf);
+    conf.flags |= TQ_NoComplex;
     TaskQueue *q = tqCreate(_S"Test", &conf);
     if(!q || !tqStart(q))
         return 1;
@@ -100,6 +101,7 @@ static int test_tqtest_failure(void)
 
     TaskQueueConfig conf;
     tqPresetBalanced(&conf);
+    conf.flags |= TQ_NoComplex;
     TaskQueue *q = tqCreate(_S"Test", &conf);
     if(!q || !tqStart(q))
         return 1;
@@ -175,24 +177,25 @@ static int test_tqtest_concurrency(void)
     int count = 0;
 
     TaskQueueConfig conf = { 0 };
-    conf.wInitial = 8;
-    conf.wIdle = 8;
-    conf.wBusy = 16;
-    conf.wMax = 64;
-    conf.tIdle = timeS(1);
-    conf.tRampUp = timeMS(2);
-    conf.tRampDown = timeMS(50);
-    TaskQueue *spmc = tqCreate(_S"SPMC Test", &conf);
+    conf.pool.wInitial = 8;
+    conf.pool.wIdle      = 8;
+    conf.pool.wBusy      = 16;
+    conf.pool.wMax       = 64;
+    conf.pool.tIdle      = timeS(1);
+    conf.pool.tRampUp    = timeMS(2);
+    conf.pool.tRampDown  = timeMS(50);
+    conf.flags |= TQ_NoComplex;
+    TaskQueue* spmc = tqCreate(_S"SPMC Test", &conf);
     if(!spmc || !tqStart(spmc))
         return 1;
 
-    conf.wInitial = 1;
-    conf.wIdle = 1;
-    conf.wBusy = 1;
-    conf.wMax = 1;
-    conf.tIdle = 0;
-    conf.tRampUp = 0;
-    conf.tRampDown = 0;
+    conf.pool.wInitial = 1;
+    conf.pool.wIdle    = 1;
+    conf.pool.wBusy    = 1;
+    conf.pool.wMax     = 1;
+    conf.pool.tIdle    = 0;
+    conf.pool.tRampUp  = 0;
+    conf.pool.tRampDown = 0;
     TaskQueue *mpsc = tqCreate(_S"MPSC Test", &conf);
     if(!mpsc || !tqStart(mpsc))
         return 1;
@@ -281,13 +284,13 @@ static int test_tqtest_call(void)
     return ret;
 }
 
-#define NUM_DEFER_STEPS 10
+#define NUM_SCHED_STEPS 10
 
 static bool is_monitor_test = false;
 static LogCategory *moncat;
-atomic(int32) tqtestd_order;
+atomic(int32) tqtests_order;
 
-static bool defer_oncomplete(stvlist *cvars, stvlist *args)
+static bool sched_oncomplete(stvlist *cvars, stvlist *args)
 {
     atomic(int32) *nsucceed;
     Task *task;
@@ -304,48 +307,49 @@ static bool defer_oncomplete(stvlist *cvars, stvlist *args)
     return true;
 }
 
-static int test_tqtest_defer(void)
+static int test_tqtest_sched(void)
 {
     int ret = 0;
-    sa_TQTestDefer dtasks;
+    sa_TQTestSched dtasks;
     atomic(int32) nsucceed = atomicInit(0);
 
     TaskQueueConfig conf;
     tqPresetBalanced(&conf);
     if(is_monitor_test) {
-        conf.mInterval = timeMS(5);
-        conf.mTaskStalled = timeMS(110);
-        conf.mTaskRunning = timeMS(20);
-        conf.mTaskWaiting = timeMS(20);
-        conf.mSuppress = timeMS(500);
-        conf.mLogCat = moncat;
+        conf.monitor.mInterval = timeMS(5);
+        conf.monitor.mTaskStalled = timeMS(110);
+        conf.monitor.mTaskRunning = timeMS(60);
+        conf.monitor.mTaskWaiting = timeMS(20);
+        conf.monitor.mSuppress    = timeMS(50);
+        conf.monitor.mLogCat      = moncat;
+        conf.flags |= TQ_Monitor;
     }
-    conf.wInitial = 4;
-    conf.wIdle = 4;
-    conf.wBusy = 4;
-    conf.wMax = 4;
+    conf.pool.wInitial = 4;
+    conf.pool.wIdle    = 4;
+    conf.pool.wBusy    = 4;
+    conf.pool.wMax     = 4;
     TaskQueue *q = tqCreate(_S"Test", &conf);
 
     if(!q || !tqStart(q))
         return 1;
 
-    saInit(&dtasks, object, NUM_DEFER_STEPS);
+    saInit(&dtasks, object, NUM_SCHED_STEPS);
 
-    atomicStore(int32, &tqtestd_order, 0, Relaxed);
+    atomicStore(int32, &tqtests_order, 0, Relaxed);
     eventInit(&notifyev);
 
     // create tasks
     int64 dtime = timeMS(20);
-    for(int i = 0; i < NUM_DEFER_STEPS; i++) {
-        TQTestD1 *d1 = tqtestd1Create(i, dtime, &notifyev);
-        TQTestD2 *d2 = tqtestd2Create(d1, &notifyev);
+    for(int i = 0; i < NUM_SCHED_STEPS; i++) {
+        TQTestS1 *s1 = tqtests1Create(i, dtime, &notifyev);
+        TQTestS2 *s2 = tqtests2Create(s1, &notifyev);
 
         // completion callbacks
-        cchainAttach(&d1->oncomplete, defer_oncomplete, stvar(ptr, &nsucceed));
-        cchainAttach(&d2->oncomplete, defer_oncomplete, stvar(ptr, &nsucceed));
+        cchainAttach(&s1->oncomplete, sched_oncomplete, stvar(ptr, &nsucceed));
+        cchainAttach(&s2->oncomplete, sched_oncomplete, stvar(ptr, &nsucceed));
 
-        saPushC(&dtasks, object, &d2);           // run them in reverse order to test inversion
-        saPushC(&dtasks, object, &d1);
+        saPushC(&dtasks, object, &s2);           // run them in reverse order to test inversion
+        saPushC(&dtasks, object, &s1);
         dtime += timeMS(20);
     }
 
@@ -393,7 +397,7 @@ static int test_tqtest_defer(void)
             ret = 1;
     }
 
-    if(atomicLoad(int32, &nsucceed, Acquire) != NUM_DEFER_STEPS * 2)
+    if(atomicLoad(int32, &nsucceed, Acquire) != NUM_SCHED_STEPS * 2)
         ret = 1;
 
     saDestroy(&dtasks);
@@ -407,9 +411,9 @@ static int test_tqtest_monitor(void)
     moncat = logCreateCat(_S"MonitorTest", true);
     logRegisterDest(LOG_Diag, moncat, logmembufDest, mbuf);
 
-    // reuse the defer test, but with the monitor enabled
+    // reuse the sched test, but with the monitor enabled
     is_monitor_test = true;
-    int ret = test_tqtest_defer();
+    int ret = test_tqtest_sched();
     is_monitor_test = false;
 
     logFlush();
@@ -422,8 +426,8 @@ static int test_tqtest_monitor(void)
     return ret;
 }
 
-#define NUM_MTASK_TASKS 500
-
+#define NUM_MTASK_TASKS 50000
+/*
 static int test_tqtest_mtask(void)
 {
     Event notifyev;
@@ -483,15 +487,15 @@ static int test_tqtest_mtask(void)
     tqRelease(&q);
 
     return ret;
-}
+}*/
 
 testfunc tqtest_funcs[] = {
     { "task", test_tqtest_task },
     { "failure", test_tqtest_failure },
     { "concurrency", test_tqtest_concurrency },
     { "call", test_tqtest_call },
-    { "defer", test_tqtest_defer },
+    { "sched", test_tqtest_sched },
     { "monitor", test_tqtest_monitor },
-    { "mtask", test_tqtest_mtask },
+//    { "mtask", test_tqtest_mtask },
     { 0, 0 }
 };

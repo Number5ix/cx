@@ -1,196 +1,165 @@
 #include "taskqueue_private.h"
-#include "userfunctask.h"
-#include <cx/time/clock.h>
 #include <cx/platform/os.h>
+#include <cx/time/clock.h>
+#include "userfunctask.h"
 
 _Use_decl_annotations_
-void tqPresetSingle(TaskQueueConfig *tqconfig)
+void tqPresetSingle(TaskQueueConfig* tqconfig)
 {
-    *tqconfig = (TaskQueueConfig){
-        .wInitial = 1,
-        .wIdle = 1,
-        .wBusy = 1,
-        .wMax = 1,
-    };
+    TaskQueueThreadPoolConfig tpconfig = { .wInitial = 1, .wIdle = 1, .wBusy = 1, .wMax = 1 };
+    *tqconfig                          = (TaskQueueConfig) { .pool = tpconfig };
 }
 
 _Use_decl_annotations_
-void tqPresetMinimal(TaskQueueConfig *tqconfig)
+void tqPresetMinimal(TaskQueueConfig* tqconfig)
 {
     int ncpus = osPhysicalCPUs();
 
-    *tqconfig = (TaskQueueConfig){
-        .wInitial = 1,
-        .wIdle = 1,
-        .wBusy = (ncpus > 2) ? (ncpus + 1) / 2 : 1,
-        .wMax = ncpus,
-        .tIdle = timeMS(1000),
-        .tRampUp = timeMS(50),
-        .tRampDown = timeMS(200),
+    TaskQueueThreadPoolConfig tpconfig = {
+        .wInitial   = 1,
+        .wIdle      = 1,
+        .wBusy      = (ncpus > 2) ? (ncpus + 1) / 2 : 1,
+        .wMax       = ncpus,
+        .tIdle      = timeMS(1000),
+        .tRampUp    = timeMS(50),
+        .tRampDown  = timeMS(250),
         .loadFactor = 8,
     };
+    *tqconfig = (TaskQueueConfig) { .pool = tpconfig };
 }
 
 _Use_decl_annotations_
-void tqPresetBalanced(TaskQueueConfig *tqconfig)
+void tqPresetBalanced(TaskQueueConfig* tqconfig)
 {
     int npcpus = osPhysicalCPUs();
     int nlcpus = osLogicalCPUs();
 
-    *tqconfig = (TaskQueueConfig){
-        .wInitial = 1,
-        .wIdle = (npcpus >= 2) ? 2 : 1,
-        .wBusy = npcpus,
-        .wMax = nlcpus,
-        .tIdle = timeMS(5000),
-        .tRampUp = timeMS(100),
-        .tRampDown = timeMS(1000),
+    TaskQueueThreadPoolConfig tpconfig = {
+        .wInitial   = 1,
+        .wIdle      = (npcpus >= 2) ? 2 : 1,
+        .wBusy      = npcpus,
+        .wMax       = nlcpus,
+        .tIdle      = timeMS(2500),
+        .tRampUp    = timeMS(20),
+        .tRampDown  = timeMS(500),
         .loadFactor = 2,
     };
+    *tqconfig = (TaskQueueConfig) { .pool = tpconfig };
 }
 
 _Use_decl_annotations_
-void tqEnableMonitor(TaskQueueConfig *tqconfig)
+void tqPresetHeavy(TaskQueueConfig* tqconfig)
 {
-    tqconfig->mInterval = timeS(5);
-    tqconfig->mSuppress = timeS(60);
-    tqconfig->mTaskRunning = timeS(120);
-    tqconfig->mTaskWaiting = timeS(30);
-    tqconfig->mTaskStalled = timeS(60);
+    int npcpus = osPhysicalCPUs();
+    int nlcpus = osLogicalCPUs();
+
+    TaskQueueThreadPoolConfig tpconfig = {
+        .wInitial   = 2,
+        .wIdle      = (npcpus >= 4) ? 4 : 2,
+        .wBusy      = nlcpus,
+        .wMax       = nlcpus + (nlcpus >> 1),
+        .tIdle      = timeMS(5000),
+        .tRampUp    = timeMS(10),
+        .tRampDown  = timeMS(1000),
+        .loadFactor = 2,
+    };
+    *tqconfig = (TaskQueueConfig) { .flags = TQ_ManagerThread, .pool = tpconfig };
 }
 
 _Use_decl_annotations_
-TaskQueue *tqCreate(strref name, TaskQueueConfig *tqconfig)
+void tqPresetManual(TaskQueueConfig* tqconfig)
 {
-    tqconfig->wMax = clamplow(tqconfig->wMax, 1);
-    tqconfig->wIdle = clamp(tqconfig->wIdle, 1, tqconfig->wMax);
-    tqconfig->wInitial = clamp(tqconfig->wInitial, tqconfig->wIdle, tqconfig->wMax);
-    tqconfig->wBusy = clamp(tqconfig->wBusy, tqconfig->wIdle, tqconfig->wMax);
+    *tqconfig = (TaskQueueConfig) { .flags = TQ_Manual };
+}
 
-    tqconfig->loadFactor = clamplow(tqconfig->loadFactor, 1);
+_Use_decl_annotations_
+void tqEnableMonitor(TaskQueueConfig* tqconfig)
+{
+    tqconfig->monitor.mInterval    = timeS(5);
+    tqconfig->monitor.mSuppress    = timeS(60);
+    tqconfig->monitor.mTaskRunning = timeS(120);
+    tqconfig->monitor.mTaskWaiting = timeS(30);
+    tqconfig->monitor.mTaskStalled = timeS(60);
+    tqconfig->flags |= TQ_Monitor;
+}
 
-    TaskQueue *tq = taskqueueCreate(strEmpty(name) ? _S"TaskQueue" : name, tqconfig);
+_Use_decl_annotations_
+TaskQueue* tqCreate(strref name, TaskQueueConfig* tqconfig)
+{
+    if (!(tqconfig->flags & TQ_Manual)) {
+        tqconfig->pool.wMax       = clamplow(tqconfig->pool.wMax, 1);
+        tqconfig->pool.wIdle      = clamp(tqconfig->pool.wIdle, 1, tqconfig->pool.wMax);
+        tqconfig->pool.wInitial   = clamp(tqconfig->pool.wInitial,
+                                        tqconfig->pool.wIdle,
+                                        tqconfig->pool.wMax);
+        tqconfig->pool.wBusy      = clamp(tqconfig->pool.wBusy,
+                                     tqconfig->pool.wIdle,
+                                     tqconfig->pool.wMax);
+        tqconfig->pool.loadFactor = clamplow(tqconfig->pool.loadFactor, 1);
+    }
+
+    TQRunner* runner   = NULL;
+    TQManager* manager = NULL;
+    TQMonitor* monitor = NULL;
+
+    if (tqconfig->flags & TQ_Manual) {
+        runner  = TQRunner(tqmanualrunnerCreate());
+        manager = TQManager(tqmanualmanagerCreate());
+    } else {
+        runner = TQRunner(tqthreadpoolrunnerCreate(&tqconfig->pool));
+        if (tqconfig->flags & TQ_ManagerThread)
+            manager = TQManager(tqdedicatedmanagerCreate());
+        else
+            manager = TQManager(tqinworkermanagerCreate());
+
+        if (tqconfig->flags & TQ_Monitor)
+            monitor = TQMonitor(tqthreadpoolmonitorCreate(&tqconfig->monitor));
+    }
+
+    devAssert(runner && manager);
+
+    TaskQueue* tq = NULL;
+    if (tqconfig->flags & TQ_NoComplex) {
+        // Basic task queue
+        tq = taskqueueCreate(strEmpty(name) ? _S"TaskQueue" : name,
+                             tqconfig->flags,
+                             runner,
+                             manager,
+                             monitor);
+    } else {
+        // Complex task queue
+        tq = TaskQueue(ctaskqueueCreate(strEmpty(name) ? _S"TaskQueue" : name,
+                                        tqconfig->flags,
+                                        runner,
+                                        manager,
+                                        monitor));
+    }
+
+    objRelease(&runner);
+    objRelease(&manager);
+    objRelease(&monitor);
 
     return tq;
 }
 
 _Use_decl_annotations_
-bool tqStart(TaskQueue *tq)
+bool tqCall(TaskQueue* tq, UserTaskCB func, void* userdata)
 {
-    if(tq->state == TQState_Running)
-        return true;
-    if(tq->state == TQState_Starting || tq->state == TQState_Stopping)
-        return false;
-
-    // This event is used for the manager to notify that startup was complete
-    Event startev;
-    eventInit(&startev);
-
-    bool ret = false;
-    if(taskqueueStart(tq, &startev)) {
-        eventWait(&startev);
-        ret = (tq->state == TQState_Running);
-    }
-
-    eventDestroy(&startev);
-    return ret;
-}
-
-static _meta_inline bool tqStateCheck(_In_ BasicTask *task)
-{
-    int32 state = btaskState(task);
-    bool ret = (state != TASK_Waiting && state != TASK_Running);
-    devAssertMsg(ret, "Task not in a good state to be added to queue");
-    return ret;
-}
-
-_Use_decl_annotations_
-bool _tqAdd(_Inout_ TaskQueue *tq, _In_ BasicTask *btask)
-{
-    if(tq->state != TQState_Running || !tqStateCheck(btask))
-        return false;
-
-    // add a reference count which becomes owned by the queue
-    objAcquire(btask);
-
-    Task *task = objDynCast(btask, Task);
-    if(task)
-        task->last = clockTimer();          // record when it was put in run queue
-
-    atomicStore(int32, &btask->state, TASK_Waiting, Release);
-    if(!prqPush(&tq->runq, btask)) {
-        atomicStore(int32, &btask->state, TASK_Failed, Release);
-        return false;
-    }
-    // Signal the worker pool
-    eventSignal(&tq->workev);
-    return true;
-}
-
-bool _tqDefer(_Inout_ TaskQueue *tq, _In_ Task *task, int64 delay)
-{
-    if(tq->state != TQState_Running || !tqStateCheck(BasicTask(task)))
-        return false;
-
-    // add a reference count which becomes owned by the queue
-    objAcquire(task);
-
-    atomicStore(int32, &task->state, TASK_Waiting, Release);
-    task->nextrun = (delay > 0) ? clockTimer() + delay : 0;
-
-    // By putting it in the done queue, the manager thread will pick it up
-    // and stick it in the deferred list, which we can't safely access from
-    // other threads.
-    if(!prqPush(&tq->doneq, task)) {
-        atomicStore(int32, &task->state, TASK_Failed, Release);
-        return false;
-    }
-    // Signal the manager to do something with it
-    eventSignal(&tq->manager->notify);
-    return true;
-}
-
-_Use_decl_annotations_
-bool tqCall(TaskQueue *tq, UserTaskCB func, void *userdata)
-{
-    UserFuncTask *task = userfunctaskCreate(func, userdata);
-    bool ret = _tqAdd(tq, BasicTask(task));
+    UserFuncTask* task = userfunctaskCreate(func, userdata);
+    bool ret           = tqAdd(tq, task);
     objRelease(&task);
     return ret;
 }
 
-int32 tqWorkers(_In_ TaskQueue *tq)
+int32 tqWorkers(_In_ TaskQueue* tq)
 {
-    return atomicLoad(int32, &tq->nworkers, Relaxed);       // no ordering requirements
-}
+    TQThreadPoolRunner* runner = objDynCast(tq->runner, TQThreadPoolRunner);
+    if (!runner)
+        return 0;
 
-bool _tqAdvanceTask(TaskQueue *tq, Task *task)
-{
-    if(tq->state != TQState_Running || taskState(task) != TASK_Deferred)
-        return false;
-
-    if(!prqPush(&tq->advanceq, task))
-        return false;
-
-    // Signal the manager to move it
-    eventSignal(&tq->manager->notify);
-    return true;
-}
-
-_Use_decl_annotations_
-bool tqShutdown(TaskQueue *tq, int64 wait)
-{
-    if(tq->state == TQState_Shutdown || tq->state == TQState_Init)
-        return true;
-
-    // if queue is still running, tell it to shut down
-    if(tq->state == TQState_Running) {
-        tq->state = TQState_Stopping;
-        eventSignal(&tq->manager->notify);
+    int ret = 0;
+    withReadLock (&runner->workerlock) {
+        ret = saSize(runner->workers);
     }
-
-    if(wait > 0)
-        eventWaitTimeout(&tq->shutdownev, wait);
-
-    return (tq->state == TQState_Shutdown);
+    return ret;
 }

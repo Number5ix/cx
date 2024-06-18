@@ -1,0 +1,10 @@
+#include <cx/taskqueue/taskqueue_shared.h>
+
+class TaskQueue;
+
+abstract class TQRunner {
+	object:TaskQueue tq;
+	bool start([in] TaskQueue *tq);
+	[abstract] int64 tick();
+	bool stop();
+}

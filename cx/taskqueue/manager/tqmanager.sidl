@@ -1,0 +1,16 @@
+#include <cx/taskqueue/taskqueue_shared.h>
+
+class TaskQueue;
+
+// absolute maximum time between manager cycles
+#define MAX_MANAGER_INTERVAL (timeS(10))
+
+abstract class TQManager {
+	object:TaskQueue tq;
+	bool needsWorkerTick;		// true if this manager needs to be ticked by the worker
+
+	bool start([in] TaskQueue *tq);
+	bool stop();
+	void notify();
+	int64 tick();
+}

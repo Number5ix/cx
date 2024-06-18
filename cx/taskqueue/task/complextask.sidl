@@ -1,0 +1,23 @@
+#include "task.sidl"
+
+enum ComplexTaskRunResultEnum {
+    TASK_Result_Schedule = TASK_Result_Basic_Count,     // schedule the task to run after the time specified in the TaskControl structure
+    TASK_Result_Schedule_Progress,                      // schedule the task and mark it has having made progress
+    TASK_Result_Defer,                                  // defer the task until it is advanced
+    TASK_Result_Defer_Progress                          // defer the task and mark it has having made progress
+};
+
+class ComplexTaskQueue;
+
+[methodprefix ctask] abstract class ComplexTask extends Task implements Sortable {
+    int64 nextrun;              // next time for this task to run when scheduled
+    int64 lastprogress;         // timestamp of last progress change
+    weak:ComplexTaskQueue lastq;   // The last queue this task ran on before it was deferred
+    [noinit] sarray:object:Task _depends; // other tasks that must complete before this task can run, do not modify directly!
+
+    void dependOn([in] Task *dep);
+    unbound bool advance();     // advance a deferred task to run as soon as possible
+    unbound bool checkDeps();   // check if this task can run because all dependencies are satisfies
+	override reset;
+    override cmp;
+}

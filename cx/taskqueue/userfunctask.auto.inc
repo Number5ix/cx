@@ -9,7 +9,7 @@ UserFuncTask_ClassIf UserFuncTask_ClassIf_tmpl = {
 static UserFuncTask_ClassIf _impl_UserFuncTask_UserFuncTask_ClassIf = {
     ._size = sizeof(UserFuncTask_ClassIf),
     ._implements = (ObjIface*)&UserFuncTask_ClassIf_tmpl,
-    .run = (bool (*)(void*, TaskQueue*, TaskQueueWorker*, TaskControl*))UserFuncTask_run,
+    .run = (uint32 (*)(void*, TaskQueue*, TQWorker*, TaskControl*))UserFuncTask_run,
 };
 
 static ObjIface* _ifimpl_UserFuncTask[] = {
