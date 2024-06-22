@@ -29,6 +29,8 @@ typedef struct TQTestS2 TQTestS2;
 typedef struct TQTestS2_WeakRef TQTestS2_WeakRef;
 typedef struct TQDelayTest TQDelayTest;
 typedef struct TQDelayTest_WeakRef TQDelayTest_WeakRef;
+typedef struct TQMTest TQMTest;
+typedef struct TQMTest_WeakRef TQMTest_WeakRef;
 saDeclarePtr(TQTest1);
 saDeclarePtr(TQTest1_WeakRef);
 saDeclarePtr(TQTestFail);
@@ -45,11 +47,10 @@ saDeclarePtr(TQTestS2);
 saDeclarePtr(TQTestS2_WeakRef);
 saDeclarePtr(TQDelayTest);
 saDeclarePtr(TQDelayTest_WeakRef);
+saDeclarePtr(TQMTest);
+saDeclarePtr(TQMTest_WeakRef);
 
 //#include <cx/taskqueue/mtask.sidl>
-//class TQMTest extends MTask
-    //Event *notify;
-    //override run;
 
 typedef struct TQTest1_ClassIf {
     ObjIface* _implements;
@@ -105,6 +106,7 @@ typedef struct TQTestSched_ClassIf {
     bool (*reset)(_Inout_ void* self);
     void (*dependOn)(_Inout_ void* self, _In_ Task* dep);
     intptr (*cmp)(_Inout_ void* self, void* other, uint32 flags);
+    uint32 (*hash)(_Inout_ void* self, uint32 flags);
 } TQTestSched_ClassIf;
 extern TQTestSched_ClassIf TQTestSched_ClassIf_tmpl;
 
@@ -118,6 +120,7 @@ typedef struct TQTestS1_ClassIf {
     bool (*reset)(_Inout_ void* self);
     void (*dependOn)(_Inout_ void* self, _In_ Task* dep);
     intptr (*cmp)(_Inout_ void* self, void* other, uint32 flags);
+    uint32 (*hash)(_Inout_ void* self, uint32 flags);
 } TQTestS1_ClassIf;
 extern TQTestS1_ClassIf TQTestS1_ClassIf_tmpl;
 
@@ -131,6 +134,7 @@ typedef struct TQTestS2_ClassIf {
     bool (*reset)(_Inout_ void* self);
     void (*dependOn)(_Inout_ void* self, _In_ Task* dep);
     intptr (*cmp)(_Inout_ void* self, void* other, uint32 flags);
+    uint32 (*hash)(_Inout_ void* self, uint32 flags);
 } TQTestS2_ClassIf;
 extern TQTestS2_ClassIf TQTestS2_ClassIf_tmpl;
 
@@ -144,6 +148,20 @@ typedef struct TQDelayTest_ClassIf {
     bool (*reset)(_Inout_ void* self);
 } TQDelayTest_ClassIf;
 extern TQDelayTest_ClassIf TQDelayTest_ClassIf_tmpl;
+
+typedef struct TQMTest_ClassIf {
+    ObjIface* _implements;
+    ObjIface* _parent;
+    size_t _size;
+
+    uint32 (*run)(_Inout_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
+    bool (*cancel)(_Inout_ void* self);
+    bool (*reset)(_Inout_ void* self);
+    void (*dependOn)(_Inout_ void* self, _In_ Task* dep);
+    intptr (*cmp)(_Inout_ void* self, void* other, uint32 flags);
+    uint32 (*hash)(_Inout_ void* self, uint32 flags);
+} TQMTest_ClassIf;
+extern TQMTest_ClassIf TQMTest_ClassIf_tmpl;
 
 typedef struct TQTest1 {
     union {
@@ -397,10 +415,10 @@ typedef struct TQTestSched_WeakRef {
 // advance a deferred task to run as soon as possible
 #define tqtestschedAdvance(self) ComplexTask_advance(ComplexTask(self))
 
-// bool tqtestschedCheckDeps(TQTestSched* self);
+// bool tqtestschedCheckDeps(TQTestSched* self, bool updateProgress);
 //
-// check if this task can run because all dependencies are satisfies
-#define tqtestschedCheckDeps(self) ComplexTask_checkDeps(ComplexTask(self))
+// check if this task can run because all dependencies are satisfied
+#define tqtestschedCheckDeps(self, updateProgress) ComplexTask_checkDeps(ComplexTask(self), updateProgress)
 
 // bool tqtestsched_setState(TQTestSched* self, uint32 newstate);
 #define tqtestsched_setState(self, newstate) BasicTask__setState(BasicTask(self), newstate)
@@ -415,6 +433,8 @@ typedef struct TQTestSched_WeakRef {
 #define tqtestschedDependOn(self, dep) (self)->_->dependOn(TQTestSched(self), Task(dep))
 // intptr tqtestschedCmp(TQTestSched* self, TQTestSched* other, uint32 flags);
 #define tqtestschedCmp(self, other, flags) (self)->_->cmp(TQTestSched(self), other, flags)
+// uint32 tqtestschedHash(TQTestSched* self, uint32 flags);
+#define tqtestschedHash(self, flags) (self)->_->hash(TQTestSched(self), flags)
 
 typedef struct TQTestS1 {
     union {
@@ -471,10 +491,10 @@ _objfactory_guaranteed TQTestS1* TQTestS1_create(int order, int64 dtime, Event* 
 // advance a deferred task to run as soon as possible
 #define tqtests1Advance(self) ComplexTask_advance(ComplexTask(self))
 
-// bool tqtests1CheckDeps(TQTestS1* self);
+// bool tqtests1CheckDeps(TQTestS1* self, bool updateProgress);
 //
-// check if this task can run because all dependencies are satisfies
-#define tqtests1CheckDeps(self) ComplexTask_checkDeps(ComplexTask(self))
+// check if this task can run because all dependencies are satisfied
+#define tqtests1CheckDeps(self, updateProgress) ComplexTask_checkDeps(ComplexTask(self), updateProgress)
 
 // bool tqtests1_setState(TQTestS1* self, uint32 newstate);
 #define tqtests1_setState(self, newstate) BasicTask__setState(BasicTask(self), newstate)
@@ -489,6 +509,8 @@ _objfactory_guaranteed TQTestS1* TQTestS1_create(int order, int64 dtime, Event* 
 #define tqtests1DependOn(self, dep) (self)->_->dependOn(TQTestS1(self), Task(dep))
 // intptr tqtests1Cmp(TQTestS1* self, TQTestS1* other, uint32 flags);
 #define tqtests1Cmp(self, other, flags) (self)->_->cmp(TQTestS1(self), other, flags)
+// uint32 tqtests1Hash(TQTestS1* self, uint32 flags);
+#define tqtests1Hash(self, flags) (self)->_->hash(TQTestS1(self), flags)
 
 typedef struct TQTestS2 {
     union {
@@ -543,10 +565,10 @@ _objfactory_guaranteed TQTestS2* TQTestS2_create(Task* waitfor, Event* notify);
 // advance a deferred task to run as soon as possible
 #define tqtests2Advance(self) ComplexTask_advance(ComplexTask(self))
 
-// bool tqtests2CheckDeps(TQTestS2* self);
+// bool tqtests2CheckDeps(TQTestS2* self, bool updateProgress);
 //
-// check if this task can run because all dependencies are satisfies
-#define tqtests2CheckDeps(self) ComplexTask_checkDeps(ComplexTask(self))
+// check if this task can run because all dependencies are satisfied
+#define tqtests2CheckDeps(self, updateProgress) ComplexTask_checkDeps(ComplexTask(self), updateProgress)
 
 // bool tqtests2_setState(TQTestS2* self, uint32 newstate);
 #define tqtests2_setState(self, newstate) BasicTask__setState(BasicTask(self), newstate)
@@ -561,6 +583,8 @@ _objfactory_guaranteed TQTestS2* TQTestS2_create(Task* waitfor, Event* notify);
 #define tqtests2DependOn(self, dep) (self)->_->dependOn(TQTestS2(self), Task(dep))
 // intptr tqtests2Cmp(TQTestS2* self, TQTestS2* other, uint32 flags);
 #define tqtests2Cmp(self, other, flags) (self)->_->cmp(TQTestS2(self), other, flags)
+// uint32 tqtests2Hash(TQTestS2* self, uint32 flags);
+#define tqtests2Hash(self, flags) (self)->_->hash(TQTestS2(self), flags)
 
 typedef struct TQDelayTest {
     union {
@@ -610,4 +634,75 @@ _objfactory_guaranteed TQDelayTest* TQDelayTest_create(int64 len);
 #define tqdelaytestCancel(self) (self)->_->cancel(TQDelayTest(self))
 // bool tqdelaytestReset(TQDelayTest* self);
 #define tqdelaytestReset(self) (self)->_->reset(TQDelayTest(self))
+
+typedef struct TQMTest {
+    union {
+        TQMTest_ClassIf* _;
+        void* _is_TQMTest;
+        void* _is_ComplexTask;
+        void* _is_Task;
+        void* _is_BasicTask;
+        void* _is_ObjInst;
+    };
+    ObjClassInfo* _clsinfo;
+    atomic(intptr) _ref;
+    atomic(ptr) _weakref;
+
+    atomic(uint32) state;
+    string name;        // task name to be shown in monitor output
+    int64 last;        // the last time this task was moved between queues and/or run
+    cchain oncomplete;        // functions that are called when this task has completed
+    int64 nextrun;        // next time for this task to run when scheduled
+    int64 lastprogress;        // timestamp of last progress change
+    Weak(ComplexTaskQueue)* lastq;        // The last queue this task ran on before it was deferred
+    sa_Task _depends;        // other tasks that must complete before this task can run, do not modify directly!
+    Event* notify;
+} TQMTest;
+extern ObjClassInfo TQMTest_clsinfo;
+#define TQMTest(inst) ((TQMTest*)(unused_noeval((inst) && &((inst)->_is_TQMTest)), (inst)))
+#define TQMTestNone ((TQMTest*)NULL)
+
+typedef struct TQMTest_WeakRef {
+    union {
+        ObjInst* _inst;
+        void* _is_TQMTest_WeakRef;
+        void* _is_ComplexTask_WeakRef;
+        void* _is_Task_WeakRef;
+        void* _is_BasicTask_WeakRef;
+        void* _is_ObjInst_WeakRef;
+    };
+    atomic(intptr) _ref;
+    RWLock _lock;
+} TQMTest_WeakRef;
+#define TQMTest_WeakRef(inst) ((TQMTest_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TQMTest_WeakRef)), (inst)))
+
+_objfactory_guaranteed TQMTest* TQMTest_create(Event* notify);
+// TQMTest* tqmtestCreate(Event* notify);
+#define tqmtestCreate(notify) TQMTest_create(notify)
+
+// bool tqmtestAdvance(TQMTest* self);
+//
+// advance a deferred task to run as soon as possible
+#define tqmtestAdvance(self) ComplexTask_advance(ComplexTask(self))
+
+// bool tqmtestCheckDeps(TQMTest* self, bool updateProgress);
+//
+// check if this task can run because all dependencies are satisfied
+#define tqmtestCheckDeps(self, updateProgress) ComplexTask_checkDeps(ComplexTask(self), updateProgress)
+
+// bool tqmtest_setState(TQMTest* self, uint32 newstate);
+#define tqmtest_setState(self, newstate) BasicTask__setState(BasicTask(self), newstate)
+
+// uint32 tqmtestRun(TQMTest* self, TaskQueue* tq, TQWorker* worker, TaskControl* tcon);
+#define tqmtestRun(self, tq, worker, tcon) (self)->_->run(TQMTest(self), TaskQueue(tq), TQWorker(worker), tcon)
+// bool tqmtestCancel(TQMTest* self);
+#define tqmtestCancel(self) (self)->_->cancel(TQMTest(self))
+// bool tqmtestReset(TQMTest* self);
+#define tqmtestReset(self) (self)->_->reset(TQMTest(self))
+// void tqmtestDependOn(TQMTest* self, Task* dep);
+#define tqmtestDependOn(self, dep) (self)->_->dependOn(TQMTest(self), Task(dep))
+// intptr tqmtestCmp(TQMTest* self, TQMTest* other, uint32 flags);
+#define tqmtestCmp(self, other, flags) (self)->_->cmp(TQMTest(self), other, flags)
+// uint32 tqmtestHash(TQMTest* self, uint32 flags);
+#define tqmtestHash(self, flags) (self)->_->hash(TQMTest(self), flags)
 

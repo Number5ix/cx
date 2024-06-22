@@ -65,10 +65,11 @@ class TQDelayTest extends Task
     factory create(int64 len);
 }
 
-//class TQMTest extends MTask
-//{
-    //Event *notify;
-    //override run;
+class TQMTest extends ComplexTask
+{
+    Event *notify;
+    override run;
 
-//    factory create(Event *notify, TaskQueue *tq, int limit);
-//}
+    factory create(Event *notify);
+    destroy();
+}

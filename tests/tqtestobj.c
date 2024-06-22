@@ -199,30 +199,28 @@ uint32 TQDelayTest_run(_Inout_ TQDelayTest* self, _In_ TaskQueue* tq, _In_ TQWor
     return TASK_Result_Success;
 }
 
-/* _objfactory_guaranteed TQMTest* TQMTest_create(Event* notify, TaskQueue* tq, int limit)
+_objfactory_guaranteed TQMTest* TQMTest_create(Event* notify)
 {
     TQMTest *self;
     self = objInstCreate(TQMTest);
 
     self->notify = notify;
-    self->tq = objAcquire(tq);
-    self->limit = limit;
 
     objInstInit(self);
 
     return self;
 }
 
-bool TQMTest_run(_Inout_ TQMTest* self, _In_ TaskQueue* tq, _In_ TaskQueueWorker* worker, _Inout_ TaskControl* tcon)
+uint32 TQMTest_run(_Inout_ TQMTest* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon)
 {
-    bool ret = parent_run(tq, worker, tcon);
+    tcon->notifyev = self->notify;
 
-    if(mtaskAllDone(self)) {
-        tcon->notifyev = self->notify;
-    }
+    return TASK_Result_Success;
+}
 
-    return ret;
-}*/
+void TQMTest_destroy(_Inout_ TQMTest* self)
+{
+}
 
 // Autogen begins -----
 #include "tqtestobj.auto.inc"

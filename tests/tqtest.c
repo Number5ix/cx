@@ -2,6 +2,7 @@
 #include <cx/string.h>
 #include <cx/taskqueue.h>
 #include <cx/log/logmembuf.h>
+#include <cx/container/foreach.h>
 #include "tqtestobj.h"
 
 #define TEST_FILE tqtest
@@ -426,57 +427,116 @@ static int test_tqtest_monitor(void)
     return ret;
 }
 
-#define NUM_MTASK_TASKS 50000
-/*
-static int test_tqtest_mtask(void)
+static bool signal_oncomplete(stvlist* cvars, stvlist* args)
+{
+    Event *ev;
+
+    ev = stvlNextPtr(cvars);
+    if (!ev)
+        return false;
+
+    eventSignal(ev);
+    return true;
+}
+
+#define NUM_DEPEND_TASKS 50000
+#define NUM_DEPEND_TASKS2 250
+
+// This also tests deferred tasks
+static int test_tqtest_depend(void)
 {
     Event notifyev;
     Event dummy;
     int ret = 0;
 
-    atomicStore(int32, &tqtestd_order, 0, Relaxed);
+    atomicStore(int32, &tqtests_order, 0, Relaxed);
     eventInit(&notifyev);
     eventInit(&dummy);
 
     TaskQueueConfig conf;
     tqPresetBalanced(&conf);
-    conf.wInitial = 2;
-    conf.wIdle = 2;
-    conf.wBusy = 3;
-    conf.wMax = 16;
+    conf.pool.wInitial = 2;
+    conf.pool.wIdle    = 2;
+    conf.pool.wBusy    = 3;
+    conf.pool.wMax     = 16;
     TaskQueue *q = tqCreate(_S"Test", &conf);
     if(!q || !tqStart(q))
         return 1;
 
-    TQMTest *tqmtest = tqmtestCreate(&notifyev, q, 10);
+    TQMTest *tqmtest = tqmtestCreate(&notifyev);
 
     // create tasks
     int64 dtime = timeMS(20);
-    for(int i = 0; i < NUM_DEFER_STEPS; i++) {
-        TQTestD1 *d1 = tqtestd1Create(i, dtime, &dummy);
-        TQTestD2 *d2 = tqtestd2Create(d1, &dummy);
+    for (int i = 0; i < NUM_SCHED_STEPS; i++) {
+        TQTestS1 *d1 = tqtests1Create(i, dtime, &dummy);
+        TQTestS2 *d2 = tqtests2Create(d1, &dummy);
 
-        mtaskAdd(tqmtest, d2);
-        mtaskAdd(tqmtest, d1);
+        ctaskDependOn(tqmtest, d2);
+        ctaskDependOn(tqmtest, d1);
+        tqAdd(q, d1);
+        tqAdd(q, d2);
 
         dtime += timeMS(20);
     }
 
-    for(int i = 0; i < NUM_MTASK_TASKS; i++) {
+    // start half now, half after tqmtest
+    sa_TQTest1 later;
+    saInit(&later, object, NUM_DEPEND_TASKS / 2);
+    for (int i = 0; i < NUM_DEPEND_TASKS; i++) {
         TQTest1 *t = tqtest1Create(1, 1, &dummy);
-        mtaskAdd(tqmtest, t);
+        ctaskDependOn(tqmtest, t);
+        if ((i & 1) == 0)
+            tqAdd(q, t);
+        else
+            saPush(&later, object, t);
         objRelease(&t);
     }
 
     tqAdd(q, tqmtest);
 
+    foreach(sarray, idx, TQTest1*, lt, later)
+    {
+        tqAdd(q, lt);
+    }
+    saDestroy(&later);
+
     if(!eventWaitTimeout(&notifyev, timeS(60)))
         ret = 1;
 
-    if(saSize(tqmtest->finished) != NUM_DEFER_STEPS * 2 + NUM_MTASK_TASKS)
+    if(saSize(tqmtest->_depends) != 0)
         ret = 1;
 
     if(!taskSucceeded(tqmtest))
+        ret = 1;
+
+    objRelease(&tqmtest);
+
+    // Test depending on a failed task
+    tqmtest = tqmtestCreate(&dummy);
+    cchainAttach(&tqmtest->oncomplete, signal_oncomplete, stvar(ptr, &notifyev));
+
+    saInit(&later, object, NUM_DEPEND_TASKS * 2);
+    for (int i = 0; i < NUM_DEPEND_TASKS2; i++) {
+        TQTest1* t = tqtest1Create(1, 1, &dummy);
+        ctaskDependOn(tqmtest, t);
+        saPushC(&later, object, &t);
+    }
+    for (int i = 0; i < NUM_DEPEND_TASKS2; i++) {
+        TQTestFail* t = tqtestfailCreate(i, &dummy);
+        ctaskDependOn(tqmtest, t);
+        saPushC(&later, object, &t);
+    }
+
+    tqAdd(q, tqmtest);
+
+    foreach (sarray, idx, TQTest1*, lt, later) {
+        tqAdd(q, lt);
+    }
+    saDestroy(&later);
+
+    if (!eventWaitTimeout(&notifyev, timeS(60)))
+        ret = 1;
+    if (!taskFailed(tqmtest))
         ret = 1;
 
     objRelease(&tqmtest);
@@ -487,7 +547,7 @@ static int test_tqtest_mtask(void)
     tqRelease(&q);
 
     return ret;
-}*/
+}
 
 testfunc tqtest_funcs[] = {
     { "task", test_tqtest_task },
@@ -496,6 +556,6 @@ testfunc tqtest_funcs[] = {
     { "call", test_tqtest_call },
     { "sched", test_tqtest_sched },
     { "monitor", test_tqtest_monitor },
-//    { "mtask", test_tqtest_mtask },
+    { "depend", test_tqtest_depend },
     { 0, 0 }
 };
