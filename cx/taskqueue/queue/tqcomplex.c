@@ -386,17 +386,23 @@ bool ComplexTaskQueue_add(_Inout_ ComplexTaskQueue* self, _In_ BasicTask* btask)
             if (!btask_setState(btask, TASK_Deferred))
                 return false;
 
-            // add a reference and put it in the done queue, so it gets moved to the defer hash
-            objAcquire(btask);
-            ctask->last = clockTimer();
-            if (!prqPush(&self->doneq, btask)) {
-                btask_setState(btask, TASK_Failed);
-                objRelease(&btask);
-                return false;
+            objDestroyWeak(&ctask->lastq);
+            ctask->lastq = objGetWeak(ComplexTaskQueue, self);
+
+            // check again to avert a possible race with all tasks completing before the weak reference is set
+            if (!ctaskCheckDeps(ctask)) {
+                // add a reference and put it in the done queue, so it gets moved to the defer hash
+                objAcquire(btask);
+                ctask->last = clockTimer();
+                if (!prqPush(&self->doneq, btask)) {
+                    btask_setState(btask, TASK_Failed);
+                    objRelease(&btask);
+                    return false;
+                }
+                // notify manager to go pick it up
+                tqmanagerNotify(self->manager);
+                return true;
             }
-            // notify manager to go pick it up
-            tqmanagerNotify(self->manager);
-            return true;
         }
     }
 
