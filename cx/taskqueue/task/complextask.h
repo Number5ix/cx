@@ -83,11 +83,11 @@ bool ComplexTask_advance(_Inout_ ComplexTask* self);
 // advance a deferred task to run as soon as possible
 #define ctaskAdvance(self) ComplexTask_advance(ComplexTask(self))
 
-bool ComplexTask_checkDeps(_Inout_ ComplexTask* self);
-// bool ctaskCheckDeps(ComplexTask* self);
+bool ComplexTask_checkDeps(_Inout_ ComplexTask* self, bool updateProgress);
+// bool ctaskCheckDeps(ComplexTask* self, bool updateProgress);
 //
 // check if this task can run because all dependencies are satisfied
-#define ctaskCheckDeps(self) ComplexTask_checkDeps(ComplexTask(self))
+#define ctaskCheckDeps(self, updateProgress) ComplexTask_checkDeps(ComplexTask(self), updateProgress)
 
 // bool ctask_setState(ComplexTask* self, uint32 newstate);
 #define ctask_setState(self, newstate) BasicTask__setState(BasicTask(self), newstate)

@@ -172,9 +172,11 @@ int64 ComplexTaskQueue__processExtra(_Inout_ ComplexTaskQueue* self, bool tasksc
             }
             break;
         case TASK_Deferred:
-            // if the task was deferred because it's waiting on dependencies, make sure they're all
-            // satisfied before releasing it
-            if (ctaskCheckDeps(ctask)) {
+            // If the task was deferred because it's waiting on dependencies, make sure they're all
+            // satisfied before releasing it. Updating progress can make this more expensive if
+            // there are many dependencies, so only do that if we have a monitor and need to care
+            // about progress.
+            if (ctaskCheckDeps(ctask, self->monitor != NULL)) {
                 ctask_setState(ctask, TASK_Waiting);
                 if (htRemove(&self->deferred, object, ctask)) {
                     ctask->last = now;
@@ -186,9 +188,18 @@ int64 ComplexTaskQueue__processExtra(_Inout_ ComplexTaskQueue* self, bool tasksc
                 }
             }
             break;
+        case TASK_Failed:
+            // A failed task can be advanced if a dependency fails; try to move these straight to
+            // doneq from wherever they are.
+            if (htRemove(&self->deferred, object, ctask) ||
+                saFindRemove(&self->scheduled, object, ctask)) {
+                prqPush(&self->doneq, ctask);
+                waittime = 0;
+            }
+            break;
         default:
-            ctask_setState(ctask, TASK_Failed);
-            objRelease(&ctask);
+            // somebody tried to advance a task that isn't deferred or scheduled, just ignore it
+            break;
         }
     }
 
@@ -381,7 +392,7 @@ bool ComplexTaskQueue_add(_Inout_ ComplexTaskQueue* self, _In_ BasicTask* btask)
     ComplexTask* ctask = objDynCast(btask, ComplexTask);
     if (ctask) {
         // if it's a complex task it might have dependencies
-        if (!ctaskCheckDeps(ctask)) {
+        if (!ctaskCheckDeps(ctask, false)) {
             // deps aren't satisifed, it needs to go in defer hash instead of run queue
             if (!btask_setState(btask, TASK_Deferred))
                 return false;
@@ -389,8 +400,9 @@ bool ComplexTaskQueue_add(_Inout_ ComplexTaskQueue* self, _In_ BasicTask* btask)
             objDestroyWeak(&ctask->lastq);
             ctask->lastq = objGetWeak(ComplexTaskQueue, self);
 
-            // check again to avert a possible race with all tasks completing before the weak reference is set
-            if (!ctaskCheckDeps(ctask)) {
+            // check again to avert a possible race with all tasks completing before the weak
+            // reference is set
+            if (!ctaskCheckDeps(ctask, false)) {
                 // add a reference and put it in the done queue, so it gets moved to the defer hash
                 objAcquire(btask);
                 ctask->last = clockTimer();

@@ -64,7 +64,7 @@ uint32 ComplexTask_hash(_Inout_ ComplexTask* self, uint32 flags)
     return hashMurmur3((uint8*)&self, sizeof(void*));
 }
 
-bool ComplexTask_checkDeps(_Inout_ ComplexTask* self)
+bool ComplexTask_checkDeps(_Inout_ ComplexTask* self, bool updateProgress)
 {
     bool ret = true;
 
@@ -74,13 +74,29 @@ bool ComplexTask_checkDeps(_Inout_ ComplexTask* self)
             saRemove(&self->_depends, i);
             self->lastprogress = clockTimer();
         } else if (state == TASK_Failed) {
-            btask_setState(self, TASK_Failed);
             saRemove(&self->_depends, i);
+            if (!btaskFailed(self)) {
+                btask_setState(self, TASK_Failed);
+                if (self->oncomplete) {
+                    // Normally the completion callback would be called when the task is run.
+                    // But since it will never run due to a depedency failing, call it now.
+                    cchainCall(&self->oncomplete, stvar(object, self));
+                    cchainDestroy(&self->oncomplete);   // oncomplete callbacks are one-shots
+                }
+                ctaskAdvance(self);
+            }
+            ret = false;   // don't run now, instead re-process in advanceq
         } else {
-            ret                = false;
-            ComplexTask* ctask = objDynCast(self->_depends.a[i], ComplexTask);
-            if (ctask)
-                self->lastprogress = max(self->lastprogress, ctask->lastprogress);
+            ret = false;
+            if (updateProgress) {
+                ComplexTask* ctask = objDynCast(self->_depends.a[i], ComplexTask);
+                if (ctask)
+                    self->lastprogress = max(self->lastprogress, ctask->lastprogress);
+            } else {
+                // we don't care about updating progress, so no need to keep checking once one that
+                // isn't complete is found
+                break;
+            }
         }
     }
 

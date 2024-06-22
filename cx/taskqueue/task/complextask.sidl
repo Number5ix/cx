@@ -18,7 +18,7 @@ class ComplexTaskQueue;
 
     void dependOn([in] Task *dep);
     unbound bool advance();     // advance a deferred task to run as soon as possible
-    unbound bool checkDeps();   // check if this task can run because all dependencies are satisfied
+    unbound bool checkDeps(bool updateProgress);   // check if this task can run because all dependencies are satisfied
 	override reset;
     override cmp;
     override hash;
