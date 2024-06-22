@@ -4,6 +4,7 @@
 // clang-format off
 #include <cx/obj.h>
 #include "task.h"
+#include <cx/thread/rwlock.h>
 
 typedef struct TaskQueue TaskQueue;
 typedef struct TaskQueue_WeakRef TaskQueue_WeakRef;
@@ -34,6 +35,7 @@ typedef struct ComplexTask_ClassIf {
     bool (*reset)(_Inout_ void* self);
     void (*dependOn)(_Inout_ void* self, _In_ Task* dep);
     intptr (*cmp)(_Inout_ void* self, void* other, uint32 flags);
+    uint32 (*hash)(_Inout_ void* self, uint32 flags);
 } ComplexTask_ClassIf;
 extern ComplexTask_ClassIf ComplexTask_ClassIf_tmpl;
 
@@ -84,7 +86,7 @@ bool ComplexTask_advance(_Inout_ ComplexTask* self);
 bool ComplexTask_checkDeps(_Inout_ ComplexTask* self);
 // bool ctaskCheckDeps(ComplexTask* self);
 //
-// check if this task can run because all dependencies are satisfies
+// check if this task can run because all dependencies are satisfied
 #define ctaskCheckDeps(self) ComplexTask_checkDeps(ComplexTask(self))
 
 // bool ctask_setState(ComplexTask* self, uint32 newstate);
@@ -100,4 +102,6 @@ bool ComplexTask_checkDeps(_Inout_ ComplexTask* self);
 #define ctaskDependOn(self, dep) (self)->_->dependOn(ComplexTask(self), Task(dep))
 // intptr ctaskCmp(ComplexTask* self, ComplexTask* other, uint32 flags);
 #define ctaskCmp(self, other, flags) (self)->_->cmp(ComplexTask(self), other, flags)
+// uint32 ctaskHash(ComplexTask* self, uint32 flags);
+#define ctaskHash(self, flags) (self)->_->hash(ComplexTask(self), flags)
 

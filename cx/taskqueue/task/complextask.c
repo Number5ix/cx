@@ -11,6 +11,7 @@
 // ==================== Auto-generated section ends ======================
 #include <cx/taskqueue.h>
 #include <cx/taskqueue/queue/tqcomplex.h>
+#include "cx/utils/murmur.h"
 
 bool ComplexTask_advance(_Inout_ ComplexTask* self)
 {
@@ -55,6 +56,12 @@ intptr ComplexTask_cmp(_Inout_ ComplexTask* self, ComplexTask* other, uint32 fla
         return nrcmp;
 
     return stCmp(ptr, self, other);
+}
+
+uint32 ComplexTask_hash(_Inout_ ComplexTask* self, uint32 flags)
+{
+    // just hash the pointer
+    return hashMurmur3((uint8*)&self, sizeof(void*));
 }
 
 bool ComplexTask_checkDeps(_Inout_ ComplexTask* self)

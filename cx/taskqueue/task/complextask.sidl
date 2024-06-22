@@ -1,4 +1,5 @@
 #include "task.sidl"
+#include <cx/thread/rwlock.h>
 
 enum ComplexTaskRunResultEnum {
     TASK_Result_Schedule = TASK_Result_Basic_Count,     // schedule the task to run after the time specified in the TaskControl structure
@@ -9,7 +10,7 @@ enum ComplexTaskRunResultEnum {
 
 class ComplexTaskQueue;
 
-[methodprefix ctask] abstract class ComplexTask extends Task implements Sortable {
+[methodprefix ctask] abstract class ComplexTask extends Task implements Sortable implements Hashable {
     int64 nextrun;              // next time for this task to run when scheduled
     int64 lastprogress;         // timestamp of last progress change
     weak:ComplexTaskQueue lastq;   // The last queue this task ran on before it was deferred
@@ -17,7 +18,8 @@ class ComplexTaskQueue;
 
     void dependOn([in] Task *dep);
     unbound bool advance();     // advance a deferred task to run as soon as possible
-    unbound bool checkDeps();   // check if this task can run because all dependencies are satisfies
+    unbound bool checkDeps();   // check if this task can run because all dependencies are satisfied
 	override reset;
     override cmp;
+    override hash;
 }

@@ -12,16 +12,24 @@ static Sortable _impl_ComplexTask_Sortable = {
     .cmp = (intptr (*)(void*, void*, uint32))ComplexTask_cmp,
 };
 
+static Hashable _impl_ComplexTask_Hashable = {
+    ._size = sizeof(Hashable),
+    ._implements = (ObjIface*)&Hashable_tmpl,
+    .hash = (uint32 (*)(void*, uint32))ComplexTask_hash,
+};
+
 static ComplexTask_ClassIf _impl_ComplexTask_ComplexTask_ClassIf = {
     ._size = sizeof(ComplexTask_ClassIf),
     ._implements = (ObjIface*)&ComplexTask_ClassIf_tmpl,
     .dependOn = (void (*)(void*, Task*))ComplexTask_dependOn,
     .reset = (bool (*)(void*))ComplexTask_reset,
     .cmp = (intptr (*)(void*, void*, uint32))ComplexTask_cmp,
+    .hash = (uint32 (*)(void*, uint32))ComplexTask_hash,
 };
 
 static ObjIface* _ifimpl_ComplexTask[] = {
     (ObjIface*)&_impl_ComplexTask_Sortable,
+    (ObjIface*)&_impl_ComplexTask_Hashable,
     (ObjIface*)&_impl_ComplexTask_ComplexTask_ClassIf,
     NULL
 };
