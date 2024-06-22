@@ -74,9 +74,14 @@ bool TQThreadPoolRunner_removeWorker(_Inout_ TQThreadPoolRunner* self)
         // OSes support it, and even Windows can't wait on more than one futex at a time.
         eventSignalAll(&self->tq->workev);
 
-        while (!worker->shutdown && retries < 10) {
-            ++retries;   // eventually give up and hope it shuts down
-            eventWaitTimeout(&self->workershutdown, timeS(1));
+        // If we're shrinking and the worker picked to shut down happens to be the one
+        // running an in-worker manager, don't wait on it. Instead just return; as soon as
+        // we get back to the main worker loop the thread will see the flag and exit.
+        if (worker->thr != thrCurrent()) {
+            while (!worker->shutdown && retries < 10) {
+                ++retries;   // eventually give up and hope it shuts down
+                eventWaitTimeout(&self->workershutdown, timeS(1));
+            }
         }
         objRelease(&worker);
         return true;
