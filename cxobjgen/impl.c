@@ -675,7 +675,7 @@ bool writeImpl(string fname, bool mixinimpl)
         NULL);
     pcre2_code* reParentMacro = pcre2_compile(
         (PCRE2_SPTR) "^#(?:define|undef) parent_[A-Za-z0-9_]+"
-        "(?:\\([^;]*\\) [A-Za-z0-9_]+\\([^;]*\\))?$",
+        "(?:\\([^;]*\\)(?:(?: \\\\\\s+)?| )[A-Za-z0-9_]+\\([^;]*\\))?$",
         PCRE2_ZERO_TERMINATED,
         0,
         &err,

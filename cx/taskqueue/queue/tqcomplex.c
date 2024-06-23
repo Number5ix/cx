@@ -143,8 +143,6 @@ bool ComplexTaskQueue__needProcessExtra(_Inout_ ComplexTaskQueue* self)
     return saSize(self->scheduled) > 0;
 }
 
-#define parent__processExtra(taskscompleted) \
-    TaskQueue__processExtra((TaskQueue*)(self), taskscompleted)
 extern int64 TaskQueue__processExtra(_Inout_ TaskQueue* self, bool taskscompleted);   // parent
 #define parent__processExtra(taskscompleted) \
     TaskQueue__processExtra((TaskQueue*)(self), taskscompleted)
