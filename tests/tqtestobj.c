@@ -133,8 +133,8 @@ uint32 TQTestS1_run(_Inout_ TQTestS1* self, _In_ TaskQueue* tq, _In_ TQWorker* w
     if(self->rantime + self->dtime > clockTimer())
         return TASK_Result_Failure;   // was run early!!!
 
-    if(atomicLoad(int32, &tqtests_order, Acquire) > self->order)
-        return TASK_Result_Failure;
+//    if(atomicLoad(int32, &tqtests_order, Acquire) > self->order)
+//        return TASK_Result_Failure;
 
     atomicStore(int32, &tqtests_order, self->order, Release);
 
