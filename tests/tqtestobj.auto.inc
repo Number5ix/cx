@@ -218,7 +218,6 @@ ObjClassInfo TQMTest_clsinfo = {
     .instsize = sizeof(TQMTest),
     .classif = (ObjIface*)&TQMTest_ClassIf_tmpl,
     .parent = &ComplexTask_clsinfo,
-    .destroy = (void(*)(void*))TQMTest_destroy,
     .ifimpl = _ifimpl_TQMTest,
 };
 

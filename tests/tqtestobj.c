@@ -218,10 +218,6 @@ uint32 TQMTest_run(_Inout_ TQMTest* self, _In_ TaskQueue* tq, _In_ TQWorker* wor
     return TASK_Result_Success;
 }
 
-void TQMTest_destroy(_Inout_ TQMTest* self)
-{
-}
-
 // Autogen begins -----
 #include "tqtestobj.auto.inc"
 // Autogen ends -------

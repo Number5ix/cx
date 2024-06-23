@@ -170,7 +170,7 @@ static int test_tqtest_failure(void)
     return ret;
 }
 
-static int test_tqtest_concurrency(void)
+static int test_tqtest_concurrency(bool dedicated)
 {
     int ret = 0;
     int total = 0;
@@ -185,7 +185,7 @@ static int test_tqtest_concurrency(void)
     conf.pool.tIdle      = timeS(1);
     conf.pool.tRampUp    = timeMS(2);
     conf.pool.tRampDown  = timeMS(50);
-    conf.flags |= TQ_NoComplex;
+    conf.flags |= TQ_NoComplex | (dedicated ? TQ_ManagerThread : 0);
     TaskQueue* spmc = tqCreate(_S"SPMC Test", &conf);
     if(!spmc || !tqStart(spmc))
         return 1;
@@ -231,6 +231,16 @@ static int test_tqtest_concurrency(void)
         ret = 1;
 
     return ret;
+}
+
+static int test_tqtest_concurrency_inworker(void)
+{
+    return test_tqtest_concurrency(false);
+}
+
+static int test_tqtest_concurrency_dedicated(void)
+{
+    return test_tqtest_concurrency(true);
 }
 
 static bool tqtest_callcb(TaskQueue *tq, void *data)
@@ -287,7 +297,7 @@ static int test_tqtest_call(void)
 
 #define NUM_SCHED_STEPS 10
 
-static bool is_monitor_test = false;
+static int is_monitor_test = 0;
 static LogCategory *moncat;
 atomic(int32) tqtests_order;
 
@@ -323,7 +333,7 @@ static int test_tqtest_sched(void)
         conf.monitor.mTaskWaiting = timeMS(20);
         conf.monitor.mSuppress    = timeMS(50);
         conf.monitor.mLogCat      = moncat;
-        conf.flags |= TQ_Monitor;
+        conf.flags |= TQ_Monitor | (is_monitor_test == 2 ? TQ_ManagerThread : 0);
     }
     conf.pool.wInitial = 4;
     conf.pool.wIdle    = 4;
@@ -406,14 +416,14 @@ static int test_tqtest_sched(void)
     return ret;
 }
 
-static int test_tqtest_monitor(void)
+static int test_tqtest_monitor(bool dedicated)
 {
     LogMembufData *mbuf = logmembufCreate(65536);
     moncat = logCreateCat(_S"MonitorTest", true);
     logRegisterDest(LOG_Diag, moncat, logmembufDest, mbuf);
 
     // reuse the sched test, but with the monitor enabled
-    is_monitor_test = true;
+    is_monitor_test = dedicated ? 2 : 1;
     int ret = test_tqtest_sched();
     is_monitor_test = false;
 
@@ -425,6 +435,16 @@ static int test_tqtest_monitor(void)
     logShutdown();
 
     return ret;
+}
+
+static int test_tqtest_monitor_inworker(void)
+{
+    return test_tqtest_monitor(false);
+}
+
+static int test_tqtest_monitor_dedicated(void)
+{
+    return test_tqtest_monitor(true);
 }
 
 static bool signal_oncomplete(stvlist* cvars, stvlist* args)
@@ -552,10 +572,12 @@ static int test_tqtest_depend(void)
 testfunc tqtest_funcs[] = {
     { "task", test_tqtest_task },
     { "failure", test_tqtest_failure },
-    { "concurrency", test_tqtest_concurrency },
-    { "call", test_tqtest_call },
+    { "concurrency_inworker", test_tqtest_concurrency_inworker },
+    { "concurrency_dedicated", test_tqtest_concurrency_dedicated },
+    { "call",        test_tqtest_call       },
     { "sched", test_tqtest_sched },
-    { "monitor", test_tqtest_monitor },
+    { "monitor_inworker", test_tqtest_monitor_inworker },
+    { "monitor_dedicated", test_tqtest_monitor_dedicated },
     { "depend", test_tqtest_depend },
     { 0, 0 }
 };

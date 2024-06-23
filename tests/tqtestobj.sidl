@@ -71,5 +71,4 @@ class TQMTest extends ComplexTask
     override run;
 
     factory create(Event *notify);
-    destroy();
 }
