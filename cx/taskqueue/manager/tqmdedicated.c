@@ -74,6 +74,7 @@ bool TQDedicatedManager_stop(_Inout_ TQDedicatedManager* self)
         return false;
 
     thrRequestExit(self->mgrthread);
+    eventSignal(&self->mgrnotify);
     if (!thrWait(self->mgrthread, timeS(10)))
         return false;
 
