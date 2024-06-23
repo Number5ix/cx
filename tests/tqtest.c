@@ -569,15 +569,182 @@ static int test_tqtest_depend(void)
     return ret;
 }
 
+static int test_tqtest_manual(void)
+{
+    int ret   = 0;
+    int total = 0, total2 = 0;
+    sa_TQTest1 ttasks;
+
+    TaskQueueConfig conf = { 0 };
+    conf.flags           = TQ_Manual;
+    TaskQueue* q         = tqCreate(_S"Test", &conf);
+    if (!q || !tqStart(q))
+        return 1;
+
+    saInit(&ttasks, object, NUM_TASK_TEST);
+
+    eventInit(&notifyev);
+
+    // create tasks
+    for (int i = 0; i < NUM_TASK_TEST; i++) {
+        int n1 = rand(), n2 = rand();
+        total += n1 + n2;
+        TQTest1* t = tqtest1Create(n1, n2, &notifyev);
+        if (t) {
+            saPushC(&ttasks, object, &t);
+        } else {
+            ret = 1;
+        }
+    }
+
+    // run tasks
+    int ntasks = saSize(ttasks);
+    for (int i = 0; i < ntasks; i++) {
+        tqAdd(q, ttasks.a[i]);
+    }
+
+    // in non-oneshot mode, a single tick should process all pending tasks
+    tqTick(q);
+
+    // check tasks
+    bool done = true;
+    for (int i = 0; i < ntasks; i++) {
+        switch (btaskState(ttasks.a[i])) {
+        case TASK_Succeeded:
+            total2 += ttasks.a[i]->total;
+            break;
+        case TASK_Failed:
+            ret = 1;
+            break;
+        default:
+            done = false;
+        }
+    }
+
+    if (!done)
+        ret = 1;
+
+    eventDestroy(&notifyev);
+    tqShutdown(q, timeS(60));
+    tqRelease(&q);
+
+    if (total != total2)
+        ret = 1;
+
+    saDestroy(&ttasks);
+
+    return ret;
+}
+
+static int test_tqtest_oneshot(void)
+{
+    int ret   = 0;
+    int total = 0, total2 = 0;
+    sa_TQTest1 ttasks;
+
+    TaskQueueConfig conf = { 0 };
+    conf.flags           = TQ_Manual | TQ_Oneshot;
+    TaskQueue* q         = tqCreate(_S"Test", &conf);
+    if (!q || !tqStart(q))
+        return 1;
+
+    saInit(&ttasks, object, NUM_TASK_TEST);
+
+    eventInit(&notifyev);
+
+    // create tasks
+    for (int i = 0; i < NUM_TASK_TEST; i++) {
+        int n1 = rand(), n2 = rand();
+        total += n1 + n2;
+        TQTest1* t = tqtest1Create(n1, n2, &notifyev);
+        if (t) {
+            saPushC(&ttasks, object, &t);
+        } else {
+            ret = 1;
+        }
+    }
+
+    // run tasks
+    int ntasks = saSize(ttasks);
+    for (int i = 0; i < ntasks; i++) {
+        tqAdd(q, ttasks.a[i]);
+    }
+
+    // in oneshot mode, this should only process a single task
+    tqTick(q);
+
+    // check tasks
+    int ndone = 0;
+    for (int i = 0; i < ntasks; i++) {
+        switch (btaskState(ttasks.a[i])) {
+        case TASK_Succeeded:
+            ndone++;
+            break;
+        case TASK_Failed:
+            ndone++;
+            ret = 1;
+            break;
+        }
+    }
+
+    // There should only be 1 task done so far
+    if (ndone != 1)
+        ret = 1;
+
+    for(int i = 0; i < NUM_TASK_TEST / 2; i++) {
+        tqTick(q);
+    }
+
+    // check tasks
+    ndone = 0;
+    for (int i = 0; i < ntasks; i++) {
+        switch (btaskState(ttasks.a[i])) {
+        case TASK_Succeeded:
+            ndone++;
+            break;
+        case TASK_Failed:
+            ndone++;
+            ret = 1;
+            break;
+        }
+    }
+
+    if (ndone != NUM_TASK_TEST / 2 + 1)
+        ret = 1;
+
+    for (int i = 0; i < NUM_TASK_TEST / 2 - 1; i++) {
+        tqTick(q);
+    }
+
+    eventDestroy(&notifyev);
+    tqShutdown(q, timeS(60));
+    tqRelease(&q);
+
+    for (int i = 0; i < ntasks; i++) {
+        if (btaskState(ttasks.a[i]) != TASK_Succeeded)
+            ret = 1;
+        total2 += ttasks.a[i]->total;
+    }
+
+    if (total != total2)
+        ret = 1;
+
+    saDestroy(&ttasks);
+
+    return ret;
+}
+
 testfunc tqtest_funcs[] = {
-    { "task", test_tqtest_task },
-    { "failure", test_tqtest_failure },
-    { "concurrency_inworker", test_tqtest_concurrency_inworker },
-    { "concurrency_dedicated", test_tqtest_concurrency_dedicated },
-    { "call",        test_tqtest_call       },
-    { "sched", test_tqtest_sched },
-    { "monitor_inworker", test_tqtest_monitor_inworker },
-    { "monitor_dedicated", test_tqtest_monitor_dedicated },
-    { "depend", test_tqtest_depend },
-    { 0, 0 }
+    {"task",                   test_tqtest_task                 },
+    { "failure",               test_tqtest_failure              },
+    { "concurrency_inworker",  test_tqtest_concurrency_inworker },
+    { "concurrency_dedicated", test_tqtest_concurrency_dedicated},
+    { "call",                  test_tqtest_call                 },
+    { "sched",                 test_tqtest_sched                },
+    { "monitor_inworker",      test_tqtest_monitor_inworker     },
+    { "monitor_dedicated",     test_tqtest_monitor_dedicated    },
+    { "depend",                test_tqtest_depend               },
+    { "manual",                test_tqtest_manual               },
+    { "oneshot",               test_tqtest_oneshot              },
+    { 0,                       0                                }
 };

@@ -38,6 +38,9 @@ extern bool TQRunner_start(_Inout_ TQRunner* self, _In_ TaskQueue* tq);   // par
 #define parent_start(tq) TQRunner_start((TQRunner*)(self), tq)
 bool TQManualRunner_start(_Inout_ TQManualRunner* self, _In_ TaskQueue* tq)
 {
+    if (!parent_start(tq))
+        return false;
+
     self->worker = tqmanualworkerCreate();
     return true;
 }
@@ -47,7 +50,7 @@ extern bool TQRunner_stop(_Inout_ TQRunner* self);   // parent
 bool TQManualRunner_stop(_Inout_ TQManualRunner* self)
 {
     objRelease(&self->worker);
-    return true;
+    return parent_stop();
 }
 
 // Autogen begins -----

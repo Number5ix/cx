@@ -32,6 +32,9 @@ TaskQueue *tqCreate(_In_ strref name, _In_ TaskQueueConfig *tqconfig);
 // Start or re-start a queue.
 #define tqStart taskqueueStart
 
+// Tick a manual queue
+#define tqTick taskqueueTick
+
 // Attempt to shut down a queue.
 // If wait is nonzero, will wait for workers to exit.
 // Returns true if the queue is completely shut down and all worker threads
