@@ -46,6 +46,8 @@ static void* _thrEntryPoint(void *data)
 
     pthread_cleanup_push(_thrCancelCleanup, thr);
     thr->exitCode = thr->entry(Thread(thr));
+    saClear(&thr->_argsa);
+    thr->args.count = 0;
     pthread_cleanup_pop(true);
     objRelease(&thr);
 

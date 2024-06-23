@@ -55,6 +55,8 @@ static unsigned __stdcall _thrEntryPoint(void *data)
         pSetThreadDescription(thr->handle, strToUTF16S(thr->name));
 
     thr->exitCode = thr->entry(Thread(thr));
+    saClear(&thr->_argsa);
+    thr->args.count = 0;
 
     atomicStore(bool, &thr->running, false, AcqRel);
     objRelease(&thr);

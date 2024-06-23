@@ -73,6 +73,8 @@ static void* _thrEntryPoint(void *data)
     pthread_setname_np(thr->pthr, strC(thr->name));
 
     thr->exitCode = thr->entry(Thread(thr));
+    saClear(&thr->_argsa);
+    thr->args.count = 0;
 
     pthread_cleanup_pop(true);              // calls _thrCancelCleanup
     objRelease(&thr);

@@ -46,7 +46,6 @@ static int tqManagerThread(Thread* thr)
         eventWaitTimeout(&self->mgrnotify, clamphigh(waittime, MAX_MANAGER_INTERVAL));
     }
 
-    saClear(&thr->_argsa);   // TODO: Remove this when thread code is updated
     return 0;
 }
 

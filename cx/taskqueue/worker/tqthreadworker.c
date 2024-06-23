@@ -47,8 +47,6 @@ static int tqWorkerThread(Thread* thr)
     if (runner)
         eventSignal(&runner->workershutdown);
 
-    saClear(&thr->_argsa);   // TODO: Remove once thread code is updated
-
     return 0;
 }
 
