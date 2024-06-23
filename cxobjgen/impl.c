@@ -18,9 +18,10 @@ static sa_string parentmacros;
 
 static bool striCharNoWS(striter* iter, uint8* out)
 {
-    uint8 ch;
+    uint8 ch, nextch;
     while (striChar(iter, &ch)) {
-        if (ch != ' ' && ch != '\t' && ch != '\r' && ch != '\n') {
+        if (ch != ' ' && ch != '\t' && ch != '\r' && ch != '\n' &&
+            !(ch == '\\' && striPeekChar(iter, &nextch) && (nextch == '\r' || nextch == '\n'))) {
             *out = ch;
             return true;
         }
