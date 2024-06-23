@@ -493,6 +493,7 @@ static int test_tqtest_depend(void)
 
         ctaskDependOn(tqmtest, d2);
         ctaskDependOn(tqmtest, d1);
+        ctaskDependOn(d2, d1);
         tqAdd(q, d1);
         tqAdd(q, d2);
 
