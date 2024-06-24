@@ -519,6 +519,8 @@ static int test_meta_ptry_xfunc()
     if (!strEq(out, _S"A1B1C1D1E1F1FeDcDeC3AzA3A4"))
         ret = 1;
 
+    strDestroy(&out);
+
     return ret;
 }
 

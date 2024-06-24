@@ -76,6 +76,8 @@ static int test_prqtest_basic()
             ret = 1;
     }
 
+    prqDestroy(&queue);
+
     return ret;
 }
 
@@ -232,6 +234,9 @@ static int test_prqtest_mt()
     if(result != expected)
         ret = 1;
 
+    prqDestroy(&queue1);
+    prqDestroy(&queue2);
+
     return ret;
 }
 
@@ -293,6 +298,8 @@ static int test_prqtest_grow()
     // queue should be empty now
     if(prqPop(&queue) != NULL)
         ret = 1;
+
+    prqDestroy(&queue);
 
     return ret;
 }
@@ -392,6 +399,9 @@ static int test_prqtest_gc()
     // queue should be empty now
     if(prqPop(&queue) != NULL)
         ret = 1;
+
+    prqDestroy(&queue);
+
     return ret;
 }
 
@@ -463,6 +473,9 @@ static int test_prqtest_mpmc()
     unsigned int result = atomicLoad(uint32, &total, Acquire);
     if(result != expected)
         ret = 1;
+
+    prqDestroy(&queue1);
+    prqDestroy(&queue2);
 
     return ret;
 }

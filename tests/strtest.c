@@ -169,6 +169,8 @@ static int test_compare()
     if (strCmp(t2l, t2l2) != 0)
         return 1;
 
+    strDestroy(&t2l2);
+
     return 0;
 }
 

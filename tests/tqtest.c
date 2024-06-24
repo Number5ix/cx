@@ -496,6 +496,8 @@ static int test_tqtest_depend(void)
         ctaskDependOn(d2, d1);
         tqAdd(q, d1);
         tqAdd(q, d2);
+        objRelease(&d1);
+        objRelease(&d2);
 
         dtime += timeMS(20);
     }
@@ -564,6 +566,7 @@ static int test_tqtest_depend(void)
 
     eventDestroy(&dummy);
     eventDestroy(&notifyev);
+
     tqShutdown(q, timeS(60));
     tqRelease(&q);
 

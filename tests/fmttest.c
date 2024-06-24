@@ -234,6 +234,8 @@ static int test_object()
     objRelease(&oo3);
     objRelease(&oo4);
     objRelease(&oo5);
+    strDestroy(&res);
+
     return 0;
 }
 
