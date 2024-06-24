@@ -294,7 +294,6 @@ bool ComplexTaskQueue__runTask(_Inout_ ComplexTaskQueue* self, _Inout_ BasicTask
 {
     // context: This is called from worker threads. The task pointed to by pbtask has been removed
     // from the run queue and exists only in the parameter; so we MUST do something with it.
-    int64 now      = clockTimer();
     bool completed = false;
 
     if (!btask_setState(*pbtask, TASK_Running)) {
@@ -308,6 +307,7 @@ bool ComplexTaskQueue__runTask(_Inout_ ComplexTaskQueue* self, _Inout_ BasicTask
 
     ComplexTask* ctask = objDynCast(*pbtask, ComplexTask);
     Task* task         = Task(ctask);
+    int64 now          = clockTimer();
 
     if (ctask &&
         (tresult == TASK_Result_Schedule_Progress || tresult == TASK_Result_Defer_Progress)) {
