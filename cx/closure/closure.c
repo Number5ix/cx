@@ -70,5 +70,6 @@ void closureDestroy(closure *cls)
         stvarDestroy(&c->cvars[i]);
     }
 
+    xaFree(*cls);
     *cls = NULL;
 }
