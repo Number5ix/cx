@@ -46,6 +46,8 @@ _Use_decl_annotations_
 LogDest *logRegisterDestWithDefer(int maxlevel, LogCategory *catfilter, LogDestFunc dest, void *userdata, LogDest *deferdest)
 {
     logCheckInit();
+    if (!atomicLoad(bool, &_log_running, Acquire))
+        return NULL;
 
     if (!deferdest) {
         // just a regular registration in this case
@@ -60,7 +62,7 @@ LogDest *logRegisterDestWithDefer(int maxlevel, LogCategory *catfilter, LogDestF
     ndest->userdata = userdata;
 
     // swap out the new destination for the deferred one
-    withMutex(&_log_dests_lock) {
+    withMutex(&_log_op_lock) {
         saPush(&_log_dests, ptr, ndest);
         logUnregisterDestLocked(deferdest);     // will recalculate maxlevel cache
 

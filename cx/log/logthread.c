@@ -32,22 +32,33 @@ static int logthread_func(_Inout_ Thread *self)
         }
 
         // now that we have a bunch of log entries and batches, process them
-        mutexAcquire(&_log_dests_lock);
+        mutexAcquire(&_log_op_lock);
         foreach(sarray, ent__idx, LogEntry*, ent, ents) {
             ++batchid;
             while (ent) {
                 LogEntry *next = ent->_next;
-                foreach(sarray, dest_idx, LogDest *, dest, _log_dests) {
-                    if (ent->level <= dest->maxlevel && applyCatFilter(dest->catfilter, ent->cat)) {
-                        // dispatch to log destination
-                        dest->func(ent->level, ent->cat, ent->timestamp, ent->msg, batchid, dest->userdata);
+
+                // verify that this log entry is using a category that was registered to the log system
+                if (ent->cat == LogDefault || htHasKey(_log_categories, ptr, ent->cat)) {
+                    // send it to all relevant destinations
+                    foreach (sarray, dest_idx, LogDest*, dest, _log_dests) {
+                        if (ent->level <= dest->maxlevel &&
+                            applyCatFilter(dest->catfilter, ent->cat)) {
+                            // dispatch to log destination
+                            dest->func(ent->level,
+                                       ent->cat,
+                                       ent->timestamp,
+                                       ent->msg,
+                                       batchid,
+                                       dest->userdata);
+                        }
                     }
                 }
                 logDestroyEnt(ent);
                 ent = next;         // process the rest of the batch
             }
         }
-        mutexRelease(&_log_dests_lock);
+        mutexRelease(&_log_op_lock);
 
         saClear(&ents);
 
@@ -57,6 +68,8 @@ static int logthread_func(_Inout_ Thread *self)
             eventWait(&self->notify);
         }
     }
+
+    saDestroy(&ents);
 
     return 0;
 }

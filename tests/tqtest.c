@@ -418,6 +418,7 @@ static int test_tqtest_sched(void)
 
 static int test_tqtest_monitor(bool dedicated)
 {
+    logRestart();   // only needed for alltests; shutdown may have previously been called
     LogMembufData *mbuf = logmembufCreate(65536);
     moncat = logCreateCat(_S"MonitorTest", true);
     logRegisterDest(LOG_Diag, moncat, logmembufDest, mbuf);

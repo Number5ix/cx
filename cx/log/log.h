@@ -44,7 +44,12 @@ _Ret_valid_
 LogDest *logRegisterDest(int maxlevel, _In_opt_ LogCategory *catfilter, _In_ LogDestFunc dest, _In_opt_ void *userdata);
 bool logUnregisterDest(_Pre_valid_ _Post_invalid_ LogDest *dhandle);
 void logFlush(void);
+
+// Flushes all pending logs, unregisters all destinations, invalidates all categories
 void logShutdown(void);
+
+// Restarts the logging system after a shutdown
+void logRestart(void);
 
 void logBatchBegin(void);
 void logBatchEnd(void);

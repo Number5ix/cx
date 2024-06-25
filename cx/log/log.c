@@ -12,6 +12,11 @@ int _log_max_level = -1;
 static LogCategory _logDefault;
 LogCategory* LogDefault = &_logDefault;
 
+atomic(bool) _log_running;
+Mutex _log_op_lock;
+Mutex _log_run_lock;
+hashtable _log_categories;
+
 typedef struct LogBatchTLS {
     LogEntry *head;
     LogEntry *tail;
@@ -46,10 +51,15 @@ strref LogLevelAbbrev[LOG_Count] = {
 LazyInitState _logInitState;
 static void logInit(void *dummy)
 {
+    devAssert(atomicLoad(bool, &_log_running, Acquire) == false);
+
     saInit(&_log_dests, ptr, 8);
-    mutexInit(&_log_dests_lock);
+    htInit(&_log_categories, ptr, none, 8);
+    mutexInit(&_log_op_lock);
     prqInitDynamic(&_log_queue, LOG_INITIAL_QUEUE_SIZE, LOG_INITIAL_QUEUE_SIZE * 2, LOG_MAX_QUEUE_SIZE, PRQ_Grow_100, PRQ_Grow_100);
     logThreadCreate();
+
+    atomicStore(bool, &_log_running, true, Release);
 }
 
 void logCheckInit(void)
@@ -67,9 +77,17 @@ void logDestroyEnt(LogEntry *ent)
 _Use_decl_annotations_
 LogCategory *logCreateCat(strref name, bool priv)
 {
+    logCheckInit();
+    if (!atomicLoad(bool, &_log_running, Acquire))
+        return NULL;
+
     LogCategory *ret = xaAlloc(sizeof(LogCategory), XA_Zero);
     strDup(&ret->name, name);
     ret->priv = priv;
+
+    withMutex (&_log_op_lock) {
+        htInsert(&_log_categories, ptr, ret, none, NULL);
+    }
     return ret;
 }
 
@@ -108,6 +126,9 @@ void _logStr(int level, LogCategory *cat, strref str)
     if (level > _log_max_level)
         return;
 
+    if (!atomicLoad(bool, &_log_running, Acquire))
+        return;
+
     _logStrInternal(level, cat, str);
 }
 
@@ -120,6 +141,9 @@ void _logFmt(int level, LogCategory *cat, strref fmtstr, int n, stvar *args)
     if (level > _log_max_level)
         return;
 
+    if (!atomicLoad(bool, &_log_running, Acquire))
+        return;
+
     string logmsg = 0;
     _strFormat(&logmsg, fmtstr, n, args);
     _logStrInternal(level, cat, logmsg);
@@ -128,15 +152,81 @@ void _logFmt(int level, LogCategory *cat, strref fmtstr, int n, stvar *args)
 
 void logBatchBegin(void)
 {
+    logCheckInit();
+    if (!atomicLoad(bool, &_log_running, Acquire))
+        return;
+    
     _log_batch.level++;
 }
 
 void logBatchEnd(void)
 {
+    logCheckInit();
+    if (!atomicLoad(bool, &_log_running, Acquire))
+        return;
+
     devAssert(_log_batch.level > 0);
     if (--_log_batch.level == 0) {
         logQueueAdd(_log_batch.head);
         _log_batch.head = NULL;
         _log_batch.tail = NULL;
+    }
+}
+
+void logShutdown(void)
+{
+    // Implementation note: Normally the log system is initialized by lazy init. Once shut down,
+    // however, the lazy init won't run again and logging will not function. The system can be
+    // manually restarted by calling logRestart().
+
+    logCheckInit();
+
+    withMutex (&_log_run_lock) {
+        if (!atomicLoad(bool, &_log_running, Acquire))
+            break;
+
+        logFlush();
+
+        withMutex (&_log_op_lock) {
+            // remove all log destinations
+            foreach (sarray, idx, LogDest*, dest, _log_dests) {
+                dest->func(-1, NULL, 0, NULL, 0, dest->userdata);
+                xaFree(dest);
+            }
+            saDestroy(&_log_dests);
+            _log_max_level = -1;
+            
+            // remove all saved categories
+            foreach(hashtable, hti, _log_categories) {
+                xaFree(htiKey(hti, ptr));
+            }
+            htDestroy(&_log_categories);
+        }
+
+        logFlush();
+
+        // shut down log thread
+        thrRequestExit(_log_thread);
+        thrWait(_log_thread, timeS(10));
+        thrRelease(&_log_thread);
+
+        prqDestroy(&_log_queue);
+
+        atomicStore(bool, &_log_running, false, Release);
+    }
+}
+
+void logRestart(void)
+{
+     logCheckInit();
+
+    withMutex (&_log_run_lock) {
+        if (atomicLoad(bool, &_log_running, Acquire))
+            break;
+
+        // Log system was initially started by lazy init, then shut down later.
+        // To restart it, we call the init function again but with the run lock held,
+        // preventing a race with another shutdown.
+        logInit(NULL);
     }
 }

@@ -67,6 +67,8 @@ static int test_log_levels()
     LogTestData td = { 0 };
     eventInit(&logtestevent);
 
+    logRestart();   // only needed for alltests; shutdown may have previously been called
+
     LogMembufData *lmd = logmembufCreate(4096);
     logRegisterDest(LOG_Verbose, NULL, logmembufDest, lmd);
     logRegisterDest(LOG_Info, NULL, testdest, &td);
@@ -137,6 +139,8 @@ static int test_log_shutdown()
     LogTestData td = { 0 };
     eventInit(&logtestevent);
 
+    logRestart();   // only needed for alltests; shutdown may have previously been called
+
     logRegisterDest(LOG_Info, NULL, testdest, &td);
 
     td.test = 1000;
@@ -154,6 +158,8 @@ static int test_log_batch()
     int ret = 0;
     LogTestData td = { 0 };
     eventInit(&logtestevent);
+
+    logRestart();   // only needed for alltests; shutdown may have previously been called
 
     LogMembufData *lmd = logmembufCreate(128 * 1024);
     logRegisterDest(LOG_Verbose, NULL, logmembufDest, lmd);
@@ -202,9 +208,11 @@ static int test_log_batch()
 
 static int test_log_categories()
 {
-    int ret = 0;
+    int ret        = 0;
     LogTestData td = { 0 };
     eventInit(&logtestevent);
+
+    logRestart();   // only needed for alltests; shutdown may have previously been called
 
     LogMembufData *lmd = logmembufCreate(4096);
     LogCategory *cat1 = logCreateCat(_S"cat1", false);
@@ -271,6 +279,8 @@ static int test_log_defer()
     int ret = 0;
     LogTestData td = { 0 };
     eventInit(&logtestevent);
+
+    logRestart();   // only needed for alltests; shutdown may have previously been called
 
     LogDeferData *ldata1 = logDeferCreate();
     LogDeferData *ldata2 = logDeferCreate();

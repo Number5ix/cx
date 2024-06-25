@@ -4,15 +4,15 @@
 #endif
 
 #include "log_private.h"
-#include <cx/container/foreach.h>
 
-Mutex _log_dests_lock;
 sa_LogDest _log_dests;
 
 _Use_decl_annotations_
 LogDest *logRegisterDest(int maxlevel, LogCategory *catfilter, LogDestFunc dest, void *userdata)
 {
     logCheckInit();
+    if (!atomicLoad(bool, &_log_running, Acquire))
+        return NULL;
 
     LogDest *ndest = xaAlloc(sizeof(LogDest), XA_Zero);
 
@@ -21,11 +21,11 @@ LogDest *logRegisterDest(int maxlevel, LogCategory *catfilter, LogDestFunc dest,
     ndest->func = dest;
     ndest->userdata = userdata;
 
-    mutexAcquire(&_log_dests_lock);
+    mutexAcquire(&_log_op_lock);
     saPush(&_log_dests, ptr, ndest);
     if (maxlevel > _log_max_level)
         _log_max_level = maxlevel;
-    mutexRelease(&_log_dests_lock);
+    mutexRelease(&_log_op_lock);
     return ndest;
 }
 
@@ -53,32 +53,16 @@ _Use_decl_annotations_
 bool logUnregisterDest(LogDest *dhandle)
 {
     logCheckInit();
+    if (!atomicLoad(bool, &_log_running, Acquire))
+        return false;
 
     bool ret = false;
-    mutexAcquire(&_log_dests_lock);
+    mutexAcquire(&_log_op_lock);
     ret = logUnregisterDestLocked(dhandle);
-    mutexRelease(&_log_dests_lock);
+    mutexRelease(&_log_op_lock);
 
     // notify dest that it's no longer needed
     dhandle->func(-1, NULL, 0, NULL, 0, dhandle->userdata);
     xaFree(dhandle);
     return ret;
-}
-
-void logShutdown(void)
-{
-    logCheckInit();
-
-    logFlush();
-
-    // remove all log destinations
-    mutexAcquire(&_log_dests_lock);
-    foreach(sarray, idx, LogDest*, dest, _log_dests) {
-        dest->func(-1, NULL, 0, NULL, 0, dest->userdata);
-    }
-    saClear(&_log_dests);
-    _log_max_level = -1;
-    mutexRelease(&_log_dests_lock);
-
-    logFlush();
 }
