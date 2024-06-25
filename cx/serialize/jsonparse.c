@@ -622,5 +622,7 @@ bool jsonParse(StreamBuffer *sb, jsonParseCB callback, void *userdata)
     ps.callback(&ps.ev, ps.userdata);
 
     jsonCtxDestroy(ps.ctx);
+    strDestroy(&ps.errmsg);
+    sbufCFinish(sb);
     return ret;
 }
