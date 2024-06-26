@@ -37,4 +37,5 @@ _Success_(return) _Check_return_
 bool stConvert_suid(stype destst, _stCopyDest_Anno_(destst) stgeneric * dest, stype srcst, _In_ stgeneric src, uint32 flags)
 { return false; }
 
+_Use_decl_annotations_
 bool suidDecode(SUID *out, strref str) { return false; }

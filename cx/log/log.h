@@ -27,7 +27,7 @@ typedef struct LogCategory {
 typedef struct LogDest LogDest;
 extern LogCategory* LogDefault;
 
-_Ret_valid_
+_Ret_opt_valid_
 LogCategory *logCreateCat(_In_ strref name, bool priv);
 void _logStr(int level, _In_ LogCategory *cat, _In_ strref str);
 void _logFmt(int level, _In_ LogCategory *cat, _In_ strref fmtstr, int n, _In_ stvar *args);
@@ -40,7 +40,7 @@ void _logFmt(int level, _In_ LogCategory *cat, _In_ strref fmtstr, int n, _In_ s
 // it has no particular ordering.
 typedef void(*LogDestFunc)(int level, _In_opt_ LogCategory *cat, int64 timestamp, _In_opt_ strref msg, uint32 batchid, _In_opt_ void *userdata);
 
-_Ret_valid_
+_Ret_opt_valid_
 LogDest *logRegisterDest(int maxlevel, _In_opt_ LogCategory *catfilter, _In_ LogDestFunc dest, _In_opt_ void *userdata);
 bool logUnregisterDest(_Pre_valid_ _Post_invalid_ LogDest *dhandle);
 void logFlush(void);

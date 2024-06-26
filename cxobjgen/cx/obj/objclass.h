@@ -77,7 +77,7 @@ typedef struct ObjInst_WeakRef
 #define objClsInfo(inst) (inst->_clsinfo)
 
 // DO NOT CALL DIRECTLY! Use objRelease instead
-void _objDestroy(_Pre_notnull_ _Post_invalid_ ObjInst *inst);
+void _objDestroy(_Pre_valid_ _Post_invalid_ ObjInst *inst);
 
 _meta_inline void _objAcquire(_In_opt_ ObjInst *inst)
 {

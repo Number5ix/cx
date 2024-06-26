@@ -145,7 +145,7 @@ static void checkMemberInitDestroy(Class *cls)
     }
 }
 
-static void addMixin(Class *cls, Class *uses)
+static void addMixin(Class *cls, _In_ Class *uses)
 {
     string hfile = 0;
     // copy any methods that we don't already have
