@@ -323,9 +323,6 @@ static int test_ssd_array()
     int ret = 0;
     SSDNode *tree = ssdCreateHashtable();
 
-    string teststr = 0;
-    strCopy(&teststr, _S"test123");
-
     SSDLockState tlock;
     _ssdLockStateInit(&tlock);
     SSDNode *sub = ssdSubtree(tree, _S"test/arr", SSD_Create_Array);
@@ -346,7 +343,7 @@ static int test_ssd_array()
     ssdnodeSet(a1, 1, NULL, stvar(int32, 102), &tlock);
     ssdnodeSet(a1, 2, NULL, stvar(int32, 103), &tlock);
     ssdnodeSet(sub, 4, NULL, stvar(object, a1), &tlock);
-    objRelease(&h1);
+    objRelease(&a1);
     _ssdLockEnd(tree, &tlock);
 
     ssdLockedTransaction(tree)

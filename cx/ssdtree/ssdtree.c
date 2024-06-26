@@ -574,17 +574,23 @@ static SSDNode *ssdCloneNode(_In_ SSDNode *src, _Inout_opt_ SSDLockState *srclst
         int32 srcidx = 0;
         strref srcname = 0;
         stvar *val = NULL;
+        stvar valcopy;
         if (!ssditeratorIterOut(iter, &srcidx, &srcname, &val))
             break;
 
-        SSDNode *child = stvarObj(val, SSDNode);
+        valcopy        = *val;
+        SSDNode* child = stvarObj(val, SSDNode);
         if (child) {
             // if this is a node, clone it first
-            val->data.st_object = (ObjInst *)ssdCloneNode(child, srclstate, desttree, destlstate);
+            valcopy.data.st_object = (ObjInst *)ssdCloneNode(child, srclstate, desttree, destlstate);
         }
 
-        ssdnodeSet(dnode, srcidx, srcname, *val, destlstate);
+        ssdnodeSet(dnode, srcidx, srcname, valcopy, destlstate);
 
+        if (child) {
+            // don't hang onto the node we cloned above
+            objRelease(&valcopy.data.st_object);
+        }
     }
     objRelease(&iter);
 
