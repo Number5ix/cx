@@ -20,8 +20,7 @@
         for (register char _foreach_outer = 1; _foreach_outer; _foreach_outer = 0) \
         for (int32 itervar = 0, _##itervar##_max = saSize(arrref); _foreach_outer; _foreach_outer = 0) \
         for (elemtype elemvar = (elemtype){0}; _foreach_outer; _foreach_outer = 0) \
-        for (itervar = 0; itervar < _##itervar##_max; ++itervar) \
-        if (elemvar = (arrref).a[itervar], 1)
+        for (itervar = 0; itervar < _##itervar##_max && (elemvar = (arrref).a[itervar], 1); ++itervar)
 
 #define foreach_hashtable foreach_generic
 #define ForEachIterType_hashtable htiter
