@@ -113,7 +113,7 @@ add_executable(cxobjgen
 target_compile_definitions(cxobjgen PRIVATE CX_BUILDING_CXOBJGEN)
 
 target_link_libraries(cxobjgen ${CMAKE_THREAD_LIBS_INIT} ${CMAKE_DL_LIBS} mimalloc pcre2-8)
-target_include_directories(cxobjgen SYSTEM PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${CX_TOP_SOURCE_DIR} ${CX_TOP_BINARY_DIR})
+target_include_directories(cxobjgen PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} SYSTEM PUBLIC ${CX_TOP_SOURCE_DIR} ${CX_TOP_SOURCE_DIR}/cx/include ${CX_TOP_BINARY_DIR})
 
 export(TARGETS cxobjgen FILE "${CMAKE_BINARY_DIR}/cxobjgen-config.cmake")
 
