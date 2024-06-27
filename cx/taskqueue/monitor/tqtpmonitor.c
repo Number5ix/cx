@@ -94,7 +94,7 @@ static void dumpTask(LogCategory* cat, void* ptr, int64 now, int wnum, bool prog
                 strTemp(&state, 32);
                 strFormat(&state,
                           _S"Scheduled:${int}ms",
-                          stvar(int32, timeToMsec(clamplow(ctask->nextrun - now, 0))));
+                          stvar(int32, (int32)timeToMsec(clamplow(ctask->nextrun - now, 0))));
             }
         } else {
             state = _S"Scheduled";
