@@ -16,7 +16,7 @@ ObjInst_WeakRef *_objGetWeak(ObjInst *inst)
         atomicStore(intptr, &nref->_ref, 2, Relaxed);       // object itself holds 1 of the weak refs
         nref->_inst = inst;
 
-        if(atomicCompareExchange(ptr, strong, &inst->_weakref, (void**)&ret, nref, AcqRel, AcqRel)) {
+        if(atomicCompareExchange(ptr, strong, &inst->_weakref, (void**)&ret, nref, AcqRel, Acquire)) {
             return nref;
         } else {
             rwlockDestroy(&nref->_lock);

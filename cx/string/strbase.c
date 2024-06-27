@@ -84,9 +84,9 @@ void _strSetRef(string_v s, uint16 ref)
     int l = _strHdr(s) & STR_LEN_MASK;
 
     if (l <= STR_LEN8)
-        atomicStore(uint8, &STR_FIELD(s, _strOffRef(_strHdr(s)), atomic(uint8)), (uint8)ref, AcqRel);
+        atomicStore(uint8, &STR_FIELD(s, _strOffRef(_strHdr(s)), atomic(uint8)), (uint8)ref, Release);
     else // STR_LEN16 and STR_LEN32 both have 16-bit ref count
-        atomicStore(uint16, &STR_FIELD(s, _strOffRef(_strHdr(s)), atomic(uint16)), (uint16)ref, AcqRel);
+        atomicStore(uint16, &STR_FIELD(s, _strOffRef(_strHdr(s)), atomic(uint16)), (uint16)ref, Release);
 
     // and if you called this function on something without STR_ALLOC set, woe be upon you...
 }
