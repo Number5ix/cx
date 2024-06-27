@@ -114,7 +114,7 @@ enum SARRAY_FUNC_FLAGS_ENUM {
 #define SARRAY_HDRSIZE (offsetof(SArrayHeader, data))
 #define SARRAY_HDR(ref) ((SArrayHeader*)(((uintptr)((ref).a)) - SARRAY_HDRSIZE))
 #define SAREF(r) (unused_noeval(&((r)._is_sarray)), *(sa_ref*)(&(r)))
-#define SAHANDLE(h) ((sahandle)(unused_noeval((h) && &((h)->_is_sarray)), (h)))
+#define SAHANDLE(h) ((sahandle)(unused_noeval((h != NULL) && &((h)->_is_sarray)), (h)))
 
 #define saSize(ref) ((ref)._is_sarray ? _saHdr(SAREF(ref))->count : 0)
 #define saCapacity(ref) ((ref)._is_sarray ? _saHdr(SAREF(ref))->capacity : 0)
