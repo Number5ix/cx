@@ -175,8 +175,7 @@ static void instDtor(_In_ ObjInst *inst, _In_ ObjClassInfo *cls)
         instDtor(inst, cls->parent);
 }
 
-_Use_decl_annotations_
-void _objDestroy(ObjInst *inst)
+void _objDestroy(_Pre_notnull_ _Post_invalid_ ObjInst *inst)
 {
     devAssert(atomicLoad(intptr, &inst->_ref, AcqRel) == 0);
     instDtor(inst, inst->_clsinfo);
