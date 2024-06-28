@@ -9,9 +9,6 @@ stages:
 
 build_freebsd:
   stage: build
-  only:
-    - master
-    - test
   tags:
     - freebsd
   script:
@@ -25,9 +22,6 @@ build_freebsd:
 
 build_linux:
   stage: build
-  only:
-    - master
-    - test
   tags:
     - linux
   script:
@@ -41,9 +35,6 @@ build_linux:
 
 build_win64:
   stage: build
-  only:
-    - master
-    - test
   tags:
     - windows
   script:
@@ -57,9 +48,6 @@ build_win64:
 
 build_win32:
   stage: build
-  only:
-    - master
-    - test
   tags:
     - windows
   script:
@@ -73,9 +61,6 @@ build_win32:
 
 build_wasm:
   stage: build
-  only:
-    - master
-    - test
   tags:
     - docker
   image: 'emscripten/emsdk'
@@ -94,9 +79,6 @@ build_wasm:
 
 test_freebsd:
   stage: test
-  only:
-    - master
-    - test
   tags:
     - freebsd
   dependencies:
@@ -106,9 +88,6 @@ test_freebsd:
 
 test_linux:
   stage: test
-  only:
-    - master
-    - test
   tags:
     - linux
   dependencies:
@@ -118,9 +97,6 @@ test_linux:
 
 test_win64:
   stage: test
-  only:
-    - master
-    - test
   tags:
     - windows
   dependencies:
@@ -130,9 +106,6 @@ test_win64:
 
 test_win32:
   stage: test
-  only:
-    - master
-    - test
   tags:
     - windows
   dependencies:
@@ -142,9 +115,6 @@ test_win32:
 
 test_wasm:
   stage: test
-  only:
-    - master
-    - test
   tags:
     - docker
   image: 'emscripten/emsdk'
