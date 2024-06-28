@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cx/closure/closure.h>
+#include <cx/thread/atomic.h>
 
 // Closure chains are (threadsafe) linked lists of closures. The primary intended use is to
 // register one or more callbacks for events.
@@ -16,13 +17,13 @@ typedef struct cchain_ref
     void *_is_closure_chain;
 } cchain_ref;
 
-typedef struct cchain_ref *cchain;
-
-void _cchainAttach(_Inout_ cchain *chain, _In_ closureFunc func, intptr token, int n, stvar cvars[]);
-// void cchainAttach(cchain *chain, closureFunc func, ...)
+_Success_(return) bool _cchainAttach(_Inout_ptr_opt_ cchain* chain, _In_ closureFunc func, intptr token, int n,
+                   stvar cvars[]);
+// bool cchainAttach(cchain *chain, closureFunc func, ...)
 // Attaches a closure to the chain. Extra arguments will be available in the function's cvars list.
+// Can fail if the closure has been consumed by a one-shot call.
 #define cchainAttach(chain, func, ...) _cchainAttach(chain, func, 0, count_macro_args(__VA_ARGS__), (stvar[]) { __VA_ARGS__ })
-// void cchainAttachToken(cchain *chain, closureFunc func, intptr token, ...)
+// bool cchainAttachToken(cchain *chain, closureFunc func, intptr token, ...)
 // Attaches a closure to the chain. Extra arguments will be available in the function's cvars list.
 // The given token should be a nonzero value which can be used to detach only this specific instance
 // using cchainDetach.
@@ -30,9 +31,9 @@ void _cchainAttach(_Inout_ cchain *chain, _In_ closureFunc func, intptr token, i
 
 // Attempts to detach a previously attached closure from the chain. Token must match the
 // token that was used when the closure was attached (0 if non was specified).
-bool cchainDetach(_Inout_ cchain *chain, _In_ closureFunc func, intptr token);
+_Success_(return) bool cchainDetach(_Inout_ptr_opt_ cchain* chain, _In_ closureFunc func, intptr token);
 
-bool _cchainCall(_In_ cchain *chain, int n, stvar args[]);
+_Success_(return) bool _cchainCall(_In_ptr_opt_ cchain* chain, int n, stvar args[]);
 // bool cchainCall(cchain *chain, ...)
 // Calls every closure in the chain with the given arguments.
 // Returns true only if every function returns true.
@@ -40,11 +41,26 @@ bool _cchainCall(_In_ cchain *chain, int n, stvar args[]);
 // to perform the atomic read for thread safety.
 #define cchainCall(chain, ...) _cchainCall(chain, count_macro_args(__VA_ARGS__), (stvar[]) { __VA_ARGS__ })
 
-// Safely transfers a closure chain to a new target
-void cchainTransfer(_Inout_ cchain *dest, _Inout_ptr_uninit_ cchain *src);
+_Success_(return) bool _cchainCallOnce(_Inout_ptr_opt_ cchain* chain, int n, stvar args[]);
+// bool cchainCallOnce(cchain *chain, ...)
+// Calls every closure in the chain with the given arguments.
+// Returns true only if every function returns true.
+// Atomically invalidates the chain, rendering it ineligibaly for attachment.
+// This can be used to avoid race conditions when adding closures to the chain.
+#define cchainCallOnce(chain, ...) _cchainCallOnce(chain, count_macro_args(__VA_ARGS__), (stvar[]) { __VA_ARGS__ })
+
+// Safely transfers a closure chain to a new target.
+// Invalidates the source chain -- future attach attempts will fail!
+_Success_(return) bool cchainTransfer(_Inout_ptr_opt_ cchain* dest, _Inout_ptr_opt_ cchain* src);
 
 // Like transfer, but creates a clone
-void cchainClone(_Inout_ cchain *dest, _In_ cchain *src);
+_Success_(return) bool cchainClone(_Inout_ptr_opt_ cchain* dest, _In_ptr_opt_ cchain* src);
+
+// Resets a previously invalidated closure chain so that it can be reused.
+_Success_(return) bool cchainReset(_Inout_ptr_opt_ cchain* chain);
+
+// Removes all closures from the chain but leaves it in a usable state.
+_Success_(return) bool cchainClear(_Inout_ptr_opt_ cchain* chain);
 
 // Destroys the closure chain.
-void cchainDestroy(_Inout_ptr_uninit_ cchain *chain);
+void cchainDestroy(_Inout_ptr_opt_ cchain* chain);

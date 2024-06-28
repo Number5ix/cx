@@ -131,7 +131,7 @@ static int test_closuretest_chain(void)
 
     if(!cchainCall(&cch, stvar(int32, r2), stvar(string, teststr2)))
         ret = 1;
-    if(ctd.count1 != 1 || ctd.sref1 != 2 || ctd.sref2 != 1 || ctd.accum != accum)
+    if(ctd.count1 != 1 || ctd.sref1 != 3 || ctd.sref2 != 1 || ctd.accum != accum)
         ret = 1;
 
     cchainAttachToken(&cch, ctest2, 17, stvar(int32, r3), stvar(string, teststr1));
@@ -143,14 +143,14 @@ static int test_closuretest_chain(void)
     accum += r1 + r2;
     if(cchainCall(&cch, stvar(int32, r2), stvar(string, teststr2)))
         ret = 1;
-    if(ctd.count1 != 2 || ctd.count2 != 0 || ctd.sref1 != 3 || ctd.sref2 != 1 || ctd.accum != accum)
+    if(ctd.count1 != 2 || ctd.count2 != 0 || ctd.sref1 != 4 || ctd.sref2 != 1 || ctd.accum != accum)
         ret = 1;
 
     // both functions should be called
     accum += r1 + r2 + r3 + r2;
     if(!cchainCall(&cch, stvar(int32, r2), stvar(string, teststr1)))
         ret = 1;
-    if(ctd.count1 != 3 || ctd.count2 != 1 || ctd.sref1 != 3 || ctd.sref2 != 3 || ctd.accum != accum)
+    if(ctd.count1 != 3 || ctd.count2 != 1 || ctd.sref1 != 4 || ctd.sref2 != 4 || ctd.accum != accum)
         ret = 1;
 
     // attach a second ctest1
@@ -161,7 +161,7 @@ static int test_closuretest_chain(void)
     accum += r1 + r2 + r3 + r2 + r4 + r2;
     if(!cchainCall(&cch, stvar(int32, r2), stvar(string, teststr1)))
         ret = 1;
-    if(ctd.count1 != 5 || ctd.count2 != 2 || ctd.sref1 != 3 || ctd.sref2 != 3 || ctd.accum != accum)
+    if(ctd.count1 != 5 || ctd.count2 != 2 || ctd.sref1 != 4 || ctd.sref2 != 4 || ctd.accum != accum)
         ret = 1;
 
     // detach the ctest2 in the middle
@@ -171,7 +171,7 @@ static int test_closuretest_chain(void)
     accum += r1 + r2 + r4 + r2;
     if(!cchainCall(&cch, stvar(int32, r2), stvar(string, teststr2)))
         ret = 1;
-    if(ctd.count1 != 7 || ctd.count2 != 2 || ctd.sref1 != 2 || ctd.sref2 != 2 || ctd.accum != accum)
+    if(ctd.count1 != 7 || ctd.count2 != 2 || ctd.sref1 != 3 || ctd.sref2 != 2 || ctd.accum != accum)
         ret = 1;
 
     cchainDestroy(&cch);

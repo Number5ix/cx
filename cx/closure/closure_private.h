@@ -11,14 +11,14 @@ typedef struct Closure
     stvar cvars[];
 } Closure;
 
-typedef struct ClosureChain ClosureChain;
-typedef struct ClosureChain
+typedef struct CChainNode CChainNode;
+typedef struct CChainNode
 {
-    atomic(ptr) prev;
+    CChainNode *prev;
     closureFunc func;
     intptr token;
     int nvars;
     stvar cvars[];
-} ClosureChain;
+} CChainNode;
 
 intptr _closureCompare(_In_ closure cls1, _In_ closure cls2);
