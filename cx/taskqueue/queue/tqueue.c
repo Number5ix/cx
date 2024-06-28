@@ -190,10 +190,8 @@ bool TaskQueue__runTask(_Inout_ TaskQueue* self, _Inout_ BasicTask** pbtask, _In
 
     // See if this is a full-fledged Task we need to do completion callbacks on
     Task* task = objDynCast(*pbtask, Task);
-    if (task && task->oncomplete) {
-        cchainCall(&task->oncomplete, stvar(object, task));
-        cchainDestroy(&task->oncomplete);   // oncomplete callbacks are one-shots
-    }
+    if (task && task->oncomplete)
+        cchainCallOnce(&task->oncomplete, stvar(object, task));
 
     if (tcon.notifyev) {
         eventSignal(tcon.notifyev);

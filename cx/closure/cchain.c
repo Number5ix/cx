@@ -256,7 +256,7 @@ bool cchainReset(cchain* chain)
     cur = atomicLoad(ptr, (atomic(ptr)*)chain, Relaxed);
 
     do {
-        if (!devVerify(cur == CCNODE_INVALID))
+        if (cur != CCNODE_INVALID)
             return false;
     } while (!atomicCompareExchange(ptr, weak, (atomic(ptr)*)chain, (void**)&cur, NULL, Relaxed, Relaxed));
 
@@ -270,11 +270,10 @@ bool cchainClear(cchain *chain)
     CChainNode *cur;
 
     if (cchainAcquire(chain, &cur, false)) {
+        cchainRelease(chain, NULL);
         while(cur) {
             cur = ccnodeFree(cur);
         }
-
-        cchainRelease(chain, NULL);
         return true;
     } else {
         return false;

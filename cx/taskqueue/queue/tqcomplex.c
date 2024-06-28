@@ -357,10 +357,8 @@ bool ComplexTaskQueue__runTask(_Inout_ ComplexTaskQueue* self, _Inout_ BasicTask
         // If this isn't a ComplexTask it might still be a Task
         if (!task)
             task = objDynCast(*pbtask, Task);
-        if (task && task->oncomplete) {
-            cchainCall(&task->oncomplete, stvar(object, task));
-            cchainDestroy(&task->oncomplete);   // oncomplete callbacks are one-shots
-        }
+        if (task && task->oncomplete)
+            cchainCallOnce(&task->oncomplete, stvar(object, task));
 
         if (tcon.notifyev) {
             eventSignal(tcon.notifyev);

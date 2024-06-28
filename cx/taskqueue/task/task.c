@@ -35,7 +35,8 @@ bool Task_reset(_Inout_ Task* self)
         return false;
 
     self->last = 0;
-    cchainDestroy(&self->oncomplete);
+    if (!cchainReset(&self->oncomplete))
+        cchainClear(&self->oncomplete);
 
     return true;
 }

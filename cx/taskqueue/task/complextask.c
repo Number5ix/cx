@@ -80,8 +80,7 @@ bool ComplexTask_checkDeps(_Inout_ ComplexTask* self, bool updateProgress)
                 if (self->oncomplete) {
                     // Normally the completion callback would be called when the task is run.
                     // But since it will never run due to a depedency failing, call it now.
-                    cchainCall(&self->oncomplete, stvar(object, self));
-                    cchainDestroy(&self->oncomplete);   // oncomplete callbacks are one-shots
+                    cchainCallOnce(&self->oncomplete, stvar(object, self));
                 }
                 ctaskAdvance(self);
             }
