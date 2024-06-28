@@ -139,13 +139,13 @@ bool TQThreadPoolRunner_stop(_Inout_ TQThreadPoolRunner* self)
     int64 timeStart = clockTimer();
 
     while (clockTimer() < timeStart + timeS(15)) {
-        bool running = true;
+        bool shutdown = true;
         withReadLock (&self->workerlock) {
             for (int i = saSize(self->workers) - 1; i >= 0; --i) {
-                running &= !self->workers.a[i]->shutdown;
+                shutdown &= self->workers.a[i]->shutdown;
             }
         }
-        if (!running)
+        if (shutdown)
             break;
         eventWaitTimeout(&self->workershutdown, timeS(1));
     }
