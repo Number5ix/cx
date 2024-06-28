@@ -45,7 +45,7 @@ static bool cchainAcquire(_Inout_ cchain* chain, _Out_ CChainNode** onode, bool 
             out = atomicLoad(ptr, (atomic(ptr)*)chain, Relaxed);
         } else {
             // try to swap it for desired
-            if (atomicCompareExchange(ptr, weak, (atomic(ptr)*)chain, &out, nstate, Acquire, Relaxed))
+            if (atomicCompareExchange(ptr, weak, (atomic(ptr)*)chain, (void**)&out, nstate, Acquire, Relaxed))
                 break;
             aspinHandleContention(NULL, &astate);
         }
@@ -63,10 +63,12 @@ static void cchainRelease(_Inout_ cchain* chain, _In_opt_ CChainNode *node)
     // Write the original value back. This SHOULD be uncontended, but still have to CAS it anyway.
 
     CChainNode* cur = CCNODE_BUSY;      // only valid starting point for this function
-    while (!atomicCompareExchange(ptr, weak, (atomic(ptr)*)chain, &cur, node, Release, Relaxed)) {
+    while (!atomicCompareExchange(ptr, weak, (atomic(ptr)*)chain, (void**)&cur, node, Release, Relaxed)) {
         if (!devVerifyMsg(cur == CCNODE_BUSY, "Incorrect use of cchainRelease"))
             return;
+        aspinHandleContention(NULL, &astate);
     }
+    aspinEndContention(&astate);
 }
 
 _Use_decl_annotations_
@@ -256,7 +258,7 @@ bool cchainReset(cchain* chain)
     do {
         if (!devVerify(cur == CCNODE_INVALID))
             return false;
-    } while (!atomicCompareExchange(ptr, weak, (atomic(ptr)*)chain, &cur, NULL, Relaxed, Relaxed));
+    } while (!atomicCompareExchange(ptr, weak, (atomic(ptr)*)chain, (void**)&cur, NULL, Relaxed, Relaxed));
 
     return true;
 }
