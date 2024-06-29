@@ -153,7 +153,7 @@ bool tqCall(TaskQueue* tq, UserTaskCB func, void* userdata)
 
 int32 tqWorkers(_In_ TaskQueue* tq)
 {
-    TQThreadPoolRunner* runner = objDynCast(tq->runner, TQThreadPoolRunner);
+    TQThreadPoolRunner* runner = objDynCast(TQThreadPoolRunner, tq->runner);
     if (!runner)
         return 0;
 

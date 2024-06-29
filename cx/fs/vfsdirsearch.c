@@ -92,7 +92,7 @@ bool vfsSearchInit(FSSearchIter *iter, VFS *vfs, strref path, strref pattern, in
 
     // add child mount points as subdirectories
     foreach(hashtable, sdi, vfsdir->subdirs) {
-        VFSDir *sd = (VFSDir*)htiVal(sdi, ptr);
+        VFSDir *sd = (VFSDir*)htiVal(ptr, sdi);
         if (saSize(sd->mounts) > 0) {
             VFSDirEnt ent = { 0 };
             strDup(&ent.name, sd->name);

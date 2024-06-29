@@ -61,7 +61,7 @@ bool _fmtFindData(FMTContext *ctx)
             return ret;
         }
         ctx->v.type = htValType(htbl);
-        ctx->v.data = hteValPtr(htbl, elem, opaque);
+        ctx->v.data = hteValPtr(htbl, opaque, elem);
     } else {
         ctx->v.type = ctx->args[idx - 1].type;
         ctx->v.data = stGenPtr(ctx->v.type, ctx->args[idx - 1].data);

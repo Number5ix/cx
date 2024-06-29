@@ -7,7 +7,7 @@
 static void vfsUnmountAll(_Inout_ VFSDir *dir)
 {
     foreach(hashtable, sdi, dir->subdirs) {
-        vfsUnmountAll((VFSDir*)htiVal(sdi, ptr));
+        vfsUnmountAll((VFSDir*)htiVal(ptr, sdi));
     }
     saClear(&dir->mounts);
 }
@@ -22,7 +22,7 @@ void vfsDestroy(VFS *vfs)
 
     rwlockAcquireWrite(&vfs->vfsdlock);
     foreach(hashtable, nsi, vfs->namespaces) {
-        vfsUnmountAll((VFSDir*)htiVal(nsi, ptr));
+        vfsUnmountAll((VFSDir*)htiVal(ptr, nsi));
     }
     vfsUnmountAll(vfs->root);
     rwlockReleaseWrite(&vfs->vfsdlock);
@@ -264,7 +264,7 @@ void _vfsInvalidateRecursive(VFS *vfs, VFSDir *dir, bool havelock)
     } else {
         htClear(&dir->files);
         foreach(hashtable, sdi, dir->subdirs) {
-            _vfsInvalidateRecursive(vfs, (VFSDir*)htiVal(sdi, ptr), true);
+            _vfsInvalidateRecursive(vfs, (VFSDir*)htiVal(ptr, sdi), true);
         }
     }
 

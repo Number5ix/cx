@@ -69,7 +69,7 @@ _meta_inline ObjInst **stvarObjInstPtr(stvar *svar)
     return NULL;
 }
 
-#define stvarObj(svar, class) (objDynCast(stvarObjInst(svar), class))
+#define stvarObj(class, svar) (objDynCast(class, stvarObjInst(svar)))
 
 // Structure for walking a list of stvars with the convenience functions
 typedef struct stvlist {
@@ -92,7 +92,7 @@ bool _stvlNext(stvlist *list, stype type, stgeneric *out);
 
 void *_stvlNextPtr(stvlist *list, stype type);
 #define stvlNextPtr(list) _stvlNextPtr(list, stType(ptr))
-#define stvlNextObj(list, class) objDynCast((ObjInst*)_stvlNextPtr(list, stType(object)), class)
+#define stvlNextObj(list, class) objDynCast(class, (ObjInst*)_stvlNextPtr(list, stType(object)))
 
 // Rewind the list
 void stvlRewind(stvlist *list);

@@ -164,7 +164,7 @@ static SSDNode *getChild(_In_ SSDNode *node, _In_opt_ strref name, int checktype
         havewrite = _ssdCurrentLockState->wrlock;
 
         stvar *val = ssdnodePtr(node, SSD_ByName, name, _ssdCurrentLockState);
-        SSDNode *child = val ? (stEq(val->type, stType(object)) ? objDynCast(val->data.st_object, SSDNode) : NULL) : NULL;
+        SSDNode *child = val ? (stEq(val->type, stType(object)) ? objDynCast(SSDNode, val->data.st_object) : NULL) : NULL;
 
         // check if existing child is the correct type for the context
         if (child && checktype == SSD_Create_Hashtable && !ssdnodeIsHashtable(child))
@@ -401,7 +401,7 @@ SSDNode *_ssdSubtreeB(SSDNode *root, strref path, SSDLockState *_ssdCurrentLockS
     ssdLockRead(root);
     if (ssdResolvePath(root, path, &node, &name, false, _ssdCurrentLockState)) {
         stvar *val = ssdnodePtr(node, SSD_ByName, name, _ssdCurrentLockState);
-        ret = val ? (stEq(val->type, stType(object)) ? objDynCast(val->data.st_object, SSDNode) : NULL) : NULL;
+        ret = val ? (stEq(val->type, stType(object)) ? objDynCast(SSDNode, val->data.st_object) : NULL) : NULL;
     }
 
     strDestroy(&name);
@@ -516,7 +516,7 @@ bool _ssdImportArray(SSDNode *root, strref path, sa_stvar arr, SSDLockState *_ss
     {
         ssdLockWrite(root);
         SSDNode *stree = ssdSubtree(root, path, SSD_Create_Array);
-        SSDArrayNode *node = objDynCast(stree, SSDArrayNode);
+        SSDArrayNode *node = objDynCast(SSDArrayNode, stree);
         if (node) {
             saDestroy(&node->storage);
             saClone(&node->storage, arr);
@@ -542,7 +542,7 @@ bool _ssdImportTypedArray(SSDNode *root, strref path, stype elemtype, sa_ref arr
 
         ssdLockWrite(root);
         SSDNode *stree = ssdSubtree(root, path, SSD_Create_Array);
-        SSDArrayNode *node = objDynCast(stree, SSDArrayNode);
+        SSDArrayNode *node = objDynCast(SSDArrayNode, stree);
         if (node) {
             saClear(&node->storage);
             for (int i = 0, sz = saSize(arr); i < sz; ++i) {
@@ -579,7 +579,7 @@ static SSDNode *ssdCloneNode(_In_ SSDNode *src, _Inout_opt_ SSDLockState *srclst
             break;
 
         valcopy        = *val;
-        SSDNode* child = stvarObj(val, SSDNode);
+        SSDNode* child = stvarObj(SSDNode, val);
         if (child) {
             // if this is a node, clone it first
             valcopy.data.st_object = (ObjInst *)ssdCloneNode(child, srclstate, desttree, destlstate);
@@ -724,7 +724,7 @@ bool _ssdAppend(SSDNode *root, strref path, bool createpath, stvar val, SSDLockS
             node = ssdSubtree(root, path, createpath ? SSD_Create_Array : SSD_Create_None);
         }
 
-        SSDArrayNode *arrn = objDynCast(node, SSDArrayNode);
+        SSDArrayNode *arrn = objDynCast(SSDArrayNode, node);
         if (arrn)
             ret = ssdarraynodeAppend(arrn, val, _ssdCurrentLockState);
         objRelease(&node);

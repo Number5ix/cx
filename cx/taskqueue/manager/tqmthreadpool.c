@@ -80,7 +80,7 @@ bool TQThreadPoolManager_start(_Inout_ TQThreadPoolManager* self, _In_ TaskQueue
         return false;
 
     // thread pool manager must be paired with its correspoinding runner (or dervied class)
-    self->runner = objAcquire(objDynCast(tq->runner, TQThreadPoolRunner));
+    self->runner = objAcquire(objDynCast(TQThreadPoolRunner, tq->runner));
 
     return self->runner != NULL;
 }

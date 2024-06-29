@@ -111,7 +111,7 @@ _Ret_maybenull_ ObjInst *_objAcquireFromWeak(_In_opt_ ObjInst_WeakRef *ref);
 // Dynamic object casting within the hierarchy
 // Returns instance pointer if it's safe to cast inst to the given class, NULL otherwise
 _Ret_maybenull_ ObjInst *_objDynCast(_In_opt_ ObjInst *inst, _In_ ObjClassInfo *cls);
-#define objDynCast(inst, clsname) ((clsname*)_objDynCast(objInstBase(inst), &objClassInfoName(clsname)))
+#define objDynCast(clsname, inst) ((clsname*)_objDynCast(objInstBase(inst), &objClassInfoName(clsname)))
 
 _Ret_maybenull_ ObjInst *_objAcquireFromWeakDyn(_In_opt_ ObjInst_WeakRef *ref, _In_ ObjClassInfo *cls);
 #define objAcquireFromWeakDyn(clsname, ref) ((clsname*)_objAcquireFromWeakDyn(objWeakRefBase(ref), &objClassInfoName(clsname)))

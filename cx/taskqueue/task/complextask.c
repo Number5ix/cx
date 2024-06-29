@@ -89,7 +89,7 @@ bool ComplexTask_checkDeps(_Inout_ ComplexTask* self, bool updateProgress)
         } else {
             ret = false;
             if (updateProgress) {
-                ComplexTask* ctask = objDynCast(self->_depends.a[i], ComplexTask);
+                ComplexTask* ctask = objDynCast(ComplexTask, self->_depends.a[i]);
                 if (ctask)
                     self->lastprogress = max(self->lastprogress, ctask->lastprogress);
             } else {

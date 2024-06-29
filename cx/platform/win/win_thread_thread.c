@@ -76,7 +76,7 @@ bool _thrPlatformStart(Thread *thread)
 {
     lazyInit(&platformThreadInitState, &platformThreadInit, NULL);
 
-    WinThread *thr = objDynCast(thread, WinThread);
+    WinThread *thr = objDynCast(WinThread, thread);
 
     if (!thr || thr->handle)
         return false;
@@ -87,7 +87,7 @@ bool _thrPlatformStart(Thread *thread)
 
 bool _thrPlatformWait(Thread *thread, int64 timeout)
 {
-    WinThread *thr = objDynCast(thread, WinThread);
+    WinThread *thr = objDynCast(WinThread, thread);
     if (!thr) return false;
 
     return WaitForSingleObject(thr->handle, (timeout == timeForever) ? INFINITE : (DWORD)timeToMsec(timeout)) == WAIT_OBJECT_0;
@@ -96,7 +96,7 @@ bool _thrPlatformWait(Thread *thread, int64 timeout)
 _Use_decl_annotations_
 bool _thrPlatformSetPriority(Thread *thread, int prio)
 {
-    WinThread *thr = objDynCast(thread, WinThread);
+    WinThread *thr = objDynCast(WinThread, thread);
     if (!thr) return false;
 
     if (prio == THREAD_Batch) {
@@ -145,7 +145,7 @@ Thread *thrCurrent(void)
 _Use_decl_annotations_
 intptr thrOSThreadID(Thread *thread)
 {
-    WinThread *thr = objDynCast(thread, WinThread);
+    WinThread *thr = objDynCast(WinThread, thread);
     if (!thr) return 0;
 
     return thr->id;

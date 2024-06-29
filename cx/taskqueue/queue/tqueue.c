@@ -35,7 +35,7 @@ _objinit_guaranteed bool TaskQueue_init(_Inout_ TaskQueue* self)
 
     // if this is a thread pool based queue, size the queues based on the desired number of worker
     // threads
-    TQThreadPoolRunner* tprun = objDynCast(self->runner, TQThreadPoolRunner);
+    TQThreadPoolRunner* tprun = objDynCast(TQThreadPoolRunner, self->runner);
     int qsz                   = tprun ? tprun->conf.wBusy * 4 : 8;
 
     prqInitDynamic(&self->runq, qsz, qsz * 2, 0, PRQ_Grow_100, PRQ_Grow_25);
@@ -63,7 +63,7 @@ bool TaskQueue_add(_Inout_ TaskQueue* self, _In_ BasicTask* btask)
     // add a reference count which becomes owned by the queue
     objAcquire(btask);
 
-    Task* task = objDynCast(btask, Task);
+    Task* task = objDynCast(Task, btask);
     if (task)
         task->last = clockTimer();   // record when it was put in run queue
 
@@ -193,7 +193,7 @@ bool TaskQueue__runTask(_Inout_ TaskQueue* self, _Inout_ BasicTask** pbtask, _In
     }
 
     // See if this is a full-fledged Task we need to do completion callbacks on
-    Task* task = objDynCast(*pbtask, Task);
+    Task* task = objDynCast(Task, *pbtask);
     if (task && task->oncomplete)
         cchainCallOnce(&task->oncomplete, stvar(object, task));
 

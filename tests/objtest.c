@@ -189,7 +189,7 @@ static int test_dyncast()
     cls4->data4 = 71;
     cls4->data5 = 99;
 
-    TestCls1 *cls1 = objDynCast(cls4, TestCls1);
+    TestCls1 *cls1 = objDynCast(TestCls1, cls4);
     if (!cls1)
         return 1;
 

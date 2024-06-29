@@ -350,8 +350,8 @@ static int test_ssd_array()
     {
         stvar *out;
         out = ssdPtr(tree, _S"test/arr");
-        if (!out || !stEq(out->type, stType(object)) || !objDynCast(out->data.st_object, SSDNode) ||
-            !(ssdnodeIsArray(objDynCast(out->data.st_object, SSDNode))))
+        if (!out || !stEq(out->type, stType(object)) || !objDynCast(SSDNode, out->data.st_object) ||
+            !(ssdnodeIsArray(objDynCast(SSDNode, out->data.st_object))))
             ret = 1;
 
         out = ssdPtr(tree, _S"test/arr[0]/test1");

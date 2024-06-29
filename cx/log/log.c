@@ -198,7 +198,7 @@ void logShutdown(void)
             
             // remove all saved categories
             foreach(hashtable, hti, _log_categories) {
-                xaFree(htiKey(hti, ptr));
+                xaFree(htiKey(ptr, hti));
             }
             htDestroy(&_log_categories);
         }

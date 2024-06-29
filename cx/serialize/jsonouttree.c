@@ -61,7 +61,7 @@ static void outArray(_Inout_ JSONOut *jo, _In_ SSDNode *node, _Inout_ SSDLockSta
 
 static void outObject(_Inout_ JSONOut *jo, _In_ ObjInst *val, _Inout_ SSDLockState *lstate, _Inout_ bool *error)
 {
-    SSDNode *node = objDynCast(val, SSDNode);
+    SSDNode *node = objDynCast(SSDNode, val);
     if (!node) {
         *error = true;
         return;

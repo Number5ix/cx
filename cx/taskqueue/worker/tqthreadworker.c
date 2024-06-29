@@ -43,7 +43,7 @@ static int tqWorkerThread(Thread* thr)
 
     // the runner might be waiting on us to exit
     self->shutdown             = true;
-    TQThreadPoolRunner* runner = objDynCast(tq->runner, TQThreadPoolRunner);
+    TQThreadPoolRunner* runner = objDynCast(TQThreadPoolRunner, tq->runner);
     if (runner)
         eventSignal(&runner->workershutdown);
 
@@ -64,7 +64,7 @@ _objfactory_guaranteed TQThreadWorker* TQThreadWorker_create(int32 num)
 
 bool TQThreadWorker_startThread(_Inout_ TQThreadWorker* self, _In_ TaskQueue* tq)
 {
-    TQThreadPoolRunner* runner = objDynCast(tq->runner, TQThreadPoolRunner);
+    TQThreadPoolRunner* runner = objDynCast(TQThreadPoolRunner, tq->runner);
     if (!runner)
         return false;
 
@@ -106,7 +106,7 @@ int64 TQThreadWorker_tick(_Inout_ TQThreadWorker* self, _In_ TaskQueue* tq)
         // concurrently through our curtask pointer.
 
         // See if this is a full Task or just a BasicTask
-        Task* task = objDynCast(btask, Task);
+        Task* task = objDynCast(Task, btask);
 
         if (task)
             task->last = clockTimer();

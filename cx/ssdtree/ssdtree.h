@@ -164,7 +164,7 @@ _meta_inline ObjInst *_ssdObjInstPtr(_In_ SSDNode *root, _In_opt_ strref path, _
 #define ssdObjInstPtr(root, path) _ssdObjInstPtr(root, path, (SSDLockState*)&_ssdCurrentLockState->_is_SSDLockState)
 
 // ClassName *ssdObjPtr(SSDNode *root, strref path, [ClassName])
-#define ssdObjPtr(root, path, clsname) objDynCast(ssdObjInstPtr(root, path), clsname)
+#define ssdObjPtr(root, path, clsname) objDynCast(clsname, ssdObjInstPtr(root, path))
 
 // convenience functions to get various types inline with a default
 #define ssdval_spec(type) \

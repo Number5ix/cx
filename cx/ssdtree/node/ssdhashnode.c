@@ -60,7 +60,7 @@ _Ret_opt_valid_ stvar* SSDHashNode_ptr(_Inout_ SSDHashNode* self, int32 idx, _In
 
     htelem elem = htFind(self->storage, strref, name, none, NULL);
     if (elem)
-        return hteValPtr(self->storage, elem, stvar);
+        return hteValPtr(self->storage, stvar, elem);
 
     return NULL;
 }
@@ -179,7 +179,7 @@ stvar* SSDHashIter_ptr(_Inout_ SSDHashIter* self)
     if (!htiValid(&self->iter))
         return NULL;
 
-    return htiValPtr(self->iter, stvar);
+    return htiValPtr(stvar, self->iter);
 }
 
 bool SSDHashIter_get(_Inout_ SSDHashIter* self, stvar* out)
@@ -188,7 +188,7 @@ bool SSDHashIter_get(_Inout_ SSDHashIter* self, stvar* out)
     _ssdManualLockRead(self->node, self->lstate);
 
     if (htiValid(&self->iter)) {
-        stvarCopy(out, htiVal(self->iter, stvar));
+        stvarCopy(out, htiVal(stvar, self->iter));
         ret = true;
     }
 
@@ -211,7 +211,7 @@ strref SSDHashIter_name(_Inout_ SSDHashIter* self)
         // return the reference directly to the hash key without the lock held,
         // which is the case if the transient lock is being used. Thankfully refcounted
         // strings make this fairly cheap.
-        strDup(&self->lastName, htiKey(self->iter, strref));
+        strDup(&self->lastName, htiKey(strref, self->iter));
         ret = self->lastName;
     }
 
@@ -229,8 +229,8 @@ bool SSDHashIter_iterOut(_Inout_ SSDHashIter* self, _When_(return == true, _Out_
         return false;
 
     *idx = SSD_ByName;
-    *name = htiKey(self->iter, strref);
-    *val = htiValPtr(self->iter, stvar);
+    *name = htiKey(strref, self->iter);
+    *val = htiValPtr(stvar, self->iter);
 
     return true;
 }

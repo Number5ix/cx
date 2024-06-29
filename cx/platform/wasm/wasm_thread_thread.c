@@ -65,7 +65,7 @@ bool _thrPlatformStart(Thread *thread)
 {
     lazyInit(&platformThreadInitState, &platformThreadInit, NULL);
 
-    UnixThread *thr = objDynCast(thread, UnixThread);
+    UnixThread *thr = objDynCast(UnixThread, thread);
 
     if (!thr || thr->pthr)
         return 0;
@@ -80,7 +80,7 @@ bool _thrPlatformStart(Thread *thread)
 
 bool _thrPlatformWait(Thread *thread, int64 timeout)
 {
-    UnixThread *thr = objDynCast(thread, UnixThread);
+    UnixThread *thr = objDynCast(UnixThread, thread);
     if (!thr) return false;
 
     // some pthreads implementations will crash if you try to join

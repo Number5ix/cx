@@ -57,8 +57,8 @@ static void dumpTask(LogCategory* cat, void* ptr, int64 now, int wnum, bool prog
     }
 
     BasicTask* btask   = ptr;
-    Task* task         = objDynCast(btask, Task);
-    ComplexTask* ctask = objDynCast(btask, ComplexTask);
+    Task* task         = objDynCast(Task, btask);
+    ComplexTask* ctask = objDynCast(ComplexTask, btask);
     if (progresstime && !ctask)
         return;
 
@@ -164,7 +164,7 @@ static void dumpQueue(TQThreadPoolMonitor* self, TaskQueue* tq, TQThreadPoolRunn
     logStrC(Diag, c->mLogCat, _S"  Done Queue:");
     dumpPRQ(c->mLogCat, &tq->doneq, now);
 
-    ComplexTaskQueue* ctq = objDynCast(tq, ComplexTaskQueue);
+    ComplexTaskQueue* ctq = objDynCast(ComplexTaskQueue, tq);
     if (ctq) {
         if (saSize(ctq->scheduled) > 0) {
             logStrC(Diag, c->mLogCat, _S"  Scheduled:");
@@ -175,7 +175,7 @@ static void dumpQueue(TQThreadPoolMonitor* self, TaskQueue* tq, TQThreadPoolRunn
         if (htSize(ctq->deferred) > 0) {
             logStrC(Diag, c->mLogCat, _S"  Deferred:");
             foreach (hashtable, hti, ctq->deferred) {
-                dumpTask(c->mLogCat, htiKey(hti, object), now, -1, true, false);
+                dumpTask(c->mLogCat, htiKey(object, hti), now, -1, true, false);
             }
         }
     }
@@ -218,7 +218,7 @@ int64 TQThreadPoolMonitor_tick(_Inout_ TQThreadPoolMonitor* self)
     mutexAcquire(&self->monitorlock);
 
     TaskQueue* tq              = self->tq;
-    TQThreadPoolRunner* runner = tq ? objDynCast(tq->runner, TQThreadPoolRunner) : NULL;
+    TQThreadPoolRunner* runner = tq ? objDynCast(TQThreadPoolRunner, tq->runner) : NULL;
 
     if (!runner) {
         mutexRelease(&self->monitorlock);
@@ -235,7 +235,7 @@ int64 TQThreadPoolMonitor_tick(_Inout_ TQThreadPoolMonitor* self)
     int32 nworkers = saSize(runner->workers);
     for (int i = 0; i < nworkers; i++) {
         void* ptr  = atomicLoad(ptr, &runner->workers.a[i]->curtask, Relaxed);
-        Task* task = objDynCast((BasicTask*)ptr, Task);
+        Task* task = objDynCast(Task, (BasicTask*)ptr);
         if (task && now > task->last + c->mTaskRunning) {
             doWarn(self, tq, &warned);
             logFmtC(Warn,
@@ -253,7 +253,7 @@ int64 TQThreadPoolMonitor_tick(_Inout_ TQThreadPoolMonitor* self)
     for (uint32 ui = 0; ui < qcount; ui++) {
         void* ptr = prqPeek(&tq->runq, ui);
         if (ptr) {
-            Task* task = objDynCast((BasicTask*)ptr, Task);
+            Task* task = objDynCast(Task, (BasicTask*)ptr);
             if (task && now > task->last + c->mTaskWaiting && !dumpq) {
                 doWarn(self, tq, &warned);
                 dumpq = true;
@@ -267,7 +267,7 @@ int64 TQThreadPoolMonitor_tick(_Inout_ TQThreadPoolMonitor* self)
         }
     }
 
-    ComplexTaskQueue* ctq = objDynCast(tq, ComplexTaskQueue);
+    ComplexTaskQueue* ctq = objDynCast(ComplexTaskQueue, tq);
     if (ctq) {
         // check the scheduled task list for tasks that aren't scheduled and aren't making progress
         for (int i = saSize(ctq->scheduled) - 1; i >= 0 && !dumpq; --i) {
@@ -291,7 +291,7 @@ int64 TQThreadPoolMonitor_tick(_Inout_ TQThreadPoolMonitor* self)
             if (dumpq)
                 break;
 
-            ComplexTask* ctask = (ComplexTask*)htiKey(hti, object);
+            ComplexTask* ctask = (ComplexTask*)htiKey(object, hti);
             if (ctask && now > ctask->lastprogress + c->mTaskStalled) {
                 doWarn(self, tq, &warned);
                 dumpq = true;

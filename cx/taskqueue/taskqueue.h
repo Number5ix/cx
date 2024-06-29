@@ -53,7 +53,7 @@ TaskQueue *tqCreate(_In_ strref name, _In_ TaskQueueConfig *tqconfig);
 
 _meta_inline bool _tqSchedule(_Inout_ TaskQueue* tq, _In_ ComplexTask* task, int64 delay)
 {
-    ComplexTaskQueue* ctq = objDynCast(tq, ComplexTaskQueue);
+    ComplexTaskQueue* ctq = objDynCast(ComplexTaskQueue, tq);
     if (!ctq)
         return false;
     return ctaskqueueSchedule(ctq, task, delay);
@@ -64,7 +64,7 @@ _meta_inline bool _tqSchedule(_Inout_ TaskQueue* tq, _In_ ComplexTask* task, int
 
 _meta_inline bool _tqDefer(_Inout_ TaskQueue* tq, _In_ ComplexTask* task)
 {
-    ComplexTaskQueue* ctq = objDynCast(tq, ComplexTaskQueue);
+    ComplexTaskQueue* ctq = objDynCast(ComplexTaskQueue, tq);
     if (!ctq)
         return false;
     return ctaskqueueDefer(ctq, task);

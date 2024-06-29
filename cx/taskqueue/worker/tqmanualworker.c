@@ -34,7 +34,7 @@ int64 TQManualWorker_tick(_Inout_ TQManualWorker* self, _In_ TaskQueue* tq)
         // concurrently through our curtask pointer.
 
         // See if this is a full Task or just a BasicTask
-        Task* task = objDynCast(btask, Task);
+        Task* task = objDynCast(Task, btask);
 
         if (task)
             task->last = clockTimer();

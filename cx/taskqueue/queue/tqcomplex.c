@@ -105,7 +105,7 @@ bool ComplexTaskQueue__processDone(_Inout_ ComplexTaskQueue* self)
             break;
         case TASK_Scheduled:
         case TASK_Deferred: {
-            ComplexTask* ctask = objDynCast(btask, ComplexTask);
+            ComplexTask* ctask = objDynCast(ComplexTask, btask);
 
             if (!devVerify(ctask)) {
                 btask_setState(btask, TASK_Failed);
@@ -284,7 +284,7 @@ void ComplexTaskQueue__clear(_Inout_ ComplexTaskQueue* self)
     saClear(&self->scheduled);
 
     foreach (hashtable, it, self->deferred) {
-        ctask = (ComplexTask*)htiKey(it, object);
+        ctask = (ComplexTask*)htiKey(object, it);
         objRelease(&ctask);
     }
     htClear(&self->deferred);
@@ -309,7 +309,7 @@ bool ComplexTaskQueue__runTask(_Inout_ ComplexTaskQueue* self, _Inout_ BasicTask
     TaskControl tcon = { 0 };
     uint32 tresult   = btaskRun(*pbtask, self, worker, &tcon);
 
-    ComplexTask* ctask = objDynCast(*pbtask, ComplexTask);
+    ComplexTask* ctask = objDynCast(ComplexTask, *pbtask);
     Task* task         = Task(ctask);
     int64 now          = clockTimer();
 
@@ -360,7 +360,7 @@ bool ComplexTaskQueue__runTask(_Inout_ ComplexTaskQueue* self, _Inout_ BasicTask
     if (completed) {
         // If this isn't a ComplexTask it might still be a Task
         if (!task)
-            task = objDynCast(*pbtask, Task);
+            task = objDynCast(Task, *pbtask);
         if (task && task->oncomplete)
             cchainCallOnce(&task->oncomplete, stvar(object, task));
 
@@ -390,7 +390,7 @@ bool ComplexTaskQueue_add(_Inout_ ComplexTaskQueue* self, _In_ BasicTask* btask)
     if (btaskState(btask) != TASK_Created)
         return false;
 
-    ComplexTask* ctask = objDynCast(btask, ComplexTask);
+    ComplexTask* ctask = objDynCast(ComplexTask, btask);
     if (ctask) {
         // complex tasks remember which queue they belong to, for defer / schedule scenarios
         ctask->lastq = objGetWeak(ComplexTaskQueue, self);
@@ -422,7 +422,7 @@ bool ComplexTaskQueue_add(_Inout_ ComplexTaskQueue* self, _In_ BasicTask* btask)
     // add a reference count which becomes owned by the queue
     objAcquire(btask);
 
-    Task* task = objDynCast(btask, Task);
+    Task* task = objDynCast(Task, btask);
     if (task)
         task->last = clockTimer();   // record when it was put in run queue
 

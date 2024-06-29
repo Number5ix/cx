@@ -19,7 +19,7 @@ enum SSD_INDEX_MARKER {
     SSD_ByName = -1             // Pass as index to address a child by name
 };
 
-#define ssditeratorObj(self, clsname) objDynCast(ssditeratorObjInst(self), clsname)
+#define ssditeratorObj(self, clsname) objDynCast(clsname, ssditeratorObjInst(self))
 #define ssdnodeIterLocked(self) ssdnode_iterLocked(self, _ssdCurrentLockState)
 
 typedef struct SSDIteratorIf {
