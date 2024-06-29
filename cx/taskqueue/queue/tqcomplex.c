@@ -46,6 +46,11 @@ static bool CTQPushBackCommon(_Inout_ ComplexTaskQueue* self, _In_ ComplexTask* 
     if (atomicLoad(uint32, &self->state, Relaxed) != TQState_Running)
         return false;
 
+    // only freshly created or reset tasks are legal to add to a queue - that includes moving them
+    // directly to scheduled / deferred status
+    if (btaskState(task) != TASK_Created)
+        return false;
+
     // try to move it to desired state
     if (!ctask_setState(task, state))
         return false;
@@ -56,7 +61,6 @@ static bool CTQPushBackCommon(_Inout_ ComplexTaskQueue* self, _In_ ComplexTask* 
     task->nextrun = (state == TASK_Scheduled && delay != -1) ? task->last + delay : 0;
 
     // remember that it's associated with this queue for when it's advanced
-    objDestroyWeak(&task->lastq);
     task->lastq = objGetWeak(ComplexTaskQueue, self);
 
     // By putting it in the done queue, the manager thread will pick it up and stick it in the
@@ -365,9 +369,6 @@ bool ComplexTaskQueue__runTask(_Inout_ ComplexTaskQueue* self, _Inout_ BasicTask
         }
     } else if (ctask) {
         ctask->last = now;
-        // remember last queue so this task can be advanced if necessary
-        objDestroyWeak(&ctask->lastq);
-        ctask->lastq = objGetWeak(ComplexTaskQueue, self);
     }
 
     // In all other cases the task needs to be moved to the done queue for the manager to clean up.
@@ -385,32 +386,32 @@ bool ComplexTaskQueue_add(_Inout_ ComplexTaskQueue* self, _In_ BasicTask* btask)
     if (atomicLoad(uint32, &self->state, Relaxed) != TQState_Running)
         return false;
 
+    // only freshly created or reset tasks are legal to add to a queue
+    if (btaskState(btask) != TASK_Created)
+        return false;
+
     ComplexTask* ctask = objDynCast(btask, ComplexTask);
     if (ctask) {
+        // complex tasks remember which queue they belong to, for defer / schedule scenarios
+        ctask->lastq = objGetWeak(ComplexTaskQueue, self);
+
         // if it's a complex task it might have dependencies
         if (!ctaskCheckDeps(ctask, false)) {
             // deps aren't satisifed, it needs to go in defer hash instead of run queue
             if (!btask_setState(btask, TASK_Deferred))
                 return false;
 
-            objDestroyWeak(&ctask->lastq);
-            ctask->lastq = objGetWeak(ComplexTaskQueue, self);
-
-            // check again to avert a possible race with all tasks completing before the weak
-            // reference is set
-            if (!ctaskCheckDeps(ctask, false)) {
-                // add a reference and put it in the done queue, so it gets moved to the defer hash
-                objAcquire(btask);
-                ctask->last = clockTimer();
-                if (!prqPush(&self->doneq, btask)) {
-                    btask_setState(btask, TASK_Failed);
-                    objRelease(&btask);
-                    return false;
-                }
-                // notify manager to go pick it up
-                tqmanagerNotify(self->manager);
-                return true;
+            // add a reference and put it in the done queue, so it gets moved to the defer hash
+            objAcquire(btask);
+            ctask->last = clockTimer();
+            if (!prqPush(&self->doneq, btask)) {
+                btask_setState(btask, TASK_Failed);
+                objRelease(&btask);
+                return false;
             }
+            // notify manager to go pick it up
+            tqmanagerNotify(self->manager);
+            return true;
         }
     }
 

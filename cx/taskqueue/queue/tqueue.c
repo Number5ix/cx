@@ -52,6 +52,10 @@ bool TaskQueue_add(_Inout_ TaskQueue* self, _In_ BasicTask* btask)
     if (atomicLoad(uint32, &self->state, Relaxed) != TQState_Running)
         return false;
 
+    // only freshly created or reset tasks are legal to add to a queue
+    if (btaskState(btask) != TASK_Created)
+        return false;
+
     // try to move it to waiting state
     if (!btask_setState(btask, TASK_Waiting))
         return false;

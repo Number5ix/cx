@@ -36,6 +36,7 @@ bool ComplexTask_reset(_Inout_ ComplexTask* self)
 
     self->lastprogress = 0;
     self->nextrun      = 0;
+    objDestroyWeak(&self->lastq);
     saClear(&self->_depends);
 
     return true;
