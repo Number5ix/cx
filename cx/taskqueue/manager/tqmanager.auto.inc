@@ -11,6 +11,7 @@ static TQManager_ClassIf _impl_TQManager_TQManager_ClassIf = {
     .start = (bool (*)(void*, TaskQueue*))TQManager_start,
     .stop = (bool (*)(void*))TQManager_stop,
     .notify = (void (*)(void*))TQManager_notify,
+    .pretask = (void (*)(void*))TQManager_pretask,
     .tick = (int64 (*)(void*))TQManager_tick,
 };
 

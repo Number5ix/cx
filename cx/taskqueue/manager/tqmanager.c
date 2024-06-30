@@ -39,6 +39,10 @@ void TQManager_notify(_Inout_ TQManager* self)
 {
 }
 
+void TQManager_pretask(_Inout_ TQManager* self)
+{
+}
+
 // Autogen begins -----
 #include "tqmanager.auto.inc"
 // Autogen ends -------

@@ -93,6 +93,10 @@ int64 TQThreadWorker_tick(_Inout_ TQThreadWorker* self, _In_ TaskQueue* tq)
     int64 waittime  = timeForever;
     bool workertick = false;
 
+    // Some managers need to do things like adjust pool size before we run any tasks.
+    if (tq->manager->needsWorkerTick)
+        tqmanagerPretask(tq->manager);
+
     while ((btask = (BasicTask*)prqPop(&tq->runq))) {
         // Do UI stuff first if this is a UI task queue, to keep things responsive
         if (self->ui)

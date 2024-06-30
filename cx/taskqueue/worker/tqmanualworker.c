@@ -27,6 +27,10 @@ int64 TQManualWorker_tick(_Inout_ TQManualWorker* self, _In_ TaskQueue* tq)
     int64 waittime  = timeForever;
     bool workertick = false;
 
+    // Some managers need to do things like adjust pool size before we run any tasks.
+    if (tq->manager->needsWorkerTick)
+        tqmanagerPretask(tq->manager);
+
     while ((btask = (BasicTask*)prqPop(&tq->runq))) {
         // IMPLEMENTATION NOTE: At this point we become the owner of the btask pointer
         // and it does not exist anywhere else in the queue -- MOSTLY. We are not allowed

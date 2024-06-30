@@ -51,13 +51,23 @@ int64 TQInWorkerManager_tick(_Inout_ TQInWorkerManager* self)
             ret = parent_tick();
         }
         mutexRelease(&self->mgrlock);
-
-        // if another thread needed the manager in the meantime, tell the caller to run it again
-        if (atomicLoad(bool, &self->needrun, Relaxed))
-            ret = 0;
     }
 
+    // if another thread needed the manager in the meantime, tell the caller to run it again
+    if (atomicLoad(bool, &self->needrun, Relaxed))
+         return 0;
+
     return ret;
+}
+
+extern void TQManager_pretask(_Inout_ TQManager* self);   // parent
+#define parent_pretask() TQManager_pretask((TQManager*)(self))
+void TQInWorkerManager_pretask(_Inout_ TQInWorkerManager* self)
+{
+    if (mutexTryAcquire(&self->mgrlock)) {
+        tqthreadpoolmanagerUpdatePoolSize(self);
+        mutexRelease(&self->mgrlock);
+    }
 }
 
 extern bool TQThreadPoolManager_stop(_Inout_ TQThreadPoolManager* self);   // parent

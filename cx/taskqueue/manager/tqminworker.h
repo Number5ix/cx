@@ -25,6 +25,8 @@ typedef struct TQInWorkerManager_ClassIf {
     bool (*start)(_Inout_ void* self, _In_ TaskQueue* tq);
     bool (*stop)(_Inout_ void* self);
     void (*notify)(_Inout_ void* self);
+    // for in-worker managers, this is called BEFORE a task is run by the worker
+    void (*pretask)(_Inout_ void* self);
     int64 (*tick)(_Inout_ void* self);
     void (*updatePoolSize)(_Inout_ void* self);
 } TQInWorkerManager_ClassIf;
@@ -78,6 +80,10 @@ _objfactory_guaranteed TQInWorkerManager* TQInWorkerManager_create();
 #define tqinworkermanagerStop(self) (self)->_->stop(TQInWorkerManager(self))
 // void tqinworkermanagerNotify(TQInWorkerManager* self);
 #define tqinworkermanagerNotify(self) (self)->_->notify(TQInWorkerManager(self))
+// void tqinworkermanagerPretask(TQInWorkerManager* self);
+//
+// for in-worker managers, this is called BEFORE a task is run by the worker
+#define tqinworkermanagerPretask(self) (self)->_->pretask(TQInWorkerManager(self))
 // int64 tqinworkermanagerTick(TQInWorkerManager* self);
 #define tqinworkermanagerTick(self) (self)->_->tick(TQInWorkerManager(self))
 // void tqinworkermanagerUpdatePoolSize(TQInWorkerManager* self);

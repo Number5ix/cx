@@ -11,6 +11,7 @@ static TQInWorkerManager_ClassIf _impl_TQInWorkerManager_TQInWorkerManager_Class
     ._implements = (ObjIface*)&TQInWorkerManager_ClassIf_tmpl,
     .notify = (void (*)(void*))TQInWorkerManager_notify,
     .tick = (int64 (*)(void*))TQInWorkerManager_tick,
+    .pretask = (void (*)(void*))TQInWorkerManager_pretask,
     .stop = (bool (*)(void*))TQInWorkerManager_stop,
 };
 
