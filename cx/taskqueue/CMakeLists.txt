@@ -13,6 +13,7 @@ add_subdirectory(manager)
 add_subdirectory(monitor)
 add_subdirectory(queue)
 add_subdirectory(runner)
+add_subdirectory(sysq)
 add_subdirectory(task)
 add_subdirectory(worker)
 
