@@ -12,8 +12,6 @@
 #include "cx/taskqueue/taskqueue_private.h"
 #include <cx/format.h>
 
-#define WORKER_FAILSAFE_TIMEOUT timeS(30)
-
 static int tqWorkerThread(Thread* thr)
 {
     TQThreadWorker* self = stvlNextObj(&thr->args, TQThreadWorker);
@@ -36,7 +34,7 @@ static int tqWorkerThread(Thread* thr)
             break;
 
         if (maxwait > 0)
-            eventWaitTimeout(&tq->workev, clamphigh(maxwait, WORKER_FAILSAFE_TIMEOUT));
+            eventWaitTimeout(&tq->workev, maxwait);
     }
 
     tqthreadworkerOnStop(self, tq);
