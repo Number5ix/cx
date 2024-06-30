@@ -1,10 +1,12 @@
 set(UTILS_SRCS
     utils/cbhandle.c
+    utils/ccallbacks.c
     utils/lazyinit.c
     utils/murmur.c
     utils/scratch.c)
 set(UTILS_INCLUDES
     utils/cbhandle.h
+    utils/ccallbacks.h
     utils/compare.h
     utils/lazyinit.h
     utils/macros.h
