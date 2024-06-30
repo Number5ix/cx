@@ -9,6 +9,7 @@ Task_ClassIf Task_ClassIf_tmpl = {
 static Task_ClassIf _impl_Task_Task_ClassIf = {
     ._size = sizeof(Task_ClassIf),
     ._implements = (ObjIface*)&Task_ClassIf_tmpl,
+    .wait = (bool (*)(void*, int64))Task_wait,
     .reset = (bool (*)(void*))Task_reset,
 };
 

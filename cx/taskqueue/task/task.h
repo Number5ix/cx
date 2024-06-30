@@ -24,6 +24,7 @@ typedef struct Task_ClassIf {
     uint32 (*run)(_Inout_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
     bool (*cancel)(_Inout_ void* self);
     bool (*reset)(_Inout_ void* self);
+    bool (*wait)(_Inout_ void* self, int64 timeout);
 } Task_ClassIf;
 extern Task_ClassIf Task_ClassIf_tmpl;
 
@@ -59,13 +60,15 @@ typedef struct Task_WeakRef {
 } Task_WeakRef;
 #define Task_WeakRef(inst) ((Task_WeakRef*)(unused_noeval((inst) && &((inst)->_is_Task_WeakRef)), (inst)))
 
-// bool task_setState(Task* self, uint32 newstate);
-#define task_setState(self, newstate) BasicTask__setState(BasicTask(self), newstate)
+// bool ftask_setState(Task* self, uint32 newstate);
+#define ftask_setState(self, newstate) BasicTask__setState(BasicTask(self), newstate)
 
-// uint32 taskRun(Task* self, TaskQueue* tq, TQWorker* worker, TaskControl* tcon);
-#define taskRun(self, tq, worker, tcon) (self)->_->run(Task(self), TaskQueue(tq), TQWorker(worker), tcon)
-// bool taskCancel(Task* self);
-#define taskCancel(self) (self)->_->cancel(Task(self))
-// bool taskReset(Task* self);
-#define taskReset(self) (self)->_->reset(Task(self))
+// uint32 ftaskRun(Task* self, TaskQueue* tq, TQWorker* worker, TaskControl* tcon);
+#define ftaskRun(self, tq, worker, tcon) (self)->_->run(Task(self), TaskQueue(tq), TQWorker(worker), tcon)
+// bool ftaskCancel(Task* self);
+#define ftaskCancel(self) (self)->_->cancel(Task(self))
+// bool ftaskReset(Task* self);
+#define ftaskReset(self) (self)->_->reset(Task(self))
+// bool ftaskWait(Task* self, int64 timeout);
+#define ftaskWait(self, timeout) (self)->_->wait(Task(self), timeout)
 

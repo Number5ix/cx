@@ -9,6 +9,9 @@
 #include "task.h"
 // clang-format on
 // ==================== Auto-generated section ends ======================
+#include <cx/taskqueue/taskqueue_private.h>
+#include <cx/thread/event.h>
+#include <cx/utils/ccallbacks.h>
 
 _objinit_guaranteed bool Task_init(_Inout_ Task* self)
 {
@@ -39,6 +42,20 @@ bool Task_reset(_Inout_ Task* self)
         cchainClear(&self->oncomplete);
 
     return true;
+}
+
+bool Task_wait(_Inout_ Task* self, int64 timeout)
+{
+    Event waitev;
+    eventInit(&waitev);
+
+    // the attach will fail if the event has already completed, due to oncomplete being invalidated
+    if (cchainAttach(&self->oncomplete, ccbSignalEvent, stvar(ptr, &waitev))) {
+        eventWaitTimeout(&waitev, timeout);
+    }
+    eventDestroy(&waitev);
+
+    return taskIsComplete(self);
 }
 
 // Autogen begins -----

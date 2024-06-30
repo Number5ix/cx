@@ -33,6 +33,7 @@ typedef struct ComplexTask_ClassIf {
     uint32 (*run)(_Inout_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
     bool (*cancel)(_Inout_ void* self);
     bool (*reset)(_Inout_ void* self);
+    bool (*wait)(_Inout_ void* self, int64 timeout);
     void (*dependOn)(_Inout_ void* self, _In_ Task* dep);
     intptr (*cmp)(_Inout_ void* self, void* other, uint32 flags);
     uint32 (*hash)(_Inout_ void* self, uint32 flags);
@@ -98,6 +99,8 @@ bool ComplexTask_checkDeps(_Inout_ ComplexTask* self, bool updateProgress);
 #define ctaskCancel(self) (self)->_->cancel(ComplexTask(self))
 // bool ctaskReset(ComplexTask* self);
 #define ctaskReset(self) (self)->_->reset(ComplexTask(self))
+// bool ctaskWait(ComplexTask* self, int64 timeout);
+#define ctaskWait(self, timeout) (self)->_->wait(ComplexTask(self), timeout)
 // void ctaskDependOn(ComplexTask* self, Task* dep);
 #define ctaskDependOn(self, dep) (self)->_->dependOn(ComplexTask(self), Task(dep))
 // intptr ctaskCmp(ComplexTask* self, ComplexTask* other, uint32 flags);
