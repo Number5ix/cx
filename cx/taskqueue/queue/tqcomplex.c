@@ -420,8 +420,14 @@ bool ComplexTaskQueue_add(_Inout_ ComplexTaskQueue* self, _In_ BasicTask* btask)
         objRelease(&btask);
         return false;
     }
+
     // Signal the runner to pick it up
     eventSignal(&self->workev);
+    // let dedicated managers know they may need to check for thread pool expansion.
+    // In-worker managers will be ticked anyway, so don't signal workev twice.
+    if (!self->manager->needsWorkerTick)
+        tqmanagerNotify(self->manager);
+
     return true;
 }
 
