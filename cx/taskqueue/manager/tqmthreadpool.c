@@ -56,7 +56,7 @@ void TQThreadPoolManager_updatePoolSize(_Inout_ TQThreadPoolManager* self)
     self->lastcount = qcount;
 
     // add/remove workers as necessary
-    if (targetw > nworkers && now - self->lastop > conf->tRampUp) {
+    if (targetw > nworkers && now - max(self->lastop, self->idlestart) > conf->tRampUp) {
         tqthreadpoolrunnerAddWorker(self->runner);
         self->lastop = now;
     } else if (targetw < nworkers && now - self->lastop > conf->tRampDown) {
