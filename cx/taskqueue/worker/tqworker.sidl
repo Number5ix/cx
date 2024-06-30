@@ -2,8 +2,6 @@
 
 class TaskQueue;
 
-#define WORKER_CHECK_MANAGER_TASKS 16
-
 abstract class TQWorker {
     // hooks for derived classes to override if desired
     void onStart([in] TaskQueue *tq);      // worker is starting up

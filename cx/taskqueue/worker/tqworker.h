@@ -12,8 +12,6 @@ typedef struct TQWorker_WeakRef TQWorker_WeakRef;
 saDeclarePtr(TQWorker);
 saDeclarePtr(TQWorker_WeakRef);
 
-#define WORKER_CHECK_MANAGER_TASKS 16
-
 typedef struct TQWorker_ClassIf {
     ObjIface* _implements;
     ObjIface* _parent;

@@ -24,8 +24,8 @@ _objfactory_guaranteed TQManualWorker* TQManualWorker_create()
 int64 TQManualWorker_tick(_Inout_ TQManualWorker* self, _In_ TaskQueue* tq)
 {
     BasicTask* btask;
-    int ntasks     = 0;
-    int64 waittime = timeForever;
+    int64 waittime  = timeForever;
+    bool workertick = false;
 
     while ((btask = (BasicTask*)prqPop(&tq->runq))) {
         // IMPLEMENTATION NOTE: At this point we become the owner of the btask pointer
@@ -42,12 +42,11 @@ int64 TQManualWorker_tick(_Inout_ TQManualWorker* self, _In_ TaskQueue* tq)
         // run it
         taskqueue_runTask(tq, &btask, self);
 
-        ntasks++;
-
-        // For in-worker managers, make sure to not run too many tasks without checking the manager
-        if (tq->manager->needsWorkerTick && (ntasks % WORKER_CHECK_MANAGER_TASKS == 0)) {
+        // For in-worker managers, we need to tick the manager
+        if (tq->manager->needsWorkerTick) {
             int64 mgrtime = tqmanagerTick(tq->manager);
             waittime      = min(waittime, mgrtime);
+            workertick    = true;
         }
 
         // If this is a one-shot queue, stop processing now.
@@ -55,8 +54,8 @@ int64 TQManualWorker_tick(_Inout_ TQManualWorker* self, _In_ TaskQueue* tq)
             break;
     }
 
-    // If any only if this is a queue with an in-worker manager, try to tick it now.
-    if (tq->manager->needsWorkerTick) {
+    // Only tick the manager here if we didn't have any tasks to process
+    if (tq->manager->needsWorkerTick && !workertick) {
         int64 mgrtime = tqmanagerTick(tq->manager);
         waittime      = min(waittime, mgrtime);
     }

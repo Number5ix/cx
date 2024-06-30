@@ -91,9 +91,9 @@ bool TQThreadWorker_startThread(_Inout_ TQThreadWorker* self, _In_ TaskQueue* tq
 int64 TQThreadWorker_tick(_Inout_ TQThreadWorker* self, _In_ TaskQueue* tq)
 {
     BasicTask* btask;
-    bool hadtasks  = false;
-    int ntasks     = 0;
-    int64 waittime = timeForever;
+    bool hadtasks   = false;
+    int64 waittime  = timeForever;
+    bool workertick = false;
 
     while ((btask = (BasicTask*)prqPop(&tq->runq))) {
         // Do UI stuff first if this is a UI task queue, to keep things responsive
@@ -116,12 +116,11 @@ int64 TQThreadWorker_tick(_Inout_ TQThreadWorker* self, _In_ TaskQueue* tq)
         hadtasks |= taskqueue_runTask(tq, &btask, self);
         atomicStore(ptr, &self->curtask, NULL, Release);
 
-        ntasks++;
-
-        // For in-worker managers, make sure to not run too many tasks without checking the manager
-        if (tq->manager->needsWorkerTick && (ntasks % WORKER_CHECK_MANAGER_TASKS == 0)) {
+        // For in-worker managers, we need to tick the manager
+        if (tq->manager->needsWorkerTick) {
             int64 mgrtime = tqmanagerTick(tq->manager);
             waittime      = min(waittime, mgrtime);
+            workertick    = true;
         }
     }
 
@@ -130,8 +129,8 @@ int64 TQThreadWorker_tick(_Inout_ TQThreadWorker* self, _In_ TaskQueue* tq)
     if (hadtasks)
         eventSignal(&tq->workev);
 
-    // If any only if this is a queue with an in-worker manager, try to tick it now.
-    if (tq->manager->needsWorkerTick) {
+    // Only tick the manager here if we didn't have any tasks to process
+    if (tq->manager->needsWorkerTick && !workertick) {
         int64 mgrtime = tqmanagerTick(tq->manager);
         waittime      = min(waittime, mgrtime);
     }
