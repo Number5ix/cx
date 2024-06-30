@@ -60,7 +60,7 @@ _meta_inline bool _tqSchedule(_Inout_ TaskQueue* tq, _In_ ComplexTask* task, int
 }
 // bool tqSchedule(TaskQueue *tq, ComplexTask *task, int64 delay);
 // Add a task to the queue to run after a delay. Requires a complex task.
-#define tqSchedule(tq, task, delay) _tqDefer(tq, ComplexTask(task), delay)
+#define tqSchedule(tq, task, delay) _tqSchedule(tq, ComplexTask(task), delay)
 
 _meta_inline bool _tqDefer(_Inout_ TaskQueue* tq, _In_ ComplexTask* task)
 {
