@@ -18,11 +18,18 @@ void TQThreadPoolManager_updatePoolSize(_Inout_ TQThreadPoolManager* self)
 
     TaskQueueThreadPoolConfig* conf = &self->runner->conf;
 
-    // see if we need to grow or shrink the thread pool
-    uint32 qcount = prqCount(&self->tq->runq);
     rwlockAcquireRead(&self->runner->workerlock);
     int32 nworkers = saSize(self->runner->workers);
+    int32 bworkers = 0;
+    // count workers that are busy running a task
+    for (int i = 0; i < nworkers; i++) {
+        if (atomicLoad(ptr, &self->runner->workers.a[i]->curtask, Relaxed) != NULL)
+            bworkers++;
+    }
     rwlockReleaseRead(&self->runner->workerlock);
+
+    // see if we need to grow or shrink the thread pool
+    uint32 qcount = prqCount(&self->tq->runq) + bworkers;
     int32 targetw = nworkers;
     int32 qperw   = (nworkers > 0) ? qcount / nworkers : 100;
     int64 now     = clockTimer();
