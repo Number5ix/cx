@@ -1,7 +1,7 @@
 set(TQ_SYSQ_SRCS
     taskqueue/sysq/sysq.c
     )
-set(TQ_SYSQ_INCLUDE
+set(TQ_SYSQ_INCLUDES
     taskqueue/sysq/sysq.h
     )
 
