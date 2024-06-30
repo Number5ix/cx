@@ -263,9 +263,7 @@ void ComplexTaskQueue__clear(_Inout_ ComplexTaskQueue* self)
     parent__clear();
 
     ComplexTask* ctask;
-    while ((ctask = prqPop(&self->advanceq))) {
-        objRelease(&ctask);
-    }
+    while ((ctask = prqPop(&self->advanceq))) {}
 
     for (int i = saSize(self->scheduled) - 1; i >= 0; --i) {
         objRelease(&self->scheduled.a[i]);
