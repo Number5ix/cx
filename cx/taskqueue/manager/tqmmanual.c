@@ -46,7 +46,7 @@ int64 TQManualManager_tick(_Inout_ TQManualManager* self)
 
     // this will USUALLY be called from the same thread over and over, but manual workers CAN be
     // ticked from different threads, so we need to handle it just like the in-worker class
-    if (atomicLoad(bool, &self->needrun, Relaxed) == true && mutexTryAcquire(&self->mgrlock)) {
+    if (mutexTryAcquire(&self->mgrlock)) {
         atomicStore(bool, &self->needrun, false, Relaxed);
 
         // Run monitor if we have one (usually don't for manual, but nothing stopping somebody from

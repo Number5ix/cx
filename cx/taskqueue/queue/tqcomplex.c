@@ -136,17 +136,6 @@ bool ComplexTaskQueue__processDone(_Inout_ ComplexTaskQueue* self)
     return ret;
 }
 
-extern bool TaskQueue__needProcessExtra(_Inout_ TaskQueue* self);   // parent
-#define parent__needProcessExtra() TaskQueue__needProcessExtra((TaskQueue*)(self))
-bool ComplexTaskQueue__needProcessExtra(_Inout_ ComplexTaskQueue* self)
-{
-    // While the manager is always appropriately signaled when entries are added to the advance
-    // queue, we need to make sure that the manager is ALWAYS ticked if there is anything scheduled
-    // to run on a delay. This is needed for the in-worker manager to know that it can't let the
-    // thread sleep too long or it will miss the deadline.
-    return saSize(self->scheduled) > 0;
-}
-
 extern int64 TaskQueue__processExtra(_Inout_ TaskQueue* self, bool taskscompleted);   // parent
 #define parent__processExtra(taskscompleted) \
     TaskQueue__processExtra((TaskQueue*)(self), taskscompleted)

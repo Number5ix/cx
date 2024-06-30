@@ -41,7 +41,6 @@ class TaskQueue {
     int64 tick();           // run one more more tasks -- only valid in manual mode
 
     bool _processDone();    // internal function for manager to tell the queue to process its doneq
-    bool _needProcessExtra();   // internal function that indicates if there is any extra processing needed currently
     int64 _processExtra(bool taskscompleted);  // internal function for any additional processing that the queue needs to do in the manager thread
     bool _runTask([inout] BasicTask **pbtask, [in] TQWorker *worker);    // internal function workers should call to actually run a task and process the results
     void _clear();          // deletes all tasks in queue, for internal use only

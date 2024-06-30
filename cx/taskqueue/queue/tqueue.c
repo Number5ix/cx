@@ -95,11 +95,6 @@ bool TaskQueue__processDone(_Inout_ TaskQueue* self)
     return ret;
 }
 
-bool TaskQueue__needProcessExtra(_Inout_ TaskQueue* self)
-{
-    return false;
-}
-
 int64 TaskQueue__processExtra(_Inout_ TaskQueue* self, bool taskscompleted)
 {
     // nothing to do because this queue doesn't support complex tasks

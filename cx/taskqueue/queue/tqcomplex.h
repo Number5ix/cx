@@ -43,8 +43,6 @@ typedef struct ComplexTaskQueue_ClassIf {
     int64 (*tick)(_Inout_ void* self);
     // internal function for manager to tell the queue to process its doneq
     bool (*_processDone)(_Inout_ void* self);
-    // internal function that indicates if there is any extra processing needed currently
-    bool (*_needProcessExtra)(_Inout_ void* self);
     // internal function for any additional processing that the queue needs to do in the manager thread
     int64 (*_processExtra)(_Inout_ void* self, bool taskscompleted);
     // internal function workers should call to actually run a task and process the results
@@ -123,10 +121,6 @@ _objfactory_guaranteed ComplexTaskQueue* ComplexTaskQueue_create(_In_opt_ strref
 //
 // internal function for manager to tell the queue to process its doneq
 #define ctaskqueue_processDone(self) (self)->_->_processDone(ComplexTaskQueue(self))
-// bool ctaskqueue_needProcessExtra(ComplexTaskQueue* self);
-//
-// internal function that indicates if there is any extra processing needed currently
-#define ctaskqueue_needProcessExtra(self) (self)->_->_needProcessExtra(ComplexTaskQueue(self))
 // int64 ctaskqueue_processExtra(ComplexTaskQueue* self, bool taskscompleted);
 //
 // internal function for any additional processing that the queue needs to do in the manager thread

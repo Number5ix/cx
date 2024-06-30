@@ -12,7 +12,6 @@
 
     override add;
     override _processDone;
-    override _needProcessExtra;
     override _processExtra;
     override _runTask;
     override _clear;

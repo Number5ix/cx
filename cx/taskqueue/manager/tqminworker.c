@@ -46,11 +46,7 @@ int64 TQInWorkerManager_tick(_Inout_ TQInWorkerManager* self)
 
     // This will be called by many worker threads, so only process if it the mutex can be acquired.
     if (mutexTryAcquire(&self->mgrlock)) {
-        // We need to tick the manager if it's been requested, or if there are tasks that need to
-        // run on a schedule, in which case we need to be sure to not sleep too long. Also verify
-        // that the manager wasn't stopped.
-        if (self->tq && self->runner &&
-            (atomicLoad(bool, &self->needrun, Relaxed) || taskqueue_needProcessExtra(self->tq))) {
+        if (self->tq && self->runner) {
             atomicStore(bool, &self->needrun, false, Relaxed);
             ret = parent_tick();
         }
