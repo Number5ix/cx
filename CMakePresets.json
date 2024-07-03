@@ -1,0 +1,335 @@
+{
+    "version": 6,
+    "configurePresets": [
+        {
+            "name": "base",
+            "hidden": true,
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build/${presetName}"
+        },
+        {
+            "name": "windows",
+            "inherits": "base",
+            "hidden": true,
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            }
+        },
+        {
+            "name": "unix",
+            "inherits": "base",
+            "hidden": true,
+            "condition": {
+                "type": "notEquals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            }
+        },
+        {
+            "name": "msvc-debug",
+            "displayName": "MSVC Debug",
+            "inherits": "windows",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "cl.exe",
+                "CMAKE_CXX_COMPILER": "cl.exe",
+                "CMAKE_BUILD_TYPE": "Debug"
+            }
+        },
+        {
+            "name": "msvc-dev",
+            "displayName": "MSVC Dev",
+            "inherits": "windows",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "cl.exe",
+                "CMAKE_CXX_COMPILER": "cl.exe",
+                "CMAKE_BUILD_TYPE": "Dev"
+            }
+        },
+        {
+            "name": "msvc-release",
+            "displayName": "MSVC Release",
+            "inherits": "windows",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "cl.exe",
+                "CMAKE_CXX_COMPILER": "cl.exe",
+                "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+            }
+        },
+        {
+            "name": "gcc-debug",
+            "displayName": "GCC Debug",
+            "inherits": "unix",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "gcc",
+                "CMAKE_CXX_COMPILER": "g++",
+                "CMAKE_BUILD_TYPE": "Debug"
+            }
+        },
+        {
+            "name": "gcc-dev",
+            "displayName": "GCC Dev",
+            "inherits": "unix",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "gcc",
+                "CMAKE_CXX_COMPILER": "g++",
+                "CMAKE_BUILD_TYPE": "Dev"
+            }
+        },
+        {
+            "name": "gcc-release",
+            "displayName": "GCC Release",
+            "inherits": "unix",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "gcc",
+                "CMAKE_CXX_COMPILER": "g++",
+                "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+            }
+        },
+        {
+            "name": "gcc9-debug",
+            "displayName": "GCC 9 Debug",
+            "inherits": "unix",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "gcc-9",
+                "CMAKE_CXX_COMPILER": "g++-9",
+                "CMAKE_BUILD_TYPE": "Debug"
+            }
+        },
+        {
+            "name": "gcc9-dev",
+            "displayName": "GCC 9 Dev",
+            "inherits": "unix",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "gcc-9",
+                "CMAKE_CXX_COMPILER": "g++-9",
+                "CMAKE_BUILD_TYPE": "Dev"
+            }
+        },
+        {
+            "name": "gcc9-release",
+            "displayName": "GCC 9 Release",
+            "inherits": "unix",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "gcc-9",
+                "CMAKE_CXX_COMPILER": "g++-9",
+                "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+            }
+        },
+        {
+            "name": "clang-debug",
+            "displayName": "Clang Debug",
+            "inherits": "unix",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "clang",
+                "CMAKE_CXX_COMPILER": "clang++",
+                "CMAKE_BUILD_TYPE": "Debug"
+            }
+        },
+        {
+            "name": "clang-dev",
+            "displayName": "Clang Dev",
+            "inherits": "unix",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "clang",
+                "CMAKE_CXX_COMPILER": "clang++",
+                "CMAKE_BUILD_TYPE": "Dev"
+            }
+        },
+        {
+            "name": "clang-release",
+            "displayName": "Clang Release",
+            "inherits": "unix",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "clang",
+                "CMAKE_CXX_COMPILER": "clang++",
+                "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+            }
+        },
+        {
+            "name": "clang15-debug",
+            "displayName": "Clang 15 Debug",
+            "inherits": "unix",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "clang-15",
+                "CMAKE_CXX_COMPILER": "clang++-15",
+                "CMAKE_BUILD_TYPE": "Debug"
+            }
+        },
+        {
+            "name": "clang15-dev",
+            "displayName": "Clang 15 Dev",
+            "inherits": "unix",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "clang-15",
+                "CMAKE_CXX_COMPILER": "clang++-15",
+                "CMAKE_BUILD_TYPE": "Dev"
+            }
+        },
+        {
+            "name": "clang15-release",
+            "displayName": "Clang 15 Release",
+            "inherits": "unix",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "clang-15",
+                "CMAKE_CXX_COMPILER": "clang++-15",
+                "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "msvc-debug",
+            "displayName": "MSVC Debug",
+            "configurePreset": "msvc-debug"
+        },
+        {
+            "name": "msvc-dev",
+            "displayName": "MSVC Dev",
+            "configurePreset": "msvc-dev"
+        },
+        {
+            "name": "msvc-release",
+            "displayName": "MSVC Release",
+            "configurePreset": "msvc-release"
+        },
+        {
+            "name": "gcc-debug",
+            "displayName": "GCC Debug",
+            "configurePreset": "gcc-debug"
+        },
+        {
+            "name": "gcc-dev",
+            "displayName": "GCC Dev",
+            "configurePreset": "gcc-dev"
+        },
+        {
+            "name": "gcc-release",
+            "displayName": "GCC Release",
+            "configurePreset": "gcc-release"
+        },
+        {
+            "name": "gcc9-debug",
+            "displayName": "GCC 9 Debug",
+            "configurePreset": "gcc9-debug"
+        },
+        {
+            "name": "gcc9-dev",
+            "displayName": "GCC 9 Dev",
+            "configurePreset": "gcc9-dev"
+        },
+        {
+            "name": "gcc9-release",
+            "displayName": "GCC 9 Release",
+            "configurePreset": "gcc9-release"
+        },
+        {
+            "name": "clang-debug",
+            "displayName": "Clang Debug",
+            "configurePreset": "clang-debug"
+        },
+        {
+            "name": "clang-dev",
+            "displayName": "Clang Dev",
+            "configurePreset": "clang-dev"
+        },
+        {
+            "name": "clang-release",
+            "displayName": "Clang Release",
+            "configurePreset": "clang-release"
+        },
+        {
+            "name": "clang15-debug",
+            "displayName": "Clang 15 Debug",
+            "configurePreset": "clang15-debug"
+        },
+        {
+            "name": "clang15-dev",
+            "displayName": "Clang 15 Dev",
+            "configurePreset": "clang15-dev"
+        },
+        {
+            "name": "clang15-release",
+            "displayName": "Clang 15 Release",
+            "configurePreset": "clang15-release"
+        }
+    ],
+    "testPresets": [
+        {
+            "name": "msvc-debug",
+            "displayName": "MSVC Debug",
+            "configurePreset": "msvc-debug"
+        },
+        {
+            "name": "msvc-dev",
+            "displayName": "MSVC Dev",
+            "configurePreset": "msvc-dev"
+        },
+        {
+            "name": "msvc-release",
+            "displayName": "MSVC Release",
+            "configurePreset": "msvc-release"
+        },
+        {
+            "name": "gcc-debug",
+            "displayName": "GCC Debug",
+            "configurePreset": "gcc-debug"
+        },
+        {
+            "name": "gcc-dev",
+            "displayName": "GCC Dev",
+            "configurePreset": "gcc-dev"
+        },
+        {
+            "name": "gcc-release",
+            "displayName": "GCC Release",
+            "configurePreset": "gcc-release"
+        },
+        {
+            "name": "gcc9-debug",
+            "displayName": "GCC 9 Debug",
+            "configurePreset": "gcc9-debug"
+        },
+        {
+            "name": "gcc9-dev",
+            "displayName": "GCC 9 Dev",
+            "configurePreset": "gcc9-dev"
+        },
+        {
+            "name": "gcc9-release",
+            "displayName": "GCC 9 Release",
+            "configurePreset": "gcc9-release"
+        },
+        {
+            "name": "clang-debug",
+            "displayName": "Clang Debug",
+            "configurePreset": "clang-debug"
+        },
+        {
+            "name": "clang-dev",
+            "displayName": "Clang Dev",
+            "configurePreset": "clang-dev"
+        },
+        {
+            "name": "clang-release",
+            "displayName": "Clang Release",
+            "configurePreset": "clang-release"
+        },
+        {
+            "name": "clang15-debug",
+            "displayName": "Clang 15 Debug",
+            "configurePreset": "clang15-debug"
+        },
+        {
+            "name": "clang15-dev",
+            "displayName": "Clang 15 Dev",
+            "configurePreset": "clang15-dev"
+        },
+        {
+            "name": "clang15-release",
+            "displayName": "Clang 15 Release",
+            "configurePreset": "clang15-release"
+        }
+    ]
+}

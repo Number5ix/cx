@@ -1,0 +1,107 @@
+{
+    "version": 6,
+    "configurePresets": [
+        {
+            "name": "base",
+            "hidden": true,
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build/${presetName}"
+        },
+        {
+            "name": "windows",
+            "inherits": "base",
+            "hidden": true,
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            }
+        },
+        {
+            "name": "unix",
+            "inherits": "base",
+            "hidden": true,
+            "condition": {
+                "type": "notEquals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            }
+        }
+    ],
+    "compilers": [
+        {
+            "name": "msvc",
+            "displayName": "MSVC",
+            "inherits": "windows",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "cl.exe",
+                "CMAKE_CXX_COMPILER": "cl.exe"
+            }
+        },
+        {
+            "name": "gcc",
+            "displayName": "GCC",
+            "inherits": "unix",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "gcc",
+                "CMAKE_CXX_COMPILER": "g++"
+            }
+        },
+        {
+            "name": "gcc9",
+            "displayName": "GCC 9",
+            "inherits": "unix",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "gcc-9",
+                "CMAKE_CXX_COMPILER": "g++-9"
+            }
+        },
+        {
+            "name": "clang",
+            "displayName": "Clang",
+            "inherits": "unix",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "clang",
+                "CMAKE_CXX_COMPILER": "clang++"
+            }
+        },
+        {
+            "name": "clang15",
+            "displayName": "Clang 15",
+            "inherits": "unix",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "clang-15",
+                "CMAKE_CXX_COMPILER": "clang++-15"
+            }
+        }
+    ],
+    "configs": [
+        {
+            "name": "debug",
+            "displayName": "Debug",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug"
+            }
+        },
+        {
+            "name": "dev",
+            "displayName": "Dev",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Dev"
+            }
+        },
+        {
+            "name": "release",
+            "displayName": "Release",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+            }
+        }
+    ],
+    "tests": [
+        {
+            "name": "all",
+            "displayName": "All"
+        }
+    ]
+}

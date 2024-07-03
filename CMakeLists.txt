@@ -41,7 +41,7 @@ set(CMAKE_CODELITE_USE_TARGETS ON)
 add_subdirectory(3rdparty)
 add_subdirectory(cx)
 add_subdirectory(cxobjgen)
-#add_subdirectory(misc)
+add_subdirectory(misc)
 
 if(PROJECT_IS_TOP_LEVEL)
   enable_testing()
