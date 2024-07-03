@@ -114,6 +114,7 @@ target_compile_definitions(cxobjgen PRIVATE CX_BUILDING_CXOBJGEN)
 
 target_link_libraries(cxobjgen ${CMAKE_THREAD_LIBS_INIT} ${CMAKE_DL_LIBS} mimalloc pcre2-8)
 target_include_directories(cxobjgen PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} SYSTEM PUBLIC ${CX_TOP_SOURCE_DIR} ${CX_TOP_SOURCE_DIR}/cx/include ${CX_TOP_BINARY_DIR})
+set_property(TARGET cxobjgen PROPERTY FOLDER "utils")
 
 export(TARGETS cxobjgen FILE "${CMAKE_BINARY_DIR}/cxobjgen-config.cmake")
 
@@ -133,5 +134,6 @@ add_custom_target(cxobjgen_regenerate
     COMMAND cxobjgen -f ${CX_TOP_SOURCE_DIR}/cxobjgen/cx/obj/objstdif.sidl
     COMMAND cxobjgen -f -I${CX_TOP_SOURCE_DIR} ${CX_TOP_SOURCE_DIR}/cxobjgen/objtypes.sidl
     DEPENDS cxobjgen)
+set_property(TARGET cxobjgen_regenerate PROPERTY FOLDER "generate")
 
 endif()     # NOT CMAKE_CROSSCOMPILING
