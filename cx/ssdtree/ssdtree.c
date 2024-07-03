@@ -613,11 +613,16 @@ SSDNode *_ssdClone(SSDNode *root, SSDTree *desttree, SSDLockState *_ssdCurrentLo
         ssdLockRead(root);
 
         // manually create lock state for destination, inherent state already used for source
-        SSDLockState destlock;
-        _ssdLockStateInit(&destlock);
-        ret = ssdCloneNode(root, _ssdCurrentLockState, desttree, &destlock);
+        SSDLockState *destlock;
+        SSDLockState transient_destlock;
+        _ssdLockStateInit(&transient_destlock);
+
+        // if the source tree is the same as the destination, they should use the same lock
+        destlock = (root->tree == desttree) ? _ssdCurrentLockState : &transient_destlock;
+
+        ret = ssdCloneNode(root, _ssdCurrentLockState, desttree, destlock);
         if (ret)
-            _ssdLockEnd(ret, &destlock);
+            _ssdLockEnd(ret, &transient_destlock);
     }
 
     if (createdtree) {
