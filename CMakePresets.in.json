@@ -91,6 +91,13 @@
             }
         },
         {
+            "name": "devnoopt",
+            "displayName": "DevNoOpt",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "DevNoOpt"
+            }
+        },
+        {
             "name": "release",
             "displayName": "Release",
             "cacheVariables": {

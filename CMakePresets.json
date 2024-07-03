@@ -48,6 +48,16 @@
             }
         },
         {
+            "name": "msvc-devnoopt",
+            "displayName": "MSVC DevNoOpt",
+            "inherits": "windows",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "cl.exe",
+                "CMAKE_CXX_COMPILER": "cl.exe",
+                "CMAKE_BUILD_TYPE": "DevNoOpt"
+            }
+        },
+        {
             "name": "msvc-release",
             "displayName": "MSVC Release",
             "inherits": "windows",
@@ -78,6 +88,16 @@
             }
         },
         {
+            "name": "gcc-devnoopt",
+            "displayName": "GCC DevNoOpt",
+            "inherits": "unix",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "gcc",
+                "CMAKE_CXX_COMPILER": "g++",
+                "CMAKE_BUILD_TYPE": "DevNoOpt"
+            }
+        },
+        {
             "name": "gcc-release",
             "displayName": "GCC Release",
             "inherits": "unix",
@@ -108,6 +128,16 @@
             }
         },
         {
+            "name": "gcc9-devnoopt",
+            "displayName": "GCC 9 DevNoOpt",
+            "inherits": "unix",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "gcc-9",
+                "CMAKE_CXX_COMPILER": "g++-9",
+                "CMAKE_BUILD_TYPE": "DevNoOpt"
+            }
+        },
+        {
             "name": "gcc9-release",
             "displayName": "GCC 9 Release",
             "inherits": "unix",
@@ -138,6 +168,16 @@
             }
         },
         {
+            "name": "clang-devnoopt",
+            "displayName": "Clang DevNoOpt",
+            "inherits": "unix",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "clang",
+                "CMAKE_CXX_COMPILER": "clang++",
+                "CMAKE_BUILD_TYPE": "DevNoOpt"
+            }
+        },
+        {
             "name": "clang-release",
             "displayName": "Clang Release",
             "inherits": "unix",
@@ -168,6 +208,16 @@
             }
         },
         {
+            "name": "clang15-devnoopt",
+            "displayName": "Clang 15 DevNoOpt",
+            "inherits": "unix",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "clang-15",
+                "CMAKE_CXX_COMPILER": "clang++-15",
+                "CMAKE_BUILD_TYPE": "DevNoOpt"
+            }
+        },
+        {
             "name": "clang15-release",
             "displayName": "Clang 15 Release",
             "inherits": "unix",
@@ -190,6 +240,11 @@
             "configurePreset": "msvc-dev"
         },
         {
+            "name": "msvc-devnoopt",
+            "displayName": "MSVC DevNoOpt",
+            "configurePreset": "msvc-devnoopt"
+        },
+        {
             "name": "msvc-release",
             "displayName": "MSVC Release",
             "configurePreset": "msvc-release"
@@ -203,6 +258,11 @@
             "name": "gcc-dev",
             "displayName": "GCC Dev",
             "configurePreset": "gcc-dev"
+        },
+        {
+            "name": "gcc-devnoopt",
+            "displayName": "GCC DevNoOpt",
+            "configurePreset": "gcc-devnoopt"
         },
         {
             "name": "gcc-release",
@@ -220,6 +280,11 @@
             "configurePreset": "gcc9-dev"
         },
         {
+            "name": "gcc9-devnoopt",
+            "displayName": "GCC 9 DevNoOpt",
+            "configurePreset": "gcc9-devnoopt"
+        },
+        {
             "name": "gcc9-release",
             "displayName": "GCC 9 Release",
             "configurePreset": "gcc9-release"
@@ -235,6 +300,11 @@
             "configurePreset": "clang-dev"
         },
         {
+            "name": "clang-devnoopt",
+            "displayName": "Clang DevNoOpt",
+            "configurePreset": "clang-devnoopt"
+        },
+        {
             "name": "clang-release",
             "displayName": "Clang Release",
             "configurePreset": "clang-release"
@@ -248,6 +318,11 @@
             "name": "clang15-dev",
             "displayName": "Clang 15 Dev",
             "configurePreset": "clang15-dev"
+        },
+        {
+            "name": "clang15-devnoopt",
+            "displayName": "Clang 15 DevNoOpt",
+            "configurePreset": "clang15-devnoopt"
         },
         {
             "name": "clang15-release",
@@ -267,6 +342,11 @@
             "configurePreset": "msvc-dev"
         },
         {
+            "name": "msvc-devnoopt",
+            "displayName": "MSVC DevNoOpt",
+            "configurePreset": "msvc-devnoopt"
+        },
+        {
             "name": "msvc-release",
             "displayName": "MSVC Release",
             "configurePreset": "msvc-release"
@@ -280,6 +360,11 @@
             "name": "gcc-dev",
             "displayName": "GCC Dev",
             "configurePreset": "gcc-dev"
+        },
+        {
+            "name": "gcc-devnoopt",
+            "displayName": "GCC DevNoOpt",
+            "configurePreset": "gcc-devnoopt"
         },
         {
             "name": "gcc-release",
@@ -297,6 +382,11 @@
             "configurePreset": "gcc9-dev"
         },
         {
+            "name": "gcc9-devnoopt",
+            "displayName": "GCC 9 DevNoOpt",
+            "configurePreset": "gcc9-devnoopt"
+        },
+        {
             "name": "gcc9-release",
             "displayName": "GCC 9 Release",
             "configurePreset": "gcc9-release"
@@ -312,6 +402,11 @@
             "configurePreset": "clang-dev"
         },
         {
+            "name": "clang-devnoopt",
+            "displayName": "Clang DevNoOpt",
+            "configurePreset": "clang-devnoopt"
+        },
+        {
             "name": "clang-release",
             "displayName": "Clang Release",
             "configurePreset": "clang-release"
@@ -325,6 +420,11 @@
             "name": "clang15-dev",
             "displayName": "Clang 15 Dev",
             "configurePreset": "clang15-dev"
+        },
+        {
+            "name": "clang15-devnoopt",
+            "displayName": "Clang 15 DevNoOpt",
+            "configurePreset": "clang15-devnoopt"
         },
         {
             "name": "clang15-release",
