@@ -26,4 +26,6 @@ void _entryParseArgsU16(int argc, const uint16 **argv);
 #include "cx/platform/win/win_sys_entry.h"
 #elif defined(_PLATFORM_UNIX)
 #include "cx/platform/unix/unix_sys_entry.h"
+#elif defined (_PLATFORM_WASM)
+#include "cx/platform/wasm/wasm_sys_entry.h"
 #endif

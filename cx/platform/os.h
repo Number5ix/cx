@@ -7,6 +7,8 @@
 #include <cx/platform/win/win_os.h>
 #elif defined(_PLATFORM_UNIX)
 #include <cx/platform/unix/unix_os.h>
+#elif defined(_PLATFORM_WASM)
+#include <cx/platform/wasm/wasm_os.h>
 #endif
 
 void osYield();
