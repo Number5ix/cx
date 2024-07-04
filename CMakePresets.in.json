@@ -57,6 +57,15 @@
             }
         },
         {
+            "name": "gcc12",
+            "displayName": "GCC 12",
+            "inherits": "unix",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "gcc-12",
+                "CMAKE_CXX_COMPILER": "g++-12"
+            }
+        },
+        {
             "name": "clang",
             "displayName": "Clang",
             "inherits": "unix",
