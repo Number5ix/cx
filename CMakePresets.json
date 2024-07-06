@@ -108,86 +108,6 @@
             }
         },
         {
-            "name": "gcc9-debug",
-            "displayName": "GCC 9 Debug",
-            "inherits": "unix",
-            "cacheVariables": {
-                "CMAKE_C_COMPILER": "gcc-9",
-                "CMAKE_CXX_COMPILER": "g++-9",
-                "CMAKE_BUILD_TYPE": "Debug"
-            }
-        },
-        {
-            "name": "gcc9-dev",
-            "displayName": "GCC 9 Dev",
-            "inherits": "unix",
-            "cacheVariables": {
-                "CMAKE_C_COMPILER": "gcc-9",
-                "CMAKE_CXX_COMPILER": "g++-9",
-                "CMAKE_BUILD_TYPE": "Dev"
-            }
-        },
-        {
-            "name": "gcc9-devnoopt",
-            "displayName": "GCC 9 DevNoOpt",
-            "inherits": "unix",
-            "cacheVariables": {
-                "CMAKE_C_COMPILER": "gcc-9",
-                "CMAKE_CXX_COMPILER": "g++-9",
-                "CMAKE_BUILD_TYPE": "DevNoOpt"
-            }
-        },
-        {
-            "name": "gcc9-release",
-            "displayName": "GCC 9 Release",
-            "inherits": "unix",
-            "cacheVariables": {
-                "CMAKE_C_COMPILER": "gcc-9",
-                "CMAKE_CXX_COMPILER": "g++-9",
-                "CMAKE_BUILD_TYPE": "RelWithDebInfo"
-            }
-        },
-        {
-            "name": "gcc12-debug",
-            "displayName": "GCC 12 Debug",
-            "inherits": "unix",
-            "cacheVariables": {
-                "CMAKE_C_COMPILER": "gcc-12",
-                "CMAKE_CXX_COMPILER": "g++-12",
-                "CMAKE_BUILD_TYPE": "Debug"
-            }
-        },
-        {
-            "name": "gcc12-dev",
-            "displayName": "GCC 12 Dev",
-            "inherits": "unix",
-            "cacheVariables": {
-                "CMAKE_C_COMPILER": "gcc-12",
-                "CMAKE_CXX_COMPILER": "g++-12",
-                "CMAKE_BUILD_TYPE": "Dev"
-            }
-        },
-        {
-            "name": "gcc12-devnoopt",
-            "displayName": "GCC 12 DevNoOpt",
-            "inherits": "unix",
-            "cacheVariables": {
-                "CMAKE_C_COMPILER": "gcc-12",
-                "CMAKE_CXX_COMPILER": "g++-12",
-                "CMAKE_BUILD_TYPE": "DevNoOpt"
-            }
-        },
-        {
-            "name": "gcc12-release",
-            "displayName": "GCC 12 Release",
-            "inherits": "unix",
-            "cacheVariables": {
-                "CMAKE_C_COMPILER": "gcc-12",
-                "CMAKE_CXX_COMPILER": "g++-12",
-                "CMAKE_BUILD_TYPE": "RelWithDebInfo"
-            }
-        },
-        {
             "name": "clang-debug",
             "displayName": "Clang Debug",
             "inherits": "unix",
@@ -224,46 +144,6 @@
             "cacheVariables": {
                 "CMAKE_C_COMPILER": "clang",
                 "CMAKE_CXX_COMPILER": "clang++",
-                "CMAKE_BUILD_TYPE": "RelWithDebInfo"
-            }
-        },
-        {
-            "name": "clang15-debug",
-            "displayName": "Clang 15 Debug",
-            "inherits": "unix",
-            "cacheVariables": {
-                "CMAKE_C_COMPILER": "clang-15",
-                "CMAKE_CXX_COMPILER": "clang++-15",
-                "CMAKE_BUILD_TYPE": "Debug"
-            }
-        },
-        {
-            "name": "clang15-dev",
-            "displayName": "Clang 15 Dev",
-            "inherits": "unix",
-            "cacheVariables": {
-                "CMAKE_C_COMPILER": "clang-15",
-                "CMAKE_CXX_COMPILER": "clang++-15",
-                "CMAKE_BUILD_TYPE": "Dev"
-            }
-        },
-        {
-            "name": "clang15-devnoopt",
-            "displayName": "Clang 15 DevNoOpt",
-            "inherits": "unix",
-            "cacheVariables": {
-                "CMAKE_C_COMPILER": "clang-15",
-                "CMAKE_CXX_COMPILER": "clang++-15",
-                "CMAKE_BUILD_TYPE": "DevNoOpt"
-            }
-        },
-        {
-            "name": "clang15-release",
-            "displayName": "Clang 15 Release",
-            "inherits": "unix",
-            "cacheVariables": {
-                "CMAKE_C_COMPILER": "clang-15",
-                "CMAKE_CXX_COMPILER": "clang++-15",
                 "CMAKE_BUILD_TYPE": "RelWithDebInfo"
             }
         }
@@ -310,46 +190,6 @@
             "configurePreset": "gcc-release"
         },
         {
-            "name": "gcc9-debug",
-            "displayName": "GCC 9 Debug",
-            "configurePreset": "gcc9-debug"
-        },
-        {
-            "name": "gcc9-dev",
-            "displayName": "GCC 9 Dev",
-            "configurePreset": "gcc9-dev"
-        },
-        {
-            "name": "gcc9-devnoopt",
-            "displayName": "GCC 9 DevNoOpt",
-            "configurePreset": "gcc9-devnoopt"
-        },
-        {
-            "name": "gcc9-release",
-            "displayName": "GCC 9 Release",
-            "configurePreset": "gcc9-release"
-        },
-        {
-            "name": "gcc12-debug",
-            "displayName": "GCC 12 Debug",
-            "configurePreset": "gcc12-debug"
-        },
-        {
-            "name": "gcc12-dev",
-            "displayName": "GCC 12 Dev",
-            "configurePreset": "gcc12-dev"
-        },
-        {
-            "name": "gcc12-devnoopt",
-            "displayName": "GCC 12 DevNoOpt",
-            "configurePreset": "gcc12-devnoopt"
-        },
-        {
-            "name": "gcc12-release",
-            "displayName": "GCC 12 Release",
-            "configurePreset": "gcc12-release"
-        },
-        {
             "name": "clang-debug",
             "displayName": "Clang Debug",
             "configurePreset": "clang-debug"
@@ -368,26 +208,6 @@
             "name": "clang-release",
             "displayName": "Clang Release",
             "configurePreset": "clang-release"
-        },
-        {
-            "name": "clang15-debug",
-            "displayName": "Clang 15 Debug",
-            "configurePreset": "clang15-debug"
-        },
-        {
-            "name": "clang15-dev",
-            "displayName": "Clang 15 Dev",
-            "configurePreset": "clang15-dev"
-        },
-        {
-            "name": "clang15-devnoopt",
-            "displayName": "Clang 15 DevNoOpt",
-            "configurePreset": "clang15-devnoopt"
-        },
-        {
-            "name": "clang15-release",
-            "displayName": "Clang 15 Release",
-            "configurePreset": "clang15-release"
         }
     ],
     "testPresets": [
@@ -432,46 +252,6 @@
             "configurePreset": "gcc-release"
         },
         {
-            "name": "gcc9-debug",
-            "displayName": "GCC 9 Debug",
-            "configurePreset": "gcc9-debug"
-        },
-        {
-            "name": "gcc9-dev",
-            "displayName": "GCC 9 Dev",
-            "configurePreset": "gcc9-dev"
-        },
-        {
-            "name": "gcc9-devnoopt",
-            "displayName": "GCC 9 DevNoOpt",
-            "configurePreset": "gcc9-devnoopt"
-        },
-        {
-            "name": "gcc9-release",
-            "displayName": "GCC 9 Release",
-            "configurePreset": "gcc9-release"
-        },
-        {
-            "name": "gcc12-debug",
-            "displayName": "GCC 12 Debug",
-            "configurePreset": "gcc12-debug"
-        },
-        {
-            "name": "gcc12-dev",
-            "displayName": "GCC 12 Dev",
-            "configurePreset": "gcc12-dev"
-        },
-        {
-            "name": "gcc12-devnoopt",
-            "displayName": "GCC 12 DevNoOpt",
-            "configurePreset": "gcc12-devnoopt"
-        },
-        {
-            "name": "gcc12-release",
-            "displayName": "GCC 12 Release",
-            "configurePreset": "gcc12-release"
-        },
-        {
             "name": "clang-debug",
             "displayName": "Clang Debug",
             "configurePreset": "clang-debug"
@@ -490,26 +270,6 @@
             "name": "clang-release",
             "displayName": "Clang Release",
             "configurePreset": "clang-release"
-        },
-        {
-            "name": "clang15-debug",
-            "displayName": "Clang 15 Debug",
-            "configurePreset": "clang15-debug"
-        },
-        {
-            "name": "clang15-dev",
-            "displayName": "Clang 15 Dev",
-            "configurePreset": "clang15-dev"
-        },
-        {
-            "name": "clang15-devnoopt",
-            "displayName": "Clang 15 DevNoOpt",
-            "configurePreset": "clang15-devnoopt"
-        },
-        {
-            "name": "clang15-release",
-            "displayName": "Clang 15 Release",
-            "configurePreset": "clang15-release"
         }
     ]
 }

@@ -48,39 +48,12 @@
             }
         },
         {
-            "name": "gcc9",
-            "displayName": "GCC 9",
-            "inherits": "unix",
-            "cacheVariables": {
-                "CMAKE_C_COMPILER": "gcc-9",
-                "CMAKE_CXX_COMPILER": "g++-9"
-            }
-        },
-        {
-            "name": "gcc12",
-            "displayName": "GCC 12",
-            "inherits": "unix",
-            "cacheVariables": {
-                "CMAKE_C_COMPILER": "gcc-12",
-                "CMAKE_CXX_COMPILER": "g++-12"
-            }
-        },
-        {
             "name": "clang",
             "displayName": "Clang",
             "inherits": "unix",
             "cacheVariables": {
                 "CMAKE_C_COMPILER": "clang",
                 "CMAKE_CXX_COMPILER": "clang++"
-            }
-        },
-        {
-            "name": "clang15",
-            "displayName": "Clang 15",
-            "inherits": "unix",
-            "cacheVariables": {
-                "CMAKE_C_COMPILER": "clang-15",
-                "CMAKE_CXX_COMPILER": "clang++-15"
             }
         }
     ],
