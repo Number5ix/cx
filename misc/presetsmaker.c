@@ -185,11 +185,11 @@ static void addBuilds(_In_ SSDNode* json, _In_ sa_SSDNode* fullconfigs)
     strDestroy(&dname);
 }
 
-static void addTests(_In_ SSDNode* json, _In_ sa_SSDNode* fullconfigs)
+static void addTests(_In_ SSDNode* json, _In_ sa_SSDNode* fullconfigs, sa_SSDNode* tests)
 {
-    // for now we just create a 1:1 mapping of synthetic test presets
     string name = 0, dname = 0;
     foreach (sarray, fcidx, SSDNode*, fc, *fullconfigs) {
+        // add a default test for each config that just runs everything
         ssdStringOut(fc, _S"name", &name);
         ssdStringOutD(fc, _S"displayName", &dname, name);
 
@@ -199,6 +199,15 @@ static void addTests(_In_ SSDNode* json, _In_ sa_SSDNode* fullconfigs)
         ssdSet(build, _S"configurePreset", false, stvar(string, name));
 
         ssdAppend(json, _S"testPresets", true, stvar(object, build));
+
+        // if there are any custom tests defined, add them for each config
+        foreach(sarray, testidx, SSDNode*, test, *tests) {
+            SSDNode* merged = mergeConfig(build, test, _ssdCurrentLockState);
+            if (merged) {
+                ssdAppend(json, _S"testPresets", true, stvar(object, merged));
+                objRelease(&merged);
+            }
+        }
         objRelease(&build);
     }
     strDestroy(&name);
@@ -235,7 +244,7 @@ int entryPoint(void)
     mkConfigs(&fullconfigs, &compilers, &configs);
     addConfigs(json, &fullconfigs);
     addBuilds(json, &fullconfigs);
-    addTests(json, &fullconfigs);
+    addTests(json, &fullconfigs, &tests);
 
     saveresult(cmdArgs.a[1], json);
 

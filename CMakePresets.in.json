@@ -89,8 +89,19 @@
     ],
     "tests": [
         {
-            "name": "all",
-            "displayName": "All"
+            "name": "taskqueue",
+            "displayName": "Taskqueue Stress",
+            "filter": {
+                "include": {
+                    "name": "taskqueue:.*"
+                }
+            },
+            "execution": {
+                "repeat": {
+                    "mode": "until-fail",
+                    "count": 100
+                }
+            }
         }
     ]
 }
