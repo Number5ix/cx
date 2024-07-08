@@ -16,7 +16,7 @@ void _semaInit(Semaphore *sema, int32 count, uint32 flags)
 _Use_decl_annotations_
 bool semaDestroy(Semaphore *sema)
 {
-    devAssert(atomicLoad(int32, &sema->ftx.val, AcqRel) >= 0);
+    devAssert(atomicLoad(int32, &sema->ftx.val, Acquire) >= 0);
     memset(sema, 0, sizeof(Semaphore));
 
     return true;

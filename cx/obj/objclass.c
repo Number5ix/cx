@@ -177,7 +177,7 @@ static void instDtor(_In_ ObjInst *inst, _In_ ObjClassInfo *cls)
 
 void _objDestroy(_Pre_notnull_ _Post_invalid_ ObjInst *inst)
 {
-    devAssert(atomicLoad(intptr, &inst->_ref, AcqRel) == 0);
+    devAssert(atomicLoad(intptr, &inst->_ref, Acquire) == 0);
     instDtor(inst, inst->_clsinfo);
     xaFree(inst);
 }

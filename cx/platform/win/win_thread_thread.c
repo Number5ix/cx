@@ -58,7 +58,7 @@ static unsigned __stdcall _thrEntryPoint(void *data)
     saClear(&thr->_argsa);
     thr->args.count = 0;
 
-    atomicStore(bool, &thr->running, false, AcqRel);
+    atomicStore(bool, &thr->running, false, Release);
     objRelease(&thr);
 
 out:
