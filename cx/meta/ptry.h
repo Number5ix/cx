@@ -26,6 +26,16 @@ extern ExceptionInfo _ptry_exc_empty;
 
 typedef int (*ptUnhandledHandler)(ExceptionInfo *einfo);
 
+// GCC falsely warns that _ptry_top is a dangling pointer, even though we're very careful to clean
+// it up when exiting the scope that the local variable it points to is declared in.
+#ifdef _COMPILER_GCC
+#define ptDisablePtrWarning _Pragma("GCC diagnostic push") _Pragma("GCC diagnostic ignored \"-Wdangling-pointer\"")
+#define ptReenableWarnings _Pragma("GCC diagnostic pop")
+#else
+#define ptDisablePtrWarning
+#define ptReenableWarnings
+#endif
+
 // Registers a handler-of-last-resort for any uncaught exceptions.
 // This handler may return 0 to abort (crash) the program, or it may return 1 to resume execution as if the
 // exception had been caught. Execution will resume after the outermost ptFinally block, or, in the event
@@ -47,7 +57,9 @@ _meta_inline void _ptry_clear(void)
 _meta_inline void _ptry_push(_pblock_jmp_buf_node *node)
 {
     node->next = _ptry_top;
+    ptDisablePtrWarning;
     _ptry_top = node;
+    ptReenableWarnings;
 }
 
 _meta_inline _pblock_jmp_buf_node *_ptry_pop(void)
