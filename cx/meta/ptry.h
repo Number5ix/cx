@@ -28,7 +28,7 @@ typedef int (*ptUnhandledHandler)(ExceptionInfo *einfo);
 
 // GCC falsely warns that _ptry_top is a dangling pointer, even though we're very careful to clean
 // it up when exiting the scope that the local variable it points to is declared in.
-#ifdef _COMPILER_GCC
+#if defined(__GNUC__) && __GNUC__ >= 12
 #define ptDisablePtrWarning _Pragma("GCC diagnostic push") _Pragma("GCC diagnostic ignored \"-Wdangling-pointer\"")
 #define ptReenableWarnings _Pragma("GCC diagnostic pop")
 #else
