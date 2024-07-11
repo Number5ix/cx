@@ -360,7 +360,7 @@ void *prqPop(PrQueue *prq)
     if(!seg) {
         if(dynamic)
             atomicFetchAdd(int32, &prq->access, -1, Relaxed);
-        return false;
+        return NULL;
     }
     if(dynamic) {
         atomicFetchAdd(int32, &seg->inuse, 1, AcqRel);
