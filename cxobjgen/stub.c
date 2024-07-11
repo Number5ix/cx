@@ -31,7 +31,7 @@ _no_inline _no_return void dbgCrashNow(int skip)
     exit(-1);
 }
 
-intptr_t stCmp_suid(stype st, void *a, void *b) { return 0; }
+intptr stCmp_suid(stype st, stgeneric stgen1, stgeneric stgen2, uint32 flags) { return 0; }
 
 _Success_(return) _Check_return_
 bool stConvert_suid(stype destst, _stCopyDest_Anno_(destst) stgeneric * dest, stype srcst, _In_ stgeneric src, uint32 flags)
