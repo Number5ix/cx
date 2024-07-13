@@ -118,22 +118,24 @@ set_property(TARGET cxobjgen PROPERTY FOLDER "utils")
 
 export(TARGETS cxobjgen FILE "${CMAKE_BINARY_DIR}/cxobjgen-config.cmake")
 
-add_custom_target(cxobjgen_regenerate
-    COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/objclass.c ${CX_TOP_SOURCE_DIR}/cxobjgen/cx/obj/objclass.c
-    COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/objclass.h ${CX_TOP_SOURCE_DIR}/cxobjgen/cx/obj/objclass.h
-    COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/objiface.c ${CX_TOP_SOURCE_DIR}/cxobjgen/cx/obj/objiface.c
-    COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/objiface.h ${CX_TOP_SOURCE_DIR}/cxobjgen/cx/obj/objiface.h
-    COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/objimpl.c ${CX_TOP_SOURCE_DIR}/cxobjgen/cx/obj/objimpl.c
-    COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/objimpl.h ${CX_TOP_SOURCE_DIR}/cxobjgen/cx/obj/objimpl.h
-    COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/objstdif.sidl ${CX_TOP_SOURCE_DIR}/cxobjgen/cx/obj/objstdif.sidl
-    COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/objstdif.c ${CX_TOP_SOURCE_DIR}/cxobjgen/cx/obj/objstdif.c
-    COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/objweak.c ${CX_TOP_SOURCE_DIR}/cxobjgen/cx/obj/objweak.c
-    COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/obj_private.h ${CX_TOP_SOURCE_DIR}/cxobjgen/cx/obj/obj_private.h
-    COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/stype_obj.c ${CX_TOP_SOURCE_DIR}/cxobjgen/cx/obj/stype_obj.c
-    COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/stype_obj.h ${CX_TOP_SOURCE_DIR}/cxobjgen/cx/obj/stype_obj.h
-    COMMAND cxobjgen -f ${CX_TOP_SOURCE_DIR}/cxobjgen/cx/obj/objstdif.sidl
-    COMMAND cxobjgen -f -I${CX_TOP_SOURCE_DIR} ${CX_TOP_SOURCE_DIR}/cxobjgen/objtypes.sidl
-    DEPENDS cxobjgen)
-set_property(TARGET cxobjgen_regenerate PROPERTY FOLDER "generate")
+if(CX_STANDALONE)
+    add_custom_target(cxobjgen_regenerate
+        COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/objclass.c ${CX_TOP_SOURCE_DIR}/cxobjgen/cx/obj/objclass.c
+        COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/objclass.h ${CX_TOP_SOURCE_DIR}/cxobjgen/cx/obj/objclass.h
+        COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/objiface.c ${CX_TOP_SOURCE_DIR}/cxobjgen/cx/obj/objiface.c
+        COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/objiface.h ${CX_TOP_SOURCE_DIR}/cxobjgen/cx/obj/objiface.h
+        COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/objimpl.c ${CX_TOP_SOURCE_DIR}/cxobjgen/cx/obj/objimpl.c
+        COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/objimpl.h ${CX_TOP_SOURCE_DIR}/cxobjgen/cx/obj/objimpl.h
+        COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/objstdif.sidl ${CX_TOP_SOURCE_DIR}/cxobjgen/cx/obj/objstdif.sidl
+        COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/objstdif.c ${CX_TOP_SOURCE_DIR}/cxobjgen/cx/obj/objstdif.c
+        COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/objweak.c ${CX_TOP_SOURCE_DIR}/cxobjgen/cx/obj/objweak.c
+        COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/obj_private.h ${CX_TOP_SOURCE_DIR}/cxobjgen/cx/obj/obj_private.h
+        COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/stype_obj.c ${CX_TOP_SOURCE_DIR}/cxobjgen/cx/obj/stype_obj.c
+        COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/stype_obj.h ${CX_TOP_SOURCE_DIR}/cxobjgen/cx/obj/stype_obj.h
+        COMMAND cxobjgen -f ${CX_TOP_SOURCE_DIR}/cxobjgen/cx/obj/objstdif.sidl
+        COMMAND cxobjgen -f -I${CX_TOP_SOURCE_DIR} ${CX_TOP_SOURCE_DIR}/cxobjgen/objtypes.sidl
+        DEPENDS cxobjgen)
+    set_property(TARGET cxobjgen_regenerate PROPERTY FOLDER "generate")
+endif()
 
 endif()     # NOT CMAKE_CROSSCOMPILING

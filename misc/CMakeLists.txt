@@ -17,7 +17,9 @@ add_executable(presetsmaker ${PRESETS_MAKER_SRCS})
 target_link_libraries(presetsmaker cx)
 set_property(TARGET presetsmaker PROPERTY FOLDER "utils")
 
-add_custom_target(cmake_presets_regenerate
-    COMMAND presetsmaker ${CX_TOP_SOURCE_DIR}/CMakePresets.in.json ${CX_TOP_SOURCE_DIR}/CMakePresets.json
-    DEPENDS presetsmaker)
-set_property(TARGET cmake_presets_regenerate PROPERTY FOLDER "generate")
+if(CX_STANDALONE)
+    add_custom_target(cx_cmake_presets_regenerate
+        COMMAND presetsmaker ${CX_TOP_SOURCE_DIR}/CMakePresets.in.json ${CX_TOP_SOURCE_DIR}/CMakePresets.json
+        DEPENDS presetsmaker)
+    set_property(TARGET cx_cmake_presets_regenerate PROPERTY FOLDER "generate")
+endif()
