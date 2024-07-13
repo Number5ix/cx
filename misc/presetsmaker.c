@@ -38,6 +38,18 @@ static bool saveresult(strref fname, SSDNode* json)
     return ret;
 }
 
+static SSDNode *extractNode(SSDNode* json, strref name, SSDLockState* _ssdCurrentLockState)
+{
+    SSDNode* sub = ssdSubtree(json, name, SSD_Create_None);
+
+    if (sub) {
+        ssdRemove(json, name);
+        return sub;
+    }
+
+    return NULL;
+}
+
 static bool extractNodes(SSDNode* json, strref name, sa_SSDNode* out)
 {
     SSDNode* sub = ssdSubtree(json, name, SSD_Create_None);
@@ -141,21 +153,98 @@ out:
     return ret;
 }
 
-static SSDNode* mkConfigs(_Inout_ sa_SSDNode* fullconfigs, _In_ sa_SSDNode* compilers,
-                          _In_ sa_SSDNode* configs)
+static bool applyFilterSingle(_In_ SSDNode* filter, _In_ SSDNode* src, _In_ SSDNode* dest,
+                              SSDLockState* _ssdCurrentLockState)
+{
+    if (!filter)
+        return true;
+
+    SSDNode* inc = ssdSubtreeB(filter, _S"include");
+    SSDNode* exc = ssdSubtreeB(filter, _S"exclude");
+    string name  = 0;
+    bool ret = true;
+
+    if (!ssdStringOut(dest, _S"name", &name))
+        return false;
+
+    if (inc) {
+        ret = false;
+        foreach (ssd, inciter, incidx, unused, inctext, inc) {
+            if (stvarIs(inctext, string) && strEq(inctext->data.st_string, name)) {
+                ret = true;
+                break;
+            }
+        }
+    } else if (exc) {
+        ret = true;
+        foreach (ssd, exciter, excidx, unused, exctext, exc) {
+            if (stvarIs(exctext, string) && strEq(exctext->data.st_string, name)) {
+                ret = false;
+                break;
+            }
+        }
+    }
+
+    strDestroy(&name);
+    return ret;
+}
+
+static bool applyFilter(_In_ SSDNode* n1, _In_ SSDNode* n1filter, _In_ SSDNode* n2,
+                        _In_ SSDNode* n2filter, SSDLockState* _ssdCurrentLockState)
+{
+    return applyFilterSingle(n1filter, n1, n2, _ssdCurrentLockState) &&
+        applyFilterSingle(n2filter, n2, n1, _ssdCurrentLockState);
+}
+
+static void mkConfigs(_Inout_ sa_SSDNode* fullconfigs, _In_ sa_SSDNode* compilers,
+                      _In_ sa_SSDNode* configs, hashtable* fcindex)
 {
     ssdLockedTransaction(compilers->a[0])
     {
         foreach (sarray, compileridx, SSDNode*, compiler, *compilers) {
+            SSDNode* compilerfilter = extractNode(compiler, _S"filter", _ssdCurrentLockState);
             foreach (sarray, configidx, SSDNode*, config, *configs) {
+                SSDNode* configfilter = extractNode(config, _S"filter", _ssdCurrentLockState);
+
+                if (!applyFilter(compiler,
+                                 compilerfilter,
+                                 config,
+                                 configfilter,
+                                 _ssdCurrentLockState)) {
+                    objRelease(&configfilter);
+                    continue;
+                }
+
+                objRelease(&configfilter);
+
                 SSDNode* merged = mergeConfig(compiler, config, _ssdCurrentLockState);
                 if (merged) {
+                    string name = 0;
+                    if (ssdStringOut(merged, _S"name", &name)) {
+                        htInsert(fcindex, string, name, object, merged);
+                        strDestroy(&name);
+                    }
                     saPushC(fullconfigs, object, &merged);
                 }
             }
+            objRelease(&compilerfilter);
         }
     }
-    return NULL;
+}
+
+static void doOverrides(_In_ hashtable fcindex, _In_ sa_SSDNode *overrides)
+{
+    string name = 0;
+    ssdLockedTransaction(overrides->a[0])
+    {
+        foreach(sarray, overrideidx, SSDNode*, override, *overrides) {
+            SSDNode* ent = 0;
+            if (ssdStringOut(override, _S"name", &name) && htFind(fcindex, string, name, object, &ent)) {
+                mergeNode(ent, override, true, _ssdCurrentLockState);
+            }
+        }
+    }
+    strDestroy(&name);
 }
 
 static void addConfigs(_In_ SSDNode* json, _In_ sa_SSDNode* fullconfigs)
@@ -234,17 +323,22 @@ int entryPoint(void)
         return 1;
     }
 
-    sa_SSDNode compilers, configs, tests, fullconfigs;
+    sa_SSDNode compilers, configs, tests, fullconfigs, overrides;
+    hashtable fcindex;
     saInit(&compilers, object, 16);
     saInit(&configs, object, 16);
     saInit(&tests, object, 16);
     saInit(&fullconfigs, object, 16);
+    saInit(&overrides, object, 16);
+    htInit(&fcindex, string, object, 16, HT_Ref);
 
     extractNodes(json, _S "compilers", &compilers);
     extractNodes(json, _S "configs", &configs);
     extractNodes(json, _S "tests", &tests);
+    extractNodes(json, _S "overrides", &overrides);
 
-    mkConfigs(&fullconfigs, &compilers, &configs);
+    mkConfigs(&fullconfigs, &compilers, &configs, &fcindex);
+    doOverrides(fcindex, &overrides);
     addConfigs(json, &fullconfigs);
     addBuilds(json, &fullconfigs);
     addTests(json, &fullconfigs, &tests);
@@ -252,10 +346,12 @@ int entryPoint(void)
     saveresult(cmdArgs.a[1], json);
 
     objRelease(&json);
+    htDestroy(&fcindex);
     saDestroy(&compilers);
     saDestroy(&configs);
     saDestroy(&tests);
     saDestroy(&fullconfigs);
+    saDestroy(&overrides);
 
     return 0;
 }
