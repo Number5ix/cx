@@ -662,11 +662,7 @@ static void mi_segment_span_remove_from_queue(mi_slice_t* slice, mi_segments_tld
 static mi_slice_t* mi_segment_span_free_coalesce(mi_slice_t* slice, mi_segments_tld_t* tld) {
   mi_assert_internal(slice != NULL && slice->slice_count > 0 && slice->slice_offset == 0);
   mi_segment_t* const segment = _mi_ptr_segment(slice);
-#ifdef __GNUC__
-  bool is_abandoned = mi_segment_is_abandoned(segment);
-#else
-  const bool is_abandoned = (segment->thread_id == 0); // mi_segment_is_abandoned(segment);
-#endif
+  const bool is_abandoned = !segment || (segment->thread_id == 0); // mi_segment_is_abandoned(segment);
 
   // for huge pages, just mark as free but don't add to the queues
   if (segment->kind == MI_SEGMENT_HUGE) {
