@@ -196,8 +196,9 @@ static bool applyFilter(_In_ SSDNode* n1, _In_ SSDNode* n1filter, _In_ SSDNode* 
         applyFilterSingle(n2filter, n2, n1, _ssdCurrentLockState);
 }
 
-static void mkConfigs(_Inout_ sa_SSDNode* fullconfigs, _In_ sa_SSDNode* compilers,
-                      _In_ sa_SSDNode* configs, hashtable* fcindex)
+static void mkConfigs(_Inout_ sa_SSDNode* fullconfigs, _Inout_ sa_SSDNode* buildconfigs,
+                      _In_ sa_SSDNode* compilers, _In_ sa_SSDNode* configs, 
+                      _In_ sa_SSDNode *overrides, hashtable* fcindex)
 {
     ssdLockedTransaction(compilers->a[0])
     {
@@ -219,32 +220,42 @@ static void mkConfigs(_Inout_ sa_SSDNode* fullconfigs, _In_ sa_SSDNode* compiler
 
                 SSDNode* merged = mergeConfig(compiler, config, _ssdCurrentLockState);
                 if (merged) {
-                    string name = 0;
+                    string name = 0, oname = 0;
                     if (ssdStringOut(merged, _S"name", &name)) {
+                        // apply any overrides
+                        foreach(sarray, overrideidx, SSDNode*, override, *overrides) {
+                                if (ssdStringOut(override, _S"name", &oname) && strEq(oname, name)) {
+                                    mergeNode(merged, override, true, _ssdCurrentLockState);
+                            }
+                        }
+
                         htInsert(fcindex, string, name, object, merged);
+
+                        SSDNode* build = ssdCreateCustom(SSD_Create_Hashtable, merged->tree);
+                        string dname   = 0;
+                        ssdStringOutD(merged, _S"displayName", &dname, name);
+                        ssdSet(build, _S"name", false, stvar(string, name));
+                        ssdSet(build, _S"displayName", false, stvar(string, dname));
+                        ssdSet(build, _S"configurePreset", false, stvar(string, name));
+                        strDestroy(&dname);
+
+                        SSDNode* cbuild = extractNode(merged, _S"build", _ssdCurrentLockState);
+                        if (cbuild) {
+                            mergeNode(build, cbuild, true, _ssdCurrentLockState);
+                            objRelease(&cbuild);
+                        }
+
+                        saPushC(buildconfigs, object, &build);
+
                         strDestroy(&name);
                     }
+
                     saPushC(fullconfigs, object, &merged);
                 }
             }
             objRelease(&compilerfilter);
         }
     }
-}
-
-static void doOverrides(_In_ hashtable fcindex, _In_ sa_SSDNode *overrides)
-{
-    string name = 0;
-    ssdLockedTransaction(overrides->a[0])
-    {
-        foreach(sarray, overrideidx, SSDNode*, override, *overrides) {
-            SSDNode* ent = 0;
-            if (ssdStringOut(override, _S"name", &name) && htFind(fcindex, string, name, object, &ent)) {
-                mergeNode(ent, override, true, _ssdCurrentLockState);
-            }
-        }
-    }
-    strDestroy(&name);
 }
 
 static void addConfigs(_In_ SSDNode* json, _In_ sa_SSDNode* fullconfigs)
@@ -254,24 +265,11 @@ static void addConfigs(_In_ SSDNode* json, _In_ sa_SSDNode* fullconfigs)
     }
 }
 
-static void addBuilds(_In_ SSDNode* json, _In_ sa_SSDNode* fullconfigs)
+static void addBuilds(_In_ SSDNode* json, _In_ sa_SSDNode* buildconfigs)
 {
-    // for now we just create a 1:1 mapping of synthetic build presets
-    string name = 0, dname = 0;
-    foreach (sarray, fcidx, SSDNode*, fc, *fullconfigs) {
-        ssdStringOut(fc, _S"name", &name);
-        ssdStringOutD(fc, _S"displayName", &dname, name);
-
-        SSDNode* build = ssdCreateCustom(SSD_Create_Hashtable, json->tree);
-        ssdSet(build, _S"name", false, stvar(string, name));
-        ssdSet(build, _S"displayName", false, stvar(string, dname));
-        ssdSet(build, _S"configurePreset", false, stvar(string, name));
-
-        ssdAppend(json, _S"buildPresets", true, stvar(object, build));
-        objRelease(&build);
+    foreach (sarray, fcidx, SSDNode*, bc, *buildconfigs) {
+        ssdAppend(json, _S"buildPresets", true, stvar(object, bc));
     }
-    strDestroy(&name);
-    strDestroy(&dname);
 }
 
 static void addTests(_In_ SSDNode* json, _In_ sa_SSDNode* fullconfigs, sa_SSDNode* tests)
@@ -323,12 +321,13 @@ int entryPoint(void)
         return 1;
     }
 
-    sa_SSDNode compilers, configs, tests, fullconfigs, overrides;
+    sa_SSDNode compilers, configs, tests, fullconfigs, buildconfigs, overrides;
     hashtable fcindex;
     saInit(&compilers, object, 16);
     saInit(&configs, object, 16);
     saInit(&tests, object, 16);
     saInit(&fullconfigs, object, 16);
+    saInit(&buildconfigs, object, 16);
     saInit(&overrides, object, 16);
     htInit(&fcindex, string, object, 16, HT_Ref);
 
@@ -337,10 +336,9 @@ int entryPoint(void)
     extractNodes(json, _S "tests", &tests);
     extractNodes(json, _S "overrides", &overrides);
 
-    mkConfigs(&fullconfigs, &compilers, &configs, &fcindex);
-    doOverrides(fcindex, &overrides);
+    mkConfigs(&fullconfigs, &buildconfigs, &compilers, &configs, &overrides, &fcindex);
     addConfigs(json, &fullconfigs);
-    addBuilds(json, &fullconfigs);
+    addBuilds(json, &buildconfigs);
     addTests(json, &fullconfigs, &tests);
 
     saveresult(cmdArgs.a[1], json);
@@ -351,6 +349,7 @@ int entryPoint(void)
     saDestroy(&configs);
     saDestroy(&tests);
     saDestroy(&fullconfigs);
+    saDestroy(&buildconfigs);
     saDestroy(&overrides);
 
     return 0;
