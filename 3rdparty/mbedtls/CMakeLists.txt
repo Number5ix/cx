@@ -96,6 +96,8 @@ set(CTR_DRBG_128_BIT_KEY_WARNING "${WARNING_BORDER}"
                          "${CTR_DRBG_128_BIT_KEY_WARN_L3}"
                          "${WARNING_BORDER}")
 
+if(PROJECT_IS_TOP_LEVEL)
+
 # Python 3 is only needed here to check for configuration warnings.
 if(NOT CMAKE_VERSION VERSION_LESS 3.15.0)
     set(Python3_FIND_STRATEGY LOCATION)
@@ -117,6 +119,8 @@ if(MBEDTLS_PYTHON_EXECUTABLE)
     if(${result} EQUAL 0)
         message(WARNING ${CTR_DRBG_128_BIT_KEY_WARNING})
     endif()
+
+endif()
 
 endif()
 
@@ -189,7 +193,6 @@ string(REGEX MATCH "Clang" CMAKE_COMPILER_IS_CLANG "${CMAKE_C_COMPILER_ID}")
 include(CheckCCompilerFlag)
 
 set(CMAKE_C_EXTENSIONS OFF)
-set(CMAKE_C_STANDARD 99)
 
 if(CMAKE_COMPILER_IS_GNU)
     # some warnings we want are not available with old GCC versions
@@ -261,6 +264,9 @@ if(MBEDTLS_FATAL_WARNINGS)
 
     if(CMAKE_COMPILER_IS_CLANG OR CMAKE_COMPILER_IS_GNU)
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror")
+        if (CMAKE_COMPILER_IS_CLANG AND CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 13.0)
+            set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-unused-but-set-variable -Wno-unused-but-set-parameter")
+        endif()
         if(UNSAFE_BUILD)
             set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error=cpp")
             set(CMAKE_C_FLAGS_ASAN "${CMAKE_C_FLAGS_ASAN} -Wno-error=cpp")
@@ -283,12 +289,16 @@ if(LIB_INSTALL_DIR)
     set(CMAKE_INSTALL_LIBDIR "${LIB_INSTALL_DIR}")
 endif()
 
+if(PROJECT_IS_TOP_LEVEL)
+
 if (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/framework/CMakeLists.txt")
     message(FATAL_ERROR "${CMAKE_CURRENT_SOURCE_DIR}/framework/CMakeLists.txt not found. Run `git submodule update --init` from the source tree to fetch the submodule contents.")
 endif()
 add_subdirectory(framework)
 
 add_subdirectory(include)
+
+endif()
 
 add_subdirectory(3rdparty)
 
@@ -350,9 +360,13 @@ if(ENABLE_PROGRAMS)
     add_subdirectory(programs)
 endif()
 
+if(PROJECT_IS_TOP_LEVEL)
+
 ADD_CUSTOM_TARGET(${MBEDTLS_TARGET_PREFIX}apidoc
     COMMAND doxygen mbedtls.doxyfile
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/doxygen)
+
+endif()
 
 if(ENABLE_TESTING)
     enable_testing()

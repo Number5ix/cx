@@ -1,5 +1,6 @@
 option(USE_STATIC_MBEDTLS_LIBRARY "Build Mbed TLS static library." ON)
 option(USE_SHARED_MBEDTLS_LIBRARY "Build Mbed TLS shared library." OFF)
+option(USE_OBJECT_MBEDTLS_LIBRARY "Build mbed TLS object library." OFF)
 option(LINK_WITH_PTHREAD "Explicitly link Mbed TLS library to pthread." OFF)
 option(LINK_WITH_TRUSTED_STORAGE "Explicitly link Mbed TLS library to trusted_storage." OFF)
 
@@ -239,9 +240,9 @@ if(LINK_WITH_TRUSTED_STORAGE)
     set(libs ${libs} trusted_storage)
 endif()
 
-if (NOT USE_STATIC_MBEDTLS_LIBRARY AND NOT USE_SHARED_MBEDTLS_LIBRARY)
+if (NOT USE_STATIC_MBEDTLS_LIBRARY AND NOT USE_SHARED_MBEDTLS_LIBRARY AND NOT USE_OBJECT_MBEDTLS_LIBRARY)
     message(FATAL_ERROR "Need to choose static or shared mbedtls build!")
-endif(NOT USE_STATIC_MBEDTLS_LIBRARY AND NOT USE_SHARED_MBEDTLS_LIBRARY)
+endif(NOT USE_STATIC_MBEDTLS_LIBRARY AND NOT USE_SHARED_MBEDTLS_LIBRARY AND NOT USE_OBJECT_MBEDTLS_LIBRARY)
 
 set(mbedtls_target    "${MBEDTLS_TARGET_PREFIX}mbedtls")
 set(mbedx509_target   "${MBEDTLS_TARGET_PREFIX}mbedx509")
@@ -255,6 +256,12 @@ if (USE_STATIC_MBEDTLS_LIBRARY)
     set(mbedtls_static_target    ${mbedtls_target})
     set(mbedx509_static_target   ${mbedx509_target})
     set(mbedcrypto_static_target ${mbedcrypto_target})
+endif()
+
+if (USE_OBJECT_MBEDTLS_LIBRARY)
+    set(mbedtls_object_target    ${mbedtls_target})
+    set(mbedx509_object_target   ${mbedx509_target})
+    set(mbedcrypto_object_target ${mbedcrypto_target})
 endif()
 
 set(target_libraries ${mbedcrypto_target} ${mbedx509_target} ${mbedtls_target})
@@ -295,6 +302,28 @@ if(USE_STATIC_MBEDTLS_LIBRARY)
     target_link_libraries(${mbedtls_static_target} PUBLIC ${libs} ${mbedx509_static_target})
 endif(USE_STATIC_MBEDTLS_LIBRARY)
 
+if(USE_OBJECT_MBEDTLS_LIBRARY)
+    add_library(${mbedcrypto_object_target} OBJECT ${src_crypto})
+    set_target_properties(${mbedcrypto_object_target} PROPERTIES OUTPUT_NAME mbedcrypto)
+    target_link_libraries(${mbedcrypto_object_target} PUBLIC ${libs})
+
+    if(TARGET ${everest_target})
+        target_link_libraries(${mbedcrypto_object_target} PUBLIC ${everest_target} INTERFACE $<TARGET_OBJECTS:${everest_target}>)
+    endif()
+
+    if(TARGET ${p256m_target})
+        target_link_libraries(${mbedcrypto_object_target} PUBLIC ${p256m_target} INTERFACE $<TARGET_OBJECTS:${p256m_target}>)
+    endif()    
+
+    add_library(${mbedx509_object_target} OBJECT ${src_x509})
+    set_target_properties(${mbedx509_object_target} PROPERTIES OUTPUT_NAME mbedx509)
+    target_link_libraries(${mbedx509_object_target} PUBLIC ${libs} ${mbedcrypto_object_target})
+
+    add_library(${mbedtls_object_target} OBJECT ${src_tls})
+    set_target_properties(${mbedtls_object_target} PROPERTIES OUTPUT_NAME mbedtls)
+    target_link_libraries(${mbedtls_object_target} PUBLIC ${libs} ${mbedx509_object_target})
+endif(USE_OBJECT_MBEDTLS_LIBRARY)
+
 if(USE_SHARED_MBEDTLS_LIBRARY)
     set(CMAKE_LIBRARY_PATH ${CMAKE_CURRENT_BINARY_DIR})
     add_library(${mbedcrypto_target} SHARED ${src_crypto})
@@ -329,6 +358,7 @@ foreach(target IN LISTS target_libraries)
         PUBLIC $<BUILD_INTERFACE:${MBEDTLS_DIR}/include/>
                $<INSTALL_INTERFACE:include/>
         PRIVATE ${MBEDTLS_DIR}/library/
+                ${CX_TOP_SOURCE_DIR}
                 # Needed to include psa_crypto_driver_wrappers.h
                 ${CMAKE_CURRENT_BINARY_DIR})
     # Pass-through MBEDTLS_CONFIG_FILE and MBEDTLS_USER_CONFIG_FILE
@@ -340,6 +370,7 @@ foreach(target IN LISTS target_libraries)
         target_compile_definitions(${target}
             PUBLIC MBEDTLS_USER_CONFIG_FILE="${MBEDTLS_USER_CONFIG_FILE}")
     endif()
+    if(PROJECT_IS_TOP_LEVEL)
     install(
         TARGETS ${target}
         EXPORT MbedTLSTargets
@@ -347,11 +378,16 @@ foreach(target IN LISTS target_libraries)
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
         PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ)
+    endif()
 endforeach(target)
 
 set(lib_target "${MBEDTLS_TARGET_PREFIX}lib")
 
+if(PROJECT_IS_TOP_LEVEL)
+
 add_custom_target(${lib_target} DEPENDS ${mbedcrypto_target} ${mbedx509_target} ${mbedtls_target})
 if(USE_STATIC_MBEDTLS_LIBRARY AND USE_SHARED_MBEDTLS_LIBRARY)
     add_dependencies(${lib_target} ${mbedcrypto_static_target} ${mbedx509_static_target} ${mbedtls_static_target})
+endif()
+
 endif()

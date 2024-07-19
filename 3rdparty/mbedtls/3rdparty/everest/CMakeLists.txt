@@ -1,6 +1,6 @@
 set(everest_target "${MBEDTLS_TARGET_PREFIX}everest")
 
-add_library(${everest_target}
+add_library(${everest_target} OBJECT
   library/everest.c
   library/x25519.c
   library/Hacl_Curve25519_joined.c)
@@ -11,6 +11,7 @@ target_include_directories(${everest_target}
          $<INSTALL_INTERFACE:include>
   PRIVATE include/everest
           include/everest/kremlib
+          ${CX_TOP_SOURCE_DIR}
           ${MBEDTLS_DIR}/library/)
 
 # Pass-through MBEDTLS_CONFIG_FILE and MBEDTLS_USER_CONFIG_FILE

@@ -34,7 +34,7 @@
     "Platform entropy sources only work on Unix and Windows, see MBEDTLS_NO_PLATFORM_ENTROPY in mbedtls_config.h"
 #endif
 
-#if defined(_WIN32) && !defined(EFIX64) && !defined(EFI32)
+#if defined(_WIN32) && !defined(EFIX64) && !defined(EFI32) && !defined(MBEDTLS_NO_BCRYPTRANDOM)
 
 #include <windows.h>
 #include <bcrypt.h>
@@ -66,6 +66,38 @@ int mbedtls_platform_entropy_poll(void *data, unsigned char *output, size_t len,
 
     return 0;
 }
+
+#elif defined(_WIN32) && !defined(EFIX64) && !defined(EFI32)
+
+#if !defined(_WIN32_WINNT)
+#define _WIN32_WINNT 0x0400
+#endif
+#include <windows.h>
+#include <wincrypt.h>
+
+int mbedtls_platform_entropy_poll(void *data, unsigned char *output, size_t len,
+                                  size_t *olen)
+{
+    HCRYPTPROV provider;
+    ((void) data);
+    *olen = 0;
+
+    if (CryptAcquireContext(&provider, NULL, NULL,
+                            PROV_RSA_FULL, CRYPT_VERIFYCONTEXT) == FALSE) {
+        return MBEDTLS_ERR_ENTROPY_SOURCE_FAILED;
+    }
+
+    if (CryptGenRandom(provider, (DWORD) len, output) == FALSE) {
+        CryptReleaseContext(provider, 0);
+        return MBEDTLS_ERR_ENTROPY_SOURCE_FAILED;
+    }
+
+    CryptReleaseContext(provider, 0);
+    *olen = len;
+
+    return 0;
+}
+
 #else /* _WIN32 && !EFIX64 && !EFI32 */
 
 /*
