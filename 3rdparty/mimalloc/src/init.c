@@ -383,7 +383,7 @@ static bool _mi_thread_heap_done(mi_heap_t* heap) {
 // 1. windows dynamic library:
 //     call from DllMain on DLL_THREAD_DETACH
 // 2. windows static library:
-//     use `FlsAlloc` to call a destructor when the thread is done
+//     call from C runtime's thread callback mechanism
 // 3. unix, pthreads:
 //     use a pthread key to call a destructor when a pthread is done
 //

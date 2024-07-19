@@ -487,7 +487,7 @@ template<class T1,class T2> bool operator==(const mi_stl_allocator<T1>& , const 
 template<class T1,class T2> bool operator!=(const mi_stl_allocator<T1>& , const mi_stl_allocator<T2>& ) mi_attr_noexcept { return false; }
 
 
-#if (__cplusplus >= 201103L) || (_MSC_VER >= 1900)  // C++11
+#if 0 //(__cplusplus >= 201103L) || (_MSC_VER >= 1900)  // C++11
 #define MI_HAS_HEAP_STL_ALLOCATOR 1
 
 #include <memory>      // std::shared_ptr

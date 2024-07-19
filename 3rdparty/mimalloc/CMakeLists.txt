@@ -23,6 +23,7 @@ option(MI_LIBC_MUSL         "Set this when linking with musl libc" OFF)
 option(MI_BUILD_SHARED      "Build shared library" ON)
 option(MI_BUILD_STATIC      "Build static library" ON)
 option(MI_BUILD_OBJECT      "Build object library" ON)
+option(MI_BUILD_OBJLIB      "Build cmake object library" OFF)
 option(MI_BUILD_TESTS       "Build test executables" ON)
 option(MI_DEBUG_TSAN        "Build with thread sanitizer (needs clang)" OFF)
 option(MI_DEBUG_UBSAN       "Build with undefined-behavior sanitizer (needs clang++)" OFF)
@@ -503,12 +504,15 @@ if (MI_BUILD_STATIC)
 endif()
 
 # install include files
+if(PROJECT_IS_TOP_LEVEL)
+
 install(FILES include/mimalloc.h DESTINATION ${mi_install_incdir})
 install(FILES include/mimalloc-override.h DESTINATION ${mi_install_incdir})
 install(FILES include/mimalloc-new-delete.h DESTINATION ${mi_install_incdir})
 install(FILES cmake/mimalloc-config.cmake DESTINATION ${mi_install_cmakedir})
 install(FILES cmake/mimalloc-config-version.cmake DESTINATION ${mi_install_cmakedir})
 
+endif()
 
 # single object file for more predictable static overriding
 if (MI_BUILD_OBJECT)
@@ -539,6 +543,18 @@ if (MI_BUILD_OBJECT)
           RENAME ${mi_basename}${CMAKE_C_OUTPUT_EXTENSION} )
 endif()
 
+# object library
+if (MI_BUILD_OBJLIB)
+  add_library(mimalloc-objlib OBJECT ${mi_sources})
+  set_property(TARGET mimalloc-objlib PROPERTY POSITION_INDEPENDENT_CODE ON)
+  target_compile_definitions(mimalloc-objlib PRIVATE ${mi_defines} MI_STATIC_LIB)
+  target_compile_options(mimalloc-objlib PRIVATE ${mi_cflags} ${mi_cflags_static})
+  target_link_libraries(mimalloc-objlib PRIVATE ${mi_libraries})
+  target_include_directories(mimalloc-objlib PUBLIC
+      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  )
+endif()
+
 # pkg-config file support
 set(pc_libraries "")
 foreach(item IN LISTS mi_libraries)
@@ -554,8 +570,10 @@ join_paths(includedir_for_pc_file "\${prefix}" "${CMAKE_INSTALL_INCLUDEDIR}")
 join_paths(libdir_for_pc_file "\${prefix}" "${CMAKE_INSTALL_LIBDIR}")
 
 configure_file(mimalloc.pc.in mimalloc.pc @ONLY)
+if(PROJECT_IS_TOP_LEVEL)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/mimalloc.pc"
         DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig/")
+endif()
 
 
 

@@ -54,10 +54,14 @@ static PNtAllocateVirtualMemoryEx pNtAllocateVirtualMemoryEx = NULL;
 // Similarly, GetNumaProcesorNodeEx is only supported since Windows 7
 typedef struct MI_PROCESSOR_NUMBER_S { WORD Group; BYTE Number; BYTE Reserved; } MI_PROCESSOR_NUMBER;
 
+typedef SIZE_T(__stdcall *PGetLargePageMinimum)();
+typedef DWORD(__stdcall *PGetCurrentProcessorNumber)();
 typedef VOID (__stdcall *PGetCurrentProcessorNumberEx)(MI_PROCESSOR_NUMBER* ProcNumber);
 typedef BOOL (__stdcall *PGetNumaProcessorNodeEx)(MI_PROCESSOR_NUMBER* Processor, PUSHORT NodeNumber);
 typedef BOOL (__stdcall* PGetNumaNodeProcessorMaskEx)(USHORT Node, PGROUP_AFFINITY ProcessorMask);
 typedef BOOL (__stdcall *PGetNumaProcessorNode)(UCHAR Processor, PUCHAR NodeNumber);
+static PGetLargePageMinimum         pGetLargePageMinimum = NULL;
+static PGetCurrentProcessorNumber   pGetCurrentProcessorNumber = NULL;
 static PGetCurrentProcessorNumberEx pGetCurrentProcessorNumberEx = NULL;
 static PGetNumaProcessorNodeEx      pGetNumaProcessorNodeEx = NULL;
 static PGetNumaNodeProcessorMaskEx  pGetNumaNodeProcessorMaskEx = NULL;
@@ -79,7 +83,7 @@ static bool win_enable_large_os_pages(size_t* large_page_size)
   // <https://devblogs.microsoft.com/oldnewthing/20110128-00/?p=11643>
   unsigned long err = 0;
   HANDLE token = NULL;
-  BOOL ok = OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &token);
+  BOOL ok = pGetLargePageMinimum && OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &token);
   if (ok) {
     TOKEN_PRIVILEGES tp;
     ok = LookupPrivilegeValue(NULL, TEXT("SeLockMemoryPrivilege"), &tp.Privileges[0].Luid);
@@ -91,7 +95,7 @@ static bool win_enable_large_os_pages(size_t* large_page_size)
         err = GetLastError();
         ok = (err == ERROR_SUCCESS);
         if (ok && large_page_size != NULL) {
-          *large_page_size = GetLargePageMinimum();
+          *large_page_size = pGetLargePageMinimum();
         }
       }
     }
@@ -137,6 +141,8 @@ void _mi_prim_mem_init( mi_os_mem_config_t* config )
   // Try to use Win7+ numa API
   hDll = LoadLibrary(TEXT("kernel32.dll"));
   if (hDll != NULL) {
+    pGetLargePageMinimum = (PGetLargePageMinimum)(void(*)(void))GetProcAddress(hDll, "GetLargePageMinimum");
+    pGetCurrentProcessorNumber = (PGetCurrentProcessorNumber)(void(*)(void))GetProcAddress(hDll, "GetCurrentProcessorNumber");
     pGetCurrentProcessorNumberEx = (PGetCurrentProcessorNumberEx)(void (*)(void))GetProcAddress(hDll, "GetCurrentProcessorNumberEx");
     pGetNumaProcessorNodeEx = (PGetNumaProcessorNodeEx)(void (*)(void))GetProcAddress(hDll, "GetNumaProcessorNodeEx");
     pGetNumaNodeProcessorMaskEx = (PGetNumaNodeProcessorMaskEx)(void (*)(void))GetProcAddress(hDll, "GetNumaNodeProcessorMaskEx");
@@ -406,9 +412,10 @@ size_t _mi_prim_numa_node(void) {
     BOOL ok = (*pGetNumaProcessorNodeEx)(&pnum, &nnode);
     if (ok) { numa_node = nnode; }
   }
-  else if (pGetNumaProcessorNode != NULL) {
+  else if (pGetNumaProcessorNode != NULL && pGetCurrentProcessorNumber != NULL) {
     // Vista or earlier, use older API that is limited to 64 processors. Issue #277
-    DWORD pnum = GetCurrentProcessorNumber();
+    // Unless they're running XP which doesn't even have GetCurrentProcessorNumber
+    DWORD pnum = pGetCurrentProcessorNumber();
     UCHAR nnode = 0;
     BOOL ok = pGetNumaProcessorNode((UCHAR)pnum, &nnode);
     if (ok) { numa_node = nnode; }
@@ -611,39 +618,41 @@ bool _mi_prim_random_buf(void* buf, size_t buf_len) {
 
 #if !defined(MI_SHARED_LIB)
 
-// use thread local storage keys to detect thread ending
-// note: another design could be to use special linker sections (see issue #869)
-#include <fibersapi.h>
-#if (_WIN32_WINNT < 0x600)  // before Windows Vista
-WINBASEAPI DWORD WINAPI FlsAlloc( _In_opt_ PFLS_CALLBACK_FUNCTION lpCallback );
-WINBASEAPI PVOID WINAPI FlsGetValue( _In_ DWORD dwFlsIndex );
-WINBASEAPI BOOL  WINAPI FlsSetValue( _In_ DWORD dwFlsIndex, _In_opt_ PVOID lpFlsData );
-WINBASEAPI BOOL  WINAPI FlsFree(_In_ DWORD dwFlsIndex);
-#endif
-
-static DWORD mi_fls_key = (DWORD)(-1);
-
-static void NTAPI mi_fls_done(PVOID value) {
-  mi_heap_t* heap = (mi_heap_t*)value;
-  if (heap != NULL) {
-    _mi_thread_done(heap);
-    FlsSetValue(mi_fls_key, NULL);  // prevent recursion as _mi_thread_done may set it back to the main heap, issue #672
-  }
+static BOOL WINAPI
+_tls_callback(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
+{
+    switch (fdwReason) {
+    case DLL_THREAD_DETACH:
+        _mi_thread_done(_mi_heap_default);
+        break;
+    default:
+        break;
+       }
+    return true;
 }
 
+// use CRT TLS callbacks
+#ifdef _M_IX86
+#  pragma comment(linker, "/INCLUDE:__tls_used")
+#  pragma comment(linker, "/INCLUDE:_tls_callback")
+#else
+#  pragma comment(linker, "/INCLUDE:_tls_used")
+#  pragma comment(linker, "/INCLUDE:tls_callback")
+#endif
+#pragma section(".CRT$XLY",long,read)
+mi_decl_externc __declspec(allocate(".CRT$XLY")) BOOL(WINAPI *const tls_callback)(HINSTANCE hinstDLL,
+                                                                                  DWORD fdwReason, LPVOID lpvReserved) = _tls_callback;
+
 void _mi_prim_thread_init_auto_done(void) {
-  mi_fls_key = FlsAlloc(&mi_fls_done);
+    // handled by CRT callback
 }
 
 void _mi_prim_thread_done_auto_done(void) {
-  // call thread-done on all threads (except the main thread) to prevent 
-  // dangling callback pointer if statically linked with a DLL; Issue #208
-  FlsFree(mi_fls_key);  
+    // not needed when using CRT callback
 }
 
 void _mi_prim_thread_associate_default_heap(mi_heap_t* heap) {
-  mi_assert_internal(mi_fls_key != (DWORD)(-1));
-  FlsSetValue(mi_fls_key, heap);
+    // not needed when using CRT callback
 }
 
 #else

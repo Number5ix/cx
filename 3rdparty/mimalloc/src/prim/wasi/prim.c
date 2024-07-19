@@ -48,12 +48,12 @@ int _mi_prim_free(void* addr, size_t size ) {
   static void* mi_memory_grow( size_t size ) {
     void* p = sbrk(size);
     if (p == (void*)(-1)) return NULL;
-    #if !defined(__wasi__) // on wasi this is always zero initialized already (?)
+    #if !defined(__wasi__) && !defined(__EMSCRIPTEN__) // on wasi this is always zero initialized already (?)
     memset(p,0,size);
     #endif
     return p;
   }
-#elif defined(__wasi__)
+#elif defined(__wasi__) || defined(__EMSCRIPTEN__)
   static void* mi_memory_grow( size_t size ) {
     size_t base = (size > 0 ? __builtin_wasm_memory_grow(0,_mi_divide_up(size, _mi_os_page_size()))
                             : __builtin_wasm_memory_size(0));
