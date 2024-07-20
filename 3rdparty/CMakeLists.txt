@@ -38,4 +38,8 @@ set(BUILD_SHARED_LIBS OFF)
 add_subdirectory(pcre2)
 target_include_directories(pcre2-8-object PRIVATE ${CX_TOP_SOURCE_DIR})
 
+if (CX_LUA)
+add_subdirectory(lua)
+endif()
+
 organize_targets(CLEAR_FOLDER PREPEND 3rdparty)

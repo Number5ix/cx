@@ -680,7 +680,7 @@ static int ll_require (lua_State *L) {
 
 
 static const luaL_Reg pk_funcs[] = {
-  {"loadlib", ll_loadlib},
+//  {"loadlib", ll_loadlib},
   {"searchpath", ll_searchpath},
   /* placeholders */
   {"preload", NULL},

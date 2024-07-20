@@ -41,15 +41,26 @@
 */
 static const luaL_Reg loadedlibs[] = {
   {LUA_GNAME, luaopen_base},
-  {LUA_LOADLIBNAME, luaopen_package},
   {LUA_COLIBNAME, luaopen_coroutine},
   {LUA_TABLIBNAME, luaopen_table},
-  {LUA_IOLIBNAME, luaopen_io},
-  {LUA_OSLIBNAME, luaopen_os},
+  {LUA_OSLIBNAME, luaopen_os_safe},
   {LUA_STRLIBNAME, luaopen_string},
   {LUA_MATHLIBNAME, luaopen_math},
   {LUA_UTF8LIBNAME, luaopen_utf8},
-  {LUA_DBLIBNAME, luaopen_debug},
+  {NULL, NULL}
+};
+
+static const luaL_Reg loadedlibs_unsafe[] = {
+  {LUA_GNAME, luaopen_base_unsafe},
+  {LUA_LOADLIBNAME, luaopen_package},
+  {LUA_COLIBNAME, luaopen_coroutine},
+  {LUA_TABLIBNAME, luaopen_table},
+  {LUA_IOLIBNAME, luaopen_io_unsafe},
+  {LUA_OSLIBNAME, luaopen_os_unsafe},
+  {LUA_STRLIBNAME, luaopen_string},
+  {LUA_MATHLIBNAME, luaopen_math},
+  {LUA_UTF8LIBNAME, luaopen_utf8},
+  {LUA_DBLIBNAME, luaopen_debug_unsafe},
   {NULL, NULL}
 };
 
@@ -63,3 +74,11 @@ LUALIB_API void luaL_openlibs (lua_State *L) {
   }
 }
 
+LUALIB_API void luaL_openlibs_unsafe(lua_State *L) {
+  const luaL_Reg *lib;
+  /* "require" functions from 'loadedlibs' and set results to global table */
+  for (lib = loadedlibs_unsafe; lib->func; lib++) {
+    luaL_requiref(L, lib->name, lib->func, 1);
+    lua_pop(L, 1);  /* remove lib */
+  }
+}

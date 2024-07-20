@@ -403,6 +403,25 @@ static int luaB_load (lua_State *L) {
   return load_aux(L, status, env);
 }
 
+static int luaB_load_safe(lua_State *L)
+{
+  int status;
+  size_t l;
+  const char *s = lua_tolstring(L, 1, &l);
+  // mode is ignored and forced to text only for the safe version
+  int env = (!lua_isnone(L, 4) ? 4 : 0);  /* 'env' index or 0 if no 'env' */
+  if (s != NULL) {  /* loading a string? */
+    const char *chunkname = luaL_optstring(L, 2, s);
+    status = luaL_loadbufferx(L, s, l, chunkname, "t");
+  } else {  /* loading from a reader function */
+    const char *chunkname = luaL_optstring(L, 2, "=(load)");
+    luaL_checktype(L, 1, LUA_TFUNCTION);
+    lua_settop(L, RESERVEDSLOT);  /* create reserved slot */
+    status = lua_load(L, generic_reader, NULL, chunkname, "t");
+  }
+  return load_aux(L, status, env);
+}
+
 /* }====================================================== */
 
 
@@ -503,7 +522,37 @@ static int luaB_tostring (lua_State *L) {
 }
 
 
-static const luaL_Reg base_funcs[] = {
+static const luaL_Reg base_funcs_safe[] = {
+  {"assert", luaB_assert},
+  {"collectgarbage", luaB_collectgarbage},
+  {"error", luaB_error},
+  {"getmetatable", luaB_getmetatable},
+  {"ipairs", luaB_ipairs},
+  {"load", luaB_load_safe},
+#if defined(LUA_COMPAT_LOADSTRING)
+  {"loadstring", luaB_load_safe},
+#endif
+  {"next", luaB_next},
+  {"pairs", luaB_pairs},
+  {"pcall", luaB_pcall},
+  {"print", luaB_print},
+  {"rawequal", luaB_rawequal},
+  {"rawlen", luaB_rawlen},
+  {"rawget", luaB_rawget},
+  {"rawset", luaB_rawset},
+  {"select", luaB_select},
+  {"setmetatable", luaB_setmetatable},
+  {"tonumber", luaB_tonumber},
+  {"tostring", luaB_tostring},
+  {"type", luaB_type},
+  {"xpcall", luaB_xpcall},
+  /* placeholders */
+  {"_G", NULL},
+  {"_VERSION", NULL},
+  {NULL, NULL}
+};
+
+static const luaL_Reg base_funcs_unsafe[] = {
   {"assert", luaB_assert},
   {"collectgarbage", luaB_collectgarbage},
   {"dofile", luaB_dofile},
@@ -533,11 +582,24 @@ static const luaL_Reg base_funcs[] = {
   {NULL, NULL}
 };
 
-
 LUAMOD_API int luaopen_base (lua_State *L) {
   /* open lib into global table */
   lua_pushglobaltable(L);
-  luaL_setfuncs(L, base_funcs, 0);
+  luaL_setfuncs(L, base_funcs_safe, 0);
+  /* set global _G */
+  lua_pushvalue(L, -1);
+  lua_setfield(L, -2, "_G");
+  /* set global _VERSION */
+  lua_pushliteral(L, LUA_VERSION);
+  lua_setfield(L, -2, "_VERSION");
+  return 1;
+}
+
+LUAMOD_API int luaopen_base_unsafe(lua_State *L)
+{
+/* open lib into global table */
+  lua_pushglobaltable(L);
+  luaL_setfuncs(L, base_funcs_unsafe, 0);
   /* set global _G */
   lua_pushvalue(L, -1);
   lua_setfield(L, -2, LUA_GNAME);

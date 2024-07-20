@@ -20,8 +20,13 @@ if(PROJECT_IS_TOP_LEVEL)
   set(CMAKE_EXE_LINKER_FLAGS_DEVNOOPT "${CMAKE_EXE_LINKER_FLAGS_DEBUG}")
   set(CMAKE_SHARED_LINKER_FLAGS_DEVNOOPT "${CMAKE_SHARD_LINKER_FLAGS_DEBUG}")
 
+  set(CX_LUA_DEFAULT ON)
   set(CX_STANDALONE 1)
+else()
+  set(CX_LUA_DEFAULT OFF)
 endif()
+
+option(CX_LUA "Build Lua scripting engine and cxlua library" ${CX_LUA_DEFAULT})
 
 include (${CMAKE_CURRENT_SOURCE_DIR}/cmake/sidl.cmake)
 include (${CMAKE_CURRENT_SOURCE_DIR}/cmake/organize_targets.cmake)
@@ -50,6 +55,10 @@ add_subdirectory(3rdparty)
 add_subdirectory(cx)
 add_subdirectory(cxobjgen)
 add_subdirectory(misc)
+
+if(CX_LUA)
+  add_subdirectory(cxlua)
+endif()
 
 if(PROJECT_IS_TOP_LEVEL)
   enable_testing()

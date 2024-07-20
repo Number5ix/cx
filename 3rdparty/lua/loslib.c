@@ -404,7 +404,16 @@ static int os_exit (lua_State *L) {
 }
 
 
-static const luaL_Reg syslib[] = {
+static const luaL_Reg syslib_safe[] = {
+  {"clock",     os_clock},
+  {"date",      os_date},
+  {"difftime",  os_difftime},
+  {"getenv",    os_getenv},
+  {"time",      os_time},
+  {NULL, NULL}
+};
+
+static const luaL_Reg syslib_unsafe[] = {
   {"clock",     os_clock},
   {"date",      os_date},
   {"difftime",  os_difftime},
@@ -423,8 +432,13 @@ static const luaL_Reg syslib[] = {
 
 
 
-LUAMOD_API int luaopen_os (lua_State *L) {
-  luaL_newlib(L, syslib);
+LUAMOD_API int luaopen_os_safe (lua_State *L) {
+  luaL_newlib(L, syslib_safe);
   return 1;
 }
 
+LUAMOD_API int luaopen_os_unsafe(lua_State *L)
+{
+  luaL_newlib(L, syslib_unsafe);
+  return 1;
+}

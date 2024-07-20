@@ -16,6 +16,7 @@
 
 
 LUAMOD_API int (luaopen_base) (lua_State *L);
+LUAMOD_API int (luaopen_base_unsafe)(lua_State *L);
 
 #define LUA_COLIBNAME	"coroutine"
 LUAMOD_API int (luaopen_coroutine) (lua_State *L);
@@ -24,10 +25,11 @@ LUAMOD_API int (luaopen_coroutine) (lua_State *L);
 LUAMOD_API int (luaopen_table) (lua_State *L);
 
 #define LUA_IOLIBNAME	"io"
-LUAMOD_API int (luaopen_io) (lua_State *L);
+LUAMOD_API int (luaopen_io_unsafe) (lua_State *L);
 
 #define LUA_OSLIBNAME	"os"
-LUAMOD_API int (luaopen_os) (lua_State *L);
+LUAMOD_API int (luaopen_os_safe) (lua_State *L);
+LUAMOD_API int (luaopen_os_unsafe) (lua_State *L);
 
 #define LUA_STRLIBNAME	"string"
 LUAMOD_API int (luaopen_string) (lua_State *L);
@@ -39,7 +41,7 @@ LUAMOD_API int (luaopen_utf8) (lua_State *L);
 LUAMOD_API int (luaopen_math) (lua_State *L);
 
 #define LUA_DBLIBNAME	"debug"
-LUAMOD_API int (luaopen_debug) (lua_State *L);
+LUAMOD_API int (luaopen_debug_unsafe) (lua_State *L);
 
 #define LUA_LOADLIBNAME	"package"
 LUAMOD_API int (luaopen_package) (lua_State *L);
@@ -48,5 +50,6 @@ LUAMOD_API int (luaopen_package) (lua_State *L);
 /* open all previous libraries */
 LUALIB_API void (luaL_openlibs) (lua_State *L);
 
+LUALIB_API void (luaL_openlibs_unsafe)(lua_State *L);
 
 #endif
