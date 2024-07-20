@@ -2,6 +2,7 @@
 #include <cx/container.h>
 #include <cx/fs/file.h>
 #include <cx/string.h>
+#define PCRE2_CODE_UNIT_WIDTH 8
 #include <3rdparty/pcre2/pcre2.h>
 
 static const string autogenBegin =  _S"// ==================== Auto-generated section begins ====================";

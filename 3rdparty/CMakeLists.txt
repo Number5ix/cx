@@ -1,0 +1,41 @@
+# 3rdparty CMake philosohpy:
+# Try to make as few changes as possible to the included library's CMakeLists.txt and override
+# things here instead. While not always possible and sometimes edits need to be made, this
+# helps reduce merge conflicts.
+
+include (${CX_TOP_SOURCE_DIR}/cmake/buildtype.cmake)
+
+set(MI_OVERRIDE      OFF CACHE INTERNAL "Override the standard malloc interface (e.g. define entry points for malloc() etc)" FORCE)
+set(MI_OSX_INTERPOSE OFF CACHE INTERNAL "Use interpose to override standard malloc on macOS" FORCE)
+set(MI_OSX_ZONE      OFF CACHE INTERNAL "Use malloc zone to override standard malloc on macOS" FORCE)
+set(MI_WIN_REDIRECT  OFF CACHE INTERNAL "Use redirection module ('mimalloc-redirect') on Windows if compiling mimalloc as a DLL" FORCE)
+set(MI_BUILD_SHARED  OFF CACHE INTERNAL "Build shared library" FORCE)
+set(MI_BUILD_STATIC  OFF CACHE INTERNAL "Build static library" FORCE)
+set(MI_BUILD_OBJECT  OFF CACHE INTERNAL "Build object library" FORCE)
+set(MI_BUILD_OBJLIB  ON  CACHE INTERNAL "Build cmake object library" FORCE)
+set(MI_BUILD_TESTS   OFF CACHE INTERNAL "Build test executables" FORCE)
+add_subdirectory(mimalloc)
+target_compile_definitions(mimalloc-objlib PRIVATE
+    $<${isdebug}:MI_DEBUG=3>
+    $<${isdev}:MI_DEBUG=2>
+    $<${isrelease}:MI_DEBUG=0>
+    $<${isrelease}:MI_SECURE=4>)
+add_library(mimalloc ALIAS mimalloc-objlib)
+
+set(ENABLE_PROGRAMS OFF CACHE INTERNAL "Build Mbed TLS programs." FORCE)
+set(ENABLE_TESTING  OFF CACHE INTERNAL "Build Mbed TLS tests." FORCE)
+
+set(USE_STATIC_MBEDTLS_LIBRARY OFF CACHE INTERNAL "Build Mbed TLS static library." FORCE)
+set(USE_OBJECT_MBEDTLS_LIBRARY ON  CACHE INTERNAL "Build mbed TLS object library." FORCE)
+add_subdirectory(mbedtls)
+
+set(PCRE2_SHOW_REPORT     OFF CACHE INTERNAL "Show the final configuration report" FORCE)
+set(PCRE2_BUILD_PCRE2GREP OFF CACHE INTERNAL "Build pcre2grep" FORCE)
+set(PCRE2_BUILD_TESTS     OFF CACHE INTERNAL "Build the tests" FORCE)
+set(BUILD_STATIC_LIBS OFF)
+set(BUILD_SHARED_LIBS OFF)
+set(BUILD_OBJECT_LIBS ON)
+add_subdirectory(pcre2)
+target_include_directories(pcre2-8-object PRIVATE ${CX_TOP_SOURCE_DIR})
+
+organize_targets(CLEAR_FOLDER PREPEND 3rdparty)

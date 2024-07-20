@@ -24,6 +24,7 @@ if(PROJECT_IS_TOP_LEVEL)
 endif()
 
 include (${CMAKE_CURRENT_SOURCE_DIR}/cmake/sidl.cmake)
+include (${CMAKE_CURRENT_SOURCE_DIR}/cmake/organize_targets.cmake)
 
 string(REGEX MATCH "Clang" CX_COMPILER_IS_CLANG "${CMAKE_C_COMPILER_ID}")
 string(REGEX MATCH "GNU" CX_COMPILER_IS_GNU "${CMAKE_C_COMPILER_ID}")
