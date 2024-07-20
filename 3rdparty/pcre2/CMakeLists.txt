@@ -220,6 +220,8 @@ SET(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries.")
 
 OPTION(BUILD_STATIC_LIBS "Build static libraries." ON)
 
+OPTION(BUILD_OBJECT_LIBS "Build object libraries." ON)
+
 OPTION(PCRE2_BUILD_PCRE2_8 "Build 8 bit PCRE2 library" ON)
 
 OPTION(PCRE2_BUILD_PCRE2_16 "Build 16 bit PCRE2 library" OFF)
