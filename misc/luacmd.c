@@ -19,6 +19,7 @@ void _errmsg(string fmt, int n, stvar *args)
     string tmp = 0;
     _strFormat(&tmp, fmt, n, args);
     fputs(strC(tmp), stderr);
+    fputs("\n", stderr);
     strDestroy(&tmp);
 }
 #define errmsg(fmt, ...) _errmsg(fmt, count_macro_args(__VA_ARGS__), (stvar[]){ __VA_ARGS__ })
@@ -59,12 +60,12 @@ int entryPoint()
 
     filesys = vfsCreateFromFS();
     if (!filesys) {
-        fputs("Error opening filesystem", stderr);
+        fputs("Error opening filesystem\n", stderr);
         return -1;
     }
 
     if (saSize(cmdArgs) < 1) {
-        fputs("Usage: luacmd filename", stderr);
+        fputs("Usage: luacmd filename\n", stderr);
         return 1;
     }
 
