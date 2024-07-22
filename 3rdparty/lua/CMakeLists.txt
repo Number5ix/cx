@@ -1,4 +1,4 @@
-add_library(lua OBJECT
+add_library(lua STATIC
     lapi.c
     lauxlib.c
     lbaselib.c
