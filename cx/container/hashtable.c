@@ -614,6 +614,13 @@ static void _htClear(_Inout_ HashTableHeader *hdr, bool reuse)
         if (hdr->keystorage[0]) {
             // recycle first chunk
             memset(hdr->chunks[0].deleted, 0, sizeof(hdr->chunks[0].deleted));
+            if (!(hdr->flags & (HT_InsertOpt | HT_Compact))) {
+                hdr->chunks[0].nalloc = HT_QUARTER_CHUNK;
+            } else if (hdr->flags & HT_InsertOpt) {
+                hdr->chunks[0].nalloc = HT_SLOTS_PER_CHUNK;
+            } else { // if (hdr->flags & HT_Compact)
+                hdr->chunks[0].nalloc = 1;
+            }
         } else {
             // it was previously freed, get a new one
             _htNewChunk(hdr);
