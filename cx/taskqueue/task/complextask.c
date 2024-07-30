@@ -69,6 +69,14 @@ bool ComplexTask_checkDeps(_Inout_ ComplexTask* self, bool updateProgress)
 {
     bool ret = true;
 
+    if ((self->flags & TASK_Cancel_Cascade) && taskCancelled(self)) {
+        // We need to cascade the cancel at a time it's safe to access the _depends array,
+        // here is as good as any.
+        for (int i = saSize(self->_depends) - 1; i >= 0; --i) {
+            btaskCancel(self->_depends.a[i]);
+        }
+    }
+
     for (int i = saSize(self->_depends) - 1; i >= 0; --i) {
         uint32 state = taskState(self->_depends.a[i]);
         if (state == TASK_Succeeded) {
@@ -129,6 +137,19 @@ void ComplexTask_dependOn(_Inout_ ComplexTask* self, _In_ Task* dep)
     Weak(ComplexTask)* wref = objGetWeak(ComplexTask, self);
     cchainAttach(&dep->oncomplete, taskDepCallback, stvar(weakref, wref));
     objDestroyWeak(&wref);
+}
+
+extern bool BasicTask_cancel(_Inout_ BasicTask* self);   // parent
+#define parent_cancel() BasicTask_cancel((BasicTask*)(self))
+bool ComplexTask_cancel(_Inout_ ComplexTask* self)
+{
+    // If the cancellation needs to be cascaded, advance the task.
+    // Even though it's still deferred, this causes dependencies to be re-checked, which propagates
+    // the cancellation.
+    if (self->flags & TASK_Cancel_Cascade)
+        ctaskAdvance(self);
+
+    return parent_cancel();
 }
 
 // Autogen begins -----

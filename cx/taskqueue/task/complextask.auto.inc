@@ -22,6 +22,7 @@ static ComplexTask_ClassIf _impl_ComplexTask_ComplexTask_ClassIf = {
     ._size = sizeof(ComplexTask_ClassIf),
     ._implements = (ObjIface*)&ComplexTask_ClassIf_tmpl,
     .dependOn = (void (*)(void*, Task*))ComplexTask_dependOn,
+    .cancel = (bool (*)(void*))ComplexTask_cancel,
     .reset = (bool (*)(void*))ComplexTask_reset,
     .cmp = (intptr (*)(void*, void*, uint32))ComplexTask_cmp,
     .hash = (uint32 (*)(void*, uint32))ComplexTask_hash,

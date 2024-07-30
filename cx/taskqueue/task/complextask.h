@@ -22,7 +22,12 @@ enum ComplexTaskRunResultEnum {
     TASK_Result_Schedule = TASK_Result_Basic_Count,     // schedule the task to run after the time specified in the TaskControl structure
     TASK_Result_Schedule_Progress,                      // schedule the task and mark it has having made progress
     TASK_Result_Defer,                                  // defer the task until it is advanced
-    TASK_Result_Defer_Progress                          // defer the task and mark it has having made progress
+    TASK_Result_Defer_Progress,                         // defer the task and mark it has having made progress
+    TASK_Result_Complex_Count
+};
+
+enum ComplexTaskFlagsEnum {
+    TASK_Cancel_Cascade = 0x01,    // If the task is cancelled, cancel all tasks it is depending on as well
 };
 
 typedef struct ComplexTask_ClassIf {
@@ -60,6 +65,7 @@ typedef struct ComplexTask {
     int64 lastprogress;        // timestamp of last progress change
     Weak(ComplexTaskQueue)* lastq;        // The last queue this task ran on before it was deferred
     sa_Task _depends;        // other tasks that must complete before this task can run, do not modify directly!
+    uint32 flags;
 } ComplexTask;
 extern ObjClassInfo ComplexTask_clsinfo;
 #define ComplexTask(inst) ((ComplexTask*)(unused_noeval((inst) && &((inst)->_is_ComplexTask)), (inst)))

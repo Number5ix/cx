@@ -407,6 +407,7 @@ typedef struct TQTestSched {
     int64 lastprogress;        // timestamp of last progress change
     Weak(ComplexTaskQueue)* lastq;        // The last queue this task ran on before it was deferred
     sa_Task _depends;        // other tasks that must complete before this task can run, do not modify directly!
+    uint32 flags;
     Event* notify;
 } TQTestSched;
 extern ObjClassInfo TQTestSched_clsinfo;
@@ -477,6 +478,7 @@ typedef struct TQTestS1 {
     int64 lastprogress;        // timestamp of last progress change
     Weak(ComplexTaskQueue)* lastq;        // The last queue this task ran on before it was deferred
     sa_Task _depends;        // other tasks that must complete before this task can run, do not modify directly!
+    uint32 flags;
     Event* notify;
     int order;
     int64 dtime;
@@ -555,6 +557,7 @@ typedef struct TQTestS2 {
     int64 lastprogress;        // timestamp of last progress change
     Weak(ComplexTaskQueue)* lastq;        // The last queue this task ran on before it was deferred
     sa_Task _depends;        // other tasks that must complete before this task can run, do not modify directly!
+    uint32 flags;
     Event* notify;
     Task* waitfor;
 } TQTestS2;
@@ -681,6 +684,7 @@ typedef struct TQMTest {
     int64 lastprogress;        // timestamp of last progress change
     Weak(ComplexTaskQueue)* lastq;        // The last queue this task ran on before it was deferred
     sa_Task _depends;        // other tasks that must complete before this task can run, do not modify directly!
+    uint32 flags;
     Event* notify;
 } TQMTest;
 extern ObjClassInfo TQMTest_clsinfo;
