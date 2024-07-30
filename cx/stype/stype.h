@@ -284,7 +284,7 @@ enum STYPE_SIZE {
     STypeSize_sarray = sizeof(sa_ref),
     STypeSize_hashtable = sizeof(hashtable),
     STypeSize_closure = sizeof(closure),
-    STypeSize_cchaiun = sizeof(cchain),
+    STypeSize_cchain = sizeof(cchain),
 };
 #define stTypeSize(name) STypeSize_##name
 
