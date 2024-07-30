@@ -125,6 +125,12 @@ bool ComplexTaskQueue__processDone(_Inout_ ComplexTaskQueue* self)
 
             break;
         }
+        case TASK_Waiting:
+            // A waiting task can end up in the doneq if it's a task that completed as deferred was
+            // immediately advanced, all while the manager was in between processDone and
+            // processExtra. In that case, just move it back to the run queue.
+            prqPush(&self->runq, btask);
+            break;
         default:
             // task shouldn't be in the doneq in some other state
             btask_setState(btask, TASK_Failed);
