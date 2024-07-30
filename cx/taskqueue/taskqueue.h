@@ -139,8 +139,8 @@ _meta_inline bool _btaskCancelled(BasicTask *bt)
 {
     return atomicLoad(uint32, &bt->state, Acquire) & TASK_Cancelled;
 }
-#define btaskCancelled(task) _btaskCancelled(Task(task))
-#define taskCancelled(task) _btaskCancelled(Task(task))
+#define btaskCancelled(task) _btaskCancelled(BasicTask(task))
+#define taskCancelled(task) _btaskCancelled(BasicTask(task))
 
 #define taskCancel(task) btaskCancel(task)
 
