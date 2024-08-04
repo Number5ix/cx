@@ -78,7 +78,6 @@ bool ComplexTask_checkRequires(_Inout_ ComplexTask* self, bool updateProgress)
 {
     int64 now     = clockTimer();
     bool ret      = true;
-    bool permfail = false;
     bool done     = false;
 
     if ((self->flags & TASK_Cancel_Cascade) && taskCancelled(self)) {
@@ -104,7 +103,6 @@ bool ComplexTask_checkRequires(_Inout_ ComplexTask* self, bool updateProgress)
 
         case TASK_Requires_Fail_Permanent:
             ret      = false;
-            permfail = true;
             saRemove(&self->_requires, i);
             if (!btaskFailed(self)) {
                 btask_setState(self, TASK_Failed);
