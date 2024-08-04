@@ -218,6 +218,137 @@ uint32 TQMTest_run(_Inout_ TQMTest* self, _In_ TaskQueue* tq, _In_ TQWorker* wor
     return TASK_Result_Success;
 }
 
+_objfactory_guaranteed TQRTestMtx* TQRTestMtx_create(ReqTestState* rts, int num)
+{
+    TQRTestMtx* self;
+    self = objInstCreate(TQRTestMtx);
+
+    self->rts = rts;
+    self->num = num;
+
+    objInstInit(self);
+
+    return self;
+}
+
+uint32 TQRTestMtx_run(_Inout_ TQRTestMtx* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon)
+{
+    ReqTestState* rts = self->rts;
+    if (atomicLoad(bool, &rts->running, Relaxed)) {
+        atomicStore(bool, &rts->fail, true, Relaxed);
+    }
+
+    atomicStore(bool, &rts->running, true, Relaxed);
+    rts->sum += self->num;
+    rts->xor ^= self->num;
+    rts->count++;
+    atomicStore(bool, &rts->running, false, Relaxed);
+
+    if (rts->count == rts->target_count)
+        eventSignal(&rts->notify);
+
+    return TASK_Result_Success;
+}
+
+_objfactory_guaranteed TQRTestFifo* TQRTestFifo_create(ReqTestState* rts, int seq, int num)
+{
+    TQRTestFifo* self;
+    self = objInstCreate(TQRTestFifo);
+
+    self->rts = rts;
+    self->seq = seq;
+    self->num = num;
+
+    objInstInit(self);
+    return self;
+}
+
+uint32 TQRTestFifo_run(_Inout_ TQRTestFifo* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon)
+{
+    ReqTestState* rts = self->rts;
+    if (atomicLoad(bool, &rts->running, Relaxed)) {
+        atomicStore(bool, &rts->fail, true, Relaxed);
+    }
+
+    atomicStore(bool, &rts->running, true, Relaxed);
+    if (rts->seq != self->seq - 1)
+        atomicStore(bool, &rts->fail, true, Relaxed);
+    
+    rts->sum += self->num;
+    rts->product = (rts->product * self->num) % 0xfffffffe + 1;
+    rts->count++;
+
+    rts->seq = self->seq;
+    atomicStore(bool, &rts->running, false, Relaxed);
+
+    if (rts->count == rts->target_count)
+        eventSignal(&rts->notify);
+
+    return TASK_Result_Success;
+}
+
+_objfactory_guaranteed TQRTestLifo* TQRTestLifo_create(ReqTestState* rts, int seq, int num)
+{
+    TQRTestLifo* self;
+    self = objInstCreate(TQRTestLifo);
+
+    self->rts = rts;
+    self->seq = seq;
+    self->num = num;
+
+    objInstInit(self);
+    return self;
+}
+
+uint32 TQRTestLifo_run(_Inout_ TQRTestLifo* self, _In_ TaskQueue* tq, _In_ TQWorker* worker,
+                       _Inout_ TaskControl* tcon)
+{
+    ReqTestState* rts = self->rts;
+    if (atomicLoad(bool, &rts->running, Relaxed)) {
+        atomicStore(bool, &rts->fail, true, Relaxed);
+    }
+
+    atomicStore(bool, &rts->running, true, Relaxed);
+    if (rts->seq != self->seq + 1)
+        atomicStore(bool, &rts->fail, true, Relaxed);
+
+    rts->sum += self->num;
+    rts->xor ^= self->num;
+    rts->count++;
+
+    rts->seq = self->seq;
+    atomicStore(bool, &rts->running, false, Relaxed);
+
+    if (rts->count == rts->target_count)
+        eventSignal(&rts->notify);
+
+    return TASK_Result_Success;
+}
+
+_objfactory_guaranteed TQRTestGate* TQRTestGate_create(ReqTestState2* rts, int num)
+{
+    TQRTestGate* self;
+    self = objInstCreate(TQRTestGate);
+
+    self->rts = rts;
+    self->num = num;
+
+    objInstInit(self);
+    return self;
+}
+
+uint32 TQRTestGate_run(_Inout_ TQRTestGate* self, _In_ TaskQueue* tq, _In_ TQWorker* worker,
+                       _Inout_ TaskControl* tcon)
+{
+    ReqTestState2* rts = self->rts;
+    atomicFetchAdd(int32, &rts->sum, self->num, Relaxed);
+    int32 lastcount = atomicFetchAdd(int32, &rts->count, 1, Relaxed);
+    if (lastcount == rts->target_count - 1)
+        eventSignal(&rts->notify);
+
+    return TASK_Result_Success;
+}
+
 // Autogen begins -----
 #include "tqtestobj.auto.inc"
 // Autogen ends -------

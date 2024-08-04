@@ -106,6 +106,10 @@ static const testspec tests[] = {
 { "taskqueue: Monitor (in-worker)", "tqtest", "monitor_inworker" },
 { "taskqueue: Monitor (dedicated)", "tqtest", "monitor_dedicated" },
 { "taskqueue: Dependencies", "tqtest", "depend" },
+{ "taskqueue: Require Mutex", "tqtest", "reqmutex" },
+{ "taskqueue: Require FIFO", "tqtest", "reqfifo" },
+{ "taskqueue: Require LIFO", "tqtest", "reqlifo" },
+{ "taskqueue: Require Gate", "tqtest", "reqgate" },
 { "taskqueue: Manual", "tqtest", "manual" },
 { "taskqueue: Oneshot", "tqtest", "oneshot" },
 { 0 }

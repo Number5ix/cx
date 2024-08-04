@@ -4,6 +4,10 @@
 #include <cx/log/log.h>
 #include <cx/taskqueue/queue/tqueue.h>
 #include <cx/taskqueue/queue/tqcomplex.h>
+#include <cx/taskqueue/requires/taskrequiresgate.h>
+#include <cx/taskqueue/resource/trfifo.h>
+#include <cx/taskqueue/resource/trlifo.h>
+#include <cx/taskqueue/resource/trmutex.h>
 #include <cx/taskqueue/task/complextask.h>
 
 // Object-oriented task queue suitable for use in heavily multithreaded applications

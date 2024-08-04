@@ -88,8 +88,9 @@ bool BasicTask__setState(_Inout_ BasicTask* self, uint32 newstate)
                 return false;
             break;
         case TASK_Deferred:
-            // can be deferred directly when added, or as a return from a task tick
-            if (!(oldstate == TASK_Created || oldstate == TASK_Running))
+            // can be deferred directly when added, as a return from a task tick, or when waiting
+            // if a requirement is not met
+            if (!(oldstate == TASK_Created || oldstate == TASK_Running || oldstate == TASK_Waiting))
                 return false;
             break;
         case TASK_Succeeded:

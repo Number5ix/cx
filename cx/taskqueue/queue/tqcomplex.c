@@ -173,7 +173,7 @@ int64 ComplexTaskQueue__processExtra(_Inout_ ComplexTaskQueue* self, bool tasksc
             // satisfied before releasing it. Updating progress can make this more expensive if
             // there are many dependencies, so only do that if we have a monitor and need to care
             // about progress.
-            if (ctaskCheckDeps(ctask, self->monitor != NULL)) {
+            if (ctaskCheckRequires(ctask, self->monitor != NULL)) {
                 ctask_setState(ctask, TASK_Waiting);
                 if (htRemove(&self->deferred, object, ctask)) {
                     ctask->last = now;
@@ -292,6 +292,41 @@ bool ComplexTaskQueue__runTask(_Inout_ ComplexTaskQueue* self, _Inout_ BasicTask
     // context: This is called from worker threads. The task pointed to by pbtask has been removed
     // from the run queue and exists only in the parameter; so we MUST do something with it.
     bool completed = false;
+    ComplexTask* ctask = objDynCast(ComplexTask, *pbtask);
+    sa_TaskRequires acquired = saInitNone;
+
+    // If this is a complex task, do a last-second check of the dependencies. This is also where
+    // we try to acquire any resources needed by the task.
+    if (ctask) {
+        bool defer = false;
+
+        if (!ctaskCheckRequires(ctask, false))
+            defer = true;
+        else if (ctask->_intflags & TASK_INTERNAL_Needs_Resources) {
+            // we know the size will be less than the number of requires, so preallocate enough
+            saInit(&acquired, object, saSize(ctask->_requires), SA_Ref);
+            if (!ctaskAcquireRequires(ctask, &acquired)) {
+                defer = true;
+
+                if (!(ctask->flags & TASK_Retain_Requires)) {
+                    // in the failure case, release them now unless the task wants to retain them
+                    ctaskReleaseRequires(ctask, acquired);
+                }
+            }
+        }
+
+        if (defer) {
+            // can't run it, defer it and send it to the doneq
+            btask_setState(*pbtask, TASK_Deferred);
+            if (!prqPush(&self->doneq, *pbtask)) {
+                ctask_setState(*pbtask, TASK_Failed);
+                objRelease(pbtask);
+            }
+
+            saDestroy(&acquired);
+            return false;
+        }
+    }
 
     if (!btask_setState(*pbtask, TASK_Running)) {
         btask_setState(*pbtask, TASK_Failed);
@@ -302,7 +337,6 @@ bool ComplexTaskQueue__runTask(_Inout_ ComplexTaskQueue* self, _Inout_ BasicTask
     TaskControl tcon = { 0 };
     uint32 tresult   = btaskRun(*pbtask, self, worker, &tcon);
 
-    ComplexTask* ctask = objDynCast(ComplexTask, *pbtask);
     Task* task         = Task(ctask);
     int64 now          = clockTimer();
 
@@ -316,6 +350,19 @@ bool ComplexTaskQueue__runTask(_Inout_ ComplexTaskQueue* self, _Inout_ BasicTask
     if (!ctask && !(tresult == TASK_Result_Success || tresult == TASK_Result_Failure)) {
         tresult = TASK_Result_Failure;
     }
+
+    // Free resources if any were acquired, but not if the task wants to retain resources, unless
+    // the task is complete.
+    if (ctask && (ctask->_intflags & TASK_INTERNAL_Owns_Resources) &&
+        (!(ctask->flags & TASK_Retain_Requires) ||
+         (tresult == TASK_Result_Success || tresult == TASK_Result_Failure))) {
+        // If we're not retaining requires, we have a list of exactly which requires acquired any.
+        // If not, we have to just scan all requires and try to release.
+        ctaskReleaseRequires(ctask,
+                             !(ctask->flags & TASK_Retain_Requires) ? acquired : ctask->_requires);
+    }
+
+    saDestroy(&acquired);
 
     switch (tresult) {
     case TASK_Result_Success:
@@ -349,6 +396,8 @@ bool ComplexTaskQueue__runTask(_Inout_ ComplexTaskQueue* self, _Inout_ BasicTask
         btask_setState(*pbtask, TASK_Failed);
         completed = true;
     }
+
+    // free any resources
 
     if (completed) {
         // If this isn't a ComplexTask it might still be a Task
@@ -389,7 +438,7 @@ bool ComplexTaskQueue_add(_Inout_ ComplexTaskQueue* self, _In_ BasicTask* btask)
         ctask->lastq = objGetWeak(ComplexTaskQueue, self);
 
         // if it's a complex task it might have dependencies
-        if (!ctaskCheckDeps(ctask, false)) {
+        if (!ctaskCheckRequires(ctask, false)) {
             // deps aren't satisifed, it needs to go in defer hash instead of run queue
             if (!btask_setState(btask, TASK_Deferred))
                 return false;

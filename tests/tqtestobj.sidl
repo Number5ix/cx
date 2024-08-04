@@ -72,3 +72,55 @@ class TQMTest extends ComplexTask
 
     factory create(Event *notify);
 }
+
+typedef struct ReqTestState
+{
+    int sum;
+    int xor;
+    int product;
+    int count;
+    int target_count;
+    int seq;
+    atomic(bool) running;
+    atomic(bool) fail;
+    Event notify;
+} ReqTestState;
+
+typedef struct ReqTestState2
+{
+    atomic(int32) sum;
+    atomic(int32) count;
+    int target_count;
+    atomic(bool) fail;
+    Event notify;
+} ReqTestState2;
+
+class TQRTestMtx extends ComplexTask {
+    ReqTestState *rts;
+    int num;
+
+    factory create(ReqTestState *rts, int num);
+}
+
+class TQRTestFifo extends ComplexTask {
+    ReqTestState *rts;
+    int seq;
+    int num;
+
+    factory create(ReqTestState *rts, int seq, int num);
+}
+
+class TQRTestLifo extends ComplexTask {
+    ReqTestState *rts;
+    int seq;
+    int num;
+
+    factory create(ReqTestState *rts, int seq, int num);
+}
+
+class TQRTestGate extends ComplexTask {
+    ReqTestState2 *rts;
+    int num;
+
+    factory create(ReqTestState2 *rts, int num);
+}
