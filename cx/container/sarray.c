@@ -604,13 +604,19 @@ int32 _saPush(sahandle handle, stype elemtype, stgeneric elem, flags_t flags)
 
 static void sa_remove_internal(_Inout_ sahandle handle, _Inout_ SArrayHeader *hdr, int32 idx, bool fast)
 {
-    if (fast) {
-        // swap last element with the one being removed -- this changes the order!
-        if ((hdr->flags & SA_Sorted))
-            hdr->flags &= ~SA_Sorted;
-        memcpy(ELEMPTR(hdr, idx), ELEMPTR(hdr, (size_t)hdr->count - 1), stGetSize(hdr->elemtype));
-    } else {
-        memmove(ELEMPTR(hdr, idx), ELEMPTR(hdr, (size_t)idx + 1), ((size_t)hdr->count - idx - 1) * stGetSize(hdr->elemtype));
+    if (idx != hdr->count - 1) {
+        if (fast) {
+            // swap last element with the one being removed -- this changes the order!
+            if ((hdr->flags & SA_Sorted))
+                hdr->flags &= ~SA_Sorted;
+            memcpy(ELEMPTR(hdr, idx),
+                   ELEMPTR(hdr, (size_t)hdr->count - 1),
+                   stGetSize(hdr->elemtype));
+        } else {
+            memmove(ELEMPTR(hdr, idx),
+                    ELEMPTR(hdr, (size_t)idx + 1),
+                    ((size_t)hdr->count - idx - 1) * stGetSize(hdr->elemtype));
+        }
     }
 
     hdr->count--;
