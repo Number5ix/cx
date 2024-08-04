@@ -19,7 +19,7 @@ saDeclarePtr(TRFifo_WeakRef);
 typedef struct TRFifoNode {
     TRFifoNode *next;
     ComplexTask *task;
-};
+} TRFifoNode;
 
 typedef struct TRFifo_ClassIf {
     ObjIface* _implements;

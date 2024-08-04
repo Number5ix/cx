@@ -17,7 +17,7 @@ struct TRFifoNode;
 typedef struct TRFifoNode {
     TRFifoNode *next;
     ComplexTask *task;
-};
+} TRFifoNode;
 
 class TRFifo extends TaskResource {
 
