@@ -13,13 +13,16 @@
 
 void TRMutex_wakeup(_Inout_ TRMutex* self)
 {
-    // Just grab the first task from the waitlist (hashtables retain insertion order)
+    // Get a task from the waitlist (hashtables retain insertion order)
     // and advance it so it can try to acquire the mutex.
-    withMutex(&self->_wlmtx) {
+    withMutex (&self->_wlmtx) {
         htiter hti;
         htiInit(&hti, self->_waitlist);
-        if (htiValid(&hti))
-            ctaskAdvance((ComplexTask*)htiKey(object, hti));
+        while(htiValid(&hti)) {
+            if (ctaskAdvance((ComplexTask*)htiKey(object, hti)))
+                break;
+            htiNext(&hti);
+        }
         htiFinish(&hti);
     }
 }
