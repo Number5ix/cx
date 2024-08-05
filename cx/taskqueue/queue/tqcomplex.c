@@ -158,6 +158,7 @@ int64 ComplexTaskQueue__processExtra(_Inout_ ComplexTaskQueue* self, bool tasksc
 {
     int64 waittime = timeForever;
     int64 now      = clockTimer();
+    sa_ComplexTask readvance = saInitNone;
 
     int dcount = 0;
     // process advance queue
@@ -210,8 +211,9 @@ int64 ComplexTaskQueue__processExtra(_Inout_ ComplexTaskQueue* self, bool tasksc
                 }
             } else if (advcount > 1) {
                 // We can't run this yet, but the task has been advanced multiple times, so put it back in
-                // advanceq to re-check the requirements.
-                prqPush(&self->advanceq, ctask);
+                // advanceq to re-check the requirements. We can't push to advanceq here becausae we're still
+                // popping it, so build a temporary list to do it later.
+                saPush(&readvance, ptr, ctask);
                 waittime = 0;
             }
             break;
@@ -259,6 +261,11 @@ int64 ComplexTaskQueue__processExtra(_Inout_ ComplexTaskQueue* self, bool tasksc
     // if we put anything back in, signal the event so that worker threads can pick it up
     if (dcount > 0)
         eventSignalMany(&self->workev, dcount);
+
+    foreach(sarray, idx, void*, ctaskptr, readvance) {
+        prqPush(&self->advanceq, ctaskptr);
+    }
+    saDestroy(&readvance);
 
     return waittime;
 }
