@@ -127,11 +127,14 @@ bool eventWaitTimeout(Event *e, uint64 timeout)
                 // shortwait is set if we weren't woken up by another thread and need to undo the waiter
                 // tracking. earlyret is set if we need to exit the loop now rather than waiting for the
                 // actual timeout based on the clock.
-                bool shortwait = false, earlyret = false;
+                bool shortwait = false, earlyret = false, futexcontention = false;
 
-                if (!e->uiev)
-                    shortwait = (futexWait(&e->ftx, val, aspinTimeoutRemaining(&astate)) == FUTEX_Timeout);
-                else {
+                if (!e->uiev) {
+                    int32 fret = futexWait(&e->ftx, val, aspinTimeoutRemaining(&astate));
+                    shortwait = (fret == FUTEX_Timeout || fret == FUTEX_Retry);
+                    if (fret == FUTEX_Retry)
+                        futexcontention = true;
+                } else {
                     int uievret = uieventWaitTimeout(e->uiev, aspinTimeoutRemaining(&astate));
                     if (uievret == UIEVENT_Timeout) {
                         shortwait = true;
@@ -152,6 +155,9 @@ bool eventWaitTimeout(Event *e, uint64 timeout)
                         aspinHandleContention(&e->aspin, &astate);
                     }
                 }
+
+                if (futexcontention)
+                    aspinHandleContention(&e->aspin, &astate);
 
                 if (earlyret)
                     return false;
