@@ -698,7 +698,7 @@ static int test_tqtest_reqlifo(void)
     int sum = 0, xor = 0;
 
     TaskQueueConfig conf;
-    tqPresetHeavy(&conf);
+    tqPresetBalanced(&conf);
     TaskQueue *q = tqCreate(_S"Test", &conf);
     if(!q || !tqStart(q))
         return 1;
