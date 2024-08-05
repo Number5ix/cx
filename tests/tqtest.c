@@ -484,7 +484,7 @@ static int test_tqtest_depend(void)
     conf.pool.wIdle    = 2;
     conf.pool.wBusy    = 3;
     conf.pool.wMax     = 16;
-    TaskQueue *q = tqCreate(_S"Test", &conf);
+    TaskQueue* q = tqCreate(_S"Test", &conf);
     if(!q || !tqStart(q))
         return 1;
 
@@ -594,11 +594,7 @@ static int test_tqtest_reqmutex(void)
 
     TaskQueueConfig conf;
     tqPresetBalanced(&conf);
-    conf.pool.wInitial = 8;
-    conf.pool.wIdle    = 8;
-    conf.pool.wBusy    = 16;
-    conf.pool.wMax     = 16;
-    TaskQueue *q = tqCreate(_S"Test", &conf);
+    TaskQueue* q       = tqCreate(_S"Test", &conf);
     if(!q || !tqStart(q))
         return 1;
 
@@ -644,11 +640,7 @@ static int test_tqtest_reqfifo(void)
 
     TaskQueueConfig conf;
     tqPresetBalanced(&conf);
-    conf.pool.wInitial = 8;
-    conf.pool.wIdle    = 8;
-    conf.pool.wBusy    = 16;
-    conf.pool.wMax     = 16;
-    TaskQueue *q = tqCreate(_S"Test", &conf);
+    TaskQueue* q = tqCreate(_S"Test", &conf);
     if(!q || !tqStart(q))
         return 1;
 
@@ -706,11 +698,7 @@ static int test_tqtest_reqlifo(void)
     int sum = 0, xor = 0;
 
     TaskQueueConfig conf;
-    tqPresetBalanced(&conf);
-    conf.pool.wInitial = 8;
-    conf.pool.wIdle    = 8;
-    conf.pool.wBusy    = 16;
-    conf.pool.wMax     = 16;
+    tqPresetHeavy(&conf);
     TaskQueue *q = tqCreate(_S"Test", &conf);
     if(!q || !tqStart(q))
         return 1;
@@ -776,11 +764,7 @@ static int test_tqtest_reqgate(void)
     int sum = 0;
 
     TaskQueueConfig conf;
-    tqPresetBalanced(&conf);
-    conf.pool.wInitial = 8;
-    conf.pool.wIdle    = 8;
-    conf.pool.wBusy    = 16;
-    conf.pool.wMax     = 16;
+    tqPresetHeavy(&conf);
     TaskQueue *q = tqCreate(_S"Test", &conf);
     if(!q || !tqStart(q))
         return 1;
