@@ -367,6 +367,7 @@ bool ComplexTaskQueue__runTask(_Inout_ ComplexTaskQueue* self, _Inout_ BasicTask
             tqmanagerNotify(self->manager, !self->manager->needsWorkerTick);
 
             saDestroy(&acquired);
+            *pbtask = NULL;
             return false;
         }
     }
