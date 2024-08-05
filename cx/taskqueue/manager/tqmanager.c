@@ -35,7 +35,7 @@ int64 TQManager_tick(_Inout_ TQManager* self)
     return timeForever;
 }
 
-void TQManager_notify(_Inout_ TQManager* self)
+void TQManager_notify(_Inout_ TQManager* self, bool wakeup)
 {
 }
 

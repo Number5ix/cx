@@ -23,7 +23,7 @@ typedef struct TQDedicatedManager_ClassIf {
 
     bool (*start)(_Inout_ void* self, _In_ TaskQueue* tq);
     bool (*stop)(_Inout_ void* self);
-    void (*notify)(_Inout_ void* self);
+    void (*notify)(_Inout_ void* self, bool wakeup);
     // for in-worker managers, this is called BEFORE a task is run by the worker
     void (*pretask)(_Inout_ void* self);
     int64 (*tick)(_Inout_ void* self);
@@ -77,8 +77,8 @@ _objfactory_guaranteed TQDedicatedManager* TQDedicatedManager_create();
 #define tqdedicatedmanagerStart(self, tq) (self)->_->start(TQDedicatedManager(self), TaskQueue(tq))
 // bool tqdedicatedmanagerStop(TQDedicatedManager* self);
 #define tqdedicatedmanagerStop(self) (self)->_->stop(TQDedicatedManager(self))
-// void tqdedicatedmanagerNotify(TQDedicatedManager* self);
-#define tqdedicatedmanagerNotify(self) (self)->_->notify(TQDedicatedManager(self))
+// void tqdedicatedmanagerNotify(TQDedicatedManager* self, bool wakeup);
+#define tqdedicatedmanagerNotify(self, wakeup) (self)->_->notify(TQDedicatedManager(self), wakeup)
 // void tqdedicatedmanagerPretask(TQDedicatedManager* self);
 //
 // for in-worker managers, this is called BEFORE a task is run by the worker

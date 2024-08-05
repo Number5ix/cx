@@ -24,7 +24,7 @@ typedef struct TQThreadPoolManager_ClassIf {
 
     bool (*start)(_Inout_ void* self, _In_ TaskQueue* tq);
     bool (*stop)(_Inout_ void* self);
-    void (*notify)(_Inout_ void* self);
+    void (*notify)(_Inout_ void* self, bool wakeup);
     // for in-worker managers, this is called BEFORE a task is run by the worker
     void (*pretask)(_Inout_ void* self);
     int64 (*tick)(_Inout_ void* self);
@@ -70,8 +70,8 @@ typedef struct TQThreadPoolManager_WeakRef {
 #define tqthreadpoolmanagerStart(self, tq) (self)->_->start(TQThreadPoolManager(self), TaskQueue(tq))
 // bool tqthreadpoolmanagerStop(TQThreadPoolManager* self);
 #define tqthreadpoolmanagerStop(self) (self)->_->stop(TQThreadPoolManager(self))
-// void tqthreadpoolmanagerNotify(TQThreadPoolManager* self);
-#define tqthreadpoolmanagerNotify(self) (self)->_->notify(TQThreadPoolManager(self))
+// void tqthreadpoolmanagerNotify(TQThreadPoolManager* self, bool wakeup);
+#define tqthreadpoolmanagerNotify(self, wakeup) (self)->_->notify(TQThreadPoolManager(self), wakeup)
 // void tqthreadpoolmanagerPretask(TQThreadPoolManager* self);
 //
 // for in-worker managers, this is called BEFORE a task is run by the worker

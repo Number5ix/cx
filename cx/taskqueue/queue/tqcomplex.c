@@ -71,7 +71,7 @@ static bool CTQPushBackCommon(_Inout_ ComplexTaskQueue* self, _In_ ComplexTask* 
     }
 
     // Notify the manager to do something with it
-    tqmanagerNotify(self->manager);
+    tqmanagerNotify(self->manager, true);
     return true;
 }
 
@@ -245,7 +245,7 @@ bool ComplexTaskQueue_advance(_Inout_ ComplexTaskQueue* self, _In_ ComplexTask* 
         return false;
 
     // Signal the manager to move it
-    tqmanagerNotify(self->manager);
+    tqmanagerNotify(self->manager, true);
     return true;
 }
 
@@ -415,7 +415,9 @@ bool ComplexTaskQueue__runTask(_Inout_ ComplexTaskQueue* self, _Inout_ BasicTask
     // In all other cases the task needs to be moved to the done queue for the manager to clean up.
     prqPush(&self->doneq, *pbtask);
     *pbtask = NULL;   // task no longer belongs to worker
-    tqmanagerNotify(self->manager);
+    // Manger needs to process doneq, but only wake it up if it's running in a separate thread. In
+    // the in-worker case we're about to tick the manager anyway.
+    tqmanagerNotify(self->manager, !self->manager->needsWorkerTick);
 
     return completed;
 }
@@ -451,7 +453,7 @@ bool ComplexTaskQueue_add(_Inout_ ComplexTaskQueue* self, _In_ BasicTask* btask)
                 return false;
             }
             // notify manager to go pick it up
-            tqmanagerNotify(self->manager);
+            tqmanagerNotify(self->manager, true);
             return true;
         }
     }
@@ -477,8 +479,7 @@ bool ComplexTaskQueue_add(_Inout_ ComplexTaskQueue* self, _In_ BasicTask* btask)
     eventSignal(&self->workev);
     // let dedicated managers know they may need to check for thread pool expansion.
     // In-worker managers will be ticked anyway, so don't signal workev twice.
-    if (!self->manager->needsWorkerTick)
-        tqmanagerNotify(self->manager);
+    tqmanagerNotify(self->manager, !self->manager->needsWorkerTick);
 
     return true;
 }

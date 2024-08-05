@@ -76,8 +76,7 @@ bool TaskQueue_add(_Inout_ TaskQueue* self, _In_ BasicTask* btask)
     eventSignal(&self->workev);
     // let dedicated managers know they may need to check for thread pool expansion.
     // In-worker managers will be ticked anyway, so don't signal workev twice.
-    if (!self->manager->needsWorkerTick)
-        tqmanagerNotify(self->manager);
+    tqmanagerNotify(self->manager, !self->manager->needsWorkerTick);
 
     return true;
 }
@@ -204,7 +203,7 @@ bool TaskQueue__runTask(_Inout_ TaskQueue* self, _Inout_ BasicTask** pbtask, _In
     // In all cases the task needs to be moved to the done queue for the manager to clean up.
     prqPush(&self->doneq, *pbtask);
     *pbtask = NULL;   // task no longer belongs to worker
-    tqmanagerNotify(self->manager);
+    tqmanagerNotify(self->manager, !self->manager->needsWorkerTick);
 
     return true;
 }

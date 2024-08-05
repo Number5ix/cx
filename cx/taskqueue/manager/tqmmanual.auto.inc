@@ -9,7 +9,7 @@ TQManualManager_ClassIf TQManualManager_ClassIf_tmpl = {
 static TQManualManager_ClassIf _impl_TQManualManager_TQManualManager_ClassIf = {
     ._size = sizeof(TQManualManager_ClassIf),
     ._implements = (ObjIface*)&TQManualManager_ClassIf_tmpl,
-    .notify = (void (*)(void*))TQManualManager_notify,
+    .notify = (void (*)(void*, bool))TQManualManager_notify,
     .tick = (int64 (*)(void*))TQManualManager_tick,
 };
 

@@ -28,13 +28,14 @@ _objinit_guaranteed bool TQManualManager_init(_Inout_ TQManualManager* self)
     // Autogen ends -------
 }
 
-extern void TQManager_notify(_Inout_ TQManager* self);   // parent
-#define parent_notify() TQManager_notify((TQManager*)(self))
-void TQManualManager_notify(_Inout_ TQManualManager* self)
+extern void TQManager_notify(_Inout_ TQManager* self, bool wakeup);   // parent
+#define parent_notify(wakeup) TQManager_notify((TQManager*)(self), wakeup)
+void TQManualManager_notify(_Inout_ TQManualManager* self, bool wakeup)
 {
-    if (self->tq) {
+    if (self->tq && !atomicLoad(bool, &self->needrun, Relaxed)) {
         atomicStore(bool, &self->needrun, true, Relaxed);
-        eventSignal(&self->tq->workev);
+        if (wakeup)
+            eventSignal(&self->tq->workev);
     }
 }
 

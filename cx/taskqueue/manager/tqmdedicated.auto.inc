@@ -9,7 +9,7 @@ TQDedicatedManager_ClassIf TQDedicatedManager_ClassIf_tmpl = {
 static TQDedicatedManager_ClassIf _impl_TQDedicatedManager_TQDedicatedManager_ClassIf = {
     ._size = sizeof(TQDedicatedManager_ClassIf),
     ._implements = (ObjIface*)&TQDedicatedManager_ClassIf_tmpl,
-    .notify = (void (*)(void*))TQDedicatedManager_notify,
+    .notify = (void (*)(void*, bool))TQDedicatedManager_notify,
     .start = (bool (*)(void*, TaskQueue*))TQDedicatedManager_start,
     .stop = (bool (*)(void*))TQDedicatedManager_stop,
 };
