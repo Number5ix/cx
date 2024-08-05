@@ -11,18 +11,17 @@
 // ==================== Auto-generated section ends ======================
 #include "cx/taskqueue/taskqueue_private.h"
 
-_objfactory_guaranteed ComplexTaskQueue*
-ComplexTaskQueue_create(_In_opt_ strref name, uint32 flags, _In_ TQRunner* runner,
-                        _In_ TQManager* manager, _In_opt_ TQMonitor* monitor)
+_objfactory_guaranteed ComplexTaskQueue* ComplexTaskQueue_create(_In_opt_ strref name, uint32 flags, int64 gcinterval, _In_ TQRunner* runner, _In_ TQManager* manager, _In_opt_ TQMonitor* monitor)
 {
     ComplexTaskQueue* self;
     self = objInstCreate(ComplexTaskQueue);
 
     strDup(&self->name, name);
-    self->flags   = flags;
-    self->runner  = objAcquire(runner);
-    self->manager = objAcquire(manager);
-    self->monitor = objAcquire(monitor);
+    self->flags      = flags;
+    self->gcinterval = gcinterval;
+    self->runner     = objAcquire(runner);
+    self->manager    = objAcquire(manager);
+    self->monitor    = objAcquire(monitor);
     objInstInit(self);
 
     return self;
@@ -480,6 +479,32 @@ bool ComplexTaskQueue_add(_Inout_ ComplexTaskQueue* self, _In_ BasicTask* btask)
     // In-worker managers will be ticked anyway, so don't signal workev twice.
     if (!self->manager->needsWorkerTick)
         tqmanagerNotify(self->manager);
+
+    return true;
+}
+
+extern bool TaskQueue__queueMaint(_Inout_ TaskQueue* self);   // parent
+#define parent__queueMaint() TaskQueue__queueMaint((TaskQueue*)(self))
+bool ComplexTaskQueue__queueMaint(_Inout_ ComplexTaskQueue* self)
+{
+    int64 now = clockTimer();
+
+    if (now - self->_lastgc > self->gcinterval) {
+        self->_lastgc = now;
+        switch(self->_gccycle) {
+            case 0:
+                prqCollect(&self->runq);
+                break;
+            case 1:
+                prqCollect(&self->doneq);
+                break;
+            case 2:
+                prqCollect(&self->advanceq);
+                break;
+            }
+
+        self->_gccycle = (self->_gccycle + 1) % 3;
+    }
 
     return true;
 }

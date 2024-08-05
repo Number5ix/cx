@@ -48,6 +48,8 @@ typedef struct TaskQueue_ClassIf {
     bool (*_processDone)(_Inout_ void* self);
     // internal function for any additional processing that the queue needs to do in the manager thread
     int64 (*_processExtra)(_Inout_ void* self, bool taskscompleted);
+    // internal function that the manager should call to perform any queue maintenance
+    bool (*_queueMaint)(_Inout_ void* self);
     // internal function workers should call to actually run a task and process the results
     bool (*_runTask)(_Inout_ void* self, _Inout_ BasicTask** pbtask, _In_ TQWorker* worker);
     // deletes all tasks in queue, for internal use only
@@ -73,7 +75,10 @@ typedef struct TaskQueue {
     Event workev;        // signaled when there is work to be done
     PrQueue runq;        // tasks that are ready to be picked up by workers
     PrQueue doneq;        // tasks that are either deferred or finished
+    int64 gcinterval;        // how often to run a garbage collection cycle on a queue
     uint32 flags;
+    int64 _lastgc;        // timestamp of last GC cycle
+    int _gccycle;        // which GC cycle ran last
 } TaskQueue;
 extern ObjClassInfo TaskQueue_clsinfo;
 #define TaskQueue(inst) ((TaskQueue*)(unused_noeval((inst) && &((inst)->_is_TaskQueue)), (inst)))
@@ -90,9 +95,9 @@ typedef struct TaskQueue_WeakRef {
 } TaskQueue_WeakRef;
 #define TaskQueue_WeakRef(inst) ((TaskQueue_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TaskQueue_WeakRef)), (inst)))
 
-_objfactory_guaranteed TaskQueue* TaskQueue_create(_In_opt_ strref name, uint32 flags, _In_ TQRunner* runner, _In_ TQManager* manager, _In_opt_ TQMonitor* monitor);
-// TaskQueue* taskqueueCreate(strref name, uint32 flags, TQRunner* runner, TQManager* manager, TQMonitor* monitor);
-#define taskqueueCreate(name, flags, runner, manager, monitor) TaskQueue_create(name, flags, TQRunner(runner), TQManager(manager), TQMonitor(monitor))
+_objfactory_guaranteed TaskQueue* TaskQueue_create(_In_opt_ strref name, uint32 flags, int64 gcinterval, _In_ TQRunner* runner, _In_ TQManager* manager, _In_opt_ TQMonitor* monitor);
+// TaskQueue* taskqueueCreate(strref name, uint32 flags, int64 gcinterval, TQRunner* runner, TQManager* manager, TQMonitor* monitor);
+#define taskqueueCreate(name, flags, gcinterval, runner, manager, monitor) TaskQueue_create(name, flags, gcinterval, TQRunner(runner), TQManager(manager), TQMonitor(monitor))
 
 // bool taskqueueStart(TaskQueue* self);
 //
@@ -118,6 +123,10 @@ _objfactory_guaranteed TaskQueue* TaskQueue_create(_In_opt_ strref name, uint32 
 //
 // internal function for any additional processing that the queue needs to do in the manager thread
 #define taskqueue_processExtra(self, taskscompleted) (self)->_->_processExtra(TaskQueue(self), taskscompleted)
+// bool taskqueue_queueMaint(TaskQueue* self);
+//
+// internal function that the manager should call to perform any queue maintenance
+#define taskqueue_queueMaint(self) (self)->_->_queueMaint(TaskQueue(self))
 // bool taskqueue_runTask(TaskQueue* self, BasicTask** pbtask, TQWorker* worker);
 //
 // internal function workers should call to actually run a task and process the results

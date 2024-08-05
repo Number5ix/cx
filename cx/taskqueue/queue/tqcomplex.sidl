@@ -13,7 +13,8 @@
     override add;
     override _processDone;
     override _processExtra;
+    override _queueMaint;
     override _runTask;
     override _clear;
-    factory create(strref name, uint32 flags, [in] TQRunner *runner, [in] TQManager *manager, [in] [opt] TQMonitor *monitor);
+    factory create(strref name, uint32 flags, int64 gcinterval, [in] TQRunner *runner, [in] TQManager *manager, [in] [opt] TQMonitor *monitor);
 }

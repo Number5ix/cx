@@ -15,6 +15,7 @@ static ComplexTaskQueue_ClassIf _impl_ComplexTaskQueue_ComplexTaskQueue_ClassIf 
     .add = (bool (*)(void*, BasicTask*))ComplexTaskQueue_add,
     ._processDone = (bool (*)(void*))ComplexTaskQueue__processDone,
     ._processExtra = (int64 (*)(void*, bool))ComplexTaskQueue__processExtra,
+    ._queueMaint = (bool (*)(void*))ComplexTaskQueue__queueMaint,
     ._runTask = (bool (*)(void*, BasicTask**, TQWorker*))ComplexTaskQueue__runTask,
     ._clear = (void (*)(void*))ComplexTaskQueue__clear,
 };

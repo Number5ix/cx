@@ -11,18 +11,17 @@
 // ==================== Auto-generated section ends ======================
 #include "cx/taskqueue/taskqueue_private.h"
 
-_objfactory_guaranteed TaskQueue*
-TaskQueue_create(_In_opt_ strref name, uint32 flags, _In_ TQRunner* runner, _In_ TQManager* manager,
-                 _In_opt_ TQMonitor* monitor)
+_objfactory_guaranteed TaskQueue* TaskQueue_create(_In_opt_ strref name, uint32 flags, int64 gcinterval, _In_ TQRunner* runner, _In_ TQManager* manager, _In_opt_ TQMonitor* monitor)
 {
     TaskQueue* self;
     self = objInstCreate(TaskQueue);
 
     strDup(&self->name, name);
-    self->flags   = flags;
-    self->runner  = objAcquire(runner);
-    self->manager = objAcquire(manager);
-    self->monitor = objAcquire(monitor);
+    self->flags      = flags;
+    self->gcinterval = gcinterval;
+    self->runner     = objAcquire(runner);
+    self->manager    = objAcquire(manager);
+    self->monitor    = objAcquire(monitor);
 
     objInstInit(self);
 
@@ -236,6 +235,27 @@ void TaskQueue_destroy(_Inout_ TaskQueue* self)
     objRelease(&self->manager);
     objRelease(&self->monitor);
     // Autogen ends -------
+}
+
+bool TaskQueue__queueMaint(_Inout_ TaskQueue* self)
+{
+    int64 now = clockTimer();
+
+    if (now - self->_lastgc > self->gcinterval) {
+        self->_lastgc = now;
+        switch(self->_gccycle) {
+            case 0:
+                prqCollect(&self->runq);
+                break;
+            case 1:
+                prqCollect(&self->doneq);
+                break;
+        }
+
+        self->_gccycle = (self->_gccycle + 1) % 2;
+    }
+
+    return true;
 }
 
 // Autogen begins -----

@@ -60,6 +60,8 @@ int64 TQManualManager_tick(_Inout_ TQManualManager* self)
         int64 extrawait = taskqueue_processExtra(self->tq, taskscompleted);
         ret             = min(ret, extrawait);
 
+        taskqueue_queueMaint(self->tq);
+
         mutexRelease(&self->mgrlock);
 
         // if another thread needed the manager in the meantime, tell the caller to run it again
