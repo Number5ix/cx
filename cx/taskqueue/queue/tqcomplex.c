@@ -91,6 +91,7 @@ bool ComplexTaskQueue__processDone(_Inout_ ComplexTaskQueue* self)
 {
     int64 now = clockTimer();
     bool ret  = false;
+    int dcount = 0;
 
     BasicTask* btask;
     while ((btask = (BasicTask*)prqPop(&self->doneq))) {
@@ -133,6 +134,7 @@ bool ComplexTaskQueue__processDone(_Inout_ ComplexTaskQueue* self)
             // immediately advanced, all while the manager was in between processDone and
             // processExtra. In that case, just move it back to the run queue.
             prqPush(&self->runq, btask);
+            ++dcount;
             break;
         default:
             // task shouldn't be in the doneq in some other state
@@ -140,6 +142,10 @@ bool ComplexTaskQueue__processDone(_Inout_ ComplexTaskQueue* self)
             objRelease(&btask);
         }
     }
+
+    // if anything went back into the run queue, signal the event so that worker threads can pick it up
+    if (dcount > 0)
+        eventSignalMany(&self->workev, dcount);
 
     // return true if some tasks were completed, false otherwise
     return ret;
