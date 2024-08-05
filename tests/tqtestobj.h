@@ -502,8 +502,9 @@ typedef struct TQTestSched {
     int64 lastprogress;        // timestamp of last progress change
     Weak(ComplexTaskQueue)* lastq;        // The last queue this task ran on before it was deferred
     sa_TaskRequires _requires;        // list of requirements that must be satisfied
-    uint32 flags;        // flags to customize task behavior
-    uint32 _intflags;        // internal flags reserved for use by the scheduler
+    uint16 flags;        // flags to customize task behavior
+    uint16 _intflags;        // internal flags reserved for use by the scheduler
+    atomic(uint32) _advcount;        // number of times this task has been advanced
     Event* notify;
 } TQTestSched;
 extern ObjClassInfo TQTestSched_clsinfo;
@@ -602,8 +603,9 @@ typedef struct TQTestS1 {
     int64 lastprogress;        // timestamp of last progress change
     Weak(ComplexTaskQueue)* lastq;        // The last queue this task ran on before it was deferred
     sa_TaskRequires _requires;        // list of requirements that must be satisfied
-    uint32 flags;        // flags to customize task behavior
-    uint32 _intflags;        // internal flags reserved for use by the scheduler
+    uint16 flags;        // flags to customize task behavior
+    uint16 _intflags;        // internal flags reserved for use by the scheduler
+    atomic(uint32) _advcount;        // number of times this task has been advanced
     Event* notify;
     int order;
     int64 dtime;
@@ -710,8 +712,9 @@ typedef struct TQTestS2 {
     int64 lastprogress;        // timestamp of last progress change
     Weak(ComplexTaskQueue)* lastq;        // The last queue this task ran on before it was deferred
     sa_TaskRequires _requires;        // list of requirements that must be satisfied
-    uint32 flags;        // flags to customize task behavior
-    uint32 _intflags;        // internal flags reserved for use by the scheduler
+    uint16 flags;        // flags to customize task behavior
+    uint16 _intflags;        // internal flags reserved for use by the scheduler
+    atomic(uint32) _advcount;        // number of times this task has been advanced
     Event* notify;
     Task* waitfor;
 } TQTestS2;
@@ -866,8 +869,9 @@ typedef struct TQMTest {
     int64 lastprogress;        // timestamp of last progress change
     Weak(ComplexTaskQueue)* lastq;        // The last queue this task ran on before it was deferred
     sa_TaskRequires _requires;        // list of requirements that must be satisfied
-    uint32 flags;        // flags to customize task behavior
-    uint32 _intflags;        // internal flags reserved for use by the scheduler
+    uint16 flags;        // flags to customize task behavior
+    uint16 _intflags;        // internal flags reserved for use by the scheduler
+    atomic(uint32) _advcount;        // number of times this task has been advanced
     Event* notify;
 } TQMTest;
 extern ObjClassInfo TQMTest_clsinfo;
@@ -969,8 +973,9 @@ typedef struct TQRTestMtx {
     int64 lastprogress;        // timestamp of last progress change
     Weak(ComplexTaskQueue)* lastq;        // The last queue this task ran on before it was deferred
     sa_TaskRequires _requires;        // list of requirements that must be satisfied
-    uint32 flags;        // flags to customize task behavior
-    uint32 _intflags;        // internal flags reserved for use by the scheduler
+    uint16 flags;        // flags to customize task behavior
+    uint16 _intflags;        // internal flags reserved for use by the scheduler
+    atomic(uint32) _advcount;        // number of times this task has been advanced
     ReqTestState* rts;
     int num;
 } TQRTestMtx;
@@ -1073,8 +1078,9 @@ typedef struct TQRTestFifo {
     int64 lastprogress;        // timestamp of last progress change
     Weak(ComplexTaskQueue)* lastq;        // The last queue this task ran on before it was deferred
     sa_TaskRequires _requires;        // list of requirements that must be satisfied
-    uint32 flags;        // flags to customize task behavior
-    uint32 _intflags;        // internal flags reserved for use by the scheduler
+    uint16 flags;        // flags to customize task behavior
+    uint16 _intflags;        // internal flags reserved for use by the scheduler
+    atomic(uint32) _advcount;        // number of times this task has been advanced
     ReqTestState* rts;
     int seq;
     int num;
@@ -1178,8 +1184,9 @@ typedef struct TQRTestLifo {
     int64 lastprogress;        // timestamp of last progress change
     Weak(ComplexTaskQueue)* lastq;        // The last queue this task ran on before it was deferred
     sa_TaskRequires _requires;        // list of requirements that must be satisfied
-    uint32 flags;        // flags to customize task behavior
-    uint32 _intflags;        // internal flags reserved for use by the scheduler
+    uint16 flags;        // flags to customize task behavior
+    uint16 _intflags;        // internal flags reserved for use by the scheduler
+    atomic(uint32) _advcount;        // number of times this task has been advanced
     ReqTestState* rts;
     int seq;
     int num;
@@ -1283,8 +1290,9 @@ typedef struct TQRTestGate {
     int64 lastprogress;        // timestamp of last progress change
     Weak(ComplexTaskQueue)* lastq;        // The last queue this task ran on before it was deferred
     sa_TaskRequires _requires;        // list of requirements that must be satisfied
-    uint32 flags;        // flags to customize task behavior
-    uint32 _intflags;        // internal flags reserved for use by the scheduler
+    uint16 flags;        // flags to customize task behavior
+    uint16 _intflags;        // internal flags reserved for use by the scheduler
+    atomic(uint32) _advcount;        // number of times this task has been advanced
     ReqTestState2* rts;
     int num;
 } TQRTestGate;

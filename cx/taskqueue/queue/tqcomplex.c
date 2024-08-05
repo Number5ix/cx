@@ -122,6 +122,10 @@ bool ComplexTaskQueue__processDone(_Inout_ ComplexTaskQueue* self)
                 htInsert(&self->deferred, object, btask, none, NULL);
             }
 
+            // if this task was advanced in the interim, ensure that it gets processed again
+            if (atomicLoad(uint32, &ctask->_advcount, Relaxed) > 0)
+                prqPush(&self->advanceq, ctask);
+
             break;
         }
         case TASK_Waiting:
@@ -153,6 +157,22 @@ int64 ComplexTaskQueue__processExtra(_Inout_ ComplexTaskQueue* self, bool tasksc
     // process advance queue
     ComplexTask* ctask;
     while ((ctask = (ComplexTask*)prqPop(&self->advanceq))) {
+        AdaptiveSpinState astate = { 0 };
+        // try to consume one of the advcount entries
+        uint32 advcount          = atomicLoad(uint32, &ctask->_advcount, Relaxed);
+        while (advcount > 0 &&
+               !atomicCompareExchange(uint32,
+                                      weak,
+                                      &ctask->_advcount,
+                                      &advcount,
+                                      advcount - 1,
+                                      Relaxed,
+                                      Relaxed)) {
+            aspinHandleContention(NULL, &astate);
+        }
+        if (advcount == 0)
+            continue;   // probably got added back into advanceq but was already handled
+
         uint32 state = taskState(ctask);
         switch (state) {
         case TASK_Scheduled:
@@ -182,6 +202,11 @@ int64 ComplexTaskQueue__processExtra(_Inout_ ComplexTaskQueue* self, bool tasksc
                     // might have just been put in doneq? Let it run ASAP if that's the case
                     waittime = 0;
                 }
+            } else if (advcount > 1) {
+                // We can't run this yet, but the task has been advanced multiple times, so put it back in
+                // advanceq to re-check the requirements.
+                prqPush(&self->advanceq, ctask);
+                waittime = 0;
             }
             break;
         case TASK_Failed:
@@ -321,6 +346,12 @@ bool ComplexTaskQueue__runTask(_Inout_ ComplexTaskQueue* self, _Inout_ BasicTask
                 ctask_setState(*pbtask, TASK_Failed);
                 objRelease(pbtask);
             }
+
+            // if this task was advanced in the interim, ensure that it gets processed again
+            if (atomicLoad(uint32, &ctask->_advcount, Relaxed) > 0)
+                prqPush(&self->advanceq, ctask);
+
+            tqmanagerNotify(self->manager, !self->manager->needsWorkerTick);
 
             saDestroy(&acquired);
             return false;

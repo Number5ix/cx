@@ -23,6 +23,7 @@ bool ComplexTask_advance(_Inout_ ComplexTask* self)
     bool ret             = false;
 
     if (tq) {
+        atomicFetchAdd(uint32, &self->_advcount, 1, Relaxed);
         ret = ctaskqueueAdvance(tq, self);
         objRelease(&tq);
     }

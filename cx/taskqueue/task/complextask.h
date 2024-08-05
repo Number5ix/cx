@@ -79,8 +79,9 @@ typedef struct ComplexTask {
     int64 lastprogress;        // timestamp of last progress change
     Weak(ComplexTaskQueue)* lastq;        // The last queue this task ran on before it was deferred
     sa_TaskRequires _requires;        // list of requirements that must be satisfied
-    uint32 flags;        // flags to customize task behavior
-    uint32 _intflags;        // internal flags reserved for use by the scheduler
+    uint16 flags;        // flags to customize task behavior
+    uint16 _intflags;        // internal flags reserved for use by the scheduler
+    atomic(uint32) _advcount;        // number of times this task has been advanced
 } ComplexTask;
 extern ObjClassInfo ComplexTask_clsinfo;
 #define ComplexTask(inst) ((ComplexTask*)(unused_noeval((inst) && &((inst)->_is_ComplexTask)), (inst)))
