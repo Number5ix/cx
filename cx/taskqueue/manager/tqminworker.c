@@ -32,7 +32,7 @@ extern void TQManager_notify(_Inout_ TQManager* self);   // parent
 #define parent_notify() TQManager_notify((TQManager*)(self))
 void TQInWorkerManager_notify(_Inout_ TQInWorkerManager* self)
 {
-    if (self->tq) {
+    if (self->tq && !atomicLoad(bool, &self->needrun, Relaxed)) {
         atomicStore(bool, &self->needrun, true, Relaxed);
         eventSignal(&self->tq->workev);
     }
