@@ -11,18 +11,17 @@
 // ==================== Auto-generated section ends ======================
 #include "cx/taskqueue/taskqueue_private.h"
 
-_objfactory_guaranteed ComplexTaskQueue*
-ComplexTaskQueue_create(_In_opt_ strref name, uint32 flags, _In_ TQRunner* runner,
-                        _In_ TQManager* manager, _In_opt_ TQMonitor* monitor)
+_objfactory_guaranteed ComplexTaskQueue* ComplexTaskQueue_create(_In_opt_ strref name, uint32 flags, int64 gcinterval, _In_ TQRunner* runner, _In_ TQManager* manager, _In_opt_ TQMonitor* monitor)
 {
     ComplexTaskQueue* self;
     self = objInstCreate(ComplexTaskQueue);
 
     strDup(&self->name, name);
-    self->flags   = flags;
-    self->runner  = objAcquire(runner);
-    self->manager = objAcquire(manager);
-    self->monitor = objAcquire(monitor);
+    self->flags      = flags;
+    self->gcinterval = gcinterval;
+    self->runner     = objAcquire(runner);
+    self->manager    = objAcquire(manager);
+    self->monitor    = objAcquire(monitor);
     objInstInit(self);
 
     return self;
@@ -72,7 +71,7 @@ static bool CTQPushBackCommon(_Inout_ ComplexTaskQueue* self, _In_ ComplexTask* 
     }
 
     // Notify the manager to do something with it
-    tqmanagerNotify(self->manager);
+    tqmanagerNotify(self->manager, true);
     return true;
 }
 
@@ -92,6 +91,7 @@ bool ComplexTaskQueue__processDone(_Inout_ ComplexTaskQueue* self)
 {
     int64 now = clockTimer();
     bool ret  = false;
+    int dcount = 0;
 
     BasicTask* btask;
     while ((btask = (BasicTask*)prqPop(&self->doneq))) {
@@ -123,6 +123,10 @@ bool ComplexTaskQueue__processDone(_Inout_ ComplexTaskQueue* self)
                 htInsert(&self->deferred, object, btask, none, NULL);
             }
 
+            // if this task was advanced in the interim, ensure that it gets processed again
+            if (atomicLoad(uint32, &ctask->_advcount, Relaxed) > 0)
+                prqPush(&self->advanceq, ctask);
+
             break;
         }
         case TASK_Waiting:
@@ -130,6 +134,7 @@ bool ComplexTaskQueue__processDone(_Inout_ ComplexTaskQueue* self)
             // immediately advanced, all while the manager was in between processDone and
             // processExtra. In that case, just move it back to the run queue.
             prqPush(&self->runq, btask);
+            ++dcount;
             break;
         default:
             // task shouldn't be in the doneq in some other state
@@ -137,6 +142,10 @@ bool ComplexTaskQueue__processDone(_Inout_ ComplexTaskQueue* self)
             objRelease(&btask);
         }
     }
+
+    // if anything went back into the run queue, signal the event so that worker threads can pick it up
+    if (dcount > 0)
+        eventSignalMany(&self->workev, dcount);
 
     // return true if some tasks were completed, false otherwise
     return ret;
@@ -149,11 +158,28 @@ int64 ComplexTaskQueue__processExtra(_Inout_ ComplexTaskQueue* self, bool tasksc
 {
     int64 waittime = timeForever;
     int64 now      = clockTimer();
+    sa_ComplexTask readvance = saInitNone;
 
     int dcount = 0;
     // process advance queue
     ComplexTask* ctask;
     while ((ctask = (ComplexTask*)prqPop(&self->advanceq))) {
+        AdaptiveSpinState astate = { 0 };
+        // try to consume one of the advcount entries
+        uint32 advcount          = atomicLoad(uint32, &ctask->_advcount, Relaxed);
+        while (advcount > 0 &&
+               !atomicCompareExchange(uint32,
+                                      weak,
+                                      &ctask->_advcount,
+                                      &advcount,
+                                      advcount - 1,
+                                      Relaxed,
+                                      Relaxed)) {
+            aspinHandleContention(NULL, &astate);
+        }
+        if (advcount == 0)
+            continue;   // probably got added back into advanceq but was already handled
+
         uint32 state = taskState(ctask);
         switch (state) {
         case TASK_Scheduled:
@@ -173,7 +199,7 @@ int64 ComplexTaskQueue__processExtra(_Inout_ ComplexTaskQueue* self, bool tasksc
             // satisfied before releasing it. Updating progress can make this more expensive if
             // there are many dependencies, so only do that if we have a monitor and need to care
             // about progress.
-            if (ctaskCheckDeps(ctask, self->monitor != NULL)) {
+            if (ctaskCheckRequires(ctask, self->monitor != NULL)) {
                 ctask_setState(ctask, TASK_Waiting);
                 if (htRemove(&self->deferred, object, ctask)) {
                     ctask->last = now;
@@ -183,6 +209,12 @@ int64 ComplexTaskQueue__processExtra(_Inout_ ComplexTaskQueue* self, bool tasksc
                     // might have just been put in doneq? Let it run ASAP if that's the case
                     waittime = 0;
                 }
+            } else if (advcount > 1) {
+                // We can't run this yet, but the task has been advanced multiple times, so put it back in
+                // advanceq to re-check the requirements. We can't push to advanceq here becausae we're still
+                // popping it, so build a temporary list to do it later.
+                saPush(&readvance, ptr, ctask);
+                waittime = 0;
             }
             break;
         case TASK_Failed:
@@ -230,6 +262,11 @@ int64 ComplexTaskQueue__processExtra(_Inout_ ComplexTaskQueue* self, bool tasksc
     if (dcount > 0)
         eventSignalMany(&self->workev, dcount);
 
+    foreach(sarray, idx, void*, ctaskptr, readvance) {
+        prqPush(&self->advanceq, ctaskptr);
+    }
+    saDestroy(&readvance);
+
     return waittime;
 }
 
@@ -246,7 +283,7 @@ bool ComplexTaskQueue_advance(_Inout_ ComplexTaskQueue* self, _In_ ComplexTask* 
         return false;
 
     // Signal the manager to move it
-    tqmanagerNotify(self->manager);
+    tqmanagerNotify(self->manager, true);
     return true;
 }
 
@@ -292,6 +329,48 @@ bool ComplexTaskQueue__runTask(_Inout_ ComplexTaskQueue* self, _Inout_ BasicTask
     // context: This is called from worker threads. The task pointed to by pbtask has been removed
     // from the run queue and exists only in the parameter; so we MUST do something with it.
     bool completed = false;
+    ComplexTask* ctask = objDynCast(ComplexTask, *pbtask);
+    sa_TaskRequires acquired = saInitNone;
+
+    // If this is a complex task, do a last-second check of the dependencies. This is also where
+    // we try to acquire any resources needed by the task.
+    if (ctask) {
+        bool defer = false;
+
+        if (!ctaskCheckRequires(ctask, false))
+            defer = true;
+        else if (ctask->_intflags & TASK_INTERNAL_Needs_Resources) {
+            // we know the size will be less than the number of requires, so preallocate enough
+            saInit(&acquired, object, saSize(ctask->_requires), SA_Ref);
+            if (!ctaskAcquireRequires(ctask, &acquired)) {
+                defer = true;
+
+                if (!(ctask->flags & TASK_Retain_Requires)) {
+                    // in the failure case, release them now unless the task wants to retain them
+                    ctaskReleaseRequires(ctask, acquired);
+                }
+            }
+        }
+
+        if (defer) {
+            // can't run it, defer it and send it to the doneq
+            btask_setState(*pbtask, TASK_Deferred);
+            if (!prqPush(&self->doneq, *pbtask)) {
+                ctask_setState(*pbtask, TASK_Failed);
+                objRelease(pbtask);
+            }
+
+            // if this task was advanced in the interim, ensure that it gets processed again
+            if (atomicLoad(uint32, &ctask->_advcount, Relaxed) > 0)
+                prqPush(&self->advanceq, ctask);
+
+            tqmanagerNotify(self->manager, !self->manager->needsWorkerTick);
+
+            saDestroy(&acquired);
+            *pbtask = NULL;
+            return false;
+        }
+    }
 
     if (!btask_setState(*pbtask, TASK_Running)) {
         btask_setState(*pbtask, TASK_Failed);
@@ -302,7 +381,6 @@ bool ComplexTaskQueue__runTask(_Inout_ ComplexTaskQueue* self, _Inout_ BasicTask
     TaskControl tcon = { 0 };
     uint32 tresult   = btaskRun(*pbtask, self, worker, &tcon);
 
-    ComplexTask* ctask = objDynCast(ComplexTask, *pbtask);
     Task* task         = Task(ctask);
     int64 now          = clockTimer();
 
@@ -316,6 +394,19 @@ bool ComplexTaskQueue__runTask(_Inout_ ComplexTaskQueue* self, _Inout_ BasicTask
     if (!ctask && !(tresult == TASK_Result_Success || tresult == TASK_Result_Failure)) {
         tresult = TASK_Result_Failure;
     }
+
+    // Free resources if any were acquired, but not if the task wants to retain resources, unless
+    // the task is complete.
+    if (ctask && (ctask->_intflags & TASK_INTERNAL_Owns_Resources) &&
+        (!(ctask->flags & TASK_Retain_Requires) ||
+         (tresult == TASK_Result_Success || tresult == TASK_Result_Failure))) {
+        // If we're not retaining requires, we have a list of exactly which requires acquired any.
+        // If not, we have to just scan all requires and try to release.
+        ctaskReleaseRequires(ctask,
+                             !(ctask->flags & TASK_Retain_Requires) ? acquired : ctask->_requires);
+    }
+
+    saDestroy(&acquired);
 
     switch (tresult) {
     case TASK_Result_Success:
@@ -350,6 +441,8 @@ bool ComplexTaskQueue__runTask(_Inout_ ComplexTaskQueue* self, _Inout_ BasicTask
         completed = true;
     }
 
+    // free any resources
+
     if (completed) {
         // If this isn't a ComplexTask it might still be a Task
         if (!task)
@@ -367,7 +460,9 @@ bool ComplexTaskQueue__runTask(_Inout_ ComplexTaskQueue* self, _Inout_ BasicTask
     // In all other cases the task needs to be moved to the done queue for the manager to clean up.
     prqPush(&self->doneq, *pbtask);
     *pbtask = NULL;   // task no longer belongs to worker
-    tqmanagerNotify(self->manager);
+    // Manger needs to process doneq, but only wake it up if it's running in a separate thread. In
+    // the in-worker case we're about to tick the manager anyway.
+    tqmanagerNotify(self->manager, !self->manager->needsWorkerTick);
 
     return completed;
 }
@@ -389,7 +484,7 @@ bool ComplexTaskQueue_add(_Inout_ ComplexTaskQueue* self, _In_ BasicTask* btask)
         ctask->lastq = objGetWeak(ComplexTaskQueue, self);
 
         // if it's a complex task it might have dependencies
-        if (!ctaskCheckDeps(ctask, false)) {
+        if (!ctaskCheckRequires(ctask, false)) {
             // deps aren't satisifed, it needs to go in defer hash instead of run queue
             if (!btask_setState(btask, TASK_Deferred))
                 return false;
@@ -403,7 +498,7 @@ bool ComplexTaskQueue_add(_Inout_ ComplexTaskQueue* self, _In_ BasicTask* btask)
                 return false;
             }
             // notify manager to go pick it up
-            tqmanagerNotify(self->manager);
+            tqmanagerNotify(self->manager, true);
             return true;
         }
     }
@@ -429,8 +524,33 @@ bool ComplexTaskQueue_add(_Inout_ ComplexTaskQueue* self, _In_ BasicTask* btask)
     eventSignal(&self->workev);
     // let dedicated managers know they may need to check for thread pool expansion.
     // In-worker managers will be ticked anyway, so don't signal workev twice.
-    if (!self->manager->needsWorkerTick)
-        tqmanagerNotify(self->manager);
+    tqmanagerNotify(self->manager, !self->manager->needsWorkerTick);
+
+    return true;
+}
+
+extern bool TaskQueue__queueMaint(_Inout_ TaskQueue* self);   // parent
+#define parent__queueMaint() TaskQueue__queueMaint((TaskQueue*)(self))
+bool ComplexTaskQueue__queueMaint(_Inout_ ComplexTaskQueue* self)
+{
+    int64 now = clockTimer();
+
+    if (now - self->_lastgc > self->gcinterval) {
+        self->_lastgc = now;
+        switch(self->_gccycle) {
+            case 0:
+                prqCollect(&self->runq);
+                break;
+            case 1:
+                prqCollect(&self->doneq);
+                break;
+            case 2:
+                prqCollect(&self->advanceq);
+                break;
+            }
+
+        self->_gccycle = (self->_gccycle + 1) % 3;
+    }
 
     return true;
 }

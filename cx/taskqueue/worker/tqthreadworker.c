@@ -89,7 +89,6 @@ bool TQThreadWorker_startThread(_Inout_ TQThreadWorker* self, _In_ TaskQueue* tq
 int64 TQThreadWorker_tick(_Inout_ TQThreadWorker* self, _In_ TaskQueue* tq)
 {
     BasicTask* btask;
-    bool hadtasks   = false;
     int64 waittime  = timeForever;
     bool workertick = false;
 
@@ -115,7 +114,7 @@ int64 TQThreadWorker_tick(_Inout_ TQThreadWorker* self, _In_ TaskQueue* tq)
 
         // run it
         atomicStore(ptr, &self->curtask, btask, Release);
-        hadtasks |= taskqueue_runTask(tq, &btask, self);
+        taskqueue_runTask(tq, &btask, self);
         atomicStore(ptr, &self->curtask, NULL, Release);
 
         // For in-worker managers, we need to tick the manager
@@ -125,11 +124,6 @@ int64 TQThreadWorker_tick(_Inout_ TQThreadWorker* self, _In_ TaskQueue* tq)
             workertick    = true;
         }
     }
-
-    // If we did some work, signal one of the other threads to wake up; this helps kickstart the
-    // queue faster after an idle period
-    if (hadtasks)
-        eventSignal(&tq->workev);
 
     // Only tick the manager here if we didn't have any tasks to process
     if (tq->manager->needsWorkerTick && !workertick) {

@@ -11,6 +11,9 @@
 // ==================== Auto-generated section ends ======================
 #include <cx/taskqueue.h>
 #include <cx/taskqueue/queue/tqcomplex.h>
+#include <cx/taskqueue/requires/taskrequirestask.h>
+#include <cx/taskqueue/requires/taskrequiresgate.h>
+#include <cx/taskqueue/requires/taskrequiresresource.h>
 #include "cx/utils/murmur.h"
 
 bool ComplexTask_advance(_Inout_ ComplexTask* self)
@@ -20,6 +23,7 @@ bool ComplexTask_advance(_Inout_ ComplexTask* self)
     bool ret             = false;
 
     if (tq) {
+        atomicFetchAdd(uint32, &self->_advcount, 1, Relaxed);
         ret = ctaskqueueAdvance(tq, self);
         objRelease(&tq);
     }
@@ -36,17 +40,23 @@ bool ComplexTask_reset(_Inout_ ComplexTask* self)
 
     self->lastprogress = 0;
     self->nextrun      = 0;
+    self->_intflags    = 0;
     objDestroyWeak(&self->lastq);
-    saClear(&self->_depends);
+    saClear(&self->_requires);
 
     return true;
 }
 
 void ComplexTask_destroy(_Inout_ ComplexTask* self)
 {
+    // failsafe in case any resources were acquired in retain mode and we got deferred,
+    // then failed a dependency check or something
+
+    ctaskReleaseRequires(self, self->_requires);
+
     // Autogen begins -----
     objDestroyWeak(&self->lastq);
-    saDestroy(&self->_depends);
+    saDestroy(&self->_requires);
     // Autogen ends -------
 }
 
@@ -65,25 +75,36 @@ uint32 ComplexTask_hash(_Inout_ ComplexTask* self, uint32 flags)
     return hashMurmur3((uint8*)&self, sizeof(void*));
 }
 
-bool ComplexTask_checkDeps(_Inout_ ComplexTask* self, bool updateProgress)
+bool ComplexTask_checkRequires(_Inout_ ComplexTask* self, bool updateProgress)
 {
-    bool ret = true;
+    int64 now     = clockTimer();
+    bool ret      = true;
+    bool done     = false;
 
     if ((self->flags & TASK_Cancel_Cascade) && taskCancelled(self)) {
         // We need to cascade the cancel at a time it's safe to access the _depends array,
         // here is as good as any.
-        for (int i = saSize(self->_depends) - 1; i >= 0; --i) {
-            btaskCancel(self->_depends.a[i]);
+        for (int i = saSize(self->_requires) - 1; i >= 0; --i) {
+            taskrequiresCancel(self->_requires.a[i]);
         }
     }
 
-    for (int i = saSize(self->_depends) - 1; i >= 0; --i) {
-        uint32 state = taskState(self->_depends.a[i]);
-        if (state == TASK_Succeeded) {
-            saRemove(&self->_depends, i);
-            self->lastprogress = clockTimer();
-        } else if (state == TASK_Failed) {
-            saRemove(&self->_depends, i);
+    for (int i = saSize(self->_requires) - 1; i >= 0 && !done; --i) {
+        TaskRequires* req = self->_requires.a[i];
+        uint32 state = taskrequiresState(req, self);
+        switch (state) {
+        case TASK_Requires_Ok:
+            self->lastprogress = now;
+            break;
+
+        case TASK_Requires_Ok_Permanent:
+            self->lastprogress = now;
+            saRemove(&self->_requires, i);
+            break;
+
+        case TASK_Requires_Fail_Permanent:
+            ret      = false;
+            saRemove(&self->_requires, i);
             if (!btaskFailed(self)) {
                 btask_setState(self, TASK_Failed);
                 if (self->oncomplete) {
@@ -94,24 +115,69 @@ bool ComplexTask_checkDeps(_Inout_ ComplexTask* self, bool updateProgress)
                 ctaskAdvance(self);
             }
             ret = false;   // don't run now, instead re-process in advanceq
-        } else {
+            break;
+
+        case TASK_Requires_Wait:
             ret = false;
             if (updateProgress) {
-                ComplexTask* ctask = objDynCast(ComplexTask, self->_depends.a[i]);
-                if (ctask)
-                    self->lastprogress = max(self->lastprogress, ctask->lastprogress);
+                int64 progress = taskrequiresProgress(req);
+                if (progress > 0)
+                    self->lastprogress = max(self->lastprogress, progress);
             } else {
                 // we don't care about updating progress, so no need to keep checking once one that
                 // isn't complete is found
-                break;
+                done = true;
             }
+            break;
+
+        case TASK_Requires_Acquire:
+            // resources need to be acquired, but we prefer to try to do that right before the task is run
+            self->_intflags |= TASK_INTERNAL_Needs_Resources;
+            break;
         }
     }
 
     return ret;
 }
 
-static bool taskDepCallback(stvlist* cvars, stvlist* args)
+bool ComplexTask_acquireRequires(_Inout_ ComplexTask* self, sa_TaskRequires* acquired)
+{
+    for (int i = saSize(self->_requires) - 1; i >= 0; --i) {
+        TaskRequires* req = self->_requires.a[i];
+        uint32 state      = taskrequiresState(req, self);
+        if (state == TASK_Requires_Acquire) {
+            if (taskrequiresTryAcquire(req, self)) {
+                saPush(acquired, object, req);
+                self->_intflags |= TASK_INTERNAL_Owns_Resources;
+            } else {
+                return false;
+            }
+        } else if (state != TASK_Requires_Ok && state != TASK_Requires_Ok_Permanent) {
+            // We have some other dependency that is no longer satisfied, need to go back into defer queue
+            return false;
+        }
+    }
+
+    self->_intflags &= ~TASK_INTERNAL_Needs_Resources;
+
+    return true;
+}
+
+bool ComplexTask_releaseRequires(_Inout_ ComplexTask* self, sa_TaskRequires resources)
+{
+    bool ret = true;
+    for (int i = saSize(resources) - 1; i >= 0; --i) {
+        TaskRequires* req = resources.a[i];
+        if (!taskrequiresRelease(req, self))
+            ret = false;
+    }
+
+    self->_intflags &= ~TASK_INTERNAL_Owns_Resources;
+
+    return ret;
+}
+
+bool ComplexTask_advanceCallback(stvlist* cvars, stvlist* args)
 {
     Weak(ComplexTask)* wref = NULL;
     if (!stvlNext(cvars, weakref, &wref))
@@ -127,16 +193,31 @@ static bool taskDepCallback(stvlist* cvars, stvlist* args)
     return true;
 }
 
-void ComplexTask_dependOn(_Inout_ ComplexTask* self, _In_ Task* dep)
+void ComplexTask_require(_Inout_ ComplexTask* self, _In_ TaskRequires* req)
 {
-    saPush(&self->_depends, object, dep);
+    taskrequiresRegisterTask(req, self);
+    saPush(&self->_requires, object, req);
+}
 
-    // When the depended-on task completes, it will call a callback that advances this task out of
-    // the defer queue. A weak reference is used in case this task is discarded before the callback
-    // is called.
-    Weak(ComplexTask)* wref = objGetWeak(ComplexTask, self);
-    cchainAttach(&dep->oncomplete, taskDepCallback, stvar(weakref, wref));
-    objDestroyWeak(&wref);
+void ComplexTask_requireTask(_Inout_ ComplexTask* self, _In_ Task* dep)
+{
+    TaskRequiresTask* trt = taskrequirestaskCreate(dep);
+    taskrequirestaskRegisterTask(trt, self);
+    saPushC(&self->_requires, object, &trt);
+}
+
+void ComplexTask_requireResource(_Inout_ ComplexTask* self, _In_ TaskResource* res)
+{
+    TaskRequiresResource* trr = taskrequiresresourceCreate(res);
+    taskrequiresresourceRegisterTask(trr, self);
+    saPushC(&self->_requires, object, &trr);
+}
+
+void ComplexTask_requireGate(_Inout_ ComplexTask* self, _In_ TRGate* gate)
+{
+    TaskRequiresGate* trg = taskrequiresgateCreate(gate);
+    taskrequiresgateRegisterTask(trg, self);
+    saPushC(&self->_requires, object, &trg);
 }
 
 extern bool BasicTask_cancel(_Inout_ BasicTask* self);   // parent

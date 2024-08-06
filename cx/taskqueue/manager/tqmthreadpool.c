@@ -107,6 +107,8 @@ int64 TQThreadPoolManager_tick(_Inout_ TQThreadPoolManager* self)
     int64 extrawait = taskqueue_processExtra(self->tq, taskscompleted);
     waittime        = min(waittime, extrawait);
 
+    taskqueue_queueMaint(self->tq);
+
     // Adjust thread pool size
     tqthreadpoolmanagerUpdatePoolSize(self);
 

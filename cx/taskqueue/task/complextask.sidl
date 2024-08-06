@@ -1,5 +1,11 @@
 #include "task.sidl"
 #include <cx/thread/rwlock.h>
+#include <cx/taskqueue/requires/taskrequires.sidl>
+#include <cx/taskqueue/resource/taskresource.sidl>
+
+#define ctaskDependOn ctaskRequireTask
+
+class TRGate;
 
 enum ComplexTaskRunResultEnum {
     TASK_Result_Schedule = TASK_Result_Basic_Count,     // schedule the task to run after the time specified in the TaskControl structure
@@ -10,7 +16,18 @@ enum ComplexTaskRunResultEnum {
 };
 
 enum ComplexTaskFlagsEnum {
-    TASK_Cancel_Cascade = 0x01,    // If the task is cancelled, cancel all tasks it is depending on as well
+    // If the task is cancelled, cancel all tasks it is depending on as well
+    TASK_Cancel_Cascade = 0x01,
+
+    // Normally if a task is scheduled or deferred, it releases any required resources before going back into
+    // the defer list. However, if this flag is set, acquired resources will be retained for the entire lifetime
+    // of the task and only released when it reaches is final disposition (Succeeded or Failed).
+    TASK_Retain_Requires = 0x02,
+};
+
+enum ComplexTaskInternalFlagsEnum {
+    TASK_INTERNAL_Needs_Resources = 0x01,   // The _requires list contains shared resources that must be acquired before running the task
+    TASK_INTERNAL_Owns_Resources = 0x02,    // The task has acquired resources and needs to release them
 };
 
 class ComplexTaskQueue;
@@ -19,12 +36,25 @@ class ComplexTaskQueue;
     int64 nextrun;              // next time for this task to run when scheduled
     int64 lastprogress;         // timestamp of last progress change
     weak:ComplexTaskQueue lastq;   // The last queue this task ran on before it was deferred
-    [noinit] sarray:object:Task _depends; // other tasks that must complete before this task can run, do not modify directly!
-    uint32 flags;               // flags to customize task behavior
+    [noinit] sarray:object:TaskRequires _requires; // list of requirements that must be satisfied
+    uint16 flags;               // flags to customize task behavior
+    uint16 _intflags;           // internal flags reserved for use by the scheduler
+    atomic:uint32 _advcount;    // number of times this task has been advanced
 
-    void dependOn([in] Task *dep);
+    // Wrapper around require() to depend on a task completing
+    unbound void requireTask([in] Task *dep);
+    // Wrapper around require() to depend on acquiring a resource
+    unbound void requireResource([in] TaskResource *res);
+    // Wrapper around require() to depend on a gate being opened
+    unbound void requireGate([in] TRGate *gate);
+    // Add a requirement for the task to run
+    unbound void require([in] TaskRequires *req);
+
     unbound bool advance();     // advance a deferred task to run as soon as possible
-    unbound bool checkDeps(bool updateProgress);   // check if this task can run because all dependencies are satisfied
+    unbound bool checkRequires(bool updateProgress);   // check if this task can run because all requirements are satisfied
+    unbound bool acquireRequires(sa_TaskRequires *acquired);   // try to acquire required resources
+    unbound bool releaseRequires(sa_TaskRequires resources);   // release a list of acquired resources
+    standalone bool advanceCallback(stvlist *cvars, stvlist *args);   // callback to be used in a closure; cvars = weak reference to the task to advance
     override cancel;
 	override reset;
     override cmp;

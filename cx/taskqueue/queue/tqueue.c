@@ -11,18 +11,17 @@
 // ==================== Auto-generated section ends ======================
 #include "cx/taskqueue/taskqueue_private.h"
 
-_objfactory_guaranteed TaskQueue*
-TaskQueue_create(_In_opt_ strref name, uint32 flags, _In_ TQRunner* runner, _In_ TQManager* manager,
-                 _In_opt_ TQMonitor* monitor)
+_objfactory_guaranteed TaskQueue* TaskQueue_create(_In_opt_ strref name, uint32 flags, int64 gcinterval, _In_ TQRunner* runner, _In_ TQManager* manager, _In_opt_ TQMonitor* monitor)
 {
     TaskQueue* self;
     self = objInstCreate(TaskQueue);
 
     strDup(&self->name, name);
-    self->flags   = flags;
-    self->runner  = objAcquire(runner);
-    self->manager = objAcquire(manager);
-    self->monitor = objAcquire(monitor);
+    self->flags      = flags;
+    self->gcinterval = gcinterval;
+    self->runner     = objAcquire(runner);
+    self->manager    = objAcquire(manager);
+    self->monitor    = objAcquire(monitor);
 
     objInstInit(self);
 
@@ -77,8 +76,7 @@ bool TaskQueue_add(_Inout_ TaskQueue* self, _In_ BasicTask* btask)
     eventSignal(&self->workev);
     // let dedicated managers know they may need to check for thread pool expansion.
     // In-worker managers will be ticked anyway, so don't signal workev twice.
-    if (!self->manager->needsWorkerTick)
-        tqmanagerNotify(self->manager);
+    tqmanagerNotify(self->manager, !self->manager->needsWorkerTick);
 
     return true;
 }
@@ -205,7 +203,7 @@ bool TaskQueue__runTask(_Inout_ TaskQueue* self, _Inout_ BasicTask** pbtask, _In
     // In all cases the task needs to be moved to the done queue for the manager to clean up.
     prqPush(&self->doneq, *pbtask);
     *pbtask = NULL;   // task no longer belongs to worker
-    tqmanagerNotify(self->manager);
+    tqmanagerNotify(self->manager, !self->manager->needsWorkerTick);
 
     return true;
 }
@@ -236,6 +234,27 @@ void TaskQueue_destroy(_Inout_ TaskQueue* self)
     objRelease(&self->manager);
     objRelease(&self->monitor);
     // Autogen ends -------
+}
+
+bool TaskQueue__queueMaint(_Inout_ TaskQueue* self)
+{
+    int64 now = clockTimer();
+
+    if (now - self->_lastgc > self->gcinterval) {
+        self->_lastgc = now;
+        switch(self->_gccycle) {
+            case 0:
+                prqCollect(&self->runq);
+                break;
+            case 1:
+                prqCollect(&self->doneq);
+                break;
+        }
+
+        self->_gccycle = (self->_gccycle + 1) % 2;
+    }
+
+    return true;
 }
 
 // Autogen begins -----

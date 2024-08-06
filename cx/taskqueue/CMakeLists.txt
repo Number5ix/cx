@@ -12,6 +12,8 @@ set(TASKQUEUE_SIDL
 add_subdirectory(manager)
 add_subdirectory(monitor)
 add_subdirectory(queue)
+add_subdirectory(requires)
+add_subdirectory(resource)
 add_subdirectory(runner)
 add_subdirectory(sysq)
 add_subdirectory(task)

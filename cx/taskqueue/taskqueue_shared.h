@@ -62,6 +62,7 @@ typedef struct TaskQueueMonitorConfig {
 // Configuration for pool of queue workers
 typedef struct TaskQueueConfig {
     uint32 flags;
+    int64 mGC;              // how often a garbage collection cycle should run
     TaskQueueThreadPoolConfig pool;
     TaskQueueMonitorConfig monitor;
 } TaskQueueConfig;

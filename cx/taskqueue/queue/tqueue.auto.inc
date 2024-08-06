@@ -14,6 +14,7 @@ static TaskQueue_ClassIf _impl_TaskQueue_TaskQueue_ClassIf = {
     .tick = (int64 (*)(void*))TaskQueue_tick,
     ._processDone = (bool (*)(void*))TaskQueue__processDone,
     ._processExtra = (int64 (*)(void*, bool))TaskQueue__processExtra,
+    ._queueMaint = (bool (*)(void*))TaskQueue__queueMaint,
     ._runTask = (bool (*)(void*, BasicTask**, TQWorker*))TaskQueue__runTask,
     ._clear = (void (*)(void*))TaskQueue__clear,
 };

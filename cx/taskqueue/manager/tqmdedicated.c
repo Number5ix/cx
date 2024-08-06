@@ -82,9 +82,9 @@ bool TQDedicatedManager_stop(_Inout_ TQDedicatedManager* self)
     return parent_stop();
 }
 
-extern void TQManager_notify(_Inout_ TQManager* self);   // parent
-#define parent_notify() TQManager_notify((TQManager*)(self))
-void TQDedicatedManager_notify(_Inout_ TQDedicatedManager* self)
+extern void TQManager_notify(_Inout_ TQManager* self, bool wakeup);   // parent
+#define parent_notify(wakeup) TQManager_notify((TQManager*)(self), wakeup)
+void TQDedicatedManager_notify(_Inout_ TQDedicatedManager* self, bool wakeup)
 {
     eventSignal(&self->mgrnotify);
 }

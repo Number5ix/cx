@@ -20,6 +20,12 @@ typedef struct TaskQueue TaskQueue;
 typedef struct TaskQueue_WeakRef TaskQueue_WeakRef;
 typedef struct TQWorker TQWorker;
 typedef struct TQWorker_WeakRef TQWorker_WeakRef;
+typedef struct ComplexTask ComplexTask;
+typedef struct ComplexTask_WeakRef ComplexTask_WeakRef;
+typedef struct ComplexTask ComplexTask;
+typedef struct ComplexTask_WeakRef ComplexTask_WeakRef;
+typedef struct TRGate TRGate;
+typedef struct TRGate_WeakRef TRGate_WeakRef;
 typedef struct ComplexTaskQueue ComplexTaskQueue;
 typedef struct ComplexTaskQueue_WeakRef ComplexTaskQueue_WeakRef;
 typedef struct TaskControl TaskControl;
@@ -45,6 +51,8 @@ typedef struct ComplexTaskQueue_ClassIf {
     bool (*_processDone)(_Inout_ void* self);
     // internal function for any additional processing that the queue needs to do in the manager thread
     int64 (*_processExtra)(_Inout_ void* self, bool taskscompleted);
+    // internal function that the manager should call to perform any queue maintenance
+    bool (*_queueMaint)(_Inout_ void* self);
     // internal function workers should call to actually run a task and process the results
     bool (*_runTask)(_Inout_ void* self, _Inout_ BasicTask** pbtask, _In_ TQWorker* worker);
     // deletes all tasks in queue, for internal use only
@@ -76,7 +84,10 @@ typedef struct ComplexTaskQueue {
     Event workev;        // signaled when there is work to be done
     PrQueue runq;        // tasks that are ready to be picked up by workers
     PrQueue doneq;        // tasks that are either deferred or finished
+    int64 gcinterval;        // how often to run a garbage collection cycle on a queue
     uint32 flags;
+    int64 _lastgc;        // timestamp of last GC cycle
+    int _gccycle;        // which GC cycle ran last
     PrQueue advanceq;        // tasks that are being advanced out of the defer and/or schedule lists
     sa_ComplexTask scheduled;        // tasks that are scheduled to run at a later time, sorted by time
     hashtable deferred;        // tasks that are deferred indefinitely, to be held until they are advanced
@@ -97,9 +108,9 @@ typedef struct ComplexTaskQueue_WeakRef {
 } ComplexTaskQueue_WeakRef;
 #define ComplexTaskQueue_WeakRef(inst) ((ComplexTaskQueue_WeakRef*)(unused_noeval((inst) && &((inst)->_is_ComplexTaskQueue_WeakRef)), (inst)))
 
-_objfactory_guaranteed ComplexTaskQueue* ComplexTaskQueue_create(_In_opt_ strref name, uint32 flags, _In_ TQRunner* runner, _In_ TQManager* manager, _In_opt_ TQMonitor* monitor);
-// ComplexTaskQueue* ctaskqueueCreate(strref name, uint32 flags, TQRunner* runner, TQManager* manager, TQMonitor* monitor);
-#define ctaskqueueCreate(name, flags, runner, manager, monitor) ComplexTaskQueue_create(name, flags, TQRunner(runner), TQManager(manager), TQMonitor(monitor))
+_objfactory_guaranteed ComplexTaskQueue* ComplexTaskQueue_create(_In_opt_ strref name, uint32 flags, int64 gcinterval, _In_ TQRunner* runner, _In_ TQManager* manager, _In_opt_ TQMonitor* monitor);
+// ComplexTaskQueue* ctaskqueueCreate(strref name, uint32 flags, int64 gcinterval, TQRunner* runner, TQManager* manager, TQMonitor* monitor);
+#define ctaskqueueCreate(name, flags, gcinterval, runner, manager, monitor) ComplexTaskQueue_create(name, flags, gcinterval, TQRunner(runner), TQManager(manager), TQMonitor(monitor))
 
 // bool ctaskqueueStart(ComplexTaskQueue* self);
 //
@@ -125,6 +136,10 @@ _objfactory_guaranteed ComplexTaskQueue* ComplexTaskQueue_create(_In_opt_ strref
 //
 // internal function for any additional processing that the queue needs to do in the manager thread
 #define ctaskqueue_processExtra(self, taskscompleted) (self)->_->_processExtra(ComplexTaskQueue(self), taskscompleted)
+// bool ctaskqueue_queueMaint(ComplexTaskQueue* self);
+//
+// internal function that the manager should call to perform any queue maintenance
+#define ctaskqueue_queueMaint(self) (self)->_->_queueMaint(ComplexTaskQueue(self))
 // bool ctaskqueue_runTask(ComplexTaskQueue* self, BasicTask** pbtask, TQWorker* worker);
 //
 // internal function workers should call to actually run a task and process the results

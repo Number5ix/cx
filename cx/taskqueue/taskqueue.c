@@ -7,7 +7,7 @@ _Use_decl_annotations_
 void tqPresetSingle(TaskQueueConfig* tqconfig)
 {
     TaskQueueThreadPoolConfig tpconfig = { .wInitial = 1, .wIdle = 1, .wBusy = 1, .wMax = 1 };
-    *tqconfig                          = (TaskQueueConfig) { .pool = tpconfig };
+    *tqconfig                          = (TaskQueueConfig) { .pool = tpconfig, .mGC = timeS(1) };
 }
 
 _Use_decl_annotations_
@@ -25,7 +25,7 @@ void tqPresetMinimal(TaskQueueConfig* tqconfig)
         .tRampDown  = timeMS(250),
         .loadFactor = 8,
     };
-    *tqconfig = (TaskQueueConfig) { .pool = tpconfig };
+    *tqconfig = (TaskQueueConfig) { .pool = tpconfig, .mGC = timeMS(500) };
 }
 
 _Use_decl_annotations_
@@ -44,7 +44,7 @@ void tqPresetBalanced(TaskQueueConfig* tqconfig)
         .tRampDown  = timeMS(500),
         .loadFactor = 2,
     };
-    *tqconfig = (TaskQueueConfig) { .pool = tpconfig };
+    *tqconfig = (TaskQueueConfig) { .pool = tpconfig, .mGC = timeMS(50) };
 }
 
 _Use_decl_annotations_
@@ -63,13 +63,13 @@ void tqPresetHeavy(TaskQueueConfig* tqconfig)
         .tRampDown  = timeMS(1000),
         .loadFactor = 2,
     };
-    *tqconfig = (TaskQueueConfig) { .flags = TQ_ManagerThread, .pool = tpconfig };
+    *tqconfig = (TaskQueueConfig) { .flags = TQ_ManagerThread, .pool = tpconfig, .mGC = timeMS(10) };
 }
 
 _Use_decl_annotations_
 void tqPresetManual(TaskQueueConfig* tqconfig)
 {
-    *tqconfig = (TaskQueueConfig) { .flags = TQ_Manual };
+    *tqconfig = (TaskQueueConfig) { .flags = TQ_Manual, .mGC = timeMS(500) };
 }
 
 _Use_decl_annotations_
@@ -98,6 +98,9 @@ TaskQueue* tqCreate(strref name, TaskQueueConfig* tqconfig)
         tqconfig->pool.loadFactor = clamplow(tqconfig->pool.loadFactor, 1);
     }
 
+    if (tqconfig->mGC == 0)
+        tqconfig->mGC = timeMS(250);
+
     TQRunner* runner   = NULL;
     TQManager* manager = NULL;
     TQMonitor* monitor = NULL;
@@ -123,6 +126,7 @@ TaskQueue* tqCreate(strref name, TaskQueueConfig* tqconfig)
         // Basic task queue
         tq = taskqueueCreate(strEmpty(name) ? _S"TaskQueue" : name,
                              tqconfig->flags,
+                             tqconfig->mGC,
                              runner,
                              manager,
                              monitor);
@@ -130,6 +134,7 @@ TaskQueue* tqCreate(strref name, TaskQueueConfig* tqconfig)
         // Complex task queue
         tq = TaskQueue(ctaskqueueCreate(strEmpty(name) ? _S"TaskQueue" : name,
                                         tqconfig->flags,
+                                        tqconfig->mGC,
                                         runner,
                                         manager,
                                         monitor));

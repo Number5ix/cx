@@ -46,6 +46,26 @@ TQMTest_ClassIf TQMTest_ClassIf_tmpl = {
     ._parent = (ObjIface*)&ComplexTask_ClassIf_tmpl,
 };
 
+TQRTestMtx_ClassIf TQRTestMtx_ClassIf_tmpl = {
+    ._size = sizeof(TQRTestMtx_ClassIf),
+    ._parent = (ObjIface*)&ComplexTask_ClassIf_tmpl,
+};
+
+TQRTestFifo_ClassIf TQRTestFifo_ClassIf_tmpl = {
+    ._size = sizeof(TQRTestFifo_ClassIf),
+    ._parent = (ObjIface*)&ComplexTask_ClassIf_tmpl,
+};
+
+TQRTestLifo_ClassIf TQRTestLifo_ClassIf_tmpl = {
+    ._size = sizeof(TQRTestLifo_ClassIf),
+    ._parent = (ObjIface*)&ComplexTask_ClassIf_tmpl,
+};
+
+TQRTestGate_ClassIf TQRTestGate_ClassIf_tmpl = {
+    ._size = sizeof(TQRTestGate_ClassIf),
+    ._parent = (ObjIface*)&ComplexTask_ClassIf_tmpl,
+};
+
 static TQTest1_ClassIf _impl_TQTest1_TQTest1_ClassIf = {
     ._size = sizeof(TQTest1_ClassIf),
     ._implements = (ObjIface*)&TQTest1_ClassIf_tmpl,
@@ -219,6 +239,78 @@ ObjClassInfo TQMTest_clsinfo = {
     .classif = (ObjIface*)&TQMTest_ClassIf_tmpl,
     .parent = &ComplexTask_clsinfo,
     .ifimpl = _ifimpl_TQMTest,
+};
+
+static TQRTestMtx_ClassIf _impl_TQRTestMtx_TQRTestMtx_ClassIf = {
+    ._size = sizeof(TQRTestMtx_ClassIf),
+    ._implements = (ObjIface*)&TQRTestMtx_ClassIf_tmpl,
+    .run = (uint32 (*)(void*, TaskQueue*, TQWorker*, TaskControl*))TQRTestMtx_run,
+};
+
+static ObjIface* _ifimpl_TQRTestMtx[] = {
+    (ObjIface*)&_impl_TQRTestMtx_TQRTestMtx_ClassIf,
+    NULL
+};
+
+ObjClassInfo TQRTestMtx_clsinfo = {
+    .instsize = sizeof(TQRTestMtx),
+    .classif = (ObjIface*)&TQRTestMtx_ClassIf_tmpl,
+    .parent = &ComplexTask_clsinfo,
+    .ifimpl = _ifimpl_TQRTestMtx,
+};
+
+static TQRTestFifo_ClassIf _impl_TQRTestFifo_TQRTestFifo_ClassIf = {
+    ._size = sizeof(TQRTestFifo_ClassIf),
+    ._implements = (ObjIface*)&TQRTestFifo_ClassIf_tmpl,
+    .run = (uint32 (*)(void*, TaskQueue*, TQWorker*, TaskControl*))TQRTestFifo_run,
+};
+
+static ObjIface* _ifimpl_TQRTestFifo[] = {
+    (ObjIface*)&_impl_TQRTestFifo_TQRTestFifo_ClassIf,
+    NULL
+};
+
+ObjClassInfo TQRTestFifo_clsinfo = {
+    .instsize = sizeof(TQRTestFifo),
+    .classif = (ObjIface*)&TQRTestFifo_ClassIf_tmpl,
+    .parent = &ComplexTask_clsinfo,
+    .ifimpl = _ifimpl_TQRTestFifo,
+};
+
+static TQRTestLifo_ClassIf _impl_TQRTestLifo_TQRTestLifo_ClassIf = {
+    ._size = sizeof(TQRTestLifo_ClassIf),
+    ._implements = (ObjIface*)&TQRTestLifo_ClassIf_tmpl,
+    .run = (uint32 (*)(void*, TaskQueue*, TQWorker*, TaskControl*))TQRTestLifo_run,
+};
+
+static ObjIface* _ifimpl_TQRTestLifo[] = {
+    (ObjIface*)&_impl_TQRTestLifo_TQRTestLifo_ClassIf,
+    NULL
+};
+
+ObjClassInfo TQRTestLifo_clsinfo = {
+    .instsize = sizeof(TQRTestLifo),
+    .classif = (ObjIface*)&TQRTestLifo_ClassIf_tmpl,
+    .parent = &ComplexTask_clsinfo,
+    .ifimpl = _ifimpl_TQRTestLifo,
+};
+
+static TQRTestGate_ClassIf _impl_TQRTestGate_TQRTestGate_ClassIf = {
+    ._size = sizeof(TQRTestGate_ClassIf),
+    ._implements = (ObjIface*)&TQRTestGate_ClassIf_tmpl,
+    .run = (uint32 (*)(void*, TaskQueue*, TQWorker*, TaskControl*))TQRTestGate_run,
+};
+
+static ObjIface* _ifimpl_TQRTestGate[] = {
+    (ObjIface*)&_impl_TQRTestGate_TQRTestGate_ClassIf,
+    NULL
+};
+
+ObjClassInfo TQRTestGate_clsinfo = {
+    .instsize = sizeof(TQRTestGate),
+    .classif = (ObjIface*)&TQRTestGate_ClassIf_tmpl,
+    .parent = &ComplexTask_clsinfo,
+    .ifimpl = _ifimpl_TQRTestGate,
 };
 
 // ==================== Auto-generated section ends ======================
