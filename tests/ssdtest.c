@@ -225,14 +225,14 @@ static int test_ssd_subtree()
         ret = 1;
 
     // borrowed subtree should NOT increase refcount
-    intptr oldref = atomicLoad(intptr, &subtree->_ref, Acquire);
+    uintptr oldref = atomicLoad(uintptr, &subtree->_ref, Acquire);
 
     ssdLockedTransaction(tree)
     {
         SSDNode *btree = ssdSubtreeB(tree, _S"l1/b2");
 
         if (btree != subtree ||
-            atomicLoad(intptr, &btree->_ref, Acquire) != oldref)
+            atomicLoad(uintptr, &btree->_ref, Acquire) != oldref)
             ret = 1;
         btree = NULL;
 
@@ -240,7 +240,7 @@ static int test_ssd_subtree()
         // this is effectively the same thing as ssdSubtreeB
         btree = ssdObjPtr(tree, _S"l1/b2", SSDNode);
         if (btree != subtree ||
-            atomicLoad(intptr, &btree->_ref, Acquire) != oldref)
+            atomicLoad(uintptr, &btree->_ref, Acquire) != oldref)
             ret = 1;
 
         btree = ssdSubtreeB(tree, _S"l1/b2/l3");

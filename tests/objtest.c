@@ -220,7 +220,7 @@ static int test_obj_array()
         saPush(&arr, object, cls5);
     }
 
-    if (atomicLoad(intptr, &cls5->_ref, Acquire) != 51)
+    if (atomicLoad(uintptr, &cls5->_ref, Acquire) != 51)
         return 1;
 
     TestIf1 *if1 = objInstIf(arr.a[49], TestIf1);
@@ -231,7 +231,7 @@ static int test_obj_array()
 
     saDestroy(&arr);
 
-    if (atomicLoad(intptr, &cls5->_ref, Acquire) != 1)
+    if (atomicLoad(uintptr, &cls5->_ref, Acquire) != 1)
         return 1;
 
     saInit(&arr, object, 10);
@@ -240,7 +240,7 @@ static int test_obj_array()
         saPush(&arr, object, cls5, SA_Unique);
     }
 
-    if (atomicLoad(intptr, &cls5->_ref, Acquire) != 2)
+    if (atomicLoad(uintptr, &cls5->_ref, Acquire) != 2)
         return 1;
 
     saDestroy(&arr);
@@ -264,12 +264,12 @@ static int test_obj_weakref()
 
     TestCls3 *cls3 = TestCls3(cls4);
     Weak(TestCls3) *cls3w = objGetWeak(TestCls3, cls3);
-    if(atomicLoad(intptr, &cls4->_ref, Acquire) != 1)
+    if(atomicLoad(uintptr, &cls4->_ref, Acquire) != 1)
         ret = 1;
 
     TestCls3 *cls3a = objAcquireFromWeak(TestCls3, cls3w);
     if(cls3a) {
-        if(atomicLoad(intptr, &cls3a->_ref, Acquire) != 2)
+        if(atomicLoad(uintptr, &cls3a->_ref, Acquire) != 2)
             ret = 1;
 
         if(testcls3Testfunc2(cls3) != 99)
@@ -280,7 +280,7 @@ static int test_obj_weakref()
 
     TestCls1 *cls1 = objAcquireFromWeak(TestCls1, cls3w);
     if(cls1) {
-        if(atomicLoad(intptr, &cls1->_ref, Acquire) != 3)
+        if(atomicLoad(uintptr, &cls1->_ref, Acquire) != 3)
             ret = 1;
 
         if(cls1->data != 12 || testcls1Testfunc(cls1) != 33)
@@ -291,7 +291,7 @@ static int test_obj_weakref()
 
     TestCls4b *cls4a = objAcquireFromWeakDyn(TestCls4b, cls3w);
     if(cls4a) {
-        if(atomicLoad(intptr, &cls4a->_ref, Acquire) != 4)
+        if(atomicLoad(uintptr, &cls4a->_ref, Acquire) != 4)
             ret = 1;
 
         if(testcls4Testfunc(cls4a) != 33)
@@ -306,7 +306,7 @@ static int test_obj_weakref()
     objRelease(&cls1);
     objRelease(&cls3a);
 
-    if(atomicLoad(intptr, &cls4->_ref, Acquire) != 1)
+    if(atomicLoad(uintptr, &cls4->_ref, Acquire) != 1)
         ret = 1;
 
     objRelease(&cls4);

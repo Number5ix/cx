@@ -42,7 +42,7 @@ typedef struct VFSVFS {
         void* _is_ObjInst;
     };
     ObjClassInfo* _clsinfo;
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
     VFS* vfs;
@@ -58,7 +58,7 @@ typedef struct VFSVFS_WeakRef {
         void* _is_VFSVFS_WeakRef;
         void* _is_ObjInst_WeakRef;
     };
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     RWLock _lock;
 } VFSVFS_WeakRef;
 #define VFSVFS_WeakRef(inst) ((VFSVFS_WeakRef*)(unused_noeval((inst) && &((inst)->_is_VFSVFS_WeakRef)), (inst)))

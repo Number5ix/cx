@@ -74,7 +74,7 @@ typedef struct TRGate {
         void* _is_ObjInst;
     };
     ObjClassInfo* _clsinfo;
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
     string name;
@@ -93,7 +93,7 @@ typedef struct TRGate_WeakRef {
         void* _is_TRGate_WeakRef;
         void* _is_ObjInst_WeakRef;
     };
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     RWLock _lock;
 } TRGate_WeakRef;
 #define TRGate_WeakRef(inst) ((TRGate_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TRGate_WeakRef)), (inst)))
@@ -117,7 +117,7 @@ typedef struct TaskRequiresGate {
         void* _is_ObjInst;
     };
     ObjClassInfo* _clsinfo;
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
     TRGate* gate;
@@ -133,7 +133,7 @@ typedef struct TaskRequiresGate_WeakRef {
         void* _is_TaskRequires_WeakRef;
         void* _is_ObjInst_WeakRef;
     };
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     RWLock _lock;
 } TaskRequiresGate_WeakRef;
 #define TaskRequiresGate_WeakRef(inst) ((TaskRequiresGate_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TaskRequiresGate_WeakRef)), (inst)))

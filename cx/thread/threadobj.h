@@ -21,7 +21,7 @@ typedef struct Thread {
         void* _is_ObjInst;
     };
     ObjClassInfo* _clsinfo;
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
     threadFunc entry;
@@ -43,7 +43,7 @@ typedef struct Thread_WeakRef {
         void* _is_Thread_WeakRef;
         void* _is_ObjInst_WeakRef;
     };
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     RWLock _lock;
 } Thread_WeakRef;
 #define Thread_WeakRef(inst) ((Thread_WeakRef*)(unused_noeval((inst) && &((inst)->_is_Thread_WeakRef)), (inst)))

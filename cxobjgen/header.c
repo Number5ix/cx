@@ -347,7 +347,7 @@ void writeClassDecl(StreamBuffer *bf, Class *cls)
         sbufPWriteLine(bf, _S"        void* _is_ObjInst;");
         sbufPWriteLine(bf, _S"    };");
         sbufPWriteLine(bf, _S"    ObjClassInfo* _clsinfo;");
-        sbufPWriteLine(bf, _S"    atomic(intptr) _ref;");
+        sbufPWriteLine(bf, _S"    atomic(uintptr) _ref;");
         sbufPWriteLine(bf, _S"    atomic(ptr) _weakref;");
         sbufPWriteEOL(bf);
     }
@@ -382,7 +382,7 @@ void writeClassDecl(StreamBuffer *bf, Class *cls)
     writeClassWeakRefTypeMarkers(bf, cls);
     sbufPWriteLine(bf, _S"        void* _is_ObjInst_WeakRef;");
     sbufPWriteLine(bf, _S"    };");
-    sbufPWriteLine(bf, _S"    atomic(intptr) _ref;");
+    sbufPWriteLine(bf, _S"    atomic(uintptr) _ref;");
     sbufPWriteLine(bf, _S"    RWLock _lock;");
 
     strNConcat(&ln, _S"} ", cls->name, _S"_WeakRef;");

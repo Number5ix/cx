@@ -37,7 +37,7 @@ typedef struct TQThreadWorker {
         void* _is_ObjInst;
     };
     ObjClassInfo* _clsinfo;
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
     Thread* thr;        // worker thread
@@ -57,7 +57,7 @@ typedef struct TQThreadWorker_WeakRef {
         void* _is_TQWorker_WeakRef;
         void* _is_ObjInst_WeakRef;
     };
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     RWLock _lock;
 } TQThreadWorker_WeakRef;
 #define TQThreadWorker_WeakRef(inst) ((TQThreadWorker_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TQThreadWorker_WeakRef)), (inst)))

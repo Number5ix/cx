@@ -138,7 +138,7 @@ typedef struct TestCls1 {
         void* _is_ObjInst;
     };
     ObjClassInfo* _clsinfo;
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
     int data;
@@ -153,7 +153,7 @@ typedef struct TestCls1_WeakRef {
         void* _is_TestCls1_WeakRef;
         void* _is_ObjInst_WeakRef;
     };
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     RWLock _lock;
 } TestCls1_WeakRef;
 #define TestCls1_WeakRef(inst) ((TestCls1_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TestCls1_WeakRef)), (inst)))
@@ -173,7 +173,7 @@ typedef struct TestCls2 {
         void* _is_ObjInst;
     };
     ObjClassInfo* _clsinfo;
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
     int data;
@@ -189,7 +189,7 @@ typedef struct TestCls2_WeakRef {
         void* _is_TestCls1_WeakRef;
         void* _is_ObjInst_WeakRef;
     };
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     RWLock _lock;
 } TestCls2_WeakRef;
 #define TestCls2_WeakRef(inst) ((TestCls2_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TestCls2_WeakRef)), (inst)))
@@ -210,7 +210,7 @@ typedef struct TestCls3 {
         void* _is_ObjInst;
     };
     ObjClassInfo* _clsinfo;
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
     int data;
@@ -228,7 +228,7 @@ typedef struct TestCls3_WeakRef {
         void* _is_TestCls1_WeakRef;
         void* _is_ObjInst_WeakRef;
     };
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     RWLock _lock;
 } TestCls3_WeakRef;
 #define TestCls3_WeakRef(inst) ((TestCls3_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TestCls3_WeakRef)), (inst)))
@@ -252,7 +252,7 @@ typedef struct TestCls4 {
         void* _is_ObjInst;
     };
     ObjClassInfo* _clsinfo;
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
     int data;
@@ -272,7 +272,7 @@ typedef struct TestCls4_WeakRef {
         void* _is_TestCls1_WeakRef;
         void* _is_ObjInst_WeakRef;
     };
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     RWLock _lock;
 } TestCls4_WeakRef;
 #define TestCls4_WeakRef(inst) ((TestCls4_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TestCls4_WeakRef)), (inst)))
@@ -297,7 +297,7 @@ typedef struct TestCls4a {
         void* _is_ObjInst;
     };
     ObjClassInfo* _clsinfo;
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
     int data;
@@ -319,7 +319,7 @@ typedef struct TestCls4a_WeakRef {
         void* _is_TestCls1_WeakRef;
         void* _is_ObjInst_WeakRef;
     };
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     RWLock _lock;
 } TestCls4a_WeakRef;
 #define TestCls4a_WeakRef(inst) ((TestCls4a_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TestCls4a_WeakRef)), (inst)))
@@ -343,7 +343,7 @@ typedef struct TestCls4b {
         void* _is_ObjInst;
     };
     ObjClassInfo* _clsinfo;
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
     int data;
@@ -367,7 +367,7 @@ typedef struct TestCls4b_WeakRef {
         void* _is_TestCls1_WeakRef;
         void* _is_ObjInst_WeakRef;
     };
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     RWLock _lock;
 } TestCls4b_WeakRef;
 #define TestCls4b_WeakRef(inst) ((TestCls4b_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TestCls4b_WeakRef)), (inst)))
@@ -391,7 +391,7 @@ typedef struct TestCls5 {
         void* _is_ObjInst;
     };
     ObjClassInfo* _clsinfo;
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
     int data;
@@ -407,7 +407,7 @@ typedef struct TestCls5_WeakRef {
         void* _is_TestCls1_WeakRef;
         void* _is_ObjInst_WeakRef;
     };
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     RWLock _lock;
 } TestCls5_WeakRef;
 #define TestCls5_WeakRef(inst) ((TestCls5_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TestCls5_WeakRef)), (inst)))

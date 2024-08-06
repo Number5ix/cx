@@ -68,7 +68,7 @@ typedef struct ComplexTask {
         void* _is_ObjInst;
     };
     ObjClassInfo* _clsinfo;
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
     atomic(uint32) state;
@@ -95,7 +95,7 @@ typedef struct ComplexTask_WeakRef {
         void* _is_BasicTask_WeakRef;
         void* _is_ObjInst_WeakRef;
     };
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     RWLock _lock;
 } ComplexTask_WeakRef;
 #define ComplexTask_WeakRef(inst) ((ComplexTask_WeakRef*)(unused_noeval((inst) && &((inst)->_is_ComplexTask_WeakRef)), (inst)))

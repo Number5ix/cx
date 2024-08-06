@@ -36,7 +36,7 @@ typedef struct Task {
         void* _is_ObjInst;
     };
     ObjClassInfo* _clsinfo;
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
     atomic(uint32) state;
@@ -55,7 +55,7 @@ typedef struct Task_WeakRef {
         void* _is_BasicTask_WeakRef;
         void* _is_ObjInst_WeakRef;
     };
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     RWLock _lock;
 } Task_WeakRef;
 #define Task_WeakRef(inst) ((Task_WeakRef*)(unused_noeval((inst) && &((inst)->_is_Task_WeakRef)), (inst)))

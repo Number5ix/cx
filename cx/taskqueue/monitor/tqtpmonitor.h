@@ -32,7 +32,7 @@ typedef struct TQThreadPoolMonitor {
         void* _is_ObjInst;
     };
     ObjClassInfo* _clsinfo;
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
     TaskQueue* tq;
@@ -52,7 +52,7 @@ typedef struct TQThreadPoolMonitor_WeakRef {
         void* _is_TQMonitor_WeakRef;
         void* _is_ObjInst_WeakRef;
     };
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     RWLock _lock;
 } TQThreadPoolMonitor_WeakRef;
 #define TQThreadPoolMonitor_WeakRef(inst) ((TQThreadPoolMonitor_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TQThreadPoolMonitor_WeakRef)), (inst)))

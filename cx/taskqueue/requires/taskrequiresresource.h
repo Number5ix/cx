@@ -50,7 +50,7 @@ typedef struct TaskRequiresResource {
         void* _is_ObjInst;
     };
     ObjClassInfo* _clsinfo;
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
     bool owned;
@@ -67,7 +67,7 @@ typedef struct TaskRequiresResource_WeakRef {
         void* _is_TaskRequires_WeakRef;
         void* _is_ObjInst_WeakRef;
     };
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     RWLock _lock;
 } TaskRequiresResource_WeakRef;
 #define TaskRequiresResource_WeakRef(inst) ((TaskRequiresResource_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TaskRequiresResource_WeakRef)), (inst)))

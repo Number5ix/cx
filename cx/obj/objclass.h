@@ -51,7 +51,7 @@ typedef struct ObjInst {
         void *_is_ObjInst;
     };
     ObjClassInfo *_clsinfo;
-    atomic(intptr) _ref;        // reference count
+    atomic(uintptr) _ref;        // reference count
     atomic(ptr) _weakref;       // associated weak reference object
 
     // user data members here
@@ -64,7 +64,7 @@ typedef struct ObjInst_WeakRef
         ObjInst *_inst;
         void *_is_ObjInst_WeakRef;
     };
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     RWLock _lock;
 } ObjInst_WeakRef;
 
@@ -82,7 +82,7 @@ void _objDestroy(_Pre_notnull_ _Post_invalid_ ObjInst *inst);
 _meta_inline void _objAcquire(_In_opt_ ObjInst *inst)
 {
     if (inst)
-        atomicFetchAdd(intptr, &inst->_ref, 1, Relaxed);
+        atomicFetchAdd(uintptr, &inst->_ref, 1, Relaxed);
 }
 #define objAcquire(inst) (_objAcquire(objInstBase(inst)), (inst))
 

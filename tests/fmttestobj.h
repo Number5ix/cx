@@ -45,7 +45,7 @@ typedef struct FmtTestClass {
         void* _is_ObjInst;
     };
     ObjClassInfo* _clsinfo;
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
     int32 iv;
@@ -61,7 +61,7 @@ typedef struct FmtTestClass_WeakRef {
         void* _is_FmtTestClass_WeakRef;
         void* _is_ObjInst_WeakRef;
     };
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     RWLock _lock;
 } FmtTestClass_WeakRef;
 #define FmtTestClass_WeakRef(inst) ((FmtTestClass_WeakRef*)(unused_noeval((inst) && &((inst)->_is_FmtTestClass_WeakRef)), (inst)))
@@ -80,7 +80,7 @@ typedef struct FmtTestClass2 {
         void* _is_ObjInst;
     };
     ObjClassInfo* _clsinfo;
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
     int32 iv;
@@ -96,7 +96,7 @@ typedef struct FmtTestClass2_WeakRef {
         void* _is_FmtTestClass2_WeakRef;
         void* _is_ObjInst_WeakRef;
     };
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     RWLock _lock;
 } FmtTestClass2_WeakRef;
 #define FmtTestClass2_WeakRef(inst) ((FmtTestClass2_WeakRef*)(unused_noeval((inst) && &((inst)->_is_FmtTestClass2_WeakRef)), (inst)))

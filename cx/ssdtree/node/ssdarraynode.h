@@ -73,7 +73,7 @@ typedef struct SSDArrayNode {
         void* _is_ObjInst;
     };
     ObjClassInfo* _clsinfo;
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
     SSDTree* tree;
@@ -91,7 +91,7 @@ typedef struct SSDArrayNode_WeakRef {
         void* _is_SSDNode_WeakRef;
         void* _is_ObjInst_WeakRef;
     };
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     RWLock _lock;
 } SSDArrayNode_WeakRef;
 #define SSDArrayNode_WeakRef(inst) ((SSDArrayNode_WeakRef*)(unused_noeval((inst) && &((inst)->_is_SSDArrayNode_WeakRef)), (inst)))
@@ -158,7 +158,7 @@ typedef struct SSDArrayIter {
         void* _is_ObjInst;
     };
     ObjClassInfo* _clsinfo;
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
     SSDNode* node;
@@ -178,7 +178,7 @@ typedef struct SSDArrayIter_WeakRef {
         void* _is_SSDIterator_WeakRef;
         void* _is_ObjInst_WeakRef;
     };
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     RWLock _lock;
 } SSDArrayIter_WeakRef;
 #define SSDArrayIter_WeakRef(inst) ((SSDArrayIter_WeakRef*)(unused_noeval((inst) && &((inst)->_is_SSDArrayIter_WeakRef)), (inst)))

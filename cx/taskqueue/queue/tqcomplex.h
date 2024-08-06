@@ -73,7 +73,7 @@ typedef struct ComplexTaskQueue {
         void* _is_ObjInst;
     };
     ObjClassInfo* _clsinfo;
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
     string name;
@@ -103,7 +103,7 @@ typedef struct ComplexTaskQueue_WeakRef {
         void* _is_TaskQueue_WeakRef;
         void* _is_ObjInst_WeakRef;
     };
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     RWLock _lock;
 } ComplexTaskQueue_WeakRef;
 #define ComplexTaskQueue_WeakRef(inst) ((ComplexTaskQueue_WeakRef*)(unused_noeval((inst) && &((inst)->_is_ComplexTaskQueue_WeakRef)), (inst)))

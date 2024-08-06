@@ -35,7 +35,7 @@ typedef struct TQManualRunner {
         void* _is_ObjInst;
     };
     ObjClassInfo* _clsinfo;
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
     TaskQueue* tq;
@@ -52,7 +52,7 @@ typedef struct TQManualRunner_WeakRef {
         void* _is_TQRunner_WeakRef;
         void* _is_ObjInst_WeakRef;
     };
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     RWLock _lock;
 } TQManualRunner_WeakRef;
 #define TQManualRunner_WeakRef(inst) ((TQManualRunner_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TQManualRunner_WeakRef)), (inst)))

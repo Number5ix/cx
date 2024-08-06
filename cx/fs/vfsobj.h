@@ -22,7 +22,7 @@ typedef struct VFS {
         void* _is_ObjInst;
     };
     ObjClassInfo* _clsinfo;
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
     VFSDir* root;        // root for namespaceless paths
@@ -46,7 +46,7 @@ typedef struct VFS_WeakRef {
         void* _is_VFS_WeakRef;
         void* _is_ObjInst_WeakRef;
     };
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     RWLock _lock;
 } VFS_WeakRef;
 #define VFS_WeakRef(inst) ((VFS_WeakRef*)(unused_noeval((inst) && &((inst)->_is_VFS_WeakRef)), (inst)))
@@ -73,7 +73,7 @@ typedef struct VFSMount {
         void* _is_ObjInst;
     };
     ObjClassInfo* _clsinfo;
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
     ObjInst* provider;
@@ -89,7 +89,7 @@ typedef struct VFSMount_WeakRef {
         void* _is_VFSMount_WeakRef;
         void* _is_ObjInst_WeakRef;
     };
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     RWLock _lock;
 } VFSMount_WeakRef;
 #define VFSMount_WeakRef(inst) ((VFSMount_WeakRef*)(unused_noeval((inst) && &((inst)->_is_VFSMount_WeakRef)), (inst)))

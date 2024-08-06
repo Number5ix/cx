@@ -51,7 +51,7 @@ typedef struct TRLifo {
         void* _is_ObjInst;
     };
     ObjClassInfo* _clsinfo;
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
     Mutex _lifomtx;
@@ -69,7 +69,7 @@ typedef struct TRLifo_WeakRef {
         void* _is_TaskResource_WeakRef;
         void* _is_ObjInst_WeakRef;
     };
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     RWLock _lock;
 } TRLifo_WeakRef;
 #define TRLifo_WeakRef(inst) ((TRLifo_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TRLifo_WeakRef)), (inst)))

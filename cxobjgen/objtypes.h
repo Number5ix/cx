@@ -74,7 +74,7 @@ typedef struct Param {
         void* _is_ObjInst;
     };
     ObjClassInfo* _clsinfo;
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
     string type;
@@ -93,7 +93,7 @@ typedef struct Param_WeakRef {
         void* _is_Param_WeakRef;
         void* _is_ObjInst_WeakRef;
     };
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     RWLock _lock;
 } Param_WeakRef;
 #define Param_WeakRef(inst) ((Param_WeakRef*)(unused_noeval((inst) && &((inst)->_is_Param_WeakRef)), (inst)))
@@ -110,7 +110,7 @@ typedef struct Method {
         void* _is_ObjInst;
     };
     ObjClassInfo* _clsinfo;
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
     Class* srcclass;
@@ -142,7 +142,7 @@ typedef struct Method_WeakRef {
         void* _is_Method_WeakRef;
         void* _is_ObjInst_WeakRef;
     };
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     RWLock _lock;
 } Method_WeakRef;
 #define Method_WeakRef(inst) ((Method_WeakRef*)(unused_noeval((inst) && &((inst)->_is_Method_WeakRef)), (inst)))
@@ -163,7 +163,7 @@ typedef struct Interface {
         void* _is_ObjInst;
     };
     ObjClassInfo* _clsinfo;
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
     string name;
@@ -184,7 +184,7 @@ typedef struct Interface_WeakRef {
         void* _is_Interface_WeakRef;
         void* _is_ObjInst_WeakRef;
     };
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     RWLock _lock;
 } Interface_WeakRef;
 #define Interface_WeakRef(inst) ((Interface_WeakRef*)(unused_noeval((inst) && &((inst)->_is_Interface_WeakRef)), (inst)))
@@ -203,7 +203,7 @@ typedef struct Member {
         void* _is_ObjInst;
     };
     ObjClassInfo* _clsinfo;
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
     sa_string fulltype;
@@ -228,7 +228,7 @@ typedef struct Member_WeakRef {
         void* _is_Member_WeakRef;
         void* _is_ObjInst_WeakRef;
     };
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     RWLock _lock;
 } Member_WeakRef;
 #define Member_WeakRef(inst) ((Member_WeakRef*)(unused_noeval((inst) && &((inst)->_is_Member_WeakRef)), (inst)))
@@ -247,7 +247,7 @@ typedef struct Class {
         void* _is_ObjInst;
     };
     ObjClassInfo* _clsinfo;
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
     string name;
@@ -282,7 +282,7 @@ typedef struct Class_WeakRef {
         void* _is_Class_WeakRef;
         void* _is_ObjInst_WeakRef;
     };
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     RWLock _lock;
 } Class_WeakRef;
 #define Class_WeakRef(inst) ((Class_WeakRef*)(unused_noeval((inst) && &((inst)->_is_Class_WeakRef)), (inst)))
@@ -301,7 +301,7 @@ typedef struct ComplexArrayType {
         void* _is_ObjInst;
     };
     ObjClassInfo* _clsinfo;
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
     string tname;
@@ -317,7 +317,7 @@ typedef struct ComplexArrayType_WeakRef {
         void* _is_ComplexArrayType_WeakRef;
         void* _is_ObjInst_WeakRef;
     };
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     RWLock _lock;
 } ComplexArrayType_WeakRef;
 #define ComplexArrayType_WeakRef(inst) ((ComplexArrayType_WeakRef*)(unused_noeval((inst) && &((inst)->_is_ComplexArrayType_WeakRef)), (inst)))

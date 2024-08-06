@@ -276,7 +276,7 @@ typedef struct TQTest1 {
         void* _is_ObjInst;
     };
     ObjClassInfo* _clsinfo;
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
     atomic(uint32) state;
@@ -299,7 +299,7 @@ typedef struct TQTest1_WeakRef {
         void* _is_BasicTask_WeakRef;
         void* _is_ObjInst_WeakRef;
     };
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     RWLock _lock;
 } TQTest1_WeakRef;
 #define TQTest1_WeakRef(inst) ((TQTest1_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TQTest1_WeakRef)), (inst)))
@@ -329,7 +329,7 @@ typedef struct TQTestFail {
         void* _is_ObjInst;
     };
     ObjClassInfo* _clsinfo;
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
     atomic(uint32) state;
@@ -351,7 +351,7 @@ typedef struct TQTestFail_WeakRef {
         void* _is_BasicTask_WeakRef;
         void* _is_ObjInst_WeakRef;
     };
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     RWLock _lock;
 } TQTestFail_WeakRef;
 #define TQTestFail_WeakRef(inst) ((TQTestFail_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TQTestFail_WeakRef)), (inst)))
@@ -381,7 +381,7 @@ typedef struct TQTestCC1 {
         void* _is_ObjInst;
     };
     ObjClassInfo* _clsinfo;
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
     atomic(uint32) state;
@@ -406,7 +406,7 @@ typedef struct TQTestCC1_WeakRef {
         void* _is_BasicTask_WeakRef;
         void* _is_ObjInst_WeakRef;
     };
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     RWLock _lock;
 } TQTestCC1_WeakRef;
 #define TQTestCC1_WeakRef(inst) ((TQTestCC1_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TQTestCC1_WeakRef)), (inst)))
@@ -436,7 +436,7 @@ typedef struct TQTestCC2 {
         void* _is_ObjInst;
     };
     ObjClassInfo* _clsinfo;
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
     atomic(uint32) state;
@@ -460,7 +460,7 @@ typedef struct TQTestCC2_WeakRef {
         void* _is_BasicTask_WeakRef;
         void* _is_ObjInst_WeakRef;
     };
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     RWLock _lock;
 } TQTestCC2_WeakRef;
 #define TQTestCC2_WeakRef(inst) ((TQTestCC2_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TQTestCC2_WeakRef)), (inst)))
@@ -491,7 +491,7 @@ typedef struct TQTestSched {
         void* _is_ObjInst;
     };
     ObjClassInfo* _clsinfo;
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
     atomic(uint32) state;
@@ -520,7 +520,7 @@ typedef struct TQTestSched_WeakRef {
         void* _is_BasicTask_WeakRef;
         void* _is_ObjInst_WeakRef;
     };
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     RWLock _lock;
 } TQTestSched_WeakRef;
 #define TQTestSched_WeakRef(inst) ((TQTestSched_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TQTestSched_WeakRef)), (inst)))
@@ -592,7 +592,7 @@ typedef struct TQTestS1 {
         void* _is_ObjInst;
     };
     ObjClassInfo* _clsinfo;
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
     atomic(uint32) state;
@@ -625,7 +625,7 @@ typedef struct TQTestS1_WeakRef {
         void* _is_BasicTask_WeakRef;
         void* _is_ObjInst_WeakRef;
     };
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     RWLock _lock;
 } TQTestS1_WeakRef;
 #define TQTestS1_WeakRef(inst) ((TQTestS1_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TQTestS1_WeakRef)), (inst)))
@@ -701,7 +701,7 @@ typedef struct TQTestS2 {
         void* _is_ObjInst;
     };
     ObjClassInfo* _clsinfo;
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
     atomic(uint32) state;
@@ -732,7 +732,7 @@ typedef struct TQTestS2_WeakRef {
         void* _is_BasicTask_WeakRef;
         void* _is_ObjInst_WeakRef;
     };
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     RWLock _lock;
 } TQTestS2_WeakRef;
 #define TQTestS2_WeakRef(inst) ((TQTestS2_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TQTestS2_WeakRef)), (inst)))
@@ -806,7 +806,7 @@ typedef struct TQDelayTest {
         void* _is_ObjInst;
     };
     ObjClassInfo* _clsinfo;
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
     atomic(uint32) state;
@@ -827,7 +827,7 @@ typedef struct TQDelayTest_WeakRef {
         void* _is_BasicTask_WeakRef;
         void* _is_ObjInst_WeakRef;
     };
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     RWLock _lock;
 } TQDelayTest_WeakRef;
 #define TQDelayTest_WeakRef(inst) ((TQDelayTest_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TQDelayTest_WeakRef)), (inst)))
@@ -858,7 +858,7 @@ typedef struct TQMTest {
         void* _is_ObjInst;
     };
     ObjClassInfo* _clsinfo;
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
     atomic(uint32) state;
@@ -887,7 +887,7 @@ typedef struct TQMTest_WeakRef {
         void* _is_BasicTask_WeakRef;
         void* _is_ObjInst_WeakRef;
     };
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     RWLock _lock;
 } TQMTest_WeakRef;
 #define TQMTest_WeakRef(inst) ((TQMTest_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TQMTest_WeakRef)), (inst)))
@@ -962,7 +962,7 @@ typedef struct TQRTestMtx {
         void* _is_ObjInst;
     };
     ObjClassInfo* _clsinfo;
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
     atomic(uint32) state;
@@ -992,7 +992,7 @@ typedef struct TQRTestMtx_WeakRef {
         void* _is_BasicTask_WeakRef;
         void* _is_ObjInst_WeakRef;
     };
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     RWLock _lock;
 } TQRTestMtx_WeakRef;
 #define TQRTestMtx_WeakRef(inst) ((TQRTestMtx_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TQRTestMtx_WeakRef)), (inst)))
@@ -1067,7 +1067,7 @@ typedef struct TQRTestFifo {
         void* _is_ObjInst;
     };
     ObjClassInfo* _clsinfo;
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
     atomic(uint32) state;
@@ -1098,7 +1098,7 @@ typedef struct TQRTestFifo_WeakRef {
         void* _is_BasicTask_WeakRef;
         void* _is_ObjInst_WeakRef;
     };
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     RWLock _lock;
 } TQRTestFifo_WeakRef;
 #define TQRTestFifo_WeakRef(inst) ((TQRTestFifo_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TQRTestFifo_WeakRef)), (inst)))
@@ -1173,7 +1173,7 @@ typedef struct TQRTestLifo {
         void* _is_ObjInst;
     };
     ObjClassInfo* _clsinfo;
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
     atomic(uint32) state;
@@ -1204,7 +1204,7 @@ typedef struct TQRTestLifo_WeakRef {
         void* _is_BasicTask_WeakRef;
         void* _is_ObjInst_WeakRef;
     };
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     RWLock _lock;
 } TQRTestLifo_WeakRef;
 #define TQRTestLifo_WeakRef(inst) ((TQRTestLifo_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TQRTestLifo_WeakRef)), (inst)))
@@ -1279,7 +1279,7 @@ typedef struct TQRTestGate {
         void* _is_ObjInst;
     };
     ObjClassInfo* _clsinfo;
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
     atomic(uint32) state;
@@ -1309,7 +1309,7 @@ typedef struct TQRTestGate_WeakRef {
         void* _is_BasicTask_WeakRef;
         void* _is_ObjInst_WeakRef;
     };
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     RWLock _lock;
 } TQRTestGate_WeakRef;
 #define TQRTestGate_WeakRef(inst) ((TQRTestGate_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TQRTestGate_WeakRef)), (inst)))

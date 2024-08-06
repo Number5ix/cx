@@ -34,7 +34,7 @@ typedef struct TQWorker {
         void* _is_ObjInst;
     };
     ObjClassInfo* _clsinfo;
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
 } TQWorker;
@@ -48,7 +48,7 @@ typedef struct TQWorker_WeakRef {
         void* _is_TQWorker_WeakRef;
         void* _is_ObjInst_WeakRef;
     };
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     RWLock _lock;
 } TQWorker_WeakRef;
 #define TQWorker_WeakRef(inst) ((TQWorker_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TQWorker_WeakRef)), (inst)))

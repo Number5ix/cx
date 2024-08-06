@@ -35,7 +35,7 @@ typedef struct UserFuncTask {
         void* _is_ObjInst;
     };
     ObjClassInfo* _clsinfo;
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
     atomic(uint32) state;
@@ -53,7 +53,7 @@ typedef struct UserFuncTask_WeakRef {
         void* _is_BasicTask_WeakRef;
         void* _is_ObjInst_WeakRef;
     };
-    atomic(intptr) _ref;
+    atomic(uintptr) _ref;
     RWLock _lock;
 } UserFuncTask_WeakRef;
 #define UserFuncTask_WeakRef(inst) ((UserFuncTask_WeakRef*)(unused_noeval((inst) && &((inst)->_is_UserFuncTask_WeakRef)), (inst)))
