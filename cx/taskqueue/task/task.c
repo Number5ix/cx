@@ -46,14 +46,16 @@ bool Task_reset(_Inout_ Task* self)
 
 bool Task_wait(_Inout_ Task* self, int64 timeout)
 {
-    Event waitev;
-    eventInit(&waitev);
+    SharedEvent* waitev = sheventCreate(0);
+    SharedEvent* sigev  = sheventAcquire(waitev);
 
     // the attach will fail if the event has already completed, due to oncomplete being invalidated
-    if (cchainAttach(&self->oncomplete, ccbSignalEvent, stvar(ptr, &waitev))) {
-        eventWaitTimeout(&waitev, timeout);
+    if (cchainAttach(&self->oncomplete, ccbSignalSharedEvent, stvar(ptr, sigev))) {
+        eventWaitTimeout(&waitev->ev, timeout);
+    } else {
+        sheventRelease(&sigev);
     }
-    eventDestroy(&waitev);
+    sheventRelease(&waitev);
 
     return taskIsComplete(self);
 }

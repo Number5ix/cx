@@ -6,3 +6,6 @@
 
 // Signals the event passed as ptr in the first cvar when called
 bool ccbSignalEvent(stvlist* cvars, stvlist* args);
+
+// Signals and releases the shared event passed as ptr in the first cvar when called
+bool ccbSignalSharedEvent(stvlist* cvars, stvlist* args);

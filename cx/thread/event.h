@@ -32,6 +32,19 @@ enum EVENTINITFUNC_FLAGS {
     EV_UIEvent = 2,         // May be woken up early by platform-specific UI events
 };
 
+// A common pattern is an event that is shared between two threads for the purpose of
+// one signaling the other when something is complete. This can be make managing the
+// lifetime of the event itself difficult, as it is not safe for it to live either
+// on the stack of the caller, or for one side or the other to free it.
+
+// SharedEvent provides a wrapper of event that implements an extremely simple reference
+// count so that the event can be cleaned up when both threads are done with it.
+
+typedef struct SharedEvent {
+    Event ev;
+    atomic(uintptr) ref;
+} SharedEvent;
+
 // Events normally do not use the adaptive spin framework.
 // This is because we assume that events are used for occasional signaling between threads,
 // and when a thread waits on an event it's more likely than not to need to sleep. It would
@@ -60,5 +73,12 @@ bool eventSignalLock(_Inout_ Event *e);
 // manually reset the event to an unsignaled state
 bool eventReset(_Inout_ Event *e);
 void eventDestroy(_Pre_valid_ _Post_invalid_ Event *e);
+
+_Ret_valid_
+SharedEvent *sheventCreate(uint32 flags);
+_Ret_valid_
+SharedEvent *sheventAcquire(_In_ SharedEvent *ev);
+_At_(*pev, _Pre_maybenull_ _Post_null_)
+void sheventRelease(_Inout_ SharedEvent** pev);
 
 CX_C_END

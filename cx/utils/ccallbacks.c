@@ -10,4 +10,14 @@ bool ccbSignalEvent(stvlist* cvars, stvlist* args)
     eventSignal(ev);
     return true;
 }
- 
+
+bool ccbSignalSharedEvent(stvlist* cvars, stvlist* args)
+{
+    SharedEvent* sev = stvlNextPtr(cvars);
+    if (!sev)
+        return false;
+
+    eventSignal(&sev->ev);
+    sheventRelease(&sev);
+    return true;
+}

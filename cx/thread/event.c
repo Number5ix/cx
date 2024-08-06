@@ -191,3 +191,29 @@ void eventDestroy(Event *e)
         uieventDestroy(e->uiev);
     memset(e, 0, sizeof(Event));
 }
+
+_Use_decl_annotations_
+SharedEvent *sheventCreate(uint32 flags)
+{
+    SharedEvent* ret = xaAllocStruct(SharedEvent);
+    eventInit(&ret->ev);
+    atomicStore(uintptr, &ret->ref, 1, Relaxed);
+    return ret;
+}
+
+_Use_decl_annotations_
+SharedEvent *sheventAcquire(SharedEvent *ev)
+{
+    atomicFetchAdd(intptr, &ev->ref, 1, Relaxed);
+    return ev;
+}
+
+void sheventRelease(_Inout_ SharedEvent** pev)
+{
+    if (atomicFetchSub(uintptr, &(*pev)->ref, 1, Release) == 1) {
+        atomicFence(Acquire);
+        eventDestroy(&(*pev)->ev);
+        xaFree(*pev);
+    }
+    *pev = NULL;
+}
