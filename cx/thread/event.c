@@ -204,7 +204,7 @@ SharedEvent *sheventCreate(uint32 flags)
 _Use_decl_annotations_
 SharedEvent *sheventAcquire(SharedEvent *ev)
 {
-    atomicFetchAdd(intptr, &ev->ref, 1, Relaxed);
+    atomicFetchAdd(uintptr, &ev->ref, 1, Relaxed);
     return ev;
 }
 
