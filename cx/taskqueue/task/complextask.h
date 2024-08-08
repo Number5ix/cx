@@ -38,6 +38,8 @@ enum ComplexTaskRunResultEnum {
 enum ComplexTaskFlagsEnum {
     TASK_Cancel_Cascade = 0x01,
     TASK_Retain_Requires = 0x02,
+    TASK_Soft_Requires = 0x04,
+    TASK_Require_Failed = 0xa0,
 };
 
 enum ComplexTaskInternalFlagsEnum {

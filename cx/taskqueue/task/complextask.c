@@ -103,18 +103,25 @@ bool ComplexTask_checkRequires(_Inout_ ComplexTask* self, bool updateProgress)
             break;
 
         case TASK_Requires_Fail_Permanent:
-            ret      = false;
             saRemove(&self->_requires, i);
-            if (!btaskFailed(self)) {
-                btask_setState(self, TASK_Failed);
-                if (self->oncomplete) {
-                    // Normally the completion callback would be called when the task is run.
-                    // But since it will never run due to a depedency failing, call it now.
-                    cchainCallOnce(&self->oncomplete, stvar(object, self));
+
+            if (self->flags & TASK_Soft_Requires) {
+                // just flag it as failed but otherwise treat as permanent Ok
+                self->flags |= TASK_Require_Failed;
+            } else {
+                ret = false;
+
+                if (!btaskFailed(self)) {
+                    btask_setState(self, TASK_Failed);
+                    if (self->oncomplete) {
+                        // Normally the completion callback would be called when the task is run.
+                        // But since it will never run due to a depedency failing, call it now.
+                        cchainCallOnce(&self->oncomplete, stvar(object, self));
+                    }
+                    ctaskAdvance(self);
                 }
-                ctaskAdvance(self);
+                ret = false;   // don't run now, instead re-process in advanceq
             }
-            ret = false;   // don't run now, instead re-process in advanceq
             break;
 
         case TASK_Requires_Wait:

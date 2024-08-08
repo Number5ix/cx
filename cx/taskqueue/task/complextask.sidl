@@ -23,6 +23,16 @@ enum ComplexTaskFlagsEnum {
     // the defer list. However, if this flag is set, acquired resources will be retained for the entire lifetime
     // of the task and only released when it reaches is final disposition (Succeeded or Failed).
     TASK_Retain_Requires = 0x02,
+
+    // Normally a failed requirement will cause the task to immediately fail without running (though oncomplete
+    // will still be called). Setting this flag will cause the task to still be able to run even if one or more
+    // requirements fail. The TASK_Require_Failed flag will be set before running the task and can be examined
+    // to determine if any requirements failed.
+    TASK_Soft_Requires = 0x04,
+
+    // Indicates that one or more requirements failed. Only applies to tasks with TASK_Soft_Requires set. Set
+    // internally by the task queue. May be cleared by the task during its run phase.
+    TASK_Require_Failed = 0xa0,
 };
 
 enum ComplexTaskInternalFlagsEnum {
