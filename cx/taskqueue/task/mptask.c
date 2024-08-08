@@ -46,7 +46,7 @@ uint32 MultiphaseTask_run(_Inout_ MultiphaseTask* self, _In_ TaskQueue* tq, _In_
     }
 
     do {
-        if (!self->_fail && self->_phase < saSize(self->phases)) {
+        if (!self->_fail && self->_phase < (uint32)saSize(self->phases)) {
             uint32 pret = self->phases.a[self->_phase](self, tcon);
 
             switch (pret) {
@@ -67,7 +67,7 @@ uint32 MultiphaseTask_run(_Inout_ MultiphaseTask* self, _In_ TaskQueue* tq, _In_
                 // need to run again to run through the fail phases
                 ret = TASK_Result_Schedule;
             }
-        } else if (self->_fail && self->_phase < saSize(self->failphases)) {
+        } else if (self->_fail && self->_phase < (uint32)saSize(self->failphases)) {
             uint32 pret = self->failphases.a[self->_phase](self, tcon);
             switch (pret) {
             case TASK_Result_Success:
