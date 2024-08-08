@@ -979,6 +979,77 @@ static int test_tqtest_oneshot(void)
     return ret;
 }
 
+static MPTestState mps;
+
+#define NUM_MP_TASKS 20000
+
+static int test_tqtest_multiphase(void) {
+    int ret = 0;
+    int sum = 0;
+
+    TaskQueueConfig conf;
+    tqPresetBalanced(&conf);
+    TaskQueue *q = tqCreate(_S"Test", &conf);
+    if(!q || !tqStart(q))
+        return 1;
+
+    mps.target_count = NUM_MP_TASKS;
+    eventInit(&mps.notify);
+    srand((unsigned int)time(NULL));
+
+    for (int i = 1; i <= NUM_MP_TASKS; i++) {
+        int v = rand() % 9 + 1;
+
+        TQMPTest* task = tqmptestCreate(v, i, &mps);
+        switch (v) {
+        case 1:
+            sum += i;
+            break;
+        case 2:
+            sum += i * 3;
+            break;
+        case 3:
+            sum += i * 6;
+            break;
+        case 4:
+            sum += i * 10;
+            break;
+        case 5:
+            sum -= i * 6;
+            break;
+        case 6:
+            sum -= i * 5;
+            break;
+        case 7:
+            sum += i * 3;
+            break;
+        case 8:
+            sum += i * 9;
+            break;
+        case 9:
+            sum += i * 3;
+            break;
+        }
+        tqRun(q, &task);
+    }
+
+    if (!eventWaitTimeout(&mps.notify, timeS(60)))
+        ret = 1;
+
+    if (atomicLoad(bool, &mps.fail, Relaxed))
+        ret = 1;
+
+    if (atomicLoad(int32, &mps.sum, Relaxed) != sum)
+        ret = 1;
+
+    eventDestroy(&mps.notify);
+
+    tqShutdown(q, timeS(60));
+    tqRelease(&q);
+
+    return ret;       
+}
+
 testfunc tqtest_funcs[] = {
     {"task",                   test_tqtest_task                 },
     { "failure",               test_tqtest_failure              },
@@ -995,5 +1066,6 @@ testfunc tqtest_funcs[] = {
     { "reqgate",               test_tqtest_reqgate              },
     { "manual",                test_tqtest_manual               },
     { "oneshot",               test_tqtest_oneshot              },
+    { "multiphase",            test_tqtest_multiphase           },
     { 0,                       0                                }
 };

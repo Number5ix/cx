@@ -3,7 +3,7 @@
 // Do not make changes to this file or they will be overwritten.
 // clang-format off
 #include <cx/obj.h>
-#include <cx/taskqueue/task/complextask.h>
+#include <cx/taskqueue/task/mptask.h>
 #include <cx/thread/event.h>
 
 typedef struct TaskQueue TaskQueue;
@@ -45,6 +45,8 @@ typedef struct TQRTestLifo TQRTestLifo;
 typedef struct TQRTestLifo_WeakRef TQRTestLifo_WeakRef;
 typedef struct TQRTestGate TQRTestGate;
 typedef struct TQRTestGate_WeakRef TQRTestGate_WeakRef;
+typedef struct TQMPTest TQMPTest;
+typedef struct TQMPTest_WeakRef TQMPTest_WeakRef;
 saDeclarePtr(TQTest1);
 saDeclarePtr(TQTest1_WeakRef);
 saDeclarePtr(TQTestFail);
@@ -71,8 +73,9 @@ saDeclarePtr(TQRTestLifo);
 saDeclarePtr(TQRTestLifo_WeakRef);
 saDeclarePtr(TQRTestGate);
 saDeclarePtr(TQRTestGate_WeakRef);
+saDeclarePtr(TQMPTest);
+saDeclarePtr(TQMPTest_WeakRef);
 
-//#include <cx/taskqueue/mtask.sidl>
 typedef struct ReqTestState
 {
     int sum;
@@ -94,6 +97,13 @@ typedef struct ReqTestState2
     atomic(bool) fail;
     Event notify;
 } ReqTestState2;
+typedef struct MPTestState {
+    atomic(int32) sum;
+    atomic(bool) fail;
+    atomic(int32) count;
+    int target_count;
+    Event notify;
+} MPTestState;
 
 typedef struct TQTest1_ClassIf {
     ObjIface* _implements;
@@ -266,6 +276,23 @@ typedef struct TQRTestGate_ClassIf {
     uint32 (*hash)(_Inout_ void* self, uint32 flags);
 } TQRTestGate_ClassIf;
 extern TQRTestGate_ClassIf TQRTestGate_ClassIf_tmpl;
+
+typedef struct TQMPTest_ClassIf {
+    ObjIface* _implements;
+    ObjIface* _parent;
+    size_t _size;
+
+    uint32 (*run)(_Inout_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
+    bool (*cancel)(_Inout_ void* self);
+    bool (*reset)(_Inout_ void* self);
+    bool (*wait)(_Inout_ void* self, int64 timeout);
+    intptr (*cmp)(_Inout_ void* self, void* other, uint32 flags);
+    uint32 (*hash)(_Inout_ void* self, uint32 flags);
+    // Called once all phases (including fail phases) have completed. May be overridden to perform
+    // additional cleanup or change the final result.
+    uint32 (*finish)(_Inout_ void* self, uint32 result, TaskControl* tcon);
+} TQMPTest_ClassIf;
+extern TQMPTest_ClassIf TQMPTest_ClassIf_tmpl;
 
 typedef struct TQTest1 {
     union {
@@ -1373,4 +1400,126 @@ _objfactory_guaranteed TQRTestGate* TQRTestGate_create(ReqTestState2* rts, int n
 #define tqrtestgateCmp(self, other, flags) (self)->_->cmp(TQRTestGate(self), other, flags)
 // uint32 tqrtestgateHash(TQRTestGate* self, uint32 flags);
 #define tqrtestgateHash(self, flags) (self)->_->hash(TQRTestGate(self), flags)
+
+typedef struct TQMPTest {
+    union {
+        TQMPTest_ClassIf* _;
+        void* _is_TQMPTest;
+        void* _is_MultiphaseTask;
+        void* _is_ComplexTask;
+        void* _is_Task;
+        void* _is_BasicTask;
+        void* _is_ObjInst;
+    };
+    ObjClassInfo* _clsinfo;
+    atomic(uintptr) _ref;
+    atomic(ptr) _weakref;
+
+    atomic(uint32) state;
+    string name;        // task name to be shown in monitor output
+    int64 last;        // the last time this task was moved between queues and/or run
+    cchain oncomplete;        // functions that are called when this task has completed
+    int64 nextrun;        // next time for this task to run when scheduled
+    int64 lastprogress;        // timestamp of last progress change
+    Weak(ComplexTaskQueue)* lastq;        // The last queue this task ran on before it was deferred
+    sa_TaskRequires _requires;        // list of requirements that must be satisfied
+    uint16 flags;        // flags to customize task behavior
+    uint16 _intflags;        // internal flags reserved for use by the scheduler
+    atomic(uint32) _advcount;        // number of times this task has been advanced
+    sa_MPTPhaseFunc phases;        // phases that are run during normal task execution
+    sa_MPTPhaseFunc failphases;        // phases that only run on the event of failure
+    uint32 _phase;
+    bool _fail;
+    MPTestState* mps;
+    int idx;
+    int variant;
+} TQMPTest;
+extern ObjClassInfo TQMPTest_clsinfo;
+#define TQMPTest(inst) ((TQMPTest*)(unused_noeval((inst) && &((inst)->_is_TQMPTest)), (inst)))
+#define TQMPTestNone ((TQMPTest*)NULL)
+
+typedef struct TQMPTest_WeakRef {
+    union {
+        ObjInst* _inst;
+        void* _is_TQMPTest_WeakRef;
+        void* _is_MultiphaseTask_WeakRef;
+        void* _is_ComplexTask_WeakRef;
+        void* _is_Task_WeakRef;
+        void* _is_BasicTask_WeakRef;
+        void* _is_ObjInst_WeakRef;
+    };
+    atomic(uintptr) _ref;
+    RWLock _lock;
+} TQMPTest_WeakRef;
+#define TQMPTest_WeakRef(inst) ((TQMPTest_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TQMPTest_WeakRef)), (inst)))
+
+_objfactory_guaranteed TQMPTest* TQMPTest_create(int variant, int idx, MPTestState* mps);
+// TQMPTest* tqmptestCreate(int variant, int idx, MPTestState* mps);
+#define tqmptestCreate(variant, idx, mps) TQMPTest_create(variant, idx, mps)
+
+// void tqmptest_addPhases(TQMPTest* self, int32 num, MPTPhaseFunc parr[], bool fail);
+//
+// Adds phases from a static array.
+#define tqmptest_addPhases(self, num, parr, fail) MultiphaseTask__addPhases(MultiphaseTask(self), num, parr, fail)
+
+// void tqmptestRequireTask(TQMPTest* self, Task* dep);
+//
+// Wrapper around require() to depend on a task completing
+#define tqmptestRequireTask(self, dep) ComplexTask_requireTask(ComplexTask(self), Task(dep))
+
+// void tqmptestRequireResource(TQMPTest* self, TaskResource* res);
+//
+// Wrapper around require() to depend on acquiring a resource
+#define tqmptestRequireResource(self, res) ComplexTask_requireResource(ComplexTask(self), TaskResource(res))
+
+// void tqmptestRequireGate(TQMPTest* self, TRGate* gate);
+//
+// Wrapper around require() to depend on a gate being opened
+#define tqmptestRequireGate(self, gate) ComplexTask_requireGate(ComplexTask(self), TRGate(gate))
+
+// void tqmptestRequire(TQMPTest* self, TaskRequires* req);
+//
+// Add a requirement for the task to run
+#define tqmptestRequire(self, req) ComplexTask_require(ComplexTask(self), TaskRequires(req))
+
+// bool tqmptestAdvance(TQMPTest* self);
+//
+// advance a deferred task to run as soon as possible
+#define tqmptestAdvance(self) ComplexTask_advance(ComplexTask(self))
+
+// bool tqmptestCheckRequires(TQMPTest* self, bool updateProgress);
+//
+// check if this task can run because all requirements are satisfied
+#define tqmptestCheckRequires(self, updateProgress) ComplexTask_checkRequires(ComplexTask(self), updateProgress)
+
+// bool tqmptestAcquireRequires(TQMPTest* self, sa_TaskRequires* acquired);
+//
+// try to acquire required resources
+#define tqmptestAcquireRequires(self, acquired) ComplexTask_acquireRequires(ComplexTask(self), acquired)
+
+// bool tqmptestReleaseRequires(TQMPTest* self, sa_TaskRequires resources);
+//
+// release a list of acquired resources
+#define tqmptestReleaseRequires(self, resources) ComplexTask_releaseRequires(ComplexTask(self), resources)
+
+// bool tqmptest_setState(TQMPTest* self, uint32 newstate);
+#define tqmptest_setState(self, newstate) BasicTask__setState(BasicTask(self), newstate)
+
+// uint32 tqmptestRun(TQMPTest* self, TaskQueue* tq, TQWorker* worker, TaskControl* tcon);
+#define tqmptestRun(self, tq, worker, tcon) (self)->_->run(TQMPTest(self), TaskQueue(tq), TQWorker(worker), tcon)
+// bool tqmptestCancel(TQMPTest* self);
+#define tqmptestCancel(self) (self)->_->cancel(TQMPTest(self))
+// bool tqmptestReset(TQMPTest* self);
+#define tqmptestReset(self) (self)->_->reset(TQMPTest(self))
+// bool tqmptestWait(TQMPTest* self, int64 timeout);
+#define tqmptestWait(self, timeout) (self)->_->wait(TQMPTest(self), timeout)
+// intptr tqmptestCmp(TQMPTest* self, TQMPTest* other, uint32 flags);
+#define tqmptestCmp(self, other, flags) (self)->_->cmp(TQMPTest(self), other, flags)
+// uint32 tqmptestHash(TQMPTest* self, uint32 flags);
+#define tqmptestHash(self, flags) (self)->_->hash(TQMPTest(self), flags)
+// uint32 tqmptestFinish(TQMPTest* self, uint32 result, TaskControl* tcon);
+//
+// Called once all phases (including fail phases) have completed. May be overridden to perform
+// additional cleanup or change the final result.
+#define tqmptestFinish(self, result, tcon) (self)->_->finish(TQMPTest(self), result, tcon)
 

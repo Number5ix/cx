@@ -2,13 +2,13 @@
 
 #include <cx/cx.h>
 #include <cx/log/log.h>
-#include <cx/taskqueue/queue/tqueue.h>
 #include <cx/taskqueue/queue/tqcomplex.h>
+#include <cx/taskqueue/queue/tqueue.h>
 #include <cx/taskqueue/requires/taskrequiresgate.h>
 #include <cx/taskqueue/resource/trfifo.h>
 #include <cx/taskqueue/resource/trlifo.h>
 #include <cx/taskqueue/resource/trmutex.h>
-#include <cx/taskqueue/task/complextask.h>
+#include <cx/taskqueue/task/mptask.h>
 
 // Object-oriented task queue suitable for use in heavily multithreaded applications
 // Initialize a queue config for a queue with a single worker (i.e. a UI thread)

@@ -349,6 +349,168 @@ uint32 TQRTestGate_run(_Inout_ TQRTestGate* self, _In_ TaskQueue* tq, _In_ TQWor
     return TASK_Result_Success;
 }
 
+static uint32 mptest1(TQMPTest *self, TaskControl *tcon)
+{
+    atomicFetchAdd(int32, &self->mps->sum, self->idx, Relaxed);
+    return TASK_Result_Success;
+}
+
+static uint32 mptest2(TQMPTest *self, TaskControl *tcon)
+{
+    atomicFetchAdd(int32, &self->mps->sum, self->idx * 2, Relaxed);
+    return TASK_Result_Success;
+}
+
+static uint32 mptest3(TQMPTest *self, TaskControl *tcon)
+{
+    atomicFetchAdd(int32, &self->mps->sum, self->idx * 3, Relaxed);
+    return TASK_Result_Success;
+}
+
+static uint32 mptest4(TQMPTest *self, TaskControl *tcon)
+{
+    atomicFetchAdd(int32, &self->mps->sum, self->idx * 4, Relaxed);
+    return TASK_Result_Success;
+}
+
+static uint32 mptestFAIL(TQMPTest *self, TaskControl *tcon)
+{
+    return TASK_Result_Failure;
+}
+
+static uint32 mpftest1(TQMPTest *self, TaskControl *tcon)
+{
+    atomicFetchSub(int32, &self->mps->sum, self->idx, Relaxed);
+    return TASK_Result_Success;
+}
+
+static uint32 mpftest2(TQMPTest *self, TaskControl *tcon)
+{
+    atomicFetchSub(int32, &self->mps->sum, self->idx * 2, Relaxed);
+    return TASK_Result_Success;
+}
+
+static uint32 mpftest3(TQMPTest *self, TaskControl *tcon)
+{
+    atomicFetchSub(int32, &self->mps->sum, self->idx * 3, Relaxed);
+    return TASK_Result_Failure;
+}
+
+static uint32 mpftest4(TQMPTest *self, TaskControl *tcon)
+{
+    atomicFetchSub(int32, &self->mps->sum, self->idx * 4, Relaxed);
+    return TASK_Result_Success;
+}
+
+static MPTPhaseFunc mpvariant1[] = { (MPTPhaseFunc)mptest1 };
+static MPTPhaseFunc mpvariant2[] = { (MPTPhaseFunc)mptest1, (MPTPhaseFunc)mptest2 };
+static MPTPhaseFunc mpvariant3[] = { (MPTPhaseFunc)mptest1,
+                                     (MPTPhaseFunc)mptest2,
+                                     (MPTPhaseFunc)mptest3 };
+static MPTPhaseFunc mpvariant4[] = { (MPTPhaseFunc)mptest1,
+                                     (MPTPhaseFunc)mptest2,
+                                     (MPTPhaseFunc)mptest3,
+                                     (MPTPhaseFunc)mptest4 };
+static MPTPhaseFunc mpvariant5[] = {
+    (MPTPhaseFunc)mptestFAIL,
+    (MPTPhaseFunc)mptest1,
+    (MPTPhaseFunc)mptest2,
+    (MPTPhaseFunc)mptest3,
+    (MPTPhaseFunc)mptest4
+};
+static MPTPhaseFunc mpvariant6[] = {
+    (MPTPhaseFunc)mptest1,
+    (MPTPhaseFunc)mptestFAIL,
+    (MPTPhaseFunc)mptest2,
+    (MPTPhaseFunc)mptest3,
+    (MPTPhaseFunc)mptest4
+};
+static MPTPhaseFunc mpvariant7[] = {
+    (MPTPhaseFunc)mptest1,
+    (MPTPhaseFunc)mptest2,
+    (MPTPhaseFunc)mptest3,
+    (MPTPhaseFunc)mptestFAIL,
+    (MPTPhaseFunc)mptest4
+};
+static MPTPhaseFunc mpvariant8[] = {
+    (MPTPhaseFunc)mptest1, (MPTPhaseFunc)mptest2,    (MPTPhaseFunc)mptest3,
+    (MPTPhaseFunc)mptest4, (MPTPhaseFunc)mptestFAIL,
+};
+static MPTPhaseFunc mpvariant9[] = {
+    (MPTPhaseFunc)mptest1, (MPTPhaseFunc)mptest2, (MPTPhaseFunc)mptestFAIL,
+    (MPTPhaseFunc)mptest3, (MPTPhaseFunc)mptest4,
+};
+
+static MPTPhaseFunc mpfvariant5[] = { (MPTPhaseFunc)mpftest1, (MPTPhaseFunc)mpftest2, (MPTPhaseFunc)mpftest3, (MPTPhaseFunc)mpftest4 };
+static MPTPhaseFunc mpfvariant6[] = { (MPTPhaseFunc)mpftest1, (MPTPhaseFunc)mpftest2, (MPTPhaseFunc)mpftest3 };
+static MPTPhaseFunc mpfvariant7[] = { (MPTPhaseFunc)mpftest1, (MPTPhaseFunc)mpftest2 };
+static MPTPhaseFunc mpfvariant8[] = { (MPTPhaseFunc)mpftest1 };
+
+_objfactory_guaranteed TQMPTest* TQMPTest_create(int variant, int idx, MPTestState* mps)
+{
+    TQMPTest* self;
+    self          = objInstCreate(TQMPTest);
+    self->idx     = idx;
+    self->mps     = mps;
+    self->variant = variant;
+
+    objInstInit(self);
+
+    switch (variant) {
+    case 1:
+        mptaskAddPhases(self, mpvariant1);
+        break;
+    case 2:
+        mptaskAddPhases(self, mpvariant2);
+        break;
+    case 3:
+        mptaskAddPhases(self, mpvariant3);
+        break;
+    case 4:
+        mptaskAddPhases(self, mpvariant4);
+        break;
+    case 5:
+        mptaskAddPhases(self, mpvariant5);
+        mptaskAddFailPhases(self, mpfvariant5);
+        break;
+    case 6:
+        mptaskAddPhases(self, mpvariant6);
+        mptaskAddFailPhases(self, mpfvariant6);
+        break;
+    case 7:
+        mptaskAddPhases(self, mpvariant7);
+        mptaskAddFailPhases(self, mpfvariant7);
+        break;
+    case 8:
+        mptaskAddPhases(self, mpvariant8);
+        mptaskAddFailPhases(self, mpfvariant8);
+        break;
+    case 9:
+        mptaskAddPhases(self, mpvariant9);
+        break;
+    }
+
+    return self;
+}
+
+extern uint32 MultiphaseTask_finish(_Inout_ MultiphaseTask* self, uint32 result,
+                                    TaskControl* tcon);   // parent
+#define parent_finish(result, tcon) MultiphaseTask_finish((MultiphaseTask*)(self), result, tcon)
+uint32 TQMPTest_finish(_Inout_ TQMPTest* self, uint32 result, TaskControl* tcon)
+{
+    if (self->variant < 5 && result != TASK_Result_Success)
+        atomicStore(bool, &self->mps->fail, true, Relaxed);
+
+    if (self->variant >= 5 && result != TASK_Result_Failure)
+        atomicStore(bool, &self->mps->fail, true, Relaxed);
+
+    int32 oldcount = atomicFetchAdd(int32, &self->mps->count, 1, Relaxed);
+    if (oldcount == self->mps->target_count - 1)
+        eventSignal(&self->mps->notify);
+
+    return parent_finish(result, tcon);
+}
+
 // Autogen begins -----
 #include "tqtestobj.auto.inc"
 // Autogen ends -------

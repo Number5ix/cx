@@ -1,5 +1,4 @@
-#include <cx/taskqueue/task/complextask.sidl>
-//#include <cx/taskqueue/mtask.sidl>
+#include <cx/taskqueue/task/mptask.sidl>
 #include <cx/thread/event.h>
 
 class TQTest1 extends Task
@@ -123,4 +122,22 @@ class TQRTestGate extends ComplexTask {
     int num;
 
     factory create(ReqTestState2 *rts, int num);
+}
+
+typedef struct MPTestState {
+    atomic(int32) sum;
+    atomic(bool) fail;
+    atomic(int32) count;
+    int target_count;
+    Event notify;
+} MPTestState;
+
+class TQMPTest extends MultiphaseTask {
+    MPTestState *mps;
+    int idx;
+    int variant;
+
+    override finish;
+
+    factory create(int variant, int idx, MPTestState *mps);
 }

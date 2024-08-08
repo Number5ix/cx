@@ -112,6 +112,7 @@ static const testspec tests[] = {
 { "taskqueue: Require Gate", "tqtest", "reqgate" },
 { "taskqueue: Manual", "tqtest", "manual" },
 { "taskqueue: Oneshot", "tqtest", "oneshot" },
+{ "taskqueue: Multiphase", "tqtest", "multiphase" },
 { 0 }
 };
 

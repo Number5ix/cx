@@ -66,6 +66,11 @@ TQRTestGate_ClassIf TQRTestGate_ClassIf_tmpl = {
     ._parent = (ObjIface*)&ComplexTask_ClassIf_tmpl,
 };
 
+TQMPTest_ClassIf TQMPTest_ClassIf_tmpl = {
+    ._size = sizeof(TQMPTest_ClassIf),
+    ._parent = (ObjIface*)&MultiphaseTask_ClassIf_tmpl,
+};
+
 static TQTest1_ClassIf _impl_TQTest1_TQTest1_ClassIf = {
     ._size = sizeof(TQTest1_ClassIf),
     ._implements = (ObjIface*)&TQTest1_ClassIf_tmpl,
@@ -311,6 +316,24 @@ ObjClassInfo TQRTestGate_clsinfo = {
     .classif = (ObjIface*)&TQRTestGate_ClassIf_tmpl,
     .parent = &ComplexTask_clsinfo,
     .ifimpl = _ifimpl_TQRTestGate,
+};
+
+static TQMPTest_ClassIf _impl_TQMPTest_TQMPTest_ClassIf = {
+    ._size = sizeof(TQMPTest_ClassIf),
+    ._implements = (ObjIface*)&TQMPTest_ClassIf_tmpl,
+    .finish = (uint32 (*)(void*, uint32, TaskControl*))TQMPTest_finish,
+};
+
+static ObjIface* _ifimpl_TQMPTest[] = {
+    (ObjIface*)&_impl_TQMPTest_TQMPTest_ClassIf,
+    NULL
+};
+
+ObjClassInfo TQMPTest_clsinfo = {
+    .instsize = sizeof(TQMPTest),
+    .classif = (ObjIface*)&TQMPTest_ClassIf_tmpl,
+    .parent = &MultiphaseTask_clsinfo,
+    .ifimpl = _ifimpl_TQMPTest,
 };
 
 // ==================== Auto-generated section ends ======================
