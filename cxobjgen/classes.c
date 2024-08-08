@@ -310,6 +310,13 @@ bool processClass(Class *cls)
         }
         // clone and reset source class
         m = methodClone(m);
+        // overriding an abstract method should remove the annotation as it means we explicitly
+        // want to define it here
+        for (int i = saSize(m->annotations) - 1; i >= 0; --i) {
+            if (saSize(m->annotations.a[i]) == 1 && strEq(m->annotations.a[i].a[0], _S"abstract")) {
+                saRemove(&m->annotations, i);
+            }
+        }
         m->srcclass = cls;
         saPushC(&cls->methods, object, &m, SA_Unique);
     }
