@@ -395,19 +395,6 @@ bool ComplexTaskQueue__runTask(_Inout_ ComplexTaskQueue* self, _Inout_ BasicTask
         tresult = TASK_Result_Failure;
     }
 
-    // Free resources if any were acquired, but not if the task wants to retain resources, unless
-    // the task is complete.
-    if (ctask && (ctask->_intflags & TASK_INTERNAL_Owns_Resources) &&
-        (!(ctask->flags & TASK_Retain_Requires) ||
-         (tresult == TASK_Result_Success || tresult == TASK_Result_Failure))) {
-        // If we're not retaining requires, we have a list of exactly which requires acquired any.
-        // If not, we have to just scan all requires and try to release.
-        ctaskReleaseRequires(ctask,
-                             !(ctask->flags & TASK_Retain_Requires) ? acquired : ctask->_requires);
-    }
-
-    saDestroy(&acquired);
-
     switch (tresult) {
     case TASK_Result_Success:
         btask_setState(*pbtask, TASK_Succeeded);
@@ -423,6 +410,13 @@ bool ComplexTaskQueue__runTask(_Inout_ ComplexTaskQueue* self, _Inout_ BasicTask
             // back in the run queue
             ctask->last = now;
             btask_setState(*pbtask, TASK_Waiting);
+
+            if ((ctask->_intflags & TASK_INTERNAL_Owns_Resources) &&
+                !(ctask->flags & TASK_Retain_Requires)) {
+                ctaskReleaseRequires(ctask, acquired);
+            }
+            saDestroy(&acquired);
+
             prqPush(&self->runq, ctask);
             *pbtask = NULL;   // task no longer belongs to worker
             return true;      // return early so it does NOT get put in doneq
@@ -441,8 +435,6 @@ bool ComplexTaskQueue__runTask(_Inout_ ComplexTaskQueue* self, _Inout_ BasicTask
         completed = true;
     }
 
-    // free any resources
-
     if (completed) {
         // If this isn't a ComplexTask it might still be a Task
         if (!task)
@@ -456,6 +448,18 @@ bool ComplexTaskQueue__runTask(_Inout_ ComplexTaskQueue* self, _Inout_ BasicTask
     } else if (ctask) {
         ctask->last = now;
     }
+
+    // Free resources if any were acquired, but not if the task wants to retain resources, unless
+    // the task is complete.
+    if (ctask && (ctask->_intflags & TASK_INTERNAL_Owns_Resources) &&
+        (!(ctask->flags & TASK_Retain_Requires) ||
+         (tresult == TASK_Result_Success || tresult == TASK_Result_Failure))) {
+        // If we're not retaining requires, we have a list of exactly which requires acquired any.
+        // If not, we have to just scan all requires and try to release.
+        ctaskReleaseRequires(ctask,
+                             !(ctask->flags & TASK_Retain_Requires) ? acquired : ctask->_requires);
+    }
+    saDestroy(&acquired);    
 
     // In all other cases the task needs to be moved to the done queue for the manager to clean up.
     prqPush(&self->doneq, *pbtask);
