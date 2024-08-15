@@ -27,7 +27,7 @@ enum MultiphaseTaskFlagsEnum {
     MPTASK_Greedy = 0x10
 };
 
-typedef uint32 (*MPTPhaseFunc)(void *self, TaskControl *tcon);
+typedef uint32 (*MPTPhaseFunc)(void *self, TaskQueue* tq, TQWorker* worker, TaskControl *tcon);
 saDeclare(MPTPhaseFunc);
 #define mptaskAddPhases(self, parr) mptask_addPhases(self, sizeof(parr) / sizeof((parr)[0]), (parr), false)
 #define mptaskAddFailPhases(self, parr) mptask_addPhases(self, sizeof(parr) / sizeof((parr)[0]), (parr), true)

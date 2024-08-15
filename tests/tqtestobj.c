@@ -349,54 +349,54 @@ uint32 TQRTestGate_run(_Inout_ TQRTestGate* self, _In_ TaskQueue* tq, _In_ TQWor
     return TASK_Result_Success;
 }
 
-static uint32 mptest1(TQMPTest *self, TaskControl *tcon)
+static uint32 mptest1(TQMPTest *self, TaskQueue* tq, TQWorker* worker, TaskControl *tcon)
 {
     atomicFetchAdd(int32, &self->mps->sum, self->idx, Relaxed);
     return TASK_Result_Success;
 }
 
-static uint32 mptest2(TQMPTest *self, TaskControl *tcon)
+static uint32 mptest2(TQMPTest *self, TaskQueue* tq, TQWorker* worker, TaskControl *tcon)
 {
     atomicFetchAdd(int32, &self->mps->sum, self->idx * 2, Relaxed);
     return TASK_Result_Success;
 }
 
-static uint32 mptest3(TQMPTest *self, TaskControl *tcon)
+static uint32 mptest3(TQMPTest *self, TaskQueue* tq, TQWorker* worker, TaskControl *tcon)
 {
     atomicFetchAdd(int32, &self->mps->sum, self->idx * 3, Relaxed);
     return TASK_Result_Success;
 }
 
-static uint32 mptest4(TQMPTest *self, TaskControl *tcon)
+static uint32 mptest4(TQMPTest *self, TaskQueue* tq, TQWorker* worker, TaskControl *tcon)
 {
     atomicFetchAdd(int32, &self->mps->sum, self->idx * 4, Relaxed);
     return TASK_Result_Success;
 }
 
-static uint32 mptestFAIL(TQMPTest *self, TaskControl *tcon)
+static uint32 mptestFAIL(TQMPTest *self, TaskQueue* tq, TQWorker* worker, TaskControl *tcon)
 {
     return TASK_Result_Failure;
 }
 
-static uint32 mpftest1(TQMPTest *self, TaskControl *tcon)
+static uint32 mpftest1(TQMPTest *self, TaskQueue* tq, TQWorker* worker, TaskControl *tcon)
 {
     atomicFetchSub(int32, &self->mps->sum, self->idx, Relaxed);
     return TASK_Result_Success;
 }
 
-static uint32 mpftest2(TQMPTest *self, TaskControl *tcon)
+static uint32 mpftest2(TQMPTest *self, TaskQueue* tq, TQWorker* worker, TaskControl *tcon)
 {
     atomicFetchSub(int32, &self->mps->sum, self->idx * 2, Relaxed);
     return TASK_Result_Success;
 }
 
-static uint32 mpftest3(TQMPTest *self, TaskControl *tcon)
+static uint32 mpftest3(TQMPTest *self, TaskQueue* tq, TQWorker* worker, TaskControl *tcon)
 {
     atomicFetchSub(int32, &self->mps->sum, self->idx * 3, Relaxed);
     return TASK_Result_Failure;
 }
 
-static uint32 mpftest4(TQMPTest *self, TaskControl *tcon)
+static uint32 mpftest4(TQMPTest *self, TaskQueue* tq, TQWorker* worker, TaskControl *tcon)
 {
     atomicFetchSub(int32, &self->mps->sum, self->idx * 4, Relaxed);
     return TASK_Result_Success;
