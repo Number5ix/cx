@@ -462,8 +462,7 @@ void methodCallName(string *out, Class *cls, string mname)
 void mixinMemberName(string *out, Class *cls)
 {
     strConcat(out, _S"_", cls->name);
-    uint8 *tmp = strBuffer(out, 2);
-    tmp[1] = tolower(tmp[1]);
+    strLower(out);
 }
 
 void methodAnnotations(string *out, Method *m)
