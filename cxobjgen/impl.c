@@ -898,7 +898,7 @@ nextloop:
     }
 
     for (int i = 0; i < saSize(classes); i++) {
-        if (!classes.a[i]->included && classes.a[i]->mixin == mixinimpl)
+        if (!classes.a[i]->included)
             writeMethods(nbf, classes.a[i], &seen, mixinimpl);
     }
 
