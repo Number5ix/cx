@@ -13,13 +13,17 @@ static void vfsUnmountAll(_Inout_ VFSDir *dir)
 }
 
 _Use_decl_annotations_
-void vfsDestroy(VFS *vfs)
+void vfsDestroy(VFS **pvfs)
 {
+    if (!(pvfs && *pvfs))
+        return;
+
     // Unmount all filesystems
     // This is to break a reference loop that can happen in a fairly common case
     // of mounting a VFS backed by a file that is in the same VFS as it's
     // being mounted to.
 
+    VFS* vfs = *pvfs;
     rwlockAcquireWrite(&vfs->vfsdlock);
     foreach(hashtable, nsi, vfs->namespaces) {
         vfsUnmountAll((VFSDir*)htiVal(ptr, nsi));
@@ -30,7 +34,7 @@ void vfsDestroy(VFS *vfs)
     htClear(&vfs->root->files);
     rwlockReleaseWrite(&vfs->vfsdlock);
 
-    objRelease(&vfs);
+    objRelease(pvfs);
 }
 
 _When_(!writelockheld, _Requires_shared_lock_held_(vfs->vfslock))

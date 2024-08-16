@@ -11,7 +11,9 @@ typedef struct VFSFile VFSFile;
 CX_C_BEGIN
 
 // vfsCreate() is in vfsobj.h
-void vfsDestroy(_Pre_valid_ _Post_invalid_ VFS *vfs);
+
+_At_(*vfs, _Pre_maybenull_ _Post_null_)
+void vfsDestroy(VFS **pvfs);
 
 bool vfsUnmount(_Inout_ VFS *vfs, _In_opt_ strref path);
 
