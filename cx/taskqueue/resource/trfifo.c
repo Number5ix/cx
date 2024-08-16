@@ -98,16 +98,18 @@ void TRFifo_release(_Inout_ TRFifo* self, ComplexTask* task)
 
 _objinit_guaranteed bool TRFifo_init(_Inout_ TRFifo* self)
 {
-    mutexInit(&self->_fifomtx);
     // Autogen begins -----
+    mutexInit(&self->_fifomtx);
     return true;
     // Autogen ends -------
 }
 
 void TRFifo_destroy(_Inout_ TRFifo* self)
 {
-    mutexDestroy(&self->_fifomtx);
     destroyFifoList(self->head);
+    // Autogen begins -----
+    mutexDestroy(&self->_fifomtx);
+    // Autogen ends -------
 }
 
 _objfactory_guaranteed TRFifo* TRFifo_create()

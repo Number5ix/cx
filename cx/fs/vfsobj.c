@@ -24,10 +24,10 @@ _objinit_guaranteed bool VFS_init(_Inout_ VFS* self)
 {
     self->root = _vfsDirCreate(self, NULL);
     strDup(&self->curdir, fsPathSepStr);
-    rwlockInit(&self->vfslock);
-    rwlockInit(&self->vfsdlock);
     htInit(&self->namespaces, string, custom(ptr, VFSDir_ops), 4, HT_CaseInsensitive);
     // Autogen begins -----
+    rwlockInit(&self->vfslock);
+    rwlockInit(&self->vfsdlock);
     return true;
     // Autogen ends -------
 }
@@ -35,11 +35,11 @@ _objinit_guaranteed bool VFS_init(_Inout_ VFS* self)
 void VFS_destroy(_Inout_ VFS* self)
 {
     _stDestroy(stFullType(custom(ptr, VFSDir_ops)), &stgeneric(ptr, self->root), 0);
-    rwlockDestroy(&self->vfsdlock);
-    rwlockDestroy(&self->vfslock);
     // Autogen begins -----
     htDestroy(&self->namespaces);
     strDestroy(&self->curdir);
+    rwlockDestroy(&self->vfslock);
+    rwlockDestroy(&self->vfsdlock);
     // Autogen ends -------
 }
 

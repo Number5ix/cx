@@ -65,9 +65,9 @@ void TRMutex_release(_Inout_ TRMutex* self, ComplexTask* task)
 
 _objinit_guaranteed bool TRMutex_init(_Inout_ TRMutex* self)
 {
+    // Autogen begins -----
     mutexInit(&self->mtx);
     mutexInit(&self->_wlmtx);
-    // Autogen begins -----
     htInit(&self->_waitlist, object, none, 16);
     return true;
     // Autogen ends -------
@@ -75,9 +75,9 @@ _objinit_guaranteed bool TRMutex_init(_Inout_ TRMutex* self)
 
 void TRMutex_destroy(_Inout_ TRMutex* self)
 {
-    mutexDestroy(&self->_wlmtx);
-    mutexDestroy(&self->mtx);
     // Autogen begins -----
+    mutexDestroy(&self->mtx);
+    mutexDestroy(&self->_wlmtx);
     htDestroy(&self->_waitlist);
     // Autogen ends -------
 }

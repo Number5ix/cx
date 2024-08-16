@@ -30,8 +30,6 @@ _objfactory_guaranteed TaskQueue* TaskQueue_create(_In_opt_ strref name, uint32 
 
 _objinit_guaranteed bool TaskQueue_init(_Inout_ TaskQueue* self)
 {
-    eventInit(&self->workev);
-
     // if this is a thread pool based queue, size the queues based on the desired number of worker
     // threads
     TQThreadPoolRunner* tprun = objDynCast(TQThreadPoolRunner, self->runner);
@@ -42,6 +40,7 @@ _objinit_guaranteed bool TaskQueue_init(_Inout_ TaskQueue* self)
     self->runq.shrinkms  = 5;
     self->doneq.shrinkms = 5;
     // Autogen begins -----
+    eventInit(&self->workev);
     return true;
     // Autogen ends -------
 }
@@ -225,7 +224,6 @@ void TaskQueue__clear(_Inout_ TaskQueue* self)
 void TaskQueue_destroy(_Inout_ TaskQueue* self)
 {
     taskqueue_clear(self);
-    eventDestroy(&self->workev);
     prqDestroy(&self->runq);
     prqDestroy(&self->doneq);
     // Autogen begins -----
@@ -233,6 +231,7 @@ void TaskQueue_destroy(_Inout_ TaskQueue* self)
     objRelease(&self->runner);
     objRelease(&self->manager);
     objRelease(&self->monitor);
+    eventDestroy(&self->workev);
     // Autogen ends -------
 }
 

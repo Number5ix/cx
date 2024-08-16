@@ -26,7 +26,5 @@ class TRFifo extends TaskResource {
     TRFifoNode *head;
     TRFifoNode *tail;
 
-    init();
-    destroy();
     factory create();
 }

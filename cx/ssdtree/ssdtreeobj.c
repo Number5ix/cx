@@ -38,8 +38,8 @@ _objinit_guaranteed bool SSDTree_init(_Inout_ SSDTree* self)
     saInit(&self->dbg.writelocks, opaque(SSDLockDebug), 16);
 #endif
 
-    rwlockInit(&self->lock);
     // Autogen begins -----
+    rwlockInit(&self->lock);
     return true;
     // Autogen ends -------
 }
@@ -64,7 +64,9 @@ void SSDTree_destroy(_Inout_ SSDTree* self)
     saDestroy(&self->dbg.writelocks);
     mutexDestroy(&self->dbg.mtx);
 #endif
+    // Autogen begins -----
     rwlockDestroy(&self->lock);
+    // Autogen ends -------
 }
 
 // Autogen begins -----

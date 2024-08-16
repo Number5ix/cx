@@ -21,8 +21,8 @@ _objfactory_guaranteed TQDedicatedManager* TQDedicatedManager_create()
 
 _objinit_guaranteed bool TQDedicatedManager_init(_Inout_ TQDedicatedManager* self)
 {
-    eventInit(&self->mgrnotify);
     // Autogen begins -----
+    eventInit(&self->mgrnotify);
     return true;
     // Autogen ends -------
 }
@@ -91,9 +91,9 @@ void TQDedicatedManager_notify(_Inout_ TQDedicatedManager* self, bool wakeup)
 
 void TQDedicatedManager_destroy(_Inout_ TQDedicatedManager* self)
 {
-    eventDestroy(&self->mgrnotify);
     // Autogen begins -----
     objRelease(&self->mgrthread);
+    eventDestroy(&self->mgrnotify);
     // Autogen ends -------
 }
 

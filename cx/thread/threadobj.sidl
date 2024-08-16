@@ -15,7 +15,7 @@
 
     atomic:bool running;
     atomic:bool requestExit;
-    Event notify;
+    [noinit] Event notify;
 
     init();
     factory create(threadFunc func, strref name, int n, stvar args[], bool ui);

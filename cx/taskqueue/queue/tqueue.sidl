@@ -52,5 +52,4 @@ class TaskQueue {
     void _clear();          // deletes all tasks in queue, for internal use only
 
     factory create(strref name, uint32 flags, int64 gcinterval, [in] TQRunner *runner, [in] TQManager *manager, [in] [opt] TQMonitor *monitor);
-    init();
 }

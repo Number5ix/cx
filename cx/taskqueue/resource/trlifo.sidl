@@ -12,7 +12,5 @@ class TRLifo extends TaskResource {
     ComplexTask *cur;
     sarray:object:ComplexTask _lifo;
 
-    init();
-    destroy();
     factory create();
 }

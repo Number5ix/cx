@@ -6,7 +6,5 @@ class TQThreadPoolMonitor extends TQMonitor {
     int64 lastrun;
     int64 lastwarn;
 
-    init();
-    destroy();
     factory create([in] TaskQueueMonitorConfig *config);
 }

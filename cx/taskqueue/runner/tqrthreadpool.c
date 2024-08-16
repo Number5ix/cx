@@ -26,10 +26,10 @@ TQThreadPoolRunner_create(_In_ TaskQueueThreadPoolConfig* config)
 
 _objinit_guaranteed bool TQThreadPoolRunner_init(_Inout_ TQThreadPoolRunner* self)
 {
-    eventInit(&self->workershutdown);
-    rwlockInit(&self->workerlock);
     // Autogen begins -----
+    rwlockInit(&self->workerlock);
     saInit(&self->workers, object, 1);
+    eventInit(&self->workershutdown);
     return true;
     // Autogen ends -------
 }
@@ -158,10 +158,10 @@ bool TQThreadPoolRunner_stop(_Inout_ TQThreadPoolRunner* self)
 
 void TQThreadPoolRunner_destroy(_Inout_ TQThreadPoolRunner* self)
 {
-    rwlockDestroy(&self->workerlock);
-    eventDestroy(&self->workershutdown);
     // Autogen begins -----
+    rwlockDestroy(&self->workerlock);
     saDestroy(&self->workers);
+    eventDestroy(&self->workershutdown);
     // Autogen ends -------
 }
 

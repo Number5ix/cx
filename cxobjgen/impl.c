@@ -274,6 +274,7 @@ static void indexMethods(Class *cls, hashtable *htbl)
 static void writeAutoInit(StreamBuffer *bf, Class *cls)
 {
     string ln = 0, tmp = 0, flags = 0;
+    sa_string flagarr;
 
     sbufPWriteLine(bf, autogenBeginShortIndent);
 
@@ -300,11 +301,83 @@ static void writeAutoInit(StreamBuffer *bf, Class *cls)
                 }
             }
             continue;
+        } else if (strEq(m->vartype, _S"CondVar")) {
+            saInit(&flagarr, string, 1);
+
+            if (getAnnotation(NULL, m->annotations, _S"nospin"))
+                saPush(&flagarr, string, _S"CONDVAR_NoSpin");
+
+            strClear(&flags);
+            if (saSize(flagarr) != 0) {
+                strJoin(&flags, flagarr, _S" | ");
+                strPrepend(_S", ", &flags);
+            }
+            strNConcat(&ln, _S"    cvarInit(&self->", m->name, flags, _S");");
+            saDestroy(&flagarr);
+        } else if (strEq(m->vartype, _S"Event")) {
+            saInit(&flagarr, string, 1);
+
+            if (getAnnotation(NULL, m->annotations, _S"spin"))
+                saPush(&flagarr, string, _S"EV_Spin");
+            if (getAnnotation(NULL, m->annotations, _S"uievent"))
+                saPush(&flagarr, string, _S"EV_UIEvent");
+
+            strClear(&flags);
+            if (saSize(flagarr) != 0) {
+                strJoin(&flags, flagarr, _S" | ");
+                strPrepend(_S", ", &flags);
+            }
+            strNConcat(&ln, _S"    eventInit(&self->", m->name, flags, _S");");
+            saDestroy(&flagarr);
+        } else if (strEq(m->vartype, _S"Mutex")) {
+            saInit(&flagarr, string, 1);
+
+            if (getAnnotation(NULL, m->annotations, _S"nospin"))
+                saPush(&flagarr, string, _S"MUTEX_NoSpin");
+
+            strClear(&flags);
+            if (saSize(flagarr) != 0) {
+                strJoin(&flags, flagarr, _S" | ");
+                strPrepend(_S", ", &flags);
+            }
+            strNConcat(&ln, _S"    mutexInit(&self->", m->name, flags, _S");");
+            saDestroy(&flagarr);
+        } else if (strEq(m->vartype, _S"RWLock")) {
+            saInit(&flagarr, string, 1);
+
+            if (getAnnotation(NULL, m->annotations, _S"nospin"))
+                saPush(&flagarr, string, _S"RWLOCK_NoSpin");
+
+            strClear(&flags);
+            if (saSize(flagarr) != 0) {
+                strJoin(&flags, flagarr, _S" | ");
+                strPrepend(_S", ", &flags);
+            }
+            strNConcat(&ln, _S"    rwlockInit(&self->", m->name, flags, _S");");
+            saDestroy(&flagarr);
+        } else if (strEq(m->vartype, _S"Semaphore")) {
+            saInit(&flagarr, string, 1);
+            string count = _S"0";
+            sa_string an;
+
+            if (getAnnotation(NULL, m->annotations, _S"nospin"))
+                saPush(&flagarr, string, _S"SEMA_NoSpin");
+
+            getAnnotation(&an, m->annotations, _S"count");
+            if (saSize(an) == 2)
+                count = an.a[1];
+
+            strClear(&flags);
+            if (saSize(flagarr) != 0) {
+                strJoin(&flags, flagarr, _S" | ");
+                strPrepend(_S", ", &flags);
+            }
+            strNConcat(&ln, _S"    semaInit(&self->", m->name, _S", ", count, flags, _S");");
+            saDestroy(&flagarr);
         } else if (m->initstr) {
             strNConcat(&ln, _S"    self->", m->name, _S" = ", m->initstr, _S";");
         } else if (saSize(m->fulltype) > 1) {
             if (strEq(m->fulltype.a[0], _S"sarray")) {
-                sa_string flagarr;
                 saInit(&flagarr, string, 1);
                 string size = _S"1";
                 sa_string an;
@@ -332,7 +405,6 @@ static void writeAutoInit(StreamBuffer *bf, Class *cls)
                 saDestroy(&flagarr);
             }
             if (strEq(m->fulltype.a[0], _S"hashtable") && saSize(m->fulltype) == 3) {
-                sa_string flagarr;
                 saInit(&flagarr, string, 1);
                 string size = _S"16";
                 sa_string an;
@@ -419,6 +491,16 @@ static void writeAutoDtors(StreamBuffer *bf, Class *cls)
             strNConcat(&mdtor, _S"    closureDestroy(&self->", m->name, _S");");
         } else if(strEq(m->vartype, _S"cchain")) {
             strNConcat(&mdtor, _S"    cchainDestroy(&self->", m->name, _S");");
+        } else if(strEq(m->vartype, _S"CondVar")) {
+            strNConcat(&mdtor, _S"    cvarDestroy(&self->", m->name, _S");");
+        } else if(strEq(m->vartype, _S"Event")) {
+            strNConcat(&mdtor, _S"    eventDestroy(&self->", m->name, _S");");
+        } else if(strEq(m->vartype, _S"Mutex")) {
+            strNConcat(&mdtor, _S"    mutexDestroy(&self->", m->name, _S");");
+        } else if(strEq(m->vartype, _S"RWLock")) {
+            strNConcat(&mdtor, _S"    rwlockDestroy(&self->", m->name, _S");");
+        } else if(strEq(m->vartype, _S"Semaphore")) {
+            strNConcat(&mdtor, _S"    semaDestroy(&self->", m->name, _S");");
         }
         if (!strEmpty(mdtor))
             sbufPWriteLine(bf, mdtor);

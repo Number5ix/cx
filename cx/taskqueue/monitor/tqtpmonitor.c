@@ -27,8 +27,8 @@ TQThreadPoolMonitor_create(_In_ TaskQueueMonitorConfig* config)
 
 _objinit_guaranteed bool TQThreadPoolMonitor_init(_Inout_ TQThreadPoolMonitor* self)
 {
-    mutexInit(&self->monitorlock);
     // Autogen begins -----
+    mutexInit(&self->monitorlock);
     return true;
     // Autogen ends -------
 }
@@ -332,7 +332,9 @@ bool TQThreadPoolMonitor_stop(_Inout_ TQThreadPoolMonitor* self)
 
 void TQThreadPoolMonitor_destroy(_Inout_ TQThreadPoolMonitor* self)
 {
+    // Autogen begins -----
     mutexDestroy(&self->monitorlock);
+    // Autogen ends -------
 }
 
 // Autogen begins -----

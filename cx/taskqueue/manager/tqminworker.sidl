@@ -10,8 +10,5 @@ class TQInWorkerManager extends TQThreadPoolManager {
 	override pretask;
 	override stop;
 
-	init();
-	destroy();
-
 	factory create();
 }

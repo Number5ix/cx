@@ -42,10 +42,10 @@ _objinit_guaranteed bool Thread_init(_Inout_ Thread* self)
 
 void Thread_destroy(_Inout_ Thread* self)
 {
-    eventDestroy(&self->notify);
     // Autogen begins -----
     strDestroy(&self->name);
     saDestroy(&self->_argsa);
+    eventDestroy(&self->notify);
     // Autogen ends -------
 }
 

@@ -56,6 +56,7 @@ bool TRGate_registerTask(_Inout_ TRGate* self, ComplexTask* task)
 _objinit_guaranteed bool TRGate_init(_Inout_ TRGate* self)
 {
     // Autogen begins -----
+    mutexInit(&self->_wlmtx);
     saInit(&self->_waitlist, object, 1);
     return true;
     // Autogen ends -------
@@ -65,6 +66,7 @@ void TRGate_destroy(_Inout_ TRGate* self)
 {
     // Autogen begins -----
     strDestroy(&self->name);
+    mutexDestroy(&self->_wlmtx);
     saDestroy(&self->_waitlist);
     // Autogen ends -------
 }

@@ -27,6 +27,4 @@ class SSDTree {
     [sal _objfactory_guaranteed] SSDNode *createNode([sal _In_range_(SSD_Create_None+1, SSD_Create_Count-1)] SSDCreateType crtype);
 
     factory create(uint32 flags);
-    init();
-    destroy();
 }

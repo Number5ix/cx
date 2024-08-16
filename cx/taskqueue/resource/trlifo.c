@@ -79,8 +79,8 @@ void TRLifo_release(_Inout_ TRLifo* self, ComplexTask* task)
 
 _objinit_guaranteed bool TRLifo_init(_Inout_ TRLifo* self)
 {
-    mutexInit(&self->_lifomtx);
     // Autogen begins -----
+    mutexInit(&self->_lifomtx);
     saInit(&self->_lifo, object, 1);
     return true;
     // Autogen ends -------
@@ -88,8 +88,8 @@ _objinit_guaranteed bool TRLifo_init(_Inout_ TRLifo* self)
 
 void TRLifo_destroy(_Inout_ TRLifo* self)
 {
-    mutexDestroy(&self->_lifomtx);
     // Autogen begins -----
+    mutexDestroy(&self->_lifomtx);
     saDestroy(&self->_lifo);
     // Autogen ends -------
 }

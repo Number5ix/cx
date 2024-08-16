@@ -22,8 +22,8 @@ _objfactory_guaranteed TQInWorkerManager* TQInWorkerManager_create()
 _objinit_guaranteed bool TQInWorkerManager_init(_Inout_ TQInWorkerManager* self)
 {
     self->needsWorkerTick = true;
-    mutexInit(&self->mgrlock);
     // Autogen begins -----
+    mutexInit(&self->mgrlock);
     return true;
     // Autogen ends -------
 }
@@ -88,7 +88,9 @@ bool TQInWorkerManager_stop(_Inout_ TQInWorkerManager* self)
 
 void TQInWorkerManager_destroy(_Inout_ TQInWorkerManager* self)
 {
+    // Autogen begins -----
     mutexDestroy(&self->mgrlock);
+    // Autogen ends -------
 }
 
 // Autogen begins -----

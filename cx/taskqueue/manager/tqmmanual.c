@@ -22,8 +22,8 @@ _objfactory_guaranteed TQManualManager* TQManualManager_create()
 _objinit_guaranteed bool TQManualManager_init(_Inout_ TQManualManager* self)
 {
     self->needsWorkerTick = true;
-    mutexInit(&self->mgrlock);
     // Autogen begins -----
+    mutexInit(&self->mgrlock);
     return true;
     // Autogen ends -------
 }
@@ -75,7 +75,9 @@ int64 TQManualManager_tick(_Inout_ TQManualManager* self)
 
 void TQManualManager_destroy(_Inout_ TQManualManager* self)
 {
+    // Autogen begins -----
     mutexDestroy(&self->mgrlock);
+    // Autogen ends -------
 }
 
 // Autogen begins -----

@@ -21,7 +21,6 @@ class VFS {
     // underlying OS filesystem. The exact VFS namespace that is created
     // is platform dependant.
     [canfail] factory createFromFS();
-    init();
 }
 
 class VFSMount {

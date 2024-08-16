@@ -114,11 +114,23 @@ static void checkMemberInitDestroy(Class *cls)
                     m->init = true;
                 m->destroy = true;
             }
+            if ((strEq(m->vartype, _S"CondVar") && strEmpty(m->predecr)) ||
+                (strEq(m->vartype, _S"Event") && strEmpty(m->predecr)) ||
+                (strEq(m->vartype, _S"Mutex") && strEmpty(m->predecr)) ||
+                (strEq(m->vartype, _S"RWLock") && strEmpty(m->predecr)) ||
+                (strEq(m->vartype, _S"Semaphore") && strEmpty(m->predecr))) {
+                m->init = true;
+            }            
             if ((strEq(m->vartype, _S"string") && strEmpty(m->predecr)) ||
                 (strEq(m->vartype, _S"hashtable") && strEmpty(m->predecr)) ||
                 (strEq(m->vartype, _S"stvar") && strEmpty(m->predecr)) ||
                 (strEq(m->vartype, _S"closure") && strEmpty(m->predecr)) ||
-                (strEq(m->vartype, _S"cchain") && strEmpty(m->predecr))) {
+                (strEq(m->vartype, _S"cchain") && strEmpty(m->predecr)) ||
+                (strEq(m->vartype, _S"CondVar") && strEmpty(m->predecr)) ||
+                (strEq(m->vartype, _S"Event") && strEmpty(m->predecr)) ||
+                (strEq(m->vartype, _S"Mutex") && strEmpty(m->predecr)) ||
+                (strEq(m->vartype, _S"RWLock") && strEmpty(m->predecr)) ||
+                (strEq(m->vartype, _S"Semaphore") && strEmpty(m->predecr))) {
                 m->destroy = true;
             }
         }

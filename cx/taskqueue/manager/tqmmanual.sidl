@@ -10,8 +10,5 @@ class TQManualManager extends TQManager {
     override notify;
 	override tick;
 
-	init();
-	destroy();
-
 	factory create();
 }

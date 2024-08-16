@@ -9,5 +9,4 @@ class TQDedicatedManager extends TQThreadPoolManager {
 	override stop;
 
 	factory create();
-	init();
 }
