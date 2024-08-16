@@ -25,6 +25,9 @@ void vfsDestroy(VFS *vfs)
         vfsUnmountAll((VFSDir*)htiVal(ptr, nsi));
     }
     vfsUnmountAll(vfs->root);
+    htClear(&vfs->namespaces);
+    htClear(&vfs->root->subdirs);
+    htClear(&vfs->root->files);
     rwlockReleaseWrite(&vfs->vfsdlock);
 
     objRelease(&vfs);
@@ -392,6 +395,7 @@ VFSMount *_vfsFindMount(VFS *vfs, string *rpath, strref path, VFSMount **cowmoun
             strDup(rpath, ent->origpath);
             strDestroy(&abspath);
             ret = ent->mount;
+            objAcquire(ret);
             rwlockReleaseRead(&vfs->vfslock);
             rwlockReleaseRead(&vfs->vfsdlock);
             return ret;
@@ -426,7 +430,7 @@ VFSMount *_vfsFindMount(VFS *vfs, string *rpath, strref path, VFSMount **cowmoun
 
             if (cowmount && (pdir->mounts.a[i]->flags & VFS_AlwaysCOW)) {
                 // this provider wants to get COW copies for any write
-                *cowmount = pdir->mounts.a[i];
+                *cowmount = objAcquire(pdir->mounts.a[i]);
                 strDup(cowrpath, curpath);
                 cowmount = NULL;        // don't let anything else set it
             }
@@ -480,7 +484,7 @@ done:
     rwlockReleaseRead(&vfs->vfslock);
     if (ret && flwrite && (ret->flags & VFS_ReadOnly) && cowmount) {
         // let the caller know they should COW to a writable provider
-        *cowmount = firstwritable;
+        *cowmount = objAcquire(firstwritable);
         strDup(cowrpath, firstwpath);
     }
 
@@ -499,6 +503,9 @@ done:
         htInsertC(&vfsdir->files, string, components.a[saSize(components) - 1], ptr, &newent, HT_Ignore);
         rwlockReleaseWrite(&vfs->vfslock);
     }
+
+    objAcquire(ret);
+
     rwlockReleaseRead(&vfs->vfsdlock);
 
     strDestroy(&ns);

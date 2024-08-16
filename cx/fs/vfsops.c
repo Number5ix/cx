@@ -25,6 +25,7 @@ FSPathStat vfsStat(VFS *vfs, strref path, FSStat *stat)
 
 out:
     strDestroy(&rpath);
+    objRelease(&m);
     return ret;
 }
 
@@ -46,6 +47,7 @@ bool vfsSetTimes(VFS *vfs, strref path, int64 modified, int64 accessed)
 
 out:
     strDestroy(&rpath);
+    objRelease(&m);
     return ret;
 }
 
@@ -75,6 +77,7 @@ bool vfsCreateDir(VFS *vfs, strref path)
 
 out:
     strDestroy(&rpath);
+    objRelease(&m);
     return ret;
 }
 
@@ -115,6 +118,7 @@ bool vfsRemoveDir(VFS *vfs, strref path)
 
 out:
     strDestroy(&rpath);
+    objRelease(&m);
     return ret;
 }
 
@@ -145,6 +149,7 @@ bool vfsDelete(VFS *vfs, strref path)
 
 out:
     strDestroy(&rpath);
+    objRelease(&m);
     return ret;
 }
 
@@ -229,6 +234,8 @@ bool vfsRename(VFS *vfs, strref from, strref to)
 out:
     strDestroy(&rpathfrom);
     strDestroy(&rpathto);
+    objRelease(&mfrom);
+    objRelease(&mto);
     return ret;
 }
 
@@ -252,5 +259,6 @@ bool vfsGetFSPath(string *out, VFS *vfs, strref path)
 
 out:
     strDestroy(&rpath);
+    objRelease(&m);
     return ret;
 }

@@ -59,6 +59,8 @@ VFSFile *vfsOpen(VFS *vfs, strref path, flags_t flags)
 out:
     strDestroy(&rpath);
     strDestroy(&cowrpath);
+    objRelease(&m);
+    objRelease(&cowmount);
     return ret;
 }
 
