@@ -382,6 +382,21 @@ bool processClass(Class *cls)
     // if init can fail, so can any factories
     propagateCanFailToFactories(cls);
 
+    int nextfactory = 0;
+    // group factory methods up first
+    for (int i = 0; i < saSize(cls->methods); i++) {
+        Method* m = cls->methods.a[i];
+        if (m->isfactory && i == nextfactory) {
+            ++nextfactory;
+        } else if (m->isfactory) {
+            objAcquire(m);
+            saRemove(&cls->methods, i);
+            saInsert(&cls->methods, nextfactory, object, m);
+            objRelease(&m);
+            ++nextfactory;
+        }
+    }
+
     // create internal methods if needed
     if (cls->hasinit) {
         Method *m = methodCreate();
@@ -390,7 +405,8 @@ bool processClass(Class *cls)
         m->canfail = cls->initcanfail;
         strDup(&m->returntype, _S"bool");
         strDup(&m->name, _S"init");
-        saPushC(&cls->methods, object, &m);
+        saInsert(&cls->methods, nextfactory, object, m);
+        objRelease(&m);
     }
     if (cls->hasdestroy) {
         Method *m = methodCreate();
