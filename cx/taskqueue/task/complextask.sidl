@@ -3,7 +3,8 @@
 #include <cx/taskqueue/requires/taskrequires.sidl>
 #include <cx/taskqueue/resource/taskresource.sidl>
 
-#define ctaskDependOn ctaskRequireTask
+#define ctaskDependOn(task, dep) ctaskRequireTask(task, dep, false)
+#define ctaskWaitFor(task, dep) ctaskRequireTask(task, dep, true)
 
 class TRGate;
 
@@ -52,7 +53,7 @@ class ComplexTaskQueue;
     atomic:uint32 _advcount;    // number of times this task has been advanced
 
     // Wrapper around require() to depend on a task completing
-    unbound void requireTask([in] Task *dep);
+    unbound void requireTask([in] Task *dep, bool failok);
     // Wrapper around require() to depend on acquiring a resource
     unbound void requireResource([in] TaskResource *res);
     // Wrapper around require() to depend on a gate being opened

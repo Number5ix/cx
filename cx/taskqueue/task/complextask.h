@@ -26,7 +26,8 @@ typedef struct ComplexTask_WeakRef ComplexTask_WeakRef;
 saDeclarePtr(ComplexTask);
 saDeclarePtr(ComplexTask_WeakRef);
 
-#define ctaskDependOn ctaskRequireTask
+#define ctaskDependOn(task, dep) ctaskRequireTask(task, dep, false)
+#define ctaskWaitFor(task, dep) ctaskRequireTask(task, dep, true)
 enum ComplexTaskRunResultEnum {
     TASK_Result_Schedule = TASK_Result_Basic_Count,     // schedule the task to run after the time specified in the TaskControl structure
     TASK_Result_Schedule_Progress,                      // schedule the task and mark it has having made progress
@@ -102,11 +103,11 @@ typedef struct ComplexTask_WeakRef {
 } ComplexTask_WeakRef;
 #define ComplexTask_WeakRef(inst) ((ComplexTask_WeakRef*)(unused_noeval((inst) && &((inst)->_is_ComplexTask_WeakRef)), (inst)))
 
-void ComplexTask_requireTask(_Inout_ ComplexTask* self, _In_ Task* dep);
-// void ctaskRequireTask(ComplexTask* self, Task* dep);
+void ComplexTask_requireTask(_Inout_ ComplexTask* self, _In_ Task* dep, bool failok);
+// void ctaskRequireTask(ComplexTask* self, Task* dep, bool failok);
 //
 // Wrapper around require() to depend on a task completing
-#define ctaskRequireTask(self, dep) ComplexTask_requireTask(ComplexTask(self), Task(dep))
+#define ctaskRequireTask(self, dep, failok) ComplexTask_requireTask(ComplexTask(self), Task(dep), failok)
 
 void ComplexTask_requireResource(_Inout_ ComplexTask* self, _In_ TaskResource* res);
 // void ctaskRequireResource(ComplexTask* self, TaskResource* res);

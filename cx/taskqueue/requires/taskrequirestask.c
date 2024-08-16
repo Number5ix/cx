@@ -12,12 +12,13 @@
 #include <cx/taskqueue/taskqueue.h>
 #include <cx/taskqueue/task/complextask.h>
 
-_objfactory_guaranteed TaskRequiresTask* TaskRequiresTask_create(_In_ Task* deptask)
+_objfactory_guaranteed TaskRequiresTask* TaskRequiresTask_create(_In_ Task* deptask, bool failok)
 {
     TaskRequiresTask* self;
     self = objInstCreate(TaskRequiresTask);
 
     self->task = objAcquire(deptask);
+    self->failok = failok;
 
     objInstInit(self);
     return self;
@@ -30,7 +31,7 @@ uint32 TaskRequiresTask_state(_Inout_ TaskRequiresTask* self, ComplexTask* task)
     if (state == TASK_Succeeded)
         return TASK_Requires_Ok_Permanent;
     else if (state == TASK_Failed)
-        return TASK_Requires_Fail_Permanent;
+        return self->failok ? TASK_Requires_Ok_Permanent : TASK_Requires_Fail_Permanent;
     else
         return TASK_Requires_Wait;
 }

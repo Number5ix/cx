@@ -57,6 +57,7 @@ typedef struct TaskRequiresTask {
     atomic(ptr) _weakref;
 
     Task* task;
+    bool failok;
 } TaskRequiresTask;
 extern ObjClassInfo TaskRequiresTask_clsinfo;
 #define TaskRequiresTask(inst) ((TaskRequiresTask*)(unused_noeval((inst) && &((inst)->_is_TaskRequiresTask)), (inst)))
@@ -74,9 +75,9 @@ typedef struct TaskRequiresTask_WeakRef {
 } TaskRequiresTask_WeakRef;
 #define TaskRequiresTask_WeakRef(inst) ((TaskRequiresTask_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TaskRequiresTask_WeakRef)), (inst)))
 
-_objfactory_guaranteed TaskRequiresTask* TaskRequiresTask_create(_In_ Task* deptask);
-// TaskRequiresTask* taskrequirestaskCreate(Task* deptask);
-#define taskrequirestaskCreate(deptask) TaskRequiresTask_create(Task(deptask))
+_objfactory_guaranteed TaskRequiresTask* TaskRequiresTask_create(_In_ Task* deptask, bool failok);
+// TaskRequiresTask* taskrequirestaskCreate(Task* deptask, bool failok);
+#define taskrequirestaskCreate(deptask, failok) TaskRequiresTask_create(Task(deptask), failok)
 
 // uint32 taskrequirestaskState(TaskRequiresTask* self, ComplexTask* task);
 //

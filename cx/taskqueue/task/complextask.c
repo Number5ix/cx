@@ -206,9 +206,9 @@ void ComplexTask_require(_Inout_ ComplexTask* self, _In_ TaskRequires* req)
     saPush(&self->_requires, object, req);
 }
 
-void ComplexTask_requireTask(_Inout_ ComplexTask* self, _In_ Task* dep)
+void ComplexTask_requireTask(_Inout_ ComplexTask* self, _In_ Task* dep, bool failok)
 {
-    TaskRequiresTask* trt = taskrequirestaskCreate(dep);
+    TaskRequiresTask* trt = taskrequirestaskCreate(dep, failok);
     taskrequirestaskRegisterTask(trt, self);
     saPushC(&self->_requires, object, &trt);
 }

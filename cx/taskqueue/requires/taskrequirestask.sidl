@@ -5,6 +5,7 @@
 
 class TaskRequiresTask extends TaskRequires {
     object:Task task;
+    bool failok;
 
-    factory create([in] Task *deptask);
+    factory create([in] Task *deptask, bool failok);
 }
