@@ -9,6 +9,7 @@
 #include <cx/taskqueue/resource/trlifo.h>
 #include <cx/taskqueue/resource/trmutex.h>
 #include <cx/taskqueue/task/mptask.h>
+#include <cx/taskqueue/worker/tqworker.h>
 
 // Object-oriented task queue suitable for use in heavily multithreaded applications
 // Initialize a queue config for a queue with a single worker (i.e. a UI thread)
