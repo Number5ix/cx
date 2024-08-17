@@ -552,10 +552,10 @@ typedef struct TQTestSched_WeakRef {
 } TQTestSched_WeakRef;
 #define TQTestSched_WeakRef(inst) ((TQTestSched_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TQTestSched_WeakRef)), (inst)))
 
-// void tqtestschedRequireTask(TQTestSched* self, Task* dep);
+// void tqtestschedRequireTask(TQTestSched* self, Task* dep, bool failok);
 //
 // Wrapper around require() to depend on a task completing
-#define tqtestschedRequireTask(self, dep) ComplexTask_requireTask(ComplexTask(self), Task(dep))
+#define tqtestschedRequireTask(self, dep, failok) ComplexTask_requireTask(ComplexTask(self), Task(dep), failok)
 
 // void tqtestschedRequireResource(TQTestSched* self, TaskResource* res);
 //
@@ -661,10 +661,10 @@ _objfactory_guaranteed TQTestS1* TQTestS1_create(int order, int64 dtime, Event* 
 // TQTestS1* tqtests1Create(int order, int64 dtime, Event* notify);
 #define tqtests1Create(order, dtime, notify) TQTestS1_create(order, dtime, notify)
 
-// void tqtests1RequireTask(TQTestS1* self, Task* dep);
+// void tqtests1RequireTask(TQTestS1* self, Task* dep, bool failok);
 //
 // Wrapper around require() to depend on a task completing
-#define tqtests1RequireTask(self, dep) ComplexTask_requireTask(ComplexTask(self), Task(dep))
+#define tqtests1RequireTask(self, dep, failok) ComplexTask_requireTask(ComplexTask(self), Task(dep), failok)
 
 // void tqtests1RequireResource(TQTestS1* self, TaskResource* res);
 //
@@ -768,10 +768,10 @@ _objfactory_guaranteed TQTestS2* TQTestS2_create(Task* waitfor, Event* notify);
 // TQTestS2* tqtests2Create(Task* waitfor, Event* notify);
 #define tqtests2Create(waitfor, notify) TQTestS2_create(Task(waitfor), notify)
 
-// void tqtests2RequireTask(TQTestS2* self, Task* dep);
+// void tqtests2RequireTask(TQTestS2* self, Task* dep, bool failok);
 //
 // Wrapper around require() to depend on a task completing
-#define tqtests2RequireTask(self, dep) ComplexTask_requireTask(ComplexTask(self), Task(dep))
+#define tqtests2RequireTask(self, dep, failok) ComplexTask_requireTask(ComplexTask(self), Task(dep), failok)
 
 // void tqtests2RequireResource(TQTestS2* self, TaskResource* res);
 //
@@ -923,10 +923,10 @@ _objfactory_guaranteed TQMTest* TQMTest_create(Event* notify);
 // TQMTest* tqmtestCreate(Event* notify);
 #define tqmtestCreate(notify) TQMTest_create(notify)
 
-// void tqmtestRequireTask(TQMTest* self, Task* dep);
+// void tqmtestRequireTask(TQMTest* self, Task* dep, bool failok);
 //
 // Wrapper around require() to depend on a task completing
-#define tqmtestRequireTask(self, dep) ComplexTask_requireTask(ComplexTask(self), Task(dep))
+#define tqmtestRequireTask(self, dep, failok) ComplexTask_requireTask(ComplexTask(self), Task(dep), failok)
 
 // void tqmtestRequireResource(TQMTest* self, TaskResource* res);
 //
@@ -1028,10 +1028,10 @@ _objfactory_guaranteed TQRTestMtx* TQRTestMtx_create(ReqTestState* rts, int num)
 // TQRTestMtx* tqrtestmtxCreate(ReqTestState* rts, int num);
 #define tqrtestmtxCreate(rts, num) TQRTestMtx_create(rts, num)
 
-// void tqrtestmtxRequireTask(TQRTestMtx* self, Task* dep);
+// void tqrtestmtxRequireTask(TQRTestMtx* self, Task* dep, bool failok);
 //
 // Wrapper around require() to depend on a task completing
-#define tqrtestmtxRequireTask(self, dep) ComplexTask_requireTask(ComplexTask(self), Task(dep))
+#define tqrtestmtxRequireTask(self, dep, failok) ComplexTask_requireTask(ComplexTask(self), Task(dep), failok)
 
 // void tqrtestmtxRequireResource(TQRTestMtx* self, TaskResource* res);
 //
@@ -1134,10 +1134,10 @@ _objfactory_guaranteed TQRTestFifo* TQRTestFifo_create(ReqTestState* rts, int se
 // TQRTestFifo* tqrtestfifoCreate(ReqTestState* rts, int seq, int num);
 #define tqrtestfifoCreate(rts, seq, num) TQRTestFifo_create(rts, seq, num)
 
-// void tqrtestfifoRequireTask(TQRTestFifo* self, Task* dep);
+// void tqrtestfifoRequireTask(TQRTestFifo* self, Task* dep, bool failok);
 //
 // Wrapper around require() to depend on a task completing
-#define tqrtestfifoRequireTask(self, dep) ComplexTask_requireTask(ComplexTask(self), Task(dep))
+#define tqrtestfifoRequireTask(self, dep, failok) ComplexTask_requireTask(ComplexTask(self), Task(dep), failok)
 
 // void tqrtestfifoRequireResource(TQRTestFifo* self, TaskResource* res);
 //
@@ -1240,10 +1240,10 @@ _objfactory_guaranteed TQRTestLifo* TQRTestLifo_create(ReqTestState* rts, int se
 // TQRTestLifo* tqrtestlifoCreate(ReqTestState* rts, int seq, int num);
 #define tqrtestlifoCreate(rts, seq, num) TQRTestLifo_create(rts, seq, num)
 
-// void tqrtestlifoRequireTask(TQRTestLifo* self, Task* dep);
+// void tqrtestlifoRequireTask(TQRTestLifo* self, Task* dep, bool failok);
 //
 // Wrapper around require() to depend on a task completing
-#define tqrtestlifoRequireTask(self, dep) ComplexTask_requireTask(ComplexTask(self), Task(dep))
+#define tqrtestlifoRequireTask(self, dep, failok) ComplexTask_requireTask(ComplexTask(self), Task(dep), failok)
 
 // void tqrtestlifoRequireResource(TQRTestLifo* self, TaskResource* res);
 //
@@ -1345,10 +1345,10 @@ _objfactory_guaranteed TQRTestGate* TQRTestGate_create(ReqTestState2* rts, int n
 // TQRTestGate* tqrtestgateCreate(ReqTestState2* rts, int num);
 #define tqrtestgateCreate(rts, num) TQRTestGate_create(rts, num)
 
-// void tqrtestgateRequireTask(TQRTestGate* self, Task* dep);
+// void tqrtestgateRequireTask(TQRTestGate* self, Task* dep, bool failok);
 //
 // Wrapper around require() to depend on a task completing
-#define tqrtestgateRequireTask(self, dep) ComplexTask_requireTask(ComplexTask(self), Task(dep))
+#define tqrtestgateRequireTask(self, dep, failok) ComplexTask_requireTask(ComplexTask(self), Task(dep), failok)
 
 // void tqrtestgateRequireResource(TQRTestGate* self, TaskResource* res);
 //
@@ -1462,10 +1462,10 @@ _objfactory_guaranteed TQMPTest* TQMPTest_create(int variant, int idx, MPTestSta
 // Adds phases from a static array.
 #define tqmptest_addPhases(self, num, parr, fail) MultiphaseTask__addPhases(MultiphaseTask(self), num, parr, fail)
 
-// void tqmptestRequireTask(TQMPTest* self, Task* dep);
+// void tqmptestRequireTask(TQMPTest* self, Task* dep, bool failok);
 //
 // Wrapper around require() to depend on a task completing
-#define tqmptestRequireTask(self, dep) ComplexTask_requireTask(ComplexTask(self), Task(dep))
+#define tqmptestRequireTask(self, dep, failok) ComplexTask_requireTask(ComplexTask(self), Task(dep), failok)
 
 // void tqmptestRequireResource(TQMPTest* self, TaskResource* res);
 //

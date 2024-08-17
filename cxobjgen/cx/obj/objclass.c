@@ -106,7 +106,7 @@ _Ret_notnull_ ObjInst *_objInstCreate(_In_ ObjClassInfo *cls)
 
     ret = xaAlloc(cls->instsize, XA_Zero);
     ret->_clsinfo = cls;
-    atomicStore(intptr, &ret->_ref, 1, Relaxed);
+    atomicStore(uintptr, &ret->_ref, 1, Relaxed);
 
     // Initialize interface implementation tables the first time the class is
     // instantiated
@@ -177,7 +177,7 @@ static void instDtor(_In_ ObjInst *inst, _In_ ObjClassInfo *cls)
 
 void _objDestroy(_Pre_notnull_ _Post_invalid_ ObjInst *inst)
 {
-    devAssert(atomicLoad(intptr, &inst->_ref, Acquire) == 0);
+    devAssert(atomicLoad(uintptr, &inst->_ref, Acquire) == 0);
     instDtor(inst, inst->_clsinfo);
     xaFree(inst);
 }
@@ -200,7 +200,7 @@ void _objRelease(ObjInst **instp)
             rwlockAcquireWrite(&weakref->_lock);
         }
 
-        if(atomicFetchSub(intptr, &(*instp)->_ref, 1, Release) == 1) {
+        if(atomicFetchSub(uintptr, &(*instp)->_ref, 1, Release) == 1) {
             if(weakref) {
                 weakref->_inst = NULL;          // object is about to be destroyed, invalidate weak refs
                 rwlockReleaseWrite(&weakref->_lock);

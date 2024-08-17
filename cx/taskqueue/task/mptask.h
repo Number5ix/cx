@@ -102,10 +102,10 @@ void MultiphaseTask__addPhases(_Inout_ MultiphaseTask* self, int32 num, MPTPhase
 // Adds phases from a static array.
 #define mptask_addPhases(self, num, parr, fail) MultiphaseTask__addPhases(MultiphaseTask(self), num, parr, fail)
 
-// void mptaskRequireTask(MultiphaseTask* self, Task* dep);
+// void mptaskRequireTask(MultiphaseTask* self, Task* dep, bool failok);
 //
 // Wrapper around require() to depend on a task completing
-#define mptaskRequireTask(self, dep) ComplexTask_requireTask(ComplexTask(self), Task(dep))
+#define mptaskRequireTask(self, dep, failok) ComplexTask_requireTask(ComplexTask(self), Task(dep), failok)
 
 // void mptaskRequireResource(MultiphaseTask* self, TaskResource* res);
 //

@@ -7,13 +7,13 @@ ObjInst_WeakRef *_objGetWeak(ObjInst *inst)
 
     for(;;) {
         if(ret) {
-            atomicFetchAdd(intptr, &ret->_ref, 1, Relaxed);
+            atomicFetchAdd(uintptr, &ret->_ref, 1, Relaxed);
             return ret;
         }
 
         ObjInst_WeakRef *nref = xaAllocStruct(ObjInst_WeakRef);
         rwlockInit(&nref->_lock);
-        atomicStore(intptr, &nref->_ref, 2, Relaxed);       // object itself holds 1 of the weak refs
+        atomicStore(uintptr, &nref->_ref, 2, Relaxed);       // object itself holds 1 of the weak refs
         nref->_inst = inst;
 
         if(atomicCompareExchange(ptr, strong, &inst->_weakref, (void**)&ret, nref, AcqRel, Acquire)) {
@@ -29,7 +29,7 @@ _Use_decl_annotations_
 ObjInst_WeakRef *_objCloneWeak(ObjInst_WeakRef *ref)
 {
     if(ref)
-        atomicFetchAdd(intptr, &ref->_ref, 1, Relaxed);
+        atomicFetchAdd(uintptr, &ref->_ref, 1, Relaxed);
 
     return ref;
 }
@@ -37,7 +37,7 @@ ObjInst_WeakRef *_objCloneWeak(ObjInst_WeakRef *ref)
 _Use_decl_annotations_
 void _objDestroyWeak(ObjInst_WeakRef **refp)
 {
-    if(*refp && atomicFetchSub(intptr, &(*refp)->_ref, 1, Release) == 1) {
+    if(*refp && atomicFetchSub(uintptr, &(*refp)->_ref, 1, Release) == 1) {
         // Live objects that have weak references created always hold 1 reference
         // in the object itself. Therefore the only way to get here is either
         // when the object is already destroyed and the last (no longer valid) weak
