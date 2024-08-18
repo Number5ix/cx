@@ -1,4 +1,5 @@
 #include "cxobjgen.h"
+#include "cxobjgen.h"
 #include <cx/container.h>
 #include <cx/fs/file.h>
 #include <cx/string.h>
@@ -172,7 +173,7 @@ static void writeMethods(StreamBuffer *bf, Class *cls, sa_string *seen, bool mix
     string ln = 0, mname = 0;
     for (int i = 0; i < saSize(cls->methods); i++) {
         Method *m = cls->methods.a[i];
-        if (m->mixin != mixinimpl)
+        if (m->mixin != mixinimpl || getAnnotation(NULL, m->annotations, _S"extern"))
             continue;
         methodImplName(&mname, cls, m->name);
         if (saFind(*seen, string, mname) == -1) {
@@ -218,6 +219,17 @@ static void writeMethods(StreamBuffer *bf, Class *cls, sa_string *seen, bool mix
     }
     strDestroy(&mname);
     strDestroy(&ln);
+}
+
+static void writeExternMethods(StreamBuffer* bf, Class* cls)
+{
+    for (int i = 0; i < saSize(cls->methods); i++) {
+        Method* m = cls->methods.a[i];
+        if (m->mixin || !getAnnotation(NULL, m->annotations, _S"extern"))
+            continue;
+
+        writeMethodProto(bf, cls, m, true, false, false);
+    }
 }
 
 static void writeMixinStubs(StreamBuffer *bf, Class *cls, bool *wroteany)
@@ -924,6 +936,10 @@ nextloop:
 
         if (wroteany) {
             sbufPWriteLine(nbf, autogenBeginShort);
+            for (int i = 0; i < saSize(classes); i++) {
+                if (!classes.a[i]->included)
+                    writeExternMethods(nbf, classes.a[i]);
+            }
             pathFilename(&incname, incname);
             strNConcat(&ln, _S"#include \"", incname, _S"\"");
             sbufPWriteLine(nbf, ln);
