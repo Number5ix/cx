@@ -12,7 +12,7 @@ CX_C_BEGIN
 
 // vfsCreate() is in vfsobj.h
 
-_At_(*vfs, _Pre_maybenull_ _Post_null_)
+_At_(*pvfs, _Pre_maybenull_ _Post_null_)
 void vfsDestroy(VFS **pvfs);
 
 bool vfsUnmount(_Inout_ VFS *vfs, _In_opt_ strref path);
