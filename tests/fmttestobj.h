@@ -19,7 +19,7 @@ typedef struct FmtTestClass_ClassIf {
     ObjIface* _parent;
     size_t _size;
 
-    bool (*format)(_Inout_ void* self, FMTVar* v, string* out);
+    bool (*format)(_In_ void* self, FMTVar* v, string* out);
 } FmtTestClass_ClassIf;
 extern FmtTestClass_ClassIf FmtTestClass_ClassIf_tmpl;
 
@@ -34,7 +34,7 @@ typedef struct FmtTestClass2_ClassIf {
     // or destroyed first.
     // The layer between stConvert and Convertible takes care of making sure the destination is
     // always initialized.
-    bool (*convert)(_Inout_ void* self, stype st, stgeneric* dest, uint32 flags);
+    bool (*convert)(_In_ void* self, stype st, stgeneric* dest, uint32 flags);
 } FmtTestClass2_ClassIf;
 extern FmtTestClass2_ClassIf FmtTestClass2_ClassIf_tmpl;
 

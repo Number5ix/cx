@@ -26,9 +26,9 @@ typedef struct BasicTask_ClassIf {
     ObjIface* _parent;
     size_t _size;
 
-    uint32 (*run)(_Inout_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
-    bool (*cancel)(_Inout_ void* self);
-    bool (*reset)(_Inout_ void* self);
+    uint32 (*run)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
+    bool (*cancel)(_In_ void* self);
+    bool (*reset)(_In_ void* self);
 } BasicTask_ClassIf;
 extern BasicTask_ClassIf BasicTask_ClassIf_tmpl;
 
@@ -59,7 +59,7 @@ typedef struct BasicTask_WeakRef {
 } BasicTask_WeakRef;
 #define BasicTask_WeakRef(inst) ((BasicTask_WeakRef*)(unused_noeval((inst) && &((inst)->_is_BasicTask_WeakRef)), (inst)))
 
-bool BasicTask__setState(_Inout_ BasicTask* self, uint32 newstate);
+bool BasicTask__setState(_In_ BasicTask* self, uint32 newstate);
 // bool btask_setState(BasicTask* self, uint32 newstate);
 #define btask_setState(self, newstate) BasicTask__setState(BasicTask(self), newstate)
 

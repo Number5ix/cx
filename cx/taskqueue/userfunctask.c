@@ -23,8 +23,7 @@ _objfactory_guaranteed UserFuncTask* UserFuncTask_create(UserTaskCB func, void* 
     return self;
 }
 
-uint32 UserFuncTask_run(_Inout_ UserFuncTask* self, _In_ TaskQueue* tq, _In_ TQWorker* worker,
-                        _Inout_ TaskControl* tcon)
+uint32 UserFuncTask_run(_In_ UserFuncTask* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon)
 {
     return (self->func && self->func(tq, self->udata)) ? TASK_Result_Success : TASK_Result_Failure;
 }

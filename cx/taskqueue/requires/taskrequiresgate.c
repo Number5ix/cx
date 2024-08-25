@@ -49,7 +49,7 @@ static void TRGate_advanceWaitList(TRGate *self)
     }
 }
 
-bool TRGate_open(_Inout_ TRGate* self)
+bool TRGate_open(_In_ TRGate* self)
 {
     if (!TRGate_transition(self, GATE_Open))
         return false;
@@ -58,7 +58,7 @@ bool TRGate_open(_Inout_ TRGate* self)
     return true;
 }
 
-bool TRGate_seal(_Inout_ TRGate* self)
+bool TRGate_seal(_In_ TRGate* self)
 {
     if (!TRGate_transition(self, GATE_Sealed))
         return false;
@@ -67,7 +67,7 @@ bool TRGate_seal(_Inout_ TRGate* self)
     return true;
 }
 
-void TRGate_progress(_Inout_ TRGate* self)
+void TRGate_progress(_In_ TRGate* self)
 {
     int64 now = clockTimer();
     withMutex(&self->_wlmtx) {
@@ -75,7 +75,7 @@ void TRGate_progress(_Inout_ TRGate* self)
     }
 }
 
-bool TRGate_registerTask(_Inout_ TRGate* self, ComplexTask* task)
+bool TRGate_registerTask(_In_ TRGate* self, ComplexTask* task)
 {
     // if the gate is not closed, no sense allowing new registrations
     if (atomicLoad(uint32, &self->state, Acquire) != GATE_Closed)
@@ -88,7 +88,7 @@ bool TRGate_registerTask(_Inout_ TRGate* self, ComplexTask* task)
     return true;
 }
 
-_objinit_guaranteed bool TRGate_init(_Inout_ TRGate* self)
+_objinit_guaranteed bool TRGate_init(_In_ TRGate* self)
 {
     // Autogen begins -----
     mutexInit(&self->_wlmtx);
@@ -97,7 +97,7 @@ _objinit_guaranteed bool TRGate_init(_Inout_ TRGate* self)
     // Autogen ends -------
 }
 
-void TRGate_destroy(_Inout_ TRGate* self)
+void TRGate_destroy(_In_ TRGate* self)
 {
     // Autogen begins -----
     strDestroy(&self->name);
@@ -119,7 +119,7 @@ _objfactory_guaranteed TaskRequiresGate* TaskRequiresGate_create(_In_ TRGate* ga
     return self;
 }
 
-uint32 TaskRequiresGate_state(_Inout_ TaskRequiresGate* self, ComplexTask* task)
+uint32 TaskRequiresGate_state(_In_ TaskRequiresGate* self, ComplexTask* task)
 {
     uint32 state = atomicLoad(uint32, &self->gate->state, Acquire);
     if (state == GATE_Open)
@@ -129,7 +129,7 @@ uint32 TaskRequiresGate_state(_Inout_ TaskRequiresGate* self, ComplexTask* task)
     return TASK_Requires_Wait;
 }
 
-int64 TaskRequiresGate_progress(_Inout_ TaskRequiresGate* self)
+int64 TaskRequiresGate_progress(_In_ TaskRequiresGate* self)
 {
     int64 ret = -1;
     withMutex(&self->gate->_wlmtx) {
@@ -139,26 +139,26 @@ int64 TaskRequiresGate_progress(_Inout_ TaskRequiresGate* self)
     return ret;
 }
 
-bool TaskRequiresGate_tryAcquire(_Inout_ TaskRequiresGate* self, ComplexTask* task)
+bool TaskRequiresGate_tryAcquire(_In_ TaskRequiresGate* self, ComplexTask* task)
 {
     return false;
 }
 
-bool TaskRequiresGate_release(_Inout_ TaskRequiresGate* self, ComplexTask* task)
+bool TaskRequiresGate_release(_In_ TaskRequiresGate* self, ComplexTask* task)
 {
     return false;
 }
 
-void TaskRequiresGate_cancel(_Inout_ TaskRequiresGate* self)
+void TaskRequiresGate_cancel(_In_ TaskRequiresGate* self)
 {
 }
 
-bool TaskRequiresGate_registerTask(_Inout_ TaskRequiresGate* self, _In_ ComplexTask* task)
+bool TaskRequiresGate_registerTask(_In_ TaskRequiresGate* self, _In_ ComplexTask* task)
 {
     return trgateRegisterTask(self->gate, task);
 }
 
-void TaskRequiresGate_destroy(_Inout_ TaskRequiresGate* self)
+void TaskRequiresGate_destroy(_In_ TaskRequiresGate* self)
 {
     // Autogen begins -----
     objRelease(&self->gate);

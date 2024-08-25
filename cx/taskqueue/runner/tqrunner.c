@@ -11,21 +11,21 @@
 // ==================== Auto-generated section ends ======================
 #include "cx/taskqueue/taskqueue_private.h"
 
-void TQRunner_destroy(_Inout_ TQRunner* self)
+void TQRunner_destroy(_In_ TQRunner* self)
 {
     // Autogen begins -----
     objRelease(&self->tq);
     // Autogen ends -------
 }
 
-bool TQRunner_start(_Inout_ TQRunner* self, _In_ TaskQueue* tq)
+bool TQRunner_start(_In_ TQRunner* self, _In_ TaskQueue* tq)
 {
     // circular reference keeps the queue alive so long as the runner is running
     self->tq = objAcquire(tq);
     return true;
 }
 
-bool TQRunner_stop(_Inout_ TQRunner* self)
+bool TQRunner_stop(_In_ TQRunner* self)
 {
     objRelease(&self->tq);
     return true;

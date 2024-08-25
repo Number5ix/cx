@@ -110,10 +110,10 @@ typedef struct TQTest1_ClassIf {
     ObjIface* _parent;
     size_t _size;
 
-    uint32 (*run)(_Inout_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
-    bool (*cancel)(_Inout_ void* self);
-    bool (*reset)(_Inout_ void* self);
-    bool (*wait)(_Inout_ void* self, int64 timeout);
+    uint32 (*run)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
+    bool (*cancel)(_In_ void* self);
+    bool (*reset)(_In_ void* self);
+    bool (*wait)(_In_ void* self, int64 timeout);
 } TQTest1_ClassIf;
 extern TQTest1_ClassIf TQTest1_ClassIf_tmpl;
 
@@ -122,10 +122,10 @@ typedef struct TQTestFail_ClassIf {
     ObjIface* _parent;
     size_t _size;
 
-    uint32 (*run)(_Inout_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
-    bool (*cancel)(_Inout_ void* self);
-    bool (*reset)(_Inout_ void* self);
-    bool (*wait)(_Inout_ void* self, int64 timeout);
+    uint32 (*run)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
+    bool (*cancel)(_In_ void* self);
+    bool (*reset)(_In_ void* self);
+    bool (*wait)(_In_ void* self, int64 timeout);
 } TQTestFail_ClassIf;
 extern TQTestFail_ClassIf TQTestFail_ClassIf_tmpl;
 
@@ -134,10 +134,10 @@ typedef struct TQTestCC1_ClassIf {
     ObjIface* _parent;
     size_t _size;
 
-    uint32 (*run)(_Inout_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
-    bool (*cancel)(_Inout_ void* self);
-    bool (*reset)(_Inout_ void* self);
-    bool (*wait)(_Inout_ void* self, int64 timeout);
+    uint32 (*run)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
+    bool (*cancel)(_In_ void* self);
+    bool (*reset)(_In_ void* self);
+    bool (*wait)(_In_ void* self, int64 timeout);
 } TQTestCC1_ClassIf;
 extern TQTestCC1_ClassIf TQTestCC1_ClassIf_tmpl;
 
@@ -146,10 +146,10 @@ typedef struct TQTestCC2_ClassIf {
     ObjIface* _parent;
     size_t _size;
 
-    uint32 (*run)(_Inout_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
-    bool (*cancel)(_Inout_ void* self);
-    bool (*reset)(_Inout_ void* self);
-    bool (*wait)(_Inout_ void* self, int64 timeout);
+    uint32 (*run)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
+    bool (*cancel)(_In_ void* self);
+    bool (*reset)(_In_ void* self);
+    bool (*wait)(_In_ void* self, int64 timeout);
 } TQTestCC2_ClassIf;
 extern TQTestCC2_ClassIf TQTestCC2_ClassIf_tmpl;
 
@@ -158,12 +158,12 @@ typedef struct TQTestSched_ClassIf {
     ObjIface* _parent;
     size_t _size;
 
-    uint32 (*run)(_Inout_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
-    bool (*cancel)(_Inout_ void* self);
-    bool (*reset)(_Inout_ void* self);
-    bool (*wait)(_Inout_ void* self, int64 timeout);
-    intptr (*cmp)(_Inout_ void* self, void* other, uint32 flags);
-    uint32 (*hash)(_Inout_ void* self, uint32 flags);
+    uint32 (*run)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
+    bool (*cancel)(_In_ void* self);
+    bool (*reset)(_In_ void* self);
+    bool (*wait)(_In_ void* self, int64 timeout);
+    intptr (*cmp)(_In_ void* self, void* other, uint32 flags);
+    uint32 (*hash)(_In_ void* self, uint32 flags);
 } TQTestSched_ClassIf;
 extern TQTestSched_ClassIf TQTestSched_ClassIf_tmpl;
 
@@ -172,12 +172,12 @@ typedef struct TQTestS1_ClassIf {
     ObjIface* _parent;
     size_t _size;
 
-    uint32 (*run)(_Inout_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
-    bool (*cancel)(_Inout_ void* self);
-    bool (*reset)(_Inout_ void* self);
-    bool (*wait)(_Inout_ void* self, int64 timeout);
-    intptr (*cmp)(_Inout_ void* self, void* other, uint32 flags);
-    uint32 (*hash)(_Inout_ void* self, uint32 flags);
+    uint32 (*run)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
+    bool (*cancel)(_In_ void* self);
+    bool (*reset)(_In_ void* self);
+    bool (*wait)(_In_ void* self, int64 timeout);
+    intptr (*cmp)(_In_ void* self, void* other, uint32 flags);
+    uint32 (*hash)(_In_ void* self, uint32 flags);
 } TQTestS1_ClassIf;
 extern TQTestS1_ClassIf TQTestS1_ClassIf_tmpl;
 
@@ -186,12 +186,12 @@ typedef struct TQTestS2_ClassIf {
     ObjIface* _parent;
     size_t _size;
 
-    uint32 (*run)(_Inout_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
-    bool (*cancel)(_Inout_ void* self);
-    bool (*reset)(_Inout_ void* self);
-    bool (*wait)(_Inout_ void* self, int64 timeout);
-    intptr (*cmp)(_Inout_ void* self, void* other, uint32 flags);
-    uint32 (*hash)(_Inout_ void* self, uint32 flags);
+    uint32 (*run)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
+    bool (*cancel)(_In_ void* self);
+    bool (*reset)(_In_ void* self);
+    bool (*wait)(_In_ void* self, int64 timeout);
+    intptr (*cmp)(_In_ void* self, void* other, uint32 flags);
+    uint32 (*hash)(_In_ void* self, uint32 flags);
 } TQTestS2_ClassIf;
 extern TQTestS2_ClassIf TQTestS2_ClassIf_tmpl;
 
@@ -200,10 +200,10 @@ typedef struct TQDelayTest_ClassIf {
     ObjIface* _parent;
     size_t _size;
 
-    uint32 (*run)(_Inout_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
-    bool (*cancel)(_Inout_ void* self);
-    bool (*reset)(_Inout_ void* self);
-    bool (*wait)(_Inout_ void* self, int64 timeout);
+    uint32 (*run)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
+    bool (*cancel)(_In_ void* self);
+    bool (*reset)(_In_ void* self);
+    bool (*wait)(_In_ void* self, int64 timeout);
 } TQDelayTest_ClassIf;
 extern TQDelayTest_ClassIf TQDelayTest_ClassIf_tmpl;
 
@@ -212,12 +212,12 @@ typedef struct TQMTest_ClassIf {
     ObjIface* _parent;
     size_t _size;
 
-    uint32 (*run)(_Inout_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
-    bool (*cancel)(_Inout_ void* self);
-    bool (*reset)(_Inout_ void* self);
-    bool (*wait)(_Inout_ void* self, int64 timeout);
-    intptr (*cmp)(_Inout_ void* self, void* other, uint32 flags);
-    uint32 (*hash)(_Inout_ void* self, uint32 flags);
+    uint32 (*run)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
+    bool (*cancel)(_In_ void* self);
+    bool (*reset)(_In_ void* self);
+    bool (*wait)(_In_ void* self, int64 timeout);
+    intptr (*cmp)(_In_ void* self, void* other, uint32 flags);
+    uint32 (*hash)(_In_ void* self, uint32 flags);
 } TQMTest_ClassIf;
 extern TQMTest_ClassIf TQMTest_ClassIf_tmpl;
 
@@ -226,12 +226,12 @@ typedef struct TQRTestMtx_ClassIf {
     ObjIface* _parent;
     size_t _size;
 
-    uint32 (*run)(_Inout_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
-    bool (*cancel)(_Inout_ void* self);
-    bool (*reset)(_Inout_ void* self);
-    bool (*wait)(_Inout_ void* self, int64 timeout);
-    intptr (*cmp)(_Inout_ void* self, void* other, uint32 flags);
-    uint32 (*hash)(_Inout_ void* self, uint32 flags);
+    uint32 (*run)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
+    bool (*cancel)(_In_ void* self);
+    bool (*reset)(_In_ void* self);
+    bool (*wait)(_In_ void* self, int64 timeout);
+    intptr (*cmp)(_In_ void* self, void* other, uint32 flags);
+    uint32 (*hash)(_In_ void* self, uint32 flags);
 } TQRTestMtx_ClassIf;
 extern TQRTestMtx_ClassIf TQRTestMtx_ClassIf_tmpl;
 
@@ -240,12 +240,12 @@ typedef struct TQRTestFifo_ClassIf {
     ObjIface* _parent;
     size_t _size;
 
-    uint32 (*run)(_Inout_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
-    bool (*cancel)(_Inout_ void* self);
-    bool (*reset)(_Inout_ void* self);
-    bool (*wait)(_Inout_ void* self, int64 timeout);
-    intptr (*cmp)(_Inout_ void* self, void* other, uint32 flags);
-    uint32 (*hash)(_Inout_ void* self, uint32 flags);
+    uint32 (*run)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
+    bool (*cancel)(_In_ void* self);
+    bool (*reset)(_In_ void* self);
+    bool (*wait)(_In_ void* self, int64 timeout);
+    intptr (*cmp)(_In_ void* self, void* other, uint32 flags);
+    uint32 (*hash)(_In_ void* self, uint32 flags);
 } TQRTestFifo_ClassIf;
 extern TQRTestFifo_ClassIf TQRTestFifo_ClassIf_tmpl;
 
@@ -254,12 +254,12 @@ typedef struct TQRTestLifo_ClassIf {
     ObjIface* _parent;
     size_t _size;
 
-    uint32 (*run)(_Inout_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
-    bool (*cancel)(_Inout_ void* self);
-    bool (*reset)(_Inout_ void* self);
-    bool (*wait)(_Inout_ void* self, int64 timeout);
-    intptr (*cmp)(_Inout_ void* self, void* other, uint32 flags);
-    uint32 (*hash)(_Inout_ void* self, uint32 flags);
+    uint32 (*run)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
+    bool (*cancel)(_In_ void* self);
+    bool (*reset)(_In_ void* self);
+    bool (*wait)(_In_ void* self, int64 timeout);
+    intptr (*cmp)(_In_ void* self, void* other, uint32 flags);
+    uint32 (*hash)(_In_ void* self, uint32 flags);
 } TQRTestLifo_ClassIf;
 extern TQRTestLifo_ClassIf TQRTestLifo_ClassIf_tmpl;
 
@@ -268,12 +268,12 @@ typedef struct TQRTestGate_ClassIf {
     ObjIface* _parent;
     size_t _size;
 
-    uint32 (*run)(_Inout_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
-    bool (*cancel)(_Inout_ void* self);
-    bool (*reset)(_Inout_ void* self);
-    bool (*wait)(_Inout_ void* self, int64 timeout);
-    intptr (*cmp)(_Inout_ void* self, void* other, uint32 flags);
-    uint32 (*hash)(_Inout_ void* self, uint32 flags);
+    uint32 (*run)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
+    bool (*cancel)(_In_ void* self);
+    bool (*reset)(_In_ void* self);
+    bool (*wait)(_In_ void* self, int64 timeout);
+    intptr (*cmp)(_In_ void* self, void* other, uint32 flags);
+    uint32 (*hash)(_In_ void* self, uint32 flags);
 } TQRTestGate_ClassIf;
 extern TQRTestGate_ClassIf TQRTestGate_ClassIf_tmpl;
 
@@ -282,15 +282,15 @@ typedef struct TQMPTest_ClassIf {
     ObjIface* _parent;
     size_t _size;
 
-    uint32 (*run)(_Inout_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
-    bool (*cancel)(_Inout_ void* self);
-    bool (*reset)(_Inout_ void* self);
-    bool (*wait)(_Inout_ void* self, int64 timeout);
-    intptr (*cmp)(_Inout_ void* self, void* other, uint32 flags);
-    uint32 (*hash)(_Inout_ void* self, uint32 flags);
+    uint32 (*run)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
+    bool (*cancel)(_In_ void* self);
+    bool (*reset)(_In_ void* self);
+    bool (*wait)(_In_ void* self, int64 timeout);
+    intptr (*cmp)(_In_ void* self, void* other, uint32 flags);
+    uint32 (*hash)(_In_ void* self, uint32 flags);
     // Called once all phases (including fail phases) have completed. May be overridden to perform
     // additional cleanup or change the final result.
-    uint32 (*finish)(_Inout_ void* self, uint32 result, TaskControl* tcon);
+    uint32 (*finish)(_In_ void* self, uint32 result, TaskControl* tcon);
 } TQMPTest_ClassIf;
 extern TQMPTest_ClassIf TQMPTest_ClassIf_tmpl;
 

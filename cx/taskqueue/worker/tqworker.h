@@ -19,11 +19,11 @@ typedef struct TQWorker_ClassIf {
 
     // hooks for derived classes to override if desired
     // worker is starting up
-    void (*onStart)(_Inout_ void* self, _In_ TaskQueue* tq);
+    void (*onStart)(_In_ void* self, _In_ TaskQueue* tq);
     // worker should process tasks (call parent!)
-    int64 (*tick)(_Inout_ void* self, _In_ TaskQueue* tq);
+    int64 (*tick)(_In_ void* self, _In_ TaskQueue* tq);
     // worker is shutting down
-    void (*onStop)(_Inout_ void* self, _In_ TaskQueue* tq);
+    void (*onStop)(_In_ void* self, _In_ TaskQueue* tq);
 } TQWorker_ClassIf;
 extern TQWorker_ClassIf TQWorker_ClassIf_tmpl;
 

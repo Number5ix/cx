@@ -16,7 +16,7 @@
 #include <cx/taskqueue/requires/taskrequiresresource.h>
 #include "cx/utils/murmur.h"
 
-bool ComplexTask_advance(_Inout_ ComplexTask* self)
+bool ComplexTask_advance(_In_ ComplexTask* self)
 {
     // If the task was previously in a queue, it will keep a weak reference to it.
     ComplexTaskQueue* tq = objAcquireFromWeak(ComplexTaskQueue, self->lastq);
@@ -31,9 +31,9 @@ bool ComplexTask_advance(_Inout_ ComplexTask* self)
     return ret;
 }
 
-extern bool Task_reset(_Inout_ Task* self);   // parent
+extern bool Task_reset(_In_ Task* self);   // parent
 #define parent_reset() Task_reset((Task*)(self))
-bool ComplexTask_reset(_Inout_ ComplexTask* self)
+bool ComplexTask_reset(_In_ ComplexTask* self)
 {
     if (!parent_reset())
         return false;
@@ -47,7 +47,7 @@ bool ComplexTask_reset(_Inout_ ComplexTask* self)
     return true;
 }
 
-void ComplexTask_destroy(_Inout_ ComplexTask* self)
+void ComplexTask_destroy(_In_ ComplexTask* self)
 {
     // failsafe in case any resources were acquired in retain mode and we got deferred,
     // then failed a dependency check or something
@@ -60,7 +60,7 @@ void ComplexTask_destroy(_Inout_ ComplexTask* self)
     // Autogen ends -------
 }
 
-intptr ComplexTask_cmp(_Inout_ ComplexTask* self, ComplexTask* other, uint32 flags)
+intptr ComplexTask_cmp(_In_ ComplexTask* self, ComplexTask* other, uint32 flags)
 {
     intptr nrcmp = stCmp(int64, self->nextrun, other->nextrun);
     if (nrcmp != 0)
@@ -69,13 +69,13 @@ intptr ComplexTask_cmp(_Inout_ ComplexTask* self, ComplexTask* other, uint32 fla
     return stCmp(ptr, self, other);
 }
 
-uint32 ComplexTask_hash(_Inout_ ComplexTask* self, uint32 flags)
+uint32 ComplexTask_hash(_In_ ComplexTask* self, uint32 flags)
 {
     // just hash the pointer
     return hashMurmur3((uint8*)&self, sizeof(void*));
 }
 
-bool ComplexTask_checkRequires(_Inout_ ComplexTask* self, bool updateProgress)
+bool ComplexTask_checkRequires(_In_ ComplexTask* self, bool updateProgress)
 {
     int64 now     = clockTimer();
     bool ret      = true;
@@ -147,7 +147,7 @@ bool ComplexTask_checkRequires(_Inout_ ComplexTask* self, bool updateProgress)
     return ret;
 }
 
-bool ComplexTask_acquireRequires(_Inout_ ComplexTask* self, sa_TaskRequires* acquired)
+bool ComplexTask_acquireRequires(_In_ ComplexTask* self, sa_TaskRequires* acquired)
 {
     for (int i = saSize(self->_requires) - 1; i >= 0; --i) {
         TaskRequires* req = self->_requires.a[i];
@@ -170,7 +170,7 @@ bool ComplexTask_acquireRequires(_Inout_ ComplexTask* self, sa_TaskRequires* acq
     return true;
 }
 
-bool ComplexTask_releaseRequires(_Inout_ ComplexTask* self, sa_TaskRequires resources)
+bool ComplexTask_releaseRequires(_In_ ComplexTask* self, sa_TaskRequires resources)
 {
     bool ret = true;
     for (int i = saSize(resources) - 1; i >= 0; --i) {
@@ -200,36 +200,36 @@ bool ComplexTask_advanceCallback(stvlist* cvars, stvlist* args)
     return true;
 }
 
-void ComplexTask_require(_Inout_ ComplexTask* self, _In_ TaskRequires* req)
+void ComplexTask_require(_In_ ComplexTask* self, _In_ TaskRequires* req)
 {
     taskrequiresRegisterTask(req, self);
     saPush(&self->_requires, object, req);
 }
 
-void ComplexTask_requireTask(_Inout_ ComplexTask* self, _In_ Task* dep, bool failok)
+void ComplexTask_requireTask(_In_ ComplexTask* self, _In_ Task* dep, bool failok)
 {
     TaskRequiresTask* trt = taskrequirestaskCreate(dep, failok);
     taskrequirestaskRegisterTask(trt, self);
     saPushC(&self->_requires, object, &trt);
 }
 
-void ComplexTask_requireResource(_Inout_ ComplexTask* self, _In_ TaskResource* res)
+void ComplexTask_requireResource(_In_ ComplexTask* self, _In_ TaskResource* res)
 {
     TaskRequiresResource* trr = taskrequiresresourceCreate(res);
     taskrequiresresourceRegisterTask(trr, self);
     saPushC(&self->_requires, object, &trr);
 }
 
-void ComplexTask_requireGate(_Inout_ ComplexTask* self, _In_ TRGate* gate)
+void ComplexTask_requireGate(_In_ ComplexTask* self, _In_ TRGate* gate)
 {
     TaskRequiresGate* trg = taskrequiresgateCreate(gate);
     taskrequiresgateRegisterTask(trg, self);
     saPushC(&self->_requires, object, &trg);
 }
 
-extern bool BasicTask_cancel(_Inout_ BasicTask* self);   // parent
+extern bool BasicTask_cancel(_In_ BasicTask* self);   // parent
 #define parent_cancel() BasicTask_cancel((BasicTask*)(self))
-bool ComplexTask_cancel(_Inout_ ComplexTask* self)
+bool ComplexTask_cancel(_In_ ComplexTask* self)
 {
     // If the cancellation needs to be cascaded, advance the task.
     // Even though it's still deferred, this causes dependencies to be re-checked, which propagates

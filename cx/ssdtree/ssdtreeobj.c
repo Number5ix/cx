@@ -22,7 +22,7 @@ _objfactory_guaranteed SSDTree* SSDTree_create(uint32 flags)
     return self;
 }
 
-_objinit_guaranteed bool SSDTree_init(_Inout_ SSDTree* self)
+_objinit_guaranteed bool SSDTree_init(_In_ SSDTree* self)
 {
     // default factories
     if (!self->factories[SSD_Create_Hashtable])
@@ -44,7 +44,7 @@ _objinit_guaranteed bool SSDTree_init(_Inout_ SSDTree* self)
     // Autogen ends -------
 }
 
-_objfactory_guaranteed SSDNode* SSDTree_createNode(_Inout_ SSDTree* self, _In_range_(SSD_Create_None+1, SSD_Create_Count-1) SSDCreateType crtype)
+_objfactory_guaranteed SSDNode* SSDTree_createNode(_In_ SSDTree* self, _In_range_(SSD_Create_None+1, SSD_Create_Count-1) SSDCreateType crtype)
 {
     devAssert(crtype > SSD_Create_None && crtype < SSD_Create_Count);
 
@@ -57,7 +57,7 @@ _objfactory_guaranteed SSDNode* SSDTree_createNode(_Inout_ SSDTree* self, _In_ra
     return self->factories[crtype](self);
 }
 
-void SSDTree_destroy(_Inout_ SSDTree* self)
+void SSDTree_destroy(_In_ SSDTree* self)
 {
 #ifdef SSD_LOCK_DEBUG
     saDestroy(&self->dbg.readlocks);

@@ -11,7 +11,7 @@
 // ==================== Auto-generated section ends ======================
 #include "cx/taskqueue/taskqueue_private.h"
 
-void TQThreadPoolManager_updatePoolSize(_Inout_ TQThreadPoolManager* self)
+void TQThreadPoolManager_updatePoolSize(_In_ TQThreadPoolManager* self)
 {
     if (!(self->tq && self->runner))
         return;
@@ -72,16 +72,16 @@ void TQThreadPoolManager_updatePoolSize(_Inout_ TQThreadPoolManager* self)
     }
 }
 
-void TQThreadPoolManager_destroy(_Inout_ TQThreadPoolManager* self)
+void TQThreadPoolManager_destroy(_In_ TQThreadPoolManager* self)
 {
     // Autogen begins -----
     objRelease(&self->runner);
     // Autogen ends -------
 }
 
-extern bool TQManager_start(_Inout_ TQManager* self, _In_ TaskQueue* tq);   // parent
+extern bool TQManager_start(_In_ TQManager* self, _In_ TaskQueue* tq);   // parent
 #define parent_start(tq) TQManager_start((TQManager*)(self), tq)
-bool TQThreadPoolManager_start(_Inout_ TQThreadPoolManager* self, _In_ TaskQueue* tq)
+bool TQThreadPoolManager_start(_In_ TQThreadPoolManager* self, _In_ TaskQueue* tq)
 {
     if (!parent_start(tq))
         return false;
@@ -92,9 +92,9 @@ bool TQThreadPoolManager_start(_Inout_ TQThreadPoolManager* self, _In_ TaskQueue
     return self->runner != NULL;
 }
 
-extern int64 TQManager_tick(_Inout_ TQManager* self);   // parent
+extern int64 TQManager_tick(_In_ TQManager* self);   // parent
 #define parent_tick() TQManager_tick((TQManager*)(self))
-int64 TQThreadPoolManager_tick(_Inout_ TQThreadPoolManager* self)
+int64 TQThreadPoolManager_tick(_In_ TQThreadPoolManager* self)
 {
     int64 waittime = timeForever;
     // Run monitor if we have one
@@ -115,9 +115,9 @@ int64 TQThreadPoolManager_tick(_Inout_ TQThreadPoolManager* self)
     return waittime;
 }
 
-extern bool TQManager_stop(_Inout_ TQManager* self);   // parent
+extern bool TQManager_stop(_In_ TQManager* self);   // parent
 #define parent_stop() TQManager_stop((TQManager*)(self))
-bool TQThreadPoolManager_stop(_Inout_ TQThreadPoolManager* self)
+bool TQThreadPoolManager_stop(_In_ TQThreadPoolManager* self)
 {
     objRelease(&self->runner);
 

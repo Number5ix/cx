@@ -38,7 +38,7 @@ typedef struct TestIf1 {
     ObjIface* _parent;
     size_t _size;
 
-    int (*testfunc)(_Inout_ void* self);
+    int (*testfunc)(_In_ void* self);
 } TestIf1;
 extern TestIf1 TestIf1_tmpl;
 
@@ -47,8 +47,8 @@ typedef struct TestIf2 {
     ObjIface* _parent;
     size_t _size;
 
-    int (*testfunc)(_Inout_ void* self);
-    int (*testfunc2)(_Inout_ void* self);
+    int (*testfunc)(_In_ void* self);
+    int (*testfunc2)(_In_ void* self);
 } TestIf2;
 extern TestIf2 TestIf2_tmpl;
 
@@ -57,7 +57,7 @@ typedef struct TestIf3 {
     ObjIface* _parent;
     size_t _size;
 
-    int (*testfunc3)(_Inout_ void* self);
+    int (*testfunc3)(_In_ void* self);
 } TestIf3;
 extern TestIf3 TestIf3_tmpl;
 
@@ -66,7 +66,7 @@ typedef struct TestCls1_ClassIf {
     ObjIface* _parent;
     size_t _size;
 
-    int (*testfunc)(_Inout_ void* self);
+    int (*testfunc)(_In_ void* self);
 } TestCls1_ClassIf;
 extern TestCls1_ClassIf TestCls1_ClassIf_tmpl;
 
@@ -75,7 +75,7 @@ typedef struct TestCls2_ClassIf {
     ObjIface* _parent;
     size_t _size;
 
-    int (*testfunc)(_Inout_ void* self);
+    int (*testfunc)(_In_ void* self);
 } TestCls2_ClassIf;
 extern TestCls2_ClassIf TestCls2_ClassIf_tmpl;
 
@@ -84,8 +84,8 @@ typedef struct TestCls3_ClassIf {
     ObjIface* _parent;
     size_t _size;
 
-    int (*testfunc)(_Inout_ void* self);
-    int (*testfunc2)(_Inout_ void* self);
+    int (*testfunc)(_In_ void* self);
+    int (*testfunc2)(_In_ void* self);
 } TestCls3_ClassIf;
 extern TestCls3_ClassIf TestCls3_ClassIf_tmpl;
 
@@ -94,8 +94,8 @@ typedef struct TestCls4_ClassIf {
     ObjIface* _parent;
     size_t _size;
 
-    int (*testfunc)(_Inout_ void* self);
-    int (*testfunc2)(_Inout_ void* self);
+    int (*testfunc)(_In_ void* self);
+    int (*testfunc2)(_In_ void* self);
 } TestCls4_ClassIf;
 extern TestCls4_ClassIf TestCls4_ClassIf_tmpl;
 
@@ -104,9 +104,9 @@ typedef struct TestCls4a_ClassIf {
     ObjIface* _parent;
     size_t _size;
 
-    int (*testfunc)(_Inout_ void* self);
-    int (*testfunc2)(_Inout_ void* self);
-    int (*testfunc3)(_Inout_ void* self);
+    int (*testfunc)(_In_ void* self);
+    int (*testfunc2)(_In_ void* self);
+    int (*testfunc3)(_In_ void* self);
 } TestCls4a_ClassIf;
 extern TestCls4a_ClassIf TestCls4a_ClassIf_tmpl;
 
@@ -115,9 +115,9 @@ typedef struct TestCls4b_ClassIf {
     ObjIface* _parent;
     size_t _size;
 
-    int (*testfunc)(_Inout_ void* self);
-    int (*testfunc2)(_Inout_ void* self);
-    int (*testfunc3)(_Inout_ void* self);
+    int (*testfunc)(_In_ void* self);
+    int (*testfunc2)(_In_ void* self);
+    int (*testfunc3)(_In_ void* self);
 } TestCls4b_ClassIf;
 extern TestCls4b_ClassIf TestCls4b_ClassIf_tmpl;
 
@@ -126,8 +126,8 @@ typedef struct TestCls5_ClassIf {
     ObjIface* _parent;
     size_t _size;
 
-    int (*testfunc)(_Inout_ void* self);
-    intptr (*cmp)(_Inout_ void* self, void* other, uint32 flags);
+    int (*testfunc)(_In_ void* self);
+    intptr (*cmp)(_In_ void* self, void* other, uint32 flags);
 } TestCls5_ClassIf;
 extern TestCls5_ClassIf TestCls5_ClassIf_tmpl;
 

@@ -11,29 +11,29 @@
 // ==================== Auto-generated section ends ======================
 #include <cx/time/clock.h>
 
-void SSDNode_destroy(_Inout_ SSDNode* self)
+void SSDNode_destroy(_In_ SSDNode* self)
 {
     // Autogen begins -----
     objRelease(&self->tree);
     // Autogen ends -------
 }
 
-bool SSDNode_isHashtable(_Inout_ SSDNode* self)
+bool SSDNode_isHashtable(_In_ SSDNode* self)
 {
     return false;
 }
 
-bool SSDNode_isArray(_Inout_ SSDNode* self)
+bool SSDNode_isArray(_In_ SSDNode* self)
 {
     return false;
 }
 
-void SSDNode_updateModified(_Inout_ SSDNode* self)
+void SSDNode_updateModified(_In_ SSDNode* self)
 {
     self->modified = self->tree->modified = clockTimer();
 }
 
-_objinit_guaranteed bool SSDIterator_init(_Inout_ SSDIterator* self)
+_objinit_guaranteed bool SSDIterator_init(_In_ SSDIterator* self)
 {
     if (!self->lstate)
         self->lstate = &self->transient_lock_state;
@@ -42,22 +42,22 @@ _objinit_guaranteed bool SSDIterator_init(_Inout_ SSDIterator* self)
     // Autogen ends -------
 }
 
-bool SSDIterator_isHashtable(_Inout_ SSDIterator* self)
+bool SSDIterator_isHashtable(_In_ SSDIterator* self)
 {
     return false;
 }
 
-bool SSDIterator_isArray(_Inout_ SSDIterator* self)
+bool SSDIterator_isArray(_In_ SSDIterator* self)
 {
     return false;
 }
 
-_Ret_opt_valid_ ObjInst* SSDIterator_objInst(_Inout_ SSDIterator* self)
+_Ret_opt_valid_ ObjInst* SSDIterator_objInst(_In_ SSDIterator* self)
 {
     return stvarObjInst(self->_->ptr(self));
 }
 
-void SSDIterator_destroy(_Inout_ SSDIterator* self)
+void SSDIterator_destroy(_In_ SSDIterator* self)
 {
     if (self->transient_lock_state.init)
         _ssdLockEnd(self->node, &self->transient_lock_state);

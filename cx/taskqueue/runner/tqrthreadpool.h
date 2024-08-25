@@ -25,13 +25,13 @@ typedef struct TQThreadPoolRunner_ClassIf {
     ObjIface* _parent;
     size_t _size;
 
-    bool (*start)(_Inout_ void* self, _In_ TaskQueue* tq);
-    int64 (*tick)(_Inout_ void* self);
-    bool (*stop)(_Inout_ void* self);
-    bool (*addWorker)(_Inout_ void* self);
-    bool (*removeWorker)(_Inout_ void* self);
+    bool (*start)(_In_ void* self, _In_ TaskQueue* tq);
+    int64 (*tick)(_In_ void* self);
+    bool (*stop)(_In_ void* self);
+    bool (*addWorker)(_In_ void* self);
+    bool (*removeWorker)(_In_ void* self);
     // worker factory for custom queues to override
-    _objfactory_guaranteed TQThreadWorker* (*createWorker)(_Inout_ void* self, int32 num);
+    _objfactory_guaranteed TQThreadWorker* (*createWorker)(_In_ void* self, int32 num);
 } TQThreadPoolRunner_ClassIf;
 extern TQThreadPoolRunner_ClassIf TQThreadPoolRunner_ClassIf_tmpl;
 

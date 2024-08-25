@@ -20,7 +20,7 @@ typedef struct ConvertTestClass_ClassIf {
     // or destroyed first.
     // The layer between stConvert and Convertible takes care of making sure the destination is
     // always initialized.
-    bool (*convert)(_Inout_ void* self, stype st, stgeneric* dest, uint32 flags);
+    bool (*convert)(_In_ void* self, stype st, stgeneric* dest, uint32 flags);
 } ConvertTestClass_ClassIf;
 extern ConvertTestClass_ClassIf ConvertTestClass_ClassIf_tmpl;
 

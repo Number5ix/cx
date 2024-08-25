@@ -31,7 +31,7 @@ _objfactory_guaranteed Thread* Thread_create(threadFunc func, _In_opt_ strref na
     return self;
 }
 
-_objinit_guaranteed bool Thread_init(_Inout_ Thread* self)
+_objinit_guaranteed bool Thread_init(_In_ Thread* self)
 {
     stvlInitSA(&self->args, self->_argsa);
 
@@ -40,7 +40,7 @@ _objinit_guaranteed bool Thread_init(_Inout_ Thread* self)
     // Autogen ends -------
 }
 
-void Thread_destroy(_Inout_ Thread* self)
+void Thread_destroy(_In_ Thread* self)
 {
     // Autogen begins -----
     strDestroy(&self->name);

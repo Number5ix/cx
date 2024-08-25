@@ -22,7 +22,7 @@ _objfactory_guaranteed FmtTestClass* FmtTestClass_create(int32 ival, string sval
     return ret;
 }
 
-bool FmtTestClass_format(_Inout_ FmtTestClass* self, FMTVar* v, string* out)
+bool FmtTestClass_format(_In_ FmtTestClass* self, FMTVar* v, string* out)
 {
     string snum;
     switch (self->iv) {
@@ -50,7 +50,7 @@ bool FmtTestClass_format(_Inout_ FmtTestClass* self, FMTVar* v, string* out)
     return true;
 }
 
-void FmtTestClass_destroy(_Inout_ FmtTestClass* self)
+void FmtTestClass_destroy(_In_ FmtTestClass* self)
 {
     // Autogen begins -----
     strDestroy(&self->sv);
@@ -69,7 +69,7 @@ _objfactory_guaranteed FmtTestClass2* FmtTestClass2_create(int32 ival, string sv
     return self;
 }
 
-bool FmtTestClass2_convert(_Inout_ FmtTestClass2* self, stype st, stgeneric* dest, uint32 flags)
+bool FmtTestClass2_convert(_In_ FmtTestClass2* self, stype st, stgeneric* dest, uint32 flags)
 {
     if (!stEq(st, stType(string)))
         return false;
@@ -99,7 +99,7 @@ bool FmtTestClass2_convert(_Inout_ FmtTestClass2* self, stype st, stgeneric* des
     return true;
 }
 
-void FmtTestClass2_destroy(_Inout_ FmtTestClass2* self)
+void FmtTestClass2_destroy(_In_ FmtTestClass2* self)
 {
     // Autogen begins -----
     strDestroy(&self->sv);

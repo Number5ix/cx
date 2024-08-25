@@ -21,24 +21,24 @@ typedef struct TaskRequiresResource_ClassIf {
     size_t _size;
 
     // Calculate the current state of the requirement.
-    uint32 (*state)(_Inout_ void* self, ComplexTask* task);
+    uint32 (*state)(_In_ void* self, ComplexTask* task);
     // If possible, return the last progress timestamp associated with the requirement, or -1 if not applicable.
-    int64 (*progress)(_Inout_ void* self);
+    int64 (*progress)(_In_ void* self);
     // For requirements that involve resource acquisition, attempts to acquire the exclusive resource on behalf
     // of task. This should only be called if state() returns TASK_Requires_Acquire. If called, the caller MUST
     // then call release() when the task is finished running.
     // Implementions of this function must NOT block -- they should try to acquire a lock but return false
     // if it cannot be acquired.
-    bool (*tryAcquire)(_Inout_ void* self, ComplexTask* task);
+    bool (*tryAcquire)(_In_ void* self, ComplexTask* task);
     // Releases the resource, MUST be paired with acquire and called with the same task used to acquire.
-    bool (*release)(_Inout_ void* self, ComplexTask* task);
+    bool (*release)(_In_ void* self, ComplexTask* task);
     // The task is being cancelled and wishes to cascade the cancellation to any dependencies
-    void (*cancel)(_Inout_ void* self);
+    void (*cancel)(_In_ void* self);
     // Requests that the requirement notify the task when conditions change that may change the state of the
     // requirement. The requirement must notify the task by advancing it out of the defer queue. This also registers
     // the task with shared resources if needed. Such as registration is a one-shot and is consumed when the
     // resource is acquired.
-    bool (*registerTask)(_Inout_ void* self, _In_ ComplexTask* task);
+    bool (*registerTask)(_In_ void* self, _In_ ComplexTask* task);
 } TaskRequiresResource_ClassIf;
 extern TaskRequiresResource_ClassIf TaskRequiresResource_ClassIf_tmpl;
 

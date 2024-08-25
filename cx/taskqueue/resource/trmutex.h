@@ -23,15 +23,15 @@ typedef struct TRMutex_ClassIf {
     // Registers a task with the shared resource. This enables the task to be advanced
     // when the resource is available and reserves a slot for things like FIFO queues.
     // This registration is consumed by a successful acquisition.
-    bool (*registerTask)(_Inout_ void* self, ComplexTask* task);
+    bool (*registerTask)(_In_ void* self, ComplexTask* task);
     // Is it even possible for the given task to try to acquire the resource right now?
-    bool (*canAcquire)(_Inout_ void* self, ComplexTask* task);
+    bool (*canAcquire)(_In_ void* self, ComplexTask* task);
     // Try to acquire the resource. State tracking is up to the caller!
-    bool (*tryAcquire)(_Inout_ void* self, ComplexTask* task);
+    bool (*tryAcquire)(_In_ void* self, ComplexTask* task);
     // Release the resource. State tracking is up to the caller!
-    void (*release)(_Inout_ void* self, ComplexTask* task);
+    void (*release)(_In_ void* self, ComplexTask* task);
     // releases a task from the wait list
-    void (*wakeup)(_Inout_ void* self);
+    void (*wakeup)(_In_ void* self);
 } TRMutex_ClassIf;
 extern TRMutex_ClassIf TRMutex_ClassIf_tmpl;
 

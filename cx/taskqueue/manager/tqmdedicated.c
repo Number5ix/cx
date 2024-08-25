@@ -19,7 +19,7 @@ _objfactory_guaranteed TQDedicatedManager* TQDedicatedManager_create()
     return self;
 }
 
-_objinit_guaranteed bool TQDedicatedManager_init(_Inout_ TQDedicatedManager* self)
+_objinit_guaranteed bool TQDedicatedManager_init(_In_ TQDedicatedManager* self)
 {
     // Autogen begins -----
     eventInit(&self->mgrnotify);
@@ -49,10 +49,9 @@ static int tqManagerThread(Thread* thr)
     return 0;
 }
 
-extern bool TQThreadPoolManager_start(_Inout_ TQThreadPoolManager* self,
-                                      _In_ TaskQueue* tq);   // parent
+extern bool TQThreadPoolManager_start(_In_ TQThreadPoolManager* self, _In_ TaskQueue* tq);   // parent
 #define parent_start(tq) TQThreadPoolManager_start((TQThreadPoolManager*)(self), tq)
-bool TQDedicatedManager_start(_Inout_ TQDedicatedManager* self, _In_ TaskQueue* tq)
+bool TQDedicatedManager_start(_In_ TQDedicatedManager* self, _In_ TaskQueue* tq)
 {
     if (!parent_start(tq))
         return false;
@@ -65,9 +64,9 @@ bool TQDedicatedManager_start(_Inout_ TQDedicatedManager* self, _In_ TaskQueue* 
     return self->mgrthread != NULL;
 }
 
-extern bool TQThreadPoolManager_stop(_Inout_ TQThreadPoolManager* self);   // parent
+extern bool TQThreadPoolManager_stop(_In_ TQThreadPoolManager* self);   // parent
 #define parent_stop() TQThreadPoolManager_stop((TQThreadPoolManager*)(self))
-bool TQDedicatedManager_stop(_Inout_ TQDedicatedManager* self)
+bool TQDedicatedManager_stop(_In_ TQDedicatedManager* self)
 {
     if (!self->mgrthread)
         return false;
@@ -82,14 +81,14 @@ bool TQDedicatedManager_stop(_Inout_ TQDedicatedManager* self)
     return parent_stop();
 }
 
-extern void TQManager_notify(_Inout_ TQManager* self, bool wakeup);   // parent
+extern void TQManager_notify(_In_ TQManager* self, bool wakeup);   // parent
 #define parent_notify(wakeup) TQManager_notify((TQManager*)(self), wakeup)
-void TQDedicatedManager_notify(_Inout_ TQDedicatedManager* self, bool wakeup)
+void TQDedicatedManager_notify(_In_ TQDedicatedManager* self, bool wakeup)
 {
     eventSignal(&self->mgrnotify);
 }
 
-void TQDedicatedManager_destroy(_Inout_ TQDedicatedManager* self)
+void TQDedicatedManager_destroy(_In_ TQDedicatedManager* self)
 {
     // Autogen begins -----
     objRelease(&self->mgrthread);

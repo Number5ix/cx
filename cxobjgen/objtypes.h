@@ -35,8 +35,8 @@ typedef struct Method_ClassIf {
     ObjIface* _parent;
     size_t _size;
 
-    _Ret_valid_ Method* (*clone)(_Inout_ void* self);
-    intptr (*cmp)(_Inout_ void* self, void* other, uint32 flags);
+    _Ret_valid_ Method* (*clone)(_In_ void* self);
+    intptr (*cmp)(_In_ void* self, void* other, uint32 flags);
 } Method_ClassIf;
 extern Method_ClassIf Method_ClassIf_tmpl;
 
@@ -45,7 +45,7 @@ typedef struct Interface_ClassIf {
     ObjIface* _parent;
     size_t _size;
 
-    intptr (*cmp)(_Inout_ void* self, void* other, uint32 flags);
+    intptr (*cmp)(_In_ void* self, void* other, uint32 flags);
 } Interface_ClassIf;
 extern Interface_ClassIf Interface_ClassIf_tmpl;
 
@@ -54,7 +54,7 @@ typedef struct Member_ClassIf {
     ObjIface* _parent;
     size_t _size;
 
-    intptr (*cmp)(_Inout_ void* self, void* other, uint32 flags);
+    intptr (*cmp)(_In_ void* self, void* other, uint32 flags);
 } Member_ClassIf;
 extern Member_ClassIf Member_ClassIf_tmpl;
 
@@ -63,7 +63,7 @@ typedef struct Class_ClassIf {
     ObjIface* _parent;
     size_t _size;
 
-    intptr (*cmp)(_Inout_ void* self, void* other, uint32 flags);
+    intptr (*cmp)(_In_ void* self, void* other, uint32 flags);
 } Class_ClassIf;
 extern Class_ClassIf Class_ClassIf_tmpl;
 

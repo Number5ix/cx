@@ -24,12 +24,12 @@ _objfactory_guaranteed VFSVFS* VFSVFS_create(VFS* vfs, _In_opt_ strref rootpath)
     return ret;
 }
 
-flags_t VFSVFS_flags(_Inout_ VFSVFS* self)
+flags_t VFSVFS_flags(_In_ VFSVFS* self)
 {
     return 0;
 }
 
-_Ret_opt_valid_ ObjInst* VFSVFS_open(_Inout_ VFSVFS* self, _In_opt_ strref path, flags_t flags)
+_Ret_opt_valid_ ObjInst* VFSVFS_open(_In_ VFSVFS* self, _In_opt_ strref path, flags_t flags)
 {
     string vfspath = 0;
     pathJoin(&vfspath, self->root, path);
@@ -43,7 +43,7 @@ _Ret_opt_valid_ ObjInst* VFSVFS_open(_Inout_ VFSVFS* self, _In_opt_ strref path,
     return objInstBase(fileprov);
 }
 
-FSPathStat VFSVFS_stat(_Inout_ VFSVFS* self, _In_opt_ strref path, _When_(return != FS_Nonexistent, _Out_opt_) FSStat* stat)
+FSPathStat VFSVFS_stat(_In_ VFSVFS* self, _In_opt_ strref path, _When_(return != FS_Nonexistent, _Out_opt_) FSStat* stat)
 {
     string vfspath = 0;
     pathJoin(&vfspath, self->root, path);
@@ -54,7 +54,7 @@ FSPathStat VFSVFS_stat(_Inout_ VFSVFS* self, _In_opt_ strref path, _When_(return
     return ret;
 }
 
-bool VFSVFS_setTimes(_Inout_ VFSVFS* self, _In_opt_ strref path, int64 modified, int64 accessed)
+bool VFSVFS_setTimes(_In_ VFSVFS* self, _In_opt_ strref path, int64 modified, int64 accessed)
 {
     string vfspath = 0;
     pathJoin(&vfspath, self->root, path);
@@ -65,7 +65,7 @@ bool VFSVFS_setTimes(_Inout_ VFSVFS* self, _In_opt_ strref path, int64 modified,
     return ret;
 }
 
-bool VFSVFS_createDir(_Inout_ VFSVFS* self, _In_opt_ strref path)
+bool VFSVFS_createDir(_In_ VFSVFS* self, _In_opt_ strref path)
 {
     string vfspath = 0;
     pathJoin(&vfspath, self->root, path);
@@ -76,7 +76,7 @@ bool VFSVFS_createDir(_Inout_ VFSVFS* self, _In_opt_ strref path)
     return ret;
 }
 
-bool VFSVFS_removeDir(_Inout_ VFSVFS* self, _In_opt_ strref path)
+bool VFSVFS_removeDir(_In_ VFSVFS* self, _In_opt_ strref path)
 {
     string vfspath = 0;
     pathJoin(&vfspath, self->root, path);
@@ -87,7 +87,7 @@ bool VFSVFS_removeDir(_Inout_ VFSVFS* self, _In_opt_ strref path)
     return ret;
 }
 
-bool VFSVFS_deleteFile(_Inout_ VFSVFS* self, _In_opt_ strref path)
+bool VFSVFS_deleteFile(_In_ VFSVFS* self, _In_opt_ strref path)
 {
     string vfspath = 0;
     pathJoin(&vfspath, self->root, path);
@@ -98,7 +98,7 @@ bool VFSVFS_deleteFile(_Inout_ VFSVFS* self, _In_opt_ strref path)
     return ret;
 }
 
-bool VFSVFS_rename(_Inout_ VFSVFS* self, _In_opt_ strref oldpath, _In_opt_ strref newpath)
+bool VFSVFS_rename(_In_ VFSVFS* self, _In_opt_ strref oldpath, _In_opt_ strref newpath)
 {
     string vfsoldpath = 0, vfsnewpath = 0;
     pathJoin(&vfsoldpath, self->root, oldpath);
@@ -111,7 +111,7 @@ bool VFSVFS_rename(_Inout_ VFSVFS* self, _In_opt_ strref oldpath, _In_opt_ strre
     return ret;
 }
 
-void VFSVFS_destroy(_Inout_ VFSVFS* self)
+void VFSVFS_destroy(_In_ VFSVFS* self)
 {
     // Autogen begins -----
     objRelease(&self->vfs);
@@ -119,7 +119,7 @@ void VFSVFS_destroy(_Inout_ VFSVFS* self)
     // Autogen ends -------
 }
 
-bool VFSVFS_searchInit(_Inout_ VFSVFS* self, _Out_ FSSearchIter* iter, _In_opt_ strref path, _In_opt_ strref pattern, bool stat)
+bool VFSVFS_searchInit(_In_ VFSVFS* self, _Out_ FSSearchIter* iter, _In_opt_ strref path, _In_opt_ strref pattern, bool stat)
 {
     string vfspath = 0;
 
@@ -129,22 +129,22 @@ bool VFSVFS_searchInit(_Inout_ VFSVFS* self, _Out_ FSSearchIter* iter, _In_opt_ 
     return ret;
 }
 
-bool VFSVFS_searchValid(_Inout_ VFSVFS* self, _In_ FSSearchIter* iter)
+bool VFSVFS_searchValid(_In_ VFSVFS* self, _In_ FSSearchIter* iter)
 {
     return vfsSearchValid(iter);
 }
 
-bool VFSVFS_searchNext(_Inout_ VFSVFS* self, _Inout_ FSSearchIter* iter)
+bool VFSVFS_searchNext(_In_ VFSVFS* self, _Inout_ FSSearchIter* iter)
 {
     return vfsSearchNext(iter);
 }
 
-void VFSVFS_searchFinish(_Inout_ VFSVFS* self, _Inout_ FSSearchIter* iter)
+void VFSVFS_searchFinish(_In_ VFSVFS* self, _Inout_ FSSearchIter* iter)
 {
     vfsSearchFinish(iter);
 }
 
-bool VFSVFS_getFSPath(_Inout_ VFSVFS* self, _Inout_ string* out, _In_opt_ strref path)
+bool VFSVFS_getFSPath(_In_ VFSVFS* self, _Inout_ string* out, _In_opt_ strref path)
 {
     string vfspath = 0;
     pathJoin(&vfspath, self->root, path);

@@ -24,7 +24,7 @@ TQThreadPoolRunner_create(_In_ TaskQueueThreadPoolConfig* config)
     return self;
 }
 
-_objinit_guaranteed bool TQThreadPoolRunner_init(_Inout_ TQThreadPoolRunner* self)
+_objinit_guaranteed bool TQThreadPoolRunner_init(_In_ TQThreadPoolRunner* self)
 {
     // Autogen begins -----
     rwlockInit(&self->workerlock);
@@ -34,13 +34,12 @@ _objinit_guaranteed bool TQThreadPoolRunner_init(_Inout_ TQThreadPoolRunner* sel
     // Autogen ends -------
 }
 
-_objfactory_guaranteed TQThreadWorker*
-TQThreadPoolRunner_createWorker(_Inout_ TQThreadPoolRunner* self, int32 num)
+_objfactory_guaranteed TQThreadWorker* TQThreadPoolRunner_createWorker(_In_ TQThreadPoolRunner* self, int32 num)
 {
     return tqthreadworkerCreate(num);
 }
 
-bool TQThreadPoolRunner_addWorker(_Inout_ TQThreadPoolRunner* self)
+bool TQThreadPoolRunner_addWorker(_In_ TQThreadPoolRunner* self)
 {
     if (!self->tq)
         return false;
@@ -56,7 +55,7 @@ bool TQThreadPoolRunner_addWorker(_Inout_ TQThreadPoolRunner* self)
     return ret;
 }
 
-bool TQThreadPoolRunner_removeWorker(_Inout_ TQThreadPoolRunner* self)
+bool TQThreadPoolRunner_removeWorker(_In_ TQThreadPoolRunner* self)
 {
     if (!self->tq)
         return false;
@@ -90,9 +89,9 @@ bool TQThreadPoolRunner_removeWorker(_Inout_ TQThreadPoolRunner* self)
     return false;
 }
 
-extern bool TQRunner_start(_Inout_ TQRunner* self, _In_ TaskQueue* tq);   // parent
+extern bool TQRunner_start(_In_ TQRunner* self, _In_ TaskQueue* tq);   // parent
 #define parent_start(tq) TQRunner_start((TQRunner*)(self), tq)
-bool TQThreadPoolRunner_start(_Inout_ TQThreadPoolRunner* self, _In_ TaskQueue* tq)
+bool TQThreadPoolRunner_start(_In_ TQThreadPoolRunner* self, _In_ TaskQueue* tq)
 {
     if (!parent_start(tq))
         return false;
@@ -124,16 +123,16 @@ bool TQThreadPoolRunner_start(_Inout_ TQThreadPoolRunner* self, _In_ TaskQueue* 
     return true;
 }
 
-int64 TQThreadPoolRunner_tick(_Inout_ TQThreadPoolRunner* self)
+int64 TQThreadPoolRunner_tick(_In_ TQThreadPoolRunner* self)
 {
     // do nothing, thread pool runner doesn't need to be ticked as worker threads tick themselves
     // independently
     return timeForever;
 }
 
-extern bool TQRunner_stop(_Inout_ TQRunner* self);   // parent
+extern bool TQRunner_stop(_In_ TQRunner* self);   // parent
 #define parent_stop() TQRunner_stop((TQRunner*)(self))
-bool TQThreadPoolRunner_stop(_Inout_ TQThreadPoolRunner* self)
+bool TQThreadPoolRunner_stop(_In_ TQThreadPoolRunner* self)
 {
     // workers shut themselves down when the queue is in a stopping state, just wait for them
     int64 timeStart = clockTimer();
@@ -156,7 +155,7 @@ bool TQThreadPoolRunner_stop(_Inout_ TQThreadPoolRunner* self)
     return parent_stop();
 }
 
-void TQThreadPoolRunner_destroy(_Inout_ TQThreadPoolRunner* self)
+void TQThreadPoolRunner_destroy(_In_ TQThreadPoolRunner* self)
 {
     // Autogen begins -----
     rwlockDestroy(&self->workerlock);

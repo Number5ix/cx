@@ -37,15 +37,15 @@ typedef struct MultiphaseTask_ClassIf {
     ObjIface* _parent;
     size_t _size;
 
-    uint32 (*run)(_Inout_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
-    bool (*cancel)(_Inout_ void* self);
-    bool (*reset)(_Inout_ void* self);
-    bool (*wait)(_Inout_ void* self, int64 timeout);
-    intptr (*cmp)(_Inout_ void* self, void* other, uint32 flags);
-    uint32 (*hash)(_Inout_ void* self, uint32 flags);
+    uint32 (*run)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
+    bool (*cancel)(_In_ void* self);
+    bool (*reset)(_In_ void* self);
+    bool (*wait)(_In_ void* self, int64 timeout);
+    intptr (*cmp)(_In_ void* self, void* other, uint32 flags);
+    uint32 (*hash)(_In_ void* self, uint32 flags);
     // Called once all phases (including fail phases) have completed. May be overridden to perform
     // additional cleanup or change the final result.
-    uint32 (*finish)(_Inout_ void* self, uint32 result, TaskControl* tcon);
+    uint32 (*finish)(_In_ void* self, uint32 result, TaskControl* tcon);
 } MultiphaseTask_ClassIf;
 extern MultiphaseTask_ClassIf MultiphaseTask_ClassIf_tmpl;
 
@@ -96,7 +96,7 @@ typedef struct MultiphaseTask_WeakRef {
 } MultiphaseTask_WeakRef;
 #define MultiphaseTask_WeakRef(inst) ((MultiphaseTask_WeakRef*)(unused_noeval((inst) && &((inst)->_is_MultiphaseTask_WeakRef)), (inst)))
 
-void MultiphaseTask__addPhases(_Inout_ MultiphaseTask* self, int32 num, MPTPhaseFunc parr[], bool fail);
+void MultiphaseTask__addPhases(_In_ MultiphaseTask* self, int32 num, MPTPhaseFunc parr[], bool fail);
 // void mptask_addPhases(MultiphaseTask* self, int32 num, MPTPhaseFunc parr[], bool fail);
 //
 // Adds phases from a static array.

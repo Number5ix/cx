@@ -21,9 +21,9 @@ typedef struct UserFuncTask_ClassIf {
     ObjIface* _parent;
     size_t _size;
 
-    uint32 (*run)(_Inout_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
-    bool (*cancel)(_Inout_ void* self);
-    bool (*reset)(_Inout_ void* self);
+    uint32 (*run)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
+    bool (*cancel)(_In_ void* self);
+    bool (*reset)(_In_ void* self);
 } UserFuncTask_ClassIf;
 extern UserFuncTask_ClassIf UserFuncTask_ClassIf_tmpl;
 

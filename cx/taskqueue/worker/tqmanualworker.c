@@ -21,7 +21,7 @@ _objfactory_guaranteed TQManualWorker* TQManualWorker_create()
     return self;
 }
 
-int64 TQManualWorker_tick(_Inout_ TQManualWorker* self, _In_ TaskQueue* tq)
+int64 TQManualWorker_tick(_In_ TQManualWorker* self, _In_ TaskQueue* tq)
 {
     BasicTask* btask;
     int64 waittime  = timeForever;

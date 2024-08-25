@@ -20,7 +20,7 @@ _objfactory_guaranteed WinThread *WinThread_create()
     return self;
 }
 
-void WinThread_destroy(_Inout_ WinThread *self)
+void WinThread_destroy(_In_ WinThread* self)
 {
      CloseHandle(self->handle);
 }

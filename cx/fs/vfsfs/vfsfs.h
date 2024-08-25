@@ -16,20 +16,20 @@ typedef struct VFSFS_ClassIf {
     size_t _size;
 
     // VFSProviderFlags enforced for this provider
-    flags_t (*flags)(_Inout_ void* self);
+    flags_t (*flags)(_In_ void* self);
     // returns an object that implements VFSFileProvider
-    _Ret_opt_valid_ ObjInst* (*open)(_Inout_ void* self, _In_opt_ strref path, flags_t flags);
-    FSPathStat (*stat)(_Inout_ void* self, _In_opt_ strref path, _When_(return != FS_Nonexistent, _Out_opt_) FSStat* stat);
-    bool (*setTimes)(_Inout_ void* self, _In_opt_ strref path, int64 modified, int64 accessed);
-    bool (*createDir)(_Inout_ void* self, _In_opt_ strref path);
-    bool (*removeDir)(_Inout_ void* self, _In_opt_ strref path);
-    bool (*deleteFile)(_Inout_ void* self, _In_opt_ strref path);
-    bool (*rename)(_Inout_ void* self, _In_opt_ strref oldpath, _In_opt_ strref newpath);
-    bool (*getFSPath)(_Inout_ void* self, _Inout_ string* out, _In_opt_ strref path);
-    bool (*searchInit)(_Inout_ void* self, _Out_ FSSearchIter* iter, _In_opt_ strref path, _In_opt_ strref pattern, bool stat);
-    bool (*searchValid)(_Inout_ void* self, _In_ FSSearchIter* iter);
-    bool (*searchNext)(_Inout_ void* self, _Inout_ FSSearchIter* iter);
-    void (*searchFinish)(_Inout_ void* self, _Inout_ FSSearchIter* iter);
+    _Ret_opt_valid_ ObjInst* (*open)(_In_ void* self, _In_opt_ strref path, flags_t flags);
+    FSPathStat (*stat)(_In_ void* self, _In_opt_ strref path, _When_(return != FS_Nonexistent, _Out_opt_) FSStat* stat);
+    bool (*setTimes)(_In_ void* self, _In_opt_ strref path, int64 modified, int64 accessed);
+    bool (*createDir)(_In_ void* self, _In_opt_ strref path);
+    bool (*removeDir)(_In_ void* self, _In_opt_ strref path);
+    bool (*deleteFile)(_In_ void* self, _In_opt_ strref path);
+    bool (*rename)(_In_ void* self, _In_opt_ strref oldpath, _In_opt_ strref newpath);
+    bool (*getFSPath)(_In_ void* self, _Inout_ string* out, _In_opt_ strref path);
+    bool (*searchInit)(_In_ void* self, _Out_ FSSearchIter* iter, _In_opt_ strref path, _In_opt_ strref pattern, bool stat);
+    bool (*searchValid)(_In_ void* self, _In_ FSSearchIter* iter);
+    bool (*searchNext)(_In_ void* self, _Inout_ FSSearchIter* iter);
+    void (*searchFinish)(_In_ void* self, _Inout_ FSSearchIter* iter);
 } VFSFS_ClassIf;
 extern VFSFS_ClassIf VFSFS_ClassIf_tmpl;
 

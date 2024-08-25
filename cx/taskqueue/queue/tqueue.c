@@ -28,7 +28,7 @@ _objfactory_guaranteed TaskQueue* TaskQueue_create(_In_opt_ strref name, uint32 
     return self;
 }
 
-_objinit_guaranteed bool TaskQueue_init(_Inout_ TaskQueue* self)
+_objinit_guaranteed bool TaskQueue_init(_In_ TaskQueue* self)
 {
     // if this is a thread pool based queue, size the queues based on the desired number of worker
     // threads
@@ -45,7 +45,7 @@ _objinit_guaranteed bool TaskQueue_init(_Inout_ TaskQueue* self)
     // Autogen ends -------
 }
 
-bool TaskQueue_add(_Inout_ TaskQueue* self, _In_ BasicTask* btask)
+bool TaskQueue_add(_In_ TaskQueue* self, _In_ BasicTask* btask)
 {
     if (atomicLoad(uint32, &self->state, Relaxed) != TQState_Running)
         return false;
@@ -80,7 +80,7 @@ bool TaskQueue_add(_Inout_ TaskQueue* self, _In_ BasicTask* btask)
     return true;
 }
 
-bool TaskQueue__processDone(_Inout_ TaskQueue* self)
+bool TaskQueue__processDone(_In_ TaskQueue* self)
 {
     bool ret = false;
 
@@ -98,13 +98,13 @@ bool TaskQueue__processDone(_Inout_ TaskQueue* self)
     return ret;
 }
 
-int64 TaskQueue__processExtra(_Inout_ TaskQueue* self, bool taskscompleted)
+int64 TaskQueue__processExtra(_In_ TaskQueue* self, bool taskscompleted)
 {
     // nothing to do because this queue doesn't support complex tasks
     return timeForever;
 }
 
-bool TaskQueue_start(_Inout_ TaskQueue* self)
+bool TaskQueue_start(_In_ TaskQueue* self)
 {
     uint32 state = atomicLoad(uint32, &self->state, Acquire);
     if (!(state == TQState_Init || state == TQState_Shutdown))
@@ -138,7 +138,7 @@ bool TaskQueue_start(_Inout_ TaskQueue* self)
     return true;
 }
 
-bool TaskQueue_stop(_Inout_ TaskQueue* self, int64 timeout)
+bool TaskQueue_stop(_In_ TaskQueue* self, int64 timeout)
 {
     uint32 state = atomicLoad(uint32, &self->state, Acquire);
     if (!(state == TQState_Running))
@@ -158,7 +158,7 @@ bool TaskQueue_stop(_Inout_ TaskQueue* self, int64 timeout)
     return true;
 }
 
-int64 TaskQueue_tick(_Inout_ TaskQueue* self)
+int64 TaskQueue_tick(_In_ TaskQueue* self)
 {
     if (self->flags & TQ_Manual)
         return tqrunnerTick(self->runner);
@@ -166,7 +166,7 @@ int64 TaskQueue_tick(_Inout_ TaskQueue* self)
     return 0;
 }
 
-bool TaskQueue__runTask(_Inout_ TaskQueue* self, _Inout_ BasicTask** pbtask, _In_ TQWorker* worker)
+bool TaskQueue__runTask(_In_ TaskQueue* self, _Inout_ BasicTask** pbtask, _In_ TQWorker* worker)
 {
     // context: This is called from worker threads. The task pointed to by pbtask has been removed
     // from the run queue and exists only in the parameter; so we MUST do something with it.
@@ -207,7 +207,7 @@ bool TaskQueue__runTask(_Inout_ TaskQueue* self, _Inout_ BasicTask** pbtask, _In
     return true;
 }
 
-void TaskQueue__clear(_Inout_ TaskQueue* self)
+void TaskQueue__clear(_In_ TaskQueue* self)
 {
     uint32 state = atomicLoad(uint32, &self->state, Acquire);
     devAssert(state == TQState_Init || state == TQState_Stopping || state == TQState_Shutdown);
@@ -221,7 +221,7 @@ void TaskQueue__clear(_Inout_ TaskQueue* self)
     }
 }
 
-void TaskQueue_destroy(_Inout_ TaskQueue* self)
+void TaskQueue_destroy(_In_ TaskQueue* self)
 {
     taskqueue_clear(self);
     prqDestroy(&self->runq);
@@ -235,7 +235,7 @@ void TaskQueue_destroy(_Inout_ TaskQueue* self)
     // Autogen ends -------
 }
 
-bool TaskQueue__queueMaint(_Inout_ TaskQueue* self)
+bool TaskQueue__queueMaint(_In_ TaskQueue* self)
 {
     int64 now = clockTimer();
 

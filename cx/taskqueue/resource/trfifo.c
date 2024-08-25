@@ -27,7 +27,7 @@ static void destroyFifoList(TRFifoNode *node) {
     }
 }
 
-bool TRFifo_registerTask(_Inout_ TRFifo* self, ComplexTask* task)
+bool TRFifo_registerTask(_In_ TRFifo* self, ComplexTask* task)
 {
     withMutex(&self->_fifomtx) {
         TRFifoNode* nnode = xaAllocStruct(TRFifoNode, XA_Zero);
@@ -43,7 +43,7 @@ bool TRFifo_registerTask(_Inout_ TRFifo* self, ComplexTask* task)
     return true;
 }
 
-bool TRFifo_canAcquire(_Inout_ TRFifo* self, ComplexTask* task)
+bool TRFifo_canAcquire(_In_ TRFifo* self, ComplexTask* task)
 {
     bool ret = false;
 
@@ -56,7 +56,7 @@ bool TRFifo_canAcquire(_Inout_ TRFifo* self, ComplexTask* task)
     return ret;
 }
 
-bool TRFifo_tryAcquire(_Inout_ TRFifo* self, ComplexTask* task)
+bool TRFifo_tryAcquire(_In_ TRFifo* self, ComplexTask* task)
 {
     bool ret = false;
 
@@ -83,7 +83,7 @@ bool TRFifo_tryAcquire(_Inout_ TRFifo* self, ComplexTask* task)
     return ret;
 }
 
-void TRFifo_release(_Inout_ TRFifo* self, ComplexTask* task)
+void TRFifo_release(_In_ TRFifo* self, ComplexTask* task)
 {
     withMutex(&self->_fifomtx) {
         if (self->cur == task)
@@ -96,7 +96,7 @@ void TRFifo_release(_Inout_ TRFifo* self, ComplexTask* task)
     }
 }
 
-_objinit_guaranteed bool TRFifo_init(_Inout_ TRFifo* self)
+_objinit_guaranteed bool TRFifo_init(_In_ TRFifo* self)
 {
     // Autogen begins -----
     mutexInit(&self->_fifomtx);
@@ -104,7 +104,7 @@ _objinit_guaranteed bool TRFifo_init(_Inout_ TRFifo* self)
     // Autogen ends -------
 }
 
-void TRFifo_destroy(_Inout_ TRFifo* self)
+void TRFifo_destroy(_In_ TRFifo* self)
 {
     destroyFifoList(self->head);
     // Autogen begins -----

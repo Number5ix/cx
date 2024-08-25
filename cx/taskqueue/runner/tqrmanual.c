@@ -19,7 +19,7 @@ _objfactory_guaranteed TQManualRunner* TQManualRunner_create()
     return self;
 }
 
-int64 TQManualRunner_tick(_Inout_ TQManualRunner* self)
+int64 TQManualRunner_tick(_In_ TQManualRunner* self)
 {
     if (self->worker)
         return tqmanualworkerTick(self->worker, self->tq);
@@ -27,16 +27,16 @@ int64 TQManualRunner_tick(_Inout_ TQManualRunner* self)
     return timeForever;
 }
 
-void TQManualRunner_destroy(_Inout_ TQManualRunner* self)
+void TQManualRunner_destroy(_In_ TQManualRunner* self)
 {
     // Autogen begins -----
     objRelease(&self->worker);
     // Autogen ends -------
 }
 
-extern bool TQRunner_start(_Inout_ TQRunner* self, _In_ TaskQueue* tq);   // parent
+extern bool TQRunner_start(_In_ TQRunner* self, _In_ TaskQueue* tq);   // parent
 #define parent_start(tq) TQRunner_start((TQRunner*)(self), tq)
-bool TQManualRunner_start(_Inout_ TQManualRunner* self, _In_ TaskQueue* tq)
+bool TQManualRunner_start(_In_ TQManualRunner* self, _In_ TaskQueue* tq)
 {
     if (!parent_start(tq))
         return false;
@@ -45,9 +45,9 @@ bool TQManualRunner_start(_Inout_ TQManualRunner* self, _In_ TaskQueue* tq)
     return true;
 }
 
-extern bool TQRunner_stop(_Inout_ TQRunner* self);   // parent
+extern bool TQRunner_stop(_In_ TQRunner* self);   // parent
 #define parent_stop() TQRunner_stop((TQRunner*)(self))
-bool TQManualRunner_stop(_Inout_ TQManualRunner* self)
+bool TQManualRunner_stop(_In_ TQManualRunner* self)
 {
     objRelease(&self->worker);
     return parent_stop();

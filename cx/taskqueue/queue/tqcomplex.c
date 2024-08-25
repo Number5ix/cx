@@ -27,7 +27,7 @@ _objfactory_guaranteed ComplexTaskQueue* ComplexTaskQueue_create(_In_opt_ strref
     return self;
 }
 
-_objinit_guaranteed bool ComplexTaskQueue_init(_Inout_ ComplexTaskQueue* self)
+_objinit_guaranteed bool ComplexTaskQueue_init(_In_ ComplexTaskQueue* self)
 {
     prqInitDynamic(&self->advanceq, 4, 16, 0, PRQ_Grow_100, PRQ_Grow_100);
     self->advanceq.shrinkms = 5;
@@ -75,19 +75,19 @@ static bool CTQPushBackCommon(_Inout_ ComplexTaskQueue* self, _In_ ComplexTask* 
     return true;
 }
 
-bool ComplexTaskQueue_schedule(_Inout_ ComplexTaskQueue* self, _In_ ComplexTask* task, int64 delay)
+bool ComplexTaskQueue_schedule(_In_ ComplexTaskQueue* self, _In_ ComplexTask* task, int64 delay)
 {
     return CTQPushBackCommon(self, task, TASK_Scheduled, delay);
 }
 
-bool ComplexTaskQueue_defer(_Inout_ ComplexTaskQueue* self, _In_ ComplexTask* task)
+bool ComplexTaskQueue_defer(_In_ ComplexTaskQueue* self, _In_ ComplexTask* task)
 {
     return CTQPushBackCommon(self, task, TASK_Deferred, 0);
 }
 
-extern bool TaskQueue__processDone(_Inout_ TaskQueue* self);   // parent
+extern bool TaskQueue__processDone(_In_ TaskQueue* self);   // parent
 #define parent__processDone() TaskQueue__processDone((TaskQueue*)(self))
-bool ComplexTaskQueue__processDone(_Inout_ ComplexTaskQueue* self)
+bool ComplexTaskQueue__processDone(_In_ ComplexTaskQueue* self)
 {
     int64 now = clockTimer();
     bool ret  = false;
@@ -151,10 +151,9 @@ bool ComplexTaskQueue__processDone(_Inout_ ComplexTaskQueue* self)
     return ret;
 }
 
-extern int64 TaskQueue__processExtra(_Inout_ TaskQueue* self, bool taskscompleted);   // parent
-#define parent__processExtra(taskscompleted) \
-    TaskQueue__processExtra((TaskQueue*)(self), taskscompleted)
-int64 ComplexTaskQueue__processExtra(_Inout_ ComplexTaskQueue* self, bool taskscompleted)
+extern int64 TaskQueue__processExtra(_In_ TaskQueue* self, bool taskscompleted);   // parent
+#define parent__processExtra(taskscompleted) TaskQueue__processExtra((TaskQueue*)(self), taskscompleted)
+int64 ComplexTaskQueue__processExtra(_In_ ComplexTaskQueue* self, bool taskscompleted)
 {
     int64 waittime = timeForever;
     int64 now      = clockTimer();
@@ -270,7 +269,7 @@ int64 ComplexTaskQueue__processExtra(_Inout_ ComplexTaskQueue* self, bool tasksc
     return waittime;
 }
 
-bool ComplexTaskQueue_advance(_Inout_ ComplexTaskQueue* self, _In_ ComplexTask* task)
+bool ComplexTaskQueue_advance(_In_ ComplexTaskQueue* self, _In_ ComplexTask* task)
 {
     uint32 state = taskState(task);
     if (atomicLoad(uint32, &self->state, Relaxed) != TQState_Running ||
@@ -287,7 +286,7 @@ bool ComplexTaskQueue_advance(_Inout_ ComplexTaskQueue* self, _In_ ComplexTask* 
     return true;
 }
 
-void ComplexTaskQueue_destroy(_Inout_ ComplexTaskQueue* self)
+void ComplexTaskQueue_destroy(_In_ ComplexTaskQueue* self)
 {
     ctaskqueue_clear(self);
 
@@ -299,9 +298,9 @@ void ComplexTaskQueue_destroy(_Inout_ ComplexTaskQueue* self)
     // Autogen ends -------
 }
 
-extern void TaskQueue__clear(_Inout_ TaskQueue* self);   // parent
+extern void TaskQueue__clear(_In_ TaskQueue* self);   // parent
 #define parent__clear() TaskQueue__clear((TaskQueue*)(self))
-void ComplexTaskQueue__clear(_Inout_ ComplexTaskQueue* self)
+void ComplexTaskQueue__clear(_In_ ComplexTaskQueue* self)
 {
     parent__clear();
 
@@ -320,11 +319,9 @@ void ComplexTaskQueue__clear(_Inout_ ComplexTaskQueue* self)
     htClear(&self->deferred);
 }
 
-extern bool TaskQueue__runTask(_Inout_ TaskQueue* self, _Inout_ BasicTask** pbtask,
-                               _In_ TQWorker* worker);   // parent
+extern bool TaskQueue__runTask(_In_ TaskQueue* self, _Inout_ BasicTask** pbtask, _In_ TQWorker* worker);   // parent
 #define parent__runTask(pbtask, worker) TaskQueue__runTask((TaskQueue*)(self), pbtask, worker)
-bool ComplexTaskQueue__runTask(_Inout_ ComplexTaskQueue* self, _Inout_ BasicTask** pbtask,
-                               _In_ TQWorker* worker)
+bool ComplexTaskQueue__runTask(_In_ ComplexTaskQueue* self, _Inout_ BasicTask** pbtask, _In_ TQWorker* worker)
 {
     // context: This is called from worker threads. The task pointed to by pbtask has been removed
     // from the run queue and exists only in the parameter; so we MUST do something with it.
@@ -471,9 +468,9 @@ bool ComplexTaskQueue__runTask(_Inout_ ComplexTaskQueue* self, _Inout_ BasicTask
     return completed;
 }
 
-extern bool TaskQueue_add(_Inout_ TaskQueue* self, _In_ BasicTask* btask);   // parent
+extern bool TaskQueue_add(_In_ TaskQueue* self, _In_ BasicTask* btask);   // parent
 #define parent_add(btask) TaskQueue_add((TaskQueue*)(self), btask)
-bool ComplexTaskQueue_add(_Inout_ ComplexTaskQueue* self, _In_ BasicTask* btask)
+bool ComplexTaskQueue_add(_In_ ComplexTaskQueue* self, _In_ BasicTask* btask)
 {
     if (atomicLoad(uint32, &self->state, Relaxed) != TQState_Running)
         return false;
@@ -533,9 +530,9 @@ bool ComplexTaskQueue_add(_Inout_ ComplexTaskQueue* self, _In_ BasicTask* btask)
     return true;
 }
 
-extern bool TaskQueue__queueMaint(_Inout_ TaskQueue* self);   // parent
+extern bool TaskQueue__queueMaint(_In_ TaskQueue* self);   // parent
 #define parent__queueMaint() TaskQueue__queueMaint((TaskQueue*)(self))
-bool ComplexTaskQueue__queueMaint(_Inout_ ComplexTaskQueue* self)
+bool ComplexTaskQueue__queueMaint(_In_ ComplexTaskQueue* self)
 {
     int64 now = clockTimer();
 

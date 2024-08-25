@@ -96,7 +96,7 @@ static void writeUnbound(StreamBuffer *bf, Class *cls, Class *cur, sa_Method *do
             methodImplName(&implname, cls, m->name);
             methodAnnotations(&annos, m);
             if (!m->standalone)
-                strNConcat(&ln, annos, m->returntype, m->predecr, _S" ", implname, _S"(_Inout_ ", cls->name, _S"* self");
+                strNConcat(&ln, annos, m->returntype, m->predecr, _S" ", implname, _S"(_In_ ", cls->name, _S"* self");
             else
                 strNConcat(&ln, annos, m->returntype, m->predecr, _S" ", implname, _S"(");
 
@@ -206,7 +206,7 @@ void writeIfDecl(StreamBuffer *bf, Interface *iface)
         Method *m = iface->allmethods.a[i];
         writeComments(bf, m->comments, 4, false);
         methodAnnotations(&annos, m);
-        strNConcat(&ln, _S"    ", annos, m->returntype, m->predecr, _S" ", _S"(*", m->name, _S")(_Inout_ void* self");
+        strNConcat(&ln, _S"    ", annos, m->returntype, m->predecr, _S" ", _S"(*", m->name, _S")(_In_ void* self");
         for (int j = 0; j < saSize(m->params); j++) {
             Param *p = m->params.a[j];
             string ptype = p->type;

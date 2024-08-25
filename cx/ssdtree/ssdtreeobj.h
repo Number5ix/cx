@@ -28,7 +28,7 @@ typedef struct SSDTree_ClassIf {
     ObjIface* _parent;
     size_t _size;
 
-    _objfactory_guaranteed SSDNode* (*createNode)(_Inout_ void* self, _In_range_(SSD_Create_None+1, SSD_Create_Count-1) SSDCreateType crtype);
+    _objfactory_guaranteed SSDNode* (*createNode)(_In_ void* self, _In_range_(SSD_Create_None+1, SSD_Create_Count-1) SSDCreateType crtype);
 } SSDTree_ClassIf;
 extern SSDTree_ClassIf SSDTree_ClassIf_tmpl;
 

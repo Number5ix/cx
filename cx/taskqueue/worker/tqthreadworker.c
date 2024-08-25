@@ -60,7 +60,7 @@ _objfactory_guaranteed TQThreadWorker* TQThreadWorker_create(int32 num)
     return self;
 }
 
-bool TQThreadWorker_startThread(_Inout_ TQThreadWorker* self, _In_ TaskQueue* tq)
+bool TQThreadWorker_startThread(_In_ TQThreadWorker* self, _In_ TaskQueue* tq)
 {
     TQThreadPoolRunner* runner = objDynCast(TQThreadPoolRunner, tq->runner);
     if (!runner)
@@ -86,7 +86,7 @@ bool TQThreadWorker_startThread(_Inout_ TQThreadWorker* self, _In_ TaskQueue* tq
     return self->thr;
 }
 
-int64 TQThreadWorker_tick(_Inout_ TQThreadWorker* self, _In_ TaskQueue* tq)
+int64 TQThreadWorker_tick(_In_ TQThreadWorker* self, _In_ TaskQueue* tq)
 {
     BasicTask* btask;
     int64 waittime  = timeForever;
@@ -139,7 +139,7 @@ int64 TQThreadWorker_tick(_Inout_ TQThreadWorker* self, _In_ TaskQueue* tq)
     return waittime;
 }
 
-void TQThreadWorker_destroy(_Inout_ TQThreadWorker* self)
+void TQThreadWorker_destroy(_In_ TQThreadWorker* self)
 {
     // Autogen begins -----
     objRelease(&self->thr);

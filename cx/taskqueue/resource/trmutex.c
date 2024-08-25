@@ -11,7 +11,7 @@
 // ==================== Auto-generated section ends ======================
 #include <cx/taskqueue/taskqueue.h>
 
-void TRMutex_wakeup(_Inout_ TRMutex* self)
+void TRMutex_wakeup(_In_ TRMutex* self)
 {
     // Get a task from the waitlist (hashtables retain insertion order)
     // and advance it so it can try to acquire the mutex.
@@ -27,7 +27,7 @@ void TRMutex_wakeup(_Inout_ TRMutex* self)
     }
 }
 
-bool TRMutex_registerTask(_Inout_ TRMutex* self, ComplexTask* task)
+bool TRMutex_registerTask(_In_ TRMutex* self, ComplexTask* task)
 {
     htelem ret = 0;
 
@@ -38,12 +38,12 @@ bool TRMutex_registerTask(_Inout_ TRMutex* self, ComplexTask* task)
     return ret != 0;
 }
 
-bool TRMutex_canAcquire(_Inout_ TRMutex* self, ComplexTask* task)
+bool TRMutex_canAcquire(_In_ TRMutex* self, ComplexTask* task)
 {
     return true;
 }
 
-bool TRMutex_tryAcquire(_Inout_ TRMutex* self, ComplexTask* task)
+bool TRMutex_tryAcquire(_In_ TRMutex* self, ComplexTask* task)
 {
     bool ret = mutexTryAcquire(&self->mtx);
 
@@ -57,13 +57,13 @@ bool TRMutex_tryAcquire(_Inout_ TRMutex* self, ComplexTask* task)
     return ret;
 }
 
-void TRMutex_release(_Inout_ TRMutex* self, ComplexTask* task)
+void TRMutex_release(_In_ TRMutex* self, ComplexTask* task)
 {
     mutexRelease(&self->mtx);
     TRMutex_wakeup(self);
 }
 
-_objinit_guaranteed bool TRMutex_init(_Inout_ TRMutex* self)
+_objinit_guaranteed bool TRMutex_init(_In_ TRMutex* self)
 {
     // Autogen begins -----
     mutexInit(&self->mtx);
@@ -73,7 +73,7 @@ _objinit_guaranteed bool TRMutex_init(_Inout_ TRMutex* self)
     // Autogen ends -------
 }
 
-void TRMutex_destroy(_Inout_ TRMutex* self)
+void TRMutex_destroy(_In_ TRMutex* self)
 {
     // Autogen begins -----
     mutexDestroy(&self->mtx);

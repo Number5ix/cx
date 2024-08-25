@@ -24,7 +24,7 @@ _objfactory_guaranteed TaskRequiresTask* TaskRequiresTask_create(_In_ Task* dept
     return self;
 }
 
-uint32 TaskRequiresTask_state(_Inout_ TaskRequiresTask* self, ComplexTask* task)
+uint32 TaskRequiresTask_state(_In_ TaskRequiresTask* self, ComplexTask* task)
 {
     uint32 state = taskState(self->task);
 
@@ -36,22 +36,22 @@ uint32 TaskRequiresTask_state(_Inout_ TaskRequiresTask* self, ComplexTask* task)
         return TASK_Requires_Wait;
 }
 
-bool TaskRequiresTask_tryAcquire(_Inout_ TaskRequiresTask* self, ComplexTask* task)
+bool TaskRequiresTask_tryAcquire(_In_ TaskRequiresTask* self, ComplexTask* task)
 {
     return false;
 }
 
-bool TaskRequiresTask_release(_Inout_ TaskRequiresTask* self, ComplexTask* task)
+bool TaskRequiresTask_release(_In_ TaskRequiresTask* self, ComplexTask* task)
 {
     return false;
 }
 
-void TaskRequiresTask_cancel(_Inout_ TaskRequiresTask* self)
+void TaskRequiresTask_cancel(_In_ TaskRequiresTask* self)
 {
     taskCancel(self->task);
 }
 
-bool TaskRequiresTask_registerTask(_Inout_ TaskRequiresTask* self, _In_ ComplexTask* task)
+bool TaskRequiresTask_registerTask(_In_ TaskRequiresTask* self, _In_ ComplexTask* task)
 {
     Weak(ComplexTask)* wref = objGetWeak(ComplexTask, task);
     bool ret = cchainAttach(&self->task->oncomplete, ComplexTask_advanceCallback, stvar(weakref, wref));
@@ -60,7 +60,7 @@ bool TaskRequiresTask_registerTask(_Inout_ TaskRequiresTask* self, _In_ ComplexT
     return ret;
 }
 
-int64 TaskRequiresTask_progress(_Inout_ TaskRequiresTask* self)
+int64 TaskRequiresTask_progress(_In_ TaskRequiresTask* self)
 {
     ComplexTask* ctask = objDynCast(ComplexTask, self->task);
     if (ctask)
@@ -68,7 +68,7 @@ int64 TaskRequiresTask_progress(_Inout_ TaskRequiresTask* self)
     return -1;
 }
 
-void TaskRequiresTask_destroy(_Inout_ TaskRequiresTask* self)
+void TaskRequiresTask_destroy(_In_ TaskRequiresTask* self)
 {
     // Autogen begins -----
     objRelease(&self->task);

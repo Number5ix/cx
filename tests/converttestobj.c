@@ -24,7 +24,7 @@ _objfactory_guaranteed ConvertTestClass* ConvertTestClass_create(int32 ival, flo
     return self;
 }
 
-bool ConvertTestClass_convert(_Inout_ ConvertTestClass* self, stype st, stgeneric* dest, uint32 flags)
+bool ConvertTestClass_convert(_In_ ConvertTestClass* self, stype st, stgeneric* dest, uint32 flags)
 {
     if (STYPE_CLASS(st) == STCLASS_INT || STYPE_CLASS(st) == STCLASS_UINT)
         return stConvert_int(st, dest, stCheckedArg(int32, self->ival), flags);
@@ -39,7 +39,7 @@ bool ConvertTestClass_convert(_Inout_ ConvertTestClass* self, stype st, stgeneri
     return false;
 }
 
-void ConvertTestClass_destroy(_Inout_ ConvertTestClass* self)
+void ConvertTestClass_destroy(_In_ ConvertTestClass* self)
 {
     // Autogen begins -----
     strDestroy(&self->sval);

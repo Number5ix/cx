@@ -16,7 +16,7 @@ static void mptaskSetFail(_Inout_ MultiphaseTask* self)
     self->_phase = 0;
 }
 
-_objinit_guaranteed bool MultiphaseTask_init(_Inout_ MultiphaseTask* self)
+_objinit_guaranteed bool MultiphaseTask_init(_In_ MultiphaseTask* self)
 {
     self->flags |= TASK_Soft_Requires;   // ensure that finish is always called
     saInit(&self->phases, ptr, 1);
@@ -26,7 +26,7 @@ _objinit_guaranteed bool MultiphaseTask_init(_Inout_ MultiphaseTask* self)
     // Autogen ends -------
 }
 
-void MultiphaseTask_destroy(_Inout_ MultiphaseTask* self)
+void MultiphaseTask_destroy(_In_ MultiphaseTask* self)
 {
     // Autogen begins -----
     saDestroy(&self->phases);
@@ -34,8 +34,7 @@ void MultiphaseTask_destroy(_Inout_ MultiphaseTask* self)
     // Autogen ends -------
 }
 
-uint32 MultiphaseTask_run(_Inout_ MultiphaseTask* self, _In_ TaskQueue* tq, _In_ TQWorker* worker,
-                          _Inout_ TaskControl* tcon)
+uint32 MultiphaseTask_run(_In_ MultiphaseTask* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon)
 {
     bool done = false;
     uint32 ret;
@@ -96,13 +95,12 @@ uint32 MultiphaseTask_run(_Inout_ MultiphaseTask* self, _In_ TaskQueue* tq, _In_
     return ret;
 }
 
-uint32 MultiphaseTask_finish(_Inout_ MultiphaseTask* self, uint32 result, TaskControl* tcon)
+uint32 MultiphaseTask_finish(_In_ MultiphaseTask* self, uint32 result, TaskControl* tcon)
 {
     return result;
 }
 
-void MultiphaseTask__addPhases(_Inout_ MultiphaseTask* self, int32 num, MPTPhaseFunc parr[],
-                               bool fail)
+void MultiphaseTask__addPhases(_In_ MultiphaseTask* self, int32 num, MPTPhaseFunc parr[], bool fail)
 {
     sa_MPTPhaseFunc* phasearray = fail ? &self->failphases : &self->phases;
     int32 csize                 = saSize(*phasearray);

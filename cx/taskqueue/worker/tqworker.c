@@ -10,10 +10,10 @@
 // clang-format on
 // ==================== Auto-generated section ends ======================
 
-void TQWorker_onStart(_Inout_ TQWorker* self, _In_ TaskQueue* tq)
+void TQWorker_onStart(_In_ TQWorker* self, _In_ TaskQueue* tq)
 {}
 
-void TQWorker_onStop(_Inout_ TQWorker* self, _In_ TaskQueue* tq)
+void TQWorker_onStop(_In_ TQWorker* self, _In_ TaskQueue* tq)
 {}
 
 // Autogen begins -----

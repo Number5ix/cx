@@ -19,7 +19,7 @@ _objfactory_guaranteed TQInWorkerManager* TQInWorkerManager_create()
     return self;
 }
 
-_objinit_guaranteed bool TQInWorkerManager_init(_Inout_ TQInWorkerManager* self)
+_objinit_guaranteed bool TQInWorkerManager_init(_In_ TQInWorkerManager* self)
 {
     self->needsWorkerTick = true;
     // Autogen begins -----
@@ -28,9 +28,9 @@ _objinit_guaranteed bool TQInWorkerManager_init(_Inout_ TQInWorkerManager* self)
     // Autogen ends -------
 }
 
-extern void TQManager_notify(_Inout_ TQManager* self, bool wakeup);   // parent
+extern void TQManager_notify(_In_ TQManager* self, bool wakeup);   // parent
 #define parent_notify(wakeup) TQManager_notify((TQManager*)(self), wakeup)
-void TQInWorkerManager_notify(_Inout_ TQInWorkerManager* self, bool wakeup)
+void TQInWorkerManager_notify(_In_ TQInWorkerManager* self, bool wakeup)
 {
     if (self->tq && !atomicLoad(bool, &self->needrun, Relaxed)) {
         atomicStore(bool, &self->needrun, true, Relaxed);
@@ -39,9 +39,9 @@ void TQInWorkerManager_notify(_Inout_ TQInWorkerManager* self, bool wakeup)
     }
 }
 
-extern int64 TQThreadPoolManager_tick(_Inout_ TQThreadPoolManager* self);   // parent
+extern int64 TQThreadPoolManager_tick(_In_ TQThreadPoolManager* self);   // parent
 #define parent_tick() TQThreadPoolManager_tick((TQThreadPoolManager*)(self))
-int64 TQInWorkerManager_tick(_Inout_ TQInWorkerManager* self)
+int64 TQInWorkerManager_tick(_In_ TQInWorkerManager* self)
 {
     int64 ret = MAX_MANAGER_INTERVAL;
 
@@ -61,9 +61,9 @@ int64 TQInWorkerManager_tick(_Inout_ TQInWorkerManager* self)
     return ret;
 }
 
-extern void TQManager_pretask(_Inout_ TQManager* self);   // parent
+extern void TQManager_pretask(_In_ TQManager* self);   // parent
 #define parent_pretask() TQManager_pretask((TQManager*)(self))
-void TQInWorkerManager_pretask(_Inout_ TQInWorkerManager* self)
+void TQInWorkerManager_pretask(_In_ TQInWorkerManager* self)
 {
     if (mutexTryAcquire(&self->mgrlock)) {
         tqthreadpoolmanagerUpdatePoolSize(self);
@@ -71,9 +71,9 @@ void TQInWorkerManager_pretask(_Inout_ TQInWorkerManager* self)
     }
 }
 
-extern bool TQThreadPoolManager_stop(_Inout_ TQThreadPoolManager* self);   // parent
+extern bool TQThreadPoolManager_stop(_In_ TQThreadPoolManager* self);   // parent
 #define parent_stop() TQThreadPoolManager_stop((TQThreadPoolManager*)(self))
-bool TQInWorkerManager_stop(_Inout_ TQInWorkerManager* self)
+bool TQInWorkerManager_stop(_In_ TQInWorkerManager* self)
 {
     bool ret = false;
 
@@ -86,7 +86,7 @@ bool TQInWorkerManager_stop(_Inout_ TQInWorkerManager* self)
     return ret;
 }
 
-void TQInWorkerManager_destroy(_Inout_ TQInWorkerManager* self)
+void TQInWorkerManager_destroy(_In_ TQInWorkerManager* self)
 {
     // Autogen begins -----
     mutexDestroy(&self->mgrlock);

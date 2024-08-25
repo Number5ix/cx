@@ -20,30 +20,30 @@ typedef struct SSDHashNode_ClassIf {
     size_t _size;
 
     // This node is an object that contains values or objects by name
-    bool (*isHashtable)(_Inout_ void* self);
+    bool (*isHashtable)(_In_ void* self);
     // This node is an array that contains values or objects by array index
-    bool (*isArray)(_Inout_ void* self);
+    bool (*isArray)(_In_ void* self);
     // Gets a value. Caller owns the value and must destroy it with stDestroy!
-    bool (*get)(_Inout_ void* self, int32 idx, _In_opt_ strref name, _When_(return == true, _Out_) stvar* out, _Inout_ SSDLockState* _ssdCurrentLockState);
+    bool (*get)(_In_ void* self, int32 idx, _In_opt_ strref name, _When_(return == true, _Out_) stvar* out, _Inout_ SSDLockState* _ssdCurrentLockState);
     // Gets a pointer to a value. This points to the internal storage within the node
     // so it is only guaranteed to be valid while the read lock is held.
-    _Ret_opt_valid_ stvar* (*ptr)(_Inout_ void* self, int32 idx, _In_opt_ strref name, _Inout_ SSDLockState* _ssdCurrentLockState);
+    _Ret_opt_valid_ stvar* (*ptr)(_In_ void* self, int32 idx, _In_opt_ strref name, _Inout_ SSDLockState* _ssdCurrentLockState);
     // Sets the given value
-    bool (*set)(_Inout_ void* self, int32 idx, _In_opt_ strref name, stvar val, _Inout_ SSDLockState* _ssdCurrentLockState);
+    bool (*set)(_In_ void* self, int32 idx, _In_opt_ strref name, stvar val, _Inout_ SSDLockState* _ssdCurrentLockState);
     // Same as setValue but consumes the value
     // (consumes even on failure)
-    bool (*setC)(_Inout_ void* self, int32 idx, _In_opt_ strref name, _Inout_ stvar* val, _Inout_ SSDLockState* _ssdCurrentLockState);
+    bool (*setC)(_In_ void* self, int32 idx, _In_opt_ strref name, _Inout_ stvar* val, _Inout_ SSDLockState* _ssdCurrentLockState);
     // Removes a value
-    bool (*remove)(_Inout_ void* self, int32 idx, _In_opt_ strref name, _Inout_ SSDLockState* _ssdCurrentLockState);
+    bool (*remove)(_In_ void* self, int32 idx, _In_opt_ strref name, _Inout_ SSDLockState* _ssdCurrentLockState);
     // How many values / objects does this node contain?
-    int32 (*count)(_Inout_ void* self, _Inout_ SSDLockState* _ssdCurrentLockState);
+    int32 (*count)(_In_ void* self, _Inout_ SSDLockState* _ssdCurrentLockState);
     // IMPORTANT NOTE: The generic object iterator interface cannot take any parameters;
     // thus it always acquires a transient read lock and holds it until the iterator is
     // destroyed. The caller MUST NOT already have an SSDLock held.
     // If you want to use iterators inside a larger locked transaction or modify the tree,
     // use iterLocked() instead.
-    _Ret_valid_ SSDIterator* (*iter)(_Inout_ void* self);
-    SSDIterator* (*_iterLocked)(_Inout_ void* self, _Inout_ SSDLockState* _ssdCurrentLockState);
+    _Ret_valid_ SSDIterator* (*iter)(_In_ void* self);
+    SSDIterator* (*_iterLocked)(_In_ void* self, _Inout_ SSDLockState* _ssdCurrentLockState);
 } SSDHashNode_ClassIf;
 extern SSDHashNode_ClassIf SSDHashNode_ClassIf_tmpl;
 
@@ -52,15 +52,15 @@ typedef struct SSDHashIter_ClassIf {
     ObjIface* _parent;
     size_t _size;
 
-    bool (*isHashtable)(_Inout_ void* self);
-    bool (*isArray)(_Inout_ void* self);
-    bool (*valid)(_Inout_ void* self);
-    bool (*next)(_Inout_ void* self);
-    bool (*get)(_Inout_ void* self, stvar* out);
-    stvar* (*ptr)(_Inout_ void* self);
-    strref (*name)(_Inout_ void* self);
-    int32 (*idx)(_Inout_ void* self);
-    bool (*iterOut)(_Inout_ void* self, _When_(return == true, _Out_) int32* idx, _When_(return == true, _Out_) strref* name, _When_(return == true, _Out_) stvar** val);
+    bool (*isHashtable)(_In_ void* self);
+    bool (*isArray)(_In_ void* self);
+    bool (*valid)(_In_ void* self);
+    bool (*next)(_In_ void* self);
+    bool (*get)(_In_ void* self, stvar* out);
+    stvar* (*ptr)(_In_ void* self);
+    strref (*name)(_In_ void* self);
+    int32 (*idx)(_In_ void* self);
+    bool (*iterOut)(_In_ void* self, _When_(return == true, _Out_) int32* idx, _When_(return == true, _Out_) strref* name, _When_(return == true, _Out_) stvar** val);
 } SSDHashIter_ClassIf;
 extern SSDHashIter_ClassIf SSDHashIter_ClassIf_tmpl;
 

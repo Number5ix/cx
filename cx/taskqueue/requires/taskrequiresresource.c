@@ -23,19 +23,19 @@ _objfactory_guaranteed TaskRequiresResource* TaskRequiresResource_create(_In_ Ta
     return self;
 }
 
-uint32 TaskRequiresResource_state(_Inout_ TaskRequiresResource* self, ComplexTask* task)
+uint32 TaskRequiresResource_state(_In_ TaskRequiresResource* self, ComplexTask* task)
 {
     return self->owned ?
         TASK_Requires_Ok :
         (taskresourceCanAcquire(self->res, task) ? TASK_Requires_Acquire : TASK_Requires_Wait);
 }
 
-int64 TaskRequiresResource_progress(_Inout_ TaskRequiresResource* self)
+int64 TaskRequiresResource_progress(_In_ TaskRequiresResource* self)
 {
     return -1;
 }
 
-bool TaskRequiresResource_tryAcquire(_Inout_ TaskRequiresResource* self, ComplexTask* task)
+bool TaskRequiresResource_tryAcquire(_In_ TaskRequiresResource* self, ComplexTask* task)
 {
     if (self->owned)
         return false;
@@ -48,7 +48,7 @@ bool TaskRequiresResource_tryAcquire(_Inout_ TaskRequiresResource* self, Complex
     return false;
 }
 
-bool TaskRequiresResource_release(_Inout_ TaskRequiresResource* self, ComplexTask* task)
+bool TaskRequiresResource_release(_In_ TaskRequiresResource* self, ComplexTask* task)
 {
     if (!self->owned)
         return false;
@@ -58,16 +58,16 @@ bool TaskRequiresResource_release(_Inout_ TaskRequiresResource* self, ComplexTas
     return true;
 }
 
-void TaskRequiresResource_cancel(_Inout_ TaskRequiresResource* self)
+void TaskRequiresResource_cancel(_In_ TaskRequiresResource* self)
 {
 }
 
-bool TaskRequiresResource_registerTask(_Inout_ TaskRequiresResource* self, _In_ ComplexTask* task)
+bool TaskRequiresResource_registerTask(_In_ TaskRequiresResource* self, _In_ ComplexTask* task)
 {
     return taskresourceRegisterTask(self->res, task);
 }
 
-void TaskRequiresResource_destroy(_Inout_ TaskRequiresResource* self)
+void TaskRequiresResource_destroy(_In_ TaskRequiresResource* self)
 {
     // Autogen begins -----
     objRelease(&self->res);

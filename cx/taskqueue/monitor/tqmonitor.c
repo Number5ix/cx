@@ -11,7 +11,7 @@
 // ==================== Auto-generated section ends ======================
 #include "cx/taskqueue/taskqueue_private.h"
 
-void TQMonitor_destroy(_Inout_ TQMonitor* self)
+void TQMonitor_destroy(_In_ TQMonitor* self)
 {
     // Autogen begins -----
     objRelease(&self->tq);

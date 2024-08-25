@@ -37,23 +37,23 @@ typedef struct TaskQueue_ClassIf {
     size_t _size;
 
     // start the queue, begin running tasks
-    bool (*start)(_Inout_ void* self);
+    bool (*start)(_In_ void* self);
     // stop the queue
-    bool (*stop)(_Inout_ void* self, int64 timeout);
+    bool (*stop)(_In_ void* self, int64 timeout);
     // add a task to the queue to run immediately
-    bool (*add)(_Inout_ void* self, _In_ BasicTask* btask);
+    bool (*add)(_In_ void* self, _In_ BasicTask* btask);
     // run one more more tasks -- only valid in manual mode
-    int64 (*tick)(_Inout_ void* self);
+    int64 (*tick)(_In_ void* self);
     // internal function for manager to tell the queue to process its doneq
-    bool (*_processDone)(_Inout_ void* self);
+    bool (*_processDone)(_In_ void* self);
     // internal function for any additional processing that the queue needs to do in the manager thread
-    int64 (*_processExtra)(_Inout_ void* self, bool taskscompleted);
+    int64 (*_processExtra)(_In_ void* self, bool taskscompleted);
     // internal function that the manager should call to perform any queue maintenance
-    bool (*_queueMaint)(_Inout_ void* self);
+    bool (*_queueMaint)(_In_ void* self);
     // internal function workers should call to actually run a task and process the results
-    bool (*_runTask)(_Inout_ void* self, _Inout_ BasicTask** pbtask, _In_ TQWorker* worker);
+    bool (*_runTask)(_In_ void* self, _Inout_ BasicTask** pbtask, _In_ TQWorker* worker);
     // deletes all tasks in queue, for internal use only
-    void (*_clear)(_Inout_ void* self);
+    void (*_clear)(_In_ void* self);
 } TaskQueue_ClassIf;
 extern TaskQueue_ClassIf TaskQueue_ClassIf_tmpl;
 

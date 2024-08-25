@@ -53,12 +53,12 @@ typedef struct ComplexTask_ClassIf {
     ObjIface* _parent;
     size_t _size;
 
-    uint32 (*run)(_Inout_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
-    bool (*cancel)(_Inout_ void* self);
-    bool (*reset)(_Inout_ void* self);
-    bool (*wait)(_Inout_ void* self, int64 timeout);
-    intptr (*cmp)(_Inout_ void* self, void* other, uint32 flags);
-    uint32 (*hash)(_Inout_ void* self, uint32 flags);
+    uint32 (*run)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
+    bool (*cancel)(_In_ void* self);
+    bool (*reset)(_In_ void* self);
+    bool (*wait)(_In_ void* self, int64 timeout);
+    intptr (*cmp)(_In_ void* self, void* other, uint32 flags);
+    uint32 (*hash)(_In_ void* self, uint32 flags);
 } ComplexTask_ClassIf;
 extern ComplexTask_ClassIf ComplexTask_ClassIf_tmpl;
 
@@ -103,49 +103,49 @@ typedef struct ComplexTask_WeakRef {
 } ComplexTask_WeakRef;
 #define ComplexTask_WeakRef(inst) ((ComplexTask_WeakRef*)(unused_noeval((inst) && &((inst)->_is_ComplexTask_WeakRef)), (inst)))
 
-void ComplexTask_requireTask(_Inout_ ComplexTask* self, _In_ Task* dep, bool failok);
+void ComplexTask_requireTask(_In_ ComplexTask* self, _In_ Task* dep, bool failok);
 // void ctaskRequireTask(ComplexTask* self, Task* dep, bool failok);
 //
 // Wrapper around require() to depend on a task completing
 #define ctaskRequireTask(self, dep, failok) ComplexTask_requireTask(ComplexTask(self), Task(dep), failok)
 
-void ComplexTask_requireResource(_Inout_ ComplexTask* self, _In_ TaskResource* res);
+void ComplexTask_requireResource(_In_ ComplexTask* self, _In_ TaskResource* res);
 // void ctaskRequireResource(ComplexTask* self, TaskResource* res);
 //
 // Wrapper around require() to depend on acquiring a resource
 #define ctaskRequireResource(self, res) ComplexTask_requireResource(ComplexTask(self), TaskResource(res))
 
-void ComplexTask_requireGate(_Inout_ ComplexTask* self, _In_ TRGate* gate);
+void ComplexTask_requireGate(_In_ ComplexTask* self, _In_ TRGate* gate);
 // void ctaskRequireGate(ComplexTask* self, TRGate* gate);
 //
 // Wrapper around require() to depend on a gate being opened
 #define ctaskRequireGate(self, gate) ComplexTask_requireGate(ComplexTask(self), TRGate(gate))
 
-void ComplexTask_require(_Inout_ ComplexTask* self, _In_ TaskRequires* req);
+void ComplexTask_require(_In_ ComplexTask* self, _In_ TaskRequires* req);
 // void ctaskRequire(ComplexTask* self, TaskRequires* req);
 //
 // Add a requirement for the task to run
 #define ctaskRequire(self, req) ComplexTask_require(ComplexTask(self), TaskRequires(req))
 
-bool ComplexTask_advance(_Inout_ ComplexTask* self);
+bool ComplexTask_advance(_In_ ComplexTask* self);
 // bool ctaskAdvance(ComplexTask* self);
 //
 // advance a deferred task to run as soon as possible
 #define ctaskAdvance(self) ComplexTask_advance(ComplexTask(self))
 
-bool ComplexTask_checkRequires(_Inout_ ComplexTask* self, bool updateProgress);
+bool ComplexTask_checkRequires(_In_ ComplexTask* self, bool updateProgress);
 // bool ctaskCheckRequires(ComplexTask* self, bool updateProgress);
 //
 // check if this task can run because all requirements are satisfied
 #define ctaskCheckRequires(self, updateProgress) ComplexTask_checkRequires(ComplexTask(self), updateProgress)
 
-bool ComplexTask_acquireRequires(_Inout_ ComplexTask* self, sa_TaskRequires* acquired);
+bool ComplexTask_acquireRequires(_In_ ComplexTask* self, sa_TaskRequires* acquired);
 // bool ctaskAcquireRequires(ComplexTask* self, sa_TaskRequires* acquired);
 //
 // try to acquire required resources
 #define ctaskAcquireRequires(self, acquired) ComplexTask_acquireRequires(ComplexTask(self), acquired)
 
-bool ComplexTask_releaseRequires(_Inout_ ComplexTask* self, sa_TaskRequires resources);
+bool ComplexTask_releaseRequires(_In_ ComplexTask* self, sa_TaskRequires resources);
 // bool ctaskReleaseRequires(ComplexTask* self, sa_TaskRequires resources);
 //
 // release a list of acquired resources

@@ -11,7 +11,7 @@
 // ==================== Auto-generated section ends ======================
 #include <cx/taskqueue/taskqueue.h>
 
-bool BasicTask_reset(_Inout_ BasicTask* self)
+bool BasicTask_reset(_In_ BasicTask* self)
 {
     uint32 oldval   = atomicLoad(uint32, &self->state, Relaxed);
     uint32 oldstate = oldval & TASK_State_Mask;
@@ -34,7 +34,7 @@ bool BasicTask_reset(_Inout_ BasicTask* self)
     return true;
 }
 
-bool BasicTask_cancel(_Inout_ BasicTask* self)
+bool BasicTask_cancel(_In_ BasicTask* self)
 {
     uint32 oldval   = atomicLoad(uint32, &self->state, Relaxed);
     uint32 oldstate = oldval & TASK_State_Mask;
@@ -54,7 +54,7 @@ bool BasicTask_cancel(_Inout_ BasicTask* self)
     return true;
 }
 
-bool BasicTask__setState(_Inout_ BasicTask* self, uint32 newstate)
+bool BasicTask__setState(_In_ BasicTask* self, uint32 newstate)
 {
     uint32 oldval     = atomicLoad(uint32, &self->state, Relaxed);
     uint32 oldstate   = oldval & TASK_State_Mask;

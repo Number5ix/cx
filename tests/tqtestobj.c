@@ -26,7 +26,7 @@ _objfactory_guaranteed TQTest1* TQTest1_create(int num1, int num2, Event* notify
     return self;
 }
 
-uint32 TQTest1_run(_Inout_ TQTest1* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon)
+uint32 TQTest1_run(_In_ TQTest1* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon)
 {
     self->total = self->num[0] + self->num[1];
     tcon->notifyev = self->notify;
@@ -48,7 +48,7 @@ _objfactory_guaranteed TQTestFail* TQTestFail_create(int n, Event* notify)
     return self;
 }
 
-uint32 TQTestFail_run(_Inout_ TQTestFail* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon)
+uint32 TQTestFail_run(_In_ TQTestFail* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon)
 {
     tcon->notifyev = self->notify;
     return self->n & 1 ? TASK_Result_Success :
@@ -73,7 +73,7 @@ _objfactory_guaranteed TQTestCC1* TQTestCC1_create(int num1, int num2, TaskQueue
     return self;
 }
 
-uint32 TQTestCC1_run(_Inout_ TQTestCC1* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon)
+uint32 TQTestCC1_run(_In_ TQTestCC1* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon)
 {
     TQTestCC2 *task = tqtestcc2Create(self->num[0] + self->num[1], self->accum, self->counter, self->notify);
     tqRun(self->destq, &task);
@@ -96,7 +96,7 @@ _objfactory_guaranteed TQTestCC2* TQTestCC2_create(int total, int* accum, int* c
     return self;
 }
 
-uint32 TQTestCC2_run(_Inout_ TQTestCC2* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon)
+uint32 TQTestCC2_run(_In_ TQTestCC2* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon)
 {
     *self->accum += self->total;
     *self->counter += 1;
@@ -121,7 +121,7 @@ _objfactory_guaranteed TQTestS1* TQTestS1_create(int order, int64 dtime, Event* 
     return self;
 }
 
-uint32 TQTestS1_run(_Inout_ TQTestS1* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon)
+uint32 TQTestS1_run(_In_ TQTestS1* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon)
 {
     if (self->rantime == 0) {
         self->rantime = clockTimer();
@@ -157,7 +157,7 @@ _objfactory_guaranteed TQTestS2* TQTestS2_create(Task* waitfor, Event* notify)
     return self;
 }
 
-uint32 TQTestS2_run(_Inout_ TQTestS2* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon)
+uint32 TQTestS2_run(_In_ TQTestS2* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon)
 {
     int state = btaskState(self->waitfor);
     if(state == TASK_Succeeded) {
@@ -173,7 +173,7 @@ uint32 TQTestS2_run(_Inout_ TQTestS2* self, _In_ TaskQueue* tq, _In_ TQWorker* w
     return TASK_Result_Schedule;
 }
 
-void TQTestS2_destroy(_Inout_ TQTestS2* self)
+void TQTestS2_destroy(_In_ TQTestS2* self)
 {
     // Autogen begins -----
     objRelease(&self->waitfor);
@@ -193,7 +193,7 @@ _objfactory_guaranteed TQDelayTest* TQDelayTest_create(int64 len)
     return self;
 }
 
-uint32 TQDelayTest_run(_Inout_ TQDelayTest* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon)
+uint32 TQDelayTest_run(_In_ TQDelayTest* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon)
 {
     osSleep(self->len);
     return TASK_Result_Success;
@@ -211,7 +211,7 @@ _objfactory_guaranteed TQMTest* TQMTest_create(Event* notify)
     return self;
 }
 
-uint32 TQMTest_run(_Inout_ TQMTest* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon)
+uint32 TQMTest_run(_In_ TQMTest* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon)
 {
     tcon->notifyev = self->notify;
 
@@ -231,7 +231,7 @@ _objfactory_guaranteed TQRTestMtx* TQRTestMtx_create(ReqTestState* rts, int num)
     return self;
 }
 
-uint32 TQRTestMtx_run(_Inout_ TQRTestMtx* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon)
+uint32 TQRTestMtx_run(_In_ TQRTestMtx* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon)
 {
     ReqTestState* rts = self->rts;
     if (atomicLoad(bool, &rts->running, Relaxed)) {
@@ -263,7 +263,7 @@ _objfactory_guaranteed TQRTestFifo* TQRTestFifo_create(ReqTestState* rts, int se
     return self;
 }
 
-uint32 TQRTestFifo_run(_Inout_ TQRTestFifo* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon)
+uint32 TQRTestFifo_run(_In_ TQRTestFifo* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon)
 {
     ReqTestState* rts = self->rts;
     if (atomicLoad(bool, &rts->running, Relaxed)) {
@@ -300,8 +300,7 @@ _objfactory_guaranteed TQRTestLifo* TQRTestLifo_create(ReqTestState* rts, int se
     return self;
 }
 
-uint32 TQRTestLifo_run(_Inout_ TQRTestLifo* self, _In_ TaskQueue* tq, _In_ TQWorker* worker,
-                       _Inout_ TaskControl* tcon)
+uint32 TQRTestLifo_run(_In_ TQRTestLifo* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon)
 {
     ReqTestState* rts = self->rts;
     if (atomicLoad(bool, &rts->running, Relaxed)) {
@@ -337,8 +336,7 @@ _objfactory_guaranteed TQRTestGate* TQRTestGate_create(ReqTestState2* rts, int n
     return self;
 }
 
-uint32 TQRTestGate_run(_Inout_ TQRTestGate* self, _In_ TaskQueue* tq, _In_ TQWorker* worker,
-                       _Inout_ TaskControl* tcon)
+uint32 TQRTestGate_run(_In_ TQRTestGate* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon)
 {
     ReqTestState2* rts = self->rts;
     atomicFetchAdd(int32, &rts->sum, self->num, Relaxed);
@@ -493,10 +491,9 @@ _objfactory_guaranteed TQMPTest* TQMPTest_create(int variant, int idx, MPTestSta
     return self;
 }
 
-extern uint32 MultiphaseTask_finish(_Inout_ MultiphaseTask* self, uint32 result,
-                                    TaskControl* tcon);   // parent
+extern uint32 MultiphaseTask_finish(_In_ MultiphaseTask* self, uint32 result, TaskControl* tcon);   // parent
 #define parent_finish(result, tcon) MultiphaseTask_finish((MultiphaseTask*)(self), result, tcon)
-uint32 TQMPTest_finish(_Inout_ TQMPTest* self, uint32 result, TaskControl* tcon)
+uint32 TQMPTest_finish(_In_ TQMPTest* self, uint32 result, TaskControl* tcon)
 {
     if (self->variant < 5 && result != TASK_Result_Success)
         atomicStore(bool, &self->mps->fail, true, Relaxed);

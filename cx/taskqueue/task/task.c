@@ -13,7 +13,7 @@
 #include <cx/thread/event.h>
 #include <cx/utils/ccallbacks.h>
 
-_objinit_guaranteed bool Task_init(_Inout_ Task* self)
+_objinit_guaranteed bool Task_init(_In_ Task* self)
 {
     if (!self->name)
         self->name = _S"Task";
@@ -22,7 +22,7 @@ _objinit_guaranteed bool Task_init(_Inout_ Task* self)
     // Autogen ends -------
 }
 
-void Task_destroy(_Inout_ Task* self)
+void Task_destroy(_In_ Task* self)
 {
     // Autogen begins -----
     strDestroy(&self->name);
@@ -30,9 +30,9 @@ void Task_destroy(_Inout_ Task* self)
     // Autogen ends -------
 }
 
-extern bool BasicTask_reset(_Inout_ BasicTask* self);   // parent
+extern bool BasicTask_reset(_In_ BasicTask* self);   // parent
 #define parent_reset() BasicTask_reset((BasicTask*)(self))
-bool Task_reset(_Inout_ Task* self)
+bool Task_reset(_In_ Task* self)
 {
     if (!parent_reset())
         return false;
@@ -44,7 +44,7 @@ bool Task_reset(_Inout_ Task* self)
     return true;
 }
 
-bool Task_wait(_Inout_ Task* self, int64 timeout)
+bool Task_wait(_In_ Task* self, int64 timeout)
 {
     SharedEvent* waitev = sheventCreate(0);
     SharedEvent* sigev  = sheventAcquire(waitev);

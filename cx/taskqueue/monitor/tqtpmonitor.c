@@ -25,7 +25,7 @@ TQThreadPoolMonitor_create(_In_ TaskQueueMonitorConfig* config)
     return self;
 }
 
-_objinit_guaranteed bool TQThreadPoolMonitor_init(_Inout_ TQThreadPoolMonitor* self)
+_objinit_guaranteed bool TQThreadPoolMonitor_init(_In_ TQThreadPoolMonitor* self)
 {
     // Autogen begins -----
     mutexInit(&self->monitorlock);
@@ -192,14 +192,14 @@ static void doWarn(TQThreadPoolMonitor* self, TaskQueue* tq, bool* warned)
     *warned = true;
 }
 
-bool TQThreadPoolMonitor_start(_Inout_ TQThreadPoolMonitor* self, _In_ TaskQueue* tq)
+bool TQThreadPoolMonitor_start(_In_ TQThreadPoolMonitor* self, _In_ TaskQueue* tq)
 {
     self->tq      = objAcquire(tq);
     self->lastrun = clockTimer();
     return true;
 }
 
-int64 TQThreadPoolMonitor_tick(_Inout_ TQThreadPoolMonitor* self)
+int64 TQThreadPoolMonitor_tick(_In_ TQThreadPoolMonitor* self)
 {
     // monitor runs from the manager thread; so we can safely access all
     // the tasks and structures without locking
@@ -319,7 +319,7 @@ int64 TQThreadPoolMonitor_tick(_Inout_ TQThreadPoolMonitor* self)
     return c->mInterval;
 }
 
-bool TQThreadPoolMonitor_stop(_Inout_ TQThreadPoolMonitor* self)
+bool TQThreadPoolMonitor_stop(_In_ TQThreadPoolMonitor* self)
 {
     if (!self->tq)
         return false;
@@ -330,7 +330,7 @@ bool TQThreadPoolMonitor_stop(_Inout_ TQThreadPoolMonitor* self)
     return true;
 }
 
-void TQThreadPoolMonitor_destroy(_Inout_ TQThreadPoolMonitor* self)
+void TQThreadPoolMonitor_destroy(_In_ TQThreadPoolMonitor* self)
 {
     // Autogen begins -----
     mutexDestroy(&self->monitorlock);

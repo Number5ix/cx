@@ -124,7 +124,7 @@ static void writeMethodProto(StreamBuffer *bf, Class *cls, Method *m, bool proto
 
     methodAnnotations(&tmp, m);
     if (!m->standalone)
-        strNConcat(&ln, tmp, m->returntype, m->predecr, _S" ", mname, _S"(_Inout_ ", cls->name, _S"* self");
+        strNConcat(&ln, tmp, m->returntype, m->predecr, _S" ", mname, _S"(_In_ ", cls->name, _S"* self");
     else
         strNConcat(&ln, tmp, m->returntype, m->predecr, _S" ", mname, _S"(");
 

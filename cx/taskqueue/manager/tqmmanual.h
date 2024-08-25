@@ -18,12 +18,12 @@ typedef struct TQManualManager_ClassIf {
     ObjIface* _parent;
     size_t _size;
 
-    bool (*start)(_Inout_ void* self, _In_ TaskQueue* tq);
-    bool (*stop)(_Inout_ void* self);
-    void (*notify)(_Inout_ void* self, bool wakeup);
+    bool (*start)(_In_ void* self, _In_ TaskQueue* tq);
+    bool (*stop)(_In_ void* self);
+    void (*notify)(_In_ void* self, bool wakeup);
     // for in-worker managers, this is called BEFORE a task is run by the worker
-    void (*pretask)(_Inout_ void* self);
-    int64 (*tick)(_Inout_ void* self);
+    void (*pretask)(_In_ void* self);
+    int64 (*tick)(_In_ void* self);
 } TQManualManager_ClassIf;
 extern TQManualManager_ClassIf TQManualManager_ClassIf_tmpl;
 

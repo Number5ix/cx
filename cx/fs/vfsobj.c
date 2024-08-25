@@ -20,7 +20,7 @@ _objfactory_guaranteed VFS* VFS_create(uint32 flags)
     return ret;
 }
 
-_objinit_guaranteed bool VFS_init(_Inout_ VFS* self)
+_objinit_guaranteed bool VFS_init(_In_ VFS* self)
 {
     self->root = _vfsDirCreate(self, NULL);
     strDup(&self->curdir, fsPathSepStr);
@@ -32,7 +32,7 @@ _objinit_guaranteed bool VFS_init(_Inout_ VFS* self)
     // Autogen ends -------
 }
 
-void VFS_destroy(_Inout_ VFS* self)
+void VFS_destroy(_In_ VFS* self)
 {
     _stDestroy(stFullType(custom(ptr, VFSDir_ops)), &stgeneric(ptr, self->root), 0);
     // Autogen begins -----
@@ -55,7 +55,7 @@ _objfactory_guaranteed VFSMount* VFSMount_create(ObjInst* provider, uint32 flags
     return ret;
 }
 
-void VFSMount_destroy(_Inout_ VFSMount* self)
+void VFSMount_destroy(_In_ VFSMount* self)
 {
     // Autogen begins -----
     objRelease(&self->provider);

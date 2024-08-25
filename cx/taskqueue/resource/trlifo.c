@@ -11,7 +11,7 @@
 // ==================== Auto-generated section ends ======================
 #include <cx/taskqueue/taskqueue.h>
 
-bool TRLifo_registerTask(_Inout_ TRLifo* self, ComplexTask* task)
+bool TRLifo_registerTask(_In_ TRLifo* self, ComplexTask* task)
 {
     withMutex (&self->_lifomtx) {
         // new tasks go to the end of the list
@@ -21,7 +21,7 @@ bool TRLifo_registerTask(_Inout_ TRLifo* self, ComplexTask* task)
     return true;
 }
 
-bool TRLifo_canAcquire(_Inout_ TRLifo* self, ComplexTask* task)
+bool TRLifo_canAcquire(_In_ TRLifo* self, ComplexTask* task)
 {
     bool ret = false;
 
@@ -37,7 +37,7 @@ bool TRLifo_canAcquire(_Inout_ TRLifo* self, ComplexTask* task)
     return ret;
 }
 
-bool TRLifo_tryAcquire(_Inout_ TRLifo* self, ComplexTask* task)
+bool TRLifo_tryAcquire(_In_ TRLifo* self, ComplexTask* task)
 {
     bool ret = false;
 
@@ -59,7 +59,7 @@ bool TRLifo_tryAcquire(_Inout_ TRLifo* self, ComplexTask* task)
     return ret;
 }
 
-void TRLifo_release(_Inout_ TRLifo* self, ComplexTask* task)
+void TRLifo_release(_In_ TRLifo* self, ComplexTask* task)
 {
     ComplexTask* release = NULL;
 
@@ -77,7 +77,7 @@ void TRLifo_release(_Inout_ TRLifo* self, ComplexTask* task)
         ctaskAdvance(release);
 }
 
-_objinit_guaranteed bool TRLifo_init(_Inout_ TRLifo* self)
+_objinit_guaranteed bool TRLifo_init(_In_ TRLifo* self)
 {
     // Autogen begins -----
     mutexInit(&self->_lifomtx);
@@ -86,7 +86,7 @@ _objinit_guaranteed bool TRLifo_init(_Inout_ TRLifo* self)
     // Autogen ends -------
 }
 
-void TRLifo_destroy(_Inout_ TRLifo* self)
+void TRLifo_destroy(_In_ TRLifo* self)
 {
     // Autogen begins -----
     mutexDestroy(&self->_lifomtx);

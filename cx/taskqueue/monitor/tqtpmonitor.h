@@ -18,9 +18,9 @@ typedef struct TQThreadPoolMonitor_ClassIf {
     ObjIface* _parent;
     size_t _size;
 
-    bool (*start)(_Inout_ void* self, _In_ TaskQueue* tq);
-    int64 (*tick)(_Inout_ void* self);
-    bool (*stop)(_Inout_ void* self);
+    bool (*start)(_In_ void* self, _In_ TaskQueue* tq);
+    int64 (*tick)(_In_ void* self);
+    bool (*stop)(_In_ void* self);
 } TQThreadPoolMonitor_ClassIf;
 extern TQThreadPoolMonitor_ClassIf TQThreadPoolMonitor_ClassIf_tmpl;
 

@@ -19,7 +19,7 @@ _objfactory_guaranteed TQManualManager* TQManualManager_create()
     return self;
 }
 
-_objinit_guaranteed bool TQManualManager_init(_Inout_ TQManualManager* self)
+_objinit_guaranteed bool TQManualManager_init(_In_ TQManualManager* self)
 {
     self->needsWorkerTick = true;
     // Autogen begins -----
@@ -28,9 +28,9 @@ _objinit_guaranteed bool TQManualManager_init(_Inout_ TQManualManager* self)
     // Autogen ends -------
 }
 
-extern void TQManager_notify(_Inout_ TQManager* self, bool wakeup);   // parent
+extern void TQManager_notify(_In_ TQManager* self, bool wakeup);   // parent
 #define parent_notify(wakeup) TQManager_notify((TQManager*)(self), wakeup)
-void TQManualManager_notify(_Inout_ TQManualManager* self, bool wakeup)
+void TQManualManager_notify(_In_ TQManualManager* self, bool wakeup)
 {
     if (self->tq && !atomicLoad(bool, &self->needrun, Relaxed)) {
         atomicStore(bool, &self->needrun, true, Relaxed);
@@ -39,9 +39,9 @@ void TQManualManager_notify(_Inout_ TQManualManager* self, bool wakeup)
     }
 }
 
-extern int64 TQManager_tick(_Inout_ TQManager* self);   // parent
+extern int64 TQManager_tick(_In_ TQManager* self);   // parent
 #define parent_tick() TQManager_tick((TQManager*)(self))
-int64 TQManualManager_tick(_Inout_ TQManualManager* self)
+int64 TQManualManager_tick(_In_ TQManualManager* self)
 {
     int64 ret = timeForever;
 
@@ -73,7 +73,7 @@ int64 TQManualManager_tick(_Inout_ TQManualManager* self)
     return ret;
 }
 
-void TQManualManager_destroy(_Inout_ TQManualManager* self)
+void TQManualManager_destroy(_In_ TQManualManager* self)
 {
     // Autogen begins -----
     mutexDestroy(&self->mgrlock);

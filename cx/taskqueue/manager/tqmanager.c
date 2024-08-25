@@ -11,35 +11,35 @@
 // ==================== Auto-generated section ends ======================
 #include "cx/taskqueue/taskqueue_private.h"
 
-void TQManager_destroy(_Inout_ TQManager* self)
+void TQManager_destroy(_In_ TQManager* self)
 {
     // Autogen begins -----
     objRelease(&self->tq);
     // Autogen ends -------
 }
 
-bool TQManager_start(_Inout_ TQManager* self, _In_ TaskQueue* tq)
+bool TQManager_start(_In_ TQManager* self, _In_ TaskQueue* tq)
 {
     self->tq = objAcquire(tq);
     return true;
 }
 
-bool TQManager_stop(_Inout_ TQManager* self)
+bool TQManager_stop(_In_ TQManager* self)
 {
     objRelease(&self->tq);
     return true;
 }
 
-int64 TQManager_tick(_Inout_ TQManager* self)
+int64 TQManager_tick(_In_ TQManager* self)
 {
     return timeForever;
 }
 
-void TQManager_notify(_Inout_ TQManager* self, bool wakeup)
+void TQManager_notify(_In_ TQManager* self, bool wakeup)
 {
 }
 
-void TQManager_pretask(_Inout_ TQManager* self)
+void TQManager_pretask(_In_ TQManager* self)
 {
 }
 
