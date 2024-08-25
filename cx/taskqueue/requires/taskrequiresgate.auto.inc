@@ -13,7 +13,8 @@ TaskRequiresGate_ClassIf TaskRequiresGate_ClassIf_tmpl = {
 static TRGate_ClassIf _impl_TRGate_TRGate_ClassIf = {
     ._size = sizeof(TRGate_ClassIf),
     ._implements = (ObjIface*)&TRGate_ClassIf_tmpl,
-    .open = (void (*)(void*))TRGate_open,
+    .open = (bool (*)(void*))TRGate_open,
+    .seal = (bool (*)(void*))TRGate_seal,
     .progress = (void (*)(void*))TRGate_progress,
     .registerTask = (bool (*)(void*, ComplexTask*))TRGate_registerTask,
 };

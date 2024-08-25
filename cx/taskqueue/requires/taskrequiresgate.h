@@ -34,7 +34,8 @@ typedef struct TRGate_ClassIf {
     ObjIface* _parent;
     size_t _size;
 
-    void (*open)(_Inout_ void* self);
+    bool (*open)(_Inout_ void* self);
+    bool (*seal)(_Inout_ void* self);
     void (*progress)(_Inout_ void* self);
     bool (*registerTask)(_Inout_ void* self, ComplexTask* task);
 } TRGate_ClassIf;
@@ -78,7 +79,7 @@ typedef struct TRGate {
     atomic(ptr) _weakref;
 
     string name;
-    atomic(bool) isopen;
+    atomic(uint32) state;
     Mutex _wlmtx;
     sa_ComplexTask _waitlist;
     int64 lastprogress;
@@ -102,8 +103,10 @@ _objfactory_guaranteed TRGate* TRGate_create(_In_opt_ strref name);
 // TRGate* trgateCreate(strref name);
 #define trgateCreate(name) TRGate_create(name)
 
-// void trgateOpen(TRGate* self);
+// bool trgateOpen(TRGate* self);
 #define trgateOpen(self) (self)->_->open(TRGate(self))
+// bool trgateSeal(TRGate* self);
+#define trgateSeal(self) (self)->_->seal(TRGate(self))
 // void trgateProgress(TRGate* self);
 #define trgateProgress(self) (self)->_->progress(TRGate(self))
 // bool trgateRegisterTask(TRGate* self, ComplexTask* task);

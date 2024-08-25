@@ -11,15 +11,19 @@
 // the open() method, at which point they are released. Future tasks that depend on the
 // gate will not block.
 
+// A sealed gate is permanently closed and will automatically fail any task that depends
+// on it.
+
 // Gates can optionally track the last time they made progress. This is used for task queues
 // running a monitor; and will count as progress for the tasks depending on the gate, so they
 // are not considered stuck.
 
 class TRGate {
     string name;
-    atomic:bool isopen;
+    atomic:uint32 state;
 
-    void open();
+    bool open();
+    bool seal();
     void progress();
     bool registerTask(ComplexTask *task);
 
