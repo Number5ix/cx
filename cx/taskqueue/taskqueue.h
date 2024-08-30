@@ -149,4 +149,4 @@ _meta_inline bool _btaskCancelled(BasicTask *bt)
 
 #define taskCancel(task) btaskCancel(task)
 
-#define taskWait(task) ftaskWait(task)
+#define taskWait(task, timeout) ftaskWait(task, timeout)
