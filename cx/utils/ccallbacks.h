@@ -9,3 +9,6 @@ bool ccbSignalEvent(stvlist* cvars, stvlist* args);
 
 // Signals and releases the shared event passed as ptr in the first cvar when called
 bool ccbSignalSharedEvent(stvlist* cvars, stvlist* args);
+
+// Given a weak reference to a complex task, advances it
+bool ccbAdvanceTask(stvlist* cvars, stvlist* args);
