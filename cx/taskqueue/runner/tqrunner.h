@@ -33,6 +33,7 @@ typedef struct TQRunner {
     atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
+    bool needsUIEvent;
     TaskQueue* tq;
 } TQRunner;
 extern ObjClassInfo TQRunner_clsinfo;

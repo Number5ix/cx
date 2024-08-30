@@ -38,6 +38,7 @@ typedef struct TQManualRunner {
     atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
+    bool needsUIEvent;
     TaskQueue* tq;
     TQManualWorker* worker;
 } TQManualRunner;

@@ -26,6 +26,7 @@ TQThreadPoolRunner_create(_In_ TaskQueueThreadPoolConfig* config)
 
 _objinit_guaranteed bool TQThreadPoolRunner_init(_In_ TQThreadPoolRunner* self)
 {
+    self->needsUIEvent = self->conf.ui;
     // Autogen begins -----
     rwlockInit(&self->workerlock);
     saInit(&self->workers, object, 1);

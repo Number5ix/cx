@@ -3,6 +3,8 @@
 class TaskQueue;
 
 abstract class TQRunner {
+	bool needsUIEvent;
+
 	object:TaskQueue tq;
 	bool start([in] TaskQueue *tq);
 	[abstract] int64 tick();

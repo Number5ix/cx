@@ -35,12 +35,14 @@ _objinit_guaranteed bool TaskQueue_init(_In_ TaskQueue* self)
     TQThreadPoolRunner* tprun = objDynCast(TQThreadPoolRunner, self->runner);
     int qsz                   = tprun ? tprun->conf.wBusy * 4 : 8;
 
+    eventInit(&self->workev, self->runner->needsUIEvent ? EV_UIEvent : 0);
+
     prqInitDynamic(&self->runq, qsz, qsz * 2, 0, PRQ_Grow_100, PRQ_Grow_25);
     prqInitDynamic(&self->doneq, qsz, qsz * 2, 0, PRQ_Grow_100, PRQ_Grow_25);
     self->runq.shrinkms  = 5;
     self->doneq.shrinkms = 5;
+
     // Autogen begins -----
-    eventInit(&self->workev);
     return true;
     // Autogen ends -------
 }

@@ -26,7 +26,7 @@ class TaskQueue {
     object:TQManager manager;
     object:TQMonitor monitor;
 
-    Event workev;           // signaled when there is work to be done
+    [noinit] Event workev;  // signaled when there is work to be done
 
     PrQueue runq;           // tasks that are ready to be picked up by workers
     PrQueue doneq;          // tasks that are either deferred or finished
@@ -52,4 +52,5 @@ class TaskQueue {
     void _clear();          // deletes all tasks in queue, for internal use only
 
     factory create(strref name, uint32 flags, int64 gcinterval, [in] TQRunner *runner, [in] TQManager *manager, [in] [opt] TQMonitor *monitor);
+    init();
 }

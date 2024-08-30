@@ -46,6 +46,7 @@ typedef struct TQThreadPoolRunner {
     atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
+    bool needsUIEvent;
     TaskQueue* tq;
     TaskQueueThreadPoolConfig conf;
     RWLock workerlock;
