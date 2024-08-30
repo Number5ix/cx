@@ -208,8 +208,12 @@ SharedEvent *sheventAcquire(SharedEvent *ev)
     return ev;
 }
 
-void sheventRelease(_Inout_ SharedEvent** pev)
+_Use_decl_annotations_
+void sheventRelease(SharedEvent** pev)
 {
+    if (!*pev)
+        return;
+
     if (atomicFetchSub(uintptr, &(*pev)->ref, 1, Release) == 1) {
         atomicFence(Acquire);
         eventDestroy(&(*pev)->ev);
