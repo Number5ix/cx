@@ -155,10 +155,11 @@ bool cchainClone(cchain* destchain, cchain* srcchain)
             }
 
             *dptr = origdest;   // insert cloned nodes before the original dest
-            cchainRelease(destchain, dest);
+            
+            cchainRelease(srcchain, src);
         }
-
-        cchainRelease(srcchain, src);
+        
+        cchainRelease(destchain, dest);
         return true;
     } else {
         atomicStore(ptr, (atomic(ptr)*)destchain, NULL, Relaxed);
