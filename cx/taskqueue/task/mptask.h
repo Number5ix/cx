@@ -107,15 +107,24 @@ void MultiphaseTask__addPhases(_In_ MultiphaseTask* self, int32 num, MPTPhaseFun
 // Wrapper around require() to depend on a task completing
 #define mptaskRequireTask(self, dep, failok) ComplexTask_requireTask(ComplexTask(self), Task(dep), failok)
 
+// void mptaskRequireTaskTimeout(MultiphaseTask* self, Task* dep, bool failok, int64 timeout);
+#define mptaskRequireTaskTimeout(self, dep, failok, timeout) ComplexTask_requireTaskTimeout(ComplexTask(self), Task(dep), failok, timeout)
+
 // void mptaskRequireResource(MultiphaseTask* self, TaskResource* res);
 //
 // Wrapper around require() to depend on acquiring a resource
 #define mptaskRequireResource(self, res) ComplexTask_requireResource(ComplexTask(self), TaskResource(res))
 
+// void mptaskRequireResourceTimeout(MultiphaseTask* self, TaskResource* res, int64 timeout);
+#define mptaskRequireResourceTimeout(self, res, timeout) ComplexTask_requireResourceTimeout(ComplexTask(self), TaskResource(res), timeout)
+
 // void mptaskRequireGate(MultiphaseTask* self, TRGate* gate);
 //
 // Wrapper around require() to depend on a gate being opened
 #define mptaskRequireGate(self, gate) ComplexTask_requireGate(ComplexTask(self), TRGate(gate))
+
+// void mptaskRequireGateTimeout(MultiphaseTask* self, TRGate* gate, int64 timeout);
+#define mptaskRequireGateTimeout(self, gate, timeout) ComplexTask_requireGateTimeout(ComplexTask(self), TRGate(gate), timeout)
 
 // void mptaskRequire(MultiphaseTask* self, TaskRequires* req);
 //
@@ -127,10 +136,10 @@ void MultiphaseTask__addPhases(_In_ MultiphaseTask* self, int32 num, MPTPhaseFun
 // advance a deferred task to run as soon as possible
 #define mptaskAdvance(self) ComplexTask_advance(ComplexTask(self))
 
-// bool mptaskCheckRequires(MultiphaseTask* self, bool updateProgress);
+// bool mptaskCheckRequires(MultiphaseTask* self, bool updateProgress, int64* expires);
 //
 // check if this task can run because all requirements are satisfied
-#define mptaskCheckRequires(self, updateProgress) ComplexTask_checkRequires(ComplexTask(self), updateProgress)
+#define mptaskCheckRequires(self, updateProgress, expires) ComplexTask_checkRequires(ComplexTask(self), updateProgress, expires)
 
 // bool mptaskAcquireRequires(MultiphaseTask* self, sa_TaskRequires* acquired);
 //

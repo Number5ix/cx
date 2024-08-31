@@ -71,6 +71,16 @@ TQMPTest_ClassIf TQMPTest_ClassIf_tmpl = {
     ._parent = (ObjIface*)&MultiphaseTask_ClassIf_tmpl,
 };
 
+TQTimeoutTest1_ClassIf TQTimeoutTest1_ClassIf_tmpl = {
+    ._size = sizeof(TQTimeoutTest1_ClassIf),
+    ._parent = (ObjIface*)&ComplexTask_ClassIf_tmpl,
+};
+
+TQTimeoutTest2_ClassIf TQTimeoutTest2_ClassIf_tmpl = {
+    ._size = sizeof(TQTimeoutTest2_ClassIf),
+    ._parent = (ObjIface*)&ComplexTask_ClassIf_tmpl,
+};
+
 static TQTest1_ClassIf _impl_TQTest1_TQTest1_ClassIf = {
     ._size = sizeof(TQTest1_ClassIf),
     ._implements = (ObjIface*)&TQTest1_ClassIf_tmpl,
@@ -334,6 +344,42 @@ ObjClassInfo TQMPTest_clsinfo = {
     .classif = (ObjIface*)&TQMPTest_ClassIf_tmpl,
     .parent = &MultiphaseTask_clsinfo,
     .ifimpl = _ifimpl_TQMPTest,
+};
+
+static TQTimeoutTest1_ClassIf _impl_TQTimeoutTest1_TQTimeoutTest1_ClassIf = {
+    ._size = sizeof(TQTimeoutTest1_ClassIf),
+    ._implements = (ObjIface*)&TQTimeoutTest1_ClassIf_tmpl,
+    .run = (uint32 (*)(void*, TaskQueue*, TQWorker*, TaskControl*))TQTimeoutTest1_run,
+};
+
+static ObjIface* _ifimpl_TQTimeoutTest1[] = {
+    (ObjIface*)&_impl_TQTimeoutTest1_TQTimeoutTest1_ClassIf,
+    NULL
+};
+
+ObjClassInfo TQTimeoutTest1_clsinfo = {
+    .instsize = sizeof(TQTimeoutTest1),
+    .classif = (ObjIface*)&TQTimeoutTest1_ClassIf_tmpl,
+    .parent = &ComplexTask_clsinfo,
+    .ifimpl = _ifimpl_TQTimeoutTest1,
+};
+
+static TQTimeoutTest2_ClassIf _impl_TQTimeoutTest2_TQTimeoutTest2_ClassIf = {
+    ._size = sizeof(TQTimeoutTest2_ClassIf),
+    ._implements = (ObjIface*)&TQTimeoutTest2_ClassIf_tmpl,
+    .run = (uint32 (*)(void*, TaskQueue*, TQWorker*, TaskControl*))TQTimeoutTest2_run,
+};
+
+static ObjIface* _ifimpl_TQTimeoutTest2[] = {
+    (ObjIface*)&_impl_TQTimeoutTest2_TQTimeoutTest2_ClassIf,
+    NULL
+};
+
+ObjClassInfo TQTimeoutTest2_clsinfo = {
+    .instsize = sizeof(TQTimeoutTest2),
+    .classif = (ObjIface*)&TQTimeoutTest2_ClassIf_tmpl,
+    .parent = &ComplexTask_clsinfo,
+    .ifimpl = _ifimpl_TQTimeoutTest2,
 };
 
 // ==================== Auto-generated section ends ======================

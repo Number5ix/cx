@@ -47,6 +47,10 @@ typedef struct TQRTestGate TQRTestGate;
 typedef struct TQRTestGate_WeakRef TQRTestGate_WeakRef;
 typedef struct TQMPTest TQMPTest;
 typedef struct TQMPTest_WeakRef TQMPTest_WeakRef;
+typedef struct TQTimeoutTest1 TQTimeoutTest1;
+typedef struct TQTimeoutTest1_WeakRef TQTimeoutTest1_WeakRef;
+typedef struct TQTimeoutTest2 TQTimeoutTest2;
+typedef struct TQTimeoutTest2_WeakRef TQTimeoutTest2_WeakRef;
 saDeclarePtr(TQTest1);
 saDeclarePtr(TQTest1_WeakRef);
 saDeclarePtr(TQTestFail);
@@ -75,6 +79,10 @@ saDeclarePtr(TQRTestGate);
 saDeclarePtr(TQRTestGate_WeakRef);
 saDeclarePtr(TQMPTest);
 saDeclarePtr(TQMPTest_WeakRef);
+saDeclarePtr(TQTimeoutTest1);
+saDeclarePtr(TQTimeoutTest1_WeakRef);
+saDeclarePtr(TQTimeoutTest2);
+saDeclarePtr(TQTimeoutTest2_WeakRef);
 
 typedef struct ReqTestState
 {
@@ -293,6 +301,34 @@ typedef struct TQMPTest_ClassIf {
     uint32 (*finish)(_In_ void* self, uint32 result, TaskControl* tcon);
 } TQMPTest_ClassIf;
 extern TQMPTest_ClassIf TQMPTest_ClassIf_tmpl;
+
+typedef struct TQTimeoutTest1_ClassIf {
+    ObjIface* _implements;
+    ObjIface* _parent;
+    size_t _size;
+
+    uint32 (*run)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
+    bool (*cancel)(_In_ void* self);
+    bool (*reset)(_In_ void* self);
+    bool (*wait)(_In_ void* self, int64 timeout);
+    intptr (*cmp)(_In_ void* self, void* other, uint32 flags);
+    uint32 (*hash)(_In_ void* self, uint32 flags);
+} TQTimeoutTest1_ClassIf;
+extern TQTimeoutTest1_ClassIf TQTimeoutTest1_ClassIf_tmpl;
+
+typedef struct TQTimeoutTest2_ClassIf {
+    ObjIface* _implements;
+    ObjIface* _parent;
+    size_t _size;
+
+    uint32 (*run)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
+    bool (*cancel)(_In_ void* self);
+    bool (*reset)(_In_ void* self);
+    bool (*wait)(_In_ void* self, int64 timeout);
+    intptr (*cmp)(_In_ void* self, void* other, uint32 flags);
+    uint32 (*hash)(_In_ void* self, uint32 flags);
+} TQTimeoutTest2_ClassIf;
+extern TQTimeoutTest2_ClassIf TQTimeoutTest2_ClassIf_tmpl;
 
 typedef struct TQTest1 {
     union {
@@ -557,15 +593,24 @@ typedef struct TQTestSched_WeakRef {
 // Wrapper around require() to depend on a task completing
 #define tqtestschedRequireTask(self, dep, failok) ComplexTask_requireTask(ComplexTask(self), Task(dep), failok)
 
+// void tqtestschedRequireTaskTimeout(TQTestSched* self, Task* dep, bool failok, int64 timeout);
+#define tqtestschedRequireTaskTimeout(self, dep, failok, timeout) ComplexTask_requireTaskTimeout(ComplexTask(self), Task(dep), failok, timeout)
+
 // void tqtestschedRequireResource(TQTestSched* self, TaskResource* res);
 //
 // Wrapper around require() to depend on acquiring a resource
 #define tqtestschedRequireResource(self, res) ComplexTask_requireResource(ComplexTask(self), TaskResource(res))
 
+// void tqtestschedRequireResourceTimeout(TQTestSched* self, TaskResource* res, int64 timeout);
+#define tqtestschedRequireResourceTimeout(self, res, timeout) ComplexTask_requireResourceTimeout(ComplexTask(self), TaskResource(res), timeout)
+
 // void tqtestschedRequireGate(TQTestSched* self, TRGate* gate);
 //
 // Wrapper around require() to depend on a gate being opened
 #define tqtestschedRequireGate(self, gate) ComplexTask_requireGate(ComplexTask(self), TRGate(gate))
+
+// void tqtestschedRequireGateTimeout(TQTestSched* self, TRGate* gate, int64 timeout);
+#define tqtestschedRequireGateTimeout(self, gate, timeout) ComplexTask_requireGateTimeout(ComplexTask(self), TRGate(gate), timeout)
 
 // void tqtestschedRequire(TQTestSched* self, TaskRequires* req);
 //
@@ -577,10 +622,10 @@ typedef struct TQTestSched_WeakRef {
 // advance a deferred task to run as soon as possible
 #define tqtestschedAdvance(self) ComplexTask_advance(ComplexTask(self))
 
-// bool tqtestschedCheckRequires(TQTestSched* self, bool updateProgress);
+// bool tqtestschedCheckRequires(TQTestSched* self, bool updateProgress, int64* expires);
 //
 // check if this task can run because all requirements are satisfied
-#define tqtestschedCheckRequires(self, updateProgress) ComplexTask_checkRequires(ComplexTask(self), updateProgress)
+#define tqtestschedCheckRequires(self, updateProgress, expires) ComplexTask_checkRequires(ComplexTask(self), updateProgress, expires)
 
 // bool tqtestschedAcquireRequires(TQTestSched* self, sa_TaskRequires* acquired);
 //
@@ -666,15 +711,24 @@ _objfactory_guaranteed TQTestS1* TQTestS1_create(int order, int64 dtime, Event* 
 // Wrapper around require() to depend on a task completing
 #define tqtests1RequireTask(self, dep, failok) ComplexTask_requireTask(ComplexTask(self), Task(dep), failok)
 
+// void tqtests1RequireTaskTimeout(TQTestS1* self, Task* dep, bool failok, int64 timeout);
+#define tqtests1RequireTaskTimeout(self, dep, failok, timeout) ComplexTask_requireTaskTimeout(ComplexTask(self), Task(dep), failok, timeout)
+
 // void tqtests1RequireResource(TQTestS1* self, TaskResource* res);
 //
 // Wrapper around require() to depend on acquiring a resource
 #define tqtests1RequireResource(self, res) ComplexTask_requireResource(ComplexTask(self), TaskResource(res))
 
+// void tqtests1RequireResourceTimeout(TQTestS1* self, TaskResource* res, int64 timeout);
+#define tqtests1RequireResourceTimeout(self, res, timeout) ComplexTask_requireResourceTimeout(ComplexTask(self), TaskResource(res), timeout)
+
 // void tqtests1RequireGate(TQTestS1* self, TRGate* gate);
 //
 // Wrapper around require() to depend on a gate being opened
 #define tqtests1RequireGate(self, gate) ComplexTask_requireGate(ComplexTask(self), TRGate(gate))
+
+// void tqtests1RequireGateTimeout(TQTestS1* self, TRGate* gate, int64 timeout);
+#define tqtests1RequireGateTimeout(self, gate, timeout) ComplexTask_requireGateTimeout(ComplexTask(self), TRGate(gate), timeout)
 
 // void tqtests1Require(TQTestS1* self, TaskRequires* req);
 //
@@ -686,10 +740,10 @@ _objfactory_guaranteed TQTestS1* TQTestS1_create(int order, int64 dtime, Event* 
 // advance a deferred task to run as soon as possible
 #define tqtests1Advance(self) ComplexTask_advance(ComplexTask(self))
 
-// bool tqtests1CheckRequires(TQTestS1* self, bool updateProgress);
+// bool tqtests1CheckRequires(TQTestS1* self, bool updateProgress, int64* expires);
 //
 // check if this task can run because all requirements are satisfied
-#define tqtests1CheckRequires(self, updateProgress) ComplexTask_checkRequires(ComplexTask(self), updateProgress)
+#define tqtests1CheckRequires(self, updateProgress, expires) ComplexTask_checkRequires(ComplexTask(self), updateProgress, expires)
 
 // bool tqtests1AcquireRequires(TQTestS1* self, sa_TaskRequires* acquired);
 //
@@ -773,15 +827,24 @@ _objfactory_guaranteed TQTestS2* TQTestS2_create(Task* waitfor, Event* notify);
 // Wrapper around require() to depend on a task completing
 #define tqtests2RequireTask(self, dep, failok) ComplexTask_requireTask(ComplexTask(self), Task(dep), failok)
 
+// void tqtests2RequireTaskTimeout(TQTestS2* self, Task* dep, bool failok, int64 timeout);
+#define tqtests2RequireTaskTimeout(self, dep, failok, timeout) ComplexTask_requireTaskTimeout(ComplexTask(self), Task(dep), failok, timeout)
+
 // void tqtests2RequireResource(TQTestS2* self, TaskResource* res);
 //
 // Wrapper around require() to depend on acquiring a resource
 #define tqtests2RequireResource(self, res) ComplexTask_requireResource(ComplexTask(self), TaskResource(res))
 
+// void tqtests2RequireResourceTimeout(TQTestS2* self, TaskResource* res, int64 timeout);
+#define tqtests2RequireResourceTimeout(self, res, timeout) ComplexTask_requireResourceTimeout(ComplexTask(self), TaskResource(res), timeout)
+
 // void tqtests2RequireGate(TQTestS2* self, TRGate* gate);
 //
 // Wrapper around require() to depend on a gate being opened
 #define tqtests2RequireGate(self, gate) ComplexTask_requireGate(ComplexTask(self), TRGate(gate))
+
+// void tqtests2RequireGateTimeout(TQTestS2* self, TRGate* gate, int64 timeout);
+#define tqtests2RequireGateTimeout(self, gate, timeout) ComplexTask_requireGateTimeout(ComplexTask(self), TRGate(gate), timeout)
 
 // void tqtests2Require(TQTestS2* self, TaskRequires* req);
 //
@@ -793,10 +856,10 @@ _objfactory_guaranteed TQTestS2* TQTestS2_create(Task* waitfor, Event* notify);
 // advance a deferred task to run as soon as possible
 #define tqtests2Advance(self) ComplexTask_advance(ComplexTask(self))
 
-// bool tqtests2CheckRequires(TQTestS2* self, bool updateProgress);
+// bool tqtests2CheckRequires(TQTestS2* self, bool updateProgress, int64* expires);
 //
 // check if this task can run because all requirements are satisfied
-#define tqtests2CheckRequires(self, updateProgress) ComplexTask_checkRequires(ComplexTask(self), updateProgress)
+#define tqtests2CheckRequires(self, updateProgress, expires) ComplexTask_checkRequires(ComplexTask(self), updateProgress, expires)
 
 // bool tqtests2AcquireRequires(TQTestS2* self, sa_TaskRequires* acquired);
 //
@@ -928,15 +991,24 @@ _objfactory_guaranteed TQMTest* TQMTest_create(Event* notify);
 // Wrapper around require() to depend on a task completing
 #define tqmtestRequireTask(self, dep, failok) ComplexTask_requireTask(ComplexTask(self), Task(dep), failok)
 
+// void tqmtestRequireTaskTimeout(TQMTest* self, Task* dep, bool failok, int64 timeout);
+#define tqmtestRequireTaskTimeout(self, dep, failok, timeout) ComplexTask_requireTaskTimeout(ComplexTask(self), Task(dep), failok, timeout)
+
 // void tqmtestRequireResource(TQMTest* self, TaskResource* res);
 //
 // Wrapper around require() to depend on acquiring a resource
 #define tqmtestRequireResource(self, res) ComplexTask_requireResource(ComplexTask(self), TaskResource(res))
 
+// void tqmtestRequireResourceTimeout(TQMTest* self, TaskResource* res, int64 timeout);
+#define tqmtestRequireResourceTimeout(self, res, timeout) ComplexTask_requireResourceTimeout(ComplexTask(self), TaskResource(res), timeout)
+
 // void tqmtestRequireGate(TQMTest* self, TRGate* gate);
 //
 // Wrapper around require() to depend on a gate being opened
 #define tqmtestRequireGate(self, gate) ComplexTask_requireGate(ComplexTask(self), TRGate(gate))
+
+// void tqmtestRequireGateTimeout(TQMTest* self, TRGate* gate, int64 timeout);
+#define tqmtestRequireGateTimeout(self, gate, timeout) ComplexTask_requireGateTimeout(ComplexTask(self), TRGate(gate), timeout)
 
 // void tqmtestRequire(TQMTest* self, TaskRequires* req);
 //
@@ -948,10 +1020,10 @@ _objfactory_guaranteed TQMTest* TQMTest_create(Event* notify);
 // advance a deferred task to run as soon as possible
 #define tqmtestAdvance(self) ComplexTask_advance(ComplexTask(self))
 
-// bool tqmtestCheckRequires(TQMTest* self, bool updateProgress);
+// bool tqmtestCheckRequires(TQMTest* self, bool updateProgress, int64* expires);
 //
 // check if this task can run because all requirements are satisfied
-#define tqmtestCheckRequires(self, updateProgress) ComplexTask_checkRequires(ComplexTask(self), updateProgress)
+#define tqmtestCheckRequires(self, updateProgress, expires) ComplexTask_checkRequires(ComplexTask(self), updateProgress, expires)
 
 // bool tqmtestAcquireRequires(TQMTest* self, sa_TaskRequires* acquired);
 //
@@ -1033,15 +1105,24 @@ _objfactory_guaranteed TQRTestMtx* TQRTestMtx_create(ReqTestState* rts, int num)
 // Wrapper around require() to depend on a task completing
 #define tqrtestmtxRequireTask(self, dep, failok) ComplexTask_requireTask(ComplexTask(self), Task(dep), failok)
 
+// void tqrtestmtxRequireTaskTimeout(TQRTestMtx* self, Task* dep, bool failok, int64 timeout);
+#define tqrtestmtxRequireTaskTimeout(self, dep, failok, timeout) ComplexTask_requireTaskTimeout(ComplexTask(self), Task(dep), failok, timeout)
+
 // void tqrtestmtxRequireResource(TQRTestMtx* self, TaskResource* res);
 //
 // Wrapper around require() to depend on acquiring a resource
 #define tqrtestmtxRequireResource(self, res) ComplexTask_requireResource(ComplexTask(self), TaskResource(res))
 
+// void tqrtestmtxRequireResourceTimeout(TQRTestMtx* self, TaskResource* res, int64 timeout);
+#define tqrtestmtxRequireResourceTimeout(self, res, timeout) ComplexTask_requireResourceTimeout(ComplexTask(self), TaskResource(res), timeout)
+
 // void tqrtestmtxRequireGate(TQRTestMtx* self, TRGate* gate);
 //
 // Wrapper around require() to depend on a gate being opened
 #define tqrtestmtxRequireGate(self, gate) ComplexTask_requireGate(ComplexTask(self), TRGate(gate))
+
+// void tqrtestmtxRequireGateTimeout(TQRTestMtx* self, TRGate* gate, int64 timeout);
+#define tqrtestmtxRequireGateTimeout(self, gate, timeout) ComplexTask_requireGateTimeout(ComplexTask(self), TRGate(gate), timeout)
 
 // void tqrtestmtxRequire(TQRTestMtx* self, TaskRequires* req);
 //
@@ -1053,10 +1134,10 @@ _objfactory_guaranteed TQRTestMtx* TQRTestMtx_create(ReqTestState* rts, int num)
 // advance a deferred task to run as soon as possible
 #define tqrtestmtxAdvance(self) ComplexTask_advance(ComplexTask(self))
 
-// bool tqrtestmtxCheckRequires(TQRTestMtx* self, bool updateProgress);
+// bool tqrtestmtxCheckRequires(TQRTestMtx* self, bool updateProgress, int64* expires);
 //
 // check if this task can run because all requirements are satisfied
-#define tqrtestmtxCheckRequires(self, updateProgress) ComplexTask_checkRequires(ComplexTask(self), updateProgress)
+#define tqrtestmtxCheckRequires(self, updateProgress, expires) ComplexTask_checkRequires(ComplexTask(self), updateProgress, expires)
 
 // bool tqrtestmtxAcquireRequires(TQRTestMtx* self, sa_TaskRequires* acquired);
 //
@@ -1139,15 +1220,24 @@ _objfactory_guaranteed TQRTestFifo* TQRTestFifo_create(ReqTestState* rts, int se
 // Wrapper around require() to depend on a task completing
 #define tqrtestfifoRequireTask(self, dep, failok) ComplexTask_requireTask(ComplexTask(self), Task(dep), failok)
 
+// void tqrtestfifoRequireTaskTimeout(TQRTestFifo* self, Task* dep, bool failok, int64 timeout);
+#define tqrtestfifoRequireTaskTimeout(self, dep, failok, timeout) ComplexTask_requireTaskTimeout(ComplexTask(self), Task(dep), failok, timeout)
+
 // void tqrtestfifoRequireResource(TQRTestFifo* self, TaskResource* res);
 //
 // Wrapper around require() to depend on acquiring a resource
 #define tqrtestfifoRequireResource(self, res) ComplexTask_requireResource(ComplexTask(self), TaskResource(res))
 
+// void tqrtestfifoRequireResourceTimeout(TQRTestFifo* self, TaskResource* res, int64 timeout);
+#define tqrtestfifoRequireResourceTimeout(self, res, timeout) ComplexTask_requireResourceTimeout(ComplexTask(self), TaskResource(res), timeout)
+
 // void tqrtestfifoRequireGate(TQRTestFifo* self, TRGate* gate);
 //
 // Wrapper around require() to depend on a gate being opened
 #define tqrtestfifoRequireGate(self, gate) ComplexTask_requireGate(ComplexTask(self), TRGate(gate))
+
+// void tqrtestfifoRequireGateTimeout(TQRTestFifo* self, TRGate* gate, int64 timeout);
+#define tqrtestfifoRequireGateTimeout(self, gate, timeout) ComplexTask_requireGateTimeout(ComplexTask(self), TRGate(gate), timeout)
 
 // void tqrtestfifoRequire(TQRTestFifo* self, TaskRequires* req);
 //
@@ -1159,10 +1249,10 @@ _objfactory_guaranteed TQRTestFifo* TQRTestFifo_create(ReqTestState* rts, int se
 // advance a deferred task to run as soon as possible
 #define tqrtestfifoAdvance(self) ComplexTask_advance(ComplexTask(self))
 
-// bool tqrtestfifoCheckRequires(TQRTestFifo* self, bool updateProgress);
+// bool tqrtestfifoCheckRequires(TQRTestFifo* self, bool updateProgress, int64* expires);
 //
 // check if this task can run because all requirements are satisfied
-#define tqrtestfifoCheckRequires(self, updateProgress) ComplexTask_checkRequires(ComplexTask(self), updateProgress)
+#define tqrtestfifoCheckRequires(self, updateProgress, expires) ComplexTask_checkRequires(ComplexTask(self), updateProgress, expires)
 
 // bool tqrtestfifoAcquireRequires(TQRTestFifo* self, sa_TaskRequires* acquired);
 //
@@ -1245,15 +1335,24 @@ _objfactory_guaranteed TQRTestLifo* TQRTestLifo_create(ReqTestState* rts, int se
 // Wrapper around require() to depend on a task completing
 #define tqrtestlifoRequireTask(self, dep, failok) ComplexTask_requireTask(ComplexTask(self), Task(dep), failok)
 
+// void tqrtestlifoRequireTaskTimeout(TQRTestLifo* self, Task* dep, bool failok, int64 timeout);
+#define tqrtestlifoRequireTaskTimeout(self, dep, failok, timeout) ComplexTask_requireTaskTimeout(ComplexTask(self), Task(dep), failok, timeout)
+
 // void tqrtestlifoRequireResource(TQRTestLifo* self, TaskResource* res);
 //
 // Wrapper around require() to depend on acquiring a resource
 #define tqrtestlifoRequireResource(self, res) ComplexTask_requireResource(ComplexTask(self), TaskResource(res))
 
+// void tqrtestlifoRequireResourceTimeout(TQRTestLifo* self, TaskResource* res, int64 timeout);
+#define tqrtestlifoRequireResourceTimeout(self, res, timeout) ComplexTask_requireResourceTimeout(ComplexTask(self), TaskResource(res), timeout)
+
 // void tqrtestlifoRequireGate(TQRTestLifo* self, TRGate* gate);
 //
 // Wrapper around require() to depend on a gate being opened
 #define tqrtestlifoRequireGate(self, gate) ComplexTask_requireGate(ComplexTask(self), TRGate(gate))
+
+// void tqrtestlifoRequireGateTimeout(TQRTestLifo* self, TRGate* gate, int64 timeout);
+#define tqrtestlifoRequireGateTimeout(self, gate, timeout) ComplexTask_requireGateTimeout(ComplexTask(self), TRGate(gate), timeout)
 
 // void tqrtestlifoRequire(TQRTestLifo* self, TaskRequires* req);
 //
@@ -1265,10 +1364,10 @@ _objfactory_guaranteed TQRTestLifo* TQRTestLifo_create(ReqTestState* rts, int se
 // advance a deferred task to run as soon as possible
 #define tqrtestlifoAdvance(self) ComplexTask_advance(ComplexTask(self))
 
-// bool tqrtestlifoCheckRequires(TQRTestLifo* self, bool updateProgress);
+// bool tqrtestlifoCheckRequires(TQRTestLifo* self, bool updateProgress, int64* expires);
 //
 // check if this task can run because all requirements are satisfied
-#define tqrtestlifoCheckRequires(self, updateProgress) ComplexTask_checkRequires(ComplexTask(self), updateProgress)
+#define tqrtestlifoCheckRequires(self, updateProgress, expires) ComplexTask_checkRequires(ComplexTask(self), updateProgress, expires)
 
 // bool tqrtestlifoAcquireRequires(TQRTestLifo* self, sa_TaskRequires* acquired);
 //
@@ -1350,15 +1449,24 @@ _objfactory_guaranteed TQRTestGate* TQRTestGate_create(ReqTestState2* rts, int n
 // Wrapper around require() to depend on a task completing
 #define tqrtestgateRequireTask(self, dep, failok) ComplexTask_requireTask(ComplexTask(self), Task(dep), failok)
 
+// void tqrtestgateRequireTaskTimeout(TQRTestGate* self, Task* dep, bool failok, int64 timeout);
+#define tqrtestgateRequireTaskTimeout(self, dep, failok, timeout) ComplexTask_requireTaskTimeout(ComplexTask(self), Task(dep), failok, timeout)
+
 // void tqrtestgateRequireResource(TQRTestGate* self, TaskResource* res);
 //
 // Wrapper around require() to depend on acquiring a resource
 #define tqrtestgateRequireResource(self, res) ComplexTask_requireResource(ComplexTask(self), TaskResource(res))
 
+// void tqrtestgateRequireResourceTimeout(TQRTestGate* self, TaskResource* res, int64 timeout);
+#define tqrtestgateRequireResourceTimeout(self, res, timeout) ComplexTask_requireResourceTimeout(ComplexTask(self), TaskResource(res), timeout)
+
 // void tqrtestgateRequireGate(TQRTestGate* self, TRGate* gate);
 //
 // Wrapper around require() to depend on a gate being opened
 #define tqrtestgateRequireGate(self, gate) ComplexTask_requireGate(ComplexTask(self), TRGate(gate))
+
+// void tqrtestgateRequireGateTimeout(TQRTestGate* self, TRGate* gate, int64 timeout);
+#define tqrtestgateRequireGateTimeout(self, gate, timeout) ComplexTask_requireGateTimeout(ComplexTask(self), TRGate(gate), timeout)
 
 // void tqrtestgateRequire(TQRTestGate* self, TaskRequires* req);
 //
@@ -1370,10 +1478,10 @@ _objfactory_guaranteed TQRTestGate* TQRTestGate_create(ReqTestState2* rts, int n
 // advance a deferred task to run as soon as possible
 #define tqrtestgateAdvance(self) ComplexTask_advance(ComplexTask(self))
 
-// bool tqrtestgateCheckRequires(TQRTestGate* self, bool updateProgress);
+// bool tqrtestgateCheckRequires(TQRTestGate* self, bool updateProgress, int64* expires);
 //
 // check if this task can run because all requirements are satisfied
-#define tqrtestgateCheckRequires(self, updateProgress) ComplexTask_checkRequires(ComplexTask(self), updateProgress)
+#define tqrtestgateCheckRequires(self, updateProgress, expires) ComplexTask_checkRequires(ComplexTask(self), updateProgress, expires)
 
 // bool tqrtestgateAcquireRequires(TQRTestGate* self, sa_TaskRequires* acquired);
 //
@@ -1467,15 +1575,24 @@ _objfactory_guaranteed TQMPTest* TQMPTest_create(int variant, int idx, MPTestSta
 // Wrapper around require() to depend on a task completing
 #define tqmptestRequireTask(self, dep, failok) ComplexTask_requireTask(ComplexTask(self), Task(dep), failok)
 
+// void tqmptestRequireTaskTimeout(TQMPTest* self, Task* dep, bool failok, int64 timeout);
+#define tqmptestRequireTaskTimeout(self, dep, failok, timeout) ComplexTask_requireTaskTimeout(ComplexTask(self), Task(dep), failok, timeout)
+
 // void tqmptestRequireResource(TQMPTest* self, TaskResource* res);
 //
 // Wrapper around require() to depend on acquiring a resource
 #define tqmptestRequireResource(self, res) ComplexTask_requireResource(ComplexTask(self), TaskResource(res))
 
+// void tqmptestRequireResourceTimeout(TQMPTest* self, TaskResource* res, int64 timeout);
+#define tqmptestRequireResourceTimeout(self, res, timeout) ComplexTask_requireResourceTimeout(ComplexTask(self), TaskResource(res), timeout)
+
 // void tqmptestRequireGate(TQMPTest* self, TRGate* gate);
 //
 // Wrapper around require() to depend on a gate being opened
 #define tqmptestRequireGate(self, gate) ComplexTask_requireGate(ComplexTask(self), TRGate(gate))
+
+// void tqmptestRequireGateTimeout(TQMPTest* self, TRGate* gate, int64 timeout);
+#define tqmptestRequireGateTimeout(self, gate, timeout) ComplexTask_requireGateTimeout(ComplexTask(self), TRGate(gate), timeout)
 
 // void tqmptestRequire(TQMPTest* self, TaskRequires* req);
 //
@@ -1487,10 +1604,10 @@ _objfactory_guaranteed TQMPTest* TQMPTest_create(int variant, int idx, MPTestSta
 // advance a deferred task to run as soon as possible
 #define tqmptestAdvance(self) ComplexTask_advance(ComplexTask(self))
 
-// bool tqmptestCheckRequires(TQMPTest* self, bool updateProgress);
+// bool tqmptestCheckRequires(TQMPTest* self, bool updateProgress, int64* expires);
 //
 // check if this task can run because all requirements are satisfied
-#define tqmptestCheckRequires(self, updateProgress) ComplexTask_checkRequires(ComplexTask(self), updateProgress)
+#define tqmptestCheckRequires(self, updateProgress, expires) ComplexTask_checkRequires(ComplexTask(self), updateProgress, expires)
 
 // bool tqmptestAcquireRequires(TQMPTest* self, sa_TaskRequires* acquired);
 //
@@ -1522,4 +1639,230 @@ _objfactory_guaranteed TQMPTest* TQMPTest_create(int variant, int idx, MPTestSta
 // Called once all phases (including fail phases) have completed. May be overridden to perform
 // additional cleanup or change the final result.
 #define tqmptestFinish(self, result, tcon) (self)->_->finish(TQMPTest(self), result, tcon)
+
+typedef struct TQTimeoutTest1 {
+    union {
+        TQTimeoutTest1_ClassIf* _;
+        void* _is_TQTimeoutTest1;
+        void* _is_ComplexTask;
+        void* _is_Task;
+        void* _is_BasicTask;
+        void* _is_ObjInst;
+    };
+    ObjClassInfo* _clsinfo;
+    atomic(uintptr) _ref;
+    atomic(ptr) _weakref;
+
+    atomic(uint32) state;
+    string name;        // task name to be shown in monitor output
+    int64 last;        // the last time this task was moved between queues and/or run
+    cchain oncomplete;        // functions that are called when this task has completed
+    int64 nextrun;        // next time for this task to run when scheduled
+    int64 lastprogress;        // timestamp of last progress change
+    Weak(ComplexTaskQueue)* lastq;        // The last queue this task ran on before it was deferred
+    sa_TaskRequires _requires;        // list of requirements that must be satisfied
+    uint16 flags;        // flags to customize task behavior
+    uint16 _intflags;        // internal flags reserved for use by the scheduler
+    atomic(uint32) _advcount;        // number of times this task has been advanced
+    int count;
+} TQTimeoutTest1;
+extern ObjClassInfo TQTimeoutTest1_clsinfo;
+#define TQTimeoutTest1(inst) ((TQTimeoutTest1*)(unused_noeval((inst) && &((inst)->_is_TQTimeoutTest1)), (inst)))
+#define TQTimeoutTest1None ((TQTimeoutTest1*)NULL)
+
+typedef struct TQTimeoutTest1_WeakRef {
+    union {
+        ObjInst* _inst;
+        void* _is_TQTimeoutTest1_WeakRef;
+        void* _is_ComplexTask_WeakRef;
+        void* _is_Task_WeakRef;
+        void* _is_BasicTask_WeakRef;
+        void* _is_ObjInst_WeakRef;
+    };
+    atomic(uintptr) _ref;
+    RWLock _lock;
+} TQTimeoutTest1_WeakRef;
+#define TQTimeoutTest1_WeakRef(inst) ((TQTimeoutTest1_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TQTimeoutTest1_WeakRef)), (inst)))
+
+_objfactory_guaranteed TQTimeoutTest1* TQTimeoutTest1_create();
+// TQTimeoutTest1* tqtimeouttest1Create();
+#define tqtimeouttest1Create() TQTimeoutTest1_create()
+
+// void tqtimeouttest1RequireTask(TQTimeoutTest1* self, Task* dep, bool failok);
+//
+// Wrapper around require() to depend on a task completing
+#define tqtimeouttest1RequireTask(self, dep, failok) ComplexTask_requireTask(ComplexTask(self), Task(dep), failok)
+
+// void tqtimeouttest1RequireTaskTimeout(TQTimeoutTest1* self, Task* dep, bool failok, int64 timeout);
+#define tqtimeouttest1RequireTaskTimeout(self, dep, failok, timeout) ComplexTask_requireTaskTimeout(ComplexTask(self), Task(dep), failok, timeout)
+
+// void tqtimeouttest1RequireResource(TQTimeoutTest1* self, TaskResource* res);
+//
+// Wrapper around require() to depend on acquiring a resource
+#define tqtimeouttest1RequireResource(self, res) ComplexTask_requireResource(ComplexTask(self), TaskResource(res))
+
+// void tqtimeouttest1RequireResourceTimeout(TQTimeoutTest1* self, TaskResource* res, int64 timeout);
+#define tqtimeouttest1RequireResourceTimeout(self, res, timeout) ComplexTask_requireResourceTimeout(ComplexTask(self), TaskResource(res), timeout)
+
+// void tqtimeouttest1RequireGate(TQTimeoutTest1* self, TRGate* gate);
+//
+// Wrapper around require() to depend on a gate being opened
+#define tqtimeouttest1RequireGate(self, gate) ComplexTask_requireGate(ComplexTask(self), TRGate(gate))
+
+// void tqtimeouttest1RequireGateTimeout(TQTimeoutTest1* self, TRGate* gate, int64 timeout);
+#define tqtimeouttest1RequireGateTimeout(self, gate, timeout) ComplexTask_requireGateTimeout(ComplexTask(self), TRGate(gate), timeout)
+
+// void tqtimeouttest1Require(TQTimeoutTest1* self, TaskRequires* req);
+//
+// Add a requirement for the task to run
+#define tqtimeouttest1Require(self, req) ComplexTask_require(ComplexTask(self), TaskRequires(req))
+
+// bool tqtimeouttest1Advance(TQTimeoutTest1* self);
+//
+// advance a deferred task to run as soon as possible
+#define tqtimeouttest1Advance(self) ComplexTask_advance(ComplexTask(self))
+
+// bool tqtimeouttest1CheckRequires(TQTimeoutTest1* self, bool updateProgress, int64* expires);
+//
+// check if this task can run because all requirements are satisfied
+#define tqtimeouttest1CheckRequires(self, updateProgress, expires) ComplexTask_checkRequires(ComplexTask(self), updateProgress, expires)
+
+// bool tqtimeouttest1AcquireRequires(TQTimeoutTest1* self, sa_TaskRequires* acquired);
+//
+// try to acquire required resources
+#define tqtimeouttest1AcquireRequires(self, acquired) ComplexTask_acquireRequires(ComplexTask(self), acquired)
+
+// bool tqtimeouttest1ReleaseRequires(TQTimeoutTest1* self, sa_TaskRequires resources);
+//
+// release a list of acquired resources
+#define tqtimeouttest1ReleaseRequires(self, resources) ComplexTask_releaseRequires(ComplexTask(self), resources)
+
+// bool tqtimeouttest1_setState(TQTimeoutTest1* self, uint32 newstate);
+#define tqtimeouttest1_setState(self, newstate) BasicTask__setState(BasicTask(self), newstate)
+
+// uint32 tqtimeouttest1Run(TQTimeoutTest1* self, TaskQueue* tq, TQWorker* worker, TaskControl* tcon);
+#define tqtimeouttest1Run(self, tq, worker, tcon) (self)->_->run(TQTimeoutTest1(self), TaskQueue(tq), TQWorker(worker), tcon)
+// bool tqtimeouttest1Cancel(TQTimeoutTest1* self);
+#define tqtimeouttest1Cancel(self) (self)->_->cancel(TQTimeoutTest1(self))
+// bool tqtimeouttest1Reset(TQTimeoutTest1* self);
+#define tqtimeouttest1Reset(self) (self)->_->reset(TQTimeoutTest1(self))
+// bool tqtimeouttest1Wait(TQTimeoutTest1* self, int64 timeout);
+#define tqtimeouttest1Wait(self, timeout) (self)->_->wait(TQTimeoutTest1(self), timeout)
+// intptr tqtimeouttest1Cmp(TQTimeoutTest1* self, TQTimeoutTest1* other, uint32 flags);
+#define tqtimeouttest1Cmp(self, other, flags) (self)->_->cmp(TQTimeoutTest1(self), other, flags)
+// uint32 tqtimeouttest1Hash(TQTimeoutTest1* self, uint32 flags);
+#define tqtimeouttest1Hash(self, flags) (self)->_->hash(TQTimeoutTest1(self), flags)
+
+typedef struct TQTimeoutTest2 {
+    union {
+        TQTimeoutTest2_ClassIf* _;
+        void* _is_TQTimeoutTest2;
+        void* _is_ComplexTask;
+        void* _is_Task;
+        void* _is_BasicTask;
+        void* _is_ObjInst;
+    };
+    ObjClassInfo* _clsinfo;
+    atomic(uintptr) _ref;
+    atomic(ptr) _weakref;
+
+    atomic(uint32) state;
+    string name;        // task name to be shown in monitor output
+    int64 last;        // the last time this task was moved between queues and/or run
+    cchain oncomplete;        // functions that are called when this task has completed
+    int64 nextrun;        // next time for this task to run when scheduled
+    int64 lastprogress;        // timestamp of last progress change
+    Weak(ComplexTaskQueue)* lastq;        // The last queue this task ran on before it was deferred
+    sa_TaskRequires _requires;        // list of requirements that must be satisfied
+    uint16 flags;        // flags to customize task behavior
+    uint16 _intflags;        // internal flags reserved for use by the scheduler
+    atomic(uint32) _advcount;        // number of times this task has been advanced
+    ReqTestState* rts;
+} TQTimeoutTest2;
+extern ObjClassInfo TQTimeoutTest2_clsinfo;
+#define TQTimeoutTest2(inst) ((TQTimeoutTest2*)(unused_noeval((inst) && &((inst)->_is_TQTimeoutTest2)), (inst)))
+#define TQTimeoutTest2None ((TQTimeoutTest2*)NULL)
+
+typedef struct TQTimeoutTest2_WeakRef {
+    union {
+        ObjInst* _inst;
+        void* _is_TQTimeoutTest2_WeakRef;
+        void* _is_ComplexTask_WeakRef;
+        void* _is_Task_WeakRef;
+        void* _is_BasicTask_WeakRef;
+        void* _is_ObjInst_WeakRef;
+    };
+    atomic(uintptr) _ref;
+    RWLock _lock;
+} TQTimeoutTest2_WeakRef;
+#define TQTimeoutTest2_WeakRef(inst) ((TQTimeoutTest2_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TQTimeoutTest2_WeakRef)), (inst)))
+
+_objfactory_guaranteed TQTimeoutTest2* TQTimeoutTest2_create(ReqTestState* rts);
+// TQTimeoutTest2* tqtimeouttest2Create(ReqTestState* rts);
+#define tqtimeouttest2Create(rts) TQTimeoutTest2_create(rts)
+
+// void tqtimeouttest2RequireTask(TQTimeoutTest2* self, Task* dep, bool failok);
+//
+// Wrapper around require() to depend on a task completing
+#define tqtimeouttest2RequireTask(self, dep, failok) ComplexTask_requireTask(ComplexTask(self), Task(dep), failok)
+
+// void tqtimeouttest2RequireTaskTimeout(TQTimeoutTest2* self, Task* dep, bool failok, int64 timeout);
+#define tqtimeouttest2RequireTaskTimeout(self, dep, failok, timeout) ComplexTask_requireTaskTimeout(ComplexTask(self), Task(dep), failok, timeout)
+
+// void tqtimeouttest2RequireResource(TQTimeoutTest2* self, TaskResource* res);
+//
+// Wrapper around require() to depend on acquiring a resource
+#define tqtimeouttest2RequireResource(self, res) ComplexTask_requireResource(ComplexTask(self), TaskResource(res))
+
+// void tqtimeouttest2RequireResourceTimeout(TQTimeoutTest2* self, TaskResource* res, int64 timeout);
+#define tqtimeouttest2RequireResourceTimeout(self, res, timeout) ComplexTask_requireResourceTimeout(ComplexTask(self), TaskResource(res), timeout)
+
+// void tqtimeouttest2RequireGate(TQTimeoutTest2* self, TRGate* gate);
+//
+// Wrapper around require() to depend on a gate being opened
+#define tqtimeouttest2RequireGate(self, gate) ComplexTask_requireGate(ComplexTask(self), TRGate(gate))
+
+// void tqtimeouttest2RequireGateTimeout(TQTimeoutTest2* self, TRGate* gate, int64 timeout);
+#define tqtimeouttest2RequireGateTimeout(self, gate, timeout) ComplexTask_requireGateTimeout(ComplexTask(self), TRGate(gate), timeout)
+
+// void tqtimeouttest2Require(TQTimeoutTest2* self, TaskRequires* req);
+//
+// Add a requirement for the task to run
+#define tqtimeouttest2Require(self, req) ComplexTask_require(ComplexTask(self), TaskRequires(req))
+
+// bool tqtimeouttest2Advance(TQTimeoutTest2* self);
+//
+// advance a deferred task to run as soon as possible
+#define tqtimeouttest2Advance(self) ComplexTask_advance(ComplexTask(self))
+
+// bool tqtimeouttest2CheckRequires(TQTimeoutTest2* self, bool updateProgress, int64* expires);
+//
+// check if this task can run because all requirements are satisfied
+#define tqtimeouttest2CheckRequires(self, updateProgress, expires) ComplexTask_checkRequires(ComplexTask(self), updateProgress, expires)
+
+// bool tqtimeouttest2AcquireRequires(TQTimeoutTest2* self, sa_TaskRequires* acquired);
+//
+// try to acquire required resources
+#define tqtimeouttest2AcquireRequires(self, acquired) ComplexTask_acquireRequires(ComplexTask(self), acquired)
+
+// bool tqtimeouttest2ReleaseRequires(TQTimeoutTest2* self, sa_TaskRequires resources);
+//
+// release a list of acquired resources
+#define tqtimeouttest2ReleaseRequires(self, resources) ComplexTask_releaseRequires(ComplexTask(self), resources)
+
+// bool tqtimeouttest2_setState(TQTimeoutTest2* self, uint32 newstate);
+#define tqtimeouttest2_setState(self, newstate) BasicTask__setState(BasicTask(self), newstate)
+
+// uint32 tqtimeouttest2Run(TQTimeoutTest2* self, TaskQueue* tq, TQWorker* worker, TaskControl* tcon);
+#define tqtimeouttest2Run(self, tq, worker, tcon) (self)->_->run(TQTimeoutTest2(self), TaskQueue(tq), TQWorker(worker), tcon)
+// bool tqtimeouttest2Cancel(TQTimeoutTest2* self);
+#define tqtimeouttest2Cancel(self) (self)->_->cancel(TQTimeoutTest2(self))
+// bool tqtimeouttest2Reset(TQTimeoutTest2* self);
+#define tqtimeouttest2Reset(self) (self)->_->reset(TQTimeoutTest2(self))
+// bool tqtimeouttest2Wait(TQTimeoutTest2* self, int64 timeout);
+#define tqtimeouttest2Wait(self, timeout) (self)->_->wait(TQTimeoutTest2(self), timeout)
+// intptr tqtimeouttest2Cmp(TQTimeoutTest2* self, TQTimeoutTest2* other, uint32 flags);
+#define tqtimeouttest2Cmp(self, other, flags) (self)->_->cmp(TQTimeoutTest2(self), other, flags)
+// uint32 tqtimeouttest2Hash(TQTimeoutTest2* self, uint32 flags);
+#define tqtimeouttest2Hash(self, flags) (self)->_->hash(TQTimeoutTest2(self), flags)
 

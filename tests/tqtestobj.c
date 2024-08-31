@@ -508,6 +508,46 @@ uint32 TQMPTest_finish(_In_ TQMPTest* self, uint32 result, TaskControl* tcon)
     return parent_finish(result, tcon);
 }
 
+_objfactory_guaranteed TQTimeoutTest1* TQTimeoutTest1_create()
+{
+    TQTimeoutTest1* self;
+    self = objInstCreate(TQTimeoutTest1);
+
+    objInstInit(self);
+    return self;
+}
+
+uint32 TQTimeoutTest1_run(_In_ TQTimeoutTest1* self, _In_ TaskQueue* tq, _In_ TQWorker* worker,
+                          _Inout_ TaskControl* tcon)
+{
+    if (taskCancelled(self))
+        return TASK_Result_Failure;
+
+    if (self->count < 100) {
+        self->count++;
+        osSleep(timeMS(100));
+        return TASK_Result_Schedule_Progress;
+    }
+    return TASK_Result_Success;
+}
+
+_objfactory_guaranteed TQTimeoutTest2* TQTimeoutTest2_create(ReqTestState* rts)
+{
+    TQTimeoutTest2* self;
+    self = objInstCreate(TQTimeoutTest2);
+
+    self->rts = rts;
+
+    objInstInit(self);
+    return self;
+}
+
+uint32 TQTimeoutTest2_run(_In_ TQTimeoutTest2* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon)
+{
+    self->rts->count = 1;
+    return TASK_Result_Success;
+}
+
 // Autogen begins -----
 #include "tqtestobj.auto.inc"
 // Autogen ends -------

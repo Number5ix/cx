@@ -141,3 +141,13 @@ class TQMPTest extends MultiphaseTask {
 
     factory create(int variant, int idx, MPTestState *mps);
 }
+
+class TQTimeoutTest1 extends ComplexTask {
+    int count;
+    factory create();
+}
+class TQTimeoutTest2 extends ComplexTask {
+    ReqTestState *rts;
+
+    factory create(ReqTestState *rts);
+}

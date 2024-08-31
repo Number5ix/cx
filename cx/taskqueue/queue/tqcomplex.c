@@ -118,9 +118,9 @@ bool ComplexTaskQueue__processDone(_In_ ComplexTaskQueue* self)
             ctask->last = now;
 
             if (state == TASK_Scheduled) {
-                saPush(&self->scheduled, object, btask);
+                saPush(&self->scheduled, object, ctask);
             } else {
-                htInsert(&self->deferred, object, btask, none, NULL);
+                htInsert(&self->deferred, object, ctask, none, NULL);
             }
 
             // if this task was advanced in the interim, ensure that it gets processed again
@@ -198,7 +198,7 @@ int64 ComplexTaskQueue__processExtra(_In_ ComplexTaskQueue* self, bool taskscomp
             // satisfied before releasing it. Updating progress can make this more expensive if
             // there are many dependencies, so only do that if we have a monitor and need to care
             // about progress.
-            if (ctaskCheckRequires(ctask, self->monitor != NULL)) {
+            if (ctaskCheckRequires(ctask, self->monitor != NULL, NULL)) {
                 ctask_setState(ctask, TASK_Waiting);
                 if (htRemove(&self->deferred, object, ctask)) {
                     ctask->last = now;
@@ -332,9 +332,10 @@ bool ComplexTaskQueue__runTask(_In_ ComplexTaskQueue* self, _Inout_ BasicTask** 
     // If this is a complex task, do a last-second check of the dependencies. This is also where
     // we try to acquire any resources needed by the task.
     if (ctask) {
-        bool defer = false;
+        bool defer    = false;
+        int64 expires = timeForever;
 
-        if (!ctaskCheckRequires(ctask, false))
+        if (!ctaskCheckRequires(ctask, false, &expires))
             defer = true;
         else if (ctask->_intflags & TASK_INTERNAL_Needs_Resources) {
             // we know the size will be less than the number of requires, so preallocate enough
@@ -351,7 +352,12 @@ bool ComplexTaskQueue__runTask(_In_ ComplexTaskQueue* self, _Inout_ BasicTask** 
 
         if (defer) {
             // can't run it, defer it and send it to the doneq
-            btask_setState(*pbtask, TASK_Deferred);
+            if (expires < timeForever) {
+                ctask->nextrun = expires;
+                btask_setState(*pbtask, TASK_Scheduled);
+            } else {
+                btask_setState(*pbtask, TASK_Deferred);
+            }
             if (!prqPush(&self->doneq, *pbtask)) {
                 ctask_setState(*pbtask, TASK_Failed);
                 objRelease(pbtask);
@@ -481,14 +487,21 @@ bool ComplexTaskQueue_add(_In_ ComplexTaskQueue* self, _In_ BasicTask* btask)
 
     ComplexTask* ctask = objDynCast(ComplexTask, btask);
     if (ctask) {
+        int64 expires;
         // complex tasks remember which queue they belong to, for defer / schedule scenarios
         ctask->lastq = objGetWeak(ComplexTaskQueue, self);
 
         // if it's a complex task it might have dependencies
-        if (!ctaskCheckRequires(ctask, false)) {
+        if (!ctaskCheckRequires(ctask, false, &expires)) {
             // deps aren't satisifed, it needs to go in defer hash instead of run queue
-            if (!btask_setState(btask, TASK_Deferred))
-                return false;
+            if (expires < timeForever) {
+                ctask->nextrun = expires;
+                if (!btask_setState(btask, TASK_Scheduled))
+                    return false;
+            } else {
+                if (!btask_setState(btask, TASK_Deferred))
+                    return false;
+            }
 
             // add a reference and put it in the done queue, so it gets moved to the defer hash
             objAcquire(btask);

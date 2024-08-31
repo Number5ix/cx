@@ -28,6 +28,8 @@ saDeclarePtr(ComplexTask_WeakRef);
 
 #define ctaskDependOn(task, dep) ctaskRequireTask(task, dep, false)
 #define ctaskWaitFor(task, dep) ctaskRequireTask(task, dep, true)
+#define ctaskDependOnTimeout(task, dep, timeout) ctaskRequireTaskTimeout(task, dep, false, timeout)
+#define ctaskWaitForTimeout(task, dep, timeout) ctaskRequireTaskTimeout(task, dep, true, timeout)
 enum ComplexTaskRunResultEnum {
     TASK_Result_Schedule = TASK_Result_Basic_Count,     // schedule the task to run after the time specified in the TaskControl structure
     TASK_Result_Schedule_Progress,                      // schedule the task and mark it has having made progress
@@ -109,17 +111,29 @@ void ComplexTask_requireTask(_In_ ComplexTask* self, _In_ Task* dep, bool failok
 // Wrapper around require() to depend on a task completing
 #define ctaskRequireTask(self, dep, failok) ComplexTask_requireTask(ComplexTask(self), Task(dep), failok)
 
+void ComplexTask_requireTaskTimeout(_In_ ComplexTask* self, _In_ Task* dep, bool failok, int64 timeout);
+// void ctaskRequireTaskTimeout(ComplexTask* self, Task* dep, bool failok, int64 timeout);
+#define ctaskRequireTaskTimeout(self, dep, failok, timeout) ComplexTask_requireTaskTimeout(ComplexTask(self), Task(dep), failok, timeout)
+
 void ComplexTask_requireResource(_In_ ComplexTask* self, _In_ TaskResource* res);
 // void ctaskRequireResource(ComplexTask* self, TaskResource* res);
 //
 // Wrapper around require() to depend on acquiring a resource
 #define ctaskRequireResource(self, res) ComplexTask_requireResource(ComplexTask(self), TaskResource(res))
 
+void ComplexTask_requireResourceTimeout(_In_ ComplexTask* self, _In_ TaskResource* res, int64 timeout);
+// void ctaskRequireResourceTimeout(ComplexTask* self, TaskResource* res, int64 timeout);
+#define ctaskRequireResourceTimeout(self, res, timeout) ComplexTask_requireResourceTimeout(ComplexTask(self), TaskResource(res), timeout)
+
 void ComplexTask_requireGate(_In_ ComplexTask* self, _In_ TRGate* gate);
 // void ctaskRequireGate(ComplexTask* self, TRGate* gate);
 //
 // Wrapper around require() to depend on a gate being opened
 #define ctaskRequireGate(self, gate) ComplexTask_requireGate(ComplexTask(self), TRGate(gate))
+
+void ComplexTask_requireGateTimeout(_In_ ComplexTask* self, _In_ TRGate* gate, int64 timeout);
+// void ctaskRequireGateTimeout(ComplexTask* self, TRGate* gate, int64 timeout);
+#define ctaskRequireGateTimeout(self, gate, timeout) ComplexTask_requireGateTimeout(ComplexTask(self), TRGate(gate), timeout)
 
 void ComplexTask_require(_In_ ComplexTask* self, _In_ TaskRequires* req);
 // void ctaskRequire(ComplexTask* self, TaskRequires* req);
@@ -133,11 +147,11 @@ bool ComplexTask_advance(_In_ ComplexTask* self);
 // advance a deferred task to run as soon as possible
 #define ctaskAdvance(self) ComplexTask_advance(ComplexTask(self))
 
-bool ComplexTask_checkRequires(_In_ ComplexTask* self, bool updateProgress);
-// bool ctaskCheckRequires(ComplexTask* self, bool updateProgress);
+bool ComplexTask_checkRequires(_In_ ComplexTask* self, bool updateProgress, _Out_opt_ int64* expires);
+// bool ctaskCheckRequires(ComplexTask* self, bool updateProgress, int64* expires);
 //
 // check if this task can run because all requirements are satisfied
-#define ctaskCheckRequires(self, updateProgress) ComplexTask_checkRequires(ComplexTask(self), updateProgress)
+#define ctaskCheckRequires(self, updateProgress, expires) ComplexTask_checkRequires(ComplexTask(self), updateProgress, expires)
 
 bool ComplexTask_acquireRequires(_In_ ComplexTask* self, sa_TaskRequires* acquired);
 // bool ctaskAcquireRequires(ComplexTask* self, sa_TaskRequires* acquired);

@@ -75,14 +75,15 @@ uint32 ComplexTask_hash(_In_ ComplexTask* self, uint32 flags)
     return hashMurmur3((uint8*)&self, sizeof(void*));
 }
 
-bool ComplexTask_checkRequires(_In_ ComplexTask* self, bool updateProgress)
+bool ComplexTask_checkRequires(_In_ ComplexTask* self, bool updateProgress, _Out_opt_ int64* expires)
 {
-    int64 now     = clockTimer();
-    bool ret      = true;
-    bool done     = false;
+    int64 now        = clockTimer();
+    bool ret         = true;
+    bool done        = false;
+    int64 minexpires = timeForever;
 
     if ((self->flags & TASK_Cancel_Cascade) && taskCancelled(self)) {
-        // We need to cascade the cancel at a time it's safe to access the _depends array,
+        // We need to cascade the cancel at a time it's safe to access the _requires array,
         // here is as good as any.
         for (int i = saSize(self->_requires) - 1; i >= 0; --i) {
             taskrequiresCancel(self->_requires.a[i]);
@@ -91,7 +92,23 @@ bool ComplexTask_checkRequires(_In_ ComplexTask* self, bool updateProgress)
 
     for (int i = saSize(self->_requires) - 1; i >= 0 && !done; --i) {
         TaskRequires* req = self->_requires.a[i];
-        uint32 state = taskrequiresState(req, self);
+        uint32 state      = taskrequiresState(req, self);
+
+        // if this is a state that is going to have to wait, check for expiration
+        if ((state == TASK_Requires_Wait || state == TASK_Requires_Acquire) && req->expires > 0) {
+            if (now >= req->expires) {
+                // expire time has passed, fail this dependency, code below will take care of
+                // removing it
+                state = TASK_Requires_Fail_Permanent;
+
+                // if we're in cascade mode, go ahead and cancel it too
+                if (self->flags & TASK_Cancel_Cascade)
+                    taskrequiresCancel(req);
+            } else {
+                minexpires = min(minexpires, req->expires);
+            }
+        }
+
         switch (state) {
         case TASK_Requires_Ok:
             self->lastprogress = now;
@@ -144,6 +161,8 @@ bool ComplexTask_checkRequires(_In_ ComplexTask* self, bool updateProgress)
         }
     }
 
+    if (expires)
+        *expires = minexpires;
     return ret;
 }
 
@@ -213,6 +232,15 @@ void ComplexTask_requireTask(_In_ ComplexTask* self, _In_ Task* dep, bool failok
     saPushC(&self->_requires, object, &trt);
 }
 
+void ComplexTask_requireTaskTimeout(_In_ ComplexTask* self, _In_ Task* dep, bool failok,
+                                    int64 timeout)
+{
+    TaskRequiresTask* trt = taskrequirestaskCreate(dep, failok);
+    trt->expires          = (timeout < timeForever) ? clockTimer() + timeout : timeForever;
+    taskrequirestaskRegisterTask(trt, self);
+    saPushC(&self->_requires, object, &trt);
+}
+
 void ComplexTask_requireResource(_In_ ComplexTask* self, _In_ TaskResource* res)
 {
     TaskRequiresResource* trr = taskrequiresresourceCreate(res);
@@ -220,9 +248,26 @@ void ComplexTask_requireResource(_In_ ComplexTask* self, _In_ TaskResource* res)
     saPushC(&self->_requires, object, &trr);
 }
 
+void ComplexTask_requireResourceTimeout(_In_ ComplexTask* self, _In_ TaskResource* res,
+                                        int64 timeout)
+{
+    TaskRequiresResource* trr = taskrequiresresourceCreate(res);
+    trr->expires              = (timeout < timeForever) ? clockTimer() + timeout : timeForever;
+    taskrequiresresourceRegisterTask(trr, self);
+    saPushC(&self->_requires, object, &trr);
+}
+
 void ComplexTask_requireGate(_In_ ComplexTask* self, _In_ TRGate* gate)
 {
     TaskRequiresGate* trg = taskrequiresgateCreate(gate);
+    taskrequiresgateRegisterTask(trg, self);
+    saPushC(&self->_requires, object, &trg);
+}
+
+void ComplexTask_requireGateTimeout(_In_ ComplexTask* self, _In_ TRGate* gate, int64 timeout)
+{
+    TaskRequiresGate* trg = taskrequiresgateCreate(gate);
+    trg->expires          = (timeout < timeForever) ? clockTimer() + timeout : timeForever;
     taskrequiresgateRegisterTask(trg, self);
     saPushC(&self->_requires, object, &trg);
 }

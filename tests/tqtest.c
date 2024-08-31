@@ -1050,6 +1050,42 @@ static int test_tqtest_multiphase(void) {
     return ret;       
 }
 
+static int test_tqtest_timeout(void) {
+    int ret = 0;
+
+    TaskQueueConfig conf;
+    tqPresetBalanced(&conf);
+    TaskQueue* q = tqCreate(_S"Test", &conf);
+    if(!q || !tqStart(q))
+        return 1;
+
+    memset(&rts, 0, sizeof(rts));
+    TQTimeoutTest1* tt1 = tqtimeouttest1Create();
+    TQTimeoutTest2* tt2 = tqtimeouttest2Create(&rts);
+    tt2->flags |= TASK_Cancel_Cascade;
+    ctaskDependOnTimeout(tt2, tt1, timeMS(250));
+
+    tqAdd(q, tt2);
+    tqAdd(q, tt1);
+
+    if (!taskWait(tt2, timeS(5)))
+        ret = 1;
+
+    if (!taskIsComplete(tt2) || taskSucceeded(tt2))
+        ret = 1;
+
+    if (rts.count != 0)
+        ret = 1;
+
+    tqShutdown(q, timeS(60));
+    tqRelease(&q);
+
+    objRelease(&tt1);
+    objRelease(&tt2);
+
+    return ret;
+}
+
 testfunc tqtest_funcs[] = {
     {"task",                   test_tqtest_task                 },
     { "failure",               test_tqtest_failure              },
@@ -1064,6 +1100,7 @@ testfunc tqtest_funcs[] = {
     { "reqfifo",               test_tqtest_reqfifo              },
     { "reqlifo",               test_tqtest_reqlifo              },
     { "reqgate",               test_tqtest_reqgate              },
+    { "timeout",               test_tqtest_timeout              },
     { "manual",                test_tqtest_manual               },
     { "oneshot",               test_tqtest_oneshot              },
     { "multiphase",            test_tqtest_multiphase           },

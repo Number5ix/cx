@@ -5,6 +5,8 @@
 
 #define ctaskDependOn(task, dep) ctaskRequireTask(task, dep, false)
 #define ctaskWaitFor(task, dep) ctaskRequireTask(task, dep, true)
+#define ctaskDependOnTimeout(task, dep, timeout) ctaskRequireTaskTimeout(task, dep, false, timeout)
+#define ctaskWaitForTimeout(task, dep, timeout) ctaskRequireTaskTimeout(task, dep, true, timeout)
 
 class TRGate;
 
@@ -54,15 +56,18 @@ class ComplexTaskQueue;
 
     // Wrapper around require() to depend on a task completing
     unbound void requireTask([in] Task *dep, bool failok);
+    unbound void requireTaskTimeout([in] Task *dep, bool failok, int64 timeout);
     // Wrapper around require() to depend on acquiring a resource
     unbound void requireResource([in] TaskResource *res);
+    unbound void requireResourceTimeout([in] TaskResource *res, int64 timeout);
     // Wrapper around require() to depend on a gate being opened
     unbound void requireGate([in] TRGate *gate);
+    unbound void requireGateTimeout([in] TRGate *gate, int64 timeout);
     // Add a requirement for the task to run
     unbound void require([in] TaskRequires *req);
 
     unbound bool advance();     // advance a deferred task to run as soon as possible
-    unbound bool checkRequires(bool updateProgress);   // check if this task can run because all requirements are satisfied
+    unbound bool checkRequires(bool updateProgress, [out] [opt] int64 *expires);   // check if this task can run because all requirements are satisfied
     unbound bool acquireRequires(sa_TaskRequires *acquired);   // try to acquire required resources
     unbound bool releaseRequires(sa_TaskRequires resources);   // release a list of acquired resources
     standalone bool advanceCallback(stvlist *cvars, stvlist *args);   // callback to be used in a closure; cvars = weak reference to the task to advance

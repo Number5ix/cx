@@ -123,6 +123,7 @@ typedef struct TaskRequiresGate {
     atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
+    int64 expires;        // Time after which this requires is considered timed out and expired, and will fail.
     TRGate* gate;
 } TaskRequiresGate;
 extern ObjClassInfo TaskRequiresGate_clsinfo;

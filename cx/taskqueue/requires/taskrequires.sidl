@@ -12,6 +12,9 @@ enum TaskRequiresStateEnum {
 };
 
 abstract class TaskRequires {
+    // Time after which this requires is considered timed out and expired, and will fail.
+    int64 expires;
+
     // Calculate the current state of the requirement.
     [abstract] uint32 state(ComplexTask *task);
 

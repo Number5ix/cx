@@ -110,6 +110,7 @@ static const testspec tests[] = {
 { "taskqueue: Require FIFO", "tqtest", "reqfifo" },
 { "taskqueue: Require LIFO", "tqtest", "reqlifo" },
 { "taskqueue: Require Gate", "tqtest", "reqgate" },
+{ "taskqueue: Dependency Timeout", "tqtest", "timeout" },
 { "taskqueue: Manual", "tqtest", "manual" },
 { "taskqueue: Oneshot", "tqtest", "oneshot" },
 { "taskqueue: Multiphase", "tqtest", "multiphase" },

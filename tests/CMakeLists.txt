@@ -154,6 +154,7 @@ add_test(NAME "\"taskqueue: Require Mutex\"" COMMAND test_runner tqtest reqmutex
 add_test(NAME "\"taskqueue: Require FIFO\"" COMMAND test_runner tqtest reqfifo)
 add_test(NAME "\"taskqueue: Require LIFO\"" COMMAND test_runner tqtest reqlifo)
 add_test(NAME "\"taskqueue: Require Gate\"" COMMAND test_runner tqtest reqgate)
+add_test(NAME "\"taskqueue: Dependency Timeout\"" COMMAND test_runner tqtest timeout)
 add_test(NAME "\"taskqueue: Manual\"" COMMAND test_runner tqtest manual)
 add_test(NAME "\"taskqueue: Oneshot\"" COMMAND test_runner tqtest oneshot)
 add_test(NAME "\"taskqueue: Multiphase\"" COMMAND test_runner tqtest multiphase)
