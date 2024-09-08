@@ -137,10 +137,15 @@ void MultiphaseTask__addPhases(_In_ MultiphaseTask* self, int32 num, MPTPhaseFun
 // advance a deferred task to run as soon as possible
 #define mptaskAdvance(self) ComplexTask_advance(ComplexTask(self))
 
-// bool mptaskCheckRequires(MultiphaseTask* self, bool updateProgress, int64* expires);
+// uint32 mptaskCheckRequires(MultiphaseTask* self, bool updateProgress, int64* expires);
 //
 // check if this task can run because all requirements are satisfied
 #define mptaskCheckRequires(self, updateProgress, expires) ComplexTask_checkRequires(ComplexTask(self), updateProgress, expires)
+
+// void mptaskCancelRequires(MultiphaseTask* self);
+//
+// cascade a task cancellation to any requirements
+#define mptaskCancelRequires(self) ComplexTask_cancelRequires(ComplexTask(self))
 
 // bool mptaskAcquireRequires(MultiphaseTask* self, sa_TaskRequires* acquired);
 //

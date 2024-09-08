@@ -75,20 +75,13 @@ uint32 ComplexTask_hash(_In_ ComplexTask* self, uint32 flags)
     return hashMurmur3((uint8*)&self, sizeof(void*));
 }
 
-bool ComplexTask_checkRequires(_In_ ComplexTask* self, bool updateProgress, _Out_opt_ int64* expires)
+uint32 ComplexTask_checkRequires(_In_ ComplexTask* self, bool updateProgress,
+                                 _Out_opt_ int64* expires)
 {
     int64 now        = clockTimer();
-    bool ret         = true;
+    uint32 ret       = TASK_Requires_Ok;
     bool done        = false;
     int64 minexpires = timeForever;
-
-    if ((self->flags & TASK_Cancel_Cascade) && taskCancelled(self)) {
-        // We need to cascade the cancel at a time it's safe to access the _requires array,
-        // here is as good as any.
-        for (int i = saSize(self->_requires) - 1; i >= 0; --i) {
-            taskrequiresCancel(self->_requires.a[i]);
-        }
-    }
 
     for (int i = saSize(self->_requires) - 1; i >= 0 && !done; --i) {
         TaskRequires* req = self->_requires.a[i];
@@ -101,8 +94,8 @@ bool ComplexTask_checkRequires(_In_ ComplexTask* self, bool updateProgress, _Out
                 // removing it
                 state = TASK_Requires_Fail_Permanent;
 
-                // if we're in cascade mode, go ahead and cancel it too
-                if (self->flags & TASK_Cancel_Cascade)
+                // if we're cancelling expired requirements, do so now
+                if (self->flags & TASK_Cancel_Expired)
                     taskrequiresCancel(req);
             } else {
                 minexpires = min(minexpires, req->expires);
@@ -122,27 +115,16 @@ bool ComplexTask_checkRequires(_In_ ComplexTask* self, bool updateProgress, _Out
         case TASK_Requires_Fail_Permanent:
             saRemove(&self->_requires, i);
 
-            if (self->flags & TASK_Soft_Requires) {
-                // just flag it as failed but otherwise treat as permanent Ok
-                self->flags |= TASK_Require_Failed;
-            } else {
-                ret = false;
-
-                if (!btaskFailed(self)) {
-                    btask_setState(self, TASK_Failed);
-                    if (self->oncomplete) {
-                        // Normally the completion callback would be called when the task is run.
-                        // But since it will never run due to a depedency failing, call it now.
-                        cchainCallOnce(&self->oncomplete, stvar(object, self));
-                    }
-                    ctaskAdvance(self);
-                }
-                ret = false;   // don't run now, instead re-process in advanceq
-            }
+            if (self->flags & TASK_Soft_Requires)
+                self->flags |= TASK_Require_Failed;   // just flag it as failed but otherwise treat
+                                                      // as permanent Ok
+            else
+                ret = TASK_Requires_Fail_Permanent;
             break;
 
         case TASK_Requires_Wait:
-            ret = false;
+            if (ret != TASK_Requires_Fail_Permanent)
+                ret = TASK_Requires_Wait;
             if (updateProgress) {
                 int64 progress = taskrequiresProgress(req);
                 if (progress > 0)
@@ -155,8 +137,10 @@ bool ComplexTask_checkRequires(_In_ ComplexTask* self, bool updateProgress, _Out
             break;
 
         case TASK_Requires_Acquire:
-            // resources need to be acquired, but we prefer to try to do that right before the task is run
-            self->_intflags |= TASK_INTERNAL_Needs_Resources;
+            // resources need to be acquired, but we prefer to try to do that right before the task
+            // is run, but only if we're not waiting on anything else
+            if (ret == TASK_Requires_Ok)
+                ret = TASK_Requires_Acquire;
             break;
         }
     }
@@ -164,6 +148,13 @@ bool ComplexTask_checkRequires(_In_ ComplexTask* self, bool updateProgress, _Out
     if (expires)
         *expires = minexpires;
     return ret;
+}
+
+void ComplexTask_cancelRequires(_In_ ComplexTask* self)
+{
+    for (int i = saSize(self->_requires) - 1; i >= 0; --i) {
+        taskrequiresCancel(self->_requires.a[i]);
+    }
 }
 
 bool ComplexTask_acquireRequires(_In_ ComplexTask* self, sa_TaskRequires* acquired)
@@ -183,8 +174,6 @@ bool ComplexTask_acquireRequires(_In_ ComplexTask* self, sa_TaskRequires* acquir
             return false;
         }
     }
-
-    self->_intflags &= ~TASK_INTERNAL_Needs_Resources;
 
     return true;
 }

@@ -194,25 +194,14 @@ int64 ComplexTaskQueue__processExtra(_In_ ComplexTaskQueue* self, bool taskscomp
             }
             break;
         case TASK_Deferred:
-            // If the task was deferred because it's waiting on dependencies, make sure they're all
-            // satisfied before releasing it. Updating progress can make this more expensive if
-            // there are many dependencies, so only do that if we have a monitor and need to care
-            // about progress.
-            if (ctaskCheckRequires(ctask, self->monitor != NULL, NULL)) {
-                ctask_setState(ctask, TASK_Waiting);
-                if (htRemove(&self->deferred, object, ctask)) {
-                    ctask->last = now;
-                    prqPush(&self->runq, ctask);
-                    ++dcount;
-                } else {
-                    // might have just been put in doneq? Let it run ASAP if that's the case
-                    waittime = 0;
-                }
-            } else if (advcount > 1) {
-                // We can't run this yet, but the task has been advanced multiple times, so put it back in
-                // advanceq to re-check the requirements. We can't push to advanceq here becausae we're still
-                // popping it, so build a temporary list to do it later.
-                saPush(&readvance, ptr, ctask);
+            ctask_setState(ctask, TASK_Waiting);
+            if (htRemove(&self->deferred, object, ctask)) {
+                ctask->last = now;
+                prqPush(&self->runq, ctask);
+                ++dcount;
+            } else {
+                // might have just been put in doneq? Let it run ASAP if that's the case
+                ctask->nextrun = 0;
                 waittime = 0;
             }
             break;
@@ -325,23 +314,27 @@ bool ComplexTaskQueue__runTask(_In_ ComplexTaskQueue* self, _Inout_ BasicTask** 
 {
     // context: This is called from worker threads. The task pointed to by pbtask has been removed
     // from the run queue and exists only in the parameter; so we MUST do something with it.
-    bool completed = false;
-    ComplexTask* ctask = objDynCast(ComplexTask, *pbtask);
+    bool completed           = false;
+    bool cancelled           = btaskCancelled(*pbtask);
+    ComplexTask* ctask       = objDynCast(ComplexTask, *pbtask);
     sa_TaskRequires acquired = saInitNone;
 
-    // If this is a complex task, do a last-second check of the dependencies. This is also where
-    // we try to acquire any resources needed by the task.
-    if (ctask) {
-        bool defer    = false;
+    // If this is a complex task, check the dependencies. This is also where we try to acquire any
+    // resources needed by the task.
+    if (ctask && !cancelled) {
         int64 expires = timeForever;
 
-        if (!ctaskCheckRequires(ctask, false, &expires))
-            defer = true;
-        else if (ctask->_intflags & TASK_INTERNAL_Needs_Resources) {
+        // Updating progress can make this more expensive if there are many dependencies, so only do
+        // that if we have a monitor and need to care about progress.
+        uint32 reqstate = ctaskCheckRequires(ctask, self->monitor != NULL, &expires);
+
+        if (reqstate == TASK_Requires_Acquire) {
             // we know the size will be less than the number of requires, so preallocate enough
             saInit(&acquired, object, saSize(ctask->_requires), SA_Ref);
-            if (!ctaskAcquireRequires(ctask, &acquired)) {
-                defer = true;
+            if (ctaskAcquireRequires(ctask, &acquired)) {
+                reqstate = TASK_Requires_Ok;
+            } else {
+                reqstate = TASK_Requires_Wait;
 
                 if (!(ctask->flags & TASK_Retain_Requires)) {
                     // in the failure case, release them now unless the task wants to retain them
@@ -350,7 +343,7 @@ bool ComplexTaskQueue__runTask(_In_ ComplexTaskQueue* self, _Inout_ BasicTask** 
             }
         }
 
-        if (defer) {
+        if (reqstate == TASK_Requires_Wait) {
             // can't run it, defer it and send it to the doneq
             if (expires < timeForever) {
                 ctask->nextrun = expires;
@@ -372,7 +365,14 @@ bool ComplexTaskQueue__runTask(_In_ ComplexTaskQueue* self, _Inout_ BasicTask** 
             saDestroy(&acquired);
             *pbtask = NULL;
             return false;
+        } else if (reqstate == TASK_Requires_Fail_Permanent) {
+            cancelled = true;   // cancel the task if requirements can't be satisfied
         }
+    }
+
+    if (ctask && cancelled && (self->flags & TASK_Cancel_Cascade)) {
+        // cancel any dependencies if we're in cascade mode
+        ctaskCancelRequires(ctask);
     }
 
     if (!btask_setState(*pbtask, TASK_Running)) {
@@ -383,7 +383,7 @@ bool ComplexTaskQueue__runTask(_In_ ComplexTaskQueue* self, _Inout_ BasicTask** 
 
     TaskControl tcon = { 0 };
     uint32 tresult;
-    if (!btaskCancelled(*pbtask)) {
+    if (!cancelled) {
         tresult = btaskRun(*pbtask, self, worker, &tcon);
     } else {
         // if the task has been cancelled, we still give it one chance to clean something up, then
@@ -495,34 +495,8 @@ bool ComplexTaskQueue_add(_In_ ComplexTaskQueue* self, _In_ BasicTask* btask)
 
     ComplexTask* ctask = objDynCast(ComplexTask, btask);
     if (ctask) {
-        int64 expires;
         // complex tasks remember which queue they belong to, for defer / schedule scenarios
         ctask->lastq = objGetWeak(ComplexTaskQueue, self);
-
-        // if it's a complex task it might have dependencies
-        if (!ctaskCheckRequires(ctask, false, &expires)) {
-            // deps aren't satisifed, it needs to go in defer hash instead of run queue
-            if (expires < timeForever) {
-                ctask->nextrun = expires;
-                if (!btask_setState(btask, TASK_Scheduled))
-                    return false;
-            } else {
-                if (!btask_setState(btask, TASK_Deferred))
-                    return false;
-            }
-
-            // add a reference and put it in the done queue, so it gets moved to the defer hash
-            objAcquire(btask);
-            ctask->last = clockTimer();
-            if (!prqPush(&self->doneq, btask)) {
-                btask_setState(btask, TASK_Failed);
-                objRelease(&btask);
-                return false;
-            }
-            // notify manager to go pick it up
-            tqmanagerNotify(self->manager, true);
-            return true;
-        }
     }
 
     // try to move it to waiting state

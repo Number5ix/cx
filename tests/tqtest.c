@@ -1062,7 +1062,7 @@ static int test_tqtest_timeout(void) {
     memset(&rts, 0, sizeof(rts));
     TQTimeoutTest1* tt1 = tqtimeouttest1Create();
     TQTimeoutTest2* tt2 = tqtimeouttest2Create(&rts);
-    tt2->flags |= TASK_Cancel_Cascade;
+    tt2->flags |= TASK_Cancel_Expired;
     ctaskDependOnTimeout(tt2, tt1, timeMS(250));
 
     tqAdd(q, tt2);

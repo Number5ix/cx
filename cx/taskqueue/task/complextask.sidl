@@ -33,14 +33,16 @@ enum ComplexTaskFlagsEnum {
     // to determine if any requirements failed.
     TASK_Soft_Requires = 0x04,
 
+    // If a requirement expires because it hit the timeout, cancel it.
+    TASK_Cancel_Expired = 0x08,
+
     // Indicates that one or more requirements failed. Only applies to tasks with TASK_Soft_Requires set. Set
     // internally by the task queue. May be cleared by the task during its run phase.
     TASK_Require_Failed = 0xa0,
 };
 
 enum ComplexTaskInternalFlagsEnum {
-    TASK_INTERNAL_Needs_Resources = 0x01,   // The _requires list contains shared resources that must be acquired before running the task
-    TASK_INTERNAL_Owns_Resources = 0x02,    // The task has acquired resources and needs to release them
+    TASK_INTERNAL_Owns_Resources = 0x01,    // The task has acquired resources and needs to release them
 };
 
 class ComplexTaskQueue;
@@ -67,7 +69,8 @@ class ComplexTaskQueue;
     unbound void require([in] TaskRequires *req);
 
     unbound bool advance();     // advance a deferred task to run as soon as possible
-    unbound bool checkRequires(bool updateProgress, [out] [opt] int64 *expires);   // check if this task can run because all requirements are satisfied
+    unbound uint32 checkRequires(bool updateProgress, [out] [opt] int64 *expires);   // check if this task can run because all requirements are satisfied
+    unbound void cancelRequires();   // cascade a task cancellation to any requirements
     unbound bool acquireRequires(sa_TaskRequires *acquired);   // try to acquire required resources
     unbound bool releaseRequires(sa_TaskRequires resources);   // release a list of acquired resources
     standalone bool advanceCallback(stvlist *cvars, stvlist *args);   // callback to be used in a closure; cvars = weak reference to the task to advance

@@ -42,12 +42,12 @@ enum ComplexTaskFlagsEnum {
     TASK_Cancel_Cascade = 0x01,
     TASK_Retain_Requires = 0x02,
     TASK_Soft_Requires = 0x04,
+    TASK_Cancel_Expired = 0x08,
     TASK_Require_Failed = 0xa0,
 };
 
 enum ComplexTaskInternalFlagsEnum {
-    TASK_INTERNAL_Needs_Resources = 0x01,   // The _requires list contains shared resources that must be acquired before running the task
-    TASK_INTERNAL_Owns_Resources = 0x02,    // The task has acquired resources and needs to release them
+    TASK_INTERNAL_Owns_Resources = 0x01,    // The task has acquired resources and needs to release them
 };
 
 typedef struct ComplexTask_ClassIf {
@@ -148,11 +148,17 @@ bool ComplexTask_advance(_In_ ComplexTask* self);
 // advance a deferred task to run as soon as possible
 #define ctaskAdvance(self) ComplexTask_advance(ComplexTask(self))
 
-bool ComplexTask_checkRequires(_In_ ComplexTask* self, bool updateProgress, _Out_opt_ int64* expires);
-// bool ctaskCheckRequires(ComplexTask* self, bool updateProgress, int64* expires);
+uint32 ComplexTask_checkRequires(_In_ ComplexTask* self, bool updateProgress, _Out_opt_ int64* expires);
+// uint32 ctaskCheckRequires(ComplexTask* self, bool updateProgress, int64* expires);
 //
 // check if this task can run because all requirements are satisfied
 #define ctaskCheckRequires(self, updateProgress, expires) ComplexTask_checkRequires(ComplexTask(self), updateProgress, expires)
+
+void ComplexTask_cancelRequires(_In_ ComplexTask* self);
+// void ctaskCancelRequires(ComplexTask* self);
+//
+// cascade a task cancellation to any requirements
+#define ctaskCancelRequires(self) ComplexTask_cancelRequires(ComplexTask(self))
 
 bool ComplexTask_acquireRequires(_In_ ComplexTask* self, sa_TaskRequires* acquired);
 // bool ctaskAcquireRequires(ComplexTask* self, sa_TaskRequires* acquired);

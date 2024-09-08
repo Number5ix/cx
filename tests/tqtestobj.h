@@ -646,10 +646,15 @@ typedef struct TQTestSched_WeakRef {
 // advance a deferred task to run as soon as possible
 #define tqtestschedAdvance(self) ComplexTask_advance(ComplexTask(self))
 
-// bool tqtestschedCheckRequires(TQTestSched* self, bool updateProgress, int64* expires);
+// uint32 tqtestschedCheckRequires(TQTestSched* self, bool updateProgress, int64* expires);
 //
 // check if this task can run because all requirements are satisfied
 #define tqtestschedCheckRequires(self, updateProgress, expires) ComplexTask_checkRequires(ComplexTask(self), updateProgress, expires)
+
+// void tqtestschedCancelRequires(TQTestSched* self);
+//
+// cascade a task cancellation to any requirements
+#define tqtestschedCancelRequires(self) ComplexTask_cancelRequires(ComplexTask(self))
 
 // bool tqtestschedAcquireRequires(TQTestSched* self, sa_TaskRequires* acquired);
 //
@@ -766,10 +771,15 @@ _objfactory_guaranteed TQTestS1* TQTestS1_create(int order, int64 dtime, Event* 
 // advance a deferred task to run as soon as possible
 #define tqtests1Advance(self) ComplexTask_advance(ComplexTask(self))
 
-// bool tqtests1CheckRequires(TQTestS1* self, bool updateProgress, int64* expires);
+// uint32 tqtests1CheckRequires(TQTestS1* self, bool updateProgress, int64* expires);
 //
 // check if this task can run because all requirements are satisfied
 #define tqtests1CheckRequires(self, updateProgress, expires) ComplexTask_checkRequires(ComplexTask(self), updateProgress, expires)
+
+// void tqtests1CancelRequires(TQTestS1* self);
+//
+// cascade a task cancellation to any requirements
+#define tqtests1CancelRequires(self) ComplexTask_cancelRequires(ComplexTask(self))
 
 // bool tqtests1AcquireRequires(TQTestS1* self, sa_TaskRequires* acquired);
 //
@@ -884,10 +894,15 @@ _objfactory_guaranteed TQTestS2* TQTestS2_create(Task* waitfor, Event* notify);
 // advance a deferred task to run as soon as possible
 #define tqtests2Advance(self) ComplexTask_advance(ComplexTask(self))
 
-// bool tqtests2CheckRequires(TQTestS2* self, bool updateProgress, int64* expires);
+// uint32 tqtests2CheckRequires(TQTestS2* self, bool updateProgress, int64* expires);
 //
 // check if this task can run because all requirements are satisfied
 #define tqtests2CheckRequires(self, updateProgress, expires) ComplexTask_checkRequires(ComplexTask(self), updateProgress, expires)
+
+// void tqtests2CancelRequires(TQTestS2* self);
+//
+// cascade a task cancellation to any requirements
+#define tqtests2CancelRequires(self) ComplexTask_cancelRequires(ComplexTask(self))
 
 // bool tqtests2AcquireRequires(TQTestS2* self, sa_TaskRequires* acquired);
 //
@@ -1052,10 +1067,15 @@ _objfactory_guaranteed TQMTest* TQMTest_create(Event* notify);
 // advance a deferred task to run as soon as possible
 #define tqmtestAdvance(self) ComplexTask_advance(ComplexTask(self))
 
-// bool tqmtestCheckRequires(TQMTest* self, bool updateProgress, int64* expires);
+// uint32 tqmtestCheckRequires(TQMTest* self, bool updateProgress, int64* expires);
 //
 // check if this task can run because all requirements are satisfied
 #define tqmtestCheckRequires(self, updateProgress, expires) ComplexTask_checkRequires(ComplexTask(self), updateProgress, expires)
+
+// void tqmtestCancelRequires(TQMTest* self);
+//
+// cascade a task cancellation to any requirements
+#define tqmtestCancelRequires(self) ComplexTask_cancelRequires(ComplexTask(self))
 
 // bool tqmtestAcquireRequires(TQMTest* self, sa_TaskRequires* acquired);
 //
@@ -1168,10 +1188,15 @@ _objfactory_guaranteed TQRTestMtx* TQRTestMtx_create(ReqTestState* rts, int num)
 // advance a deferred task to run as soon as possible
 #define tqrtestmtxAdvance(self) ComplexTask_advance(ComplexTask(self))
 
-// bool tqrtestmtxCheckRequires(TQRTestMtx* self, bool updateProgress, int64* expires);
+// uint32 tqrtestmtxCheckRequires(TQRTestMtx* self, bool updateProgress, int64* expires);
 //
 // check if this task can run because all requirements are satisfied
 #define tqrtestmtxCheckRequires(self, updateProgress, expires) ComplexTask_checkRequires(ComplexTask(self), updateProgress, expires)
+
+// void tqrtestmtxCancelRequires(TQRTestMtx* self);
+//
+// cascade a task cancellation to any requirements
+#define tqrtestmtxCancelRequires(self) ComplexTask_cancelRequires(ComplexTask(self))
 
 // bool tqrtestmtxAcquireRequires(TQRTestMtx* self, sa_TaskRequires* acquired);
 //
@@ -1285,10 +1310,15 @@ _objfactory_guaranteed TQRTestFifo* TQRTestFifo_create(ReqTestState* rts, int se
 // advance a deferred task to run as soon as possible
 #define tqrtestfifoAdvance(self) ComplexTask_advance(ComplexTask(self))
 
-// bool tqrtestfifoCheckRequires(TQRTestFifo* self, bool updateProgress, int64* expires);
+// uint32 tqrtestfifoCheckRequires(TQRTestFifo* self, bool updateProgress, int64* expires);
 //
 // check if this task can run because all requirements are satisfied
 #define tqrtestfifoCheckRequires(self, updateProgress, expires) ComplexTask_checkRequires(ComplexTask(self), updateProgress, expires)
+
+// void tqrtestfifoCancelRequires(TQRTestFifo* self);
+//
+// cascade a task cancellation to any requirements
+#define tqrtestfifoCancelRequires(self) ComplexTask_cancelRequires(ComplexTask(self))
 
 // bool tqrtestfifoAcquireRequires(TQRTestFifo* self, sa_TaskRequires* acquired);
 //
@@ -1402,10 +1432,15 @@ _objfactory_guaranteed TQRTestLifo* TQRTestLifo_create(ReqTestState* rts, int se
 // advance a deferred task to run as soon as possible
 #define tqrtestlifoAdvance(self) ComplexTask_advance(ComplexTask(self))
 
-// bool tqrtestlifoCheckRequires(TQRTestLifo* self, bool updateProgress, int64* expires);
+// uint32 tqrtestlifoCheckRequires(TQRTestLifo* self, bool updateProgress, int64* expires);
 //
 // check if this task can run because all requirements are satisfied
 #define tqrtestlifoCheckRequires(self, updateProgress, expires) ComplexTask_checkRequires(ComplexTask(self), updateProgress, expires)
+
+// void tqrtestlifoCancelRequires(TQRTestLifo* self);
+//
+// cascade a task cancellation to any requirements
+#define tqrtestlifoCancelRequires(self) ComplexTask_cancelRequires(ComplexTask(self))
 
 // bool tqrtestlifoAcquireRequires(TQRTestLifo* self, sa_TaskRequires* acquired);
 //
@@ -1518,10 +1553,15 @@ _objfactory_guaranteed TQRTestGate* TQRTestGate_create(ReqTestState2* rts, int n
 // advance a deferred task to run as soon as possible
 #define tqrtestgateAdvance(self) ComplexTask_advance(ComplexTask(self))
 
-// bool tqrtestgateCheckRequires(TQRTestGate* self, bool updateProgress, int64* expires);
+// uint32 tqrtestgateCheckRequires(TQRTestGate* self, bool updateProgress, int64* expires);
 //
 // check if this task can run because all requirements are satisfied
 #define tqrtestgateCheckRequires(self, updateProgress, expires) ComplexTask_checkRequires(ComplexTask(self), updateProgress, expires)
+
+// void tqrtestgateCancelRequires(TQRTestGate* self);
+//
+// cascade a task cancellation to any requirements
+#define tqrtestgateCancelRequires(self) ComplexTask_cancelRequires(ComplexTask(self))
 
 // bool tqrtestgateAcquireRequires(TQRTestGate* self, sa_TaskRequires* acquired);
 //
@@ -1646,10 +1686,15 @@ _objfactory_guaranteed TQMPTest* TQMPTest_create(int variant, int idx, MPTestSta
 // advance a deferred task to run as soon as possible
 #define tqmptestAdvance(self) ComplexTask_advance(ComplexTask(self))
 
-// bool tqmptestCheckRequires(TQMPTest* self, bool updateProgress, int64* expires);
+// uint32 tqmptestCheckRequires(TQMPTest* self, bool updateProgress, int64* expires);
 //
 // check if this task can run because all requirements are satisfied
 #define tqmptestCheckRequires(self, updateProgress, expires) ComplexTask_checkRequires(ComplexTask(self), updateProgress, expires)
+
+// void tqmptestCancelRequires(TQMPTest* self);
+//
+// cascade a task cancellation to any requirements
+#define tqmptestCancelRequires(self) ComplexTask_cancelRequires(ComplexTask(self))
 
 // bool tqmptestAcquireRequires(TQMPTest* self, sa_TaskRequires* acquired);
 //
@@ -1766,10 +1811,15 @@ _objfactory_guaranteed TQTimeoutTest1* TQTimeoutTest1_create();
 // advance a deferred task to run as soon as possible
 #define tqtimeouttest1Advance(self) ComplexTask_advance(ComplexTask(self))
 
-// bool tqtimeouttest1CheckRequires(TQTimeoutTest1* self, bool updateProgress, int64* expires);
+// uint32 tqtimeouttest1CheckRequires(TQTimeoutTest1* self, bool updateProgress, int64* expires);
 //
 // check if this task can run because all requirements are satisfied
 #define tqtimeouttest1CheckRequires(self, updateProgress, expires) ComplexTask_checkRequires(ComplexTask(self), updateProgress, expires)
+
+// void tqtimeouttest1CancelRequires(TQTimeoutTest1* self);
+//
+// cascade a task cancellation to any requirements
+#define tqtimeouttest1CancelRequires(self) ComplexTask_cancelRequires(ComplexTask(self))
 
 // bool tqtimeouttest1AcquireRequires(TQTimeoutTest1* self, sa_TaskRequires* acquired);
 //
@@ -1881,10 +1931,15 @@ _objfactory_guaranteed TQTimeoutTest2* TQTimeoutTest2_create(ReqTestState* rts);
 // advance a deferred task to run as soon as possible
 #define tqtimeouttest2Advance(self) ComplexTask_advance(ComplexTask(self))
 
-// bool tqtimeouttest2CheckRequires(TQTimeoutTest2* self, bool updateProgress, int64* expires);
+// uint32 tqtimeouttest2CheckRequires(TQTimeoutTest2* self, bool updateProgress, int64* expires);
 //
 // check if this task can run because all requirements are satisfied
 #define tqtimeouttest2CheckRequires(self, updateProgress, expires) ComplexTask_checkRequires(ComplexTask(self), updateProgress, expires)
+
+// void tqtimeouttest2CancelRequires(TQTimeoutTest2* self);
+//
+// cascade a task cancellation to any requirements
+#define tqtimeouttest2CancelRequires(self) ComplexTask_cancelRequires(ComplexTask(self))
 
 // bool tqtimeouttest2AcquireRequires(TQTimeoutTest2* self, sa_TaskRequires* acquired);
 //
