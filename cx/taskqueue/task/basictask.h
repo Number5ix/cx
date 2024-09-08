@@ -27,6 +27,7 @@ typedef struct BasicTask_ClassIf {
     size_t _size;
 
     uint32 (*run)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
+    void (*runCancelled)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker);
     bool (*cancel)(_In_ void* self);
     bool (*reset)(_In_ void* self);
 } BasicTask_ClassIf;
@@ -65,6 +66,8 @@ bool BasicTask__setState(_In_ BasicTask* self, uint32 newstate);
 
 // uint32 btaskRun(BasicTask* self, TaskQueue* tq, TQWorker* worker, TaskControl* tcon);
 #define btaskRun(self, tq, worker, tcon) (self)->_->run(BasicTask(self), TaskQueue(tq), TQWorker(worker), tcon)
+// void btaskRunCancelled(BasicTask* self, TaskQueue* tq, TQWorker* worker);
+#define btaskRunCancelled(self, tq, worker) (self)->_->runCancelled(BasicTask(self), TaskQueue(tq), TQWorker(worker))
 // bool btaskCancel(BasicTask* self);
 #define btaskCancel(self) (self)->_->cancel(BasicTask(self))
 // bool btaskReset(BasicTask* self);

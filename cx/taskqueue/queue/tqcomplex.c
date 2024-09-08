@@ -382,10 +382,18 @@ bool ComplexTaskQueue__runTask(_In_ ComplexTaskQueue* self, _Inout_ BasicTask** 
     }
 
     TaskControl tcon = { 0 };
-    uint32 tresult   = btaskRun(*pbtask, self, worker, &tcon);
+    uint32 tresult;
+    if (!btaskCancelled(*pbtask)) {
+        tresult = btaskRun(*pbtask, self, worker, &tcon);
+    } else {
+        // if the task has been cancelled, we still give it one chance to clean something up, then
+        // automatically fail the task
+        btaskRunCancelled(*pbtask, self, worker);
+        tresult = TASK_Result_Failure;
+    }
 
-    Task* task         = Task(ctask);
-    int64 now          = clockTimer();
+    Task* task = Task(ctask);
+    int64 now  = clockTimer();
 
     if (ctask &&
         (tresult == TASK_Result_Schedule_Progress || tresult == TASK_Result_Defer_Progress)) {

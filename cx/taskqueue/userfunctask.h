@@ -22,6 +22,7 @@ typedef struct UserFuncTask_ClassIf {
     size_t _size;
 
     uint32 (*run)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
+    void (*runCancelled)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker);
     bool (*cancel)(_In_ void* self);
     bool (*reset)(_In_ void* self);
 } UserFuncTask_ClassIf;
@@ -67,6 +68,8 @@ _objfactory_guaranteed UserFuncTask* UserFuncTask_create(UserTaskCB func, void* 
 
 // uint32 userfunctaskRun(UserFuncTask* self, TaskQueue* tq, TQWorker* worker, TaskControl* tcon);
 #define userfunctaskRun(self, tq, worker, tcon) (self)->_->run(UserFuncTask(self), TaskQueue(tq), TQWorker(worker), tcon)
+// void userfunctaskRunCancelled(UserFuncTask* self, TaskQueue* tq, TQWorker* worker);
+#define userfunctaskRunCancelled(self, tq, worker) (self)->_->runCancelled(UserFuncTask(self), TaskQueue(tq), TQWorker(worker))
 // bool userfunctaskCancel(UserFuncTask* self);
 #define userfunctaskCancel(self) (self)->_->cancel(UserFuncTask(self))
 // bool userfunctaskReset(UserFuncTask* self);

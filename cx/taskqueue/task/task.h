@@ -22,6 +22,7 @@ typedef struct Task_ClassIf {
     size_t _size;
 
     uint32 (*run)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
+    void (*runCancelled)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker);
     bool (*cancel)(_In_ void* self);
     bool (*reset)(_In_ void* self);
     bool (*wait)(_In_ void* self, int64 timeout);
@@ -65,6 +66,8 @@ typedef struct Task_WeakRef {
 
 // uint32 ftaskRun(Task* self, TaskQueue* tq, TQWorker* worker, TaskControl* tcon);
 #define ftaskRun(self, tq, worker, tcon) (self)->_->run(Task(self), TaskQueue(tq), TQWorker(worker), tcon)
+// void ftaskRunCancelled(Task* self, TaskQueue* tq, TQWorker* worker);
+#define ftaskRunCancelled(self, tq, worker) (self)->_->runCancelled(Task(self), TaskQueue(tq), TQWorker(worker))
 // bool ftaskCancel(Task* self);
 #define ftaskCancel(self) (self)->_->cancel(Task(self))
 // bool ftaskReset(Task* self);

@@ -180,7 +180,15 @@ bool TaskQueue__runTask(_In_ TaskQueue* self, _Inout_ BasicTask** pbtask, _In_ T
     }
 
     TaskControl tcon = { 0 };
-    uint32 tresult   = btaskRun(*pbtask, self, worker, &tcon);
+    uint32 tresult;
+    if (!btaskCancelled(*pbtask)) {
+        tresult = btaskRun(*pbtask, self, worker, &tcon);
+    } else {
+        // if the task has been cancelled, we still give it one chance to clean something up, then
+        // automatically fail the task
+        btaskRunCancelled(*pbtask, self, worker);
+        tresult = TASK_Result_Failure;
+    }
 
     switch (tresult) {
     case TASK_Result_Success:

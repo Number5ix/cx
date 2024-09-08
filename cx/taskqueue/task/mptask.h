@@ -38,6 +38,7 @@ typedef struct MultiphaseTask_ClassIf {
     size_t _size;
 
     uint32 (*run)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
+    void (*runCancelled)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker);
     bool (*cancel)(_In_ void* self);
     bool (*reset)(_In_ void* self);
     bool (*wait)(_In_ void* self, int64 timeout);
@@ -156,6 +157,8 @@ void MultiphaseTask__addPhases(_In_ MultiphaseTask* self, int32 num, MPTPhaseFun
 
 // uint32 mptaskRun(MultiphaseTask* self, TaskQueue* tq, TQWorker* worker, TaskControl* tcon);
 #define mptaskRun(self, tq, worker, tcon) (self)->_->run(MultiphaseTask(self), TaskQueue(tq), TQWorker(worker), tcon)
+// void mptaskRunCancelled(MultiphaseTask* self, TaskQueue* tq, TQWorker* worker);
+#define mptaskRunCancelled(self, tq, worker) (self)->_->runCancelled(MultiphaseTask(self), TaskQueue(tq), TQWorker(worker))
 // bool mptaskCancel(MultiphaseTask* self);
 #define mptaskCancel(self) (self)->_->cancel(MultiphaseTask(self))
 // bool mptaskReset(MultiphaseTask* self);

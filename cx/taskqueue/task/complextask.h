@@ -56,6 +56,7 @@ typedef struct ComplexTask_ClassIf {
     size_t _size;
 
     uint32 (*run)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
+    void (*runCancelled)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker);
     bool (*cancel)(_In_ void* self);
     bool (*reset)(_In_ void* self);
     bool (*wait)(_In_ void* self, int64 timeout);
@@ -176,6 +177,8 @@ bool ComplexTask_advanceCallback(stvlist* cvars, stvlist* args);
 
 // uint32 ctaskRun(ComplexTask* self, TaskQueue* tq, TQWorker* worker, TaskControl* tcon);
 #define ctaskRun(self, tq, worker, tcon) (self)->_->run(ComplexTask(self), TaskQueue(tq), TQWorker(worker), tcon)
+// void ctaskRunCancelled(ComplexTask* self, TaskQueue* tq, TQWorker* worker);
+#define ctaskRunCancelled(self, tq, worker) (self)->_->runCancelled(ComplexTask(self), TaskQueue(tq), TQWorker(worker))
 // bool ctaskCancel(ComplexTask* self);
 #define ctaskCancel(self) (self)->_->cancel(ComplexTask(self))
 // bool ctaskReset(ComplexTask* self);

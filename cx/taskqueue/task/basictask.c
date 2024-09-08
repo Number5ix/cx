@@ -114,6 +114,11 @@ bool BasicTask__setState(_In_ BasicTask* self, uint32 newstate)
     return true;
 }
 
+void BasicTask_runCancelled(_In_ BasicTask* self, _In_ TaskQueue* tq, _In_ TQWorker* worker)
+{
+    return;
+}
+
 // Autogen begins -----
 #include "basictask.auto.inc"
 // Autogen ends -------

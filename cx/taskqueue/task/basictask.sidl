@@ -14,6 +14,7 @@ enum BasicTaskRunResultEnum {
 [methodprefix btask] abstract class BasicTask {
     atomic:uint32 state;
     [abstract] uint32 run([in] TaskQueue *tq, [in] TQWorker *worker, [inout] TaskControl *tcon);
+    void runCancelled([in] TaskQueue *tq, [in] TQWorker *worker);
     unbound bool _setState(uint32 newstate);
     bool cancel();
     bool reset();

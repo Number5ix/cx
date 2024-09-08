@@ -276,11 +276,11 @@ extern bool BasicTask_cancel(_In_ BasicTask* self);   // parent
 #define parent_cancel() BasicTask_cancel((BasicTask*)(self))
 bool ComplexTask_cancel(_In_ ComplexTask* self)
 {
-    // If the cancellation needs to be cascaded, advance the task.
-    // Even though it's still deferred, this causes dependencies to be re-checked, which propagates
-    // the cancellation.
-    if (self->flags & TASK_Cancel_Cascade)
-        ctaskAdvance(self);
+    // Advancing on cancel serves two purposes:
+    // 1. If the task is deferred or scheduled, immediately allows the runCancelled() method to run
+    // and fails the task.
+    // 2. Removes dependencies amd cascades the cancellation if the flag is set.
+    ctaskAdvance(self);
 
     return parent_cancel();
 }

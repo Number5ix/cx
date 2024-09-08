@@ -119,6 +119,7 @@ typedef struct TQTest1_ClassIf {
     size_t _size;
 
     uint32 (*run)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
+    void (*runCancelled)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker);
     bool (*cancel)(_In_ void* self);
     bool (*reset)(_In_ void* self);
     bool (*wait)(_In_ void* self, int64 timeout);
@@ -131,6 +132,7 @@ typedef struct TQTestFail_ClassIf {
     size_t _size;
 
     uint32 (*run)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
+    void (*runCancelled)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker);
     bool (*cancel)(_In_ void* self);
     bool (*reset)(_In_ void* self);
     bool (*wait)(_In_ void* self, int64 timeout);
@@ -143,6 +145,7 @@ typedef struct TQTestCC1_ClassIf {
     size_t _size;
 
     uint32 (*run)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
+    void (*runCancelled)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker);
     bool (*cancel)(_In_ void* self);
     bool (*reset)(_In_ void* self);
     bool (*wait)(_In_ void* self, int64 timeout);
@@ -155,6 +158,7 @@ typedef struct TQTestCC2_ClassIf {
     size_t _size;
 
     uint32 (*run)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
+    void (*runCancelled)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker);
     bool (*cancel)(_In_ void* self);
     bool (*reset)(_In_ void* self);
     bool (*wait)(_In_ void* self, int64 timeout);
@@ -167,6 +171,7 @@ typedef struct TQTestSched_ClassIf {
     size_t _size;
 
     uint32 (*run)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
+    void (*runCancelled)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker);
     bool (*cancel)(_In_ void* self);
     bool (*reset)(_In_ void* self);
     bool (*wait)(_In_ void* self, int64 timeout);
@@ -181,6 +186,7 @@ typedef struct TQTestS1_ClassIf {
     size_t _size;
 
     uint32 (*run)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
+    void (*runCancelled)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker);
     bool (*cancel)(_In_ void* self);
     bool (*reset)(_In_ void* self);
     bool (*wait)(_In_ void* self, int64 timeout);
@@ -195,6 +201,7 @@ typedef struct TQTestS2_ClassIf {
     size_t _size;
 
     uint32 (*run)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
+    void (*runCancelled)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker);
     bool (*cancel)(_In_ void* self);
     bool (*reset)(_In_ void* self);
     bool (*wait)(_In_ void* self, int64 timeout);
@@ -209,6 +216,7 @@ typedef struct TQDelayTest_ClassIf {
     size_t _size;
 
     uint32 (*run)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
+    void (*runCancelled)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker);
     bool (*cancel)(_In_ void* self);
     bool (*reset)(_In_ void* self);
     bool (*wait)(_In_ void* self, int64 timeout);
@@ -221,6 +229,7 @@ typedef struct TQMTest_ClassIf {
     size_t _size;
 
     uint32 (*run)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
+    void (*runCancelled)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker);
     bool (*cancel)(_In_ void* self);
     bool (*reset)(_In_ void* self);
     bool (*wait)(_In_ void* self, int64 timeout);
@@ -235,6 +244,7 @@ typedef struct TQRTestMtx_ClassIf {
     size_t _size;
 
     uint32 (*run)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
+    void (*runCancelled)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker);
     bool (*cancel)(_In_ void* self);
     bool (*reset)(_In_ void* self);
     bool (*wait)(_In_ void* self, int64 timeout);
@@ -249,6 +259,7 @@ typedef struct TQRTestFifo_ClassIf {
     size_t _size;
 
     uint32 (*run)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
+    void (*runCancelled)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker);
     bool (*cancel)(_In_ void* self);
     bool (*reset)(_In_ void* self);
     bool (*wait)(_In_ void* self, int64 timeout);
@@ -263,6 +274,7 @@ typedef struct TQRTestLifo_ClassIf {
     size_t _size;
 
     uint32 (*run)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
+    void (*runCancelled)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker);
     bool (*cancel)(_In_ void* self);
     bool (*reset)(_In_ void* self);
     bool (*wait)(_In_ void* self, int64 timeout);
@@ -277,6 +289,7 @@ typedef struct TQRTestGate_ClassIf {
     size_t _size;
 
     uint32 (*run)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
+    void (*runCancelled)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker);
     bool (*cancel)(_In_ void* self);
     bool (*reset)(_In_ void* self);
     bool (*wait)(_In_ void* self, int64 timeout);
@@ -291,6 +304,7 @@ typedef struct TQMPTest_ClassIf {
     size_t _size;
 
     uint32 (*run)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
+    void (*runCancelled)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker);
     bool (*cancel)(_In_ void* self);
     bool (*reset)(_In_ void* self);
     bool (*wait)(_In_ void* self, int64 timeout);
@@ -308,6 +322,7 @@ typedef struct TQTimeoutTest1_ClassIf {
     size_t _size;
 
     uint32 (*run)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
+    void (*runCancelled)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker);
     bool (*cancel)(_In_ void* self);
     bool (*reset)(_In_ void* self);
     bool (*wait)(_In_ void* self, int64 timeout);
@@ -322,6 +337,7 @@ typedef struct TQTimeoutTest2_ClassIf {
     size_t _size;
 
     uint32 (*run)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon);
+    void (*runCancelled)(_In_ void* self, _In_ TaskQueue* tq, _In_ TQWorker* worker);
     bool (*cancel)(_In_ void* self);
     bool (*reset)(_In_ void* self);
     bool (*wait)(_In_ void* self, int64 timeout);
@@ -376,6 +392,8 @@ _objfactory_guaranteed TQTest1* TQTest1_create(int num1, int num2, Event* notify
 
 // uint32 tqtest1Run(TQTest1* self, TaskQueue* tq, TQWorker* worker, TaskControl* tcon);
 #define tqtest1Run(self, tq, worker, tcon) (self)->_->run(TQTest1(self), TaskQueue(tq), TQWorker(worker), tcon)
+// void tqtest1RunCancelled(TQTest1* self, TaskQueue* tq, TQWorker* worker);
+#define tqtest1RunCancelled(self, tq, worker) (self)->_->runCancelled(TQTest1(self), TaskQueue(tq), TQWorker(worker))
 // bool tqtest1Cancel(TQTest1* self);
 #define tqtest1Cancel(self) (self)->_->cancel(TQTest1(self))
 // bool tqtest1Reset(TQTest1* self);
@@ -428,6 +446,8 @@ _objfactory_guaranteed TQTestFail* TQTestFail_create(int n, Event* notify);
 
 // uint32 tqtestfailRun(TQTestFail* self, TaskQueue* tq, TQWorker* worker, TaskControl* tcon);
 #define tqtestfailRun(self, tq, worker, tcon) (self)->_->run(TQTestFail(self), TaskQueue(tq), TQWorker(worker), tcon)
+// void tqtestfailRunCancelled(TQTestFail* self, TaskQueue* tq, TQWorker* worker);
+#define tqtestfailRunCancelled(self, tq, worker) (self)->_->runCancelled(TQTestFail(self), TaskQueue(tq), TQWorker(worker))
 // bool tqtestfailCancel(TQTestFail* self);
 #define tqtestfailCancel(self) (self)->_->cancel(TQTestFail(self))
 // bool tqtestfailReset(TQTestFail* self);
@@ -483,6 +503,8 @@ _objfactory_guaranteed TQTestCC1* TQTestCC1_create(int num1, int num2, TaskQueue
 
 // uint32 tqtestcc1Run(TQTestCC1* self, TaskQueue* tq, TQWorker* worker, TaskControl* tcon);
 #define tqtestcc1Run(self, tq, worker, tcon) (self)->_->run(TQTestCC1(self), TaskQueue(tq), TQWorker(worker), tcon)
+// void tqtestcc1RunCancelled(TQTestCC1* self, TaskQueue* tq, TQWorker* worker);
+#define tqtestcc1RunCancelled(self, tq, worker) (self)->_->runCancelled(TQTestCC1(self), TaskQueue(tq), TQWorker(worker))
 // bool tqtestcc1Cancel(TQTestCC1* self);
 #define tqtestcc1Cancel(self) (self)->_->cancel(TQTestCC1(self))
 // bool tqtestcc1Reset(TQTestCC1* self);
@@ -537,6 +559,8 @@ _objfactory_guaranteed TQTestCC2* TQTestCC2_create(int total, int* accum, int* c
 
 // uint32 tqtestcc2Run(TQTestCC2* self, TaskQueue* tq, TQWorker* worker, TaskControl* tcon);
 #define tqtestcc2Run(self, tq, worker, tcon) (self)->_->run(TQTestCC2(self), TaskQueue(tq), TQWorker(worker), tcon)
+// void tqtestcc2RunCancelled(TQTestCC2* self, TaskQueue* tq, TQWorker* worker);
+#define tqtestcc2RunCancelled(self, tq, worker) (self)->_->runCancelled(TQTestCC2(self), TaskQueue(tq), TQWorker(worker))
 // bool tqtestcc2Cancel(TQTestCC2* self);
 #define tqtestcc2Cancel(self) (self)->_->cancel(TQTestCC2(self))
 // bool tqtestcc2Reset(TQTestCC2* self);
@@ -642,6 +666,8 @@ typedef struct TQTestSched_WeakRef {
 
 // uint32 tqtestschedRun(TQTestSched* self, TaskQueue* tq, TQWorker* worker, TaskControl* tcon);
 #define tqtestschedRun(self, tq, worker, tcon) (self)->_->run(TQTestSched(self), TaskQueue(tq), TQWorker(worker), tcon)
+// void tqtestschedRunCancelled(TQTestSched* self, TaskQueue* tq, TQWorker* worker);
+#define tqtestschedRunCancelled(self, tq, worker) (self)->_->runCancelled(TQTestSched(self), TaskQueue(tq), TQWorker(worker))
 // bool tqtestschedCancel(TQTestSched* self);
 #define tqtestschedCancel(self) (self)->_->cancel(TQTestSched(self))
 // bool tqtestschedReset(TQTestSched* self);
@@ -760,6 +786,8 @@ _objfactory_guaranteed TQTestS1* TQTestS1_create(int order, int64 dtime, Event* 
 
 // uint32 tqtests1Run(TQTestS1* self, TaskQueue* tq, TQWorker* worker, TaskControl* tcon);
 #define tqtests1Run(self, tq, worker, tcon) (self)->_->run(TQTestS1(self), TaskQueue(tq), TQWorker(worker), tcon)
+// void tqtests1RunCancelled(TQTestS1* self, TaskQueue* tq, TQWorker* worker);
+#define tqtests1RunCancelled(self, tq, worker) (self)->_->runCancelled(TQTestS1(self), TaskQueue(tq), TQWorker(worker))
 // bool tqtests1Cancel(TQTestS1* self);
 #define tqtests1Cancel(self) (self)->_->cancel(TQTestS1(self))
 // bool tqtests1Reset(TQTestS1* self);
@@ -876,6 +904,8 @@ _objfactory_guaranteed TQTestS2* TQTestS2_create(Task* waitfor, Event* notify);
 
 // uint32 tqtests2Run(TQTestS2* self, TaskQueue* tq, TQWorker* worker, TaskControl* tcon);
 #define tqtests2Run(self, tq, worker, tcon) (self)->_->run(TQTestS2(self), TaskQueue(tq), TQWorker(worker), tcon)
+// void tqtests2RunCancelled(TQTestS2* self, TaskQueue* tq, TQWorker* worker);
+#define tqtests2RunCancelled(self, tq, worker) (self)->_->runCancelled(TQTestS2(self), TaskQueue(tq), TQWorker(worker))
 // bool tqtests2Cancel(TQTestS2* self);
 #define tqtests2Cancel(self) (self)->_->cancel(TQTestS2(self))
 // bool tqtests2Reset(TQTestS2* self);
@@ -931,6 +961,8 @@ _objfactory_guaranteed TQDelayTest* TQDelayTest_create(int64 len);
 
 // uint32 tqdelaytestRun(TQDelayTest* self, TaskQueue* tq, TQWorker* worker, TaskControl* tcon);
 #define tqdelaytestRun(self, tq, worker, tcon) (self)->_->run(TQDelayTest(self), TaskQueue(tq), TQWorker(worker), tcon)
+// void tqdelaytestRunCancelled(TQDelayTest* self, TaskQueue* tq, TQWorker* worker);
+#define tqdelaytestRunCancelled(self, tq, worker) (self)->_->runCancelled(TQDelayTest(self), TaskQueue(tq), TQWorker(worker))
 // bool tqdelaytestCancel(TQDelayTest* self);
 #define tqdelaytestCancel(self) (self)->_->cancel(TQDelayTest(self))
 // bool tqdelaytestReset(TQDelayTest* self);
@@ -1040,6 +1072,8 @@ _objfactory_guaranteed TQMTest* TQMTest_create(Event* notify);
 
 // uint32 tqmtestRun(TQMTest* self, TaskQueue* tq, TQWorker* worker, TaskControl* tcon);
 #define tqmtestRun(self, tq, worker, tcon) (self)->_->run(TQMTest(self), TaskQueue(tq), TQWorker(worker), tcon)
+// void tqmtestRunCancelled(TQMTest* self, TaskQueue* tq, TQWorker* worker);
+#define tqmtestRunCancelled(self, tq, worker) (self)->_->runCancelled(TQMTest(self), TaskQueue(tq), TQWorker(worker))
 // bool tqmtestCancel(TQMTest* self);
 #define tqmtestCancel(self) (self)->_->cancel(TQMTest(self))
 // bool tqmtestReset(TQMTest* self);
@@ -1154,6 +1188,8 @@ _objfactory_guaranteed TQRTestMtx* TQRTestMtx_create(ReqTestState* rts, int num)
 
 // uint32 tqrtestmtxRun(TQRTestMtx* self, TaskQueue* tq, TQWorker* worker, TaskControl* tcon);
 #define tqrtestmtxRun(self, tq, worker, tcon) (self)->_->run(TQRTestMtx(self), TaskQueue(tq), TQWorker(worker), tcon)
+// void tqrtestmtxRunCancelled(TQRTestMtx* self, TaskQueue* tq, TQWorker* worker);
+#define tqrtestmtxRunCancelled(self, tq, worker) (self)->_->runCancelled(TQRTestMtx(self), TaskQueue(tq), TQWorker(worker))
 // bool tqrtestmtxCancel(TQRTestMtx* self);
 #define tqrtestmtxCancel(self) (self)->_->cancel(TQRTestMtx(self))
 // bool tqrtestmtxReset(TQRTestMtx* self);
@@ -1269,6 +1305,8 @@ _objfactory_guaranteed TQRTestFifo* TQRTestFifo_create(ReqTestState* rts, int se
 
 // uint32 tqrtestfifoRun(TQRTestFifo* self, TaskQueue* tq, TQWorker* worker, TaskControl* tcon);
 #define tqrtestfifoRun(self, tq, worker, tcon) (self)->_->run(TQRTestFifo(self), TaskQueue(tq), TQWorker(worker), tcon)
+// void tqrtestfifoRunCancelled(TQRTestFifo* self, TaskQueue* tq, TQWorker* worker);
+#define tqrtestfifoRunCancelled(self, tq, worker) (self)->_->runCancelled(TQRTestFifo(self), TaskQueue(tq), TQWorker(worker))
 // bool tqrtestfifoCancel(TQRTestFifo* self);
 #define tqrtestfifoCancel(self) (self)->_->cancel(TQRTestFifo(self))
 // bool tqrtestfifoReset(TQRTestFifo* self);
@@ -1384,6 +1422,8 @@ _objfactory_guaranteed TQRTestLifo* TQRTestLifo_create(ReqTestState* rts, int se
 
 // uint32 tqrtestlifoRun(TQRTestLifo* self, TaskQueue* tq, TQWorker* worker, TaskControl* tcon);
 #define tqrtestlifoRun(self, tq, worker, tcon) (self)->_->run(TQRTestLifo(self), TaskQueue(tq), TQWorker(worker), tcon)
+// void tqrtestlifoRunCancelled(TQRTestLifo* self, TaskQueue* tq, TQWorker* worker);
+#define tqrtestlifoRunCancelled(self, tq, worker) (self)->_->runCancelled(TQRTestLifo(self), TaskQueue(tq), TQWorker(worker))
 // bool tqrtestlifoCancel(TQRTestLifo* self);
 #define tqrtestlifoCancel(self) (self)->_->cancel(TQRTestLifo(self))
 // bool tqrtestlifoReset(TQRTestLifo* self);
@@ -1498,6 +1538,8 @@ _objfactory_guaranteed TQRTestGate* TQRTestGate_create(ReqTestState2* rts, int n
 
 // uint32 tqrtestgateRun(TQRTestGate* self, TaskQueue* tq, TQWorker* worker, TaskControl* tcon);
 #define tqrtestgateRun(self, tq, worker, tcon) (self)->_->run(TQRTestGate(self), TaskQueue(tq), TQWorker(worker), tcon)
+// void tqrtestgateRunCancelled(TQRTestGate* self, TaskQueue* tq, TQWorker* worker);
+#define tqrtestgateRunCancelled(self, tq, worker) (self)->_->runCancelled(TQRTestGate(self), TaskQueue(tq), TQWorker(worker))
 // bool tqrtestgateCancel(TQRTestGate* self);
 #define tqrtestgateCancel(self) (self)->_->cancel(TQRTestGate(self))
 // bool tqrtestgateReset(TQRTestGate* self);
@@ -1624,6 +1666,8 @@ _objfactory_guaranteed TQMPTest* TQMPTest_create(int variant, int idx, MPTestSta
 
 // uint32 tqmptestRun(TQMPTest* self, TaskQueue* tq, TQWorker* worker, TaskControl* tcon);
 #define tqmptestRun(self, tq, worker, tcon) (self)->_->run(TQMPTest(self), TaskQueue(tq), TQWorker(worker), tcon)
+// void tqmptestRunCancelled(TQMPTest* self, TaskQueue* tq, TQWorker* worker);
+#define tqmptestRunCancelled(self, tq, worker) (self)->_->runCancelled(TQMPTest(self), TaskQueue(tq), TQWorker(worker))
 // bool tqmptestCancel(TQMPTest* self);
 #define tqmptestCancel(self) (self)->_->cancel(TQMPTest(self))
 // bool tqmptestReset(TQMPTest* self);
@@ -1742,6 +1786,8 @@ _objfactory_guaranteed TQTimeoutTest1* TQTimeoutTest1_create();
 
 // uint32 tqtimeouttest1Run(TQTimeoutTest1* self, TaskQueue* tq, TQWorker* worker, TaskControl* tcon);
 #define tqtimeouttest1Run(self, tq, worker, tcon) (self)->_->run(TQTimeoutTest1(self), TaskQueue(tq), TQWorker(worker), tcon)
+// void tqtimeouttest1RunCancelled(TQTimeoutTest1* self, TaskQueue* tq, TQWorker* worker);
+#define tqtimeouttest1RunCancelled(self, tq, worker) (self)->_->runCancelled(TQTimeoutTest1(self), TaskQueue(tq), TQWorker(worker))
 // bool tqtimeouttest1Cancel(TQTimeoutTest1* self);
 #define tqtimeouttest1Cancel(self) (self)->_->cancel(TQTimeoutTest1(self))
 // bool tqtimeouttest1Reset(TQTimeoutTest1* self);
@@ -1855,6 +1901,8 @@ _objfactory_guaranteed TQTimeoutTest2* TQTimeoutTest2_create(ReqTestState* rts);
 
 // uint32 tqtimeouttest2Run(TQTimeoutTest2* self, TaskQueue* tq, TQWorker* worker, TaskControl* tcon);
 #define tqtimeouttest2Run(self, tq, worker, tcon) (self)->_->run(TQTimeoutTest2(self), TaskQueue(tq), TQWorker(worker), tcon)
+// void tqtimeouttest2RunCancelled(TQTimeoutTest2* self, TaskQueue* tq, TQWorker* worker);
+#define tqtimeouttest2RunCancelled(self, tq, worker) (self)->_->runCancelled(TQTimeoutTest2(self), TaskQueue(tq), TQWorker(worker))
 // bool tqtimeouttest2Cancel(TQTimeoutTest2* self);
 #define tqtimeouttest2Cancel(self) (self)->_->cancel(TQTimeoutTest2(self))
 // bool tqtimeouttest2Reset(TQTimeoutTest2* self);
