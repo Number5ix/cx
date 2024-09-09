@@ -370,7 +370,7 @@ bool ComplexTaskQueue__runTask(_In_ ComplexTaskQueue* self, _Inout_ BasicTask** 
         }
     }
 
-    if (ctask && cancelled && (self->flags & TASK_Cancel_Cascade)) {
+    if (ctask && cancelled && (ctask->flags & TASK_Cancel_Cascade)) {
         // cancel any dependencies if we're in cascade mode
         ctaskCancelRequires(ctask);
     }
