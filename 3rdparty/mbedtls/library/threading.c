@@ -112,6 +112,66 @@ int (*mbedtls_mutex_unlock)(mbedtls_threading_mutex_t *) = threading_mutex_unloc
 
 #endif /* MBEDTLS_THREADING_PTHREAD */
 
+#if defined(MBEDTLS_THREADING_CX)
+static void threading_mutex_init_cx(mbedtls_threading_mutex_t *mutex)
+{
+    if (mutex == NULL)
+    {
+        return;
+    }
+
+    /* One problem here is that calling lock on a pthread mutex without first
+     * having initialised it is undefined behaviour. Obviously we cannot check
+     * this here in a thread safe manner without a significant performance
+     * hit, so state transitions are checked in tests only via the state
+     * variable. Please make sure any new mutex that gets added is exercised in
+     * tests; see tests/src/threading_helpers.c for more details. */
+    (void)mutexInit(&mutex->mutex);
+}
+
+static void threading_mutex_free_cx(mbedtls_threading_mutex_t *mutex)
+{
+    if (mutex == NULL)
+    {
+        return;
+    }
+
+    (void)mutexDestroy(&mutex->mutex);
+}
+
+static int threading_mutex_lock_cx(mbedtls_threading_mutex_t *mutex)
+{
+    if (mutex == NULL)
+    {
+        return MBEDTLS_ERR_THREADING_BAD_INPUT_DATA;
+    }
+
+    mutexAcquire(&mutex->mutex);
+    return 0;
+}
+
+static int threading_mutex_unlock_cx(mbedtls_threading_mutex_t *mutex)
+{
+    if (mutex == NULL)
+    {
+        return MBEDTLS_ERR_THREADING_BAD_INPUT_DATA;
+    }
+
+    if (!mutexRelease(&mutex->mutex))
+    {
+        return MBEDTLS_ERR_THREADING_MUTEX_ERROR;
+    }
+
+    return 0;
+}
+
+void (*mbedtls_mutex_init)(mbedtls_threading_mutex_t *) = threading_mutex_init_cx;
+void (*mbedtls_mutex_free)(mbedtls_threading_mutex_t *) = threading_mutex_free_cx;
+int (*mbedtls_mutex_lock)(mbedtls_threading_mutex_t *) = threading_mutex_lock_cx;
+int (*mbedtls_mutex_unlock)(mbedtls_threading_mutex_t *) = threading_mutex_unlock_cx;
+
+#endif /* MBEDTLS_THREADING_PTHREAD */
+
 #if defined(MBEDTLS_THREADING_ALT)
 static int threading_mutex_fail(mbedtls_threading_mutex_t *mutex)
 {

@@ -39,6 +39,22 @@ typedef struct mbedtls_threading_mutex_t {
 } mbedtls_threading_mutex_t;
 #endif
 
+#if defined(MBEDTLS_THREADING_CX)
+#include <cx/thread/mutex.h>
+typedef struct mbedtls_threading_mutex_t
+{
+    Mutex MBEDTLS_PRIVATE(mutex);
+
+    /* WARNING - state should only be accessed when holding the mutex lock in
+     * tests/src/threading_helpers.c, otherwise corruption can occur.
+     * state will be 0 after a failed init or a free, and nonzero after a
+     * successful init. This field is for testing only and thus not considered
+     * part of the public API of Mbed TLS and may change without notice.*/
+    char MBEDTLS_PRIVATE(state);
+
+} mbedtls_threading_mutex_t;
+#endif
+
 #if defined(MBEDTLS_THREADING_ALT)
 /* You should define the mbedtls_threading_mutex_t type in your header */
 #include "threading_alt.h"

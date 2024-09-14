@@ -2093,6 +2093,17 @@
 //#define MBEDTLS_THREADING_PTHREAD
 
 /**
+ * \def MBEDTLS_THREADING_CX
+ *
+ * Enable the CX thread primitive wrapper layer for the threading layer.
+ *
+ * Requires: MBEDTLS_THREADING_C
+ *
+ * Uncomment this to enable CX mutexes.
+ */
+#define MBEDTLS_THREADING_CX
+
+/**
  * \def MBEDTLS_USE_PSA_CRYPTO
  *
  * Make the X.509 and TLS libraries use PSA for cryptographic operations as
@@ -3609,7 +3620,7 @@
  *
  * Enable this layer to allow use of mutexes within Mbed TLS
  */
-//#define MBEDTLS_THREADING_C
+#define MBEDTLS_THREADING_C
 
 /**
  * \def MBEDTLS_TIMING_C

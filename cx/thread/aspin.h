@@ -47,6 +47,8 @@ _meta_inline void aspinRecordUncontended(_Inout_ AdaptiveSpin *aspin)
 {
 #ifdef ASPIN_PERF_STATS
     atomicFetchAdd(intptr, &aspin->stats_uncontended, 1, Relaxed);
+#else
+    (void)aspin;
 #endif
 }
 
@@ -54,6 +56,8 @@ _meta_inline void aspinRecordSpin(_Inout_ AdaptiveSpin *aspin)
 {
 #ifdef ASPIN_PERF_STATS
     atomicFetchAdd(intptr, &aspin->stats_spin, 1, Relaxed);
+#else
+    (void)aspin;
 #endif
 }
 
@@ -61,6 +65,8 @@ _meta_inline void aspinRecordFutex(_Inout_ AdaptiveSpin *aspin)
 {
 #ifdef ASPIN_PERF_STATS
     atomicFetchAdd(intptr, &aspin->stats_futex, 1, Relaxed);
+#else
+    (void)aspin;
 #endif
 }
 
@@ -68,6 +74,8 @@ _meta_inline void aspinRecordCapped(_Inout_ AdaptiveSpin *aspin)
 {
 #ifdef ASPIN_PERF_STATS
     atomicFetchAdd(intptr, &aspin->stats_capped, 1, Relaxed);
+#else
+    (void)aspin;
 #endif
 }
 
@@ -75,6 +83,8 @@ _meta_inline void aspinRecordTimeout(_Inout_ AdaptiveSpin *aspin)
 {
 #ifdef ASPIN_PERF_STATS
     atomicFetchAdd(intptr, &aspin->stats_timeout, 1, Relaxed);
+#else
+    (void)aspin;
 #endif
 }
 
@@ -82,6 +92,8 @@ _meta_inline void aspinRecordYield(_Inout_ AdaptiveSpin *aspin)
 {
 #ifdef ASPIN_PERF_STATS
     atomicFetchAdd(intptr, &aspin->stats_yield, 1, Relaxed);
+#else
+    (void)aspin;
 #endif
 }
 

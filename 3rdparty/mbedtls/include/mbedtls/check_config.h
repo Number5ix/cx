@@ -976,6 +976,12 @@
 #endif
 #define MBEDTLS_THREADING_IMPL // undef at the end of this paragraph
 #endif
+#if defined(MBEDTLS_THREADING_CX)
+#if !defined(MBEDTLS_THREADING_C) || defined(MBEDTLS_THREADING_IMPL)
+#error "MBEDTLS_THREADING_CX defined, but not all prerequisites"
+#endif
+#define MBEDTLS_THREADING_IMPL // undef at the end of this paragraph
+#endif
 #if defined(MBEDTLS_THREADING_ALT)
 #if !defined(MBEDTLS_THREADING_C) || defined(MBEDTLS_THREADING_IMPL)
 #error "MBEDTLS_THREADING_ALT defined, but not all prerequisites"
