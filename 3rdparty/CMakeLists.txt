@@ -31,6 +31,18 @@ add_subdirectory(mbedtls)
 target_include_directories(mbedtls PRIVATE ${CX_TOP_SOURCE_DIR}/cx/include)
 target_include_directories(mbedx509 PRIVATE ${CX_TOP_SOURCE_DIR}/cx/include)
 target_include_directories(mbedcrypto PRIVATE ${CX_TOP_SOURCE_DIR}/cx/include)
+target_compile_definitions(mbedtls PRIVATE
+    $<${isdebug}:DEBUG_LEVEL=2>
+    $<${isdev}:DEBUG_LEVEL=1>
+    $<${isrelease}:DEBUG_LEVEL=0>)
+target_compile_definitions(mbedx509 PRIVATE
+    $<${isdebug}:DEBUG_LEVEL=2>
+    $<${isdev}:DEBUG_LEVEL=1>
+    $<${isrelease}:DEBUG_LEVEL=0>)
+target_compile_definitions(mbedcrypto PRIVATE
+    $<${isdebug}:DEBUG_LEVEL=2>
+    $<${isdev}:DEBUG_LEVEL=1>
+    $<${isrelease}:DEBUG_LEVEL=0>)
 
 set(PCRE2_SHOW_REPORT     OFF CACHE INTERNAL "Show the final configuration report" FORCE)
 set(PCRE2_BUILD_PCRE2GREP OFF CACHE INTERNAL "Build pcre2grep" FORCE)
