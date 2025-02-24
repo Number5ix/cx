@@ -16,7 +16,8 @@ bool _strNConcat(strhandle o, int n, strref *_args)
     // Pass 1: Build a plan for concatenating the strings
     uint32 len = 0;
     string firstarg = 0;
-    uint8 encoding = STR_ENCODING_MASK;
+    uint8 encoding  = STR_ENCODING_MASK;
+    bool inplace    = false;
     for (i = 0; i < n; ++i) {
         // remove any NULL arguments
         if (!STR_CHECK_VALID(args[i])) {
@@ -29,6 +30,10 @@ bool _strNConcat(strhandle o, int n, strref *_args)
         }
         if (i == 0)
             firstarg = args[i];
+
+        // check if one of the source args is also the destination
+        if (*o == args[i])
+            inplace = true;
 
         len += _strFastLen(args[i]);
 
@@ -43,12 +48,20 @@ bool _strNConcat(strhandle o, int n, strref *_args)
     } else if (n == 1 || len < ROPE_JOIN_THRESH || (*o && (_strHdr(*o) & STR_STACK))) {
         // regular string concatenation
         // set up destination
+        string origdest = NULL;
         if (*o && *o == firstarg && !(_strHdr(*o) & STR_ROPE)) {
             // optimize this case by leaving first string in place and skipping the arg
             _strResize(o, len, true);
             ptr = &_strBuffer(*o)[_strFastLen(*o)];
             start = 1;
         } else {
+            if (inplace) {
+                // can't reuse destination buffer if it's needed as a source; use a
+                // temp buffer instead and remember the original to be destroyed later
+                origdest = *o;
+                *o       = NULL;
+            }
+
             _strReset(o, len);
             ptr = _strBuffer(*o);
         }
@@ -65,6 +78,7 @@ bool _strNConcat(strhandle o, int n, strref *_args)
         *ptr = 0;           // add null terminator
 
         _strSetLen(*o, len);
+        strDestroy(&origdest);
     } else {
         // final length is over the threshold to make this a rope instead
         string curtop = 0, curright = 0, newtop = 0;
@@ -112,7 +126,8 @@ bool _strNConcatC(strhandle o, int n, strhandle *_Nonnull args)
     // Pass 1: Build a plan for concatenating the strings
     uint32 len = 0;
     string firstarg = 0;
-    uint8 encoding = STR_ENCODING_MASK;
+    uint8 encoding  = STR_ENCODING_MASK;
+    bool inplace    = false;
     for (i = 0; i < n; ++i) {
         if (!args[i] || !STR_CHECK_VALID(*args[i])) {
             if (n - i > 1) {
@@ -125,6 +140,10 @@ bool _strNConcatC(strhandle o, int n, strhandle *_Nonnull args)
         if (i == 0) {
             firstarg = *args[i];
         }
+
+        // check if one of the source args is also the destination
+        if (*o == *args[i])
+            inplace = true;
 
         len += _strFastLen(*args[i]);
 
@@ -139,12 +158,20 @@ bool _strNConcatC(strhandle o, int n, strhandle *_Nonnull args)
     } else if (n == 1 || len < ROPE_JOIN_THRESH || (*o && (_strHdr(*o) & STR_STACK))) {
         // regular string concatenation
         // set up destination
+        string origdest = NULL;
         if (*o && *o == firstarg && !(_strHdr(*o) & STR_ROPE)) {
             // optimize this case by leaving first string in place and skipping the arg
             _strResize(o, len, true);
             ptr = &_strBuffer(*o)[_strFastLen(*o)];
             start = 1;
         } else {
+            if (inplace) {
+                // can't reuse destination buffer if it's needed as a source; use a
+                // temp buffer instead and remember the original to be destroyed later
+                origdest = *o;
+                *o        = NULL;
+            }
+
             _strReset(o, len);
             ptr = _strBuffer(*o);
         }
@@ -160,6 +187,7 @@ bool _strNConcatC(strhandle o, int n, strhandle *_Nonnull args)
             ptr += alen;
         }
         *ptr = 0;           // add null terminator
+        strDestroy(&origdest);
     } else {
         // final length is over the threshold to make this a rope instead
         string curtop = 0, curright = 0, newtop = 0;
@@ -343,8 +371,12 @@ _Use_decl_annotations_
 bool strConcat(strhandle o, strref s1, strref s2)
 {
     // you really should be calling append...
-    if (*o == s1)
+    if (*o && *o == s1)
         return strAppend(o, s2);
+    if (*o && *o == s2) {
+        // punt to the wrapper to allocate a temp string first
+        return strPrepend(s1, o);
+    }
 
     // short-circuit missing args
     if (!s1) {
