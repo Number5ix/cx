@@ -5,8 +5,8 @@
 ;
 [subrepo]
 	remote = https://github.com/Mbed-TLS/mbedtls.git
-	branch = v3.6.0
+	branch = mbedtls-3.6.2
 	commit = 2ca6c285a0dd3f33982dd57299012dacab1ff206
-	parent = fd500803d317c134bd452308a23b775c3940efe9
+	parent = 632b81e26c62aa0f051c23c2b2abd00ebcc44879
 	method = merge
 	cmdver = 0.4.7
