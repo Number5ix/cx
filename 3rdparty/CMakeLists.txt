@@ -5,15 +5,19 @@
 
 include (${CX_TOP_SOURCE_DIR}/cmake/buildtype.cmake)
 
-set(MI_OVERRIDE      OFF CACHE INTERNAL "Override the standard malloc interface (e.g. define entry points for malloc() etc)" FORCE)
-set(MI_OSX_INTERPOSE OFF CACHE INTERNAL "Use interpose to override standard malloc on macOS" FORCE)
-set(MI_OSX_ZONE      OFF CACHE INTERNAL "Use malloc zone to override standard malloc on macOS" FORCE)
-set(MI_WIN_REDIRECT  OFF CACHE INTERNAL "Use redirection module ('mimalloc-redirect') on Windows if compiling mimalloc as a DLL" FORCE)
-set(MI_BUILD_SHARED  OFF CACHE INTERNAL "Build shared library" FORCE)
-set(MI_BUILD_STATIC  OFF CACHE INTERNAL "Build static library" FORCE)
-set(MI_BUILD_OBJECT  OFF CACHE INTERNAL "Build object library" FORCE)
-set(MI_BUILD_OBJLIB  ON  CACHE INTERNAL "Build cmake object library" FORCE)
-set(MI_BUILD_TESTS   OFF CACHE INTERNAL "Build test executables" FORCE)
+set(MI_OVERRIDE          OFF CACHE INTERNAL "Override the standard malloc interface (e.g. define entry points for malloc() etc)" FORCE)
+set(MI_OSX_INTERPOSE     OFF CACHE INTERNAL "Use interpose to override standard malloc on macOS" FORCE)
+set(MI_OSX_ZONE          OFF CACHE INTERNAL "Use malloc zone to override standard malloc on macOS" FORCE)
+set(MI_WIN_REDIRECT      OFF CACHE INTERNAL "Use redirection module ('mimalloc-redirect') on Windows if compiling mimalloc as a DLL" FORCE)
+set(MI_WIN_USE_FIXED_TLS ON  CACHE INTERNAL "Use a fixed TLS slot on Windows to avoid extra tests in the malloc fast path" FORCE)
+set(MI_BUILD_SHARED      OFF CACHE INTERNAL "Build shared library" FORCE)
+set(MI_BUILD_STATIC      OFF CACHE INTERNAL "Build static library" FORCE)
+set(MI_BUILD_OBJECT      OFF CACHE INTERNAL "Build object library" FORCE)
+set(MI_BUILD_OBJLIB      ON  CACHE INTERNAL "Build cmake object library" FORCE)
+set(MI_BUILD_TESTS       OFF CACHE INTERNAL "Build test executables" FORCE)
+if(DIAGNOSTIC)
+    set(MI_GUARDED       ON  CACHE INTERNAL "Build with guard pages behind certain object allocations (implies MI_NO_PADDING=ON)" FORCE)
+endif()
 add_subdirectory(mimalloc)
 target_compile_definitions(mimalloc-objlib PRIVATE
     $<${isdebug}:MI_DEBUG=3>
