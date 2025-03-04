@@ -1,4 +1,5 @@
 include (${CX_TOP_SOURCE_DIR}/cmake/werror.cmake)
+include (CTest)
 
 create_test_sourcelist(testsrc
     test_runner.c
