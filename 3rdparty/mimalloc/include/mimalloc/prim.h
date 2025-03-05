@@ -216,11 +216,11 @@ static inline void mi_prim_tls_slot_set(size_t slot, void* value) mi_attr_noexce
 #if MI_WIN_USE_FIXED_TLS > 1
 #define MI_TLS_SLOT     (MI_WIN_USE_FIXED_TLS)
 #elif MI_SIZE_SIZE == 4
-// #define MI_TLS_SLOT     (0x710)             // Last user-reserved slot <https://en.wikipedia.org/wiki/Win32_Thread_Information_Block>
-#define MI_TLS_SLOT  (0xF0C)             // Last TlsSlot (might clash with other app reserved slot)
+#define MI_TLS_SLOT     (0x710)             // Last user-reserved slot <https://en.wikipedia.org/wiki/Win32_Thread_Information_Block>
+// #define MI_TLS_SLOT  (0xF0C)             // Last TlsSlot (might clash with other app reserved slot)
 #else
-// #define MI_TLS_SLOT     (0x888)             // Last user-reserved slot <https://en.wikipedia.org/wiki/Win32_Thread_Information_Block>
-#define MI_TLS_SLOT  (0x1678)            // Last TlsSlot (might clash with other app reserved slot)
+#define MI_TLS_SLOT     (0x888)             // Last user-reserved slot <https://en.wikipedia.org/wiki/Win32_Thread_Information_Block>
+// #define MI_TLS_SLOT  (0x1678)            // Last TlsSlot (might clash with other app reserved slot)
 #endif
 
 static inline void* mi_prim_tls_slot(size_t slot) mi_attr_noexcept {

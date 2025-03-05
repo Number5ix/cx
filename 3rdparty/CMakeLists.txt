@@ -9,7 +9,7 @@ set(MI_OVERRIDE          OFF CACHE INTERNAL "Override the standard malloc interf
 set(MI_OSX_INTERPOSE     OFF CACHE INTERNAL "Use interpose to override standard malloc on macOS" FORCE)
 set(MI_OSX_ZONE          OFF CACHE INTERNAL "Use malloc zone to override standard malloc on macOS" FORCE)
 set(MI_WIN_REDIRECT      OFF CACHE INTERNAL "Use redirection module ('mimalloc-redirect') on Windows if compiling mimalloc as a DLL" FORCE)
-set(MI_WIN_USE_FIXED_TLS ON  CACHE INTERNAL "Use a fixed TLS slot on Windows to avoid extra tests in the malloc fast path" FORCE)
+set(MI_WIN_USE_FIXED_TLS OFF CACHE INTERNAL "Use a fixed TLS slot on Windows to avoid extra tests in the malloc fast path" FORCE)
 set(MI_BUILD_SHARED      OFF CACHE INTERNAL "Build shared library" FORCE)
 set(MI_BUILD_STATIC      OFF CACHE INTERNAL "Build static library" FORCE)
 set(MI_BUILD_OBJECT      OFF CACHE INTERNAL "Build object library" FORCE)
