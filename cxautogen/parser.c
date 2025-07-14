@@ -1,8 +1,8 @@
-#include "cxobjgen.h"
 #include <cx/container.h>
 #include <cx/fs/file.h>
 #include <cx/string.h>
 #include <stdio.h>
+#include "cxautogen.h"
 
 static sa_string already_parsed;
 
@@ -17,7 +17,7 @@ enum ParseContext {
 
 typedef struct ParseState {
     string fname;
-    FSFile *fp;
+    FSFile* fp;
     char buf[1024];
     string rawtok;
     size_t blen;
@@ -28,21 +28,21 @@ typedef struct ParseState {
     bool ptemptyok;
 
     sa_string comments;
-    sa_string *curlinecomments;
+    sa_string* curlinecomments;
     sa_sarray_string annotations;
     sa_string tokstack;
     int context;
     int lastcontext;
 
-    Interface *curif;
-    Class *curcls;
-    Method *curmethod;
-    Param *curparam;
+    Interface* curif;
+    Class* curcls;
+    Method* curmethod;
+    Param* curparam;
 
     sa_string includepath;
 } ParseState;
 
-static bool parseEnd(ParseState *ps, bool retval)
+static bool parseEnd(ParseState* ps, bool retval)
 {
     if (ps->fp)
         fsClose(ps->fp);
@@ -68,7 +68,8 @@ static bool parseEnd(ParseState *ps, bool retval)
 
 static inline bool _isspecial(int ch)
 {
-    if (ch == '{' || ch == '}' || ch == ';' || ch == '(' || ch == ')' || ch == ',' || ch == '*' || ch == '[' || ch == ']')
+    if (ch == '{' || ch == '}' || ch == ';' || ch == '(' || ch == ')' || ch == ',' || ch == '*' ||
+        ch == '[' || ch == ']')
         return true;
 
     return false;
@@ -118,7 +119,7 @@ out:
     return ret;
 }
 
-static bool nextTok(ParseState *ps, string *tok)
+static bool nextTok(ParseState* ps, string* tok)
 {
     bool quote = false;
     char ch[2] = { 0 };
@@ -129,7 +130,7 @@ static bool nextTok(ParseState *ps, string *tok)
         if (ps->bpos == ps->blen) {
             ps->bpos = 0;
             if (!fsRead(ps->fp, ps->buf, sizeof(ps->buf), &ps->blen) || ps->blen == 0)
-                return false;           // eof or error
+                return false;   // eof or error
         }
 
         ch[0] = ps->buf[ps->bpos++];
@@ -163,9 +164,9 @@ static bool nextTok(ParseState *ps, string *tok)
     }
 }
 
-static bool nextCustomTok(ParseState *ps, string *tok, char ends, const char *ignore)
+static bool nextCustomTok(ParseState* ps, string* tok, char ends, const char* ignore)
 {
-    char ch[2] = { 0 };
+    char ch[2]  = { 0 };
     int nignore = ignore ? (int)strlen(ignore) : 0;
 
     strClear(tok);
@@ -173,9 +174,9 @@ static bool nextCustomTok(ParseState *ps, string *tok, char ends, const char *ig
         if (ps->bpos == ps->blen) {
             ps->bpos = 0;
             if (!fsRead(ps->fp, ps->buf, sizeof(ps->buf), &ps->blen) || ps->blen == 0)
-                return false;           // eof or error
+                return false;   // eof or error
         }
-        ch[0] = ps->buf[ps->bpos++];
+        ch[0]        = ps->buf[ps->bpos++];
         bool ignored = false;
         for (int i = 0; i < nignore; ++i) {
             if (ch[0] == ignore[i]) {
@@ -222,7 +223,7 @@ static bool nextCustomTok2(ParseState *ps, string *tok, string ends)
 }
 #endif
 
-bool parseAnnotation(ParseState *ps, string *tok)
+bool parseAnnotation(ParseState* ps, string* tok)
 {
     sa_string anparts;
     saInit(&anparts, string, 2);
@@ -247,7 +248,7 @@ bool parseAnnotation(ParseState *ps, string *tok)
     return true;
 }
 
-bool getAnnotation(sa_string *out, sa_sarray_string annotations, string afind)
+bool getAnnotation(sa_string* out, sa_sarray_string annotations, string afind)
 {
     for (int i = 0; i < saSize(annotations); i++) {
         if (strEqi(annotations.a[i].a[0], afind)) {
@@ -261,10 +262,10 @@ bool getAnnotation(sa_string *out, sa_sarray_string annotations, string afind)
     return false;
 }
 
-bool parseGlobal(ParseState *ps, string *tok)
+bool parseGlobal(ParseState* ps, string* tok)
 {
     bool abstract = false;
-    bool mixin = false;
+    bool mixin    = false;
     if (strEq(*tok, _S"abstract")) {
         abstract = true;
         nextTok(ps, tok);
@@ -285,23 +286,23 @@ bool parseGlobal(ParseState *ps, string *tok)
         ps->ptemptyok = false;
         saClear(&ps->comments);
         saClear(&ps->annotations);
-        ps->curif = interfaceCreate();
-        ps->context = Context_InterfacePre;
+        ps->curif           = interfaceCreate();
+        ps->context         = Context_InterfacePre;
         ps->curif->included = ps->included;
         return true;
     } else if (strEq(*tok, _S"class")) {
         ps->ptemptyok = false;
         saClear(&ps->comments);
-        ps->curcls = classCreate();
-        ps->curcls->abstract = abstract || mixin;   // mixin implies abstract
-        ps->curcls->mixin = mixin;
-        ps->context = Context_ClassPre;
-        ps->curcls->included = ps->included;
+        ps->curcls              = classCreate();
+        ps->curcls->abstract    = abstract || mixin;   // mixin implies abstract
+        ps->curcls->mixin       = mixin;
+        ps->context             = Context_ClassPre;
+        ps->curcls->included    = ps->included;
         ps->curcls->annotations = ps->annotations;
         saInit(&ps->annotations, sarray, 4);
         return true;
     } else if (strEq(*tok, _S"#include")) {
-        string fname = 0;
+        string fname  = 0;
         bool brackets = false;
         nextTok(ps, &fname);
         striter it;
@@ -362,7 +363,8 @@ bool parseGlobal(ParseState *ps, string *tok)
     }
 
     // anything not explicitly parsed at the global level gets passed through
-    bool singletok = (strGetChar(ps->rawtok, -1) == '\n');      // is the line just one token followed by LF?
+    bool singletok = (strGetChar(ps->rawtok, -1) ==
+                      '\n');   // is the line just one token followed by LF?
     char ch;
 
     if (!ps->included) {
@@ -388,8 +390,7 @@ bool parseGlobal(ParseState *ps, string *tok)
         // this is done by reading a custom token that looks for the EOL
         nextCustomTok(ps, tok, '\n', NULL);
         // eat a DOS-style CR character if it exists
-        while (strGetChar(*tok, -1) == '\r')
-            strSubStrI(tok, 0, -1);
+        while (strGetChar(*tok, -1) == '\r') strSubStrI(tok, 0, -1);
 
         if (!ps->included)
             strAppend(&cpassthrough, *tok);
@@ -406,7 +407,7 @@ bool parseGlobal(ParseState *ps, string *tok)
     return true;
 }
 
-bool parseInterfacePre(ParseState *ps, string *tok)
+bool parseInterfacePre(ParseState* ps, string* tok)
 {
     if (strEq(*tok, _S"{")) {
         if (strEmpty(ps->curif->name)) {
@@ -445,7 +446,7 @@ bool parseInterfacePre(ParseState *ps, string *tok)
     return false;
 }
 
-bool parseInterface(ParseState *ps, string *tok)
+bool parseInterface(ParseState* ps, string* tok)
 {
     if (strEq(*tok, _S"}")) {
         htInsert(&ifidx, string, ps->curif->name, object, ps->curif);
@@ -467,12 +468,12 @@ bool parseInterface(ParseState *ps, string *tok)
             fprintf(stderr, "Invalid return type '%s'\n", strC(*tok));
             return false;
         }
-        ps->curmethod = methodCreate();
+        ps->curmethod           = methodCreate();
         ps->curmethod->comments = ps->comments;
-        ps->curlinecomments = &ps->curmethod->comments;
+        ps->curlinecomments     = &ps->curmethod->comments;
         saInit(&ps->comments, string, 4);
         ps->curmethod->annotations = ps->annotations;
-        ps->curmethod->srcif = ps->curif;
+        ps->curmethod->srcif       = ps->curif;
         strDup(&ps->curmethod->srcfile, ps->fname);
         saInit(&ps->annotations, sarray, 4);
         strDup(&ps->curmethod->returntype, *tok);
@@ -485,7 +486,7 @@ bool parseInterface(ParseState *ps, string *tok)
         ps->lastcontext = ps->context;
         saClear(&ps->annotations);
         ps->allowannotations = true;
-        ps->context = Context_ParamList;
+        ps->context          = Context_ParamList;
         return true;
     } else if (ps->curmethod && !ps->curmethod->name && onlyspecial(*tok)) {
         strAppend(&ps->curmethod->predecr, *tok);
@@ -499,7 +500,7 @@ bool parseInterface(ParseState *ps, string *tok)
     return false;
 }
 
-bool parseParamList(ParseState *ps, string *tok)
+bool parseParamList(ParseState* ps, string* tok)
 {
     if (strEq(*tok, _S")")) {
         if (ps->curparam) {
@@ -513,7 +514,7 @@ bool parseParamList(ParseState *ps, string *tok)
         }
         saClear(&ps->annotations);
         ps->allowannotations = true;
-        ps->context = ps->lastcontext;
+        ps->context          = ps->lastcontext;
         return true;
     } else if (strEq(*tok, _S",")) {
         if (!ps->curparam || strEmpty(ps->curparam->name)) {
@@ -550,7 +551,7 @@ bool parseParamList(ParseState *ps, string *tok)
     return false;
 }
 
-bool parseClassPre(ParseState *ps, string *tok)
+bool parseClassPre(ParseState* ps, string* tok)
 {
     if (strEq(*tok, _S"{")) {
         if (strEmpty(ps->curcls->name)) {
@@ -582,7 +583,7 @@ bool parseClassPre(ParseState *ps, string *tok)
         return true;
     } else if (strEq(*tok, _S"uses")) {
         string name = 0;
-        Class *uses;
+        Class* uses;
         nextTok(ps, &name);
         if (!isvalidname(name)) {
             fprintf(stderr, "Invalid class name '%s'\n", strC(name));
@@ -610,7 +611,7 @@ bool parseClassPre(ParseState *ps, string *tok)
             strDestroy(&name);
             return false;
         }
-        Interface *tempif = 0;
+        Interface* tempif = 0;
         if (!htFind(ifidx, string, name, object, &tempif, HT_Borrow)) {
             fprintf(stderr, "Could not find interface '%s'\n", strC(name));
             strDestroy(&name);
@@ -639,7 +640,7 @@ bool parseClassPre(ParseState *ps, string *tok)
     return false;
 }
 
-bool parseClass(ParseState *ps, string *tok)
+bool parseClass(ParseState* ps, string* tok)
 {
     if (strEq(*tok, _S"}")) {
         if (saSize(ps->tokstack) > 0) {
@@ -656,7 +657,7 @@ bool parseClass(ParseState *ps, string *tok)
         saPushC(&classes, object, &ps->curcls);
         saClear(&ps->annotations);
         ps->allowannotations = true;
-        ps->context = Context_Global;
+        ps->context          = Context_Global;
         return true;
     } else if (strEq(*tok, _S";")) {
         if (ps->curmethod) {
@@ -667,10 +668,10 @@ bool parseClass(ParseState *ps, string *tok)
                 fprintf(stderr, "Invalid member type '%s'\n", strC(ps->tokstack.a[0]));
                 return false;
             }
-            Member *nmem = memberCreate();
+            Member* nmem      = memberCreate();
             nmem->annotations = ps->annotations;
             saInit(&ps->annotations, sarray, 4);
-            nmem->comments = ps->comments;
+            nmem->comments      = ps->comments;
             ps->curlinecomments = &nmem->comments;
             saInit(&ps->comments, string, 4);
 
@@ -679,7 +680,7 @@ bool parseClass(ParseState *ps, string *tok)
             if (strSplit(&vartype, ps->tokstack.a[0], _S":", false) >= 2) {
                 // special case for a couple things
                 if (strEq(vartype.a[0], _S"hashtable")) {
-                    strDup(&nmem->vartype, vartype.a[0]);         // hashtable is the actual type
+                    strDup(&nmem->vartype, vartype.a[0]);   // hashtable is the actual type
                 } else if (strEq(vartype.a[0], _S"sarray")) {
                     sa_string artl;
                     saInit(&artl, string, 4);
@@ -699,7 +700,7 @@ bool parseClass(ParseState *ps, string *tok)
                             if (!strEq(artl.a[i], _S"sarray"))
                                 continue;
 
-                            ComplexArrayType *cat = complexarraytypeCreate();
+                            ComplexArrayType* cat = complexarraytypeCreate();
                             sa_string artypessub1;
                             sa_string artypessub2;
                             saInit(&artypessub1, string, 4);
@@ -730,16 +731,16 @@ bool parseClass(ParseState *ps, string *tok)
                         strNConcat(&nmem->vartype, _S"sa_", lasttname);
                     }
                     saDestroy(&artl);
-                } else if(strEq(vartype.a[0], _S"atomic")) {
+                } else if (strEq(vartype.a[0], _S"atomic")) {
                     strNConcat(&nmem->vartype, _S, _S"atomic(", vartype.a[saSize(vartype) - 1], _S")");
-                } else if(strEq(vartype.a[0], _S"weak")) {
+                } else if (strEq(vartype.a[0], _S"weak")) {
                     strNConcat(&nmem->vartype, _S, _S"Weak(", vartype.a[saSize(vartype) - 1], _S")");
                 } else {
                     strDup(&nmem->vartype, vartype.a[saSize(vartype) - 1]);
                 }
 
                 nmem->fulltype = vartype;
-                vartype.a = NULL;
+                vartype.a      = NULL;
             } else {
                 strDup(&nmem->vartype, ps->tokstack.a[0]);
             }
@@ -775,7 +776,7 @@ bool parseClass(ParseState *ps, string *tok)
         if (saSize(ps->tokstack) == 1) {
             if (strEq(ps->tokstack.a[0], _S"destroy")) {
                 ps->curcls->hasdestroy = true;
-                string dummy = 0;
+                string dummy           = 0;
                 nextTok(ps, &dummy);
                 if (!strEq(dummy, _S")")) {
                     fprintf(stderr, "destructor cannot take parameters!\n");
@@ -803,9 +804,9 @@ bool parseClass(ParseState *ps, string *tok)
             return false;
         }
 
-        ps->curmethod = methodCreate();
+        ps->curmethod           = methodCreate();
         ps->curmethod->comments = ps->comments;
-        ps->curlinecomments = &ps->curmethod->comments;
+        ps->curlinecomments     = &ps->curmethod->comments;
         saInit(&ps->comments, string, 4);
         ps->curmethod->annotations = ps->annotations;
         saInit(&ps->annotations, sarray, 4);
@@ -827,20 +828,21 @@ bool parseClass(ParseState *ps, string *tok)
                 fprintf(stderr, "Standalone functions may not be used in mixin classes\n");
                 return false;
             }
-            ps->curmethod->unbound = true;      // standalone implies unbound
+            ps->curmethod->unbound    = true;   // standalone implies unbound
             ps->curmethod->standalone = true;
             saRemove(&ps->tokstack, 0);
         } else if (strEq(ps->tokstack.a[0], _S"factory")) {
             if (ps->curcls->abstract || ps->curcls->mixin) {
-                fprintf(stderr, "%s class '%s' tried to declare a factory\n",
+                fprintf(stderr,
+                        "%s class '%s' tried to declare a factory\n",
                         ps->curcls->mixin ? "Mixin" : "Abstract",
                         strC(ps->curcls->name));
                 return false;
             }
 
-            ps->curmethod->unbound = true;
+            ps->curmethod->unbound    = true;
             ps->curmethod->standalone = true;
-            ps->curmethod->isfactory = true;
+            ps->curmethod->isfactory  = true;
             saRemove(&ps->tokstack, 0);
             saInsert(&ps->tokstack, 0, string, ps->curcls->name);
             saInsert(&ps->tokstack, 1, string, _S"*");
@@ -865,7 +867,8 @@ bool parseClass(ParseState *ps, string *tok)
         }
 
         if (ps->curmethod->canfail && !ps->curmethod->isfactory) {
-            fprintf(stderr, "Method '%s' in class '%s' is declared as canfail but is not a factory\n",
+            fprintf(stderr,
+                    "Method '%s' in class '%s' is declared as canfail but is not a factory\n",
                     strC(ps->curmethod->name),
                     strC(ps->curcls->name));
             return false;
@@ -874,7 +877,7 @@ bool parseClass(ParseState *ps, string *tok)
         ps->lastcontext = ps->context;
         saClear(&ps->annotations);
         ps->allowannotations = true;
-        ps->context = Context_ParamList;
+        ps->context          = Context_ParamList;
         return true;
     } else if (strEq(*tok, _S"override")) {
         string name = 0;
@@ -889,11 +892,11 @@ bool parseClass(ParseState *ps, string *tok)
 
     // we don't know what this is yet, so save it until more context is available
     saPush(&ps->tokstack, string, *tok);
-    ps->allowannotations = false;           // don't allow after start, so static arrays can be parsed
+    ps->allowannotations = false;   // don't allow after start, so static arrays can be parsed
     return true;
 }
 
-bool parseFile(string fname, string *realfn, sa_string searchpath, bool included, bool required)
+bool parseFile(string fname, string* realfn, sa_string searchpath, bool included, bool required)
 {
     ParseState ps = { 0 };
 
@@ -945,7 +948,7 @@ bool parseFile(string fname, string *realfn, sa_string searchpath, bool included
     saInit(&ps.tokstack, string, 8);
     saInit(&ps.comments, string, 4);
     saInit(&ps.annotations, sarray, 4);
-    ps.included = included;
+    ps.included         = included;
     ps.allowannotations = true;
 
     string tok = 0;

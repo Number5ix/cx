@@ -1,4 +1,4 @@
-#include "cxobjgen.h"
+#include "cxautogen.h"
 #include <cx/container.h>
 #include <cx/string.h>
 #include <cx/utils.h>
@@ -20,7 +20,7 @@ bool needmixinimpl;
 
 bool upToDate(string fname);
 
-int main(int argc, char *argv[])
+int main(int argc, char* argv[])
 {
     bool force = false;
     sa_string sidlfiles;
@@ -84,7 +84,7 @@ int main(int argc, char *argv[])
         if (!parseFile(sidlfiles.a[i], &fname, searchpath, false, true))
             break;
 
-        if (strEmpty(fname))        // already parsed this file
+        if (strEmpty(fname))   // already parsed this file
             continue;
 
         if (!force && upToDate(fname))
@@ -122,7 +122,7 @@ int main(int argc, char *argv[])
 
 bool upToDate(string fname)
 {
-    bool ret = false;
+    bool ret     = false;
     string hname = 0;
     pathSetExt(&hname, fname, _S"h");
     string cname = 0;
@@ -153,11 +153,11 @@ out:
     return ret;
 }
 
-uint8 *lazyPlatformPath(string path)
+uint8* lazyPlatformPath(string path)
 {
     string tmp = 0;
     pathToPlatform(&tmp, path);
-    uint8 *out = scratchGet(strLen(tmp) + 1);
+    uint8* out = scratchGet(strLen(tmp) + 1);
     strCopyOut(tmp, 0, out, strLen(tmp) + 1);
     strDestroy(&tmp);
     return out;

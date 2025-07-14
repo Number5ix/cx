@@ -1,8 +1,8 @@
-#include "cxobjgen.h"
 #include <cx/container.h>
 #include <cx/string.h>
+#include "cxautogen.h"
 
-static void fillMembers(sa_Member *members, Class *cls)
+static void fillMembers(sa_Member* members, Class* cls)
 {
     // add parent clases first so the order is correct
     if (cls->parent)
@@ -13,13 +13,13 @@ static void fillMembers(sa_Member *members, Class *cls)
     }
 }
 
-static void fillMethods(sa_Method *methods, Class *cls)
+static void fillMethods(sa_Method* methods, Class* cls)
 {
     // first, add in any methods from parent classes and their interfaces
     // allmethods includes inherited methods
     if (cls->parent) {
         for (int i = 0; i < saSize(cls->parent->allmethods); i++) {
-            Method *m = cls->parent->allmethods.a[i];
+            Method* m = cls->parent->allmethods.a[i];
             if (!m->unbound && !m->internal)
                 saPush(methods, object, m, SA_Unique);
         }
@@ -40,7 +40,7 @@ static void fillMethods(sa_Method *methods, Class *cls)
     }
 }
 
-static Method *findClassMethod(string name, Class *search, Interface *iface)
+static Method* findClassMethod(string name, Class* search, Interface* iface)
 {
     if (!search)
         return NULL;
@@ -56,7 +56,7 @@ static Method *findClassMethod(string name, Class *search, Interface *iface)
     return search->parent ? findClassMethod(name, search->parent, iface) : NULL;
 }
 
-static Method *findInterfaceMethod(string name, Class *root, Interface *search)
+static Method* findInterfaceMethod(string name, Class* root, Interface* search)
 {
     if (!root)
         return NULL;
@@ -70,7 +70,7 @@ static Method *findInterfaceMethod(string name, Class *root, Interface *search)
     }
 
     for (int i = 0; i < saSize(root->implements); i++) {
-        Method *m = findInterfaceMethod(name, root, root->implements.a[i]);
+        Method* m = findInterfaceMethod(name, root, root->implements.a[i]);
         if (m)
             return m;
     }
@@ -78,13 +78,15 @@ static Method *findInterfaceMethod(string name, Class *root, Interface *search)
     return NULL;
 }
 
-static void addInterfaceImpl(Class *cls, Interface *iface)
+static void addInterfaceImpl(Class* cls, Interface* iface)
 {
     if (iface->parent)
         addInterfaceImpl(cls, iface->parent);
 
     for (int i = 0; i < saSize(iface->methods); i++) {
-        Method *m = findClassMethod(iface->methods.a[i]->name, cls, iface->methods.a[i]->srcif);  // already have it?
+        Method* m = findClassMethod(iface->methods.a[i]->name,
+                                    cls,
+                                    iface->methods.a[i]->srcif);   // already have it?
         if (!m) {
             m = methodClone(iface->methods.a[i]);
             saPushC(&cls->methods, object, &m);
@@ -92,7 +94,7 @@ static void addInterfaceImpl(Class *cls, Interface *iface)
     }
 }
 
-static void addAbstractInterfaces(sa_Method *methods, Interface *iface)
+static void addAbstractInterfaces(sa_Method* methods, Interface* iface)
 {
     if (iface->parent)
         addAbstractInterfaces(methods, iface->parent);
@@ -102,15 +104,16 @@ static void addAbstractInterfaces(sa_Method *methods, Interface *iface)
     }
 }
 
-static void checkMemberInitDestroy(Class *cls)
+static void checkMemberInitDestroy(Class* cls)
 {
     for (int i = 0; i < saSize(cls->members); i++) {
-        Member *m = cls->members.a[i];
+        Member* m = cls->members.a[i];
 
         if (strEmpty(m->postdecr)) {
             if (saSize(m->fulltype) > 1 && !strEq(m->fulltype.a[0], _S"atomic")) {
                 // these have enough info to auto init without help
-                if (strEmpty(m->predecr) && !strEq(m->fulltype.a[0], _S"object") && !strEq(m->fulltype.a[0], _S"weak"))
+                if (strEmpty(m->predecr) && !strEq(m->fulltype.a[0], _S"object") &&
+                    !strEq(m->fulltype.a[0], _S"weak"))
                     m->init = true;
                 m->destroy = true;
             }
@@ -120,7 +123,7 @@ static void checkMemberInitDestroy(Class *cls)
                 (strEq(m->vartype, _S"RWLock") && strEmpty(m->predecr)) ||
                 (strEq(m->vartype, _S"Semaphore") && strEmpty(m->predecr))) {
                 m->init = true;
-            }            
+            }
             if ((strEq(m->vartype, _S"string") && strEmpty(m->predecr)) ||
                 (strEq(m->vartype, _S"hashtable") && strEmpty(m->predecr)) ||
                 (strEq(m->vartype, _S"stvar") && strEmpty(m->predecr)) ||
@@ -157,15 +160,15 @@ static void checkMemberInitDestroy(Class *cls)
     }
 }
 
-static void addMixin(Class *cls, _In_ Class *uses)
+static void addMixin(Class* cls, _In_ Class* uses)
 {
     string hfile = 0;
     // copy any methods that we don't already have
     for (int i = 0; i < saSize(uses->allmethods); i++) {
-        Method *m = findClassMethod(uses->allmethods.a[i]->name, cls, NULL);     // already have it?
+        Method* m = findClassMethod(uses->allmethods.a[i]->name, cls, NULL);   // already have it?
         if (!m) {
             // clone the method
-            m = methodClone(uses->allmethods.a[i]);
+            m           = methodClone(uses->allmethods.a[i]);
             // so that it can point at the mixin that actually pulled it in
             m->mixinsrc = uses;
             strDup(&hfile, m->srcfile);
@@ -180,7 +183,7 @@ static void addMixin(Class *cls, _In_ Class *uses)
 
     // if the mixin or any parent needs init/destructor, so do we
     // the runtime won't handle this since there's no parent->child relationship
-    for (Class *mixin = uses; mixin; mixin = mixin->parent) {
+    for (Class* mixin = uses; mixin; mixin = mixin->parent) {
         cls->hasautoinit |= mixin->hasautoinit;
         cls->hasinit |= mixin->hasautoinit;
         cls->hasautodtors |= mixin->hasautodtors;
@@ -193,20 +196,20 @@ static void addMixin(Class *cls, _In_ Class *uses)
 
     // if the mixin class has any data members, embed the mixin struct
     if (saSize(uses->allmembers) > 0) {
-        Member *mixindata = memberCreate();
+        Member* mixindata   = memberCreate();
         mixindata->mixinsrc = uses;
-        mixindata->init = true;
-        mixindata->destroy = true;
+        mixindata->init     = true;
+        mixindata->destroy  = true;
         strDup(&mixindata->vartype, uses->name);
         mixinMemberName(&mixindata->name, uses);
         saPushC(&cls->members, object, &mixindata, SA_Unique);
     }
 }
 
-static bool implementsChild(Class *cls, Interface *iface)
+static bool implementsChild(Class* cls, Interface* iface)
 {
     for (int i = saSize(cls->implements) - 1; i >= 0; --i) {
-        Interface *testif = cls->implements.a[i];
+        Interface* testif = cls->implements.a[i];
 
         // skip self
         if (testif == iface)
@@ -223,7 +226,7 @@ static bool implementsChild(Class *cls, Interface *iface)
     return false;
 }
 
-static void pruneInterfaces(Class *cls)
+static void pruneInterfaces(Class* cls)
 {
     // First, remove any interfaces where this class also implements one of
     // their children.
@@ -252,21 +255,20 @@ static void pruneInterfaces(Class *cls)
                 continue;
 
             // see if this class method is part of the interface
-            if (saFind(cls->implements.a[i]->allmethods, object,
-                        cls->methods.a[j]) != -1)
+            if (saFind(cls->implements.a[i]->allmethods, object, cls->methods.a[j]) != -1)
                 break;
         }
 
         // did we find one that's implemented?
         if (j < 0)
-            saRemove(&cls->implements, i);          // nope
+            saRemove(&cls->implements, i);   // nope
     }
 }
 
-static void checkClassInitFail(Class *cls)
+static void checkClassInitFail(Class* cls)
 {
     // check if any parent classes can fail, if so, this one can as well
-    Class *pc = cls->parent;
+    Class* pc = cls->parent;
     while (!cls->initcanfail && pc) {
         cls->initcanfail |= pc->initcanfail;
         pc = pc->parent;
@@ -279,7 +281,7 @@ static void checkClassInitFail(Class *cls)
     }
 }
 
-static void propagateCanFailToFactories(Class *cls)
+static void propagateCanFailToFactories(Class* cls)
 {
     for (int i = saSize(cls->methods) - 1; i >= 0; --i) {
         if (cls->methods.a[i]->isfactory)
@@ -287,7 +289,7 @@ static void propagateCanFailToFactories(Class *cls)
     }
 }
 
-bool processClass(Class *cls)
+bool processClass(Class* cls)
 {
     if (cls->processed)
         return true;
@@ -311,7 +313,7 @@ bool processClass(Class *cls)
 
     // copy prototypes for overriden functions from parents
     for (int i = 0; i < saSize(cls->overrides); i++) {
-        Method *m = findClassMethod(cls->overrides.a[i], cls->parent, NULL);
+        Method* m = findClassMethod(cls->overrides.a[i], cls->parent, NULL);
         if (!m) {
             // also allow overriding interface methods this way, mostly for abstract/mixin classes
             m = findInterfaceMethod(cls->overrides.a[i], cls, NULL);
@@ -348,9 +350,9 @@ bool processClass(Class *cls)
 
     // create the class interface
     if (!cls->mixin) {
-        Interface *clsif = interfaceCreate();
-        clsif->classif = true;
-        clsif->included = cls->included;
+        Interface* clsif = interfaceCreate();
+        clsif->classif   = true;
+        clsif->included  = cls->included;
         strDup(&clsif->name, cls->name);
         strAppend(&clsif->name, _S"_ClassIf");
         if (cls->parent) {
@@ -378,8 +380,7 @@ bool processClass(Class *cls)
         }
     } else {
         // mark mixin methods
-        for (int i = 0; i < saSize(cls->methods); i++)
-            cls->methods.a[i]->mixin = true;
+        for (int i = 0; i < saSize(cls->methods); i++) cls->methods.a[i]->mixin = true;
 
         if (!cls->included)
             needmixinimpl = true;
@@ -411,18 +412,18 @@ bool processClass(Class *cls)
 
     // create internal methods if needed
     if (cls->hasinit) {
-        Method *m = methodCreate();
+        Method* m   = methodCreate();
         m->internal = true;
-        m->isinit = true;
-        m->canfail = cls->initcanfail;
+        m->isinit   = true;
+        m->canfail  = cls->initcanfail;
         strDup(&m->returntype, _S"bool");
         strDup(&m->name, _S"init");
         saInsert(&cls->methods, nextfactory, object, m);
         objRelease(&m);
     }
     if (cls->hasdestroy) {
-        Method *m = methodCreate();
-        m->internal = true;
+        Method* m    = methodCreate();
+        m->internal  = true;
         m->isdestroy = true;
         strDup(&m->returntype, _S"void");
         strDup(&m->name, _S"destroy");
@@ -463,12 +464,12 @@ bool processClasses()
     return true;
 }
 
-void methodImplName(string *out, Class *cls, string mname)
+void methodImplName(string* out, Class* cls, string mname)
 {
     strNConcat(out, cls->name, _S"_", mname);
 }
 
-void methodCallName(string *out, Class *cls, string mname)
+void methodCallName(string* out, Class* cls, string mname)
 {
     string clsname2 = 0, mname2 = 0;
     if (cls->methodprefix) {
@@ -479,27 +480,27 @@ void methodCallName(string *out, Class *cls, string mname)
     }
 
     strDup(&mname2, mname);
-    uint8 *tmp = strBuffer(&mname2, 1);
-    tmp[0] = toupper(tmp[0]);
+    uint8* tmp = strBuffer(&mname2, 1);
+    tmp[0]     = toupper(tmp[0]);
 
     strConcatC(out, &clsname2, &mname2);
     strDestroy(&clsname2);
     strDestroy(&mname2);
 }
 
-void mixinMemberName(string *out, Class *cls)
+void mixinMemberName(string* out, Class* cls)
 {
     strConcat(out, _S"_", cls->name);
     strLower(out);
 }
 
-void methodAnnotations(string *out, Method *m)
+void methodAnnotations(string* out, Method* m)
 {
     string tmp = 0;
     strClear(out);
 
     bool isvalid = getAnnotation(NULL, m->annotations, _S"valid");
-    bool isopt = getAnnotation(NULL, m->annotations, _S"opt");
+    bool isopt   = getAnnotation(NULL, m->annotations, _S"opt");
 
     if (isvalid || isopt) {
         if (isopt)
@@ -522,12 +523,12 @@ void methodAnnotations(string *out, Method *m)
     strDestroy(&tmp);
 }
 
-void paramAnnotations(string *out, Param *p)
+void paramAnnotations(string* out, Param* p)
 {
     string tmp = 0;
     strClear(out);
 
-    bool isin = getAnnotation(NULL, p->annotations, _S"in");
+    bool isin  = getAnnotation(NULL, p->annotations, _S"in");
     bool isout = getAnnotation(NULL, p->annotations, _S"out");
     bool isopt = getAnnotation(NULL, p->annotations, _S"opt");
     if (getAnnotation(NULL, p->annotations, _S"inout"))

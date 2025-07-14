@@ -31,14 +31,14 @@ else()
     message(FATAL_ERROR "Unsupported platform")
 endif()
 
-set(CXOBJGEN_SRCS
+set(CXAUTOGEN_SRCS
     classes.c
     header.c
     impl.c
     interfaces.c
     objtypes.c
     parser.c
-    cxobjgen.c
+    cxautogen.c
     stub.c)
 set(CX_SRCS
     cx/obj/objclass.c
@@ -95,47 +95,47 @@ set(CX_SRCS
 source_group("cx" FILES
     ${CX_SRCS})
 
-set(CXOBJGEN_INCLUDES
+set(CXAUTOGEN_INCLUDES
     objtypes.h
-    cxobjgen.h
+    cxautogen.h
     objtypes.sidl
     )
 
 source_group("" FILES
-    ${CXOBJGEN_SRCS}
-    ${CXOBJGEN_INCLUDES})
+    ${CXAUTOGEN_SRCS}
+    ${CXAUTOGEN_INCLUDES})
 
-add_executable(cxobjgen
-    ${CXOBJGEN_SRCS}
-    ${CXOBJGEN_INCLUDES}
+add_executable(cxautogen
+    ${CXAUTOGEN_SRCS}
+    ${CXAUTOGEN_INCLUDES}
     ${CX_SRCS})
 
-target_compile_definitions(cxobjgen PRIVATE CX_BUILDING_CXOBJGEN)
+target_compile_definitions(cxautogen PRIVATE CX_BUILDING_CXAUTOGEN)
 
-target_link_libraries(cxobjgen ${CMAKE_THREAD_LIBS_INIT} ${CMAKE_DL_LIBS} mimalloc pcre2-8-object)
-target_include_directories(cxobjgen PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} SYSTEM PUBLIC ${CX_TOP_SOURCE_DIR} ${CX_TOP_SOURCE_DIR}/cx/include ${CX_TOP_BINARY_DIR})
-set_property(TARGET cxobjgen PROPERTY FOLDER "utils")
+target_link_libraries(cxautogen ${CMAKE_THREAD_LIBS_INIT} ${CMAKE_DL_LIBS} mimalloc pcre2-8-object)
+target_include_directories(cxautogen PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} SYSTEM PUBLIC ${CX_TOP_SOURCE_DIR} ${CX_TOP_SOURCE_DIR}/cx/include ${CX_TOP_BINARY_DIR})
+set_property(TARGET cxautogen PROPERTY FOLDER "utils")
 
-export(TARGETS cxobjgen FILE "${CMAKE_BINARY_DIR}/cxobjgen-config.cmake")
+export(TARGETS cxautogen FILE "${CMAKE_BINARY_DIR}/cxautogen-config.cmake")
 
 if(CX_STANDALONE)
-    add_custom_target(cxobjgen_regenerate
-        COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/objclass.c ${CX_TOP_SOURCE_DIR}/cxobjgen/cx/obj/objclass.c
-        COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/objclass.h ${CX_TOP_SOURCE_DIR}/cxobjgen/cx/obj/objclass.h
-        COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/objiface.c ${CX_TOP_SOURCE_DIR}/cxobjgen/cx/obj/objiface.c
-        COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/objiface.h ${CX_TOP_SOURCE_DIR}/cxobjgen/cx/obj/objiface.h
-        COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/objimpl.c ${CX_TOP_SOURCE_DIR}/cxobjgen/cx/obj/objimpl.c
-        COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/objimpl.h ${CX_TOP_SOURCE_DIR}/cxobjgen/cx/obj/objimpl.h
-        COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/objstdif.sidl ${CX_TOP_SOURCE_DIR}/cxobjgen/cx/obj/objstdif.sidl
-        COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/objstdif.c ${CX_TOP_SOURCE_DIR}/cxobjgen/cx/obj/objstdif.c
-        COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/objweak.c ${CX_TOP_SOURCE_DIR}/cxobjgen/cx/obj/objweak.c
-        COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/obj_private.h ${CX_TOP_SOURCE_DIR}/cxobjgen/cx/obj/obj_private.h
-        COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/stype_obj.c ${CX_TOP_SOURCE_DIR}/cxobjgen/cx/obj/stype_obj.c
-        COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/stype_obj.h ${CX_TOP_SOURCE_DIR}/cxobjgen/cx/obj/stype_obj.h
-        COMMAND cxobjgen -f ${CX_TOP_SOURCE_DIR}/cxobjgen/cx/obj/objstdif.sidl
-        COMMAND cxobjgen -f -I${CX_TOP_SOURCE_DIR} ${CX_TOP_SOURCE_DIR}/cxobjgen/objtypes.sidl
-        DEPENDS cxobjgen)
-    set_property(TARGET cxobjgen_regenerate PROPERTY FOLDER "generate")
+    add_custom_target(cxautogen_regenerate
+        COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/objclass.c ${CX_TOP_SOURCE_DIR}/cxautogen/cx/obj/objclass.c
+        COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/objclass.h ${CX_TOP_SOURCE_DIR}/cxautogen/cx/obj/objclass.h
+        COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/objiface.c ${CX_TOP_SOURCE_DIR}/cxautogen/cx/obj/objiface.c
+        COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/objiface.h ${CX_TOP_SOURCE_DIR}/cxautogen/cx/obj/objiface.h
+        COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/objimpl.c ${CX_TOP_SOURCE_DIR}/cxautogen/cx/obj/objimpl.c
+        COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/objimpl.h ${CX_TOP_SOURCE_DIR}/cxautogen/cx/obj/objimpl.h
+        COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/objstdif.sidl ${CX_TOP_SOURCE_DIR}/cxautogen/cx/obj/objstdif.sidl
+        COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/objstdif.c ${CX_TOP_SOURCE_DIR}/cxautogen/cx/obj/objstdif.c
+        COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/objweak.c ${CX_TOP_SOURCE_DIR}/cxautogen/cx/obj/objweak.c
+        COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/obj_private.h ${CX_TOP_SOURCE_DIR}/cxautogen/cx/obj/obj_private.h
+        COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/stype_obj.c ${CX_TOP_SOURCE_DIR}/cxautogen/cx/obj/stype_obj.c
+        COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/stype_obj.h ${CX_TOP_SOURCE_DIR}/cxautogen/cx/obj/stype_obj.h
+        COMMAND cxautogen -f ${CX_TOP_SOURCE_DIR}/cxautogen/cx/obj/objstdif.sidl
+        COMMAND cxautogen -f -I${CX_TOP_SOURCE_DIR} ${CX_TOP_SOURCE_DIR}/cxautogen/objtypes.sidl
+        DEPENDS cxautogen)
+    set_property(TARGET cxautogen_regenerate PROPERTY FOLDER "generate")
 endif()
 
 endif()     # NOT CMAKE_CROSSCOMPILING

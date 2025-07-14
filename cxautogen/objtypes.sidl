@@ -1,5 +1,5 @@
 // Autogeneration is disabled to prevent dependency loops while building.
-// If any changes are made to this file, cxobjgen must be manually run on it!
+// If any changes are made to this file, cxautogen must be manually run on it!
 
 class Param {
     string type;

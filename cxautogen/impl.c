@@ -1,14 +1,16 @@
-#include "cxobjgen.h"
-#include "cxobjgen.h"
 #include <cx/container.h>
 #include <cx/fs/file.h>
 #include <cx/string.h>
+#include "cxautogen.h"
 #define PCRE2_CODE_UNIT_WIDTH 8
 #include <3rdparty/pcre2/pcre2.h>
 
-static const string autogenBegin =  _S"// ==================== Auto-generated section begins ====================";
-static const string autogenNotice = _S"// Do not modify the contents of this section; any changes will be lost!";
-static const string autogenEnd =    _S"// ==================== Auto-generated section ends ======================";
+static const string autogenBegin = _S
+    "// ==================== Auto-generated section begins ====================";
+static const string autogenNotice = _S
+    "// Do not modify the contents of this section; any changes will be lost!";
+static const string autogenEnd = _S
+    "// ==================== Auto-generated section ends ======================";
 static const string autogenBeginShort       = _S"// Autogen begins -----";
 static const string autogenEndShort         = _S"// Autogen ends -------";
 static const string autogenBeginShortIndent = _S"    // Autogen begins -----";
@@ -56,7 +58,7 @@ static bool strEqNoWS(strref s1, strref s2)
     return false;   // unreachable
 }
 
-static void strAppendLine(string *str, strref ln)
+static void strAppendLine(string* str, strref ln)
 {
     if (!strEmpty(*str)) {
 #ifdef _PLATFORM_WIN
@@ -68,19 +70,19 @@ static void strAppendLine(string *str, strref ln)
     strAppend(str, ln);
 }
 
-static void writeAutoInit(StreamBuffer *bf, Class *cls);
-static void writeAutoDtors(StreamBuffer *bf, Class *cls);
+static void writeAutoInit(StreamBuffer* bf, Class* cls);
+static void writeAutoDtors(StreamBuffer* bf, Class* cls);
 
-static void writeMethodProto(StreamBuffer *bf, Class *cls, Method *m, bool protoonly, bool mixinimpl, bool forparent)
+static void writeMethodProto(StreamBuffer* bf, Class* cls, Method* m, bool protoonly,
+                             bool mixinimpl, bool forparent)
 {
     string mname = 0, ln = 0, tmp = 0, temp2 = 0, annos = 0;
     methodImplName(&mname, cls, m->name);
 
-    if (!protoonly && !forparent && !mixinimpl &&
-        !m->isfactory && !m->isinit && !m->isdestroy &&
+    if (!protoonly && !forparent && !mixinimpl && !m->isfactory && !m->isinit && !m->isdestroy &&
         cls->parent) {
-        Class *pclass = cls->parent;
-        Method *pm = 0;
+        Class* pclass = cls->parent;
+        Method* pm    = 0;
 
         while (pclass) {
             int32 idx = saFind(pclass->methods, object, m);
@@ -134,22 +136,22 @@ static void writeMethodProto(StreamBuffer *bf, Class *cls, Method *m, bool proto
         strPrepend(_S"_meta_inline ", &ln);
 
     for (int j = 0; j < saSize(m->params); j++) {
-        Param *p = m->params.a[j];
+        Param* p     = m->params.a[j];
         string ptype = p->type;
-        string ppre = p->predecr;
+        string ppre  = p->predecr;
 
         if (strEq(ptype, _S"object") && strEmpty(ppre)) {
             ptype = cls->name;
-            ppre = _S"*";
-        } else if(strEq(ptype, _S"weak") && strEmpty(ppre)) {
+            ppre  = _S"*";
+        } else if (strEq(ptype, _S"weak") && strEmpty(ppre)) {
             strNConcat(&temp2, _S"Weak(", cls->name, _S")");
             ptype = temp2;
-            ppre = _S"*";
+            ppre  = _S"*";
         }
 
         paramAnnotations(&annos, p);
         if (!m->standalone || j > 0)
-            strNConcat(&tmp, _S", ", annos, ptype,  ppre, _S" ", p->name, p->postdecr);
+            strNConcat(&tmp, _S", ", annos, ptype, ppre, _S" ", p->name, p->postdecr);
         else
             strNConcat(&tmp, annos, ptype, ppre, _S" ", p->name, p->postdecr);
         strAppend(&ln, tmp);
@@ -168,11 +170,11 @@ static void writeMethodProto(StreamBuffer *bf, Class *cls, Method *m, bool proto
     strDestroy(&ln);
 }
 
-static void writeMethods(StreamBuffer *bf, Class *cls, sa_string *seen, bool mixinimpl)
+static void writeMethods(StreamBuffer* bf, Class* cls, sa_string* seen, bool mixinimpl)
 {
     string ln = 0, mname = 0;
     for (int i = 0; i < saSize(cls->methods); i++) {
-        Method *m = cls->methods.a[i];
+        Method* m = cls->methods.a[i];
         if (m->mixin != mixinimpl || getAnnotation(NULL, m->annotations, _S"extern"))
             continue;
         methodImplName(&mname, cls, m->name);
@@ -189,7 +191,8 @@ static void writeMethods(StreamBuffer *bf, Class *cls, sa_string *seen, bool mix
                 strNConcat(&ln, _S"    self = objInstCreate(", cls->name, _S");");
                 sbufPWriteLine(bf, ln);
                 sbufPWriteEOL(bf);
-                sbufPWriteLine(bf, _S"    // Insert any pre-initialization object construction here");
+                sbufPWriteLine(bf,
+                               _S"    // Insert any pre-initialization object construction here");
                 sbufPWriteEOL(bf);
                 if (m->canfail) {
                     sbufPWriteLine(bf, _S"    if (!objInstInit(self)) {");
@@ -200,11 +203,14 @@ static void writeMethods(StreamBuffer *bf, Class *cls, sa_string *seen, bool mix
                     sbufPWriteLine(bf, _S"    objInstInit(self);");
                 }
                 sbufPWriteEOL(bf);
-                sbufPWriteLine(bf, _S"    // Insert any post-initialization object construction here");
+                sbufPWriteLine(bf,
+                               _S"    // Insert any post-initialization object construction here");
                 sbufPWriteEOL(bf);
                 sbufPWriteLine(bf, _S"    return self;");
             } else if (strEq(m->name, _S"cmp")) {
-                sbufPWriteLine(bf, _S"    // Uncomment unless this function can compare different object classes");
+                sbufPWriteLine(
+                    bf,
+                    _S"    // Uncomment unless this function can compare different object classes");
                 sbufPWriteLine(bf, _S"    // devAssert(objClsInfo(self) == objClsInfo(other));");
                 sbufPWriteEOL(bf);
                 sbufPWriteLine(bf, _S"    return objDefaultCmp(self, other, flags);");
@@ -232,11 +238,11 @@ static void writeExternMethods(StreamBuffer* bf, Class* cls)
     }
 }
 
-static void writeMixinStubs(StreamBuffer *bf, Class *cls, bool *wroteany)
+static void writeMixinStubs(StreamBuffer* bf, Class* cls, bool* wroteany)
 {
     string ln = 0, mname = 0, vname = 0;
     for (int i = 0; i < saSize(cls->methods); i++) {
-        Method *m = cls->methods.a[i];
+        Method* m = cls->methods.a[i];
         if (!m->mixin || cls->mixin)
             continue;
 
@@ -252,7 +258,7 @@ static void writeMixinStubs(StreamBuffer *bf, Class *cls, bool *wroteany)
         strNConcat(&ln, ln, mname, _S"((", m->srcclass->name, _S"*)&self->", vname);
 
         for (int j = 0; j < saSize(m->params); j++) {
-            Param *p = m->params.a[j];
+            Param* p = m->params.a[j];
             strNConcat(&ln, ln, _S", ", p->name);
         }
 
@@ -266,24 +272,23 @@ static void writeMixinStubs(StreamBuffer *bf, Class *cls, bool *wroteany)
     strDestroy(&ln);
 }
 
-
 typedef struct MethodPair {
-    Class *c;
-    Method *m;
+    Class* c;
+    Method* m;
 } MethodPair;
 
-static void indexMethods(Class *cls, hashtable *htbl)
+static void indexMethods(Class* cls, hashtable* htbl)
 {
     string mname = 0;
     for (int i = 0; i < saSize(cls->methods); i++) {
-        Method *m = cls->methods.a[i];
+        Method* m = cls->methods.a[i];
         methodImplName(&mname, cls, m->name);
-        htInsert(htbl, string, mname, opaque, ((MethodPair){ .c = cls, .m = m }));
+        htInsert(htbl, string, mname, opaque, ((MethodPair) { .c = cls, .m = m }));
     }
     strDestroy(&mname);
 }
 
-static void writeAutoInit(StreamBuffer *bf, Class *cls)
+static void writeAutoInit(StreamBuffer* bf, Class* cls)
 {
     string ln = 0, tmp = 0, flags = 0;
     sa_string flagarr;
@@ -291,23 +296,35 @@ static void writeAutoInit(StreamBuffer *bf, Class *cls)
     sbufPWriteLine(bf, autogenBeginShortIndent);
 
     for (int i = 0; i < saSize(cls->members); i++) {
-        Member *m = cls->members.a[i];
+        Member* m = cls->members.a[i];
         if (!m->init)
             continue;
 
         strClear(&ln);
         if (m->mixinsrc) {
-            for (Class *mixin = m->mixinsrc; mixin; mixin = mixin->parent) {
+            for (Class* mixin = m->mixinsrc; mixin; mixin = mixin->parent) {
                 if (mixin->hasinit) {
                     mixinMemberName(&tmp, m->mixinsrc);
                     if (mixin->initcanfail) {
-                        strNConcat(&ln, _S"    if (!", mixin->name, _S"_init((", mixin->name,
-                                   _S"*)&self->", tmp, _S"))");
+                        strNConcat(&ln,
+                                   _S"    if (!",
+                                   mixin->name,
+                                   _S"_init((",
+                                   mixin->name,
+                                   _S"*)&self->",
+                                   tmp,
+                                   _S"))");
                         sbufPWriteLine(bf, ln);
                         sbufPWriteLine(bf, _S"        return false;");
                     } else {
-                        strNConcat(&ln, _S"    ", mixin->name, _S"_init((", mixin->name,
-                                   _S"*)&self->", tmp, _S");");
+                        strNConcat(&ln,
+                                   _S"    ",
+                                   mixin->name,
+                                   _S"_init((",
+                                   mixin->name,
+                                   _S"*)&self->",
+                                   tmp,
+                                   _S");");
                         sbufPWriteLine(bf, ln);
                     }
                 }
@@ -412,8 +429,15 @@ static void writeAutoInit(StreamBuffer *bf, Class *cls)
                     strJoin(&flags, flagarr, _S" | ");
                     strPrepend(_S", ", &flags);
                 }
-                strNConcat(&ln, _S"    saInit(&self->", m->name, _S", ", m->fulltype.a[1],
-                           _S", ", size, flags, _S");");
+                strNConcat(&ln,
+                           _S"    saInit(&self->",
+                           m->name,
+                           _S", ",
+                           m->fulltype.a[1],
+                           _S", ",
+                           size,
+                           flags,
+                           _S");");
                 saDestroy(&flagarr);
             }
             if (strEq(m->fulltype.a[0], _S"hashtable") && saSize(m->fulltype) == 3) {
@@ -441,8 +465,17 @@ static void writeAutoInit(StreamBuffer *bf, Class *cls)
                     strJoin(&flags, flagarr, _S" | ");
                     strPrepend(_S", ", &flags);
                 }
-                strNConcat(&ln, _S"    htInit(&self->", m->name, _S", ", m->fulltype.a[1], _S", ",
-                           m->fulltype.a[2], _S", ", size, flags, _S");");
+                strNConcat(&ln,
+                           _S"    htInit(&self->",
+                           m->name,
+                           _S", ",
+                           m->fulltype.a[1],
+                           _S", ",
+                           m->fulltype.a[2],
+                           _S", ",
+                           size,
+                           flags,
+                           _S");");
                 saDestroy(&flagarr);
             }
         }
@@ -458,7 +491,7 @@ static void writeAutoInit(StreamBuffer *bf, Class *cls)
     strDestroy(&ln);
 }
 
-static void writeAutoDtors(StreamBuffer *bf, Class *cls)
+static void writeAutoDtors(StreamBuffer* bf, Class* cls)
 {
     if (!cls->hasautodtors)
         return;
@@ -466,19 +499,25 @@ static void writeAutoDtors(StreamBuffer *bf, Class *cls)
     sbufPWriteLine(bf, autogenBeginShortIndent);
 
     for (int i = 0; i < saSize(cls->members); i++) {
-        Member *m = cls->members.a[i];
+        Member* m = cls->members.a[i];
         if (!m->destroy)
             continue;
 
         string mdtor = 0;
 
         if (m->mixinsrc) {
-            for (Class *mixin = m->mixinsrc; mixin; mixin = mixin->parent) {
+            for (Class* mixin = m->mixinsrc; mixin; mixin = mixin->parent) {
                 if (mixin->hasdestroy) {
                     string tmp = 0;
                     mixinMemberName(&tmp, m->mixinsrc);
-                    strNConcat(&mdtor, _S"    ", mixin->name, _S"_destroy((", mixin->name,
-                               _S"*)&self->", tmp, _S");");
+                    strNConcat(&mdtor,
+                               _S"    ",
+                               mixin->name,
+                               _S"_destroy((",
+                               mixin->name,
+                               _S"*)&self->",
+                               tmp,
+                               _S");");
                     sbufPWriteLine(bf, mdtor);
                     strDestroy(&tmp);
                 }
@@ -498,20 +537,25 @@ static void writeAutoDtors(StreamBuffer *bf, Class *cls)
         } else if (strEq(m->vartype, _S"hashtable")) {
             strNConcat(&mdtor, _S"    htDestroy(&self->", m->name, _S");");
         } else if (strEq(m->vartype, _S"stvar")) {
-            strNConcat(&mdtor, _S"    _stDestroy(self->", m->name, _S".type, NULL, &self->", m->name, _S".data, 0);");
-        } else if(strEq(m->vartype, _S"closure")) {
+            strNConcat(&mdtor,
+                       _S"    _stDestroy(self->",
+                       m->name,
+                       _S".type, NULL, &self->",
+                       m->name,
+                       _S".data, 0);");
+        } else if (strEq(m->vartype, _S"closure")) {
             strNConcat(&mdtor, _S"    closureDestroy(&self->", m->name, _S");");
-        } else if(strEq(m->vartype, _S"cchain")) {
+        } else if (strEq(m->vartype, _S"cchain")) {
             strNConcat(&mdtor, _S"    cchainDestroy(&self->", m->name, _S");");
-        } else if(strEq(m->vartype, _S"CondVar")) {
+        } else if (strEq(m->vartype, _S"CondVar")) {
             strNConcat(&mdtor, _S"    cvarDestroy(&self->", m->name, _S");");
-        } else if(strEq(m->vartype, _S"Event")) {
+        } else if (strEq(m->vartype, _S"Event")) {
             strNConcat(&mdtor, _S"    eventDestroy(&self->", m->name, _S");");
-        } else if(strEq(m->vartype, _S"Mutex")) {
+        } else if (strEq(m->vartype, _S"Mutex")) {
             strNConcat(&mdtor, _S"    mutexDestroy(&self->", m->name, _S");");
-        } else if(strEq(m->vartype, _S"RWLock")) {
+        } else if (strEq(m->vartype, _S"RWLock")) {
             strNConcat(&mdtor, _S"    rwlockDestroy(&self->", m->name, _S");");
-        } else if(strEq(m->vartype, _S"Semaphore")) {
+        } else if (strEq(m->vartype, _S"Semaphore")) {
             strNConcat(&mdtor, _S"    semaDestroy(&self->", m->name, _S");");
         }
         if (!strEmpty(mdtor))
@@ -522,10 +566,10 @@ static void writeAutoDtors(StreamBuffer *bf, Class *cls)
     sbufPWriteLine(bf, autogenEndShortIndent);
 }
 
-static void writeMixinProtos(StreamBuffer *bf, Class *cls)
+static void writeMixinProtos(StreamBuffer* bf, Class* cls)
 {
     for (int i = 0; i < saSize(cls->methods); i++) {
-        Method *m = cls->methods.a[i];
+        Method* m = cls->methods.a[i];
         if (m->isinit || m->isdestroy) {
             writeMethodProto(bf, cls, m, true, false, false);
             continue;
@@ -533,7 +577,7 @@ static void writeMixinProtos(StreamBuffer *bf, Class *cls)
     }
 }
 
-static void writeIfaceTmpl(StreamBuffer *bf, Interface *iface, bool *wroteany)
+static void writeIfaceTmpl(StreamBuffer* bf, Interface* iface, bool* wroteany)
 {
     string ln = 0;
 
@@ -552,7 +596,7 @@ static void writeIfaceTmpl(StreamBuffer *bf, Interface *iface, bool *wroteany)
     strDestroy(&ln);
 }
 
-static Method *findIfaceMethod(Interface *iface, string name)
+static Method* findIfaceMethod(Interface* iface, string name)
 {
     for (int i = 0; i < saSize(iface->allmethods); i++) {
         if (strEq(iface->allmethods.a[i]->name, name))
@@ -561,7 +605,7 @@ static Method *findIfaceMethod(Interface *iface, string name)
     return NULL;
 }
 
-static void writeClassIfaceTbl(StreamBuffer *bf, Class *cls, Interface *iface)
+static void writeClassIfaceTbl(StreamBuffer* bf, Class* cls, Interface* iface)
 {
     string ln = 0, implname = 0;
 
@@ -577,20 +621,20 @@ static void writeClassIfaceTbl(StreamBuffer *bf, Class *cls, Interface *iface)
             continue;
 
         // see if this class method is part of the interface
-        Method *m = findIfaceMethod(iface, cls->methods.a[i]->name);
+        Method* m = findIfaceMethod(iface, cls->methods.a[i]->name);
         if (!m)
             continue;
 
         methodImplName(&implname, cls, m->name);
         strNConcat(&ln, _S"    .", m->name, _S" = (", m->returntype, m->predecr, _S" ", _S"(*)(void*");
         for (int j = 0; j < saSize(m->params); j++) {
-            Param *p = m->params.a[j];
+            Param* p     = m->params.a[j];
             string ptype = p->type;
-            string ppre = p->predecr;
+            string ppre  = p->predecr;
 
             if ((strEq(ptype, _S"object") || strEq(ptype, _S"weak")) && strEmpty(ppre)) {
                 ptype = _S"void";
-                ppre = _S"*";
+                ppre  = _S"*";
             }
 
             strNConcat(&ln, ln, _S", ", ptype, ppre, p->postdecr);
@@ -605,7 +649,7 @@ static void writeClassIfaceTbl(StreamBuffer *bf, Class *cls, Interface *iface)
     strDestroy(&ln);
 }
 
-static void writeClassIfaceList(StreamBuffer *bf, Class *cls)
+static void writeClassIfaceList(StreamBuffer* bf, Class* cls)
 {
     string ln = 0;
 
@@ -623,7 +667,7 @@ static void writeClassIfaceList(StreamBuffer *bf, Class *cls)
     strDestroy(&ln);
 }
 
-static void writeClassImpl(StreamBuffer *bf, Class *cls, bool *wroteany)
+static void writeClassImpl(StreamBuffer* bf, Class* cls, bool* wroteany)
 {
     string ln = 0;
 
@@ -666,7 +710,7 @@ static void writeClassImpl(StreamBuffer *bf, Class *cls, bool *wroteany)
     strDestroy(&ln);
 }
 
-static bool fillBuf(StreamBuffer *obf, sa_string *linebuf)
+static bool fillBuf(StreamBuffer* obf, sa_string* linebuf)
 {
     string ln = 0;
     while (obf && saSize(*linebuf) < 5 && lparseLine(obf, &ln)) {
@@ -675,7 +719,7 @@ static bool fillBuf(StreamBuffer *obf, sa_string *linebuf)
     return saSize(*linebuf) > 0;
 }
 
-static void deleteLines(sa_string *linebuf, int nlines)
+static void deleteLines(sa_string* linebuf, int nlines)
 {
     while (nlines > 0) {
         saRemove(linebuf, 0);
@@ -695,7 +739,7 @@ bool writeImpl(string fname, bool mixinimpl)
     string incname = 0;
     pathSetExt(&incname, fname, _S"auto.inc");
 
-    FSFile *newf = fsOpen(newcname, FS_Overwrite);
+    FSFile* newf = fsOpen(newcname, FS_Overwrite);
     if (!newf) {
         fprintf(stderr, "Failed to open %s for writing", lazyPlatformPath(newcname));
         return false;
@@ -706,8 +750,8 @@ bool writeImpl(string fname, bool mixinimpl)
     if (!sbufPRegisterPush(nbf, NULL, 0))
         return false;
 
-    FSFile *incf = 0;
-    StreamBuffer *ibf = 0;
+    FSFile* incf      = 0;
+    StreamBuffer* ibf = 0;
     if (!mixinimpl) {
         incf = fsOpen(incname, FS_Overwrite);
         if (!incf) {
@@ -723,8 +767,8 @@ bool writeImpl(string fname, bool mixinimpl)
             return false;
     }
 
-    FSFile *oldf = fsOpen(cname, FS_Read);
-    StreamBuffer *obf = NULL;
+    FSFile* oldf      = fsOpen(cname, FS_Read);
+    StreamBuffer* obf = NULL;
     if (oldf) {
         obf = sbufCreate(1024);
         if (!sbufFSFilePRegisterPull(obf, oldf, true))
@@ -733,7 +777,7 @@ bool writeImpl(string fname, bool mixinimpl)
             return false;
     }
 
-    string ln = 0;
+    string ln      = 0;
     string olddecl = 0;
     sbufPWriteLine(nbf, autogenBegin);
     sbufPWriteLine(nbf, clangOff);
@@ -761,41 +805,41 @@ bool writeImpl(string fname, bool mixinimpl)
     htInit(&implidx, string, opaque(MethodPair), 16);
     int err;
     PCRE2_SIZE eoffset;
-    pcre2_code* reParentProto = pcre2_compile(
-        (PCRE2_SPTR) "^extern [A-Za-z0-9_]+(?:\\s\\**|\\**\\s)([A-Za-z0-9_]+)"
-        "\\([^;]*\\);\\s+// parent$",
-        PCRE2_ZERO_TERMINATED,
-        0,
-        &err,
-        &eoffset,
-        NULL);
-    pcre2_code* reParentMacro = pcre2_compile(
-        (PCRE2_SPTR) "^#(?:define|undef) parent_[A-Za-z0-9_]+"
-        "(?:\\([^;]*\\)(?:(?: \\\\\\s+)?| )[A-Za-z0-9_]+\\([^;]*\\))?$",
-        PCRE2_ZERO_TERMINATED,
-        0,
-        &err,
-        &eoffset,
-        NULL);
-    pcre2_code* reProto = pcre2_compile(
-        (PCRE2_SPTR) "^(?:_.*_(?:\\(.*\\))?\\s+)*(?:_objfactory(?:_[a-z]+)?\\s+)?"
-        "(?:_objinit(?:_[a-z]+)?\\s+)?(?:_meta_inline\\s+)?[A-Za-z0-9_]+"
-        "(?:\\s+\\**|\\**\\s+)([A-Za-z0-9_]+)\\([^;]*\\)(;)?$",
-        PCRE2_ZERO_TERMINATED,
-        0,
-        &err,
-        &eoffset,
-        NULL);
-    pcre2_match_data *match = pcre2_match_data_create_from_pattern(reProto, NULL);
+    pcre2_code* reParentProto =
+        pcre2_compile((PCRE2_SPTR) "^extern [A-Za-z0-9_]+(?:\\s\\**|\\**\\s)([A-Za-z0-9_]+)"
+                                   "\\([^;]*\\);\\s+// parent$",
+                      PCRE2_ZERO_TERMINATED,
+                      0,
+                      &err,
+                      &eoffset,
+                      NULL);
+    pcre2_code* reParentMacro =
+        pcre2_compile((PCRE2_SPTR) "^#(?:define|undef) parent_[A-Za-z0-9_]+"
+                                   "(?:\\([^;]*\\)(?:(?: \\\\\\s+)?| )[A-Za-z0-9_]+\\([^;]*\\))?$",
+                      PCRE2_ZERO_TERMINATED,
+                      0,
+                      &err,
+                      &eoffset,
+                      NULL);
+    pcre2_code* reProto =
+        pcre2_compile((PCRE2_SPTR) "^(?:_.*_(?:\\(.*\\))?\\s+)*(?:_objfactory(?:_[a-z]+)?\\s+)?"
+                                   "(?:_objinit(?:_[a-z]+)?\\s+)?(?:_meta_inline\\s+)?[A-Za-z0-9_]+"
+                                   "(?:\\s+\\**|\\**\\s+)([A-Za-z0-9_]+)\\([^;]*\\)(;)?$",
+                      PCRE2_ZERO_TERMINATED,
+                      0,
+                      &err,
+                      &eoffset,
+                      NULL);
+    pcre2_match_data* match = pcre2_match_data_create_from_pattern(reProto, NULL);
 
     for (int i = 0; i < saSize(classes); i++) {
         indexMethods(classes.a[i], &implidx);
     }
 
-    bool inautogen = false;
-    bool wasempty = true;
-    Class *ininit = 0;
-    Class *indestroy = 0;
+    bool inautogen   = false;
+    bool wasempty    = true;
+    Class* ininit    = 0;
+    Class* indestroy = 0;
     sa_string linebuf;
     saInit(&linebuf, string, 5);
     while (obf && fillBuf(obf, &linebuf)) {
@@ -804,7 +848,7 @@ bool writeImpl(string fname, bool mixinimpl)
             strEq(ln, autogenBeginShortIndent))
             inautogen = true;
         if (!inautogen) {
-            wasempty = false;
+            wasempty     = false;
             int nmatches = 0;
 
             for (int nline = 0; nline < saSize(linebuf); nline++) {
@@ -846,7 +890,7 @@ bool writeImpl(string fname, bool mixinimpl)
                     break;
             }
             if (nmatches >= 0) {
-                PCRE2_SIZE *ovector = pcre2_get_ovector_pointer(match);
+                PCRE2_SIZE* ovector = pcre2_get_ovector_pointer(match);
                 string newdecl      = 0;
                 string funcname     = 0;
                 strSubStr(&funcname, ln, (int32)ovector[2], (int32)ovector[3]);
@@ -870,7 +914,7 @@ bool writeImpl(string fname, bool mixinimpl)
                     sbufPFinish(ssbf);
                     sbufRelease(&ssbf);
 
-                    if(strEqNoWS(olddecl, newdecl)) {
+                    if (strEqNoWS(olddecl, newdecl)) {
                         sbufPWriteLine(nbf, olddecl);
                     } else {
                         sbufPWriteStr(nbf, newdecl);   // EOL already added by writeMethodProto
@@ -882,7 +926,7 @@ bool writeImpl(string fname, bool mixinimpl)
                 strDestroy(&funcname);
             } else {
                 // revert back to a single line
-                strDup(&ln, linebuf.a[0]);                
+                strDup(&ln, linebuf.a[0]);
                 strClear(&olddecl);
                 if (strEq(ln, _S"}")) {
                     if (ininit) {
@@ -897,7 +941,8 @@ bool writeImpl(string fname, bool mixinimpl)
                 sbufPWriteLine(nbf, ln);
             }
         }
-        if (strEq(ln, autogenEnd) || strEq(ln, autogenEndShort) || strEq(ln, autogenEndShortIndent)) {
+        if (strEq(ln, autogenEnd) || strEq(ln, autogenEndShort) ||
+            strEq(ln, autogenEndShortIndent)) {
             inautogen = false;
         }
 nextloop:

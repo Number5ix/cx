@@ -53,7 +53,7 @@ set(CMAKE_CODELITE_USE_TARGETS ON)
 
 add_subdirectory(3rdparty)
 add_subdirectory(cx)
-add_subdirectory(cxobjgen)
+add_subdirectory(cxautogen)
 add_subdirectory(misc)
 
 if(CX_LUA)

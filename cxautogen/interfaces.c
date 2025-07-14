@@ -1,8 +1,8 @@
-#include "cxobjgen.h"
 #include <cx/container.h>
 #include <cx/string.h>
+#include "cxautogen.h"
 
-static void fillMethods(sa_Method *methods, Interface *iface)
+static void fillMethods(sa_Method* methods, Interface* iface)
 {
     // add parent interfaces first so the order is correct
     if (iface->parent)
@@ -13,7 +13,7 @@ static void fillMethods(sa_Method *methods, Interface *iface)
     }
 }
 
-bool processInterface(Interface *iface)
+bool processInterface(Interface* iface)
 {
     if (iface->processed)
         return true;

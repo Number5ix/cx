@@ -1,9 +1,9 @@
-#include "cxobjgen.h"
 #include <cx/container.h>
 #include <cx/fs/file.h>
 #include <cx/string.h>
+#include "cxautogen.h"
 
-static bool isObjectType(Param *param)
+static bool isObjectType(Param* param)
 {
     if (!strEq(param->predecr, _S"*"))
         return false;
@@ -14,22 +14,22 @@ static bool isObjectType(Param *param)
     if (htHasKey(clsidx, string, param->type))
         return true;
 
-    if(htHasKey(weakrefidx, string, param->type))
+    if (htHasKey(weakrefidx, string, param->type))
         return true;
 
-    if(saFind(fwdclass, string, param->type) != -1)
+    if (saFind(fwdclass, string, param->type) != -1)
         return true;
 
     return false;
 }
 
-static void writeComments(StreamBuffer *bf, sa_string comments, int column, bool spacer)
+static void writeComments(StreamBuffer* bf, sa_string comments, int column, bool spacer)
 {
-    string ln = 0;
+    string ln     = 0;
     string spaces = 0;
 
     if (column > 0) {
-        uint8 *tmp = strBuffer(&spaces, column);
+        uint8* tmp = strBuffer(&spaces, column);
         memset(tmp, ' ', column);
     }
 
@@ -45,7 +45,7 @@ static void writeComments(StreamBuffer *bf, sa_string comments, int column, bool
     strDestroy(&spaces);
 }
 
-static void writeFuncComment(StreamBuffer *bf, strref name, Class *cls, Method *m)
+static void writeFuncComment(StreamBuffer* bf, strref name, Class* cls, Method* m)
 {
     if (!name)
         name = m->name;
@@ -57,17 +57,17 @@ static void writeFuncComment(StreamBuffer *bf, strref name, Class *cls, Method *
         strNConcat(&ln, _S"// ", m->returntype, m->predecr, _S" ", name, _S"(");
 
     for (int j = 0; j < saSize(m->params); j++) {
-        Param *p = m->params.a[j];
+        Param* p     = m->params.a[j];
         string ptype = p->type;
-        string ppre = p->predecr;
+        string ppre  = p->predecr;
 
         if (strEq(ptype, _S"object") && strEmpty(ppre)) {
             ptype = cls->name;
-            ppre = _S"*";
-        } else if(strEq(ptype, _S"weak") && strEmpty(ppre)) {
+            ppre  = _S"*";
+        } else if (strEq(ptype, _S"weak") && strEmpty(ppre)) {
             strNConcat(&temp, _S"Weak(", cls->name, _S")");
             ptype = temp;
-            ppre = _S"*";
+            ppre  = _S"*";
         }
 
         if (!m->standalone || j > 0)
@@ -80,12 +80,12 @@ static void writeFuncComment(StreamBuffer *bf, strref name, Class *cls, Method *
     strDestroy(&ln);
 }
 
-static void writeUnbound(StreamBuffer *bf, Class *cls, Class *cur, sa_Method *done)
+static void writeUnbound(StreamBuffer* bf, Class* cls, Class* cur, sa_Method* done)
 {
     string ln = 0, implname = 0, callname = 0, annos = 0, temp = 0;
 
     for (int i = 0; i < saSize(cur->methods); i++) {
-        Method *m = cur->methods.a[i];
+        Method* m = cur->methods.a[i];
         if (!m->unbound)
             continue;
 
@@ -96,22 +96,30 @@ static void writeUnbound(StreamBuffer *bf, Class *cls, Class *cur, sa_Method *do
             methodImplName(&implname, cls, m->name);
             methodAnnotations(&annos, m);
             if (!m->standalone)
-                strNConcat(&ln, annos, m->returntype, m->predecr, _S" ", implname, _S"(_In_ ", cls->name, _S"* self");
+                strNConcat(&ln,
+                           annos,
+                           m->returntype,
+                           m->predecr,
+                           _S" ",
+                           implname,
+                           _S"(_In_ ",
+                           cls->name,
+                           _S"* self");
             else
                 strNConcat(&ln, annos, m->returntype, m->predecr, _S" ", implname, _S"(");
 
             for (int j = 0; j < saSize(m->params); j++) {
-                Param *p = m->params.a[j];
+                Param* p     = m->params.a[j];
                 string ptype = p->type;
-                string ppre = p->predecr;
+                string ppre  = p->predecr;
 
                 if (strEq(ptype, _S"object") && strEmpty(ppre)) {
                     ptype = cls->name;
-                    ppre = _S"*";
-                } else if(strEq(ptype, _S"weak") && strEmpty(ppre)) {
+                    ppre  = _S"*";
+                } else if (strEq(ptype, _S"weak") && strEmpty(ppre)) {
                     strNConcat(&temp, _S"Weak(", cls->name, _S")");
                     ptype = temp;
-                    ppre = _S"*";
+                    ppre  = _S"*";
                 }
 
                 if (!m->standalone || j > 0)
@@ -190,7 +198,7 @@ static void writeUnbound(StreamBuffer *bf, Class *cls, Class *cur, sa_Method *do
         writeUnbound(bf, cls, cur->parent, done);
 }
 
-void writeIfDecl(StreamBuffer *bf, Interface *iface)
+void writeIfDecl(StreamBuffer* bf, Interface* iface)
 {
     string ln = 0, tmp = 0, annos = 0;
 
@@ -203,18 +211,26 @@ void writeIfDecl(StreamBuffer *bf, Interface *iface)
     sbufPWriteEOL(bf);
 
     for (int i = 0; i < saSize(iface->allmethods); i++) {
-        Method *m = iface->allmethods.a[i];
+        Method* m = iface->allmethods.a[i];
         writeComments(bf, m->comments, 4, false);
         methodAnnotations(&annos, m);
-        strNConcat(&ln, _S"    ", annos, m->returntype, m->predecr, _S" ", _S"(*", m->name, _S")(_In_ void* self");
+        strNConcat(&ln,
+                   _S"    ",
+                   annos,
+                   m->returntype,
+                   m->predecr,
+                   _S" ",
+                   _S"(*",
+                   m->name,
+                   _S")(_In_ void* self");
         for (int j = 0; j < saSize(m->params); j++) {
-            Param *p = m->params.a[j];
+            Param* p     = m->params.a[j];
             string ptype = p->type;
-            string ppre = p->predecr;
+            string ppre  = p->predecr;
 
             if ((strEq(ptype, _S"object") || strEq(ptype, _S"weak")) && strEmpty(ppre)) {
                 ptype = _S"void";
-                ppre = _S"*";
+                ppre  = _S"*";
             }
 
             paramAnnotations(&annos, p);
@@ -236,7 +252,7 @@ void writeIfDecl(StreamBuffer *bf, Interface *iface)
     strDestroy(&ln);
 }
 
-void writeForwardDecl(StreamBuffer *bf, string name)
+void writeForwardDecl(StreamBuffer* bf, string name)
 {
     string ln = 0;
     strNConcat(&ln, _S"typedef struct ", name, _S" ", name, _S";");
@@ -244,7 +260,7 @@ void writeForwardDecl(StreamBuffer *bf, string name)
     strDestroy(&ln);
 }
 
-void writeForwardWeakRefDecl(StreamBuffer *bf, string name)
+void writeForwardWeakRefDecl(StreamBuffer* bf, string name)
 {
     string ln = 0;
     strNConcat(&ln, _S"typedef struct ", name, _S"_WeakRef ", name, _S"_WeakRef;");
@@ -252,7 +268,7 @@ void writeForwardWeakRefDecl(StreamBuffer *bf, string name)
     strDestroy(&ln);
 }
 
-void writeSArrayDecl(StreamBuffer *bf, string name)
+void writeSArrayDecl(StreamBuffer* bf, string name)
 {
     string ln = 0;
     strNConcat(&ln, _S"saDeclarePtr(", name, _S");");
@@ -260,7 +276,7 @@ void writeSArrayDecl(StreamBuffer *bf, string name)
     strDestroy(&ln);
 }
 
-void writeSArrayWeakRefDecl(StreamBuffer *bf, string name)
+void writeSArrayWeakRefDecl(StreamBuffer* bf, string name)
 {
     string ln = 0;
     strNConcat(&ln, _S"saDeclarePtr(", name, _S"_WeakRef);");
@@ -268,7 +284,7 @@ void writeSArrayWeakRefDecl(StreamBuffer *bf, string name)
     strDestroy(&ln);
 }
 
-void writeComplexArrayDecl(StreamBuffer *bf, ComplexArrayType *cat)
+void writeComplexArrayDecl(StreamBuffer* bf, ComplexArrayType* cat)
 {
     string ln = 0;
     strNConcat(&ln, _S"saDeclareType(", cat->tname, _S", sa_", cat->tsubtype, _S");");
@@ -276,9 +292,9 @@ void writeComplexArrayDecl(StreamBuffer *bf, ComplexArrayType *cat)
     strDestroy(&ln);
 }
 
-static void writeClassMember(StreamBuffer *bf, Class *cls, Member *m)
+static void writeClassMember(StreamBuffer* bf, Class* cls, Member* m)
 {
-    string ln = 0;
+    string ln      = 0;
     string predecr = 0;
 
     strDup(&predecr, m->predecr);
@@ -286,8 +302,7 @@ static void writeClassMember(StreamBuffer *bf, Class *cls, Member *m)
     if (saSize(m->comments) > 1)
         writeComments(bf, m->comments, 4, false);
 
-    if (!strEq(m->vartype, _S"hashtable") &&
-        saSize(m->fulltype) > 0 &&
+    if (!strEq(m->vartype, _S"hashtable") && saSize(m->fulltype) > 0 &&
         !strEq(m->fulltype.a[0], _S"sarray")) {
         for (int i = 0; i < saSize(m->fulltype); i++) {
             if (strEq(m->fulltype.a[i], _S"object") || strEq(m->fulltype.a[i], _S"weak")) {
@@ -307,7 +322,7 @@ static void writeClassMember(StreamBuffer *bf, Class *cls, Member *m)
     strDestroy(&ln);
 }
 
-static void writeClassTypeMarkers(StreamBuffer *bf, Class *cls)
+static void writeClassTypeMarkers(StreamBuffer* bf, Class* cls)
 {
     string ln = 0;
     strNConcat(&ln, _S"        void* _is_", cls->name, _S";");
@@ -318,18 +333,18 @@ static void writeClassTypeMarkers(StreamBuffer *bf, Class *cls)
         writeClassTypeMarkers(bf, cls->parent);
 }
 
-static void writeClassWeakRefTypeMarkers(StreamBuffer *bf, Class *cls)
+static void writeClassWeakRefTypeMarkers(StreamBuffer* bf, Class* cls)
 {
     string ln = 0;
     strNConcat(&ln, _S"        void* _is_", cls->name, _S"_WeakRef;");
     sbufPWriteLine(bf, ln);
     strDestroy(&ln);
 
-    if(cls->parent)
+    if (cls->parent)
         writeClassWeakRefTypeMarkers(bf, cls->parent);
 }
 
-void writeClassDecl(StreamBuffer *bf, Class *cls)
+void writeClassDecl(StreamBuffer* bf, Class* cls)
 {
     string ln = 0, mname = 0;
 
@@ -353,7 +368,7 @@ void writeClassDecl(StreamBuffer *bf, Class *cls)
     }
 
     for (int i = 0; i < saSize(cls->allmembers); i++) {
-        Member *m = cls->allmembers.a[i];
+        Member* m = cls->allmembers.a[i];
         writeClassMember(bf, cls, m);
     }
 
@@ -363,11 +378,16 @@ void writeClassDecl(StreamBuffer *bf, Class *cls)
         strNConcat(&ln, _S"extern ObjClassInfo ", cls->name, _S"_clsinfo;");
         sbufPWriteLine(bf, ln);
     }
-    strNConcat(&ln, _S"#define ", cls->name, _S"(inst) ((", cls->name,
-               _S"*)(unused_noeval((inst) && &((inst)->_is_", cls->name, _S")), (inst)))");
+    strNConcat(&ln,
+               _S"#define ",
+               cls->name,
+               _S"(inst) ((",
+               cls->name,
+               _S"*)(unused_noeval((inst) && &((inst)->_is_",
+               cls->name,
+               _S")), (inst)))");
     sbufPWriteLine(bf, ln);
-    strNConcat(&ln, _S"#define ", cls->name, _S"None ((", cls->name,
-               _S"*)NULL)");
+    strNConcat(&ln, _S"#define ", cls->name, _S"None ((", cls->name, _S"*)NULL)");
     sbufPWriteLine(bf, ln);
     sbufPWriteEOL(bf);
 
@@ -387,8 +407,14 @@ void writeClassDecl(StreamBuffer *bf, Class *cls)
 
     strNConcat(&ln, _S"} ", cls->name, _S"_WeakRef;");
     sbufPWriteLine(bf, ln);
-    strNConcat(&ln, _S"#define ", cls->name, _S"_WeakRef(inst) ((", cls->name,
-               _S"_WeakRef*)(unused_noeval((inst) && &((inst)->_is_", cls->name, _S"_WeakRef)), (inst)))");
+    strNConcat(&ln,
+               _S"#define ",
+               cls->name,
+               _S"_WeakRef(inst) ((",
+               cls->name,
+               _S"_WeakRef*)(unused_noeval((inst) && &((inst)->_is_",
+               cls->name,
+               _S"_WeakRef)), (inst)))");
     sbufPWriteLine(bf, ln);
     sbufPWriteEOL(bf);
 
@@ -398,7 +424,7 @@ void writeClassDecl(StreamBuffer *bf, Class *cls)
     saDestroy(&unboundDone);
 
     for (int i = 0; i < saSize(cls->allmethods); i++) {
-        Method *m = cls->allmethods.a[i];
+        Method* m = cls->allmethods.a[i];
         if (m->internal)
             continue;
         methodCallName(&mname, cls, m->name);
@@ -430,7 +456,7 @@ bool writeHeader(string fname)
     string hname = 0;
     pathSetExt(&hname, fname, _S"h");
 
-    FSFile *file = fsOpen(hname, FS_Overwrite);
+    FSFile* file = fsOpen(hname, FS_Overwrite);
     if (!file) {
         fprintf(stderr, "Failed to open %s for writing", lazyPlatformPath(hname));
         return false;
@@ -453,7 +479,7 @@ bool writeHeader(string fname)
     }
     sbufPWriteEOL(bf);
 
-    for(int i = 0; i < saSize(fwdclass); i++) {
+    for (int i = 0; i < saSize(fwdclass); i++) {
         writeForwardDecl(bf, fwdclass.a[i]);
         writeForwardWeakRefDecl(bf, fwdclass.a[i]);
     }
@@ -462,13 +488,13 @@ bool writeHeader(string fname)
     }
 
     for (int i = 0; i < saSize(classes); i++) {
-        if(!classes.a[i]->included) {
+        if (!classes.a[i]->included) {
             writeForwardDecl(bf, classes.a[i]->name);
             writeForwardWeakRefDecl(bf, classes.a[i]->name);
         }
     }
-    for(int i = 0; i < saSize(classes); i++) {
-        if(!classes.a[i]->included) {
+    for (int i = 0; i < saSize(classes); i++) {
+        if (!classes.a[i]->included) {
             writeSArrayDecl(bf, classes.a[i]->name);
             writeSArrayWeakRefDecl(bf, classes.a[i]->name);
         }
