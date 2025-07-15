@@ -11,8 +11,7 @@ set(FORMAT_SRCS
     format/formattable.c)
 set(FORMAT_INCLUDES
     format/format.h
-    format/format_private.h
-    format/formattable.h)
+    format/format_private.h)
 set(FORMAT_SIDL
     format/formattable.sidl)
 

@@ -21,7 +21,6 @@ set(THREAD_INCLUDES
     thread/sema.h
     thread/thread.h
     thread/threadbase.h
-    thread/threadobj.h
     thread/thread_private.h)
 set(THREAD_SIDL
     thread/threadobj.sidl)

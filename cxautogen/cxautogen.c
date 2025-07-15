@@ -25,7 +25,9 @@ int main(int argc, char* argv[])
     bool force = false;
     sa_string sidlfiles;
     sa_string searchpath;
-    string fname = 0;
+    string fname   = 0;
+    string srcpath = 0;
+    string binpath = 0;
     saInit(&ifaces, object, 16);
     htInit(&ifidx, string, object, 16);
     saInit(&classes, object, 16);
@@ -49,6 +51,12 @@ int main(int argc, char* argv[])
             strSubStr(&tmp, (string)argv[i], 2, strEnd);
             pathFromPlatform(&tmp, tmp);
             saPush(&searchpath, string, tmp);
+        } else if (strEq(tmp, _S"-S")) {
+            strSubStr(&tmp, (string)argv[i], 2, strEnd);
+            pathFromPlatform(&srcpath, tmp);
+        } else if (strEq(tmp, _S"-B")) {
+            strSubStr(&tmp, (string)argv[i], 2, strEnd);
+            pathFromPlatform(&binpath, tmp);
         } else if (strEq((string)argv[i], _S"-f")) {
             force = true;
         } else {
@@ -77,11 +85,11 @@ int main(int argc, char* argv[])
         // the file can't be located
         if (!strEndsWith(sidlfiles.a[i], _S"objstdif.sidl")) {
             strDup(&fname, _S"cx/obj/objstdif.sidl");
-            parseFile(fname, NULL, searchpath, true, false);
+            parseFile(fname, NULL, NULL, searchpath, true, false);
             strClear(&fname);
         }
 
-        if (!parseFile(sidlfiles.a[i], &fname, searchpath, false, true))
+        if (!parseFile(sidlfiles.a[i], &fname, srcpath, searchpath, false, true))
             break;
 
         if (strEmpty(fname))   // already parsed this file
@@ -94,11 +102,11 @@ int main(int argc, char* argv[])
             break;
         if (!processClasses())
             break;
-        if (!writeHeader(fname))
+        if (!writeHeader(fname, srcpath, binpath))
             break;
-        if (!writeImpl(fname, false))
+        if (!writeImpl(fname, srcpath, binpath, false))
             break;
-        if (needmixinimpl && !writeImpl(fname, true))
+        if (needmixinimpl && !writeImpl(fname, srcpath, binpath, true))
             break;
     }
 
@@ -161,4 +169,43 @@ uint8* lazyPlatformPath(string path)
     strCopyOut(tmp, 0, out, strLen(tmp) + 1);
     strDestroy(&tmp);
     return out;
+}
+
+void relSrcPath(string* out, strref fname, strref srcpath)
+{
+    string lfname = 0;
+    strDup(&lfname, fname);
+
+    if (strEmpty(srcpath) || !strBeginsWith(fname, srcpath))
+        goto out;
+
+    strSubStrI(&lfname, strLen(srcpath), strEnd);
+    while (strGetChar(lfname, 0) == '/') strSubStrI(&lfname, 1, strEnd);
+
+out:
+    strDup(out, lfname);
+    strDestroy(&lfname);
+}
+
+void binPath(string* out, strref fname, strref srcpath, strref binpath)
+{
+    string lfname = 0;
+    strDup(&lfname, fname);
+
+    if (strEmpty(srcpath) || strEmpty(binpath))
+        goto out;
+
+    if (!strBeginsWith(fname, srcpath))
+        goto out;
+
+    printf("Translating %s (srcdir: %s) (bindir: %s)\n", strC(fname), strC(srcpath), strC(binpath));
+    strSubStrI(&lfname, strLen(srcpath), strEnd);
+    while (strGetChar(lfname, 0) == '/') strSubStrI(&lfname, 1, strEnd);
+    printf("%s\n", strC(lfname));
+    pathJoin(&lfname, binpath, lfname);
+    printf("%s\n", strC(lfname));
+
+out:
+    strDup(out, lfname);
+    strDestroy(&lfname);
 }

@@ -19,8 +19,7 @@ if(CX_PLATFORM_IS_UNIX)
     set(PLATFORM_UNIX_INCLUDES
         platform/unix/unix_hostid.h
         platform/unix/unix_os.h
-        platform/unix/unix_sys_entry.h
-        platform/unix/unix_thread_threadobj.h)
+        platform/unix/unix_sys_entry.h)
 
     if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
         set(PLATFORM_UNIX_SRCS

@@ -727,10 +727,14 @@ static void deleteLines(sa_string* linebuf, int nlines)
     }
 }
 
-bool writeImpl(string fname, bool mixinimpl)
+bool writeImpl(string fname, string srcpath, string binpath, bool mixinimpl)
 {
     string hname = 0;
-    pathFilename(&hname, fname);
+    if (!strEmpty(srcpath))
+        relSrcPath(&hname, fname, srcpath);   // in cmake mode this needs to be relative because it
+                                              // lands in binpath
+    else
+        pathFilename(&hname, fname);
     pathSetExt(&hname, hname, _S"h");
     string cname = 0;
     pathSetExt(&cname, fname, !mixinimpl ? _S"c" : _S"impl.h");
@@ -738,6 +742,7 @@ bool writeImpl(string fname, bool mixinimpl)
     strConcat(&newcname, cname, _S"new");
     string incname = 0;
     pathSetExt(&incname, fname, _S"auto.inc");
+    binPath(&incname, incname, srcpath, binpath);
 
     FSFile* newf = fsOpen(newcname, FS_Overwrite);
     if (!newf) {
@@ -985,7 +990,10 @@ nextloop:
                 if (!classes.a[i]->included)
                     writeExternMethods(nbf, classes.a[i]);
             }
-            pathFilename(&incname, incname);
+            if (!strEmpty(binpath))
+                relSrcPath(&incname, incname, binpath);
+            else
+                pathFilename(&incname, incname);
             strNConcat(&ln, _S"#include \"", incname, _S"\"");
             sbufPWriteLine(nbf, ln);
             sbufPWriteLine(nbf, autogenEndShort);

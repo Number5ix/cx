@@ -4,8 +4,7 @@ set(TASKQUEUE_SRCS
 set(TASKQUEUE_INCLUDES
     taskqueue/taskqueue.h
     taskqueue/taskqueue_private.h
-    taskqueue/taskqueue_shared.h
-    taskqueue/userfunctask.h)
+    taskqueue/taskqueue_shared.h)
 set(TASKQUEUE_SIDL
     taskqueue/userfunctask.sidl)
 

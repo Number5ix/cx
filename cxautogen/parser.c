@@ -336,7 +336,7 @@ bool parseGlobal(ParseState* ps, string* tok)
         if (strEqi(ext, _S"sidl")) {
             string rname = 0, realfname = 0;
             pathFromPlatform(&rname, fname);
-            ret = parseFile(rname, &realfname, ps->includepath, true, true);
+            ret = parseFile(rname, &realfname, NULL, ps->includepath, true, true);
             pathSetExt(&fname, fname, _S"h");
             saPushC(&deps, string, &realfname, SA_Unique);
             strDestroy(&rname);
@@ -896,12 +896,15 @@ bool parseClass(ParseState* ps, string* tok)
     return true;
 }
 
-bool parseFile(string fname, string* realfn, sa_string searchpath, bool included, bool required)
+bool parseFile(string fname, string* realfn, string srcpath, sa_string searchpath, bool included,
+               bool required)
 {
     ParseState ps = { 0 };
 
     string fpath = 0;
     strDup(&ps.fname, fname);
+    if (!strEmpty(srcpath))
+        pathJoin(&fname, srcpath, fname);
     if (pathIsAbsolute(fname)) {
         strDup(&fpath, fname);
     } else {

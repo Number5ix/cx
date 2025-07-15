@@ -21,7 +21,6 @@ if(CX_PLATFORM_IS_WINDOWS)
         platform/win/win_os.h
         platform/win/win_stacktrace.h
         platform/win/win_sys_entry.h
-        platform/win/win_thread_threadobj.h
         platform/win/win_time.h)
 
     set(PLATFORM_INCLUDES

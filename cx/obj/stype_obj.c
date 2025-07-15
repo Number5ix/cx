@@ -1,17 +1,17 @@
-#include "cx/obj.h"
-#include "cx/debug/assert.h"
-#include "cx/utils/murmur.h"
-#include "objstdif.h"
 #include "stype_obj.h"
+#include "cx/debug/assert.h"
+#include "cx/obj.h"
+#include "cx/obj/objstdif.h"
+#include "cx/utils/murmur.h"
 
 _Use_decl_annotations_
-void stDtor_obj(stype st, stgeneric *gen, uint32 flags)
+void stDtor_obj(stype st, stgeneric* gen, uint32 flags)
 {
     objRelease(&gen->st_object);
 }
 
 _Use_decl_annotations_
-void stCopy_obj(stype st, stgeneric *dest, stgeneric src, uint32 flags)
+void stCopy_obj(stype st, stgeneric* dest, stgeneric src, uint32 flags)
 {
     dest->st_object = objAcquire(src.st_object);
 }
@@ -36,7 +36,7 @@ intptr stCmp_obj(stype st, stgeneric gen1, stgeneric gen2, uint32 flags)
 _Use_decl_annotations_
 uint32 stHash_obj(stype st, stgeneric gen, uint32 flags)
 {
-    ObjInst *inst = gen.st_object;
+    ObjInst* inst = gen.st_object;
 
     devAssert(inst->_clsinfo->_hash);
     if (inst->_clsinfo->_hash)
@@ -47,11 +47,11 @@ uint32 stHash_obj(stype st, stgeneric gen, uint32 flags)
 }
 
 _Use_decl_annotations_
-bool stConvert_obj(stype    destst, stgeneric *dest, stype srcst, stgeneric src, uint32 flags)
+bool stConvert_obj(stype destst, stgeneric* dest, stype srcst, stgeneric src, uint32 flags)
 {
-    ObjInst *inst = src.st_object;
+    ObjInst* inst = src.st_object;
 
-    Convertible *cvtif = objInstIf(src.st_object, Convertible);
+    Convertible* cvtif = objInstIf(src.st_object, Convertible);
     if (cvtif) {
         // zero out dest first
         // stConvert may be used with an uninitialized destination,
@@ -63,7 +63,7 @@ bool stConvert_obj(stype    destst, stgeneric *dest, stype srcst, stgeneric src,
     return false;
 }
 
-void stDtor_weakref(stype st, _Pre_notnull_ _Post_invalid_ stgeneric *stgen, uint32 flags)
+void stDtor_weakref(stype st, _Pre_notnull_ _Post_invalid_ stgeneric* stgen, uint32 flags)
 {
     objDestroyWeak(&stgen->st_weakref);
 }
@@ -74,7 +74,8 @@ intptr stCmp_weakref(stype st, _In_ stgeneric stgen1, _In_ stgeneric stgen2, uin
     return (intptr)stgen1.st_weakref - (intptr)stgen2.st_weakref;
 }
 
-void stCopy_weakref(stype st, _stCopyDest_Anno_(st) stgeneric *dest, _In_ stgeneric src, uint32 flags)
+void stCopy_weakref(stype st, _stCopyDest_Anno_(st) stgeneric* dest, _In_ stgeneric src,
+                    uint32 flags)
 {
     dest->st_weakref = objCloneWeak(src.st_weakref);
 }

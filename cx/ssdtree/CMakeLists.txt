@@ -8,12 +8,7 @@ set(SSDTREE_SRCS
 set(SSDTREE_INCLUDES
     ssdtree/ssdnodes.h
     ssdtree/ssdshared.h
-    ssdtree/ssdtree.h
-    ssdtree/ssdtreeobj.h
-    ssdtree/node/ssdnode.h
-    ssdtree/node/ssdarraynode.h
-    ssdtree/node/ssdhashnode.h
-    ssdtree/node/ssdsinglenode.h)
+    ssdtree/ssdtree.h)
 set(SSDTREE_SIDL
     ssdtree/ssdtreeobj.sidl
     ssdtree/node/ssdnode.sidl

@@ -2,10 +2,6 @@ set(TQ_QUEUE_SRCS
     taskqueue/queue/tqcomplex.c
     taskqueue/queue/tqueue.c
     )
-set(TQ_QUEUE_INCLUDES
-    taskqueue/queue/tqcomplex.h
-    taskqueue/queue/tqueue.h
-    )
 set(TQ_QUEUE_SIDL
     taskqueue/queue/tqcomplex.sidl
     taskqueue/queue/tqueue.sidl
@@ -14,10 +10,6 @@ set(TQ_QUEUE_SIDL
 set(TASKQUEUE_SRCS
     ${TASKQUEUE_SRCS}
     ${TQ_QUEUE_SRCS}
-    PARENT_SCOPE)
-set(TASKQUEUE_INCLUDES
-    ${TASKQUEUE_INCLUDES}
-    ${TQ_QUEUE_INCLUDES}
     PARENT_SCOPE)
 set(TASKQUEUE_SIDL
     ${TASKQUEUE_SIDL}

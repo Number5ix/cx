@@ -451,10 +451,11 @@ void writeClassDecl(StreamBuffer* bf, Class* cls)
     strDestroy(&ln);
 }
 
-bool writeHeader(string fname)
+bool writeHeader(string fname, string srcpath, string binpath)
 {
     string hname = 0;
     pathSetExt(&hname, fname, _S"h");
+    binPath(&hname, hname, srcpath, binpath);
 
     FSFile* file = fsOpen(hname, FS_Overwrite);
     if (!file) {

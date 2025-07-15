@@ -6,9 +6,7 @@ set(SETTINGS_SRCS
     settings/settingstree.c)
 set(SETTINGS_INCLUDES
     settings/settings_private.h
-    settings/settings.h
-    settings/settingshashnode.h
-    settings/settingstree.h)
+    settings/settings.h)
 set(SETTINGS_SIDL
     settings/settingshashnode.sidl
     settings/settingstree.sidl)

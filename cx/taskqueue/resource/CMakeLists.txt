@@ -4,12 +4,6 @@ set(TQ_RESOURCE_SRCS
     taskqueue/resource/trlifo.c
     taskqueue/resource/trmutex.c
     )
-set(TQ_RESOURCE_INCLUDES
-    taskqueue/resource/taskresource.h
-    taskqueue/resource/trfifo.h
-    taskqueue/resource/trlifo.h
-    taskqueue/resource/trmutex.h
-    )
 set(TQ_RESOURCE_SIDL
     taskqueue/resource/taskresource.sidl
     taskqueue/resource/trfifo.sidl
@@ -20,10 +14,6 @@ set(TQ_RESOURCE_SIDL
 set(TASKQUEUE_SRCS
     ${TASKQUEUE_SRCS}
     ${TQ_RESOURCE_SRCS}
-    PARENT_SCOPE)
-set(TASKQUEUE_INCLUDES
-    ${TASKQUEUE_INCLUDES}
-    ${TQ_RESOURCE_INCLUDES}
     PARENT_SCOPE)
 set(TASKQUEUE_SIDL
     ${TASKQUEUE_SIDL}

@@ -24,8 +24,7 @@ if(CX_PLATFORM_IS_WASM)
     set(PLATFORM_WASM_INCLUDES
         platform/wasm/wasm_hostid.h
         platform/wasm/wasm_os.h
-        platform/wasm/wasm_sys_entry.h
-        platform/wasm/wasm_thread_threadobj.h)
+        platform/wasm/wasm_sys_entry.h)
 
     set(PLATFORM_INCLUDES
         ${PLATFORM_INCLUDES}

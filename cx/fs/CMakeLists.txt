@@ -14,9 +14,7 @@ set(FS_INCLUDES
     fs/fs_private.h
     fs/path.h
     fs/vfs.h
-    fs/vfs_private.h
-    fs/vfsobj.h
-    fs/vfsprovider.h)
+    fs/vfs_private.h)
 set(FS_SIDL
     fs/vfsobj.sidl
     fs/vfsprovider.sidl)
