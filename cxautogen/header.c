@@ -457,6 +457,13 @@ bool writeHeader(string fname, string srcpath, string binpath)
     pathSetExt(&hname, fname, _S"h");
     binPath(&hname, hname, srcpath, binpath);
 
+    if (!strEmpty(binpath)) {
+        string parent = 0;
+        pathParent(&parent, hname);
+        fsCreateAll(parent);
+        strDestroy(&parent);
+    }
+
     FSFile* file = fsOpen(hname, FS_Overwrite);
     if (!file) {
         fprintf(stderr, "Failed to open %s for writing", lazyPlatformPath(hname));
