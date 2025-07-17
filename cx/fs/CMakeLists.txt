@@ -15,9 +15,9 @@ set(FS_INCLUDES
     fs/path.h
     fs/vfs.h
     fs/vfs_private.h)
-set(FS_SIDL
-    fs/vfsobj.sidl
-    fs/vfsprovider.sidl)
+set(FS_AUTOGEN
+    fs/vfsobj.cxh
+    fs/vfsprovider.cxh)
 
 add_subdirectory(vfsfs)
 add_subdirectory(vfsvfs)
@@ -30,9 +30,9 @@ set(CX_INCLUDES
     ${CX_INCLUDES}
     ${FS_INCLUDES}
     PARENT_SCOPE)
-set(CX_SIDL
-    ${CX_SIDL}
-    ${FS_SIDL}
+set(CX_AUTOGEN
+    ${CX_AUTOGEN}
+    ${FS_AUTOGEN}
     PARENT_SCOPE)
 
 set(CX_CMAKE_FILES

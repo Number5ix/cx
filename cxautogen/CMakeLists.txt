@@ -98,7 +98,7 @@ source_group("cx" FILES
 set(CXAUTOGEN_INCLUDES
     objtypes.h
     cxautogen.h
-    objtypes.sidl
+    objtypes.cxh
     )
 
 source_group("" FILES
@@ -126,14 +126,14 @@ if(CX_STANDALONE)
         COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/objiface.h ${CX_TOP_SOURCE_DIR}/cxautogen/cx/obj/objiface.h
         COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/objimpl.c ${CX_TOP_SOURCE_DIR}/cxautogen/cx/obj/objimpl.c
         COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/objimpl.h ${CX_TOP_SOURCE_DIR}/cxautogen/cx/obj/objimpl.h
-        COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/objstdif.sidl ${CX_TOP_SOURCE_DIR}/cxautogen/cx/obj/objstdif.sidl
+        COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/objstdif.cxh ${CX_TOP_SOURCE_DIR}/cxautogen/cx/obj/objstdif.cxh
         COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/objstdif.c ${CX_TOP_SOURCE_DIR}/cxautogen/cx/obj/objstdif.c
         COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/objweak.c ${CX_TOP_SOURCE_DIR}/cxautogen/cx/obj/objweak.c
         COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/obj_private.h ${CX_TOP_SOURCE_DIR}/cxautogen/cx/obj/obj_private.h
         COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/stype_obj.c ${CX_TOP_SOURCE_DIR}/cxautogen/cx/obj/stype_obj.c
         COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/stype_obj.h ${CX_TOP_SOURCE_DIR}/cxautogen/cx/obj/stype_obj.h
-        COMMAND cxautogen -f ${CX_TOP_SOURCE_DIR}/cxautogen/cx/obj/objstdif.sidl
-        COMMAND cxautogen -f -I${CX_TOP_SOURCE_DIR} ${CX_TOP_SOURCE_DIR}/cxautogen/objtypes.sidl
+        COMMAND cxautogen -f ${CX_TOP_SOURCE_DIR}/cxautogen/cx/obj/objstdif.cxh
+        COMMAND cxautogen -f -I${CX_TOP_SOURCE_DIR} ${CX_TOP_SOURCE_DIR}/cxautogen/objtypes.cxh
         DEPENDS cxautogen)
     set_property(TARGET cxautogen_regenerate PROPERTY FOLDER "generate")
 endif()

@@ -23,7 +23,7 @@ bool upToDate(string fname);
 int main(int argc, char* argv[])
 {
     bool force = false;
-    sa_string sidlfiles;
+    sa_string inputfiles;
     sa_string searchpath;
     string fname   = 0;
     string srcpath = 0;
@@ -42,7 +42,7 @@ int main(int argc, char* argv[])
     htInit(&knownartypes, string, bool, 16);
 
     saInit(&searchpath, string, 8);
-    saInit(&sidlfiles, string, 4);
+    saInit(&inputfiles, string, 4);
 
     string tmp = 0;
     for (int i = 1; i < argc; i++) {
@@ -61,12 +61,12 @@ int main(int argc, char* argv[])
             force = true;
         } else {
             pathFromPlatform(&tmp, (string)argv[i]);
-            saPush(&sidlfiles, string, tmp);
+            saPush(&inputfiles, string, tmp);
         }
     }
     strDestroy(&tmp);
 
-    for (int i = 0; i < saSize(sidlfiles); i++) {
+    for (int i = 0; i < saSize(inputfiles); i++) {
         saClear(&ifaces);
         htClear(&ifidx);
         saClear(&classes);
@@ -83,13 +83,13 @@ int main(int argc, char* argv[])
 
         // standard interfaces should always be available, but it's non-fatal if
         // the file can't be located
-        if (!strEndsWith(sidlfiles.a[i], _S"objstdif.sidl")) {
-            strDup(&fname, _S"cx/obj/objstdif.sidl");
+        if (!strEndsWith(inputfiles.a[i], _S"objstdif.cxh")) {
+            strDup(&fname, _S"cx/obj/objstdif.cxh");
             parseFile(fname, NULL, NULL, searchpath, true, false);
             strClear(&fname);
         }
 
-        if (!parseFile(sidlfiles.a[i], &fname, srcpath, searchpath, false, true))
+        if (!parseFile(inputfiles.a[i], &fname, srcpath, searchpath, false, true))
             break;
 
         if (strEmpty(fname))   // already parsed this file
@@ -123,7 +123,7 @@ int main(int argc, char* argv[])
     strDestroy(&cpassthrough);
     strDestroy(&fname);
     saDestroy(&searchpath);
-    saDestroy(&sidlfiles);
+    saDestroy(&inputfiles);
 
     return 0;
 }
@@ -198,12 +198,9 @@ void binPath(string* out, strref fname, strref srcpath, strref binpath)
     if (!strBeginsWith(fname, srcpath))
         goto out;
 
-    printf("Translating %s (srcdir: %s) (bindir: %s)\n", strC(fname), strC(srcpath), strC(binpath));
     strSubStrI(&lfname, strLen(srcpath), strEnd);
     while (strGetChar(lfname, 0) == '/') strSubStrI(&lfname, 1, strEnd);
-    printf("%s\n", strC(lfname));
     pathJoin(&lfname, binpath, lfname);
-    printf("%s\n", strC(lfname));
 
 out:
     strDup(out, lfname);

@@ -4,20 +4,20 @@ set(TQ_REQUIRES_SRCS
     taskqueue/requires/taskrequiresresource.c
     taskqueue/requires/taskrequirestask.c
     )
-set(TQ_TREQUIRES_SIDL
-    taskqueue/requires/taskrequires.sidl
-    taskqueue/requires/taskrequiresgate.sidl
-    taskqueue/requires/taskrequiresresource.sidl
-    taskqueue/requires/taskrequirestask.sidl
+set(TQ_TREQUIRES_AUTOGEN
+    taskqueue/requires/taskrequires.cxh
+    taskqueue/requires/taskrequiresgate.cxh
+    taskqueue/requires/taskrequiresresource.cxh
+    taskqueue/requires/taskrequirestask.cxh
     )
 
 set(TASKQUEUE_SRCS
     ${TASKQUEUE_SRCS}
     ${TQ_REQUIRES_SRCS}
     PARENT_SCOPE)
-set(TASKQUEUE_SIDL
-    ${TASKQUEUE_SIDL}
-    ${TQ_TREQUIRES_SIDL}
+set(TASKQUEUE_AUTOGEN
+    ${TASKQUEUE_AUTOGEN}
+    ${TQ_TREQUIRES_AUTOGEN}
     PARENT_SCOPE)
 
 set(CX_CMAKE_FILES

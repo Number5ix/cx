@@ -333,7 +333,7 @@ bool parseGlobal(ParseState* ps, string* tok)
         string ext = 0;
         pathGetExt(&ext, fname);
 
-        if (strEqi(ext, _S"sidl")) {
+        if (strEqi(ext, _S"cxh")) {
             string rname = 0, realfname = 0;
             pathFromPlatform(&rname, fname);
             ret = parseFile(rname, &realfname, NULL, ps->includepath, true, true);

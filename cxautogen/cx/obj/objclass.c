@@ -1,25 +1,25 @@
 #include "obj_private.h"
 #include "cx/debug/assert.h"
+#include "cx/obj/objstdif.h"
 #include "cx/thread/mutex.h"
 #include "cx/utils/lazyinit.h"
-#include "objstdif.h"
 
 // simple mutex to prevent multiple threads from trying to init a class implemenation at
 // the same time
 static Mutex classMutex;
 static LazyInitState classMutexState;
 
-static void initClassMutex(void *unused)
+static void initClassMutex(void* unused)
 {
     mutexInit(&classMutex);
 }
 
-static void hydrateIfaces(ObjClassInfo *cls, sa_ObjIface *impls, hashtable *impltbl)
+static void hydrateIfaces(ObjClassInfo* cls, sa_ObjIface* impls, hashtable* impltbl)
 {
     // Start with current class before moving on to parents.
     // The assumption is that classes deeper in the hierarchy will (usually)
     // implement interfaces that are the same or lower than their parents.
-    for (ObjIface **iflistp = cls->ifimpl; *iflistp; ++iflistp) {
+    for (ObjIface** iflistp = cls->ifimpl; *iflistp; ++iflistp) {
         _objHydrateIface(*iflistp, impls, impltbl);
     }
 
@@ -33,14 +33,14 @@ static void hydrateIfaces(ObjClassInfo *cls, sa_ObjIface *impls, hashtable *impl
 
 bool _objCheckIfaces(sa_ObjIface impls)
 {
-    foreach(sarray, i, ObjIface*, impl, impls) {
+    foreach (sarray, i, ObjIface*, impl, impls) {
         if (!_objCheckIface(impl))
             return false;
     }
     return true;
 }
 
-static void classInitImpl(ObjClassInfo *cls, bool locked)
+static void classInitImpl(ObjClassInfo* cls, bool locked)
 {
     lazyInit(&classMutexState, initClassMutex, NULL);
 
@@ -83,11 +83,11 @@ static void classInitImpl(ObjClassInfo *cls, bool locked)
 
     // If this class implements Sortable or Hashable (even through a parent), cache the
     // function pointer to avoid having to check them again.
-    Sortable *sortableIf;
+    Sortable* sortableIf;
     if (htFind(cls->_tmpl, ptr, &Sortable_tmpl, ptr, &sortableIf))
         cls->_cmp = sortableIf->cmp;
 
-    Hashable *hashableIf;
+    Hashable* hashableIf;
     if (htFind(cls->_tmpl, ptr, &Hashable_tmpl, ptr, &hashableIf))
         cls->_hash = hashableIf->hash;
 
@@ -98,13 +98,13 @@ static void classInitImpl(ObjClassInfo *cls, bool locked)
         mutexRelease(&classMutex);
 }
 
-_Ret_notnull_ ObjInst *_objInstCreate(_In_ ObjClassInfo *cls)
+_Ret_notnull_ ObjInst* _objInstCreate(_In_ ObjClassInfo* cls)
 {
-    ObjInst *ret;
+    ObjInst* ret;
 
     devAssertMsg(!cls->_abstract, "Tried to create an instance of an abstract class");
 
-    ret = xaAlloc(cls->instsize, XA_Zero);
+    ret           = xaAlloc(cls->instsize, XA_Zero);
     ret->_clsinfo = cls;
     atomicStore(uintptr, &ret->_ref, 1, Relaxed);
 
@@ -122,7 +122,7 @@ _Ret_notnull_ ObjInst *_objInstCreate(_In_ ObjClassInfo *cls)
     return ret;
 }
 
-bool _objInstInit(_Inout_ ObjInst *inst, _In_ ObjClassInfo *cls)
+bool _objInstInit(_Inout_ ObjInst* inst, _In_ ObjClassInfo* cls)
 {
     bool ret = true;
 
@@ -136,14 +136,14 @@ bool _objInstInit(_Inout_ ObjInst *inst, _In_ ObjClassInfo *cls)
     return ret;
 }
 
-_Ret_maybenull_ ObjIface *_objClassIf(_In_ ObjClassInfo *cls, _In_ ObjIface *iftmpl)
+_Ret_maybenull_ ObjIface* _objClassIf(_In_ ObjClassInfo* cls, _In_ ObjIface* iftmpl)
 {
-    ObjIface *ret = NULL;
+    ObjIface* ret = NULL;
     htFind(cls->_tmpl, ptr, iftmpl, ptr, &ret);
     return ret;
 }
 
-_Ret_maybenull_ ObjIface *_objInstIf(_In_opt_ ObjInst *inst, _In_ ObjIface *iftmpl)
+_Ret_maybenull_ ObjIface* _objInstIf(_In_opt_ ObjInst* inst, _In_ ObjIface* iftmpl)
 {
     if (!inst)
         return NULL;
@@ -151,10 +151,10 @@ _Ret_maybenull_ ObjIface *_objInstIf(_In_opt_ ObjInst *inst, _In_ ObjIface *iftm
     return _objClassIf(inst->_clsinfo, iftmpl);
 }
 
-_Ret_maybenull_ ObjInst *_objDynCast(_In_opt_ ObjInst *inst, _In_ ObjClassInfo *cls)
+_Ret_maybenull_ ObjInst* _objDynCast(_In_opt_ ObjInst* inst, _In_ ObjClassInfo* cls)
 {
     if (inst) {
-        ObjClassInfo *test = inst->_clsinfo;
+        ObjClassInfo* test = inst->_clsinfo;
         while (test) {
             if (test == cls)
                 return inst;
@@ -165,7 +165,7 @@ _Ret_maybenull_ ObjInst *_objDynCast(_In_opt_ ObjInst *inst, _In_ ObjClassInfo *
     return NULL;
 }
 
-static void instDtor(_In_ ObjInst *inst, _In_ ObjClassInfo *cls)
+static void instDtor(_In_ ObjInst* inst, _In_ ObjClassInfo* cls)
 {
     // call destructors on child classes first
     if (cls->destroy)
@@ -175,7 +175,7 @@ static void instDtor(_In_ ObjInst *inst, _In_ ObjClassInfo *cls)
         instDtor(inst, cls->parent);
 }
 
-void _objDestroy(_Pre_notnull_ _Post_invalid_ ObjInst *inst)
+void _objDestroy(_Pre_notnull_ _Post_invalid_ ObjInst* inst)
 {
     devAssert(atomicLoad(uintptr, &inst->_ref, Acquire) == 0);
     instDtor(inst, inst->_clsinfo);
@@ -183,15 +183,14 @@ void _objDestroy(_Pre_notnull_ _Post_invalid_ ObjInst *inst)
 }
 
 _Use_decl_annotations_
-void _objRelease(ObjInst **instp)
+void _objRelease(ObjInst** instp)
 {
-    if(*instp) {
+    if (*instp) {
         // Relaxed because it's not valid for another thread to CREATE a weak reference
         // while we hold the only remaining ref.
-        ObjInst_WeakRef *weakref = atomicLoad(ptr, &(*instp)->_weakref, Relaxed);
+        ObjInst_WeakRef* weakref = atomicLoad(ptr, &(*instp)->_weakref, Relaxed);
 
-        if(weakref)
-        {
+        if (weakref) {
             // We normally assume that if this is the last reference it's impossible
             // for another thread to increment the count concurrently (because they
             // can't have a reference). However weak references can be converted at
@@ -200,16 +199,16 @@ void _objRelease(ObjInst **instp)
             rwlockAcquireWrite(&weakref->_lock);
         }
 
-        if(atomicFetchSub(uintptr, &(*instp)->_ref, 1, Release) == 1) {
-            if(weakref) {
-                weakref->_inst = NULL;          // object is about to be destroyed, invalidate weak refs
+        if (atomicFetchSub(uintptr, &(*instp)->_ref, 1, Release) == 1) {
+            if (weakref) {
+                weakref->_inst = NULL;      // object is about to be destroyed, invalidate weak refs
                 rwlockReleaseWrite(&weakref->_lock);
-                objDestroyWeak(&weakref);       // remove the extra weak ref the object itself holds
+                objDestroyWeak(&weakref);   // remove the extra weak ref the object itself holds
             }
 
             atomicFence(Acquire);
             _objDestroy(*instp);
-        } else if(weakref) {
+        } else if (weakref) {
             rwlockReleaseWrite(&weakref->_lock);
         }
     }

@@ -3,19 +3,19 @@ set(TQ_WORKER_SRCS
     taskqueue/worker/tqthreadworker.c
     taskqueue/worker/tqworker.c
     )
-set(TQ_WORKER_SIDL
-    taskqueue/worker/tqmanualworker.sidl
-    taskqueue/worker/tqthreadworker.sidl
-    taskqueue/worker/tqworker.sidl
+set(TQ_WORKER_AUTOGEN
+    taskqueue/worker/tqmanualworker.cxh
+    taskqueue/worker/tqthreadworker.cxh
+    taskqueue/worker/tqworker.cxh
     )
 
 set(TASKQUEUE_SRCS
     ${TASKQUEUE_SRCS}
     ${TQ_WORKER_SRCS}
     PARENT_SCOPE)
-set(TASKQUEUE_SIDL
-    ${TASKQUEUE_SIDL}
-    ${TQ_WORKER_SIDL}
+set(TASKQUEUE_AUTOGEN
+    ${TASKQUEUE_AUTOGEN}
+    ${TQ_WORKER_AUTOGEN}
     PARENT_SCOPE)
 
 set(CX_CMAKE_FILES

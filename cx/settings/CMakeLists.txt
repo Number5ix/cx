@@ -7,9 +7,9 @@ set(SETTINGS_SRCS
 set(SETTINGS_INCLUDES
     settings/settings_private.h
     settings/settings.h)
-set(SETTINGS_SIDL
-    settings/settingshashnode.sidl
-    settings/settingstree.sidl)
+set(SETTINGS_AUTOGEN
+    settings/settingshashnode.cxh
+    settings/settingstree.cxh)
 
 set(CX_SRCS
     ${CX_SRCS}
@@ -19,9 +19,9 @@ set(CX_INCLUDES
     ${CX_INCLUDES}
     ${SETTINGS_INCLUDES}
     PARENT_SCOPE)
-set(CX_SIDL
-    ${CX_SIDL}
-    ${SETTINGS_SIDL}
+set(CX_AUTOGEN
+    ${CX_AUTOGEN}
+    ${SETTINGS_AUTOGEN}
     PARENT_SCOPE)
 
 set(CX_CMAKE_FILES

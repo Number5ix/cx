@@ -28,7 +28,7 @@ endif()
 
 option(CX_LUA "Build Lua scripting engine and cxlua library" ${CX_LUA_DEFAULT})
 
-include (${CMAKE_CURRENT_SOURCE_DIR}/cmake/sidl.cmake)
+include (${CMAKE_CURRENT_SOURCE_DIR}/cmake/cxauto.cmake)
 include (${CMAKE_CURRENT_SOURCE_DIR}/cmake/organize_targets.cmake)
 
 string(REGEX MATCH "Clang" CX_COMPILER_IS_CLANG "${CMAKE_C_COMPILER_ID}")

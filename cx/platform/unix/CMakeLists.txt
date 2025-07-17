@@ -37,8 +37,8 @@ if(CX_PLATFORM_IS_UNIX)
         PARENT_SCOPE)
 endif()
 
-set(PLATFORM_UNIX_SIDL
-    platform/unix/unix_thread_threadobj.sidl)
+set(PLATFORM_UNIX_AUTOGEN
+    platform/unix/unix_thread_threadobj.cxh)
 
 set(CX_SRCS
     ${CX_SRCS}
@@ -48,9 +48,9 @@ set(CX_INCLUDES
     ${CX_INCLUDES}
     ${PLATFORM_UNIX_INCLUDES}
     PARENT_SCOPE)
-set(CX_SIDL
-    ${CX_SIDL}
-    ${PLATFORM_UNIX_SIDL}
+set(CX_AUTOGEN
+    ${CX_AUTOGEN}
+    ${PLATFORM_UNIX_AUTOGEN}
     PARENT_SCOPE)
 
 set(CX_CMAKE_FILES
