@@ -811,7 +811,7 @@ bool writeImpl(string fname, string srcpath, string binpath, bool mixinimpl)
     int err;
     PCRE2_SIZE eoffset;
     pcre2_code* reParentProto =
-        pcre2_compile((PCRE2_SPTR) "^extern [A-Za-z0-9_]+(?:\\s\\**|\\**\\s)([A-Za-z0-9_]+)"
+        pcre2_compile((PCRE2_SPTR) "^extern [A-Za-z0-9_]+(?:\\s+\\**|\\**\\s+)([A-Za-z0-9_]+)"
                                    "\\([^;]*\\);\\s+// parent$",
                       PCRE2_ZERO_TERMINATED,
                       0,
