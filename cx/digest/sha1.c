@@ -57,7 +57,7 @@ void _sha1Block(Digest* digest)
     i = 0;
 
     for (; i < 16; i++) {
-        f   = b & c | ~b & d;
+        f   = (b & c) | (~b & d);
         a5  = a << 5 | a >> (32 - 5);
         b30 = b << 30 | b >> (32 - 30);
         t   = a5 + f + e + w[i & 0xf] + SHA1_K0;
@@ -72,7 +72,7 @@ void _sha1Block(Digest* digest)
         tmp        = w[(i - 3) & 0xf] ^ w[(i - 8) & 0xf] ^ w[(i - 14) & 0xf] ^ w[i & 0xf];
         w[i & 0xf] = tmp << 1 | tmp >> (32 - 1);
 
-        f   = b & c | ~b & d;
+        f   = (b & c) | (~b & d);
         a5  = a << 5 | a >> (32 - 5);
         b30 = b << 30 | b >> (32 - 30);
         t   = a5 + f + e + w[i & 0xf] + SHA1_K0;
@@ -102,7 +102,7 @@ void _sha1Block(Digest* digest)
         tmp        = w[(i - 3) & 0xf] ^ w[(i - 8) & 0xf] ^ w[(i - 14) & 0xf] ^ w[i & 0xf];
         w[i & 0xf] = tmp << 1 | tmp >> (32 - 1);
 
-        f   = (b | c) & d | b & c;
+        f   = ((b | c) & d) | (b & c);
         a5  = a << 5 | a >> (32 - 5);
         b30 = b << 30 | b >> (32 - 30);
         t   = a5 + f + e + w[i & 0xf] + SHA1_K2;

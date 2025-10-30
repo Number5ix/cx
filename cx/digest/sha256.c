@@ -73,8 +73,8 @@ void _sha256Block(Digest* digest)
     }
 
     for (i = 0; i < 64; i++) {
-        t1 = h + (ROR(e, 6) ^ ROR(e, 11) ^ ROR(e, 25)) + (e & f ^ ~e & g) + sha2_const[i] + w[i];
-        t2 = (ROR(a, 2) ^ ROR(a, 13) ^ ROR(a, 22)) + (a & b ^ a & c ^ b & c);
+        t1 = h + (ROR(e, 6) ^ ROR(e, 11) ^ ROR(e, 25)) + ((e & f) ^ (~e & g)) + sha2_const[i] + w[i];
+        t2 = (ROR(a, 2) ^ ROR(a, 13) ^ ROR(a, 22)) + ((a & b) ^ (a & c) ^ (b & c));
 
         h = g;
         g = f;

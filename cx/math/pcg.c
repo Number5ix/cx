@@ -159,7 +159,7 @@ float32 pcgFRange(PcgState *rng, float32 lower, float32 upper)
     float32 range = upper - lower;
     if (range <= 0) return lower;
 
-    return ((float32)pcgRandom(rng) / (float32)UINT_MAX * range) + lower;
+    return ((float32)pcgRandom(rng) / (float32)UINT32_MAX * range) + lower;
 }
 
 _Use_decl_annotations_

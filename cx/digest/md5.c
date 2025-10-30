@@ -65,10 +65,10 @@ void _md5Block(Digest* digest)
 
     for (int i = 0, g = 0; i < DIGEST_BLOCKSIZE; i++) {
         if (i < 16) {
-            f = b & c | ~b & d;
+            f = (b & c) | (~b & d);
             g = i;
         } else if (i < 32) {
-            f = d & b | ~d & c;
+            f = (d & b) | (~d & c);
             g = 5 * i + 1;
         } else if (i < 48) {
             f = b ^ c ^ d;
