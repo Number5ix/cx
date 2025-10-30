@@ -21,12 +21,15 @@ if(PROJECT_IS_TOP_LEVEL)
   set(CMAKE_SHARED_LINKER_FLAGS_DEVNOOPT "${CMAKE_SHARD_LINKER_FLAGS_DEBUG}")
 
   set(CX_LUA_DEFAULT ON)
+  set(CX_TLS_DEFAULT ON)
   set(CX_STANDALONE 1)
 else()
   set(CX_LUA_DEFAULT OFF)
+  set(CX_TLS_DEFAULT ON)
 endif()
 
 option(CX_LUA "Build Lua scripting engine and cxlua library" ${CX_LUA_DEFAULT})
+option(CX_TLS "Build mbedTLS cryptography library" ${CX_TLS_DEFAULT})
 
 include (${CMAKE_CURRENT_SOURCE_DIR}/cmake/cxauto.cmake)
 include (${CMAKE_CURRENT_SOURCE_DIR}/cmake/organize_targets.cmake)
@@ -58,6 +61,10 @@ add_subdirectory(misc)
 
 if(CX_LUA)
   add_subdirectory(cxlua)
+endif()
+
+if(CX_TLS)
+  add_subdirectory(cxtls)
 endif()
 
 if(PROJECT_IS_TOP_LEVEL)
