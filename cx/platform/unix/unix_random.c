@@ -74,12 +74,12 @@ bool osGenRandom(uint8* buffer, uint32 size)
 {
 
 #if defined(HAVE_GETRANDOM)
-    return getrandom_wrapper(output, len, 0);
+    return getrandom_wrapper(buffer, size, 0);
     /* Fall through if the system call isn't known. */
 #endif /* HAVE_GETRANDOM */
 
 #if defined(HAVE_SYSCTL_ARND)
-    return sysctl_arnd_wrapper(output, len);
+    return sysctl_arnd_wrapper(buffer, size);
 #else
 
     FILE *file = fopen("/dev/urandom", "rb");;
