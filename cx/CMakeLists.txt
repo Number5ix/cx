@@ -87,6 +87,10 @@ if (CX_USE_SYSTEM_MALLOC)
     target_compile_definitions(cx PRIVATE XALLOC_USE_SYSTEM_MALLOC)
 endif()
 
+if (CX_XP_COMPAT)
+    target_compile_definitions(cx PRIVATE CX_XP_COMPAT)
+endif()
+
 target_compile_definitions(cx PUBLIC
     $<${isdebug}:DEBUG_BUILD>
     $<${isdevordebug}:DEV_BUILD>

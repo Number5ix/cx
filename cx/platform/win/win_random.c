@@ -18,8 +18,9 @@ bool osGenRandom(uint8* buffer, uint32 size)
 #if !defined(_WIN32_WINNT)
 #define _WIN32_WINNT 0x0400
 #endif
-#include <wincrypt.h>
 #include <windows.h>
+
+#include <wincrypt.h>
 
 bool osGenRandom(uint8* buffer, uint32 size)
 {

@@ -51,6 +51,10 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pthread -sMALLOC=emmalloc -sINITIAL_MEMORY=2047MB")
 endif()
 
+if (CX_PLATFORM_IS_WINDOWS)
+    option (CX_XP_COMPAT "Build with Windows XP compatibility" OFF)
+endif()
+
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)            # for MSVC
 set(CMAKE_CODELITE_USE_TARGETS ON)
 
