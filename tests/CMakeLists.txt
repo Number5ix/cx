@@ -6,6 +6,7 @@ create_test_sourcelist(testsrc
     debugtest.c
     cxmemtest.c
     closuretest.c
+    digesttest.c
     fmttest.c
     logtest.c
     objtest.c
@@ -58,6 +59,9 @@ add_test(NAME "\"xalloc: Free\"" COMMAND test_runner cxmemtest free)
 add_test(NAME "\"xalloc: Reallocation\"" COMMAND test_runner cxmemtest realloc)
 add_test(NAME "\"closure: Basic Closure\"" COMMAND test_runner closuretest closure)
 add_test(NAME "\"closure: Closure Chain\"" COMMAND test_runner closuretest chain)
+add_test(NAME "\"digest: MD5\"" COMMAND test_runner digesttest md5)
+add_test(NAME "\"digest: SHA-1\"" COMMAND test_runner digesttest sha1)
+add_test(NAME "\"digest: SHA-256\"" COMMAND test_runner digesttest sha256)
 add_test(NAME "\"format: Integers\"" COMMAND test_runner fmttest int)
 add_test(NAME "\"format: Floating Point\"" COMMAND test_runner fmttest float)
 add_test(NAME "\"format: Objects\"" COMMAND test_runner fmttest object)
