@@ -12,6 +12,7 @@ create_test_sourcelist(testsrc
     objtest.c
     sarraytest.c
     strtest.c
+    httest.c
     thrtest.c
     metatest.c
     ssdtest.c
@@ -97,6 +98,14 @@ add_test(NAME "\"string: Substrings\"" COMMAND test_runner strtest substr)
 add_test(NAME "\"string: Compare\"" COMMAND test_runner strtest compare)
 add_test(NAME "\"string: Long Strings\"" COMMAND test_runner strtest longstring)
 add_test(NAME "\"string: Ropes\"" COMMAND test_runner strtest rope)
+add_test(NAME "\"hashtable: Init\"" COMMAND test_runner httest init)
+add_test(NAME "\"hashtable: Insert\"" COMMAND test_runner httest insert)
+add_test(NAME "\"hashtable: Find\"" COMMAND test_runner httest find)
+add_test(NAME "\"hashtable: Element Access\"" COMMAND test_runner httest htelem)
+add_test(NAME "\"hashtable: Remove\"" COMMAND test_runner httest remove)
+add_test(NAME "\"hashtable: Iterator\"" COMMAND test_runner httest iterator)
+add_test(NAME "\"hashtable: Order\"" COMMAND test_runner httest order)
+add_test(NAME "\"hashtable: Complex\"" COMMAND test_runner httest complex)
 add_test(NAME "\"convert: Numeric Types\"" COMMAND test_runner converttest numeric)
 add_test(NAME "\"convert: Strings\"" COMMAND test_runner converttest string)
 add_test(NAME "\"convert: Objects\"" COMMAND test_runner converttest object)
