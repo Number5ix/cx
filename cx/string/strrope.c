@@ -179,15 +179,19 @@ string_v _strCreateRope(strref_v left, uint32 left_off, uint32 left_len, strref 
     if (right) {
         right_len = right_len ? min(right_len, _strFastLen(right) - right_off) : _strFastLen(right) - right_off;
         if (left_len + right_len < ROPE_MIN_SIZE * 2) {
-            string ltemp = 0, rtemp = 0;
-            if (left_off > 0 || left_len < _strFastLen(left))
-                strSubStr(&ltemp, left, left_off, left_off + left_len);
-            if (right_off > 0 || right_len < _strFastLen(right))
-                strSubStr(&rtemp, right, right_off, right_off + right_len);
+            strReset(&ret, left_len + right_len);
 
-            _strConcatNoRope(&ret, ltemp ? ltemp : left, rtemp ? rtemp : right);
-            strDestroy(&ltemp);
-            strDestroy(&rtemp);
+            uint8* buf = _strBuffer(ret);
+            _strFastCopy(left, left_off, buf, left_len);
+            _strFastCopy(right, right_off, buf + left_len, right_len);
+            buf[left_len + right_len] = 0;   // terminating NULL
+            _strSetLen(ret, left_len + right_len);
+
+            encoding &= _strHdr(left) & STR_ENCODING_MASK;
+            encoding &= _strHdr(right) & STR_ENCODING_MASK;
+            *_strHdrP(ret) &= ~STR_ENCODING_MASK;
+            *_strHdrP(ret) |= encoding;
+
             return ret;
         }
     }

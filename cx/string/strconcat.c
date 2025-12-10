@@ -328,45 +328,6 @@ bool strPrepend(strref s, strhandle io)
     return ret;
 }
 
-// for use by the rope module
-_Use_decl_annotations_
-bool _strConcatNoRope(strhandle o, strref s1, strref s2)
-{
-    // you really should be calling append...
-    if (*o == s1 && s2)
-        return _strAppendNoRope(o, s2);
-
-    // short-circuit missing args
-    if (!s1) {
-        strDup(o, s2);
-        return true;
-    } else if (!s2) {
-        strDup(o, s1);
-        return true;
-    }
-
-    uint32 s1len = _strFastLen(s1), s2len = _strFastLen(s2);
-    uint32 len = s1len + s2len;
-    uint8 encoding = STR_ENCODING_MASK;
-
-    encoding &= _strHdr(s1) & STR_ENCODING_MASK;
-    encoding &= _strHdr(s2) & STR_ENCODING_MASK;
-
-    // regular string concatenation
-
-    _strReset(o, len);
-    uint8 *buf = _strBuffer(*o);
-    _strFastCopy(s1, 0, buf, s1len);
-    _strFastCopy(s2, 0, &buf[s1len], s2len);
-    buf[len] = 0;                               // add null terminator
-
-    *_strHdrP(*o) &= ~STR_ENCODING_MASK;
-    *_strHdrP(*o) |= encoding;
-    _strSetLen(*o, len);
-
-    return true;
-}
-
 _Use_decl_annotations_
 bool strConcat(strhandle o, strref s1, strref s2)
 {

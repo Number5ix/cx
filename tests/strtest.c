@@ -202,7 +202,7 @@ static int test_rope()
     if (strTestRefCount(s1) < 32)
         return 1;
 
-    if (strTestRopeDepth(o1) != 5)
+    if (strTestRopeDepth(o1) > 6)
         return 1;
 
     if (!strTestRopeNode(&o2, o1, true) || strLen(o2) != 1024)

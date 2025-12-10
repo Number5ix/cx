@@ -161,9 +161,6 @@ _Ret_valid_ string_v _strCopy(_In_ strref_v s, uint32 minsz);
 // direct copy of string buffer or rope internals, does not check destination size!
 uint32 _strFastCopy(_In_ strref_v s, uint32 off, _Out_writes_bytes_(bytes) uint8 *_Nonnull buf, uint32 bytes);
 
-// faster concatenation for internal use
-bool _strConcatNoRope(_Inout_ strhandle o, _In_opt_ strref s1, _In_opt_ strref s2);
-
 // rope data comes directly after string header if STR_ROPE is set
 typedef struct str_roperef {
     string str;
