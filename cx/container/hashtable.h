@@ -212,7 +212,7 @@ enum HASHTABLE_FUNC_FLAGS_ENUM {
 void _htInit(_Outptr_ hashtable* out, stype keytype, _In_opt_ STypeOps* keyops, stype valtype,
              _In_opt_ STypeOps* valops, uint32 initsz, flags_t flags);
 
-// void htInit(hashtable *out, stype keytype, stype valtype, uint32 initsz, [flags_t flags]);
+// void htInit(hashtable *out, keytype, valtype, uint32 initsz, [flags_t flags]);
 //
 // Initializes a new hash table with the specified key and value types
 //

@@ -471,11 +471,10 @@ void _saShrink(sahandle handle, int32 capacity)
         return;
 
     SArrayHeader *hdr = SARRAY_HDR(*handle);
-    int32 newcap = (capacity == 0) ? 1 : capacity;
+    // Ensure new capacity is at least as large as current count
+    int32 newcap      = max((capacity == 0) ? 1 : capacity, hdr->count);
     if (newcap < hdr->capacity) {
         saRealloc(handle, &hdr, newcap, true);
-        if (capacity < hdr->count)
-            hdr->count = capacity;
     }
 }
 
