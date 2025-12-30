@@ -195,7 +195,7 @@ xaRelease(&data);  // Frees and sets data = NULL
 
 **Other memory rules:**
 1. **Strings**: Always initialize to `0`, use `strDestroy()` to free
-2. **Containers**: Always initialize to `{ 0 }` or `0`, use destructor macros
+2. **Containers**: Always initialize using the applicable init functions, use destructor macros
 3. **Objects**: Use `objRelease()`, not manual `free()`
 4. **Mimalloc**: Default allocator (can override by turning off `CX_MIMALLOC`)
 
@@ -243,3 +243,22 @@ Third-party libraries in `3rdparty/`:
 - **pcre2** - Regular expressions
 
 These are statically linked and managed by the build system.
+
+## Documentation Style Guidelines
+When documenting functions and macros in header files, follow these conventions:
+- For macros, especially macros that wrap a function, the first line should be a synthetic prototype as if the macro were a C function. This shows up as the first line in the IDE tooltip and helps users understand how to use the macro as if it were a function. It shoudl be followed by an empty line comment for spacing.
+- Do NOT include the prototype line in comments for native C functions, as it is redundant and the actual prototype is already visible in the tooltip.
+- After a description of the function or macro, list parameters as follows:
+  ```c
+  // Parameters:
+  //   param1 - Description of param1
+  //   param2 - Description of param2
+  ```
+- Follow parameters with a "Returns:" section if applicable:
+  ```c
+    // Returns:
+    //   Description of return value
+  ```
+- If applicable and can be made reasonably concise, include a brief example of usage after the returns section.
+- For functions which take a runtime type parameter (like `stype`), omit the 'stype' type from the prototype, as it is not an actual value but rather a descriptor which is procssed by the macro system.
+- Similarly, for functions which an optional flags_t parameters throug a macro, omit the `flags_t` type and show the optional parameter as simply `[flags]`.
