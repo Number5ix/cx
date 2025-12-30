@@ -14,12 +14,47 @@ class VFS {
     RWLock vfsdlock;
     uint32 flags;
 
-    // Create an empty VFS with nothing mounted
+    // Creates a new empty VFS instance with no mounted providers
+    //
+    // The returned VFS contains no data sources. Use vfsMountFS() or
+    // vfsMountProvider() to attach filesystem providers before accessing files.
+    //
+    // Parameters:
+    //   flags - Combination of VFS configuration flags (VFS_ReadOnly, VFS_CaseSensitive, etc.)
+    //
+    // Returns:
+    //   New VFS instance (never NULL, call objRelease() when done)
+    //
+    // Example:
+    //   VFS *vfs = vfsCreate(0);
+    //   vfsMountFS(vfs, _S"/", _S"c:/data");
+    //   // ... use VFS ...
+    //   objRelease(&vfs);
     factory create(uint32 flags);
 
-    // Create a VFS object configured to pass everything through to the
-    // underlying OS filesystem. The exact VFS namespace that is created
-    // is platform dependant.
+    // Creates a VFS pre-configured with OS filesystem access
+    //
+    // Returns a VFS that mirrors the underlying OS filesystem. The exact
+    // namespace configuration is platform-dependent:
+    //   Windows: Each drive letter (c:, d:, etc.) is a separate namespace
+    //   Unix: Single root namespace at /
+    //
+    // The VFS case sensitivity is configured to match the OS default:
+    //   Windows: Case-insensitive
+    //   Unix: Case-sensitive
+    //
+    // This is a convenience function equivalent to creating an empty VFS
+    // and mounting the OS filesystem at the appropriate paths.
+    //
+    // Returns:
+    //   VFS instance mirroring OS filesystem, or NULL on failure
+    //
+    // Example:
+    //   VFS *vfs = vfsCreateFromFS();
+    //   if (vfs) {
+    //       // VFS paths now map directly to OS filesystem
+    //       VFSFile *f = vfsOpen(vfs, _S"c:/data/file.txt", FS_Read);
+    //   }
     [canfail] factory createFromFS();
 }
 
