@@ -99,8 +99,28 @@
  *
  */
 
-// Each argument must be wrapped with stvar(type, var)
-CX_C bool _strFormat(_Inout_ string *out, _In_ strref fmt, int n, _In_ stvar *args);
+CX_C bool _strFormat(_Inout_ string* out, _In_ strref fmt, int n, _In_ stvar* args);
+
+// bool strFormat(string *out, strref fmt, ...);
+//
+// Type-safe string formatter with variable substitution and rich formatting options
+//
+// Copies the format string as-is, replacing ${...} sequences with formatted variables.
+// See detailed documentation in format.h for complete syntax and formatting options.
+//
+// Parameters:
+//   out - Pointer to string to receive the formatted result
+//   fmt - Format string with ${type} variable sequences
+//   ... - Variable arguments, each wrapped with stvar(type, value)
+//
+// Returns:
+//   true on success, false if a required variable is missing or type mismatch occurs
+//
+// Example:
+//   string s = 0;
+//   strFormat(&s, _S"Hello ${string}, you have ${int} messages",
+//             stvar(string, name), stvar(int32, count));
+//
 #define strFormat(out, fmt, ...) _strFormat(out, fmt, count_macro_args(__VA_ARGS__), (stvar[]){ __VA_ARGS__ })
 
 // strFormat previously used the sizeof((stvariant[]){ __VA_ARGS__ })/sizeof(stvar)
