@@ -1,17 +1,28 @@
 #pragma once
+/// @file hashtable.h
+/// @brief Hash table container with type-safe generic key-value storage
+///
+/// Uses open addressing with configurable probing strategy and chunked storage allocation
 
 #include <cx/cx.h>
 #include <cx/debug/assert.h>
 
-// Hash table container with type-safe generic key-value storage
-// Uses open addressing with configurable probing strategy and chunked storage allocation
+/// @defgroup hashtable Hash Table
+/// @ingroup containers
+/// @{
+/// Type-safe generic hash table container with configurable growth and storage strategies
+
+/// @defgroup hashtable_core Core Types & Access
+/// @ingroup hashtable
+/// @{
+/// Core data structures, table information queries, and element access functions
 
 typedef struct hashtable_ref {
     void* _is_hashtable;
 } hashtable_ref;
 
-// Opaque handle to a hash table
-// Must be destroyed with htDestroy() when no longer needed
+/// Opaque handle to a hash table
+/// Must be destroyed with htDestroy() when no longer needed
 typedef struct hashtable_ref* hashtable;
 typedef struct HTChunkInfo HTChunkInfo;
 
@@ -72,87 +83,149 @@ _Ret_valid_ _meta_inline HashTableHeader* _htHdr(_In_ hashtable ref)
     return HTABLE_HDR(ref);
 }
 
-// uint32 htSize(hashtable ref);
-// Returns the number of valid entries in the hash table
+/// uint32 htSize(hashtable ref)
+///
+/// Returns the number of valid entries in the hash table
+/// @param ref The hash table to query
+/// @return Number of valid entries in the table
 #define htSize(ref) ((ref) ? _htHdr((ref))->valid : 0)
 
-// stype htKeyType(hashtable ref);
-// Returns the runtime type descriptor for the hash table's keys
+/// stype htKeyType(hashtable ref)
+///
+/// Returns the runtime type descriptor for the hash table's keys
+/// @param ref The hash table to query
+/// @return Runtime type descriptor for keys
 #define htKeyType(ref) ((ref) ? _htHdr((ref))->keytype : 0)
 
-// stype htValType(hashtable ref);
-// Returns the runtime type descriptor for the hash table's values
+/// stype htValType(hashtable ref)
+///
+/// Returns the runtime type descriptor for the hash table's values
+/// @param ref The hash table to query
+/// @return Runtime type descriptor for values
 #define htValType(ref) ((ref) ? _htHdr((ref))->valtype : 0)
 
-// [type] *hteKeyPtrHdr(HashTableHeader *hdr, stype type, htelem elem);
-// Returns a typed pointer to the key stored at the given element
-// Internal version that takes a header pointer directly
+/// [type] *hteKeyPtrHdr(HashTableHeader *hdr, type, htelem elem)
+///
+/// Returns a typed pointer to the key stored at the given element
+/// Internal version that takes a header pointer directly
+/// @param hdr Hash table header pointer
+/// @param type Type of the key
+/// @param elem Element handle
+/// @return Typed pointer to the key
 #define hteKeyPtrHdr(hdr, type, elem) ((stStorageType(type)*)_hteElemKeyPtr(hdr, elem))
 
-// [type] *hteValPtrHdr(HashTableHeader *hdr, stype type, htelem elem);
-// Returns a typed pointer to the value stored at the given element
-// Internal version that takes a header pointer directly
+/// [type] *hteValPtrHdr(HashTableHeader *hdr, type, htelem elem)
+///
+/// Returns a typed pointer to the value stored at the given element
+/// Internal version that takes a header pointer directly
+/// @param hdr Hash table header pointer
+/// @param type Type of the value
+/// @param elem Element handle
+/// @return Typed pointer to the value
 #define hteValPtrHdr(hdr, type, elem) ((stStorageType(type)*)_hteElemValPtr(hdr, elem))
 
-// [type] *hteKeyPtr(hashtable ref, stype type, htelem elem);
-// Returns a typed pointer to the key stored at the given element
-// The element handle must be obtained from htInsert() or htFind()
+/// [type] *hteKeyPtr(hashtable ref, type, htelem elem)
+///
+/// Returns a typed pointer to the key stored at the given element
+/// The element handle must be obtained from htInsert() or htFind()
+/// @param ref The hash table
+/// @param type Type of the key
+/// @param elem Element handle
+/// @return Typed pointer to the key
 #define hteKeyPtr(ref, type, elem) hteKeyPtrHdr(_htHdr(ref), type, elem)
 
-// [type] *hteValPtr(hashtable ref, stype type, htelem elem);
-// Returns a typed pointer to the value stored at the given element
-// The element handle must be obtained from htInsert() or htFind()
+/// [type] *hteValPtr(hashtable ref, type, htelem elem)
+///
+/// Returns a typed pointer to the value stored at the given element
+/// The element handle must be obtained from htInsert() or htFind()
+/// @param ref The hash table
+/// @param type Type of the value
+/// @param elem Element handle
+/// @return Typed pointer to the value
 #define hteValPtr(ref, type, elem) hteValPtrHdr(_htHdr(ref), type, elem)
 
-// [type] hteKey(hashtable ref, stype type, htelem elem);
-// Returns the key stored at the given element (by value)
+/// [type] hteKey(hashtable ref, type, htelem elem)
+///
+/// Returns the key stored at the given element (by value)
+/// @param ref The hash table
+/// @param type Type of the key
+/// @param elem Element handle
+/// @return Key value
 #define hteKey(ref, type, elem) (*hteKeyPtr(ref, type, elem))
 
-// [type] hteVal(hashtable ref, stype type, htelem elem);
-// Returns the value stored at the given element (by value)
+/// [type] hteVal(hashtable ref, type, htelem elem)
+///
+/// Returns the value stored at the given element (by value)
+/// @param ref The hash table
+/// @param type Type of the value
+/// @param elem Element handle
+/// @return Value
 #define hteVal(ref, type, elem) (*hteValPtr(ref, type, elem))
 
-// [type] *htiKeyPtr(stype type, htiter iter);
-// Returns a typed pointer to the key at the current iterator position
+/// [type] *htiKeyPtr(type, htiter iter)
+///
+/// Returns a typed pointer to the key at the current iterator position
+/// @param type Type of the key
+/// @param iter Hash table iterator
+/// @return Typed pointer to the key
 #define htiKeyPtr(type, iter) (hteKeyPtrHdr((iter).hdr, type, (iter).slot))
 
-// [type] *htiValPtr(stype type, htiter iter);
-// Returns a typed pointer to the value at the current iterator position
+/// [type] *htiValPtr(type, htiter iter)
+///
+/// Returns a typed pointer to the value at the current iterator position
+/// @param type Type of the value
+/// @param iter Hash table iterator
+/// @return Typed pointer to the value
 #define htiValPtr(type, iter) (hteValPtrHdr((iter).hdr, type, (iter).slot))
 
-// [type] htiKey(stype type, htiter iter);
-// Returns the key at the current iterator position (by value)
+/// [type] htiKey(type, htiter iter)
+///
+/// Returns the key at the current iterator position (by value)
+/// @param type Type of the key
+/// @param iter Hash table iterator
+/// @return Key value
 #define htiKey(type, iter) (*htiKeyPtr(type, iter))
 
-// [type] htiVal(stype type, htiter iter);
-// Returns the value at the current iterator position (by value)
+/// [type] htiVal(type, htiter iter)
+///
+/// Returns the value at the current iterator position (by value)
+/// @param type Type of the value
+/// @param iter Hash table iterator
+/// @return Value
 #define htiVal(type, iter) (*htiValPtr(type, iter))
 
-// Hash table configuration flags
+/// @}  // end of hashtable_core group
+
+/// @defgroup hashtable_config Configuration & Lifecycle
+/// @ingroup hashtable
+/// @{
+/// Configuration flags, growth settings, and table lifecycle management (init/destroy/clear)
+
+/// Hash table configuration flags
 enum HASHTABLE_FLAGS_ENUM {
-    // Case-insensitive key matching - only valid for string keys
+    /// Case-insensitive key matching - only valid for string keys
     HT_CaseInsensitive = 0x0001,
 
-    // Use borrowed references for keys instead of copying them
-    // Keys will not be destroyed when the hash table is freed
-    // Only use this if keys are guaranteed to outlive the hash table
+    /// Use borrowed references for keys instead of copying them
+    /// Keys will not be destroyed when the hash table is freed
+    /// Only use this if keys are guaranteed to outlive the hash table
     HT_RefKeys = 0x0002,
 
-    // Use borrowed references for values instead of copying them
-    // Values will not be destroyed when the hash table is freed
-    // Only use this if values are guaranteed to outlive the hash table
+    /// Use borrowed references for values instead of copying them
+    /// Values will not be destroyed when the hash table is freed
+    /// Only use this if values are guaranteed to outlive the hash table
     HT_Ref = 0x0004,
 
-    // Optimize for high-frequency inserts by allocating full chunks at once
-    // By default the storage array grows by quarter-chunks to avoid wasting too much memory. High
-    // traffic hash tables can set this flag to always allocate full chunks for better insert
-    // performance.
+    /// Optimize for high-frequency inserts by allocating full chunks at once
+    /// By default the storage array grows by quarter-chunks to avoid wasting too much memory. High
+    /// traffic hash tables can set this flag to always allocate full chunks for better insert
+    /// performance.
     HT_InsertOpt = 0x0008,
 
-    // Ultra-compact mode with minimal memory footprint
-    // Does not preallocate any storage memory. Inserts will be slow!
-    // This is useful for tables that should be as small as possible and are used for read-mostly
-    // lookups.
+    /// Ultra-compact mode with minimal memory footprint
+    /// Does not preallocate any storage memory. Inserts will be slow!
+    /// This is useful for tables that should be as small as possible and are used for read-mostly
+    /// lookups.
     HT_Compact = 0x0010,
 
     // Internal use only - do not set manually
@@ -182,15 +255,15 @@ enum HASHTABLE_GROW_ENUM {
     HT_GROW_MinSize  = (uint32)HT_GROW_At90 | (uint32)HT_GROW_By50,    // Minimum memory usage
 };
 
-// Function-specific flags
+/// Function-specific flags
 enum HASHTABLE_FUNC_FLAGS_ENUM {
-    // Valid for: htInsert
-    // Do not insert if a matching key already exists - returns existing element instead
+    /// Do not insert if a matching key already exists - returns existing element instead
+    /// @note Valid for `htInsert()`
     HT_Ignore = 0x00010000,
 
-    // Valid for: htFind
-    // If copying out an object-type variable, copy a borrowed reference rather
-    // than acquiring a reference or making a deep copy
+    /// If copying out an object-type variable, copy a borrowed reference rather
+    /// than acquiring a reference or making a deep copy
+    /// @note Valid for `htFind()`
     HT_Borrow = 0x00020000,
 
     // Internal use only - do not use directly
@@ -201,9 +274,49 @@ enum HASHTABLE_FUNC_FLAGS_ENUM {
 
 #define HT_GROW_MASK (0xff000000)
 
-// HT_Grow(flag);
-// Converts a growth flag to the format used in the flags parameter
-// Example: htInit(&ht, string, int32, 16, HT_Grow(MaxSpeed))
+/// HT_Grow(flag)
+///
+/// Converts a growth flag to the format used in the flags parameter
+///
+/// Growth behavior is controlled by two factors: when to grow (threshold) and by how much (rate).
+/// These can be combined, or use the convenient presets for common scenarios.
+///
+/// Available flags:
+///
+/// **Preset Combinations (Recommended):**
+/// | Flag | Threshold | Growth Rate | Use Case |
+/// |------|-----------|-------------|----------|
+/// | MaxSpeed | 50% full | 4x (300%) | Maximum performance, uses more memory |
+/// | MinSize | 90% full | 1.5x (50%) | Minimum memory usage, slower performance |
+///
+/// **Growth Thresholds (when to expand):**
+/// | Flag | Threshold | Notes |
+/// |------|-----------|-------|
+/// | At50 | 50% full | Better performance, uses more memory |
+/// | At75 | 75% full | Balanced default |
+/// | At90 | 90% full | Memory efficient, worse performance |
+///
+/// **Growth Rates (how much to expand):**
+/// | Flag | Multiplier | Notes |
+/// |------|------------|-------|
+/// | By50 | 1.5x | Slow growth, memory efficient |
+/// | By100 | 2x | Balanced default (double size) |
+/// | By200 | 3x | Fast growth |
+/// | By300 | 4x | Fastest growth, uses more memory |
+///
+/// Thresholds and rates can be combined by using bitwise OR, though the presets cover most use
+/// cases.
+///
+/// @param flag Growth configuration (e.g., MaxSpeed, MinSize, At75, By100)
+/// @return Formatted flags value for use with htInit()
+/// Example:
+/// @code
+///   // Use preset for maximum speed
+///   htInit(&ht, string, int32, 16, HT_Grow(MaxSpeed));
+///
+///   // Or combine custom threshold and rate
+///   htInit(&ht, string, int32, 16, HT_Grow(At75) | HT_Grow(By200));
+/// @endcode
 #define HT_Grow(flag) (((uint32)HT_GROW_##flag) << 24)
 
 // Internal macro - extracts growth settings from flags
@@ -212,49 +325,67 @@ enum HASHTABLE_FUNC_FLAGS_ENUM {
 void _htInit(_Outptr_ hashtable* out, stype keytype, _In_opt_ STypeOps* keyops, stype valtype,
              _In_opt_ STypeOps* valops, uint32 initsz, flags_t flags);
 
-// void htInit(hashtable *out, keytype, valtype, uint32 initsz, [flags_t flags]);
-//
-// Initializes a new hash table with the specified key and value types
-//
-// Parameters:
-//   out - Pointer to hashtable handle to receive the new table
-//   keytype - Runtime type for keys (e.g., string, int32, etc.)
-//   valtype - Runtime type for values, or 'none' for a hash set
-//   initsz - Initial capacity (will be rounded up, 0 for default)
-//   flags - Optional combination of HT_* flags
-//
-// Example:
-//   hashtable ht;
-//   htInit(&ht, string, int32, 16, HT_Grow(MaxSpeed));
-//   // ... use table ...
-//   htDestroy(&ht);
+/// void htInit(hashtable *out, keytype, valtype, uint32 initsz, [flags])
+///
+/// Initializes a new hash table with the specified key and value types
+/// @param out Pointer to hashtable handle to receive the new table
+/// @param keytype Runtime type for keys (e.g., string, int32, etc.)
+/// @param valtype Runtime type for values, or 'none' for a hash set
+/// @param initsz Initial capacity (will be rounded up, 0 for default)
+/// @param flags Optional combination of HT_* flags
+/// Example:
+/// @code
+///   hashtable ht;
+///   htInit(&ht, string, int32, 16, HT_Grow(MaxSpeed));
+///   // ... use table ...
+///   htDestroy(&ht);
+/// @endcode
 #define htInit(out, keytype, valtype, initsz, ...) \
     _htInit(out, stFullType(keytype), stFullType(valtype), initsz, opt_flags(__VA_ARGS__))
 
-// Destroys a hash table and frees all associated memory
-// All keys and values are properly destroyed (unless HT_Ref/HT_RefKeys was used)
-// Sets *htbl to NULL after destruction
-// Safe to call with NULL or a pointer to NULL
+/// Destroys a hash table and frees all associated memory
+///
+/// All keys and values are properly destroyed (unless HT_Ref/HT_RefKeys was used)
+/// Sets *htbl to NULL after destruction
+/// Safe to call with NULL or a pointer to NULL
+/// @param htbl Pointer to the hash table to destroy
 void htDestroy(_Inout_ptr_uninit_ hashtable* htbl);
 
-// Removes all entries from the hash table but keeps the structure allocated
-// All keys and values are properly destroyed (unless HT_Ref/HT_RefKeys was used)
-// The table can be reused after clearing
+/// Removes all entries from the hash table but keeps the structure allocated
+///
+/// All keys and values are properly destroyed (unless HT_Ref/HT_RefKeys was used)
+/// The table can be reused after clearing
+/// @param htbl Pointer to the hash table to clear
 void htClear(_Inout_ptr_ hashtable* htbl);
 
-// Rebuilds the hash table's index with a new minimum size
-// This can be used to grow or shrink the table manually
-// All elements are preserved - only the internal index is rebuilt
+/// @}  // end of hashtable_config group
+
+/// @defgroup hashtable_ops Hash Table Operations
+/// @ingroup hashtable
+/// @{
+/// Functions for modifying, inserting, searching, and removing elements
+
+/// Rebuilds the hash table's index with a new minimum size
+///
+/// This can be used to grow or shrink the table manually
+/// All elements are preserved - only the internal index is rebuilt
+/// @param htbl Pointer to the hash table
+/// @param minsz Minimum size for the rebuilt index
 void htReindex(_Inout_ptr_ hashtable* htbl, uint32 minsz);
 
-// Rebuilds the hash table to eliminate deleted entries and fragmentation
-// This creates a compact copy of the table with no wasted space
-// Useful after many deletions to reclaim memory
+/// Rebuilds the hash table to eliminate deleted entries and fragmentation
+///
+/// This creates a compact copy of the table with no wasted space
+/// Useful after many deletions to reclaim memory
+/// @param htbl Pointer to the hash table to repack
 void htRepack(_Inout_ptr_ hashtable* htbl);
 
-// Creates a deep copy of the hash table
-// All keys and values are properly copied according to their type semantics
-// The output must be destroyed with htDestroy() when no longer needed
+/// Creates a deep copy of the hash table
+///
+/// All keys and values are properly copied according to their type semantics
+/// The output must be destroyed with htDestroy() when no longer needed
+/// @param out Pointer to receive the cloned hash table
+/// @param ref Source hash table to clone
 void htClone(_Outptr_ hashtable* out, _In_ hashtable ref);
 
 // Internal function - do not call directly, use htInsert() or htInsertC() macro instead
@@ -289,49 +420,52 @@ _meta_inline htelem _htInsertCheckedC(_Inout_ptr_ hashtable* htbl, stype keytype
     return _htInsertPtr(htbl, key, val, flags);
 }
 
-// htelem htInsert(hashtable *htbl, ktype, key, vtype, val, [flags]);
-//
-// Inserts or updates a key-value pair in the hash table
-//
-// Parameters:
-//   htbl - Pointer to the hash table handle
-//   ktype - Type of the key (must match table type)
-//   key - Key value to insert
-//   vtype - Type of the value (must match table type)
-//   val - Value to insert or update
-//   flags - Optional: HT_Ignore to skip if key exists
-//
-// Returns:
-//   Element handle (htelem) that can be used to access the key/value
-//   Returns existing element if key already exists (unless HT_Ignore is set)
-//
-// The key and value are copied according to their type semantics. For strings and objects,
-// references are properly managed. If the key already exists, the old value is destroyed
-// and replaced with the new value (unless HT_Ignore is used).
-//
-// Example:
-//   htelem elem = htInsert(&ht, string, _S"key", int32, 42);
-//   int32 *valptr = hteValPtr(ht, int32, elem);
+/// htelem htInsert(hashtable *htbl, ktype, key, vtype, val, [flags])
+///
+/// Inserts or updates a key-value pair in the hash table
+///
+/// The key and value are copied according to their type semantics. For strings and objects,
+/// references are properly managed. If the key already exists, the old value is destroyed
+/// and replaced with the new value (unless HT_Ignore is used).
+/// @param htbl Pointer to the hash table handle
+/// @param ktype Type of the key (must match table type)
+/// @param key Key value to insert
+/// @param vtype Type of the value (must match table type)
+/// @param val Value to insert or update
+/// @param flags Optional: HT_Ignore to skip if key exists
+/// @return Element handle (htelem) that can be used to access the key/value. Returns existing
+/// element if key already exists (unless HT_Ignore is set) Example:
+/// @code
+///   htelem elem = htInsert(&ht, string, _S"key", int32, 42);
+///   int32 *valptr = hteValPtr(ht, int32, elem);
+/// @endcode
 #define htInsert(htbl, ktype, key, vtype, val, ...) \
     _htInsertChecked(htbl,                          \
                      stCheckedArg(ktype, key),      \
                      stCheckedArg(vtype, val),      \
                      opt_flags(__VA_ARGS__))
 
-// htelem htInsertC(hashtable *htbl, ktype, key, vtype, *val, [flags]);
-//
-// Inserts a key-value pair, consuming/stealing the value to avoid copying
-//
-// This is an optimized version of htInsert that takes ownership of the value instead of copying it.
-// The value variable will be destroyed/cleared after this call even on failure.
-// The key is still copied normally.
-//
-// This is useful for expensive-to-copy values like long strings or when transferring ownership.
-//
-// Example:
-//   string longstr = 0;
-//   strDup(&longstr, _S"very long string...");
-//   htInsertC(&ht, string, _S"key", string, &longstr);  // longstr is now NULL
+/// htelem htInsertC(hashtable *htbl, ktype, key, vtype, *val, [flags])
+///
+/// Inserts a key-value pair, consuming/stealing the value to avoid copying
+///
+/// This is an optimized version of htInsert that takes ownership of the value instead of copying
+/// it. The value variable will be destroyed/cleared after this call even on failure. The key is
+/// still copied normally. This is useful for expensive-to-copy values like long strings or when
+/// transferring ownership.
+/// @param htbl Pointer to the hash table handle
+/// @param ktype Type of the key (must match table type)
+/// @param key Key value to insert
+/// @param vtype Type of the value (must match table type)
+/// @param val Pointer to value to consume
+/// @param flags Optional flags
+/// @return Element handle for the inserted entry
+/// Example:
+/// @code
+///   string longstr = 0;
+///   strDup(&longstr, _S"very long string...");
+///   htInsertC(&ht, string, _S"key", string, &longstr);  // longstr is now NULL
+/// @endcode
 #define htInsertC(htbl, ktype, key, vtype, val, ...) \
     _htInsertCheckedC(htbl,                          \
                       stCheckedArg(ktype, key),      \
@@ -353,36 +487,32 @@ htelem _htFindChecked(_In_ hashtable htbl, stype keytype, _In_ stgeneric key, st
     return _htFind(htbl, key, val, flags);
 }
 
-// htelem htFind(hashtable htbl, ktype, key, vtype, *val_copy_out, [flags]);
-//
-// Searches for a key in the hash table and optionally copies out the value
-//
-// Parameters:
-//   htbl - The hash table to search
-//   ktype - Type of the key (must match table type)
-//   key - Key to search for
-//   vtype - Type of the value, or 'none' to skip copying the value
-//   val_copy_out - Pointer to receive a copy of the value, or NULL
-//   flags - Optional: HT_Borrow for borrowed reference on objects
-//
-// Returns:
-//   Element handle (htelem) if found, or 0 if not found
-//   The return value can be used directly in boolean context
-//
-// If val_copy_out is provided and not NULL, the value is copied into it.
-// The caller is responsible for destroying the copied value with the appropriate destructor.
-// If vtype is 'none', no value copy is performed and val_copy_out is ignored.
-//
-// Example:
-//   int32 val;
-//   if (htFind(ht, string, _S"key", int32, &val)) {
-//       // found, use val
-//   }
-//   // -- OR --
-//   htelem elem = htFind(ht, string, _S"key", none, NULL);
-//   if (elem) {
-//       val = hteVal(ht, int32, elem);
-//   }
+/// htelem htFind(hashtable htbl, ktype, key, vtype, *val_copy_out, [flags])
+///
+/// Searches for a key in the hash table and optionally copies out the value
+///
+/// If val_copy_out is provided and not NULL, the value is copied into it.
+/// The caller is responsible for destroying the copied value with the appropriate destructor.
+/// If vtype is 'none', no value copy is performed and val_copy_out is ignored.
+/// @param htbl The hash table to search
+/// @param ktype Type of the key (must match table type)
+/// @param key Key to search for
+/// @param vtype Type of the value, or 'none' to skip copying the value
+/// @param val_copy_out Pointer to receive a copy of the value, or NULL
+/// @param flags Optional: HT_Borrow for borrowed reference on objects
+/// @return Element handle (htelem) if found, or 0 if not found. The return value can be used
+/// directly in boolean context Example:
+/// @code
+///   int32 val;
+///   if (htFind(ht, string, _S"key", int32, &val)) {
+///       // found, use val
+///   }
+///   // -- OR --
+///   htelem elem = htFind(ht, string, _S"key", none, NULL);
+///   if (elem) {
+///       val = hteVal(ht, int32, elem);
+///   }
+/// @endcode
 #define htFind(htbl, ktype, key, vtype, val_copy_out, ...) \
     _htFindChecked(htbl,                                   \
                    stCheckedArg(ktype, key),               \
@@ -404,42 +534,43 @@ _meta_inline bool _htExtractChecked(_Inout_ptr_ hashtable* htbl, stype keytype, 
     return _htExtract(htbl, key, val);
 }
 
-// bool htExtract(hashtable *htbl, ktype, key, vtype, *val_copy_out);
-// Removes a key-value pair from the hash table and optionally extracts the value
-//
-// Parameters:
-//   htbl - Pointer to the hash table
-//   ktype - Type of the key
-//   key - Key to remove
-//   vtype - Type of the value, or 'none' to destroy it
-//   val_copy_out - Pointer to receive the extracted value, or NULL to destroy it
-//
-// Returns:
-//   true if the key was found and removed, false if not found
-//
-// If val_copy_out is provided, the value is extracted (ownership transferred) rather than
-// destroyed. The caller becomes responsible for destroying the extracted value. The key is always
-// destroyed (unless HT_RefKeys was used).
-//
-// Example:
-//   string extracted = 0;
-//   if (htExtract(&ht, string, _S"key", string, &extracted)) {
-//       // use extracted
-//       strDestroy(&extracted);
-//   }
+/// bool htExtract(hashtable *htbl, ktype, key, vtype, *val_copy_out)
+///
+/// Removes a key-value pair from the hash table and optionally extracts the value
+///
+/// If val_copy_out is provided, the value is extracted (ownership transferred) rather than
+/// destroyed. The caller becomes responsible for destroying the extracted value. The key is always
+/// destroyed (unless HT_RefKeys was used).
+/// @param htbl Pointer to the hash table
+/// @param ktype Type of the key
+/// @param key Key to remove
+/// @param vtype Type of the value, or 'none' to destroy it
+/// @param val_copy_out Pointer to receive the extracted value, or NULL to destroy it
+/// @return true if the key was found and removed, false if not found
+/// Example:
+/// @code
+///   string extracted = 0;
+///   if (htExtract(&ht, string, _S"key", string, &extracted)) {
+///       // use extracted
+///       strDestroy(&extracted);
+///   }
+/// @endcode
 #define htExtract(htbl, ktype, key, vtype, val_copy_out) \
     _htExtractChecked(htbl, stCheckedArg(ktype, key), stCheckedPtrArg(vtype, val_copy_out))
 
-// bool htRemove(hashtable *htbl, ktype, key);
-// Removes a key-value pair from the hash table, destroying both key and value
-//
-// This is a convenience wrapper around htExtract that always destroys the value.
-//
-// Returns:
-//   true if the key was found and removed, false if not found
-//
-// Example:
-//   htRemove(&ht, string, _S"key");
+/// bool htRemove(hashtable *htbl, ktype, key)
+///
+/// Removes a key-value pair from the hash table, destroying both key and value
+///
+/// This is a convenience wrapper around htExtract that always destroys the value.
+/// @param htbl Pointer to the hash table
+/// @param ktype Type of the key
+/// @param key Key to remove
+/// @return true if the key was found and removed, false if not found
+/// Example:
+/// @code
+///   htRemove(&ht, string, _S"key");
+/// @endcode
 #define htRemove(htbl, ktype, key) \
     _htExtractChecked(htbl, stCheckedArg(ktype, key), stType(none), NULL)
 
@@ -454,19 +585,24 @@ _meta_inline bool _htHasKeyChecked(_In_ hashtable htbl, stype keytype, _In_ stge
     return _htHasKey(htbl, key);
 }
 
-// bool htHasKey(hashtable htbl, ktype, key);
-// Checks if a key exists in the hash table without retrieving its value
-//
-// Returns:
-//   true if the key exists, false otherwise
-//
-// This is more efficient than htFind when you only need to check for existence.
-//
-// Example:
-//   if (htHasKey(ht, string, _S"key")) {
-//       // key exists
-//   }
+/// bool htHasKey(hashtable htbl, ktype, key)
+///
+/// Checks if a key exists in the hash table without retrieving its value
+///
+/// This is more efficient than htFind when you only need to check for existence.
+/// @param htbl The hash table to search
+/// @param ktype Type of the key
+/// @param key Key to check for
+/// @return true if the key exists, false otherwise
+/// Example:
+/// @code
+///   if (htHasKey(ht, string, _S"key")) {
+///       // key exists
+///   }
+/// @endcode
 #define htHasKey(htbl, ktype, key) _htHasKeyChecked(htbl, stCheckedArg(ktype, key))
+
+/// @}  // end of hashtable_ops group
 
 // Internal function - gets pointer to key storage for an element
 // Do not call directly - use hteKeyPtr() or hteKey() macros instead
@@ -476,23 +612,25 @@ _Pre_satisfies_(elem > 0) void* _hteElemKeyPtr(_Inout_ HashTableHeader* hdr, hte
 // Do not call directly - use hteValPtr() or hteVal() macros instead
 _Pre_satisfies_(elem > 0) void* _hteElemValPtr(_Inout_ HashTableHeader* hdr, htelem elem);
 
-// ========================================
-// Hash table iteration
-// ========================================
-//
-// Iteration allows traversing all key-value pairs in the hash table.
-// The order of iteration is the same as the order that the elements were inserted into the table.
-//
-// Usage pattern:
-//   htiter iter;
-//   htiInit(&iter, ht);
-//   while (htiValid(&iter)) {
-//       string key = htiKey(string, iter);
-//       int32 val = htiVal(int32, iter);
-//       // process key and val
-//       htiNext(&iter)
-//   }
-//   htiFinish(&iter);
+/// @defgroup hashtable_iter Hash Table Iteration
+/// @ingroup hashtable
+/// @{
+///
+/// Iteration allows traversing all key-value pairs in the hash table.
+/// The order of iteration is the same as the order that the elements were inserted into the table.
+///
+/// Usage pattern:
+/// @code
+///   htiter iter;
+///   htiInit(&iter, ht);
+///   while (htiValid(&iter)) {
+///       string key = htiKey(string, iter);
+///       int32 val = htiVal(int32, iter);
+///       // process key and val
+///       htiNext(&iter)
+///   }
+///   htiFinish(&iter);
+/// @endcode
 
 // define separately so the the prototype is all on one line and the tooltips in vscode work
 // properly...
@@ -500,42 +638,45 @@ _Pre_satisfies_(elem > 0) void* _hteElemValPtr(_Inout_ HashTableHeader* hdr, hte
     _Success_(return) _Post_satisfies_(iter->slot > 0) \
         _On_failure_(_Post_satisfies_(iter->slot == 0))
 
-// Initializes an iterator and positions it at the first element
-//
-// Returns:
-//   true if the table has at least one element (iterator is valid)
-//   false if the table is empty or NULL (iterator is invalid)
-//
-// If this returns false, do not call htiNext(), but htiValid() can be used
-// regardless and is often more convenient. htiFinish() is also safe to call regardless of the
-// return value.
+/// Initializes an iterator and positions it at the first element
+///
+/// If this returns false, do not call htiNext(), but htiValid() can be used
+/// regardless and is often more convenient. htiFinish() is also safe to call regardless of the
+/// return value.
+/// @param iter Iterator to initialize
+/// @param htbl Hash table to iterate over
+/// @return true if the table has at least one element (iterator is valid), false if the table is
+/// empty or NULL (iterator is invalid)
 _htiInitAnno bool htiInit(_Out_ htiter* iter, _In_ hashtable htbl);
 
 #define _htiNextAnno                                   \
     _Success_(return) _Post_satisfies_(iter->slot > 0) \
         _On_failure_(_Post_satisfies_(iter->slot == 0))
 
-// Advances the iterator to the next element
-//
-// Returns:
-//   true if advanced to a valid element
-//   false if there are no more elements (iteration complete)
-//
-// After this returns false, the iterator is invalid and htiFinish() should be called.
+/// Advances the iterator to the next element
+///
+/// After this returns false, the iterator is invalid and htiFinish() should be called.
+/// @param iter Iterator to advance
+/// @return true if advanced to a valid element, false if there are no more elements (iteration
+/// complete)
 _htiNextAnno bool htiNext(_Inout_ htiter* iter);
 
-// Finalizes an iterator after iteration is complete
-//
-// This must be called after iteration is complete (when htiNext returns false)
-// to properly clean up the iterator state.
+/// Finalizes an iterator after iteration is complete
+///
+/// This must be called after iteration is complete (when htiNext returns false)
+/// to properly clean up the iterator state.
+/// @param iter Iterator to finalize
 void htiFinish(_Pre_notnull_ _Post_invalid_ htiter* iter);
 
-// Checks if an iterator is currently positioned at a valid element
-//
-// Returns:
-//   true if the iterator is valid and can be used to access data
-//   false if the iterator is invalid (uninitialized or past the end)
+/// Checks if an iterator is currently positioned at a valid element
+/// @param iter Iterator to check
+/// @return true if the iterator is valid and can be used to access data, false if the iterator is
+/// invalid (uninitialized or past the end)
 _Post_equal_to_(iter->slot > 0) _meta_inline bool htiValid(_In_ htiter* iter)
 {
     return iter->slot > 0;
 }
+
+/// @}  // end of hashtable_iter group
+
+/// @}  // end of hashtable group

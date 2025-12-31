@@ -62,7 +62,7 @@ strDestroy(&str);             // Cleanup
 Type-safe dynamic arrays declared per-type:
 
 ```c
-sa_int32 arr = { 0 };          // Initialize to zero
+sa_int32 arr;
 saInit(&arr, int32, 16);       // Create with initial capacity
 saPush(&arr, int32, 42);       // Type-checked push
 int32 val = arr.a[0];          // Direct array access
@@ -75,7 +75,7 @@ saDestroy(&arr);               // Cleanup
 Generic key-value maps:
 
 ```c
-hashtable ht = 0;
+hashtable ht;
 htInit(&ht, string, int32, 16);
 htInsert(&ht, string, _S"key", int32, 42);
 int32 val;
@@ -111,7 +111,7 @@ Lightweight OOP with interfaces, inheritance, and mixins.
 **Common patterns:**
 - `stCheckedArg(type, value)` - Type-safe argument passing; implicitly added by macro wrappers
 - `stGetSize(stype)` - Get size of type at runtime
-- `stVar(type, value)` - Create variant container, stored in the stvar type
+- `stvar(type, value)` - Create variant container, stored in the stvar type
 
 ### 6. Platform Abstraction (`cx/platform/`, `cx/thread/`)
 Cross-platform APIs for:
@@ -195,13 +195,13 @@ xaRelease(&data);  // Frees and sets data = NULL
 
 **Other memory rules:**
 1. **Strings**: Always initialize to `0`, use `strDestroy()` to free
-2. **Containers**: Always initialize using the applicable init functions, use destructor macros
+2. **Containers**: Always initialize using the applicable *Init() functions, use destructor macros
 3. **Objects**: Use `objRelease()`, not manual `free()`
 4. **Mimalloc**: Default allocator (can override by turning off `CX_MIMALLOC`)
 
 ### Type Safety
 - **Always pass type parameters**: `saPush(&arr, int32, val)` not just `saPush(&arr, val)`
-- **Use `stVar()` for variants**: `htInsert(&ht, string, key, stVar(int32, 42))`
+- **Use `stvar()` for variants**: `htInsert(&ht, string, key, stvar(int32, 42))`
 - **Check return values**: Many functions return indices (`-1` for not found) or `NULL`
 
 ### Naming Patterns
@@ -245,20 +245,87 @@ Third-party libraries in `3rdparty/`:
 These are statically linked and managed by the build system.
 
 ## Documentation Style Guidelines
-When documenting functions and macros in header files, follow these conventions:
-- For macros, especially macros that wrap a function, the first line should be a synthetic prototype as if the macro were a C function. This shows up as the first line in the IDE tooltip and helps users understand how to use the macro as if it were a function. It shoudl be followed by an empty line comment for spacing.
-- Do NOT include the prototype line in comments for native C functions, as it is redundant and the actual prototype is already visible in the tooltip.
-- After a description of the function or macro, list parameters as follows:
-  ```c
-  // Parameters:
-  //   param1 - Description of param1
-  //   param2 - Description of param2
-  ```
-- Follow parameters with a "Returns:" section if applicable:
-  ```c
-    // Returns:
-    //   Description of return value
-  ```
-- If applicable and can be made reasonably concise, include a brief example of usage after the returns section.
-- For functions which take a runtime type parameter (like `stype`), omit the 'stype' type from the prototype, as it is not an actual value but rather a descriptor which is procssed by the macro system.
-- Similarly, for functions which an optional flags_t parameters throug a macro, omit the `flags_t` type and show the optional parameter as simply `[flags]`.
+When documenting functions and macros in header files, follow these conventions to maintain compatibility with both IDE tooltips and Doxygen documentation generation:
+
+### Comment Style
+- Use `///` for all documentation comments (Doxygen-compatible)
+- For macros: First line should be a synthetic prototype as if the macro were a C function (shows in IDE tooltips). Follow with an empty line comment for spacing.
+- For native C functions: Do NOT include a prototype line - the actual function signature is already visible
+
+### Structure
+After the description, document parameters and return values:
+```c
+/// @param param1 Description of param1
+/// @param param2 Description of param2
+/// @return Description of return value
+```
+
+For code examples, use Doxygen code blocks:
+```c
+/// Example:
+/// @code
+///   string s = 0;
+///   strDup(&s, _S"hello");
+/// @endcode
+```
+
+### Doxygen-Specific Tags
+- **`@page page_id Page Title`** - Create standalone documentation pages for overviews/guides (use sparingly, prefer groups)
+- **`@file filename`** - Document the file itself (what's in it)
+- **`@brief`** - Short one-line summary
+- **`@defgroup group_id Group Title` / `@{` / `@}`** - Create organized module groups that appear in a hierarchical tree in documentation
+  - Use `@ingroup parent_group` to nest groups
+  - Always close groups with `@}` at the appropriate scope
+  - **CRITICAL**: Be very careful with group scope - place `@{` immediately after the defgroup line and `@}` right after the last item that should be in the group to avoid accidentally including unrelated functions
+  - Header files should typically define one main group for the module, with logical sub-groups for related functions/types
+
+### Organizing Documentation with Groups
+Use `@defgroup` to create hierarchical module documentation instead of flat `@page` entries:
+
+**Pattern for file-level groups:**
+```c
+/// @file mymodule.h
+/// @brief Brief description
+
+/// @defgroup mymodule My Module
+/// @{
+/// Detailed module description here
+
+// Module contents here (types, macros, functions)
+
+/// @}  // end of mymodule group
+```
+
+**Pattern for subsections within a file:**
+```c
+/// @defgroup mymodule_subsection Subsection Title
+/// @ingroup mymodule
+/// @{
+///
+/// Description and usage examples
+/// @code
+///   // example code
+/// @endcode
+
+// Only the specific functions/types for this subsection
+
+/// @}  // end of mymodule_subsection group
+```
+
+**Key points:**
+- Place `@{` right after the defgroup/description to start the group scope
+- Place `@}` immediately after the last function/item that belongs in the group
+- This prevents subsequent unrelated functions from being included in the group
+- Use `@ingroup` to create parent-child relationships between groups
+- Groups appear in a tree structure under "Topics" in generated documentation
+
+### Special Cases
+- For functions taking runtime type parameters (like `stype`), omit the `stype` type from the synthetic prototype as it's a descriptor processed by the macro system
+- For functions with optional `flags_t` parameters through macros, show as `[flags]` in the prototype
+- We use HIDE_UNDOC_MEMBERS, so internal functions or functions that are completely wrapped by macros, should have no /// documentation at all (they can still have regular comments). This will prevent them from appearing in the generated docs.
+
+### File-Level Documentation
+For major headers, include:
+- `@file` tag with filename and brief description
+- Consider `@page` for overview documentation that should be prominent in generated docs
+- Use `@section` to organize content within overview pages
