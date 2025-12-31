@@ -1,6 +1,7 @@
 #include "string_private.h"
-#include "strnum_fppowers.h"
+#include "cx/debug/error.h"
 #include "cx/utils/compare.h"
+#include "strnum_fppowers.h"
 
 // Modified version of night-shift's fpconv implementation of Fabian Loitsch's Grisu2
 // algorithm. Adapted for 32-bit single precision floats in addition to 64-bit
@@ -541,5 +542,137 @@ bool strFromFloat64(_Inout_ string *out, float64 d)
     uint8 *obuf = strBuffer(out, buflen);
     memcpy(obuf, buf, buflen);
 
+    return true;
+}
+
+// string to float parsing -------------------------------------------------------------
+
+_Use_decl_annotations_
+bool strToFloat64(float64* out, strref s, bool strict)
+{
+    if (!s || strEmpty(s))
+        return false;
+
+    // Need C string for calling strtod later
+    const char* cstr  = strC(s);
+    const char* start = cstr;
+
+    // Skip leading whitespace
+    while (isspace((uint8)*cstr)) cstr++;
+
+    if (*cstr == '\0') {
+        cxerr = CX_InvalidArgument;
+        return false;
+    }
+
+    // Check for special values (inf, nan) - case insensitive
+    // strtod may not handle these consistently across platforms
+    uint32 offset = (uint32)(cstr - start);
+    if (strRangeEqi(s, _S"inf", offset, 3)) {
+        union {
+            double d;
+            uint64_t i;
+        } inf = { 0 };
+        inf.i = expmask_64;
+        bool neg = (cstr > start && *(cstr - 1) == '-');
+        *out  = neg ? -inf.d : inf.d;
+        return true;
+    }
+
+    if (strRangeEqi(s, _S"nan", offset, 3)) {
+        union {
+            double d;
+            uint64_t i;
+        } nan = { 0 };
+        nan.i = expmask_64 | 1;
+        *out  = nan.d;
+        return true;
+    }
+
+    // Use standard library strtod for correct rounding
+    char* endptr;
+    double result = strtod(cstr, &endptr);
+
+    // Check if parsing succeeded
+    if (endptr == cstr) {
+        cxerr = CX_InvalidArgument;
+        return false;
+    }
+
+    // In strict mode, ensure entire string was consumed (except trailing whitespace)
+    if (strict) {
+        while (isspace((uint8)*endptr)) endptr++;
+        if (*endptr != '\0') {
+            cxerr = CX_InvalidArgument;
+            return false;
+        }
+    }
+
+    *out = result;
+    return true;
+}
+
+_Use_decl_annotations_
+bool strToFloat32(float32* out, strref s, bool strict)
+{
+    if (!s || strEmpty(s))
+        return false;
+
+    // Need C string for calling strtof later
+    const char* cstr  = strC(s);
+    const char* start = cstr;
+
+    // Skip leading whitespace
+    while (isspace((uint8)*cstr)) cstr++;
+
+    if (*cstr == '\0') {
+        cxerr = CX_InvalidArgument;
+        return false;
+    }
+
+    // Check for special values (inf, nan) - case insensitive
+    // strtof may not handle these consistently across platforms
+    uint32 offset = (uint32)(cstr - start);
+    if (strRangeEqi(s, _S"inf", offset, 3)) {
+        union {
+            float f;
+            uint32_t i;
+        } inf    = { 0 };
+        inf.i    = expmask_32;
+        bool neg = (cstr > start && *(cstr - 1) == '-');
+        *out     = neg ? -inf.f : inf.f;
+        return true;
+    }
+
+    if (strRangeEqi(s, _S"nan", offset, 3)) {
+        union {
+            float f;
+            uint32_t i;
+        } nan = { 0 };
+        nan.i = expmask_32 | 1;
+        *out  = nan.f;
+        return true;
+    }
+
+    // Use standard library strtof for correct rounding
+    char* endptr;
+    float result = strtof(cstr, &endptr);
+
+    // Check if parsing succeeded
+    if (endptr == cstr) {
+        cxerr = CX_InvalidArgument;
+        return false;
+    }
+
+    // In strict mode, ensure entire string was consumed (except trailing whitespace)
+    if (strict) {
+        while (isspace((uint8)*endptr)) endptr++;
+        if (*endptr != '\0') {
+            cxerr = CX_InvalidArgument;
+            return false;
+        }
+    }
+
+    *out = result;
     return true;
 }

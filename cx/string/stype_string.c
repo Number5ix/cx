@@ -60,24 +60,9 @@ bool stConvert_string(stype destst, _stCopyDest_Anno_(destst) stgeneric *dest, s
     case stTypeId(uint64):
         return strToUInt64(&dest->st_uint64, src.st_string, 0, true);
     case stTypeId(float32):
+        return strToFloat32(&dest->st_float32, src.st_string, true);
     case stTypeId(float64):
-    {
-        double temp;
-        const char *in = strC(src.st_string);
-        char *endp;
-
-        temp = strtod(in, &endp);
-        if (in == (const char*)endp)
-            return false;               // strtod failed
-
-        // TODO: What does 'lossy' mean in the context of converting a string to a float32?
-        if (stGetId(destst) == stTypeId(float64))
-            dest->st_float64 = temp;
-        else
-            dest->st_float32 = (float32)temp;
-
-        return true;
-    }
+        return strToFloat64(&dest->st_float64, src.st_string, true);
     case stTypeId(stvar):
         // okay, sure, we can put it in one
         dest->st_stvar->type = srcst;

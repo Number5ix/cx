@@ -231,17 +231,14 @@ static bool parseNumInt(_Inout_ StreamBuffer *sb, bool neg, size_t intoff, size_
 _Success_(return)
 static bool parseNumFloat(_Inout_ StreamBuffer *sb, bool neg, size_t intoff, size_t intlen, size_t fracoff, size_t fraclen, bool expneg, size_t expoff, size_t explen, _Out_ double *out, _Inout_ ParseState *ps)
 {
-    // TODO: convert to cx strToFloat if/when those are implemented.
-    // For now use system strtod because these algorithms are very complex.
     size_t total = max(max(intoff + intlen, fracoff + fraclen), expoff + explen);
     char *buf = xaAlloc(total + 1);
     buf[total] = '\0';
     if (!sbufCPeek(sb, (uint8*)buf, 0, total))
         return false;
-
-    *out = strtod(buf, NULL);
+    bool ret = strToFloat64(out, (strref)buf, true);
     xaFree(buf);
-    return true;
+    return ret;
 }
 
 static bool parseNumber(_Inout_ StreamBuffer *sb, _Inout_ JSONParseEvent *ev, _Inout_ ParseState *ps)
