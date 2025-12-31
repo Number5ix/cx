@@ -143,7 +143,8 @@ INPUT                  = README.md \
                          cx/closure \
                          cx/taskqueue \
                          cx/log \
-                         cx/serialize
+                         cx/serialize \
+                         @DOXYGEN_BUILD_DIR@/cx
 INPUT_ENCODING         = UTF-8
 INPUT_FILE_ENCODING    = 
 FILE_PATTERNS          = *.h \
@@ -152,8 +153,7 @@ RECURSIVE              = YES
 EXCLUDE                = 
 EXCLUDE_SYMLINKS       = NO
 EXCLUDE_PATTERNS       = */test/* \
-                         */.git/* \
-                         */build/*
+                         */.git/*
 EXCLUDE_SYMBOLS        = 
 EXAMPLE_PATH           = 
 EXAMPLE_PATTERNS       = *
@@ -394,5 +394,3 @@ GENERATE_LEGEND        = YES
 DOT_CLEANUP            = YES
 MSCGEN_TOOL            = 
 MSCFILE_DIRS           = 
-
-EXTENSION_MAPPING      = cxh=C

@@ -122,6 +122,7 @@ typedef struct Method {
     string name;
     sa_Param params;
     sa_string comments;
+    sa_string docs;
     sa_sarray_string annotations;
     bool isinit;
     bool isdestroy;
@@ -212,6 +213,7 @@ typedef struct Member {
     string name;
     string postdecr;
     sa_string comments;
+    sa_string docs;
     sa_sarray_string annotations;
     Class* mixinsrc;
     string initstr;
@@ -258,6 +260,7 @@ typedef struct Class {
     sa_Member members;
     sa_Method methods;
     sa_string overrides;
+    sa_string docs;
     sa_sarray_string annotations;
     bool abstract;
     bool mixin;

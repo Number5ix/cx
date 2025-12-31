@@ -28,7 +28,9 @@ typedef struct ParseState {
     bool ptemptyok;
 
     sa_string comments;
+    sa_string docs;
     sa_string* curlinecomments;
+    sa_string* curlinedocs;
     sa_sarray_string annotations;
     sa_string tokstack;
     int context;
@@ -44,11 +46,20 @@ typedef struct ParseState {
 
 static bool parseEnd(ParseState* ps, bool retval)
 {
+    // capture any trailing docs
+    if (!ps->included && saSize(globaldocs_end) == 0 && saSize(ps->docs) > 0) {
+        foreach (sarray, idx, string, docln, ps->docs) {
+            saPush(&globaldocs_end, string, docln);
+        }
+        saClear(&ps->docs);
+    }
+
     if (ps->fp)
         fsClose(ps->fp);
     strDestroy(&ps->fname);
     saDestroy(&ps->tokstack);
     saDestroy(&ps->comments);
+    saDestroy(&ps->docs);
     saDestroy(&ps->annotations);
     saDestroy(&ps->includepath);
     if (ps->curif) {
@@ -136,8 +147,10 @@ static bool nextTok(ParseState* ps, string* tok)
         ch[0] = ps->buf[ps->bpos++];
         strAppend(&ps->rawtok, (string)ch);
 
-        if (ch[0] == '\n')
+        if (ch[0] == '\n') {
             ps->curlinecomments = NULL;
+            ps->curlinedocs     = NULL;
+        }
         if (!quote && isspace(ch[0])) {
             if (strEmpty(*tok))
                 continue;
@@ -285,6 +298,7 @@ bool parseGlobal(ParseState* ps, string* tok)
     if (strEq(*tok, _S"interface")) {
         ps->ptemptyok = false;
         saClear(&ps->comments);
+        saClear(&ps->docs);
         saClear(&ps->annotations);
         ps->curif           = interfaceCreate();
         ps->context         = Context_InterfacePre;
@@ -299,9 +313,19 @@ bool parseGlobal(ParseState* ps, string* tok)
         ps->context             = Context_ClassPre;
         ps->curcls->included    = ps->included;
         ps->curcls->annotations = ps->annotations;
+        ps->curcls->docs        = ps->docs;
+        saInit(&ps->docs, string, 4);
         saInit(&ps->annotations, sarray, 4);
         return true;
     } else if (strEq(*tok, _S"#include")) {
+        // any docs BEFORE the first #include become global docs
+        if (!ps->included && saSize(globaldocs) == 0 && saSize(ps->docs) > 0) {
+            foreach (sarray, idx, string, docln, ps->docs) {
+                saPush(&globaldocs, string, docln);
+            }
+            saClear(&ps->docs);
+        }
+
         string fname  = 0;
         bool brackets = false;
         nextTok(ps, &fname);
@@ -472,6 +496,9 @@ bool parseInterface(ParseState* ps, string* tok)
         ps->curmethod->comments = ps->comments;
         ps->curlinecomments     = &ps->curmethod->comments;
         saInit(&ps->comments, string, 4);
+        ps->curmethod->docs = ps->docs;
+        ps->curlinedocs     = &ps->curmethod->docs;
+        saInit(&ps->docs, string, 4);
         ps->curmethod->annotations = ps->annotations;
         ps->curmethod->srcif       = ps->curif;
         strDup(&ps->curmethod->srcfile, ps->fname);
@@ -674,6 +701,9 @@ bool parseClass(ParseState* ps, string* tok)
             nmem->comments      = ps->comments;
             ps->curlinecomments = &nmem->comments;
             saInit(&ps->comments, string, 4);
+            nmem->docs      = ps->docs;
+            ps->curlinedocs = &nmem->docs;
+            saInit(&ps->docs, string, 4);
 
             sa_string vartype;
             saInit(&vartype, string, 8);
@@ -808,6 +838,9 @@ bool parseClass(ParseState* ps, string* tok)
         ps->curmethod->comments = ps->comments;
         ps->curlinecomments     = &ps->curmethod->comments;
         saInit(&ps->comments, string, 4);
+        ps->curmethod->docs = ps->docs;
+        ps->curlinedocs     = &ps->curmethod->docs;
+        saInit(&ps->docs, string, 4);
         ps->curmethod->annotations = ps->annotations;
         saInit(&ps->annotations, sarray, 4);
         ps->curmethod->srcclass = ps->curcls;
@@ -954,6 +987,7 @@ bool parseFile(strref fname, string* realfn, string srcpath, sa_string searchpat
     ps.context = Context_Global;
     saInit(&ps.tokstack, string, 8);
     saInit(&ps.comments, string, 4);
+    saInit(&ps.docs, string, 4);
     saInit(&ps.annotations, sarray, 4);
     ps.included         = included;
     ps.allowannotations = true;
@@ -961,6 +995,16 @@ bool parseFile(strref fname, string* realfn, string srcpath, sa_string searchpat
     string tok = 0;
     while ((nextTok(&ps, &tok))) {
         if (strEq(tok, _S"//")) {
+            // speical case: any docs in the global context before the first comment become global
+            // docs
+            if (ps.context == Context_Global && !ps.included && saSize(globaldocs) == 0 &&
+                saSize(ps.docs) > 0) {
+                foreach (sarray, idx, string, docln, ps.docs) {
+                    saPush(&globaldocs, string, docln);
+                }
+                saClear(&ps.docs);
+            }
+
             nextCustomTok(&ps, &tok, '\n', "\r");
             if (ps.curlinecomments) {
                 // If this is a comment on the same line as something (method declaration, etc),
@@ -969,6 +1013,26 @@ bool parseFile(strref fname, string* realfn, string srcpath, sa_string searchpat
                 ps.curlinecomments = NULL;
             } else {
                 saPush(&ps.comments, string, tok);
+            }
+            continue;
+        }
+        if (strEq(tok, _S"///")) {
+            if (!ps.included)
+                usedocs = true;
+            nextCustomTok(&ps, &tok, '\n', "\r");
+            saPush(&ps.docs, string, tok);
+            continue;
+        }
+        if (strEq(tok, _S"///<")) {
+            if (!ps.included)
+                usedocs = true;
+            nextCustomTok(&ps, &tok, '\n', "\r");
+            if (ps.curlinedocs) {
+                // If this is documentation on the same line as something (method declaration, etc),
+                // add it to that list instead of the pending one for the next item.
+                // ONLY add it there, since ///< is doxygen syntax for member documentation
+                saPush(ps.curlinedocs, string, tok);
+                ps.curlinedocs = NULL;
             }
             continue;
         }

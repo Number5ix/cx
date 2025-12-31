@@ -13,10 +13,13 @@ sa_string implincludes;
 sa_string deps;
 sa_string structs;
 sa_string fwdclass;
+sa_string globaldocs;
+sa_string globaldocs_end;
 sa_ComplexArrayType artypes;
 hashtable knownartypes;
 string cpassthrough;
 bool needmixinimpl;
+bool usedocs;
 
 bool upToDate(string fname);
 
@@ -35,6 +38,8 @@ int main(int argc, char* argv[])
     htInit(&weakrefidx, string, object, 16);
     saInit(&includes, string, 8);
     saInit(&implincludes, string, 4);
+    saInit(&globaldocs, string, 8);
+    saInit(&globaldocs_end, string, 8);
     saInit(&deps, string, 8);
     saInit(&structs, string, 8);
     saInit(&fwdclass, string, 8);
@@ -77,9 +82,12 @@ int main(int argc, char* argv[])
         saClear(&structs);
         saClear(&fwdclass);
         saClear(&artypes);
+        saClear(&globaldocs);
+        saClear(&globaldocs_end);
         htClear(&knownartypes);
         strDestroy(&cpassthrough);
         needmixinimpl = false;
+        usedocs       = false;
 
         // standard interfaces should always be available, but it's non-fatal if
         // the file can't be located
@@ -120,6 +128,8 @@ int main(int argc, char* argv[])
     saDestroy(&deps);
     saDestroy(&structs);
     saDestroy(&fwdclass);
+    saDestroy(&globaldocs);
+    saDestroy(&globaldocs_end);
     strDestroy(&cpassthrough);
     strDestroy(&fname);
     saDestroy(&searchpath);

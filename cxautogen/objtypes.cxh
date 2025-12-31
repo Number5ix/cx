@@ -23,6 +23,7 @@ class Method implements Sortable {
     sarray:object:Param params;
 
     [noinit] sarray:string comments;
+    [noinit] sarray:string docs;
     [noinit] sarray:sarray:string annotations;
 
     bool isinit;
@@ -57,6 +58,7 @@ class Member implements Sortable {
     string name;
     string postdecr;
     [noinit] sarray:string comments;
+    [noinit] sarray:string docs;
     [noinit] sarray:sarray:string annotations;
 
     Class *mixinsrc;
@@ -76,6 +78,7 @@ class Class implements Sortable {
     sarray:object:Member members;
     sarray:object:Method methods;
     sarray:string overrides;
+    [noinit] sarray:string docs;
     [noinit] sarray:sarray:string annotations;
     bool abstract;
     bool mixin;

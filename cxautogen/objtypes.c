@@ -46,6 +46,7 @@ void Method_destroy(_In_ Method* self)
     strDestroy(&self->name);
     saDestroy(&self->params);
     saDestroy(&self->comments);
+    saDestroy(&self->docs);
     saDestroy(&self->annotations);
     // Autogen ends -------
 }
@@ -93,6 +94,7 @@ void Member_destroy(_In_ Member* self)
     strDestroy(&self->name);
     strDestroy(&self->postdecr);
     saDestroy(&self->comments);
+    saDestroy(&self->docs);
     saDestroy(&self->annotations);
     strDestroy(&self->initstr);
     // Autogen ends -------
@@ -130,6 +132,7 @@ void Class_destroy(_In_ Class* self)
     saDestroy(&self->members);
     saDestroy(&self->methods);
     saDestroy(&self->overrides);
+    saDestroy(&self->docs);
     saDestroy(&self->annotations);
     strDestroy(&self->methodprefix);
     saDestroy(&self->allmembers);

@@ -17,10 +17,13 @@ extern sa_string implincludes;
 extern sa_string deps;
 extern sa_string structs;
 extern sa_string fwdclass;
+extern sa_string globaldocs;
+extern sa_string globaldocs_end;
 extern sa_ComplexArrayType artypes;
 extern hashtable knownartypes;
 extern string cpassthrough;
 extern bool needmixinimpl;
+extern bool usedocs;
 
 uint8* lazyPlatformPath(string path);
 bool parseFile(strref fname, string* realfn, string srcpath, sa_string searchpath, bool included,

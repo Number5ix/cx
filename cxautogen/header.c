@@ -45,16 +45,46 @@ static void writeComments(StreamBuffer* bf, sa_string comments, int column, bool
     strDestroy(&spaces);
 }
 
-static void writeFuncComment(StreamBuffer* bf, strref name, Class* cls, Method* m)
+static void writeDocs(StreamBuffer* bf, sa_string docs, int column, bool spacer)
+{
+    string ln     = 0;
+    string spaces = 0;
+
+    if (column > 0) {
+        uint8* tmp = strBuffer(&spaces, column);
+        memset(tmp, ' ', column);
+    }
+
+    if (spacer && saSize(docs) > 0) {
+        strConcat(&ln, spaces, _S"///");
+        sbufPWriteLine(bf, ln);
+    }
+    for (int i = 0; i < saSize(docs); ++i) {
+        strNConcat(&ln, spaces, _S"/// ", docs.a[i]);
+        sbufPWriteLine(bf, ln);
+    }
+    strDestroy(&ln);
+    strDestroy(&spaces);
+}
+
+static void writeFuncComment(StreamBuffer* bf, strref name, Class* cls, Method* m, bool doc)
 {
     if (!name)
         name = m->name;
 
     string ln = 0, temp = 0;
     if (!m->standalone)
-        strNConcat(&ln, _S"// ", m->returntype, m->predecr, _S" ", name, _S"(", cls->name, _S"* self");
+        strNConcat(&ln,
+                   doc ? _S"///" : _S"// ",
+                   m->returntype,
+                   m->predecr,
+                   _S" ",
+                   name,
+                   _S"(",
+                   cls->name,
+                   _S"* self");
     else
-        strNConcat(&ln, _S"// ", m->returntype, m->predecr, _S" ", name, _S"(");
+        strNConcat(&ln, doc ? _S"/// " : _S"// ", m->returntype, m->predecr, _S" ", name, _S"(");
 
     for (int j = 0; j < saSize(m->params); j++) {
         Param* p     = m->params.a[j];
@@ -131,8 +161,14 @@ static void writeUnbound(StreamBuffer* bf, Class* cls, Class* cur, sa_Method* do
             sbufPWriteLine(bf, ln);
 
             methodCallName(&callname, cls, m->name);
-            writeFuncComment(bf, callname, cls, m);
-            writeComments(bf, m->comments, 0, true);
+            if (usedocs && saSize(m->docs) > 0) {
+                writeFuncComment(bf, callname, cls, m, true);
+                writeDocs(bf, m->docs, 0, true);
+            } else {
+                writeFuncComment(bf, callname, cls, m, false);
+                writeComments(bf, m->comments, 0, true);
+            }
+
             strNConcat(&ln, _S"#define ", callname, m->standalone ? _S"(" : _S"(self");
             for (int j = 0; j < saSize(m->params); j++) {
                 if (!m->standalone || j > 0)
@@ -166,8 +202,14 @@ static void writeUnbound(StreamBuffer* bf, Class* cls, Class* cur, sa_Method* do
                 continue;
 
             methodCallName(&callname, cls, m->name);
-            writeFuncComment(bf, callname, cls, m);
-            writeComments(bf, m->comments, 0, true);
+            if (usedocs && saSize(m->docs) > 0) {
+                writeFuncComment(bf, callname, cls, m, true);
+                writeDocs(bf, m->docs, 0, true);
+            } else {
+                writeFuncComment(bf, callname, cls, m, false);
+                writeComments(bf, m->comments, 0, true);
+            }
+
             strNConcat(&ln, _S"#define ", callname, _S"(self");
             for (int j = 0; j < saSize(m->params); j++) {
                 strNConcat(&ln, ln, _S", ", m->params.a[j]->name);
@@ -296,10 +338,14 @@ static void writeClassMember(StreamBuffer* bf, Class* cls, Member* m)
 {
     string ln      = 0;
     string predecr = 0;
+    bool hasdocs     = saSize(m->docs) > 0;
+    bool hascomments = !hasdocs && saSize(m->comments) > 0;
 
     strDup(&predecr, m->predecr);
 
-    if (saSize(m->comments) > 1)
+    if (hasdocs && saSize(m->docs) > 1)
+        writeDocs(bf, m->docs, 4, false);
+    if (hascomments && saSize(m->comments) > 1)
         writeComments(bf, m->comments, 4, false);
 
     if (!strEq(m->vartype, _S"hashtable") && saSize(m->fulltype) > 0 &&
@@ -313,7 +359,11 @@ static void writeClassMember(StreamBuffer* bf, Class* cls, Member* m)
 
     strNConcat(&ln, _S"    ", m->vartype, predecr, _S" ", m->name, m->postdecr, _S";");
 
-    if (saSize(m->comments) == 1)
+    if (hasdocs && saSize(m->docs) == 1) {
+        // use doxygen member documentation syntax
+        strNConcat(&ln, ln, _S"        ///< ", m->docs.a[0]);
+    }
+    if (hascomments && saSize(m->comments) == 1)
         strNConcat(&ln, ln, _S"        // ", m->comments.a[0]);
 
     sbufPWriteLine(bf, ln);
@@ -348,6 +398,7 @@ void writeClassDecl(StreamBuffer* bf, Class* cls)
 {
     string ln = 0, mname = 0;
 
+    writeDocs(bf, cls->docs, 0, false);
     strNConcat(&ln, _S"typedef struct ", cls->name, _S" {");
     sbufPWriteLine(bf, ln);
 
@@ -428,8 +479,14 @@ void writeClassDecl(StreamBuffer* bf, Class* cls)
         if (m->internal)
             continue;
         methodCallName(&mname, cls, m->name);
-        writeFuncComment(bf, mname, cls, m);
-        writeComments(bf, m->comments, 0, true);
+        if (usedocs && saSize(m->docs) > 0) {
+            writeComments(bf, m->comments, 0, true);
+            writeFuncComment(bf, mname, cls, m, true);
+            writeDocs(bf, m->docs, 0, true);
+        } else {
+            writeFuncComment(bf, mname, cls, m, false);
+            writeComments(bf, m->comments, 0, true);
+        }
         strNConcat(&ln, _S"#define ", mname, _S"(self");
         for (int j = 0; j < saSize(m->params); j++) {
             strNConcat(&ln, ln, _S", ", m->params.a[j]->name);
@@ -474,6 +531,20 @@ bool writeHeader(string fname, string srcpath, string binpath)
         return false;
     if (!sbufPRegisterPush(bf, NULL, NULL))
         return false;
+
+    if (usedocs) {
+        // write information for doxygen
+        sbufPWriteLine(bf, _S"/// @file");
+        sbufPWriteStr(bf, _S"/// @note This file is automatically generated from @link ");
+        string relsrc = 0;
+        relSrcPath(&relsrc, fname, srcpath);
+        sbufPWriteStr(bf, relsrc);
+        sbufPWriteStr(bf, _S" @endlink");
+        sbufPWriteEOL(bf);
+        writeDocs(bf, globaldocs, 0, false);
+        strDestroy(&relsrc);
+        sbufPWriteEOL(bf);
+    }
 
     string ln = 0;
     sbufPWriteLine(bf, _S"#pragma once");
@@ -524,6 +595,10 @@ bool writeHeader(string fname, string srcpath, string binpath)
     for (int i = 0; i < saSize(classes); i++) {
         if (!classes.a[i]->included)
             writeClassDecl(bf, classes.a[i]);
+    }
+
+    if (usedocs) {
+        writeDocs(bf, globaldocs_end, 0, false);
     }
 
     strDestroy(&ln);
