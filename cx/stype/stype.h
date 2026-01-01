@@ -3,7 +3,7 @@
 /// @file stype.h
 /// @brief Runtime type system and type descriptor infrastructure
 
-/// @defgroup stype Runtime Type System
+/// @defgroup stype SType (Runtime Type System)
 /// @{
 /// Compile-time safe, runtime-inspectable type system enabling generic programming
 /// and type-safe containers in pure C without template bloat.
@@ -1350,7 +1350,7 @@ _meta_inline stgeneric _stStoredVal(stype st, _In_ const void* storage)
 ///
 /// @param type Type name (e.g., string, int32, object)
 /// @param pobj Pointer to the value to destroy
-/// @param flags Optional operation flags
+/// @param ... (flags) Optional operation flags
 ///
 /// Example:
 /// @code
@@ -1377,7 +1377,7 @@ _meta_inline void _stDestroy(stype st, _In_opt_ STypeOps* ops,
 /// @param type Type name
 /// @param obj1 First value
 /// @param obj2 Second value
-/// @param flags Optional operation flags:
+/// @param ... (flags) Optional operation flags:
 ///   - ST_CaseInsensitive: Case-insensitive comparison
 ///   - ST_Equality: Only check equality, not ordering
 /// @return Negative if obj1 < obj2, zero if equal, positive if obj1 > obj2
@@ -1418,7 +1418,7 @@ _meta_inline intptr _stCmp(stype st, _In_opt_ STypeOps* ops, _In_ stgeneric gen1
 /// @param type Type name
 /// @param pdest Pointer to destination
 /// @param src Source value
-/// @param flags Optional operation flags
+/// @param ... (flags) Optional operation flags
 ///
 /// Example:
 /// @code
@@ -1453,7 +1453,7 @@ uint32 stHash_gen(stype st, _In_ stgeneric stgen, flags_t flags);
 ///
 /// @param type Type name
 /// @param obj Value to hash
-/// @param flags Optional operation flags:
+/// @param ... (flags) Optional operation flags:
 ///   - ST_CaseInsensitive: Case-insensitive hash
 /// @return 32-bit hash value
 ///
@@ -1485,7 +1485,7 @@ _meta_inline uint32 _stHash(stype st, _In_opt_ STypeOps* ops, _In_ stgeneric gen
 /// @param pdest Pointer to destination
 /// @param srctype Source type name
 /// @param src Source value
-/// @param flags Conversion flags:
+/// @param ... (flags) Conversion flags:
 ///   - ST_Overflow: Allow overflow without error
 ///   - ST_Lossless: Fail if conversion loses precision
 /// @return true if conversion succeeded

@@ -5,7 +5,7 @@
 /// SArray (Sorted Array) provides dynamic arrays with runtime type system integration,
 /// optional sorting, and copy-on-write semantics for efficient memory management.
 
-/// @defgroup array Array
+/// @defgroup array SArray (Dynamic Arrays)
 /// @ingroup containers
 /// @{
 ///
@@ -301,7 +301,7 @@ _At_(out->a, _Post_notnull_) bool _saInit(_Out_ sahandle out, stype elemtype, _I
 /// @param out Pointer to the sarray to initialize
 /// @param type Runtime type for elements (e.g., int32, string, ptr, object, etc.)
 /// @param capacity Initial capacity (will be clamped to at least 1, use 0 for default of 8)
-/// @param flags Optional combination of SA_* flags:
+/// @param ... (flags) Optional combination of SA_* flags:
 ///              - SA_Ref - Array references data without copying/destroying (pointer types only)
 ///              - SA_Sorted - Maintain sorted order with O(log n) search, O(n) insert
 ///              - SA_AutoShrink - Release memory when array shrinks
@@ -325,7 +325,7 @@ _At_(out->a, _Post_notnull_) bool _saInit(_Out_ sahandle out, stype elemtype, _I
 /// @param out Pointer to the sarray to initialize
 /// @param type Runtime type for elements
 /// @param capacity Initial capacity
-/// @param flags Optional combination of SA_* flags
+/// @param ... (flags) Optional combination of SA_* flags
 /// @return true on success, false on allocation failure
 #define saTryInit(out, type, capacity, ...) \
     _saInit(SAHANDLE(out), stFullType(type), capacity, true, opt_flags(__VA_ARGS__))
@@ -452,8 +452,8 @@ _At_(handle->a, _Pre_maybenull_ _Post_notnull_) int32 _saPushPtr(_Inout_ sahandl
 /// @param handle Pointer to the array (can be a valid pointer to a NULL array)
 /// @param type Runtime type of the element (must match array type if already initialized)
 /// @param elem Element value to push
-/// @param flags Optional: SA_Unique - Don't insert if element already exists (requires equality
-/// check)
+/// @param ... (flags) Optional: SA_Unique - Don't insert if element already exists (requires
+/// equality check)
 /// @return Index where the element was inserted, or -1 if SA_Unique prevented insertion
 ///
 /// For sorted arrays, the element is inserted at the correct position to maintain order.
@@ -481,7 +481,7 @@ _At_(handle->a, _Pre_maybenull_ _Post_notnull_) int32 _saPushPtr(_Inout_ sahandl
 /// @param handle Pointer to the array
 /// @param type Runtime type of the element
 /// @param elem Pointer to element to consume (will be destroyed/cleared)
-/// @param flags Optional: SA_Unique flag
+/// @param ... (flags) Optional: SA_Unique flag
 /// @return Index where the element was inserted, or -1 if SA_Unique prevented insertion
 ///
 /// Example:
@@ -554,7 +554,7 @@ _saFindChecked(_In_ sa_ref ref, stype elemtype, _In_ stgeneric elem, flags_t fla
 /// @param ref The array to search (passed by value)
 /// @param type Runtime type of the element
 /// @param elem Element value to search for
-/// @param flags Optional: SA_Inexact - For sorted arrays, return insertion point if not found
+/// @param ... (flags) Optional: SA_Inexact - For sorted arrays, return insertion point if not found
 /// @return Index of the found element, or -1 if not found.
 ///         If SA_Inexact is set on a sorted array, returns the index where the element
 ///         would be inserted even if not found (never returns -1)
@@ -592,7 +592,7 @@ _saFindRemoveChecked(_Inout_ sahandle handle, stype elemtype, _In_ stgeneric ele
 /// @param handle Pointer to the array
 /// @param type Runtime type of the element
 /// @param elem Element value to search for and remove
-/// @param flags Optional: SA_Fast - Use fast removal (swap with last element, disrupts order)
+/// @param ... (flags) Optional: SA_Fast - Use fast removal (swap with last element, disrupts order)
 ///              Not valid for sorted arrays
 /// @return true if the element was found and removed, false if not found or array is NULL
 ///
@@ -666,7 +666,7 @@ _saExtractChecked(_Inout_ sahandle handle, int32 idx, stype elemtype,
 /// @param idx Index of element to remove
 /// @param type Runtime type of the element, or 'none' to just destroy it
 /// @param elem_copy_out Pointer to receive a copy of the element, or NULL to destroy it
-/// @param flags Optional: SA_Fast - Swap with last element for O(1) removal (disrupts order)
+/// @param ... (flags) Optional: SA_Fast - Swap with last element for O(1) removal (disrupts order)
 ///              Not valid for sorted arrays
 /// @return true if the element was removed, false if array is NULL or index is invalid
 ///
@@ -692,7 +692,7 @@ _saExtractChecked(_Inout_ sahandle handle, int32 idx, stype elemtype,
 ///
 /// @param handle Pointer to the array
 /// @param idx Index of element to remove
-/// @param flags Optional: SA_Fast for O(1) removal by swapping with last element
+/// @param ... (flags) Optional: SA_Fast for O(1) removal by swapping with last element
 /// @return true if the element was removed, false if array is NULL or index is invalid
 ///
 /// Example:

@@ -332,7 +332,7 @@ void _htInit(_Outptr_ hashtable* out, stype keytype, _In_opt_ STypeOps* keyops, 
 /// @param keytype Runtime type for keys (e.g., string, int32, etc.)
 /// @param valtype Runtime type for values, or 'none' for a hash set
 /// @param initsz Initial capacity (will be rounded up, 0 for default)
-/// @param flags Optional combination of HT_* flags
+/// @param ... (flags) Optional combination of HT_* flags
 /// Example:
 /// @code
 ///   hashtable ht;
@@ -432,7 +432,7 @@ _meta_inline htelem _htInsertCheckedC(_Inout_ptr_ hashtable* htbl, stype keytype
 /// @param key Key value to insert
 /// @param vtype Type of the value (must match table type)
 /// @param val Value to insert or update
-/// @param flags Optional: HT_Ignore to skip if key exists
+/// @param ... (flags) Optional: HT_Ignore to skip if key exists
 /// @return Element handle (htelem) that can be used to access the key/value. Returns existing
 /// element if key already exists (unless HT_Ignore is set) Example:
 /// @code
@@ -458,7 +458,7 @@ _meta_inline htelem _htInsertCheckedC(_Inout_ptr_ hashtable* htbl, stype keytype
 /// @param key Key value to insert
 /// @param vtype Type of the value (must match table type)
 /// @param val Pointer to value to consume
-/// @param flags Optional flags
+/// @param ... (flags) Optional flags
 /// @return Element handle for the inserted entry
 /// Example:
 /// @code
@@ -499,7 +499,7 @@ htelem _htFindChecked(_In_ hashtable htbl, stype keytype, _In_ stgeneric key, st
 /// @param key Key to search for
 /// @param vtype Type of the value, or 'none' to skip copying the value
 /// @param val_copy_out Pointer to receive a copy of the value, or NULL
-/// @param flags Optional: HT_Borrow for borrowed reference on objects
+/// @param ... (flags) Optional: HT_Borrow for borrowed reference on objects
 /// @return Element handle (htelem) if found, or 0 if not found. The return value can be used
 /// directly in boolean context Example:
 /// @code

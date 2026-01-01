@@ -1,15 +1,21 @@
+/// @file xalloc.h
+/// @brief Extended memory allocation system
+///
+/// The xalloc system wraps mimalloc or the system allocator and provides enhanced
+/// functionality including alignment, optional allocations, and out-of-memory handling.
+
 #pragma once
 
 #include <cx/platform/cpp.h>
-#include <cx/utils/macros/salieri.h>
 #include <cx/utils/macros/optarg.h>
+#include <cx/utils/macros/salieri.h>
 #include <cx/utils/macros/unused.h>
 #include <stdbool.h>
 #include <stddef.h>
 
 #ifdef XALLOC_REMAP_MALLOC
- // these need to be pulled in first so our #defines don't cause chaos when they
- // are included
+// these need to be pulled in first so our #defines don't cause chaos when they
+// are included
 #include <stdlib.h>
 #include <string.h>
 
@@ -23,58 +29,123 @@
 // If this macro is defined, causes the xalloc system to use the
 // system-provided allocator rather than mimalloc. There may be some
 // loss of functionality and performance when this option is in use,
-// but it may be neeed on systems with very tightly constrainted limits
+// but it may be needed on systems with very tightly constrained limits
 // on virtual address space allocation.
 // #define XALLOC_USE_SYSTEM_MALLOC 1
 
 CX_C_BEGIN
 
+/// @defgroup xalloc XAlloc (Memory Management)
+/// @{
+///
+/// The xalloc system provides a unified memory allocation interface with enhanced capabilities:
+/// - Alignment control for cache-optimized data structures
+/// - Optional allocations that can fail gracefully
+/// - Zero-filled allocation without separate calloc
+/// - Out-of-memory callback system for memory pressure handling
+/// - Efficient resize operations
+/// - Size introspection and optimization
+///
+/// **IMPORTANT:** By default, xalloc **guarantees** memory allocation. If an allocation request
+/// cannot be satisfied (even after OOM handlers attempt to reclaim memory), the process will
+/// abort. You **must** explicitly specify XA_Opt or XA_Optional() for allocation requests that
+/// are allowed to fail and have proper failure handling.
+///
+/// @code
+///   // Basic allocation - guaranteed, will abort on failure
+///   MyStruct *data = xaAllocStruct(MyStruct);
+///
+///   // Zero-filled allocation - guaranteed
+///   uint8 *buffer = xaAlloc(1024, XA_Zero);
+///
+///   // Aligned allocation (64-byte boundary) - guaranteed
+///   void *aligned = xaAlloc(4096, XA_Align(6));
+///
+///   // Optional allocation that may fail - MUST check for NULL
+///   void *opt = xaAlloc(huge_size, XA_Opt);
+///   if (!opt) {
+///       // handle failure
+///   }
+///
+///   // Resize existing allocation
+///   xaResize(&buffer, new_size);
+///
+///   // Release with NULL assignment
+///   xaRelease(&data);
+/// @endcode
+
+/// @defgroup xalloc_flags Allocation Flags
+/// @ingroup xalloc
+/// @{
+///
+/// Flags that can be combined and passed to allocation functions to control behavior.
+
 #define XA_LG_ALIGN_MASK ((unsigned int)0x3f)
 
-// Align to a 2^exp byte boundary.
-// exp may be 1-63
-#define XA_Align(exp)   ((unsigned int)(exp & XA_LG_ALIGN_MASK))
-// Zero-fills returned memory
-#define XA_Zero         ((unsigned int)0x0040)
+/// Align to a 2^exp byte boundary.
+/// @param exp Alignment exponent (1-63)
+/// @return Alignment flag for use with allocation functions
+#define XA_Align(exp) ((unsigned int)(exp & XA_LG_ALIGN_MASK))
+
+/// Zero-fills returned memory
+#define XA_Zero ((unsigned int)0x0040)
 
 enum XA_OPTIONAL_FLAG_ENUM {
-    XA_Optional_High =  0x0100,
-    XA_Optional_Low  =  0x0200,
-    XA_Optional_None =  0x0400
+    XA_Optional_High = 0x0100,
+    XA_Optional_Low  = 0x0200,
+    XA_Optional_None = 0x0400
 };
 #define XA_Optional(typ) ((unsigned int)XA_Optional_##typ)
-#define XA_Optional_Mask (XA_Optional_High|XA_Optional_Low|XA_Optional_None)
+#define XA_Optional_Mask (XA_Optional_High | XA_Optional_Low | XA_Optional_None)
 
-// Allows the function to fail and return NULL rather than triggering an out-of-memory assertion.
-// Recommended but not required if using XA_Align.
-// May be invoked as XA_Optional(High|Low|None) to inform the allocator how hard it should try to find
-// memory if there is none available. The default if not specified is High.
-// High = Try somewhat hard, it would be nice to have this memory
-// Low = This memory isn't that important, don't try particularly hard
-// None = Don't try at all, simply fail if no memory is available
+/// Allows the function to fail and return NULL rather than triggering an out-of-memory assertion.
+/// Recommended but not required if using XA_Align.
+///
+/// May be invoked as XA_Optional(High|Low|None) to inform the allocator how hard it should try to
+/// find memory if there is none available. The default if not specified is High.
+/// - High = Try somewhat hard, it would be nice to have this memory
+/// - Low = This memory isn't that important, don't try particularly hard
+/// - None = Don't try at all, simply fail if no memory is available
 #define XA_Opt XA_Optional(High)
 
+/// @}
+// end of xalloc_flags group
+
+/// @defgroup xalloc_oom Out-of-Memory Handling
+/// @ingroup xalloc
+/// @{
+///
+/// System for registering callbacks to handle memory pressure situations.
+
+/// Phases of out-of-memory handling, indicating escalating urgency
 enum XA_OOM_PHASE_ENUM {
-    // In the low-effort phase, the OOM handler should try to free memory that is low-hanging fruit.
-    // It MUST NOT acquire any locks, even optimistically.
-    // This phase is best suited for freeing memory that is known garbage and is for certain not in
-    // use, such as a deferred-free scenario.
+    /// In the low-effort phase, the OOM handler should try to free memory that is low-hanging
+    /// fruit.
+    /// It MUST NOT acquire any locks, even optimistically.
+    /// This phase is best suited for freeing memory that is known garbage and is for certain not in
+    /// use, such as a deferred-free scenario.
     XA_LowEffort = 1,
 
-    // In the high-effort phase, the OOM handler may optimistically acquire locks in a non-blocking
-    // manner, but MUST NOT wait on a lock. This phase is suited for cleaning up cache memory or other
-    // nonessential resources.
+    /// In the high-effort phase, the OOM handler may optimistically acquire locks in a non-blocking
+    /// manner, but MUST NOT wait on a lock. This phase is suited for cleaning up cache memory or
+    /// other
+    /// nonessential resources.
     XA_HighEffort,
 
-    // In the urgent phase, the OOM handler should go to any lengths necessary to free memory, including
-    // waiting on locks, but be careful to avoid possible deadlocks. The urgent phase is only invoked as
-    // a last-ditch effort before asserting and crashing the program.
+    /// In the urgent phase, the OOM handler should go to any lengths necessary to free memory,
+    /// including
+    /// waiting on locks, but be careful to avoid possible deadlocks. The urgent phase is only
+    /// invoked as
+    /// a last-ditch effort before asserting and crashing the program.
     XA_Urgent,
 
-    // The fatal phase occurs only if a non-optional allocation has exhausted all options and is about
-    // to trigger an assertion. It can be used for a program to intervene and exit in some other manner,
-    // but be aware that it is quite likely there is little or no memory available and any allocations
-    // will fail.
+    /// The fatal phase occurs only if a non-optional allocation has exhausted all options and is
+    /// about
+    /// to trigger an assertion. It can be used for a program to intervene and exit in some other
+    /// manner,
+    /// but be aware that it is quite likely there is little or no memory available and any
+    /// allocations
+    /// will fail.
     XA_Fatal = -1
 };
 
@@ -87,77 +158,134 @@ enum XA_OOM_PHASE_ENUM {
 #define _xa_ptr_ptr_verify(ptr) unused_noeval((void*)(*(ptr)))
 #endif
 
-// In an out-of-memory situation, all registered OOM callbacks will be called.
-// Depending on the type of allocation, they may be called repeatedly with different phases -- see the
-// phase enum above for details on how to handle each phase.
-// It is guaranteed that only one thread will be inside an OOM callback at a time -- all other threads
-// must wait on the first thread to enter the callback to return.
-typedef void(*xaOOMCallback)(int phase, size_t allocsz);
+/// In an out-of-memory situation, all registered OOM callbacks will be called.
+/// Depending on the type of allocation, they may be called repeatedly with different phases -- see
+/// the phase enum above for details on how to handle each phase. It is guaranteed that only one
+/// thread will be inside an OOM callback at a time -- all other threads must wait on the first
+/// thread to enter the callback to return.
+/// @param phase One of the XA_OOM_PHASE_ENUM values indicating urgency level
+/// @param allocsz The size of the allocation that triggered the OOM condition
+typedef void (*xaOOMCallback)(int phase, size_t allocsz);
 
-// Install function to call in out-of-memory conditions
+/// Install function to call in out-of-memory conditions
+/// @param cb Callback function to register
 void xaAddOOMCallback(xaOOMCallback cb);
+
+/// Remove a previously installed OOM callback
+/// @param cb Callback function to unregister
 void xaRemoveOOMCallback(xaOOMCallback cb);
 
-// void *xaAlloc(size_t size, [flags])
-// Allocate memory of at least sz
-// Flags include XA_Align(pow), XA_Zero, XA_Optional(tier)
-// Returns: pointer to memory
+/// @}
+// end of xalloc_oom group
+
+/// @defgroup xalloc_core Core Allocation Functions
+/// @ingroup xalloc
+/// @{
+///
+/// Primary memory allocation and deallocation functions.
+
+/// void *xaAlloc(size_t size, [flags])
+///
+/// Allocate memory of at least size bytes.
+///
+/// Flags can be combined:
+/// - XA_Align(exp) - Align to 2^exp byte boundary
+/// - XA_Zero - Zero-fill the memory
+/// - XA_Optional(tier) or XA_Opt - Allow allocation to fail
+///
+/// @param size Number of bytes to allocate
+/// @param ... (flags) Optional allocation flags
+/// @return Pointer to allocated memory, or NULL if optional and out of memory
 #define xaAlloc(size, ...) _xaAlloc(size, opt_flags(__VA_ARGS__))
 
-// void *xaAllocStruct(typename, [flags])
-// Convenience function to allocate a struct-sized block of memory.
-// Flags include XA_Align(pow), XA_Zero, XA_Optional(tier)
-// Returns: pointer to memory
+/// typename *xaAllocStruct(typn, [flags])
+///
+/// Convenience macro to allocate a struct-sized block of memory.
+///
+/// Flags can be combined:
+/// - XA_Align(exp) - Align to 2^exp byte boundary
+/// - XA_Zero - Zero-fill the memory
+/// - XA_Optional(tier) or XA_Opt - Allow allocation to fail
+///
+/// @param typn Type name of the struct to allocate
+/// @param ... (flags) Optional allocation flags
+/// @return Pointer to allocated memory of the specified type
 #define xaAllocStruct(typn, ...) (typn*)_xaAlloc(sizeof(typn), opt_flags(__VA_ARGS__))
 
-_Check_return_
-_When_(flags & XA_Optional_Mask, _Must_inspect_result_ _Ret_maybenull_)
-_When_(!(flags & XA_Optional_Mask), _Ret_notnull_)
-_When_(!(flags & XA_Optional_Mask) && (flags & XA_Zero), _Ret_valid_)
-_Post_writable_byte_size_(size)
-void *_xaAlloc(size_t size, unsigned int flags);
+_Check_return_ _When_(flags & XA_Optional_Mask, _Must_inspect_result_ _Ret_maybenull_)
+    _When_(!(flags & XA_Optional_Mask), _Ret_notnull_)
+        _When_(!(flags & XA_Optional_Mask) && (flags & XA_Zero), _Ret_valid_)
+            _Post_writable_byte_size_(size) void* _xaAlloc(size_t size, unsigned int flags);
 
-// bool xaResize(void **ptr, size_t size, [flags])
-// Reallocate ptr to be at least sz bytes large, copying it if necessary.
-// If ptr points to NULL, allocates new memory.
-// Returns: True if successfully resized and ptr updated.
-// If XA_Opt is set, returns false on failure and ptr is unchanged.
-#define xaResize(ptr, size, ...) (_xa_ptr_ptr_verify(ptr), _xaResize((void**)(ptr), size, opt_flags(__VA_ARGS__)))
-_At_(*ptr, _Pre_maybenull_)
-_When_(!(flags & XA_Optional_Mask), _At_(*ptr, _Post_writable_byte_size_(size)))
-bool _xaResize(_Inout_ void **ptr, size_t size, unsigned int flags);
+/// bool xaResize(void **ptr, size_t size, [flags])
+///
+/// Reallocate ptr to be at least size bytes large, copying it if necessary.
+/// If ptr points to NULL, allocates new memory.
+///
+/// @param ptr Pointer to pointer to reallocate
+/// @param size New size in bytes
+/// @param ... (flags) Optional allocation flags (XA_Opt to allow failure)
+/// @return True if successfully resized and ptr updated, false on failure (if XA_Opt is set)
+#define xaResize(ptr, size, ...) \
+    (_xa_ptr_ptr_verify(ptr), _xaResize((void**)(ptr), size, opt_flags(__VA_ARGS__)))
+_At_(*ptr, _Pre_maybenull_) _When_(
+    !(flags &
+      XA_Optional_Mask), _At_(*ptr, _Post_writable_byte_size_(size)) ) bool _xaResize(_Inout_ void** ptr, size_t size, unsigned int flags);
 
-// Frees the memory at ptr
-// Does nothing if ptr is NULL
-void xaFree(_Pre_maybenull_ _Post_invalid_ void *ptr);
+/// Frees the memory at ptr.
+/// Does nothing if ptr is NULL.
+/// @param ptr Pointer to memory to free
+void xaFree(_Pre_maybenull_ _Post_invalid_ void* ptr);
 
-// bool xaRelease(void **ptr)
-// Frees the pointer with release semantics.
-// This frees *ptr (if it is non-NULL) and sets it to NULL.
+/// bool xaRelease(void **ptr)
+///
+/// Frees the pointer with release semantics.
+/// This frees *ptr (if it is non-NULL) and sets it to NULL.
+/// @param ptr Pointer to pointer to free and set to NULL
+/// @return Always returns true
 #define xaRelease(ptr) (_xa_ptr_ptr_verify(ptr), _xaRelease((void**)(ptr)))
-_At_(*ptr, _Pre_maybenull_ _Post_null_)
-bool _xaRelease(_Inout_ void **ptr);
+_At_(*ptr, _Pre_maybenull_ _Post_null_) bool _xaRelease(_Inout_ void** ptr);
 
-// Returns: size of memory at ptr
-// In normal (max performance mode), this will have a lower bound at the number of bytes that
-// were required by xaAlloc, but may be more. If more, it is safe to use the extra space
-// without reallocating.
-// In secure mode, this will always return the exact number of bytes that were requested by
-// the original allocation. The reason is that in secure mode, any slack space in the allocation
-// is filled with padding and used to check for buffer overruns.
-// See also xaOptSize(), which is useful for determining the optimal size to allocate in
-// secure mode to allow room for buffer growth.
-size_t xaSize(_In_ void *ptr);
+/// @}
+// end of xalloc_core group
 
-// Returns the optimal size to allocate to fit a given number of bytes. This returns the
-// underlying size class that fits the given number of bytes.
-// This is most useful when the allocator is in secure mode to determine how much bigger
-// a buffer can be allocated without moving to the next size class, since in that mode
-// the difference between the requested size and actual allocated size is NOT usable by
-// the caller due to secure padding.
+/// @defgroup xalloc_introspection Size Introspection
+/// @ingroup xalloc
+/// @{
+///
+/// Functions for querying allocation sizes and optimal size classes.
+
+/// Returns the size of memory at ptr.
+///
+/// In normal (max performance) mode, this will have a lower bound at the number of bytes that
+/// were required by xaAlloc, but may be more. If more, it is safe to use the extra space
+/// without reallocating.
+///
+/// In secure mode, this will always return the exact number of bytes that were requested by
+/// the original allocation. The reason is that in secure mode, any slack space in the allocation
+/// is filled with padding and used to check for buffer overruns.
+///
+/// @param ptr Pointer to allocated memory
+/// @return Size of the allocation in bytes
+/// @see xaOptSize()
+size_t xaSize(_In_ void* ptr);
+
+/// Returns the optimal size to allocate to fit a given number of bytes.
+///
+/// This returns the underlying size class that fits the given number of bytes.
+/// This is most useful when the allocator is in secure mode to determine how much bigger
+/// a buffer can be allocated without moving to the next size class, since in that mode
+/// the difference between the requested size and actual allocated size is NOT usable by
+/// the caller due to secure padding.
+///
+/// @param sz Requested size in bytes
+/// @return Optimal allocation size for the size class
 size_t xaOptSize(size_t sz);
 
-// Flushes any deferred free() operations and returns as much memory to the OS as possible
+/// @}
+// end of xalloc_introspection group
+
+//// Flushes any deferred free() operations and returns as much memory to the OS as possible
 void xaFlush();
 
 CX_C_END
@@ -167,14 +295,14 @@ CX_C_END
 #include <cx/xalloc/cstrutil.h>
 
 #ifdef XALLOC_REMAP_MALLOC
-#define malloc(sz) xa_malloc(sz)
-#define calloc(num, sz) xa_calloc(num, sz)
-#define free(ptr) xa_free(ptr)
+#define malloc(sz)       xa_malloc(sz)
+#define calloc(num, sz)  xa_calloc(num, sz)
+#define free(ptr)        xa_free(ptr)
 #define realloc(ptr, sz) xa_realloc(ptr, sz)
-#define strdup(s) cstrDup(s)
-#define _strdup(s) cstrDup(s)
-#define wcsdup(s) cstrDupw(s)
-#define _wcsdup(s) cstrDupw(s)
+#define strdup(s)        cstrDup(s)
+#define _strdup(s)       cstrDup(s)
+#define wcsdup(s)        cstrDupw(s)
+#define _wcsdup(s)       cstrDupw(s)
 
 #ifdef _WIN32
 #undef _malloc_dbg
@@ -192,13 +320,18 @@ CX_C_END
 #endif
 #endif
 
-// Normally the compatibility interface uses optional allocations to emulate
-// the behavior of malloc() returning NULL when out of memory. Some applications
-// may not wish to do that and would rather assert and/or install an XA_Fatal
-// handler.
-
-// These applications can define XALLOC_COMPAT_REQUIRE before including xalloc.h
-// to force the interface to use required allocations instead.
+/// @defgroup xalloc_compat Compatibility Interface
+/// @{
+///
+/// Standard C malloc/free compatible interface for use with third-party libraries.
+///
+/// Normally the compatibility interface uses optional allocations to emulate
+/// the behavior of malloc() returning NULL when out of memory. Some applications
+/// may not wish to do that and would rather assert and/or install an XA_Fatal
+/// handler.
+///
+/// These applications can define XALLOC_COMPAT_REQUIRE before including xalloc.h
+/// to force the interface to use required allocations instead.
 
 #ifdef XALLOC_COMPAT_REQUIRE
 #define XA_COMPAT_OPT_FLAG 0
@@ -207,27 +340,38 @@ CX_C_END
 #endif
 
 // for compatibility with 3rd party libraries only
-inline void *xa_malloc(size_t size)
+/// malloc-compatible allocation function
+inline void* xa_malloc(size_t size)
 {
     return _xaAlloc(size, XA_COMPAT_OPT_FLAG);
 }
 
-inline void *xa_calloc(size_t number, size_t size)
+/// calloc-compatible allocation function
+inline void* xa_calloc(size_t number, size_t size)
 {
     return _xaAlloc(number * size, XA_Zero | XA_COMPAT_OPT_FLAG);
 }
 
-inline void *xa_realloc(void *ptr, size_t size)
+/// realloc-compatible allocation function
+inline void* xa_realloc(void* ptr, size_t size)
 {
-    return _xaResize(&ptr, size, XA_COMPAT_OPT_FLAG) ? ptr : (void *)0;
+    return _xaResize(&ptr, size, XA_COMPAT_OPT_FLAG) ? ptr : (void*)0;
 }
 
-inline void xa_free(void *ptr)
+/// free-compatible deallocation function
+inline void xa_free(void* ptr)
 {
     xaFree(ptr);
 }
 
-inline char *xa_strdup(const char *src)
+/// strdup-compatible string duplication function
+inline char* xa_strdup(const char* src)
 {
     return cstrDup(src);
 }
+
+/// @}
+// end of xalloc_compat group
+
+/// @}
+// end of xalloc group

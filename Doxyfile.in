@@ -128,22 +128,7 @@ WARN_LOGFILE           =
 INPUT                  = README.md \
                          cx/include \
                          cx/stype/stype.h \
-                         cx/string \
-                         cx/container \
-                         cx/obj \
-                         cx/platform \
-                         cx/thread \
-                         cx/fs \
-                         cx/time \
-                         cx/digest \
-                         cx/format \
-                         cx/stype \
-                         cx/xalloc \
-                         cx/utils \
-                         cx/closure \
-                         cx/taskqueue \
-                         cx/log \
-                         cx/serialize \
+                         cx \
                          @DOXYGEN_BUILD_DIR@/cx
 INPUT_ENCODING         = UTF-8
 INPUT_FILE_ENCODING    = 
@@ -337,6 +322,18 @@ PREDEFINED             = __attribute__(x)= \
                          _Out_writes_bytes_to_(x,y)= \
                          _In_reads_bytes_(x)= \
                          _Deref_out_range_(x,y)= \
+                         _Ret_range_(x,y)= \
+                         _In_z_= \
+                         _Ret_z_= \
+                         _suidRetAnno= \
+                         _Acquires_nonreentrant_lock_(x)= \
+                         _Releases_nonreentrant_lock_(x)= \
+                         _Pre_valid_= \
+                         _Must_inspect_result_= \
+                         _Acquires_shared_lock_(x)= \
+                         _Releases_shared_lock_(x)= \
+                         _Acquires_exclusive_lock_(x)= \
+                         _Releases_exclusive_lock_(x)= \
                          stCheckedArg(type,val)=type val \
                          stvar(type,val)=type val
 EXPAND_AS_DEFINED      = 

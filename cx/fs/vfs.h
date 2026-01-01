@@ -84,7 +84,7 @@ bool _vfsMountProvider(_Inout_ VFS* vfs, _Inout_ ObjInst* provider, _In_opt_ str
 /// @param vfs VFS instance
 /// @param provider Provider instance (must implement VFSProvider interface)
 /// @param path Absolute path where provider should be mounted
-/// @param flags Optional combination of VFS mount flags
+/// @param ... (flags) Optional combination of VFS mount flags
 /// @return true if successfully mounted, false on error
 ///
 /// @see VFS_NewFiles, VFS_AlwaysCOW, VFS_Opaque flags
@@ -104,7 +104,7 @@ bool _vfsMountFS(_Inout_ VFS* vfs, _In_opt_ strref path, _In_opt_ strref fsroot,
 /// @param vfs VFS instance
 /// @param path VFS path where filesystem should be mounted (e.g., "/")
 /// @param fsroot OS filesystem path to mount (e.g., "c:/data")
-/// @param flags Optional combination of VFS mount flags
+/// @param ... (flags) Optional combination of VFS mount flags
 /// @return true if successfully mounted, false on error
 ///
 /// Example:
@@ -129,7 +129,7 @@ bool _vfsMountVFS(_Inout_ VFS* vfs, _In_opt_ strref path, _Inout_ VFS* vfs2,
 /// @param path Mount point in vfs
 /// @param vfs2 VFS to mount (source)
 /// @param vfs2root Root path within vfs2 to expose
-/// @param flags Optional combination of VFS mount flags
+/// @param ... (flags) Optional combination of VFS mount flags
 /// @return true if successfully mounted, false on error
 ///
 /// Example:
