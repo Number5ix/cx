@@ -22,7 +22,7 @@ _Ret_valid_ SSDNode* _ssdCreateRoot(int crtype, _In_opt_ SSDTree* tree, uint32 f
 /// Hashtable nodes store key-value pairs where keys are strings and values are stvars.
 /// This is the most common root type, analogous to a JSON object.
 ///
-/// @param flags Optional flags (SSD_CaseInsensitive for case-insensitive keys)
+/// @param ... (flags) Optional flags (SSD_CaseInsensitive for case-insensitive keys)
 /// @return A new SSDNode with a hashtable root (must be released with objRelease)
 ///
 /// Example:
@@ -39,7 +39,7 @@ _Ret_valid_ SSDNode* _ssdCreateRoot(int crtype, _In_opt_ SSDTree* tree, uint32 f
 ///
 /// Array nodes store indexed values accessible by integer indices, analogous to a JSON array.
 ///
-/// @param flags Optional flags for the tree
+/// @param ... (flags) Optional flags for the tree
 /// @return A new SSDNode with an array root (must be released with objRelease)
 ///
 /// Example:
@@ -57,7 +57,7 @@ _Ret_valid_ SSDNode* _ssdCreateRoot(int crtype, _In_opt_ SSDTree* tree, uint32 f
 /// Single-value nodes hold exactly one stvar value. Supported types include integers,
 /// floats, strings, booleans, and objects.
 ///
-/// @param flags Optional flags for the tree
+/// @param ... (flags) Optional flags for the tree
 /// @return A new SSDNode with a single-value root (must be released with objRelease)
 ///
 /// Example:
@@ -244,7 +244,7 @@ _Success_(return) bool _ssdCopyOut(_In_ SSDNode* root, _In_opt_ strref path, sty
                             _stCopyDest_Anno_(valtype) stgeneric* val,
                             _Inout_opt_ SSDLockState* lstate);
 
-/// bool ssdCopyOut(SSDNode *root, strref path, valtype, val)
+/// bool ssdCopyOut(SSDNode *root, strref path, vtype, val_copy_out)
 ///
 /// Retrieves a value from the tree and copies it to an arbitrary destination, with type conversion.
 ///
@@ -253,8 +253,8 @@ _Success_(return) bool _ssdCopyOut(_In_ SSDNode* root, _In_opt_ strref path, sty
 ///
 /// @param root The root node to search from
 /// @param path Path to the value
-/// @param valtype The expected/desired type for the output
-/// @param val Pointer to destination variable
+/// @param vtype The expected/desired type for the output
+/// @param val_copy_out Pointer to destination variable
 /// @return true if value was found and converted successfully
 ///
 /// Example:
@@ -274,14 +274,14 @@ _Success_(return) bool _ssdCopyOutD(_In_ SSDNode* root, _In_opt_ strref path, st
                              _stCopyDest_Anno_(valtype) stgeneric* val, stgeneric def,
                              _Inout_opt_ SSDLockState* lstate);
 
-/// bool ssdCopyOutD(SSDNode *root, strref path, valtype, val, def)
+/// bool ssdCopyOutD(SSDNode *root, strref path, vtype, val_copy_out, def)
 ///
 /// Variant of ssdCopyOut that provides a default value if conversion fails or path doesn't exist.
 ///
 /// @param root The root node to search from
 /// @param path Path to the value
-/// @param valtype The expected/desired type for the output
-/// @param val Pointer to destination variable
+/// @param vtype The expected/desired type for the output
+/// @param val_copy_out Pointer to destination variable
 /// @param def Default value to use on failure
 /// @return true if value was found and converted, false if default was used
 #define ssdCopyOutD(root, path, vtype, val_copy_out, def) \
@@ -714,4 +714,3 @@ bool _ssdGraft(_Inout_ SSDNode* dest, _In_opt_ strref destpath,
     _ssdGraft(dest, destpath, (SSDLockState*)_ssdCurrentLockState, src, srcpath, NULL)
 
 /// @}  // end of ssd_advanced
-/// @}  // end of ssd group

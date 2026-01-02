@@ -53,3 +53,4 @@
 /// Most operations automatically manage locks, but pointer-returning functions like
 /// ssdPtr() and ssdStrRef() require explicit lock management via ssdLockedTransaction()
 /// or manual locking with ssdLockRead()/ssdLockWrite().
+/// @}
