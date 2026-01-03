@@ -15,4 +15,9 @@
 /// @defgroup utils Utilities
 /// @{
 /// Miscellaneous utility functions, macros, and helpers
+/// @defgroup utils_macros Macros
+/// @ingroup utils
+/// @{
+/// Commonly-used utility macros
+/// @}
 /// @}
