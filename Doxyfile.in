@@ -194,8 +194,8 @@ HTML_COLORSTYLE_GAMMA  = 80
 HTML_DYNAMIC_MENUS     = YES
 HTML_DYNAMIC_SECTIONS  = YES
 HTML_CODE_FOLDING      = YES
-HTML_COPY_CLIPBOARD    = YES
-HTML_PROJECT_COOKIE    = 
+#HTML_COPY_CLIPBOARD    = YES
+#HTML_PROJECT_COOKIE    = 
 HTML_INDEX_NUM_ENTRIES = 100
 GENERATE_DOCSET        = NO
 GENERATE_HTMLHELP      = NO
@@ -317,8 +317,8 @@ PREDEFINED             = __attribute__(x)= \
                          _Out_writes_(x)= \
                          _Pre_maybenull_= \
                          _Post_null_= \
-                         _vfsStatAnno = \
-                         _Ret_opt_valid_ = \
+                         _vfsStatAnno= \
+                         _Ret_opt_valid_= \
                          _Out_writes_bytes_to_(x,y)= \
                          _In_reads_bytes_(x)= \
                          _Deref_out_range_(x,y)= \
@@ -336,8 +336,8 @@ PREDEFINED             = __attribute__(x)= \
                          _Releases_exclusive_lock_(x)= \
                          _Ret_notnull_= \
                          _In_opt_z_= \
-                         stCheckedArg(type,val)=type val \
-                         stvar(type,val)=type val
+                         stCheckedArg(x,y)=x y \
+                         stvar(x,y)=x y
 EXPAND_AS_DEFINED      = 
 SKIP_FUNCTION_MACROS   = YES
 

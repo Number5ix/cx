@@ -95,7 +95,6 @@ uint32 dbgCrashGetMode();
 
 /// Set crash dump output directory
 /// @param path Directory path where crash dumps should be written
-/// @return true on success, false on failure
 ///
 /// Specifies where crash dump files (.dmp) should be saved.
 /// If not set, uses platform-specific default location.
