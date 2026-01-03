@@ -28,7 +28,7 @@ jobs:
         run: cmake --build build --target cx_create_docs -- -j$(nproc)
 
       - name: Upload pages artifact
-        uses: actions/upload-pages-artifact@v1
+        uses: actions/upload-pages-artifact@v2
         with:
           path: docs/html
 
