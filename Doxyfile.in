@@ -335,6 +335,7 @@ PREDEFINED             = __attribute__(x)= \
                          _Acquires_exclusive_lock_(x)= \
                          _Releases_exclusive_lock_(x)= \
                          _Ret_notnull_= \
+                         _In_opt_z_= \
                          stCheckedArg(type,val)=type val \
                          stvar(type,val)=type val
 EXPAND_AS_DEFINED      = 
