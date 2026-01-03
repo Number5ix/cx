@@ -1,0 +1,43 @@
+name: Build and publish documentation
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y doxygen graphviz cmake build-essential
+
+      - name: Configure CMake
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Dev
+
+      - name: Build docs (Doxygen via CMake target)
+        run: cmake --build build --target cx_create_docs -- -j$(nproc)
+
+      - name: Upload pages artifact
+        uses: actions/upload-pages-artifact@v1
+        with:
+          path: docs/html
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure Pages
+        uses: actions/configure-pages@v3
+
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v1
