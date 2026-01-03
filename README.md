@@ -5,6 +5,9 @@ language. Its focus is on programmer convenience, compact code, and making tradi
 high-level constructs available with a minimum of effort. The design philosophy is to
 make these features available in a compact, unobtrusive way.
 
+## API Documentation
+For detailed API documentation, see <https://number5ix.github.io/cx/>
+
 ## Key features of cx:
 * Growing library of cross-platform interfaces to system dependent features such as timers,
   threading, locks, and atomics (even for compilers like MSVC that don't support C11 atomics).
@@ -28,7 +31,6 @@ make these features available in a compact, unobtrusive way.
 * WebAssembly + Emscripten
 
 ## Currently supported hardware architectures
-
 * x86-64
 * x86 (32 bit)
 * ARM64
