@@ -1,42 +1,76 @@
+/// @brief Abstract base class for task requirements
+///
+/// @defgroup taskrequires Task Requirements
+/// @ingroup taskqueue
+/// @{
+///
+/// TaskRequires is the abstract base for all types of requirements that a ComplexTask can
+/// depend on before execution. Requirements encompass:
+/// - Task dependencies (wait for other tasks to complete)
+/// - Resource acquisition (exclusive access to shared resources)
+/// - Gate conditions (wait for external events)
+///
+/// Requirements can have timeouts (expires field). When a requirement times out, it transitions
+/// to TASK_Requires_Fail_Permanent unless the task has TASK_Soft_Requires flag set.
+///
+/// **Concrete implementations:**
+/// - TaskRequiresTask - Depend on another task completing
+/// - TaskRequiresResource - Acquire exclusive resource access
+/// - TaskRequiresGate - Wait for a gate to open
+///
+/// @}
+
+// forward declare task
 class ComplexTask;
 
-// Abstract form of a requirement for a task to be executed. This encompasses task dependency
-// graphs as well as lock acquisition and serialized access.
+/// @addtogroup taskrequires
+/// @{
 
+/// Possible states of a requirement
 enum TaskRequiresStateEnum {
-    TASK_Requires_Wait = 0,       // The requirement is not currently satisfied, but may be sometime in the future
-    TASK_Requires_Ok,             // The requirement is satisfied for the moment, but it may change in the future
-    TASK_Requires_Ok_Permanent,   // The requirement is satisfied and will always be satisfied -- it may be removed
-    TASK_Requires_Fail_Permanent, // The requirement is not satisfied, and cannot ever be satisfied
-    TASK_Requires_Acquire,        // The requirement will be satisfied if and only if the tryAcquire method returns true
+    TASK_Requires_Wait = 0,       ///< Not satisfied yet, but may be in the future (task should wait)
+    TASK_Requires_Ok,             ///< Currently satisfied, but may change (check again later)
+    TASK_Requires_Ok_Permanent,   ///< Permanently satisfied, can be removed from checks
+    TASK_Requires_Fail_Permanent, ///< Cannot be satisfied, task should fail
+    TASK_Requires_Acquire,        ///< Will be satisfied only if tryAcquire() succeeds
 };
 
+/// Abstract base class for task requirements (dependencies, resources, gates).
 abstract class TaskRequires {
-    // Time after which this requires is considered timed out and expired, and will fail.
-    int64 expires;
+    int64 expires;  ///< Time after which requirement times out and fails (0 = no timeout)
 
-    // Calculate the current state of the requirement.
+    /// Calculate current state of the requirement.
+    /// @param task Task checking this requirement
+    /// @return State code (TASK_Requires_Wait, TASK_Requires_Ok, etc.)
     [abstract] uint32 state(ComplexTask *task);
 
-    // If possible, return the last progress timestamp associated with the requirement, or -1 if not applicable.
+    /// Get progress timestamp if applicable.
+    /// @return Last progress timestamp, or -1 if not applicable
     [abstract] int64 progress();
 
-    // For requirements that involve resource acquisition, attempts to acquire the exclusive resource on behalf
-    // of task. This should only be called if state() returns TASK_Requires_Acquire. If called, the caller MUST
-    // then call release() when the task is finished running.
-    // Implementions of this function must NOT block -- they should try to acquire a lock but return false
-    // if it cannot be acquired.
+    /// Try to acquire resource for requirements that need acquisition.
+    /// Only called if state() returns TASK_Requires_Acquire. MUST NOT block.
+    /// If successful, release() must be called when task finishes.
+    /// @param task Task acquiring the resource
+    /// @return true if resource was acquired
     [abstract] bool tryAcquire(ComplexTask *task);
 
-    // Releases the resource, MUST be paired with acquire and called with the same task used to acquire.
+    /// Release previously acquired resource.
+    /// Must be paired with tryAcquire() and use the same task.
+    /// @param task Task releasing the resource
+    /// @return true if resource was released
     [abstract] bool release(ComplexTask *task);
 
-    // The task is being cancelled and wishes to cascade the cancellation to any dependencies
+    /// Cascade cancellation to dependencies.
+    /// Called when task is cancelled and has TASK_Cancel_Cascade flag.
     [abstract] void cancel();
 
-    // Requests that the requirement notify the task when conditions change that may change the state of the
-    // requirement. The requirement must notify the task by advancing it out of the defer queue. This also registers
-    // the task with shared resources if needed. Such as registration is a one-shot and is consumed when the
-    // resource is acquired.
+    /// Register task for notification when requirement state changes.
+    /// The requirement should advance the task out of defer queue when state changes.
+    /// Also registers task with resources for one-shot acquisition.
+    /// @param task Task to notify
+    /// @return true if registration was successful
     [abstract] bool registerTask([in] ComplexTask *task);
 }
+
+/// @}

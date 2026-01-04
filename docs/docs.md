@@ -5,7 +5,7 @@ CX is a C utility framework focused on programmer convenience and cross-platform
 ## Core Features
 
 ### Strings
-String library with copy-on-write semantics and automatic rope conversion for very long strings. Provides comprehensive manipulation functions, searching, comparison operations, and UTF-8 encoding support.
+String library with copy-on-write semantics and automatic rope conversion for very long strings. Provides manipulation functions, searching, comparison operations, and UTF-8 encoding support.
 
 See @ref string
 

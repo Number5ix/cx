@@ -1,11 +1,29 @@
+/// @brief Task dependency requirement
+///
+/// @defgroup taskrequires_task Task Dependencies
+/// @ingroup taskrequires
+/// @{
+///
+/// TaskRequiresTask creates a dependency on another task completing.
+/// The dependent task will not run until the required task reaches a final state
+/// (TASK_Succeeded or TASK_Failed).
+///
+/// If failok is false, the dependent task will fail if the required task fails.
+/// If failok is true (soft dependency), the dependent task can run even if the
+/// required task fails (useful with TASK_Soft_Requires flag).
 #include "taskrequires.cxh"
 #include <cx/taskqueue/task/task.cxh>
 
-// Task Requires Task - a basic dependency on another task to successfully complete
-
+/// Dependency on another task completing.
 class TaskRequiresTask extends TaskRequires {
-    object:Task task;
-    bool failok;
+    object:Task task;  ///< Task that must complete
+    bool failok;       ///< If true, allow dependent task to run even if this task fails
 
+    /// Create a task dependency requirement.
+    /// @param deptask Task that must complete before dependent task can run
+    /// @param failok If true, allow dependent task to run even if deptask fails (soft dependency)
+    /// @return New TaskRequiresTask instance
     factory create([in] Task *deptask, bool failok);
 }
+
+/// @}

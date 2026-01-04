@@ -1,21 +1,57 @@
+/// @brief Bare minimum task object (base class)
+/// @defgroup basictask BasicTask
+/// @ingroup tq_task
+/// @{
+///
+/// BasicTask is the bare minimum for a task object. It provides only:
+/// - Atomic state tracking (created, waiting, running, succeeded, failed)
+/// - A run() method to implement task logic
+/// - A runCancelled() callback for cleanup when cancelled
+/// - Cancel and reset functionality
+///
+/// BasicTask does not support:
+/// - Task names or timing information (see Task)
+/// - Dependencies or scheduling (see ComplexTask)
+/// - Completion callbacks (see Task)
+///
+/// Derive from BasicTask when you need the absolute minimum overhead for simple
+/// tasks that just need to run on a worker thread with no dependencies.
 #include <cx/taskqueue/taskqueue_shared.h>
-// Bare minimum for a task object
 
 class TaskQueue;
 class TQWorker;
 struct TaskControl;
 
+/// Return values from BasicTask::run()
 enum BasicTaskRunResultEnum {
-    TASK_Result_Failure,
-    TASK_Result_Success,
+    TASK_Result_Failure,    ///< Task failed, will transition to TASK_Failed state
+    TASK_Result_Success,    ///< Task succeeded, will transition to TASK_Succeeded state
     TASK_Result_Basic_Count,
 };
 
+/// Bare minimum task object with state tracking and run method.
 [methodprefix btask] abstract class BasicTask {
-    atomic:uint32 state;
+    atomic:uint32 state;                ///< Current task state and flags
+    /// Abstract method that derived classes must implement to define task behavior.
+    ///
+    /// This method is called by the task queue system when the task is ready to execute.
+    /// Do not call this method directly. Derived classes must implement this to provide
+    /// the actual task logic.
+    /// @param tq Task queue this task is running on
+    /// @param worker Worker thread executing this task
+    /// @param tcon TaskControl structure for output parameters
+    /// @return TASK_Result_Success or TASK_Result_Failure
     [abstract] uint32 run([in] TaskQueue *tq, [in] TQWorker *worker, [inout] TaskControl *tcon);
+    /// Called when task is cancelled before it can run.
+    /// @param tq Task queue the task was on
+    /// @param worker Worker that picked up the cancelled task
     void runCancelled([in] TaskQueue *tq, [in] TQWorker *worker);
     unbound bool _setState(uint32 newstate);
+    /// Request cancellation of this task.
+    /// @return true if cancellation was set
     bool cancel();
+    /// Reset task to initial state so it can be run again.
+    /// @return true if reset was successful
     bool reset();
 }
+/// @}

@@ -1,81 +1,136 @@
+/// @brief Complex task with dependencies, scheduling, and resource management
+///
+/// @defgroup complextask ComplexTask
+/// @ingroup tq_task
+/// @{
+///
+/// ComplexTask extends Task with advanced features:
+/// - **Dependencies** - Wait for other tasks to complete before running
+/// - **Resource requirements** - Acquire exclusive access to shared resources (mutexes, FIFO queues, gates)
+/// - **Scheduling** - Run at specific times or after delays
+/// - **Deferment** - Hold tasks indefinitely until explicitly advanced
+/// - **Soft failures** - Continue running even if dependencies fail
+/// - **Cascading cancellation** - Optionally cancel dependencies when cancelled
+///
+/// ComplexTask can only run on a ComplexTaskQueue (the default queue type). The queue
+/// maintains separate lists for scheduled and deferred tasks, and manages resource acquisition.
 #include "task.cxh"
 #include <cx/thread/rwlock.h>
 #include <cx/taskqueue/requires/taskrequires.cxh>
 #include <cx/taskqueue/resource/taskresource.cxh>
 
+/// ctaskDependOn(ComplexTask *task, Task *dep)
+///
+/// Make task depend on another task completing successfully.
+/// If dep fails, task will fail without running.
 #define ctaskDependOn(task, dep) ctaskRequireTask(task, dep, false)
+
+/// ctaskWaitFor(ComplexTask *task, Task *dep)
+///
+/// Make task wait for another task to complete, but don't fail if dep fails.
 #define ctaskWaitFor(task, dep) ctaskRequireTask(task, dep, true)
+
+/// ctaskDependOnTimeout(ComplexTask *task, Task *dep, int64 timeout)
+///
+/// Make task depend on another task with a timeout.
 #define ctaskDependOnTimeout(task, dep, timeout) ctaskRequireTaskTimeout(task, dep, false, timeout)
+
+/// ctaskWaitForTimeout(ComplexTask *task, Task *dep, int64 timeout)
+///
+/// Make task wait for another task with a timeout.
 #define ctaskWaitForTimeout(task, dep, timeout) ctaskRequireTaskTimeout(task, dep, true, timeout)
 
 class TRGate;
 
+/// Return values from ComplexTask::run() extending BasicTaskRunResultEnum
 enum ComplexTaskRunResultEnum {
-    TASK_Result_Schedule = TASK_Result_Basic_Count,     // schedule the task to run after the time specified in the TaskControl structure
-    TASK_Result_Schedule_Progress,                      // schedule the task and mark it has having made progress
-    TASK_Result_Defer,                                  // defer the task until it is advanced
-    TASK_Result_Defer_Progress,                         // defer the task and mark it has having made progress
+    TASK_Result_Schedule = TASK_Result_Basic_Count,     ///< Reschedule task to run after delay specified in TaskControl.delay
+    TASK_Result_Schedule_Progress,                      ///< Same as Schedule, but marks progress (prevents stall warnings)
+    TASK_Result_Defer,                                  ///< Defer task until manually advanced
+    TASK_Result_Defer_Progress,                         ///< Same as Defer, but marks progress
     TASK_Result_Complex_Count
 };
 
+/// Flags controlling ComplexTask behavior
 enum ComplexTaskFlagsEnum {
-    // If the task is cancelled, cancel all tasks it is depending on as well
-    TASK_Cancel_Cascade = 0x01,
-
-    // Normally if a task is scheduled or deferred, it releases any required resources before going back into
-    // the defer list. However, if this flag is set, acquired resources will be retained for the entire lifetime
-    // of the task and only released when it reaches is final disposition (Succeeded or Failed).
-    TASK_Retain_Requires = 0x02,
-
-    // Normally a failed requirement will cause the task to immediately fail without running (though oncomplete
-    // will still be called). Setting this flag will cause the task to still be able to run even if one or more
-    // requirements fail. The TASK_Require_Failed flag will be set before running the task and can be examined
-    // to determine if any requirements failed.
-    TASK_Soft_Requires = 0x04,
-
-    // If a requirement expires because it hit the timeout, cancel it.
-    TASK_Cancel_Expired = 0x08,
-
-    // Indicates that one or more requirements failed. Only applies to tasks with TASK_Soft_Requires set. Set
-    // internally by the task queue. May be cleared by the task during its run phase.
-    TASK_Require_Failed = 0xa0,
+    TASK_Cancel_Cascade = 0x01,         ///< Cancel dependencies when this task is cancelled
+    TASK_Retain_Requires = 0x02,        ///< Keep acquired resources across schedule/defer cycles
+    TASK_Soft_Requires = 0x04,          ///< Allow task to run even if some dependencies fail
+    TASK_Cancel_Expired = 0x08,         ///< Cancel dependencies that exceed their timeout
+    TASK_Require_Failed = 0xa0,         ///< [Internal] Set when a soft requirement failed
 };
 
+/// Internal flags reserved for scheduler use
 enum ComplexTaskInternalFlagsEnum {
-    TASK_INTERNAL_Owns_Resources = 0x01,    // The task has acquired resources and needs to release them
+    TASK_INTERNAL_Owns_Resources = 0x01,    ///< The task has acquired resources and needs to release them
 };
 
 class ComplexTaskQueue;
 
+/// Complex task with dependencies, scheduling, and resource management.
 [methodprefix ctask] abstract class ComplexTask extends Task implements Sortable implements Hashable {
-    int64 nextrun;              // next time for this task to run when scheduled
-    int64 lastprogress;         // timestamp of last progress change
-    weak:ComplexTaskQueue lastq;   // The last queue this task ran on before it was deferred
-    [noinit] sarray:object:TaskRequires _requires; // list of requirements that must be satisfied
-    uint16 flags;               // flags to customize task behavior
-    uint16 _intflags;           // internal flags reserved for use by the scheduler
-    atomic:uint32 _advcount;    // number of times this task has been advanced
+    int64 nextrun;              ///< Next scheduled run time
+    int64 lastprogress;         ///< Timestamp of last progress change
+    weak:ComplexTaskQueue lastq;   ///< Last queue this task ran on before being deferred
+    [noinit] sarray:object:TaskRequires _requires; ///< List of requirements (dependencies, resources, gates)
+    uint16 flags;               ///< Task behavior flags (ComplexTaskFlagsEnum)
+    uint16 _intflags;           ///< Internal flags reserved for scheduler use
+    atomic:uint32 _advcount;    ///< Number of times task has been advanced
 
-    // Wrapper around require() to depend on a task completing
+    /// Add a task dependency.
+    /// @param dep Task to depend on
+    /// @param failok If true, don't fail if dep fails (soft dependency)
     unbound void requireTask([in] Task *dep, bool failok);
+    /// Add a task dependency with timeout.
+    /// @param dep Task to depend on
+    /// @param failok If true, don't fail if dep fails
+    /// @param timeout Maximum time to wait for dep
     unbound void requireTaskTimeout([in] Task *dep, bool failok, int64 timeout);
-    // Wrapper around require() to depend on acquiring a resource
+    /// Add a resource requirement.
+    /// @param res Resource to acquire exclusively
     unbound void requireResource([in] TaskResource *res);
+    /// Add a resource requirement with timeout.
+    /// @param res Resource to acquire
+    /// @param timeout Maximum time to wait for resource
     unbound void requireResourceTimeout([in] TaskResource *res, int64 timeout);
-    // Wrapper around require() to depend on a gate being opened
+    /// Add a gate requirement.
+    /// @param gate Gate that must be opened before task runs
     unbound void requireGate([in] TRGate *gate);
+    /// Add a gate requirement with timeout.
+    /// @param gate Gate to wait for
+    /// @param timeout Maximum time to wait for gate
     unbound void requireGateTimeout([in] TRGate *gate, int64 timeout);
-    // Add a requirement for the task to run
+    /// Add a generic requirement.
+    /// @param req Custom requirement object
     unbound void require([in] TaskRequires *req);
 
-    unbound bool advance();     // advance a deferred task to run as soon as possible
-    unbound uint32 checkRequires(bool updateProgress, [out] [opt] int64 *expires);   // check if this task can run because all requirements are satisfied
-    unbound void cancelRequires();   // cascade a task cancellation to any requirements
-    unbound bool acquireRequires(sa_TaskRequires *acquired);   // try to acquire required resources
-    unbound bool releaseRequires(sa_TaskRequires resources);   // release a list of acquired resources
-    standalone bool advanceCallback(stvlist *cvars, stvlist *args);   // callback to be used in a closure; cvars = weak reference to the task to advance
+    /// Advance a deferred task to run as soon as possible.
+    /// @return true if task was advanced
+    unbound bool advance();
+    /// Check if all requirements are satisfied.
+    /// @param updateProgress If true, update lastprogress timestamp
+    /// @param expires [out] Earliest expiration time of any requirement
+    /// @return Requirement state (TASK_Requires_Wait, TASK_Requires_Ok, etc.)
+    unbound uint32 checkRequires(bool updateProgress, [out] [opt] int64 *expires);
+    /// Cascade cancellation to dependencies if TASK_Cancel_Cascade is set.
+    unbound void cancelRequires();
+    /// Try to acquire required resources.
+    /// @param acquired [out] List of successfully acquired resources
+    /// @return true if all resources were acquired
+    unbound bool acquireRequires(sa_TaskRequires *acquired);
+    /// Release previously acquired resources.
+    /// @param resources List of resources to release
+    /// @return true if resources were released
+    unbound bool releaseRequires(sa_TaskRequires resources);
+    /// Callback for use in closures to advance task.
+    /// @param cvars Captured variables (weak reference to task)
+    /// @param args Closure arguments
+    /// @return true if task was advanced
+    standalone bool advanceCallback(stvlist *cvars, stvlist *args);
     override cancel;
 	override reset;
     override cmp;
     override hash;
 }
+
+/// @}

@@ -1,41 +1,72 @@
+/// @brief Gate-based event synchronization for tasks
+///
+/// @defgroup taskrequires_gate Task Gates
+/// @ingroup taskrequires
+/// @{
+///
+/// Gates provide a lightweight synchronization primitive for tasks waiting on one-time events.
+/// Similar to task dependencies, but more flexible and efficient when multiple tasks need to
+/// wait for the same external event.
+///
+/// **Gate states:**
+/// - **Closed** (initial) - Tasks depending on this gate will wait
+/// - **Open** - Gate has been opened, all waiting tasks are released, future tasks pass through
+/// - **Sealed** - Gate is permanently closed, any task depending on it will fail immediately
+///
+/// **Use cases:**
+/// - Waiting for initialization to complete before allowing tasks to proceed
+/// - Coordinating shutdown across multiple tasks
+/// - External event notification (network connection, file ready, etc.)
+///
+/// Gates track progress timestamps which prevent monitoring from reporting stuck tasks.
+/// Call progress() periodically while work is ongoing but the gate isn't ready to open.
 #include "taskrequires.cxh"
 
 #include <cx/thread/mutex.h>
 #include <cx/taskqueue/task/complextask.cxh>
 
-// Gates are a means for a task to wait on a particular event that happens once. They are
-// similar in principal to a number of tasks all depending on a particular task to finish,
-// but are a bit more lightweight and flexible.
-
-// A gate blocks all tasks that depend on it from running, until some external actor calls
-// the open() method, at which point they are released. Future tasks that depend on the
-// gate will not block.
-
-// A sealed gate is permanently closed and will automatically fail any task that depends
-// on it.
-
-// Gates can optionally track the last time they made progress. This is used for task queues
-// running a monitor; and will count as progress for the tasks depending on the gate, so they
-// are not considered stuck.
-
+/// One-time event gate for task synchronization.
 class TRGate {
-    string name;
-    atomic:uint32 state;
+    string name;          ///< Gate name for logging and debugging
+    atomic:uint32 state;  ///< Current gate state (closed/open/sealed)
 
+    /// Open the gate, releasing all waiting tasks.
+    /// Future tasks depending on this gate will not wait.
+    /// @return true if gate was opened (was previously closed)
     bool open();
+    
+    /// Seal the gate permanently.
+    /// Any task depending on a sealed gate will fail immediately.
+    /// @return true if gate was sealed
     bool seal();
+    
+    /// Update progress timestamp without opening gate.
+    /// Prevents monitoring from reporting tasks as stalled.
     void progress();
+    
+    /// Register a task to be advanced when gate opens.
+    /// @param task Task to register
+    /// @return true if registration was successful
     bool registerTask(ComplexTask *task);
 
     Mutex _wlmtx;
     sarray:object:ComplexTask _waitlist;
-    int64 lastprogress;
+    int64 lastprogress;  ///< Last time progress() was called
 
+    /// Create a new gate.
+    /// @param name Gate name for logging and debugging
+    /// @return New TRGate instance in closed state
     factory create(strref name);
 }
 
+/// Requirement that waits for a gate to open.
 class TaskRequiresGate extends TaskRequires {
-    object:TRGate gate;
+    object:TRGate gate;  ///< Gate to wait for
 
+    /// Create a gate requirement.
+    /// @param gate Gate that must be opened before task can run
+    /// @return New TaskRequiresGate instance
     factory create([in] TRGate *gate);
 }
+
+/// @}

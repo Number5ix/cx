@@ -285,7 +285,7 @@ size_t xaOptSize(size_t sz);
 /// @}
 // end of xalloc_introspection group
 
-//// Flushes any deferred free() operations and returns as much memory to the OS as possible
+/// Flushes any deferred free() operations and returns as much memory to the OS as possible
 void xaFlush();
 
 CX_C_END

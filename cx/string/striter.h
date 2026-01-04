@@ -389,7 +389,6 @@ _meta_inline bool striAdvance(_Inout_ striter* _Nonnull i, uint32 by)
 /// These functions operate on UTF-8 code points rather than raw bytes.
 /// They handle multi-byte sequences automatically.
 
-////
 /// Decodes the next UTF-8 sequence into a Unicode code point and advances
 /// the cursor past the entire sequence (1-4 bytes). Returns false if the
 /// end of string is reached or invalid UTF-8 is encountered.

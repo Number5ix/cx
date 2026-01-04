@@ -1,12 +1,27 @@
+/// @brief Resource acquisition requirement
+///
+/// @defgroup taskrequires_resource Resource Requirements
+/// @ingroup taskrequires
+/// @{
+///
+/// TaskRequiresResource ensures exclusive access to a shared resource before the task runs.
+/// The resource is acquired through the TaskResource interface, which provides different
+/// acquisition strategies (mutex, FIFO, LIFO).
+///
+/// Tracks ownership state to prevent re-acquiring an already owned resource.
+/// The resource is held for the duration of task execution and released when done.
 #include "taskrequires.cxh"
 #include <cx/taskqueue/resource/taskresource.cxh>
 
-// Task Requires Resource - For requiring exclusive access to a shared resource.
-// Does state tracking so it won't try to re-acquire a resource that is already owned.
-
+/// Requirement for exclusive access to a shared resource.
 class TaskRequiresResource extends TaskRequires {
-    bool owned;
-    object:TaskResource res;
+    bool owned;             ///< True if resource has been acquired by this requirement
+    object:TaskResource res; ///< Resource to acquire
 
+    /// Create a resource requirement.
+    /// @param res Resource to acquire exclusively before task runs
+    /// @return New TaskRequiresResource instance
     factory create([in] TaskResource *res);
 }
+
+/// @}

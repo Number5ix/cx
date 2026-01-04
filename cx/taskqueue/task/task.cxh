@@ -1,12 +1,33 @@
+/// @brief Task object with name, timing, and completion callbacks
+///
+/// @defgroup task Task
+/// @ingroup tq_task
+/// @{
+///
+/// Task extends BasicTask with additional features:
+/// - **Name** - String identifier for logging and monitoring
+/// - **Timing** - Tracks last time task was queued or run
+/// - **Completion callbacks** - Closure chain called when task completes (success or failure)
+/// - **Wait capability** - Can block waiting for task completion with timeout
+///
+/// This is the base class for most practical task implementations. Use Task instead of
+/// BasicTask when you need to track task identity, timing, or be notified of completion.
+///
+/// For tasks with dependencies, scheduling, or resource requirements, see ComplexTask.
 #include "basictask.cxh"
 #include <cx/closure.h>
 
+/// Task with name, timing information, and completion callbacks.
 [methodprefix ftask] abstract class Task extends BasicTask {
-    string name;                // task name to be shown in monitor output
-    int64 last;                 // the last time this task was moved between queues and/or run
-    cchain oncomplete;          // functions that are called when this task has completed
+    string name;                ///< Task name shown in monitor output
+    int64 last;                 ///< Last time this task was moved between queues and/or run
+    cchain oncomplete;          ///< Functions called when task completes (success or failure)
 
 	override reset;
+    /// Wait for this task to complete.
+    /// @param timeout Maximum time to wait, or 0 to wait indefinitely
+    /// @return true if task completed within timeout
     bool wait(int64 timeout);
 	init();
 }
+/// @}

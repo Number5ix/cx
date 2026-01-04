@@ -250,7 +250,7 @@ When documenting functions and macros in header files, follow these conventions 
 ### Comment Style
 - Use `///` for all documentation comments (Doxygen-compatible)
 - For macros: First line should be a synthetic prototype as if the macro were a C function (shows in IDE tooltips). Follow with an empty line comment for spacing.
-- For native C functions: Do NOT include a prototype line - the actual function signature is already visible
+- For native C functions: Do NOT include a synthetic prototype - the actual function signature is already visible
 
 ### Structure
 After the description, document parameters and return values:
@@ -278,6 +278,8 @@ For code examples, use Doxygen code blocks:
   - Always close groups with `@}` at the appropriate scope
   - **CRITICAL**: Be very careful with group scope - place `@{` immediately after the defgroup line and `@}` right after the last item that should be in the group to avoid accidentally including unrelated functions
   - Header files should typically define one main group for the module, with logical sub-groups for related functions/types
+  - Typically, each major feature will have a @defgroup in one of the main include files under `cx/include/cx/`, while individual header files will have their own @defgroup for the file contents
+  that is @ingroup the main module group.
 
 ### Organizing Documentation with Groups
 Use `@defgroup` to create hierarchical module documentation instead of flat `@page` entries:

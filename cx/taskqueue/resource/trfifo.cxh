@@ -1,30 +1,52 @@
+/// @brief FIFO-ordered task resource
+///
+/// @defgroup taskresource_fifo FIFO
+/// @ingroup taskresource
+/// @{
+///
+/// TRFifo provides strictly ordered FIFO (First In, First Out) serialization of task execution.
+/// Tasks are guaranteed to run in exactly the order they registered with the resource.
+///
+/// **Characteristics:**
+/// - Linked list implementation scales efficiently to many waiters
+/// - Strict FIFO ordering guaranteed
+/// - Only one task runs at a time (serialized)
+/// - No possibility for tasks to "cut in line"
+///
+/// **When to use:**
+/// - Need guaranteed execution order
+/// - Large number of waiting tasks
+/// - Processing queue-like workloads
+/// - Serializing access to order-dependent resources
+///
+/// **Example use case:**
+/// Serializing writes to a file or database where order matters.
+/// @}
 #include "taskresource.cxh"
 #include <cx/thread/mutex.h>
 
 class ComplexTask;
 
-// Strictly ordered FIFO
-
-// Tasks that require this resource are guaranteed to run serialized in the order that
-// they registered themselves to the resource. This is useful for ensuring ordered
-// access to a resource that cannot be accessed by multiple threads simultaneously.
-
-// Uses a linked list to track the waiting tasks so it can efficiently scale to a
-// large number of tasks.
-
+/// @addtogroup taskresource_fifo
+/// @{
+/// Linked list node for FIFO queue.
 struct TRFifoNode;
 
 typedef struct TRFifoNode {
-    TRFifoNode *next;
-    ComplexTask *task;
+    TRFifoNode *next;   ///< Next node in queue
+    ComplexTask *task;  ///< Task waiting in queue
 } TRFifoNode;
 
+/// Strictly ordered FIFO resource for serialized task execution.
 class TRFifo extends TaskResource {
-
     Mutex _fifomtx;
-    ComplexTask *cur;
-    TRFifoNode *head;
-    TRFifoNode *tail;
+    ComplexTask *cur;    ///< Currently running task
+    TRFifoNode *head;    ///< Head of wait queue
+    TRFifoNode *tail;    ///< Tail of wait queue
 
+    /// Create a new FIFO-ordered resource.
+    /// @return New TRFifo instance
     factory create();
 }
+
+/// @}

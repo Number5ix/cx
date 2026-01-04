@@ -1,19 +1,55 @@
-// Abstract base for a shared resource that a task can list as a requirement
+/// @brief Abstract base class for shared resources
+///
+/// @defgroup taskresource Task Resources
+/// @ingroup taskqueue
+/// @{
+///
+/// TaskResource is the abstract base for all shared resources that tasks can acquire
+/// for exclusive access. Resources enable serialized access patterns without blocking
+/// worker threads.
+///
+/// **Resource lifecycle:**
+/// 1. Task calls ctaskRequireResource() to add a resource requirement
+/// 2. Queue calls registerTask() to register the task with the resource
+/// 3. Queue calls canAcquire() to check if acquisition is possible
+/// 4. Queue calls tryAcquire() when resource might be available (MUST NOT block)
+/// 5. Task runs with exclusive resource access
+/// 6. Queue calls release() when task completes
+///
+/// **Concrete implementations:**
+/// - TRMutex - Simple mutex with approximate FIFO ordering
+/// - TRFifo - Strict FIFO ordering, efficient for many waiters
+/// - TRLifo - Stack ordering (most recent first)
+///
+/// Resources handle their own wakeup mechanisms, typically by advancing waiting tasks
+/// out of the defer queue when the resource becomes available.
 
+// Pre-declare the task
 class ComplexTask;
 
+/// Abstract base for shared resources with exclusive access.
 abstract class TaskResource {
-    // Registers a task with the shared resource. This enables the task to be advanced
-    // when the resource is available and reserves a slot for things like FIFO queues.
-    // This registration is consumed by a successful acquisition.
+    /// Register task with resource for later notification.
+    /// Reserves a slot in FIFO/LIFO queues. Registration is consumed by successful acquisition.
+    /// @param task Task to register
+    /// @return true if registration was successful
     [abstract] bool registerTask(ComplexTask *task);
 
-    // Is it even possible for the given task to try to acquire the resource right now?
+    /// Check if task can attempt to acquire the resource now.
+    /// @param task Task checking acquisition possibility
+    /// @return true if tryAcquire() should be called
     [abstract] bool canAcquire(ComplexTask *task);
 
-    // Try to acquire the resource. State tracking is up to the caller!
+    /// Try to acquire resource exclusively for task. MUST NOT block.
+    /// State tracking (owned flag) is maintained by caller (TaskRequiresResource).
+    /// @param task Task acquiring resource
+    /// @return true if resource was acquired
     [abstract] bool tryAcquire(ComplexTask *task);
 
-    // Release the resource. State tracking is up to the caller!
+    /// Release resource previously acquired by task.
+    /// State tracking is maintained by caller.
+    /// @param task Task releasing resource
     [abstract] void release(ComplexTask *task);
 }
+
+/// @}

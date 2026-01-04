@@ -1,27 +1,48 @@
+/// @brief Mutex-based task resource
+///
+/// @defgroup taskresource_mutex Mutex
+/// @ingroup taskresource
+/// @{
+///
+/// TRMutex provides mutex-based serialization of task execution. Tasks requiring this resource
+/// will run one at a time, with approximate FIFO ordering.
+///
+/// **Characteristics:**
+/// - Simple hashtable-based wait list
+/// - Approximate FIFO ordering (not strictly guaranteed)
+/// - Good for moderate numbers of waiting tasks
+/// - Can be locked by non-task code (call wakeup() after releasing)
+///
+/// **When to use:**
+/// - Moderate contention levels (dozens of tasks)
+/// - Ordering is helpful but not critical
+/// - Simple exclusive access pattern
+///
+/// **Alternatives:**
+/// - Use TRFifo for strict FIFO ordering or large numbers of waiters
+/// - Use TRLifo for stack ordering (most recent first)
+/// @}
 #include "taskresource.cxh"
 #include <cx/thread/mutex.h>
 
 class ComplexTask;
 
-// Simple resource that locks a mutex.
-
-// Keeps a simple list of tasks waiting on the lock and releases them in rough FIFO order.
-// Does not guarantee that the tasks execute in FIFO order; in some circumstances a task
-// that has been woken up by something else may cut in line.
-
-// Not suitable for an extremely large number of waiting tasks. For efficient support of a
-// very large number of tasks or for strict FIFO ordering, see TRFifo instead.
-
-// Non-tasks may lock the mutex as well, which will prevent any tasks from running while it
-// is locked. If locking the mutex from outside the class, be sure to call wakeup after
-// releasing it!
-
+/// @addtogroup taskresource_mutex
+/// @{
+/// Simple mutex-based resource with approximate FIFO ordering.
 class TRMutex extends TaskResource {
-    Mutex mtx;
-    void wakeup();   // releases a task from the wait list
+    Mutex mtx;  ///< The actual mutex providing exclusive access
+    
+    /// Manually release a task from wait list.
+    /// Call this after releasing mtx if locked from non-task code.
+    void wakeup();
 
     Mutex _wlmtx;
-    hashtable:object:none _waitlist;
+    hashtable:object:none _waitlist;  ///< Tasks waiting for this resource
 
+    /// Create a new mutex-based resource.
+    /// @return New TRMutex instance
     factory create();
 }
+
+/// @}

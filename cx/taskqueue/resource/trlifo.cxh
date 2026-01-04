@@ -1,16 +1,43 @@
+/// @brief LIFO-ordered task resource
+///
+/// @defgroup taskresource_lifo LIFO
+/// @ingroup taskresource
+/// @{
+///
+/// TRLifo provides strictly ordered LIFO (Last In, First Out) serialization of task execution.
+/// Tasks are guaranteed to run in reverse order of registration, with the most recent task
+/// running first (stack ordering).
+///
+/// **Characteristics:**
+/// - Stack (LIFO) ordering
+/// - Most recently registered task runs first
+/// - Only one task runs at a time (serialized)
+/// - Efficient for moderate numbers of waiting tasks
+///
+/// **When to use:**
+/// - Need stack-like processing order
+/// - Recent work should be prioritized over older work
+/// - Implementing cancellation hierarchies
+/// - Depth-first processing patterns
+///
+/// **Example use case:**
+/// Resource cleanup where most recent allocations should be freed first.
+/// @}
 #include "taskresource.cxh"
 #include <cx/thread/mutex.h>
 #include <cx/taskqueue/task/complextask.cxh>
 
-// Strictly ordered LIFO
-
-// Tasks that require this resource are guaranteed to run serialized in the reverse order
-// that they registered themselves to the resource, with the most recent task running first.
-
+/// @addtogroup taskresource_lifo
+/// @{
+/// Strictly ordered LIFO resource for stack-like task execution.
 class TRLifo extends TaskResource {
     Mutex _lifomtx;
-    ComplexTask *cur;
-    sarray:object:ComplexTask _lifo;
+    ComplexTask *cur;                      ///< Currently running task
+    sarray:object:ComplexTask _lifo;       ///< Stack of waiting tasks
 
+    /// Create a new LIFO-ordered resource.
+    /// @return New TRLifo instance
     factory create();
 }
+
+/// @}
