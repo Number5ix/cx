@@ -1,22 +1,96 @@
 #pragma once
 
+/// @file ptry.h
+/// @brief Exception handling (advanced feature with semantic differences)
+
+/// @defgroup meta_ptry Exception Handling
+/// @ingroup meta
+/// @{
+///
+/// **Advanced Feature:** Exception handling with try/catch/finally semantics.
+///
+/// Provides exception handling built on protected blocks, allowing errors to propagate up the
+/// call stack with automatic cleanup. However, this system has important semantic differences
+/// from exception handling in languages like C++ or Java.
+///
+/// **Performance Warning:**
+///
+/// Exception handling inherits all the performance costs of protected blocks:
+/// - Significant overhead from setjmp/longjmp on every ptTry
+/// - Inhibits compiler optimizations throughout protected regions
+/// - Substantial stack space consumption
+/// - Not suitable for performance-critical or frequently-called code
+///
+/// **Critical Semantic Differences:**
+///
+/// 1. **ptCatch blocks ALWAYS execute**, even when no exception occurs:
+///    - Check `ptCode` to determine if an exception actually happened
+///    - `ptCode == 0` means no exception
+///
+/// 2. **No automatic exception filtering**:
+///    - ptCatch catches ALL exceptions
+///    - Must manually check `ptCode` and use `ptRethrow` for selective handling
+///
+/// 3. **Exception messages MUST be static string literals**:
+///    - Cannot use stack-allocated or heap-allocated strings
+///    - Messages are stored by pointer, not copied
+///
+/// 4. **Cannot mix pblocks and exceptions**:
+///    - Once using ptTry/ptCatch, must use them consistently
+///    - PBLOCK_AFTER labels are skipped during exception processing
+///    - Using ptThrow inside a non-ptTry pblock causes incorrect flow
+///
+/// **When to Use:**
+/// - Complex error propagation across multiple function boundaries
+/// - When error codes are insufficient for your use case
+/// - Non-performance-critical subsystems with complex cleanup needs
+///
+/// **When NOT to Use:**
+/// - Performance-critical paths
+/// - Simple error handling (use return codes instead)
+/// - Hot loops or frequently-called functions
+/// - Most application code (error codes are simpler and faster)
+///
+/// Example:
+/// @code
+///   ptTry {
+///       resource1 = acquire1();
+///       if (!resource1) ptThrow(ERR_RESOURCE, "Failed to acquire resource1");
+///       
+///       resource2 = acquire2();
+///       if (!resource2) ptThrow(ERR_RESOURCE, "Failed to acquire resource2");
+///       
+///       processData();
+///   }
+///   ptCatch {
+///       // ALWAYS runs, even without exception
+///       if (ptCode) {
+///           // Exception occurred
+///           logError("Exception %d: %s", ptCode, ptMsg);
+///           
+///           // Selective handling
+///           if (ptCode == ERR_FATAL) {
+///               ptRethrow;  // Let caller handle fatal errors
+///           }
+///       }
+///       // Cleanup
+///       if (resource2) release2(resource2);
+///       if (resource1) release1(resource1);
+///   }
+/// @endcode
+
 #include <cx/meta/pblock.h>
 
-// Builds on pblock to implement try/catch/finally blocks.
-// Note that this implementation has important semantic differences between some other languages and their
-// meaning of catch and finally, see the documentation below for details!
-
-// IMPORTANT NOTE: Though this is built on pblocks, you CANNOT mix and match pblocks and exceptions in the
-// same call graph. If exceptions are in use, only ptTry/ptCatch/ptFinally should be used. In particular,
-// PBLOCK_AFTER labels will be skipped over while exceptions are being processed, and ptThrow inside of a
-// non-ptTry pblock will cause improper execution flow.
-
+/// Exception information structure.
+///
+/// Contains details about an exception that is being thrown or is currently active.
+/// This is stored in thread-local storage during exception processing.
 typedef struct ExceptionInfo {
-    int code;                   // exception code, can be an application-specific constant
-    const char *msg;            // exception message, MUST be a static constant, not something on the stack
+    int code;                   ///< Application-specific exception code
+    const char *msg;            ///< Exception message - MUST be a static string literal
 #if DEBUG_LEVEL >= 1
-    const char *file;           // filename
-    int ln;                     // line number
+    const char *file;           ///< Source filename where exception was thrown
+    int ln;                     ///< Line number where exception was thrown
 #endif
 } ExceptionInfo;
 
@@ -24,6 +98,10 @@ extern _Thread_local _pblock_jmp_buf_node *_ptry_top;           // stack of jump
 extern _Thread_local ExceptionInfo _ptry_exc;                   // currently active exception
 extern ExceptionInfo _ptry_exc_empty;
 
+/// Handler function for uncaught exceptions.
+///
+/// @param einfo Information about the uncaught exception
+/// @return 0 to abort the program, 1 to resume execution after the exception point
 typedef int (*ptUnhandledHandler)(ExceptionInfo *einfo);
 
 // GCC falsely warns that _ptry_top is a dangling pointer, even though we're very careful to clean
@@ -36,15 +114,31 @@ typedef int (*ptUnhandledHandler)(ExceptionInfo *einfo);
 #define ptReenableWarnings
 #endif
 
-// Registers a handler-of-last-resort for any uncaught exceptions.
-// This handler may return 0 to abort (crash) the program, or it may return 1 to resume execution as if the
-// exception had been caught. Execution will resume after the outermost ptFinally block, or, in the event
-// that there are no try blocks at all, immediately after the exception is thrown.
-//
-// If multiple handlers are registered, they must ALL return 1 in order for execution to resume.
+/// Registers a handler for uncaught exceptions.
+///
+/// The handler is called when an exception is thrown with no matching ptCatch block up the
+/// call stack. This is a last-resort mechanism for error reporting or recovery.
+///
+/// @param handler Callback function that receives the exception information.
+///                Return 0 to abort the program, or 1 to resume execution.
+///
+/// If multiple handlers are registered, they must ALL return 1 for execution to resume.
+/// Execution resumes after the outermost ptFinally block, or immediately after the throw
+/// if no ptTry blocks exist.
+///
+/// Example:
+/// @code
+///   int myHandler(ExceptionInfo *einfo) {
+///       fprintf(stderr, "Uncaught exception %d: %s\n", einfo->code, einfo->msg);
+///       return 0;  // Abort
+///   }
+///   ptRegisterUnhandled(myHandler);
+/// @endcode
 void ptRegisterUnhandled(ptUnhandledHandler handler);
 
-// Unregisters a previously registered handler for uncaught exceptions.
+/// Unregisters a previously registered handler for uncaught exceptions.
+///
+/// @param handler The handler function to remove
 void ptUnregisterUnhandled(ptUnhandledHandler handler);
 
 void _ptry_handle_unhandled(ExceptionInfo *einfo);
@@ -106,34 +200,110 @@ _meta_inline void _ptry_throw(int code, const char *msg)
     _ptry_clear();
 }
 
-// ptThrow(int code, const char *msg)
-// Throws an exception to be caught by a ptCatch block somewhere up the stack.
-// There are two parts to an exception, the numeric code, which is an application-specific constant, and a message.
-// The message MUST be a static string literal and can NOT be heap or stack allocated.
+/// ptThrow(code, msg)
+///
+/// Throws an exception to be caught by a ptCatch or ptFinally block up the call stack.
+///
+/// An exception consists of a numeric code (application-defined) and a message. Control
+/// transfers immediately to the nearest ptCatch/ptFinally block, unwinding the stack and
+/// executing any cleanup code along the way.
+///
+/// @param code Application-specific numeric exception code (integer constant)
+/// @param msg Exception message - **MUST be a static string literal**
+///
+/// **Critical Requirements:**
+/// - The message MUST be a string literal: `ptThrow(ERR_IO, "File not found")`
+/// - Do NOT use stack variables: `ptThrow(ERR_IO, buffer)` is WRONG
+/// - Do NOT use heap strings: `ptThrow(ERR_IO, strdup(msg))` is WRONG
+/// - The message is stored by pointer, not copied
+///
+/// Example:
+/// @code
+///   #define ERR_IO 100
+///   #define ERR_MEMORY 101
+///   
+///   FILE *f = fopen("data.txt", "r");
+///   if (!f) ptThrow(ERR_IO, "Failed to open data.txt");  // OK - string literal
+///   
+///   void *mem = malloc(size);
+///   if (!mem) ptThrow(ERR_MEMORY, "Out of memory");  // OK - string literal
+/// @endcode
+///
+/// @note In debug builds, file and line number are automatically captured
+/// @see ptCatch, ptFinally, ptRethrow
 #if DEBUG_LEVEL >= 1
 #define ptThrow(code, msg) _ptry_throw(code, msg, __FILE__, __LINE__)
 #else
 #define ptThrow(code, msg) _ptry_throw(code, msg)
 #endif
 
-// ptRethrow
-// For use inside of a ptCatch block, ptRethrow is used to re-throw the active exception to a handler further
-// up the call graph. This is most commonly used when filtering specific exceptions by code to be handled
-// locally.
+/// ptRethrow
+///
+/// Re-throws the currently active exception to a handler further up the call stack.
+///
+/// Used inside a ptCatch block to propagate an exception after performing local cleanup
+/// or logging. This is the mechanism for selective exception handling - catch specific
+/// exception codes locally and rethrow others.
+///
+/// Example:
+/// @code
+///   ptTry {
+///       doWork();
+///   }
+///   ptCatch {
+///       if (ptCode) {
+///           logError("Exception %d: %s", ptCode, ptMsg);
+///           
+///           // Handle I/O errors locally
+///           if (ptCode == ERR_IO) {
+///               useDefaultData();
+///           } else {
+///               // Let caller handle other errors
+///               ptRethrow;
+///           }
+///       }
+///   }
+/// @endcode
+///
+/// @note Only valid inside a ptCatch block while ptCode is non-zero
+/// @see ptThrow, ptCatch, ptCode
 #if DEBUG_LEVEL >= 1
 #define ptRethrow _ptry_throw(_ptry_exc.code, _ptry_exc.msg, _ptry_exc.file, _ptry_exc.ln)
 #else
 #define ptRethrow _ptry_throw(_ptry_exc.code, _ptry_exc.msg)
 #endif
 
-// ptTry { }
-// If an exception occurs inside of a ptTry block, execution is transferred to the immediately following ptCatch
-// or ptFinally block. Only one may be used, and one or the other is REQUIRED. The difference between the two
-// is that ptFinally results in the exception propagating up to the caller's ptCatch/ptFinally, while ptCatch
-// stops the exception locally and continues execution normally, unless ptRethrow is used.
-//
-// If the exception is not caught, the unhandled exception handler is invoked. The default handler terminates the
-// program with an error.
+/// ptTry { }
+///
+/// Begins a try block for exception handling.
+///
+/// If an exception occurs inside the ptTry block, execution transfers to the immediately
+/// following ptCatch or ptFinally block. One or the other is **REQUIRED** - a ptTry
+/// without a matching ptCatch or ptFinally is a compile error.
+///
+/// **Key Differences from C++/Java:**
+/// - Must be immediately followed by ptCatch or ptFinally (no multiple catch blocks)
+/// - No automatic exception type filtering
+/// - `return` is not allowed within the try block
+///
+/// If an exception is not caught anywhere in the call stack, the unhandled exception
+/// handler is invoked (default: terminates the program with an error).
+///
+/// Example:
+/// @code
+///   ptTry {
+///       resource = acquire();
+///       if (!resource) ptThrow(ERR_RESOURCE, "Acquisition failed");
+///       useResource(resource);
+///   }
+///   ptFinally {
+///       if (resource) release(resource);
+///   }
+/// @endcode
+///
+/// @note Inherits all performance costs of protected blocks
+/// @warning Cannot mix with plain pblocks in the same call graph
+/// @see ptCatch, ptFinally, ptThrow
 #define ptTry                                                                                       \
     pblock                                                                                          \
     /* phase 0 is the try, phase 1 is the catch/finally */                                          \
@@ -159,36 +329,128 @@ _meta_inline void _ptry_throw(int code, const char *msg)
     /* unwind the handler stack to one level above where we currently are */                        \
     _blkBefore(_ptry_pop_until(_pblock_unwind_top))
 
-// ptFinally {}
-// The ptFinally block must immediately follow a ptTry. It is executed after the ptTry block either
-// completes, or an exception occurs. In the case of an exception, after the ptFinally block is
-// finished, exception handling continues up to the caller's ptFinally/ptCatch if one exists.
-//
-// ptFinally should be used to guarantee that cleanup is performed before the current stack frame
-// unwinds in the case of an exception.
+/// ptFinally { }
+///
+/// Cleanup block that executes after a ptTry, whether an exception occurred or not.
+///
+/// The ptFinally block **MUST immediately follow** a ptTry block. It executes after the
+/// ptTry completes or an exception occurs. If an exception occurred, it is automatically
+/// re-thrown after the ptFinally block completes, propagating to the caller's handler.
+///
+/// **Use ptFinally when:**
+/// - You need guaranteed cleanup but don't want to handle the exception
+/// - The exception should propagate to the caller after cleanup
+///
+/// Example:
+/// @code
+///   ptTry {
+///       file = fopen("data.txt", "r");
+///       if (!file) ptThrow(ERR_IO, "Cannot open file");
+///       processFile(file);
+///   }
+///   ptFinally {
+///       // Always runs, exception continues propagating upward
+///       if (file) fclose(file);
+///   }
+/// @endcode
+///
+/// @note If an exception occurred, it is implicitly re-thrown after this block
+/// @see ptTry, ptCatch, ptCode, ptMsg
 #define ptFinally                                                                                   \
     _ptry_after_block                                                                               \
     /* finally blocks end in an implicit rethrow if there is an active exception */                 \
     _blkAfter(_ptry_exc.code ? ptRethrow : nop_stmt)
 
-// ptCatch {}
-// A ptCatch block can immediately follow a ptTry. It is similar to ptFinally in that it allows a
-// block of code to always be guaranteed to run after the ptTry is exited, but ptCatch stops further
-// exception processing.
-//
-// There are a few key differences between ptCatch and try/catch in languages like C++.
-//
-// 1. ptCatch blocks are ALWAYS entered, just like ptFinally blocks. They are executed even if no
-//    exception occurred. In this case, ptCode will be 0.
-// 2. There is no built-in exception filtering. ptCatch will catch ALL exceptions. It is up to the
-//    user to check ptCode for a specific code they're interested in, and use ptRethrow to rethrow
-//    it if it's one that should be handled at a higher level.
+/// ptCatch { }
+///
+/// Exception handler block that ALWAYS executes and stops exception propagation.
+///
+/// The ptCatch block **MUST immediately follow** a ptTry block. It is similar to ptFinally
+/// but with a critical difference: ptCatch stops exception propagation by default.
+///
+/// **Critical Semantic Differences from C++/Java:**
+///
+/// 1. **ptCatch ALWAYS executes**, even when no exception occurred:
+///    - Check `ptCode` to determine if an exception happened
+///    - `ptCode == 0` means normal execution (no exception)
+///    - `ptCode != 0` means an exception occurred
+///
+/// 2. **No automatic filtering** - catches ALL exceptions:
+///    - Must manually check `ptCode` to filter exception types
+///    - Use `ptRethrow` to propagate exceptions you don't handle
+///
+/// 3. **Stops exception propagation by default**:
+///    - Exception processing ends after this block unless you `ptRethrow`
+///    - Use ptFinally if you want automatic propagation
+///
+/// Example:
+/// @code
+///   ptTry {
+///       doWork();
+///   }
+///   ptCatch {
+///       // ALWAYS runs, check ptCode to see if exception occurred
+///       if (ptCode) {
+///           printf("Exception %d: %s\n", ptCode, ptMsg);
+///           
+///           // Selective handling
+///           if (ptCode == ERR_FATAL) {
+///               ptRethrow;  // Let caller handle
+///           }
+///           // Other errors handled locally
+///       }
+///       // Cleanup runs whether exception occurred or not
+///       cleanup();
+///   }
+/// @endcode
+///
+/// @note Exception is cleared after this block - use ptRethrow to propagate
+/// @see ptTry, ptFinally, ptCode, ptMsg, ptRethrow
 #define ptCatch                                                                                     \
     _ptry_after_block                                                                               \
     _blkAfter(_ptry_clear())
 
-// ptCode resolves to the code of the exception that is currently being processed, or 0 if there is none
+/// ptCode
+///
+/// The exception code of the currently active exception, or 0 if there is none.
+///
+/// Use inside ptCatch or ptFinally blocks to check if an exception occurred and to
+/// determine the exception type.
+///
+/// Example:
+/// @code
+///   ptCatch {
+///       if (ptCode == 0) {
+///           // No exception - normal execution
+///       } else if (ptCode == ERR_IO) {
+///           // Handle I/O errors
+///       } else {
+///           // Handle other errors
+///       }
+///   }
+/// @endcode
+///
+/// @see ptMsg, ptCatch, ptFinally
 #define ptCode _ptry_exc.code
 
-// ptMsg resolves to the message of the exception that is currently being processed, or NULL if there is none
+/// ptMsg
+///
+/// The exception message of the currently active exception, or NULL if there is none.
+///
+/// Points to the static string literal passed to ptThrow(). Use inside ptCatch or
+/// ptFinally blocks to access the error message.
+///
+/// Example:
+/// @code
+///   ptCatch {
+///       if (ptCode) {
+///           fprintf(stderr, "Error %d: %s\n", ptCode, ptMsg);
+///       }
+///   }
+/// @endcode
+///
+/// @warning This is a pointer to the original string literal, not a copy
+/// @see ptCode, ptCatch, ptFinally
 #define ptMsg _ptry_exc.msg
+
+/// @}  // end of meta_ptry group
