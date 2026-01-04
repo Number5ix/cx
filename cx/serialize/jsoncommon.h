@@ -7,7 +7,7 @@
 ///
 /// JSON parsing and serialization built on stream buffers.
 ///
-/// The JSON module provides comprehensive support for parsing and generating
+/// The JSON module provides support for parsing and generating
 /// JSON data using the stream buffer abstraction. It bridges stream buffers
 /// with SSD (Semi-Structured Data) trees for easy manipulation of JSON.
 ///

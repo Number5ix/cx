@@ -70,7 +70,7 @@ Cross-platform APIs abstracting OS differences for Windows, Linux, FreeBSD, and 
 See @ref platform
 
 ### Debug Utilities
-Development and debugging aids including runtime assertions, automatic stack trace generation, crash handlers with diagnostics, black box logging for post-mortem analysis, and comprehensive error code management.
+Development and debugging aids including runtime assertions, automatic stack trace generation, crash handlers with diagnostics, black box logging for post-mortem analysis, and error code management.
 
 See @ref debug
 
