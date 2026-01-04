@@ -75,7 +75,7 @@ static void writeFuncComment(StreamBuffer* bf, strref name, Class* cls, Method* 
     string ln = 0, temp = 0;
     if (!m->standalone)
         strNConcat(&ln,
-                   doc ? _S"///" : _S"// ",
+                   doc ? _S"/// " : _S"// ",
                    m->returntype,
                    m->predecr,
                    _S" ",

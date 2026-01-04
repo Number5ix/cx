@@ -150,6 +150,36 @@ static bool nextTok(ParseState* ps, string* tok)
         if (ch[0] == '\n') {
             ps->curlinecomments = NULL;
             ps->curlinedocs     = NULL;
+
+            // special case, if we're at the global level and encounter an empty
+            // line after a documentation block, either immediately store it as
+            // global or add it to a passthrough block
+            if (ps->context == Context_Global && strEmpty(*tok)) {
+                if (!ps->included && saSize(ps->docs) > 0) {
+                    if (saSize(globaldocs) == 0) {
+                        foreach (sarray, idx, string, docln, ps->docs) {
+                            saPush(&globaldocs, string, docln);
+                        }
+                        saClear(&ps->docs);
+                    } else {
+                        foreach (sarray, idx, string, docln, ps->docs) {
+                            strAppend(&cpassthrough, _S"/// ");
+                            strAppend(&cpassthrough, docln);
+#ifdef _PLATFORM_WIN
+                            strAppend(&cpassthrough, _S"\r\n");
+#else
+                            strAppend(&cpassthrough, _S"\n");
+#endif
+                        }
+                        saClear(&ps->docs);
+                    }
+#ifdef _PLATFORM_WIN
+                    strAppend(&cpassthrough, _S"\r\n");
+#else
+                    strAppend(&cpassthrough, _S"\n");
+#endif
+                }
+            }
         }
         if (!quote && isspace(ch[0])) {
             if (strEmpty(*tok))
@@ -405,6 +435,28 @@ bool parseGlobal(ParseState* ps, string* tok)
             }
             ps->ptemptyok = true;
         }
+
+        // if we have any accumulated comments or docs, add them into cpassthrough
+        foreach (sarray, idx, string, cline, ps->comments) {
+            strAppend(&cpassthrough, _S"// ");
+            strAppend(&cpassthrough, cline);
+#ifdef _PLATFORM_WIN
+            strAppend(&cpassthrough, _S"\r\n");
+#else
+            strAppend(&cpassthrough, _S"\n");
+#endif
+        }
+        saClear(&ps->comments);
+        foreach (sarray, idx, string, docln, ps->docs) {
+            strAppend(&cpassthrough, _S"/// ");
+            strAppend(&cpassthrough, docln);
+#ifdef _PLATFORM_WIN
+            strAppend(&cpassthrough, _S"\r\n");
+#else
+            strAppend(&cpassthrough, _S"\n");
+#endif
+        }
+        saClear(&ps->docs);
 
         strAppend(&cpassthrough, ps->rawtok);
     }
@@ -934,7 +986,7 @@ bool parseFile(strref fname, string* realfn, string srcpath, sa_string searchpat
 {
     ParseState ps = { 0 };
 
-    string fpath = 0;
+    string fpath  = 0;
     string tfname = 0;
     strDup(&ps.fname, fname);
     if (!strEmpty(srcpath)) {
@@ -1019,8 +1071,14 @@ bool parseFile(strref fname, string* realfn, string srcpath, sa_string searchpat
         if (strEq(tok, _S"///")) {
             if (!ps.included)
                 usedocs = true;
-            nextCustomTok(&ps, &tok, '\n', "\r");
-            saPush(&ps.docs, string, tok);
+
+            // handle empty doc lines
+            if (strGetChar(ps.rawtok, -1) == '\n') {
+                saPush(&ps.docs, string, _S"");
+            } else {
+                nextCustomTok(&ps, &tok, '\n', "\r");
+                saPush(&ps.docs, string, tok);
+            }
             continue;
         }
         if (strEq(tok, _S"///<")) {
