@@ -98,7 +98,7 @@ uint32 dbgCrashGetMode();
 ///
 /// Specifies where crash dump files (.dmp) should be saved.
 /// If not set, uses platform-specific default location.
-void dbgCrashSetPath(_In_ strref path);
+bool dbgCrashSetPath(_In_ strref path);
 
 /// Callback function invoked when a crash occurs
 ///
