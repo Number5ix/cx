@@ -17,6 +17,7 @@ create_test_sourcelist(testsrc
     metatest.c
     ssdtest.c
     sbtest.c
+    buftest.c
     lineparsetest.c
     jsontest.c
     converttest.c
@@ -129,6 +130,13 @@ add_test(NAME "\"ssd: Semi-structured data tree\"" COMMAND test_runner ssdtest t
 add_test(NAME "\"ssd: Single value root\"" COMMAND test_runner ssdtest single)
 add_test(NAME "\"ssd: Subtrees\"" COMMAND test_runner ssdtest subtree)
 add_test(NAME "\"ssd: Arrays\"" COMMAND test_runner ssdtest array)
+add_test(NAME "\"bufchain: Basic Operations\"" COMMAND test_runner buftest basic)
+add_test(NAME "\"bufchain: Peek\"" COMMAND test_runner buftest peek)
+add_test(NAME "\"bufchain: Skip\"" COMMAND test_runner buftest skip)
+add_test(NAME "\"bufchain: Zero-Copy Read\"" COMMAND test_runner buftest zerocopy_read)
+add_test(NAME "\"bufchain: Zero-Copy Write\"" COMMAND test_runner buftest zerocopy_write)
+add_test(NAME "\"bufchain: Ring Buffer Wraparound\"" COMMAND test_runner buftest wraparound)
+add_test(NAME "\"bufchain: Multi-Segment Operations\"" COMMAND test_runner buftest multisegment)
 add_test(NAME "\"streambuffer: Push\"" COMMAND test_runner sbtest push)
 add_test(NAME "\"streambuffer: Direct Push\"" COMMAND test_runner sbtest direct)
 add_test(NAME "\"streambuffer: Pull\"" COMMAND test_runner sbtest pull)

@@ -336,6 +336,7 @@ PREDEFINED             = __attribute__(x)= \
                          _Releases_exclusive_lock_(x)= \
                          _Ret_notnull_= \
                          _In_opt_z_= \
+                         _Pre_opt_valid_= \
                          stCheckedArg(x,y)=x y \
                          stvar(x,y)=x y
 EXPAND_AS_DEFINED      = 

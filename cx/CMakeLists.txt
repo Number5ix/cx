@@ -4,6 +4,7 @@ find_package (Threads REQUIRED)
 include (${CX_TOP_SOURCE_DIR}/cmake/werror.cmake)
 include (${CX_TOP_SOURCE_DIR}/cmake/buildtype.cmake)
 
+add_subdirectory(buffer)
 add_subdirectory(closure)
 add_subdirectory(container)
 add_subdirectory(debug)
@@ -29,6 +30,7 @@ add_subdirectory(utils)
 add_subdirectory(xalloc)
 
 set(CX_BASE_INCLUDES
+    include/cx/buffer.h
     include/cx/closure.h
     include/cx/common.h
     include/cx/container.h
