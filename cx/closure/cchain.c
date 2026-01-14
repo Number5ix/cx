@@ -13,22 +13,51 @@
 // Sentinel value for a chain that's been invalidated for future use.
 #define CCNODE_INVALID ((CChainNode*)-1)
 // Sentinel value for a chain that is currently busy
-#define CCNODE_BUSY ((CChainNode*)-2)
+#define CCNODE_BUSY    ((CChainNode*)-2)
+
+static _meta_inline void ccnodeAddRef(_Inout_ CChainNode* node)
+{
+    devAssert(node != CCNODE_INVALID && node != CCNODE_BUSY);
+
+    atomicFetchAdd(uint32, &node->refcount, 1, Relaxed);
+}
+
+static _meta_inline void ccnodeDeref(_Inout_ CChainNode* node)
+{
+    devAssert(node != CCNODE_INVALID && node != CCNODE_BUSY);
+
+    if (!node)
+        return;
+
+    if (atomicFetchSub(uint32, &node->refcount, 1, Release) == 1) {
+        atomicFence(Acquire);
+
+        CChainNode* prev = node->prev;
+        for (int i = node->nvars - 1; i >= 0; --i) {
+            stvarDestroy(&node->cvars[i]);
+        }
+        xaFree(node);
+
+        // recursively deref previous node(s)
+        ccnodeDeref(prev);
+    }
+}
 
 static CChainNode* ccnodeFree(_In_ CChainNode* node)
 {
+    // Only used in code paths where we have exclusive ownership (cchainCallOnce)
     for (int i = node ? node->nvars - 1 : -1; i >= 0; --i) {
         stvarDestroy(&node->cvars[i]);
     }
 
-    CChainNode *prev = node->prev;
+    CChainNode* prev = node->prev;
     xaFree(node);
     return prev;
 }
 
 // Get the head node of a chain and mark it busy (or invalid)
-_Success_(return)
-static bool cchainAcquire(_Inout_ cchain* chain, _Out_ CChainNode** onode, bool invalidate)
+_Success_(return) static bool
+cchainAcquire(_Inout_ cchain* chain, _Out_ CChainNode** onode, bool invalidate)
 {
     AdaptiveSpinState astate = { 0 };
     CChainNode* out          = atomicLoad(ptr, (atomic(ptr)*)chain, Relaxed);
@@ -45,7 +74,13 @@ static bool cchainAcquire(_Inout_ cchain* chain, _Out_ CChainNode** onode, bool 
             out = atomicLoad(ptr, (atomic(ptr)*)chain, Relaxed);
         } else {
             // try to swap it for desired
-            if (atomicCompareExchange(ptr, weak, (atomic(ptr)*)chain, (void**)&out, nstate, Acquire, Relaxed))
+            if (atomicCompareExchange(ptr,
+                                      weak,
+                                      (atomic(ptr)*)chain,
+                                      (void**)&out,
+                                      nstate,
+                                      Acquire,
+                                      Relaxed))
                 break;
             aspinHandleContention(NULL, &astate);
         }
@@ -57,13 +92,19 @@ static bool cchainAcquire(_Inout_ cchain* chain, _Out_ CChainNode** onode, bool 
 }
 
 // Release a busy chain
-static void cchainRelease(_Inout_ cchain* chain, _In_opt_ CChainNode *node)
+static void cchainRelease(_Inout_ cchain* chain, _In_opt_ CChainNode* node)
 {
     AdaptiveSpinState astate = { 0 };
     // Write the original value back. This SHOULD be uncontended, but still have to CAS it anyway.
 
-    CChainNode* cur = CCNODE_BUSY;      // only valid starting point for this function
-    while (!atomicCompareExchange(ptr, weak, (atomic(ptr)*)chain, (void**)&cur, node, Release, Relaxed)) {
+    CChainNode* cur = CCNODE_BUSY;   // only valid starting point for this function
+    while (!atomicCompareExchange(ptr,
+                                  weak,
+                                  (atomic(ptr)*)chain,
+                                  (void**)&cur,
+                                  node,
+                                  Release,
+                                  Relaxed)) {
         if (!devVerifyMsg(cur == CCNODE_BUSY, "Incorrect use of cchainRelease"))
             return;
         aspinHandleContention(NULL, &astate);
@@ -72,22 +113,24 @@ static void cchainRelease(_Inout_ cchain* chain, _In_opt_ CChainNode *node)
 }
 
 _Use_decl_annotations_
-bool _cchainAttach(cchain *chain, closureFunc func, intptr token, int n, stvar cvars[])
+bool _cchainAttach(cchain* chain, closureFunc func, intptr token, int n, stvar cvars[])
 {
-    CChainNode *nchain = xaAlloc(sizeof(CChainNode) + sizeof(stvar) * (n + (token ? 1 : 0)));
-    nchain->func = func;
+    CChainNode* nchain = xaAlloc(sizeof(CChainNode) + sizeof(stvar) * (n + (token ? 1 : 0)));
+    atomicStore(uint32, &nchain->refcount, 1, Relaxed);   // Initial refcount for chain ownership
+    nchain->func  = func;
     nchain->nvars = n + (token ? 1 : 0);
     nchain->token = token;
 
-    for(int i = 0; i < n; i++) {
+    for (int i = 0; i < n; i++) {
         stvarCopy(&nchain->cvars[i], cvars[i]);
     }
-    if(token)
+    if (token)
         nchain->cvars[n] = stvar(intptr, token);
 
     CChainNode* cur;
     if (cchainAcquire(chain, &cur, false)) {
         nchain->prev = cur;
+        // nchain now owns reference to cur (transferred from chain ownership)
         cchainRelease(chain, nchain);
         return true;
     } else {
@@ -102,26 +145,43 @@ bool cchainDetach(cchain* chain, closureFunc func, intptr token)
     CChainNode* top;
 
     if (cchainAcquire(chain, &top, false)) {
-        CChainNode** curptr = &top;
-        CChainNode* cur     = top;
-        bool ret            = false;
+        CChainNode* newchain = NULL;
+        CChainNode** newptr  = &newchain;
+        CChainNode* cur      = top;
+        bool ret             = false;
 
-        // walk up the list to find the callback to remove
+        // Clone chain excluding the target node
         while (cur) {
-            if (cur->func == func && cur->token == token)
-                break;
-            curptr = &cur->prev;
-            cur    = cur->prev;
+            if (cur->func == func && cur->token == token) {
+                // Skip this node (first match only)
+                ret = true;
+                cur = cur->prev;
+                continue;
+            }
+
+            CChainNode* nnode = xaAlloc(sizeof(CChainNode) + cur->nvars * sizeof(stvar));
+            atomicStore(uint32, &nnode->refcount, 1, Relaxed);
+            nnode->func  = cur->func;
+            nnode->token = cur->token;
+            nnode->nvars = cur->nvars;
+
+            for (int i = 0; i < cur->nvars; i++) {
+                stvarCopy(&nnode->cvars[i], cur->cvars[i]);
+            }
+
+            *newptr = nnode;
+            newptr  = &nnode->prev;
+            cur     = cur->prev;
         }
 
-        if (cur) {
-            // found one? remove it from the chain
-            *curptr = cur->prev;   // this will modify either top or the parent prev pointer
-            ccnodeFree(cur);
-            ret = true;
-        }
+        *newptr = NULL;
 
-        cchainRelease(chain, top);   // may write modified top
+        // swap in new chain while releasing the lock
+        cchainRelease(chain, newchain);
+
+        // decrement our reference to the old chain
+        ccnodeDeref(top);
+
         return ret;
     }
 
@@ -141,9 +201,10 @@ bool cchainClone(cchain* destchain, cchain* srcchain)
 
             while (snode) {
                 CChainNode* nnode = xaAlloc(sizeof(CChainNode) + snode->nvars * sizeof(stvar));
-                nnode->func       = snode->func;
-                nnode->token      = snode->token;
-                nnode->nvars      = snode->nvars;
+                atomicStore(uint32, &nnode->refcount, 1, Relaxed);
+                nnode->func  = snode->func;
+                nnode->token = snode->token;
+                nnode->nvars = snode->nvars;
 
                 for (int i = 0; i < snode->nvars; i++) {
                     stvarCopy(&nnode->cvars[i], snode->cvars[i]);
@@ -155,10 +216,10 @@ bool cchainClone(cchain* destchain, cchain* srcchain)
             }
 
             *dptr = origdest;   // insert cloned nodes before the original dest
-            
+
             cchainRelease(srcchain, src);
         }
-        
+
         cchainRelease(destchain, dest);
         return true;
     } else {
@@ -168,28 +229,31 @@ bool cchainClone(cchain* destchain, cchain* srcchain)
 }
 
 _Use_decl_annotations_
-bool _cchainCall(cchain *chain, int n, stvar args[])
+bool _cchainCall(cchain* chain, int n, stvar args[])
 {
-    cchain tempchain = { 0 };
-    CChainNode *cur;
+    CChainNode* chainref;
     bool ret = true;
 
     stvlist stv_cvars;
     stvlist stv_args;
 
-    // Because the callback can take an indeterminate amount of time to complete, for the non
-    // oneshot call, clone the chain so that it can be called without holding it in a busy
-    // state for as long.
-    if (cchainClone(&tempchain, chain)) {
-        cur = atomicLoad(ptr, (atomic(ptr)*)&tempchain, Relaxed);
+    // Lock briefly to grab a reference to the chain
+    if (cchainAcquire(chain, &chainref, false)) {
+        if (chainref)
+            ccnodeAddRef(chainref);       // make sure it doesn't go away while we're using it
+        cchainRelease(chain, chainref);   // release lock immediately
+
+        // now we can safely walk the chain without holding the lock
+        CChainNode* cur = chainref;
         while (cur) {
             stvlInit(&stv_cvars, cur->nvars, cur->cvars);
             stvlInit(&stv_args, n, args);
             ret &= cur->func(&stv_cvars, &stv_args);
-
-            cur = ccnodeFree(cur);
+            cur = cur->prev;
         }
 
+        // decrement our temp reference
+        ccnodeDeref(chainref);
         return ret;
     } else {
         return false;
@@ -199,7 +263,7 @@ bool _cchainCall(cchain *chain, int n, stvar args[])
 _Use_decl_annotations_
 bool _cchainCallOnce(cchain* chain, int n, stvar args[])
 {
-    CChainNode *cur;
+    CChainNode* cur;
     bool ret = true;
 
     stvlist stv_cvars;
@@ -213,6 +277,9 @@ bool _cchainCallOnce(cchain* chain, int n, stvar args[])
             stvlInit(&stv_cvars, cur->nvars, cur->cvars);
             stvlInit(&stv_args, n, args);
             ret &= cur->func(&stv_cvars, &stv_args);
+
+            // we should be the sole reference holder here
+            devAssert(atomicLoad(uint32, &cur->refcount, Relaxed) == 1);
 
             cur = ccnodeFree(cur);
         }
@@ -237,6 +304,7 @@ bool cchainTransfer(cchain* dest, cchain* src)
                 srcptr = &(*srcptr)->prev;
             }
             *srcptr = destnode;
+            // Ownership of destnode transfers to the last node in srcnode chain
 
             cchainRelease(dest, srcnode);
             return true;
@@ -259,22 +327,25 @@ bool cchainReset(cchain* chain)
     do {
         if (cur != CCNODE_INVALID)
             return false;
-    } while (!atomicCompareExchange(ptr, weak, (atomic(ptr)*)chain, (void**)&cur, NULL, Relaxed, Relaxed));
+    } while (!atomicCompareExchange(ptr,
+                                    weak,
+                                    (atomic(ptr)*)chain,
+                                    (void**)&cur,
+                                    NULL,
+                                    Relaxed,
+                                    Relaxed));
 
     return true;
 }
 
-
 _Use_decl_annotations_
-bool cchainClear(cchain *chain)
+bool cchainClear(cchain* chain)
 {
-    CChainNode *cur;
+    CChainNode* cur;
 
     if (cchainAcquire(chain, &cur, false)) {
         cchainRelease(chain, NULL);
-        while(cur) {
-            cur = ccnodeFree(cur);
-        }
+        ccnodeDeref(cur);   // will cascade if we are the last reference
         return true;
     } else {
         return false;
@@ -282,13 +353,16 @@ bool cchainClear(cchain *chain)
 }
 
 _Use_decl_annotations_
-void cchainDestroy(cchain *chain)
+void cchainDestroy(cchain* chain)
 {
-    CChainNode *cur;
+    CChainNode* cur;
 
     if (cchainAcquire(chain, &cur, true)) {
-        while(cur) {
-            cur = ccnodeFree(cur);
-        }
+        // Decrement reference to chain
+        // May not actually destroy immediately, but this is safer if some bonehead
+        // calls this while callbacks are executing concurrently.
+        ccnodeDeref(cur);
     }
+
+    // intentionally do not release; leave the chain in an invalidated state
 }

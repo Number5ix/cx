@@ -17,6 +17,7 @@ typedef struct CChainNode
     CChainNode *prev;
     closureFunc func;
     intptr token;
+    atomic(uint32) refcount;
     int nvars;
     stvar cvars[];
 } CChainNode;
