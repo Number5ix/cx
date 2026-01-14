@@ -2,7 +2,7 @@
 #include <cx/utils/compare.h>
 
 _Use_decl_annotations_
-void bufChainInit(BufChain* chain, size_t segsz)
+void bufchainInit(BufChain* chain, size_t segsz)
 {
     chain->head  = NULL;
     chain->tail  = NULL;
@@ -61,7 +61,7 @@ static _meta_inline void moveReadHead(BufChain* chain, size_t bytes)
 }
 
 static _meta_inline void readOutputHelper(uint8* in, size_t count, size_t skip, uint8* buf,
-                                          uint8** p, bufChainZCCB cb, void* ctx, bool* movehead)
+                                          uint8** p, bufchainZCCB cb, void* ctx, bool* movehead)
 {
     if (count > skip) {
         if (buf) {
@@ -77,7 +77,7 @@ static _meta_inline void readOutputHelper(uint8* in, size_t count, size_t skip, 
 // for each use case
 static _meta_inline size_t readCommon(BufChain* chain,
                                       _Out_writes_bytes_opt_(skip + bsz) uint8* buf, size_t skip,
-                                      size_t bsz, bufChainZCCB cb, void* ctx, bool movehead)
+                                      size_t bsz, bufchainZCCB cb, void* ctx, bool movehead)
 {
     BufChainNode* node = chain->head;
     size_t avail       = chain->total;
@@ -128,25 +128,25 @@ static _meta_inline size_t readCommon(BufChain* chain,
 }
 
 _Use_decl_annotations_
-size_t bufChainRead(BufChain* chain, uint8* buf, size_t bytes)
+size_t bufchainRead(BufChain* chain, uint8* buf, size_t bytes)
 {
     return readCommon(chain, buf, 0, bytes, NULL, NULL, true);
 }
 
 _Use_decl_annotations_
-size_t bufChainPeek(_Inout_ BufChain* chain, uint8* buf, size_t off, size_t bytes)
+size_t bufchainPeek(_Inout_ BufChain* chain, uint8* buf, size_t off, size_t bytes)
 {
     return readCommon(chain, buf, off, bytes, NULL, NULL, false);
 }
 
 _Use_decl_annotations_
-size_t bufChainReadZC(_Inout_ BufChain* chain, size_t bytes, bufChainZCCB cb, void* ctx)
+size_t bufchainReadZC(_Inout_ BufChain* chain, size_t bytes, bufchainZCCB cb, void* ctx)
 {
     return readCommon(chain, NULL, 0, bytes, cb, ctx, true);
 }
 
 _Use_decl_annotations_
-void bufChainWrite(BufChain* chain, const uint8* buf, size_t bytes)
+void bufchainWrite(BufChain* chain, const uint8* buf, size_t bytes)
 {
     size_t remaining = bytes;
     const uint8* p   = buf;
@@ -198,7 +198,7 @@ void bufChainWrite(BufChain* chain, const uint8* buf, size_t bytes)
 }
 
 _Use_decl_annotations_
-void bufChainWriteZC(BufChain* chain, uint8* data, size_t size, size_t bytes)
+void bufchainWriteZC(BufChain* chain, uint8* data, size_t size, size_t bytes)
 {
     BufChainNode* node = xaAllocStruct(BufChainNode);
     node->next         = NULL;
@@ -220,7 +220,7 @@ void bufChainWriteZC(BufChain* chain, uint8* data, size_t size, size_t bytes)
 }
 
 _Use_decl_annotations_
-size_t bufChainSkip(BufChain* chain, size_t bytes)
+size_t bufchainSkip(BufChain* chain, size_t bytes)
 {
     size_t toSkip = min(bytes, chain->total);
     moveReadHead(chain, toSkip);
@@ -228,7 +228,7 @@ size_t bufChainSkip(BufChain* chain, size_t bytes)
 }
 
 _Use_decl_annotations_
-void bufChainDestroy(BufChain* chain)
+void bufchainDestroy(BufChain* chain)
 {
     BufChainNode* node = chain->head;
     while (node) {

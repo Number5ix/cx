@@ -32,16 +32,16 @@
 /// Example:
 /// @code
 ///   BufChain chain;
-///   bufChainInit(&chain, 4096);
-///   
+///   bufchainInit(&chain, 4096);
+///
 ///   // Write data
-///   bufChainWrite(&chain, data, dataLen);
-///   
+///   bufchainWrite(&chain, data, dataLen);
+///
 ///   // Read data
 ///   uint8 buffer[1024];
-///   size_t nread = bufChainRead(&chain, buffer, sizeof(buffer));
-///   
-///   bufChainDestroy(&chain);
+///   size_t nread = bufchainRead(&chain, buffer, sizeof(buffer));
+///
+///   bufchainDestroy(&chain);
 /// @endcode
 
 typedef struct BufChainNode BufChainNode;
@@ -71,7 +71,7 @@ typedef struct BufChain {
 /// @param bytes Number of valid bytes in this buffer segment
 /// @param ctx User-defined context pointer
 /// @return true to consume all data from the read operation, false to retain all data
-typedef bool (*bufChainZCCB)(_In_reads_bytes_(bytes) const uint8* buf, size_t bytes,
+typedef bool (*bufchainZCCB)(_In_reads_bytes_(bytes) const uint8* buf, size_t bytes,
                              _Pre_opt_valid_ void* ctx);
 
 /// Initialize an empty buffer chain.
@@ -82,7 +82,7 @@ typedef bool (*bufChainZCCB)(_In_reads_bytes_(bytes) const uint8* buf, size_t by
 ///
 /// @param chain Pointer to the buffer chain to initialize
 /// @param segsz Size of each buffer segment in bytes (minimum 64)
-void bufChainInit(_Out_ BufChain* chain, size_t segsz);
+void bufchainInit(_Out_ BufChain* chain, size_t segsz);
 
 /// Read data from a buffer chain into a user buffer.
 ///
@@ -94,7 +94,7 @@ void bufChainInit(_Out_ BufChain* chain, size_t segsz);
 /// @param buf Pointer to the user buffer to read data into
 /// @param bytes Maximum number of bytes to read
 /// @return Number of bytes actually read (may be less if chain has insufficient data)
-size_t bufChainRead(_Inout_ BufChain* chain, _Out_writes_bytes_(bytes) uint8* buf, size_t bytes);
+size_t bufchainRead(_Inout_ BufChain* chain, _Out_writes_bytes_(bytes) uint8* buf, size_t bytes);
 
 /// Peek at data in a buffer chain without removing it.
 ///
@@ -107,7 +107,7 @@ size_t bufChainRead(_Inout_ BufChain* chain, _Out_writes_bytes_(bytes) uint8* bu
 /// @param off Offset within the buffer chain to start peeking from
 /// @param bytes Number of bytes to peek at
 /// @return Number of bytes actually copied (may be less if chain has insufficient data)
-size_t bufChainPeek(_Inout_ BufChain* chain, _Out_writes_bytes_(bytes) uint8* buf, size_t off,
+size_t bufchainPeek(_Inout_ BufChain* chain, _Out_writes_bytes_(bytes) uint8* buf, size_t off,
                     size_t bytes);
 
 /// Skip data in a buffer chain.
@@ -119,7 +119,7 @@ size_t bufChainPeek(_Inout_ BufChain* chain, _Out_writes_bytes_(bytes) uint8* bu
 /// @param chain Pointer to the buffer chain to skip data in
 /// @param bytes Number of bytes to skip
 /// @return Number of bytes actually skipped (may be less if chain has insufficient data)
-size_t bufChainSkip(_Inout_ BufChain* chain, size_t bytes);
+size_t bufchainSkip(_Inout_ BufChain* chain, size_t bytes);
 
 /// Read data from a buffer chain in zero-copy mode.
 ///
@@ -139,7 +139,8 @@ size_t bufChainSkip(_Inout_ BufChain* chain, size_t bytes);
 /// @return Number of bytes actually sent to the callback
 /// @note The callback must return the same value consistently across all invocations during
 /// a single read operation.
-size_t bufChainReadZC(_Inout_ BufChain* chain, size_t bytes, bufChainZCCB cb, _Inout_opt_ void* ctx);
+size_t bufchainReadZC(_Inout_ BufChain* chain, size_t bytes, bufchainZCCB cb,
+                      _Inout_opt_ void* ctx);
 
 /// Write data from a user buffer into a buffer chain.
 ///
@@ -150,7 +151,7 @@ size_t bufChainReadZC(_Inout_ BufChain* chain, size_t bytes, bufChainZCCB cb, _I
 /// @param chain Pointer to the buffer chain to write to
 /// @param buf Pointer to the user buffer containing data to write
 /// @param bytes Number of bytes to write
-void bufChainWrite(_Inout_ BufChain* chain, _In_reads_bytes_(bytes) const uint8* buf, size_t bytes);
+void bufchainWrite(_Inout_ BufChain* chain, _In_reads_bytes_(bytes) const uint8* buf, size_t bytes);
 
 /// Append a buffer to a chain for zero-copy mode.
 ///
@@ -165,16 +166,16 @@ void bufChainWrite(_Inout_ BufChain* chain, _In_reads_bytes_(bytes) const uint8*
 /// @param bytes Number of valid bytes in the buffer (may be less than size)
 /// @note The buffer chain takes ownership of the data pointer and will free it when destroyed.
 /// It must be a valid pointer that was allocated with xaAlloc!
-void bufChainWriteZC(BufChain* chain, _Pre_notnull_ _Post_invalid_ uint8* data, size_t size,
+void bufchainWriteZC(BufChain* chain, _Pre_notnull_ _Post_invalid_ uint8* data, size_t size,
                      size_t bytes);
 
 /// Destroy a buffer chain and free all associated resources.
 ///
 /// Frees all buffer nodes and their associated data buffers, then resets the chain structure
 /// to an empty state. After calling this function, the chain must be reinitialized with
-/// bufChainInit() before it can be used again.
+/// bufchainInit() before it can be used again.
 ///
 /// @param chain Pointer to the buffer chain to destroy
-void bufChainDestroy(_Pre_notnull_ _Post_invalid_ BufChain* chain);
+void bufchainDestroy(_Pre_notnull_ _Post_invalid_ BufChain* chain);
 
 /// @}  // end of bufchain group
