@@ -8,3 +8,5 @@
 #else
 #define _CPU_PAUSE __asm__ volatile("pause")
 #endif
+
+#define _CPU_PREFETCH(ptr) __builtin_prefetch((ptr), 0, 0)

@@ -1,4 +1,5 @@
 #include "hashtable_private.h"
+#include <cx/platform/cpu.h>
 #include "cx/debug/assert.h"
 
 #define _ht_Consume_Arg_Opt_ _When_(flags & HTINT_Consume, _Pre_notnull_ _Post_invalid_) _When_(!(flags & HTINT_Consume), _In_opt_) 
@@ -404,6 +405,7 @@ static void htGrowIndex(_Inout_ptr_ hashtable *htbl)
 
 static bool htFindIndex(_In_ HashTableHeader *hdr, _In_ stgeneric key, _Out_opt_ uint32 *indexOut, _Out_opt_ uint32 *deletedOut)
 {
+    bool quadratic  = (hdr->flags & HTINT_Quadratic) != 0;
     uint32 opsflags = (hdr->flags & HT_CaseInsensitive) ? ST_CaseInsensitive : 0;
     uint32 probes = 1;
 
@@ -412,10 +414,18 @@ static bool htFindIndex(_In_ HashTableHeader *hdr, _In_ stgeneric key, _Out_opt_
 
     uint32 *idx = hdr->index;
     uint32 hash = _stHash(hdr->keytype, HDRKEYOPS(hdr), key, opsflags);
+    uint32 nexthash;
 
+    hash = clampHash(hdr, hash);
     for (;;) {
-        hash = clampHash(hdr, hash);
         uint32 slot = idx[hash];
+
+        // For quadratic probing, prefetch next probe while we're checking this one
+        if (quadratic) {
+            nexthash = clampHash(hdr, hash + probes * probes);
+            _CPU_PREFETCH(&idx[nexthash]);
+        }
+
         if (slot == hashIndexEmpty) {
             // nothing in this index entry, just return it
             if (indexOut)
@@ -441,12 +451,12 @@ static bool htFindIndex(_In_ HashTableHeader *hdr, _In_ stgeneric key, _Out_opt_
         }
 
         // keep searching
-        if (hdr->flags & HTINT_Quadratic) {
-            hash += probes * probes;
+        if (quadratic) {
+            hash = nexthash;
             probes++;
         } else {
             // linear probing
-            hash++;
+            hash = clampHash(hdr, hash + 1);
         }
     }
 }
