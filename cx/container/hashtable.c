@@ -157,10 +157,16 @@ void _htInit(hashtable *out, stype keytype, STypeOps *keyops, stype valtype, STy
     if (stGetSize(valtype) == 0 || (!valops && !(stHasFlag(valtype, Object))))
         flags |= HT_Ref;
 
-    if ((HT_GET_GROW(flags) & HT_GROW_AT_MASK) != HT_GROW_At50) {
-        // At an average table load of 0.5, linear probing is better due to cache.
-        // For everything else use quadratic to avoid clustering.
+    if ((HT_GET_GROW(flags) & HT_GROW_AT_MASK) == HT_GROW_At75) {
+        // At 0.75 load factor, clustering becomes a concern
         flags |= HTINT_Quadratic;
+    } else if ((HT_GET_GROW(flags) & HT_GROW_AT_MASK) == HT_GROW_At50) {
+        // at 50% load factor, clustering is not a big concern
+        // use linear probing for better cache locality
+    } else {
+        // 90% target load
+        // quadratic probing to avoid clustering, metadata for fast rejection
+        flags |= HTINT_Quadratic | HTINT_Metadata;
     }
 
     if ((HT_GET_GROW(flags) & HT_GROW_BY_MASK) == HT_GROW_By100 ||
@@ -173,15 +179,18 @@ void _htInit(hashtable *out, stype keytype, STypeOps *keyops, stype valtype, STy
         initsz = npow2(initsz);
     }
 
+    uint32 idxsize = initsz * ((flags & HTINT_Metadata) ? HT_IDXENTWITHMETA_SZ : HT_IDXENT_SZ);
+
     if (keyops || valops) {
         // need the extended header
         flags |= HTINT_Extended;
-        ret = xaAlloc(HTABLE_HDRSIZE + HT_IDXENT_SZ * initsz);
+        ret = xaAlloc(HTABLE_HDRSIZE + idxsize);
         memset(&ret->keytypeops, 0, sizeof(ret->keytypeops));
         memset(&ret->valtypeops, 0, sizeof(ret->valtypeops));
     } else {
         // revel in the evil
-        ret = (HashTableHeader *)((uintptr)xaAlloc((HTABLE_HDRSIZE + HT_IDXENT_SZ * initsz) - HT_SMALLHDR_OFFSET) - HT_SMALLHDR_OFFSET);
+        ret = (HashTableHeader*)((uintptr)xaAlloc((HTABLE_HDRSIZE + idxsize) - HT_SMALLHDR_OFFSET) -
+                                 HT_SMALLHDR_OFFSET);
     }
 
     ret->idxsz = initsz;
@@ -205,10 +214,8 @@ void _htInit(hashtable *out, stype keytype, STypeOps *keyops, stype valtype, STy
         ret->valtypeops = *valops;
     }
 
-    // fill index with empty sentinel
-    for (uint32 i = 0; i < initsz; i++) {
-        ret->index[i] = hashIndexEmpty;
-    }
+    // fill index, metadata with empty sentinels
+    memset(ret->index, 0, idxsize);
 
     *out = (hashtable)&ret->index[0];
 }
@@ -223,13 +230,16 @@ static _meta_inline uint32 clampHash(_In_ HashTableHeader *hdr, uint32 hash)
 
 // variant of htFindIndex optimized for reindexing
 // just finds the first empty index where this key can fit
-static _meta_inline uint32 htFastFindIndex(_In_ HashTableHeader *hdr, _In_ stgeneric key)
+static _meta_inline uint32
+htFastFindIndex(_In_ HashTableHeader* hdr, _In_ stgeneric key, uint8* metaOut)
 {
     uint32 opsflags = (hdr->flags & HT_CaseInsensitive) ? ST_CaseInsensitive : 0;
     uint32 probes = 1;
 
     uint32 *idx = hdr->index;
     uint32 hash = _stHash(hdr->keytype, HDRKEYOPS(hdr), key, opsflags);
+    if (metaOut)
+        *metaOut = hash >> 24;
 
     for (;;) {
         hash = clampHash(hdr, hash);
@@ -259,15 +269,24 @@ static hashtable _htClone(_In_ hashtable htbl, uint32 minsz, bool move, bool rep
         minsz = hdr->idxsz;
 
     uint32 newsz = clamplow(minsz, hdr->valid + 1);
+    uint32 newflags = hdr->flags;
     if (hdr->flags & HTINT_Pow2)
         newsz = npow2(newsz);
 
+    // if we're over the threshold, add metadata, even for 50% load or not using SSE
+    if (newsz >= HT_METADATA_THRESHOLD) {
+        newflags |= HTINT_Metadata;
+    }
+
+    uint32 idxsize = newsz * ((newflags & HTINT_Metadata) ? HT_IDXENTWITHMETA_SZ : HT_IDXENT_SZ);
     // make a new table to copy stuff into
     if (hdr->flags & HTINT_Extended) {
         // need the extended header
-        nhdr = xaAlloc(HTABLE_HDRSIZE + HT_IDXENT_SZ * newsz);
+        nhdr = xaAlloc(HTABLE_HDRSIZE + idxsize);
     } else {
-        nhdr = (HashTableHeader *)((uintptr)xaAlloc((HTABLE_HDRSIZE + HT_IDXENT_SZ * newsz) - HT_SMALLHDR_OFFSET) - HT_SMALLHDR_OFFSET);
+        nhdr = (HashTableHeader*)((uintptr)xaAlloc((HTABLE_HDRSIZE + idxsize) -
+                                                   HT_SMALLHDR_OFFSET) -
+                                  HT_SMALLHDR_OFFSET);
     }
     ntbl = (hashtable)&nhdr->index[0];
 
@@ -276,15 +295,14 @@ static hashtable _htClone(_In_ hashtable htbl, uint32 minsz, bool move, bool rep
     nhdr->idxsz = newsz;
     nhdr->idxused = nhdr->valid = nhdr->storused = 0;
 
-    uint32 origflags = hdr->flags;
     if (move && repack) {
         // neither table should own anything during the copy
         // that way everything is done with straight memcpy
         // this permanently changes the flags on the source table!
         hdr->flags |= HT_Ref | HT_RefKeys;
-        nhdr->flags = hdr->flags;
+        nhdr->flags = newflags | HT_Ref | HT_RefKeys;
     } else {
-        nhdr->flags = hdr->flags;
+        nhdr->flags = newflags;
     }
 
     if (hdr->flags & HTINT_Extended) {
@@ -293,9 +311,7 @@ static hashtable _htClone(_In_ hashtable htbl, uint32 minsz, bool move, bool rep
     }
 
     // initialize new index
-    for (uint32 i = 0; i < newsz; i++) {
-        nhdr->index[i] = hashIndexEmpty;
-    }
+    memset(nhdr->index, 0, idxsize);
 
     if (!move || repack) {
         // if we're cloning or repacking, copy the actual data
@@ -327,10 +343,15 @@ static hashtable _htClone(_In_ hashtable htbl, uint32 minsz, bool move, bool rep
 
         // and reindex
         uint32 idxent;
+        uint8 metaval;
         for (uint32 slot = _htNextSlot(hdr, 0); slot != 0; slot = _htNextSlot(hdr, slot)) {
-            idxent = htFastFindIndex(nhdr, stStored(hdr->keytype, HT_SLOT_KEY_PTR(hdr, slot)));
+            idxent = htFastFindIndex(nhdr,
+                                     stStored(hdr->keytype, HT_SLOT_KEY_PTR(hdr, slot)),
+                                     &metaval);
             nhdr->idxused++;
             nhdr->index[idxent] = slot;
+            if (newflags & HTINT_Metadata)
+                HT_METADATA(nhdr)[idxent] = metaval;
         }
 
         nhdr->valid = hdr->valid;
@@ -339,7 +360,7 @@ static hashtable _htClone(_In_ hashtable htbl, uint32 minsz, bool move, bool rep
 
     if (move) {
         // restore ownership for new table
-        nhdr->flags = origflags;
+        nhdr->flags = newflags;
     }
 
     devAssert(nhdr->valid == hdr->valid);
@@ -403,9 +424,11 @@ static void htGrowIndex(_Inout_ptr_ hashtable *htbl)
     htReindex(htbl, newsz);
 }
 
-static bool htFindIndex(_In_ HashTableHeader *hdr, _In_ stgeneric key, _Out_opt_ uint32 *indexOut, _Out_opt_ uint32 *deletedOut)
+static bool htFindIndex(_In_ HashTableHeader* hdr, _In_ stgeneric key, _Out_opt_ uint32* indexOut,
+                        _Out_opt_ uint32* deletedOut, uint8* metaOut)
 {
     bool quadratic  = (hdr->flags & HTINT_Quadratic) != 0;
+    bool havemeta   = (hdr->flags & HTINT_Metadata) != 0;
     uint32 opsflags = (hdr->flags & HT_CaseInsensitive) ? ST_CaseInsensitive : 0;
     uint32 probes = 1;
 
@@ -415,6 +438,11 @@ static bool htFindIndex(_In_ HashTableHeader *hdr, _In_ stgeneric key, _Out_opt_
     uint32 *idx = hdr->index;
     uint32 hash = _stHash(hdr->keytype, HDRKEYOPS(hdr), key, opsflags);
     uint32 nexthash;
+
+    // for fast rejection, the metadata is the high 8 bits of the unclamped hash
+    uint8 metaval = hash >> 24;
+    if (metaOut)
+        *metaOut = metaval;
 
     hash = clampHash(hdr, hash);
     for (;;) {
@@ -435,13 +463,21 @@ static bool htFindIndex(_In_ HashTableHeader *hdr, _In_ stgeneric key, _Out_opt_
 
         if (slot != hashIndexDeleted) {
             // not deleted, so check the key
-            void *skey = HT_SLOT_KEY_PTR(hdr, slot);
-            if (_stCmp(hdr->keytype, HDRKEYOPS(hdr), key,
-                       stStored(hdr->keytype, skey), opsflags | ST_Equality) == 0) {
-                // found it!
-                if (indexOut)
-                    *indexOut = hash;
-                return true;
+
+            // if we have metadata, check it first for a quick reject
+            if (!havemeta || HT_METADATA(hdr)[hash] == metaval) {
+                // potential match, do full key compare
+                void* skey = HT_SLOT_KEY_PTR(hdr, slot);
+                if (_stCmp(hdr->keytype,
+                           HDRKEYOPS(hdr),
+                           key,
+                           stStored(hdr->keytype, skey),
+                           opsflags | ST_Equality) == 0) {
+                    // found it!
+                    if (indexOut)
+                        *indexOut = hash;
+                    return true;
+                }
             }
         } else {
             // this is a deleted key, keep searching
@@ -465,7 +501,7 @@ _Success_(return)
 static bool htFindSlot(_In_ HashTableHeader *hdr, _In_ stgeneric key, _Out_ uint32 *slotOut)
 {
     uint32 idx;
-    if (htFindIndex(hdr, key, &idx, NULL)) {
+    if (htFindIndex(hdr, key, &idx, NULL, NULL)) {
         *slotOut = hdr->index[idx];
         return true;
     }
@@ -507,9 +543,10 @@ static uint32 _htInsertInternal(hashtable *htbl, stgeneric key, stgeneric *val, 
 {
     HashTableHeader *hdr = _htHdr(*htbl);
     uint32 idxent, deleted, slot;
+    uint8 metaval;
     bool found;
 
-    found = htFindIndex(hdr, key, &idxent, &deleted);
+    found = htFindIndex(hdr, key, &idxent, &deleted, &metaval);
 
     if (found) {
         // get storage slot for the index
@@ -554,6 +591,8 @@ static uint32 _htInsertInternal(hashtable *htbl, stgeneric key, stgeneric *val, 
         htSetValueInternal(hdr, slot, val, flags & HTINT_Consume);
 
     hdr->index[idxent] = slot;
+    if (hdr->flags & HTINT_Metadata)
+        HT_METADATA(hdr)[idxent] = metaval;
     hdr->valid++;
 
     // check to see if index needs to be grown
@@ -705,7 +744,7 @@ _Use_decl_annotations_
 bool _htHasKey(hashtable htbl, stgeneric key)
 {
     HashTableHeader *hdr = _htHdr(htbl);
-    return htFindIndex(hdr, key, NULL, NULL);
+    return htFindIndex(hdr, key, NULL, NULL, NULL);
 }
 
 _Use_decl_annotations_
@@ -716,7 +755,7 @@ bool _htExtract(hashtable *htbl, stgeneric key, stgeneric *val)
         return false;
 
     uint32 idxent;
-    bool found = htFindIndex(hdr, key, &idxent, NULL);
+    bool found = htFindIndex(hdr, key, &idxent, NULL, NULL);
 
     if (found) {
         uint32 slot = hdr->index[idxent];

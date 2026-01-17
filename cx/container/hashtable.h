@@ -229,6 +229,7 @@ enum HASHTABLE_FLAGS_ENUM {
     HT_Compact = 0x0010,
 
     // Internal use only - do not set manually
+    HTINT_Metadata  = 0x1000,   // metadata area (for hash fragments) is present after index
     HTINT_Quadratic = 0x2000,   // use quadratic probing rather than linear
     HTINT_Pow2      = 0x4000,   // size forced to power of 2 to avoid division
     HTINT_Extended  = 0x8000,   // extended header is present
