@@ -51,12 +51,12 @@
 ///
 /// See the compiler-specific headers for the complete API.
 
-#include <cx/platform/base.h>
-
 #if defined(_COMPILER_MSVC)
 #include <cx/platform/msvc/msvc_cpu.h>
 #elif defined(_COMPILER_CLANG) || defined(_COMPILER_GCC)
 #include <cx/platform/clang/clang_cpu.h>
 #endif
+
+#include <cx/platform/simd.h>
 
 /// @}  // end of platform_cpu group

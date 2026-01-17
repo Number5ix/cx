@@ -3,6 +3,7 @@ set(PLATFORM_INCLUDES
     platform/cpp.h
     platform/cpu.h
     platform/os.h
+    platform/simd.h
     platform/uievent.h)
 
 if(CX_COMPILER_IS_CLANG)

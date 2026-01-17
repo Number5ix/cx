@@ -127,9 +127,51 @@ uint32 _htNextSlot(HashTableHeader *hdr, uint32 slot)
             continue;
         }
 
-        // skip over deleted slots
+#if defined(_64BIT)
+        _Static_assert(sizeof(hdr->chunks[chunk].deleted) == 8, "Deleted bitmap size incorrect");
+
+        uint64_t deleted = *(uint64_t*)hdr->chunks[chunk].deleted;
+        uint64_t mask    = (1ULL << (slot & HT_CHUNK_MASK)) - 1;   // mask for slots before current
+        deleted |= mask;   // mark already-scanned slots as deleted
+
+        if (deleted == 0xffffffffffffffffULL) {
+            // All remaining slots in this chunk are deleted, skip to next chunk
+            slot = HT_SLOTS_PER_CHUNK * (chunk + 1) - 1;
+            continue;
+        }
+
+        if (deleted != mask) {
+            // Find first non-deleted slot
+            int offset = ctz64(~deleted);
+            slot       = (chunk << HT_CHUNK_SHIFT) + offset;
+            return (slot < hdr->storused) ? slot : hashIndexEmpty;
+        }
+
+        // ALL remaining slots are not deleted, fallthrough to return
+#elif defined(_32BIT)
+        uint32 deleted = *(uint32*)hdr->chunks[chunk].deleted;
+        uint32 mask    = (1U << (slot & HT_CHUNK_MASK)) - 1;   // mask for slots before current
+        deleted |= mask;   // mark already-scanned slots as deleted
+
+        if (deleted == 0xffffffffU) {
+            // All remaining slots in this chunk are deleted, skip to next chunk
+            slot = HT_SLOTS_PER_CHUNK * (chunk + 1) - 1;
+            continue;
+        }
+
+        if (deleted != mask) {
+            // Find first non-deleted slot
+            int offset = ctz32(~deleted);
+            slot       = (chunk << HT_CHUNK_SHIFT) + offset;
+            return (slot < hdr->storused) ? slot : hashIndexEmpty;
+        }
+
+        // ALL remaining slots are not deleted, fallthrough to return
+#else
+        // manual bit search
         if (hdr->chunks[chunk].deleted[HT_DELETED_IDX(slot)] & HT_DELETED_BIT(slot))
             continue;
+#endif
 
         // this is a valid slot!
         return slot;
@@ -273,7 +315,7 @@ static hashtable _htClone(_In_ hashtable htbl, uint32 minsz, bool move, bool rep
     if (hdr->flags & HTINT_Pow2)
         newsz = npow2(newsz);
 
-    // if we're over the threshold, add metadata, even for 50% load or not using SSE
+    // if we're over the threshold, add metadata, even for 50% load
     if (newsz >= HT_METADATA_THRESHOLD) {
         newflags |= HTINT_Metadata;
     }

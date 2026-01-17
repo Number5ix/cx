@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cx/platform/base.h>
+
 #if defined(__aarch64__)
 #define _CPU_PAUSE __asm__ volatile("yield")
 #elif defined(__EMSCRIPTEN__)
@@ -10,3 +12,17 @@
 #endif
 
 #define _CPU_PREFETCH(ptr) __builtin_prefetch((ptr), 0, 0)
+
+_meta_inline int ctz32(unsigned long mask)
+{
+    return __builtin_ctz(mask);
+}
+
+#ifdef _ARCH_X64
+
+_meta_inline int ctz64(unsigned long long mask)
+{
+    return __builtin_ctzll(mask);
+}
+
+#endif
