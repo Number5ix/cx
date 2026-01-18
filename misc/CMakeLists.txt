@@ -3,7 +3,7 @@ if(CX_STANDALONE)
         htbench.c)
 
     add_executable(htbench htbench.c)
-    target_link_libraries(htbench cx)
+    target_link_libraries(htbench cx m)
     set_property(TARGET htbench PROPERTY FOLDER "tests")
 endif()
 

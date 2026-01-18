@@ -86,7 +86,6 @@ static void runBenchmark(BenchResults* results)
     int64 istart, iend;
     BenchTest tmp;
     htiter hti;
-    int count;
 
     // ========== INT64 TESTS ==========
 
@@ -122,9 +121,7 @@ static void runBenchmark(BenchResults* results)
     // Test 3: First iteration (int64)
     istart = clockTimer();
     htiInit(&hti, htbl);
-    count = 0;
     while (htiValid(&hti)) {
-        count++;
         htiNext(&hti);
     }
     iend              = clockTimer();
@@ -143,9 +140,7 @@ static void runBenchmark(BenchResults* results)
     // Test 5: Second iteration (int64)
     istart = clockTimer();
     htiInit(&hti, htbl);
-    count = 0;
     while (htiValid(&hti)) {
-        count++;
         htiNext(&hti);
     }
     iend = clockTimer();
@@ -187,9 +182,7 @@ static void runBenchmark(BenchResults* results)
     // Test 9: First iteration (string)
     istart = clockTimer();
     htiInit(&hti, htbl_str);
-    count = 0;
     while (htiValid(&hti)) {
-        count++;
         htiNext(&hti);
     }
     iend = clockTimer();
@@ -208,9 +201,7 @@ static void runBenchmark(BenchResults* results)
     // Test 11: Second iteration (string)
     istart = clockTimer();
     htiInit(&hti, htbl_str);
-    count = 0;
     while (htiValid(&hti)) {
-        count++;
         htiNext(&hti);
     }
     iend = clockTimer();
