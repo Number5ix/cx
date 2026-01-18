@@ -20,16 +20,16 @@ static int test_bufchain_basic()
     uint8 readbuf[512];
     
     // Test with 64-byte segment size (minimum enforced by implementation)
-    bufChainInit(&chain, 64);
-    
+    bufchainInit(&chain, 64);
+
     // Write some data
-    bufChainWrite(&chain, testdata1, 20);
-    
+    bufchainWrite(&chain, testdata1, 20);
+
     if (chain.total != 20)
         ret = 1;
     
     // Read it back
-    size_t nread = bufChainRead(&chain, readbuf, 20);
+    size_t nread = bufchainRead(&chain, readbuf, 20);
     if (nread != 20 || memcmp(readbuf, testdata1, 20))
         ret = 1;
     
@@ -37,27 +37,27 @@ static int test_bufchain_basic()
         ret = 1;
     
     // Write and read across segment boundary (64 bytes)
-    bufChainWrite(&chain, testdata1, 80);
-    nread = bufChainRead(&chain, readbuf, 80);
+    bufchainWrite(&chain, testdata1, 80);
+    nread = bufchainRead(&chain, readbuf, 80);
     if (nread != 80 || memcmp(readbuf, testdata1, 80))
         ret = 1;
     
     // Write more than one segment, read in parts
-    bufChainWrite(&chain, testdata1, TESTDATA_LEN);
-    bufChainWrite(&chain, testdata2, TESTDATA2_LEN);
-    
-    nread = bufChainRead(&chain, readbuf, 50);
+    bufchainWrite(&chain, testdata1, TESTDATA_LEN);
+    bufchainWrite(&chain, testdata2, TESTDATA2_LEN);
+
+    nread = bufchainRead(&chain, readbuf, 50);
     if (nread != 50 || memcmp(readbuf, testdata1, 50))
         ret = 1;
-    
-    nread = bufChainRead(&chain, readbuf + 50, 60);
+
+    nread = bufchainRead(&chain, readbuf + 50, 60);
     if (nread != 60 || memcmp(readbuf + 50, testdata1 + 50, 60))
         ret = 1;
     
     // Read across the boundary between testdata1 and testdata2
     size_t remaining1 = TESTDATA_LEN - 110;
     size_t remaining_total = remaining1 + TESTDATA2_LEN;
-    nread = bufChainRead(&chain, readbuf + 110, remaining_total);
+    nread                  = bufchainRead(&chain, readbuf + 110, remaining_total);
     if (nread != remaining_total)
         ret = 1;
     
@@ -67,8 +67,8 @@ static int test_bufchain_basic()
     
     if (chain.total != 0)
         ret = 1;
-    
-    bufChainDestroy(&chain);
+
+    bufchainDestroy(&chain);
     return ret;
 }
 
@@ -77,16 +77,16 @@ static int test_bufchain_peek()
     int ret = 0;
     BufChain chain;
     uint8 readbuf[256];
-    
-    bufChainInit(&chain, 64);
-    
+
+    bufchainInit(&chain, 64);
+
     // Write test data spanning segments
-    bufChainWrite(&chain, testdata1, TESTDATA_LEN);
-    bufChainWrite(&chain, testdata2, 50);
+    bufchainWrite(&chain, testdata1, TESTDATA_LEN);
+    bufchainWrite(&chain, testdata2, 50);
     size_t total = chain.total;
     
     // Peek at beginning
-    size_t nread = bufChainPeek(&chain, readbuf, 0, 20);
+    size_t nread = bufchainPeek(&chain, readbuf, 0, 20);
     if (nread != 20 || memcmp(readbuf, testdata1, 20))
         ret = 1;
     
@@ -95,36 +95,36 @@ static int test_bufchain_peek()
         ret = 1;
     
     // Peek at offset
-    nread = bufChainPeek(&chain, readbuf, 10, 30);
+    nread = bufchainPeek(&chain, readbuf, 10, 30);
     if (nread != 30 || memcmp(readbuf, testdata1 + 10, 30))
         ret = 1;
     
     // Peek across segment boundary (64-byte segments)
-    nread = bufChainPeek(&chain, readbuf, 50, 60);
+    nread = bufchainPeek(&chain, readbuf, 50, 60);
     if (nread != 60 || memcmp(readbuf, testdata1 + 50, 60))
         ret = 1;
     
     // Peek near end
-    nread = bufChainPeek(&chain, readbuf, total - 20, 20);
+    nread = bufchainPeek(&chain, readbuf, total - 20, 20);
     if (nread != 20 || memcmp(readbuf, testdata2 + 50 - 20, 20))
         ret = 1;
     
     // Peek past end
-    nread = bufChainPeek(&chain, readbuf, total - 5, 20);
+    nread = bufchainPeek(&chain, readbuf, total - 5, 20);
     if (nread != 5 || memcmp(readbuf, testdata2 + 50 - 5, 5))
         ret = 1;
     
     // Now actually read some data
-    nread = bufChainRead(&chain, readbuf, 30);
+    nread = bufchainRead(&chain, readbuf, 30);
     if (nread != 30 || memcmp(readbuf, testdata1, 30))
         ret = 1;
     
     // Peek at what's left
-    nread = bufChainPeek(&chain, readbuf, 0, 40);
+    nread = bufchainPeek(&chain, readbuf, 0, 40);
     if (nread != 40 || memcmp(readbuf, testdata1 + 30, 40))
         ret = 1;
-    
-    bufChainDestroy(&chain);
+
+    bufchainDestroy(&chain);
     return ret;
 }
 
@@ -133,42 +133,42 @@ static int test_bufchain_skip()
     int ret = 0;
     BufChain chain;
     uint8 readbuf[256];
-    
-    bufChainInit(&chain, 64);
-    
+
+    bufchainInit(&chain, 64);
+
     // Write test data spanning segments
-    bufChainWrite(&chain, testdata1, TESTDATA_LEN);
-    bufChainWrite(&chain, testdata2, 50);
-    
+    bufchainWrite(&chain, testdata1, TESTDATA_LEN);
+    bufchainWrite(&chain, testdata2, 50);
+
     // Skip some data
-    size_t nskipped = bufChainSkip(&chain, 30);
+    size_t nskipped = bufchainSkip(&chain, 30);
     size_t total = TESTDATA_LEN + 50;
     if (nskipped != 30 || chain.total != (total - 30))
         ret = 1;
     
     // Read what's left from testdata1
-    size_t nread = bufChainRead(&chain, readbuf, 40);
+    size_t nread = bufchainRead(&chain, readbuf, 40);
     if (nread != 40 || memcmp(readbuf, testdata1 + 30, 40))
         ret = 1;
     
     // Skip across segment boundary (64 bytes)
-    nskipped = bufChainSkip(&chain, 70);
+    nskipped = bufchainSkip(&chain, 70);
     if (nskipped != 70)
         ret = 1;
     
     // Read remainder (should be from testdata2)
-    nread = bufChainRead(&chain, readbuf, 100);
+    nread           = bufchainRead(&chain, readbuf, 100);
     size_t expected = total - 30 - 40 - 70;
     if (nread != expected || memcmp(readbuf, testdata2 + (50 - expected), expected))
         ret = 1;
     
     // Skip more than available
-    bufChainWrite(&chain, testdata1, 20);
-    nskipped = bufChainSkip(&chain, 100);
+    bufchainWrite(&chain, testdata1, 20);
+    nskipped = bufchainSkip(&chain, 100);
     if (nskipped != 20 || chain.total != 0)
         ret = 1;
-    
-    bufChainDestroy(&chain);
+
+    bufchainDestroy(&chain);
     return ret;
 }
 
@@ -200,17 +200,17 @@ static int test_bufchain_zerocopy_read()
     
     ctx.out = xaAlloc(256);
     ctx.maxout = 256;
-    
-    bufChainInit(&chain, 64);
-    
+
+    bufchainInit(&chain, 64);
+
     // Write test data spanning segments
-    bufChainWrite(&chain, testdata1, TESTDATA_LEN);
-    bufChainWrite(&chain, testdata2, 50);
+    bufchainWrite(&chain, testdata1, TESTDATA_LEN);
+    bufchainWrite(&chain, testdata2, 50);
     size_t total = chain.total;
     
     // Zero-copy read with consumption
     ctx.shouldConsume = true;
-    size_t nread = bufChainReadZC(&chain, 80, zcReadCallback, &ctx);
+    size_t nread      = bufchainReadZC(&chain, 80, zcReadCallback, &ctx);
     if (nread != 80 || ctx.outp != 80 || memcmp(ctx.out, testdata1, 80))
         ret = 1;
     
@@ -222,7 +222,7 @@ static int test_bufchain_zerocopy_read()
     ctx.outp = 0;
     ctx.shouldConsume = false;
     size_t remaining = chain.total;
-    nread = bufChainReadZC(&chain, 50, zcReadCallback, &ctx);
+    nread             = bufchainReadZC(&chain, 50, zcReadCallback, &ctx);
     if (nread != 50 || ctx.outp != 50)
         ret = 1;
     
@@ -238,7 +238,7 @@ static int test_bufchain_zerocopy_read()
     // Now consume it
     ctx.outp = 0;
     ctx.shouldConsume = true;
-    nread = bufChainReadZC(&chain, remaining, zcReadCallback, &ctx);
+    nread             = bufchainReadZC(&chain, remaining, zcReadCallback, &ctx);
     if (nread != remaining || chain.total != 0)
         ret = 1;
     
@@ -249,7 +249,7 @@ static int test_bufchain_zerocopy_read()
         ret = 1;
     
     xaFree(ctx.out);
-    bufChainDestroy(&chain);
+    bufchainDestroy(&chain);
     return ret;
 }
 
@@ -258,9 +258,9 @@ static int test_bufchain_zerocopy_write()
     int ret = 0;
     BufChain chain;
     uint8 readbuf[256];
-    
-    bufChainInit(&chain, 64);
-    
+
+    bufchainInit(&chain, 64);
+
     // Allocate buffers for zero-copy write
     uint8 *buf1 = xaAlloc(70);
     memcpy(buf1, testdata1, 70);
@@ -269,14 +269,14 @@ static int test_bufchain_zerocopy_write()
     memcpy(buf2, testdata2, 60);
     
     // Zero-copy write
-    bufChainWriteZC(&chain, buf1, 70, 70);
-    bufChainWriteZC(&chain, buf2, 60, 60);
-    
+    bufchainWriteZC(&chain, buf1, 70, 70);
+    bufchainWriteZC(&chain, buf2, 60, 60);
+
     if (chain.total != 130)
         ret = 1;
     
     // Read back and verify
-    size_t nread = bufChainRead(&chain, readbuf, 130);
+    size_t nread = bufchainRead(&chain, readbuf, 130);
     if (nread != 130 || memcmp(readbuf, testdata1, 70) || memcmp(readbuf + 70, testdata2, 60))
         ret = 1;
     
@@ -286,16 +286,16 @@ static int test_bufchain_zerocopy_write()
     // Test partial buffer (size > bytes)
     uint8 *buf3 = xaAlloc(100);
     memcpy(buf3, testdata2, 55);
-    bufChainWriteZC(&chain, buf3, 100, 55);
-    
+    bufchainWriteZC(&chain, buf3, 100, 55);
+
     if (chain.total != 55)
         ret = 1;
-    
-    nread = bufChainRead(&chain, readbuf, 55);
+
+    nread = bufchainRead(&chain, readbuf, 55);
     if (nread != 55 || memcmp(readbuf, testdata2, 55))
         ret = 1;
-    
-    bufChainDestroy(&chain);
+
+    bufchainDestroy(&chain);
     return ret;
 }
 
@@ -306,27 +306,27 @@ static int test_bufchain_wraparound()
     uint8 readbuf[256];
     
     // Use 64-byte segment (minimum)
-    bufChainInit(&chain, 64);
-    
+    bufchainInit(&chain, 64);
+
     // Write, read partial, write more to cause wraparound
-    bufChainWrite(&chain, testdata1, 50);
-    size_t nread = bufChainRead(&chain, readbuf, 35);
+    bufchainWrite(&chain, testdata1, 50);
+    size_t nread = bufchainRead(&chain, readbuf, 35);
     if (nread != 35 || memcmp(readbuf, testdata1, 35))
         ret = 1;
     
     // This should wraparound in the ring buffer
-    bufChainWrite(&chain, testdata1 + 50, 55);
-    
+    bufchainWrite(&chain, testdata1 + 50, 55);
+
     // Read back and verify
-    nread = bufChainRead(&chain, readbuf, 70);
+    nread = bufchainRead(&chain, readbuf, 70);
     if (nread != 70)
         ret = 1;
     
     // First 15 bytes from first write, then 55 from second write
     if (memcmp(readbuf, testdata1 + 35, 15) || memcmp(readbuf + 15, testdata1 + 50, 55))
         ret = 1;
-    
-    bufChainDestroy(&chain);
+
+    bufchainDestroy(&chain);
     return ret;
 }
 
@@ -337,13 +337,13 @@ static int test_bufchain_multisegment()
     uint8 readbuf[512];
     
     // Use 64-byte segments (minimum)
-    bufChainInit(&chain, 64);
-    
+    bufchainInit(&chain, 64);
+
     // Write enough to span multiple segments
-    bufChainWrite(&chain, testdata1, TESTDATA_LEN);
-    bufChainWrite(&chain, testdata2, TESTDATA2_LEN);
-    bufChainWrite(&chain, testdata1, TESTDATA_LEN);
-    
+    bufchainWrite(&chain, testdata1, TESTDATA_LEN);
+    bufchainWrite(&chain, testdata2, TESTDATA2_LEN);
+    bufchainWrite(&chain, testdata1, TESTDATA_LEN);
+
     size_t total_written = TESTDATA_LEN + TESTDATA2_LEN + TESTDATA_LEN;
     
     // Should have multiple nodes (total > 128 bytes with 64-byte segments)
@@ -355,12 +355,12 @@ static int test_bufchain_multisegment()
         ret = 1;
     
     // Read across multiple segments
-    size_t nread = bufChainRead(&chain, readbuf, 100);
+    size_t nread = bufchainRead(&chain, readbuf, 100);
     if (nread != 100 || memcmp(readbuf, testdata1, 100))
         ret = 1;
     
     // Read more across segments (should span into testdata2)
-    nread = bufChainRead(&chain, readbuf + 100, 80);
+    nread = bufchainRead(&chain, readbuf + 100, 80);
     if (nread != 80)
         ret = 1;
     
@@ -370,14 +370,14 @@ static int test_bufchain_multisegment()
         ret = 1;
     
     // Read rest
-    nread = bufChainRead(&chain, readbuf + 180, 500);
+    nread = bufchainRead(&chain, readbuf + 180, 500);
     if (nread != (total_written - 180))
         ret = 1;
     
     if (chain.total != 0)
         ret = 1;
-    
-    bufChainDestroy(&chain);
+
+    bufchainDestroy(&chain);
     return ret;
 }
 
