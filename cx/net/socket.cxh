@@ -1,0 +1,51 @@
+#include <cx/net/queue.cxh>
+#include <cx/net/net_shared.h>
+#include <cx/buffer/bufchain.h>
+#include <cx/thread.h>
+
+/// Network Socket
+/// This is a base class; the actual socket implemention will be a derived class provided
+/// by the OS abstraction layer.
+abstract class NetSocket
+{
+    weak:NetQueue queue;    ///< NetQueue this socket is registered to (may be NULL)
+    NetSocketType type;     ///< Connection or connectionless, immutable
+
+    atomic:uint32 state;    ///< See NetSocketState enum
+
+    NetAddr local;          ///< Local end (for bound sockets)
+    NetAddr remote;         ///< Remote address (for connected sockets only)
+    sarray:stvar user;      ///< Storage for application-specific per-socket data
+
+    BufChain recvBuf;       ///< Buffer for data that has been received on the socket
+    BufChain sendBuf;       ///< Storage for data that can't be immediately sent
+    Mutex recvLock;         ///< Exclusive access to the socket's receive buffer
+    Mutex sendLock;         ///< Exclusive access to send data on this socket
+
+    /// List of fallback addresses to try to connect to if pending connect fails
+    [noinit] sarray:NetAddr connQueue;
+
+    /// Receive data from the socket
+    ///
+    /// This does not actively try to receive but only retrieves data from the receive buffer.
+    /// If the socket is in a NetQueue, data is automatically received and buffered in a
+    /// background thread (unless the queue is in polled mode).
+    ///
+    /// src is an optional parameter and will be populated only for connectionless sockets
+    ///
+    /// Returns the amount of data actually received
+    size_t recv([out] uint8* buf, size_t bufsz, [out] [opt] NetAddr* src);
+
+    /// Send data on the socket
+    ///
+    /// dest is ignored for connected sockets, but must be a valid address for connectionless
+    ///
+    /// Returns true if the data is successfully sent or queued, false if the socket
+    /// is not connected or in an error state
+    [abstract] bool send([in] uint8* data, size_t len, [in] [opt] NetAddr* dest, flags_t flags);
+
+    /// Close socket and free OS resources
+    ///
+    /// This will also remove the socket from its NetQueue if it's in one
+    [abstract] bool close();
+}

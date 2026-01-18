@@ -1,0 +1,10 @@
+#include <cx/net/socket.cxh>
+#include <cx/platform/win.h>
+#include <Winsock2.h>
+
+class NetSocketWin extends NetSocket
+{
+    SOCKET sock;
+
+    destroy();
+}

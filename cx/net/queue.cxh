@@ -1,0 +1,34 @@
+#include <cx/net/net_shared.h>
+
+/// NetQueue manages one or more sockets and a thread pool of workers
+abstract class NetQueue
+{
+    flags_t flags;  ///< Flags the NetQueue was created with
+
+    /// Hashtable of registered callbacks
+    /// key: Event type
+    /// value: sarray of callback pointers
+    hashtable:uint32:sarray callbacks;
+
+    /// Set of sockets this queue is managing
+    hashtable:object:none sockets;
+    
+    RWLock lock;  ///< Protects callback and socket hashes
+
+    /// Add a socket to be managed by the queued
+    ///
+    /// The socket must be compatible with the NetQueue implementation. The netqueueSocket()
+    /// factory can be used to create compatible sockets.
+    bool addSocket(NetSocket *socket);
+
+    /// Remove a socket from the queue, usually when the socket is closed
+    ///
+    /// For some implementations this will also attempt to cancel pending I/O requests that
+    /// reference the socket's owned buffers.
+    bool removeSocket(NetSocket *socket);
+
+    /// Factory for creating sockets
+    ///
+    /// This does NOT add the socket to the queue.
+    [abstract] NetSocket *socket(NetSocketType type);
+}
