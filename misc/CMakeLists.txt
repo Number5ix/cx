@@ -1,8 +1,11 @@
-#source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES
-#    htbench.c)
+if(CX_STANDALONE)
+    source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES
+        htbench.c)
 
-#add_executable(htbench htbench.c)
-#target_link_libraries(htbench cx)
+    add_executable(htbench htbench.c)
+    target_link_libraries(htbench cx)
+    set_property(TARGET htbench PROPERTY FOLDER "tests")
+endif()
 
 include (${CX_TOP_SOURCE_DIR}/cmake/werror.cmake)
 
