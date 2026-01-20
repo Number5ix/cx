@@ -1,7 +1,13 @@
 set(BUFFER_SRCS
-    buffer/bufchain.c)
+    buffer/bufchain.c
+    buffer/buffer.c
+    buffer/bufring.c
+    buffer/stype_buffer.c)
 set(BUFFER_INCLUDES
-    buffer/bufchain.h)
+    buffer/bufchain.h
+    buffer/buffer.h
+    buffer/bufring.h
+    buffer/stype_buffer.h)
 
 set(CX_SRCS
     ${CX_SRCS}

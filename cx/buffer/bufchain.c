@@ -4,145 +4,112 @@
 _Use_decl_annotations_
 void bufchainInit(BufChain* chain, size_t segsz)
 {
-    chain->head  = NULL;
-    chain->tail  = NULL;
-    chain->total = 0;
-    chain->segsz = clamplow(segsz, 64);  // minimum segment size is 64 bytes
-}
-
-static _meta_inline size_t nodeReadAvail(BufChainNode* node)
-{
-    if (node->head <= node->tail && !node->full) {
-        return node->tail - node->head;
-    } else {
-        return node->sz - node->head + node->tail;
-    }
-}
-
-static _meta_inline size_t nodeWriteAvail(BufChainNode* node)
-{
-    if (node->head <= node->tail && !node->full) {
-        return node->sz - node->tail + node->head;
-    } else {
-        return node->head - node->tail;
-    }
-}
-
-static _meta_inline void moveReadHead(BufChain* chain, size_t bytes)
-{
-    size_t remaining = bytes;
-
-    while (chain->head && remaining > 0 && chain->total > 0) {
-        BufChainNode* node = chain->head;
-        size_t nodeAvail   = nodeReadAvail(node);
-        if (remaining < nodeAvail) {
-            node->head = (node->head + remaining) % node->sz;
-            node->full = false;
-            chain->total -= remaining;
-            remaining = 0;
-        } else {
-            remaining -= nodeAvail;
-            chain->total -= nodeAvail;
-
-            // only remove the node if it's not the last in the chain
-            // we keep the last node to use for ringbuffer writes
-            if (node->next) {
-                chain->head = node->next;
-                xaFree(node->data);
-                xaFree(node);
-            } else {
-                // If the buffer is empty, reset it to the start of the ring.
-                // This helps avoid having to split reads/writes.
-                node->head = node->tail = 0;
-                node->full              = false;
-            }
-        }
-    }
-}
-
-static _meta_inline void readOutputHelper(uint8* in, size_t count, size_t skip, uint8* buf,
-                                          uint8** p, bufchainZCCB cb, void* ctx, bool* movehead)
-{
-    if (count > skip) {
-        if (buf) {
-            memcpy(*p, in + skip, count - skip);
-            *p += count - skip;
-        } else if (cb) {
-            *movehead &= cb(in + skip, count - skip, ctx);
-        }
-    }
-}
-
-// Force inline to allow compiler to optimize out unused code paths based on hardcoded parameters
-// for each use case
-static _meta_inline size_t readCommon(BufChain* chain,
-                                      _Out_writes_bytes_opt_(skip + bsz) uint8* buf, size_t skip,
-                                      size_t bsz, bufchainZCCB cb, void* ctx, bool movehead)
-{
-    BufChainNode* node = chain->head;
-    size_t avail       = chain->total;
-    size_t total       = min(skip + bsz, avail);
-    size_t nread       = 0;
-    uint8* p           = buf;
-
-    while (node && total > 0 && avail > 0) {
-        size_t count = total;
-
-        if (node->head <= node->tail && !node->full) {
-            // buffer is contiguous, can get it all at once
-            count = min(count, node->tail - node->head);
-            readOutputHelper(node->data + node->head, count, skip, buf, &p, cb, ctx, &movehead);
-
-            nread += (count > skip) ? (count - skip) : 0;
-            skip -= min(count, skip);
-            avail -= count;
-            total -= count;
-        } else {
-            // have to split read
-
-            // first read from head to end of buffer
-            count = min(count, node->sz - node->head);
-            readOutputHelper(node->data + node->head, count, skip, buf, &p, cb, ctx, &movehead);
-            nread += (count > skip) ? (count - skip) : 0;
-            skip -= min(count, skip);
-            avail -= count;
-            total -= count;
-
-            // now read from start of buffer to tail
-            count = min(total, node->tail);
-            readOutputHelper(node->data, count, skip, buf, &p, cb, ctx, &movehead);
-            nread += (count > skip) ? (count - skip) : 0;
-            skip -= min(count, skip);
-            avail -= count;
-            total -= count;
-        }
-
-        // get remaining data from next node
-        node = node->next;
-    }
-
-    if (movehead)
-        moveReadHead(chain, skip + bsz);
-
-    return nread;
+    chain->head   = NULL;
+    chain->tail   = NULL;
+    chain->cursor = 0;
+    chain->total  = 0;
+    chain->segsz  = clamplow(segsz, 64);   // minimum segment size is 64 bytes
 }
 
 _Use_decl_annotations_
 size_t bufchainRead(BufChain* chain, uint8* buf, size_t bytes)
 {
-    return readCommon(chain, buf, 0, bytes, NULL, NULL, true);
+    size_t bytesread = 0;
+
+    while (bytes > 0 && chain->head) {
+        BufChainNode* node = chain->head;
+        size_t toread      = min(bytes, node->buf->len - chain->cursor);
+
+        memcpy(buf + bytesread, node->buf->data + chain->cursor, toread);
+
+        bytesread += toread;
+        bytes -= toread;
+        chain->cursor += toread;
+        chain->total -= toread;
+
+        // did we exhaust this node?
+        if (chain->cursor >= node->buf->len) {
+            // move to next node
+            chain->head = node->next;
+            if (chain->head == NULL)
+                chain->tail = NULL;   // chain is now empty
+            bufDestroy(&node->buf);
+            xaFree(node);
+            chain->cursor = 0;
+        }
+    }
+
+    return bytesread;
 }
 
 _Use_decl_annotations_
 size_t bufchainPeek(_Inout_ BufChain* chain, uint8* buf, size_t off, size_t bytes)
 {
-    return readCommon(chain, buf, off, bytes, NULL, NULL, false);
+    size_t bytesread = 0;
+
+    BufChainNode* node = chain->head;
+    size_t cursor      = chain->cursor;   // local copy so we don't modify it
+
+    // seek to the starting offset
+    while (node && off > 0) {
+        size_t toskip = min(off, node->buf->len - cursor);
+        off -= toskip;
+        cursor += toskip;
+        if (cursor >= node->buf->len) {
+            node   = node->next;
+            cursor = 0;
+        }
+    }
+
+    // now read the data
+    while (node && bytes > 0) {
+        size_t toread = min(bytes, node->buf->len - cursor);
+
+        memcpy(buf + bytesread, node->buf->data + cursor, toread);
+
+        bytesread += toread;
+        bytes -= toread;
+        cursor += toread;
+
+        if (cursor >= node->buf->len) {
+            node   = node->next;
+            cursor = 0;
+        }
+    }
+
+    return bytesread;
 }
 
 _Use_decl_annotations_
-size_t bufchainReadZC(_Inout_ BufChain* chain, size_t bytes, bufchainZCCB cb, void* ctx)
+size_t bufchainReadZC(BufChain* chain, size_t maxbytes, bufchainZCCB cb, void* ctx)
 {
-    return readCommon(chain, NULL, 0, bytes, cb, ctx, true);
+    size_t bytesread = 0;
+    bool done        = false;
+
+    while (!done && chain->head && bytesread < maxbytes) {
+        BufChainNode* node = chain->head;
+        size_t toread      = node->buf->len - chain->cursor;
+
+        // only send complete buffers
+        if (bytesread + toread > maxbytes)
+            break;
+
+        // don't continue onto next node if callback returns false
+        done = !cb(node->buf, chain->cursor, ctx);
+
+        bytesread += toread;
+        chain->total -= toread;
+
+        // move to next node
+        chain->head = node->next;
+        if (chain->head == NULL)
+            chain->tail = NULL;   // chain is now empty
+        // do not destroy buffer; it's owned by the callback now
+        xaFree(node);
+        chain->cursor = 0;
+    }
+
+    return bytesread;
 }
 
 _Use_decl_annotations_
@@ -153,15 +120,11 @@ void bufchainWrite(BufChain* chain, const uint8* buf, size_t bytes)
 
     while (remaining > 0) {
         BufChainNode* node = chain->tail;
-        if (!node || nodeWriteAvail(node) == 0) {
+        if (!node || node->buf->len >= node->buf->sz) {
             // need a new node
             node       = xaAllocStruct(BufChainNode);
             node->next = NULL;
-            node->data = xaAlloc(chain->segsz);
-            node->sz   = chain->segsz;
-            node->head = 0;
-            node->tail = 0;
-            node->full = false;
+            node->buf  = bufCreate(chain->segsz);
             if (chain->tail) {
                 chain->tail->next = node;
                 chain->tail       = node;
@@ -170,26 +133,12 @@ void bufchainWrite(BufChain* chain, const uint8* buf, size_t bytes)
             }
         }
 
-        size_t canwrite = nodeWriteAvail(node);
-        size_t count    = (remaining < canwrite) ? remaining : canwrite;
+        size_t count = min(remaining, node->buf->sz - node->buf->len);
 
         // write the data
-        if (node->tail + count <= node->sz) {
-            // can write in one go
-            memcpy(node->data + node->tail, p, count);
-            node->tail = (node->tail + count) % node->sz;
-        } else {
-            // have to split the write
-            size_t firstPart = node->sz - node->tail;
-            memcpy(node->data + node->tail, p, firstPart);
-            size_t secondPart = count - firstPart;
-            memcpy(node->data, p + firstPart, secondPart);
-            node->tail = secondPart;
-        }
-
-        // we filled up the node
-        if (node->head == node->tail)
-            node->full = true;
+        memcpy(node->buf->data + node->buf->len, p, count);
+        node->buf->len += count;
+        devAssert(node->buf->len <= node->buf->sz);
 
         chain->total += count;
         remaining -= count;
@@ -198,16 +147,15 @@ void bufchainWrite(BufChain* chain, const uint8* buf, size_t bytes)
 }
 
 _Use_decl_annotations_
-void bufchainWriteZC(BufChain* chain, uint8* data, size_t size, size_t bytes)
+void bufchainWriteZC(BufChain* chain, buffer* buf)
 {
+    if (!buf || (*buf)->sz == 0)
+        return;
+
     BufChainNode* node = xaAllocStruct(BufChainNode);
     node->next         = NULL;
-    node->data         = data;
-    node->sz           = size;
-    node->head         = 0;
-    node->tail         = bytes % size;
-    node->full         = (size == bytes);
-    devAssert(bytes <= size);
+    node->buf          = *buf;
+    devAssert((*buf)->len <= (*buf)->sz);
 
     if (chain->tail) {
         chain->tail->next = node;
@@ -216,15 +164,37 @@ void bufchainWriteZC(BufChain* chain, uint8* data, size_t size, size_t bytes)
         chain->head = chain->tail = node;
     }
 
-    chain->total += bytes;
+    chain->total += (*buf)->len;
+    *buf = NULL;
 }
 
 _Use_decl_annotations_
 size_t bufchainSkip(BufChain* chain, size_t bytes)
 {
-    size_t toSkip = min(bytes, chain->total);
-    moveReadHead(chain, toSkip);
-    return toSkip;
+    size_t skipped = 0;
+
+    while (bytes > 0 && chain->head) {
+        BufChainNode* node = chain->head;
+        size_t toskip      = min(bytes, node->buf->len - chain->cursor);
+
+        skipped += toskip;
+        bytes -= toskip;
+        chain->cursor += toskip;
+        chain->total -= toskip;
+
+        // did we exhaust this node?
+        if (chain->cursor >= node->buf->len) {
+            // move to next node
+            chain->head = node->next;
+            if (chain->head == NULL)
+                chain->tail = NULL;   // chain is now empty
+            bufDestroy(&node->buf);
+            xaFree(node);
+            chain->cursor = 0;
+        }
+    }
+
+    return skipped;
 }
 
 _Use_decl_annotations_
@@ -233,12 +203,13 @@ void bufchainDestroy(BufChain* chain)
     BufChainNode* node = chain->head;
     while (node) {
         BufChainNode* next = node->next;
-        xaFree(node->data);
+        bufDestroy(&node->buf);
         xaFree(node);
         node = next;
     }
     chain->head  = NULL;
     chain->tail  = NULL;
+    chain->cursor = 0;
     chain->total = 0;
     chain->segsz = 0;
 }

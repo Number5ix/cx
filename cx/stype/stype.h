@@ -139,6 +139,7 @@ typedef const struct str_ref* _Nullable strref;
 typedef struct hashtable_ref* hashtable;
 typedef struct closure_ref* closure;
 typedef struct cchain_ref* cchain;
+typedef struct BufferHeader* buffer;
 typedef struct ObjInst ObjInst;
 typedef struct ObjInst_WeakRef ObjInst_WeakRef;
 typedef struct SUID SUID;
@@ -242,6 +243,7 @@ typedef union sa_ref* sahandle;
 #define SType_hashtable hashtable
 #define SType_closure   closure
 #define SType_cchain    cchain
+#define SType_buffer    buffer
 #define stTypeDef(name) SType_##name
 
 /// @defgroup stype_utils Type Utilities
@@ -311,6 +313,7 @@ typedef union stgeneric {
     CONTAINER_TYPE(hashtable);
     CONTAINER_TYPE(closure);
     CONTAINER_TYPE(cchain);
+    CONTAINER_TYPE(buffer);
 } stgeneric;
 
 _Static_assert(sizeof(stgeneric) == sizeof(uint64), "stype container too large");
@@ -362,6 +365,7 @@ typedef struct stvar {
 #define STStorageType_hashtable hashtable
 #define STStorageType_closure   closure
 #define STStorageType_cchain    cchain
+#define STStorageType_buffer    buffer
 #define stStorageType(name)     STStorageType_##name
 
 enum STYPE_ID {
@@ -394,6 +398,7 @@ enum STYPE_ID {
     STypeId_suid      = STCLASS_CX | 3,   // notable exception
     STypeId_stvar     = STCLASS_CX | 4,
     STypeId_closure   = STCLASS_CX | 5,
+    STypeId_buffer    = STCLASS_CX | 6,
     STypeId_sarray    = STCLASS_CX_CONTAINER | 0,
     STypeId_hashtable = STCLASS_CX_CONTAINER | 1,
     STypeId_cchain    = STCLASS_CX_CONTAINER | 2,
@@ -444,6 +449,7 @@ enum STYPE_SIZE {
     STypeSize_hashtable = sizeof(hashtable),
     STypeSize_closure   = sizeof(closure),
     STypeSize_cchain    = sizeof(cchain),
+    STypeSize_buffer    = sizeof(buffer),
 };
 
 /// size_t stTypeSize(type)
@@ -562,6 +568,7 @@ enum STYPE_DEFAULT_FLAGS {
     STypeFlags_hashtable = stFlag(Object),
     STypeFlags_closure   = stFlag(Object),
     STypeFlags_cchain    = stFlag(Object),
+    STypeFlags_buffer    = stFlag(Object),
 };
 
 /// uint8 stTypeFlags(type)
@@ -607,6 +614,8 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define closureCheckPtr(c)    (unused_noeval((c != NULL) && (*c) && &((*c)->_is_closure)), (c))
 #define cchainCheck(c)        (unused_noeval((c) && &((c)->_is_closure_chain)), (c))
 #define cchainCheckPtr(c)     (unused_noeval((c != NULL) && (*c) && &((*c)->_is_closure_chain)), (c))
+#define bufferCheck(c)        (unused_noeval((c) && &((c)->_is_buffer)), (c))
+#define bufferCheckPtr(c)     (unused_noeval((c != NULL) && (*c) && &((*c)->_is_buffer)), (c))
 
 // most of these are no-ops, but some can do extra type checking
 #define STypeCheck_opaque(type, val)    (val)
@@ -635,6 +644,7 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define STypeCheck_hashtable(type, val) htCheck(val)
 #define STypeCheck_closure(type, val)   closureCheck(val)
 #define STypeCheck_cchain(type, val)    cchainCheck(val)
+#define STypeCheck_buffer(type, val)    bufferCheck(val)
 
 /// value stCheck(type, value)
 ///
@@ -685,6 +695,7 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define STypeCheckPtr_hashtable(type, ptr) htCheckPtr(ptr)
 #define STypeCheckPtr_closure(type, ptr)   closureCheckPtr(ptr)
 #define STypeCheckPtr_cchain(type, ptr)    cchainCheckPtr(ptr)
+#define STypeCheckPtr_buffer(type, ptr)    bufferCheckPtr(ptr)
 
 /// pointer stCheckPtr(type, pointer)
 ///
@@ -752,6 +763,7 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define stType_hashtable        stTypeInternal(hashtable)
 #define stType_closure          stTypeInternal(closure)
 #define stType_cchain           stTypeInternal(cchain)
+#define stType_buffer           stTypeInternal(buffer)
 #define stType_custom(basetype) _stype_mkcustom(stType_##basetype)
 
 /// @defgroup stype_args Argument Passing System
@@ -838,6 +850,7 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define stFullType_hashtable             stFullTypeInternal(hashtable)
 #define stFullType_closure               stFullTypeInternal(closure)
 #define stFullType_cchain                stFullTypeInternal(cchain)
+#define stFullType_buffer                stFullTypeInternal(buffer)
 // this will chain evaluate macros for stuff like custom(opaque(realtype), ops)
 // it gets token pasted as _stype_mkcustom(stType_opaque(realtype), ops)
 #define stFullType_custom(basetype, ops) _stype_mkcustom(stType_##basetype), (&ops)
@@ -896,6 +909,7 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define STypeArg_hashtable(type, val) stgeneric(type, val)
 #define STypeArg_closure(type, val)   stgeneric(type, val)
 #define STypeArg_cchain(type, val)    stgeneric(type, val)
+#define STypeArg_buffer(type, val)    stgeneric(type, val)
 
 /// stgeneric stArg(type, value)
 ///
@@ -954,6 +968,7 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define STypeArgPtr_hashtable(type, val) (stgeneric*)stCheckPtr(type, val)
 #define STypeArgPtr_closure(type, val)   (stgeneric*)stCheckPtr(type, val)
 #define STypeArgPtr_cchain(type, val)    (stgeneric*)stCheckPtr(type, val)
+#define STypeArgPtr_buffer(type, val)    (stgeneric*)stCheckPtr(type, val)
 
 /// stgeneric* stArgPtr(type, pointer)
 ///
@@ -1004,6 +1019,7 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define STypeCheckedArg_hashtable(type, val) stTypeInternal(type), stArg(type, val)
 #define STypeCheckedArg_closure(type, val)   stTypeInternal(type), stArg(type, val)
 #define STypeCheckedArg_cchain(type, val)    stTypeInternal(type), stArg(type, val)
+#define STypeCheckedArg_buffer(type, val)    stTypeInternal(type), stArg(type, val)
 
 /// (stype, stgeneric) stCheckedArg(type, value)
 ///
@@ -1058,6 +1074,7 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define STypeCheckedPtrArg_hashtable(type, val) stTypeInternal(type), stArgPtr(type, val)
 #define STypeCheckedPtrArg_closure(type, val)   stTypeInternal(type), stArgPtr(type, val)
 #define STypeCheckedPtrArg_cchain(type, val)    stTypeInternal(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_buffer(type, val)    stTypeInternal(type), stArgPtr(type, val)
 
 /// (stype, stgeneric*) stCheckedPtrArg(type, pointer)
 ///

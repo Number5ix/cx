@@ -49,6 +49,8 @@ set(CX_SRCS
     cx/obj/objstdif.c
     cx/obj/objweak.c
     cx/obj/stype_obj.c
+    ../cx/buffer/buffer.c
+    ../cx/buffer/stype_buffer.c
     ../cx/closure/cchain.c
     ../cx/closure/closure.c
     ../cx/closure/stype_closure.c
