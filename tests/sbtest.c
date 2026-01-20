@@ -86,18 +86,11 @@ static int test_streambuf_push()
         if (memcmp(c1.out, testdata1, 5))
             ret = 1;
 
-        // check if ring buffer is in expected state
-        if (ptest->head != 5 || ptest->tail != 7)
-            ret = 1;
-
         c1.shouldread = 7;
         sbufPWrite(ptest, testdata1 + 9, 5);
 
         if (memcmp(c1.out, "This is test", 12) ||
             c1.outp != 12)
-            ret = 1;
-
-        if (ptest->head != 0 || ptest->tail != 0)
             ret = 1;
 
         // test overflow buffer
@@ -107,20 +100,11 @@ static int test_streambuf_push()
         c1.shouldread = 1;
         sbufPWrite(ptest, testdata1 + 7, 8);
 
-        if (ptest->head != 6 ||
-            ptest->tail != 7 ||
-            ptest->overflowtail != 8 ||
-            sbufCAvail(ptest) != 9)
+        if (sbufCAvail(ptest) != 9)
             ret = 1;
 
         c1.shouldread = 5;
         sbufPWrite(ptest, testdata1 + 15, 5);
-
-        // reading 5 should cause the overflow to become the main buffer
-        if (ptest->head != 4 ||
-            ptest->tail != 13 ||
-            ptest->overflowtail != 0)
-            ret = 1;
 
         if (memcmp(c1.out, testdata1, 11) ||
             c1.outp != 11)

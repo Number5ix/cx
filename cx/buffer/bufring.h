@@ -28,10 +28,6 @@
 /// @note For optimal performance, this implementation is not thread-safe. If access from
 /// multiple threads is required, wrap operations with an appropriate lock.
 ///
-/// @todo This is a generic and expanded version of the streambuf ring buffer implementation
-/// that supports indefinite expansion instead of only 2 buffers. The streambuf module should
-/// be refactored at some point to use this new implementation.
-///
 /// Example:
 /// @code
 ///   BufRing ring;

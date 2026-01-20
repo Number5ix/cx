@@ -46,6 +46,7 @@
 
 #pragma once
 
+#include <cx/buffer/bufring.h>
 #include <cx/stype/stype.h>
 
 typedef struct StreamBuffer StreamBuffer;
@@ -123,16 +124,8 @@ enum STREAM_BUFFER_FLAGS_ENUM {
 
 /// Stream buffer structure for managing producer-consumer data flow
 typedef struct StreamBuffer {
-    uint8* buf;                      ///< Main buffer
-    size_t bufsz;                    ///< Current buffer size
-    size_t targetsz;                 ///< Desired max size (can be exceeded in push mode)
-
-    uint8* overflow;                 ///< Overflow buffer for expanding main buffer
-    size_t overflowtail;             ///< Write position in overflow buffer
-    size_t overflowsz;               ///< Size of overflow buffer
-
-    size_t head;                     ///< Start of valid data in buffer
-    size_t tail;                     ///< End of valid data in buffer
+    BufRing buf;                     ///< Underlying buffer ring for data storage
+    size_t targetsz;                 ///< Buffer size that producers should aim for
 
     sbufPullCB producerPull;         ///< Producer pull callback
     sbufCleanupCB producerCleanup;   ///< Producer cleanup callback

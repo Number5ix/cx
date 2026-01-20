@@ -50,6 +50,7 @@ set(CX_SRCS
     cx/obj/objweak.c
     cx/obj/stype_obj.c
     ../cx/buffer/buffer.c
+    ../cx/buffer/bufring.c
     ../cx/buffer/stype_buffer.c
     ../cx/closure/cchain.c
     ../cx/closure/closure.c
