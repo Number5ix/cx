@@ -207,9 +207,9 @@ void bufchainDestroy(BufChain* chain)
         xaFree(node);
         node = next;
     }
-    chain->head  = NULL;
-    chain->tail  = NULL;
+    chain->head   = NULL;
+    chain->tail   = NULL;
     chain->cursor = 0;
-    chain->total = 0;
-    chain->segsz = 0;
+    chain->total  = 0;
+    chain->segsz  = 0;
 }

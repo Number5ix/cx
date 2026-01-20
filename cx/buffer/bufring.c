@@ -7,7 +7,7 @@ void bufringInit(BufRing* ring, size_t segsz)
     ring->head  = NULL;
     ring->tail  = NULL;
     ring->total = 0;
-    ring->segsz = clamplow(segsz, 64);  // minimum segment size is 64 bytes
+    ring->segsz = clamplow(segsz, 64);   // minimum segment size is 64 bytes
 }
 
 static _meta_inline size_t nodeReadAvail(BufRingNode* node)
@@ -34,7 +34,7 @@ static _meta_inline void moveReadHead(BufRing* ring, size_t bytes)
 
     while (ring->head && remaining > 0 && ring->total > 0) {
         BufRingNode* node = ring->head;
-        size_t nodeAvail   = nodeReadAvail(node);
+        size_t nodeAvail  = nodeReadAvail(node);
         if (remaining < nodeAvail) {
             node->head = (node->head + remaining) % node->buf->sz;
             node->full = false;
@@ -75,15 +75,15 @@ static _meta_inline void readOutputHelper(uint8* in, size_t count, size_t skip, 
 
 // Force inline to allow compiler to optimize out unused code paths based on hardcoded parameters
 // for each use case
-static _meta_inline size_t readCommon(BufRing* ring,
-                                      _Out_writes_bytes_opt_(skip + bsz) uint8* buf, size_t skip,
-                                      size_t bsz, bufringZCCB cb, void* ctx, bool movehead)
+static _meta_inline size_t readCommon(BufRing* ring, _Out_writes_bytes_opt_(skip + bsz) uint8* buf,
+                                      size_t skip, size_t bsz, bufringZCCB cb, void* ctx,
+                                      bool movehead)
 {
     BufRingNode* node = ring->head;
-    size_t avail       = ring->total;
-    size_t total       = min(skip + bsz, avail);
-    size_t nread       = 0;
-    uint8* p           = buf;
+    size_t avail      = ring->total;
+    size_t total      = min(skip + bsz, avail);
+    size_t nread      = 0;
+    uint8* p          = buf;
 
     while (node && total > 0 && avail > 0) {
         size_t count = total;
@@ -91,7 +91,14 @@ static _meta_inline size_t readCommon(BufRing* ring,
         if (node->head <= node->tail && !node->full) {
             // buffer is contiguous, can get it all at once
             count = min(count, node->tail - node->head);
-            readOutputHelper(node->buf->data + node->head, count, skip, buf, &p, cb, ctx, &movehead);
+            readOutputHelper(node->buf->data + node->head,
+                             count,
+                             skip,
+                             buf,
+                             &p,
+                             cb,
+                             ctx,
+                             &movehead);
 
             nread += (count > skip) ? (count - skip) : 0;
             skip -= min(count, skip);
@@ -102,7 +109,14 @@ static _meta_inline size_t readCommon(BufRing* ring,
 
             // first read from head to end of buffer
             count = min(count, node->buf->sz - node->head);
-            readOutputHelper(node->buf->data + node->head, count, skip, buf, &p, cb, ctx, &movehead);
+            readOutputHelper(node->buf->data + node->head,
+                             count,
+                             skip,
+                             buf,
+                             &p,
+                             cb,
+                             ctx,
+                             &movehead);
             nread += (count > skip) ? (count - skip) : 0;
             skip -= min(count, skip);
             avail -= count;
@@ -197,17 +211,17 @@ void bufringWrite(BufRing* ring, const uint8* buf, size_t bytes)
 }
 
 _Use_decl_annotations_
-void bufringWriteZC(BufRing* ring, buffer *buf)
+void bufringWriteZC(BufRing* ring, buffer* buf)
 {
     if (!buf || (*buf)->sz == 0)
         return;
 
     BufRingNode* node = xaAllocStruct(BufRingNode);
-    node->next         = NULL;
-    node->buf          = *buf;
-    node->head         = 0;
-    node->tail         = (*buf)->len % (*buf)->sz;
-    node->full         = (*buf)->len == (*buf)->sz;
+    node->next        = NULL;
+    node->buf         = *buf;
+    node->head        = 0;
+    node->tail        = (*buf)->len % (*buf)->sz;
+    node->full        = (*buf)->len == (*buf)->sz;
     devAssert((*buf)->len <= (*buf)->sz);
 
     if (ring->tail) {

@@ -82,9 +82,9 @@ typedef bool (*bufringZCCB)(_In_reads_bytes_(bytes) const uint8* buf, size_t byt
 /// allocated as needed when data is written. The segment size will be clamped to a minimum
 /// of 64 bytes.
 ///
-/// @param chain Pointer to the ring buffer to initialize
+/// @param ring Pointer to the ring buffer to initialize
 /// @param segsz Size of each buffer segment in bytes (minimum 64)
-void bufringInit(_Out_ BufRing* chain, size_t segsz);
+void bufringInit(_Out_ BufRing* ring, size_t segsz);
 
 /// Read data from a ring buffer into a user buffer.
 ///
@@ -92,11 +92,11 @@ void bufringInit(_Out_ BufRing* chain, size_t segsz);
 /// the buffer. Data is read sequentially from the head. Exhausted capacity is automatically
 /// freed, except the base segment which is retained for reuse.
 ///
-/// @param chain Pointer to the ring buffer to read from
+/// @param ring Pointer to the ring buffer to read from
 /// @param buf Pointer to the user buffer to read data into
 /// @param bytes Maximum number of bytes to read
 /// @return Number of bytes actually read (may be less if buffer has insufficient data)
-size_t bufringRead(_Inout_ BufRing* chain, _Out_writes_bytes_(bytes) uint8* buf, size_t bytes);
+size_t bufringRead(_Inout_ BufRing* ring, _Out_writes_bytes_(bytes) uint8* buf, size_t bytes);
 
 /// Read data from a ring buffer into a buffer object.
 ///
@@ -120,12 +120,12 @@ _meta_inline size_t bufringReadBuf(_Inout_ BufRing* ring, _Inout_ buffer buf, si
 /// and the read position is not advanced. This is useful for protocol parsing where you
 /// need to examine data before deciding whether to consume it.
 ///
-/// @param chain Pointer to the ring buffer to peek into
+/// @param ring Pointer to the ring buffer to peek into
 /// @param buf Pointer to the user buffer to copy data into
 /// @param off Offset within the ring buffer to start peeking from
 /// @param bytes Number of bytes to peek at
 /// @return Number of bytes actually copied (may be less if buffer has insufficient data)
-size_t bufringPeek(_Inout_ BufRing* chain, _Out_writes_bytes_(bytes) uint8* buf, size_t off,
+size_t bufringPeek(_Inout_ BufRing* ring, _Out_writes_bytes_(bytes) uint8* buf, size_t off,
                    size_t bytes);
 
 /// Peek at data in a ring buffer into a buffer object.
@@ -153,10 +153,10 @@ _meta_inline size_t bufringPeekBuf(_Inout_ BufRing* ring, _Inout_ buffer buf, si
 /// than reading into a dummy buffer when you need to discard data. Exhausted capacity is
 /// automatically freed, except the base segment which is retained for reuse.
 ///
-/// @param chain Pointer to the ring buffer to skip data in
+/// @param ring Pointer to the ring buffer to skip data in
 /// @param bytes Number of bytes to skip
 /// @return Number of bytes actually skipped (may be less if buffer has insufficient data)
-size_t bufringSkip(_Inout_ BufRing* chain, size_t bytes);
+size_t bufringSkip(_Inout_ BufRing* ring, size_t bytes);
 
 /// Read data from a ring buffer in zero-copy mode.
 ///
@@ -169,14 +169,14 @@ size_t bufringSkip(_Inout_ BufRing* chain, size_t bytes);
 /// consumed and removed from the buffer. If it returns false for any segment, all data is
 /// retained (all-or-nothing semantics).
 ///
-/// @param chain Pointer to the ring buffer to read from
+/// @param cring Pointer to the ring buffer to read from
 /// @param bytes Maximum number of bytes to read
 /// @param cb Callback function to process each buffer segment
 /// @param ctx User-defined context pointer passed to the callback
 /// @return Number of bytes actually sent to the callback
 /// @note The callback must return the same value consistently across all invocations during
 /// a single read operation.
-size_t bufringReadZC(_Inout_ BufRing* chain, size_t bytes, bufringZCCB cb, _Inout_opt_ void* ctx);
+size_t bufringReadZC(_Inout_ BufRing* ring, size_t bytes, bufringZCCB cb, _Inout_opt_ void* ctx);
 
 /// Write data from a user buffer into a ring buffer.
 ///
@@ -184,10 +184,10 @@ size_t bufringReadZC(_Inout_ BufRing* chain, size_t bytes, bufringZCCB cb, _Inou
 /// additional capacity is automatically allocated as needed. Data is copied into the
 /// ring buffer.
 ///
-/// @param chain Pointer to the ring buffer to write to
+/// @param ring Pointer to the ring buffer to write to
 /// @param buf Pointer to the user buffer containing data to write
 /// @param bytes Number of bytes to write
-void bufringWrite(_Inout_ BufRing* chain, _In_reads_bytes_(bytes) const uint8* buf, size_t bytes);
+void bufringWrite(_Inout_ BufRing* ring, _In_reads_bytes_(bytes) const uint8* buf, size_t bytes);
 
 /// Write data from a buffer object into a ring buffer.
 ///
@@ -195,11 +195,11 @@ void bufringWrite(_Inout_ BufRing* chain, _In_reads_bytes_(bytes) const uint8* b
 /// The data is copied and the buffer object remains owned by the caller. Uses the buffer's
 /// length field to determine how many bytes to write.
 ///
-/// @param chain Pointer to the ring buffer to write to
+/// @param ring Pointer to the ring buffer to write to
 /// @param buf Buffer object containing data to write
-_meta_inline void bufringWriteBuf(_Inout_ BufRing* chain, _In_ buffer buf)
+_meta_inline void bufringWriteBuf(_Inout_ BufRing* ring, _In_ buffer buf)
 {
-    bufringWrite(chain, buf->data, buf->len);
+    bufringWrite(ring, buf->data, buf->len);
 }
 
 /// Append a buffer to a ring buffer for zero-copy mode.
@@ -213,12 +213,12 @@ _meta_inline void bufringWriteBuf(_Inout_ BufRing* chain, _In_ buffer buf)
 /// The buffer's length field (buf->len) is used to determine how much valid data is in the
 /// buffer.
 ///
-/// @param chain Pointer to the existing ring buffer
+/// @param ring Pointer to the existing ring buffer
 /// @param buf Pointer to buffer object to append (ownership transferred, set to NULL on return)
 /// @note The ring buffer takes ownership of the buffer object and will destroy it. After this
 /// call, *buf will be NULL.
-_At_(*buf, _Pre_notnull_ _Post_null_)
-void bufringWriteZC(BufRing* chain, _Inout_ buffer *buf);
+_At_(*buf,
+     _Pre_notnull_ _Post_null_) void bufringWriteZC(_Inout_ BufRing* ring, _Inout_ buffer* buf);
 
 /// Destroy a ring buffer and free all associated resources.
 ///
@@ -226,7 +226,7 @@ void bufringWriteZC(BufRing* chain, _Inout_ buffer *buf);
 /// to an empty state. After calling this function, the buffer must be reinitialized with
 /// bufringInit() before it can be used again.
 ///
-/// @param chain Pointer to the ring buffer to destroy
-void bufringDestroy(_Pre_notnull_ _Post_invalid_ BufRing* chain);
+/// @param ring Pointer to the ring buffer to destroy
+void bufringDestroy(_Pre_notnull_ _Post_invalid_ BufRing* ring);
 
 /// @}  // end of bufring group
