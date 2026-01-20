@@ -76,6 +76,23 @@ typedef struct BufRing {
 typedef bool (*bufringZCCB)(_In_reads_bytes_(bytes) const uint8* buf, size_t bytes,
                             _Pre_opt_valid_ void* ctx);
 
+/// Callback for feeding data into a ring buffer.
+///
+/// The callback is invoked to write data directly into the ring buffer's internal storage.
+/// This enables efficient data transfer without intermediate copying. The callback should
+/// write up to maxbytes into the provided buffer and return the actual number of bytes
+/// written.
+///
+/// If the callback returns 0, the feed operation stops. The callback may be invoked multiple
+/// times to fill the requested amount.
+///
+/// @param buf Pointer to the buffer where data should be written
+/// @param maxbytes Maximum number of bytes that can be written
+/// @param ctx User-defined context pointer
+/// @return Number of bytes actually written (0 to stop feeding)
+typedef size_t (*bufringFeedCB)(_Out_writes_bytes_(maxbytes) uint8* buf, size_t maxbytes,
+                                _Pre_opt_valid_ void* ctx);
+
 /// Initialize an empty ring buffer.
 ///
 /// Creates an empty ring buffer with the specified segment size. Additional capacity will be
@@ -219,6 +236,36 @@ _meta_inline void bufringWriteBuf(_Inout_ BufRing* ring, _In_ buffer buf)
 /// call, *buf will be NULL.
 _At_(*buf,
      _Pre_notnull_ _Post_null_) void bufringWriteZC(_Inout_ BufRing* ring, _Inout_ buffer* buf);
+
+/// Get available write space in the ring buffer without expansion.
+///
+/// Returns the number of bytes that can be written to the current tail segment without
+/// allocating a new segment. This is useful for determining if a write operation can
+/// complete without triggering expansion, or for optimizing feed operations.
+///
+/// @param ring Pointer to the ring buffer to query
+/// @return Number of bytes available for writing in the current tail segment (0 if empty)
+size_t bufringWriteSpace(_In_ BufRing* ring);
+
+/// Feed data into a ring buffer using a callback.
+///
+/// Allows a callback to write data directly into the ring buffer's internal storage, avoiding
+/// intermediate copying. The callback is invoked one or more times with pointers to available
+/// buffer space. This is particularly useful for reading from files, network sockets, or other
+/// data sources directly into the buffer.
+///
+/// The function attempts to feed up to 'bytes' amount of data. The callback may be invoked
+/// multiple times to reach this goal, and can return 0 to stop the operation early. New segments
+/// are automatically allocated as needed.
+///
+/// @param ring Pointer to the ring buffer to feed data into
+/// @param feed Callback function that writes data to the buffer
+/// @param bytes Maximum number of bytes to feed
+/// @param ctx User-defined context pointer passed to the callback
+/// @return Total number of bytes actually fed into the buffer
+/// @note The callback can return 0 to stop feeding. Writes are automatically split at segment
+/// boundaries to maintain ring buffer integrity.
+size_t bufringFeed(_Inout_ BufRing* ring, bufringFeedCB feed, size_t bytes, _Inout_opt_ void* ctx);
 
 /// Destroy a ring buffer and free all associated resources.
 ///

@@ -236,6 +236,59 @@ void bufringWriteZC(BufRing* ring, buffer* buf)
 }
 
 _Use_decl_annotations_
+size_t bufringWriteSpace(BufRing* ring)
+{
+    return ring->tail ? nodeWriteAvail(ring->tail) : 0;
+}
+
+_Use_decl_annotations_
+size_t bufringFeed(BufRing* ring, bufringFeedCB feed, size_t bytes, void* ctx)
+{
+    size_t remaining = bytes;
+    size_t nfeed     = 0;
+
+    while (remaining > 0) {
+        BufRingNode* node = ring->tail;
+        if (!node || nodeWriteAvail(node) == 0) {
+            // need a new node
+            node       = xaAllocStruct(BufRingNode);
+            node->next = NULL;
+            node->buf  = bufCreate(ring->segsz);
+            node->head = 0;
+            node->tail = 0;
+            node->full = false;
+            if (ring->tail) {
+                ring->tail->next = node;
+                ring->tail       = node;
+            } else {
+                ring->head = ring->tail = node;
+            }
+        }
+
+        size_t canwrite = nodeWriteAvail(node);
+        size_t count    = (remaining < canwrite) ? remaining : canwrite;
+        // make sure we don't go past the end, this automatically splits writes
+        count           = min(count, node->buf->sz - node->tail);
+
+        nfeed = feed(node->buf->data + node->tail, count, ctx);
+        devAssert(nfeed <= count);
+        node->tail = (node->tail + nfeed) % node->buf->sz;
+
+        // we filled up the node
+        if (node->head == node->tail)
+            node->full = true;
+
+        ring->total += nfeed;
+        remaining -= nfeed;
+
+        if (nfeed == 0)
+            break;   // callback returned 0, nothing else we can do
+    }
+
+    return bytes - remaining;   // how much was actually fed into the buffer
+}
+
+_Use_decl_annotations_
 size_t bufringSkip(BufRing* ring, size_t bytes)
 {
     size_t toSkip = min(bytes, ring->total);
