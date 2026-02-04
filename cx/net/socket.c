@@ -14,6 +14,9 @@
 
 _objinit_guaranteed bool NetSocket_init(_In_ NetSocket* self)
 {
+    if (self->mru == 0)
+        self->mru = 1500;   // default to ethernet packet size
+
     // TODO: Make the buffer segment size configurable
     bufringInit(&self->recvBuf, 65536);
     bufchainInit(&self->sendBuf, 65536);
@@ -98,6 +101,22 @@ bool NetSocket_recvMsgs(_In_ NetSocket* self, socketRecvCB cb, _In_opt_ void* ct
     } while (!done);
 
     return ret;
+}
+
+bool NetSocket_close(_In_ NetSocket* self)
+{
+    if (atomicLoad(uint32, &self->state, Relaxed) == NS_Closed)
+        return false;
+
+    NetQueue* queue = objAcquireFromWeak(NetQueue, self->queue);
+    if (queue) {
+        netqueueRemoveSocket(queue, self);
+        objRelease(&queue);
+    }
+
+    atomicStore(uint32, &self->state, NS_Closed, Relaxed);
+
+    return true;
 }
 
 void NetSocket_destroy(_In_ NetSocket* self)

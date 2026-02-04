@@ -48,11 +48,12 @@ typedef enum {
 
 /// State of a network socket
 typedef enum {
-    NS_Closed = 0,   ///< Socket is closed
+    NS_Init = 0,     ///< Socket is not yet used
     NS_Connected,    ///< Socket is connected (default for bound connectionless sockets)
     NS_Listening,    ///< Socket is listening for incoming connections
     NS_Connecting,   ///< Socket is in the process of connecting
-    NS_Resolving     ///< Waiting for name resolution
+    NS_Resolving,    ///< Waiting for name resolution
+    NS_Closed        ///< Socket is closed and cannot be reused
 } NetSocketState;
 
 /// Network event types

@@ -27,22 +27,29 @@ bool NetQueue_addSocket(_In_ NetQueue* self, NetSocket* socket)
     devAssert(!socket->queue);
 
     withWriteLock (&self->lock) {
-        ret           = htInsert(&self->sockets, object, socket, none, HT_Ignore);
-        socket->queue = objGetWeak(NetQueue, self);
+        ret = htInsert(&self->sockets, object, socket, none, HT_Ignore);
     }
+
+    if (ret)
+        socket->queue = objGetWeak(NetQueue, self);
 
     return ret;
 }
 
 bool NetQueue_removeSocket(_In_ NetQueue* self, NetSocket* socket)
 {
-    bool ret = false;
+    bool ret        = false;
+    NetSocket* temp = NULL;
+
     withWriteLock (&self->lock) {
-        ret = htRemove(&self->sockets, object, socket);
-        if (ret) {
-            objDestroyWeak(&socket->queue);
-        }
+        temp = objAcquire(socket);   // keep socket alive slightly longer if we are the
+                                     // last reference
+        ret  = htRemove(&self->sockets, object, socket);
     }
+
+    if (ret && temp)
+        objDestroyWeak(&temp->queue);
+    objRelease(&temp);
 
     return ret;
 }

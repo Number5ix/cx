@@ -10,6 +10,8 @@
 // clang-format on
 // ==================== Auto-generated section ends ======================
 
+#include "platform/win/win_net_socket.h"
+
 _objfactory_guaranteed NetQueueWinSelect* NetQueueWinSelect_create(int32 nthreads, flags_t flags)
 {
     NetQueueWinSelect* self;
@@ -23,7 +25,8 @@ _objfactory_guaranteed NetQueueWinSelect* NetQueueWinSelect_create(int32 nthread
 
 NetSocket* NetQueueWinSelect_socket(_In_ NetQueueWinSelect* self, NetSocketType type)
 {
-    return NULL; // TODO
+    NetSocketWin* ws = netsocketwinCreate(type);
+    return NetSocket(ws);
 }
 
 // Autogen begins -----

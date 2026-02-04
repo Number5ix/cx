@@ -91,12 +91,18 @@ abstract class NetSocket
     /// @return true if the data is successfully sent or queued, false if the socket is not connected or in an error state
     [abstract] bool send([in] uint8* data, size_t len, [in] [opt] NetAddr* dest, flags_t flags);
 
-    /// Close socket and free OS resources
+    [abstract] bool bind(NetAddr* addr);
+
+    // backlog 0 means use a platform-specific default
+    [abstract] bool listen(int backlog);
+
+    /// Close socket
     ///
-    /// This will also remove the socket from its NetQueue if it's in one.
+    /// Will also remove from a NetQueue of it is registered to one. The socket cannot
+    /// be reused once closed.
     ///
-    /// @return true if the socket was successfully closed, false otherwise
-    [abstract] bool close();
+    /// @return true if the socket was successfully disconnected, false otherwise.
+    bool close();
 }
 
 /// @}
