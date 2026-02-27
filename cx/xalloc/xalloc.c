@@ -235,7 +235,7 @@ void xaFree(void* ptr)
 }
 
 _Use_decl_annotations_
-bool _xaRelease(void** ptr)
+bool _xaDestroy(void** ptr)
 {
     if (!ptr)
         return false;

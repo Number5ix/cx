@@ -396,12 +396,12 @@ bool dbgCrashSetPath(strref path)
     lazyInit(&_dbgCrashInitState, _dbgCrashInit, 0);
 
     // clear out old stuff if you're calling this again to change the path
-    xaRelease(&crashdir);
-    xaRelease(&processname);
-    xaRelease(&processnamew);
-    xaRelease(&reportfile);
-    xaRelease(&crashhandler);
-    xaRelease(&crashhandlercmdline);
+    xaDestroy(&crashdir);
+    xaDestroy(&processname);
+    xaDestroy(&processnamew);
+    xaDestroy(&reportfile);
+    xaDestroy(&crashhandler);
+    xaDestroy(&crashhandlercmdline);
 
     // generate an SUID to use as a unique crash identifier
     suidGenPrivate(&crashsuid, 0xff);

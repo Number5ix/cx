@@ -64,5 +64,5 @@ bool bufTryResize(Buffer* buf, size_t newsize)
 _Use_decl_annotations_
 void bufDestroy(Buffer* buf)
 {
-    xaRelease(buf);
+    xaDestroy(buf);
 }

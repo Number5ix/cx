@@ -296,7 +296,7 @@ bool fsSearchInit(FSSearchIter *iter, strref path, strref pattern, bool stat)
 
     if (!search->d) {
         unixMapErrno();
-        xaRelease(&iter->_search);
+        xaDestroy(&iter->_search);
         return false;
     }
 
@@ -352,7 +352,7 @@ void fsSearchFinish(FSSearchIter *iter)
     closedir(search->d);
     strDestroy(&search->path);
     strDestroy(&search->pattern);
-    xaRelease(&iter->_search);
+    xaDestroy(&iter->_search);
 }
 
 bool fsSetTimes(strref path, int64 modified, int64 accessed)

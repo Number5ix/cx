@@ -70,8 +70,8 @@ CX_C_BEGIN
 ///   // Resize existing allocation
 ///   xaResize(&buffer, new_size);
 ///
-///   // Release with NULL assignment
-///   xaRelease(&data);
+///   // Free with NULL assignment
+///   xaDestroy(&data);
 /// @endcode
 
 /// @defgroup xalloc_flags Allocation Flags
@@ -237,14 +237,14 @@ _At_(*ptr, _Pre_maybenull_) _When_(
 /// @param ptr Pointer to memory to free
 void xaFree(_Pre_maybenull_ _Post_invalid_ void* ptr);
 
-/// bool xaRelease(void **ptr)
+/// bool xaDestroy(void **ptr)
 ///
-/// Frees the pointer with release semantics.
+/// Destroys the pointer.
 /// This frees *ptr (if it is non-NULL) and sets it to NULL.
 /// @param ptr Pointer to pointer to free and set to NULL
 /// @return Always returns true
-#define xaRelease(ptr) (_xa_ptr_ptr_verify(ptr), _xaRelease((void**)(ptr)))
-_At_(*ptr, _Pre_maybenull_ _Post_null_) bool _xaRelease(_Inout_ void** ptr);
+#define xaDestroy(ptr) (_xa_ptr_ptr_verify(ptr), _xaDestroy((void**)(ptr)))
+_At_(*ptr, _Pre_maybenull_ _Post_null_) bool _xaDestroy(_Inout_ void** ptr);
 
 /// @}
 // end of xalloc_core group

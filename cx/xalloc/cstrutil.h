@@ -27,7 +27,7 @@ size_t cstrLen(_In_z_ const char *s);
 /// Duplicate a null-terminated C string.
 ///
 /// Allocates memory using xaAlloc and copies the string. The returned string
-/// must be freed with xaFree() or xaRelease().
+/// must be freed with xaFree() or xaDestroy().
 ///
 /// @param s Null-terminated string to duplicate, or NULL
 /// @return Newly allocated copy of the string, or NULL if input was NULL
@@ -42,7 +42,7 @@ size_t cstrLenw(_In_z_ const unsigned short *s);
 /// Duplicate a null-terminated wide character string.
 ///
 /// Allocates memory using xaAlloc and copies the wide string. The returned string
-/// must be freed with xaFree() or xaRelease().
+/// must be freed with xaFree() or xaDestroy().
 ///
 /// @param s Null-terminated wide string to duplicate, or NULL
 /// @return Newly allocated copy of the wide string, or NULL if input was NULL
