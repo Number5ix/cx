@@ -139,7 +139,7 @@ typedef const struct str_ref* _Nullable strref;
 typedef struct hashtable_ref* hashtable;
 typedef struct closure_ref* closure;
 typedef struct cchain_ref* cchain;
-typedef struct BufferHeader* buffer;
+typedef struct BufferHeader* Buffer;
 typedef struct ObjInst ObjInst;
 typedef struct ObjInst_WeakRef ObjInst_WeakRef;
 typedef struct SUID SUID;
@@ -243,7 +243,7 @@ typedef union sa_ref* sahandle;
 #define SType_hashtable hashtable
 #define SType_closure   closure
 #define SType_cchain    cchain
-#define SType_buffer    buffer
+#define SType_buffer    Buffer
 #define stTypeDef(name) SType_##name
 
 /// @defgroup stype_utils Type Utilities
@@ -365,7 +365,7 @@ typedef struct stvar {
 #define STStorageType_hashtable hashtable
 #define STStorageType_closure   closure
 #define STStorageType_cchain    cchain
-#define STStorageType_buffer    buffer
+#define STStorageType_buffer    Buffer
 #define stStorageType(name)     STStorageType_##name
 
 enum STYPE_ID {
@@ -449,7 +449,7 @@ enum STYPE_SIZE {
     STypeSize_hashtable = sizeof(hashtable),
     STypeSize_closure   = sizeof(closure),
     STypeSize_cchain    = sizeof(cchain),
-    STypeSize_buffer    = sizeof(buffer),
+    STypeSize_buffer    = sizeof(Buffer),
 };
 
 /// size_t stTypeSize(type)

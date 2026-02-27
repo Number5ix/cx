@@ -147,7 +147,7 @@ void bufchainWrite(BufChain* chain, const uint8* buf, size_t bytes)
 }
 
 _Use_decl_annotations_
-void bufchainWriteZC(BufChain* chain, buffer* buf)
+void bufchainWriteZC(BufChain* chain, Buffer* buf)
 {
     if (!buf || (*buf)->sz == 0)
         return;

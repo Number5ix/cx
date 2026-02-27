@@ -54,7 +54,7 @@
 typedef struct BufChainNode BufChainNode;
 typedef struct BufChainNode {
     BufChainNode* next;   ///< Next segment in chain
-    buffer buf;           ///< Buffer containing data
+    Buffer buf;           ///< Buffer containing data
 } BufChainNode;
 
 typedef struct BufChain {
@@ -79,7 +79,7 @@ typedef struct BufChain {
 /// @param off Offset within buffer where valid data starts (may be nonzero)
 /// @param ctx User-defined context pointer
 /// @return true to continue reading more segments, false to stop
-typedef bool (*bufchainZCCB)(_Inout_ buffer buf, size_t off, _Pre_opt_valid_ void* ctx);
+typedef bool (*bufchainZCCB)(_Inout_ Buffer buf, size_t off, _Pre_opt_valid_ void* ctx);
 
 /// Initialize an empty buffer chain.
 ///
@@ -113,7 +113,7 @@ size_t bufchainRead(_Inout_ BufChain* chain, _Out_writes_bytes_(bytes) uint8* bu
 /// @param buf Buffer object to read data into
 /// @param maxbytes Maximum number of bytes to read
 /// @return Number of bytes actually read (stored in buf->len)
-_meta_inline size_t bufchainReadBuf(_Inout_ BufChain* chain, _Inout_ buffer buf, size_t maxbytes)
+_meta_inline size_t bufchainReadBuf(_Inout_ BufChain* chain, _Inout_ Buffer buf, size_t maxbytes)
 {
     buf->len = bufchainRead(chain, buf->data, min(buf->sz, maxbytes));
     return buf->len;
@@ -145,7 +145,7 @@ size_t bufchainPeek(_Inout_ BufChain* chain, _Out_writes_bytes_(bytes) uint8* bu
 /// @param off Offset within the buffer chain to start peeking from
 /// @param maxbytes Maximum number of bytes to peek at
 /// @return Number of bytes actually copied (stored in buf->len)
-_meta_inline size_t bufchainPeekBuf(_Inout_ BufChain* chain, _Inout_ buffer buf, size_t off,
+_meta_inline size_t bufchainPeekBuf(_Inout_ BufChain* chain, _Inout_ Buffer buf, size_t off,
                                     size_t maxbytes)
 {
     buf->len = bufchainPeek(chain, buf->data, off, min(buf->sz, maxbytes));
@@ -203,7 +203,7 @@ void bufchainWrite(_Inout_ BufChain* chain, _In_reads_bytes_(bytes) const uint8*
 ///
 /// @param chain Pointer to the buffer chain to write to
 /// @param buf Buffer object containing data to write
-_meta_inline void bufchainWriteBuf(_Inout_ BufChain* chain, _In_ buffer buf)
+_meta_inline void bufchainWriteBuf(_Inout_ BufChain* chain, _In_ Buffer buf)
 {
     bufchainWrite(chain, buf->data, buf->len);
 }
@@ -222,7 +222,7 @@ _meta_inline void bufchainWriteBuf(_Inout_ BufChain* chain, _In_ buffer buf)
 /// @param buf Pointer to buffer object to append (ownership transferred, set to NULL on return)
 /// @note The buffer chain takes ownership of the buffer object and will destroy it. After this
 /// call, *buf will be NULL.
-_At_(*buf, _Pre_notnull_ _Post_null_) void bufchainWriteZC(BufChain* chain, _Inout_ buffer* buf);
+_At_(*buf, _Pre_notnull_ _Post_null_) void bufchainWriteZC(BufChain* chain, _Inout_ Buffer* buf);
 
 /// Destroy a buffer chain and free all associated resources.
 ///

@@ -46,7 +46,7 @@
 typedef struct BufRingNode BufRingNode;
 typedef struct BufRingNode {
     BufRingNode* next;   ///< Next segment for capacity expansion
-    buffer buf;          ///< Buffer containing data
+    Buffer buf;          ///< Buffer containing data
     size_t head;         ///< Read position in buf
     size_t tail;         ///< Write position in buf
     bool full;           ///< Distinguish full vs empty when head == tail
@@ -121,7 +121,7 @@ size_t bufringRead(_Inout_ BufRing* ring, _Out_writes_bytes_(bytes) uint8* buf, 
 /// @param buf Buffer object to read data into
 /// @param maxbytes Maximum number of bytes to read
 /// @return Number of bytes actually read (stored in buf->len)
-_meta_inline size_t bufringReadBuf(_Inout_ BufRing* ring, _Inout_ buffer buf, size_t maxbytes)
+_meta_inline size_t bufringReadBuf(_Inout_ BufRing* ring, _Inout_ Buffer buf, size_t maxbytes)
 {
     buf->len = bufringRead(ring, buf->data, min(buf->sz, maxbytes));
     return buf->len;
@@ -153,7 +153,7 @@ size_t bufringPeek(_Inout_ BufRing* ring, _Out_writes_bytes_(bytes) uint8* buf, 
 /// @param off Offset within the ring buffer to start peeking from
 /// @param maxbytes Maximum number of bytes to peek at
 /// @return Number of bytes actually copied (stored in buf->len)
-_meta_inline size_t bufringPeekBuf(_Inout_ BufRing* ring, _Inout_ buffer buf, size_t off,
+_meta_inline size_t bufringPeekBuf(_Inout_ BufRing* ring, _Inout_ Buffer buf, size_t off,
                                    size_t maxbytes)
 {
     buf->len = bufringPeek(ring, buf->data, off, min(buf->sz, maxbytes));
@@ -210,7 +210,7 @@ void bufringWrite(_Inout_ BufRing* ring, _In_reads_bytes_(bytes) const uint8* bu
 ///
 /// @param ring Pointer to the ring buffer to write to
 /// @param buf Buffer object containing data to write
-_meta_inline void bufringWriteBuf(_Inout_ BufRing* ring, _In_ buffer buf)
+_meta_inline void bufringWriteBuf(_Inout_ BufRing* ring, _In_ Buffer buf)
 {
     bufringWrite(ring, buf->data, buf->len);
 }
@@ -231,7 +231,7 @@ _meta_inline void bufringWriteBuf(_Inout_ BufRing* ring, _In_ buffer buf)
 /// @note The ring buffer takes ownership of the buffer object and will destroy it. After this
 /// call, *buf will be NULL.
 _At_(*buf,
-     _Pre_notnull_ _Post_null_) void bufringWriteZC(_Inout_ BufRing* ring, _Inout_ buffer* buf);
+     _Pre_notnull_ _Post_null_) void bufringWriteZC(_Inout_ BufRing* ring, _Inout_ Buffer* buf);
 
 /// Get available write space in the ring buffer without expansion.
 ///

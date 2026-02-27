@@ -1,5 +1,6 @@
 #include "stype_buffer.h"
 #include "buffer.h"
+#include "cx/utils/compare.h"
 #include "cx/utils/murmur.h"
 
 _Use_decl_annotations_

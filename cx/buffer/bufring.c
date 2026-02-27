@@ -211,7 +211,7 @@ void bufringWrite(BufRing* ring, const uint8* buf, size_t bytes)
 }
 
 _Use_decl_annotations_
-void bufringWriteZC(BufRing* ring, buffer* buf)
+void bufringWriteZC(BufRing* ring, Buffer* buf)
 {
     if (!buf || (*buf)->sz == 0)
         return;

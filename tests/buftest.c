@@ -22,7 +22,7 @@ static int test_buffer_create()
     int ret = 0;
 
     // Test basic creation
-    buffer buf = bufCreate(256);
+    Buffer buf = bufCreate(256);
     if (!buf || buf->sz != 256 || buf->len != 0)
         ret = 1;
 
@@ -52,7 +52,7 @@ static int test_buffer_create()
     bufDestroy(&buf);
 
     // Test with very large size (may or may not fail, but shouldn't crash)
-    buffer largeBuf = bufTryCreate(1024 * 1024 * 1024);   // 1GB
+    Buffer largeBuf = bufTryCreate(1024 * 1024 * 1024);   // 1GB
     if (largeBuf) {
         // If it succeeded, clean it up
         bufDestroy(&largeBuf);
@@ -66,7 +66,7 @@ static int test_buffer_resize()
     int ret = 0;
 
     // Test resize on NULL buffer (should create)
-    buffer buf = NULL;
+    Buffer buf = NULL;
     bufResize(&buf, 128);
     if (!buf || buf->sz != 128 || buf->len != 0)
         ret = 1;
@@ -92,7 +92,7 @@ static int test_buffer_resize()
         ret = 1;
 
     // Resize to same size - should be no-op
-    buffer oldBuf = buf;
+    Buffer oldBuf = buf;
     bufResize(&buf, 50);
     if (buf != oldBuf)
         ret = 1;
@@ -299,7 +299,7 @@ typedef struct TestBufChainZCCtx {
     int segcount;
 } TestBufChainZCCtx;
 
-static bool bufchainZCReadCallback(buffer buf, size_t off, void* ctx)
+static bool bufchainZCReadCallback(Buffer buf, size_t off, void* ctx)
 {
     TestBufChainZCCtx* tc = (TestBufChainZCCtx*)ctx;
 
@@ -334,7 +334,7 @@ static int test_bufchain_zerocopy_read()
     size_t total = chain.total;
 
     // Zero-copy read - should get complete segments
-    size_t nread = bufchainReadZC(&chain, total, bufchainZCReadCallback, &ctx);
+    bufchainReadZC(&chain, total, bufchainZCReadCallback, &ctx);
 
     // Data should be consumed
     if (chain.total != 0)
@@ -350,12 +350,12 @@ static int test_bufchain_zerocopy_read()
 
     // Test with partial read (partial read from head segment)
     bufchainWrite(&chain, testdata1, TESTDATA_LEN);
-    nread = bufchainRead(&chain, ctx.out, 30);   // Partial read from first segment
+    bufchainRead(&chain, ctx.out, 30);   // Partial read from first segment
 
     // Now do zero-copy read - should get offset in first callback
     ctx.outp     = 30;
     ctx.segcount = 0;
-    nread        = bufchainReadZC(&chain, 200, bufchainZCReadCallback, &ctx);
+    bufchainReadZC(&chain, 200, bufchainZCReadCallback, &ctx);
 
     if (chain.total != 0 || ctx.segcount < 1)
         ret = 1;
@@ -378,11 +378,11 @@ static int test_bufchain_zerocopy_write()
     bufchainInit(&chain, 64);
 
     // Allocate buffers for zero-copy write
-    buffer buf1 = bufCreate(70);
+    Buffer buf1 = bufCreate(70);
     memcpy(buf1->data, testdata1, 70);
     buf1->len = 70;
 
-    buffer buf2 = bufCreate(60);
+    Buffer buf2 = bufCreate(60);
     memcpy(buf2->data, testdata2, 60);
     buf2->len = 60;
 
@@ -406,7 +406,7 @@ static int test_bufchain_zerocopy_write()
         ret = 1;
 
     // Test partial buffer (len < size)
-    buffer buf3 = bufCreate(100);
+    Buffer buf3 = bufCreate(100);
     memcpy(buf3->data, testdata2, 55);
     buf3->len = 55;
     bufchainWriteZC(&chain, &buf3);
@@ -723,11 +723,11 @@ static int test_bufring_zerocopy_write()
     bufringInit(&ring, 64);
 
     // Allocate buffers for zero-copy write
-    buffer buf1 = bufCreate(70);
+    Buffer buf1 = bufCreate(70);
     memcpy(buf1->data, testdata1, 70);
     buf1->len = 70;
 
-    buffer buf2 = bufCreate(60);
+    Buffer buf2 = bufCreate(60);
     memcpy(buf2->data, testdata2, 60);
     buf2->len = 60;
 
@@ -751,7 +751,7 @@ static int test_bufring_zerocopy_write()
         ret = 1;
 
     // Test partial buffer (len < size)
-    buffer buf3 = bufCreate(100);
+    Buffer buf3 = bufCreate(100);
     memcpy(buf3->data, testdata2, 55);
     buf3->len = 55;
     bufringWriteZC(&ring, &buf3);

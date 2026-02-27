@@ -16,7 +16,7 @@
 ///
 /// Example:
 /// @code
-///   buffer buf = bufCreate(1024);
+///   Buffer buf = bufCreate(1024);
 ///   memcpy(buf->data, mydata, datalen);
 ///   buf->len = datalen;
 ///   bufResize(&buf, 2048);
@@ -36,14 +36,14 @@ struct BufferHeader {
     uint8 data[];   ///< Buffer data (flexible array member)
 };
 
-/// buffer bufCreate(size_t size)
+/// Buffer bufCreate(size_t size)
 ///
 /// Create a new buffer with the specified size.
 /// @param size The size in bytes to allocate for the buffer
 /// @return A newly allocated buffer (never NULL)
-_Ret_notnull_ buffer bufCreate(size_t size);
+_Ret_notnull_ Buffer bufCreate(size_t size);
 
-/// buffer bufTryCreate(size_t size)
+/// Buffer bufTryCreate(size_t size)
 ///
 /// Create a new buffer with optional allocation (may fail).
 ///
@@ -51,9 +51,9 @@ _Ret_notnull_ buffer bufCreate(size_t size);
 /// terminating the program. Useful for large allocations that may fail.
 /// @param size The size in bytes to allocate for the buffer
 /// @return A newly allocated buffer, or NULL if allocation failed
-_Must_inspect_result_ _Ret_maybenull_ buffer bufTryCreate(size_t size);
+_Must_inspect_result_ _Ret_maybenull_ Buffer bufTryCreate(size_t size);
 
-/// void bufResize(buffer* buf, size_t newsize)
+/// void bufResize(Buffer* buf, size_t newsize)
 ///
 /// Resize an existing buffer to a new size.
 ///
@@ -62,9 +62,9 @@ _Must_inspect_result_ _Ret_maybenull_ buffer bufTryCreate(size_t size);
 /// @param buf Pointer to buffer pointer to resize (may be NULL)
 /// @param newsize New size in bytes for the buffer
 _At_(*buf, _Pre_maybenull_ _Post_notnull_)
-void bufResize(_Inout_ buffer* buf, size_t newsize);
+void bufResize(_Inout_ Buffer* buf, size_t newsize);
 
-/// bool bufTryResize(buffer* buf, size_t newsize)
+/// bool bufTryResize(Buffer* buf, size_t newsize)
 ///
 /// Resize an existing buffer with optional allocation (may fail).
 ///
@@ -74,15 +74,15 @@ void bufResize(_Inout_ buffer* buf, size_t newsize);
 /// @param newsize New size in bytes for the buffer
 /// @return true if resize succeeded, false if allocation failed
 _At_(*buf, _Pre_maybenull_)
-bool bufTryResize(_Inout_ buffer* buf, size_t newsize);
+bool bufTryResize(_Inout_ Buffer* buf, size_t newsize);
 
-/// void bufDestroy(buffer* buf)
+/// void bufDestroy(Buffer* buf)
 ///
 /// Destroy a buffer and free its memory.
 ///
 /// Sets the buffer pointer to NULL after freeing.
 /// @param buf Pointer to buffer pointer to destroy
 _At_(*buf, _Pre_maybenull_ _Post_null_)
-void bufDestroy(_Inout_ buffer* buf);
+void bufDestroy(_Inout_ Buffer* buf);
 
 /// @}  // end of buffer_simple group

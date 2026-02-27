@@ -4,9 +4,9 @@
 #define BUFFER_HEADER_SZ offsetof(struct BufferHeader, data)
 
 _Use_decl_annotations_
-buffer bufCreate(size_t size)
+Buffer bufCreate(size_t size)
 {
-    buffer out = xaAlloc(size + BUFFER_HEADER_SZ);
+    Buffer out = xaAlloc(size + BUFFER_HEADER_SZ);
 
     out->sz  = size;
     out->len = 0;
@@ -15,9 +15,9 @@ buffer bufCreate(size_t size)
 
 // may fail, uses optional allocation
 _Use_decl_annotations_
-buffer bufTryCreate(size_t size)
+Buffer bufTryCreate(size_t size)
 {
-    buffer out = xaAlloc(size + BUFFER_HEADER_SZ, XA_Opt);
+    Buffer out = xaAlloc(size + BUFFER_HEADER_SZ, XA_Opt);
     if (!out)
         return NULL;
 
@@ -27,7 +27,7 @@ buffer bufTryCreate(size_t size)
 }
 
 _Use_decl_annotations_
-void bufResize(buffer* buf, size_t newsize)
+void bufResize(Buffer* buf, size_t newsize)
 {
     if (!(*buf)) {
         *buf = bufCreate(newsize);
@@ -43,7 +43,7 @@ void bufResize(buffer* buf, size_t newsize)
 }
 
 _Use_decl_annotations_
-bool bufTryResize(buffer* buf, size_t newsize)
+bool bufTryResize(Buffer* buf, size_t newsize)
 {
     if (!(*buf)) {
         *buf = bufTryCreate(newsize);
@@ -62,7 +62,7 @@ bool bufTryResize(buffer* buf, size_t newsize)
 }
 
 _Use_decl_annotations_
-void bufDestroy(buffer* buf)
+void bufDestroy(Buffer* buf)
 {
     xaRelease(buf);
 }
