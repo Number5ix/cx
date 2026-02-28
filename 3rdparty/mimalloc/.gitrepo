@@ -6,7 +6,7 @@
 [subrepo]
 	remote = https://github.com/microsoft/mimalloc.git
 	branch = main
-	commit = 1d8348b4117d3536a0e1c30126961f7ed6eb62fa
+	commit = 6a53d72d46a1a641d8e5793db37cb2da60e04192
 	parent = c7a1bcd534de977e4bfb170ce459ed3a996e75b8
 	method = merge
-	cmdver = 0.4.9
+	cmdver = 0.4.6

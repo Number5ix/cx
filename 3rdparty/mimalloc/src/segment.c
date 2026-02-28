@@ -155,7 +155,7 @@ size_t _mi_commit_mask_next_run(const mi_commit_mask_t* cm, size_t* idx) {
   Each thread owns its own segments.
 
   Currently we have:
-  - small pages (64KiB) 
+  - small pages (64KiB)
   - medium pages (512KiB)
   - large pages (4MiB),
   - huge segments have 1 page in one segment that can be larger than `MI_SEGMENT_SIZE`.
@@ -773,6 +773,7 @@ static mi_page_t* mi_segment_span_allocate(mi_segment_t* segment, size_t slice_i
 
   // and initialize the page
   page->is_committed = true;
+  page->is_zero_init = segment->free_is_zero;
   page->is_huge = (segment->kind == MI_SEGMENT_HUGE);
   segment->used++;
   return page;
@@ -882,6 +883,7 @@ static mi_segment_t* mi_segment_os_alloc( size_t required, size_t page_alignment
   segment->subproc = tld->subproc;
   segment->commit_mask = commit_mask;
   segment->purge_expire = 0;
+  segment->free_is_zero = memid.initially_zero;
   mi_commit_mask_create_empty(&segment->purge_mask);
 
   mi_segments_track_size((long)(segment_size), tld);
@@ -975,7 +977,7 @@ static void mi_segment_free(mi_segment_t* segment, bool force, mi_segments_tld_t
   mi_assert_internal(segment != NULL);
   mi_assert_internal(segment->next == NULL);
   mi_assert_internal(segment->used == 0);
-  
+
   // in `mi_segment_force_abandon` we set this to true to ensure the segment's memory stays valid
   if (segment->dont_free) return;
 
@@ -1000,7 +1002,7 @@ static void mi_segment_free(mi_segment_t* segment, bool force, mi_segments_tld_t
   mi_assert_internal(page_count == 2); // first page is allocated by the segment itself
 
   // stats
-  _mi_stat_decrease(&tld->stats->page_committed, mi_segment_info_size(segment));
+  // _mi_stat_decrease(&tld->stats->page_committed, mi_segment_info_size(segment));
 
   // return it to the OS
   mi_segment_os_free(segment, tld);
@@ -1023,7 +1025,8 @@ static mi_slice_t* mi_segment_page_clear(mi_page_t* page, mi_segments_tld_t* tld
   size_t inuse = page->capacity * mi_page_block_size(page);
   _mi_stat_decrease(&tld->stats->page_committed, inuse);
   _mi_stat_decrease(&tld->stats->pages, 1);
-
+  _mi_stat_decrease(&tld->stats->page_bins[_mi_page_stats_bin(page)], 1);
+  
   // reset the page memory to reduce memory pressure?
   if (segment->allow_decommit && mi_option_is_enabled(mi_option_deprecated_page_reset)) {
     size_t psize;
@@ -1042,6 +1045,8 @@ static mi_slice_t* mi_segment_page_clear(mi_page_t* page, mi_segments_tld_t* tld
   // and free it
   mi_slice_t* slice = mi_segment_span_free_coalesce(mi_page_to_slice(page), tld);
   segment->used--;
+  segment->free_is_zero = false;
+
   // cannot assert segment valid as it is called during reclaim
   // mi_assert_expensive(mi_segment_is_valid(segment, tld));
   return slice;
@@ -1367,6 +1372,7 @@ static mi_segment_t* mi_segment_try_reclaim(mi_heap_t* heap, size_t needed_slice
     }
     else {
       // otherwise, push on the visited list so it gets not looked at too quickly again
+      max_tries++; // don't count this as a try since it was not suitable
       mi_segment_try_purge(segment, false /* true force? */); // force purge if needed as we may not visit soon again
       _mi_arena_segment_mark_abandoned(segment);
     }
