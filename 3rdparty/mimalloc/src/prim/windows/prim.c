@@ -700,7 +700,7 @@ static void mi_win_tls_init(DWORD reason) {
 static BOOL WINAPI
 _tls_callback(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 {
-    mi_win_tls_init(reason);
+    mi_win_tls_init(fdwReason);
 
     switch (fdwReason) {
     case DLL_THREAD_DETACH:
@@ -735,6 +735,8 @@ void _mi_prim_thread_done_auto_done(void) {
 void _mi_prim_thread_associate_default_heap(mi_heap_t* heap) {
     // not needed when using CRT callback
 }
+
+#endif
 
 // ----------------------------------------------------
 // Communicate with the redirection module on Windows
