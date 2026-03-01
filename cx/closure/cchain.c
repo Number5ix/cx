@@ -22,7 +22,7 @@ static _meta_inline void ccnodeAddRef(_Inout_ CChainNode* node)
     atomicFetchAdd(uint32, &node->refcount, 1, Relaxed);
 }
 
-static _meta_inline void ccnodeDeref(_Inout_ CChainNode* node)
+static void ccnodeDeref(_Inout_ CChainNode* node)
 {
     devAssert(node != CCNODE_INVALID && node != CCNODE_BUSY);
 
