@@ -184,8 +184,8 @@ xaResize(&buffer, new_size);  // Takes pointer-to-pointer
 // Free memory
 xaFree(data);
 
-// Release with NULL assignment (preferred pattern)
-xaRelease(&data);  // Frees and sets data = NULL
+// Destroy with NULL assignment (preferred pattern)
+xaDestroy(&data);  // Frees and sets data = NULL
 ```
 
 **Optional allocation tiers** (use with `XA_Optional(tier)`):
