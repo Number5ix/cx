@@ -8,6 +8,8 @@
 #include <sched.h>
 #include "cx/platform/wasm/wasm_thread_threadobj.h"
 
+#include "cx/thread/tlscleanup_private.h"
+
 static UnixThread* mainthread;
 static _Thread_local UnixThread* curthread;
 
@@ -25,6 +27,9 @@ static void platformThreadInit(void* dummy)
     mainthread->pthr = pthread_self();
     strDup(&mainthread->name, _S"Main");
     atomicStore(bool, &mainthread->running, true, Relaxed);
+
+    // create the pthread key for TLS cleanup
+    _thrPlatformTLSCleanupInit();
 
     curthread = mainthread;
 }

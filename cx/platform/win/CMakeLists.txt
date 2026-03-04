@@ -14,6 +14,7 @@ if(CX_PLATFORM_IS_WINDOWS)
         platform/win/win_thread_threadobj.c
         platform/win/win_time.c
         platform/win/win_time_clock.c
+        platform/win/win_tls_cleanup.c
         platform/win/win_uievent.c
         platform/win/win_vfs.c)
     set(PLATFORM_WIN_INCLUDES

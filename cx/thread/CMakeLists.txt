@@ -8,7 +8,8 @@ set(THREAD_SRCS
     thread/sema.c
     thread/systhread.c
     thread/thread.c
-    thread/threadobj.c)
+    thread/threadobj.c
+    thread/tlscleanup.c)
 set(THREAD_INCLUDES
     thread/aspin.h
     thread/atomic.h
@@ -21,7 +22,8 @@ set(THREAD_INCLUDES
     thread/sema.h
     thread/thread.h
     thread/threadbase.h
-    thread/thread_private.h)
+    thread/thread_private.h
+    thread/tlscleanup.h)
 set(THREAD_AUTOGEN
     thread/threadobj.cxh)
 

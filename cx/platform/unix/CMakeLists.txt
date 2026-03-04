@@ -15,6 +15,7 @@ if(CX_PLATFORM_IS_UNIX)
         platform/unix/unix_thread_threadobj.c
         platform/unix/unix_time.c
         platform/unix/unix_time_clock.c
+        platform/unix/unix_tls_cleanup.c
         platform/unix/unix_uievent.c
         platform/unix/unix_vfs.c)
     set(PLATFORM_UNIX_INCLUDES

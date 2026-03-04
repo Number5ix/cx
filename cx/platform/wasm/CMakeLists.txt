@@ -20,6 +20,7 @@ if(CX_PLATFORM_IS_WASM)
         platform/wasm/wasm_thread_threadobj.c
         platform/wasm/wasm_time.c
         platform/wasm/wasm_time_clock.c
+        platform/wasm/wasm_tls_cleanup.c
         platform/wasm/wasm_uievent.c
         platform/wasm/wasm_vfs.c)
     set(PLATFORM_WASM_INCLUDES

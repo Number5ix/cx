@@ -1,28 +1,30 @@
 #include "suid.h"
 #include "cx/math/pcg.h"
-#include "cx/time.h"
 #include "cx/sys/hostid.h"
+#include "cx/time.h"
+#include "cx/utils/lazyinit.h"
 
 #include "cx/string.h"
 
+// NOTE: This is global, but is accessed cross-thread indiscriminately.
+// This is actually fine, because it's only used for entropy, so it's okay if it gets a little
+// garbled.
+static PcgState suidPcg;
+static LazyInitState suidPcgInitState;
+
 typedef struct SuidTLSData {
-    PcgState pcg;
     uint64 lastts;
     uint32 lastrng;
 } SuidTLSData;
 
-static _Thread_local SuidTLSData *suidTls;
-
-#define checktls if (!suidTls) suidTls = suidTlsCreate()
+static _Thread_local SuidTLSData suidTls;
 
 // extern inline bool suidEq(const SUID *a, const SUID *b);
 // extern inline int suidCmp(const SUID *a, const SUID *b);
 
-SuidTLSData *suidTlsCreate()
+static void suidPcgInit(void* unusued)
 {
-    SuidTLSData *ret = xaAlloc(sizeof(*suidTls), XA_Zero);
-    pcgAutoSeed(&ret->pcg);
-    return ret;
+    pcgAutoSeed(&suidPcg);
 }
 
 static void _suidGen(_Out_ SUID *out, uint8 idtype, uint64 hid)
@@ -38,23 +40,23 @@ static void _suidGen(_Out_ SUID *out, uint8 idtype, uint64 hid)
     out->high |= (hid >> 32);           // low 8 bits are high 8 bits of hostid (out of 40)
     out->low = (hid << 32);             // high 32 bits are low 32 bits of hostid
 
-    if (systime <= suidTls->lastts) {
+    if (systime <= suidTls.lastts) {
         // less than 1ms has elapsed, monotonically increment rng part instead
-        suidTls->lastrng++;
-        if (suidTls->lastrng == 0)      // overflow
-            suidTls->lastts++;          // go 1ms to the future
+        suidTls.lastrng++;
+        if (suidTls.lastrng == 0)   // overflow
+            suidTls.lastts++;       // go 1ms to the future
     } else {
-        suidTls->lastrng = pcgRandom(&suidTls->pcg);
-        suidTls->lastts = systime;
+        suidTls.lastrng = pcgRandom(&suidPcg);
+        suidTls.lastts  = systime;
     }
 
-    out->low |= suidTls->lastrng;       // low 32 bits are random
+    out->low |= suidTls.lastrng;   // low 32 bits are random
 }
 
 _Use_decl_annotations_
 void suidGen(SUID *out, uint8 idtype)
 {
-    checktls;
+    lazyInit(&suidPcgInitState, suidPcgInit, NULL);
 
     HostID hostid;
     hostId(&hostid);
@@ -67,12 +69,12 @@ _Use_decl_annotations_
 void suidGenPrivate(SUID *out, uint8 idtype)
 {
     uint64 hid;
-    checktls;
+    lazyInit(&suidPcgInitState, suidPcgInit, NULL);
 
     // temporary random host id
-    hid = pcgRandom(&suidTls->pcg);
+    hid = pcgRandom(&suidPcg);
     hid <<= 32;
-    hid |= pcgRandom(&suidTls->pcg);
+    hid |= pcgRandom(&suidPcg);
 
     _suidGen(out, idtype, hid);
 }

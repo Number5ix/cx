@@ -6,6 +6,11 @@
 #include <process.h>
 #include "cx/platform/win/win_thread_threadobj.h"
 
+extern int _cx_win_tls_cleanup;
+static int*
+    _cx_win_tls_cleanup_force_include = &_cx_win_tls_cleanup;   // force the linker to include the
+                                                                // TLS cleanup object file
+
 typedef HRESULT(WINAPI* SetThreadDescription_t)(HANDLE hThread, PCWSTR lpThreadDescription);
 static SetThreadDescription_t pSetThreadDescription;
 
@@ -43,6 +48,23 @@ static void platformThreadInit(void* dummy)
                                                                        "SetThreadDescription");
 }
 
+#define THR_NAME_BUF_SZ 64
+static void setThreadName(HANDLE hthr, strref name)
+{
+    wchar_t buf[THR_NAME_BUF_SZ];
+
+    if (pSetThreadDescription) {
+        if (strLen(name) < THR_NAME_BUF_SZ) {
+            strToUTF16(name, (uint16*)buf, THR_NAME_BUF_SZ);
+            pSetThreadDescription(hthr, buf);
+        } else {
+            uint16* thrName = strToUTF16A(name);
+            pSetThreadDescription(hthr, thrName);
+            xaFree(thrName);
+        }
+    }
+}
+
 static unsigned __stdcall _thrEntryPoint(void* data)
 {
     WinThread* thr = (WinThread*)data;
@@ -52,8 +74,8 @@ static unsigned __stdcall _thrEntryPoint(void* data)
     thr->id   = GetCurrentThreadId();
     curthread = thr;
 
-    if (pSetThreadDescription)
-        pSetThreadDescription(thr->handle, strToUTF16S(thr->name));
+    if (!strEmpty(thr->name))
+        setThreadName(thr->handle, thr->name);
 
     thr->exitCode = thr->entry(Thread(thr));
     saClear(&thr->_argsa);

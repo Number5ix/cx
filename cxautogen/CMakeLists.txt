@@ -10,7 +10,8 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD" OR ${CMAKE_SYSTEM_NAME} MATCHES "Linux
 	../cx/platform/unix/unix_fs_fs.c
 	../cx/platform/unix/unix_random.c
 	../cx/platform/unix/unix_os.c
-	../cx/platform/unix/unix_time_clock.c)
+	../cx/platform/unix/unix_time_clock.c
+    ../cx/platform/unix/unix_tls_cleanup.c)
     if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
         set(CX_PLATFORM_SRCS
             ${CX_PLATFORM_SRCS}
@@ -28,7 +29,8 @@ elseif(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 	../cx/platform/win/win_futex.c
 	../cx/platform/win/win_random.c
 	../cx/platform/win/win_os.c
-	../cx/platform/win/win_time_clock.c)
+	../cx/platform/win/win_time_clock.c
+    ../cx/platform/win/win_tls_cleanup.c)
 else()
     message(FATAL_ERROR "Unsupported platform")
 endif()
@@ -90,6 +92,7 @@ set(CX_SRCS
     ../cx/thread/mutex.c
     ../cx/thread/rwlock.c
     ../cx/thread/sema.c
+    ../cx/thread/tlscleanup.c
     ../cx/utils/lazyinit.c
     ../cx/utils/murmur.c
     ../cx/utils/scratch.c
