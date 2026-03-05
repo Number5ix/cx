@@ -28,9 +28,6 @@ static void platformThreadInit(void* dummy)
     strDup(&mainthread->name, _S"Main");
     atomicStore(bool, &mainthread->running, true, Relaxed);
 
-    // create the pthread key for TLS cleanup
-    _thrPlatformTLSCleanupInit();
-
     curthread = mainthread;
 }
 

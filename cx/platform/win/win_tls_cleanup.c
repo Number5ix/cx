@@ -5,11 +5,6 @@
 // otherwise the #pragmas below won't work
 int _cx_win_tls_cleanup = 0;
 
-void _thrPlatformTLSCleanupInit(void)
-{
-    // nothing to do on this platform
-}
-
 void _thrPlatformTLSCleanupEnable(void)
 {
     // nothing to do on this platform
