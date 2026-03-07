@@ -34,6 +34,8 @@ _meta_inline uint32 simd128CmpEq_u8_mask(simd128 a, simd128 b)
 #define _SIMD 1
 #define _SIMD_NEON 1
 
+typedef uint8x16_t simd128;
+
 _meta_inline simd128 simd128Set1_u8(uint8 val)
 {
     return vdupq_n_u8(val);
@@ -60,16 +62,6 @@ _meta_inline uint32 simd128CmpEq_u8_mask(simd128 a, simd128 b)
     uint8x8_t high = vget_high_u8(bits);
     
     return vaddv_u8(low) | ((uint32)vaddv_u8(high) << 8);
-}
-
-_meta_inline int simdCtz32(uint32 mask)
-{
-    return __builtin_ctz(mask);
-}
-
-_meta_inline int simdCtz64(uint64 mask)
-{
-    return __builtin_ctzll(mask);
 }
 
 #endif

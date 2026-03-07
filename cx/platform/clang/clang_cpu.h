@@ -18,7 +18,7 @@ _meta_inline int ctz32(unsigned long mask)
     return __builtin_ctz(mask);
 }
 
-#ifdef _ARCH_X64
+#if defined (_ARCH_X64) || defined(_ARCH_ARM64)
 
 _meta_inline int ctz64(unsigned long long mask)
 {
