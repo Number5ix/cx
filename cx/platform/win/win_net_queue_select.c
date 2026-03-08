@@ -29,6 +29,11 @@ NetSocket* NetQueueWinSelect_socket(_In_ NetQueueWinSelect* self, NetSocketType 
     return NetSocket(ws);
 }
 
+bool NetQueueWinSelect_tick(_In_ NetQueueWinSelect* self, int64 wait)
+{
+    return false;
+}
+
 // Autogen begins -----
 // clang-format off
 #include "platform/win/win_net_queue_select.auto.inc"

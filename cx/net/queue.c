@@ -54,6 +54,20 @@ bool NetQueue_removeSocket(_In_ NetQueue* self, NetSocket* socket)
     return ret;
 }
 
+bool NetQueue_shutdown(_In_ NetQueue* self, int64 timeout)
+{
+    // remove all sockets from queue
+    withWriteLock (&self->lock) {
+        foreach (hashtable, hti, self->sockets) {
+            NetSocket* socket = (NetSocket*)htiKey(object, hti);
+            objDestroyWeak(&socket->queue);
+        }
+        htClear(&self->sockets);
+    }
+
+    return true;
+}
+
 void NetQueue_destroy(_In_ NetQueue* self)
 {
     // Autogen begins -----

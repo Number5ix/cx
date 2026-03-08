@@ -48,6 +48,21 @@ abstract class NetQueue
     /// @param type Type of socket to create (connection-oriented or connectionless)
     /// @return Newly created socket, or NULL on failure
     [abstract] NetSocket *socket(NetSocketType type);
+
+    /// Shut down the queue
+    ///
+    /// Removes all sockets from the queue and shuts down worker threads. Will shut down
+    /// the queue in the background even if false is returned.
+    ///
+    /// @param timeout How long to wait for works to terminate
+    /// @return true if the queue is fully shut down
+    bool shutdown(int64 timeout);
+
+    /// Process events in polled mode
+    ///
+    /// @param wait How long to wait for an event, or 0 to return immediately
+    /// @return true if any events were processed, false if the wait timeout was reached
+    [abstract] bool tick(int64 wait);
 }
 
 /// @}
