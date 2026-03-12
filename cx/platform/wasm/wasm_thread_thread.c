@@ -72,11 +72,16 @@ bool _thrPlatformStart(Thread* thread)
     if (!thr || thr->pthr)
         return 0;
 
+    // Temporarily increment the reference count of the thread object. This is to work around a race
+    // condition that can happen if the thread terminates and releases the only reference (e.g. in
+    // the thrRun case) before we can call _thrPlatformSetPriority below.
+    objAcquire(thr);
     bool ret = !pthread_create(&thr->pthr, NULL, _thrEntryPoint, thr);
     // pthreads has annoying limitations so it may be necessary to adjust
     // thready priority even for "Normal" threads as a result...
     if (ret)
         _thrPlatformSetPriority(thread, THREAD_Normal);
+    objRelease(&thr);
     return ret;
 }
 
