@@ -4,9 +4,10 @@
 
 #pragma comment(lib, "bcrypt.lib")
 
+#include <windows.h>
+
 #include <bcrypt.h>
 #include <intsafe.h>
-#include <windows.h>
 
 bool osGenRandom(uint8* buffer, uint32 size)
 {

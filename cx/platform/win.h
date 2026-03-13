@@ -5,8 +5,9 @@
 #include <cx/cx.h>
 
 #define WIN32_LEAN_AND_MEAN
-#include <mmsystem.h>
 #include <Windows.h>
 #include <WinSock2.h>
+
+#include <mmsystem.h>
 
 bool winMapLastError();
