@@ -6,6 +6,8 @@
 #include <cx/string.h>
 #include "settings.h"
 
+STR_CONST(kSettingsSep, "/");
+
 SSDNode* setsOpen(VFS* vfs, strref path, int64 flush_interval)
 {
     SettingsTree* tree = settingstreeCreate();
@@ -67,7 +69,7 @@ bool setsBind(SSDNode* sets, SetsBindSpec* bindings, void* base)
     {
         for (SetsBindSpec* cur = bindings; cur->name; cur++) {
             SSDNode* parent;
-            int32 slash = strFindR(cur->name, strEnd, _S"/");
+            int32 slash = strFindR(cur->name, strEnd, kSettingsSep);
             if (slash != -1) {
                 strSubStr(&pname, cur->name, 0, slash);
                 strSubStr(&sname, cur->name, slash + 1, strEnd);

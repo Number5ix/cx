@@ -2,6 +2,15 @@
 #include "cx/utils/compare.h"
 #include "cx/string/string_private.h"
 
+// string constants that are used in parsing
+STR_CONST(kFmtOptPrefix, "prefix");
+STR_CONST(kFmtOptUtfChar, "utfchar");
+STR_CONST(kFmtOptHex, "hex");
+STR_CONST(kFmtOptOctal, "octal");
+STR_CONST(kFmtOptBinary, "binary");
+STR_CONST(kFmtOptBase, "base:");
+STR_CONST(kFmtOptMin, "min:");
+
 enum IntOpts {
     FMT_IntMin      = 0x00010000,
     FMT_IntPrefix   = 0x00020000,
@@ -12,27 +21,27 @@ _Use_decl_annotations_
 bool _fmtParseIntOpt(FMTVar *v, strref opt)
 {
     uint32 val;
-    if (strEq(opt, _S"prefix")) {
+    if (strEq(opt, kFmtOptPrefix)) {
         v->flags |= FMT_IntPrefix;
         return true;
-    } else if (strEq(opt, _S"utfchar")) {
+    } else if (strEq(opt, kFmtOptUtfChar)) {
         v->flags |= FMT_IntUtfChar;
         return true;
-    } else if (strEq(opt, _S"hex")) {
+    } else if (strEq(opt, kFmtOptHex)) {
         v->fmtdata[0] = 16;
         return true;
-    } else if (strEq(opt, _S"octal")) {
+    } else if (strEq(opt, kFmtOptOctal)) {
         v->fmtdata[0] = 8;
         return true;
-    } else if (strEq(opt, _S"binary")) {
+    } else if (strEq(opt, kFmtOptBinary)) {
         v->fmtdata[0] = 2;
         return true;
-    } else if (strBeginsWith(opt, _S"base:")) {
+    } else if (strBeginsWith(opt, kFmtOptBase)) {
         strSubStr(&v->tmp, opt, 5, strEnd);
         if (strToUInt32(&val, v->tmp, 10, true) && val >= 2 && val <= 36)
             v->fmtdata[0] = val;
         return true;
-    } else if (strBeginsWith(opt, _S"min:")) {
+    } else if (strBeginsWith(opt, kFmtOptMin)) {
         strSubStr(&v->tmp, opt, 4, strEnd);
         if (strToUInt32(&val, v->tmp, 10, true)) {
             v->flags |= FMT_IntMin;

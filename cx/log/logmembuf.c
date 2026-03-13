@@ -8,6 +8,12 @@
 #include <cx/log/logdefer.h>
 #include <cx/time.h>
 
+// string constants
+STR_CONST(
+    kLogMembufFmt,
+    "${0int(4)}${0uint(2)}${0uint(2)} ${0uint(2)}${0uint(2)}${0uint(2)} ${string}${string}: ${string}\n");
+STR_CONST(kLogBracketFmt, " [${string}]");
+
 _Use_decl_annotations_
 LogMembufData* logmembufCreate(uint32 size)
 {
@@ -31,13 +37,12 @@ void logmembufMsgFunc(int level, LogCategory* cat, int64 timestamp, strref msg, 
 
     string logline = 0, logcat = 0;
     if (cat && !strEmpty(cat->name)) {
-        strFormat(&logcat, _S" [${string}]", stvar(strref, cat->name));
+        strFormat(&logcat, kLogBracketFmt, stvar(strref, cat->name));
     }
 
     strFormat(
         &logline,
-        _S
-        "${0int(4)}${0uint(2)}${0uint(2)} ${0uint(2)}${0uint(2)}${0uint(2)} ${string}${string}: ${string}\n",
+        kLogMembufFmt,
         stvar(int32, tp.year),
         stvar(uint8, tp.month),
         stvar(uint8, tp.day),

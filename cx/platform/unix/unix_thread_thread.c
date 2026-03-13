@@ -21,6 +21,8 @@
 
 #include "cx/thread/tlscleanup_private.h"
 
+STR_CONST(kMainThreadName, "Main");
+
 static int getThreadId()
 {
 #if defined(_PLATFORM_LINUX)
@@ -52,7 +54,7 @@ static void platformThreadInit(void* dummy)
 
     mainthread->pthr = pthread_self();
     mainthread->id   = getThreadId();
-    strDup(&mainthread->name, _S"Main");
+    strDup(&mainthread->name, kMainThreadName);
     atomicStore(bool, &mainthread->running, true, Relaxed);
 
     curthread = mainthread;

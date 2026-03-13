@@ -4,6 +4,30 @@
 #include <cx/string/string_private_utf8.h>
 #include <cx/container/foreach.h>
 
+// string constants
+STR_CONST(kJSONComma,        ",");
+STR_CONST(kJSONEmpty,        "");
+STR_CONST(kJSONSpace,        " ");
+STR_CONST(kJSONQuote,        "\"");
+STR_CONST(kJSONObjOpen,      "{");
+STR_CONST(kJSONObjClose,     "}");
+STR_CONST(kJSONArrOpen,      "[");
+STR_CONST(kJSONArrClose,     "]");
+STR_CONST(kJSONKeyComp,      "\":");
+STR_CONST(kJSONKeySpace,     "\": ");
+STR_CONST(kJSONTrue,         "true");
+STR_CONST(kJSONFalse,        "false");
+STR_CONST(kJSONNull,         "null");
+STR_CONST(kJSONUEsc,         "\\u");
+STR_CONST(kJSONZero,         "0");
+STR_CONST(kJSONEscBS,        "\\b");
+STR_CONST(kJSONEscFF,        "\\f");
+STR_CONST(kJSONEscNL,        "\\n");
+STR_CONST(kJSONEscCR,        "\\r");
+STR_CONST(kJSONEscTab,       "\\t");
+STR_CONST(kJSONEscQuote,     "\\\"");
+STR_CONST(kJSONEscBackslash, "\\\\");
+
 typedef struct JSONOut {
     StreamBuffer *sb;
     uint32 flags;
@@ -89,10 +113,10 @@ static void beginVal(_Inout_ JSONOut *jo)
     }
 
     if (!jo->first)
-        writeStrEOL(jo, _S",");
+        writeStrEOL(jo, kJSONComma);
     else {
         if (jo->needeol)
-            writeStrEOL(jo, _S"");
+            writeStrEOL(jo, kJSONEmpty);
         jo->first = false;
         jo->needeol = false;
     }
@@ -130,9 +154,9 @@ static void utfEscapedEncode(_Inout_ string *out, int32 codepoint)
     if (codepoint < 0x10000) {
         // can encode in a single sequence
         strFromUInt32(&temp, (uint32)codepoint, 16);
-        strAppend(out, _S"\\u");
+        strAppend(out, kJSONUEsc);
         for (int i = strLen(temp); i < 4; ++i) {
-            strAppend(out, _S"0");
+            strAppend(out, kJSONZero);
         }
         strAppend(out, temp);
     } else {
@@ -140,16 +164,16 @@ static void utfEscapedEncode(_Inout_ string *out, int32 codepoint)
         codepoint -= 0x10000;
 
         strFromUInt32(&temp, (uint32)(0xd800 | ((codepoint >> 10) & 0x3ff)), 16);
-        strAppend(out, _S"\\u");
+        strAppend(out, kJSONUEsc);
         for (int i = strLen(temp); i < 4; ++i) {
-            strAppend(out, _S"0");
+            strAppend(out, kJSONZero);
         }
         strAppend(out, temp);
 
         strFromUInt32(&temp, (uint32)(0xdc00 | (codepoint & 0x3ff)), 16);
-        strAppend(out, _S"\\u");
+        strAppend(out, kJSONUEsc);
         for (int i = strLen(temp); i < 4; ++i) {
-            strAppend(out, _S"0");
+            strAppend(out, kJSONZero);
         }
         strAppend(out, temp);
     }
@@ -171,27 +195,27 @@ static void writeEscapedString(_Inout_ JSONOut *jo, _In_opt_ strref val)
         if (code < 0x20) {
             switch (code) {
             case '\b':
-                strAppend(&escaped, _S"\\b");
+                strAppend(&escaped, kJSONEscBS);
                 break;
             case '\f':
-                strAppend(&escaped, _S"\\f");
+                strAppend(&escaped, kJSONEscFF);
                 break;
             case '\n':
-                strAppend(&escaped, _S"\\n");
+                strAppend(&escaped, kJSONEscNL);
                 break;
             case '\r':
-                strAppend(&escaped, _S"\\r");
+                strAppend(&escaped, kJSONEscCR);
                 break;
             case '\t':
-                strAppend(&escaped, _S"\\t");
+                strAppend(&escaped, kJSONEscTab);
                 break;
             default:
                 utfEscapedEncode(&escaped, code);
             }
         } else if (code == '"') {
-            strAppend(&escaped, _S"\\\"");
+            strAppend(&escaped, kJSONEscQuote);
         } else if (code == '\\') {
-            strAppend(&escaped, _S"\\\\");
+            strAppend(&escaped, kJSONEscBackslash);
         } else if (code >= 0x20 && code <= 0x7f) {
             strSetChar(&escaped, strEnd, (char)code);
         } else {
@@ -214,9 +238,9 @@ static void writeEscapedString(_Inout_ JSONOut *jo, _In_opt_ strref val)
 
 static bool writeStringVal(_Inout_ JSONOut *jo, _In_opt_ strref val)
 {
-    writeStr(jo, _S"\"");
+    writeStr(jo, kJSONQuote);
     writeEscapedString(jo, val);
-    writeStr(jo, _S"\"");
+    writeStr(jo, kJSONQuote);
 
     return true;
 }
@@ -229,7 +253,7 @@ bool jsonOut(JSONOut *jo, JSONParseEvent *ev)
     switch (ev->etype) {
     case JSON_Object_Begin:
         beginVal(jo);
-        writeStr(jo, _S"{");
+        writeStr(jo, kJSONObjOpen);
         jo->first = true;
         jo->isobjval = false;
         jo->needeol = true;
@@ -238,12 +262,12 @@ bool jsonOut(JSONOut *jo, JSONParseEvent *ev)
     case JSON_Object_Key:
         beginVal(jo);
         jo->isobjval = true;
-        writeStr(jo, _S"\"");
+        writeStr(jo, kJSONQuote);
         writeEscapedString(jo, ev->edata.strData);
         if (jo->flags & JSON_Compact)
-            writeStr(jo, _S"\":");
+            writeStr(jo, kJSONKeyComp);
         else
-            writeStr(jo, _S"\": ");
+            writeStr(jo, kJSONKeySpace);
         break;
     case JSON_Object_End:
         if (jo->depth == 0)
@@ -251,20 +275,20 @@ bool jsonOut(JSONOut *jo, JSONParseEvent *ev)
 
         jo->depth--;
         if (!jo->first) {
-            writeStrEOL(jo, _S"");
+            writeStrEOL(jo, kJSONEmpty);
             writeIndent(jo);
         } else if (!(jo->flags & JSON_Compact)) {
-            writeStr(jo, _S" ");
+            writeStr(jo, kJSONSpace);
         }
 
         jo->first = false;
         jo->isobjval = false;
         jo->needeol = false;
-        writeStr(jo, _S"}");
+        writeStr(jo, kJSONObjClose);
         break;
     case JSON_Array_Begin:
         beginVal(jo);
-        writeStr(jo, _S"[");
+        writeStr(jo, kJSONArrOpen);
         jo->first = true;
         jo->isobjval = false;
         jo->needeol = true;
@@ -276,16 +300,16 @@ bool jsonOut(JSONOut *jo, JSONParseEvent *ev)
 
         jo->depth--;
         if (!jo->first) {
-            writeStrEOL(jo, _S"");
+            writeStrEOL(jo, kJSONEmpty);
             writeIndent(jo);
         } else if (!(jo->flags & JSON_Compact)) {
-            writeStr(jo, _S" ");
+            writeStr(jo, kJSONSpace);
         }
 
         jo->first = false;
         jo->isobjval = false;
         jo->needeol = false;
-        writeStr(jo, _S"]");
+        writeStr(jo, kJSONArrClose);
         break;
     case JSON_Int:
         beginVal(jo);
@@ -301,15 +325,15 @@ bool jsonOut(JSONOut *jo, JSONParseEvent *ev)
         break;
     case JSON_True:
         beginVal(jo);
-        writeStr(jo, _S"true");
+        writeStr(jo, kJSONTrue);
         break;
     case JSON_False:
         beginVal(jo);
-        writeStr(jo, _S"false");
+        writeStr(jo, kJSONFalse);
         break;
     case JSON_Null:
         beginVal(jo);
-        writeStr(jo, _S"null");
+        writeStr(jo, kJSONNull);
         break;
     case JSON_Error:
     case JSON_End:
@@ -325,7 +349,7 @@ _Use_decl_annotations_
 void jsonOutEnd(JSONOut **jo)
 {
     if (!((*jo)->flags & JSON_Single_Line))
-        writeStrEOL((*jo), _S"");
+        writeStrEOL((*jo), kJSONEmpty);
     sbufPFinish((*jo)->sb);
     strDestroy(&(*jo)->indent);
 

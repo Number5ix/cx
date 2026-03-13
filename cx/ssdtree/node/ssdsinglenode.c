@@ -11,6 +11,8 @@
 // ==================== Auto-generated section ends ======================
 #include "../ssdtree.h"
 
+STR_CONST(kZero, "0");
+
 _objfactory_guaranteed SSDSingleNode* SSDSingleNode__create(SSDTree* tree)
 {
     SSDSingleNode *self;
@@ -140,7 +142,7 @@ int32 SSDSingleIter_idx(_In_ SSDSingleIter* self)
 
 strref SSDSingleIter_name(_In_ SSDSingleIter* self)
 {
-    return _S"0";
+    return kZero;
 }
 
 bool SSDSingleIter_iterOut(_In_ SSDSingleIter* self, _When_(return == true, _Out_) int32* idx, _When_(return == true, _Out_) strref* name, _When_(return == true, _Out_) stvar** val)
@@ -153,7 +155,7 @@ bool SSDSingleIter_iterOut(_In_ SSDSingleIter* self, _When_(return == true, _Out
     devAssert(!self->transient_lock_state.init);
 
     *idx = 0;
-    *name = _S"0";
+    *name = kZero;
     *val = &((SSDSingleNode *)self->node)->storage;
     return true;
 }

@@ -8,6 +8,10 @@
 #include <ctype.h>
 #include <sys/stat.h>
 
+// string constants
+STR_CONST(kHostIdUserDir, "/.cx");
+STR_CONST(kHostIdUserFile, "/hostid");
+
 static bool readIdFile(const char* name, Digest* shactx, bool exact)
 {
     bool ret = false;
@@ -48,8 +52,8 @@ static bool getPerUserId(Digest* shactx)
 
     string cxdir = 0;
     string userfile = 0;
-    strConcat(&cxdir, (string)home, _S"/.cx");
-    strConcat(&userfile, cxdir, _S"/hostid");
+    strConcat(&cxdir, (string)home, kHostIdUserDir);
+    strConcat(&userfile, cxdir, kHostIdUserFile);
 
     if (readIdFile(strC(userfile), shactx, true)) {
         ret = true;

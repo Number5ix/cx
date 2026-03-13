@@ -1,6 +1,9 @@
 #include "format_private.h"
 #include "cx/string/string_private.h"
 
+// string constants that are used in parsing
+STR_CONST(kFmtOptPrefix, "prefix");
+
 // must contain enough characters to represent a 64-bit integer in base 16
 // with 0x prefix and null terminator
 #define BUFSZ 19
@@ -12,7 +15,7 @@ enum PtrOpts {
 _Use_decl_annotations_
 bool _fmtParsePtrOpt(FMTVar *v, strref opt)
 {
-    if (strEq(opt, _S"prefix")) {
+    if (strEq(opt, kFmtOptPrefix)) {
         v->flags |= FMT_PtrPrefix;
         return true;
     }

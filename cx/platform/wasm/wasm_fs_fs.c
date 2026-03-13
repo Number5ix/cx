@@ -19,10 +19,13 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 
+STR_CONST(kRootPath, "/");
+
 static LazyInitState fsCurDirInit;
 RWLock _fsCurDirLock;
 string _fsCurDir = 0;
-string fsPlatformPathSepStr = _S"/";
+STR_CONST(kfsPlatformPathSepStr, "/");
+strref fsPlatformPathSepStr = kfsPlatformPathSepStr;
 
 static void initCurDir(void *data)
 {
@@ -43,7 +46,7 @@ static void initCurDir(void *data)
     if (!pcur) {
         // failed??? punt...
         xaFree(buf);
-        strCopy(&_fsCurDir, _S"/");
+        strCopy(&_fsCurDir, kRootPath);
         return;
     }
 
@@ -142,7 +145,7 @@ static void fsExeInit(void *data)
     } while (lsz != -1 && lsz == sz);
     if (lsz == -1) {
         // panic
-        strCopy(exepath, _S"/");
+        strCopy(exepath, kRootPath);
     } else {
         buf[lsz] = 0;
         pathFromPlatform(exepath, (string)buf);

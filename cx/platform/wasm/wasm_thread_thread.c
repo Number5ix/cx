@@ -10,6 +10,8 @@
 
 #include "cx/thread/tlscleanup_private.h"
 
+STR_CONST(kMainThreadName, "Main");
+
 static UnixThread* mainthread;
 static _Thread_local UnixThread* curthread;
 
@@ -25,7 +27,7 @@ static void platformThreadInit(void* dummy)
     mainthread = _unixthrobjCreate();
 
     mainthread->pthr = pthread_self();
-    strDup(&mainthread->name, _S"Main");
+    strDup(&mainthread->name, kMainThreadName);
     atomicStore(bool, &mainthread->running, true, Relaxed);
 
     curthread = mainthread;

@@ -9,6 +9,9 @@
 #include <cx/time/clock.h>
 #include <cx/platform/os.h>
 
+// String constants
+STR_CONST(kLogOverflowMsg, "One or more log entries were lost due to log queue overflow.");
+
 #define OVERFLOW_BATCH_MAXENT   65536
 
 PrQueue _log_queue;
@@ -41,7 +44,7 @@ static void logQueueOverflow(_In_ LogEntry *ent)
                 return;
             // insert a message that events were lost
             LogEntry *lostent = xaAlloc(sizeof(LogEntry), XA_Zero);
-            strDup(&lostent->msg, _S"One or more log entries were lost due to log queue overflow.");
+            strDup(&lostent->msg, kLogOverflowMsg);
             lostent->timestamp = clockWall();
             lostent->level = LOG_Warn;
             _log_overflow.tail->_next = lostent;

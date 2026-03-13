@@ -11,6 +11,8 @@
 // ==================== Auto-generated section ends ======================
 #include "cx/taskqueue/taskqueue_private.h"
 
+STR_CONST(kManagerSuffix, " Manager");
+
 _objfactory_guaranteed TQDedicatedManager* TQDedicatedManager_create()
 {
     TQDedicatedManager* self;
@@ -57,7 +59,7 @@ bool TQDedicatedManager_start(_In_ TQDedicatedManager* self, _In_ TaskQueue* tq)
         return false;
 
     string thrname = 0;
-    strNConcat(&thrname, tq->name, _S" Manager");
+    strNConcat(&thrname, tq->name, kManagerSuffix);
     self->mgrthread = thrCreate(tqManagerThread, thrname, stvar(object, self), stvar(object, tq));
     strDestroy(&thrname);
 

@@ -7,6 +7,8 @@
 #include <cx/container/foreach.h>
 #include <cx/platform/os.h>
 
+STR_CONST(kLogThreadName, "CX Log Writer");
+
 Thread *_log_thread;
 static Event _log_done_event;
 
@@ -92,7 +94,7 @@ void logThreadCreate(void)
 {
     devAssert(!_log_thread);
     eventInit(&_log_done_event);
-    _log_thread = thrCreate(logthread_func, _S"CX Log Writer", stvNone);
+    _log_thread = thrCreate(logthread_func, kLogThreadName, stvNone);
     if (!_log_thread)
         relFatalError("Failed to create log thread");
     thrRegisterSysThread(_log_thread);

@@ -9,6 +9,9 @@
 
 extern RWLock _fsCurDirLock;
 extern string _fsCurDir;
-extern string fsPathSepStr;
-extern string fsNSSepStr;
-extern string fsPlatformPathSepStr;
+extern strref fsPathSepStr;
+extern strref fsNSSepStr;
+extern strref fsCurrentDirStr;
+extern strref fsParentDirStr;
+extern strref fsExtensionSepStr;
+extern strref fsPlatformPathSepStr;

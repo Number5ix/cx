@@ -3,8 +3,17 @@
 
 // platform-agnostic path manipulation
 
-string fsPathSepStr = _S"/";
-string fsNSSepStr = _S":";
+STR_CONST(kPathSepStr, "/");
+STR_CONST(kNSSepStr, ":");
+STR_CONST(kCurrentDirStr, ".");
+STR_CONST(kParentDirStr, "..");
+STR_CONST(kExtensionSepStr, ".");
+STR_CONST(kBackslash, "\\");
+strref fsPathSepStr      = kPathSepStr;
+strref fsNSSepStr        = kNSSepStr;
+strref fsCurrentDirStr   = kCurrentDirStr;
+strref fsParentDirStr    = kParentDirStr;
+strref fsExtensionSepStr = kExtensionSepStr;
 
 // Get parent directory
 _Use_decl_annotations_
@@ -72,7 +81,7 @@ bool _pathJoin(string *out, int n, strref* elements)
 _Use_decl_annotations_
 void pathAddExt(string *out, strref path, strref ext)
 {
-    strNConcat(out, path, _S".", ext);
+    strNConcat(out, path, fsExtensionSepStr, ext);
 }
 
 _Use_decl_annotations_
@@ -81,7 +90,7 @@ bool pathRemoveExt(string *out, strref path)
     if (strEmpty(path))
         return false;
 
-    int32 dot = strFindR(path, strEnd, _S".");
+    int32 dot = strFindR(path, strEnd, fsExtensionSepStr);
     int32 sep = strFindR(path, strEnd, fsPathSepStr);
     if (dot < clamplow(sep, 1))
         return false;
@@ -96,7 +105,7 @@ bool pathGetExt(string *out, strref path)
     if (!path)
         return false;
 
-    int32 dot = strFindR(path, strEnd, _S".");
+    int32 dot = strFindR(path, strEnd, fsExtensionSepStr);
     int32 sep = strFindR(path, strEnd, fsPathSepStr);
     if (dot < clamplow(sep, 1))
         return false;
@@ -208,7 +217,7 @@ bool pathDecompose(string *ns, sa_string *components, strref pathin)
     pathSplitNS(ns, &rpath, pathin);
     // if there are any backslashes, turn them to forward slashes
     int32 idx = 0;
-    while ((idx = strFind(rpath, idx, _S"\\")) != -1)
+    while ((idx = strFind(rpath, idx, kBackslash)) != -1)
         strSetChar(&rpath, idx, '/');
 
     bool absolute = pathIsAbsolute(rpath);
@@ -219,7 +228,7 @@ bool pathDecompose(string *ns, sa_string *components, strref pathin)
             // remove empty components, but not from position 0 (absolute path)
             saRemove(components, i--);
             csz--;
-        } else if (i > 0 && strEq(components->a[i], _S"..")) {
+        } else if (i > 0 && strEq(components->a[i], fsParentDirStr)) {
             // eat previous component
             // only allowed work in position 1 or later to avoid breaking relative paths
             saRemove(components, i--);
@@ -229,7 +238,7 @@ bool pathDecompose(string *ns, sa_string *components, strref pathin)
                 saRemove(components, i--);
                 csz--;
             }
-        } else if (strEq(components->a[i], _S".")) {
+        } else if (strEq(components->a[i], fsCurrentDirStr)) {
             // does nothing, just delete this component
             saRemove(components, i--);
             csz--;

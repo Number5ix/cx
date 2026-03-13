@@ -2,6 +2,8 @@
 #include <cx/thread.h>
 #include <cx/utils.h>
 
+STR_CONST(kSettingsThreadName, "CX Settings Writer");
+
 static Mutex setsthreadlock;
 static sa_SSDNode setslist;
 
@@ -52,7 +54,7 @@ static void setsthread_init(void *unused)
 {
     mutexInit(&setsthreadlock);
     saInit(&setslist, ptr, 16, SA_Sorted);
-    thrRun(setsthread_func, _S"CX Settings Writer", stvNone);
+    thrRun(setsthread_func, kSettingsThreadName, stvNone);
 }
 
 void _setsThreadCheck(void)

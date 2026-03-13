@@ -12,6 +12,21 @@
 #include <cx/time.h>
 #include <cx/utils.h>
 
+// string constants
+STR_CONST(kLogExtDefault, "log");
+STR_CONST(kLogRotatePattern, ".*.");
+STR_CONST(kLogSplitDelim, ".");
+STR_CONST(kLogRotateFmt, "${string}/${string}.${int}.${string}");
+STR_CONST(kLogDateISOTZ, "${0int(4)}-${0uint(2)}-${0uint(2)}T${0uint(2)}:${0uint(2)}:${0uint(2)}${+int(min:2)}:${0int(2)}");
+STR_CONST(kLogDateISOZulu, "${0int(4)}-${0uint(2)}-${0uint(2)}T${0uint(2)}:${0uint(2)}:${0uint(2)}Z");
+STR_CONST(kLogDateISOCompact, "${0int(4)}-${0uint(2)}-${0uint(2)} ${0uint(2)}:${0uint(2)}:${0uint(2)}");
+STR_CONST(kLogDateNCSA, "${0uint(2)}/${string(3)}/${0int(4)}:${0uint(2)}:${0uint(2)}:${0uint(2)} ${+int(min:2)}${0int(2)}");
+STR_CONST(kLogDateSyslog, "${string(3)} ${uint(2)} ${0uint(2)}:${0uint(2)}:${0uint(2)}");
+STR_CONST(kLogDateISOCompactMs, "${0int(4)}-${0uint(2)}-${0uint(2)} ${0uint(2)}:${0uint(2)}:${0uint(2)}.${0uint(3)}");
+STR_CONST(kLogBracketFmt, " [${string}]");
+STR_CONST(kLogJustifyFmt, " ${string(7)}");
+STR_CONST(kLogSpace, " ");
+
 typedef struct LogFileData {
     LogFileConfig config;
     VFS *vfs;
@@ -87,8 +102,8 @@ LogFileData *logfileCreate(VFS *vfs, strref filename, LogFileConfig *config)
     strDestroy(&realfile);
 
     if (strEmpty(ret->ext)) {
-        pathAddExt(&ret->fname, ret->fname, _S"log");
-        strDup(&ret->ext, _S"log");
+        pathAddExt(&ret->fname, ret->fname, kLogExtDefault);
+        strDup(&ret->ext, kLogExtDefault);
     }
 
     // for time-based rotation need to figure out the last rotate date based on
@@ -132,7 +147,7 @@ static void deleteOldFiles(LogFileData *lfd)
     // now must be in UTC because it's being compared to the file timestamps
     int64 now = clockWall();
 
-    strNConcat(&pattern, lfd->basename, _S".*.", lfd->ext);
+    strNConcat(&pattern, lfd->basename, kLogRotatePattern, lfd->ext);
     saInit(&todelete, string, 4);
     saInit(&splits, string, 4);
 
@@ -145,7 +160,7 @@ static void deleteOldFiles(LogFileData *lfd)
         if (lfd->config.rotateKeepTime > 0 &&
             (now - fsi.stat.modified) > lfd->config.rotateKeepTime) {
             saPush(&todelete, string, fsi.name);
-        } else if (strSplit(&splits, fsi.name, _S".", false) == 3) {
+        } else if (strSplit(&splits, fsi.name, kLogSplitDelim, false) == 3) {
             int num;
             if (strToInt32(&num, splits.a[1], 10, true) && num < 10000) {
                 // this is a numbered file, not one with a date
@@ -185,13 +200,13 @@ static void doSizeRotation(_Inout_ LogFileData *lfd)
 
     string namei = 0, nameimo = 0;
     for (int i = nfiles; i >= 1; --i) {
-        strFormat(&namei, _S"${string}/${string}.${int}.${string}",
+        strFormat(&namei, kLogRotateFmt,
                   stvar(string, lfd->pathname),
                   stvar(string, lfd->basename),
                   stvar(int32, i),
                   stvar(string, lfd->ext));
         if (i > 1) {
-            strFormat(&nameimo, _S"${string}/${string}.${int}.${string}",
+            strFormat(&nameimo, kLogRotateFmt,
                       stvar(string, lfd->pathname),
                       stvar(string, lfd->basename),
                       stvar(int32, i - 1),
@@ -239,7 +254,7 @@ static void doTimeRotation(_Inout_ LogFileData *lfd)
     lfd->lastrotate = now;
 
     string rfname = 0;
-    strFormat(&rfname, _S"${string}/${string}.${int}.${string}",
+    strFormat(&rfname, kLogRotateFmt,
               stvar(string, lfd->pathname),
               stvar(string, lfd->basename),
               stvar(int32, tp.year * 10000 + tp.month * 100 + tp.day),
@@ -273,7 +288,7 @@ static void formatDate(_In_ LogFileData *lfd, _Inout_ string *out, int64 timesta
     case LOG_DateISO:
         if (toffset != 0) {
             // ISO8601 with time zone
-            strFormat(out, _S"${0int(4)}-${0uint(2)}-${0uint(2)}T${0uint(2)}:${0uint(2)}:${0uint(2)}${+int(min:2)}:${0int(2)}",
+            strFormat(out, kLogDateISOTZ,
                       stvar(int32, tp.year),
                       stvar(uint8, tp.month),
                       stvar(uint8, tp.day),
@@ -284,7 +299,7 @@ static void formatDate(_In_ LogFileData *lfd, _Inout_ string *out, int64 timesta
                       stvar(int32, (toffset >= 0 ? toffset : -toffset) % 60));
         } else {
             // ISO8601 with zulu time
-            strFormat(out, _S"${0int(4)}-${0uint(2)}-${0uint(2)}T${0uint(2)}:${0uint(2)}:${0uint(2)}Z",
+            strFormat(out, kLogDateISOZulu,
                       stvar(int32, tp.year),
                       stvar(uint8, tp.month),
                       stvar(uint8, tp.day),
@@ -295,7 +310,7 @@ static void formatDate(_In_ LogFileData *lfd, _Inout_ string *out, int64 timesta
         break;
     case LOG_DateISOCompact:
         // simplifed ISO-like format with no time zone
-        strFormat(out, _S"${0int(4)}-${0uint(2)}-${0uint(2)} ${0uint(2)}:${0uint(2)}:${0uint(2)}",
+        strFormat(out, kLogDateISOCompact,
                   stvar(int32, tp.year),
                   stvar(uint8, tp.month),
                   stvar(uint8, tp.day),
@@ -305,7 +320,7 @@ static void formatDate(_In_ LogFileData *lfd, _Inout_ string *out, int64 timesta
         break;
     case LOG_DateNCSA:
         // NCSA common log date format
-        strFormat(out, _S"${0uint(2)}/${string(3)}/${0int(4)}:${0uint(2)}:${0uint(2)}:${0uint(2)} ${+int(min:2)}${0int(2)}",
+        strFormat(out, kLogDateNCSA,
                   stvar(uint8, tp.day),
                   stvar(strref, timeMonthAbbrev[tp.month]),
                   stvar(int32, tp.year),
@@ -317,7 +332,7 @@ static void formatDate(_In_ LogFileData *lfd, _Inout_ string *out, int64 timesta
         break;
     case LOG_DateSyslog:
         // BSD-style syslog format (without year)
-        strFormat(out, _S"${string(3)} ${uint(2)} ${0uint(2)}:${0uint(2)}:${0uint(2)}",
+        strFormat(out, kLogDateSyslog,
                   stvar(strref, timeMonthAbbrev[tp.month]),
                   stvar(uint8, tp.day),
                   stvar(uint8, tp.hour),
@@ -326,7 +341,7 @@ static void formatDate(_In_ LogFileData *lfd, _Inout_ string *out, int64 timesta
         break;
     case LOG_DateISOCompactMsec:
         // simplifed ISO-like format with no time zone and milliseconds
-        strFormat(out, _S"${0int(4)}-${0uint(2)}-${0uint(2)} ${0uint(2)}:${0uint(2)}:${0uint(2)}.${0uint(3)}",
+        strFormat(out, kLogDateISOCompactMs,
                   stvar(int32, tp.year),
                   stvar(uint8, tp.month),
                   stvar(uint8, tp.day),
@@ -373,24 +388,24 @@ void logfileMsgFunc(int level, LogCategory* cat, int64 timestamp, strref msg, ui
                 temp[llen + 2] = ']';
                 memcpy(temp + 2, strC(lvarr[level]), llen);
             } else {
-                strFormat(&loglevel, _S" [${string}]", stvar(strref, lvarr[level]));
+                strFormat(&loglevel, kLogBracketFmt, stvar(strref, lvarr[level]));
             }
         } else if (lfd->config.flags & LOG_JustifyLevel) {
             if (lfd->config.flags & LOG_ShortLevel) {
-                strConcat(&loglevel, _S" ", lvarr[level]);
+                strConcat(&loglevel, kLogSpace, lvarr[level]);
             } else {
-                strFormat(&loglevel, _S" ${string(7)}", stvar(strref, lvarr[level]));
+                strFormat(&loglevel, kLogJustifyFmt, stvar(strref, lvarr[level]));
             }
         } else {
-            strConcat(&loglevel, _S" ", lvarr[level]);
+            strConcat(&loglevel, kLogSpace, lvarr[level]);
         }
     }
 
     if (lfd->config.flags & LOG_IncludeCategory && cat && !strEmpty(cat->name)) {
         if (lfd->config.flags & LOG_BracketCategory) {
-            strFormat(&logcat, _S" [${string}]", stvar(strref, cat->name));
+            strFormat(&logcat, kLogBracketFmt, stvar(strref, cat->name));
         } else {
-            strConcat(&logcat, _S" ", cat->name);
+            strConcat(&logcat, kLogSpace, cat->name);
         }
     }
 

@@ -1,6 +1,8 @@
 #include "sysq.h"
 #include <cx/utils/lazyinit.h>
 
+STR_CONST(kSysQueueName, "CX System");
+
 static TaskQueue *sysq;
 
 static void sysqExit(void)
@@ -15,7 +17,7 @@ static void sysqInitFunc(void *dummy)
     TaskQueueConfig conf;
     tqPresetBalanced(&conf);
     conf.pool.wIdle = 1;        // use only 1 thread for idle
-    sysq                 = tqCreate(_S"CX System", &conf);
+    sysq                 = tqCreate(kSysQueueName, &conf);
     relAssertMsg(sysq, "Failed to create system queue");
     atexit(sysqExit);
 }

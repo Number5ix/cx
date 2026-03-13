@@ -6,6 +6,8 @@
 #include <process.h>
 #include "cx/platform/win/win_thread_threadobj.h"
 
+STR_CONST(kMainThreadName, "Main");
+
 extern int _cx_win_tls_cleanup;
 static int*
     _cx_win_tls_cleanup_force_include = &_cx_win_tls_cleanup;   // force the linker to include the
@@ -30,7 +32,7 @@ static void platformThreadInit(void* dummy)
     if (mainthread) {
         mainthread->handle = GetCurrentThread();
         mainthread->id     = GetCurrentThreadId();
-        strDup(&mainthread->name, _S"Main");
+        strDup(&mainthread->name, kMainThreadName);
     } else {
         relFatalError("Failed to create main thread");
     }

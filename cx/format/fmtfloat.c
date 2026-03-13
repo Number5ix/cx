@@ -1,6 +1,17 @@
 #include "format_private.h"
 #include "cx/utils/compare.h"
 
+// string constants that are used in parsing
+STR_CONST(kFmtOptFixed, "fixed");
+STR_CONST(kFmtOptZero, "zero");
+STR_CONST(kFmtOptSig, "sig:");
+STR_CONST(kFmtOptDec, "dec:");
+STR_CONST(kNaN, "NaN");
+STR_CONST(kInf, "Inf");
+STR_CONST(kNegInf, "-Inf");
+STR_CONST(kZero, "0");
+STR_CONST(kOne, "1");
+
 #define absv(n) ((n) < 0 ? -(n) : (n))
 
 enum FloatOpts {
@@ -13,18 +24,18 @@ _Use_decl_annotations_
 bool _fmtParseFloatOpt(FMTVar *v, strref opt)
 {
     int32 val;
-    if (strEq(opt, _S"fixed")) {
+    if (strEq(opt, kFmtOptFixed)) {
         v->flags |= FMT_FloatFixed;
         return true;
-    } else if (strEq(opt, _S"zero")) {
+    } else if (strEq(opt, kFmtOptZero)) {
         v->flags |= FMT_FloatZero;
         return true;
-    } else if (strBeginsWith(opt, _S"sig:")) {
+    } else if (strBeginsWith(opt, kFmtOptSig)) {
         strSubStr(&v->tmp, opt, 4, strEnd);
         if (strToInt32(&val, v->tmp, 10, true) && val >= 1 && val < 18)
             v->fmtdata[0] = val;
         return true;
-    } else if (strBeginsWith(opt, _S"dec:")) {
+    } else if (strBeginsWith(opt, kFmtOptDec)) {
         strSubStr(&v->tmp, opt, 4, strEnd);
         if (strToInt32(&val, v->tmp, 10, true) && val >= 0) {
             v->fmtdata[1] = val;
@@ -79,9 +90,9 @@ bool _fmtFloat(FMTVar *v, string *out)
         neg = fpbits & 0x80000000;
         if ((fpbits & 0x7f800000) == 0x7f800000) {
             if (fpbits & 0x007fffff)
-                return fmtFloatSpecial(v, out, _S"NaN");
+                return fmtFloatSpecial(v, out, kNaN);
             else
-                return fmtFloatSpecial(v, out, neg ? _S"-Inf" : _S"Inf");
+                return fmtFloatSpecial(v, out, neg ? kNegInf : kInf);
         }
 
         if (fpbits & 0x7fffffff) {
@@ -99,9 +110,9 @@ bool _fmtFloat(FMTVar *v, string *out)
         neg = fpbits & 0x8000000000000000;
         if ((fpbits & 0x7ff0000000000000) == 0x7ff0000000000000) {
             if (fpbits & 0x000fffffffffffff)
-                return fmtFloatSpecial(v, out, _S"NaN");
+                return fmtFloatSpecial(v, out, kNaN);
             else
-                return fmtFloatSpecial(v, out, neg ? _S"-Inf" : _S"Inf");
+                return fmtFloatSpecial(v, out, neg ? kNegInf : kInf);
             return true;
         }
 
@@ -207,10 +218,10 @@ ndigits_changed:
             // rounding off everything is rare, but pathological dec:#
             // can do it on very small numbers
             if (K != 0)
-                return fmtFloatSpecial(v, out, _S"0");
+                return fmtFloatSpecial(v, out, kZero);
             // corner case alert: K == 0 means everything got rounded off, but there
             // was a digit in the tenths place which might actually round up to 1
-            return fmtFloatSpecial(v, out, digits[0] < '5' ? _S"0" : _S"1");
+            return fmtFloatSpecial(v, out, digits[0] < '5' ? kZero : kOne);
         }
 
         for (i = ndigits - 1; i >= 0; --i) {

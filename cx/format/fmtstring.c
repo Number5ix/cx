@@ -1,5 +1,10 @@
 #include "format_private.h"
 
+// string constants that are used in parsing
+STR_CONST(kFmtOptEmpty, "empty");
+STR_CONST(kFmtOptNull, "null");
+STR_CONST(kFmtOptName, "name");
+
 enum StringOpts {
     FMT_StringEmpty     = 0x00010000,
     FMT_StringNull      = 0x00020000,
@@ -9,13 +14,13 @@ enum StringOpts {
 _Use_decl_annotations_
 bool _fmtParseStringOpt(FMTVar *v, strref opt)
 {
-    if (strEq(opt, _S"empty")) {
+    if (strEq(opt, kFmtOptEmpty)) {
         v->flags |= FMT_StringEmpty;
         return true;
-    } else if (strEq(opt, _S"null")) {
+    } else if (strEq(opt, kFmtOptNull)) {
         v->flags |= FMT_StringNull;
         return true;
-    } else if (strEq(opt, _S"name")) {
+    } else if (strEq(opt, kFmtOptName)) {
         v->flags |= FMT_StringNameCase;
         return true;
     }

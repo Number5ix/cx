@@ -5,6 +5,24 @@
 #include <cx/format.h>
 #include <cx/utils/compare.h>
 
+// string constants
+STR_CONST(kJPErrInvalidChar,     "Invalid character code 0x${uint(hex)} in string");
+STR_CONST(kJPErrInvalidHex,      "Invalid hex digit '${int(utfchar)}");
+STR_CONST(kJPErrSurrogateFirst,  "Invalid first half of surrogate pair");
+STR_CONST(kJPErrSurrogateSecond, "Invalid second half of surrogate pair");
+STR_CONST(kJPErrSurrogateMissing,"Surrogate pair missing second half");
+STR_CONST(kJPErrInvalidEscape,   "Invalid escape sequence '\\${int(utfchar)}");
+STR_CONST(kJPErrUnterminatedStr, "Unterminated string");
+STR_CONST(kJPErrExpectedNumber,  "Found '${int(utfchar)}' where a number was expected");
+STR_CONST(kJPErrRecursionLimit,  "Exceeded recursion limit");
+STR_CONST(kJPErrExpectedCommaObj,"Expected ',' after member \"${string}\" of object, got '${int(utfchar)}' instead");
+STR_CONST(kJPErrExpectedKey,     "Expected '\"' to begin object key, got '${int(utfchar)}' instead");
+STR_CONST(kJPErrExpectedColon,   "Expected ':' in member \"${string}\" of object, got '${int(utfchar)}' instead");
+STR_CONST(kJPErrExpectedCommaArr,"Expected ',' after index ${int} of array, got '${int(utfchar)} instead");
+STR_CONST(kJPErrUnterminatedArr, "Unterminated array");
+STR_CONST(kJPErrFmt,             "JSON Parse Error: ${string} on line ${int}");
+STR_CONST(kJPErrSyntaxFmt,       "JSON Parse Error: Invalid syntax on line ${int}");
+
 #define MAX_PARSE_DEPTH 1000
 
 typedef struct ParseState {
@@ -67,7 +85,7 @@ static bool parseString(_Inout_ StreamBuffer *sb, _Inout_ string *out, _Inout_ P
     size_t didread;
     while (sbufCRead(sb, &ch, 1, &didread)) {
         if (ch < 0x20) {
-            strFormat(&ps->errmsg, _S"Invalid character code 0x${uint(hex)} in string", stvar(uint8, ch));
+            strFormat(&ps->errmsg, kJPErrInvalidChar, stvar(uint8, ch));
             break;
         }
 
@@ -85,7 +103,7 @@ static bool parseString(_Inout_ StreamBuffer *sb, _Inout_ string *out, _Inout_ P
             else if (ch >= 'A' && ch <= 'F')
                 hexval = 10 + ch - 'A';
             else {
-                strFormat(&ps->errmsg, _S"Invalid hex digit '${int(utfchar)}", stvar(int32, ch));
+                strFormat(&ps->errmsg, kJPErrInvalidHex, stvar(int32, ch));
                 break;
             }
 
@@ -104,7 +122,7 @@ static bool parseString(_Inout_ StreamBuffer *sb, _Inout_ string *out, _Inout_ P
                     ucp = 0;
                 } else {
                     // these are supposed to be for the second half!
-                    strDup(&ps->errmsg, _S"Invalid first half of surrogate pair");
+                    strDup(&ps->errmsg, kJPErrSurrogateFirst);
                     break;
                 }
             } else if (useq == 0) {
@@ -117,7 +135,7 @@ static bool parseString(_Inout_ StreamBuffer *sb, _Inout_ string *out, _Inout_ P
                     }
                     lastucp = 0;
                 } else {
-                    strDup(&ps->errmsg, _S"Invalid second half of surrogate pair");
+                    strDup(&ps->errmsg, kJPErrSurrogateSecond);
                     break;
                 }
             }
@@ -126,7 +144,7 @@ static bool parseString(_Inout_ StreamBuffer *sb, _Inout_ string *out, _Inout_ P
 
             if (lastucp && ch != 'u') {
                 // first half of surrogate pair is REQUIRED to be immediately followed up with a second \uXXXX
-                strDup(&ps->errmsg, _S"Surrogate pair missing second half");
+                strDup(&ps->errmsg, kJPErrSurrogateMissing);
                 break;
             }
 
@@ -160,7 +178,7 @@ static bool parseString(_Inout_ StreamBuffer *sb, _Inout_ string *out, _Inout_ P
                 useq = 4;
                 break;
             default:
-                strFormat(&ps->errmsg, _S"Invalid escape sequence '\\${int(utfchar)}", stvar(int32, ch));
+                strFormat(&ps->errmsg, kJPErrInvalidEscape, stvar(int32, ch));
                 break;
             }
         } else if (ch == '"') {
@@ -173,7 +191,7 @@ static bool parseString(_Inout_ StreamBuffer *sb, _Inout_ string *out, _Inout_ P
             } else {
                 if (lastucp) {
                     // first half of surrogate pair is REQUIRED to be immediately followed up with a second \uXXXX
-                    strDup(&ps->errmsg, _S"Surrogate pair missing second half");
+                    strDup(&ps->errmsg, kJPErrSurrogateMissing);
                     break;
                 }
 
@@ -183,7 +201,7 @@ static bool parseString(_Inout_ StreamBuffer *sb, _Inout_ string *out, _Inout_ P
     }
 
     if (!ret && sbufCAvail(sb) == 0) {
-        strDup(&ps->errmsg, _S"Unterminated string");
+        strDup(&ps->errmsg, kJPErrUnterminatedStr);
     }
 
     // copy any leftover output
@@ -297,7 +315,7 @@ static bool parseNumber(_Inout_ StreamBuffer *sb, _Inout_ JSONParseEvent *ev, _I
             explen++;
             phase = 4;
         } else {
-            strFormat(&ps->errmsg, _S"Found '${int(utfchar)}' where a number was expected", stvar(int32, ch));
+            strFormat(&ps->errmsg, kJPErrExpectedNumber, stvar(int32, ch));
             return false;
         }
     }
@@ -383,7 +401,7 @@ static bool parseValue(_Inout_ StreamBuffer *sb, _Inout_ ParseState *ps)
         jsonCallback(&ps->ev, ps);
 
         if (ps->depth >= MAX_PARSE_DEPTH) {
-            strDup(&ps->errmsg, _S"Exceeded recursion limit");
+            strDup(&ps->errmsg, kJPErrRecursionLimit);
             break;
         }
 
@@ -398,7 +416,7 @@ static bool parseValue(_Inout_ StreamBuffer *sb, _Inout_ ParseState *ps)
         jsonCallback(&ps->ev, ps);
 
         if (ps->depth >= MAX_PARSE_DEPTH) {
-            strDup(&ps->errmsg, _S"Exceeded recursion limit");
+            strDup(&ps->errmsg, kJPErrRecursionLimit);
             break;
         }
 
@@ -496,7 +514,7 @@ static bool parseObject(StreamBuffer *sb, ParseState *ps)
                 // skip the comma
                 sbufCSkip(sb, 1);
             } else {
-                strFormat(&ps->errmsg, _S"Expected ',' after member \"${string}\" of object, got '${int(utfchar)}' instead",
+                strFormat(&ps->errmsg, kJPErrExpectedCommaObj,
                        stvar(strref, ps->ctx->cdata.curKey), stvar(int32, ch));
                 break;
             }
@@ -505,7 +523,7 @@ static bool parseObject(StreamBuffer *sb, ParseState *ps)
         // first get the key
         skipWS(sb, ps);
         if (!sbufCRead(sb, &ch, 1, &didread) || ch != '"') {
-            strFormat(&ps->errmsg, _S"Expected '\"' to begin object key, got '${int(utfchar)}' instead",
+            strFormat(&ps->errmsg, kJPErrExpectedKey,
                       stvar(int32, ch));
             break;
         }
@@ -519,7 +537,7 @@ static bool parseObject(StreamBuffer *sb, ParseState *ps)
         skipWS(sb, ps);
 
         if (!sbufCRead(sb, &ch, 1, &didread) || ch != ':') {
-            strFormat(&ps->errmsg, _S"Expected ':' in member \"${string}\" of object, got '${int(utfchar)}' instead",
+            strFormat(&ps->errmsg, kJPErrExpectedColon,
                    stvar(strref, ps->ctx->cdata.curKey), stvar(int32, ch));
             break;
         }
@@ -555,7 +573,7 @@ static bool parseArray(StreamBuffer *sb, ParseState *ps)
                 // skip the comma
                 sbufCSkip(sb, 1);
             } else {
-                strFormat(&ps->errmsg, _S"Expected ',' after index ${int} of array, got '${int(utfchar)} instead",
+                strFormat(&ps->errmsg, kJPErrExpectedCommaArr,
                        stvar(int32, ps->ctx->cdata.curIdx - 1), stvar(int32, ch));
                 break;
             }
@@ -569,7 +587,7 @@ static bool parseArray(StreamBuffer *sb, ParseState *ps)
     }
 
     if (!ret && sbufCAvail(sb) == 0) {
-        strDup(&ps->errmsg, _S"Unterminated array");
+        strDup(&ps->errmsg, kJPErrUnterminatedArr);
     }
 
     return ret;
@@ -605,11 +623,11 @@ bool jsonParse(StreamBuffer *sb, jsonParseCB callback, void *userdata)
         ps.ev.etype = JSON_Error;
         ps.ev.ctx = ps.ctx;
         if (!strEmpty(ps.errmsg)) {
-            strFormat(&ps.ev.edata.strData, _S"JSON Parse Error: ${string} on line ${int}",
+            strFormat(&ps.ev.edata.strData, kJPErrFmt,
                       stvar(strref, ps.errmsg),
                       stvar(int32, ps.line));
         } else {
-            strFormat(&ps.ev.edata.strData, _S"JSON Parse Error: Invalid syntax on line ${int}", stvar(int32, ps.line));
+            strFormat(&ps.ev.edata.strData, kJPErrSyntaxFmt, stvar(int32, ps.line));
         }
         ps.callback(&ps.ev, ps.userdata);
     }

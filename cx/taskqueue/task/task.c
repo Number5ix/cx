@@ -13,10 +13,12 @@
 #include <cx/thread/event.h>
 #include <cx/utils/ccallbacks.h>
 
+STR_CONST(kTaskNameDefault, "Task");
+
 _objinit_guaranteed bool Task_init(_In_ Task* self)
 {
     if (!self->name)
-        self->name = _S"Task";
+        self->name = (string)kTaskNameDefault;
     // Autogen begins -----
     return true;
     // Autogen ends -------

@@ -3,6 +3,8 @@
 #include <cx/time/clock.h>
 #include "cx/taskqueue/userfunctask.h"
 
+STR_CONST(kDefaultTaskQueueName, "TaskQueue");
+
 _Use_decl_annotations_
 void tqPresetSingle(TaskQueueConfig* tqconfig)
 {
@@ -126,7 +128,7 @@ TaskQueue* tqCreate(strref name, TaskQueueConfig* tqconfig)
     TaskQueue* tq = NULL;
     if (tqconfig->flags & TQ_NoComplex) {
         // Basic task queue
-        tq = taskqueueCreate(strEmpty(name) ? _S"TaskQueue" : name,
+        tq = taskqueueCreate(strEmpty(name) ? kDefaultTaskQueueName : name,
                              tqconfig->flags,
                              tqconfig->mGC,
                              runner,
@@ -134,7 +136,7 @@ TaskQueue* tqCreate(strref name, TaskQueueConfig* tqconfig)
                              monitor);
     } else {
         // Complex task queue
-        tq = TaskQueue(ctaskqueueCreate(strEmpty(name) ? _S"TaskQueue" : name,
+        tq = TaskQueue(ctaskqueueCreate(strEmpty(name) ? kDefaultTaskQueueName : name,
                                         tqconfig->flags,
                                         tqconfig->mGC,
                                         runner,

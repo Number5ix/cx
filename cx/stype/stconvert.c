@@ -8,6 +8,8 @@
 #include "cx/suid/stype_suid.h"
 #include "cx/string.h"
 
+STR_CONST(kHexPrefix, "0x");
+
 #define stConvertNoneZero(type) case stTypeId(type): \
     dest->st_##type = 0;                             \
     return true
@@ -275,7 +277,7 @@ bool stConvert_ptr(stype destst, _stCopyDest_Anno_(destst) stgeneric *dest, styp
         if (!strFromUInt64(&temp, (uint64)src.st_ptr, 16))
             return false;
 #endif
-        strConcat(&dest->st_string, _S"0x", temp);
+        strConcat(&dest->st_string, kHexPrefix, temp);
         return true;
     }
 

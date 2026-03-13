@@ -12,6 +12,8 @@
 #include "cx/taskqueue/taskqueue_private.h"
 #include <cx/format.h>
 
+STR_CONST(kWorkerThreadName, "${string} Worker #${int}");
+
 static int tqWorkerThread(Thread* thr)
 {
     TQThreadWorker* self = stvlNextObj(&thr->args, TQThreadWorker);
@@ -68,7 +70,7 @@ bool TQThreadWorker_startThread(_In_ TQThreadWorker* self, _In_ TaskQueue* tq)
 
     string thrname = 0;
     strFormat(&thrname,
-              _S"${string} Worker #${int}",
+              kWorkerThreadName,
               stvar(string, tq->name),
               stvar(int32, self->num));
 

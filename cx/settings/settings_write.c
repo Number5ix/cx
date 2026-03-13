@@ -7,6 +7,8 @@
 #include <cx/ssdtree/ssdtree.h>
 #include <cx/string.h>
 
+STR_CONST(kTemp, "temp");
+
 // Customized version of jsonouttree that ignores bound settings which have a default value
 
 static void outVal(JSONOut* jo, stvar val, SSDLockState* lstate, bool* error);
@@ -200,7 +202,7 @@ bool _setsWriteTree(SSDNode* root, SettingsTree* tree, SSDLockState* lstate)
         goto out;
 
     // write to temp file first
-    pathAddExt(&tempname, tree->filename, _S"temp");
+    pathAddExt(&tempname, tree->filename, kTemp);
     file = vfsOpen(tree->vfs, tempname, FS_Overwrite);
     if (!file)
         goto out;

@@ -9,7 +9,14 @@
 static LazyInitState fsCurDirInit;
 RWLock _fsCurDirLock;
 string _fsCurDir = 0;
-string fsPlatformPathSepStr = _S"\\";
+STR_CONST(kPlatformPathSepStr, "\\");
+strref fsPlatformPathSepStr = kPlatformPathSepStr;
+
+STR_CONST(kPlatformNTPrefix, "\\\\?\\");
+STR_CONST(kPlatformUNCPrefix, "\\\\?\\UNC\\");
+STR_CONST(kUnc, "unc");
+STR_CONST(kUNC, "UNC");
+STR_CONST(kWildcard, "*");
 
 static void fsPathFromWinW(_Inout_ string *out, _In_z_ wchar_t *winpath)
 {
@@ -55,10 +62,10 @@ wchar_t* fsPathToNT(strref path)
     pathToPlatform(&npath, npath);
 
     if (!fsIsUNC(npath)) {
-        strConcat(&ntpath, _S"\\\\?\\", npath);
+        strConcat(&ntpath, kPlatformNTPrefix, npath);
     } else {
         strSubStrI(&npath, 2, strEnd);
-        strConcat(&ntpath, _S"\\\\?\\UNC\\", npath);
+        strConcat(&ntpath, kPlatformUNCPrefix, npath);
     }
 
     ret = strToUTF16S(ntpath);
@@ -83,7 +90,7 @@ void pathFromPlatform(string *out, strref platformpath)
 
     // first, convert all backslashes to forward slashes
     int32 idx = 0;
-    while ((idx = strFind(rpath, idx, _S"\\")) != -1)
+    while ((idx = strFind(rpath, idx, fsPlatformPathSepStr)) != -1)
         strSetChar(&rpath, idx, '/');
 
     uint32 origlen = strLen(rpath);
@@ -102,7 +109,7 @@ void pathFromPlatform(string *out, strref platformpath)
         strSubStrI(&rpath, 2, origlen);
     } else if (buf[0] == '/' && buf[1] == '/') {
         // unc
-        strDup(&ns, _S"unc");
+        strDup(&ns, kUnc);
         strSubStrI(&rpath, 1, origlen);
     } else if (buf[0] == '/') {
         // starts with a slash, but not a UNC path...
@@ -139,17 +146,17 @@ void pathToPlatform(string *out, strref path)
     pathSplitNS(&ns, &rpath, path);
     strUpper(&ns);
 
-    if (strEq(ns, _S"UNC")) {
-        strNConcat(&ret, _S"/", rpath);
+    if (strEq(ns, kUNC)) {
+        strNConcat(&ret, fsPathSepStr, rpath);
     } else if (!strEmpty(ns)) {
-        strNConcat(&ret, ns, _S":", rpath);
+        strNConcat(&ret, ns, fsNSSepStr, rpath);
     } else {
         strDup(&ret, rpath);
     }
 
     // finally, convert all forward slahes to backslashes
     int32 idx = 0;
-    while ((idx = strFind(ret, idx, _S"/")) != -1)
+    while ((idx = strFind(ret, idx, fsPathSepStr)) != -1)
         strSetChar(&ret, idx, '\\');
 
     strDestroy(&ns);
@@ -360,7 +367,7 @@ bool fsSearchInit(FSSearchIter *iter, strref path, strref pattern, bool stat)
 
     FSSearch *search = xaAlloc(sizeof(FSSearch), XA_Zero);
     iter->_search = search;
-    pathJoin(&spath, path, strEmpty(pattern) ? _S"*" : pattern);
+    pathJoin(&spath, path, strEmpty(pattern) ? kWildcard : pattern);
 
     search->h = FindFirstFileW(fsPathToNT(spath), &search->first);
     strDestroy(&spath);

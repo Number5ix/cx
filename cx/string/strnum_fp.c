@@ -3,6 +3,9 @@
 #include "cx/utils/compare.h"
 #include "strnum_fppowers.h"
 
+STR_CONST(kInf, "inf");
+STR_CONST(kNan, "nan");
+
 // Modified version of night-shift's fpconv implementation of Fabian Loitsch's Grisu2
 // algorithm. Adapted for 32-bit single precision floats in addition to 64-bit
 // doubles.
@@ -568,7 +571,7 @@ bool strToFloat64(float64* out, strref s, bool strict)
     // Check for special values (inf, nan) - case insensitive
     // strtod may not handle these consistently across platforms
     uint32 offset = (uint32)(cstr - start);
-    if (strRangeEqi(s, _S"inf", offset, 3)) {
+    if (strRangeEqi(s, kInf, offset, 3)) {
         union {
             double d;
             uint64_t i;
@@ -579,7 +582,7 @@ bool strToFloat64(float64* out, strref s, bool strict)
         return true;
     }
 
-    if (strRangeEqi(s, _S"nan", offset, 3)) {
+    if (strRangeEqi(s, kNan, offset, 3)) {
         union {
             double d;
             uint64_t i;
@@ -633,7 +636,7 @@ bool strToFloat32(float32* out, strref s, bool strict)
     // Check for special values (inf, nan) - case insensitive
     // strtof may not handle these consistently across platforms
     uint32 offset = (uint32)(cstr - start);
-    if (strRangeEqi(s, _S"inf", offset, 3)) {
+    if (strRangeEqi(s, kInf, offset, 3)) {
         union {
             float f;
             uint32_t i;
@@ -644,7 +647,7 @@ bool strToFloat32(float32* out, strref s, bool strict)
         return true;
     }
 
-    if (strRangeEqi(s, _S"nan", offset, 3)) {
+    if (strRangeEqi(s, kNan, offset, 3)) {
         union {
             float f;
             uint32_t i;

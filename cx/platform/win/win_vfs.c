@@ -2,6 +2,8 @@
 #include "cx/fs/vfs.h"
 #include "cx/platform/win.h"
 
+STR_CONST(kRootPath, "/");
+
 bool _vfsAddPlatformSpecificMounts(VFS *vfs)
 {
     DWORD ldrives = GetLogicalDrives();
@@ -24,7 +26,7 @@ bool _vfsAddPlatformSpecificMounts(VFS *vfs)
     fsCurDir(&curdir);
     // mount current drive as root
     strSubStr(&drive, _fsCurDir, 0, 3);
-    vfsMountFS(vfs, _S"/", drive);
+    vfsMountFS(vfs, kRootPath, drive);
     vfsSetCurDir(vfs, curdir);
     strDestroy(&curdir);
     strDestroy(&drive);

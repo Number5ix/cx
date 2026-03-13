@@ -13,6 +13,35 @@
 #include <cx/format.h>
 #include <cx/log.h>
 
+// string constants
+STR_CONST(kTQLogFmtManager,   "    ${int}: Manager");
+STR_CONST(kTQLogFmtIdle,      "    ${int}: Idle");
+STR_CONST(kTQStateUnknown,    "Unknown");
+STR_CONST(kTQStateCreated,    "Created");
+STR_CONST(kTQStateRunning,    "Running");
+STR_CONST(kTQStateWaiting,    "Waiting");
+STR_CONST(kTQStateDeferred,   "Deferred");
+STR_CONST(kTQStateSucceeded,  "Succeeded");
+STR_CONST(kTQStateFailed,     "Failed");
+STR_CONST(kTQStateSchedNext,  "Scheduled:NextTask");
+STR_CONST(kTQStateSchedNow,   "Scheduled:Immediately");
+STR_CONST(kTQStateSchedNever, "Scheduled:Never");
+STR_CONST(kTQFmtSchedMs,      "Scheduled:${int}ms");
+STR_CONST(kTQStateScheduled,  "Scheduled");
+STR_CONST(kTQFmtPrefix,       "${int}: ");
+STR_CONST(kTQFmtSuffix,       " [${int}ms]");
+STR_CONST(kTQFmtTask,         "    ${string}${string}-${0uint(4,hex)} (${string})${string}");
+STR_CONST(kTQBasicTask,       "BasicTask");
+STR_CONST(kTQLblWorkers,      "  Worker Threads:");
+STR_CONST(kTQLblRunQueue,     "  Run Queue:");
+STR_CONST(kTQLblDoneQueue,    "  Done Queue:");
+STR_CONST(kTQLblScheduled,    "  Scheduled:");
+STR_CONST(kTQLblDeferred,     "  Deferred:");
+STR_CONST(kTQFmtMonitorHdr,   "Task Queue Monitor (${string}):");
+STR_CONST(kTQFmtRunning,      "  ${string}-${0uint(4,hex)} running for ${int} ms");
+STR_CONST(kTQFmtWaiting,      "  ${string}-${0uint(4,hex)} waiting for ${int} ms");
+STR_CONST(kTQFmtStalled,      "  ${string}-${0uint(4,hex)} stalled for ${int} ms");
+
 _objfactory_guaranteed TQThreadPoolMonitor*
 TQThreadPoolMonitor_create(_In_ TaskQueueMonitorConfig* config)
 {
@@ -49,9 +78,9 @@ static void dumpTask(LogCategory* cat, void* ptr, int64 now, int wnum, bool prog
     if (!ptr) {
         if (wnum > -1) {
             if (ismanager)
-                logFmtC(Diag, cat, _S"    ${int}: Manager", stvar(int32, wnum + 1));
+                logFmtC(Diag, cat, kTQLogFmtManager, stvar(int32, wnum + 1));
             else
-                logFmtC(Diag, cat, _S"    ${int}: Idle", stvar(int32, wnum + 1));
+                logFmtC(Diag, cat, kTQLogFmtIdle, stvar(int32, wnum + 1));
         }
         return;
     }
@@ -62,42 +91,42 @@ static void dumpTask(LogCategory* cat, void* ptr, int64 now, int wnum, bool prog
     if (progresstime && !ctask)
         return;
 
-    string state = _S"Unknown";
+    string state = (string)kTQStateUnknown;
     switch (btaskState(btask)) {
     case TASK_Created:
-        state = _S"Created";
+        state = (string)kTQStateCreated;
         break;
     case TASK_Running:
-        state = _S"Running";
+        state = (string)kTQStateRunning;
         break;
     case TASK_Waiting:
-        state = _S"Waiting";
+        state = (string)kTQStateWaiting;
         break;
     case TASK_Deferred:
-        state = _S"Deferred";
+        state = (string)kTQStateDeferred;
         break;
     case TASK_Succeeded:
-        state = _S"Succeeded";
+        state = (string)kTQStateSucceeded;
         break;
     case TASK_Failed:
-        state = _S"Failed";
+        state = (string)kTQStateFailed;
         break;
     case TASK_Scheduled:
         if (ctask) {
             if (ctask->nextrun == -1)
-                state = _S"Scheduled:NextTask";
+                state = (string)kTQStateSchedNext;
             else if (ctask->nextrun == 0)
-                state = _S"Scheduled:Immediately";
+                state = (string)kTQStateSchedNow;
             else if (ctask->nextrun == timeForever)
-                state = _S"Scheduled:Never";
+                state = (string)kTQStateSchedNever;
             else {
                 strTemp(&state, 32);
                 strFormat(&state,
-                          _S"Scheduled:${int}ms",
+                          kTQFmtSchedMs,
                           stvar(int32, (int32)timeToMsec(clamplow(ctask->nextrun - now, 0))));
             }
         } else {
-            state = _S"Scheduled";
+            state = (string)kTQStateScheduled;
         }
         break;
     }
@@ -108,12 +137,12 @@ static void dumpTask(LogCategory* cat, void* ptr, int64 now, int wnum, bool prog
     strTemp(&suffix, 24);
 
     if (wnum > -1) {
-        strFormat(&prefix, _S"${int}: ", stvar(int32, wnum + 1));
+        strFormat(&prefix, kTQFmtPrefix, stvar(int32, wnum + 1));
     }
 
     if (task && task->last > 0) {
         strFormat(&suffix,
-                  _S" [${int}ms]",
+                  kTQFmtSuffix,
                   stvar(int64,
                         progresstime ? timeToMsec(now - ctask->lastprogress) :
                                        timeToMsec(now - task->last)));
@@ -121,9 +150,9 @@ static void dumpTask(LogCategory* cat, void* ptr, int64 now, int wnum, bool prog
 
     logFmtC(Diag,
             cat,
-            _S"    ${string}${string}-${0uint(4,hex)} (${string})${string}",
+            kTQFmtTask,
             stvar(strref, prefix),
-            stvar(strref, task ? task->name : _S"BasicTask"),
+            stvar(strref, task ? task->name : kTQBasicTask),
             stvar(uint16, ptrHash(ptr)),
             stvar(strref, state),
             stvar(strref, suffix));
@@ -146,7 +175,7 @@ static void dumpQueue(TQThreadPoolMonitor* self, TaskQueue* tq, TQThreadPoolRunn
 {
     TaskQueueMonitorConfig* c = &self->conf;
 
-    logStrC(Diag, c->mLogCat, _S"  Worker Threads:");
+    logStrC(Diag, c->mLogCat, kTQLblWorkers);
     rwlockAcquireRead(&runner->workerlock);
     int32 nworkers = saSize(runner->workers);
     for (int i = 0; i < nworkers; i++) {
@@ -159,21 +188,21 @@ static void dumpQueue(TQThreadPoolMonitor* self, TaskQueue* tq, TQThreadPoolRunn
     }
     rwlockReleaseRead(&runner->workerlock);
 
-    logStrC(Diag, c->mLogCat, _S"  Run Queue:");
+    logStrC(Diag, c->mLogCat, kTQLblRunQueue);
     dumpPRQ(c->mLogCat, &tq->runq, now);
-    logStrC(Diag, c->mLogCat, _S"  Done Queue:");
+    logStrC(Diag, c->mLogCat, kTQLblDoneQueue);
     dumpPRQ(c->mLogCat, &tq->doneq, now);
 
     ComplexTaskQueue* ctq = objDynCast(ComplexTaskQueue, tq);
     if (ctq) {
         if (saSize(ctq->scheduled) > 0) {
-            logStrC(Diag, c->mLogCat, _S"  Scheduled:");
+            logStrC(Diag, c->mLogCat, kTQLblScheduled);
             for (int i = 0, ndefer = saSize(ctq->scheduled); i < ndefer; i++) {
                 dumpTask(c->mLogCat, ctq->scheduled.a[i], now, -1, true, false);
             }
         }
         if (htSize(ctq->deferred) > 0) {
-            logStrC(Diag, c->mLogCat, _S"  Deferred:");
+            logStrC(Diag, c->mLogCat, kTQLblDeferred);
             foreach (hashtable, hti, ctq->deferred) {
                 dumpTask(c->mLogCat, htiKey(object, hti), now, -1, true, false);
             }
@@ -187,7 +216,7 @@ static void doWarn(TQThreadPoolMonitor* self, TaskQueue* tq, bool* warned)
         return;
 
     logBatchBegin();
-    logFmtC(Warn, self->conf.mLogCat, _S"Task Queue Monitor (${string}):", stvar(string, tq->name));
+    logFmtC(Warn, self->conf.mLogCat, kTQFmtMonitorHdr, stvar(string, tq->name));
 
     *warned = true;
 }
@@ -240,7 +269,7 @@ int64 TQThreadPoolMonitor_tick(_In_ TQThreadPoolMonitor* self)
             doWarn(self, tq, &warned);
             logFmtC(Warn,
                     c->mLogCat,
-                    _S"  ${string}-${0uint(4,hex)} running for ${int} ms",
+                    kTQFmtRunning,
                     stvar(strref, task->name),
                     stvar(uint16, ptrHash(task)),
                     stvar(int64, timeToMsec(now - task->last)));
@@ -259,7 +288,7 @@ int64 TQThreadPoolMonitor_tick(_In_ TQThreadPoolMonitor* self)
                 dumpq = true;
                 logFmtC(Warn,
                         c->mLogCat,
-                        _S"  ${string}-${0uint(4,hex)} waiting for ${int} ms",
+                        kTQFmtWaiting,
                         stvar(strref, task->name),
                         stvar(uint16, ptrHash(task)),
                         stvar(int64, timeToMsec(now - task->last)));
@@ -278,7 +307,7 @@ int64 TQThreadPoolMonitor_tick(_In_ TQThreadPoolMonitor* self)
                 dumpq = true;
                 logFmtC(Warn,
                         c->mLogCat,
-                        _S"  ${string}-${0uint(4,hex)} stalled for ${int} ms",
+                        kTQFmtStalled,
                         stvar(strref, ctask->name),
                         stvar(uint16, ptrHash(ctask)),
                         stvar(int64, timeToMsec(now - ctask->lastprogress)));
@@ -297,7 +326,7 @@ int64 TQThreadPoolMonitor_tick(_In_ TQThreadPoolMonitor* self)
                 dumpq = true;
                 logFmtC(Warn,
                         c->mLogCat,
-                        _S"  ${string}-${0uint(4,hex)} stalled for ${int} ms",
+                        kTQFmtStalled,
                         stvar(strref, ctask->name),
                         stvar(uint16, ptrHash(ctask)),
                         stvar(int64, timeToMsec(now - ctask->lastprogress)));
