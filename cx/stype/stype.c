@@ -17,17 +17,17 @@
 // extern inline intptr stCmp(stype st, const void *ptr1, const void *ptr2, STypeOps *ops);
 // extern inline void stCopy(stype st, void *dest, const void *src, STypeOps *ops);
 
-#define STCMP_GEN(type) \
-static intptr stCmp_##type(stype st, stgeneric gen1, stgeneric gen2, uint32 flags) \
-{ \
-    type tmp = gen1.st_##type - gen2.st_##type; \
-    return (intptr)tmp; \
-}
-#define STCMP_GEN_OVR(type, ovrtype) \
-static intptr stCmp_##type(stype st, stgeneric gen1, stgeneric gen2, uint32 flags) \
-{ \
-    return (intptr)((ovrtype)gen1.st_##type - (ovrtype)gen2.st_##type); \
-}
+#define STCMP_GEN(type)                                                                \
+    static intptr stCmp_##type(stype st, stgeneric gen1, stgeneric gen2, uint32 flags) \
+    {                                                                                  \
+        type tmp = gen1.st_##type - gen2.st_##type;                                    \
+        return (intptr)tmp;                                                            \
+    }
+#define STCMP_GEN_OVR(type, ovrtype)                                                   \
+    static intptr stCmp_##type(stype st, stgeneric gen1, stgeneric gen2, uint32 flags) \
+    {                                                                                  \
+        return (intptr)((ovrtype)gen1.st_##type - (ovrtype)gen2.st_##type);            \
+    }
 
 STCMP_GEN(int8)
 STCMP_GEN(int16)
@@ -41,14 +41,14 @@ STCMP_GEN(uint64)
 #else
 static intptr stCmp_int64(stype st, stgeneric gen1, stgeneric gen2, uint32 flags)
 {
-    if(gen1.st_int64 == gen2.st_int64)
+    if (gen1.st_int64 == gen2.st_int64)
         return 0;
     return (gen1.st_int64 < gen2.st_int64) ? -1 : 1;
 }
 
 static intptr stCmp_uint64(stype st, stgeneric gen1, stgeneric gen2, uint32 flags)
 {
-    if(gen1.st_uint64 == gen2.st_uint64)
+    if (gen1.st_uint64 == gen2.st_uint64)
         return 0;
     return (gen1.st_uint64 < gen2.st_uint64) ? -1 : 1;
 }
@@ -64,7 +64,7 @@ static intptr stCmp_uint64(stype st, stgeneric gen1, stgeneric gen2, uint32 flag
 //
 // stCmp is mostly used for things like sorting lists or detecting changes, so this is
 // good enough to reach a stable result.
-// 
+//
 // Specialized applications will need to decide their own tolerance for comparison
 
 // Implementation note: Checks for equality early to handle NaN and Inf, then uses
@@ -74,16 +74,16 @@ static intptr stCmp_uint64(stype st, stgeneric gen1, stgeneric gen2, uint32 flag
 
 #define STCMP_FLOAT_ULP_EPSILON (2)
 
-#define STCMP_FLOAT(type, itype) \
-static intptr stCmp_##type(stype st, stgeneric gen1, stgeneric gen2, uint32 flags) \
-{ \
-    if (gen1.st_##type == gen2.st_##type) \
-        return 0; \
-    itype idiff = gen1.st_##itype - gen2.st_##itype; \
-    if (idiff <= STCMP_FLOAT_ULP_EPSILON && idiff >= -STCMP_FLOAT_ULP_EPSILON) \
-        return 0; \
-    return (gen1.st_##type < gen2.st_##type) ? -1 : 1; \
-}
+#define STCMP_FLOAT(type, itype)                                                       \
+    static intptr stCmp_##type(stype st, stgeneric gen1, stgeneric gen2, uint32 flags) \
+    {                                                                                  \
+        if (gen1.st_##type == gen2.st_##type)                                          \
+            return 0;                                                                  \
+        itype idiff = gen1.st_##itype - gen2.st_##itype;                               \
+        if (idiff <= STCMP_FLOAT_ULP_EPSILON && idiff >= -STCMP_FLOAT_ULP_EPSILON)     \
+            return 0;                                                                  \
+        return (gen1.st_##type < gen2.st_##type) ? -1 : 1;                             \
+    }
 STCMP_FLOAT(float32, int32)
 STCMP_FLOAT(float64, int64)
 
@@ -123,6 +123,8 @@ static void stCopy_none(stype st, _stCopyDest_Anno_(st) stgeneric* dest, _In_ st
     // during linking.
     relAssertMsg(_unused_debug_types._unused == 0, "Memory corruption");
 }
+
+// clang-format off
 
 alignMem(64) stDtorFunc _stDefaultDtor[256] = {
     // STCLASS_OPAQUE

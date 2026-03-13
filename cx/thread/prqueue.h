@@ -1,8 +1,8 @@
 #pragma once
 
 #include <cx/cx.h>
-#include <cx/thread/atomic.h>
 #include <cx/thread/aspin.h>
+#include <cx/thread/atomic.h>
 #include <cx/thread/mutex.h>
 
 // Pointer-ring FIFO queue
@@ -32,16 +32,16 @@
 //
 // Additionally, the lock-free guarantee does not extend to the garbage collection operation. This
 // operation does indeed use a lock that limits it to only exectuing on a single thread at once,
-// though it IS guaranteed that the collect operation will never block, but instead return immediately
-// if it cannot lock the structure, with the intent that it be run periodically so that it is
-// eventually able to succeed.
+// though it IS guaranteed that the collect operation will never block, but instead return
+// immediately if it cannot lock the structure, with the intent that it be run periodically so that
+// it is eventually able to succeed.
 //
-// Threads which stall or terminate in the middle of a push operation will likewise block the ability
-// of the garbage collector to prune the structure, causing a performance hit if the buffer has been
-// expanded multiple times.
+// Threads which stall or terminate in the middle of a push operation will likewise block the
+// ability of the garbage collector to prune the structure, causing a performance hit if the buffer
+// has been expanded multiple times.
 //
-// Despite all these warnings, garbage collection is not an essential function and the queue continues
-// to function even if GC is never able to run, albeit not optimally.
+// Despite all these warnings, garbage collection is not an essential function and the queue
+// continues to function even if GC is never able to run, albeit not optimally.
 //
 // Ordering guarantees
 //
@@ -49,9 +49,9 @@
 // thread (not necessarily the same one) pops them sequentially.
 //
 // Push operations spread across multiple threads are ordered in a best effort fashion and will
-// generally be inserted into the queue in the order that the operations finish in real time. However
-// this is not a strong guarantee, and there may be minor reordering among entries that were pushed
-// at roughly the same time.
+// generally be inserted into the queue in the order that the operations finish in real time.
+// However this is not a strong guarantee, and there may be minor reordering among entries that were
+// pushed at roughly the same time.
 //
 // Similarlty, simultaneous pop operations in multiple threads will return the items in the order
 // they were inserted, but variations in timing among threads may cause them to not be processed
@@ -62,12 +62,11 @@
 #endif
 CX_C_BEGIN
 
-typedef enum PrqGrowthEnum
-{
+typedef enum PrqGrowthEnum {
     PRQ_Grow_None = 1,
     PRQ_Grow_25,
     PRQ_Grow_50,
-    PRQ_Grow_100,       // Default
+    PRQ_Grow_100,   // Default
     PRQ_Grow_150,
     PRQ_Grow_200,
 } PrqGrowth;
@@ -108,8 +107,7 @@ typedef struct PrqPerfStats {
 } PrqPerfStats;
 #endif
 
-typedef struct PrQueue
-{
+typedef struct PrQueue {
     // Initial size of the queue as well as minimum size.
     uint32 minsz;
 
@@ -138,7 +136,7 @@ typedef struct PrQueue
     // fully emptied and no longer have any valid queue entries, nor can they have any entries
     // pushed into them, but are being held to deallocate later until it can be guaranteed that
     // no threads attempting a pop operation still have a pointer to the segment.
-    PrqSegment *retired;
+    PrqSegment* retired;
 
     // Access counter. This is used internally to close a small gap between when a thread retrieves
     // the current segment pointers and when it increments the use counter, since it cannot do that
@@ -149,7 +147,8 @@ typedef struct PrQueue
     // because this needs to be atomic and 64-bit atomics don't exist on all platforms.
     atomic(uint32) chgtime;
 
-    // Minimum number of milliseconds the queue must wait to shrink after growing or shrinking (default 500ms).
+    // Minimum number of milliseconds the queue must wait to shrink after growing or shrinking
+    // (default 500ms).
     uint32 shrinkms;
 
     // Running average to track the total queue size across GC cycles for possible shrinking.
@@ -167,8 +166,7 @@ typedef struct PrQueue
 #endif
 } PrQueue;
 
-typedef struct PrqSegment
-{
+typedef struct PrqSegment {
     // Next segment in the chain. When the queue grows, it allocates a larger segment which is
     // temporarily chained to from the original segment in order to handle the transition while
     // many other threads may be still using the original.
@@ -178,7 +176,7 @@ typedef struct PrqSegment
     // NOTE: We cannot reuse nextseg for this. nextseg needs to continue to point to the actual
     // segment that replaced this one, so that any threads which grabbed a pointer to this segment
     // before it was retired can still follow it.
-    PrqSegment *nextretired;
+    PrqSegment* nextretired;
 
     // Atomic counter of how many threads are actively using this segment. This, along with the
     // access counter, act as a non-blocking optimistic lock similar to a reader-writer lock but
@@ -209,7 +207,7 @@ typedef struct PrqSegment
 } PrqSegment;
 
 // Initialize a fixed-sized ringbuffer. Guaranteed to succeed, or assert.
-void prqInitFixed(_Out_ PrQueue *prq, uint32 sz);
+void prqInitFixed(_Out_ PrQueue* prq, uint32 sz);
 
 // Initialize a dynamic buffer chain. Guaranteed to succeed, or assert.
 // minsz: Minimum & initial size
@@ -217,34 +215,31 @@ void prqInitFixed(_Out_ PrQueue *prq, uint32 sz);
 // maxsz: Maximum size
 // growth: How much to grow at a time
 // shrink: How much to shrink at a time
-void prqInitDynamic(_Out_ PrQueue *prq, uint32 minsz, uint32 targetsz, uint32 maxsz,
-                      PrqGrowth growth, PrqGrowth shrink);
+void prqInitDynamic(_Out_ PrQueue* prq, uint32 minsz, uint32 targetsz, uint32 maxsz,
+                    PrqGrowth growth, PrqGrowth shrink);
 
 // Attempts to destroy the queue. Will fail if there are still entries in the queue, because
 // this is a low-level API that has no idea what the pointers stored in it point to or what
 // kind of cleanup needs to be done on them. It is the caller's responsibility to ensure that
 // all entires have been popped and no threads are still trying to push new ones!
-_Success_(return)
-bool prqDestroy(_Pre_valid_ _Post_invalid_ PrQueue *prq);
+_Success_(return) bool prqDestroy(_Pre_valid_ _Post_invalid_ PrQueue* prq);
 
 // Attempt to push a pointer into the queue. Returns true on success, false if the queue
 // is full and cannot be grown. Upon success, the pointer should be considered to be
 // owned by the queue and not touched again.
-_Success_(return)
-bool prqPush(_Inout_ PrQueue *prq, _Pre_notnull_ _Post_invalid_ void *ptr);
+_Success_(return) bool prqPush(_Inout_ PrQueue* prq, _Pre_notnull_ _Post_invalid_ void* ptr);
 
 // Attempt to pop a pointer from the queue. If one is available, it is returned. Otherwise,
 // a NULL return indicates that the queue is empty.
-_Must_inspect_result_ _Ret_maybenull_
-void *prqPop(_Inout_ PrQueue *prq);
+_Must_inspect_result_ _Ret_maybenull_ void* prqPop(_Inout_ PrQueue* prq);
 
 // Attempt to run a garbage collection cycle on the queue. Returns true if the cycle runs,
 // whether or not anything was collected.
-bool prqCollect(_Inout_ PrQueue *prq);
+bool prqCollect(_Inout_ PrQueue* prq);
 
 // Retrieves an estimated count of the number of valid items in the queue. Accuracy
 // varies depending on how busy the queue is.
-uint32 prqCount(_In_ PrQueue *prq);
+uint32 prqCount(_In_ PrQueue* prq);
 
 // Attempt to fetch a copy of the nth pointer from the queue.
 // EXERCISE EXTREME CAUTION!
@@ -256,6 +251,6 @@ uint32 prqCount(_In_ PrQueue *prq);
 // thread-safe.
 // This function is intended for use only in controlled situations where guarantees can
 // be made about which threads pop items from the queue and what they do with those items.
-void *prqPeek(_In_ PrQueue *prq, uint32 n);
+void* prqPeek(_In_ PrQueue* prq, uint32 n);
 
 CX_C_END

@@ -9,7 +9,7 @@ _Pure bool strEq(strref s1, strref s2)
         s2 = _strEmpty;
 
     if (_strFastLen(s1) != _strFastLen(s2))
-        return false;               // early out if lengths do not match
+        return false;   // early out if lengths do not match
 
     striter i1, i2;
     striBorrow(&i1, s1);
@@ -19,14 +19,14 @@ _Pure bool strEq(strref s1, strref s2)
     for (;;) {
         uint32 clen = min(i1.len, i2.len);
         if (clen == 0)
-            return true;            // end of strings, everything matched
+            return true;    // end of strings, everything matched
         if (memcmp(i1.bytes, i2.bytes, clen))
-            return false;           // mismatch
+            return false;   // mismatch
         striSeek(&i1, clen, STRI_BYTE, STRI_CUR);
         striSeek(&i2, clen, STRI_BYTE, STRI_CUR);
     }
 
-    return false;       // unreachable
+    return false;   // unreachable
 }
 
 _Use_decl_annotations_
@@ -45,22 +45,22 @@ _Pure int32 strCmp(strref s1, strref s2)
     // these are NOT guaranteed to hit the end at the same time
     for (;;) {
         uint32 clen = min(i1.len, i2.len);
-        ret = memcmp(i1.bytes, i2.bytes, clen);
+        ret         = memcmp(i1.bytes, i2.bytes, clen);
         if (ret != 0)
-            return ret;             // mismatch
+            return ret;   // mismatch
 
         striSeek(&i1, clen, STRI_BYTE, STRI_CUR);
         striSeek(&i2, clen, STRI_BYTE, STRI_CUR);
 
         if (i1.len == 0 && i2.len == 0)
-            return 0;               // both hit end, match
+            return 0;   // both hit end, match
         if (i1.len == 0)
             return -1;
         else if (i2.len == 0)
             return 1;
     }
 
-    return 0;       // unreachable
+    return 0;   // unreachable
 }
 
 _Use_decl_annotations_
@@ -72,7 +72,7 @@ _Pure bool strEqi(strref s1, strref s2)
         s2 = _strEmpty;
 
     if (_strFastLen(s1) != _strFastLen(s2))
-        return false;               // early out if lengths do not match
+        return false;   // early out if lengths do not match
 
     striter i1, i2;
     striBorrow(&i1, s1);
@@ -82,7 +82,7 @@ _Pure bool strEqi(strref s1, strref s2)
     for (;;) {
         uint32 clen = min(i1.len, i2.len);
         if (clen == 0)
-            return true;                // end of strings, everything matched
+            return true;   // end of strings, everything matched
 
         for (uint32 j = 0; j < clen; j++) {
             if (tolower(i1.bytes[j]) != tolower(i2.bytes[j]))
@@ -92,7 +92,7 @@ _Pure bool strEqi(strref s1, strref s2)
         striSeek(&i2, clen, STRI_BYTE, STRI_CUR);
     }
 
-    return false;           // unreachacle
+    return false;   // unreachacle
 }
 
 _Use_decl_annotations_
@@ -121,14 +121,14 @@ _Pure int32 strCmpi(strref s1, strref s2)
         striSeek(&i2, clen, STRI_BYTE, STRI_CUR);
 
         if (i1.len == 0 && i2.len == 0)
-            return 0;               // both hit end, match
+            return 0;   // both hit end, match
         if (i1.len == 0)
             return -1;
         else if (i2.len == 0)
             return 1;
     }
 
-    return 0;           // unreachable
+    return 0;   // unreachable
 }
 
 _Use_decl_annotations_
@@ -146,7 +146,7 @@ _Pure bool strRangeEq(strref s1, strref s2, int32 off, uint32 len)
         return false;
 
     if (clamphigh(_strFastLen(s1) - off, len) != clamphigh(_strFastLen(s2), len))
-        return false;               // early out if lengths do not match
+        return false;   // early out if lengths do not match
 
     striter i1, i2;
     striBorrow(&i1, s1);
@@ -157,15 +157,15 @@ _Pure bool strRangeEq(strref s1, strref s2, int32 off, uint32 len)
     for (;;) {
         uint32 clen = min(min(i1.len, i2.len), len);
         if (clen == 0)
-            return true;            // end of strings, everything matched
+            return true;    // end of strings, everything matched
         if (memcmp(i1.bytes, i2.bytes, clen))
-            return false;           // mismatch
+            return false;   // mismatch
         striSeek(&i1, clen, STRI_BYTE, STRI_CUR);
         striSeek(&i2, clen, STRI_BYTE, STRI_CUR);
         len -= clen;
     }
 
-    return false;       // unreachable
+    return false;   // unreachable
 }
 
 _Use_decl_annotations_
@@ -189,23 +189,23 @@ _Pure int32 strRangeCmp(strref s1, strref s2, int32 off, uint32 len)
     // these are NOT guaranteed to hit the end at the same time
     for (;;) {
         uint32 clen = min(min(i1.len, i2.len), len);
-        ret = memcmp(i1.bytes, i2.bytes, clen);
+        ret         = memcmp(i1.bytes, i2.bytes, clen);
         if (ret != 0)
-            return ret;             // mismatch
+            return ret;   // mismatch
 
         striSeek(&i1, clen, STRI_BYTE, STRI_CUR);
         striSeek(&i2, clen, STRI_BYTE, STRI_CUR);
         len -= clen;
 
         if (len == 0)
-            return 0;               // both hit end, match
+            return 0;   // both hit end, match
         if (i1.len == 0)
             return -1;
         else if (i2.len == 0)
             return 1;
     }
 
-    return 0;       // unreachable
+    return 0;   // unreachable
 }
 
 _Use_decl_annotations_
@@ -221,7 +221,7 @@ _Pure bool strRangeEqi(strref s1, strref s2, int32 off, uint32 len)
         off += _strFastLen(s1);
 
     if (clamphigh(_strFastLen(s1) - off, len) != clamphigh(_strFastLen(s2), len))
-        return false;               // early out if lengths do not match
+        return false;   // early out if lengths do not match
 
     striter i1, i2;
     striBorrow(&i1, s1);
@@ -232,7 +232,7 @@ _Pure bool strRangeEqi(strref s1, strref s2, int32 off, uint32 len)
     for (;;) {
         uint32 clen = min(min(i1.len, i2.len), len);
         if (clen == 0)
-            return true;                // end of strings, everything matched
+            return true;   // end of strings, everything matched
 
         for (uint32 j = 0; j < clen; j++) {
             if (tolower(i1.bytes[j]) != tolower(i2.bytes[j]))
@@ -243,7 +243,7 @@ _Pure bool strRangeEqi(strref s1, strref s2, int32 off, uint32 len)
         len -= clen;
     }
 
-    return false;           // unreachacle
+    return false;   // unreachacle
 }
 
 _Use_decl_annotations_
@@ -278,14 +278,14 @@ _Pure int32 strRangeCmpi(strref s1, strref s2, int32 off, uint32 len)
         len -= clen;
 
         if (len == 0)
-            return 0;               // both hit end, match
+            return 0;   // both hit end, match
         if (i1.len == 0)
             return -1;
         else if (i2.len == 0)
             return 1;
     }
 
-    return 0;           // unreachable
+    return 0;   // unreachable
 }
 
 _Use_decl_annotations_

@@ -5,7 +5,9 @@
 #include "cx/string.h"
 #include "cx/utils/scratch.h"
 
-typedef int (WINAPI *GetSystemFirmwareTable_t)(DWORD FirmwareTableProviderSignature, DWORD FirmwareTableID, PVOID pFirmwareTableBuffer, DWORD BufferSize);
+typedef int(WINAPI* GetSystemFirmwareTable_t)(DWORD FirmwareTableProviderSignature,
+                                              DWORD FirmwareTableID, PVOID pFirmwareTableBuffer,
+                                              DWORD BufferSize);
 
 typedef struct DMIHeader {
     BYTE type;
@@ -14,36 +16,69 @@ typedef struct DMIHeader {
 } DMIHeader;
 
 typedef struct RawSMBIOSData {
-    BYTE    Used20CallingMethod;
-    BYTE    SMBIOSMajorVersion;
-    BYTE    SMBIOSMinorVersion;
-    BYTE    DmiRevision;
-    DWORD   Length;
-    BYTE    SMBIOSTableData[];
+    BYTE Used20CallingMethod;
+    BYTE SMBIOSMajorVersion;
+    BYTE SMBIOSMinorVersion;
+    BYTE DmiRevision;
+    DWORD Length;
+    BYTE SMBIOSTableData[];
 } RawSMBIOSData;
 
 // UUIDs known to not be unique
 static uint8 uuid_blacklist[][16] = {
     // 00000000-0000-0000-0000-000000000000 - Empty or missing UUID
-    { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
+    { 0x00,
+     0x00, 0x00,
+     0x00, 0x00,
+     0x00, 0x00,
+     0x00, 0x00,
+     0x00, 0x00,
+     0x00, 0x00,
+     0x00, 0x00,
+     0x00 },
     // FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF - Sometimes used as error code
-    { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff },
+    { 0xff,
+     0xff, 0xff,
+     0xff, 0xff,
+     0xff, 0xff,
+     0xff, 0xff,
+     0xff, 0xff,
+     0xff, 0xff,
+     0xff, 0xff,
+     0xff },
     // 03000200-0400-0500-0006-000700080009 - Gigabyte motherboard
-    { 0x00, 0x02, 0x00, 0x03, 0x00, 0x04, 0x00, 0x05, 0x00, 0x06, 0x00, 0x07, 0x00, 0x08, 0x00, 0x09 },
+    { 0x00,
+     0x02, 0x00,
+     0x03, 0x00,
+     0x04, 0x00,
+     0x05, 0x00,
+     0x06, 0x00,
+     0x07, 0x00,
+     0x08, 0x00,
+     0x09 },
     // 4C4C4544-0000-2010-8020-80C04F202020 - Dell generic (missing service tag)
-    { 0x44, 0x45, 0x4c, 0x4c, 0x00, 0x00, 0x10, 0x20, 0x80, 0x20, 0x80, 0xc0, 0x4f, 0x20, 0x20, 0x20 },
+    { 0x44,
+     0x45, 0x4c,
+     0x4c, 0x00,
+     0x00, 0x10,
+     0x20, 0x80,
+     0x20, 0x80,
+     0xc0, 0x4f,
+     0x20, 0x20,
+     0x20 },
 };
 
 static int32 hostIdTrySMBIOS(Digest* shactx)
 {
     int32 ret = 0;
-    char *buf = 0;
+    char* buf = 0;
 
     GetSystemFirmwareTable_t pGetSystemFirmwareTable;
     HANDLE hDll = LoadLibrary(TEXT("kernel32.dll"));
     if (!hDll)
         goto out;
-    pGetSystemFirmwareTable = (GetSystemFirmwareTable_t)GetProcAddress(hDll, "GetSystemFirmwareTable");
+    pGetSystemFirmwareTable = (GetSystemFirmwareTable_t)GetProcAddress(hDll,
+                                                                       "GetSystemFirmwareTable");
     if (!pGetSystemFirmwareTable)
         goto out;
 
@@ -55,25 +90,24 @@ static int32 hostIdTrySMBIOS(Digest* shactx)
     if (!pGetSystemFirmwareTable('RSMB', 0, buf, bufsize))
         goto out;
 
-    RawSMBIOSData *smb = (RawSMBIOSData *)buf;
-    BYTE *p = smb->SMBIOSTableData;
+    RawSMBIOSData* smb = (RawSMBIOSData*)buf;
+    BYTE* p            = smb->SMBIOSTableData;
 
-    bufsize -= 8;       // reuse bufsize as data length remaining
-    if (smb->Length != bufsize)
-    {
+    bufsize -= 8;   // reuse bufsize as data length remaining
+    if (smb->Length != bufsize) {
         // invalid smbios data
         goto out;
     }
 
     for (int i = 0; i < (int)smb->Length; i++) {
-        DMIHeader *h = h = (DMIHeader*)p;
+        DMIHeader* h = h = (DMIHeader*)p;
         if (h->length > bufsize) {
             // tried to run off the end of the buffer
             goto out;
         }
 
         if (h->type == 1 && h->length >= 0x19) {
-            BYTE *uuid = (p + 8);
+            BYTE* uuid = (p + 8);
 
             // check the uuid against the blacklist
             for (int j = 0; j < sizeof(uuid_blacklist) / 16; j++) {
@@ -95,7 +129,10 @@ static int32 hostIdTrySMBIOS(Digest* shactx)
         // move to next header, skip over NULLs, being careful about overflow
         p += h->length;
         bufsize -= h->length;
-        while (bufsize > 0 && (*(WORD *)p) != 0) { p++; bufsize--; }
+        while (bufsize > 0 && (*(WORD*)p) != 0) {
+            p++;
+            bufsize--;
+        }
         p += 2;
         bufsize -= 2;
     }
@@ -112,12 +149,19 @@ static int32 hostIdTryRegistry(HKEY hive, int32 retval, Digest* shactx)
     int32 ret = 0;
     HKEY key;
 
-    if (RegCreateKeyExW(hive, L"SOFTWARE\\CX", 0, NULL, 0,
-                        STANDARD_RIGHTS_REQUIRED | KEY_QUERY_VALUE, NULL, &key, NULL) == ERROR_SUCCESS) {
+    if (RegCreateKeyExW(hive,
+                        L"SOFTWARE\\CX",
+                        0,
+                        NULL,
+                        0,
+                        STANDARD_RIGHTS_REQUIRED | KEY_QUERY_VALUE,
+                        NULL,
+                        &key,
+                        NULL) == ERROR_SUCCESS) {
         DWORD sz = 0;
         if (RegQueryValueExW(key, L"HostId", NULL, NULL, NULL, &sz) == ERROR_SUCCESS) {
             if (sz == 64) {
-                uint8 *buf = scratchGet(sz);
+                uint8* buf = scratchGet(sz);
                 RegQueryValueExW(key, L"HostId", NULL, NULL, (uint8*)buf, &sz);
                 digestUpdate(shactx, buf, sz);
                 ret = retval;
@@ -140,7 +184,8 @@ static int32 hostIdTryRegistry(HKEY hive, int32 retval, Digest* shactx)
 
                 osGenRandom((uint8*)randbuf, sizeof(randbuf));
 
-                if (RegSetValueExW(key, L"HostId", 0, REG_BINARY, randbuf, sizeof(randbuf)) == ERROR_SUCCESS) {
+                if (RegSetValueExW(key, L"HostId", 0, REG_BINARY, randbuf, sizeof(randbuf)) ==
+                    ERROR_SUCCESS) {
                     digestUpdate(shactx, randbuf, sizeof(randbuf));
                     ret = retval;
                 }
@@ -170,10 +215,14 @@ int32 hostIdPlatformInit(Digest* shactx)
 
     // mostly unique but may not be reliable on wine
     if (!ret &&
-        RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"SOFTWARE\\Microsoft\\Cryptography", 0, KEY_QUERY_VALUE, &key) == ERROR_SUCCESS) {
+        RegOpenKeyExW(HKEY_LOCAL_MACHINE,
+                      L"SOFTWARE\\Microsoft\\Cryptography",
+                      0,
+                      KEY_QUERY_VALUE,
+                      &key) == ERROR_SUCCESS) {
         DWORD sz = 0;
         if (RegQueryValueExW(key, L"MachineGuid", NULL, NULL, NULL, &sz) == ERROR_SUCCESS) {
-            wchar_t *buf = scratchGet(sz);
+            wchar_t* buf = scratchGet(sz);
             RegQueryValueExW(key, L"MachineGuid", NULL, NULL, (uint8*)buf, &sz);
             string guid = 0;
             strFromUTF16(&guid, buf, cstrLenw(buf));

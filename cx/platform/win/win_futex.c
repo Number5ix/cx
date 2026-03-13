@@ -1,17 +1,21 @@
-#include <cx/time.h>
-#include <cx/thread/futex.h>
 #include <cx/platform/cpu.h>
-#include <cx/platform/win.h>
 #include <cx/platform/os.h>
+#include <cx/platform/win.h>
+#include <cx/thread/futex.h>
+#include <cx/time.h>
 #include <cx/utils.h>
 
-typedef BOOL (WINAPI *WaitOnAddress_t)(volatile VOID *Address, PVOID CompareAddress, SIZE_T AddressSize, DWORD dwMilliseconds);
-typedef void (WINAPI *WakeByAddressSingle_t)(PVOID Address);
-typedef void (WINAPI *WakeByAddressAll_t)(PVOID Address);
+typedef BOOL(WINAPI* WaitOnAddress_t)(volatile VOID* Address, PVOID CompareAddress,
+                                      SIZE_T AddressSize, DWORD dwMilliseconds);
+typedef void(WINAPI* WakeByAddressSingle_t)(PVOID Address);
+typedef void(WINAPI* WakeByAddressAll_t)(PVOID Address);
 
-typedef long (NTAPI *NtCreateKeyedEvent_t)(PHANDLE KeyedEventHandle, ACCESS_MASK DesiredAccess, void *ObjectAttributes, ULONG Reserved);
-typedef long (NTAPI *NtWaitForKeyedEvent_t)(HANDLE KeyedEventHandle, PVOID Key, BOOLEAN Alertable, PLARGE_INTEGER Timeout);
-typedef long (NTAPI *NtReleaseKeyedEvent_t)(HANDLE KeyedEventHandle, PVOID Key, BOOLEAN Alertable, PLARGE_INTEGER Timeout);
+typedef long(NTAPI* NtCreateKeyedEvent_t)(PHANDLE KeyedEventHandle, ACCESS_MASK DesiredAccess,
+                                          void* ObjectAttributes, ULONG Reserved);
+typedef long(NTAPI* NtWaitForKeyedEvent_t)(HANDLE KeyedEventHandle, PVOID Key, BOOLEAN Alertable,
+                                           PLARGE_INTEGER Timeout);
+typedef long(NTAPI* NtReleaseKeyedEvent_t)(HANDLE KeyedEventHandle, PVOID Key, BOOLEAN Alertable,
+                                           PLARGE_INTEGER Timeout);
 
 // NTSTATUS return codes
 #ifndef STATUS_SUCCESS
@@ -31,16 +35,16 @@ static NtReleaseKeyedEvent_t pNtReleaseKeyedEvent;
 static HANDLE ftxke;
 
 static LazyInitState _futexInitState;
-static void _futexInit(void *unused)
+static void _futexInit(void* unused)
 {
     // try to load native futex-like API
     HANDLE hDll = LoadLibrary(TEXT("API-MS-Win-Core-Synch-l1-2-0.dll"));
     // don't call FreeLibrary since it _MIGHT_ not be referenced by anything else yet
 
     if (hDll) {
-        pWaitOnAddress = (WaitOnAddress_t)GetProcAddress(hDll, "WaitOnAddress");
+        pWaitOnAddress       = (WaitOnAddress_t)GetProcAddress(hDll, "WaitOnAddress");
         pWakeByAddressSingle = (WakeByAddressSingle_t)GetProcAddress(hDll, "WakeByAddressSingle");
-        pWakeByAddressAll = (WakeByAddressAll_t)GetProcAddress(hDll, "WakeByAddressAll");
+        pWakeByAddressAll    = (WakeByAddressAll_t)GetProcAddress(hDll, "WakeByAddressAll");
 
         // shouldn't happen, but ensure we have all the functions
         if (!pWakeByAddressSingle || !pWakeByAddressAll)
@@ -49,7 +53,7 @@ static void _futexInit(void *unused)
 
     hDll = LoadLibrary(TEXT("ntdll.dll"));
     if (hDll) {
-        pNtCreateKeyedEvent = (NtCreateKeyedEvent_t)GetProcAddress(hDll, "NtCreateKeyedEvent");
+        pNtCreateKeyedEvent  = (NtCreateKeyedEvent_t)GetProcAddress(hDll, "NtCreateKeyedEvent");
         pNtWaitForKeyedEvent = (NtWaitForKeyedEvent_t)GetProcAddress(hDll, "NtWaitForKeyedEvent");
         pNtReleaseKeyedEvent = (NtReleaseKeyedEvent_t)GetProcAddress(hDll, "NtReleaseKeyedEvent");
 
@@ -65,13 +69,17 @@ static void _futexInit(void *unused)
 
     // make sure we have at least one usable synchronization primitive
     if (!(pWaitOnAddress || ftxke)) {
-        MessageBox(NULL, TEXT("Incompatible operating system"), TEXT("Error"), MB_ICONERROR | MB_OK);
+        MessageBox(NULL,
+                   TEXT("Incompatible operating system"),
+                   TEXT("Error"),
+                   MB_ICONERROR | MB_OK);
         exit(1);
     }
 }
 
 _Use_decl_annotations_
-void futexInit(Futex *ftx, int32 val) {
+void futexInit(Futex* ftx, int32 val)
+{
     lazyInit(&_futexInitState, _futexInit, NULL);
     atomicStore(int32, &ftx->val, val, Relaxed);
     atomicStore(uint16, &ftx->_ps, 0, Relaxed);
@@ -79,14 +87,18 @@ void futexInit(Futex *ftx, int32 val) {
 }
 
 _Use_decl_annotations_
-int futexWait(Futex *ftx, int32 oldval, int64 timeout) {
+int futexWait(Futex* ftx, int32 oldval, int64 timeout)
+{
     // early out if the value already doesn't match
     if (atomicLoad(int32, &ftx->val, Relaxed) != oldval)
         return FUTEX_Retry;
 
     if (pWaitOnAddress) {
         // Use WaitOnAddress if it's available
-        if (pWaitOnAddress(&ftx->val, &oldval, sizeof(int32), (timeout == timeForever) ? INFINITE : (DWORD)timeToMsec(timeout)))
+        if (pWaitOnAddress(&ftx->val,
+                           &oldval,
+                           sizeof(int32),
+                           (timeout == timeForever) ? INFINITE : (DWORD)timeToMsec(timeout)))
             return FUTEX_Waited;
         else if (GetLastError() == ERROR_TIMEOUT)
             return FUTEX_Timeout;
@@ -116,11 +128,11 @@ int futexWait(Futex *ftx, int32 oldval, int64 timeout) {
 
         // double check the the value didn't change on us, with the lock held
         uint8 oldwait = 0;
-        int32 count = 0;
+        int32 count   = 0;
         while (!atomicCompareExchange(uint8, weak, &ftx->_ps_lock, &oldwait, 1, Acquire, Relaxed)) {
             _CPU_PAUSE;
             if (++count > 2)
-                osYield();      // relieve some pressure if we can't get it
+                osYield();   // relieve some pressure if we can't get it
             oldwait = 0;
         }
         if (atomicLoad(int32, &ftx->val, Relaxed) != oldval) {
@@ -132,7 +144,10 @@ int futexWait(Futex *ftx, int32 oldval, int64 timeout) {
         // unlock spinlock
         atomicFetchSub(uint8, &ftx->_ps_lock, 1, Release);
 
-        long status = pNtWaitForKeyedEvent(ftxke, &ftx->val, 0, (timeout == timeForever) ? NULL : &ketimeout);
+        long status = pNtWaitForKeyedEvent(ftxke,
+                                           &ftx->val,
+                                           0,
+                                           (timeout == timeForever) ? NULL : &ketimeout);
         atomicFetchSub(uint16, &ftx->_ps, 1, Release);
 
         if (status == STATUS_TIMEOUT)
@@ -144,22 +159,22 @@ int futexWait(Futex *ftx, int32 oldval, int64 timeout) {
 }
 
 _Use_decl_annotations_
-void futexWake(Futex *ftx)
+void futexWake(Futex* ftx)
 {
     if (pWaitOnAddress) {
         // fast path, this happens most of the time
         pWakeByAddressSingle(&ftx->val);
     } else {
         LARGE_INTEGER ketimeout = { 0 };
-        bool ret = false;
+        bool ret                = false;
         uint16 nwaiters;
 
         // get spinlock
         uint8 oldwait = 0;
         while (!atomicCompareExchange(uint8, weak, &ftx->_ps_lock, &oldwait, 1, Acquire, Relaxed)) {
-            // yield instead of pause here to give waiting threads priority since they're going to go to
-            // sleep anyway; sacrifices a bit of performance on wakeup when there's contention but
-            // significantly boosts maximum concurrency
+            // yield instead of pause here to give waiting threads priority since they're going to
+            // go to sleep anyway; sacrifices a bit of performance on wakeup when there's contention
+            // but significantly boosts maximum concurrency
             osYield();
             oldwait = 0;
         }
@@ -168,7 +183,9 @@ void futexWake(Futex *ftx)
         if (pNtReleaseKeyedEvent(ftxke, &ftx->val, 0, &ketimeout) == STATUS_SUCCESS)
             ret = true;
         else
-            nwaiters = atomicLoad(uint16, &ftx->_ps, Relaxed);  // want to read this with lock held the first time
+            nwaiters = atomicLoad(uint16,
+                                  &ftx->_ps,
+                                  Relaxed);   // want to read this with lock held the first time
 
         // unlock spinlock
         atomicFetchSub(uint8, &ftx->_ps_lock, 1, Relaxed);
@@ -176,7 +193,7 @@ void futexWake(Futex *ftx)
         if (ret)
             return;
 
-        ketimeout.QuadPart = -10000;                // 1ms delay
+        ketimeout.QuadPart = -10000;   // 1ms delay
         // Didn't wake anything up, but if we know we have waiters -- try a little harder
         while (nwaiters > 0) {
             if (pNtReleaseKeyedEvent(ftxke, &ftx->val, 0, &ketimeout) == STATUS_SUCCESS)
@@ -189,7 +206,7 @@ void futexWake(Futex *ftx)
 }
 
 _Use_decl_annotations_
-void futexWakeMany(Futex *ftx, int count)
+void futexWakeMany(Futex* ftx, int count)
 {
     if (pWaitOnAddress) {
         // fast path, this happens most of the time
@@ -211,7 +228,7 @@ void futexWakeMany(Futex *ftx, int count)
         // unlock spinlock
         atomicFetchSub(uint8, &ftx->_ps_lock, 1, Relaxed);
 
-        ketimeout.QuadPart = -10000;                // max 1ms delays
+        ketimeout.QuadPart = -10000;   // max 1ms delays
 
         // try to wake up all the threads requested, if there are enough waiters
         count = min(nwaiters, count);
@@ -226,13 +243,12 @@ void futexWakeMany(Futex *ftx, int count)
 }
 
 _Use_decl_annotations_
-void futexWakeAll(Futex *ftx)
+void futexWakeAll(Futex* ftx)
 {
     if (pWaitOnAddress) {
         // fast path, this happens most of the time
         pWakeByAddressAll(&ftx->val);
-    }
-    else {
+    } else {
         LARGE_INTEGER ketimeout = { 0 };
         uint16 nwaiters;
 
@@ -246,7 +262,7 @@ void futexWakeAll(Futex *ftx)
         // unlock spinlock
         atomicFetchSub(uint8, &ftx->_ps_lock, 1, Relaxed);
 
-        ketimeout.QuadPart = -10000;                // max 1ms delays
+        ketimeout.QuadPart = -10000;   // max 1ms delays
         // try to wake up as many threads as we know about.
         // this is for broadcast events, so we don't really have to worry about
         // anybody new starting to wait once this loop begins

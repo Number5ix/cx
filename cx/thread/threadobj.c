@@ -11,11 +11,12 @@
 // ==================== Auto-generated section ends ======================
 #include "thread_private.h"
 
-_objfactory_guaranteed Thread* Thread_create(threadFunc func, _In_opt_ strref name, int n, stvar args[], bool ui)
+_objfactory_guaranteed Thread*
+Thread_create(threadFunc func, _In_opt_ strref name, int n, stvar args[], bool ui)
 {
-    Thread *self;
+    Thread* self;
     self = _thrPlatformCreate();
-    //self = objInstCreate(Thread);
+    // self = objInstCreate(Thread);
 
     strDup(&self->name, name);
     self->entry = func;
@@ -24,7 +25,7 @@ _objfactory_guaranteed Thread* Thread_create(threadFunc func, _In_opt_ strref na
         saPush(&self->_argsa, stvar, args[i]);
     }
 
-    eventInit(&self->notify, ui ? EV_UIEvent: 0);
+    eventInit(&self->notify, ui ? EV_UIEvent : 0);
 
     objInstInit(self);
 

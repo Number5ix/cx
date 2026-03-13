@@ -31,8 +31,8 @@
 
 /// Host identification information
 typedef struct HostID {
-    uint64 id[4];       ///< 256-bit unique identifier (SHA256 hash)
-    int32 source;       ///< Platform-specific source indicator (see platform headers)
+    uint64 id[4];   ///< 256-bit unique identifier (SHA256 hash)
+    int32 source;   ///< Platform-specific source indicator (see platform headers)
 } HostID;
 
 /// void hostId(HostID *id)
@@ -44,6 +44,6 @@ typedef struct HostID {
 /// underlying system identifiers change (e.g., hardware replacement, OS reinstall).
 ///
 /// @param id Output parameter that receives the host identification
-CX_C void hostId(_Out_ HostID *id);
+CX_C void hostId(_Out_ HostID* id);
 
 /// @}

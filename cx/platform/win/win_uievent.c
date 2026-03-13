@@ -6,21 +6,26 @@ typedef struct UIEvent {
     HANDLE h;
 } UIEvent;
 
-UIEvent *uieventCreate()
+UIEvent* uieventCreate()
 {
-    UIEvent *ret = xaAlloc(sizeof(UIEvent));
-    ret->h = CreateSemaphore(NULL, 0, INT_MAX, NULL);
+    UIEvent* ret = xaAlloc(sizeof(UIEvent));
+    ret->h       = CreateSemaphore(NULL, 0, INT_MAX, NULL);
     return ret;
 }
 
-bool uieventSignal(UIEvent *e, int count)
+bool uieventSignal(UIEvent* e, int count)
 {
     return ReleaseSemaphore(e->h, count, NULL);
 }
 
-int uieventWaitTimeout(UIEvent *e, uint64 timeout)
+int uieventWaitTimeout(UIEvent* e, uint64 timeout)
 {
-    DWORD ret = MsgWaitForMultipleObjects(1, &e->h, FALSE, timeout == timeForever ? INFINITE : (DWORD)timeToMsec(timeout), QS_ALLINPUT);
+    DWORD ret = MsgWaitForMultipleObjects(1,
+                                          &e->h,
+                                          FALSE,
+                                          timeout == timeForever ? INFINITE :
+                                                                   (DWORD)timeToMsec(timeout),
+                                          QS_ALLINPUT);
     if (ret == WAIT_OBJECT_0)
         return UIEVENT_Event;
     if (ret == WAIT_OBJECT_0 + 1)
@@ -30,7 +35,7 @@ int uieventWaitTimeout(UIEvent *e, uint64 timeout)
     return UIEVENT_Error;
 }
 
-void uieventDestroy(UIEvent *e)
+void uieventDestroy(UIEvent* e)
 {
     CloseHandle(e->h);
     xaFree(e);

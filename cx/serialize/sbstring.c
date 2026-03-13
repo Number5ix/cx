@@ -6,18 +6,18 @@ typedef struct SbufStrInCtx {
     striter iter;
 } SbufStrInCtx;
 
-static void sbufStrInCleanup(_Pre_opt_valid_ void *ctx)
+static void sbufStrInCleanup(_Pre_opt_valid_ void* ctx)
 {
     if (!ctx)
         return;
 
-    SbufStrInCtx *sbc = (SbufStrInCtx *)ctx;
+    SbufStrInCtx* sbc = (SbufStrInCtx*)ctx;
     striFinish(&sbc->iter);
     xaFree(sbc);
 }
 
 _Use_decl_annotations_
-bool sbufStrIn(StreamBuffer *sb, strref str)
+bool sbufStrIn(StreamBuffer* sb, strref str)
 {
     striter si;
 
@@ -43,9 +43,10 @@ bool sbufStrIn(StreamBuffer *sb, strref str)
     return ret;
 }
 
-static size_t sbufStrPullCB(_Pre_valid_ StreamBuffer *sb, _Out_writes_bytes_(sz) uint8 *buf, size_t sz, _Pre_opt_valid_ void *ctx)
+static size_t sbufStrPullCB(_Pre_valid_ StreamBuffer* sb, _Out_writes_bytes_(sz) uint8* buf,
+                            size_t sz, _Pre_opt_valid_ void* ctx)
 {
-    SbufStrInCtx *sbc = (SbufStrInCtx *)ctx;
+    SbufStrInCtx* sbc = (SbufStrInCtx*)ctx;
     if (!sbc)
         return 0;
 
@@ -62,9 +63,9 @@ static size_t sbufStrPullCB(_Pre_valid_ StreamBuffer *sb, _Out_writes_bytes_(sz)
 }
 
 _Use_decl_annotations_
-bool sbufStrPRegisterPull(StreamBuffer *sb, strref str)
+bool sbufStrPRegisterPull(StreamBuffer* sb, strref str)
 {
-    SbufStrInCtx *sbc = xaAlloc(sizeof(SbufStrInCtx));
+    SbufStrInCtx* sbc = xaAlloc(sizeof(SbufStrInCtx));
 
     striInit(&sbc->iter, str);
 
@@ -75,23 +76,23 @@ bool sbufStrPRegisterPull(StreamBuffer *sb, strref str)
 }
 
 typedef struct SbufStrOutCtx {
-    string *out;
+    string* out;
 } SbufStrOutCtx;
 
-static void sbufStrOutCleanup(_Pre_opt_valid_ void *ctx)
+static void sbufStrOutCleanup(_Pre_opt_valid_ void* ctx)
 {
-    SbufStrOutCtx *sbc = (SbufStrOutCtx *)ctx;
+    SbufStrOutCtx* sbc = (SbufStrOutCtx*)ctx;
     xaFree(sbc);
 }
 
-static void sbufStrNotifyCB(_Pre_valid_ StreamBuffer *sb, size_t sz, _Pre_opt_valid_ void *ctx)
+static void sbufStrNotifyCB(_Pre_valid_ StreamBuffer* sb, size_t sz, _Pre_opt_valid_ void* ctx)
 {
-    SbufStrOutCtx *sbc = (SbufStrOutCtx *)ctx;
+    SbufStrOutCtx* sbc = (SbufStrOutCtx*)ctx;
     if (!sbc)
         return;
 
     string temp = 0;
-    uint8 *tbuf = strBuffer(&temp, (uint32)sz);
+    uint8* tbuf = strBuffer(&temp, (uint32)sz);
     if (sbufCRead(sb, tbuf, sz, &sz)) {
         strSetLen(&temp, (uint32)sz);
         strAppend(sbc->out, temp);
@@ -100,7 +101,7 @@ static void sbufStrNotifyCB(_Pre_valid_ StreamBuffer *sb, size_t sz, _Pre_opt_va
 }
 
 _Use_decl_annotations_
-bool sbufStrOut(StreamBuffer *sb, string *strout)
+bool sbufStrOut(StreamBuffer* sb, string* strout)
 {
     if (!sbufCRegisterPull(sb, NULL, NULL))
         return false;
@@ -110,7 +111,7 @@ bool sbufStrOut(StreamBuffer *sb, string *strout)
     do {
         // grab targetsz at a time from the buffer
         strClear(&temp);
-        uint8 *tbuf = strBuffer(&temp, (uint32)sb->targetsz);
+        uint8* tbuf = strBuffer(&temp, (uint32)sb->targetsz);
 
         if (sbufCRead(sb, tbuf, sb->targetsz, &sz)) {
             strSetLen(&temp, (uint32)sz);
@@ -126,10 +127,10 @@ bool sbufStrOut(StreamBuffer *sb, string *strout)
 }
 
 _Use_decl_annotations_
-bool sbufStrCRegisterPush(StreamBuffer *sb, string *strout)
+bool sbufStrCRegisterPush(StreamBuffer* sb, string* strout)
 {
-    SbufStrOutCtx *sbc = xaAlloc(sizeof(SbufStrOutCtx));
-    sbc->out = strout;
+    SbufStrOutCtx* sbc = xaAlloc(sizeof(SbufStrOutCtx));
+    sbc->out           = strout;
 
     if (!sbufCRegisterPush(sb, sbufStrNotifyCB, sbufStrOutCleanup, sbc))
         return false;
@@ -138,18 +139,18 @@ bool sbufStrCRegisterPush(StreamBuffer *sb, string *strout)
 }
 
 _Use_decl_annotations_
-StreamBuffer *sbufStrCreatePush(string *strout, size_t targetsz)
+StreamBuffer* sbufStrCreatePush(string* strout, size_t targetsz)
 {
     StreamBuffer* ret = sbufCreate(targetsz);
     if (!ret)
         return NULL;
 
-    if(!sbufPRegisterPush(ret, NULL, NULL)) {
+    if (!sbufPRegisterPush(ret, NULL, NULL)) {
         sbufRelease(&ret);
         return NULL;
     }
 
-    if(!sbufStrCRegisterPush(ret, strout)) {
+    if (!sbufStrCRegisterPush(ret, strout)) {
         sbufRelease(&ret);
         return NULL;
     }

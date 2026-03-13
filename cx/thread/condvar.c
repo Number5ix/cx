@@ -1,7 +1,7 @@
 #include "condvar.h"
 
 _Use_decl_annotations_
-void _cvarInit(CondVar *cv, uint32 flags)
+void _cvarInit(CondVar* cv, uint32 flags)
 {
     futexInit(&cv->seq, 0);
     atomicStore(uint32, &cv->lastseq, 0, Relaxed);
@@ -9,15 +9,15 @@ void _cvarInit(CondVar *cv, uint32 flags)
 }
 
 _Use_decl_annotations_
-void cvarDestroy(CondVar *cv)
+void cvarDestroy(CondVar* cv)
 {
     memset(cv, 0, sizeof(CondVar));
 }
 
 _Use_decl_annotations_
-bool cvarWaitTimeout(CondVar *cv, Mutex *m, int64 timeout)
+bool cvarWaitTimeout(CondVar* cv, Mutex* m, int64 timeout)
 {
-    int32 seq = atomicLoad(int32, &cv->seq.val, Relaxed);
+    int32 seq     = atomicLoad(int32, &cv->seq.val, Relaxed);
     int32 lastseq = seq;
     atomicStore(uint32, &cv->lastseq, (uint32)lastseq, Relaxed);
 
@@ -54,7 +54,7 @@ bool cvarWaitTimeout(CondVar *cv, Mutex *m, int64 timeout)
 }
 
 _Use_decl_annotations_
-bool cvarSignal(CondVar *cv)
+bool cvarSignal(CondVar* cv)
 {
     uint32 seq = atomicLoad(uint32, &cv->lastseq, Relaxed) + 1;
     atomicStore(int32, &cv->seq.val, (int32)seq, Relaxed);
@@ -64,7 +64,7 @@ bool cvarSignal(CondVar *cv)
 }
 
 _Use_decl_annotations_
-bool cvarBroadcast(CondVar *cv)
+bool cvarBroadcast(CondVar* cv)
 {
     uint32 seq = atomicLoad(uint32, &cv->lastseq, Relaxed) + 1;
     atomicStore(int32, &cv->seq.val, (int32)seq, Relaxed);

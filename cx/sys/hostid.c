@@ -1,11 +1,11 @@
 #include "hostid_private.h"
-#include "cx/utils/lazyinit.h"
 #include "cx/string.h"
+#include "cx/utils/lazyinit.h"
 
 static LazyInitState hostIdState;
 static HostID hidCache;
 
-static void hostIdInit(void *data)
+static void hostIdInit(void* data)
 {
     Digest shactx;
 
@@ -24,7 +24,7 @@ static void hostIdInit(void *data)
 }
 
 _Use_decl_annotations_
-void hostId(HostID *id)
+void hostId(HostID* id)
 {
     lazyInit(&hostIdState, hostIdInit, 0);
 

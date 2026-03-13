@@ -1,9 +1,9 @@
-#include <stdint.h>
-#include <string.h>
+#include "cstrutil.h"
 #include <cx/cx.h>
 #include <cx/platform/base.h>
+#include <stdint.h>
+#include <string.h>
 #include "xalloc.h"
-#include "cstrutil.h"
 
 // Why does this file exist? Because Microsoft is stupid and renamed strdup,
 // since it's technically "non-standard". As it's not part of ISO and
@@ -14,33 +14,32 @@
 // compiler intrinsics for those will be faster than anything that could be
 // supplied here.
 
-_Ret_z_ char *cstrDup(_In_z_ const char *src)
+_Ret_z_ char* cstrDup(_In_z_ const char* src)
 {
     if (!src)
         return NULL;
 
     size_t len = cstrLen(src) + 1;
-    char *ret = xaAlloc(len);
+    char* ret  = xaAlloc(len);
 
     memcpy(ret, src, len);
     return ret;
 }
 
-size_t cstrLenw(_In_z_ const unsigned short *s)
+size_t cstrLenw(_In_z_ const unsigned short* s)
 {
-    const unsigned short *p = s;
-    while (*p)
-        p++;
+    const unsigned short* p = s;
+    while (*p) p++;
     return p - s;
 }
 
-_Ret_z_ unsigned short *cstrDupw(_In_z_ const unsigned short *src)
+_Ret_z_ unsigned short* cstrDupw(_In_z_ const unsigned short* src)
 {
     if (!src)
         return NULL;
 
-    size_t len = (cstrLenw(src) + 1) * 2;
-    unsigned short *ret = xaAlloc(len);
+    size_t len          = (cstrLenw(src) + 1) * 2;
+    unsigned short* ret = xaAlloc(len);
 
     memcpy(ret, src, len);
     return ret;
@@ -116,16 +115,16 @@ static const uintptr_t mask80 = 0x8080808080808080;
  * Helper macro to return string length if we caught the zero
  * byte.
  */
-#define testbyte(x)                             \
-        do {                                    \
-                if (p[x] == '\0')               \
-                    return (p - str + x);       \
-        } while (0)
+#define testbyte(x)               \
+    do {                          \
+        if (p[x] == '\0')         \
+            return (p - str + x); \
+    } while (0)
 
-size_t cstrLen(_In_z_ const char *str)
+size_t cstrLen(_In_z_ const char* str)
 {
-    const char *p;
-    const uintptr_t *lp;
+    const char* p;
+    const uintptr_t* lp;
     intptr_t va, vb;
 
     /*
@@ -138,22 +137,22 @@ size_t cstrLen(_In_z_ const char *str)
      * they always fall in the same memory page, as long as page
      * boundaries is integral multiple of word size.
      */
-    lp = (const uintptr_t *)((uintptr_t)str & ~LONGPTR_MASK);
+    lp = (const uintptr_t*)((uintptr_t)str & ~LONGPTR_MASK);
     va = (*lp - mask01);
     vb = ((~*lp) & mask80);
     lp++;
     if (va & vb)
-            /* Check if we have \0 in the first part */
-        for (p = str; p < (const char *)lp; p++)
+        /* Check if we have \0 in the first part */
+        for (p = str; p < (const char*)lp; p++)
             if (*p == '\0')
                 return (p - str);
 
-/* Scan the rest of the string using word sized operation */
-    for (; ; lp++) {
+    /* Scan the rest of the string using word sized operation */
+    for (;; lp++) {
         va = (*lp - mask01);
         vb = ((~*lp) & mask80);
         if (va & vb) {
-            p = (const char *)(lp);
+            p = (const char*)(lp);
             testbyte(0);
             testbyte(1);
             testbyte(2);
@@ -172,11 +171,9 @@ size_t cstrLen(_In_z_ const char *str)
 }
 
 // case insensitive compare since it's not consistently available
-int cstrCmpi(_In_z_ const char *s1, _In_z_ const char *s2)
+int cstrCmpi(_In_z_ const char* s1, _In_z_ const char* s2)
 {
-    const uint8
-        *us1 = (const uint8*)s1,
-        *us2 = (const uint8*)s2;
+    const uint8 *us1 = (const uint8*)s1, *us2 = (const uint8*)s2;
 
     while (tolower(*us1) == tolower(*us2++))
         if (*us1++ == '\0')

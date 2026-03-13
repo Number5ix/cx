@@ -13,8 +13,8 @@
 
 _objfactory_guaranteed VFS* VFS_create(uint32 flags)
 {
-    VFS *ret;
-    ret = objInstCreate(VFS);
+    VFS* ret;
+    ret        = objInstCreate(VFS);
     ret->flags = flags;
     objInstInit(ret);
     return ret;
@@ -45,11 +45,11 @@ void VFS_destroy(_In_ VFS* self)
 
 _objfactory_guaranteed VFSMount* VFSMount_create(ObjInst* provider, uint32 flags)
 {
-    VFSMount *ret;
+    VFSMount* ret;
     ret = objInstCreate(VFSMount);
 
     ret->provider = objAcquire(provider);
-    ret->flags = flags;
+    ret->flags    = flags;
 
     objInstInit(ret);
     return ret;
@@ -64,7 +64,7 @@ void VFSMount_destroy(_In_ VFSMount* self)
 
 _objfactory_check VFS* VFS_createFromFS()
 {
-    VFS *ret = VFS_create(_vfsIsPlatformCaseSensitive() ? VFS_CaseSensitive : 0);
+    VFS* ret = VFS_create(_vfsIsPlatformCaseSensitive() ? VFS_CaseSensitive : 0);
 
     if (!_vfsAddPlatformSpecificMounts(ret)) {
         objRelease(&ret);

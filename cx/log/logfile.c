@@ -17,38 +17,47 @@ STR_CONST(kLogExtDefault, "log");
 STR_CONST(kLogRotatePattern, ".*.");
 STR_CONST(kLogSplitDelim, ".");
 STR_CONST(kLogRotateFmt, "${string}/${string}.${int}.${string}");
-STR_CONST(kLogDateISOTZ, "${0int(4)}-${0uint(2)}-${0uint(2)}T${0uint(2)}:${0uint(2)}:${0uint(2)}${+int(min:2)}:${0int(2)}");
-STR_CONST(kLogDateISOZulu, "${0int(4)}-${0uint(2)}-${0uint(2)}T${0uint(2)}:${0uint(2)}:${0uint(2)}Z");
-STR_CONST(kLogDateISOCompact, "${0int(4)}-${0uint(2)}-${0uint(2)} ${0uint(2)}:${0uint(2)}:${0uint(2)}");
-STR_CONST(kLogDateNCSA, "${0uint(2)}/${string(3)}/${0int(4)}:${0uint(2)}:${0uint(2)}:${0uint(2)} ${+int(min:2)}${0int(2)}");
+STR_CONST(
+    kLogDateISOTZ,
+    "${0int(4)}-${0uint(2)}-${0uint(2)}T${0uint(2)}:${0uint(2)}:${0uint(2)}${+int(min:2)}:${0int(2)}");
+STR_CONST(kLogDateISOZulu,
+          "${0int(4)}-${0uint(2)}-${0uint(2)}T${0uint(2)}:${0uint(2)}:${0uint(2)}Z");
+STR_CONST(kLogDateISOCompact,
+          "${0int(4)}-${0uint(2)}-${0uint(2)} ${0uint(2)}:${0uint(2)}:${0uint(2)}");
+STR_CONST(
+    kLogDateNCSA,
+    "${0uint(2)}/${string(3)}/${0int(4)}:${0uint(2)}:${0uint(2)}:${0uint(2)} ${+int(min:2)}${0int(2)}");
 STR_CONST(kLogDateSyslog, "${string(3)} ${uint(2)} ${0uint(2)}:${0uint(2)}:${0uint(2)}");
-STR_CONST(kLogDateISOCompactMs, "${0int(4)}-${0uint(2)}-${0uint(2)} ${0uint(2)}:${0uint(2)}:${0uint(2)}.${0uint(3)}");
+STR_CONST(kLogDateISOCompactMs,
+          "${0int(4)}-${0uint(2)}-${0uint(2)} ${0uint(2)}:${0uint(2)}:${0uint(2)}.${0uint(3)}");
 STR_CONST(kLogBracketFmt, " [${string}]");
 STR_CONST(kLogJustifyFmt, " ${string(7)}");
 STR_CONST(kLogSpace, " ");
 
 typedef struct LogFileData {
     LogFileConfig config;
-    VFS *vfs;
+    VFS* vfs;
     string fname;
     string pathname;
     string basename;
     string ext;
-    VFSFile *curfile;
+    VFSFile* curfile;
     int numseen;
     int64 lastrotate;
     int64 cursize;
 } LogFileData;
 
 #ifdef _PLATFORM_WIN
-static strref loglineend = (strref)"\xE1\xC1\x02""\r\n";
+static strref loglineend = (strref) "\xE1\xC1\x02"
+                                    "\r\n";
 #else
-static strref loglineend = (strref)"\xE1\xC1\x01""\n";
+static strref loglineend = (strref) "\xE1\xC1\x01"
+                                    "\n";
 #endif
 
-static void deleteOldFiles(_Inout_ LogFileData *lfd);
+static void deleteOldFiles(_Inout_ LogFileData* lfd);
 
-static void logfileDestroy(_Pre_valid_ _Post_invalid_ LogFileData *data)
+static void logfileDestroy(_Pre_valid_ _Post_invalid_ LogFileData* data)
 {
     vfsClose(data->curfile);
     objRelease(&data->vfs);
@@ -59,7 +68,7 @@ static void logfileDestroy(_Pre_valid_ _Post_invalid_ LogFileData *data)
     xaFree(data);
 }
 
-static bool logfileOpen(_Inout_ LogFileData *data)
+static bool logfileOpen(_Inout_ LogFileData* data)
 {
     devAssert(!data->curfile);
     data->curfile = vfsOpen(data->vfs, data->fname, FS_Create | FS_Write);
@@ -71,7 +80,7 @@ static bool logfileOpen(_Inout_ LogFileData *data)
     return true;
 }
 
-static bool logfileClose(_Inout_ LogFileData *data)
+static bool logfileClose(_Inout_ LogFileData* data)
 {
     devAssert(data->curfile);
     vfsClose(data->curfile);
@@ -81,17 +90,17 @@ static bool logfileClose(_Inout_ LogFileData *data)
 }
 
 _Use_decl_annotations_
-LogFileData *logfileCreate(VFS *vfs, strref filename, LogFileConfig *config)
+LogFileData* logfileCreate(VFS* vfs, strref filename, LogFileConfig* config)
 {
-    LogFileData *ret = xaAlloc(sizeof(LogFileData), XA_Zero);
-    string realfile = 0;
+    LogFileData* ret = xaAlloc(sizeof(LogFileData), XA_Zero);
+    string realfile  = 0;
     if (!ret)
         return NULL;
 
     vfsAbsolutePath(vfs, &realfile, filename);
 
     ret->config = *config;
-    ret->vfs = objAcquire(vfs);
+    ret->vfs    = objAcquire(vfs);
     strDup(&ret->fname, realfile);
 
     // save path breakdown to make rotation easier
@@ -116,12 +125,13 @@ LogFileData *logfileCreate(VFS *vfs, strref filename, LogFileConfig *config)
         // calculate the last rotation time before the file's modify timestamp
         TimeParts tp;
         timeDecompose(&tp, stat.modified);
-        tp.hour = config->rotateHour;
-        tp.minute = config->rotateMinute;
-        tp.second = config->rotateSecond;
+        tp.hour         = config->rotateHour;
+        tp.minute       = config->rotateMinute;
+        tp.second       = config->rotateSecond;
         ret->lastrotate = timeCompose(&tp);
 
-        // if the file was modified before the rotation time, assume it must have been rotated the previous day
+        // if the file was modified before the rotation time, assume it must have been rotated the
+        // previous day
         if (stat.modified < ret->lastrotate)
             ret->lastrotate -= timeS(86400);
     }
@@ -138,7 +148,7 @@ LogFileData *logfileCreate(VFS *vfs, strref filename, LogFileConfig *config)
 }
 
 _Use_decl_annotations_
-static void deleteOldFiles(LogFileData *lfd)
+static void deleteOldFiles(LogFileData* lfd)
 {
     FSSearchIter fsi;
     string pattern = 0, temp = 0;
@@ -177,7 +187,7 @@ static void deleteOldFiles(LogFileData *lfd)
     }
     vfsSearchFinish(&fsi);
 
-    foreach(sarray, idx, string, fn, todelete) {
+    foreach (sarray, idx, string, fn, todelete) {
         pathJoin(&temp, lfd->pathname, fn);
         vfsDelete(lfd->vfs, temp);
     }
@@ -188,10 +198,10 @@ static void deleteOldFiles(LogFileData *lfd)
     strDestroy(&temp);
 }
 
-static void doSizeRotation(_Inout_ LogFileData *lfd)
+static void doSizeRotation(_Inout_ LogFileData* lfd)
 {
     if (lfd->config.rotateSize == 0 || lfd->cursize < lfd->config.rotateSize)
-        return;         // file isn't big enough yet
+        return;   // file isn't big enough yet
 
     logfileClose(lfd);
     deleteOldFiles(lfd);
@@ -200,13 +210,15 @@ static void doSizeRotation(_Inout_ LogFileData *lfd)
 
     string namei = 0, nameimo = 0;
     for (int i = nfiles; i >= 1; --i) {
-        strFormat(&namei, kLogRotateFmt,
+        strFormat(&namei,
+                  kLogRotateFmt,
                   stvar(string, lfd->pathname),
                   stvar(string, lfd->basename),
                   stvar(int32, i),
                   stvar(string, lfd->ext));
         if (i > 1) {
-            strFormat(&nameimo, kLogRotateFmt,
+            strFormat(&nameimo,
+                      kLogRotateFmt,
                       stvar(string, lfd->pathname),
                       stvar(string, lfd->basename),
                       stvar(int32, i - 1),
@@ -226,11 +238,12 @@ static void doSizeRotation(_Inout_ LogFileData *lfd)
     strDestroy(&nameimo);
 }
 
-static void doTimeRotation(_Inout_ LogFileData *lfd)
+static void doTimeRotation(_Inout_ LogFileData* lfd)
 {
     int64 lastrotate = lfd->lastrotate;
 
-    // now must be in local time because that's how rotateTime is specified when LOG_LocalTime is set
+    // now must be in local time because that's how rotateTime is specified when LOG_LocalTime is
+    // set
     int64 now = (lfd->config.flags & LOG_LocalTime) ? clockWallLocal() : clockWall();
 
     // figure out next rotation time, which will time from the config
@@ -238,13 +251,13 @@ static void doTimeRotation(_Inout_ LogFileData *lfd)
     TimeParts tp;
     timeDecompose(&tp, lastrotate + timeS(86400));
 
-    tp.hour = lfd->config.rotateHour;
-    tp.minute = lfd->config.rotateMinute;
-    tp.second = lfd->config.rotateSecond;
+    tp.hour          = lfd->config.rotateHour;
+    tp.minute        = lfd->config.rotateMinute;
+    tp.second        = lfd->config.rotateSecond;
     int64 nextrotate = timeCompose(&tp);
 
     if (now < nextrotate)
-        return;         // not time to rotate yet
+        return;   // not time to rotate yet
 
     logfileClose(lfd);
 
@@ -254,7 +267,8 @@ static void doTimeRotation(_Inout_ LogFileData *lfd)
     lfd->lastrotate = now;
 
     string rfname = 0;
-    strFormat(&rfname, kLogRotateFmt,
+    strFormat(&rfname,
+              kLogRotateFmt,
               stvar(string, lfd->pathname),
               stvar(string, lfd->basename),
               stvar(int32, tp.year * 10000 + tp.month * 100 + tp.day),
@@ -265,7 +279,7 @@ static void doTimeRotation(_Inout_ LogFileData *lfd)
     logfileOpen(lfd);
 }
 
-static void checkRotate(_Inout_ LogFileData *lfd)
+static void checkRotate(_Inout_ LogFileData* lfd)
 {
     if (lfd->config.rotateMode == LOG_RotateSize)
         doSizeRotation(lfd);
@@ -273,22 +287,23 @@ static void checkRotate(_Inout_ LogFileData *lfd)
         doTimeRotation(lfd);
 }
 
-static void formatDate(_In_ LogFileData *lfd, _Inout_ string *out, int64 timestamp)
+static void formatDate(_In_ LogFileData* lfd, _Inout_ string* out, int64 timestamp)
 {
     int64 toffsetraw = 0;
-    TimeParts tp = { 0 };
+    TimeParts tp     = { 0 };
     if (lfd->config.flags & LOG_LocalTime) {
         timestamp = timeLocal(timestamp, &toffsetraw);
     }
 
-    int toffset = (int32)timeToSeconds(toffsetraw) / 60;        // need offset in minutes for formatting
+    int toffset = (int32)timeToSeconds(toffsetraw) / 60;   // need offset in minutes for formatting
     timeDecompose(&tp, timestamp);
 
     switch (lfd->config.dateFormat) {
     case LOG_DateISO:
         if (toffset != 0) {
             // ISO8601 with time zone
-            strFormat(out, kLogDateISOTZ,
+            strFormat(out,
+                      kLogDateISOTZ,
                       stvar(int32, tp.year),
                       stvar(uint8, tp.month),
                       stvar(uint8, tp.day),
@@ -299,7 +314,8 @@ static void formatDate(_In_ LogFileData *lfd, _Inout_ string *out, int64 timesta
                       stvar(int32, (toffset >= 0 ? toffset : -toffset) % 60));
         } else {
             // ISO8601 with zulu time
-            strFormat(out, kLogDateISOZulu,
+            strFormat(out,
+                      kLogDateISOZulu,
                       stvar(int32, tp.year),
                       stvar(uint8, tp.month),
                       stvar(uint8, tp.day),
@@ -310,7 +326,8 @@ static void formatDate(_In_ LogFileData *lfd, _Inout_ string *out, int64 timesta
         break;
     case LOG_DateISOCompact:
         // simplifed ISO-like format with no time zone
-        strFormat(out, kLogDateISOCompact,
+        strFormat(out,
+                  kLogDateISOCompact,
                   stvar(int32, tp.year),
                   stvar(uint8, tp.month),
                   stvar(uint8, tp.day),
@@ -320,7 +337,8 @@ static void formatDate(_In_ LogFileData *lfd, _Inout_ string *out, int64 timesta
         break;
     case LOG_DateNCSA:
         // NCSA common log date format
-        strFormat(out, kLogDateNCSA,
+        strFormat(out,
+                  kLogDateNCSA,
                   stvar(uint8, tp.day),
                   stvar(strref, timeMonthAbbrev[tp.month]),
                   stvar(int32, tp.year),
@@ -332,7 +350,8 @@ static void formatDate(_In_ LogFileData *lfd, _Inout_ string *out, int64 timesta
         break;
     case LOG_DateSyslog:
         // BSD-style syslog format (without year)
-        strFormat(out, kLogDateSyslog,
+        strFormat(out,
+                  kLogDateSyslog,
                   stvar(strref, timeMonthAbbrev[tp.month]),
                   stvar(uint8, tp.day),
                   stvar(uint8, tp.hour),
@@ -341,7 +360,8 @@ static void formatDate(_In_ LogFileData *lfd, _Inout_ string *out, int64 timesta
         break;
     case LOG_DateISOCompactMsec:
         // simplifed ISO-like format with no time zone and milliseconds
-        strFormat(out, kLogDateISOCompactMs,
+        strFormat(out,
+                  kLogDateISOCompactMs,
                   stvar(int32, tp.year),
                   stvar(uint8, tp.month),
                   stvar(uint8, tp.day),
@@ -351,7 +371,6 @@ static void formatDate(_In_ LogFileData *lfd, _Inout_ string *out, int64 timesta
                   stvar(uint32, tp.usec / 1000));
         break;
     }
-
 }
 
 // this function is always called from the log thread and does not need to worry about concurrency
@@ -359,7 +378,7 @@ _Use_decl_annotations_
 void logfileMsgFunc(int level, LogCategory* cat, int64 timestamp, strref msg, uint32 batchid,
                     void* userdata)
 {
-    LogFileData *lfd = (LogFileData*)userdata;
+    LogFileData* lfd = (LogFileData*)userdata;
     if (!lfd)
         return;
 
@@ -367,7 +386,7 @@ void logfileMsgFunc(int level, LogCategory* cat, int64 timestamp, strref msg, ui
     string logdate = 0, loglevel = 0, logcat = 0, logspaces = 0;
 
     int nspaces = lfd->config.spacing ? lfd->config.spacing : 2;
-    uint8 *sbuf = strBuffer(&logspaces, nspaces + (lfd->config.flags & LOG_AddColon ? 1 : 0));
+    uint8* sbuf = strBuffer(&logspaces, nspaces + (lfd->config.flags & LOG_AddColon ? 1 : 0));
     memset(sbuf, ' ', nspaces);
     if (lfd->config.flags & LOG_AddColon)
         sbuf[0] = ':';
@@ -376,15 +395,15 @@ void logfileMsgFunc(int level, LogCategory* cat, int64 timestamp, strref msg, ui
 
     // add level prefix
     if (!(lfd->config.flags & LOG_OmitLevel)) {
-        strref *lvarr = (lfd->config.flags & LOG_ShortLevel) ? LogLevelAbbrev : LogLevelNames;
-        int lvmaxlen = (lfd->config.flags & LOG_ShortLevel) ? 1 : 7;
+        strref* lvarr = (lfd->config.flags & LOG_ShortLevel) ? LogLevelAbbrev : LogLevelNames;
+        int lvmaxlen  = (lfd->config.flags & LOG_ShortLevel) ? 1 : 7;
         if (lfd->config.flags & LOG_BracketLevel) {
             if (lfd->config.flags & LOG_JustifyLevel) {
                 // justified with brackets... yuck
-                int llen = strLen(lvarr[level]);
-                uint8 *temp = strBuffer(&loglevel, lvmaxlen + 3);
+                int llen    = strLen(lvarr[level]);
+                uint8* temp = strBuffer(&loglevel, lvmaxlen + 3);
                 memset(temp, ' ', (size_t)lvmaxlen + 3);
-                temp[1] = '[';
+                temp[1]        = '[';
                 temp[llen + 2] = ']';
                 memcpy(temp + 2, strC(lvarr[level]), llen);
             } else {

@@ -1,5 +1,5 @@
-#include "cx/platform/win.h"
 #include "cx/debug/error.h"
+#include "cx/platform/win.h"
 
 bool winMapLastError()
 {

@@ -474,13 +474,13 @@ _meta_inline htelem _htInsertCheckedC(_Inout_ptr_ hashtable* htbl, stype keytype
                       opt_flags(__VA_ARGS__) | HTINT_Consume)
 
 // Internal function - do not call directly, use htFind() macro instead
-_Success_(return != 0)
-htelem _htFind(_In_ hashtable htbl, _In_ stgeneric key, _Inout_opt_ stgeneric* val, flags_t flags);
+_Success_(return != 0) htelem _htFind(_In_ hashtable htbl, _In_ stgeneric key, _Inout_opt_ stgeneric* val,
+                          flags_t flags);
 
 // Internal function with type checking
-_Success_(return != 0) _meta_inline
-htelem _htFindChecked(_In_ hashtable htbl, stype keytype, _In_ stgeneric key, stype valtype,
-                      _stCopyDest_Anno_opt_(valtype) stgeneric* val, flags_t flags)
+_Success_(return != 0) _meta_inline htelem
+_htFindChecked(_In_ hashtable htbl, stype keytype, _In_ stgeneric key, stype valtype,
+               _stCopyDest_Anno_opt_(valtype) stgeneric* val, flags_t flags)
 {
     devAssert(htbl);
     devAssert(stEq(htKeyType(htbl), keytype));
@@ -525,9 +525,9 @@ _Success_(return) bool
 _htExtract(_Inout_ptr_ hashtable* htbl, _In_ stgeneric key, _Inout_opt_ stgeneric* val);
 
 // Internal function with type checking
-_Success_(return)
-_meta_inline bool _htExtractChecked(_Inout_ptr_ hashtable* htbl, stype keytype, _In_ stgeneric key,
-                                    stype valtype, _stCopyDest_Anno_opt_(valtype) stgeneric* val)
+_Success_(return) _meta_inline bool
+_htExtractChecked(_Inout_ptr_ hashtable* htbl, stype keytype, _In_ stgeneric key, stype valtype,
+                  _stCopyDest_Anno_opt_(valtype) stgeneric* val)
 {
     devAssert(*htbl);
     devAssert(stEq(htKeyType(*htbl), keytype));

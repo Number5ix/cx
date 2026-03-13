@@ -24,8 +24,8 @@
 
 #pragma once
 
-#include <cx/closure/closure.h>
 #include <cx/closure/cchain.h>
+#include <cx/closure/closure.h>
 
 /// @}
 // end of closure group

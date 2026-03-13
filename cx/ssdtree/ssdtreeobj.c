@@ -13,7 +13,7 @@
 
 _objfactory_guaranteed SSDTree* SSDTree_create(uint32 flags)
 {
-    SSDTree *self;
+    SSDTree* self;
     self = objInstCreate(SSDTree);
 
     self->flags = flags;
@@ -44,7 +44,9 @@ _objinit_guaranteed bool SSDTree_init(_In_ SSDTree* self)
     // Autogen ends -------
 }
 
-_objfactory_guaranteed SSDNode* SSDTree_createNode(_In_ SSDTree* self, _In_range_(SSD_Create_None+1, SSD_Create_Count-1) SSDCreateType crtype)
+_objfactory_guaranteed SSDNode*
+SSDTree_createNode(_In_ SSDTree* self,
+                   _In_range_(SSD_Create_None + 1, SSD_Create_Count - 1) SSDCreateType crtype)
 {
     devAssert(crtype > SSD_Create_None && crtype < SSD_Create_Count);
 

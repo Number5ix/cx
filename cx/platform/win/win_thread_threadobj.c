@@ -10,9 +10,9 @@
 // clang-format on
 // ==================== Auto-generated section ends ======================
 
-_objfactory_guaranteed WinThread *WinThread_create()
+_objfactory_guaranteed WinThread* WinThread_create()
 {
-    WinThread *self;
+    WinThread* self;
     self = objInstCreate(WinThread);
 
     objInstInit(self);
@@ -22,7 +22,7 @@ _objfactory_guaranteed WinThread *WinThread_create()
 
 void WinThread_destroy(_In_ WinThread* self)
 {
-     CloseHandle(self->handle);
+    CloseHandle(self->handle);
 }
 
 // Autogen begins -----

@@ -3,11 +3,11 @@
 /// @file objclass.h
 /// @brief Class definitions and instance management for the object system
 
-#include <cx/obj/objiface.h>
 #include <cx/container/hashtable.h>
+#include <cx/obj/objiface.h>
 #include <cx/thread/atomic.h>
-#include <cx/utils/macros/unused.h>
 #include <cx/thread/rwlock.h>
+#include <cx/utils/macros/unused.h>
 
 /// @defgroup obj_class Classes
 /// @ingroup obj
@@ -44,11 +44,11 @@ typedef struct ObjInst ObjInst;
 /// - **Runtime fields**: Populated automatically during first instantiation
 typedef struct ObjClassInfo {
     // ----- Statically defined in class info instance by class implementer -----
-    
-    size_t instsize;            ///< Size in bytes of a class instance
-    ObjClassInfo *parent;       ///< Parent class (NULL if no parent)
-    ObjIface *classif;          ///< Class interface (methods specific to this class, optional)
-    ObjIface **ifimpl;          ///< NULL-terminated array of interface implementations
+
+    size_t instsize;        ///< Size in bytes of a class instance
+    ObjClassInfo* parent;   ///< Parent class (NULL if no parent)
+    ObjIface* classif;      ///< Class interface (methods specific to this class, optional)
+    ObjIface** ifimpl;      ///< NULL-terminated array of interface implementations
 
     /// Optional initialization callback
     ///
@@ -56,27 +56,27 @@ typedef struct ObjClassInfo {
     /// returning to caller. If init returns false, construction must abort and the
     /// factory should return NULL. Useful for validation or common initialization that
     /// applies regardless of which factory is used.
-    bool(*init)(void *_self);
+    bool (*init)(void* _self);
 
     /// Optional destruction callback
     ///
     /// Called just before the object's memory is deallocated. Use this to clean up
     /// resources, release owned objects, destroy strings, etc. The framework automatically
     /// calls parent class destructors after the child destructor.
-    void(*destroy)(void *_self);
+    void (*destroy)(void* _self);
 
-    bool _abstract;             ///< True if this is an abstract class (cannot be instantiated)
+    bool _abstract;   ///< True if this is an abstract class (cannot be instantiated)
 
     // ----- Runtime use only, do not set manually! -----
-    
+
     /// Cached function pointer for Sortable.cmp interface (NULL if not implemented)
-    intptr (*_cmp)(void *self, void *other, uint32 flags);
-    
+    intptr (*_cmp)(void* self, void* other, uint32 flags);
+
     /// Cached function pointer for Hashable.hash interface (NULL if not implemented)
-    uint32 (*_hash)(void *self, uint32 flags);
-    
-    sa_ObjIface _impl;          ///< Storage for hydrated interface implementations
-    hashtable _tmpl;            ///< Maps interface templates to populated implementations
+    uint32 (*_hash)(void* self, uint32 flags);
+
+    sa_ObjIface _impl;   ///< Storage for hydrated interface implementations
+    hashtable _tmpl;     ///< Maps interface templates to populated implementations
 } ObjClassInfo;
 
 /// Construct class info variable name from class name
@@ -95,12 +95,12 @@ typedef struct ObjClassInfo {
 /// in macros while maintaining C compatibility.
 typedef struct ObjInst {
     union {
-        ObjIface *_classif;         ///< Class interface (vtable) - called _ in generated class code
-        void *_is_ObjInst;          ///< Type marker for compile-time validation
+        ObjIface* _classif;   ///< Class interface (vtable) - called _ in generated class code
+        void* _is_ObjInst;    ///< Type marker for compile-time validation
     };
-    ObjClassInfo *_clsinfo;         ///< Pointer to class metadata
-    atomic(uintptr) _ref;           ///< Reference count for memory management
-    atomic(ptr) _weakref;           ///< Associated weak reference object (NULL if none exist)
+    ObjClassInfo* _clsinfo;   ///< Pointer to class metadata
+    atomic(uintptr) _ref;     ///< Reference count for memory management
+    atomic(ptr) _weakref;     ///< Associated weak reference object (NULL if none exist)
 
     // Class-specific data members follow in derived classes
 } ObjInst;
@@ -110,15 +110,13 @@ typedef struct ObjInst {
 /// Allows observing an object without owning it. When the object is destroyed, the weak
 /// reference's `_inst` pointer is set to NULL, allowing safe detection of destruction.
 /// Multiple weak references can point to the same object.
-typedef struct ObjInst_WeakRef
-{
-    union
-    {
-        ObjInst *_inst;             ///< Pointer to the referenced object (NULL if destroyed)
-        void *_is_ObjInst_WeakRef;  ///< Type marker for compile-time validation
+typedef struct ObjInst_WeakRef {
+    union {
+        ObjInst* _inst;              ///< Pointer to the referenced object (NULL if destroyed)
+        void* _is_ObjInst_WeakRef;   ///< Type marker for compile-time validation
     };
-    atomic(uintptr) _ref;           ///< Reference count for the weak reference itself
-    RWLock _lock;                   ///< Protects access during object destruction
+    atomic(uintptr) _ref;            ///< Reference count for the weak reference itself
+    RWLock _lock;                    ///< Protects access during object destruction
 } ObjInst_WeakRef;
 
 /// Construct weak reference type name from class name
@@ -141,7 +139,8 @@ typedef struct ObjInst_WeakRef
 ///
 /// @param ref Pointer to any weak reference
 /// @return Base ObjInst_WeakRef pointer (with compile-time type validation)
-#define ObjInst_WeakRef(ref) ((ObjInst_WeakRef*)(unused_noeval(&((ref)->_is_ObjInst_WeakRef)), (ref)))
+#define ObjInst_WeakRef(ref) \
+    ((ObjInst_WeakRef*)(unused_noeval(&((ref)->_is_ObjInst_WeakRef)), (ref)))
 
 /// ObjInst *objInstBase(ClassType *inst)
 ///
@@ -171,9 +170,9 @@ typedef struct ObjInst_WeakRef
 ///
 /// This function is called internally when an object's reference count reaches zero.
 /// Always use objRelease() instead, which properly manages reference counting.
-void _objDestroy(_Pre_notnull_ _Post_invalid_ ObjInst *inst);
+void _objDestroy(_Pre_notnull_ _Post_invalid_ ObjInst* inst);
 
-_meta_inline void _objAcquire(_In_opt_ ObjInst *inst)
+_meta_inline void _objAcquire(_In_opt_ ObjInst* inst)
 {
     if (inst)
         atomicFetchAdd(uintptr, &inst->_ref, 1, Relaxed);
@@ -198,8 +197,7 @@ _meta_inline void _objAcquire(_In_opt_ ObjInst *inst)
 /// @return The same pointer passed in (for convenience)
 #define objAcquire(inst) (_objAcquire(objInstBase(inst)), (inst))
 
-_At_(*instp, _Pre_maybenull_ _Post_null_)
-void _objRelease(_Inout_ ObjInst **instp);
+_At_(*instp, _Pre_maybenull_ _Post_null_) void _objRelease(_Inout_ ObjInst** instp);
 
 /// void objRelease(ClassType **pinst)
 ///
@@ -220,9 +218,10 @@ void _objRelease(_Inout_ ObjInst **instp);
 /// @endcode
 ///
 /// @param pinst Pointer to object pointer (automatically set to NULL)
-#define objRelease(pinst) (unused_noeval(&((*(pinst))->_is_ObjInst)), _objRelease((ObjInst**)(pinst)))
+#define objRelease(pinst) \
+    (unused_noeval(&((*(pinst))->_is_ObjInst)), _objRelease((ObjInst**)(pinst)))
 
-_Ret_maybenull_ ObjIface *_objClassIf(_In_ ObjClassInfo *cls, _In_ ObjIface *iftmpl);
+_Ret_maybenull_ ObjIface* _objClassIf(_In_ ObjClassInfo* cls, _In_ ObjIface* iftmpl);
 /// InterfaceType *objClassIf(ClassName, InterfaceName)
 ///
 /// Get interface implementation from a class (without instance)
@@ -234,9 +233,10 @@ _Ret_maybenull_ ObjIface *_objClassIf(_In_ ObjClassInfo *cls, _In_ ObjIface *ift
 /// @param clsname Class name (e.g., Document)
 /// @param ifname Interface name (e.g., Printable)
 /// @return Pointer to populated interface, or NULL if class doesn't implement it
-#define objClassIf(clsname, ifname) ((ifname*)_objClassIf(&objClassInfoName(clsname), objIfBase(&objIfTmplName(ifname))))
+#define objClassIf(clsname, ifname) \
+    ((ifname*)_objClassIf(&objClassInfoName(clsname), objIfBase(&objIfTmplName(ifname))))
 
-_Ret_maybenull_ ObjIface *_objInstIf(_In_opt_ ObjInst *inst, _In_ ObjIface *iftmpl);
+_Ret_maybenull_ ObjIface* _objInstIf(_In_opt_ ObjInst* inst, _In_ ObjIface* iftmpl);
 /// InterfaceType *objInstIf(ClassType *inst, InterfaceName)
 ///
 /// Query an object for a specific interface implementation
@@ -256,9 +256,10 @@ _Ret_maybenull_ ObjIface *_objInstIf(_In_opt_ ObjInst *inst, _In_ ObjIface *iftm
 /// @param inst Object instance (may be NULL)
 /// @param ifname Interface name
 /// @return Pointer to populated interface, or NULL if not implemented
-#define objInstIf(inst, ifname) ((ifname*)_objInstIf(objInstBase(inst), objIfBase(&objIfTmplName(ifname))))
+#define objInstIf(inst, ifname) \
+    ((ifname*)_objInstIf(objInstBase(inst), objIfBase(&objIfTmplName(ifname))))
 
-_Ret_valid_ ObjInst_WeakRef *_objGetWeak(_In_ ObjInst *inst);
+_Ret_valid_ ObjInst_WeakRef* _objGetWeak(_In_ ObjInst* inst);
 /// Weak(ClassName) *objGetWeak(ClassName, ClassType *inst)
 ///
 /// Get a weak reference to an object
@@ -272,7 +273,7 @@ _Ret_valid_ ObjInst_WeakRef *_objGetWeak(_In_ ObjInst *inst);
 /// @return Weak reference to the object (never NULL)
 #define objGetWeak(clsname, inst) ((Weak(clsname)*)_objGetWeak((ObjInst*)clsname(inst)))
 
-_Ret_maybenull_ ObjInst_WeakRef *_objCloneWeak(_In_opt_ ObjInst_WeakRef *ref);
+_Ret_maybenull_ ObjInst_WeakRef* _objCloneWeak(_In_opt_ ObjInst_WeakRef* ref);
 /// WeakRefType *objCloneWeak(WeakRefType *ref)
 ///
 /// Increment the reference count of a weak reference
@@ -284,7 +285,7 @@ _Ret_maybenull_ ObjInst_WeakRef *_objCloneWeak(_In_opt_ ObjInst_WeakRef *ref);
 /// @return The same weak reference with incremented refcount
 #define objCloneWeak(ref) (_objCloneWeak(objWeakRefBase(ref)))
 
-void _objDestroyWeak(_Inout_ ObjInst_WeakRef **refp);
+void _objDestroyWeak(_Inout_ ObjInst_WeakRef** refp);
 /// void objDestroyWeak(WeakRefType **pref)
 ///
 /// Release a weak reference
@@ -300,9 +301,10 @@ void _objDestroyWeak(_Inout_ ObjInst_WeakRef **refp);
 /// @endcode
 ///
 /// @param pref Pointer to weak reference pointer (automatically set to NULL)
-#define objDestroyWeak(pref) (unused_noeval(&((*(pref))->_is_ObjInst_WeakRef)), _objDestroyWeak((ObjInst_WeakRef**)(pref)))
+#define objDestroyWeak(pref) \
+    (unused_noeval(&((*(pref))->_is_ObjInst_WeakRef)), _objDestroyWeak((ObjInst_WeakRef**)(pref)))
 
-_Ret_maybenull_ ObjInst *_objAcquireFromWeak(_In_opt_ ObjInst_WeakRef *ref);
+_Ret_maybenull_ ObjInst* _objAcquireFromWeak(_In_opt_ ObjInst_WeakRef* ref);
 /// ClassName *objAcquireFromWeak(ClassName, Weak(ClassName) *ref)
 ///
 /// Attempt to acquire the object referenced by a weak reference
@@ -325,9 +327,10 @@ _Ret_maybenull_ ObjInst *_objAcquireFromWeak(_In_opt_ ObjInst_WeakRef *ref);
 /// @param clsname Class name for type casting
 /// @param ref Weak reference (may be NULL)
 /// @return Object pointer with incremented refcount, or NULL if object was destroyed
-#define objAcquireFromWeak(clsname, ref) ((clsname*)_objAcquireFromWeak((ObjInst_WeakRef*)Weak(clsname)(ref)))
+#define objAcquireFromWeak(clsname, ref) \
+    ((clsname*)_objAcquireFromWeak((ObjInst_WeakRef*)Weak(clsname)(ref)))
 
-_Ret_maybenull_ ObjInst *_objDynCast(_In_opt_ ObjInst *inst, _In_ ObjClassInfo *cls);
+_Ret_maybenull_ ObjInst* _objDynCast(_In_opt_ ObjInst* inst, _In_ ObjClassInfo* cls);
 /// ClassName *objDynCast(ClassName, ClassType *inst)
 ///
 /// Safely cast an object to a different class type with runtime checking
@@ -347,9 +350,11 @@ _Ret_maybenull_ ObjInst *_objDynCast(_In_opt_ ObjInst *inst, _In_ ObjClassInfo *
 /// @param clsname Class name to cast to
 /// @param inst Object instance to cast (may be NULL)
 /// @return Object cast to requested type, or NULL if incompatible
-#define objDynCast(clsname, inst) ((clsname*)_objDynCast(objInstBase(inst), &objClassInfoName(clsname)))
+#define objDynCast(clsname, inst) \
+    ((clsname*)_objDynCast(objInstBase(inst), &objClassInfoName(clsname)))
 
-_Ret_maybenull_ ObjInst *_objAcquireFromWeakDyn(_In_opt_ ObjInst_WeakRef *ref, _In_ ObjClassInfo *cls);
+_Ret_maybenull_ ObjInst*
+_objAcquireFromWeakDyn(_In_opt_ ObjInst_WeakRef* ref, _In_ ObjClassInfo* cls);
 /// ClassName *objAcquireFromWeakDyn(ClassName, Weak(BaseClass) *ref)
 ///
 /// Acquire from weak reference with runtime type checking
@@ -361,7 +366,8 @@ _Ret_maybenull_ ObjInst *_objAcquireFromWeakDyn(_In_opt_ ObjInst_WeakRef *ref, _
 /// @param clsname Class name to cast to
 /// @param ref Weak reference (may be NULL)
 /// @return Object cast to requested type with incremented refcount, or NULL
-#define objAcquireFromWeakDyn(clsname, ref) ((clsname*)_objAcquireFromWeakDyn(objWeakRefBase(ref), &objClassInfoName(clsname)))
+#define objAcquireFromWeakDyn(clsname, ref) \
+    ((clsname*)_objAcquireFromWeakDyn(objWeakRefBase(ref), &objClassInfoName(clsname)))
 
 /// @}  // end of obj_class group
 

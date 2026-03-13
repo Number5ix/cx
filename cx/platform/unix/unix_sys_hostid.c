@@ -7,10 +7,10 @@
 #include "cx/platform/os.h"
 #include "cx/string.h"
 
-#include <unistd.h>
-#include <fcntl.h>
-#include <ctype.h>
 #include <sys/stat.h>
+#include <ctype.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 // string constants
 STR_CONST(kHostIdUserDir, "/.cx");
@@ -19,7 +19,7 @@ STR_CONST(kHostIdUserFile, "/hostid");
 static bool readIdFile(const char* name, Digest* shactx, bool exact)
 {
     bool ret = false;
-    int fd = open(name, O_RDONLY);
+    int fd   = open(name, O_RDONLY);
     if (fd < 0)
         return false;
 
@@ -31,8 +31,7 @@ static bool readIdFile(const char* name, Digest* shactx, bool exact)
         if (sz != sizeof(buf))
             goto out;
     } else {
-        while(sz > 0 && isspace(buf[sz-1]))
-            sz--;       // eat trailing line feed
+        while (sz > 0 && isspace(buf[sz - 1])) sz--;   // eat trailing line feed
     }
 
     if (sz == 0)
@@ -48,13 +47,13 @@ out:
 
 static bool getPerUserId(Digest* shactx)
 {
-    bool ret = false;
-    const char *home = getenv("HOME");
+    bool ret         = false;
+    const char* home = getenv("HOME");
 
     if (!home)
         return false;
 
-    string cxdir = 0;
+    string cxdir    = 0;
     string userfile = 0;
     strConcat(&cxdir, (string)home, kHostIdUserDir);
     strConcat(&userfile, cxdir, kHostIdUserFile);
@@ -103,7 +102,7 @@ int32 hostIdPlatformInitFallback(Digest* shactx)
     // ultimate panic fallback
     char buf[256];
     gethostname(buf, 255);
-    buf[255] = 0;           // just in case it's exactly 255
+    buf[255] = 0;   // just in case it's exactly 255
     digestUpdate(shactx, (uint8*)buf, cstrLen(buf));
     return HID_SourceComputerName;
 }

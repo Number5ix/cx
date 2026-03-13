@@ -3,7 +3,7 @@
 
 STR_CONST(kRootPath, "/");
 
-bool _vfsAddPlatformSpecificMounts(VFS *vfs)
+bool _vfsAddPlatformSpecificMounts(VFS* vfs)
 {
     bool ret = vfsMountFS(vfs, kRootPath, kRootPath, VFS_CaseSensitive);
 

@@ -13,7 +13,7 @@
 
 _objfactory_guaranteed SSDArrayNode* SSDArrayNode__create(SSDTree* tree)
 {
-    SSDArrayNode *self;
+    SSDArrayNode* self;
     self = objInstCreate(SSDArrayNode);
 
     self->tree = objAcquire(tree);
@@ -45,14 +45,15 @@ bool SSDArrayNode_get(_In_ SSDArrayNode* self, int32 idx, _In_opt_ strref name, 
     return true;
 }
 
-static stvar *ptrInternal(SSDArrayNode *self, int32 idx)
+static stvar* ptrInternal(SSDArrayNode* self, int32 idx)
 {
     if (idx < 0 || idx >= saSize(self->storage))
         return NULL;
     return &self->storage.a[idx];
 }
 
-_Ret_opt_valid_ stvar* SSDArrayNode_ptr(_In_ SSDArrayNode* self, int32 idx, _In_opt_ strref name, _Inout_ SSDLockState* _ssdCurrentLockState)
+_Ret_opt_valid_ stvar* SSDArrayNode_ptr(_In_ SSDArrayNode* self, int32 idx, _In_opt_ strref name,
+                                        _Inout_ SSDLockState* _ssdCurrentLockState)
 {
     if (idx == SSD_ByName && !strToInt32(&idx, name, 0, true))
         return NULL;
@@ -61,14 +62,14 @@ _Ret_opt_valid_ stvar* SSDArrayNode_ptr(_In_ SSDArrayNode* self, int32 idx, _In_
     return ptrInternal(self, idx);
 }
 
-_At_(storage->a, _Post_valid_)
-static _meta_inline void verifySize(_Inout_ sa_stvar *storage, int32 idx)
+_At_(storage->a, _Post_valid_) static _meta_inline void verifySize(_Inout_ sa_stvar* storage, int32 idx)
 {
     if (idx >= saSize(*storage))
         saSetSize(storage, idx + 1);
 }
 
-bool SSDArrayNode_set(_In_ SSDArrayNode* self, int32 idx, _In_opt_ strref name, stvar val, _Inout_ SSDLockState* _ssdCurrentLockState)
+bool SSDArrayNode_set(_In_ SSDArrayNode* self, int32 idx, _In_opt_ strref name, stvar val,
+                      _Inout_ SSDLockState* _ssdCurrentLockState)
 {
     if (idx == SSD_ByName && !strToInt32(&idx, name, 0, true))
         return false;
@@ -86,7 +87,8 @@ bool SSDArrayNode_set(_In_ SSDArrayNode* self, int32 idx, _In_opt_ strref name, 
     return true;
 }
 
-bool SSDArrayNode_setC(_In_ SSDArrayNode* self, int32 idx, _In_opt_ strref name, _Inout_ stvar* val, _Inout_ SSDLockState* _ssdCurrentLockState)
+bool SSDArrayNode_setC(_In_ SSDArrayNode* self, int32 idx, _In_opt_ strref name, _Inout_ stvar* val,
+                       _Inout_ SSDLockState* _ssdCurrentLockState)
 {
     bool ret = false;
 
@@ -102,7 +104,7 @@ bool SSDArrayNode_setC(_In_ SSDArrayNode* self, int32 idx, _In_opt_ strref name,
 
     stvarDestroy(&self->storage.a[idx]);
     self->storage.a[idx] = *val;
-    *val = stvNone;
+    *val                 = stvNone;
     ssdnodeUpdateModified(self);
     ret = true;
 
@@ -123,7 +125,8 @@ bool SSDArrayNode_append(_In_ SSDArrayNode* self, stvar val, SSDLockState* _ssdC
     return true;
 }
 
-bool SSDArrayNode_remove(_In_ SSDArrayNode* self, int32 idx, _In_opt_ strref name, _Inout_ SSDLockState* _ssdCurrentLockState)
+bool SSDArrayNode_remove(_In_ SSDArrayNode* self, int32 idx, _In_opt_ strref name,
+                         _Inout_ SSDLockState* _ssdCurrentLockState)
 {
     if (idx == SSD_ByName && !strToInt32(&idx, name, 0, true))
         return false;
@@ -139,13 +142,14 @@ bool SSDArrayNode_remove(_In_ SSDArrayNode* self, int32 idx, _In_opt_ strref nam
 
 _Ret_valid_ SSDIterator* SSDArrayNode_iter(_In_ SSDArrayNode* self)
 {
-    SSDArrayIter *ret = ssdarrayiterCreate(self, NULL);
+    SSDArrayIter* ret = ssdarrayiterCreate(self, NULL);
     return SSDIterator(ret);
 }
 
-SSDIterator* SSDArrayNode__iterLocked(_In_ SSDArrayNode* self, _Inout_ SSDLockState* _ssdCurrentLockState)
+SSDIterator* SSDArrayNode__iterLocked(_In_ SSDArrayNode* self,
+                                      _Inout_ SSDLockState* _ssdCurrentLockState)
 {
-    SSDArrayIter *ret = ssdarrayiterCreate(self, _ssdCurrentLockState);
+    SSDArrayIter* ret = ssdarrayiterCreate(self, _ssdCurrentLockState);
     return SSDIterator(ret);
 }
 
@@ -173,10 +177,10 @@ void SSDArrayNode_destroy(_In_ SSDArrayNode* self)
 
 _objfactory_guaranteed SSDArrayIter* SSDArrayIter_create(SSDArrayNode* node, SSDLockState* lstate)
 {
-    SSDArrayIter *self;
+    SSDArrayIter* self;
     self = objInstCreate(SSDArrayIter);
 
-    self->node = (SSDNode*)objAcquire(node);
+    self->node   = (SSDNode*)objAcquire(node);
     self->lstate = lstate;
 
     objInstInit(self);
@@ -186,7 +190,7 @@ _objfactory_guaranteed SSDArrayIter* SSDArrayIter_create(SSDArrayNode* node, SSD
 bool SSDArrayIter_valid(_In_ SSDArrayIter* self)
 {
     _ssdManualLockRead(self->node, self->lstate);
-    bool ret = self->idx >= 0 && self->idx < saSize(((SSDArrayNode *)self->node)->storage);
+    bool ret = self->idx >= 0 && self->idx < saSize(((SSDArrayNode*)self->node)->storage);
     _ssdUnlock(self->node, &self->transient_lock_state);
     return ret;
 }
@@ -217,8 +221,8 @@ stvar* SSDArrayIter_ptr(_In_ SSDArrayIter* self)
 bool SSDArrayIter_get(_In_ SSDArrayIter* self, stvar* out)
 {
     _ssdManualLockRead(self->node, self->lstate);
-    stvar *ptr = ptrInternal((SSDArrayNode*)self->node, self->idx);
-    bool ret = false;
+    stvar* ptr = ptrInternal((SSDArrayNode*)self->node, self->idx);
+    bool ret   = false;
     if (ptr) {
         stvarCopy(out, *ptr);
         ret = true;
@@ -239,19 +243,22 @@ strref SSDArrayIter_name(_In_ SSDArrayIter* self)
     return self->lastName;
 }
 
-bool SSDArrayIter_iterOut(_In_ SSDArrayIter* self, _When_(return == true, _Out_) int32* idx, _When_(return == true, _Out_) strref* name, _When_(return == true, _Out_) stvar** val)
+bool SSDArrayIter_iterOut(_In_ SSDArrayIter* self,
+                          _When_(return == true, _Out_) int32* idx,
+                          _When_(return == true, _Out_) strref* name,
+                          _When_(return == true, _Out_) stvar** val)
 {
     _ssdManualLockRead(self->node, self->lstate);
     // see comments in SSDArrayIter_ptr about the transient lock
     devAssert(!self->transient_lock_state.init);
 
-    if (self->idx < 0 || self->idx >= saSize(((SSDArrayNode *)self->node)->storage))
+    if (self->idx < 0 || self->idx >= saSize(((SSDArrayNode*)self->node)->storage))
         return false;
 
     *idx = self->idx;
     strFromInt32(&self->lastName, self->idx, 0);
     *name = self->lastName;
-    *val = ptrInternal((SSDArrayNode *)self->node, self->idx);
+    *val  = ptrInternal((SSDArrayNode*)self->node, self->idx);
     return true;
 }
 

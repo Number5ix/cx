@@ -3,7 +3,7 @@
 static bool _strSubStr(_Inout_ strhandle o, _Inout_ strhandle ps, int32 b, int32 e, bool consume)
 {
     uint32 off, len, slen;
-    string s = STR_SAFE_DEREF(ps);
+    string s   = STR_SAFE_DEREF(ps);
     string ret = 0;
 
     if (!o || !s) {
@@ -21,7 +21,7 @@ static bool _strSubStr(_Inout_ strhandle o, _Inout_ strhandle ps, int32 b, int32
     // similarly, negative e indexes from the end of the string as well
     if (e < 0)
         len = (slen + e > off) ? (slen + e) - off : 0;
-    else if (e == strEnd)    // e == strEnd means the end of the string
+    else if (e == strEnd)   // e == strEnd means the end of the string
         len = slen - off;
     else
         len = ((uint32)e > off) ? min((uint32)e, slen) - off : 0;
@@ -38,11 +38,11 @@ static bool _strSubStr(_Inout_ strhandle o, _Inout_ strhandle ps, int32 b, int32
             // TODO: Make sure we didn't slice in the middle of a UTF-8 sequence?
             return true;
         } else if (*o != *ps) {
-            ret = *o;                   // steal reference
-            *o = NULL;
-            _strReset(&ret, len);       // try to reuse buffer space
+            ret = *o;               // steal reference
+            *o  = NULL;
+            _strReset(&ret, len);   // try to reuse buffer space
         } else {
-            strReset(&ret, len);        // *o == *ps, destination needs to be separate
+            strReset(&ret, len);    // *o == *ps, destination needs to be separate
         }
 
         *_strHdrP(ret) &= ~STR_ENCODING_MASK;
@@ -112,7 +112,7 @@ void strSetChar(strhandle s, int32 i, uint8 ch)
     if (i < 0)
         off = max(0, _strFastLen(*s) + i);
     else if (i == strEnd)
-        off = _strFastLen(*s);      // shortcut for appending a character
+        off = _strFastLen(*s);   // shortcut for appending a character
     else
         off = i;
 

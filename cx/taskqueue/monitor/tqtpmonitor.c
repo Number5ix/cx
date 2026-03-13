@@ -14,33 +14,33 @@
 #include <cx/log.h>
 
 // string constants
-STR_CONST(kTQLogFmtManager,   "    ${int}: Manager");
-STR_CONST(kTQLogFmtIdle,      "    ${int}: Idle");
-STR_CONST(kTQStateUnknown,    "Unknown");
-STR_CONST(kTQStateCreated,    "Created");
-STR_CONST(kTQStateRunning,    "Running");
-STR_CONST(kTQStateWaiting,    "Waiting");
-STR_CONST(kTQStateDeferred,   "Deferred");
-STR_CONST(kTQStateSucceeded,  "Succeeded");
-STR_CONST(kTQStateFailed,     "Failed");
-STR_CONST(kTQStateSchedNext,  "Scheduled:NextTask");
-STR_CONST(kTQStateSchedNow,   "Scheduled:Immediately");
+STR_CONST(kTQLogFmtManager, "    ${int}: Manager");
+STR_CONST(kTQLogFmtIdle, "    ${int}: Idle");
+STR_CONST(kTQStateUnknown, "Unknown");
+STR_CONST(kTQStateCreated, "Created");
+STR_CONST(kTQStateRunning, "Running");
+STR_CONST(kTQStateWaiting, "Waiting");
+STR_CONST(kTQStateDeferred, "Deferred");
+STR_CONST(kTQStateSucceeded, "Succeeded");
+STR_CONST(kTQStateFailed, "Failed");
+STR_CONST(kTQStateSchedNext, "Scheduled:NextTask");
+STR_CONST(kTQStateSchedNow, "Scheduled:Immediately");
 STR_CONST(kTQStateSchedNever, "Scheduled:Never");
-STR_CONST(kTQFmtSchedMs,      "Scheduled:${int}ms");
-STR_CONST(kTQStateScheduled,  "Scheduled");
-STR_CONST(kTQFmtPrefix,       "${int}: ");
-STR_CONST(kTQFmtSuffix,       " [${int}ms]");
-STR_CONST(kTQFmtTask,         "    ${string}${string}-${0uint(4,hex)} (${string})${string}");
-STR_CONST(kTQBasicTask,       "BasicTask");
-STR_CONST(kTQLblWorkers,      "  Worker Threads:");
-STR_CONST(kTQLblRunQueue,     "  Run Queue:");
-STR_CONST(kTQLblDoneQueue,    "  Done Queue:");
-STR_CONST(kTQLblScheduled,    "  Scheduled:");
-STR_CONST(kTQLblDeferred,     "  Deferred:");
-STR_CONST(kTQFmtMonitorHdr,   "Task Queue Monitor (${string}):");
-STR_CONST(kTQFmtRunning,      "  ${string}-${0uint(4,hex)} running for ${int} ms");
-STR_CONST(kTQFmtWaiting,      "  ${string}-${0uint(4,hex)} waiting for ${int} ms");
-STR_CONST(kTQFmtStalled,      "  ${string}-${0uint(4,hex)} stalled for ${int} ms");
+STR_CONST(kTQFmtSchedMs, "Scheduled:${int}ms");
+STR_CONST(kTQStateScheduled, "Scheduled");
+STR_CONST(kTQFmtPrefix, "${int}: ");
+STR_CONST(kTQFmtSuffix, " [${int}ms]");
+STR_CONST(kTQFmtTask, "    ${string}${string}-${0uint(4,hex)} (${string})${string}");
+STR_CONST(kTQBasicTask, "BasicTask");
+STR_CONST(kTQLblWorkers, "  Worker Threads:");
+STR_CONST(kTQLblRunQueue, "  Run Queue:");
+STR_CONST(kTQLblDoneQueue, "  Done Queue:");
+STR_CONST(kTQLblScheduled, "  Scheduled:");
+STR_CONST(kTQLblDeferred, "  Deferred:");
+STR_CONST(kTQFmtMonitorHdr, "Task Queue Monitor (${string}):");
+STR_CONST(kTQFmtRunning, "  ${string}-${0uint(4,hex)} running for ${int} ms");
+STR_CONST(kTQFmtWaiting, "  ${string}-${0uint(4,hex)} waiting for ${int} ms");
+STR_CONST(kTQFmtStalled, "  ${string}-${0uint(4,hex)} stalled for ${int} ms");
 
 _objfactory_guaranteed TQThreadPoolMonitor*
 TQThreadPoolMonitor_create(_In_ TaskQueueMonitorConfig* config)

@@ -3,8 +3,8 @@
 #include "cx/utils/lazyinit.h"
 
 typedef struct CallbackHandle {
-    void *func;
-    char *type;
+    void* func;
+    char* type;
 } CallbackHandle;
 saDeclare(CallbackHandle);
 
@@ -12,17 +12,17 @@ static LazyInitState cbinit;
 static sa_CallbackHandle handles;
 static hashtable handleidx;
 
-static void callbackInit(void *data)
+static void callbackInit(void* data)
 {
     CallbackHandle nhandle = { 0 };
 
     saInit(&handles, opaque(CallbackHandle), 0);
-    saPush(&handles, opaque, nhandle);          // so that 0 is not a valid handle
+    saPush(&handles, opaque, nhandle);   // so that 0 is not a valid handle
     htInit(&handleidx, ptr, int32, 16);
 }
 
 _Use_decl_annotations_
-int _callbackGetHandle(const char *cbtype, GenericCallback func)
+int _callbackGetHandle(const char* cbtype, GenericCallback func)
 {
     lazyInit(&cbinit, callbackInit, 0);
 
@@ -34,15 +34,15 @@ int _callbackGetHandle(const char *cbtype, GenericCallback func)
         return idx;
 
     CallbackHandle nhandle = { 0 };
-    nhandle.func = func;
-    nhandle.type = cstrDup(cbtype);
+    nhandle.func           = func;
+    nhandle.type           = cstrDup(cbtype);
     saPush(&handles, opaque, nhandle);
     htInsert(&handleidx, ptr, func, int32, saSize(handles) - 1);
     return saSize(handles) - 1;
 }
 
 _Use_decl_annotations_
-GenericCallback _callbackGetFunc(const char *cbtype, int handle)
+GenericCallback _callbackGetFunc(const char* cbtype, int handle)
 {
     lazyInit(&cbinit, callbackInit, 0);
 

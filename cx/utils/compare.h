@@ -10,7 +10,7 @@
 ///
 /// Available macros:
 /// - `clamplow(val, low)` - Clamps value to minimum bound
-/// - `clamphigh(val, high)` - Clamps value to maximum bound  
+/// - `clamphigh(val, high)` - Clamps value to maximum bound
 /// - `clamp(val, low, high)` - Clamps value to range [low, high]
 /// - `min(a, b)` - Returns minimum of two values
 /// - `max(a, b)` - Returns maximum of two values
@@ -20,13 +20,13 @@
 
 #pragma once
 
-#define clamplow(val, low) ((val)>(low)?(val):(low))
-#define clamphigh(val, high) ((val)<(high)?(val):(high))
-#define clamp(val, low, high) ((val)>(low)?((val)<(high)?(val):(high)):(low))
+#define clamplow(val, low)    ((val) > (low) ? (val) : (low))
+#define clamphigh(val, high)  ((val) < (high) ? (val) : (high))
+#define clamp(val, low, high) ((val) > (low) ? ((val) < (high) ? (val) : (high)) : (low))
 
 #ifndef min
-#define min(a,b) ((a)<(b)?(a):(b))
-#define max(a,b) ((a)>(b)?(a):(b))
+#define min(a, b) ((a) < (b) ? (a) : (b))
+#define max(a, b) ((a) > (b) ? (a) : (b))
 #endif
 
 /// @}

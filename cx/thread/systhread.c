@@ -1,9 +1,9 @@
-#include "thread.h"
+#include <cx/container/foreach.h>
+#include <cx/container/sarray.h>
+#include <cx/utils/lazyinit.h>
 #include "event.h"
 #include "mutex.h"
-#include <cx/utils/lazyinit.h>
-#include <cx/container/sarray.h>
-#include <cx/container/foreach.h>
+#include "thread.h"
 
 static Mutex systhreadLock;
 static sa_Thread systhreads;
@@ -25,7 +25,7 @@ static void systhreadAtExit(void)
     mutexDestroy(&systhreadLock);
 }
 
-static void systhreadInit(void *unused)
+static void systhreadInit(void* unused)
 {
     mutexInit(&systhreadLock);
     saInit(&systhreads, object, 8);
@@ -33,14 +33,14 @@ static void systhreadInit(void *unused)
 }
 
 _Use_decl_annotations_
-void thrRegisterSysThread(Thread *thread)
+void thrRegisterSysThread(Thread* thread)
 {
     lazyInit(&systhreadInitState, systhreadInit, NULL);
 
     if (!thread)
         return;
 
-    withMutex(&systhreadLock) {
+    withMutex (&systhreadLock) {
         saPush(&systhreads, object, thread);
     }
 }

@@ -48,15 +48,15 @@ extern _Thread_local int cxerr;
 /// Error codes used throughout the CX framework. Functions set `cxerr`
 /// to one of these values to indicate specific error conditions.
 enum CX_ERROR {
-    CX_Success = 0,             ///< Operation completed successfully (no error)
-    CX_Unspecified,             ///< Unknown or unspecified error occurred
-    CX_InvalidArgument,         ///< Function argument is invalid or malformed
-    CX_AccessDenied,            ///< Permission denied or access not allowed
-    CX_FileNotFound,            ///< Requested file or resource does not exist
-    CX_AlreadyExists,           ///< File or resource already exists; refusing to overwrite
-    CX_IsDirectory,             ///< Attempted to treat a directory as a file
-    CX_ReadOnly,                ///< Attempted to write to read-only path or resource
-    CX_Range,                   ///< Value is out of valid range
+    CX_Success = 0,       ///< Operation completed successfully (no error)
+    CX_Unspecified,       ///< Unknown or unspecified error occurred
+    CX_InvalidArgument,   ///< Function argument is invalid or malformed
+    CX_AccessDenied,      ///< Permission denied or access not allowed
+    CX_FileNotFound,      ///< Requested file or resource does not exist
+    CX_AlreadyExists,     ///< File or resource already exists; refusing to overwrite
+    CX_IsDirectory,       ///< Attempted to treat a directory as a file
+    CX_ReadOnly,          ///< Attempted to write to read-only path or resource
+    CX_Range,             ///< Value is out of valid range
 };
 
 /// Get human-readable error message for an error code
@@ -70,8 +70,7 @@ enum CX_ERROR {
 ///       printf("Error: %s\n", cxErrMsg(cxerr));
 ///   }
 /// @endcode
-_Ret_z_
-const char *cxErrMsg(int err);
+_Ret_z_ const char* cxErrMsg(int err);
 
 /// @}  // end of debug_error group
 

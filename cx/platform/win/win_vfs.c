@@ -4,11 +4,11 @@
 
 STR_CONST(kRootPath, "/");
 
-bool _vfsAddPlatformSpecificMounts(VFS *vfs)
+bool _vfsAddPlatformSpecificMounts(VFS* vfs)
 {
     DWORD ldrives = GetLogicalDrives();
-    bool ret = true;
-    string drive = 0;
+    bool ret      = true;
+    string drive  = 0;
     char drivestr[4];
 
     drivestr[1] = ':';

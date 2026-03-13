@@ -1,8 +1,8 @@
 #include "string_private.h"
-#include "strtest.h"
+#include "cx/debug/assert.h"
 #include "cx/platform/base.h"
 #include "cx/utils/scratch.h"
-#include "cx/debug/assert.h"
+#include "strtest.h"
 
 // lookup table for structure positions, lives in a single cache line
 // Len, Refcount, String, 0
@@ -10,30 +10,53 @@
 
 alignMem(32) const uint8 _str_off[32] = {
     // STR_LEN0, no refcount
-    255, 255, 2, 0,
+    255,
+    255,
+    2,
+    0,
     // STR_LEN8, no refcount
-    2, 255, 3, 0,
+    2,
+    255,
+    3,
+    0,
     // STR_LEN16, no refcount
-    2, 255, 4, 0,
+    2,
+    255,
+    4,
+    0,
     // STR_LEN32, no refcount
-    4, 255, 8, 0,
+    4,
+    255,
+    8,
+    0,
     // STR_LEN0, refcount
-    255, 2, 3, 0,
+    255,
+    2,
+    3,
+    0,
     // STR_LEN8, refcount
-    3, 2, 4, 0,
+    3,
+    2,
+    4,
+    0,
     // STR_LEN16, refcount
-    4, 2, 6, 0,
+    4,
+    2,
+    6,
+    0,
     // STR_LEN32, refcount
-    4, 2, 8, 0,
+    4,
+    2,
+    8,
+    0,
 };
 
 string_v _strEmpty = _S;
 
-_Post_equal_to_(STR_ALLOC_SIZE)
-static _Pure inline uint32 _strAllocSz(uint8 hdr, uint32 strsz)
+_Post_equal_to_(STR_ALLOC_SIZE) static _Pure inline uint32 _strAllocSz(uint8 hdr, uint32 strsz)
 {
     uint32 sz = _strOffStr(hdr) + strsz + 1;
-    sz = (sz + (STR_ALLOC_SIZE - 1)) / STR_ALLOC_SIZE;
+    sz        = (sz + (STR_ALLOC_SIZE - 1)) / STR_ALLOC_SIZE;
     return (uint32)xaOptSize((size_t)max(sz, 1) * STR_ALLOC_SIZE);
 }
 
@@ -68,11 +91,12 @@ void _strInitRef(string_v s)
 {
     int l = _strHdr(s) & STR_LEN_MASK;
 
-    // don't waste time with atomic stores on init since nothing else can possibly be accessing it yet
+    // don't waste time with atomic stores on init since nothing else can possibly be accessing it
+    // yet
 
     if (l <= STR_LEN8)
         STR_FIELD(s, _strOffRef(_strHdr(s)), uint8) = 1;
-    else // STR_LEN16 and STR_LEN32 both have 16-bit ref count
+    else   // STR_LEN16 and STR_LEN32 both have 16-bit ref count
         STR_FIELD(s, _strOffRef(_strHdr(s)), uint16) = 1;
 
     // and if you called this function on something without STR_ALLOC set, woe be upon you...
@@ -84,9 +108,15 @@ void _strSetRef(string_v s, uint16 ref)
     int l = _strHdr(s) & STR_LEN_MASK;
 
     if (l <= STR_LEN8)
-        atomicStore(uint8, &STR_FIELD(s, _strOffRef(_strHdr(s)), atomic(uint8)), (uint8)ref, Release);
-    else // STR_LEN16 and STR_LEN32 both have 16-bit ref count
-        atomicStore(uint16, &STR_FIELD(s, _strOffRef(_strHdr(s)), atomic(uint16)), (uint16)ref, Release);
+        atomicStore(uint8,
+                    &STR_FIELD(s, _strOffRef(_strHdr(s)), atomic(uint8)),
+                    (uint8)ref,
+                    Release);
+    else   // STR_LEN16 and STR_LEN32 both have 16-bit ref count
+        atomicStore(uint16,
+                    &STR_FIELD(s, _strOffRef(_strHdr(s)), atomic(uint16)),
+                    (uint16)ref,
+                    Release);
 
     // and if you called this function on something without STR_ALLOC set, woe be upon you...
 }
@@ -97,7 +127,7 @@ static void _strIncRef(_Inout_ string_v s)
 
     if (l <= STR_LEN8)
         atomicFetchAdd(uint8, &STR_FIELD(s, _strOffRef(_strHdr(s)), atomic(uint8)), 1, Relaxed);
-    else // STR_LEN16 and STR_LEN32 both have 16-bit ref count
+    else   // STR_LEN16 and STR_LEN32 both have 16-bit ref count
         atomicFetchAdd(uint16, &STR_FIELD(s, _strOffRef(_strHdr(s)), atomic(uint16)), 1, Relaxed);
 }
 
@@ -106,9 +136,15 @@ static uint16 _strDecRef(_Inout_ string_v s)
     int l = _strHdr(s) & STR_LEN_MASK;
 
     if (l <= STR_LEN8)
-        return atomicFetchSub(uint8, &STR_FIELD(s, _strOffRef(_strHdr(s)), atomic(uint8)), 1, Release);
-    else // STR_LEN16 and STR_LEN32 both have 16-bit ref count
-        return atomicFetchSub(uint16, &STR_FIELD(s, _strOffRef(_strHdr(s)), atomic(uint16)), 1, Release);
+        return atomicFetchSub(uint8,
+                              &STR_FIELD(s, _strOffRef(_strHdr(s)), atomic(uint8)),
+                              1,
+                              Release);
+    else   // STR_LEN16 and STR_LEN32 both have 16-bit ref count
+        return atomicFetchSub(uint16,
+                              &STR_FIELD(s, _strOffRef(_strHdr(s)), atomic(uint16)),
+                              1,
+                              Release);
 }
 
 _Use_decl_annotations_
@@ -120,7 +156,7 @@ string_v _strCopy(strref_v s, uint32 minsz)
     strReset(&ret, max(len, minsz));
     _strSetLen(ret, len);
     _strFastCopy(s, 0, _strBuffer(ret), len);
-    _strBuffer(ret)[len] = 0;           // terminating NULL
+    _strBuffer(ret)[len] = 0;   // terminating NULL
     // copy encoding bits to new string
     *_strHdrP(ret) &= ~STR_ENCODING_MASK;
     *_strHdrP(ret) |= _strHdr(s) & STR_ENCODING_MASK;
@@ -128,7 +164,7 @@ string_v _strCopy(strref_v s, uint32 minsz)
 }
 
 _Use_decl_annotations_
-uint32 _strFastCopy(strref_v s, uint32 off, uint8 *_Nonnull buf, uint32 bytes)
+uint32 _strFastCopy(strref_v s, uint32 off, uint8* _Nonnull buf, uint32 bytes)
 {
     if (!(_strHdr(s) & STR_ROPE)) {
         // easy, just copy the buffer
@@ -148,8 +184,8 @@ void _strResize(strhandle_v ps, uint32 newsz, bool unique)
 
     // see if we are the only owner and can just realloc in place
     if (_strHdr(*ps) & STR_ALLOC && !isstack) {
-        uint32 bufsz = (uint32)xaSize(*ps) - (uint32)((uint8 *)_strBuffer(*ps) - (uint8 *)(*ps));
-        if (bufsz >= newsz + 1) {       // check for room for string + terminator
+        uint32 bufsz = (uint32)xaSize(*ps) - (uint32)((uint8*)_strBuffer(*ps) - (uint8*)(*ps));
+        if (bufsz >= newsz + 1) {   // check for room for string + terminator
             // room already, good to go
             if (unique)
                 _strMakeUnique(ps, newsz);
@@ -164,7 +200,7 @@ void _strResize(strhandle_v ps, uint32 newsz, bool unique)
         } else {
             // can't reallocate, just copy it and deref the original
             string s = *ps;
-            *ps = _strCopy(*ps, newsz);
+            *ps      = _strCopy(*ps, newsz);
             strDestroy(&s);
             return;
         }
@@ -187,7 +223,7 @@ void _strResize(strhandle_v ps, uint32 newsz, bool unique)
 _Use_decl_annotations_
 void _strMakeUnique(strhandle_v ps, uint32 minszforcopy)
 {
-    string_v s = *ps;         // borrow ref
+    string_v s = *ps;   // borrow ref
 
     // stack allocated strings are always unique
     if (_strHdr(s) & STR_STACK)
@@ -218,7 +254,7 @@ void _strMakeUnique(strhandle_v ps, uint32 minszforcopy)
 _Use_decl_annotations_
 void _strFlatten(strhandle_v ps, uint32 minszforcopy)
 {
-    string s = *ps;     // borrow ref
+    string s = *ps;   // borrow ref
 
     // stack allocated strings are always flat
     if (_strHdr(s) & STR_STACK)
@@ -255,8 +291,8 @@ void strReset(strhandle o, uint32 sizehint)
 
     string ret = xaAlloc(_strAllocSz(newhdr, sizehint));
 
-    *(uint8*)ret = newhdr;
-    ((uint8*)ret)[1] = 0xc1;        // magic string header
+    *(uint8*)ret       = newhdr;
+    ((uint8*)ret)[1]   = 0xc1;   // magic string header
     _strBuffer(ret)[0] = 0;
 
     _strSetLen(ret, 0);
@@ -267,7 +303,7 @@ void strReset(strhandle o, uint32 sizehint)
 
 static void strDupIntoStack(_Inout_ strhandle_v o, _In_ strref s)
 {
-    uint32 bufsz = _strFastRefNoSync(*o);
+    uint32 bufsz  = _strFastRefNoSync(*o);
     uint32 srclen = _strFastLen(s);
 
     // see if there's enough room in the buffer
@@ -321,7 +357,7 @@ void strDup(_Inout_ strhandle o, _In_opt_ strref s)
     // There is a bit of buffer room above maxref, so we can bypass thread
     // synchronization for checking the count here
     uint16 maxref = (l == STR_LEN0 || l == STR_LEN8) ? 240 : 65000;
-    uint16 ref = _strFastRefNoSync(s);
+    uint16 ref    = _strFastRefNoSync(s);
 
     // source is a refcounted string, see if we can just bump the count
     if (ref < maxref) {
@@ -359,8 +395,7 @@ void strCopy(_Inout_ strhandle o, _In_opt_ strref s)
 _Use_decl_annotations_
 void _strReset(strhandle s, uint32 minsz)
 {
-    if (!STR_CHECK_VALID(*s) || !(_strHdr(*s) & STR_ALLOC) ||
-        !!(_strHdr(*s) & STR_ROPE) ||
+    if (!STR_CHECK_VALID(*s) || !(_strHdr(*s) & STR_ALLOC) || !!(_strHdr(*s) & STR_ROPE) ||
         (!(_strHdr(*s) & STR_STACK) && _strFastRef(*s) != 1)) {
         // can't do anything with these, just re-init them
         strReset(s, minsz);
@@ -368,7 +403,7 @@ void _strReset(strhandle s, uint32 minsz)
     }
 
     if (!(_strHdr(*s) & STR_STACK)) {
-        uint32 bufsz = (uint32)xaSize(*s) - (uint32)((uint8 *)_strBuffer(*s) - (uint8 *)(*s));
+        uint32 bufsz = (uint32)xaSize(*s) - (uint32)((uint8*)_strBuffer(*s) - (uint8*)(*s));
         if (bufsz < minsz + 1) {
             // just destroy and create new rather than copy useless data
             strReset(s, minsz);
@@ -401,7 +436,8 @@ void strClear(strhandle s)
 _Use_decl_annotations_
 _Pure uint32 strLen(strref s)
 {
-    if (!STR_CHECK_VALID(s)) return 0;
+    if (!STR_CHECK_VALID(s))
+        return 0;
 
     return _strFastLen(s);
 }
@@ -409,7 +445,8 @@ _Pure uint32 strLen(strref s)
 _Use_decl_annotations_
 _Pure bool strEmpty(strref s)
 {
-    if (!STR_CHECK_VALID(s)) return true;
+    if (!STR_CHECK_VALID(s))
+        return true;
 
     // avoid calling cstrLen by checking first byte of strings
     // that don't have the length embedded
@@ -425,7 +462,8 @@ _Use_decl_annotations_
 void strDestroy(strhandle ps)
 {
     string s = STR_SAFE_DEREF(ps);
-    if (!s) return;
+    if (!s)
+        return;
 
     if (!(_strHdr(s) & STR_ALLOC) || (_strHdr(s) & STR_STACK)) {
         // don't deallocate strings we didn't alloc, but still clear the handle
@@ -451,16 +489,17 @@ void strDestroy(strhandle ps)
 }
 
 _Use_decl_annotations_
-const char *_Nonnull strC(strref s)
+const char* _Nonnull strC(strref s)
 {
-    if (!STR_CHECK_VALID(s)) return "";
+    if (!STR_CHECK_VALID(s))
+        return "";
 
     if (!(_strHdr(s) & STR_ROPE)) {
         // simple string, can just return the buffer
         return (char*)_strBuffer(s);
     } else {
         uint32 len = _strFastLen(s);
-        char *buf = scratchGet((size_t)len + 1);
+        char* buf  = scratchGet((size_t)len + 1);
         _strRopeFastCopy(s, 0, (uint8*)buf, len);
         buf[len] = 0;
         return buf;
@@ -484,7 +523,7 @@ const char* strPC(strhandle ps)
 }
 
 _Use_decl_annotations_
-uint8 *strBuffer(strhandle ps, uint32 minsz)
+uint8* strBuffer(strhandle ps, uint32 minsz)
 {
     if (!STR_CHECK_VALID(*ps))
         strReset(ps, minsz);
@@ -506,27 +545,27 @@ uint8 *strBuffer(strhandle ps, uint32 minsz)
 }
 
 _Use_decl_annotations_
-uint32 strCopyOut(strref s, uint32 off, uint8 *_Nonnull buf, uint32 bufsz)
+uint32 strCopyOut(strref s, uint32 off, uint8* _Nonnull buf, uint32 bufsz)
 {
     if (!STR_CHECK_VALID(s) || bufsz == 0)
         return 0;
 
     uint32 len = _strFastLen(s);
-    off = min(off, len);
-    len = min(len - off, bufsz - 1);
-    buf[len] = 0;
+    off        = min(off, len);
+    len        = min(len - off, bufsz - 1);
+    buf[len]   = 0;
     return _strFastCopy(s, off, buf, len);
 }
 
 _Use_decl_annotations_
-uint32 strCopyRaw(strref s, uint32 off, uint8 *_Nonnull buf, uint32 maxlen)
+uint32 strCopyRaw(strref s, uint32 off, uint8* _Nonnull buf, uint32 maxlen)
 {
     if (!STR_CHECK_VALID(s) || !buf || !maxlen)
         return 0;
 
     uint32 len = _strFastLen(s);
-    off = min(off, len);
-    len = min(len - off, maxlen);
+    off        = min(off, len);
+    len        = min(len - off, maxlen);
     return _strFastCopy(s, off, buf, len);
 }
 
@@ -564,9 +603,9 @@ _Pure uint32 _strStackAllocSize(uint32 maxlen)
     if (maxlen == 0)
         return 0;
     if (maxlen < 254)
-        return maxlen + 5;      // 2 bytes header, 1 byte ref, 1 bytes len, 1 byte null terminator
+        return maxlen + 5;   // 2 bytes header, 1 byte ref, 1 bytes len, 1 byte null terminator
     if (maxlen < 65529)
-        return maxlen + 7;      // 2 bytes header, 2 byte ref, 2 bytes len, 1 byte null terminator
+        return maxlen + 7;   // 2 bytes header, 2 byte ref, 2 bytes len, 1 byte null terminator
     devFatalError("Tried to stack allocate too long of a string");
     return 0;
 }
@@ -589,8 +628,8 @@ void _strInitStack(strhandle ps, uint32 maxlen)
 
     uint8 newhdr = STR_CX | STR_ALLOC | STR_STACK | STR_UTF8 | STR_ASCII | lencl;
 
-    *(uint8*)s = newhdr;
-    ((uint8*)s)[1] = 0xc1;      // magic string header
+    *(uint8*)s     = newhdr;
+    ((uint8*)s)[1] = 0xc1;   // magic string header
 
     // stack-allocated only ever have a single reference but set STR_ALLOC, so we
     // can stash the size of the buffer in the reference count field.

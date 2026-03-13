@@ -2,35 +2,36 @@
 #undef __STRICT_ANSI__
 #endif
 
-#include "cx/time/time.h"
 #include "cx/fs/fs_private.h"
-#include "cx/string.h"
-#include "cx/utils/lazyinit.h"
 #include "cx/container/sarray.h"
-#include "cx/thread/rwlock.h"
 #include "cx/platform/unix.h"
+#include "cx/string.h"
+#include "cx/thread/rwlock.h"
+#include "cx/time/time.h"
+#include "cx/utils/lazyinit.h"
 
-#include <errno.h>
-#include <unistd.h>
 #include <dirent.h>
+#include <errno.h>
 #include <limits.h>
+#include <unistd.h>
 
 #ifdef _PLATFORM_FBSD
-#include <sys/types.h>
 #include <sys/sysctl.h>
+#include <sys/types.h>
 #endif
 
-#include <fcntl.h>
 #include <sys/stat.h>
+#include <fcntl.h>
 
 STR_CONST(kRootPath, "/");
 
 static LazyInitState fsCurDirInit;
 RWLock _fsCurDirLock;
-string _fsCurDir = 0;
-strref fsPlatformPathSepStr = (strref)"\xE1\xC1\x01""/";
+string _fsCurDir            = 0;
+strref fsPlatformPathSepStr = (strref) "\xE1\xC1\x01"
+                                       "/";
 
-static void initCurDir(void *data)
+static void initCurDir(void* data)
 {
     char *buf = 0, *pcur = 0;
     size_t bufsz = PATH_MAX / 2;
@@ -58,13 +59,13 @@ static void initCurDir(void *data)
     xaFree(buf);
 }
 
-void pathFromPlatform(string *out, strref platformpath)
+void pathFromPlatform(string* out, strref platformpath)
 {
     // not really much to do here...
     strDup(out, platformpath);
 }
 
-void pathToPlatform(string *out, strref path)
+void pathToPlatform(string* out, strref path)
 {
     string ns = 0, rpath = 0;
     pathSplitNS(&ns, &rpath, path);
@@ -75,7 +76,7 @@ void pathToPlatform(string *out, strref path)
     *out = rpath;
 }
 
-bool pathMakeAbsolute(string *out, strref path)
+bool pathMakeAbsolute(string* out, strref path)
 {
     if (pathIsAbsolute(path)) {
         strDup(out, path);
@@ -92,7 +93,7 @@ bool pathMakeAbsolute(string *out, strref path)
     return true;
 }
 
-void fsCurDir(string *out)
+void fsCurDir(string* out)
 {
     lazyInit(&fsCurDirInit, initCurDir, NULL);
     rwlockAcquireRead(&_fsCurDirLock);
@@ -120,7 +121,7 @@ bool fsSetCurDir(strref cur)
     if (chdir(strC(ppath)) != 0) {
         unixMapErrno();
         strDestroy(&ncur);
-	strDestroy(&ppath);
+        strDestroy(&ppath);
         rwlockReleaseWrite(&_fsCurDirLock);
         return false;
     }
@@ -132,25 +133,25 @@ bool fsSetCurDir(strref cur)
     return true;
 }
 
-static void fsExeInit(void *data)
+static void fsExeInit(void* data)
 {
-    string *exepath = (string*)data;
+    string* exepath = (string*)data;
 
 #if defined(_PLATFORM_FBSD)
     int mib[4];
-    mib[0] = CTL_KERN;
-    mib[1] = KERN_PROC;
-    mib[2] = KERN_PROC_PATHNAME;
-    mib[3] = -1;
+    mib[0]    = CTL_KERN;
+    mib[1]    = KERN_PROC;
+    mib[2]    = KERN_PROC_PATHNAME;
+    mib[3]    = -1;
     size_t sz = 0;
     sysctl(mib, 4, NULL, &sz, NULL, 0);
-    char *buf = xaAlloc(sz);
+    char* buf = xaAlloc(sz);
     sysctl(mib, 4, buf, &sz, NULL, 0);
     pathFromPlatform(exepath, (string)buf);
     xaFree(buf);
 #elif defined(_PLATFORM_LINUX)
     size_t sz = 1024 / 2;
-    char *buf = 0;
+    char* buf = 0;
     ssize_t lsz;
     // loop until we're sure the buffer was big enough
     do {
@@ -173,7 +174,7 @@ static void fsExeInit(void *data)
     pathNormalize(exepath);
 }
 
-void fsExe(string *out)
+void fsExe(string* out)
 {
     static LazyInitState execache;
     static string exepath;
@@ -182,13 +183,13 @@ void fsExe(string *out)
     strDup(out, exepath);
 }
 
-void fsExeDir(string *out)
+void fsExeDir(string* out)
 {
     fsExe(out);
     pathParent(out, *out);
 }
 
-FSPathStat fsStat(strref path, FSStat *fsstat)
+FSPathStat fsStat(strref path, FSStat* fsstat)
 {
     if (strEmpty(path))
         return FS_Nonexistent;
@@ -199,13 +200,13 @@ FSPathStat fsStat(strref path, FSStat *fsstat)
     if (stat(strC(ppath), &sb) != 0) {
         if (fsstat)
             memset(fsstat, 0, sizeof(FSStat));
-	strDestroy(&ppath);
+        strDestroy(&ppath);
         return FS_Nonexistent;
     }
     strDestroy(&ppath);
 
     if (fsstat) {
-        fsstat->size = sb.st_size;
+        fsstat->size     = sb.st_size;
         fsstat->accessed = timeFromAbsTimespec(&sb.st_atim);
 
         // unix ctime is inode change time, which is sometimes newer than mtime if the
@@ -298,22 +299,22 @@ bool fsRename(strref from, strref to)
 }
 
 typedef struct FSSearch {
-    DIR *d;
+    DIR* d;
     string path;
     string pattern;
     bool stat;
 } FSSearch;
 
-bool fsSearchInit(FSSearchIter *iter, strref path, strref pattern, bool stat)
+bool fsSearchInit(FSSearchIter* iter, strref path, strref pattern, bool stat)
 {
     string ppath = 0;
     pathToPlatform(&ppath, path);
 
     memset(iter, 0, sizeof(FSSearchIter));
 
-    FSSearch *search = xaAlloc(sizeof(FSSearch), XA_Zero);
-    iter->_search = search;
-    search->d = opendir(strC(ppath));
+    FSSearch* search = xaAlloc(sizeof(FSSearch), XA_Zero);
+    iter->_search    = search;
+    search->d        = opendir(strC(ppath));
     strDestroy(&ppath);
 
     if (!search->d) {
@@ -329,23 +330,23 @@ bool fsSearchInit(FSSearchIter *iter, strref path, strref pattern, bool stat)
     return true;
 }
 
-bool fsSearchNext(FSSearchIter *iter)
+bool fsSearchNext(FSSearchIter* iter)
 {
-    FSSearch *search = (FSSearch*)iter->_search;
+    FSSearch* search = (FSSearch*)iter->_search;
     if (!search)
         return false;
 
-    struct dirent *de;
+    struct dirent* de;
 
-    for(;;) {
+    for (;;) {
         de = readdir(search->d);
         if (!de) {
-	    fsSearchFinish(iter);
+            fsSearchFinish(iter);
             return false;
-	}
+        }
 
         if (strcmp(de->d_name, ".") && strcmp(de->d_name, "..") &&
-	    (strEmpty(search->pattern) || pathMatch((string)de->d_name, search->pattern, 0))) {
+            (strEmpty(search->pattern) || pathMatch((string)de->d_name, search->pattern, 0))) {
             strCopy(&iter->name, (string)de->d_name);
             if (de->d_type == DT_DIR)
                 iter->type = FS_Directory;
@@ -364,9 +365,9 @@ bool fsSearchNext(FSSearchIter *iter)
     }
 }
 
-void fsSearchFinish(FSSearchIter *iter)
+void fsSearchFinish(FSSearchIter* iter)
 {
-    FSSearch *search = (FSSearch*)iter->_search;
+    FSSearch* search = (FSSearch*)iter->_search;
     if (!search)
         return;
 
@@ -379,23 +380,23 @@ void fsSearchFinish(FSSearchIter *iter)
 
 bool fsSetTimes(strref path, int64 modified, int64 accessed)
 {
-    string ppath = 0;
+    string ppath             = 0;
     struct timespec times[2] = { 0 };
-    bool ret = true;
+    bool ret                 = true;
 
     if (accessed >= 0)
-	timeToAbsTimespec(&times[0], accessed);
+        timeToAbsTimespec(&times[0], accessed);
     else
-	times[0].tv_nsec = UTIME_OMIT;
+        times[0].tv_nsec = UTIME_OMIT;
 
     if (modified >= 0)
-	timeToAbsTimespec(&times[1], modified);
+        timeToAbsTimespec(&times[1], modified);
     else
-	times[1].tv_nsec = UTIME_OMIT;
+        times[1].tv_nsec = UTIME_OMIT;
 
     pathToPlatform(&ppath, path);
     if (utimensat(AT_FDCWD, strC(ppath), times, 0) == -1)
-	ret = unixMapErrno();
+        ret = unixMapErrno();
     strDestroy(&ppath);
 
     return ret;

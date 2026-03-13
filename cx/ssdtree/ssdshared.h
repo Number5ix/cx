@@ -1,8 +1,8 @@
 #pragma once
 
-#include <cx/thread/rwlock.h>
-#include <cx/meta/block.h>
 #include <cx/container/sarray.h>
+#include <cx/meta/block.h>
+#include <cx/thread/rwlock.h>
 
 #if DEBUG_LEVEL > 1
 #define SSD_LOCK_DEBUG 1
@@ -10,58 +10,55 @@
 
 typedef struct SSDTree SSDTree;
 typedef struct SSDNode SSDNode;
-typedef SSDNode *(*SSDNodeFactory)(SSDTree *info);
+typedef SSDNode* (*SSDNodeFactory)(SSDTree* info);
 
 /// @addtogroup ssd_create
 /// @{
 
 /// Flags for configuring SSD tree behavior
 enum SSD_FLAGS_ENUM {
-    SSD_CaseInsensitive = 0x0001,       ///< Keys in hashtables are case-insensitive
+    SSD_CaseInsensitive = 0x0001,   ///< Keys in hashtables are case-insensitive
 };
 
 /// Node creation types for specifying which kind of node to create
 typedef enum SSD_CREATE_TYPE_ENUM {
-    SSD_Create_None = 0,        ///< Do not create a node
-    SSD_Create_Hashtable,       ///< Create a hashtable (key-value) node
-    SSD_Create_Array,           ///< Create an array (indexed) node
-    SSD_Create_Single,          ///< Create a single-value node
+    SSD_Create_None = 0,    ///< Do not create a node
+    SSD_Create_Hashtable,   ///< Create a hashtable (key-value) node
+    SSD_Create_Array,       ///< Create an array (indexed) node
+    SSD_Create_Single,      ///< Create a single-value node
 
-    SSD_Create_Count            ///< Total number of creation types (internal use)
+    SSD_Create_Count        ///< Total number of creation types (internal use)
 } SSDCreateType;
 
 /// @}
 
 typedef struct SSDLockDebug {
     int64 time;
-    const char *file;
+    const char* file;
     int32 line;
 } SSDLockDebug;
 saDeclare(SSDLockDebug);
 
-typedef struct SSDLockState
-{
+typedef struct SSDLockState {
     union {
         bool _is_SSDLockState;
-        bool init;                      // lock state structure initialized
+        bool init;   // lock state structure initialized
     };
-    bool rdlock;                        // read lock held by current thread
-    bool wrlock;                        // write lock held by current thread
+    bool rdlock;     // read lock held by current thread
+    bool wrlock;     // write lock held by current thread
 #ifdef SSD_LOCK_DEBUG
     SSDLockDebug dbg;
 #endif
 } SSDLockState;
 
-enum SSD_LOCK_STATE_ENUM {
-    _ssdCurrentLockState = 0
-};
+enum SSD_LOCK_STATE_ENUM { _ssdCurrentLockState = 0 };
 
 // Initializes a lock structure
 #ifdef SSD_LOCK_DEBUG
-SSDLockState *__ssdLockStateInit(_Out_ SSDLockState *lstate, _In_z_ const char *fn, int lnum);
+SSDLockState* __ssdLockStateInit(_Out_ SSDLockState* lstate, _In_z_ const char* fn, int lnum);
 #define _ssdLockStateInit(lstate) __ssdLockStateInit(lstate, __FILE__, __LINE__)
 #else
-SSDLockState *_ssdLockStateInit(_Out_ SSDLockState *lstate);
+SSDLockState* _ssdLockStateInit(_Out_ SSDLockState* lstate);
 #endif
 
 /// @defgroup ssd_lock Locking
@@ -95,13 +92,18 @@ SSDLockState *_ssdLockStateInit(_Out_ SSDLockState *lstate);
 ///   ssdLockEnd(root);
 /// @endcode
 #ifdef SSD_LOCK_DEBUG
-#define ssdLockRead(root) _ssdLockRead(SSDNode(root), (SSDLockState*)&_ssdCurrentLockState->_is_SSDLockState, __FILE__, __LINE__)
+#define ssdLockRead(root)                                                \
+    _ssdLockRead(SSDNode(root),                                          \
+                 (SSDLockState*)&_ssdCurrentLockState->_is_SSDLockState, \
+                 __FILE__,                                               \
+                 __LINE__)
 #define _ssdManualLockRead(root, lstate) _ssdLockRead(SSDNode(root), lstate, __FILE__, __LINE__)
-bool _ssdLockRead(_Inout_ SSDNode *root, _Inout_ SSDLockState *lstate, _In_z_ const char *fn, int lnum);
+bool _ssdLockRead(_Inout_ SSDNode* root, _Inout_ SSDLockState* lstate, _In_z_ const char* fn,
+                  int lnum);
 #else
-#define ssdLockRead(root) _ssdLockRead(SSDNode(root), _ssdCurrentLockState)
+#define ssdLockRead(root)                _ssdLockRead(SSDNode(root), _ssdCurrentLockState)
 #define _ssdManualLockRead(root, lstate) _ssdLockRead(SSDNode(root), lstate)
-bool _ssdLockRead(_Inout_ SSDNode *root, _Inout_ SSDLockState *lstate);
+bool _ssdLockRead(_Inout_ SSDNode* root, _Inout_ SSDLockState* lstate);
 #endif
 
 /// bool ssdLockWrite(SSDNode *root)
@@ -125,13 +127,18 @@ bool _ssdLockRead(_Inout_ SSDNode *root, _Inout_ SSDLockState *lstate);
 ///   ssdLockEnd(root);
 /// @endcode
 #ifdef SSD_LOCK_DEBUG
-#define ssdLockWrite(root) _ssdLockWrite(SSDNode(root), (SSDLockState*)&_ssdCurrentLockState->_is_SSDLockState, __FILE__, __LINE__)
+#define ssdLockWrite(root)                                                \
+    _ssdLockWrite(SSDNode(root),                                          \
+                  (SSDLockState*)&_ssdCurrentLockState->_is_SSDLockState, \
+                  __FILE__,                                               \
+                  __LINE__)
 #define _ssdManualLockWrite(root, lstate) _ssdLockWrite(SSDNode(root), lstate, __FILE__, __LINE__)
-bool _ssdLockWrite(_Inout_ SSDNode *root, _Inout_ SSDLockState *lstate, _In_z_ const char *fn, int lnum);
+bool _ssdLockWrite(_Inout_ SSDNode* root, _Inout_ SSDLockState* lstate, _In_z_ const char* fn,
+                   int lnum);
 #else
-#define ssdLockWrite(root) _ssdLockWrite(SSDNode(root), _ssdCurrentLockState)
+#define ssdLockWrite(root)                _ssdLockWrite(SSDNode(root), _ssdCurrentLockState)
 #define _ssdManualLockWrite(root, lstate) _ssdLockWrite(SSDNode(root), lstate)
-bool _ssdLockWrite(_Inout_ SSDNode *root, _Inout_ SSDLockState *lstate);
+bool _ssdLockWrite(_Inout_ SSDNode* root, _Inout_ SSDLockState* lstate);
 #endif
 
 /// bool ssdUnlock(SSDNode *root)
@@ -144,8 +151,9 @@ bool _ssdLockWrite(_Inout_ SSDNode *root, _Inout_ SSDLockState *lstate);
 ///
 /// @param root The root node of the tree to unlock
 /// @return true on success
-#define ssdUnlock(root) _ssdUnlock(SSDNode(root), (SSDLockState*)&_ssdCurrentLockState->_is_SSDLockState)
-bool _ssdUnlock(_Inout_ SSDNode *root, _Inout_ SSDLockState *lstate);
+#define ssdUnlock(root) \
+    _ssdUnlock(SSDNode(root), (SSDLockState*)&_ssdCurrentLockState->_is_SSDLockState)
+bool _ssdUnlock(_Inout_ SSDNode* root, _Inout_ SSDLockState* lstate);
 
 /// bool ssdLockEnd(SSDNode *root)
 ///
@@ -156,8 +164,9 @@ bool _ssdUnlock(_Inout_ SSDNode *root, _Inout_ SSDLockState *lstate);
 ///
 /// @param root The root node of the tree to unlock
 /// @return true on success
-#define ssdLockEnd(root) _ssdLockEnd(SSDNode(root), (SSDLockState*)&_ssdCurrentLockState->_is_SSDLockState)
-bool _ssdLockEnd(_Inout_ SSDNode *root, _Inout_ SSDLockState *lstate);
+#define ssdLockEnd(root) \
+    _ssdLockEnd(SSDNode(root), (SSDLockState*)&_ssdCurrentLockState->_is_SSDLockState)
+bool _ssdLockEnd(_Inout_ SSDNode* root, _Inout_ SSDLockState* lstate);
 
 /// ssdLockedTransaction(root)
 ///
@@ -178,18 +187,18 @@ bool _ssdLockEnd(_Inout_ SSDNode *root, _Inout_ SSDLockState *lstate);
 ///       // Read lock acquired automatically
 ///       strref name = ssdStrRef(root, _SL("user/name"));
 ///       int32 age = ssdVal(int32, root, _SL("user/age"), 0);
-///       
+///
 ///       // Can upgrade to write lock if needed
 ///       ssdSet(root, _SL("user/lastAccess"), true, stvar(int64, clockTimer()));
 ///   }  // Lock released automatically
 /// @endcode
-#define ssdLockedTransaction(root) _blkStart                                                    \
-    _inhibitReturn                                                                              \
-    _blkFull(SSDLockState _ssdTransientLockState = { 0 }, (root),                               \
-        _ssdLockEnd(SSDNode(root), &_ssdTransientLockState))                                    \
-    _blkBefore(SSDLockState *_ssdCurrentLockStateShadow = (SSDLockState*)_ssdCurrentLockState)  \
-    _blkBefore(SSDLockState *_ssdCurrentLockState = _ssdCurrentLockStateShadow ?                \
-        _ssdCurrentLockStateShadow : _ssdLockStateInit(&_ssdTransientLockState))                \
-    _blkEnd
+#define ssdLockedTransaction(root)                                                                 \
+    _blkStart _inhibitReturn _blkFull(SSDLockState _ssdTransientLockState = { 0 },                 \
+                                      (root),                                                      \
+                                      _ssdLockEnd(SSDNode(root), &_ssdTransientLockState))         \
+        _blkBefore(SSDLockState* _ssdCurrentLockStateShadow = (SSDLockState*)_ssdCurrentLockState) \
+            _blkBefore(SSDLockState* _ssdCurrentLockState = _ssdCurrentLockStateShadow ?           \
+                           _ssdCurrentLockStateShadow :                                            \
+                           _ssdLockStateInit(&_ssdTransientLockState)) _blkEnd
 
 /// @}  // end of ssd_lock

@@ -10,12 +10,7 @@
 // clang-format on
 // ==================== Auto-generated section ends ======================
 
-enum GateStateEnum
-{
-    GATE_Closed = 0,
-    GATE_Open = 1,
-    GATE_Sealed = 2
-};
+enum GateStateEnum { GATE_Closed = 0, GATE_Open = 1, GATE_Sealed = 2 };
 
 _objfactory_guaranteed TRGate* TRGate_create(_In_opt_ strref name)
 {
@@ -39,7 +34,7 @@ static bool TRGate_transition(TRGate* self, uint32 nstate)
     return true;
 }
 
-static void TRGate_advanceWaitList(TRGate *self)
+static void TRGate_advanceWaitList(TRGate* self)
 {
     withMutex (&self->_wlmtx) {
         foreach (sarray, idx, ComplexTask*, task, self->_waitlist) {
@@ -70,7 +65,7 @@ bool TRGate_seal(_In_ TRGate* self)
 void TRGate_progress(_In_ TRGate* self)
 {
     int64 now = clockTimer();
-    withMutex(&self->_wlmtx) {
+    withMutex (&self->_wlmtx) {
         self->lastprogress = now;
     }
 }
@@ -81,7 +76,7 @@ bool TRGate_registerTask(_In_ TRGate* self, ComplexTask* task)
     if (atomicLoad(uint32, &self->state, Acquire) != GATE_Closed)
         return false;
 
-    withMutex(&self->_wlmtx) {
+    withMutex (&self->_wlmtx) {
         saPush(&self->_waitlist, object, task);
     }
 
@@ -132,7 +127,7 @@ uint32 TaskRequiresGate_state(_In_ TaskRequiresGate* self, ComplexTask* task)
 int64 TaskRequiresGate_progress(_In_ TaskRequiresGate* self)
 {
     int64 ret = -1;
-    withMutex(&self->gate->_wlmtx) {
+    withMutex (&self->gate->_wlmtx) {
         ret = self->gate->lastprogress;
     }
 
@@ -151,6 +146,7 @@ bool TaskRequiresGate_release(_In_ TaskRequiresGate* self, ComplexTask* task)
 
 void TaskRequiresGate_cancel(_In_ TaskRequiresGate* self)
 {
+    return;
 }
 
 bool TaskRequiresGate_registerTask(_In_ TaskRequiresGate* self, _In_ ComplexTask* task)

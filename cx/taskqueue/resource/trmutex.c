@@ -18,7 +18,7 @@ void TRMutex_wakeup(_In_ TRMutex* self)
     withMutex (&self->_wlmtx) {
         htiter hti;
         htiInit(&hti, self->_waitlist);
-        while(htiValid(&hti)) {
+        while (htiValid(&hti)) {
             if (ctaskAdvance((ComplexTask*)htiKey(object, hti)))
                 break;
             htiNext(&hti);
@@ -31,7 +31,7 @@ bool TRMutex_registerTask(_In_ TRMutex* self, ComplexTask* task)
 {
     htelem ret = 0;
 
-    withMutex(&self->_wlmtx) {
+    withMutex (&self->_wlmtx) {
         ret = htInsert(&self->_waitlist, object, task, none, NULL);
     }
 
@@ -48,7 +48,7 @@ bool TRMutex_tryAcquire(_In_ TRMutex* self, ComplexTask* task)
     bool ret = mutexTryAcquire(&self->mtx);
 
     if (ret) {
-        withMutex(&self->_wlmtx) {
+        withMutex (&self->_wlmtx) {
             // only remove from waitlist if the task successfully acquires the mutex
             htRemove(&self->_waitlist, object, task);
         }

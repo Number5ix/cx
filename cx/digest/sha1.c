@@ -33,7 +33,8 @@ enum {
     SHA1_K3 = 0xCA62C1D6,
 };
 
-static const uint32 sha1_init_state[] = { 0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476, 0xc3d2e1f0 };
+static const uint32
+    sha1_init_state[] = { 0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476, 0xc3d2e1f0 };
 
 void _sha1Init(Digest* digest)
 {

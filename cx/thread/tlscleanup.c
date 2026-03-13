@@ -1,7 +1,7 @@
 #include "tlscleanup.h"
 #include "tlscleanup_private.h"
-#include "cx/platform/base.h"
 #include "cx/container/sarray.h"
+#include "cx/platform/base.h"
 
 typedef struct CleanupEnt {
     TLSCleanupCB cb;

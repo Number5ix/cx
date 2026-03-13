@@ -1,8 +1,8 @@
 #include "cx/platform/os.h"
 #include "cx/platform/win.h"
+#include "cx/time/time.h"
 #include "cx/utils/compare.h"
 #include "cx/utils/lazyinit.h"
-#include "cx/time/time.h"
 
 static LazyInitState coreCache;
 static int ncores;
@@ -22,7 +22,7 @@ bool osIsWine()
         }
 
         wine_get_version = GetProcAddress(ntdllModule, "wine_get_version");
-        result = wine_get_version ? 1 : 0;
+        result           = wine_get_version ? 1 : 0;
     }
 
     return result;
@@ -31,8 +31,8 @@ bool osIsWine()
 static DWORD nbits(ULONG_PTR mask)
 {
     DWORD ulongptr_bits = sizeof(ULONG_PTR) * 8 - 1;
-    DWORD count = 0;
-    ULONG_PTR test = (ULONG_PTR)1 << ulongptr_bits;
+    DWORD count         = 0;
+    ULONG_PTR test      = (ULONG_PTR)1 << ulongptr_bits;
     for (uint32 i = 0; i <= ulongptr_bits; ++i) {
         if (mask & test)
             count++;
@@ -41,11 +41,11 @@ static DWORD nbits(ULONG_PTR mask)
     return count;
 }
 
-static void initCoreCache(void *dummy)
+static void initCoreCache(void* dummy)
 {
-    ncores = nlogical = 0;
+    ncores = nlogical                         = 0;
     PSYSTEM_LOGICAL_PROCESSOR_INFORMATION buf = NULL;
-    DWORD len = 0;
+    DWORD len                                 = 0;
 
     GetLogicalProcessorInformation(NULL, &len);
     if (len == 0)
@@ -54,7 +54,7 @@ static void initCoreCache(void *dummy)
     buf = (PSYSTEM_LOGICAL_PROCESSOR_INFORMATION)stackAlloc(len);
     if (GetLogicalProcessorInformation(buf, &len)) {
         PSYSTEM_LOGICAL_PROCESSOR_INFORMATION p = buf;
-        DWORD off = 0;
+        DWORD off                               = 0;
         while (off < len) {
             if (p->Relationship == RelationProcessorCore) {
                 ncores++;

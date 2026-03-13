@@ -17,12 +17,13 @@
 /// - **Task queues**: Manage task scheduling and execution (TaskQueue, ComplexTaskQueue)
 /// - **Workers**: Execute tasks on threads or manually (TQWorker, TQThreadWorker, TQManualWorker)
 /// - **Resources**: Manage serialized access to shared resources (TRMutex, TRFifo, TRLifo)
-/// - **Requirements**: Express task dependencies and resource needs (TaskRequires, TaskRequiresGate)
+/// - **Requirements**: Express task dependencies and resource needs (TaskRequires,
+/// TaskRequiresGate)
 ///
 /// @section tq_task_types Task Types
 ///
-/// **BasicTask** - Bare minimum task with no dependencies or scheduling. Just a run method and state tracking.
-/// Suitable for simple operations that need to run on a worker thread.
+/// **BasicTask** - Bare minimum task with no dependencies or scheduling. Just a run method and
+/// state tracking. Suitable for simple operations that need to run on a worker thread.
 ///
 /// **Task** - Extends BasicTask with a name, timing information, and completion callbacks. Can wait
 /// for completion with timeouts.

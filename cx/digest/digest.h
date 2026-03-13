@@ -42,7 +42,8 @@ typedef enum {
 } DigestType;
 
 /// Size in bytes of the resulting digest for each algorithm.
-/// Index with DigestType: DigestSize[DIGEST_MD5] = 16, DigestSize[DIGEST_SHA1] = 20, DigestSize[DIGEST_SHA256] = 32
+/// Index with DigestType: DigestSize[DIGEST_MD5] = 16, DigestSize[DIGEST_SHA1] = 20,
+/// DigestSize[DIGEST_SHA256] = 32
 extern uint32 DigestSize[DIGEST_COUNT];
 
 /// Digest context structure.
@@ -50,10 +51,10 @@ extern uint32 DigestSize[DIGEST_COUNT];
 /// Contains the state for computing a message digest incrementally.
 /// All fields are internal and should not be accessed directly.
 typedef struct Digest {
-    DigestType type; ///< Algorithm being used
-    uint32 size;     ///< Total message size processed
-    uint8 buffer[DIGEST_BLOCKSIZE]; ///< Internal data buffer
-    uint32 state[8]; ///< Algorithm state (MD5: 4 words, SHA-1: 5 words, SHA-256: 8 words)
+    DigestType type;                  ///< Algorithm being used
+    uint32 size;                      ///< Total message size processed
+    uint8 buffer[DIGEST_BLOCKSIZE];   ///< Internal data buffer
+    uint32 state[8];   ///< Algorithm state (MD5: 4 words, SHA-1: 5 words, SHA-256: 8 words)
 } Digest;
 
 /// Initializes a digest context for computing a message digest.

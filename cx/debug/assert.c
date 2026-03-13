@@ -1,10 +1,10 @@
 #include "cx/debug/assert.h"
-#include "cx/debug/crash.h"
 #include <cx/container/foreach.h>
 #include <cx/container/sarray.h>
 #include <cx/thread/mutex.h>
 #include <cx/utils/lazyinit.h>
 #include <stdlib.h>
+#include "cx/debug/crash.h"
 
 static Mutex _dbgAssertMutex;
 
@@ -13,7 +13,7 @@ static LazyInitState _dbgAssertInitState;
 saDeclare(dbgAssertCallback);
 static sa_dbgAssertCallback callbacks;
 
-static void _dbgAssertInit(void *data)
+static void _dbgAssertInit(void* data)
 {
     mutexInit(&_dbgAssertMutex);
     saInit(&callbacks, ptr, 0);
@@ -22,7 +22,7 @@ static void _dbgAssertInit(void *data)
 void dbgAssertAddCallback(dbgAssertCallback cb)
 {
     lazyInit(&_dbgAssertInitState, _dbgAssertInit, 0);
-    withMutex(&_dbgAssertMutex) {
+    withMutex (&_dbgAssertMutex) {
         saPush(&callbacks, ptr, cb, SA_Unique);
     }
 }
@@ -30,17 +30,17 @@ void dbgAssertAddCallback(dbgAssertCallback cb)
 void dbgAssertRemoveCallback(dbgAssertCallback cb)
 {
     lazyInit(&_dbgAssertInitState, _dbgAssertInit, 0);
-    withMutex(&_dbgAssertMutex) {
+    withMutex (&_dbgAssertMutex) {
         saFindRemove(&callbacks, ptr, cb);
     }
 }
 
-static int dbgAssertTriggerCallbacks(_In_opt_z_ const char *expr, _In_opt_z_ const char *msg, _In_opt_z_ const char *file, int ln)
+static int dbgAssertTriggerCallbacks(_In_opt_z_ const char* expr, _In_opt_z_ const char* msg,
+                                     _In_opt_z_ const char* file, int ln)
 {
     int ret = ASSERT_Crash;
     // caller should be holding mutex
-    foreach(sarray, i, dbgAssertCallback, callback, callbacks)
-    {
+    foreach (sarray, i, dbgAssertCallback, callback, callbacks) {
         int cret = callback(expr, msg, file, ln);
         // if callback wants to crash or terminate, do it now
         if (cret == ASSERT_Crash || cret == ASSERT_Exit)
@@ -55,9 +55,9 @@ static int dbgAssertTriggerCallbacks(_In_opt_z_ const char *expr, _In_opt_z_ con
 
 _Use_decl_annotations_
 #if DEBUG_LEVEL >= 1
-_no_inline bool _cxAssertFail(const char *expr, const char *msg, const char *file, int ln)
+_no_inline bool _cxAssertFail(const char* expr, const char* msg, const char* file, int ln)
 #else
-_no_inline bool _cxAssertFail(const char *expr, const char *msg)
+_no_inline bool _cxAssertFail(const char* expr, const char* msg)
 #endif
 {
     lazyInit(&_dbgAssertInitState, _dbgAssertInit, 0);
@@ -69,7 +69,7 @@ _no_inline bool _cxAssertFail(const char *expr, const char *msg)
 #endif
 
     if (action == ASSERT_Ignore)
-        return false;               // the expression evaluated to false, be sure to return the same
+        return false;   // the expression evaluated to false, be sure to return the same
     if (action == ASSERT_Exit)
         exit(1);
 

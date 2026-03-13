@@ -11,7 +11,9 @@
 // ==================== Auto-generated section ends ======================
 #include "cx/taskqueue/taskqueue_private.h"
 
-_objfactory_guaranteed ComplexTaskQueue* ComplexTaskQueue_create(_In_opt_ strref name, uint32 flags, int64 gcinterval, _In_ TQRunner* runner, _In_ TQManager* manager, _In_opt_ TQMonitor* monitor)
+_objfactory_guaranteed ComplexTaskQueue*
+ComplexTaskQueue_create(_In_opt_ strref name, uint32 flags, int64 gcinterval, _In_ TQRunner* runner,
+                        _In_ TQManager* manager, _In_opt_ TQMonitor* monitor)
 {
     ComplexTaskQueue* self;
     self = objInstCreate(ComplexTaskQueue);
@@ -89,8 +91,8 @@ extern bool TaskQueue__processDone(_In_ TaskQueue* self);   // parent
 #define parent__processDone() TaskQueue__processDone((TaskQueue*)(self))
 bool ComplexTaskQueue__processDone(_In_ ComplexTaskQueue* self)
 {
-    int64 now = clockTimer();
-    bool ret  = false;
+    int64 now  = clockTimer();
+    bool ret   = false;
     int dcount = 0;
 
     BasicTask* btask;
@@ -143,7 +145,8 @@ bool ComplexTaskQueue__processDone(_In_ ComplexTaskQueue* self)
         }
     }
 
-    // if anything went back into the run queue, signal the event so that worker threads can pick it up
+    // if anything went back into the run queue, signal the event so that worker threads can pick it
+    // up
     if (dcount > 0)
         eventSignalMany(&self->workev, dcount);
 
@@ -152,11 +155,12 @@ bool ComplexTaskQueue__processDone(_In_ ComplexTaskQueue* self)
 }
 
 extern int64 TaskQueue__processExtra(_In_ TaskQueue* self, bool taskscompleted);   // parent
-#define parent__processExtra(taskscompleted) TaskQueue__processExtra((TaskQueue*)(self), taskscompleted)
+#define parent__processExtra(taskscompleted) \
+    TaskQueue__processExtra((TaskQueue*)(self), taskscompleted)
 int64 ComplexTaskQueue__processExtra(_In_ ComplexTaskQueue* self, bool taskscompleted)
 {
-    int64 waittime = timeForever;
-    int64 now      = clockTimer();
+    int64 waittime           = timeForever;
+    int64 now                = clockTimer();
     sa_ComplexTask readvance = saInitNone;
 
     int dcount = 0;
@@ -202,7 +206,7 @@ int64 ComplexTaskQueue__processExtra(_In_ ComplexTaskQueue* self, bool taskscomp
             } else {
                 // might have just been put in doneq? Let it run ASAP if that's the case
                 ctask->nextrun = 0;
-                waittime = 0;
+                waittime       = 0;
             }
             break;
         case TASK_Failed:
@@ -250,7 +254,7 @@ int64 ComplexTaskQueue__processExtra(_In_ ComplexTaskQueue* self, bool taskscomp
     if (dcount > 0)
         eventSignalMany(&self->workev, dcount);
 
-    foreach(sarray, idx, void*, ctaskptr, readvance) {
+    foreach (sarray, idx, void*, ctaskptr, readvance) {
         prqPush(&self->advanceq, ctaskptr);
     }
     saDestroy(&readvance);
@@ -308,9 +312,11 @@ void ComplexTaskQueue__clear(_In_ ComplexTaskQueue* self)
     htClear(&self->deferred);
 }
 
-extern bool TaskQueue__runTask(_In_ TaskQueue* self, _Inout_ BasicTask** pbtask, _In_ TQWorker* worker);   // parent
+extern bool TaskQueue__runTask(_In_ TaskQueue* self, _Inout_ BasicTask** pbtask,
+                               _In_ TQWorker* worker);   // parent
 #define parent__runTask(pbtask, worker) TaskQueue__runTask((TaskQueue*)(self), pbtask, worker)
-bool ComplexTaskQueue__runTask(_In_ ComplexTaskQueue* self, _Inout_ BasicTask** pbtask, _In_ TQWorker* worker)
+bool ComplexTaskQueue__runTask(_In_ ComplexTaskQueue* self, _Inout_ BasicTask** pbtask,
+                               _In_ TQWorker* worker)
 {
     // context: This is called from worker threads. The task pointed to by pbtask has been removed
     // from the run queue and exists only in the parameter; so we MUST do something with it.
@@ -470,7 +476,7 @@ bool ComplexTaskQueue__runTask(_In_ ComplexTaskQueue* self, _Inout_ BasicTask** 
         ctaskReleaseRequires(ctask,
                              !(ctask->flags & TASK_Retain_Requires) ? acquired : ctask->_requires);
     }
-    saDestroy(&acquired);    
+    saDestroy(&acquired);
 
     // In all other cases the task needs to be moved to the done queue for the manager to clean up.
     prqPush(&self->doneq, *pbtask);
@@ -533,17 +539,17 @@ bool ComplexTaskQueue__queueMaint(_In_ ComplexTaskQueue* self)
 
     if (now - self->_lastgc > self->gcinterval) {
         self->_lastgc = now;
-        switch(self->_gccycle) {
-            case 0:
-                prqCollect(&self->runq);
-                break;
-            case 1:
-                prqCollect(&self->doneq);
-                break;
-            case 2:
-                prqCollect(&self->advanceq);
-                break;
-            }
+        switch (self->_gccycle) {
+        case 0:
+            prqCollect(&self->runq);
+            break;
+        case 1:
+            prqCollect(&self->doneq);
+            break;
+        case 2:
+            prqCollect(&self->advanceq);
+            break;
+        }
 
         self->_gccycle = (self->_gccycle + 1) % 3;
     }

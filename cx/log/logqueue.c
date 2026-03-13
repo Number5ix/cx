@@ -5,36 +5,36 @@
 
 #include "log_private.h"
 #include <cx/container/foreach.h>
-#include <cx/utils/compare.h>
-#include <cx/time/clock.h>
 #include <cx/platform/os.h>
+#include <cx/time/clock.h>
+#include <cx/utils/compare.h>
 
 // String constants
 STR_CONST(kLogOverflowMsg, "One or more log entries were lost due to log queue overflow.");
 
-#define OVERFLOW_BATCH_MAXENT   65536
+#define OVERFLOW_BATCH_MAXENT 65536
 
 PrQueue _log_queue;
 
 // per-thread overflow log batch if the main queue fills up or is under
 // high contention
 typedef struct LogOverflowTLS {
-    LogEntry *head;
-    LogEntry *tail;
+    LogEntry* head;
+    LogEntry* tail;
     int count;
     bool lost;
 } LogOverflowTLS;
 static _Thread_local LogOverflowTLS _log_overflow;
 
-static bool logQueueAddInternal(_In_ LogEntry *ent)
+static bool logQueueAddInternal(_In_ LogEntry* ent)
 {
     bool ret = prqPush(&_log_queue, ent);
-    if(ret && _log_thread)
+    if (ret && _log_thread)
         eventSignal(&_log_thread->notify);
     return ret;
 }
 
-static void logQueueOverflow(_In_ LogEntry *ent)
+static void logQueueOverflow(_In_ LogEntry* ent)
 {
     if (_log_overflow.count >= OVERFLOW_BATCH_MAXENT) {
         // if the overflow is full, we have no choice but to drop events
@@ -43,18 +43,18 @@ static void logQueueOverflow(_In_ LogEntry *ent)
             if (!_log_overflow.tail)
                 return;
             // insert a message that events were lost
-            LogEntry *lostent = xaAlloc(sizeof(LogEntry), XA_Zero);
+            LogEntry* lostent = xaAlloc(sizeof(LogEntry), XA_Zero);
             strDup(&lostent->msg, kLogOverflowMsg);
-            lostent->timestamp = clockWall();
-            lostent->level = LOG_Warn;
+            lostent->timestamp        = clockWall();
+            lostent->level            = LOG_Warn;
             _log_overflow.tail->_next = lostent;
-            _log_overflow.tail = lostent;
+            _log_overflow.tail        = lostent;
             ++_log_overflow.count;
             _log_overflow.lost = 1;
         }
 
         while (ent) {
-            LogEntry *next = ent->_next;
+            LogEntry* next = ent->_next;
             logDestroyEnt(ent);
             ent = next;
         }
@@ -64,7 +64,7 @@ static void logQueueOverflow(_In_ LogEntry *ent)
 
     if (_log_overflow.tail) {
         _log_overflow.tail->_next = ent;
-        _log_overflow.tail = ent;
+        _log_overflow.tail        = ent;
     } else {
         _log_overflow.head = ent;
         _log_overflow.tail = ent;
@@ -85,10 +85,10 @@ static bool logQueueRetryOverflow()
         return true;
 
     if (logQueueAddInternal(_log_overflow.head)) {
-        _log_overflow.head = NULL;
-        _log_overflow.tail = NULL;
+        _log_overflow.head  = NULL;
+        _log_overflow.tail  = NULL;
         _log_overflow.count = 0;
-        _log_overflow.lost = false;
+        _log_overflow.lost  = false;
         return true;
     }
 
@@ -97,7 +97,7 @@ static bool logQueueRetryOverflow()
 
 // this should never block
 _Use_decl_annotations_
-void logQueueAdd(LogEntry *ent)
+void logQueueAdd(LogEntry* ent)
 {
     if (!logQueueRetryOverflow() || !logQueueAddInternal(ent))
         logQueueOverflow(ent);

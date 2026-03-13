@@ -60,8 +60,8 @@
 // to fit with CX design philosophy.
 // https://gustedt.gitlabpages.inria.fr/p99/p99-html/
 
-#include <cx/stype/stype.h>
 #include <cx/platform/base.h>
+#include <cx/stype/stype.h>
 #include <cx/utils/macros/tokens.h>
 
 // -------------------- Compile-Time Feature Inhibition --------------------
@@ -99,12 +99,15 @@
 ///
 /// @note Disabled on MSVC versions prior to VS2022 due to a compiler bug
 #if !defined(_MSC_VER) || _MSC_VER > 1930
-#define inhibitCheck(name) switch(tokstring(_inhibit_name(name))[_inhibit_name(name)]) default:
+#define inhibitCheck(name)                                       \
+    switch (tokstring(_inhibit_name(name))[_inhibit_name(name)]) \
+    default:
 #else
 #define inhibitCheck(name)
 #endif
 
-#define _inhibitDisallow(name) _blkCond(const int * const _inhibit_name(name) = 0, !_inhibit_name(name))
+#define _inhibitDisallow(name) \
+    _blkCond(const int* const _inhibit_name(name) = 0, !_inhibit_name(name))
 
 /// inhibitDisallow(name)
 ///
@@ -144,11 +147,11 @@
 #if DEBUG_LEVEL >= 1 && !defined(_PREFAST_)
 inhibitDeclare(RETURN);
 #define _inhibitReturn _inhibitDisallow(RETURN)
-#define _allowReturn _inhibitAllow(RETURN)
-#define return inhibitCheck(RETURN) return
+#define _allowReturn   _inhibitAllow(RETURN)
+#define return         inhibitCheck(RETURN) return
 #else
 #define _inhibitReturn _blkStart
-#define _allowReturn _blkStart
+#define _allowReturn   _blkStart
 #endif
 
 // -------------------- Block Wrapping Macros --------------------
@@ -157,25 +160,27 @@ inhibitDeclare(RETURN);
 
 // Internal building blocks (no pun intended)
 
-#define _blkDef(before) for (tokeval(before); _BLK_VAR; _BLK_VAR = 0)
+#define _blkDef(before)        for (tokeval(before); _BLK_VAR; _BLK_VAR = 0)
 #define _blkCond(before, cond) for (tokeval(before); (cond) && _BLK_VAR; _BLK_VAR = 0)
-#define _blkFull(before, cond, ...) for (tokeval(before); (cond) && _BLK_VAR; (__VA_ARGS__), _BLK_VAR = 0)
+#define _blkFull(before, cond, ...) \
+    for (tokeval(before); (cond) && _BLK_VAR; (__VA_ARGS__), _BLK_VAR = 0)
 
 // _blkStart should be the first token used when building a structure that uses blocks.
-// It declares the marker variable that is used to ensure the various for loop abuse only executes once.
-#define _blkStart _blkDef(bool _BLK_VAR = 1)
-#define _blkBefore(...) for (tokeval(__VA_ARGS__); _BLK_VAR; _BLK_VAR = 0)
+// It declares the marker variable that is used to ensure the various for loop abuse only executes
+// once.
+#define _blkStart                    _blkDef(bool _BLK_VAR = 1)
+#define _blkBefore(...)              for (tokeval(__VA_ARGS__); _BLK_VAR; _BLK_VAR = 0)
 #define _blkBeforeAfter(before, ...) _inhibitReturn _blkFull(tokeval(before), true, __VA_ARGS__)
-#define _blkAfter(...) _blkBeforeAfter(, (__VA_ARGS__))
+#define _blkAfter(...)               _blkBeforeAfter(, (__VA_ARGS__))
 // _blkEnd is used as an inner loop around a user-provided block to swallow 'break' so it
 // doesn't interrupt control flow.
-#define _blkEnd _blkBefore()
+#define _blkEnd                      _blkBefore()
 
-// Special helper for declaring a scoped variable that can refer to a variable in the outer scope with
-// the same name. It does this by using a temporary variable with a different name.
-#define _blkDefRecursive(type, name, ...)                                                                       \
-    _blkDef(type tokcat2(_block_decl_, name) = tokeval(__VA_ARGS__))                                            \
-    _blkCond(type name = tokcat2(_block_decl_, name), ((void)name, true))
+// Special helper for declaring a scoped variable that can refer to a variable in the outer scope
+// with the same name. It does this by using a temporary variable with a different name.
+#define _blkDefRecursive(type, name, ...)                            \
+    _blkDef(type tokcat2(_block_decl_, name) = tokeval(__VA_ARGS__)) \
+        _blkCond(type name = tokcat2(_block_decl_, name), ((void)name, true))
 
 /// blkWrap(before, after) { }
 ///
@@ -217,7 +222,7 @@ inhibitDeclare(RETURN);
 ///
 /// **Used Throughout CX:**
 /// - `withMutex(m)` - Mutex acquire/release
-/// - `withReadLock(l)`, `withWriteLock(l)` - RWLock operations  
+/// - `withReadLock(l)`, `withWriteLock(l)` - RWLock operations
 /// - `foreach` and container iteration macros
 /// - Many other resource management patterns
 ///

@@ -37,10 +37,12 @@ int64 TQManager_tick(_In_ TQManager* self)
 
 void TQManager_notify(_In_ TQManager* self, bool wakeup)
 {
+    return;
 }
 
 void TQManager_pretask(_In_ TQManager* self)
 {
+    return;
 }
 
 // Autogen begins -----

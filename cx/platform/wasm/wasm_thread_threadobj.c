@@ -10,9 +10,9 @@
 // clang-format on
 // ==================== Auto-generated section ends ======================
 
-_objfactory_guaranteed UnixThread *UnixThread_create()
+_objfactory_guaranteed UnixThread* UnixThread_create()
 {
-    UnixThread *self;
+    UnixThread* self;
     self = objInstCreate(UnixThread);
 
     objInstInit(self);

@@ -4,8 +4,8 @@
 _Use_decl_annotations_
 bool strJoin(strhandle o, sa_string arr, strref sep)
 {
-    uint32 seplen = strLen(sep), seglen;
-    int32 arrsize = saSize(arr);
+    uint32 seplen  = strLen(sep), seglen;
+    int32 arrsize  = saSize(arr);
     uint8 encoding = STR_ENCODING_MASK;
     int32 i;
 
@@ -24,7 +24,7 @@ bool strJoin(strhandle o, sa_string arr, strref sep)
     }
 
     _strReset(o, sz);
-    uint8 *p = _strBuffer(*o);
+    uint8* p = _strBuffer(*o);
 
     if (STR_CHECK_VALID(arr.a[0])) {
         seglen = _strFastLen(arr.a[0]);
@@ -42,7 +42,7 @@ bool strJoin(strhandle o, sa_string arr, strref sep)
         }
     }
 
-    *p = 0;             // null terminator
+    *p = 0;   // null terminator
 
     *_strHdrP(*o) &= ~STR_ENCODING_MASK;
     *_strHdrP(*o) |= encoding;

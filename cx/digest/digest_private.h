@@ -2,8 +2,8 @@
 
 #include "digest.h"
 
-typedef void (*_digestInit)(Digest* digest);   // populate initial state
-typedef void (*_digestBlock)(Digest* digest);  // process a full block from digest->buffer
+typedef void (*_digestInit)(Digest* digest);    // populate initial state
+typedef void (*_digestBlock)(Digest* digest);   // process a full block from digest->buffer
 
 void _md5Init(Digest* digest);
 void _sha1Init(Digest* digest);

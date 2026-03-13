@@ -3,8 +3,8 @@
 /// @file objiface.h
 /// @brief Interface definitions and management for the object system
 
-#include <cx/cx.h>
 #include <cx/container/sarray.h>
+#include <cx/cx.h>
 
 /// @defgroup obj_interface Interfaces
 /// @ingroup obj
@@ -49,11 +49,11 @@ typedef struct ObjIface ObjIface;
 ///
 /// This structure has different interpretations based on context. See the @ref obj_interface
 /// overview for detailed explanation of template vs implementation forms.
-typedef struct ObjIface
-{
-    ObjIface *_implements;      ///< Implementation only: pointer to interface template being implemented
-    ObjIface *_parent;          ///< Template only: parent interface for inheritance (NULL if no parent)
-    size_t _size;               ///< Size of the entire interface structure including method pointers
+typedef struct ObjIface {
+    ObjIface*
+        _implements;     ///< Implementation only: pointer to interface template being implemented
+    ObjIface* _parent;   ///< Template only: parent interface for inheritance (NULL if no parent)
+    size_t _size;        ///< Size of the entire interface structure including method pointers
 
     // Interface method pointers follow this header
     // The specific methods depend on the interface definition
@@ -77,7 +77,11 @@ saDeclarePtr(ObjIface);
 /// Compile-time check that a pointer is to a valid interface structure
 ///
 /// @param iface Pointer to interface structure to validate
-#define objIfCheck(iface) static_assert(((iface)->_implements, (iface)->_size, offsetof(*(iface), _parent) == offsetof(ObjIface, _parent)), "Not an interface")
+#define objIfCheck(iface)                                                       \
+    static_assert(((iface)->_implements,                                        \
+                   (iface)->_size,                                              \
+                   offsetof(*(iface), _parent) == offsetof(ObjIface, _parent)), \
+                  "Not an interface")
 
 /// ObjIface *objIfBase(InterfaceType *iface)
 ///
@@ -85,6 +89,7 @@ saDeclarePtr(ObjIface);
 ///
 /// @param iface Pointer to any interface structure
 /// @return Base ObjIface pointer (performs validation through comma operator)
-#define objIfBase(iface) ((ObjIface*)((iface)->_implements, (iface)->_parent, (iface)->_size, (iface)))
+#define objIfBase(iface) \
+    ((ObjIface*)((iface)->_implements, (iface)->_parent, (iface)->_size, (iface)))
 
 /// @}  // end of obj_interface group

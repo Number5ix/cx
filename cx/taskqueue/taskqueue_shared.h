@@ -86,10 +86,10 @@ typedef struct TaskQueueMonitorConfig {
 
 /// Complete configuration for a task queue
 typedef struct TaskQueueConfig {
-    uint32 flags;           ///< Combination of TaskQueueFlagsEnum values
-    int64 mGC;              ///< How often a garbage collection cycle should run
-    TaskQueueThreadPoolConfig pool;     ///< Thread pool configuration
-    TaskQueueMonitorConfig monitor;     ///< Monitor configuration
+    uint32 flags;                     ///< Combination of TaskQueueFlagsEnum values
+    int64 mGC;                        ///< How often a garbage collection cycle should run
+    TaskQueueThreadPoolConfig pool;   ///< Thread pool configuration
+    TaskQueueMonitorConfig monitor;   ///< Monitor configuration
 } TaskQueueConfig;
 
 /// Task state values
@@ -97,15 +97,15 @@ typedef struct TaskQueueConfig {
 /// Task state is stored atomically and can include the TASK_Cancelled flag combined with
 /// any state value. Use TASK_State_Mask to extract just the state without the cancelled flag.
 enum TaskStateEnum {
-    TASK_Created,       ///< Task has been created but not yet queued
-    TASK_Waiting,       ///< Task is queued and waiting for a worker
-    TASK_Running,       ///< Task is currently executing on a worker
-    TASK_Scheduled,     ///< Task is scheduled to run at a future time
-    TASK_Deferred,      ///< Task is deferred, waiting for explicit advancement
-    TASK_Succeeded,     ///< Task completed successfully
-    TASK_Failed,        ///< Task failed during execution
+    TASK_Created,                   ///< Task has been created but not yet queued
+    TASK_Waiting,                   ///< Task is queued and waiting for a worker
+    TASK_Running,                   ///< Task is currently executing on a worker
+    TASK_Scheduled,                 ///< Task is scheduled to run at a future time
+    TASK_Deferred,                  ///< Task is deferred, waiting for explicit advancement
+    TASK_Succeeded,                 ///< Task completed successfully
+    TASK_Failed,                    ///< Task failed during execution
     TASK_State_Mask = 0x7fffffff,   ///< Mask to extract state value without flags
-    TASK_Cancelled  = 0x80000000    ///< Flag indicating task has been cancelled (combines with state)
+    TASK_Cancelled = 0x80000000   ///< Flag indicating task has been cancelled (combines with state)
 };
 
 /// Task control structure for output parameters from task execution

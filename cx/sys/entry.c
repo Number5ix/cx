@@ -5,7 +5,7 @@
 string cmdProgram = 0;
 sa_string cmdArgs;
 
-void _entryParseArgs(int argc, const char **argv)
+void _entryParseArgs(int argc, const char** argv)
 {
     strDestroy(&cmdProgram);
     saInit(&cmdArgs, string, 1);
@@ -20,7 +20,7 @@ void _entryParseArgs(int argc, const char **argv)
     }
 }
 
-void _entryParseArgsU16(int argc, const uint16 **argv)
+void _entryParseArgsU16(int argc, const uint16** argv)
 {
     strDestroy(&cmdProgram);
     saInit(&cmdArgs, string, 1);

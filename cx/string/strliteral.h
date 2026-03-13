@@ -70,19 +70,19 @@
 /// @brief Creates a static ASCII string literal (STR_LEN0, runtime strlen).
 /// Prefer _SL() on hot paths when targeting GCC/Clang.
 /// @hideinitializer
-#define _S (string)"\xE0\xC1"
+#define _S (string) "\xE0\xC1"
 
 /// @def _SU
 /// @brief Creates a static UTF-8 string literal (STR_LEN0, runtime strlen).
 /// Prefer _SLU() on hot paths when targeting GCC/Clang.
 /// @hideinitializer
-#define _SU (string)"\xA0\xC1"
+#define _SU (string) "\xA0\xC1"
 
 /// @def _SO
 /// @brief Creates a static string literal with other/unknown encoding (STR_LEN0, runtime strlen).
 /// Prefer _SLO() on hot paths when targeting GCC/Clang.
 /// @hideinitializer
-#define _SO (string)"\x80\xC1"
+#define _SO (string) "\x80\xC1"
 
 // ---- Named constant declaration helpers ----
 // STR_LEN8 layout:  [hdr:u8][0xC1:u8][len:u8][content + NUL]  — data at offset 3
@@ -94,7 +94,7 @@
         uint8 _h, _m, _l;                                                                  \
         char _d[sizeof(s)];                                                                \
     } _cx_sc_##name          = { (enc), 0xC1u, (uint8)(sizeof(s) - 1u), s };               \
-    static const strref name = (strref)&_cx_sc_##name
+    static const strref name = (strref) & _cx_sc_##name
 
 #define _STR_CONST16(name, enc, s)                                            \
     _Static_assert(sizeof(s) - 1 <= 65535, "String too long for STR_CONSTL"); \
@@ -103,7 +103,7 @@
         uint16 _l;                                                            \
         char _d[sizeof(s)];                                                   \
     } _cx_sc_##name          = { (enc), 0xC1u, (uint16)(sizeof(s) - 1u), s }; \
-    static const strref name = (strref)&_cx_sc_##name
+    static const strref name = (strref) & _cx_sc_##name
 
 /// Declare a named ASCII string constant with a compile-time length (STR_LEN8, < 255 bytes).
 #define STR_CONST(name, s)   _STR_CONST8(name, 0xE1u, s)
@@ -145,7 +145,7 @@
             uint8 _h, _m, _l;                                                     \
             char _d[sizeof(s)];                                                   \
         } _sl = { 0xE1u, 0xC1u, (uint8)(sizeof(s) - 1u), s };                     \
-        (strref)&_sl;                                                             \
+        (strref) & _sl;                                                           \
     })
 
 /// @def _SLU(s)
@@ -159,7 +159,7 @@
             uint8 _h, _m, _l;                                                       \
             char _d[sizeof(s)];                                                     \
         } _sl = { 0xA1u, 0xC1u, (uint8)(sizeof(s) - 1u), s };                       \
-        (strref)&_sl;                                                               \
+        (strref) & _sl;                                                             \
     })
 
 /// @def _SLO(s)
@@ -173,7 +173,7 @@
             uint8 _h, _m, _l;                                                       \
             char _d[sizeof(s)];                                                     \
         } _sl = { 0x81u, 0xC1u, (uint8)(sizeof(s) - 1u), s };                       \
-        (strref)&_sl;                                                               \
+        (strref) & _sl;                                                             \
     })
 
 /// @def _SLL(s)
@@ -187,7 +187,7 @@
             uint16 _l;                                         \
             char _d[sizeof(s)];                                \
         } _sl = { 0xE2u, 0xC1u, (uint16)(sizeof(s) - 1u), s }; \
-        (strref)&_sl;                                          \
+        (strref) & _sl;                                        \
     })
 
 /// @def _SLUL(s)
@@ -200,7 +200,7 @@
             uint16 _l;                                         \
             char _d[sizeof(s)];                                \
         } _sl = { 0xA2u, 0xC1u, (uint16)(sizeof(s) - 1u), s }; \
-        (strref)&_sl;                                          \
+        (strref) & _sl;                                        \
     })
 
 /// @def _SLOL(s)
@@ -213,7 +213,7 @@
             uint16 _l;                                         \
             char _d[sizeof(s)];                                \
         } _sl = { 0x82u, 0xC1u, (uint16)(sizeof(s) - 1u), s }; \
-        (strref)&_sl;                                          \
+        (strref) & _sl;                                        \
     })
 
 #endif   // _COMPILER_MSVC

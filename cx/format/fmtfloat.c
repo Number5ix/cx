@@ -15,13 +15,13 @@ STR_CONST(kOne, "1");
 #define absv(n) ((n) < 0 ? -(n) : (n))
 
 enum FloatOpts {
-    FMT_FloatFixed = 0x00010000,
-    FMT_FloatZero = 0x00020000,
+    FMT_FloatFixed     = 0x00010000,
+    FMT_FloatZero      = 0x00020000,
     FMT_FloatDecDigits = 0x00040000,
 };
 
 _Use_decl_annotations_
-bool _fmtParseFloatOpt(FMTVar *v, strref opt)
+bool _fmtParseFloatOpt(FMTVar* v, strref opt)
 {
     int32 val;
     if (strEq(opt, kFmtOptFixed)) {
@@ -47,7 +47,7 @@ bool _fmtParseFloatOpt(FMTVar *v, strref opt)
 }
 
 _Use_decl_annotations_
-bool _fmtParseFloatFinalize(FMTVar *v)
+bool _fmtParseFloatFinalize(FMTVar* v)
 {
     if (v->flags & FMT_FloatFixed && !(v->flags & FMT_FloatDecDigits)) {
         // fixed implies dec digits
@@ -66,7 +66,7 @@ bool _fmtParseFloatFinalize(FMTVar *v)
 }
 
 // for special return values
-static bool fmtFloatSpecial(_Inout_ FMTVar *v, _Inout_ string *out, _In_ strref str)
+static bool fmtFloatSpecial(_Inout_ FMTVar* v, _Inout_ string* out, _In_ strref str)
 {
     v->flags &= (~FMTVar_NoGenCase | ~FMTVar_NoGenWidth);
     if (!(v->flags & (FMTVar_Left | FMTVar_Center)))
@@ -76,7 +76,7 @@ static bool fmtFloatSpecial(_Inout_ FMTVar *v, _Inout_ string *out, _In_ strref 
 }
 
 _Use_decl_annotations_
-bool _fmtFloat(FMTVar *v, string *out)
+bool _fmtFloat(FMTVar* v, string* out)
 {
     uint8 digits[18];
     int32 K, ndigits;
@@ -84,10 +84,9 @@ bool _fmtFloat(FMTVar *v, string *out)
 
     // handle all the special case stuff here
     switch (stGetId(v->type)) {
-    case stTypeId(float32):
-    {
+    case stTypeId(float32): {
         uint32 fpbits = *(uint32*)v->data;
-        neg = fpbits & 0x80000000;
+        neg           = fpbits & 0x80000000;
         if ((fpbits & 0x7f800000) == 0x7f800000) {
             if (fpbits & 0x007fffff)
                 return fmtFloatSpecial(v, out, kNaN);
@@ -99,15 +98,14 @@ bool _fmtFloat(FMTVar *v, string *out)
             ndigits = _strnum_grisu2_32(*(float32*)v->data, digits, &K);
         } else {
             digits[0] = '0';
-            ndigits = 1;
-            K = 0;
+            ndigits   = 1;
+            K         = 0;
         }
         break;
     }
-    case stTypeId(float64):
-    {
+    case stTypeId(float64): {
         uint64 fpbits = *(uint64*)v->data;
-        neg = fpbits & 0x8000000000000000;
+        neg           = fpbits & 0x8000000000000000;
         if ((fpbits & 0x7ff0000000000000) == 0x7ff0000000000000) {
             if (fpbits & 0x000fffffffffffff)
                 return fmtFloatSpecial(v, out, kNaN);
@@ -120,8 +118,8 @@ bool _fmtFloat(FMTVar *v, string *out)
             ndigits = _strnum_grisu2_64(*(float64*)v->data, digits, &K);
         } else {
             digits[0] = '0';
-            ndigits = 1;
-            K = 0;
+            ndigits   = 1;
+            K         = 0;
         }
         break;
     }
@@ -129,24 +127,23 @@ bool _fmtFloat(FMTVar *v, string *out)
         return false;
     }
 
-ndigits_changed:
-    ;
+ndigits_changed:;
     // first, calculate length
-    int32 exp = absv(K + ndigits - 1);
-    int32 offset = clamp(ndigits + K, 0, ndigits);  // which digit should have the decimal point
-    int32 rounddigits = 0;                          // how many digits to remove and round
+    int32 exp    = absv(K + ndigits - 1);
+    int32 offset = clamp(ndigits + K, 0, ndigits);   // which digit should have the decimal point
+    int32 rounddigits = 0;                           // how many digits to remove and round
     int32 intlen = 0, fraclen = 0, fraczlen = 0, explen = 0;
-    char sign = 0;
+    char sign   = 0;
     bool usesci = false;
 
     if (!(v->flags & FMT_FloatFixed)) {
         // automatic mode
         if (K >= 0 && (exp < (ndigits + 7)))
-            intlen = ndigits + K;       // plain integer
+            intlen = ndigits + K;   // plain integer
         else if (K < 0 && (K > -7 || exp < 4)) {
             // regular integer/fraction
             if (offset == 0)
-                intlen = 1;     // 0.frac
+                intlen = 1;   // 0.frac
             else
                 intlen = offset;
             fraclen = -K;
@@ -154,7 +151,7 @@ ndigits_changed:
             // scientific notation
             usesci = true;
             intlen = offset = 1;
-            fraclen = ndigits - 1;
+            fraclen         = ndigits - 1;
             if (exp > 99)
                 explen = 5;
             else if (exp > 9)
@@ -176,7 +173,7 @@ ndigits_changed:
     }
 
     if (neg)
-        sign = '-';         // TODO: localization
+        sign = '-';   // TODO: localization
     else if (v->flags & FMTVar_SignAlways)
         sign = '+';
     else if (v->flags & FMTVar_SignPrefix)
@@ -198,7 +195,8 @@ ndigits_changed:
             fraczlen = (int32)v->fmtdata[1] - fraclen;
     }
 
-    int32 totallen = (sign ? 1 : 0) + intlen + (fraclen > 0 || fraczlen > 0 ? 1 : 0) + fraclen + fraczlen + explen;
+    int32 totallen = (sign ? 1 : 0) + intlen + (fraclen > 0 || fraczlen > 0 ? 1 : 0) + fraclen +
+        fraczlen + explen;
     int32 width = clamplow(v->width, 0);
 
     if (width > 0 && totallen > width && !(v->flags & FMT_FloatZero)) {
@@ -226,7 +224,7 @@ ndigits_changed:
 
         for (i = ndigits - 1; i >= 0; --i) {
             if (!carry && digits[i + 1] < '5')
-                break;          // rounds down, all done
+                break;   // rounds down, all done
             if (digits[i] < '9') {
                 // rounds up, but no carry, easy enough
                 digits[i]++;
@@ -259,8 +257,8 @@ ndigits_changed:
 
     // okay, now construct the string
     strClear(out);
-    uint8 *obuf = strBuffer(out, max(totallen, width));
-    uint8 *start = obuf;
+    uint8* obuf  = strBuffer(out, max(totallen, width));
+    uint8* start = obuf;
 
     int32 diff = width - totallen;
     if (totallen < width) {
@@ -297,11 +295,11 @@ ndigits_changed:
             start += K;
         }
     } else {
-        *start++ = '0';         // special case
+        *start++ = '0';   // special case
     }
 
     if (fraclen > 0 || fraczlen > 0) {
-        *start++ = '.';         // TODO: localize!!!
+        *start++ = '.';   // TODO: localize!!!
 
         if (!usesci && ndigits + K < 0) {
             // leading zeroes due to exponent
@@ -322,12 +320,12 @@ ndigits_changed:
 
         int cent = 0;
         if (exp > 99) {
-            cent = exp / 100;
+            cent     = exp / 100;
             *start++ = cent + '0';
             exp -= cent * 100;
         }
         if (exp > 9) {
-            int dec = exp / 10;
+            int dec  = exp / 10;
             *start++ = dec + '0';
             exp -= dec * 10;
 

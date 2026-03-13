@@ -1,20 +1,18 @@
 #pragma once
 
-#include "closure.h"
 #include <cx/thread/atomic.h>
 #include <cx/thread/rwlock.h>
+#include "closure.h"
 
-typedef struct Closure
-{
+typedef struct Closure {
     closureFunc func;
     int nvars;
     stvar cvars[];
 } Closure;
 
 typedef struct CChainNode CChainNode;
-typedef struct CChainNode
-{
-    CChainNode *prev;
+typedef struct CChainNode {
+    CChainNode* prev;
     closureFunc func;
     intptr token;
     atomic(uint32) refcount;

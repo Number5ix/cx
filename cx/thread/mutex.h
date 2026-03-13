@@ -80,10 +80,7 @@ void _mutexInit(_Out_ Mutex* m, uint32 flags);
 /// @param m Mutex to acquire
 /// @param timeout Maximum time to wait in nanoseconds (use timeForever for infinite)
 /// @return true if the mutex was acquired, false if timeout expired
-_When_(return == true, _Acquires_nonreentrant_lock_(*m))
-    _When_(timeout == timeForever, _Acquires_nonreentrant_lock_(*m))
-        _When_(timeout != timeForever,
-               _Must_inspect_result_) bool mutexTryAcquireTimeout(_Inout_ Mutex* m, int64 timeout);
+_When_(return == true, _Acquires_nonreentrant_lock_(*m)) _When_(timeout == timeForever, _Acquires_nonreentrant_lock_(*m)) _When_(timeout != timeForever, _Must_inspect_result_) bool mutexTryAcquireTimeout(_Inout_ Mutex* m, int64 timeout);
 
 /// Release a previously acquired mutex
 ///
@@ -99,9 +96,7 @@ _Releases_nonreentrant_lock_(*m) bool mutexRelease(_Inout_ Mutex* m);
 /// thread. Does not block or wait.
 /// @param m Mutex to acquire
 /// @return true if the mutex was acquired, false if already held
-_When_(return == true,
-              _Acquires_nonreentrant_lock_(
-                  *m)) _Must_inspect_result_ _meta_inline bool mutexTryAcquire(_Inout_ Mutex* m)
+_When_(return == true, _Acquires_nonreentrant_lock_(*m)) _Must_inspect_result_ _meta_inline bool mutexTryAcquire(_Inout_ Mutex* m)
 {
     int32 curstate = atomicLoad(int32, &m->ftx.val, Relaxed);
     if (curstate == 0 &&

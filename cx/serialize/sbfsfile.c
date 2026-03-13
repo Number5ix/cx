@@ -1,33 +1,33 @@
 #include "sbfsfile.h"
 
 typedef struct SbufFSFileCtx {
-    FSFile *file;
+    FSFile* file;
     bool close;
 } SbufFSFileCtx;
 
-static void sbufFSFileCleanup(_Pre_valid_ void *ctx)
+static void sbufFSFileCleanup(_Pre_valid_ void* ctx)
 {
-    SbufFSFileCtx *sbc = (SbufFSFileCtx *)ctx;
+    SbufFSFileCtx* sbc = (SbufFSFileCtx*)ctx;
     if (sbc->close)
         fsClose(sbc->file);
     xaFree(sbc);
 }
 
 _Use_decl_annotations_
-bool sbufFSFileIn(StreamBuffer *sb, FSFile *file, bool close)
+bool sbufFSFileIn(StreamBuffer* sb, FSFile* file, bool close)
 {
     if (!sbufPRegisterPush(sb, NULL, NULL))
         return false;
 
-    uint8 *buf = xaAlloc(sb->targetsz);
+    uint8* buf     = xaAlloc(sb->targetsz);
     size_t didread = 0;
-    for(;;) {
+    for (;;) {
         if (!fsRead(file, buf, sb->targetsz, &didread)) {
             sbufError(sb);
             break;
         }
 
-        if (didread == 0)           // EOF
+        if (didread == 0)   // EOF
             break;
 
         sbufPWrite(sb, buf, didread);
@@ -42,9 +42,10 @@ bool sbufFSFileIn(StreamBuffer *sb, FSFile *file, bool close)
     return ret;
 }
 
-static size_t sbufFSFilePullCB(_Pre_valid_ StreamBuffer *sb, _Out_writes_bytes_(sz) uint8 *buf, size_t sz, _Pre_opt_valid_ void *ctx)
+static size_t sbufFSFilePullCB(_Pre_valid_ StreamBuffer* sb, _Out_writes_bytes_(sz) uint8* buf,
+                               size_t sz, _Pre_opt_valid_ void* ctx)
 {
-    SbufFSFileCtx *sbc = (SbufFSFileCtx *)ctx;
+    SbufFSFileCtx* sbc = (SbufFSFileCtx*)ctx;
     if (!sbc)
         return 0;
 
@@ -59,11 +60,11 @@ static size_t sbufFSFilePullCB(_Pre_valid_ StreamBuffer *sb, _Out_writes_bytes_(
 }
 
 _Use_decl_annotations_
-bool sbufFSFilePRegisterPull(StreamBuffer *sb, FSFile *file, bool close)
+bool sbufFSFilePRegisterPull(StreamBuffer* sb, FSFile* file, bool close)
 {
-    SbufFSFileCtx *sbc = xaAlloc(sizeof(SbufFSFileCtx));
-    sbc->file = file;
-    sbc->close = close;
+    SbufFSFileCtx* sbc = xaAlloc(sizeof(SbufFSFileCtx));
+    sbc->file          = file;
+    sbc->close         = close;
 
     if (!sbufPRegisterPull(sb, sbufFSFilePullCB, sbufFSFileCleanup, sbc)) {
         sbufFSFileCleanup(sbc);
@@ -73,9 +74,10 @@ bool sbufFSFilePRegisterPull(StreamBuffer *sb, FSFile *file, bool close)
     return true;
 }
 
-static bool sbufFSFileSendCB(_Pre_valid_ StreamBuffer *sb, _In_reads_bytes_(sz) const uint8 *buf, size_t off, size_t sz, _Pre_opt_valid_ void *ctx)
+static bool sbufFSFileSendCB(_Pre_valid_ StreamBuffer* sb, _In_reads_bytes_(sz) const uint8* buf,
+                             size_t off, size_t sz, _Pre_opt_valid_ void* ctx)
 {
-    SbufFSFileCtx *sbc = (SbufFSFileCtx *)ctx;
+    SbufFSFileCtx* sbc = (SbufFSFileCtx*)ctx;
     if (!sbc)
         return false;
 
@@ -86,7 +88,7 @@ static bool sbufFSFileSendCB(_Pre_valid_ StreamBuffer *sb, _In_reads_bytes_(sz) 
     return true;
 }
 
-static void sbufFSFileNotifyCB(_Pre_valid_ StreamBuffer *sb, size_t sz, _Pre_opt_valid_ void *ctx)
+static void sbufFSFileNotifyCB(_Pre_valid_ StreamBuffer* sb, size_t sz, _Pre_opt_valid_ void* ctx)
 {
     if (sz >= (sb->targetsz >> 1) + (sb->targetsz >> 2)) {
         sbufCSend(sb, sbufFSFileSendCB, sz);
@@ -97,12 +99,12 @@ static void sbufFSFileNotifyCB(_Pre_valid_ StreamBuffer *sb, size_t sz, _Pre_opt
 }
 
 _Use_decl_annotations_
-bool sbufFSFileOut(StreamBuffer *sb, FSFile *file, bool close)
+bool sbufFSFileOut(StreamBuffer* sb, FSFile* file, bool close)
 {
     if (!sbufCRegisterPull(sb, NULL, NULL))
         return false;
 
-    uint8 *buf = xaAlloc(sb->targetsz);
+    uint8* buf = xaAlloc(sb->targetsz);
     size_t sz;
     do {
         // grab targetsz at a time from the buffer
@@ -125,11 +127,11 @@ bool sbufFSFileOut(StreamBuffer *sb, FSFile *file, bool close)
 }
 
 _Use_decl_annotations_
-bool sbufFSFileCRegisterPush(StreamBuffer *sb, FSFile *file, bool close)
+bool sbufFSFileCRegisterPush(StreamBuffer* sb, FSFile* file, bool close)
 {
-    SbufFSFileCtx *sbc = xaAlloc(sizeof(SbufFSFileCtx));
-    sbc->file = file;
-    sbc->close = close;
+    SbufFSFileCtx* sbc = xaAlloc(sizeof(SbufFSFileCtx));
+    sbc->file          = file;
+    sbc->close         = close;
 
     if (!sbufCRegisterPush(sb, sbufFSFileNotifyCB, sbufFSFileCleanup, sbc)) {
         sbufFSFileCleanup(sbc);

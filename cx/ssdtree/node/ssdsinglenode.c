@@ -15,7 +15,7 @@ STR_CONST(kZero, "0");
 
 _objfactory_guaranteed SSDSingleNode* SSDSingleNode__create(SSDTree* tree)
 {
-    SSDSingleNode *self;
+    SSDSingleNode* self;
     self = objInstCreate(SSDSingleNode);
 
     self->tree = objAcquire(tree);
@@ -31,13 +31,15 @@ bool SSDSingleNode_get(_In_ SSDSingleNode* self, int32 idx, _In_opt_ strref name
     return true;
 }
 
-_Ret_opt_valid_ stvar* SSDSingleNode_ptr(_In_ SSDSingleNode* self, int32 idx, _In_opt_ strref name, _Inout_ SSDLockState* _ssdCurrentLockState)
+_Ret_opt_valid_ stvar* SSDSingleNode_ptr(_In_ SSDSingleNode* self, int32 idx, _In_opt_ strref name,
+                                         _Inout_ SSDLockState* _ssdCurrentLockState)
 {
     ssdLockRead(self);
     return &self->storage;
 }
 
-bool SSDSingleNode_set(_In_ SSDSingleNode* self, int32 idx, _In_opt_ strref name, stvar val, _Inout_ SSDLockState* _ssdCurrentLockState)
+bool SSDSingleNode_set(_In_ SSDSingleNode* self, int32 idx, _In_opt_ strref name, stvar val,
+                       _Inout_ SSDLockState* _ssdCurrentLockState)
 {
     ssdLockWrite(self);
     stvarDestroy(&self->storage);
@@ -46,17 +48,19 @@ bool SSDSingleNode_set(_In_ SSDSingleNode* self, int32 idx, _In_opt_ strref name
     return true;
 }
 
-bool SSDSingleNode_setC(_In_ SSDSingleNode* self, int32 idx, _In_opt_ strref name, _Inout_ stvar* val, _Inout_ SSDLockState* _ssdCurrentLockState)
+bool SSDSingleNode_setC(_In_ SSDSingleNode* self, int32 idx, _In_opt_ strref name,
+                        _Inout_ stvar* val, _Inout_ SSDLockState* _ssdCurrentLockState)
 {
     ssdLockWrite(self);
     stvarDestroy(&self->storage);
     self->storage = *val;
-    *val = stvNone;
+    *val          = stvNone;
     ssdnodeUpdateModified(self);
     return true;
 }
 
-bool SSDSingleNode_remove(_In_ SSDSingleNode* self, int32 idx, _In_opt_ strref name, _Inout_ SSDLockState* _ssdCurrentLockState)
+bool SSDSingleNode_remove(_In_ SSDSingleNode* self, int32 idx, _In_opt_ strref name,
+                          _Inout_ SSDLockState* _ssdCurrentLockState)
 {
     // can't remove a single node!
     return false;
@@ -64,13 +68,14 @@ bool SSDSingleNode_remove(_In_ SSDSingleNode* self, int32 idx, _In_opt_ strref n
 
 _Ret_valid_ SSDIterator* SSDSingleNode_iter(_In_ SSDSingleNode* self)
 {
-    SSDSingleIter *iter = ssdsingleiterCreate(self, NULL);
+    SSDSingleIter* iter = ssdsingleiterCreate(self, NULL);
     return SSDIterator(iter);
 }
 
-SSDIterator* SSDSingleNode__iterLocked(_In_ SSDSingleNode* self, _Inout_ SSDLockState* _ssdCurrentLockState)
+SSDIterator* SSDSingleNode__iterLocked(_In_ SSDSingleNode* self,
+                                       _Inout_ SSDLockState* _ssdCurrentLockState)
 {
-    SSDSingleIter *iter = ssdsingleiterCreate(self, _ssdCurrentLockState);
+    SSDSingleIter* iter = ssdsingleiterCreate(self, _ssdCurrentLockState);
     return SSDIterator(iter);
 }
 
@@ -88,12 +93,13 @@ void SSDSingleNode_destroy(_In_ SSDSingleNode* self)
 
 // -------------------------------- ITERATOR --------------------------------
 
-_objfactory_guaranteed SSDSingleIter* SSDSingleIter_create(SSDSingleNode* node, SSDLockState* lstate)
+_objfactory_guaranteed SSDSingleIter*
+SSDSingleIter_create(SSDSingleNode* node, SSDLockState* lstate)
 {
-    SSDSingleIter *self;
+    SSDSingleIter* self;
     self = objInstCreate(SSDSingleIter);
 
-    self->node = (SSDNode*)objAcquire(node);
+    self->node   = (SSDNode*)objAcquire(node);
     self->lstate = lstate;
 
     objInstInit(self);
@@ -129,7 +135,7 @@ bool SSDSingleIter_get(_In_ SSDSingleIter* self, stvar* out)
         return false;
 
     _ssdManualLockRead(self->node, self->lstate);
-    stvarCopy(out, ((SSDSingleNode *)self->node)->storage);
+    stvarCopy(out, ((SSDSingleNode*)self->node)->storage);
 
     _ssdUnlock(self->node, &self->transient_lock_state);
     return true;
@@ -145,7 +151,10 @@ strref SSDSingleIter_name(_In_ SSDSingleIter* self)
     return kZero;
 }
 
-bool SSDSingleIter_iterOut(_In_ SSDSingleIter* self, _When_(return == true, _Out_) int32* idx, _When_(return == true, _Out_) strref* name, _When_(return == true, _Out_) stvar** val)
+bool SSDSingleIter_iterOut(_In_ SSDSingleIter* self,
+                           _When_(return == true, _Out_) int32* idx,
+                           _When_(return == true, _Out_) strref* name,
+                           _When_(return == true, _Out_) stvar** val)
 {
     if (self->done)
         return false;
@@ -154,9 +163,9 @@ bool SSDSingleIter_iterOut(_In_ SSDSingleIter* self, _When_(return == true, _Out
     // this shouldn't be used in transient lock mode
     devAssert(!self->transient_lock_state.init);
 
-    *idx = 0;
+    *idx  = 0;
     *name = kZero;
-    *val = &((SSDSingleNode *)self->node)->storage;
+    *val  = &((SSDSingleNode*)self->node)->storage;
     return true;
 }
 

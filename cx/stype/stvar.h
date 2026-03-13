@@ -121,7 +121,10 @@
 ///   };
 /// @endcode
 #ifndef __cplusplus
-#define stvarInit(typen, val) { .data = { .st_##typen = val }, .type = stType(typen) }
+#define stvarInit(typen, val)                                \
+    {                                                        \
+        .data = { .st_##typen = val }, .type = stType(typen) \
+    }
 
 /// stvar stvar(type, value)
 ///

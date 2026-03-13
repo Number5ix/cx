@@ -112,10 +112,7 @@ void _rwlockInit(_Out_ RWLock* l, uint32 flags);
 /// @param l RWLock to acquire for reading
 /// @param timeout Maximum time to wait in nanoseconds (use timeForever for infinite)
 /// @return true if the read lock was acquired, false if timeout expired or maximum readers reached
-_When_(return == true, _Acquires_shared_lock_(*l))
-    _When_(timeout == timeForever, _Acquires_shared_lock_(*l)) _When_(
-        timeout != timeForever,
-        _Must_inspect_result_) bool rwlockTryAcquireReadTimeout(_Inout_ RWLock* l, int64 timeout);
+_When_(return == true, _Acquires_shared_lock_(*l)) _When_(timeout == timeForever, _Acquires_shared_lock_(*l)) _When_(timeout != timeForever, _Must_inspect_result_) bool rwlockTryAcquireReadTimeout(_Inout_ RWLock* l, int64 timeout);
 
 /// Attempt to acquire a write lock with a timeout
 ///
@@ -124,10 +121,7 @@ _When_(return == true, _Acquires_shared_lock_(*l))
 /// @param l RWLock to acquire for writing
 /// @param timeout Maximum time to wait in nanoseconds (use timeForever for infinite)
 /// @return true if the write lock was acquired, false if timeout expired or maximum writers reached
-_When_(return == true, _Acquires_exclusive_lock_(*l))
-    _When_(timeout == timeForever, _Acquires_exclusive_lock_(*l)) _When_(
-        timeout != timeForever,
-        _Must_inspect_result_) bool rwlockTryAcquireWriteTimeout(_Inout_ RWLock* l, int64 timeout);
+_When_(return == true, _Acquires_exclusive_lock_(*l)) _When_(timeout == timeForever, _Acquires_exclusive_lock_(*l)) _When_(timeout != timeForever, _Must_inspect_result_) bool rwlockTryAcquireWriteTimeout(_Inout_ RWLock* l, int64 timeout);
 
 /// Attempt to acquire a read lock without blocking
 ///
@@ -136,10 +130,7 @@ _When_(return == true, _Acquires_exclusive_lock_(*l))
 /// @param l RWLock to acquire for reading
 /// @return true if the read lock was acquired, false if writers are active/pending or maximum
 /// readers reached
-_When_(
-    return == true,
-           _Acquires_shared_lock_(
-               *l)) _Must_inspect_result_ _meta_inline bool rwlockTryAcquireRead(_Inout_ RWLock* l)
+_When_(return == true, _Acquires_shared_lock_(*l)) _Must_inspect_result_ _meta_inline bool rwlockTryAcquireRead(_Inout_ RWLock* l)
 {
     uint32 state = atomicLoad(uint32, &l->state, Relaxed);
     // only valid when no writer locks are held or pending
@@ -169,10 +160,7 @@ _When_(
 /// Does not block or wait.
 /// @param l RWLock to acquire for writing
 /// @return true if the write lock was acquired, false if any readers or writers are active
-_When_(
-    return == true,
-           _Acquires_exclusive_lock_(
-               *l)) _Must_inspect_result_ _meta_inline bool rwlockTryAcquireWrite(_Inout_ RWLock* l)
+_When_(return == true, _Acquires_exclusive_lock_(*l)) _Must_inspect_result_ _meta_inline bool rwlockTryAcquireWrite(_Inout_ RWLock* l)
 {
     uint32 state = atomicLoad(uint32, &l->state, Relaxed);
     // only valid when no other writer locks are held, and there are no (active) readers

@@ -30,10 +30,10 @@
 struct BufferHeader {
     union {
         void* _is_buffer;
-        size_t sz;      ///< Total allocated size of buffer in bytes
+        size_t sz;   ///< Total allocated size of buffer in bytes
     };
-    size_t len;     ///< Length of valid data currently in buffer
-    uint8 data[];   ///< Buffer data (flexible array member)
+    size_t len;      ///< Length of valid data currently in buffer
+    uint8 data[];    ///< Buffer data (flexible array member)
 };
 
 /// Buffer bufCreate(size_t size)
@@ -61,8 +61,7 @@ _Must_inspect_result_ _Ret_maybenull_ Buffer bufTryCreate(size_t size);
 /// If resizing smaller than current length, the length is truncated.
 /// @param buf Pointer to buffer pointer to resize (may be NULL)
 /// @param newsize New size in bytes for the buffer
-_At_(*buf, _Pre_maybenull_ _Post_notnull_)
-void bufResize(_Inout_ Buffer* buf, size_t newsize);
+_At_(*buf, _Pre_maybenull_ _Post_notnull_) void bufResize(_Inout_ Buffer* buf, size_t newsize);
 
 /// bool bufTryResize(Buffer* buf, size_t newsize)
 ///
@@ -73,8 +72,7 @@ void bufResize(_Inout_ Buffer* buf, size_t newsize);
 /// @param buf Pointer to buffer pointer to resize (may be NULL)
 /// @param newsize New size in bytes for the buffer
 /// @return true if resize succeeded, false if allocation failed
-_At_(*buf, _Pre_maybenull_)
-bool bufTryResize(_Inout_ Buffer* buf, size_t newsize);
+_At_(*buf, _Pre_maybenull_) bool bufTryResize(_Inout_ Buffer* buf, size_t newsize);
 
 /// void bufDestroy(Buffer* buf)
 ///
@@ -82,7 +80,6 @@ bool bufTryResize(_Inout_ Buffer* buf, size_t newsize);
 ///
 /// Sets the buffer pointer to NULL after freeing.
 /// @param buf Pointer to buffer pointer to destroy
-_At_(*buf, _Pre_maybenull_ _Post_null_)
-void bufDestroy(_Inout_ Buffer* buf);
+_At_(*buf, _Pre_maybenull_ _Post_null_) void bufDestroy(_Inout_ Buffer* buf);
 
 /// @}  // end of buffer_simple group

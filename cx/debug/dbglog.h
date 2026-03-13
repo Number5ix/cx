@@ -25,11 +25,11 @@
 /// @code
 ///   // Enable debug logging at startup
 ///   dbgLogEnable(LOG_Verbose);
-///   
+///
 ///   // Normal logging calls automatically go to debug buffer
 ///   logInfo(_SL("Application started"));
 ///   logDebug(_SL("Loading configuration"));
-///   
+///
 ///   // On crash, the buffer contents are included in crash dumps
 ///   // Disable when no longer needed (rare)
 ///   dbgLogDisable();
@@ -50,7 +50,7 @@ CX_C_BEGIN
 /// Global pointer to the circular log buffer. Visible to debuggers and
 /// automatically included in crash dumps when enabled. Points to NULL
 /// when debug logging is not active.
-extern char *dbgLog;
+extern char* dbgLog;
 
 /// Enable debug log buffer and register with logging system
 /// @param level Maximum log level to capture (e.g., LOG_Verbose, LOG_Debug, LOG_Info)

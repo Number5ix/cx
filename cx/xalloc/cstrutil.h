@@ -4,6 +4,8 @@
 #pragma once
 
 #include <cx/platform/cpp.h>
+#include <cx/utils/macros/salieri.h>
+
 #include <stddef.h>
 
 CX_C_BEGIN
@@ -22,7 +24,7 @@ CX_C_BEGIN
 ///
 /// @param s Null-terminated string
 /// @return Length of the string in bytes (excluding null terminator)
-size_t cstrLen(_In_z_ const char *s);
+size_t cstrLen(_In_z_ const char* s);
 
 /// Duplicate a null-terminated C string.
 ///
@@ -31,13 +33,13 @@ size_t cstrLen(_In_z_ const char *s);
 ///
 /// @param s Null-terminated string to duplicate, or NULL
 /// @return Newly allocated copy of the string, or NULL if input was NULL
-_Ret_z_ char *cstrDup(_In_z_ const char *s);
+_Ret_z_ char* cstrDup(_In_z_ const char* s);
 
 /// Compute the length of a null-terminated wide character string.
 ///
 /// @param s Null-terminated wide string (unsigned short)
 /// @return Length of the string in characters (excluding null terminator)
-size_t cstrLenw(_In_z_ const unsigned short *s);
+size_t cstrLenw(_In_z_ const unsigned short* s);
 
 /// Duplicate a null-terminated wide character string.
 ///
@@ -46,7 +48,7 @@ size_t cstrLenw(_In_z_ const unsigned short *s);
 ///
 /// @param s Null-terminated wide string to duplicate, or NULL
 /// @return Newly allocated copy of the wide string, or NULL if input was NULL
-_Ret_z_ unsigned short *cstrDupw(_In_z_ const unsigned short *s);
+_Ret_z_ unsigned short* cstrDupw(_In_z_ const unsigned short* s);
 
 /// Case-insensitive string comparison.
 ///
@@ -55,7 +57,7 @@ _Ret_z_ unsigned short *cstrDupw(_In_z_ const unsigned short *s);
 /// @param s1 First null-terminated string
 /// @param s2 Second null-terminated string
 /// @return 0 if strings are equal (ignoring case), negative if s1 < s2, positive if s1 > s2
-int cstrCmpi(_In_z_ const char *s1, _In_z_ const char *s2);
+int cstrCmpi(_In_z_ const char* s1, _In_z_ const char* s2);
 
 /// @}
 // end of cstrutil group

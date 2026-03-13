@@ -9,8 +9,8 @@
 #error("Do not include cx.h after windows.h!");
 #endif
 
-#include <string.h>
 #include <ctype.h>
+#include <string.h>
 #include <time.h>
 
 #include <cx/platform/base.h>
@@ -25,4 +25,3 @@
 #include <stdio.h>
 #endif
 #include <stdlib.h>
-

@@ -5,13 +5,13 @@
  * available in GNU libc and compatible libc's (eg uClibc).
  */
 #if ((defined(__linux__) && defined(__GLIBC__)) || defined(__midipix__))
-#include <unistd.h>
 #include <sys/syscall.h>
+#include <unistd.h>
 #if defined(SYS_getrandom)
 #define HAVE_GETRANDOM
 #include <errno.h>
 
-static bool getrandom_wrapper(void *buf, size_t buflen, unsigned int flags)
+static bool getrandom_wrapper(void* buf, size_t buflen, unsigned int flags)
 {
     return syscall(SYS_getrandom, buf, buflen, flags) == buflen;
 }
@@ -22,14 +22,14 @@ static bool getrandom_wrapper(void *buf, size_t buflen, unsigned int flags)
 #include <sys/param.h>
 #if (defined(__FreeBSD__) && __FreeBSD_version >= 1200000) || \
     (defined(__DragonFly__) && __DragonFly_version >= 500700)
-#include <errno.h>
 #include <sys/random.h>
+#include <errno.h>
 #define HAVE_GETRANDOM
-static int getrandom_wrapper(void *buf, size_t buflen, unsigned int flags)
+static int getrandom_wrapper(void* buf, size_t buflen, unsigned int flags)
 {
     return getrandom(buf, buflen, flags) == buflen;
 }
-#endif /* (__FreeBSD__ && __FreeBSD_version >= 1200000) ||
+#endif /* (__FreeBSD__ && __FreeBSD_version >= 1200000) || \
           (__DragonFly__ && __DragonFly_version >= 500700) */
 #endif /* __FreeBSD__ || __DragonFly__ */
 
@@ -47,7 +47,7 @@ static int getrandom_wrapper(void *buf, size_t buflen, unsigned int flags)
 #if defined(KERN_ARND)
 #define HAVE_SYSCTL_ARND
 
-static bool sysctl_arnd_wrapper(unsigned char *buf, size_t buflen)
+static bool sysctl_arnd_wrapper(unsigned char* buf, size_t buflen)
 {
     int name[2];
     size_t len;
@@ -72,7 +72,6 @@ static bool sysctl_arnd_wrapper(unsigned char *buf, size_t buflen)
 
 bool osGenRandom(uint8* buffer, uint32 size)
 {
-
 #if defined(HAVE_GETRANDOM)
     return getrandom_wrapper(buffer, size, 0);
     /* Fall through if the system call isn't known. */
@@ -82,7 +81,8 @@ bool osGenRandom(uint8* buffer, uint32 size)
     return sysctl_arnd_wrapper(buffer, size);
 #else
 
-    FILE *file = fopen("/dev/urandom", "rb");;
+    FILE* file = fopen("/dev/urandom", "rb");
+    ;
     if (file == NULL)
         return false;
 

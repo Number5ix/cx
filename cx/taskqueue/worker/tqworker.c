@@ -11,10 +11,14 @@
 // ==================== Auto-generated section ends ======================
 
 void TQWorker_onStart(_In_ TQWorker* self, _In_ TaskQueue* tq)
-{}
+{
+    return;
+}
 
 void TQWorker_onStop(_In_ TQWorker* self, _In_ TaskQueue* tq)
-{}
+{
+    return;
+}
 
 // Autogen begins -----
 // clang-format off

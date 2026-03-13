@@ -1,29 +1,27 @@
 #include "vfs_private.h"
 
-VFSCacheEnt *_vfsCacheEntCreate(VFSMount *m, strref opath)
+VFSCacheEnt* _vfsCacheEntCreate(VFSMount* m, strref opath)
 {
-    VFSCacheEnt *c = xaAlloc(sizeof(VFSCacheEnt), XA_Zero);
-    c->mount = m;
+    VFSCacheEnt* c = xaAlloc(sizeof(VFSCacheEnt), XA_Zero);
+    c->mount       = m;
     strDup(&c->origpath, opath);
     return c;
 }
 
-static void _vfsCacheEntDestroy(stype st, stgeneric *g, uint32 flags)
+static void _vfsCacheEntDestroy(stype st, stgeneric* g, uint32 flags)
 {
-    VFSCacheEnt *e = (VFSCacheEnt*)g->st_ptr;
+    VFSCacheEnt* e = (VFSCacheEnt*)g->st_ptr;
     strDestroy(&e->origpath);
     xaFree(e);
 }
 
-STypeOps VFSCacheEnt_ops = {
-    .dtor = _vfsCacheEntDestroy
-};
+STypeOps VFSCacheEnt_ops = { .dtor = _vfsCacheEntDestroy };
 
 _Use_decl_annotations_
-VFSDir *_vfsDirCreate(VFS *vfs, VFSDir *parent)
+VFSDir* _vfsDirCreate(VFS* vfs, VFSDir* parent)
 {
-    VFSDir *d = xaAlloc(sizeof(VFSDir), XA_Zero);
-    d->parent = parent;             // weak ref
+    VFSDir* d = xaAlloc(sizeof(VFSDir), XA_Zero);
+    d->parent = parent;   // weak ref
     saInit(&d->mounts, object, 1);
     if (vfs->flags & VFS_CaseSensitive) {
         htInit(&d->subdirs, string, custom(ptr, VFSDir_ops), 8);
@@ -35,9 +33,9 @@ VFSDir *_vfsDirCreate(VFS *vfs, VFSDir *parent)
     return d;
 }
 
-static void _vfsDirDestroy(stype st, stgeneric *g, uint32 flags)
+static void _vfsDirDestroy(stype st, stgeneric* g, uint32 flags)
 {
-    VFSDir *d = (VFSDir*)g->st_ptr;
+    VFSDir* d = (VFSDir*)g->st_ptr;
     saDestroy(&d->mounts);
     htDestroy(&d->files);
     htDestroy(&d->subdirs);
@@ -45,6 +43,4 @@ static void _vfsDirDestroy(stype st, stgeneric *g, uint32 flags)
     xaFree(d);
 }
 
-STypeOps VFSDir_ops = {
-    .dtor = _vfsDirDestroy
-};
+STypeOps VFSDir_ops = { .dtor = _vfsDirDestroy };

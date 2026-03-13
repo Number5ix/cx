@@ -56,7 +56,7 @@ int64 TQInWorkerManager_tick(_In_ TQInWorkerManager* self)
 
     // if another thread needed the manager in the meantime, tell the caller to run it again
     if (atomicLoad(bool, &self->needrun, Relaxed))
-         return 0;
+        return 0;
 
     return ret;
 }

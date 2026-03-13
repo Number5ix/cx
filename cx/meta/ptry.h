@@ -56,10 +56,10 @@
 ///   ptTry {
 ///       resource1 = acquire1();
 ///       if (!resource1) ptThrow(ERR_RESOURCE, "Failed to acquire resource1");
-///       
+///
 ///       resource2 = acquire2();
 ///       if (!resource2) ptThrow(ERR_RESOURCE, "Failed to acquire resource2");
-///       
+///
 ///       processData();
 ///   }
 ///   ptCatch {
@@ -67,7 +67,7 @@
 ///       if (ptCode) {
 ///           // Exception occurred
 ///           logError("Exception %d: %s", ptCode, ptMsg);
-///           
+///
 ///           // Selective handling
 ///           if (ptCode == ERR_FATAL) {
 ///               ptRethrow;  // Let caller handle fatal errors
@@ -86,28 +86,29 @@
 /// Contains details about an exception that is being thrown or is currently active.
 /// This is stored in thread-local storage during exception processing.
 typedef struct ExceptionInfo {
-    int code;                   ///< Application-specific exception code
-    const char *msg;            ///< Exception message - MUST be a static string literal
+    int code;           ///< Application-specific exception code
+    const char* msg;    ///< Exception message - MUST be a static string literal
 #if DEBUG_LEVEL >= 1
-    const char *file;           ///< Source filename where exception was thrown
-    int ln;                     ///< Line number where exception was thrown
+    const char* file;   ///< Source filename where exception was thrown
+    int ln;             ///< Line number where exception was thrown
 #endif
 } ExceptionInfo;
 
-extern _Thread_local _pblock_jmp_buf_node *_ptry_top;           // stack of jump buffers to rewind to
-extern _Thread_local ExceptionInfo _ptry_exc;                   // currently active exception
+extern _Thread_local _pblock_jmp_buf_node* _ptry_top;   // stack of jump buffers to rewind to
+extern _Thread_local ExceptionInfo _ptry_exc;           // currently active exception
 extern ExceptionInfo _ptry_exc_empty;
 
 /// Handler function for uncaught exceptions.
 ///
 /// @param einfo Information about the uncaught exception
 /// @return 0 to abort the program, 1 to resume execution after the exception point
-typedef int (*ptUnhandledHandler)(ExceptionInfo *einfo);
+typedef int (*ptUnhandledHandler)(ExceptionInfo* einfo);
 
 // GCC falsely warns that _ptry_top is a dangling pointer, even though we're very careful to clean
 // it up when exiting the scope that the local variable it points to is declared in.
 #if defined(__GNUC__) && __GNUC__ >= 12
-#define ptDisablePtrWarning _Pragma("GCC diagnostic push") _Pragma("GCC diagnostic ignored \"-Wdangling-pointer\"")
+#define ptDisablePtrWarning \
+    _Pragma("GCC diagnostic push") _Pragma("GCC diagnostic ignored \"-Wdangling-pointer\"")
 #define ptReenableWarnings _Pragma("GCC diagnostic pop")
 #else
 #define ptDisablePtrWarning
@@ -141,14 +142,14 @@ void ptRegisterUnhandled(ptUnhandledHandler handler);
 /// @param handler The handler function to remove
 void ptUnregisterUnhandled(ptUnhandledHandler handler);
 
-void _ptry_handle_unhandled(ExceptionInfo *einfo);
+void _ptry_handle_unhandled(ExceptionInfo* einfo);
 
 _meta_inline void _ptry_clear(void)
 {
     _ptry_exc = _ptry_exc_empty;
 }
 
-_meta_inline void _ptry_push(_pblock_jmp_buf_node *node)
+_meta_inline void _ptry_push(_pblock_jmp_buf_node* node)
 {
     node->next = _ptry_top;
     ptDisablePtrWarning;
@@ -156,9 +157,9 @@ _meta_inline void _ptry_push(_pblock_jmp_buf_node *node)
     ptReenableWarnings;
 }
 
-_meta_inline _pblock_jmp_buf_node *_ptry_pop(void)
+_meta_inline _pblock_jmp_buf_node* _ptry_pop(void)
 {
-    _pblock_jmp_buf_node *ret = _ptry_top;
+    _pblock_jmp_buf_node* ret = _ptry_top;
     if (!ret)
         return ret;
 
@@ -167,9 +168,9 @@ _meta_inline _pblock_jmp_buf_node *_ptry_pop(void)
     return ret;
 }
 
-_meta_inline void _ptry_pop_until(_pblock_jmp_buf_node *node)
+_meta_inline void _ptry_pop_until(_pblock_jmp_buf_node* node)
 {
-    _pblock_jmp_buf_node *last;
+    _pblock_jmp_buf_node* last;
     // keep popping until we hit the specified node or run out of jump buffers
     do {
         last = _ptry_pop();
@@ -177,21 +178,22 @@ _meta_inline void _ptry_pop_until(_pblock_jmp_buf_node *node)
 }
 
 #if DEBUG_LEVEL >= 1
-_meta_inline void _ptry_throw(int code, const char *msg, const char *file, int ln)
+_meta_inline void _ptry_throw(int code, const char* msg, const char* file, int ln)
 #else
-_meta_inline void _ptry_throw(int code, const char *msg)
+_meta_inline void _ptry_throw(int code, const char* msg)
 #endif
 {
     // populate the thread-local exception info as we go into exception-handling mode
     _ptry_exc.code = code;
-    _ptry_exc.msg = msg;
+    _ptry_exc.msg  = msg;
 #if DEBUG_LEVEL >= 1
     _ptry_exc.file = file;
-    _ptry_exc.ln = ln;
+    _ptry_exc.ln   = ln;
 #endif
 
     // jump to the handler block if we have one, in most cases this function stops executing here
-    if (_ptry_top) _pbLongjmp(_ptry_top, -1);
+    if (_ptry_top)
+        _pbLongjmp(_ptry_top, -1);
 
     // otherwise call the unhandled exception handler, this will probably abort and never return
     _ptry_handle_unhandled(&_ptry_exc);
@@ -221,10 +223,10 @@ _meta_inline void _ptry_throw(int code, const char *msg)
 /// @code
 ///   #define ERR_IO 100
 ///   #define ERR_MEMORY 101
-///   
+///
 ///   FILE *f = fopen("data.txt", "r");
 ///   if (!f) ptThrow(ERR_IO, "Failed to open data.txt");  // OK - string literal
-///   
+///
 ///   void *mem = malloc(size);
 ///   if (!mem) ptThrow(ERR_MEMORY, "Out of memory");  // OK - string literal
 /// @endcode
@@ -253,7 +255,7 @@ _meta_inline void _ptry_throw(int code, const char *msg)
 ///   ptCatch {
 ///       if (ptCode) {
 ///           logError("Exception %d: %s", ptCode, ptMsg);
-///           
+///
 ///           // Handle I/O errors locally
 ///           if (ptCode == ERR_IO) {
 ///               useDefaultData();
@@ -304,30 +306,25 @@ _meta_inline void _ptry_throw(int code, const char *msg)
 /// @note Inherits all performance costs of protected blocks
 /// @warning Cannot mix with plain pblocks in the same call graph
 /// @see ptCatch, ptFinally, ptThrow
-#define ptTry                                                                                       \
-    pblock                                                                                          \
-    /* phase 0 is the try, phase 1 is the catch/finally */                                          \
-    for (unsigned _ptry_phase = 0; _ptry_phase < 2; ++_ptry_phase)                                  \
-        /* try phase */                                                                             \
-        if (!_ptry_phase)                                                                           \
-            /* push the current pblock jump target to the exception handler stack */                \
-            /* this will cause it to be entered through the switch label */                         \
-            _blkBefore(_ptry_push(_pblock_unwind_top))                                              \
-            do
+#define ptTry                                                                                                                                                      \
+    pblock /* phase 0 is the try, phase 1 is the catch/finally */                                                                                                  \
+        for (unsigned _ptry_phase = 0; _ptry_phase < 2; ++_ptry_phase) /* try phase */                                                                             \
+        if (!_ptry_phase) /* push the current pblock jump target to the exception handler stack */ /* this will cause it to be entered through the switch label */ \
+        _blkBefore(_ptry_push(_pblock_unwind_top)) do
 
 // common setup for catch/finally
-#define _ptry_after_block                                                                           \
-    /* this can be reached two ways, either naturally in phase 1 of the _ptry_phase loop (this is   \
-     * the 'else'), or if an exception occurs, through the case 1: label through the pblock after   \
-     * longjmping into the pblock loop from a lower stack frame. The latter is the same mechanism   \
-     * that PBLOCK_AFTER would use, but for try/catch it's unconditional. */                        \
-    while(0); else case 1:                                                                          \
-    /* critically important to protect the outer block loop variable here! */                       \
-    _blkStart                                                                                       \
-    /* make sure that this phase isn't executed again (if we got here via longjmp) */               \
-    _blkBefore(_ptry_phase = 2)                                                                     \
-    /* unwind the handler stack to one level above where we currently are */                        \
-    _blkBefore(_ptry_pop_until(_pblock_unwind_top))
+#define _ptry_after_block                                                                         \
+    /* this can be reached two ways, either naturally in phase 1 of the _ptry_phase loop (this is \
+     * the 'else'), or if an exception occurs, through the case 1: label through the pblock after \
+     * longjmping into the pblock loop from a lower stack frame. The latter is the same mechanism \
+     * that PBLOCK_AFTER would use, but for try/catch it's unconditional. */                      \
+    while (0);                                                                                    \
+    else case 1:                                                                                  \
+    /* critically important to protect the outer block loop variable here! */                     \
+    _blkStart /* make sure that this phase isn't executed again (if we got here via longjmp) */   \
+    _blkBefore(_ptry_phase = 2) /* unwind the handler stack to one level above where we currently \
+                                   are */                                                         \
+        _blkBefore(_ptry_pop_until(_pblock_unwind_top))
 
 /// ptFinally { }
 ///
@@ -356,9 +353,9 @@ _meta_inline void _ptry_throw(int code, const char *msg)
 ///
 /// @note If an exception occurred, it is implicitly re-thrown after this block
 /// @see ptTry, ptCatch, ptCode, ptMsg
-#define ptFinally                                                                                   \
-    _ptry_after_block                                                                               \
-    /* finally blocks end in an implicit rethrow if there is an active exception */                 \
+#define ptFinally                                                                                  \
+    _ptry_after_block /* finally blocks end in an implicit rethrow if there is an active exception \
+                       */                                                                          \
     _blkAfter(_ptry_exc.code ? ptRethrow : nop_stmt)
 
 /// ptCatch { }
@@ -392,7 +389,7 @@ _meta_inline void _ptry_throw(int code, const char *msg)
 ///       // ALWAYS runs, check ptCode to see if exception occurred
 ///       if (ptCode) {
 ///           printf("Exception %d: %s\n", ptCode, ptMsg);
-///           
+///
 ///           // Selective handling
 ///           if (ptCode == ERR_FATAL) {
 ///               ptRethrow;  // Let caller handle
@@ -406,9 +403,7 @@ _meta_inline void _ptry_throw(int code, const char *msg)
 ///
 /// @note Exception is cleared after this block - use ptRethrow to propagate
 /// @see ptTry, ptFinally, ptCode, ptMsg, ptRethrow
-#define ptCatch                                                                                     \
-    _ptry_after_block                                                                               \
-    _blkAfter(_ptry_clear())
+#define ptCatch _ptry_after_block _blkAfter(_ptry_clear())
 
 /// ptCode
 ///

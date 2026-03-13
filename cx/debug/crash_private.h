@@ -1,14 +1,14 @@
 #pragma once
 
+#include "cx/container.h"
 #include "cx/debug/crash.h"
 #include "cx/thread/atomic.h"
 #include "cx/thread/mutex.h"
-#include "cx/container.h"
 #include "cx/utils.h"
 
 typedef struct CrashExtraMeta {
-    const char *name;
-    char *str;
+    const char* name;
+    char* str;
     int val;
     bool version;
 } CrashExtraMeta;
@@ -26,6 +26,6 @@ extern sa_CrashExtraMeta _dbgCrashExtraMeta;
 extern sa_CrashMemRange _dbgCrashDumpMem;
 extern Mutex _dbgCrashMutex;
 
-void _dbgCrashInit(void *data);
+void _dbgCrashInit(void* data);
 bool _dbgCrashPlatformInit();
 bool _dbgCrashTriggerCallbacks(bool after);

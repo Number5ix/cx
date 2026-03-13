@@ -1,15 +1,15 @@
-#include "cx/platform/os.h"
-#include "cx/utils/lazyinit.h"
-#include "cx/time/time.h"
 #include <pthread.h>
 #include <time.h>
+#include "cx/platform/os.h"
+#include "cx/time/time.h"
+#include "cx/utils/lazyinit.h"
 
 #if defined(_PLATFORM_FBSD)
-#include <sys/types.h>
 #include <sys/sysctl.h>
+#include <sys/types.h>
 #elif defined(_PLATFORM_LINUX)
-#include <unistd.h>
 #include <sched.h>
+#include <unistd.h>
 #endif
 
 static LazyInitState coreCache;
@@ -25,10 +25,10 @@ void osSleep(int64 time)
 {
     struct timespec ts;
     timeToRelTimespec(&ts, time);
-    while(nanosleep(&ts, &ts)) {}
+    while (nanosleep(&ts, &ts)) {}
 }
 
-static void initCoreCache(void *dummy)
+static void initCoreCache(void* dummy)
 {
 #ifdef _PLATFORM_FBSD
     int mib[2];
@@ -39,12 +39,12 @@ static void initCoreCache(void *dummy)
 
     sysctl(mib, 2, &nlogical, &len, NULL, 0);
 
-    ncores = nlogical;      // TODO: figure out a way to get physical core count that
-                            // doesn't involve parsing XML...
+    ncores = nlogical;   // TODO: figure out a way to get physical core count that
+                         // doesn't involve parsing XML...
 #elif _PLATFORM_LINUX
     nlogical = sysconf(_SC_NPROCESSORS_ONLN);
 
-    ncores = nlogical;      // TODO: get physical core count
+    ncores = nlogical;   // TODO: get physical core count
 #endif
 
     // fallback to prevent bad things like dividing by zero

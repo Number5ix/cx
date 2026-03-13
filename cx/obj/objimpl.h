@@ -3,8 +3,8 @@
 /// @file objimpl.h
 /// @brief Implementation helpers for class and interface authors
 
-#include <cx/obj/objiface.h>
 #include <cx/obj/objclass.h>
+#include <cx/obj/objiface.h>
 #include <cx/utils/macros/salieri.h>
 
 /// @defgroup obj_impl Class Implementation
@@ -18,7 +18,7 @@
 /// implementation code. Regular object users should use the public API (objAcquire,
 /// objRelease, etc.).
 
-_Ret_notnull_ ObjInst *_objInstCreate(_In_ ObjClassInfo *cls);
+_Ret_notnull_ ObjInst* _objInstCreate(_In_ ObjClassInfo* cls);
 /// ClassName *objInstCreate(ClassName)
 ///
 /// Allocate and initialize an object instance
@@ -48,7 +48,7 @@ _Ret_notnull_ ObjInst *_objInstCreate(_In_ ObjClassInfo *cls);
 /// @return Newly allocated object instance (never NULL)
 #define objInstCreate(clsname) (clsname*)_objInstCreate(&objClassInfoName(clsname))
 
-bool _objInstInit(_Inout_ ObjInst *inst, _In_ ObjClassInfo *cls);
+bool _objInstInit(_Inout_ ObjInst* inst, _In_ ObjClassInfo* cls);
 /// bool objInstInit(ClassType *inst)
 ///
 /// Call initialization callbacks for the object's class hierarchy
@@ -77,7 +77,7 @@ bool _objInstInit(_Inout_ ObjInst *inst, _In_ ObjClassInfo *cls);
 /// @param other Second object to compare
 /// @param flags Comparison flags (currently unused)
 /// @return Negative if self < other, 0 if equal, positive if self > other
-intptr objDefaultCmp(_In_ void *self, _In_ void *other, uint32 flags);
+intptr objDefaultCmp(_In_ void* self, _In_ void* other, uint32 flags);
 
 /// Default hash function for Hashable interface
 ///
@@ -91,7 +91,7 @@ intptr objDefaultCmp(_In_ void *self, _In_ void *other, uint32 flags);
 /// @param self Object to hash
 /// @param flags Hash flags (currently unused)
 /// @return 32-bit hash value
-uint32 objDefaultHash(_In_ void *self, uint32 flags);
+uint32 objDefaultHash(_In_ void* self, uint32 flags);
 
 /// SAL annotation indicating init callback always succeeds
 ///

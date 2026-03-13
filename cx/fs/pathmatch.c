@@ -1,6 +1,6 @@
 #include "fs_private.h"
-#include "cx/string.h"
 #include "cx/debug/assert.h"
+#include "cx/string.h"
 
 _Use_decl_annotations_
 bool pathMatch(strref path, strref pattern, uint32 flags)
@@ -60,7 +60,10 @@ bool pathMatch(strref path, strref pattern, uint32 flags)
             // optimize for pattern with * at end or before /
             if (c == 0) {
                 if (!(flags & PATH_IgnorePath))
-                    return ((flags & PATH_LeadingDir) || strFind(path, pathi.off + pathi.cursor, fsPathSepStr) == -1) ? true : false;
+                    return ((flags & PATH_LeadingDir) ||
+                            strFind(path, pathi.off + pathi.cursor, fsPathSepStr) == -1) ?
+                        true :
+                        false;
                 else
                     return true;
             } else if (c == '/' && !(flags & PATH_IgnorePath)) {
@@ -72,7 +75,7 @@ bool pathMatch(strref path, strref pattern, uint32 flags)
             }
 
             // Try the shortest match possible (0 characters) first
-            bt_pati = pati;
+            bt_pati  = pati;
             bt_pathi = pathi;
             break;
         case '\\':
@@ -87,7 +90,7 @@ bool pathMatch(strref path, strref pattern, uint32 flags)
             else if ((flags & PATH_CaseInsensitive) && tolower(pathc) == tolower(patc))
                 ;
             else {
-        backtrack:
+backtrack:
                 // in the event of a mismatch, go back to the last '*'
                 // and match one more character
                 if (bt_pati.len == 0)
@@ -97,7 +100,7 @@ bool pathMatch(strref path, strref pattern, uint32 flags)
                 if (pathc == '/' && !(flags & PATH_IgnorePath))
                     return false;
                 striAdvance(&bt_pathi, 1);
-                pati = bt_pati;
+                pati  = bt_pati;
                 pathi = bt_pathi;
             }
             break;

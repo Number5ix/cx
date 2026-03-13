@@ -2,21 +2,21 @@
 #include "cx/debug/error.h"
 
 _Use_decl_annotations_
-VFSFile *vfsOpen(VFS *vfs, strref path, flags_t flags)
+VFSFile* vfsOpen(VFS* vfs, strref path, flags_t flags)
 {
-    VFSFile *ret = 0;
+    VFSFile* ret = 0;
 
-    string rpath = 0;
-    VFSMount *cowmount = 0;
-    string cowrpath = 0;
-    uint32 pflags = VFS_FindCache;
+    string rpath       = 0;
+    VFSMount* cowmount = 0;
+    string cowrpath    = 0;
+    uint32 pflags      = VFS_FindCache;
 
     // get the provider
     if (flags & (FS_Write | FS_Truncate | FS_Create))
         pflags |= VFS_FindWriteFile;
     if (flags & FS_Truncate)
         pflags |= VFS_FindCreate;
-    VFSMount *m = _vfsFindMount(vfs, &rpath, path, &cowmount, &cowrpath, pflags);
+    VFSMount* m = _vfsFindMount(vfs, &rpath, path, &cowmount, &cowrpath, pflags);
     if (!m) {
         cxerr = CX_FileNotFound;
         goto out;
@@ -31,15 +31,15 @@ VFSFile *vfsOpen(VFS *vfs, strref path, flags_t flags)
         flags = FS_Read;
     }
 
-    VFSProvider *provif = objInstIf(m->provider, VFSProvider);
+    VFSProvider* provif = objInstIf(m->provider, VFSProvider);
     if (!provif) {
         cxerr = CX_InvalidArgument;
         goto out;
     }
 
     // finally actually set up the VFSFile structure
-    ret = xaAlloc(sizeof(VFSFile), XA_Zero);
-    ret->fileprov = provif->open(m->provider, rpath, flags);
+    ret             = xaAlloc(sizeof(VFSFile), XA_Zero);
+    ret->fileprov   = provif->open(m->provider, rpath, flags);
     ret->fileprovif = objInstIf(ret->fileprov, VFSFileProvider);
     if (!(ret->fileprov && ret->fileprovif)) {
         // failed to actually open the file, cxerr set by provider
@@ -65,7 +65,7 @@ out:
 }
 
 _Use_decl_annotations_
-bool vfsClose(VFSFile *file)
+bool vfsClose(VFSFile* file)
 {
     if (!file)
         return false;
@@ -80,7 +80,7 @@ bool vfsClose(VFSFile *file)
 }
 
 _Use_decl_annotations_
-bool vfsRead(VFSFile *file, void *buf, size_t sz, size_t *bytesread)
+bool vfsRead(VFSFile* file, void* buf, size_t sz, size_t* bytesread)
 {
     if (!(file && file->fileprov)) {
         *bytesread = 0;
@@ -90,7 +90,8 @@ bool vfsRead(VFSFile *file, void *buf, size_t sz, size_t *bytesread)
     return file->fileprovif->read(file->fileprov, buf, sz, bytesread);
 }
 
-static void vfsCOWCreateAll(_Inout_ ObjInst *cowprov, _Inout_ VFSProvider *cowprovif, _In_opt_ strref path)
+static void vfsCOWCreateAll(_Inout_ ObjInst* cowprov, _Inout_ VFSProvider* cowprovif,
+                            _In_opt_ strref path)
 {
     string parent = 0;
     pathParent(&parent, path);
@@ -103,9 +104,9 @@ static void vfsCOWCreateAll(_Inout_ ObjInst *cowprov, _Inout_ VFSProvider *cowpr
 }
 
 #define COWBLOCKSIZE 65536
-static bool vfsCOWFile(_Inout_ VFSFile *file)
+static bool vfsCOWFile(_Inout_ VFSFile* file)
 {
-    ObjInst *cowfile = 0;
+    ObjInst* cowfile = 0;
     size_t bytes;
 
     rwlockAcquireRead(&file->vfs->vfsdlock);
@@ -118,8 +119,8 @@ static bool vfsCOWFile(_Inout_ VFSFile *file)
         return true;
     }
 
-    uint8 *buf = xaAlloc(COWBLOCKSIZE);
-    VFSProvider *cowprovif = objInstIf(file->cowprov, VFSProvider);
+    uint8* buf             = xaAlloc(COWBLOCKSIZE);
+    VFSProvider* cowprovif = objInstIf(file->cowprov, VFSProvider);
     if (!cowprovif)
         goto error;
 
@@ -133,7 +134,7 @@ static bool vfsCOWFile(_Inout_ VFSFile *file)
     cowfile = cowprovif->open(file->cowprov, file->cowrpath, FS_Write | FS_Create | FS_Truncate);
     if (!cowfile)
         goto error;
-    VFSFileProvider *cowfileif = objInstIf(cowfile, VFSFileProvider);
+    VFSFileProvider* cowfileif = objInstIf(cowfile, VFSFileProvider);
     if (!cowfileif)
         goto error;
 
@@ -145,7 +146,7 @@ static bool vfsCOWFile(_Inout_ VFSFile *file)
         if (!file->fileprovif->read(file->fileprov, buf, COWBLOCKSIZE, &bytes))
             goto error;
         if (bytes == 0)
-            break;      // eof
+            break;   // eof
         if (!cowfileif->write(cowfile, buf, bytes, NULL))
             goto error;
     }
@@ -154,7 +155,7 @@ static bool vfsCOWFile(_Inout_ VFSFile *file)
     cowfileif->seek(cowfile, curpos, FS_Set);
     file->fileprovif->close(file->fileprov);
     objRelease(&file->fileprov);
-    file->fileprov = cowfile;
+    file->fileprov   = cowfile;
     file->fileprovif = cowfileif;
     objRelease(&file->cowprov);
     xaFree(buf);
@@ -177,7 +178,7 @@ error:
 }
 
 _Use_decl_annotations_
-bool vfsWrite(VFSFile *file, void *buf, size_t sz, size_t *byteswritten)
+bool vfsWrite(VFSFile* file, void* buf, size_t sz, size_t* byteswritten)
 {
     if (!(file && file->fileprov)) {
         if (byteswritten)
@@ -197,14 +198,14 @@ bool vfsWrite(VFSFile *file, void *buf, size_t sz, size_t *byteswritten)
 }
 
 _Use_decl_annotations_
-bool vfsWriteString(VFSFile *file, strref str, size_t *byteswritten)
+bool vfsWriteString(VFSFile* file, strref str, size_t* byteswritten)
 {
     size_t written = 0, wstep = 0;
     bool ret = true;
 
     striter iter;
     striBorrow(&iter, str);
-    while(iter.len > 0) {
+    while (iter.len > 0) {
         if (!vfsWrite(file, iter.bytes, iter.len, &wstep)) {
             ret = false;
             break;
@@ -219,7 +220,7 @@ bool vfsWriteString(VFSFile *file, strref str, size_t *byteswritten)
 }
 
 _Use_decl_annotations_
-int64 vfsTell(VFSFile *file)
+int64 vfsTell(VFSFile* file)
 {
     if (!(file && file->fileprov))
         return -1;
@@ -227,7 +228,7 @@ int64 vfsTell(VFSFile *file)
 }
 
 _Use_decl_annotations_
-int64 vfsSeek(VFSFile *file, int64 off, FSSeekType seektype)
+int64 vfsSeek(VFSFile* file, int64 off, FSSeekType seektype)
 {
     if (!(file && file->fileprov))
         return -1;
@@ -235,7 +236,7 @@ int64 vfsSeek(VFSFile *file, int64 off, FSSeekType seektype)
 }
 
 _Use_decl_annotations_
-bool vfsFlush(VFSFile *file)
+bool vfsFlush(VFSFile* file)
 {
     if (!(file && file->fileprov))
         return false;

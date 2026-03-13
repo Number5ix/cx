@@ -1,32 +1,32 @@
 #pragma once
 
 #include "cx/string.h"
-#include "cx/utils/compare.h"
 #include "cx/thread/atomic.h"
+#include "cx/utils/compare.h"
 
-typedef struct str_ref* _Nonnull string_v;                  // validated string
-typedef const struct str_ref* _Nonnull strref_v;            // validated strref
-typedef string_v* _Nonnull strhandle_v;                     // handle to validated string
+typedef struct str_ref* _Nonnull string_v;         // validated string
+typedef const struct str_ref* _Nonnull strref_v;   // validated strref
+typedef string_v* _Nonnull strhandle_v;            // handle to validated string
 
 // Flags field
 
-#define STR_LEN0     0x00       // no length field, 8-bit ref count if STR_ALLOC
-#define STR_LEN8     0x01       // 8-bit length, 8-bit ref count if STR_ALLOC
-#define STR_LEN16    0x02       // 16-bit length, 16-bit ref count if STR_ALLOC
-#define STR_LEN32    0x03       // 32-bit length, 16-bit ref count if STR_ALLOC
+#define STR_LEN0     0x00   // no length field, 8-bit ref count if STR_ALLOC
+#define STR_LEN8     0x01   // 8-bit length, 8-bit ref count if STR_ALLOC
+#define STR_LEN16    0x02   // 16-bit length, 16-bit ref count if STR_ALLOC
+#define STR_LEN32    0x03   // 32-bit length, 16-bit ref count if STR_ALLOC
 #define STR_LEN_MASK 0x03
 
-#define STR_STACK    0x04       // string is allocated on the stack, ref count is buffer size
-#define STR_ROPE     0x08       // string is a rope node
-#define STR_ALLOC    0x10       // string allocated by us, ref count field present
-#define STR_UTF8     0x20       // string is UTF-8
-#define STR_ASCII    0x40       // string is 7-bit ASCII
-#define STR_CX       0x80       // string contains cx header, otherwise plain C string
+#define STR_STACK 0x04   // string is allocated on the stack, ref count is buffer size
+#define STR_ROPE  0x08   // string is a rope node
+#define STR_ALLOC 0x10   // string allocated by us, ref count field present
+#define STR_UTF8  0x20   // string is UTF-8
+#define STR_ASCII 0x40   // string is 7-bit ASCII
+#define STR_CX    0x80   // string contains cx header, otherwise plain C string
 
 #define STR_ENCODING_MASK (STR_UTF8 | STR_ASCII)
 
-#define STR_HDRP(s) ((uint8*)(s))
-#define STR_HDR(s) (((*STR_HDRP(s) & STR_CX) && STR_HDRP(s)[1] == 0xc1) ? *STR_HDRP(s) : 0)
+#define STR_HDRP(s)            ((uint8*)(s))
+#define STR_HDR(s)             (((*STR_HDRP(s) & STR_CX) && STR_HDRP(s)[1] == 0xc1) ? *STR_HDRP(s) : 0)
 #define STR_FIELD(s, off, typ) (*(typ*)(&STR_HDRP(s)[off]))
 
 #define STR_OT_LEN 0
@@ -36,18 +36,18 @@ extern const uint8 _str_off[32];
 // dirty trick here, since STR_ALLOC is defined as 16, it can be used
 // as-is as a base index into the table without further masking or shifting
 #define STR_OFF_BASE(hdr) ((hdr & STR_ALLOC) | (hdr & STR_LEN_MASK) << 2)
-#define STR_OFF_LEN(hdr) (_str_off[STR_OFF_BASE(hdr)])
-#define STR_OFF_REF(hdr) (_str_off[STR_OFF_BASE(hdr) | STR_OT_REF])
-#define STR_OFF_STR(hdr) (hdr & STR_CX ? (_str_off[STR_OFF_BASE(hdr) | STR_OT_STR]) : 0)
+#define STR_OFF_LEN(hdr)  (_str_off[STR_OFF_BASE(hdr)])
+#define STR_OFF_REF(hdr)  (_str_off[STR_OFF_BASE(hdr) | STR_OT_REF])
+#define STR_OFF_STR(hdr)  (hdr & STR_CX ? (_str_off[STR_OFF_BASE(hdr) | STR_OT_STR]) : 0)
 
-#define STR_LEN8_LEN(s) STR_FIELD(s, _strOffLen(_strHdr(s)), uint8)
+#define STR_LEN8_LEN(s)  STR_FIELD(s, _strOffLen(_strHdr(s)), uint8)
 #define STR_LEN16_LEN(s) STR_FIELD(s, _strOffLen(_strHdr(s)), uint16)
 #define STR_LEN32_LEN(s) STR_FIELD(s, _strOffLen(_strHdr(s)), uint32)
 
-#define STR_LEN8_REF(s) STR_FIELD(s, _strOffRef(_strHdr(s)), uint8)
+#define STR_LEN8_REF(s)  STR_FIELD(s, _strOffRef(_strHdr(s)), uint8)
 #define STR_LEN16_REF(s) STR_FIELD(s, _strOffRef(_strHdr(s)), uint16)
 
-#define STR_BUFFER(s) (&STR_FIELD(s, _strOffStr(_strHdr(s)), uint8))
+#define STR_BUFFER(s)   (&STR_FIELD(s, _strOffStr(_strHdr(s)), uint8))
 #define STR_ROPEDATA(s) (&STR_FIELD(s, _strOffStr(_strHdr(s)), str_ropedata))
 
 _meta_inline uint8 _strOffLen(uint8 hdr)
@@ -65,8 +65,7 @@ _meta_inline uint8 _strOffStr(uint8 hdr)
     return STR_OFF_STR(hdr);
 }
 
-_Ret_valid_
-_meta_inline uint8 * _Nonnull _strHdrP(_In_ strref_v s)
+_Ret_valid_ _meta_inline uint8* _Nonnull _strHdrP(_In_ strref_v s)
 {
     return STR_HDRP(s);
 }
@@ -76,8 +75,7 @@ _meta_inline uint8 _strHdr(_In_ strref_v s)
     return STR_HDR(s);
 }
 
-_Ret_valid_
-_meta_inline uint8 * _Nonnull _strBuffer(_In_ strref_v s)
+_Ret_valid_ _meta_inline uint8* _Nonnull _strBuffer(_In_ strref_v s)
 {
     return STR_BUFFER(s);
 }
@@ -96,7 +94,7 @@ _meta_inline uint32 _strFastLen(_In_ strref_v s)
         return STR_LEN16_LEN(s);
     case STR_LEN32:
         return STR_LEN32_LEN(s);
-    default: // STR_LEN0
+    default:   // STR_LEN0
         return (uint32)cstrLen((const char*)_strBuffer(s));
     }
 }
@@ -127,13 +125,13 @@ _meta_inline uint16 _strFastRefNoSync(_In_ strref_v s)
 
 // rope tuning
 // try not to create a rope smaller than this
-#define ROPE_MIN_SIZE 64
+#define ROPE_MIN_SIZE      64
 // use a rope if final join size exceeds this
-#define ROPE_JOIN_THRESH 128
+#define ROPE_JOIN_THRESH   128
 // use a rope if substring size exceeds this
 #define ROPE_SUBSTR_THRESH 96
 // maximum size to merge together on joins
-#define ROPE_MAX_MERGE 256
+#define ROPE_MAX_MERGE     256
 
 #include "string_private_utf8.h"
 
@@ -159,7 +157,8 @@ void _strResize(_Inout_ptr_ strhandle_v ps, uint32 len, bool unique);
 // duplicates s and returns a copy, optionally with more reserved space allocated
 _Ret_valid_ string_v _strCopy(_In_ strref_v s, uint32 minsz);
 // direct copy of string buffer or rope internals, does not check destination size!
-uint32 _strFastCopy(_In_ strref_v s, uint32 off, _Out_writes_bytes_(bytes) uint8 *_Nonnull buf, uint32 bytes);
+uint32 _strFastCopy(_In_ strref_v s, uint32 off, _Out_writes_bytes_(bytes) uint8* _Nonnull buf,
+                    uint32 bytes);
 
 // rope data comes directly after string header if STR_ROPE is set
 typedef struct str_roperef {
@@ -173,18 +172,21 @@ typedef struct str_ropedata {
     int depth;
 } str_ropedata;
 
-_Ret_valid_
-_meta_inline str_ropedata *_strRopeData(_In_ strref_v s)
+_Ret_valid_ _meta_inline str_ropedata* _strRopeData(_In_ strref_v s)
 {
     return STR_ROPEDATA(s);
 }
 
-string_v _strCreateRope(_In_ strref_v left, uint32 left_off, uint32 left_len, _In_opt_ strref right, uint32 right_off, uint32 right_len, bool balance);
+string_v _strCreateRope(_In_ strref_v left, uint32 left_off, uint32 left_len, _In_opt_ strref right,
+                        uint32 right_off, uint32 right_len, bool balance);
 string_v _strCreateRope1(_In_ strref_v s, uint32 off, uint32 len);
 string_v _strCloneRope(_In_ strref_v s);
 void _strDestroyRope(_Inout_ string_v s);
-uint32 _strRopeFastCopy(_In_ strref_v s, uint32 off, _Out_writes_bytes_(bytes) uint8 *_Nonnull buf, uint32 bytes);
-_Success_(return) bool _strRopeRealStr(_Inout_ strhandle_v s, uint32 off, _Out_ strhandle_v rs, _Out_ uint32 *_Nonnull rsoff, _Out_ uint32 *_Nonnull rslen, _Out_ uint32 *_Nonnull rsstart, bool writable);
+uint32 _strRopeFastCopy(_In_ strref_v s, uint32 off, _Out_writes_bytes_(bytes) uint8* _Nonnull buf,
+                        uint32 bytes);
+_Success_(return) bool _strRopeRealStr(_Inout_ strhandle_v s, uint32 off, _Out_ strhandle_v rs,
+                                _Out_ uint32* _Nonnull rsoff, _Out_ uint32* _Nonnull rslen,
+                                _Out_ uint32* _Nonnull rsstart, bool writable);
 
 // Finds first occurrence of find in s at or after start
 int32 _strFindChar(_In_ strref_v s, int32 start, char find);

@@ -25,45 +25,45 @@ typedef struct LogBatchTLS {
 static _Thread_local LogBatchTLS _log_batch;
 
 strref LogLevelNames[LOG_Count] = {
-    (strref)"\xE1\xC1\x05"
-            "Fatal",
-    (strref)"\xE1\xC1\x05"
-            "Error",
-    (strref)"\xE1\xC1\x04"
-            "Warn",
-    (strref)"\xE1\xC1\x06"
-            "Notice",
-    (strref)"\xE1\xC1\x04"
-            "Info",
-    (strref)"\xE1\xC1\x07"
-            "Verbose",
-    (strref)"\xE1\xC1\x04"
-            "Diag",
-    (strref)"\xE1\xC1\x05"
-            "Debug",
-    (strref)"\xE1\xC1\x05"
-            "Trace"
+    (strref) "\xE1\xC1\x05"
+             "Fatal",
+    (strref) "\xE1\xC1\x05"
+             "Error",
+    (strref) "\xE1\xC1\x04"
+             "Warn",
+    (strref) "\xE1\xC1\x06"
+             "Notice",
+    (strref) "\xE1\xC1\x04"
+             "Info",
+    (strref) "\xE1\xC1\x07"
+             "Verbose",
+    (strref) "\xE1\xC1\x04"
+             "Diag",
+    (strref) "\xE1\xC1\x05"
+             "Debug",
+    (strref) "\xE1\xC1\x05"
+             "Trace"
 };
 
 strref LogLevelAbbrev[LOG_Count] = {
-    (strref)"\xE1\xC1\x01"
-            "F",
-    (strref)"\xE1\xC1\x01"
-            "E",
-    (strref)"\xE1\xC1\x01"
-            "W",
-    (strref)"\xE1\xC1\x01"
-            "N",
-    (strref)"\xE1\xC1\x01"
-            "I",
-    (strref)"\xE1\xC1\x01"
-            "V",
-    (strref)"\xE1\xC1\x01"
-            "D",
-    (strref)"\xE1\xC1\x01"
-            "D",
-    (strref)"\xE1\xC1\x01"
-            "T"
+    (strref) "\xE1\xC1\x01"
+             "F",
+    (strref) "\xE1\xC1\x01"
+             "E",
+    (strref) "\xE1\xC1\x01"
+             "W",
+    (strref) "\xE1\xC1\x01"
+             "N",
+    (strref) "\xE1\xC1\x01"
+             "I",
+    (strref) "\xE1\xC1\x01"
+             "V",
+    (strref) "\xE1\xC1\x01"
+             "D",
+    (strref) "\xE1\xC1\x01"
+             "D",
+    (strref) "\xE1\xC1\x01"
+             "T"
 };
 
 LazyInitState _logInitState;

@@ -1,4 +1,6 @@
 #pragma once
+#include "taskqueue.h"
+
 #include "cx/taskqueue/manager/tqmanager.h"
 #include "cx/taskqueue/manager/tqmdedicated.h"
 #include "cx/taskqueue/manager/tqminworker.h"
@@ -17,4 +19,3 @@
 #include "cx/taskqueue/worker/tqmanualworker.h"
 #include "cx/taskqueue/worker/tqthreadworker.h"
 #include "cx/taskqueue/worker/tqworker.h"
-#include "taskqueue.h"

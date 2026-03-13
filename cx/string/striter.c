@@ -1,9 +1,9 @@
 #include "string_private.h"
 
-static void _striClear(_Inout_ striter *_Nonnull iter);
-static bool _striRewindU8(_Inout_ striter *_Nonnull i, uint32 off);
+static void _striClear(_Inout_ striter* _Nonnull iter);
+static bool _striRewindU8(_Inout_ striter* _Nonnull i, uint32 off);
 
-static void _striSetup(_Inout_ striter *_Nonnull iter, uint32 off, uint32 newcursor, bool reverse)
+static void _striSetup(_Inout_ striter* _Nonnull iter, uint32 off, uint32 newcursor, bool reverse)
 {
     uint32 slen = _strFastLen(iter->_str);
 
@@ -37,15 +37,15 @@ static void _striSetup(_Inout_ striter *_Nonnull iter, uint32 off, uint32 newcur
     iter->cursor = newcursor;
 }
 
-static void _striClear(_Inout_ striter *_Nonnull iter)
+static void _striClear(_Inout_ striter* _Nonnull iter)
 {
-    iter->bytes = NULL;
-    iter->off = _strFastLen(iter->_str);
-    iter->len = 0;
+    iter->bytes  = NULL;
+    iter->off    = _strFastLen(iter->_str);
+    iter->len    = 0;
     iter->cursor = 0;
 }
 
-static void _striInit(_Out_ striter *_Nonnull iter, _In_opt_ strref s, bool reverse)
+static void _striInit(_Out_ striter* _Nonnull iter, _In_opt_ strref s, bool reverse)
 {
     if (!STR_CHECK_VALID(s))
         s = _strEmpty;
@@ -56,7 +56,7 @@ static void _striInit(_Out_ striter *_Nonnull iter, _In_opt_ strref s, bool reve
         iter->_str = 0;
         strDup(&iter->_str, s);
     } else {
-        iter->_str = (string)s;         // non STR_ALLOC strings are readonly anyway
+        iter->_str = (string)s;   // non STR_ALLOC strings are readonly anyway
     }
 
     // prime iterator with first run
@@ -67,13 +67,13 @@ static void _striInit(_Out_ striter *_Nonnull iter, _In_opt_ strref s, bool reve
 }
 
 _Use_decl_annotations_
-void striInit(striter *_Nonnull iter, strref s)
+void striInit(striter* _Nonnull iter, strref s)
 {
     _striInit(iter, s, false);
 }
 
 _Use_decl_annotations_
-void striInitRev(striter *_Nonnull iter, strref s)
+void striInitRev(striter* _Nonnull iter, strref s)
 {
     _striInit(iter, s, true);
 }
@@ -94,25 +94,25 @@ static void _striBorrow(_Out_ striter* _Nonnull iter, strref s, bool reverse)
 }
 
 _Use_decl_annotations_
-void striBorrow(striter *_Nonnull  iter, strref s)
+void striBorrow(striter* _Nonnull iter, strref s)
 {
     _striBorrow(iter, s, false);
 }
 
 _Use_decl_annotations_
-void striBorrowRev(striter *_Nonnull iter, strref s)
+void striBorrowRev(striter* _Nonnull iter, strref s)
 {
     _striBorrow(iter, s, true);
 }
 
 _Use_decl_annotations_
-bool striNext(striter *_Nonnull iter)
+bool striNext(striter* _Nonnull iter)
 {
     if (!STR_CHECK_VALID(iter->_str))
         return false;
 
-    uint32 slen = _strFastLen(iter->_str);
-    uint32 nextoff = iter->off + iter->len;
+    uint32 slen       = _strFastLen(iter->_str);
+    uint32 nextoff    = iter->off + iter->len;
     uint32 nextcursor = 0;
 
     if (iter->len > iter->cursor)
@@ -129,7 +129,7 @@ bool striNext(striter *_Nonnull iter)
 }
 
 _Use_decl_annotations_
-bool striPrev(striter *_Nonnull iter)
+bool striPrev(striter* _Nonnull iter)
 {
     if (!STR_CHECK_VALID(iter->_str))
         return false;
@@ -152,13 +152,13 @@ bool striPrev(striter *_Nonnull iter)
 }
 
 _Use_decl_annotations_
-bool striSeek(striter *_Nonnull iter, int32 off, STRI_SEEK_TYPE type, STRI_SEEK_WHENCE whence)
+bool striSeek(striter* _Nonnull iter, int32 off, STRI_SEEK_TYPE type, STRI_SEEK_WHENCE whence)
 {
     if (!STR_CHECK_VALID(iter->_str))
         return false;
 
-    uint32 slen = _strFastLen(iter->_str);
-    uint32 newoff = slen;           // default fail
+    uint32 slen   = _strFastLen(iter->_str);
+    uint32 newoff = slen;   // default fail
 
     if (type == STRI_BYTE) {
         switch (whence) {
@@ -221,35 +221,35 @@ bool striSeek(striter *_Nonnull iter, int32 off, STRI_SEEK_TYPE type, STRI_SEEK_
 }
 
 _Use_decl_annotations_
-void striFinish(striter *_Nonnull iter)
+void striFinish(striter* _Nonnull iter)
 {
     _striClear(iter);
     if (iter->_borrowed) {
-        iter->_str = 0;
+        iter->_str      = 0;
         iter->_borrowed = false;
     } else {
-        strDestroy(&iter->_str);        // will not deallocate unless this is STR_ALLOC
+        strDestroy(&iter->_str);   // will not deallocate unless this is STR_ALLOC
     }
 }
 
 _Use_decl_annotations_
-bool striU8Char(striter *_Nonnull iter, int32 *_Nonnull out)
+bool striU8Char(striter* _Nonnull iter, int32* _Nonnull out)
 {
     return _strUTF8Decode(iter, out);
 }
 
 _Use_decl_annotations_
-bool striPeekU8Char(striter *_Nonnull iter, int32 *_Nonnull out)
+bool striPeekU8Char(striter* _Nonnull iter, int32* _Nonnull out)
 {
     striter saved = *iter;
 
     bool ret = _strUTF8Decode(iter, out);
-    *iter = saved;
+    *iter    = saved;
     return ret;
 }
 
 _Use_decl_annotations_
-bool striAdvanceU8(striter *_Nonnull iter, uint32 by)
+bool striAdvanceU8(striter* _Nonnull iter, uint32 by)
 {
     for (uint32 idx = 0; idx < by; idx++) {
         uint32 seqlen = _strUTF8Decode(iter, NULL);
@@ -262,11 +262,11 @@ bool striAdvanceU8(striter *_Nonnull iter, uint32 by)
 
 // this is going to be painful
 _Use_decl_annotations_
-static bool _striRewindU8(striter *_Nonnull iter, uint32 by)
+static bool _striRewindU8(striter* _Nonnull iter, uint32 by)
 {
-    int ncont = 0;
+    int ncont  = 0;
     uint32 off = iter->off, seqlen;
-    bool ret = false;
+    bool ret   = false;
     uint8 u;
 
     striter temp;
@@ -274,7 +274,7 @@ static bool _striRewindU8(striter *_Nonnull iter, uint32 by)
 
     while (by > 0) {
         if (off == 0)
-            goto out;           // hit start of string
+            goto out;   // hit start of string
 
         off--;
         _striSetup(&temp, off, 0, false);
@@ -290,7 +290,7 @@ static bool _striRewindU8(striter *_Nonnull iter, uint32 by)
 
         seqlen = _strUTF8SeqLen(u);
         if (seqlen != ncont + 1)
-            goto out;           // invalid UTF-8
+            goto out;   // invalid UTF-8
 
         ncont = 0;
         by--;

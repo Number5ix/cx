@@ -1,7 +1,7 @@
 #include "stype_buffer.h"
-#include "buffer.h"
 #include "cx/utils/compare.h"
 #include "cx/utils/murmur.h"
+#include "buffer.h"
 
 _Use_decl_annotations_
 void stDtor_buffer(stype st, stgeneric* stgen, flags_t flags)

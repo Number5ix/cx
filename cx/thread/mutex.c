@@ -2,18 +2,19 @@
 #include <cx/time/clock.h>
 
 _Use_decl_annotations_
-void _mutexInit(Mutex *m, uint32 flags)
+void _mutexInit(Mutex* m, uint32 flags)
 {
     futexInit(&m->ftx, 0);
     aspinInit(&m->aspin, flags & MUTEX_NoSpin);
 }
 
 _Use_decl_annotations_
-bool mutexTryAcquireTimeout(Mutex *m, int64 timeout)
+bool mutexTryAcquireTimeout(Mutex* m, int64 timeout)
 {
     // try simple lock first
     int32 curstate = atomicLoad(int32, &m->ftx.val, Relaxed);
-    if (curstate == 0 && atomicCompareExchange(int32, strong, &m->ftx.val, &curstate, 1, Acquire, Relaxed)) {
+    if (curstate == 0 &&
+        atomicCompareExchange(int32, strong, &m->ftx.val, &curstate, 1, Acquire, Relaxed)) {
         aspinRecordUncontended(&m->aspin);
         return true;
     }
@@ -23,13 +24,15 @@ bool mutexTryAcquireTimeout(Mutex *m, int64 timeout)
     aspinBegin(&m->aspin, &astate, timeout);
     do {
         do {
-            if (curstate == 2 || (curstate == 1 && atomicCompareExchange(int32, weak, &m->ftx.val, &curstate, 2, Relaxed, Relaxed))) {
+            if (curstate == 2 ||
+                (curstate == 1 &&
+                 atomicCompareExchange(int32, weak, &m->ftx.val, &curstate, 2, Relaxed, Relaxed))) {
                 if (!aspinSpin(&m->aspin, &astate))
                     futexWait(&m->ftx, 2, aspinTimeoutRemaining(&astate));
             }
 
             curstate = atomicLoad(int32, &m->ftx.val, Relaxed);
-            if (curstate != 2)          // the CAS above failed
+            if (curstate != 2)   // the CAS above failed
                 aspinHandleContention(&m->aspin, &astate);
 
             if (aspinTimeout(&m->aspin, &astate))
@@ -44,7 +47,7 @@ bool mutexTryAcquireTimeout(Mutex *m, int64 timeout)
 }
 
 _Use_decl_annotations_
-bool mutexRelease(Mutex *m)
+bool mutexRelease(Mutex* m)
 {
     int prevstate = atomicFetchSub(int32, &m->ftx.val, 1, Release);
     devAssert(prevstate > 0);
@@ -57,7 +60,7 @@ bool mutexRelease(Mutex *m)
 }
 
 _Use_decl_annotations_
-void mutexDestroy(Mutex *m)
+void mutexDestroy(Mutex* m)
 {
     memset(m, 0, sizeof(Mutex));
 }

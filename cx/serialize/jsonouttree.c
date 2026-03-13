@@ -5,9 +5,11 @@
 #include <cx/ssdtree/ssdtree.h>
 #include <cx/string.h>
 
-static void outVal(_Inout_ JSONOut *jo, stvar val, _Inout_ SSDLockState *lstate, _Inout_ bool *error);
+static void outVal(_Inout_ JSONOut* jo, stvar val, _Inout_ SSDLockState* lstate,
+                   _Inout_ bool* error);
 
-static void outHashtable(_Inout_ JSONOut *jo, _In_ SSDNode *node, _Inout_ SSDLockState *lstate, _Inout_ bool *error)
+static void outHashtable(_Inout_ JSONOut* jo, _In_ SSDNode* node, _Inout_ SSDLockState* lstate,
+                         _Inout_ bool* error)
 {
     JSONParseEvent ev = { .etype = JSON_Object_Begin };
     if (!jsonOut(jo, &ev)) {
@@ -15,15 +17,16 @@ static void outHashtable(_Inout_ JSONOut *jo, _In_ SSDNode *node, _Inout_ SSDLoc
         return;
     }
 
-    SSDIterator *iter;
-    for (iter = ssdnode_iterLocked(node, lstate); !*error && ssditeratorValid(iter); ssditeratorNext(iter)) {
-        ev = (JSONParseEvent){ .etype = JSON_Object_Key };
+    SSDIterator* iter;
+    for (iter = ssdnode_iterLocked(node, lstate); !*error && ssditeratorValid(iter);
+         ssditeratorNext(iter)) {
+        ev = (JSONParseEvent) { .etype = JSON_Object_Key };
         strDup(&ev.edata.strData, ssditeratorName(iter));
         if (!jsonOut(jo, &ev))
             *error = true;
         strDestroy(&ev.edata.strData);
 
-        stvar *val = ssditeratorPtr(iter);
+        stvar* val = ssditeratorPtr(iter);
         if (val)
             outVal(jo, *val, lstate, error);
         else
@@ -31,12 +34,13 @@ static void outHashtable(_Inout_ JSONOut *jo, _In_ SSDNode *node, _Inout_ SSDLoc
     }
     objRelease(&iter);
 
-    ev = (JSONParseEvent){ .etype = JSON_Object_End };
+    ev = (JSONParseEvent) { .etype = JSON_Object_End };
     if (!jsonOut(jo, &ev))
         *error = true;
 }
 
-static void outArray(_Inout_ JSONOut *jo, _In_ SSDNode *node, _Inout_ SSDLockState *lstate, _Inout_ bool *error)
+static void outArray(_Inout_ JSONOut* jo, _In_ SSDNode* node, _Inout_ SSDLockState* lstate,
+                     _Inout_ bool* error)
 {
     JSONParseEvent ev = { .etype = JSON_Array_Begin };
     if (!jsonOut(jo, &ev)) {
@@ -44,9 +48,10 @@ static void outArray(_Inout_ JSONOut *jo, _In_ SSDNode *node, _Inout_ SSDLockSta
         return;
     }
 
-    SSDIterator *iter;
-    for (iter = ssdnode_iterLocked(node, lstate); !*error && ssditeratorValid(iter); ssditeratorNext(iter)) {
-        stvar *val = ssditeratorPtr(iter);
+    SSDIterator* iter;
+    for (iter = ssdnode_iterLocked(node, lstate); !*error && ssditeratorValid(iter);
+         ssditeratorNext(iter)) {
+        stvar* val = ssditeratorPtr(iter);
         if (val)
             outVal(jo, *val, lstate, error);
         else
@@ -54,14 +59,15 @@ static void outArray(_Inout_ JSONOut *jo, _In_ SSDNode *node, _Inout_ SSDLockSta
     }
     objRelease(&iter);
 
-    ev = (JSONParseEvent){ .etype = JSON_Array_End };
+    ev = (JSONParseEvent) { .etype = JSON_Array_End };
     if (!jsonOut(jo, &ev))
         *error = true;
 }
 
-static void outObject(_Inout_ JSONOut *jo, _In_ ObjInst *val, _Inout_ SSDLockState *lstate, _Inout_ bool *error)
+static void outObject(_Inout_ JSONOut* jo, _In_ ObjInst* val, _Inout_ SSDLockState* lstate,
+                      _Inout_ bool* error)
 {
-    SSDNode *node = objDynCast(SSDNode, val);
+    SSDNode* node = objDynCast(SSDNode, val);
     if (!node) {
         *error = true;
         return;
@@ -73,51 +79,52 @@ static void outObject(_Inout_ JSONOut *jo, _In_ ObjInst *val, _Inout_ SSDLockSta
         outArray(jo, node, lstate, error);
     } else {
         // this is a single value node
-        stvar *subval = ssdnodePtr(node, 0, NULL, lstate);
+        stvar* subval = ssdnodePtr(node, 0, NULL, lstate);
         if (subval)
             outVal(jo, *subval, lstate, error);
     }
 }
 
-static void outInt(_Inout_ JSONOut *jo, int64 val, _Inout_ bool *error)
+static void outInt(_Inout_ JSONOut* jo, int64 val, _Inout_ bool* error)
 {
     JSONParseEvent ev = { .etype = JSON_Int };
-    ev.edata.intData = val;
+    ev.edata.intData  = val;
     if (!jsonOut(jo, &ev))
         *error = true;
 }
 
-static void outFloat(_Inout_ JSONOut *jo, float64 val, _Inout_ bool *error)
+static void outFloat(_Inout_ JSONOut* jo, float64 val, _Inout_ bool* error)
 {
-    JSONParseEvent ev = { .etype = JSON_Float };
+    JSONParseEvent ev  = { .etype = JSON_Float };
     ev.edata.floatData = val;
     if (!jsonOut(jo, &ev))
         *error = true;
 }
 
-static void outString(_Inout_ JSONOut *jo, _In_opt_ string val, _Inout_ bool *error)
+static void outString(_Inout_ JSONOut* jo, _In_opt_ string val, _Inout_ bool* error)
 {
     JSONParseEvent ev = { .etype = JSON_String };
-    ev.edata.strData = val;
+    ev.edata.strData  = val;
     if (!jsonOut(jo, &ev))
         *error = true;
 }
 
-static void outBool(_Inout_ JSONOut *jo, bool val, _Inout_ bool *error)
+static void outBool(_Inout_ JSONOut* jo, bool val, _Inout_ bool* error)
 {
     JSONParseEvent ev = { .etype = val ? JSON_True : JSON_False };
     if (!jsonOut(jo, &ev))
         *error = true;
 }
 
-static void outNull(_Inout_ JSONOut *jo, _Inout_ bool *error)
+static void outNull(_Inout_ JSONOut* jo, _Inout_ bool* error)
 {
     JSONParseEvent ev = { .etype = JSON_Null };
     if (!jsonOut(jo, &ev))
         *error = true;
 }
 
-static void outVal(_Inout_ JSONOut *jo, stvar val, _Inout_ SSDLockState *lstate, _Inout_ bool *error)
+static void outVal(_Inout_ JSONOut* jo, stvar val, _Inout_ SSDLockState* lstate,
+                   _Inout_ bool* error)
 {
     switch (stGetId(val.type)) {
     case stTypeId(object):
@@ -166,10 +173,10 @@ static void outVal(_Inout_ JSONOut *jo, stvar val, _Inout_ SSDLockState *lstate,
 }
 
 _Use_decl_annotations_
-bool _jsonOutTree(StreamBuffer *sb, SSDNode *tree, uint32 flags, SSDLockState *_ssdCurrentLockState)
+bool _jsonOutTree(StreamBuffer* sb, SSDNode* tree, uint32 flags, SSDLockState* _ssdCurrentLockState)
 {
-    bool error = false;
-    JSONOut *jo = jsonOutBegin(sb, flags);
+    bool error  = false;
+    JSONOut* jo = jsonOutBegin(sb, flags);
     if (!jo)
         return false;
 
@@ -184,12 +191,12 @@ bool _jsonOutTree(StreamBuffer *sb, SSDNode *tree, uint32 flags, SSDLockState *_
 }
 
 _Use_decl_annotations_
-bool _jsonTreeToString(string *out, SSDNode *tree, uint32 flags, SSDLockState *_ssdCurrentLockState)
+bool _jsonTreeToString(string* out, SSDNode* tree, uint32 flags, SSDLockState* _ssdCurrentLockState)
 {
     if (!out || !tree)
         return false;
 
-    StreamBuffer *sb = sbufCreate(1024);
+    StreamBuffer* sb = sbufCreate(1024);
     if (!sbufStrCRegisterPush(sb, out)) {
         sbufRelease(&sb);
         return false;

@@ -5,13 +5,13 @@
 #include <cx/string/striter.h>
 #include <cx/utils/compare.h>
 
-static void sbufPFinishInternal(_Inout_ StreamBuffer *sb);
-static void sbufCFinishInternal(_Inout_ StreamBuffer *sb);
+static void sbufPFinishInternal(_Inout_ StreamBuffer* sb);
+static void sbufCFinishInternal(_Inout_ StreamBuffer* sb);
 
 _Use_decl_annotations_
-StreamBuffer *sbufCreate(size_t targetsz)
+StreamBuffer* sbufCreate(size_t targetsz)
 {
-    StreamBuffer *ret = xaAlloc(sizeof(StreamBuffer), XA_Zero);
+    StreamBuffer* ret = xaAlloc(sizeof(StreamBuffer), XA_Zero);
 
     ret->refcount = 1;
 
@@ -27,7 +27,7 @@ StreamBuffer *sbufCreate(size_t targetsz)
     return ret;
 }
 
-static void sbufDestroy(_Pre_valid_ _Post_invalid_ StreamBuffer *sb)
+static void sbufDestroy(_Pre_valid_ _Post_invalid_ StreamBuffer* sb)
 {
     if (sb->consumerCleanup)
         sb->consumerCleanup(sb->consumerCtx);
@@ -39,7 +39,7 @@ static void sbufDestroy(_Pre_valid_ _Post_invalid_ StreamBuffer *sb)
 }
 
 _Use_decl_annotations_
-void sbufRelease(StreamBuffer **sb)
+void sbufRelease(StreamBuffer** sb)
 {
     if (*sb) {
         (*sb)->refcount--;
@@ -50,7 +50,7 @@ void sbufRelease(StreamBuffer **sb)
 }
 
 _Use_decl_annotations_
-void sbufError(StreamBuffer *sb)
+void sbufError(StreamBuffer* sb)
 {
     sb->flags |= SBUF_Error;
 
@@ -66,22 +66,20 @@ void sbufError(StreamBuffer *sb)
 }
 
 _Use_decl_annotations_
-bool sbufPRegisterPull(StreamBuffer *sb, sbufPullCB ppull, sbufCleanupCB pcleanup, void *ctx)
+bool sbufPRegisterPull(StreamBuffer* sb, sbufPullCB ppull, sbufCleanupCB pcleanup, void* ctx)
 {
     // can only register once, if it's not already a push buffer
-    if (sbufIsPush(sb) ||
-        (sb->flags & SBUF_Producer_Registered) ||
-        !ppull) {
+    if (sbufIsPush(sb) || (sb->flags & SBUF_Producer_Registered) || !ppull) {
         if (pcleanup)
             pcleanup(ctx);
 
         cxerr = CX_InvalidArgument;
         return false;
-    }  
+    }
 
-    sb->producerPull = ppull;
+    sb->producerPull    = ppull;
     sb->producerCleanup = pcleanup;
-    sb->producerCtx = ctx;
+    sb->producerCtx     = ctx;
     sb->flags |= SBUF_Producer_Registered | SBUF_Pull;
     sb->refcount++;
 
@@ -89,11 +87,10 @@ bool sbufPRegisterPull(StreamBuffer *sb, sbufPullCB ppull, sbufCleanupCB pcleanu
 }
 
 _Use_decl_annotations_
-bool sbufPRegisterPush(StreamBuffer *sb, sbufCleanupCB pcleanup, void *ctx)
+bool sbufPRegisterPush(StreamBuffer* sb, sbufCleanupCB pcleanup, void* ctx)
 {
     // can only register once, if it's not already a pull buffer
-    if (sbufIsPull(sb) ||
-        (sb->flags & SBUF_Producer_Registered)) {
+    if (sbufIsPull(sb) || (sb->flags & SBUF_Producer_Registered)) {
         if (pcleanup)
             pcleanup(ctx);
 
@@ -102,7 +99,7 @@ bool sbufPRegisterPush(StreamBuffer *sb, sbufCleanupCB pcleanup, void *ctx)
     }
 
     sb->producerCleanup = pcleanup;
-    sb->producerCtx = ctx;
+    sb->producerCtx     = ctx;
     sb->flags |= SBUF_Producer_Registered | SBUF_Push;
     sb->refcount++;
 
@@ -110,7 +107,7 @@ bool sbufPRegisterPush(StreamBuffer *sb, sbufCleanupCB pcleanup, void *ctx)
 }
 
 _Use_decl_annotations_
-size_t sbufPAvail(StreamBuffer *sb)
+size_t sbufPAvail(StreamBuffer* sb)
 {
     if (sb->flags & SBUF_Direct)
         return 0;   // there is no buffer
@@ -119,7 +116,7 @@ size_t sbufPAvail(StreamBuffer *sb)
 }
 
 _Use_decl_annotations_
-size_t sbufCAvail(StreamBuffer *sb)
+size_t sbufCAvail(StreamBuffer* sb)
 {
     if (sb->flags & SBUF_Direct)
         return 0;   // there is no buffer
@@ -128,7 +125,7 @@ size_t sbufCAvail(StreamBuffer *sb)
 }
 
 _Use_decl_annotations_
-bool sbufPWrite(StreamBuffer *sb, const uint8 *buf, size_t sz)
+bool sbufPWrite(StreamBuffer* sb, const uint8* buf, size_t sz)
 {
     if (sz == 0)
         return true;
@@ -160,10 +157,9 @@ bool sbufPWrite(StreamBuffer *sb, const uint8 *buf, size_t sz)
 }
 
 _Use_decl_annotations_
-bool sbufPWriteStr(StreamBuffer *sb, strref str)
+bool sbufPWriteStr(StreamBuffer* sb, strref str)
 {
-    foreach(string, it, str)
-    {
+    foreach (string, it, str) {
         if (!sbufPWrite(sb, it.bytes, it.len))
             return false;
     }
@@ -171,7 +167,7 @@ bool sbufPWriteStr(StreamBuffer *sb, strref str)
 }
 
 _Use_decl_annotations_
-bool sbufPWriteLine(StreamBuffer *sb, strref str)
+bool sbufPWriteLine(StreamBuffer* sb, strref str)
 {
     foreach (string, it, str) {
         if (!sbufPWrite(sb, it.bytes, it.len))
@@ -197,7 +193,7 @@ bool sbufPWriteEOL(StreamBuffer* sb)
 }
 
 _Use_decl_annotations_
-static void sbufPFinishInternal(StreamBuffer *sb)
+static void sbufPFinishInternal(StreamBuffer* sb)
 {
     if (sb->flags & SBUF_Producer_Done)
         return;
@@ -227,17 +223,16 @@ static void sbufPFinishInternal(StreamBuffer *sb)
 }
 
 _Use_decl_annotations_
-void sbufPFinish(StreamBuffer *sb)
+void sbufPFinish(StreamBuffer* sb)
 {
     sbufPFinishInternal(sb);
 }
 
 _Use_decl_annotations_
-bool sbufCRegisterPull(StreamBuffer *sb, sbufCleanupCB ccleanup, void *ctx)
+bool sbufCRegisterPull(StreamBuffer* sb, sbufCleanupCB ccleanup, void* ctx)
 {
     // can only register once, if it's not already a push buffer
-    if (sbufIsPush(sb) ||
-        (sb->flags & SBUF_Consumer_Registered)) {
+    if (sbufIsPush(sb) || (sb->flags & SBUF_Consumer_Registered)) {
         if (ccleanup)
             ccleanup(ctx);
 
@@ -246,7 +241,7 @@ bool sbufCRegisterPull(StreamBuffer *sb, sbufCleanupCB ccleanup, void *ctx)
     }
 
     sb->consumerCleanup = ccleanup;
-    sb->consumerCtx = ctx;
+    sb->consumerCtx     = ctx;
     sb->flags |= SBUF_Consumer_Registered | SBUF_Pull;
     sb->refcount++;
 
@@ -254,7 +249,7 @@ bool sbufCRegisterPull(StreamBuffer *sb, sbufCleanupCB ccleanup, void *ctx)
 }
 
 _Use_decl_annotations_
-bool sbufCRegisterPush(StreamBuffer *sb, sbufNotifyCB cnotify, sbufCleanupCB ccleanup, void *ctx)
+bool sbufCRegisterPush(StreamBuffer* sb, sbufNotifyCB cnotify, sbufCleanupCB ccleanup, void* ctx)
 {
     // can only register once, if it's not already a pull buffer, and is not set as a direct buffer
     if (sbufIsPull(sb) || (sb->flags & SBUF_Consumer_Registered) || sb->targetsz == 0 || !cnotify) {
@@ -265,9 +260,9 @@ bool sbufCRegisterPush(StreamBuffer *sb, sbufNotifyCB cnotify, sbufCleanupCB ccl
         return false;
     }
 
-    sb->consumerNotify = cnotify;
+    sb->consumerNotify  = cnotify;
     sb->consumerCleanup = ccleanup;
-    sb->consumerCtx = ctx;
+    sb->consumerCtx     = ctx;
     sb->flags |= SBUF_Consumer_Registered | SBUF_Push;
     sb->refcount++;
 
@@ -275,12 +270,10 @@ bool sbufCRegisterPush(StreamBuffer *sb, sbufNotifyCB cnotify, sbufCleanupCB ccl
 }
 
 _Use_decl_annotations_
-bool sbufCRegisterPushDirect(StreamBuffer *sb, sbufPushCB cpush, sbufCleanupCB ccleanup, void *ctx)
+bool sbufCRegisterPushDirect(StreamBuffer* sb, sbufPushCB cpush, sbufCleanupCB ccleanup, void* ctx)
 {
     // can only register once, if it's not already a pull buffer, and is not set as a direct buffer
-    if (sbufIsPull(sb) ||
-        (sb->flags & SBUF_Consumer_Registered) ||
-        !cpush) {
+    if (sbufIsPull(sb) || (sb->flags & SBUF_Consumer_Registered) || !cpush) {
         if (ccleanup)
             ccleanup(ctx);
 
@@ -288,9 +281,9 @@ bool sbufCRegisterPushDirect(StreamBuffer *sb, sbufPushCB cpush, sbufCleanupCB c
         return false;
     }
 
-    sb->consumerPush = cpush;
+    sb->consumerPush    = cpush;
     sb->consumerCleanup = ccleanup;
-    sb->consumerCtx = ctx;
+    sb->consumerCtx     = ctx;
     sb->flags |= SBUF_Consumer_Registered | SBUF_Push | SBUF_Direct;
     sb->refcount++;
 
@@ -311,7 +304,7 @@ size_t sbufFeedCB(uint8* buf, size_t maxbytes, void* _ctx)
     return read;
 }
 
-static void feedBuffer(_Inout_ StreamBuffer *sb, size_t want)
+static void feedBuffer(_Inout_ StreamBuffer* sb, size_t want)
 {
     SbufRingFeedCtx ctx = { .sb = sb };
     ctx.needed          = want - sbufCAvail(sb);
@@ -319,11 +312,11 @@ static void feedBuffer(_Inout_ StreamBuffer *sb, size_t want)
 }
 
 _Use_decl_annotations_
-bool sbufCRead(StreamBuffer *sb, uint8 *buf, size_t sz, size_t *bytesread)
+bool sbufCRead(StreamBuffer* sb, uint8* buf, size_t sz, size_t* bytesread)
 {
     if ((sb->flags & SBUF_Direct) || sbufIsError(sb) || sz == 0) {
         *bytesread = 0;
-        return false;               // can't pull in direct mode!
+        return false;   // can't pull in direct mode!
     }
 
     if (sbufIsPull(sb)) {
@@ -344,10 +337,10 @@ bool sbufCRead(StreamBuffer *sb, uint8 *buf, size_t sz, size_t *bytesread)
 }
 
 _Use_decl_annotations_
-bool sbufCPeek(StreamBuffer *sb, uint8 *buf, size_t off, size_t sz)
+bool sbufCPeek(StreamBuffer* sb, uint8* buf, size_t off, size_t sz)
 {
     if ((sb->flags & SBUF_Direct) || sbufIsError(sb))
-        return false;               // can't peek in direct mode!
+        return false;   // can't peek in direct mode!
 
     if (sz == 0)
         return true;
@@ -363,7 +356,7 @@ bool sbufCPeek(StreamBuffer *sb, uint8 *buf, size_t off, size_t sz)
 }
 
 _Use_decl_annotations_
-bool sbufCFeed(StreamBuffer *sb, size_t minsz)
+bool sbufCFeed(StreamBuffer* sb, size_t minsz)
 {
     if (!sbufIsPull(sb))
         return false;
@@ -377,10 +370,10 @@ bool sbufCFeed(StreamBuffer *sb, size_t minsz)
 }
 
 _Use_decl_annotations_
-bool sbufCSkip(StreamBuffer *sb, size_t bytes)
+bool sbufCSkip(StreamBuffer* sb, size_t bytes)
 {
     if ((sb->flags & SBUF_Direct) || sbufIsError(sb))
-        return false;               // can't seek in direct mode!
+        return false;   // can't seek in direct mode!
 
     if (bytes == 0)
         return true;
@@ -411,10 +404,10 @@ static bool sbufRingRead(const uint8* buf, size_t bytes, void* _ctx)
 }
 
 _Use_decl_annotations_
-bool sbufCSend(StreamBuffer *sb, sbufSendCB func, size_t sz)
+bool sbufCSend(StreamBuffer* sb, sbufSendCB func, size_t sz)
 {
     if ((sb->flags & SBUF_Direct) || sbufIsError(sb))
-        return false;                   // can't pull in direct mode!
+        return false;   // can't pull in direct mode!
 
     if (sz == 0)
         return true;
@@ -437,7 +430,7 @@ bool sbufCSend(StreamBuffer *sb, sbufSendCB func, size_t sz)
 }
 
 _Use_decl_annotations_
-static void sbufCFinishInternal(StreamBuffer *sb)
+static void sbufCFinishInternal(StreamBuffer* sb)
 {
     if (sb->flags & SBUF_Consumer_Done)
         return;
@@ -452,7 +445,7 @@ static void sbufCFinishInternal(StreamBuffer *sb)
 }
 
 _Use_decl_annotations_
-void sbufCFinish(StreamBuffer *sb)
+void sbufCFinish(StreamBuffer* sb)
 {
     sbufCFinishInternal(sb);
 }

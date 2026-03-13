@@ -40,7 +40,7 @@ int32 _strFindCharR(strref_v s, int32 e, char find)
     // negative e indexes from the end of the string
     if (e < 0)
         slen = ((uint32)(-e) < slen) ? slen + e : 0;
-    else if (e != strEnd)       // e == strEnd means the end of the string
+    else if (e != strEnd)   // e == strEnd means the end of the string
         slen = min((uint32)e, slen);
 
     striter it;
@@ -61,7 +61,7 @@ int32 _strFindCharR(strref_v s, int32 e, char find)
 // comparison helper that can handle degenerate case where
 // string and substring are both ropes and don't have segments
 // that line up cleanly
-static inline bool striterEq(_In_ striter *_Nonnull istr_in, _In_ striter *_Nonnull isub_in)
+static inline bool striterEq(_In_ striter* _Nonnull istr_in, _In_ striter* _Nonnull isub_in)
 {
     // borrow iterator state
     striter istr = *istr_in;
@@ -69,10 +69,10 @@ static inline bool striterEq(_In_ striter *_Nonnull istr_in, _In_ striter *_Nonn
     for (;;) {
         uint32 clen = min(istr.len, isub.len);
         if (clen == 0)
-            return !isub.len;       // if end of isub, everything matched
+            return !isub.len;   // if end of isub, everything matched
 
         if (memcmp(istr.bytes, isub.bytes, clen))
-            return false;           // mismatch
+            return false;   // mismatch
 
         striSeek(&istr, clen, STRI_BYTE, STRI_CUR);
         striSeek(&isub, clen, STRI_BYTE, STRI_CUR);
@@ -102,7 +102,7 @@ int32 strFind(strref s, int32 b, strref find)
         off = min((uint32)b, slen);
 
     if (slen < off + _strFastLen(find))
-        return -1;          // nonsensical, can't possibly fit
+        return -1;   // nonsensical, can't possibly fit
 
     // faster to search for first character of find string in a tight loop
     char fchr = strGetChar(find, 0);
@@ -117,7 +117,7 @@ int32 strFind(strref s, int32 b, strref find)
                 striSeek(&istr, istr.off + i, STRI_BYTE, STRI_SET);
                 if (striterEq(&istr, &isub))
                     return (int32)istr.off;
-                i = 0;                  // we reset the iterator, start at beginning
+                i = 0;   // we reset the iterator, start at beginning
             }
         }
         striNext(&istr);
@@ -144,7 +144,7 @@ int32 strFindR(strref s, int32 e, strref find)
     // negative e indexes from the end of the string
     if (e < 0)
         slen = ((uint32)(-e) < slen) ? slen + e : 0;
-    else if (e != strEnd)       // e == strEnd means the end of the string
+    else if (e != strEnd)   // e == strEnd means the end of the string
         slen = min((uint32)e, slen);
 
     // faster to search for first character of find string in a tight loop

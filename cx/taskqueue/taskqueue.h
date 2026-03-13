@@ -22,7 +22,7 @@
 /// Initialize a queue config for a queue with a single worker thread.
 /// Suitable for UI threads or other scenarios requiring serial execution.
 /// @param tqconfig Configuration structure to initialize
-void tqPresetSingle(_Out_ TaskQueueConfig *tqconfig);
+void tqPresetSingle(_Out_ TaskQueueConfig* tqconfig);
 
 /// void tqPresetMinimal(TaskQueueConfig *tqconfig)
 ///
@@ -30,7 +30,7 @@ void tqPresetSingle(_Out_ TaskQueueConfig *tqconfig);
 /// Starts with 1 worker, grows to half the physical CPU count when busy.
 /// Maximum workers equals the physical CPU count.
 /// @param tqconfig Configuration structure to initialize
-void tqPresetMinimal(_Out_ TaskQueueConfig *tqconfig);
+void tqPresetMinimal(_Out_ TaskQueueConfig* tqconfig);
 
 /// void tqPresetBalanced(TaskQueueConfig *tqconfig)
 ///
@@ -38,7 +38,7 @@ void tqPresetMinimal(_Out_ TaskQueueConfig *tqconfig);
 /// General-purpose configuration suitable for most applications.
 /// 2 idle workers, grows to physical CPU count when busy, max = logical CPU count.
 /// @param tqconfig Configuration structure to initialize
-void tqPresetBalanced(_Out_ TaskQueueConfig *tqconfig);
+void tqPresetBalanced(_Out_ TaskQueueConfig* tqconfig);
 
 /// void tqPresetHeavy(TaskQueueConfig *tqconfig)
 ///
@@ -60,13 +60,12 @@ void tqPresetManual(_Out_ TaskQueueConfig* tqconfig);
 /// Update an existing config to enable sensible defaults for queue monitoring.
 /// Enables detection of stuck tasks, long-running tasks, and tasks waiting too long.
 /// @param tqconfig Configuration structure to update
-void tqEnableMonitor(_Inout_ TaskQueueConfig *tqconfig);
+void tqEnableMonitor(_Inout_ TaskQueueConfig* tqconfig);
 
 /// @}
 
 /// @defgroup tq_lifecycle Task Queue Lifecycle
 /// @{
-
 
 /// TaskQueue *tqCreate(strref name, TaskQueueConfig *tqconfig)
 ///
@@ -75,8 +74,8 @@ void tqEnableMonitor(_Inout_ TaskQueueConfig *tqconfig);
 /// @param name Name for the queue (used in logging and monitoring)
 /// @param tqconfig Configuration created with one of the tqPreset functions
 /// @return New task queue instance, or NULL on failure
-_Ret_opt_valid_ _Check_return_
-TaskQueue *tqCreate(_In_ strref name, _In_ TaskQueueConfig *tqconfig);
+_Ret_opt_valid_ _Check_return_ TaskQueue*
+tqCreate(_In_ strref name, _In_ TaskQueueConfig* tqconfig);
 
 /// bool tqStart(TaskQueue *tq)
 ///
@@ -115,7 +114,6 @@ TaskQueue *tqCreate(_In_ strref name, _In_ TaskQueueConfig *tqconfig);
 /// @defgroup tq_task_ops Task Operations
 /// @{
 
-
 /// bool tqAdd(TaskQueue *tq, BasicTask *task)
 ///
 /// Add a task to the queue to run immediately.
@@ -131,7 +129,11 @@ TaskQueue *tqCreate(_In_ strref name, _In_ TaskQueueConfig *tqconfig);
 /// This is the most common pattern for fire-and-forget tasks.
 /// @param tq Task queue to run task on
 /// @param ptask Pointer to task pointer (task is released after adding)
-#define tqRun(tq, ptask) do { taskqueueAdd(tq, *ptask); objRelease(ptask); } while(0)
+#define tqRun(tq, ptask)          \
+    do {                          \
+        taskqueueAdd(tq, *ptask); \
+        objRelease(ptask);        \
+    } while (0)
 
 _meta_inline bool _tqSchedule(_Inout_ TaskQueue* tq, _In_ ComplexTask* task, int64 delay)
 {
@@ -172,7 +174,7 @@ _meta_inline bool _tqDefer(_Inout_ TaskQueue* tq, _In_ ComplexTask* task)
 /// @param tq Task queue the callback is running on
 /// @param data User-provided data pointer
 /// @return true for success, false for failure
-typedef bool (*UserTaskCB)(TaskQueue *tq, void *data);
+typedef bool (*UserTaskCB)(TaskQueue* tq, void* data);
 
 /// bool tqCall(TaskQueue *tq, UserTaskCB func, void *userdata)
 ///
@@ -182,7 +184,7 @@ typedef bool (*UserTaskCB)(TaskQueue *tq, void *data);
 /// @param func Callback function to execute
 /// @param userdata Optional data pointer passed to callback
 /// @return true if callback task was queued successfully
-bool tqCall(_Inout_ TaskQueue *tq, _In_ UserTaskCB func, _In_opt_ void *userdata);
+bool tqCall(_Inout_ TaskQueue* tq, _In_ UserTaskCB func, _In_opt_ void* userdata);
 
 /// int32 tqWorkers(TaskQueue *tq)
 ///
@@ -190,15 +192,14 @@ bool tqCall(_Inout_ TaskQueue *tq, _In_ UserTaskCB func, _In_opt_ void *userdata
 /// For manual queues, returns 0.
 /// @param tq Task queue to query
 /// @return Number of active worker threads
-int32 tqWorkers(_In_ TaskQueue *tq);
+int32 tqWorkers(_In_ TaskQueue* tq);
 
 /// @}
 
 /// @defgroup tq_task_state Task State Queries
 /// @{
 
-
-_meta_inline uint32 _btaskState(BasicTask *bt)
+_meta_inline uint32 _btaskState(BasicTask* bt)
 {
     return atomicLoad(uint32, &bt->state, Acquire) & TASK_State_Mask;
 }
@@ -213,9 +214,9 @@ _meta_inline uint32 _btaskState(BasicTask *bt)
 /// Get the current state of a task.
 /// @param task Task to query
 /// @return Task state (one of TASK_Created, TASK_Waiting, TASK_Running, etc.)
-#define taskState(task) _btaskState(BasicTask(task))
+#define taskState(task)  _btaskState(BasicTask(task))
 
-_meta_inline bool _btaskIsRunning(BasicTask *bt)
+_meta_inline bool _btaskIsRunning(BasicTask* bt)
 {
     return _btaskState(bt) == TASK_Running;
 }
@@ -230,9 +231,9 @@ _meta_inline bool _btaskIsRunning(BasicTask *bt)
 /// Check if a task is currently running on a worker.
 /// @param task Task to query
 /// @return true if task is in TASK_Running state
-#define taskIsRunning(task) _btaskIsRunning(BasicTask(task))
+#define taskIsRunning(task)  _btaskIsRunning(BasicTask(task))
 
-_meta_inline bool _btaskIsPending(BasicTask *bt)
+_meta_inline bool _btaskIsPending(BasicTask* bt)
 {
     uint32 state = _btaskState(bt);
     return state == TASK_Waiting || state == TASK_Deferred || state == TASK_Scheduled;
@@ -248,9 +249,9 @@ _meta_inline bool _btaskIsPending(BasicTask *bt)
 /// Check if a task is pending (waiting, deferred, or scheduled).
 /// @param task Task to query
 /// @return true if task has not yet run and has not completed
-#define taskIsPending(task) _btaskIsPending(BasicTask(task))
+#define taskIsPending(task)  _btaskIsPending(BasicTask(task))
 
-_meta_inline bool _btaskIsIdle(BasicTask *bt)
+_meta_inline bool _btaskIsIdle(BasicTask* bt)
 {
     uint32 state = _btaskState(bt);
     return state == TASK_Created || state == TASK_Waiting || state == TASK_Deferred ||
@@ -267,7 +268,7 @@ _meta_inline bool _btaskIsIdle(BasicTask *bt)
 /// Check if a task is idle (created, waiting, deferred, or scheduled but not running).
 /// @param task Task to query
 /// @return true if task has never run or is not currently running
-#define taskIsIdle(task) _btaskIsIdle(BasicTask(task))
+#define taskIsIdle(task)  _btaskIsIdle(BasicTask(task))
 
 _meta_inline bool _btaskIsComplete(BasicTask* bt)
 {
@@ -285,9 +286,9 @@ _meta_inline bool _btaskIsComplete(BasicTask* bt)
 /// Check if a task has completed (either succeeded or failed).
 /// @param task Task to query
 /// @return true if task is in a final state (TASK_Succeeded or TASK_Failed)
-#define taskIsComplete(task) _btaskIsComplete(BasicTask(task))
+#define taskIsComplete(task)  _btaskIsComplete(BasicTask(task))
 
-_meta_inline bool _btaskSucceeded(BasicTask *bt)
+_meta_inline bool _btaskSucceeded(BasicTask* bt)
 {
     return _btaskState(bt) == TASK_Succeeded;
 }
@@ -302,9 +303,9 @@ _meta_inline bool _btaskSucceeded(BasicTask *bt)
 /// Check if a task completed successfully.
 /// @param task Task to query
 /// @return true if task is in TASK_Succeeded state
-#define taskSucceeded(task) _btaskSucceeded(BasicTask(task))
+#define taskSucceeded(task)  _btaskSucceeded(BasicTask(task))
 
-_meta_inline bool _btaskFailed(BasicTask *bt)
+_meta_inline bool _btaskFailed(BasicTask* bt)
 {
     return _btaskState(bt) == TASK_Failed;
 }
@@ -319,9 +320,9 @@ _meta_inline bool _btaskFailed(BasicTask *bt)
 /// Check if a task failed.
 /// @param task Task to query
 /// @return true if task is in TASK_Failed state
-#define taskFailed(task) _btaskFailed(BasicTask(task))
+#define taskFailed(task)  _btaskFailed(BasicTask(task))
 
-_meta_inline bool _btaskCancelled(BasicTask *bt)
+_meta_inline bool _btaskCancelled(BasicTask* bt)
 {
     return atomicLoad(uint32, &bt->state, Acquire) & TASK_Cancelled;
 }
@@ -338,7 +339,7 @@ _meta_inline bool _btaskCancelled(BasicTask *bt)
 /// Cancelled flag is independent of state and can be set on running or pending tasks.
 /// @param task Task to query
 /// @return true if TASK_Cancelled flag is set
-#define taskCancelled(task) _btaskCancelled(BasicTask(task))
+#define taskCancelled(task)  _btaskCancelled(BasicTask(task))
 
 /// bool taskCancel(Task *task)
 ///
@@ -358,4 +359,3 @@ _meta_inline bool _btaskCancelled(BasicTask *bt)
 
 /// @}
 /// @}
-

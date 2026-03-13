@@ -9,8 +9,8 @@
 #include "taskqueue/requires/taskrequiresresource.h"
 // clang-format on
 // ==================== Auto-generated section ends ======================
-#include <cx/taskqueue/taskqueue.h>
 #include <cx/taskqueue/task/complextask.h>
+#include <cx/taskqueue/taskqueue.h>
 
 _objfactory_guaranteed TaskRequiresResource* TaskRequiresResource_create(_In_ TaskResource* res)
 {
@@ -60,6 +60,7 @@ bool TaskRequiresResource_release(_In_ TaskRequiresResource* self, ComplexTask* 
 
 void TaskRequiresResource_cancel(_In_ TaskRequiresResource* self)
 {
+    return;
 }
 
 bool TaskRequiresResource_registerTask(_In_ TaskRequiresResource* self, _In_ ComplexTask* task)

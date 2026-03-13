@@ -12,8 +12,8 @@
 
 _objfactory_guaranteed VFSFSFile* VFSFSFile_create(FSFile* f)
 {
-    VFSFSFile *ret;
-    ret = objInstCreate(VFSFSFile);
+    VFSFSFile* ret;
+    ret       = objInstCreate(VFSFSFile);
     ret->file = f;
     objInstInit(ret);
     return ret;
@@ -28,7 +28,8 @@ bool VFSFSFile_close(_In_ VFSFSFile* self)
     return ret;
 }
 
-bool VFSFSFile_read(_In_ VFSFSFile* self, _Out_writes_bytes_to_(sz, *bytesread) void* buf, size_t sz, _Out_ _Deref_out_range_(0, sz) size_t* bytesread)
+bool VFSFSFile_read(_In_ VFSFSFile* self, _Out_writes_bytes_to_(sz, *bytesread) void* buf,
+                    size_t sz, _Out_ _Deref_out_range_(0, sz) size_t* bytesread)
 {
     if (!self->file) {
         *bytesread = 0;
@@ -37,7 +38,8 @@ bool VFSFSFile_read(_In_ VFSFSFile* self, _Out_writes_bytes_to_(sz, *bytesread) 
     return fsRead(self->file, buf, sz, bytesread);
 }
 
-bool VFSFSFile_write(_In_ VFSFSFile* self, _In_reads_bytes_(sz) void* buf, size_t sz, _Out_opt_ _Deref_out_range_(0, sz) size_t* byteswritten)
+bool VFSFSFile_write(_In_ VFSFSFile* self, _In_reads_bytes_(sz) void* buf, size_t sz,
+                     _Out_opt_ _Deref_out_range_(0, sz) size_t* byteswritten)
 {
     if (!self->file) {
         if (byteswritten)

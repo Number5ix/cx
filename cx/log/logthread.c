@@ -9,12 +9,12 @@
 
 STR_CONST(kLogThreadName, "CX Log Writer");
 
-Thread *_log_thread;
+Thread* _log_thread;
 static Event _log_done_event;
 
 #define LOG_BATCH_SIZE 256
 
-static int logthread_func(_Inout_ Thread *self)
+static int logthread_func(_Inout_ Thread* self)
 {
     sa_LogEntry ents;
     sa_LogDest sent;
@@ -25,25 +25,26 @@ static int logthread_func(_Inout_ Thread *self)
     while (thrLoop(self)) {
         bool empty = false;
         // grab some available log entries
-        for(int i = 0; i < LOG_BATCH_SIZE; i++) {
-            LogEntry *ent = (LogEntry *)prqPop(&_log_queue);
-            if(ent) {
+        for (int i = 0; i < LOG_BATCH_SIZE; i++) {
+            LogEntry* ent = (LogEntry*)prqPop(&_log_queue);
+            if (ent) {
                 saPush(&ents, ptr, ent);
             } else {
                 empty = true;
-                break;              // queue empty
+                break;   // queue empty
             }
         }
 
         // now that we have a bunch of log entries and batches, process them
         mutexAcquire(&_log_op_lock);
-        foreach(sarray, ent__idx, LogEntry*, ent, ents) {
+        foreach (sarray, ent__idx, LogEntry*, ent, ents) {
             ++batchid;
             saClear(&sent);
             while (ent) {
-                LogEntry *next = ent->_next;
+                LogEntry* next = ent->_next;
 
-                // verify that this log entry is using a category that was registered to the log system
+                // verify that this log entry is using a category that was registered to the log
+                // system
                 if (ent->cat == LogDefault || htHasKey(_log_categories, ptr, ent->cat)) {
                     // send it to all relevant destinations
                     foreach (sarray, dest_idx, LogDest*, dest, _log_dests) {
@@ -63,7 +64,7 @@ static int logthread_func(_Inout_ Thread *self)
                     }
                 }
                 logDestroyEnt(ent);
-                ent = next;         // process the rest of the batch
+                ent = next;   // process the rest of the batch
             }
 
             // notify relevant destinations that the batch is done
@@ -77,8 +78,9 @@ static int logthread_func(_Inout_ Thread *self)
 
         saClear(&ents);
 
-        if(empty) {
-            prqCollect(&_log_queue);            // run GC before event signal so it's not running during shutdown
+        if (empty) {
+            prqCollect(&_log_queue);   // run GC before event signal so it's not running during
+                                       // shutdown
             eventSignal(&_log_done_event);
             eventWait(&self->notify);
         }

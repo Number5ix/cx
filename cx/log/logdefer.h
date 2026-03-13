@@ -20,15 +20,15 @@
 ///   // Very early in startup - before file system is ready
 ///   LogDeferData *deferdata = logDeferCreate();
 ///   LogDest *deferdest = logDeferRegister(LOG_Info, NULL, deferdata);
-///   
+///
 ///   // Application can log immediately
 ///   logStr(Info, _SL("Starting initialization..."));
 ///   logStr(Info, _SL("Loading configuration..."));
-///   
+///
 ///   // Later - file system is ready, transfer deferred logs
 ///   LogFileData *lfd = logfileCreate(vfs, _SL("app.log"), &cfg);
 ///   LogDest *dest = logfileRegisterWithDefer(LOG_Info, NULL, lfd, deferdest);
-///   
+///
 ///   // All early logs now written to file, logging continues normally
 ///   logStr(Info, _SL("Initialization complete"));
 /// @endcode
@@ -124,4 +124,3 @@ logRegisterDestWithDefer(int maxlevel, _In_opt_ LogCategory* catfilter, _In_ Log
                          _In_opt_ void* userdata, _In_opt_ _Post_invalid_ LogDest* deferdest);
 
 /// @}  // end of log_defer group
-

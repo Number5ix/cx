@@ -1,6 +1,6 @@
 #include "ccallbacks.h"
-#include "cx/taskqueue/task/complextask.h"
 #include <cx/thread.h>
+#include "cx/taskqueue/task/complextask.h"
 
 bool ccbSignalEvent(stvlist* cvars, stvlist* args)
 {
@@ -25,7 +25,7 @@ bool ccbSignalSharedEvent(stvlist* cvars, stvlist* args)
 
 bool ccbAdvanceTask(stvlist* cvars, stvlist* args)
 {
-    Weak(ComplexTask) *ptask;
+    Weak(ComplexTask)* ptask;
     if (!stvlNext(cvars, weakref, &ptask))
         return false;
     ComplexTask* ctask = objAcquireFromWeakDyn(ComplexTask, ptask);
@@ -37,4 +37,3 @@ bool ccbAdvanceTask(stvlist* cvars, stvlist* args)
     objRelease(&ctask);
     return true;
 }
- 

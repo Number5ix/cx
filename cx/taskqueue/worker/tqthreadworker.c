@@ -69,10 +69,7 @@ bool TQThreadWorker_startThread(_In_ TQThreadWorker* self, _In_ TaskQueue* tq)
         return false;
 
     string thrname = 0;
-    strFormat(&thrname,
-              kWorkerThreadName,
-              stvar(string, tq->name),
-              stvar(int32, self->num));
+    strFormat(&thrname, kWorkerThreadName, stvar(string, tq->name), stvar(int32, self->num));
 
     // may need to create a UI thread for the worker if there's a callback
     if (runner->conf.ui)

@@ -3,7 +3,7 @@
 
 STR_CONST(kSysQueueName, "CX System");
 
-static TaskQueue *sysq;
+static TaskQueue* sysq;
 
 static void sysqExit(void)
 {
@@ -12,12 +12,12 @@ static void sysqExit(void)
 }
 
 static LazyInitState sysqInitState;
-static void sysqInitFunc(void *dummy)
+static void sysqInitFunc(void* dummy)
 {
     TaskQueueConfig conf;
     tqPresetBalanced(&conf);
-    conf.pool.wIdle = 1;        // use only 1 thread for idle
-    sysq                 = tqCreate(kSysQueueName, &conf);
+    conf.pool.wIdle = 1;   // use only 1 thread for idle
+    sysq            = tqCreate(kSysQueueName, &conf);
     relAssertMsg(sysq, "Failed to create system queue");
     atexit(sysqExit);
 }

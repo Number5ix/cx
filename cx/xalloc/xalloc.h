@@ -215,7 +215,8 @@ void xaRemoveOOMCallback(xaOOMCallback cb);
 _Check_return_ _When_(flags & XA_Optional_Mask, _Must_inspect_result_ _Ret_maybenull_)
     _When_(!(flags & XA_Optional_Mask), _Ret_notnull_)
         _When_(!(flags & XA_Optional_Mask) && (flags & XA_Zero), _Ret_valid_)
-            _Post_writable_byte_size_(size) void* _xaAlloc(size_t size, unsigned int flags);
+            _Post_writable_byte_size_(size) void*
+_xaAlloc(size_t size, unsigned int flags);
 
 /// bool xaResize(void **ptr, size_t size, [flags])
 ///
@@ -228,9 +229,7 @@ _Check_return_ _When_(flags & XA_Optional_Mask, _Must_inspect_result_ _Ret_maybe
 /// @return True if successfully resized and ptr updated, false on failure (if XA_Opt is set)
 #define xaResize(ptr, size, ...) \
     (_xa_ptr_ptr_verify(ptr), _xaResize((void**)(ptr), size, opt_flags(__VA_ARGS__)))
-_At_(*ptr, _Pre_maybenull_) _When_(
-    !(flags &
-      XA_Optional_Mask), _At_(*ptr, _Post_writable_byte_size_(size)) ) bool _xaResize(_Inout_ void** ptr, size_t size, unsigned int flags);
+_At_(*ptr, _Pre_maybenull_) _When_(!(flags & XA_Optional_Mask), _At_(*ptr, _Post_writable_byte_size_(size)) ) bool _xaResize(_Inout_ void** ptr, size_t size, unsigned int flags);
 
 /// Frees the memory at ptr.
 /// Does nothing if ptr is NULL.

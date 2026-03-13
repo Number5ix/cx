@@ -51,6 +51,9 @@
 ///
 /// See the compiler-specific headers for the complete API.
 
+#include <cx/cx.h>
+#include <cx/platform/base.h>
+
 #if defined(_COMPILER_MSVC)
 #include <cx/platform/msvc/msvc_cpu.h>
 #elif defined(_COMPILER_CLANG) || defined(_COMPILER_GCC)

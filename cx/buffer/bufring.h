@@ -230,8 +230,7 @@ _meta_inline void bufringWriteBuf(_Inout_ BufRing* ring, _In_ Buffer buf)
 /// @param buf Pointer to buffer object to append (ownership transferred, set to NULL on return)
 /// @note The ring buffer takes ownership of the buffer object and will destroy it. After this
 /// call, *buf will be NULL.
-_At_(*buf,
-     _Pre_notnull_ _Post_null_) void bufringWriteZC(_Inout_ BufRing* ring, _Inout_ Buffer* buf);
+_At_(*buf, _Pre_notnull_ _Post_null_) void bufringWriteZC(_Inout_ BufRing* ring, _Inout_ Buffer* buf);
 
 /// Get available write space in the ring buffer without expansion.
 ///

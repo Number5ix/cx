@@ -2,9 +2,9 @@
 #include "cx/suid/suid.h"
 
 _Use_decl_annotations_
-bool _fmtSUID(FMTVar *v, string *out)
+bool _fmtSUID(FMTVar* v, string* out)
 {
-    SUID *s = (SUID*)v->data;
+    SUID* s = (SUID*)v->data;
     suidEncode(out, s);
     return true;
 }

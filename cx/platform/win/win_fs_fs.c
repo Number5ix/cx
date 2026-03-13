@@ -1,15 +1,16 @@
+#include "cx/container/sarray.h"
+#include "cx/platform/win.h"
+#include "cx/string.h"
+#include "cx/thread/rwlock.h"
+#include "cx/utils/lazyinit.h"
 #include "win_fs.h"
 #include "win_time.h"
-#include "cx/string.h"
-#include "cx/utils/lazyinit.h"
-#include "cx/container/sarray.h"
-#include "cx/thread/rwlock.h"
-#include "cx/platform/win.h"
 
 static LazyInitState fsCurDirInit;
 RWLock _fsCurDirLock;
-string _fsCurDir = 0;
-strref fsPlatformPathSepStr = (strref)"\xE1\xC1\x01""\\";
+string _fsCurDir            = 0;
+strref fsPlatformPathSepStr = (strref) "\xE1\xC1\x01"
+                                       "\\";
 
 STR_CONST(kPlatformNTPrefix, "\\\\?\\");
 STR_CONST(kPlatformUNCPrefix, "\\\\?\\UNC\\");
@@ -17,20 +18,20 @@ STR_CONST(kUnc, "unc");
 STR_CONST(kUNC, "UNC");
 STR_CONST(kWildcard, "*");
 
-static void fsPathFromWinW(_Inout_ string *out, _In_z_ wchar_t *winpath)
+static void fsPathFromWinW(_Inout_ string* out, _In_z_ wchar_t* winpath)
 {
     strFromUTF16(out, winpath, cstrLenw(winpath));
     pathFromPlatform(out, *out);
     pathNormalize(out);
 }
 
-static void initCurDir(void *data)
+static void initCurDir(void* data)
 {
     rwlockInit(&_fsCurDirLock);
 
-    DWORD sz = GetCurrentDirectoryW(0, NULL);
-    wchar_t *p = xaAlloc(sz * sizeof(wchar_t));
-    DWORD ret = GetCurrentDirectoryW(sz, p);
+    DWORD sz   = GetCurrentDirectoryW(0, NULL);
+    wchar_t* p = xaAlloc(sz * sizeof(wchar_t));
+    DWORD ret  = GetCurrentDirectoryW(sz, p);
     if (ret != 0 && ret < sz)
         strFromUTF16(&_fsCurDir, p, ret);
     xaFree(p);
@@ -55,7 +56,7 @@ _Use_decl_annotations_
 wchar_t* fsPathToNT(strref path)
 {
     string npath = 0, ntpath = 0;
-    wchar_t *ret;
+    wchar_t* ret;
     pathMakeAbsolute(&npath, path);
     pathNormalize(&npath);
     pathToPlatform(&npath, npath);
@@ -68,8 +69,8 @@ wchar_t* fsPathToNT(strref path)
     }
 
     ret = strToUTF16S(ntpath);
-    if(!ret) {
-        ret = scratchGet(1);
+    if (!ret) {
+        ret    = scratchGet(1);
         ret[0] = 0;
     }
 
@@ -79,24 +80,23 @@ wchar_t* fsPathToNT(strref path)
 }
 
 _Use_decl_annotations_
-void pathFromPlatform(string *out, strref platformpath)
+void pathFromPlatform(string* out, strref platformpath)
 {
-    string ns = 0;
+    string ns    = 0;
     string rpath = 0;
-    string ret = 0;
+    string ret   = 0;
 
     strDup(&rpath, platformpath);
 
     // first, convert all backslashes to forward slashes
     int32 idx = 0;
-    while ((idx = strFind(rpath, idx, fsPlatformPathSepStr)) != -1)
-        strSetChar(&rpath, idx, '/');
+    while ((idx = strFind(rpath, idx, fsPlatformPathSepStr)) != -1) strSetChar(&rpath, idx, '/');
 
     uint32 origlen = strLen(rpath);
-    uint8 *buf = strBuffer(&rpath, 4);
+    uint8* buf     = strBuffer(&rpath, 4);
 
-    if (buf[0] == '/' && (buf[1] == '/' || buf[1] == '?') &&
-        (buf[2] == '?' || buf[2] == '.') && buf[3] == '/') {
+    if (buf[0] == '/' && (buf[1] == '/' || buf[1] == '?') && (buf[2] == '?' || buf[2] == '.') &&
+        buf[3] == '/') {
         // reserved prefix, can't use this!
         strSubStrI(&rpath, 4, origlen);
         buf = strBuffer(&rpath, 4);
@@ -138,7 +138,7 @@ void pathFromPlatform(string *out, strref platformpath)
 }
 
 _Use_decl_annotations_
-void pathToPlatform(string *out, strref path)
+void pathToPlatform(string* out, strref path)
 {
     string ns = 0, rpath = 0;
     string ret = 0;
@@ -155,8 +155,7 @@ void pathToPlatform(string *out, strref path)
 
     // finally, convert all forward slahes to backslashes
     int32 idx = 0;
-    while ((idx = strFind(ret, idx, fsPathSepStr)) != -1)
-        strSetChar(&ret, idx, '\\');
+    while ((idx = strFind(ret, idx, fsPathSepStr)) != -1) strSetChar(&ret, idx, '\\');
 
     strDestroy(&ns);
     strDestroy(&rpath);
@@ -166,7 +165,7 @@ void pathToPlatform(string *out, strref path)
 }
 
 _Use_decl_annotations_
-bool pathMakeAbsolute(string *out, strref path)
+bool pathMakeAbsolute(string* out, strref path)
 {
     if (pathIsAbsolute(path)) {
         strDup(out, path);
@@ -184,7 +183,7 @@ bool pathMakeAbsolute(string *out, strref path)
 }
 
 _Use_decl_annotations_
-void fsCurDir(string *out)
+void fsCurDir(string* out)
 {
     lazyInit(&fsCurDirInit, initCurDir, NULL);
     rwlockAcquireRead(&_fsCurDirLock);
@@ -222,20 +221,20 @@ bool fsSetCurDir(strref cur)
     return true;
 }
 
-static void fsExeInit(void *data)
+static void fsExeInit(void* data)
 {
-    string *exepath = (string*)data;
+    string* exepath = (string*)data;
 
     // windows API is really stupid here, has no way to get size first
-    wchar_t *buf = xaAlloc(32768 * sizeof(wchar_t));
+    wchar_t* buf = xaAlloc(32768 * sizeof(wchar_t));
     GetModuleFileNameW(NULL, buf, 32768);
-    buf[32767] = 0;             // it also doesn't null terminate when it truncates...
+    buf[32767] = 0;   // it also doesn't null terminate when it truncates...
     fsPathFromWinW(exepath, buf);
     xaFree(buf);
 }
 
 _Use_decl_annotations_
-void fsExe(string *out)
+void fsExe(string* out)
 {
     static LazyInitState execache;
     static string exepath = 0;
@@ -245,14 +244,14 @@ void fsExe(string *out)
 }
 
 _Use_decl_annotations_
-void fsExeDir(string *out)
+void fsExeDir(string* out)
 {
     fsExe(out);
     pathParent(out, *out);
 }
 
 _Use_decl_annotations_
-FSPathStat fsStat(strref path, FSStat *stat)
+FSPathStat fsStat(strref path, FSStat* stat)
 {
     if (strEmpty(path))
         return FS_Nonexistent;
@@ -280,9 +279,9 @@ FSPathStat fsStat(strref path, FSStat *stat)
         return FS_Nonexistent;
     }
 
-    stat->size = (uint64)attrs.nFileSizeHigh << 32 | attrs.nFileSizeLow;
+    stat->size     = (uint64)attrs.nFileSizeHigh << 32 | attrs.nFileSizeLow;
     stat->accessed = timeFromFileTime(&attrs.ftLastAccessTime);
-    stat->created = timeFromFileTime(&attrs.ftCreationTime);
+    stat->created  = timeFromFileTime(&attrs.ftCreationTime);
     stat->modified = timeFromFileTime(&attrs.ftLastWriteTime);
     if (attrs.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
         return FS_Directory;
@@ -355,7 +354,7 @@ typedef struct FSSearch {
 } FSSearch;
 
 _Use_decl_annotations_
-bool fsSearchInit(FSSearchIter *iter, strref path, strref pattern, bool stat)
+bool fsSearchInit(FSSearchIter* iter, strref path, strref pattern, bool stat)
 {
     string spath = 0;
 
@@ -364,8 +363,8 @@ bool fsSearchInit(FSSearchIter *iter, strref path, strref pattern, bool stat)
     // stat is ignored for Windows since the API always returns file
     // size and timestamps
 
-    FSSearch *search = xaAlloc(sizeof(FSSearch), XA_Zero);
-    iter->_search = search;
+    FSSearch* search = xaAlloc(sizeof(FSSearch), XA_Zero);
+    iter->_search    = search;
     pathJoin(&spath, path, strEmpty(pattern) ? kWildcard : pattern);
 
     search->h = FindFirstFileW(fsPathToNT(spath), &search->first);
@@ -382,9 +381,9 @@ bool fsSearchInit(FSSearchIter *iter, strref path, strref pattern, bool stat)
 }
 
 _Use_decl_annotations_
-bool fsSearchNext(FSSearchIter *iter)
+bool fsSearchNext(FSSearchIter* iter)
 {
-    FSSearch *search = (FSSearch*)iter->_search;
+    FSSearch* search = (FSSearch*)iter->_search;
     WIN32_FIND_DATAW data;
     if (!search)
         return false;
@@ -402,8 +401,7 @@ bool fsSearchNext(FSSearchIter *iter)
         }
 
         // loop until we have something we're actually interested in
-    } while (cstrLenw(data.cFileName) == 0 ||
-             !wcscmp(data.cFileName, L".") ||
+    } while (cstrLenw(data.cFileName) == 0 || !wcscmp(data.cFileName, L".") ||
              !wcscmp(data.cFileName, L".."));
 
     strFromUTF16(&iter->name, data.cFileName, cstrLenw(data.cFileName));
@@ -412,18 +410,18 @@ bool fsSearchNext(FSSearchIter *iter)
     else
         iter->type = FS_File;
 
-    iter->stat.size = (uint64)data.nFileSizeHigh << 32 | data.nFileSizeLow;
+    iter->stat.size     = (uint64)data.nFileSizeHigh << 32 | data.nFileSizeLow;
     iter->stat.accessed = timeFromFileTime(&data.ftLastAccessTime);
-    iter->stat.created = timeFromFileTime(&data.ftCreationTime);
+    iter->stat.created  = timeFromFileTime(&data.ftCreationTime);
     iter->stat.modified = timeFromFileTime(&data.ftLastWriteTime);
 
     return true;
 }
 
 _Use_decl_annotations_
-void fsSearchFinish(FSSearchIter *iter)
+void fsSearchFinish(FSSearchIter* iter)
 {
-    FSSearch *search = (FSSearch*)iter->_search;
+    FSSearch* search = (FSSearch*)iter->_search;
     if (!search)
         return;
 
@@ -442,15 +440,17 @@ bool fsSetTimes(strref path, int64 modified, int64 accessed)
     if (accessed >= 0 && !timeToFileTime(accessed, &atime))
         return false;
 
-    HANDLE fh = CreateFileW(fsPathToNT(path), FILE_WRITE_ATTRIBUTES,
-                            FILE_SHARE_WRITE | FILE_SHARE_WRITE, NULL, OPEN_ALWAYS,
-                            FILE_ATTRIBUTE_NORMAL, NULL);
+    HANDLE fh = CreateFileW(fsPathToNT(path),
+                            FILE_WRITE_ATTRIBUTES,
+                            FILE_SHARE_WRITE | FILE_SHARE_WRITE,
+                            NULL,
+                            OPEN_ALWAYS,
+                            FILE_ATTRIBUTE_NORMAL,
+                            NULL);
     if (!fh)
         return false;
 
-    bool ret = SetFileTime(fh, NULL,
-                           accessed >= 0 ? &atime : NULL,
-                           modified >= 0 ? &mtime : NULL);
+    bool ret = SetFileTime(fh, NULL, accessed >= 0 ? &atime : NULL, modified >= 0 ? &mtime : NULL);
 
     CloseHandle(fh);
     return ret;

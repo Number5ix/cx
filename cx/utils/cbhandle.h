@@ -31,11 +31,10 @@
 #include <cx/cx.h>
 
 /// Generic callback function pointer type
-typedef void(*GenericCallback)();
+typedef void (*GenericCallback)();
 
-int _callbackGetHandle(_In_z_ const char *cbtype, _In_ GenericCallback func);
-_Ret_opt_valid_
-GenericCallback _callbackGetFunc(_In_z_ const char *cbtype, int handle);
+int _callbackGetHandle(_In_z_ const char* cbtype, _In_ GenericCallback func);
+_Ret_opt_valid_ GenericCallback _callbackGetFunc(_In_z_ const char* cbtype, int handle);
 
 /// int callbackGetHandle(cbtype, func)
 ///

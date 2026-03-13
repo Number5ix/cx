@@ -11,15 +11,17 @@
 // ==================== Auto-generated section ends ======================
 #include <cx/taskqueue/taskqueue.h>
 
-static void destroyFifoNode(TRFifoNode *node) {
+static void destroyFifoNode(TRFifoNode* node)
+{
     objRelease(&node->task);
     xaFree(node);
 }
 
-static void destroyFifoList(TRFifoNode *node) {
+static void destroyFifoList(TRFifoNode* node)
+{
     TRFifoNode* next;
 
-    while(node) {
+    while (node) {
         next = node->next;
         objRelease(&node->task);
         xaFree(node);
@@ -29,7 +31,7 @@ static void destroyFifoList(TRFifoNode *node) {
 
 bool TRFifo_registerTask(_In_ TRFifo* self, ComplexTask* task)
 {
-    withMutex(&self->_fifomtx) {
+    withMutex (&self->_fifomtx) {
         TRFifoNode* nnode = xaAllocStruct(TRFifoNode, XA_Zero);
         nnode->task       = objAcquire(task);
         if (self->tail) {
@@ -50,7 +52,7 @@ bool TRFifo_canAcquire(_In_ TRFifo* self, ComplexTask* task)
     withMutex (&self->_fifomtx) {
         // FIFO is strictly ordered -- task may ONLY acquire if it's at the head of the queue
         if (!self->cur && self->head && self->head->task == task)
-                ret = true;
+            ret = true;
     }
 
     return ret;
@@ -85,11 +87,10 @@ bool TRFifo_tryAcquire(_In_ TRFifo* self, ComplexTask* task)
 
 void TRFifo_release(_In_ TRFifo* self, ComplexTask* task)
 {
-    withMutex(&self->_fifomtx) {
+    withMutex (&self->_fifomtx) {
         if (self->cur == task)
             self->cur = NULL;
 
-        
         // advance the next task in line
         if (self->head)
             ctaskAdvance(self->head->task);

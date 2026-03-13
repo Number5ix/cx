@@ -31,7 +31,7 @@
  */
 
 #ifdef _64BIT
-CX_GENERATE_ATOMICS(void *, ptr, 3)
+CX_GENERATE_ATOMICS(void*, ptr, 3)
 CX_GENERATE_ATOMICS(bool, bool, 0)
 CX_GENERATE_INT_ATOMICS(size_t, size, 3)
 CX_GENERATE_INT_ATOMICS(intptr, intptr, 3)
@@ -45,7 +45,7 @@ CX_GENERATE_INT_ATOMICS(uint16, uint16, 1)
 CX_GENERATE_INT_ATOMICS(uint32, uint32, 2)
 CX_GENERATE_INT_ATOMICS(uint64, uint64, 3)
 #else
-CX_GENERATE_ATOMICS(void *, ptr, 2)
+CX_GENERATE_ATOMICS(void*, ptr, 2)
 CX_GENERATE_ATOMICS(bool, bool, 0)
 CX_GENERATE_INT_ATOMICS(size_t, size, 2)
 CX_GENERATE_INT_ATOMICS(intptr, intptr, 2)

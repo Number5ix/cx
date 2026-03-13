@@ -17,9 +17,9 @@ bool strValidUTF8(strref s)
 
     while (len > 0) {
         uint32 seqlen = _strUTF8Decode(&it, NULL);
-        if (seqlen == 0)                // decode failure
+        if (seqlen == 0)            // decode failure
             return false;
-        devAssert(seqlen <= len);       // should be impossible to have decoded more than we have
+        devAssert(seqlen <= len);   // should be impossible to have decoded more than we have
         len -= seqlen;
     }
 
@@ -33,8 +33,7 @@ bool strValidUTF8(strref s)
     return true;
 }
 
-_When_(s == NULL, _Post_equal_to_(false))
-bool strValidASCII(_In_opt_ strref s)
+_When_(s == NULL, _Post_equal_to_(false)) bool strValidASCII(_In_opt_ strref s)
 {
     if (!STR_CHECK_VALID(s))
         return false;
@@ -47,21 +46,21 @@ bool strValidASCII(_In_opt_ strref s)
     for (striBorrow(&it, s); it.len > 0; striNext(&it)) {
         for (uint32 i = 0; i < it.len; i++) {
             if (it.bytes[i] & 0x80)
-                return false;       // non-ASCII character detected
+                return false;   // non-ASCII character detected
         }
     }
 
     // if we allocated this string, mark it as ASCII
     if (_strHdr(s) & STR_ALLOC)
-        *_strHdrP(s) |= STR_ASCII | STR_UTF8;           // ASCII is UTF-8 by default
+        *_strHdrP(s) |= STR_ASCII | STR_UTF8;   // ASCII is UTF-8 by default
 
     return true;
 }
 
 _Use_decl_annotations_
-size_t strToUTF16(strref s, uint16 *_Nullable buf, size_t wsz)
+size_t strToUTF16(strref s, uint16* _Nullable buf, size_t wsz)
 {
-    size_t bufidx = 0;
+    size_t bufidx   = 0;
     int32 codepoint = 0;
     if (!STR_CHECK_VALID(s) || !strValidUTF8(s))
         return 0;
@@ -72,7 +71,7 @@ size_t strToUTF16(strref s, uint16 *_Nullable buf, size_t wsz)
 
     while (len > 0) {
         uint32 seqlen = _strUTF8Decode(&it, &codepoint);
-        devAssert(seqlen > 0);          // should be impossible to get here with invalid UTF-8
+        devAssert(seqlen > 0);   // should be impossible to get here with invalid UTF-8
         len -= seqlen;
 
         if (codepoint < 0x10000) {
@@ -88,7 +87,7 @@ size_t strToUTF16(strref s, uint16 *_Nullable buf, size_t wsz)
                 if (bufidx + 2 > wsz)
                     return 0;
                 codepoint -= 0x10000;
-                buf[bufidx] = 0xd800 | ((codepoint >> 10) & 0x3ff);
+                buf[bufidx]     = 0xd800 | ((codepoint >> 10) & 0x3ff);
                 buf[bufidx + 1] = 0xdc00 | (codepoint & 0x3ff);
             }
             bufidx += 2;
@@ -107,10 +106,10 @@ size_t strToUTF16(strref s, uint16 *_Nullable buf, size_t wsz)
 }
 
 _Use_decl_annotations_
-bool strFromUTF16(strhandle o, const uint16 *_Nonnull buf, size_t wsz)
+bool strFromUTF16(strhandle o, const uint16* _Nonnull buf, size_t wsz)
 {
     bool surrogate = false;
-    int nexpand = 1;
+    int nexpand    = 1;
     int32 codepoint;
 
     // start out assuming it's ASCII text to minimize reallocation
@@ -130,13 +129,13 @@ bool strFromUTF16(strhandle o, const uint16 *_Nonnull buf, size_t wsz)
             codepoint |= (int32)buf[i] & 0x3ff;
             codepoint += 0x10000;
             if (codepoint > 0x10ffff || (codepoint >= 0xd800 && codepoint <= 0xdfff))
-                goto fail;      // not legal unicode!
+                goto fail;   // not legal unicode!
         } else {
-            goto fail;          // invalid UTF-16!
+            goto fail;       // invalid UTF-16!
         }
 
         if (codepoint == 0)
-            break;              // hit NULL before end of buffer, stop string here
+            break;   // hit NULL before end of buffer, stop string here
 
         if (olen + 5 > osz) {
             // expand by more each time to not reallocate a ton if this string has
@@ -160,25 +159,25 @@ fail:
 }
 
 _Use_decl_annotations_
-uint16 *_Nullable strToUTF16A(strref s)
+uint16* _Nullable strToUTF16A(strref s)
 {
     size_t sz = strToUTF16(s, NULL, 0);
     if (sz == 0)
         return NULL;
 
-    uint16 *ret = xaAlloc(sz * sizeof(uint16));
+    uint16* ret = xaAlloc(sz * sizeof(uint16));
     strToUTF16(s, ret, sz);
     return ret;
 }
 
 _Use_decl_annotations_
-uint16 *_Nullable strToUTF16S(strref s)
+uint16* _Nullable strToUTF16S(strref s)
 {
     size_t sz = strToUTF16(s, NULL, 0);
     if (sz == 0)
         return NULL;
 
-    uint16 *ret = scratchGet(sz * sizeof(uint16));
+    uint16* ret = scratchGet(sz * sizeof(uint16));
     strToUTF16(s, ret, sz);
     return ret;
 }

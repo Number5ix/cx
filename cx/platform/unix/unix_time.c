@@ -5,7 +5,7 @@
 #include "cx/time/clock.h"
 #include "cx/time/time.h"
 
-int64 timeLocal(int64 time, int64 *offset)
+int64 timeLocal(int64 time, int64* offset)
 {
     // get the correct offset for the given date
     time_t ttime = timeToTimeT(time);

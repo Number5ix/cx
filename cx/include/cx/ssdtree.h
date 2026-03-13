@@ -5,7 +5,6 @@
 /// @file ssdtree.h
 /// @brief Semi-Structured Data (SSD)
 
-
 /// @defgroup ssd Semi-Structured Data
 /// @{
 ///

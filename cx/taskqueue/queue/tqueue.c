@@ -11,7 +11,9 @@
 // ==================== Auto-generated section ends ======================
 #include "cx/taskqueue/taskqueue_private.h"
 
-_objfactory_guaranteed TaskQueue* TaskQueue_create(_In_opt_ strref name, uint32 flags, int64 gcinterval, _In_ TQRunner* runner, _In_ TQManager* manager, _In_opt_ TQMonitor* monitor)
+_objfactory_guaranteed TaskQueue*
+TaskQueue_create(_In_opt_ strref name, uint32 flags, int64 gcinterval, _In_ TQRunner* runner,
+                 _In_ TQManager* manager, _In_opt_ TQMonitor* monitor)
 {
     TaskQueue* self;
     self = objInstCreate(TaskQueue);
@@ -72,7 +74,7 @@ bool TaskQueue_add(_In_ TaskQueue* self, _In_ BasicTask* btask)
         objRelease(&btask);
         return false;
     }
-    
+
     // Signal the runner to pick it up
     eventSignal(&self->workev);
     // let dedicated managers know they may need to check for thread pool expansion.
@@ -251,13 +253,13 @@ bool TaskQueue__queueMaint(_In_ TaskQueue* self)
 
     if (now - self->_lastgc > self->gcinterval) {
         self->_lastgc = now;
-        switch(self->_gccycle) {
-            case 0:
-                prqCollect(&self->runq);
-                break;
-            case 1:
-                prqCollect(&self->doneq);
-                break;
+        switch (self->_gccycle) {
+        case 0:
+            prqCollect(&self->runq);
+            break;
+        case 1:
+            prqCollect(&self->doneq);
+            break;
         }
 
         self->_gccycle = (self->_gccycle + 1) % 2;

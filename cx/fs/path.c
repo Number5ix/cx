@@ -4,15 +4,20 @@
 // platform-agnostic path manipulation
 
 STR_CONST(kBackslash, "\\");
-strref fsPathSepStr      = (strref)"\xE1\xC1\x01""/";
-strref fsNSSepStr        = (strref)"\xE1\xC1\x01"":";
-strref fsCurrentDirStr   = (strref)"\xE1\xC1\x01"".";
-strref fsParentDirStr    = (strref)"\xE1\xC1\x02""..";
-strref fsExtensionSepStr = (strref)"\xE1\xC1\x01"".";
+strref fsPathSepStr      = (strref) "\xE1\xC1\x01"
+                                    "/";
+strref fsNSSepStr        = (strref) "\xE1\xC1\x01"
+                                    ":";
+strref fsCurrentDirStr   = (strref) "\xE1\xC1\x01"
+                                    ".";
+strref fsParentDirStr    = (strref) "\xE1\xC1\x02"
+                                    "..";
+strref fsExtensionSepStr = (strref) "\xE1\xC1\x01"
+                                    ".";
 
 // Get parent directory
 _Use_decl_annotations_
-bool pathParent(string *out, strref path)
+bool pathParent(string* out, strref path)
 {
     int32 len = strLen(path);
     int32 sep = strFindR(path, len - 1, fsPathSepStr);
@@ -27,7 +32,7 @@ bool pathParent(string *out, strref path)
 }
 
 _Use_decl_annotations_
-bool pathFilename(string *out, strref path)
+bool pathFilename(string* out, strref path)
 {
     int sep = strFindR(path, strEnd, fsPathSepStr);
     if (sep != -1)
@@ -38,11 +43,11 @@ bool pathFilename(string *out, strref path)
 }
 
 _Use_decl_annotations_
-bool _pathJoin(string *out, int n, strref* elements)
+bool _pathJoin(string* out, int n, strref* elements)
 {
-    string npath = 0;
+    string npath   = 0;
     bool donefirst = false;
-    bool lastroot = false;
+    bool lastroot  = false;
 
     for (int i = 0; i < n; i++) {
         if (!strEmpty(elements[i])) {
@@ -62,7 +67,7 @@ bool _pathJoin(string *out, int n, strref* elements)
             } else {
                 strDup(&npath, elements[i]);
                 if (strFindR(npath, strEnd, fsPathSepStr) == strLen(npath) - strLen(fsPathSepStr))
-                    lastroot = true;        // this is a root that ends with the path separator
+                    lastroot = true;   // this is a root that ends with the path separator
                 donefirst = true;
             }
         }
@@ -74,13 +79,13 @@ bool _pathJoin(string *out, int n, strref* elements)
 }
 
 _Use_decl_annotations_
-void pathAddExt(string *out, strref path, strref ext)
+void pathAddExt(string* out, strref path, strref ext)
 {
     strNConcat(out, path, fsExtensionSepStr, ext);
 }
 
 _Use_decl_annotations_
-bool pathRemoveExt(string *out, strref path)
+bool pathRemoveExt(string* out, strref path)
 {
     if (strEmpty(path))
         return false;
@@ -95,7 +100,7 @@ bool pathRemoveExt(string *out, strref path)
 }
 
 _Use_decl_annotations_
-bool pathGetExt(string *out, strref path)
+bool pathGetExt(string* out, strref path)
 {
     if (!path)
         return false;
@@ -110,7 +115,7 @@ bool pathGetExt(string *out, strref path)
 }
 
 _Use_decl_annotations_
-void pathSetExt(string *out, strref path, strref ext)
+void pathSetExt(string* out, strref path, strref ext)
 {
     pathRemoveExt(out, path);
     pathAddExt(out, *out, ext);
@@ -128,7 +133,7 @@ bool pathIsAbsolute(strref path)
 }
 
 _Use_decl_annotations_
-bool pathSplitNS(string *nspart, string *pathpart, strref path)
+bool pathSplitNS(string* nspart, string* pathpart, strref path)
 {
     int32 idx = strFind(path, 0, fsNSSepStr);
 
@@ -162,7 +167,7 @@ static bool pathNormalized(_In_opt_ strref path)
             char ch = pi.bytes[i];
 
             if (ch == '\\')
-                return false;       // backslash needs converting
+                return false;   // backslash needs converting
 
             if (nscheck) {
                 if (ch != '/')
@@ -171,7 +176,7 @@ static bool pathNormalized(_In_opt_ strref path)
             }
 
             if (!nsdone && ch == ':') {
-                nsdone = true;
+                nsdone  = true;
                 nscheck = true;
             }
 
@@ -189,7 +194,7 @@ static bool pathNormalized(_In_opt_ strref path)
 
             // cheesy but fast 4-byte copy
             *(uint32*)backbuf = *(uint32*)(backbuf + 1);
-            backbuf[4] = ch;
+            backbuf[4]        = ch;
         }
         striNext(&pi);
     }
@@ -205,15 +210,14 @@ static bool pathNormalized(_In_opt_ strref path)
 }
 
 _Use_decl_annotations_
-bool pathDecompose(string *ns, sa_string *components, strref pathin)
+bool pathDecompose(string* ns, sa_string* components, strref pathin)
 {
     string rpath = 0;
 
     pathSplitNS(ns, &rpath, pathin);
     // if there are any backslashes, turn them to forward slashes
     int32 idx = 0;
-    while ((idx = strFind(rpath, idx, kBackslash)) != -1)
-        strSetChar(&rpath, idx, '/');
+    while ((idx = strFind(rpath, idx, kBackslash)) != -1) strSetChar(&rpath, idx, '/');
 
     bool absolute = pathIsAbsolute(rpath);
     strSplit(components, rpath, fsPathSepStr, true);
@@ -250,13 +254,13 @@ bool pathDecompose(string *ns, sa_string *components, strref pathin)
 }
 
 _Use_decl_annotations_
-bool pathCompose(string *out, strref ns, sa_string components)
+bool pathCompose(string* out, strref ns, sa_string components)
 {
     string rpath = 0;
 
     strJoin(&rpath, components, fsPathSepStr);
     if (saSize(components) == 1 && strEmpty(components.a[0]))
-        strAppend(&rpath, fsPathSepStr);                // this was absolute with only a root
+        strAppend(&rpath, fsPathSepStr);   // this was absolute with only a root
 
     if (!strEmpty(ns))
         strNConcat(out, ns, fsNSSepStr, rpath);
@@ -268,7 +272,7 @@ bool pathCompose(string *out, strref ns, sa_string components)
 }
 
 _Use_decl_annotations_
-void pathNormalize(string *path)
+void pathNormalize(string* path)
 {
     string nspace = 0;
 

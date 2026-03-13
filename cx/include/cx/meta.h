@@ -15,7 +15,8 @@
 /// **Primary Use Case - blkWrap():**
 ///
 /// The blkWrap() macro executes code before and after a block, guaranteeing cleanup even if
-/// the block exits early with `break` or `continue`. This is lightweight and suitable for most situations:
+/// the block exits early with `break` or `continue`. This is lightweight and suitable for most
+/// situations:
 /// @code
 ///   blkWrap(mutex_lock(&mtx), mutex_unlock(&mtx)) {
 ///       // critical section - mutex is always unlocked on exit
@@ -39,8 +40,8 @@
 /// The module includes a facility for compile-time checks that prevent use of specific language
 /// features (like `return`) within certain blocks, helping catch errors early.
 ///
-/// See @ref meta_block for block wrapping and basic control flow, @ref meta_pblock for protected blocks,
-/// and @ref meta_ptry for exception handling.
+/// See @ref meta_block for block wrapping and basic control flow, @ref meta_pblock for protected
+/// blocks, and @ref meta_ptry for exception handling.
 
 #include <cx/cx.h>
 

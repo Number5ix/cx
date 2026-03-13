@@ -7,9 +7,9 @@ _meta_inline _Pure uint32 _strUTF8SeqLen(uint8 u)
         return 1;
 
     if (u >= 0x80 && u <= 0xbf)
-        return 0;       // continuation byte, not valid here!
+        return 0;   // continuation byte, not valid here!
     else if (u == 0xc0 || u == 0xc1)
-        return 0;       // overlong encoding of code point < 0x80
+        return 0;   // overlong encoding of code point < 0x80
     else if (u >= 0xc2 && u <= 0xdf)
         return 2;
     else if (u >= 0xe0 && u <= 0xef)
@@ -20,7 +20,8 @@ _meta_inline _Pure uint32 _strUTF8SeqLen(uint8 u)
     return 0;
 }
 
-_meta_inline bool _strUTF8DecodeSeq(striter *_Nonnull it, uint32 len, uint8 ch, int32 *_Nullable codepoint)
+_meta_inline bool _strUTF8DecodeSeq(striter* _Nonnull it, uint32 len, uint8 ch,
+                                    int32* _Nullable codepoint)
 {
     int32 ret = 0;
 
@@ -38,16 +39,15 @@ _meta_inline bool _strUTF8DecodeSeq(striter *_Nonnull it, uint32 len, uint8 ch, 
             return false;
 
         if (ch < 0x80 || ch > 0xbf)
-            return false;           // continuation byte must follow
+            return false;   // continuation byte must follow
 
         ret = (ret << 6) | (ch & 0x3f);
     }
 
-    if (ret > 0x10ffff ||                       // outside unicode range
-        (ret >= 0xd800 && ret <= 0xdfff) ||     // UTF-16 surrogate pairs
-        (len == 2 && ret < 0x80) ||             // overlong encodings
-        (len == 3 && ret < 0x800) ||
-        (len == 4 && ret < 0x10000))
+    if (ret > 0x10ffff ||                     // outside unicode range
+        (ret >= 0xd800 && ret <= 0xdfff) ||   // UTF-16 surrogate pairs
+        (len == 2 && ret < 0x80) ||           // overlong encodings
+        (len == 3 && ret < 0x800) || (len == 4 && ret < 0x10000))
         return false;
 
     if (codepoint)
@@ -56,7 +56,7 @@ _meta_inline bool _strUTF8DecodeSeq(striter *_Nonnull it, uint32 len, uint8 ch, 
     return true;
 }
 
-_meta_inline uint32 _strUTF8Decode(striter *_Nonnull it, int32 *_Nullable codepoint)
+_meta_inline uint32 _strUTF8Decode(striter* _Nonnull it, int32* _Nullable codepoint)
 {
     uint8 first;
     if (!striChar(it, (uint8*)&first))
@@ -75,7 +75,7 @@ _meta_inline uint32 _strUTF8Decode(striter *_Nonnull it, int32 *_Nullable codepo
     return 0;
 }
 
-_meta_inline uint32 _strUTF8Encode(uint8 *_Nonnull buffer, int32 codepoint)
+_meta_inline uint32 _strUTF8Encode(uint8* _Nonnull buffer, int32 codepoint)
 {
     if (codepoint < 0)
         return 0;

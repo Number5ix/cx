@@ -21,7 +21,8 @@ typedef struct VFS VFS;
 /// **Key Features:**
 /// - JSON-backed SSD trees stored in a VFS (Virtual File System)
 /// - Automatic background thread that periodically flushes changes to disk
-/// - Variable binding: bind setting paths directly to static/global variables for automatic synchronization
+/// - Variable binding: bind setting paths directly to static/global variables for automatic
+/// synchronization
 /// - Two-way binding: changes to bound variables are detected and written back to settings
 /// - Thread-safe operations inherited from SSD tree locking
 ///
@@ -59,11 +60,11 @@ typedef struct VFS VFS;
 ///
 ///   // Define binding specifications
 ///   static SetsBindSpec bindings[] = {
-///       { .name = _SL("window/width"),  .offset = offsetof(typeof(config), width),  
+///       { .name = _SL("window/width"),  .offset = offsetof(typeof(config), width),
 ///         .deftyp = stvar(int32, 1024) },
-///       { .name = _SL("window/height"), .offset = offsetof(typeof(config), height), 
+///       { .name = _SL("window/height"), .offset = offsetof(typeof(config), height),
 ///         .deftyp = stvar(int32, 768) },
-///       { .name = _SL("display/theme"), .offset = offsetof(typeof(config), theme),  
+///       { .name = _SL("display/theme"), .offset = offsetof(typeof(config), theme),
 ///         .deftyp = stvar(string, _SL("dark")) },
 ///       { 0 }  // NULL terminator
 ///   };
@@ -77,7 +78,8 @@ typedef struct VFS VFS;
 ///
 /// **Supported Types for Binding:**
 /// - `bool`
-/// - All integer types: `int8`, `int16`, `int32`, `int64`, `uint8`, `uint16`, `uint32` (but not `uint64`)
+/// - All integer types: `int8`, `int16`, `int32`, `int64`, `uint8`, `uint16`, `uint32` (but not
+/// `uint64`)
 /// - Floating-point: `float32` (`float`), `float64` (`double`)
 /// - `string` (copy-on-write strings)
 ///
@@ -85,7 +87,8 @@ typedef struct VFS VFS;
 ///
 /// The settings module is built on top of the SSD tree system and uses specialized node
 /// classes:
-/// - `SettingsTree`: Extends `SSDTree` to add file persistence, flush intervals, and background thread management
+/// - `SettingsTree`: Extends `SSDTree` to add file persistence, flush intervals, and background
+/// thread management
 /// - `SettingsHashNode`: Extends `SSDHashNode` to add variable binding capabilities
 ///
 /// All standard SSD tree operations work on settings trees, including path-based access,
@@ -103,9 +106,9 @@ typedef struct VFS VFS;
 /// Used with setsBind() to establish two-way synchronization between settings and variables.
 /// The array must be terminated with a {0} entry (NULL name).
 typedef struct SetsBindSpec {
-    string name;        ///< Path to the setting (e.g., "window/width")
-    intptr offset;      ///< Byte offset of variable from base pointer (use offsetof())
-    stvar deftyp;       ///< Default value AND type specification
+    string name;     ///< Path to the setting (e.g., "window/width")
+    intptr offset;   ///< Byte offset of variable from base pointer (use offsetof())
+    stvar deftyp;    ///< Default value AND type specification
 } SetsBindSpec;
 
 /// @defgroup settings_file File Operations
@@ -122,8 +125,10 @@ typedef struct SetsBindSpec {
 ///
 /// @param vfs The VFS instance to use for file access
 /// @param path Path to the JSON settings file within the VFS
-/// @param flush_interval Time interval between automatic flushes (in time units, e.g., timeS(30) for 30 seconds)
-/// @return A new SSDNode representing the settings tree root (must be released with setsClose or objRelease)
+/// @param flush_interval Time interval between automatic flushes (in time units, e.g., timeS(30)
+/// for 30 seconds)
+/// @return A new SSDNode representing the settings tree root (must be released with setsClose or
+/// objRelease)
 ///
 /// Example:
 /// @code
@@ -317,7 +322,7 @@ bool setsExport(SSDNode* sets, SetsBindSpec* bindings, void* base);
 ///   setsSet(settings, _SL("audio/volume"), int32, 75);
 ///   setsSet(settings, _SL("display/fullscreen"), bool, true);
 /// @endcode
-#define setsSet(sets, path, type, val)      ssdSet(sets, path, true, stvar(type, val))
+#define setsSet(sets, path, type, val) ssdSet(sets, path, true, stvar(type, val))
 
 /// void setsRemove(SSDNode *sets, strref path)
 ///
@@ -332,7 +337,7 @@ bool setsExport(SSDNode* sets, SetsBindSpec* bindings, void* base);
 /// @code
 ///   setsRemove(settings, _SL("obsolete/setting"));
 /// @endcode
-#define setsRemove(sets, path)              ssdRemove(sets, path)
+#define setsRemove(sets, path) ssdRemove(sets, path)
 
 /// @}  // end of settings_access
 

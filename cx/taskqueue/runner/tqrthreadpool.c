@@ -35,7 +35,8 @@ _objinit_guaranteed bool TQThreadPoolRunner_init(_In_ TQThreadPoolRunner* self)
     // Autogen ends -------
 }
 
-_objfactory_guaranteed TQThreadWorker* TQThreadPoolRunner_createWorker(_In_ TQThreadPoolRunner* self, int32 num)
+_objfactory_guaranteed TQThreadWorker*
+TQThreadPoolRunner_createWorker(_In_ TQThreadPoolRunner* self, int32 num)
 {
     return tqthreadworkerCreate(num);
 }

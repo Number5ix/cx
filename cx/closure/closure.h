@@ -36,13 +36,12 @@
 #include <cx/utils/macros/args.h>
 
 // Opaque closure reference type (internal)
-typedef struct closure_ref
-{
+typedef struct closure_ref {
     void* _is_closure;
 } closure_ref;
 
 /// Opaque handle to a closure
-typedef struct closure_ref *closure;
+typedef struct closure_ref* closure;
 
 /// Closure function signature
 ///
@@ -55,7 +54,7 @@ typedef struct closure_ref *closure;
 /// @param cvars List of captured variables from closureCreate()
 /// @param args List of arguments from closureCall()
 /// @return true on success, false on failure
-typedef bool (*closureFunc)(stvlist *cvars, stvlist *args);
+typedef bool (*closureFunc)(stvlist* cvars, stvlist* args);
 
 _Ret_valid_ closure _closureCreate(_In_ closureFunc func, int n, stvar cvars[]);
 
@@ -69,7 +68,8 @@ _Ret_valid_ closure _closureCreate(_In_ closureFunc func, int n, stvar cvars[]);
 /// @param func Closure function to call
 /// @param ... Zero or more stvar arguments to capture as the closure's environment
 /// @return New closure object (must be freed with closureDestroy())
-#define closureCreate(func, ...) _closureCreate(func, count_macro_args(__VA_ARGS__), (stvar[]) { __VA_ARGS__ })
+#define closureCreate(func, ...) \
+    _closureCreate(func, count_macro_args(__VA_ARGS__), (stvar[]) { __VA_ARGS__ })
 
 bool _closureCall(_In_ closure cls, int n, stvar args[]);
 
@@ -83,7 +83,8 @@ bool _closureCall(_In_ closure cls, int n, stvar args[]);
 /// @param cls Closure to call
 /// @param ... Zero or more stvar arguments to pass to the closure function
 /// @return Return value from the closure function
-#define closureCall(cls, ...) _closureCall(cls, count_macro_args(__VA_ARGS__), (stvar[]) { __VA_ARGS__ })
+#define closureCall(cls, ...) \
+    _closureCall(cls, count_macro_args(__VA_ARGS__), (stvar[]) { __VA_ARGS__ })
 
 /// Create a copy of a closure
 ///
@@ -99,7 +100,7 @@ _Ret_valid_ closure closureClone(_In_ closure cls);
 /// Frees the closure and all captured variables. Sets the closure pointer to NULL.
 ///
 /// @param cls Pointer to closure to destroy
-void closureDestroy(_Inout_ptr_uninit_ closure *cls);
+void closureDestroy(_Inout_ptr_uninit_ closure* cls);
 
 /// @}
 // end of closure_basic group

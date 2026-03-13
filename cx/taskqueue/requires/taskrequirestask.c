@@ -9,15 +9,15 @@
 #include "taskqueue/requires/taskrequirestask.h"
 // clang-format on
 // ==================== Auto-generated section ends ======================
-#include <cx/taskqueue/taskqueue.h>
 #include <cx/taskqueue/task/complextask.h>
+#include <cx/taskqueue/taskqueue.h>
 
 _objfactory_guaranteed TaskRequiresTask* TaskRequiresTask_create(_In_ Task* deptask, bool failok)
 {
     TaskRequiresTask* self;
     self = objInstCreate(TaskRequiresTask);
 
-    self->task = objAcquire(deptask);
+    self->task   = objAcquire(deptask);
     self->failok = failok;
 
     objInstInit(self);
@@ -54,7 +54,9 @@ void TaskRequiresTask_cancel(_In_ TaskRequiresTask* self)
 bool TaskRequiresTask_registerTask(_In_ TaskRequiresTask* self, _In_ ComplexTask* task)
 {
     Weak(ComplexTask)* wref = objGetWeak(ComplexTask, task);
-    bool ret = cchainAttach(&self->task->oncomplete, ComplexTask_advanceCallback, stvar(weakref, wref));
+    bool ret                = cchainAttach(&self->task->oncomplete,
+                            ComplexTask_advanceCallback,
+                            stvar(weakref, wref));
     objDestroyWeak(&wref);
 
     return ret;

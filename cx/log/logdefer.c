@@ -2,38 +2,37 @@
 #include "logdefer.h"
 
 typedef struct LogDeferEntry LogDeferEntry;
-typedef struct LogDeferData
-{
-    LogDeferEntry *head;
-    LogDeferEntry *tail;
+typedef struct LogDeferData {
+    LogDeferEntry* head;
+    LogDeferEntry* tail;
 } LogDeferData;
 
-typedef struct LogDeferEntry
-{
-    LogDeferEntry *next;
+typedef struct LogDeferEntry {
+    LogDeferEntry* next;
     LogEntry ent;
     uint32 batchid;
 } LogDeferEntry;
 
 _Use_decl_annotations_
-LogDeferData *logDeferCreate(void)
+LogDeferData* logDeferCreate(void)
 {
-    LogDeferData *ret = xaAllocStruct(LogDeferData, XA_Zero);
+    LogDeferData* ret = xaAllocStruct(LogDeferData, XA_Zero);
     return ret;
 }
 
 _Use_decl_annotations_
-void logDeferDest(int level, LogCategory *cat, int64 timestamp, strref msg, uint32 batchid, void *userdata)
+void logDeferDest(int level, LogCategory* cat, int64 timestamp, strref msg, uint32 batchid,
+                  void* userdata)
 {
-    LogDeferData *dd = (LogDeferData *)userdata;
+    LogDeferData* dd = (LogDeferData*)userdata;
     if (!dd)
         return;
 
-    LogDeferEntry *de = xaAllocStruct(LogDeferEntry, XA_Zero);
-    de->ent.level = level;
-    de->ent.cat = cat;
+    LogDeferEntry* de = xaAllocStruct(LogDeferEntry, XA_Zero);
+    de->ent.level     = level;
+    de->ent.cat       = cat;
     de->ent.timestamp = timestamp;
-    de->batchid = batchid;
+    de->batchid       = batchid;
     strDup(&de->ent.msg, msg);
     if (!dd->head)
         dd->head = de;
@@ -56,36 +55,36 @@ LogDest* logRegisterDestWithDefer(int maxlevel, LogCategory* catfilter, LogDestM
         return logRegisterDest(maxlevel, catfilter, msgfunc, batchfunc, closefunc, userdata);
     }
 
-    LogDest *ndest = xaAlloc(sizeof(LogDest), XA_Zero);
+    LogDest* ndest = xaAlloc(sizeof(LogDest), XA_Zero);
 
-    ndest->maxlevel = maxlevel;
+    ndest->maxlevel  = maxlevel;
     ndest->catfilter = catfilter;
     ndest->msgfunc   = msgfunc;
     ndest->batchfunc = batchfunc;
     ndest->closefunc = closefunc;
-    ndest->userdata = userdata;
+    ndest->userdata  = userdata;
 
     // swap out the new destination for the deferred one
-    withMutex(&_log_op_lock) {
+    withMutex (&_log_op_lock) {
         saPush(&_log_dests, ptr, ndest);
-        logUnregisterDestLocked(deferdest);     // will recalculate maxlevel cache
+        logUnregisterDestLocked(deferdest);   // will recalculate maxlevel cache
 
-        // keep the lock held to ensure that the writer thread doesn't send anything to the new dest before
-        // the deferred entries are flushed, and also to preserve the guarantee that LogDestFunc callbacks will
-        // never be run from two threads at once.
+        // keep the lock held to ensure that the writer thread doesn't send anything to the new dest
+        // before the deferred entries are flushed, and also to preserve the guarantee that
+        // LogDestFunc callbacks will never be run from two threads at once.
 
         // sanity check
         if (deferdest->userdata && deferdest->msgfunc == logDeferDest) {
-            LogDeferData *dd = (LogDeferData *)deferdest->userdata;
-            LogDeferEntry *head = dd->head;
-            dd->tail = NULL;
-            dd->head = NULL;
+            LogDeferData* dd    = (LogDeferData*)deferdest->userdata;
+            LogDeferEntry* head = dd->head;
+            dd->tail            = NULL;
+            dd->head            = NULL;
 
             uint32 lastbatch = 0;
             bool inbatch     = false;
 
             // go through linked list and send them all to the real destination
-            LogDeferEntry *next;
+            LogDeferEntry* next;
             while (head) {
                 if (head != dd->head && head->batchid != lastbatch) {
                     // notify previous batch was completed

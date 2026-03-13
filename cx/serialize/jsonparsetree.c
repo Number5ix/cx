@@ -6,15 +6,15 @@
 #include <cx/string.h>
 
 typedef struct JSONTreeState {
-    SSDTree *tree;
+    SSDTree* tree;
     SSDLockState lstate;
-    SSDNode *root;
-    SSDNode *cur;
+    SSDNode* root;
+    SSDNode* cur;
     sa_SSDNode nodestack;
     bool error;
 } JSONTreeState;
 
-static void setValDirect(_Inout_ JSONTreeState *jts, _In_ JSONParseContext *ctx, stvar val)
+static void setValDirect(_Inout_ JSONTreeState* jts, _In_ JSONParseContext* ctx, stvar val)
 {
     switch (ctx->ctype) {
     case JSON_Object:
@@ -28,43 +28,43 @@ static void setValDirect(_Inout_ JSONTreeState *jts, _In_ JSONParseContext *ctx,
     }
 }
 
-static void pushObject(_Inout_ JSONTreeState *jts, _In_ JSONParseContext *ctx)
+static void pushObject(_Inout_ JSONTreeState* jts, _In_ JSONParseContext* ctx)
 {
     if (!jts->root) {
         jts->root = ssdCreateCustom(SSD_Create_Hashtable, jts->tree);
-        jts->cur = objAcquire(jts->root);
+        jts->cur  = objAcquire(jts->root);
     } else {
-        SSDNode *node = ssdtreeCreateNode(jts->root->tree, SSD_Create_Hashtable);
+        SSDNode* node = ssdtreeCreateNode(jts->root->tree, SSD_Create_Hashtable);
         setValDirect(jts, ctx, stvar(object, node));
         saPushC(&jts->nodestack, object, &jts->cur);
         jts->cur = node;
     }
 }
 
-static void pushArray(_Inout_ JSONTreeState *jts, _In_ JSONParseContext *ctx)
+static void pushArray(_Inout_ JSONTreeState* jts, _In_ JSONParseContext* ctx)
 {
     if (!jts->root) {
         jts->root = ssdCreateCustom(SSD_Create_Array, jts->tree);
-        jts->cur = objAcquire(jts->root);
+        jts->cur  = objAcquire(jts->root);
     } else {
-        SSDNode *node = ssdtreeCreateNode(jts->root->tree, SSD_Create_Array);
+        SSDNode* node = ssdtreeCreateNode(jts->root->tree, SSD_Create_Array);
         setValDirect(jts, ctx, stvar(object, node));
         saPushC(&jts->nodestack, object, &jts->cur);
         jts->cur = node;
     }
 }
 
-static void popNode(_Inout_ JSONTreeState *jts)
+static void popNode(_Inout_ JSONTreeState* jts)
 {
     objRelease(&jts->cur);
     jts->cur = saPopPtr(&jts->nodestack);
 }
 
-static void setVal(_Inout_ JSONTreeState *jts, _In_ JSONParseContext *ctx, stvar val)
+static void setVal(_Inout_ JSONTreeState* jts, _In_ JSONParseContext* ctx, stvar val)
 {
     if (!jts->root) {
         jts->root = ssdCreateCustom(SSD_Create_Single, jts->tree);
-        jts->cur = jts->root;
+        jts->cur  = jts->root;
         ssdnodeSet(jts->root, 0, NULL, val, &jts->lstate);
     }
 
@@ -73,12 +73,12 @@ static void setVal(_Inout_ JSONTreeState *jts, _In_ JSONParseContext *ctx, stvar
     setValDirect(jts, ctx, val);
 }
 
-void jsonTreeCB(_In_ JSONParseEvent *ev, _Inout_opt_ void *userdata)
+void jsonTreeCB(_In_ JSONParseEvent* ev, _Inout_opt_ void* userdata)
 {
     if (!userdata)
         return;
 
-    JSONTreeState *jts = (JSONTreeState *)userdata;
+    JSONTreeState* jts = (JSONTreeState*)userdata;
     switch (ev->etype) {
     case JSON_Object_Begin:
         pushObject(jts, ev->ctx);
@@ -119,9 +119,9 @@ void jsonTreeCB(_In_ JSONParseEvent *ev, _Inout_opt_ void *userdata)
 }
 
 _Use_decl_annotations_
-SSDNode *jsonParseTreeCustom(StreamBuffer *sb, SSDTree *tree)
+SSDNode* jsonParseTreeCustom(StreamBuffer* sb, SSDTree* tree)
 {
-    SSDNode *ret = NULL;
+    SSDNode* ret      = NULL;
     JSONTreeState jts = { .tree = tree };
     saInit(&jts.nodestack, object, 8);
     _ssdLockStateInit(&jts.lstate);
@@ -138,21 +138,21 @@ SSDNode *jsonParseTreeCustom(StreamBuffer *sb, SSDTree *tree)
 }
 
 _Use_decl_annotations_
-SSDNode *jsonParseTree(StreamBuffer *sb)
+SSDNode* jsonParseTree(StreamBuffer* sb)
 {
     return jsonParseTreeCustom(sb, NULL);
 }
 
 _Use_decl_annotations_
-SSDNode *jsonTreeFromString(strref str)
+SSDNode* jsonTreeFromString(strref str)
 {
-    StreamBuffer *sb = sbufCreate(128);
+    StreamBuffer* sb = sbufCreate(128);
     if (!sbufStrPRegisterPull(sb, str)) {
         sbufRelease(&sb);
         return NULL;
     }
 
-    SSDNode *ret = jsonParseTreeCustom(sb, NULL);
+    SSDNode* ret = jsonParseTreeCustom(sb, NULL);
     sbufRelease(&sb);
     return ret;
 }

@@ -52,19 +52,32 @@ DEALINGS IN THE SOFTWARE. */
 #define absv(n) ((n) < 0 ? -(n) : (n))
 
 static uint64_t tens[] = {
-    10000000000000000000U, 1000000000000000000U, 100000000000000000U,
-    10000000000000000U, 1000000000000000U, 100000000000000U,
-    10000000000000U, 1000000000000U, 100000000000U,
-    10000000000U, 1000000000U, 100000000U,
-    10000000U, 1000000U, 100000U,
-    10000U, 1000U, 100U,
-    10U, 1U
+    10000000000000000000U,
+    1000000000000000000U,
+    100000000000000000U,
+    10000000000000000U,
+    1000000000000000U,
+    100000000000000U,
+    10000000000000U,
+    1000000000000U,
+    100000000000U,
+    10000000000U,
+    1000000000U,
+    100000000U,
+    10000000U,
+    1000000U,
+    100000U,
+    10000U,
+    1000U,
+    100U,
+    10U,
+    1U
 };
 
 static _Pure inline uint64_t get_dbits(double d)
 {
     union {
-        double   dbl;
+        double dbl;
         uint64_t i;
     } dbl_bits = { d };
 
@@ -77,7 +90,7 @@ static _Pure Fp build_fp_64(double d)
 
     Fp fp;
     fp.frac = bits & fracmask_64;
-    fp.exp = (bits & expmask_64) >> 52;
+    fp.exp  = (bits & expmask_64) >> 52;
 
     if (fp.exp) {
         fp.frac += hiddenbit_64;
@@ -92,7 +105,7 @@ static _Pure Fp build_fp_64(double d)
 static _Pure inline uint32_t get_fbits(float f)
 {
     union {
-        float    flt;
+        float flt;
         uint32_t i;
     } float_bits = { f };
 
@@ -105,7 +118,7 @@ static _Pure Fp build_fp_32(float f)
 
     Fp fp;
     fp.frac = bits & fracmask_32;
-    fp.exp = (bits & expmask_32) >> 23;
+    fp.exp  = (bits & expmask_32) >> 23;
 
     if (fp.exp) {
         fp.frac += hiddenbit_32;
@@ -144,7 +157,7 @@ static void normalize_32(Fp* _Nonnull fp)
 static void get_normalized_boundaries_64(Fp* _Nonnull fp, Fp* _Nonnull lower, Fp* _Nonnull upper)
 {
     upper->frac = (fp->frac << 1) + 1;
-    upper->exp = fp->exp - 1;
+    upper->exp  = fp->exp - 1;
 
     while ((upper->frac & (hiddenbit_64 << 1)) == 0) {
         upper->frac <<= 1;
@@ -156,20 +169,19 @@ static void get_normalized_boundaries_64(Fp* _Nonnull fp, Fp* _Nonnull lower, Fp
     upper->frac <<= u_shift;
     upper->exp = upper->exp - u_shift;
 
-
     int l_shift = fp->frac == hiddenbit_64 ? 2 : 1;
 
     lower->frac = (fp->frac << l_shift) - 1;
-    lower->exp = fp->exp - l_shift;
+    lower->exp  = fp->exp - l_shift;
 
     lower->frac = lower->frac << (lower->exp - upper->exp);
-    lower->exp = upper->exp;
+    lower->exp  = upper->exp;
 }
 
 static void get_normalized_boundaries_32(Fp* _Nonnull fp, Fp* _Nonnull lower, Fp* _Nonnull upper)
 {
     upper->frac = (fp->frac << 1) + 1;
-    upper->exp = fp->exp - 1;
+    upper->exp  = fp->exp - 1;
 
     while ((upper->frac & (hiddenbit_32 << 1)) == 0) {
         upper->frac <<= 1;
@@ -181,56 +193,52 @@ static void get_normalized_boundaries_32(Fp* _Nonnull fp, Fp* _Nonnull lower, Fp
     upper->frac <<= u_shift;
     upper->exp = upper->exp - u_shift;
 
-
     int l_shift = fp->frac == hiddenbit_32 ? 2 : 1;
 
     lower->frac = (fp->frac << l_shift) - 1;
-    lower->exp = fp->exp - l_shift;
-
+    lower->exp  = fp->exp - l_shift;
 
     lower->frac = lower->frac << (lower->exp - upper->exp);
-    lower->exp = upper->exp;
+    lower->exp  = upper->exp;
 }
 
 static Fp multiply(Fp* _Nonnull a, Fp* _Nonnull b)
 {
     const uint64_t lomask = 0x00000000FFFFFFFF;
 
-    uint64_t ah_bl = (a->frac >> 32)    * (b->frac & lomask);
+    uint64_t ah_bl = (a->frac >> 32) * (b->frac & lomask);
     uint64_t al_bh = (a->frac & lomask) * (b->frac >> 32);
     uint64_t al_bl = (a->frac & lomask) * (b->frac & lomask);
-    uint64_t ah_bh = (a->frac >> 32)    * (b->frac >> 32);
+    uint64_t ah_bh = (a->frac >> 32) * (b->frac >> 32);
 
     uint64_t tmp = (ah_bl & lomask) + (al_bh & lomask) + (al_bl >> 32);
     /* round up */
     tmp += 1U << 31;
 
-    Fp fp = {
-        ah_bh + (ah_bl >> 32) + (al_bh >> 32) + (tmp >> 32),
-        a->exp + b->exp + 64
-    };
+    Fp fp = { ah_bh + (ah_bl >> 32) + (al_bh >> 32) + (tmp >> 32), a->exp + b->exp + 64 };
 
     return fp;
 }
 
-static void round_digit(uint8* _Nonnull digits, int ndigits, uint64_t delta, uint64_t rem, uint64_t kappa, uint64_t frac)
+static void round_digit(uint8* _Nonnull digits, int ndigits, uint64_t delta, uint64_t rem,
+                        uint64_t kappa, uint64_t frac)
 {
     while (ndigits > 0 && rem < frac && delta - rem >= kappa &&
-        (rem + kappa < frac || frac - rem > rem + kappa - frac)) {
-
+           (rem + kappa < frac || frac - rem > rem + kappa - frac)) {
         digits[ndigits - 1]--;
         rem += kappa;
     }
 }
 
-static int generate_digits(Fp* _Nonnull fp, Fp* _Nonnull upper, Fp* _Nonnull lower, uint8* _Nonnull digits, int* _Nonnull K)
+static int generate_digits(Fp* _Nonnull fp, Fp* _Nonnull upper, Fp* _Nonnull lower,
+                           uint8* _Nonnull digits, int* _Nonnull K)
 {
     uint64_t wfrac = upper->frac - fp->frac;
     uint64_t delta = upper->frac - lower->frac;
 
     Fp one;
     one.frac = 1ULL << -upper->exp;
-    one.exp = upper->exp;
+    one.exp  = upper->exp;
 
     uint64_t part1 = upper->frac >> -one.exp;
     uint64_t part2 = upper->frac & (one.frac - 1);
@@ -239,7 +247,7 @@ static int generate_digits(Fp* _Nonnull fp, Fp* _Nonnull upper, Fp* _Nonnull low
     uint64_t* divp;
     /* 1000000000 */
     for (divp = tens + 10; kappa > 0; divp++) {
-        uint64_t div = *divp;
+        uint64_t div   = *divp;
         unsigned digit = (unsigned)(part1 / div);
 
         if (digit || idx) {
@@ -283,7 +291,8 @@ static int generate_digits(Fp* _Nonnull fp, Fp* _Nonnull upper, Fp* _Nonnull low
     }
 }
 
-int32 _strnum_grisu2_64(float64 d, _Out_writes_(18) uint8* _Nonnull digits, _Inout_ int32* _Nonnull K)
+int32 _strnum_grisu2_64(float64 d, _Out_writes_(18) uint8* _Nonnull digits,
+                        _Inout_ int32* _Nonnull K)
 {
     Fp w = build_fp_64(d);
 
@@ -295,7 +304,7 @@ int32 _strnum_grisu2_64(float64 d, _Out_writes_(18) uint8* _Nonnull digits, _Ino
     int k;
     Fp cp = find_cachedpow10(upper.exp, &k);
 
-    w = multiply(&w, &cp);
+    w     = multiply(&w, &cp);
     upper = multiply(&upper, &cp);
     lower = multiply(&lower, &cp);
 
@@ -307,7 +316,8 @@ int32 _strnum_grisu2_64(float64 d, _Out_writes_(18) uint8* _Nonnull digits, _Ino
     return generate_digits(&w, &upper, &lower, digits, K);
 }
 
-int32 _strnum_grisu2_32(float32 f, _Out_writes_(18) uint8* _Nonnull digits, _Inout_ int32* _Nonnull K)
+int32 _strnum_grisu2_32(float32 f, _Out_writes_(18) uint8* _Nonnull digits,
+                        _Inout_ int32* _Nonnull K)
 {
     Fp w = build_fp_32(f);
 
@@ -319,7 +329,7 @@ int32 _strnum_grisu2_32(float32 f, _Out_writes_(18) uint8* _Nonnull digits, _Ino
     int k;
     Fp cp = find_cachedpow10(upper.exp, &k);
 
-    w = multiply(&w, &cp);
+    w     = multiply(&w, &cp);
     upper = multiply(&upper, &cp);
     lower = multiply(&lower, &cp);
 
@@ -348,7 +358,7 @@ static int emit_digits(uint8* digits, int ndigits, uint8* dest, int32 K, bool ne
         int offset = ndigits - absv(K);
         /* fp < 1.0 -> write leading zero */
         if (offset <= 0) {
-            offset = -offset;
+            offset  = -offset;
             dest[0] = '0';
             dest[1] = '.';
             memset(dest + 2, '0', offset);
@@ -356,7 +366,7 @@ static int emit_digits(uint8* digits, int ndigits, uint8* dest, int32 K, bool ne
 
             return ndigits + 2 + offset;
 
-        /* fp > 1.0 */
+            /* fp > 1.0 */
         } else {
             memcpy(dest, digits, offset);
             dest[offset] = '.';
@@ -369,7 +379,7 @@ static int emit_digits(uint8* digits, int ndigits, uint8* dest, int32 K, bool ne
     /* write decimal w/ scientific notation */
     ndigits = min(ndigits, 18 - neg);
 
-    int idx = 0;
+    int idx     = 0;
     dest[idx++] = digits[0];
 
     if (ndigits > 1) {
@@ -380,18 +390,18 @@ static int emit_digits(uint8* digits, int ndigits, uint8* dest, int32 K, bool ne
 
     dest[idx++] = 'e';
 
-    char sign = K + ndigits - 1 < 0 ? '-' : '+';
+    char sign   = K + ndigits - 1 < 0 ? '-' : '+';
     dest[idx++] = sign;
 
     int cent = 0;
 
     if (exp > 99) {
-        cent = exp / 100;
+        cent        = exp / 100;
         dest[idx++] = cent + '0';
         exp -= cent * 100;
     }
     if (exp > 9) {
-        int dec = exp / 10;
+        int dec     = exp / 10;
         dest[idx++] = dec + '0';
         exp -= dec * 10;
 
@@ -420,10 +430,14 @@ static int filter_special_64(double fp, uint8* dest)
     }
 
     if (bits & fracmask_64) {
-        dest[0] = 'n'; dest[1] = 'a'; dest[2] = 'n';
+        dest[0] = 'n';
+        dest[1] = 'a';
+        dest[2] = 'n';
 
     } else {
-        dest[0] = 'i'; dest[1] = 'n'; dest[2] = 'f';
+        dest[0] = 'i';
+        dest[1] = 'n';
+        dest[2] = 'f';
     }
 
     return 3;
@@ -445,10 +459,14 @@ static int filter_special_32(float fp, uint8* dest)
     }
 
     if (bits & fracmask_32) {
-        dest[0] = 'n'; dest[1] = 'a'; dest[2] = 'n';
+        dest[0] = 'n';
+        dest[1] = 'a';
+        dest[2] = 'n';
 
     } else {
-        dest[0] = 'i'; dest[1] = 'n'; dest[2] = 'f';
+        dest[0] = 'i';
+        dest[1] = 'n';
+        dest[2] = 'f';
     }
 
     return 3;
@@ -459,7 +477,7 @@ uint32 _strnum_f64toa(float64 d, _Out_writes_(STRNUM_FPBUF) uint8 dest[STRNUM_FP
     uint8 digits[18];
 
     uint32 str_len = 0;
-    bool neg = false;
+    bool neg       = false;
 
     if (get_dbits(d) & signmask_64) {
         dest[0] = '-';
@@ -473,8 +491,8 @@ uint32 _strnum_f64toa(float64 d, _Out_writes_(STRNUM_FPBUF) uint8 dest[STRNUM_FP
         return str_len + spec;
     }
 
-    digits[0] = '0';
-    int32 K = 0;
+    digits[0]     = '0';
+    int32 K       = 0;
     int32 ndigits = _strnum_grisu2_64(d, digits, &K);
 
     str_len += emit_digits(digits, ndigits, dest + str_len, K, neg);
@@ -488,7 +506,7 @@ uint32 _strnum_f32toa(float32 f, _Out_writes_(STRNUM_FPBUF) uint8 dest[STRNUM_FP
     uint8 digits[18];
 
     uint32 str_len = 0;
-    bool neg = false;
+    bool neg       = false;
 
     if (get_fbits(f) & signmask_32) {
         dest[0] = '-';
@@ -502,7 +520,7 @@ uint32 _strnum_f32toa(float32 f, _Out_writes_(STRNUM_FPBUF) uint8 dest[STRNUM_FP
         return str_len + spec;
     }
 
-    int32 K = 0;
+    int32 K       = 0;
     int32 ndigits = _strnum_grisu2_32(f, digits, &K);
 
     str_len += emit_digits(digits, ndigits, dest + str_len, K, neg);
@@ -512,7 +530,7 @@ uint32 _strnum_f32toa(float32 f, _Out_writes_(STRNUM_FPBUF) uint8 dest[STRNUM_FP
     return str_len;
 }
 
-bool strFromFloat32(_Inout_ string *out, float32 f)
+bool strFromFloat32(_Inout_ string* out, float32 f)
 {
     uint8 buf[STRNUM_FPBUF];
     uint32 buflen;
@@ -524,13 +542,13 @@ bool strFromFloat32(_Inout_ string *out, float32 f)
     if (buflen == 0)
         return false;
 
-    uint8 *obuf = strBuffer(out, buflen);
+    uint8* obuf = strBuffer(out, buflen);
     memcpy(obuf, buf, buflen);
 
     return true;
 }
 
-bool strFromFloat64(_Inout_ string *out, float64 d)
+bool strFromFloat64(_Inout_ string* out, float64 d)
 {
     uint8 buf[STRNUM_FPBUF];
     uint32 buflen;
@@ -542,7 +560,7 @@ bool strFromFloat64(_Inout_ string *out, float64 d)
     if (buflen == 0)
         return false;
 
-    uint8 *obuf = strBuffer(out, buflen);
+    uint8* obuf = strBuffer(out, buflen);
     memcpy(obuf, buf, buflen);
 
     return true;
@@ -575,10 +593,10 @@ bool strToFloat64(float64* out, strref s, bool strict)
         union {
             double d;
             uint64_t i;
-        } inf = { 0 };
-        inf.i = expmask_64;
+        } inf    = { 0 };
+        inf.i    = expmask_64;
         bool neg = (cstr > start && *(cstr - 1) == '-');
-        *out  = neg ? -inf.d : inf.d;
+        *out     = neg ? -inf.d : inf.d;
         return true;
     }
 

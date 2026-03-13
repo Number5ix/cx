@@ -1,10 +1,10 @@
 #include "dbglog.h"
-#include "crash.h"
 #include <cx/log/logmembuf.h>
+#include "crash.h"
 
-char *dbgLog;
-static LogMembufData *logmemdata;
-static LogDest *logdest;
+char* dbgLog;
+static LogMembufData* logmemdata;
+static LogDest* logdest;
 
 void dbgLogEnable(int level)
 {
@@ -12,7 +12,7 @@ void dbgLogEnable(int level)
         dbgLogDisable();
 
     logmemdata = logmembufCreate(DBGLOG_SIZE);
-    dbgLog = logmemdata->buf;
+    dbgLog     = logmemdata->buf;
     dbgCrashIncludeMemory(dbgLog, DBGLOG_SIZE);
     logdest = logmembufRegister(level, NULL, logmemdata);
 }
@@ -24,7 +24,7 @@ void dbgLogDisable()
 
     dbgCrashExcludeMemory(dbgLog, DBGLOG_SIZE);
     logUnregisterDest(logdest);
-    logdest = NULL;
+    logdest    = NULL;
     logmemdata = NULL;
-    dbgLog = NULL;
+    dbgLog     = NULL;
 }

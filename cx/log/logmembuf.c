@@ -40,18 +40,17 @@ void logmembufMsgFunc(int level, LogCategory* cat, int64 timestamp, strref msg, 
         strFormat(&logcat, kLogBracketFmt, stvar(strref, cat->name));
     }
 
-    strFormat(
-        &logline,
-        kLogMembufFmt,
-        stvar(int32, tp.year),
-        stvar(uint8, tp.month),
-        stvar(uint8, tp.day),
-        stvar(uint8, tp.hour),
-        stvar(uint8, tp.minute),
-        stvar(uint8, tp.second),
-        stvar(strref, LogLevelAbbrev[level]),
-        stvar(string, logcat),
-        stvar(strref, msg));
+    strFormat(&logline,
+              kLogMembufFmt,
+              stvar(int32, tp.year),
+              stvar(uint8, tp.month),
+              stvar(uint8, tp.day),
+              stvar(uint8, tp.hour),
+              stvar(uint8, tp.minute),
+              stvar(uint8, tp.second),
+              stvar(strref, LogLevelAbbrev[level]),
+              stvar(string, logcat),
+              stvar(strref, msg));
 
     uint32 len = strLen(logline);
     if (len < lmd->size) {

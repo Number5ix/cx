@@ -1,8 +1,8 @@
 #include "blackbox.h"
 
 #include "cx/container/hashtable.h"
-#include "cx/utils/lazyinit.h"
 #include "cx/thread/mutex.h"
+#include "cx/utils/lazyinit.h"
 
 // do not make this static; the symbol should be visible for debugging purposes!
 char dbgBlackBox[BLACKBOX_SIZE];
@@ -15,26 +15,26 @@ char dbgBlackBox[BLACKBOX_SIZE];
 
 typedef struct BBoxFreelistNode BBoxFreelistNode;
 typedef struct BBoxFreelistNode {
-    BBoxFreelistNode *next;
+    BBoxFreelistNode* next;
     uint16 start;
     uint16 size;
 } BBoxFreelistNode;
 
 static Mutex bbmtx;
 static hashtable bbindex;
-static BBoxFreelistNode *freelist;
+static BBoxFreelistNode* freelist;
 
 static void freeSpaceAdd(uint16 start, uint16 size)
 {
-    BBoxFreelistNode *n = freelist;
-    BBoxFreelistNode *prev = 0;
+    BBoxFreelistNode* n    = freelist;
+    BBoxFreelistNode* prev = 0;
 
     // find where to insert it
     while (n) {
         if (n->start > start)
             break;
         prev = n;
-        n = n->next;
+        n    = n->next;
     }
 
     // see if we can coalsece into previous block
@@ -50,31 +50,31 @@ static void freeSpaceAdd(uint16 start, uint16 size)
     }
 
     // insert a new one
-    BBoxFreelistNode *fn = xaAlloc(sizeof(BBoxFreelistNode));
-    fn->start = start;
-    fn->size = size;
-    fn->next = n;
+    BBoxFreelistNode* fn = xaAlloc(sizeof(BBoxFreelistNode));
+    fn->start            = start;
+    fn->size             = size;
+    fn->next             = n;
     if (prev)
         prev->next = fn;
     else
-        freelist = fn;          // this is the new head
+        freelist = fn;   // this is the new head
 }
 
 static void freeSpaceRemove(uint16 start, uint16 size)
 {
-    BBoxFreelistNode *n = freelist;
-    BBoxFreelistNode *prev = 0;
+    BBoxFreelistNode* n    = freelist;
+    BBoxFreelistNode* prev = 0;
 
     // find where to remove it from
     while (n) {
         if (n->start >= start + size)
-            return;             // past the end of the region
+            return;   // past the end of the region
 
         if (start < n->start + n->size) {
             // are we even to the right place in the list yet?
 
             if (start <= n->start && start + size >= n->start + n->size) {
-                BBoxFreelistNode *next = n->next;
+                BBoxFreelistNode* next = n->next;
                 // covers the entire block, so remove it
                 if (prev)
                     prev->next = n->next;
@@ -85,24 +85,24 @@ static void freeSpaceRemove(uint16 start, uint16 size)
                 continue;
             } else if (start <= n->start && start + size > n->start) {
                 // removing the front of the block
-                n->size = n->start + n->size - (start + size);
+                n->size  = n->start + n->size - (start + size);
                 n->start = start + size;
             } else if (start < n->start + n->size && start + size >= n->start + n->size) {
                 // removing the end of the block
                 n->size = start - n->start;
             } else if (start > n->start && start + size < n->start + n->size) {
                 // splitting the block :/
-                BBoxFreelistNode *fn = xaAlloc(sizeof(BBoxFreelistNode));
-                fn->start = start + size;
-                fn->size = n->start + n->size - (start + size);
-                fn->next = n->next;
-                n->size = start - n->start;
-                n->next = fn;
+                BBoxFreelistNode* fn = xaAlloc(sizeof(BBoxFreelistNode));
+                fn->start            = start + size;
+                fn->size             = n->start + n->size - (start + size);
+                fn->next             = n->next;
+                n->size              = start - n->start;
+                n->next              = fn;
             }
         }
 
         prev = n;
-        n = n->next;
+        n    = n->next;
     }
 }
 
@@ -110,15 +110,15 @@ void bboxInit()
 {
     mutexInit(&bbmtx);
     htInit(&bbindex, string, uint16, 0);
-    freelist = xaAlloc(sizeof(BBoxFreelistNode));
-    freelist->next = 0;
-    freelist->start = sizeof(int16) * 2;            // after the head and tail pointers
-    freelist->size = BLACKBOX_SIZE - sizeof(int16) * 2;
+    freelist        = xaAlloc(sizeof(BBoxFreelistNode));
+    freelist->next  = 0;
+    freelist->start = sizeof(int16) * 2;   // after the head and tail pointers
+    freelist->size  = BLACKBOX_SIZE - sizeof(int16) * 2;
 }
 
 static void _bboxDeleteInternal(uint16 idx)
 {
-    BlackBoxEnt *ent = (BlackBoxEnt*)&dbgBlackBox[idx];
+    BlackBoxEnt* ent = (BlackBoxEnt*)&dbgBlackBox[idx];
 
     htRemove(&bbindex, string, (string)ent->name);
 
@@ -128,13 +128,13 @@ static void _bboxDeleteInternal(uint16 idx)
         dbgBlackBoxTail = ent->prev;
 
     if (ent->prev) {
-        BlackBoxEnt *prev = (BlackBoxEnt*)&dbgBlackBox[ent->prev];
-        prev->next = ent->next;
+        BlackBoxEnt* prev = (BlackBoxEnt*)&dbgBlackBox[ent->prev];
+        prev->next        = ent->next;
     }
 
     if (ent->next) {
-        BlackBoxEnt *next = (BlackBoxEnt*)&dbgBlackBox[ent->next];
-        next->prev = ent->prev;
+        BlackBoxEnt* next = (BlackBoxEnt*)&dbgBlackBox[ent->next];
+        next->prev        = ent->prev;
     }
 
     freeSpaceAdd(idx, bboxEntSize(ent));
@@ -146,7 +146,7 @@ void bboxSet(strref name, strref val, uint8 flags)
     mutexAcquire(&bbmtx);
 
     BlackBoxEnt *ent = 0, *tail;
-    uint16 idx = 0;
+    uint16 idx       = 0;
 
     if (htFind(bbindex, strref, name, uint16, &idx)) {
         // already exists in index
@@ -157,7 +157,7 @@ void bboxSet(strref name, strref val, uint8 flags)
             uint16 origsz = bboxEntSize(ent);
             devAssert(ent->namelen == strLen(name) + 1);
             ent->vallen = strLen(val) + 1;
-            ent->flags = flags;
+            ent->flags  = flags;
             strCopyOut(val, 0, (uint8*)bboxGetVal(ent), ent->vallen);
             if (bboxEntSize(ent) < origsz)
                 freeSpaceAdd(idx + bboxEntSize(ent), origsz - bboxEntSize(ent));
@@ -178,7 +178,7 @@ void bboxSet(strref name, strref val, uint8 flags)
             else if (n->size < best->size)
                 best = n;
             if (best->size == needsz)
-                break;              // early out for exact match
+                break;   // early out for exact match
         }
         n = n->next;
     }
@@ -191,16 +191,16 @@ void bboxSet(strref name, strref val, uint8 flags)
         ent->prev = dbgBlackBoxTail;
         ent->next = 0;
         if (dbgBlackBoxTail) {
-            tail = (BlackBoxEnt*)&dbgBlackBox[dbgBlackBoxTail];
+            tail       = (BlackBoxEnt*)&dbgBlackBox[dbgBlackBoxTail];
             tail->next = best->start;
         }
         dbgBlackBoxTail = best->start;
         if (!dbgBlackBoxHead)
-            dbgBlackBoxHead = best->start;      // first item, guess we're head too
+            dbgBlackBoxHead = best->start;   // first item, guess we're head too
 
         ent->namelen = strLen(name) + 1;
-        ent->vallen = strLen(val) + 1;
-        ent->flags = flags;
+        ent->vallen  = strLen(val) + 1;
+        ent->flags   = flags;
         strCopyOut(name, 0, (uint8*)ent->name, ent->namelen);
         strCopyOut(val, 0, (uint8*)bboxGetVal(ent), ent->vallen);
 

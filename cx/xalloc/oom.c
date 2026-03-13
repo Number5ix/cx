@@ -14,7 +14,7 @@ static bool useoom;
 saDeclare(xaOOMCallback);
 static sa_xaOOMCallback callbacks;
 
-static void _xaOOMInit(void *data)
+static void _xaOOMInit(void* data)
 {
     mutexInit(&_xaOOMMutex);
     saInit(&callbacks, ptr, 8);
@@ -24,8 +24,7 @@ static void _xaOOMInit(void *data)
 void xaAddOOMCallback(xaOOMCallback cb)
 {
     lazyInit(&_xaOOMInitState, _xaOOMInit, 0);
-    withMutex(&_xaOOMMutex)
-    {
+    withMutex (&_xaOOMMutex) {
         saPush(&callbacks, ptr, cb, SA_Unique);
     }
 }
@@ -33,8 +32,7 @@ void xaAddOOMCallback(xaOOMCallback cb)
 void xaRemoveOOMCallback(xaOOMCallback cb)
 {
     lazyInit(&_xaOOMInitState, _xaOOMInit, 0);
-    withMutex(&_xaOOMMutex)
-    {
+    withMutex (&_xaOOMMutex) {
         saFindRemove(&callbacks, ptr, cb);
     }
 }
@@ -46,10 +44,8 @@ void _xaFreeUpMemory(int phase, size_t allocsz)
     if (!useoom)
         return;
 
-    withMutex(&_xaOOMMutex)
-    {
-        foreach(sarray, i, xaOOMCallback, callback, callbacks)
-        {
+    withMutex (&_xaOOMMutex) {
+        foreach (sarray, i, xaOOMCallback, callback, callbacks) {
             callback(phase, allocsz);
         }
     }
@@ -61,12 +57,11 @@ void _xaFreeUpMemory(int phase, size_t allocsz)
         xaFlush();
 }
 
-_When_(!(flags & XA_Optional_Mask), _Analysis_noreturn_)
-void _xaAllocFailure(size_t allocsz, unsigned int flags)
+_When_(!(flags & XA_Optional_Mask), _Analysis_noreturn_) void _xaAllocFailure(size_t allocsz, unsigned int flags)
 {
     if (flags & XA_Optional_Mask)
         return;
 
-   _xaFreeUpMemory(XA_Fatal, allocsz);      // notify OOM handlers we're about to crash
-   dbgCrashNow(0);
+    _xaFreeUpMemory(XA_Fatal, allocsz);   // notify OOM handlers we're about to crash
+    dbgCrashNow(0);
 }

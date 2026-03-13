@@ -1,5 +1,5 @@
-#include "format_private.h"
 #include "cx/string/string_private.h"
+#include "format_private.h"
 
 // string constants that are used in parsing
 STR_CONST(kFmtOptPrefix, "prefix");
@@ -13,7 +13,7 @@ enum PtrOpts {
 };
 
 _Use_decl_annotations_
-bool _fmtParsePtrOpt(FMTVar *v, strref opt)
+bool _fmtParsePtrOpt(FMTVar* v, strref opt)
 {
     if (strEq(opt, kFmtOptPrefix)) {
         v->flags |= FMT_PtrPrefix;
@@ -23,7 +23,7 @@ bool _fmtParsePtrOpt(FMTVar *v, strref opt)
 }
 
 _Use_decl_annotations_
-bool _fmtParsePtrFinalize(FMTVar *v)
+bool _fmtParsePtrFinalize(FMTVar* v)
 {
     // we handle upper/lower in the ptr formatter itself to exclude the prefix
     v->flags |= FMTVar_NoGenCase;
@@ -32,11 +32,11 @@ bool _fmtParsePtrFinalize(FMTVar *v)
 }
 
 _Use_decl_annotations_
-bool _fmtPtr(FMTVar *v, string *out)
+bool _fmtPtr(FMTVar* v, string* out)
 {
     uint8 buf[BUFSZ];
-    uint8 *p = buf + BUFSZ;
-    char *cset;
+    uint8* p = buf + BUFSZ;
+    char* cset;
     uint64 val = 0;
     uint32 val32;
 
@@ -44,7 +44,7 @@ bool _fmtPtr(FMTVar *v, string *out)
 
     val = *(uintptr*)v->data;
 
-    *--p = 0;       // null terminator
+    *--p = 0;   // null terminator
 
     while (val > 0xffffffff) {
         *--p = cset[val & 0xf];
@@ -60,8 +60,7 @@ bool _fmtPtr(FMTVar *v, string *out)
 
     // leading zeroes apply *before* prefix is added
     if ((v->flags & FMTVar_LeadingZeros) && buflen < sizeof(uintptr_t) * 2) {
-        for (size_t i = 0; i < sizeof(uintptr_t) * 2 - buflen; i++)
-            *--p = '0';
+        for (size_t i = 0; i < sizeof(uintptr_t) * 2 - buflen; i++) *--p = '0';
     }
 
     if (v->flags & FMT_PtrPrefix) {

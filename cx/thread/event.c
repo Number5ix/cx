@@ -1,11 +1,11 @@
 #include "event.h"
-#include <cx/time/time.h>
-#include <cx/utils/compare.h>
 #include <cx/platform/os.h>
 #include <cx/platform/uievent.h>
+#include <cx/time/time.h>
+#include <cx/utils/compare.h>
 
 _Use_decl_annotations_
-void _eventInit(Event *e, flags_t flags)
+void _eventInit(Event* e, flags_t flags)
 {
     futexInit(&e->ftx, 0);
     atomicStore(int32, &e->waiters, 0, Relaxed);
@@ -22,7 +22,7 @@ void _eventInit(Event *e, flags_t flags)
 }
 
 _Use_decl_annotations_
-bool eventSignalMany(Event *e, int32 count)
+bool eventSignalMany(Event* e, int32 count)
 {
     devAssert(count > 0);
     AdaptiveSpinState astate;
@@ -30,20 +30,34 @@ bool eventSignalMany(Event *e, int32 count)
 
     // get the number of waiting threads and reduce it by the amount we're about to wake up
     int32 waiters = atomicLoad(int32, &e->waiters, Relaxed);
-    while (waiters > 0 && !atomicCompareExchange(int32, weak, &e->waiters, &waiters, clamplow(waiters - count, 0), Relaxed, Relaxed)) {
+    while (waiters > 0 &&
+           !atomicCompareExchange(int32,
+                                  weak,
+                                  &e->waiters,
+                                  &waiters,
+                                  clamplow(waiters - count, 0),
+                                  Relaxed,
+                                  Relaxed)) {
         aspinHandleContention(&e->aspin, &astate);
     }
 
     // can only wake up as many as threads are currently waiting
     count = clamphigh(count, waiters);
 
-    // Set the futex value, which we're using kind of like a semaphore, to the number that needs to wake up.
-    // Normally we want this to behave like a binary semaphore, so if the event is signaled but nothing has
-    // waited yet (i.e. they are currently in the process of waking up), we don't want to signal it again.
-    // Because the event should end up in a signaled state when this is called, enforce a minimum of 1 to set
-    // the futex value to, even if there are no waiters.
+    // Set the futex value, which we're using kind of like a semaphore, to the number that needs to
+    // wake up. Normally we want this to behave like a binary semaphore, so if the event is signaled
+    // but nothing has waited yet (i.e. they are currently in the process of waking up), we don't
+    // want to signal it again. Because the event should end up in a signaled state when this is
+    // called, enforce a minimum of 1 to set the futex value to, even if there are no waiters.
     int32 val = atomicLoad(int32, &e->ftx.val, Relaxed);
-    while (val >= 0 && !atomicCompareExchange(int32, weak, &e->ftx.val, &val, clamplow(val + count, 1), AcqRel, Relaxed)) {
+    while (val >= 0 &&
+           !atomicCompareExchange(int32,
+                                  weak,
+                                  &e->ftx.val,
+                                  &val,
+                                  clamplow(val + count, 1),
+                                  AcqRel,
+                                  Relaxed)) {
         aspinHandleContention(&e->aspin, &astate);
     }
 
@@ -59,7 +73,7 @@ bool eventSignalMany(Event *e, int32 count)
 }
 
 _Use_decl_annotations_
-bool eventSignalAll(Event *e)
+bool eventSignalAll(Event* e)
 {
     AdaptiveSpinState astate;
     aspinBegin(&e->aspin, &astate, timeForever);
@@ -74,7 +88,8 @@ bool eventSignalAll(Event *e)
     // This is a broadcast event, so we don't need to worry about a race between the previous atomic
     // and this one -- any new waiters after we read the number will just have to wait.
     int32 val = atomicLoad(int32, &e->ftx.val, Relaxed);
-    while (val >= 0 && !atomicCompareExchange(int32, weak, &e->ftx.val, &val, val + waiters, AcqRel, Relaxed)) {
+    while (val >= 0 &&
+           !atomicCompareExchange(int32, weak, &e->ftx.val, &val, val + waiters, AcqRel, Relaxed)) {
         aspinHandleContention(&e->aspin, &astate);
     }
 
@@ -87,7 +102,7 @@ bool eventSignalAll(Event *e)
 }
 
 _Use_decl_annotations_
-bool eventSignalLock(Event *e)
+bool eventSignalLock(Event* e)
 {
     atomicStore(int32, &e->ftx.val, -1, Release);
     eventSignalAll(e);
@@ -96,7 +111,7 @@ bool eventSignalLock(Event *e)
 }
 
 _Use_decl_annotations_
-bool eventWaitTimeout(Event *e, uint64 timeout)
+bool eventWaitTimeout(Event* e, uint64 timeout)
 {
     // try fast path first
     int32 val = atomicLoad(int32, &e->ftx.val, Relaxed);
@@ -111,9 +126,10 @@ bool eventWaitTimeout(Event *e, uint64 timeout)
     AdaptiveSpinState astate;
     aspinBegin(&e->aspin, &astate, timeout);
 
-    while (val <= 0 || !atomicCompareExchange(int32, weak, &e->ftx.val, &val, val - 1, AcqRel, Relaxed)) {
+    while (val <= 0 ||
+           !atomicCompareExchange(int32, weak, &e->ftx.val, &val, val - 1, AcqRel, Relaxed)) {
         if (val == -1)
-            return true;        // immediate out if event is locked, don't update any stats
+            return true;   // immediate out if event is locked, don't update any stats
 
         // otherwise need to wait
         if (val == 0) {
@@ -124,14 +140,14 @@ bool eventWaitTimeout(Event *e, uint64 timeout)
                 // track waiters for wakeup purposes
                 atomicFetchAdd(int32, &e->waiters, 1, Relaxed);
 
-                // shortwait is set if we weren't woken up by another thread and need to undo the waiter
-                // tracking. earlyret is set if we need to exit the loop now rather than waiting for the
-                // actual timeout based on the clock.
+                // shortwait is set if we weren't woken up by another thread and need to undo the
+                // waiter tracking. earlyret is set if we need to exit the loop now rather than
+                // waiting for the actual timeout based on the clock.
                 bool shortwait = false, earlyret = false, futexcontention = false;
 
                 if (!e->uiev) {
                     int32 fret = futexWait(&e->ftx, val, aspinTimeoutRemaining(&astate));
-                    shortwait = (fret == FUTEX_Timeout || fret == FUTEX_Retry);
+                    shortwait  = (fret == FUTEX_Timeout || fret == FUTEX_Retry);
                     if (fret == FUTEX_Retry)
                         futexcontention = true;
                 } else {
@@ -140,18 +156,25 @@ bool eventWaitTimeout(Event *e, uint64 timeout)
                         shortwait = true;
                     } else if (uievret == UIEVENT_UI) {
                         shortwait = true;
-                        earlyret = true;
+                        earlyret  = true;
                     }
                 }
 
                 if (shortwait) {
-                    // Wait finished early: need to undo the add above, but be careful because another
-                    // thread may have signaled the event in the meantime. This MAY produce a spurious
-                    // wakeup of another thread if we lose the race with eventSignalMany. Keep that in
-                    // mind when waiting on events that may have eventWaitTimeout called on them.
+                    // Wait finished early: need to undo the add above, but be careful because
+                    // another thread may have signaled the event in the meantime. This MAY produce
+                    // a spurious wakeup of another thread if we lose the race with eventSignalMany.
+                    // Keep that in mind when waiting on events that may have eventWaitTimeout
+                    // called on them.
                     int32 waiters = atomicLoad(int32, &e->waiters, Relaxed);
-                    while (waiters > 0 && !atomicCompareExchange(int32, weak, &e->waiters, &waiters,
-                                                                 waiters - 1, Relaxed, Relaxed)) {
+                    while (waiters > 0 &&
+                           !atomicCompareExchange(int32,
+                                                  weak,
+                                                  &e->waiters,
+                                                  &waiters,
+                                                  waiters - 1,
+                                                  Relaxed,
+                                                  Relaxed)) {
                         aspinHandleContention(&e->aspin, &astate);
                     }
                 }
@@ -172,7 +195,7 @@ bool eventWaitTimeout(Event *e, uint64 timeout)
 }
 
 _Use_decl_annotations_
-bool eventReset(Event *e)
+bool eventReset(Event* e)
 {
     int32 val = atomicLoad(int32, &e->ftx.val, Relaxed);
 
@@ -185,7 +208,7 @@ bool eventReset(Event *e)
 }
 
 _Use_decl_annotations_
-void eventDestroy(Event *e)
+void eventDestroy(Event* e)
 {
     if (e->uiev)
         uieventDestroy(e->uiev);
@@ -193,7 +216,7 @@ void eventDestroy(Event *e)
 }
 
 _Use_decl_annotations_
-SharedEvent *sheventCreate(uint32 flags)
+SharedEvent* sheventCreate(uint32 flags)
 {
     SharedEvent* ret = xaAllocStruct(SharedEvent);
     eventInit(&ret->ev);
@@ -202,7 +225,7 @@ SharedEvent *sheventCreate(uint32 flags)
 }
 
 _Use_decl_annotations_
-SharedEvent *sheventAcquire(SharedEvent *ev)
+SharedEvent* sheventAcquire(SharedEvent* ev)
 {
     atomicFetchAdd(uintptr, &ev->ref, 1, Relaxed);
     return ev;

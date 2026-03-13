@@ -84,8 +84,8 @@ void _md5Block(Digest* digest)
 
         po = p + (g & 15) * 4;
         x  = a + f + md5_const[i] +
-            ((uint32)*po | ((uint32)*(po + 1) << 8) | ((uint32)*(po + 2) << 16) |
-             ((uint32)*(po + 3) << 24));
+            ((uint32)*po | ((uint32) * (po + 1) << 8) | ((uint32) * (po + 2) << 16) |
+             ((uint32) * (po + 3) << 24));
         y = md5_shiftp[i];
         b += ROL(x, y);
         a = t;

@@ -1,12 +1,12 @@
 #include "cx/debug/crash_private.h"
+#include "cx/container/sarray.h"
 #include "cx/debug/blackbox.h"
-#include "cx/suid/suid.h"
 #include "cx/debug/stacktrace.h"
 #include "cx/fs/path.h"
-#include "cx/container/sarray.h"
-#include "cx/xalloc/cstrutil.h"
 #include "cx/platform/os.h"
 #include "cx/platform/win.h"
+#include "cx/suid/suid.h"
+#include "cx/xalloc/cstrutil.h"
 #include "win_fs.h"
 
 #include <stdio.h>
@@ -16,17 +16,17 @@
 // #define INTERNAL_URL_OVERRIDE ""
 // #define PRIVACY_URL_OVERRIDE ""
 
-static volatile uint32 debugSignal = 0;
+static volatile uint32 debugSignal    = 0;
 static const wchar_t debugWaitClass[] = L"DebugWait";
 
 // lots of static stuff; we cannot safely allocate in an exception handler,
 // and want to keep stack usage to an absolute minimum
-static wchar_t *crashdir;
-static wchar_t *reportfile;
-static wchar_t *crashhandler;
-static wchar_t *crashhandlercmdline;
-static char *processname;
-static wchar_t *processnamew;
+static wchar_t* crashdir;
+static wchar_t* reportfile;
+static wchar_t* crashhandler;
+static wchar_t* crashhandlercmdline;
+static char* processname;
+static wchar_t* processnamew;
 static char crashid[27];
 
 #define ST_MAX_FRAMES 128
@@ -48,37 +48,45 @@ static HWND _ef_debugwin;
 static RECT _ef_rect;
 static MSG _ef_msg;
 #if defined(_ARCH_X86)
-#pragma warning (disable:4731)
+#pragma warning(disable : 4731)
 static DWORD _ef_tempebp;
 static DWORD _ef_savedebp;
 #endif
 
-static const char *_ef_prefix = "  ";
+static const char* _ef_prefix = "  ";
 
 // ugly and stupid but simple enough to run from an exception handler
 #define WriteBuf(buf, len) WriteFile(_ef_file, buf, len, &_ef_temp, NULL)
-#define WriteStatic(str) WriteBuf(str, sizeof(str) - 1)
-#define WriteStr(str) WriteBuf(str, (DWORD)cstrLen(str))
-#define WriteNum(num) _itoa_s(num, _ef_numbuf, sizeof(_ef_numbuf), 10); WriteBuf(_ef_numbuf, (DWORD)cstrLen(_ef_numbuf))
-#define WriteUNum(num) _ultoa_s(num, _ef_numbuf, sizeof(_ef_numbuf), 10); WriteBuf(_ef_numbuf, (DWORD)cstrLen(_ef_numbuf))
-#define WriteHex(num) _ef_numbuf[0] = '0'; _ef_numbuf[1] = 'x'; _ui64toa_s(num, _ef_numbuf+2, sizeof(_ef_numbuf)-2, 16); WriteBuf(_ef_numbuf, (DWORD)cstrLen(_ef_numbuf))
+#define WriteStatic(str)   WriteBuf(str, sizeof(str) - 1)
+#define WriteStr(str)      WriteBuf(str, (DWORD)cstrLen(str))
+#define WriteNum(num)                                 \
+    _itoa_s(num, _ef_numbuf, sizeof(_ef_numbuf), 10); \
+    WriteBuf(_ef_numbuf, (DWORD)cstrLen(_ef_numbuf))
+#define WriteUNum(num)                                 \
+    _ultoa_s(num, _ef_numbuf, sizeof(_ef_numbuf), 10); \
+    WriteBuf(_ef_numbuf, (DWORD)cstrLen(_ef_numbuf))
+#define WriteHex(num)                                            \
+    _ef_numbuf[0] = '0';                                         \
+    _ef_numbuf[1] = 'x';                                         \
+    _ui64toa_s(num, _ef_numbuf + 2, sizeof(_ef_numbuf) - 2, 16); \
+    WriteBuf(_ef_numbuf, (DWORD)cstrLen(_ef_numbuf))
 #define WriteVal(id, macro, val, comma) \
-    WriteStr(_ef_prefix); \
-    WriteStatic("\"" id "\": \""); \
-    macro(val); \
+    WriteStr(_ef_prefix);               \
+    WriteStatic("\"" id "\": \"");      \
+    macro(val);                         \
     WriteStatic("\"" comma "\r\n")
 #define WriteValNQ(id, macro, val, comma) \
-    WriteStr(_ef_prefix); \
-    WriteStatic("\"" id "\": "); \
-    macro(val); \
+    WriteStr(_ef_prefix);                 \
+    WriteStatic("\"" id "\": ");          \
+    macro(val);                           \
     WriteStatic(comma "\r\n")
 #define WriteValSz(id, val, sz, comma) \
-    WriteStr(_ef_prefix); \
-    WriteStatic("\"" id "\": \""); \
-    WriteBuf(val, sz); \
+    WriteStr(_ef_prefix);              \
+    WriteStatic("\"" id "\": \"");     \
+    WriteBuf(val, sz);                 \
     WriteStatic("\"" comma "\r\n")
 #define WriteCustom(id, str) \
-    WriteStr(_ef_prefix); \
+    WriteStr(_ef_prefix);    \
     WriteStatic("\"" id "\": " str)
 
 _no_inline static LONG WINAPI dbgExceptionFilter(LPEXCEPTION_POINTERS info)
@@ -86,7 +94,7 @@ _no_inline static LONG WINAPI dbgExceptionFilter(LPEXCEPTION_POINTERS info)
     lazyInit(&_dbgCrashInitState, _dbgCrashInit, 0);
     mutexAcquire(&_dbgCrashMutex);
 
-    _ef_mode = atomicLoad(uint32, &_dbgCrashMode, SeqCst);
+    _ef_mode     = atomicLoad(uint32, &_dbgCrashMode, SeqCst);
     _ef_canwrite = true;
 
     if (!_dbgCrashTriggerCallbacks(false) || _ef_mode == 0) {
@@ -107,8 +115,13 @@ _no_inline static LONG WINAPI dbgExceptionFilter(LPEXCEPTION_POINTERS info)
     // this is not an efficient way of writing the file AT ALL, but keeps the
     // use of the stack to an absolute minimum
     if (_ef_canwrite) {
-        _ef_file = CreateFileW(reportfile, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS,
-                               FILE_ATTRIBUTE_NORMAL, NULL);
+        _ef_file = CreateFileW(reportfile,
+                               GENERIC_WRITE,
+                               0,
+                               NULL,
+                               CREATE_ALWAYS,
+                               FILE_ATTRIBUTE_NORMAL,
+                               NULL);
         WriteStatic("{\r\n");
         WriteValSz("id", crashid, 26, ",");
         _ef_temp2 = GetCurrentProcessId();
@@ -192,7 +205,10 @@ _no_inline static LONG WINAPI dbgExceptionFilter(LPEXCEPTION_POINTERS info)
         }
 
         if (info) {
-            WriteVal("exceptionaddr", WriteHex, (uintptr_t)info->ExceptionRecord->ExceptionAddress, ",");
+            WriteVal("exceptionaddr",
+                     WriteHex,
+                     (uintptr_t)info->ExceptionRecord->ExceptionAddress,
+                     ",");
         }
 
         // write out custom metadata (mostly from assert failures)
@@ -258,7 +274,6 @@ _no_inline static LONG WINAPI dbgExceptionFilter(LPEXCEPTION_POINTERS info)
         WriteStatic("  }\r\n");
         _ef_prefix = "  ";
 
-
         WriteStatic("}\r\n");
         CloseHandle(_ef_file);
 
@@ -267,23 +282,44 @@ _no_inline static LONG WINAPI dbgExceptionFilter(LPEXCEPTION_POINTERS info)
             memset(&_ef_startup, 0, sizeof(_ef_startup));
             _ef_startup.cb = sizeof(STARTUPINFOA);
             memset(&_ef_processinfo, 0, sizeof(_ef_processinfo));
-            if (CreateProcessW(crashhandler, crashhandlercmdline, NULL, NULL, FALSE,
-                               0, NULL, NULL, &_ef_startup, &_ef_processinfo)) {
-                // we need to wait for the crash handler to dump the process or at least get module info & blackbox
+            if (CreateProcessW(crashhandler,
+                               crashhandlercmdline,
+                               NULL,
+                               NULL,
+                               FALSE,
+                               0,
+                               NULL,
+                               NULL,
+                               &_ef_startup,
+                               &_ef_processinfo)) {
+                // we need to wait for the crash handler to dump the process or at least get module
+                // info & blackbox
                 WaitForSingleObject(_ef_processinfo.hProcess, INFINITE);
                 CloseHandle(_ef_processinfo.hThread);
                 CloseHandle(_ef_processinfo.hProcess);
 
                 // check for debug signal
                 if ((_ef_mode & DBG_CrashDevMode) && debugSignal) {
-                    _ef_mode &= ~DBG_CrashExit;     // do not exit if we're debugging
+                    _ef_mode &= ~DBG_CrashExit;   // do not exit if we're debugging
                     _ef_rect.top = _ef_rect.left = 0;
-                    _ef_rect.right = 260;
-                    _ef_rect.bottom = 75;
-                    AdjustWindowRectEx(&_ef_rect, WS_CAPTION | WS_OVERLAPPED, FALSE, WS_EX_CLIENTEDGE);
-                    _ef_debugwin = CreateWindowExW(WS_EX_CLIENTEDGE, debugWaitClass, L"", WS_CAPTION | WS_OVERLAPPED,
-                                                   CW_USEDEFAULT, CW_USEDEFAULT, _ef_rect.right - _ef_rect.left, _ef_rect.bottom - _ef_rect.top,
-                                                   NULL, NULL, GetModuleHandle(NULL), NULL);
+                    _ef_rect.right               = 260;
+                    _ef_rect.bottom              = 75;
+                    AdjustWindowRectEx(&_ef_rect,
+                                       WS_CAPTION | WS_OVERLAPPED,
+                                       FALSE,
+                                       WS_EX_CLIENTEDGE);
+                    _ef_debugwin = CreateWindowExW(WS_EX_CLIENTEDGE,
+                                                   debugWaitClass,
+                                                   L"",
+                                                   WS_CAPTION | WS_OVERLAPPED,
+                                                   CW_USEDEFAULT,
+                                                   CW_USEDEFAULT,
+                                                   _ef_rect.right - _ef_rect.left,
+                                                   _ef_rect.bottom - _ef_rect.top,
+                                                   NULL,
+                                                   NULL,
+                                                   GetModuleHandle(NULL),
+                                                   NULL);
                     SetWindowTextW(_ef_debugwin, processnamew);
                     ShowWindow(_ef_debugwin, SW_SHOW);
                     while (debugSignal && !IsDebuggerPresent()) {
@@ -311,17 +347,34 @@ _no_inline static LONG WINAPI dbgExceptionFilter(LPEXCEPTION_POINTERS info)
     return EXCEPTION_CONTINUE_SEARCH;
 }
 
-static LRESULT CALLBACK DebugWaitProc(HWND hWnd, UINT msg,
-                                      WPARAM wParam, LPARAM lParam)
+static LRESULT CALLBACK DebugWaitProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     switch (msg) {
     case WM_CREATE:
-        CreateWindowExW(0, L"STATIC", L"Waiting for debugger to attach...",
-                        WS_VISIBLE | WS_CHILD | SS_CENTER, 10, 10, 250, 30, hWnd,
-                        NULL, GetModuleHandle(NULL), NULL);
-        CreateWindowExW(0, L"BUTTON", L"&Cancel",
-                        WS_VISIBLE | WS_CHILD, 90, 40, 80, 25, hWnd,
-                        (HMENU)IDCANCEL, GetModuleHandle(NULL), NULL);
+        CreateWindowExW(0,
+                        L"STATIC",
+                        L"Waiting for debugger to attach...",
+                        WS_VISIBLE | WS_CHILD | SS_CENTER,
+                        10,
+                        10,
+                        250,
+                        30,
+                        hWnd,
+                        NULL,
+                        GetModuleHandle(NULL),
+                        NULL);
+        CreateWindowExW(0,
+                        L"BUTTON",
+                        L"&Cancel",
+                        WS_VISIBLE | WS_CHILD,
+                        90,
+                        40,
+                        80,
+                        25,
+                        hWnd,
+                        (HMENU)IDCANCEL,
+                        GetModuleHandle(NULL),
+                        NULL);
         return 0;
     case WM_COMMAND:
     case WM_CLOSE:
@@ -333,11 +386,8 @@ static LRESULT CALLBACK DebugWaitProc(HWND hWnd, UINT msg,
     return DefWindowProcW(hWnd, msg, wParam, lParam);
 }
 
-static void dbgInvalidParameterHandler(const wchar_t *w_exp,
-                                       const wchar_t *w_func,
-                                       const wchar_t *w_file,
-                                       unsigned int line,
-                                       uintptr_t reserved)
+static void dbgInvalidParameterHandler(const wchar_t* w_exp, const wchar_t* w_func,
+                                       const wchar_t* w_file, unsigned int line, uintptr_t reserved)
 {
     string exp = 0, func = 0, file = 0;
 
@@ -365,10 +415,7 @@ static void dbgInvalidParameterHandler(const wchar_t *w_exp,
     stframes = dbgStackTrace(1, ST_MAX_FRAMES, stacktrace);
     __try {
         *(char*)(0) = 0;
-    }
-    __except (dbgExceptionFilter(GetExceptionInformation()))
-    {
-    }
+    } __except (dbgExceptionFilter(GetExceptionInformation())) {}
 }
 
 bool _dbgCrashPlatformInit()
@@ -376,9 +423,9 @@ bool _dbgCrashPlatformInit()
     // debug wait window
     WNDCLASSEXW wc = { 0 };
 
-    wc.cbSize = sizeof(WNDCLASSEXW);
-    wc.lpfnWndProc = DebugWaitProc;
-    wc.hCursor = LoadCursorW(NULL, IDC_ARROW);
+    wc.cbSize        = sizeof(WNDCLASSEXW);
+    wc.lpfnWndProc   = DebugWaitProc;
+    wc.hCursor       = LoadCursorW(NULL, IDC_ARROW);
     wc.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
     wc.lpszClassName = debugWaitClass;
     RegisterClassExW(&wc);
@@ -408,12 +455,12 @@ bool dbgCrashSetPath(strref path)
     suidEncodeBytes(crashid, &crashsuid);
 
     string exename = 0, report = 0, exedir = 0, chandler = 0, cmdl = 0;
-    wchar_t *tmp;
+    wchar_t* tmp;
     fsExe(&exename);
     pathFilename(&exename, exename);
     pathRemoveExt(&exename, exename);
 
-    tmp = fsPathToNT(path);
+    tmp      = fsPathToNT(path);
     crashdir = cstrDupw(tmp);
 
     // precompute filename we're going to use
@@ -422,12 +469,12 @@ bool dbgCrashSetPath(strref path)
     processnamew = strToUTF16A(exename);
 
     strNConcat(&report, path, _S"\\", exename, _S"-", (string)crashid, _S".report");
-    tmp = fsPathToNT(report);
+    tmp        = fsPathToNT(report);
     reportfile = cstrDupw(tmp);
 
     fsExeDir(&exedir);
     pathJoin(&chandler, exedir, _S"crashhandler.exe");
-    tmp = fsPathToNT(chandler);
+    tmp          = fsPathToNT(chandler);
     crashhandler = cstrDupw(tmp);
 
     // if there isn't a crashhandler in the current dir, check up one level
@@ -437,7 +484,7 @@ bool dbgCrashSetPath(strref path)
         if (fsIsFile(chandler)) {
             // found it in the parent, use that one
             xaFree(crashhandler);
-            tmp = fsPathToNT(chandler);
+            tmp          = fsPathToNT(chandler);
             crashhandler = cstrDupw(tmp);
         }
         // if the above doesn't find anything, intentionally falls through to
@@ -466,8 +513,5 @@ _no_inline _no_return void dbgCrashNow(int skip)
     stframes = dbgStackTrace(skip + 1, ST_MAX_FRAMES, stacktrace);
     __try {
         *(char*)(0) = 0;
-    }
-    __except (dbgExceptionFilter(GetExceptionInformation()))
-    {
-    }
+    } __except (dbgExceptionFilter(GetExceptionInformation())) {}
 }

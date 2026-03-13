@@ -16,14 +16,14 @@
 ///   // Create 4KB buffer
 ///   LogMembufData *lmd = logmembufCreate(4096);
 ///   LogDest *dest = logmembufRegister(LOG_Debug, NULL, lmd);
-///   
+///
 ///   // Log some messages
 ///   logStr(Info, _SL("Test message"));
 ///   logFlush();
-///   
+///
 ///   // Access the buffer contents directly
 ///   printf("Buffered logs:\n%.*s\n", (int)lmd->cur, lmd->buf);
-///   
+///
 ///   // Cleanup
 ///   logUnregisterDest(dest);
 /// @endcode
@@ -36,9 +36,9 @@
 /// `size`, new messages wrap to the beginning. The buffer is null-terminated
 /// when possible.
 typedef struct LogMembufData {
-    uint32 size;    ///< Total buffer size in bytes
-    uint32 cur;     ///< Current write position (number of bytes written)
-    char *buf;      ///< Buffer storage
+    uint32 size;   ///< Total buffer size in bytes
+    uint32 cur;    ///< Current write position (number of bytes written)
+    char* buf;     ///< Buffer storage
 } LogMembufData;
 
 // ============================================================================
@@ -56,8 +56,7 @@ typedef struct LogMembufData {
 /// @code
 ///   LogMembufData *lmd = logmembufCreate(8192);  // 8KB buffer
 /// @endcode
-_Ret_valid_
-LogMembufData *logmembufCreate(uint32 size);
+_Ret_valid_ LogMembufData* logmembufCreate(uint32 size);
 
 /// Register a memory buffer destination with the logging system
 ///
@@ -87,7 +86,7 @@ LogDest* logmembufRegister(int maxlevel, _In_opt_ LogCategory* catfilter,
 ///   // Early startup - defer logs
 ///   LogDeferData *deferdata = logDeferCreate();
 ///   LogDest *deferdest = logDeferRegister(LOG_Info, NULL, deferdata);
-///   
+///
 ///   // Later - create memory buffer and transfer logs
 ///   LogMembufData *lmd = logmembufCreate(4096);
 ///   LogDest *dest = logmembufRegisterWithDefer(LOG_Info, NULL, lmd, deferdest);

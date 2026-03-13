@@ -9,7 +9,7 @@ static sa_SSDNode setslist;
 
 static LazyInitState setsthread_initstate;
 
-static int setsthread_func(Thread *self)
+static int setsthread_func(Thread* self)
 {
     sa_SSDNode toprocess;
     saInit(&toprocess, object, 8);
@@ -17,15 +17,14 @@ static int setsthread_func(Thread *self)
     thrRegisterSysThread(self);
 
     while (thrLoop(self)) {
-        int64 now = clockTimer();
+        int64 now       = clockTimer();
         int64 nextcheck = now + SETTINGS_DEFAULT_FLUSH_INTERVAL;
 
         // with the lock held, acquire object references to ensure
         // the objects survive during processing
         mutexAcquire(&setsthreadlock);
-        foreach(sarray, idx, SSDNode*, cur, setslist)
-        {
-            SettingsTree *tree = objDynCast(SettingsTree, cur->tree);
+        foreach (sarray, idx, SSDNode*, cur, setslist) {
+            SettingsTree* tree = objDynCast(SettingsTree, cur->tree);
             if (!tree)
                 continue;
 
@@ -38,8 +37,7 @@ static int setsthread_func(Thread *self)
         mutexRelease(&setsthreadlock);
 
         // go through all the settings that need to be checked
-        foreach(sarray, idx, SSDNode*, cur, toprocess)
-        {
+        foreach (sarray, idx, SSDNode*, cur, toprocess) {
             setsFlush(cur);
         }
 
@@ -50,7 +48,7 @@ static int setsthread_func(Thread *self)
     return 0;
 }
 
-static void setsthread_init(void *unused)
+static void setsthread_init(void* unused)
 {
     mutexInit(&setsthreadlock);
     saInit(&setslist, ptr, 16, SA_Sorted);
@@ -62,19 +60,17 @@ void _setsThreadCheck(void)
     lazyInit(&setsthread_initstate, setsthread_init, NULL);
 }
 
-void _setsThreadWatch(SSDNode *sets)
+void _setsThreadWatch(SSDNode* sets)
 {
-    SSDNode *o = objAcquire(sets);
-    withMutex(&setsthreadlock)
-    {
+    SSDNode* o = objAcquire(sets);
+    withMutex (&setsthreadlock) {
         saPush(&setslist, ptr, o);
     }
 }
 
-void _setsThreadForget(SSDNode *sets)
+void _setsThreadForget(SSDNode* sets)
 {
-    withMutex(&setsthreadlock)
-    {
+    withMutex (&setsthreadlock) {
         if (saFindRemove(&setslist, ptr, sets))
             objRelease(&sets);
     }

@@ -11,9 +11,9 @@
 // ==================== Auto-generated section ends ======================
 #include <cx/taskqueue.h>
 #include <cx/taskqueue/queue/tqcomplex.h>
-#include <cx/taskqueue/requires/taskrequirestask.h>
 #include <cx/taskqueue/requires/taskrequiresgate.h>
 #include <cx/taskqueue/requires/taskrequiresresource.h>
+#include <cx/taskqueue/requires/taskrequirestask.h>
 #include "cx/utils/murmur.h"
 
 bool ComplexTask_advance(_In_ ComplexTask* self)
@@ -170,7 +170,8 @@ bool ComplexTask_acquireRequires(_In_ ComplexTask* self, sa_TaskRequires* acquir
                 return false;
             }
         } else if (state != TASK_Requires_Ok && state != TASK_Requires_Ok_Permanent) {
-            // We have some other dependency that is no longer satisfied, need to go back into defer queue
+            // We have some other dependency that is no longer satisfied, need to go back into defer
+            // queue
             return false;
         }
     }

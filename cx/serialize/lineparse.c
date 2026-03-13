@@ -8,21 +8,21 @@
 typedef struct LineParserContext {
     uint32 flags;
 
-    size_t checked;     // buffer offset that has already been checked for EOL
-    string out;         // cached output string
+    size_t checked;   // buffer offset that has already been checked for EOL
+    string out;       // cached output string
 
     lparseLineCB lineCB;
-    void *userCtx;
+    void* userCtx;
     sbufCleanupCB userCleanupCB;
 } LineParserContext;
 
-typedef struct EOLFindInfo
-{
+typedef struct EOLFindInfo {
     size_t off;
     int len;
 } EOLFindInfo;
 
-static bool findEOLLF(_Inout_ EOLFindInfo *ei, _In_reads_bytes_(sz) const uint8 *buf, size_t sz, _Inout_ LineParserContext *lpc)
+static bool findEOLLF(_Inout_ EOLFindInfo* ei, _In_reads_bytes_(sz) const uint8* buf, size_t sz,
+                      _Inout_ LineParserContext* lpc)
 {
     for (size_t i = 0; i < sz; i++) {
         if (buf[i] == '\n') {
@@ -34,7 +34,8 @@ static bool findEOLLF(_Inout_ EOLFindInfo *ei, _In_reads_bytes_(sz) const uint8 
     return false;
 }
 
-static bool findEOLCRLF(_Inout_ EOLFindInfo *ei, _In_reads_bytes_(sz) const uint8 *buf, size_t sz, _Inout_ LineParserContext *lpc)
+static bool findEOLCRLF(_Inout_ EOLFindInfo* ei, _In_reads_bytes_(sz) const uint8* buf, size_t sz,
+                        _Inout_ LineParserContext* lpc)
 {
     for (size_t i = 0; i + 1 < sz; i++) {
         if (buf[i] == '\r' && buf[i + 1] == '\n') {
@@ -46,7 +47,8 @@ static bool findEOLCRLF(_Inout_ EOLFindInfo *ei, _In_reads_bytes_(sz) const uint
     return false;
 }
 
-static bool findEOLMixed(_Inout_ EOLFindInfo *ei, _In_reads_bytes_(sz) const uint8 *buf, size_t sz, _Inout_ LineParserContext *lpc)
+static bool findEOLMixed(_Inout_ EOLFindInfo* ei, _In_reads_bytes_(sz) const uint8* buf, size_t sz,
+                         _Inout_ LineParserContext* lpc)
 {
     for (size_t i = 0; i < sz; i++) {
         if (i + 1 < sz && buf[i] == '\r' && buf[i + 1] == '\n') {
@@ -62,7 +64,8 @@ static bool findEOLMixed(_Inout_ EOLFindInfo *ei, _In_reads_bytes_(sz) const uin
     return false;
 }
 
-static bool findEOLAuto(_Inout_ EOLFindInfo *ei, _In_reads_bytes_(sz) const uint8 *buf, size_t sz, _Inout_ LineParserContext *lpc)
+static bool findEOLAuto(_Inout_ EOLFindInfo* ei, _In_reads_bytes_(sz) const uint8* buf, size_t sz,
+                        _Inout_ LineParserContext* lpc)
 {
     for (size_t i = 0; i < sz; i++) {
         if (i + 1 < sz && buf[i] == '\r' && buf[i + 1] == '\n') {
@@ -81,18 +84,20 @@ static bool findEOLAuto(_Inout_ EOLFindInfo *ei, _In_reads_bytes_(sz) const uint
 }
 
 // these must be kept in the same order as the flags 0-3 in LINEPARSER_FLAGS_ENUM!
-static bool (*eolfuncs[])(_Inout_ EOLFindInfo *ei, _In_reads_bytes_(sz) const uint8 *buf, size_t sz, _Inout_ LineParserContext *lpc) = {
+static bool (*eolfuncs[])(_Inout_ EOLFindInfo* ei, _In_reads_bytes_(sz) const uint8* buf, size_t sz,
+                          _Inout_ LineParserContext* lpc) = {
     findEOLAuto,
     findEOLCRLF,
     findEOLLF,
     findEOLMixed
 };
 
-_Static_assert((sizeof(eolfuncs) / sizeof(eolfuncs[0]) == LPARSE_EOL_COUNT), "Wrong number of EOL functions");
+_Static_assert((sizeof(eolfuncs) / sizeof(eolfuncs[0]) == LPARSE_EOL_COUNT),
+               "Wrong number of EOL functions");
 
-static void lpcCleanup(_Pre_valid_ void *ctx)
+static void lpcCleanup(_Pre_valid_ void* ctx)
 {
-    LineParserContext *lpc = (LineParserContext *)ctx;
+    LineParserContext* lpc = (LineParserContext*)ctx;
 
     if (lpc->userCleanupCB)
         lpc->userCleanupCB(lpc->userCtx);
@@ -103,9 +108,9 @@ static void lpcCleanup(_Pre_valid_ void *ctx)
 }
 
 _Use_decl_annotations_
-bool lparseRegisterPull(StreamBuffer *sb, uint32 flags)
+bool lparseRegisterPull(StreamBuffer* sb, uint32 flags)
 {
-    LineParserContext *lpc = xaAlloc(sizeof(LineParserContext), XA_Zero);
+    LineParserContext* lpc = xaAlloc(sizeof(LineParserContext), XA_Zero);
 
     if (!sbufCRegisterPull(sb, lpcCleanup, lpc))
         return false;
@@ -117,17 +122,17 @@ bool lparseRegisterPull(StreamBuffer *sb, uint32 flags)
 
 // Returns false when there are no more lines.
 _Use_decl_annotations_
-bool lparseLine(StreamBuffer *sb, string *out)
+bool lparseLine(StreamBuffer* sb, string* out)
 {
-    LineParserContext *lpc = (LineParserContext *)sb->consumerCtx;
+    LineParserContext* lpc = (LineParserContext*)sb->consumerCtx;
     EOLFindInfo ei;
     uint8 buf[LPCHUNK];
-    uint8 *outbuf;
+    uint8* outbuf;
     size_t didread;
 
     strClear(out);
 
-    for(;;) {
+    for (;;) {
         // feed buffer if we have already checked everything
         if (sbufCAvail(sb) - lpc->checked <= 1) {
             // check for <= 1 because of the 1-byte overlap mentioned below
@@ -183,12 +188,12 @@ bool lparseLine(StreamBuffer *sb, string *out)
 
 // -------- Push mode --------
 
-static void lpcNotify(_Pre_valid_ StreamBuffer *sb, size_t sz, _Pre_opt_valid_ void *ctx)
+static void lpcNotify(_Pre_valid_ StreamBuffer* sb, size_t sz, _Pre_opt_valid_ void* ctx)
 {
-    LineParserContext *lpc = (LineParserContext *)ctx;
+    LineParserContext* lpc = (LineParserContext*)ctx;
     EOLFindInfo ei;
     uint8 buf[LPCHUNK];
-    uint8 *outbuf;
+    uint8* outbuf;
     size_t didread;
 
     // keep looking for lines as long as there's data in the buffer
@@ -241,18 +246,19 @@ static void lpcNotify(_Pre_valid_ StreamBuffer *sb, size_t sz, _Pre_opt_valid_ v
 }
 
 _Use_decl_annotations_
-bool lparseRegisterPush(StreamBuffer *sb, lparseLineCB pline, sbufCleanupCB pcleanup, void *ctx, uint32 flags)
+bool lparseRegisterPush(StreamBuffer* sb, lparseLineCB pline, sbufCleanupCB pcleanup, void* ctx,
+                        uint32 flags)
 {
-    LineParserContext *lpc = xaAlloc(sizeof(LineParserContext), XA_Zero);
+    LineParserContext* lpc = xaAlloc(sizeof(LineParserContext), XA_Zero);
 
-    lpc->userCtx = ctx;
+    lpc->userCtx       = ctx;
     lpc->userCleanupCB = pcleanup;
 
     if (!pline || !sbufCRegisterPush(sb, lpcNotify, lpcCleanup, lpc))
         return false;
 
     lpc->lineCB = pline;
-    lpc->flags = flags;
+    lpc->flags  = flags;
 
     return true;
 }

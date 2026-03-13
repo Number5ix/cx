@@ -5,8 +5,10 @@
 
 #ifdef __cplusplus
 #define CX_C extern "C"
-#define CX_C_BEGIN extern "C"{
-#define CX_C_END   }
+#define CX_C_BEGIN \
+    extern "C"     \
+    {
+#define CX_C_END }
 #else
 #define CX_C
 #define CX_C_BEGIN

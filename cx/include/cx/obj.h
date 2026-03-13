@@ -66,8 +66,10 @@
 /// @endcode
 ///
 /// **Method qualifiers** control how methods are bound and called:
-/// - `override` - Mark method as overriding parent implementation (just `override methodname;`, no need to repeat parameters)
-/// - `unbound` - Method does not dynamically resolve to child class implementations (analogous to Java's `final` or C++'s non-virtual methods)
+/// - `override` - Mark method as overriding parent implementation (just `override methodname;`, no
+/// need to repeat parameters)
+/// - `unbound` - Method does not dynamically resolve to child class implementations (analogous to
+/// Java's `final` or C++'s non-virtual methods)
 /// - `standalone` - Function not bound to class and does NOT take self parameter (like static)
 ///
 /// **Member and method annotations** in `[brackets]`:
@@ -88,7 +90,8 @@
 /// }
 /// @endcode
 ///
-/// **Note**: Method implementations receive the object instance as the `self` parameter (not `this`).
+/// **Note**: Method implementations receive the object instance as the `self` parameter (not
+/// `this`).
 ///
 /// # Using Objects
 ///
@@ -153,7 +156,8 @@
 ///
 /// # Reference Counting Rules
 ///
-/// - Factory methods (usually `create()`, but can have other names) return objects with refcount = 1
+/// - Factory methods (usually `create()`, but can have other names) return objects with refcount =
+/// 1
 /// - Generated wrapper macros use pseudo-camelCase: `documentCreate()` wraps the underlying factory
 /// - `objAcquire(obj)` increments the reference count
 /// - `objRelease(&obj)` decrements and destroys when count reaches 0

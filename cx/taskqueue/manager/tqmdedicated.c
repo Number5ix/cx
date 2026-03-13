@@ -51,7 +51,8 @@ static int tqManagerThread(Thread* thr)
     return 0;
 }
 
-extern bool TQThreadPoolManager_start(_In_ TQThreadPoolManager* self, _In_ TaskQueue* tq);   // parent
+extern bool TQThreadPoolManager_start(_In_ TQThreadPoolManager* self,
+                                      _In_ TaskQueue* tq);   // parent
 #define parent_start(tq) TQThreadPoolManager_start((TQThreadPoolManager*)(self), tq)
 bool TQDedicatedManager_start(_In_ TQDedicatedManager* self, _In_ TaskQueue* tq)
 {

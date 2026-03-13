@@ -52,12 +52,12 @@ extern char dbgBlackBox[];
 /// Internal structure used to parse black box contents from crash dumps.
 /// Entries are stored as a doubly-linked list with variable-length name and value.
 typedef struct BlackBoxEnt {
-    uint16 prev;        ///< Offset to previous entry (0 if first)
-    uint16 next;        ///< Offset to next entry (0 if last)
-    uint8 flags;        ///< Flags from BLACKBOX_FLAGS enum
-    uint8 namelen;      ///< Length of name including null terminator
-    uint16 vallen;      ///< Length of value including null terminator
-    char name[1];       ///< Variable-length name string (null-terminated)
+    uint16 prev;     ///< Offset to previous entry (0 if first)
+    uint16 next;     ///< Offset to next entry (0 if last)
+    uint8 flags;     ///< Flags from BLACKBOX_FLAGS enum
+    uint8 namelen;   ///< Length of name including null terminator
+    uint16 vallen;   ///< Length of value including null terminator
+    char name[1];    ///< Variable-length name string (null-terminated)
     // char val[];      ///< Variable-length value string follows name
 } BlackBoxEnt;
 
@@ -79,7 +79,8 @@ typedef struct BlackBoxEnt {
 
 /// Flags for black box entries
 enum BLACKBOX_FLAGS {
-    BBox_Private        = 0x01, ///< Entry contains potentially private data; allow user opt-out in crash reports
+    BBox_Private = 0x01,   ///< Entry contains potentially private data; allow user opt-out in crash
+                           ///< reports
 };
 
 /// Initialize the black box system

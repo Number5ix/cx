@@ -22,7 +22,7 @@ typedef struct _nv_stype_flags {
 } _nv_stype_flags;
 
 typedef struct _nv_string {
-    void *unused;
+    void* unused;
 } _nv_string;
 
 typedef struct _nv_string_flags {

@@ -2,14 +2,17 @@
 
 // try to parse the next variable
 _Use_decl_annotations_
-bool _fmtExtractVar(FMTContext *ctx)
+bool _fmtExtractVar(FMTContext* ctx)
 {
     int32 eatchar = 0;
 
     // "loop" to handle escaped start sequences
 retry_start:
-    ctx->vstart = strFind(ctx->fmt, ctx->vend, (strref)"\xE1\xC1\x02""${");
-    if (ctx->vstart == -1) {        // no more vars
+    ctx->vstart = strFind(ctx->fmt,
+                          ctx->vend,
+                          (strref) "\xE1\xC1\x02"
+                                   "${");
+    if (ctx->vstart == -1) {   // no more vars
         return true;
     }
 
@@ -19,7 +22,9 @@ retry_start:
             // skip over the backtick
             strSubStr(&ctx->tmp, ctx->fmt, ctx->vend, ctx->vstart - 1);
             strAppend(ctx->dest, ctx->tmp);
-            strAppend(ctx->dest, (strref)"\xE1\xC1\x02""${");
+            strAppend(ctx->dest,
+                      (strref) "\xE1\xC1\x02"
+                               "${");
             ctx->vend = (ctx->vstart += 2);
             goto retry_start;
         }
@@ -32,12 +37,15 @@ retry_start:
     strAppend(ctx->dest, ctx->tmp);
 
     // now find the end
-    eatchar = 0;
+    eatchar   = 0;
     ctx->vend = ctx->vstart + 1;
 
 retry_end:
-    ctx->vend = strFind(ctx->fmt, ctx->vend, (strref)"\xE1\xC1\x01""}");
-    if (ctx->vend == -1) {          // broken format string
+    ctx->vend = strFind(ctx->fmt,
+                        ctx->vend,
+                        (strref) "\xE1\xC1\x01"
+                                 "}");
+    if (ctx->vend == -1) {   // broken format string
         return false;
     }
 
@@ -61,17 +69,27 @@ retry_end:
     return true;
 }
 
-static bool fmtParseOpt(_Inout_ FMTContext *ctx, _In_ strref opt, int32 vtype)
+static bool fmtParseOpt(_Inout_ FMTContext* ctx, _In_ strref opt, int32 vtype)
 {
-    if (strEq(opt, (strref)"\xE1\xC1\x04""left"))
+    if (strEq(opt,
+              (strref) "\xE1\xC1\x04"
+                       "left"))
         ctx->v.flags |= FMTVar_Left;
-    else if (strEq(opt, (strref)"\xE1\xC1\x06""center"))
+    else if (strEq(opt,
+                   (strref) "\xE1\xC1\x06"
+                            "center"))
         ctx->v.flags |= FMTVar_Center;
-    else if (strEq(opt, (strref)"\xE1\xC1\x05""right"))
+    else if (strEq(opt,
+                   (strref) "\xE1\xC1\x05"
+                            "right"))
         ctx->v.flags |= FMTVar_Right;
-    else if (strEq(opt, (strref)"\xE1\xC1\x05""upper"))
+    else if (strEq(opt,
+                   (strref) "\xE1\xC1\x05"
+                            "upper"))
         ctx->v.flags |= FMTVar_Upper;
-    else if (strEq(opt, (strref)"\xE1\xC1\x05""lower"))
+    else if (strEq(opt,
+                   (strref) "\xE1\xC1\x05"
+                            "lower"))
         ctx->v.flags |= FMTVar_Lower;
     else if (_fmtTypeParseOpt[vtype])
         return _fmtTypeParseOpt[vtype](&ctx->v, opt);
@@ -79,12 +97,13 @@ static bool fmtParseOpt(_Inout_ FMTContext *ctx, _In_ strref opt, int32 vtype)
 }
 
 _Use_decl_annotations_
-bool _fmtParseVar(FMTContext *ctx)
+bool _fmtParseVar(FMTContext* ctx)
 {
-    int32 vtstart = 0, vtend = 0, vnend = 0, fostart = 0, foend = 0, xstart = 0, xend = 0, defstart = 0;
+    int32 vtstart = 0, vtend = 0, vnend = 0, fostart = 0, foend = 0, xstart = 0, xend = 0,
+          defstart                         = 0;
     enum { X_None, X_Array, X_Hash } xtype = X_None;
-    int phase = 0;
-    int vtype = -1;
+    int phase                              = 0;
+    int vtype                              = -1;
 
     int32 len = strLen(ctx->v.var);
     for (int32 i = 0; i < len; i++) {
@@ -105,16 +124,16 @@ bool _fmtParseVar(FMTContext *ctx)
             } else if (ch == '(') {
                 if (vtend == 0)
                     vtend = i;
-                vnend = i;
+                vnend   = i;
                 fostart = i + 1;
-                phase = 1;
+                phase   = 1;
             } else if (ch == ';') {
                 if (vtend == 0)
                     vtend = i;
                 if (vnend == 0)
                     vnend = i;
                 defstart = i + 1;
-                phase = 3;
+                phase    = 3;
             } else if (ch == ')' || ch == ',') {
                 return false;
             } else if (ch == '[' || ch == ':') {
@@ -123,8 +142,8 @@ bool _fmtParseVar(FMTContext *ctx)
                 if (vnend == 0)
                     vnend = i;
                 xstart = i + 1;
-                xtype = (ch == '[') ? X_Array : X_Hash;
-                phase = 2;
+                xtype  = (ch == '[') ? X_Array : X_Hash;
+                phase  = 2;
             } else if (foend > 0) {
                 return false;
             }
@@ -144,7 +163,7 @@ bool _fmtParseVar(FMTContext *ctx)
                 if (xend == 0)
                     xend = i;
                 defstart = i + 1;
-                phase = 3;
+                phase    = 3;
             } else if (xend > 0)
                 return false;
             break;
@@ -192,7 +211,10 @@ bool _fmtParseVar(FMTContext *ctx)
         int32 ostart = fostart;
         int32 i, w;
         while (ostart < foend) {
-            i = strFind(ctx->v.var, ostart, (strref)"\xE1\xC1\x01"",");
+            i = strFind(ctx->v.var,
+                        ostart,
+                        (strref) "\xE1\xC1\x01"
+                                 ",");
             if (i == -1)
                 i = foend;
             else if (i > foend)
@@ -203,7 +225,7 @@ bool _fmtParseVar(FMTContext *ctx)
             // look for all-numeric width
             if (strToInt32(&w, ctx->tmp, 10, true)) {
                 if (ctx->v.width != -1)
-                    goto out;           // already have one!
+                    goto out;   // already have one!
                 ctx->v.width = w;
             } else {
                 fmtParseOpt(ctx, ctx->tmp, vtype);
@@ -229,13 +251,12 @@ bool _fmtParseVar(FMTContext *ctx)
         strSubStr(&ctx->v.hashkey, ctx->v.var, xstart, xend);
     }
 
-    if (_fmtTypeParseFinalize[vtype] &&
-        !_fmtTypeParseFinalize[vtype](&ctx->v))
+    if (_fmtTypeParseFinalize[vtype] && !_fmtTypeParseFinalize[vtype](&ctx->v))
         goto out;
 
     // vtype being set means parsing succeeded, otherwise use default
     ctx->v.vtype = vtype;
-    ret = true;
+    ret          = true;
 
 out:
     return ret;

@@ -7,16 +7,16 @@
 // Extremely fast pseudo RNG with good statistical properties.
 
 /*
-* PCG Random Number Generation for C.
-*
-* Copyright 2014 Melissa O'Neill <oneill@pcg-random.org>
-*
-* Licensed under the Apache License, Version 2.0 (the "License");
-* you may not use this file except in compliance with the License.
-* You may obtain a copy of the License at
-*
-*     http://www.apache.org/licenses/LICENSE-2.0
-*/
+ * PCG Random Number Generation for C.
+ *
+ * Copyright 2014 Melissa O'Neill <oneill@pcg-random.org>
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */
 
 // extern inline uint32 pcgRange(PcgState *rng, uint32 lower, uint32 upper);
 
@@ -24,7 +24,7 @@ _Use_decl_annotations_
 void pcgSeed(PcgState* rng, uint64 initstate, uint64 initseq)
 {
     rng->state = 0U;
-    rng->inc = (initseq << 1u) | 1u;
+    rng->inc   = (initseq << 1u) | 1u;
     pcgRandom(rng);
     rng->state += initstate;
     pcgRandom(rng);
@@ -37,27 +37,27 @@ void pcgAutoSeed(PcgState* rng)
 
     if (!osGenRandom((uint8*)randbuf, sizeof(randbuf))) {
         // Fallback to time-based seeding if osGenRandom fails
-        uint64_t curtime  = clockWall();
-        uint64_t argaddr  = (uint64_t)rng;
-        randbuf[0]        = curtime ^ (argaddr << 3);
-        randbuf[1]        = ~(curtime + argaddr);
+        uint64_t curtime = clockWall();
+        uint64_t argaddr = (uint64_t)rng;
+        randbuf[0]       = curtime ^ (argaddr << 3);
+        randbuf[1]       = ~(curtime + argaddr);
     }
     pcgSeed(rng, randbuf[0], randbuf[1]);
 }
 
 _Use_decl_annotations_
-uint32 pcgRandom(PcgState *rng)
+uint32 pcgRandom(PcgState* rng)
 {
     devAssertMsg(rng->inc, "Use of PCG random number generator without seeding");
-    uint64 oldstate = rng->state;
-    rng->state = oldstate * 6364136223846793005ULL + (rng->inc | 1u);
+    uint64 oldstate   = rng->state;
+    rng->state        = oldstate * 6364136223846793005ULL + (rng->inc | 1u);
     uint32 xorshifted = (uint32)(((oldstate >> 18u) ^ oldstate) >> 27u);
-    uint32 rot = oldstate >> 59u;
-    return (xorshifted >> rot) | (xorshifted << ((1+~rot) & 31));
+    uint32 rot        = oldstate >> 59u;
+    return (xorshifted >> rot) | (xorshifted << ((1 + ~rot) & 31));
 }
 
 _Use_decl_annotations_
-uint32 pcgBounded(PcgState *rng, uint32 bound)
+uint32 pcgBounded(PcgState* rng, uint32 bound)
 {
     if (bound == 0)
         return 0;
@@ -76,13 +76,13 @@ uint32 pcgBounded(PcgState *rng, uint32 bound)
     // because this version will calculate the same modulus, but the LHS
     // value is less than 2^32.
 
-    uint32 threshold = (1+~bound) % bound;
+    uint32 threshold = (1 + ~bound) % bound;
 
     // Uniformity guarantees that this loop will terminate.  In practice, it
     // should usually terminate quickly; on average (assuming all bounds are
     // equally likely), 82.25% of the time, we can expect it to require just
     // one iteration.  In the worst case, someone passes a bound of 2^31 + 1
-    // (i.e., 2147483649), which invalidates almost 50% of the range.  In 
+    // (i.e., 2147483649), which invalidates almost 50% of the range.  In
     // practice, bounds are typically small and only a tiny amount of the range
     // is eliminated.
     for (;;) {
@@ -93,24 +93,24 @@ uint32 pcgBounded(PcgState *rng, uint32 bound)
 }
 
 _Use_decl_annotations_
-bool pcgFlip(PcgState *rng)
+bool pcgFlip(PcgState* rng)
 {
     // pick an arbitrary bit to use
     return !!(pcgRandom(rng) & 0x800);
 }
 
 /* Multi-step advance functions (jump-ahead, jump-back)
-*
-* The method used here is based on Brown, "Random Number Generation
-* with Arbitrary Stride,", Transactions of the American Nuclear
-* Society (Nov. 1994).  The algorithm is very similar to fast
-* exponentiation.
-*
-* Even though delta is an unsigned integer, we can pass a
-* signed integer to go backwards, it just goes "the long way round".
-*/
+ *
+ * The method used here is based on Brown, "Random Number Generation
+ * with Arbitrary Stride,", Transactions of the American Nuclear
+ * Society (Nov. 1994).  The algorithm is very similar to fast
+ * exponentiation.
+ *
+ * Even though delta is an unsigned integer, we can pass a
+ * signed integer to go backwards, it just goes "the long way round".
+ */
 _Use_decl_annotations_
-void pcgAdvance(PcgState *rng, uint64 delta)
+void pcgAdvance(PcgState* rng, uint64 delta)
 {
     uint64 cur_mult = 6364136223846793005ULL;
     uint64 cur_plus = 1442695040888963407ULL;
@@ -129,7 +129,7 @@ void pcgAdvance(PcgState *rng, uint64 delta)
 }
 
 _Use_decl_annotations_
-uint64 pcgRandom64(PcgState *rng)
+uint64 pcgRandom64(PcgState* rng)
 {
     uint64 ret = pcgRandom(rng);
     ret |= (uint64)pcgRandom(rng) << 32;
@@ -137,7 +137,7 @@ uint64 pcgRandom64(PcgState *rng)
 }
 
 _Use_decl_annotations_
-uint64 pcgBounded64(PcgState *rng, uint64 bound)
+uint64 pcgBounded64(PcgState* rng, uint64 bound)
 {
     // See implementation comments in pcgBounded
 
@@ -154,19 +154,21 @@ uint64 pcgBounded64(PcgState *rng, uint64 bound)
 }
 
 _Use_decl_annotations_
-float32 pcgFRange(PcgState *rng, float32 lower, float32 upper)
+float32 pcgFRange(PcgState* rng, float32 lower, float32 upper)
 {
     float32 range = upper - lower;
-    if (range <= 0) return lower;
+    if (range <= 0)
+        return lower;
 
     return ((float32)pcgRandom(rng) / (float32)UINT32_MAX * range) + lower;
 }
 
 _Use_decl_annotations_
-float64 pcgFRange64(PcgState *rng, float64 lower, float64 upper)
+float64 pcgFRange64(PcgState* rng, float64 lower, float64 upper)
 {
     float64 range = upper - lower;
-    if (range <= 0) return lower;
+    if (range <= 0)
+        return lower;
 
     return ((float64)pcgRandom64(rng) / (float64)UINT64_MAX * range) + lower;
 }

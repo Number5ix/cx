@@ -157,8 +157,8 @@
 
 #if defined(_MSC_VER)
 
-#include <intrin.h>
 #include <assert.h>
+#include <intrin.h>
 
 #define _COMPILER_MSVC 1
 
@@ -182,8 +182,8 @@
 // We use inline functions for metaprogramming and really, REALLY want them
 // to be inlined
 #define _meta_inline __forceinline
-#define _no_inline __declspec(noinline)
-#pragma warning (disable:6255)
+#define _no_inline   __declspec(noinline)
+#pragma warning(disable : 6255)
 #define stackAlloc(sz) _alloca(sz)
 
 // Sometimes things need to be aligned precisely
@@ -203,16 +203,16 @@
 #if defined(_M_IX86)
 #define _ARCH_X86 1
 #define _ARCH_STR "x86"
-#define _32BIT 1
-#elif defined (_M_X64)
+#define _32BIT    1
+#elif defined(_M_X64)
 #define _ARCH_X64 1
 #define _ARCH_STR "x64"
-#define _64BIT 1
+#define _64BIT    1
 #else
 #error Unsupported architecture
 #endif
 
-#elif defined (__clang__) || (defined(__GNUC__) && __GNUC__ > 4)
+#elif defined(__clang__) || (defined(__GNUC__) && __GNUC__ > 4)
 
 #if defined(__clang__)
 #define _COMPILER_CLANG 1
@@ -243,28 +243,28 @@
 
 // We use inline functions for metaprogramming and really, REALLY want them
 // to be inlined
-#define _meta_inline __attribute__((always_inline)) inline
-#define _no_inline __attribute__((noinline))
-#define stackAlloc(sz) alloca(sz)
+#define _meta_inline    __attribute__((always_inline)) inline
+#define _no_inline      __attribute__((noinline))
+#define stackAlloc(sz)  alloca(sz)
 
 // Sometimes things need to be aligned precisely
 #define alignMem(bytes) __attribute__((aligned(bytes)))
 
 // Hint that some functions never return
-#define _no_return __attribute__((noreturn))
+#define _no_return      __attribute__((noreturn))
 
 #if defined(__linux__)
 #include <alloca.h>
-#define _PLATFORM_UNIX 1
+#define _PLATFORM_UNIX  1
 #define _PLATFORM_LINUX 1
-#define _PLATFORM_STR "linux"
+#define _PLATFORM_STR   "linux"
 #elif defined(__FreeBSD__)
 #define _PLATFORM_UNIX 1
 #define _PLATFORM_FBSD 1
-#define _PLATFORM_STR "fbsd"
+#define _PLATFORM_STR  "fbsd"
 #elif defined(__EMSCRIPTEN__)
 #define _PLATFORM_WASM 1
-#define _PLATFORM_STR "wasm"
+#define _PLATFORM_STR  "wasm"
 #else
 #error Unsupported operating system
 #endif
@@ -272,19 +272,19 @@
 #if defined(__x86_32__)
 #define _ARCH_X86 1
 #define _ARCH_STR "x86"
-#define _32BIT 1
+#define _32BIT    1
 #elif defined(__x86_64__)
 #define _ARCH_X64 1
 #define _ARCH_STR "x64"
-#define _64BIT 1
-#elif defined (__aarch64__)
+#define _64BIT    1
+#elif defined(__aarch64__)
 #define _ARCH_ARM64 1
-#define _ARCH_STR "arm64"
-#define _64BIT 1
+#define _ARCH_STR   "arm64"
+#define _64BIT      1
 #elif defined(__EMSCRIPTEN__)
 #define _ARCH_WASM 1
-#define _ARCH_STR "wasm32"
-#define _32BIT 1
+#define _ARCH_STR  "wasm32"
+#define _32BIT     1
 #else
 #error Unsupported architecture
 #endif

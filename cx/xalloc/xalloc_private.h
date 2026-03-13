@@ -1,8 +1,8 @@
 #pragma once
 
-#include "xalloc.h"
 #include <cx/platform/base.h>
 #include <cx/utils/lazyinit.h>
+#include "xalloc.h"
 
 #ifndef XALLOC_USE_SYSTEM_MALLOC
 #include <mimalloc.h>
@@ -29,8 +29,7 @@ void _xaFreeUpMemory(int phase, size_t allocsz);
 
 // If flags do not include one of the optional flags, this function
 // asserts and does not return.
-_When_(!(flags & XA_Optional_Mask), _Analysis_noreturn_)
-void _xaAllocFailure(size_t allocsz, unsigned int flags);
+_When_(!(flags & XA_Optional_Mask), _Analysis_noreturn_) void _xaAllocFailure(size_t allocsz, unsigned int flags);
 
 #ifndef XALLOC_USE_SYSTEM_MALLOC
 void _xaInitOutput(void);

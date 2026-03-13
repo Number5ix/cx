@@ -34,7 +34,8 @@ void MultiphaseTask_destroy(_In_ MultiphaseTask* self)
     // Autogen ends -------
 }
 
-uint32 MultiphaseTask_run(_In_ MultiphaseTask* self, _In_ TaskQueue* tq, _In_ TQWorker* worker, _Inout_ TaskControl* tcon)
+uint32 MultiphaseTask_run(_In_ MultiphaseTask* self, _In_ TaskQueue* tq, _In_ TQWorker* worker,
+                          _Inout_ TaskControl* tcon)
 {
     bool done = false;
     uint32 ret;

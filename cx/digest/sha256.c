@@ -27,7 +27,7 @@
  * POSSIBILITY OF SUCH DAMAGE. */
 
 static const uint32 sha256_init_state[] = { 0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
-                                          0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19 };
+                                            0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19 };
 
 /* SHA2 round constants */
 static const uint32 sha2_const[64] = {
@@ -73,7 +73,8 @@ void _sha256Block(Digest* digest)
     }
 
     for (i = 0; i < 64; i++) {
-        t1 = h + (ROR(e, 6) ^ ROR(e, 11) ^ ROR(e, 25)) + ((e & f) ^ (~e & g)) + sha2_const[i] + w[i];
+        t1 = h + (ROR(e, 6) ^ ROR(e, 11) ^ ROR(e, 25)) + ((e & f) ^ (~e & g)) + sha2_const[i] +
+            w[i];
         t2 = (ROR(a, 2) ^ ROR(a, 13) ^ ROR(a, 22)) + ((a & b) ^ (a & c) ^ (b & c));
 
         h = g;

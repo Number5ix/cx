@@ -24,4 +24,4 @@
 ///
 /// The captured addresses can be symbolicated using debugging tools (WinDbg, etc.)
 /// or programmatically with `SymFromAddr` and related Windows debugging APIs.
-int dbgStackTrace(int nskip, int nframes, uintptr_t *addrs);
+int dbgStackTrace(int nskip, int nframes, uintptr_t* addrs);

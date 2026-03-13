@@ -1,20 +1,20 @@
 #include "thread_private.h"
 #include <cx/container/foreach.h>
 #include <cx/container/sarray.h>
-#include <cx/time/time.h>
 #include <cx/string.h>
+#include <cx/time/time.h>
 
 #define THREAD_SHUTDOWN_TIMEOUT timeFromSeconds(30)
 
 _Use_decl_annotations_
 Thread* _thrCreate(threadFunc func, strref name, int n, stvar args[], bool ui)
 {
-    Thread *ret = _throbjCreate(func, name, n, args, ui);
+    Thread* ret = _throbjCreate(func, name, n, args, ui);
 
     atomicStore(bool, &ret->running, true, Relaxed);
     // This is the reference for the newly created thread, it gets released inside the
     // platform-specific thread proc just before exiting
-    Thread *cret = objAcquire(ret);
+    Thread* cret = objAcquire(ret);
     if (!_thrPlatformStart(ret)) {
         // if thread creation failed, have to release both the thread's reference
         // AND the one we'd return to the caller
@@ -29,7 +29,7 @@ Thread* _thrCreate(threadFunc func, strref name, int n, stvar args[], bool ui)
 _Use_decl_annotations_
 void _thrRun(threadFunc func, strref name, int n, stvar args[])
 {
-    Thread *ret = _throbjCreate(func, name, n, args, false);
+    Thread* ret = _throbjCreate(func, name, n, args, false);
 
     atomicStore(bool, &ret->running, true, Relaxed);
     if (!_thrPlatformStart(ret)) {
@@ -39,7 +39,7 @@ void _thrRun(threadFunc func, strref name, int n, stvar args[])
 }
 
 _Use_decl_annotations_
-bool thrWait(Thread *thread, int64 timeout)
+bool thrWait(Thread* thread, int64 timeout)
 {
     if (!atomicLoad(bool, &thread->running, Acquire))
         return true;
@@ -54,7 +54,7 @@ bool thrWait(Thread *thread, int64 timeout)
 }
 
 _Use_decl_annotations_
-bool thrShutdown(Thread *thread)
+bool thrShutdown(Thread* thread)
 {
     if (!thread)
         return false;
@@ -79,7 +79,7 @@ int thrShutdownMany(sa_Thread threads)
     int64 start = clockTimer();
 
     // pass 1: signal all of the threads to exit
-    foreach(sarray, idx, Thread *, thread, threads) {
+    foreach (sarray, idx, Thread*, thread, threads) {
         if (atomicLoad(bool, &thread->running, Acquire)) {
             thrRequestExit(thread);
         }
@@ -87,8 +87,7 @@ int thrShutdownMany(sa_Thread threads)
 
     int count = 0;
     // pass 2: wait for them to finish exiting
-    foreach(sarray, idx, Thread *, thread, threads)
-    {
+    foreach (sarray, idx, Thread*, thread, threads) {
         // Since all threads are shutting down in parallel, don't wait
         // THREAD_SHUTDOWN_TIMEOUT on each one separately. Instead base
         // the timeout on the total time this function has been waiting
@@ -102,7 +101,7 @@ int thrShutdownMany(sa_Thread threads)
 }
 
 _Use_decl_annotations_
-bool thrRequestExit(Thread *thread)
+bool thrRequestExit(Thread* thread)
 {
     if (!thread || !atomicLoad(bool, &thread->running, Acquire))
         return false;
