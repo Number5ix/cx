@@ -359,48 +359,6 @@ void _strInitStack(_Inout_ _Deref_pre_valid_ _Deref_post_opt_valid_ strhandle ps
 
 /// @}  // end of core string functions group
 
-#ifdef _WIN32
-// definition of _S interferes with this header, so include it first
-#include <mmintrin.h>
-#include <wchar.h>
-#endif
-
-/// @defgroup string_literals String Literal Macros
-/// @ingroup string
-/// @brief Create static strings from compile-time constants
-///
-/// These macros convert C string literals into CX string objects by prepending
-/// a minimal header. The strings are static and don't need to be destroyed.
-/// They cannot be modified (attempts to modify will cause a copy).
-///
-/// Choose the appropriate macro based on content:
-///   - _S  - Pure ASCII (most common, allows ASCII-specific optimizations)
-///   - _SU - UTF-8 encoded (multi-byte characters)
-///   - _SO - Other encoding or raw binary data
-///
-/// Example:
-/// @code
-///   string s1 = _S"Hello";           // ASCII literal
-///   string s2 = _SU"Hello 世界";     // UTF-8 literal
-///   strDup(&s1, _S"World");          // Can use in any string function
-/// @endcode
-/// @{
-
-/// @def _S
-/// @brief Creates a static ASCII string from a string literal
-/// @hideinitializer
-#define _S (string)"\xE0\xC1"
-
-/// @def _SU
-/// @brief Creates a static UTF-8 string from a string literal
-/// @hideinitializer
-#define _SU (string)"\xA0\xC1"
-
-/// @def _SO
-/// @brief Creates a static string with other/unknown encoding from a literal
-/// @hideinitializer
-#define _SO (string)"\x80\xC1"
-
-/// @}  // end of string_literals group
+#include "strliteral.h"
 
 CX_C_END

@@ -640,6 +640,100 @@ static int test_num()
     return 0;
 }
 
+// File-scope STR_CONST declarations (all platforms, compile-time length)
+STR_CONST(kLitAscii, "hello");
+STR_CONSTU(kLitUtf8, "caf\xC3\xA9");   // "café" in UTF-8
+STR_CONSTO(kLitOther, "raw\x01\x02");
+STR_CONSTL(kLitLong, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!!!");
+STR_CONSTUL(kLitLongU, "\xC3\xA9\xC3\xA0\xC3\xAA\xC3\xAB");   // "éàêë" in UTF-8
+STR_CONSTOL(kLitLongO, "bin\x01\x02\x03\x04");
+
+static int test_literal()
+{
+    // --- _S / _SU / _SO: STR_LEN0, runtime strlen ---
+    if (strLen(_S"hello") != 5)
+        return 1;
+    if (strLen(_SU "caf\xC3\xA9") != 5)
+        return 2;
+    if (strLen(_SO "raw") != 3)
+        return 3;
+    if (!strEq(_S"hello", _S"hello"))
+        return 4;
+
+    // --- STR_CONST family (file-scope declarations, compile-time length) ---
+    if (strLen(kLitAscii) != 5)
+        return 10;
+    if (!strEq(kLitAscii, _S"hello"))
+        return 11;
+
+    if (strLen(kLitUtf8) != 5)
+        return 12;   // 4 ASCII + 2-byte sequence = 5 bytes
+    if (!strEq(kLitUtf8, _SU "caf\xC3\xA9"))
+        return 13;
+
+    if (strLen(kLitOther) != 5)
+        return 14;
+    if (!strEq(kLitOther, _SO "raw\x01\x02"))
+        return 15;
+
+    if (strLen(kLitLong) != 65)
+        return 16;
+    if (!strEq(kLitLong, _S"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!!!"))
+        return 17;
+
+    if (strLen(kLitLongU) != 8)
+        return 18;   // 4 x 2-byte UTF-8 sequences
+    if (!strEq(kLitLongU, _SU "\xC3\xA9\xC3\xA0\xC3\xAA\xC3\xAB"))
+        return 19;
+
+    if (strLen(kLitLongO) != 7)
+        return 20;
+    if (!strEq(kLitLongO, _SO "bin\x01\x02\x03\x04"))
+        return 21;
+
+    // --- _SL / _SLU / _SLO: STR_LEN8 on GCC/Clang, STR_LEN0 on MSVC ---
+    // In all cases length and content must be correct regardless of platform.
+    if (strLen(_SL("hello")) != 5)
+        return 30;
+    if (!strEq(_SL("hello"), _S"hello"))
+        return 31;
+
+    if (strLen(_SLU("caf\xC3\xA9")) != 5)
+        return 32;
+    if (!strEq(_SLU("caf\xC3\xA9"), kLitUtf8))
+        return 33;
+
+    if (strLen(_SLO("raw\x01\x02")) != 5)
+        return 34;
+    if (!strEq(_SLO("raw\x01\x02"), kLitOther))
+        return 35;
+
+    // --- _SLL / _SLUL / _SLOL: STR_LEN16 on GCC/Clang, STR_LEN0 on MSVC ---
+    if (strLen(_SLL("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!!!")) != 65)
+        return 40;
+    if (!strEq(_SLL("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!!!"), kLitLong))
+        return 41;
+
+    if (strLen(_SLUL("\xC3\xA9\xC3\xA0\xC3\xAA\xC3\xAB")) != 8)
+        return 42;
+    if (!strEq(_SLUL("\xC3\xA9\xC3\xA0\xC3\xAA\xC3\xAB"), kLitLongU))
+        return 43;
+
+    if (strLen(_SLOL("bin\x01\x02\x03\x04")) != 7)
+        return 44;
+    if (!strEq(_SLOL("bin\x01\x02\x03\x04"), kLitLongO))
+        return 45;
+
+    // --- STR_CONST as function-scope static ---
+    STR_CONST(kLocal, "local constant");
+    if (strLen(kLocal) != 14)
+        return 50;
+    if (!strEq(kLocal, _S"local constant"))
+        return 51;
+
+    return 0;
+}
+
 testfunc strtest_funcs[] = {
     { "join",       test_join    },
     { "append",     test_append  },
@@ -648,5 +742,6 @@ testfunc strtest_funcs[] = {
     { "longstring", test_long    },
     { "rope",       test_rope    },
     { "num",        test_num     },
+    { "literal",    test_literal },
     { 0,            0            }
 };

@@ -56,6 +56,7 @@ static const testspec tests[] = {
     { "string: Long Strings", "strtest", "longstring" },
     { "string: Ropes", "strtest", "rope" },
     { "string: Numeric Conversions", "strtest", "num" },
+    { "string: Literals", "strtest", "literal" },
     { "hashtable: Init", "httest", "init" },
     { "hashtable: Insert", "httest", "insert" },
     { "hashtable: Find", "httest", "find" },
