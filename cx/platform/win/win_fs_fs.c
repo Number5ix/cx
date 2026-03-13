@@ -9,8 +9,7 @@
 static LazyInitState fsCurDirInit;
 RWLock _fsCurDirLock;
 string _fsCurDir = 0;
-STR_CONST(kPlatformPathSepStr, "\\");
-strref fsPlatformPathSepStr = kPlatformPathSepStr;
+strref fsPlatformPathSepStr = (strref)"\xE1\xC1\x01""\\";
 
 STR_CONST(kPlatformNTPrefix, "\\\\?\\");
 STR_CONST(kPlatformUNCPrefix, "\\\\?\\UNC\\");
