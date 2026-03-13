@@ -30,8 +30,8 @@ enum STRING_SPECIAL {
 /// input strings and destroy them after use. This allows for more efficient memory
 /// reuse when you no longer need the source strings:
 /// @code
-///   string s1 = _S"hello";
-///   string s2 = _S" world";
+///   string s1 = _SL("hello");
+///   string s2 = _SL(" world");
 ///   string result = 0;
 ///   strConcatC(&result, &s1, &s2);  // s1 and s2 are now NULL
 /// @endcode
@@ -41,7 +41,7 @@ enum STRING_SPECIAL {
 /// Functions ending in 'I' modify the string in-place, efficiently reusing the
 /// existing buffer when possible:
 /// @code
-///   string s = _S"hello world";
+///   string s = _SL("hello world");
 ///   strSubStrI(&s, 0, 5);  // s is now "hello"
 /// @endcode
 ///
@@ -71,8 +71,8 @@ enum STRING_SPECIAL {
 /// Example:
 /// @code
 ///   string s = 0;
-///   strDup(&s, _S"Hello");
-///   strAppend(&s, _S" World");  // s is now "Hello World"
+///   strDup(&s, _SL("Hello"));
+///   strAppend(&s, _SL(" World"));  // s is now "Hello World"
 ///   strDestroy(&s);
 /// @endcode
 bool strAppend(_Inout_ strhandle io, _In_opt_ strref s);
@@ -89,8 +89,8 @@ bool strAppend(_Inout_ strhandle io, _In_opt_ strref s);
 /// Example:
 /// @code
 ///   string s = 0;
-///   strDup(&s, _S"World");
-///   strPrepend(_S"Hello ", &s);  // s is now "Hello World"
+///   strDup(&s, _SL("World"));
+///   strPrepend(_SL("Hello "), &s);  // s is now "Hello World"
 ///   strDestroy(&s);
 /// @endcode
 bool strPrepend(_In_opt_ strref s, _Inout_ strhandle io);
@@ -110,7 +110,7 @@ bool strPrepend(_In_opt_ strref s, _Inout_ strhandle io);
 /// Example:
 /// @code
 ///   string result = 0;
-///   strConcat(&result, _S"Hello", _S" World");
+///   strConcat(&result, _SL("Hello"), _SL(" World"));
 ///   // result is "Hello World"
 ///   strDestroy(&result);
 /// @endcode
@@ -130,8 +130,8 @@ bool strConcat(_Inout_ strhandle o, _In_opt_ strref s1, _In_opt_ strref s2);
 /// Example:
 /// @code
 ///   string s1 = 0, s2 = 0, result = 0;
-///   strDup(&s1, _S"Hello");
-///   strDup(&s2, _S" World");
+///   strDup(&s1, _SL("Hello"));
+///   strDup(&s2, _SL(" World"));
 ///   strConcatC(&result, &s1, &s2);
 ///   // result is "Hello World", s1 and s2 are now NULL
 ///   strDestroy(&result);
@@ -154,7 +154,7 @@ bool strConcatC(_Inout_ strhandle o, _Inout_ strhandle sc1, _Inout_ strhandle sc
 /// Example:
 /// @code
 ///   string result = 0;
-///   strNConcat(&result, _S"Hello", _S" ", _S"World", _S"!");
+///   strNConcat(&result, _SL("Hello"), _SL(" "), _SL("World"), _SL("!"));
 ///   // result is "Hello World!"
 ///   strDestroy(&result);
 /// @endcode
@@ -178,9 +178,9 @@ bool _strNConcat(_Inout_ strhandle o, int n, _In_ strref* _Nonnull stra);
 /// Example:
 /// @code
 ///   string s1 = 0, s2 = 0, s3 = 0, result = 0;
-///   strDup(&s1, _S"Hello");
-///   strDup(&s2, _S" ");
-///   strDup(&s3, _S"World");
+///   strDup(&s1, _SL("Hello"));
+///   strDup(&s2, _SL(" "));
+///   strDup(&s3, _SL("World"));
 ///   strNConcatC(&result, &s1, &s2, &s3);
 ///   // result is "Hello World", s1/s2/s3 are now NULL
 ///   strDestroy(&result);
@@ -206,9 +206,9 @@ bool _strNConcatC(_Inout_ strhandle o, int n, _Inout_ strhandle* _Nonnull stra);
 /// Example:
 /// @code
 ///   string sub = 0;
-///   strSubStr(&sub, _S"Hello World", 0, 5);    // "Hello"
-///   strSubStr(&sub, _S"Hello World", 6, strEnd); // "World"
-///   strSubStr(&sub, _S"Hello World", -5, strEnd); // "World" (last 5 chars)
+///   strSubStr(&sub, _SL("Hello World"), 0, 5);    // "Hello"
+///   strSubStr(&sub, _SL("Hello World"), 6, strEnd); // "World"
+///   strSubStr(&sub, _SL("Hello World"), -5, strEnd); // "World" (last 5 chars)
 ///   strDestroy(&sub);
 /// @endcode
 bool strSubStr(_Inout_ strhandle o, _In_opt_ strref s, int32 b, int32 e);
@@ -228,7 +228,7 @@ bool strSubStr(_Inout_ strhandle o, _In_opt_ strref s, int32 b, int32 e);
 /// Example:
 /// @code
 ///   string s = 0, sub = 0;
-///   strDup(&s, _S"Hello World");
+///   strDup(&s, _SL("Hello World"));
 ///   strSubStrC(&sub, &s, 0, 5);  // sub is "Hello", s is now NULL
 ///   strDestroy(&sub);
 /// @endcode
@@ -247,7 +247,7 @@ bool strSubStrC(_Inout_ strhandle o, _Inout_ strhandle sc, int32 b, int32 e);
 /// Example:
 /// @code
 ///   string s = 0;
-///   strDup(&s, _S"Hello World");
+///   strDup(&s, _SL("Hello World"));
 ///   strSubStrI(&s, 0, 5);  // s is now "Hello"
 ///   strDestroy(&s);
 /// @endcode
@@ -266,7 +266,7 @@ bool strSubStrI(_Inout_ strhandle io, int32 b, int32 e);
 /// Example:
 /// @code
 ///   string s = 0;
-///   strDup(&s, _S"hello world");
+///   strDup(&s, _SL("hello world"));
 ///   strUpper(&s);  // s is now "HELLO WORLD"
 ///   strDestroy(&s);
 /// @endcode
@@ -285,7 +285,7 @@ void strUpper(_Inout_ strhandle io);
 /// Example:
 /// @code
 ///   string s = 0;
-///   strDup(&s, _S"HELLO WORLD");
+///   strDup(&s, _SL("HELLO WORLD"));
 ///   strLower(&s);  // s is now "hello world"
 ///   strDestroy(&s);
 /// @endcode
@@ -305,13 +305,13 @@ void strLower(_Inout_ strhandle io);
 /// Example:
 /// @code
 ///   sa_string parts = {0};
-///   strSplit(&parts, _S"a,b,c", _S",", false);
+///   strSplit(&parts, _SL("a,b,c"), _SL(","), false);
 ///   // parts contains ["a", "b", "c"]
 ///   for (int i = 0; i < saSize(parts); i++)
 ///       strDestroy(&parts.a[i]);
 ///   saDestroy(&parts);
 ///
-///   strSplit(&parts, _S"a,,b", _S",", true);
+///   strSplit(&parts, _SL("a,,b"), _SL(","), true);
 ///   // parts contains ["a", "", "b"] (empty segment preserved)
 ///   saDestroy(&parts);
 /// @endcode
@@ -331,10 +331,10 @@ int32 strSplit(_Inout_ sa_string* _Nonnull out, _In_opt_ strref s, _In_opt_ strr
 /// Example:
 /// @code
 ///   sa_string parts = {0};
-///   saPush(&parts, string, _S"Hello");
-///   saPush(&parts, string, _S"World");
+///   saPush(&parts, string, _SL("Hello"));
+///   saPush(&parts, string, _SL("World"));
 ///   string result = 0;
-///   strJoin(&result, parts, _S" ");
+///   strJoin(&result, parts, _SL(" "));
 ///   // result is "Hello World"
 ///   strDestroy(&result);
 ///   saDestroy(&parts);
@@ -355,8 +355,8 @@ bool strJoin(_Inout_ strhandle out, _In_ sa_string arr, _In_opt_ strref sep);
 ///
 /// Example:
 /// @code
-///   uint8 ch = strGetChar(_S"Hello", 0);    // 'H'
-///   ch = strGetChar(_S"Hello", -1);         // 'o' (last char)
+///   uint8 ch = strGetChar(_SL("Hello"), 0);    // 'H'
+///   ch = strGetChar(_SL("Hello"), -1);         // 'o' (last char)
 /// @endcode
 uint8 strGetChar(_In_opt_ strref str, int32 i);
 
@@ -378,7 +378,7 @@ uint8 strGetChar(_In_opt_ strref str, int32 i);
 /// Example:
 /// @code
 ///   string s = 0;
-///   strDup(&s, _S"Hello");
+///   strDup(&s, _SL("Hello"));
 ///   strSetChar(&s, 0, 'h');      // s is now "hello"
 ///   strSetChar(&s, strEnd, '!'); // s is now "hello!"
 ///   strDestroy(&s);

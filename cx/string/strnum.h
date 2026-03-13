@@ -53,11 +53,11 @@ CX_C_BEGIN
 /// Example:
 /// @code
 ///   int32 value;
-///   strToInt32(&value, _S"123", 10, true);       // value = 123
-///   strToInt32(&value, _S"-42", 10, true);       // value = -42
-///   strToInt32(&value, _S"0xFF", 0, true);       // value = 255
-///   strToInt32(&value, _S"123abc", 10, false);   // value = 123, ok
-///   strToInt32(&value, _S"123abc", 10, true);    // false, strict mode
+///   strToInt32(&value, _SL("123"), 10, true);       // value = 123
+///   strToInt32(&value, _SL("-42"), 10, true);       // value = -42
+///   strToInt32(&value, _SL("0xFF"), 0, true);       // value = 255
+///   strToInt32(&value, _SL("123abc"), 10, false);   // value = 123, ok
+///   strToInt32(&value, _SL("123abc"), 10, true);    // false, strict mode
 /// @endcode
 _strNumSuccess bool strToInt32(_Out_ int32* _Nonnull out, _In_opt_ strref s, int base, bool strict);
 
@@ -75,8 +75,8 @@ _strNumSuccess bool strToInt32(_Out_ int32* _Nonnull out, _In_opt_ strref s, int
 /// Example:
 /// @code
 ///   uint32 value;
-///   strToUInt32(&value, _S"255", 10, true);      // value = 255
-///   strToUInt32(&value, _S"0xFF", 0, true);      // value = 255
+///   strToUInt32(&value, _SL("255"), 10, true);      // value = 255
+///   strToUInt32(&value, _SL("0xFF"), 0, true);      // value = 255
 /// @endcode
 _strNumSuccess bool strToUInt32(_Out_ uint32* _Nonnull out, _In_opt_ strref s, int base,
                                 bool strict);
@@ -177,9 +177,9 @@ bool strFromUInt64(_Inout_ strhandle out, uint64 i, uint16 base);
 /// Example:
 /// @code
 ///   float32 value;
-///   strToFloat32(&value, _S"3.14", true);       // value = 3.14
-///   strToFloat32(&value, _S"-1.5e2", true);     // value = -150.0
-///   strToFloat32(&value, _S"inf", true);        // value = infinity
+///   strToFloat32(&value, _SL("3.14"), true);       // value = 3.14
+///   strToFloat32(&value, _SL("-1.5e2"), true);     // value = -150.0
+///   strToFloat32(&value, _SL("inf"), true);        // value = infinity
 /// @endcode
 _strNumSuccess bool strToFloat32(_Out_ float32* _Nonnull out, _In_opt_ strref s, bool strict);
 
@@ -196,8 +196,8 @@ _strNumSuccess bool strToFloat32(_Out_ float32* _Nonnull out, _In_opt_ strref s,
 /// Example:
 /// @code
 ///   float64 value;
-///   strToFloat64(&value, _S"3.141592653589793", true);
-///   strToFloat64(&value, _S"2.5e-10", true);
+///   strToFloat64(&value, _SL("3.141592653589793"), true);
+///   strToFloat64(&value, _SL("2.5e-10"), true);
 /// @endcode
 _strNumSuccess bool strToFloat64(_Out_ float64* _Nonnull out, _In_opt_ strref s, bool strict);
 

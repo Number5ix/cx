@@ -121,7 +121,7 @@ typedef struct FSStat {
 /// Example:
 /// @code
 ///   FSStat stat;
-///   if (fsStat(_S"file.txt", &stat) == FS_File) {
+///   if (fsStat(_SL("file.txt"), &stat) == FS_File) {
 ///       // file exists, stat.size contains the size
 ///   }
 /// @endcode
@@ -258,7 +258,7 @@ typedef struct FSSearchIter {
 /// Example:
 /// @code
 ///   FSSearchIter iter;
-///   if (fsSearchInit(&iter, _S"/some/dir", _S"*.txt", false)) {
+///   if (fsSearchInit(&iter, _SL("/some/dir"), _SL("*.txt"), false)) {
 ///       do {
 ///           printf("Found: %s\n", strC(iter.name));
 ///       } while (fsSearchNext(&iter));
@@ -296,7 +296,7 @@ void fsSearchFinish(_Inout_ FSSearchIter* iter);
 /// Example:
 /// @code
 ///   FSSearchIter iter;
-///   fsSearchInit(&iter, _S"/some/dir", _S"*.txt", false);
+///   fsSearchInit(&iter, _SL("/some/dir"), _SL("*.txt"), false);
 ///   while(fsSearchValid(&iter)) {
 ///       printf("Found: %s\n", strC(iter.name));
 ///       fsSearchNext(&iter);

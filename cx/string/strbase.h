@@ -96,7 +96,7 @@ void strReset(_Inout_ptr_opt_ strhandle o, uint32 sizehint);
 /// Example:
 /// @code
 ///   string s1 = 0;
-///   strDup(&s1, _S"hello");  // Efficient reference
+///   strDup(&s1, _SL("hello"));  // Efficient reference
 ///   string s2 = 0;
 ///   strDup(&s2, s1);         // Shares buffer with s1
 /// @endcode
@@ -115,7 +115,7 @@ void strDup(_Inout_ strhandle o, _In_opt_ strref s);
 ///
 /// Example:
 /// @code
-///   string original = _S"shared";
+///   string original = _SL("shared");
 ///   string copy = 0;
 ///   strCopy(&copy, original);  // Independent copy
 /// @endcode
@@ -151,7 +151,7 @@ void strClear(_Inout_ strhandle ps);
 ///
 /// Example:
 /// @code
-///   uint32 len = strLen(_S"hello");  // Returns 5
+///   uint32 len = strLen(_SL("hello"));  // Returns 5
 /// @endcode
 _When_(s == NULL, _Post_equal_to_(0)) _Pure uint32 strLen(_In_opt_ strref s);
 
@@ -202,7 +202,7 @@ _When_(s == NULL, _Post_equal_to_(true)) _Pure bool strEmpty(_In_opt_ strref s);
 ///
 /// Example:
 /// @code
-///   string s = _S"hello";
+///   string s = _SL("hello");
 ///   strDestroy(&s);  // s is now NULL
 /// @endcode
 void strDestroy(_Inout_ strhandle ps);

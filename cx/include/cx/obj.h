@@ -96,7 +96,7 @@
 ///
 /// @code
 /// // Create object using factory method (usually 'create', but can vary)
-/// Document *doc = documentCreate(_S"My Document");
+/// Document *doc = documentCreate(_SL("My Document"));
 ///
 /// // Call methods using wrapper macros (most common)
 /// documentPrint(doc);
@@ -110,7 +110,7 @@
 /// @code
 /// Document *doc = 0;  // NULL until assigned
 /// if (condition) {
-///     doc = documentCreate(_S"Title");
+///     doc = documentCreate(_SL("Title"));
 /// }
 /// @endcode
 ///
@@ -171,7 +171,7 @@
 ///
 /// @code
 /// // Most common: use class wrapper macros
-/// Document *doc = documentCreate(_S"Title");
+/// Document *doc = documentCreate(_SL("Title"));
 /// documentPrint(doc);  // Calls Printable->print implementation
 ///
 /// // Query interface when you only have an interface pointer
@@ -198,7 +198,7 @@
 /// }
 ///
 /// // Usage - class name is fully lowercase in wrapper
-/// SpecialDocument *special = specialdocumentCreate(_S"Important", 10);
+/// SpecialDocument *special = specialdocumentCreate(_SL("Important"), 10);
 ///
 /// // Optionally override the prefix with methodprefix annotation:
 /// [methodprefix sdoc]
@@ -225,7 +225,7 @@
 /// Weak references allow observing objects without ownership:
 ///
 /// @code
-/// Document *doc = documentCreate(_S"Title");
+/// Document *doc = documentCreate(_SL("Title"));
 /// Weak(Document) *weak = objGetWeak(Document, doc);
 ///
 /// // Later, try to acquire (returns NULL if object was destroyed)

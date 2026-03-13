@@ -18,7 +18,7 @@
 ///   LogDest *dest = logmembufRegister(LOG_Debug, NULL, lmd);
 ///   
 ///   // Log some messages
-///   logStr(Info, _S"Test message");
+///   logStr(Info, _SL("Test message"));
 ///   logFlush();
 ///   
 ///   // Access the buffer contents directly

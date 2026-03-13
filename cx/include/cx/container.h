@@ -74,7 +74,7 @@
 /// Containers use the stype system for element management. When you write:
 /// @code
 ///   saInit(&arr, string, 16);
-///   saPush(&arr, string, _S"hello");
+///   saPush(&arr, string, _SL("hello"));
 /// @endcode
 ///
 /// The macros expand to:
@@ -160,7 +160,7 @@
 ///   sa_int32 arr;
 ///   saInit(&arr, int32, 16);
 ///   saPush(&arr, int32, 42);        // OK: correct type
-///   saPush(&arr, int32, _S"text");  // ERROR: incompatible value type detected at compile-time
+///   saPush(&arr, int32, _SL("text"));  // ERROR: incompatible value type detected at compile-time
 /// @endcode
 ///
 /// **Runtime Checking**: In debug and development builds, assertions verify:
@@ -189,8 +189,8 @@
 ///   // String to integer map
 ///   hashtable scores;
 ///   htInit(&scores, string, int32, 16);
-///   htInsert(&scores, string, _S"Alice", int32, 95);
-///   htInsert(&scores, string, _S"Bob", int32, 87);
+///   htInsert(&scores, string, _SL("Alice"), int32, 95);
+///   htInsert(&scores, string, _SL("Bob"), int32, 87);
 /// @endcode
 ///
 /// **Iteration**:
@@ -218,7 +218,7 @@
 ///
 ///   // Hash table lookup
 ///   int32 score;
-///   if (htFind(scores, string, _S"Alice", int32, &score)) {
+///   if (htFind(scores, string, _SL("Alice"), int32, &score)) {
 ///       // found, score contains value
 ///   }
 /// @endcode
@@ -238,12 +238,12 @@
 /// @code
 ///   hashtable config = 0;
 ///   htInit(&config, string, stvar, 16);
-///   htInsert(&config, string, _S"port", stvar, stvar(int32, 8080));
-///   htInsert(&config, string, _S"host", stvar, stvar(string, _S"localhost"));
-///   htInsert(&config, string, _S"debug", stvar, stvar(bool, true));
+///   htInsert(&config, string, _SL("port"), stvar, stvar(int32, 8080));
+///   htInsert(&config, string, _SL("host"), stvar, stvar(string, _SL("localhost")));
+///   htInsert(&config, string, _SL("debug"), stvar, stvar(bool, true));
 ///
 ///   stvar val;
-///   if (htFind(config, string, _S"port", stvar, &val)) {
+///   if (htFind(config, string, _SL("port"), stvar, &val)) {
 ///       if (val.type == stType(int32)) {
 ///           int32 port = val.data.st_int32;
 ///       }

@@ -21,7 +21,7 @@
 ///       .flags = LOG_IncludeCategory
 ///   };
 ///
-///   LogFileData *lfd = logfileCreate(vfs, _S"app.log", &cfg);
+///   LogFileData *lfd = logfileCreate(vfs, _SL("app.log"), &cfg);
 ///   LogDest *dest = logfileRegister(LOG_Info, NULL, lfd);
 ///
 ///   // Later, unregister to close
@@ -103,7 +103,7 @@ typedef struct LogFileData LogFileData;
 ///       .spacing = 2,
 ///       .flags = LOG_IncludeCategory | LOG_BracketLevel
 ///   };
-///   LogFileData *lfd = logfileCreate(vfs, _S"server.log", &cfg);
+///   LogFileData *lfd = logfileCreate(vfs, _SL("server.log"), &cfg);
 /// @endcode
 LogFileData* logfileCreate(_Inout_ VFS* vfs, _In_ strref filename, _In_ LogFileConfig* config);
 
@@ -136,7 +136,7 @@ LogDest* logfileRegister(int maxlevel, _In_opt_ LogCategory* catfilter, _In_ Log
 ///   LogDest *deferdest = logDeferRegister(LOG_Info, NULL, deferdata);
 ///
 ///   // Later - open file and transfer buffered logs
-///   LogFileData *lfd = logfileCreate(vfs, _S"app.log", &cfg);
+///   LogFileData *lfd = logfileCreate(vfs, _SL("app.log"), &cfg);
 ///   LogDest *dest = logfileRegisterWithDefer(LOG_Info, NULL, lfd, deferdest);
 /// @endcode
 LogDest* logfileRegisterWithDefer(int maxlevel, _In_opt_ LogCategory* catfilter,

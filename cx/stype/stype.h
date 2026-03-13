@@ -59,7 +59,7 @@
 ///
 /// **Generic function parameters** use macros that expand to type-value pairs:
 /// @code
-///   htInsert(&ht, string, _S"key", int32, 42);
+///   htInsert(&ht, string, _SL("key"), int32, 42);
 ///   // Expands to type descriptors + type-checked values
 /// @endcode
 ///
@@ -790,9 +790,9 @@ _meta_inline stype _stype_mkcustom(stype base)
 ///   stype t = stType(int32);
 ///
 ///   // Generic container operations
-///   htInsert(&ht, string, _S"key", int32, 42);
+///   htInsert(&ht, string, _SL("key"), int32, 42);
 ///   // Expands to:
-///   _htInsert(&ht, stType(string), stArg(string, _S"key"),
+///   _htInsert(&ht, stType(string), stArg(string, _SL("key")),
 ///                  stType(int32), stArg(int32, 42));
 ///
 ///   // Low-level operations with full type info
@@ -1038,7 +1038,7 @@ _meta_inline stype _stype_mkcustom(stype base)
 ///   _saPush(handle, stCheckedArg(int32, 42));
 ///   // Expands to: _saPush(handle, stType(int32), stArg(int32, 42))
 ///
-///   htInsert(&ht, string, _S"key", int32, 42);
+///   htInsert(&ht, string, _SL("key"), int32, 42);
 ///   // Each type-value pair uses stCheckedArg internally
 /// @endcode
 #define stCheckedArg(type, val) STypeCheckedArg_##type(type, val)
@@ -1159,8 +1159,8 @@ enum STYPE_OPS_FLAGS {
 ///
 /// Example leak scenario:
 /// @code
-///   string s1 = _S"original";
-///   string s2 = _S"new";
+///   string s1 = _SL("original");
+///   string s2 = _SL("new");
 ///   stCopy(string, &s1, s2);  // LEAKS "original" - should use strDup!
 /// @endcode
 ///
@@ -1371,7 +1371,7 @@ _meta_inline stgeneric _stStoredVal(stype st, _In_ const void* storage)
 ///
 /// Example:
 /// @code
-///   string s = _S"hello";
+///   string s = _SL("hello");
 ///   stDestroy(string, &s);  // s is now invalid
 /// @endcode
 #define stDestroy(type, pobj, ...) \

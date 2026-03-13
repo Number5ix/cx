@@ -49,7 +49,7 @@
 ///
 /// Example:
 /// @code
-///   FSFile *file = fsOpen(_S"data.bin", FS_Read, 0);
+///   FSFile *file = fsOpen(_SL("data.bin"), FS_Read, 0);
 ///   StreamBuffer *sb = sbufCreate(4096);
 ///   sbufStrCRegisterPush(sb, &output);
 ///   sbufFSFileIn(sb, file, true);  // file is closed automatically
@@ -96,7 +96,7 @@ sbufFSFilePRegisterPull(_Inout_ StreamBuffer* sb, _Inout_ FSFile* file, bool clo
 ///
 /// Example:
 /// @code
-///   FSFile *file = fsOpen(_S"output.bin", FS_Write | FS_Create, 0);
+///   FSFile *file = fsOpen(_SL("output.bin"), FS_Write | FS_Create, 0);
 ///   StreamBuffer *sb = sbufCreate(4096);
 ///   sbufStrPRegisterPull(sb, inputData);
 ///   sbufFSFileOut(sb, file, true);  // file is closed automatically

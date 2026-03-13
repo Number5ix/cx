@@ -12,15 +12,15 @@
 ///
 /// **Basic Usage:**
 /// @code
-///   logStr(Info, _S"Application started");
-///   logFmt(Warn, _S"Invalid value: ${int}", stvar(int32, value));
+///   logStr(Info, _SL("Application started"));
+///   logFmt(Warn, _SL("Invalid value: ${int}"), stvar(int32, value));
 /// @endcode
 ///
 /// **Categories:**
 /// Categories allow filtering logs by subsystem. Create a category once and reuse it:
 /// @code
-///   LogCategory *netcat = logCreateCat(_S"Network", false);
-///   logStrC(Info, netcat, _S"Connection established");
+///   LogCategory *netcat = logCreateCat(_SL("Network"), false);
+///   logStrC(Info, netcat, _SL("Connection established"));
 /// @endcode
 ///
 /// **Destinations:**
@@ -28,7 +28,7 @@
 /// active simultaneously:
 /// @code
 ///   // Register a file destination
-///   LogFileData *lfd = logfileCreate(vfs, _S"app.log", &config);
+///   LogFileData *lfd = logfileCreate(vfs, _SL("app.log"), &config);
 ///   LogDest *dest = logfileRegister(LOG_Info, NULL, lfd);
 ///
 ///   // Later, unregister when done
@@ -39,9 +39,9 @@
 /// Batch multiple log messages together to ensure they appear consecutively in output:
 /// @code
 ///   logBatchBegin();
-///   logStr(Info, _S"Starting operation");
-///   logStr(Info, _S"Step 1 complete");
-///   logStr(Info, _S"Step 2 complete");
+///   logStr(Info, _SL("Starting operation"));
+///   logStr(Info, _SL("Step 1 complete"));
+///   logStr(Info, _SL("Step 2 complete"));
 ///   logBatchEnd();
 /// @endcode
 
@@ -100,8 +100,8 @@ typedef struct LogDeferData LogDeferData;
 /// @param priv If true, this is a private category that will be filtered out by default
 /// @return Category handle, or NULL if logging system is not initialized
 /// @code
-///   LogCategory *netcat = logCreateCat(_S"Network", false);
-///   logStrC(Info, netcat, _S"Connection established");
+///   LogCategory *netcat = logCreateCat(_SL("Network"), false);
+///   logStrC(Info, netcat, _SL("Connection established"));
 /// @endcode
 _Ret_opt_valid_ LogCategory* logCreateCat(_In_ strref name, bool priv);
 
@@ -191,9 +191,9 @@ void logRestart(void);
 ///
 /// @code
 ///   logBatchBegin();
-///   logStr(Info, _S"Operation started");
-///   logStr(Info, _S"Step 1 complete");
-///   logStr(Info, _S"Step 2 complete");
+///   logStr(Info, _SL("Operation started"));
+///   logStr(Info, _SL("Step 1 complete"));
+///   logStr(Info, _SL("Step 2 complete"));
 ///   logBatchEnd();  // All three messages delivered together
 /// @endcode
 void logBatchBegin(void);
@@ -229,7 +229,7 @@ void logBatchEnd(void);
 /// @param level Log level without LOG_ prefix (e.g., Info, Warn, Error)
 /// @param str String or string reference to log
 /// @code
-///   logStr(Info, _S"Application started");
+///   logStr(Info, _SL("Application started"));
 ///   logStr(Error, errorMessage);
 /// @endcode
 #define logStr(level, str) _logStr_##level(LOG_##level, LogDefault, str)
@@ -241,8 +241,8 @@ void logBatchEnd(void);
 /// @param cat LogCategory pointer
 /// @param str String or string reference to log
 /// @code
-///   LogCategory *netcat = logCreateCat(_S"Network", false);
-///   logStrC(Info, netcat, _S"Connection established");
+///   LogCategory *netcat = logCreateCat(_SL("Network"), false);
+///   logStrC(Info, netcat, _SL("Connection established"));
 /// @endcode
 #define logStrC(level, cat, str) _logStr_##level(LOG_##level, cat, str)
 
@@ -253,9 +253,9 @@ void logBatchEnd(void);
 /// @param fmt Format string (see @ref string_format for format syntax)
 /// @param ... Format arguments wrapped in stvar()
 /// @code
-///   logFmt(Info, _S"Connection from ${string}:${int}",
+///   logFmt(Info, _SL("Connection from ${string}:${int}"),
 ///          stvar(string, hostname), stvar(int32, port));
-///   logFmt(Warn, _S"Invalid value: ${int}", stvar(int32, value));
+///   logFmt(Warn, _SL("Invalid value: ${int}"), stvar(int32, value));
 /// @endcode
 #define logFmt(level, fmt, ...)                    \
     _logFmt_##level(LOG_##level,                   \
@@ -272,8 +272,8 @@ void logBatchEnd(void);
 /// @param fmt Format string
 /// @param ... Format arguments wrapped in stvar()
 /// @code
-///   LogCategory *dbcat = logCreateCat(_S"Database", false);
-///   logFmtC(Warn, dbcat, _S"Query took ${int}ms", stvar(int32, elapsed));
+///   LogCategory *dbcat = logCreateCat(_SL("Database"), false);
+///   logFmtC(Warn, dbcat, _SL("Query took ${int}ms"), stvar(int32, elapsed));
 /// @endcode
 #define logFmtC(level, cat, fmt, ...)              \
     _logFmt_##level(LOG_##level,                   \

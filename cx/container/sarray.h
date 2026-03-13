@@ -487,7 +487,7 @@ _At_(handle->a, _Pre_maybenull_ _Post_notnull_) int32 _saPushPtr(_Inout_ sahandl
 /// Example:
 /// @code
 ///   string str = 0;
-///   strDup(&str, _S"long string...");
+///   strDup(&str, _SL("long string..."));
 ///   saPushC(&arr, string, &str);  // str is now NULL/invalid
 /// @endcode
 #define saPushC(handle, type, elem, ...)    \

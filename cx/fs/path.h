@@ -40,7 +40,7 @@ CX_C_BEGIN
 /// Example:
 /// @code
 ///   string p = 0;
-///   strDup(&p, _S"c:\\dir\\..\\file.txt");
+///   strDup(&p, _SL("c:\\dir\\..\\file.txt"));
 ///   pathNormalize(&p);  // Result: "c:/file.txt"
 /// @endcode
 void pathNormalize(_Inout_ string* path);
@@ -65,7 +65,7 @@ void pathNormalize(_Inout_ string* path);
 ///   string ns = 0;
 ///   sa_string parts;
 ///   saInit(&parts, string, 0);
-///   bool abs = pathDecompose(&ns, &parts, _S"c:/dir/file.txt");
+///   bool abs = pathDecompose(&ns, &parts, _SL("c:/dir/file.txt"));
 ///   // abs = true, ns = "c", parts = ["dir", "file.txt"]
 /// @endcode
 bool pathDecompose(_Inout_ string* ns, _In_ sa_string* components, _In_opt_ strref path);
@@ -110,8 +110,8 @@ bool pathIsAbsolute(_In_opt_ strref path);
 /// Example:
 /// @code
 ///   string parent = 0;
-///   pathParent(&parent, _S"c:/dir/file.txt");  // Result: "c:/dir"
-///   pathParent(&parent, _S"c:/dir");           // Result: "c:/"
+///   pathParent(&parent, _SL("c:/dir/file.txt"));  // Result: "c:/dir"
+///   pathParent(&parent, _SL("c:/dir"));           // Result: "c:/"
 /// @endcode
 bool pathParent(_Inout_ string* out, _In_opt_ strref path);
 
@@ -128,8 +128,8 @@ bool pathParent(_Inout_ string* out, _In_opt_ strref path);
 /// Example:
 /// @code
 ///   string name = 0;
-///   pathFilename(&name, _S"c:/dir/file.txt");  // Result: "file.txt"
-///   pathFilename(&name, _S"file.txt");         // Result: "file.txt" (returns false)
+///   pathFilename(&name, _SL("c:/dir/file.txt"));  // Result: "file.txt"
+///   pathFilename(&name, _SL("file.txt"));         // Result: "file.txt" (returns false)
 /// @endcode
 bool pathFilename(_Inout_ string* out, _In_opt_ strref path);
 
@@ -147,7 +147,7 @@ bool pathFilename(_Inout_ string* out, _In_opt_ strref path);
 /// Example:
 /// @code
 ///   string ns = 0, path = 0;
-///   pathSplitNS(&ns, &path, _S"c:/dir/file.txt");
+///   pathSplitNS(&ns, &path, _SL("c:/dir/file.txt"));
 ///   // ns = "c", path = "/dir/file.txt"
 /// @endcode
 bool pathSplitNS(_Inout_ string* nspart, _Inout_ string* pathpart, _In_opt_ strref path);
@@ -170,7 +170,7 @@ bool _pathJoin(_Inout_ string* out, int n, _In_ strref* elements);
 /// Example:
 /// @code
 ///   string path = 0;
-///   pathJoin(&path, _S"c:/dir", _S"subdir", _S"file.txt");
+///   pathJoin(&path, _SL("c:/dir"), _SL("subdir"), _SL("file.txt"));
 ///   // Result: "c:/dir/subdir/file.txt"
 /// @endcode
 #define pathJoin(out, ...) _pathJoin(out, count_macro_args(__VA_ARGS__), (strref[]) { __VA_ARGS__ })
@@ -188,7 +188,7 @@ bool _pathJoin(_Inout_ string* out, int n, _In_ strref* elements);
 /// Example:
 /// @code
 ///   string p = 0;
-///   pathAddExt(&p, _S"file", _S"txt");  // Result: "file.txt"
+///   pathAddExt(&p, _SL("file"), _SL("txt"));  // Result: "file.txt"
 /// @endcode
 void pathAddExt(_Inout_ string* out, _In_opt_ strref path, _In_opt_ strref ext);
 
@@ -204,8 +204,8 @@ void pathAddExt(_Inout_ string* out, _In_opt_ strref path, _In_opt_ strref ext);
 /// Example:
 /// @code
 ///   string p = 0;
-///   pathRemoveExt(&p, _S"file.txt");     // Result: "file"
-///   pathRemoveExt(&p, _S"file.tar.gz");  // Result: "file.tar"
+///   pathRemoveExt(&p, _SL("file.txt"));     // Result: "file"
+///   pathRemoveExt(&p, _SL("file.tar.gz"));  // Result: "file.tar"
 /// @endcode
 bool pathRemoveExt(_Inout_ string* out, _In_opt_ strref path);
 
@@ -222,7 +222,7 @@ bool pathRemoveExt(_Inout_ string* out, _In_opt_ strref path);
 /// Example:
 /// @code
 ///   string ext = 0;
-///   pathGetExt(&ext, _S"file.txt");  // Result: "txt"
+///   pathGetExt(&ext, _SL("file.txt"));  // Result: "txt"
 /// @endcode
 bool pathGetExt(_Inout_ string* out, _In_opt_ strref path);
 
@@ -238,7 +238,7 @@ bool pathGetExt(_Inout_ string* out, _In_opt_ strref path);
 /// Example:
 /// @code
 ///   string p = 0;
-///   pathSetExt(&p, _S"file.txt", _S"bak");  // Result: "file.bak"
+///   pathSetExt(&p, _SL("file.txt"), _SL("bak"));  // Result: "file.bak"
 /// @endcode
 void pathSetExt(_Inout_ string* out, _In_opt_ strref path, _In_opt_ strref ext);
 
@@ -274,10 +274,10 @@ enum PathMatchFlags {
 ///
 /// Examples:
 /// @code
-///   pathMatch(_S"dir/file.txt", _S"*.txt", 0);                    // false
-///   pathMatch(_S"dir/file.txt", _S"*.txt", PATH_Smart);           // true (filename only)
-///   pathMatch(_S"dir/file.txt", _S"dir/*.txt", 0);                // true
-///   pathMatch(_S"Dir/File.TXT", _S"dir/*.txt", PATH_CaseInsensitive); // true
+///   pathMatch(_SL("dir/file.txt"), _SL("*.txt"), 0);                    // false
+///   pathMatch(_SL("dir/file.txt"), _SL("*.txt"), PATH_Smart);           // true (filename only)
+///   pathMatch(_SL("dir/file.txt"), _SL("dir/*.txt"), 0);                // true
+///   pathMatch(_SL("Dir/File.TXT"), _SL("dir/*.txt"), PATH_CaseInsensitive); // true
 /// @endcode
 bool pathMatch(_In_opt_ strref path, _In_opt_ strref pattern, uint32 flags);
 

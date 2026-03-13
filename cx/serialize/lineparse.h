@@ -27,7 +27,7 @@
 ///
 /// Example (pull mode):
 /// @code
-///   VFSFile *file = vfsOpen(vfs, _S"config.txt", FS_Read);
+///   VFSFile *file = vfsOpen(vfs, _SL("config.txt"), FS_Read);
 ///   StreamBuffer *sb = sbufCreate(4096);
 ///   sbufFilePRegisterPull(sb, file, true);
 ///   lparseRegisterPull(sb, LPARSE_Auto);
@@ -46,7 +46,7 @@
 ///       return true;  // continue parsing
 ///   }
 ///
-///   VFSFile *file = vfsOpen(vfs, _S"data.txt", FS_Read);
+///   VFSFile *file = vfsOpen(vfs, _SL("data.txt"), FS_Read);
 ///   StreamBuffer *sb = sbufCreate(4096);
 ///   lparseRegisterPush(sb, processLine, NULL, NULL, LPARSE_LF);
 ///   sbufFileIn(sb, file, true);  // automatically calls processLine for each line

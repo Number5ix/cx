@@ -46,10 +46,10 @@
 /// you would in Python, Java, or other languages with immutable strings:
 ///
 /// @code
-///   string s1 = _S"hello";      // Create a string
+///   string s1 = _SL("hello");      // Create a string
 ///   string s2 = 0;
 ///   strDup(&s2, s1);            // "Copy" s1 to s2 (shares buffer internally)
-///   strAppend(&s1, _S" world"); // Modify s1 (gets its own copy automatically)
+///   strAppend(&s1, _SL(" world")); // Modify s1 (gets its own copy automatically)
 /// @endcode
 ///
 /// After the append, s1 and s2 appear to be independent strings, even though they
@@ -72,9 +72,9 @@
 ///   string s = 0;                // NULL string
 ///   strLen(s);                   // Returns 0
 ///   strEmpty(s);                 // Returns true
-///   strEq(s, _S"");              // Returns true
+///   strEq(s, _SL(""));              // Returns true
 ///   strDestroy(&s);              // Safe, does nothing
-///   strAppend(&s, _S"hello");    // Works, creates new string
+///   strAppend(&s, _SL("hello"));    // Works, creates new string
 /// @endcode
 ///
 /// This eliminates the need for null checks in most code and allows operations
@@ -97,7 +97,7 @@
 ///
 /// String literals:
 /// @code
-///   string s = _S"Hello";        // Static ASCII string literal
+///   string s = _SL("Hello");        // Static ASCII string literal
 ///   string s = _SU"Hello 世界";  // Static UTF-8 string literal
 /// @endcode
 ///
@@ -105,8 +105,8 @@
 /// @code
 ///   string s = 0;                 // Always initialize to NULL
 ///   strReset(&s, 256);            // Create empty with capacity hint
-///   strDup(&s, _S"content");      // Copy from another string
-///   strAppend(&s, _S" more");     // Append operations
+///   strDup(&s, _SL("content"));      // Copy from another string
+///   strAppend(&s, _SL(" more"));     // Append operations
 /// @endcode
 ///
 /// @section memory_management Memory Management
@@ -114,7 +114,7 @@
 /// All strings created dynamically (not static literals) MUST be destroyed:
 /// @code
 ///   string s = 0;
-///   strDup(&s, _S"hello");
+///   strDup(&s, _SL("hello"));
 ///   // ... use s ...
 ///   strDestroy(&s);               // Required! Decrements ref count, frees if last
 /// @endcode

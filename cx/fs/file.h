@@ -73,7 +73,7 @@ typedef enum FSSeekTypeEnum {
 ///
 /// Example:
 /// @code
-///   FSFile *f = fsOpen(_S"data.bin", FS_Read);
+///   FSFile *f = fsOpen(_SL("data.bin"), FS_Read);
 ///   if (f) {
 ///       // ... read operations ...
 ///       fsClose(f);

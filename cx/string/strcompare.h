@@ -26,7 +26,7 @@ CX_C_BEGIN
 ///
 /// Example:
 /// @code
-///   if (strEq(s1, _S"hello")) {
+///   if (strEq(s1, _SL("hello"))) {
 ///       // Strings match exactly
 ///   }
 /// @endcode
@@ -44,7 +44,7 @@ _Pure bool strEq(_In_opt_ strref s1, _In_opt_ strref s2);
 ///
 /// Example:
 /// @code
-///   if (strEqi(_S"Hello", _S"HELLO")) {
+///   if (strEqi(_SL("Hello"), _SL("HELLO"))) {
 ///       // Returns true
 ///   }
 /// @endcode
@@ -61,7 +61,7 @@ _Pure bool strEqi(_In_opt_ strref s1, _In_opt_ strref s2);
 ///
 /// Example:
 /// @code
-///   int32 result = strCmp(_S"apple", _S"banana");
+///   int32 result = strCmp(_SL("apple"), _SL("banana"));
 ///   if (result < 0) {
 ///       // "apple" comes before "banana"
 ///   }
@@ -80,7 +80,7 @@ _Pure int32 strCmp(_In_opt_ strref s1, _In_opt_ strref s2);
 ///
 /// Example:
 /// @code
-///   int32 result = strCmpi(_S"Apple", _S"BANANA");
+///   int32 result = strCmpi(_SL("Apple"), _SL("BANANA"));
 /// @endcode
 _Pure int32 strCmpi(_In_opt_ strref s1, _In_opt_ strref s2);
 
@@ -99,7 +99,7 @@ _Pure int32 strCmpi(_In_opt_ strref s1, _In_opt_ strref s2);
 /// Example:
 /// @code
 ///   // Check if characters 2-6 of str equal "hello"
-///   if (strRangeEq(str, _S"hello", 2, 5)) {
+///   if (strRangeEq(str, _SL("hello"), 2, 5)) {
 ///       // Match found
 ///   }
 /// @endcode
@@ -131,7 +131,7 @@ _Pure bool strRangeEqi(_In_opt_ strref str, _In_opt_ strref sub, int32 off, uint
 /// Example:
 /// @code
 ///   // Compare 5 bytes starting at position 10
-///   int32 result = strRangeCmp(str, _S"test", 10, 5);
+///   int32 result = strRangeCmp(str, _SL("test"), 10, 5);
 /// @endcode
 _Pure int32 strRangeCmp(_In_opt_ strref str, _In_opt_ strref sub, int32 off, uint32 len);
 
@@ -159,7 +159,7 @@ _Pure int32 strRangeCmpi(_In_opt_ strref str, _In_opt_ strref sub, int32 off, ui
 ///
 /// Example:
 /// @code
-///   if (strBeginsWith(path, _S"/home/")) {
+///   if (strBeginsWith(path, _SL("/home/"))) {
 ///       // Path starts with /home/
 ///   }
 /// @endcode
@@ -176,7 +176,7 @@ _Pure bool strBeginsWith(_In_opt_ strref str, _In_opt_ strref sub);
 ///
 /// Example:
 /// @code
-///   if (strBeginsWithi(str, _S"http")) {
+///   if (strBeginsWithi(str, _SL("http"))) {
 ///       // Matches "http", "HTTP", "Http", etc.
 ///   }
 /// @endcode
@@ -193,7 +193,7 @@ _Pure bool strBeginsWithi(_In_opt_ strref str, _In_opt_ strref sub);
 ///
 /// Example:
 /// @code
-///   if (strEndsWith(filename, _S".txt")) {
+///   if (strEndsWith(filename, _SL(".txt"))) {
 ///       // File has .txt extension
 ///   }
 /// @endcode
@@ -210,7 +210,7 @@ _Pure bool strEndsWith(_In_opt_ strref str, _In_opt_ strref sub);
 ///
 /// Example:
 /// @code
-///   if (strEndsWithi(filename, _S".txt")) {
+///   if (strEndsWithi(filename, _SL(".txt"))) {
 ///       // Matches ".txt", ".TXT", ".Txt", etc.
 ///   }
 /// @endcode

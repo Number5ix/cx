@@ -28,15 +28,15 @@
 ///   SSDNode *root = ssdCreateHashtable();
 ///
 ///   // Set values using paths
-///   ssdSet(root, _S"user/name", true, stvar(string, _S"Alice"));
-///   ssdSet(root, _S"user/age", true, stvar(int32, 30));
+///   ssdSet(root, _SL("user/name"), true, stvar(string, _SL("Alice")));
+///   ssdSet(root, _SL("user/age"), true, stvar(int32, 30));
 ///
 ///   // Get values
-///   int32 age = ssdVal(int32, root, _S"user/age", 0);
+///   int32 age = ssdVal(int32, root, _SL("user/age"), 0);
 ///
 ///   // Use within locked transactions for thread safety
 ///   ssdLockedTransaction(root) {
-///       strref name = ssdStrRef(root, _S"user/name");
+///       strref name = ssdStrRef(root, _SL("user/name"));
 ///       // ... use name while lock is held
 ///   }
 ///

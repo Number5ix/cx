@@ -37,7 +37,7 @@
 ///       // Temporary variants valid until end of function
 ///       processVariants(3, (stvar[]){
 ///           stvar(int32, 42),
-///           stvar(string, _S"hello"),
+///           stvar(string, _SL("hello")),
 ///           stvar(float64, 3.14)
 ///       });
 ///       // Temporaries destroyed here
@@ -58,7 +58,7 @@
 /// **Creating variants:**
 /// @code
 ///   stvar v1 = stvar(int32, 42);
-///   stvar v2 = stvar(string, _S"text");
+///   stvar v2 = stvar(string, _SL("text"));
 ///   stvar empty = stvNone;
 /// @endcode
 ///
@@ -89,7 +89,7 @@
 ///   #define myFunc(...) _myFunc(count_macro_args(__VA_ARGS__), (stvar[]){__VA_ARGS__})
 ///
 ///   // Usage - caller just passes typed arguments directly
-///   myFunc(stvar(int32, 10), stvar(string, _S"data"));
+///   myFunc(stvar(int32, 10), stvar(string, _SL("data")));
 /// @endcode
 ///
 /// @}
@@ -116,7 +116,7 @@
 /// @code
 ///   stvar persistent = stvarInit(int32, 42);
 ///   stvar array[] = {
-///       stvarInit(string, _S"first"),
+///       stvarInit(string, _SL("first")),
 ///       stvarInit(int32, 100)
 ///   };
 /// @endcode
@@ -145,7 +145,7 @@
 ///   processValue(stvar(int32, 42));
 ///
 ///   myFunc(3, (stvar[]){
-///       stvar(string, _S"name"),
+///       stvar(string, _SL("name")),
 ///       stvar(int32, 100),
 ///       stvar(float64, 3.14)
 ///   });
@@ -202,7 +202,7 @@ _meta_inline stvar _stvar(stype st, stgeneric val)
 /// Example:
 /// @code
 ///   stvar v;
-///   stvarCopy(&v, stvar(string, _S"hello"));
+///   stvarCopy(&v, stvar(string, _SL("hello")));
 ///   // ... use v ...
 ///   stvarDestroy(&v);  // Releases string reference
 /// @endcode
@@ -226,7 +226,7 @@ _meta_inline void stvarDestroy(stvar* stv)
 ///
 /// Example:
 /// @code
-///   stvar original = stvar(string, _S"text");
+///   stvar original = stvar(string, _SL("text"));
 ///   stvar copy;
 ///   stvarCopy(&copy, original);
 ///   // Both variants now reference the string (refcount incremented)
@@ -283,7 +283,7 @@ _meta_inline bool _stvarIs(stvar* svar, stype styp)
 ///
 /// Example:
 /// @code
-///   stvar v = stvar(string, _S"hello");
+///   stvar v = stvar(string, _SL("hello"));
 ///   string s = stvarString(&v);
 ///   if (s) {
 ///       // Use string
@@ -309,10 +309,10 @@ _meta_inline string stvarString(stvar* svar)
 ///
 /// Example:
 /// @code
-///   stvar v = stvar(string, _S"hello");
+///   stvar v = stvar(string, _SL("hello"));
 ///   string *ps = stvarStringPtr(&v);
 ///   if (ps) {
-///       strAppend(ps, _S" world");
+///       strAppend(ps, _SL(" world"));
 ///   }
 /// @endcode
 _meta_inline string* stvarStringPtr(stvar* svar)
@@ -420,7 +420,7 @@ _meta_inline ObjInst** stvarObjInstPtr(stvar* svar)
 ///   #define myFunc(...) _myFunc(count_macro_args(__VA_ARGS__), (stvar[]){__VA_ARGS__})
 ///
 ///   // Usage
-///   myFunc(stvar(int32, 123), stvar(string, _S"test"), stvar(object, myObj));
+///   myFunc(stvar(int32, 123), stvar(string, _SL("test")), stvar(object, myObj));
 /// @endcode
 
 /// Variant list walker structure.
@@ -471,7 +471,7 @@ void stvlInit(stvlist* list, int count, stvar* vars);
 ///   sa_stvar args;
 ///   saInit(&args, stvar, 8);
 ///   saPush(&args, stvar, stvar(int32, 42));
-///   saPush(&args, stvar, stvar(string, _S"test"));
+///   saPush(&args, stvar, stvar(string, _SL("test")));
 ///
 ///   stvlist list;
 ///   stvlInitSA(&list, args);

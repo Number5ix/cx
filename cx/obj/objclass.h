@@ -188,7 +188,7 @@ _meta_inline void _objAcquire(_In_opt_ ObjInst *inst)
 ///
 /// Example:
 /// @code
-/// Document *doc = documentCreate(_S"Title");  // refcount = 1
+/// Document *doc = documentCreate(_SL("Title"));  // refcount = 1
 /// Document *doc2 = objAcquire(doc);           // refcount = 2
 /// objRelease(&doc);                           // refcount = 1
 /// objRelease(&doc2);                          // refcount = 0, object destroyed
@@ -213,7 +213,7 @@ void _objRelease(_Inout_ ObjInst **instp);
 ///
 /// Example:
 /// @code
-/// Document *doc = documentCreate(_S"Title");
+/// Document *doc = documentCreate(_SL("Title"));
 /// // Use doc...
 /// objRelease(&doc);  // Note: &doc, not doc
 /// // doc is now NULL

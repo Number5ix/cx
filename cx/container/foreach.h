@@ -146,9 +146,9 @@
 /// **Example:**
 /// @code
 ///   VFS *vfs = vfsCreate(0);
-///   vfsMountFS(vfs, _S"/", _S"c:/data");
+///   vfsMountFS(vfs, _SL("/"), _SL("c:/data"));
 ///   FSSearchIter iter;
-///   foreach(vfssearch, iter, vfs, _S"/logs", _S"*.log", FS_File, false) {
+///   foreach(vfssearch, iter, vfs, _SL("/logs"), _SL("*.log"), FS_File, false) {
 ///       // Process iter.name (log files only)
 ///   }
 ///   objRelease(&vfs);
@@ -173,9 +173,9 @@
 ///
 /// **Example:**
 /// @code
-///   SSDNode *btree = ssdSubtreeB(tree, _S"config");
+///   SSDNode *btree = ssdSubtreeB(tree, _SL("config"));
 ///   foreach(ssd, oiter, idx, name, val, btree) {
-///       if (strEq(name, _S"setting1") && stvarIs(val, int32)) {
+///       if (strEq(name, _SL("setting1")) && stvarIs(val, int32)) {
 ///           // Process val->data.st_int32
 ///       }
 ///   }

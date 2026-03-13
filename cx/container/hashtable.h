@@ -437,7 +437,7 @@ _meta_inline htelem _htInsertCheckedC(_Inout_ptr_ hashtable* htbl, stype keytype
 /// @return Element handle (htelem) that can be used to access the key/value. Returns existing
 /// element if key already exists (unless HT_Ignore is set) Example:
 /// @code
-///   htelem elem = htInsert(&ht, string, _S"key", int32, 42);
+///   htelem elem = htInsert(&ht, string, _SL("key"), int32, 42);
 ///   int32 *valptr = hteValPtr(ht, int32, elem);
 /// @endcode
 #define htInsert(htbl, ktype, key, vtype, val, ...) \
@@ -464,8 +464,8 @@ _meta_inline htelem _htInsertCheckedC(_Inout_ptr_ hashtable* htbl, stype keytype
 /// Example:
 /// @code
 ///   string longstr = 0;
-///   strDup(&longstr, _S"very long string...");
-///   htInsertC(&ht, string, _S"key", string, &longstr);  // longstr is now NULL
+///   strDup(&longstr, _SL("very long string..."));
+///   htInsertC(&ht, string, _SL("key"), string, &longstr);  // longstr is now NULL
 /// @endcode
 #define htInsertC(htbl, ktype, key, vtype, val, ...) \
     _htInsertCheckedC(htbl,                          \
@@ -505,11 +505,11 @@ htelem _htFindChecked(_In_ hashtable htbl, stype keytype, _In_ stgeneric key, st
 /// directly in boolean context Example:
 /// @code
 ///   int32 val;
-///   if (htFind(ht, string, _S"key", int32, &val)) {
+///   if (htFind(ht, string, _SL("key"), int32, &val)) {
 ///       // found, use val
 ///   }
 ///   // -- OR --
-///   htelem elem = htFind(ht, string, _S"key", none, NULL);
+///   htelem elem = htFind(ht, string, _SL("key"), none, NULL);
 ///   if (elem) {
 ///       val = hteVal(ht, int32, elem);
 ///   }
@@ -551,7 +551,7 @@ _meta_inline bool _htExtractChecked(_Inout_ptr_ hashtable* htbl, stype keytype, 
 /// Example:
 /// @code
 ///   string extracted = 0;
-///   if (htExtract(&ht, string, _S"key", string, &extracted)) {
+///   if (htExtract(&ht, string, _SL("key"), string, &extracted)) {
 ///       // use extracted
 ///       strDestroy(&extracted);
 ///   }
@@ -570,7 +570,7 @@ _meta_inline bool _htExtractChecked(_Inout_ptr_ hashtable* htbl, stype keytype, 
 /// @return true if the key was found and removed, false if not found
 /// Example:
 /// @code
-///   htRemove(&ht, string, _S"key");
+///   htRemove(&ht, string, _SL("key"));
 /// @endcode
 #define htRemove(htbl, ktype, key) \
     _htExtractChecked(htbl, stCheckedArg(ktype, key), stType(none), NULL)
@@ -597,7 +597,7 @@ _meta_inline bool _htHasKeyChecked(_In_ hashtable htbl, stype keytype, _In_ stge
 /// @return true if the key exists, false otherwise
 /// Example:
 /// @code
-///   if (htHasKey(ht, string, _S"key")) {
+///   if (htHasKey(ht, string, _SL("key"))) {
 ///       // key exists
 ///   }
 /// @endcode

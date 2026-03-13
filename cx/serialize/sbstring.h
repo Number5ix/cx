@@ -50,7 +50,7 @@
 /// @code
 ///   StreamBuffer *sb = sbufCreate(4096);
 ///   sbufStrCRegisterPush(sb, &output);
-///   sbufStrIn(sb, _S"Hello, World!");
+///   sbufStrIn(sb, _SL("Hello, World!"));
 /// @endcode
 bool sbufStrIn(_Pre_valid_ _Post_invalid_ StreamBuffer* sb, _In_opt_ strref str);
 

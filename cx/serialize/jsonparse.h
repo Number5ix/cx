@@ -34,7 +34,7 @@ typedef struct SSDTree SSDTree;
 ///       }
 ///   }
 ///
-///   VFSFile *file = vfsOpen(vfs, _S"data.json", FS_Read);
+///   VFSFile *file = vfsOpen(vfs, _SL("data.json"), FS_Read);
 ///   StreamBuffer *sb = sbufCreate(4096);
 ///   sbufFilePRegisterPull(sb, file, true);
 ///   jsonParse(sb, handleEvent, NULL);
@@ -42,13 +42,13 @@ typedef struct SSDTree SSDTree;
 ///
 /// Example (tree parsing):
 /// @code
-///   VFSFile *file = vfsOpen(vfs, _S"config.json", FS_Read);
+///   VFSFile *file = vfsOpen(vfs, _SL("config.json"), FS_Read);
 ///   StreamBuffer *sb = sbufCreate(4096);
 ///   sbufFilePRegisterPull(sb, file, true);
 ///   SSDNode *root = jsonParseTree(sb);
 ///
 ///   string name = 0;
-///   ssdVal(root, _S"/user/name", string, &name);
+///   ssdVal(root, _SL("/user/name"), string, &name);
 ///   objRelease(&root);
 /// @endcode
 
@@ -125,14 +125,14 @@ bool jsonParse(_Inout_ StreamBuffer* sb, _In_ jsonParseCB callback, _Inout_opt_ 
 ///
 /// Example:
 /// @code
-///   VFSFile *file = vfsOpen(vfs, _S"data.json", FS_Read);
+///   VFSFile *file = vfsOpen(vfs, _SL("data.json"), FS_Read);
 ///   StreamBuffer *sb = sbufCreate(4096);
 ///   sbufFilePRegisterPull(sb, file, true);
 ///
 ///   SSDNode *root = jsonParseTree(sb);
 ///   if (root) {
 ///       string value = 0;
-///       ssdVal(root, _S"/path/to/value", string, &value);
+///       ssdVal(root, _SL("/path/to/value"), string, &value);
 ///       objRelease(&root);
 ///   }
 /// @endcode
@@ -167,10 +167,10 @@ _Ret_opt_valid_ SSDNode* jsonParseTreeCustom(_Inout_ StreamBuffer* sb, _In_opt_ 
 ///
 /// Example:
 /// @code
-///   SSDNode *root = jsonTreeFromString(_S"{\"name\": \"test\", \"value\": 42}");
+///   SSDNode *root = jsonTreeFromString(_SL("{\")name\": \"test\", \"value\": 42}");
 ///   if (root) {
 ///       int32 value;
-///       ssdVal(root, _S"/value", int32, &value);
+///       ssdVal(root, _SL("/value"), int32, &value);
 ///       objRelease(&root);
 ///   }
 /// @endcode

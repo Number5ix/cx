@@ -84,7 +84,7 @@ enum EVENTINITFUNC_FLAGS {
 ///
 ///   // Main thread creates shared event and passes to worker
 ///   SharedEvent *completion = sheventCreate(0);
-///   Thread *worker = thrCreate(workerThread, _S"worker",
+///   Thread *worker = thrCreate(workerThread, _SL("worker"),
 ///                               stvar(ptr, sheventAcquire(completion)));
 ///
 ///   // Wait for worker to complete

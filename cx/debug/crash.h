@@ -26,7 +26,7 @@
 ///   
 ///   // Interactive application (prompt user)
 ///   dbgCrashSetMode(DBG_CrashInteractive);
-///   dbgCrashSetPath(_S"C:/CrashDumps");
+///   dbgCrashSetPath(_SL("C:/CrashDumps"));
 ///   
 ///   // Add version info that appears in all reports
 ///   dbgCrashAddVersionStr("app_version", "1.2.3");

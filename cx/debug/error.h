@@ -24,9 +24,9 @@
 /// **Typical usage pattern:**
 /// @code
 ///   cxerr = CX_Success;  // Clear error before operation
-///   float val = strToFloat32(_S"invalid");
+///   float val = strToFloat32(_SL("invalid"));
 ///   if (cxerr != CX_Success) {
-///       logError(_S"Conversion failed: %"), cxErrMsg(cxerr));
+///       logError(_SL("Conversion failed: %")), cxErrMsg(cxerr));
 ///   }
 /// @endcode
 ///

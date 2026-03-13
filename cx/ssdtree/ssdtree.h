@@ -28,7 +28,7 @@ _Ret_valid_ SSDNode* _ssdCreateRoot(int crtype, _In_opt_ SSDTree* tree, uint32 f
 /// Example:
 /// @code
 ///   SSDNode *root = ssdCreateHashtable();
-///   ssdSet(root, _S"name", true, stvar(string, _S"value"));
+///   ssdSet(root, _SL("name"), true, stvar(string, _SL("value")));
 ///   objRelease(&root);
 /// @endcode
 #define ssdCreateHashtable(...) _ssdCreateRoot(SSD_Create_Hashtable, NULL, opt_flags(__VA_ARGS__))
@@ -121,8 +121,8 @@ _Ret_opt_valid_ SSDNode* _ssdSubtree(_In_ SSDNode* root, _In_opt_ strref path, S
 ///
 /// Example:
 /// @code
-///   SSDNode *subtree = ssdSubtree(root, _S"config/display", SSD_Create_Hashtable);
-///   ssdSet(subtree, _S"width", true, stvar(int32, 1920));
+///   SSDNode *subtree = ssdSubtree(root, _SL("config/display"), SSD_Create_Hashtable);
+///   ssdSet(subtree, _SL("width"), true, stvar(int32, 1920));
 ///   objRelease(&subtree);
 /// @endcode
 #define ssdSubtree(root, path, create) \
@@ -260,7 +260,7 @@ _Success_(return) bool _ssdCopyOut(_In_ SSDNode* root, _In_opt_ strref path, sty
 /// Example:
 /// @code
 ///   int32 count;
-///   if (ssdCopyOut(root, _S"stats/count", int32, &count)) {
+///   if (ssdCopyOut(root, _SL("stats/count"), int32, &count)) {
 ///       // use count
 ///   }
 /// @endcode
@@ -337,8 +337,8 @@ ssdval_spec(float64)
 ///
 /// Example:
 /// @code
-///   int32 port = ssdVal(int32, root, _S"server/port", 8080);
-///   bool enabled = ssdVal(bool, root, _S"server/enabled", false);
+///   int32 port = ssdVal(int32, root, _SL("server/port"), 8080);
+///   bool enabled = ssdVal(bool, root, _SL("server/enabled"), false);
 /// @endcode
 #define ssdVal(type, root, path, def) \
     _ssdVal_##type(root, path, def, (SSDLockState*)_ssdCurrentLockState)
@@ -410,7 +410,7 @@ bool _ssdSet(_Inout_ SSDNode* root, _In_opt_ strref path, bool createpath, stvar
 ///
 /// Example:
 /// @code
-///   ssdSet(root, _S"config/port", true, stvar(int32, 8080));
+///   ssdSet(root, _SL("config/port"), true, stvar(int32, 8080));
 /// @endcode
 #define ssdSet(root, path, createpath, val) \
     _ssdSet(root, path, createpath, val, (SSDLockState*)_ssdCurrentLockState)
@@ -470,7 +470,7 @@ stvar* _ssdPtr(_In_ SSDNode* root, _In_opt_ strref path, _Inout_ SSDLockState* l
 /// Example:
 /// @code
 ///   ssdLockedTransaction(root) {
-///       stvar *val = ssdPtr(root, _S"config/timeout");
+///       stvar *val = ssdPtr(root, _SL("config/timeout"));
 ///       if (val && stvarIs(val, int32)) {
 ///           // use val->data.st_int32
 ///       }
@@ -596,7 +596,7 @@ bool _ssdImportTypedArray(_Inout_ SSDNode* root, _In_opt_ strref path, stype ele
 /// @code
 ///   sa_int32 values;
 ///   saInit(&values, int32, 0);
-///   if (ssdExportTypedArray(root, _S"scores", int32, &values, false)) {
+///   if (ssdExportTypedArray(root, _SL("scores"), int32, &values, false)) {
 ///       // use values.a[]
 ///   }
 ///   saDestroy(&values);
@@ -669,8 +669,8 @@ bool _ssdAppend(_Inout_ SSDNode* root, _In_opt_ strref path, bool createpath, st
 ///
 /// Example:
 /// @code
-///   ssdAppend(root, _S"items", true, stvar(string, _S"apple"));
-///   ssdAppend(root, _S"items", true, stvar(string, _S"banana"));
+///   ssdAppend(root, _SL("items"), true, stvar(string, _SL("apple")));
+///   ssdAppend(root, _SL("items"), true, stvar(string, _SL("banana")));
 /// @endcode
 #define ssdAppend(root, path, createpath, val) \
     _ssdAppend(root, path, createpath, val, (SSDLockState*)_ssdCurrentLockState)
@@ -708,7 +708,7 @@ bool _ssdGraft(_Inout_ SSDNode* dest, _In_opt_ strref destpath,
 /// Example:
 /// @code
 ///   // Copy config/database from one tree to another
-///   ssdGraft(destTree, _S"config/database", srcTree, _S"config/database");
+///   ssdGraft(destTree, _SL("config/database"), srcTree, _SL("config/database"));
 /// @endcode
 #define ssdGraft(dest, destpath, src, srcpath) \
     _ssdGraft(dest, destpath, (SSDLockState*)_ssdCurrentLockState, src, srcpath, NULL)

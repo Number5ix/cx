@@ -22,15 +22,15 @@
 ///   LogDest *deferdest = logDeferRegister(LOG_Info, NULL, deferdata);
 ///   
 ///   // Application can log immediately
-///   logStr(Info, _S"Starting initialization...");
-///   logStr(Info, _S"Loading configuration...");
+///   logStr(Info, _SL("Starting initialization..."));
+///   logStr(Info, _SL("Loading configuration..."));
 ///   
 ///   // Later - file system is ready, transfer deferred logs
-///   LogFileData *lfd = logfileCreate(vfs, _S"app.log", &cfg);
+///   LogFileData *lfd = logfileCreate(vfs, _SL("app.log"), &cfg);
 ///   LogDest *dest = logfileRegisterWithDefer(LOG_Info, NULL, lfd, deferdest);
 ///   
 ///   // All early logs now written to file, logging continues normally
-///   logStr(Info, _S"Initialization complete");
+///   logStr(Info, _SL("Initialization complete"));
 /// @endcode
 
 #include <cx/log/log.h>

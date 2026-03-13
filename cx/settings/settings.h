@@ -29,13 +29,13 @@ typedef struct VFS VFS;
 /// @code
 ///   // Open settings file from VFS
 ///   VFS *vfs = vfsCreate();
-///   SSDNode *settings = setsOpen(vfs, _S"config.json", timeS(30));
+///   SSDNode *settings = setsOpen(vfs, _SL("config.json"), timeS(30));
 ///
 ///   // Read/write settings like a normal SSD tree
-///   setsSet(settings, _S"window/width", int32, 1920);
-///   setsSet(settings, _S"window/height", int32, 1080);
+///   setsSet(settings, _SL("window/width"), int32, 1920);
+///   setsSet(settings, _SL("window/height"), int32, 1080);
 ///
-///   int32 width = setsGet(settings, _S"window/width", int32, 800);
+///   int32 width = setsGet(settings, _SL("window/width"), int32, 800);
 ///
 ///   // Changes are automatically flushed to disk every 30 seconds
 ///   // When done, close to ensure final flush
@@ -59,12 +59,12 @@ typedef struct VFS VFS;
 ///
 ///   // Define binding specifications
 ///   static SetsBindSpec bindings[] = {
-///       { .name = _S"window/width",  .offset = offsetof(typeof(config), width),  
+///       { .name = _SL("window/width"),  .offset = offsetof(typeof(config), width),  
 ///         .deftyp = stvar(int32, 1024) },
-///       { .name = _S"window/height", .offset = offsetof(typeof(config), height), 
+///       { .name = _SL("window/height"), .offset = offsetof(typeof(config), height), 
 ///         .deftyp = stvar(int32, 768) },
-///       { .name = _S"display/theme", .offset = offsetof(typeof(config), theme),  
-///         .deftyp = stvar(string, _S"dark") },
+///       { .name = _SL("display/theme"), .offset = offsetof(typeof(config), theme),  
+///         .deftyp = stvar(string, _SL("dark")) },
 ///       { 0 }  // NULL terminator
 ///   };
 ///
@@ -128,7 +128,7 @@ typedef struct SetsBindSpec {
 /// Example:
 /// @code
 ///   VFS *vfs = vfsCreate();
-///   SSDNode *settings = setsOpen(vfs, _S"config/app.json", timeS(60));
+///   SSDNode *settings = setsOpen(vfs, _SL("config/app.json"), timeS(60));
 ///   // ... use settings ...
 ///   setsClose(&settings);
 /// @endcode
@@ -195,8 +195,8 @@ void setsSetDirty(SSDNode* sets);
 ///   } config;
 ///
 ///   SetsBindSpec bindings[] = {
-///       { _S"width", offsetof(typeof(config), width), stvar(int32, 800) },
-///       { _S"name", offsetof(typeof(config), name), stvar(string, _S"default") },
+///       { _SL("width"), offsetof(typeof(config), width), stvar(int32, 800) },
+///       { _SL("name"), offsetof(typeof(config), name), stvar(string, _SL("default")) },
 ///       { 0 }
 ///   };
 ///
@@ -272,8 +272,8 @@ bool setsExport(SSDNode* sets, SetsBindSpec* bindings, void* base);
 ///
 /// Example:
 /// @code
-///   SSDNode *display = setsGetSub(settings, _S"display");
-///   setsSet(display, _S"brightness", int32, 80);
+///   SSDNode *display = setsGetSub(settings, _SL("display"));
+///   setsSet(display, _SL("brightness"), int32, 80);
 ///   objRelease(&display);
 /// @endcode
 #define setsGetSub(sets, path) ssdSubtree(sets, path, SSD_Create_Hashtable)
@@ -296,7 +296,7 @@ bool setsExport(SSDNode* sets, SetsBindSpec* bindings, void* base);
 /// Example:
 /// @code
 ///   int32 width;
-///   setsGet(settings, _S"window/width", int32, &width, 1024);
+///   setsGet(settings, _SL("window/width"), int32, &width, 1024);
 /// @endcode
 #define setsGet(sets, path, type, out, def) ssdCopyOutD(sets, path, type, out, def)
 
@@ -314,8 +314,8 @@ bool setsExport(SSDNode* sets, SetsBindSpec* bindings, void* base);
 ///
 /// Example:
 /// @code
-///   setsSet(settings, _S"audio/volume", int32, 75);
-///   setsSet(settings, _S"display/fullscreen", bool, true);
+///   setsSet(settings, _SL("audio/volume"), int32, 75);
+///   setsSet(settings, _SL("display/fullscreen"), bool, true);
 /// @endcode
 #define setsSet(sets, path, type, val)      ssdSet(sets, path, true, stvar(type, val))
 
@@ -330,7 +330,7 @@ bool setsExport(SSDNode* sets, SetsBindSpec* bindings, void* base);
 ///
 /// Example:
 /// @code
-///   setsRemove(settings, _S"obsolete/setting");
+///   setsRemove(settings, _SL("obsolete/setting"));
 /// @endcode
 #define setsRemove(sets, path)              ssdRemove(sets, path)
 

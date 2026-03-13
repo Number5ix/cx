@@ -31,9 +31,9 @@
 /// **Example:**
 /// @code
 ///   bboxInit();
-///   bboxSet(_S"version", _S"1.0.3", 0);
-///   bboxSet(_S"session", sessionId, 0);
-///   bboxSet(_S"username", username, BBox_Private);
+///   bboxSet(_SL("version"), _SL("1.0.3"), 0);
+///   bboxSet(_SL("session"), sessionId, 0);
+///   bboxSet(_SL("username"), username, BBox_Private);
 /// @endcode
 
 #include "cx/cx.h"

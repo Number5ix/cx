@@ -95,11 +95,11 @@ enum JSON_OUT_FLAGS {
 ///   jsonOut(jo, &ev);
 ///
 ///   ev.etype = JSON_Object_Key;
-///   ev.edata.strData = _S"name";
+///   ev.edata.strData = _SL("name");
 ///   jsonOut(jo, &ev);
 ///
 ///   ev.etype = JSON_String;
-///   ev.edata.strData = _S"value";
+///   ev.edata.strData = _SL("value");
 ///   jsonOut(jo, &ev);
 ///
 ///   ev.etype = JSON_Object_End;
@@ -158,10 +158,10 @@ _At_(*jo, _Pre_valid_ _Post_invalid_) void jsonOutEnd(_Inout_ JSONOut** jo);
 /// Example:
 /// @code
 ///   SSDNode *root = ssdCreate(0);
-///   ssdSet(root, _S"/name", stvar(string, _S"test"));
-///   ssdSet(root, _S"/value", stvar(int32, 42));
+///   ssdSet(root, _SL("/name"), stvar(string, _SL("test")));
+///   ssdSet(root, _SL("/value"), stvar(int32, 42));
 ///
-///   VFSFile *file = vfsOpen(vfs, _S"output.json", FS_Write | FS_Create);
+///   VFSFile *file = vfsOpen(vfs, _SL("output.json"), FS_Write | FS_Create);
 ///   StreamBuffer *sb = sbufCreate(4096);
 ///   sbufFileCRegisterPush(sb, file, true);
 ///   jsonOutTree(sb, root, JSON_Pretty);
@@ -189,8 +189,8 @@ bool _jsonOutTree(_Inout_ StreamBuffer* sb, _In_ SSDNode* tree, flags_t flags,
 /// Example:
 /// @code
 ///   SSDNode *root = ssdCreate(0);
-///   ssdSet(root, _S"/items/0", stvar(int32, 1));
-///   ssdSet(root, _S"/items/1", stvar(int32, 2));
+///   ssdSet(root, _SL("/items/0"), stvar(int32, 1));
+///   ssdSet(root, _SL("/items/1"), stvar(int32, 2));
 ///
 ///   string json = 0;
 ///   jsonTreeToString(&json, root, JSON_Pretty);

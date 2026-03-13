@@ -49,12 +49,12 @@ string s = 0;  // REQUIRED - never use uninitialized strings
 **Core pattern - strings are opaque handles:**
 ```c
 string str = 0;
-strDup(&str, _S"hello");      // Copy/assign
-strAppend(&str, _S" world");  // Modify in place (COW semantics)
-strDestroy(&str);             // Cleanup
+strDup(&str, _SL("hello"));      // Copy/assign
+strAppend(&str, _SL(" world"));  // Modify in place (COW semantics)
+strDestroy(&str);                // Cleanup
 ```
 
-**String literals use `_S` prefix**: `_S"literal"` creates a static string.
+**String literals**: `_SL("literal")` creates a static string with a compile-time embedded length (GCC/Clang; falls back to runtime `strlen` on MSVC). Use `_S"literal"` for the simpler prefix form. For named constants at file or function scope, use `STR_CONST(name, "value")`.
 
 ### 3. Generic Containers
 
@@ -77,14 +77,14 @@ Generic key-value maps:
 ```c
 hashtable ht;
 htInit(&ht, string, int32, 16);
-htInsert(&ht, string, _S"key", int32, 42);
+htInsert(&ht, string, _SL("key"), int32, 42);
 int32 val;
 
-if (htFind(ht, string, _S"key", int32, &val) {
+if (htFind(ht, string, _SL("key"), int32, &val) {
     // found, use val
 }
 // -- OR --
-htelem elem = htFind(ht, string, _S"key", none, NULL);
+htelem elem = htFind(ht, string, _SL("key"), none, NULL);
 if (elem) {
     val = hteVal(ht, int32, elem);  // can also use hteValPtr to obtain pointer to stored value
 }
@@ -265,7 +265,7 @@ For code examples, use Doxygen code blocks:
 /// Example:
 /// @code
 ///   string s = 0;
-///   strDup(&s, _S"hello");
+///   strDup(&s, _SL("hello"));
 /// @endcode
 ```
 

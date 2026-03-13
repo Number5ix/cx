@@ -176,11 +176,11 @@ bool _ssdLockEnd(_Inout_ SSDNode *root, _Inout_ SSDLockState *lstate);
 /// @code
 ///   ssdLockedTransaction(root) {
 ///       // Read lock acquired automatically
-///       strref name = ssdStrRef(root, _S"user/name");
-///       int32 age = ssdVal(int32, root, _S"user/age", 0);
+///       strref name = ssdStrRef(root, _SL("user/name"));
+///       int32 age = ssdVal(int32, root, _SL("user/age"), 0);
 ///       
 ///       // Can upgrade to write lock if needed
-///       ssdSet(root, _S"user/lastAccess", true, stvar(int64, clockTimer()));
+///       ssdSet(root, _SL("user/lastAccess"), true, stvar(int64, clockTimer()));
 ///   }  // Lock released automatically
 /// @endcode
 #define ssdLockedTransaction(root) _blkStart                                                    \

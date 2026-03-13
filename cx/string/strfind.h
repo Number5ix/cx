@@ -27,16 +27,16 @@ CX_C_BEGIN
 ///
 /// Example:
 /// @code
-///   int32 pos = strFind(s, 0, _S"hello");
+///   int32 pos = strFind(s, 0, _SL("hello"));
 ///   if (pos >= 0) {
 ///       // Found at position pos
 ///   }
 ///
 ///   // Search starting from position 10
-///   pos = strFind(s, 10, _S"world");
+///   pos = strFind(s, 10, _SL("world"));
 ///
 ///   // Search from 5 characters before the end
-///   pos = strFind(s, -5, _S"end");
+///   pos = strFind(s, -5, _SL("end"));
 /// @endcode
 int32 strFind(_In_opt_ strref s, int32 start, _In_opt_ strref find);
 
@@ -61,16 +61,16 @@ int32 strFind(_In_opt_ strref s, int32 start, _In_opt_ strref find);
 /// Example:
 /// @code
 ///   // Find last occurrence in entire string
-///   int32 pos = strFindR(s, 0, _S".");
+///   int32 pos = strFindR(s, 0, _SL("."));
 ///   if (pos >= 0) {
 ///       // Found last period at position pos
 ///   }
 ///
 ///   // Find last occurrence before position 50
-///   pos = strFindR(s, 50, _S"item");
+///   pos = strFindR(s, 50, _SL("item"));
 ///
 ///   // Find last occurrence in last 20 characters
-///   pos = strFindR(s, -20, _S"suffix");
+///   pos = strFindR(s, -20, _SL("suffix"));
 /// @endcode
 int32 strFindR(_In_opt_ strref s, int32 end, _In_opt_ strref find);
 

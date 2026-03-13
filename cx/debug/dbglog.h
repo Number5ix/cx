@@ -27,8 +27,8 @@
 ///   dbgLogEnable(LOG_Verbose);
 ///   
 ///   // Normal logging calls automatically go to debug buffer
-///   logInfo(_S"Application started");
-///   logDebug(_S"Loading configuration");
+///   logInfo(_SL("Application started"));
+///   logDebug(_SL("Loading configuration"));
 ///   
 ///   // On crash, the buffer contents are included in crash dumps
 ///   // Disable when no longer needed (rare)

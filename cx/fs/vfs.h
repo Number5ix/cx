@@ -110,7 +110,7 @@ bool _vfsMountFS(_Inout_ VFS* vfs, _In_opt_ strref path, _In_opt_ strref fsroot,
 /// Example:
 /// @code
 ///   VFS *vfs = vfsCreate(0);
-///   vfsMountFS(vfs, _S"/", _S"c:/gamedata", VFS_ReadOnly);
+///   vfsMountFS(vfs, _SL("/"), _SL("c:/gamedata"), VFS_ReadOnly);
 ///   // Now VFS path "/textures/foo.png" maps to "c:/gamedata/textures/foo.png"
 /// @endcode
 #define vfsMountFS(vfs, path, fsroot, ...) _vfsMountFS(vfs, path, fsroot, opt_flags(__VA_ARGS__))
@@ -136,8 +136,8 @@ bool _vfsMountVFS(_Inout_ VFS* vfs, _In_opt_ strref path, _Inout_ VFS* vfs2,
 /// @code
 ///   VFS *main = vfsCreate(0);
 ///   VFS *sub = vfsCreate(0);
-///   vfsMountFS(sub, _S"/", _S"c:/assets");
-///   vfsMountVFS(main, _S"/game", sub, _S"/");
+///   vfsMountFS(sub, _SL("/"), _SL("c:/assets"));
+///   vfsMountVFS(main, _SL("/game"), sub, _SL("/"));
 ///   // main VFS path "/game/x" now maps to sub VFS path "/x"
 /// @endcode
 #define vfsMountVFS(vfs, path, vfs2, vfs2root, ...) \

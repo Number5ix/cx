@@ -29,7 +29,7 @@ class VFS {
     /// Example:
     /// @code
     ///   VFS *vfs = vfsCreate(0);
-    ///   vfsMountFS(vfs, _S"/", _S"c:/data");
+    ///   vfsMountFS(vfs, _SL("/"), _SL("c:/data"));
     ///   // ... use VFS ...
     ///   objRelease(&vfs);
     /// @endcode
@@ -57,7 +57,7 @@ class VFS {
     ///   VFS *vfs = vfsCreateFromFS();
     ///   if (vfs) {
     ///       // VFS paths now map directly to OS filesystem
-    ///       VFSFile *f = vfsOpen(vfs, _S"c:/data/file.txt", FS_Read);
+    ///       VFSFile *f = vfsOpen(vfs, _SL("c:/data/file.txt"), FS_Read);
     ///   }
     /// @endcode
     [canfail] factory createFromFS();

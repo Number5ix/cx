@@ -145,7 +145,7 @@
 /// // Create and configure queue
 /// TaskQueueConfig config;
 /// tqPresetBalanced(&config);
-/// TaskQueue *tq = tqCreate(_S"MyQueue", &config);
+/// TaskQueue *tq = tqCreate(_SL("MyQueue"), &config);
 /// tqStart(tq);
 ///
 /// // Create and run a task

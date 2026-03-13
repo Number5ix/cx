@@ -50,7 +50,7 @@
 ///
 /// Example:
 /// @code
-///   VFSFile *file = vfsOpen(vfs, _S"data.txt", FS_Read);
+///   VFSFile *file = vfsOpen(vfs, _SL("data.txt"), FS_Read);
 ///   StreamBuffer *sb = sbufCreate(4096);
 ///   sbufStrCRegisterPush(sb, &output);
 ///   sbufFileIn(sb, file, true);  // file is closed automatically
@@ -97,7 +97,7 @@ sbufFilePRegisterPull(_Inout_ StreamBuffer* sb, _Inout_ VFSFile* file, bool clos
 ///
 /// Example:
 /// @code
-///   VFSFile *file = vfsOpen(vfs, _S"output.txt", FS_Write | FS_Create);
+///   VFSFile *file = vfsOpen(vfs, _SL("output.txt"), FS_Write | FS_Create);
 ///   StreamBuffer *sb = sbufCreate(4096);
 ///   sbufStrPRegisterPull(sb, inputData);
 ///   sbufFileOut(sb, file, true);  // file is closed automatically

@@ -40,7 +40,7 @@
 ///   cchainAttach(&eventChain, handler2, stvar(int32, 42));
 ///
 ///   // Fire event - calls all handlers
-///   cchainCall(&eventChain, stvar(string, _S"myEvent"));
+///   cchainCall(&eventChain, stvar(string, _SL("myEvent")));
 ///
 ///   // Cleanup
 ///   cchainDestroy(&eventChain);

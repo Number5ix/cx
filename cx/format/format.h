@@ -124,7 +124,7 @@ CX_C bool _strFormat(_Inout_ string* out, _In_ strref fmt, int n, _In_ stvar* ar
 /// Example:
 /// @code
 ///   string s = 0;
-///   strFormat(&s, _S"Hello ${string}, you have ${int} messages",
+///   strFormat(&s, _SL("Hello ${string}, you have ${int} messages"),
 ///             stvar(string, name), stvar(int32, count));
 /// @endcode
 #define strFormat(out, fmt, ...) \
