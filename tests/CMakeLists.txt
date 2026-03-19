@@ -45,7 +45,7 @@ set(test_runner_files
 source_group("" FILES ${test_runner_files})
 
 add_executable(test_runner ${test_runner_files})
-target_include_directories(test_runner PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(test_runner PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(test_runner cx)
 
 if(CX_PLATFORM_IS_WASM)
