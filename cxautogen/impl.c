@@ -717,22 +717,24 @@ static void writeClassImpl(StreamBuffer* bf, Class* cls, bool* wroteany)
     strDestroy(&ln);
 }
 
-static strref getStructMemberType(Member* m)
+static void getStructMemberType(string* out, Member* m)
 {
     if (strEq(m->vartype, _S"int8") || strEq(m->vartype, _S"int16") || strEq(m->vartype, _S"int32") ||
         strEq(m->vartype, _S"int64") || strEq(m->vartype, _S"uint8") || strEq(m->vartype, _S"uint16") ||
         strEq(m->vartype, _S"uint32") || strEq(m->vartype, _S"uint64") ||
         strEq(m->vartype, _S"float32") || strEq(m->vartype, _S"float64") || strEq(m->vartype, _S"bool") ||
         strEq(m->vartype, _S"string") || strEq(m->vartype, _S"stvar") || strEq(m->vartype, _S"hashtable"))
-        return m->vartype;
+        strDup(out, m->vartype);
 
     if (saSize(m->fulltype) > 0) {
         if (strEq(m->fulltype.a[0], _S"sarray") || strEq(m->fulltype.a[0], _S"object") ||
-            strEq(m->fulltype.a[0], _S"struct") || strEq(m->fulltype.a[0], _S"structptr"))
-            return m->fulltype.a[0];
-    }
+            strEq(m->fulltype.a[0], _S"structptr"))
+            strDup(out, m->fulltype.a[0]);
 
-    return NULL;
+        if (strEq(m->fulltype.a[0], _S"struct")) {
+            strNConcat(out, _S"struct(", m->fulltype.a[1], _S")");
+        }
+    }
 }
 
 static bool writeStructMemberDesc(StreamBuffer* bf, strref sname, Member* m)
@@ -740,8 +742,9 @@ static bool writeStructMemberDesc(StreamBuffer* bf, strref sname, Member* m)
     if ((m->flags & STRUCT_Ignore) == STRUCT_Ignore)
         return false;   // just don't emit this one at all
 
-    strref sttypename = getStructMemberType(m);
-    if (!sttypename) {
+    string sttypename = 0;
+    getStructMemberType(&sttypename, m);
+    if (strEmpty(sttypename)) {
         fprintf(
             stderr,
             "WARNING: member '%s' of struct '%s' has unsupported type '%s', should be flagged ignore\n",
@@ -788,6 +791,7 @@ static bool writeStructMemberDesc(StreamBuffer* bf, strref sname, Member* m)
 
     sbufPWriteLine(bf, _S"    },");
 
+    strDestroy(&sttypename);
     strDestroy(&ln);
 
     return true;

@@ -406,7 +406,7 @@ enum STYPE_ID {
     STypeId_stvar     = STCLASS_CX | 4,
     STypeId_closure   = STCLASS_CX | 5,
     STypeId_buffer    = STCLASS_CX | 6,
-    StypeId_struct    = STCLASS_CX | 7,
+    STypeId_struct    = STCLASS_CX | 7,
     STypeId_structptr = STCLASS_CX | 8,
     STypeId_sarray    = STCLASS_CX_CONTAINER | 0,
     STypeId_hashtable = STCLASS_CX_CONTAINER | 1,
