@@ -142,7 +142,7 @@ void Class_destroy(_In_ Class* self)
 
 _objfactory_guaranteed Param* Param_create()
 {
-    Param *ret;
+    Param* ret;
     ret = objInstCreate(Param);
     objInstInit(ret);
     return ret;
@@ -150,7 +150,7 @@ _objfactory_guaranteed Param* Param_create()
 
 _objfactory_guaranteed Method* Method_create()
 {
-    Method *ret;
+    Method* ret;
     ret = objInstCreate(Method);
     objInstInit(ret);
     return ret;
@@ -158,7 +158,7 @@ _objfactory_guaranteed Method* Method_create()
 
 _objfactory_guaranteed Interface* Interface_create()
 {
-    Interface *ret;
+    Interface* ret;
     ret = objInstCreate(Interface);
     objInstInit(ret);
     return ret;
@@ -166,7 +166,7 @@ _objfactory_guaranteed Interface* Interface_create()
 
 _objfactory_guaranteed Member* Member_create()
 {
-    Member *ret;
+    Member* ret;
     ret = objInstCreate(Member);
     objInstInit(ret);
     return ret;
@@ -174,7 +174,7 @@ _objfactory_guaranteed Member* Member_create()
 
 _objfactory_guaranteed Class* Class_create()
 {
-    Class *ret;
+    Class* ret;
     ret = objInstCreate(Class);
     objInstInit(ret);
     return ret;
@@ -182,9 +182,9 @@ _objfactory_guaranteed Class* Class_create()
 
 _Ret_valid_ Method* Method_clone(_In_ Method* self)
 {
-    Method *ret = methodCreate();
+    Method* ret   = methodCreate();
     ret->srcclass = self->srcclass;
-    ret->srcif = self->srcif;
+    ret->srcif    = self->srcif;
     ret->mixinsrc = self->mixinsrc;
     strDup(&ret->srcfile, self->srcfile);
     strDup(&ret->returntype, self->returntype);
@@ -196,19 +196,19 @@ _Ret_valid_ Method* Method_clone(_In_ Method* self)
     if (self->annotations.a)
         saClone(&ret->annotations, self->annotations);
 
-    ret->isinit = self->isinit;
+    ret->isinit    = self->isinit;
     ret->isdestroy = self->isdestroy;
     ret->isfactory = self->isfactory;
-    ret->internal = self->internal;
-    ret->canfail = self->canfail;
-    ret->unbound = self->unbound;
-    ret->mixin = self->mixin;
+    ret->internal  = self->internal;
+    ret->canfail   = self->canfail;
+    ret->unbound   = self->unbound;
+    ret->mixin     = self->mixin;
     return ret;
 }
 
 _objfactory_guaranteed ComplexArrayType* ComplexArrayType_create()
 {
-    ComplexArrayType *self;
+    ComplexArrayType* self;
     self = objInstCreate(ComplexArrayType);
 
     objInstInit(self);
@@ -221,6 +221,41 @@ void ComplexArrayType_destroy(_In_ ComplexArrayType* self)
     // Autogen begins -----
     strDestroy(&self->tname);
     strDestroy(&self->tsubtype);
+    // Autogen ends -------
+}
+
+_objfactory_guaranteed Struct* Struct_create()
+{
+    Struct* self;
+    self = objInstCreate(Struct);
+
+    objInstInit(self);
+    return self;
+}
+
+_objinit_guaranteed bool Struct_init(_In_ Struct* self)
+{
+    // Autogen begins -----
+    saInit(&self->members, object, 1);
+    return true;
+    // Autogen ends -------
+}
+
+intptr Struct_cmp(_In_ Struct* self, Struct* other, uint32 flags)
+{
+    // Uncomment unless this function can compare different object classes
+    devAssert(objClsInfo(self) == objClsInfo(other));
+
+    return strCmp(self->name, other->name);
+}
+
+void Struct_destroy(_In_ Struct* self)
+{
+    // Autogen begins -----
+    strDestroy(&self->name);
+    saDestroy(&self->members);
+    saDestroy(&self->docs);
+    saDestroy(&self->annotations);
     // Autogen ends -------
 }
 

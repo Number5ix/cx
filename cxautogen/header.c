@@ -336,8 +336,8 @@ void writeComplexArrayDecl(StreamBuffer* bf, ComplexArrayType* cat)
 
 static void writeClassMember(StreamBuffer* bf, Class* cls, Member* m)
 {
-    string ln      = 0;
-    string predecr = 0;
+    string ln        = 0;
+    string predecr   = 0;
     bool hasdocs     = saSize(m->docs) > 0;
     bool hascomments = !hasdocs && saSize(m->comments) > 0;
 
@@ -562,8 +562,8 @@ bool writeHeader(string fname, string srcpath, string binpath)
         writeForwardDecl(bf, fwdclass.a[i]);
         writeForwardWeakRefDecl(bf, fwdclass.a[i]);
     }
-    for (int i = 0; i < saSize(structs); i++) {
-        writeForwardDecl(bf, structs.a[i]);
+    for (int i = 0; i < saSize(fwdstruct); i++) {
+        writeForwardDecl(bf, fwdstruct.a[i]);
     }
 
     for (int i = 0; i < saSize(classes); i++) {

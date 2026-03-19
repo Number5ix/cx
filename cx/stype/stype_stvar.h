@@ -1,3 +1,5 @@
+#pragma once
+
 #include "cx/cx.h"
 
 void stDtor_stvar(stype st, stgeneric* stgen, uint32 flags);

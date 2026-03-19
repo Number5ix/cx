@@ -105,3 +105,17 @@ class ComplexArrayType {
 
     factory create();
 }
+
+class Struct implements Sortable {
+    string name;
+    sarray:object:Member members;
+
+    [noinit] sarray:string docs;
+    [noinit] sarray:sarray:string annotations;
+    bool hasinit;
+    bool hasdestroy;
+    bool included;
+    bool processed;
+    
+    factory create();
+}

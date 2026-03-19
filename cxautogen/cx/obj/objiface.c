@@ -2,7 +2,7 @@
 #include "cx/debug/assert.h"
 #include "cx/utils/compare.h"
 
-typedef void(*genfunc)();
+typedef void (*genfunc)();
 
 // dummy structure to get correct offset in case of insane compiler struct padding
 typedef struct iface_hdr {
@@ -11,7 +11,7 @@ typedef struct iface_hdr {
 } iface_hdr;
 #define IFACE_FIRST_FPTR offsetof(iface_hdr, first)
 
-static int ifNumFuncs(_In_ ObjIface *iface)
+static int ifNumFuncs(_In_ ObjIface* iface)
 {
     // size of anything extra after interface header
     size_t sze = iface->_size - IFACE_FIRST_FPTR;
@@ -26,15 +26,15 @@ static int ifNumFuncs(_In_ ObjIface *iface)
 
 // merge interface implementations from src to dest, ignoring any functions that are
 // already populated in dest
-static void mergeIface(_Inout_ ObjIface *dest, _In_ ObjIface *src)
+static void mergeIface(_Inout_ ObjIface* dest, _In_ ObjIface* src)
 {
     genfunc *intbl, *outtbl;
     int nfsrc, nfdst;
     int i;
 
-    nfsrc = ifNumFuncs(src);
-    nfdst = ifNumFuncs(dest);
-    intbl = (genfunc*)(((uintptr_t)src) + IFACE_FIRST_FPTR);
+    nfsrc  = ifNumFuncs(src);
+    nfdst  = ifNumFuncs(dest);
+    intbl  = (genfunc*)(((uintptr_t)src) + IFACE_FIRST_FPTR);
     outtbl = (genfunc*)(((uintptr_t)dest) + IFACE_FIRST_FPTR);
     for (i = min(nfsrc, nfdst) - 1; i >= 0; --i) {
         if (!outtbl[i])
@@ -49,16 +49,16 @@ static void mergeIface(_Inout_ ObjIface *dest, _In_ ObjIface *src)
 // impls is a handle to an array of pointers to interfaces that have been hydrated
 // so far. The impltbl hashtable maps the interface template pointer to the
 // implementation.
-void _objHydrateIface(_In_ ObjIface *ifimpl, _Inout_ sa_ObjIface *impls, _Inout_ hashtable *impltbl)
+void _objHydrateIface(_In_ ObjIface* ifimpl, _Inout_ sa_ObjIface* impls, _Inout_ hashtable* impltbl)
 {
     ObjIface *destif = NULL, *tmp = NULL;
 
     devAssert(ifimpl->_implements);
     if (!htFind(*impltbl, ptr, ifimpl->_implements, ptr, &destif)) {
         // we didn't find an existing table entry, so add one
-        destif = xaAlloc(ifimpl->_size, XA_Zero);
+        destif              = xaAlloc(ifimpl->_size, XA_Zero);
         destif->_implements = ifimpl->_implements;
-        destif->_size = ifimpl->_size;
+        destif->_size       = ifimpl->_size;
 
         // It's unlikely, but possible, that a parent interface of ours is already
         // present in the implementation table. An example case where this can happen:
@@ -73,7 +73,7 @@ void _objHydrateIface(_In_ ObjIface *ifimpl, _Inout_ sa_ObjIface *impls, _Inout_
         // exists, and copying its function pointers if so. This will result in both IfA
         // and IfB containing pointers to ClsB's implementation.
 
-        for (ObjIface *pif = ifimpl->_implements->_parent; pif; pif = pif->_parent) {
+        for (ObjIface* pif = ifimpl->_implements->_parent; pif; pif = pif->_parent) {
             if (htFind(*impltbl, ptr, pif, ptr, &tmp))
                 mergeIface(destif, tmp);
         }
@@ -86,7 +86,7 @@ void _objHydrateIface(_In_ ObjIface *ifimpl, _Inout_ sa_ObjIface *impls, _Inout_
 
     // register interface tables for this interface and all its parents,
     // or merge them with tables registered by child classes
-    for (ObjIface *pif = destif->_implements; pif; pif = pif->_parent) {
+    for (ObjIface* pif = destif->_implements; pif; pif = pif->_parent) {
         if (htFind(*impltbl, ptr, pif, ptr, &tmp))
             mergeIface(tmp, destif);
         else
@@ -94,13 +94,13 @@ void _objHydrateIface(_In_ ObjIface *ifimpl, _Inout_ sa_ObjIface *impls, _Inout_
     }
 }
 
-bool _objCheckIface(_In_ ObjIface *iface)
+bool _objCheckIface(_In_ ObjIface* iface)
 {
-    genfunc *tbl;
+    genfunc* tbl;
     int nf;
     int i;
 
-    nf = ifNumFuncs(iface);
+    nf  = ifNumFuncs(iface);
     tbl = (genfunc*)(((uintptr_t)iface) + IFACE_FIRST_FPTR);
     for (i = nf - 1; i >= 0; --i) {
         if (!tbl[i])

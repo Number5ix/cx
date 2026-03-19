@@ -1,4 +1,4 @@
-#include "cx/cx.h"
+#include "stype_stvar.h"
 
 void stDtor_stvar(stype st, stgeneric* gen, uint32 flags)
 {

@@ -16,6 +16,8 @@ typedef struct Class Class;
 typedef struct Class_WeakRef Class_WeakRef;
 typedef struct ComplexArrayType ComplexArrayType;
 typedef struct ComplexArrayType_WeakRef ComplexArrayType_WeakRef;
+typedef struct Struct Struct;
+typedef struct Struct_WeakRef Struct_WeakRef;
 saDeclarePtr(Param);
 saDeclarePtr(Param_WeakRef);
 saDeclarePtr(Method);
@@ -28,6 +30,8 @@ saDeclarePtr(Class);
 saDeclarePtr(Class_WeakRef);
 saDeclarePtr(ComplexArrayType);
 saDeclarePtr(ComplexArrayType_WeakRef);
+saDeclarePtr(Struct);
+saDeclarePtr(Struct_WeakRef);
 saDeclareType(sarray_string, sa_string);
 
 typedef struct Method_ClassIf {
@@ -66,6 +70,15 @@ typedef struct Class_ClassIf {
     intptr (*cmp)(_In_ void* self, void* other, uint32 flags);
 } Class_ClassIf;
 extern Class_ClassIf Class_ClassIf_tmpl;
+
+typedef struct Struct_ClassIf {
+    ObjIface* _implements;
+    ObjIface* _parent;
+    size_t _size;
+
+    intptr (*cmp)(_In_ void* self, void* other, uint32 flags);
+} Struct_ClassIf;
+extern Struct_ClassIf Struct_ClassIf_tmpl;
 
 typedef struct Param {
     union {
@@ -329,4 +342,45 @@ _objfactory_guaranteed ComplexArrayType* ComplexArrayType_create();
 // ComplexArrayType* complexarraytypeCreate();
 #define complexarraytypeCreate() ComplexArrayType_create()
 
+
+typedef struct Struct {
+    union {
+        Struct_ClassIf* _;
+        void* _is_Struct;
+        void* _is_ObjInst;
+    };
+    ObjClassInfo* _clsinfo;
+    atomic(uintptr) _ref;
+    atomic(ptr) _weakref;
+
+    string name;
+    sa_Member members;
+    sa_string docs;
+    sa_sarray_string annotations;
+    bool hasinit;
+    bool hasdestroy;
+    bool included;
+    bool processed;
+} Struct;
+extern ObjClassInfo Struct_clsinfo;
+#define Struct(inst) ((Struct*)(unused_noeval((inst) && &((inst)->_is_Struct)), (inst)))
+#define StructNone ((Struct*)NULL)
+
+typedef struct Struct_WeakRef {
+    union {
+        ObjInst* _inst;
+        void* _is_Struct_WeakRef;
+        void* _is_ObjInst_WeakRef;
+    };
+    atomic(uintptr) _ref;
+    RWLock _lock;
+} Struct_WeakRef;
+#define Struct_WeakRef(inst) ((Struct_WeakRef*)(unused_noeval((inst) && &((inst)->_is_Struct_WeakRef)), (inst)))
+
+_objfactory_guaranteed Struct* Struct_create();
+// Struct* structCreate();
+#define structCreate() Struct_create()
+
+// intptr structCmp(Struct* self, Struct* other, uint32 flags);
+#define structCmp(self, other, flags) (self)->_->cmp(Struct(self), other, flags)
 

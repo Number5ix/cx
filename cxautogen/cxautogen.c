@@ -6,12 +6,13 @@
 sa_Interface ifaces;
 hashtable ifidx;
 sa_Class classes;
+sa_Struct structs;
 hashtable clsidx;
 hashtable weakrefidx;
 sa_string includes;
 sa_string implincludes;
 sa_string deps;
-sa_string structs;
+sa_string fwdstruct;
 sa_string fwdclass;
 sa_string globaldocs;
 sa_string globaldocs_end;
@@ -34,6 +35,7 @@ int main(int argc, char* argv[])
     saInit(&ifaces, object, 16);
     htInit(&ifidx, string, object, 16);
     saInit(&classes, object, 16);
+    saInit(&structs, object, 16);
     htInit(&clsidx, string, object, 16);
     htInit(&weakrefidx, string, object, 16);
     saInit(&includes, string, 8);
@@ -41,7 +43,7 @@ int main(int argc, char* argv[])
     saInit(&globaldocs, string, 8);
     saInit(&globaldocs_end, string, 8);
     saInit(&deps, string, 8);
-    saInit(&structs, string, 8);
+    saInit(&fwdstruct, string, 8);
     saInit(&fwdclass, string, 8);
     saInit(&artypes, object, 8);
     htInit(&knownartypes, string, bool, 16);
@@ -75,11 +77,12 @@ int main(int argc, char* argv[])
         saClear(&ifaces);
         htClear(&ifidx);
         saClear(&classes);
+        saClear(&structs);
         htClear(&clsidx);
         htClear(&weakrefidx);
         saClear(&includes);
         saClear(&implincludes);
-        saClear(&structs);
+        saClear(&fwdstruct);
         saClear(&fwdclass);
         saClear(&artypes);
         saClear(&globaldocs);
@@ -123,10 +126,11 @@ int main(int argc, char* argv[])
     htDestroy(&clsidx);
     htDestroy(&weakrefidx);
     saDestroy(&classes);
+    saDestroy(&structs);
     saDestroy(&implincludes);
     saDestroy(&includes);
     saDestroy(&deps);
-    saDestroy(&structs);
+    saDestroy(&fwdstruct);
     saDestroy(&fwdclass);
     saDestroy(&globaldocs);
     saDestroy(&globaldocs_end);

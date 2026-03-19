@@ -17,6 +17,10 @@ Class_ClassIf Class_ClassIf_tmpl = {
     ._size = sizeof(Class_ClassIf),
 };
 
+Struct_ClassIf Struct_ClassIf_tmpl = {
+    ._size = sizeof(Struct_ClassIf),
+};
+
 static ObjIface* _ifimpl_Param[] = {
     NULL
 };
@@ -139,6 +143,32 @@ ObjClassInfo ComplexArrayType_clsinfo = {
     .instsize = sizeof(ComplexArrayType),
     .destroy = (void(*)(void*))ComplexArrayType_destroy,
     .ifimpl = _ifimpl_ComplexArrayType,
+};
+
+static Sortable _impl_Struct_Sortable = {
+    ._size = sizeof(Sortable),
+    ._implements = (ObjIface*)&Sortable_tmpl,
+    .cmp = (intptr (*)(void*, void*, uint32))Struct_cmp,
+};
+
+static Struct_ClassIf _impl_Struct_Struct_ClassIf = {
+    ._size = sizeof(Struct_ClassIf),
+    ._implements = (ObjIface*)&Struct_ClassIf_tmpl,
+    .cmp = (intptr (*)(void*, void*, uint32))Struct_cmp,
+};
+
+static ObjIface* _ifimpl_Struct[] = {
+    (ObjIface*)&_impl_Struct_Sortable,
+    (ObjIface*)&_impl_Struct_Struct_ClassIf,
+    NULL
+};
+
+ObjClassInfo Struct_clsinfo = {
+    .instsize = sizeof(Struct),
+    .classif = (ObjIface*)&Struct_ClassIf_tmpl,
+    .init = (bool(*)(void*))Struct_init,
+    .destroy = (void(*)(void*))Struct_destroy,
+    .ifimpl = _ifimpl_Struct,
 };
 
 // ==================== Auto-generated section ends ======================

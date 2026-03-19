@@ -13,6 +13,7 @@ enum ParseContext {
     Context_ClassPre,
     Context_Class,
     Context_ParamList,
+    Context_Struct,
 };
 
 typedef struct ParseState {
@@ -38,6 +39,7 @@ typedef struct ParseState {
 
     Interface* curif;
     Class* curcls;
+    Struct* curstruct;
     Method* curmethod;
     Param* curparam;
 
@@ -405,14 +407,28 @@ bool parseGlobal(ParseState* ps, string* tok)
         strDestroy(&ext);
         return ret;
     } else if (strEq(*tok, _S"struct")) {
-        ps->ptemptyok = false;
+        ps->ptemptyok     = false;
+        string structname = 0;
+        nextTok(ps, &structname);
         nextTok(ps, tok);
-        saPush(&structs, string, *tok, SA_Unique);
-        nextTok(ps, tok);
-        if (!strEq(*tok, _S";")) {
-            fprintf(stderr, "parse error in structure forward declaration\n");
+        if (strEq(*tok, _S";")) {
+            saPush(&fwdstruct, string, structname, SA_Unique);
+        } else if (strEq(*tok, _S"{")) {
+            ps->ptemptyok = false;
+            saClear(&ps->comments);
+            ps->curstruct              = structCreate();
+            ps->context                = Context_ClassPre;
+            ps->curstruct->included    = ps->included;
+            ps->curstruct->annotations = ps->annotations;
+            ps->curstruct->docs        = ps->docs;
+            saInit(&ps->docs, string, 4);
+            saInit(&ps->annotations, sarray, 4);
+        } else {
+            fprintf(stderr, "parse error in structure definition\n");
+            strDestroy(&structname);
             return false;
         }
+        strDestroy(&structname);
         return true;
     }
 
