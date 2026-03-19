@@ -26,8 +26,10 @@ void _structDestroyMembersMany(StructBase* base, int number)
     for (int i = 0; i < number; i++) {
         for (int m = 0; m < info->nmembers; m++) {
             StructMemberDesc* member = &info->members[m];
-            void* memberptr          = (char*)&base[i] + member->offset;
-            _stDestroy(member->type, NULL, (stgeneric*)memberptr, 0);
+            if (!(member->flags & STRUCT_NoDestroy)) {
+                void* memberptr = (char*)&base[i] + member->offset;
+                _stDestroy(member->type, NULL, (stgeneric*)memberptr, 0);
+            }
         }
         if (info->destroy)
             info->destroy(&base[i]);

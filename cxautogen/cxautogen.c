@@ -113,6 +113,8 @@ int main(int argc, char* argv[])
             break;
         if (!processClasses())
             break;
+        if (!processStructs())
+            break;
         if (!writeHeader(fname, srcpath, binpath))
             break;
         if (!writeImpl(fname, srcpath, binpath, false))

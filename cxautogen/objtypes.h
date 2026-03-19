@@ -3,6 +3,7 @@
 // Do not make changes to this file or they will be overwritten.
 // clang-format off
 #include <cx/obj.h>
+#include <cx/struct.h>
 
 typedef struct Param Param;
 typedef struct Param_WeakRef Param_WeakRef;
@@ -230,6 +231,7 @@ typedef struct Member {
     sa_sarray_string annotations;
     Class* mixinsrc;
     string initstr;
+    uint32 flags;
     bool init;
     bool destroy;
 } Member;

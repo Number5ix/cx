@@ -3,12 +3,18 @@
 #include <cx/stype/stype.h>
 
 enum StructMemberFlagsEnum {
-    STRUCT_Transient = 1 << 0,   ///< Member is transient and should not be serialized
-    STRUCT_NoCopy    = 1 << 1,   ///< Member should be skipped during copy operations
+    STRUCT_NoDestroy   = 1 << 0,   ///< Member should not be automatically destroyed
+    STRUCT_NoCopy      = 1 << 1,   ///< Member should be skipped during copy operations
+    STRUCT_NoSerialize = 1 << 2,   ///< Member should not be serialized (e.g. by JSON, etc.)
+
+    /// Member should be ignored for all operations
+    /// Ignored members may also be omitted from the list entirely, e.g. for types outside the stype
+    /// system.
+    STRUCT_Ignore = STRUCT_NoDestroy | STRUCT_NoSerialize | STRUCT_NoCopy,
 };
 
 typedef struct StructMemberDesc {
-    string name;     ///< Name of the member
+    strref name;     ///< Name of the member
     size_t offset;   ///< Offset within the struct
     stype type;      ///< Type of the member
     stgeneric def;   ///< Default value for the member (if any)
@@ -16,7 +22,7 @@ typedef struct StructMemberDesc {
 } StructMemberDesc;
 
 typedef struct StructInfo {
-    string name;                 ///< Name of the struct
+    strref name;                 ///< Name of the struct
     size_t structsize;           ///< Size in bytes of the struct
     int nmembers;                ///< Number of struct members
     StructMemberDesc* members;   ///< Array of struct member descriptors

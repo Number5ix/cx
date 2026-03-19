@@ -63,6 +63,7 @@ class Member implements Sortable {
 
     Class *mixinsrc;
     string initstr;
+    uint32 flags;
     bool init;
     bool destroy;
 

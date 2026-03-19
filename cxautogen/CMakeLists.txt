@@ -42,6 +42,7 @@ set(CXAUTOGEN_SRCS
     interfaces.c
     objtypes.c
     parser.c
+    structs.c
     cxautogen.c
     stub.c)
 set(CX_SRCS

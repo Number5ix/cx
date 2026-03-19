@@ -3,6 +3,7 @@
 #include <cx/string.h>
 #include "cxautogen.h"
 #define PCRE2_CODE_UNIT_WIDTH 8
+#include <cx/struct.h>
 #include <3rdparty/pcre2/pcre2.h>
 
 static const string autogenBegin = _S
@@ -716,6 +717,116 @@ static void writeClassImpl(StreamBuffer* bf, Class* cls, bool* wroteany)
     strDestroy(&ln);
 }
 
+static strref getStructMemberType(Member* m)
+{
+    if (strEq(m->vartype, _S"int8") || strEq(m->vartype, _S"int16") || strEq(m->vartype, _S"int32") ||
+        strEq(m->vartype, _S"int64") || strEq(m->vartype, _S"uint8") || strEq(m->vartype, _S"uint16") ||
+        strEq(m->vartype, _S"uint32") || strEq(m->vartype, _S"uint64") ||
+        strEq(m->vartype, _S"float32") || strEq(m->vartype, _S"float64") || strEq(m->vartype, _S"bool") ||
+        strEq(m->vartype, _S"string") || strEq(m->vartype, _S"stvar") || strEq(m->vartype, _S"hashtable"))
+        return m->vartype;
+
+    if (saSize(m->fulltype) > 0) {
+        if (strEq(m->fulltype.a[0], _S"sarray") || strEq(m->fulltype.a[0], _S"object") ||
+            strEq(m->fulltype.a[0], _S"struct") || strEq(m->fulltype.a[0], _S"structptr"))
+            return m->fulltype.a[0];
+    }
+
+    return NULL;
+}
+
+static bool writeStructMemberDesc(StreamBuffer* bf, strref sname, Member* m)
+{
+    if ((m->flags & STRUCT_Ignore) == STRUCT_Ignore)
+        return false;   // just don't emit this one at all
+
+    strref sttypename = getStructMemberType(m);
+    if (!sttypename) {
+        fprintf(
+            stderr,
+            "WARNING: member '%s' of struct '%s' has unsupported type '%s', should be flagged ignore\n",
+            strC(m->name),
+            strC(sname),
+            strC(saSize(m->fulltype) > 0 ? m->fulltype.a[0] : m->vartype));
+        return false;
+    }
+
+    string ln = 0;
+
+    sbufPWriteLine(bf, _S"    {");
+    if (m->flags & STRUCT_NoSerialize) {
+        // if not serializable, don't include the name in the binary
+        sbufPWriteLine(bf, _S"        .name = &_emptyStringData,");
+    } else {
+        strNConcat(&ln, _S"        .name = ", sname, _S"_m_", m->name, _S"_name,");
+        sbufPWriteLine(bf, ln);
+    }
+    strNConcat(&ln, _S"        .offset = offsetof(", sname, _S", ", m->name, _S"),");
+    sbufPWriteLine(bf, ln);
+
+    sa_string flagsarr;
+    saInit(&flagsarr, string, 1);
+    if (m->flags & STRUCT_NoCopy)
+        saPush(&flagsarr, string, _S"STRUCT_NoCopy");
+    if (m->flags & STRUCT_NoSerialize)
+        saPush(&flagsarr, string, _S"STRUCT_NoSerialize");
+    if (m->flags & STRUCT_NoDestroy)
+        saPush(&flagsarr, string, _S"STRUCT_NoDestroy");
+
+    string flags = 0;
+    strJoin(&flags, flagsarr, _S" | ");
+    if (!strEmpty(flags)) {
+        strNConcat(&ln, _S"        .flags = ", flags, _S",");
+        sbufPWriteLine(bf, ln);
+    }
+
+    strDestroy(&flags);
+    saDestroy(&flagsarr);
+
+    strNConcat(&ln, _S"        .type = stType(", sttypename, _S"),");
+    sbufPWriteLine(bf, ln);
+
+    sbufPWriteLine(bf, _S"    },");
+
+    strDestroy(&ln);
+
+    return true;
+}
+
+static int writeStructMemberTbl(StreamBuffer* bf, Struct* str, bool* wroteany)
+{
+    string ln = 0;
+    int ret   = 0;
+
+    *wroteany = true;
+    strNConcat(&ln, _S"STR_CONST(", str->name, _S"_name, \"", str->name, _S"\");");
+    sbufPWriteLine(bf, ln);
+    for (int i = 0; i < saSize(str->members); i++) {
+        if (str->members.a[i]->flags & STRUCT_NoSerialize)
+            continue;
+        strNConcat(&ln,
+                   _S"STR_CONST(",
+                   str->name,
+                   _S"_m_",
+                   str->members.a[i]->name,
+                   _S"_name, \"",
+                   str->members.a[i]->name,
+                   _S"\");");
+        sbufPWriteLine(bf, ln);
+    }
+    strNConcat(&ln, _S"StructMemberDesc ", str->name, _S"_members[] = {");
+    sbufPWriteLine(bf, ln);
+    for (int i = 0; i < saSize(str->members); i++) {
+        ret += writeStructMemberDesc(bf, str->name, str->members.a[i]) ? 1 : 0;
+    }
+    sbufPWriteLine(bf, _S"    { 0 }");
+    sbufPWriteLine(bf, _S"};");
+    sbufPWriteEOL(bf);
+    strDestroy(&ln);
+
+    return ret;
+}
+
 static bool fillBuf(StreamBuffer* obf, sa_string* linebuf)
 {
     string ln = 0;
@@ -737,8 +848,8 @@ bool writeImpl(string fname, string srcpath, string binpath, bool mixinimpl)
 {
     string hname = 0;
     if (!strEmpty(srcpath))
-        relSrcPath(&hname, fname, srcpath);   // in cmake mode this needs to be relative because it
-                                              // lands in binpath
+        relSrcPath(&hname, fname, srcpath);   // in cmake mode this needs to be relative because
+                                              // it lands in binpath
     else
         pathFilename(&hname, fname);
     pathSetExt(&hname, hname, _S"h");
@@ -976,6 +1087,8 @@ nextloop:
         sbufPWriteLine(ibf, autogenBegin);
         sbufPWriteLine(ibf, clangOff);
         sbufPWriteLine(ibf, autogenNotice);
+        sbufPWriteLine(ibf, _S"#include <cx/string.h>");
+
         for (int i = 0; i < saSize(classes); i++) {
             if (!classes.a[i]->included)
                 writeMixinStubs(ibf, classes.a[i], &wroteany);
@@ -987,6 +1100,13 @@ nextloop:
         for (int i = 0; i < saSize(classes); i++) {
             if (!classes.a[i]->included && !classes.a[i]->mixin)
                 writeClassImpl(ibf, classes.a[i], &wroteany);
+        }
+        for (int i = 0; i < saSize(structs); i++) {
+            int nmembers = 0;
+            if (!structs.a[i]->included) {
+                nmembers = writeStructMemberTbl(ibf, structs.a[i], &wroteany);
+                (void)nmembers;
+            }
         }
         sbufPWriteLine(ibf, autogenEnd);
 

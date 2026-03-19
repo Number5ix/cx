@@ -39,11 +39,10 @@ static void structCopy(StructBase* bdest, StructBase* bsrc, flags_t flags)
     for (int i = 0; i < info->nmembers; i++) {
         StructMemberDesc* member = &info->members[i];
         void* destptr            = (char*)bdest + member->offset;
+        memset(destptr, 0, info->structsize);   // ensure clean state for copy
         if (!(member->flags & STRUCT_NoCopy)) {
             void* srcptr = (char*)bsrc + member->offset;
             _stCopy(member->type, NULL, (stgeneric*)destptr, *(stgeneric*)srcptr, flags);
-        } else {
-            memset(destptr, 0, stGetSize(member->type));
         }
     }
 }

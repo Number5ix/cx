@@ -13,6 +13,7 @@ enum ParseContext {
     Context_ClassPre,
     Context_Class,
     Context_ParamList,
+    Context_StructPre,
     Context_Struct,
 };
 
@@ -69,6 +70,9 @@ static bool parseEnd(ParseState* ps, bool retval)
     }
     if (ps->curcls) {
         objRelease(&ps->curcls);
+    }
+    if (ps->curstruct) {
+        objRelease(&ps->curstruct);
     }
     if (ps->curmethod) {
         objRelease(&ps->curmethod);
@@ -349,6 +353,17 @@ bool parseGlobal(ParseState* ps, string* tok)
         saInit(&ps->docs, string, 4);
         saInit(&ps->annotations, sarray, 4);
         return true;
+    } else if (strEq(*tok, _S"struct")) {
+        ps->ptemptyok = false;
+        saClear(&ps->comments);
+        ps->curstruct              = structCreate();
+        ps->context                = Context_StructPre;
+        ps->curstruct->included    = ps->included;
+        ps->curstruct->annotations = ps->annotations;
+        ps->curstruct->docs        = ps->docs;
+        saInit(&ps->docs, string, 4);
+        saInit(&ps->annotations, sarray, 4);
+        return true;
     } else if (strEq(*tok, _S"#include")) {
         // any docs BEFORE the first #include become global docs
         if (!ps->included && saSize(globaldocs) == 0 && saSize(ps->docs) > 0) {
@@ -406,30 +421,6 @@ bool parseGlobal(ParseState* ps, string* tok)
             strDestroy(&fname);
         strDestroy(&ext);
         return ret;
-    } else if (strEq(*tok, _S"struct")) {
-        ps->ptemptyok     = false;
-        string structname = 0;
-        nextTok(ps, &structname);
-        nextTok(ps, tok);
-        if (strEq(*tok, _S";")) {
-            saPush(&fwdstruct, string, structname, SA_Unique);
-        } else if (strEq(*tok, _S"{")) {
-            ps->ptemptyok = false;
-            saClear(&ps->comments);
-            ps->curstruct              = structCreate();
-            ps->context                = Context_ClassPre;
-            ps->curstruct->included    = ps->included;
-            ps->curstruct->annotations = ps->annotations;
-            ps->curstruct->docs        = ps->docs;
-            saInit(&ps->docs, string, 4);
-            saInit(&ps->annotations, sarray, 4);
-        } else {
-            fprintf(stderr, "parse error in structure definition\n");
-            strDestroy(&structname);
-            return false;
-        }
-        strDestroy(&structname);
-        return true;
     }
 
     // anything not explicitly parsed at the global level gets passed through
@@ -997,6 +988,200 @@ bool parseClass(ParseState* ps, string* tok)
     return true;
 }
 
+bool parseStructPre(ParseState* ps, string* tok)
+{
+    if (strEq(*tok, _S"{")) {
+        if (strEmpty(ps->curstruct->name)) {
+            fprintf(stderr, "Struct missing a name!\n");
+            return false;
+        }
+        saClear(&ps->annotations);
+        ps->context = Context_Struct;
+        return true;
+    } else if (strEq(*tok, _S";")) {
+        // this is actually a forward declaration
+        if (strEmpty(ps->curstruct->name)) {
+            fprintf(stderr, "Struct forward declaration missing a name!\n");
+            return false;
+        }
+        saPush(&fwdstruct, string, ps->curstruct->name);
+        objRelease(&ps->curstruct);
+        saClear(&ps->annotations);
+        ps->context = Context_Global;
+        return true;
+    } else if (!ps->curstruct->name && isvalidname(*tok)) {
+        strDup(&ps->curstruct->name, *tok);
+        return true;
+    }
+
+    fprintf(stderr, "Invalid token '%s' in pre-struct context\n", strC(*tok));
+    return false;
+}
+
+bool parseStruct(ParseState* ps, string* tok)
+{
+    if (strEq(*tok, _S"}")) {
+        if (saSize(ps->tokstack) > 0) {
+            fprintf(stderr, "Extra junk in struct definition\n");
+            return false;
+        }
+        // htInsert(&clsidx, string, ps->curcls->name, object, ps->curcls);
+
+        saPushC(&structs, object, &ps->curstruct);
+        saClear(&ps->annotations);
+        ps->allowannotations = true;
+        ps->context          = Context_Global;
+        return true;
+    } else if (strEq(*tok, _S";")) {
+        if (saSize(ps->tokstack) >= 2) {
+            // this must be a struct member
+            if (!isvalidname(ps->tokstack.a[0])) {
+                fprintf(stderr, "Invalid member type '%s'\n", strC(ps->tokstack.a[0]));
+                return false;
+            }
+            Member* nmem      = memberCreate();
+            nmem->annotations = ps->annotations;
+            saInit(&ps->annotations, sarray, 4);
+            nmem->comments      = ps->comments;
+            ps->curlinecomments = &nmem->comments;
+            saInit(&ps->comments, string, 4);
+            nmem->docs      = ps->docs;
+            ps->curlinedocs = &nmem->docs;
+            saInit(&ps->docs, string, 4);
+
+            sa_string vartype;
+            saInit(&vartype, string, 8);
+            if (strSplit(&vartype, ps->tokstack.a[0], _S":", false) >= 2) {
+                // TODO: consolidate this with the class member parsing above, maybe make a helper
+                // function for parsing types? special case for a couple things
+                if (strEq(vartype.a[0], _S"hashtable")) {
+                    strDup(&nmem->vartype, vartype.a[0]);   // hashtable is the actual type
+                } else if (strEq(vartype.a[0], _S"sarray")) {
+                    sa_string artl;
+                    saInit(&artl, string, 4);
+                    for (int i = 1; i < saSize(vartype); i++) {
+                        // objects declare their array types as pointers already
+                        if (!strEq(vartype.a[i], _S"object") && !strEq(vartype.a[i], _S"weak")) {
+                            saPush(&artl, strref, vartype.a[i]);
+                        }
+                    }
+
+                    if (saSize(artl) == 1) {
+                        strNConcat(&nmem->vartype, _S"sa_", artl.a[0]);
+                    } else {
+                        // build up a complex array type
+                        string lasttname = 0;
+                        for (int i = saSize(artl) - 2; i >= 0; --i) {
+                            if (!strEq(artl.a[i], _S"sarray"))
+                                continue;
+
+                            ComplexArrayType* cat = complexarraytypeCreate();
+                            sa_string artypessub1;
+                            sa_string artypessub2;
+                            saInit(&artypessub1, string, 4);
+                            saInit(&artypessub2, string, 4);
+                            for (int j = i; j < saSize(artl); j++) {
+                                saPush(&artypessub1, string, artl.a[j]);
+                                if (j > i) {
+                                    saPush(&artypessub2, string, artl.a[j]);
+                                }
+                                if (!strEq(artl.a[j], _S"sarray"))
+                                    break;
+                            }
+
+                            strJoin(&cat->tname, artypessub1, _S"_");
+                            strJoin(&cat->tsubtype, artypessub2, _S"_");
+
+                            if (!ps->included && !htHasKey(knownartypes, string, cat->tname))
+                                saPush(&artypes, object, cat);
+
+                            strDup(&lasttname, cat->tname);
+                            htInsert(&knownartypes, string, cat->tname, bool, true);
+
+                            objRelease(&cat);
+                            saDestroy(&artypessub1);
+                            saDestroy(&artypessub2);
+                        }
+
+                        strNConcat(&nmem->vartype, _S"sa_", lasttname);
+                    }
+                    saDestroy(&artl);
+                } else if (strEq(vartype.a[0], _S"atomic")) {
+                    strNConcat(&nmem->vartype, _S, _S"atomic(", vartype.a[saSize(vartype) - 1], _S")");
+                } else if (strEq(vartype.a[0], _S"weak")) {
+                    strNConcat(&nmem->vartype, _S, _S"Weak(", vartype.a[saSize(vartype) - 1], _S")");
+                } else {
+                    strDup(&nmem->vartype, vartype.a[saSize(vartype) - 1]);
+                }
+
+                nmem->fulltype = vartype;
+                vartype.a      = NULL;
+            } else {
+                strDup(&nmem->vartype, ps->tokstack.a[0]);
+            }
+            saDestroy(&vartype);
+            for (int32 i = 1; i < saSize(ps->tokstack); i++) {
+                if (!nmem->name && onlyspecial(ps->tokstack.a[i])) {
+                    strAppend(&nmem->predecr, ps->tokstack.a[i]);
+                } else if (!nmem->name && isvalidname(ps->tokstack.a[i])) {
+                    strDup(&nmem->name, ps->tokstack.a[i]);
+                } else if (nmem->name) {
+                    strAppend(&nmem->postdecr, ps->tokstack.a[i]);
+                } else {
+                    fprintf(stderr, "Parse error in struct member definition\n");
+                    objRelease(&nmem);
+                    return false;
+                }
+            }
+            if (strEmpty(nmem->name)) {
+                fprintf(stderr, "Incomplete struct member definition\n");
+                objRelease(&nmem);
+                return false;
+            }
+            saPushC(&ps->curstruct->members, object, &nmem);
+        }
+        saClear(&ps->tokstack);
+        saClear(&ps->annotations);
+        ps->allowannotations = true;
+        return true;
+    } else if (strEq(*tok, _S"(")) {
+        if (saSize(ps->tokstack) == 1) {
+            if (strEq(ps->tokstack.a[0], _S"destroy")) {
+                ps->curstruct->hasdestroy = true;
+                string dummy              = 0;
+                nextTok(ps, &dummy);
+                if (!strEq(dummy, _S")")) {
+                    fprintf(stderr, "destructor cannot take parameters!\n");
+                    return false;
+                }
+                strDestroy(&dummy);
+                return true;
+            } else if (strEq(ps->tokstack.a[0], _S"init")) {
+                ps->curstruct->hasinit = true;
+                if (getAnnotation(NULL, ps->annotations, _S"canfail"))
+                    ps->curcls->initcanfail = true;
+                saClear(&ps->annotations);
+                string dummy = 0;
+                nextTok(ps, &dummy);
+                if (!strEq(dummy, _S")")) {
+                    fprintf(stderr, "init cannot take parameters!\n");
+                    return false;
+                }
+                strDestroy(&dummy);
+                return true;
+            }
+        }
+        fprintf(stderr, "Structs may not contain methods\n");
+        return false;
+    }
+
+    // we don't know what this is yet, so save it until more context is available
+    saPush(&ps->tokstack, string, *tok);
+    ps->allowannotations = false;   // consistency with class parsing
+
+    return true;
+}
+
 bool parseFile(strref fname, string* realfn, string srcpath, sa_string searchpath, bool included,
                bool required)
 {
@@ -1063,8 +1248,8 @@ bool parseFile(strref fname, string* realfn, string srcpath, sa_string searchpat
     string tok = 0;
     while ((nextTok(&ps, &tok))) {
         if (strEq(tok, _S"//")) {
-            // speical case: any docs in the global context before the first comment become global
-            // docs
+            // speical case: any docs in the global context before the first comment become
+            // global docs
             if (ps.context == Context_Global && !ps.included && saSize(globaldocs) == 0 &&
                 saSize(ps.docs) > 0) {
                 foreach (sarray, idx, string, docln, ps.docs) {
@@ -1102,9 +1287,9 @@ bool parseFile(strref fname, string* realfn, string srcpath, sa_string searchpat
                 usedocs = true;
             nextCustomTok(&ps, &tok, '\n', "\r");
             if (ps.curlinedocs) {
-                // If this is documentation on the same line as something (method declaration, etc),
-                // add it to that list instead of the pending one for the next item.
-                // ONLY add it there, since ///< is doxygen syntax for member documentation
+                // If this is documentation on the same line as something (method declaration,
+                // etc), add it to that list instead of the pending one for the next item. ONLY
+                // add it there, since ///< is doxygen syntax for member documentation
                 saPush(ps.curlinedocs, string, tok);
                 ps.curlinedocs = NULL;
             }
@@ -1140,6 +1325,14 @@ bool parseFile(strref fname, string* realfn, string srcpath, sa_string searchpat
             break;
         case Context_Class:
             if (!parseClass(&ps, &tok))
+                return parseEnd(&ps, false);
+            break;
+        case Context_StructPre:
+            if (!parseStructPre(&ps, &tok))
+                return parseEnd(&ps, false);
+            break;
+        case Context_Struct:
+            if (!parseStruct(&ps, &tok))
                 return parseEnd(&ps, false);
             break;
         }

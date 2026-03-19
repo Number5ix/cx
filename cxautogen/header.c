@@ -318,6 +318,16 @@ void writeSArrayDecl(StreamBuffer* bf, string name)
     strDestroy(&ln);
 }
 
+void writeSArrayStructDecl(StreamBuffer* bf, string name)
+{
+    string ln = 0;
+    strNConcat(&ln, _S"saDeclare(", name, _S");");
+    sbufPWriteLine(bf, ln);
+    strNConcat(&ln, _S"saDeclareType(", name, _S"_ptr, ", name, _S"*);");
+    sbufPWriteLine(bf, ln);
+    strDestroy(&ln);
+}
+
 void writeSArrayWeakRefDecl(StreamBuffer* bf, string name)
 {
     string ln = 0;
@@ -334,7 +344,7 @@ void writeComplexArrayDecl(StreamBuffer* bf, ComplexArrayType* cat)
     strDestroy(&ln);
 }
 
-static void writeClassMember(StreamBuffer* bf, Class* cls, Member* m)
+static void writeMember(StreamBuffer* bf, Member* m)
 {
     string ln        = 0;
     string predecr   = 0;
@@ -351,7 +361,8 @@ static void writeClassMember(StreamBuffer* bf, Class* cls, Member* m)
     if (!strEq(m->vartype, _S"hashtable") && saSize(m->fulltype) > 0 &&
         !strEq(m->fulltype.a[0], _S"sarray")) {
         for (int i = 0; i < saSize(m->fulltype); i++) {
-            if (strEq(m->fulltype.a[i], _S"object") || strEq(m->fulltype.a[i], _S"weak")) {
+            if (strEq(m->fulltype.a[i], _S"object") || strEq(m->fulltype.a[i], _S"weak") ||
+                strEq(m->fulltype.a[i], _S"structptr")) {
                 strPrepend(_S"*", &predecr);
             }
         }
@@ -420,7 +431,7 @@ void writeClassDecl(StreamBuffer* bf, Class* cls)
 
     for (int i = 0; i < saSize(cls->allmembers); i++) {
         Member* m = cls->allmembers.a[i];
-        writeClassMember(bf, cls, m);
+        writeMember(bf, m);
     }
 
     strNConcat(&ln, _S"} ", cls->name, _S";");
@@ -508,6 +519,45 @@ void writeClassDecl(StreamBuffer* bf, Class* cls)
     strDestroy(&ln);
 }
 
+void writeStructDecl(StreamBuffer* bf, Struct* str)
+{
+    string ln = 0, mname = 0;
+
+    writeDocs(bf, str->docs, 0, false);
+    strNConcat(&ln, _S"typedef struct ", str->name, _S" {");
+    sbufPWriteLine(bf, ln);
+
+    sbufPWriteLine(bf, _S"    union {");
+    sbufPWriteLine(bf, _S"        StructInfo* structinfo;");
+    sbufPWriteLine(bf, _S"        void* _is_struct;");
+    sbufPWriteLine(bf, _S"    };");
+    sbufPWriteEOL(bf);
+
+    for (int i = 0; i < saSize(str->members); i++) {
+        Member* m = str->members.a[i];
+        writeMember(bf, m);
+    }
+
+    strNConcat(&ln, _S"} ", str->name, _S";");
+    sbufPWriteLine(bf, ln);
+    strNConcat(&ln, _S"extern StructInfo ", str->name, _S"_structinfo;");
+    sbufPWriteLine(bf, ln);
+    strNConcat(
+        &ln,
+        _S"#define ",
+        str->name,
+        _S"(sbptr) ((",
+        str->name,
+        _S "*)(unused_noeval((inst) && &((inst)->_is_struct)), ((inst) && ((inst)->structinfo == &",
+        str->name,
+        _S"_structinfo) ? (inst) : NULL))");
+    sbufPWriteLine(bf, ln);
+    sbufPWriteEOL(bf);
+
+    strDestroy(&mname);
+    strDestroy(&ln);
+}
+
 bool writeHeader(string fname, string srcpath, string binpath)
 {
     string hname = 0;
@@ -552,6 +602,7 @@ bool writeHeader(string fname, string srcpath, string binpath)
     sbufPWriteLine(bf, _S"// Do not make changes to this file or they will be overwritten.");
     sbufPWriteLine(bf, _S"// clang-format off");
     sbufPWriteLine(bf, _S"#include <cx/obj.h>");
+    sbufPWriteLine(bf, _S"#include <cx/struct.h>");
     for (int i = 0; i < saSize(includes); i++) {
         strNConcat(&ln, _S"#include ", includes.a[i]);
         sbufPWriteLine(bf, ln);
@@ -578,6 +629,16 @@ bool writeHeader(string fname, string srcpath, string binpath)
             writeSArrayWeakRefDecl(bf, classes.a[i]->name);
         }
     }
+    for (int i = 0; i < saSize(structs); i++) {
+        if (!structs.a[i]->included) {
+            writeForwardDecl(bf, structs.a[i]->name);
+        }
+    }
+    for (int i = 0; i < saSize(structs); i++) {
+        if (!structs.a[i]->included) {
+            writeSArrayStructDecl(bf, structs.a[i]->name);
+        }
+    }
     for (int i = 0; i < saSize(artypes); i++) {
         writeComplexArrayDecl(bf, artypes.a[i]);
     }
@@ -595,6 +656,11 @@ bool writeHeader(string fname, string srcpath, string binpath)
     for (int i = 0; i < saSize(classes); i++) {
         if (!classes.a[i]->included)
             writeClassDecl(bf, classes.a[i]);
+    }
+
+    for (int i = 0; i < saSize(structs); i++) {
+        if (!structs.a[i]->included)
+            writeStructDecl(bf, structs.a[i]);
     }
 
     if (usedocs) {

@@ -31,6 +31,7 @@ bool parseFile(strref fname, string* realfn, string srcpath, sa_string searchpat
                bool required);
 bool processInterfaces();
 bool processClasses();
+bool processStructs();
 bool writeHeader(string fname, string srcpath, string binpath);
 bool writeImpl(string fname, string srcpath, string binpath, bool mixinimpl);
 bool getAnnotation(sa_string* out, sa_sarray_string annotations, string afind);

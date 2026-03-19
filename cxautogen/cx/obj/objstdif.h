@@ -3,6 +3,7 @@
 // Do not make changes to this file or they will be overwritten.
 // clang-format off
 #include <cx/obj.h>
+#include <cx/struct.h>
 
 typedef struct Iterator Iterator;
 typedef struct Iterator_WeakRef Iterator_WeakRef;
