@@ -11,6 +11,9 @@ typedef struct str_ref {
     void* _is_string;
 } str_ref;
 
+extern str_ref _emptyStringData;   // internal data for the empty string
+extern strref emptyString;         // public constant for empty string
+
 /// @defgroup string_base Core String Functions
 /// @ingroup string
 /// @{

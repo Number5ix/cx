@@ -8,50 +8,35 @@
 // Len, Refcount, String, 0
 // 255 indicates invalid combination
 
+// clang-format off
 alignMem(32) const uint8 _str_off[32] = {
     // STR_LEN0, no refcount
-    255,
-    255,
-    2,
-    0,
+    255, 255, 2,   0,
     // STR_LEN8, no refcount
-    2,
-    255,
-    3,
-    0,
+    2,   255, 3,   0,
     // STR_LEN16, no refcount
-    2,
-    255,
-    4,
-    0,
+    2,   255, 4,   0,
     // STR_LEN32, no refcount
-    4,
-    255,
-    8,
-    0,
+    4,   255, 8,   0,
     // STR_LEN0, refcount
-    255,
-    2,
-    3,
-    0,
+    255, 2,   3,   0,
     // STR_LEN8, refcount
-    3,
-    2,
-    4,
-    0,
+    3,   2,   4,   0,
     // STR_LEN16, refcount
-    4,
-    2,
-    6,
-    0,
+    4,   2,   6,   0,
     // STR_LEN32, refcount
-    4,
-    2,
-    8,
-    0,
+    4,   2,   8,   0,
 };
+// clang-format on
 
-string_v _strEmpty = _S;
+// empty strings
+// STR_LEN8, length 0, no refcount, with cx header
+strref emptyString = (strref)&_emptyStringData;     // external linkage constant for public
+                                                    // consumption
+string_v _strEmpty = (string_v)&_emptyStringData;   // this is the same as emptyString but typed
+                                                    // as string_v, so it can be returned from
+                                                    // functions that expect ownership transfer
+                                                    // without needing to cast away const
 
 _Post_equal_to_(STR_ALLOC_SIZE) static _Pure inline uint32 _strAllocSz(uint8 hdr, uint32 strsz)
 {

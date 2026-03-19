@@ -4,6 +4,7 @@ set(STRING_SRCS
     string/strcase.c
     string/strcompare.c
     string/strconcat.c
+    string/strempty.c
     string/strencoding.c
     string/strfind.c
     string/striter.c

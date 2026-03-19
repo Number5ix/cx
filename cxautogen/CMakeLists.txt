@@ -79,6 +79,7 @@ set(CX_SRCS
     ../cx/string/strcase.c
     ../cx/string/strcompare.c
     ../cx/string/strconcat.c
+    ../cx/string/strempty.c
     ../cx/string/strencoding.c
     ../cx/string/strfind.c
     ../cx/string/striter.c
