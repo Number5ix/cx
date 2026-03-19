@@ -149,6 +149,38 @@ Example: `test_runner objtest iface` runs the interface test.
 - Each test file exports `TEST_FUNCS[]` array
 - Sub-tests are individual functions returning 0 on success
 
+## Coding Style
+
+### Formatting
+- **4-space indentation**, no tabs
+- **Allman braces for function definitions** — opening brace on its own line
+- **K&R braces for control structures** (`if`, `for`, `while`, `switch`, `else`) — opening brace on same line
+- One space after keywords (`if`, `for`, `switch`), no space between function name and `(`
+- One space around binary operators
+
+```c
+static uint32 npow2(uint32 val)
+{
+    for (uint32 i = 0; i < 32; i++) {
+        if (((uint32)1 << i) >= val)
+            return 1 << i;
+    }
+    return 16;
+}
+```
+
+### Include Guards
+Always `#pragma once` — **never** use `#ifndef` include guards.
+
+### C++ Compatibility
+All headers wrap declarations in `CX_C_BEGIN` / `CX_C_END` (from `cx/platform/cpp.h`).
+
+### Inlining
+Use `_meta_inline` instead of `static inline` for cross-platform forced inlining.
+
+### Assertions
+Use `devAssert()` / `devAssertMsg()` (debug builds) and `relAssert()` / `relAssertMsg()` (all builds). **Never use standard `assert()`.**
+
 ## Critical Conventions
 
 ### Memory Management
@@ -204,12 +236,78 @@ xaDestroy(&data);  // Frees and sets data = NULL
 - **Use `stvar()` for variants**: `htInsert(&ht, string, key, stvar(int32, 42))`
 - **Check return values**: Many functions return indices (`-1` for not found) or `NULL`
 
+### SAL Annotations
+Function signatures use Microsoft SAL-style annotations for static analysis and documentation. Required on public API functions.
+
+**Parameter direction:** `_In_`, `_Out_`, `_Inout_` (and `_opt_` variants for nullable)
+
+**Pointer validity:** `_Nullable`, `_Nonnull`, `_Pre_notnull_`, `_Post_null_`, `_Post_invalid_`
+
+**Return values:** `_Ret_valid_`, `_Ret_maybenull_`, `_Check_return_`
+
+**Function properties:** `_Pure` (no side effects), `_Success_(return)`
+
+**Conditional:** `_When_(condition, annotation)`, `_Post_equal_to_(value)`
+
+**In implementation files**, use `_Use_decl_annotations_` on definitions to inherit annotations from the header rather than repeating them:
+
+```c
+// Header:
+_When_(s == NULL, _Post_equal_to_(0)) _Pure uint32 strLen(_In_opt_ strref s);
+
+// Implementation:
+_Use_decl_annotations_
+uint32 strLen(strref s) { ... }
+```
+
+### Handle Paradigm
+CX uses a consistent convention to distinguish read-only access from mutation:
+
+- **Pass the handle by value** for operations that do not modify the object.
+- **Pass a pointer to the handle (`&handle`)** for operations that may modify, replace, or destroy it.
+
+```c
+uint32 len = strLen(s);          // s by value — read-only
+strAppend(&s, _SL(" world"));    // &s — modifies in place
+strDestroy(&s);                  // &s — destroys and NULLs the handle
+```
+
+This matters especially for containers: an append or insert may reallocate, so always pass `&arr` when the container can grow.
+
+String types make the distinction explicit at the type level:
+- `strref` — read-only borrowed reference; pass by value
+- `string` — owning handle; pass `&s` for writes
+- `strhandle` (`string *`) — pointer to owning handle; used as output/in-out parameter
+
+### Avoiding `const`
+`const` is used sparingly and is **not** the primary mechanism for expressing read-only intent. The handle paradigm (`value` vs `&`) and SAL annotations (`_In_`, `_Inout_`) carry that information instead. COW string operations physically modify reference counts, so propagating `const` would require pervasive casts. Use `strref` / `_In_` to communicate read-only intent.
+
+### Output Parameter Ordering
+Output parameters come **first** (leftmost), mirroring assignment syntax — in `someFunc(&x, y)` the destination is on the left, just like `x = y`. Existing values at an output location are destroyed before the new value is assigned.
+
+```c
+void strDup(_Inout_ strhandle o, _In_opt_ strref s);   // dest first, src second
+```
+
+For type-safe generic calls, the **type name immediately precedes the value it describes**:
+
+```c
+saPush(&arr, int32, 42);
+htInsert(&ht, string, _SL("key"), int32, 42);
+```
+
 ### Naming Patterns
-- **Interfaces**: `MyInterface` (PascalCase)
-- **Classes**: `MyClass` (PascalCase)
-- **Functions**: `myFunction` (camelCase)
-- **Macros**: `MACRO_NAME` or `macroName` depending on usage
-- **Internal functions**: `_myInternalFunc` (leading underscore), should be considered private
+| Element | Convention | Examples |
+|---------|-----------|---------|
+| Public functions | Module prefix + camelCase | `strLen()`, `htInsert()`, `saPush()` |
+| Internal functions | Leading underscore + camelCase | `_strFlatten()`, `_htInit()` |
+| Types/Classes/Interfaces | PascalCase | `ObjInst`, `HashTableHeader`, `Sortable` |
+| Opaque handle typedefs | lowercase | `string`, `hashtable`, `sarray` |
+| Declared array types | `sa_` prefix | `sa_int32`, `sa_string` |
+| Macros (constant-like) | SCREAMING_CASE | `HT_SLOTS_PER_CHUNK`, `STR_LEN_MASK` |
+| Macros (function-like) | camelCase (matching API) | `stType()`, `saInit()` |
+| Enum values | SCREAMING_CASE with prefix | `STCLASS_OPAQUE`, `SA_Sorted` |
+| Flag parameters | `flags_t` (typedef for `uint32`) | All flag arguments |
 
 ### Header Organization
 - `cx/include/cx/*.h` - Public API headers (aggregate includes)
@@ -230,6 +328,15 @@ xaDestroy(&data);  // Frees and sets data = NULL
 2. Add to `create_test_sourcelist()` in `tests/CMakeLists.txt`
 3. Add test cases with `add_test(NAME "category: Test" COMMAND test_runner mytest testname)`
 
+### Lazy Initialization
+One-time initialization uses the `lazyInit()` pattern:
+```c
+static LazyInitState initState;
+static void doInit(void* unused) { ... }
+// In function:
+lazyInit(&initState, doInit, NULL);
+```
+
 ### Cross-Platform Code
 - Use `CX_PLATFORM_IS_WINDOWS`, `CX_PLATFORM_IS_UNIX`, `CX_PLATFORM_IS_WASM` defines
 - Check compiler with `CX_COMPILER_IS_MSVC`, `CX_COMPILER_IS_CLANG`, `CX_COMPILER_IS_GNU`
@@ -248,8 +355,11 @@ These are statically linked and managed by the build system.
 When documenting functions and macros in header files, follow these conventions to maintain compatibility with both IDE tooltips and Doxygen documentation generation:
 
 ### Comment Style
-- Use `///` for all documentation comments (Doxygen-compatible)
-- For macros: First line should be a synthetic prototype as if the macro were a C function (shows in IDE tooltips). Follow with an empty line comment for spacing.
+- **Always use `///`** for documentation comments — **never use `/** */`**
+- Use `@param`, `@return`, `@code`/`@endcode` — **never backslash variants** (`\param`, `\return`)
+- `@brief` is **not needed** — Doxygen automatically uses the first line as the brief description
+- Use `//` (regular comments) for internal notes and undocumented functions
+- For macros: First line should be a synthetic prototype as if the macro were a C function (shows in IDE tooltips). Follow with a blank `///` line.
 - For native C functions: Do NOT include a synthetic prototype - the actual function signature is already visible
 
 ### Structure
@@ -270,9 +380,7 @@ For code examples, use Doxygen code blocks:
 ```
 
 ### Doxygen-Specific Tags
-- **`@page page_id Page Title`** - Create standalone documentation pages for overviews/guides (use sparingly, prefer groups)
 - **`@file filename`** - Document the file itself (what's in it)
-- **`@brief`** - Short one-line summary
 - **`@defgroup group_id Group Title` / `@{` / `@}`** - Create organized module groups that appear in a hierarchical tree in documentation
   - Use `@ingroup parent_group` to nest groups
   - Always close groups with `@}` at the appropriate scope
@@ -284,7 +392,7 @@ For code examples, use Doxygen code blocks:
 ### Organizing Documentation with Groups
 Use `@defgroup` to create hierarchical module documentation instead of flat `@page` entries:
 
-**Pattern for file-level groups:**
+**Pattern for top-level module (in aggregate header under `cx/include/cx/`):**
 ```c
 /// @file mymodule.h
 /// @brief Brief description
@@ -298,20 +406,30 @@ Use `@defgroup` to create hierarchical module documentation instead of flat `@pa
 /// @}  // end of mymodule group
 ```
 
-**Pattern for subsections within a file:**
+**Pattern for implementation header (in module subdirectory):**
 ```c
-/// @defgroup mymodule_subsection Subsection Title
+/// @defgroup mymodule_base Core Functions
+/// @ingroup mymodule
+/// @{
+
+// Types and function declarations...
+
+/// @}  // end of core functions group
+```
+
+**Pattern for `*_overview` groups (narrative documentation):**
+```c
+/// @defgroup mymodule_overview Overview
 /// @ingroup mymodule
 /// @{
 ///
-/// Description and usage examples
+/// @section mymodule_types Types
+/// Description with **bold** text, bullet lists, and code examples.
 /// @code
 ///   // example code
 /// @endcode
-
-// Only the specific functions/types for this subsection
-
-/// @}  // end of mymodule_subsection group
+///
+/// @}  // end of overview group
 ```
 
 **Key points:**
@@ -326,8 +444,14 @@ Use `@defgroup` to create hierarchical module documentation instead of flat `@pa
 - For functions with optional `flags_t` parameters through macros, show as `[flags]` in the prototype
 - We use HIDE_UNDOC_MEMBERS, so internal functions or functions that are completely wrapped by macros, should have no /// documentation at all (they can still have regular comments). This will prevent them from appearing in the generated docs.
 
+### Narrative Documentation Style
+Module overview groups (`*_overview`) contain extensive narrative documentation:
+- `@section` tags for major topics
+- Bold text with `**text**` for emphasis
+- Bullet lists with `-` prefix
+- `@code` / `@endcode` blocks for examples throughout
+- Explanations of lifecycle, thread safety, optimization, and conceptual models
+
 ### File-Level Documentation
-For major headers, include:
+Every header file should have:
 - `@file` tag with filename and brief description
-- Consider `@page` for overview documentation that should be prominent in generated docs
-- Use `@section` to organize content within overview pages
