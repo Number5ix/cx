@@ -228,6 +228,32 @@ static void writeMethods(StreamBuffer* bf, Class* cls, sa_string* seen, bool mix
     strDestroy(&ln);
 }
 
+static void writeStructLifecycleFunc(StreamBuffer* bf, Struct* str, sa_string* seen,
+                                     strref funcname)
+{
+    string ln = 0, mname = 0;
+    strNConcat(&mname, str->name, _S"_", funcname);
+    if (saFind(*seen, string, mname) == -1) {
+        strNConcat(&ln, _S"void ", mname, _S"(", str->name, _S"* self)");
+        sbufPWriteLine(bf, ln);
+        sbufPWriteLine(bf, _S"{");
+        sbufPWriteLine(bf, _S"    #error Replace this line with your implementation");
+        sbufPWriteLine(bf, _S"}");
+        sbufPWriteEOL(bf);
+    }
+
+    strDestroy(&mname);
+    strDestroy(&ln);
+}
+
+static void writeStructLifecycleFuncs(StreamBuffer* bf, Struct* str, sa_string* seen)
+{
+    if (str->hasinit)
+        writeStructLifecycleFunc(bf, str, seen, _S"init");
+    if (str->hasdestroy)
+        writeStructLifecycleFunc(bf, str, seen, _S"destroy");
+}
+
 static void writeExternMethods(StreamBuffer* bf, Class* cls)
 {
     for (int i = 0; i < saSize(cls->methods); i++) {
@@ -761,7 +787,7 @@ static bool writeStructMemberDesc(StreamBuffer* bf, strref sname, Member* m)
         // if not serializable, don't include the name in the binary
         sbufPWriteLine(bf, _S"        .name = &_emptyStringData,");
     } else {
-        strNConcat(&ln, _S"        .name = ", sname, _S"_m_", m->name, _S"_name,");
+        strNConcat(&ln, _S"        .name = &", sname, _S"_m_", m->name, _S"_name,");
         sbufPWriteLine(bf, ln);
     }
     strNConcat(&ln, _S"        .offset = offsetof(", sname, _S", ", m->name, _S"),");
@@ -803,13 +829,13 @@ static int writeStructMemberTbl(StreamBuffer* bf, Struct* str, bool* wroteany)
     int ret   = 0;
 
     *wroteany = true;
-    strNConcat(&ln, _S"STR_CONST(", str->name, _S"_name, \"", str->name, _S"\");");
+    strNConcat(&ln, _S"STR_CONSTR(", str->name, _S"_name, \"", str->name, _S"\");");
     sbufPWriteLine(bf, ln);
     for (int i = 0; i < saSize(str->members); i++) {
         if (str->members.a[i]->flags & STRUCT_NoSerialize)
             continue;
         strNConcat(&ln,
-                   _S"STR_CONST(",
+                   _S"STR_CONSTR(",
                    str->name,
                    _S"_m_",
                    str->members.a[i]->name,
@@ -829,6 +855,37 @@ static int writeStructMemberTbl(StreamBuffer* bf, Struct* str, bool* wroteany)
     strDestroy(&ln);
 
     return ret;
+}
+
+static void writeStructInfo(StreamBuffer* bf, Struct* str, int nmembers, bool* wroteany)
+{
+    string ln = 0, temp = 0;
+
+    *wroteany = true;
+    strNConcat(&ln, _S"StructInfo ", str->name, _S"_structinfo = {");
+    sbufPWriteLine(bf, ln);
+    strNConcat(&ln, _S"    .name = &", str->name, _S"_name,");
+    sbufPWriteLine(bf, ln);
+    strNConcat(&ln, _S"    .structsize = sizeof(", str->name, _S"),");
+    sbufPWriteLine(bf, ln);
+    strFromInt32(&temp, nmembers, 10);
+    strNConcat(&ln, _S"    .nmembers = ", temp, _S",");
+    sbufPWriteLine(bf, ln);
+    strNConcat(&ln, _S"    .members = &", str->name, _S"_members,");
+    sbufPWriteLine(bf, ln);
+    if (str->hasinit) {
+        strNConcat(&ln, _S"    .init = (void(*)(void*))", str->name, _S"_init,");
+        sbufPWriteLine(bf, ln);
+    }
+    if (str->hasdestroy) {
+        strNConcat(&ln, _S"    .destroy = (void(*)(void*))", str->name, _S"_destroy,");
+        sbufPWriteLine(bf, ln);
+    }
+    sbufPWriteLine(bf, _S"};");
+    sbufPWriteEOL(bf);
+
+    strDestroy(&temp);
+    strDestroy(&ln);
 }
 
 static bool fillBuf(StreamBuffer* obf, sa_string* linebuf)
@@ -929,6 +986,8 @@ bool writeImpl(string fname, string srcpath, string binpath, bool mixinimpl)
     saInit(&parentmacros, string, 16, SA_Sorted);
     hashtable implidx;
     htInit(&implidx, string, opaque(MethodPair), 16);
+    hashtable structlcidx;
+    htInit(&structlcidx, string, none, 16);
     int err;
     PCRE2_SIZE eoffset;
     pcre2_code* reParentProto =
@@ -960,6 +1019,18 @@ bool writeImpl(string fname, string srcpath, string binpath, bool mixinimpl)
 
     for (int i = 0; i < saSize(classes); i++) {
         indexMethods(classes.a[i], &implidx);
+    }
+
+    for (int i = 0; i < saSize(structs); i++) {
+        Struct* str = structs.a[i];
+        if (str->hasinit) {
+            strNConcat(&ln, str->name, _S"_init");
+            htInsert(&structlcidx, string, ln, none, NULL);
+        }
+        if (str->hasdestroy) {
+            strNConcat(&ln, str->name, _S"_destroy");
+            htInsert(&structlcidx, string, ln, none, NULL);
+        }
     }
 
     bool inautogen   = false;
@@ -1045,6 +1116,10 @@ bool writeImpl(string fname, string srcpath, string binpath, bool mixinimpl)
                     } else {
                         sbufPWriteStr(nbf, newdecl);   // EOL already added by writeMethodProto
                     }
+                } else if (htHasKey(structlcidx, string, funcname)) {
+                    // just record it as seen, we only need to create these if they don't exist
+                    saPush(&seen, string, funcname, SA_Unique);
+                    sbufPWriteLine(nbf, ln);
                 } else {
                     sbufPWriteLine(nbf, ln);
                 }
@@ -1085,6 +1160,11 @@ nextloop:
             writeMethods(nbf, classes.a[i], &seen, mixinimpl);
     }
 
+    for (int i = 0; i < saSize(structs); i++) {
+        if (!structs.a[i]->included)
+            writeStructLifecycleFuncs(nbf, structs.a[i], &seen);
+    }
+
     if (!mixinimpl) {
         bool wroteany = false;
 
@@ -1109,7 +1189,7 @@ nextloop:
             int nmembers = 0;
             if (!structs.a[i]->included) {
                 nmembers = writeStructMemberTbl(ibf, structs.a[i], &wroteany);
-                (void)nmembers;
+                writeStructInfo(ibf, structs.a[i], nmembers, &wroteany);
             }
         }
         sbufPWriteLine(ibf, autogenEnd);

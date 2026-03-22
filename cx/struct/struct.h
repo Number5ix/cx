@@ -31,7 +31,7 @@ typedef struct StructInfo {
     ///
     /// Structs are always zero-filled when allocated. If set, this function is called when a
     /// struct  is initialized, and can be used to set up non-zero default values, etc.
-    bool (*init)(void* _struct);
+    void (*init)(void* _struct);
 
     /// Optional custom destructor
     ///

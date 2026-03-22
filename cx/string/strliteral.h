@@ -105,6 +105,22 @@
     } _cx_sc_##name          = { (enc), 0xC1u, (uint16)(sizeof(s) - 1u), s }; \
     static const strref name = (strref) & _cx_sc_##name
 
+// named constant helpers for references
+#define _STR_CONSTR8(name, enc, s)                                                           \
+    _Static_assert(sizeof(s) - 1 <= 255, "String too long for STR_CONSTR, use STR_CONSTRL"); \
+    static const struct {                                                                    \
+        uint8 _h, _m, _l;                                                                    \
+        char _d[sizeof(s)];                                                                  \
+    } name = { (enc), 0xC1u, (uint8)(sizeof(s) - 1u), s };
+
+#define _STR_CONSTR16(name, enc, s)                                            \
+    _Static_assert(sizeof(s) - 1 <= 65535, "String too long for STR_CONSTRL"); \
+    static const struct {                                                      \
+        uint8 _h, _m;                                                          \
+        uint16 _l;                                                             \
+        char _d[sizeof(s)];                                                    \
+    } name = { (enc), 0xC1u, (uint16)(sizeof(s) - 1u), s };
+
 /// Declare a named ASCII string constant with a compile-time length (STR_LEN8, < 255 bytes).
 #define STR_CONST(name, s)   _STR_CONST8(name, 0xE1u, s)
 /// Declare a named UTF-8 string constant with a compile-time length (STR_LEN8, < 255 bytes).
@@ -119,6 +135,14 @@
 /// Declare a named other-encoding string constant with a compile-time length (STR_LEN16, < 65535
 /// bytes).
 #define STR_CONSTOL(name, s) _STR_CONST16(name, 0x82u, s)
+
+// Internal version of STR_CONST for static references only (use &name in initializer)
+#define STR_CONSTR(name, s)   _STR_CONSTR8(name, 0xE1u, s)
+#define STR_CONSTRU(name, s)  _STR_CONSTR8(name, 0xA1u, s)
+#define STR_CONSTRO(name, s)  _STR_CONSTR8(name, 0x81u, s)
+#define STR_CONSTRL(name, s)  _STR_CONSTR16(name, 0xE2u, s)
+#define STR_CONSTRUL(name, s) _STR_CONSTR16(name, 0xA2u, s)
+#define STR_CONSTROL(name, s) _STR_CONSTR16(name, 0x82u, s)
 
 // ---- Inline literal macros ----
 
