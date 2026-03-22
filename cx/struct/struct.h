@@ -54,7 +54,7 @@ typedef struct StructBase {
 #define STRUCTBASE(s)    (unused_noeval(&((s)->_is_struct)), (StructBase*)(s))
 #define STRUCTHANDLE(sp) (unused_noeval(&((*s)->_is_struct)), (StructBase**)(s))
 
-void _structInitMany(StructBase* base, StructInfo* info, int number);
+void _structInitMany(_Out_ StructBase* base, _In_ StructInfo* info, int number);
 
 /// void structInitMany(structname, struct* s, int n)
 #define structInitMany(structname, s, n) \
@@ -63,12 +63,12 @@ void _structInitMany(StructBase* base, StructInfo* info, int number);
 /// void structInit(structname, struct* s)
 #define structInit(structname, s) structInitMany(STRUCTBASE(s), &structInfoName(structname), 1)
 
-StructBase* _structAlloc(StructInfo* info);
+_Ret_notnull_ StructBase* _structAlloc(_In_ StructInfo* info);
 
 /// struct* structAlloc(structname)
 #define structAlloc(structname) ((structname*)_structAlloc(&structInfoName(structname)))
 
-void _structDestroyMembersMany(StructBase* base, int number);
+void _structDestroyMembersMany(_Pre_notnull_ _Post_invalid_ StructBase* base, int number);
 
 /// void structDestroyMembersMany(struct* s, int n)
 #define structDestroyMembersMany(s, n) _structDestroyMembersMany(STRUCTBASE(s), n)
@@ -76,7 +76,7 @@ void _structDestroyMembersMany(StructBase* base, int number);
 /// void structDestroyMembers(struct* s)
 #define structDestroyMembers(s) _structDestroyMembersMany(STRUCTBASE(s), 1)
 
-void _structDestroy(StructBase** pbase);
+_At_(*pbase, _Pre_maybenull_ _Post_null_) void _structDestroy(StructBase** pbase);
 
 /// void structDestroy(struct** ps)
 #define structDestroy(ps) _structDestroy(STRUCTHANDLE(ps))

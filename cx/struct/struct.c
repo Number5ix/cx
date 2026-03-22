@@ -2,6 +2,7 @@
 
 #include "cx/cx.h"
 
+_Use_decl_annotations_
 void _structInitMany(StructBase* base, StructInfo* info, int number)
 {
     memset(base, 0, info->structsize * number);
@@ -12,6 +13,7 @@ void _structInitMany(StructBase* base, StructInfo* info, int number)
     }
 }
 
+_Use_decl_annotations_
 StructBase* _structAlloc(StructInfo* info)
 {
     StructBase* base = xaAlloc(info->structsize);
@@ -19,6 +21,7 @@ StructBase* _structAlloc(StructInfo* info)
     return base;
 }
 
+_Use_decl_annotations_
 void _structDestroyMembersMany(StructBase* base, int number)
 {
     StructInfo* info = base->structinfo;
@@ -36,6 +39,7 @@ void _structDestroyMembersMany(StructBase* base, int number)
     }
 }
 
+_Use_decl_annotations_
 void _structDestroy(StructBase** pbase)
 {
     if (!*pbase)
