@@ -787,7 +787,7 @@ static bool writeStructMemberDesc(StreamBuffer* bf, strref sname, Member* m)
         // if not serializable, don't include the name in the binary
         sbufPWriteLine(bf, _S"        .name = &_emptyStringData,");
     } else {
-        strNConcat(&ln, _S"        .name = &", sname, _S"_m_", m->name, _S"_name,");
+        strNConcat(&ln, _S"        .name = (strref)&", sname, _S"_m_", m->name, _S"_name,");
         sbufPWriteLine(bf, ln);
     }
     strNConcat(&ln, _S"        .offset = offsetof(", sname, _S", ", m->name, _S"),");
@@ -864,14 +864,14 @@ static void writeStructInfo(StreamBuffer* bf, Struct* str, int nmembers, bool* w
     *wroteany = true;
     strNConcat(&ln, _S"StructInfo ", str->name, _S"_structinfo = {");
     sbufPWriteLine(bf, ln);
-    strNConcat(&ln, _S"    .name = &", str->name, _S"_name,");
+    strNConcat(&ln, _S"    .name = (strref)&", str->name, _S"_name,");
     sbufPWriteLine(bf, ln);
     strNConcat(&ln, _S"    .structsize = sizeof(", str->name, _S"),");
     sbufPWriteLine(bf, ln);
     strFromInt32(&temp, nmembers, 10);
     strNConcat(&ln, _S"    .nmembers = ", temp, _S",");
     sbufPWriteLine(bf, ln);
-    strNConcat(&ln, _S"    .members = &", str->name, _S"_members,");
+    strNConcat(&ln, _S"    .members = ", str->name, _S"_members,");
     sbufPWriteLine(bf, ln);
     if (str->hasinit) {
         strNConcat(&ln, _S"    .init = (void(*)(void*))", str->name, _S"_init,");
