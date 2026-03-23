@@ -56,27 +56,123 @@ typedef struct StructBase {
 
 void _structInitMany(_Out_ StructBase* base, _In_ StructInfo* info, int number);
 
-/// void structInitMany(structname, struct* s, int n)
+/// void structInitMany(structname, struct* s, int n);
+///
+/// Initializes n consecutive struct instances of the given type.
+///
+/// Zero-fills each struct and then calls the type's custom init function (if any)
+/// to set up non-zero default values. The struct memory must already be allocated —
+/// this function only initializes its contents.
+///
+/// @param structname Name of the struct type (without the struct keyword)
+/// @param s Pointer to the first struct instance to initialize
+/// @param n Number of consecutive struct instances to initialize
+///
+/// Example:
+/// @code
+///   MyStruct arr[4];
+///   structInitMany(MyStruct, arr, 4);
+/// @endcode
 #define structInitMany(structname, s, n) \
     _structInitMany(STRUCTBASE(s), &structInfoName(structname), n)
 
-/// void structInit(structname, struct* s)
+/// void structInit(structname, struct* s);
+///
+/// Initializes a single struct instance of the given type.
+///
+/// Zero-fills the struct and then calls the type's custom init function (if any)
+/// to set up non-zero default values. The struct memory must already be allocated —
+/// this function only initializes its contents.
+///
+/// @param structname Name of the struct type (without the struct keyword)
+/// @param s Pointer to the struct instance to initialize
+///
+/// Example:
+/// @code
+///   MyStruct s;
+///   structInit(MyStruct, &s);
+/// @endcode
 #define structInit(structname, s) structInitMany(STRUCTBASE(s), &structInfoName(structname), 1)
 
 _Ret_notnull_ StructBase* _structAlloc(_In_ StructInfo* info);
 
-/// struct* structAlloc(structname)
+/// struct* structAlloc(structname);
+///
+/// Allocates and initializes a single struct instance of the given type on the heap.
+///
+/// Allocates memory for the struct, zero-fills it, and calls the type's custom init
+/// function (if any) to set up non-zero default values. The returned pointer must
+/// eventually be freed with structDestroy().
+///
+/// @param structname Name of the struct type (without the struct keyword)
+/// @return Pointer to the newly allocated and initialized struct instance
+///
+/// Example:
+/// @code
+///   MyStruct *s = structAlloc(MyStruct);
+///   // ... use s ...
+///   structDestroy(&s);
+/// @endcode
 #define structAlloc(structname) ((structname*)_structAlloc(&structInfoName(structname)))
 
 void _structDestroyMembersMany(_Pre_notnull_ _Post_invalid_ StructBase* base, int number);
 
-/// void structDestroyMembersMany(struct* s, int n)
+/// void structDestroyMembersMany(struct* s, int n);
+///
+/// Destroys the members of n consecutive struct instances without freeing the structs.
+///
+/// Calls the custom destructor (if any) and then releases all managed members
+/// (strings, containers, objects, etc.) of each struct. The struct memory itself
+/// is not freed — use this for stack-allocated or embedded structs.
+///
+/// @param s Pointer to the first struct instance whose members should be destroyed
+/// @param n Number of consecutive struct instances to process
+///
+/// Example:
+/// @code
+///   MyStruct arr[4];
+///   structInitMany(MyStruct, &arr[0], 4);
+///   // ... use arr ...
+///   structDestroyMembersMany(&arr[0], 4);
+/// @endcode
 #define structDestroyMembersMany(s, n) _structDestroyMembersMany(STRUCTBASE(s), n)
 
-/// void structDestroyMembers(struct* s)
+/// void structDestroyMembers(struct* s);
+///
+/// Destroys the members of a single struct instance without freeing the struct.
+///
+/// Calls the custom destructor (if any) and then releases all managed members
+/// (strings, containers, objects, etc.). The struct memory itself is not freed —
+/// use this for stack-allocated or embedded structs. For heap-allocated structs,
+/// use structDestroy() instead.
+///
+/// @param s Pointer to the struct instance whose members should be destroyed
+///
+/// Example:
+/// @code
+///   MyStruct s;
+///   structInit(MyStruct, &s);
+///   // ... use s ...
+///   structDestroyMembers(&s);
+/// @endcode
 #define structDestroyMembers(s) _structDestroyMembersMany(STRUCTBASE(s), 1)
 
 _At_(*pbase, _Pre_maybenull_ _Post_null_) void _structDestroy(StructBase** pbase);
 
-/// void structDestroy(struct** ps)
+/// void structDestroy(struct** ps);
+///
+/// Destroys and frees a heap-allocated struct instance.
+///
+/// Calls the custom destructor (if any), releases all managed members
+/// (strings, containers, objects, etc.), frees the heap memory, and sets
+/// the pointer to NULL. The struct must have been allocated with structAlloc().
+///
+/// @param ps Pointer to the struct pointer to destroy; set to NULL on return
+///
+/// Example:
+/// @code
+///   MyStruct *s = structAlloc(MyStruct);
+///   // ... use s ...
+///   structDestroy(&s);   // s is NULL after this
+/// @endcode
 #define structDestroy(ps) _structDestroy(STRUCTHANDLE(ps))
