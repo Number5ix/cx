@@ -115,6 +115,8 @@ static const testspec tests[] = {
     { "json: Output", "jsontest", "out" },
     { "json: Tree Parse", "jsontest", "treeparse" },
     { "json: Tree Output", "jsontest", "treeout" },
+    { "json: Pull Parse", "jsontest", "pullparse" },
+    { "json: Pull Early Stop", "jsontest", "pullearlystop" },
     { "math: PCG Random Integer", "mathtest", "pcgint" },
     { "math: PCG Random Float", "mathtest", "pcgfloat" },
     { "math: PCG Error Condition", "mathtest", "pcgerror" },

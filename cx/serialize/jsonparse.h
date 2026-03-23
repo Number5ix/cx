@@ -12,19 +12,26 @@ typedef struct SSDTree SSDTree;
 /// @ingroup serialize_json
 /// @{
 ///
-/// Parse JSON from stream buffers into SSD trees or via callbacks.
+/// Parse JSON from stream buffers into SSD trees, via callbacks, or via
+/// pull-mode iteration.
 ///
-/// The JSON parser supports two modes:
+/// The JSON parser supports three modes:
+///
+/// **Pull-Mode Parsing (jsonParseInit / jsonParseNext / jsonParseDestroy):**
+/// Initializes a parser state, then retrieves events one at a time by
+/// calling jsonParseNext(). This is the most flexible mode and is the
+/// foundation for the other two.
 ///
 /// **Event-Driven Parsing (jsonParse):**
 /// Invokes a callback for each JSON element as it's parsed. Suitable for
-/// streaming large files or custom data processing.
+/// streaming large files or custom data processing. Implemented as a
+/// wrapper around the pull-mode API.
 ///
 /// **Tree Parsing (jsonParseTree):**
 /// Fully loads JSON into an SSD tree for convenient random access and
 /// manipulation.
 ///
-/// Both modes require a stream buffer in **PULL mode**.
+/// All modes require a stream buffer in **PULL mode**.
 ///
 /// Example (event-driven):
 /// @code
@@ -51,6 +58,94 @@ typedef struct SSDTree SSDTree;
 ///   ssdVal(root, _SL("/user/name"), string, &name);
 ///   objRelease(&root);
 /// @endcode
+///
+/// Example (pull-mode):
+/// @code
+///   StreamBuffer *sb = sbufCreate(4096);
+///   sbufFilePRegisterPull(sb, file, true);
+///
+///   JSONParseState state;
+///   JSONParseEvent ev;
+///   jsonParseInit(&state, sb);
+///   while (jsonParseNext(&state, &ev)) {
+///       if (ev.etype == JSON_String)
+///           printf("String: %s\n", strC(ev.edata.strData));
+///   }
+///   jsonParseDestroy(&state);
+///   sbufRelease(&sb);
+/// @endcode
+
+/// Pull-mode JSON parser state
+///
+/// Holds the state for incremental JSON parsing via jsonParseNext().
+/// Allocate on the stack or heap; initialize with jsonParseInit().
+typedef struct JSONParseState {
+    /// Stream buffer being parsed
+    StreamBuffer* sb;
+    /// Current line number (starts at 1)
+    int line;
+    /// Current nesting depth
+    int depth;
+    // Internal error message
+    string errmsg;
+    /// Current event (valid until next jsonParseNext call)
+    JSONParseEvent ev;
+    /// Top of context stack
+    JSONParseContext* ctx;
+    /// true if parsing completed without error
+    bool success;
+} JSONParseState;
+
+/// bool jsonParseInit(JSONParseState *state, StreamBuffer *sb)
+///
+/// Initializes a pull-mode JSON parser state.
+///
+/// The stream buffer must be configured in PULL mode before calling this
+/// function. After initialization, call jsonParseNext() repeatedly to
+/// retrieve events, then jsonParseDestroy() to clean up.
+///
+/// @param state Parser state to initialize
+/// @param sb Stream buffer in pull mode
+/// @return true on success, false if stream buffer setup fails
+///
+/// Example:
+/// @code
+///   JSONParseState state;
+///   JSONParseEvent ev;
+///   StreamBuffer *sb = sbufCreate(4096);
+///   sbufStrPRegisterPull(sb, jsonStr);
+///   jsonParseInit(&state, sb);
+///   while (jsonParseNext(&state, &ev)) {
+///       // process ev
+///   }
+///   jsonParseDestroy(&state);
+/// @endcode
+bool jsonParseInit(_Out_ JSONParseState* state, _Inout_ StreamBuffer* sb);
+
+/// bool jsonParseNext(JSONParseState *state, JSONParseEvent *ev)
+///
+/// Retrieves the next parse event from a pull-mode JSON parser.
+///
+/// Each call advances the parser and returns an event. The event
+/// data remains valid until the next call to jsonParseNext() or jsonParseDestroy().
+///
+/// Returns Pointer to an event structure
+/// Returns NULL only after JSON_End has been delivered.
+///
+/// @param state Parser state initialized with jsonParseInit()
+/// @return Pointer to the next event, or NULL when parsing is complete
+JSONParseEvent* jsonParseNext(_Inout_ JSONParseState* state);
+
+/// void jsonParseDestroy(JSONParseState *state)
+///
+/// Destroys a pull-mode JSON parser state and releases all resources.
+///
+/// Safe to call at any point during parsing (for early abandonment) or
+/// after parsing is complete. The stream buffer is finalized as part of
+/// destruction.
+///
+/// @param state Parser state to destroy
+void jsonParseDestroy(_Inout_ JSONParseState* state);
 
 /// void (*jsonParseCB)(JSONParseEvent *ev, void *userdata)
 ///

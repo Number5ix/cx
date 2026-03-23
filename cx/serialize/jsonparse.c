@@ -28,16 +28,24 @@ STR_CONST(kJPErrSyntaxFmt, "JSON Parse Error: Invalid syntax on line ${int}");
 
 #define MAX_PARSE_DEPTH 1000
 
-typedef struct ParseState {
-    int line;
-    int depth;
-    string errmsg;
-    jsonParseCB callback;
-    void* userdata;
+// State machine phases stored in JSONParseContext.phase
+typedef enum JSONParsePhase {
+    JP_Start,            // Initial state
+    JP_Top_Value,        // Expecting top-level value
+    JP_Done,             // Value parsed, deliver End next
+    JP_Error,            // Error delivered, deliver End next
+    JP_End,              // End delivered, next call returns false
 
-    JSONParseEvent ev;
-    JSONParseContext* ctx;
-} ParseState;
+    JP_Obj_FirstOrEnd,   // After '{': expecting key or '}'
+    JP_Obj_Key,          // Parse key string
+    JP_Obj_Colon,        // Expecting ':'
+    JP_Obj_Value,        // Parse value for current key
+    JP_Obj_NextOrEnd,    // Expecting ',' or '}'
+
+    JP_Arr_FirstOrEnd,   // After '[': expecting value or ']'
+    JP_Arr_Value,        // Parse array element value
+    JP_Arr_NextOrEnd,    // Expecting ',' or ']'
+} JSONParsePhase;
 
 static void jsonCtxDestroy(_Pre_valid_ _Post_invalid_ JSONParseContext* ctx)
 {
@@ -58,12 +66,6 @@ static void jsonClearEvent(_Inout_ JSONParseEvent* ev)
     ev->ctx   = NULL;
 }
 
-static void jsonCallback(_Inout_ JSONParseEvent* ev, _In_ ParseState* ps)
-{
-    ev->ctx = ps->ctx;
-    ps->callback(ev, ps->userdata);
-}
-
 #define SCRATCH_SZ 32
 #define outAppend(ch)                    \
     scratch[scratchp++] = ch;            \
@@ -72,7 +74,7 @@ static void jsonCallback(_Inout_ JSONParseEvent* ev, _In_ ParseState* ps)
         scratchp = 0;                    \
     }
 
-static bool parseString(_Inout_ StreamBuffer* sb, _Inout_ string* out, _Inout_ ParseState* ps)
+static bool parseString(_Inout_ StreamBuffer* sb, _Inout_ string* out, _Inout_ JSONParseState* ps)
 {
     bool ret                     = false;
     char scratch[SCRATCH_SZ + 1] = { 0 };
@@ -219,7 +221,7 @@ static bool parseString(_Inout_ StreamBuffer* sb, _Inout_ string* out, _Inout_ P
 }
 
 _Success_(return) static bool parseNumInt(_Inout_ StreamBuffer* sb, bool neg, size_t intoff, size_t intlen,
-                                   _Out_ int64* out, _Inout_ ParseState* ps)
+                                   _Out_ int64* out, _Inout_ JSONParseState* ps)
 {
     int64 res  = 0;
     int64 mult = 1;
@@ -255,7 +257,7 @@ _Success_(return) static bool parseNumInt(_Inout_ StreamBuffer* sb, bool neg, si
 _Success_(return) static bool
 parseNumFloat(_Inout_ StreamBuffer* sb, bool neg, size_t intoff, size_t intlen, size_t fracoff,
               size_t fraclen, bool expneg, size_t expoff, size_t explen, _Out_ double* out,
-              _Inout_ ParseState* ps)
+              _Inout_ JSONParseState* ps)
 {
     size_t total = max(max(intoff + intlen, fracoff + fraclen), expoff + explen);
     char* buf    = xaAlloc(total + 1);
@@ -268,7 +270,7 @@ parseNumFloat(_Inout_ StreamBuffer* sb, bool neg, size_t intoff, size_t intlen, 
 }
 
 static bool parseNumber(_Inout_ StreamBuffer* sb, _Inout_ JSONParseEvent* ev,
-                        _Inout_ ParseState* ps)
+                        _Inout_ JSONParseState* ps)
 {
     unsigned char ch;
     int phase      = 0;
@@ -355,7 +357,7 @@ static bool parseNumber(_Inout_ StreamBuffer* sb, _Inout_ JSONParseEvent* ev,
     return false;
 }
 
-static void skipWS(_Inout_ StreamBuffer* sb, _Inout_ ParseState* ps)
+static void skipWS(_Inout_ StreamBuffer* sb, _Inout_ JSONParseState* ps)
 {
     unsigned char ch;
 
@@ -376,36 +378,63 @@ static void skipWS(_Inout_ StreamBuffer* sb, _Inout_ ParseState* ps)
     }
 }
 
-static void pushCtx(_Inout_ StreamBuffer* sb, _Inout_ ParseState* ps, int newctype)
+static void pushCtx(_Inout_ JSONParseState* ps, int newctype, int newphase)
 {
     JSONParseContext* ctx = xaAlloc(sizeof(JSONParseContext), XA_Zero);
     ctx->ctype            = newctype;
+    ctx->phase            = newphase;
     ctx->parent           = ps->ctx;
     ps->ctx               = ctx;
     ps->depth++;
 }
 
-static bool popCtx(_Inout_ StreamBuffer* sb, _Inout_ ParseState* ps)
+static void popCtx(_Inout_ JSONParseState* ps)
 {
-    if (!ps->ctx->parent)
-        return false;
-
     JSONParseContext* ctx = ps->ctx;
     ps->ctx               = ps->ctx->parent;
     ps->depth--;
 
     jsonCtxDestroy(ctx);
-
-    return true;
 }
 
-static bool parseObject(_Inout_ StreamBuffer* sb, _Inout_ ParseState* ps);
-static bool parseArray(_Inout_ StreamBuffer* sb, _Inout_ ParseState* ps);
-
-static bool parseValue(_Inout_ StreamBuffer* sb, _Inout_ ParseState* ps)
+// After finishing a value, set the parent context's phase to its "after value" state
+static void advanceAfterValue(_Inout_ JSONParseState* ps)
 {
+    JSONParseContext* ctx = ps->ctx;
+    switch (ctx->ctype) {
+    case JSON_Top:
+        ctx->phase = JP_Done;
+        break;
+    case JSON_Object:
+        ctx->phase = JP_Obj_NextOrEnd;
+        break;
+    case JSON_Array:
+        ctx->phase = JP_Arr_NextOrEnd;
+        break;
+    }
+}
+
+// Pop the current container context and emit an End event for it.
+// ev->ctx is set to the parent context (the one we're returning to).
+static JSONParseEvent* finishContainer(_Inout_ JSONParseState* ps, JsonEventType etype)
+{
+    jsonClearEvent(&ps->ev);
+    ps->ev.etype = etype;
+    popCtx(ps);
+    ps->ev.ctx = ps->ctx;
+    skipWS(ps->sb, ps);
+    advanceAfterValue(ps);
+    return &ps->ev;
+}
+
+// Parse the next value token and set up the event.
+// For containers, pushes a new context and yields Begin.
+// For scalars, parses completely and yields the value event.
+// Returns true if an event is ready, false on error.
+static bool stepValue(_Inout_ JSONParseState* ps)
+{
+    StreamBuffer* sb = ps->sb;
     uint8 tmp[4];
-    bool ret = false;
     unsigned char ch;
 
     jsonClearEvent(&ps->ev);
@@ -418,43 +447,36 @@ static bool parseValue(_Inout_ StreamBuffer* sb, _Inout_ ParseState* ps)
     case '{':
         sbufCSkip(sb, 1);
         ps->ev.etype = JSON_Object_Begin;
-        jsonCallback(&ps->ev, ps);
+        ps->ev.ctx   = ps->ctx;
 
         if (ps->depth >= MAX_PARSE_DEPTH) {
             strDup(&ps->errmsg, kJPErrRecursionLimit);
-            break;
+            return false;
         }
 
-        pushCtx(sb, ps, JSON_Object);
-        ret = parseObject(sb, ps);
-        popCtx(sb, ps);
-
-        break;
+        pushCtx(ps, JSON_Object, JP_Obj_FirstOrEnd);
+        return true;
     case '[':
         sbufCSkip(sb, 1);
         ps->ev.etype = JSON_Array_Begin;
-        jsonCallback(&ps->ev, ps);
+        ps->ev.ctx   = ps->ctx;
 
         if (ps->depth >= MAX_PARSE_DEPTH) {
             strDup(&ps->errmsg, kJPErrRecursionLimit);
-            break;
+            return false;
         }
 
-        pushCtx(sb, ps, JSON_Array);
-        ret = parseArray(sb, ps);
-        popCtx(sb, ps);
-
-        break;
+        pushCtx(ps, JSON_Array, JP_Arr_FirstOrEnd);
+        return true;
     case '"':
         sbufCSkip(sb, 1);
-
-        // single value json (string)
-        ret = parseString(sb, &ps->ev.edata.strData, ps);
-        if (ret) {
-            ps->ev.etype = JSON_String;
-            jsonCallback(&ps->ev, ps);
-        }
-        break;
+        if (!parseString(sb, &ps->ev.edata.strData, ps))
+            return false;
+        ps->ev.etype = JSON_String;
+        ps->ev.ctx   = ps->ctx;
+        skipWS(sb, ps);
+        advanceAfterValue(ps);
+        return true;
     case '0':
     case '1':
     case '2':
@@ -466,197 +488,258 @@ static bool parseValue(_Inout_ StreamBuffer* sb, _Inout_ ParseState* ps)
     case '8':
     case '9':
     case '-':
-        ret = parseNumber(sb, &ps->ev, ps);
-        if (ret)
-            jsonCallback(&ps->ev, ps);
-        break;
+        if (!parseNumber(sb, &ps->ev, ps))
+            return false;
+        ps->ev.ctx = ps->ctx;
+        skipWS(sb, ps);
+        advanceAfterValue(ps);
+        return true;
     case 't':
         if (!sbufCFeed(sb, 4) || !sbufCPeek(sb, tmp, 1, 3) || memcmp(tmp, "rue", 3) != 0)
-            break;
-
+            return false;
         sbufCSkip(sb, 4);
         ps->ev.etype = JSON_True;
-        jsonCallback(&ps->ev, ps);
-        ret = true;
-        break;
+        ps->ev.ctx   = ps->ctx;
+        skipWS(sb, ps);
+        advanceAfterValue(ps);
+        return true;
     case 'f':
         if (!sbufCFeed(sb, 5) || !sbufCPeek(sb, tmp, 1, 4) || memcmp(tmp, "alse", 4) != 0)
-            break;
-
+            return false;
         sbufCSkip(sb, 5);
         ps->ev.etype = JSON_False;
-        jsonCallback(&ps->ev, ps);
-        ret = true;
-        break;
+        ps->ev.ctx   = ps->ctx;
+        skipWS(sb, ps);
+        advanceAfterValue(ps);
+        return true;
     case 'n':
         if (!sbufCFeed(sb, 4) || !sbufCPeek(sb, tmp, 1, 3) || memcmp(tmp, "ull", 3) != 0)
-            break;
-
+            return false;
         sbufCSkip(sb, 4);
         ps->ev.etype = JSON_Null;
-        jsonCallback(&ps->ev, ps);
-        ret = true;
-        break;
-    }
-
-    if (ret)
+        ps->ev.ctx   = ps->ctx;
         skipWS(sb, ps);
-
-    return ret;
+        advanceAfterValue(ps);
+        return true;
+    default:
+        return false;
+    }
 }
 
 _Use_decl_annotations_
-static bool parseObject(StreamBuffer* sb, ParseState* ps)
+bool jsonParseInit(JSONParseState* state, StreamBuffer* sb)
 {
-    bool ret   = false;
-    bool first = true;
+    memset(state, 0, sizeof(*state));
+    state->sb   = sb;
+    state->line = 1;
+
+    if (!sbufCRegisterPull(sb, NULL, NULL))
+        return false;
+
+    state->ctx        = xaAlloc(sizeof(JSONParseContext), XA_Zero);
+    state->ctx->ctype = JSON_Top;
+    state->ctx->phase = JP_Top_Value;
+    return true;
+}
+
+_Use_decl_annotations_
+JSONParseEvent* jsonParseNext(JSONParseState* state)
+{
+    StreamBuffer* sb = state->sb;
     unsigned char ch;
     size_t didread;
 
-    skipWS(sb, ps);
+    for (;;) {
+        JSONParseContext* ctx = state->ctx;
 
-    while (sbufCFeed(sb, 1) && sbufCPeek(sb, &ch, 0, 1)) {
-        if (ch == '}') {
-            sbufCSkip(sb, 1);
-            jsonClearEvent(&ps->ev);
-            ps->ev.etype = JSON_Object_End;
-            jsonCallback(&ps->ev, ps);
-            ret = true;
-            break;
-        } else if (!first) {
-            if (ch == ',') {
-                // skip the comma
+        switch (ctx->phase) {
+        case JP_Top_Value:
+            if (!stepValue(state))
+                goto set_error;
+
+            // stepValue set up the event; yield it
+            return &state->ev;
+
+        case JP_Done:
+        case JP_Error:
+            // Deliver End event
+            jsonClearEvent(&state->ev);
+            state->ev.etype = JSON_End;
+            state->ev.ctx   = state->ctx;
+            state->success  = (ctx->phase == JP_Done);
+            ctx->phase      = JP_End;
+            return &state->ev;
+
+        case JP_End:
+            return NULL;
+
+        case JP_Obj_FirstOrEnd:
+            skipWS(sb, state);
+            if (!(sbufCFeed(sb, 1) && sbufCPeek(sb, &ch, 0, 1)))
+                goto set_error;
+
+            if (ch == '}') {
                 sbufCSkip(sb, 1);
-            } else {
-                strFormat(&ps->errmsg,
-                          kJPErrExpectedCommaObj,
-                          stvar(strref, ps->ctx->cdata.curKey),
-                          stvar(int32, ch));
-                break;
+                return finishContainer(state, JSON_Object_End);
             }
+            ctx->phase = JP_Obj_Key;
+            continue;
+
+        case JP_Obj_Key:
+            skipWS(sb, state);
+            if (!sbufCRead(sb, &ch, 1, &didread) || ch != '"') {
+                strFormat(&state->errmsg, kJPErrExpectedKey, stvar(int32, ch));
+                goto set_error;
+            }
+
+            if (!parseString(sb, &ctx->cdata.curKey, state))
+                goto set_error;
+
+            jsonClearEvent(&state->ev);
+            state->ev.etype = JSON_Object_Key;
+            strDup(&state->ev.edata.strData, ctx->cdata.curKey);
+            state->ev.ctx = ctx;
+            ctx->phase    = JP_Obj_Colon;
+            return &state->ev;
+
+        case JP_Obj_Colon:
+            skipWS(sb, state);
+            if (!sbufCRead(sb, &ch, 1, &didread) || ch != ':') {
+                strFormat(&state->errmsg,
+                          kJPErrExpectedColon,
+                          stvar(strref, ctx->cdata.curKey),
+                          stvar(int32, ch));
+                goto set_error;
+            }
+            ctx->phase = JP_Obj_Value;
+            continue;
+
+        case JP_Obj_Value:
+            if (!stepValue(state))
+                goto set_error;
+
+            return &state->ev;
+
+        case JP_Obj_NextOrEnd:
+            skipWS(sb, state);
+            if (!(sbufCFeed(sb, 1) && sbufCPeek(sb, &ch, 0, 1)))
+                goto set_error;
+
+            if (ch == '}') {
+                sbufCSkip(sb, 1);
+                return finishContainer(state, JSON_Object_End);
+            } else if (ch == ',') {
+                sbufCSkip(sb, 1);
+                ctx->phase = JP_Obj_Key;
+                continue;
+            } else {
+                strFormat(&state->errmsg,
+                          kJPErrExpectedCommaObj,
+                          stvar(strref, ctx->cdata.curKey),
+                          stvar(int32, ch));
+                goto set_error;
+            }
+
+        case JP_Arr_FirstOrEnd:
+            skipWS(sb, state);
+            if (!(sbufCFeed(sb, 1) && sbufCPeek(sb, &ch, 0, 1))) {
+                strDup(&state->errmsg, kJPErrUnterminatedArr);
+                goto set_error;
+            }
+
+            if (ch == ']') {
+                sbufCSkip(sb, 1);
+                return finishContainer(state, JSON_Array_End);
+            }
+            ctx->phase = JP_Arr_Value;
+            continue;
+
+        case JP_Arr_Value:
+            if (!stepValue(state))
+                goto set_error;
+
+            return &state->ev;
+
+        case JP_Arr_NextOrEnd:
+            skipWS(sb, state);
+            if (!(sbufCFeed(sb, 1) && sbufCPeek(sb, &ch, 0, 1))) {
+                strDup(&state->errmsg, kJPErrUnterminatedArr);
+                goto set_error;
+            }
+
+            if (ch == ']') {
+                sbufCSkip(sb, 1);
+                return finishContainer(state, JSON_Array_End);
+            } else if (ch == ',') {
+                sbufCSkip(sb, 1);
+                ctx->cdata.curIdx++;
+                ctx->phase = JP_Arr_Value;
+                continue;
+            } else {
+                strFormat(&state->errmsg,
+                          kJPErrExpectedCommaArr,
+                          stvar(int32, ctx->cdata.curIdx),
+                          stvar(int32, ch));
+                goto set_error;
+            }
+
+        default:
+            return false;
         }
-
-        // first get the key
-        skipWS(sb, ps);
-        if (!sbufCRead(sb, &ch, 1, &didread) || ch != '"') {
-            strFormat(&ps->errmsg, kJPErrExpectedKey, stvar(int32, ch));
-            break;
-        }
-
-        if (!parseString(sb, &ps->ctx->cdata.curKey, ps))
-            break;
-        jsonClearEvent(&ps->ev);
-        ps->ev.etype = JSON_Object_Key;
-        strDup(&ps->ev.edata.strData, ps->ctx->cdata.curKey);
-        jsonCallback(&ps->ev, ps);
-        skipWS(sb, ps);
-
-        if (!sbufCRead(sb, &ch, 1, &didread) || ch != ':') {
-            strFormat(&ps->errmsg,
-                      kJPErrExpectedColon,
-                      stvar(strref, ps->ctx->cdata.curKey),
-                      stvar(int32, ch));
-            break;
-        }
-
-        if (!parseValue(sb, ps))
-            break;
-
-        first = false;
     }
 
-    return ret;
+set_error:
+    // Unwind to root context for error delivery
+    while (state->ctx->parent) popCtx(state);
+
+    // Deliver the error event immediately
+    jsonClearEvent(&state->ev);
+    state->ev.etype = JSON_Error;
+    state->ev.ctx   = state->ctx;
+    if (!strEmpty(state->errmsg)) {
+        strFormat(&state->ev.edata.strData,
+                  kJPErrFmt,
+                  stvar(strref, state->errmsg),
+                  stvar(int32, state->line));
+    } else {
+        strFormat(&state->ev.edata.strData, kJPErrSyntaxFmt, stvar(int32, state->line));
+    }
+    state->ctx->phase = JP_Error;
+    return &state->ev;
 }
 
 _Use_decl_annotations_
-static bool parseArray(StreamBuffer* sb, ParseState* ps)
+void jsonParseDestroy(JSONParseState* state)
 {
-    bool ret   = false;
-    bool first = true;
-    unsigned char ch;
+    jsonClearEvent(&state->ev);
 
-    skipWS(sb, ps);
-
-    while (sbufCFeed(sb, 1) && sbufCPeek(sb, &ch, 0, 1)) {
-        if (ch == ']') {
-            sbufCSkip(sb, 1);
-            jsonClearEvent(&ps->ev);
-            ps->ev.etype = JSON_Array_End;
-            jsonCallback(&ps->ev, ps);
-            ret = true;
-            break;
-        } else if (!first) {
-            if (ch == ',') {
-                // skip the comma
-                sbufCSkip(sb, 1);
-            } else {
-                strFormat(&ps->errmsg,
-                          kJPErrExpectedCommaArr,
-                          stvar(int32, ps->ctx->cdata.curIdx - 1),
-                          stvar(int32, ch));
-                break;
-            }
-        }
-
-        if (!parseValue(sb, ps))
-            break;
-
-        first = false;
-        ps->ctx->cdata.curIdx++;
+    // Clean up remaining context stack
+    while (state->ctx) {
+        JSONParseContext* parent = state->ctx->parent;
+        jsonCtxDestroy(state->ctx);
+        state->ctx = parent;
     }
 
-    if (!ret && sbufCAvail(sb) == 0) {
-        strDup(&ps->errmsg, kJPErrUnterminatedArr);
-    }
-
-    return ret;
-}
-
-static bool parseTop(_Inout_ StreamBuffer* sb, _Inout_ ParseState* ps)
-{
-    ps->ctx->ctype = JSON_Top;
-    // top-level context is really just a bare value
-    return parseValue(sb, ps);
+    strDestroy(&state->errmsg);
+    if (state->sb)
+        sbufCFinish(state->sb);
 }
 
 _Use_decl_annotations_
 bool jsonParse(StreamBuffer* sb, jsonParseCB callback, void* userdata)
 {
-    bool ret      = false;
-    ParseState ps = { .line = 1 };
-
-    if (!callback || !sbufCRegisterPull(sb, NULL, NULL))
+    if (!callback)
         return false;
 
-    ps.ctx = xaAlloc(sizeof(JSONParseContext), XA_Zero);
+    JSONParseState state;
+    if (!jsonParseInit(&state, sb))
+        return false;
 
-    ps.callback = callback;
-    ps.userdata = userdata;
-
-    ret = parseTop(sb, &ps);
-
-    jsonClearEvent(&ps.ev);
-
-    if (!ret) {
-        ps.ev.etype = JSON_Error;
-        ps.ev.ctx   = ps.ctx;
-        if (!strEmpty(ps.errmsg)) {
-            strFormat(&ps.ev.edata.strData,
-                      kJPErrFmt,
-                      stvar(strref, ps.errmsg),
-                      stvar(int32, ps.line));
-        } else {
-            strFormat(&ps.ev.edata.strData, kJPErrSyntaxFmt, stvar(int32, ps.line));
-        }
-        ps.callback(&ps.ev, ps.userdata);
+    while (jsonParseNext(&state)) {
+        callback(&state.ev, userdata);
     }
 
-    jsonClearEvent(&ps.ev);
-    ps.ev.etype = JSON_End;
-    ps.callback(&ps.ev, ps.userdata);
-
-    jsonCtxDestroy(ps.ctx);
-    strDestroy(&ps.errmsg);
-    sbufCFinish(sb);
+    bool ret = state.success;
+    jsonParseDestroy(&state);
     return ret;
 }

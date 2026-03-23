@@ -88,6 +88,8 @@ typedef struct JSONParseContext {
     JSONParseContext* parent;
     /// Type of current context
     JsonContextType ctype;
+    // Internal parser phase (do not access directly)
+    int phase;
 
     /// Context-specific data
     union {
