@@ -224,16 +224,16 @@ void ComplexArrayType_destroy(_In_ ComplexArrayType* self)
     // Autogen ends -------
 }
 
-_objfactory_guaranteed Struct* Struct_create()
+_objfactory_guaranteed StructDef* StructDef_create()
 {
-    Struct* self;
-    self = objInstCreate(Struct);
+    StructDef* self;
+    self = objInstCreate(StructDef);
 
     objInstInit(self);
     return self;
 }
 
-_objinit_guaranteed bool Struct_init(_In_ Struct* self)
+_objinit_guaranteed bool StructDef_init(_In_ StructDef* self)
 {
     // Autogen begins -----
     saInit(&self->members, object, 1);
@@ -241,7 +241,7 @@ _objinit_guaranteed bool Struct_init(_In_ Struct* self)
     // Autogen ends -------
 }
 
-intptr Struct_cmp(_In_ Struct* self, Struct* other, uint32 flags)
+intptr StructDef_cmp(_In_ StructDef* self, StructDef* other, uint32 flags)
 {
     // Uncomment unless this function can compare different object classes
     devAssert(objClsInfo(self) == objClsInfo(other));
@@ -249,7 +249,7 @@ intptr Struct_cmp(_In_ Struct* self, Struct* other, uint32 flags)
     return strCmp(self->name, other->name);
 }
 
-void Struct_destroy(_In_ Struct* self)
+void StructDef_destroy(_In_ StructDef* self)
 {
     // Autogen begins -----
     strDestroy(&self->name);

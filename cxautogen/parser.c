@@ -40,7 +40,7 @@ typedef struct ParseState {
 
     Interface* curif;
     Class* curcls;
-    Struct* curstruct;
+    StructDef* curstruct;
     Method* curmethod;
     Param* curparam;
 
@@ -356,7 +356,7 @@ bool parseGlobal(ParseState* ps, string* tok)
     } else if (strEq(*tok, _S"struct")) {
         ps->ptemptyok = false;
         saClear(&ps->comments);
-        ps->curstruct              = structCreate();
+        ps->curstruct              = structdefCreate();
         ps->context                = Context_StructPre;
         ps->curstruct->included    = ps->included;
         ps->curstruct->annotations = ps->annotations;

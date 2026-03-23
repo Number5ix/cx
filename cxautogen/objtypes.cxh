@@ -107,7 +107,7 @@ class ComplexArrayType {
     factory create();
 }
 
-class Struct implements Sortable {
+class StructDef implements Sortable {
     string name;
     sarray:object:Member members;
 

@@ -22,7 +22,7 @@ static void setMemberFlags(Member* m)
     }
 }
 
-static bool processStruct(Struct* s)
+static bool processStruct(StructDef* s)
 {
     if (s->processed)
         return true;

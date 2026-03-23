@@ -228,7 +228,7 @@ static void writeMethods(StreamBuffer* bf, Class* cls, sa_string* seen, bool mix
     strDestroy(&ln);
 }
 
-static void writeStructLifecycleFunc(StreamBuffer* bf, Struct* str, sa_string* seen,
+static void writeStructLifecycleFunc(StreamBuffer* bf, StructDef* str, sa_string* seen,
                                      strref funcname)
 {
     string ln = 0, mname = 0;
@@ -246,7 +246,7 @@ static void writeStructLifecycleFunc(StreamBuffer* bf, Struct* str, sa_string* s
     strDestroy(&ln);
 }
 
-static void writeStructLifecycleFuncs(StreamBuffer* bf, Struct* str, sa_string* seen)
+static void writeStructLifecycleFuncs(StreamBuffer* bf, StructDef* str, sa_string* seen)
 {
     if (str->hasinit)
         writeStructLifecycleFunc(bf, str, seen, _S"init");
@@ -823,7 +823,7 @@ static bool writeStructMemberDesc(StreamBuffer* bf, strref sname, Member* m)
     return true;
 }
 
-static int writeStructMemberTbl(StreamBuffer* bf, Struct* str, bool* wroteany)
+static int writeStructMemberTbl(StreamBuffer* bf, StructDef* str, bool* wroteany)
 {
     string ln = 0;
     int ret   = 0;
@@ -857,7 +857,7 @@ static int writeStructMemberTbl(StreamBuffer* bf, Struct* str, bool* wroteany)
     return ret;
 }
 
-static void writeStructInfo(StreamBuffer* bf, Struct* str, int nmembers, bool* wroteany)
+static void writeStructInfo(StreamBuffer* bf, StructDef* str, int nmembers, bool* wroteany)
 {
     string ln = 0, temp = 0;
 
@@ -1022,7 +1022,7 @@ bool writeImpl(string fname, string srcpath, string binpath, bool mixinimpl)
     }
 
     for (int i = 0; i < saSize(structs); i++) {
-        Struct* str = structs.a[i];
+        StructDef* str = structs.a[i];
         if (str->hasinit) {
             strNConcat(&ln, str->name, _S"_init");
             htInsert(&structlcidx, string, ln, none, NULL);

@@ -10,7 +10,7 @@
 extern sa_Interface ifaces;
 extern hashtable ifidx;
 extern sa_Class classes;
-extern sa_Struct structs;
+extern sa_StructDef structs;
 extern hashtable clsidx;
 extern hashtable weakrefidx;
 extern sa_string includes;

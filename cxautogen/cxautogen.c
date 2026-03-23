@@ -6,7 +6,7 @@
 sa_Interface ifaces;
 hashtable ifidx;
 sa_Class classes;
-sa_Struct structs;
+sa_StructDef structs;
 hashtable clsidx;
 hashtable weakrefidx;
 sa_string includes;

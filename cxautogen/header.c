@@ -519,7 +519,7 @@ void writeClassDecl(StreamBuffer* bf, Class* cls)
     strDestroy(&ln);
 }
 
-void writeStructDecl(StreamBuffer* bf, Struct* str)
+void writeStructDecl(StreamBuffer* bf, StructDef* str)
 {
     string ln = 0, mname = 0;
 

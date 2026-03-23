@@ -1,6 +1,7 @@
 // ==================== Auto-generated section begins ====================
 // clang-format off
 // Do not modify the contents of this section; any changes will be lost!
+#include <cx/string.h>
 Method_ClassIf Method_ClassIf_tmpl = {
     ._size = sizeof(Method_ClassIf),
 };
@@ -17,8 +18,8 @@ Class_ClassIf Class_ClassIf_tmpl = {
     ._size = sizeof(Class_ClassIf),
 };
 
-Struct_ClassIf Struct_ClassIf_tmpl = {
-    ._size = sizeof(Struct_ClassIf),
+StructDef_ClassIf StructDef_ClassIf_tmpl = {
+    ._size = sizeof(StructDef_ClassIf),
 };
 
 static ObjIface* _ifimpl_Param[] = {
@@ -145,30 +146,30 @@ ObjClassInfo ComplexArrayType_clsinfo = {
     .ifimpl = _ifimpl_ComplexArrayType,
 };
 
-static Sortable _impl_Struct_Sortable = {
+static Sortable _impl_StructDef_Sortable = {
     ._size = sizeof(Sortable),
     ._implements = (ObjIface*)&Sortable_tmpl,
-    .cmp = (intptr (*)(void*, void*, uint32))Struct_cmp,
+    .cmp = (intptr (*)(void*, void*, uint32))StructDef_cmp,
 };
 
-static Struct_ClassIf _impl_Struct_Struct_ClassIf = {
-    ._size = sizeof(Struct_ClassIf),
-    ._implements = (ObjIface*)&Struct_ClassIf_tmpl,
-    .cmp = (intptr (*)(void*, void*, uint32))Struct_cmp,
+static StructDef_ClassIf _impl_StructDef_StructDef_ClassIf = {
+    ._size = sizeof(StructDef_ClassIf),
+    ._implements = (ObjIface*)&StructDef_ClassIf_tmpl,
+    .cmp = (intptr (*)(void*, void*, uint32))StructDef_cmp,
 };
 
-static ObjIface* _ifimpl_Struct[] = {
-    (ObjIface*)&_impl_Struct_Sortable,
-    (ObjIface*)&_impl_Struct_Struct_ClassIf,
+static ObjIface* _ifimpl_StructDef[] = {
+    (ObjIface*)&_impl_StructDef_Sortable,
+    (ObjIface*)&_impl_StructDef_StructDef_ClassIf,
     NULL
 };
 
-ObjClassInfo Struct_clsinfo = {
-    .instsize = sizeof(Struct),
-    .classif = (ObjIface*)&Struct_ClassIf_tmpl,
-    .init = (bool(*)(void*))Struct_init,
-    .destroy = (void(*)(void*))Struct_destroy,
-    .ifimpl = _ifimpl_Struct,
+ObjClassInfo StructDef_clsinfo = {
+    .instsize = sizeof(StructDef),
+    .classif = (ObjIface*)&StructDef_ClassIf_tmpl,
+    .init = (bool(*)(void*))StructDef_init,
+    .destroy = (void(*)(void*))StructDef_destroy,
+    .ifimpl = _ifimpl_StructDef,
 };
 
 // ==================== Auto-generated section ends ======================
