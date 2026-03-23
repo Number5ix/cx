@@ -82,13 +82,15 @@
 /// structDestroyMembers(&p);          // clean up members, struct itself is on the stack
 ///
 /// // Heap allocation
-/// Config *cfg = structAlloc(Config);
+/// Config *cfg = structCreate(Config);
 /// cfg->port = 8080;
 /// structDestroy(&cfg);               // destroys members and xaFree()s the pointer
 ///
-/// // Flat array (inline storage, not pointer-to-struct)
-/// Config *arr = structAllocMany(Config, 32);
-/// structDestroyMembersMany(arr, Config, 32);
+/// // Flat array (inline storage, not pointer-to-struct) — manual memory management
+/// Config *arr = xaAlloc(32 * sizeof(Config));
+/// structInitMany(Config, &arr[0], 32);
+/// // ... use arr ...
+/// structDestroyMembersMany(&arr[0], 32);
 /// xaFree(arr);
 /// @endcode
 ///
@@ -118,7 +120,7 @@
 /// Structs support round-trip serialization out of the box:
 ///
 /// @code
-/// Config *cfg = structAlloc(Config);
+/// Config *cfg = structCreate(Config);
 /// cfg->hostname = strDup(NULL, _SL("localhost"));
 /// cfg->port = 8080;
 ///
@@ -158,12 +160,12 @@
 /// // Pointer-to-struct in a hashtable (structptr stype, no type parameter)
 /// hashtable ht;
 /// htInit(&ht, string, structptr, 16);
-/// Config *cfg = structAlloc(Config);
+/// Config *cfg = structCreate(Config);
 /// htInsert(&ht, string, _SL("main"), structptr, cfg);
 ///
 /// // Heterogeneous structs in the same hashtable -- works because StructInfo
 /// // is read directly from the stored pointer
-/// Point *pt = structAlloc(Point);
+/// Point *pt = structCreate(Point);
 /// htInsert(&ht, string, _SL("origin"), structptr, pt);
 ///
 /// // Inline array of structs (struct stype, type parameter required)

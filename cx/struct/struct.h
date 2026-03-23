@@ -96,7 +96,7 @@ void _structInitMany(_Out_ StructBase* base, _In_ StructInfo* info, int number);
 
 _Ret_notnull_ StructBase* _structAlloc(_In_ StructInfo* info);
 
-/// struct* structAlloc(structname);
+/// struct* structCreate(structname);
 ///
 /// Allocates and initializes a single struct instance of the given type on the heap.
 ///
@@ -109,11 +109,11 @@ _Ret_notnull_ StructBase* _structAlloc(_In_ StructInfo* info);
 ///
 /// Example:
 /// @code
-///   MyStruct *s = structAlloc(MyStruct);
+///   MyStruct *s = structCreate(MyStruct);
 ///   // ... use s ...
 ///   structDestroy(&s);
 /// @endcode
-#define structAlloc(structname) ((structname*)_structAlloc(&structInfoName(structname)))
+#define structCreate(structname) ((structname*)_structAlloc(&structInfoName(structname)))
 
 void _structDestroyMembersMany(_Pre_notnull_ _Post_invalid_ StructBase* base, int number);
 
@@ -165,13 +165,13 @@ _At_(*pbase, _Pre_maybenull_ _Post_null_) void _structDestroy(StructBase** pbase
 ///
 /// Calls the custom destructor (if any), releases all managed members
 /// (strings, containers, objects, etc.), frees the heap memory, and sets
-/// the pointer to NULL. The struct must have been allocated with structAlloc().
+/// the pointer to NULL. The struct must have been allocated with structCreate().
 ///
 /// @param ps Pointer to the struct pointer to destroy; set to NULL on return
 ///
 /// Example:
 /// @code
-///   MyStruct *s = structAlloc(MyStruct);
+///   MyStruct *s = structCreate(MyStruct);
 ///   // ... use s ...
 ///   structDestroy(&s);   // s is NULL after this
 /// @endcode
