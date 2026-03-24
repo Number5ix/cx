@@ -812,7 +812,7 @@ static bool writeStructMemberDesc(StreamBuffer* bf, strref sname, Member* m)
     strDestroy(&flags);
     saDestroy(&flagsarr);
 
-    strNConcat(&ln, _S"        .type = stType(", sttypename, _S"),");
+    strNConcat(&ln, _S"        .tinfo = { .type = stType(", sttypename, _S") },");
     sbufPWriteLine(bf, ln);
 
     sbufPWriteLine(bf, _S"    },");
@@ -844,7 +844,7 @@ static int writeStructMemberTbl(StreamBuffer* bf, StructDef* str, bool* wroteany
                    _S"\");");
         sbufPWriteLine(bf, ln);
     }
-    strNConcat(&ln, _S"StructMemberDesc ", str->name, _S"_members[] = {");
+    strNConcat(&ln, _S"const StructMemberDesc ", str->name, _S"_members[] = {");
     sbufPWriteLine(bf, ln);
     for (int i = 0; i < saSize(str->members); i++) {
         ret += writeStructMemberDesc(bf, str->name, str->members.a[i]) ? 1 : 0;
@@ -862,7 +862,7 @@ static void writeStructInfo(StreamBuffer* bf, StructDef* str, int nmembers, bool
     string ln = 0, temp = 0;
 
     *wroteany = true;
-    strNConcat(&ln, _S"StructInfo ", str->name, _S"_structinfo = {");
+    strNConcat(&ln, _S"const StructInfo ", str->name, _S"_structinfo = {");
     sbufPWriteLine(bf, ln);
     strNConcat(&ln, _S"    .name = (strref)&", str->name, _S"_name,");
     sbufPWriteLine(bf, ln);

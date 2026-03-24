@@ -528,7 +528,7 @@ void writeStructDecl(StreamBuffer* bf, StructDef* str)
     sbufPWriteLine(bf, ln);
 
     sbufPWriteLine(bf, _S"    union {");
-    sbufPWriteLine(bf, _S"        StructInfo* structinfo;");
+    sbufPWriteLine(bf, _S"        const StructInfo* structinfo;");
     sbufPWriteLine(bf, _S"        void* _is_struct;");
     sbufPWriteLine(bf, _S"    };");
     sbufPWriteEOL(bf);
@@ -540,7 +540,7 @@ void writeStructDecl(StreamBuffer* bf, StructDef* str)
 
     strNConcat(&ln, _S"} ", str->name, _S";");
     sbufPWriteLine(bf, ln);
-    strNConcat(&ln, _S"extern StructInfo ", str->name, _S"_structinfo;");
+    strNConcat(&ln, _S"extern const StructInfo ", str->name, _S"_structinfo;");
     sbufPWriteLine(bf, ln);
     strNConcat(
         &ln,

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cx/container/hashtable.h>
+#include <cx/container/sarray.h>
 #include <cx/stype/stype.h>
 
 enum StructMemberFlagsEnum {
@@ -13,19 +15,37 @@ enum StructMemberFlagsEnum {
     STRUCT_Ignore = STRUCT_NoDestroy | STRUCT_NoSerialize | STRUCT_NoCopy,
 };
 
+typedef struct StructSet StructSet;
+
+typedef struct StructTypeInfo {
+    stype type;   ///< Base type
+    void* data;   ///< Type-specific metadata
+} StructTypeInfo;
+
+typedef struct StructSArrayMetadata {
+    StructTypeInfo elem;   ///< Element type
+    uint32 flags;          ///< Creation flags
+} StructSArrayMetadata;
+
+typedef struct StructHashtableMetadata {
+    StructTypeInfo key;     ///< Key type
+    StructTypeInfo value;   ///< Value type
+    uint32 flags;           ///< Creation flags
+} StructHashtableMetadata;
+
 typedef struct StructMemberDesc {
-    strref name;     ///< Name of the member
-    size_t offset;   ///< Offset within the struct
-    stype type;      ///< Type of the member
-    stgeneric def;   ///< Default value for the member (if any)
-    uint32 flags;    ///< Additional type-dependent flags for the member
+    strref name;            ///< Name of the member
+    size_t offset;          ///< Offset within the struct
+    uint32 flags;           ///< Member flags (StructMemberFlagsEnum)
+    stgeneric def;          ///< Default value for the member (if any)
+    StructTypeInfo tinfo;   ///< Type information for the member
 } StructMemberDesc;
 
 typedef struct StructInfo {
-    strref name;                 ///< Name of the struct
-    size_t structsize;           ///< Size in bytes of the struct
-    int nmembers;                ///< Number of struct members
-    StructMemberDesc* members;   ///< Array of struct member descriptors
+    strref name;                       ///< Name of the struct
+    size_t structsize;                 ///< Size in bytes of the struct
+    int nmembers;                      ///< Number of struct members
+    const StructMemberDesc* members;   ///< Array of struct member descriptors
 
     /// Optional custom initializer
     ///
@@ -40,10 +60,16 @@ typedef struct StructInfo {
     void (*destroy)(void* _struct);
 } StructInfo;
 
+// Set of structs for serialization of dynamic structs
+typedef struct StructSet {
+    int nentries;
+    StructInfo* entries[];   // sorted by name for binary search
+} StructSet;
+
 typedef struct StructBase {
     union {
-        StructInfo* structinfo;   ///< Pointer to struct metadata
-        void* _is_struct;         ///< Type marker for compile-time validation
+        const StructInfo* structinfo;   ///< Pointer to struct metadata
+        void* _is_struct;               ///< Type marker for compile-time validation
     };
 
     // Struct-specific data members follow

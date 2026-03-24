@@ -24,14 +24,14 @@ StructBase* _structAlloc(StructInfo* info)
 _Use_decl_annotations_
 void _structDestroyMembersMany(StructBase* base, int number)
 {
-    StructInfo* info = base->structinfo;
+    const StructInfo* info = base->structinfo;
 
     for (int i = 0; i < number; i++) {
         for (int m = 0; m < info->nmembers; m++) {
-            StructMemberDesc* member = &info->members[m];
+            const StructMemberDesc* member = &info->members[m];
             if (!(member->flags & STRUCT_NoDestroy)) {
                 void* memberptr = (char*)&base[i] + member->offset;
-                _stDestroy(member->type, NULL, (stgeneric*)memberptr, 0);
+                _stDestroy(member->tinfo.type, NULL, (stgeneric*)memberptr, 0);
             }
         }
         if (info->destroy)

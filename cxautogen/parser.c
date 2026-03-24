@@ -771,55 +771,62 @@ bool parseClass(ParseState* ps, string* tok)
                 if (strEq(vartype.a[0], _S"hashtable")) {
                     strDup(&nmem->vartype, vartype.a[0]);   // hashtable is the actual type
                 } else if (strEq(vartype.a[0], _S"sarray")) {
-                    sa_string artl;
-                    saInit(&artl, string, 4);
-                    for (int i = 1; i < saSize(vartype); i++) {
-                        // objects declare their array types as pointers already
-                        if (!strEq(vartype.a[i], _S"object") && !strEq(vartype.a[i], _S"weak")) {
-                            saPush(&artl, strref, vartype.a[i]);
-                        }
-                    }
-
-                    if (saSize(artl) == 1) {
-                        strNConcat(&nmem->vartype, _S"sa_", artl.a[0]);
+                    if (saSize(vartype) == 3 && strEq(vartype.a[1], _S"structptr")) {
+                        // hacky special case for array of structptrs, which need a special type
+                        strNConcat(&nmem->vartype, _S"sa_", vartype.a[2], _S"_ptr");
                     } else {
-                        // build up a complex array type
-                        string lasttname = 0;
-                        for (int i = saSize(artl) - 2; i >= 0; --i) {
-                            if (!strEq(artl.a[i], _S"sarray"))
-                                continue;
+                        sa_string artl;
+                        saInit(&artl, string, 4);
+                        for (int i = 1; i < saSize(vartype); i++) {
+                            // objects declare their array types as pointers already, and structs as
+                            // the type itself
+                            if (!strEq(vartype.a[i], _S"object") && !strEq(vartype.a[i], _S"weak") &&
+                                !strEq(vartype.a[i], _S"struct")) {
+                                saPush(&artl, strref, vartype.a[i]);
+                            }
+                        }
 
-                            ComplexArrayType* cat = complexarraytypeCreate();
-                            sa_string artypessub1;
-                            sa_string artypessub2;
-                            saInit(&artypessub1, string, 4);
-                            saInit(&artypessub2, string, 4);
-                            for (int j = i; j < saSize(artl); j++) {
-                                saPush(&artypessub1, string, artl.a[j]);
-                                if (j > i) {
-                                    saPush(&artypessub2, string, artl.a[j]);
+                        if (saSize(artl) == 1) {
+                            strNConcat(&nmem->vartype, _S"sa_", artl.a[0]);
+                        } else {
+                            // build up a complex array type
+                            string lasttname = 0;
+                            for (int i = saSize(artl) - 2; i >= 0; --i) {
+                                if (!strEq(artl.a[i], _S"sarray"))
+                                    continue;
+
+                                ComplexArrayType* cat = complexarraytypeCreate();
+                                sa_string artypessub1;
+                                sa_string artypessub2;
+                                saInit(&artypessub1, string, 4);
+                                saInit(&artypessub2, string, 4);
+                                for (int j = i; j < saSize(artl); j++) {
+                                    saPush(&artypessub1, string, artl.a[j]);
+                                    if (j > i) {
+                                        saPush(&artypessub2, string, artl.a[j]);
+                                    }
+                                    if (!strEq(artl.a[j], _S"sarray"))
+                                        break;
                                 }
-                                if (!strEq(artl.a[j], _S"sarray"))
-                                    break;
+
+                                strJoin(&cat->tname, artypessub1, _S"_");
+                                strJoin(&cat->tsubtype, artypessub2, _S"_");
+
+                                if (!ps->included && !htHasKey(knownartypes, string, cat->tname))
+                                    saPush(&artypes, object, cat);
+
+                                strDup(&lasttname, cat->tname);
+                                htInsert(&knownartypes, string, cat->tname, bool, true);
+
+                                objRelease(&cat);
+                                saDestroy(&artypessub1);
+                                saDestroy(&artypessub2);
                             }
 
-                            strJoin(&cat->tname, artypessub1, _S"_");
-                            strJoin(&cat->tsubtype, artypessub2, _S"_");
-
-                            if (!ps->included && !htHasKey(knownartypes, string, cat->tname))
-                                saPush(&artypes, object, cat);
-
-                            strDup(&lasttname, cat->tname);
-                            htInsert(&knownartypes, string, cat->tname, bool, true);
-
-                            objRelease(&cat);
-                            saDestroy(&artypessub1);
-                            saDestroy(&artypessub2);
+                            strNConcat(&nmem->vartype, _S"sa_", lasttname);
                         }
-
-                        strNConcat(&nmem->vartype, _S"sa_", lasttname);
+                        saDestroy(&artl);
                     }
-                    saDestroy(&artl);
                 } else if (strEq(vartype.a[0], _S"atomic")) {
                     strNConcat(&nmem->vartype, _S, _S"atomic(", vartype.a[saSize(vartype) - 1], _S")");
                 } else if (strEq(vartype.a[0], _S"weak")) {
@@ -1057,55 +1064,62 @@ bool parseStruct(ParseState* ps, string* tok)
                 if (strEq(vartype.a[0], _S"hashtable")) {
                     strDup(&nmem->vartype, vartype.a[0]);   // hashtable is the actual type
                 } else if (strEq(vartype.a[0], _S"sarray")) {
-                    sa_string artl;
-                    saInit(&artl, string, 4);
-                    for (int i = 1; i < saSize(vartype); i++) {
-                        // objects declare their array types as pointers already
-                        if (!strEq(vartype.a[i], _S"object") && !strEq(vartype.a[i], _S"weak")) {
-                            saPush(&artl, strref, vartype.a[i]);
-                        }
-                    }
-
-                    if (saSize(artl) == 1) {
-                        strNConcat(&nmem->vartype, _S"sa_", artl.a[0]);
+                    if (saSize(vartype) == 3 && strEq(vartype.a[1], _S"structptr")) {
+                        // hacky special case for array of structptrs, which need a special type
+                        strNConcat(&nmem->vartype, _S"sa_", vartype.a[2], _S"_ptr");
                     } else {
-                        // build up a complex array type
-                        string lasttname = 0;
-                        for (int i = saSize(artl) - 2; i >= 0; --i) {
-                            if (!strEq(artl.a[i], _S"sarray"))
-                                continue;
+                        sa_string artl;
+                        saInit(&artl, string, 4);
+                        for (int i = 1; i < saSize(vartype); i++) {
+                            // objects declare their array types as pointers already, and structs as
+                            // the type itself
+                            if (!strEq(vartype.a[i], _S"object") && !strEq(vartype.a[i], _S"weak") &&
+                                !strEq(vartype.a[i], _S"struct")) {
+                                saPush(&artl, strref, vartype.a[i]);
+                            }
+                        }
 
-                            ComplexArrayType* cat = complexarraytypeCreate();
-                            sa_string artypessub1;
-                            sa_string artypessub2;
-                            saInit(&artypessub1, string, 4);
-                            saInit(&artypessub2, string, 4);
-                            for (int j = i; j < saSize(artl); j++) {
-                                saPush(&artypessub1, string, artl.a[j]);
-                                if (j > i) {
-                                    saPush(&artypessub2, string, artl.a[j]);
+                        if (saSize(artl) == 1) {
+                            strNConcat(&nmem->vartype, _S"sa_", artl.a[0]);
+                        } else {
+                            // build up a complex array type
+                            string lasttname = 0;
+                            for (int i = saSize(artl) - 2; i >= 0; --i) {
+                                if (!strEq(artl.a[i], _S"sarray"))
+                                    continue;
+
+                                ComplexArrayType* cat = complexarraytypeCreate();
+                                sa_string artypessub1;
+                                sa_string artypessub2;
+                                saInit(&artypessub1, string, 4);
+                                saInit(&artypessub2, string, 4);
+                                for (int j = i; j < saSize(artl); j++) {
+                                    saPush(&artypessub1, string, artl.a[j]);
+                                    if (j > i) {
+                                        saPush(&artypessub2, string, artl.a[j]);
+                                    }
+                                    if (!strEq(artl.a[j], _S"sarray"))
+                                        break;
                                 }
-                                if (!strEq(artl.a[j], _S"sarray"))
-                                    break;
+
+                                strJoin(&cat->tname, artypessub1, _S"_");
+                                strJoin(&cat->tsubtype, artypessub2, _S"_");
+
+                                if (!ps->included && !htHasKey(knownartypes, string, cat->tname))
+                                    saPush(&artypes, object, cat);
+
+                                strDup(&lasttname, cat->tname);
+                                htInsert(&knownartypes, string, cat->tname, bool, true);
+
+                                objRelease(&cat);
+                                saDestroy(&artypessub1);
+                                saDestroy(&artypessub2);
                             }
 
-                            strJoin(&cat->tname, artypessub1, _S"_");
-                            strJoin(&cat->tsubtype, artypessub2, _S"_");
-
-                            if (!ps->included && !htHasKey(knownartypes, string, cat->tname))
-                                saPush(&artypes, object, cat);
-
-                            strDup(&lasttname, cat->tname);
-                            htInsert(&knownartypes, string, cat->tname, bool, true);
-
-                            objRelease(&cat);
-                            saDestroy(&artypessub1);
-                            saDestroy(&artypessub2);
+                            strNConcat(&nmem->vartype, _S"sa_", lasttname);
                         }
-
-                        strNConcat(&nmem->vartype, _S"sa_", lasttname);
+                        saDestroy(&artl);
                     }
-                    saDestroy(&artl);
                 } else if (strEq(vartype.a[0], _S"atomic")) {
                     strNConcat(&nmem->vartype, _S, _S"atomic(", vartype.a[saSize(vartype) - 1], _S")");
                 } else if (strEq(vartype.a[0], _S"weak")) {

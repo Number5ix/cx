@@ -11,8 +11,8 @@ void stDtor_struct(stype st, stgeneric* gen, uint32 flags)
 
 static intptr structCompare(StructBase* b1, StructBase* b2)
 {
-    StructInfo* i1 = b1 ? b1->structinfo : NULL;
-    StructInfo* i2 = b2 ? b2->structinfo : NULL;
+    const StructInfo* i1 = b1 ? b1->structinfo : NULL;
+    const StructInfo* i2 = b2 ? b2->structinfo : NULL;
 
     if (i1 != i2)
         return (intptr)i1 - (intptr)i2;
@@ -34,15 +34,15 @@ intptr stCmp_struct(stype st, stgeneric gen1, stgeneric gen2, uint32 flags)
 
 static void structCopy(StructBase* bdest, StructBase* bsrc, flags_t flags)
 {
-    StructInfo* info = bsrc->structinfo;
+    const StructInfo* info = bsrc->structinfo;
 
     for (int i = 0; i < info->nmembers; i++) {
-        StructMemberDesc* member = &info->members[i];
+        const StructMemberDesc* member = &info->members[i];
         void* destptr            = (char*)bdest + member->offset;
         memset(destptr, 0, info->structsize);   // ensure clean state for copy
         if (!(member->flags & STRUCT_NoCopy)) {
             void* srcptr = (char*)bsrc + member->offset;
-            _stCopy(member->type, NULL, (stgeneric*)destptr, *(stgeneric*)srcptr, flags);
+            _stCopy(member->tinfo.type, NULL, (stgeneric*)destptr, *(stgeneric*)srcptr, flags);
         }
     }
 }
