@@ -18,45 +18,57 @@ enum StructMemberFlagsEnum {
 typedef struct StructSet StructSet;
 
 typedef struct StructTypeInfo {
-    stype type;   ///< Base type
-    void* data;   ///< Type-specific metadata
+    stype type;   // Base type
+
+    // Type-specific metadata
+    // Internal notes:
+    // sarray - points to StructSArrayMetadata
+    // hashtable - points to StructHashtableMetadata
+    // struct - points to StructInfo
+    // structptr - points to StructInfo or StructSet
+    void* data;
+
+    // if true, data points to a StructSet rather than a StructInfo, and type information is encoded
+    // in the serialized form
+    bool dynamic;
 } StructTypeInfo;
 
 typedef struct StructSArrayMetadata {
-    StructTypeInfo elem;   ///< Element type
-    uint32 flags;          ///< Creation flags
+    StructTypeInfo elemt;   // Element type
+    uint32 flags;           // Creation flags
 } StructSArrayMetadata;
 
 typedef struct StructHashtableMetadata {
-    StructTypeInfo key;     ///< Key type
-    StructTypeInfo value;   ///< Value type
-    uint32 flags;           ///< Creation flags
+    StructTypeInfo keyt;     // Key type (must be string for JSON serialization)
+    StructTypeInfo valuet;   // Value type
+    uint32 flags;            // Creation flags
 } StructHashtableMetadata;
 
 typedef struct StructMemberDesc {
-    strref name;            ///< Name of the member
-    size_t offset;          ///< Offset within the struct
-    uint32 flags;           ///< Member flags (StructMemberFlagsEnum)
-    stgeneric def;          ///< Default value for the member (if any)
-    StructTypeInfo tinfo;   ///< Type information for the member
+    strref name;            // Name of the member
+    size_t offset;          // Offset within the struct
+    uint32 flags;           // Member flags (StructMemberFlagsEnum)
+    stgeneric def;          // Default value for the member (if any)
+    StructTypeInfo tinfo;   // Type information for the member
 } StructMemberDesc;
 
 typedef struct StructInfo {
-    strref name;                       ///< Name of the struct
-    size_t structsize;                 ///< Size in bytes of the struct
-    int nmembers;                      ///< Number of struct members
-    const StructMemberDesc* members;   ///< Array of struct member descriptors
+    strref name;                       // Name of the struct
+    size_t structsize;                 // Size in bytes of the struct
+    int nmembers;                      // Number of struct members
+    const StructMemberDesc* members;   // Array of struct member descriptors
+    const void* defaults;              // Default struct to copy (if any)
 
-    /// Optional custom initializer
-    ///
-    /// Structs are always zero-filled when allocated. If set, this function is called when a
-    /// struct  is initialized, and can be used to set up non-zero default values, etc.
+    // Optional custom initializer
+    //
+    // Structs are always zero-filled when allocated. If set, this function is called when a
+    // struct  is initialized, and can be used to set up non-zero default values, etc.
     void (*init)(void* _struct);
 
-    /// Optional custom destructor
-    ///
-    /// Called when the struct is destroyed. This is called before the automatic
-    /// clean-up of struct members, so strings, etc. will still be valid.
+    // Optional custom destructor
+    //
+    // Called when the struct is destroyed. This is called before the automatic
+    // clean-up of struct members, so strings, etc. will still be valid.
     void (*destroy)(void* _struct);
 } StructInfo;
 
@@ -75,7 +87,8 @@ typedef struct StructBase {
     // Struct-specific data members follow
 } StructBase;
 
-#define structInfoName(sname) sname##_structinfo
+#define structInfoName(sname)     sname##_structinfo
+#define structDefaultsName(sname) sname##_structdefaults
 
 #define STRUCTBASE(s)    (unused_noeval(&((s)->_is_struct)), (StructBase*)(s))
 #define STRUCTHANDLE(sp) (unused_noeval(&((*s)->_is_struct)), (StructBase**)(s))

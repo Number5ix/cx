@@ -857,7 +857,8 @@ static int writeStructMemberTbl(StreamBuffer* bf, StructDef* str, bool* wroteany
     return ret;
 }
 
-static void writeStructInfo(StreamBuffer* bf, StructDef* str, int nmembers, bool* wroteany)
+static void writeStructInfo(StreamBuffer* bf, StructDef* str, int nmembers, bool hasdefaults,
+                            bool* wroteany)
 {
     string ln = 0, temp = 0;
 
@@ -869,6 +870,10 @@ static void writeStructInfo(StreamBuffer* bf, StructDef* str, int nmembers, bool
     strNConcat(&ln, _S"    .structsize = sizeof(", str->name, _S"),");
     sbufPWriteLine(bf, ln);
     strFromInt32(&temp, nmembers, 10);
+    if (hasdefaults) {
+        strNConcat(&ln, _S"    .defaults = (const void*)&", str->name, _S"_structdefaults,");
+        sbufPWriteLine(bf, ln);
+    }
     strNConcat(&ln, _S"    .nmembers = ", temp, _S",");
     sbufPWriteLine(bf, ln);
     strNConcat(&ln, _S"    .members = ", str->name, _S"_members,");
@@ -886,6 +891,40 @@ static void writeStructInfo(StreamBuffer* bf, StructDef* str, int nmembers, bool
 
     strDestroy(&temp);
     strDestroy(&ln);
+}
+
+static bool writeStructDefaults(StreamBuffer* bf, StructDef* str, bool* wroteany)
+{
+    string ln        = 0;
+    bool hasdefaults = false;
+
+    for (int i = 0; i < saSize(str->members); i++) {
+        if (getAnnotation(NULL, str->members.a[i]->annotations, _S"default"))
+            hasdefaults = true;
+    }
+
+    if (!hasdefaults)
+        return false;
+
+    *wroteany = true;
+    strNConcat(&ln, _S"const ", str->name, _S" ", str->name, _S"_structdefaults = {");
+    sbufPWriteLine(bf, ln);
+    for (int i = 0; i < saSize(str->members); i++) {
+        Member* m = str->members.a[i];
+        sa_string an;
+        getAnnotation(&an, m->annotations, _S"default");
+        if (saSize(an) >= 2) {
+            strNConcat(&ln, _S"    .", m->name, _S" = ", an.a[1], _S",");
+            sbufPWriteLine(bf, ln);
+        }
+    }
+
+    sbufPWriteLine(bf, _S"};");
+    sbufPWriteEOL(bf);
+
+    strDestroy(&ln);
+
+    return true;
 }
 
 static bool fillBuf(StreamBuffer* obf, sa_string* linebuf)
@@ -1188,8 +1227,9 @@ nextloop:
         for (int i = 0; i < saSize(structs); i++) {
             int nmembers = 0;
             if (!structs.a[i]->included) {
+                bool hasdefaults = writeStructDefaults(ibf, structs.a[i], &wroteany);
                 nmembers = writeStructMemberTbl(ibf, structs.a[i], &wroteany);
-                writeStructInfo(ibf, structs.a[i], nmembers, &wroteany);
+                writeStructInfo(ibf, structs.a[i], nmembers, hasdefaults, &wroteany);
             }
         }
         sbufPWriteLine(ibf, autogenEnd);

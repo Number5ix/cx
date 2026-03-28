@@ -5,10 +5,18 @@
 _Use_decl_annotations_
 void _structInitMany(StructBase* base, StructInfo* info, int number)
 {
-    memset(base, 0, info->structsize * number);
-    if (info->init) {
+    bool hasdefaults = !!info->defaults;
+    bool hasinit     = !!info->init;
+
+    if (!hasdefaults)
+        memset(base, 0, info->structsize * number);
+
+    if (hasinit || hasdefaults) {
         for (int i = 0; i < number; i++) {
-            info->init(&base[i]);
+            if (hasdefaults)
+                memcpy(&base[i], info->defaults, info->structsize);
+            if (hasinit)
+                info->init(&base[i]);
         }
     }
 }
