@@ -1256,10 +1256,10 @@ typedef struct STypeOps {
 /// scope with `stDefine(name) { ... }` and declared in headers with
 /// `stDeclare(name)`.
 typedef struct STypeInfo {
-    uint32 id;          //< hierarchical type ID: STCLASS | STST_subtype | discriminant
-    uint16 size;        //< storage size in bytes
-    uint16 flags;       //< STypeFlag_Object, STypeFlag_PassPtr, STypeFlag_Temporary
-    const char* name;   //< name for debug, serialization, etc
+    uint32 id;          ///< hierarchical type ID: STCLASS | STST_subtype | discriminant
+    uint16 size;        ///< storage size in bytes
+    uint16 flags;       ///< STypeFlag_Object, STypeFlag_PassPtr, STypeFlag_Temporary
+    const char* name;   ///< name for debug, serialization, etc
 
     /// Parameterized sub-type descriptors (must point to canonical types):
     ///   sarray:    param[0] = element type, param[1] = NULL
@@ -1267,8 +1267,8 @@ typedef struct STypeInfo {
     ///   all others: both NULL
     const STypeInfo* param[2];
 
-    const void* ext;   //< type-specific extension data (e.g. StructInfo*); ignored by stype core
-    STypeOps ops;      //< operations embedded directly - no separate allocation
+    const void* ext;   ///< type-specific extension data (e.g. StructInfo*); ignored by stype core
+    STypeOps ops;      ///< operations embedded directly - no separate allocation
 } STypeInfo;
 
 /// @}
