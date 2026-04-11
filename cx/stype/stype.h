@@ -1471,7 +1471,7 @@ _meta_inline void _stCopy(stype st, _stCopyDest_Anno_(st) stgeneric* dest, _In_ 
         memcpy(dest->st_ptr, src.st_ptr, st->size);
 }
 
-#ifdef __GNUC__
+#ifdef _COMPILER_GCC
 #pragma GCC diagnostic pop
 #endif
 
