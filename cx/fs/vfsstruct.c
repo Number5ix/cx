@@ -46,4 +46,7 @@ static void _vfsDirDestroy(stype st, stgeneric* g, uint32 flags)
     xaFree(d);
 }
 
-STypeOps VFSDir_ops = { .dtor = _vfsDirDestroy };
+stDefine(VFSDir) { .id   = stTypeId(ptr),
+                   .size = sizeof(VFSDir),
+                   .name = "VFSDir",
+                   .ops  = { .dtor = _vfsDirDestroy } };
