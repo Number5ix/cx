@@ -1389,6 +1389,21 @@ _meta_inline void _stDestroy(stype st, _Pre_notnull_ _Post_invalid_ stgeneric* g
     if (st->ops.dtor)
         st->ops.dtor(st, gen, flags);
 }
+
+#ifdef __GNUC__
+// GCC incorrectly emits an array bounds warning on the second memcpy in _stCopy; and we use -Werror
+// which turns it into an error. The warning is provably a false positive because it's triggering on
+// the int8 case where the size is 1, but the branch that accesses st_ptr is never reached because
+// int8 does not have the PassPtr flag.
+// The same line also triggers a maybe-uninitialized warning.
+// This section also suppresses an incorrect nonnull warning in _stCmp that follows the same pattern
+// of the compiler thinking we're accessing the pointer version when we are not.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Warray-bounds"
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#pragma GCC diagnostic ignored "-Wnonnull"
+#endif
+
 /// intptr stCmp(type, obj1, obj2, [flags])
 ///
 /// Compare two typed values for ordering.
@@ -1455,6 +1470,10 @@ _meta_inline void _stCopy(stype st, _stCopyDest_Anno_(st) stgeneric* dest, _In_ 
     else
         memcpy(dest->st_ptr, src.st_ptr, st->size);
 }
+
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 
 uint32 stHash_gen(stype st, _In_ stgeneric stgen, flags_t flags);
 
