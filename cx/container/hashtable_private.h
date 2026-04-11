@@ -32,10 +32,6 @@ _Static_assert((HT_SLOTS_PER_CHUNK >> 8) < sizeof(((HTChunkInfo*)0)->nalloc),
 #define HT_DELETED_IDX(slot) ((slot & HT_CHUNK_MASK) >> 3)
 #define HT_DELETED_BIT(slot) (1 << (slot & 7))
 
-#define HT_SMALLHDR_OFFSET (offsetof(HashTableHeader, idxsz))
-#define HDRKEYOPS(hdr)     ((hdr->flags & HTINT_Extended) ? &hdr->keytypeops : NULL)
-#define HDRVALOPS(hdr)     ((hdr->flags & HTINT_Extended) ? &hdr->valtypeops : NULL)
-
 #define hashIndexDeleted (0xffffffffUL)
 #define hashIndexEmpty   (0UL)
 

@@ -24,7 +24,7 @@ uint32 stHash_sarray(stype st, stgeneric gen, flags_t flags)
     SArrayHeader* hdr = SARRAY_HDR(ref);
     int32 i;
     for (i = 0; i < hdr->count; i++) {
-        ret ^= _stHash(hdr->elemtype, HDRTYPEOPS(hdr), stStored(hdr->elemtype, ELEMPTR(hdr, i)), 0);
+        ret ^= _stHash(hdr->elemtype, stStored(hdr->elemtype, ELEMPTR(hdr, i)), 0);
     }
 
     return ret;

@@ -78,7 +78,7 @@ bool _fmtInt(FMTVar* v, string* out)
     bool neg   = false;
     // explicitly use two's complement to make unsigned/positive and handle the edge case
     // see also strnum_int.c
-    switch (stGetId(v->type)) {
+    switch (v->type->id) {
     case stTypeId(int8):
         neg = *(int8*)v->data < 0;
         val = neg ? ((uint8) ~*(uint8*)v->data + 1) : *(uint8*)v->data;

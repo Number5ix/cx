@@ -29,20 +29,17 @@ typedef struct HTChunkInfo HTChunkInfo;
 // Internal structure - do not access directly
 // Use htSize(), htKeyType(), htValType() macros instead
 typedef struct HashTableHeader {
-    // extended header, present only if HT_Extended is set
-    STypeOps keytypeops;
-    STypeOps valtypeops;
-
     // hashtable header begins here
     uint32 idxsz;      // index size
     uint32 idxused;    // number of used index entries (including deleted)
     uint32 storsz;     // number of chunks in storage array
     uint32 storused;   // number of used storage slots (including deleted)
     uint32 valid;      // number of valid items in the hash table
+    uint32 flags;
 
+    stype tbltype;   // canonical type of the table itself. NULL until requested, then cached
     stype keytype;
     stype valtype;
-    uint32 flags;
 
     HTChunkInfo* chunks;
     void** keystorage;
@@ -92,17 +89,21 @@ _Ret_valid_ _meta_inline HashTableHeader* _htHdr(_In_ hashtable ref)
 
 /// stype htKeyType(hashtable ref)
 ///
-/// Returns the runtime type descriptor for the hash table's keys
+/// Returns the canonical type descriptor for the hash table's keys.
+///
 /// @param ref The hash table to query
-/// @return Runtime type descriptor for keys
-#define htKeyType(ref) ((ref) ? _htHdr((ref))->keytype : 0)
+/// @return Canonical key type descriptor, or NULL if ref is NULL
+#define htKeyType(ref) ((ref) ? _htHdr((ref))->keytype : stType(none))
 
 /// stype htValType(hashtable ref)
 ///
-/// Returns the runtime type descriptor for the hash table's values
+/// Returns the canonical type descriptor for the hash table's values.
+///
+/// For hash sets (initialized with `valtype = none`), returns `stType(none)`.
+///
 /// @param ref The hash table to query
-/// @return Runtime type descriptor for values
-#define htValType(ref) ((ref) ? _htHdr((ref))->valtype : 0)
+/// @return Canonical value type descriptor, or NULL if ref is NULL
+#define htValType(ref) ((ref) ? _htHdr((ref))->valtype : stType(none))
 
 /// [type] *hteKeyPtrHdr(HashTableHeader *hdr, type, htelem elem)
 ///
@@ -232,7 +233,6 @@ enum HASHTABLE_FLAGS_ENUM {
     HTINT_Metadata  = 0x1000,   // metadata area (for hash fragments) is present after index
     HTINT_Quadratic = 0x2000,   // use quadratic probing rather than linear
     HTINT_Pow2      = 0x4000,   // size forced to power of 2 to avoid division
-    HTINT_Extended  = 0x8000,   // extended header is present
 };
 
 // Growth rate configuration - controls how much to grow when expanding the table
@@ -323,8 +323,7 @@ enum HASHTABLE_FUNC_FLAGS_ENUM {
 // Internal macro - extracts growth settings from flags
 #define HT_GET_GROW(flags) ((flags) >> 24)
 
-void _htInit(_Outptr_ hashtable* out, stype keytype, _In_opt_ STypeOps* keyops, stype valtype,
-             _In_opt_ STypeOps* valops, uint32 initsz, flags_t flags);
+void _htInit(_Outptr_ hashtable* out, stype keytype, stype valtype, uint32 initsz, flags_t flags);
 
 /// void htInit(hashtable *out, keytype, valtype, uint32 initsz, [flags])
 ///
@@ -342,7 +341,46 @@ void _htInit(_Outptr_ hashtable* out, stype keytype, _In_opt_ STypeOps* keyops, 
 ///   htDestroy(&ht);
 /// @endcode
 #define htInit(out, keytype, valtype, initsz, ...) \
-    _htInit(out, stFullType(keytype), stFullType(valtype), initsz, opt_flags(__VA_ARGS__))
+    _htInit(out, stType(keytype), stType(valtype), initsz, opt_flags(__VA_ARGS__))
+
+/// void htInitFromType(hashtable *out, stype tbltype, uint32 initsz, [flags])
+///
+/// Initialize a hash table from a canonical hashtable type descriptor.
+///
+/// The type descriptor encodes the full parameterized type: key type in `param[0]`,
+/// value type in `param[1]`. Obtain one from `htType()` on an existing table, from a
+/// pre-declared `_sti_ht_K_V` static, or by constructing and interning one through
+/// `stCanonical()`. This is the preferred init path when the full table type is known
+/// statically (e.g. in generated struct code).
+///
+/// @param out Pointer to hashtable handle to receive the new table
+/// @param tbltype Canonical `stype` for a hashtable (must have `id == stTypeId(hashtable)`)
+/// @param initsz Initial capacity (rounded up to next power of two, 0 for default)
+/// @param flags Optional combination of HT_* flags
+///
+/// Example:
+/// @code
+///   hashtable original;
+///   htInit(&original, string, int32, 16);
+///   // Later, create another table with the same key/value types:
+///   hashtable copy;
+///   htInitFromType(&copy, htType(original), 0, 0);
+/// @endcode
+void htInitFromType(_Outptr_ hashtable* out, stype tbltype, uint32 initsz, flags_t flags);
+
+/// stype htType(hashtable ref)
+///
+/// Return the canonical stype descriptor for the table's parameterized type.
+///
+/// The returned descriptor has `id == stTypeId(hashtable)`, `param[0]` = key type,
+/// `param[1]` = value type. It is interned on first call (via `stCanonical`) and
+/// cached in the table header for O(1) subsequent lookups. The result can be passed
+/// to `htInitFromType()` to create a new table with the same key/value types, or
+/// stored in a `StructMemberDesc` for serialization.
+///
+/// @param ref The hash table (passed by value)
+/// @return Canonical stype for this hashtable parameterization
+stype htType(_In_ hashtable ref);
 
 /// Destroys a hash table and frees all associated memory
 ///
@@ -484,7 +522,7 @@ _htFindChecked(_In_ hashtable htbl, stype keytype, _In_ stgeneric key, stype val
 {
     devAssert(htbl);
     devAssert(stEq(htKeyType(htbl), keytype));
-    devAssert(stGetId(valtype) == stTypeId(none) || stEq(htValType(htbl), valtype));
+    devAssert(valtype == stType(none) || stEq(htValType(htbl), valtype));
     return _htFind(htbl, key, val, flags);
 }
 
@@ -531,7 +569,7 @@ _htExtractChecked(_Inout_ptr_ hashtable* htbl, stype keytype, _In_ stgeneric key
 {
     devAssert(*htbl);
     devAssert(stEq(htKeyType(*htbl), keytype));
-    devAssert(stGetId(valtype) == stTypeId(none) || stEq(htValType(*htbl), valtype));
+    devAssert(valtype == stType(none) || stEq(htValType(*htbl), valtype));
     return _htExtract(htbl, key, val);
 }
 

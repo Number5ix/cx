@@ -211,13 +211,13 @@ _meta_inline stvar _stvar(stype st, stgeneric val)
 /// @endcode
 _meta_inline void stvarDestroy(stvar* stv)
 {
-    _stDestroy(stv->type, NULL, &stv->data, 0);
-    stv->type = 0;
+    _stDestroy(stv->type, &stv->data, 0);
+    stv->type = stType(none);
 }
 
 /// void stvarCopy(stvar *dest, stvar source)
 ///
-/// Deep copy a variant to another variant.
+/// Copy a variant to another variant.
 ///
 /// Copies both the type descriptor and value, performing appropriate operations
 /// for the contained type (incrementing reference counts for objects, duplicating
@@ -238,7 +238,7 @@ _meta_inline void stvarDestroy(stvar* stv)
 _meta_inline void stvarCopy(stvar* dvar, stvar svar)
 {
     dvar->type = svar.type;
-    _stCopy(svar.type, NULL, &dvar->data, svar.data, 0);
+    _stCopy(svar.type, &dvar->data, svar.data, 0);
 }
 
 /// @}

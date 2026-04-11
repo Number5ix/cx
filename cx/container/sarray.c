@@ -1,4 +1,5 @@
 #include "sarray_private.h"
+#include "cx/platform/cpu.h"
 #include "cx/string.h"
 #include "cx/utils.h"
 
@@ -76,7 +77,7 @@ static _meta_inline void sa_swap(_Inout_updates_bytes_(sz) void* av,
 
 #define SA_SPECIALIZE_QSORTONLY(name, typ, comptyp, compfunc)                                   \
     static _meta_inline char*                                                                   \
-        med3_##name(_In_ SArrayHeader* hdr, _In_ void* a, _In_ void* b, _In_ void* c)           \
+    med3_##name(_In_ SArrayHeader* hdr, _In_ void* a, _In_ void* b, _In_ void* c)               \
     {                                                                                           \
         return (char*)(compfunc(hdr->elemtype, a, b) < 0 ?                                      \
                            (compfunc(hdr->elemtype, b, c) < 0 ?                                 \
@@ -196,13 +197,11 @@ loop:                                                                           
     SA_SPECIALIZE_BSEARCHONLY(name, typ, comptyp, compfunc) \
     SA_SPECIALIZE_QSORTONLY(name, typ, comptyp, compfunc)
 
-#define compfunc_stype(st, a, b) _stCmp(st, NULL, stStored(st, a), stStored(st, b), 0)
+#define compfunc_stype(st, a, b) _stCmp(st, stStored(st, a), stStored(st, b), 0)
 SA_SPECIALIZE_BSEARCHONLY(stype, void*, intptr, compfunc_stype)
 SA_SPECIALIZE_QSORTONLY(stype, void*, intptr, compfunc_stype)
-#define compfunc_stype_eq(st, a, b) _stCmp(st, NULL, stStored(st, a), stStored(st, b), ST_Equality)
+#define compfunc_stype_eq(st, a, b) _stCmp(st, stStored(st, a), stStored(st, b), ST_Equality)
 SA_SPECIALIZE_FINDONLY(stypeeq, void*, intptr, compfunc_stype_eq)
-#define compfunc_stype_cmp(st, a, b) _stCmp(st, &hdr->typeops, stStored(st, a), stStored(st, b), 0)
-SA_SPECIALIZE(stypecmp, void*, intptr, compfunc_stype_cmp)
 #define compfunc_str(st, a, b) strCmp(*(string*)(a), *(string*)(b))
 SA_SPECIALIZE(string, string, int32, compfunc_str)
 #define SA_SPECIALIZE_BUILTIN(name, typ, comptyp)                                       \
@@ -226,61 +225,127 @@ SA_SPECIALIZE_BUILTIN(ptr, char*, intptr)
 typedef int32 (*sa_find_spec)(_In_ SArrayHeader* hdr, _In_ const void* elem, _Out_ bool* found);
 typedef void (*sa_qsort_spec)(_Inout_ SArrayHeader* hdr, _Inout_ void* a, size_t n);
 
-static LazyInitState spec_init_state;
-static sa_find_spec* find_spec;
-static sa_find_spec* bsearch_spec;
-static sa_qsort_spec* qsort_spec;
+// Row = (id >> 8) & 0xF  →  1=INT, 2=UINT, 3=FLOAT, 4=PTR
+// Col = ctz(id & 0xFF)   →  0=sz1, 1=sz2,  2=sz4,   3=sz8
+#define SA_SPEC_ROWS 5
+#define SA_SPEC_COLS 4
 
-#define SA_SPEC_INIT_ONE(type)                                 \
-    find_spec[stTypeId(type)]    = sa_find_internal_##type;    \
-    bsearch_spec[stTypeId(type)] = sa_bsearch_internal_##type; \
-    qsort_spec[stTypeId(type)]   = sa_qsort_internal_##type;
+#define SA_ROW_INT   1
+#define SA_ROW_UINT  2
+#define SA_ROW_FLOAT 3
+#define SA_ROW_PTR   4
+#define SA_COL_SZ1   0
+#define SA_COL_SZ2   1
+#define SA_COL_SZ4   2
+#define SA_COL_SZ8   3
 
-static void sa_spec_init(void* user)
+static const sa_find_spec find_spec_basic[SA_SPEC_ROWS][SA_SPEC_COLS] = {
+    [SA_ROW_INT][SA_COL_SZ1]   = sa_find_internal_int8,
+    [SA_ROW_INT][SA_COL_SZ2]   = sa_find_internal_int16,
+    [SA_ROW_INT][SA_COL_SZ4]   = sa_find_internal_int32,
+    [SA_ROW_INT][SA_COL_SZ8]   = sa_find_internal_int64,
+    [SA_ROW_UINT][SA_COL_SZ1]  = sa_find_internal_uint8,
+    [SA_ROW_UINT][SA_COL_SZ2]  = sa_find_internal_uint16,
+    [SA_ROW_UINT][SA_COL_SZ4]  = sa_find_internal_uint32,
+    [SA_ROW_UINT][SA_COL_SZ8]  = sa_find_internal_uint64,
+    [SA_ROW_FLOAT][SA_COL_SZ4] = sa_find_internal_float32,
+    [SA_ROW_FLOAT][SA_COL_SZ8] = sa_find_internal_float64,
+#if defined(_32BIT)
+    [SA_ROW_PTR][SA_COL_SZ4] = sa_find_internal_ptr,   // 32-bit
+#elif defined(_64BIT)
+    [SA_ROW_PTR][SA_COL_SZ8] = sa_find_internal_ptr,   // 64-bit
+#endif
+};
+
+static const sa_find_spec bsearch_spec_basic[SA_SPEC_ROWS][SA_SPEC_COLS] = {
+    [SA_ROW_INT][SA_COL_SZ1]   = sa_bsearch_internal_int8,
+    [SA_ROW_INT][SA_COL_SZ2]   = sa_bsearch_internal_int16,
+    [SA_ROW_INT][SA_COL_SZ4]   = sa_bsearch_internal_int32,
+    [SA_ROW_INT][SA_COL_SZ8]   = sa_bsearch_internal_int64,
+    [SA_ROW_UINT][SA_COL_SZ1]  = sa_bsearch_internal_uint8,
+    [SA_ROW_UINT][SA_COL_SZ2]  = sa_bsearch_internal_uint16,
+    [SA_ROW_UINT][SA_COL_SZ4]  = sa_bsearch_internal_uint32,
+    [SA_ROW_UINT][SA_COL_SZ8]  = sa_bsearch_internal_uint64,
+    [SA_ROW_FLOAT][SA_COL_SZ4] = sa_bsearch_internal_float32,
+    [SA_ROW_FLOAT][SA_COL_SZ8] = sa_bsearch_internal_float64,
+#if defined(_32BIT)
+    [SA_ROW_PTR][SA_COL_SZ4] = sa_bsearch_internal_ptr,   // 32-bit
+#elif defined(_64BIT)
+    [SA_ROW_PTR][SA_COL_SZ8] = sa_bsearch_internal_ptr,   // 64-bit
+#endif
+};
+
+static const sa_qsort_spec qsort_spec_basic[SA_SPEC_ROWS][SA_SPEC_COLS] = {
+    [SA_ROW_INT][SA_COL_SZ1]   = sa_qsort_internal_int8,
+    [SA_ROW_INT][SA_COL_SZ2]   = sa_qsort_internal_int16,
+    [SA_ROW_INT][SA_COL_SZ4]   = sa_qsort_internal_int32,
+    [SA_ROW_INT][SA_COL_SZ8]   = sa_qsort_internal_int64,
+    [SA_ROW_UINT][SA_COL_SZ1]  = sa_qsort_internal_uint8,
+    [SA_ROW_UINT][SA_COL_SZ2]  = sa_qsort_internal_uint16,
+    [SA_ROW_UINT][SA_COL_SZ4]  = sa_qsort_internal_uint32,
+    [SA_ROW_UINT][SA_COL_SZ8]  = sa_qsort_internal_uint64,
+    [SA_ROW_FLOAT][SA_COL_SZ4] = sa_qsort_internal_float32,
+    [SA_ROW_FLOAT][SA_COL_SZ8] = sa_qsort_internal_float64,
+#if defined(_32BIT)
+    [SA_ROW_PTR][SA_COL_SZ4] = sa_qsort_internal_ptr,
+#elif defined(_64BIT)
+    [SA_ROW_PTR][SA_COL_SZ8] = sa_qsort_internal_ptr,
+#endif
+};
+
+static _meta_inline sa_find_spec get_find_spec(stype st)
 {
-    find_spec    = xaAlloc(256 * sizeof(sa_find_spec), XA_Zero);
-    bsearch_spec = xaAlloc(256 * sizeof(sa_find_spec), XA_Zero);
-    qsort_spec   = xaAlloc(256 * sizeof(sa_qsort_spec), XA_Zero);
-
-    SA_SPEC_INIT_ONE(string);
-    SA_SPEC_INIT_ONE(int8);
-    SA_SPEC_INIT_ONE(int16);
-    SA_SPEC_INIT_ONE(int32);
-    SA_SPEC_INIT_ONE(int64);
-    SA_SPEC_INIT_ONE(uint8);
-    SA_SPEC_INIT_ONE(uint16);
-    SA_SPEC_INIT_ONE(uint32);
-    SA_SPEC_INIT_ONE(uint64);
-    SA_SPEC_INIT_ONE(float32);
-    SA_SPEC_INIT_ONE(float64);
-    SA_SPEC_INIT_ONE(ptr);
+    if (st == stType(string))
+        return sa_find_internal_string;
+    if (STYPE_CLASS(st->id) != STCLASS_BASIC)
+        return NULL;
+    uint32 disc = st->id & 0xFF;
+    if (!disc || disc > 8)
+        return NULL;
+    return find_spec_basic[(st->id >> 8) & 0xF][ctz32(disc)];
 }
 
-#define SA_FIND_DISPATCH_CASE(func, caseval, name) \
-    case caseval:                                  \
-        return func##_##name(hdr, elem, found);
+static _meta_inline sa_find_spec get_bsearch_spec(stype st)
+{
+    if (st == stType(string))
+        return sa_bsearch_internal_string;
+    if (STYPE_CLASS(st->id) != STCLASS_BASIC)
+        return NULL;
+    uint32 disc = st->id & 0xFF;
+    if (!disc || disc > 8)
+        return NULL;
+    return bsearch_spec_basic[(st->id >> 8) & 0xF][ctz32(disc)];
+}
+
+static _meta_inline sa_qsort_spec get_qsort_spec(stype st)
+{
+    if (st == stType(string))
+        return sa_qsort_internal_string;
+    if (STYPE_CLASS(st->id) != STCLASS_BASIC)
+        return NULL;
+    uint32 disc = st->id & 0xFF;
+    if (!disc || disc > 8)
+        return NULL;
+    return qsort_spec_basic[(st->id >> 8) & 0xF][ctz32(disc)];
+}
 
 static int32 sa_find_internal(_In_ SArrayHeader* hdr, _In_ stgeneric stelem, _Out_ bool* found)
 {
-    uint8 type = stGetId(hdr->elemtype);
-    lazyInit(&spec_init_state, sa_spec_init, NULL);
     void* elem = stGenPtr(hdr->elemtype, stelem);
 
     *found = false;
     if (hdr->flags & SA_Sorted) {
-        if ((hdr->flags & SAINT_Extended) && hdr->typeops.cmp)
-            return sa_bsearch_internal_stypecmp(hdr, elem, found);
-
-        if (bsearch_spec[type])
-            return bsearch_spec[type](hdr, elem, found);
-        return sa_bsearch_internal_stype(hdr, elem, found);
+        sa_find_spec spec = get_bsearch_spec(hdr->elemtype);
+        if (spec)
+            return spec(hdr, elem, found);
+        else
+            return sa_bsearch_internal_stype(hdr, elem, found);
     } else {
-        if ((hdr->flags & SAINT_Extended) && hdr->typeops.cmp)
-            return sa_find_internal_stypecmp(hdr, elem, found);
-
-        if (find_spec[type])
-            return find_spec[type](hdr, elem, found);
-        return sa_find_internal_stypeeq(hdr, elem, found);
+        sa_find_spec spec = get_find_spec(hdr->elemtype);
+        if (spec)
+            return spec(hdr, elem, found);
+        else
+            return sa_find_internal_stypeeq(hdr, elem, found);
     }
 
     // unreachable
@@ -288,20 +353,15 @@ static int32 sa_find_internal(_In_ SArrayHeader* hdr, _In_ stgeneric stelem, _Ou
 
 static void sa_qsort_internal(_Inout_ SArrayHeader* hdr)
 {
-    uint8 type = stGetId(hdr->elemtype);
-    lazyInit(&spec_init_state, sa_spec_init, NULL);
-
-    if ((hdr->flags & SAINT_Extended) && hdr->typeops.cmp)
-        sa_qsort_internal_stypecmp(hdr, hdr->data, hdr->count);
-    else if (qsort_spec[type])
-        qsort_spec[type](hdr, hdr->data, hdr->count);
+    sa_qsort_spec spec = get_qsort_spec(hdr->elemtype);
+    if (spec)
+        spec(hdr, hdr->data, hdr->count);
     else
         sa_qsort_internal_stype(hdr, hdr->data, hdr->count);
 }
 
 _Use_decl_annotations_
-bool _saInit(sahandle out, stype elemtype, STypeOps* ops, int32 capacity, bool canfail,
-             flags_t flags)
+bool _saInit(sahandle out, stype elemtype, int32 capacity, bool canfail, flags_t flags)
 {
     SArrayHeader* hdr;
 
@@ -313,31 +373,13 @@ bool _saInit(sahandle out, stype elemtype, STypeOps* ops, int32 capacity, bool c
 
     // If we are not using custom ops and this is a POD type, skip all of the copy/destructor
     // logic and just use straight memory copies for speed.
-    if (!ops && !stHasFlag(elemtype, Object))
+    if (!elemtype->ops.dtor && !elemtype->ops.copy && !stHasFlag(elemtype, Object))
         flags |= SA_Ref;
 
-    if (ops) {
-        // need the full header
-        flags |= SAINT_Extended;
-        hdr = xaAlloc(SARRAY_HDRSIZE + (size_t)capacity * stGetSize(elemtype),
-                      canfail ? XA_Optional(High) : 0);
-        if (canfail && !hdr)
-            return false;
-
-        hdr->typeops = *ops;
-    } else {
-        // use the smaller header that saves a few bytes for each array
-        // yes, this is evil
-        // hdr technically points to unallocated memory, but we're careful to not touch the first
-        // part
-        void* hbase = xaAlloc((SARRAY_HDRSIZE + (size_t)capacity * stGetSize(elemtype)) -
-                                  SARRAY_SMALLHDR_OFFSET,
-                              canfail ? XA_Optional(High) : 0);
-        if (canfail && !hbase)
-            return false;
-
-        hdr = (SArrayHeader*)((uintptr_t)hbase - SARRAY_SMALLHDR_OFFSET);
-    }
+    hdr = xaAlloc(SARRAY_HDRSIZE + (size_t)capacity * stGetSize(elemtype),
+                  canfail ? XA_Optional(High) : 0);
+    if (canfail && !hdr)
+        return false;
 
     if (SA_GET_GROW(flags) == SA_GROW_Auto) {
         // auto growth based on element size
@@ -349,33 +391,57 @@ bool _saInit(sahandle out, stype elemtype, STypeOps* ops, int32 capacity, bool c
             flags |= SA_Grow(Slow);
     }
 
-    hdr->elemtype = elemtype;
-    hdr->count    = 0;
-    hdr->capacity = capacity;
-    hdr->flags    = flags;
-    out->a        = &hdr->data[0];
+    hdr->arraytype = NULL;   // set lazily if requested
+    hdr->elemtype  = stCanonical(elemtype);
+    hdr->count     = 0;
+    hdr->capacity  = capacity;
+    hdr->flags     = flags;
+    out->a         = &hdr->data[0];
 
     return true;
+}
+
+_Use_decl_annotations_
+bool _saInitFromType(sahandle out, stype arraytype, int32 capacity, bool canfail, flags_t flags)
+{
+    devAssert(arraytype);
+    devAssert(arraytype->id == stTypeId(sarray));
+
+    // arraytype SHOULD already be canonical, but just in case
+    arraytype = stCanonical(arraytype);
+
+    stype elemtype = arraytype->param[0];
+    devAssert(elemtype);
+
+    bool ret = _saInit(out, elemtype, capacity, canfail, flags);
+
+    if (ret) {
+        SArrayHeader* hdr = SARRAY_HDR(*out);
+        hdr->arraytype    = arraytype;
+    }
+
+    return ret;
+}
+
+_Use_decl_annotations_
+stype _saType(sa_ref ref)
+{
+    SArrayHeader* hdr = SARRAY_HDR(ref);
+    if (!hdr->arraytype) {
+        STypeInfo tmp = stTypeInfo(sarray);   // copy sarray type to use as a base
+        tmp.flags |= stFlag(Temporary);
+        tmp.param[0]   = hdr->elemtype;
+        hdr->arraytype = stCanonical(&tmp);   // this will register the type if needed
+    }
+    return hdr->arraytype;
 }
 
 static bool saRealloc(_Inout_ sahandle handle, _Inout_ptr_ SArrayHeader** hdr, int32 cap,
                       bool canfail)
 {
-    bool ret = false;
-    if ((*hdr)->flags & SAINT_Extended) {
-        ret = xaResize(hdr,
-                       SARRAY_HDRSIZE + (size_t)cap * stGetSize((*hdr)->elemtype),
-                       canfail ? XA_Optional(High) : 0);
-    } else {
-        // ugly non-extended header
-        void* smlbase = (void*)((uintptr_t)(*hdr) + SARRAY_SMALLHDR_OFFSET);
-        ret           = xaResize(&smlbase,
-                       (SARRAY_HDRSIZE + (size_t)cap * stGetSize((*hdr)->elemtype)) -
-                           SARRAY_SMALLHDR_OFFSET,
-                       canfail ? XA_Optional(High) : 0);
-        if (ret)
-            *hdr = (SArrayHeader*)((uintptr_t)smlbase - SARRAY_SMALLHDR_OFFSET);
-    }
+    bool ret = xaResize(hdr,
+                        SARRAY_HDRSIZE + (size_t)cap * stGetSize((*hdr)->elemtype),
+                        canfail ? XA_Optional(High) : 0);
 
     if (ret) {
         (*hdr)->capacity = cap;
@@ -444,12 +510,7 @@ void _saDestroy(sahandle handle)
 
     SArrayHeader* hdr = SARRAY_HDR(*handle);
     _saClear(handle);   // to call dtors
-    if (hdr->flags & SAINT_Extended) {
-        xaFree(hdr);
-    } else {
-        void* smbase = (void*)((uintptr_t)hdr + SARRAY_SMALLHDR_OFFSET);
-        xaFree(smbase);
-    }
+    xaFree(hdr);
     handle->a = NULL;
 }
 
@@ -461,11 +522,10 @@ void _saClear(sahandle handle)
 
     SArrayHeader* hdr = SARRAY_HDR(*handle);
     if (!(hdr->flags & SA_Ref)) {
-        STypeOps* ops = HDRTYPEOPS(hdr);
         int32 i;
 
         for (i = 0; i < hdr->count; ++i) {
-            _stDestroy(hdr->elemtype, ops, stStoredPtr(hdr->elemtype, ELEMPTR(hdr, i)), 0);
+            _stDestroy(hdr->elemtype, stStoredPtr(hdr->elemtype, ELEMPTR(hdr, i)), 0);
         }
     }
     hdr->count = 0;
@@ -507,7 +567,6 @@ void _saSetSize(sahandle handle, int32 size)
 
     _saReserve(handle, size, false);
     SArrayHeader* hdr = SARRAY_HDR(*handle);
-    STypeOps* ops     = HDRTYPEOPS(hdr);
 
     if (size > hdr->count) {
         memset(ELEMPTR(hdr, hdr->count),
@@ -515,7 +574,7 @@ void _saSetSize(sahandle handle, int32 size)
                ((uintptr)size - hdr->count) * stGetSize(hdr->elemtype));
     } else if (!(hdr->flags & SA_Ref)) {
         for (int i = size; i < hdr->count; i++) {
-            _stDestroy(hdr->elemtype, ops, stStoredPtr(hdr->elemtype, ELEMPTR(hdr, i)), 0);
+            _stDestroy(hdr->elemtype, stStoredPtr(hdr->elemtype, ELEMPTR(hdr, i)), 0);
         }
     }
     hdr->count = size;
@@ -530,18 +589,14 @@ static _meta_inline void sa_set_elem_internal(_Inout_ SArrayHeader* hdr, int32 i
 
         // destroy source
         if (hdr->flags & SA_Ref)   // weird combo, but respect it
-            _stDestroy(hdr->elemtype, HDRTYPEOPS(hdr), elem, 0);
+            _stDestroy(hdr->elemtype, elem, 0);
         else if (stGetSize(hdr->elemtype) == sizeof(void*))
             elem->st_ptr = 0;   // if this is a pointer-sized element, clear it out
         return;
     }
 
     if (!(hdr->flags & SA_Ref))
-        _stCopy(hdr->elemtype,
-                HDRTYPEOPS(hdr),
-                stStoredPtr(hdr->elemtype, ELEMPTR(hdr, idx)),
-                *elem,
-                0);
+        _stCopy(hdr->elemtype, stStoredPtr(hdr->elemtype, ELEMPTR(hdr, idx)), *elem, 0);
     else
         memcpy(ELEMPTR(hdr, idx), stGenPtr(hdr->elemtype, *elem), stGetSize(hdr->elemtype));
 }
@@ -584,18 +639,17 @@ _Use_decl_annotations_
 int32 _saPushPtr(sahandle handle, stype elemtype, stgeneric* elem, flags_t flags)
 {
     if (!handle->a)
-        _saInit(handle, elemtype, NULL, 0, false, 0);
+        _saInit(handle, elemtype, 0, false, 0);
     devAssert(stEq(saElemType(*handle), elemtype));
 
     SArrayHeader* hdr = SARRAY_HDR(*handle);
-    STypeOps* ops     = HDRTYPEOPS(hdr);
 
     if (hdr->flags & SA_Sorted) {
         bool found = false;
         int32 idx  = sa_find_internal(hdr, *elem, &found);
         if (found && (flags & SA_Unique)) {
             if (flags & SAINT_Consume)
-                _stDestroy(hdr->elemtype, ops, elem, 0);
+                _stDestroy(hdr->elemtype, elem, 0);
             return -1;   // don't insert if we already have it
         }
 
@@ -607,7 +661,7 @@ int32 _saPushPtr(sahandle handle, stype elemtype, stgeneric* elem, flags_t flags
             sa_find_internal(hdr, *elem, &found);
             if (found) {
                 if (flags & SAINT_Consume)
-                    _stDestroy(hdr->elemtype, ops, elem, 0);
+                    _stDestroy(hdr->elemtype, elem, 0);
                 return -1;
             }
         }
@@ -667,10 +721,7 @@ bool _saExtract(sahandle handle, int32 idx, stgeneric* elem, flags_t flags)
     if (elem)
         memcpy(stGenPtr(hdr->elemtype, *elem), ELEMPTR(hdr, idx), stGetSize(hdr->elemtype));
     else if (!(hdr->flags & SA_Ref))
-        _stDestroy(hdr->elemtype,
-                   HDRTYPEOPS(hdr),
-                   stStoredPtr(hdr->elemtype, ELEMPTR(hdr, idx)),
-                   0);
+        _stDestroy(hdr->elemtype, stStoredPtr(hdr->elemtype, ELEMPTR(hdr, idx)), 0);
 
     sa_remove_internal(handle, hdr, idx, flags & SA_Fast);
 
@@ -690,8 +741,7 @@ void* _saPopPtr(sahandle handle, int32 idx)
     // giving our reference to the caller.
 
     SArrayHeader* hdr = SARRAY_HDR(*handle);
-    devAssert(stGetId(hdr->elemtype) == stTypeId(ptr) ||
-              stGetId(hdr->elemtype) == stTypeId(object));
+    devAssert(stEq(hdr->elemtype, stType(ptr)) || stEq(hdr->elemtype, stType(object)));
 
     if (hdr->count == 0)
         return NULL;
@@ -783,7 +833,7 @@ void _saSlice(sahandle out, sa_ref ref, int32 start, int32 end)
     else
         end = clamphigh(end, hdr->count);
 
-    _saInit(out, elemtype, HDRTYPEOPS(hdr), clamplow(end - start, 1), false, hdr->flags);
+    _saInit(out, elemtype, clamplow(end - start, 1), false, hdr->flags);
     SArrayHeader* newhdr = SARRAY_HDR(*out);
 
     // mask out sorted flag for now to speed up inserts
@@ -818,7 +868,7 @@ void _saMerge(sahandle out, int n, sa_ref* refs, flags_t flags)
         newsize += shdr->count;
     }
 
-    _saInit(out, fhdr->elemtype, HDRTYPEOPS(fhdr), newsize, false, fhdr->flags);
+    _saInit(out, fhdr->elemtype, newsize, false, fhdr->flags);
 
     for (int i = 0; i < n; i++) {
         SArrayHeader* shdr = SARRAY_HDR(refs[i]);

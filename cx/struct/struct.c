@@ -31,7 +31,7 @@ void _structDestroyMembersMany(StructBase* base, int number)
             const StructMemberDesc* member = &info->members[m];
             if (!(member->flags & STRUCT_NoDestroy)) {
                 void* memberptr = (char*)&base[i] + member->offset;
-                _stDestroy(member->tinfo.type, NULL, (stgeneric*)memberptr, 0);
+                _stDestroy(member->tinfo.type, (stgeneric*)memberptr, 0);
             }
         }
         if (info->destroy)

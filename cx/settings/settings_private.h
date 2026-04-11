@@ -21,7 +21,7 @@ _meta_inline bool _setsWriteBoundVar(SettingsBind* bind, stype styp, stgeneric v
     // for strings, destroy destination first to prevent leaks
     if (stEq(styp, stType(string)))
         strDestroy(&bind->var->st_string);
-    return _stConvert(bind->type, bind->var, styp, NULL, val, 0);
+    return _stConvert(bind->type, bind->var, styp, val, 0);
 }
 
 #define _setsBCacheSize(btype) (stHasFlag(btype, PassPtr) ? sizeof(void*) : stGetSize(btype))

@@ -57,7 +57,24 @@ typedef struct VFSDir {
     bool cache;        // only exists to cache directory entries, can be discarded
 } VFSDir;
 _Ret_valid_ VFSDir* _vfsDirCreate(_Inout_ VFS* vfs, _In_opt_ VFSDir* parent);
-extern STypeOps VFSDir_ops;
+
+// custom types for pointers with cleanup
+
+stDeclare(VFSDir);
+#define SType_VFSDir                         VFSDir*
+#define STStorageType_VFSDir                 VFSDir*
+#define STypeArg_VFSDir(type, val)           stgeneric(ptr, val)
+#define STypeArgPtr_VFSDir(type, val)        (stgeneric*)stCheckPtr(ptr, (void**)(val))
+#define STypeCheckedArg_VFSDir(type, val)    stType(type), stArg(type, val)
+#define STypeCheckedPtrArg_VFSDir(type, val) stType(type), stArgPtr(type, val)
+
+stDeclare(VFSCacheEnt);
+#define SType_VFSCacheEnt                         VFSCacheEnt*
+#define STStorageType_VFSCacheEnt                 VFSCacheEnt*
+#define STypeArg_VFSCacheEnt(type, val)           stgeneric(ptr, val)
+#define STypeArgPtr_VFSCacheEnt(type, val)        (stgeneric*)stCheckPtr(ptr, (void**)(val))
+#define STypeCheckedArg_VFSCacheEnt(type, val)    stType(type), stArg(type, val)
+#define STypeCheckedPtrArg_VFSCacheEnt(type, val) stType(type), stArgPtr(type, val)
 
 // gets (and creates) path in VFS cache
 // must be called with vfslock read (or write) lock held!

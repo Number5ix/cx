@@ -7,7 +7,7 @@
 static void vfsUnmountAll(_Inout_ VFSDir* dir)
 {
     foreach (hashtable, sdi, dir->subdirs) {
-        vfsUnmountAll((VFSDir*)htiVal(ptr, sdi));
+        vfsUnmountAll(htiVal(VFSDir, sdi));
     }
     saClear(&dir->mounts);
 }
@@ -56,20 +56,20 @@ _vfsGetDirInternal(_Inout_ VFS* vfs, _Inout_ VFSDir* root, _In_reads_(plen) stri
     if (strEmpty(path[0]))
         child = root;
     else
-        htFind(root->subdirs, string, path[0], ptr, &child);
+        htFind(root->subdirs, string, path[0], VFSDir, &child);
 
     if (!child) {
         if (!writelockheld) {
             rwlockReleaseRead(&vfs->vfslock);
             rwlockAcquireWrite(&vfs->vfslock);
             // try again with the write lock held
-            htFind(root->subdirs, string, path[0], ptr, &child);
+            htFind(root->subdirs, string, path[0], VFSDir, &child);
         }
         if (!child) {
             child        = _vfsDirCreate(vfs, root);
             child->cache = cache;
             strDup(&child->name, path[0]);
-            htInsert(&root->subdirs, string, path[0], ptr, child);
+            htInsert(&root->subdirs, string, path[0], VFSDir, child);
         }
         if (!writelockheld) {
             rwlockDowngradeWrite(&vfs->vfslock);
@@ -237,7 +237,7 @@ VFSCacheEnt* _vfsGetFile(VFS* vfs, strref path, bool writelockheld)
 
     pathFilename(&fname, path);
 
-    if (!htFind(pdir->files, string, fname, ptr, &ret))
+    if (!htFind(pdir->files, string, fname, VFSCacheEnt, &ret))
         cxerr = CX_FileNotFound;
 
     strDestroy(&fname);
@@ -278,7 +278,7 @@ void _vfsInvalidateRecursive(VFS* vfs, VFSDir* dir, bool havelock)
     } else {
         htClear(&dir->files);
         foreach (hashtable, sdi, dir->subdirs) {
-            _vfsInvalidateRecursive(vfs, (VFSDir*)htiVal(ptr, sdi), true);
+            _vfsInvalidateRecursive(vfs, htiVal(VFSDir, sdi), true);
         }
     }
 
@@ -350,7 +350,7 @@ static int vfsFindCISub(_Inout_ VFSDir* vdir, _Inout_ string* out, _In_opt_ strr
         if (cvdir && dsiter.type == FS_File && !(mount->flags & VFS_NoCache)) {
             // go ahead and add it to the cache while we're here
             VFSCacheEnt* newent = _vfsCacheEntCreate(mount, filepath);
-            htInsertC(&cvdir->files, string, dsiter.name, ptr, &newent, HT_Ignore);
+            htInsertC(&cvdir->files, string, dsiter.name, VFSCacheEnt, &newent, HT_Ignore);
         }
     } while (provif->searchNext(mount->provider, &dsiter));
     provif->searchFinish(mount->provider, &dsiter);
@@ -523,7 +523,7 @@ done:
         htInsertC(&vfsdir->files,
                   string,
                   components.a[saSize(components) - 1],
-                  ptr,
+                  VFSCacheEnt,
                   &newent,
                   HT_Ignore);
         rwlockReleaseWrite(&vfs->vfslock);

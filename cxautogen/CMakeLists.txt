@@ -71,6 +71,7 @@ set(CX_SRCS
     ../cx/struct/struct.c
     ../cx/struct/stype_struct.c
     ../cx/stype/stconvert.c
+    ../cx/stype/stregistry.c
     ../cx/stype/stvar.c
     ../cx/stype/stype.c
     ../cx/stype/stype_stvar.c

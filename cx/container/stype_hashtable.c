@@ -19,15 +19,9 @@ uint32 stHash_hashtable(stype st, _In_ stgeneric gen, flags_t flags)
     uint32 ret           = 0;
 
     for (uint32 i = _htNextSlot(hdr, 0); i != hashIndexEmpty; i = _htNextSlot(hdr, i)) {
-        ret ^= _stHash(hdr->keytype,
-                       HDRKEYOPS(hdr),
-                       stStored(hdr->keytype, HT_SLOT_KEY_PTR(hdr, i)),
-                       0);
+        ret ^= _stHash(hdr->keytype, stStored(hdr->keytype, HT_SLOT_KEY_PTR(hdr, i)), 0);
         if (stGetSize(hdr->valtype) > 0)
-            ret ^= _stHash(hdr->valtype,
-                           HDRVALOPS(hdr),
-                           stStored(hdr->valtype, HT_SLOT_VAL_PTR(hdr, i)),
-                           0);
+            ret ^= _stHash(hdr->valtype, stStored(hdr->valtype, HT_SLOT_VAL_PTR(hdr, i)), 0);
     }
 
     return ret;

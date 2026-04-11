@@ -134,9 +134,8 @@ saDeclare(hashtable);
 //
 // Internal structure containing array metadata. Access through helper macros.
 typedef struct SArrayHeader {
-    // sarray extended header begins here (only valid if SAINT_Extended is set)
-    STypeOps typeops;
     // sarray header begins here
+    stype arraytype;   // canonical type of the array itself. NULL until requested, then cached
     stype elemtype;
     int32 count;
     int32 capacity;
@@ -148,9 +147,7 @@ typedef struct SArrayHeader {
 enum SARRAY_CREATE_FLAGS_ENUM {
     SA_Ref    = 0x0010,   ///< Array references data without copying/destroying (pointer types only)
     SA_Sorted = 0x0020,   ///< Maintain sorted order with O(log n) search and O(n) insert
-    SA_AutoShrink = 0x0040,    ///< Automatically release memory when array shrinks
-
-    SAINT_Extended = 0x8000,   // includes extended header
+    SA_AutoShrink = 0x0040,   ///< Automatically release memory when array shrinks
 };
 
 // Growth rate strategies for array expansion
@@ -292,11 +289,8 @@ _Ret_notnull_ _meta_inline SArrayHeader* _saHdr(_In_ sa_ref ref)
 /// @{
 /// Array creation, destruction, and capacity/size management operations
 
-_Success_(!canfail || return)
-_When_(canfail, _Check_return_)
-_At_(out->a, _Post_notnull_) bool
-_saInit(_Out_ sahandle out, stype elemtype, _In_opt_ STypeOps* ops, int32 capacity, bool canfail,
-        flags_t flags);
+_Success_(!canfail || return) _When_(canfail, _Check_return_) _At_(out->a, _Post_notnull_) bool
+_saInit(_Out_ sahandle out, stype elemtype, int32 capacity, bool canfail, flags_t flags);
 
 /// bool saInit(sa_type *out, type, int32 capacity, [flags])
 ///
@@ -320,7 +314,7 @@ _saInit(_Out_ sahandle out, stype elemtype, _In_opt_ STypeOps* ops, int32 capaci
 ///   saDestroy(&arr);
 /// @endcode
 #define saInit(out, type, capacity, ...) \
-    _saInit(SAHANDLE(out), stFullType(type), capacity, false, opt_flags(__VA_ARGS__))
+    _saInit(SAHANDLE(out), stType(type), capacity, false, opt_flags(__VA_ARGS__))
 
 /// bool saTryInit(sa_type *out, type, int32 capacity, [flags])
 ///
@@ -334,7 +328,65 @@ _saInit(_Out_ sahandle out, stype elemtype, _In_opt_ STypeOps* ops, int32 capaci
 #define saTryInit(out, type, capacity, ...) \
     _saInit(SAHANDLE(out), stFullType(type), capacity, true, opt_flags(__VA_ARGS__))
 
+_Success_(!canfail || return) _When_(canfail, _Check_return_) _At_(out->a, _Post_notnull_) bool
+_saInitFromType(_Out_ sahandle out, stype arraytype, int32 capacity, bool canfail, flags_t flags);
+
+/// bool saInitFromType(sa_type *out, stype arraytype, int32 capacity, [flags])
+///
+/// Initialize an array from a canonical sarray type descriptor.
+///
+/// The type descriptor encodes both the array container type and its element type.
+/// Obtain one from `saType()` on an existing array, from a pre-declared `_sti_sa_X`
+/// static, or by constructing and interning one through `stCanonical()`. This is the
+/// preferred init path when the full array type is known statically (e.g. in generated
+/// struct code) as it avoids re-deriving element type info at the call site.
+///
+/// @param out Pointer to the sarray to initialize
+/// @param arraytype Canonical `stype` for an sarray (must have `id == stTypeId(sarray)`)
+/// @param capacity Initial capacity (0 for default of 8)
+/// @param ... (flags) Optional combination of SA_* flags
+/// @return true (this version cannot fail; runtime asserts on allocation failure)
+///
+/// Example:
+/// @code
+///   sa_int32 original;
+///   saInit(&original, int32, 16);
+///   // Later, create another array of the same element type:
+///   sa_int32 copy;
+///   saInitFromType(&copy, saType(SAREF(original)), 0);
+/// @endcode
+#define saInitFromType(out, arraytype, capacity, ...) \
+    _saInitFromType(SAHANDLE(out), arraytype, capacity, false, opt_flags(__VA_ARGS__))
+
+/// bool saTryInitFromType(sa_type *out, stype arraytype, int32 capacity, [flags])
+///
+/// Same as `saInitFromType` but returns false rather than asserting on allocation failure.
+///
+/// @param out Pointer to the sarray to initialize
+/// @param arraytype Canonical `stype` for an sarray
+/// @param capacity Initial capacity (0 for default of 8)
+/// @param ... (flags) Optional combination of SA_* flags
+/// @return true on success, false on allocation failure
+#define saTryInitFromType(out, arraytype, capacity, ...) \
+    _saInitFromType(SAHANDLE(out), arraytype, capacity, true, opt_flags(__VA_ARGS__))
+
 _At_(handle->a, _Pre_maybenull_ _Post_null_) void _saDestroy(_Inout_ sahandle handle);
+
+stype _saType(_In_ sa_ref ref);
+
+/// stype saType(sa_type ref)
+///
+/// Return the canonical stype descriptor for the array's parameterized type.
+///
+/// The returned descriptor encodes both `stTypeId(sarray)` and the element type in
+/// `param[0]`. It is interned on first call (via `stCanonical`) and cached in the array
+/// header for O(1) subsequent lookups. The result can be passed to `saInitFromType()`
+/// to create a new array with the same element type, or stored in a `StructMemberDesc`
+/// for serialization.
+///
+/// @param ref The array (passed by value)
+/// @return Canonical stype for this sarray parameterization, or NULL if ref is NULL
+#define saType(ref) _saType(SAREF(ref))
 
 /// void saDestroy(sa_type *handle)
 ///
@@ -644,7 +696,7 @@ _saExtractChecked(_Inout_ sahandle handle, int32 idx, stype elemtype,
 {
     if (!handle->a)
         return false;
-    devAssert(stGetId(elemtype) == stTypeId(none) || stEq(saElemType(*handle), elemtype));
+    devAssert(elemtype == stType(none) || stEq(saElemType(*handle), elemtype));
     return _saExtract(handle, idx, elem, flags);
 }
 

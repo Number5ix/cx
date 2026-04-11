@@ -1,5 +1,6 @@
 set(STYPE_SRCS
     stype/stconvert.c
+    stype/stregistry.c
     stype/stvar.c
     stype/stype.c
     stype/stype_stvar.c)

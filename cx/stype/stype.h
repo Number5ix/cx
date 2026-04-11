@@ -14,28 +14,46 @@
 ///
 /// @section stype_concept Core Concept
 ///
-/// The stype system provides runtime type information through 32-bit type descriptors
-/// that encode type identity, size, and behavioral flags. This enables generic
-/// programming patterns similar to C++ templates while maintaining C compatibility
-/// and avoiding code bloat from template instantiation.
+/// The stype system provides runtime type information through pointers to canonical
+/// `STypeInfo` descriptors. This enables generic programming patterns similar to C++
+/// templates while maintaining C compatibility and avoiding code bloat from template
+/// instantiation.
 ///
-/// Type descriptors are created at compile-time through macro expansion, allowing
-/// the compiler to optimize away most overhead when types are known statically.
-/// When types must be determined at runtime (e.g., heterogeneous containers, variant
-/// types), the compact 32-bit descriptor provides efficient type identification and
-/// dispatch to appropriate operations.
+/// Each type has exactly one canonical `const STypeInfo` in static storage. An `stype`
+/// value is simply a pointer to that descriptor - equality is pointer equality (via
+/// `stEq`, which canonicalizes before comparing). Type names like `int32`, `string`,
+/// and `opaque(MyStruct)` expand to pointers to their canonical descriptors through the
+/// `stType()` macro.
 ///
-/// @section stype_descriptor Type Descriptor Format
+/// @section stype_descriptor Type Descriptor
 ///
-/// A `stype` is a 32-bit value with the following layout:
-/// ```
-/// Bits 0-7:   Type ID (identifies the specific type)
-/// Bits 8-15:  Flags (behavioral attributes)
-/// Bits 16-31: Size (storage size in bytes)
-/// ```
+/// `stype` is a `const STypeInfo*`. The `STypeInfo` struct carries all information
+/// about a type in one place:
 ///
-/// Type IDs are grouped into classes (integer, unsigned, float, pointer, CX types)
-/// to enable efficient categorization and default operation selection.
+/// @code
+///   typedef struct STypeInfo {
+///       uint32           id;       // hierarchical type class | subtype | discriminant
+///       uint16           size;     // storage size in bytes
+///       uint16           flags;    // STypeFlag_Object, STypeFlag_PassPtr, STypeFlag_Temporary
+///       const char*      name;     // type name for debug and serialization
+///       const STypeInfo* param[2]; // for parameterized types (must be canonical):
+///                                  //   sarray:    param[0] = element type
+///                                  //   hashtable: param[0] = key, param[1] = value
+///       const void*      ext;      // type-specific extension data (e.g. StructInfo*)
+///       STypeOps         ops;      // embedded operations: dtor, cmp, hash, copy, convert
+///   } STypeInfo;
+/// @endcode
+///
+/// @section stype_typeid Type ID Structure
+///
+/// The `id` field uses a hierarchical bit-field:
+/// - **Bits 31–16**: Class - `STCLASS_BASIC`, `STCLASS_CX`, `STCLASS_DYNAMIC`, `STCLASS_USER`
+/// - **Bits 15–8**: Subtype - for BASIC: `STST_INT`, `STST_UINT`, `STST_FLOAT`, `STST_PTR`;
+///   for CX: `STST_OPAQUE`, `STST_MISC`, `STST_OBJ`, `STST_CONTAINER`
+/// - **Bits 7–0**: Discriminant - often `sizeof(type)` for primitives, sequential for CX types
+///
+/// Use `st->id` to inspect the type class. Compare against `stTypeId(name)` constants
+/// (e.g., `stTypeId(int32)`, `stTypeId(sarray)`) for type-specific dispatch.
 ///
 /// @section stype_types Supported Types
 ///
@@ -43,8 +61,8 @@
 /// - Integers: int8, int16, int32, int64, intptr
 /// - Unsigned: uint8, uint16, uint32, uint64, uintptr, bool, size
 /// - Floating point: float32, float64
-/// - Pointer: ptr (generic pointer)
-/// - Special: opaque (custom structures), none (empty/void)
+/// - Pointer: ptr (generic void*)
+/// - Special: opaque (POD blob), none (empty/void sentinel)
 ///
 /// **CX Framework Types:**
 /// - string, strref - Copy-on-write strings
@@ -55,35 +73,60 @@
 /// - hashtable - Hash tables
 /// - closure, cchain - Function closures
 ///
+/// @section stype_canonicalization Canonical Descriptors and the Type Registry
+///
+/// All built-in type descriptors are `static const STypeInfo` with `STypeFlag_Temporary`
+/// clear. For dynamic types - plain `opaque(T)` with no custom ops, or parameterized
+/// container types like an sarray of a specific element - the descriptor is constructed
+/// as a compound literal with `STypeFlag_Temporary` set. When such a descriptor is
+/// passed to a container init function, `stCanonical()` is called:
+///
+/// - If `Temporary` is clear, the descriptor is already canonical - returned as-is.
+/// - If `Temporary` is set, `_stGetCanonical()` looks up or inserts the descriptor
+///   in the global type registry (keyed by id + size + param pointers), returns the
+///   canonical heap-allocated copy with `Temporary` cleared.
+///
+/// After the first use, all subsequent calls with equivalent parameters resolve to the
+/// same pointer, so type identity is pointer equality everywhere.
+///
+/// For custom types with user-defined ops, the correct pattern is a **global or file-static
+/// canonical descriptor** - see @ref stype_custom.
+///
 /// @section stype_usage Usage Patterns
 ///
 /// **Generic function parameters** use macros that expand to type-value pairs:
 /// @code
 ///   htInsert(&ht, string, _SL("key"), int32, 42);
-///   // Expands to type descriptors + type-checked values
+///   // Expands to stType(string)/stArg(string,...) + stType(int32)/stArg(int32,...)
 /// @endcode
 ///
-/// **Stored values** in containers use `stStored()` to extract values from memory:
+/// **Stored values** in containers use `stStored()` to load from raw memory:
 /// @code
-///   stgeneric val = stStored(elemType, &array[idx]);
+///   stgeneric val = stStored(hdr->elemtype, ELEMPTR(hdr, i));
 /// @endcode
 ///
-/// **Custom types** via opaque(RealType) provide type-safe handling of structs:
+/// **Type identity checks** use `stEq()` or direct pointer comparison on known-canonical
+/// types:
 /// @code
-///   saInit(&arr, opaque(MyStruct), 16);
+///   if (stEq(saElemType(arr), stType(int32))) { ... }
+///   if (v.type == stType(string)) { ... }   // safe when v.type came from stCanonical
+/// @endcode
+///
+/// **Plain opaque** (POD blob, no custom ops):
+/// @code
+///   sa_MyPOD arr;
+///   saInit(&arr, opaque(MyPOD), 16);    // Temporary; type registry provides canonical pointer
+///   saPush(&arr, opaque, val);          // opaque push: size checked against container's elem type
 /// @endcode
 ///
 /// @section stype_operations Type Operations
 ///
-/// The system provides function pointers for standard operations on types:
-/// - **dtor** - Destructor (cleanup/free resources)
-/// - **cmp** - Comparison (for sorting, equality)
-/// - **hash** - Hash function (for hash tables)
-/// - **copy** - Deep copy (reference counting for objects)
-/// - **convert** - Type conversion (with range/precision checking)
-///
-/// Default implementations exist for built-in types. Custom types can override
-/// these through the STypeOps structure.
+/// `STypeInfo` embeds an `STypeOps` struct with five optional function pointers:
+/// - **dtor** - Destructor (cleanup/release resources). NULL = trivial (no-op).
+/// - **cmp** - Comparison (for sorting, equality). NULL = memcmp fallback.
+/// - **hash** - Hash function. NULL = generic byte-hash fallback.
+/// - **copy** - Deep copy (ref-count bump for managed types). NULL = memcpy fallback.
+/// - **convert** - Type conversion with range/precision checking. NULL = cannot convert.
 ///
 /// @section stype_safety Type Safety
 ///
@@ -99,11 +142,11 @@
 ///
 /// @section stype_variants Variant Types (stvar)
 ///
-/// The stvar structure combines a value with its type descriptor for runtime
-/// polymorphism:
+/// The `stvar` structure combines a value with its type descriptor for runtime
+/// polymorphism. The `type` field is an `stype` pointer.
 /// @code
 ///   stvar v = stvar(int32, 42);
-///   if (v.type == stType(int32)) {
+///   if (stEq(v.type, stType(int32))) {
 ///       int32 val = v.data.st_int32;
 ///   }
 /// @endcode
@@ -130,7 +173,9 @@
 CX_C_BEGIN
 
 // do this as a typedef instead of a #define
+#ifdef bool
 #undef bool
+#endif
 
 // IMPORTANT NOTE!
 // Always initialize string to NULL or 0 first!
@@ -147,17 +192,36 @@ typedef struct SUID SUID;
 typedef struct stvar stvar;
 
 enum STYPE_CLASS_ID {
-    STCLASS_OPAQUE       = 0x00,
-    STCLASS_INT          = 0x10,
-    STCLASS_UINT         = 0x20,
-    STCLASS_FLOAT        = 0x30,
-    STCLASS_PTR          = 0x40,
-    STCLASS_CX           = 0xe0,
-    STCLASS_CX_CONTAINER = 0xf0,
+    STCLASS_BASIC   = 0x00000000,   // basic discrete types
+    STCLASS_CX      = 0x00010000,   // "CX framework" types (strings, objects, containers)
+    STCLASS_DYNAMIC = 0x00020000,   // dynamically defined types created at runtime
+    STCLASS_USER    = 0x00100000,   // start of user-defined static type range
 };
 
-#define STYPE_CLASS_MASK 0xf0
+// subtypes for STCLASS_BASIC types
+enum STYPE_BASIC_SUBTYPE_ID {
+    STST_INT   = 0x0100,
+    STST_UINT  = 0x0200,
+    STST_FLOAT = 0x0300,
+    STST_PTR   = 0x0400,
+};
+
+// subtypes for STCLASS_CX types
+// these intentionally don't overlap with the basic subtypes, to allow for easier checks
+enum STYPE_CX_SUBTYPE_ID {
+    STST_OPAQUE    = 0x1000,   // opaque byte blocks, often with custom ops
+    STST_MISC      = 0x1100,   // miscallenous CX-related types like SUIDs
+    STST_OBJ       = 0x1200,   // object-like types that use pointer handles
+    STST_CONTAINER = 0x1300,   // container types
+};
+
+#define STYPE_CLASS_MASK 0xffff0000
 #define STYPE_CLASS(v)   ((v) & STYPE_CLASS_MASK)
+
+// subtypes are only valid for STCLASS_BASIC and STCLASS_CX
+#define STYPE_HAS_SUBTYPE(v) (STYPE_CLASS(v) == STCLASS_BASIC || STYPE_CLASS(v) == STCLASS_CX)
+#define STYPE_SUBTYPE_MASK   0x0000ff00
+#define STYPE_SUBTYPE(v)     ((v) & STYPE_SUBTYPE_MASK)
 
 typedef signed char int8;
 typedef unsigned char uint8;
@@ -203,7 +267,10 @@ typedef bool _Bool;
 typedef float float32;
 typedef double float64;
 
-typedef uint32 stype;
+typedef struct STypeOps STypeOps;
+// stype is a pointer to the canonical STypeInfo structure for the type
+typedef struct STypeInfo STypeInfo;
+typedef const STypeInfo* stype;
 
 // standardize on uint32 for function call flags
 typedef uint32 flags_t;
@@ -215,8 +282,8 @@ typedef union sa_ref {
 } sa_ref;
 typedef union sa_ref* sahandle;
 
-// This is the type that is used for passing as a parameter by-value, containers, and
-// variants. Should be no larger than 64 bits wide, but can be smaller.
+// This is the type that is used for passing as a parameter by-value, as well as variants. Should be
+// no larger than 64 bits wide, but can be smaller.
 #define SType_none      void*
 #define SType_opaque    void*
 #define SType_int8      int8
@@ -255,7 +322,7 @@ typedef union sa_ref* sahandle;
 ///
 /// Utility macros for type casting, checking, and manipulation.
 
-/// SType_<type> stTypeCast(type, value)
+/// <type> stTypeCast(type, value)
 ///
 /// Cast a value to the appropriate C type for the given stype name.
 ///
@@ -270,7 +337,7 @@ typedef union sa_ref* sahandle;
 /// @endcode
 #define stTypeCast(name, v) ((SType_##name)(v))
 
-/// SType_<type>* stPtrCast(type, value)
+/// <type>* stPtrCast(type, value)
 ///
 /// Cast a pointer to a pointer-to-type for the given stype name.
 ///
@@ -377,43 +444,43 @@ typedef struct stvar {
 
 enum STYPE_ID {
     // none is a special type for empty argument lists, variants, etc
-    STypeId_none      = STCLASS_OPAQUE,
+    STypeId_none   = STCLASS_BASIC | 0,
     // opaque is a magic catch-all type for custom structures and such
-    STypeId_opaque    = STCLASS_OPAQUE | 1,
+    STypeId_opaque = STCLASS_CX | STST_OPAQUE | 1,
     // generic scalar types
-    STypeId_int8      = STCLASS_INT | 1,
-    STypeId_int16     = STCLASS_INT | 2,
-    STypeId_int32     = STCLASS_INT | 4,
-    STypeId_int64     = STCLASS_INT | 8,
-    STypeId_intptr    = STCLASS_INT | sizeof(intptr),   // alias for one of the other int types
-    STypeId_uint8     = STCLASS_UINT | 1,
-    STypeId_uint16    = STCLASS_UINT | 2,
-    STypeId_uint32    = STCLASS_UINT | 4,
-    STypeId_uint64    = STCLASS_UINT | 8,
-    STypeId_uintptr   = STCLASS_UINT | sizeof(intptr),
-    STypeId_bool      = STCLASS_UINT | 3,                // fill in a gap in the ID sequence
-    STypeId_size      = STCLASS_UINT | sizeof(size_t),   // alias for one of the uint types
-    STypeId_float32   = STCLASS_FLOAT | 4,
-    STypeId_float64   = STCLASS_FLOAT | 8,
-    // ptr is stored similar to (u)intptr, but automatically dereferenced in ops functions
-    STypeId_ptr       = STCLASS_PTR | sizeof(void*),
+    STypeId_int8   = STCLASS_BASIC | STST_INT | 1,
+    STypeId_int16  = STCLASS_BASIC | STST_INT | 2,
+    STypeId_int32  = STCLASS_BASIC | STST_INT | 4,
+    STypeId_int64  = STCLASS_BASIC | STST_INT | 8,
+    STypeId_intptr = STCLASS_BASIC | STST_INT |
+        sizeof(intptr),   // alias for one of the other int types
+    STypeId_uint8   = STCLASS_BASIC | STST_UINT | 1,
+    STypeId_uint16  = STCLASS_BASIC | STST_UINT | 2,
+    STypeId_uint32  = STCLASS_BASIC | STST_UINT | 4,
+    STypeId_uint64  = STCLASS_BASIC | STST_UINT | 8,
+    STypeId_uintptr = STCLASS_BASIC | STST_UINT | sizeof(intptr),
+    STypeId_bool    = STCLASS_BASIC | STST_UINT | 3,             // fill in a gap in the ID sequence
+    STypeId_size = STCLASS_BASIC | STST_UINT | sizeof(size_t),   // alias for one of the uint types
+    STypeId_float32   = STCLASS_BASIC | STST_FLOAT | 4,
+    STypeId_float64   = STCLASS_BASIC | STST_FLOAT | 8,
+    STypeId_ptr       = STCLASS_BASIC | STST_PTR | sizeof(void*),
     // most of the CX class are "object-like" types and use pointers as handles
-    STypeId_string    = STCLASS_CX | 0,
-    STypeId_strref    = STCLASS_CX | 0,
-    STypeId_object    = STCLASS_CX | 1,
-    STypeId_weakref   = STCLASS_CX | 2,
-    STypeId_suid      = STCLASS_CX | 3,   // notable exception
-    STypeId_stvar     = STCLASS_CX | 4,
-    STypeId_closure   = STCLASS_CX | 5,
-    STypeId_buffer    = STCLASS_CX | 6,
-    STypeId_struct    = STCLASS_CX | 7,
-    STypeId_structptr = STCLASS_CX | 8,
-    STypeId_sarray    = STCLASS_CX_CONTAINER | 0,
-    STypeId_hashtable = STCLASS_CX_CONTAINER | 1,
-    STypeId_cchain    = STCLASS_CX_CONTAINER | 2,
+    STypeId_suid      = STCLASS_CX | STST_MISC | 0,   // notable exception
+    STypeId_string    = STCLASS_CX | STST_OBJ | 0,
+    STypeId_strref    = STCLASS_CX | STST_OBJ | 0,
+    STypeId_object    = STCLASS_CX | STST_OBJ | 1,
+    STypeId_weakref   = STCLASS_CX | STST_OBJ | 2,
+    STypeId_stvar     = STCLASS_CX | STST_OBJ | 3,
+    STypeId_closure   = STCLASS_CX | STST_OBJ | 4,
+    STypeId_buffer    = STCLASS_CX | STST_OBJ | 5,
+    STypeId_struct    = STCLASS_CX | STST_OBJ | 6,
+    STypeId_structptr = STCLASS_CX | STST_OBJ | 7,
+    STypeId_sarray    = STCLASS_CX | STST_CONTAINER | 0,
+    STypeId_hashtable = STCLASS_CX | STST_CONTAINER | 1,
+    STypeId_cchain    = STCLASS_CX | STST_CONTAINER | 2,
 };
 
-/// uint8 stTypeId(type)
+/// uint32 stTypeId(type)
 ///
 /// Get the compile-time type ID constant for a type name.
 ///
@@ -423,7 +490,7 @@ enum STYPE_ID {
 /// Example:
 /// @code
 ///   stype st = ...;
-///   if (stGetId(st) == stTypeId(int32)) { ... }
+///   if (st->id == stTypeId(int32)) { ... }
 /// @endcode
 #define stTypeId(name) STypeId_##name
 
@@ -478,10 +545,12 @@ enum STYPE_SIZE {
 #define stTypeSize(name) STypeSize_##name
 
 enum STYPE_FLAGS {
-    STypeFlag_Object  = (1 << 0),   // "object-like" type -- pointer to managed object
-    STypeFlag_Custom  = (1 << 1),   // type uses custom ops
-    STypeFlag_PassPtr = (1 << 2),   // type is passed by pointer rather than by value,
-                                    // does not apply to 'handle' style objects
+    STypeFlag_Object    = (1 << 0),   // "object-like" type -- pointer to managed object
+    STypeFlag_PassPtr   = (1 << 1),   // type is passed by pointer rather than by value,
+                                      // does not apply to 'handle' style objects
+    STypeFlag_Temporary = (1 << 2),   // type info is temporary, i.e. constructed as a compound
+                                      // literal or otherwise dynamic. must be registered into the
+                                      // global type registry before use
 };
 #define stFlag(name) STypeFlag_##name
 
@@ -499,108 +568,15 @@ enum STYPE_FLAGS {
 ///       // This is an object-like type
 ///   }
 /// @endcode
-#define stHasFlag(st, fname) ((st >> 8) & stFlag(fname))
-
-/*typedef union stype {
-    uint32 spec;
-    struct {
-        uint8 id;
-        uint8 flags;
-        uint16 size;
-    };
-} stype; */
-
-/// uint8 stGetId(stype st)
-///
-/// Extract the type ID from a type descriptor.
-///
-/// @param st Type descriptor
-/// @return Type ID (bits 0-7)
-#define stGetId(st) (st & 0xff)
-
-/// uint8 stGetFlags(stype st)
-///
-/// Extract the flags byte from a type descriptor.
-///
-/// @param st Type descriptor
-/// @return Flags byte (bits 8-15)
-#define stGetFlags(st) ((st >> 8) & 0xff)
+#define stHasFlag(st, fname) (((st)->flags & stFlag(fname)) != 0)
 
 /// uint16 stGetSize(stype st)
 ///
-/// Extract the size from a type descriptor.
+/// Extract the storage size from a type descriptor. Equivalent to `st->size`.
 ///
 /// @param st Type descriptor
-/// @return Size in bytes (bits 16-31)
-#define stGetSize(st) (st >> 16)
-
-#define _stype_mktype(tid, tflags, tsz) ((tid & 0xff) | (tflags & 0xff) << 8 | (tsz & 0xffff) << 16)
-
-/// bool stEq(stype sta, stype stb)
-///
-/// Compare two type descriptors for equivalence.
-///
-/// Ignores the Custom flag, so custom(int32) compares equal to int32.
-///
-/// @param sta First type descriptor
-/// @param stb Second type descriptor
-/// @return true if types are equivalent
-// ignore custom flag when comparing types
-_meta_inline bool stEq(stype sta, stype stb)
-{
-    return (sta & ~_stype_mktype(0, STypeFlag_Custom, 0)) ==
-        (stb & ~_stype_mktype(0, STypeFlag_Custom, 0));
-}
-
-enum STYPE_DEFAULT_FLAGS {
-    STypeFlags_none      = 0,
-    STypeFlags_opaque    = stFlag(PassPtr),
-    STypeFlags_int8      = 0,
-    STypeFlags_int16     = 0,
-    STypeFlags_int32     = 0,
-    STypeFlags_int64     = 0,
-    STypeFlags_intptr    = 0,
-    STypeFlags_uint8     = 0,
-    STypeFlags_uint16    = 0,
-    STypeFlags_uint32    = 0,
-    STypeFlags_uint64    = 0,
-    STypeFlags_uintptr   = 0,
-    STypeFlags_bool      = 0,
-    STypeFlags_size      = 0,
-    STypeFlags_float32   = 0,
-    STypeFlags_float64   = 0,
-    STypeFlags_ptr       = 0,
-    STypeFlags_string    = stFlag(Object),
-    STypeFlags_strref    = stFlag(Object),
-    STypeFlags_object    = stFlag(Object),
-    STypeFlags_weakref   = stFlag(Object),
-    STypeFlags_suid      = stFlag(PassPtr),
-    STypeFlags_stvar     = stFlag(PassPtr) | stFlag(Object),
-    STypeFlags_sarray    = stFlag(Object),
-    STypeFlags_hashtable = stFlag(Object),
-    STypeFlags_closure   = stFlag(Object),
-    STypeFlags_cchain    = stFlag(Object),
-    STypeFlags_buffer    = stFlag(Object),
-    STypeFlags_struct    = stFlag(PassPtr) | stFlag(Object),
-    STypeFlags_structptr = stFlag(Object),
-
-};
-
-/// uint8 stTypeFlags(type)
-///
-/// Get the compile-time default flags for a type name.
-///
-/// @param name Type name
-/// @return Default flags for the type
-#define stTypeFlags(name) STypeFlags_##name
-
-#define stTypeInternal(name)     _stype_mktype(stTypeId(name), stTypeFlags(name), stTypeSize(name))
-#define stFullTypeInternal(name) stTypeInternal(name), 0
-_meta_inline stype _stype_mkcustom(stype base)
-{
-    base |= _stype_mktype(0, stFlag(Custom), 0);
-    return base;
-}
+/// @return Size in bytes
+#define stGetSize(st) ((st)->size)
 
 // Static type checks
 // These types all include the marker as either the first member, or as part of
@@ -628,12 +604,12 @@ _meta_inline stype _stype_mkcustom(stype base)
 #define closureCheck(c)       (unused_noeval((c) && &((c)->_is_closure)), (c))
 #define closureCheckPtr(c)    (unused_noeval((c != NULL) && (*c) && &((*c)->_is_closure)), (c))
 #define cchainCheck(c)        (unused_noeval((c) && &((c)->_is_closure_chain)), (c))
-#define cchainCheckPtr(c)     (unused_noeval((c != NULL) && (*c) && &((*c)->_is_closure_chain)), (c))
-#define bufferCheck(c)        (unused_noeval((c) && &((c)->_is_buffer)), (c))
-#define bufferCheckPtr(c)     (unused_noeval((c != NULL) && (*c) && &((*c)->_is_buffer)), (c))
-#define structCheck(s)        (unused_noeval(&((s)._is_struct)), (s))
-#define structCheckPtr(s)     (unused_noeval((s != NULL) && &((s)->_is_struct)), (s))
-#define structCheckPtrPtr(s)  (unused_noeval((s != NULL) && (*s) && &((*s)->_is_struct)), (s))
+#define cchainCheckPtr(c)    (unused_noeval((c != NULL) && (*c) && &((*c)->_is_closure_chain)), (c))
+#define bufferCheck(c)       (unused_noeval((c) && &((c)->_is_buffer)), (c))
+#define bufferCheckPtr(c)    (unused_noeval((c != NULL) && (*c) && &((*c)->_is_buffer)), (c))
+#define structCheck(s)       (unused_noeval(&((s)._is_struct)), (s))
+#define structCheckPtr(s)    (unused_noeval((s != NULL) && &((s)->_is_struct)), (s))
+#define structCheckPtrPtr(s) (unused_noeval((s != NULL) && (*s) && &((*s)->_is_struct)), (s))
 
 // most of these are no-ops, but some can do extra type checking
 #define STypeCheck_opaque(type, val)    (val)
@@ -755,41 +731,71 @@ _meta_inline stype _stype_mkcustom(stype base)
 
 /// @}
 
+// Canonical type information for builtin types
+extern const STypeInfo _sti_none;
+extern const STypeInfo _sti_int8;
+extern const STypeInfo _sti_int16;
+extern const STypeInfo _sti_int32;
+extern const STypeInfo _sti_int64;
+extern const STypeInfo _sti_uint8;
+extern const STypeInfo _sti_uint16;
+extern const STypeInfo _sti_uint32;
+extern const STypeInfo _sti_uint64;
+extern const STypeInfo _sti_bool;
+extern const STypeInfo _sti_float32;
+extern const STypeInfo _sti_float64;
+extern const STypeInfo _sti_ptr;
+extern const STypeInfo _sti_string;
+extern const STypeInfo _sti_object;
+extern const STypeInfo _sti_weakref;
+extern const STypeInfo _sti_suid;
+extern const STypeInfo _sti_stvar;
+extern const STypeInfo _sti_sarray;
+extern const STypeInfo _sti_hashtable;
+extern const STypeInfo _sti_closure;
+extern const STypeInfo _sti_cchain;
+extern const STypeInfo _sti_buffer;
+extern const STypeInfo _sti_structptr;
+
+extern const STypeOps _stops_opaque;
+extern const STypeOps _stops_struct;
+
+// canonical type info name for static types
+#define stTypeInfo(name) _sti_##name
+
 // MEGA PREPROCESSOR HACKS INCOMING
-#define stType_none stTypeInternal(none)
 // this enables the use of opaque(realtype) as type name in functions like saCreate
-#define stType_opaque(realtype) \
-    _stype_mktype(stTypeId(opaque), stTypeFlags(opaque), (uint16)sizeof(realtype))
-#define stType_struct(realtype) \
-    _stype_mktype(stTypeId(struct), stTypeFlags(struct), (uint16)sizeof(realtype))
-#define stType_int8             stTypeInternal(int8)
-#define stType_int16            stTypeInternal(int16)
-#define stType_int32            stTypeInternal(int32)
-#define stType_int64            stTypeInternal(int64)
-#define stType_intptr           stTypeInternal(intptr)
-#define stType_uint8            stTypeInternal(uint8)
-#define stType_uint16           stTypeInternal(uint16)
-#define stType_uint32           stTypeInternal(uint32)
-#define stType_uint64           stTypeInternal(uint64)
-#define stType_uintptr          stTypeInternal(uintptr)
-#define stType_bool             stTypeInternal(bool)
-#define stType_size             stTypeInternal(size)
-#define stType_float32          stTypeInternal(float32)
-#define stType_float64          stTypeInternal(float64)
-#define stType_ptr              stTypeInternal(ptr)
-#define stType_string           stTypeInternal(string)
-#define stType_strref           stTypeInternal(strref)
-#define stType_object           stTypeInternal(object)
-#define stType_weakref          stTypeInternal(weakref)
-#define stType_suid             stTypeInternal(suid)
-#define stType_stvar            stTypeInternal(stvar)
-#define stType_sarray           stTypeInternal(sarray)
-#define stType_hashtable        stTypeInternal(hashtable)
-#define stType_closure          stTypeInternal(closure)
-#define stType_cchain           stTypeInternal(cchain)
-#define stType_buffer           stTypeInternal(buffer)
-#define stType_structptr        stTypeInternal(structptr)
-#define stType_custom(basetype) _stype_mkcustom(stType_##basetype)
+#ifndef _cplusplus
+#define _sti_opaque(realtype)                                          \
+    ((const STypeInfo) { .id    = stTypeId(opaque),                    \
+                         .flags = stFlag(PassPtr) | stFlag(Temporary), \
+                         .size  = (uint16)sizeof(realtype),            \
+                         .ops   = _stops_opaque })
+#define _sti_struct(realtype)                                                           \
+    ((const STypeInfo) { .id    = stTypeId(struct),                                     \
+                         .flags = stFlag(PassPtr) | stFlag(Object) | stFlag(Temporary), \
+                         .size  = (uint16)sizeof(realtype),                             \
+                         .ops   = _stops_struct })
+#else
+// C++ doesn't allow compound literals in the same way
+// We probably don't actually need to define anything since this code shouldn't be used in C++ mode.
+// Just need to make sure that the header doesn't cause compiler errors if included.
+#endif
+
+// aliases for types that don't have their own info
+
+#define _sti_strref _sti_string
+
+// these are architecture-dependant alises
+#if defined(_64BIT)
+#define _sti_intptr  _sti_int64
+#define _sti_uintptr _sti_uint64
+#define _sti_size    _sti_uint64
+#else
+#define _sti_intptr  _sti_int32
+#define _sti_uintptr _sti_uint32
+#define _sti_size    _sti_uint32
+#endif
 
 /// @defgroup stype_args Argument Passing System
 /// @ingroup stype
@@ -833,8 +839,7 @@ _meta_inline stype _stype_mkcustom(stype base)
 ///
 /// Get a type descriptor for a type name.
 ///
-/// Returns just the stype value without operations. For opaque types, can specify
-/// the real structure type: stType(opaque(MyStruct))
+/// For opaque types, can specify the real structure type: stType(opaque(MyStruct))
 ///
 /// @param name Type name or opaque(RealType)
 /// @return Type descriptor
@@ -844,101 +849,44 @@ _meta_inline stype _stype_mkcustom(stype base)
 ///   stype st = stType(int32);
 ///   stype st_custom = stType(opaque(MyStruct));
 /// @endcode
-#define stType(name) stType_##name
-
-#define stFullType_none stFullTypeInternal(none)
-// and the hack for custom(basetype, ops)
-#define stFullType_opaque(realtype) \
-    _stype_mktype(stTypeId(opaque), stTypeFlags(opaque), (uint16)sizeof(realtype)), 0
-#define stFullType_struct(realtype) \
-    _stype_mktype(stTypeId(struct), stTypeFlags(struct), (uint16)sizeof(realtype)), 0
-#define stFullType_int8                  stFullTypeInternal(int8)
-#define stFullType_int16                 stFullTypeInternal(int16)
-#define stFullType_int32                 stFullTypeInternal(int32)
-#define stFullType_int64                 stFullTypeInternal(int64)
-#define stFullType_intptr                stFullTypeInternal(intptr)
-#define stFullType_uint8                 stFullTypeInternal(uint8)
-#define stFullType_uint16                stFullTypeInternal(uint16)
-#define stFullType_uint32                stFullTypeInternal(uint32)
-#define stFullType_uint64                stFullTypeInternal(uint64)
-#define stFullType_uintptr               stFullTypeInternal(uintptr)
-#define stFullType_bool                  stFullTypeInternal(bool)
-#define stFullType_size                  stFullTypeInternal(size)
-#define stFullType_float32               stFullTypeInternal(float32)
-#define stFullType_float64               stFullTypeInternal(float64)
-#define stFullType_ptr                   stFullTypeInternal(ptr)
-#define stFullType_string                stFullTypeInternal(string)
-#define stFullType_strref                stFullTypeInternal(strref)
-#define stFullType_object                stFullTypeInternal(object)
-#define stFullType_weakref               stFullTypeInternal(weakref)
-#define stFullType_suid                  stFullTypeInternal(suid)
-#define stFullType_stvar                 stFullTypeInternal(stvar)
-#define stFullType_sarray                stFullTypeInternal(sarray)
-#define stFullType_hashtable             stFullTypeInternal(hashtable)
-#define stFullType_closure               stFullTypeInternal(closure)
-#define stFullType_cchain                stFullTypeInternal(cchain)
-#define stFullType_buffer                stFullTypeInternal(buffer)
-#define stFullType_structptr             stFullTypeInternal(structptr)
-// this will chain evaluate macros for stuff like custom(opaque(realtype), ops)
-// it gets token pasted as _stype_mkcustom(stType_opaque(realtype), ops)
-#define stFullType_custom(basetype, ops) _stype_mkcustom(stType_##basetype), (&ops)
-
-/// (stype, STypeOps*) stFullType(type)
-///
-/// Get a type descriptor and operations pointer for a type name.
-///
-/// Expands to TWO comma-separated values: the type descriptor and a pointer to
-/// the operations structure (or NULL for built-in types). Used by low-level
-/// type operation functions.
-///
-/// For custom types, specify operations: stFullType(custom(basetype, myOps))
-///
-/// @param name Type name, custom(basetype, ops), or opaque(RealType)
-/// @return Type descriptor, operations pointer (TWO values)
-///
-/// Example:
-/// @code
-///   _stDestroy(stFullType(string), gen_ptr);
-///   // Expands to: _stDestroy(stType_string, NULL, gen_ptr)
-/// @endcode
-#define stFullType(name) stFullType_##name
+#define stType(name) (&stTypeInfo(name))
 
 // Macros for passing arguments by value
 
 // none ignores the value
-#define STypeArg_none(type, val)      ((stgeneric) { 0 })
+#define STypeArg_none(type, val)    ((stgeneric) { 0 })
 // opqaue is a special case that must always be passed by pointer, and
 // the caller must supply an lvalue
-#define STypeArg_opaque(type, val)    stgeneric(type, &(val))
+#define STypeArg_opaque(type, val)  stgeneric(type, &(val))
 // but everything else gets put into a container
-#define STypeArg_int8(type, val)      stgeneric(type, val)
-#define STypeArg_int16(type, val)     stgeneric(type, val)
-#define STypeArg_int32(type, val)     stgeneric(type, val)
-#define STypeArg_int64(type, val)     stgeneric(type, val)
-#define STypeArg_intptr(type, val)    stgeneric(type, val)
-#define STypeArg_uint8(type, val)     stgeneric(type, val)
-#define STypeArg_uint16(type, val)    stgeneric(type, val)
-#define STypeArg_uint32(type, val)    stgeneric(type, val)
-#define STypeArg_uint64(type, val)    stgeneric(type, val)
-#define STypeArg_uintptr(type, val)   stgeneric(type, val)
-#define STypeArg_bool(type, val)      stgeneric(type, val)
-#define STypeArg_size(type, val)      stgeneric(type, val)
-#define STypeArg_float32(type, val)   stgeneric(type, val)
-#define STypeArg_float64(type, val)   stgeneric(type, val)
-#define STypeArg_ptr(type, val)       stgeneric(type, val)
-#define STypeArg_string(type, val)    stgeneric(type, val)
-#define STypeArg_strref(type, val)    stgeneric(type, val)
-#define STypeArg_object(type, val)    stgeneric(type, objInstBase(val))
-#define STypeArg_weakref(type, val)   stgeneric(type, objWeakRefBase(val))
+#define STypeArg_int8(type, val)    stgeneric(type, val)
+#define STypeArg_int16(type, val)   stgeneric(type, val)
+#define STypeArg_int32(type, val)   stgeneric(type, val)
+#define STypeArg_int64(type, val)   stgeneric(type, val)
+#define STypeArg_intptr(type, val)  stgeneric(type, val)
+#define STypeArg_uint8(type, val)   stgeneric(type, val)
+#define STypeArg_uint16(type, val)  stgeneric(type, val)
+#define STypeArg_uint32(type, val)  stgeneric(type, val)
+#define STypeArg_uint64(type, val)  stgeneric(type, val)
+#define STypeArg_uintptr(type, val) stgeneric(type, val)
+#define STypeArg_bool(type, val)    stgeneric(type, val)
+#define STypeArg_size(type, val)    stgeneric(type, val)
+#define STypeArg_float32(type, val) stgeneric(type, val)
+#define STypeArg_float64(type, val) stgeneric(type, val)
+#define STypeArg_ptr(type, val)     stgeneric(type, val)
+#define STypeArg_string(type, val)  stgeneric(type, val)
+#define STypeArg_strref(type, val)  stgeneric(type, val)
+#define STypeArg_object(type, val)  stgeneric(type, objInstBase(val))
+#define STypeArg_weakref(type, val) stgeneric(type, objWeakRefBase(val))
 // SUID and stvar are too big, so make a copy and pass a pointer
-#define STypeArg_suid(type, val)      stgeneric_unchecked(type, stRvalAddr(type, stCheck(type, val)))
-#define STypeArg_stvar(type, val)     stgeneric_unchecked(type, stRvalAddr(type, stCheck(type, val)))
-#define STypeArg_sarray(type, val)    stgensarray(val)
+#define STypeArg_suid(type, val)    stgeneric_unchecked(type, stRvalAddr(type, stCheck(type, val)))
+#define STypeArg_stvar(type, val)   stgeneric_unchecked(type, stRvalAddr(type, stCheck(type, val)))
+#define STypeArg_sarray(type, val)  stgensarray(val)
 #define STypeArg_hashtable(type, val) stgeneric(type, val)
 #define STypeArg_closure(type, val)   stgeneric(type, val)
 #define STypeArg_cchain(type, val)    stgeneric(type, val)
 #define STypeArg_buffer(type, val)    stgeneric(type, val)
-// works like opaque
+// struct works like opaque
 #define STypeArg_struct(type, val)    stgeneric(type, &(val))
 #define STypeArg_structptr(type, val) stgeneric(type, val)
 
@@ -1025,36 +973,36 @@ _meta_inline stype _stype_mkcustom(stype base)
 // Macros for type-checked inline metafunctions.
 // These expand to a pair of parameters for type, followed by a pointer.
 
-#define STypeCheckedArg_none(type, val)      stTypeInternal(type), stArg(type, val)
-#define STypeCheckedArg_opaque(type, val)    stType_opaque(val), stArg(type, val)
-#define STypeCheckedArg_int8(type, val)      stTypeInternal(type), stArg(type, val)
-#define STypeCheckedArg_int16(type, val)     stTypeInternal(type), stArg(type, val)
-#define STypeCheckedArg_int32(type, val)     stTypeInternal(type), stArg(type, val)
-#define STypeCheckedArg_int64(type, val)     stTypeInternal(type), stArg(type, val)
-#define STypeCheckedArg_intptr(type, val)    stTypeInternal(type), stArg(type, val)
-#define STypeCheckedArg_uint8(type, val)     stTypeInternal(type), stArg(type, val)
-#define STypeCheckedArg_uint16(type, val)    stTypeInternal(type), stArg(type, val)
-#define STypeCheckedArg_uint32(type, val)    stTypeInternal(type), stArg(type, val)
-#define STypeCheckedArg_uint64(type, val)    stTypeInternal(type), stArg(type, val)
-#define STypeCheckedArg_uintptr(type, val)   stTypeInternal(type), stArg(type, val)
-#define STypeCheckedArg_bool(type, val)      stTypeInternal(type), stArg(type, val)
-#define STypeCheckedArg_size(type, val)      stTypeInternal(type), stArg(type, val)
-#define STypeCheckedArg_float32(type, val)   stTypeInternal(type), stArg(type, val)
-#define STypeCheckedArg_float64(type, val)   stTypeInternal(type), stArg(type, val)
-#define STypeCheckedArg_ptr(type, val)       stTypeInternal(type), stArg(type, val)
-#define STypeCheckedArg_string(type, val)    stTypeInternal(type), stArg(type, val)
-#define STypeCheckedArg_strref(type, val)    stTypeInternal(type), stArg(type, val)
-#define STypeCheckedArg_object(type, val)    stTypeInternal(type), stArg(type, val)
-#define STypeCheckedArg_weakref(type, val)   stTypeInternal(type), stArg(type, val)
-#define STypeCheckedArg_suid(type, val)      stTypeInternal(type), stArg(type, val)
-#define STypeCheckedArg_stvar(type, val)     stTypeInternal(type), stArg(type, val)
-#define STypeCheckedArg_sarray(type, val)    stTypeInternal(type), stArg(type, val)
-#define STypeCheckedArg_hashtable(type, val) stTypeInternal(type), stArg(type, val)
-#define STypeCheckedArg_closure(type, val)   stTypeInternal(type), stArg(type, val)
-#define STypeCheckedArg_cchain(type, val)    stTypeInternal(type), stArg(type, val)
-#define STypeCheckedArg_buffer(type, val)    stTypeInternal(type), stArg(type, val)
-#define STypeCheckedArg_struct(type, val)    stType_struct(val), stArg(type, val)
-#define STypeCheckedArg_structptr(type, val) stType_structptr(val), stArg(type, val)
+#define STypeCheckedArg_none(type, val)      stType(type), stArg(type, val)
+#define STypeCheckedArg_opaque(type, val)    (&_sti_opaque(val)), stArg(type, val)
+#define STypeCheckedArg_int8(type, val)      stType(type), stArg(type, val)
+#define STypeCheckedArg_int16(type, val)     stType(type), stArg(type, val)
+#define STypeCheckedArg_int32(type, val)     stType(type), stArg(type, val)
+#define STypeCheckedArg_int64(type, val)     stType(type), stArg(type, val)
+#define STypeCheckedArg_intptr(type, val)    stType(type), stArg(type, val)
+#define STypeCheckedArg_uint8(type, val)     stType(type), stArg(type, val)
+#define STypeCheckedArg_uint16(type, val)    stType(type), stArg(type, val)
+#define STypeCheckedArg_uint32(type, val)    stType(type), stArg(type, val)
+#define STypeCheckedArg_uint64(type, val)    stType(type), stArg(type, val)
+#define STypeCheckedArg_uintptr(type, val)   stType(type), stArg(type, val)
+#define STypeCheckedArg_bool(type, val)      stType(type), stArg(type, val)
+#define STypeCheckedArg_size(type, val)      stType(type), stArg(type, val)
+#define STypeCheckedArg_float32(type, val)   stType(type), stArg(type, val)
+#define STypeCheckedArg_float64(type, val)   stType(type), stArg(type, val)
+#define STypeCheckedArg_ptr(type, val)       stType(type), stArg(type, val)
+#define STypeCheckedArg_string(type, val)    stType(type), stArg(type, val)
+#define STypeCheckedArg_strref(type, val)    stType(type), stArg(type, val)
+#define STypeCheckedArg_object(type, val)    stType(type), stArg(type, val)
+#define STypeCheckedArg_weakref(type, val)   stType(type), stArg(type, val)
+#define STypeCheckedArg_suid(type, val)      stType(type), stArg(type, val)
+#define STypeCheckedArg_stvar(type, val)     stType(type), stArg(type, val)
+#define STypeCheckedArg_sarray(type, val)    stType(type), stArg(type, val)
+#define STypeCheckedArg_hashtable(type, val) stType(type), stArg(type, val)
+#define STypeCheckedArg_closure(type, val)   stType(type), stArg(type, val)
+#define STypeCheckedArg_cchain(type, val)    stType(type), stArg(type, val)
+#define STypeCheckedArg_buffer(type, val)    stType(type), stArg(type, val)
+#define STypeCheckedArg_struct(type, val)    (&_sti_struct(val)), stArg(type, val)
+#define STypeCheckedArg_structptr(type, val) stType(type), stArg(type, val)
 
 /// (stype, stgeneric) stCheckedArg(type, value)
 ///
@@ -1081,37 +1029,37 @@ _meta_inline stype _stype_mkcustom(stype base)
 // Type checking of pointers to types, mostly for functions that want to
 // consume object-like variables and destroy them
 
-#define STypeCheckedPtrArg_none(type, val)      stTypeInternal(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_none(type, val)      stType(type), stArgPtr(type, val)
 // go the opposite direction for opaque since it's already passed in as a pointer
-#define STypeCheckedPtrArg_opaque(type, val)    stType_opaque(*val), stArgPtr(type, val)
-#define STypeCheckedPtrArg_int8(type, val)      stTypeInternal(type), stArgPtr(type, val)
-#define STypeCheckedPtrArg_int16(type, val)     stTypeInternal(type), stArgPtr(type, val)
-#define STypeCheckedPtrArg_int32(type, val)     stTypeInternal(type), stArgPtr(type, val)
-#define STypeCheckedPtrArg_int64(type, val)     stTypeInternal(type), stArgPtr(type, val)
-#define STypeCheckedPtrArg_intptr(type, val)    stTypeInternal(type), stArgPtr(type, val)
-#define STypeCheckedPtrArg_uint8(type, val)     stTypeInternal(type), stArgPtr(type, val)
-#define STypeCheckedPtrArg_uint16(type, val)    stTypeInternal(type), stArgPtr(type, val)
-#define STypeCheckedPtrArg_uint32(type, val)    stTypeInternal(type), stArgPtr(type, val)
-#define STypeCheckedPtrArg_uint64(type, val)    stTypeInternal(type), stArgPtr(type, val)
-#define STypeCheckedPtrArg_uintptr(type, val)   stTypeInternal(type), stArgPtr(type, val)
-#define STypeCheckedPtrArg_bool(type, val)      stTypeInternal(type), stArgPtr(type, val)
-#define STypeCheckedPtrArg_size(type, val)      stTypeInternal(type), stArgPtr(type, val)
-#define STypeCheckedPtrArg_float32(type, val)   stTypeInternal(type), stArgPtr(type, val)
-#define STypeCheckedPtrArg_float64(type, val)   stTypeInternal(type), stArgPtr(type, val)
-#define STypeCheckedPtrArg_ptr(type, val)       stTypeInternal(type), stArgPtr(type, val)
-#define STypeCheckedPtrArg_string(type, val)    stTypeInternal(type), stArgPtr(type, val)
-#define STypeCheckedPtrArg_strref(type, val)    stTypeInternal(type), stArgPtr(type, val)
-#define STypeCheckedPtrArg_object(type, val)    stTypeInternal(type), stArgPtr(type, val)
-#define STypeCheckedPtrArg_weakref(type, val)   stTypeInternal(type), stArgPtr(type, val)
-#define STypeCheckedPtrArg_suid(type, val)      stTypeInternal(type), stArgPtr(type, val)
-#define STypeCheckedPtrArg_stvar(type, val)     stTypeInternal(type), stArgPtr(type, val)
-#define STypeCheckedPtrArg_sarray(type, val)    stTypeInternal(type), stArgPtr(type, val)
-#define STypeCheckedPtrArg_hashtable(type, val) stTypeInternal(type), stArgPtr(type, val)
-#define STypeCheckedPtrArg_closure(type, val)   stTypeInternal(type), stArgPtr(type, val)
-#define STypeCheckedPtrArg_cchain(type, val)    stTypeInternal(type), stArgPtr(type, val)
-#define STypeCheckedPtrArg_buffer(type, val)    stTypeInternal(type), stArgPtr(type, val)
-#define STypeCheckedPtrArg_struct(type, val)    stType_struct(*val), stArgPtr(type, val)
-#define STypeCheckedPtrArg_structptr(type, val) stTypeInternal(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_opaque(type, val)    (&_sti_opaque(*val)), stArgPtr(type, val)
+#define STypeCheckedPtrArg_int8(type, val)      stType(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_int16(type, val)     stType(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_int32(type, val)     stType(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_int64(type, val)     stType(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_intptr(type, val)    stType(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_uint8(type, val)     stType(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_uint16(type, val)    stType(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_uint32(type, val)    stType(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_uint64(type, val)    stType(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_uintptr(type, val)   stType(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_bool(type, val)      stType(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_size(type, val)      stType(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_float32(type, val)   stType(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_float64(type, val)   stType(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_ptr(type, val)       stType(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_string(type, val)    stType(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_strref(type, val)    stType(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_object(type, val)    stType(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_weakref(type, val)   stType(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_suid(type, val)      stType(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_stvar(type, val)     stType(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_sarray(type, val)    stType(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_hashtable(type, val) stType(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_closure(type, val)   stType(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_cchain(type, val)    stType(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_buffer(type, val)    stType(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_struct(type, val)    (&_sti_struct(*val)), stArgPtr(type, val)
+#define STypeCheckedPtrArg_structptr(type, val) stType(type), stArgPtr(type, val)
 
 /// (stype, stgeneric*) stCheckedPtrArg(type, pointer)
 ///
@@ -1289,12 +1237,6 @@ typedef _Success_(return)
 _Check_return_ bool (*stConvertFunc)(stype destst, _stCopyDest_Anno_(destst) stgeneric* dest,
                                      stype srcst, _In_ stgeneric src, flags_t flags);
 
-extern stDtorFunc _stDefaultDtor[256];
-extern stCmpFunc _stDefaultCmp[256];
-extern stHashFunc _stDefaultHash[256];
-extern stCopyFunc _stDefaultCopy[256];
-extern stConvertFunc _stDefaultConvert[256];
-
 typedef struct STypeOps {
     stDtorFunc dtor;
     stCmpFunc cmp;
@@ -1302,6 +1244,32 @@ typedef struct STypeOps {
     stCopyFunc copy;
     stConvertFunc convert;
 } STypeOps;
+
+/// Type descriptor for all runtime types in the stype system.
+///
+/// Each type has exactly one canonical `const STypeInfo` in static storage. `stype` is
+/// `const STypeInfo*` - two type values are equal if and only if they point to the same
+/// canonical descriptor (use `stEq()` to compare, which handles Temporary canonicalization).
+///
+/// Built-in type descriptors are declared as `extern const STypeInfo _sti_name` and
+/// accessed via `stType(name)` / `stTypeInfo(name)`. Custom types are defined at file
+/// scope with `stDefine(name) { ... }` and declared in headers with
+/// `stDeclare(name)`.
+typedef struct STypeInfo {
+    uint32 id;          //< hierarchical type ID: STCLASS | STST_subtype | discriminant
+    uint16 size;        //< storage size in bytes
+    uint16 flags;       //< STypeFlag_Object, STypeFlag_PassPtr, STypeFlag_Temporary
+    const char* name;   //< name for debug, serialization, etc
+
+    /// Parameterized sub-type descriptors (must point to canonical types):
+    ///   sarray:    param[0] = element type, param[1] = NULL
+    ///   hashtable: param[0] = key type,     param[1] = value type
+    ///   all others: both NULL
+    const STypeInfo* param[2];
+
+    const void* ext;   //< type-specific extension data (e.g. StructInfo*); ignored by stype core
+    STypeOps ops;      //< operations embedded directly - no separate allocation
+} STypeInfo;
 
 /// @}
 
@@ -1316,7 +1284,7 @@ typedef struct STypeOps {
 _meta_inline stgeneric _stStoredVal(stype st, _In_ const void* storage)
 {
     stgeneric ret;
-    switch (stGetSize(st)) {
+    switch (st->size) {
     case 1:
         ret.st_uint8 = *(uint8*)storage;
         break;
@@ -1412,17 +1380,14 @@ _meta_inline stgeneric _stStoredVal(stype st, _In_ const void* storage)
 ///   stDestroy(string, &s);  // s is now invalid
 /// @endcode
 #define stDestroy(type, pobj, ...) \
-    _stDestroy(stFullType(type), stArgPtr(type, pobj), opt_flags(__VA_ARGS__))
-_meta_inline void _stDestroy(stype st, _In_opt_ STypeOps* ops,
-                             _Pre_notnull_ _Post_invalid_ stgeneric* gen, flags_t flags)
+    _stDestroy(stType(type), stArgPtr(type, pobj), opt_flags(__VA_ARGS__))
+_meta_inline void _stDestroy(stype st, _Pre_notnull_ _Post_invalid_ stgeneric* gen, flags_t flags)
 {
-    // ops is mandatory for custom type
-    devAssert(!stHasFlag(st, Custom) || ops);
+    if (!st)
+        return;
 
-    if (ops && ops->dtor)
-        ops->dtor(st, gen, flags);
-    else if (_stDefaultDtor[stGetId(st)])
-        _stDefaultDtor[stGetId(st)](st, gen, flags);
+    if (st->ops.dtor)
+        st->ops.dtor(st, gen, flags);
 }
 /// intptr stCmp(type, obj1, obj2, [flags])
 ///
@@ -1443,23 +1408,19 @@ _meta_inline void _stDestroy(stype st, _In_opt_ STypeOps* ops,
 ///   }
 /// @endcode
 #define stCmp(type, obj1, obj2, ...) \
-    _stCmp(stFullType(type), stArg(type, obj1), stArg(type, obj2), opt_flags(__VA_ARGS__))
-_meta_inline intptr _stCmp(stype st, _In_opt_ STypeOps* ops, _In_ stgeneric gen1,
-                           _In_ stgeneric gen2, flags_t flags)
+    _stCmp(stType(type), stArg(type, obj1), stArg(type, obj2), opt_flags(__VA_ARGS__))
+_meta_inline intptr _stCmp(stype st, _In_ stgeneric gen1, _In_ stgeneric gen2, flags_t flags)
 {
-    // ops is mandatory for custom type
-    devAssert(!stHasFlag(st, Custom) || ops);
+    if (!st)
+        return 1;   // treat null type as always greater (sorts last), mirrors stCmp_none
 
-    if (ops && ops->cmp)
-        return ops->cmp(st, gen1, gen2, flags);
-
-    if (_stDefaultCmp[stGetId(st)])
-        return _stDefaultCmp[stGetId(st)](st, gen1, gen2, flags);
+    if (st->ops.cmp)
+        return st->ops.cmp(st, gen1, gen2, flags);
 
     if (!stHasFlag(st, PassPtr))
-        return memcmp(&gen1, &gen2, stGetSize(st));
+        return memcmp(&gen1, &gen2, st->size);
     else
-        return memcmp(gen1.st_ptr, gen2.st_ptr, stGetSize(st));
+        return memcmp(gen1.st_ptr, gen2.st_ptr, st->size);
 }
 
 /// void stCopy(type, pdest, src, [flags])
@@ -1480,23 +1441,19 @@ _meta_inline intptr _stCmp(stype st, _In_opt_ STypeOps* ops, _In_ stgeneric gen1
 ///   stCopy(int32, &dest, 42);
 /// @endcode
 #define stCopy(type, pdest, src, ...) \
-    _stCopy(stFullType(type), stArgPtr(type, pdest), stArg(type, src), opt_flags(__VA_ARGS__))
-_meta_inline void _stCopy(stype st, _In_opt_ STypeOps* ops, _stCopyDest_Anno_(st) stgeneric* dest,
-                          _In_ stgeneric src, flags_t flags)
+    _stCopy(stType(type), stArgPtr(type, pdest), stArg(type, src), opt_flags(__VA_ARGS__))
+_meta_inline void _stCopy(stype st, _stCopyDest_Anno_(st) stgeneric* dest, _In_ stgeneric src,
+                          flags_t flags)
 {
-    // ops is mandatory for custom type
-    devAssert(!stHasFlag(st, Custom) || ops);
+    if (!st)
+        return;
 
-    stCopyFunc defCopy = _stDefaultCopy[stGetId(st)];
-
-    if (ops && ops->copy)
-        ops->copy(st, dest, src, flags);
-    else if (defCopy)
-        defCopy(st, dest, src, flags);
+    if (st->ops.copy)
+        st->ops.copy(st, dest, src, flags);
     else if (!stHasFlag(st, PassPtr))
-        memcpy(dest, &src, stGetSize(st));
+        memcpy(dest, &src, st->size);
     else
-        memcpy(dest->st_ptr, src.st_ptr, stGetSize(st));
+        memcpy(dest->st_ptr, src.st_ptr, st->size);
 }
 
 uint32 stHash_gen(stype st, _In_ stgeneric stgen, flags_t flags);
@@ -1515,16 +1472,14 @@ uint32 stHash_gen(stype st, _In_ stgeneric stgen, flags_t flags);
 /// @code
 ///   uint32 h = stHash(string, s);
 /// @endcode
-#define stHash(type, obj, ...) _stHash(stFullType(type), stArg(type, obj), opt_flags(__VA_ARGS__))
-_meta_inline uint32 _stHash(stype st, _In_opt_ STypeOps* ops, _In_ stgeneric gen, flags_t flags)
+#define stHash(type, obj, ...) _stHash(stType(type), stArg(type, obj), opt_flags(__VA_ARGS__))
+_meta_inline uint32 _stHash(stype st, _In_ stgeneric gen, flags_t flags)
 {
-    // ops is mandatory for custom type
-    devAssert(!stHasFlag(st, Custom) || ops);
+    if (!st)
+        return 0;
 
-    if (ops && ops->hash)
-        return ops->hash(st, gen, flags);
-    else if (_stDefaultHash[stGetId(st)])
-        return _stDefaultHash[stGetId(st)](st, gen, flags);
+    if (st->ops.hash)
+        return st->ops.hash(st, gen, flags);
     else
         return stHash_gen(st, gen, flags);
 }
@@ -1554,31 +1509,173 @@ _meta_inline uint32 _stHash(stype st, _In_opt_ STypeOps* ops, _In_ stgeneric gen
 #define stConvert(desttype, pdest, srctype, src, ...) \
     _stConvert(stType(desttype),                      \
                stArgPtr(desttype, pdest),             \
-               stFullType(srctype),                   \
+               stType(srctype),                       \
                stArg(srctype, src),                   \
                opt_flags(__VA_ARGS__))
 _Success_(return) _Check_return_ _meta_inline bool
-_stConvert(stype destst, _stCopyDest_Anno_(destst) stgeneric* dest, stype srcst,
-           _In_opt_ STypeOps* srcops, _In_ stgeneric src, flags_t flags)
+_stConvert(stype destst, _stCopyDest_Anno_(destst) stgeneric* dest, stype srcst, _In_ stgeneric src,
+           flags_t flags)
 {
-    // ops is mandatory for custom type
-    devAssert(!stHasFlag(srcst, Custom) || srcops);
-
-    stConvertFunc defConvert = _stDefaultConvert[stGetId(srcst)];
+    if (!srcst || !destst)
+        return false;
 
     // The *source* stype is responsible for handling conversions to other types
-    if (srcops && srcops->convert)
-        return srcops->convert(destst, dest, srcst, src, flags);
-    else if (srcst == destst)
-        return _stCopy(destst, NULL, dest, src, flags), true;
-    else if (defConvert)
-        return defConvert(destst, dest, srcst, src, flags);
-    else
-        return false;   // can't convert it if we don't know how!
+    if (srcst == destst)
+        return _stCopy(destst, dest, src, flags), true;
+    if (srcst->ops.convert)
+        return srcst->ops.convert(destst, dest, srcst, src, flags);
+
+    return false;   // can't convert it if we don't know how!
 }
 
-/// @}
+// Internal: look up or insert a Temporary descriptor in the global type registry.
+// Recursively canonicalizes param[0]/param[1] before keying. Thread-safe via RWLock.
+// Always returns a non-Temporary canonical pointer.
+stype _stGetCanonical(stype st);
 
-/// @}
+/// stype stCanonical(stype st)
+///
+/// Return the canonical pointer for a type descriptor.
+///
+/// For static built-in types (`STypeFlag_Temporary` clear), returns `st` immediately -
+/// zero overhead. For dynamically constructed types (`STypeFlag_Temporary` set, e.g.
+/// `opaque(MyStruct)` compound literals or parameterized container types), looks up or
+/// inserts the descriptor in the global type registry and returns the stable canonical
+/// pointer. After the first call, all equivalent descriptors resolve to the same address.
+///
+/// Containers call `stCanonical()` automatically at init time. User code rarely needs
+/// to call this directly.
+///
+/// @param st Type descriptor (may be Temporary)
+/// @return Canonical, non-Temporary type descriptor pointer
+_meta_inline stype stCanonical(stype st)
+{
+    if (!st)
+        return stType(none);
+
+    if (!stHasFlag(st, Temporary))
+        return st;
+
+    return _stGetCanonical(st);
+}
+
+/// bool stEq(stype s1, stype s2)
+///
+/// Test whether two type descriptors refer to the same type.
+///
+/// Calls `stCanonical()` on both operands before comparing pointers. For static types
+/// this reduces to a single pointer comparison. Handles the case where one or both
+/// descriptors are Temporary compound literals that have not yet been registered.
+///
+/// @param s1 First type descriptor
+/// @param s2 Second type descriptor
+/// @return true if both descriptors represent the same type
+_meta_inline bool stEq(stype s1, stype s2)
+{
+    return stCanonical(s1) == stCanonical(s2);
+}
+
+/// @defgroup stype_custom Custom Type Integration
+/// @ingroup stype
+/// @{
+///
+/// Macros for defining user types that integrate fully with the stype system.
+///
+/// A custom type is defined with `stDefine` followed by a brace-enclosed
+/// `STypeInfo` initializer, paired with a standard block of harness `#define`s that
+/// hook the type name into `stType`, `stArg`, `stCheckedArg`, and the container APIs
+/// (`saInit`, `saPush`, `htInsert`, `stCmp`, etc.).
+///
+/// **File-local type** (no cross-TU sharing needed):
+/// @code
+///   // In myfile.c:
+///   static stDefine(mykey) {
+///       .id    = STypeId_opaque,
+///       .size  = sizeof(MyKey),
+///       .flags = stFlag(PassPtr),
+///       .name  = "MyKey",
+///       .ops   = { .dtor = myKeyDtor, .cmp = myKeyCmp, .hash = myKeyHash },
+///   };
+///   #define SType_mykey                         MyKey*
+///   #define STStorageType_mykey                 MyKey
+///   #define STypeArg_mykey(type, val)           stgeneric(opaque, &(val))
+///   #define STypeArgPtr_mykey(type, val)        &stgeneric(opaque, (val))
+///   #define STypeCheckedArg_mykey(type, val)    stType(type), stArg(type, val)
+///   #define STypeCheckedPtrArg_mykey(type, val) stType(type), stArgPtr(type, val)
+///
+///   hashtable tbl;
+///   htInit(&tbl, mykey, int32, 32);
+///   htInsert(&tbl, mykey, k, int32, 500);
+/// @endcode
+///
+/// **Shared type** (visible across translation units):
+/// @code
+///   // mylib.h:
+///   stDeclare(vec3);
+///   saDeclare(vec3);
+///   #define SType_vec3                         Vec3*
+///   #define STStorageType_vec3                 Vec3
+///   #define STypeArg_vec3(type, val)           stgeneric(opaque, &(val))
+///   #define STypeArgPtr_vec3(type, val)        &stgeneric(opaque, (val))
+///   #define STypeCheckedArg_vec3(type, val)    stType(type), stArg(type, val)
+///   #define STypeCheckedPtrArg_vec3(type, val) stType(type), stArgPtr(type, val)
+///
+///   // mylib.c:
+///   stDefine(vec3) {
+///       .id    = STypeId_opaque,
+///       .size  = sizeof(Vec3),
+///       .flags = stFlag(PassPtr),
+///       .name  = "Vec3",
+///       .ops   = { .cmp = vec3Cmp, .hash = vec3Hash },
+///   };
+///
+///   // any .c file that includes mylib.h:
+///   sa_Vec3 points;
+///   saInit(&points, vec3, 64);
+///   Vec3 v = { 1.0f, 2.0f, 3.0f };
+///   saPush(&points, vec3, v);
+///   htInsert(&ht, string, _SL("origin"), vec3, v);
+/// @endcode
+///
+/// `stType(vec3)` resolves to `&_sti_vec3` — a static, canonical pointer with no
+/// `STypeFlag_Temporary` set, so no type registry lookup occurs at init or push time.
+
+/// stDeclare(name)
+///
+/// Declare a custom type descriptor defined in another translation unit.
+///
+/// Places `extern const STypeInfo _sti_##name` in the current scope.
+/// Typically used in a header file alongside a `#define stType_name (&_sti_name)`
+/// so that `stType(name)` resolves cleanly.
+///
+/// @param name Type name (token)
+#define stDeclare(name) extern const STypeInfo _sti_##name
+
+/// stDefine(name)
+///
+/// Begin the definition of a custom type descriptor.
+///
+/// Must be followed immediately by a brace-enclosed `STypeInfo` struct initializer.
+/// Place at file scope in a `.c` file; use `static` storage class for file-local types.
+///
+/// @param name Type name (token)
+///
+/// Example:
+/// @code
+///   stDefine(vec3) {
+///       .id    = STypeId_opaque,
+///       .size  = sizeof(Vec3),
+///       .flags = stFlag(PassPtr),
+///       .name  = "Vec3",
+///       .ops   = { .cmp = vec3Cmp, .hash = vec3Hash },
+///   };
+/// @endcode
+#define stDefine(name) const STypeInfo _sti_##name =
+
+/// @}  // end of stype_custom group
+
+/// @}  // end of stype_api group
+
+/// @}  // end of stype group
 
 CX_C_END

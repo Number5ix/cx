@@ -1,6 +1,8 @@
 #include "cx/cx.h"
 #include "cx/utils/murmur.h"
 
+#include "stconvert.h"
+
 #include "cx/buffer/stype_buffer.h"
 #include "cx/closure/stype_closure.h"
 #include "cx/container/stype_hashtable.h"
@@ -54,6 +56,13 @@ static intptr stCmp_uint64(stype st, stgeneric gen1, stgeneric gen2, uint32 flag
     return (gen1.st_uint64 < gen2.st_uint64) ? -1 : 1;
 }
 #endif
+
+static intptr stCmp_bool(stype st, stgeneric gen1, stgeneric gen2, uint32 flags)
+{
+    if (gen1.st_bool == gen2.st_bool)
+        return 0;
+    return gen1.st_bool ? 1 : -1;
+}
 
 // 'equal enough' values good enough for general use while taking into account small
 // amounts of floating-point error.
@@ -125,113 +134,152 @@ static void stCopy_none(stype st, _stCopyDest_Anno_(st) stgeneric* dest, _In_ st
     relAssertMsg(_unused_debug_types._unused == 0, "Memory corruption");
 }
 
-// clang-format off
+// Canonical STypeInfo structures for built-in types
 
-alignMem(64) stDtorFunc _stDefaultDtor[256] = {
-    // STCLASS_OPAQUE
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    // STCLASS_INT
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    // STCLASS_UINT
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    // STCLASS_FLOAT
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    // STCLASS_PTR
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    // 0x50 - 0xdf
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    // STCLASS_CX
-    stDtor_string, stDtor_obj, stDtor_weakref, 0, stDtor_stvar, stDtor_closure, stDtor_buffer, stDtor_struct, stDtor_structptr, 0, 0, 0, 0, 0, 0, 0,
-    // STCLASS_CX_CONTAINER
-    stDtor_sarray, stDtor_hashtable, stDtor_cchain, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+const STypeInfo _sti_none = {
+    .name  = "none",
+    .id    = STypeId_none,
+    .flags = 0,
+    .size  = 0,
+    .ops   = { .cmp     = stCmp_none,
+              .hash    = stHash_none,
+              .copy    = stCopy_none,
+              .convert = stConvert_none }
 };
 
-alignMem(64) stCmpFunc _stDefaultCmp[256] = {
-    // STCLASS_OPAQUE
-    stCmp_none, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    // STCLASS_INT
-    0, stCmp_int8, stCmp_int16, 0, stCmp_int32, 0, 0, 0, stCmp_int64, 0, 0, 0, 0, 0, 0, 0,
-    // STCLASS_UINT
-    0, stCmp_uint8, stCmp_uint16, 0, stCmp_uint32, 0, 0, 0, stCmp_uint64, 0, 0, 0, 0, 0, 0, 0,
-    // STCLASS_FLOAT
-    0, 0, 0, 0, stCmp_float32, 0, 0, 0, stCmp_float64, 0, 0, 0, 0, 0, 0, 0,
-    // STCLASS_PTR
-    0, 0, 0, 0, sizeof(void*) == sizeof(int32) ? stCmp_ptr : 0, 0, 0, 0,
-    sizeof(void*) == sizeof(int64) ? stCmp_ptr : 0, 0, 0, 0, 0, 0, 0, 0,
-    // 0x50 - 0xdf
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    // STCLASS_CX
-    stCmp_string, stCmp_obj, stCmp_weakref, stCmp_suid, stCmp_stvar, stCmp_closure, stCmp_buffer, stCmp_struct, stCmp_structptr, 0, 0, 0, 0, 0, 0, 0,
-    // STCLASS_CX_CONTAINER
-    stCmp_sarray, stCmp_hashtable, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+#define ST_BASIC_INFO(type, cvttype) \
+    const STypeInfo _sti_##type = { \
+    .name  = #type, \
+    .id    = STypeId_##type, \
+    .flags = 0, \
+    .size  = sizeof(STStorageType_##type), \
+    .ops = { \
+        .cmp = stCmp_##type, \
+        .convert = stConvert_##cvttype, \
+    }, \
+}
+
+ST_BASIC_INFO(int8, int);
+ST_BASIC_INFO(int16, int);
+ST_BASIC_INFO(int32, int);
+ST_BASIC_INFO(int64, int);
+ST_BASIC_INFO(uint8, int);
+ST_BASIC_INFO(uint16, int);
+ST_BASIC_INFO(uint32, int);
+ST_BASIC_INFO(uint64, int);
+ST_BASIC_INFO(float32, float32);
+ST_BASIC_INFO(float64, float64);
+ST_BASIC_INFO(bool, bool);
+ST_BASIC_INFO(ptr, ptr);
+
+const STypeInfo _sti_string = {
+    .name  = "string",
+    .id    = STypeId_string,
+    .flags = stFlag(Object),
+    .size  = sizeof(stStorageType(string)),
+    .ops   = { .dtor    = stDtor_string,
+              .cmp     = stCmp_string,
+              .hash    = stHash_string,
+              .copy    = stCopy_string,
+              .convert = stConvert_string }
 };
 
-alignMem(64) stHashFunc _stDefaultHash[256] = {
-    // STCLASS_OPAQUE
-    stHash_none, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    // STCLASS_INT
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    // STCLASS_UINT
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    // STCLASS_FLOAT
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    // STCLASS_PTR
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    // 0x50 - 0xdf
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    // STCLASS_CX
-    stHash_string, stHash_obj, 0, 0, stHash_stvar, 0, stHash_buffer, stHash_struct, stHash_structptr, 0, 0, 0, 0, 0, 0, 0,
-    // STCLASS_CX_CONTAINER
-    stHash_sarray, stHash_hashtable, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+const STypeInfo _sti_object = {
+    .name  = "object",
+    .id    = STypeId_object,
+    .flags = stFlag(Object),
+    .size  = sizeof(stStorageType(object)),
+    .ops   = { .dtor    = stDtor_obj,
+              .cmp     = stCmp_obj,
+              .hash    = stHash_obj,
+              .copy    = stCopy_obj,
+              .convert = stConvert_obj }
 };
 
-alignMem(64) stCopyFunc _stDefaultCopy[256] = {
-    // STCLASS_OPAQUE
-    stCopy_none, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    // STCLASS_INT
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    // STCLASS_UINT
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    // STCLASS_FLOAT
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    // STCLASS_PTR
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    // 0x50 - 0xdf
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    // STCLASS_CX
-    stCopy_string, stCopy_obj, stCopy_weakref, 0, stCopy_stvar, stCopy_closure, stCopy_buffer, stCopy_struct, stCopy_structptr, 0, 0, 0, 0, 0, 0, 0,
-    // STCLASS_CX_CONTAINER
-    stCopy_sarray, stCopy_hashtable, stCopy_cchain, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+const STypeInfo _sti_weakref = {
+    .name  = "weakref",
+    .id    = STypeId_weakref,
+    .flags = stFlag(Object),
+    .size  = sizeof(stStorageType(weakref)),
+    .ops   = { .dtor = stDtor_weakref, .cmp = stCmp_weakref, .copy = stCopy_weakref }
 };
+
+const STypeInfo _sti_suid = {
+    .name  = "suid",
+    .id    = STypeId_suid,
+    .flags = stFlag(PassPtr),
+    .size  = sizeof(stStorageType(suid)),
+    .ops   = { .cmp = stCmp_suid, .convert = stConvert_suid }
+};
+
+const STypeInfo _sti_stvar = {
+    .name  = "stvar",
+    .id    = STypeId_stvar,
+    .flags = stFlag(PassPtr) | stFlag(Object),
+    .size  = sizeof(stStorageType(stvar)),
+    .ops   = { .dtor    = stDtor_stvar,
+              .cmp     = stCmp_stvar,
+              .hash    = stHash_stvar,
+              .copy    = stCopy_stvar,
+              .convert = stConvert_stvar }
+};
+
+const STypeInfo _sti_closure = {
+    .name  = "closure",
+    .id    = STypeId_closure,
+    .flags = stFlag(Object),
+    .size  = sizeof(stStorageType(closure)),
+    .ops   = { .dtor = stDtor_closure, .cmp = stCmp_closure, .copy = stCopy_closure }
+};
+
+const STypeInfo _sti_buffer = {
+    .name  = "buffer",
+    .id    = STypeId_buffer,
+    .flags = stFlag(Object),
+    .size  = sizeof(stStorageType(buffer)),
+    .ops   = { .dtor = stDtor_buffer,
+              .cmp  = stCmp_buffer,
+              .hash = stHash_buffer,
+              .copy = stCopy_buffer }
+};
+
+// struct is intentionally omitted. It's not legal to create a bare structure directly. cxautogen
+// automatically creates canonical types for each defined structure that use the struct type ID
+
+const STypeInfo _sti_structptr = {
+    .name  = "structptr",
+    .id    = STypeId_structptr,
+    .flags = stFlag(Object),
+    .size  = sizeof(stStorageType(structptr)),
+    .ops   = { .dtor = stDtor_structptr,
+              .cmp  = stCmp_structptr,
+              .hash = stHash_structptr,
+              .copy = stCopy_structptr }
+};
+
+// non-parameterized version of containers
+const STypeInfo _sti_sarray = {
+    .name  = "sarray",
+    .id    = STypeId_sarray,
+    .flags = stFlag(Object),
+    .size  = sizeof(stStorageType(sarray)),
+    .ops   = { .cmp = stCmp_sarray, .hash = stHash_sarray, .copy = stCopy_sarray }
+};
+
+const STypeInfo _sti_hashtable = {
+    .name  = "hashtable",
+    .id    = STypeId_hashtable,
+    .flags = stFlag(Object),
+    .size  = sizeof(stStorageType(hashtable)),
+    .ops   = { .cmp = stCmp_hashtable, .hash = stHash_hashtable, .copy = stCopy_hashtable }
+};
+
+// As their size is dynamic, opaque and struct must be constructed as a temporary (or statically by
+// cxautogen in the struct case). Instead we provide default STypeOps here for them to copy.
+
+const STypeOps _stops_opaque = { 0 };
+
+const STypeOps _stops_struct = { .dtor = stDtor_struct,
+                                 .cmp  = stCmp_struct,
+                                 .hash = stHash_struct,
+                                 .copy = stCopy_struct };

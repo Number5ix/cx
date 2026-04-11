@@ -26,10 +26,12 @@ _objfactory_guaranteed ConvertTestClass* ConvertTestClass_create(int32 ival, flo
 
 bool ConvertTestClass_convert(_In_ ConvertTestClass* self, stype st, stgeneric* dest, uint32 flags)
 {
-    if (STYPE_CLASS(st) == STCLASS_INT || STYPE_CLASS(st) == STCLASS_UINT)
-        return stConvert_int(st, dest, stCheckedArg(int32, self->ival), flags);
-    if (STYPE_CLASS(st) == STCLASS_FLOAT)
-        return stConvert_float64(st, dest, stCheckedArg(float64, self->fval), flags);
+    if (STYPE_CLASS(st->id) == STCLASS_BASIC) {
+        if (STYPE_SUBTYPE(st->id) == STST_INT || STYPE_SUBTYPE(st->id) == STST_UINT)
+            return stConvert_int(st, dest, stCheckedArg(int32, self->ival), flags);
+        if (STYPE_SUBTYPE(st->id) == STST_FLOAT)
+            return stConvert_float64(st, dest, stCheckedArg(float64, self->fval), flags);
+    }
 
     if (stEq(st, stType(string))) {
         strDup(&dest->st_string, self->sval);

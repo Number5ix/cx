@@ -35,7 +35,7 @@ _Success_(return) _Check_return_ bool
 stConvert_string(stype destst, _stCopyDest_Anno_(destst) stgeneric* dest, stype srcst,
                  _In_ stgeneric src, uint32 flags)
 {
-    switch (stGetId(destst)) {
+    switch (destst->id) {
     case stTypeId(int8):
     case stTypeId(int16): {
         // ehhh, see if it'll fit
