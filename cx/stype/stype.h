@@ -191,24 +191,20 @@ typedef struct StructBase StructBase;
 typedef struct SUID SUID;
 typedef struct stvar stvar;
 
-enum STYPE_CLASS_ID {
+enum STYPE_ID_CONSTANTS {
     STCLASS_BASIC   = 0x00000000,   // basic discrete types
     STCLASS_CX      = 0x00010000,   // "CX framework" types (strings, objects, containers)
     STCLASS_DYNAMIC = 0x00020000,   // dynamically defined types created at runtime
     STCLASS_USER    = 0x00100000,   // start of user-defined static type range
-};
 
-// subtypes for STCLASS_BASIC types
-enum STYPE_BASIC_SUBTYPE_ID {
+    // subtypes for STCLASS_BASIC types
     STST_INT   = 0x0100,
     STST_UINT  = 0x0200,
     STST_FLOAT = 0x0300,
     STST_PTR   = 0x0400,
-};
 
-// subtypes for STCLASS_CX types
-// these intentionally don't overlap with the basic subtypes, to allow for easier checks
-enum STYPE_CX_SUBTYPE_ID {
+    // subtypes for STCLASS_CX types
+    // these intentionally don't overlap with the basic subtypes, to allow for easier checks
     STST_OPAQUE    = 0x1000,   // opaque byte blocks, often with custom ops
     STST_MISC      = 0x1100,   // miscallenous CX-related types like SUIDs
     STST_OBJ       = 0x1200,   // object-like types that use pointer handles
