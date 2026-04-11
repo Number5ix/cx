@@ -1390,7 +1390,7 @@ _meta_inline void _stDestroy(stype st, _Pre_notnull_ _Post_invalid_ stgeneric* g
         st->ops.dtor(st, gen, flags);
 }
 
-#ifdef __GNUC__
+#ifdef _COMPILER_GCC
 // GCC incorrectly emits an array bounds warning on the second memcpy in _stCopy; and we use -Werror
 // which turns it into an error. The warning is provably a false positive because it's triggering on
 // the int8 case where the size is 1, but the branch that accesses st_ptr is never reached because
@@ -1399,6 +1399,8 @@ _meta_inline void _stDestroy(stype st, _Pre_notnull_ _Post_invalid_ stgeneric* g
 // This section also suppresses an incorrect nonnull warning in _stCmp that follows the same pattern
 // of the compiler thinking we're accessing the pointer version when we are not.
 #pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpragmas"
+#pragma GCC diagnostic ignored "-Wunknown-warning-option"
 #pragma GCC diagnostic ignored "-Warray-bounds"
 #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 #pragma GCC diagnostic ignored "-Wnonnull"
