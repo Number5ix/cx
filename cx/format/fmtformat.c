@@ -16,8 +16,8 @@ bool _fmtFindData(FMTContext* ctx)
     bool usestartarg = (ctx->v.idx == -1 && !isarray && !ishash);
     int32 findinst   = clamplow(ctx->v.idx, 1);
     int32 idx        = usestartarg ? ctx->startarg[ctx->v.vtype] : 0;
-    uint8 typeid     = _fmtTypeIdMask[ctx->v.vtype][0];
-    uint8 typemask   = _fmtTypeIdMask[ctx->v.vtype][1];
+    uint32 typeid    = _fmtTypeIdMask[ctx->v.vtype][0];
+    uint32 typemask  = _fmtTypeIdMask[ctx->v.vtype][1];
 
     for (; findinst > 0; idx++) {
         stvar* arg = &ctx->args[idx];
@@ -27,16 +27,17 @@ bool _fmtFindData(FMTContext* ctx)
             return ret;
         }
 
+        // use ID for these to also catch parameterized types that match the base type
         if (isarray) {
-            if (stGetId(arg->type) == stTypeId(sarray) &&
-                (stGetId(saElemType(arg->data.st_sarray)) & typemask) == typeid)
+            if (arg->type->id == stTypeId(sarray) &&
+                ((saElemType(arg->data.st_sarray))->id & typemask) == typeid)
                 findinst--;
         } else if (ishash) {
-            if (stGetId(arg->type) == stTypeId(hashtable) &&
-                stGetId(htKeyType(arg->data.st_hashtable)) == stTypeId(string) &&
-                (stGetId(htValType(arg->data.st_hashtable)) & typemask) == typeid)
+            if (arg->type->id == stTypeId(hashtable) &&
+                (htKeyType(arg->data.st_hashtable))->id == stTypeId(string) &&
+                ((htValType(arg->data.st_hashtable))->id & typemask) == typeid)
                 findinst--;
-        } else if ((stGetId(arg->type) & typemask) == typeid) {
+        } else if ((arg->type->id & typemask) == typeid) {
             findinst--;
         }
     }

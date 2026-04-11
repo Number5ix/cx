@@ -83,7 +83,7 @@ bool _fmtFloat(FMTVar* v, string* out)
     bool neg;
 
     // handle all the special case stuff here
-    switch (stGetId(v->type)) {
+    switch (v->type->id) {
     case stTypeId(float32): {
         uint32 fpbits = *(uint32*)v->data;
         neg           = fpbits & 0x80000000;

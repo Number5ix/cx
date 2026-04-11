@@ -72,7 +72,13 @@ static void extraMetaDtor(stype st, stgeneric* gen, uint32 flags)
     xaFree(m->str);
 }
 
-static STypeOps extraMetaOps = { .cmp = extraMetaCmp, .dtor = extraMetaDtor };
+stDefine(CrashExtraMeta) {
+    .id    = stTypeId(opaque),
+    .size  = sizeof(CrashExtraMeta),
+    .flags = stFlag(PassPtr),
+    .name  = "CrashExtraMeta",
+    .ops   = { .cmp = extraMetaCmp, .dtor = extraMetaDtor }
+};
 
 static void _dbgCrashAddMetaStr(_In_z_ const char* name, _In_z_ const char* val, bool version)
 {
@@ -171,7 +177,7 @@ void dbgCrashAddVersionInt(const char* name, int val)
 void _dbgCrashInit(void* data)
 {
     mutexInit(&_dbgCrashMutex);
-    saInit(&_dbgCrashExtraMeta, custom(opaque(CrashExtraMeta), extraMetaOps), 1, SA_Sorted);
+    saInit(&_dbgCrashExtraMeta, CrashExtraMeta, 1, SA_Sorted);
     bboxInit();
 
     _dbgCrashPlatformInit();

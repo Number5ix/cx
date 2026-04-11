@@ -87,7 +87,7 @@ int32 SSDSingleNode_count(_In_ SSDSingleNode* self, _Inout_ SSDLockState* _ssdCu
 void SSDSingleNode_destroy(_In_ SSDSingleNode* self)
 {
     // Autogen begins -----
-    _stDestroy(self->storage.type, NULL, &self->storage.data, 0);
+    _stDestroy(self->storage.type, &self->storage.data, 0);
     // Autogen ends -------
 }
 

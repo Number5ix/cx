@@ -9,7 +9,7 @@ _Success_(return) _Check_return_ bool
 stConvert_suid(stype destst, _stCopyDest_Anno_(destst) stgeneric* dest, stype srcst,
                _In_ stgeneric src, uint32 flags)
 {
-    switch (stGetId(destst)) {
+    switch (destst->id) {
     case stTypeId(string):
         dest->st_string = 0;
         suidEncode(&dest->st_string, src.st_suid);

@@ -42,7 +42,7 @@ static void structCopy(StructBase* bdest, StructBase* bsrc, flags_t flags)
         memset(destptr, 0, info->structsize);   // ensure clean state for copy
         if (!(member->flags & STRUCT_NoCopy)) {
             void* srcptr = (char*)bsrc + member->offset;
-            _stCopy(member->tinfo.type, NULL, (stgeneric*)destptr, *(stgeneric*)srcptr, flags);
+            _stCopy(member->tinfo.type, (stgeneric*)destptr, *(stgeneric*)srcptr, flags);
         }
     }
 }

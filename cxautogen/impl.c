@@ -567,7 +567,7 @@ static void writeAutoDtors(StreamBuffer* bf, Class* cls)
             strNConcat(&mdtor,
                        _S"    _stDestroy(self->",
                        m->name,
-                       _S".type, NULL, &self->",
+                       _S".type, &self->",
                        m->name,
                        _S".data, 0);");
         } else if (strEq(m->vartype, _S"closure")) {

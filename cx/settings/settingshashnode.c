@@ -111,7 +111,7 @@ static void destroyBinds(SettingsHashNode* self)
         // reset bound variable back to default
         _setsWriteBoundVar(bind, bind->type, bind->def);
         // destroy default in case it's a string
-        _stDestroy(bind->type, NULL, &bind->def, 0);
+        _stDestroy(bind->type, &bind->def, 0);
     }
     htClear(&self->binds);
 }

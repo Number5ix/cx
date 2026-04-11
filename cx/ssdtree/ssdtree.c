@@ -440,7 +440,7 @@ bool _ssdCopyOut(SSDNode* root, strref path, stype valtype, stgeneric* val,
             temp = ssdnodePtr(node, SSD_ByName, name, _ssdCurrentLockState);
 
         if (temp)
-            ret = _stConvert(valtype, val, temp->type, NULL, temp->data, 0);
+            ret = _stConvert(valtype, val, temp->type, temp->data, 0);
     }
     strDestroy(&name);
 
@@ -462,12 +462,12 @@ bool _ssdCopyOutD(SSDNode* root, strref path, stype valtype, stgeneric* val, stg
             temp = ssdnodePtr(node, SSD_ByName, name, _ssdCurrentLockState);
 
         if (temp)
-            ret = _stConvert(valtype, val, temp->type, NULL, temp->data, 0);
+            ret = _stConvert(valtype, val, temp->type, temp->data, 0);
     }
     strDestroy(&name);
 
     if (!ret)
-        _stCopy(valtype, NULL, val, def, 0);
+        _stCopy(valtype, val, def, 0);
 
     return ret;
 }

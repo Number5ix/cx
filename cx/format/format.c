@@ -19,14 +19,14 @@ string _fmtTypeNames[FMT_count] = {
              "object",
 };
 
-uint8 _fmtTypeIdMask[FMT_count][2] = {
-    { 0xe0, 0xff }, // string
-    { 0x10, 0xf0 }, // int
-    { 0x20, 0xf0 }, // uint
-    { 0x30, 0xf0 }, // float
-    { 0x40, 0xf0 }, // ptr
-    { 0xe3, 0xff }, // suid
-    { 0xe1, 0xff }, // object
+uint32 _fmtTypeIdMask[FMT_count][2] = {
+    { stTypeId(string),           0xffffffff }, // string
+    { STCLASS_BASIC | STST_INT,   0xffffff00 }, // int
+    { STCLASS_BASIC | STST_UINT,  0xffffff00 }, // uint
+    { STCLASS_BASIC | STST_FLOAT, 0xffffff00 }, // float
+    { STCLASS_BASIC | STST_PTR,   0xffffff00 }, // ptr
+    { stTypeId(suid),             0xffffffff }, // suid
+    { stTypeId(object),           0xffffffff }, // object
 };
 
 bool (*_fmtTypeParseOpt[FMT_count])(FMTVar* v, strref opt) = {

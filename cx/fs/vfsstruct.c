@@ -15,7 +15,10 @@ static void _vfsCacheEntDestroy(stype st, stgeneric* g, uint32 flags)
     xaFree(e);
 }
 
-STypeOps VFSCacheEnt_ops = { .dtor = _vfsCacheEntDestroy };
+stDefine(VFSCacheEnt) { .id   = stTypeId(ptr),
+                        .size = sizeof(VFSCacheEnt),
+                        .name = "VFSCacheEnt",
+                        .ops  = { .dtor = _vfsCacheEntDestroy } };
 
 _Use_decl_annotations_
 VFSDir* _vfsDirCreate(VFS* vfs, VFSDir* parent)
@@ -24,11 +27,11 @@ VFSDir* _vfsDirCreate(VFS* vfs, VFSDir* parent)
     d->parent = parent;   // weak ref
     saInit(&d->mounts, object, 1);
     if (vfs->flags & VFS_CaseSensitive) {
-        htInit(&d->subdirs, string, custom(ptr, VFSDir_ops), 8);
-        htInit(&d->files, string, custom(ptr, VFSCacheEnt_ops), 8);
+        htInit(&d->subdirs, string, VFSDir, 8);
+        htInit(&d->files, string, VFSCacheEnt, 8);
     } else {
-        htInit(&d->subdirs, string, custom(ptr, VFSDir_ops), 8, HT_CaseInsensitive);
-        htInit(&d->files, string, custom(ptr, VFSCacheEnt_ops), 8, HT_CaseInsensitive);
+        htInit(&d->subdirs, string, VFSDir, 8, HT_CaseInsensitive);
+        htInit(&d->files, string, VFSCacheEnt, 8, HT_CaseInsensitive);
     }
     return d;
 }
@@ -43,4 +46,7 @@ static void _vfsDirDestroy(stype st, stgeneric* g, uint32 flags)
     xaFree(d);
 }
 
-STypeOps VFSDir_ops = { .dtor = _vfsDirDestroy };
+stDefine(VFSDir) { .id   = stTypeId(ptr),
+                   .size = sizeof(VFSDir),
+                   .name = "VFSDir",
+                   .ops  = { .dtor = _vfsDirDestroy } };

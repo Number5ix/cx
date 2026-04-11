@@ -18,7 +18,7 @@ _Success_(return) _Check_return_ bool
 stConvert_none(stype destst, _stCopyDest_Anno_(destst) stgeneric* dest, stype srcst,
                _In_ stgeneric src, uint32 flags)
 {
-    switch (stGetId(destst)) {
+    switch (destst->id) {
     case stTypeId(bool):
         dest->st_bool = false;
         return true;
@@ -51,7 +51,7 @@ _Success_(return) _Check_return_ bool
 stConvert_bool(stype destst, _stCopyDest_Anno_(destst) stgeneric* dest, stype srcst,
                _In_ stgeneric src, uint32 flags)
 {
-    switch (stGetId(destst)) {
+    switch (destst->id) {
     case stTypeId(bool):
         dest->st_bool = src.st_bool;
         return true;
@@ -111,7 +111,8 @@ stConvert_int(stype destst, _stCopyDest_Anno_(destst) stgeneric* dest, stype src
 {
     bool norange     = flags & ST_Overflow;
     bool lossless    = flags & ST_Lossless;
-    bool srcunsigned = (STYPE_CLASS(srcst) == STCLASS_UINT);
+    bool srcunsigned = (STYPE_SUBTYPE(srcst->id) == STST_UINT ||
+                        STYPE_SUBTYPE(srcst->id) == STST_PTR);
 
     // to keep this simpler and avoid needing N*M combinations, internally convert to a 64-bit
     // integer first
@@ -120,7 +121,7 @@ stConvert_int(stype destst, _stCopyDest_Anno_(destst) stgeneric* dest, stype src
         uint64 u;
     } v;
 
-    switch (stGetId(srcst)) {
+    switch (srcst->id) {
         stConvertSIntInput(int8);
         stConvertSIntInput(int16);
         stConvertSIntInput(int32);
@@ -136,10 +137,11 @@ stConvert_int(stype destst, _stCopyDest_Anno_(destst) stgeneric* dest, stype src
     }
 
     // if we're converting signed to unsigned, check for the obvious negative number
-    if (!norange && !srcunsigned && STYPE_CLASS(destst) == STCLASS_UINT && v.s < 0)
+    if (!norange && !srcunsigned && STYPE_CLASS(destst->id) == STCLASS_BASIC &&
+        STYPE_SUBTYPE(destst->id) == STST_UINT && v.s < 0)
         return false;
 
-    switch (stGetId(destst)) {
+    switch (destst->id) {
         stConvertSIntOutput(int8, MIN_INT8, MAX_INT8);
         stConvertSIntOutput(int16, MIN_INT16, MAX_INT16);
         stConvertSIntOutput(int32, MIN_INT32, MAX_INT32);
@@ -191,19 +193,19 @@ stConvert_float32(stype destst, _stCopyDest_Anno_(destst) stgeneric* dest, stype
     bool norange = flags & ST_Overflow;
     float32 val  = src.st_float32;
 
-    if (STYPE_CLASS(destst) == STCLASS_INT) {
+    if (STYPE_CLASS(destst->id) == STCLASS_BASIC && STYPE_SUBTYPE(destst->id) == STST_INT) {
         // int64 checks happen here; if it fits into an int64 we let the int conversion code handle
         // smaller sizes
         if (!norange && (val < (float64)MIN_INT64 || val > (float64)MAX_INT64))
             return false;
         return stConvert_int(destst, dest, stType(int64), stgeneric(int64, (int64)val), flags);
-    } else if (STYPE_CLASS(destst) == STCLASS_UINT) {
+    } else if (STYPE_CLASS(destst->id) == STCLASS_BASIC && STYPE_SUBTYPE(destst->id) == STST_UINT) {
         if (!norange && (val < 0 || val > (float64)MAX_UINT64))
             return false;
         return stConvert_int(destst, dest, stType(uint64), stgeneric(uint64, (uint64)val), flags);
     }
 
-    switch (stGetId(destst)) {
+    switch (destst->id) {
     case stTypeId(bool):
         dest->st_bool = (val != 0);
         return true;
@@ -233,19 +235,19 @@ stConvert_float64(stype destst, _stCopyDest_Anno_(destst) stgeneric* dest, stype
     bool lossless = flags & ST_Lossless;
     float64 val   = src.st_float64;
 
-    if (STYPE_CLASS(destst) == STCLASS_INT) {
+    if (STYPE_CLASS(destst->id) == STCLASS_BASIC && STYPE_SUBTYPE(destst->id) == STST_INT) {
         // int64 checks happen here; if it fits into an int64 we let the int conversion code handle
         // smaller sizes
         if (!norange && (val < (float64)MIN_INT64 || val > (float64)MAX_INT64))
             return false;
         return stConvert_int(destst, dest, stType(int64), stgeneric(int64, (int64)val), flags);
-    } else if (STYPE_CLASS(destst) == STCLASS_UINT) {
+    } else if (STYPE_CLASS(destst->id) == STCLASS_BASIC && STYPE_SUBTYPE(destst->id) == STST_UINT) {
         if (!norange && (val < 0 || val > (float64)MAX_UINT64))
             return false;
         return stConvert_int(destst, dest, stType(uint64), stgeneric(uint64, (uint64)val), flags);
     }
 
-    switch (stGetId(destst)) {
+    switch (destst->id) {
     case stTypeId(bool):
         dest->st_bool = (val != 0);
         return true;
@@ -276,7 +278,7 @@ stConvert_ptr(stype destst, _stCopyDest_Anno_(destst) stgeneric* dest, stype src
               _In_ stgeneric src, uint32 flags)
 {
     // special handling for string
-    if (stGetId(destst) == stTypeId(string)) {
+    if (destst == stType(string)) {
         dest->st_string = 0;
         string temp     = 0;
 #ifdef _32BIT
@@ -295,269 +297,3 @@ stConvert_ptr(stype destst, _stCopyDest_Anno_(destst) stgeneric* dest, stype src
     // otherwise treat it like an unsigned integer
     return stConvert_int(destst, dest, srcst, src, flags);
 }
-
-alignMem(64) stConvertFunc _stDefaultConvert[256] = {
-    // STCLASS_OPAQUE
-    stConvert_none,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    stConvert_int,
-    stConvert_int,
-    0,
-    stConvert_int,
-    0,
-    0,
-    0,
-    stConvert_int,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    // STCLASS_UINT
-    0,
-    stConvert_int,
-    stConvert_int,
-    stConvert_bool,
-    stConvert_int,
-    0,
-    0,
-    0,
-    stConvert_int,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    // STCLASS_FLOAT
-    0,
-    0,
-    0,
-    0,
-    stConvert_float32,
-    0,
-    0,
-    0,
-    stConvert_float64,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    // STCLASS_PTR
-    0,
-    0,
-    0,
-    0,
-    sizeof(void*) == sizeof(int32) ? stConvert_ptr : 0,
-    0,
-    0,
-    0,
-    sizeof(void*) == sizeof(int64) ? stConvert_ptr : 0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    // 0x50 - 0xdf
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    // STCLASS_CX
-    stConvert_string,
-    stConvert_obj,
-    0,
-    stConvert_suid,
-    stConvert_stvar,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    // STCLASS_CX_CONTAINER
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-};

@@ -12,7 +12,7 @@
 
 _objfactory_guaranteed TestCls1* TestCls1_create()
 {
-    TestCls1 *ret;
+    TestCls1* ret;
     ret = objInstCreate(TestCls1);
     objInstInit(ret);
     return ret;
@@ -25,7 +25,7 @@ int TestCls1_testfunc(_In_ TestCls1* self)
 
 _objfactory_guaranteed TestCls2* TestCls2_create()
 {
-    TestCls2 *ret;
+    TestCls2* ret;
     ret = objInstCreate(TestCls2);
     objInstInit(ret);
     return ret;
@@ -33,7 +33,7 @@ _objfactory_guaranteed TestCls2* TestCls2_create()
 
 _objfactory_guaranteed TestCls3* TestCls3_create()
 {
-    TestCls3 *ret;
+    TestCls3* ret;
     ret = objInstCreate(TestCls3);
     objInstInit(ret);
     return ret;
@@ -46,7 +46,7 @@ int TestCls3_testfunc2(_In_ TestCls3* self)
 
 _objfactory_guaranteed TestCls4* TestCls4_create()
 {
-    TestCls4 *ret;
+    TestCls4* ret;
     ret = objInstCreate(TestCls4);
     objInstInit(ret);
     return ret;
@@ -74,7 +74,7 @@ int TestCls4b_testfunc3(_In_ TestCls4b* self)
 
 _objfactory_guaranteed TestCls5* TestCls5_create()
 {
-    TestCls5 *ret;
+    TestCls5* ret;
     ret = objInstCreate(TestCls5);
     objInstInit(ret);
     return ret;
@@ -90,7 +90,7 @@ intptr TestCls5_cmp(_In_ TestCls5* self, TestCls5* other, uint32 flags)
 
 _objfactory_guaranteed TestCls4b* TestCls4b_create()
 {
-    TestCls4b *ret;
+    TestCls4b* ret;
     ret = objInstCreate(TestCls4b);
     objInstInit(ret);
     return ret;

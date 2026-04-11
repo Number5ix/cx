@@ -18,7 +18,7 @@ static int test_ssd_tree()
 
     // basic test
     stvar outvar = { 0 };
-    if (ssdGet(tree, _S"test", &outvar) || outvar.type != 0)
+    if (ssdGet(tree, _S"test", &outvar) || !stEq(outvar.type, stType(none)))
         ret = 1;
 
     ssdSet(tree, _S"l1/l2/l3/test1", true, stvar(int32, 1920));

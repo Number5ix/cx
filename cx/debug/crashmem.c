@@ -15,14 +15,15 @@ static intptr crashMemCmp(stype st, stgeneric a, stgeneric b, uint32 flags)
     return 0;
 }
 
-static STypeOps crashMemOps = { .cmp = crashMemCmp };
+stDefine(CrashMemRange) { .id    = stTypeId(opaque),
+                          .size  = sizeof(CrashMemRange),
+                          .flags = stFlag(PassPtr),
+                          .name  = "CrashMemRange",
+                          .ops   = { .cmp = crashMemCmp } };
 
 static void crashMemInit(void* data)
 {
-    saInit(&_dbgCrashDumpMem,
-           custom(opaque(CrashMemRange), crashMemOps),
-           10,
-           SA_Sorted | SA_Grow(Slow));
+    saInit(&_dbgCrashDumpMem, CrashMemRange, 10, SA_Sorted | SA_Grow(Slow));
 }
 
 void dbgCrashIncludeMemory(void* ptr, size_t sz)
