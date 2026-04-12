@@ -9,6 +9,10 @@ enum StructMemberFlagsEnum {
     STRUCT_NoCopy      = 1 << 1,   ///< Member should be skipped during copy operations
     STRUCT_NoSerialize = 1 << 2,   ///< Member should not be serialized (e.g. by JSON, etc.)
 
+    /// For structptr members, indicates that the stype extension points at a StructSet, and type
+    /// information is encoded in the serialized form.
+    STRUCT_Dynamic = 1 << 3,
+
     /// Member should be ignored for all operations
     /// Ignored members may also be omitted from the list entirely, e.g. for types outside the stype
     /// system.
@@ -17,39 +21,12 @@ enum StructMemberFlagsEnum {
 
 typedef struct StructSet StructSet;
 
-typedef struct StructTypeInfo {
-    stype type;   // Base type
-
-    // Type-specific metadata
-    // Internal notes:
-    // sarray - points to StructSArrayMetadata
-    // hashtable - points to StructHashtableMetadata
-    // struct - points to StructInfo
-    // structptr - points to StructInfo or StructSet
-    void* data;
-
-    // if true, data points to a StructSet rather than a StructInfo, and type information is encoded
-    // in the serialized form
-    bool dynamic;
-} StructTypeInfo;
-
-typedef struct StructSArrayMetadata {
-    StructTypeInfo elemt;   // Element type
-    uint32 flags;           // Creation flags
-} StructSArrayMetadata;
-
-typedef struct StructHashtableMetadata {
-    StructTypeInfo keyt;     // Key type (must be string for JSON serialization)
-    StructTypeInfo valuet;   // Value type
-    uint32 flags;            // Creation flags
-} StructHashtableMetadata;
-
 typedef struct StructMemberDesc {
     strref name;            // Name of the member
     size_t offset;          // Offset within the struct
+    stype type;             // Type of the member
     uint32 flags;           // Member flags (StructMemberFlagsEnum)
-    stgeneric def;          // Default value for the member (if any)
-    StructTypeInfo tinfo;   // Type information for the member
+    uint32 cflags;          // Creation flags (e.g. for arrays, hashtables, etc.)
 } StructMemberDesc;
 
 typedef struct StructInfo {
