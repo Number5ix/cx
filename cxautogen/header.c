@@ -310,6 +310,43 @@ void writeForwardWeakRefDecl(StreamBuffer* bf, string name)
     strDestroy(&ln);
 }
 
+void writeSTypeDecl(StreamBuffer* bf, string name)
+{
+    string ln = 0;
+    // The named type for this class is an alias to the object type
+    strNConcat(&ln, _S"#define _sti_", name, _S" _sti_object");
+    sbufPWriteLine(bf, ln);
+    strNConcat(&ln, _S"#define SType_", name, _S" ", name, _S"*");
+    sbufPWriteLine(bf, ln);
+    strNConcat(&ln, _S"#define STStorageType_", name, _S" ", name, _S"*");
+    sbufPWriteLine(bf, ln);
+    strNConcat(&ln,
+               _S"#define STypeArg_",
+               name,
+               _S"(type, val) stgeneric(object, (ObjInst*)objInstCheckClass(",
+               name,
+               _S", val))");
+    sbufPWriteLine(bf, ln);
+    strNConcat(&ln,
+               _S"#define STypeArgPtr_",
+               name,
+               _S"(type, val) (stgeneric*)objInstCheckClassPtr(",
+               name,
+               _S", val)");
+    sbufPWriteLine(bf, ln);
+    strNConcat(&ln,
+               _S"#define STypeCheckedArg_",
+               name,
+               _S"(type, val)    stType(type), stArg(type, val)");
+    sbufPWriteLine(bf, ln);
+    strNConcat(&ln,
+               _S"#define STypeCheckedPtrArg_",
+               name,
+               _S"(type, val) stType(type), stArgPtr(type, val)");
+    sbufPWriteLine(bf, ln);
+    strDestroy(&ln);
+}
+
 void writeSArrayDecl(StreamBuffer* bf, string name)
 {
     string ln = 0;
@@ -438,14 +475,7 @@ void writeClassDecl(StreamBuffer* bf, Class* cls)
         strNConcat(&ln, _S"extern ObjClassInfo ", cls->name, _S"_clsinfo;");
         sbufPWriteLine(bf, ln);
     }
-    strNConcat(&ln,
-               _S"#define ",
-               cls->name,
-               _S"(inst) ((",
-               cls->name,
-               _S"*)(unused_noeval((inst) && &((inst)->_is_",
-               cls->name,
-               _S")), (inst)))");
+    strNConcat(&ln, _S"#define ", cls->name, _S"(inst) objInstCheckClass(", cls->name, _S", inst)");
     sbufPWriteLine(bf, ln);
     strNConcat(&ln, _S"#define ", cls->name, _S"None ((", cls->name, _S"*)NULL)");
     sbufPWriteLine(bf, ln);
@@ -470,11 +500,9 @@ void writeClassDecl(StreamBuffer* bf, Class* cls)
     strNConcat(&ln,
                _S"#define ",
                cls->name,
-               _S"_WeakRef(inst) ((",
+               _S"_WeakRef(inst) objWeakRefCheckClass(",
                cls->name,
-               _S"_WeakRef*)(unused_noeval((inst) && &((inst)->_is_",
-               cls->name,
-               _S"_WeakRef)), (inst)))");
+               _S", inst)");
     sbufPWriteLine(bf, ln);
     sbufPWriteEOL(bf);
 
@@ -625,6 +653,7 @@ bool writeHeader(string fname, string srcpath, string binpath)
         if (!classes.a[i]->included) {
             writeSArrayDecl(bf, classes.a[i]->name);
             writeSArrayWeakRefDecl(bf, classes.a[i]->name);
+            writeSTypeDecl(bf, classes.a[i]->name);
         }
     }
     for (int i = 0; i < saSize(structs); i++) {

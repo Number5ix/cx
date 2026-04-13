@@ -214,10 +214,11 @@ static int test_obj_array()
     cls5->data = 42;
 
     sa_TestCls5 arr;
-    saInit(&arr, object, 10);
+    // test using strong type alias
+    saInit(&arr, TestCls5, 10);
 
     for (int i = 0; i < 50; i++) {
-        saPush(&arr, object, cls5);
+        saPush(&arr, TestCls5, cls5);
     }
 
     if (atomicLoad(uintptr, &cls5->_ref, Acquire) != 51)
