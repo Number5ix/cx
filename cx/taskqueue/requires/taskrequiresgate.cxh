@@ -28,7 +28,7 @@
 /// One-time event gate for task synchronization.
 class TRGate {
     string name;          ///< Gate name for logging and debugging
-    atomic:uint32 state;  ///< Current gate state (closed/open/sealed)
+    atomic[uint32] state;  ///< Current gate state (closed/open/sealed)
 
     /// Open the gate, releasing all waiting tasks.
     /// Future tasks depending on this gate will not wait.
@@ -50,7 +50,7 @@ class TRGate {
     bool registerTask(ComplexTask *task);
 
     Mutex _wlmtx;
-    sarray:object:ComplexTask _waitlist;
+    sarray[object[ComplexTask]] _waitlist;
     int64 lastprogress;  ///< Last time progress() was called
 
     /// Create a new gate.
@@ -61,7 +61,7 @@ class TRGate {
 
 /// Requirement that waits for a gate to open.
 class TaskRequiresGate extends TaskRequires {
-    object:TRGate gate;  ///< Gate to wait for
+    object[TRGate] gate;  ///< Gate to wait for
 
     /// Create a gate requirement.
     /// @param gate Gate that must be opened before task can run

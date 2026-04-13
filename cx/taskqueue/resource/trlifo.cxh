@@ -33,7 +33,7 @@
 class TRLifo extends TaskResource {
     Mutex _lifomtx;
     ComplexTask *cur;                      ///< Currently running task
-    sarray:object:ComplexTask _lifo;       ///< Stack of waiting tasks
+    sarray[object[ComplexTask]] _lifo;       ///< Stack of waiting tasks
 
     /// Create a new LIFO-ordered resource.
     /// @return New TRLifo instance

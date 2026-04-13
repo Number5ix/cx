@@ -4,7 +4,7 @@
 class TQThreadPoolRunner;
 
 abstract class TQThreadPoolManager extends TQManager {
-	object:TQThreadPoolRunner runner;
+	object[TQThreadPoolRunner] runner;
 	uint32 lastcount;
 	int64 lastop;
 	int64 idlestart;

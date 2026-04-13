@@ -6,7 +6,7 @@ class TaskQueue;
 #define MAX_MANAGER_INTERVAL (timeS(10))
 
 abstract class TQManager {
-	object:TaskQueue tq;
+	object[TaskQueue] tq;
 	bool needsWorkerTick;		// true if this manager needs to be ticked by the worker
 
 	bool start([in] TaskQueue *tq);

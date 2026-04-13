@@ -11,10 +11,10 @@
     int exitCode;                       // only valid once 'running' become false
 
     stvlist args;
-    [noinit] sarray:stvar _argsa;       // should use the stvlist instead where possible
+    [noinit] sarray[stvar] _argsa;       // should use the stvlist instead where possible
 
-    atomic:bool running;
-    atomic:bool requestExit;
+    atomic[bool] running;
+    atomic[bool] requestExit;
     [noinit] Event notify;
 
     init();

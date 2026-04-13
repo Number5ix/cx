@@ -3,7 +3,7 @@
 class TaskQueue;
 
 abstract class TQMonitor {
-	object:TaskQueue tq;
+	object[TaskQueue] tq;
 	TaskQueueMonitorConfig conf;
 	
 	[abstract] bool start([in] TaskQueue *tq);

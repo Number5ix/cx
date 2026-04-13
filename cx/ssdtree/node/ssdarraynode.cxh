@@ -2,7 +2,7 @@
 
 class SSDArrayNode extends SSDNode
 {
-    sarray:stvar storage;
+    sarray[stvar] storage;
 
     bool append(stvar val, SSDLockState *_ssdCurrentLockState);
 

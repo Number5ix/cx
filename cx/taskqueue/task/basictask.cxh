@@ -31,7 +31,7 @@ enum BasicTaskRunResultEnum {
 
 /// Bare minimum task object with state tracking and run method.
 [methodprefix btask] abstract class BasicTask {
-    atomic:uint32 state;                ///< Current task state and flags
+    atomic[uint32] state;                ///< Current task state and flags
     /// Abstract method that derived classes must implement to define task behavior.
     ///
     /// This method is called by the task queue system when the task is ready to execute.

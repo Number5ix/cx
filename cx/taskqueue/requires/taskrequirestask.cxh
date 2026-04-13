@@ -16,7 +16,7 @@
 
 /// Dependency on another task completing.
 class TaskRequiresTask extends TaskRequires {
-    object:Task task;  ///< Task that must complete
+    object[Task] task;  ///< Task that must complete
     bool failok;       ///< If true, allow dependent task to run even if this task fails
 
     /// Create a task dependency requirement.

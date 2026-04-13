@@ -432,8 +432,8 @@ static void writeAutoInit(StreamBuffer* bf, Class* cls)
             saDestroy(&flagarr);
         } else if (m->initstr) {
             strNConcat(&ln, _S"    self->", m->name, _S" = ", m->initstr, _S";");
-        } else if (saSize(m->fulltype) > 1) {
-            if (strEq(m->fulltype.a[0], _S"sarray")) {
+        } else if (m->typenode && saSize(m->typenode->params) > 0) {
+            if (strEq(m->typenode->name, _S"sarray")) {
                 saInit(&flagarr, string, 1);
                 string size = _S"1";
                 sa_string an;
@@ -460,14 +460,14 @@ static void writeAutoInit(StreamBuffer* bf, Class* cls)
                            _S"    saInit(&self->",
                            m->name,
                            _S", ",
-                           m->fulltype.a[1],
+                           m->typenode->params.a[0]->name,
                            _S", ",
                            size,
                            flags,
                            _S");");
                 saDestroy(&flagarr);
             }
-            if (strEq(m->fulltype.a[0], _S"hashtable") && saSize(m->fulltype) == 3) {
+            if (strEq(m->typenode->name, _S"hashtable") && saSize(m->typenode->params) == 2) {
                 saInit(&flagarr, string, 1);
                 string size = _S"16";
                 sa_string an;
@@ -496,9 +496,9 @@ static void writeAutoInit(StreamBuffer* bf, Class* cls)
                            _S"    htInit(&self->",
                            m->name,
                            _S", ",
-                           m->fulltype.a[1],
+                           m->typenode->params.a[0]->name,
                            _S", ",
-                           m->fulltype.a[2],
+                           m->typenode->params.a[1]->name,
                            _S", ",
                            size,
                            flags,
@@ -550,14 +550,14 @@ static void writeAutoDtors(StreamBuffer* bf, Class* cls)
                 }
             }
             continue;
-        } else if (saSize(m->fulltype) > 1) {
-            if (strEq(m->fulltype.a[0], _S"sarray"))
+        } else if (m->typenode && saSize(m->typenode->params) > 0) {
+            if (strEq(m->typenode->name, _S"sarray"))
                 strNConcat(&mdtor, _S"    saDestroy(&self->", m->name, _S");");
-            else if (strEq(m->fulltype.a[0], _S"hashtable"))
+            else if (strEq(m->typenode->name, _S"hashtable"))
                 strNConcat(&mdtor, _S"    htDestroy(&self->", m->name, _S");");
-            else if (strEq(m->fulltype.a[0], _S"object"))
+            else if (strEq(m->typenode->name, _S"object"))
                 strNConcat(&mdtor, _S"    objRelease(&self->", m->name, _S");");
-            else if (strEq(m->fulltype.a[0], _S"weak"))
+            else if (strEq(m->typenode->name, _S"weak"))
                 strNConcat(&mdtor, _S"    objDestroyWeak(&self->", m->name, _S");");
         } else if (strEq(m->vartype, _S"string")) {
             strNConcat(&mdtor, _S"    strDestroy(&self->", m->name, _S");");
@@ -752,13 +752,13 @@ static void getStructMemberType(string* out, Member* m)
         strEq(m->vartype, _S"string") || strEq(m->vartype, _S"stvar") || strEq(m->vartype, _S"hashtable"))
         strDup(out, m->vartype);
 
-    if (saSize(m->fulltype) > 0) {
-        if (strEq(m->fulltype.a[0], _S"sarray") || strEq(m->fulltype.a[0], _S"object") ||
-            strEq(m->fulltype.a[0], _S"structptr"))
-            strDup(out, m->fulltype.a[0]);
+    if (m->typenode) {
+        if (strEq(m->typenode->name, _S"sarray") || strEq(m->typenode->name, _S"object") ||
+            strEq(m->typenode->name, _S"structptr"))
+            strDup(out, m->typenode->name);
 
-        if (strEq(m->fulltype.a[0], _S"struct")) {
-            strNConcat(out, _S"struct(", m->fulltype.a[1], _S")");
+        if (strEq(m->typenode->name, _S"struct") && saSize(m->typenode->params) >= 1) {
+            strNConcat(out, _S"struct(", m->typenode->params.a[0]->name, _S")");
         }
     }
 }
@@ -776,7 +776,7 @@ static bool writeStructMemberDesc(StreamBuffer* bf, strref sname, Member* m)
             "WARNING: member '%s' of struct '%s' has unsupported type '%s', should be flagged ignore\n",
             strC(m->name),
             strC(sname),
-            strC(saSize(m->fulltype) > 0 ? m->fulltype.a[0] : m->vartype));
+            strC(m->typenode ? m->typenode->name : m->vartype));
         return false;
     }
 

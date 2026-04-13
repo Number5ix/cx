@@ -66,8 +66,8 @@ saDeclare(MPTPhaseFunc);
 
 /// Multiphase task with internal state machine for sequential execution phases.
 [methodprefix mptask] abstract class MultiphaseTask extends ComplexTask {
-    [noinit] sarray:MPTPhaseFunc phases;       ///< Normal execution phases
-    [noinit] sarray:MPTPhaseFunc failphases;   ///< Failure handling phases
+    [noinit] sarray[MPTPhaseFunc] phases;       ///< Normal execution phases
+    [noinit] sarray[MPTPhaseFunc] failphases;   ///< Failure handling phases
     uint32 _phase;                              ///< Current phase index
     bool _fail;                                 ///< True if currently executing fail phases
 

@@ -2,7 +2,7 @@
 #include <cx/fs/vfsobj.cxh>
 
 class VFSVFS implements VFSProvider {
-    object:VFS vfs;
+    object[VFS] vfs;
     string root;
 
     factory create(VFS *vfs, strref rootpath);

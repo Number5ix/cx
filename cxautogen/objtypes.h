@@ -11,6 +11,8 @@ typedef struct Method Method;
 typedef struct Method_WeakRef Method_WeakRef;
 typedef struct Interface Interface;
 typedef struct Interface_WeakRef Interface_WeakRef;
+typedef struct TypeNode TypeNode;
+typedef struct TypeNode_WeakRef TypeNode_WeakRef;
 typedef struct Member Member;
 typedef struct Member_WeakRef Member_WeakRef;
 typedef struct Class Class;
@@ -25,6 +27,8 @@ saDeclarePtr(Method);
 saDeclarePtr(Method_WeakRef);
 saDeclarePtr(Interface);
 saDeclarePtr(Interface_WeakRef);
+saDeclarePtr(TypeNode);
+saDeclarePtr(TypeNode_WeakRef);
 saDeclarePtr(Member);
 saDeclarePtr(Member_WeakRef);
 saDeclarePtr(Class);
@@ -211,6 +215,39 @@ _objfactory_guaranteed Interface* Interface_create();
 // intptr interfaceCmp(Interface* self, Interface* other, uint32 flags);
 #define interfaceCmp(self, other, flags) (self)->_->cmp(Interface(self), other, flags)
 
+typedef struct TypeNode {
+    union {
+        ObjIface* _;
+        void* _is_TypeNode;
+        void* _is_ObjInst;
+    };
+    ObjClassInfo* _clsinfo;
+    atomic(uintptr) _ref;
+    atomic(ptr) _weakref;
+
+    string name;
+    sa_TypeNode params;
+} TypeNode;
+extern ObjClassInfo TypeNode_clsinfo;
+#define TypeNode(inst) ((TypeNode*)(unused_noeval((inst) && &((inst)->_is_TypeNode)), (inst)))
+#define TypeNodeNone ((TypeNode*)NULL)
+
+typedef struct TypeNode_WeakRef {
+    union {
+        ObjInst* _inst;
+        void* _is_TypeNode_WeakRef;
+        void* _is_ObjInst_WeakRef;
+    };
+    atomic(uintptr) _ref;
+    RWLock _lock;
+} TypeNode_WeakRef;
+#define TypeNode_WeakRef(inst) ((TypeNode_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TypeNode_WeakRef)), (inst)))
+
+_objfactory_guaranteed TypeNode* TypeNode_create();
+// TypeNode* typenodeCreate();
+#define typenodeCreate() TypeNode_create()
+
+
 typedef struct Member {
     union {
         Member_ClassIf* _;
@@ -221,7 +258,7 @@ typedef struct Member {
     atomic(uintptr) _ref;
     atomic(ptr) _weakref;
 
-    sa_string fulltype;
+    TypeNode* typenode;
     string vartype;
     string predecr;
     string name;

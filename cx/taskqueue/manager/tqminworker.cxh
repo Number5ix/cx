@@ -3,7 +3,7 @@
 
 class TQInWorkerManager extends TQThreadPoolManager {
 	Mutex mgrlock;       // one worker can run the manager at a time
-	atomic:bool needrun; // manager needs to be run ASAP 
+	atomic[bool] needrun; // manager needs to be run ASAP 
 
     override notify;
 	override tick;

@@ -8,7 +8,7 @@ class TQThreadWorker;
 class TQThreadPoolRunner extends TQRunner {
 	TaskQueueThreadPoolConfig conf;
 	RWLock workerlock;
-	sarray:object:TQThreadWorker workers;
+	sarray[object[TQThreadWorker]] workers;
 	Event workershutdown;
 
 	bool addWorker();

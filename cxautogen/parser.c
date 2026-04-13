@@ -726,6 +726,137 @@ bool parseClassPre(ParseState* ps, string* tok)
     return false;
 }
 
+// Parses a type expression from tokstack starting at *idx.
+// Advances *idx past all consumed tokens.
+// Returns a new TypeNode (caller owns the reference).
+static TypeNode* parseMemberType(sa_string* tokstack, int* idx)
+{
+    if (*idx >= saSize(*tokstack))
+        return NULL;
+
+    TypeNode* node = typenodeCreate();
+    strDup(&node->name, tokstack->a[*idx]);
+    (*idx)++;
+
+    // Check for bracket-delimited params: name[p1,p2,...]
+    if (*idx < saSize(*tokstack) && strEq(tokstack->a[*idx], _S"[")) {
+        (*idx)++;   // consume '['
+        while (*idx < saSize(*tokstack) && !strEq(tokstack->a[*idx], _S"]")) {
+            if (strEq(tokstack->a[*idx], _S",")) {
+                (*idx)++;   // skip comma separator
+                continue;
+            }
+            TypeNode* param = parseMemberType(tokstack, idx);
+            if (param)
+                saPushC(&node->params, object, &param);
+        }
+        if (*idx < saSize(*tokstack))
+            (*idx)++;   // consume ']'
+    }
+
+    return node;
+}
+
+// Flattens a TypeNode parameter tree into a string list for sarray vartype computation.
+// Skips object/weak/struct modifier names but recurses into their children.
+static void buildArtl(sa_string* artl, TypeNode* node)
+{
+    for (int i = 0; i < saSize(node->params); i++) {
+        TypeNode* p = node->params.a[i];
+        if (!strEq(p->name, _S"object") && !strEq(p->name, _S"weak") &&
+            !strEq(p->name, _S"struct")) {
+            saPush(artl, string, p->name);
+            buildArtl(artl, p);
+        } else {
+            buildArtl(artl, p);
+        }
+    }
+}
+
+// Common type-processing block used by both class and struct member parsing.
+// Parses the type expression from ps->tokstack starting at idx=0, sets nmem->vartype
+// and nmem->typenode, and returns the index of the first non-type token.
+static int parseMemberTypeToMember(ParseState* ps, Member* nmem)
+{
+    int typeIdx = 0;
+    TypeNode* typenode = parseMemberType(&ps->tokstack, &typeIdx);
+    if (typenode && saSize(typenode->params) > 0) {
+        if (strEq(typenode->name, _S"hashtable")) {
+            strDup(&nmem->vartype, typenode->name);
+        } else if (strEq(typenode->name, _S"sarray")) {
+            if (saSize(typenode->params) >= 1 &&
+                strEq(typenode->params.a[0]->name, _S"structptr") &&
+                saSize(typenode->params.a[0]->params) >= 1) {
+                // hacky special case for array of structptrs, which need a special type
+                strNConcat(&nmem->vartype, _S"sa_",
+                           typenode->params.a[0]->params.a[0]->name, _S"_ptr");
+            } else {
+                sa_string artl;
+                saInit(&artl, string, 4);
+                buildArtl(&artl, typenode);
+
+                if (saSize(artl) == 1) {
+                    strNConcat(&nmem->vartype, _S"sa_", artl.a[0]);
+                } else {
+                    // build up a complex array type
+                    string lasttname = 0;
+                    for (int i = saSize(artl) - 2; i >= 0; --i) {
+                        if (!strEq(artl.a[i], _S"sarray"))
+                            continue;
+
+                        ComplexArrayType* cat = complexarraytypeCreate();
+                        sa_string artypessub1;
+                        sa_string artypessub2;
+                        saInit(&artypessub1, string, 4);
+                        saInit(&artypessub2, string, 4);
+                        for (int j = i; j < saSize(artl); j++) {
+                            saPush(&artypessub1, string, artl.a[j]);
+                            if (j > i) {
+                                saPush(&artypessub2, string, artl.a[j]);
+                            }
+                            if (!strEq(artl.a[j], _S"sarray"))
+                                break;
+                        }
+
+                        strJoin(&cat->tname, artypessub1, _S"_");
+                        strJoin(&cat->tsubtype, artypessub2, _S"_");
+
+                        if (!ps->included && !htHasKey(knownartypes, string, cat->tname))
+                            saPush(&artypes, object, cat);
+
+                        strDup(&lasttname, cat->tname);
+                        htInsert(&knownartypes, string, cat->tname, bool, true);
+
+                        objRelease(&cat);
+                        saDestroy(&artypessub1);
+                        saDestroy(&artypessub2);
+                    }
+
+                    strNConcat(&nmem->vartype, _S"sa_", lasttname);
+                    strDestroy(&lasttname);
+                }
+                saDestroy(&artl);
+            }
+        } else if (strEq(typenode->name, _S"atomic")) {
+            TypeNode* inner = typenode->params.a[saSize(typenode->params) - 1];
+            strNConcat(&nmem->vartype, _S"atomic(", inner->name, _S")");
+        } else if (strEq(typenode->name, _S"weak")) {
+            TypeNode* inner = typenode->params.a[saSize(typenode->params) - 1];
+            strNConcat(&nmem->vartype, _S"Weak(", inner->name, _S")");
+        } else {
+            TypeNode* inner = typenode->params.a[saSize(typenode->params) - 1];
+            strDup(&nmem->vartype, inner->name);
+        }
+        nmem->typenode = typenode;
+    } else {
+        if (typenode) {
+            strDup(&nmem->vartype, typenode->name);
+            objRelease(&typenode);
+        }
+    }
+    return typeIdx;
+}
+
 bool parseClass(ParseState* ps, string* tok)
 {
     if (strEq(*tok, _S"}")) {
@@ -764,84 +895,8 @@ bool parseClass(ParseState* ps, string* tok)
             ps->curlinedocs = &nmem->docs;
             saInit(&ps->docs, string, 4);
 
-            sa_string vartype;
-            saInit(&vartype, string, 8);
-            if (strSplit(&vartype, ps->tokstack.a[0], _S":", false) >= 2) {
-                // special case for a couple things
-                if (strEq(vartype.a[0], _S"hashtable")) {
-                    strDup(&nmem->vartype, vartype.a[0]);   // hashtable is the actual type
-                } else if (strEq(vartype.a[0], _S"sarray")) {
-                    if (saSize(vartype) == 3 && strEq(vartype.a[1], _S"structptr")) {
-                        // hacky special case for array of structptrs, which need a special type
-                        strNConcat(&nmem->vartype, _S"sa_", vartype.a[2], _S"_ptr");
-                    } else {
-                        sa_string artl;
-                        saInit(&artl, string, 4);
-                        for (int i = 1; i < saSize(vartype); i++) {
-                            // objects declare their array types as pointers already, and structs as
-                            // the type itself
-                            if (!strEq(vartype.a[i], _S"object") && !strEq(vartype.a[i], _S"weak") &&
-                                !strEq(vartype.a[i], _S"struct")) {
-                                saPush(&artl, strref, vartype.a[i]);
-                            }
-                        }
-
-                        if (saSize(artl) == 1) {
-                            strNConcat(&nmem->vartype, _S"sa_", artl.a[0]);
-                        } else {
-                            // build up a complex array type
-                            string lasttname = 0;
-                            for (int i = saSize(artl) - 2; i >= 0; --i) {
-                                if (!strEq(artl.a[i], _S"sarray"))
-                                    continue;
-
-                                ComplexArrayType* cat = complexarraytypeCreate();
-                                sa_string artypessub1;
-                                sa_string artypessub2;
-                                saInit(&artypessub1, string, 4);
-                                saInit(&artypessub2, string, 4);
-                                for (int j = i; j < saSize(artl); j++) {
-                                    saPush(&artypessub1, string, artl.a[j]);
-                                    if (j > i) {
-                                        saPush(&artypessub2, string, artl.a[j]);
-                                    }
-                                    if (!strEq(artl.a[j], _S"sarray"))
-                                        break;
-                                }
-
-                                strJoin(&cat->tname, artypessub1, _S"_");
-                                strJoin(&cat->tsubtype, artypessub2, _S"_");
-
-                                if (!ps->included && !htHasKey(knownartypes, string, cat->tname))
-                                    saPush(&artypes, object, cat);
-
-                                strDup(&lasttname, cat->tname);
-                                htInsert(&knownartypes, string, cat->tname, bool, true);
-
-                                objRelease(&cat);
-                                saDestroy(&artypessub1);
-                                saDestroy(&artypessub2);
-                            }
-
-                            strNConcat(&nmem->vartype, _S"sa_", lasttname);
-                        }
-                        saDestroy(&artl);
-                    }
-                } else if (strEq(vartype.a[0], _S"atomic")) {
-                    strNConcat(&nmem->vartype, _S, _S"atomic(", vartype.a[saSize(vartype) - 1], _S")");
-                } else if (strEq(vartype.a[0], _S"weak")) {
-                    strNConcat(&nmem->vartype, _S, _S"Weak(", vartype.a[saSize(vartype) - 1], _S")");
-                } else {
-                    strDup(&nmem->vartype, vartype.a[saSize(vartype) - 1]);
-                }
-
-                nmem->fulltype = vartype;
-                vartype.a      = NULL;
-            } else {
-                strDup(&nmem->vartype, ps->tokstack.a[0]);
-            }
-            saDestroy(&vartype);
-            for (int32 i = 1; i < saSize(ps->tokstack); i++) {
+            int typeIdx = parseMemberTypeToMember(ps, nmem);
+            for (int32 i = typeIdx; i < saSize(ps->tokstack); i++) {
                 if (!nmem->name && onlyspecial(ps->tokstack.a[i])) {
                     strAppend(&nmem->predecr, ps->tokstack.a[i]);
                 } else if (!nmem->name && isvalidname(ps->tokstack.a[i])) {
@@ -1056,85 +1111,8 @@ bool parseStruct(ParseState* ps, string* tok)
             ps->curlinedocs = &nmem->docs;
             saInit(&ps->docs, string, 4);
 
-            sa_string vartype;
-            saInit(&vartype, string, 8);
-            if (strSplit(&vartype, ps->tokstack.a[0], _S":", false) >= 2) {
-                // TODO: consolidate this with the class member parsing above, maybe make a helper
-                // function for parsing types? special case for a couple things
-                if (strEq(vartype.a[0], _S"hashtable")) {
-                    strDup(&nmem->vartype, vartype.a[0]);   // hashtable is the actual type
-                } else if (strEq(vartype.a[0], _S"sarray")) {
-                    if (saSize(vartype) == 3 && strEq(vartype.a[1], _S"structptr")) {
-                        // hacky special case for array of structptrs, which need a special type
-                        strNConcat(&nmem->vartype, _S"sa_", vartype.a[2], _S"_ptr");
-                    } else {
-                        sa_string artl;
-                        saInit(&artl, string, 4);
-                        for (int i = 1; i < saSize(vartype); i++) {
-                            // objects declare their array types as pointers already, and structs as
-                            // the type itself
-                            if (!strEq(vartype.a[i], _S"object") && !strEq(vartype.a[i], _S"weak") &&
-                                !strEq(vartype.a[i], _S"struct")) {
-                                saPush(&artl, strref, vartype.a[i]);
-                            }
-                        }
-
-                        if (saSize(artl) == 1) {
-                            strNConcat(&nmem->vartype, _S"sa_", artl.a[0]);
-                        } else {
-                            // build up a complex array type
-                            string lasttname = 0;
-                            for (int i = saSize(artl) - 2; i >= 0; --i) {
-                                if (!strEq(artl.a[i], _S"sarray"))
-                                    continue;
-
-                                ComplexArrayType* cat = complexarraytypeCreate();
-                                sa_string artypessub1;
-                                sa_string artypessub2;
-                                saInit(&artypessub1, string, 4);
-                                saInit(&artypessub2, string, 4);
-                                for (int j = i; j < saSize(artl); j++) {
-                                    saPush(&artypessub1, string, artl.a[j]);
-                                    if (j > i) {
-                                        saPush(&artypessub2, string, artl.a[j]);
-                                    }
-                                    if (!strEq(artl.a[j], _S"sarray"))
-                                        break;
-                                }
-
-                                strJoin(&cat->tname, artypessub1, _S"_");
-                                strJoin(&cat->tsubtype, artypessub2, _S"_");
-
-                                if (!ps->included && !htHasKey(knownartypes, string, cat->tname))
-                                    saPush(&artypes, object, cat);
-
-                                strDup(&lasttname, cat->tname);
-                                htInsert(&knownartypes, string, cat->tname, bool, true);
-
-                                objRelease(&cat);
-                                saDestroy(&artypessub1);
-                                saDestroy(&artypessub2);
-                            }
-
-                            strNConcat(&nmem->vartype, _S"sa_", lasttname);
-                        }
-                        saDestroy(&artl);
-                    }
-                } else if (strEq(vartype.a[0], _S"atomic")) {
-                    strNConcat(&nmem->vartype, _S, _S"atomic(", vartype.a[saSize(vartype) - 1], _S")");
-                } else if (strEq(vartype.a[0], _S"weak")) {
-                    strNConcat(&nmem->vartype, _S, _S"Weak(", vartype.a[saSize(vartype) - 1], _S")");
-                } else {
-                    strDup(&nmem->vartype, vartype.a[saSize(vartype) - 1]);
-                }
-
-                nmem->fulltype = vartype;
-                vartype.a      = NULL;
-            } else {
-                strDup(&nmem->vartype, ps->tokstack.a[0]);
-            }
-            saDestroy(&vartype);
-            for (int32 i = 1; i < saSize(ps->tokstack); i++) {
+            int typeIdx = parseMemberTypeToMember(ps, nmem);
+            for (int32 i = typeIdx; i < saSize(ps->tokstack); i++) {
                 if (!nmem->name && onlyspecial(ps->tokstack.a[i])) {
                     strAppend(&nmem->predecr, ps->tokstack.a[i]);
                 } else if (!nmem->name && isvalidname(ps->tokstack.a[i])) {

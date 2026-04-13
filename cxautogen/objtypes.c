@@ -88,7 +88,7 @@ intptr Member_cmp(_In_ Member* self, Member* other, uint32 flags)
 void Member_destroy(_In_ Member* self)
 {
     // Autogen begins -----
-    saDestroy(&self->fulltype);
+    objRelease(&self->typenode);
     strDestroy(&self->vartype);
     strDestroy(&self->predecr);
     strDestroy(&self->name);
@@ -256,6 +256,28 @@ void StructDef_destroy(_In_ StructDef* self)
     saDestroy(&self->members);
     saDestroy(&self->docs);
     saDestroy(&self->annotations);
+    // Autogen ends -------
+}
+
+_objfactory_guaranteed TypeNode* TypeNode_create()
+{
+    TypeNode* self;
+    self = objInstCreate(TypeNode);
+
+    // Insert any pre-initialization object construction here
+
+    objInstInit(self);
+
+    // Insert any post-initialization object construction here
+
+    return self;
+}
+
+void TypeNode_destroy(_In_ TypeNode* self)
+{
+    // Autogen begins -----
+    strDestroy(&self->name);
+    saDestroy(&self->params);
     // Autogen ends -------
 }
 

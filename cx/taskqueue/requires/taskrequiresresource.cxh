@@ -16,7 +16,7 @@
 /// Requirement for exclusive access to a shared resource.
 class TaskRequiresResource extends TaskRequires {
     bool owned;             ///< True if resource has been acquired by this requirement
-    object:TaskResource res; ///< Resource to acquire
+    object[TaskResource] res; ///< Resource to acquire
 
     /// Create a resource requirement.
     /// @param res Resource to acquire exclusively before task runs

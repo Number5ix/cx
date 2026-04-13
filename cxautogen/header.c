@@ -358,13 +358,11 @@ static void writeMember(StreamBuffer* bf, Member* m)
     if (hascomments && saSize(m->comments) > 1)
         writeComments(bf, m->comments, 4, false);
 
-    if (!strEq(m->vartype, _S"hashtable") && saSize(m->fulltype) > 0 &&
-        !strEq(m->fulltype.a[0], _S"sarray")) {
-        for (int i = 0; i < saSize(m->fulltype); i++) {
-            if (strEq(m->fulltype.a[i], _S"object") || strEq(m->fulltype.a[i], _S"weak") ||
-                strEq(m->fulltype.a[i], _S"structptr")) {
-                strPrepend(_S"*", &predecr);
-            }
+    if (m->typenode && !strEq(m->typenode->name, _S"hashtable") &&
+        !strEq(m->typenode->name, _S"sarray")) {
+        if (strEq(m->typenode->name, _S"object") || strEq(m->typenode->name, _S"weak") ||
+            strEq(m->typenode->name, _S"structptr")) {
+            strPrepend(_S"*", &predecr);
         }
     }
 

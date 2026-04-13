@@ -71,11 +71,11 @@ class ComplexTaskQueue;
 [methodprefix ctask] abstract class ComplexTask extends Task implements Sortable implements Hashable {
     int64 nextrun;              ///< Next scheduled run time
     int64 lastprogress;         ///< Timestamp of last progress change
-    weak:ComplexTaskQueue lastq;   ///< Last queue this task ran on before being deferred
-    [noinit] sarray:object:TaskRequires _requires; ///< List of requirements (dependencies, resources, gates)
+    weak[ComplexTaskQueue] lastq;   ///< Last queue this task ran on before being deferred
+    [noinit] sarray[object[TaskRequires]] _requires; ///< List of requirements (dependencies, resources, gates)
     uint16 flags;               ///< Task behavior flags (ComplexTaskFlagsEnum)
     uint16 _intflags;           ///< Internal flags reserved for scheduler use
-    atomic:uint32 _advcount;    ///< Number of times task has been advanced
+    atomic[uint32] _advcount;    ///< Number of times task has been advanced
 
     /// Add a task dependency.
     /// @param dep Task to depend on

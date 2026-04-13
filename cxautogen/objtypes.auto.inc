@@ -85,6 +85,16 @@ ObjClassInfo Interface_clsinfo = {
     .ifimpl = _ifimpl_Interface,
 };
 
+static ObjIface* _ifimpl_TypeNode[] = {
+    NULL
+};
+
+ObjClassInfo TypeNode_clsinfo = {
+    .instsize = sizeof(TypeNode),
+    .destroy = (void(*)(void*))TypeNode_destroy,
+    .ifimpl = _ifimpl_TypeNode,
+};
+
 static Sortable _impl_Member_Sortable = {
     ._size = sizeof(Sortable),
     ._implements = (ObjIface*)&Sortable_tmpl,

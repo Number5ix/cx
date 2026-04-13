@@ -110,10 +110,11 @@ static void checkMemberInitDestroy(Class* cls)
         Member* m = cls->members.a[i];
 
         if (strEmpty(m->postdecr)) {
-            if (saSize(m->fulltype) > 1 && !strEq(m->fulltype.a[0], _S"atomic")) {
+            if (m->typenode && saSize(m->typenode->params) > 0 &&
+                !strEq(m->typenode->name, _S"atomic")) {
                 // these have enough info to auto init without help
-                if (strEmpty(m->predecr) && !strEq(m->fulltype.a[0], _S"object") &&
-                    !strEq(m->fulltype.a[0], _S"weak"))
+                if (strEmpty(m->predecr) && !strEq(m->typenode->name, _S"object") &&
+                    !strEq(m->typenode->name, _S"weak"))
                     m->init = true;
                 m->destroy = true;
             }

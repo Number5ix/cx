@@ -1,7 +1,7 @@
 #include "tqmthreadpool.cxh"
 
 class TQDedicatedManager extends TQThreadPoolManager {
-	object:Thread mgrthread;
+	object[Thread] mgrthread;
 	Event mgrnotify;
 
 	override notify;

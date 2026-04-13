@@ -21,7 +21,7 @@ interface SSDIteratorIf extends IteratorIf
 
 abstract class SSDIterator implements SSDIteratorIf
 {
-    object:SSDNode node;
+    object[SSDNode] node;
 
     SSDLockState *lstate;
     SSDLockState transient_lock_state;
@@ -68,7 +68,7 @@ interface SSDNodeIf
 
 abstract class SSDNode implements SSDNodeIf implements Iterable
 {
-    object:SSDTree tree;
+    object[SSDTree] tree;
 
     // The timestamp this node was last modified
     int64 modified;

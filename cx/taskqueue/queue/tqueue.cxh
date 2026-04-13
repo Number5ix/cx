@@ -20,11 +20,11 @@ typedef enum TaskQueueStateEnum {
 
 class TaskQueue {
     string name;
-    atomic:uint32 state;
+    atomic[uint32] state;
 
-    object:TQRunner runner;
-    object:TQManager manager;
-    object:TQMonitor monitor;
+    object[TQRunner] runner;
+    object[TQManager] manager;
+    object[TQMonitor] monitor;
 
     [noinit] Event workev;  // signaled when there is work to be done
 

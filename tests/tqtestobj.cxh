@@ -54,7 +54,7 @@ class TQTestS1 extends TQTestSched
 
 class TQTestS2 extends TQTestSched
 {
-    object:Task waitfor;
+    object[Task] waitfor;
     factory create(Task *waitfor, Event *notify);
 }
 

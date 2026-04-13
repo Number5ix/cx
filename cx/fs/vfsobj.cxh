@@ -64,7 +64,7 @@ class VFS {
 }
 
 class VFSMount {
-    object:ObjInst provider;
+    object[ObjInst] provider;
     uint32 flags;
 
     factory create(ObjInst *provider, uint32 flags);

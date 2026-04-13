@@ -38,7 +38,7 @@ class TRMutex extends TaskResource {
     void wakeup();
 
     Mutex _wlmtx;
-    hashtable:object:none _waitlist;  ///< Tasks waiting for this resource
+    hashtable[object,none] _waitlist;  ///< Tasks waiting for this resource
 
     /// Create a new mutex-based resource.
     /// @return New TRMutex instance

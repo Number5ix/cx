@@ -7,7 +7,7 @@ class Param {
     string name;
     string postdecr;
 
-    [noinit] sarray:sarray:string annotations;
+    [noinit] sarray[sarray[string]] annotations;
 
     factory create();
 }
@@ -20,11 +20,11 @@ class Method implements Sortable {
     string returntype;
     string predecr;
     string name;
-    sarray:object:Param params;
+    sarray[object[Param]] params;
 
-    [noinit] sarray:string comments;
-    [noinit] sarray:string docs;
-    [noinit] sarray:sarray:string annotations;
+    [noinit] sarray[string] comments;
+    [noinit] sarray[string] docs;
+    [noinit] sarray[sarray[string]] annotations;
 
     bool isinit;
     bool isdestroy;
@@ -42,24 +42,31 @@ class Method implements Sortable {
 class Interface implements Sortable {
     string name;
     Interface *parent;
-    sarray:object:Method methods;
+    sarray[object[Method]] methods;
     bool included;
     bool processed;
     bool classif;
-    sarray:object:Method allmethods;
+    sarray[object[Method]] allmethods;
+
+    factory create();
+}
+
+class TypeNode {
+    string name;
+    [noinit] sarray[object[TypeNode]] params;
 
     factory create();
 }
 
 class Member implements Sortable {
-    [noinit] sarray:string fulltype;
+    object[TypeNode] typenode;
     string vartype;
     string predecr;
     string name;
     string postdecr;
-    [noinit] sarray:string comments;
-    [noinit] sarray:string docs;
-    [noinit] sarray:sarray:string annotations;
+    [noinit] sarray[string] comments;
+    [noinit] sarray[string] docs;
+    [noinit] sarray[sarray[string]] annotations;
 
     Class *mixinsrc;
     string initstr;
@@ -73,14 +80,14 @@ class Member implements Sortable {
 class Class implements Sortable {
     string name;
     Class *parent;
-    object:Interface classif;
-    sarray:object:Interface implements;
-    sarray:object:Class uses;
-    sarray:object:Member members;
-    sarray:object:Method methods;
-    sarray:string overrides;
-    [noinit] sarray:string docs;
-    [noinit] sarray:sarray:string annotations;
+    object[Interface] classif;
+    sarray[object[Interface]] implements;
+    sarray[object[Class]] uses;
+    sarray[object[Member]] members;
+    sarray[object[Method]] methods;
+    sarray[string] overrides;
+    [noinit] sarray[string] docs;
+    [noinit] sarray[sarray[string]] annotations;
     bool abstract;
     bool mixin;
     bool hasinit;
@@ -94,8 +101,8 @@ class Class implements Sortable {
     string methodprefix;
 
     // runtime stuff
-    sarray:object:Member allmembers;
-    sarray:object:Method allmethods;
+    sarray[object[Member]] allmembers;
+    sarray[object[Method]] allmethods;
 
     factory create();
 }
@@ -109,10 +116,10 @@ class ComplexArrayType {
 
 class StructDef implements Sortable {
     string name;
-    sarray:object:Member members;
+    sarray[object[Member]] members;
 
-    [noinit] sarray:string docs;
-    [noinit] sarray:sarray:string annotations;
+    [noinit] sarray[string] docs;
+    [noinit] sarray[sarray[string]] annotations;
     bool hasinit;
     bool hasdestroy;
     bool included;
