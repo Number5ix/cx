@@ -11,13 +11,12 @@ void _structInitMany(StructBase* base, StructInfo* info, int number)
     if (!hasdefaults)
         memset(base, 0, info->structsize * number);
 
-    if (hasinit || hasdefaults) {
-        for (int i = 0; i < number; i++) {
-            if (hasdefaults)
-                memcpy(&base[i], info->defaults, info->structsize);
-            if (hasinit)
-                info->init(&base[i]);
-        }
+    for (int i = 0; i < number; i++) {
+        if (hasdefaults)
+            memcpy(&base[i], info->defaults, info->structsize);
+        if (hasinit)
+            info->init(&base[i]);
+        base[i].structinfo = info;
     }
 }
 
