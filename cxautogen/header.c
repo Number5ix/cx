@@ -578,6 +578,22 @@ void writeStructDecl(StreamBuffer* bf, StructDef* str)
         str->name,
         _S"_structinfo) ? (inst) : NULL))");
     sbufPWriteLine(bf, ln);
+    strNConcat(&ln, _S"stDeclare(", str->name, _S");");
+    sbufPWriteLine(bf, ln);
+    strNConcat(&ln, _S"#define SType_", str->name, _S" ", str->name, _S"*");
+    sbufPWriteLine(bf, ln);
+    strNConcat(&ln, _S"#define STStorageType_", str->name, _S" ", str->name);
+    sbufPWriteLine(bf, ln);
+    strNConcat(&ln, _S"#define STypeArg_", str->name, _S"(type, val) stgeneric(struct, &(val))");
+    sbufPWriteLine(bf, ln);
+    strNConcat(&ln, _S"#define STypeArgPtr_", str->name, _S"(type, val) &stgeneric(struct, (val))");
+    sbufPWriteLine(bf, ln);
+    strNConcat(&ln, _S"#define STypeCheckedArg_", str->name,
+               _S"(type, val)    stType(type), stArg(type, val)");
+    sbufPWriteLine(bf, ln);
+    strNConcat(&ln, _S"#define STypeCheckedPtrArg_", str->name,
+               _S"(type, val) stType(type), stArgPtr(type, val)");
+    sbufPWriteLine(bf, ln);
     sbufPWriteEOL(bf);
 
     strDestroy(&mname);

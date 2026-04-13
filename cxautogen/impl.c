@@ -812,7 +812,11 @@ static bool writeStructMemberDesc(StreamBuffer* bf, strref sname, Member* m)
     strDestroy(&flags);
     saDestroy(&flagsarr);
 
-    strNConcat(&ln, _S"        .tinfo = { .type = stType(", sttypename, _S") },");
+    if (m->typenode && strEq(m->typenode->name, _S"struct") && saSize(m->typenode->params) >= 1) {
+        strNConcat(&ln, _S"        .type = &_sti_", m->typenode->params.a[0]->name, _S",");
+    } else {
+        strNConcat(&ln, _S"        .type = stType(", sttypename, _S"),");
+    }
     sbufPWriteLine(bf, ln);
 
     sbufPWriteLine(bf, _S"    },");
@@ -893,6 +897,31 @@ static void writeStructInfo(StreamBuffer* bf, StructDef* str, int nmembers, bool
     strDestroy(&ln);
 }
 
+static void writeStructSTypeInfo(StreamBuffer* bf, StructDef* str, bool* wroteany)
+{
+    string ln = 0;
+
+    *wroteany = true;
+    strNConcat(&ln, _S"const STypeInfo _sti_", str->name, _S" = {");
+    sbufPWriteLine(bf, ln);
+    sbufPWriteLine(bf, _S"    .id    = STypeId_struct,");
+    sbufPWriteLine(bf, _S"    .flags = stFlag(PassPtr) | stFlag(Object),");
+    strNConcat(&ln, _S"    .size  = (uint16)sizeof(", str->name, _S"),");
+    sbufPWriteLine(bf, ln);
+    strNConcat(&ln, _S"    .name  = \"struct(", str->name, _S")\",");
+    sbufPWriteLine(bf, ln);
+    strNConcat(&ln, _S"    .ext   = &", str->name, _S"_structinfo,");
+    sbufPWriteLine(bf, ln);
+    sbufPWriteLine(bf, _S"    .ops   = { .dtor = stDtor_struct,");
+    sbufPWriteLine(bf, _S"               .cmp  = stCmp_struct,");
+    sbufPWriteLine(bf, _S"               .hash = stHash_struct,");
+    sbufPWriteLine(bf, _S"               .copy = stCopy_struct },");
+    sbufPWriteLine(bf, _S"};");
+    sbufPWriteEOL(bf);
+
+    strDestroy(&ln);
+}
+
 static bool writeStructDefaults(StreamBuffer* bf, StructDef* str, bool* wroteany)
 {
     string ln        = 0;
@@ -908,6 +937,8 @@ static bool writeStructDefaults(StreamBuffer* bf, StructDef* str, bool* wroteany
 
     *wroteany = true;
     strNConcat(&ln, _S"const ", str->name, _S" ", str->name, _S"_structdefaults = {");
+    sbufPWriteLine(bf, ln);
+    strNConcat(&ln, _S"    .structinfo = &", str->name, _S"_structinfo,");
     sbufPWriteLine(bf, ln);
     for (int i = 0; i < saSize(str->members); i++) {
         Member* m = str->members.a[i];
@@ -1230,6 +1261,7 @@ nextloop:
                 bool hasdefaults = writeStructDefaults(ibf, structs.a[i], &wroteany);
                 nmembers = writeStructMemberTbl(ibf, structs.a[i], &wroteany);
                 writeStructInfo(ibf, structs.a[i], nmembers, hasdefaults, &wroteany);
+                writeStructSTypeInfo(ibf, structs.a[i], &wroteany);
             }
         }
         sbufPWriteLine(ibf, autogenEnd);

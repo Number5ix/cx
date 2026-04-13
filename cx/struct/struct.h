@@ -3,15 +3,12 @@
 #include <cx/container/hashtable.h>
 #include <cx/container/sarray.h>
 #include <cx/stype/stype.h>
+#include "stype_struct.h"
 
 enum StructMemberFlagsEnum {
     STRUCT_NoDestroy   = 1 << 0,   ///< Member should not be automatically destroyed
     STRUCT_NoCopy      = 1 << 1,   ///< Member should be skipped during copy operations
     STRUCT_NoSerialize = 1 << 2,   ///< Member should not be serialized (e.g. by JSON, etc.)
-
-    /// For structptr members, indicates that the stype extension points at a StructSet, and type
-    /// information is encoded in the serialized form.
-    STRUCT_Dynamic = 1 << 3,
 
     /// Member should be ignored for all operations
     /// Ignored members may also be omitted from the list entirely, e.g. for types outside the stype
@@ -22,11 +19,11 @@ enum StructMemberFlagsEnum {
 typedef struct StructSet StructSet;
 
 typedef struct StructMemberDesc {
-    strref name;            // Name of the member
-    size_t offset;          // Offset within the struct
-    stype type;             // Type of the member
-    uint32 flags;           // Member flags (StructMemberFlagsEnum)
-    uint32 cflags;          // Creation flags (e.g. for arrays, hashtables, etc.)
+    strref name;     // Name of the member
+    size_t offset;   // Offset within the struct
+    stype type;      // Type of the member
+    uint32 flags;    // Member flags (StructMemberFlagsEnum)
+    uint32 cflags;   // Creation flags (e.g. for arrays, hashtables, etc.)
 } StructMemberDesc;
 
 typedef struct StructInfo {
