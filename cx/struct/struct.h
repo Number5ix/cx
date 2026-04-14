@@ -2,6 +2,8 @@
 
 #include <cx/container/hashtable.h>
 #include <cx/container/sarray.h>
+#include <cx/container/stype_hashtable.h>
+#include <cx/container/stype_sarray.h>
 #include <cx/stype/stype.h>
 #include "stype_struct.h"
 

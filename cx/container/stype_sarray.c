@@ -14,6 +14,12 @@ void stCopy_sarray(stype st, stgeneric* dest, stgeneric src, flags_t flags)
 }
 
 _Use_decl_annotations_
+intptr stCmp_sarray(stype st, stgeneric gen1, stgeneric gen2, flags_t flags)
+{
+    return (intptr)((char*)gen1.st_sarray.a - (char*)gen2.st_sarray.a);
+}
+
+_Use_decl_annotations_
 uint32 stHash_sarray(stype st, stgeneric gen, flags_t flags)
 {
     sa_ref ref = gen.st_sarray;

@@ -12,6 +12,11 @@ void stCopy_hashtable(stype st, _stCopyDest_Anno_(st) stgeneric* dest, _In_ stge
     htClone(&dest->st_hashtable, src.st_hashtable);
 }
 
+intptr stCmp_hashtable(stype st, stgeneric gen1, stgeneric gen2, flags_t flags)
+{
+    return (intptr)((char*)gen1.st_hashtable - (char*)gen2.st_hashtable);
+}
+
 uint32 stHash_hashtable(stype st, _In_ stgeneric gen, flags_t flags)
 {
     hashtable* htbl      = &gen.st_hashtable;

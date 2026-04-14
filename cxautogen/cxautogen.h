@@ -44,3 +44,9 @@ void paramAnnotations(string* out, Param* p);
 
 void relSrcPath(string* out, strref fname, strref srcpath);
 void binPath(string* out, strref fname, strref srcpath, strref binpath);
+
+// Compound type name helpers (defined in impl.c, used by header.c)
+bool isCompoundNode(TypeNode* node);
+void buildTypeKey(string* out, TypeNode* node);
+void buildTypeName(string* out, TypeNode* node);
+void buildCompoundDescName(string* out, strref sname, TypeNode* node);

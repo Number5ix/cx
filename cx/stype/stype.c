@@ -99,12 +99,6 @@ STCMP_FLOAT(float64, int64)
 
 // compiler is stupid about void* comparisons
 STCMP_GEN_OVR(ptr, char*)
-STCMP_GEN_OVR(hashtable, char*)
-
-static intptr stCmp_sarray(stype st, stgeneric gen1, stgeneric gen2, uint32 flags)
-{
-    return (intptr)((char*)gen1.st_sarray.a - (char*)gen2.st_sarray.a);
-}
 
 uint32 stHash_gen(stype st, _In_ stgeneric gen, flags_t flags)
 {
