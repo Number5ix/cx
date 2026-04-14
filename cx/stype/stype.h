@@ -35,7 +35,7 @@
 ///       uint32           id;       // hierarchical type class | subtype | discriminant
 ///       uint16           size;     // storage size in bytes
 ///       uint16           flags;    // STypeFlag_Object, STypeFlag_PassPtr, STypeFlag_Temporary
-///       const char*      name;     // type name for debug and serialization
+///       strref           name;     // type name for debug and serialization
 ///       const STypeInfo* param[2]; // for parameterized types (must be canonical):
 ///                                  //   sarray:    param[0] = element type
 ///                                  //   hashtable: param[0] = key, param[1] = value
@@ -186,6 +186,7 @@
 #include <cx/debug/assert.h>
 #include <cx/platform/base.h>
 #include <cx/platform/cpp.h>
+#include <cx/string/strliteral.h>
 #include <cx/utils/macros/optarg.h>
 #include <cx/utils/macros/salieri.h>
 #include <cx/utils/macros/unused.h>
@@ -1289,7 +1290,7 @@ typedef struct STypeInfo {
     uint32 id;          ///< hierarchical type ID: STCLASS | STST_subtype | discriminant
     uint16 size;        ///< storage size in bytes
     uint16 flags;       ///< STypeFlag_Object, STypeFlag_PassPtr, STypeFlag_Temporary
-    const char* name;   ///< name for debug, serialization, etc
+    strref name;        ///< name for debug, serialization, etc
 
     /// Parameterized sub-type descriptors (must point to canonical types):
     ///   sarray:    param[0] = element type, param[1] = NULL
@@ -1640,11 +1641,12 @@ _meta_inline bool stEq(stype s1, stype s2)
 /// **File-local type** (no cross-TU sharing needed):
 /// @code
 ///   // In myfile.c:
+///   STR_CONSTR(MyKey, "MyKey");
 ///   static stDefine(mykey) {
 ///       .id    = STypeId_opaque,
 ///       .size  = sizeof(MyKey),
 ///       .flags = stFlag(PassPtr),
-///       .name  = "MyKey",
+///       .name  = _SR(MyKey),
 ///       .ops   = { .dtor = myKeyDtor, .cmp = myKeyCmp, .hash = myKeyHash },
 ///   };
 ///   #define SType_mykey                         MyKey*
@@ -1672,11 +1674,12 @@ _meta_inline bool stEq(stype s1, stype s2)
 ///   #define STypeCheckedPtrArg_vec3(type, val) stType(type), stArgPtr(type, val)
 ///
 ///   // mylib.c:
+///   STR_CONSTR(Vec3, "Vec3");
 ///   stDefine(vec3) {
 ///       .id    = STypeId_opaque,
 ///       .size  = sizeof(Vec3),
 ///       .flags = stFlag(PassPtr),
-///       .name  = "Vec3",
+///       .name  = _SR(Vec3),
 ///       .ops   = { .cmp = vec3Cmp, .hash = vec3Hash },
 ///   };
 ///
@@ -1713,11 +1716,12 @@ _meta_inline bool stEq(stype s1, stype s2)
 ///
 /// Example:
 /// @code
+///   STR_CONSTR(Vec3, "Vec3");
 ///   stDefine(vec3) {
 ///       .id    = STypeId_opaque,
 ///       .size  = sizeof(Vec3),
 ///       .flags = stFlag(PassPtr),
-///       .name  = "Vec3",
+///       .name  = _SR(Vec3),
 ///       .ops   = { .cmp = vec3Cmp, .hash = vec3Hash },
 ///   };
 /// @endcode

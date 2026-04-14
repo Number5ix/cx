@@ -877,7 +877,7 @@ static bool writeStructMemberDesc(StreamBuffer* bf, strref sname, Member* m)
         // if not serializable, don't include the name in the binary
         sbufPWriteLine(bf, _S"        .name = &_emptyStringData,");
     } else {
-        strNConcat(&ln, _S"        .name = (strref)&", sname, _S"_m_", m->name, _S"_name,");
+        strNConcat(&ln, _S"        .name = _SR(", sname, _S"_m_", m->name, _S"_name),");
         sbufPWriteLine(bf, ln);
     }
     strNConcat(&ln, _S"        .offset = offsetof(", sname, _S", ", m->name, _S"),");
@@ -970,7 +970,7 @@ static void writeStructInfo(StreamBuffer* bf, StructDef* str, int nmembers, bool
     *wroteany = true;
     strNConcat(&ln, _S"const StructInfo ", str->name, _S"_structinfo = {");
     sbufPWriteLine(bf, ln);
-    strNConcat(&ln, _S"    .name = (strref)&", str->name, _S"_name,");
+    strNConcat(&ln, _S"    .name = _SR(", str->name, _S"_name),");
     sbufPWriteLine(bf, ln);
     strNConcat(&ln, _S"    .structsize = sizeof(", str->name, _S"),");
     sbufPWriteLine(bf, ln);
@@ -1012,7 +1012,7 @@ static void writeStructSTypeInfo(StreamBuffer* bf, StructDef* str, bool* wrotean
     sbufPWriteLine(bf, _S"    .flags = stFlag(PassPtr) | stFlag(Object),");
     strNConcat(&ln, _S"    .size  = (uint16)sizeof(", str->name, _S"),");
     sbufPWriteLine(bf, ln);
-    strNConcat(&ln, _S"    .name  = \"struct(", str->name, _S")\",");
+    strNConcat(&ln, _S"    .name  = _SR(", str->name, _S"_name),");
     sbufPWriteLine(bf, ln);
     strNConcat(&ln, _S"    .ext   = &", str->name, _S"_structinfo,");
     sbufPWriteLine(bf, ln);
@@ -1053,6 +1053,8 @@ static void writeCompoundSTypeInfo(StreamBuffer* bf, strref sname, TypeNode* nod
     string typename = 0;
     buildTypeName(&typename, node);
 
+    strNConcat(&ln, _S"STR_CONSTR(", descname, _S"_name, \"", typename, _S"\");");
+    sbufPWriteLine(bf, ln);
     strNConcat(&ln, _S"const STypeInfo _sti_", descname, _S" = {");
     sbufPWriteLine(bf, ln);
 
@@ -1060,7 +1062,7 @@ static void writeCompoundSTypeInfo(StreamBuffer* bf, strref sname, TypeNode* nod
         sbufPWriteLine(bf, _S"    .id     = STypeId_sarray,");
         sbufPWriteLine(bf, _S"    .flags  = stFlag(Object),");
         sbufPWriteLine(bf, _S"    .size   = (uint16)sizeof(sa_ref),");
-        strNConcat(&ln, _S"    .name   = \"", typename, _S"\",");
+        strNConcat(&ln, _S"    .name   = _SR(", descname, _S"_name),");
         sbufPWriteLine(bf, ln);
         TypeNode* p0 = node->params.a[0];
         if (isCompoundNode(p0)) {
@@ -1081,7 +1083,7 @@ static void writeCompoundSTypeInfo(StreamBuffer* bf, strref sname, TypeNode* nod
         sbufPWriteLine(bf, _S"    .id     = STypeId_hashtable,");
         sbufPWriteLine(bf, _S"    .flags  = stFlag(Object),");
         sbufPWriteLine(bf, _S"    .size   = (uint16)sizeof(hashtable),");
-        strNConcat(&ln, _S"    .name   = \"", typename, _S"\",");
+        strNConcat(&ln, _S"    .name   = _SR(", descname, _S"_name),");
         sbufPWriteLine(bf, ln);
         TypeNode* p0 = node->params.a[0];
         TypeNode* p1 = node->params.a[1];
@@ -1118,7 +1120,7 @@ static void writeCompoundSTypeInfo(StreamBuffer* bf, strref sname, TypeNode* nod
         sbufPWriteLine(bf, _S"    .id    = STypeId_structp,");
         sbufPWriteLine(bf, _S"    .flags = stFlag(Object),");
         sbufPWriteLine(bf, _S"    .size  = (uint16)sizeof(StructBase*),");
-        strNConcat(&ln, _S"    .name  = \"", typename, _S"\",");
+        strNConcat(&ln, _S"    .name  = _SR(", descname, _S"_name),");
         sbufPWriteLine(bf, ln);
         if (isStructName(pname)) {
             strNConcat(&ln, _S"    .param = { &_sti_", pname, _S", NULL },");

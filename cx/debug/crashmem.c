@@ -15,10 +15,11 @@ static intptr crashMemCmp(stype st, stgeneric a, stgeneric b, uint32 flags)
     return 0;
 }
 
+STR_CONSTR(CrashMemRange, "CrashMemRange");
 stDefine(CrashMemRange) { .id    = stTypeId(opaque),
                           .size  = sizeof(CrashMemRange),
                           .flags = stFlag(PassPtr),
-                          .name  = "CrashMemRange",
+                          .name  = _SR(CrashMemRange),
                           .ops   = { .cmp = crashMemCmp } };
 
 static void crashMemInit(void* data)

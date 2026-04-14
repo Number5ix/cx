@@ -34,19 +34,21 @@ static void dirEntDestroy(stype st, stgeneric* g, uint32 flags)
     strDestroy(&ent->name);
 }
 
+STR_CONSTR(VFSDirEnt, "VFSDirEnt");
 static stDefine(VFSDirEnt) {
     .id    = stTypeId(opaque),
     .size  = sizeof(VFSDirEnt),
     .flags = stFlag(PassPtr),
-    .name  = "VFSDirEnt",
+    .name  = _SR(VFSDirEnt),
     .ops   = { .cmp = dirEntCmp, .copy = dirEntCopy, .dtor = dirEntDestroy }
 };
 
+STR_CONSTR(VFSDirEnt_cs, "VFSDirEnt_cs");
 static stDefine(VFSDirEnt_cs) {
     .id    = stTypeId(opaque),
     .size  = sizeof(VFSDirEnt),
     .flags = stFlag(PassPtr),
-    .name  = "VFSDirEnt_cs",
+    .name  = _SR(VFSDirEnt_cs),
     .ops   = { .cmp = dirEntCmpCaseSensitive, .copy = dirEntCopy, .dtor = dirEntDestroy }
 };
 

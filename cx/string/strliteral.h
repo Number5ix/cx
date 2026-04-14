@@ -111,7 +111,7 @@
     static const struct {                                                                    \
         uint8 _h, _m, _l;                                                                    \
         char _d[sizeof(s)];                                                                  \
-    } name = { (enc), 0xC1u, (uint8)(sizeof(s) - 1u), s };
+    } _cx_sr_##name = { (enc), 0xC1u, (uint8)(sizeof(s) - 1u), s };
 
 #define _STR_CONSTR16(name, enc, s)                                            \
     _Static_assert(sizeof(s) - 1 <= 65535, "String too long for STR_CONSTRL"); \
@@ -119,7 +119,7 @@
         uint8 _h, _m;                                                          \
         uint16 _l;                                                             \
         char _d[sizeof(s)];                                                    \
-    } name = { (enc), 0xC1u, (uint16)(sizeof(s) - 1u), s };
+    } _cx_sr_##name = { (enc), 0xC1u, (uint16)(sizeof(s) - 1u), s };
 
 /// Declare a named ASCII string constant with a compile-time length (STR_LEN8, < 255 bytes).
 #define STR_CONST(name, s)   _STR_CONST8(name, 0xE1u, s)
@@ -143,6 +143,9 @@
 #define STR_CONSTRL(name, s)  _STR_CONSTR16(name, 0xE2u, s)
 #define STR_CONSTRUL(name, s) _STR_CONSTR16(name, 0xA2u, s)
 #define STR_CONSTROL(name, s) _STR_CONSTR16(name, 0x82u, s)
+
+// Helper for using STR_CONSTR declared constants in initializers
+#define _SR(name) ((strref)&_cx_sr_##name)
 
 // ---- Inline literal macros ----
 

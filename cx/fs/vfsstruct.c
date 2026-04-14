@@ -15,9 +15,10 @@ static void _vfsCacheEntDestroy(stype st, stgeneric* g, uint32 flags)
     xaFree(e);
 }
 
+STR_CONSTR(VFSCacheEnt, "VFSCacheEnt");
 stDefine(VFSCacheEnt) { .id   = stTypeId(ptr),
                         .size = sizeof(VFSCacheEnt),
-                        .name = "VFSCacheEnt",
+                        .name = _SR(VFSCacheEnt),
                         .ops  = { .dtor = _vfsCacheEntDestroy } };
 
 _Use_decl_annotations_
@@ -46,7 +47,8 @@ static void _vfsDirDestroy(stype st, stgeneric* g, uint32 flags)
     xaFree(d);
 }
 
+STR_CONSTR(VFSDir, "VFSDir");
 stDefine(VFSDir) { .id   = stTypeId(ptr),
                    .size = sizeof(VFSDir),
-                   .name = "VFSDir",
+                   .name = _SR(VFSDir),
                    .ops  = { .dtor = _vfsDirDestroy } };

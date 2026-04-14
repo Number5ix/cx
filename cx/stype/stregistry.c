@@ -49,10 +49,11 @@ static uint32 STypeInfoRef_hash(stype st, stgeneric gen, flags_t flags)
     return hashMurmur3((uint8*)&hkey, sizeof(hkey));
 }
 
+STR_CONSTR(stypeinforef, "stypeinforef");
 static stDefine(stypeinforef) {
     .id   = stTypeId(ptr),
     .size = sizeof(STypeInfo*),
-    .name = "stypeinforef",
+    .name = _SR(stypeinforef),
     .ops  = { .cmp = STypeInfoRef_cmp, .hash = STypeInfoRef_hash }
 };
 
