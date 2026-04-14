@@ -22,6 +22,10 @@ StructDef_ClassIf StructDef_ClassIf_tmpl = {
     ._size = sizeof(StructDef_ClassIf),
 };
 
+StructSetDef_ClassIf StructSetDef_ClassIf_tmpl = {
+    ._size = sizeof(StructSetDef_ClassIf),
+};
+
 static ObjIface* _ifimpl_Param[] = {
     NULL
 };
@@ -180,6 +184,32 @@ ObjClassInfo StructDef_clsinfo = {
     .init = (bool(*)(void*))StructDef_init,
     .destroy = (void(*)(void*))StructDef_destroy,
     .ifimpl = _ifimpl_StructDef,
+};
+
+static Sortable _impl_StructSetDef_Sortable = {
+    ._size = sizeof(Sortable),
+    ._implements = (ObjIface*)&Sortable_tmpl,
+    .cmp = (intptr (*)(void*, void*, uint32))StructSetDef_cmp,
+};
+
+static StructSetDef_ClassIf _impl_StructSetDef_StructSetDef_ClassIf = {
+    ._size = sizeof(StructSetDef_ClassIf),
+    ._implements = (ObjIface*)&StructSetDef_ClassIf_tmpl,
+    .cmp = (intptr (*)(void*, void*, uint32))StructSetDef_cmp,
+};
+
+static ObjIface* _ifimpl_StructSetDef[] = {
+    (ObjIface*)&_impl_StructSetDef_Sortable,
+    (ObjIface*)&_impl_StructSetDef_StructSetDef_ClassIf,
+    NULL
+};
+
+ObjClassInfo StructSetDef_clsinfo = {
+    .instsize = sizeof(StructSetDef),
+    .classif = (ObjIface*)&StructSetDef_ClassIf_tmpl,
+    .init = (bool(*)(void*))StructSetDef_init,
+    .destroy = (void(*)(void*))StructSetDef_destroy,
+    .ifimpl = _ifimpl_StructSetDef,
 };
 
 // ==================== Auto-generated section ends ======================

@@ -281,6 +281,37 @@ void TypeNode_destroy(_In_ TypeNode* self)
     // Autogen ends -------
 }
 
+_objfactory_guaranteed StructSetDef* StructSetDef_create()
+{
+    StructSetDef* self;
+    self = objInstCreate(StructSetDef);
+
+    objInstInit(self);
+    return self;
+}
+
+_objinit_guaranteed bool StructSetDef_init(_In_ StructSetDef* self)
+{
+    // Autogen begins -----
+    saInit(&self->members, string, 4);
+    return true;
+    // Autogen ends -------
+}
+
+intptr StructSetDef_cmp(_In_ StructSetDef* self, StructSetDef* other, uint32 flags)
+{
+    devAssert(objClsInfo(self) == objClsInfo(other));
+    return strCmp(self->name, other->name);
+}
+
+void StructSetDef_destroy(_In_ StructSetDef* self)
+{
+    // Autogen begins -----
+    strDestroy(&self->name);
+    saDestroy(&self->members);
+    // Autogen ends -------
+}
+
 // Autogen begins -----
 // clang-format off
 #include "objtypes.auto.inc"

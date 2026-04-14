@@ -747,7 +747,24 @@ bool isCompoundNode(TypeNode* node)
 {
     if (!node || saSize(node->params) == 0)
         return false;
-    return strEq(node->name, _S"sarray") || strEq(node->name, _S"hashtable");
+    return strEq(node->name, _S"sarray") || strEq(node->name, _S"hashtable") ||
+           strEq(node->name, _S"structp");
+}
+
+bool isStructName(strref name)
+{
+    for (int i = 0; i < saSize(structs); i++)
+        if (strEq(structs.a[i]->name, name))
+            return true;
+    return false;
+}
+
+bool isStructSetName(strref name)
+{
+    for (int i = 0; i < saSize(structsets); i++)
+        if (strEq(structsets.a[i]->name, name))
+            return true;
+    return false;
 }
 
 void buildTypeKey(string* out, TypeNode* node)
@@ -772,6 +789,8 @@ void buildTypeKey(string* out, TypeNode* node)
         strNConcat(&key, _S"ht_", sub0, _S"_", sub1);
         strDestroy(&sub0);
         strDestroy(&sub1);
+    } else if (strEq(node->name, _S"structp")) {
+        strNConcat(&key, _S"structp_", node->params.a[0]->name);
     }
     strDup(out, key);
     strDestroy(&key);
@@ -799,6 +818,8 @@ void buildTypeName(string* out, TypeNode* node)
         strNConcat(&name, _S"hashtable[", sub0, _S",", sub1, _S"]");
         strDestroy(&sub0);
         strDestroy(&sub1);
+    } else if (strEq(node->name, _S"structp")) {
+        strNConcat(&name, _S"structp[", node->params.a[0]->name, _S"]");
     }
     strDup(out, name);
     strDestroy(&name);
@@ -881,8 +902,7 @@ static bool writeStructMemberDesc(StreamBuffer* bf, strref sname, Member* m)
     strDestroy(&flags);
     saDestroy(&flagsarr);
 
-    if (m->typenode && isCompoundNode(m->typenode) &&
-        (strEq(m->typenode->name, _S"sarray") || strEq(m->typenode->name, _S"hashtable"))) {
+    if (m->typenode && isCompoundNode(m->typenode)) {
         string descname = 0;
         buildCompoundDescName(&descname, sname, m->typenode);
         strNConcat(&ln, _S"        .type = &_sti_", descname, _S",");
@@ -903,10 +923,22 @@ static bool writeStructMemberDesc(StreamBuffer* bf, strref sname, Member* m)
     return true;
 }
 
-static int writeStructMemberTbl(StreamBuffer* bf, StructDef* str, bool* wroteany)
+static int prepareStructMemberTbl(StreamBuffer* bf, StructDef* str, bool* wroteany)
 {
     string ln = 0;
-    int ret   = 0;
+    int nmembers = 0;
+
+    // Count members that will produce descriptors (mirrors writeStructMemberDesc skip logic)
+    for (int i = 0; i < saSize(str->members); i++) {
+        Member* m = str->members.a[i];
+        if ((m->flags & STRUCT_Ignore) == STRUCT_Ignore)
+            continue;
+        string sttypename = 0;
+        getStructMemberType(&sttypename, m);
+        if (!strEmpty(sttypename))
+            nmembers++;
+        strDestroy(&sttypename);
+    }
 
     *wroteany = true;
     strNConcat(&ln, _S"STR_CONSTR(", str->name, _S"_name, \"", str->name, _S"\");");
@@ -924,17 +956,10 @@ static int writeStructMemberTbl(StreamBuffer* bf, StructDef* str, bool* wroteany
                    _S"\");");
         sbufPWriteLine(bf, ln);
     }
-    strNConcat(&ln, _S"const StructMemberDesc ", str->name, _S"_members[] = {");
-    sbufPWriteLine(bf, ln);
-    for (int i = 0; i < saSize(str->members); i++) {
-        ret += writeStructMemberDesc(bf, str->name, str->members.a[i]) ? 1 : 0;
-    }
-    sbufPWriteLine(bf, _S"    { 0 }");
-    sbufPWriteLine(bf, _S"};");
     sbufPWriteEOL(bf);
     strDestroy(&ln);
 
-    return ret;
+    return nmembers;
 }
 
 static void writeStructInfo(StreamBuffer* bf, StructDef* str, int nmembers, bool hasdefaults,
@@ -956,8 +981,6 @@ static void writeStructInfo(StreamBuffer* bf, StructDef* str, int nmembers, bool
     }
     strNConcat(&ln, _S"    .nmembers = ", temp, _S",");
     sbufPWriteLine(bf, ln);
-    strNConcat(&ln, _S"    .members = ", str->name, _S"_members,");
-    sbufPWriteLine(bf, ln);
     if (str->hasinit) {
         strNConcat(&ln, _S"    .init = (void(*)(void*))", str->name, _S"_init,");
         sbufPWriteLine(bf, ln);
@@ -966,6 +989,11 @@ static void writeStructInfo(StreamBuffer* bf, StructDef* str, int nmembers, bool
         strNConcat(&ln, _S"    .destroy = (void(*)(void*))", str->name, _S"_destroy,");
         sbufPWriteLine(bf, ln);
     }
+    sbufPWriteLine(bf, _S"    .members = {");
+    for (int i = 0; i < saSize(str->members); i++) {
+        writeStructMemberDesc(bf, str->name, str->members.a[i]);
+    }
+    sbufPWriteLine(bf, _S"    },");
     sbufPWriteLine(bf, _S"};");
     sbufPWriteEOL(bf);
 
@@ -1085,6 +1113,27 @@ static void writeCompoundSTypeInfo(StreamBuffer* bf, strref sname, TypeNode* nod
         sbufPWriteLine(bf, _S"    .ops    = { .cmp  = stCmp_hashtable,");
         sbufPWriteLine(bf, _S"               .hash = stHash_hashtable,");
         sbufPWriteLine(bf, _S"               .copy = stCopy_hashtable },");
+    } else if (strEq(node->name, _S"structp")) {
+        strref pname = node->params.a[0]->name;
+        sbufPWriteLine(bf, _S"    .id    = STypeId_structp,");
+        sbufPWriteLine(bf, _S"    .flags = stFlag(Object),");
+        sbufPWriteLine(bf, _S"    .size  = (uint16)sizeof(StructBase*),");
+        strNConcat(&ln, _S"    .name  = \"", typename, _S"\",");
+        sbufPWriteLine(bf, ln);
+        if (isStructName(pname)) {
+            strNConcat(&ln, _S"    .param = { &_sti_", pname, _S", NULL },");
+            sbufPWriteLine(bf, ln);
+        } else if (isStructSetName(pname)) {
+            strNConcat(&ln, _S"    .ext   = &", pname, _S"_structset,");
+            sbufPWriteLine(bf, ln);
+        } else {
+            fprintf(stderr, "WARNING: structp[%s]: '%s' is not a known struct or structset\n",
+                    strC(pname), strC(pname));
+            strNConcat(&ln, _S"#error \"structp[", pname, _S"]: unknown type '", pname, _S"'\"");
+            sbufPWriteLine(bf, ln);
+        }
+        sbufPWriteLine(bf, _S"    .ops   = { .dtor = stDtor_structp, .cmp  = stCmp_structp,");
+        sbufPWriteLine(bf, _S"               .hash = stHash_structp, .copy = stCopy_structp },");
     }
 
     sbufPWriteLine(bf, _S"};");
@@ -1093,6 +1142,46 @@ static void writeCompoundSTypeInfo(StreamBuffer* bf, strref sname, TypeNode* nod
     strDestroy(&key);
     strDestroy(&descname);
     strDestroy(&typename);
+    strDestroy(&ln);
+}
+
+static int strCmpCB(const void* a, const void* b)
+{
+    return strCmp(*(const string*)a, *(const string*)b);
+}
+
+static void writeStructSetDef(StreamBuffer* bf, StructSetDef* ss, bool* wroteany)
+{
+    if (saSize(ss->members) == 0)
+        return;
+
+    *wroteany = true;
+    string ln = 0;
+
+    // sort members alphabetically for binary search
+    sa_string sorted;
+    saInit(&sorted, string, saSize(ss->members));
+    for (int i = 0; i < saSize(ss->members); i++)
+        saPush(&sorted, string, ss->members.a[i]);
+    qsort(sorted.a, saSize(sorted), sizeof(string), strCmpCB);
+
+    strNConcat(&ln, _S"StructSet ", ss->name, _S"_structset = {");
+    sbufPWriteLine(bf, ln);
+    string nstr = 0;
+    strFromInt32(&nstr, saSize(sorted), 10);
+    strNConcat(&ln, _S"    .nentries = ", nstr, _S",");
+    strDestroy(&nstr);
+    sbufPWriteLine(bf, ln);
+    sbufPWriteLine(bf, _S"    .entries  = {");
+    for (int i = 0; i < saSize(sorted); i++) {
+        strNConcat(&ln, _S"        &", sorted.a[i], _S"_structinfo,");
+        sbufPWriteLine(bf, ln);
+    }
+    sbufPWriteLine(bf, _S"    },");
+    sbufPWriteLine(bf, _S"};");
+    sbufPWriteEOL(bf);
+
+    saDestroy(&sorted);
     strDestroy(&ln);
 }
 
@@ -1446,14 +1535,17 @@ nextloop:
                 writeClassImpl(ibf, classes.a[i], &wroteany);
         }
         for (int i = 0; i < saSize(structs); i++) {
-            int nmembers = 0;
             if (!structs.a[i]->included) {
                 bool hasdefaults = writeStructDefaults(ibf, structs.a[i], &wroteany);
                 writeCompoundSTypeInfos(ibf, structs.a[i], &wroteany);
-                nmembers = writeStructMemberTbl(ibf, structs.a[i], &wroteany);
+                int nmembers = prepareStructMemberTbl(ibf, structs.a[i], &wroteany);
                 writeStructInfo(ibf, structs.a[i], nmembers, hasdefaults, &wroteany);
                 writeStructSTypeInfo(ibf, structs.a[i], &wroteany);
             }
+        }
+        for (int i = 0; i < saSize(structsets); i++) {
+            if (!structsets.a[i]->included)
+                writeStructSetDef(ibf, structsets.a[i], &wroteany);
         }
         sbufPWriteLine(ibf, autogenEnd);
 

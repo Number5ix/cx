@@ -124,6 +124,14 @@ class StructDef implements Sortable {
     bool hasdestroy;
     bool included;
     bool processed;
-    
+
+    factory create();
+}
+
+class StructSetDef implements Sortable {
+    string name;
+    [noinit] sarray[string] members;
+    bool included;
+
     factory create();
 }

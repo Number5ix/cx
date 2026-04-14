@@ -15,6 +15,8 @@ enum ParseContext {
     Context_ParamList,
     Context_StructPre,
     Context_Struct,
+    Context_StructSetPre,
+    Context_StructSet,
 };
 
 typedef struct ParseState {
@@ -41,6 +43,7 @@ typedef struct ParseState {
     Interface* curif;
     Class* curcls;
     StructDef* curstruct;
+    StructSetDef* curstructset;
     Method* curmethod;
     Param* curparam;
 
@@ -73,6 +76,9 @@ static bool parseEnd(ParseState* ps, bool retval)
     }
     if (ps->curstruct) {
         objRelease(&ps->curstruct);
+    }
+    if (ps->curstructset) {
+        objRelease(&ps->curstructset);
     }
     if (ps->curmethod) {
         objRelease(&ps->curmethod);
@@ -363,6 +369,13 @@ bool parseGlobal(ParseState* ps, string* tok)
         ps->curstruct->docs        = ps->docs;
         saInit(&ps->docs, string, 4);
         saInit(&ps->annotations, sarray, 4);
+        return true;
+    } else if (strEq(*tok, _S"structset")) {
+        ps->ptemptyok = false;
+        saClear(&ps->comments);
+        ps->curstructset           = structsetdefCreate();
+        ps->context                = Context_StructSetPre;
+        ps->curstructset->included = ps->included;
         return true;
     } else if (strEq(*tok, _S"#include")) {
         // any docs BEFORE the first #include become global docs
@@ -1173,6 +1186,42 @@ bool parseStruct(ParseState* ps, string* tok)
     return true;
 }
 
+bool parseStructSetPre(ParseState* ps, string* tok)
+{
+    if (strEq(*tok, _S"{")) {
+        if (strEmpty(ps->curstructset->name)) {
+            fprintf(stderr, "Structset missing a name!\n");
+            return false;
+        }
+        ps->context = Context_StructSet;
+        return true;
+    } else if (!ps->curstructset->name && isvalidname(*tok)) {
+        strDup(&ps->curstructset->name, *tok);
+        return true;
+    }
+
+    fprintf(stderr, "Invalid token '%s' in pre-structset context\n", strC(*tok));
+    return false;
+}
+
+bool parseStructSet(ParseState* ps, string* tok)
+{
+    if (strEq(*tok, _S"}")) {
+        saPushC(&structsets, object, &ps->curstructset);
+        ps->context = Context_Global;
+        return true;
+    } else if (strEq(*tok, _S",") || strEmpty(*tok)) {
+        // separator — no-op
+        return true;
+    } else if (isvalidname(*tok)) {
+        saPush(&ps->curstructset->members, string, *tok);
+        return true;
+    }
+
+    fprintf(stderr, "Invalid token '%s' in structset definition\n", strC(*tok));
+    return false;
+}
+
 bool parseFile(strref fname, string* realfn, string srcpath, sa_string searchpath, bool included,
                bool required)
 {
@@ -1324,6 +1373,14 @@ bool parseFile(strref fname, string* realfn, string srcpath, sa_string searchpat
             break;
         case Context_Struct:
             if (!parseStruct(&ps, &tok))
+                return parseEnd(&ps, false);
+            break;
+        case Context_StructSetPre:
+            if (!parseStructSetPre(&ps, &tok))
+                return parseEnd(&ps, false);
+            break;
+        case Context_StructSet:
+            if (!parseStructSet(&ps, &tok))
                 return parseEnd(&ps, false);
             break;
         }

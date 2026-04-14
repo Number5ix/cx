@@ -4,6 +4,7 @@
 #include <cx/container/sarray.h>
 #include <cx/container/stype_hashtable.h>
 #include <cx/container/stype_sarray.h>
+#include <cx/string.h>
 #include <cx/stype/stype.h>
 #include "stype_struct.h"
 
@@ -32,7 +33,6 @@ typedef struct StructInfo {
     strref name;                       // Name of the struct
     size_t structsize;                 // Size in bytes of the struct
     int nmembers;                      // Number of struct members
-    const StructMemberDesc* members;   // Array of struct member descriptors
     const void* defaults;              // Default struct to copy (if any)
 
     // Optional custom initializer
@@ -46,13 +46,22 @@ typedef struct StructInfo {
     // Called when the struct is destroyed. This is called before the automatic
     // clean-up of struct members, so strings, etc. will still be valid.
     void (*destroy)(void* _struct);
+
+    const StructMemberDesc members[];   // Array of struct member descriptors
 } StructInfo;
 
 // Set of structs for serialization of dynamic structs
 typedef struct StructSet {
     int nentries;
-    StructInfo* entries[];   // sorted by name for binary search
+    const StructInfo* entries[];   // sorted by name for binary search; sorted by name
 } StructSet;
+
+/// Looks up a struct type by name in a StructSet using binary search.
+///
+/// @param ss   The StructSet to search (must have entries sorted by name)
+/// @param name The struct type name to look up
+/// @return Pointer to the matching StructInfo, or NULL if not found
+_Ret_maybenull_ const StructInfo* structSetFind(_In_ const StructSet* ss, _In_opt_ strref name);
 
 typedef struct StructBase {
     union {

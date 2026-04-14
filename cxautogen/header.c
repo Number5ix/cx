@@ -395,15 +395,24 @@ static void writeMember(StreamBuffer* bf, Member* m)
     if (hascomments && saSize(m->comments) > 1)
         writeComments(bf, m->comments, 4, false);
 
+    string vartype = 0;
+    strDup(&vartype, m->vartype);
+
     if (m->typenode && !strEq(m->typenode->name, _S"hashtable") &&
         !strEq(m->typenode->name, _S"sarray")) {
         if (strEq(m->typenode->name, _S"object") || strEq(m->typenode->name, _S"weak") ||
             strEq(m->typenode->name, _S"structp")) {
             strPrepend(_S"*", &predecr);
+            // dynamic-set structp: use StructBase* instead of StructSetName*
+            if (strEq(m->typenode->name, _S"structp") && saSize(m->typenode->params) >= 1 &&
+                isStructSetName(m->typenode->params.a[0]->name)) {
+                strDup(&vartype, _S"StructBase");
+            }
         }
     }
 
-    strNConcat(&ln, _S"    ", m->vartype, predecr, _S" ", m->name, m->postdecr, _S";");
+    strNConcat(&ln, _S"    ", vartype, predecr, _S" ", m->name, m->postdecr, _S";");
+    strDestroy(&vartype);
 
     if (hasdocs && saSize(m->docs) == 1) {
         // use doxygen member documentation syntax
@@ -601,6 +610,30 @@ static void writeCompoundSTypeDecl(StreamBuffer* bf, strref sname, TypeNode* nod
         strNConcat(&ln, _S"#define STypeArgPtr_", descname,
                    _S"(type, val)        (stgeneric*)stCheckPtr(hashtable, val)");
         sbufPWriteLine(bf, ln);
+    } else if (strEq(node->name, _S"structp")) {
+        strref pname = node->params.a[0]->name;
+        if (isStructName(pname)) {
+            // single-struct form: typed pointer
+            strNConcat(&ln, _S"#define SType_", descname, _S" ", pname, _S"*");
+            sbufPWriteLine(bf, ln);
+            strNConcat(&ln, _S"#define STStorageType_", descname, _S" ", pname, _S"*");
+            sbufPWriteLine(bf, ln);
+            strNConcat(&ln, _S"#define STypeArg_", descname,
+                       _S"(type, val)           stgeneric(structp, (StructBase*)(val))");
+            sbufPWriteLine(bf, ln);
+        } else {
+            // dynamic-set form: opaque StructBase* pointer
+            strNConcat(&ln, _S"#define SType_", descname, _S" StructBase*");
+            sbufPWriteLine(bf, ln);
+            strNConcat(&ln, _S"#define STStorageType_", descname, _S" StructBase*");
+            sbufPWriteLine(bf, ln);
+            strNConcat(&ln, _S"#define STypeArg_", descname,
+                       _S"(type, val)           stgeneric(structp, (val))");
+            sbufPWriteLine(bf, ln);
+        }
+        strNConcat(&ln, _S"#define STypeArgPtr_", descname,
+                   _S"(type, val)        (stgeneric*)(val)");
+        sbufPWriteLine(bf, ln);
     }
 
     strNConcat(&ln, _S"#define STypeCheckedArg_", descname,
@@ -629,6 +662,14 @@ static void writeCompoundSTypeDecls(StreamBuffer* bf, StructDef* str)
     }
 
     htDestroy(&seen);
+}
+
+static void writeStructSetDecl(StreamBuffer* bf, StructSetDef* ss)
+{
+    string ln = 0;
+    strNConcat(&ln, _S"extern StructSet ", ss->name, _S"_structset;");
+    sbufPWriteLine(bf, ln);
+    strDestroy(&ln);
 }
 
 void writeStructDecl(StreamBuffer* bf, StructDef* str)
@@ -792,6 +833,11 @@ bool writeHeader(string fname, string srcpath, string binpath)
     for (int i = 0; i < saSize(structs); i++) {
         if (!structs.a[i]->included)
             writeStructDecl(bf, structs.a[i]);
+    }
+
+    for (int i = 0; i < saSize(structsets); i++) {
+        if (!structsets.a[i]->included)
+            writeStructSetDecl(bf, structsets.a[i]);
     }
 
     if (usedocs) {

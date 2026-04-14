@@ -56,3 +56,19 @@ void _structDestroy(StructBase** pbase)
     xaFree(*pbase);
     *pbase = NULL;
 }
+
+_Use_decl_annotations_
+const StructInfo* structSetFind(const StructSet* ss, strref name)
+{
+    if (!ss || strEmpty(name))
+        return NULL;
+    int lo = 0, hi = ss->nentries - 1;
+    while (lo <= hi) {
+        int mid = (lo + hi) / 2;
+        int cmp = strCmp(ss->entries[mid]->name, name);
+        if (cmp == 0) return ss->entries[mid];
+        if (cmp < 0)  lo = mid + 1;
+        else          hi = mid - 1;
+    }
+    return NULL;
+}

@@ -21,6 +21,8 @@ typedef struct ComplexArrayType ComplexArrayType;
 typedef struct ComplexArrayType_WeakRef ComplexArrayType_WeakRef;
 typedef struct StructDef StructDef;
 typedef struct StructDef_WeakRef StructDef_WeakRef;
+typedef struct StructSetDef StructSetDef;
+typedef struct StructSetDef_WeakRef StructSetDef_WeakRef;
 saDeclarePtr(Param);
 saDeclarePtr(Param_WeakRef);
 saDeclarePtr(Method);
@@ -37,6 +39,8 @@ saDeclarePtr(ComplexArrayType);
 saDeclarePtr(ComplexArrayType_WeakRef);
 saDeclarePtr(StructDef);
 saDeclarePtr(StructDef_WeakRef);
+saDeclarePtr(StructSetDef);
+saDeclarePtr(StructSetDef_WeakRef);
 saDeclareType(sarray_string, sa_string);
 
 typedef struct Method_ClassIf {
@@ -84,6 +88,15 @@ typedef struct StructDef_ClassIf {
     intptr (*cmp)(_In_ void* self, void* other, uint32 flags);
 } StructDef_ClassIf;
 extern StructDef_ClassIf StructDef_ClassIf_tmpl;
+
+typedef struct StructSetDef_ClassIf {
+    ObjIface* _implements;
+    ObjIface* _parent;
+    size_t _size;
+
+    intptr (*cmp)(_In_ void* self, void* other, uint32 flags);
+} StructSetDef_ClassIf;
+extern StructSetDef_ClassIf StructSetDef_ClassIf_tmpl;
 
 typedef struct Param {
     union {
@@ -422,4 +435,40 @@ _objfactory_guaranteed StructDef* StructDef_create();
 
 // intptr structdefCmp(StructDef* self, StructDef* other, uint32 flags);
 #define structdefCmp(self, other, flags) (self)->_->cmp(StructDef(self), other, flags)
+
+typedef struct StructSetDef {
+    union {
+        StructSetDef_ClassIf* _;
+        void* _is_StructSetDef;
+        void* _is_ObjInst;
+    };
+    ObjClassInfo* _clsinfo;
+    atomic(uintptr) _ref;
+    atomic(ptr) _weakref;
+
+    string name;
+    sa_string members;
+    bool included;
+} StructSetDef;
+extern ObjClassInfo StructSetDef_clsinfo;
+#define StructSetDef(inst) ((StructSetDef*)(unused_noeval((inst) && &((inst)->_is_StructSetDef)), (inst)))
+#define StructSetDefNone ((StructSetDef*)NULL)
+
+typedef struct StructSetDef_WeakRef {
+    union {
+        ObjInst* _inst;
+        void* _is_StructSetDef_WeakRef;
+        void* _is_ObjInst_WeakRef;
+    };
+    atomic(uintptr) _ref;
+    RWLock _lock;
+} StructSetDef_WeakRef;
+#define StructSetDef_WeakRef(inst) ((StructSetDef_WeakRef*)(unused_noeval((inst) && &((inst)->_is_StructSetDef_WeakRef)), (inst)))
+
+_objfactory_guaranteed StructSetDef* StructSetDef_create();
+// StructSetDef* structsetdefCreate();
+#define structsetdefCreate() StructSetDef_create()
+
+// intptr structsetdefCmp(StructSetDef* self, StructSetDef* other, uint32 flags);
+#define structsetdefCmp(self, other, flags) (self)->_->cmp(StructSetDef(self), other, flags)
 
