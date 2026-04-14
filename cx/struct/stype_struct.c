@@ -65,39 +65,39 @@ uint32 stHash_struct(stype st, stgeneric gen, uint32 flags)
 
     return hashMurmur3((uint8*)b, b->structinfo->structsize);
 }
-void stDtor_structptr(stype st, stgeneric* gen, uint32 flags)
+void stDtor_structp(stype st, stgeneric* gen, uint32 flags)
 {
-    StructBase* b = gen->st_structptr;
+    StructBase* b = gen->st_structp;
 
     _structDestroyMembersMany(b, 1);
     xaFree(b);
 }
 
-intptr stCmp_structptr(stype st, stgeneric gen1, stgeneric gen2, uint32 flags)
+intptr stCmp_structp(stype st, stgeneric gen1, stgeneric gen2, uint32 flags)
 {
-    StructBase* b1 = gen1.st_structptr;
-    StructBase* b2 = gen2.st_structptr;
+    StructBase* b1 = gen1.st_structp;
+    StructBase* b2 = gen2.st_structp;
 
     return structCompare(b1, b2);
 }
 
-void stCopy_structptr(stype st, _stCopyDest_Anno_(st) stgeneric* dest, _In_ stgeneric src,
-                      flags_t flags)
+void stCopy_structp(stype st, _stCopyDest_Anno_(st) stgeneric* dest, _In_ stgeneric src,
+                    flags_t flags)
 {
-    StructBase* bsrc = src.st_structptr;
+    StructBase* bsrc = src.st_structp;
     if (!bsrc || !bsrc->structinfo)
         return;
 
-    dest->st_structptr = (StructBase*)xaAlloc(bsrc->structinfo->structsize);
-    StructBase* bdest  = dest->st_structptr;
+    dest->st_structp   = (StructBase*)xaAlloc(bsrc->structinfo->structsize);
+    StructBase* bdest  = dest->st_structp;
     bdest->structinfo  = bsrc->structinfo;
 
     structCopy(bdest, bsrc, flags);
 }
 
-uint32 stHash_structptr(stype st, stgeneric gen, uint32 flags)
+uint32 stHash_structp(stype st, stgeneric gen, uint32 flags)
 {
-    StructBase* b = gen.st_structptr;
+    StructBase* b = gen.st_structp;
     if (!b || !b->structinfo)
         return 0;
 

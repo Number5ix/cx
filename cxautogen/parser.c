@@ -784,10 +784,9 @@ static int parseMemberTypeToMember(ParseState* ps, Member* nmem)
         if (strEq(typenode->name, _S"hashtable")) {
             strDup(&nmem->vartype, typenode->name);
         } else if (strEq(typenode->name, _S"sarray")) {
-            if (saSize(typenode->params) >= 1 &&
-                strEq(typenode->params.a[0]->name, _S"structptr") &&
+            if (saSize(typenode->params) >= 1 && strEq(typenode->params.a[0]->name, _S"structp") &&
                 saSize(typenode->params.a[0]->params) >= 1) {
-                // hacky special case for array of structptrs, which need a special type
+                // hacky special case for array of structps, which need a special type
                 strNConcat(&nmem->vartype, _S"sa_",
                            typenode->params.a[0]->params.a[0]->name, _S"_ptr");
             } else {

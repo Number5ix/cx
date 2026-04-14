@@ -823,7 +823,7 @@ static void getStructMemberType(string* out, Member* m)
 
     if (m->typenode) {
         if (strEq(m->typenode->name, _S"sarray") || strEq(m->typenode->name, _S"object") ||
-            strEq(m->typenode->name, _S"structptr"))
+            strEq(m->typenode->name, _S"structp"))
             strDup(out, m->typenode->name);
 
         if (strEq(m->typenode->name, _S"struct") && saSize(m->typenode->params) >= 1) {

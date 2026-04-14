@@ -141,7 +141,7 @@
 ///
 /// Structs integrate with the CX stype system through two complementary descriptors:
 ///
-/// **`structptr`** — pointer-to-struct descriptor:
+/// **`structp`** — pointer-to-struct descriptor:
 /// - The stored value is a heap-allocated `StructBase*`
 /// - Because every heap-allocated struct carries its own `StructInfo*` at offset 0,
 ///   the stype requires **no type parameter** — the runtime inspects the pointer to
@@ -157,16 +157,16 @@
 /// - Destructor calls `structDestroyMembers` (no free)
 ///
 /// @code
-/// // Pointer-to-struct in a hashtable (structptr stype, no type parameter)
+/// // Pointer-to-struct in a hashtable (structp stype, no type parameter)
 /// hashtable ht;
-/// htInit(&ht, string, structptr, 16);
+/// htInit(&ht, string, structp, 16);
 /// Config *cfg = structCreate(Config);
-/// htInsert(&ht, string, _SL("main"), structptr, cfg);
+/// htInsert(&ht, string, _SL("main"), structp, cfg);
 ///
 /// // Heterogeneous structs in the same hashtable -- works because StructInfo
 /// // is read directly from the stored pointer
 /// Point *pt = structCreate(Point);
-/// htInsert(&ht, string, _SL("origin"), structptr, pt);
+/// htInsert(&ht, string, _SL("origin"), structp, pt);
 ///
 /// // Inline array of structs (struct stype, type parameter required)
 /// sa_Point pts;
@@ -181,7 +181,7 @@
 /// - `MyStruct`                    — generated struct type
 /// - `MyStruct_structinfo`         — static `StructInfo` instance
 /// - `MyStruct_members[]`          — static `StructMemberDesc` array
-/// - `structptr`                   — runtime stype for any heap-allocated struct pointer
+/// - `structp`                     — runtime stype for any heap-allocated struct pointer
 /// - `struct(MyStruct)`            — runtime stype for inline MyStruct storage
 
 /// @defgroup struct_impl Implementation Notes
@@ -226,11 +226,11 @@
 /// @section struct_impl_stype SType Integration
 ///
 /// Two new type IDs are required (add to `STYPE_ID` enum in `stype.h`):
-/// - `STypeId_structptr` — pointer-to-StructBase (object-like; `STypeFlag_Object` set)
+/// - `STypeId_structp` — pointer-to-StructBase (object-like; `STypeFlag_Object` set)
 /// - `STypeId_struct`    — inline struct (`STypeFlag_PassPtr` set; size comes from `StructInfo`)
 ///
-/// `structptr` (no macro parameter):
-/// - Expands to a fixed `stype` constant: id=`STypeId_structptr`, flags=`STypeFlag_Object`,
+/// `structp` (no macro parameter):
+/// - Expands to a fixed `stype` constant: id=`STypeId_structp`, flags=`STypeFlag_Object`,
 ///   size=`sizeof(void*)` (pointer width; identical for all struct types).
 /// - Runtime operations (dtor, copy, cmp, hash) read `StructInfo*` from offset 0 of the
 ///   stored pointer, so no type parameter is needed and heterogeneous containers work
@@ -248,7 +248,7 @@
 ///
 /// The ops dispatch table (`STypeOps`) needs entries for both descriptors:
 /// - **dtor**: as above
-/// - **copy**: for `structptr`, duplicate the heap struct (deep copy via member stype copy ops);
+/// - **copy**: for `structp`, duplicate the heap struct (deep copy via member stype copy ops);
 ///   for `struct`, deep-copy inline (destination must already be allocated).
 /// - **cmp**: fallback to memcmp for POD-only structs; otherwise field-by-field via stype cmp.
 /// - **hash**: field-by-field hash accumulation using stype hash ops.
@@ -339,7 +339,7 @@
 /// @endcode
 ///
 /// **Serialization integration**:
-///   When serializing a `structptr` stype value through a struct set context, a `"type"` key
+///   When serializing a `structp` stype value through a struct set context, a `"type"` key
 ///   is prepended to the JSON object (or written as a leading field in binary) containing
 ///   the registered name.
 /// - `structFromJsonAny(StructSet *ss, strref json)` → allocates and returns the correct

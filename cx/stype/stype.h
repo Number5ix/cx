@@ -336,7 +336,7 @@ typedef union sa_ref* sahandle;
 #define SType_cchain    cchain
 #define SType_buffer    Buffer
 #define SType_struct    StructBase*
-#define SType_structptr StructBase*
+#define SType_structp   StructBase*
 #define stTypeDef(name) SType_##name
 
 /// @defgroup stype_utils Type Utilities
@@ -408,7 +408,7 @@ typedef union stgeneric {
     CONTAINER_TYPE(cchain);
     CONTAINER_TYPE(buffer);
     CONTAINER_TYPE(struct);
-    CONTAINER_TYPE(structptr);
+    CONTAINER_TYPE(structp);
 } stgeneric;
 
 _Static_assert(sizeof(stgeneric) == sizeof(uint64), "stype container too large");
@@ -462,7 +462,7 @@ typedef struct stvar {
 #define STStorageType_cchain    cchain
 #define STStorageType_buffer    Buffer
 #define STStorageType_struct    StructBase
-#define STStorageType_structptr StructBase*
+#define STStorageType_structp   StructBase*
 #define stStorageType(name)     STStorageType_##name
 
 enum STYPE_ID {
@@ -497,7 +497,7 @@ enum STYPE_ID {
     STypeId_closure   = STCLASS_CX | STST_OBJ | 4,
     STypeId_buffer    = STCLASS_CX | STST_OBJ | 5,
     STypeId_struct    = STCLASS_CX | STST_OBJ | 6,
-    STypeId_structptr = STCLASS_CX | STST_OBJ | 7,
+    STypeId_structp   = STCLASS_CX | STST_OBJ | 7,
     STypeId_sarray    = STCLASS_CX | STST_CONTAINER | 0,
     STypeId_hashtable = STCLASS_CX | STST_CONTAINER | 1,
     STypeId_cchain    = STCLASS_CX | STST_CONTAINER | 2,
@@ -551,7 +551,7 @@ enum STYPE_SIZE {
     STypeSize_buffer    = sizeof(Buffer),
     // similar to opaque, not known at compile time
     STypeSize_struct    = 0,
-    STypeSize_structptr = sizeof(StructBase*),
+    STypeSize_structp   = sizeof(StructBase*),
 };
 
 /// size_t stTypeSize(type)
@@ -670,7 +670,7 @@ enum STYPE_FLAGS {
 #define STypeCheck_cchain(type, val)    cchainCheck(val)
 #define STypeCheck_buffer(type, val)    bufferCheck(val)
 #define STypeCheck_struct(type, val)    structCheck(val)
-#define STypeCheck_structptr(type, val) structCheckPtr(val)
+#define STypeCheck_structp(type, val)   structCheckPtr(val)
 
 /// value stCheck(type, value)
 ///
@@ -723,7 +723,7 @@ enum STYPE_FLAGS {
 #define STypeCheckPtr_cchain(type, ptr)    cchainCheckPtr(ptr)
 #define STypeCheckPtr_buffer(type, ptr)    bufferCheckPtr(ptr)
 #define STypeCheckPtr_struct(type, ptr)    structCheckPtr(ptr)
-#define STypeCheckPtr_structptr(type, ptr) structCheckPtrPtr(ptr)
+#define STypeCheckPtr_structp(type, ptr)   structCheckPtrPtr(ptr)
 
 /// pointer stCheckPtr(type, pointer)
 ///
@@ -785,7 +785,7 @@ extern const STypeInfo _sti_hashtable;
 extern const STypeInfo _sti_closure;
 extern const STypeInfo _sti_cchain;
 extern const STypeInfo _sti_buffer;
-extern const STypeInfo _sti_structptr;
+extern const STypeInfo _sti_structp;
 
 extern const STypeOps _stops_opaque;
 extern const STypeOps _stops_struct;
@@ -918,7 +918,7 @@ extern const STypeOps _stops_struct;
 #define STypeArg_buffer(type, val)    stgeneric(type, val)
 // struct works like opaque
 #define STypeArg_struct(type, val)    stgeneric(type, &(val))
-#define STypeArg_structptr(type, val) stgeneric(type, val)
+#define STypeArg_structp(type, val)   stgeneric(type, val)
 
 /// stgeneric stArg(type, value)
 ///
@@ -979,7 +979,7 @@ extern const STypeOps _stops_struct;
 #define STypeArgPtr_cchain(type, val)    (stgeneric*)stCheckPtr(type, val)
 #define STypeArgPtr_buffer(type, val)    (stgeneric*)stCheckPtr(type, val)
 #define STypeArgPtr_struct(type, val)    &stgeneric(type, val)
-#define STypeArgPtr_structptr(type, val) (stgeneric*)stCheckPtr(type, val)
+#define STypeArgPtr_structp(type, val)   (stgeneric*)stCheckPtr(type, val)
 
 /// stgeneric* stArgPtr(type, pointer)
 ///
@@ -1032,7 +1032,7 @@ extern const STypeOps _stops_struct;
 #define STypeCheckedArg_cchain(type, val)    stType(type), stArg(type, val)
 #define STypeCheckedArg_buffer(type, val)    stType(type), stArg(type, val)
 #define STypeCheckedArg_struct(type, val)    (&_sti_struct(val)), stArg(type, val)
-#define STypeCheckedArg_structptr(type, val) stType(type), stArg(type, val)
+#define STypeCheckedArg_structp(type, val)   stType(type), stArg(type, val)
 
 /// (stype, stgeneric) stCheckedArg(type, value)
 ///
@@ -1089,7 +1089,7 @@ extern const STypeOps _stops_struct;
 #define STypeCheckedPtrArg_cchain(type, val)    stType(type), stArgPtr(type, val)
 #define STypeCheckedPtrArg_buffer(type, val)    stType(type), stArgPtr(type, val)
 #define STypeCheckedPtrArg_struct(type, val)    (&_sti_struct(*val)), stArgPtr(type, val)
-#define STypeCheckedPtrArg_structptr(type, val) stType(type), stArgPtr(type, val)
+#define STypeCheckedPtrArg_structp(type, val)   stType(type), stArgPtr(type, val)
 
 /// (stype, stgeneric*) stCheckedPtrArg(type, pointer)
 ///

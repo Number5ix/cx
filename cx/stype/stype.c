@@ -240,15 +240,15 @@ const STypeInfo _sti_buffer = {
 // struct is intentionally omitted. It's not legal to create a bare structure directly. cxautogen
 // automatically creates canonical types for each defined structure that use the struct type ID
 
-const STypeInfo _sti_structptr = {
-    .name  = "structptr",
-    .id    = STypeId_structptr,
+const STypeInfo _sti_structp = {
+    .name  = "structp",
+    .id    = STypeId_structp,
     .flags = stFlag(Object),
-    .size  = sizeof(stStorageType(structptr)),
-    .ops   = { .dtor = stDtor_structptr,
-              .cmp  = stCmp_structptr,
-              .hash = stHash_structptr,
-              .copy = stCopy_structptr }
+    .size  = sizeof(stStorageType(structp)),
+    .ops   = { .dtor = stDtor_structp,
+              .cmp  = stCmp_structp,
+              .hash = stHash_structp,
+              .copy = stCopy_structp }
 };
 
 // non-parameterized version of containers

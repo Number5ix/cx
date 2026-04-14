@@ -398,7 +398,7 @@ static void writeMember(StreamBuffer* bf, Member* m)
     if (m->typenode && !strEq(m->typenode->name, _S"hashtable") &&
         !strEq(m->typenode->name, _S"sarray")) {
         if (strEq(m->typenode->name, _S"object") || strEq(m->typenode->name, _S"weak") ||
-            strEq(m->typenode->name, _S"structptr")) {
+            strEq(m->typenode->name, _S"structp")) {
             strPrepend(_S"*", &predecr);
         }
     }
