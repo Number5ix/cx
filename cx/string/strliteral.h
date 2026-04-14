@@ -54,6 +54,19 @@
 ///   STR_CONSTL(kTemplate, "... long string ..."); // ASCII, STR_LEN16, < 65535 bytes
 /// @endcode
 ///
+/// **Struct initializers** (`STR_CONSTR` + `_SR`) — portable, all platforms:
+///
+/// Using a `strref` variable from `STR_CONST` in a static struct or array initializer is not
+/// portable across all compilers. Use `STR_CONSTR` to declare the backing constant and `_SR()`
+/// to reference it in the initializer:
+/// @code
+///   STR_CONSTR(kLabel, "item label");
+///
+///   static const ItemInfo info = {
+///       .name = _SR(kLabel),
+///   };
+/// @endcode
+///
 /// Header byte quick reference:
 /// | Family           | Encoding    | Length class    | hdr byte    |
 /// |------------------|-------------|-----------------|-------------|
@@ -111,7 +124,7 @@
     static const struct {                                                                    \
         uint8 _h, _m, _l;                                                                    \
         char _d[sizeof(s)];                                                                  \
-    } _cx_sr_##name = { (enc), 0xC1u, (uint8)(sizeof(s) - 1u), s };
+    } _cx_sc_##name = { (enc), 0xC1u, (uint8)(sizeof(s) - 1u), s };
 
 #define _STR_CONSTR16(name, enc, s)                                            \
     _Static_assert(sizeof(s) - 1 <= 65535, "String too long for STR_CONSTRL"); \
@@ -119,7 +132,7 @@
         uint8 _h, _m;                                                          \
         uint16 _l;                                                             \
         char _d[sizeof(s)];                                                    \
-    } _cx_sr_##name = { (enc), 0xC1u, (uint16)(sizeof(s) - 1u), s };
+    } _cx_sc_##name = { (enc), 0xC1u, (uint16)(sizeof(s) - 1u), s };
 
 /// Declare a named ASCII string constant with a compile-time length (STR_LEN8, < 255 bytes).
 #define STR_CONST(name, s)   _STR_CONST8(name, 0xE1u, s)
@@ -136,16 +149,37 @@
 /// bytes).
 #define STR_CONSTOL(name, s) _STR_CONST16(name, 0x82u, s)
 
-// Internal version of STR_CONST for static references only (use &name in initializer)
+/// Declare a named ASCII string constant for use with `_SR()` in static initializers (STR_LEN8, <
+/// 255 bytes).
 #define STR_CONSTR(name, s)   _STR_CONSTR8(name, 0xE1u, s)
+/// Declare a named UTF-8 string constant for use with `_SR()` in static initializers (STR_LEN8, <
+/// 255 bytes).
 #define STR_CONSTRU(name, s)  _STR_CONSTR8(name, 0xA1u, s)
+/// Declare a named other-encoding string constant for use with `_SR()` in static initializers
+/// (STR_LEN8, < 255 bytes).
 #define STR_CONSTRO(name, s)  _STR_CONSTR8(name, 0x81u, s)
+/// Declare a named ASCII string constant for use with `_SR()` in static initializers (STR_LEN16, <
+/// 65535 bytes).
 #define STR_CONSTRL(name, s)  _STR_CONSTR16(name, 0xE2u, s)
+/// Declare a named UTF-8 string constant for use with `_SR()` in static initializers (STR_LEN16, <
+/// 65535 bytes).
 #define STR_CONSTRUL(name, s) _STR_CONSTR16(name, 0xA2u, s)
+/// Declare a named other-encoding string constant for use with `_SR()` in static initializers
+/// (STR_LEN16, < 65535 bytes).
 #define STR_CONSTROL(name, s) _STR_CONSTR16(name, 0x82u, s)
 
-// Helper for using STR_CONSTR declared constants in initializers
-#define _SR(name) ((strref)&_cx_sr_##name)
+/// strref _SR(name);
+///
+/// Produce a portable `strref` initializer expression from a constant declared with `STR_CONSTR`.
+///
+/// Use this to initialize `strref` fields in static struct or array literals. A `STR_CONST`
+/// variable cannot be used there portably — `STR_CONSTR` + `_SR()` is the correct alternative.
+/// If a constant already declared with `STR_CONST` is also needed in an initializer, `_SR()` works
+/// with it too, avoiding a duplicate declaration.
+///
+/// @param name The name passed to `STR_CONSTR` (or `STR_CONSTRU`, `STR_CONSTRL`, etc.), or to
+/// `STR_CONST`
+#define _SR(name) ((strref)&_cx_sc_##name)
 
 // ---- Inline literal macros ----
 
