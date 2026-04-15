@@ -107,13 +107,6 @@ class Class implements Sortable {
     factory create();
 }
 
-class ComplexArrayType {
-    string tname;
-    string tsubtype;
-
-    factory create();
-}
-
 class StructDef implements Sortable {
     string name;
     sarray[object[Member]] members;

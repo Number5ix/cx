@@ -17,7 +17,7 @@ sa_string fwdstruct;
 sa_string fwdclass;
 sa_string globaldocs;
 sa_string globaldocs_end;
-sa_ComplexArrayType artypes;
+sa_TypeNode artypes;
 hashtable knownartypes;
 string cpassthrough;
 bool needmixinimpl;

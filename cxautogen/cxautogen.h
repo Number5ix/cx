@@ -21,7 +21,7 @@ extern sa_string fwdstruct;
 extern sa_string fwdclass;
 extern sa_string globaldocs;
 extern sa_string globaldocs_end;
-extern sa_ComplexArrayType artypes;
+extern sa_TypeNode artypes;
 extern hashtable knownartypes;
 extern string cpassthrough;
 extern bool needmixinimpl;
@@ -46,10 +46,12 @@ void paramAnnotations(string* out, Param* p);
 void relSrcPath(string* out, strref fname, strref srcpath);
 void binPath(string* out, strref fname, strref srcpath, strref binpath);
 
-// Compound type name helpers (defined in impl.c, used by header.c)
+// Compound type name helpers (defined in impl.c, used by header.c and parser.c)
 bool isCompoundNode(TypeNode* node);
 void buildTypeKey(string* out, TypeNode* node);
 void buildTypeName(string* out, TypeNode* node);
 void buildCompoundDescName(string* out, strref sname, TypeNode* node);
+void buildSArrayTypeName(string* out, TypeNode* node);
+void collectNestedSArrayDecls(TypeNode* node, bool included);
 bool isStructName(strref name);
 bool isStructSetName(strref name);

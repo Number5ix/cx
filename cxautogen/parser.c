@@ -770,22 +770,6 @@ static TypeNode* parseMemberType(sa_string* tokstack, int* idx)
     return node;
 }
 
-// Flattens a TypeNode parameter tree into a string list for sarray vartype computation.
-// Skips object/weak/struct modifier names but recurses into their children.
-static void buildArtl(sa_string* artl, TypeNode* node)
-{
-    for (int i = 0; i < saSize(node->params); i++) {
-        TypeNode* p = node->params.a[i];
-        if (!strEq(p->name, _S"object") && !strEq(p->name, _S"weak") &&
-            !strEq(p->name, _S"struct")) {
-            saPush(artl, string, p->name);
-            buildArtl(artl, p);
-        } else {
-            buildArtl(artl, p);
-        }
-    }
-}
-
 // Common type-processing block used by both class and struct member parsing.
 // Parses the type expression from ps->tokstack starting at idx=0, sets nmem->vartype
 // and nmem->typenode, and returns the index of the first non-type token.
@@ -803,51 +787,11 @@ static int parseMemberTypeToMember(ParseState* ps, Member* nmem)
                 strNConcat(&nmem->vartype, _S"sa_",
                            typenode->params.a[0]->params.a[0]->name, _S"_ptr");
             } else {
-                sa_string artl;
-                saInit(&artl, string, 4);
-                buildArtl(&artl, typenode);
-
-                if (saSize(artl) == 1) {
-                    strNConcat(&nmem->vartype, _S"sa_", artl.a[0]);
-                } else {
-                    // build up a complex array type
-                    string lasttname = 0;
-                    for (int i = saSize(artl) - 2; i >= 0; --i) {
-                        if (!strEq(artl.a[i], _S"sarray"))
-                            continue;
-
-                        ComplexArrayType* cat = complexarraytypeCreate();
-                        sa_string artypessub1;
-                        sa_string artypessub2;
-                        saInit(&artypessub1, string, 4);
-                        saInit(&artypessub2, string, 4);
-                        for (int j = i; j < saSize(artl); j++) {
-                            saPush(&artypessub1, string, artl.a[j]);
-                            if (j > i) {
-                                saPush(&artypessub2, string, artl.a[j]);
-                            }
-                            if (!strEq(artl.a[j], _S"sarray"))
-                                break;
-                        }
-
-                        strJoin(&cat->tname, artypessub1, _S"_");
-                        strJoin(&cat->tsubtype, artypessub2, _S"_");
-
-                        if (!ps->included && !htHasKey(knownartypes, string, cat->tname))
-                            saPush(&artypes, object, cat);
-
-                        strDup(&lasttname, cat->tname);
-                        htInsert(&knownartypes, string, cat->tname, bool, true);
-
-                        objRelease(&cat);
-                        saDestroy(&artypessub1);
-                        saDestroy(&artypessub2);
-                    }
-
-                    strNConcat(&nmem->vartype, _S"sa_", lasttname);
-                    strDestroy(&lasttname);
-                }
-                saDestroy(&artl);
+                string typesub = 0;
+                buildSArrayTypeName(&typesub, typenode->params.a[0]);
+                strNConcat(&nmem->vartype, _S"sa_", typesub);
+                strDestroy(&typesub);
+                collectNestedSArrayDecls(typenode, ps->included);
             }
         } else if (strEq(typenode->name, _S"atomic")) {
             TypeNode* inner = typenode->params.a[saSize(typenode->params) - 1];

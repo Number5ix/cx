@@ -17,8 +17,6 @@ typedef struct Member Member;
 typedef struct Member_WeakRef Member_WeakRef;
 typedef struct Class Class;
 typedef struct Class_WeakRef Class_WeakRef;
-typedef struct ComplexArrayType ComplexArrayType;
-typedef struct ComplexArrayType_WeakRef ComplexArrayType_WeakRef;
 typedef struct StructDef StructDef;
 typedef struct StructDef_WeakRef StructDef_WeakRef;
 typedef struct StructSetDef StructSetDef;
@@ -77,15 +75,6 @@ saDeclarePtr(Class_WeakRef);
 #define STypeArgPtr_Class(type, val) (stgeneric*)objInstCheckClassPtr(Class, val)
 #define STypeCheckedArg_Class(type, val)    stType(type), stArg(type, val)
 #define STypeCheckedPtrArg_Class(type, val) stType(type), stArgPtr(type, val)
-saDeclarePtr(ComplexArrayType);
-saDeclarePtr(ComplexArrayType_WeakRef);
-#define _sti_ComplexArrayType _sti_object
-#define SType_ComplexArrayType ComplexArrayType*
-#define STStorageType_ComplexArrayType ComplexArrayType*
-#define STypeArg_ComplexArrayType(type, val) stgeneric(object, (ObjInst*)objInstCheckClass(ComplexArrayType, val))
-#define STypeArgPtr_ComplexArrayType(type, val) (stgeneric*)objInstCheckClassPtr(ComplexArrayType, val)
-#define STypeCheckedArg_ComplexArrayType(type, val)    stType(type), stArg(type, val)
-#define STypeCheckedPtrArg_ComplexArrayType(type, val) stType(type), stArgPtr(type, val)
 saDeclarePtr(StructDef);
 saDeclarePtr(StructDef_WeakRef);
 #define _sti_StructDef _sti_object
@@ -424,39 +413,6 @@ _objfactory_guaranteed Class* Class_create();
 
 // intptr classCmp(Class* self, Class* other, uint32 flags);
 #define classCmp(self, other, flags) (self)->_->cmp(Class(self), other, flags)
-
-typedef struct ComplexArrayType {
-    union {
-        ObjIface* _;
-        void* _is_ComplexArrayType;
-        void* _is_ObjInst;
-    };
-    ObjClassInfo* _clsinfo;
-    atomic(uintptr) _ref;
-    atomic(ptr) _weakref;
-
-    string tname;
-    string tsubtype;
-} ComplexArrayType;
-extern ObjClassInfo ComplexArrayType_clsinfo;
-#define ComplexArrayType(inst) objInstCheckClass(ComplexArrayType, inst)
-#define ComplexArrayTypeNone ((ComplexArrayType*)NULL)
-
-typedef struct ComplexArrayType_WeakRef {
-    union {
-        ObjInst* _inst;
-        void* _is_ComplexArrayType_WeakRef;
-        void* _is_ObjInst_WeakRef;
-    };
-    atomic(uintptr) _ref;
-    RWLock _lock;
-} ComplexArrayType_WeakRef;
-#define ComplexArrayType_WeakRef(inst) objWeakRefCheckClass(ComplexArrayType, inst)
-
-_objfactory_guaranteed ComplexArrayType* ComplexArrayType_create();
-// ComplexArrayType* complexarraytypeCreate();
-#define complexarraytypeCreate() ComplexArrayType_create()
-
 
 typedef struct StructDef {
     union {

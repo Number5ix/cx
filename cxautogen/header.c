@@ -373,11 +373,15 @@ void writeSArrayWeakRefDecl(StreamBuffer* bf, string name)
     strDestroy(&ln);
 }
 
-void writeComplexArrayDecl(StreamBuffer* bf, ComplexArrayType* cat)
+static void writeComplexArrayDecl(StreamBuffer* bf, TypeNode* node)
 {
-    string ln = 0;
-    strNConcat(&ln, _S"saDeclareType(", cat->tname, _S", sa_", cat->tsubtype, _S");");
+    string tname = 0, tsubtype = 0, ln = 0;
+    buildSArrayTypeName(&tname, node);
+    buildSArrayTypeName(&tsubtype, node->params.a[0]);
+    strNConcat(&ln, _S"saDeclareType(", tname, _S", sa_", tsubtype, _S");");
     sbufPWriteLine(bf, ln);
+    strDestroy(&tname);
+    strDestroy(&tsubtype);
     strDestroy(&ln);
 }
 

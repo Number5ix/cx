@@ -833,6 +833,61 @@ void buildCompoundDescName(string* out, strref sname, TypeNode* node)
     strDestroy(&key);
 }
 
+// Strips transparent object/weak/struct wrapper nodes, returning the underlying TypeNode.
+static TypeNode* unwrapNode(TypeNode* node)
+{
+    if (!node)
+        return NULL;
+    while (saSize(node->params) >= 1 &&
+           (strEq(node->name, _S"object") || strEq(node->name, _S"weak") ||
+            strEq(node->name, _S"struct"))) {
+        node = node->params.a[0];
+    }
+    return node;
+}
+
+// Computes the flat underscore-joined type name for a sarray TypeNode, stripping
+// object/weak/struct wrappers.
+// e.g. sarray[object[int32]] -> "int32", sarray[sarray[int32]] -> "sarray_int32"
+void buildSArrayTypeName(string* out, TypeNode* node)
+{
+    if (!node)
+        return;
+    if (strEq(node->name, _S"object") || strEq(node->name, _S"weak") ||
+        strEq(node->name, _S"struct")) {
+        if (saSize(node->params) >= 1)
+            buildSArrayTypeName(out, node->params.a[0]);
+        return;
+    }
+    if (strEq(node->name, _S"sarray") && saSize(node->params) >= 1) {
+        string sub = 0;
+        buildSArrayTypeName(&sub, node->params.a[0]);
+        strNConcat(out, _S"sarray_", sub);
+        strDestroy(&sub);
+        return;
+    }
+    strDup(out, node->name);
+}
+
+// Walks a sarray TypeNode tree and registers all nested sarray levels that require
+// a saDeclareType forward declaration, adding them to the global artypes list.
+// Processes inner-to-outer so declarations appear in dependency order.
+void collectNestedSArrayDecls(TypeNode* node, bool included)
+{
+    if (!node || !strEq(node->name, _S"sarray") || saSize(node->params) < 1)
+        return;
+    TypeNode* inner = unwrapNode(node->params.a[0]);
+    if (!inner || !strEq(inner->name, _S"sarray"))
+        return;
+    collectNestedSArrayDecls(inner, included);
+    string tname = 0;
+    buildSArrayTypeName(&tname, inner);
+    if (!included && !htHasKey(knownartypes, string, tname))
+        saPush(&artypes, object, inner);
+    htInsert(&knownartypes, string, tname, bool, true);
+    strDestroy(&tname);
+}
+
 static void getStructMemberType(string* out, Member* m)
 {
     if (strEq(m->vartype, _S"int8") || strEq(m->vartype, _S"int16") || strEq(m->vartype, _S"int32") ||

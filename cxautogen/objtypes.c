@@ -206,24 +206,6 @@ _Ret_valid_ Method* Method_clone(_In_ Method* self)
     return ret;
 }
 
-_objfactory_guaranteed ComplexArrayType* ComplexArrayType_create()
-{
-    ComplexArrayType* self;
-    self = objInstCreate(ComplexArrayType);
-
-    objInstInit(self);
-
-    return self;
-}
-
-void ComplexArrayType_destroy(_In_ ComplexArrayType* self)
-{
-    // Autogen begins -----
-    strDestroy(&self->tname);
-    strDestroy(&self->tsubtype);
-    // Autogen ends -------
-}
-
 _objfactory_guaranteed StructDef* StructDef_create()
 {
     StructDef* self;

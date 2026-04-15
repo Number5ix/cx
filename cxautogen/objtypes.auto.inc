@@ -150,16 +150,6 @@ ObjClassInfo Class_clsinfo = {
     .ifimpl = _ifimpl_Class,
 };
 
-static ObjIface* _ifimpl_ComplexArrayType[] = {
-    NULL
-};
-
-ObjClassInfo ComplexArrayType_clsinfo = {
-    .instsize = sizeof(ComplexArrayType),
-    .destroy = (void(*)(void*))ComplexArrayType_destroy,
-    .ifimpl = _ifimpl_ComplexArrayType,
-};
-
 static Sortable _impl_StructDef_Sortable = {
     ._size = sizeof(Sortable),
     ._implements = (ObjIface*)&Sortable_tmpl,
