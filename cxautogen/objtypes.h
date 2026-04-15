@@ -25,22 +25,85 @@ typedef struct StructSetDef StructSetDef;
 typedef struct StructSetDef_WeakRef StructSetDef_WeakRef;
 saDeclarePtr(Param);
 saDeclarePtr(Param_WeakRef);
+#define _sti_Param _sti_object
+#define SType_Param Param*
+#define STStorageType_Param Param*
+#define STypeArg_Param(type, val) stgeneric(object, (ObjInst*)objInstCheckClass(Param, val))
+#define STypeArgPtr_Param(type, val) (stgeneric*)objInstCheckClassPtr(Param, val)
+#define STypeCheckedArg_Param(type, val)    stType(type), stArg(type, val)
+#define STypeCheckedPtrArg_Param(type, val) stType(type), stArgPtr(type, val)
 saDeclarePtr(Method);
 saDeclarePtr(Method_WeakRef);
+#define _sti_Method _sti_object
+#define SType_Method Method*
+#define STStorageType_Method Method*
+#define STypeArg_Method(type, val) stgeneric(object, (ObjInst*)objInstCheckClass(Method, val))
+#define STypeArgPtr_Method(type, val) (stgeneric*)objInstCheckClassPtr(Method, val)
+#define STypeCheckedArg_Method(type, val)    stType(type), stArg(type, val)
+#define STypeCheckedPtrArg_Method(type, val) stType(type), stArgPtr(type, val)
 saDeclarePtr(Interface);
 saDeclarePtr(Interface_WeakRef);
+#define _sti_Interface _sti_object
+#define SType_Interface Interface*
+#define STStorageType_Interface Interface*
+#define STypeArg_Interface(type, val) stgeneric(object, (ObjInst*)objInstCheckClass(Interface, val))
+#define STypeArgPtr_Interface(type, val) (stgeneric*)objInstCheckClassPtr(Interface, val)
+#define STypeCheckedArg_Interface(type, val)    stType(type), stArg(type, val)
+#define STypeCheckedPtrArg_Interface(type, val) stType(type), stArgPtr(type, val)
 saDeclarePtr(TypeNode);
 saDeclarePtr(TypeNode_WeakRef);
+#define _sti_TypeNode _sti_object
+#define SType_TypeNode TypeNode*
+#define STStorageType_TypeNode TypeNode*
+#define STypeArg_TypeNode(type, val) stgeneric(object, (ObjInst*)objInstCheckClass(TypeNode, val))
+#define STypeArgPtr_TypeNode(type, val) (stgeneric*)objInstCheckClassPtr(TypeNode, val)
+#define STypeCheckedArg_TypeNode(type, val)    stType(type), stArg(type, val)
+#define STypeCheckedPtrArg_TypeNode(type, val) stType(type), stArgPtr(type, val)
 saDeclarePtr(Member);
 saDeclarePtr(Member_WeakRef);
+#define _sti_Member _sti_object
+#define SType_Member Member*
+#define STStorageType_Member Member*
+#define STypeArg_Member(type, val) stgeneric(object, (ObjInst*)objInstCheckClass(Member, val))
+#define STypeArgPtr_Member(type, val) (stgeneric*)objInstCheckClassPtr(Member, val)
+#define STypeCheckedArg_Member(type, val)    stType(type), stArg(type, val)
+#define STypeCheckedPtrArg_Member(type, val) stType(type), stArgPtr(type, val)
 saDeclarePtr(Class);
 saDeclarePtr(Class_WeakRef);
+#define _sti_Class _sti_object
+#define SType_Class Class*
+#define STStorageType_Class Class*
+#define STypeArg_Class(type, val) stgeneric(object, (ObjInst*)objInstCheckClass(Class, val))
+#define STypeArgPtr_Class(type, val) (stgeneric*)objInstCheckClassPtr(Class, val)
+#define STypeCheckedArg_Class(type, val)    stType(type), stArg(type, val)
+#define STypeCheckedPtrArg_Class(type, val) stType(type), stArgPtr(type, val)
 saDeclarePtr(ComplexArrayType);
 saDeclarePtr(ComplexArrayType_WeakRef);
+#define _sti_ComplexArrayType _sti_object
+#define SType_ComplexArrayType ComplexArrayType*
+#define STStorageType_ComplexArrayType ComplexArrayType*
+#define STypeArg_ComplexArrayType(type, val) stgeneric(object, (ObjInst*)objInstCheckClass(ComplexArrayType, val))
+#define STypeArgPtr_ComplexArrayType(type, val) (stgeneric*)objInstCheckClassPtr(ComplexArrayType, val)
+#define STypeCheckedArg_ComplexArrayType(type, val)    stType(type), stArg(type, val)
+#define STypeCheckedPtrArg_ComplexArrayType(type, val) stType(type), stArgPtr(type, val)
 saDeclarePtr(StructDef);
 saDeclarePtr(StructDef_WeakRef);
+#define _sti_StructDef _sti_object
+#define SType_StructDef StructDef*
+#define STStorageType_StructDef StructDef*
+#define STypeArg_StructDef(type, val) stgeneric(object, (ObjInst*)objInstCheckClass(StructDef, val))
+#define STypeArgPtr_StructDef(type, val) (stgeneric*)objInstCheckClassPtr(StructDef, val)
+#define STypeCheckedArg_StructDef(type, val)    stType(type), stArg(type, val)
+#define STypeCheckedPtrArg_StructDef(type, val) stType(type), stArgPtr(type, val)
 saDeclarePtr(StructSetDef);
 saDeclarePtr(StructSetDef_WeakRef);
+#define _sti_StructSetDef _sti_object
+#define SType_StructSetDef StructSetDef*
+#define STStorageType_StructSetDef StructSetDef*
+#define STypeArg_StructSetDef(type, val) stgeneric(object, (ObjInst*)objInstCheckClass(StructSetDef, val))
+#define STypeArgPtr_StructSetDef(type, val) (stgeneric*)objInstCheckClassPtr(StructSetDef, val)
+#define STypeCheckedArg_StructSetDef(type, val)    stType(type), stArg(type, val)
+#define STypeCheckedPtrArg_StructSetDef(type, val) stType(type), stArgPtr(type, val)
 saDeclareType(sarray_string, sa_string);
 
 typedef struct Method_ClassIf {
@@ -115,7 +178,7 @@ typedef struct Param {
     sa_sarray_string annotations;
 } Param;
 extern ObjClassInfo Param_clsinfo;
-#define Param(inst) ((Param*)(unused_noeval((inst) && &((inst)->_is_Param)), (inst)))
+#define Param(inst) objInstCheckClass(Param, inst)
 #define ParamNone ((Param*)NULL)
 
 typedef struct Param_WeakRef {
@@ -127,7 +190,7 @@ typedef struct Param_WeakRef {
     atomic(uintptr) _ref;
     RWLock _lock;
 } Param_WeakRef;
-#define Param_WeakRef(inst) ((Param_WeakRef*)(unused_noeval((inst) && &((inst)->_is_Param_WeakRef)), (inst)))
+#define Param_WeakRef(inst) objWeakRefCheckClass(Param, inst)
 
 _objfactory_guaranteed Param* Param_create();
 // Param* paramCreate();
@@ -165,7 +228,7 @@ typedef struct Method {
     bool mixin;
 } Method;
 extern ObjClassInfo Method_clsinfo;
-#define Method(inst) ((Method*)(unused_noeval((inst) && &((inst)->_is_Method)), (inst)))
+#define Method(inst) objInstCheckClass(Method, inst)
 #define MethodNone ((Method*)NULL)
 
 typedef struct Method_WeakRef {
@@ -177,7 +240,7 @@ typedef struct Method_WeakRef {
     atomic(uintptr) _ref;
     RWLock _lock;
 } Method_WeakRef;
-#define Method_WeakRef(inst) ((Method_WeakRef*)(unused_noeval((inst) && &((inst)->_is_Method_WeakRef)), (inst)))
+#define Method_WeakRef(inst) objWeakRefCheckClass(Method, inst)
 
 _objfactory_guaranteed Method* Method_create();
 // Method* methodCreate();
@@ -207,7 +270,7 @@ typedef struct Interface {
     sa_Method allmethods;
 } Interface;
 extern ObjClassInfo Interface_clsinfo;
-#define Interface(inst) ((Interface*)(unused_noeval((inst) && &((inst)->_is_Interface)), (inst)))
+#define Interface(inst) objInstCheckClass(Interface, inst)
 #define InterfaceNone ((Interface*)NULL)
 
 typedef struct Interface_WeakRef {
@@ -219,7 +282,7 @@ typedef struct Interface_WeakRef {
     atomic(uintptr) _ref;
     RWLock _lock;
 } Interface_WeakRef;
-#define Interface_WeakRef(inst) ((Interface_WeakRef*)(unused_noeval((inst) && &((inst)->_is_Interface_WeakRef)), (inst)))
+#define Interface_WeakRef(inst) objWeakRefCheckClass(Interface, inst)
 
 _objfactory_guaranteed Interface* Interface_create();
 // Interface* interfaceCreate();
@@ -242,7 +305,7 @@ typedef struct TypeNode {
     sa_TypeNode params;
 } TypeNode;
 extern ObjClassInfo TypeNode_clsinfo;
-#define TypeNode(inst) ((TypeNode*)(unused_noeval((inst) && &((inst)->_is_TypeNode)), (inst)))
+#define TypeNode(inst) objInstCheckClass(TypeNode, inst)
 #define TypeNodeNone ((TypeNode*)NULL)
 
 typedef struct TypeNode_WeakRef {
@@ -254,7 +317,7 @@ typedef struct TypeNode_WeakRef {
     atomic(uintptr) _ref;
     RWLock _lock;
 } TypeNode_WeakRef;
-#define TypeNode_WeakRef(inst) ((TypeNode_WeakRef*)(unused_noeval((inst) && &((inst)->_is_TypeNode_WeakRef)), (inst)))
+#define TypeNode_WeakRef(inst) objWeakRefCheckClass(TypeNode, inst)
 
 _objfactory_guaranteed TypeNode* TypeNode_create();
 // TypeNode* typenodeCreate();
@@ -286,7 +349,7 @@ typedef struct Member {
     bool destroy;
 } Member;
 extern ObjClassInfo Member_clsinfo;
-#define Member(inst) ((Member*)(unused_noeval((inst) && &((inst)->_is_Member)), (inst)))
+#define Member(inst) objInstCheckClass(Member, inst)
 #define MemberNone ((Member*)NULL)
 
 typedef struct Member_WeakRef {
@@ -298,7 +361,7 @@ typedef struct Member_WeakRef {
     atomic(uintptr) _ref;
     RWLock _lock;
 } Member_WeakRef;
-#define Member_WeakRef(inst) ((Member_WeakRef*)(unused_noeval((inst) && &((inst)->_is_Member_WeakRef)), (inst)))
+#define Member_WeakRef(inst) objWeakRefCheckClass(Member, inst)
 
 _objfactory_guaranteed Member* Member_create();
 // Member* memberCreate();
@@ -341,7 +404,7 @@ typedef struct Class {
     sa_Method allmethods;
 } Class;
 extern ObjClassInfo Class_clsinfo;
-#define Class(inst) ((Class*)(unused_noeval((inst) && &((inst)->_is_Class)), (inst)))
+#define Class(inst) objInstCheckClass(Class, inst)
 #define ClassNone ((Class*)NULL)
 
 typedef struct Class_WeakRef {
@@ -353,7 +416,7 @@ typedef struct Class_WeakRef {
     atomic(uintptr) _ref;
     RWLock _lock;
 } Class_WeakRef;
-#define Class_WeakRef(inst) ((Class_WeakRef*)(unused_noeval((inst) && &((inst)->_is_Class_WeakRef)), (inst)))
+#define Class_WeakRef(inst) objWeakRefCheckClass(Class, inst)
 
 _objfactory_guaranteed Class* Class_create();
 // Class* classCreate();
@@ -376,7 +439,7 @@ typedef struct ComplexArrayType {
     string tsubtype;
 } ComplexArrayType;
 extern ObjClassInfo ComplexArrayType_clsinfo;
-#define ComplexArrayType(inst) ((ComplexArrayType*)(unused_noeval((inst) && &((inst)->_is_ComplexArrayType)), (inst)))
+#define ComplexArrayType(inst) objInstCheckClass(ComplexArrayType, inst)
 #define ComplexArrayTypeNone ((ComplexArrayType*)NULL)
 
 typedef struct ComplexArrayType_WeakRef {
@@ -388,7 +451,7 @@ typedef struct ComplexArrayType_WeakRef {
     atomic(uintptr) _ref;
     RWLock _lock;
 } ComplexArrayType_WeakRef;
-#define ComplexArrayType_WeakRef(inst) ((ComplexArrayType_WeakRef*)(unused_noeval((inst) && &((inst)->_is_ComplexArrayType_WeakRef)), (inst)))
+#define ComplexArrayType_WeakRef(inst) objWeakRefCheckClass(ComplexArrayType, inst)
 
 _objfactory_guaranteed ComplexArrayType* ComplexArrayType_create();
 // ComplexArrayType* complexarraytypeCreate();
@@ -415,7 +478,7 @@ typedef struct StructDef {
     bool processed;
 } StructDef;
 extern ObjClassInfo StructDef_clsinfo;
-#define StructDef(inst) ((StructDef*)(unused_noeval((inst) && &((inst)->_is_StructDef)), (inst)))
+#define StructDef(inst) objInstCheckClass(StructDef, inst)
 #define StructDefNone ((StructDef*)NULL)
 
 typedef struct StructDef_WeakRef {
@@ -427,7 +490,7 @@ typedef struct StructDef_WeakRef {
     atomic(uintptr) _ref;
     RWLock _lock;
 } StructDef_WeakRef;
-#define StructDef_WeakRef(inst) ((StructDef_WeakRef*)(unused_noeval((inst) && &((inst)->_is_StructDef_WeakRef)), (inst)))
+#define StructDef_WeakRef(inst) objWeakRefCheckClass(StructDef, inst)
 
 _objfactory_guaranteed StructDef* StructDef_create();
 // StructDef* structdefCreate();
@@ -451,7 +514,7 @@ typedef struct StructSetDef {
     bool included;
 } StructSetDef;
 extern ObjClassInfo StructSetDef_clsinfo;
-#define StructSetDef(inst) ((StructSetDef*)(unused_noeval((inst) && &((inst)->_is_StructSetDef)), (inst)))
+#define StructSetDef(inst) objInstCheckClass(StructSetDef, inst)
 #define StructSetDefNone ((StructSetDef*)NULL)
 
 typedef struct StructSetDef_WeakRef {
@@ -463,7 +526,7 @@ typedef struct StructSetDef_WeakRef {
     atomic(uintptr) _ref;
     RWLock _lock;
 } StructSetDef_WeakRef;
-#define StructSetDef_WeakRef(inst) ((StructSetDef_WeakRef*)(unused_noeval((inst) && &((inst)->_is_StructSetDef_WeakRef)), (inst)))
+#define StructSetDef_WeakRef(inst) objWeakRefCheckClass(StructSetDef, inst)
 
 _objfactory_guaranteed StructSetDef* StructSetDef_create();
 // StructSetDef* structsetdefCreate();

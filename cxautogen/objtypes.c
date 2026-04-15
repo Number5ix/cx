@@ -290,14 +290,6 @@ _objfactory_guaranteed StructSetDef* StructSetDef_create()
     return self;
 }
 
-_objinit_guaranteed bool StructSetDef_init(_In_ StructSetDef* self)
-{
-    // Autogen begins -----
-    saInit(&self->members, string, 4);
-    return true;
-    // Autogen ends -------
-}
-
 intptr StructSetDef_cmp(_In_ StructSetDef* self, StructSetDef* other, uint32 flags)
 {
     devAssert(objClsInfo(self) == objClsInfo(other));

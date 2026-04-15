@@ -9,6 +9,13 @@ typedef struct Iterator Iterator;
 typedef struct Iterator_WeakRef Iterator_WeakRef;
 saDeclarePtr(Iterator);
 saDeclarePtr(Iterator_WeakRef);
+#define _sti_Iterator _sti_object
+#define SType_Iterator Iterator*
+#define STStorageType_Iterator Iterator*
+#define STypeArg_Iterator(type, val) stgeneric(object, (ObjInst*)objInstCheckClass(Iterator, val))
+#define STypeArgPtr_Iterator(type, val) (stgeneric*)objInstCheckClassPtr(Iterator, val)
+#define STypeCheckedArg_Iterator(type, val)    stType(type), stArg(type, val)
+#define STypeCheckedPtrArg_Iterator(type, val) stType(type), stArgPtr(type, val)
 
 typedef struct Sortable {
     ObjIface* _implements;
@@ -87,7 +94,7 @@ typedef struct Iterator {
 
 } Iterator;
 extern ObjClassInfo Iterator_clsinfo;
-#define Iterator(inst) ((Iterator*)(unused_noeval((inst) && &((inst)->_is_Iterator)), (inst)))
+#define Iterator(inst) objInstCheckClass(Iterator, inst)
 #define IteratorNone ((Iterator*)NULL)
 
 typedef struct Iterator_WeakRef {
@@ -99,7 +106,7 @@ typedef struct Iterator_WeakRef {
     atomic(uintptr) _ref;
     RWLock _lock;
 } Iterator_WeakRef;
-#define Iterator_WeakRef(inst) ((Iterator_WeakRef*)(unused_noeval((inst) && &((inst)->_is_Iterator_WeakRef)), (inst)))
+#define Iterator_WeakRef(inst) objWeakRefCheckClass(Iterator, inst)
 
 // bool iteratorValid(Iterator* self);
 #define iteratorValid(self) (self)->_->valid(Iterator(self))

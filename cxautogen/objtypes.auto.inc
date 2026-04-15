@@ -207,7 +207,6 @@ static ObjIface* _ifimpl_StructSetDef[] = {
 ObjClassInfo StructSetDef_clsinfo = {
     .instsize = sizeof(StructSetDef),
     .classif = (ObjIface*)&StructSetDef_ClassIf_tmpl,
-    .init = (bool(*)(void*))StructSetDef_init,
     .destroy = (void(*)(void*))StructSetDef_destroy,
     .ifimpl = _ifimpl_StructSetDef,
 };

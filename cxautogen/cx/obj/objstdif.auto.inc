@@ -1,6 +1,7 @@
 // ==================== Auto-generated section begins ====================
 // clang-format off
 // Do not modify the contents of this section; any changes will be lost!
+#include <cx/string.h>
 Sortable Sortable_tmpl = {
     ._size = sizeof(Sortable),
 };
