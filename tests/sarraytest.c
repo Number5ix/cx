@@ -1,6 +1,7 @@
 #include <cx/container/sarray.h>
 #include <cx/string.h>
 #include <cx/string/strtest.h>
+#include <cx/stype/stvar.h>
 
 #define TEST_FILE sarraytest
 #define TEST_FUNCS sarraytest_funcs
@@ -282,11 +283,59 @@ static int test_string_sort()
     return 0;
 }
 
+static int test_stvar_consume()
+{
+    sa_stvar arr = saInitNone;
+    string s     = 0;
+    stvar v;
+
+    // Create a heap-allocated string so we can verify ownership via refcount.
+    // strCopy forces a copy
+    strCopy(&s, _SL("hello stvar consume test"));
+    if (strTestRefCount(s) != 1)
+        return 1;
+
+    // Copy into an owning stvar — stCopy_string increments the refcount
+    stvarCopy(&v, stvar(string, s));
+    if (strTestRefCount(s) != 2)
+        return 2;
+
+    // Consume v into the array; the source stvar must be zeroed afterward
+    saPushC(&arr, stvar, &v);
+
+    // Source stvar must have been zeroed (PassPtr memset clears all fields)
+    if (v.type != NULL || v.data.st_string != NULL)
+        return 3;
+
+    // Array must have one element
+    if (saSize(arr) != 1)
+        return 4;
+
+    // Array element must be a string stvar pointing to the same string
+    if (!stvarIs(&arr.a[0], string))
+        return 5;
+    if (arr.a[0].data.st_string != s)
+        return 6;
+
+    // Refcount: s owns one reference, the stvar in the array owns one
+    if (strTestRefCount(s) != 2)
+        return 7;
+
+    // Destroying the array must release the stvar's string reference
+    saDestroy(&arr);
+    if (strTestRefCount(s) != 1)
+        return 8;
+
+    strDestroy(&s);
+    return 0;
+}
+
 testfunc sarraytest_funcs[] = {
-    { "int", test_int },
-    { "sorted_int", test_sorted_int },
-    { "string", test_string },
-    { "sort", test_sort },
-    { "string_sort", test_string_sort },
-    { 0, 0 }
+    { "int",           test_int           },
+    { "sorted_int",    test_sorted_int    },
+    { "string",        test_string        },
+    { "sort",          test_sort          },
+    { "string_sort",   test_string_sort   },
+    { "stvar_consume", test_stvar_consume },
+    { 0,               0                  }
 };

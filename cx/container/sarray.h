@@ -326,7 +326,7 @@ _saInit(_Out_ sahandle out, stype elemtype, int32 capacity, bool canfail, flags_
 /// @param ... (flags) Optional combination of SA_* flags
 /// @return true on success, false on allocation failure
 #define saTryInit(out, type, capacity, ...) \
-    _saInit(SAHANDLE(out), stFullType(type), capacity, true, opt_flags(__VA_ARGS__))
+    _saInit(SAHANDLE(out), stType(type), capacity, true, opt_flags(__VA_ARGS__))
 
 _Success_(!canfail || return) _When_(canfail, _Check_return_) _At_(out->a, _Post_notnull_) bool
 _saInitFromType(_Out_ sahandle out, stype arraytype, int32 capacity, bool canfail, flags_t flags);

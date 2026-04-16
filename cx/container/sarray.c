@@ -590,6 +590,8 @@ static _meta_inline void sa_set_elem_internal(_Inout_ SArrayHeader* hdr, int32 i
         // destroy source
         if (hdr->flags & SA_Ref)   // weird combo, but respect it
             _stDestroy(hdr->elemtype, elem, 0);
+        else if (stHasFlag(hdr->elemtype, PassPtr))
+            memset(elem->st_ptr, 0, stGetSize(hdr->elemtype));
         else if (stGetSize(hdr->elemtype) == sizeof(void*))
             elem->st_ptr = 0;   // if this is a pointer-sized element, clear it out
         return;
