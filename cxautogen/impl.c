@@ -970,6 +970,14 @@ static bool writeStructMemberDesc(StreamBuffer* bf, strref sname, Member* m)
     }
     sbufPWriteLine(bf, ln);
 
+    if (!strEmpty(m->postdecr)) {
+        string numstr = 0;
+        strSubStr(&numstr, m->postdecr, 1, -1);
+        strNConcat(&ln, _S"        .arrsize = ", numstr, _S",");
+        sbufPWriteLine(bf, ln);
+        strDestroy(&numstr);
+    }
+
     sbufPWriteLine(bf, _S"    },");
 
     strDestroy(&sttypename);

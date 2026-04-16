@@ -22,11 +22,12 @@ enum StructMemberFlagsEnum {
 typedef struct StructSet StructSet;
 
 typedef struct StructMemberDesc {
-    strref name;     // Name of the member
-    size_t offset;   // Offset within the struct
-    stype type;      // Type of the member
-    uint32 flags;    // Member flags (StructMemberFlagsEnum)
-    uint32 cflags;   // Creation flags (e.g. for arrays, hashtables, etc.)
+    strref name;      // Name of the member
+    size_t offset;    // Offset within the struct
+    stype type;       // Type of the member
+    uint32 flags;     // Member flags (StructMemberFlagsEnum)
+    uint32 cflags;    // Creation flags (e.g. for arrays, hashtables, etc.)
+    uint32 arrsize;   // For fixed-size C arrays: number of elements (0 = scalar)
 } StructMemberDesc;
 
 typedef struct StructInfo {

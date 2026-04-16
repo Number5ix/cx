@@ -558,8 +558,7 @@ void writeClassDecl(StreamBuffer* bf, Class* cls)
     strDestroy(&ln);
 }
 
-static void writeCompoundSTypeDecl(StreamBuffer* bf, strref sname, TypeNode* node,
-                                   hashtable* seen)
+static void writeCompoundSTypeDecl(StreamBuffer* bf, strref sname, TypeNode* node, hashtable* seen)
 {
     string key = 0;
     buildTypeKey(&key, node);
@@ -578,7 +577,7 @@ static void writeCompoundSTypeDecl(StreamBuffer* bf, strref sname, TypeNode* nod
 
     htInsert(seen, string, key, bool, true);
 
-    string ln = 0;
+    string ln       = 0;
     string descname = 0;
     buildCompoundDescName(&descname, sname, node);
 
@@ -587,7 +586,7 @@ static void writeCompoundSTypeDecl(StreamBuffer* bf, strref sname, TypeNode* nod
 
     if (strEq(node->name, _S"sarray")) {
         // SType_: use sa_ELEMTYPE for primitive elem, sa_ref fallback for compound
-        TypeNode* p0    = node->params.a[0];
+        TypeNode* p0       = node->params.a[0];
         string storagetype = 0;
         if (isCompoundNode(p0) || (strEq(p0->name, _S"struct") && saSize(p0->params) >= 1))
             strDup(&storagetype, _S"sa_ref");
@@ -600,7 +599,9 @@ static void writeCompoundSTypeDecl(StreamBuffer* bf, strref sname, TypeNode* nod
         strDestroy(&storagetype);
         strNConcat(&ln, _S"#define STypeArg_", descname, _S"(type, val)           stgensarray(val)");
         sbufPWriteLine(bf, ln);
-        strNConcat(&ln, _S"#define STypeArgPtr_", descname,
+        strNConcat(&ln,
+                   _S"#define STypeArgPtr_",
+                   descname,
                    _S"(type, val)        (stgeneric*)stCheckPtr(sarray, val)");
         sbufPWriteLine(bf, ln);
     } else if (strEq(node->name, _S"hashtable")) {
@@ -608,10 +609,14 @@ static void writeCompoundSTypeDecl(StreamBuffer* bf, strref sname, TypeNode* nod
         sbufPWriteLine(bf, ln);
         strNConcat(&ln, _S"#define STStorageType_", descname, _S" hashtable");
         sbufPWriteLine(bf, ln);
-        strNConcat(&ln, _S"#define STypeArg_", descname,
+        strNConcat(&ln,
+                   _S"#define STypeArg_",
+                   descname,
                    _S"(type, val)           stgeneric(hashtable, val)");
         sbufPWriteLine(bf, ln);
-        strNConcat(&ln, _S"#define STypeArgPtr_", descname,
+        strNConcat(&ln,
+                   _S"#define STypeArgPtr_",
+                   descname,
                    _S"(type, val)        (stgeneric*)stCheckPtr(hashtable, val)");
         sbufPWriteLine(bf, ln);
     } else if (strEq(node->name, _S"structp")) {
@@ -622,7 +627,9 @@ static void writeCompoundSTypeDecl(StreamBuffer* bf, strref sname, TypeNode* nod
             sbufPWriteLine(bf, ln);
             strNConcat(&ln, _S"#define STStorageType_", descname, _S" ", pname, _S"*");
             sbufPWriteLine(bf, ln);
-            strNConcat(&ln, _S"#define STypeArg_", descname,
+            strNConcat(&ln,
+                       _S"#define STypeArg_",
+                       descname,
                        _S"(type, val)           stgeneric(structp, (StructBase*)(val))");
             sbufPWriteLine(bf, ln);
         } else {
@@ -631,19 +638,24 @@ static void writeCompoundSTypeDecl(StreamBuffer* bf, strref sname, TypeNode* nod
             sbufPWriteLine(bf, ln);
             strNConcat(&ln, _S"#define STStorageType_", descname, _S" StructBase*");
             sbufPWriteLine(bf, ln);
-            strNConcat(&ln, _S"#define STypeArg_", descname,
+            strNConcat(&ln,
+                       _S"#define STypeArg_",
+                       descname,
                        _S"(type, val)           stgeneric(structp, (val))");
             sbufPWriteLine(bf, ln);
         }
-        strNConcat(&ln, _S"#define STypeArgPtr_", descname,
-                   _S"(type, val)        (stgeneric*)(val)");
+        strNConcat(&ln, _S"#define STypeArgPtr_", descname, _S"(type, val)        (stgeneric*)(val)");
         sbufPWriteLine(bf, ln);
     }
 
-    strNConcat(&ln, _S"#define STypeCheckedArg_", descname,
+    strNConcat(&ln,
+               _S"#define STypeCheckedArg_",
+               descname,
                _S"(type, val)    stType(type), stArg(type, val)");
     sbufPWriteLine(bf, ln);
-    strNConcat(&ln, _S"#define STypeCheckedPtrArg_", descname,
+    strNConcat(&ln,
+               _S"#define STypeCheckedPtrArg_",
+               descname,
                _S"(type, val) stType(type), stArgPtr(type, val)");
     sbufPWriteLine(bf, ln);
 
@@ -719,10 +731,14 @@ void writeStructDecl(StreamBuffer* bf, StructDef* str)
     sbufPWriteLine(bf, ln);
     strNConcat(&ln, _S"#define STypeArgPtr_", str->name, _S"(type, val) &stgeneric(struct, (val))");
     sbufPWriteLine(bf, ln);
-    strNConcat(&ln, _S"#define STypeCheckedArg_", str->name,
+    strNConcat(&ln,
+               _S"#define STypeCheckedArg_",
+               str->name,
                _S"(type, val)    stType(type), stArg(type, val)");
     sbufPWriteLine(bf, ln);
-    strNConcat(&ln, _S"#define STypeCheckedPtrArg_", str->name,
+    strNConcat(&ln,
+               _S"#define STypeCheckedPtrArg_",
+               str->name,
                _S"(type, val) stType(type), stArgPtr(type, val)");
     sbufPWriteLine(bf, ln);
     sbufPWriteEOL(bf);
@@ -829,11 +845,6 @@ bool writeHeader(string fname, string srcpath, string binpath)
             writeIfDecl(bf, ifaces.a[i]);
     }
 
-    for (int i = 0; i < saSize(classes); i++) {
-        if (!classes.a[i]->included)
-            writeClassDecl(bf, classes.a[i]);
-    }
-
     for (int i = 0; i < saSize(structs); i++) {
         if (!structs.a[i]->included)
             writeStructDecl(bf, structs.a[i]);
@@ -842,6 +853,11 @@ bool writeHeader(string fname, string srcpath, string binpath)
     for (int i = 0; i < saSize(structsets); i++) {
         if (!structsets.a[i]->included)
             writeStructSetDecl(bf, structsets.a[i]);
+    }
+
+    for (int i = 0; i < saSize(classes); i++) {
+        if (!classes.a[i]->included)
+            writeClassDecl(bf, classes.a[i]);
     }
 
     if (usedocs) {
