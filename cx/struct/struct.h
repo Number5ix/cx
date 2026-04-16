@@ -77,9 +77,9 @@ typedef struct StructBase {
 #define structDefaultsName(sname) sname##_structdefaults
 
 #define STRUCTBASE(s)    (unused_noeval(&((s)->_is_struct)), (StructBase*)(s))
-#define STRUCTHANDLE(sp) (unused_noeval(&((*s)->_is_struct)), (StructBase**)(s))
+#define STRUCTHANDLE(sp) (unused_noeval(&((*sp)->_is_struct)), (StructBase**)(sp))
 
-void _structInitMany(_Out_ StructBase* base, _In_ StructInfo* info, int number);
+void _structInitMany(_Out_ StructBase* base, _In_ const StructInfo* info, int number);
 
 /// void structInitMany(structname, struct* s, int n);
 ///
@@ -117,7 +117,7 @@ void _structInitMany(_Out_ StructBase* base, _In_ StructInfo* info, int number);
 ///   MyStruct s;
 ///   structInit(MyStruct, &s);
 /// @endcode
-#define structInit(structname, s) structInitMany(STRUCTBASE(s), &structInfoName(structname), 1)
+#define structInit(structname, s) _structInitMany(STRUCTBASE(s), &structInfoName(structname), 1)
 
 _Ret_notnull_ StructBase* _structAlloc(_In_ StructInfo* info);
 

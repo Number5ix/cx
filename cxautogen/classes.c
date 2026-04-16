@@ -114,7 +114,7 @@ static void checkMemberInitDestroy(Class* cls)
                 !strEq(m->typenode->name, _S"atomic")) {
                 // these have enough info to auto init without help
                 if (strEmpty(m->predecr) && !strEq(m->typenode->name, _S"object") &&
-                    !strEq(m->typenode->name, _S"weak"))
+                    !strEq(m->typenode->name, _S"weak") && !strEq(m->typenode->name, _S"structp"))
                     m->init = true;
                 m->destroy = true;
             }

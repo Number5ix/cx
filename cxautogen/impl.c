@@ -467,6 +467,14 @@ static void writeAutoInit(StreamBuffer* bf, Class* cls)
                            _S");");
                 saDestroy(&flagarr);
             }
+            if (strEq(m->typenode->name, _S"struct") && saSize(m->typenode->params) >= 1) {
+                strNConcat(&ln,
+                           _S"    structInit(",
+                           m->typenode->params.a[0]->name,
+                           _S", &self->",
+                           m->name,
+                           _S");");
+            }
             if (strEq(m->typenode->name, _S"hashtable") && saSize(m->typenode->params) == 2) {
                 saInit(&flagarr, string, 1);
                 string size = _S"16";
@@ -559,6 +567,10 @@ static void writeAutoDtors(StreamBuffer* bf, Class* cls)
                 strNConcat(&mdtor, _S"    objRelease(&self->", m->name, _S");");
             else if (strEq(m->typenode->name, _S"weak"))
                 strNConcat(&mdtor, _S"    objDestroyWeak(&self->", m->name, _S");");
+            else if (strEq(m->typenode->name, _S"struct"))
+                strNConcat(&mdtor, _S"    structDestroyMembers(&self->", m->name, _S");");
+            else if (strEq(m->typenode->name, _S"structp"))
+                strNConcat(&mdtor, _S"    structDestroy(&self->", m->name, _S");");
         } else if (strEq(m->vartype, _S"string")) {
             strNConcat(&mdtor, _S"    strDestroy(&self->", m->name, _S");");
         } else if (strEq(m->vartype, _S"hashtable")) {

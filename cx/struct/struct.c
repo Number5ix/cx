@@ -3,7 +3,7 @@
 #include "cx/cx.h"
 
 _Use_decl_annotations_
-void _structInitMany(StructBase* base, StructInfo* info, int number)
+void _structInitMany(StructBase* base, const StructInfo* info, int number)
 {
     bool hasdefaults = !!info->defaults;
     bool hasinit     = !!info->init;
