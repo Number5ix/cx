@@ -34,7 +34,7 @@ void dbgCrashIncludeMemory(void* ptr, size_t sz)
     dbgCrashExcludeMemory(ptr, sz);
 
     CrashMemRange r = { .start = (uintptr)ptr, .end = (uintptr)ptr + sz };
-    int32 idx       = saFind(_dbgCrashDumpMem, opaque, r, SA_Inexact);
+    int32 idx       = saFind(_dbgCrashDumpMem, CrashMemRange, r, SA_Inexact);
 
     if (idx > 0 && _dbgCrashDumpMem.a[idx - 1].end == r.start) {
         // extend the previous block
@@ -45,7 +45,7 @@ void dbgCrashIncludeMemory(void* ptr, size_t sz)
         _dbgCrashDumpMem.a[idx].start = r.start;
     } else {
         // insert a new block
-        saPush(&_dbgCrashDumpMem, opaque, r, SA_Unique);
+        saPush(&_dbgCrashDumpMem, CrashMemRange, r, SA_Unique);
     }
 }
 
@@ -58,7 +58,7 @@ void dbgCrashExcludeMemory(void* ptr, size_t sz)
     CrashMemRange r = { .start = (uintptr)ptr, .end = (uintptr)ptr + sz };
 
     // use bsearch to quickly get to the starting index to scan
-    idx = saFind(_dbgCrashDumpMem, opaque, r, SA_Inexact);
+    idx = saFind(_dbgCrashDumpMem, CrashMemRange, r, SA_Inexact);
     // back up one index entry to catch partial overlap
     idx = max(idx - 1, 0);
 
@@ -81,9 +81,9 @@ void dbgCrashExcludeMemory(void* ptr, size_t sz)
             ir->end  = r.start;
 
 #if DEBUG_LEVEL == 0
-            saPush(&_dbgCrashDumpMem, opaque, nr, SA_Unique);
+            saPush(&_dbgCrashDumpMem, CrashMemRange, nr, SA_Unique);
 #else
-            int32 nidx = saPush(&_dbgCrashDumpMem, opaque, nr, SA_Unique);
+            int32 nidx = saPush(&_dbgCrashDumpMem, CrashMemRange, nr, SA_Unique);
             devAssert(nidx == idx + 1);
 #endif
         } else if (r.end <= ir->start) {

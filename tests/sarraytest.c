@@ -97,6 +97,56 @@ static int test_sorted_int()
     return 0;
 }
 
+typedef struct OpaqueStruct {
+    int32 a;
+    int64 b;
+    int32 c;
+} OpaqueStruct;
+saDeclare(OpaqueStruct);
+
+static int test_opaque()
+{
+    sa_OpaqueStruct t1;
+    int32 i;
+
+    saInit(&t1, opaque(OpaqueStruct), 10);
+    for (i = 500; i >= 0; i -= 10) {
+        OpaqueStruct tmp;
+        tmp.a = (int32)i;
+        tmp.b = (int64)i * 1000;
+        tmp.c = i - 5;
+        saPush(&t1, opaque, tmp);
+    }
+
+    if (saSize(t1) != 51)
+        return 1;
+
+    if (t1.a[0].a != 500)
+        return 1;
+    if (t1.a[0].b != 500000)
+        return 1;
+    if (t1.a[0].c != 495)
+        return 1;
+
+    if (t1.a[50].a != 0)
+        return 1;
+    if (t1.a[50].b != 0)
+        return 1;
+    if (t1.a[50].c != -5)
+        return 1;
+
+    if (t1.a[40].a != 100)
+        return 1;
+    if (t1.a[40].b != 100000)
+        return 1;
+    if (t1.a[40].c != 95)
+        return 1;
+
+    saDestroy(&t1);
+
+    return 0;
+}
+
 static int test_string()
 {
     sa_string t1;
@@ -333,6 +383,7 @@ static int test_stvar_consume()
 testfunc sarraytest_funcs[] = {
     { "int",           test_int           },
     { "sorted_int",    test_sorted_int    },
+    { "opaque",        test_opaque        },
     { "string",        test_string        },
     { "sort",          test_sort          },
     { "string_sort",   test_string_sort   },

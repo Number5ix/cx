@@ -134,7 +134,7 @@ static void _dbgCrashAddMetaStr(_In_z_ const char* name, _In_z_ const char* val,
     nmeta.name    = name;
     nmeta.str     = valcopy;
     nmeta.version = version;
-    saPush(&_dbgCrashExtraMeta, opaque, nmeta, SA_Unique);
+    saPush(&_dbgCrashExtraMeta, CrashExtraMeta, nmeta, SA_Unique);
     mutexRelease(&_dbgCrashMutex);
 }
 
@@ -147,7 +147,7 @@ static void _dbgCrashAddMetaInt(_In_z_ const char* name, int val, bool version)
     nmeta.name           = name;
     nmeta.val            = val;
     nmeta.version        = version;
-    saPush(&_dbgCrashExtraMeta, opaque, nmeta, SA_Unique);
+    saPush(&_dbgCrashExtraMeta, CrashExtraMeta, nmeta, SA_Unique);
     mutexRelease(&_dbgCrashMutex);
 }
 

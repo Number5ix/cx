@@ -91,7 +91,7 @@ VFSDir* _vfsGetDir(VFS* vfs, strref path, bool isfile, bool cache, bool writeloc
 
     if (strEmpty(ns)) {
         d = vfs->root;
-    } else if (!htFind(vfs->namespaces, string, ns, ptr, &d)) {
+    } else if (!htFind(vfs->namespaces, string, ns, VFSDir, &d)) {
         cxerr = CX_FileNotFound;
         goto out;
     }
@@ -132,7 +132,7 @@ bool _vfsMountProvider(VFS* vfs, ObjInst* provider, strref path, flags_t flags)
 
     if (!strEmpty(ns) && !htHasKey(vfs->namespaces, string, ns)) {
         // namespace hasn't been added yet, create it now
-        htInsert(&vfs->namespaces, string, ns, ptr, _vfsDirCreate(vfs, NULL));
+        htInsert(&vfs->namespaces, string, ns, VFSDir, _vfsDirCreate(vfs, NULL));
     }
 
     VFSDir* dir = _vfsGetDir(vfs, path, false, false, true);

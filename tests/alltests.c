@@ -46,6 +46,7 @@ static const testspec tests[] = {
     { "object: Weak References", "objtest", "weakref" },
     { "sarray: Int Array", "sarraytest", "int" },
     { "sarray: Sorted Int Array", "sarraytest", "sorted_int" },
+    { "sarray: Opaque Struct Array", "sarraytest", "opaque" },
     { "sarray: String Array", "sarraytest", "string" },
     { "sarray: Sort", "sarraytest", "sort" },
     { "sarray: String Sort", "sarraytest", "string_sort" },
