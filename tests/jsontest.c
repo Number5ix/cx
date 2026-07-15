@@ -581,45 +581,45 @@ static int test_json_treeparse()
         ssdLockRead(tree);
 
         val = ssdPtr(tree, _S"num");
-        if (!val || !stEq(val->type, stType(int64)) || val->data.st_int64 != 574)
+        if (!val || !stvarIs(val, int64) || val->data.st_int64 != 574)
             ret = 1;
 
         val = ssdPtr(tree, _S"str");
-        if (!val || !stEq(val->type, stType(string)) ||
+        if (!val || !stvarIs(val, string) ||
             !strEq(val->data.st_string, _S"This is a test."))
             ret = 1;
 
         val = ssdPtr(tree, _S"fl");
-        if (!val || !stEq(val->type, stType(bool)) || val->data.st_bool != false)
+        if (!val || !stvarIs(val, bool) || val->data.st_bool != false)
             ret = 1;
 
         val = ssdPtr(tree, _S"tr");
-        if (!val || !stEq(val->type, stType(bool)) || val->data.st_bool != true)
+        if (!val || !stvarIs(val, bool) || val->data.st_bool != true)
             ret = 1;
 
         val = ssdPtr(tree, _S"nl");
-        if (!val || !stEq(val->type, stType(none)))
+        if (!val || !stvarIs(val, none))
             ret = 1;
 
         val = ssdPtr(tree, _S"fltnum");
-        if (!val || !stEq(val->type, stType(float64)) || val->data.st_float64 != 109.3)
+        if (!val || !stvarIs(val, float64) || val->data.st_float64 != 109.3)
             ret = 1;
 
         val = ssdPtr(tree, _S"obj/substr");
-        if (!val || !stEq(val->type, stType(string)) ||
+        if (!val || !stvarIs(val, string) ||
             !strEq(val->data.st_string, _S"A string in a sub-object."))
             ret = 1;
 
         val = ssdPtr(tree, _S"obj/subnum");
-        if (!val || !stEq(val->type, stType(int64)) || val->data.st_int64 != -3491)
+        if (!val || !stvarIs(val, int64) || val->data.st_int64 != -3491)
             ret = 1;
 
         val = ssdPtr(tree, _S"obj/array[0]");
-        if (!val || !stEq(val->type, stType(int64)) || val->data.st_int64 != 1)
+        if (!val || !stvarIs(val, int64) || val->data.st_int64 != 1)
             ret = 1;
 
         val = ssdPtr(tree, _S"obj/array[4]");
-        if (!val || !stEq(val->type, stType(int64)) || val->data.st_int64 != 5)
+        if (!val || !stvarIs(val, int64) || val->data.st_int64 != 5)
             ret = 1;
     }
     objRelease(&tree);

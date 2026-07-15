@@ -86,7 +86,7 @@ bool setsBind(SSDNode* sets, SetsBindSpec* bindings, void* base)
             if (shn)
                 ret &= settingshashnodeBind(shn,
                                             sname,
-                                            cur->deftyp.type,
+                                            stvarType(&cur->deftyp),
                                             ((uint8*)base) + cur->offset,
                                             cur->deftyp.data,
                                             _ssdCurrentLockState);

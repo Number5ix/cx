@@ -18,12 +18,12 @@ static int test_ssd_tree()
 
     // basic test
     stvar outvar = { 0 };
-    if (ssdGet(tree, _S"test", &outvar) || !stEq(outvar.type, stType(none)))
+    if (ssdGet(tree, _S"test", &outvar) || !stvarIs(&outvar, none))
         ret = 1;
 
     ssdSet(tree, _S"l1/l2/l3/test1", true, stvar(int32, 1920));
     if (!ssdGet(tree, _S"l1/l2/l3/test1", &outvar) ||
-        !stEq(outvar.type, stType(int32)) ||
+        !stvarIs(&outvar, int32) ||
         outvar.data.st_int32 != 1920)
         ret = 1;
 
@@ -32,7 +32,7 @@ static int test_ssd_tree()
     {
         pval = ssdPtr(tree, _S"l1/l2/l3/test1");
         if (!pval ||
-            !stEq(pval->type, stType(int32)) ||
+            !stvarIs(pval, int32) ||
             pval->data.st_int32 != 1920)
             ret = 1;
     }
@@ -44,7 +44,7 @@ static int test_ssd_tree()
     strCopy(&teststr, _S"test123");
     tree = ssdCreateHashtable();
 
-    stvar tempst = { .type = stType(string) };
+    stvar tempst = { ._type = stType(string) };
     strDup(&tempst.data.st_string, teststr);
     if (strTestRefCount(teststr) != 2)
         ret = 1;
@@ -55,13 +55,13 @@ static int test_ssd_tree()
 
     // test getting an object node as a value
     if (!ssdGet(tree, _S"l1/l2/l3", &outvar) ||
-        !stEq(outvar.type, stType(object)))
+        !stvarIs(&outvar, object))
         ret = 1;
     stDestroy(stvar, &outvar);
 
     // this should get a copy of the string, increasing its ref count
     if (!ssdGet(tree, _S"l1/l2/l3/test2", &outvar) ||
-        !stEq(outvar.type, stType(string)) ||
+        !stvarIs(&outvar, string) ||
         !strEq(outvar.data.st_string, _S"test123") ||
         outvar.data.st_string != teststr ||
         strTestRefCount(teststr) != 3)
@@ -75,7 +75,7 @@ static int test_ssd_tree()
     ssdLockedTransaction(tree)
     {
         pval = ssdPtr(tree, _S"l1/l2/l3/test2");
-        if (!stEq(pval->type, stType(string)) ||
+        if (!stvarIs(pval, string) ||
             !strEq(pval->data.st_string, _S"test123") ||
             pval->data.st_string != teststr ||
             strTestRefCount(teststr) != 2)
@@ -108,7 +108,7 @@ static int test_ssd_single()
 
     stvar outvar = { 0 };
     if (!ssdGet(tree, _S"", &outvar) ||
-        !stEq(outvar.type, stType(int64)) ||
+        !stvarIs(&outvar, int64) ||
         outvar.data.st_int32 != 200000)
         ret = 1;
 
@@ -126,7 +126,7 @@ static int test_ssd_single()
 
     outvar = (stvar){0};
     if (!ssdGet(tree, _S"", &outvar) ||
-        !stEq(outvar.type, stType(string)) ||
+        !stvarIs(&outvar, string) ||
         !strEq(outvar.data.st_string, _S"test123") ||
         strTestRefCount(teststr) != 3)
         ret = 1;
@@ -192,12 +192,12 @@ static int test_ssd_subtree()
     }
 
     if (!ssdGet(subtree, _S"l3/test1", &outvar) ||
-        !stEq(outvar.type, stType(int32)) ||
+        !stvarIs(&outvar, int32) ||
         outvar.data.st_int32 != 39294)
         ret = 1;
 
     if (!ssdGet(subtree, _S"l3/test2", &outvar) ||
-        !stEq(outvar.type, stType(string)) ||
+        !stvarIs(&outvar, string) ||
         !strEq(outvar.data.st_string, _S"test123") ||
         outvar.data.st_string != teststr ||
         strTestRefCount(teststr) != 4)
@@ -290,13 +290,13 @@ static int test_ssd_subtree()
     objRelease(&tree);
 
     if (!ssdGet(subtree, _S"l3/test1", &outvar) ||
-        !stEq(outvar.type, stType(int32)) ||
+        !stvarIs(&outvar, int32) ||
         outvar.data.st_int32 != 39294)
         ret = 1;
 
     // but it should drop the refcount of the string when the other branch was destroyed
     if (!ssdGet(subtree, _S"l3/test2", &outvar) ||
-        !stEq(outvar.type, stType(string)) ||
+        !stvarIs(&outvar, string) ||
         !strEq(outvar.data.st_string, _S"test123") ||
         outvar.data.st_string != teststr ||
         strTestRefCount(teststr) != 3)
@@ -350,12 +350,12 @@ static int test_ssd_array()
     {
         stvar *out;
         out = ssdPtr(tree, _S"test/arr");
-        if (!out || !stEq(out->type, stType(object)) || !objDynCast(SSDNode, out->data.st_object) ||
+        if (!out || !stvarIs(out, object) || !objDynCast(SSDNode, out->data.st_object) ||
             !(ssdnodeIsArray(objDynCast(SSDNode, out->data.st_object))))
             ret = 1;
 
         out = ssdPtr(tree, _S"test/arr[0]/test1");
-        if (!out || !stEq(out->type, stType(int32)) || out->data.st_int32 != 1)
+        if (!out || !stvarIs(out, int32) || out->data.st_int32 != 1)
             ret = 1;
 
         out = ssdPtr(tree, _S"test/arr[0]/test2");
@@ -363,7 +363,7 @@ static int test_ssd_array()
             ret = 1;
 
         out = ssdPtr(tree, _S"test/arr[1]");
-        if (!out || !stEq(out->type, stType(int64)) || out->data.st_int64 != 128)
+        if (!out || !stvarIs(out, int64) || out->data.st_int64 != 128)
             ret = 1;
 
         out = ssdPtr(tree, _S"test/arr[1]/test");
@@ -371,7 +371,7 @@ static int test_ssd_array()
             ret = 1;
 
         out = ssdPtr(tree, _S"test/arr[2]");
-        if (!out || !stEq(out->type, stType(float64)) || out->data.st_float64 != 5)
+        if (!out || !stvarIs(out, float64) || out->data.st_float64 != 5)
             ret = 1;
 
         out = ssdPtr(tree, _S"test/arr[2]/test");
@@ -379,7 +379,7 @@ static int test_ssd_array()
             ret = 1;
 
         out = ssdPtr(tree, _S"test/arr[3]/test2");
-        if (!out || !stEq(out->type, stType(string)) || !strEq(out->data.st_string, _S"it's a test"))
+        if (!out || !stvarIs(out, string) || !strEq(out->data.st_string, _S"it's a test"))
             ret = 1;
 
         out = ssdPtr(tree, _S"test/arr[3]/test1");
@@ -391,15 +391,15 @@ static int test_ssd_array()
             ret = 1;
 
         out = ssdPtr(tree, _S"test/arr[4][0]");
-        if (!out || !stEq(out->type, stType(int32)) || out->data.st_int32 != 101)
+        if (!out || !stvarIs(out, int32) || out->data.st_int32 != 101)
             ret = 1;
 
         out = ssdPtr(tree, _S"test/arr[4][1]");
-        if (!out || !stEq(out->type, stType(int32)) || out->data.st_int32 != 102)
+        if (!out || !stvarIs(out, int32) || out->data.st_int32 != 102)
             ret = 1;
 
         out = ssdPtr(tree, _S"test/arr[4][2]");
-        if (!out || !stEq(out->type, stType(int32)) || out->data.st_int32 != 103)
+        if (!out || !stvarIs(out, int32) || out->data.st_int32 != 103)
             ret = 1;
 
         sa_stvar arr1 = saInitNone;
@@ -413,7 +413,7 @@ static int test_ssd_array()
         ssdImportArray(tree, _S"test/arr[5]", arr1);
 
         out = ssdPtr(tree, _S"test/arr[5][3]/test2");
-        if (!out || !stEq(out->type, stType(string)) || !strEq(out->data.st_string, _S"it's a test"))
+        if (!out || !stvarIs(out, string) || !strEq(out->data.st_string, _S"it's a test"))
             ret = 1;
 
         saDestroy(&arr1);

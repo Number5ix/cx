@@ -1,6 +1,41 @@
 #include "stvar.h"
 #include "cx/container/sarray.h"
 
+// overwrite/init semantics: assumes *stv is uninitialized (does NOT destroy existing)
+void _stvarInit(stvar* stv, stype type, stgeneric val)
+{
+    type = stCanonical(type);   // opaque(T)/struct(T) are Temporary literals
+    if (stHasFlag(type, PassPtr)) {
+        // oversized value (suid, opaque, struct): give the variant its own heap storage
+        // and deep-copy into it so persisting the variant is safe and value-semantic
+        void* mem      = xaAlloc(type->size);
+        stgeneric dst  = { .st_ptr = mem };
+        _stCopy(type, &dst, val, 0);   // honors custom copy op; else memcpy
+        stv->data = dst;
+        _stvarSetType(stv, type, true);   // owns
+    } else {
+        _stCopy(type, &stv->data, val, 0);   // string dup / object handling as today
+        _stvarSetType(stv, type, false);
+    }
+}
+
+// full teardown: destroy contents, free owned heap, reset to none
+void _stvarClear(stvar* stv, flags_t flags)
+{
+    stype t = stvarType(stv);
+    _stDestroy(t, &stv->data, flags);   // underlying dtor uses data.st_ptr (still clean)
+    if (_stvarOwns(stv))
+        xaFree(stv->data.st_ptr);   // free AFTER underlying destroy
+    _stvarSetType(stv, stType(none), false);
+}
+
+// replace semantics: destroy existing contents, then initialize from type + value
+void _stvarSet(stvar* stv, stype type, stgeneric val)
+{
+    _stvarClear(stv, 0);
+    _stvarInit(stv, type, val);
+}
+
 void stvlInit(stvlist* list, int count, stvar* vars)
 {
     list->count  = count;
@@ -22,7 +57,7 @@ void _stvlInitSA(stvlist* list, stvar* vara)
 bool _stvlNext(stvlist* list, stype type, stgeneric* out)
 {
     for (int i = list->cursor; i < list->count; i++) {
-        if (stEq(type, list->vars[i].type)) {
+        if (stEq(type, stvarType(&list->vars[i]))) {
             memcpy(stGenPtr(type, *out), stGenPtr(type, list->vars[i].data), stGetSize(type));
             list->cursor = i + 1;
             return true;
@@ -38,7 +73,7 @@ void* _stvlNextPtr(stvlist* list, stype type)
         return NULL;
 
     for (int i = list->cursor; i < list->count; i++) {
-        if (stEq(type, list->vars[i].type)) {
+        if (stEq(type, stvarType(&list->vars[i]))) {
             list->cursor = i + 1;
             return list->vars[i].data.st_ptr;
         }

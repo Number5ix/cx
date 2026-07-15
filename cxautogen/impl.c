@@ -576,12 +576,7 @@ static void writeAutoDtors(StreamBuffer* bf, Class* cls)
         } else if (strEq(m->vartype, _S"hashtable")) {
             strNConcat(&mdtor, _S"    htDestroy(&self->", m->name, _S");");
         } else if (strEq(m->vartype, _S"stvar")) {
-            strNConcat(&mdtor,
-                       _S"    _stDestroy(self->",
-                       m->name,
-                       _S".type, &self->",
-                       m->name,
-                       _S".data, 0);");
+            strNConcat(&mdtor, _S"    stvarDestroy(&self->", m->name, _S");");
         } else if (strEq(m->vartype, _S"closure")) {
             strNConcat(&mdtor, _S"    closureDestroy(&self->", m->name, _S");");
         } else if (strEq(m->vartype, _S"cchain")) {

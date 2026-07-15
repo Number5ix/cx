@@ -46,13 +46,13 @@ bool SettingsHashNode_bind(_In_ SettingsHashNode* self, _In_opt_ strref name, st
         svar         = hteValPtr(self->storage, stvar, elem);
     } else {
         // didn't already exist, set it to default
-        stvar tmp = { .type = btyp, .data = bdef };
+        stvar tmp = { ._type = btyp, .data = bdef };
         elem      = htInsert(&self->storage, strref, name, stvar, tmp);
         svar      = hteValPtr(self->storage, stvar, elem);
     }
 
     // copy initial value from either settings or default
-    _setsWriteBoundVar(&bind, svar->type, svar->data);
+    _setsWriteBoundVar(&bind, stvarType(svar), svar->data);
     _setsUpdateBindCache(&bind);
 
     htInsert(&self->binds, strref, name, opaque, bind);
@@ -66,7 +66,7 @@ static void checkBound(SettingsHashNode* self, SettingsBind* bind, strref name,
         ssdLockWrite(self);   // upgrade to write lock
 
         // bound variable has changed! bring it into the value
-        stvar nval = { .type = bind->type, .data = stStored(bind->type, bind->var) };
+        stvar nval = { ._type = bind->type, .data = stStored(bind->type, bind->var) };
         htInsert(&self->storage, strref, name, stvar, nval);
         _setsUpdateBindCache(bind);
         ssdnodeUpdateModified(self);
@@ -89,9 +89,7 @@ void SettingsHashNode_checkAll(_In_ SettingsHashNode* self, SSDLockState* _ssdCu
     // recurse to child hashtables
     foreach (hashtable, hti, self->storage) {
         stvar* val              = htiValPtr(stvar, hti);
-        SettingsHashNode* child = stEq(val->type, stType(object)) ?
-            objDynCast(SettingsHashNode, val->data.st_object) :
-            NULL;
+        SettingsHashNode* child = stvarObj(SettingsHashNode, val);
         if (child)
             settingshashnodeCheckAll(child, _ssdCurrentLockState);
     }
@@ -122,9 +120,7 @@ void SettingsHashNode_unbindAll(_In_ SettingsHashNode* self, SSDLockState* _ssdC
     // depth-first traversal
     foreach (hashtable, hti, self->storage) {
         stvar* val              = htiValPtr(stvar, hti);
-        SettingsHashNode* child = stEq(val->type, stType(object)) ?
-            objDynCast(SettingsHashNode, val->data.st_object) :
-            NULL;
+        SettingsHashNode* child = stvarObj(SettingsHashNode, val);
         if (child)
             settingshashnodeUnbindAll(child, _ssdCurrentLockState);
     }
@@ -166,7 +162,7 @@ bool SettingsHashNode_set(_In_ SettingsHashNode* self, int32 idx, _In_opt_ strre
         if (elem) {
             SettingsBind* bind = hteValPtr(self->binds, opaque, elem);
             bind->userset      = true;
-            _setsWriteBoundVar(bind, val.type, val.data);
+            _setsWriteBoundVar(bind, stvarType(&val), val.data);
             _setsUpdateBindCache(bind);
         }
     }
@@ -200,7 +196,7 @@ bool SettingsHashNode_setC(_In_ SettingsHashNode* self, int32 idx, _In_opt_ strr
         if (elem) {
             SettingsBind* bind = hteValPtr(self->binds, opaque, elem);
             bind->userset      = true;
-            _setsWriteBoundVar(bind, val->type, val->data);
+            _setsWriteBoundVar(bind, stvarType(val), val->data);
             _setsUpdateBindCache(bind);
         }
     }

@@ -430,8 +430,56 @@ _Static_assert(sizeof(stgeneric) == sizeof(uint64), "stype container too large")
 
 typedef struct stvar {
     stgeneric data;
-    stype type;
+    stype _type;   // low bit: STVAR_OwnsData; use stvarType()/setters below
 } stvar;
+
+// Low-bit tag stashed in the _type pointer. stype is a pointer to a canonical STypeInfo
+// descriptor which is always at least pointer-aligned, so bit 0 is free to record whether
+// this stvar owns a heap allocation holding an oversized (PassPtr) value.
+enum { STVAR_OwnsData = 1 };
+
+/// stype stvarType(const stvar *v)
+///
+/// Returns the canonical type descriptor for a variant.
+///
+/// @param v Pointer to variant
+/// @return Canonical stype descriptor (never carries the ownership tag)
+_meta_inline stype stvarType(const stvar* v)
+{
+    return (stype)((uintptr)v->_type & ~(uintptr)STVAR_OwnsData);
+}
+
+/// uint32 stvarTypeId(const stvar *v)
+///
+/// Returns the type ID of the value contained in a variant.
+///
+/// Convenience shorthand for `stvarType(v)->id`. Handy for `switch` statements
+/// over a variant's runtime type using the `stTypeId()` constants.
+///
+/// @param v Pointer to variant
+/// @return Type ID enum value (see stTypeId())
+///
+/// Example:
+/// @code
+///   switch (stvarTypeId(val)) {
+///   case stTypeId(int32):  ...
+///   case stTypeId(string): ...
+///   }
+/// @endcode
+#define stvarTypeId(v) (stvarType(v)->id)
+
+// True if this variant owns a heap allocation backing a PassPtr value.
+_meta_inline bool _stvarOwns(const stvar* v)
+{
+    return ((uintptr)v->_type & STVAR_OwnsData) != 0;
+}
+
+// Set the type descriptor and ownership tag together. t must be a clean (untagged) stype.
+_meta_inline void _stvarSetType(stvar* v, stype t, bool owns)
+{
+    dbgAssert(((uintptr)t & STVAR_OwnsData) == 0);   // alignment sanity
+    v->_type = (stype)((uintptr)t | (owns ? STVAR_OwnsData : 0));
+}
 
 // The type that's actually used for storage in containers, etc.
 #define STStorageType_none      void
@@ -664,7 +712,7 @@ enum STYPE_FLAGS {
 #define STypeCheck_object(type, val)    objInstCheck(val)
 #define STypeCheck_weakref(type, val)   objWeakRefCheck(val)
 #define STypeCheck_suid(type, val)      (unused_noeval((((val).low), ((val).high))), (val))
-#define STypeCheck_stvar(_type, val)    (unused_noeval((((val).data), ((val).type))), (val))
+#define STypeCheck_stvar(type, val)     (unused_noeval((((val).data), ((val)._type))), (val))
 #define STypeCheck_sarray(type, val)    saCheck(val)
 #define STypeCheck_hashtable(type, val) htCheck(val)
 #define STypeCheck_closure(type, val)   closureCheck(val)
@@ -717,7 +765,7 @@ enum STYPE_FLAGS {
 #define STypeCheckPtr_object(type, ptr)    objInstCheckPtr(ptr)
 #define STypeCheckPtr_weakref(type, ptr)   objWeakRefCheckPtr(ptr)
 #define STypeCheckPtr_suid(type, ptr)      (unused_noeval((((ptr)->low), ((ptr)->high))), (ptr))
-#define STypeCheckPtr_stvar(_type, ptr)    (unused_noeval((((ptr)->data), ((ptr)->type))), (ptr))
+#define STypeCheckPtr_stvar(type, ptr)     (unused_noeval((((ptr)->data), ((ptr)->_type))), (ptr))
 #define STypeCheckPtr_sarray(type, ptr)    saCheckPtr(ptr)
 #define STypeCheckPtr_hashtable(type, ptr) htCheckPtr(ptr)
 #define STypeCheckPtr_closure(type, ptr)   closureCheckPtr(ptr)

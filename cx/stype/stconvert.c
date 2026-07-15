@@ -5,6 +5,7 @@
 #include "cx/obj/stype_obj.h"
 #include "cx/string.h"
 #include "cx/string/stype_string.h"
+#include "cx/stype/stvar.h"
 #include "cx/stype/stype_stvar.h"
 #include "cx/suid/stype_suid.h"
 
@@ -23,7 +24,7 @@ stConvert_none(stype destst, _stCopyDest_Anno_(destst) stgeneric* dest, stype sr
         dest->st_bool = false;
         return true;
     case stTypeId(stvar):
-        dest->st_stvar->type = stType(none);
+        _stvarSetType(dest->st_stvar, stType(none), false);
         return true;
     case stTypeId(string):
         dest->st_string = NULL;
@@ -74,8 +75,7 @@ stConvert_bool(stype destst, _stCopyDest_Anno_(destst) stgeneric* dest, stype sr
                                       "False");
         return true;
     case stTypeId(stvar):
-        dest->st_stvar->type = srcst;
-        dest->st_stvar->data = src;
+        _stvarInit(dest->st_stvar, srcst, src);
         return true;
     }
 
@@ -177,8 +177,7 @@ stConvert_int(stype destst, _stCopyDest_Anno_(destst) stgeneric* dest, stype src
         return true;
     case stTypeId(stvar):
         // okay, sure, we can put it in one
-        dest->st_stvar->type = srcst;
-        dest->st_stvar->data = src;
+        _stvarInit(dest->st_stvar, srcst, src);
         return true;
     }
 
@@ -219,8 +218,7 @@ stConvert_float32(stype destst, _stCopyDest_Anno_(destst) stgeneric* dest, stype
         dest->st_float64 = val;
         return true;
     case stTypeId(stvar):
-        dest->st_stvar->type = srcst;
-        dest->st_stvar->data = src;
+        _stvarInit(dest->st_stvar, srcst, src);
         return true;
     }
 
@@ -265,8 +263,7 @@ stConvert_float64(stype destst, _stCopyDest_Anno_(destst) stgeneric* dest, stype
         dest->st_float64 = val;
         return true;
     case stTypeId(stvar):
-        dest->st_stvar->type = srcst;
-        dest->st_stvar->data = src;
+        _stvarInit(dest->st_stvar, srcst, src);
         return true;
     }
 

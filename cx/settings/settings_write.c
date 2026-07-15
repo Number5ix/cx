@@ -33,7 +33,7 @@ static void outHashtable(JSONOut* jo, SSDNode* node, SSDLockState* lstate, bool*
         if (shn && (elem = htFind(shn->binds, strref, name, none, NULL))) {
             SettingsBind* bind = hteValPtr(shn->binds, opaque, elem);
             // if this is a bound variable and it hasn't changed from the default, skip it
-            if (!bind->userset && bind->type == val->type &&
+            if (!bind->userset && bind->type == stvarType(val) &&
                 _stCmp(bind->type, bind->def, val->data, 0) == 0)
                 continue;
         }
@@ -141,7 +141,7 @@ static void outNull(JSONOut* jo, bool* error)
 
 static void outVal(JSONOut* jo, stvar val, SSDLockState* lstate, bool* error)
 {
-    switch (val.type->id) {
+    switch (stvarTypeId(&val)) {
     case stTypeId(object):
         outObject(jo, val.data.st_object, lstate, error);
         break;

@@ -44,11 +44,18 @@
 ///   }
 /// @endcode
 ///
-/// For persistent variants, use explicit allocation or embed in structures:
+/// For persistent variants, use explicit allocation or embed in structures. Duplicate a
+/// temporary into a persistent variant with `stvarCopy()` (which assumes an uninitialized
+/// destination), or replace the contents of an already-initialized variant with
+/// `stvarSet()` (which destroys any existing value first). Both deep-copy oversized
+/// (`suid`, `opaque`, `struct`) values into storage the variant owns, so the persistent
+/// copy stays valid after the temporary goes out of scope:
 ///
 /// @code
 ///   stvar persistent;
-///   stvarCopy(&persistent, stvar(int32, 42));
+///   stvarCopy(&persistent, stvar(int32, 42));   // destination was uninitialized
+///   // ... use persistent ...
+///   stvarSet(&persistent, string, _SL("now a string"));   // replaces the int32
 ///   // ... use persistent ...
 ///   stvarDestroy(&persistent);
 /// @endcode
@@ -121,10 +128,7 @@
 ///   };
 /// @endcode
 #ifndef __cplusplus
-#define stvarInit(typen, val)                                \
-    {                                                        \
-        .data = { .st_##typen = val }, .type = stType(typen) \
-    }
+#define stvarInit(typen, val) { .data = { .st_##typen = val }, ._type = stType(typen) }
 
 /// stvar stvar(type, value)
 ///
@@ -153,7 +157,7 @@
 ///       stvar(float64, 3.14)
 ///   });
 /// @endcode
-#define stvar(typen, val) ((stvar) { .data = stArg(typen, val), .type = stType(typen) })
+#define stvar(typen, val) ((stvar) { .data = stArg(typen, val), ._type = stType(typen) })
 
 /// stvar stvNone
 ///
@@ -169,13 +173,13 @@
 ///       result = stvar(int32, 42);
 ///   }
 /// @endcode
-#define stvNone ((stvar) { .type = stType(none) })
+#define stvNone ((stvar) { ._type = stType(none) })
 #else
 _meta_inline stvar _stvar(stype st, stgeneric val)
 {
     stvar ret;
-    ret.data = val;
-    ret.type = st;
+    ret.data  = val;
+    ret._type = st;
     return ret;
 }
 #define stvar(typen, val) _stvar(stType(typen), stArg(typen, val))
@@ -190,6 +194,42 @@ _meta_inline stvar _stvar(stype st, stgeneric val)
 /// @{
 ///
 /// Functions for managing variant lifetime and copying.
+
+// Core lifecycle helpers. These manage storage in a standardized manner so that oversized (PassPtr)
+// values - suid, opaque, struct — are deep-copied into a heap allocation the variant owns, rather
+// than left as dangling pointers to a caller's temporary.
+
+// Initialize *stv (assumed uninitialized) from a type + value. Overwrite/init semantics:
+// does NOT destroy any prior contents. For PassPtr types, allocates and deep-copies.
+void _stvarInit(stvar* stv, stype type, stgeneric val);
+
+// Destroy the contents of *stv, free any owned heap allocation, and reset to none.
+void _stvarClear(stvar* stv, flags_t flags);
+
+// Replace semantics: destroy existing contents, then initialize from type + value.
+void _stvarSet(stvar* stv, stype type, stgeneric val);
+
+/// void stvarSet(stvar *stv, type, value)
+///
+/// Replace the contents of a variant with a new typed value.
+///
+/// Unlike `stvarCopy` (which assumes an uninitialized destination), `stvarSet`
+/// destroys any existing value first, then stores the new one. The variant must
+/// already be initialized (e.g. `stvNone` or a prior value). Oversized values
+/// (suid, opaque, struct) are deep-copied into storage the variant owns.
+///
+/// @param stv Pointer to variant to modify (must be initialized)
+/// @param type Type name (e.g. int32, string, suid)
+/// @param val Value of the specified type
+///
+/// Example:
+/// @code
+///   stvar v = stvNone;
+///   stvarSet(&v, int32, 42);
+///   stvarSet(&v, string, _SL("hello"));   // previous int32 replaced safely
+///   stvarDestroy(&v);
+/// @endcode
+#define stvarSet(stv, type, val) _stvarSet(stv, stCheckedArg(type, val))
 
 /// void stvarDestroy(stvar *stv)
 ///
@@ -211,8 +251,7 @@ _meta_inline stvar _stvar(stype st, stgeneric val)
 /// @endcode
 _meta_inline void stvarDestroy(stvar* stv)
 {
-    _stDestroy(stv->type, &stv->data, 0);
-    stv->type = stType(none);
+    _stvarClear(stv, 0);
 }
 
 /// void stvarCopy(stvar *dest, stvar source)
@@ -237,8 +276,7 @@ _meta_inline void stvarDestroy(stvar* stv)
 /// @endcode
 _meta_inline void stvarCopy(stvar* dvar, stvar svar)
 {
-    dvar->type = svar.type;
-    _stCopy(svar.type, &dvar->data, svar.data, 0);
+    _stvarInit(dvar, stvarType(&svar), svar.data);
 }
 
 /// @}
@@ -270,7 +308,7 @@ _meta_inline void stvarCopy(stvar* dvar, stvar svar)
 #define stvarIs(svar, type) _stvarIs(svar, stType(type))
 _meta_inline bool _stvarIs(stvar* svar, stype styp)
 {
-    return svar && stEq(svar->type, styp);
+    return svar && stEq(stvarType(svar), styp);
 }
 
 /// string stvarString(stvar *svar)

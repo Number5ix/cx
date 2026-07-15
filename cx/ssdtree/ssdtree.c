@@ -163,9 +163,7 @@ _Ret_opt_valid_ static SSDNode* getChild(_In_ SSDNode* node, _In_opt_ strref nam
         havewrite = _ssdCurrentLockState->wrlock;
 
         stvar* val     = ssdnodePtr(node, SSD_ByName, name, _ssdCurrentLockState);
-        SSDNode* child = val ?
-            (stEq(val->type, stType(object)) ? objDynCast(SSDNode, val->data.st_object) : NULL) :
-            NULL;
+        SSDNode* child = stvarObj(SSDNode, val);
 
         // check if existing child is the correct type for the context
         if (child && checktype == SSD_Create_Hashtable && !ssdnodeIsHashtable(child))
@@ -416,9 +414,7 @@ SSDNode* _ssdSubtreeB(SSDNode* root, strref path, SSDLockState* _ssdCurrentLockS
     ssdLockRead(root);
     if (ssdResolvePath(root, path, &node, &name, false, _ssdCurrentLockState)) {
         stvar* val = ssdnodePtr(node, SSD_ByName, name, _ssdCurrentLockState);
-        ret        = val ?
-                   (stEq(val->type, stType(object)) ? objDynCast(SSDNode, val->data.st_object) : NULL) :
-                   NULL;
+        ret        = stvarObj(SSDNode, val);
     }
 
     strDestroy(&name);
@@ -440,7 +436,7 @@ bool _ssdCopyOut(SSDNode* root, strref path, stype valtype, stgeneric* val,
             temp = ssdnodePtr(node, SSD_ByName, name, _ssdCurrentLockState);
 
         if (temp)
-            ret = _stConvert(valtype, val, temp->type, temp->data, 0);
+            ret = _stConvert(valtype, val, stvarType(temp), temp->data, 0);
     }
     strDestroy(&name);
 
@@ -462,7 +458,7 @@ bool _ssdCopyOutD(SSDNode* root, strref path, stype valtype, stgeneric* val, stg
             temp = ssdnodePtr(node, SSD_ByName, name, _ssdCurrentLockState);
 
         if (temp)
-            ret = _stConvert(valtype, val, temp->type, temp->data, 0);
+            ret = _stConvert(valtype, val, stvarType(temp), temp->data, 0);
     }
     strDestroy(&name);
 
@@ -504,7 +500,7 @@ bool _ssdExportTypedArray(SSDNode* root, strref path, stype elemtype, sahandle o
         if (node) {
             saClear(out);
             for (int i = 0, sz = saSize(node->storage); i < sz; ++i) {
-                if (!stEq(node->storage.a[i].type, elemtype)) {
+                if (!stEq(stvarType(&node->storage.a[i]), elemtype)) {
                     // is the same type as the output array?
                     if (strict)
                         goto out;
@@ -560,7 +556,7 @@ bool _ssdImportTypedArray(SSDNode* root, strref path, stype elemtype, sa_ref arr
 
     ssdLockedTransaction(root)
     {
-        stvar val = { .type = elemtype };
+        stvar val = { ._type = elemtype };
 
         ssdLockWrite(root);
         SSDNode* stree     = ssdSubtree(root, path, SSD_Create_Array);

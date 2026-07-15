@@ -21,6 +21,7 @@ create_test_sourcelist(testsrc
     lineparsetest.c
     jsontest.c
     converttest.c
+    stvartest.c
     mathtest.c
     fstest.c
     prqtest.c
@@ -114,6 +115,11 @@ add_test(NAME "\"hashtable: Complex\"" COMMAND test_runner httest complex)
 add_test(NAME "\"convert: Numeric Types\"" COMMAND test_runner converttest numeric)
 add_test(NAME "\"convert: Strings\"" COMMAND test_runner converttest string)
 add_test(NAME "\"convert: Objects\"" COMMAND test_runner converttest object)
+add_test(NAME "\"stvar: SUID ownership\"" COMMAND test_runner stvartest suid)
+add_test(NAME "\"stvar: Opaque ownership\"" COMMAND test_runner stvartest opaque)
+add_test(NAME "\"stvar: Transient\"" COMMAND test_runner stvartest transient)
+add_test(NAME "\"stvar: SSD round-trip\"" COMMAND test_runner stvartest ssd_roundtrip)
+add_test(NAME "\"stvar: Nested\"" COMMAND test_runner stvartest nested)
 add_test(NAME "\"thread: Basic multithreading\"" COMMAND test_runner thrtest basic)
 add_test(NAME "\"thread: Futex\"" COMMAND test_runner thrtest futex)
 add_test(NAME "\"thread: Futex with timeout\"" COMMAND test_runner thrtest timeout)

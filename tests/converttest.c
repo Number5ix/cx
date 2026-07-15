@@ -75,7 +75,7 @@ static int test_numeric()
 
     // dumb conversion but it should still work
     stvar sv;
-    if (!stConvert(stvar, &sv, uint32, 0xfffe1011) || sv.type->id != stTypeId(uint32) ||
+    if (!stConvert(stvar, &sv, uint32, 0xfffe1011) || stvarType(&sv)->id != stTypeId(uint32) ||
         sv.data.st_uint32 != 0xfffe1011)
         ret = 1;
 

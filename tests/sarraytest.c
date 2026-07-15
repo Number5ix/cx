@@ -354,7 +354,7 @@ static int test_stvar_consume()
     saPushC(&arr, stvar, &v);
 
     // Source stvar must have been zeroed (PassPtr memset clears all fields)
-    if (v.type != NULL || v.data.st_string != NULL)
+    if (stvarType(&v) != NULL || v.data.st_string != NULL)
         return 3;
 
     // Array must have one element

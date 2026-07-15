@@ -1,5 +1,6 @@
 #include <cx/stype/stconvert.h>
 #include "cx/string.h"
+#include "cx/stype/stvar.h"
 #include "cx/utils/murmur.h"
 
 void stDtor_string(stype st, _Pre_notnull_ _Post_invalid_ stgeneric* gen, uint32 flags)
@@ -65,8 +66,7 @@ stConvert_string(stype destst, _stCopyDest_Anno_(destst) stgeneric* dest, stype 
         return strToFloat64(&dest->st_float64, src.st_string, true);
     case stTypeId(stvar):
         // okay, sure, we can put it in one
-        dest->st_stvar->type = srcst;
-        dest->st_stvar->data = src;
+        _stvarInit(dest->st_stvar, srcst, src);
         return true;
     case stTypeId(bool):
         if (!strEqi(src.st_string,

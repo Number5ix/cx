@@ -29,15 +29,15 @@ bool _fmtFindData(FMTContext* ctx)
 
         // use ID for these to also catch parameterized types that match the base type
         if (isarray) {
-            if (arg->type->id == stTypeId(sarray) &&
+            if (stvarTypeId(arg) == stTypeId(sarray) &&
                 ((saElemType(arg->data.st_sarray))->id & typemask) == typeid)
                 findinst--;
         } else if (ishash) {
-            if (arg->type->id == stTypeId(hashtable) &&
+            if (stvarTypeId(arg) == stTypeId(hashtable) &&
                 (htKeyType(arg->data.st_hashtable))->id == stTypeId(string) &&
                 ((htValType(arg->data.st_hashtable))->id & typemask) == typeid)
                 findinst--;
-        } else if ((arg->type->id & typemask) == typeid) {
+        } else if ((stvarTypeId(arg) & typemask) == typeid) {
             findinst--;
         }
     }
@@ -64,7 +64,7 @@ bool _fmtFindData(FMTContext* ctx)
         ctx->v.type = htValType(htbl);
         ctx->v.data = hteValPtr(htbl, opaque, elem);
     } else {
-        ctx->v.type = ctx->args[idx - 1].type;
+        ctx->v.type = stvarType(&ctx->args[idx - 1]);
         ctx->v.data = stGenPtr(ctx->v.type, ctx->args[idx - 1].data);
     }
 

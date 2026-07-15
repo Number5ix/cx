@@ -126,7 +126,7 @@ static void outNull(_Inout_ JSONOut* jo, _Inout_ bool* error)
 static void outVal(_Inout_ JSONOut* jo, stvar val, _Inout_ SSDLockState* lstate,
                    _Inout_ bool* error)
 {
-    switch (val.type->id) {
+    switch (stvarTypeId(&val)) {
     case stTypeId(object):
         outObject(jo, val.data.st_object, lstate, error);
         break;
