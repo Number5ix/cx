@@ -186,6 +186,12 @@
 #pragma warning(disable : 6255)
 #define stackAlloc(sz) _alloca(sz)
 
+// Disable "nonstandard extension used: zero-sized array in struct/union" warning.
+// We only use this in C99 code, where it is perfectly valid. But because test_runner
+// is linked with a C++ file for the compatibility tests, we get this incorrect
+// warning.
+#pragma warning(disable : 4200)
+
 // Sometimes things need to be aligned precisely
 #define alignMem(bytes) __declspec(align(bytes))
 
