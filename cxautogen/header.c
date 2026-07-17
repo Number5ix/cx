@@ -800,6 +800,9 @@ bool writeHeader(string fname, string srcpath, string binpath)
     }
     sbufPWriteEOL(bf);
 
+    sbufPWriteLine(bf, _S"CX_C_BEGIN");
+    sbufPWriteEOL(bf);
+
     for (int i = 0; i < saSize(fwdclass); i++) {
         writeForwardDecl(bf, fwdclass.a[i]);
         writeForwardWeakRefDecl(bf, fwdclass.a[i]);
@@ -859,6 +862,8 @@ bool writeHeader(string fname, string srcpath, string binpath)
         if (!classes.a[i]->included)
             writeClassDecl(bf, classes.a[i]);
     }
+
+    sbufPWriteLine(bf, _S"CX_C_END");
 
     if (usedocs) {
         writeDocs(bf, globaldocs_end, 0, false);

@@ -3,6 +3,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct {
     const char* name;
     int(*func)();
@@ -49,3 +53,7 @@ int TEST_FILE(int argc, char *argv[])
     printf("Invalid test name!\n");
     return -1;
 }
+
+#ifdef __cplusplus
+}
+#endif

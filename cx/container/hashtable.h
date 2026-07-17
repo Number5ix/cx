@@ -7,6 +7,8 @@
 #include <cx/cx.h>
 #include <cx/debug/assert.h>
 
+CX_C_BEGIN
+
 /// @defgroup hashtable Hash Table
 /// @ingroup containers
 /// @{
@@ -719,3 +721,5 @@ _Post_equal_to_(iter->slot > 0) _meta_inline bool htiValid(_In_ htiter* iter)
 /// @}  // end of hashtable_iter group
 
 /// @}  // end of hashtable group
+
+CX_C_END

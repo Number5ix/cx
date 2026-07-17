@@ -259,7 +259,11 @@ typedef intptr_t intptr;
 typedef uintptr_t uintptr;
 #ifndef __cplusplus
 typedef _Bool bool;
-#else
+#elif !defined(_Bool)
+// Some C++ standard library / compiler configurations (e.g. GNU-extension stdbool.h
+// under C++) already #define _Bool as a macro expanding to the built-in bool type.
+// Only add the typedef when that hasn't happened, otherwise it becomes a
+// self-referential "typedef bool bool;"
 typedef bool _Bool;
 #endif
 
@@ -419,9 +423,8 @@ _Static_assert(sizeof(stgeneric) == sizeof(uint64), "stype container too large")
 #define stgeneric_unchecked(type, val) ((stgeneric) { .st_##type = (val) })
 #define stgensarray(val)               stgeneric(ptr, (val)._is_sarray)
 #else
-#define stgeneric(type, val)           ((stgeneric)stCheck(type, val))
-#define stgeneric_unchecked(type, val) ((stgeneric)(val))
-#define stgensarray(val)               stgeneric(ptr, (val)._is_sarray)
+// C++ definitions of stgeneric / stgeneric_unchecked / stgensarray live in
+// stype_cxx.hpp
 #endif
 
 // Compact variant structure. This is most often used for passing arrays of values that
@@ -844,7 +847,7 @@ extern const STypeOps _stops_struct;
 
 // MEGA PREPROCESSOR HACKS INCOMING
 // this enables the use of opaque(realtype) as type name in functions like saCreate
-#ifndef _cplusplus
+#ifndef __cplusplus
 #define _sti_opaque(realtype)                                          \
     ((const STypeInfo) { .id    = stTypeId(opaque),                    \
                          .flags = stFlag(PassPtr) | stFlag(Temporary), \
@@ -856,9 +859,7 @@ extern const STypeOps _stops_struct;
                          .size  = (uint16)sizeof(realtype),                             \
                          .ops   = _stops_struct })
 #else
-// C++ doesn't allow compound literals in the same way
-// We probably don't actually need to define anything since this code shouldn't be used in C++ mode.
-// Just need to make sure that the header doesn't cause compiler errors if included.
+// C++ versions of _sti_opaque / _sti_struct are defined in stype_cxx.hpp
 #endif
 
 // aliases for types that don't have their own info
@@ -1782,3 +1783,7 @@ _meta_inline bool stEq(stype s1, stype s2)
 /// @}  // end of stype group
 
 CX_C_END
+
+#ifdef __cplusplus
+#include <cx/stype/stype_cxx.hpp>
+#endif

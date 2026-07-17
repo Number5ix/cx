@@ -6,6 +6,8 @@
 #include <time.h>
 #include "cx/cx.h"
 
+CX_C_BEGIN
+
 /// @addtogroup time
 /// @{
 
@@ -235,3 +237,5 @@ _meta_inline time_t timeToTimeT(int64 time)
 
 /// @}
 // end of time_convert group
+
+CX_C_END

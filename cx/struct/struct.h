@@ -8,6 +8,8 @@
 #include <cx/stype/stype.h>
 #include "stype_struct.h"
 
+CX_C_BEGIN
+
 enum StructMemberFlagsEnum {
     STRUCT_NoDestroy   = 1 << 0,   ///< Member should not be automatically destroyed
     STRUCT_NoCopy      = 1 << 1,   ///< Member should be skipped during copy operations
@@ -201,3 +203,5 @@ _At_(*pbase, _Pre_maybenull_ _Post_null_) void _structDestroy(StructBase** pbase
 ///   structDestroy(&s);   // s is NULL after this
 /// @endcode
 #define structDestroy(ps) _structDestroy(STRUCTHANDLE(ps))
+
+CX_C_END

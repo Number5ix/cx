@@ -6,6 +6,8 @@
 #include <cx/cx.h>
 #include <cx/stype/stype.h>
 
+CX_C_BEGIN
+
 /// @defgroup stvar Variant Types
 /// @ingroup stype
 /// @{
@@ -184,7 +186,7 @@ _meta_inline stvar _stvar(stype st, stgeneric val)
 }
 #define stvar(typen, val) _stvar(stType(typen), stArg(typen, val))
 
-#define stvNone _stvar(0, stArg(int64, 0))
+#define stvNone _stvar(stType(none), _cxStGenZero())
 #endif
 
 /// @}
@@ -623,3 +625,5 @@ void* _stvlNextPtr(stvlist* list, stype type);
 void stvlRewind(stvlist* list);
 
 /// @}
+
+CX_C_END

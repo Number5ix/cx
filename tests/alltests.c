@@ -151,6 +151,11 @@ static const testspec tests[] = {
     { "taskqueue: Manual", "tqtest", "manual" },
     { "taskqueue: Oneshot", "tqtest", "oneshot" },
     { "taskqueue: Multiphase", "tqtest", "multiphase" },
+    { "cpp: SArray", "cpptest", "sarray" },
+    { "cpp: Hashtable", "cpptest", "hashtable" },
+    { "cpp: stype", "cpptest", "stype" },
+    { "cpp: stvar", "cpptest", "stvar" },
+    { "cpp: Object", "cpptest", "object" },
     { 0 }
 };
 

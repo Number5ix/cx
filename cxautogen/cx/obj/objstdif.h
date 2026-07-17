@@ -5,6 +5,8 @@
 #include <cx/obj.h>
 #include <cx/struct.h>
 
+CX_C_BEGIN
+
 typedef struct Iterator Iterator;
 typedef struct Iterator_WeakRef Iterator_WeakRef;
 saDeclarePtr(Iterator);
@@ -115,3 +117,4 @@ typedef struct Iterator_WeakRef {
 // bool iteratorGet(Iterator* self, stvar* out);
 #define iteratorGet(self, out) (self)->_->get(Iterator(self), out)
 
+CX_C_END

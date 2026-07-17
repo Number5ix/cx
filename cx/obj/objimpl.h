@@ -7,6 +7,8 @@
 #include <cx/obj/objiface.h>
 #include <cx/utils/macros/salieri.h>
 
+CX_C_BEGIN
+
 /// @defgroup obj_impl Class Implementation
 /// @ingroup obj
 /// @{
@@ -110,3 +112,5 @@ uint32 objDefaultHash(_In_ void* self, uint32 flags);
 #define _objfactory_check _Ret_opt_valid_ _Check_return_
 
 /// @}  // end of obj_impl group
+
+CX_C_END

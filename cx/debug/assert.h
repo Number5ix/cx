@@ -28,6 +28,8 @@
 #include <cx/utils/macros/unused.h>
 #include <stdbool.h>
 
+CX_C_BEGIN
+
 /// Action to take when an assertion fails
 enum ASSERT_ACTION_ENUM {
     ASSERT_Crash = 0,   ///< Intentionally crash to invoke crash handler or get memory dump
@@ -200,3 +202,5 @@ CX_C _no_inline bool _cxAssertFail(_In_opt_z_ const char* expr, _In_opt_z_ const
 #endif
 
 /// @}  // end of debug_assert group
+
+CX_C_END

@@ -26,6 +26,7 @@ create_test_sourcelist(testsrc
     fstest.c
     prqtest.c
     tqtest.c
+    cpptest.cpp
     alltests.c)
 add_cxautogen(converttestobj.cxh
     fmttestobj.cxh
@@ -46,6 +47,8 @@ set(test_runner_files
 source_group("" FILES ${test_runner_files})
 
 add_executable(test_runner ${test_runner_files})
+set_property(TARGET test_runner PROPERTY CXX_STANDARD 17)
+set_property(TARGET test_runner PROPERTY CXX_STANDARD_REQUIRED ON)
 target_include_directories(test_runner PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(test_runner cx)
 
@@ -196,3 +199,8 @@ add_test(NAME "\"taskqueue: Dependency Timeout\"" COMMAND test_runner tqtest tim
 add_test(NAME "\"taskqueue: Manual\"" COMMAND test_runner tqtest manual)
 add_test(NAME "\"taskqueue: Oneshot\"" COMMAND test_runner tqtest oneshot)
 add_test(NAME "\"taskqueue: Multiphase\"" COMMAND test_runner tqtest multiphase)
+add_test(NAME "\"cpp: SArray\"" COMMAND test_runner cpptest sarray)
+add_test(NAME "\"cpp: Hashtable\"" COMMAND test_runner cpptest hashtable)
+add_test(NAME "\"cpp: stype\"" COMMAND test_runner cpptest stype)
+add_test(NAME "\"cpp: stvar\"" COMMAND test_runner cpptest stvar)
+add_test(NAME "\"cpp: Object\"" COMMAND test_runner cpptest object)

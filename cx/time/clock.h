@@ -5,6 +5,8 @@
 
 #include <cx/cx.h>
 
+CX_C_BEGIN
+
 /// @defgroup time_clock Clock Functions
 /// @ingroup time
 /// @{
@@ -41,3 +43,5 @@ int64 clockTimer();
 
 /// @}
 // end of time_clock group
+
+CX_C_END

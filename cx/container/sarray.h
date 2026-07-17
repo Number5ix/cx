@@ -44,6 +44,8 @@
 #include <cx/debug/dbgtypes.h>
 #include <cx/utils/macros/unused.h>
 
+CX_C_BEGIN
+
 #define sarrayref(typ) sa_##typ
 #define sarrayhdl(typ) sa_##typ*
 
@@ -100,10 +102,7 @@
 /// saInitNone
 ///
 /// Static initializer for an empty/uninitialized array
-#define saInitNone \
-    {              \
-        .a = 0     \
-    }
+#define saInitNone { .a = 0 }
 
 // Pre-declared common sarray types
 typedef sa_ref sa_opaque;
@@ -871,3 +870,28 @@ _At_(out->a, _Post_maybenull_) void _saMerge(_Out_ sahandle out, int n, _In_ sa_
 
 /// @}
 /// @}
+
+CX_C_END
+
+#ifdef __cplusplus
+// C++ needs a different initializer syntax
+#undef saInitNone
+#define saInitNone \
+    { }
+
+// C++ replacements for the compound-literal-based saMerge/saMergeF.
+//
+// The C versions build a temporary sa_ref[] via an array compound literal, which
+// C++ does not support. Instead, collect the source arrays into a local sa_ref[]
+// through a variadic template.
+template <typename... SAs> _meta_inline void _cxSaMerge(sahandle out, flags_t flags, SAs... arrs)
+{
+    static_assert(sizeof...(SAs) > 0, "saMerge requires at least one source array");
+    sa_ref refs[] = { *(sa_ref*)&arrs... };
+    _saMerge(out, (int)(sizeof...(SAs)), refs, flags);
+}
+#undef saMerge
+#undef saMergeF
+#define saMerge(out, ...)         _cxSaMerge(SAHANDLE(out), 0, __VA_ARGS__)
+#define saMergeF(out, flags, ...) _cxSaMerge(SAHANDLE(out), flags, __VA_ARGS__)
+#endif

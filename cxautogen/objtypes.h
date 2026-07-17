@@ -5,6 +5,8 @@
 #include <cx/obj.h>
 #include <cx/struct.h>
 
+CX_C_BEGIN
+
 typedef struct Param Param;
 typedef struct Param_WeakRef Param_WeakRef;
 typedef struct Method Method;
@@ -491,3 +493,4 @@ _objfactory_guaranteed StructSetDef* StructSetDef_create();
 // intptr structsetdefCmp(StructSetDef* self, StructSetDef* other, uint32 flags);
 #define structsetdefCmp(self, other, flags) (self)->_->cmp(StructSetDef(self), other, flags)
 
+CX_C_END

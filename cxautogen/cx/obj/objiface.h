@@ -6,6 +6,8 @@
 #include <cx/container/sarray.h>
 #include <cx/cx.h>
 
+CX_C_BEGIN
+
 /// @defgroup obj_interface Interfaces
 /// @ingroup obj
 /// @{
@@ -93,3 +95,5 @@ saDeclarePtr(ObjIface);
     ((ObjIface*)((iface)->_implements, (iface)->_parent, (iface)->_size, (iface)))
 
 /// @}  // end of obj_interface group
+
+CX_C_END

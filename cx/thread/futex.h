@@ -3,6 +3,8 @@
 #include <cx/cx.h>
 #include <cx/thread/atomic.h>
 
+CX_C_BEGIN
+
 enum FUTEX_Status {
     FUTEX_Error   = 0,     // unexpected error
     FUTEX_Waited  = 0x1,   // successfully waited for wakeup
@@ -41,3 +43,5 @@ int futexWait(_Inout_ Futex* ftx, int32 oldval, int64 timeout);
 void futexWake(_Inout_ Futex* ftx);
 void futexWakeMany(_Inout_ Futex* ftx, int count);
 void futexWakeAll(_Inout_ Futex* ftx);
+
+CX_C_END

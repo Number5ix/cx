@@ -48,6 +48,8 @@
 #include <cx/platform/wasm/wasm_os.h>
 #endif
 
+CX_C_BEGIN
+
 /// Yield the current thread's time slice.
 ///
 /// Hints to the OS scheduler that the current thread should yield execution
@@ -92,3 +94,5 @@ int osLogicalCPUs();
 bool osGenRandom(uint8* buffer, uint32 size);
 
 /// @}  // end of platform_os group
+
+CX_C_END

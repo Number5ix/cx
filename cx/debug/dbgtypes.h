@@ -2,6 +2,8 @@
 
 #include <cx/stype/stype.h>
 
+CX_C_BEGIN
+
 // Types that are used for debugging visualization with natvis.
 // These are not actually used but are defined in this file so that they are available in the debug
 // symbols.
@@ -36,3 +38,5 @@ typedef union _debug_types {
 } _debug_types;
 
 extern _debug_types _unused_debug_types;
+
+CX_C_END
