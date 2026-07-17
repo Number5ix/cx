@@ -327,6 +327,7 @@ htInsert(&ht, string, _SL("key"), int32, 42);
 1. Create `mytest.c` with test functions
 2. Add to `create_test_sourcelist()` in `tests/CMakeLists.txt`
 3. Add test cases with `add_test(NAME "category: Test" COMMAND test_runner mytest testname)`
+4. Also add to `tests/alltests.c`, which contains a test that runs all other tests in series to ensure that no test state leaks and affects other tests.
 
 ### Lazy Initialization
 One-time initialization uses the `lazyInit()` pattern:

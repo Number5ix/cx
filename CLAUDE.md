@@ -26,7 +26,7 @@ cmake --build build/msvc-dev
 ### Testing
 Custom test runner: `test_runner <testname> <subtest>` (e.g., `test_runner objtest iface`).
 
-Tests are individual functions returning `int` (0 = success). Each test file exports a `TEST_FUNCS[]` array. Add tests in `tests/CMakeLists.txt` via `create_test_sourcelist()` and `add_test()`.
+Tests are individual functions returning `int` (0 = success). Each test file exports a `TEST_FUNCS[]` array. Add tests in `tests/CMakeLists.txt` via `create_test_sourcelist()` and `add_test()`. Also add tests to `tests/alltests.c`, which contains a speical test that runs all tests in series in the same process to ensure that tests do not leak state and affect other tests.
 
 ### Project Layout
 ```
