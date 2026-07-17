@@ -67,7 +67,7 @@ static int test_opaque()
     memset(&blob, 0, sizeof(blob));
     blob.a = 42;
     blob.b = 3.14159;
-    strncpy(blob.s, "hello opaque world", sizeof(blob.s) - 1);
+    memcpy(blob.s, "hello opaque world", sizeof("hello opaque world"));
 
     stvar v = stvNone;
     stvarSet(&v, opaque, blob);
