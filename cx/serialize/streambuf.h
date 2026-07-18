@@ -49,6 +49,8 @@
 #include <cx/buffer/bufring.h>
 #include <cx/stype/stype.h>
 
+CX_C_BEGIN
+
 typedef struct StreamBuffer StreamBuffer;
 
 // Pull callback
@@ -484,3 +486,5 @@ void sbufCFinish(_Pre_valid_ _Post_invalid_ StreamBuffer* sb);
 
 /// @}  // end of serialize_streambuf_consumer
 /// @}  // end of serialize_streambuf
+
+CX_C_END

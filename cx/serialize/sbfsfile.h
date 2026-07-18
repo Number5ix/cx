@@ -26,6 +26,8 @@
 #include <cx/fs/file.h>
 #include <cx/serialize/streambuf.h>
 
+CX_C_BEGIN
+
 /// @defgroup serialize_fsfile_producer Filesystem File Producers
 /// @ingroup serialize_fsfile
 /// @{
@@ -121,3 +123,5 @@ sbufFSFileCRegisterPush(_Inout_ StreamBuffer* sb, _Inout_ FSFile* file, bool clo
 
 /// @}  // end of serialize_fsfile_consumer
 /// @}  // end of serialize_fsfile
+
+CX_C_END

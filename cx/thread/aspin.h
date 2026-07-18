@@ -8,6 +8,8 @@
 #include <cx/time/time.h>
 #include <cx/utils/compare.h>
 
+CX_C_BEGIN
+
 // Common functions for adaptive spin threading primitives
 
 #define ASPIN_MAX_USEC       10   // hard cap in microseconds
@@ -227,3 +229,5 @@ _meta_inline void aspinEndContention(_Inout_ AdaptiveSpinState* ass)
 {
     ass->contention = 0;
 }
+
+CX_C_END

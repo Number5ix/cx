@@ -12,6 +12,8 @@
 
 typedef struct VFS VFS;
 
+CX_C_BEGIN
+
 /// @defgroup settings Settings Management
 /// @{
 ///
@@ -342,3 +344,5 @@ bool setsExport(SSDNode* sets, SetsBindSpec* bindings, void* base);
 /// @}  // end of settings_access
 
 /// @}  // end of settings
+
+CX_C_END

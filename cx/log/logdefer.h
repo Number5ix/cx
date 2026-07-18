@@ -35,6 +35,8 @@
 
 #include <cx/log/log.h>
 
+CX_C_BEGIN
+
 /// Opaque handle for deferred log buffer
 typedef struct LogDeferData LogDeferData;
 
@@ -124,3 +126,5 @@ logRegisterDestWithDefer(int maxlevel, _In_opt_ LogCategory* catfilter, _In_ Log
                          _In_opt_ void* userdata, _In_opt_ _Post_invalid_ LogDest* deferdest);
 
 /// @}  // end of log_defer group
+
+CX_C_END

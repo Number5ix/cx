@@ -7,6 +7,8 @@
 #include <cx/ssdtree/node/ssdnode.h>
 #include <cx/string/strbase.h>
 
+CX_C_BEGIN
+
 /// @defgroup ssd_create Tree Creation
 /// @ingroup ssd
 /// @{
@@ -714,3 +716,5 @@ bool _ssdGraft(_Inout_ SSDNode* dest, _In_opt_ strref destpath,
     _ssdGraft(dest, destpath, (SSDLockState*)_ssdCurrentLockState, src, srcpath, NULL)
 
 /// @}  // end of ssd_advanced
+
+CX_C_END

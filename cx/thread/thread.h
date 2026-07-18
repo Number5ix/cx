@@ -11,6 +11,8 @@
 
 #include <cx/thread/threadobj.h>
 
+CX_C_BEGIN
+
 /// Thread scheduling priority levels
 enum ThreadPriority {
     THREAD_Normal = 0,   ///< Normal priority (default)
@@ -178,3 +180,5 @@ void thrRegisterSysThread(_Inout_ Thread* thread);
 
 /// @}
 // end of thread_core group
+
+CX_C_END

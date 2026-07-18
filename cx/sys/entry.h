@@ -15,6 +15,8 @@ extern sa_string cmdArgs;
 // dependent entry point, which will parse the command-line arguments and
 // call entryPoint()
 
+CX_C_BEGIN
+
 // User-supplied function that is called by DEFINE_ENTRY_POINT
 int entryPoint();
 
@@ -29,3 +31,5 @@ void _entryParseArgsU16(int argc, const uint16** argv);
 #elif defined(_PLATFORM_WASM)
 #include "cx/platform/wasm/wasm_sys_entry.h"
 #endif
+
+CX_C_END

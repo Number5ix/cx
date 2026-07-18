@@ -19,7 +19,11 @@ enum UIEVENT_Result {
     UIEVENT_Timeout = 3    // timeout reached
 };
 
+CX_C_BEGIN
+
 UIEvent* uieventCreate();
 bool uieventSignal(UIEvent* e, int count);
 int uieventWaitTimeout(UIEvent* e, uint64 timeout);
 void uieventDestroy(UIEvent* e);
+
+CX_C_END

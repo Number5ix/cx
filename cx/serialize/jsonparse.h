@@ -8,6 +8,8 @@
 typedef struct SSDNode SSDNode;
 typedef struct SSDTree SSDTree;
 
+CX_C_BEGIN
+
 /// @defgroup serialize_json_parse JSON Parsing
 /// @ingroup serialize_json
 /// @{
@@ -272,3 +274,5 @@ _Ret_opt_valid_ SSDNode* jsonParseTreeCustom(_Inout_ StreamBuffer* sb, _In_opt_ 
 _Ret_opt_valid_ SSDNode* jsonTreeFromString(_In_opt_ strref str);
 
 /// @}  // end of serialize_json_parse
+
+CX_C_END

@@ -36,6 +36,8 @@
 
 #include <cx/closure/closure.h>
 
+CX_C_BEGIN
+
 /// Signal an event
 ///
 /// Closure callback that signals an Event. Expects the event pointer as the first captured
@@ -82,3 +84,5 @@ bool ccbSignalSharedEvent(stvlist* cvars, stvlist* args);
 bool ccbAdvanceTask(stvlist* cvars, stvlist* args);
 
 /// @}
+
+CX_C_END

@@ -30,6 +30,8 @@
 
 #include <cx/log/log.h>
 
+CX_C_BEGIN
+
 /// Memory buffer log destination state
 ///
 /// Contains the circular buffer and current write position. When `cur` reaches
@@ -123,3 +125,5 @@ void logmembufMsgFunc(int level, _In_opt_ LogCategory* cat, int64 timestamp, _In
 void logmembufCloseFunc(_In_opt_ void* userdata);
 
 /// @}  // end of log_membuf group
+
+CX_C_END

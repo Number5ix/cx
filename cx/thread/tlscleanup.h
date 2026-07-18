@@ -4,4 +4,4 @@
 
 typedef void (*TLSCleanupCB)(void* data);
 
-void thrRegisterCleanup(TLSCleanupCB cb, void* data);
+CX_C void thrRegisterCleanup(TLSCleanupCB cb, void* data);

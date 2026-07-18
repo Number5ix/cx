@@ -39,6 +39,8 @@ typedef struct JSONOut JSONOut;
 /// Example: `JSON_Indent(2)` for 2-space indent
 #define JSON_Indent(x) (x & JSON_Indent_Mask)
 
+CX_C_BEGIN
+
 /// JSON output formatting flags
 enum JSON_OUT_FLAGS {
     /// Mask for extracting indent value (0-31 spaces)
@@ -206,3 +208,5 @@ bool _jsonTreeToString(_Inout_ string* out, _In_ SSDNode* tree, flags_t flags,
 
 /// @}  // end of serialize_json_tree
 /// @}  // end of serialize_json_output
+
+CX_C_END

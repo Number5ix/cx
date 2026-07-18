@@ -1,5 +1,7 @@
 #include "cx/cx.h"
 
+CX_C_BEGIN
+
 void stDtor_obj(stype st, _Pre_notnull_ _Post_invalid_ stgeneric* stgen, uint32 flags);
 intptr stCmp_obj(stype st, _In_ stgeneric stgen1, _In_ stgeneric stgen2, uint32 flags);
 void stCopy_obj(stype st, _stCopyDest_Anno_(st) stgeneric* dest, _In_ stgeneric src, uint32 flags);
@@ -12,3 +14,5 @@ void stDtor_weakref(stype st, _Pre_notnull_ _Post_invalid_ stgeneric* stgen, uin
 intptr stCmp_weakref(stype st, _In_ stgeneric stgen1, _In_ stgeneric stgen2, uint32 flags);
 void stCopy_weakref(stype st, _stCopyDest_Anno_(st) stgeneric* dest, _In_ stgeneric src,
                     uint32 flags);
+
+CX_C_END

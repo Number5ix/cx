@@ -11,6 +11,8 @@
 #include <cx/taskqueue/task/mptask.h>
 #include <cx/taskqueue/worker/tqworker.h>
 
+CX_C_BEGIN
+
 /// @addtogroup taskqueue
 /// @{
 
@@ -359,3 +361,5 @@ _meta_inline bool _btaskCancelled(BasicTask* bt)
 
 /// @}
 /// @}
+
+CX_C_END

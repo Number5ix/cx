@@ -2,6 +2,8 @@
 
 #include <cx/cx.h>
 
+CX_C_BEGIN
+
 /// @file buffer.h
 /// @brief Simple buffer management
 
@@ -83,3 +85,5 @@ _At_(*buf, _Pre_maybenull_) bool bufTryResize(_Inout_ Buffer* buf, size_t newsiz
 _At_(*buf, _Pre_maybenull_ _Post_null_) void bufDestroy(_Inout_ Buffer* buf);
 
 /// @}  // end of buffer_simple group
+
+CX_C_END

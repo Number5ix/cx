@@ -7,6 +7,8 @@
 
 #include <cx/cx.h>
 
+CX_C_BEGIN
+
 /// @defgroup lcg Linear Congruential Generator (LCG)
 /// @ingroup rng
 /// @{
@@ -71,3 +73,5 @@ _meta_inline int32 lcgRandom(_Inout_ uint32* state)
 }
 
 /// @}  // end of lcg group
+
+CX_C_END

@@ -7,6 +7,8 @@
 
 // Condition variable: A cross between an event and a mutex
 
+CX_C_BEGIN
+
 enum CONDVAR_Flags {
     CONDVAR_NoSpin = 1,   // do not use adaptive spin, use kernel futex only
 };
@@ -29,3 +31,5 @@ _Requires_lock_held_(*m) _meta_inline bool cvarWait(_Inout_ CondVar* cv, _Inout_
 }
 bool cvarSignal(_Inout_ CondVar* cv);
 bool cvarBroadcast(_Inout_ CondVar* cv);
+
+CX_C_END

@@ -7,6 +7,8 @@
 #include "aspin.h"
 #include "futex.h"
 
+CX_C_BEGIN
+
 enum SEMA_Flags {
     SEMA_NoSpin = 0x00000001,
 };
@@ -48,3 +50,5 @@ _meta_inline bool semaInc(_Inout_ Semaphore* sema, int32 count)
     futexWakeMany(&sema->ftx, count);
     return true;
 }
+
+CX_C_END

@@ -10,4 +10,8 @@
 
 #include <mmsystem.h>
 
+CX_C_BEGIN
+
 bool winMapLastError();
+
+CX_C_END

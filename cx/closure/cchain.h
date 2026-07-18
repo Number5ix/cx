@@ -59,6 +59,8 @@
 #include <cx/closure/closure.h>
 #include <cx/thread/atomic.h>
 
+CX_C_BEGIN
+
 typedef struct cchain_ref {
     void* _is_closure_chain;
 } cchain_ref;
@@ -191,3 +193,5 @@ void cchainDestroy(_Inout_ptr_opt_ cchain* chain);
 
 /// @}
 // end of closure_chain group
+
+CX_C_END

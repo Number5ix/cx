@@ -49,6 +49,8 @@
 #include <cx/string/strbase.h>
 #include <cx/stype/stvar.h>
 
+CX_C_BEGIN
+
 /// Log severity levels
 ///
 /// Levels are ordered from most to least severe. When registering a destination with a
@@ -346,3 +348,5 @@ void _logFmt(int level, int64 timestamp, _In_ LogCategory* cat, _In_ strref fmts
 #define _logFmt_Error(level, cat, fmt, nargs, args)   _logFmt(level, -1, cat, fmt, nargs, args)
 #define _logStr_Fatal(level, cat, str)                _logStr(level, -1, cat, str)
 #define _logFmt_Fatal(level, cat, fmt, nargs, args)   _logFmt(level, -1, cat, fmt, nargs, args)
+
+CX_C_END

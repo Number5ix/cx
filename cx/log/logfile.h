@@ -31,6 +31,8 @@
 #include <cx/fs/vfs.h>
 #include <cx/log/log.h>
 
+CX_C_BEGIN
+
 /// Timestamp format options for log file output
 enum LOG_DATE_FORMATS {
     LOG_DateISO,             ///< ISO 8601 format: "2026-01-02 15:04:05"
@@ -179,3 +181,5 @@ void logfileBatchFunc(uint32 batchid, _In_opt_ void* userdata);
 void logfileCloseFunc(_In_opt_ void* userdata);
 
 /// @}  // end of log_file group
+
+CX_C_END

@@ -30,6 +30,8 @@
 
 #include <cx/cx.h>
 
+CX_C_BEGIN
+
 /// Generic callback function pointer type
 typedef void (*GenericCallback)();
 
@@ -66,3 +68,5 @@ _Ret_opt_valid_ GenericCallback _callbackGetFunc(_In_z_ const char* cbtype, int 
 
 /// @}
 // end of utils_cbhandle group
+
+CX_C_END

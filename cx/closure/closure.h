@@ -35,6 +35,8 @@
 #include <cx/stype/stvar.h>
 #include <cx/utils/macros/args.h>
 
+CX_C_BEGIN
+
 // Opaque closure reference type (internal)
 typedef struct closure_ref {
     void* _is_closure;
@@ -104,3 +106,5 @@ void closureDestroy(_Inout_ptr_uninit_ closure* cls);
 
 /// @}
 // end of closure_basic group
+
+CX_C_END

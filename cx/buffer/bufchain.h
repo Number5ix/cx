@@ -4,6 +4,8 @@
 #include "cx/buffer/buffer.h"
 #include "cx/utils/compare.h"
 
+CX_C_BEGIN
+
 /// @file bufchain.h
 /// @brief Buffer chain implementation for efficient streaming I/O
 
@@ -234,3 +236,5 @@ _At_(*buf, _Pre_notnull_ _Post_null_) void bufchainWriteZC(BufChain* chain, _Ino
 void bufchainDestroy(_Pre_notnull_ _Post_invalid_ BufChain* chain);
 
 /// @}  // end of bufchain group
+
+CX_C_END

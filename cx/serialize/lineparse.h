@@ -54,6 +54,8 @@
 
 #include <cx/serialize/streambuf.h>
 
+CX_C_BEGIN
+
 /// @defgroup serialize_lineparse_flags Line Parser Flags
 /// @ingroup serialize_lineparse
 /// @{
@@ -193,3 +195,5 @@ lparseRegisterPush(_Inout_ StreamBuffer* sb, _In_ lparseLineCB pline,
 
 /// @}  // end of serialize_lineparse_push
 /// @}  // end of serialize_lineparse
+
+CX_C_END

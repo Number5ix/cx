@@ -8,6 +8,8 @@
 #define SSD_LOCK_DEBUG 1
 #endif
 
+CX_C_BEGIN
+
 typedef struct SSDTree SSDTree;
 typedef struct SSDNode SSDNode;
 typedef SSDNode* (*SSDNodeFactory)(SSDTree* info);
@@ -202,3 +204,5 @@ bool _ssdLockEnd(_Inout_ SSDNode* root, _Inout_ SSDLockState* lstate);
                            _ssdLockStateInit(&_ssdTransientLockState)) _blkEnd
 
 /// @}  // end of ssd_lock
+
+CX_C_END

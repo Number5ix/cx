@@ -30,6 +30,8 @@
 
 #include <cx/cx.h>
 
+CX_C_BEGIN
+
 /// Internal block size in bytes used by all supported digest algorithms
 #define DIGEST_BLOCKSIZE 64
 
@@ -106,3 +108,5 @@ void digestUpdate(_Inout_ Digest* digest, _In_ uint8* data, uint32 size);
 void digestFinish(_Inout_ Digest* digest, _Out_ uint8* out);
 
 /// @}
+
+CX_C_END

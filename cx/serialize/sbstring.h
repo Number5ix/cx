@@ -26,6 +26,8 @@
 #include <cx/serialize/streambuf.h>
 #include <cx/string/strbase.h>
 
+CX_C_BEGIN
+
 /// @defgroup serialize_string_producer String Producers
 /// @ingroup serialize_string
 /// @{
@@ -147,3 +149,5 @@ sbufStrCreatePush(_Inout_ string* strout, size_t targetsz);
 
 /// @}  // end of serialize_string_convenience
 /// @}  // end of serialize_string
+
+CX_C_END

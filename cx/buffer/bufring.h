@@ -4,6 +4,8 @@
 #include "cx/buffer/buffer.h"
 #include "cx/utils/compare.h"
 
+CX_C_BEGIN
+
 /// @file bufring.h
 /// @brief Ring buffer implementation for efficient streaming I/O
 
@@ -272,3 +274,5 @@ size_t bufringFeed(_Inout_ BufRing* ring, bufringFeedCB feed, size_t bytes, _Ino
 void bufringDestroy(_Pre_notnull_ _Post_invalid_ BufRing* ring);
 
 /// @}  // end of bufring group
+
+CX_C_END

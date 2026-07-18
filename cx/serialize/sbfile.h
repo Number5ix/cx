@@ -27,6 +27,8 @@
 #include <cx/fs/vfs.h>
 #include <cx/serialize/streambuf.h>
 
+CX_C_BEGIN
+
 /// @defgroup serialize_file_producer VFS File Producers
 /// @ingroup serialize_file
 /// @{
@@ -122,3 +124,5 @@ sbufFileCRegisterPush(_Inout_ StreamBuffer* sb, _Inout_ VFSFile* file, bool clos
 
 /// @}  // end of serialize_file_consumer
 /// @}  // end of serialize_file
+
+CX_C_END
