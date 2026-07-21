@@ -30,6 +30,12 @@ CX_C_BEGIN
 /// @note For optimal performance, this implementation is not thread-safe. If access from
 /// multiple threads is required, wrap operations with an appropriate lock.
 ///
+/// **Segment stability guarantee:** segments are individually allocated and are never moved,
+/// reallocated, or coalesced for the lifetime of the segment. A pointer obtained into a segment
+/// stays valid until the data it covers is consumed. This is a deliberate part of the contract,
+/// not an implementation detail -- it is what makes bufringReserve() safe to hand to an
+/// asynchronous completion-based I/O operation that will write into the buffer later.
+///
 /// Example:
 /// @code
 ///   BufRing ring;
@@ -59,6 +65,7 @@ typedef struct BufRing {
     BufRingNode* tail;   ///< Last segment
     size_t total;        ///< Total bytes of data available
     size_t segsz;        ///< Size of each buffer segment
+    size_t reserved;     ///< Bytes of outstanding write reservation (see bufringReserve)
 } BufRing;
 
 /// Callback for zero-copy buffer reads.
@@ -293,6 +300,53 @@ size_t bufringWriteSpace(_In_ BufRing* ring);
 /// @note The callback can return 0 to stop feeding. Writes are automatically split at segment
 /// boundaries to maintain ring buffer integrity.
 size_t bufringFeed(_Inout_ BufRing* ring, bufringFeedCB feed, size_t bytes, _Inout_opt_ void* ctx);
+
+/// Reserve contiguous writable space in a ring buffer.
+///
+/// Returns a pointer to at least `minbytes` of contiguous, writable space at the tail of the
+/// ring, expanding the ring if necessary. The reservation stays valid until it is committed --
+/// unlike bufringFeed(), which requires the data to be produced inside a callback, this splits
+/// the reserve and the commit so they can happen at different times.
+///
+/// That is what completion-based (proactor) I/O needs: reserve the space, hand the pointer to
+/// an asynchronous receive, and commit the actual byte count when the completion arrives. For
+/// readiness-based (reactor) I/O, bufringFeed() is simpler and should be preferred.
+///
+/// The returned pointer is stable for the lifetime of the reservation (see the segment
+/// stability guarantee above).
+///
+/// **Contract:**
+/// - Only one reservation may be outstanding at a time.
+/// - No *write* operation (bufringWrite(), bufringWriteZC(), bufringFeed(), another
+///   bufringReserve()) may be performed while a reservation is outstanding. Doing so would
+///   write into the reserved region.
+/// - *Read* operations (bufringRead(), bufringPeek(), bufringSkip(), bufringReadZC()) are
+///   explicitly permitted while a reservation is outstanding. A consumer draining previously
+///   received data while an asynchronous receive is in flight is the normal case, not an error.
+/// - The ring must not be destroyed while a reservation is outstanding; cancel the pending
+///   operation and commit or release first, or the I/O will write into freed memory.
+///
+/// The reservation may be larger than requested; write no more than `*len` bytes into it.
+///
+/// @param ring Pointer to the ring buffer to reserve space in
+/// @param minbytes Minimum number of contiguous bytes required (must be nonzero)
+/// @param ptr Receives a pointer to the reserved space
+/// @param len Receives the number of contiguous bytes actually available (>= minbytes)
+/// @see bufringCommit
+void bufringReserve(_Inout_ BufRing* ring, size_t minbytes,
+                    _Outptr_result_buffer_(*len) uint8** ptr, _Out_ size_t* len);
+
+/// Commit part or all of an outstanding write reservation.
+///
+/// Makes `bytes` of the reserved region visible as readable data in the ring and releases the
+/// reservation. Committing fewer bytes than were reserved is legal and expected -- a short read
+/// commits only what actually arrived, and the remainder of the reservation is simply released
+/// back as free space. Committing zero releases the reservation without adding any data.
+///
+/// @param ring Pointer to the ring buffer holding the reservation
+/// @param bytes Number of bytes actually written into the reserved region
+/// @see bufringReserve
+void bufringCommit(_Inout_ BufRing* ring, size_t bytes);
 
 /// Destroy a ring buffer and free all associated resources.
 ///

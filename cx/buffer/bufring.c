@@ -4,10 +4,31 @@
 _Use_decl_annotations_
 void bufringInit(BufRing* ring, size_t segsz)
 {
-    ring->head  = NULL;
-    ring->tail  = NULL;
-    ring->total = 0;
-    ring->segsz = clamplow(segsz, 64);   // minimum segment size is 64 bytes
+    ring->head     = NULL;
+    ring->tail     = NULL;
+    ring->total    = 0;
+    ring->segsz    = clamplow(segsz, 64);   // minimum segment size is 64 bytes
+    ring->reserved = 0;
+}
+
+// Allocates a new segment of at least segsz bytes and appends it to the tail of the ring.
+static BufRingNode* appendNode(BufRing* ring, size_t segsz)
+{
+    BufRingNode* node = xaAllocStruct(BufRingNode);
+    node->next        = NULL;
+    node->buf         = bufCreate(segsz);
+    node->head        = 0;
+    node->tail        = 0;
+    node->full        = false;
+
+    if (ring->tail) {
+        ring->tail->next = node;
+        ring->tail       = node;
+    } else {
+        ring->head = ring->tail = node;
+    }
+
+    return node;
 }
 
 static _meta_inline size_t nodeReadAvail(BufRingNode* node)
@@ -51,10 +72,19 @@ static _meta_inline void moveReadHead(BufRing* ring, size_t bytes)
                 bufDestroy(&node->buf);
                 xaFree(node);
             } else {
-                // If the buffer is empty, reset it to the start of the ring.
-                // This helps avoid having to split reads/writes.
-                node->head = node->tail = 0;
-                node->full              = false;
+                if (ring->reserved == 0) {
+                    // If the buffer is empty, reset it to the start of the ring.
+                    // This helps avoid having to split reads/writes.
+                    node->head = node->tail = 0;
+                } else {
+                    // With a reservation outstanding the node must NOT be rewound: the reserved
+                    // region begins at node->tail and an asynchronous operation may already be
+                    // writing into it. Just catch the read cursor up to the write cursor, which
+                    // is still a correct empty state; it only gives up the alignment
+                    // optimization until the reservation is committed.
+                    node->head = node->tail;
+                }
+                node->full = false;
             }
         }
     }
@@ -165,22 +195,13 @@ void bufringWrite(BufRing* ring, const uint8* buf, size_t bytes)
     size_t remaining = bytes;
     const uint8* p   = buf;
 
+    devAssertMsg(ring->reserved == 0, "Cannot write to a bufring with an outstanding reservation");
+
     while (remaining > 0) {
         BufRingNode* node = ring->tail;
         if (!node || nodeWriteAvail(node) == 0) {
             // need a new node
-            node       = xaAllocStruct(BufRingNode);
-            node->next = NULL;
-            node->buf  = bufCreate(ring->segsz);
-            node->head = 0;
-            node->tail = 0;
-            node->full = false;
-            if (ring->tail) {
-                ring->tail->next = node;
-                ring->tail       = node;
-            } else {
-                ring->head = ring->tail = node;
-            }
+            node = appendNode(ring, ring->segsz);
         }
 
         size_t canwrite = nodeWriteAvail(node);
@@ -213,6 +234,8 @@ void bufringWrite(BufRing* ring, const uint8* buf, size_t bytes)
 _Use_decl_annotations_
 void bufringWriteZC(BufRing* ring, Buffer* buf)
 {
+    devAssertMsg(ring->reserved == 0, "Cannot write to a bufring with an outstanding reservation");
+
     if (!buf || (*buf)->sz == 0)
         return;
 
@@ -247,22 +270,13 @@ size_t bufringFeed(BufRing* ring, bufringFeedCB feed, size_t bytes, void* ctx)
     size_t remaining = bytes;
     size_t nfeed     = 0;
 
+    devAssertMsg(ring->reserved == 0, "Cannot write to a bufring with an outstanding reservation");
+
     while (remaining > 0) {
         BufRingNode* node = ring->tail;
         if (!node || nodeWriteAvail(node) == 0) {
             // need a new node
-            node       = xaAllocStruct(BufRingNode);
-            node->next = NULL;
-            node->buf  = bufCreate(ring->segsz);
-            node->head = 0;
-            node->tail = 0;
-            node->full = false;
-            if (ring->tail) {
-                ring->tail->next = node;
-                ring->tail       = node;
-            } else {
-                ring->head = ring->tail = node;
-            }
+            node = appendNode(ring, ring->segsz);
         }
 
         size_t canwrite = nodeWriteAvail(node);
@@ -286,6 +300,69 @@ size_t bufringFeed(BufRing* ring, bufringFeedCB feed, size_t bytes, void* ctx)
     }
 
     return bytes - remaining;   // how much was actually fed into the buffer
+}
+
+// Returns how much can be written to a node without wrapping around the end of its buffer.
+// Reservations must be contiguous, so this -- not nodeWriteAvail -- is what bounds them.
+static _meta_inline size_t nodeContigWriteAvail(BufRingNode* node)
+{
+    if (node->full)
+        return 0;
+
+    // head <= tail: free space runs from tail to the end of the buffer, then wraps to head.
+    // head > tail:  free space runs from tail up to head and does not wrap.
+    return (node->head <= node->tail) ? node->buf->sz - node->tail : node->head - node->tail;
+}
+
+_Use_decl_annotations_
+void bufringReserve(BufRing* ring, size_t minbytes, uint8** ptr, size_t* len)
+{
+    devAssertMsg(ring->reserved == 0, "Only one bufring reservation may be outstanding at a time");
+    devAssert(minbytes > 0);
+
+    BufRingNode* node = ring->tail;
+
+    // If the tail node is empty but its cursors have wandered into the middle of the buffer,
+    // rewind them. There is no data to preserve, and it may turn a split into a contiguous run
+    // large enough to satisfy the request without allocating.
+    if (node && !node->full && node->head == node->tail && node->head != 0)
+        node->head = node->tail = 0;
+
+    if (!node || nodeContigWriteAvail(node) < minbytes) {
+        // Nothing contiguous enough at the tail. Allocate a segment big enough to hold the
+        // whole reservation; any unused space in the old tail is simply left behind, exactly as
+        // the normal write path leaves it.
+        node = appendNode(ring, max(ring->segsz, minbytes));
+    }
+
+    *len           = nodeContigWriteAvail(node);
+    *ptr           = node->buf->data + node->tail;
+    ring->reserved = *len;
+
+    devAssert(*len >= minbytes);
+}
+
+_Use_decl_annotations_
+void bufringCommit(BufRing* ring, size_t bytes)
+{
+    devAssertMsg(ring->reserved > 0, "bufringCommit without an outstanding reservation");
+    devAssertMsg(bytes <= ring->reserved, "bufringCommit of more bytes than were reserved");
+
+    BufRingNode* node = ring->tail;
+    bytes             = min(bytes, ring->reserved);
+
+    // The reservation was contiguous and started at tail, so this cannot overrun the buffer;
+    // it can only land exactly on the end, which wraps to zero.
+    node->tail = (node->tail + bytes) % node->buf->sz;
+
+    // we filled up the node
+    if (node->head == node->tail && bytes > 0)
+        node->full = true;
+
+    ring->total += bytes;
+
+    // Whatever was not committed goes back to being ordinary free space.
+    ring->reserved = 0;
 }
 
 _Use_decl_annotations_
@@ -330,6 +407,9 @@ Buffer _bufringStealHead(_Inout_ BufRing* ring)
 _Use_decl_annotations_
 void bufringDestroy(BufRing* ring)
 {
+    // An outstanding reservation means someone may still be about to write into this memory.
+    devAssertMsg(ring->reserved == 0, "Destroying a bufring with an outstanding reservation");
+
     BufRingNode* node = ring->head;
     while (node) {
         BufRingNode* next = node->next;
@@ -337,8 +417,9 @@ void bufringDestroy(BufRing* ring)
         xaFree(node);
         node = next;
     }
-    ring->head  = NULL;
-    ring->tail  = NULL;
-    ring->total = 0;
-    ring->segsz = 0;
+    ring->head     = NULL;
+    ring->tail     = NULL;
+    ring->total    = 0;
+    ring->segsz    = 0;
+    ring->reserved = 0;
 }

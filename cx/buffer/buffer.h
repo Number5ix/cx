@@ -38,6 +38,24 @@ struct BufferHeader {
     uint8 data[];    ///< Buffer data (flexible array member)
 };
 
+/// Platform-neutral scatter/gather vector.
+///
+/// Describes a single contiguous region of memory as part of a vectored I/O operation.
+/// This deliberately does not alias any platform type: `struct iovec` is
+/// `{ void* base; size_t len; }` while Windows `WSABUF` is `{ ULONG len; CHAR* buf; }` --
+/// different member order *and* different width. Aliasing either one would drag platform
+/// networking headers into the buffer module, which is the wrong dependency direction.
+///
+/// Consumers that need to hand these to the OS should translate into the platform array
+/// immediately before the syscall. The translation is a short bounded loop of two stores per
+/// entry and does not show up in a profile.
+///
+/// @see bufchainGatherIov
+typedef struct BufIov {
+    void* data;   ///< Pointer to the start of this region
+    size_t len;   ///< Number of valid bytes in this region
+} BufIov;
+
 /// Buffer bufCreate(size_t size)
 ///
 /// Create a new buffer with the specified size.

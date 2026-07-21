@@ -1,10 +1,12 @@
 set(BUFFER_SRCS
     buffer/bufchain.c
+    buffer/bufpool.c
     buffer/buffer.c
     buffer/bufring.c
     buffer/stype_buffer.c)
 set(BUFFER_INCLUDES
     buffer/bufchain.h
+    buffer/bufpool.h
     buffer/buffer.h
     buffer/bufring.h
     buffer/stype_buffer.h)
