@@ -305,7 +305,7 @@ size_t _bufringReadContigAvail(_In_ BufRing* ring)
     return nodeReadAvail(node);
 }
 
-buffer _bufringStealHead(_Inout_ BufRing* ring)
+Buffer _bufringStealHead(_Inout_ BufRing* ring)
 {
     if (!ring->head || ring->total == 0)
         return NULL;
@@ -314,7 +314,7 @@ buffer _bufringStealHead(_Inout_ BufRing* ring)
     if (node->head != 0)
         return NULL;   // not aligned
 
-    buffer buf = node->buf;
+    Buffer buf = node->buf;
 
     // remove the node from the ring
     ring->head = node->next;

@@ -16,10 +16,10 @@ abstract class NetQueue
     /// Hashtable of registered callbacks
     /// key: Event type
     /// value: sarray of callback pointers
-    hashtable:uint32:sarray callbacks;
+    hashtable[uint32,sarray] callbacks;
 
     /// Set of sockets this queue is managing
-    hashtable:object:none sockets;
+    hashtable[object,none] sockets;
     
     RWLock lock;  ///< Protects callback and socket hashes
 

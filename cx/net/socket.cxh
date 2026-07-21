@@ -25,15 +25,15 @@ typedef bool (*socketRecvCB)(NetSocket* sock, NetMessage* msg, void* ctx);
 /// by the OS abstraction layer.
 abstract class NetSocket
 {
-    weak:NetQueue queue;    ///< NetQueue this socket is registered to (may be NULL)
+    weak[NetQueue] queue;   ///< NetQueue this socket is registered to (may be NULL)
     NetSocketType type;     ///< Connection or connectionless, immutable
 
-    atomic:uint32 state;    ///< See NetSocketState enum
-    atomic:bool canSend;    ///< Send buffer empty; can send immediately
+    atomic[uint32] state;   ///< See NetSocketState enum
+    atomic[bool] canSend;   ///< Send buffer empty; can send immediately
 
     NetAddr local;          ///< Local end (for bound sockets)
     NetAddr remote;         ///< Remote address (for connected sockets only)
-    sarray:stvar user;      ///< Storage for application-specific per-socket data
+    sarray[stvar] user;     ///< Storage for application-specific per-socket data
 
     uint32 mru;             ///< Maximum size of received datagrams
     BufRing recvBuf;        ///< Buffer for data that has been received on the socket
@@ -42,7 +42,7 @@ abstract class NetSocket
     Mutex sendLock;         ///< Exclusive access to send data on this socket
 
     /// List of fallback addresses to try to connect to if pending connect fails
-    [noinit] sarray:NetAddr connQueue;
+    [noinit] sarray[NetAddr] connQueue;
 
     /// Read data from the socket receive buffer
     ///

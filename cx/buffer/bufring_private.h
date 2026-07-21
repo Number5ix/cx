@@ -6,4 +6,4 @@ size_t _bufringReadContigAvail(_In_ BufRing* ring);
 
 // Tries to steal the head buffer if it is 0-aligned. This is an internal function intended
 // for use by the socket code only.
-buffer _bufringStealHead(_Inout_ BufRing* ring);
+Buffer _bufringStealHead(_Inout_ BufRing* ring);

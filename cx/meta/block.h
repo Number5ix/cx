@@ -98,7 +98,7 @@
 /// @param name Feature identifier to check
 ///
 /// @note Disabled on MSVC versions prior to VS2022 due to a compiler bug
-#if !defined(_MSC_VER) || _MSC_VER > 1930
+#if (!defined(_MSC_VER) || _MSC_VER > 1930) && !defined(__cplusplus)
 #define inhibitCheck(name)                                       \
     switch (tokstring(_inhibit_name(name))[_inhibit_name(name)]) \
     default:

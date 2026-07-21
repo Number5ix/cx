@@ -152,7 +152,7 @@ saDeclare(NetAddr);
 
 /// Network message for buffered datagrams
 typedef struct NetMessage {
-    buffer buf;     ///< Message data
+    Buffer buf;     ///< Message data
     NetAddr addr;   ///< Source / destination address
 } NetMessage;
 
