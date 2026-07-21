@@ -581,7 +581,7 @@ static void writeAutoDtors(StreamBuffer* bf, Class* cls)
             strNConcat(&mdtor, _S"    closureDestroy(&self->", m->name, _S");");
         } else if (strEq(m->vartype, _S"cchain")) {
             strNConcat(&mdtor, _S"    cchainDestroy(&self->", m->name, _S");");
-        } else if (strEq(m->vartype, _S"buffer")) {
+        } else if (strEq(m->vartype, _S"Buffer")) {
             strNConcat(&mdtor, _S"    bufDestroy(&self->", m->name, _S");");
         } else if (strEq(m->vartype, _S"BufChain")) {
             strNConcat(&mdtor, _S"    bufchainDestroy(&self->", m->name, _S");");

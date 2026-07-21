@@ -130,7 +130,7 @@ static void checkMemberInitDestroy(Class* cls)
                 (strEq(m->vartype, _S"stvar") && strEmpty(m->predecr)) ||
                 (strEq(m->vartype, _S"closure") && strEmpty(m->predecr)) ||
                 (strEq(m->vartype, _S"cchain") && strEmpty(m->predecr)) ||
-                (strEq(m->vartype, _S"buffer") && strEmpty(m->predecr)) ||
+                (strEq(m->vartype, _S"Buffer") && strEmpty(m->predecr)) ||
                 (strEq(m->vartype, _S"BufChain") && strEmpty(m->predecr)) ||
                 (strEq(m->vartype, _S"BufRing") && strEmpty(m->predecr)) ||
                 (strEq(m->vartype, _S"CondVar") && strEmpty(m->predecr)) ||
