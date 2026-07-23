@@ -152,9 +152,9 @@ static void writeMethodProto(StreamBuffer* bf, Class* cls, Method* m, bool proto
 
         paramAnnotations(&annos, p);
         if (!m->standalone || j > 0)
-            strNConcat(&tmp, _S", ", annos, ptype, ppre, _S" ", p->name, p->postdecr);
+            strNConcat(&tmp, _S", ", annos, p->isconst ? _S"const " : _S"", ptype, ppre, _S" ", p->name, p->postdecr);
         else
-            strNConcat(&tmp, annos, ptype, ppre, _S" ", p->name, p->postdecr);
+            strNConcat(&tmp, annos, p->isconst ? _S"const " : _S"", ptype, ppre, _S" ", p->name, p->postdecr);
         strAppend(&ln, tmp);
     }
     strAppend(&ln, _S")");
@@ -677,7 +677,7 @@ static void writeClassIfaceTbl(StreamBuffer* bf, Class* cls, Interface* iface)
                 ppre  = _S"*";
             }
 
-            strNConcat(&ln, ln, _S", ", ptype, ppre, p->postdecr);
+            strNConcat(&ln, ln, _S", ", p->isconst ? _S"const " : _S"", ptype, ppre, p->postdecr);
         }
         strNConcat(&ln, ln, _S"))", implname, _S",");
         sbufPWriteLine(bf, ln);
