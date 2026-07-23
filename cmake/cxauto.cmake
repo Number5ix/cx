@@ -8,9 +8,9 @@ function(add_cxautogen)
     foreach(arg ${ARGN})
         string(REGEX REPLACE "\\.[^.]*$" "" argbase ${arg})
         add_custom_command(
-            COMMAND cxautogen -I${CX_TOP_SOURCE_DIR} -I${CX_TOP_SOURCE_DIR}/cx/include -S${CMAKE_CURRENT_SOURCE_DIR} -B${CMAKE_CURRENT_BINARY_DIR} ${EXTRA_CXAUTOGEN_ARGS} -f ${arg}
+            COMMAND cxautogen -I${CX_TOP_SOURCE_DIR} -I${CX_TOP_SOURCE_DIR}/cx/include -S${CMAKE_CURRENT_SOURCE_DIR} -B${CMAKE_CURRENT_BINARY_DIR} -M${CMAKE_CURRENT_BINARY_DIR}/${argbase}.h.d ${EXTRA_CXAUTOGEN_ARGS} -f ${arg}
             MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/${arg}
-            IMPLICIT_DEPENDS "C" ${CMAKE_CURRENT_SOURCE_DIR}/${arg}
+            DEPFILE ${CMAKE_CURRENT_BINARY_DIR}/${argbase}.h.d
             OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${argbase}.h
             )
     endforeach()
@@ -24,10 +24,10 @@ function(add_cxautogen)
     foreach(arg ${ARGN})
         string(REGEX REPLACE "\\.[^.]*$" "" argbase ${arg})
         add_custom_command(
-            COMMAND cxautogen -I${CX_TOP_SOURCE_DIR} -I${CX_TOP_SOURCE_DIR}/cx/include -S${CMAKE_CURRENT_SOURCE_DIR} -B${CMAKE_CURRENT_BINARY_DIR} ${EXTRA_CXAUTOGEN_ARGS} -f ${arg}
+            COMMAND cxautogen -I${CX_TOP_SOURCE_DIR} -I${CX_TOP_SOURCE_DIR}/cx/include -S${CMAKE_CURRENT_SOURCE_DIR} -B${CMAKE_CURRENT_BINARY_DIR} -M${CMAKE_CURRENT_BINARY_DIR}/${argbase}.h.d ${EXTRA_CXAUTOGEN_ARGS} -f ${arg}
             MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/${arg}
             DEPENDS cxautogen
-            IMPLICIT_DEPENDS "C" ${CMAKE_CURRENT_SOURCE_DIR}/${arg}
+            DEPFILE ${CMAKE_CURRENT_BINARY_DIR}/${argbase}.h.d
             OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${argbase}.h
             )
     endforeach()
@@ -42,8 +42,9 @@ function(add_cxautogen_nodep)
     foreach(arg ${ARGN})
         string(REGEX REPLACE "\\.[^.]*$" "" argbase ${arg})
         add_custom_command(
-            COMMAND cxautogen -I${CX_TOP_SOURCE_DIR} -I${CX_TOP_SOURCE_DIR}/cx/include -S${CMAKE_CURRENT_SOURCE_DIR} -B${CMAKE_CURRENT_BINARY_DIR} ${EXTRA_CXAUTOGEN_ARGS} -f ${arg}
+            COMMAND cxautogen -I${CX_TOP_SOURCE_DIR} -I${CX_TOP_SOURCE_DIR}/cx/include -S${CMAKE_CURRENT_SOURCE_DIR} -B${CMAKE_CURRENT_BINARY_DIR} -M${CMAKE_CURRENT_BINARY_DIR}/${argbase}.h.d ${EXTRA_CXAUTOGEN_ARGS} -f ${arg}
             MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/${arg}
+            DEPFILE ${CMAKE_CURRENT_BINARY_DIR}/${argbase}.h.d
             OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${argbase}.h
             )
     endforeach()
