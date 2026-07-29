@@ -130,7 +130,7 @@ static void checkMemberInitDestroy(Class* cls)
                 (strEq(m->vartype, _S"stvar") && strEmpty(m->predecr)) ||
                 (strEq(m->vartype, _S"closure") && strEmpty(m->predecr)) ||
                 (strEq(m->vartype, _S"cchain") && strEmpty(m->predecr)) ||
-                (strEq(m->vartype, _S"buffer") && strEmpty(m->predecr)) ||
+                (strEq(m->vartype, _S"Buffer") && strEmpty(m->predecr)) ||
                 (strEq(m->vartype, _S"BufChain") && strEmpty(m->predecr)) ||
                 (strEq(m->vartype, _S"BufRing") && strEmpty(m->predecr)) ||
                 (strEq(m->vartype, _S"CondVar") && strEmpty(m->predecr)) ||
@@ -329,9 +329,11 @@ bool processClass(Class* cls)
         // clone and reset source class
         m = methodClone(m);
         // overriding an abstract method should remove the annotation as it means we explicitly
-        // want to define it here
+        // want to define it here; we remove extern for the same reason
         for (int i = saSize(m->annotations) - 1; i >= 0; --i) {
-            if (saSize(m->annotations.a[i]) == 1 && strEq(m->annotations.a[i].a[0], _S"abstract")) {
+            if (saSize(m->annotations.a[i]) == 1 &&
+                (strEq(m->annotations.a[i].a[0], _S"abstract") ||
+                 strEq(m->annotations.a[i].a[0], _S"extern"))) {
                 saRemove(&m->annotations, i);
             }
         }

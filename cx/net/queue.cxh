@@ -1,0 +1,378 @@
+#include <cx/net/net_shared.h>
+#include <cx/thread.h>
+#include <cx/net/pool.cxh>
+
+/// @addtogroup net_queue
+/// @{
+/// NetQueue is an abstraction for servicing one or more sockets using platform-specific
+/// backends. Sockets can be added to a queue to handle I/O operations efficiently. The
+/// queue can be operated in single-threaded polled mode or with a pool of worker threads
+/// for asynchronous operation.
+
+/// NetQueue manages one or more sockets and a thread pool of workers
+abstract class NetQueue
+{
+    NetQueueConfig conf;    ///< Configuration settings for this queue
+
+    /// @brief Queue-wide fallback handlers
+    ///
+    /// The last level of the per-field fallthrough described in @ref net_handlers, and generally
+    /// the right place for logging and error handling while sockets and flows override the
+    /// events they actually care about.
+    NetHandlers handlers;
+    void *handlerCtx;   ///< Context passed to queue-wide handlers
+
+    /// @brief Sockets this queue is managing, keyed by pointer identity
+    hashtable[ptr,object] sockets;
+
+    RWLock lock;  ///< Protects the socket hash
+
+    /// @brief Flows with work pending, waiting for a worker to claim them
+    ///
+    /// One instance per queue, safe for many ingest threads to push to and many workers to pop
+    /// from at once. Holds its own strong reference to a queued flow, so closing a socket can't
+    /// free a flow out from under a worker that's mid-batch on it.
+    PrQueue runq;
+
+    /// @brief Shared, capped storage every NetMessage on this queue is drawn from
+    ///
+    /// A separate object rather than a member so that flows and filter stages -- which can be torn
+    /// down holding messages at a point where the queue is no longer reachable from them -- can
+    /// keep their own reference and always have somewhere to return a buffer. See @ref net_pool.
+    object[NetPool] pool;
+
+    /// @brief Timestamp of the last opportunistic GC pass, used to rate-limit it
+    ///
+    /// The runqueue and receive pool grow under load and only give that memory back when
+    /// prqCollect() runs; netqueue_maint() runs it periodically from whichever thread just
+    /// drained the runqueue and is about to go idle.
+    atomic[uint32] gcLastLo;
+
+    /// @brief Datagrams dropped for lack of a receive buffer
+    ///
+    /// A silent drop looks just like a flaky network. A nonzero counter turns "the network seems
+    /// unreliable" into "the buffer pool is too small or a callback is too slow" right away.
+    atomic[uint32] droppedNoBuf;
+
+    atomic[uint32] nflows;   ///< Flows currently live across every socket on this queue
+
+    /// @brief Sockets currently resolving or connecting across this queue
+    ///
+    /// Bumped when a socket starts resolving, dropped once its connect reaches a final state.
+    /// Lets the connect timeout sweep skip itself cheaply while nothing is connecting.
+    atomic[uint32] connecting;
+
+    /// @brief Timestamp of the last connect-timeout sweep, used to rate-limit it the same way
+    /// gcLastLo rate-limits netqueue_maint()
+    atomic[uint32] connSweepLo;
+
+    /// @brief Dispatch worker threads draining the runqueue (empty in polled mode)
+    ///
+    /// Each worker blocks on runqSema and drains the runqueue through netqueue_dispatch(). A
+    /// backend that merges ingest and dispatch into one wait call (IOCP) manages its own threads
+    /// instead and leaves this empty. A nonzero count means threaded mode.
+    [noinit] sarray[Thread] workers;
+
+    /// @brief Posted once per flow enqueued; dispatch workers wait on it when the runqueue is dry
+    [noinit] Semaphore runqSema;
+
+    /// @brief Set when shutdown begins, so ingest stops producing and addSocket is refused
+    atomic[uint32] shutdownReq;
+
+    /// @brief Backend hook invoked when the send path leaves outbound data queued on a socket
+    ///
+    /// netsocketSend() calls this after its own flush when data couldn't all go out at once, so
+    /// the backend can arrange for the rest to drain -- a readiness backend (select) wakes its
+    /// ingest thread to add write interest, a completion backend (IOCP) posts an overlapped send.
+    /// NULL in polled mode, where tick() rebuilds the watch set every call. See NetSendPumpFn.
+    NetSendPumpFn sendPump;
+    void *sendCtx;   ///< Context passed to sendPump, normally the derived queue
+
+    /// Add a socket to be managed by the queue
+    ///
+    /// The socket must be compatible with the NetQueue implementation. The netqueueSocket()
+    /// factory can be used to create compatible sockets.
+    ///
+    /// @param socket Socket to add to the queue
+    /// @return true if the socket was successfully added, false otherwise
+    bool addSocket(NetSocket *socket);
+
+    /// Remove a socket from the queue, usually when the socket is closed
+    ///
+    /// For some implementations this will also attempt to cancel pending I/O requests that
+    /// reference the socket's owned buffers.
+    ///
+    /// @param socket Socket to remove from the queue
+    /// @return true if the socket was successfully removed, false otherwise
+    bool removeSocket(NetSocket *socket);
+
+    /// Factory for creating sockets
+    ///
+    /// This does NOT add the socket to the queue.
+    ///
+    /// @param type Type of socket to create (connection-oriented or connectionless)
+    /// @return Newly created socket, or NULL on failure
+    [abstract] NetSocket *socket(NetSocketType type);
+
+    // Begin one outbound connect attempt against a single resolved address
+    //
+    // The one backend-specific piece of connect. By the time this is called, the portable state
+    // machine has already picked the address and armed the deadline; this just gets a fresh OS
+    // handle of the address's family and starts the attempt. A readiness backend resets the
+    // handle, issues a non-blocking connect(), and watches it for writability (and the except
+    // set, where Windows signals a failed connect). A completion backend resets and binds the
+    // handle and posts an overlapped ConnectEx.
+    //
+    // The outcome is reported back through netsocket_connectResult() -- immediately for a
+    // synchronous result, or later from readiness, a completion, or the timeout sweep.
+    //
+    // @param sock Socket to connect (a stream socket in NS_Connecting)
+    // @param addr Address to attempt
+    // @return true if the attempt was initiated or resolved, false if it could not be started
+    [abstract] bool connectBegin(NetSocket* sock, NetAddr* addr);
+
+    // React to a socket having just become connected
+    //
+    // Called once, after a successful connect has transitioned the socket to NS_Connected and
+    // its NET_Connection event has been queued. The backend starts servicing the socket for
+    // receive here -- select rebuilds its watch set to read-watch it, IOCP posts the first
+    // WSARecv -- the same thing addSocket() does for a socket that was already connected when it
+    // joined the queue.
+    //
+    // @param sock Socket that just connected
+    [abstract] void connectArm(NetSocket* sock);
+
+    // Begin (or resume) accepting connections on a now-listening socket
+    //
+    // The accept-side counterpart of connectArm. Called once the socket enters NS_Listening --
+    // from the platform listen(), or from addSocket() if the socket was already listening when
+    // it joined the queue. A readiness backend wakes its loop so the next rebuild read-watches
+    // the listener; a completion backend posts its initial batch of overlapped AcceptEx
+    // operations. Each accepted connection is wrapped and handed to netsocket_accepted().
+    //
+    // @param sock Listening socket (a stream socket in NS_Listening)
+    [abstract] void acceptArm(NetSocket* sock);
+
+    /// Shut down the queue
+    ///
+    /// Removes all sockets from the queue and shuts down worker threads. Will shut down
+    /// the queue in the background even if false is returned.
+    ///
+    /// @param timeout How long to wait for works to terminate
+    /// @return true if the queue is fully shut down
+    bool shutdown(int64 timeout);
+
+    /// Process events in polled mode
+    ///
+    /// @param wait How long to wait for an event, or 0 to return immediately
+    /// @return true if any events were processed, false if the wait timeout was reached
+    [abstract] bool tick(int64 wait);
+
+    /// Fill in a configuration suited to a client or a single connection
+    ///
+    /// Polled mode, a small buffer pool, and few flows. Nothing here starts a thread, so a
+    /// program that drives its own loop with netqueueTick() never spawns one.
+    ///
+    /// @param conf Configuration structure to populate
+    standalone void presetClient([out] NetQueueConfig *conf);
+
+    /// Fill in a configuration suited to a server
+    ///
+    /// A worker pool sized to the machine, a large buffer pool, and a high flow cap. Suitable
+    /// as-is for a process multiplexing many peers over a single datagram socket.
+    ///
+    /// @param conf Configuration structure to populate
+    standalone void presetServer([out] NetQueueConfig *conf);
+
+    /// Create a stream socket on the queue and start connecting it, in one call
+    ///
+    /// Composes the whole client setup -- netqueueSocket(), netqueueAddSocket(), handler
+    /// registration, and netsocketConnect() -- so a single outbound connection is one call
+    /// instead of four. Handlers are registered before the connect begins, so the
+    /// NET_Connection event cannot slip past. Purely a convenience over the public API; use
+    /// the individual calls when the socket needs configuration between the steps.
+    ///
+    /// @param host Hostname or literal address to connect to (NULL/empty means loopback)
+    /// @param port Port number, host byte order
+    /// @param handlers Per-socket handler overrides, or NULL for none. Not copied -- must
+    ///                 outlive the socket, so it is usually `static const`
+    /// @param ctx Context passed to these handlers on NetEvent.ctx
+    /// @return The connecting socket (a reference the caller must release), or NULL if any
+    ///         step failed -- nothing is left registered on the queue in that case
+    ///
+    /// Example:
+    /// @code
+    ///   static const NetHandlers handlers = { .connection = onConn, .recv = onRecv };
+    ///   NetSocket* s = netqueueConnect(q, _SL("example.com"), 443, &handlers, &state);
+    /// @endcode
+    [sal _Ret_maybenull_] unbound NetSocket *connect(strref host, uint16 port,
+        [in] [opt] const NetHandlers *handlers, [in] [opt] void *ctx);
+
+    /// Create a stream socket on the queue and start it listening, in one call
+    ///
+    /// The accept-side counterpart of netqueueConnect(): composes netqueueSocket(),
+    /// netqueueAddSocket(), handler registration, netsocketBind(), and netsocketListen().
+    /// Incoming connections arrive as NET_Accepted events on the listener; with NQ_AutoAccept
+    /// set on the queue they are registered with it automatically.
+    ///
+    /// @param addr Local address to bind (port 0 lets the OS pick one)
+    /// @param backlog Listen backlog, or 0 for a platform-specific default
+    /// @param handlers Per-socket handler overrides, or NULL for none. Not copied -- must
+    ///                 outlive the socket, so it is usually `static const`
+    /// @param ctx Context passed to these handlers on NetEvent.ctx
+    /// @return The listening socket (a reference the caller must release), or NULL if any
+    ///         step failed -- nothing is left registered on the queue in that case
+    ///
+    /// Example:
+    /// @code
+    ///   static const NetHandlers handlers = { .accepted = onAccept };
+    ///   NetAddr la;
+    ///   netAddrFromStr(&la, _SL("0.0.0.0"));
+    ///   la.port = 8080;
+    ///   NetSocket* s = netqueueListen(q, &la, 0, &handlers, &state);
+    /// @endcode
+    [sal _Ret_maybenull_] unbound NetSocket *listen([in] NetAddr *addr, int backlog,
+        [in] [opt] const NetHandlers *handlers, [in] [opt] void *ctx);
+
+    /// Register the queue-wide fallback handlers
+    ///
+    /// This is the last level of the per-field fallthrough described in @ref net_handlers, and
+    /// is generally the right place for logging and error handling. The handler struct is not
+    /// copied -- it must outlive the queue, which is why it is usually `static const`.
+    ///
+    /// @param handlers Handler set, or NULL to clear
+    /// @param ctx Context passed to these handlers on NetEvent.ctx
+    unbound void setHandlers([in] [opt] const NetHandlers *handlers, [in] [opt] void *ctx);
+
+    /// Admit a peer that was refused by the flow cap
+    ///
+    /// Called from a NET_FlowRefused handler once the application has validated the packet --
+    /// completed a handshake, checked a crypto negotiation, whatever its protocol requires.
+    /// This is what makes a public datagram port safe: past the cap the queue stops allocating
+    /// on its own and hands raw packets to code that already knows how to tell a real client
+    /// from a flood. The admitted flow fires NET_FlowOpen like any other, ordered ahead of its
+    /// first packet.
+    ///
+    /// @param sock Socket the packet arrived on
+    /// @param peer Source address to admit
+    /// @return The new flow (a reference the caller must release), or NULL if there is still
+    ///         no room
+    [sal _Ret_maybenull_] unbound NetFlow *promoteFlow([inout] NetSocket *sock,
+        [in] NetAddr *peer);
+
+    /// Datagrams dropped for lack of a receive buffer
+    ///
+    /// A silent drop is indistinguishable from a network problem. A counter that is nonzero
+    /// turns "the network is flaky" into "the pool is too small or a callback is too slow"
+    /// immediately, so this is worth logging at whatever cadence the application already has.
+    ///
+    /// @return Monotonic count of dropped datagrams since the queue was created
+    unbound uint32 droppedNoBuf();
+
+    // -----------------------------------------------------------------------------------------
+    // PRIVATE IMPLEMENTATION DETAILS
+    //
+    // Everything below this point is internal plumbing between the net module's own translation
+    // units and the platform backends. It is not a stable API and carries no compatibility
+    // promise -- signatures and semantics change whenever the implementation needs them to.
+    // -----------------------------------------------------------------------------------------
+
+    // Construction (queue.c)
+
+    // Apply a configuration to a queue under construction. Called by a backend's factory before
+    // objInstInit(), so that the sizes everything else is built from are already in place when the
+    // base class initializes. `conf` is NULL for the client preset.
+    unbound void _applyConfig([in] [opt] const NetQueueConfig *conf);
+
+    // Worker pool (queue.c)
+    //
+    // The generic dispatch pool the base class owns: N threads that drain the runqueue and block
+    // on runqSema when it is empty. A backend's factory starts them in threaded mode; polled
+    // queues never call these and run everything on the caller's tick() thread.
+
+    // Start n dispatch worker threads. Fewer may end up running if thread creation fails; the
+    // actual count lands in self->workers.
+    unbound void _startWorkers(int32 n);
+
+    // Ask every dispatch worker to exit and join it. Each worker drains the runqueue one last time
+    // on its way out, so terminal events queued during shutdown are still delivered. `timeout`
+    // <= 0 waits indefinitely. Idempotent -- safe to call when no workers are running.
+    unbound void _stopWorkers(int64 timeout);
+
+    // Ingest (queue.c)
+    //
+    // Where a packet enters the core. _ingestDatagram is the datagram front door and belongs to the
+    // queue; _submit is the runqueue's producer half and lives beside its consumer in dispatch.c.
+
+    // Hand a received datagram to the core for demultiplexing and dispatch. Takes ownership of
+    // `buf`, which must have come from the queue's own buffer pool. Resolves the flow for the
+    // source address (creating one, reclaiming under cap pressure, or falling back to the
+    // flowRefused handler), pushes the packet onto that flow's inbox, and enqueues the flow if it
+    // was idle. Returns true if the packet was queued to a flow, false if it was dropped or handed
+    // to a NET_FlowRefused handler instead.
+    unbound bool _ingestDatagram([inout] NetSocket *sock, [in] NetAddr *peer,
+        [inout] Buffer *buf);
+
+    // Hand a message to a flow and make sure something will come along to run it. Takes ownership
+    // of the message. `self` may be NULL, in which case the message is simply released.
+    [extern] unbound void _submit([inout] NetFlow *flow, [inout] NetMessage *msg);
+
+    // Dispatch (dispatch.c)
+    //
+    // The runqueue and the event delivery it feeds. _submit above is the producer half of the same
+    // claim protocol _dispatch consumes.
+
+    // Claim one flow from the runqueue and drain it. This is the body of a worker thread, and it
+    // is also what tick() runs inline in polled mode -- the same code either way, just without the
+    // threads. Returns false if the runqueue was empty.
+    [extern] unbound bool _dispatch();
+
+    // Resolve and invoke the handler for an event, filling in the event's queue/socket/flow/ctx
+    // fields; a no-op when no level supplies a handler. In dev builds the callback is timed, and
+    // one that holds its worker past the warning threshold gets logged with the socket and event
+    // type -- handlers are expected to return quickly, and this is how we notice when one doesn't.
+    // Every callback invocation should go through here so timing stays consistent. `self` may be
+    // NULL, in which case only the socket and flow levels are consulted.
+    [extern] unbound void _deliver([in] [opt] NetSocket *sock, [in] [opt] NetFlow *flow,
+        [inout] NetEvent *ev);
+
+    // Maintenance (queue.c)
+
+    // Opportunistic GC of the queue's dynamic PrQueues (runqueue and receive pool). Call it from a
+    // thread that has just drained the runqueue and is about to idle -- the moment the PrQueue
+    // docs recommend for collection. Time-gated and single-runner, so a whole worker pool or a
+    // tight poll loop costs one GC attempt per interval; safe to call as often as convenient.
+    unbound void _maint();
+
+    // Connect (connect.c)
+
+    // Time out connect attempts whose per-address deadline has passed. A no-op on a single relaxed
+    // load while no socket is connecting; otherwise a time-gated single-runner (like _maint) that
+    // scans self->sockets under the read lock for NS_Connecting sockets past their deadline and
+    // fails the attempt over via netsocket_connectResult(NERR_Timeout). Called by every backend
+    // beside its existing _maint() call; both backends already wait on a bound finer than a
+    // connect timeout, so no dedicated timer thread is needed. Lives with the rest of the connect
+    // state machine because it is the third claimant of a socket's connectDeadline.
+    [extern] unbound void _connectSweep();
+
+    // Flow table and lifecycle (flow.c)
+
+    // Find the flow for a peer address, creating one if there is room under the cap. Returns a
+    // strong reference the caller must release, or NULL if the queue is at its cap and nothing
+    // could be reclaimed -- in which case the caller should fall back to the flowRefused handler.
+    [extern] [sal _Ret_maybenull_] unbound NetFlow *_findFlow([inout] NetSocket *sock,
+        [in] NetAddr *peer, bool create);
+
+    // Create a flow for a peer and register it with the socket, bypassing the cap check. Queues
+    // the flow's NET_FlowOpen ahead of anything else that could land in its inbox (datagram flows
+    // only). Returns a strong reference the caller must release.
+    [extern] [sal _Ret_maybenull_] unbound NetFlow *_admitFlow([inout] NetSocket *sock,
+        [in] NetAddr *peer);
+
+    // Mark up to reclaimBatch least-recently-active flows on this socket for teardown, skipping
+    // flows active more recently than reclaimMinIdle allows. Runs inline on the ingest path at the
+    // moment of a cap hit; there is no timer thread.
+    [extern] unbound uint32 _reclaimFlows([inout] NetSocket *sock);
+}
+
+/// @}

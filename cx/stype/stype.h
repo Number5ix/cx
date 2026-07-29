@@ -170,10 +170,12 @@
 /// @section stype_variants Variant Types (stvar)
 ///
 /// The `stvar` structure combines a value with its type descriptor for runtime
-/// polymorphism. The `type` field is an `stype` pointer.
+/// polymorphism. Access the descriptor through `stvarType()` (or check it with
+/// `stvarIs()`) rather than reading the `_type` field directly - its low bit is an
+/// ownership tag, so the raw field is not a usable `stype` pointer.
 /// @code
 ///   stvar v = stvar(int32, 42);
-///   if (stEq(v.type, stType(int32))) {
+///   if (stvarIs(&v, int32)) {
 ///       int32 val = v.data.st_int32;
 ///   }
 /// @endcode

@@ -14,6 +14,7 @@ add_subdirectory(fs)
 add_subdirectory(log)
 add_subdirectory(math)
 add_subdirectory(meta)
+add_subdirectory(net)
 add_subdirectory(obj)
 add_subdirectory(platform)
 add_subdirectory(serialize)
@@ -41,6 +42,7 @@ set(CX_BASE_INCLUDES
     include/cx/json.h
     include/cx/math.h
     include/cx/meta.h
+    include/cx/net.h
     include/cx/obj.h
     include/cx/platform.h
     include/cx/serialize.h

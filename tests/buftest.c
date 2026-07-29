@@ -1,4 +1,5 @@
 #include <cx/buffer/bufchain.h>
+#include <cx/buffer/bufpool.h>
 #include <cx/buffer/buffer.h>
 #include <cx/buffer/bufring.h>
 #include <cx/string.h>
@@ -848,6 +849,333 @@ static int test_bufring_multisegment()
     return ret;
 }
 
+// ============= Reserve / Commit Tests =============
+
+static int test_bufring_reserve()
+{
+    int ret = 0;
+    BufRing ring;
+    uint8* ptr    = NULL;
+    size_t len    = 0;
+    uint8 readbuf[256];
+
+    bufringInit(&ring, 128);
+
+    // Basic reserve on an empty ring
+    bufringReserve(&ring, 64, &ptr, &len);
+    if (!ptr || len < 64)
+        ret = 1;
+
+    // Nothing is visible until it's committed
+    if (ring.total != 0)
+        ret = 1;
+
+    memcpy(ptr, testdata1, 64);
+    bufringCommit(&ring, 64);
+
+    if (ring.total != 64)
+        ret = 1;
+
+    if (bufringRead(&ring, readbuf, 64) != 64 || memcmp(readbuf, testdata1, 64))
+        ret = 1;
+
+    // Short commit: reserve a lot, commit a little. The uncommitted remainder must go back to
+    // being free space, not be lost or leak into the readable total.
+    bufringReserve(&ring, 100, &ptr, &len);
+    if (!ptr || len < 100)
+        ret = 1;
+    memcpy(ptr, testdata2, 10);
+    bufringCommit(&ring, 10);
+
+    if (ring.total != 10)
+        ret = 1;
+    if (bufringRead(&ring, readbuf, 10) != 10 || memcmp(readbuf, testdata2, 10))
+        ret = 1;
+
+    // Zero commit releases the reservation without adding data
+    bufringReserve(&ring, 32, &ptr, &len);
+    bufringCommit(&ring, 0);
+    if (ring.total != 0)
+        ret = 1;
+
+    // A reservation larger than the segment size must still be contiguous
+    bufringReserve(&ring, 500, &ptr, &len);
+    if (!ptr || len < 500)
+        ret = 1;
+    for (size_t i = 0; i < 500; ++i)
+        ptr[i] = (uint8)(i & 0xff);
+    bufringCommit(&ring, 500);
+    if (ring.total != 500)
+        ret = 1;
+
+    uint8 bigbuf[512];
+    if (bufringRead(&ring, bigbuf, 500) != 500)
+        ret = 1;
+    for (size_t i = 0; i < 500; ++i) {
+        if (bigbuf[i] != (uint8)(i & 0xff))
+            ret = 1;
+    }
+
+    bufringDestroy(&ring);
+    return ret;
+}
+
+static int test_bufring_reserve_across_read()
+{
+    int ret = 0;
+    BufRing ring;
+    uint8* ptr = NULL;
+    size_t len = 0;
+    uint8 readbuf[256];
+
+    bufringInit(&ring, 128);
+
+    // This is the case that matters for completion-based I/O: a reservation is outstanding
+    // (an async receive is in flight) while the consumer drains data that arrived earlier.
+    // The reserved pointer must survive that, including the case where the drain empties the
+    // ring completely -- which is exactly when the ring would normally rewind its cursors.
+    bufringWrite(&ring, testdata1, 50);
+
+    bufringReserve(&ring, 32, &ptr, &len);
+    if (!ptr || len < 32)
+        ret = 1;
+
+    uint8* saved = ptr;
+    memcpy(ptr, testdata2, 32);
+
+    // Drain everything that was already in the ring
+    if (bufringRead(&ring, readbuf, 50) != 50 || memcmp(readbuf, testdata1, 50))
+        ret = 1;
+    if (ring.total != 0)
+        ret = 1;
+
+    // The reservation must not have moved and its contents must be intact
+    if (ptr != saved || memcmp(ptr, testdata2, 32))
+        ret = 1;
+
+    bufringCommit(&ring, 32);
+    if (ring.total != 32)
+        ret = 1;
+    if (bufringRead(&ring, readbuf, 32) != 32 || memcmp(readbuf, testdata2, 32))
+        ret = 1;
+
+    // Same thing again, but drain with skip rather than read
+    bufringWrite(&ring, testdata1, 40);
+    bufringReserve(&ring, 16, &ptr, &len);
+    saved = ptr;
+    memcpy(ptr, testdata2 + 5, 16);
+    if (bufringSkip(&ring, 40) != 40)
+        ret = 1;
+    if (ptr != saved || memcmp(ptr, testdata2 + 5, 16))
+        ret = 1;
+    bufringCommit(&ring, 16);
+    if (bufringRead(&ring, readbuf, 16) != 16 || memcmp(readbuf, testdata2 + 5, 16))
+        ret = 1;
+
+    // Interleave reserve/commit with ordinary writes to make sure the ring stays consistent
+    for (int i = 0; i < 20; ++i) {
+        bufringWrite(&ring, testdata1, 33);
+        bufringReserve(&ring, 17, &ptr, &len);
+        memcpy(ptr, testdata2, 17);
+        bufringCommit(&ring, 17);
+
+        if (bufringRead(&ring, readbuf, 50) != 50)
+            ret = 1;
+        if (memcmp(readbuf, testdata1, 33) || memcmp(readbuf + 33, testdata2, 17))
+            ret = 1;
+    }
+
+    if (ring.total != 0)
+        ret = 1;
+
+    bufringDestroy(&ring);
+    return ret;
+}
+
+// ============= Gather IOV Tests =============
+
+static int test_bufchain_gather_iov()
+{
+    int ret = 0;
+    BufChain chain;
+    BufIov iov[8];
+    size_t niov = 0;
+    uint8 readbuf[512];
+
+    bufchainInit(&chain, 64);
+
+    // Empty chain gathers nothing
+    if (bufchainGatherIov(&chain, iov, 8, &niov) != 0 || niov != 0)
+        ret = 1;
+
+    // Write enough to span several segments
+    bufchainWrite(&chain, testdata1, 130);
+
+    size_t total = bufchainGatherIov(&chain, iov, 8, &niov);
+    if (total != 130 || niov < 2)
+        ret = 1;
+
+    // The iov entries must describe exactly the chain contents, in order
+    size_t off = 0;
+    for (size_t i = 0; i < niov; ++i) {
+        if (iov[i].len == 0)
+            ret = 1;   // zero-length entries are rejected by some platforms
+        if (memcmp(iov[i].data, testdata1 + off, iov[i].len))
+            ret = 1;
+        off += iov[i].len;
+    }
+    if (off != 130)
+        ret = 1;
+
+    // Gathering must not consume
+    if (chain.total != 130)
+        ret = 1;
+
+    // maxiov must be respected, and the total must then cover only the entries returned
+    size_t partial = bufchainGatherIov(&chain, iov, 1, &niov);
+    if (niov != 1 || partial != iov[0].len || partial >= 130)
+        ret = 1;
+
+    // count is optional
+    if (bufchainGatherIov(&chain, iov, 8, NULL) != 130)
+        ret = 1;
+
+    // A partial read moves the cursor; the first entry must start at the cursor, not at the
+    // start of the head segment
+    if (bufchainRead(&chain, readbuf, 20) != 20)
+        ret = 1;
+
+    total = bufchainGatherIov(&chain, iov, 8, &niov);
+    if (total != 110)
+        ret = 1;
+    if (memcmp(iov[0].data, testdata1 + 20, iov[0].len))
+        ret = 1;
+
+    // Consuming what a "send" accepted is done with skip; a short write leaves the rest
+    bufchainSkip(&chain, 30);
+    total = bufchainGatherIov(&chain, iov, 8, &niov);
+    if (total != 80 || memcmp(iov[0].data, testdata1 + 50, iov[0].len))
+        ret = 1;
+
+    bufchainDestroy(&chain);
+    return ret;
+}
+
+// ============= Buffer Pool Tests =============
+
+static int test_bufpool_basic()
+{
+    int ret = 0;
+    BufPool pool;
+
+    bufpoolInit(&pool, 256, 4, 8);
+
+    if (bufpoolInUse(&pool) != 0)
+        ret = 1;
+
+    Buffer bufs[8];
+    for (int i = 0; i < 8; ++i) {
+        bufs[i] = bufpoolGet(&pool);
+        if (!bufs[i] || bufs[i]->sz != 256 || bufs[i]->len != 0)
+            ret = 1;
+    }
+
+    if (bufpoolInUse(&pool) != 8)
+        ret = 1;
+
+    // At the cap with none free: must fail rather than allocate
+    Buffer over = bufpoolGet(&pool);
+    if (over != NULL)
+        ret = 1;
+
+    // Returning one makes it available again
+    bufpoolPut(&pool, &bufs[0]);
+    if (bufs[0] != NULL)
+        ret = 1;
+
+    bufs[0] = bufpoolGet(&pool);
+    if (!bufs[0])
+        ret = 1;
+
+    // len must be reset on reuse
+    bufs[0]->len = 100;
+    bufpoolPut(&pool, &bufs[0]);
+    bufs[0] = bufpoolGet(&pool);
+    if (!bufs[0] || bufs[0]->len != 0)
+        ret = 1;
+
+    for (int i = 0; i < 8; ++i)
+        bufpoolPut(&pool, &bufs[i]);
+
+    if (bufpoolInUse(&pool) != 0)
+        ret = 1;
+
+    // Putting a NULL is a no-op, not a crash
+    Buffer nil = NULL;
+    bufpoolPut(&pool, &nil);
+
+    bufpoolDestroy(&pool);
+
+    // An uncapped pool never fails to hand out buffers
+    bufpoolInit(&pool, 64, 0, 0);
+    Buffer many[64];
+    for (int i = 0; i < 64; ++i) {
+        many[i] = bufpoolGet(&pool);
+        if (!many[i])
+            ret = 1;
+    }
+    for (int i = 0; i < 64; ++i)
+        bufpoolPut(&pool, &many[i]);
+    bufpoolDestroy(&pool);
+
+    return ret;
+}
+
+static int test_bufpool_reuse()
+{
+    int ret = 0;
+    BufPool pool;
+
+    // Preallocated buffers must be handed out rather than newly allocated, and cycling through
+    // the pool must not grow it.
+    bufpoolInit(&pool, 128, 16, 16);
+
+    for (int round = 0; round < 100; ++round) {
+        Buffer b = bufpoolGet(&pool);
+        if (!b || b->sz != 128)
+            ret = 1;
+
+        memcpy(b->data, testdata1, 100);
+        b->len = 100;
+
+        bufpoolPut(&pool, &b);
+        if (b != NULL)
+            ret = 1;
+    }
+
+    if (bufpoolInUse(&pool) != 0)
+        ret = 1;
+
+    // Drain the pool completely; exactly the cap should be available
+    Buffer held[16];
+    int got = 0;
+    for (int i = 0; i < 16; ++i) {
+        held[i] = bufpoolGet(&pool);
+        if (held[i])
+            ++got;
+    }
+    if (got != 16)
+        ret = 1;
+    if (bufpoolGet(&pool) != NULL)
+        ret = 1;
+
+    for (int i = 0; i < 16; ++i)
+        bufpoolPut(&pool, &held[i]);
+
+    bufpoolDestroy(&pool);
+    return ret;
+}
+
 testfunc buftest_funcs[] = {
     { "create",               test_buffer_create           },
     { "resize",               test_buffer_resize           },
@@ -864,5 +1192,10 @@ testfunc buftest_funcs[] = {
     { "ring_zerocopy_write",  test_bufring_zerocopy_write  },
     { "ring_wraparound",      test_bufring_wraparound      },
     { "ring_multisegment",    test_bufring_multisegment    },
+    { "ring_reserve",         test_bufring_reserve         },
+    { "ring_reserve_read",    test_bufring_reserve_across_read },
+    { "chain_gather_iov",     test_bufchain_gather_iov     },
+    { "bufpool_basic",        test_bufpool_basic           },
+    { "bufpool_reuse",        test_bufpool_reuse           },
     { 0,                      0                            }
 };

@@ -6,6 +6,7 @@ class Param {
     string predecr;
     string name;
     string postdecr;
+    bool isconst;
 
     [noinit] sarray[sarray[string]] annotations;
 

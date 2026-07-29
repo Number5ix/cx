@@ -1,0 +1,73 @@
+#include <cx/net/queue.cxh>
+#include <cx/platform/win.h>
+
+// Native Windows I/O completion port backend -- the performance target of the whole design.
+//
+// Unlike the readiness backends there is no ingest/dispatch thread split: each completion thread
+// blocks in GetQueuedCompletionStatus, does ingest inline (the buffer is already filled by the
+// kernel), demultiplexes to a flow, reposts a receive, and then drains the runqueue itself. Ingest
+// and dispatch merge on the same thread, so the base class's generic dispatch pool is left unused.
+//
+// The hot UDP socket keeps many WSARecvFrom outstanding so the kernel can hand each completion
+// thread a distinct packet with no thundering herd; a connected stream socket keeps exactly one
+// WSARecv outstanding, since two would complete out of order and corrupt the byte stream.
+
+class NetQueueWinIOCP extends NetQueue
+{
+    // HANDLE to the completion port
+    //
+    // Held as void* so windows.h does not leak into the generated header; cast back to HANDLE in
+    // the implementation.
+    void *iocp;
+
+    // Completion-servicing threads (threaded mode); empty in polled mode
+    //
+    // Each blocks in GetQueuedCompletionStatus and both ingests and dispatches. The base dispatch
+    // pool (NetQueue.workers) stays empty because these threads do that work themselves.
+    [noinit] sarray[Thread] iothreads;
+
+    // Outstanding overlapped operations across every socket
+    //
+    // Each posted receive increments this; each drained completion decrements it. Shutdown cancels
+    // every socket's I/O and then drains completions until this reaches zero, so no pooled buffer
+    // or socket reference is ever stranded in an operation still sitting in the kernel.
+    atomic[uint32] iops;
+
+    // WSARecvFrom operations to keep outstanding on each datagram socket
+    //
+    // Sized from the completion-thread count so every thread can hold a distinct packet with
+    // headroom, floored so a polled queue still pipelines a burst. Fixed at creation.
+    uint32 dgramRecvs;
+
+    // Cached ConnectEx function pointer (LPFN_CONNECTEX), or NULL until first loaded
+    //
+    // ConnectEx is a Winsock extension fetched at runtime via WSAIoctl rather than linked, so it is
+    // looked up once (on the first connect) and cached here. Held as void* so mswsock.h does not
+    // leak into the generated header.
+    void *connectEx;
+
+    // Cached AcceptEx function pointer (LPFN_ACCEPTEX), or NULL until first loaded
+    //
+    // The accept-side counterpart of connectEx: a Winsock extension looked up once via WSAIoctl (on
+    // the first accept) and cached here. Held as void* so mswsock.h does not leak into the header.
+    void *acceptEx;
+
+    factory create(NetQueueConfig *conf);
+
+    // Create a socket compatible with this queue (does not add it).
+    override socket;
+
+    // Associate the socket with the completion port and post its initial receives.
+    override addSocket;
+
+    // Cancel the socket's outstanding operations before it leaves the queue.
+    override removeSocket;
+
+    // Cancel and drain all outstanding I/O, stop the completion threads, then tear down the base.
+    override shutdown;
+
+    // Drain completions on the caller's thread (polled mode).
+    override tick;
+
+    destroy();
+}

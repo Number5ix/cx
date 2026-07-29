@@ -11,8 +11,12 @@
 #include <pthread.h>
 #include <pthread_np.h>
 #elif defined(_PLATFORM_LINUX)
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
+#ifndef __USE_GNU
 #define __USE_GNU
+#endif
 #include <sys/syscall.h>
 #include <pthread.h>
 #endif

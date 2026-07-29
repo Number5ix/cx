@@ -38,6 +38,18 @@ struct BufferHeader {
     uint8 data[];    ///< Buffer data (flexible array member)
 };
 
+/// Platform-neutral scatter/gather vector.
+///
+/// Describes a single contiguous region of memory as part of a vectored I/O operation. This is
+/// not the same layout as the OS's own type (`struct iovec` on Unix, `WSABUF` on Windows) --
+/// translate into the platform's array immediately before the syscall that needs it.
+///
+/// @see bufchainGatherIov
+typedef struct BufIov {
+    void* data;   ///< Pointer to the start of this region
+    size_t len;   ///< Number of valid bytes in this region
+} BufIov;
+
 /// Buffer bufCreate(size_t size)
 ///
 /// Create a new buffer with the specified size.

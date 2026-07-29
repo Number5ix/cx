@@ -59,6 +59,13 @@ Function closures with captured context and automatic lifetime management, enabl
 
 See @ref closure
 
+### Buffers
+Buffer implementations for streaming I/O with minimal allocation overhead: simple sized buffers,
+a ring buffer for byte streams, a segment chain for zero-copy message handoff, and a thread-safe
+pool of fixed-size buffers for asynchronous I/O paths that cannot afford to allocate per operation.
+
+See @ref buffer
+
 ### Serialization
 Binary serialization system with automatic endianness handling for portable data storage and network transmission. Ensures data compatibility across different architectures and platforms.
 

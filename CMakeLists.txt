@@ -47,6 +47,14 @@ else()
     set(CX_PLATFORM_IS_UNIX 1)
 endif()
 
+if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+    # accept4() and recvmmsg() (cx/platform/unix/unix_net_socket.c, unix_net_epoll.c) are glibc
+    # extensions gated behind _GNU_SOURCE. Defined globally rather than per-file: source file
+    # properties are directory-scoped in CMake and would not reach the `cx` target, which is
+    # created in a different directory than where those sources are listed.
+    add_compile_definitions(_GNU_SOURCE)
+endif()
+
 if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pthread")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")

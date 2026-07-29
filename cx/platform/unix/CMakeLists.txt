@@ -8,6 +8,9 @@ if(CX_PLATFORM_IS_UNIX)
         platform/unix/unix_error.c
         platform/unix/unix_fs_file.c
         platform/unix/unix_fs_fs.c
+        platform/unix/unix_net.c
+        platform/unix/unix_net_select.c
+        platform/unix/unix_net_socket.c
         platform/unix/unix_os.c
         platform/unix/unix_random.c
         platform/unix/unix_sys_hostid.c
@@ -20,17 +23,20 @@ if(CX_PLATFORM_IS_UNIX)
         platform/unix/unix_vfs.c)
     set(PLATFORM_UNIX_INCLUDES
         platform/unix/unix_hostid.h
+        platform/unix/unix_net.h
         platform/unix/unix_os.h
         platform/unix/unix_sys_entry.h)
 
     if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
         set(PLATFORM_UNIX_SRCS
             ${PLATFORM_UNIX_SRCS}
-            platform/unix/linux_futex.c)
+            platform/unix/linux_futex.c
+            platform/unix/unix_net_epoll.c)
     elseif(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
         set(PLATFORM_UNIX_SRCS
             ${PLATFORM_UNIX_SRCS}
-            platform/unix/freebsd_futex.c)
+            platform/unix/freebsd_futex.c
+            platform/unix/unix_net_kqueue.c)
     endif()
 
     set(PLATFORM_INCLUDES
@@ -40,7 +46,18 @@ if(CX_PLATFORM_IS_UNIX)
 endif()
 
 set(PLATFORM_UNIX_AUTOGEN
+    platform/unix/unix_net_socket.cxh
     platform/unix/unix_thread_threadobj.cxh)
+
+if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+    set(PLATFORM_UNIX_AUTOGEN
+        ${PLATFORM_UNIX_AUTOGEN}
+        platform/unix/unix_net_epoll.cxh)
+elseif(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
+    set(PLATFORM_UNIX_AUTOGEN
+        ${PLATFORM_UNIX_AUTOGEN}
+        platform/unix/unix_net_kqueue.cxh)
+endif()
 
 set(CX_SRCS
     ${CX_SRCS}

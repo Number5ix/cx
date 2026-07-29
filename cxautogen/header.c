@@ -8,6 +8,11 @@ static bool isObjectType(Param* param)
     if (!strEq(param->predecr, _S"*"))
         return false;
 
+    // no cast macro for const params: the class cast macros produce a non-const pointer,
+    // which would silently strip the qualifier from the caller's argument
+    if (param->isconst)
+        return false;
+
     if (strEq(param->type, _S"ObjInst"))
         return true;
 
@@ -102,7 +107,7 @@ static void writeFuncComment(StreamBuffer* bf, strref name, Class* cls, Method* 
 
         if (!m->standalone || j > 0)
             strNConcat(&ln, ln, _S", ");
-        strNConcat(&ln, ln, ptype, ppre, _S" ", p->name, p->postdecr);
+        strNConcat(&ln, ln, p->isconst ? _S"const " : _S"", ptype, ppre, _S" ", p->name, p->postdecr);
     }
     strAppend(&ln, _S");");
     sbufPWriteLine(bf, ln);
@@ -155,7 +160,7 @@ static void writeUnbound(StreamBuffer* bf, Class* cls, Class* cur, sa_Method* do
                 if (!m->standalone || j > 0)
                     strNConcat(&ln, ln, _S", ");
                 paramAnnotations(&annos, p);
-                strNConcat(&ln, ln, annos, ptype, ppre, _S" ", p->name, p->postdecr);
+                strNConcat(&ln, ln, annos, p->isconst ? _S"const " : _S"", ptype, ppre, _S" ", p->name, p->postdecr);
             }
             strAppend(&ln, _S");");
             sbufPWriteLine(bf, ln);
@@ -276,7 +281,7 @@ void writeIfDecl(StreamBuffer* bf, Interface* iface)
             }
 
             paramAnnotations(&annos, p);
-            strNConcat(&tmp, _S", ", annos, ptype, ppre, _S" ", p->name, p->postdecr);
+            strNConcat(&tmp, _S", ", annos, p->isconst ? _S"const " : _S"", ptype, ppre, _S" ", p->name, p->postdecr);
             strAppend(&ln, tmp);
         }
         strAppend(&ln, _S");");

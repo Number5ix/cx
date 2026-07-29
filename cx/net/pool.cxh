@@ -1,0 +1,101 @@
+#include <cx/net/net_shared.h>
+#include <cx/buffer/bufpool.h>
+
+/// @addtogroup net_pool
+/// @{
+/// The shared, hard-capped storage every NetMessage on a queue is drawn from.
+///
+/// One NetPool backs a whole NetQueue: `recvBufMax * recvBufSize` is the entire receive-side
+/// memory ceiling for every socket on it, and the NetMessage headers that carry those payloads are
+/// recycled alongside them so the steady-state packet path allocates nothing at all.
+///
+/// It is a separate, reference-counted object rather than a member of the queue because the things
+/// that hold messages do not all share the queue's lifetime. A flow, or a datagram filter stage in
+/// the middle of a handshake, can be torn down at a moment when the queue is no longer reachable
+/// from it -- and a pooled buffer destroyed instead of returned shrinks the ceiling permanently,
+/// for every socket sharing the pool. So anything that can be holding a message keeps its own
+/// reference to the pool, and always has somewhere to put the message back.
+///
+/// Every entry point tolerates a NULL pool and falls back to the heap, which is what lets a socket
+/// that was never added to a queue still send: there is no pool to draw on, so there is no ceiling
+/// to enforce and nothing to return the payload to.
+
+/// @brief Shared, capped pool of network message buffers and headers
+///
+/// Queue-wide storage that anything holding a NetMessage keeps a reference to, so a buffer is
+/// always returned rather than destroyed. See @ref net_pool.
+class NetPool {
+    /// @brief Pooled receive buffers, capped at queue creation
+    ///
+    /// recvBufMax * recvBufSize is the entire receive-side memory ceiling. When the pool is dry
+    /// the datagram path drops the packet and bumps droppedNoBuf rather than allocating; the
+    /// stream path instead stops posting receives and lets TCP flow control apply backpressure.
+    BufPool msgbuf;
+
+    /// @brief Free NetMessage headers, so the steady-state packet path allocates nothing
+    PrQueue msghdr;
+
+    /// Allocate a bare NetMessage header, with no payload buffer attached
+    ///
+    /// The message every internal event rides on: a terminal marker, a connect result, an accepted
+    /// socket, or -- on the stream path -- a "bytes arrived" marker for data that already went into
+    /// the socket's receive ring. Fill in `kind` and whichever payload slot that kind uses. A
+    /// datagram carrying an actual payload wants allocMsg() instead.
+    ///
+    /// Unlike the buffer pool, the header freelist is only a cache: this falls back to the heap
+    /// when it is empty (or when `self` is NULL), so it never fails and imposes no ceiling of its
+    /// own.
+    ///
+    /// @return A zeroed message header; never NULL
+    unbound NetMessage* allocHeader();
+
+    /// Allocate a NetMessage with an empty payload buffer, for a filter to fill in
+    ///
+    /// This is how a datagram filter produces output: a handshake flight of its own, or a fragment
+    /// of an application message too large for the wire. Both the header and the buffer come from
+    /// this pool, so the steady state allocates nothing, and the message is reclaimed correctly
+    /// whichever way it eventually leaves -- delivered to the application, sent, or dropped.
+    ///
+    /// The returned message has `buf` set to a pool-sized buffer with `len` 0; write the payload
+    /// into `buf->data` and set `buf->len`. The buffer must not be resized or replaced. Append the
+    /// message to the stage's own encOut/decOut with netMsgQueuePush(); do not free it.
+    ///
+    /// The pool has a hard cap, and hitting it is a normal (if unwelcome) condition: a filter handed
+    /// NULL here should simply produce nothing this pass rather than reaching for an allocation
+    /// that would defeat the ceiling the pool exists to enforce.
+    ///
+    /// @return A message with an empty pooled buffer, or NULL if the pool is at its cap (or `self`
+    ///         is NULL, which has no buffers to hand out)
+    [sal _Check_return_ _Ret_maybenull_] unbound NetMessage* allocMsg();
+
+    /// Retire a NetMessage, returning its header and payload to the pool
+    ///
+    /// Where the payload goes travels with the message rather than being inferred from which path
+    /// frees it: a packet from the wire and a filter's own output came from a pool, while an
+    /// oversized send payload is a plain heap buffer. Getting that wrong is not a crash but a slow
+    /// leak of pool capacity, so the message records it and this is the only place that acts on it.
+    ///
+    /// @param msg The message to retire; set to NULL on return
+    [sal _At_(*msg, _Pre_notnull_ _Post_null_)] unbound void freeMsg([inout] NetMessage** msg);
+
+    /// Retire every message left in a queue, leaving it empty
+    ///
+    /// What a datagram stage calls on its own encOut/decOut when it is torn down with output still
+    /// staged: nobody is going to drain those messages now, and dropping them on the floor would
+    /// cost the pool their buffers for good.
+    ///
+    /// @param mq The message queue to drain
+    unbound void freeMsgQueue([inout] NetMsgQueue *mq);
+
+    /// Create the pool a queue's messages will be drawn from
+    ///
+    /// Called by NetQueue's init once the config has been applied, since the recvBuf* settings are
+    /// what size the buffer pool and fix its cap.
+    ///
+    /// @param conf The owning queue's configuration
+    factory create([in] const NetQueueConfig *conf);
+
+    destroy();
+}
+
+/// @}

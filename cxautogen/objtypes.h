@@ -166,6 +166,7 @@ typedef struct Param {
     string predecr;
     string name;
     string postdecr;
+    bool isconst;
     sa_sarray_string annotations;
 } Param;
 extern ObjClassInfo Param_clsinfo;

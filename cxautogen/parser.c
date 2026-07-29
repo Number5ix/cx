@@ -625,12 +625,25 @@ bool parseParamList(ParseState* ps, string* tok)
         saPushC(&ps->curmethod->params, object, &ps->curparam);
         ps->allowannotations = true;
         return true;
-    } else if (!ps->curparam) {
+    } else if (strEq(*tok, _S"const")) {
+        // const qualifier on the parameter's base type -- accepted before or after the type
+        // name (west or east const), but not after a '*', since that would declare a const
+        // pointer rather than a pointer to const
+        if (ps->curparam && (!strEmpty(ps->curparam->predecr) || ps->curparam->name)) {
+            fprintf(stderr, "'const' must precede any '*' in a parameter\n");
+            return false;
+        }
+        if (!ps->curparam)
+            ps->curparam = paramCreate();
+        ps->curparam->isconst = true;
+        return true;
+    } else if (!ps->curparam || strEmpty(ps->curparam->type)) {
         if (!isvalidname(*tok)) {
             fprintf(stderr, "Invalid parameter type '%s'\n", strC(*tok));
             return false;
         }
-        ps->curparam = paramCreate();
+        if (!ps->curparam)
+            ps->curparam = paramCreate();
         strDup(&ps->curparam->type, *tok);
         return true;
     } else if (!ps->curparam->name && onlyspecial(*tok)) {

@@ -113,6 +113,31 @@ size_t bufchainReadZC(BufChain* chain, size_t maxbytes, bufchainZCCB cb, void* c
 }
 
 _Use_decl_annotations_
+size_t bufchainGatherIov(BufChain* chain, BufIov* iov, size_t maxiov, size_t* count)
+{
+    size_t n     = 0;
+    size_t total = 0;
+    size_t off   = chain->cursor;
+
+    for (BufChainNode* node = chain->head; node && n < maxiov; node = node->next) {
+        // the cursor only applies to the head segment
+        size_t avail = (node->buf->len > off) ? node->buf->len - off : 0;
+        if (avail > 0) {
+            iov[n].data = node->buf->data + off;
+            iov[n].len  = avail;
+            total += avail;
+            ++n;
+        }
+        off = 0;
+    }
+
+    if (count)
+        *count = n;
+
+    return total;
+}
+
+_Use_decl_annotations_
 void bufchainWrite(BufChain* chain, const uint8* buf, size_t bytes)
 {
     size_t remaining = bytes;

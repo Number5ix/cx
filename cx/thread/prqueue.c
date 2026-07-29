@@ -592,7 +592,8 @@ bool prqCollect(PrQueue* prq)
         prq->avgcount += totalcount / prq->avgcount_num - prq->avgcount / prq->avgcount_num;
     }
 
-    if (canshrink && prq->avgcount_num > 4 && seg->size > prq->targetsz) {
+    if (prq->shrink != PRQ_Grow_None && canshrink && prq->avgcount_num > 4 &&
+        seg->size > prq->targetsz) {
         uint32 shrinksz = clamplow(prqShrinkSize(prq->shrink, seg->size), prq->targetsz);
 
         // failsafe size check to make sure we're not shrinking too much

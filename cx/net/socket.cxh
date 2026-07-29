@@ -1,0 +1,370 @@
+#include <cx/net/queue.cxh>
+#include <cx/net/filter.cxh>
+#include <cx/net/net_shared.h>
+#include <cx/buffer/bufchain.h>
+#include <cx/buffer/bufring.h>
+#include <cx/thread.h>
+
+class NetFlow;
+
+/// @addtogroup net_socket
+/// @{
+/// Class that encapsulates a network socket.
+
+/// Callback for receiving messages from a socket.
+///
+/// The callback receives ownership of the buffer in the NetMessage. To keep the buffer,
+/// set msg->buf to NULL before returning; otherwise it will be automatically destroyed.
+///
+/// @param sock Socket the message was received from
+/// @param msg Message containing data buffer and source address (for datagrams)
+/// @param ctx User-defined context pointer
+/// @return true to continue receiving more messages, false to stop
+typedef bool (*socketRecvCB)(NetSocket* sock, NetMessage* msg, void* ctx);
+
+/// Network Socket
+/// This is a base class; the actual socket implemention will be a derived class provided
+/// by the OS abstraction layer.
+abstract class NetSocket
+{
+    weak[NetQueue] queue;   ///< NetQueue this socket is registered to (may be NULL)
+    NetSocketType type;     ///< Connection or connectionless, immutable
+
+    /// @brief Platform-neutral OS handle, set by the platform factory
+    ///
+    /// Lets shared code in cx/net/ read a socket's handle to add it to a select set or issue a
+    /// recv without knowing the derived platform type. NET_INVALID_HANDLE until the factory
+    /// assigns it.
+    NetSockHandle handle;
+
+    atomic[uint32] state;   ///< See NetSocketState enum
+    atomic[bool] canSend;   ///< Send buffer empty; can send immediately
+
+    NetAddr local;          ///< Local end (for bound sockets)
+    NetAddr remote;         ///< Remote address (for connected sockets only)
+
+    // There is deliberately no per-socket `user` array. flow->user needs no locking because the
+    // flow is the ordering domain -- only one worker is ever inside it at a time. A socket has
+    // no such guarantee: a single datagram socket can have thousands of flows running on every
+    // worker at once, so an array here would need its own synchronization. Per-socket state
+    // should go in the ctx captured at handler registration instead.
+
+    uint32 mru;             ///< Maximum size of received datagrams
+
+    /// @brief Type-specific send/receive buffers; which arm is live depends on `type`
+    ///
+    /// A stream socket has a receive ring and a send chain; a datagram socket has neither and
+    /// just a send queue (its packets are pooled buffers on flow inboxes instead). See
+    /// NetSocketBufs -- constructed and torn down by hand in NetSocket_init() / _destroy(),
+    /// since generated code cannot see into a union.
+    [noinit] NetSocketBufs bufs;
+
+    Mutex recvLock;         ///< Exclusive access to the socket's receive buffer
+    Mutex sendLock;         ///< Exclusive access to send data on this socket
+
+    size_t sendHigh;        ///< Send fails over this many bytes queued
+    size_t sendLow;         ///< NET_SendReady fires when the queue drains below this
+
+    /// @brief Bytes waiting in the datagram send queue, guarded by sendLock
+    ///
+    /// Unused for stream sockets, which track their backlog on the send chain itself.
+    size_t sendQueued;
+
+    /// @brief A send returned false at the high watermark and is waiting for NET_SendReady
+    ///
+    /// Set when netsocketSend() refuses because the backlog is over sendHigh, cleared once the
+    /// queue drains back below sendLow and the event fires. Guarded by sendLock.
+    bool sendBlocked;
+
+    /// @brief A completion backend has an overlapped send in flight for this socket
+    ///
+    /// Set by the IOCP backend while a WSASend/WSASendTo it posted is outstanding, cleared when
+    /// that completion arrives. While set, the normal synchronous flush is suppressed so it can't
+    /// touch bytes the in-flight send already owns -- doing so could send the same bytes twice
+    /// and corrupt the connection. Always false on readiness backends. Guarded by sendLock.
+    bool sendPending;
+
+    /// @brief Per-socket handler overrides, optional
+    ///
+    /// Resolved per field between the flow's set and the queue-wide set; see @ref net_handlers.
+    NetHandlers *handlers;
+    void *handlerCtx;       ///< Context passed to per-socket handlers
+
+    /// @brief Datagram: flows keyed by peer address. Not used by stream sockets.
+    ///
+    /// Holds strong references -- the socket owns its flows, and the flow's back-pointer to the
+    /// socket is weak to avoid a reference cycle.
+    [noinit] hashtable flows;
+
+    RWLock flowLock;        ///< Protects the datagram flow table
+
+    /// @brief Stream: the single flow for this connection. Not used by datagram sockets.
+    ///
+    /// Created automatically during socket init, so stream consumers never construct a flow
+    /// themselves.
+    object[NetFlow] flow;
+
+    /// @brief Filters attached to this socket, ordered application -> wire, or empty for none
+    ///
+    /// These are factories, not data-plane stages: each one creates a NetFlowFilter for every flow
+    /// the socket owns, and the transform itself happens on the flow. See @ref net_filter.
+    [noinit] sarray[object[NetFilter]] filters;
+
+    /// @brief Per-socket address-family preference override; NCP_Default inherits the queue's
+    /// setting when the socket is added (see NetQueue::connectPref)
+    NetConnectPref connectPref;
+
+    /// @brief List of fallback addresses to try to connect to if pending connect fails
+    ///
+    /// Filled in by the resolver, then reordered by family per connectPref. The connect state
+    /// machine tries each address in turn, falling through to the next entry whenever an attempt
+    /// fails or times out.
+    [noinit] sarray[NetAddr] connQueue;
+
+    int32 connectIdx;        ///< Index of the next connQueue address to try
+
+    /// @brief Deadline (clockTimer microseconds) for the in-flight connect attempt, or 0 for none
+    ///
+    /// Two things can complete one connect attempt -- the backend and the timeout sweep -- and
+    /// whichever one clears this field to 0 under connectLock is the one that owns handling it.
+    /// Set when an attempt begins, cleared when it resolves.
+    int64 connectDeadline;
+
+    /// @brief Attempt generation, bumped once per connect attempt
+    ///
+    /// Lets a completion whose attempt already timed out and was superseded recognize that and
+    /// just clean itself up instead of acting on a stale result.
+    atomic[uint32] connectGen;
+
+    /// @brief Serializes the connect-advance transition; see connectDeadline
+    Mutex connectLock;
+
+    /// Read buffered stream data out of the socket receive buffer
+    ///
+    /// This does not actively try to receive; it only drains bytes already buffered in the
+    /// socket's receive ring by the queue's ingest thread (or by tick() in polled mode). With a
+    /// filter attached it drains decoded application bytes from the end of the flow's filter chain
+    /// instead -- the raw wire bytes in the receive ring were already consumed by the decode pass
+    /// that ran before NET_DataReceived was delivered.
+    ///
+    /// @note Stream sockets only. A datagram is delivered whole on the NET_DataReceived event as
+    /// `event->recv.msg` instead of being buffered here. Calling recv() on a datagram socket
+    /// returns 0.
+    ///
+    /// @param buf Buffer to store received data
+    /// @param bufsz Size of the buffer
+    /// @param src Unused; retained for signature compatibility. Datagram source addresses arrive
+    ///            on the event, not here.
+    /// @param flags Optional flags to control receive behavior
+    /// @return Amount of data actually received (0 on a datagram socket, or when the ring is empty)
+    size_t recv([out] uint8* buf, size_t bufsz, [out] [opt] NetAddr* src, flags_t flags);
+
+    /// Drain buffered stream data as a series of zero-copy messages
+    ///
+    /// Invokes the callback for each chunk of data available in the receive ring, repeatedly,
+    /// until it returns false or the ring is exhausted. More efficient than recv() when draining
+    /// a lot of data, since it hands out the ring's own segments instead of copying into a
+    /// caller-supplied buffer.
+    ///
+    /// @note Stream sockets only, for the same reason as recv(): datagrams arrive on the event
+    /// with their buffer attached, so there's nothing here to drain. Returns false on a datagram
+    /// socket.
+    ///
+    /// The callback receives ownership of the buffer in the NetMessage. It may keep the buffer by
+    /// setting msg->buf to NULL, otherwise the buffer is automatically destroyed after the
+    /// callback returns.
+    ///
+    /// @param cb Callback invoked for each message (return false to stop)
+    /// @param ctx User-defined context pointer passed to callback
+    /// @return true if at least one message was processed, false if the ring was empty or the
+    ///         socket is a datagram socket
+    bool recvMsgs(socketRecvCB cb, [in] [opt] void* ctx);
+
+    /// Send data on the socket
+    ///
+    /// Data the OS won't accept immediately is queued and flushed later when the socket becomes
+    /// writable. The same logic is shared by both socket types: a stream socket copies the data
+    /// into its outbound chain and sends it with scatter/gather; a datagram socket queues whole
+    /// messages, each with its own destination.
+    ///
+    /// @note Backpressure: once more than `sendHigh` bytes are already queued, the call returns
+    /// false and queues nothing; back off until NET_SendReady fires, which happens once the
+    /// backlog drains below `sendLow`. `NSO_Immediate` never queues -- it sends what the OS takes
+    /// right now and returns true only if the whole payload went out.
+    ///
+    /// For connected (stream) sockets, dest is ignored. For connectionless (datagram) sockets, dest
+    /// must be a valid address.
+    ///
+    /// @note Filters: with a filter attached the payload is run through the destination flow's
+    /// filter chain on its way out, so what reaches the wire is whatever the chain produced -- which
+    /// may be nothing at all if a stage is still negotiating and chose to buffer the payload. A
+    /// datagram sent to a peer with no flow yet opens one (firing NET_FlowOpen) so the chain exists
+    /// to encode it; if the queue is at its flow cap the send is refused. Either way the call
+    /// returns true when the payload was accepted, not when bytes reached the wire. `NSO_Immediate`
+    /// is ignored on a filtered socket -- the filter owns the framing, and a payload jumping the
+    /// chain would land in the middle of whatever the chain is producing.
+    ///
+    /// @param data Pointer to data to send (copied; need not outlive the call)
+    /// @param len Length of data in bytes
+    /// @param dest Destination address (required for connectionless, ignored for connected)
+    /// @param flags Optional flags to control send behavior
+    /// @return true if the data was sent or queued, false if it was refused (over the high watermark,
+    ///         not connected, or a fatal socket error)
+    [extern] bool send([in] uint8* data, size_t len, [in] [opt] NetAddr* dest, flags_t flags);
+
+    /// Open an outbound connection to a host and port
+    ///
+    /// Stream sockets only. This call is asynchronous: it returns immediately after starting the
+    /// process, and the result arrives later as a NET_Connection event on the socket's flow. The
+    /// host is resolved on a dedicated resolver thread, never on a net I/O thread, and the socket
+    /// passes through NS_Resolving and NS_Connecting on the way. Each resolved address is tried
+    /// in turn with a fresh OS handle of the right family, falling through on failure or timeout,
+    /// until one connects or the list is exhausted.
+    ///
+    /// The socket must already be registered with a queue (that is where the resolver, backend,
+    /// and flow live). A literal address is accepted directly without a DNS lookup.
+    ///
+    /// @param host Hostname or literal address to connect to (NULL/empty means loopback)
+    /// @param port Port number, host byte order
+    /// @return true if the connect was started, false if it could not be (wrong socket type, no
+    ///         queue, or already connecting/connected)
+    [extern] bool connect([in] strref host, uint16 port);
+
+    [abstract] bool bind(NetAddr* addr);
+
+    // backlog 0 means use a platform-specific default
+    [abstract] bool listen(int backlog);
+
+    /// Close socket
+    ///
+    /// Will also remove from a NetQueue if it is registered to one. The socket cannot
+    /// be reused once closed.
+    ///
+    /// @return true if the socket was successfully disconnected, false otherwise.
+    bool close();
+
+    /// Register per-socket handler overrides
+    ///
+    /// Fields left NULL fall through to the queue-wide set. The handler struct is not copied --
+    /// it must outlive the socket, which is why it is usually `static const`.
+    ///
+    /// @param handlers Handler set, or NULL to clear
+    /// @param ctx Context passed to these handlers on NetEvent.ctx
+    unbound void setHandlers([in] [opt] const NetHandlers *handlers, [in] [opt] void *ctx);
+
+    /// Attach a filter to the socket, applying it to every flow
+    ///
+    /// The filter is appended to the socket's list, so the first one attached is the stage closest
+    /// to the application and the last is the one nearest the wire. A per-flow NetFlowFilter is
+    /// created immediately for every flow the socket already has -- the single flow of a stream
+    /// socket, or every peer flow of a datagram socket -- and for every flow it opens afterwards.
+    ///
+    /// The socket acquires its own reference, so the caller keeps theirs and should release it when
+    /// done; the same filter may be attached to any number of sockets, which is how one filter
+    /// holding a certificate and key serves every accepted connection on a server.
+    ///
+    /// Install filters before data starts moving -- right after creating the socket, before
+    /// connect/accept, or from the NET_Accepted handler for an inbound connection.
+    ///
+    /// @param filter Filter to attach
+    /// @return true if the filter was attached, false if it declined this socket type (see
+    ///         netfilterCanFilter) or the socket is closed
+    unbound bool addFilter([in] NetFilter *filter);
+
+    /// Detach and release every filter on the socket
+    ///
+    /// Drops the socket's filter list and tears down the corresponding chain on every flow it owns,
+    /// discarding anything those stages still had buffered. After this the socket's send/recv paths
+    /// are back on the unfiltered fast path.
+    unbound void removeFilters();
+
+    // -----------------------------------------------------------------------------------------
+    // PRIVATE IMPLEMENTATION DETAILS
+    //
+    // Everything below this point is internal plumbing between the net module's own translation
+    // units and the platform backends. It is not a stable API and carries no compatibility
+    // promise -- signatures and semantics change whenever the implementation needs them to.
+    // -----------------------------------------------------------------------------------------
+
+    // Send path (dataplane.c)
+    //
+    // The send logic is backend-independent and lives on the base socket; only the syscall differs
+    // and it is hidden behind netSockSendv/netSockSendTo. A readiness backend watches sockets that
+    // have queued data for write-readiness and flushes them from its ingest loop.
+
+    // True when the socket has outbound data queued and should be watched for write-readiness. A
+    // hint read without the send lock -- a stale value costs at most one empty flush or one poll
+    // cycle.
+    [extern] unbound bool _wantWrite();
+
+    // Flush as much queued outbound data as the OS will currently accept, updating canSend and
+    // firing NET_SendReady on the flow when the backlog drains back below the low watermark.
+    // Called by the backend on write-readiness; `q` may be NULL if the socket has no queue
+    // (nothing to deliver on).
+    [extern] unbound void _flushSend([in] [opt] NetQueue *q);
+
+    // Report a fatal error from the async send path: the call that queued the bytes already
+    // returned success, so an event is the only way the application can hear about the loss.
+    // Delivers NET_Error through the affected flow like everything else -- on a worker, ordered. A
+    // stream's byte stream is broken by bytes vanishing from the middle of it, so its flow is
+    // closed behind the event: NET_Error lands first carrying the code, and NET_FlowClosed
+    // (NCR_Error) follows. A datagram error cost only the one datagram, so the peer's flow (`peer`
+    // is the failed datagram's destination; ignored for streams) hears NET_Error and stays open --
+    // and since sending alone never creates a flow, an error for a peer that has no flow has
+    // nobody to tell and is dropped. Do not call with sendLock held.
+    [extern] unbound void _sendError([in] [opt] NetQueue *q, NetErrorCode err, [in] NetAddr *peer);
+
+    // Connect (connect.c)
+
+    // Report the outcome of the in-flight connect attempt and advance the state machine: on
+    // success the socket goes NS_Connected and its NET_Connection event is queued; on failure the
+    // next resolved address is tried, or a failing NET_Connection is delivered when the list is
+    // exhausted. Claims the per-attempt transition under connectLock (via connectDeadline) so the
+    // backend completion and the timeout sweep cannot both advance it. Safe to call from either;
+    // the loser is a no-op.
+    [extern] unbound void _connectResult(NetErrorCode err);
+
+    // Shared readiness-backend connectBegin body: reset the handle to the address's family, issue
+    // a non-blocking connect(), and drive the immediate outcome through netsocket_connectResult().
+    // A pending connect is left for the select loop to complete on writability/except. Returns
+    // true once the attempt has been initiated (the state machine has been advanced or is now
+    // pending).
+    [extern] unbound bool _readinessConnect([inout] NetQueue *q, [in] NetAddr *addr);
+
+    // Abort an in-flight connect when the socket is being closed. Claims the current attempt's
+    // deadline the same way the backend completion and the timeout sweep do; if won, drops the
+    // connect's resources without starting a new attempt or delivering an event. A no-op if there
+    // is no armed attempt (deadline 0) -- either nothing is connecting, or the completion/sweep
+    // already finished it, or the connect is still resolving (that window is handled in the
+    // resolver callback, which checks NS_Closed).
+    [extern] unbound void _connectCancel();
+
+    // Accept and listen (socket.c)
+
+    // Deliver a freshly accepted connection. `newSock` arrives owning one reference (the platform
+    // factory's), which this call takes: with NQ_AutoAccept the socket is first added to the
+    // listener's queue (which acquires its own reference), then an NMSG_Accept carrying the socket
+    // is queued on the listener's flow so NET_Accepted runs on a worker, ordered. If the listener
+    // has no queue or flow to deliver on, the socket is dropped (released, closing its handle).
+    // Called by both backends once they have pulled a connection off the backlog and wrapped it in
+    // a platform NetSocket. `peer` is the remote address, or NULL if it could not be determined.
+    unbound void _accepted([inout] NetSocket *newSock, [in] [opt] NetAddr *peer);
+
+    // Kick the backend into servicing a socket that has just started listening. Resolves the
+    // socket's queue and calls its acceptArm hook (select wakes its loop to read-watch the
+    // listener; IOCP posts the initial AcceptEx batch). A no-op if the socket is not yet on a
+    // queue -- the backend's addSocket picks up an already-listening socket instead. Called by the
+    // platform listen() once the socket is in NS_Listening.
+    unbound void _listenArm();
+
+    // Flow table (flow.c)
+
+    // Remove a flow from this socket's table, releasing the socket's reference. Called once the
+    // terminal event has been delivered.
+    [extern] unbound void _dropFlow([inout] NetFlow *flow);
+
+    // Close every flow on this socket with the given reason.
+    [extern] unbound void _closeFlows(NetCloseReason reason);
+}
+
+/// @}

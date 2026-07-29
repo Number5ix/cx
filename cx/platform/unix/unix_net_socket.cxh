@@ -1,0 +1,16 @@
+#include <cx/net/socket.cxh>
+#include <cx/platform/unix.h>
+
+// send() is a concrete method on the base NetSocket now (its logic is platform-independent; only
+// the syscall lives behind a shim), so this class does not override it -- bind/listen still do,
+// because they touch sockaddr directly.
+class NetSocketPosix extends NetSocket
+{
+    int fd;
+
+    override close;
+
+    [canfail] factory create(NetSocketType type);
+    factory wrap(int fd, NetSocketType type, NetSocketState state);
+    destroy();
+}

@@ -1,0 +1,16 @@
+#include <cx/net/socket.cxh>
+#include <cx/platform/win.h>
+
+// send() is a concrete method on the base NetSocket now (its logic is platform-independent; only the
+// syscall lives behind a shim), so this class no longer overrides it -- bind/listen still do, because
+// they touch sockaddr directly.
+class NetSocketWin extends NetSocket
+{
+    SOCKET sock;
+
+    override close;
+
+    [canfail] factory create(NetSocketType type);
+    factory wrap(SOCKET sock, NetSocketType type, NetSocketState state);
+    destroy();
+}

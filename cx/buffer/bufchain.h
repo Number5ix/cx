@@ -186,6 +186,39 @@ size_t bufchainSkip(_Inout_ BufChain* chain, size_t bytes);
 size_t bufchainReadZC(_Inout_ BufChain* chain, size_t maxbytes, bufchainZCCB cb,
                       _Inout_opt_ void* ctx);
 
+/// Gather buffer chain segments into a scatter/gather vector without consuming them.
+///
+/// Fills an array of BufIov entries with pointers directly into the chain's segments, so the
+/// data can be handed to a vectored I/O call (`writev`, `WSASend`, ...) without coalescing it
+/// into a single contiguous buffer first. Nothing is copied and nothing is consumed.
+///
+/// If a partial read has been performed on the head segment, the first entry starts at the
+/// current read cursor rather than at the beginning of the segment.
+///
+/// Because this does not consume, the caller must dispose of the data itself once the write
+/// completes -- normally with bufchainSkip() for the number of bytes the OS actually accepted,
+/// which handles short writes correctly:
+///
+/// @code
+///   BufIov iov[16];
+///   size_t niov;
+///   if (bufchainGatherIov(chain, iov, 16, &niov) > 0) {
+///       size_t sent = writev_equivalent(iov, niov);
+///       bufchainSkip(chain, sent);
+///   }
+/// @endcode
+///
+/// @param chain Pointer to the buffer chain to gather from
+/// @param iov Array of BufIov entries to fill
+/// @param maxiov Number of entries available in the iov array
+/// @param count Receives the number of iov entries actually filled (optional, may be NULL)
+/// @return Total number of bytes described by the filled iov entries
+/// @note The returned pointers are only valid until the next operation that modifies the chain.
+/// Empty segments are skipped and never produce a zero-length entry, as some platforms reject
+/// those.
+size_t bufchainGatherIov(_In_ BufChain* chain, _Out_writes_to_(maxiov, *count) BufIov* iov,
+                         size_t maxiov, _Out_opt_ size_t* count);
+
 /// Write data from a user buffer into a buffer chain.
 ///
 /// Appends data to the tail of the buffer chain. If the current capacity is insufficient,

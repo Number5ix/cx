@@ -84,7 +84,7 @@ test_freebsd:
   dependencies:
     - build_freebsd
   script:
-    'cd _build/tests && ctest'
+    'cd _build/tests && ctest --output-on-failure'
 
 test_linux:
   stage: test
@@ -93,7 +93,7 @@ test_linux:
   dependencies:
     - build_linux
   script:
-    'cd _build/tests && ctest'
+    'cd _build/tests && ctest --output-on-failure'
 
 test_win64:
   stage: test
@@ -102,7 +102,7 @@ test_win64:
   dependencies:
     - build_win64
   script:
-    '& "$env:CTEST_EXE" -C Release --test-dir _build/tests'
+    '& "$env:CTEST_EXE" -C Release --test-dir _build/tests --output-on-failure'
 
 test_win32:
   stage: test
@@ -111,7 +111,7 @@ test_win32:
   dependencies:
     - build_win32
   script:
-    '& "$env:CTEST_EXE" -C Release --test-dir _build/tests'
+    '& "$env:CTEST_EXE" -C Release --test-dir _build/tests --output-on-failure'
 
 test_wasm:
   stage: test
@@ -121,4 +121,5 @@ test_wasm:
   dependencies:
     - build_wasm
   script:
-    'cd _build/tests && ctest'
+    - 'npm install --prefix _build/tests ws'
+    - 'cd _build/tests && ctest --output-on-failure'
