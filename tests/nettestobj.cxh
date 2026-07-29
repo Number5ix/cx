@@ -1,0 +1,34 @@
+#include <cx/net/queue.cxh>
+#include <cx/net/socket.cxh>
+
+// Synthetic NetQueue backend for testing the backend-independent core.
+//
+// It moves no bytes and touches no OS handle. Packets are injected directly through
+// netqueue_ingestDatagram(), which is the same entry point a real backend uses once a completion
+// arrives, so the flow demultiplexing, claim protocol, and lifecycle logic under test are exactly
+// the production paths. This is the only way to deterministically stress the requeue race and the
+// reclaim/resurrect race, which depend on interleavings a real network will not reproduce on
+// demand.
+
+class NetSocketTest extends NetSocket
+{
+    // Send-path bookkeeping, so a test can assert on it without a real socket.
+    size_t sentBytes;
+    uint32 sentCount;
+
+    // Record sends instead of touching an OS handle: the synthetic socket has no real handle, so
+    // the base send path cannot run. Lets a test assert that bytes reached "the wire".
+    //
+    // Note that overriding send() means everything the base implementation does is skipped -- flow
+    // resolution and the filter chain included. A test that needs the filtered send path either
+    // drives the seams in socket.c directly (see the filter_* subtests) or uses a real loopback
+    // socket, which is what filter_dgram_send does.
+    override send;
+
+    factory create(NetSocketType type);
+}
+
+class NetQueueTest extends NetQueue
+{
+    factory create(NetQueueConfig *conf);
+}

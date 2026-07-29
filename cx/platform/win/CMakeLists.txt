@@ -6,7 +6,8 @@ if(CX_PLATFORM_IS_WINDOWS)
         platform/win/win_fs_file.c
         platform/win/win_fs_fs.c
         platform/win/win_futex.c
-        platform/win/win_net_queue_select.c
+        platform/win/win_net_iocp.c
+        platform/win/win_net_select.c
         platform/win/win_net_socket.c
         platform/win/win_net.c
         platform/win/win_os.c
@@ -35,7 +36,7 @@ if(CX_PLATFORM_IS_WINDOWS)
 endif()
 
 set(PLATFORM_WIN_AUTOGEN
-    platform/win/win_net_queue_select.cxh
+    platform/win/win_net_iocp.cxh
     platform/win/win_net_socket.cxh
     platform/win/win_thread_threadobj.cxh)
 

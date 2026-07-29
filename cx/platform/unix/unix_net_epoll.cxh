@@ -1,0 +1,47 @@
+#include <cx/net/queue.cxh>
+#include <cx/platform/unix.h>
+
+// Linux-only completion emulation over epoll, with recvmmsg batching on the datagram ingest path.
+// This is the Unix performance target, the counterpart to IOCP on Windows -- structurally it is
+// NetQueueSelect's readiness-to-completion loop (ingest thread feeds the base class's dispatch
+// pool) with a different wait call and a different, edge-count-free way of tracking which sockets
+// to watch: epoll_ctl mutates the kernel's interest list directly instead of rebuilding a whole set
+// every pass, so addSocket/removeSocket act immediately rather than waking a loop to rebuild.
+class NetQueueEpoll extends NetQueue
+{
+    int epfd;   ///< epoll instance, created with epoll_create1()
+
+    /// @brief Handle -> socket, each entry holding a strong reference
+    ///
+    /// Unlike NetQueueSelect's fdmap (rebuilt every tick from q->sockets), this map is maintained
+    /// incrementally by addSocket/removeSocket alongside the epoll_ctl calls that keep the kernel's
+    /// interest list in sync, since there is no per-pass rebuild step to refresh it from.
+    hashtable[uint64,object] fdmap;
+
+    /// @brief Dedicated epoll_wait loop thread in threaded mode (NULL in polled mode)
+    ///
+    /// Same split as NetQueueSelect: this thread only ingests, filling the runqueue via
+    /// netqueue_submit; the base class's N dispatch workers drain it. In polled mode this stays
+    /// NULL and tick() runs epoll_wait on the caller's thread.
+    object[Thread] ingest;
+
+    /// @brief Self-pipe read/write ends, used to interrupt a blocked epoll_wait()
+    ///
+    /// Registered on epfd once at creation with EPOLLIN and never removed. addSocket/shutdown write
+    /// a byte to wake a parked ingest thread the same way NetSelectSet's wake pipe does.
+    int wakeRead;
+    int wakeWrite;
+
+    factory create(NetQueueConfig *conf);
+
+    /// epoll_ctl ADD/MOD the new socket immediately; no rebuild to wake for.
+    override addSocket;
+
+    /// epoll_ctl DEL the socket immediately.
+    override removeSocket;
+
+    /// Stop the ingest thread before the base tears the queue down.
+    override shutdown;
+
+    destroy();
+}

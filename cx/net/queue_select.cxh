@@ -1,0 +1,53 @@
+#include <cx/net/queue.cxh>
+
+// Portable readiness backend built on select().
+//
+// One shared class serves every platform. The differences between Windows and Unix select --
+// SOCKET vs int, WSAGetLastError vs errno, the fd_set representation, the wake mechanism -- are
+// all syscall-shim differences that live in the platform socket layer (netLastError(), the
+// netSock* shims) and the NetSelectSet primitive, not in the queue. What is shared is the part
+// that matters: the readiness-to-completion emulation, which is where the bugs would be, so it is
+// written exactly once.
+//
+// Correct everywhere including Wine, FD_SETSIZE-limited, and the reference the completion backends
+// are validated against. In polled mode it runs its loop inside tick() on the caller's thread; in
+// threaded mode a dedicated ingest thread runs the select() loop and feeds the base class's pool of
+// dispatch workers, which is the only genuinely select-specific piece of the threading model.
+
+class NetQueueSelect extends NetQueue
+{
+    // NetSelectSet* (opaque), created and destroyed by hand
+    //
+    // Held as void* so the private NetSelectSet declaration does not have to leak into this
+    // generated header. Cast back in the implementation.
+    void *selset;
+
+    // Handle -> socket for the current tick, each entry holding a strong reference
+    //
+    // Rebuilt every tick under the socket lock. Holding a reference means a socket removed by
+    // another thread mid-tick stays alive until the map is cleared at the top of the next tick,
+    // so ingest never touches freed memory. The object value type manages the references.
+    hashtable[uint64,object] fdmap;
+
+    // Dedicated select-loop thread in threaded mode (NULL in polled mode)
+    //
+    // select() cannot usefully be shared across threads -- one fd_set, one wait -- so threaded
+    // mode runs exactly one ingest thread here that fills the runqueue, plus the base class's N
+    // dispatch workers that drain it. In polled mode this stays NULL and tick() runs the loop on
+    // the caller's thread. Joined (via nselWake + thrWait) before it is released, in shutdown or as
+    // a destroy-time safety net.
+    object[Thread] ingest;
+
+    factory create(NetQueueConfig *conf);
+
+    // Wake the select loop so it rebuilds its watch set with the new socket.
+    override addSocket;
+
+    // Wake the select loop so it drops the removed socket from its watch set.
+    override removeSocket;
+
+    // Stop the ingest thread before the base tears the queue down.
+    override shutdown;
+
+    destroy();
+}

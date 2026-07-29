@@ -25,11 +25,14 @@ create_test_sourcelist(testsrc
     mathtest.c
     fstest.c
     prqtest.c
+    nettest.c
     tqtest.c
     cpptest.cpp
     alltests.c)
 add_cxautogen(converttestobj.cxh
     fmttestobj.cxh
+    netfilterobj.cxh
+    nettestobj.cxh
     objtestobj.cxh
     tqtestobj.cxh)
 set(test_runner_files
@@ -40,6 +43,10 @@ set(test_runner_files
     objtestobj.cxh
     converttestobj.c
     converttestobj.cxh
+    netfilterobj.c
+    netfilterobj.cxh
+    nettestobj.c
+    nettestobj.cxh
     tqtestobj.c
     tqtestobj.cxh
     common.h)
@@ -187,6 +194,84 @@ add_test(NAME "\"prqueue: Multithreaded Queue\"" COMMAND test_runner prqtest mt)
 add_test(NAME "\"prqueue: Queue Growth\"" COMMAND test_runner prqtest grow)
 add_test(NAME "\"prqueue: Garbage Collection\"" COMMAND test_runner prqtest gc)
 add_test(NAME "\"prqueue: Dynamic MPMC\"" COMMAND test_runner prqtest mpmc)
+add_test(NAME "\"net: Address Parsing\"" COMMAND test_runner nettest addr)
+add_test(NAME "\"netflow: Basic Flow Demux\"" COMMAND test_runner nettest flow_basic)
+add_test(NAME "\"netflow: Handler Resolution\"" COMMAND test_runner nettest flow_handlers)
+add_test(NAME "\"netflow: Close and Teardown\"" COMMAND test_runner nettest flow_close)
+add_test(NAME "\"netflow: Cap Pressure Reclaim\"" COMMAND test_runner nettest flow_reclaim)
+add_test(NAME "\"netflow: Reclaim Idle Threshold\"" COMMAND test_runner nettest flow_reclaim_idle)
+add_test(NAME "\"netflow: Resurrection\"" COMMAND test_runner nettest flow_resurrect)
+add_test(NAME "\"netflow: Socket and Queue Shutdown\"" COMMAND test_runner nettest flow_shutdown)
+add_test(NAME "\"netflow: Requeue Race\"" COMMAND test_runner nettest flow_race)
+add_test(NAME "\"netfilter: Stream Passthrough\"" COMMAND test_runner nettest filter_stream)
+add_test(NAME "\"netfilter: Secured Handshake\"" COMMAND test_runner nettest filter_secured)
+add_test(NAME "\"netfilter: Length-2 Chain\"" COMMAND test_runner nettest filter_chain)
+add_test(NAME "\"netfilter: Datagram Round Trip\"" COMMAND test_runner nettest filter_dgram)
+add_test(NAME "\"netfilter: Datagram Flow Chains\"" COMMAND test_runner nettest filter_dgram_flows)
+add_test(NAME "\"netfilter: Teardown\"" COMMAND test_runner nettest filter_teardown)
+add_test(NAME "\"netfilter: Datagram Pool Reference\"" COMMAND test_runner nettest filter_dgram_poolref)
+# Many networking features are excluded on WASM even though they're built there (see
+# wasm_net_select.c and docs/netqueue-design.md SS11): Emscripten's select()/poll() emulation under
+# Node does not reliably honor the timeout or report genuine readiness for real sockets -- see
+# https://github.com/emscripten-core/emscripten/issues/25759, open and unresolved upstream as of
+# this writing. filter_dgram_send hits the same class of issue for a real socket round-trip. These
+# test functions still compile and run manually via `test_runner nettest select_udp` etc. for
+# whenever that gets fixed; they're just not part of the automated suite until then.
+if(CX_PLATFORM_IS_WINDOWS OR CX_PLATFORM_IS_UNIX)
+add_test(NAME "\"netfilter: Datagram Cold Send\"" COMMAND test_runner nettest filter_dgram_send)
+add_test(NAME "\"net: Composed Helpers\"" COMMAND test_runner nettest helpers)
+add_test(NAME "\"netselect: Datagram Loopback\"" COMMAND test_runner nettest select_udp)
+add_test(NAME "\"netselect: Stream Loopback\"" COMMAND test_runner nettest select_stream)
+add_test(NAME "\"netselect: Threaded Datagram Loopback\"" COMMAND test_runner nettest select_udp_threaded)
+add_test(NAME "\"netselect: Threaded Stream Loopback\"" COMMAND test_runner nettest select_stream_threaded)
+add_test(NAME "\"netselect: Stream Send\"" COMMAND test_runner nettest select_stream_send)
+add_test(NAME "\"netselect: Datagram Send\"" COMMAND test_runner nettest select_udp_send)
+add_test(NAME "\"netselect: Stream Backpressure\"" COMMAND test_runner nettest select_stream_backpressure)
+add_test(NAME "\"netselect: Connect\"" COMMAND test_runner nettest select_connect)
+add_test(NAME "\"netselect: Connect DNS\"" COMMAND test_runner nettest select_connect_dns)
+add_test(NAME "\"netselect: Connect Refused\"" COMMAND test_runner nettest select_connect_refused)
+add_test(NAME "\"netselect: Connect Timeout\"" COMMAND test_runner nettest select_connect_timeout)
+add_test(NAME "\"netselect: Accept\"" COMMAND test_runner nettest select_accept)
+add_test(NAME "\"netselect: Accept AutoAccept\"" COMMAND test_runner nettest select_accept_auto)
+if(CX_PLATFORM_IS_WINDOWS)
+add_test(NAME "\"netiocp: Datagram Loopback\"" COMMAND test_runner nettest iocp_udp)
+add_test(NAME "\"netiocp: Stream Loopback\"" COMMAND test_runner nettest iocp_stream)
+add_test(NAME "\"netiocp: Threaded Datagram Loopback\"" COMMAND test_runner nettest iocp_udp_threaded)
+add_test(NAME "\"netiocp: Threaded Stream Loopback\"" COMMAND test_runner nettest iocp_stream_threaded)
+add_test(NAME "\"netiocp: Stream Send\"" COMMAND test_runner nettest iocp_stream_send)
+add_test(NAME "\"netiocp: Datagram Send\"" COMMAND test_runner nettest iocp_udp_send)
+add_test(NAME "\"netiocp: Stream Backpressure\"" COMMAND test_runner nettest iocp_stream_backpressure)
+add_test(NAME "\"netiocp: Connect\"" COMMAND test_runner nettest iocp_connect)
+add_test(NAME "\"netiocp: Connect DNS\"" COMMAND test_runner nettest iocp_connect_dns)
+add_test(NAME "\"netiocp: Connect Refused\"" COMMAND test_runner nettest iocp_connect_refused)
+add_test(NAME "\"netiocp: Connect Timeout\"" COMMAND test_runner nettest iocp_connect_timeout)
+add_test(NAME "\"netiocp: Accept\"" COMMAND test_runner nettest iocp_accept)
+add_test(NAME "\"netiocp: Accept AutoAccept\"" COMMAND test_runner nettest iocp_accept_auto)
+endif()
+if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+add_test(NAME "\"netepoll: Datagram Loopback\"" COMMAND test_runner nettest epoll_udp)
+add_test(NAME "\"netepoll: Stream Loopback\"" COMMAND test_runner nettest epoll_stream)
+add_test(NAME "\"netepoll: Threaded Datagram Loopback\"" COMMAND test_runner nettest epoll_udp_threaded)
+add_test(NAME "\"netepoll: Threaded Stream Loopback\"" COMMAND test_runner nettest epoll_stream_threaded)
+add_test(NAME "\"netepoll: Connect\"" COMMAND test_runner nettest epoll_connect)
+add_test(NAME "\"netepoll: Connect DNS\"" COMMAND test_runner nettest epoll_connect_dns)
+add_test(NAME "\"netepoll: Connect Refused\"" COMMAND test_runner nettest epoll_connect_refused)
+add_test(NAME "\"netepoll: Connect Timeout\"" COMMAND test_runner nettest epoll_connect_timeout)
+add_test(NAME "\"netepoll: Accept\"" COMMAND test_runner nettest epoll_accept)
+add_test(NAME "\"netepoll: Accept AutoAccept\"" COMMAND test_runner nettest epoll_accept_auto)
+elseif(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
+add_test(NAME "\"netkqueue: Datagram Loopback\"" COMMAND test_runner nettest kqueue_udp)
+add_test(NAME "\"netkqueue: Stream Loopback\"" COMMAND test_runner nettest kqueue_stream)
+add_test(NAME "\"netkqueue: Threaded Datagram Loopback\"" COMMAND test_runner nettest kqueue_udp_threaded)
+add_test(NAME "\"netkqueue: Threaded Stream Loopback\"" COMMAND test_runner nettest kqueue_stream_threaded)
+add_test(NAME "\"netkqueue: Connect\"" COMMAND test_runner nettest kqueue_connect)
+add_test(NAME "\"netkqueue: Connect DNS\"" COMMAND test_runner nettest kqueue_connect_dns)
+add_test(NAME "\"netkqueue: Connect Refused\"" COMMAND test_runner nettest kqueue_connect_refused)
+add_test(NAME "\"netkqueue: Connect Timeout\"" COMMAND test_runner nettest kqueue_connect_timeout)
+add_test(NAME "\"netkqueue: Accept\"" COMMAND test_runner nettest kqueue_accept)
+add_test(NAME "\"netkqueue: Accept AutoAccept\"" COMMAND test_runner nettest kqueue_accept_auto)
+endif()
+endif()
 add_test(NAME "\"taskqueue: Tasks\"" COMMAND test_runner tqtest task)
 add_test(NAME "\"taskqueue: Failed Tasks\"" COMMAND test_runner tqtest failure)
 add_test(NAME "\"taskqueue: Concurrency (in-worker)\"" COMMAND test_runner tqtest concurrency_inworker)

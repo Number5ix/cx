@@ -1,0 +1,22 @@
+#include <cx/net/socket.cxh>
+#include <cx/platform/wasm.h>
+
+// Named NetSocketPosix, not NetSocketWasm, matching the precedent already set by
+// wasm_thread_threadobj.cxh's UnixThread: Emscripten's socket emulation is close enough to POSIX
+// (and this platform is never compiled alongside cx/platform/unix/, so there is no name collision)
+// that it is simpler to keep the same class name than invent a distinct one for what is otherwise
+// the same shape.
+//
+// send() is a concrete method on the base NetSocket now (its logic is platform-independent; only
+// the syscall lives behind a shim), so this class does not override it -- bind/listen still do,
+// because they touch sockaddr directly.
+class NetSocketPosix extends NetSocket
+{
+    int fd;
+
+    override close;
+
+    [canfail] factory create(NetSocketType type);
+    factory wrap(int fd, NetSocketType type, NetSocketState state);
+    destroy();
+}

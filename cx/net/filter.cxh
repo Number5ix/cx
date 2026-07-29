@@ -1,0 +1,230 @@
+#include <cx/net/net_shared.h>
+#include <cx/net/pool.cxh>
+#include <cx/buffer/bufring.h>
+
+/// @addtogroup net_filter
+/// @{
+/// Chainable interception hooks that transform data on its way to and from the wire.
+///
+/// The filter system has two levels. A **NetFilter** is a factory attached to a **NetSocket**;
+/// it creates one **NetFlowFilter** per flow the socket owns (one for a stream socket, one per
+/// peer for a datagram socket). The NetFlowFilter instances sit on the flow and do the actual
+/// byte or message transformation. The typical use is a TLS/DTLS session, but the same mechanism
+/// works for compression, framing, or logging.
+///
+/// @section net_filter_model Mental model
+///
+/// Attach a NetFilter to a socket and it handles the rest: it creates a NetFlowFilter for every
+/// flow already open, and the socket calls it again each time a new flow opens. Applications never
+/// create or manage flow filters directly.
+///
+/// Both levels are plain arrays, ordered from the application toward the wire:
+///
+/// @code
+///   app <-> sock->filters.a[0] <-> ... <-> sock->filters.a[N-1] <-> wire     (factories)
+///   app <-> flow->filters.a[0] <-> ... <-> flow->filters.a[N-1] <-> wire     (per-flow stages)
+/// @endcode
+///
+/// Element 0 is the stage closest to the application; the last element touches the wire. The
+/// common case is a chain of length one. A NetFilter holds no per-socket state of its own, so the
+/// same instance can be attached to many sockets -- for example, one filter holding a TLS
+/// certificate and key, shared by every connection a server accepts.
+///
+/// Each stage owns its own state -- a TLS session lives on the filter object, never on
+/// `flow->user`, which stays entirely the application's.
+///
+/// @section net_filter_lifecycle Lifecycle
+///
+/// There is no separate handshake phase. A filter that needs to negotiate (a TLS session, say)
+/// does it entirely inside encode()/decode() (or encodeMsg()/decodeMsg() for a datagram filter):
+/// it withholds application-side output until its own logic decides the channel is ready, and may
+/// produce wire output at any time, even from empty input. That's what the **priming pass** is
+/// for: the driver calls encode() once with nothing queued, so a filter gets a chance to open a
+/// negotiation it initiates. A datagram flow is primed as soon as its chain is built; a stream
+/// flow is primed once the transport comes up.
+///
+/// A stage need not consume everything it's handed -- declining to consume application input is
+/// how a filter mid-handshake blocks app data from reaching the wire; no separate gate is needed.
+/// A negative return from encode()/decode() signals a fatal failure. shutdown() begins an orderly
+/// close and always runs before a filter is freed, regardless of what phase it was in.
+///
+/// A stage is never re-entered concurrently: decode() runs on the worker holding the flow's claim,
+/// and encode() may be driven from any thread that calls netsocketSend(), but the flow serializes
+/// every driver pass, so a filter needs no synchronization of its own.
+///
+/// @section net_filter_signal Out-of-band notifications
+///
+/// The framework never infers application-visible events from a filter's behavior. When a filter
+/// reaches a milestone the application should know about -- a TLS session becoming ready, say --
+/// it calls netflowfilterNotify() with a NetFilterNotify code, and the driver delivers it as a
+/// NET_FilterNotify event. Only a filter with such a milestone needs to call it; a transform like
+/// compression or framing simply never does.
+
+/// @brief Socket-level factory for per-flow filters
+///
+/// A NetFilter is attached to a NetSocket and acts as a factory for NetFlowFilter instances.
+/// When attached, the socket immediately calls createFlow() for every flow already open, and
+/// calls createFlow() again each time a new flow opens. For a stream socket this produces
+/// exactly one NetFlowFilter; for a datagram socket, one per peer flow.
+///
+/// A NetFilter may carry socket-wide configuration shared by all of its created flow filters --
+/// TLS certificate and key material, for example -- which a created flow filter accesses by
+/// keeping its own reference to `self` (this NetFilter), captured inside createFlow(). One
+/// instance may be attached to as many sockets as needed; each socket acquires its own reference.
+abstract class NetFilter
+{
+    /// Create a per-flow filter instance for a flow of the given socket type.
+    ///
+    /// Called once per flow: immediately for every flow already open when this NetFilter is
+    /// attached, and again each time the socket creates a new flow afterward. The returned
+    /// NetFlowFilter takes this NetFilter's position in the flow's chain, so the flow's stages
+    /// end up in the same application-to-wire order as the socket's filters. Use `type` to
+    /// choose between building a NetStreamFilter or a NetDatagramFilter if this filter supports
+    /// both; a single-type filter can ignore it. Keep a reference to this NetFilter (`self`) on
+    /// the created flow filter if it needs shared, socket-wide configuration such as a TLS
+    /// certificate and key.
+    ///
+    /// @param type The socket type the new flow belongs to (NST_Stream or NST_Datagram).
+    /// @return A new NetFlowFilter to attach to the flow, or NULL to leave the flow unfiltered.
+    [abstract] NetFlowFilter* createFlow(NetSocketType type);
+
+    /// Reports whether this NetFilter supports attaching to a socket of the given type.
+    ///
+    /// Checked once, when the filter is attached to a socket -- before any flow exists and
+    /// before createFlow() is ever called for it.
+    ///
+    /// @param type The socket type the filter would be attached to (NST_Stream or NST_Datagram).
+    /// @return true if this filter can be attached to a socket of `type`.
+    [abstract] bool canFilter(NetSocketType type);
+}
+
+/// @brief Shared lifecycle base for all flow filters
+///
+/// Holds the notification slot and the one lifecycle verb every concrete filter must implement
+/// besides its data-plane transform. A stage carries no chain link: the flow owns the chain as an
+/// ordered array and releases every stage when it is torn down. Not instantiable directly; use a
+/// concrete stream or datagram filter.
+abstract class NetFlowFilter
+{
+    // Pending out-of-band notification, or NFN_None. Written by notify() and cleared by the
+    // data-plane driver once it delivers the matching NET_FilterNotify event; concrete filters
+    // never read or write this directly.
+    NetFilterNotify pendingNotify;
+
+    /// Raise an out-of-band notification for the application, delivered by the data-plane driver.
+    ///
+    /// Call this from encode()/decode() (or encodeMsg()/decodeMsg()) when the filter reaches a
+    /// milestone the application should hear about -- most commonly NFN_Secured, once a handshake
+    /// decides the channel is ready. The driver delivers it as a NET_FilterNotify event right
+    /// after the filter returns, ahead of any application data produced on the same pass. A
+    /// transform with no such milestone (compression, framing) never needs to call this.
+    ///
+    /// @param note The NetFilterNotify code to deliver (NFN_Secured, or a custom NFN_AppCustom+).
+    unbound void notify(NetFilterNotify note);
+
+    /// Begin an orderly close of the filter (for TLS, emit close_notify).
+    ///
+    /// Called once, before the filter is freed, regardless of what phase it was in -- so any
+    /// close record it needs to send is produced while the wire is still available. Whatever this
+    /// pushes into the boundary buffers is drained by one more encode()/encodeMsg() pass before
+    /// the filter is destroyed.
+    [abstract] void shutdown();
+}
+
+/// @brief Base for byte-stream filters (attached between the application and a stream socket)
+///
+/// A stream filter transforms a byte stream in each direction. It owns two boundary ring buffers:
+/// `encOut` collects this stage's output toward the wire, `decOut` its output toward the
+/// application. The driver feeds each stage from the previous stage's boundary ring -- at the ends
+/// of the chain, from the flow's staging ring going out and the socket's receive ring coming in --
+/// so a stage holding a partial framing/record unit simply produces nothing that pass, without
+/// losing the buffered remainder.
+abstract class NetStreamFilter extends NetFlowFilter
+{
+    BufRing encOut;   ///< This stage's output toward the wire (a chain boundary buffer)
+    BufRing decOut;   ///< This stage's output toward the app (a chain boundary buffer)
+
+    init();      // allocates encOut / decOut
+    destroy();   // tears down encOut / decOut
+
+    /// Consume from `src` and append transformed output toward the wire into `encOut`.
+    ///
+    /// This is also where a filter drives any handshake it needs: it may append to `encOut`
+    /// regardless of what (if anything) it consumes from `src`, which is how a client emits its
+    /// first handshake flight -- the driver calls this once right after connect even with `src`
+    /// empty, purely to give the filter the opportunity. A stage need not consume all of `src`;
+    /// unconsumed bytes stay in the boundary ring and resume on the next pass. A filter still
+    /// negotiating simply declines to consume application data until its own logic decides the
+    /// channel is ready.
+    ///
+    /// @param src Input ring to consume from (the staging ring, or the previous stage's encOut)
+    /// @return Bytes produced into encOut, or negative on a fatal transform error.
+    [abstract] intptr encode(BufRing *src);
+
+    /// Consume from `src` and append transformed output toward the app into `decOut`.
+    ///
+    /// A filter still negotiating consumes its handshake records from `src` here (a response may
+    /// be pushed onto its own `encOut` as a side effect) while producing nothing into `decOut`
+    /// until it decides the channel is ready -- typically the same point it calls
+    /// notify(NFN_Secured).
+    ///
+    /// @param src Input ring to consume from (the receive ring, or the next stage's decOut)
+    /// @return Bytes produced into decOut, or negative on a fatal transform error.
+    [abstract] intptr decode(BufRing *src);
+}
+
+/// @brief Base for datagram filters (attached between the application and a datagram flow)
+///
+/// A datagram filter transforms whole NetMessages at message boundaries -- DTLS is one datagram
+/// per record. Each stage owns a pair of boundary queues, `encOut`/`decOut`, playing the same role
+/// `NetStreamFilter`'s boundary rings play for a byte stream: a stage need not produce exactly one
+/// output per input. Consuming a handshake record and producing nothing is how a stage swallows
+/// it; producing more messages than consumed is how a stage fragments an oversized message for the
+/// wire's MTU.
+abstract class NetDatagramFilter extends NetFlowFilter
+{
+    NetMsgQueue encOut;   ///< This stage's output toward the wire (a chain boundary queue)
+    NetMsgQueue decOut;   ///< This stage's output toward the app (a chain boundary queue)
+
+    /// @brief The pool this stage allocates its output from, held strongly
+    ///
+    /// Set by the framework when the stage is added to a flow's chain; a concrete filter neither
+    /// sets nor releases it, and simply uses it to allocate messages for `encOut`/`decOut`.
+    /// See @ref net_pool.
+    object[NetPool] pool;
+
+    destroy();   // releases any messages still queued in encOut / decOut back to their pool
+
+    /// Consume from `src` and append transformed output toward the wire into `encOut`.
+    ///
+    /// This is also where a filter drives any handshake it needs: it may append to `encOut`
+    /// regardless of what (if anything) it consumes from `src`, which is how a client emits its
+    /// first handshake flight -- the driver calls this once right after the flow opens even with
+    /// `src` empty, purely to give the filter the opportunity. Fragmenting one oversized message
+    /// into several wire-sized ones is just appending more than one message to `encOut` for the
+    /// one consumed from `src`. A filter still negotiating declines to consume application
+    /// messages from `src` until its own logic decides the channel is ready.
+    ///
+    /// Allocate any message appended to `encOut` (a handshake flight, or a fragment) through
+    /// netpoolAllocMsg() on this stage's own `pool`.
+    ///
+    /// @param src Input queue to consume from (the app-submitted queue, or the previous stage's
+    ///            encOut)
+    /// @return Messages produced into encOut, or negative on a fatal transform error.
+    [abstract] intptr encodeMsg(NetMsgQueue *src);
+
+    /// Consume from `src` and append transformed output toward the app into `decOut`.
+    ///
+    /// A filter still negotiating consumes its handshake records from `src` here (a reply may be
+    /// allocated from `pool` and pushed onto this stage's own `encOut` as a side effect) while
+    /// producing nothing into `decOut` until it decides the channel is ready -- typically the same
+    /// point it calls notify(NFN_Secured). A stage that reassembles several wire fragments into one
+    /// application message consumes several from `src` and produces one into `decOut`; the reverse
+    /// is equally valid.
+    ///
+    /// @param src Input queue to consume from (the receive queue, or the next stage's decOut)
+    /// @return Messages produced into decOut, or negative on a fatal transform error.
+    [abstract] intptr decodeMsg(NetMsgQueue *src);
+}
+
+/// @}

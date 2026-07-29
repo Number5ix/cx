@@ -19,12 +19,18 @@ void bufpoolInit(BufPool* pool, size_t bufsz, uint32 initial, uint32 max)
     if (max)
         initial = min(initial, max);
 
+    // Grow-only: the pool never destroys a live buffer (bufpoolGet allocates, bufpoolPut returns to
+    // the freelist), so the number of buffers in existence -- and thus the freelist's high-water --
+    // only ratchets up to the cap. Shrinking the ring would be pure churn: it is emptiest exactly
+    // when the pool is busiest (buffers checked out) and would just have to re-grow the moment they
+    // come back. It still grows on demand and still needs bufpoolCollect() to reclaim the segments
+    // it grew through, but it never gives that capacity back.
     prqInitDynamic(&pool->freelist,
                    clamplow(initial, 16),
                    clamplow(initial, 16),
                    clamplow(fmax, 16),
                    PRQ_Grow_100,
-                   PRQ_Grow_50);
+                   PRQ_Grow_None);
 
     for (uint32 i = 0; i < initial; ++i) {
         Buffer buf = bufTryCreate(bufsz);
@@ -106,6 +112,12 @@ uint32 bufpoolInUse(BufPool* pool)
     // Both values are snapshots taken at different moments, so the subtraction can go negative
     // under concurrency even though the real answer never is.
     return (total > free) ? total - free : 0;
+}
+
+_Use_decl_annotations_
+void bufpoolCollect(BufPool* pool)
+{
+    prqCollect(&pool->freelist);
 }
 
 _Use_decl_annotations_

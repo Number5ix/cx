@@ -19,6 +19,7 @@ static void sysqInitFunc(void* dummy)
     conf.pool.wIdle = 1;   // use only 1 thread for idle
     sysq            = tqCreate(kSysQueueName, &conf);
     relAssertMsg(sysq, "Failed to create system queue");
+    relAssertMsg(tqStart(sysq), "Failed to start system queue");
     atexit(sysqExit);
 }
 

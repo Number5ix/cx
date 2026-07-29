@@ -1,6 +1,0 @@
-#include <cx/net/queue.cxh>
-
-class NetQueueWinSelect extends NetQueue
-{
-    factory create(int32 nthreads, flags_t flags);
-}

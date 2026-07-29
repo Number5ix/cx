@@ -30,11 +30,9 @@ CX_C_BEGIN
 /// @note For optimal performance, this implementation is not thread-safe. If access from
 /// multiple threads is required, wrap operations with an appropriate lock.
 ///
-/// **Segment stability guarantee:** segments are individually allocated and are never moved,
-/// reallocated, or coalesced for the lifetime of the segment. A pointer obtained into a segment
-/// stays valid until the data it covers is consumed. This is a deliberate part of the contract,
-/// not an implementation detail -- it is what makes bufringReserve() safe to hand to an
-/// asynchronous completion-based I/O operation that will write into the buffer later.
+/// @note Segments are never moved, reallocated, or merged for as long as they exist. A pointer
+/// into a segment stays valid until the data it covers is consumed, which is what makes
+/// bufringReserve() safe to hand to an in-progress asynchronous read.
 ///
 /// Example:
 /// @code
@@ -304,29 +302,35 @@ size_t bufringFeed(_Inout_ BufRing* ring, bufringFeedCB feed, size_t bytes, _Ino
 /// Reserve contiguous writable space in a ring buffer.
 ///
 /// Returns a pointer to at least `minbytes` of contiguous, writable space at the tail of the
-/// ring, expanding the ring if necessary. The reservation stays valid until it is committed --
-/// unlike bufringFeed(), which requires the data to be produced inside a callback, this splits
-/// the reserve and the commit so they can happen at different times.
+/// ring, expanding the ring if necessary. Unlike bufringFeed(), which needs the data produced
+/// inside a callback, this splits the reserve and the commit into two separate steps: reserve
+/// the space, hand the pointer to an asynchronous receive, and call bufringCommit() with the
+/// actual byte count once it completes. If your I/O is callback-driven instead, bufringFeed()
+/// is simpler and should be preferred.
 ///
-/// That is what completion-based (proactor) I/O needs: reserve the space, hand the pointer to
-/// an asynchronous receive, and commit the actual byte count when the completion arrives. For
-/// readiness-based (reactor) I/O, bufringFeed() is simpler and should be preferred.
+/// The returned pointer stays valid until the reservation is committed.
 ///
-/// The returned pointer is stable for the lifetime of the reservation (see the segment
-/// stability guarantee above).
+/// @note Only one reservation may be outstanding at a time. No write (bufringWrite(),
+/// bufringWriteZC(), bufringFeed(), another bufringReserve()) may happen while one is
+/// outstanding, or it would corrupt the reserved region. Reads (bufringRead(), bufringPeek(),
+/// bufringSkip(), bufringReadZC()) are fine to use while a reservation is outstanding. The ring
+/// must not be destroyed while a reservation is outstanding either -- commit or otherwise
+/// release it first, or the pending I/O will write into freed memory.
 ///
-/// **Contract:**
-/// - Only one reservation may be outstanding at a time.
-/// - No *write* operation (bufringWrite(), bufringWriteZC(), bufringFeed(), another
-///   bufringReserve()) may be performed while a reservation is outstanding. Doing so would
-///   write into the reserved region.
-/// - *Read* operations (bufringRead(), bufringPeek(), bufringSkip(), bufringReadZC()) are
-///   explicitly permitted while a reservation is outstanding. A consumer draining previously
-///   received data while an asynchronous receive is in flight is the normal case, not an error.
-/// - The ring must not be destroyed while a reservation is outstanding; cancel the pending
-///   operation and commit or release first, or the I/O will write into freed memory.
+/// The reservation may come back larger than requested; write no more than `*len` bytes into it.
 ///
-/// The reservation may be larger than requested; write no more than `*len` bytes into it.
+/// Sizing: a reservation has to be contiguous, so it can only use the space between the tail and
+/// the end of the current segment, not the ring's total free space. If that run is too short, a
+/// new segment is allocated and whatever was left in the old one is wasted. That makes the
+/// segment size passed to bufringInit() matter:
+/// - If every reservation is committed in full and is the same size, pick a `segsz` that's an
+///   exact multiple of it. Commits then land exactly on the segment boundary and wrap cleanly,
+///   so the ring never needs more than one segment.
+/// - If reservations are committed short or vary in size, leave generous headroom -- several
+///   times the largest expected reservation. Otherwise nearly every reservation spills into a
+///   new segment.
+/// - Asking for more than `segsz` at once is fine, but always allocates a fresh segment sized to
+///   fit and never reuses it.
 ///
 /// @param ring Pointer to the ring buffer to reserve space in
 /// @param minbytes Minimum number of contiguous bytes required (must be nonzero)

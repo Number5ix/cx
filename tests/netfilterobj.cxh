@@ -1,0 +1,63 @@
+#include <cx/net/filter.cxh>
+
+// Passthrough and rate-mismatched filters used to prove the netqueue filter hooks end to end with
+// no cxtls/mbedTLS code. See tests/nettest.c (the filter_* subtests).
+//
+// Each transform comes in two pieces, the way the framework expects: a NetFilter the test attaches
+// to a socket, and the NetFlowFilter it builds for each of that socket's flows. The factories are
+// deliberately trivial -- everything interesting is in the flow stages.
+
+// Identity byte-stream filter: moves all bytes straight from input to output in each direction.
+// Stands in for a session filter by raising NFN_Secured exactly once, on its first decode, the way a
+// real TLS stage would when its handshake completes -- the framework must never infer that.
+class NetPassStreamFilter extends NetStreamFilter {
+    bool secured;   ///< NFN_Secured has been raised; it is a one-time edge
+
+    factory create();
+    override shutdown;
+    override encode;
+    override decode;
+}
+
+// Rate-mismatched byte-stream filter: length-prefixes each chunk on encode, and on decode emits a
+// unit only once a whole length-prefixed frame has arrived -- deliberately consuming and producing
+// at different rates so the boundary rings and the fixpoint driver are actually exercised (not just
+// 1:1 passthrough), including a frame split across two wire reads. A pure transform with no
+// milestone of its own, so it must never raise a notification.
+class NetFrameStreamFilter extends NetStreamFilter {
+    factory create();
+    override shutdown;
+    override encode;
+    override decode;
+}
+
+// Identity datagram filter. Encode moves messages through unchanged; decode instead copies each one
+// into a message allocated from the queue, which is the path a real stage takes when it reframes or
+// reassembles, and proves filter-allocated messages are delivered and reclaimed correctly.
+class NetPassDgramFilter extends NetDatagramFilter {
+    factory create();
+    override shutdown;
+    override encodeMsg;
+    override decodeMsg;
+}
+
+// The socket-level factories. Each accepts exactly one socket type, so attaching one to the wrong
+// kind of socket is refused by netsocketAddFilter() rather than producing a chain that cannot work.
+
+class NetPassStreamFactory extends NetFilter {
+    factory create();
+    override createFlow;
+    override canFilter;
+}
+
+class NetFrameStreamFactory extends NetFilter {
+    factory create();
+    override createFlow;
+    override canFilter;
+}
+
+class NetPassDgramFactory extends NetFilter {
+    factory create();
+    override createFlow;
+    override canFilter;
+}

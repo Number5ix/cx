@@ -1,0 +1,307 @@
+#include <cx/net/socket.cxh>
+#include <cx/net/filter.cxh>
+#include <cx/net/pool.cxh>
+#include <cx/net/net_shared.h>
+
+/// @addtogroup net_flow
+/// @{
+/// A flow is the unit of event ordering.
+///
+/// For a TCP socket, the obvious ordering domain is the socket itself, and that works fine. It
+/// falls apart for a single UDP socket serving many clients: if the socket were the ordering
+/// domain, every client's events would serialize behind one another and the thread pool would
+/// sit idle. So the ordering domain is the flow instead:
+///
+/// @code
+///   TCP socket  -> exactly one flow   (ordering domain = the connection)
+///   UDP socket  -> N flows            (ordering domain = the peer address)
+/// @endcode
+///
+/// The guarantee is: events belonging to one flow are strictly ordered and never run
+/// concurrently. Events on different flows may run at the same time on different workers, and
+/// nothing is promised about ordering *between* flows.
+///
+/// Both socket types dispatch through the same mechanism, so there is one code path rather than
+/// two. For a single stream connection, the flow is created automatically during socket setup
+/// and shows up only as a field on the event; consumers that only care about one connection can
+/// ignore it entirely.
+///
+/// @section net_flow_creation Creation
+///
+/// A datagram flow is created automatically for the first packet from a new peer or the first
+/// packet sent to one, or explicitly with netqueuePromoteFlow(). Any of those fires NET_FlowOpen
+/// on the new flow, ordered ahead of its first NET_DataReceived -- the place to set up
+/// `flow->user` state and register per-flow handlers before any packet is seen. When the queue is
+/// at its flow cap and nothing is reclaimable, no flow is created: a received packet goes to the
+/// NET_FlowRefused handler instead, which can validate it and admit the peer with
+/// netqueuePromoteFlow(), and a send to an unknown peer is refused.
+///
+/// Stream flows do not fire NET_FlowOpen; their session start is NET_Connection or NET_Accepted.
+///
+/// However a flow comes into being, if its socket has filters attached the flow's own filter chain
+/// is built before the flow becomes visible, so no data can ever reach the application unfiltered.
+/// See @ref net_filter.
+///
+/// @section net_flow_state Application state
+///
+/// `flow->user` is the place for per-peer application state -- strings, buffers, objects,
+/// anything with a destructor. Because the flow is a real object, its generated destructor tears
+/// that state down automatically, so there's no need to hand-write cleanup for every way a flow
+/// can end.
+///
+/// Only flows carry a `user` array. Per-socket and per-queue state should go in the ctx pointer
+/// captured at handler registration instead, because sockets and queues don't have the same
+/// one-worker-at-a-time guarantee a flow does -- a single datagram socket can have thousands of
+/// flows running on every worker at once, so a shared array there would need its own locking.
+///
+/// @section net_flow_teardown Teardown
+///
+/// NET_FlowClosed is delivered as a terminal event on the flow's own queue, so it arrives after
+/// every packet the application has already been handed. It fires exactly once per flow, on
+/// every close cause, with the cause given in NetCloseReason.
+///
+/// A flow reclaimed under cap pressure can resurrect: if a packet arrives before its terminal
+/// event has been delivered, the flow comes back to life and continues as if nothing happened.
+/// This avoids tearing down and immediately recreating a client that never actually left. Only
+/// reclaim works this way -- every other close reason is final, and a later packet cannot undo
+/// it.
+
+/// A single ordering domain: one connection, or one datagram peer
+class NetFlow
+{
+    /// @brief Socket that owns this flow
+    ///
+    /// Weak, to break the socket/flow ownership cycle. Resolve to a strong reference once per
+    /// dispatch batch, not once per packet.
+    weak[NetSocket] socket;
+
+    /// @brief Pool every message on this flow was drawn from, held strongly
+    ///
+    /// Strong where `socket` is weak, and for the opposite reason: a flow can still be holding
+    /// messages -- in its inbox, its ready list, or the datagram staging queue -- at a moment when
+    /// neither its socket nor the queue is reachable any more, and a pooled buffer destroyed
+    /// instead of returned costs the whole queue that much of its ceiling for good. NULL only for a
+    /// stream flow whose socket has not been added to a queue yet; netqueueAddSocket() fills it in.
+    object[NetPool] pool;
+
+    NetAddr peer;             ///< Datagram: the peer address this flow is keyed on
+
+    atomic[uint32] claimed;   ///< A worker is currently draining this flow
+    atomic[uint32] queued;    ///< Present on the queue's runqueue
+    atomic[uint32] dying;     ///< Marked for close; blocks further dispatch
+
+    /// @brief Pending messages for this flow, in an intrusive lock-free stack
+    ///
+    /// Any ingest thread can push; only the worker holding the claim drains it.
+    atomic[ptr] inbox;
+
+    NetMessage *ready;        ///< Consumer-private FIFO head, refilled from inbox
+    NetMessage *readytail;    ///< Consumer-private FIFO tail, for O(1) append
+
+    /// @brief Last time a packet was ingested for this flow, for approximate LRU
+    ///
+    /// Reclaim scans for the oldest entries rather than keeping an ordered list, since updating a
+    /// list on every packet would put a lock on the hottest path in the system. Stored as a
+    /// coarse ~1 second tick rather than a precise timestamp, which keeps it small enough to
+    /// update as a single atomic write.
+    atomic[uint32] lastActive;
+
+    /// @brief Application state for this peer, allocated lazily
+    ///
+    /// Often unused on stream sockets, where per-connection state usually lives in the ctx.
+    [noinit] sarray[stvar] user;
+
+    NetHandlers *handlers;    ///< Per-flow handler overrides, optional
+    void *handlerCtx;         ///< Context passed to per-flow handlers
+
+    /// @brief This flow's filter chain, ordered application -> wire, or empty for none
+    ///
+    /// Never installed by hand: the socket builds it when the flow is created (and when a filter is
+    /// attached to a socket that already has flows) by walking its own NetFilter list and calling
+    /// createFlow() on each, so the two run in lockstep. See @ref net_filter.
+    [noinit] sarray[object[NetFlowFilter]] filters;
+
+    /// @brief Stream: staging ring the encode chain consumes from, allocated with the chain
+    ///
+    /// netsocketSend() writes the application payload here and the chain's first stage reads it;
+    /// whatever a stage declines to consume stays put and resumes on the next pass. NULL when the
+    /// flow has no filters, and always NULL on a datagram flow, which stages whole messages in
+    /// encInMsgs instead.
+    BufRing *encIn;
+
+    /// @brief Datagram: staging queue the encode chain consumes from, the encIn of the message side
+    ///
+    /// A stage still negotiating declines to consume application messages, and they wait here until
+    /// it will take them, exactly as unconsumed bytes wait in a stream flow's encIn. Bounded by
+    /// NET_FLOW_ENCQ_MAX messages, past which a send is refused rather than buffered without limit.
+    NetMsgQueue encInMsgs;
+
+    /// @brief Serializes filter chain access for this flow
+    ///
+    /// Decode always runs on the worker holding the flow's claim, but encode is driven by whatever
+    /// thread called netsocketSend(), and both touch the same stage objects and boundary buffers.
+    /// Held across an entire driver pass -- but never across an application callback, which could
+    /// re-enter through netsocketSend().
+    Mutex filterLock;
+
+    uint8 closeReason;        ///< NetCloseReason once the flow is dying
+
+    factory create(NetSocket *socket, NetAddr *peer);
+    init();     // needed to init lastActive
+
+    /// Close this flow
+    ///
+    /// Marks the flow dying and queues a terminal NET_FlowClosed event behind everything already
+    /// pending for it. The flow is not freed here; it stays alive until its queued packets and
+    /// its terminal event have been delivered.
+    ///
+    /// A flow closed this way cannot resurrect -- an arriving packet will not cancel the
+    /// teardown, and the peer is treated as a new, unknown source afterwards.
+    ///
+    /// @return true if this call marked the flow dying, false if it was already closing
+    bool close();
+
+    /// Register per-flow handler overrides
+    ///
+    /// Fields left NULL fall through to the socket's set, and then to the queue-wide set. The
+    /// handler struct is not copied -- it must outlive the flow, which is why it is usually
+    /// `static const`.
+    ///
+    /// @param handlers Handler set, or NULL to clear
+    /// @param ctx Context passed to these handlers on NetEvent.ctx
+    unbound void setHandlers([in] [opt] const NetHandlers *handlers, [in] [opt] void *ctx);
+
+    /// Send a datagram to this flow's peer
+    ///
+    /// Convenience wrapper that calls netsocketSend() on the owning socket with this flow's peer
+    /// as the destination -- filtering, backpressure, and queueing are exactly netsocketSend()'s.
+    ///
+    /// @param data Payload to send (copied; need not outlive the call)
+    /// @param len Length of the payload in bytes
+    /// @param flags Optional NetSocketOpFlags
+    /// @return true if the datagram was sent or queued, false if it was refused
+    unbound bool send([in] uint8 *data, size_t len, flags_t flags);
+
+    // -----------------------------------------------------------------------------------------
+    // PRIVATE IMPLEMENTATION DETAILS
+    //
+    // Everything below this point is internal plumbing between the net module's own translation
+    // units. It is not a stable API and carries no compatibility promise -- signatures and
+    // semantics change whenever the implementation needs them to. Nothing outside cx/net/ and the
+    // platform backends should call any of it.
+    // -----------------------------------------------------------------------------------------
+
+    // Inbox (flow.c)
+
+    // Push a message onto the flow's inbox. Returns true if the caller is responsible for putting
+    // the flow on the runqueue, which is the case only when it was not already there.
+    [sal _Check_return_] unbound bool _push([inout] NetMessage *msg);
+
+    // Pop the next message in FIFO order, refilling the private ready list from the inbox when it
+    // runs dry. May ONLY be called by the worker holding the flow's claim.
+    [sal _Ret_maybenull_] unbound NetMessage *_pop();
+
+    // Mark the flow dying and queue its terminal NET_FlowClosed event. Returns false if the flow
+    // was already closing. The public close() is this with NCR_AppClosed.
+    unbound bool _close(NetCloseReason reason);
+
+    // Resolve the flow's queue through socket->queue. Returns a strong reference the caller must
+    // release, or NULL if either weak arm has already been broken.
+    [sal _Ret_maybenull_] unbound NetQueue *_queue();
+
+    // Flow table (flow.c)
+
+    // Snapshot a socket's live flows into `out`, each with a reference held, and hand the array to
+    // the caller to destroy. Initializes `out`; it must not already hold an array. Taken under the
+    // socket's flow lock and meant to be used outside it, because everything worth doing to a flow
+    // -- installing or dropping a filter chain, closing it -- allocates, primes, or reaches the
+    // wire, none of which may run with the flow table locked. Declared here rather than on
+    // NetSocket because sa_NetFlow is only visible from this side of the socket/flow include
+    // cycle, and because the rest of the flow table lives here too.
+    standalone void _snapshotFlows([in] NetSocket *sock, [out] sa_NetFlow *out);
+
+    // Filter chain construction (filter.c)
+    //
+    // The socket owns a list of NetFilter factories; every flow it owns carries the parallel list
+    // of NetFlowFilter stages they produce. The chain is always built before a flow is reachable
+    // by anything else, so there is no window in which data could move past a flow that should
+    // have been filtered. Everything here is serialized by the flow's filterLock.
+
+    // Create one socket filter's stage for this flow and append it to the chain, allocating the
+    // staging buffer if this is the flow's first stage. A factory that returns NULL contributes
+    // nothing.
+    [extern] unbound void _addFilter([inout] NetSocket *sock, [in] NetFilter *filter);
+
+    // Build the whole chain by walking the socket's filter list in order. A no-op for a socket
+    // with no filters, which is what keeps an unfiltered flow free of any filter cost at all.
+    [extern] unbound void _buildFilters([inout] NetSocket *sock);
+
+    // Drop the flow's chain, its staging storage, and anything the stages had buffered.
+    [extern] unbound void _clearFilters();
+
+    // Begin an orderly close on every stage (app -> wire). The caller runs one more encode pass
+    // afterwards to put whatever they produced (a TLS close_notify) on the wire.
+    [extern] unbound void _filterShutdown();
+
+    // Deliver every notification the chain has raised, clearing each as it goes. `onWorker`
+    // delivers inline -- correct only from inside the flow's dispatch batch, where it also orders
+    // the notification ahead of data produced by the same pass; otherwise each is queued on the
+    // flow so it still lands on a worker in order. Must NOT be called with the flow's filterLock
+    // held: a handler can call straight back into the send path.
+    [extern] unbound void _filterNotify([in] [opt] NetQueue *q, [in] [opt] NetSocket *sock,
+        bool onWorker);
+
+    // Filter data plane (dataplane.c)
+    //
+    // The four functions where a filtered flow's chain actually runs, all of them on the shared
+    // send/recv path rather than in any backend. A stage never touches the wire itself: these
+    // drivers own the socket's buffers and syscalls on its behalf, which is what stops a stage
+    // from bypassing one above it in the chain. Each takes the flow's filterLock for the duration
+    // of the chain walk and drops it before anything can call back into application code.
+
+    // Stream send: stage `data` (NULL/0 for a priming pass) into the flow's encIn, run the encode
+    // chain repeatedly until no stage has more to produce -- each stage reading the previous
+    // stage's encOut -- and flush what the wire-end stage produced onto the socket's send chain.
+    // Returns false on a fatal transform error, having closed the flow.
+    [extern] unbound bool _filterStreamSend([in] [opt] NetQueue *q, [inout] NetSocket *sock,
+        [sal _In_reads_bytes_opt_(len)] const uint8 *data, size_t len);
+
+    // Stream recv: run the decode chain repeatedly, until no stage has more to produce, over the
+    // raw bytes already in the socket's receive ring -- each stage reading the decOut of the
+    // stage one hop toward the wire -- push out any wire-bound output the pass produced, deliver
+    // the stages' notifications, and deliver NET_DataReceived if the head stage produced
+    // application bytes. Runs on a worker (drainFlow).
+    [extern] unbound void _filterStreamRecv([in] [opt] NetQueue *q, [inout] NetSocket *sock);
+
+    // Encode half of the datagram send: queue `data` (NULL/0 for a priming pass) on the flow's
+    // staging queue, run the encode chain repeatedly until no stage has more to produce, and
+    // collect what the wire-end stage produced into `out` rather than sending it. Split from the
+    // send below so the chain can be driven without a socket. `fatalp` distinguishes a stage
+    // failing (the flow is finished) from a payload merely being refused (the caller backs off);
+    // it may be NULL.
+    [extern] unbound bool _filterDatagramEncode([in] [opt] NetQueue *q,
+        [sal _In_reads_bytes_opt_(len)] const uint8 *data, size_t len,
+        [inout] NetMsgQueue *out, [out] [opt] bool *fatalp);
+
+    // Datagram send: queue `data` (NULL/0 for a priming pass) on the flow's staging queue, run
+    // the encode chain repeatedly until no stage has more to produce, and send every message the
+    // wire-end stage produced to the flow's peer. Returns false if the payload could not be
+    // accepted (staging queue full, pool exhausted) or a stage failed fatally.
+    [extern] unbound bool _filterDatagramSend([in] [opt] NetQueue *q, [inout] NetSocket *sock,
+        [sal _In_reads_bytes_opt_(len)] const uint8 *data, size_t len);
+
+    // Datagram recv: run one received message through the decode chain (consuming it), send any
+    // wire-bound output the pass produced, and append whatever came out the application end to
+    // `out` for the caller to deliver. Runs on a worker (drainFlow). Returns false on a fatal
+    // transform error.
+    [extern] unbound bool _filterDatagramRecv([in] [opt] NetQueue *q, [inout] NetSocket *sock,
+        [inout] NetMessage *msg, [inout] NetMsgQueue *out);
+
+    // Run the encode side once with nothing staged, so a filter that initiates a negotiation gets
+    // to emit its first flight. Called when a chain is built (datagram), when the transport comes
+    // up (stream), and after shutdown() to flush a close record. A no-op for an unfiltered flow,
+    // or a stream flow whose socket is not connected yet.
+    [extern] unbound void _primeFilters([in] [opt] NetQueue *q, [inout] NetSocket *sock);
+}
+
+/// @}

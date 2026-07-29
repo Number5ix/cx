@@ -21,7 +21,7 @@
 /// fragments the heap. A pool turns that into a pop and a push on a lock-free queue, with zero
 /// allocation in steady state.
 ///
-/// The pool grows on demand up to a configured cap and **never grows past it**. Once the cap is
+/// The pool grows on demand up to a configured cap and never grows past it. Once the cap is
 /// reached and no buffers are free, bufpoolGet() returns NULL and the caller decides what to do.
 /// This is deliberate: an unbounded pool converts a transient overload into memory exhaustion,
 /// and does it fastest under exactly the flood that is least deserving of the help. `max * bufsz`
@@ -102,6 +102,17 @@ _At_(*buf, _Pre_maybenull_ _Post_null_) void bufpoolPut(_Inout_ BufPool* pool,
 /// @param pool Pointer to the pool
 /// @return Approximate number of buffers currently in use
 uint32 bufpoolInUse(_In_ BufPool* pool);
+
+/// Run a garbage-collection pass on the pool's internal freelist.
+///
+/// The freelist is a dynamic queue that grows on demand up to the cap and reclaims that growth
+/// only lazily, when this runs. Call it periodically from a thread that is otherwise idle so the
+/// pool can shrink back after a burst rather than holding its high-water footprint forever. It is
+/// non-blocking: if another thread is already collecting, or there is nothing to reclaim, it
+/// returns at once. Purely an optimization -- a pool that never collects still works correctly.
+///
+/// @param pool Pointer to the pool
+void bufpoolCollect(_Inout_ BufPool* pool);
 
 /// Destroy a buffer pool and free all pooled buffers.
 ///

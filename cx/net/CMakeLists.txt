@@ -1,7 +1,15 @@
 set(NETSRCS
     net/addr.c
+    net/connect.c
+    net/dataplane.c
+    net/dispatch.c
+    net/filter.c
+    net/flow.c
     net/net.c
+    net/pool.c
     net/queue.c
+    net/queue_select.c
+    net/resolver.c
     net/socket.c
 )
 set(NETINCLUDES
@@ -11,7 +19,11 @@ set(NETINCLUDES
     net/net.h
 )
 set(NETCXH
+    net/filter.cxh
+    net/flow.cxh
+    net/pool.cxh
     net/queue.cxh
+    net/queue_select.cxh
     net/socket.cxh
 )
 

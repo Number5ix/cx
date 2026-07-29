@@ -13,6 +13,9 @@ if(CX_PLATFORM_IS_WASM)
         platform/wasm/wasm_futex.c
         platform/wasm/wasm_fs_file.c
         platform/wasm/wasm_fs_fs.c
+        platform/wasm/wasm_net.c
+        platform/wasm/wasm_net_select.c
+        platform/wasm/wasm_net_socket.c
         platform/wasm/wasm_os.c
         platform/wasm/wasm_random.c
         platform/wasm/wasm_sys_hostid.c
@@ -25,6 +28,7 @@ if(CX_PLATFORM_IS_WASM)
         platform/wasm/wasm_vfs.c)
     set(PLATFORM_WASM_INCLUDES
         platform/wasm/wasm_hostid.h
+        platform/wasm/wasm_net.h
         platform/wasm/wasm_os.h
         platform/wasm/wasm_sys_entry.h)
 
@@ -35,6 +39,7 @@ if(CX_PLATFORM_IS_WASM)
 endif()
 
 set(PLATFORM_WASM_AUTOGEN
+    platform/wasm/wasm_net_socket.cxh
     platform/wasm/wasm_thread_threadobj.cxh)
 
 set(CX_SRCS

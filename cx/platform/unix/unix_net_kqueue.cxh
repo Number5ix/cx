@@ -1,0 +1,47 @@
+#include <cx/net/queue.cxh>
+#include <cx/platform/unix.h>
+
+// FreeBSD-only completion emulation over kqueue, the counterpart to NetQueueEpoll on Linux and IOCP
+// on Windows. Structurally identical to NetQueueEpoll -- one ingest thread feeds the base class's
+// dispatch pool -- but kevent() registers read and write interest as two independent filters per fd
+// rather than one combined interest struct, and there is no recvmmsg equivalent on FreeBSD, so the
+// datagram ingest path is the same unbatched per-packet loop NetQueueSelect uses.
+class NetQueueKqueue extends NetQueue
+{
+    int kq;   ///< kqueue instance, created with kqueue()
+
+    /// @brief Handle -> socket, each entry holding a strong reference
+    ///
+    /// Same role as NetQueueEpoll's fdmap: maintained incrementally by addSocket/removeSocket
+    /// alongside the kevent() calls that keep the kernel's interest list in sync, and consulted at
+    /// dispatch time rather than trusting a kevent's udata directly, so a stale event referencing an
+    /// fd that has since been closed and reused resolves to nothing instead of the wrong socket.
+    hashtable[uint64,object] fdmap;
+
+    /// @brief Dedicated kevent-wait loop thread in threaded mode (NULL in polled mode)
+    ///
+    /// Same split as NetQueueEpoll/NetQueueSelect: this thread only ingests, filling the runqueue
+    /// via netqueue_submit; the base class's N dispatch workers drain it. In polled mode this stays
+    /// NULL and tick() runs kevent() on the caller's thread.
+    object[Thread] ingest;
+
+    /// @brief Self-pipe read/write ends, used to interrupt a blocked kevent()
+    ///
+    /// Registered on kq once at creation with EVFILT_READ and never removed. addSocket/shutdown
+    /// write a byte to wake a parked ingest thread the same way NetSelectSet's wake pipe does.
+    int wakeRead;
+    int wakeWrite;
+
+    factory create(NetQueueConfig *conf);
+
+    /// kevent() EV_ADD the new socket's interest immediately; no rebuild to wake for.
+    override addSocket;
+
+    /// kevent() EV_DELETE the socket's interest immediately.
+    override removeSocket;
+
+    /// Stop the ingest thread before the base tears the queue down.
+    override shutdown;
+
+    destroy();
+}
