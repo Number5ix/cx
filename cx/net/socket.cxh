@@ -1,7 +1,24 @@
 #include <cx/net/queue.cxh>
 #include <cx/net/net_shared.h>
 #include <cx/buffer/bufchain.h>
+#include <cx/buffer/bufring.h>
 #include <cx/thread.h>
+
+/// @defgroup net_socket Sockets
+/// @ingroup net
+/// @{
+/// Class that encapsulates a network socket.
+
+/// Callback for receiving messages from a socket.
+///
+/// The callback receives ownership of the buffer in the NetMessage. To keep the buffer,
+/// set msg->buf to NULL before returning; otherwise it will be automatically destroyed.
+///
+/// @param sock Socket the message was received from
+/// @param msg Message containing data buffer and source address (for datagrams)
+/// @param ctx User-defined context pointer
+/// @return true to continue receiving more messages, false to stop
+typedef bool (*socketRecvCB)(NetSocket* sock, NetMessage* msg, void* ctx);
 
 /// Network Socket
 /// This is a base class; the actual socket implemention will be a derived class provided
@@ -12,12 +29,14 @@ abstract class NetSocket
     NetSocketType type;     ///< Connection or connectionless, immutable
 
     atomic:uint32 state;    ///< See NetSocketState enum
+    atomic:bool canSend;    ///< Send buffer empty; can send immediately
 
     NetAddr local;          ///< Local end (for bound sockets)
     NetAddr remote;         ///< Remote address (for connected sockets only)
     sarray:stvar user;      ///< Storage for application-specific per-socket data
 
-    BufChain recvBuf;       ///< Buffer for data that has been received on the socket
+    uint32 mru;             ///< Maximum size of received datagrams
+    BufRing recvBuf;        ///< Buffer for data that has been received on the socket
     BufChain sendBuf;       ///< Storage for data that can't be immediately sent
     Mutex recvLock;         ///< Exclusive access to the socket's receive buffer
     Mutex sendLock;         ///< Exclusive access to send data on this socket
@@ -25,27 +44,59 @@ abstract class NetSocket
     /// List of fallback addresses to try to connect to if pending connect fails
     [noinit] sarray:NetAddr connQueue;
 
-    /// Receive data from the socket
+    /// Read data from the socket receive buffer
     ///
     /// This does not actively try to receive but only retrieves data from the receive buffer.
     /// If the socket is in a NetQueue, data is automatically received and buffered in a
     /// background thread (unless the queue is in polled mode).
     ///
-    /// src is an optional parameter and will be populated only for connectionless sockets
+    /// @param buf Buffer to store received data
+    /// @param bufsz Size of the buffer
+    /// @param src Optional output parameter populated with source address (for connectionless sockets only)
+    /// @param flags Optional flags to control receive behavior
+    /// @return Amount of data actually received
+    size_t recv([out] uint8* buf, size_t bufsz, [out] [opt] NetAddr* src, flags_t flags);
+
+    /// Receive one or more messages from the socket's receive buffer
     ///
-    /// Returns the amount of data actually received
-    size_t recv([out] uint8* buf, size_t bufsz, [out] [opt] NetAddr* src);
+    /// Invokes the callback for each message in the receive buffer. The callback is called
+    /// repeatedly until it returns false or the buffer is exhausted. This is more efficient
+    /// than recv() when processing multiple messages.
+    ///
+    /// For stream sockets, each message contains an arbitrary amount of available data. The
+    /// implementation attempts to transfer buffer ownership directly (zero-copy) but may
+    /// allocate a new buffer if internal alignment prevents direct transfer.
+    ///
+    /// For datagram sockets, each message is a complete packet (up to the mru size), and
+    /// buffer ownership is always transferred (guaranteed zero-copy).
+    ///
+    /// The callback receives ownership of the buffer in the NetMessage. It may keep the buffer
+    /// by setting msg->buf to NULL, otherwise the buffer is automatically destroyed after the
+    /// callback returns.
+    ///
+    /// @param cb Callback invoked for each message (return false to stop)
+    /// @param ctx User-defined context pointer passed to callback
+    /// @return true if at least one message was processed, false if buffer was empty
+    bool recvMsgs(socketRecvCB cb, [in] [opt] void* ctx);
 
     /// Send data on the socket
     ///
-    /// dest is ignored for connected sockets, but must be a valid address for connectionless
+    /// For connected sockets, dest is ignored. For connectionless sockets, dest must be
+    /// a valid address.
     ///
-    /// Returns true if the data is successfully sent or queued, false if the socket
-    /// is not connected or in an error state
+    /// @param data Pointer to data to send
+    /// @param len Length of data in bytes
+    /// @param dest Destination address (required for connectionless, ignored for connected)
+    /// @param flags Optional flags to control send behavior
+    /// @return true if the data is successfully sent or queued, false if the socket is not connected or in an error state
     [abstract] bool send([in] uint8* data, size_t len, [in] [opt] NetAddr* dest, flags_t flags);
 
     /// Close socket and free OS resources
     ///
-    /// This will also remove the socket from its NetQueue if it's in one
+    /// This will also remove the socket from its NetQueue if it's in one.
+    ///
+    /// @return true if the socket was successfully closed, false otherwise
     [abstract] bool close();
 }
+
+/// @}

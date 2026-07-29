@@ -296,6 +296,37 @@ size_t bufringSkip(BufRing* ring, size_t bytes)
     return toSkip;
 }
 
+size_t _bufringReadContigAvail(_In_ BufRing* ring)
+{
+    if (!ring->head || ring->total == 0)
+        return 0;
+
+    BufRingNode* node = ring->head;
+    return nodeReadAvail(node);
+}
+
+buffer _bufringStealHead(_Inout_ BufRing* ring)
+{
+    if (!ring->head || ring->total == 0)
+        return NULL;
+
+    BufRingNode* node = ring->head;
+    if (node->head != 0)
+        return NULL;   // not aligned
+
+    buffer buf = node->buf;
+
+    // remove the node from the ring
+    ring->head = node->next;
+    if (ring->head == NULL)
+        ring->tail = NULL;
+
+    ring->total -= node->tail;
+
+    xaFree(node);
+    return buf;
+}
+
 _Use_decl_annotations_
 void bufringDestroy(BufRing* ring)
 {

@@ -10,10 +10,12 @@
 // clang-format on
 // ==================== Auto-generated section ends ======================
 
+#include "cx/buffer/bufring_private.h"
+
 _objinit_guaranteed bool NetSocket_init(_In_ NetSocket* self)
 {
     // TODO: Make the buffer segment size configurable
-    bufchainInit(&self->recvBuf, 65536);
+    bufringInit(&self->recvBuf, 65536);
     bufchainInit(&self->sendBuf, 65536);
 
     // Autogen begins -----
@@ -24,44 +26,88 @@ _objinit_guaranteed bool NetSocket_init(_In_ NetSocket* self)
     // Autogen ends -------
 }
 
-size_t NetSocket_recv(_In_ NetSocket* self, _Out_ uint8* buf, size_t bufsz, _Out_opt_ NetAddr* src)
+size_t NetSocket_recv(_In_ NetSocket* self, _Out_ uint8* buf, size_t bufsz, _Out_opt_ NetAddr* src,
+                      flags_t flags)
 {
     size_t copied  = 0;
     size_t msgread = 0;
     NetMessage msg;
 
     withMutex (&self->recvLock) {
-        if (self->type == NET_Stream) {
+        if (self->type == NST_Stream) {
             // Stream sockets store the raw data in the buffer
-            copied = bufchainRead(&self->recvBuf, buf, bufsz);
-        } else if (self->type == NET_Datagram) {
+            copied = bufringRead(&self->recvBuf, buf, bufsz);
+        } else if (self->type == NST_Datagram) {
             // Datagram sockets store a NetMessage Structure in the buffer
-            msgread = bufchainRead(&self->recvBuf, (uint8*)&msg, sizeof(NetMessage));
+            msgread = bufringRead(&self->recvBuf, (uint8*)&msg, sizeof(NetMessage));
             devAssert(msgread == 0 || msgread == sizeof(NetMessage));
         }
     }
 
     // For datagram sockets, we have to copy out the data but don't need the lock for that
-    if (self->type == NET_Datagram && msgread == sizeof(NetMessage)) {
-        copied = min(msg.len, bufsz);
-        memcpy(buf, msg.data, copied);
+    if (self->type == NST_Datagram && msgread == sizeof(NetMessage)) {
+        copied = min(msg.buf->len, bufsz);
+        memcpy(buf, msg.buf->data, copied);
         if (src)
             *src = msg.addr;
 
-        xaFree(msg.data);
+        bufDestroy(&msg.buf);
     }
 
     return copied;
 }
 
+bool NetSocket_recvMsgs(_In_ NetSocket* self, socketRecvCB cb, _In_opt_ void* ctx)
+{
+    bool done = true;
+    bool ret  = false;
+
+    do {
+        NetMessage msg = { 0 };
+
+        size_t msgread = 0;
+
+        withMutex (&self->recvLock) {
+            if (self->type == NST_Stream) {
+                // Steal a buffer if we can
+                msg.buf = _bufringStealHead(&self->recvBuf);
+                if (!msg.buf) {
+                    // probably the head wasn't 0-aligned...
+                    // slow path, allocate a new buffer
+                    size_t avail = _bufringReadContigAvail(&self->recvBuf);
+                    if (avail > 0) {
+                        msg.buf = bufCreate(avail);
+                        bufringRead(&self->recvBuf, msg.buf->data, avail);
+                    }
+                }
+            } else if (self->type == NST_Datagram) {
+                // Datagram sockets store a NetMessage Structure in the buffer
+                msgread = bufringRead(&self->recvBuf, (uint8*)&msg, sizeof(NetMessage));
+                devAssert(msgread == 0 || msgread == sizeof(NetMessage));
+            }
+        }
+
+        if ((self->type == NST_Datagram && msgread == sizeof(NetMessage)) ||
+            (self->type == NST_Stream && msg.buf)) {
+            done = !cb(self, &msg, ctx);
+            ret  = true;
+        }
+
+        // if the callback took ownership, it will have set msg.buf to NULL, making this a no-op
+        bufDestroy(&msg.buf);
+    } while (!done);
+
+    return ret;
+}
+
 void NetSocket_destroy(_In_ NetSocket* self)
 {
-    if (self->type == NET_Datagram) {
+    if (self->type == NST_Datagram) {
         // Free any remaining messages in the receive buffer
         NetMessage msg;
-        while (bufchainRead(&self->recvBuf, (uint8*)&msg, sizeof(NetMessage)) ==
+        while (bufringRead(&self->recvBuf, (uint8*)&msg, sizeof(NetMessage)) ==
                sizeof(NetMessage)) {
-            xaFree(msg.data);
+            bufDestroy(&msg.buf);
         }
     }
 
@@ -71,6 +117,8 @@ void NetSocket_destroy(_In_ NetSocket* self)
     // Autogen begins -----
     objDestroyWeak(&self->queue);
     saDestroy(&self->user);
+    bufringDestroy(&self->recvBuf);
+    bufchainDestroy(&self->sendBuf);
     mutexDestroy(&self->recvLock);
     mutexDestroy(&self->sendLock);
     saDestroy(&self->connQueue);

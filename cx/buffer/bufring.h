@@ -184,7 +184,7 @@ size_t bufringSkip(_Inout_ BufRing* ring, size_t bytes);
 /// consumed and removed from the buffer. If it returns false for any segment, all data is
 /// retained (all-or-nothing semantics).
 ///
-/// @param cring Pointer to the ring buffer to read from
+/// @param ring Pointer to the ring buffer to read from
 /// @param bytes Maximum number of bytes to read
 /// @param cb Callback function to process each buffer segment
 /// @param ctx User-defined context pointer passed to the callback

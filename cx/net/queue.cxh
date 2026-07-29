@@ -1,5 +1,13 @@
 #include <cx/net/net_shared.h>
 
+/// @defgroup net_socket Net Queue
+/// @ingroup net
+/// @{
+/// NetQueue is an abstraction for servicing one or more sockets using platform-specific
+/// backends. Sockets can be added to a queue to handle I/O operations efficiently. The
+/// queue can be operated in single-threaded polled mode or with a pool of worker threads
+/// for asynchronous operation.
+
 /// NetQueue manages one or more sockets and a thread pool of workers
 abstract class NetQueue
 {
@@ -15,20 +23,31 @@ abstract class NetQueue
     
     RWLock lock;  ///< Protects callback and socket hashes
 
-    /// Add a socket to be managed by the queued
+    /// Add a socket to be managed by the queue
     ///
     /// The socket must be compatible with the NetQueue implementation. The netqueueSocket()
     /// factory can be used to create compatible sockets.
+    ///
+    /// @param socket Socket to add to the queue
+    /// @return true if the socket was successfully added, false otherwise
     bool addSocket(NetSocket *socket);
 
     /// Remove a socket from the queue, usually when the socket is closed
     ///
     /// For some implementations this will also attempt to cancel pending I/O requests that
     /// reference the socket's owned buffers.
+    ///
+    /// @param socket Socket to remove from the queue
+    /// @return true if the socket was successfully removed, false otherwise
     bool removeSocket(NetSocket *socket);
 
     /// Factory for creating sockets
     ///
     /// This does NOT add the socket to the queue.
+    ///
+    /// @param type Type of socket to create (connection-oriented or connectionless)
+    /// @return Newly created socket, or NULL on failure
     [abstract] NetSocket *socket(NetSocketType type);
 }
+
+/// @}

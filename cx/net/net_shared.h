@@ -1,4 +1,5 @@
 #pragma once
+#include <cx/buffer/buffer.h>
 #include <cx/container/sarray.h>
 
 typedef struct NetSocket NetSocket;
@@ -22,17 +23,30 @@ typedef enum {
     NQ_AutoAccept = 0x02
 } NetQueueFlags;
 
+/// Flags for socket send/receive operations
+typedef enum {
+    NSO_None = 0x00,   ///< No special options
+
+    /// For send operations, do not queue data if the socket is not currently writable.
+    /// Instead, return immediately with the number of bytes actually sent (may be zero).
+    NSO_Immediate = 0x01,
+
+    /// For receive operations, peek at the data without removing it from the socket buffer.
+    NSO_Peek = 0x02
+} NetSocketOpFlags;
+
 /// Socket types
 typedef enum {
     /// Stream socket (TCP)
     /// @note This socket type requires a connection
-    NET_Stream = 1,
+    NST_Stream = 1,
 
     /// Datagram socket (UDP)
     /// @note This socket type is connectionless
-    NET_Datagram
+    NST_Datagram
 } NetSocketType;
 
+/// State of a network socket
 typedef enum {
     NS_Closed = 0,   ///< Socket is closed
     NS_Connected,    ///< Socket is connected (default for bound connectionless sockets)
@@ -78,7 +92,7 @@ typedef enum {
 /// Network Event Structure
 typedef struct NetEvent {
     NetEventType event;   ///< Type of event
-    NetQueue *queue;    ///< Originating NetQueue
+    NetQueue* queue;      ///< Originating NetQueue
     NetSocket* socket;    ///< Associated socket
 
     /// Event-specific data
@@ -137,9 +151,8 @@ saDeclare(NetAddr);
 
 /// Network message for buffered datagrams
 typedef struct NetMessage {
-    uint8* data;        ///< Pointer to message data
-    size_t len;         ///< Length of message data
-    NetAddr addr;       ///< Source / destination address
+    buffer buf;     ///< Message data
+    NetAddr addr;   ///< Source / destination address
 } NetMessage;
 
 /// @}
