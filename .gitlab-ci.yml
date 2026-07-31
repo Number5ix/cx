@@ -59,6 +59,19 @@ build_win32:
       - '_build/tests/CTestTestfile.cmake'
       - '_build/tests/Release/test_runner.exe'
 
+build_linux_lto:
+  stage: build
+  tags:
+    - linux
+  script:
+    - 'cmake -S . -DCMAKE_BUILD_TYPE=Release -B _build_lto -DCMAKE_INSTALL_PREFIX=${CI_PROJECT_DIR} -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DCMAKE_C_FLAGS="-Werror=lto-type-mismatch -Werror=odr -Wno-stringop-overflow" -DCMAKE_CXX_FLAGS="-Werror=lto-type-mismatch -Werror=odr -Wno-stringop-overflow"'
+    - 'make -C _build_lto -j4'
+  artifacts:
+    name: cx-build-linux-lto-$CI_COMMIT_REF_SLUG-$CI_PIPELINE_ID
+    paths:
+      - '_build_lto/tests/CTestTestfile.cmake'
+      - '_build_lto/tests/test_runner'
+
 build_wasm:
   stage: build
   tags:
@@ -94,6 +107,15 @@ test_linux:
     - build_linux
   script:
     'cd _build/tests && ctest --output-on-failure'
+
+test_linux_lto:
+  stage: test
+  tags:
+    - linux
+  dependencies:
+    - build_linux_lto
+  script:
+    'cd _build_lto/tests && ctest --output-on-failure'
 
 test_win64:
   stage: test
