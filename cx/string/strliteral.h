@@ -17,6 +17,11 @@
 /// All produce static read-only strings that require no initialization and no
 /// cleanup — modification automatically triggers a copy-on-write.
 ///
+/// Because these live in static storage for the life of the program, the library
+/// references them directly and never copies them. This is what distinguishes them
+/// from a runtime C string cast to strref, whose lifetime is unknown and which is
+/// therefore copied by anything that retains it.
+///
 /// **Simple prefix macros** (`_S`, `_SU`, `_SO`) — portable, all platforms:
 ///
 /// Prepend a 2-byte CX header to a string literal. The string length is not

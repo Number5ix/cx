@@ -49,6 +49,12 @@ typedef struct str_ref* _Nullable string;
 /// IMPORTANT: Never return a strref from a function in multi-threaded programs.
 /// This creates a race condition where the underlying string could be destroyed
 /// by another thread. Always use an output parameter with strDup() instead.
+///
+/// A plain null-terminated C string may be cast to strref (or string) and passed to
+/// any function in the API; the library detects the absence of the CX string header
+/// and handles it as a C string. Because its lifetime is unknown, it is copied rather
+/// than referenced by anything that retains it. See the C String Interop section of
+/// the module overview.
 typedef const struct str_ref* _Nullable strref;
 
 /// @brief Pointer to a string variable
@@ -94,9 +100,15 @@ void strReset(_Inout_ptr_opt_ strhandle o, uint32 sizehint);
 /// Duplicates a string using copy-on-write optimization
 ///
 /// Creates a reference to the source string when possible, avoiding copying.
-/// The reference count is incremented atomically for thread safety. If the
-/// source is not a CX-managed string, a plain C string, or a stack-allocated
-/// string, a copy is made instead.
+/// The reference count is incremented atomically for thread safety.
+///
+/// A copy is made instead when the source cannot be safely referenced:
+///   - A plain C string cast to strref, since its lifetime and ownership are
+///     unknown and its buffer may be modified or freed by its owner
+///   - A stack-allocated string (strTemp), which does not outlive its scope
+///
+/// Static literals (_S, _SL, STR_CONST) are referenced without copying, as they
+/// are immutable and exist for the lifetime of the program.
 ///
 /// Special case: If the output is a stack-allocated string, the content is
 /// copied into the stack buffer rather than replacing the handle.
@@ -157,7 +169,8 @@ void strClear(_Inout_ strhandle ps);
 /// terminator or any preallocated but unused capacity. NULL strings have length 0.
 ///
 /// This is a constant-time operation (O(1)) as the length is cached in the
-/// string header.
+/// string header. The exception is a plain C string cast to strref, which has
+/// no header - its length is computed with strlen() on every call.
 ///
 /// @param s String to query (NULL returns 0)
 /// @return Length in bytes (not character count for multi-byte encodings)
@@ -230,7 +243,8 @@ void strDestroy(_Inout_ strhandle ps);
 /// operations (see cx/utils/scratch.h). Use or copy the result immediately.
 /// For a persistent pointer, use strPC() instead.
 ///
-/// NULL input returns an empty string (not NULL).
+/// NULL input returns an empty string (not NULL). A plain C string cast to strref
+/// is returned unchanged, as it is already the buffer.
 ///
 /// @param s String to access (NULL returns "")
 /// @return Null-terminated C string (may be temporary for ropes)

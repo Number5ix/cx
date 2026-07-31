@@ -109,6 +109,63 @@
 ///   strAppend(&s, _SL(" more"));     // Append operations
 /// @endcode
 ///
+/// @section cstring_interop C String Interop
+///
+/// A plain null-terminated C string can be cast directly to strref (or string) and
+/// passed to any function in the API. No conversion call and no allocation are
+/// involved:
+///
+/// @code
+///   strDup(&program, (string)argv[0]);        // works anywhere a string is accepted
+///   if (strEq((strref)getenv("HOME"), homedir)) { ... }
+/// @endcode
+///
+/// Every cx string begins with a two-byte marker: a flags byte with the high bit set,
+/// followed by 0xC1. That sequence is deliberately invalid UTF-8, so no valid UTF-8 C
+/// string can be mistaken for a cx string. When the marker is absent, the library
+/// treats the pointer as a plain C string - content starts at offset 0 and the length
+/// is computed with strlen().
+///
+/// The important difference from string literals is lifetime. A literal created with
+/// _S / _SL / STR_CONST lives in a read-only section for the life of the program, so
+/// the library is free to reference it indefinitely. A C string cast this way is
+/// assumed to have unknown ownership and lifetime and to be mutable, so anything that
+/// retains it makes a copy instead of taking a reference:
+///
+///   - strDup() copies into a new cx string rather than incrementing a reference count
+///   - Storing one in a container or an stvar copies it (the string stype copy operation
+///     uses strDup)
+///   - Rope references created by concatenation or substring operations copy it
+///
+/// The copy is a snapshot taken at the call, so mutating or freeing the C buffer
+/// afterwards cannot corrupt the resulting cx string.
+///
+/// A C string can also be held in a string handle and used directly. Modification
+/// triggers a copy-on-write, so the C buffer is never written through the handle, and
+/// strDestroy() on an unmodified handle simply clears it without freeing anything:
+///
+/// @code
+///   string s = (string)buf;        // no copy, no allocation
+///   strAppend(&s, _SL(".txt"));    // s becomes a private heap string; buf is untouched
+///   strDestroy(&s);                // still required - s may now own a heap buffer
+/// @endcode
+///
+/// Points to be aware of:
+///
+///   - strLen() on a C string is O(n) and is recomputed on every call, since there is
+///     no cached length. Duplicate it into a cx string if it is used repeatedly.
+///   - The encoding is unknown and cannot be cached on a buffer the library does not
+///     own, so strValidUTF8() / strValidASCII() rescan on every call, and results of
+///     operations involving one have their cached encoding flags cleared.
+///   - This path is not binary safe: embedded NULs terminate the string, and arbitrary
+///     binary data may collide with the header marker. Use strBuffer() and strSetLen()
+///     to build strings from raw bytes.
+///   - An empty C string ("") is treated the same as NULL, which is itself a valid
+///     empty string throughout the API.
+///   - Iterators do not take a reference to a non-cx string, so the C buffer must
+///     outlive any striter created from it.
+///   - Wide (UTF-16) C strings have no cast path; convert them with strFromUTF16().
+///
 /// @section memory_management Memory Management
 ///
 /// All strings created dynamically (not static literals) MUST be destroyed:
