@@ -937,7 +937,7 @@ static bool writeStructMemberDesc(StreamBuffer* bf, strref sname, Member* m)
     sbufPWriteLine(bf, _S"    {");
     if (m->flags & STRUCT_NoSerialize) {
         // if not serializable, don't include the name in the binary
-        sbufPWriteLine(bf, _S"        .name = &_emptyStringData,");
+        sbufPWriteLine(bf, _S"        .name = (strref)&_emptyStringData,");
     } else {
         strNConcat(&ln, _S"        .name = _SR(", sname, _S"_m_", m->name, _S"_name),");
         sbufPWriteLine(bf, ln);

@@ -11,8 +11,18 @@ typedef struct str_ref {
     void* _is_string;
 } str_ref;
 
-extern str_ref _emptyStringData;   // internal data for the empty string
-extern strref emptyString;         // public constant for empty string
+// Layout of the static empty string. The real type has to be visible here rather
+// than declaring the object as a str_ref, or LTO builds see a type mismatch
+// between this declaration and the definition in strempty.c
+typedef struct str_empty_data {
+    unsigned char hdr;     // STR_CX | STR_ASCII | STR_UTF8 | STR_LEN8
+    unsigned char magic;   // 0xc1 cx string marker
+    unsigned char len;     // length, always 0
+    unsigned char nul;     // NUL terminator, so strC() has something valid to return
+} str_empty_data;
+
+extern str_empty_data _emptyStringData;   // internal data for the empty string
+extern strref emptyString;                // public constant for empty string
 
 /// @defgroup string_base Core String Functions
 /// @ingroup string
