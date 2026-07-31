@@ -45,3 +45,11 @@ if(CX_PLATFORM_IS_WINDOWS)
 elseif(CX_PLATFORM_IS_UNIX)
     target_compile_definitions(lua PRIVATE LUA_USE_LINUX)
 endif()
+
+# Under LTO, GCC inlines str_gsub -> add_value -> add_s -> luaL_addlstring and loses the
+# invariant that the match end pointer is never below the match start, so it sees a possible
+# memcpy bound of (size_t)-2 and reports an overflow that cannot happen. The diagnostic is
+# raised at link time and so ignores a -Wno- on lua's own compile line; keeping lua out of
+# LTO stops the inlining that produces it, which is preferable to suppressing the warning
+# across the whole project just to accommodate vendored code.
+set_property(TARGET lua PROPERTY INTERPROCEDURAL_OPTIMIZATION FALSE)

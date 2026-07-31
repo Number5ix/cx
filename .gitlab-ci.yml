@@ -64,7 +64,7 @@ build_linux_lto:
   tags:
     - linux
   script:
-    - 'cmake -S . -DCMAKE_BUILD_TYPE=Release -B _build_lto -DCMAKE_INSTALL_PREFIX=${CI_PROJECT_DIR} -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DCMAKE_C_FLAGS="-Werror=lto-type-mismatch -Werror=odr -Wno-stringop-overflow" -DCMAKE_CXX_FLAGS="-Werror=lto-type-mismatch -Werror=odr -Wno-stringop-overflow"'
+    - 'cmake -S . -DCMAKE_BUILD_TYPE=Release -B _build_lto -DCMAKE_INSTALL_PREFIX=${CI_PROJECT_DIR} -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DCMAKE_C_FLAGS="-Werror=lto-type-mismatch -Werror=odr" -DCMAKE_CXX_FLAGS="-Werror=lto-type-mismatch -Werror=odr"'
     - 'make -C _build_lto -j4'
   artifacts:
     name: cx-build-linux-lto-$CI_COMMIT_REF_SLUG-$CI_PIPELINE_ID

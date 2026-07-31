@@ -1094,15 +1094,16 @@ static int test_bufpool_basic()
         ret = 1;
 
     bufs[0] = bufpoolGet(&pool);
-    if (!bufs[0])
+    if (!bufs[0]) {
         ret = 1;
-
-    // len must be reset on reuse
-    bufs[0]->len = 100;
-    bufpoolPut(&pool, &bufs[0]);
-    bufs[0] = bufpoolGet(&pool);
-    if (!bufs[0] || bufs[0]->len != 0)
-        ret = 1;
+    } else {
+        // len must be reset on reuse
+        bufs[0]->len = 100;
+        bufpoolPut(&pool, &bufs[0]);
+        bufs[0] = bufpoolGet(&pool);
+        if (!bufs[0] || bufs[0]->len != 0)
+            ret = 1;
+    }
 
     for (int i = 0; i < 8; ++i)
         bufpoolPut(&pool, &bufs[i]);
@@ -1142,8 +1143,11 @@ static int test_bufpool_reuse()
 
     for (int round = 0; round < 100; ++round) {
         Buffer b = bufpoolGet(&pool);
-        if (!b || b->sz != 128)
+        if (!b || b->sz != 128) {
             ret = 1;
+            bufpoolPut(&pool, &b);   // no-op when the get failed outright
+            break;
+        }
 
         memcpy(b->data, testdata1, 100);
         b->len = 100;
