@@ -42,6 +42,17 @@ bool _fmtParseVar(_Inout_ FMTContext* ctx);
 bool _fmtFindData(_Inout_ FMTContext* ctx);
 void _fmtFormat(_Inout_ FMTContext* ctx);
 
+// Locate a keyed argument by name. Returns its index, or -1 if no argument carries that
+// key. Scans the whole list and touches no per-type cursor -- keyed arguments are
+// order-free by design.
+int32 _fmtFindKeyed(_In_ FMTContext* ctx, _In_ strref key);
+
+// Map a keyed argument's runtime type onto a FORMAT_TYPES value, for "${:key}" where the
+// type name is omitted. When the placeholder subscripts a container, the container's
+// element/value type is used instead. Returns -1 if the argument is missing, is not the
+// container kind the placeholder expects, or has a type the formatter cannot render.
+int _fmtTypeFromKey(_In_ FMTContext* ctx, _In_ strref key, bool isarray, bool ishash);
+
 // type-specific formatters
 bool _fmtParseStringOpt(_Inout_ FMTVar* v, _In_ strref opt);
 bool _fmtString(_Inout_ FMTVar* v, _Inout_ string* out);

@@ -6,6 +6,10 @@ void stDtor_stvar(stype st, stgeneric* gen, uint32 flags)
     _stvarClear(gen->st_stvar, flags);
 }
 
+// NOTE: the key name is deliberately not part of compare or hash. A key is metadata
+// describing why an argument was passed, not part of the value, so attaching one must
+// never change how a variant behaves as a container element or hashtable key. Copy does
+// preserve it -- the asymmetry is intentional and documented on stvarName().
 intptr stCmp_stvar(stype st, stgeneric gen1, stgeneric gen2, uint32 flags)
 {
     stvar* stv1 = gen1.st_stvar;
@@ -25,7 +29,7 @@ void stCopy_stvar(stype st, _stCopyDest_Anno_(st) stgeneric* dest, _In_ stgeneri
     stvar* dvar = dest->st_stvar;
     stvar* svar = src.st_stvar;
 
-    _stvarInit(dvar, stvarType(svar), svar->data);
+    _stvarInitK(dvar, stvarType(svar), svar->data, stvarName(svar));
 }
 
 uint32 stHash_stvar(stype st, stgeneric gen, uint32 flags)

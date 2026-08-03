@@ -284,6 +284,25 @@ static int test_array()
     if (!strEq(res, _S"This is an Awesome Test Of Test Formatting"))
         return 1;
 
+    // The subscript binds tighter than the formatting applied to the result, so it is
+    // written first: index, then pad the element that came out.
+    strFormat(&res, _S"[${int[1](6)}][${int[0](6,left)}][${0int[2](5)}]",
+              stvar(sarray, intarray));
+
+    if (!strEq(res, _S"[    33][32    ][00034]"))
+        return 1;
+
+    // ...and the reverse order is rejected rather than silently accepted
+    if (strFormat(&res, _S"${int(6)[1]}", stvar(sarray, intarray)) != false)
+        return 1;
+    if (!strEmpty(res))
+        return 1;
+
+    // a subscript still combines with a default
+    strFormat(&res, _S"${int[9];none}", stvar(sarray, intarray));
+    if (!strEq(res, _S"none"))
+        return 1;
+
     saDestroy(&intarray);
     saDestroy(&strarray);
 
@@ -305,25 +324,56 @@ static int test_hash()
     htInsert(&testht, string, _S"pi", float64, 3.14159);
     htInsert(&testht, string, _S"four", float64, 4);
 
-    strFormat(&res, _S"It's easy as ${float:one}, ${float:two}, ${float:three}",
+    strFormat(&res, _S"It's easy as ${float[one]}, ${float[two]}, ${float[three]}",
               stvar(hashtable, testht));
 
     if (!strEq(res, _S"It's easy as 1, 2, 3"))
         return 1;
 
-    strFormat(&res, _S"It's easy as ${float:four}, ${float:pi}, ${float:e}?",
+    strFormat(&res, _S"It's easy as ${float[four]}, ${float[pi]}, ${float[e]}?",
               stvar(hashtable, testht));
 
     if (!strEq(res, _S"It's easy as 4, 3.14159, 2.71828?"))
         return 1;
 
-    strFormat(&res, _S"sqrt(${float:two}) = ${float:sqrttwo}",
+    strFormat(&res, _S"sqrt(${float[two]}) = ${float[sqrttwo]}",
               stvar(hashtable, testht));
 
     if (!strEq(res, _S"sqrt(2) = 1.41421"))
         return 1;
 
     htDestroy(&testht);
+
+    // A numeric-looking hashtable key would otherwise parse as an array index, so it has
+    // to be backtick-escaped -- the same escape character the rest of the grammar uses.
+    hashtable numht;
+    htInit(&numht, string, int32, 8);
+    htInsert(&numht, string, _S"0", int32, 111);
+    htInsert(&numht, string, _S"1", int32, 222);
+
+    strFormat(&res, _S"${int[`0]} ${int[`1]}", stvar(hashtable, numht));
+    if (!strEq(res, _S"111 222"))
+        return 1;
+
+    // The array-vs-hashtable decision is syntactic, not driven by which arguments are
+    // present: with both an sarray and a hashtable in the list, an unescaped number is
+    // still an array index and an escaped one is still a hashtable key.
+    sa_int32 nums;
+    saInit(&nums, int32, 4);
+    saPush(&nums, int32, 777);
+    saPush(&nums, int32, 888);
+
+    strFormat(&res, _S"${int[1]} ${int[`1]}", stvar(sarray, nums), stvar(hashtable, numht));
+    if (!strEq(res, _S"888 222"))
+        return 1;
+
+    // ...and the same format string keeps its meaning when the sarray is absent, rather
+    // than silently falling back to a hashtable lookup for "1"
+    if (strFormat(&res, _S"${int[1]}", stvar(hashtable, numht)) != false)
+        return 1;
+
+    saDestroy(&nums);
+    htDestroy(&numht);
     strDestroy(&res);
     return 0;
 }
@@ -366,7 +416,7 @@ static int test_error()
     if (!strEmpty(res))
         return 1;
 
-    if (strFormat(&res, _S"This ${int:hash} test should fail",
+    if (strFormat(&res, _S"This ${int[hash]} test should fail",
                   stvar(int32, 5), stvar(int32, 10)) != false)
         return 1;
     if (!strEmpty(res))
@@ -388,6 +438,229 @@ static int test_error()
     return 0;
 }
 
+static int test_keyed()
+{
+    string res  = 0;
+    string host = 0;
+
+    strNConcat(&host, _S"web", _S"01");
+
+    // basic keyed lookup, both typed and typeless
+    strFormat(&res, _S"${string:host} took ${int:ms}ms",
+              stvark(host, string, host), stvark(ms, int32, 250));
+    if (!strEq(res, _S"web01 took 250ms"))
+        return 1;
+
+    strFormat(&res, _S"${:host} took ${:ms}ms",
+              stvark(host, string, host), stvark(ms, int32, 250));
+    if (!strEq(res, _S"web01 took 250ms"))
+        return 1;
+
+    // order-independence: keys resolve regardless of argument position, and repeating a
+    // key resolves to the same argument every time
+    strFormat(&res, _S"${:ms} ${:host} ${:ms}",
+              stvark(host, string, host), stvark(ms, int32, 250));
+    if (!strEq(res, _S"250 web01 250"))
+        return 1;
+
+    // keys compose with format options and defaults
+    strFormat(&res, _S"[${string:host(8,left)}][${0int:ms(6)}][${string:nope;fallback}]",
+              stvark(host, string, host), stvark(ms, int32, 250));
+    if (!strEq(res, _S"[web01   ][000250][fallback]"))
+        return 1;
+
+    // Keyed and positional placeholders interleave without disturbing each other. The
+    // keyed argument sits in the middle of three positional ints and must be invisible to
+    // all of them -- if it were consumed positionally, the trailing ${int}s would shift.
+    strFormat(&res, _S"${int} ${int:ms} ${int} ${int}",
+              stvar(int32, 1), stvark(ms, int32, 250), stvar(int32, 2), stvar(int32, 3));
+    if (!strEq(res, _S"1 250 2 3"))
+        return 1;
+
+    // ...which is the same thing stated from the other side: an unkeyed placeholder never
+    // matches a keyed argument, so this resolves to the one unkeyed int
+    strFormat(&res, _S"${int}", stvark(ms, int32, 7), stvar(int32, 8));
+    if (!strEq(res, _S"8"))
+        return 1;
+
+    // and with no unkeyed argument to find, it fails rather than silently taking the
+    // keyed one
+    if (strFormat(&res, _S"${int}", stvark(ms, int32, 7)) != false)
+        return 1;
+    if (!strEmpty(res))
+        return 1;
+
+    // a missing key, or a key whose argument is the wrong type, fails like any other
+    // unresolvable variable
+    if (strFormat(&res, _S"${string:missing}", stvark(ms, int32, 250)) != false)
+        return 1;
+    if (!strEmpty(res))
+        return 1;
+    if (strFormat(&res, _S"${string:ms}", stvark(ms, int32, 250)) != false)
+        return 1;
+    if (!strEmpty(res))
+        return 1;
+
+    // an empty key is a parse error, not a match against unkeyed arguments
+    if (strFormat(&res, _S"${string:}", stvar(string, host)) != false)
+        return 1;
+
+    strDestroy(&host);
+    strDestroy(&res);
+    return 0;
+}
+
+static int test_keyed_subscript()
+{
+    string res = 0;
+
+    sa_int32 sizes;
+    saInit(&sizes, int32, 4);
+    saPush(&sizes, int32, 10);
+    saPush(&sizes, int32, 20);
+    saPush(&sizes, int32, 30);
+
+    sa_int32 other;
+    saInit(&other, int32, 4);
+    saPush(&other, int32, 77);
+
+    hashtable hdrs;
+    htInit(&hdrs, string, string, 8);
+    htInsert(&hdrs, string, _S"accept", string, _S"text/html");
+    htInsert(&hdrs, string, _S"agent", string, _S"cx/1");
+
+    // a keyed array subscripts like a positional one
+    strFormat(&res, _S"${int:sizes[0]} ${int:sizes[2]}", stvark(sizes, sarray, sizes));
+    if (!strEq(res, _S"10 30"))
+        return 1;
+
+    // a keyed hashtable likewise, using the bracket form
+    strFormat(&res, _S"${string:hdrs[agent]}", stvark(hdrs, hashtable, hdrs));
+    if (!strEq(res, _S"cx/1"))
+        return 1;
+
+    // the key selects *which* container, so two same-typed arrays stay distinguishable --
+    // this is the whole point, and is not expressible positionally
+    strFormat(&res, _S"${int:sizes[1]} ${int:other[0]}",
+              stvark(sizes, sarray, sizes), stvark(other, sarray, other));
+    if (!strEq(res, _S"20 77"))
+        return 1;
+
+    // typeless keyed subscripting takes its type from the element/value type
+    strFormat(&res, _S"${:sizes[1]} ${:hdrs[accept]}",
+              stvark(sizes, sarray, sizes), stvark(hdrs, hashtable, hdrs));
+    if (!strEq(res, _S"20 text/html"))
+        return 1;
+
+    // and it still composes with format options and defaults
+    strFormat(&res, _S"[${int:sizes[2](6)}][${string:hdrs[nope];none}]",
+              stvark(sizes, sarray, sizes), stvark(hdrs, hashtable, hdrs));
+    if (!strEq(res, _S"[    30][none]"))
+        return 1;
+
+    // out-of-range index, missing hash key, and wrong container kind all fail rather than
+    // silently falling back to the unsubscripted argument
+    if (strFormat(&res, _S"${int:sizes[9]}", stvark(sizes, sarray, sizes)) != false)
+        return 1;
+    if (strFormat(&res, _S"${string:hdrs[missing]}", stvark(hdrs, hashtable, hdrs)) != false)
+        return 1;
+    if (strFormat(&res, _S"${int:sizes[key]}", stvark(sizes, sarray, sizes)) != false)
+        return 1;
+
+    // a keyed container is still invisible to positional container placeholders
+    if (strFormat(&res, _S"${int[0]}", stvark(sizes, sarray, sizes)) != false)
+        return 1;
+
+    saDestroy(&sizes);
+    saDestroy(&other);
+    htDestroy(&hdrs);
+    strDestroy(&res);
+    return 0;
+}
+
+static int test_keyed_stvl()
+{
+    stvlist list;
+    stvar args[] = { stvar(string, _S"positional"),
+                     stvark(timeout, int32, 250),
+                     stvark(label, string, _S"tagged") };
+    stvlInit(&list, 3, args);
+
+    // keyed lookup finds regardless of order and does not move the cursor
+    int32 timeout = 0;
+    if (!stvlFind(list, timeout, int32, &timeout) || timeout != 250)
+        return 1;
+
+    string label = 0;
+    if (!stvlFind(list, label, string, &label) || !strEq(label, _S"tagged"))
+        return 1;
+
+    if (!stvlHasKey(list, timeout) || stvlHasKey(list, nosuchkey))
+        return 1;
+
+    // wrong type for an existing key does not match
+    string wrong = 0;
+    if (stvlFind(list, timeout, string, &wrong))
+        return 1;
+
+    // the cursor is untouched by all of the above, so positional walking still starts at
+    // the beginning of the list
+    string first = 0;
+    if (!stvlNext(&list, string, &first) || !strEq(first, _S"positional"))
+        return 1;
+
+    // ...and positional walking skips keyed variants entirely, so the keyed string is not
+    // reachable this way and the walk is now exhausted
+    string second = 0;
+    if (stvlNext(&list, string, &second))
+        return 1;
+
+    return 0;
+}
+
+static int test_keyed_copy()
+{
+    // names survive stvarCopy (pointer-copied), and are cleared by destroy
+    stvar src = stvark(host, string, _S"web01");
+    stvar dst;
+    stvarCopy(&dst, src);
+
+    if (!stvarName(&dst) || !strEq((strref)stvarName(&dst), _S"host"))
+        return 1;
+    if (!stvarIs(&dst, string) || !strEq(stvarString(&dst), _S"web01"))
+        return 1;
+
+    stvarDestroy(&dst);
+    if (stvarName(&dst) != NULL)
+        return 1;
+
+    // a key is metadata: it must not affect compare or hash, or attaching one would
+    // change how a variant behaves as a container element
+    stvar keyed   = stvark(host, int32, 42);
+    stvar unkeyed = stvar(int32, 42);
+    stvar other   = stvark(elsewhere, int32, 42);
+
+    if (stCmp(stvar, keyed, unkeyed, 0) != 0 || stCmp(stvar, keyed, other, 0) != 0)
+        return 1;
+    if (stHash(stvar, keyed, 0) != stHash(stvar, unkeyed, 0))
+        return 1;
+
+    // stvarSet clears a stale key; stvarSetK replaces value and key together
+    stvar v = stvNone;
+    stvarSetK(&v, first, int32, 1);
+    if (!stvarName(&v) || !strEq((strref)stvarName(&v), _S"first"))
+        return 1;
+    stvarSet(&v, int32, 2);
+    if (stvarName(&v) != NULL)
+        return 1;
+    stvarSetK(&v, second, string, _S"x");
+    if (!stvarName(&v) || !strEq((strref)stvarName(&v), _S"second"))
+        return 1;
+    stvarDestroy(&v);
+
+    return 0;
+}
+
 testfunc fmttest_funcs[] = {
     { "int", test_int },
     { "float", test_float },
@@ -397,6 +670,10 @@ testfunc fmttest_funcs[] = {
     { "object", test_object },
     { "array", test_array },
     { "hash", test_hash },
+    { "keyed", test_keyed },
+    { "keyedsub", test_keyed_subscript },
+    { "keyedstvl", test_keyed_stvl },
+    { "keyedcopy", test_keyed_copy },
     { "default", test_default },
     { "error", test_error },
     { 0, 0 }

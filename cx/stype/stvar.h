@@ -176,15 +176,78 @@ CX_C_BEGIN
 ///   }
 /// @endcode
 #define stvNone ((stvar) { ._type = stType(none) })
+
+/// stvar stvark(key, type, value)
+///
+/// Create a temporary variant tagged with a key name.
+///
+/// Identical to `stvar()` except that the variant also carries a name, letting the
+/// receiver locate it with `stvlFind()` by key rather than by type and position. Keyed
+/// and unkeyed arguments mix freely in the same call.
+///
+/// The key is written as a bare token and stringized, so it costs nothing at runtime on
+/// any compiler and **cannot be handed a pointer that dangles**. Any comma-free token
+/// sequence works, including dotted names (`stvark(http.status, int32, code)`).
+///
+/// The name is metadata: preserved by copy, ignored by compare and hash.
+///
+/// @param key Key name as a bare token (not a string literal)
+/// @param typen Type name (e.g., int32, string, object)
+/// @param val Value of the specified type
+/// @return Temporary stvar with automatic storage duration
+///
+/// Example:
+/// @code
+///   strFormat(&s, _SL("${string:host} took ${int:ms}ms"),
+///             stvark(host, string, hostname), stvark(ms, int32, elapsed));
+/// @endcode
+#define stvark(key, typen, val) \
+    ((stvar) { .data = stArg(typen, val), ._type = stType(typen), ._name = #key })
+
+/// stvar stvarkn(name, type, value)
+///
+/// Create a temporary keyed variant from a runtime name pointer.
+///
+/// The escape hatch for argument lists built at runtime rather than at a call site --
+/// deserialization, script bindings, forwarded log records. Prefer `stvark()` everywhere
+/// else: it stringizes a token and so enforces the lifetime rule structurally.
+///
+/// **The name is pointer-copied, never duplicated.** It must remain valid for as long as
+/// any copy of the variant does, which in practice means program lifetime. Passing a
+/// stack buffer, or a heap buffer that is later freed, leaves a dangling pointer that
+/// will not surface until something formats or serializes the variant.
+///
+/// @param name `const char*` with program lifetime (or NULL)
+/// @param typen Type name (e.g., int32, string, object)
+/// @param val Value of the specified type
+/// @return Temporary stvar with automatic storage duration
+///
+/// Example:
+/// @code
+///   // field names interned for the life of the process
+///   stvar v = stvarkn(internedName, string, value);
+/// @endcode
+#define stvarkn(name, typen, val) \
+    ((stvar) { .data = stArg(typen, val), ._type = stType(typen), ._name = (name) })
 #else
 _meta_inline stvar _stvar(stype st, stgeneric val)
 {
     stvar ret;
     ret.data  = val;
     ret._type = st;
+    ret._name = NULL;
     return ret;
 }
 #define stvar(typen, val) _stvar(stType(typen), stArg(typen, val))
+
+_meta_inline stvar _stvark(const char* nm, stype st, stgeneric val)
+{
+    stvar ret = _stvar(st, val);
+    ret._name = nm;
+    return ret;
+}
+#define stvark(key, typen, val)   _stvark(#key, stType(typen), stArg(typen, val))
+#define stvarkn(name, typen, val) _stvark((name), stType(typen), stArg(typen, val))
 
 #define stvNone _stvar(stType(none), _cxStGenZero())
 #endif
@@ -203,13 +266,22 @@ _meta_inline stvar _stvar(stype st, stgeneric val)
 
 // Initialize *stv (assumed uninitialized) from a type + value. Overwrite/init semantics:
 // does NOT destroy any prior contents. For PassPtr types, allocates and deep-copies.
+// Does not touch the key name.
 void _stvarInit(stvar* stv, stype type, stgeneric val);
 
-// Destroy the contents of *stv, free any owned heap allocation, and reset to none.
+// As _stvarInit, but also sets the key name (pointer-copied, never duplicated).
+void _stvarInitK(stvar* stv, stype type, stgeneric val, const char* nm);
+
+// Destroy the contents of *stv, free any owned heap allocation, clear any key name, and
+// reset to none.
 void _stvarClear(stvar* stv, flags_t flags);
 
 // Replace semantics: destroy existing contents, then initialize from type + value.
+// Clears any existing key name.
 void _stvarSet(stvar* stv, stype type, stgeneric val);
+
+// Replace semantics preserving/replacing the key name.
+void _stvarSetK(stvar* stv, stype type, stgeneric val, const char* nm);
 
 /// void stvarSet(stvar *stv, type, value)
 ///
@@ -232,6 +304,28 @@ void _stvarSet(stvar* stv, stype type, stgeneric val);
 ///   stvarDestroy(&v);
 /// @endcode
 #define stvarSet(stv, type, val) _stvarSet(stv, stCheckedArg(type, val))
+
+/// void stvarSetK(stvar *stv, key, type, value)
+///
+/// Replace the contents of a variant with a new typed value and attach a key name.
+///
+/// As `stvarSet`, but also tags the variant with a key, written as a bare token and
+/// stringized exactly as in `stvark()`. Plain `stvarSet` *clears* any existing key,
+/// on the grounds that a stale key on a new value is worse than no key at all -- so
+/// use this form when replacing the value of a keyed variant.
+///
+/// @param stv Pointer to variant to modify (must be initialized)
+/// @param key Key name as a bare token (not a string literal)
+/// @param type Type name (e.g. int32, string, suid)
+/// @param val Value of the specified type
+///
+/// Example:
+/// @code
+///   stvar v = stvNone;
+///   stvarSetK(&v, host, string, _SL("web01"));
+///   stvarDestroy(&v);
+/// @endcode
+#define stvarSetK(stv, key, type, val) _stvarSetK(stv, stCheckedArg(type, val), #key)
 
 /// void stvarDestroy(stvar *stv)
 ///
@@ -260,10 +354,13 @@ _meta_inline void stvarDestroy(stvar* stv)
 ///
 /// Copy a variant to another variant.
 ///
-/// Copies both the type descriptor and value, performing appropriate operations
-/// for the contained type (incrementing reference counts for objects, duplicating
-/// strings, etc.). The destination variant should be uninitialized or previously
-/// destroyed to avoid leaking resources.
+/// Copies the type descriptor, the value, and any key name, performing appropriate
+/// operations for the contained type (incrementing reference counts for objects,
+/// duplicating strings, etc.). The destination variant should be uninitialized or
+/// previously destroyed to avoid leaking resources.
+///
+/// The key name is pointer-copied, not duplicated -- which is why keys are required to
+/// have program lifetime. A copied variant may outlive the call that created it.
 ///
 /// @param dvar Pointer to destination variant (overwritten)
 /// @param svar Source variant to copy (passed by value)
@@ -278,7 +375,7 @@ _meta_inline void stvarDestroy(stvar* stv)
 /// @endcode
 _meta_inline void stvarCopy(stvar* dvar, stvar svar)
 {
-    _stvarInit(dvar, stvarType(&svar), svar.data);
+    _stvarInitK(dvar, stvarType(&svar), svar.data, svar._name);
 }
 
 /// @}
@@ -623,6 +720,132 @@ void* _stvlNextPtr(stvlist* list, stype type);
 ///   stvlNext(&list, string, &optional);
 /// @endcode
 void stvlRewind(stvlist* list);
+
+/// @}
+
+/// @defgroup stvar_list_keyed Keyed Variant Lookup
+/// @ingroup stvar_list
+/// @{
+///
+/// Lookup by key name rather than by type and position.
+///
+/// @section stvar_keyed_contract How this differs from stvlNext
+///
+/// `stvlNext()` scans **forward from the cursor** for the next variant of a type, advances
+/// past the match, and discards everything it skipped. That is the right contract for
+/// positional arguments, which arrive in a known order.
+///
+/// Keys exist precisely so that order does not matter, so `stvlFind()` does the opposite:
+/// it scans the **whole list from the start** and **mutates nothing**. That is why it takes
+/// the `stvlist` **by value** rather than by pointer -- per the handle paradigm, passing by
+/// value at the call site is the visible signal that the walker's cursor is untouched.
+///
+/// The two address the same argument list without interfering, in either order:
+///
+/// @code
+///   void _myFunc(int count, stvar *args)
+///   {
+///       stvlist list;
+///       stvlInit(&list, count, args);
+///
+///       int32 timeout = 5000;                          // optional, keyed
+///       stvlFind(list, timeout, int32, &timeout);
+///
+///       string required;                               // required, positional
+///       if (stvlNext(&list, string, &required)) { ... }
+///   }
+///
+///   myFunc(stvar(string, _SL("path")), stvark(timeout, int32, 250));
+/// @endcode
+///
+/// **The two modes are disjoint: `stvlNext()` skips keyed variants entirely.** A keyed
+/// argument is reachable only through `stvlFind()`. This is deliberate -- if positional
+/// walking could consume keyed arguments, adding one to an existing call would silently
+/// shift every same-typed positional argument after it, which is exactly the fragility
+/// keys exist to remove. It also means a caller can add a keyed argument to a call
+/// without renumbering or reordering anything.
+///
+/// @section stvar_keyed_dupes Duplicate keys
+///
+/// Duplicate keys in one argument list resolve to the **first** match. This cannot be
+/// caught at compile time; debug builds assert on it, release builds take the first. Do
+/// not rely on the behaviour.
+
+/// bool stvlFind(stvlist list, key, type, type *pvar)
+///
+/// Find a variant by key name and type, without disturbing the walker.
+///
+/// Scans the entire list from the beginning for a variant whose key matches `key` and
+/// whose type matches `type`, and copies its value to `pvar`. The cursor is not moved and
+/// the list is not modified -- the walker is taken by value.
+///
+/// The key is written as a bare token and stringized, matching `stvark()`.
+///
+/// @param list Variant list walker (by value; not modified)
+/// @param key Key name as a bare token (not a string literal)
+/// @param type Expected type name
+/// @param pvar Pointer to storage receiving the value
+/// @return true if a matching keyed variant was found
+///
+/// Example:
+/// @code
+///   int32 ms;
+///   if (stvlFind(list, timeout, int32, &ms)) { ... }
+/// @endcode
+#define stvlFind(list, key, type, pvar) _stvlFind(list, #key, stCheckedPtrArg(type, pvar))
+bool _stvlFind(stvlist list, const char* key, stype type, stgeneric* out);
+
+/// void* stvlFindPtr(stvlist list, key)
+///
+/// Find a pointer-typed variant by key name, without disturbing the walker.
+///
+/// As `stvlFind()` for pointer-like types (`ptr`, objects, and PassPtr types). Returns
+/// the stored pointer directly.
+///
+/// @param list Variant list walker (by value; not modified)
+/// @param key Key name as a bare token (not a string literal)
+/// @return Stored pointer, or NULL if no matching keyed variant exists
+///
+/// Example:
+/// @code
+///   void *ctx = stvlFindPtr(list, context);
+/// @endcode
+#define stvlFindPtr(list, key) _stvlFindPtr(list, #key, stType(ptr))
+void* _stvlFindPtr(stvlist list, const char* key, stype type);
+
+/// ClassName* stvlFindObj(stvlist list, key, ClassName)
+///
+/// Find an object variant by key name and dynamic-cast it, without disturbing the walker.
+///
+/// As `stvlFindPtr()`, but restricted to object variants and passed through `objDynCast`,
+/// so the result is NULL unless the object is compatible with the named class.
+///
+/// @param list Variant list walker (by value; not modified)
+/// @param key Key name as a bare token (not a string literal)
+/// @param class Target class name for dynamic cast
+/// @return Typed object pointer, or NULL if not found or incompatible
+///
+/// Example:
+/// @code
+///   Document *doc = stvlFindObj(list, source, Document);
+/// @endcode
+#define stvlFindObj(list, key, class) \
+    objDynCast(class, (ObjInst*)_stvlFindPtr(list, #key, stType(object)))
+
+/// bool stvlHasKey(stvlist list, key)
+///
+/// Test whether a keyed variant exists, regardless of its type.
+///
+/// @param list Variant list walker (by value; not modified)
+/// @param key Key name as a bare token (not a string literal)
+/// @return true if any variant in the list carries that key
+///
+/// Example:
+/// @code
+///   if (stvlHasKey(list, verbose)) { ... }
+/// @endcode
+#define stvlHasKey(list, key) _stvlHasKey(list, #key)
+bool _stvlHasKey(stvlist list, const char* key);
 
 /// @}
 

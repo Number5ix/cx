@@ -67,6 +67,7 @@ static void fmtVarReset(FMTVar* v)
     strClear(&v->var);
     strClear(&v->def);
     strClear(&v->hashkey);
+    strClear(&v->key);
 }
 
 static void fmtVarCreate(FMTVar* v) {}
@@ -78,6 +79,7 @@ static void fmtVarDestroy(FMTVar* v)
     strDestroy(&v->var);
     strDestroy(&v->def);
     strDestroy(&v->hashkey);
+    strDestroy(&v->key);
 }
 
 _Use_decl_annotations_
@@ -134,6 +136,7 @@ bool _strFormat(string* out, strref fmt, int n, stvar* args)
     strTemp(&ctx.v.var, 64);
     strTemp(&ctx.v.def, 64);
     strTemp(&ctx.v.hashkey, 32);
+    strTemp(&ctx.v.key, 32);
     strTemp(&ctx.v.tmp, 128);
     strTemp(&ctx.tmp, 128);
 

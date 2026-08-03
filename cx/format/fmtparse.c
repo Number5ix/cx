@@ -96,11 +96,26 @@ static bool fmtParseOpt(_Inout_ FMTContext* ctx, _In_ strref opt, int32 vtype)
     return false;
 }
 
+// Close the type-name, instance-number and key spans when a terminator is reached. Any
+// that are still open end at this position.
+//
+// These three use -1 rather than 0 for "still open", because 0 is a legitimate end
+// position: "${:host}" has an empty type name that closes at index 0.
+#define FMT_CLOSESPANS(pos)                \
+    do {                                   \
+        if (vtend < 0)                     \
+            vtend = (pos);                 \
+        if (vnend < 0)                     \
+            vnend = (pos);                 \
+        if (keystart > 0 && keyend < 0)    \
+            keyend = (pos);                \
+    } while (0)
+
 _Use_decl_annotations_
 bool _fmtParseVar(FMTContext* ctx)
 {
-    int32 vtstart = 0, vtend = 0, vnend = 0, fostart = 0, foend = 0, xstart = 0, xend = 0,
-          defstart                         = 0;
+    int32 vtstart = 0, vtend = -1, vnend = -1, fostart = 0, foend = 0, xstart = 0, xend = 0,
+          keystart = 0, keyend = -1, defstart = 0;
     enum { X_None, X_Array, X_Hash } xtype = X_None;
     int phase                              = 0;
     int vtype                              = -1;
@@ -119,33 +134,36 @@ bool _fmtParseVar(FMTContext* ctx)
             } else if (i == 0 && ch == '+') {
                 ctx->v.flags |= FMTVar_SignAlways;
                 vtstart = 1;
-            } else if (isdigit(ch) && vtend == 0 && !foend) {
+            } else if (isdigit(ch) && vtend < 0 && !foend && keystart == 0) {
                 vtend = i;
+            } else if (ch == ':') {
+                // keyed argument. Stays in phase 0 so that (width,fmtopts), an extra
+                // field and a default all remain reachable after the key.
+                if (keystart > 0)
+                    return false;   // only one key per variable
+                FMT_CLOSESPANS(i);
+                keystart = i + 1;
             } else if (ch == '(') {
-                if (vtend == 0)
-                    vtend = i;
-                vnend   = i;
+                FMT_CLOSESPANS(i);
                 fostart = i + 1;
                 phase   = 1;
             } else if (ch == ';') {
-                if (vtend == 0)
-                    vtend = i;
-                if (vnend == 0)
-                    vnend = i;
+                FMT_CLOSESPANS(i);
                 defstart = i + 1;
                 phase    = 3;
             } else if (ch == ')' || ch == ',') {
                 return false;
-            } else if (ch == '[' || ch == ':') {
-                if (vtend == 0)
-                    vtend = i;
-                if (vnend == 0)
-                    vnend = i;
+            } else if (ch == '[') {
+                // The extra field subscripts the argument, so it binds tighter than the
+                // formatting applied to the result and is written first: "${int:sizes[2](6)}"
+                // indexes, then pads to a width of 6.
+                if (xstart > 0 || foend > 0)
+                    return false;   // one subscript, and it precedes (width,fmtopts)
+                FMT_CLOSESPANS(i);
                 xstart = i + 1;
-                xtype  = (ch == '[') ? X_Array : X_Hash;
                 phase  = 2;
-            } else if (foend > 0) {
-                return false;
+            } else if (foend > 0 || xend > 0) {
+                return false;   // trailing junk after a closed group
             }
             break;
         case 1:
@@ -158,14 +176,14 @@ bool _fmtParseVar(FMTContext* ctx)
             break;
         case 2:
             if (ch == ']') {
-                xend = i;
+                xend  = i;
+                phase = 0;   // (width,fmtopts) and ;default may follow
             } else if (ch == ';') {
                 if (xend == 0)
                     xend = i;
                 defstart = i + 1;
                 phase    = 3;
-            } else if (xend > 0)
-                return false;
+            }
             break;
         }
     }
@@ -175,10 +193,7 @@ bool _fmtParseVar(FMTContext* ctx)
 
     if (xstart > 0 && xend == 0)
         xend = len;
-    if (vtend == 0)
-        vtend = len;
-    if (vnend == 0)
-        vnend = len;
+    FMT_CLOSESPANS(len);
 
     // check if we have default first, because it will be a fallback in case of parse error
     if (defstart > 0) {
@@ -186,7 +201,48 @@ bool _fmtParseVar(FMTContext* ctx)
     }
     bool ret = !strEmpty(ctx->v.def);
 
-    // first extract the type and check it
+    // extract the key, if this is a keyed lookup
+    if (keystart > 0) {
+        strSubStr(&ctx->v.key, ctx->v.var, keystart, keyend);
+        if (strEmpty(ctx->v.key))
+            goto out;   // "${string:}" is not meaningful
+    }
+
+    // Handle the 'idx' -- container subscripting. This runs before the type is resolved
+    // because a typeless keyed placeholder such as "${:sizes[2]}" has to take its type
+    // from the array's *element* type, which means knowing that it subscripts an array.
+    // Nothing here depends on the type, so the order is free.
+    //
+    // Array index vs hashtable key is decided from the bracket contents alone, never from
+    // which arguments happen to be present: a format string's meaning must not change
+    // because a call gained an sarray argument. A leading backtick forces a hash key,
+    // using the same escape character the rest of the grammar already uses.
+    if (xstart > 0) {
+        if (xstart == xend) {
+            xtype = X_Array;   // "[]" advances the internal array counter
+        } else if (strGetChar(ctx->v.var, xstart) == '`') {
+            xtype = X_Hash;
+            xstart++;   // eat the escape
+        } else {
+            strSubStr(&ctx->tmp, ctx->v.var, xstart, xend);
+            xtype = strToInt32(&ctx->v.arrayidx, ctx->tmp, 10, true) ? X_Array : X_Hash;
+        }
+    }
+
+    if (xtype == X_Array) {
+        // these can be the same for [], which is legal
+        if (xstart != xend) {
+            strSubStr(&ctx->tmp, ctx->v.var, xstart, xend);
+            if (!strToInt32(&ctx->v.arrayidx, ctx->tmp, 10, true))
+                goto out;
+        } else {
+            ctx->v.arrayidx = ctx->arrayidx++;
+        }
+    } else if (xtype == X_Hash) {
+        strSubStr(&ctx->v.hashkey, ctx->v.var, xstart, xend);
+    }
+
+    // now extract the type and check it
     strSubStr(&ctx->tmp, ctx->v.var, vtstart, vtend);
     for (int i = 0; i < FMT_count; i++) {
         if (strEq(ctx->tmp, _fmtTypeNames[i])) {
@@ -194,6 +250,14 @@ bool _fmtParseVar(FMTContext* ctx)
             break;
         }
     }
+
+    // A keyed lookup may omit the type entirely -- "${:host}" -- in which case the
+    // argument's own runtime type selects the formatter (or its element type, when the
+    // placeholder subscripts a container). Resolve it here rather than deferring, so that
+    // everything downstream -- type-specific option parsing, finalize, formatting -- sees
+    // a concrete type exactly as it always has.
+    if (vtype == -1 && keystart > 0 && strEmpty(ctx->tmp))
+        vtype = _fmtTypeFromKey(ctx, ctx->v.key, xtype == X_Array, xtype == X_Hash);
 
     // didn't find a matching type name
     if (vtype == -1)
@@ -235,21 +299,7 @@ bool _fmtParseVar(FMTContext* ctx)
         }
     }
 
-    // handle the 'extra' (array index and/or hash key)
-    if (xstart > 0 && xend == 0)
-        xend = len;
-    if (xtype == X_Array) {
-        // these can be the same for [], which is legal
-        if (xstart != xend) {
-            strSubStr(&ctx->tmp, ctx->v.var, xstart, xend);
-            if (!strToInt32(&ctx->v.arrayidx, ctx->tmp, 10, true))
-                goto out;
-        } else {
-            ctx->v.arrayidx = ctx->arrayidx++;
-        }
-    } else if (xtype == X_Hash) {
-        strSubStr(&ctx->v.hashkey, ctx->v.var, xstart, xend);
-    }
+    // the 'idx' field was resolved before the type, above
 
     if (_fmtTypeParseFinalize[vtype] && !_fmtTypeParseFinalize[vtype](&ctx->v))
         goto out;

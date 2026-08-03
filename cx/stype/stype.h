@@ -435,7 +435,8 @@ _Static_assert(sizeof(stgeneric) == sizeof(uint64), "stype container too large")
 
 typedef struct stvar {
     stgeneric data;
-    stype _type;   // low bit: STVAR_OwnsData; use stvarType()/setters below
+    stype _type;         // low bit: STVAR_OwnsData; use stvarType()/setters below
+    const char* _name;   // optional key; NULL or program-lifetime. Use stvarName().
 } stvar;
 
 // Low-bit tag stashed in the _type pointer. stype is a pointer to a canonical STypeInfo
@@ -484,6 +485,39 @@ _meta_inline void _stvarSetType(stvar* v, stype t, bool owns)
 {
     dbgAssert(((uintptr)t & STVAR_OwnsData) == 0);   // alignment sanity
     v->_type = (stype)((uintptr)t | (owns ? STVAR_OwnsData : 0));
+}
+
+/// const char* stvarName(const stvar *v)
+///
+/// Returns the key name attached to a variant, or NULL if it has none.
+///
+/// Keyed variants are created with `stvark()` (or `stvarkn()`), which attaches a name so
+/// the variant can be located by key instead of by type and position. The name is a plain
+/// C string rather than a cx `string` -- there is no portable way to embed a length inside
+/// an expression macro, and keys are short enough that a plain compare costs nothing.
+///
+/// The name is **metadata**: it is preserved by copy, but deliberately ignored by compare
+/// and hash, so attaching a key never changes a variant's value semantics in a container.
+///
+/// @param v Pointer to variant
+/// @return Key name, or NULL if the variant is unkeyed
+///
+/// Example:
+/// @code
+///   stvar v = stvark(host, string, hostname);
+///   const char *k = stvarName(&v);   // "host"
+/// @endcode
+_meta_inline const char* stvarName(const stvar* v)
+{
+    return v->_name;
+}
+
+// Attach a key name to a variant. nm must be NULL or have program lifetime -- it is
+// pointer-copied, never duplicated. Prefer the stvark() macro, which stringizes a token
+// and so cannot be handed a pointer that dangles.
+_meta_inline void _stvarSetName(stvar* v, const char* nm)
+{
+    v->_name = nm;
 }
 
 // The type that's actually used for storage in containers, etc.

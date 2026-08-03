@@ -21,18 +21,31 @@
 /// considered to be part of the variable. If a literal `${` is needed, it can be escaped
 /// with a backtick -- i.e. `` `${ ``
 ///
-/// Variable substitution follows the following format:
+/// Variable substitution follows the following format, where `N` stands for a number and
+/// square brackets mark optional parts (the brackets around `idx` are literal):
 ///
-/// `type#(width,fmtopts)extra;default`
+/// `${type}`
+/// `${typeN}`  // e.g. ${type1}
+/// `${type:key}`
+/// `${type#[idx](width,fmtopts);default}`
+/// `${type:key[idx](width,fmtopts);default}`
 ///
-/// `type` is a type name (see below), and the number indicates the n-th instance of that
-/// particular type in the format arguments. The type is REQUIRED and the number is
-/// OPTIONAL. If the number is omitted, an internal count is maintained, and each time
-/// that type name is used, the count is increased.
+/// or, broken down:
+/// `[prefix] type [N] [:key] [ [idx] ] [(width,fmtopts)] [;default]`
+///
+/// The subscript precedes the formatting options because it binds tighter: it selects
+/// *which* value to render, and the options then apply to whatever came out. So
+/// `${int[2](6)}` takes element 2 and pads it to a width of 6. The reverse order is
+/// rejected rather than silently accepted.
+///
+/// `type` is a type name (see below), and `N` indicates the n-th instance of that
+/// particular type in the format arguments. Both are OPTIONAL, but at least one of
+/// `type` or `:key` must be present. If `N` is omitted, an internal count is maintained,
+/// and each time that type name is used, the count is increased.
 ///
 /// For example, `${string}` indicates the next string in the argument sequence, and
 /// `${int3}` uses the third integer.
-///
+////
 /// @section string_format_prefixes Optional prefixes
 ///
 /// An optional prefix may precede the type name. Supported prefixes are:
@@ -89,14 +102,62 @@
 /// - **object** - Requires that the object in question implement the Formattable interface. fmtopts
 /// are passed to the object and may vary.
 ///
-/// @section string_format_extra Extra field modifiers
+/// @section string_format_keys Keyed arguments
 ///
-/// The 'extra' field may follow one of two forms and acts as a modifier on the type:
+/// An argument passed with `stvark()` carries a name, and `:key` selects it by that name
+/// instead of by type and position. Keyed lookup searches the whole argument list and is
+/// order-independent, so keyed and positional placeholders can be freely interleaved
+/// without disturbing each other.
+///
+/// The two addressing modes are disjoint: a **keyed argument is never matched by an
+/// unkeyed placeholder**, and a keyed placeholder never consults unkeyed arguments. This
+/// means adding a keyed argument to an existing call cannot renumber the placeholders
+/// already there, which is the whole point of naming one.
+///
+/// - `${string:host}` -- the argument keyed `host`, which must be a string
+/// - `${:host}` -- the argument keyed `host`, whatever type it is
+/// - `${string:host(10,left)}` -- keys compose with format options as usual
+/// - `${int:sizes[2]}` -- element 2 of the array keyed `sizes`
+/// - `${string:hdrs[agent]}` -- key `agent` of the hashtable keyed `hdrs`
+///
+/// Keys compose with container subscripting (below), which is the only way to
+/// disambiguate two containers of the same element type in one call. A typeless keyed
+/// subscript takes its type from the container's element or value type, since that is
+/// what actually gets rendered.
+///
+/// @code
+///   strFormat(&s, _SL("${string:host} took ${int:ms}ms"),
+///             stvark(host, string, hostname), stvark(ms, int32, elapsed));
+/// @endcode
+///
+/// The key sits in the type-name position, before any subscript or formatting options, so
+/// that the typed and typeless forms parse identically. Omitting the type is a
+/// convenience: the argument's own runtime type selects the formatter.
+///
+/// @section string_format_container Container indexing
+///
+/// The 'idx' field subscripts a container argument and acts as a modifier on the type.
+/// Both forms use square brackets; which one applies is decided from the bracket contents,
+/// never from which arguments happen to be present:
 /// - `type[#]` - Uses the first matching argument that is an sarray of type. The number specifies
 /// the 0-based array index. `[]` without an index may be used to increment an internal counter.
-/// - `type:key` - Uses the first matching argument that is a hashtable with string keys and values
-/// of the specified type. The string 'key' is looked up in the hashtable in order to find the
-/// matching value.
+/// - `type[key]` - Uses the first matching argument that is a hashtable with string keys and
+/// values of the specified type. The string 'key' is looked up in the hashtable in order to find
+/// the matching value.
+///
+/// Bracket contents that parse as a non-negative integer are always an array index; anything
+/// else is always a hashtable key. To force a hashtable key that looks like a number, escape it
+/// with a leading backtick -- `` ${string[`0]} `` looks up the key "0".
+///
+/// @note Hashtable lookup previously used `type:key`. That spelling now means a keyed argument
+/// (see above), which is by far the more common case, so hashtable lookups moved into the
+/// bracket syntax alongside array indexing.
+///
+/// Without a key the container is selected the usual way -- the first matching argument of the
+/// right shape -- so two same-typed containers in one call cannot be told apart. Adding a key
+/// does that: `${int:sizes[0]}` and `${int:limits[0]}` index two different arrays.
+///
+/// Remember that the subscript precedes `(width,fmtopts)`: `${int[2](6)}`, not `${int(6)[2]}`.
 ///
 /// @section string_format_default Default values
 ///
@@ -172,7 +233,8 @@ typedef struct FMTVar {
     string tmp;           ///< temporary storage for variable-level operations
 
     int32 arrayidx;       ///< array index (or -1)
-    string hashkey;       ///< hash key
+    string hashkey;       ///< hashtable lookup key, from ${type[key]}
+    string key;           ///< keyed-argument name, from ${type:key}
 
     uint32 flags;         ///< format flags
     uintptr fmtdata[4];   ///< type-specific format data
