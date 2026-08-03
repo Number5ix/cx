@@ -1,6 +1,8 @@
 /_*
 /build
+/design
 /docs/html
 /out
+.claude
 .vscode
 .vs
