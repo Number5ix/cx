@@ -771,6 +771,68 @@ _At_(handle->a, _Pre_maybenull_) void _saSort(_Inout_ sahandle handle, bool keep
 /// @endcode
 #define saSort(handle, keep) _saSort(SAHANDLE(handle), keep)
 
+/// Custom comparison function for saSortCustom()
+///
+/// Mirrors the stype cmp operation (stCmpFunc) with an additional caller-supplied context
+/// pointer. Elements are passed as stgeneric values just as they would be to a type's own
+/// comparison operation, so they are unpacked through the matching stgeneric union member
+/// (gen1.st_int32, gen1.st_string, etc).
+///
+/// @param st Type descriptor for both values (the array's element type)
+/// @param gen1 First value
+/// @param gen2 Second value
+/// @param flags Flags passed to saSortCustom(), forwarded unchanged. ST_Equality is never
+///              passed, as sorting always requires full ordering
+/// @param ctx Context pointer passed to saSortCustom(), forwarded unchanged
+/// @return Negative if gen1 < gen2, zero if equal, positive if gen1 > gen2
+typedef intptr (*saCmpFunc)(stype st,
+                            _In_ stgeneric gen1,
+                            _In_ stgeneric gen2,
+                            flags_t flags,
+                            _In_opt_ void* ctx);
+
+_At_(handle->a, _Pre_maybenull_) void _saSortCustom(_Inout_ sahandle handle,
+                                                    _In_ saCmpFunc cmp,
+                                                    _In_opt_ void* ctx,
+                                                    flags_t flags);
+
+/// void saSortCustom(sa_type *handle, saCmpFunc cmp, void *ctx, [flags])
+///
+/// Sorts the array in-place using a caller-supplied comparison function
+///
+/// Uses the same quicksort implementation as saSort(), but orders elements by the given
+/// comparator rather than the element type's built-in comparison. The comparator receives
+/// the context pointer and flags unchanged on every call, so ordering state (sort direction,
+/// key selection, collation rules) can be passed without globals.
+///
+/// Unlike saSort(), this **clears** the SA_Sorted flag: a custom ordering is generally not
+/// the element type's canonical order, and saFind()'s binary search and sorted insertion
+/// both assume canonical order. Call saSort(handle, true) if the sorted invariant is needed
+/// again afterwards.
+///
+/// @param handle Pointer to the array to sort
+/// @param cmp Comparison function used to order elements
+/// @param ctx Context pointer passed through to every comparison (may be NULL)
+/// @param ... (flags) Optional: flags passed through to every comparison, such as
+///            ST_CaseInsensitive
+///
+/// Safe to call with NULL or empty arrays.
+///
+/// Example:
+/// @code
+///   static intptr cmpInt(stype st, stgeneric g1, stgeneric g2, flags_t flags, void *ctx)
+///   {
+///       bool desc = *(bool*)ctx;
+///       intptr ret = (intptr)g1.st_int32 - (intptr)g2.st_int32;
+///       return desc ? -ret : ret;
+///   }
+///
+///   bool desc = true;
+///   saSortCustom(&arr, cmpInt, &desc);   // sort descending
+/// @endcode
+#define saSortCustom(handle, cmp, ctx, ...) \
+    _saSortCustom(SAHANDLE(handle), cmp, ctx, opt_flags(__VA_ARGS__))
+
 /// @}  // end of array_ops group
 
 /// @defgroup array_copy Slicing, Cloning & Merging

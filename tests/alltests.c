@@ -54,6 +54,7 @@ static const testspec tests[] = {
     { "sarray: String Array", "sarraytest", "string" },
     { "sarray: Sort", "sarraytest", "sort" },
     { "sarray: String Sort", "sarraytest", "string_sort" },
+    { "sarray: Custom Sort", "sarraytest", "custom_sort" },
     { "sarray: stvar Consume", "sarraytest", "stvar_consume" },
     { "string: Join", "strtest", "join" },
     { "string: Append/Prepend", "strtest", "append" },

@@ -32,164 +32,174 @@ static _meta_inline void sa_swap(_Inout_updates_bytes_(sz) void* av,
     sa_swap(a, b, n)
 
 // specializations for various data types for performance
-#define SA_SPECIALIZE_FINDONLY(name, typ, comptyp, compfunc)           \
-    static int32 sa_find_internal_##name(_In_ SArrayHeader* hdr,       \
-                                         _In_ const void* elem,        \
-                                         _Inout_ bool* found)          \
-    {                                                                  \
-        int32 i;                                                       \
-                                                                       \
-        for (i = 0; i < hdr->count; ++i) {                             \
-            if (compfunc(hdr->elemtype, elem, ELEMPTR(hdr, i)) == 0) { \
-                *found = true;                                         \
-                return i;                                              \
-            }                                                          \
-        }                                                              \
-                                                                       \
-        return hdr->count;                                             \
+//
+// compfunc is invoked as compfunc(elemtype, ctx, a, b), where ctx is an opaque pointer that
+// is threaded through the sort from the caller. Only the custom comparator specialization
+// uses it; everything else ignores it and is passed NULL.
+#define SA_SPECIALIZE_FINDONLY(name, typ, comptyp, compfunc)                 \
+    static int32 sa_find_internal_##name(_In_ SArrayHeader* hdr,             \
+                                         _In_ const void* elem,              \
+                                         _Inout_ bool* found)                \
+    {                                                                        \
+        int32 i;                                                             \
+                                                                             \
+        for (i = 0; i < hdr->count; ++i) {                                   \
+            if (compfunc(hdr->elemtype, NULL, elem, ELEMPTR(hdr, i)) == 0) { \
+                *found = true;                                               \
+                return i;                                                    \
+            }                                                                \
+        }                                                                    \
+                                                                             \
+        return hdr->count;                                                   \
     }
 
-#define SA_SPECIALIZE_BSEARCHONLY(name, typ, comptyp, compfunc)     \
-    static int32 sa_bsearch_internal_##name(_In_ SArrayHeader* hdr, \
-                                            _In_ const void* elem,  \
-                                            _Inout_ bool* found)    \
-    {                                                               \
-        int32 low, high, i;                                         \
-        comptyp comp;                                               \
-                                                                    \
-        low  = 0;                                                   \
-        high = hdr->count;                                          \
-        while (high > low) {                                        \
-            i    = (high + low) / 2;                                \
-            comp = compfunc(hdr->elemtype, elem, ELEMPTR(hdr, i));  \
-            if (comp == 0) {                                        \
-                low = high = i;                                     \
-                *found     = true;                                  \
-            } else if (comp < 0)                                    \
-                high = i;                                           \
-            else if (i == low)                                      \
-                low = high;                                         \
-            else                                                    \
-                low = i;                                            \
-        }                                                           \
-        return low;                                                 \
+#define SA_SPECIALIZE_BSEARCHONLY(name, typ, comptyp, compfunc)          \
+    static int32 sa_bsearch_internal_##name(_In_ SArrayHeader* hdr,      \
+                                            _In_ const void* elem,       \
+                                            _Inout_ bool* found)         \
+    {                                                                    \
+        int32 low, high, i;                                              \
+        comptyp comp;                                                    \
+                                                                         \
+        low  = 0;                                                        \
+        high = hdr->count;                                               \
+        while (high > low) {                                             \
+            i    = (high + low) / 2;                                     \
+            comp = compfunc(hdr->elemtype, NULL, elem, ELEMPTR(hdr, i)); \
+            if (comp == 0) {                                             \
+                low = high = i;                                          \
+                *found     = true;                                       \
+            } else if (comp < 0)                                         \
+                high = i;                                                \
+            else if (i == low)                                           \
+                low = high;                                              \
+            else                                                         \
+                low = i;                                                 \
+        }                                                                \
+        return low;                                                      \
     }
 
-#define SA_SPECIALIZE_QSORTONLY(name, typ, comptyp, compfunc)                                   \
-    static _meta_inline char*                                                                   \
-    med3_##name(_In_ SArrayHeader* hdr, _In_ void* a, _In_ void* b, _In_ void* c)               \
-    {                                                                                           \
-        return (char*)(compfunc(hdr->elemtype, a, b) < 0 ?                                      \
-                           (compfunc(hdr->elemtype, b, c) < 0 ?                                 \
-                                b :                                                             \
-                                (compfunc(hdr->elemtype, a, c) < 0 ? c : a)) :                  \
-                           (compfunc(hdr->elemtype, b, c) > 0 ?                                 \
-                                b :                                                             \
-                                (compfunc(hdr->elemtype, a, c) < 0 ? a : c)));                  \
-    }                                                                                           \
-                                                                                                \
-    static void sa_qsort_internal_##name(_Inout_ SArrayHeader* hdr, _Inout_ void* a, size_t n)  \
-    {                                                                                           \
-        char *pa, *pb, *pc, *pd, *pm, *pn;                                                      \
-        size_t es, d1, d2;                                                                      \
-        comptyp cmp_result;                                                                     \
-        int swap_cnt;                                                                           \
-                                                                                                \
-        es = stGetSize(hdr->elemtype);                                                          \
-                                                                                                \
-loop:                                                                                           \
-        swap_cnt = 0;                                                                           \
-                                                                                                \
-        if (n < 7) {                                                                            \
-            for (pm = (char*)a + es; pm < (char*)a + n * es; pm += es)                          \
-                for (char* pl = pm;                                                             \
-                     pl > (char*)a && compfunc(hdr->elemtype, (void*)(pl - es), (void*)pl) > 0; \
-                     pl -= es)                                                                  \
-                    sa_swap(pl, pl - es, es);                                                   \
-            return;                                                                             \
-        }                                                                                       \
-        pm = (char*)a + (n / 2) * es;                                                           \
-        if (n > 7) {                                                                            \
-            char* pl = a;                                                                       \
-            pn       = (char*)a + (n - 1) * es;                                                 \
-            if (n > 40) {                                                                       \
-                size_t d = (n / 8) * es;                                                        \
-                                                                                                \
-                pl = med3_##name(hdr, pl, pl + d, pl + 2 * d);                                  \
-                pm = med3_##name(hdr, pm - d, pm, pm + d);                                      \
-                pn = med3_##name(hdr, pn - 2 * d, pn - d, pn);                                  \
-            }                                                                                   \
-            pm = med3_##name(hdr, pl, pm, pn);                                                  \
-        }                                                                                       \
-        sa_swap(a, pm, es);                                                                     \
-        pa = pb = (char*)a + es;                                                                \
-                                                                                                \
-        pc = pd = (char*)a + (n - 1) * es;                                                      \
-        for (;;) {                                                                              \
-            while (pb <= pc && (cmp_result = compfunc(hdr->elemtype, (void*)pb, a)) <= 0) {     \
-                if (cmp_result == 0) {                                                          \
-                    swap_cnt = 1;                                                               \
-                    sa_swap(pa, pb, es);                                                        \
-                    pa += es;                                                                   \
-                }                                                                               \
-                pb += es;                                                                       \
-            }                                                                                   \
-            while (pb <= pc && (cmp_result = compfunc(hdr->elemtype, (void*)pc, a)) >= 0) {     \
-                if (cmp_result == 0) {                                                          \
-                    swap_cnt = 1;                                                               \
-                    sa_swap(pc, pd, es);                                                        \
-                    pd -= es;                                                                   \
-                }                                                                               \
-                pc -= es;                                                                       \
-            }                                                                                   \
-            if (pb > pc)                                                                        \
-                break;                                                                          \
-            sa_swap(pb, pc, es);                                                                \
-            swap_cnt = 1;                                                                       \
-            pb += es;                                                                           \
-            pc -= es;                                                                           \
-        }                                                                                       \
-        if (swap_cnt == 0) { /* Switch to insertion sort */                                     \
-            for (pm = (char*)a + es; pm < (char*)a + n * es; pm += es)                          \
-                for (char* pl = pm;                                                             \
-                     pl > (char*)a && compfunc(hdr->elemtype, (void*)(pl - es), (void*)pl) > 0; \
-                     pl -= es)                                                                  \
-                    sa_swap(pl, pl - es, es);                                                   \
-            return;                                                                             \
-        }                                                                                       \
-                                                                                                \
-        pn = (char*)a + n * es;                                                                 \
-        d1 = min((pa - (char*)a), pb - pa);                                                     \
-        vecswap(a, pb - d1, d1);                                                                \
-        d1 = min((size_t)(pd - pc), pn - pd - es);                                              \
-        vecswap(pb, pn - d1, d1);                                                               \
-                                                                                                \
-        d1 = pb - pa;                                                                           \
-        d2 = pd - pc;                                                                           \
-        if (d1 <= d2) {                                                                         \
-            /* Recurse on left partition, then iterate on right partition */                    \
-            if (d1 > es) {                                                                      \
-                sa_qsort_internal_##name(hdr, a, d1 / es);                                      \
-            }                                                                                   \
-            if (d2 > es) {                                                                      \
-                /* Iterate rather than recurse to save stack space */                           \
-                /* qsort(pn - d2, d2 / es, es, cmp); */                                         \
-                a = pn - d2;                                                                    \
-                n = d2 / es;                                                                    \
-                goto loop;                                                                      \
-            }                                                                                   \
-        } else {                                                                                \
-            /* Recurse on right partition, then iterate on left partition */                    \
-            if (d2 > es) {                                                                      \
-                sa_qsort_internal_##name(hdr, pn - d2, d2 / es);                                \
-            }                                                                                   \
-            if (d1 > es) {                                                                      \
-                /* Iterate rather than recurse to save stack space */                           \
-                /* qsort(a, d1 / es, es, cmp); */                                               \
-                n = d1 / es;                                                                    \
-                goto loop;                                                                      \
-            }                                                                                   \
-        }                                                                                       \
+#define SA_SPECIALIZE_QSORTONLY(name, typ, comptyp, compfunc)                                    \
+    static _meta_inline char* med3_##name(_In_ SArrayHeader* hdr,                                \
+                                          _In_opt_ void* ctx,                                    \
+                                          _In_ void* a,                                          \
+                                          _In_ void* b,                                          \
+                                          _In_ void* c)                                          \
+    {                                                                                            \
+        return (char*)(compfunc(hdr->elemtype, ctx, a, b) < 0 ?                                  \
+                           (compfunc(hdr->elemtype, ctx, b, c) < 0 ?                             \
+                                b :                                                              \
+                                (compfunc(hdr->elemtype, ctx, a, c) < 0 ? c : a)) :              \
+                           (compfunc(hdr->elemtype, ctx, b, c) > 0 ?                             \
+                                b :                                                              \
+                                (compfunc(hdr->elemtype, ctx, a, c) < 0 ? a : c)));              \
+    }                                                                                            \
+                                                                                                 \
+    static void sa_qsort_internal_##name(_Inout_ SArrayHeader* hdr,                              \
+                                         _In_opt_ void* ctx,                                     \
+                                         _Inout_ void* a,                                        \
+                                         size_t n)                                               \
+    {                                                                                            \
+        char *pa, *pb, *pc, *pd, *pm, *pn;                                                       \
+        size_t es, d1, d2;                                                                       \
+        comptyp cmp_result;                                                                      \
+        int swap_cnt;                                                                            \
+                                                                                                 \
+        es = stGetSize(hdr->elemtype);                                                           \
+                                                                                                 \
+loop:                                                                                            \
+        swap_cnt = 0;                                                                            \
+                                                                                                 \
+        if (n < 7) {                                                                             \
+            for (pm = (char*)a + es; pm < (char*)a + n * es; pm += es)                           \
+                for (char* pl = pm; pl > (char*)a &&                                             \
+                     compfunc(hdr->elemtype, ctx, (void*)(pl - es), (void*)pl) > 0;              \
+                     pl -= es)                                                                   \
+                    sa_swap(pl, pl - es, es);                                                    \
+            return;                                                                              \
+        }                                                                                        \
+        pm = (char*)a + (n / 2) * es;                                                            \
+        if (n > 7) {                                                                             \
+            char* pl = a;                                                                        \
+            pn       = (char*)a + (n - 1) * es;                                                  \
+            if (n > 40) {                                                                        \
+                size_t d = (n / 8) * es;                                                         \
+                                                                                                 \
+                pl = med3_##name(hdr, ctx, pl, pl + d, pl + 2 * d);                              \
+                pm = med3_##name(hdr, ctx, pm - d, pm, pm + d);                                  \
+                pn = med3_##name(hdr, ctx, pn - 2 * d, pn - d, pn);                              \
+            }                                                                                    \
+            pm = med3_##name(hdr, ctx, pl, pm, pn);                                              \
+        }                                                                                        \
+        sa_swap(a, pm, es);                                                                      \
+        pa = pb = (char*)a + es;                                                                 \
+                                                                                                 \
+        pc = pd = (char*)a + (n - 1) * es;                                                       \
+        for (;;) {                                                                               \
+            while (pb <= pc && (cmp_result = compfunc(hdr->elemtype, ctx, (void*)pb, a)) <= 0) { \
+                if (cmp_result == 0) {                                                           \
+                    swap_cnt = 1;                                                                \
+                    sa_swap(pa, pb, es);                                                         \
+                    pa += es;                                                                    \
+                }                                                                                \
+                pb += es;                                                                        \
+            }                                                                                    \
+            while (pb <= pc && (cmp_result = compfunc(hdr->elemtype, ctx, (void*)pc, a)) >= 0) { \
+                if (cmp_result == 0) {                                                           \
+                    swap_cnt = 1;                                                                \
+                    sa_swap(pc, pd, es);                                                         \
+                    pd -= es;                                                                    \
+                }                                                                                \
+                pc -= es;                                                                        \
+            }                                                                                    \
+            if (pb > pc)                                                                         \
+                break;                                                                           \
+            sa_swap(pb, pc, es);                                                                 \
+            swap_cnt = 1;                                                                        \
+            pb += es;                                                                            \
+            pc -= es;                                                                            \
+        }                                                                                        \
+        if (swap_cnt == 0) { /* Switch to insertion sort */                                      \
+            for (pm = (char*)a + es; pm < (char*)a + n * es; pm += es)                           \
+                for (char* pl = pm; pl > (char*)a &&                                             \
+                     compfunc(hdr->elemtype, ctx, (void*)(pl - es), (void*)pl) > 0;              \
+                     pl -= es)                                                                   \
+                    sa_swap(pl, pl - es, es);                                                    \
+            return;                                                                              \
+        }                                                                                        \
+                                                                                                 \
+        pn = (char*)a + n * es;                                                                  \
+        d1 = min((pa - (char*)a), pb - pa);                                                      \
+        vecswap(a, pb - d1, d1);                                                                 \
+        d1 = min((size_t)(pd - pc), pn - pd - es);                                               \
+        vecswap(pb, pn - d1, d1);                                                                \
+                                                                                                 \
+        d1 = pb - pa;                                                                            \
+        d2 = pd - pc;                                                                            \
+        if (d1 <= d2) {                                                                          \
+            /* Recurse on left partition, then iterate on right partition */                     \
+            if (d1 > es) {                                                                       \
+                sa_qsort_internal_##name(hdr, ctx, a, d1 / es);                                  \
+            }                                                                                    \
+            if (d2 > es) {                                                                       \
+                /* Iterate rather than recurse to save stack space */                            \
+                /* qsort(pn - d2, d2 / es, es, cmp); */                                          \
+                a = pn - d2;                                                                     \
+                n = d2 / es;                                                                     \
+                goto loop;                                                                       \
+            }                                                                                    \
+        } else {                                                                                 \
+            /* Recurse on right partition, then iterate on left partition */                     \
+            if (d2 > es) {                                                                       \
+                sa_qsort_internal_##name(hdr, ctx, pn - d2, d2 / es);                            \
+            }                                                                                    \
+            if (d1 > es) {                                                                       \
+                /* Iterate rather than recurse to save stack space */                            \
+                /* qsort(a, d1 / es, es, cmp); */                                                \
+                n = d1 / es;                                                                     \
+                goto loop;                                                                       \
+            }                                                                                    \
+        }                                                                                        \
     }
 
 #define SA_SPECIALIZE(name, typ, comptyp, compfunc)         \
@@ -197,18 +207,19 @@ loop:                                                                           
     SA_SPECIALIZE_BSEARCHONLY(name, typ, comptyp, compfunc) \
     SA_SPECIALIZE_QSORTONLY(name, typ, comptyp, compfunc)
 
-#define compfunc_stype(st, a, b) _stCmp(st, stStored(st, a), stStored(st, b), 0)
+#define compfunc_stype(st, ctx, a, b) _stCmp(st, stStored(st, a), stStored(st, b), 0)
 SA_SPECIALIZE_BSEARCHONLY(stype, void*, intptr, compfunc_stype)
 SA_SPECIALIZE_QSORTONLY(stype, void*, intptr, compfunc_stype)
-#define compfunc_stype_eq(st, a, b) _stCmp(st, stStored(st, a), stStored(st, b), ST_Equality)
+#define compfunc_stype_eq(st, ctx, a, b) _stCmp(st, stStored(st, a), stStored(st, b), ST_Equality)
 SA_SPECIALIZE_FINDONLY(stypeeq, void*, intptr, compfunc_stype_eq)
-#define compfunc_str(st, a, b) strCmp(*(string*)(a), *(string*)(b))
+#define compfunc_str(st, ctx, a, b) strCmp(*(string*)(a), *(string*)(b))
 SA_SPECIALIZE(string, string, int32, compfunc_str)
-#define SA_SPECIALIZE_BUILTIN(name, typ, comptyp)                                       \
-    static _meta_inline comptyp compfunc_##name(stype st, const void* a, const void* b) \
-    {                                                                                   \
-        return *(typ*)a - *(typ*)b;                                                     \
-    }                                                                                   \
+#define SA_SPECIALIZE_BUILTIN(name, typ, comptyp)                            \
+    static _meta_inline comptyp                                              \
+    compfunc_##name(stype st, const void* ctx, const void* a, const void* b) \
+    {                                                                        \
+        return *(typ*)a - *(typ*)b;                                          \
+    }                                                                        \
     SA_SPECIALIZE(name, typ, comptyp, compfunc_##name)
 SA_SPECIALIZE_BUILTIN(int8, int8, int)
 SA_SPECIALIZE_BUILTIN(uint8, uint8, int)
@@ -222,8 +233,26 @@ SA_SPECIALIZE_BUILTIN(float32, float32, float32)
 SA_SPECIALIZE_BUILTIN(float64, float64, float64)
 SA_SPECIALIZE_BUILTIN(ptr, char*, intptr)
 
+// Context threaded through the custom comparator sort. Only saSortCustom() uses the ctx
+// parameter of the specializations; the pointer refers to a stack local in _saSortCustom().
+typedef struct SACustomSortCtx {
+    saCmpFunc cmp;
+    void* userctx;
+    flags_t flags;
+} SACustomSortCtx;
+
+#define compfunc_custom(st, ctx, a, b)           \
+    (((SACustomSortCtx*)(ctx))                   \
+         ->cmp(st,                               \
+               stStored(st, a),                  \
+               stStored(st, b),                  \
+               ((SACustomSortCtx*)(ctx))->flags, \
+               ((SACustomSortCtx*)(ctx))->userctx))
+SA_SPECIALIZE_QSORTONLY(custom, void*, intptr, compfunc_custom)
+
 typedef int32 (*sa_find_spec)(_In_ SArrayHeader* hdr, _In_ const void* elem, _Out_ bool* found);
-typedef void (*sa_qsort_spec)(_Inout_ SArrayHeader* hdr, _Inout_ void* a, size_t n);
+typedef void (*sa_qsort_spec)(_Inout_ SArrayHeader* hdr, _In_opt_ void* ctx, _Inout_ void* a,
+                              size_t n);
 
 // Row = (id >> 8) & 0xF  →  1=INT, 2=UINT, 3=FLOAT, 4=PTR
 // Col = ctz(id & 0xFF)   →  0=sz1, 1=sz2,  2=sz4,   3=sz8
@@ -355,9 +384,9 @@ static void sa_qsort_internal(_Inout_ SArrayHeader* hdr)
 {
     sa_qsort_spec spec = get_qsort_spec(hdr->elemtype);
     if (spec)
-        spec(hdr, hdr->data, hdr->count);
+        spec(hdr, NULL, hdr->data, hdr->count);
     else
-        sa_qsort_internal_stype(hdr, hdr->data, hdr->count);
+        sa_qsort_internal_stype(hdr, NULL, hdr->data, hdr->count);
 }
 
 _Use_decl_annotations_
@@ -808,6 +837,24 @@ void _saSort(sahandle handle, bool keep)
 
     if (keep)
         hdr->flags |= SA_Sorted;
+}
+
+_Use_decl_annotations_
+void _saSortCustom(sahandle handle, saCmpFunc cmp, void* ctx, flags_t flags)
+{
+    if (!handle->a)
+        return;
+
+    devAssert(cmp);
+
+    SArrayHeader* hdr = SARRAY_HDR(*handle);
+
+    SACustomSortCtx sctx = { .cmp = cmp, .userctx = ctx, .flags = flags };
+    sa_qsort_internal_custom(hdr, &sctx, hdr->data, hdr->count);
+
+    // A custom ordering is not the element type's canonical order, so binary search and
+    // sorted insertion are no longer valid.
+    hdr->flags &= ~SA_Sorted;
 }
 
 _Use_decl_annotations_

@@ -109,6 +109,7 @@ add_test(NAME "\"sarray: Opaque Struct Array\"" COMMAND test_runner sarraytest o
 add_test(NAME "\"sarray: String Array\"" COMMAND test_runner sarraytest string)
 add_test(NAME "\"sarray: Sort\"" COMMAND test_runner sarraytest sort)
 add_test(NAME "\"sarray: String Sort\"" COMMAND test_runner sarraytest string_sort)
+add_test(NAME "\"sarray: Custom Sort\"" COMMAND test_runner sarraytest custom_sort)
 add_test(NAME "\"sarray: stvar Consume\"" COMMAND test_runner sarraytest stvar_consume)
 add_test(NAME "\"string: Join\"" COMMAND test_runner strtest join)
 add_test(NAME "\"string: Append/Prepend\"" COMMAND test_runner strtest append)

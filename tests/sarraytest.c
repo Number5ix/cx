@@ -380,6 +380,102 @@ static int test_stvar_consume()
     return 0;
 }
 
+// Orders int32 elements ascending or descending depending on the context pointer
+static intptr cmp_int32_dir(stype st, stgeneric gen1, stgeneric gen2, flags_t flags, void* ctx)
+{
+    bool desc  = *(bool*)ctx;
+    intptr ret = (intptr)gen1.st_int32 - (intptr)gen2.st_int32;
+
+    return desc ? -ret : ret;
+}
+
+// Orders strings by length, shortest first
+static intptr cmp_string_len(stype st, stgeneric gen1, stgeneric gen2, flags_t flags, void* ctx)
+{
+    return (intptr)strLen(gen1.st_string) - (intptr)strLen(gen2.st_string);
+}
+
+static int test_custom_sort()
+{
+    sa_int32 t1;
+    sa_string t2;
+    bool desc = true;
+    int32 i;
+
+    // Large enough to exercise the median-of-nine pivot selection path
+    saInit(&t1, int32, 10, SA_Sorted);
+    for (i = 0; i <= 500; i += 10) {
+        saPush(&t1, int32, i);
+    }
+
+    if (saSize(t1) != 51)
+        return 1;
+
+    saSortCustom(&t1, cmp_int32_dir, &desc);
+
+    for (i = 0; i < 51; i++) {
+        if (t1.a[i] != (50 - i) * 10)
+            return 2;
+    }
+
+    // SA_Sorted must have been cleared, otherwise saFind would binary search a descending
+    // array and come up with the wrong answer
+    for (i = 0; i < 51; i++) {
+        if (saFind(t1, int32, (50 - i) * 10) != i)
+            return 3;
+    }
+
+    // The same comparator must follow the context back the other way
+    desc = false;
+    saSortCustom(&t1, cmp_int32_dir, &desc);
+
+    for (i = 0; i < 51; i++) {
+        if (t1.a[i] != i * 10)
+            return 4;
+    }
+
+    // Small arrays take the insertion sort path
+    saSetSize(&t1, 3);
+    t1.a[0] = 30;
+    t1.a[1] = 10;
+    t1.a[2] = 20;
+    desc    = true;
+    saSortCustom(&t1, cmp_int32_dir, &desc);
+    if (t1.a[0] != 30 || t1.a[1] != 20 || t1.a[2] != 10)
+        return 5;
+
+    saSetSize(&t1, 1);
+    saSortCustom(&t1, cmp_int32_dir, &desc);
+    if (t1.a[0] != 30)
+        return 6;
+
+    saClear(&t1);
+    saSortCustom(&t1, cmp_int32_dir, &desc);
+    if (saSize(t1) != 0)
+        return 7;
+
+    saDestroy(&t1);
+
+    // Elements passed by pointer, with a comparator that ignores the context entirely
+    saInit(&t2, string, 10);
+    saPush(&t2, string, _S"This is a test");
+    saPush(&t2, string, _S"Test");
+    saPush(&t2, string, _S"This is also a test");
+
+    saSortCustom(&t2, cmp_string_len, NULL);
+
+    if (!strEq(t2.a[0], _S"Test"))
+        return 8;
+    if (!strEq(t2.a[1], _S"This is a test"))
+        return 9;
+    if (!strEq(t2.a[2], _S"This is also a test"))
+        return 10;
+
+    saDestroy(&t2);
+
+    return 0;
+}
+
 testfunc sarraytest_funcs[] = {
     { "int",           test_int           },
     { "sorted_int",    test_sorted_int    },
@@ -387,6 +483,7 @@ testfunc sarraytest_funcs[] = {
     { "string",        test_string        },
     { "sort",          test_sort          },
     { "string_sort",   test_string_sort   },
+    { "custom_sort",   test_custom_sort   },
     { "stvar_consume", test_stvar_consume },
     { 0,               0                  }
 };
