@@ -154,6 +154,9 @@
 ///
 ///   - strLen() on a C string is O(n) and is recomputed on every call, since there is
 ///     no cached length. Duplicate it into a cx string if it is used repeatedly.
+///     Comparison is exempt: strEq() / strCmp() and their case-insensitive variants
+///     detect the missing length and walk to the null terminator instead of measuring,
+///     so comparing against a C string does not scan it first.
 ///   - The encoding is unknown and cannot be cached on a buffer the library does not
 ///     own, so strValidUTF8() / strValidASCII() rescan on every call, and results of
 ///     operations involving one have their cached encoding flags cleared.

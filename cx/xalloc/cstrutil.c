@@ -10,9 +10,10 @@
 // compatibility is a pain, we'll use an optimized replacement instead
 // to sidestep the portability issues.
 
-// memset, memcpy and memmove should be used as-is from string.h as the
+// memset, memcpy, memmove and strcmp should be used as-is from string.h as the
 // compiler intrinsics for those will be faster than anything that could be
-// supplied here.
+// supplied here. Comparing two independently-aligned null-terminated buffers in
+// particular is exactly what the platform implementation is tuned for.
 
 _Ret_z_ char* cstrDup(_In_z_ const char* src)
 {
@@ -168,6 +169,30 @@ size_t cstrLen(_In_z_ const char* str)
 
     /* NOTREACHED */
     return (0);
+}
+
+bool cstrEq(_In_opt_z_ const char* s1, _In_opt_z_ const char* s2)
+{
+    // early out for pointer identity
+    if (s1 == s2)
+        return true;
+    if (!s1 || !s2)
+        return false;
+
+    return strcmp(s1, s2) == 0;
+}
+
+int cstrCmp(_In_opt_z_ const char* s1, _In_opt_z_ const char* s2)
+{
+    // see cstrEq above; NULL sorts before any non-NULL string
+    if (s1 == s2)
+        return 0;
+    if (!s1)
+        return -1;
+    if (!s2)
+        return 1;
+
+    return strcmp(s1, s2);
 }
 
 // case insensitive compare since it's not consistently available

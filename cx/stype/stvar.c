@@ -113,25 +113,6 @@ void stvlRewind(stvlist* list)
     list->cursor = 0;
 }
 
-// Key comparison. Keys are short identifiers, so walk both pointers together rather than
-// measuring either first -- the whole comparison stays inside a machine word or two, and
-// a mismatch usually exits on the first byte. Never compare keys by pointer: identical
-// literals in different translation units are merged by the linker only as an
-// optimization, never a guarantee.
-static bool keyEq(const char* a, const char* b)
-{
-    if (a == b)   // covers both-NULL and the common pooled-literal case
-        return true;
-    if (!a || !b)
-        return false;
-
-    while (*a && *a == *b) {
-        a++;
-        b++;
-    }
-    return *a == *b;
-}
-
 // Find the index of the variant carrying a key, or -1. Scans the whole list from the
 // start and never touches the cursor -- keyed arguments are order-free by design, which
 // is the opposite of _stvlNext's find-forward-and-skip contract.
@@ -143,7 +124,7 @@ static int findKey(stvlist list, const char* key)
         return -1;
 
     for (int i = 0; i < list.count; i++) {
-        if (keyEq(key, stvarName(&list.vars[i]))) {
+        if (cstrEq(key, stvarName(&list.vars[i]))) {
             if (found == -1) {
                 found = i;
 #if DEBUG_LEVEL < 1 && !defined(DIAGNOSTIC)

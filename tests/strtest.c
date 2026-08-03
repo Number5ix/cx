@@ -174,6 +174,199 @@ static int test_compare()
     return 0;
 }
 
+// Runs every comparison in both argument orders. expect is the sign of cmp(a, b), so a
+// swapped result must have the opposite sign -- this is what catches a sign error in the
+// swapped-operand arm of strCmp. Returns 0 on success.
+static int cmpBothWays(strref a, strref b, int expect)
+{
+    bool eq = (expect == 0);
+
+    if (strEq(a, b) != eq || strEq(b, a) != eq)
+        return 1;
+
+    int fwd = strCmp(a, b), rev = strCmp(b, a);
+    if (expect == 0 && (fwd != 0 || rev != 0))
+        return 2;
+    if (expect < 0 && !(fwd < 0 && rev > 0))
+        return 3;
+    if (expect > 0 && !(fwd > 0 && rev < 0))
+        return 4;
+
+    return 0;
+}
+
+// Case-insensitive counterpart of cmpBothWays
+static int cmpiBothWays(strref a, strref b, int expect)
+{
+    bool eq = (expect == 0);
+
+    if (strEqi(a, b) != eq || strEqi(b, a) != eq)
+        return 1;
+
+    int fwd = strCmpi(a, b), rev = strCmpi(b, a);
+    if (expect == 0 && (fwd != 0 || rev != 0))
+        return 2;
+    if (expect < 0 && !(fwd < 0 && rev > 0))
+        return 3;
+    if (expect > 0 && !(fwd > 0 && rev < 0))
+        return 4;
+
+    return 0;
+}
+
+// Comparisons where at least one side has no embedded length field (STR_LEN0): plain C
+// strings, _S"" literals, and everything _SL() produces on MSVC. These take a fast path
+// that walks to the NUL instead of measuring the string first, so they need coverage
+// against every other string class, and on both sides of STR_LEN0_SCAN_THRESH.
+static int test_compare_len0()
+{
+    // --- LEN0 vs LEN0 ---
+    if (cmpBothWays(_S"abc", _S"abc", 0))
+        return 1;
+    if (cmpBothWays(_S"abc", _S"abd", -1))
+        return 2;
+    if (cmpBothWays(_S"abc", _S"abcd", -1))   // strict prefix
+        return 3;
+    if (cmpiBothWays(_S"AbC", _S"aBc", 0))
+        return 4;
+    if (cmpiBothWays(_S"AbC", _S"aBcd", -1))
+        return 5;
+
+    // --- LEN0 vs plain C string (no cx header at all) ---
+    if (cmpBothWays(_S"abc", (strref)"abc", 0))
+        return 10;
+    if (cmpBothWays((strref)"abc", _S"abd", -1))
+        return 11;
+    if (cmpBothWays((strref)"abc", (strref)"abcd", -1))
+        return 12;
+    if (cmpiBothWays((strref)"ABC", _S"abc", 0))
+        return 13;
+
+    // --- empty strings ---
+    // _S"" is a valid LEN0 string; a bare "" fails STR_CHECK_VALID and normalizes to the
+    // shared empty string, which has a length field, so both paths are covered
+    if (cmpBothWays(_S"", _S"", 0))
+        return 20;
+    if (cmpBothWays(_S"", (strref)"", 0))
+        return 21;
+    if (cmpBothWays(_S"", NULL, 0))
+        return 22;
+    if (cmpBothWays(_S"", _S"abc", -1))
+        return 23;
+    if (cmpBothWays(NULL, _S"abc", -1))
+        return 24;
+
+    // --- cstrEq / cstrCmp, which back the both-LEN0 case ---
+    if (!cstrEq(NULL, NULL) || cstrCmp(NULL, NULL) != 0)
+        return 30;
+    if (cstrEq(NULL, "a") || cstrEq("a", NULL))
+        return 31;
+    if (cstrCmp(NULL, "a") >= 0 || cstrCmp("a", NULL) <= 0)
+        return 32;
+    if (!cstrEq("abc", "abc") || cstrCmp("abc", "abc") != 0)
+        return 33;
+    if (cstrEq("abc", "abd") || cstrCmp("abc", "abd") >= 0)
+        return 34;
+    if (cstrEq("abc", "abcd") || cstrCmp("abcd", "abc") <= 0)
+        return 35;
+
+    int ret = 0;
+
+    // --- LEN0 vs heap string; strCopy forces a real allocation with a length field ---
+    string heap = 0;
+    strCopy(&heap, _S"abc");
+
+    if (cmpBothWays(_S"abc", heap, 0))
+        ret = 40;
+    else if (cmpBothWays(_S"abd", heap, 1))
+        ret = 41;
+    else if (cmpBothWays(_S"ab", heap, -1))
+        ret = 42;
+    else if (cmpBothWays(_S"abcd", heap, 1))
+        ret = 43;
+    else if (cmpiBothWays(_S"ABC", heap, 0))
+        ret = 44;
+
+    strDestroy(&heap);
+    if (ret)
+        return ret;
+
+    // --- LEN0 vs rope: the multi-run case ---
+    // A rope only forms above ROPE_JOIN_THRESH (128) and the walk is only taken below
+    // STR_LEN0_SCAN_THRESH (1024), so this has to land between the two to exercise
+    // _strEqLen0's seek-to-next-run branch at all.
+    strref lit64  = _S"Thirty-two character test string"
+                     "gnirts tset retcarahc owt-ytrihT";
+    strref lit128 = _S"Thirty-two character test string"
+                     "gnirts tset retcarahc owt-ytrihT"
+                     "Thirty-two character test string"
+                     "gnirts tset retcarahc owt-ytrihT";
+
+    string rope = 0;
+    strAppend(&rope, lit64);
+    strAppend(&rope, lit64);
+
+    if (strTestRopeDepth(rope) < 1)
+        ret = 50;   // not actually a rope; the run-crossing path would go untested
+    else if (cmpBothWays(lit128, rope, 0))
+        ret = 51;
+    else if (cmpBothWays(lit64, rope, -1))   // strict prefix: c runs out mid-rope
+        ret = 52;
+    else if (cmpBothWays(_S"Thirty-two character test string"
+                          "gnirts tset retcarahc owt-ytrihT"
+                          "Thirty-two character test string"
+                          "gnirts tset retcarahc owt-ytrihTX",
+                         rope, 1))   // extension: the rope runs out first
+        ret = 53;
+    else if (cmpiBothWays(lit128, rope, 0))
+        ret = 54;
+
+    strDestroy(&rope);
+    if (ret)
+        return ret;
+
+    // --- both sides of STR_LEN0_SCAN_THRESH ---
+    // Above the threshold the fast path is skipped in favour of measure-then-memcmp.
+    // Build identical content just under and just over it and require the same answers;
+    // vary where the difference falls, since a late difference is what the threshold
+    // exists to protect.
+    static const uint32 sizes[] = { 512, 2000 };
+    for (int i = 0; i < 2 && !ret; i++) {
+        uint32 n = sizes[i];
+
+        char* same  = xaAlloc(n + 1, XA_Zero);
+        char* early = xaAlloc(n + 1, XA_Zero);
+        char* late  = xaAlloc(n + 1, XA_Zero);
+        char* shrt  = xaAlloc(n, XA_Zero);
+        memset(same, 'a', n);
+        memset(early, 'a', n);
+        memset(late, 'a', n);
+        memset(shrt, 'a', n - 1);
+        early[0]    = 'b';
+        late[n - 1] = 'b';
+
+        string cxs = 0;
+        strCopy(&cxs, (strref)same);   // heap copy, so it carries a length field
+
+        if (cmpBothWays((strref)same, cxs, 0))
+            ret = 60;
+        else if (cmpBothWays((strref)early, cxs, 1))
+            ret = 61;
+        else if (cmpBothWays((strref)late, cxs, 1))
+            ret = 62;
+        else if (cmpBothWays((strref)shrt, cxs, -1))
+            ret = 63;
+
+        strDestroy(&cxs);
+        xaFree(same);
+        xaFree(early);
+        xaFree(late);
+        xaFree(shrt);
+    }
+
+    return ret;
+}
+
 static int test_rope()
 {
     string t1 = _S"Thirty-two character test string";
@@ -735,13 +928,14 @@ static int test_literal()
 }
 
 testfunc strtest_funcs[] = {
-    { "join",       test_join    },
-    { "append",     test_append  },
-    { "substr",     test_substr  },
-    { "compare",    test_compare },
-    { "longstring", test_long    },
-    { "rope",       test_rope    },
-    { "num",        test_num     },
-    { "literal",    test_literal },
-    { 0,            0            }
+    { "join",        test_join         },
+    { "append",      test_append       },
+    { "substr",      test_substr       },
+    { "compare",     test_compare      },
+    { "comparelen0", test_compare_len0 },
+    { "longstring",  test_long         },
+    { "rope",        test_rope         },
+    { "num",         test_num          },
+    { "literal",     test_literal      },
+    { 0,             0                 }
 };

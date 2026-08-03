@@ -99,6 +99,19 @@ _meta_inline uint32 _strFastLen(_In_ strref_v s)
     }
 }
 
+// Content buffer of a string with no embedded length field -- plain C strings, _S""
+// literals, and _SL() on MSVC. These are always flat and NUL terminated, since ropes
+// are always STR_LEN32 and _strSetLen cannot represent STR_LEN0 at all. Returns NULL
+// if the string carries a real length field.
+_Ret_maybenull_ _meta_inline uint8* _Nullable _strLen0Buf(_In_ strref_v s)
+{
+    // STR_HDR is 0 for a plain C string, so 0 & STR_LEN_MASK == STR_LEN0 covers those too
+    if ((STR_HDR(s) & STR_LEN_MASK) != STR_LEN0)
+        return NULL;
+
+    return _strBuffer(s);   // resolves to s itself when STR_CX is absent
+}
+
 // must only be used on STR_CX | STR_ALLOC strings!
 _meta_inline uint16 _strFastRef(_In_ strref_v s)
 {
@@ -132,6 +145,14 @@ _meta_inline uint16 _strFastRefNoSync(_In_ strref_v s)
 #define ROPE_SUBSTR_THRESH 96
 // maximum size to merge together on joins
 #define ROPE_MAX_MERGE     256
+
+// compare tuning
+// Below this size, walking a length-free string NUL-terminated always beats measuring
+// it first. Above it, comparing two strings that share a very long common prefix can
+// lose to the measure-then-memcmp path, so fall back. Not empirically tuned; the intent
+// is only to bound the pathological case, which needs a LEN0 string this large to begin
+// with (_SLL on MSVC, or a large char buffer passed as a strref).
+#define STR_LEN0_SCAN_THRESH 1024
 
 #include "string_private_utf8.h"
 

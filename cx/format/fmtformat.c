@@ -35,8 +35,8 @@ int32 _fmtFindKeyed(FMTContext* ctx, strref key)
     int32 found = -1;
     for (int32 i = 0; i < ctx->nargs; i++) {
         const char* nm = stvarName(&ctx->args[i]);
-        // strEq handles the const char* through the C-string cast path; keys are short
-        // identifiers so the strlen it implies is not worth avoiding here
+        // strEq handles the const char* through the C-string cast path, and detects that
+        // it has no embedded length so nm is never measured
         if (nm && strEq(key, (strref)nm)) {
             if (found == -1) {
                 found = i;

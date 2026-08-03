@@ -59,6 +59,7 @@ static const testspec tests[] = {
     { "string: Append/Prepend", "strtest", "append" },
     { "string: Substrings", "strtest", "substr" },
     { "string: Compare", "strtest", "compare" },
+    { "string: Compare Length-Free", "strtest", "comparelen0" },
     { "string: Long Strings", "strtest", "longstring" },
     { "string: Ropes", "strtest", "rope" },
     { "string: Numeric Conversions", "strtest", "num" },

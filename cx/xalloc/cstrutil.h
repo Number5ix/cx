@@ -6,6 +6,7 @@
 #include <cx/platform/cpp.h>
 #include <cx/utils/macros/salieri.h>
 
+#include <stdbool.h>
 #include <stddef.h>
 
 CX_C_BEGIN
@@ -49,6 +50,37 @@ size_t cstrLenw(_In_z_ const unsigned short* s);
 /// @param s Null-terminated wide string to duplicate, or NULL
 /// @return Newly allocated copy of the wide string, or NULL if input was NULL
 _Ret_z_ unsigned short* cstrDupw(_In_z_ const unsigned short* s);
+
+/// Tests two null-terminated strings for equality.
+///
+/// Either string may be NULL, which compares equal only to another NULL.
+///
+/// @param s1 First null-terminated string, or NULL
+/// @param s2 Second null-terminated string, or NULL
+/// @return true if the strings have identical contents
+///
+/// Example:
+/// @code
+///   if (cstrEq(name, "width"))
+///       ...
+/// @endcode
+bool cstrEq(_In_opt_z_ const char* s1, _In_opt_z_ const char* s2);
+
+/// Compares two null-terminated strings.
+///
+/// Bytes are compared as unsigned, consistent with memcmp() and cstrCmpi(). Either
+/// string may be NULL, which sorts before any non-NULL string.
+///
+/// @param s1 First null-terminated string, or NULL
+/// @param s2 Second null-terminated string, or NULL
+/// @return 0 if the strings are equal, negative if s1 < s2, positive if s1 > s2
+///
+/// Example:
+/// @code
+///   if (cstrCmp(a, b) < 0)
+///       ...
+/// @endcode
+int cstrCmp(_In_opt_z_ const char* s1, _In_opt_z_ const char* s2);
 
 /// Case-insensitive string comparison.
 ///
