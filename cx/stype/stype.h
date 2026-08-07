@@ -436,7 +436,7 @@ _Static_assert(sizeof(stgeneric) == sizeof(uint64), "stype container too large")
 typedef struct stvar {
     stgeneric data;
     stype _type;         // low bit: STVAR_OwnsData; use stvarType()/setters below
-    const char* _name;   // optional key; NULL or program-lifetime. Use stvarName().
+    const char* _key;    // optional key; NULL or program-lifetime. Use stvarKey().
 } stvar;
 
 // Low-bit tag stashed in the _type pointer. stype is a pointer to a canonical STypeInfo
@@ -487,9 +487,9 @@ _meta_inline void _stvarSetType(stvar* v, stype t, bool owns)
     v->_type = (stype)((uintptr)t | (owns ? STVAR_OwnsData : 0));
 }
 
-/// const char* stvarName(const stvar *v)
+/// const char* stvarKey(const stvar *v)
 ///
-/// Returns the key name attached to a variant, or NULL if it has none.
+/// Returns the key attached to a variant, or NULL if it has none.
 ///
 /// Keyed variants are created with `stvark()` (or `stvarkn()`), which attaches a name so
 /// the variant can be located by key instead of by type and position. The name is a plain
@@ -505,19 +505,19 @@ _meta_inline void _stvarSetType(stvar* v, stype t, bool owns)
 /// Example:
 /// @code
 ///   stvar v = stvark(host, string, hostname);
-///   const char *k = stvarName(&v);   // "host"
+///   const char *k = stvarKey(&v);   // "host"
 /// @endcode
-_meta_inline const char* stvarName(const stvar* v)
+_meta_inline const char* stvarKey(const stvar* v)
 {
-    return v->_name;
+    return v->_key;
 }
 
 // Attach a key name to a variant. nm must be NULL or have program lifetime -- it is
 // pointer-copied, never duplicated. Prefer the stvark() macro, which stringizes a token
 // and so cannot be handed a pointer that dangles.
-_meta_inline void _stvarSetName(stvar* v, const char* nm)
+_meta_inline void _stvarSetKey(stvar* v, const char* nm)
 {
-    v->_name = nm;
+    v->_key = nm;
 }
 
 // The type that's actually used for storage in containers, etc.

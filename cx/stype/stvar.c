@@ -23,10 +23,10 @@ void _stvarInit(stvar* stv, stype type, stgeneric val)
 // as _stvarInit, but also carries the key name across. The name is pointer-copied rather
 // than duplicated -- stvark() stringizes a token and stvarkn() documents the contract, so
 // it always points at storage that outlives the variant.
-void _stvarInitK(stvar* stv, stype type, stgeneric val, const char* nm)
+void _stvarInitK(stvar* stv, stype type, stgeneric val, const char* vk)
 {
     _stvarInit(stv, type, val);
-    _stvarSetName(stv, nm);
+    _stvarSetKey(stv, vk);
 }
 
 // full teardown: destroy contents, free owned heap, reset to none
@@ -37,7 +37,7 @@ void _stvarClear(stvar* stv, flags_t flags)
     if (_stvarOwns(stv))
         xaFree(stv->data.st_ptr);   // free AFTER underlying destroy
     _stvarSetType(stv, stType(none), false);
-    _stvarSetName(stv, NULL);
+    _stvarSetKey(stv, NULL);
 }
 
 // replace semantics: destroy existing contents, then initialize from type + value.
@@ -77,7 +77,7 @@ void _stvlInitSA(stvlist* list, stvar* vara)
 // every same-typed positional argument after it -- exactly the fragility keys exist to
 // remove. Keeping the two addressing modes disjoint means a caller can add a keyed
 // argument to an existing call without touching anything else.
-#define stvlSkip(v) (stvarName(v) != NULL)
+#define stvlSkip(v) (stvarKey(v) != NULL)
 
 // Get the next variable of the specific type, if it exists
 bool _stvlNext(stvlist* list, stype type, stgeneric* out)
@@ -124,7 +124,7 @@ static int findKey(stvlist list, const char* key)
         return -1;
 
     for (int i = 0; i < list.count; i++) {
-        if (cstrEq(key, stvarName(&list.vars[i]))) {
+        if (cstrEq(key, stvarKey(&list.vars[i]))) {
             if (found == -1) {
                 found = i;
 #if DEBUG_LEVEL < 1 && !defined(DIAGNOSTIC)

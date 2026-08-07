@@ -34,10 +34,10 @@ int32 _fmtFindKeyed(FMTContext* ctx, strref key)
 
     int32 found = -1;
     for (int32 i = 0; i < ctx->nargs; i++) {
-        const char* nm = stvarName(&ctx->args[i]);
+        const char* vk = stvarKey(&ctx->args[i]);
         // strEq handles the const char* through the C-string cast path, and detects that
         // it has no embedded length so nm is never measured
-        if (nm && strEq(key, (strref)nm)) {
+        if (vk && strEq(key, (strref)vk)) {
             if (found == -1) {
                 found = i;
 #if DEBUG_LEVEL < 1 && !defined(DIAGNOSTIC)
@@ -181,7 +181,7 @@ bool _fmtFindData(FMTContext* ctx)
         // precisely the fragility keys exist to remove. Skipping them keeps the two
         // addressing modes independent, and a placeholder that finds nothing fails
         // loudly rather than quietly formatting the wrong value.
-        if (stvarName(arg))
+        if (stvarKey(arg))
             continue;
 
         if (fmtArgMatches(arg, isarray, ishash, typeid, typemask))

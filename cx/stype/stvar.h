@@ -202,7 +202,7 @@ CX_C_BEGIN
 ///             stvark(host, string, hostname), stvark(ms, int32, elapsed));
 /// @endcode
 #define stvark(key, typen, val) \
-    ((stvar) { .data = stArg(typen, val), ._type = stType(typen), ._name = #key })
+    ((stvar) { .data = stArg(typen, val), ._type = stType(typen), ._key = #key })
 
 /// stvar stvarkn(name, type, value)
 ///
@@ -228,14 +228,14 @@ CX_C_BEGIN
 ///   stvar v = stvarkn(internedName, string, value);
 /// @endcode
 #define stvarkn(name, typen, val) \
-    ((stvar) { .data = stArg(typen, val), ._type = stType(typen), ._name = (name) })
+    ((stvar) { .data = stArg(typen, val), ._type = stType(typen), ._key = (name) })
 #else
 _meta_inline stvar _stvar(stype st, stgeneric val)
 {
     stvar ret;
     ret.data  = val;
     ret._type = st;
-    ret._name = NULL;
+    ret._key  = NULL;
     return ret;
 }
 #define stvar(typen, val) _stvar(stType(typen), stArg(typen, val))
@@ -243,7 +243,7 @@ _meta_inline stvar _stvar(stype st, stgeneric val)
 _meta_inline stvar _stvark(const char* nm, stype st, stgeneric val)
 {
     stvar ret = _stvar(st, val);
-    ret._name = nm;
+    ret._key  = nm;
     return ret;
 }
 #define stvark(key, typen, val)   _stvark(#key, stType(typen), stArg(typen, val))
@@ -270,7 +270,7 @@ _meta_inline stvar _stvark(const char* nm, stype st, stgeneric val)
 void _stvarInit(stvar* stv, stype type, stgeneric val);
 
 // As _stvarInit, but also sets the key name (pointer-copied, never duplicated).
-void _stvarInitK(stvar* stv, stype type, stgeneric val, const char* nm);
+void _stvarInitK(stvar* stv, stype type, stgeneric val, const char* vk);
 
 // Destroy the contents of *stv, free any owned heap allocation, clear any key name, and
 // reset to none.
@@ -281,7 +281,7 @@ void _stvarClear(stvar* stv, flags_t flags);
 void _stvarSet(stvar* stv, stype type, stgeneric val);
 
 // Replace semantics preserving/replacing the key name.
-void _stvarSetK(stvar* stv, stype type, stgeneric val, const char* nm);
+void _stvarSetK(stvar* stv, stype type, stgeneric val, const char* vk);
 
 /// void stvarSet(stvar *stv, type, value)
 ///
@@ -375,7 +375,7 @@ _meta_inline void stvarDestroy(stvar* stv)
 /// @endcode
 _meta_inline void stvarCopy(stvar* dvar, stvar svar)
 {
-    _stvarInitK(dvar, stvarType(&svar), svar.data, svar._name);
+    _stvarInitK(dvar, stvarType(&svar), svar.data, svar._key);
 }
 
 /// @}

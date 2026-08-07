@@ -625,13 +625,13 @@ static int test_keyed_copy()
     stvar dst;
     stvarCopy(&dst, src);
 
-    if (!stvarName(&dst) || !strEq((strref)stvarName(&dst), _S"host"))
+    if (!stvarKey(&dst) || !strEq((strref)stvarKey(&dst), _S"host"))
         return 1;
     if (!stvarIs(&dst, string) || !strEq(stvarString(&dst), _S"web01"))
         return 1;
 
     stvarDestroy(&dst);
-    if (stvarName(&dst) != NULL)
+    if (stvarKey(&dst) != NULL)
         return 1;
 
     // a key is metadata: it must not affect compare or hash, or attaching one would
@@ -648,13 +648,13 @@ static int test_keyed_copy()
     // stvarSet clears a stale key; stvarSetK replaces value and key together
     stvar v = stvNone;
     stvarSetK(&v, first, int32, 1);
-    if (!stvarName(&v) || !strEq((strref)stvarName(&v), _S"first"))
+    if (!stvarKey(&v) || !strEq((strref)stvarKey(&v), _S"first"))
         return 1;
     stvarSet(&v, int32, 2);
-    if (stvarName(&v) != NULL)
+    if (stvarKey(&v) != NULL)
         return 1;
     stvarSetK(&v, second, string, _S"x");
-    if (!stvarName(&v) || !strEq((strref)stvarName(&v), _S"second"))
+    if (!stvarKey(&v) || !strEq((strref)stvarKey(&v), _S"second"))
         return 1;
     stvarDestroy(&v);
 
