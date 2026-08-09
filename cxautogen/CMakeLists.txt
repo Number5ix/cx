@@ -88,9 +88,12 @@ set(CX_SRCS
     ../cx/string/strjoin.c
     ../cx/string/strnum_fp.c
     ../cx/string/strnum_int.c
+    ../cx/string/strreplace.c
     ../cx/string/strrope.c
     ../cx/string/strsplit.c
     ../cx/string/strsubstr.c
+    ../cx/string/strtrim.c
+    ../cx/string/strutf8.c
     ../cx/string/stype_string.c
     ../cx/fs/path.c
     ../cx/fs/pathmatch.c

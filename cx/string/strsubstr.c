@@ -26,7 +26,10 @@ static bool _strSubStr(_Inout_ strhandle o, _Inout_ strhandle ps, int32 b, int32
             _strFlatten(o, len);
             _strSetLen(*o, len);
             _strBuffer(*o)[len] = 0;
-            // TODO: Make sure we didn't slice in the middle of a UTF-8 sequence?
+            // b and e are byte offsets, so this can slice a UTF-8 sequence in half.
+            // That is deliberate -- snapping to sequence boundaries here would silently
+            // change what byte-indexed callers get back. Use strSubStrU8 to cut by
+            // code point instead.
             return true;
         } else if (*o != *ps) {
             ret = *o;               // steal reference
@@ -42,7 +45,7 @@ static bool _strSubStr(_Inout_ strhandle o, _Inout_ strhandle ps, int32 b, int32
         _strBuffer(ret)[len] = 0;
         _strSetLen(ret, len);
 
-        // TODO: Make sure we didn't slice in the middle of a UTF-8 sequence?
+        // may have sliced a UTF-8 sequence in half; see the note above
     }
 
     if (consume && *o != *ps)
@@ -69,6 +72,37 @@ _Use_decl_annotations_
 bool strSubStrI(strhandle io, int32 b, int32 e)
 {
     return _strSubStr(io, io, b, e, false);
+}
+
+_Use_decl_annotations_
+bool strSubStrU8(strhandle o, strref s, int32 b, int32 e)
+{
+    if (!o)
+        return false;
+
+    if (!STR_CHECK_VALID(s))
+        return strSubStr(o, s, b, e);
+
+    uint32 count = strU8Len(s);
+    if (count == 0) {
+        // either empty or not valid UTF-8; byte and code point offsets agree on empty
+        if (_strFastLen((strref_v)s) != 0)
+            return false;
+        return strSubStr(o, s, 0, 0);
+    }
+
+    // resolve code point indices the same way _strSubStr resolves byte offsets
+    int32 bi = (int32)_strResolveOff(count, b);
+    int32 ei = (int32)_strResolveOff(count, e);
+    if (ei < bi)
+        ei = bi;
+
+    int32 bo = strU8Offset(s, bi);
+    int32 eo = strU8Offset(s, ei);
+    if (bo < 0 || eo < 0)
+        return false;
+
+    return strSubStr(o, s, bo, eo);
 }
 
 _Use_decl_annotations_

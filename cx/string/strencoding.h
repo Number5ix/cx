@@ -47,6 +47,96 @@ _When_(s == NULL, _Post_equal_to_(false)) bool strValidUTF8(_In_opt_ strref s);
 /// @endcode
 _When_(s == NULL, _Post_equal_to_(false)) bool strValidASCII(_In_opt_ strref s);
 
+/// Counts the number of UTF-8 code points in a string
+///
+/// Returns the number of code points, as opposed to strLen() which returns the number of
+/// bytes. The two are equal only for pure ASCII. If the string is not valid UTF-8, 0 is
+/// returned — as it also is for an empty string, which is the same answer either way.
+///
+/// This is an O(n) scan; the length is not cached. For ASCII strings the byte length is
+/// used directly when the string is already known to be ASCII.
+///
+/// @param s String to measure
+/// @return Number of code points, or 0 if the string is empty or not valid UTF-8
+///
+/// Example:
+/// @code
+///   uint32 chars = strU8Len(_SLU("H\xC3\xA9llo"));   // 5 code points, 6 bytes
+/// @endcode
+uint32 strU8Len(_In_opt_ strref s);
+
+/// Converts a UTF-8 code point index to a byte offset
+///
+/// Finds the byte offset where the code point at index charIdx begins. This is the
+/// bridge between code point positions and the byte offsets that strSubStr(), strFind(),
+/// and the rest of the API work in.
+///
+/// Negative indices count from the end of the string, so -1 is the last code point.
+/// strEnd, and an index exactly equal to the code point count, both give the byte length
+/// of the string — one past the last code point, which is what a range endpoint needs.
+/// strEnd is answered from the byte length directly and does not validate the encoding.
+///
+/// @param s String to index into
+/// @param charIdx Code point index (negative = from end, strEnd = end of string)
+/// @return Byte offset of that code point, or -1 if out of range or not valid UTF-8
+///
+/// Example:
+/// @code
+///   int32 off = strU8Offset(s, 3);       // byte offset of the 4th code point
+///   int32 last = strU8Offset(s, -1);     // byte offset of the last code point
+/// @endcode
+int32 strU8Offset(_In_opt_ strref s, int32 charIdx);
+
+/// Replaces invalid UTF-8 sequences with the Unicode replacement character
+///
+/// Writes s to o with every byte that is not part of a valid UTF-8 sequence replaced by
+/// U+FFFD (the replacement character). The result is always valid UTF-8, which makes this
+/// the way to make untrusted input safe to treat as text.
+///
+/// Valid input is passed through without copying, so this is cheap to call defensively.
+///
+/// The output handle may be the same as the source, which sanitizes in place:
+/// @code
+///   strSanitizeUTF8(&s, s);
+/// @endcode
+///
+/// @param o Output string (existing content destroyed, may be the same handle as s)
+/// @param s Source string (not modified)
+/// @return true on success, false on error
+///
+/// Example:
+/// @code
+///   string clean = 0;
+///   strSanitizeUTF8(&clean, untrusted);
+///   // ... clean is guaranteed valid UTF-8 ...
+///   strDestroy(&clean);
+/// @endcode
+bool strSanitizeUTF8(_Inout_ strhandle o, _In_opt_ strref s);
+
+/// Extracts a substring by UTF-8 code point index
+///
+/// Like strSubStr(), but b and e are code point indices rather than byte offsets, so a
+/// multi-byte sequence is never sliced in half. Negative indices count from the end and
+/// strEnd means the end of the string, exactly as for strSubStr(); out-of-range indices
+/// are clamped the same way.
+///
+/// The string must be valid UTF-8. Sanitize it with strSanitizeUTF8() first if that is
+/// not guaranteed.
+///
+/// @param o Output string (existing content destroyed, may be the same handle as s)
+/// @param s Source string (not modified)
+/// @param b Starting code point (negative = from end)
+/// @param e Ending code point (negative = from end, strEnd = end of string)
+/// @return true on success, false if the source is NULL or not valid UTF-8
+///
+/// Example:
+/// @code
+///   string sub = 0;
+///   strSubStrU8(&sub, _SLU("H\xC3\xA9llo"), 0, 2);   // "H\xC3\xA9" -- 2 code points
+///   strDestroy(&sub);
+/// @endcode
+bool strSubStrU8(_Inout_ strhandle o, _In_opt_ strref s, int32 b, int32 e);
+
 /// Converts a UTF-8 string to UTF-16 encoding
 ///
 /// Encodes the string as UTF-16 code units, including surrogate pairs for code

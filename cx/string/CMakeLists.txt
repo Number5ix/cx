@@ -16,6 +16,7 @@ set(STRING_SRCS
     string/strsplit.c
     string/strsubstr.c
     string/strtrim.c
+    string/strutf8.c
     string/stype_string.c)
 set(STRING_INCLUDES
     string/strbase.h
