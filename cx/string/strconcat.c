@@ -318,6 +318,132 @@ bool strAppend(strhandle io, strref s)
     return _strAppend(io, s);
 }
 
+// if encoding is known, dataenc should specify the UTF8/ASCII bits
+static bool _strAppendRaw(_Inout_ strhandle io, _In_reads_bytes_(sz) const uint8* _Nonnull buf,
+                          uint32 sz, uint8 dataenc)
+{
+    uint32 iolen = strLen(*io);
+    uint32 len   = iolen + sz;
+
+    if (!STR_CHECK_VALID(*io)) {
+        _strReset(io, sz);
+        iolen = 0;
+        len   = sz;
+    } else if (_strHdr(*io) & STR_ROPE) {
+        _strFlatten(io, len);   // have to flatten first to append in place
+    }
+
+    uint8 encoding = _strHdr(*io) & dataenc & STR_ENCODING_MASK;
+
+    _strResize(io, len, true);
+    uint8* b = _strBuffer(*io);
+    memcpy(&b[iolen], buf, sz);
+    b[len] = 0;   // add null terminator
+
+    *_strHdrP(*io) &= ~STR_ENCODING_MASK;
+    *_strHdrP(*io) |= encoding;
+    _strSetLen(*io, len);
+
+    return true;
+}
+
+_Use_decl_annotations_
+bool strAppendBytes(strhandle io, const void* buf, uint32 sz)
+{
+    if (!io)
+        return false;
+
+    if (!buf || sz == 0)
+        return true;   // appending nothing is easy
+
+    // buf must not point into the destination's own buffer
+    devAssertMsg(!STR_CHECK_VALID(*io) || (_strHdr(*io) & STR_ROPE) ||
+                     (const uint8*)buf + sz <= _strBuffer(*io) ||
+                     (const uint8*)buf >= _strBuffer(*io) + _strFastLen(*io) + 1,
+                 "strAppendBytes source overlaps the destination string");
+
+    return _strAppendRaw(io, (const uint8*)buf, sz, 0);
+}
+
+_Use_decl_annotations_
+void strAppendChar(strhandle io, uint8 ch)
+{
+    if (!io)
+        return;
+
+    // a byte below 0x80 is valid ASCII, and therefore valid UTF-8, all by itself
+    _strAppendRaw(io, &ch, 1, ch < 0x80 ? (STR_ASCII | STR_UTF8) : 0);
+}
+
+_Use_decl_annotations_
+bool strRepeat(strhandle o, strref s, uint32 n)
+{
+    if (!o)
+        return false;
+
+    uint32 slen = strLen(s);
+    if (n == 0 || slen == 0) {
+        _strReset(o, 0);
+        return true;
+    }
+    if (n == 1) {
+        strDup(o, s);
+        return true;
+    }
+
+    uint64 total = (uint64)slen * n;
+    if (total > UINT32_MAX)
+        return false;
+    uint32 len = (uint32)total;
+
+    // the source may be the destination, so always build a new string
+    string ret = 0;
+    if (*o != (string)s) {
+        ret = *o;   // steal reference
+        *o  = NULL;
+        _strReset(&ret, len);   // try to reuse buffer space
+    } else {
+        strReset(&ret, len);
+    }
+
+    uint8* b = _strBuffer(ret);
+    for (uint32 i = 0; i < n; ++i) {
+        _strFastCopy((strref_v)s, 0, b, slen);
+        b += slen;
+    }
+    *b = 0;   // add null terminator
+
+    *_strHdrP(ret) &= ~STR_ENCODING_MASK;
+    *_strHdrP(ret) |= _strHdr(s) & STR_ENCODING_MASK;
+    _strSetLen(ret, len);
+
+    strDestroy(o);
+    *o = ret;
+
+    return true;
+}
+
+_Use_decl_annotations_
+bool strFillChar(strhandle o, uint8 ch, uint32 n)
+{
+    if (!o)
+        return false;
+
+    _strReset(o, n);
+
+    uint8* b = _strBuffer(*o);
+    if (n > 0)
+        memset(b, ch, n);
+    b[n] = 0;   // add null terminator
+
+    // _strReset leaves the string marked ASCII and UTF-8, which only holds below 0x80
+    if (ch >= 0x80)
+        *_strHdrP(*o) &= ~STR_ENCODING_MASK;
+    _strSetLen(*o, n);
+
+    return true;
+}
+
 _Use_decl_annotations_
 bool strPrepend(strref s, strhandle io)
 {

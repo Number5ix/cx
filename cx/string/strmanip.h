@@ -77,6 +77,52 @@ enum STRING_SPECIAL {
 /// @endcode
 bool strAppend(_Inout_ strhandle io, _In_opt_ strref s);
 
+/// Appends a raw byte buffer to a string in-place
+///
+/// Adds sz bytes from buf to the end of string io. This is binary safe: embedded NUL
+/// bytes are preserved and the length comes from sz rather than from strlen(). The
+/// result is still NUL terminated.
+///
+/// Because the appended bytes are arbitrary, the cached encoding flags are cleared.
+///
+/// If io is NULL or empty, this is equivalent to strFromBytes().
+///
+/// @param io String to append to (modified in-place)
+/// @param buf Byte buffer to append (NULL or sz of 0 appends nothing)
+/// @param sz Number of bytes to append
+/// @return true on success, false on error
+///
+/// Example:
+/// @code
+///   string s = 0;
+///   strDup(&s, _SL("len="));
+///   strAppendBytes(&s, raw, rawsz);
+///   strDestroy(&s);
+/// @endcode
+bool strAppendBytes(_Inout_ strhandle io, _In_reads_bytes_opt_(sz) const void* _Nullable buf,
+                    uint32 sz);
+
+/// Appends a single byte to a string in-place
+///
+/// Adds one byte to the end of the string. This replaces the strSetChar(&s, strEnd, ch)
+/// idiom and is somewhat cheaper, since it does not have to resolve the append position.
+///
+/// Note: this operates on bytes, not UTF-8 code points. Appending a byte >= 0x80 clears
+/// the cached encoding flags, since a single byte cannot complete a valid UTF-8 sequence
+/// on its own.
+///
+/// @param io String to append to (modified in-place)
+/// @param ch Byte value to append
+///
+/// Example:
+/// @code
+///   string s = 0;
+///   strDup(&s, _SL("item"));
+///   strAppendChar(&s, ':');   // s is now "item:"
+///   strDestroy(&s);
+/// @endcode
+void strAppendChar(_Inout_ strhandle io, uint8 ch);
+
 /// Prepends a string to another string in-place
 ///
 /// Adds the content of string s to the beginning of string io. This is less efficient
@@ -94,6 +140,49 @@ bool strAppend(_Inout_ strhandle io, _In_opt_ strref s);
 ///   strDestroy(&s);
 /// @endcode
 bool strPrepend(_In_opt_ strref s, _Inout_ strhandle io);
+
+/// Creates a string by repeating another string a number of times
+///
+/// Writes n concatenated copies of s to o. A count of 0, or an empty source string,
+/// produces an empty string.
+///
+/// The output handle may be the same as the source, in which case the string is
+/// replaced by the repeated version:
+/// @code
+///   strRepeat(&s, s, 3);
+/// @endcode
+///
+/// @param o Output string (existing content destroyed)
+/// @param s String to repeat (not modified)
+/// @param n Number of copies
+/// @return true on success, false on error
+///
+/// Example:
+/// @code
+///   string bar = 0;
+///   strRepeat(&bar, _SL("-="), 10);   // "-=-=-=-=-=-=-=-=-=-="
+///   strDestroy(&bar);
+/// @endcode
+bool strRepeat(_Inout_ strhandle o, _In_opt_ strref s, uint32 n);
+
+/// Creates a string consisting of a single byte repeated a number of times
+///
+/// Writes n copies of the byte ch to o. A count of 0 produces an empty string. This is
+/// the efficient way to build padding or fill runs.
+///
+/// @param o Output string (existing content destroyed)
+/// @param ch Byte value to fill with
+/// @param n Number of bytes
+/// @return true on success, false on error
+///
+/// Example:
+/// @code
+///   string pad = 0;
+///   strFillChar(&pad, ' ', width - strLen(s));
+///   strAppend(&out, pad);
+///   strDestroy(&pad);
+/// @endcode
+bool strFillChar(_Inout_ strhandle o, uint8 ch, uint32 n);
 
 /// Concatenates two strings into an output string
 ///
