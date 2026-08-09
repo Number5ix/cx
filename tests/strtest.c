@@ -367,6 +367,77 @@ static int test_compare_len0()
     return ret;
 }
 
+static int test_find()
+{
+    string s = _S"The Quick Brown Fox Jumps Over The Lazy Dog";
+
+    // multi-character needle, forward
+    if (strFind(s, 0, _S"Quick") != 4 || strFind(s, 0, _S"quick") != -1)
+        return 1;
+    if (strFindi(s, 0, _S"quick") != 4 || strFindi(s, 0, _S"QUICK") != 4)
+        return 2;
+    if (strFindi(s, 0, _S"THE") != 0)
+        return 3;
+
+    // multi-character needle, reverse. Note strEnd rather than 0 -- for the reverse
+    // searches 0 is an ordinary offset that searches an empty range.
+    if (strFindR(s, strEnd, _S"The") != 31 || strFindR(s, strEnd, _S"the") != -1)
+        return 4;
+    if (strFindRi(s, strEnd, _S"the") != 31)
+        return 5;
+
+    // start/end positions apply the same way as the case-sensitive versions
+    if (strFindi(s, 1, _S"the") != 31 || strFindi(s, -12, _S"the") != 31)
+        return 6;
+    if (strFindRi(s, 31, _S"the") != 0 || strFindRi(s, 0, _S"the") != -1)
+        return 7;
+
+    // single-character needle takes the _strFindChar path
+    if (strFind(s, 0, _S"q") != -1 || strFindi(s, 0, _S"q") != 4)
+        return 8;
+    if (strFindR(s, strEnd, _S"O") != 26 || strFindRi(s, strEnd, _S"O") != 41)
+        return 9;
+
+    // degenerate inputs
+    if (strFindi(s, 0, _S"zebra") != -1 || strFindRi(s, strEnd, _S"zebra") != -1)
+        return 10;
+    if (strFindi(s, 0, _S"") != -1 || strFindRi(s, strEnd, _S"") != -1)
+        return 11;
+    if (strFindi(NULL, 0, _S"a") != -1 || strFindRi(NULL, strEnd, _S"a") != -1)
+        return 12;
+
+    // C strings promote to strref, which is the main reason these exist
+    if (strFindi((strref) "en_US.UTF-8", 0, _S"utf-8") != 6)
+        return 13;
+
+    // a match that straddles a rope segment boundary exercises the multi-run compare
+    string flat = NULL, rope = NULL;
+    int ret     = 0;
+    strNConcat(&flat, _S"Thirty-two character test string", _S"gnirts tset retcarahc owt-ytrihT");
+    strAppend(&rope, flat);
+    strAppend(&rope, flat);
+
+    if (strTestRopeDepth(rope) < 1)
+        ret = 20;   // not actually a rope; the checks below would prove nothing
+    else if (strLen(rope) != 128)
+        ret = 21;
+    // rope[62..65] is "hTTh", spanning the segment boundary at 64
+    else if (strFind(rope, 0, _S"hTTh") != 62 || strFind(rope, 0, _S"HTTH") != -1)
+        ret = 22;
+    else if (strFindi(rope, 0, _S"HTTH") != 62)
+        ret = 23;
+    else if (strFindRi(rope, strEnd, _S"HTTH") != 62)
+        ret = 24;
+    // and one that does not straddle, to be sure the boundary is not doing the work
+    else if (strFindi(rope, 0, _S"THIRTY-TWO") != 0 ||
+             strFindRi(rope, strEnd, _S"THIRTY-TWO") != 64)
+        ret = 25;
+
+    strDestroy(&flat);
+    strDestroy(&rope);
+    return ret;
+}
+
 static int test_rope()
 {
     string t1 = _S"Thirty-two character test string";
@@ -934,6 +1005,7 @@ testfunc strtest_funcs[] = {
     { "compare",     test_compare      },
     { "comparelen0", test_compare_len0 },
     { "longstring",  test_long         },
+    { "find",        test_find         },
     { "rope",        test_rope         },
     { "num",         test_num          },
     { "literal",     test_literal      },

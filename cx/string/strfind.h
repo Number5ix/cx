@@ -9,6 +9,9 @@ CX_C_BEGIN
 /// @{
 ///
 /// Functions for finding substrings within strings.
+///
+/// Case-insensitive searches use ASCII tolower() and do not properly handle
+/// multi-byte UTF-8 characters.
 
 /// Finds the first occurrence of a substring (forward search)
 ///
@@ -40,6 +43,26 @@ CX_C_BEGIN
 /// @endcode
 int32 strFind(_In_opt_ strref s, int32 start, _In_opt_ strref find);
 
+/// Finds the first occurrence of a substring, ignoring case (forward search)
+///
+/// Like strFind(), but performs case-insensitive matching using tolower().
+/// This is an ASCII-only comparison - multi-byte UTF-8 characters are not
+/// properly case-folded.
+///
+/// @param s String to search within
+/// @param start Starting position for search (negative = from end)
+/// @param find Substring to search for
+/// @return Byte offset of first occurrence, or -1 if not found
+///
+/// Example:
+/// @code
+///   // Matches "utf-8", "UTF-8", "UTF-8" anywhere in the value
+///   if (strFindi((strref)getenv("LANG"), 0, _SL("utf-8")) >= 0) {
+///       // Locale is UTF-8
+///   }
+/// @endcode
+int32 strFindi(_In_opt_ strref s, int32 start, _In_opt_ strref find);
+
 /// Finds the last occurrence of a substring (reverse search)
 ///
 /// Searches for the last occurrence of the substring 'find' in string 's',
@@ -47,21 +70,21 @@ int32 strFind(_In_opt_ strref s, int32 start, _In_opt_ strref find);
 /// finding the rightmost match or searching within a specific range.
 ///
 /// The end position can be:
-/// - 0 or strEnd: Search from the end of the string
+/// - strEnd: Search from the end of the string
 /// - Positive: Search up to this byte offset
 /// - Negative: Offset from the end of the string
 ///
 /// If the substring is not found, -1 is returned.
 ///
 /// @param s String to search within
-/// @param end Ending position for search (0/strEnd = string end, negative = from end)
+/// @param end Ending position for search (strEnd = string end, negative = from end)
 /// @param find Substring to search for
 /// @return Byte offset of last occurrence before end, or -1 if not found
 ///
 /// Example:
 /// @code
 ///   // Find last occurrence in entire string
-///   int32 pos = strFindR(s, 0, _SL("."));
+///   int32 pos = strFindR(s, strEnd, _SL("."));
 ///   if (pos >= 0) {
 ///       // Found last period at position pos
 ///   }
@@ -73,6 +96,24 @@ int32 strFind(_In_opt_ strref s, int32 start, _In_opt_ strref find);
 ///   pos = strFindR(s, -20, _SL("suffix"));
 /// @endcode
 int32 strFindR(_In_opt_ strref s, int32 end, _In_opt_ strref find);
+
+/// Finds the last occurrence of a substring, ignoring case (reverse search)
+///
+/// Like strFindR(), but performs case-insensitive matching using tolower().
+/// This is an ASCII-only comparison - multi-byte UTF-8 characters are not
+/// properly case-folded.
+///
+/// @param s String to search within
+/// @param end Ending position for search (strEnd = string end, negative = from end)
+/// @param find Substring to search for
+/// @return Byte offset of last occurrence before end, or -1 if not found
+///
+/// Example:
+/// @code
+///   // Find the last extension separator regardless of case
+///   int32 pos = strFindRi(filename, strEnd, _SL(".TAR"));
+/// @endcode
+int32 strFindRi(_In_opt_ strref s, int32 end, _In_opt_ strref find);
 
 /// @}  // end of string_find group
 

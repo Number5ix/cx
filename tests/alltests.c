@@ -62,6 +62,7 @@ static const testspec tests[] = {
     { "string: Compare", "strtest", "compare" },
     { "string: Compare Length-Free", "strtest", "comparelen0" },
     { "string: Long Strings", "strtest", "longstring" },
+    { "string: Find", "strtest", "find" },
     { "string: Ropes", "strtest", "rope" },
     { "string: Numeric Conversions", "strtest", "num" },
     { "string: Literals", "strtest", "literal" },
