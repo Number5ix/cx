@@ -24,6 +24,8 @@ _meta_inline bool _strUTF8DecodeSeq(striter* _Nonnull it, uint32 len, uint8 ch,
                                     int32* _Nullable codepoint)
 {
     int32 ret = 0;
+    // the loop below runs len down to 1, so the overlong checks need the original
+    uint32 seqlen = len;
 
     if (len == 2)
         ret = ch & 0x1f;
@@ -46,8 +48,8 @@ _meta_inline bool _strUTF8DecodeSeq(striter* _Nonnull it, uint32 len, uint8 ch,
 
     if (ret > 0x10ffff ||                     // outside unicode range
         (ret >= 0xd800 && ret <= 0xdfff) ||   // UTF-16 surrogate pairs
-        (len == 2 && ret < 0x80) ||           // overlong encodings
-        (len == 3 && ret < 0x800) || (len == 4 && ret < 0x10000))
+        (seqlen == 2 && ret < 0x80) ||        // overlong encodings
+        (seqlen == 3 && ret < 0x800) || (seqlen == 4 && ret < 0x10000))
         return false;
 
     if (codepoint)
