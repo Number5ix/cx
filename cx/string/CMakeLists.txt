@@ -11,9 +11,11 @@ set(STRING_SRCS
     string/strjoin.c
     string/strnum_fp.c
     string/strnum_int.c
+    string/strreplace.c
     string/strrope.c
     string/strsplit.c
     string/strsubstr.c
+    string/strtrim.c
     string/stype_string.c)
 set(STRING_INCLUDES
     string/strbase.h
