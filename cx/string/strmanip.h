@@ -616,6 +616,126 @@ void strLower(_Inout_ strhandle io);
 /// @endcode
 int32 strSplit(_Inout_ sa_string* _Nonnull out, _In_opt_ strref s, _In_opt_ strref sep, bool empty);
 
+/// Splits a string at any of a set of delimiter bytes
+///
+/// Like strSplit(), but the string is divided at every byte that appears anywhere in
+/// 'chars' rather than at occurrences of a multi-byte separator. An empty or NULL
+/// character set never matches, so the whole string comes back as one segment.
+///
+/// Note: this operates on bytes, not UTF-8 code points.
+///
+/// @param out Pointer to string array to store results (cleared first)
+/// @param s String to split
+/// @param chars Set of delimiter bytes to split on
+/// @param empty If true, empty segments are preserved; if false, they are skipped
+/// @return Number of segments created
+///
+/// Example:
+/// @code
+///   sa_string parts = { 0 };
+///   strSplitAny(&parts, _SL("a,b;c"), _SL(",;"), false);
+///   // parts contains ["a", "b", "c"]
+///   saDestroy(&parts);
+/// @endcode
+int32 strSplitAny(_Inout_ sa_string* _Nonnull out, _In_opt_ strref s, _In_opt_ strref chars,
+                  bool empty);
+
+/// Splits a string into at most a given number of pieces
+///
+/// Like strSplit(), but stops splitting once maxparts segments have been produced. The
+/// final element holds the entire unsplit remainder of the string, separators included.
+/// A maxparts of 0 (or negative) means no limit, making this identical to strSplit().
+///
+/// @param out Pointer to string array to store results (cleared first)
+/// @param s String to split
+/// @param sep Separator string to split on
+/// @param empty If true, empty segments are preserved; if false, they are skipped
+/// @param maxparts Maximum number of segments, or 0 for unlimited
+/// @return Number of segments created
+///
+/// Example:
+/// @code
+///   sa_string parts = { 0 };
+///   strSplitMax(&parts, _SL("key=a=b"), _SL("="), true, 2);
+///   // parts contains ["key", "a=b"]
+///   saDestroy(&parts);
+/// @endcode
+int32 strSplitMax(_Inout_ sa_string* _Nonnull out, _In_opt_ strref s, _In_opt_ strref sep,
+                  bool empty, int32 maxparts);
+
+/// Splits a string at any of a set of delimiter bytes, up to a limit
+///
+/// Combines strSplitAny() and strSplitMax(): the string is divided at every byte in
+/// 'chars', and the final element holds the unsplit remainder once maxparts segments
+/// have been produced.
+///
+/// @param out Pointer to string array to store results (cleared first)
+/// @param s String to split
+/// @param chars Set of delimiter bytes to split on
+/// @param empty If true, empty segments are preserved; if false, they are skipped
+/// @param maxparts Maximum number of segments, or 0 for unlimited
+/// @return Number of segments created
+///
+/// Example:
+/// @code
+///   sa_string parts = { 0 };
+///   strSplitAnyMax(&parts, _SL("cmd arg1 arg2 arg3"), _SL(" "), false, 2);
+///   // parts contains ["cmd", "arg1 arg2 arg3"]
+///   saDestroy(&parts);
+/// @endcode
+int32 strSplitAnyMax(_Inout_ sa_string* _Nonnull out, _In_opt_ strref s, _In_opt_ strref chars,
+                     bool empty, int32 maxparts);
+
+/// Retrieves the next piece of a string being split, without building an array
+///
+/// Cursor-style alternative to strSplit() for callers that only need one segment at a
+/// time. Initialize the cursor to 0 and call repeatedly until it returns false. Empty
+/// segments are always produced, matching strSplit() with empty set to true.
+///
+/// The segment is still allocated (as a rope reference for large ones), but the
+/// sa_string is never materialized.
+///
+/// @param s String to split (not modified)
+/// @param pos Cursor; initialize to 0 before the first call, then leave it alone
+/// @param sep Separator string to split on
+/// @param out Output string receiving the segment (existing content destroyed)
+/// @return true if a segment was produced, false once the string is exhausted
+///
+/// Example:
+/// @code
+///   int32 pos = 0;
+///   string piece = 0;
+///   while (strSplitNext(csv, &pos, _SL(","), &piece)) {
+///       // ... use piece ...
+///   }
+///   strDestroy(&piece);
+/// @endcode
+bool strSplitNext(_In_opt_ strref s, _Inout_ int32* _Nonnull pos, _In_opt_ strref sep,
+                  _Inout_ strhandle out);
+
+/// Retrieves the next piece of a string being split at any of a set of bytes
+///
+/// Like strSplitNext(), but divides the string at every byte that appears anywhere in
+/// 'chars' rather than at occurrences of a multi-byte separator.
+///
+/// @param s String to split (not modified)
+/// @param pos Cursor; initialize to 0 before the first call, then leave it alone
+/// @param chars Set of delimiter bytes to split on
+/// @param out Output string receiving the segment (existing content destroyed)
+/// @return true if a segment was produced, false once the string is exhausted
+///
+/// Example:
+/// @code
+///   int32 pos = 0;
+///   string line = 0;
+///   while (strSplitNextAny(text, &pos, _SL("\r\n"), &line)) {
+///       // ... use line ...
+///   }
+///   strDestroy(&line);
+/// @endcode
+bool strSplitNextAny(_In_opt_ strref s, _Inout_ int32* _Nonnull pos, _In_opt_ strref chars,
+                     _Inout_ strhandle out);
+
 /// Joins an array of strings into a single string with a separator
 ///
 /// Combines all strings in the array into one string, inserting the separator
