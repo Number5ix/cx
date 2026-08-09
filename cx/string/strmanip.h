@@ -341,6 +341,70 @@ bool strSubStrC(_Inout_ strhandle o, _Inout_ strhandle sc, int32 b, int32 e);
 ///   strDestroy(&s);
 /// @endcode
 bool strSubStrI(_Inout_ strhandle io, int32 b, int32 e);
+
+/// Removes leading and trailing bytes that are members of a set
+///
+/// Writes the portion of s between the first and last byte that is not in 'chars' to o.
+/// A NULL character set means the default whitespace set: space, tab, carriage return,
+/// linefeed, vertical tab, and formfeed. If every byte is in the set, the result is empty.
+///
+/// The output handle may be the same as the source, which is how a string is trimmed
+/// in place:
+/// @code
+///   strTrim(&s, s, NULL);
+/// @endcode
+///
+/// For large results this produces a rope reference instead of copying, exactly like
+/// strSubStr().
+///
+/// @param o Output string (existing content destroyed)
+/// @param s Source string (not modified)
+/// @param chars Set of bytes to remove (NULL = whitespace)
+/// @return true on success, false on error
+///
+/// Example:
+/// @code
+///   string s = 0;
+///   strTrim(&s, _SL("  hello  "), NULL);        // "hello"
+///   strTrim(&s, _SL("[hello]"), _SL("[]"));     // "hello"
+///   strDestroy(&s);
+/// @endcode
+bool strTrim(_Inout_ strhandle o, _In_opt_ strref s, _In_opt_ strref chars);
+
+/// Removes leading bytes that are members of a set
+///
+/// Like strTrim(), but only removes bytes from the beginning of the string.
+///
+/// @param o Output string (existing content destroyed, may be the same handle as s)
+/// @param s Source string (not modified)
+/// @param chars Set of bytes to remove (NULL = whitespace)
+/// @return true on success, false on error
+///
+/// Example:
+/// @code
+///   string s = 0;
+///   strLTrim(&s, _SL("  hello  "), NULL);   // "hello  "
+///   strDestroy(&s);
+/// @endcode
+bool strLTrim(_Inout_ strhandle o, _In_opt_ strref s, _In_opt_ strref chars);
+
+/// Removes trailing bytes that are members of a set
+///
+/// Like strTrim(), but only removes bytes from the end of the string.
+///
+/// @param o Output string (existing content destroyed, may be the same handle as s)
+/// @param s Source string (not modified)
+/// @param chars Set of bytes to remove (NULL = whitespace)
+/// @return true on success, false on error
+///
+/// Example:
+/// @code
+///   string s = 0;
+///   strRTrim(&s, _SL("  hello  "), NULL);   // "  hello"
+///   strDestroy(&s);
+/// @endcode
+bool strRTrim(_Inout_ strhandle o, _In_opt_ strref s, _In_opt_ strref chars);
+
 /// Replaces every occurrence of a byte with another byte
 ///
 /// Writes s to o with every occurrence of 'from' replaced by 'to'. Since the length does
