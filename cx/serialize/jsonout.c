@@ -216,7 +216,7 @@ static void writeEscapedString(_Inout_ JSONOut* jo, _In_opt_ strref val)
         } else if (code == '\\') {
             strAppend(&escaped, kJSONEscBackslash);
         } else if (code >= 0x20 && code <= 0x7f) {
-            strSetChar(&escaped, strEnd, (char)code);
+            strAppendChar(&escaped, (uint8)code);
         } else {
             if (!(jo->flags & JSON_ASCII_Only)) {
                 // insert raw UTF-8 into the string

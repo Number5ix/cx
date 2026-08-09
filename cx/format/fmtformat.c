@@ -204,9 +204,7 @@ bool _fmtFindData(FMTContext* ctx)
 
 static inline void fillPad(_Inout_ string* pad, int32 len)
 {
-    strClear(pad);
-    uint8* buf = strBuffer(pad, len);
-    for (int32 i = 0; i < len; i++) buf[i] = ' ';
+    strFillChar(pad, ' ', len);
 }
 
 static void fmtApplyGenWidth(_Inout_ FMTVar* v, _Inout_ string* vstr, int32 width, uint32 flags)

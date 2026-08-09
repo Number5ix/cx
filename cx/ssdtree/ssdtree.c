@@ -255,7 +255,7 @@ ssdResolvePath(_In_ SSDNode* root, _In_opt_ strref path, _Out_ SSDNode** nodeout
             } else {
                 if (arrstate == 2)
                     goto out;   // parse error, raw text can't come directly after ']'!
-                strSetChar(&name, strEnd, ch);
+                strAppendChar(&name, ch);
             }
 
             first = false;

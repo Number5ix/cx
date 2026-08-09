@@ -89,8 +89,7 @@ void pathFromPlatform(string* out, strref platformpath)
     strDup(&rpath, platformpath);
 
     // first, convert all backslashes to forward slashes
-    int32 idx = 0;
-    while ((idx = strFind(rpath, idx, fsPlatformPathSepStr)) != -1) strSetChar(&rpath, idx, '/');
+    strReplaceChar(&rpath, rpath, '\\', '/');
 
     uint32 origlen = strLen(rpath);
     uint8* buf     = strBuffer(&rpath, 4);
@@ -154,8 +153,7 @@ void pathToPlatform(string* out, strref path)
     }
 
     // finally, convert all forward slahes to backslashes
-    int32 idx = 0;
-    while ((idx = strFind(ret, idx, fsPathSepStr)) != -1) strSetChar(&ret, idx, '\\');
+    strReplaceChar(&ret, ret, '/', '\\');
 
     strDestroy(&ns);
     strDestroy(&rpath);

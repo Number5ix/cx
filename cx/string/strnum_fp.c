@@ -537,15 +537,12 @@ bool strFromFloat32(_Inout_ string* out, float32 f)
 
     buflen = _strnum_f32toa(f, buf);
 
-    strClear(out);
-
-    if (buflen == 0)
+    if (buflen == 0) {
+        strClear(out);
         return false;
+    }
 
-    uint8* obuf = strBuffer(out, buflen);
-    memcpy(obuf, buf, buflen);
-
-    return true;
+    return strFromBytes(out, buf, buflen);
 }
 
 bool strFromFloat64(_Inout_ string* out, float64 d)
@@ -555,15 +552,12 @@ bool strFromFloat64(_Inout_ string* out, float64 d)
 
     buflen = _strnum_f64toa(d, buf);
 
-    strClear(out);
-
-    if (buflen == 0)
+    if (buflen == 0) {
+        strClear(out);
         return false;
+    }
 
-    uint8* obuf = strBuffer(out, buflen);
-    memcpy(obuf, buf, buflen);
-
-    return true;
+    return strFromBytes(out, buf, buflen);
 }
 
 // string to float parsing -------------------------------------------------------------

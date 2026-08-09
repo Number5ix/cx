@@ -33,10 +33,8 @@ static void writeComments(StreamBuffer* bf, sa_string comments, int column, bool
     string ln     = 0;
     string spaces = 0;
 
-    if (column > 0) {
-        uint8* tmp = strBuffer(&spaces, column);
-        memset(tmp, ' ', column);
-    }
+    if (column > 0)
+        strFillChar(&spaces, ' ', column);
 
     if (spacer && saSize(comments) > 0) {
         strConcat(&ln, spaces, _S"//");
@@ -55,10 +53,8 @@ static void writeDocs(StreamBuffer* bf, sa_string docs, int column, bool spacer)
     string ln     = 0;
     string spaces = 0;
 
-    if (column > 0) {
-        uint8* tmp = strBuffer(&spaces, column);
-        memset(tmp, ' ', column);
-    }
+    if (column > 0)
+        strFillChar(&spaces, ' ', column);
 
     if (spacer && saSize(docs) > 0) {
         strConcat(&ln, spaces, _S"///");

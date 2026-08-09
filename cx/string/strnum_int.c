@@ -150,15 +150,12 @@ _strFromIntHelper(strhandle out, uint64 val, uint16 base, uint32 mindigits, char
 
     uint8* p = _strnum_u64toa(buf, &buflen, val, base, mindigits, sign, upper);
 
-    strClear(out);
-
-    if (buflen == 0)
+    if (buflen == 0) {
+        strClear(out);
         return false;
+    }
 
-    uint8* obuf = strBuffer(out, buflen);
-    memcpy(obuf, p, buflen);
-
-    return true;
+    return strFromBytes(out, p, buflen);
 }
 
 // TODO: localize the sign character

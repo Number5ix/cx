@@ -386,10 +386,10 @@ void logfileMsgFunc(int level, LogChannel* chan, int64 timestamp, strref msg, ui
     string logdate = 0, loglevel = 0, logchan = 0, logspaces = 0;
 
     int nspaces = lfd->config.spacing ? lfd->config.spacing : 2;
-    uint8* sbuf = strBuffer(&logspaces, nspaces + (lfd->config.flags & LOG_AddColon ? 1 : 0));
-    memset(sbuf, ' ', nspaces);
-    if (lfd->config.flags & LOG_AddColon)
-        sbuf[0] = ':';
+    bool colon  = !!(lfd->config.flags & LOG_AddColon);
+    strFillChar(&logspaces, ' ', nspaces + (colon ? 1 : 0));
+    if (colon)
+        strSetChar(&logspaces, 0, ':');
 
     formatDate(lfd, &logdate, timestamp);
 

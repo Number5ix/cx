@@ -216,8 +216,7 @@ bool pathDecompose(string* ns, sa_string* components, strref pathin)
 
     pathSplitNS(ns, &rpath, pathin);
     // if there are any backslashes, turn them to forward slashes
-    int32 idx = 0;
-    while ((idx = strFind(rpath, idx, kBackslash)) != -1) strSetChar(&rpath, idx, '/');
+    strReplaceChar(&rpath, rpath, '\\', '/');
 
     bool absolute = pathIsAbsolute(rpath);
     strSplit(components, rpath, fsPathSepStr, true);
