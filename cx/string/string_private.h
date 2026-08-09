@@ -209,17 +209,32 @@ _Success_(return) bool _strRopeRealStr(_Inout_ strhandle_v s, uint32 off, _Out_ 
                                 _Out_ uint32* _Nonnull rsoff, _Out_ uint32* _Nonnull rslen,
                                 _Out_ uint32* _Nonnull rsstart, bool writable);
 
+// Resolve a caller-supplied index to a single byte (or code point) position: strEnd is
+// the end and negative counts back from the end, clamping at the start.
+_Pure _meta_inline uint32 _strResolvePos(uint32 slen, int32 i)
+{
+    if (i == strEnd)
+        return slen;
+
+    // need to handle unsigned wraparound for the negative case
+    if (i < 0)
+        return ((uint32)(-i) < slen) ? (uint32)((int32)slen + i) : 0;
+    return (uint32)i;
+}
+
+// Canonical resolution of a caller-supplied byte (or code point) index against a length:
+// strEnd is the end, negative counts back from the end, and everything is clamped into
+// [0, slen].
+_Pure _meta_inline uint32 _strResolveOff(uint32 slen, int32 i)
+{
+    return min(_strResolvePos(slen, i), slen);
+}
+
 // inline helper for case insensitive variants that optimizes to nothing if ci is provably false
 _meta_inline uint8 _strChrFold(uint8 c, bool ci)
 {
     return ci ? (uint8)tolower(c) : c;
 }
-
-// Finds first occurrence of find in s at or after start
-int32 _strFindChar(_In_ strref_v s, int32 start, char find);
-// Finds last occurrence of find in s before end
-// end can be 0 to indicate end of the string
-int32 _strFindCharR(_In_ strref_v s, int32 end, char find);
 
 _meta_inline uint8 _strFastChar(_In_ strref s, uint32 i)
 {

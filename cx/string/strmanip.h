@@ -341,6 +341,152 @@ bool strSubStrC(_Inout_ strhandle o, _Inout_ strhandle sc, int32 b, int32 e);
 ///   strDestroy(&s);
 /// @endcode
 bool strSubStrI(_Inout_ strhandle io, int32 b, int32 e);
+/// Replaces every occurrence of a byte with another byte
+///
+/// Writes s to o with every occurrence of 'from' replaced by 'to'. Since the length does
+/// not change, this is a single pass over the buffer with no searching.
+///
+/// The output handle may be the same as the source, which causes the replacement to
+/// be performed in-place.
+/// @code
+///   strReplaceChar(&s, s, '\\', '/');
+/// @endcode
+///
+/// Note: this operates on bytes, not UTF-8 code points. Replacing a byte >= 0x80 can
+/// corrupt a multi-byte sequence, so the cached encoding flags are cleared unless both
+/// bytes are ASCII.
+///
+/// @param o Output string (existing content destroyed, may be the same handle as s)
+/// @param s Source string (not modified)
+/// @param from Byte to search for
+/// @param to Byte to replace it with
+/// @return true on success, false on error
+///
+/// Example:
+/// @code
+///   string path = 0;
+///   strDup(&path, _SL("a\\b\\c"));
+///   strReplaceChar(&path, path, '\\', '/');   // "a/b/c"
+///   strDestroy(&path);
+/// @endcode
+bool strReplaceChar(_Inout_ strhandle o, _In_opt_ strref s, char from, char to);
+
+/// Replaces every occurrence of a byte with another byte, ignoring case
+///
+/// Like strReplaceChar(), but matches 'from' case-insensitively (ASCII only). The
+/// replacement byte is written exactly as given, so the case of the result comes from
+/// 'to' and not from what was matched.
+///
+/// @param o Output string (existing content destroyed, may be the same handle as s)
+/// @param s Source string (not modified)
+/// @param from Byte to search for (matched in either case)
+/// @param to Byte to replace it with
+/// @return true on success, false on error
+///
+/// Example:
+/// @code
+///   string s = 0;
+///   strReplaceChari(&s, _SL("aAbB"), 'a', '-');   // "--bB"
+///   strDestroy(&s);
+/// @endcode
+bool strReplaceChari(_Inout_ strhandle o, _In_opt_ strref s, char from, char to);
+
+/// Replaces occurrences of a substring with another string
+///
+/// Writes s to o with occurrences of 'find' replaced by 'repl'. The search is
+/// non-overlapping and proceeds left to right; the replacement text is never rescanned.
+/// An empty or NULL 'find' matches nothing and the source is copied unchanged.
+///
+/// The output handle may be the same as the source, which replaces in place:
+/// @code
+///   strReplacei(&s, s, _SL("http://"), _SL("https://"), 0);
+/// @endcode
+///
+/// @param o Output string (existing content destroyed, may be the same handle as s)
+/// @param s Source string (not modified)
+/// @param find Substring to search for
+/// @param repl Replacement string (NULL or empty deletes the match)
+/// @param max Maximum number of replacements, or 0 (or negative) for all
+/// @return true on success, false on error
+///
+/// Example:
+/// @code
+///   string s = 0;
+///   strReplace(&s, _SL("a,b,c"), _SL(","), _SL(" - "), 0);   // "a - b - c"
+///   strReplace(&s, _SL("a,b,c"), _SL(","), _SL(" - "), 1);   // "a - b,c"
+///   strDestroy(&s);
+/// @endcode
+bool strReplace(_Inout_ strhandle o, _In_opt_ strref s, _In_opt_ strref find, _In_opt_ strref repl,
+                int32 max);
+
+/// Replaces occurrences of a substring with another string, ignoring case
+///
+/// Like strReplace(), but matches 'find' case-insensitively (ASCII only).
+///
+/// @param o Output string (existing content destroyed, may be the same handle as s)
+/// @param s Source string (not modified)
+/// @param find Substring to search for (matched without regard to case)
+/// @param repl Replacement string (NULL or empty deletes the match)
+/// @param max Maximum number of replacements, or 0 (or negative) for all
+/// @return true on success, false on error
+///
+/// Example:
+/// @code
+///   string s = 0;
+///   strReplacei(&s, _SL("Foo foo FOO"), _SL("foo"), _SL("bar"), 0);   // "bar bar bar"
+///   strDestroy(&s);
+/// @endcode
+bool strReplacei(_Inout_ strhandle o, _In_opt_ strref s, _In_opt_ strref find, _In_opt_ strref repl,
+                 int32 max);
+
+/// Inserts a string at a byte offset
+///
+/// Writes s to o with 'ins' spliced in at byte offset 'off'. Negative offsets count from
+/// the end of the string and strEnd appends, matching strSubStr(). Offsets beyond the end
+/// of the string are clamped.
+///
+/// The output handle may be the same as the source, which inserts in place.
+///
+/// Note: this operates on bytes, not UTF-8 code points. Inserting in the middle of a
+/// multi-byte sequence produces invalid UTF-8; use strU8Offset() to find a safe offset.
+///
+/// @param o Output string (existing content destroyed, may be the same handle as s)
+/// @param s Source string (not modified)
+/// @param off Byte offset to insert at (negative = from end, strEnd = append)
+/// @param ins String to insert (NULL or empty leaves the source unchanged)
+/// @return true on success, false on error
+///
+/// Example:
+/// @code
+///   string s = 0;
+///   strInsert(&s, _SL("hello world"), 5, _SL(","));   // "hello, world"
+///   strDestroy(&s);
+/// @endcode
+bool strInsert(_Inout_ strhandle o, _In_opt_ strref s, int32 off, _In_opt_ strref ins);
+
+/// Removes a range of bytes from a string
+///
+/// Writes s to o with bytes from position b (inclusive) to position e (exclusive)
+/// removed. Negative indices count from the end and strEnd means the end of the string,
+/// matching strSubStr() — strErase() removes exactly the range that strSubStr() would
+/// have kept.
+///
+/// The output handle may be the same as the source, which erases in place.
+///
+/// @param o Output string (existing content destroyed, may be the same handle as s)
+/// @param s Source string (not modified)
+/// @param b Starting position of the range to remove (negative = from end)
+/// @param e Ending position of the range to remove (negative = from end, strEnd = end)
+/// @return true on success, false on error
+///
+/// Example:
+/// @code
+///   string s = 0;
+///   strErase(&s, _SL("hello, world"), 5, 7);        // "helloworld"
+///   strErase(&s, _SL("hello, world"), -6, strEnd);  // "hello, "
+///   strDestroy(&s);
+/// @endcode
+bool strErase(_Inout_ strhandle o, _In_opt_ strref s, int32 b, int32 e);
 
 /// Converts a string to uppercase (ASCII only)
 ///
@@ -432,8 +578,12 @@ bool strJoin(_Inout_ strhandle out, _In_ sa_string arr, _In_opt_ strref sep);
 
 /// Retrieves a single byte from a string
 ///
-/// Gets the byte at position i in the string. Negative indices count from the end.
-/// Returns 0 if the index is out of bounds.
+/// Gets the byte at position i in the string. Negative indices count from the end,
+/// stopping at the start of the string rather than wrapping around. Returns 0 if the
+/// index is out of bounds.
+///
+/// Indices resolve exactly as they do for strSetChar(), so the two are safe to pair up
+/// on the same index.
 ///
 /// Note: This operates on bytes, not UTF-8 characters. For multi-byte encodings,
 /// use a string iterator instead.
@@ -446,16 +596,18 @@ bool strJoin(_Inout_ strhandle out, _In_ sa_string arr, _In_opt_ strref sep);
 /// @code
 ///   uint8 ch = strGetChar(_SL("Hello"), 0);    // 'H'
 ///   ch = strGetChar(_SL("Hello"), -1);         // 'o' (last char)
+///   ch = strGetChar(_SL("Hello"), -99);        // 'H' (clamped to the start)
+///   ch = strGetChar(_SL("Hello"), 99);         // 0 (past the end)
 /// @endcode
 uint8 strGetChar(_In_opt_ strref str, int32 i);
 
 /// Sets a single byte in a string
 ///
-/// Modifies the byte at position i in the string. Negative indices count from the end.
-/// Use strEnd for i to append a byte to the end of the string.
+/// Modifies the byte at position i in the string. Negative indices count from the end,
+/// stopping at the start of the string rather than wrapping around. Use strEnd for i to
+/// append a byte to the end of the string.
 ///
-/// If the index is beyond the current length, the string is grown and zero-padded.
-/// The string is flattened and made unique before modification.
+/// If a positive index is beyond the current length, the string is grown and zero-padded.
 ///
 /// Note: This operates on bytes, not UTF-8 characters. Be careful when modifying
 /// multi-byte UTF-8 sequences as you can create invalid encodings.
