@@ -146,6 +146,34 @@ void strDup(_Inout_ strhandle o, _In_opt_ strref s);
 /// @endcode
 void strCopy(_Inout_ strhandle o, _In_opt_ strref s);
 
+/// Creates a string from a raw byte buffer
+///
+/// Copies sz bytes from buf into the string. Unlike casting a char* to strref, this
+/// is binary safe: embedded NUL bytes are preserved and the length comes from sz
+/// rather than from strlen(). The result is always NUL terminated as well, so it
+/// remains usable with strC() when the content happens to be text.
+///
+/// Because the contents are arbitrary, the cached encoding flags are cleared. Call
+/// strValidUTF8() or strValidASCII() afterward if the encoding matters.
+///
+/// The output string is destroyed first if it already exists; its buffer is reused
+/// when it is large enough.
+///
+/// @param o Pointer to output string variable
+/// @param buf Byte buffer to copy from (NULL or sz of 0 produces an empty string)
+/// @param sz Number of bytes to copy
+/// @return true on success, false on error
+///
+/// Example:
+/// @code
+///   uint8 raw[4] = { 'a', 0, 'b', 0xff };
+///   string s = 0;
+///   strFromBytes(&s, raw, sizeof(raw));   // strLen(s) == 4
+///   strDestroy(&s);
+/// @endcode
+bool strFromBytes(_Inout_ strhandle o, _In_reads_bytes_opt_(sz) const void* _Nullable buf,
+                  uint32 sz);
+
 /// Clears a string to empty while potentially preserving capacity
 ///
 /// Sets the string length to zero but may retain the allocated buffer for

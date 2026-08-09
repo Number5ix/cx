@@ -378,6 +378,30 @@ void strCopy(_Inout_ strhandle o, _In_opt_ strref s)
 }
 
 _Use_decl_annotations_
+bool strFromBytes(strhandle o, const void* buf, uint32 sz)
+{
+    if (!o)
+        return false;
+
+    if (!buf)
+        sz = 0;
+
+    // reuses the existing buffer when it's big enough, and guarantees room for sz + NUL
+    _strReset(o, sz);
+
+    uint8* b = _strBuffer(*o);
+    if (sz > 0)
+        memcpy(b, buf, sz);
+    b[sz] = 0;
+    _strSetLen(*o, sz);
+
+    // arbitrary bytes; we can't claim any particular encoding
+    *_strHdrP(*o) &= ~STR_ENCODING_MASK;
+
+    return true;
+}
+
+_Use_decl_annotations_
 void _strReset(strhandle s, uint32 minsz)
 {
     if (!STR_CHECK_VALID(*s) || !(_strHdr(*s) & STR_ALLOC) || !!(_strHdr(*s) & STR_ROPE) ||
