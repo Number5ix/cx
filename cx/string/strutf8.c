@@ -95,7 +95,7 @@ bool strSanitizeUTF8(strhandle o, strref s)
 
     uint32 slen = _strFastLen((strref_v)s);
     striter it;
-    uint8 ch;
+    uint8 ch = 0;   // striChar can't fail while remain > 0, but the compiler can't see that
 
     // Pass 1: measure. Every replacement grows the string, so the output size has to
     // be known before allocating rather than resized as we go.

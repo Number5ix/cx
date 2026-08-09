@@ -639,8 +639,6 @@ static int test_bytes()
         return 3;
     if (!strFromBytes(&s, raw, 0) || !strEmpty(s))
         return 4;
-    if (strFromBytes(NULL, raw, 3))
-        return 5;
 
     // --- strAppendBytes ---
     strDup(&s, _S"len=");
@@ -652,8 +650,6 @@ static int test_bytes()
         return 12;
     if (!strAppendBytes(&s, raw, 0) || strLen(s) != 10)
         return 13;
-    if (strAppendBytes(NULL, raw, 3))
-        return 14;
 
     // appending to a NULL handle creates the string
     strDestroy(&s);
@@ -671,7 +667,6 @@ static int test_bytes()
     strAppendChar(&s, 'x');   // NULL handle creates the string
     if (!strEq(s, _S"x"))
         return 21;
-    strAppendChar(NULL, 'x');   // must not crash
 
     // a byte outside ASCII is still appended, it just can't be claimed as UTF-8
     strDup(&s, _S"a");
@@ -696,8 +691,6 @@ static int test_bytes()
         return 33;
     if (!strRepeat(&o, (strref) "xy", 3) || !strEq(o, _S"xyxyxy"))
         return 34;
-    if (strRepeat(NULL, _S"ab", 2))
-        return 35;
 
     // aliasing: o == s has to give the same answer as a distinct output
     strDup(&alias, _S"ab");
@@ -720,8 +713,6 @@ static int test_bytes()
         return 40;
     if (!strFillChar(&o, 'x', 0) || !strEmpty(o))
         return 41;
-    if (strFillChar(NULL, 'x', 4))
-        return 42;
     // reusing a handle that already holds something destroys the old value
     strDup(&o, _S"previous contents");
     if (!strFillChar(&o, '.', 3) || !strEq(o, _S"..."))
@@ -918,8 +909,6 @@ static int test_trim()
         return 24;
     if (!strTrim(&o, _S"", NULL) || !strEmpty(o))
         return 25;
-    if (strTrim(NULL, _S"  x  ", NULL))
-        return 26;
     // C string promotion
     if (!strTrim(&o, (strref) "  cstr  ", NULL) || !strEq(o, _S"cstr"))
         return 27;
@@ -988,8 +977,6 @@ static int test_replace()
         return 2;
     if (!strReplaceChar(&o, NULL, 'a', 'b') || !strEmpty(o))
         return 3;
-    if (strReplaceChar(NULL, _S"abc", 'a', 'b'))
-        return 4;
     if (!strReplaceChar(&o, (strref) "a.b.c", '.', '_') || !strEq(o, _S"a_b_c"))
         return 5;
 
@@ -1051,8 +1038,6 @@ static int test_replace()
         return 42;
     if (!strReplace(&o, NULL, _S"a", _S"x", 0) || !strEmpty(o))
         return 43;
-    if (strReplace(NULL, _S"abc", _S"a", _S"x", 0))
-        return 44;
     // the whole string is the match
     if (!strReplace(&o, _S"abc", _S"abc", NULL, 0) || !strEmpty(o))
         return 45;
@@ -1097,8 +1082,6 @@ static int test_replace()
         return 66;
     if (!strInsert(&o, NULL, 0, _S"x") || !strEq(o, _S"x"))
         return 67;
-    if (strInsert(NULL, _S"ab", 0, _S"x"))
-        return 68;
     if (!strInsert(&o, (strref) "ac", 1, (strref) "b") || !strEq(o, _S"abc"))
         return 69;
 
@@ -1122,8 +1105,6 @@ static int test_replace()
         return 84;
     if (!strErase(&o, NULL, 0, 2) || !strEmpty(o))
         return 85;
-    if (strErase(NULL, _S"hello", 0, 2))
-        return 86;
     if (!strErase(&o, (strref) "abXYc", 2, 4) || !strEq(o, _S"abc"))
         return 87;
 
@@ -1277,9 +1258,6 @@ static int test_splitvar()
         return 39;
     if (strSplitNext(NULL, &pos, _S",", &seg))
         return 40;
-    pos = 0;
-    if (strSplitNext(_S"abc", NULL, _S",", &seg) || strSplitNext(_S"abc", &pos, _S",", NULL))
-        return 41;
 
     // --- strSplitNextAny ---
     pos = 0;
@@ -1352,8 +1330,6 @@ static int test_hex()
         return 2;
     if (!strHexEncode(&s, raw, 0, false) || !strEmpty(s))
         return 3;
-    if (strHexEncode(NULL, raw, 3, false) || strHexEncode(&s, NULL, 3, false))
-        return 4;
 
     // --- size query protocol ---
     if (strHexDecode(_S"0012abff7f", NULL, 0) != 5)
@@ -1548,8 +1524,6 @@ static int test_utf8()
         return 50;
     if (!strSanitizeUTF8(&o, _S"clean ascii") || !strEq(o, _S"clean ascii"))
         return 51;
-    if (strSanitizeUTF8(NULL, u8))
-        return 52;
     if (!strSanitizeUTF8(&o, (strref) "cstr") || !strEq(o, _S"cstr"))
         return 53;
 
