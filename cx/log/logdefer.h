@@ -64,14 +64,14 @@ _Ret_valid_ LogDeferData* logDeferCreate(void);
 /// logRegisterDestWithDefer().
 ///
 /// @param level Maximum log level to capture
-/// @param catfilter Category filter, or NULL for all non-private categories
+/// @param chanfilter Channel filter, or NULL for all non-private channels
 /// @param deferdata Deferred buffer handle from logDeferCreate()
 /// @return Destination handle for later transfer, or NULL on failure
 /// @code
 ///   LogDeferData *deferdata = logDeferCreate();
 ///   LogDest *deferdest = logDeferRegister(LOG_Info, NULL, deferdata);
 /// @endcode
-LogDest* logDeferRegister(int level, _In_opt_ LogCategory* catfilter, _In_ LogDeferData* deferdata);
+LogDest* logDeferRegister(int level, _In_opt_ LogChannel* chanfilter, _In_ LogDeferData* deferdata);
 
 // ============================================================================
 // Low Level Interface
@@ -86,12 +86,12 @@ LogDest* logDeferRegister(int level, _In_opt_ LogCategory* catfilter, _In_ LogDe
 /// with their original timestamps and batch IDs preserved.
 ///
 /// @param level Log severity level
-/// @param cat Category, or NULL for default
+/// @param chan Channel, or NULL for default
 /// @param timestamp Wall clock timestamp
 /// @param msg Log message text
 /// @param batchid Batch identifier for grouping
 /// @param userdata LogDeferData pointer from logDeferCreate()
-void logDeferDest(int level, _In_opt_ LogCategory* cat, int64 timestamp, _In_opt_ strref msg,
+void logDeferDest(int level, _In_opt_ LogChannel* chan, int64 timestamp, _In_opt_ strref msg,
                   uint32 batchid, _In_opt_ void* userdata);
 
 /// Register a destination and transfer deferred logs atomically
@@ -105,7 +105,7 @@ void logDeferDest(int level, _In_opt_ LogCategory* cat, int64 timestamp, _In_opt
 /// logfileRegisterWithDefer() or logmembufRegisterWithDefer().
 ///
 /// @param maxlevel Maximum log level for new destination
-/// @param catfilter Category filter for new destination, or NULL for all non-private categories
+/// @param chanfilter Channel filter for new destination, or NULL for all non-private channels
 /// @param msgfunc Message callback for new destination
 /// @param batchfunc Optional batch completion callback for new destination
 /// @param closefunc Optional cleanup callback for new destination
@@ -121,7 +121,7 @@ void logDeferDest(int level, _In_opt_ LogCategory* cat, int64 timestamp, _In_opt
 ///   );
 /// @endcode
 _Ret_opt_valid_ LogDest*
-logRegisterDestWithDefer(int maxlevel, _In_opt_ LogCategory* catfilter, _In_ LogDestMsg msgfunc,
+logRegisterDestWithDefer(int maxlevel, _In_opt_ LogChannel* chanfilter, _In_ LogDestMsg msgfunc,
                          _In_opt_ LogDestBatchDone batchfunc, _In_opt_ LogDestClose closefunc,
                          _In_opt_ void* userdata, _In_opt_ _Post_invalid_ LogDest* deferdest);
 

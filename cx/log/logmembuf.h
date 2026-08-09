@@ -67,10 +67,10 @@ _Ret_valid_ LogMembufData* logmembufCreate(uint32 size);
 /// will be automatically cleaned up when unregistered.
 ///
 /// @param maxlevel Maximum log level to write to buffer
-/// @param catfilter Category filter, or NULL for all non-private categories
+/// @param chanfilter Channel filter, or NULL for all non-private channels
 /// @param membuf Memory buffer handle from logmembufCreate()
 /// @return Destination handle for later unregistration, or NULL on failure
-LogDest* logmembufRegister(int maxlevel, _In_opt_ LogCategory* catfilter,
+LogDest* logmembufRegister(int maxlevel, _In_opt_ LogChannel* chanfilter,
                            _In_ LogMembufData* membuf);
 
 /// Register a memory buffer destination and flush deferred logs
@@ -80,7 +80,7 @@ LogDest* logmembufRegister(int maxlevel, _In_opt_ LogCategory* catfilter,
 /// other destinations are available.
 ///
 /// @param maxlevel Maximum log level to write to buffer
-/// @param catfilter Category filter, or NULL for all non-private categories
+/// @param chanfilter Channel filter, or NULL for all non-private channels
 /// @param membuf Memory buffer handle from logmembufCreate()
 /// @param deferdest Deferred destination to flush (destroyed during this call)
 /// @return Destination handle for later unregistration, or NULL on failure
@@ -93,7 +93,7 @@ LogDest* logmembufRegister(int maxlevel, _In_opt_ LogCategory* catfilter,
 ///   LogMembufData *lmd = logmembufCreate(4096);
 ///   LogDest *dest = logmembufRegisterWithDefer(LOG_Info, NULL, lmd, deferdest);
 /// @endcode
-LogDest* logmembufRegisterWithDefer(int maxlevel, _In_opt_ LogCategory* catfilter,
+LogDest* logmembufRegisterWithDefer(int maxlevel, _In_opt_ LogChannel* chanfilter,
                                     _In_ LogMembufData* membuf, _In_ LogDest* deferdest);
 
 // ============================================================================
@@ -106,15 +106,15 @@ LogDest* logmembufRegisterWithDefer(int maxlevel, _In_opt_ LogCategory* catfilte
 /// Log message callback for memory buffer destinations
 ///
 /// Formats and writes a log message to the circular buffer. Uses a compact
-/// format: "YYYYMMDD HHMMSS L [Category]: Message\n"
+/// format: "YYYYMMDD HHMMSS L [Channel]: Message\n"
 ///
 /// @param level Log severity level
-/// @param cat Category, or NULL for default
+/// @param chan Channel, or NULL for default
 /// @param timestamp Wall clock timestamp
 /// @param msg Log message text
 /// @param batchid Batch identifier (unused)
 /// @param userdata LogMembufData pointer from logmembufCreate()
-void logmembufMsgFunc(int level, _In_opt_ LogCategory* cat, int64 timestamp, _In_opt_ strref msg,
+void logmembufMsgFunc(int level, _In_opt_ LogChannel* chan, int64 timestamp, _In_opt_ strref msg,
                       uint32 batchid, _In_opt_ void* userdata);
 
 /// Cleanup callback for memory buffer destinations

@@ -43,16 +43,16 @@ static int logthread_func(_Inout_ Thread* self)
             while (ent) {
                 LogEntry* next = ent->_next;
 
-                // verify that this log entry is using a category that was registered to the log
+                // verify that this log entry is using a channel that was registered to the log
                 // system
-                if (ent->cat == LogDefault || htHasKey(_log_categories, ptr, ent->cat)) {
+                if (ent->chan == LogDefault || htHasKey(_log_channels, ptr, ent->chan)) {
                     // send it to all relevant destinations
                     foreach (sarray, dest_idx, LogDest*, dest, _log_dests) {
                         if (ent->level <= dest->maxlevel &&
-                            applyCatFilter(dest->catfilter, ent->cat)) {
+                            applyChanFilter(dest->chanfilter, ent->chan)) {
                             // dispatch to log destination
                             dest->msgfunc(ent->level,
-                                          ent->cat,
+                                          ent->chan,
                                           ent->timestamp,
                                           ent->msg,
                                           batchid,

@@ -302,7 +302,7 @@ static int test_tqtest_call(void)
 #define NUM_SCHED_STEPS 10
 
 static int is_monitor_test = 0;
-static LogCategory *moncat;
+static LogChannel* monchan;
 atomic(int32) tqtests_order;
 
 static bool sched_oncomplete(stvlist *cvars, stvlist *args)
@@ -336,7 +336,7 @@ static int test_tqtest_sched(void)
         conf.monitor.mTaskRunning = timeMS(60);
         conf.monitor.mTaskWaiting = timeMS(20);
         conf.monitor.mSuppress    = timeMS(50);
-        conf.monitor.mLogCat      = moncat;
+        conf.monitor.mLogChan     = monchan;
         conf.flags |= TQ_Monitor | (is_monitor_test == 2 ? TQ_ManagerThread : 0);
     }
     conf.pool.wInitial = 4;
@@ -424,8 +424,8 @@ static int test_tqtest_monitor(bool dedicated)
 {
     logRestart();   // only needed for alltests; shutdown may have previously been called
     LogMembufData *mbuf = logmembufCreate(65536);
-    moncat = logCreateCat(_S"MonitorTest", true);
-    logmembufRegister(LOG_Diag, moncat, mbuf);
+    monchan             = logCreateChan(_S"MonitorTest", true);
+    logmembufRegister(LOG_Diag, monchan, mbuf);
 
     // reuse the sched test, but with the monitor enabled
     is_monitor_test = dedicated ? 2 : 1;

@@ -72,15 +72,15 @@ static uint16 ptrHash(void* ptr)
     return ret;
 }
 
-static void dumpTask(LogCategory* cat, void* ptr, int64 now, int wnum, bool progresstime,
+static void dumpTask(LogChannel* chan, void* ptr, int64 now, int wnum, bool progresstime,
                      bool ismanager)
 {
     if (!ptr) {
         if (wnum > -1) {
             if (ismanager)
-                logFmtC(Diag, cat, kTQLogFmtManager, stvar(int32, wnum + 1));
+                logFmtC(Diag, chan, kTQLogFmtManager, stvar(int32, wnum + 1));
             else
-                logFmtC(Diag, cat, kTQLogFmtIdle, stvar(int32, wnum + 1));
+                logFmtC(Diag, chan, kTQLogFmtIdle, stvar(int32, wnum + 1));
         }
         return;
     }
@@ -149,7 +149,7 @@ static void dumpTask(LogCategory* cat, void* ptr, int64 now, int wnum, bool prog
     }
 
     logFmtC(Diag,
-            cat,
+            chan,
             kTQFmtTask,
             stvar(strref, prefix),
             stvar(strref, task ? task->name : kTQBasicTask),
@@ -162,11 +162,11 @@ static void dumpTask(LogCategory* cat, void* ptr, int64 now, int wnum, bool prog
     strDestroy(&suffix);
 }
 
-static void dumpPRQ(LogCategory* cat, PrQueue* prq, int64 now)
+static void dumpPRQ(LogChannel* chan, PrQueue* prq, int64 now)
 {
     uint32 qcount = prqCount(prq);
     for (uint32 ui = 0; ui < qcount; ui++) {
-        dumpTask(cat, prqPeek(prq, ui), now, -1, false, false);
+        dumpTask(chan, prqPeek(prq, ui), now, -1, false, false);
     }
 }
 
@@ -175,11 +175,11 @@ static void dumpQueue(TQThreadPoolMonitor* self, TaskQueue* tq, TQThreadPoolRunn
 {
     TaskQueueMonitorConfig* c = &self->conf;
 
-    logStrC(Diag, c->mLogCat, kTQLblWorkers);
+    logStrC(Diag, c->mLogChan, kTQLblWorkers);
     rwlockAcquireRead(&runner->workerlock);
     int32 nworkers = saSize(runner->workers);
     for (int i = 0; i < nworkers; i++) {
-        dumpTask(c->mLogCat,
+        dumpTask(c->mLogChan,
                  atomicLoad(ptr, &runner->workers.a[i]->curtask, Relaxed),
                  now,
                  i,
@@ -188,23 +188,23 @@ static void dumpQueue(TQThreadPoolMonitor* self, TaskQueue* tq, TQThreadPoolRunn
     }
     rwlockReleaseRead(&runner->workerlock);
 
-    logStrC(Diag, c->mLogCat, kTQLblRunQueue);
-    dumpPRQ(c->mLogCat, &tq->runq, now);
-    logStrC(Diag, c->mLogCat, kTQLblDoneQueue);
-    dumpPRQ(c->mLogCat, &tq->doneq, now);
+    logStrC(Diag, c->mLogChan, kTQLblRunQueue);
+    dumpPRQ(c->mLogChan, &tq->runq, now);
+    logStrC(Diag, c->mLogChan, kTQLblDoneQueue);
+    dumpPRQ(c->mLogChan, &tq->doneq, now);
 
     ComplexTaskQueue* ctq = objDynCast(ComplexTaskQueue, tq);
     if (ctq) {
         if (saSize(ctq->scheduled) > 0) {
-            logStrC(Diag, c->mLogCat, kTQLblScheduled);
+            logStrC(Diag, c->mLogChan, kTQLblScheduled);
             for (int i = 0, ndefer = saSize(ctq->scheduled); i < ndefer; i++) {
-                dumpTask(c->mLogCat, ctq->scheduled.a[i], now, -1, true, false);
+                dumpTask(c->mLogChan, ctq->scheduled.a[i], now, -1, true, false);
             }
         }
         if (htSize(ctq->deferred) > 0) {
-            logStrC(Diag, c->mLogCat, kTQLblDeferred);
+            logStrC(Diag, c->mLogChan, kTQLblDeferred);
             foreach (hashtable, hti, ctq->deferred) {
-                dumpTask(c->mLogCat, htiKey(object, hti), now, -1, true, false);
+                dumpTask(c->mLogChan, htiKey(object, hti), now, -1, true, false);
             }
         }
     }
@@ -216,7 +216,7 @@ static void doWarn(TQThreadPoolMonitor* self, TaskQueue* tq, bool* warned)
         return;
 
     logBatchBegin();
-    logFmtC(Warn, self->conf.mLogCat, kTQFmtMonitorHdr, stvar(string, tq->name));
+    logFmtC(Warn, self->conf.mLogChan, kTQFmtMonitorHdr, stvar(string, tq->name));
 
     *warned = true;
 }
@@ -268,7 +268,7 @@ int64 TQThreadPoolMonitor_tick(_In_ TQThreadPoolMonitor* self)
         if (task && now > task->last + c->mTaskRunning) {
             doWarn(self, tq, &warned);
             logFmtC(Warn,
-                    c->mLogCat,
+                    c->mLogChan,
                     kTQFmtRunning,
                     stvar(strref, task->name),
                     stvar(uint16, ptrHash(task)),
@@ -287,7 +287,7 @@ int64 TQThreadPoolMonitor_tick(_In_ TQThreadPoolMonitor* self)
                 doWarn(self, tq, &warned);
                 dumpq = true;
                 logFmtC(Warn,
-                        c->mLogCat,
+                        c->mLogChan,
                         kTQFmtWaiting,
                         stvar(strref, task->name),
                         stvar(uint16, ptrHash(task)),
@@ -306,7 +306,7 @@ int64 TQThreadPoolMonitor_tick(_In_ TQThreadPoolMonitor* self)
                 doWarn(self, tq, &warned);
                 dumpq = true;
                 logFmtC(Warn,
-                        c->mLogCat,
+                        c->mLogChan,
                         kTQFmtStalled,
                         stvar(strref, ctask->name),
                         stvar(uint16, ptrHash(ctask)),
@@ -325,7 +325,7 @@ int64 TQThreadPoolMonitor_tick(_In_ TQThreadPoolMonitor* self)
                 doWarn(self, tq, &warned);
                 dumpq = true;
                 logFmtC(Warn,
-                        c->mLogCat,
+                        c->mLogChan,
                         kTQFmtStalled,
                         stvar(strref, ctask->name),
                         stvar(uint16, ptrHash(ctask)),

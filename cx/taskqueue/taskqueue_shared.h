@@ -10,7 +10,7 @@
 /// Core types, enums, and configuration structures used throughout the task queue system.
 
 typedef struct TaskQueue TaskQueue;
-typedef struct LogCategory LogCategory;
+typedef struct LogChannel LogChannel;
 typedef struct Event Event;
 
 /// Callback for UI event processing in task queue workers.
@@ -81,7 +81,7 @@ typedef struct TaskQueueMonitorConfig {
     int64 mTaskRunning;     ///< Warn if a task has been running longer than this
     int64 mTaskWaiting;     ///< Warn if a task has been waiting for a worker longer than this
     int64 mTaskStalled;     ///< Warn if a deferred task hasn't made progress in this time
-    LogCategory* mLogCat;   ///< Custom log category for monitor messages (NULL for default)
+    LogChannel* mLogChan;   ///< Custom log channel for monitor messages (NULL for default)
 } TaskQueueMonitorConfig;
 
 /// Complete configuration for a task queue

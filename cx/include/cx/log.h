@@ -7,7 +7,7 @@
 /// @{
 ///
 /// CX provides a flexible, multi-backend logging system with support for
-/// categorized logging, filtering, and multiple output destinations including
+/// channel-based logging, filtering, and multiple output destinations including
 /// files, memory buffers, and deferred logging.
 
 #include <cx/log/log.h>

@@ -13,7 +13,7 @@ extern Mutex _log_run_lock;
 extern Thread* _log_thread;
 
 typedef struct LogDest {
-    LogCategory* catfilter;
+    LogChannel* chanfilter;
     LogDestMsg msgfunc;
     LogDestBatchDone batchfunc;
     LogDestClose closefunc;
@@ -26,7 +26,7 @@ typedef struct LogEntry LogEntry;
 typedef struct LogEntry {
     LogEntry* _next;   // chain for log batches, internal use only
     int64 timestamp;
-    LogCategory* cat;
+    LogChannel* chan;
     string msg;
     int level;
 } LogEntry;
@@ -37,10 +37,10 @@ extern int _log_max_level;
 
 extern PrQueue _log_queue;
 
-// protects _log_dests and _log_categories (structures that are accessed from the log thread)
+// protects _log_dests and _log_channels (structures that are accessed from the log thread)
 extern Mutex _log_op_lock;
 extern sa_LogDest _log_dests;
-extern hashtable _log_categories;
+extern hashtable _log_channels;
 
 extern LazyInitState _logInitState;
 
@@ -52,12 +52,12 @@ void logThreadCreate(void);
 // does NOT free dhandle, caller is responsible for that!
 bool logUnregisterDestLocked(_In_ LogDest* dhandle);
 
-_meta_inline bool applyCatFilter(_In_opt_ LogCategory* filtercat, _In_ LogCategory* testcat)
+_meta_inline bool applyChanFilter(_In_opt_ LogChannel* filterchan, _In_ LogChannel* testchan)
 {
-    if (!filtercat) {
-        // no filter, we want all categories except for private categories
-        return !testcat || !testcat->priv;
+    if (!filterchan) {
+        // no filter, we want all channels except for private channels
+        return !testchan || !testchan->priv;
     }
 
-    return filtercat == testcat;
+    return filterchan == testchan;
 }

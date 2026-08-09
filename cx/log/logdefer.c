@@ -21,7 +21,7 @@ LogDeferData* logDeferCreate(void)
 }
 
 _Use_decl_annotations_
-void logDeferDest(int level, LogCategory* cat, int64 timestamp, strref msg, uint32 batchid,
+void logDeferDest(int level, LogChannel* chan, int64 timestamp, strref msg, uint32 batchid,
                   void* userdata)
 {
     LogDeferData* dd = (LogDeferData*)userdata;
@@ -30,7 +30,7 @@ void logDeferDest(int level, LogCategory* cat, int64 timestamp, strref msg, uint
 
     LogDeferEntry* de = xaAllocStruct(LogDeferEntry, XA_Zero);
     de->ent.level     = level;
-    de->ent.cat       = cat;
+    de->ent.chan      = chan;
     de->ent.timestamp = timestamp;
     de->batchid       = batchid;
     strDup(&de->ent.msg, msg);
@@ -42,7 +42,7 @@ void logDeferDest(int level, LogCategory* cat, int64 timestamp, strref msg, uint
 }
 
 _Use_decl_annotations_
-LogDest* logRegisterDestWithDefer(int maxlevel, LogCategory* catfilter, LogDestMsg msgfunc,
+LogDest* logRegisterDestWithDefer(int maxlevel, LogChannel* chanfilter, LogDestMsg msgfunc,
                                   LogDestBatchDone batchfunc, LogDestClose closefunc,
                                   void* userdata, LogDest* deferdest)
 {
@@ -52,13 +52,13 @@ LogDest* logRegisterDestWithDefer(int maxlevel, LogCategory* catfilter, LogDestM
 
     if (!deferdest) {
         // just a regular registration in this case
-        return logRegisterDest(maxlevel, catfilter, msgfunc, batchfunc, closefunc, userdata);
+        return logRegisterDest(maxlevel, chanfilter, msgfunc, batchfunc, closefunc, userdata);
     }
 
     LogDest* ndest = xaAlloc(sizeof(LogDest), XA_Zero);
 
     ndest->maxlevel  = maxlevel;
-    ndest->catfilter = catfilter;
+    ndest->chanfilter = chanfilter;
     ndest->msgfunc   = msgfunc;
     ndest->batchfunc = batchfunc;
     ndest->closefunc = closefunc;
@@ -95,9 +95,9 @@ LogDest* logRegisterDestWithDefer(int maxlevel, LogCategory* catfilter, LogDestM
                 }
 
                 next = head->next;
-                if (head->ent.level <= maxlevel && applyCatFilter(catfilter, head->ent.cat)) {
+                if (head->ent.level <= maxlevel && applyChanFilter(chanfilter, head->ent.chan)) {
                     msgfunc(head->ent.level,
-                            head->ent.cat,
+                            head->ent.chan,
                             head->ent.timestamp,
                             head->ent.msg,
                             head->batchid,
@@ -123,7 +123,7 @@ LogDest* logRegisterDestWithDefer(int maxlevel, LogCategory* catfilter, LogDestM
 }
 
 _Use_decl_annotations_
-LogDest* logDeferRegister(int level, LogCategory* catfilter, LogDeferData* deferdata)
+LogDest* logDeferRegister(int level, LogChannel* chanfilter, LogDeferData* deferdata)
 {
-    return logRegisterDest(level, catfilter, logDeferDest, NULL, NULL, deferdata);
+    return logRegisterDest(level, chanfilter, logDeferDest, NULL, NULL, deferdata);
 }

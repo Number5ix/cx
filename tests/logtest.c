@@ -16,17 +16,17 @@ typedef struct LogTestData {
     int count;
     int batches;
     bool fail;
-    LogCategory* lastcat;
+    LogChannel* lastchan;
 } LogTestData;
 
-static void testdest(int level, LogCategory* cat, int64 timestamp, strref msg, uint32 batchid,
+static void testdest(int level, LogChannel* chan, int64 timestamp, strref msg, uint32 batchid,
                      void* userdata)
 {
     LogTestData* td = (LogTestData*)userdata;
     bool signal     = true;
 
     td->count++;
-    td->lastcat = cat;
+    td->lastchan = chan;
 
     if (td->test == 1) {
         td->fail = !strEq(msg, _S"Info test");
@@ -221,7 +221,7 @@ static int test_log_batch()
     return ret;
 }
 
-static int test_log_categories()
+static int test_log_channels()
 {
     int ret        = 0;
     LogTestData td = { 0 };
@@ -230,13 +230,13 @@ static int test_log_categories()
     logRestart();   // only needed for alltests; shutdown may have previously been called
 
     LogMembufData* lmd = logmembufCreate(4096);
-    LogCategory* cat1  = logCreateCat(_S"cat1", false);
-    LogCategory* cat2  = logCreateCat(_S"cat2", true);
-    LogCategory* cat3  = logCreateCat(_S"cat3", true);
+    LogChannel* chan1  = logCreateChan(_S"chan1", false);
+    LogChannel* chan2  = logCreateChan(_S"chan2", true);
+    LogChannel* chan3  = logCreateChan(_S"chan3", true);
     logmembufRegister(LOG_Verbose, NULL, lmd);
     logRegisterDest(LOG_Info, NULL, testdest, NULL, NULL, &td);
-    logRegisterDest(LOG_Info, cat1, testdest, NULL, NULL, &td);
-    logRegisterDest(LOG_Info, cat2, testdest, NULL, NULL, &td);
+    logRegisterDest(LOG_Info, chan1, testdest, NULL, NULL, &td);
+    logRegisterDest(LOG_Info, chan2, testdest, NULL, NULL, &td);
 
     // should only be received by the NULL filter
     td.test  = 1;
@@ -248,39 +248,39 @@ static int test_log_categories()
     if (td.fail || td.count != 1)
         ret = 1;
 
-    // should be received by cat1 and NULL filter
-    td.lastcat = NULL;
+    // should be received by chan1 and NULL filter
+    td.lastchan = NULL;
     td.test    = 3;
     td.count   = 0;
     td.fail    = true;
-    logStrC(Info, cat1, _S"Info test");
+    logStrC(Info, chan1, _S"Info test");
     if (!eventWaitTimeout(&logtestevent, timeS(1)))
         ret = 1;
-    if (td.fail || td.count != 2 || td.lastcat != cat1)
+    if (td.fail || td.count != 2 || td.lastchan != chan1)
         ret = 1;
 
-    // should ONLY be received by cat2 filter
-    td.lastcat = NULL;
+    // should ONLY be received by chan2 filter
+    td.lastchan = NULL;
     td.test    = 1;
     td.count   = 0;
     td.fail    = false;
-    logStrC(Info, cat2, _S"Info test");
+    logStrC(Info, chan2, _S"Info test");
     if (!eventWaitTimeout(&logtestevent, timeS(1)))
         ret = 1;
-    if (td.fail || td.count != 1 || td.lastcat != cat2)
+    if (td.fail || td.count != 1 || td.lastchan != chan2)
         ret = 1;
 
     // should not be received by ANY destination
-    td.lastcat = NULL;
+    td.lastchan = NULL;
     td.test    = 4;
     td.count   = 0;
     td.fail    = false;
-    logStrC(Info, cat3, _S"Info test");
+    logStrC(Info, chan3, _S"Info test");
     osSleep(timeMS(100));
-    if (td.fail || td.count != 0 || td.lastcat != NULL)
+    if (td.fail || td.count != 0 || td.lastchan != NULL)
         ret = 1;
 
-    if (lmd->cur != 65)
+    if (lmd->cur != 66)
         ret = 1;
 
     logShutdown();
@@ -359,10 +359,10 @@ static int test_log_defer()
 }
 
 testfunc logtest_funcs[] = {
-    { "levels",     test_log_levels     },
-    { "shutdown",   test_log_shutdown   },
-    { "batch",      test_log_batch      },
-    { "categories", test_log_categories },
-    { "defer",      test_log_defer      },
-    { 0,            0                   }
+    { "levels",   test_log_levels     },
+    { "shutdown", test_log_shutdown   },
+    { "batch",    test_log_batch      },
+    { "channels", test_log_channels },
+    { "defer",    test_log_defer      },
+    { 0,          0                   }
 };

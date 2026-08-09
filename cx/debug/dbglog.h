@@ -60,7 +60,7 @@ extern char* dbgLog;
 /// it first before re-enabling with the new level.
 ///
 /// All log messages at or below the specified level (from all non-private
-/// categories) will be written to the buffer in addition to other destinations.
+/// channels) will be written to the buffer in addition to other destinations.
 void dbgLogEnable(int level);
 
 /// Disable debug log buffer and unregister from logging system

@@ -15,13 +15,14 @@
 /// @{
 /// Queue management and socket functions and definitions.
 
-/// Log category for the networking module
+/// Log channel for the networking module
 ///
 /// All diagnostics the net layer emits (such as the dev-build slow-callback warning) go through
-/// this category. Log categories are filtered by pointer identity, so this is public precisely so
-/// applications can pass it as the category filter to logRegisterDest() to route or suppress net
-/// diagnostics as a group. Created during net initialization; NULL until the first netqueueCreate().
-extern LogCategory* NetLogCategory;
+/// this channel. Log channels are filtered by pointer identity, so this is public precisely so
+/// applications can pass it as the channel filter to logRegisterDest() to route or suppress net
+/// diagnostics as a group. Created during net initialization; NULL until the first
+/// netqueueCreate().
+extern LogChannel* NetLogChannel;
 
 /// @}
 

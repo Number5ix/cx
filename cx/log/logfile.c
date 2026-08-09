@@ -375,7 +375,7 @@ static void formatDate(_In_ LogFileData* lfd, _Inout_ string* out, int64 timesta
 
 // this function is always called from the log thread and does not need to worry about concurrency
 _Use_decl_annotations_
-void logfileMsgFunc(int level, LogCategory* cat, int64 timestamp, strref msg, uint32 batchid,
+void logfileMsgFunc(int level, LogChannel* chan, int64 timestamp, strref msg, uint32 batchid,
                     void* userdata)
 {
     LogFileData* lfd = (LogFileData*)userdata;
@@ -383,7 +383,7 @@ void logfileMsgFunc(int level, LogCategory* cat, int64 timestamp, strref msg, ui
         return;
 
     string logline = 0;
-    string logdate = 0, loglevel = 0, logcat = 0, logspaces = 0;
+    string logdate = 0, loglevel = 0, logchan = 0, logspaces = 0;
 
     int nspaces = lfd->config.spacing ? lfd->config.spacing : 2;
     uint8* sbuf = strBuffer(&logspaces, nspaces + (lfd->config.flags & LOG_AddColon ? 1 : 0));
@@ -420,21 +420,21 @@ void logfileMsgFunc(int level, LogCategory* cat, int64 timestamp, strref msg, ui
         }
     }
 
-    if (lfd->config.flags & LOG_IncludeCategory && cat && !strEmpty(cat->name)) {
-        if (lfd->config.flags & LOG_BracketCategory) {
-            strFormat(&logcat, kLogBracketFmt, stvar(strref, cat->name));
+    if (lfd->config.flags & LOG_IncludeChannel && chan && !strEmpty(chan->name)) {
+        if (lfd->config.flags & LOG_BracketChannel) {
+            strFormat(&logchan, kLogBracketFmt, stvar(strref, chan->name));
         } else {
-            strConcat(&logcat, kLogSpace, cat->name);
+            strConcat(&logchan, kLogSpace, chan->name);
         }
     }
 
-    if (lfd->config.flags & LOG_CategoryFirst)
-        strNConcat(&logline, logdate, logcat, loglevel, logspaces, msg, loglineend);
+    if (lfd->config.flags & LOG_ChannelFirst)
+        strNConcat(&logline, logdate, logchan, loglevel, logspaces, msg, loglineend);
     else
-        strNConcat(&logline, logdate, loglevel, logcat, logspaces, msg, loglineend);
+        strNConcat(&logline, logdate, loglevel, logchan, logspaces, msg, loglineend);
     strDestroy(&logdate);
     strDestroy(&loglevel);
-    strDestroy(&logcat);
+    strDestroy(&logchan);
     strDestroy(&logspaces);
 
     vfsWrite(lfd->curfile, (void*)strC(logline), strLen(logline), NULL);
@@ -465,10 +465,10 @@ void logfileCloseFunc(void* userdata)
 }
 
 _Use_decl_annotations_
-LogDest* logfileRegister(int maxlevel, LogCategory* catfilter, LogFileData* logfile)
+LogDest* logfileRegister(int maxlevel, LogChannel* chanfilter, LogFileData* logfile)
 {
     return logRegisterDest(maxlevel,
-                           catfilter,
+                           chanfilter,
                            logfileMsgFunc,
                            logfileBatchFunc,
                            logfileCloseFunc,
@@ -476,11 +476,11 @@ LogDest* logfileRegister(int maxlevel, LogCategory* catfilter, LogFileData* logf
 }
 
 _Use_decl_annotations_
-LogDest* logfileRegisterWithDefer(int maxlevel, LogCategory* catfilter, LogFileData* logfile,
+LogDest* logfileRegisterWithDefer(int maxlevel, LogChannel* chanfilter, LogFileData* logfile,
                                   LogDest* deferdest)
 {
     return logRegisterDestWithDefer(maxlevel,
-                                    catfilter,
+                                    chanfilter,
                                     logfileMsgFunc,
                                     logfileBatchFunc,
                                     logfileCloseFunc,

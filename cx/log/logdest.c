@@ -8,7 +8,7 @@
 sa_LogDest _log_dests;
 
 _Use_decl_annotations_
-LogDest* logRegisterDest(int maxlevel, LogCategory* catfilter, LogDestMsg msgfunc,
+LogDest* logRegisterDest(int maxlevel, LogChannel* chanfilter, LogDestMsg msgfunc,
                          LogDestBatchDone batchfunc, LogDestClose closefunc, void* userdata)
 {
     logCheckInit();
@@ -18,7 +18,7 @@ LogDest* logRegisterDest(int maxlevel, LogCategory* catfilter, LogDestMsg msgfun
     LogDest* ndest = xaAlloc(sizeof(LogDest), XA_Zero);
 
     ndest->maxlevel  = maxlevel;
-    ndest->catfilter = catfilter;
+    ndest->chanfilter = chanfilter;
     ndest->msgfunc   = msgfunc;
     ndest->batchfunc = batchfunc;
     ndest->closefunc = closefunc;

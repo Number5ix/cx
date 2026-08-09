@@ -4,11 +4,11 @@
 
 LazyInitState netInit_done;
 
-LogCategory* NetLogCategory;
+LogChannel* NetLogChannel;
 
 void netInit(void* unused)
 {
-    NetLogCategory = logCreateCat(_SL("Network"), false);
+    NetLogChannel = logCreateChan(_SL("Network"), false);
     netPlatformInit();
 }
 

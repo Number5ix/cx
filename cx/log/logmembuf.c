@@ -25,7 +25,7 @@ LogMembufData* logmembufCreate(uint32 size)
 
 // for use with logRegisterDest along with the userdata returned from logmembufCreate
 _Use_decl_annotations_
-void logmembufMsgFunc(int level, LogCategory* cat, int64 timestamp, strref msg, uint32 batchid,
+void logmembufMsgFunc(int level, LogChannel* chan, int64 timestamp, strref msg, uint32 batchid,
                       void* userdata)
 {
     LogMembufData* lmd = (LogMembufData*)userdata;
@@ -35,9 +35,9 @@ void logmembufMsgFunc(int level, LogCategory* cat, int64 timestamp, strref msg, 
     TimeParts tp = { 0 };
     timeDecompose(&tp, timestamp);
 
-    string logline = 0, logcat = 0;
-    if (cat && !strEmpty(cat->name)) {
-        strFormat(&logcat, kLogBracketFmt, stvar(strref, cat->name));
+    string logline = 0, logchan = 0;
+    if (chan && !strEmpty(chan->name)) {
+        strFormat(&logchan, kLogBracketFmt, stvar(strref, chan->name));
     }
 
     strFormat(&logline,
@@ -49,7 +49,7 @@ void logmembufMsgFunc(int level, LogCategory* cat, int64 timestamp, strref msg, 
               stvar(uint8, tp.minute),
               stvar(uint8, tp.second),
               stvar(strref, LogLevelAbbrev[level]),
-              stvar(string, logcat),
+              stvar(string, logchan),
               stvar(strref, msg));
 
     uint32 len = strLen(logline);
@@ -64,7 +64,7 @@ void logmembufMsgFunc(int level, LogCategory* cat, int64 timestamp, strref msg, 
         }
     }
 
-    strDestroy(&logcat);
+    strDestroy(&logchan);
     strDestroy(&logline);
 }
 
@@ -81,10 +81,10 @@ void logmembufCloseFunc(void* userdata)
 }
 
 _Use_decl_annotations_
-LogDest* logmembufRegister(int maxlevel, LogCategory* catfilter, LogMembufData* logfile)
+LogDest* logmembufRegister(int maxlevel, LogChannel* chanfilter, LogMembufData* logfile)
 {
     return logRegisterDest(maxlevel,
-                           catfilter,
+                           chanfilter,
                            logmembufMsgFunc,
                            NULL,
                            logmembufCloseFunc,
@@ -92,11 +92,11 @@ LogDest* logmembufRegister(int maxlevel, LogCategory* catfilter, LogMembufData* 
 }
 
 _Use_decl_annotations_
-LogDest* logmembufRegisterWithDefer(int maxlevel, LogCategory* catfilter, LogMembufData* membuf,
+LogDest* logmembufRegisterWithDefer(int maxlevel, LogChannel* chanfilter, LogMembufData* membuf,
                                     LogDest* deferdest)
 {
     return logRegisterDestWithDefer(maxlevel,
-                                    catfilter,
+                                    chanfilter,
                                     logmembufMsgFunc,
                                     NULL,
                                     logmembufCloseFunc,

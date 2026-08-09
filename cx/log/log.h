@@ -7,7 +7,7 @@
 /// @{
 ///
 /// The CX logging system provides asynchronous, multi-threaded logging with support for
-/// multiple destinations, log levels, categories, and batching. Logging is performed on
+/// multiple destinations, log levels, channels, and batching. Logging is performed on
 /// a dedicated background thread to minimize impact on application performance.
 ///
 /// **Basic Usage:**
@@ -16,11 +16,11 @@
 ///   logFmt(Warn, _SL("Invalid value: ${int}"), stvar(int32, value));
 /// @endcode
 ///
-/// **Categories:**
-/// Categories allow filtering logs by subsystem. Create a category once and reuse it:
+/// **Channels:**
+/// Channels allow filtering logs by subsystem. Create a channel once and reuse it:
 /// @code
-///   LogCategory *netcat = logCreateCat(_SL("Network"), false);
-///   logStrC(Info, netcat, _SL("Connection established"));
+///   LogChannel *netchan = logCreateChan(_SL("Network"), false);
+///   logStrC(Info, netchan, _SL("Connection established"));
 /// @endcode
 ///
 /// **Destinations:**
@@ -75,51 +75,51 @@ extern strref LogLevelNames[];
 /// Array of single-character log level abbreviations (e.g., "F", "E", etc.)
 extern strref LogLevelAbbrev[];
 
-/// Log category for filtering and organizing log messages
+/// Log channel for filtering and organizing log messages
 ///
-/// Categories allow grouping related log messages together and filtering them at
-/// destinations. Create categories with logCreateCat() and use them with logStrC()
+/// Channels allow grouping related log messages together and filtering them at
+/// destinations. Create channels with logCreateChan() and use them with logStrC()
 /// and logFmtC() macros.
-typedef struct LogCategory {
-    string name;   ///< Category name
-    bool priv;     ///< Private categories are filtered out unless explicitly requested
-} LogCategory;
+typedef struct LogChannel {
+    string name;   ///< Channel name
+    bool priv;     ///< Private channels are filtered out unless explicitly requested
+} LogChannel;
 
 /// Opaque handle to a registered log destination
 typedef struct LogDest LogDest;
 
-/// Default log category used when no category is specified
-extern LogCategory* LogDefault;
+/// Default log channel used when no channel is specified
+extern LogChannel* LogDefault;
 
 typedef struct LogDeferData LogDeferData;
 
-/// Create a new log category
+/// Create a new log channel
 ///
-/// Categories are used to organize and filter log messages by subsystem or component.
-/// The same category pointer can be passed to multiple log calls.
+/// Channels are used to organize and filter log messages by subsystem or component.
+/// The same channel pointer can be passed to multiple log calls.
 ///
-/// @param name Name of the category for display and identification
-/// @param priv If true, this is a private category that will be filtered out by default
-/// @return Category handle, or NULL if logging system is not initialized
+/// @param name Name of the channel for display and identification
+/// @param priv If true, this is a private channel that will be filtered out by default
+/// @return Channel handle, or NULL if logging system is not initialized
 /// @code
-///   LogCategory *netcat = logCreateCat(_SL("Network"), false);
-///   logStrC(Info, netcat, _SL("Connection established"));
+///   LogChannel *netchan = logCreateChan(_SL("Network"), false);
+///   logStrC(Info, netchan, _SL("Connection established"));
 /// @endcode
-_Ret_opt_valid_ LogCategory* logCreateCat(_In_ strref name, bool priv);
+_Ret_opt_valid_ LogChannel* logCreateChan(_In_ strref name, bool priv);
 
 /// Callback function type for log destinations
 ///
 /// This function is called for each log message that passes the destination's level
-/// and category filters. Messages with the same batchid should be kept together when
+/// and channel filters. Messages with the same batchid should be kept together when
 /// possible (e.g., not split across log file rotations).
 ///
 /// @param level Log severity level (LOG_Fatal, LOG_Error, etc.)
-/// @param cat Category of the message, or NULL for default
+/// @param chan Channel of the message, or NULL for default
 /// @param timestamp Wall clock timestamp when message was logged
 /// @param msg The log message text
 /// @param batchid Opaque batch identifier for grouping related messages
 /// @param userdata User-provided context pointer from logRegisterDest()
-typedef void (*LogDestMsg)(int level, _In_opt_ LogCategory* cat, int64 timestamp,
+typedef void (*LogDestMsg)(int level, _In_opt_ LogChannel* chan, int64 timestamp,
                            _In_opt_ strref msg, uint32 batchid, _In_opt_ void* userdata);
 
 /// Callback function type for batch completion notification
@@ -142,10 +142,10 @@ typedef void (*LogDestClose)(_In_opt_ void* userdata);
 /// Register a new log destination
 ///
 /// Registers callbacks that will receive log messages matching the specified level
-/// and category filters. Multiple destinations can be registered simultaneously.
+/// and channel filters. Multiple destinations can be registered simultaneously.
 ///
 /// @param maxlevel Maximum log level to receive (e.g., LOG_Info receives Fatal through Info)
-/// @param catfilter Category filter, or NULL to receive all non-private categories
+/// @param chanfilter Channel filter, or NULL to receive all non-private channels
 /// @param msgfunc Callback invoked for each log message
 /// @param batchfunc Optional callback invoked when a batch completes
 /// @param closefunc Optional callback invoked when destination is unregistered
@@ -155,7 +155,7 @@ typedef void (*LogDestClose)(_In_opt_ void* userdata);
 ///   LogDest *dest = logRegisterDest(LOG_Info, NULL, myMsgFunc, NULL, myCloseFunc, &mydata);
 /// @endcode
 _Ret_opt_valid_ LogDest*
-logRegisterDest(int maxlevel, _In_opt_ LogCategory* catfilter, _In_ LogDestMsg msgfunc,
+logRegisterDest(int maxlevel, _In_opt_ LogChannel* chanfilter, _In_ LogDestMsg msgfunc,
                 _In_opt_ LogDestBatchDone batchfunc, _In_opt_ LogDestClose closefunc,
                 _In_opt_ void* userdata);
 
@@ -176,7 +176,7 @@ void logFlush(void);
 
 /// Shutdown the logging system
 ///
-/// Flushes all pending logs, unregisters all destinations, and invalidates all categories.
+/// Flushes all pending logs, unregisters all destinations, and invalidates all channels.
 /// After shutdown, logging calls will be ignored until logRestart() is called.
 void logShutdown(void);
 
@@ -227,7 +227,7 @@ void logBatchEnd(void);
 
 /// void logStr(level, str)
 ///
-/// Log a string message using the default category
+/// Log a string message using the default channel
 /// @param level Log level without LOG_ prefix (e.g., Info, Warn, Error)
 /// @param str String or string reference to log
 /// @code
@@ -236,21 +236,21 @@ void logBatchEnd(void);
 /// @endcode
 #define logStr(level, str) _logStr_##level(LOG_##level, LogDefault, str)
 
-/// void logStrC(level, cat, str)
+/// void logStrC(level, chan, str)
 ///
-/// Log a string message with a specific category
+/// Log a string message with a specific channel
 /// @param level Log level without LOG_ prefix (e.g., Info, Warn, Error)
-/// @param cat LogCategory pointer
+/// @param chan LogChannel pointer
 /// @param str String or string reference to log
 /// @code
-///   LogCategory *netcat = logCreateCat(_SL("Network"), false);
-///   logStrC(Info, netcat, _SL("Connection established"));
+///   LogChannel *netchan = logCreateChan(_SL("Network"), false);
+///   logStrC(Info, netchan, _SL("Connection established"));
 /// @endcode
-#define logStrC(level, cat, str) _logStr_##level(LOG_##level, cat, str)
+#define logStrC(level, chan, str) _logStr_##level(LOG_##level, chan, str)
 
 /// void logFmt(level, fmt, ...)
 ///
-/// Log a formatted message using the default category
+/// Log a formatted message using the default channel
 /// @param level Log level without LOG_ prefix (e.g., Info, Warn, Error)
 /// @param fmt Format string (see @ref string_format for format syntax)
 /// @param ... Format arguments wrapped in stvar()
@@ -266,20 +266,20 @@ void logBatchEnd(void);
                     count_macro_args(__VA_ARGS__), \
                     ((stvar[]) { __VA_ARGS__ }))
 
-/// void logFmtC(level, cat, fmt, ...)
+/// void logFmtC(level, chan, fmt, ...)
 ///
-/// Log a formatted message with a specific category
+/// Log a formatted message with a specific channel
 /// @param level Log level without LOG_ prefix
-/// @param cat LogCategory pointer
+/// @param chan LogChannel pointer
 /// @param fmt Format string
 /// @param ... Format arguments wrapped in stvar()
 /// @code
-///   LogCategory *dbcat = logCreateCat(_SL("Database"), false);
-///   logFmtC(Warn, dbcat, _SL("Query took ${int}ms"), stvar(int32, elapsed));
+///   LogChannel *dbchan = logCreateChan(_SL("Database"), false);
+///   logFmtC(Warn, dbchan, _SL("Query took ${int}ms"), stvar(int32, elapsed));
 /// @endcode
-#define logFmtC(level, cat, fmt, ...)              \
+#define logFmtC(level, chan, fmt, ...)             \
     _logFmt_##level(LOG_##level,                   \
-                    cat,                           \
+                    chan,                          \
                     fmt,                           \
                     count_macro_args(__VA_ARGS__), \
                     ((stvar[]) { __VA_ARGS__ }))
@@ -287,66 +287,67 @@ void logBatchEnd(void);
 /// @}  // end of log_macros group
 
 // Internal implementation functions used by macros - do not call directly
-void _logStr(int level, int64 timestamp, _In_ LogCategory* cat, _In_ strref str);
-void _logFmt(int level, int64 timestamp, _In_ LogCategory* cat, _In_ strref fmtstr, int n,
+void _logStr(int level, int64 timestamp, _In_ LogChannel* chan, _In_ strref str);
+void _logFmt(int level, int64 timestamp, _In_ LogChannel* chan, _In_ strref fmtstr, int n,
              _In_ stvar* args);
 
 // Implementation macros for conditional compilation based on DEBUG_LEVEL
 #if DEBUG_LEVEL >= 2
-#define _logStr_Trace(level, cat, str)              _logStr(level, -1, cat, str)
-#define _logFmt_Trace(level, cat, fmt, nargs, args) _logFmt(level, -1, cat, fmt, nargs, args)
+#define _logStr_Trace(level, chan, str)              _logStr(level, -1, chan, str)
+#define _logFmt_Trace(level, chan, fmt, nargs, args) _logFmt(level, -1, chan, fmt, nargs, args)
 #else
-#define _logStr_Trace(level, cat, str)              ((void)0)
-#define _logFmt_Trace(level, cat, fmt, nargs, args) ((void)0)
+#define _logStr_Trace(level, chan, str)              ((void)0)
+#define _logFmt_Trace(level, chan, fmt, nargs, args) ((void)0)
 #endif
 
 #if DEBUG_LEVEL >= 1
-#define _logStr_Debug(level, cat, str)                _logStr(level, -1, cat, str)
-#define _logFmt_Debug(level, cat, fmt, nargs, args)   _logFmt(level, -1, cat, fmt, nargs, args)
-#define _logStr_DevDiag(level, cat, str)              _logStr(LOG_Diag, -1, cat, str)
-#define _logFmt_DevDiag(level, cat, fmt, nargs, args) _logFmt(LOG_Diag, -1, cat, fmt, nargs, args)
-#define _logStr_DevVerbose(level, cat, str)           _logStr(LOG_Verbose, -1, cat, str)
-#define _logFmt_DevVerbose(level, cat, fmt, nargs, args) \
-    _logFmt(LOG_Verbose, -1, cat, fmt, nargs, args)
-#define _logStr_DevInfo(level, cat, str)              _logStr(LOG_Info, -1, cat, str)
-#define _logFmt_DevInfo(level, cat, fmt, nargs, args) _logFmt(LOG_Info, -1, cat, fmt, nargs, args)
-#define _logStr_DevNotice(level, cat, str)            _logStr(LOG_Notice, -1, cat, str)
-#define _logFmt_DevNotice(level, cat, fmt, nargs, args) \
-    _logFmt(LOG_Notice, -1, cat, fmt, nargs, args)
-#define _logStr_DevWarn(level, cat, str)               _logStr(LOG_Warn, -1, cat, str)
-#define _logFmt_DevWarn(level, cat, fmt, nargs, args)  _logFmt(LOG_Warn, -1, cat, fmt, nargs, args)
-#define _logStr_DevError(level, cat, str)              _logStr(LOG_Error, -1, cat, str)
-#define _logFmt_DevError(level, cat, fmt, nargs, args) _logFmt(LOG_Error, -1, cat, fmt, nargs, args)
+#define _logStr_Debug(level, chan, str)                _logStr(level, -1, chan, str)
+#define _logFmt_Debug(level, chan, fmt, nargs, args)   _logFmt(level, -1, chan, fmt, nargs, args)
+#define _logStr_DevDiag(level, chan, str)              _logStr(LOG_Diag, -1, chan, str)
+#define _logFmt_DevDiag(level, chan, fmt, nargs, args) _logFmt(LOG_Diag, -1, chan, fmt, nargs, args)
+#define _logStr_DevVerbose(level, chan, str)           _logStr(LOG_Verbose, -1, chan, str)
+#define _logFmt_DevVerbose(level, chan, fmt, nargs, args) \
+    _logFmt(LOG_Verbose, -1, chan, fmt, nargs, args)
+#define _logStr_DevInfo(level, chan, str)              _logStr(LOG_Info, -1, chan, str)
+#define _logFmt_DevInfo(level, chan, fmt, nargs, args) _logFmt(LOG_Info, -1, chan, fmt, nargs, args)
+#define _logStr_DevNotice(level, chan, str)            _logStr(LOG_Notice, -1, chan, str)
+#define _logFmt_DevNotice(level, chan, fmt, nargs, args) \
+    _logFmt(LOG_Notice, -1, chan, fmt, nargs, args)
+#define _logStr_DevWarn(level, chan, str)              _logStr(LOG_Warn, -1, chan, str)
+#define _logFmt_DevWarn(level, chan, fmt, nargs, args) _logFmt(LOG_Warn, -1, chan, fmt, nargs, args)
+#define _logStr_DevError(level, chan, str)             _logStr(LOG_Error, -1, chan, str)
+#define _logFmt_DevError(level, chan, fmt, nargs, args) \
+    _logFmt(LOG_Error, -1, chan, fmt, nargs, args)
 #else
-#define _logStr_Debug(level, cat, str)      ((void)0)
-#define _logFmt_Debug(level, cat, str)      ((void)0)
-#define _logStr_DevDiag(level, cat, str)    ((void)0)
-#define _logFmt_DevDiag(level, cat, str)    ((void)0)
-#define _logStr_DevVerbose(level, cat, str) ((void)0)
-#define _logFmt_DevVerbose(level, cat, str) ((void)0)
-#define _logStr_DevInfo(level, cat, str)    ((void)0)
-#define _logFmt_DevInfo(level, cat, str)    ((void)0)
-#define _logStr_DevNotice(level, cat, str)  ((void)0)
-#define _logFmt_DevNotice(level, cat, str)  ((void)0)
-#define _logStr_DevWarn(level, cat, str)    ((void)0)
-#define _logFmt_DevWarn(level, cat, str)    ((void)0)
-#define _logStr_DevError(level, cat, str)   ((void)0)
-#define _logFmt_DevError(level, cat, str)   ((void)0)
+#define _logStr_Debug(level, chan, str)      ((void)0)
+#define _logFmt_Debug(level, chan, str)      ((void)0)
+#define _logStr_DevDiag(level, chan, str)    ((void)0)
+#define _logFmt_DevDiag(level, chan, str)    ((void)0)
+#define _logStr_DevVerbose(level, chan, str) ((void)0)
+#define _logFmt_DevVerbose(level, chan, str) ((void)0)
+#define _logStr_DevInfo(level, chan, str)    ((void)0)
+#define _logFmt_DevInfo(level, chan, str)    ((void)0)
+#define _logStr_DevNotice(level, chan, str)  ((void)0)
+#define _logFmt_DevNotice(level, chan, str)  ((void)0)
+#define _logStr_DevWarn(level, chan, str)    ((void)0)
+#define _logFmt_DevWarn(level, chan, str)    ((void)0)
+#define _logStr_DevError(level, chan, str)   ((void)0)
+#define _logFmt_DevError(level, chan, str)   ((void)0)
 #endif
 
-#define _logStr_Diag(level, cat, str)                 _logStr(level, -1, cat, str)
-#define _logFmt_Diag(level, cat, fmt, nargs, args)    _logFmt(level, -1, cat, fmt, nargs, args)
-#define _logStr_Verbose(level, cat, str)              _logStr(level, -1, cat, str)
-#define _logFmt_Verbose(level, cat, fmt, nargs, args) _logFmt(level, -1, cat, fmt, nargs, args)
-#define _logStr_Info(level, cat, str)                 _logStr(level, -1, cat, str)
-#define _logFmt_Info(level, cat, fmt, nargs, args)    _logFmt(level, -1, cat, fmt, nargs, args)
-#define _logStr_Notice(level, cat, str)               _logStr(level, -1, cat, str)
-#define _logFmt_Notice(level, cat, fmt, nargs, args)  _logFmt(level, -1, cat, fmt, nargs, args)
-#define _logStr_Warn(level, cat, str)                 _logStr(level, -1, cat, str)
-#define _logFmt_Warn(level, cat, fmt, nargs, args)    _logFmt(level, -1, cat, fmt, nargs, args)
-#define _logStr_Error(level, cat, str)                _logStr(level, -1, cat, str)
-#define _logFmt_Error(level, cat, fmt, nargs, args)   _logFmt(level, -1, cat, fmt, nargs, args)
-#define _logStr_Fatal(level, cat, str)                _logStr(level, -1, cat, str)
-#define _logFmt_Fatal(level, cat, fmt, nargs, args)   _logFmt(level, -1, cat, fmt, nargs, args)
+#define _logStr_Diag(level, chan, str)                 _logStr(level, -1, chan, str)
+#define _logFmt_Diag(level, chan, fmt, nargs, args)    _logFmt(level, -1, chan, fmt, nargs, args)
+#define _logStr_Verbose(level, chan, str)              _logStr(level, -1, chan, str)
+#define _logFmt_Verbose(level, chan, fmt, nargs, args) _logFmt(level, -1, chan, fmt, nargs, args)
+#define _logStr_Info(level, chan, str)                 _logStr(level, -1, chan, str)
+#define _logFmt_Info(level, chan, fmt, nargs, args)    _logFmt(level, -1, chan, fmt, nargs, args)
+#define _logStr_Notice(level, chan, str)               _logStr(level, -1, chan, str)
+#define _logFmt_Notice(level, chan, fmt, nargs, args)  _logFmt(level, -1, chan, fmt, nargs, args)
+#define _logStr_Warn(level, chan, str)                 _logStr(level, -1, chan, str)
+#define _logFmt_Warn(level, chan, fmt, nargs, args)    _logFmt(level, -1, chan, fmt, nargs, args)
+#define _logStr_Error(level, chan, str)                _logStr(level, -1, chan, str)
+#define _logFmt_Error(level, chan, fmt, nargs, args)   _logFmt(level, -1, chan, fmt, nargs, args)
+#define _logStr_Fatal(level, chan, str)                _logStr(level, -1, chan, str)
+#define _logFmt_Fatal(level, chan, fmt, nargs, args)   _logFmt(level, -1, chan, fmt, nargs, args)
 
 CX_C_END

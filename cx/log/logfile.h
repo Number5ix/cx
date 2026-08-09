@@ -18,7 +18,7 @@
 ///       .rotateSize = 10 * 1024 * 1024,  // 10MB
 ///       .rotateKeepFiles = 5,
 ///       .spacing = 2,
-///       .flags = LOG_IncludeCategory
+///       .flags = LOG_IncludeChannel
 ///   };
 ///
 ///   LogFileData *lfd = logfileCreate(vfs, _SL("app.log"), &cfg);
@@ -44,15 +44,15 @@ enum LOG_DATE_FORMATS {
 
 /// Formatting flags for log file output
 enum LOG_FLAGS {
-    LOG_LocalTime       = 0x0001,   ///< Use local time instead of UTC
-    LOG_OmitLevel       = 0x0002,   ///< Do not include severity level
-    LOG_ShortLevel      = 0x0004,   ///< Use single-character level abbreviations
-    LOG_BracketLevel    = 0x0008,   ///< Enclose log level in brackets [INFO]
-    LOG_JustifyLevel    = 0x0010,   ///< Make level a fixed-width column
-    LOG_IncludeCategory = 0x0020,   ///< Include category name in output
-    LOG_BracketCategory = 0x0040,   ///< Enclose category in brackets [Network]
-    LOG_AddColon        = 0x0080,   ///< Add colon after the prefix
-    LOG_CategoryFirst   = 0x0100,   ///< Category between date and level instead of at end
+    LOG_LocalTime      = 0x0001,   ///< Use local time instead of UTC
+    LOG_OmitLevel      = 0x0002,   ///< Do not include severity level
+    LOG_ShortLevel     = 0x0004,   ///< Use single-character level abbreviations
+    LOG_BracketLevel   = 0x0008,   ///< Enclose log level in brackets [INFO]
+    LOG_JustifyLevel   = 0x0010,   ///< Make level a fixed-width column
+    LOG_IncludeChannel = 0x0020,   ///< Include channel name in output
+    LOG_BracketChannel = 0x0040,   ///< Enclose channel in brackets [Network]
+    LOG_AddColon       = 0x0080,   ///< Add colon after the prefix
+    LOG_ChannelFirst   = 0x0100,   ///< Channel between date and level instead of at end
 };
 
 /// Log rotation mode
@@ -103,7 +103,7 @@ typedef struct LogFileData LogFileData;
 ///       .rotateMode = LOG_RotateSize,
 ///       .rotateSize = 10 * 1024 * 1024,
 ///       .spacing = 2,
-///       .flags = LOG_IncludeCategory | LOG_BracketLevel
+///       .flags = LOG_IncludeChannel | LOG_BracketLevel
 ///   };
 ///   LogFileData *lfd = logfileCreate(vfs, _SL("server.log"), &cfg);
 /// @endcode
@@ -116,10 +116,10 @@ LogFileData* logfileCreate(_Inout_ VFS* vfs, _In_ strref filename, _In_ LogFileC
 /// automatically cleaned up when unregistered.
 ///
 /// @param maxlevel Maximum log level to write to file
-/// @param catfilter Category filter, or NULL for all non-private categories
+/// @param chanfilter Channel filter, or NULL for all non-private channels
 /// @param logfile File logging handle from logfileCreate()
 /// @return Destination handle for later unregistration, or NULL on failure
-LogDest* logfileRegister(int maxlevel, _In_opt_ LogCategory* catfilter, _In_ LogFileData* logfile);
+LogDest* logfileRegister(int maxlevel, _In_opt_ LogChannel* chanfilter, _In_ LogFileData* logfile);
 
 /// Register a file destination and flush deferred logs
 ///
@@ -128,7 +128,7 @@ LogDest* logfileRegister(int maxlevel, _In_opt_ LogCategory* catfilter, _In_ Log
 /// log file couldn't be opened immediately.
 ///
 /// @param maxlevel Maximum log level to write to file
-/// @param catfilter Category filter, or NULL for all non-private categories
+/// @param chanfilter Channel filter, or NULL for all non-private channels
 /// @param logfile File logging handle from logfileCreate()
 /// @param deferdest Deferred destination to flush (destroyed during this call)
 /// @return Destination handle for later unregistration, or NULL on failure
@@ -141,7 +141,7 @@ LogDest* logfileRegister(int maxlevel, _In_opt_ LogCategory* catfilter, _In_ Log
 ///   LogFileData *lfd = logfileCreate(vfs, _SL("app.log"), &cfg);
 ///   LogDest *dest = logfileRegisterWithDefer(LOG_Info, NULL, lfd, deferdest);
 /// @endcode
-LogDest* logfileRegisterWithDefer(int maxlevel, _In_opt_ LogCategory* catfilter,
+LogDest* logfileRegisterWithDefer(int maxlevel, _In_opt_ LogChannel* chanfilter,
                                   _In_ LogFileData* logfile, _In_ LogDest* deferdest);
 
 // ============================================================================
@@ -157,12 +157,12 @@ LogDest* logfileRegisterWithDefer(int maxlevel, _In_opt_ LogCategory* catfilter,
 /// each write.
 ///
 /// @param level Log severity level
-/// @param cat Category, or NULL for default
+/// @param chan Channel, or NULL for default
 /// @param timestamp Wall clock timestamp
 /// @param msg Log message text
 /// @param batchid Batch identifier for grouping
 /// @param userdata LogFileData pointer from logfileCreate()
-void logfileMsgFunc(int level, _In_opt_ LogCategory* cat, int64 timestamp, _In_opt_ strref msg,
+void logfileMsgFunc(int level, _In_opt_ LogChannel* chan, int64 timestamp, _In_opt_ strref msg,
                     uint32 batchid, _In_opt_ void* userdata);
 
 /// Batch completion callback for file destinations

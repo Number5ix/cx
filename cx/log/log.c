@@ -9,13 +9,13 @@
 #include <cx/time.h>
 
 int _log_max_level = -1;
-static LogCategory _logDefault;
-LogCategory* LogDefault = &_logDefault;
+static LogChannel _logDefault;
+LogChannel* LogDefault = &_logDefault;
 
 atomic(bool) _log_running;
 Mutex _log_op_lock;
 Mutex _log_run_lock;
-hashtable _log_categories;
+hashtable _log_channels;
 
 typedef struct LogBatchTLS {
     LogEntry* head;
@@ -72,7 +72,7 @@ static void logInit(void* dummy)
     devAssert(atomicLoad(bool, &_log_running, Acquire) == false);
 
     saInit(&_log_dests, ptr, 8);
-    htInit(&_log_categories, ptr, none, 8);
+    htInit(&_log_channels, ptr, none, 8);
     mutexInit(&_log_op_lock);
     prqInitDynamic(&_log_queue,
                    LOG_INITIAL_QUEUE_SIZE,
@@ -98,23 +98,23 @@ void logDestroyEnt(LogEntry* ent)
 }
 
 _Use_decl_annotations_
-LogCategory* logCreateCat(strref name, bool priv)
+LogChannel* logCreateChan(strref name, bool priv)
 {
     logCheckInit();
     if (!atomicLoad(bool, &_log_running, Acquire))
         return NULL;
 
-    LogCategory* ret = xaAlloc(sizeof(LogCategory), XA_Zero);
+    LogChannel* ret = xaAlloc(sizeof(LogChannel), XA_Zero);
     strDup(&ret->name, name);
     ret->priv = priv;
 
     withMutex (&_log_op_lock) {
-        htInsert(&_log_categories, ptr, ret, none, NULL);
+        htInsert(&_log_channels, ptr, ret, none, NULL);
     }
     return ret;
 }
 
-static void _logStrInternal(int level, int64 timestamp, _In_ LogCategory* cat, _In_ strref str)
+static void _logStrInternal(int level, int64 timestamp, _In_ LogChannel* chan, _In_ strref str)
 {
     LogEntry* ent = xaAlloc(sizeof(LogEntry), XA_Zero | XA_Optional(High));
     if (!ent)
@@ -122,7 +122,7 @@ static void _logStrInternal(int level, int64 timestamp, _In_ LogCategory* cat, _
 
     ent->timestamp = (timestamp != -1) ? timestamp : clockWall();
     ent->level     = level;
-    ent->cat       = cat;
+    ent->chan      = chan;
     strDup(&ent->msg, str);
 
     if (!_log_batch.level) {
@@ -141,7 +141,7 @@ static void _logStrInternal(int level, int64 timestamp, _In_ LogCategory* cat, _
 }
 
 _Use_decl_annotations_
-void _logStr(int level, int64 timestamp, LogCategory* cat, strref str)
+void _logStr(int level, int64 timestamp, LogChannel* chan, strref str)
 {
     lazyInit(&_logInitState, logInit, NULL);
 
@@ -152,11 +152,11 @@ void _logStr(int level, int64 timestamp, LogCategory* cat, strref str)
     if (!atomicLoad(bool, &_log_running, Acquire))
         return;
 
-    _logStrInternal(level, timestamp, cat, str);
+    _logStrInternal(level, timestamp, chan, str);
 }
 
 _Use_decl_annotations_
-void _logFmt(int level, int64 timestamp, LogCategory* cat, strref fmtstr, int n, stvar* args)
+void _logFmt(int level, int64 timestamp, LogChannel* chan, strref fmtstr, int n, stvar* args)
 {
     lazyInit(&_logInitState, logInit, NULL);
 
@@ -169,7 +169,7 @@ void _logFmt(int level, int64 timestamp, LogCategory* cat, strref fmtstr, int n,
 
     string logmsg = 0;
     _strFormat(&logmsg, fmtstr, n, args);
-    _logStrInternal(level, timestamp, cat, logmsg);
+    _logStrInternal(level, timestamp, chan, logmsg);
     strDestroy(&logmsg);
 }
 
@@ -220,11 +220,11 @@ void logShutdown(void)
             saDestroy(&_log_dests);
             _log_max_level = -1;
 
-            // remove all saved categories
-            foreach (hashtable, hti, _log_categories) {
+            // remove all saved channels
+            foreach (hashtable, hti, _log_channels) {
                 xaFree(htiKey(ptr, hti));
             }
-            htDestroy(&_log_categories);
+            htDestroy(&_log_channels);
         }
 
         logFlush();

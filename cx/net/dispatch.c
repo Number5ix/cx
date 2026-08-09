@@ -17,7 +17,7 @@
 // ---------------------------------------------------------------------------------------------
 
 #include "net_private.h"
-#include "net.h"   // NetLogCategory
+#include "net.h"   // NetLogChannel
 #include <cx/container.h>
 #include <cx/log.h>
 #include <cx/thread.h>
@@ -158,7 +158,7 @@ void NetQueue__deliver(NetQueue* self, NetSocket* sock, NetFlow* flow, NetEvent*
     int64 took = clockTimer() - cbStart;
     if (took >= NET_CB_WARN_THRESHOLD) {
         logFmtC(DevWarn,
-                NetLogCategory,
+                NetLogChannel,
                 kNetFmtSlowCB,
                 stvar(strref, netEventName(ev->event)),
                 stvar(uint16, ptrHash(sock)),
