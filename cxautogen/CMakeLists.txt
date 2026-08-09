@@ -84,6 +84,7 @@ set(CX_SRCS
     ../cx/string/strempty.c
     ../cx/string/strencoding.c
     ../cx/string/strfind.c
+    ../cx/string/strhex.c
     ../cx/string/striter.c
     ../cx/string/strjoin.c
     ../cx/string/strnum_fp.c

@@ -7,6 +7,7 @@ set(STRING_SRCS
     string/strempty.c
     string/strencoding.c
     string/strfind.c
+    string/strhex.c
     string/striter.c
     string/strjoin.c
     string/strnum_fp.c

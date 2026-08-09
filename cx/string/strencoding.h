@@ -270,6 +270,53 @@ bool strB64Encode(_Inout_ strhandle out, _In_reads_bytes_(sz) const uint8* _Nonn
 /// @endcode
 uint32 strB64Decode(_In_opt_ strref s, _Out_writes_bytes_opt_(sz) uint8* _Nullable buf, uint32 sz);
 
+/// Encodes binary data as a hexadecimal string
+///
+/// Converts arbitrary binary data into a hex string of exactly two characters per input
+/// byte, with no separators or prefix.
+///
+/// Any existing string in the output parameter is destroyed first.
+///
+/// @param out Pointer to output string variable
+/// @param buf Binary data to encode
+/// @param sz Size of binary data in bytes
+/// @param upper Use uppercase hex digits (A-F) if true, lowercase (a-f) if false
+/// @return true on success, false on error
+///
+/// Example:
+/// @code
+///   string encoded = 0;
+///   strHexEncode(&encoded, hash, hashSize, false);
+///   // ... use encoded ...
+///   strDestroy(&encoded);
+/// @endcode
+bool strHexEncode(_Inout_ strhandle out, _In_reads_bytes_(sz) const uint8* _Nonnull buf, uint32 sz,
+                  bool upper);
+
+/// Decodes a hexadecimal string to binary data
+///
+/// Converts a hex string back to binary data. Both uppercase and lowercase digits are
+/// accepted, and may be mixed. The input must contain nothing but hex digits and must
+/// have an even length; anything else is rejected by returning 0.
+///
+/// This function can be called twice: first with buf=NULL to query the required
+/// buffer size, then with an allocated buffer to perform the decoding.
+///
+/// @param s Hex encoded string
+/// @param buf Output buffer for binary data (NULL to query size)
+/// @param sz Size of output buffer in bytes
+/// @return Number of bytes required for (or written to) the decoded data, or 0 on error
+///
+/// Example:
+/// @code
+///   uint32 sz = strHexDecode(encoded, NULL, 0);   // Query size
+///   uint8 *data = xaAlloc(sz);
+///   strHexDecode(encoded, data, sz);              // Decode
+///   // ... use data ...
+///   xaFree(data);
+/// @endcode
+uint32 strHexDecode(_In_opt_ strref s, _Out_writes_bytes_opt_(sz) uint8* _Nullable buf, uint32 sz);
+
 /// @}  // end of string_encoding group
 
 CX_C_END
