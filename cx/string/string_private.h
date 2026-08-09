@@ -209,6 +209,12 @@ _Success_(return) bool _strRopeRealStr(_Inout_ strhandle_v s, uint32 off, _Out_ 
                                 _Out_ uint32* _Nonnull rsoff, _Out_ uint32* _Nonnull rslen,
                                 _Out_ uint32* _Nonnull rsstart, bool writable);
 
+// inline helper for case insensitive variants that optimizes to nothing if ci is provably false
+_meta_inline uint8 _strChrFold(uint8 c, bool ci)
+{
+    return ci ? (uint8)tolower(c) : c;
+}
+
 // Finds first occurrence of find in s at or after start
 int32 _strFindChar(_In_ strref_v s, int32 start, char find);
 // Finds last occurrence of find in s before end
