@@ -10,6 +10,8 @@
 #include "cx/suid/stype_suid.h"
 
 STR_CONST(kHexPrefix, "0x");
+STR_CONST(kBoolTrue, "True");
+STR_CONST(kBoolFalse, "False");
 
 #define stConvertNoneZero(type) \
     case stTypeId(type):        \
@@ -68,11 +70,7 @@ stConvert_bool(stype destst, _stCopyDest_Anno_(destst) stgeneric* dest, stype sr
         stConvertBoolNum(float64);
     case stTypeId(string):
         dest->st_string = 0;
-        strDup(&dest->st_string,
-               src.st_bool ? (string) "\xE1\xC1\x04"
-                                      "True" :
-                             (string) "\xE1\xC1\x05"
-                                      "False");
+        strDup(&dest->st_string, src.st_bool ? kBoolTrue : kBoolFalse);
         return true;
     case stTypeId(stvar):
         _stvarInit(dest->st_stvar, srcst, src);

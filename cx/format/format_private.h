@@ -14,7 +14,7 @@ enum FORMAT_TYPES {
     FMT_object,
     FMT_count
 };
-extern string _fmtTypeNames[FMT_count];
+extern strref _fmtTypeNames[FMT_count];
 extern uint32 _fmtTypeIdMask[FMT_count][2];
 extern bool (*_fmtTypeParseOpt[FMT_count])(FMTVar* v, strref opt);
 extern bool (*_fmtTypeParseFinalize[FMT_count])(FMTVar* v);

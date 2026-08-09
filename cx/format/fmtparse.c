@@ -1,5 +1,14 @@
 #include "format_private.h"
 
+STR_CONST(kVarStart, "${");
+STR_CONST(kVarEnd, "}");
+STR_CONST(kOptSep, ",");
+STR_CONST(kOptLeft, "left");
+STR_CONST(kOptCenter, "center");
+STR_CONST(kOptRight, "right");
+STR_CONST(kOptUpper, "upper");
+STR_CONST(kOptLower, "lower");
+
 // try to parse the next variable
 _Use_decl_annotations_
 bool _fmtExtractVar(FMTContext* ctx)
@@ -8,10 +17,7 @@ bool _fmtExtractVar(FMTContext* ctx)
 
     // "loop" to handle escaped start sequences
 retry_start:
-    ctx->vstart = strFind(ctx->fmt,
-                          ctx->vend,
-                          (strref) "\xE1\xC1\x02"
-                                   "${");
+    ctx->vstart = strFind(ctx->fmt, ctx->vend, kVarStart);
     if (ctx->vstart == -1) {   // no more vars
         return true;
     }
@@ -22,9 +28,7 @@ retry_start:
             // skip over the backtick
             strSubStr(&ctx->tmp, ctx->fmt, ctx->vend, ctx->vstart - 1);
             strAppend(ctx->dest, ctx->tmp);
-            strAppend(ctx->dest,
-                      (strref) "\xE1\xC1\x02"
-                               "${");
+            strAppend(ctx->dest, kVarStart);
             ctx->vend = (ctx->vstart += 2);
             goto retry_start;
         }
@@ -41,10 +45,7 @@ retry_start:
     ctx->vend = ctx->vstart + 1;
 
 retry_end:
-    ctx->vend = strFind(ctx->fmt,
-                        ctx->vend,
-                        (strref) "\xE1\xC1\x01"
-                                 "}");
+    ctx->vend = strFind(ctx->fmt, ctx->vend, kVarEnd);
     if (ctx->vend == -1) {   // broken format string
         return false;
     }
@@ -71,25 +72,15 @@ retry_end:
 
 static bool fmtParseOpt(_Inout_ FMTContext* ctx, _In_ strref opt, int32 vtype)
 {
-    if (strEq(opt,
-              (strref) "\xE1\xC1\x04"
-                       "left"))
+    if (strEq(opt, kOptLeft))
         ctx->v.flags |= FMTVar_Left;
-    else if (strEq(opt,
-                   (strref) "\xE1\xC1\x06"
-                            "center"))
+    else if (strEq(opt, kOptCenter))
         ctx->v.flags |= FMTVar_Center;
-    else if (strEq(opt,
-                   (strref) "\xE1\xC1\x05"
-                            "right"))
+    else if (strEq(opt, kOptRight))
         ctx->v.flags |= FMTVar_Right;
-    else if (strEq(opt,
-                   (strref) "\xE1\xC1\x05"
-                            "upper"))
+    else if (strEq(opt, kOptUpper))
         ctx->v.flags |= FMTVar_Upper;
-    else if (strEq(opt,
-                   (strref) "\xE1\xC1\x05"
-                            "lower"))
+    else if (strEq(opt, kOptLower))
         ctx->v.flags |= FMTVar_Lower;
     else if (_fmtTypeParseOpt[vtype])
         return _fmtTypeParseOpt[vtype](&ctx->v, opt);
@@ -275,10 +266,7 @@ bool _fmtParseVar(FMTContext* ctx)
         int32 ostart = fostart;
         int32 i, w;
         while (ostart < foend) {
-            i = strFind(ctx->v.var,
-                        ostart,
-                        (strref) "\xE1\xC1\x01"
-                                 ",");
+            i = strFind(ctx->v.var, ostart, kOptSep);
             if (i == -1)
                 i = foend;
             else if (i > foend)

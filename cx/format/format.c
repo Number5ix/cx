@@ -2,22 +2,16 @@
 #include "format_private.h"
 
 // literal strings with embedded length for maximum efficiency
-string _fmtTypeNames[FMT_count] = {
-    (string) "\xE1\xC1\x06"
-             "string",
-    (string) "\xE1\xC1\x03"
-             "int",
-    (string) "\xE1\xC1\x04"
-             "uint",
-    (string) "\xE1\xC1\x05"
-             "float",
-    (string) "\xE1\xC1\x03"
-             "ptr",
-    (string) "\xE1\xC1\x04"
-             "suid",
-    (string) "\xE1\xC1\x06"
-             "object",
-};
+STR_CONSTR(kFmtString, "string");
+STR_CONSTR(kFmtInt, "int");
+STR_CONSTR(kFmtUint, "uint");
+STR_CONSTR(kFmtFloat, "float");
+STR_CONSTR(kFmtPtr, "ptr");
+STR_CONSTR(kFmtSuid, "suid");
+STR_CONSTR(kFmtObject, "object");
+
+strref _fmtTypeNames[FMT_count] = { _SR(kFmtString), _SR(kFmtInt),  _SR(kFmtUint),  _SR(kFmtFloat),
+                                    _SR(kFmtPtr),    _SR(kFmtSuid), _SR(kFmtObject) };
 
 uint32 _fmtTypeIdMask[FMT_count][2] = {
     { stTypeId(string),           0xffffffff }, // string

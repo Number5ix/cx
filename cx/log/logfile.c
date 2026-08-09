@@ -48,11 +48,9 @@ typedef struct LogFileData {
 } LogFileData;
 
 #ifdef _PLATFORM_WIN
-static strref loglineend = (strref) "\xE1\xC1\x02"
-                                    "\r\n";
+STR_CONST(loglineend, "\r\n");
 #else
-static strref loglineend = (strref) "\xE1\xC1\x01"
-                                    "\n";
+STR_CONST(loglineend, "\n");
 #endif
 
 static void deleteOldFiles(_Inout_ LogFileData* lfd);

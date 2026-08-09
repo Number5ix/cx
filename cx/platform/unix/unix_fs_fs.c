@@ -28,8 +28,8 @@ STR_CONST(kRootPath, "/");
 static LazyInitState fsCurDirInit;
 RWLock _fsCurDirLock;
 string _fsCurDir            = 0;
-strref fsPlatformPathSepStr = (strref) "\xE1\xC1\x01"
-                                       "/";
+STR_CONSTR(kPlatformPathSep, "/");
+strref fsPlatformPathSepStr = _SR(kPlatformPathSep);
 
 static void initCurDir(void* data)
 {

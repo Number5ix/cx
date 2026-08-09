@@ -7,92 +7,60 @@
 
 #define EPOCH_WDAY Monday
 
-strref timeDayName[7] = {
-    (strref) "\xE1\xC1\x06"
-             "Sunday",
-    (strref) "\xE1\xC1\x06"
-             "Monday",
-    (strref) "\xE1\xC1\x07"
-             "Tuesday",
-    (strref) "\xE1\xC1\x09"
-             "Wednesday",
-    (strref) "\xE1\xC1\x08"
-             "Thursday",
-    (strref) "\xE1\xC1\x06"
-             "Friday",
-    (strref) "\xE1\xC1\x08"
-             "Saturday"
-};
-strref timeDayAbbrev[7] = {
-    (strref) "\xE1\xC1\x03"
-             "Sun",
-    (strref) "\xE1\xC1\x03"
-             "Mon",
-    (strref) "\xE1\xC1\x03"
-             "Tue",
-    (strref) "\xE1\xC1\x03"
-             "Wed",
-    (strref) "\xE1\xC1\x03"
-             "Thu",
-    (strref) "\xE1\xC1\x03"
-             "Fri",
-    (strref) "\xE1\xC1\x03"
-             "Sat"
-};
-strref timeMonthName[13] = {
-    (strref) "\xE1\xC1\x00",
-    (strref) "\xE1\xC1\x07"
-             "January",
-    (strref) "\xE1\xC1\x08"
-             "February",
-    (strref) "\xE1\xC1\x05"
-             "March",
-    (strref) "\xE1\xC1\x05"
-             "April",
-    (strref) "\xE1\xC1\x03"
-             "May",
-    (strref) "\xE1\xC1\x04"
-             "June",
-    (strref) "\xE1\xC1\x04"
-             "July",
-    (strref) "\xE1\xC1\x06"
-             "August",
-    (strref) "\xE1\xC1\x09"
-             "September",
-    (strref) "\xE1\xC1\x07"
-             "October",
-    (strref) "\xE1\xC1\x08"
-             "November",
-    (strref) "\xE1\xC1\x08"
-             "December"
-};
-strref timeMonthAbbrev[13] = {
-    (strref) "\xE1\xC1\x00",
-    (strref) "\xE1\xC1\x03"
-             "Jan",
-    (strref) "\xE1\xC1\x03"
-             "Feb",
-    (strref) "\xE1\xC1\x03"
-             "Mar",
-    (strref) "\xE1\xC1\x03"
-             "Apr",
-    (strref) "\xE1\xC1\x03"
-             "May",
-    (strref) "\xE1\xC1\x03"
-             "Jun",
-    (strref) "\xE1\xC1\x03"
-             "Jul",
-    (strref) "\xE1\xC1\x03"
-             "Aug",
-    (strref) "\xE1\xC1\x03"
-             "Sep",
-    (strref) "\xE1\xC1\x03"
-             "Oct",
-    (strref) "\xE1\xC1\x03"
-             "Nov",
-    (strref) "\xE1\xC1\x03"
-             "Dec"
-};
+STR_CONSTR(kNoMonth, "");
+
+STR_CONSTR(kSunday, "Sunday");
+STR_CONSTR(kMonday, "Monday");
+STR_CONSTR(kTuesday, "Tuesday");
+STR_CONSTR(kWednesday, "Wednesday");
+STR_CONSTR(kThursday, "Thursday");
+STR_CONSTR(kFriday, "Friday");
+STR_CONSTR(kSaturday, "Saturday");
+
+STR_CONSTR(kSun, "Sun");
+STR_CONSTR(kMon, "Mon");
+STR_CONSTR(kTue, "Tue");
+STR_CONSTR(kWed, "Wed");
+STR_CONSTR(kThu, "Thu");
+STR_CONSTR(kFri, "Fri");
+STR_CONSTR(kSat, "Sat");
+
+STR_CONSTR(kJanuary, "January");
+STR_CONSTR(kFebruary, "February");
+STR_CONSTR(kMarch, "March");
+STR_CONSTR(kApril, "April");
+STR_CONSTR(kMay, "May");
+STR_CONSTR(kJune, "June");
+STR_CONSTR(kJuly, "July");
+STR_CONSTR(kAugust, "August");
+STR_CONSTR(kSeptember, "September");
+STR_CONSTR(kOctober, "October");
+STR_CONSTR(kNovember, "November");
+STR_CONSTR(kDecember, "December");
+
+STR_CONSTR(kJan, "Jan");
+STR_CONSTR(kFeb, "Feb");
+STR_CONSTR(kMar, "Mar");
+STR_CONSTR(kApr, "Apr");
+STR_CONSTR(kJun, "Jun");
+STR_CONSTR(kJul, "Jul");
+STR_CONSTR(kAug, "Aug");
+STR_CONSTR(kSep, "Sep");
+STR_CONSTR(kOct, "Oct");
+STR_CONSTR(kNov, "Nov");
+STR_CONSTR(kDec, "Dec");
+
+strref timeDayName[7] = { _SR(kSunday),   _SR(kMonday), _SR(kTuesday), _SR(kWednesday),
+                          _SR(kThursday), _SR(kFriday), _SR(kSaturday) };
+strref timeDayAbbrev[7] = { _SR(kSun), _SR(kMon), _SR(kTue), _SR(kWed),
+                            _SR(kThu), _SR(kFri), _SR(kSat) };
+strref timeMonthName[13] = { _SR(kNoMonth), _SR(kJanuary),   _SR(kFebruary), _SR(kMarch),
+                             _SR(kApril),   _SR(kMay),       _SR(kJune),     _SR(kJuly),
+                             _SR(kAugust),  _SR(kSeptember), _SR(kOctober),  _SR(kNovember),
+                             _SR(kDecember) };
+strref timeMonthAbbrev[13] = { _SR(kNoMonth), _SR(kJan), _SR(kFeb), _SR(kMar), _SR(kApr),
+                               _SR(kMay),     _SR(kJun), _SR(kJul), _SR(kAug), _SR(kSep),
+                               _SR(kOct),     _SR(kNov), _SR(kDec) };
 
 _Use_decl_annotations_
 bool timeDecompose(TimeParts* out, int64 time)

@@ -3,17 +3,17 @@
 
 // platform-agnostic path manipulation
 
-STR_CONST(kBackslash, "\\");
-strref fsPathSepStr      = (strref) "\xE1\xC1\x01"
-                                    "/";
-strref fsNSSepStr        = (strref) "\xE1\xC1\x01"
-                                    ":";
-strref fsCurrentDirStr   = (strref) "\xE1\xC1\x01"
-                                    ".";
-strref fsParentDirStr    = (strref) "\xE1\xC1\x02"
-                                    "..";
-strref fsExtensionSepStr = (strref) "\xE1\xC1\x01"
-                                    ".";
+STR_CONSTR(kPathSep, "/");
+STR_CONSTR(kNSSep, ":");
+STR_CONSTR(kCurrentDir, ".");
+STR_CONSTR(kParentDir, "..");
+STR_CONSTR(kExtensionSep, ".");
+
+strref fsPathSepStr      = _SR(kPathSep);
+strref fsNSSepStr        = _SR(kNSSep);
+strref fsCurrentDirStr   = _SR(kCurrentDir);
+strref fsParentDirStr    = _SR(kParentDir);
+strref fsExtensionSepStr = _SR(kExtensionSep);
 
 // Get parent directory
 _Use_decl_annotations_

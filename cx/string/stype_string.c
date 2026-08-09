@@ -3,6 +3,13 @@
 #include "cx/stype/stvar.h"
 #include "cx/utils/murmur.h"
 
+STR_CONST(kTrue, "True");
+STR_CONST(kFalse, "False");
+STR_CONST(kOne, "1");
+STR_CONST(kZero, "0");
+STR_CONST(kYes, "Yes");
+STR_CONST(kNo, "No");
+
 void stDtor_string(stype st, _Pre_notnull_ _Post_invalid_ stgeneric* gen, uint32 flags)
 {
     strDestroy(&gen->st_string);
@@ -69,34 +76,22 @@ stConvert_string(stype destst, _stCopyDest_Anno_(destst) stgeneric* dest, stype 
         _stvarInit(dest->st_stvar, srcst, src);
         return true;
     case stTypeId(bool):
-        if (!strEqi(src.st_string,
-                    (string) "\xE1\xC1\x04"
-                             "True")) {
+        if (!strEqi(src.st_string, kTrue)) {
             dest->st_bool = true;
             return true;
-        } else if (!strEqi(src.st_string,
-                           (string) "\xE1\xC1\x05"
-                                    "False")) {
+        } else if (!strEqi(src.st_string, kFalse)) {
             dest->st_bool = false;
             return true;
-        } else if (!strEq(src.st_string,
-                          (string) "\xE1\xC1\x01"
-                                   "1")) {
+        } else if (!strEq(src.st_string, kOne)) {
             dest->st_bool = true;
             return true;
-        } else if (!strEq(src.st_string,
-                          (string) "\xE1\xC1\x01"
-                                   "0")) {
+        } else if (!strEq(src.st_string, kZero)) {
             dest->st_bool = false;
             return true;
-        } else if (!strEqi(src.st_string,
-                           (string) "\xE1\xC1\x03"
-                                    "Yes")) {
+        } else if (!strEqi(src.st_string, kYes)) {
             dest->st_bool = true;
             return true;
-        } else if (!strEqi(src.st_string,
-                           (string) "\xE1\xC1\x02"
-                                    "No")) {
+        } else if (!strEqi(src.st_string, kNo)) {
             dest->st_bool = false;
             return true;
         }

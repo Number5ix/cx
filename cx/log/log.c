@@ -24,47 +24,33 @@ typedef struct LogBatchTLS {
 } LogBatchTLS;
 static _Thread_local LogBatchTLS _log_batch;
 
-strref LogLevelNames[LOG_Count] = {
-    (strref) "\xE1\xC1\x05"
-             "Fatal",
-    (strref) "\xE1\xC1\x05"
-             "Error",
-    (strref) "\xE1\xC1\x04"
-             "Warn",
-    (strref) "\xE1\xC1\x06"
-             "Notice",
-    (strref) "\xE1\xC1\x04"
-             "Info",
-    (strref) "\xE1\xC1\x07"
-             "Verbose",
-    (strref) "\xE1\xC1\x04"
-             "Diag",
-    (strref) "\xE1\xC1\x05"
-             "Debug",
-    (strref) "\xE1\xC1\x05"
-             "Trace"
-};
+STR_CONSTR(kLevelFatal, "Fatal");
+STR_CONSTR(kLevelError, "Error");
+STR_CONSTR(kLevelWarn, "Warn");
+STR_CONSTR(kLevelNotice, "Notice");
+STR_CONSTR(kLevelInfo, "Info");
+STR_CONSTR(kLevelVerbose, "Verbose");
+STR_CONSTR(kLevelDiag, "Diag");
+STR_CONSTR(kLevelDebug, "Debug");
+STR_CONSTR(kLevelTrace, "Trace");
 
-strref LogLevelAbbrev[LOG_Count] = {
-    (strref) "\xE1\xC1\x01"
-             "F",
-    (strref) "\xE1\xC1\x01"
-             "E",
-    (strref) "\xE1\xC1\x01"
-             "W",
-    (strref) "\xE1\xC1\x01"
-             "N",
-    (strref) "\xE1\xC1\x01"
-             "I",
-    (strref) "\xE1\xC1\x01"
-             "V",
-    (strref) "\xE1\xC1\x01"
-             "D",
-    (strref) "\xE1\xC1\x01"
-             "D",
-    (strref) "\xE1\xC1\x01"
-             "T"
-};
+STR_CONSTR(kAbbrevF, "F");
+STR_CONSTR(kAbbrevE, "E");
+STR_CONSTR(kAbbrevW, "W");
+STR_CONSTR(kAbbrevN, "N");
+STR_CONSTR(kAbbrevI, "I");
+STR_CONSTR(kAbbrevV, "V");
+STR_CONSTR(kAbbrevD, "D");
+STR_CONSTR(kAbbrevT, "T");
+
+strref LogLevelNames[LOG_Count] = { _SR(kLevelFatal),   _SR(kLevelError), _SR(kLevelWarn),
+                                    _SR(kLevelNotice),  _SR(kLevelInfo),  _SR(kLevelVerbose),
+                                    _SR(kLevelDiag),    _SR(kLevelDebug), _SR(kLevelTrace) };
+
+// note that Diag and Debug intentionally share the same abbreviation
+strref LogLevelAbbrev[LOG_Count] = { _SR(kAbbrevF), _SR(kAbbrevE), _SR(kAbbrevW),
+                                     _SR(kAbbrevN), _SR(kAbbrevI), _SR(kAbbrevV),
+                                     _SR(kAbbrevD), _SR(kAbbrevD), _SR(kAbbrevT) };
 
 LazyInitState _logInitState;
 static void logInit(void* dummy)
