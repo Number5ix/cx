@@ -12,19 +12,10 @@ static bool _strSubStr(_Inout_ strhandle o, _Inout_ strhandle ps, int32 b, int32
     }
     slen = _strFastLen(s);
 
-    // allow negative starting index to mean from the end of the string
-    if (b < 0)
-        off = max(0, slen + b);
-    else
-        off = min((uint32)b, slen);
-
-    // similarly, negative e indexes from the end of the string as well
-    if (e < 0)
-        len = (slen + e > off) ? (slen + e) - off : 0;
-    else if (e == strEnd)   // e == strEnd means the end of the string
-        len = slen - off;
-    else
-        len = ((uint32)e > off) ? min((uint32)e, slen) - off : 0;
+    // negative indices count back from the end and strEnd is the end of the string
+    off        = _strResolveOff(slen, b);
+    uint32 end = _strResolveOff(slen, e);
+    len        = (end > off) ? end - off : 0;
 
     if (len >= ROPE_SUBSTR_THRESH) {
         // this is a big substring, return a rope reference instead
@@ -86,15 +77,11 @@ uint8 strGetChar(strref s, int32 i)
     if (!STR_CHECK_VALID(s))
         return 0;
 
-    uint32 off;
+    uint32 slen = _strFastLen(s);
+    // negative counts back from the end; anything still past the end reads as 0
+    uint32 off  = _strResolvePos(slen, i);
 
-    // allow negative index to mean from the end of the string
-    if (i < 0)
-        off = max(0, _strFastLen(s) + i);
-    else
-        off = i;
-
-    if (off >= _strFastLen(s))
+    if (off >= slen)
         return 0;
 
     return _strFastChar(s, off);
@@ -106,15 +93,9 @@ void strSetChar(strhandle s, int32 i, uint8 ch)
     if (!STR_CHECK_VALID(*s))
         strReset(s, 1);
 
-    uint32 off;
-
-    // allow negative index to mean from the end of the string
-    if (i < 0)
-        off = max(0, _strFastLen(*s) + i);
-    else if (i == strEnd)
-        off = _strFastLen(*s);   // shortcut for appending a character
-    else
-        off = i;
+    // negative counts back from the end and strEnd is a shortcut for appending; a
+    // positive index past the end grows the string rather than being clamped
+    uint32 off = _strResolvePos(_strFastLen(*s), i);
 
     if (off >= _strFastLen(*s))
         strSetLen(s, off + 1);

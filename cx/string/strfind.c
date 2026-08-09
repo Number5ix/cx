@@ -9,14 +9,10 @@
 // will be inlined and optimized based on the compile time ci/invert values
 static _meta_inline int32 findCharImpl(strref_v s, int32 b, char find, bool ci, bool invert)
 {
-    uint32 slen, i;
+    uint32 i;
 
-    slen = _strFastLen(s);
     // allow negative starting index to mean from the end of the string
-    if (b < 0)
-        i = max(0, slen + b);
-    else
-        i = min((uint32)b, slen);
+    i = _strResolveOff(_strFastLen(s), b);
 
     FIND_CHR_FOLD(find, ci);
 
@@ -43,12 +39,8 @@ static _meta_inline int32 findCharRImpl(strref_v s, int32 e, char find, bool ci,
     uint32 slen;
     int32 i;
 
-    slen = _strFastLen(s);
-    // negative e indexes from the end of the string
-    if (e < 0)
-        slen = ((uint32)(-e) < slen) ? slen + e : 0;
-    else if (e != strEnd)   // e == strEnd means the end of the string
-        slen = min((uint32)e, slen);
+    // negative e indexes from the end of the string, strEnd is the end
+    slen = _strResolveOff(_strFastLen(s), e);
 
     FIND_CHR_FOLD(find, ci);
 
@@ -140,7 +132,7 @@ static _meta_inline bool charSetIsChar(_In_opt_ strref chars, _Out_ char *find)
 // will be inlined and optimized based on the compile time ci/invert values
 static _meta_inline int32 findAnyImpl(strref s, int32 b, strref chars, bool ci, bool invert)
 {
-    uint32 slen, i;
+    uint32 i;
 
     if (!STR_CHECK_VALID(s))
         return -1;
@@ -152,12 +144,8 @@ static _meta_inline int32 findAnyImpl(strref s, int32 b, strref chars, bool ci, 
     charset set;
     buildCharSet(set, chars, ci);
 
-    slen = _strFastLen((strref_v)s);
     // allow negative starting index to mean from the end of the string
-    if (b < 0)
-        i = max(0, slen + b);
-    else
-        i = min((uint32)b, slen);
+    i = _strResolveOff(_strFastLen((strref_v)s), b);
 
     striter it;
     striBorrow(&it, s);
@@ -189,12 +177,8 @@ static _meta_inline int32 findAnyRImpl(strref s, int32 e, strref chars, bool ci,
     charset set;
     buildCharSet(set, chars, ci);
 
-    slen = _strFastLen((strref_v)s);
-    // negative e indexes from the end of the string
-    if (e < 0)
-        slen = ((uint32)(-e) < slen) ? slen + e : 0;
-    else if (e != strEnd)   // e == strEnd means the end of the string
-        slen = min((uint32)e, slen);
+    // negative e indexes from the end of the string, strEnd is the end
+    slen = _strResolveOff(_strFastLen((strref_v)s), e);
 
     striter it;
     striBorrowRev(&it, s);
@@ -305,10 +289,7 @@ static _meta_inline int32 findImpl(strref s, int32 b, strref find, bool ci)
 
     slen = _strFastLen(s);
     // allow negative starting index to mean from the end of the string
-    if (b < 0)
-        off = max(0, slen + b);
-    else
-        off = min((uint32)b, slen);
+    off  = _strResolveOff(slen, b);
 
     if (slen < off + _strFastLen(find))
         return -1;   // nonsensical, can't possibly fit
@@ -349,12 +330,8 @@ static _meta_inline int32 findRImpl(strref s, int32 e, strref find, bool ci)
         return findCharRImpl(s, e, _strBuffer(find)[0], ci, false);
     }
 
-    slen = _strFastLen(s);
-    // negative e indexes from the end of the string
-    if (e < 0)
-        slen = ((uint32)(-e) < slen) ? slen + e : 0;
-    else if (e != strEnd)   // e == strEnd means the end of the string
-        slen = min((uint32)e, slen);
+    // negative e indexes from the end of the string, strEnd is the end
+    slen = _strResolveOff(_strFastLen(s), e);
 
     // faster to search for first character of find string in a tight loop
     char fc = (char)strGetChar(find, 0);
