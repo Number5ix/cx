@@ -139,7 +139,7 @@ test_wasm:
   stage: test
   tags:
     - docker
-  image: 'emscripten/emsdk:4.0.8'
+  image: 'emscripten/emsdk:6.0.6'
   dependencies:
     - build_wasm
   script:
