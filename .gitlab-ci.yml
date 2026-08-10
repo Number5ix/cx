@@ -76,7 +76,7 @@ build_wasm:
   stage: build
   tags:
     - docker
-  image: 'emscripten/emsdk:4.0.8'
+  image: 'emscripten/emsdk:6.0.6'
   script:
     - 'cmake -S . -DCMAKE_BUILD_TYPE=Release -B _native'
     - 'make -C _native -j4 cxautogen luacmd'
