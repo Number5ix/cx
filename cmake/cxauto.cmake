@@ -1,5 +1,5 @@
 if(CMAKE_CROSSCOMPILING)
-find_package(cxautogen)
+find_package(cxautogen REQUIRED GLOBAL)
 function(add_cxautogen)
     set_directory_properties(PROPERTIES CLEAN_NO_CUSTOM 1)
     foreach(idir ${EXTRA_CXAUTOGEN_INCLUDE_DIRS})

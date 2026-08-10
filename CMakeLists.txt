@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 3.21)
+cmake_minimum_required (VERSION 3.24)
 
 set(CX_TOP_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}" CACHE STRING "Location of CX source files" FORCE)
 set(CX_TOP_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}" CACHE STRING "Location of CX build files" FORCE)
