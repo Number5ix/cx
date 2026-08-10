@@ -1,3 +1,4 @@
+#include <cx/console.h>
 #include <cx/log.h>
 #include <cx/platform/os.h>
 #include <cx/string.h>
@@ -358,11 +359,109 @@ static int test_log_defer()
     return ret;
 }
 
+// ---------------------------------------------------------------------------------------
+// console: logconsole routes by stderrLevel and styles by level, over memory-backed streams
+// ---------------------------------------------------------------------------------------
+
+static int test_log_console()
+{
+    int ret = 0;
+    logRestart();
+
+    ConCaps caps   = { .istty = true, .vt = true, .color = CON_Color16 };
+    ConStream* out = conCreateMem(&caps);
+    ConStream* err = conCreateMem(&caps);
+
+    LogConsoleConfig cfg = {
+        .dateFormat  = LOG_DateISOCompact,
+        .flags       = LOG_ShortLevel,
+        .stderrLevel = LOG_Warn,
+        .colorMode   = LOGCON_ColorOn,
+    };
+    LogConsoleData* lcd = logconsoleCreate(out, err, &cfg);
+    LogDest* dest       = logconsoleRegister(LOG_Info, NULL, lcd);
+
+    logStr(Info, _S"info msg");
+    logStr(Error, _S"error msg");
+    logFlush();
+
+    string outbuf = 0, errbuf = 0;
+    conMemGet(out, &outbuf);
+    conMemGet(err, &errbuf);
+
+    // Info (less severe than stderrLevel) goes to stdout only
+    if (strFind(outbuf, 0, _S"info msg") < 0 || strFind(outbuf, 0, _S"error msg") >= 0)
+        ret = 1;
+    // Error (at/above stderrLevel) goes to stderr only, wrapped in the built-in bright-red style
+    if (strFind(errbuf, 0, _S"error msg") < 0 || strFind(errbuf, 0, _S"info msg") >= 0)
+        ret = 1;
+    if (strFind(errbuf, 0, _S"\x1b[0;91m") < 0)
+        ret = 1;
+
+    strDestroy(&outbuf);
+    strDestroy(&errbuf);
+    logUnregisterDest(dest);
+    logShutdown();
+    conDestroy(&out);
+    conDestroy(&err);
+    return ret;
+}
+
+static int test_log_console_style()
+{
+    int ret = 0;
+    logRestart();
+
+    ConCaps caps      = { .istty = true, .vt = true, .color = CON_Color16 };
+    ConStream* off    = conCreateMem(&caps);
+    ConStream* custom = conCreateMem(&caps);
+
+    LogConsoleConfig cfgOff = {
+        .stderrLevel = LOG_Count,
+        .colorMode   = LOGCON_ColorOff,
+    };
+    LogConsoleData* lcdOff = logconsoleCreate(off, off, &cfgOff);
+    LogDest* destOff       = logconsoleRegister(LOG_Info, NULL, lcdOff);
+
+    LogConsoleConfig cfgCustom = {
+        .stderrLevel = LOG_Count,
+        .colorMode   = LOGCON_ColorOn,
+    };
+    cfgCustom.levelStyle[LOG_Info] = CONSTYLE(CON_Green, 0);
+    LogConsoleData* lcdCustom      = logconsoleCreate(custom, custom, &cfgCustom);
+    LogDest* destCustom            = logconsoleRegister(LOG_Info, NULL, lcdCustom);
+
+    logStr(Info, _S"plain");
+    logFlush();
+
+    string offbuf = 0, custombuf = 0;
+    conMemGet(off, &offbuf);
+    conMemGet(custom, &custombuf);
+
+    // LOGCON_ColorOff never emits an escape sequence
+    if (strFind(offbuf, 0, _S"\x1b") >= 0)
+        ret = 1;
+    // a non-zero levelStyle override wins over the built-in default for that level
+    if (strFind(custombuf, 0, _S"\x1b[0;32m") < 0)
+        ret = 1;
+
+    strDestroy(&offbuf);
+    strDestroy(&custombuf);
+    logUnregisterDest(destOff);
+    logUnregisterDest(destCustom);
+    logShutdown();
+    conDestroy(&off);
+    conDestroy(&custom);
+    return ret;
+}
+
 testfunc logtest_funcs[] = {
-    { "levels",   test_log_levels     },
-    { "shutdown", test_log_shutdown   },
-    { "batch",    test_log_batch      },
-    { "channels", test_log_channels },
-    { "defer",    test_log_defer      },
-    { 0,          0                   }
+    { "levels",       test_log_levels       },
+    { "shutdown",     test_log_shutdown     },
+    { "batch",        test_log_batch        },
+    { "channels",     test_log_channels     },
+    { "defer",        test_log_defer        },
+    { "console",      test_log_console      },
+    { "console_style", test_log_console_style },
+    { 0,              0                     }
 };

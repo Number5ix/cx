@@ -145,6 +145,34 @@ LogDest* logfileRegisterWithDefer(int maxlevel, _In_opt_ LogChannel* chanfilter,
                                   _In_ LogFileData* logfile, _In_ LogDest* deferdest);
 
 // ============================================================================
+// Shared Formatting Helpers
+// ============================================================================
+//
+// Build a line prefix from LOG_DATE_FORMATS/LOG_FLAGS. Exported so other destinations
+// (e.g. logconsole.c) can match file formatting exactly instead of reimplementing it.
+
+/// Formats a timestamp per dateFormat/flags.
+/// @param out Receives the formatted date; any existing value is destroyed first
+/// @param dateFormat One of the LOG_DATE_FORMATS values
+/// @param flags Bitwise OR of LOG_FLAGS values (only LOG_LocalTime is consulted)
+/// @param timestamp Wall clock timestamp to format
+void logFormatDate(_Inout_ string* out, int dateFormat, uint32 flags, int64 timestamp);
+
+/// Formats a level prefix per flags (LOG_OmitLevel, LOG_ShortLevel, LOG_BracketLevel,
+/// LOG_JustifyLevel). Produces an empty string when LOG_OmitLevel is set.
+/// @param out Receives the formatted level prefix; any existing value is destroyed first
+/// @param level Log severity level
+/// @param flags Bitwise OR of LOG_FLAGS values
+void logFormatLevel(_Inout_ string* out, int level, uint32 flags);
+
+/// Formats a channel prefix per flags (LOG_IncludeChannel, LOG_BracketChannel). Produces
+/// an empty string when the channel is omitted, NULL, or unnamed.
+/// @param out Receives the formatted channel prefix; any existing value is destroyed first
+/// @param chan Channel, or NULL for default
+/// @param flags Bitwise OR of LOG_FLAGS values
+void logFormatChannel(_Inout_ string* out, _In_opt_ LogChannel* chan, uint32 flags);
+
+// ============================================================================
 // Low Level Interface
 // ============================================================================
 //

@@ -4,6 +4,7 @@ if(CX_PLATFORM_IS_UNIX)
     unset(CMAKE_EXTRA_INCLUDE_FILES)
 
     set(PLATFORM_UNIX_SRCS
+        platform/unix/unix_console.c
         platform/unix/unix_debug_crash.c
         platform/unix/unix_error.c
         platform/unix/unix_fs_file.c

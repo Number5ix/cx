@@ -77,11 +77,13 @@ _meta_inline uint32 _strUTF8Decode(striter* _Nonnull it, int32* _Nullable codepo
     return 0;
 }
 
+// Returns 0 for anything that isn't a legal encoding
 _meta_inline uint32 _strUTF8Encode(uint8* _Nonnull buffer, int32 codepoint)
 {
-    if (codepoint < 0)
+    if (codepoint < 0 || codepoint > 0x10ffff || (codepoint >= 0xd800 && codepoint <= 0xdfff))
         return 0;
-    else if (codepoint < 0x80) {
+
+    if (codepoint < 0x80) {
         buffer[0] = (uint8)codepoint;
         return 1;
     } else if (codepoint < 0x800) {
@@ -93,13 +95,11 @@ _meta_inline uint32 _strUTF8Encode(uint8* _Nonnull buffer, int32 codepoint)
         buffer[1] = 0x80 | ((codepoint & 0x0fc0) >> 6);
         buffer[2] = 0x80 | ((codepoint & 0x003f));
         return 3;
-    } else if (codepoint < 0x10ffff) {
-        buffer[0] = 0xf0 | ((codepoint & 0x1c0000) >> 18);
-        buffer[1] = 0x80 | ((codepoint & 0x03f000) >> 12);
-        buffer[2] = 0x80 | ((codepoint & 0x000fc0) >> 6);
-        buffer[3] = 0x80 | ((codepoint & 0x00003f));
-        return 4;
     }
 
-    return 0;
+    buffer[0] = 0xf0 | ((codepoint & 0x1c0000) >> 18);
+    buffer[1] = 0x80 | ((codepoint & 0x03f000) >> 12);
+    buffer[2] = 0x80 | ((codepoint & 0x000fc0) >> 6);
+    buffer[3] = 0x80 | ((codepoint & 0x00003f));
+    return 4;
 }

@@ -1,5 +1,6 @@
 set(LOG_SRCS
     log/log.c
+    log/logconsole.c
     log/logdefer.c
     log/logdest.c
     log/logfile.c
@@ -8,6 +9,7 @@ set(LOG_SRCS
     log/logthread.c)
 set(LOG_INCLUDES
     log/log.h
+    log/logconsole.h
     log/logdefer.h
     log/logfile.h
     log/logmembuf.h

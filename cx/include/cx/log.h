@@ -11,6 +11,7 @@
 /// files, memory buffers, and deferred logging.
 
 #include <cx/log/log.h>
+#include <cx/log/logconsole.h>
 #include <cx/log/logdefer.h>
 #include <cx/log/logfile.h>
 #include <cx/log/logmembuf.h>

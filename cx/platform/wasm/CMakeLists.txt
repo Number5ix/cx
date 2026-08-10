@@ -8,6 +8,7 @@ if(CX_PLATFORM_IS_WASM)
     unset(CMAKE_EXTRA_INCLUDE_FILES)
 
     set(PLATFORM_WASM_SRCS
+        platform/wasm/wasm_console.c
         platform/wasm/wasm_debug_crash.c
         platform/wasm/wasm_error.c
         platform/wasm/wasm_futex.c

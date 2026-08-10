@@ -6,6 +6,7 @@ include (${CX_TOP_SOURCE_DIR}/cmake/buildtype.cmake)
 
 add_subdirectory(buffer)
 add_subdirectory(closure)
+add_subdirectory(console)
 add_subdirectory(container)
 add_subdirectory(debug)
 add_subdirectory(digest)

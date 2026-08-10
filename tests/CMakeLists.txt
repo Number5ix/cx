@@ -6,6 +6,7 @@ create_test_sourcelist(testsrc
     debugtest.c
     cxmemtest.c
     closuretest.c
+    contest.c
     digesttest.c
     fmttest.c
     logtest.c
@@ -72,6 +73,30 @@ add_test(NAME "\"xalloc: Free\"" COMMAND test_runner cxmemtest free)
 add_test(NAME "\"xalloc: Reallocation\"" COMMAND test_runner cxmemtest realloc)
 add_test(NAME "\"closure: Basic Closure\"" COMMAND test_runner closuretest closure)
 add_test(NAME "\"closure: Closure Chain\"" COMMAND test_runner closuretest chain)
+add_test(NAME "\"console: Capability detection\"" COMMAND test_runner contest caps)
+add_test(NAME "\"console: Buffered write\"" COMMAND test_runner contest write)
+add_test(NAME "\"console: Rope write\"" COMMAND test_runner contest write_rope)
+add_test(NAME "\"console: UTF-8 encoding\"" COMMAND test_runner contest write_utf8)
+add_test(NAME "\"console: Recursive lock\"" COMMAND test_runner contest lock)
+add_test(NAME "\"console: withConLock block\"" COMMAND test_runner contest lock_block)
+add_test(NAME "\"console: Cross-thread lock stress\"" COMMAND test_runner contest lock_stress)
+add_test(NAME "\"console: Style downgrade ladder\"" COMMAND test_runner contest style_downgrade)
+add_test(NAME "\"console: Style attributes\"" COMMAND test_runner contest style_attrs)
+add_test(NAME "\"console: Style with no capability\"" COMMAND test_runner contest style_none)
+add_test(NAME "\"console: Styled write restores prior style\"" COMMAND test_runner contest style_restore)
+add_test(NAME "\"console: Formatted write\"" COMMAND test_runner contest fmt)
+add_test(NAME "\"console: Styled formatted write\"" COMMAND test_runner contest fmt_styled)
+add_test(NAME "\"console: Set cursor position\"" COMMAND test_runner contest cursor_set)
+add_test(NAME "\"console: Relative cursor move\"" COMMAND test_runner contest cursor_move)
+add_test(NAME "\"console: Show/hide cursor\"" COMMAND test_runner contest cursor_show)
+add_test(NAME "\"console: Save/restore cursor\"" COMMAND test_runner contest cursor_save)
+add_test(NAME "\"console: Erase line/screen\"" COMMAND test_runner contest cursor_erase)
+add_test(NAME "\"console: Scroll\"" COMMAND test_runner contest cursor_scroll)
+add_test(NAME "\"console: Alternate screen\"" COMMAND test_runner contest cursor_altscreen)
+add_test(NAME "\"console: Cursor ops with no capability\"" COMMAND test_runner contest cursor_none)
+add_test(NAME "\"console: conGetCursor on memory stream\"" COMMAND test_runner contest cursor_getmem)
+add_test(NAME "\"console: Escape sequence decoding\"" COMMAND test_runner contest decode_escape)
+add_test(NAME "\"console: Input on non-input stream\"" COMMAND test_runner contest input_wrong_kind)
 add_test(NAME "\"digest: MD5\"" COMMAND test_runner digesttest md5)
 add_test(NAME "\"digest: SHA-1\"" COMMAND test_runner digesttest sha1)
 add_test(NAME "\"digest: SHA-256\"" COMMAND test_runner digesttest sha256)
@@ -94,6 +119,8 @@ add_test(NAME "\"log: Batch\"" COMMAND test_runner logtest batch)
 add_test(NAME "\"log: Shutdown\"" COMMAND test_runner logtest shutdown)
 add_test(NAME "\"log: Channels\"" COMMAND test_runner logtest channels)
 add_test(NAME "\"log: Deferred logging\"" COMMAND test_runner logtest defer)
+add_test(NAME "\"log: Console destination\"" COMMAND test_runner logtest console)
+add_test(NAME "\"log: Console destination styling\"" COMMAND test_runner logtest console_style)
 add_test(NAME "\"object: Interface\"" COMMAND test_runner objtest iface)
 add_test(NAME "\"object: Class Inheritance\"" COMMAND test_runner objtest inherit)
 add_test(NAME "\"object: Interface Inheritance\"" COMMAND test_runner objtest ifinherit)
@@ -188,6 +215,7 @@ add_test(NAME "\"streambuffer: Direct Push\"" COMMAND test_runner sbtest direct)
 add_test(NAME "\"streambuffer: Pull\"" COMMAND test_runner sbtest pull)
 add_test(NAME "\"streambuffer: Peek-ahead\"" COMMAND test_runner sbtest peek)
 add_test(NAME "\"streambuffer: String Adapter\"" COMMAND test_runner sbtest string)
+add_test(NAME "\"streambuffer: Console Adapter\"" COMMAND test_runner sbtest console)
 add_test(NAME "\"lineparse: Explicit EOL\"" COMMAND test_runner lineparsetest explicit)
 add_test(NAME "\"lineparse: Auto EOL\"" COMMAND test_runner lineparsetest auto)
 add_test(NAME "\"lineparse: Mixed EOL\"" COMMAND test_runner lineparsetest mixed)
@@ -225,8 +253,8 @@ add_test(NAME "\"netfilter: Datagram Flow Chains\"" COMMAND test_runner nettest 
 add_test(NAME "\"netfilter: Teardown\"" COMMAND test_runner nettest filter_teardown)
 add_test(NAME "\"netfilter: Datagram Pool Reference\"" COMMAND test_runner nettest filter_dgram_poolref)
 # Many networking features are excluded on WASM even though they're built there (see
-# wasm_net_select.c and docs/netqueue-design.md SS11): Emscripten's select()/poll() emulation under
-# Node does not reliably honor the timeout or report genuine readiness for real sockets -- see
+# wasm_net_select.c): Emscripten's select()/poll() emulation under Node does not reliably
+# honor the timeout or report genuine readiness for real sockets -- see
 # https://github.com/emscripten-core/emscripten/issues/25759, open and unresolved upstream as of
 # this writing. filter_dgram_send hits the same class of issue for a real socket round-trip. These
 # test functions still compile and run manually via `test_runner nettest select_udp` etc. for

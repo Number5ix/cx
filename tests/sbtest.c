@@ -1,4 +1,5 @@
 #include <cx/serialize/streambuf.h>
+#include <cx/serialize/sbcon.h>
 #include <cx/serialize/sbstring.h>
 #include <cx/xalloc/xalloc.h>
 #include <cx/string.h>
@@ -457,11 +458,57 @@ static int test_streambuf_string()
     return ret;
 }
 
+static int test_streambuf_console()
+{
+    int ret = 0;
+    string s1 = 0, out = 0;
+    strCopy(&s1, _S"This is a console test... This is a console test... This is a console test...");
+
+    ConCaps caps = { 0 };
+
+    // push: string producer -> console consumer
+    ConStream *con = conCreateMem(&caps);
+    StreamBuffer *ptest = sbufCreate(16);
+    if (!sbufConCRegisterPush(ptest, con))
+        return 1;
+    sbufStrIn(ptest, s1);
+
+    conMemGet(con, &out);
+    if (!strEq(s1, out))
+        ret = 1;
+    if (!sbufIsPFinished(ptest) || !sbufIsCFinished(ptest))
+        ret = 1;
+
+    sbufRelease(&ptest);
+    strDestroy(&out);
+    conDestroy(&con);
+
+    // pull: string producer -> console consumer via sbufConOut
+    con = conCreateMem(&caps);
+    ptest = sbufCreate(16);
+    if (!sbufStrPRegisterPull(ptest, s1))
+        return 1;
+    sbufConOut(ptest, con);
+
+    conMemGet(con, &out);
+    if (!strEq(s1, out))
+        ret = 1;
+    if (!sbufIsPFinished(ptest) || !sbufIsCFinished(ptest))
+        ret = 1;
+
+    sbufRelease(&ptest);
+    strDestroy(&out);
+    conDestroy(&con);
+    strDestroy(&s1);
+    return ret;
+}
+
 testfunc sbtest_funcs[] = {
     { "push", test_streambuf_push },
     { "pull", test_streambuf_pull },
     { "direct", test_streambuf_direct },
     { "peek", test_streambuf_peek },
     { "string", test_streambuf_string },
+    { "console", test_streambuf_console },
     { 0, 0 }
 };

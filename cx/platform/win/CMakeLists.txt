@@ -1,5 +1,6 @@
 if(CX_PLATFORM_IS_WINDOWS)
     set(PLATFORM_WIN_SRCS
+        platform/win/win_console.c
         platform/win/win_debug_crash.c
         platform/win/win_debug_stacktrace.c
         platform/win/win_error.c

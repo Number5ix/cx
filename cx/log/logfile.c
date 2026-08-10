@@ -285,18 +285,19 @@ static void checkRotate(_Inout_ LogFileData* lfd)
         doTimeRotation(lfd);
 }
 
-static void formatDate(_In_ LogFileData* lfd, _Inout_ string* out, int64 timestamp)
+_Use_decl_annotations_
+void logFormatDate(string* out, int dateFormat, uint32 flags, int64 timestamp)
 {
     int64 toffsetraw = 0;
     TimeParts tp     = { 0 };
-    if (lfd->config.flags & LOG_LocalTime) {
+    if (flags & LOG_LocalTime) {
         timestamp = timeLocal(timestamp, &toffsetraw);
     }
 
     int toffset = (int32)timeToSeconds(toffsetraw) / 60;   // need offset in minutes for formatting
     timeDecompose(&tp, timestamp);
 
-    switch (lfd->config.dateFormat) {
+    switch (dateFormat) {
     case LOG_DateISO:
         if (toffset != 0) {
             // ISO8601 with time zone
@@ -371,6 +372,54 @@ static void formatDate(_In_ LogFileData* lfd, _Inout_ string* out, int64 timesta
     }
 }
 
+_Use_decl_annotations_
+void logFormatLevel(string* out, int level, uint32 flags)
+{
+    if (flags & LOG_OmitLevel) {
+        strDestroy(out);
+        return;
+    }
+
+    strref* lvarr = (flags & LOG_ShortLevel) ? LogLevelAbbrev : LogLevelNames;
+    int lvmaxlen  = (flags & LOG_ShortLevel) ? 1 : 7;
+    if (flags & LOG_BracketLevel) {
+        if (flags & LOG_JustifyLevel) {
+            // justified with brackets... yuck
+            int llen    = strLen(lvarr[level]);
+            uint8* temp = strBuffer(out, lvmaxlen + 3);
+            memset(temp, ' ', (size_t)lvmaxlen + 3);
+            temp[1]        = '[';
+            temp[llen + 2] = ']';
+            memcpy(temp + 2, strC(lvarr[level]), llen);
+        } else {
+            strFormat(out, kLogBracketFmt, stvar(strref, lvarr[level]));
+        }
+    } else if (flags & LOG_JustifyLevel) {
+        if (flags & LOG_ShortLevel) {
+            strConcat(out, kLogSpace, lvarr[level]);
+        } else {
+            strFormat(out, kLogJustifyFmt, stvar(strref, lvarr[level]));
+        }
+    } else {
+        strConcat(out, kLogSpace, lvarr[level]);
+    }
+}
+
+_Use_decl_annotations_
+void logFormatChannel(string* out, LogChannel* chan, uint32 flags)
+{
+    if (!(flags & LOG_IncludeChannel) || !chan || strEmpty(chan->name)) {
+        strDestroy(out);
+        return;
+    }
+
+    if (flags & LOG_BracketChannel) {
+        strFormat(out, kLogBracketFmt, stvar(strref, chan->name));
+    } else {
+        strConcat(out, kLogSpace, chan->name);
+    }
+}
+
 // this function is always called from the log thread and does not need to worry about concurrency
 _Use_decl_annotations_
 void logfileMsgFunc(int level, LogChannel* chan, int64 timestamp, strref msg, uint32 batchid,
@@ -389,42 +438,9 @@ void logfileMsgFunc(int level, LogChannel* chan, int64 timestamp, strref msg, ui
     if (colon)
         strSetChar(&logspaces, 0, ':');
 
-    formatDate(lfd, &logdate, timestamp);
-
-    // add level prefix
-    if (!(lfd->config.flags & LOG_OmitLevel)) {
-        strref* lvarr = (lfd->config.flags & LOG_ShortLevel) ? LogLevelAbbrev : LogLevelNames;
-        int lvmaxlen  = (lfd->config.flags & LOG_ShortLevel) ? 1 : 7;
-        if (lfd->config.flags & LOG_BracketLevel) {
-            if (lfd->config.flags & LOG_JustifyLevel) {
-                // justified with brackets... yuck
-                int llen    = strLen(lvarr[level]);
-                uint8* temp = strBuffer(&loglevel, lvmaxlen + 3);
-                memset(temp, ' ', (size_t)lvmaxlen + 3);
-                temp[1]        = '[';
-                temp[llen + 2] = ']';
-                memcpy(temp + 2, strC(lvarr[level]), llen);
-            } else {
-                strFormat(&loglevel, kLogBracketFmt, stvar(strref, lvarr[level]));
-            }
-        } else if (lfd->config.flags & LOG_JustifyLevel) {
-            if (lfd->config.flags & LOG_ShortLevel) {
-                strConcat(&loglevel, kLogSpace, lvarr[level]);
-            } else {
-                strFormat(&loglevel, kLogJustifyFmt, stvar(strref, lvarr[level]));
-            }
-        } else {
-            strConcat(&loglevel, kLogSpace, lvarr[level]);
-        }
-    }
-
-    if (lfd->config.flags & LOG_IncludeChannel && chan && !strEmpty(chan->name)) {
-        if (lfd->config.flags & LOG_BracketChannel) {
-            strFormat(&logchan, kLogBracketFmt, stvar(strref, chan->name));
-        } else {
-            strConcat(&logchan, kLogSpace, chan->name);
-        }
-    }
+    logFormatDate(&logdate, lfd->config.dateFormat, lfd->config.flags, timestamp);
+    logFormatLevel(&loglevel, level, lfd->config.flags);
+    logFormatChannel(&logchan, chan, lfd->config.flags);
 
     if (lfd->config.flags & LOG_ChannelFirst)
         strNConcat(&logline, logdate, logchan, loglevel, logspaces, msg, loglineend);
