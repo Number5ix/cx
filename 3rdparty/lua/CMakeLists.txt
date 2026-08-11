@@ -35,9 +35,11 @@ add_library(lua STATIC
 target_link_libraries(lua cx)
 target_include_directories(lua PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
-find_library(MATH_LIBRARY m)
-if(MATH_LIBRARY)
-    target_link_libraries(lua ${MATH_LIBRARY})
+if(NOT CX_PLATFORM_IS_WINDOWS)
+    find_library(MATH_LIBRARY m)
+    if(MATH_LIBRARY)
+        target_link_libraries(lua ${MATH_LIBRARY})
+    endif()
 endif()
 
 if(CX_PLATFORM_IS_WINDOWS)
