@@ -5,116 +5,215 @@
 
 #include "log_private.h"
 #include <cx/container/foreach.h>
+#include <cx/platform/cpu.h>
 #include <cx/platform/os.h>
-
-STR_CONST(kLogThreadName, "CX Log Writer");
-
-Thread* _log_thread;
-static Event _log_done_event;
+#include <cx/time.h>
 
 #define LOG_BATCH_SIZE 256
 
-static int logthread_func(_Inout_ Thread* self)
+// Pops the lowest set bit of a mask word. ctz64() is only available on 64-bit MSVC targets, so
+// the halves are scanned separately rather than assuming it.
+_meta_inline uint32 logMaskNext(_Inout_ uint64* bits)
 {
-    sa_LogEntry ents;
+    uint32 lo  = (uint32)*bits;
+    uint32 idx = lo ? (uint32)ctz32(lo) : 32 + (uint32)ctz32((uint32)(*bits >> 32));
+    *bits &= *bits - 1;
+    return idx;
+}
+
+_Use_decl_annotations_
+void logDispatchRecord(LogGroup* grp, LogRouting* routing, const LogRecord* rec, sa_LogDest* sent)
+{
+    // A channel interned after this version was published has no row in it; the record is
+    // dropped, which is the accepted cost of a reconfiguration race.
+    if (!routing || rec->chan->idx >= routing->nchan)
+        return;
+
+    uint64* row = &routing->destmask[(size_t)rec->chan->idx * routing->nwords];
+
+    for (uint32 w = 0; w < routing->nwords; w++) {
+        uint64 bits = row[w];
+        while (bits) {
+            uint32 i      = w * 64 + logMaskNext(&bits);
+            LogDest* dest = routing->dests[i];
+            // A record released from a debug ring is filtered at the severity that released it
+            // rather than its own, so the trace leading up to an error reaches the destinations
+            // that would have seen the error and no others.
+            int filterlevel = (rec->trigger >= 0) ? rec->trigger : rec->level;
+
+            // The mask is the interested set for the channel, across every group; this thread
+            // delivers only its own group's share of it. Without that check an entry that fanned
+            // out to two groups would be delivered twice to every destination.
+            if (!dest || dest->group != grp || filterlevel > dest->maxlevel)
+                continue;
+
+            // Anything at or below where this destination's backfill reached has already been
+            // delivered to it from the boot ring, including entries that were still in this queue
+            // when it registered. False for every destination that was not backfilled.
+            if (dest->backfilled && !logSeqBefore(dest->backfillseq, (uintptr)rec->seq))
+                continue;
+
+            dest->msgfunc(rec, dest->userdata);
+
+            // remember that we've sent something to this destination for this batch
+            saPush(sent, ptr, dest, SA_Unique);
+        }
+    }
+}
+
+static void logNotifyBatch(_In_ sa_LogDest* sent, uint32 batchid)
+{
+    foreach (sarray, dest_idx, LogDest*, dest, *sent) {
+        if (dest->batchfunc)
+            dest->batchfunc(batchid, dest->userdata);
+    }
+}
+
+_Use_decl_annotations_
+int logGroupThread(Thread* self)
+{
+    LogGroup* grp = stvlNextPtr(&self->args);
+    sa_LogQueueNode chains;
     sa_LogDest sent;
-    uint32 batchid = 0;
-    saInit(&ents, ptr, 16);
+    saInit(&chains, ptr, 16);
     saInit(&sent, ptr, 16, SA_Sorted);
 
     while (thrLoop(self)) {
         bool empty = false;
         // grab some available log entries
         for (int i = 0; i < LOG_BATCH_SIZE; i++) {
-            LogEntry* ent = (LogEntry*)prqPop(&_log_queue);
-            if (ent) {
-                saPush(&ents, ptr, ent);
+            LogQueueNode* node = (LogQueueNode*)prqPop(&grp->queue);
+            if (node) {
+                saPush(&chains, ptr, node);
             } else {
                 empty = true;
                 break;   // queue empty
             }
         }
 
-        // now that we have a bunch of log entries and batches, process them
-        mutexAcquire(&_log_op_lock);
-        foreach (sarray, ent__idx, LogEntry*, ent, ents) {
-            ++batchid;
+        // This group's dispatch lock, which excludes only the paths that deliver to one of its
+        // destinations from a thread that is not this one: the synchronous backpressure write and
+        // the panic flush, both in logpanic.c, plus logDestSetGroup() moving a destination in or
+        // out.
+        //
+        // The routing version is taken inside the lock so that a mover holding it knows every
+        // batch dispatched after it releases uses the routing it published.
+        withMutex (&grp->dispatchlock) {
+            // Take a reference to the current routing version for the whole batch. One atomic
+            // load amortized over up to LOG_BATCH_SIZE entries buys a consistent view of the
+            // destination table with no configuration lock held, so nothing here contends with
+            // logChan() or logRegisterDest().
+            LogRouting* routing = logDrainEnter(grp->drain);
+
+            // Windows that closed while this thread was asleep, or during the last batch, get
+            // their summaries here: it is the one point in the loop that holds a routing
+            // version and is not in the middle of somebody's batch.
             saClear(&sent);
-            while (ent) {
-                LogEntry* next = ent->_next;
+            logDedupFlush(grp, routing, &sent, false);
+            logNotifyBatch(&sent, 0);
 
-                // verify that this log entry is using a channel that was registered to the log
-                // system
-                if (ent->chan == LogDefault || htHasKey(_log_channels, ptr, ent->chan)) {
-                    // send it to all relevant destinations
-                    foreach (sarray, dest_idx, LogDest*, dest, _log_dests) {
-                        if (ent->level <= dest->maxlevel &&
-                            applyChanFilter(dest->chanfilter, ent->chan)) {
-                            // dispatch to log destination
-                            dest->msgfunc(ent->level,
-                                          ent->chan,
-                                          ent->timestamp,
-                                          ent->msg,
-                                          batchid,
-                                          dest->userdata);
+            foreach (sarray, chain__idx, LogQueueNode*, chain, chains) {
+                LogQueueNode* node = chain;
+                uint32 batchid     = 0;
+                saClear(&sent);
 
-                            // remember that we've sent something to this destination for this batch
-                            saPush(&sent, ptr, dest, SA_Unique);
-                        }
-                    }
+                while (node) {
+                    LogEntry* ent = node->ent;
+                    batchid       = ent->batchid;
+
+                    // one rendering shared by every text destination this record reaches;
+                    // structured destinations never trigger it at all
+                    LogRenderCache cache = { 0 };
+                    LogRecord rec;
+                    logEntryToRecord(&rec, ent, batchid, &cache);
+
+                    if (logDedupPasses(grp, &rec))
+                        logDispatchRecord(grp, routing, &rec, &sent);
+
+                    strDestroy(&cache.str);
+                    node = node->next;
                 }
-                logDestroyEnt(ent);
-                ent = next;   // process the rest of the batch
-            }
 
-            // notify relevant destinations that the batch is done
-            foreach (sarray, dest_idx, LogDest*, dest, sent) {
-                if (dest->batchfunc) {
-                    dest->batchfunc(batchid, dest->userdata);
-                }
+                // notify relevant destinations that the batch is done
+                logNotifyBatch(&sent, batchid);
             }
         }
-        mutexRelease(&_log_op_lock);
 
-        saClear(&ents);
+        // no reference to the routing version is held past this point
+        logDrainIdle(grp->drain);
+
+        foreach (sarray, chain_idx, LogQueueNode*, chain, chains) {
+            atomicFetchSub(uint32, &grp->depth, logQueueCount(chain), Relaxed);
+            logQueueFreeNodes(chain);
+        }
+        saClear(&chains);
 
         if (empty) {
-            prqCollect(&_log_queue);   // run GC before event signal so it's not running during
+            prqCollect(&grp->queue);   // run GC before event signal so it's not running during
                                        // shutdown
-            eventSignal(&_log_done_event);
-            eventWait(&self->notify);
+            eventSignal(&grp->doneevent);
+            logStatsTick(grp);
+            logRingTick(grp);
+
+            // Sleep only until the earliest open deduplication window needs closing. Without
+            // that a burst that stops would never get its summary, because nothing else is going
+            // to wake this thread.
+            int64 wait = logDedupWait(grp);
+            if (wait == timeForever)
+                eventWait(&self->notify);
+            else
+                eventWaitTimeout(&self->notify, wait);
         }
     }
 
+    // one last pass so a window that was open at shutdown still says what it swallowed
+    withMutex (&grp->dispatchlock) {
+        LogRouting* routing = logDrainEnter(grp->drain);
+        saClear(&sent);
+        logDedupFlush(grp, routing, &sent, true);
+        logNotifyBatch(&sent, 0);
+    }
+    logDrainIdle(grp->drain);
+    logDedupDestroy(grp);
+
     saDestroy(&sent);
-    saDestroy(&ents);
+    saDestroy(&chains);
 
     return 0;
 }
 
-void logThreadCreate(void)
+static void logGroupFlush(_Inout_ LogGroup* grp)
 {
-    devAssert(!_log_thread);
-    eventInit(&_log_done_event);
-    _log_thread = thrCreate(logthread_func, kLogThreadName, stvNone);
-    if (!_log_thread)
-        relFatalError("Failed to create log thread");
-    thrRegisterSysThread(_log_thread);
-}
-
-void logFlush(void)
-{
-    if (!_log_thread)
+    if (!grp->thread)
         return;
 
-    eventReset(&_log_done_event);
-    eventSignal(&_log_thread->notify);
-    eventWait(&_log_done_event);
+    eventReset(&grp->doneevent);
+    eventSignal(&grp->thread->notify);
+    eventWait(&grp->doneevent);
 
     // signal the thread twice because the event above may be from a partially-complete run
     // that was already processing when this function was called
 
-    eventReset(&_log_done_event);
-    eventSignal(&_log_thread->notify);
-    eventWait(&_log_done_event);
+    eventReset(&grp->doneevent);
+    eventSignal(&grp->thread->notify);
+    eventWait(&grp->doneevent);
+}
+
+void logFlush(void)
+{
+    if (!atomicLoad(bool, &_log_running, Acquire))
+        return;
+
+    // Every group in turn. A record that fanned out to several groups is only accounted for when
+    // the last of them has drained, which is what makes logFlush() mean "everything logged
+    // before this call has reached every destination" and not merely "one thread caught up".
+    uint32 n = atomicLoad(uint32, &_log_ngroups, Acquire);
+    for (uint32 i = 0; i < n; i++) logGroupFlush(_log_grouptab[i]);
+
+    // Every drain thread is now idle and therefore quiescent, so this is the cheapest possible
+    // moment to reclaim retired routing versions and destinations. It also makes an
+    // unregistered destination's closefunc run by the time a caller that flushes expects it to.
+    withMutex (&_log_op_lock) {
+        logRoutingSweep();
+    }
 }

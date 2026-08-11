@@ -9,6 +9,7 @@
 #include "taskqueue/queue/tqueue.h"
 // clang-format on
 // ==================== Auto-generated section ends ======================
+#include <cx/log/logctx.h>
 #include "cx/taskqueue/taskqueue_private.h"
 
 _objfactory_guaranteed TaskQueue*
@@ -61,6 +62,12 @@ bool TaskQueue_add(_In_ TaskQueue* self, _In_ BasicTask* btask)
     // try to move it to waiting state
     if (!btask_setState(btask, TASK_Waiting))
         return false;
+
+    // The task inherits the submitting thread's log context, so records it writes on a worker
+    // thread still carry the request that caused them. Re-adding replaces it: a reset task
+    // submitted again belongs to whoever submitted it this time.
+    logCtxRelease((LogCtx**)&btask->logctx);
+    btask->logctx = logCtxAcquire(logCtxCurrent());
 
     // add a reference count which becomes owned by the queue
     objAcquire(btask);
@@ -183,6 +190,8 @@ bool TaskQueue__runTask(_In_ TaskQueue* self, _Inout_ BasicTask** pbtask, _In_ T
 
     TaskControl tcon = { 0 };
     uint32 tresult;
+    // run the task under the context it was submitted with, and put the worker's own back after
+    LogCtx* prevctx = logCtxSwap((LogCtx*)(*pbtask)->logctx);
     if (!btaskCancelled(*pbtask)) {
         tresult = btaskRun(*pbtask, self, worker, &tcon);
     } else {
@@ -191,6 +200,7 @@ bool TaskQueue__runTask(_In_ TaskQueue* self, _Inout_ BasicTask** pbtask, _In_ T
         btaskRunCancelled(*pbtask, self, worker);
         tresult = TASK_Result_Failure;
     }
+    logCtxRestore(prevctx);
 
     switch (tresult) {
     case TASK_Result_Success:

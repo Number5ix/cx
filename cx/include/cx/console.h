@@ -29,7 +29,8 @@
 /// Every stream carries a ConCaps describing what it can actually do -- whether it is a
 /// terminal at all, what color depth it accepts, whether cursor addressing works, and its
 /// current size. Capabilities are detected once, from environment variables and a platform
-/// probe, never from a terminfo/termcap database and never by linking a curses library.
+/// probe -- never by reading a terminal capability database (the terminfo/termcap files
+/// some other libraries consult) and never by linking a terminal library such as curses.
 /// Query them with conGetCaps() before relying on a capability.
 ///
 /// @section console_style Style
@@ -47,14 +48,16 @@
 ///
 /// conSetCursor()/conMoveCursor() position the cursor; conEraseLine()/conEraseScreen()/
 /// conScroll() edit the visible buffer; conAltScreen() switches to the terminal's alternate
-/// screen buffer where available. All are backed by VT sequences when ConCaps.vt is true and
-/// by the Windows legacy console API otherwise, and all return false rather than emit
+/// screen buffer where available. All are backed by VT sequences (the ANSI/VT100-style
+/// escape codes most terminals accept for cursor and screen control) when ConCaps.vt is
+/// true, and by the older Windows console API otherwise; all return false rather than emit
 /// anything when the underlying capability (ConCaps.cursor / ConCaps.altscreen) is absent.
 /// conGetCursor() is the exception: it only works when ConCaps.cursorquery is true (the
-/// legacy Windows backend), because querying position under VT would mean sending a DSR
-/// request and reading the reply from stdin -- a race with any other input consumer, and a
-/// possible hang against a terminal that never answers. conSaveCursor()/conRestoreCursor()
-/// is what most callers reaching for conGetCursor() actually want, and it works under VT too.
+/// legacy Windows backend), because querying position under VT would mean sending a query
+/// sequence and reading the reply back from stdin -- a race with any other input consumer,
+/// and a possible hang against a terminal that never answers. conSaveCursor()/
+/// conRestoreCursor() is what most callers reaching for conGetCursor() actually want, and it
+/// works under VT too.
 ///
 /// @section console_input Input
 ///
@@ -69,8 +72,8 @@
 /// restored to cooked automatically by conShutdown() and, on a best-effort basis, by the
 /// crash handler (cx/debug/crash.h) on an abnormal exit, so a crash never leaves the shell
 /// stuck with echo off. Ctrl+C/Ctrl+Z/Ctrl+\\ still raise their usual signals even in raw
-/// mode -- like ConCaps not tracking SIGWINCH, this module deliberately leaves signal
-/// disposition alone.
+/// mode -- like ConCaps not tracking SIGWINCH (the Unix signal sent when a terminal window
+/// is resized), this module deliberately leaves signal disposition alone.
 ///
 /// @section console_fmt Formatting
 ///

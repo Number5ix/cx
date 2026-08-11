@@ -24,6 +24,10 @@
 #include <cx/time/clock.h>
 #include <cx/time/time.h>
 
+// every log call in this file belongs to the network channel
+#undef LOG_CHANNEL
+#define LOG_CHANNEL NetLogChannel
+
 // ---------------------------------------------------------------------------------------------
 // Handler resolution
 // ---------------------------------------------------------------------------------------------
@@ -157,12 +161,11 @@ void NetQueue__deliver(NetQueue* self, NetSocket* sock, NetFlow* flow, NetEvent*
     cb(ev);
     int64 took = clockTimer() - cbStart;
     if (took >= NET_CB_WARN_THRESHOLD) {
-        logFmtC(DevWarn,
-                NetLogChannel,
-                kNetFmtSlowCB,
-                stvar(strref, netEventName(ev->event)),
-                stvar(uint16, ptrHash(sock)),
-                stvar(int64, timeToMsec(took)));
+        logFmt(DevWarn,
+               kNetFmtSlowCB,
+               stvar(strref, netEventName(ev->event)),
+               stvar(uint16, ptrHash(sock)),
+               stvar(int64, timeToMsec(took)));
     }
 #else
     cb(ev);

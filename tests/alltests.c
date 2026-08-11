@@ -1,5 +1,6 @@
-#include <stdio.h>
+#include <cx/log.h>
 #include <cx/time.h>
+#include <stdio.h>
 
 // Run all tests in a single process, to make manual testing easier
 
@@ -62,7 +63,19 @@ static const testspec tests[] = {
     { "log: Batch", "logtest", "batch" },
     { "log: Shutdown", "logtest", "shutdown" },
     { "log: Channels", "logtest", "channels" },
-    { "log: Deferred logging", "logtest", "defer" },
+    { "log: Backfill", "logtest", "backfill" },
+    { "log: Destinations", "logtest", "dest" },
+    { "log: Channel hierarchy", "logtest", "hierarchy" },
+    { "log: Built-in cx channel", "logtest", "cxchan" },
+    { "log: Call sites and rate limiting", "logtest", "site" },
+    { "log: Records and deferred formatting", "logtest", "record" },
+    { "log: Serializers", "logtest", "serializer" },
+    { "log: Drain groups", "logtest", "groups" },
+    { "log: Volume control", "logtest", "volume" },
+    { "log: Boot window", "logtest", "bootwindow" },
+    { "log: Boot replay", "logtest", "bootreplay" },
+    { "log: Debug ring", "logtest", "debugring" },
+    { "log: Context", "logtest", "ctx" },
     { "log: Console destination", "logtest", "console" },
     { "log: Console destination styling", "logtest", "console_style" },
     { "object: Interface", "objtest", "iface" },
@@ -310,6 +323,7 @@ int alltests(int argc, const char *argv[])
             putchar('.');
         fflush(stdout);
 
+        logRestart();   // the previous test may have shut down the logging system
         fake_argv[1] = tests[i].module;
         fake_argv[2] = tests[i].test;
         bool res = main(3, fake_argv);

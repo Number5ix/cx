@@ -134,29 +134,31 @@ _Acquires_nonreentrant_lock_(*m) _meta_inline void mutexAcquire(_Inout_ Mutex* m
 #define withMutex(m) blkWrap (mutexAcquire(m), mutexRelease(m))
 
 #ifdef CX_LOCK_DEBUG
-#define _logFmtMutexArgComp2(level, fmt, nargs, args) \
-    _logFmt_##level(LOG_##level, LogDefault, fmt, nargs, args)
+// The indirection is what expands CX_LOCK_DEBUG to a level name before it is pasted. It used to
+// build the argument array here as well, which could not work: braces do not protect commas from
+// the preprocessor, so every argument past the first split the call.
 #define _logFmtMutexArgComp(level, fmt, ...) \
-    _logFmtMutexArgComp2(level, fmt, count_macro_args(__VA_ARGS__), (stvar[]) { __VA_ARGS__ })
-_Acquires_nonreentrant_lock_(*m)
-    _meta_inline bool mutexLogAndAcquire(_Inout_ Mutex* m, const char* name, const char* filename,
-                                         int line)
+    _logFmtArgs(level, LogDefault, LOG_SiteAlways, 0, fmt, __VA_ARGS__)
+_Acquires_nonreentrant_lock_(*m) static bool mutexLogAndAcquire(_Inout_ Mutex* m,
+                                                                 const char* name,
+                                                                 const char* filename, int line)
 {
     _logFmtMutexArgComp(CX_LOCK_DEBUG,
                         _S"Locking mutex ${string} at ${string}:${int}",
                         stvar(string, (string)name),
                         stvar(string, (string)filename),
                         stvar(int32, line));
-    return mutexAcquire(m);
+    mutexAcquire(m);
+    return true;
 }
 
 #define mutexAcquire(m) mutexLogAndAcquire(m, #m, __FILE__, __LINE__)
 #endif
 
 #ifdef CX_LOCK_DEBUG
-_Releases_nonreentrant_lock_(*m)
-    _meta_inline bool mutexLogAndRelease(_Inout_ Mutex* m, const char* name, const char* filename,
-                                         int line)
+_Releases_nonreentrant_lock_(*m) static bool mutexLogAndRelease(_Inout_ Mutex* m,
+                                                                 const char* name,
+                                                                 const char* filename, int line)
 {
     _logFmtMutexArgComp(CX_LOCK_DEBUG,
                         _S"Releasing mutex ${string} at ${string}:${int}",

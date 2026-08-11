@@ -13,8 +13,8 @@
 ///
 /// **Basic Usage:**
 /// @code
-///   // Create 4KB buffer
-///   LogMembufData *lmd = logmembufCreate(4096);
+///   // Create 4KB buffer with the default compact text serializer
+///   LogMembufData *lmd = logmembufCreate(4096, NULL);
 ///   LogDest *dest = logmembufRegister(LOG_Debug, NULL, lmd);
 ///
 ///   // Log some messages
@@ -29,6 +29,7 @@
 /// @endcode
 
 #include <cx/log/log.h>
+#include <cx/log/logserializer.h>
 
 CX_C_BEGIN
 
@@ -38,9 +39,10 @@ CX_C_BEGIN
 /// `size`, new messages wrap to the beginning. The buffer is null-terminated
 /// when possible.
 typedef struct LogMembufData {
-    uint32 size;   ///< Total buffer size in bytes
-    uint32 cur;    ///< Current write position (number of bytes written)
-    char* buf;     ///< Buffer storage
+    uint32 size;         ///< Total buffer size in bytes
+    uint32 cur;          ///< Current write position (number of bytes written)
+    char* buf;           ///< Buffer storage
+    LogSerializer* ser;  ///< Owned; how a record becomes the bytes this ring stores
 } LogMembufData;
 
 // ============================================================================
@@ -49,52 +51,33 @@ typedef struct LogMembufData {
 
 /// Create a memory buffer log destination
 ///
-/// Allocates a fixed-size circular buffer for log messages. The buffer uses a
-/// compact format with timestamps and single-character log levels. Messages
-/// longer than the buffer size are truncated.
+/// Allocates a fixed-size circular buffer for log messages. Messages longer than
+/// the buffer size are truncated.
 ///
 /// @param size Buffer size in bytes
+/// @param ser Serializer to render records with; **ownership transfers**. NULL gets a compact
+///            text serializer: short levels, bracketed channels, second-resolution timestamps.
 /// @return Memory buffer handle, or NULL on allocation failure
 /// @code
-///   LogMembufData *lmd = logmembufCreate(8192);  // 8KB buffer
+///   LogMembufData *lmd = logmembufCreate(8192, NULL);  // 8KB buffer, compact text
+///
+///   // or capture structured records for a test to parse
+///   LogMembufData *jmd = logmembufCreate(8192, logNdjsonSerializer(NULL));
 /// @endcode
-_Ret_valid_ LogMembufData* logmembufCreate(uint32 size);
+_Ret_valid_ LogMembufData* logmembufCreate(uint32 size, _In_opt_ LogSerializer* ser);
 
 /// Register a memory buffer destination with the logging system
 ///
-/// Registers the memory buffer as a log destination. Messages will be formatted
-/// in a compact style and written to the circular buffer. The buffer destination
+/// Registers the memory buffer as a log destination. Records are serialized and
+/// written to the circular buffer. The buffer destination
 /// will be automatically cleaned up when unregistered.
 ///
 /// @param maxlevel Maximum log level to write to buffer
-/// @param chanfilter Channel filter, or NULL for all non-private channels
+/// @param chanfilter Channel path pattern, or NULL for every unrestricted channel
 /// @param membuf Memory buffer handle from logmembufCreate()
 /// @return Destination handle for later unregistration, or NULL on failure
-LogDest* logmembufRegister(int maxlevel, _In_opt_ LogChannel* chanfilter,
+LogDest* logmembufRegister(int maxlevel, _In_opt_ strref chanfilter,
                            _In_ LogMembufData* membuf);
-
-/// Register a memory buffer destination and flush deferred logs
-///
-/// Atomically registers a memory buffer destination while flushing previously
-/// deferred logs to it. Useful for capturing early startup logs in memory before
-/// other destinations are available.
-///
-/// @param maxlevel Maximum log level to write to buffer
-/// @param chanfilter Channel filter, or NULL for all non-private channels
-/// @param membuf Memory buffer handle from logmembufCreate()
-/// @param deferdest Deferred destination to flush (destroyed during this call)
-/// @return Destination handle for later unregistration, or NULL on failure
-/// @code
-///   // Early startup - defer logs
-///   LogDeferData *deferdata = logDeferCreate();
-///   LogDest *deferdest = logDeferRegister(LOG_Info, NULL, deferdata);
-///
-///   // Later - create memory buffer and transfer logs
-///   LogMembufData *lmd = logmembufCreate(4096);
-///   LogDest *dest = logmembufRegisterWithDefer(LOG_Info, NULL, lmd, deferdest);
-/// @endcode
-LogDest* logmembufRegisterWithDefer(int maxlevel, _In_opt_ LogChannel* chanfilter,
-                                    _In_ LogMembufData* membuf, _In_ LogDest* deferdest);
 
 // ============================================================================
 // Low Level Interface
@@ -105,17 +88,11 @@ LogDest* logmembufRegisterWithDefer(int maxlevel, _In_opt_ LogChannel* chanfilte
 
 /// Log message callback for memory buffer destinations
 ///
-/// Formats and writes a log message to the circular buffer. Uses a compact
-/// format: "YYYYMMDD HHMMSS L [Channel]: Message\n"
+/// Serializes a log record and appends it to the circular buffer, newline-terminated.
 ///
-/// @param level Log severity level
-/// @param chan Channel, or NULL for default
-/// @param timestamp Wall clock timestamp
-/// @param msg Log message text
-/// @param batchid Batch identifier (unused)
+/// @param rec Log record to write
 /// @param userdata LogMembufData pointer from logmembufCreate()
-void logmembufMsgFunc(int level, _In_opt_ LogChannel* chan, int64 timestamp, _In_opt_ strref msg,
-                      uint32 batchid, _In_opt_ void* userdata);
+void logmembufMsgFunc(_In_ const LogRecord* rec, _In_opt_ void* userdata);
 
 /// Cleanup callback for memory buffer destinations
 ///

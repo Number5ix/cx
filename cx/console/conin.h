@@ -79,8 +79,9 @@ typedef enum ConInputMode {
 /// soon as it arrives, and disables software flow control (Ctrl+S/Ctrl+Q) so those pass
 /// through as ordinary key events instead of freezing output. It does **not** touch signal
 /// generation: Ctrl+C/Ctrl+Z/Ctrl+\ still raise SIGINT/SIGTSTP/SIGQUIT as usual, the same way
-/// this module never touches SIGWINCH (see ConCaps). A caller that wants Ctrl+C delivered as
-/// a keystroke instead of a signal must block or ignore the signal itself.
+/// this module never touches SIGWINCH, the Unix signal sent on a terminal resize (see
+/// ConCaps). A caller that wants Ctrl+C delivered as a keystroke instead of a signal must
+/// block or ignore the signal itself.
 ///
 /// Only meaningful on conIn(); requires a real interactive terminal (ConCaps::istty).
 /// Automatically restored to cooked on conShutdown(), and on process crash where the crash

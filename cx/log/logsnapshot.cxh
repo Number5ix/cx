@@ -1,0 +1,17 @@
+#include <cx/format/formattable.cxh>
+
+// A rendering of an object argument, taken at the call site.
+//
+// Deferred formatting cannot defer an object: it would render whatever state the object was in
+// when the drain thread got to it rather than when it was logged. So an object argument is
+// rendered immediately and replaced by one of these, which renders back to the text that was
+// captured.
+//
+// It has to be an object rather than the plain string, because the template still says ${object}
+// and a placeholder resolves by type. The substitution is therefore invisible to the format
+// string, which is the entire point.
+class LogSnapshot implements Formattable
+{
+    string text;
+    factory create(string text);
+}

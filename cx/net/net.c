@@ -8,7 +8,7 @@ LogChannel* NetLogChannel;
 
 void netInit(void* unused)
 {
-    NetLogChannel = logCreateChan(_SL("Network"), false);
+    NetLogChannel = logChan(_SL("cx/net"));
     netPlatformInit();
 }
 

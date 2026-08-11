@@ -1,9 +1,9 @@
 #include "logconsole.h"
-#include <cx/log/logdefer.h>
 #include <cx/string.h>
 
 typedef struct LogConsoleData {
     LogConsoleConfig config;
+    LogSerializer* ser;   // owned; how a record becomes the bytes this console shows
     ConStream* out;
     ConStream* err;
 } LogConsoleData;
@@ -43,50 +43,34 @@ static bool shouldStyle(_In_ LogConsoleData* lcd, _In_ ConStream* con)
 }
 
 _Use_decl_annotations_
-LogConsoleData* logconsoleCreate(ConStream* out, ConStream* err, LogConsoleConfig* config)
+LogConsoleData* logconsoleCreate(ConStream* out, ConStream* err, LogConsoleConfig* config,
+                                 LogSerializer* ser)
 {
     LogConsoleData* ret = xaAlloc(sizeof(LogConsoleData));
-    ret->config          = *config;
-    ret->out             = out ? out : conOut();
-    ret->err             = err ? err : conErr();
+    ret->config         = *config;
+    ret->ser            = ser ? ser : logTextSerializer(NULL);
+    ret->out            = out ? out : conOut();
+    ret->err            = err ? err : conErr();
     return ret;
 }
 
 // this function is always called from the log thread and does not need to worry about concurrency
 _Use_decl_annotations_
-void logconsoleMsgFunc(int level, LogChannel* chan, int64 timestamp, strref msg, uint32 batchid,
-                       void* userdata)
+void logconsoleMsgFunc(const LogRecord* rec, void* userdata)
 {
     LogConsoleData* lcd = (LogConsoleData*)userdata;
     if (!lcd)
         return;
 
-    ConStream* con = (level <= lcd->config.stderrLevel) ? lcd->err : lcd->out;
+    ConStream* con = (rec->level <= lcd->config.stderrLevel) ? lcd->err : lcd->out;
 
+    // the serializer decides what a record looks like; this transport routes it by severity,
+    // styles it, and terminates the line
     string logline = 0;
-    string logdate = 0, loglevel = 0, logchan = 0, logspaces = 0;
-
-    int nspaces = lcd->config.spacing ? lcd->config.spacing : 2;
-    uint8* sbuf = strBuffer(&logspaces, nspaces + (lcd->config.flags & LOG_AddColon ? 1 : 0));
-    memset(sbuf, ' ', nspaces);
-    if (lcd->config.flags & LOG_AddColon)
-        sbuf[0] = ':';
-
-    logFormatDate(&logdate, lcd->config.dateFormat, lcd->config.flags, timestamp);
-    logFormatLevel(&loglevel, level, lcd->config.flags);
-    logFormatChannel(&logchan, chan, lcd->config.flags);
-
-    if (lcd->config.flags & LOG_ChannelFirst)
-        strNConcat(&logline, logdate, logchan, loglevel, logspaces, msg);
-    else
-        strNConcat(&logline, logdate, loglevel, logchan, logspaces, msg);
-    strDestroy(&logdate);
-    strDestroy(&loglevel);
-    strDestroy(&logchan);
-    strDestroy(&logspaces);
+    logSerialize(&logline, lcd->ser, rec);
 
     if (shouldStyle(lcd, con))
-        conPutsS(con, resolveLevelStyle(lcd, level), logline);
+        conPutsS(con, resolveLevelStyle(lcd, rec->level), logline);
     else
         conPuts(con, logline);
     conNL(con);
@@ -113,11 +97,12 @@ void logconsoleCloseFunc(void* userdata)
     if (!lcd)
         return;
 
+    logSerializerDestroy(&lcd->ser);
     xaFree(lcd);
 }
 
 _Use_decl_annotations_
-LogDest* logconsoleRegister(int maxlevel, LogChannel* chanfilter, LogConsoleData* console)
+LogDest* logconsoleRegister(int maxlevel, strref chanfilter, LogConsoleData* console)
 {
     return logRegisterDest(maxlevel,
                            chanfilter,
@@ -125,17 +110,4 @@ LogDest* logconsoleRegister(int maxlevel, LogChannel* chanfilter, LogConsoleData
                            logconsoleBatchFunc,
                            logconsoleCloseFunc,
                            console);
-}
-
-_Use_decl_annotations_
-LogDest* logconsoleRegisterWithDefer(int maxlevel, LogChannel* chanfilter, LogConsoleData* console,
-                                     LogDest* deferdest)
-{
-    return logRegisterDestWithDefer(maxlevel,
-                                    chanfilter,
-                                    logconsoleMsgFunc,
-                                    logconsoleBatchFunc,
-                                    logconsoleCloseFunc,
-                                    console,
-                                    deferdest);
 }

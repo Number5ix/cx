@@ -5,52 +5,39 @@
 
 #include "logmembuf.h"
 #include <cx/format.h>
-#include <cx/log/logdefer.h>
+#include <cx/string.h>
 #include <cx/time.h>
 
-// string constants
-STR_CONST(
-    kLogMembufFmt,
-    "${0int(4)}${0uint(2)}${0uint(2)} ${0uint(2)}${0uint(2)}${0uint(2)} ${string}${string}: ${string}\n");
-STR_CONST(kLogBracketFmt, " [${string}]");
+// The ring is a transport like any other: it owns where bytes go and how records are separated,
+// and a serializer decides what they look like. The default text serializer is configured below
+// to match the ring's compact format.
+static const LogTextConfig kMembufDefaultText = {
+    .dateFormat = LOG_DateISOCompact,
+    .spacing    = 1,
+    .flags      = LOG_ShortLevel | LOG_IncludeChannel | LOG_BracketChannel | LOG_AddColon,
+};
 
 _Use_decl_annotations_
-LogMembufData* logmembufCreate(uint32 size)
+LogMembufData* logmembufCreate(uint32 size, LogSerializer* ser)
 {
     LogMembufData* ret = xaAlloc(sizeof(LogMembufData), XA_Zero);
     ret->size          = size;
     ret->buf           = xaAlloc(size, XA_Zero);
+    ret->ser           = ser ? ser : logTextSerializer((LogTextConfig*)&kMembufDefaultText);
     return ret;
 }
 
 // for use with logRegisterDest along with the userdata returned from logmembufCreate
 _Use_decl_annotations_
-void logmembufMsgFunc(int level, LogChannel* chan, int64 timestamp, strref msg, uint32 batchid,
-                      void* userdata)
+void logmembufMsgFunc(const LogRecord* rec, void* userdata)
 {
     LogMembufData* lmd = (LogMembufData*)userdata;
     if (!lmd)
         return;
 
-    TimeParts tp = { 0 };
-    timeDecompose(&tp, timestamp);
-
-    string logline = 0, logchan = 0;
-    if (chan && !strEmpty(chan->name)) {
-        strFormat(&logchan, kLogBracketFmt, stvar(strref, chan->name));
-    }
-
-    strFormat(&logline,
-              kLogMembufFmt,
-              stvar(int32, tp.year),
-              stvar(uint8, tp.month),
-              stvar(uint8, tp.day),
-              stvar(uint8, tp.hour),
-              stvar(uint8, tp.minute),
-              stvar(uint8, tp.second),
-              stvar(strref, LogLevelAbbrev[level]),
-              stvar(string, logchan),
-              stvar(strref, msg));
+    string logline = 0;
+    logSerialize(&logline, lmd->ser, rec);
+    strAppendChar(&logline, '\n');
 
     uint32 len = strLen(logline);
     if (len < lmd->size) {
@@ -64,7 +51,6 @@ void logmembufMsgFunc(int level, LogChannel* chan, int64 timestamp, strref msg, 
         }
     }
 
-    strDestroy(&logchan);
     strDestroy(&logline);
 }
 
@@ -76,12 +62,13 @@ void logmembufCloseFunc(void* userdata)
         return;
 
     // closing log
+    logSerializerDestroy(&lmd->ser);
     xaFree(lmd->buf);
     xaFree(lmd);
 }
 
 _Use_decl_annotations_
-LogDest* logmembufRegister(int maxlevel, LogChannel* chanfilter, LogMembufData* logfile)
+LogDest* logmembufRegister(int maxlevel, strref chanfilter, LogMembufData* logfile)
 {
     return logRegisterDest(maxlevel,
                            chanfilter,
@@ -89,17 +76,4 @@ LogDest* logmembufRegister(int maxlevel, LogChannel* chanfilter, LogMembufData* 
                            NULL,
                            logmembufCloseFunc,
                            logfile);
-}
-
-_Use_decl_annotations_
-LogDest* logmembufRegisterWithDefer(int maxlevel, LogChannel* chanfilter, LogMembufData* membuf,
-                                    LogDest* deferdest)
-{
-    return logRegisterDestWithDefer(maxlevel,
-                                    chanfilter,
-                                    logmembufMsgFunc,
-                                    NULL,
-                                    logmembufCloseFunc,
-                                    membuf,
-                                    deferdest);
 }

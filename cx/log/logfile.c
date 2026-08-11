@@ -7,7 +7,6 @@
 #include <cx/container.h>
 #include <cx/format.h>
 #include <cx/fs/path.h>
-#include <cx/log/logdefer.h>
 #include <cx/string.h>
 #include <cx/time.h>
 #include <cx/utils.h>
@@ -17,25 +16,10 @@ STR_CONST(kLogExtDefault, "log");
 STR_CONST(kLogRotatePattern, ".*.");
 STR_CONST(kLogSplitDelim, ".");
 STR_CONST(kLogRotateFmt, "${string}/${string}.${int}.${string}");
-STR_CONST(
-    kLogDateISOTZ,
-    "${0int(4)}-${0uint(2)}-${0uint(2)}T${0uint(2)}:${0uint(2)}:${0uint(2)}${+int(min:2)}:${0int(2)}");
-STR_CONST(kLogDateISOZulu,
-          "${0int(4)}-${0uint(2)}-${0uint(2)}T${0uint(2)}:${0uint(2)}:${0uint(2)}Z");
-STR_CONST(kLogDateISOCompact,
-          "${0int(4)}-${0uint(2)}-${0uint(2)} ${0uint(2)}:${0uint(2)}:${0uint(2)}");
-STR_CONST(
-    kLogDateNCSA,
-    "${0uint(2)}/${string(3)}/${0int(4)}:${0uint(2)}:${0uint(2)}:${0uint(2)} ${+int(min:2)}${0int(2)}");
-STR_CONST(kLogDateSyslog, "${string(3)} ${uint(2)} ${0uint(2)}:${0uint(2)}:${0uint(2)}");
-STR_CONST(kLogDateISOCompactMs,
-          "${0int(4)}-${0uint(2)}-${0uint(2)} ${0uint(2)}:${0uint(2)}:${0uint(2)}.${0uint(3)}");
-STR_CONST(kLogBracketFmt, " [${string}]");
-STR_CONST(kLogJustifyFmt, " ${string(7)}");
-STR_CONST(kLogSpace, " ");
 
 typedef struct LogFileData {
     LogFileConfig config;
+    LogSerializer* ser;   // owned; how a record becomes the bytes this file stores
     VFS* vfs;
     string fname;
     string pathname;
@@ -57,6 +41,7 @@ static void deleteOldFiles(_Inout_ LogFileData* lfd);
 
 static void logfileDestroy(_Pre_valid_ _Post_invalid_ LogFileData* data)
 {
+    logSerializerDestroy(&data->ser);
     vfsClose(data->curfile);
     objRelease(&data->vfs);
     strDestroy(&data->fname);
@@ -88,16 +73,21 @@ static bool logfileClose(_Inout_ LogFileData* data)
 }
 
 _Use_decl_annotations_
-LogFileData* logfileCreate(VFS* vfs, strref filename, LogFileConfig* config)
+LogFileData* logfileCreate(VFS* vfs, strref filename, LogFileConfig* config, LogSerializer* ser)
 {
     LogFileData* ret = xaAlloc(sizeof(LogFileData), XA_Zero);
     string realfile  = 0;
-    if (!ret)
+    if (!ret) {
+        logSerializerDestroy(&ser);
         return NULL;
+    }
 
     vfsAbsolutePath(vfs, &realfile, filename);
 
     ret->config = *config;
+    // ownership transfers here, including on the failure paths below, so that a caller can
+    // always write logfileCreate(..., logTextSerializer(&tcfg)) without leaking on failure
+    ret->ser    = ser ? ser : logTextSerializer(NULL);
     ret->vfs    = objAcquire(vfs);
     strDup(&ret->fname, realfile);
 
@@ -285,171 +275,19 @@ static void checkRotate(_Inout_ LogFileData* lfd)
         doTimeRotation(lfd);
 }
 
-_Use_decl_annotations_
-void logFormatDate(string* out, int dateFormat, uint32 flags, int64 timestamp)
-{
-    int64 toffsetraw = 0;
-    TimeParts tp     = { 0 };
-    if (flags & LOG_LocalTime) {
-        timestamp = timeLocal(timestamp, &toffsetraw);
-    }
-
-    int toffset = (int32)timeToSeconds(toffsetraw) / 60;   // need offset in minutes for formatting
-    timeDecompose(&tp, timestamp);
-
-    switch (dateFormat) {
-    case LOG_DateISO:
-        if (toffset != 0) {
-            // ISO8601 with time zone
-            strFormat(out,
-                      kLogDateISOTZ,
-                      stvar(int32, tp.year),
-                      stvar(uint8, tp.month),
-                      stvar(uint8, tp.day),
-                      stvar(uint8, tp.hour),
-                      stvar(uint8, tp.minute),
-                      stvar(uint8, tp.second),
-                      stvar(int32, toffset / 60),
-                      stvar(int32, (toffset >= 0 ? toffset : -toffset) % 60));
-        } else {
-            // ISO8601 with zulu time
-            strFormat(out,
-                      kLogDateISOZulu,
-                      stvar(int32, tp.year),
-                      stvar(uint8, tp.month),
-                      stvar(uint8, tp.day),
-                      stvar(uint8, tp.hour),
-                      stvar(uint8, tp.minute),
-                      stvar(uint8, tp.second));
-        }
-        break;
-    case LOG_DateISOCompact:
-        // simplifed ISO-like format with no time zone
-        strFormat(out,
-                  kLogDateISOCompact,
-                  stvar(int32, tp.year),
-                  stvar(uint8, tp.month),
-                  stvar(uint8, tp.day),
-                  stvar(uint8, tp.hour),
-                  stvar(uint8, tp.minute),
-                  stvar(uint8, tp.second));
-        break;
-    case LOG_DateNCSA:
-        // NCSA common log date format
-        strFormat(out,
-                  kLogDateNCSA,
-                  stvar(uint8, tp.day),
-                  stvar(strref, timeMonthAbbrev[tp.month]),
-                  stvar(int32, tp.year),
-                  stvar(uint8, tp.hour),
-                  stvar(uint8, tp.minute),
-                  stvar(uint8, tp.second),
-                  stvar(int32, toffset / 60),
-                  stvar(int32, (toffset >= 0 ? toffset : -toffset) % 60));
-        break;
-    case LOG_DateSyslog:
-        // BSD-style syslog format (without year)
-        strFormat(out,
-                  kLogDateSyslog,
-                  stvar(strref, timeMonthAbbrev[tp.month]),
-                  stvar(uint8, tp.day),
-                  stvar(uint8, tp.hour),
-                  stvar(uint8, tp.minute),
-                  stvar(uint8, tp.second));
-        break;
-    case LOG_DateISOCompactMsec:
-        // simplifed ISO-like format with no time zone and milliseconds
-        strFormat(out,
-                  kLogDateISOCompactMs,
-                  stvar(int32, tp.year),
-                  stvar(uint8, tp.month),
-                  stvar(uint8, tp.day),
-                  stvar(uint8, tp.hour),
-                  stvar(uint8, tp.minute),
-                  stvar(uint8, tp.second),
-                  stvar(uint32, tp.usec / 1000));
-        break;
-    }
-}
-
-_Use_decl_annotations_
-void logFormatLevel(string* out, int level, uint32 flags)
-{
-    if (flags & LOG_OmitLevel) {
-        strDestroy(out);
-        return;
-    }
-
-    strref* lvarr = (flags & LOG_ShortLevel) ? LogLevelAbbrev : LogLevelNames;
-    int lvmaxlen  = (flags & LOG_ShortLevel) ? 1 : 7;
-    if (flags & LOG_BracketLevel) {
-        if (flags & LOG_JustifyLevel) {
-            // justified with brackets... yuck
-            int llen    = strLen(lvarr[level]);
-            uint8* temp = strBuffer(out, lvmaxlen + 3);
-            memset(temp, ' ', (size_t)lvmaxlen + 3);
-            temp[1]        = '[';
-            temp[llen + 2] = ']';
-            memcpy(temp + 2, strC(lvarr[level]), llen);
-        } else {
-            strFormat(out, kLogBracketFmt, stvar(strref, lvarr[level]));
-        }
-    } else if (flags & LOG_JustifyLevel) {
-        if (flags & LOG_ShortLevel) {
-            strConcat(out, kLogSpace, lvarr[level]);
-        } else {
-            strFormat(out, kLogJustifyFmt, stvar(strref, lvarr[level]));
-        }
-    } else {
-        strConcat(out, kLogSpace, lvarr[level]);
-    }
-}
-
-_Use_decl_annotations_
-void logFormatChannel(string* out, LogChannel* chan, uint32 flags)
-{
-    if (!(flags & LOG_IncludeChannel) || !chan || strEmpty(chan->name)) {
-        strDestroy(out);
-        return;
-    }
-
-    if (flags & LOG_BracketChannel) {
-        strFormat(out, kLogBracketFmt, stvar(strref, chan->name));
-    } else {
-        strConcat(out, kLogSpace, chan->name);
-    }
-}
-
 // this function is always called from the log thread and does not need to worry about concurrency
 _Use_decl_annotations_
-void logfileMsgFunc(int level, LogChannel* chan, int64 timestamp, strref msg, uint32 batchid,
-                    void* userdata)
+void logfileMsgFunc(const LogRecord* rec, void* userdata)
 {
     LogFileData* lfd = (LogFileData*)userdata;
     if (!lfd)
         return;
 
+    // the serializer decides what a record looks like; this transport only decides where it goes
+    // and how records are separated
     string logline = 0;
-    string logdate = 0, loglevel = 0, logchan = 0, logspaces = 0;
-
-    int nspaces = lfd->config.spacing ? lfd->config.spacing : 2;
-    bool colon  = !!(lfd->config.flags & LOG_AddColon);
-    strFillChar(&logspaces, ' ', nspaces + (colon ? 1 : 0));
-    if (colon)
-        strSetChar(&logspaces, 0, ':');
-
-    logFormatDate(&logdate, lfd->config.dateFormat, lfd->config.flags, timestamp);
-    logFormatLevel(&loglevel, level, lfd->config.flags);
-    logFormatChannel(&logchan, chan, lfd->config.flags);
-
-    if (lfd->config.flags & LOG_ChannelFirst)
-        strNConcat(&logline, logdate, logchan, loglevel, logspaces, msg, loglineend);
-    else
-        strNConcat(&logline, logdate, loglevel, logchan, logspaces, msg, loglineend);
-    strDestroy(&logdate);
-    strDestroy(&loglevel);
-    strDestroy(&logchan);
-    strDestroy(&logspaces);
+    logSerialize(&logline, lfd->ser, rec);
+    strAppend(&logline, loglineend);
 
     vfsWrite(lfd->curfile, (void*)strC(logline), strLen(logline), NULL);
     lfd->cursize += strLen(logline);
@@ -479,7 +317,7 @@ void logfileCloseFunc(void* userdata)
 }
 
 _Use_decl_annotations_
-LogDest* logfileRegister(int maxlevel, LogChannel* chanfilter, LogFileData* logfile)
+LogDest* logfileRegister(int maxlevel, strref chanfilter, LogFileData* logfile)
 {
     return logRegisterDest(maxlevel,
                            chanfilter,
@@ -487,17 +325,4 @@ LogDest* logfileRegister(int maxlevel, LogChannel* chanfilter, LogFileData* logf
                            logfileBatchFunc,
                            logfileCloseFunc,
                            logfile);
-}
-
-_Use_decl_annotations_
-LogDest* logfileRegisterWithDefer(int maxlevel, LogChannel* chanfilter, LogFileData* logfile,
-                                  LogDest* deferdest)
-{
-    return logRegisterDestWithDefer(maxlevel,
-                                    chanfilter,
-                                    logfileMsgFunc,
-                                    logfileBatchFunc,
-                                    logfileCloseFunc,
-                                    logfile,
-                                    deferdest);
 }

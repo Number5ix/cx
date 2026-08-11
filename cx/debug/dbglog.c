@@ -11,7 +11,7 @@ void dbgLogEnable(int level)
     if (dbgLog)
         dbgLogDisable();
 
-    logmemdata = logmembufCreate(DBGLOG_SIZE);
+    logmemdata = logmembufCreate(DBGLOG_SIZE, NULL);
     dbgLog     = logmemdata->buf;
     dbgCrashIncludeMemory(dbgLog, DBGLOG_SIZE);
     logdest = logmembufRegister(level, NULL, logmemdata);

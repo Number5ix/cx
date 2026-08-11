@@ -210,20 +210,20 @@ _Acquires_shared_lock_(*l) _meta_inline void rwlockAcquireRead(_Inout_ RWLock* l
 #define withWriteLock(l) blkWrap (rwlockAcquireWrite(l), rwlockReleaseWrite(l))
 
 #ifdef CX_LOCK_DEBUG
-#define _logFmtRwlockArgComp2(level, fmt, nargs, args) \
-    _logFmt_##level(LOG_##level, LogDefault, fmt, nargs, args)
+// see the note on _logFmtMutexArgComp in mutex.h
 #define _logFmtRwlockArgComp(level, fmt, ...) \
-    _logFmtRwlockArgComp2(level, fmt, count_macro_args(__VA_ARGS__), (stvar[]) { __VA_ARGS__ })
+    _logFmtArgs(level, LogDefault, LOG_SiteAlways, 0, fmt, __VA_ARGS__)
 _Acquires_shared_lock_(*l)
-    _meta_inline bool rwlockLogAndAcquireRead(_Inout_ RWLock* l, const char* name,
-                                              const char* filename, int line)
+    static bool rwlockLogAndAcquireRead(_Inout_ RWLock* l, const char* name,
+                                        const char* filename, int line)
 {
     _logFmtRwlockArgComp(CX_LOCK_DEBUG,
                          _S"Locking rwlock ${string} for READ at ${string}:${int}",
                          stvar(string, (string)name),
                          stvar(string, (string)filename),
                          stvar(int32, line));
-    return rwlockAcquireRead(l);
+    rwlockAcquireRead(l);
+    return true;
 }
 
 #define rwlockAcquireRead(l) rwlockLogAndAcquireRead(l, #l, __FILE__, __LINE__)
@@ -242,15 +242,16 @@ _Acquires_exclusive_lock_(*l) _meta_inline void rwlockAcquireWrite(_Inout_ RWLoc
 
 #ifdef CX_LOCK_DEBUG
 _Acquires_exclusive_lock_(*l)
-    _meta_inline bool rwlockLogAndAcquireWrite(_Inout_ RWLock* l, const char* name,
-                                               const char* filename, int line)
+    static bool rwlockLogAndAcquireWrite(_Inout_ RWLock* l, const char* name,
+                                        const char* filename, int line)
 {
     _logFmtRwlockArgComp(CX_LOCK_DEBUG,
                          _S"Locking rwlock ${string} for WRITE at ${string}:${int}",
                          stvar(string, (string)name),
                          stvar(string, (string)filename),
                          stvar(int32, line));
-    return rwlockAcquireWrite(l);
+    rwlockAcquireWrite(l);
+    return true;
 }
 
 #define rwlockAcquireWrite(l) rwlockLogAndAcquireWrite(l, #l, __FILE__, __LINE__)
@@ -278,8 +279,8 @@ _Releases_shared_lock_(*l) _meta_inline bool rwlockReleaseRead(_Inout_ RWLock* l
 
 #ifdef CX_LOCK_DEBUG
 _Releases_shared_lock_(*l)
-    _meta_inline bool rwlockLogAndReleaseRead(_Inout_ RWLock* l, const char* name,
-                                              const char* filename, int line)
+    static bool rwlockLogAndReleaseRead(_Inout_ RWLock* l, const char* name,
+                                        const char* filename, int line)
 {
     _logFmtRwlockArgComp(CX_LOCK_DEBUG,
                          _S"Releasing rwlock ${string} for READ at ${string}:${int}",
@@ -301,8 +302,8 @@ _Releases_exclusive_lock_(*l) bool rwlockReleaseWrite(_Inout_ RWLock* l);
 
 #ifdef CX_LOCK_DEBUG
 _Releases_exclusive_lock_(*l)
-    _meta_inline bool rwlockLogAndReleaseWrite(_Inout_ RWLock* l, const char* name,
-                                               const char* filename, int line)
+    static bool rwlockLogAndReleaseWrite(_Inout_ RWLock* l, const char* name,
+                                        const char* filename, int line)
 {
     _logFmtRwlockArgComp(CX_LOCK_DEBUG,
                          _S"Releasing rwlock ${string} for WRITE at ${string}:${int}",

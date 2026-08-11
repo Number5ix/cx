@@ -9,6 +9,7 @@
 #include "taskqueue/queue/tqcomplex.h"
 // clang-format on
 // ==================== Auto-generated section ends ======================
+#include <cx/log/logctx.h>
 #include "cx/taskqueue/taskqueue_private.h"
 
 _objfactory_guaranteed ComplexTaskQueue*
@@ -389,6 +390,8 @@ bool ComplexTaskQueue__runTask(_In_ ComplexTaskQueue* self, _Inout_ BasicTask** 
 
     TaskControl tcon = { 0 };
     uint32 tresult;
+    // run the task under the context it was submitted with; see TaskQueue__runTask
+    LogCtx* prevctx = logCtxSwap((LogCtx*)(*pbtask)->logctx);
     if (!cancelled) {
         tresult = btaskRun(*pbtask, self, worker, &tcon);
     } else {
@@ -397,6 +400,7 @@ bool ComplexTaskQueue__runTask(_In_ ComplexTaskQueue* self, _Inout_ BasicTask** 
         btaskRunCancelled(*pbtask, self, worker);
         tresult = TASK_Result_Failure;
     }
+    logCtxRestore(prevctx);
 
     Task* task = Task(ctask);
     int64 now  = clockTimer();

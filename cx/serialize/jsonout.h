@@ -134,6 +134,30 @@ _Check_return_ bool jsonOut(_Inout_ JSONOut* jo, _In_ JSONParseEvent* ev);
 /// @param jo Pointer to JSON output context (set to NULL after call)
 _At_(*jo, _Pre_valid_ _Post_invalid_) void jsonOutEnd(_Inout_ JSONOut** jo);
 
+/// Appends a string to another, escaped for use inside JSON quotes
+///
+/// The quotes themselves are not written, and the destination is appended to rather than
+/// replaced, so a caller assembling a JSON document by hand can use this for keys and values
+/// alike. Control characters become their short escapes where JSON defines one and `\uXXXX`
+/// otherwise; non-ASCII passes through as UTF-8 unless JSON_ASCII_Only is set.
+///
+/// This is the same escaping jsonOut() applies, exposed for callers that are producing single
+/// small JSON values and do not want a stream buffer to do it -- an NDJSON log line, for
+/// instance.
+///
+/// @param out String to append the escaped text to
+/// @param val String to escape; NULL appends nothing
+/// @param flags JSON output flags; only JSON_ASCII_Only is consulted
+///
+/// Example:
+/// @code
+///   string line = 0;
+///   strAppend(&line, _SL("{\"msg\":\""));
+///   jsonStrEscape(&line, msg, 0);
+///   strAppend(&line, _SL("\"}"));
+/// @endcode
+void jsonStrEscape(_Inout_ string* out, _In_opt_ strref val, flags_t flags);
+
 /// @}  // end of serialize_json_stream
 
 /// @defgroup serialize_json_tree Tree Output

@@ -1,19 +1,38 @@
 set(LOG_SRCS
     log/log.c
+    log/logchan.c
     log/logconsole.c
-    log/logdefer.c
+    log/logctx.c
+    log/logdedup.c
     log/logdest.c
     log/logfile.c
+    log/loggroup.c
     log/logmembuf.c
+    log/logndjson.c
+    log/logpanic.c
     log/logqueue.c
+    log/logrecord.c
+    log/logring.c
+    log/logrouting.c
+    log/logserializer.c
+    log/logsite.c
+    log/logsnapshot.c
+    log/logtext.c
+    log/logvolume.c
     log/logthread.c)
 set(LOG_INCLUDES
     log/log.h
     log/logconsole.h
-    log/logdefer.h
+    log/logctx.h
     log/logfile.h
+    log/loggroup.h
     log/logmembuf.h
+    log/logring.h
+    log/logserializer.h
+    log/logvolume.h
     log/log_private.h)
+set(LOG_AUTOGEN
+    log/logsnapshot.cxh)
 
 set(CX_SRCS
     ${CX_SRCS}
@@ -22,6 +41,11 @@ set(CX_SRCS
 set(CX_INCLUDES
     ${CX_INCLUDES}
     ${LOG_INCLUDES}
+    PARENT_SCOPE)
+
+set(CX_AUTOGEN
+    ${CX_AUTOGEN}
+    ${LOG_AUTOGEN}
     PARENT_SCOPE)
 
 set(CX_CMAKE_FILES

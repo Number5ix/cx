@@ -10,19 +10,24 @@
 /// formatting, and customizable output options. Files can be rotated based on size
 /// or time, with configurable retention policies.
 ///
+/// The file is a **transport**: it owns opening, rotation and retention, and takes a serializer
+/// that decides what a record looks like on the way in (see @ref log_serializer). The same
+/// rotating file therefore holds text or NDJSON depending only on what it was given.
+///
 /// **Basic Usage:**
 /// @code
 ///   LogFileConfig cfg = {
-///       .dateFormat = LOG_DateISO,
 ///       .rotateMode = LOG_RotateSize,
 ///       .rotateSize = 10 * 1024 * 1024,  // 10MB
 ///       .rotateKeepFiles = 5,
-///       .spacing = 2,
-///       .flags = LOG_IncludeChannel
 ///   };
+///   LogTextConfig tcfg = { .dateFormat = LOG_DateISO, .flags = LOG_IncludeChannel };
 ///
-///   LogFileData *lfd = logfileCreate(vfs, _SL("app.log"), &cfg);
+///   LogFileData *lfd = logfileCreate(vfs, _SL("app.log"), &cfg, logTextSerializer(&tcfg));
 ///   LogDest *dest = logfileRegister(LOG_Info, NULL, lfd);
+///
+///   // ...or the same rotation policy, written as NDJSON
+///   LogFileData *jfd = logfileCreate(vfs, _SL("app.ndjson"), &cfg, logNdjsonSerializer(NULL));
 ///
 ///   // Later, unregister to close
 ///   logUnregisterDest(dest);
@@ -30,30 +35,9 @@
 
 #include <cx/fs/vfs.h>
 #include <cx/log/log.h>
+#include <cx/log/logserializer.h>
 
 CX_C_BEGIN
-
-/// Timestamp format options for log file output
-enum LOG_DATE_FORMATS {
-    LOG_DateISO,             ///< ISO 8601 format: "2026-01-02 15:04:05"
-    LOG_DateISOCompact,      ///< Compact ISO: "20260102 150405"
-    LOG_DateNCSA,            ///< NCSA Common Log format: "02/Jan/2026:15:04:05 +0000"
-    LOG_DateSyslog,          ///< Syslog format: "Jan  2 15:04:05"
-    LOG_DateISOCompactMsec   ///< Compact ISO with milliseconds: "20260102 150405.123"
-};
-
-/// Formatting flags for log file output
-enum LOG_FLAGS {
-    LOG_LocalTime      = 0x0001,   ///< Use local time instead of UTC
-    LOG_OmitLevel      = 0x0002,   ///< Do not include severity level
-    LOG_ShortLevel     = 0x0004,   ///< Use single-character level abbreviations
-    LOG_BracketLevel   = 0x0008,   ///< Enclose log level in brackets [INFO]
-    LOG_JustifyLevel   = 0x0010,   ///< Make level a fixed-width column
-    LOG_IncludeChannel = 0x0020,   ///< Include channel name in output
-    LOG_BracketChannel = 0x0040,   ///< Enclose channel in brackets [Network]
-    LOG_AddColon       = 0x0080,   ///< Add colon after the prefix
-    LOG_ChannelFirst   = 0x0100,   ///< Channel between date and level instead of at end
-};
 
 /// Log rotation mode
 enum LOG_ROTATE_MODE {
@@ -63,13 +47,13 @@ enum LOG_ROTATE_MODE {
 
 /// Configuration for file-based logging
 ///
-/// Controls output formatting, rotation behavior, and retention policies.
+/// Controls rotation behavior and retention policies. Output formatting belongs to the
+/// serializer the file is created with, not here.
 typedef struct LogFileConfig {
-    int dateFormat;         ///< Date format from LOG_DATE_FORMATS enum
     int rotateMode;         ///< Rotation mode from LOG_ROTATE_MODE enum
-    int spacing;            ///< Number of spaces between prefix and message (default: 2)
 
-    uint32 flags;           ///< Bitwise OR of LOG_FLAGS values
+    uint32 flags;           ///< Bitwise OR of LOG_FLAGS values; only LOG_LocalTime is consulted,
+                            ///< to decide which day a time-based rotation belongs to
 
     int64 rotateSize;       ///< Size threshold for LOG_RotateSize mode (bytes)
     uint8 rotateHour;       ///< Hour for LOG_RotateTime mode (0-23)
@@ -95,19 +79,20 @@ typedef struct LogFileData LogFileData;
 ///
 /// @param vfs Virtual filesystem to use for file operations
 /// @param filename Path to the log file
-/// @param config Logging configuration (copied, caller retains ownership)
+/// @param config Rotation configuration (copied, caller retains ownership)
+/// @param ser Serializer to render records with; **ownership transfers**, including if this
+///            call fails. NULL gets a default text serializer.
 /// @return File logging handle, or NULL on failure
 /// @code
 ///   LogFileConfig cfg = {
-///       .dateFormat = LOG_DateISO,
 ///       .rotateMode = LOG_RotateSize,
 ///       .rotateSize = 10 * 1024 * 1024,
-///       .spacing = 2,
-///       .flags = LOG_IncludeChannel | LOG_BracketLevel
 ///   };
-///   LogFileData *lfd = logfileCreate(vfs, _SL("server.log"), &cfg);
+///   LogTextConfig tcfg = { .flags = LOG_IncludeChannel | LOG_BracketLevel };
+///   LogFileData *lfd = logfileCreate(vfs, _SL("server.log"), &cfg, logTextSerializer(&tcfg));
 /// @endcode
-LogFileData* logfileCreate(_Inout_ VFS* vfs, _In_ strref filename, _In_ LogFileConfig* config);
+LogFileData* logfileCreate(_Inout_ VFS* vfs, _In_ strref filename, _In_ LogFileConfig* config,
+                           _In_opt_ LogSerializer* ser);
 
 /// Register a file destination with the logging system
 ///
@@ -116,61 +101,10 @@ LogFileData* logfileCreate(_Inout_ VFS* vfs, _In_ strref filename, _In_ LogFileC
 /// automatically cleaned up when unregistered.
 ///
 /// @param maxlevel Maximum log level to write to file
-/// @param chanfilter Channel filter, or NULL for all non-private channels
+/// @param chanfilter Channel path pattern, or NULL for every unrestricted channel
 /// @param logfile File logging handle from logfileCreate()
 /// @return Destination handle for later unregistration, or NULL on failure
-LogDest* logfileRegister(int maxlevel, _In_opt_ LogChannel* chanfilter, _In_ LogFileData* logfile);
-
-/// Register a file destination and flush deferred logs
-///
-/// Atomically registers a file destination while flushing previously deferred logs
-/// to it. This ensures all logs from application startup are captured even if the
-/// log file couldn't be opened immediately.
-///
-/// @param maxlevel Maximum log level to write to file
-/// @param chanfilter Channel filter, or NULL for all non-private channels
-/// @param logfile File logging handle from logfileCreate()
-/// @param deferdest Deferred destination to flush (destroyed during this call)
-/// @return Destination handle for later unregistration, or NULL on failure
-/// @code
-///   // Early in startup - buffer logs temporarily
-///   LogDeferData *deferdata = logDeferCreate();
-///   LogDest *deferdest = logDeferRegister(LOG_Info, NULL, deferdata);
-///
-///   // Later - open file and transfer buffered logs
-///   LogFileData *lfd = logfileCreate(vfs, _SL("app.log"), &cfg);
-///   LogDest *dest = logfileRegisterWithDefer(LOG_Info, NULL, lfd, deferdest);
-/// @endcode
-LogDest* logfileRegisterWithDefer(int maxlevel, _In_opt_ LogChannel* chanfilter,
-                                  _In_ LogFileData* logfile, _In_ LogDest* deferdest);
-
-// ============================================================================
-// Shared Formatting Helpers
-// ============================================================================
-//
-// Build a line prefix from LOG_DATE_FORMATS/LOG_FLAGS. Exported so other destinations
-// (e.g. logconsole.c) can match file formatting exactly instead of reimplementing it.
-
-/// Formats a timestamp per dateFormat/flags.
-/// @param out Receives the formatted date; any existing value is destroyed first
-/// @param dateFormat One of the LOG_DATE_FORMATS values
-/// @param flags Bitwise OR of LOG_FLAGS values (only LOG_LocalTime is consulted)
-/// @param timestamp Wall clock timestamp to format
-void logFormatDate(_Inout_ string* out, int dateFormat, uint32 flags, int64 timestamp);
-
-/// Formats a level prefix per flags (LOG_OmitLevel, LOG_ShortLevel, LOG_BracketLevel,
-/// LOG_JustifyLevel). Produces an empty string when LOG_OmitLevel is set.
-/// @param out Receives the formatted level prefix; any existing value is destroyed first
-/// @param level Log severity level
-/// @param flags Bitwise OR of LOG_FLAGS values
-void logFormatLevel(_Inout_ string* out, int level, uint32 flags);
-
-/// Formats a channel prefix per flags (LOG_IncludeChannel, LOG_BracketChannel). Produces
-/// an empty string when the channel is omitted, NULL, or unnamed.
-/// @param out Receives the formatted channel prefix; any existing value is destroyed first
-/// @param chan Channel, or NULL for default
-/// @param flags Bitwise OR of LOG_FLAGS values
-void logFormatChannel(_Inout_ string* out, _In_opt_ LogChannel* chan, uint32 flags);
+LogDest* logfileRegister(int maxlevel, _In_opt_ strref chanfilter, _In_ LogFileData* logfile);
 
 // ============================================================================
 // Low Level Interface
@@ -181,17 +115,12 @@ void logFormatChannel(_Inout_ string* out, _In_opt_ LogChannel* chan, uint32 fla
 
 /// Log message callback for file destinations
 ///
-/// Formats and writes a log message to the file. Checks for rotation after
+/// Renders and writes a log record to the file. Checks for rotation after
 /// each write.
 ///
-/// @param level Log severity level
-/// @param chan Channel, or NULL for default
-/// @param timestamp Wall clock timestamp
-/// @param msg Log message text
-/// @param batchid Batch identifier for grouping
+/// @param rec Log record to write
 /// @param userdata LogFileData pointer from logfileCreate()
-void logfileMsgFunc(int level, _In_opt_ LogChannel* chan, int64 timestamp, _In_opt_ strref msg,
-                    uint32 batchid, _In_opt_ void* userdata);
+void logfileMsgFunc(_In_ const LogRecord* rec, _In_opt_ void* userdata);
 
 /// Batch completion callback for file destinations
 ///

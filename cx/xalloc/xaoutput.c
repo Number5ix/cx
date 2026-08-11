@@ -42,7 +42,8 @@ static void xaMimallocOutput(const char* msg, void* arg)
         goto out;
 
     strSetLen(&tmp, strLen(tmp) - 1);   // chop off \n
-    _logStr(lastLevel, -1, LogDefault, tmp);
+    // no call site to speak of: the level is chosen at runtime from text the allocator handed us
+    _logStr(lastLevel, -1, LogDefault, NULL, tmp);
 
 out:
     strDestroy(&tmp);

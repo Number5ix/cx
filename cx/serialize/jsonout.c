@@ -179,14 +179,19 @@ static void utfEscapedEncode(_Inout_ string* out, int32 codepoint)
     strDestroy(&temp);
 }
 
-static void writeEscapedString(_Inout_ JSONOut* jo, _In_opt_ strref val)
+_Use_decl_annotations_
+void jsonStrEscape(string* out, strref val, flags_t flags)
 {
-    string escaped = 0;
     uint8 buf[5];
     striter it;
     int32 code;
 
-    strReset(&escaped, strLen(val) + (strLen(val) >> 1));
+    // sanitize first so we don't truncate the output if there is invalid UTF-8
+    string clean = 0;
+    if (!strValidUTF8(val)) {
+        strSanitizeUTF8(&clean, val);
+        val = clean;
+    }
 
     striBorrow(&it, val);
 
@@ -194,44 +199,51 @@ static void writeEscapedString(_Inout_ JSONOut* jo, _In_opt_ strref val)
         if (code < 0x20) {
             switch (code) {
             case '\b':
-                strAppend(&escaped, kJSONEscBS);
+                strAppend(out, kJSONEscBS);
                 break;
             case '\f':
-                strAppend(&escaped, kJSONEscFF);
+                strAppend(out, kJSONEscFF);
                 break;
             case '\n':
-                strAppend(&escaped, kJSONEscNL);
+                strAppend(out, kJSONEscNL);
                 break;
             case '\r':
-                strAppend(&escaped, kJSONEscCR);
+                strAppend(out, kJSONEscCR);
                 break;
             case '\t':
-                strAppend(&escaped, kJSONEscTab);
+                strAppend(out, kJSONEscTab);
                 break;
             default:
-                utfEscapedEncode(&escaped, code);
+                utfEscapedEncode(out, code);
             }
         } else if (code == '"') {
-            strAppend(&escaped, kJSONEscQuote);
+            strAppend(out, kJSONEscQuote);
         } else if (code == '\\') {
-            strAppend(&escaped, kJSONEscBackslash);
+            strAppend(out, kJSONEscBackslash);
         } else if (code >= 0x20 && code <= 0x7f) {
-            strAppendChar(&escaped, (uint8)code);
+            strAppendChar(out, (uint8)code);
         } else {
-            if (!(jo->flags & JSON_ASCII_Only)) {
+            if (!(flags & JSON_ASCII_Only)) {
                 // insert raw UTF-8 into the string
                 uint32 len = _strUTF8Encode(buf, code);
                 buf[len]   = '\0';
-                strAppend(&escaped, (string)buf);
+                strAppend(out, (string)buf);
             } else {
-                utfEscapedEncode(&escaped, code);
+                utfEscapedEncode(out, code);
             }
         }
     }
 
     striFinish(&it);
-    writeStr(jo, escaped);
+    strDestroy(&clean);
+}
 
+static void writeEscapedString(_Inout_ JSONOut* jo, _In_opt_ strref val)
+{
+    string escaped = 0;
+    strReset(&escaped, strLen(val) + (strLen(val) >> 1));
+    jsonStrEscape(&escaped, val, jo->flags);
+    writeStr(jo, escaped);
     strDestroy(&escaped);
 }
 

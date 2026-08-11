@@ -18,9 +18,10 @@ CX_C_BEGIN
 /// uint32 CON_Idx(uint8 n);
 ///
 /// A palette color, 0-255. 0-15 are the standard + bright ANSI 16-color entries; 16-255 are
-/// the xterm 256-color cube and grayscale ramp. Always representable exactly on a
-/// CON_Color256 or CON_ColorTrue stream; downgraded to the nearest of the 16 base colors on a
-/// CON_Color16 stream.
+/// the 256-color cube and grayscale ramp popularized by the xterm terminal emulator and now
+/// supported by most terminals. Always representable exactly on a CON_Color256 or
+/// CON_ColorTrue stream; downgraded to the nearest of the 16 base colors on a CON_Color16
+/// stream.
 #define CON_Idx(n) (0x01000000u | (uint32)(uint8)(n))
 
 /// uint32 CON_RGB(uint8 r, uint8 g, uint8 b);

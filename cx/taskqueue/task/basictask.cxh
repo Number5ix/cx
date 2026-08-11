@@ -32,6 +32,10 @@ enum BasicTaskRunResultEnum {
 /// Bare minimum task object with state tracking and run method.
 [methodprefix btask] abstract class BasicTask {
     atomic[uint32] state;                ///< Current task state and flags
+    /// Log context captured when the task was added to a queue and restored around run(), so
+    /// records written on the worker thread still carry the submitter's log context.
+    /// Owned; use logCtx* to touch it.
+    void *logctx;
     /// Abstract method that derived classes must implement to define task behavior.
     ///
     /// This method is called by the task queue system when the task is ready to execute.
@@ -53,5 +57,8 @@ enum BasicTaskRunResultEnum {
     /// Reset task to initial state so it can be run again.
     /// @return true if reset was successful
     bool reset();
+    // declared explicitly because logctx is a plain pointer with an owned reference on it,
+    // which is not something the generator can clean up on its own
+    destroy();
 }
 /// @}

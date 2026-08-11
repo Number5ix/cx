@@ -9,6 +9,7 @@
 #include "taskqueue/task/basictask.h"
 // clang-format on
 // ==================== Auto-generated section ends ======================
+#include <cx/log/logctx.h>
 #include <cx/taskqueue/taskqueue.h>
 
 bool BasicTask_reset(_In_ BasicTask* self)
@@ -117,6 +118,11 @@ bool BasicTask__setState(_In_ BasicTask* self, uint32 newstate)
 void BasicTask_runCancelled(_In_ BasicTask* self, _In_ TaskQueue* tq, _In_ TQWorker* worker)
 {
     return;
+}
+
+void BasicTask_destroy(_In_ BasicTask* self)
+{
+    logCtxRelease((LogCtx**)&self->logctx);
 }
 
 // Autogen begins -----
