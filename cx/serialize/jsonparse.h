@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <cx/container/sarray.h>
 #include <cx/serialize/jsoncommon.h>
 
 typedef struct SSDNode SSDNode;
@@ -77,6 +78,8 @@ CX_C_BEGIN
 ///   sbufRelease(&sb);
 /// @endcode
 
+saDeclareType(JSONParseEvent, JSONParseEvent);
+
 /// Pull-mode JSON parser state
 ///
 /// Holds the state for incremental JSON parsing via jsonParseNext().
@@ -92,6 +95,8 @@ typedef struct JSONParseState {
     string errmsg;
     /// Current event (valid until next jsonParseNext call)
     JSONParseEvent ev;
+    /// Queue of events to deliver before parsing new ones
+    sa_JSONParseEvent queued;
     /// Top of context stack
     JSONParseContext* ctx;
     /// true if parsing completed without error
@@ -137,6 +142,21 @@ bool jsonParseInit(_Out_ JSONParseState* state, _Inout_ StreamBuffer* sb);
 /// @param state Parser state initialized with jsonParseInit()
 /// @return Pointer to the next event, or NULL when parsing is complete
 JSONParseEvent* jsonParseNext(_Inout_ JSONParseState* state);
+
+/// void jsonParsePush(JSONParseState *state, JSONParseEvent *ev)
+///
+/// Pushes a parse event to the tail of the event queue.
+///
+/// Events in the queue are returned by jsonParseNext() before any new events
+/// are parsed from the stream. Use this to defer events for later consumption
+/// by a different part of a complex parser.
+///
+/// String data in the event is deep-copied; the caller retains ownership of
+/// the original event.
+///
+/// @param state Parser state initialized with jsonParseInit()
+/// @param ev Event to enqueue
+void jsonParsePush(_Inout_ JSONParseState* state, _In_ JSONParseEvent* ev);
 
 /// void jsonParseDestroy(JSONParseState *state)
 ///

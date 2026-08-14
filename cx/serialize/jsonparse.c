@@ -5,6 +5,40 @@
 #include <cx/string/string_private_utf8.h>
 #include <cx/utils/compare.h>
 
+// stype ops for JSONParseEvent -- used by sa_JSONParseEvent queue in JSONParseState
+static void jsonParseEventDtor(stype st, stgeneric* g, flags_t flags)
+{
+    JSONParseEvent* ev = (JSONParseEvent*)g->st_opaque;
+    if (ev->etype == JSON_Object_Key || ev->etype == JSON_String || ev->etype == JSON_Error) {
+        strDestroy(&ev->edata.strData);
+    }
+}
+
+static void jsonParseEventCopy(stype st, stgeneric* gdest, stgeneric gsrc, flags_t flags)
+{
+    JSONParseEvent* dest = (JSONParseEvent*)gdest->st_opaque;
+    JSONParseEvent* src  = (JSONParseEvent*)gsrc.st_opaque;
+
+    *dest = *src;
+    if (src->etype == JSON_Object_Key || src->etype == JSON_String || src->etype == JSON_Error) {
+        dest->edata.strData = 0;   // prevent strDup from destroying the shallow-copied string
+        strDup(&dest->edata.strData, src->edata.strData);
+    }
+}
+
+static stDefine(JSONParseEvent) {
+    .id    = stTypeId(opaque),
+    .size  = sizeof(JSONParseEvent),
+    .flags = stFlag(PassPtr),
+    .ops   = { .dtor = jsonParseEventDtor, .copy = jsonParseEventCopy },
+};
+#define SType_JSONParseEvent                         JSONParseEvent*
+#define STStorageType_JSONParseEvent                 JSONParseEvent
+#define STypeArg_JSONParseEvent(type, val)           stgeneric(opaque, &(val))
+#define STypeArgPtr_JSONParseEvent(type, val)        &stgeneric(opaque, (val))
+#define STypeCheckedArg_JSONParseEvent(type, val)    stType(type), stArg(type, val)
+#define STypeCheckedPtrArg_JSONParseEvent(type, val) stType(type), stArgPtr(type, val)
+
 // string constants
 STR_CONST(kJPErrInvalidChar, "Invalid character code 0x${uint(hex)} in string");
 STR_CONST(kJPErrInvalidHex, "Invalid hex digit '${int(utfchar)}");
@@ -540,6 +574,7 @@ bool jsonParseInit(JSONParseState* state, StreamBuffer* sb)
     state->ctx        = xaAlloc(sizeof(JSONParseContext), XA_Zero);
     state->ctx->ctype = JSON_Top;
     state->ctx->phase = JP_Top_Value;
+    saInit(&state->queued, JSONParseEvent, 4);
     return true;
 }
 
@@ -549,6 +584,15 @@ JSONParseEvent* jsonParseNext(JSONParseState* state)
     StreamBuffer* sb = state->sb;
     unsigned char ch;
     size_t didread;
+
+    // Return queued events before parsing new ones
+    if (saSize(state->queued) > 0) {
+        jsonClearEvent(&state->ev);
+        memcpy(&state->ev, &state->queued.a[0], sizeof(JSONParseEvent));
+        memset(&state->queued.a[0], 0, sizeof(JSONParseEvent));
+        saRemove(&state->queued, 0);
+        return &state->ev;
+    }
 
     for (;;) {
         JSONParseContext* ctx = state->ctx;
@@ -713,6 +757,7 @@ _Use_decl_annotations_
 void jsonParseDestroy(JSONParseState* state)
 {
     jsonClearEvent(&state->ev);
+    saDestroy(&state->queued);
 
     // Clean up remaining context stack
     while (state->ctx) {
@@ -724,6 +769,12 @@ void jsonParseDestroy(JSONParseState* state)
     strDestroy(&state->errmsg);
     if (state->sb)
         sbufCFinish(state->sb);
+}
+
+_Use_decl_annotations_
+void jsonParsePush(JSONParseState* state, JSONParseEvent* ev)
+{
+    saPush(&state->queued, JSONParseEvent, *ev);
 }
 
 _Use_decl_annotations_
