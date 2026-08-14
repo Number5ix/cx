@@ -26,8 +26,10 @@ static void jsonParseEventCopy(stype st, stgeneric* gdest, stgeneric gsrc, flags
     }
 }
 
+STR_CONSTR(JSONParseEvent, "JSONParseEvent");
 static stDefine(JSONParseEvent) {
     .id    = stTypeId(opaque),
+    .name  = _SR(JSONParseEvent),
     .size  = sizeof(JSONParseEvent),
     .flags = stFlag(PassPtr),
     .ops   = { .dtor = jsonParseEventDtor, .copy = jsonParseEventCopy },

@@ -274,6 +274,7 @@ const STypeInfo _sti_sarray = {
               .copy = stCopy_sarray }
 };
 
+STR_CONSTR(hashtable, "hashtable");
 const STypeInfo _sti_hashtable = {
     .name  = _SR(hashtable),
     .id    = STypeId_hashtable,
