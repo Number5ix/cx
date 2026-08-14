@@ -368,7 +368,9 @@ void _htInit(_Outptr_ hashtable* out, stype keytype, stype valtype, uint32 inits
 ///   hashtable copy;
 ///   htInitFromType(&copy, htType(original), 0, 0);
 /// @endcode
-void htInitFromType(_Outptr_ hashtable* out, stype tbltype, uint32 initsz, flags_t flags);
+void _htInitFromType(_Outptr_ hashtable* out, stype tbltype, uint32 initsz, flags_t flags);
+#define htInitFromType(out, tbltype, initsz, ...) \
+    _htInitFromType(out, tbltype, initsz, opt_flags(__VA_ARGS__))
 
 /// stype htType(hashtable ref)
 ///
