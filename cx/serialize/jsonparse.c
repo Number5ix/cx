@@ -292,7 +292,8 @@ static bool parseNumber(_Inout_ StreamBuffer* sb, _Inout_ JSONParseEvent* ev,
 
     // first, split out the components into separate pieces
     while (sbufCFeed(sb, off + 1) && sbufCPeek(sb, &ch, off++, 1)) {
-        if (phase > 0 && (ch == ' ' || ch == '\n' || ch == '\r' || ch == '\t' || ch == ',')) {
+        if (phase > 0 && (ch == ' ' || ch == '\n' || ch == '\r' || ch == '\t' || ch == ',' ||
+                          ch == '}' || ch == ']')) {
             // all done
             // don't want to actually consume this character
             --off;

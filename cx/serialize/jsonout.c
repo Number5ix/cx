@@ -364,5 +364,5 @@ void jsonOutEnd(JSONOut** jo)
     sbufPFinish((*jo)->sb);
     strDestroy(&(*jo)->indent);
 
-    xaFree(*jo);
+    xaDestroy(jo);
 }
