@@ -562,6 +562,11 @@ _Success_(return) static bool htFindSlot(_In_ HashTableHeader* hdr, _In_ stgener
 _Use_decl_annotations_
 void htClone(hashtable* out, hashtable ref)
 {
+    if (!ref) {
+        *out = NULL;
+        return;
+    }
+
     *out = _htClone(ref, 0, false, false);
 }
 

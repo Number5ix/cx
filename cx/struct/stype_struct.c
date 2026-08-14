@@ -5,6 +5,8 @@
 void stDtor_struct(stype st, stgeneric* gen, uint32 flags)
 {
     StructBase* b = gen->st_struct;
+    if (!b)
+        return;
 
     _structDestroyMembersMany(b, 1);
 }
@@ -68,9 +70,12 @@ uint32 stHash_struct(stype st, stgeneric gen, uint32 flags)
 void stDtor_structp(stype st, stgeneric* gen, uint32 flags)
 {
     StructBase* b = gen->st_structp;
+    if (!b)
+        return;
 
     _structDestroyMembersMany(b, 1);
     xaFree(b);
+    gen->st_structp = NULL;
 }
 
 intptr stCmp_structp(stype st, stgeneric gen1, stgeneric gen2, uint32 flags)

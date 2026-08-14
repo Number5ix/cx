@@ -22,6 +22,10 @@ intptr stCmp_obj(stype st, stgeneric gen1, stgeneric gen2, uint32 flags)
     ObjInst* inst1 = gen1.st_object;
     ObjInst* inst2 = gen2.st_object;
 
+    // A NULL object reference is legal -- an unset object member, an empty array slot.
+    if (!inst1 || !inst2)
+        return (intptr)inst1 - (intptr)inst2;
+
     if (inst1->_clsinfo->_cmp)
         return inst1->_clsinfo->_cmp(inst1, inst2, flags);
 
@@ -37,6 +41,8 @@ _Use_decl_annotations_
 uint32 stHash_obj(stype st, stgeneric gen, uint32 flags)
 {
     ObjInst* inst = gen.st_object;
+    if (!inst)
+        return 0;
 
     devAssert(inst->_clsinfo->_hash);
     if (inst->_clsinfo->_hash)
