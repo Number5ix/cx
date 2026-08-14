@@ -268,16 +268,21 @@ const STypeInfo _sti_sarray = {
     .id    = STypeId_sarray,
     .flags = stFlag(Object),
     .size  = sizeof(stStorageType(sarray)),
-    .ops   = { .cmp = stCmp_sarray, .hash = stHash_sarray, .copy = stCopy_sarray }
+    .ops   = { .dtor = stDtor_sarray,
+              .cmp  = stCmp_sarray,
+              .hash = stHash_sarray,
+              .copy = stCopy_sarray }
 };
 
-STR_CONSTR(hashtable, "hashtable");
 const STypeInfo _sti_hashtable = {
     .name  = _SR(hashtable),
     .id    = STypeId_hashtable,
     .flags = stFlag(Object),
     .size  = sizeof(stStorageType(hashtable)),
-    .ops   = { .cmp = stCmp_hashtable, .hash = stHash_hashtable, .copy = stCopy_hashtable }
+    .ops   = { .dtor = stDtor_hashtable,
+              .cmp  = stCmp_hashtable,
+              .hash = stHash_hashtable,
+              .copy = stCopy_hashtable }
 };
 
 // As their size is dynamic, opaque and struct must be constructed as a temporary (or statically by
