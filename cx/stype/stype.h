@@ -725,7 +725,6 @@ enum STYPE_FLAGS {
 #define cchainCheckPtr(c)    (unused_noeval((c != NULL) && (*c) && &((*c)->_is_closure_chain)), (c))
 #define bufferCheck(c)       (unused_noeval((c) && &((c)->_is_buffer)), (c))
 #define bufferCheckPtr(c)    (unused_noeval((c != NULL) && (*c) && &((*c)->_is_buffer)), (c))
-#define structCheck(s)       (unused_noeval(&((s)._is_struct)), (s))
 #define structCheckPtr(s)    (unused_noeval((s != NULL) && &((s)->_is_struct)), (s))
 #define structCheckPtrPtr(s) (unused_noeval((s != NULL) && (*s) && &((*s)->_is_struct)), (s))
 
@@ -757,7 +756,8 @@ enum STYPE_FLAGS {
 #define STypeCheck_closure(type, val)   closureCheck(val)
 #define STypeCheck_cchain(type, val)    cchainCheck(val)
 #define STypeCheck_buffer(type, val)    bufferCheck(val)
-#define STypeCheck_struct(type, val)    structCheck(val)
+// We get the pointer for bare structs, similar to opaque, but we can type check the structure
+#define STypeCheck_struct(type, val)    structCheckPtr(val)
 #define STypeCheck_structp(type, val)   structCheckPtr(val)
 
 /// value stCheck(type, value)

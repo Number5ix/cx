@@ -73,6 +73,9 @@ static void strAppendLine(string* str, strref ln)
 
 static void writeAutoInit(StreamBuffer* bf, Class* cls);
 static void writeAutoDtors(StreamBuffer* bf, Class* cls);
+static bool structMemberEmitted(Member* m, _Inout_opt_ string* sttypename);
+static bool writeStructMemberDesc(StreamBuffer* bf, strref sname, Member* m);
+static void writeSchema(StreamBuffer* bf, TypeNode* node, hashtable* seen, bool* wroteany);
 
 static void writeMethodProto(StreamBuffer* bf, Class* cls, Method* m, bool protoonly,
                              bool mixinimpl, bool forparent)
@@ -832,14 +835,6 @@ void buildTypeName(string* out, TypeNode* node)
     strDestroy(&name);
 }
 
-void buildCompoundDescName(string* out, strref sname, TypeNode* node)
-{
-    string key = 0;
-    buildTypeKey(&key, node);
-    strNConcat(out, sname, _S"_", key);
-    strDestroy(&key);
-}
-
 // Strips transparent object/weak/struct wrapper nodes, returning the underlying TypeNode.
 static TypeNode* unwrapNode(TypeNode* node)
 {
@@ -915,6 +910,125 @@ static void getStructMemberType(string* out, Member* m)
     }
 }
 
+// True if this member produces a StructMemberDesc. Three passes have to agree on the answer --
+// prepareStructMemberTbl counts descriptors, writeStructMemberDesc emits them, and
+// writeSchemas emits the schemas they point at.
+static bool structMemberEmitted(Member* m, _Inout_opt_ string* sttypename)
+{
+    if (sttypename)
+        strClear(sttypename);
+
+    if ((m->flags & STRUCT_Ignore) == STRUCT_Ignore)
+        return false;
+
+    string tn = 0;
+    getStructMemberType(&tn, m);
+    bool emitted = !strEmpty(tn);
+    if (sttypename)
+        strDup(sttypename, tn);
+    strDestroy(&tn);
+
+    return emitted;
+}
+
+// cx's shared descriptor for a built-in type
+static bool isBuiltinSchema(strref name)
+{
+    return strEq(name, _S"none") || strEq(name, _S"bool") || strEq(name, _S"int8") ||
+        strEq(name, _S"int16") || strEq(name, _S"int32") || strEq(name, _S"int64") ||
+        strEq(name, _S"uint8") || strEq(name, _S"uint16") || strEq(name, _S"uint32") ||
+        strEq(name, _S"uint64") || strEq(name, _S"float32") || strEq(name, _S"float64") ||
+        strEq(name, _S"string") || strEq(name, _S"suid") || strEq(name, _S"object") ||
+        strEq(name, _S"buffer") || strEq(name, _S"stvar") || strEq(name, _S"sarray") ||
+        strEq(name, _S"hashtable");
+}
+
+// True if a type node is `structp[SomeStructSet]` -- the structp counterpart of
+// isClassSetNode(), a slot that holds any struct in the set and names which one on the wire.
+static bool isStructSetNode(TypeNode* node)
+{
+    if (!node || !strEq(node->name, _S"structp") || saSize(node->params) < 1)
+        return false;
+    return isStructSetName(node->params.a[0]->name);
+}
+
+// The key naming a StructTypeDetail symbol. This is buildTypeKey plus class identity: two expressions
+// differing only in their class -- sarray[object[A]] and sarray[object[B]] -- share a *runtime*
+// descriptor, because the runtime erases the class to `object` and that erasure is correct.
+// A schema is what puts the class back, so the two need distinct symbols here.
+static void buildSchemaKey(string* out, TypeNode* node)
+{
+    if (!isCompoundNode(node)) {
+        buildTypeKey(out, node);
+        return;
+    }
+
+    string key = 0, sub0 = 0, sub1 = 0;
+    if (strEq(node->name, _S"sarray")) {
+        buildSchemaKey(&sub0, node->params.a[0]);
+        strNConcat(&key, _S"sa_", sub0);
+    } else if (strEq(node->name, _S"hashtable")) {
+        buildSchemaKey(&sub0, node->params.a[0]);
+        buildSchemaKey(&sub1, node->params.a[1]);
+        strNConcat(&key, _S"ht_", sub0, _S"_", sub1);
+    } else {
+        buildTypeKey(&key, node);
+    }
+    strDup(out, key);
+    strDestroy(&key);
+    strDestroy(&sub0);
+    strDestroy(&sub1);
+}
+
+// A C expression naming the StructTypeDetail for a type node, or empty if the node has no schema.
+static void buildSchemaRef(string* out, TypeNode* node)
+{
+    strClear(out);
+    if (!node)
+        return;
+
+    // A struct set is the structp counterpart, for the same reason: one canonical descriptor
+    // per set, emitted alongside it, rather than a copy per use site.
+    if (isStructSetNode(node)) {
+        strNConcat(out, _S"&_strtd_structp_", node->params.a[0]->name);
+        return;
+    }
+
+    // Compound levels get a descriptor emitted per translation unit.
+    if (isCompoundNode(node)) {
+        string key = 0;
+        buildSchemaKey(&key, node);
+        strNConcat(out, _S"&_strtd_", key);
+        strDestroy(&key);
+        return;
+    }
+
+    // struct[X] is a nominal level and references the descriptor X's own declaration emits.
+    if (strEq(node->name, _S"struct") && saSize(node->params) >= 1) {
+        strNConcat(out, _S"&_strtd_struct_", node->params.a[0]->name);
+        return;
+    }
+
+    // Built-ins have a `TYPE_schema` macro of their own (cx/struct/schema.h), the same shape
+    // as every generated `X_schema` -- so the reference is the bare macro name, not an
+    // internal symbol with an explicit `&`.
+    if (isBuiltinSchema(node->name))
+        strNConcat(out, node->name, _S"_schema");
+}
+
+// Same, for a member: a plain scalar or string member carries no type node at all.
+static void buildMemberSchemaRef(string* out, Member* m)
+{
+    if (m->typenode) {
+        buildSchemaRef(out, m->typenode);
+        return;
+    }
+
+    strClear(out);
+    if (isBuiltinSchema(m->vartype))
+        strNConcat(out, m->vartype, _S"_schema");
+}
+
 static bool writeStructMemberDesc(StreamBuffer* bf, strref sname, Member* m)
 {
     if ((m->flags & STRUCT_Ignore) == STRUCT_Ignore)
@@ -964,18 +1078,14 @@ static bool writeStructMemberDesc(StreamBuffer* bf, strref sname, Member* m)
     strDestroy(&flags);
     saDestroy(&flagsarr);
 
-    if (m->typenode && isCompoundNode(m->typenode)) {
-        string descname = 0;
-        buildCompoundDescName(&descname, sname, m->typenode);
-        strNConcat(&ln, _S"        .type = &_sti_", descname, _S",");
-        strDestroy(&descname);
-    } else if (m->typenode && strEq(m->typenode->name, _S"struct") &&
-               saSize(m->typenode->params) >= 1) {
-        strNConcat(&ln, _S"        .type = &_sti_", m->typenode->params.a[0]->name, _S",");
-    } else {
-        strNConcat(&ln, _S"        .type = stType(", sttypename, _S"),");
-    }
+    // The declared type of the member, at every nesting level -- runtime shape and nominal wire
+    // type together. Never omitted: a dynamic slot still points at a leaf schema (e.g.
+    // `&stvar_schema`) rather than leaving this NULL.
+    string schemaref = 0;
+    buildMemberSchemaRef(&schemaref, m);
+    strNConcat(&ln, _S"        .schema = ", schemaref, _S",");
     sbufPWriteLine(bf, ln);
+    strDestroy(&schemaref);
 
     if (!strEmpty(m->postdecr)) {
         string numstr = 0;
@@ -995,19 +1105,12 @@ static bool writeStructMemberDesc(StreamBuffer* bf, strref sname, Member* m)
 
 static int prepareStructMemberTbl(StreamBuffer* bf, StructDef* str, bool* wroteany)
 {
-    string ln = 0;
+    string ln    = 0;
     int nmembers = 0;
 
-    // Count members that will produce descriptors (mirrors writeStructMemberDesc skip logic)
     for (int i = 0; i < saSize(str->members); i++) {
-        Member* m = str->members.a[i];
-        if ((m->flags & STRUCT_Ignore) == STRUCT_Ignore)
-            continue;
-        string sttypename = 0;
-        getStructMemberType(&sttypename, m);
-        if (!strEmpty(sttypename))
+        if (structMemberEmitted(str->members.a[i], NULL))
             nmembers++;
-        strDestroy(&sttypename);
     }
 
     *wroteany = true;
@@ -1043,6 +1146,8 @@ static void writeStructInfo(StreamBuffer* bf, StructDef* str, int nmembers, bool
     strNConcat(&ln, _S"    .name = _SR(", str->name, _S"_name),");
     sbufPWriteLine(bf, ln);
     strNConcat(&ln, _S"    .structsize = sizeof(", str->name, _S"),");
+    sbufPWriteLine(bf, ln);
+    strNConcat(&ln, _S"    .type = &_sti_", str->name, _S",");
     sbufPWriteLine(bf, ln);
     strFromInt32(&temp, nmembers, 10);
     if (hasdefaults) {
@@ -1082,10 +1187,6 @@ static void writeStructSTypeInfo(StreamBuffer* bf, StructDef* str, bool* wrotean
     sbufPWriteLine(bf, _S"    .flags = stFlag(PassPtr) | stFlag(Object),");
     strNConcat(&ln, _S"    .size  = (uint16)sizeof(", str->name, _S"),");
     sbufPWriteLine(bf, ln);
-    strNConcat(&ln, _S"    .name  = _SR(", str->name, _S"_name),");
-    sbufPWriteLine(bf, ln);
-    strNConcat(&ln, _S"    .ext   = &", str->name, _S"_structinfo,");
-    sbufPWriteLine(bf, ln);
     sbufPWriteLine(bf, _S"    .ops   = { .dtor = stDtor_struct,");
     sbufPWriteLine(bf, _S"               .cmp  = stCmp_struct,");
     sbufPWriteLine(bf, _S"               .hash = stHash_struct,");
@@ -1096,125 +1197,107 @@ static void writeStructSTypeInfo(StreamBuffer* bf, StructDef* str, bool* wrotean
     strDestroy(&ln);
 }
 
-static void writeCompoundSTypeInfo(StreamBuffer* bf, strref sname, TypeNode* node,
-                                   hashtable* seen, bool* wroteany)
+// The struct's own schema descriptor. Emitted after its StructInfo, which it points at through
+// `ext`.
+static void writeStructSchema(StreamBuffer* bf, StructDef* str, bool* wroteany)
 {
+    string ln = 0;
+
+    *wroteany = true;
+    strNConcat(&ln, _S"const StructTypeDetail _strtd_struct_", str->name, _S" = {");
+    sbufPWriteLine(bf, ln);
+    strNConcat(&ln, _S"    .type = &_sti_", str->name, _S",");
+    sbufPWriteLine(bf, ln);
+    strNConcat(&ln, _S"    .name = _SR(", str->name, _S"_name),");
+    sbufPWriteLine(bf, ln);
+    strNConcat(&ln, _S"    .ext  = &", str->name, _S"_structinfo,");
+    sbufPWriteLine(bf, ln);
+    sbufPWriteLine(bf, _S"};");
+    sbufPWriteEOL(bf);
+
+    strDestroy(&ln);
+}
+
+// Schema descriptors for one compound type expression, post-order so parameters are defined
+// before the level that names them. `seen` spans the whole translation unit rather than one
+// struct: unlike the runtime descriptors, whose symbols are scoped per owning struct, these are
+// file-static and identical wherever the same type expression appears, so two structs declaring
+// sarray[int32] share one.
+static void writeSchema(StreamBuffer* bf, TypeNode* node, hashtable* seen, bool* wroteany)
+{
+    // A struct set's schema is canonical and externally visible, emitted once alongside the
+    // set itself (writeStructSetDef) rather than as a per-TU static copy here -- the same
+    // reason a class set's schema never reaches this function at all (isClassSetNode's target,
+    // `object`, is not a compound node to begin with).
+    if (!isCompoundNode(node) || isStructSetNode(node))
+        return;
+
     string key = 0;
-    buildTypeKey(&key, node);
+    buildSchemaKey(&key, node);
 
     if (htHasKey(*seen, string, key)) {
         strDestroy(&key);
         return;
     }
 
-    // post-order: emit param types first
-    for (int i = 0; i < saSize(node->params); i++) {
-        TypeNode* param = node->params.a[i];
-        if (isCompoundNode(param))
-            writeCompoundSTypeInfo(bf, sname, param, seen, wroteany);
-    }
+    for (int i = 0; i < saSize(node->params); i++)
+        writeSchema(bf, node->params.a[i], seen, wroteany);
 
     htInsert(seen, string, key, bool, true);
     *wroteany = true;
 
-    string ln = 0;
-    string descname = 0;
-    buildCompoundDescName(&descname, sname, node);
-    string typename = 0;
-    buildTypeName(&typename, node);
-
-    strNConcat(&ln, _S"STR_CONSTR(", descname, _S"_name, \"", typename, _S"\");");
-    sbufPWriteLine(bf, ln);
-    strNConcat(&ln, _S"const STypeInfo _sti_", descname, _S" = {");
+    string ln = 0, p0 = 0, p1 = 0;
+    strNConcat(&ln, _S"static const StructTypeDetail _strtd_", key, _S" = {");
     sbufPWriteLine(bf, ln);
 
     if (strEq(node->name, _S"sarray")) {
-        sbufPWriteLine(bf, _S"    .id     = STypeId_sarray,");
-        sbufPWriteLine(bf, _S"    .flags  = stFlag(Object),");
-        sbufPWriteLine(bf, _S"    .size   = (uint16)sizeof(sa_ref),");
-        strNConcat(&ln, _S"    .name   = _SR(", descname, _S"_name),");
+        sbufPWriteLine(bf, _S"    .type  = &_sti_sarray,");
+        buildSchemaRef(&p0, node->params.a[0]);
+        if (strEmpty(p0))
+            strDup(&p0, _S"NULL");
+        strNConcat(&ln, _S"    .param = { ", p0, _S", NULL },");
         sbufPWriteLine(bf, ln);
-        TypeNode* p0 = node->params.a[0];
-        if (isCompoundNode(p0)) {
-            string p0name = 0;
-            buildCompoundDescName(&p0name, sname, p0);
-            strNConcat(&ln, _S"    .param  = { &_sti_", p0name, _S", NULL },");
-            strDestroy(&p0name);
-        } else if (strEq(p0->name, _S"struct") && saSize(p0->params) >= 1) {
-            strNConcat(&ln, _S"    .param  = { &_sti_", p0->params.a[0]->name, _S", NULL },");
-        } else {
-            strNConcat(&ln, _S"    .param  = { &_sti_", p0->name, _S", NULL },");
-        }
-        sbufPWriteLine(bf, ln);
-        sbufPWriteLine(bf, _S"    .ops    = { .cmp  = stCmp_sarray,");
-        sbufPWriteLine(bf, _S"               .hash = stHash_sarray,");
-        sbufPWriteLine(bf, _S"               .copy = stCopy_sarray },");
     } else if (strEq(node->name, _S"hashtable")) {
-        sbufPWriteLine(bf, _S"    .id     = STypeId_hashtable,");
-        sbufPWriteLine(bf, _S"    .flags  = stFlag(Object),");
-        sbufPWriteLine(bf, _S"    .size   = (uint16)sizeof(hashtable),");
-        strNConcat(&ln, _S"    .name   = _SR(", descname, _S"_name),");
+        sbufPWriteLine(bf, _S"    .type  = &_sti_hashtable,");
+        buildSchemaRef(&p0, node->params.a[0]);
+        buildSchemaRef(&p1, node->params.a[1]);
+        if (strEmpty(p0))
+            strDup(&p0, _S"NULL");
+        if (strEmpty(p1))
+            strDup(&p1, _S"NULL");
+        strNConcat(&ln, _S"    .param = { ", p0, _S", ", p1, _S" },");
         sbufPWriteLine(bf, ln);
-        TypeNode* p0 = node->params.a[0];
-        TypeNode* p1 = node->params.a[1];
-        string p0ref = 0, p1ref = 0;
-        if (isCompoundNode(p0)) {
-            string p0name = 0;
-            buildCompoundDescName(&p0name, sname, p0);
-            strNConcat(&p0ref, _S"&_sti_", p0name);
-            strDestroy(&p0name);
-        } else if (strEq(p0->name, _S"struct") && saSize(p0->params) >= 1) {
-            strNConcat(&p0ref, _S"&_sti_", p0->params.a[0]->name);
-        } else {
-            strNConcat(&p0ref, _S"&_sti_", p0->name);
-        }
-        if (isCompoundNode(p1)) {
-            string p1name = 0;
-            buildCompoundDescName(&p1name, sname, p1);
-            strNConcat(&p1ref, _S"&_sti_", p1name);
-            strDestroy(&p1name);
-        } else if (strEq(p1->name, _S"struct") && saSize(p1->params) >= 1) {
-            strNConcat(&p1ref, _S"&_sti_", p1->params.a[0]->name);
-        } else {
-            strNConcat(&p1ref, _S"&_sti_", p1->name);
-        }
-        strNConcat(&ln, _S"    .param  = { ", p0ref, _S", ", p1ref, _S" },");
-        sbufPWriteLine(bf, ln);
-        strDestroy(&p0ref);
-        strDestroy(&p1ref);
-        sbufPWriteLine(bf, _S"    .ops    = { .cmp  = stCmp_hashtable,");
-        sbufPWriteLine(bf, _S"               .hash = stHash_hashtable,");
-        sbufPWriteLine(bf, _S"               .copy = stCopy_hashtable },");
     } else if (strEq(node->name, _S"structp")) {
+        // Only the single-struct form reaches here -- isStructSetNode() already redirected the
+        // dynamic (struct-set) form to the canonical descriptor writeStructSetDef emits. The
+        // pointee's name lives on its own descriptor rather than being repeated here: this
+        // level is structural, and a struct's name constant is not visible outside the
+        // translation unit that declares it. An unknown pointee already produced an #error
+        // from writeCompoundSTypeInfo.
         strref pname = node->params.a[0]->name;
-        sbufPWriteLine(bf, _S"    .id    = STypeId_structp,");
-        sbufPWriteLine(bf, _S"    .flags = stFlag(Object),");
-        sbufPWriteLine(bf, _S"    .size  = (uint16)sizeof(StructBase*),");
-        strNConcat(&ln, _S"    .name  = _SR(", descname, _S"_name),");
-        sbufPWriteLine(bf, ln);
+        sbufPWriteLine(bf, _S"    .type  = &_sti_structp,");
         if (isStructName(pname)) {
-            strNConcat(&ln, _S"    .param = { &_sti_", pname, _S", NULL },");
-            sbufPWriteLine(bf, ln);
-        } else if (isStructSetName(pname)) {
-            strNConcat(&ln, _S"    .ext   = &", pname, _S"_structset,");
-            sbufPWriteLine(bf, ln);
-        } else {
-            fprintf(stderr, "WARNING: structp[%s]: '%s' is not a known struct or structset\n",
-                    strC(pname), strC(pname));
-            strNConcat(&ln, _S"#error \"structp[", pname, _S"]: unknown type '", pname, _S"'\"");
+            strNConcat(&ln, _S"    .param = { &_strtd_struct_", pname, _S", NULL },");
             sbufPWriteLine(bf, ln);
         }
-        sbufPWriteLine(bf, _S"    .ops   = { .dtor = stDtor_structp, .cmp  = stCmp_structp,");
-        sbufPWriteLine(bf, _S"               .hash = stHash_structp, .copy = stCopy_structp },");
     }
 
     sbufPWriteLine(bf, _S"};");
     sbufPWriteEOL(bf);
 
     strDestroy(&key);
-    strDestroy(&descname);
-    strDestroy(&typename);
+    strDestroy(&p0);
+    strDestroy(&p1);
     strDestroy(&ln);
+}
+
+static void writeSchemas(StreamBuffer* bf, StructDef* str, hashtable* seen, bool* wroteany)
+{
+    for (int i = 0; i < saSize(str->members); i++) {
+        Member* m = str->members.a[i];
+        if (structMemberEmitted(m, NULL))
+            writeSchema(bf, m->typenode, seen, wroteany);
+    }
 }
 
 static int strCmpCB(const void* a, const void* b)
@@ -1253,24 +1336,17 @@ static void writeStructSetDef(StreamBuffer* bf, StructSetDef* ss, bool* wroteany
     sbufPWriteLine(bf, _S"};");
     sbufPWriteEOL(bf);
 
+    strNConcat(&ln, _S"const StructTypeDetail _strtd_structp_", ss->name, _S" = {");
+    sbufPWriteLine(bf, ln);
+    sbufPWriteLine(bf, _S"    .type  = &_sti_structp,");
+    sbufPWriteLine(bf, _S"    .flags = Struct_Type_Set,");
+    strNConcat(&ln, _S"    .ext   = &", ss->name, _S"_structset,");
+    sbufPWriteLine(bf, ln);
+    sbufPWriteLine(bf, _S"};");
+    sbufPWriteEOL(bf);
+
     saDestroy(&sorted);
     strDestroy(&ln);
-}
-
-static void writeCompoundSTypeInfos(StreamBuffer* bf, StructDef* str, bool* wroteany)
-{
-    hashtable seen;
-    htInit(&seen, string, bool, 8);
-
-    for (int i = 0; i < saSize(str->members); i++) {
-        Member* m = str->members.a[i];
-        if ((m->flags & STRUCT_Ignore) == STRUCT_Ignore)
-            continue;
-        if (isCompoundNode(m->typenode))
-            writeCompoundSTypeInfo(bf, str->name, m->typenode, &seen, wroteany);
-    }
-
-    htDestroy(&seen);
 }
 
 static bool writeStructDefaults(StreamBuffer* bf, StructDef* str, bool* wroteany)
@@ -1592,6 +1668,7 @@ nextloop:
         sbufPWriteLine(ibf, autogenBegin);
         sbufPWriteLine(ibf, clangOff);
         sbufPWriteLine(ibf, autogenNotice);
+        sbufPWriteLine(ibf, _S"#include <cx/struct/struct.h>");
         sbufPWriteLine(ibf, _S"#include <cx/string.h>");
 
         for (int i = 0; i < saSize(classes); i++) {
@@ -1602,6 +1679,9 @@ nextloop:
             if (!ifaces.a[i]->included)
                 writeIfaceTmpl(ibf, ifaces.a[i], &wroteany);
         }
+        // Schema descriptors dedupe across the whole file
+        hashtable schseen;
+        htInit(&schseen, string, bool, 16);
         for (int i = 0; i < saSize(classes); i++) {
             if (!classes.a[i]->included && !classes.a[i]->mixin)
                 writeClassImpl(ibf, classes.a[i], &wroteany);
@@ -1609,12 +1689,14 @@ nextloop:
         for (int i = 0; i < saSize(structs); i++) {
             if (!structs.a[i]->included) {
                 bool hasdefaults = writeStructDefaults(ibf, structs.a[i], &wroteany);
-                writeCompoundSTypeInfos(ibf, structs.a[i], &wroteany);
-                int nmembers = prepareStructMemberTbl(ibf, structs.a[i], &wroteany);
+                int nmembers     = prepareStructMemberTbl(ibf, structs.a[i], &wroteany);
+                writeSchemas(ibf, structs.a[i], &schseen, &wroteany);
                 writeStructInfo(ibf, structs.a[i], nmembers, hasdefaults, &wroteany);
                 writeStructSTypeInfo(ibf, structs.a[i], &wroteany);
+                writeStructSchema(ibf, structs.a[i], &wroteany);
             }
         }
+        htDestroy(&schseen);
         for (int i = 0; i < saSize(structsets); i++) {
             if (!structsets.a[i]->included)
                 writeStructSetDef(ibf, structsets.a[i], &wroteany);

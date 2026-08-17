@@ -5,31 +5,70 @@
 #include <cx/container/stype_hashtable.h>
 #include <cx/container/stype_sarray.h>
 #include <cx/string.h>
+#include <cx/struct/schema.h>
 #include <cx/stype/stype.h>
 #include "stype_struct.h"
 
 CX_C_BEGIN
+
+/// @addtogroup struct
+/// @{
 
 enum StructMemberFlagsEnum {
     STRUCT_NoDestroy   = 1 << 0,   ///< Member should not be automatically destroyed
     STRUCT_NoCopy      = 1 << 1,   ///< Member should be skipped during copy operations
     STRUCT_NoSerialize = 1 << 2,   ///< Member should not be serialized (e.g. by JSON, etc.)
 
-    /// Member should be ignored for all operations
-    /// Ignored members may also be omitted from the list entirely, e.g. for types outside the stype
-    /// system.
+    /// Combines all of the above; ignored members may also be left out of the member table
+    /// entirely, e.g. for a type the stype system doesn't know about.
     STRUCT_Ignore = STRUCT_NoDestroy | STRUCT_NoSerialize | STRUCT_NoCopy,
 };
 
 typedef struct StructSet StructSet;
 
+// StructTypeDetail describes what a value is *declared* to be, as opposed to `stype`, which
+// describes how to operate on it at runtime and deliberately loses information a serializer
+// needs (e.g. every class collapses to plain `object`).
+
+/// Flags for `StructTypeDetail::flags`.
+enum StructTypeDetailFlagsEnum {
+    /// The exact type isn't fixed here -- it's one of several types listed in the `StructSet`
+    /// or `ClassSet` stored in `ext`. The actual type of each value is written alongside it so
+    /// it can be read back correctly.
+    Struct_Type_Set = (1 << 0),
+};
+
+/// Describes the declared type of a value, for use with serWrite() and serRead().
+///
+/// cxautogen generates one of these for every serializable struct member, and a `TYPE_schema`
+/// macro for every serializable struct or class (e.g. `MyStruct_schema`). Built-in types have
+/// one too, e.g. `int32_schema`. Pass the matching schema alongside a value so the reader and
+/// writer agree on what it is -- including element types for arrays and hashtables, and the
+/// concrete type for a value that could be one of several (see `Struct_Type_Set`).
+typedef struct StructTypeDetail {
+    stype type;     ///< Runtime type of the value at this level.
+    uint32 flags;   ///< See `StructTypeDetailFlagsEnum`.
+
+    /// Name used to identify this type on the wire, or NULL if it doesn't need one (e.g. a
+    /// plain `int32` is always written the same way, so it isn't named).
+    strref name;
+
+    /// `StructInfo*`, `ObjClassInfo*`, `StructSet*`, or `ClassSet*`, depending on `type` and
+    /// `flags`; NULL if not applicable.
+    const void* ext;
+
+    const StructTypeDetail* param[2];   ///< Element type, or key type + value type.
+} StructTypeDetail;
+
 typedef struct StructMemberDesc {
-    strref name;      // Name of the member
-    size_t offset;    // Offset within the struct
-    stype type;       // Type of the member
+    strref name;     // Name on the wire; empty for a [noserialize] member
+    size_t offset;   // Offset within the struct
+
+    const StructTypeDetail* schema;   // Declared type, including nested/nominal type info
+
     uint32 flags;     // Member flags (StructMemberFlagsEnum)
     uint32 cflags;    // Creation flags (e.g. for arrays, hashtables, etc.)
-    uint32 arrsize;   // For fixed-size C arrays: number of elements (0 = scalar)
+    uint32 arrsize;   // Fixed-size C arrays: element count (0 = scalar)
 } StructMemberDesc;
 
 typedef struct StructInfo {
@@ -37,26 +76,18 @@ typedef struct StructInfo {
     size_t structsize;                 // Size in bytes of the struct
     int nmembers;                      // Number of struct members
     const void* defaults;              // Default struct to copy (if any)
+    stype type;                        // Runtime type descriptor for this struct
 
-    // Optional custom initializer
-    //
-    // Structs are always zero-filled when allocated. If set, this function is called when a
-    // struct  is initialized, and can be used to set up non-zero default values, etc.
-    void (*init)(void* _struct);
-
-    // Optional custom destructor
-    //
-    // Called when the struct is destroyed. This is called before the automatic
-    // clean-up of struct members, so strings, etc. will still be valid.
-    void (*destroy)(void* _struct);
+    void (*init)(void* _struct);       // Optional: called after zero-fill to set defaults
+    void (*destroy)(void* _struct);    // Optional: called before members are destroyed
 
     const StructMemberDesc members[];   // Array of struct member descriptors
 } StructInfo;
 
-// Set of structs for serialization of dynamic structs
+// A named list of struct types, used for a member that can hold any one of them.
 typedef struct StructSet {
     int nentries;
-    const StructInfo* entries[];   // sorted by name for binary search; sorted by name
+    const StructInfo* entries[];   // sorted by name, for binary search
 } StructSet;
 
 /// Looks up a struct type by name in a StructSet using binary search.
@@ -69,7 +100,7 @@ _Ret_maybenull_ const StructInfo* structSetFind(_In_ const StructSet* ss, _In_op
 typedef struct StructBase {
     union {
         const StructInfo* structinfo;   ///< Pointer to struct metadata
-        void* _is_struct;               ///< Type marker for compile-time validation
+        void* _is_struct;               // compile-time marker; not for direct use
     };
 
     // Struct-specific data members follow
@@ -121,7 +152,7 @@ void _structInitMany(_Out_ StructBase* base, _In_ const StructInfo* info, int nu
 /// @endcode
 #define structInit(structname, s) _structInitMany(STRUCTBASE(s), &structInfoName(structname), 1)
 
-_Ret_notnull_ StructBase* _structAlloc(_In_ StructInfo* info);
+_Ret_notnull_ StructBase* _structAlloc(_In_ const StructInfo* info);
 
 /// struct* structCreate(structname);
 ///
@@ -141,6 +172,10 @@ _Ret_notnull_ StructBase* _structAlloc(_In_ StructInfo* info);
 ///   structDestroy(&s);
 /// @endcode
 #define structCreate(structname) ((structname*)_structAlloc(&structInfoName(structname)))
+
+// Destroy one member of one struct instance, including every element if it is a fixed
+// C array. Exposed for the struct traverser; ordinary code goes through the macros below.
+void _structDestroyMember(_In_ const StructMemberDesc* member, _Inout_ StructBase* s);
 
 void _structDestroyMembersMany(_Pre_notnull_ _Post_invalid_ StructBase* base, int number);
 
@@ -203,5 +238,7 @@ _At_(*pbase, _Pre_maybenull_ _Post_null_) void _structDestroy(StructBase** pbase
 ///   structDestroy(&s);   // s is NULL after this
 /// @endcode
 #define structDestroy(ps) _structDestroy(STRUCTHANDLE(ps))
+
+/// @}
 
 CX_C_END

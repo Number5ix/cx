@@ -34,17 +34,27 @@ intptr stCmp_struct(stype st, stgeneric gen1, stgeneric gen2, uint32 flags)
     return structCompare(b1, b2);
 }
 
+// Copies every member from bsrc into bdest. Caller must have zero-filled bdest and set its
+// structinfo first -- zero-filling keeps padding deterministic for the byte-wise compare/hash.
 static void structCopy(StructBase* bdest, StructBase* bsrc, flags_t flags)
 {
     const StructInfo* info = bsrc->structinfo;
 
     for (int i = 0; i < info->nmembers; i++) {
         const StructMemberDesc* member = &info->members[i];
-        void* destptr            = (char*)bdest + member->offset;
-        memset(destptr, 0, info->structsize);   // ensure clean state for copy
-        if (!(member->flags & STRUCT_NoCopy)) {
-            void* srcptr = (char*)bsrc + member->offset;
-            _stCopy(member->type, (stgeneric*)destptr, *(stgeneric*)srcptr, flags);
+        if (member->flags & STRUCT_NoCopy)
+            continue;   // already zero from the caller's fill
+
+        char* destptr = (char*)bdest + member->offset;
+        char* srcptr  = (char*)bsrc + member->offset;
+        uint32 n      = member->arrsize ? member->arrsize : 1;
+        size_t stride = stGetSize(member->schema->type);
+
+        for (uint32 e = 0; e < n; e++) {
+            _stCopy(member->schema->type,
+                    stStoredPtr(member->schema->type, destptr + e * stride),
+                    stStored(member->schema->type, srcptr + e * stride),
+                    flags);
         }
     }
 }
@@ -53,8 +63,11 @@ void stCopy_struct(stype st, _stCopyDest_Anno_(st) stgeneric* dest, _In_ stgener
                    flags_t flags)
 {
     StructBase *bsrc = src.st_struct, *bdest = dest->st_struct;
-    if (!bsrc || !bdest || bsrc->structinfo != bdest->structinfo)
+    if (!bsrc || !bdest || !bsrc->structinfo)
         return;
+
+    memset(bdest, 0, bsrc->structinfo->structsize);
+    bdest->structinfo = bsrc->structinfo;
 
     structCopy(bdest, bsrc, flags);
 }
@@ -93,9 +106,9 @@ void stCopy_structp(stype st, _stCopyDest_Anno_(st) stgeneric* dest, _In_ stgene
     if (!bsrc || !bsrc->structinfo)
         return;
 
-    dest->st_structp   = (StructBase*)xaAlloc(bsrc->structinfo->structsize);
-    StructBase* bdest  = dest->st_structp;
-    bdest->structinfo  = bsrc->structinfo;
+    dest->st_structp  = (StructBase*)xaAlloc(bsrc->structinfo->structsize, XA_Zero);
+    StructBase* bdest = dest->st_structp;
+    bdest->structinfo = bsrc->structinfo;
 
     structCopy(bdest, bsrc, flags);
 }
