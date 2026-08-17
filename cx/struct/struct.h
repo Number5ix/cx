@@ -5,7 +5,6 @@
 #include <cx/container/stype_hashtable.h>
 #include <cx/container/stype_sarray.h>
 #include <cx/string.h>
-#include <cx/struct/schema.h>
 #include <cx/stype/stype.h>
 #include "stype_struct.h"
 
@@ -26,45 +25,11 @@ enum StructMemberFlagsEnum {
 
 typedef struct StructSet StructSet;
 
-// StructTypeDetail describes what a value is *declared* to be, as opposed to `stype`, which
-// describes how to operate on it at runtime and deliberately loses information a serializer
-// needs (e.g. every class collapses to plain `object`).
-
-/// Flags for `StructTypeDetail::flags`.
-enum StructTypeDetailFlagsEnum {
-    /// The exact type isn't fixed here -- it's one of several types listed in the `StructSet`
-    /// or `ClassSet` stored in `ext`. The actual type of each value is written alongside it so
-    /// it can be read back correctly.
-    Struct_Type_Set = (1 << 0),
-};
-
-/// Describes the declared type of a value, for use with serWrite() and serRead().
-///
-/// cxautogen generates one of these for every serializable struct member, and a `TYPE_schema`
-/// macro for every serializable struct or class (e.g. `MyStruct_schema`). Built-in types have
-/// one too, e.g. `int32_schema`. Pass the matching schema alongside a value so the reader and
-/// writer agree on what it is -- including element types for arrays and hashtables, and the
-/// concrete type for a value that could be one of several (see `Struct_Type_Set`).
-typedef struct StructTypeDetail {
-    stype type;     ///< Runtime type of the value at this level.
-    uint32 flags;   ///< See `StructTypeDetailFlagsEnum`.
-
-    /// Name used to identify this type on the wire, or NULL if it doesn't need one (e.g. a
-    /// plain `int32` is always written the same way, so it isn't named).
-    strref name;
-
-    /// `StructInfo*`, `ObjClassInfo*`, `StructSet*`, or `ClassSet*`, depending on `type` and
-    /// `flags`; NULL if not applicable.
-    const void* ext;
-
-    const StructTypeDetail* param[2];   ///< Element type, or key type + value type.
-} StructTypeDetail;
-
 typedef struct StructMemberDesc {
     strref name;     // Name on the wire; empty for a [noserialize] member
     size_t offset;   // Offset within the struct
 
-    const StructTypeDetail* schema;   // Declared type, including nested/nominal type info
+    const STypeInfoExt* schema;   // Declared type, including nested/nominal type info
 
     uint32 flags;     // Member flags (StructMemberFlagsEnum)
     uint32 cflags;    // Creation flags (e.g. for arrays, hashtables, etc.)

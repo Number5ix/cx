@@ -297,6 +297,7 @@ typedef struct STypeOps STypeOps;
 // stype is a pointer to the canonical STypeInfo structure for the type
 typedef struct STypeInfo STypeInfo;
 typedef const STypeInfo* stype;
+typedef struct STypeInfoExt STypeInfoExt;
 
 // standardize on uint32 for function call flags
 typedef uint32 flags_t;
@@ -1374,6 +1375,97 @@ typedef struct STypeInfo {
 
     STypeOps ops;   ///< operations embedded directly - no separate allocation
 } STypeInfo;
+
+/// @}
+
+/// @defgroup stype_ext Extended Type Information
+/// @ingroup stype
+/// @{
+///
+/// `STypeInfoExt` layers structural, declaration-level information on top of an `stype`. Where
+/// `STypeInfo` answers *how do I operate on this value at runtime*, `STypeInfoExt` answers
+/// *what is this value declared to be*. It exists for consumers that need more than the runtime
+/// system is willing to remember, such as struct member initialization or serialization.
+///
+/// A few rules set it apart from `STypeInfo`:
+/// - It is always layered on an existing `stype`: `type` is never anything but a valid,
+///   canonical stype, never a shape of its own.
+/// - It is **not** program-wide unique and must never be compared by pointer equality -- unlike
+///   `stype`, where identity is pointer identity. The same logical extended type can legitimately
+///   have more than one descriptor.
+/// - `name` is filled in only when the type can be serialized; otherwise it is NULL, equivalent
+///   to an empty string.
+
+/// Flags for `STypeInfoExt::flags`.
+enum STypeInfoExtFlagsEnum {
+    /// The exact type isn't fixed here -- it's one of several types listed in the `StructSet` or
+    /// `ClassSet` stored in `detail`. The actual type of each value is written alongside it so it
+    /// can be read back correctly.
+    STIE_TypeSet = (1 << 0),
+};
+
+/// Structural, declaration-level information about a type, layered on top of an `stype`. See the
+/// `stype_ext` group overview for how this differs from `STypeInfo`.
+///
+/// cxautogen generates one of these for every serializable struct member, and a canonical
+/// `STypeInfoExt` -- reached through the `stExt(name)` macro -- for every serializable struct,
+/// class, `structset`, or `classset`. Built-in types have one too, e.g. `stExt(int32)`. Pass the
+/// matching descriptor alongside a value so a consumer such as the serializer can agree on what
+/// it is -- including element types for arrays and hashtables, and the concrete type for a value
+/// that could be one of several (see `STIE_TypeSet`).
+typedef struct STypeInfoExt {
+    stype type;     ///< The stype this extends; always a valid, canonical stype.
+    uint32 flags;   ///< See `STypeInfoExtFlagsEnum`.
+
+    /// Name used to identify this type on the wire, or NULL if it doesn't need one (e.g. a plain
+    /// `int32` is always written the same way, so it isn't named), or if the type can't be
+    /// serialized at all.
+    strref name;
+
+    /// `StructInfo*`, `ObjClassInfo*`, `StructSet*`, or `ClassSet*`, depending on `type` and
+    /// `flags`; NULL if not applicable.
+    const void* detail;
+
+    const STypeInfoExt* param[2];   ///< Element type, or key type + value type.
+} STypeInfoExt;
+
+/// One shared descriptor per built-in type, reached through `stExt(name)`, e.g. `stExt(int32)`.
+///
+/// `stExt(sarray)` and `stExt(hashtable)` describe a plain, untyped container. A struct member
+/// declared with specific element types (e.g. `sarray[int32]`) gets its own descriptor, generated
+/// by cxautogen, instead.
+extern const STypeInfoExt _stie_none;
+extern const STypeInfoExt _stie_bool;        ///< @copydoc _stie_none
+extern const STypeInfoExt _stie_int8;        ///< @copydoc _stie_none
+extern const STypeInfoExt _stie_int16;       ///< @copydoc _stie_none
+extern const STypeInfoExt _stie_int32;       ///< @copydoc _stie_none
+extern const STypeInfoExt _stie_int64;       ///< @copydoc _stie_none
+extern const STypeInfoExt _stie_uint8;       ///< @copydoc _stie_none
+extern const STypeInfoExt _stie_uint16;      ///< @copydoc _stie_none
+extern const STypeInfoExt _stie_uint32;      ///< @copydoc _stie_none
+extern const STypeInfoExt _stie_uint64;      ///< @copydoc _stie_none
+extern const STypeInfoExt _stie_float32;     ///< @copydoc _stie_none
+extern const STypeInfoExt _stie_float64;     ///< @copydoc _stie_none
+extern const STypeInfoExt _stie_string;      ///< @copydoc _stie_none
+extern const STypeInfoExt _stie_suid;        ///< @copydoc _stie_none
+extern const STypeInfoExt _stie_object;      ///< @copydoc _stie_none
+extern const STypeInfoExt _stie_buffer;      ///< @copydoc _stie_none
+extern const STypeInfoExt _stie_stvar;       ///< @copydoc _stie_none
+extern const STypeInfoExt _stie_sarray;      ///< @copydoc _stie_none
+extern const STypeInfoExt _stie_hashtable;   ///< @copydoc _stie_none
+
+/// STypeInfoExt* stExt(name)
+///
+/// The canonical `STypeInfoExt` for a built-in type, or one declared in scope -- the `STypeInfoExt`
+/// counterpart of `stType(name)`. Resolves to `&_stie_##name`.
+///
+/// @param name Type name, unquoted (e.g. `int32`, `MyStruct`, `MyClass`, `MyStructSet`)
+///
+/// Example:
+/// @code
+///   serWrite(w, stExt(int32), stType(int32), stArg(int32, 42));
+/// @endcode
+#define stExt(name) (&_stie_##name)
 
 /// @}
 

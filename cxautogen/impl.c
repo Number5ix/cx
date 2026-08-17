@@ -980,7 +980,7 @@ static void buildSchemaKey(string* out, TypeNode* node)
     strDestroy(&sub1);
 }
 
-// A C expression naming the StructTypeDetail for a type node, or empty if the node has no schema.
+// A C expression naming the STypeInfoExt for a type node, or empty if the node has no schema.
 static void buildSchemaRef(string* out, TypeNode* node)
 {
     strClear(out);
@@ -990,7 +990,7 @@ static void buildSchemaRef(string* out, TypeNode* node)
     // A struct set is the structp counterpart, for the same reason: one canonical descriptor
     // per set, emitted alongside it, rather than a copy per use site.
     if (isStructSetNode(node)) {
-        strNConcat(out, _S"&_strtd_structp_", node->params.a[0]->name);
+        strNConcat(out, _S"&_stie_", node->params.a[0]->name);
         return;
     }
 
@@ -998,22 +998,21 @@ static void buildSchemaRef(string* out, TypeNode* node)
     if (isCompoundNode(node)) {
         string key = 0;
         buildSchemaKey(&key, node);
-        strNConcat(out, _S"&_strtd_", key);
+        strNConcat(out, _S"&_stie_", key);
         strDestroy(&key);
         return;
     }
 
     // struct[X] is a nominal level and references the descriptor X's own declaration emits.
     if (strEq(node->name, _S"struct") && saSize(node->params) >= 1) {
-        strNConcat(out, _S"&_strtd_struct_", node->params.a[0]->name);
+        strNConcat(out, _S"&_stie_", node->params.a[0]->name);
         return;
     }
 
-    // Built-ins have a `TYPE_schema` macro of their own (cx/struct/schema.h), the same shape
-    // as every generated `X_schema` -- so the reference is the bare macro name, not an
-    // internal symbol with an explicit `&`.
+    // Built-ins are reached through the universal stExt(name) macro (cx/stype/stype.h), the
+    // same one every generated nominal descriptor is reached through.
     if (isBuiltinSchema(node->name))
-        strNConcat(out, node->name, _S"_schema");
+        strNConcat(out, _S"stExt(", node->name, _S")");
 }
 
 // Same, for a member: a plain scalar or string member carries no type node at all.
@@ -1026,7 +1025,7 @@ static void buildMemberSchemaRef(string* out, Member* m)
 
     strClear(out);
     if (isBuiltinSchema(m->vartype))
-        strNConcat(out, m->vartype, _S"_schema");
+        strNConcat(out, _S"stExt(", m->vartype, _S")");
 }
 
 static bool writeStructMemberDesc(StreamBuffer* bf, strref sname, Member* m)
@@ -1080,7 +1079,7 @@ static bool writeStructMemberDesc(StreamBuffer* bf, strref sname, Member* m)
 
     // The declared type of the member, at every nesting level -- runtime shape and nominal wire
     // type together. Never omitted: a dynamic slot still points at a leaf schema (e.g.
-    // `&stvar_schema`) rather than leaving this NULL.
+    // `stExt(stvar)`) rather than leaving this NULL.
     string schemaref = 0;
     buildMemberSchemaRef(&schemaref, m);
     strNConcat(&ln, _S"        .schema = ", schemaref, _S",");
@@ -1198,19 +1197,19 @@ static void writeStructSTypeInfo(StreamBuffer* bf, StructDef* str, bool* wrotean
 }
 
 // The struct's own schema descriptor. Emitted after its StructInfo, which it points at through
-// `ext`.
+// `detail`.
 static void writeStructSchema(StreamBuffer* bf, StructDef* str, bool* wroteany)
 {
     string ln = 0;
 
     *wroteany = true;
-    strNConcat(&ln, _S"const StructTypeDetail _strtd_struct_", str->name, _S" = {");
+    strNConcat(&ln, _S"const STypeInfoExt _stie_", str->name, _S" = {");
     sbufPWriteLine(bf, ln);
-    strNConcat(&ln, _S"    .type = &_sti_", str->name, _S",");
+    strNConcat(&ln, _S"    .type   = &_sti_", str->name, _S",");
     sbufPWriteLine(bf, ln);
-    strNConcat(&ln, _S"    .name = _SR(", str->name, _S"_name),");
+    strNConcat(&ln, _S"    .name   = _SR(", str->name, _S"_name),");
     sbufPWriteLine(bf, ln);
-    strNConcat(&ln, _S"    .ext  = &", str->name, _S"_structinfo,");
+    strNConcat(&ln, _S"    .detail = &", str->name, _S"_structinfo,");
     sbufPWriteLine(bf, ln);
     sbufPWriteLine(bf, _S"};");
     sbufPWriteEOL(bf);
@@ -1247,7 +1246,7 @@ static void writeSchema(StreamBuffer* bf, TypeNode* node, hashtable* seen, bool*
     *wroteany = true;
 
     string ln = 0, p0 = 0, p1 = 0;
-    strNConcat(&ln, _S"static const StructTypeDetail _strtd_", key, _S" = {");
+    strNConcat(&ln, _S"static const STypeInfoExt _stie_", key, _S" = {");
     sbufPWriteLine(bf, ln);
 
     if (strEq(node->name, _S"sarray")) {
@@ -1277,7 +1276,7 @@ static void writeSchema(StreamBuffer* bf, TypeNode* node, hashtable* seen, bool*
         strref pname = node->params.a[0]->name;
         sbufPWriteLine(bf, _S"    .type  = &_sti_structp,");
         if (isStructName(pname)) {
-            strNConcat(&ln, _S"    .param = { &_strtd_struct_", pname, _S", NULL },");
+            strNConcat(&ln, _S"    .param = { &_stie_", pname, _S", NULL },");
             sbufPWriteLine(bf, ln);
         }
     }
@@ -1336,11 +1335,11 @@ static void writeStructSetDef(StreamBuffer* bf, StructSetDef* ss, bool* wroteany
     sbufPWriteLine(bf, _S"};");
     sbufPWriteEOL(bf);
 
-    strNConcat(&ln, _S"const StructTypeDetail _strtd_structp_", ss->name, _S" = {");
+    strNConcat(&ln, _S"const STypeInfoExt _stie_", ss->name, _S" = {");
     sbufPWriteLine(bf, ln);
-    sbufPWriteLine(bf, _S"    .type  = &_sti_structp,");
-    sbufPWriteLine(bf, _S"    .flags = Struct_Type_Set,");
-    strNConcat(&ln, _S"    .ext   = &", ss->name, _S"_structset,");
+    sbufPWriteLine(bf, _S"    .type   = &_sti_structp,");
+    sbufPWriteLine(bf, _S"    .flags  = STIE_TypeSet,");
+    strNConcat(&ln, _S"    .detail = &", ss->name, _S"_structset,");
     sbufPWriteLine(bf, ln);
     sbufPWriteLine(bf, _S"};");
     sbufPWriteEOL(bf);

@@ -24,7 +24,7 @@ static void structInitMembers(StructBase* s, const StructInfo* info)
         if (member->schema->type->id != stTypeId(struct))
             continue;
 
-        const StructInfo* sub = (const StructInfo*)member->schema->ext;
+        const StructInfo* sub = (const StructInfo*)member->schema->detail;
         if (!sub)
             continue;   // bare `struct` token, no identity -- nothing to stamp
 

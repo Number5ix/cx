@@ -259,6 +259,32 @@ const STypeInfo _sti_hashtable = {
               .copy = stCopy_hashtable }
 };
 
+// ---------------------------------------------------------------------------------------
+// Canonical STypeInfoExt descriptors for the unparameterized built-ins
+// ---------------------------------------------------------------------------------------
+
+#define STIE_BUILTIN(nm) const STypeInfoExt _stie_##nm = { .type = &_sti_##nm }
+
+STIE_BUILTIN(none);
+STIE_BUILTIN(bool);
+STIE_BUILTIN(int8);
+STIE_BUILTIN(int16);
+STIE_BUILTIN(int32);
+STIE_BUILTIN(int64);
+STIE_BUILTIN(uint8);
+STIE_BUILTIN(uint16);
+STIE_BUILTIN(uint32);
+STIE_BUILTIN(uint64);
+STIE_BUILTIN(float32);
+STIE_BUILTIN(float64);
+STIE_BUILTIN(string);
+STIE_BUILTIN(suid);
+STIE_BUILTIN(object);
+STIE_BUILTIN(buffer);
+STIE_BUILTIN(stvar);
+STIE_BUILTIN(sarray);
+STIE_BUILTIN(hashtable);
+
 // As their size is dynamic, opaque and struct must be constructed as a temporary (or statically by
 // cxautogen in the struct case). Instead we provide default STypeOps here for them to copy.
 

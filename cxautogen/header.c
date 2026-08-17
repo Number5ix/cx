@@ -564,12 +564,7 @@ static void writeStructSetDecl(StreamBuffer* bf, StructSetDef* ss)
     string ln = 0;
     strNConcat(&ln, _S"extern StructSet ", ss->name, _S"_structset;");
     sbufPWriteLine(bf, ln);
-    // The set's schema descriptor -- the structp counterpart of a classset's below -- visible
-    // for the same reason a class's or a struct's is: every slot declared over the set, here or
-    // in another translation unit, points at this one object rather than describing it again.
-    strNConcat(&ln, _S"extern const StructTypeDetail _strtd_structp_", ss->name, _S";");
-    sbufPWriteLine(bf, ln);
-    strNConcat(&ln, _S"#define ", ss->name, _S"_schema (&_strtd_structp_", ss->name, _S")");
+    strNConcat(&ln, _S"extern const STypeInfoExt _stie_", ss->name, _S";");
     sbufPWriteLine(bf, ln);
     strDestroy(&ln);
 }
@@ -597,9 +592,7 @@ void writeStructDecl(StreamBuffer* bf, StructDef* str)
     sbufPWriteLine(bf, ln);
     strNConcat(&ln, _S"extern const StructInfo ", str->name, _S"_structinfo;");
     sbufPWriteLine(bf, ln);
-    strNConcat(&ln, _S"extern const StructTypeDetail _strtd_struct_", str->name, _S";");
-    sbufPWriteLine(bf, ln);
-    strNConcat(&ln, _S"#define ", str->name, _S"_schema (&_strtd_struct_", str->name, _S")");
+    strNConcat(&ln, _S"extern const STypeInfoExt _stie_", str->name, _S";");
     sbufPWriteLine(bf, ln);
     strNConcat(
         &ln,

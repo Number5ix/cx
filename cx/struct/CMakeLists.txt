@@ -1,9 +1,7 @@
 set(STRUCTSRCS
-    struct/schema.c
     struct/struct.c
     struct/stype_struct.c)
 set(STRUCTINCLUDES
-    struct/schema.h
     struct/struct.h
     struct/stype_struct.h)
 
