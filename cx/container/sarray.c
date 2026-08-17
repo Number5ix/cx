@@ -420,49 +420,13 @@ bool _saInit(sahandle out, stype elemtype, int32 capacity, bool canfail, flags_t
             flags |= SA_Grow(Slow);
     }
 
-    hdr->arraytype = NULL;   // set lazily if requested
-    hdr->elemtype  = stCanonical(elemtype);
-    hdr->count     = 0;
-    hdr->capacity  = capacity;
-    hdr->flags     = flags;
-    out->a         = &hdr->data[0];
+    hdr->elemtype = stCanonical(elemtype);
+    hdr->count    = 0;
+    hdr->capacity = capacity;
+    hdr->flags    = flags;
+    out->a        = &hdr->data[0];
 
     return true;
-}
-
-_Use_decl_annotations_
-bool _saInitFromType(sahandle out, stype arraytype, int32 capacity, bool canfail, flags_t flags)
-{
-    devAssert(arraytype);
-    devAssert(arraytype->id == stTypeId(sarray));
-
-    // arraytype SHOULD already be canonical, but just in case
-    arraytype = stCanonical(arraytype);
-
-    stype elemtype = arraytype->param[0];
-    devAssert(elemtype);
-
-    bool ret = _saInit(out, elemtype, capacity, canfail, flags);
-
-    if (ret) {
-        SArrayHeader* hdr = SARRAY_HDR(*out);
-        hdr->arraytype    = arraytype;
-    }
-
-    return ret;
-}
-
-_Use_decl_annotations_
-stype _saType(sa_ref ref)
-{
-    SArrayHeader* hdr = SARRAY_HDR(ref);
-    if (!hdr->arraytype) {
-        STypeInfo tmp = stTypeInfo(sarray);   // copy sarray type to use as a base
-        tmp.flags |= stFlag(Temporary);
-        tmp.param[0]   = hdr->elemtype;
-        hdr->arraytype = stCanonical(&tmp);   // this will register the type if needed
-    }
-    return hdr->arraytype;
 }
 
 static bool saRealloc(_Inout_ sahandle handle, _Inout_ptr_ SArrayHeader** hdr, int32 cap,

@@ -130,9 +130,7 @@ static void stCopy_none(stype st, _stCopyDest_Anno_(st) stgeneric* dest, _In_ st
 
 // Canonical STypeInfo structures for built-in types
 
-STR_CONSTR(none, "none");
 const STypeInfo _sti_none = {
-    .name  = _SR(none),
     .id    = STypeId_none,
     .flags = 0,
     .size  = 0,
@@ -142,18 +140,13 @@ const STypeInfo _sti_none = {
               .convert = stConvert_none }
 };
 
-#define ST_BASIC_INFO(type, cvttype) \
-    STR_CONSTR(type, #type);         \
-    const STypeInfo _sti_##type = { \
-    .name  = _SR(type), \
-    .id    = STypeId_##type, \
-    .flags = 0, \
-    .size  = sizeof(STStorageType_##type), \
-    .ops = { \
-        .cmp = stCmp_##type, \
-        .convert = stConvert_##cvttype, \
-    }, \
-}
+#define ST_BASIC_INFO(type, cvttype)                                      \
+    const STypeInfo _sti_##type = {                                       \
+        .id    = STypeId_##type,                                          \
+        .flags = 0,                                                       \
+        .size  = sizeof(STStorageType_##type),                            \
+        .ops   = { .cmp = stCmp_##type, .convert = stConvert_##cvttype }, \
+    }
 
 ST_BASIC_INFO(int8, int);
 ST_BASIC_INFO(int16, int);
@@ -168,9 +161,7 @@ ST_BASIC_INFO(float64, float64);
 ST_BASIC_INFO(bool, bool);
 ST_BASIC_INFO(ptr, ptr);
 
-STR_CONSTR(string, "string");
 const STypeInfo _sti_string = {
-    .name  = _SR(string),
     .id    = STypeId_string,
     .flags = stFlag(Object),
     .size  = sizeof(stStorageType(string)),
@@ -181,9 +172,7 @@ const STypeInfo _sti_string = {
               .convert = stConvert_string }
 };
 
-STR_CONSTR(object, "object");
 const STypeInfo _sti_object = {
-    .name  = _SR(object),
     .id    = STypeId_object,
     .flags = stFlag(Object),
     .size  = sizeof(stStorageType(object)),
@@ -194,27 +183,21 @@ const STypeInfo _sti_object = {
               .convert = stConvert_obj }
 };
 
-STR_CONSTR(weakref, "weakref");
 const STypeInfo _sti_weakref = {
-    .name  = _SR(weakref),
     .id    = STypeId_weakref,
     .flags = stFlag(Object),
     .size  = sizeof(stStorageType(weakref)),
     .ops   = { .dtor = stDtor_weakref, .cmp = stCmp_weakref, .copy = stCopy_weakref }
 };
 
-STR_CONSTR(suid, "suid");
 const STypeInfo _sti_suid = {
-    .name  = _SR(suid),
     .id    = STypeId_suid,
     .flags = stFlag(PassPtr),
     .size  = sizeof(stStorageType(suid)),
     .ops   = { .cmp = stCmp_suid, .convert = stConvert_suid }
 };
 
-STR_CONSTR(stvar, "stvar");
 const STypeInfo _sti_stvar = {
-    .name  = _SR(stvar),
     .id    = STypeId_stvar,
     .flags = stFlag(PassPtr) | stFlag(Object),
     .size  = sizeof(stStorageType(stvar)),
@@ -225,18 +208,14 @@ const STypeInfo _sti_stvar = {
               .convert = stConvert_stvar }
 };
 
-STR_CONSTR(closure, "closure");
 const STypeInfo _sti_closure = {
-    .name  = _SR(closure),
     .id    = STypeId_closure,
     .flags = stFlag(Object),
     .size  = sizeof(stStorageType(closure)),
     .ops   = { .dtor = stDtor_closure, .cmp = stCmp_closure, .copy = stCopy_closure }
 };
 
-STR_CONSTR(buffer, "buffer");
 const STypeInfo _sti_buffer = {
-    .name  = _SR(buffer),
     .id    = STypeId_buffer,
     .flags = stFlag(Object),
     .size  = sizeof(stStorageType(buffer)),
@@ -249,9 +228,7 @@ const STypeInfo _sti_buffer = {
 // struct is intentionally omitted. It's not legal to create a bare structure directly. cxautogen
 // automatically creates canonical types for each defined structure that use the struct type ID
 
-STR_CONSTR(structp, "structp");
 const STypeInfo _sti_structp = {
-    .name  = _SR(structp),
     .id    = STypeId_structp,
     .flags = stFlag(Object),
     .size  = sizeof(stStorageType(structp)),
@@ -262,9 +239,7 @@ const STypeInfo _sti_structp = {
 };
 
 // non-parameterized version of containers
-STR_CONSTR(sarray, "sarray");
 const STypeInfo _sti_sarray = {
-    .name  = _SR(sarray),
     .id    = STypeId_sarray,
     .flags = stFlag(Object),
     .size  = sizeof(stStorageType(sarray)),
@@ -274,9 +249,7 @@ const STypeInfo _sti_sarray = {
               .copy = stCopy_sarray }
 };
 
-STR_CONSTR(hashtable, "hashtable");
 const STypeInfo _sti_hashtable = {
-    .name  = _SR(hashtable),
     .id    = STypeId_hashtable,
     .flags = stFlag(Object),
     .size  = sizeof(stStorageType(hashtable)),

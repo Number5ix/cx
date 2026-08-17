@@ -72,12 +72,10 @@ static void extraMetaDtor(stype st, stgeneric* gen, uint32 flags)
     xaFree(m->str);
 }
 
-STR_CONSTR(CrashExtraMeta, "CrashExtraMeta");
 stDefine(CrashExtraMeta) {
     .id    = stTypeId(opaque),
     .size  = sizeof(CrashExtraMeta),
     .flags = stFlag(PassPtr),
-    .name  = _SR(CrashExtraMeta),
     .ops   = { .cmp = extraMetaCmp, .dtor = extraMetaDtor }
 };
 

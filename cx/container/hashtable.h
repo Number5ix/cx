@@ -39,7 +39,6 @@ typedef struct HashTableHeader {
     uint32 valid;      // number of valid items in the hash table
     uint32 flags;
 
-    stype tbltype;   // canonical type of the table itself. NULL until requested, then cached
     stype keytype;
     stype valtype;
 
@@ -344,47 +343,6 @@ void _htInit(_Outptr_ hashtable* out, stype keytype, stype valtype, uint32 inits
 /// @endcode
 #define htInit(out, keytype, valtype, initsz, ...) \
     _htInit(out, stType(keytype), stType(valtype), initsz, opt_flags(__VA_ARGS__))
-
-/// void htInitFromType(hashtable *out, stype tbltype, uint32 initsz, [flags])
-///
-/// Initialize a hash table from a canonical hashtable type descriptor.
-///
-/// The type descriptor encodes the full parameterized type: key type in `param[0]`,
-/// value type in `param[1]`. Obtain one from `htType()` on an existing table, from a
-/// pre-declared `_sti_ht_K_V` static, or by constructing and interning one through
-/// `stCanonical()`. This is the preferred init path when the full table type is known
-/// statically (e.g. in generated struct code).
-///
-/// @param out Pointer to hashtable handle to receive the new table
-/// @param tbltype Canonical `stype` for a hashtable (must have `id == stTypeId(hashtable)`)
-/// @param initsz Initial capacity (rounded up to next power of two, 0 for default)
-/// @param flags Optional combination of HT_* flags
-///
-/// Example:
-/// @code
-///   hashtable original;
-///   htInit(&original, string, int32, 16);
-///   // Later, create another table with the same key/value types:
-///   hashtable copy;
-///   htInitFromType(&copy, htType(original), 0, 0);
-/// @endcode
-void _htInitFromType(_Outptr_ hashtable* out, stype tbltype, uint32 initsz, flags_t flags);
-#define htInitFromType(out, tbltype, initsz, ...) \
-    _htInitFromType(out, tbltype, initsz, opt_flags(__VA_ARGS__))
-
-/// stype htType(hashtable ref)
-///
-/// Return the canonical stype descriptor for the table's parameterized type.
-///
-/// The returned descriptor has `id == stTypeId(hashtable)`, `param[0]` = key type,
-/// `param[1]` = value type. It is interned on first call (via `stCanonical`) and
-/// cached in the table header for O(1) subsequent lookups. The result can be passed
-/// to `htInitFromType()` to create a new table with the same key/value types, or
-/// stored in a `StructMemberDesc` for serialization.
-///
-/// @param ref The hash table (passed by value)
-/// @return Canonical stype for this hashtable parameterization
-stype htType(_In_ hashtable ref);
 
 /// Destroys a hash table and frees all associated memory
 ///

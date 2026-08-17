@@ -237,7 +237,6 @@ void _htInit(hashtable* out, stype keytype, stype valtype, uint32 initsz, flags_
     ret->idxsz   = initsz;
     ret->idxused = ret->storused = ret->valid = 0;
 
-    ret->tbltype = NULL;   // will be filled in lazily if requested
     ret->keytype = stCanonical(keytype);
     ret->valtype = stCanonical(valtype);
     ret->flags   = flags;
@@ -254,39 +253,6 @@ void _htInit(hashtable* out, stype keytype, stype valtype, uint32 initsz, flags_
     memset(ret->index, 0, idxsize);
 
     *out = (hashtable)&ret->index[0];
-}
-
-_Use_decl_annotations_
-void _htInitFromType(hashtable* out, stype tbltype, uint32 initsz, flags_t flags)
-{
-    devAssert(tbltype);
-    devAssert(tbltype->id == stTypeId(hashtable));
-
-    // tbltype SHOULD already be canonical, but just in case
-    tbltype = stCanonical(tbltype);
-
-    stype keytype = tbltype->param[0];
-    stype valtype = tbltype->param[1];
-    devAssert(keytype && valtype);
-
-    _htInit(out, keytype, valtype, initsz, flags);
-
-    HashTableHeader* ret = _htHdr(*out);
-    ret->tbltype         = tbltype;
-}
-
-_Use_decl_annotations_
-stype htType(hashtable ref)
-{
-    HashTableHeader* hdr = _htHdr(ref);
-    if (!hdr->tbltype) {
-        STypeInfo tmp = stTypeInfo(hashtable);   // copy hashtable type to use as a base
-        tmp.flags |= stFlag(Temporary);
-        tmp.param[0] = hdr->keytype;
-        tmp.param[1] = hdr->valtype;
-        hdr->tbltype = stCanonical(&tmp);   // this will register the type if needed
-    }
-    return hdr->tbltype;
 }
 
 static _meta_inline uint32 clampHash(_In_ HashTableHeader* hdr, uint32 hash)
@@ -351,7 +317,6 @@ _Ret_valid_ static hashtable _htClone(_In_ hashtable htbl, uint32 minsz, bool mo
     nhdr           = xaAlloc(HTABLE_HDRSIZE + idxsize);
     ntbl           = (hashtable)&nhdr->index[0];
 
-    nhdr->tbltype = hdr->tbltype;
     nhdr->keytype = hdr->keytype;
     nhdr->valtype = hdr->valtype;
     nhdr->idxsz   = newsz;

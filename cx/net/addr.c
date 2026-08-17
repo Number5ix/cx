@@ -57,11 +57,9 @@ static uint32 netAddrHash(stype st, stgeneric gen, flags_t flags)
     return hashMurmur3((const uint8*)&key, sizeof(key));
 }
 
-STR_CONSTR(NetAddr, "NetAddr");
 stDefine(NetAddr) { .id    = stTypeId(opaque),
                     .size  = sizeof(NetAddr),
                     .flags = stFlag(PassPtr),
-                    .name  = _SR(NetAddr),
                     .ops   = { .cmp = netAddrCmp, .hash = netAddrHash } };
 
 // ---------------------------------------------------------------------------------------------

@@ -32,15 +32,11 @@
 ///
 /// @code
 ///   typedef struct STypeInfo {
-///       uint32           id;       // hierarchical type class | subtype | discriminant
-///       uint16           size;     // storage size in bytes
-///       uint16           flags;    // STypeFlag_Object, STypeFlag_PassPtr, STypeFlag_Temporary
-///       strref           name;     // type name for debug and serialization
-///       const STypeInfo* param[2]; // for parameterized types (must be canonical):
-///                                  //   sarray:    param[0] = element type
-///                                  //   hashtable: param[0] = key, param[1] = value
-///       const void*      ext;      // type-specific extension data (e.g. StructInfo*)
-///       STypeOps         ops;      // embedded operations: dtor, cmp, hash, copy, convert
+///       uint32 id;                      // hierarchical type class | subtype | discriminant
+///       uint16 size;                    // storage size in bytes
+///       uint16 flags;                   // STypeFlag_Object, STypeFlag_PassPtr,
+///                                        // STypeFlag_Temporary
+///       STypeOps ops;                   // embedded operations: dtor, cmp, hash, copy, convert
 ///   } STypeInfo;
 /// @endcode
 ///
@@ -110,7 +106,7 @@
 ///
 /// - If `Temporary` is clear, the descriptor is already canonical - returned as-is.
 /// - If `Temporary` is set, `_stGetCanonical()` looks up or inserts the descriptor
-///   in the global type registry (keyed by id + size + param pointers), returns the
+///   in the global type registry (keyed by id + size), returns the
 ///   canonical heap-allocated copy with `Temporary` cleared.
 ///
 /// After the first use, all subsequent calls with equivalent parameters resolve to the
@@ -435,8 +431,8 @@ _Static_assert(sizeof(stgeneric) == sizeof(uint64), "stype container too large")
 
 typedef struct stvar {
     stgeneric data;
-    stype _type;         // low bit: STVAR_OwnsData; use stvarType()/setters below
-    const char* _key;    // optional key; NULL or program-lifetime. Use stvarKey().
+    stype _type;        // low bit: STVAR_OwnsData; use stvarType()/setters below
+    const char* _key;   // optional key; NULL or program-lifetime. Use stvarKey().
 } stvar;
 
 // Low-bit tag stashed in the _type pointer. stype is a pointer to a canonical STypeInfo
@@ -1372,19 +1368,11 @@ typedef struct STypeOps {
 /// scope with `stDefine(name) { ... }` and declared in headers with
 /// `stDeclare(name)`.
 typedef struct STypeInfo {
-    uint32 id;          ///< hierarchical type ID: STCLASS | STST_subtype | discriminant
-    uint16 size;        ///< storage size in bytes
-    uint16 flags;       ///< STypeFlag_Object, STypeFlag_PassPtr, STypeFlag_Temporary
-    strref name;        ///< name for debug, serialization, etc
+    uint32 id;      ///< hierarchical type ID: STCLASS | STST_subtype | discriminant
+    uint16 size;    ///< storage size in bytes
+    uint16 flags;   ///< STypeFlag_Object, STypeFlag_PassPtr, STypeFlag_Temporary
 
-    /// Parameterized sub-type descriptors (must point to canonical types):
-    ///   sarray:    param[0] = element type, param[1] = NULL
-    ///   hashtable: param[0] = key type,     param[1] = value type
-    ///   all others: both NULL
-    const STypeInfo* param[2];
-
-    const void* ext;   ///< type-specific extension data (e.g. StructInfo*); ignored by stype core
-    STypeOps ops;      ///< operations embedded directly - no separate allocation
+    STypeOps ops;   ///< operations embedded directly - no separate allocation
 } STypeInfo;
 
 /// @}
@@ -1726,12 +1714,10 @@ _meta_inline bool stEq(stype s1, stype s2)
 /// **File-local type** (no cross-TU sharing needed):
 /// @code
 ///   // In myfile.c:
-///   STR_CONSTR(MyKey, "MyKey");
 ///   static stDefine(mykey) {
 ///       .id    = STypeId_opaque,
 ///       .size  = sizeof(MyKey),
 ///       .flags = stFlag(PassPtr),
-///       .name  = _SR(MyKey),
 ///       .ops   = { .dtor = myKeyDtor, .cmp = myKeyCmp, .hash = myKeyHash },
 ///   };
 ///   #define SType_mykey                         MyKey*
@@ -1759,12 +1745,10 @@ _meta_inline bool stEq(stype s1, stype s2)
 ///   #define STypeCheckedPtrArg_vec3(type, val) stType(type), stArgPtr(type, val)
 ///
 ///   // mylib.c:
-///   STR_CONSTR(Vec3, "Vec3");
 ///   stDefine(vec3) {
 ///       .id    = STypeId_opaque,
 ///       .size  = sizeof(Vec3),
 ///       .flags = stFlag(PassPtr),
-///       .name  = _SR(Vec3),
 ///       .ops   = { .cmp = vec3Cmp, .hash = vec3Hash },
 ///   };
 ///
@@ -1801,12 +1785,10 @@ _meta_inline bool stEq(stype s1, stype s2)
 ///
 /// Example:
 /// @code
-///   STR_CONSTR(Vec3, "Vec3");
 ///   stDefine(vec3) {
 ///       .id    = STypeId_opaque,
 ///       .size  = sizeof(Vec3),
 ///       .flags = stFlag(PassPtr),
-///       .name  = _SR(Vec3),
 ///       .ops   = { .cmp = vec3Cmp, .hash = vec3Hash },
 ///   };
 /// @endcode
