@@ -8,6 +8,12 @@ set(SERIALIZE_SRCS
     serialize/sbfile.c
     serialize/sbfsfile.c
     serialize/sbstring.c
+    serialize/serbinary.c
+    serialize/sercommon.c
+    serialize/serjson.c
+    serialize/serssd.c
+    serialize/sertraverse.c
+    serialize/sertype.c
     serialize/streambuf.c)
 set(SERIALIZE_INCLUDES
     serialize/jsoncommon.h
@@ -18,6 +24,12 @@ set(SERIALIZE_INCLUDES
     serialize/sbfile.h
     serialize/sbfsfile.h
     serialize/sbstring.h
+    serialize/serbinary.h
+    serialize/serjson.h
+    serialize/serreader.h
+    serialize/serssd.h
+    serialize/sertype.h
+    serialize/serwriter.h
     serialize/streambuf.h)
 
 set(CX_SRCS

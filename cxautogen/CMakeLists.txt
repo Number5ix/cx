@@ -67,6 +67,7 @@ set(CX_SRCS
     ../cx/serialize/lineparse.c
     ../cx/serialize/sbfsfile.c
     ../cx/serialize/sbstring.c
+    ../cx/serialize/sertype.c
     ../cx/serialize/streambuf.c
     ../cx/struct/struct.c
     ../cx/struct/stype_struct.c

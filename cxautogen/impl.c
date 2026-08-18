@@ -1263,15 +1263,18 @@ static int prepareStructMemberTbl(StreamBuffer* bf, StructDef* str, bool* wrotea
     for (int i = 0; i < saSize(str->members); i++) {
         if (str->members.a[i]->flags & STRUCT_NoSerialize)
             continue;
+        string sername = 0;
+        memberSerName(&sername, str->members.a[i]);
         strNConcat(&ln,
                    _S"STR_CONSTR(",
                    str->name,
                    _S"_m_",
                    str->members.a[i]->name,
                    _S"_name, \"",
-                   str->members.a[i]->name,
+                   sername,
                    _S"\");");
         sbufPWriteLine(bf, ln);
+        strDestroy(&sername);
     }
     sbufPWriteEOL(bf);
     strDestroy(&ln);

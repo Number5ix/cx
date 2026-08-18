@@ -144,12 +144,14 @@
 ///
 /// @section stype_operations Type Operations
 ///
-/// `STypeInfo` embeds an `STypeOps` struct with five optional function pointers:
+/// `STypeInfo` embeds an `STypeOps` struct with seven optional function pointers:
 /// - **dtor** - Destructor (cleanup/release resources). NULL = trivial (no-op).
 /// - **cmp** - Comparison (for sorting, equality). NULL = memcmp fallback.
 /// - **hash** - Hash function. NULL = generic byte-hash fallback.
 /// - **copy** - Deep copy (ref-count bump for managed types). NULL = memcpy fallback.
 /// - **convert** - Type conversion with range/precision checking. NULL = cannot convert.
+/// - **serialize** - Write the value to a serialization backend. NULL = handled by the traverser.
+/// - **deserialize** - Read the value from a serialization backend. NULL = handled by the traverser.
 ///
 /// @section stype_safety Type Safety
 ///
@@ -1352,12 +1354,43 @@ typedef _Success_(return)
 _Check_return_ bool (*stConvertFunc)(stype destst, _stCopyDest_Anno_(destst) stgeneric* dest,
                                      stype srcst, _In_ stgeneric src, flags_t flags);
 
+/// Serialize a value of this type to a serialization backend.
+///
+/// Optional, and format-agnostic: the implementation decomposes the value into abstract
+/// data-model nodes (`serWrite*`, `serArrBegin`, ...) and the backend decides what those
+/// become on the wire. A type never asks which format it is being written to; where it
+/// genuinely must adapt, it queries a capability via `serWriterCaps()`.
+///
+/// Built-in types leave this NULL — the traverser in `cx/serialize/sertraverse.c` handles them
+/// from its switch over `STypeId_*`. Only custom types (`STCLASS_USER`, custom `opaque`)
+/// need to supply one, and the single implementation serves every format.
+///
+/// @param st Type descriptor of the value
+/// @param val Value to write
+/// @param w Backend to write to
+/// @return true on success; on failure the error is left in the writer
+typedef bool (*stSerializeFunc)(stype st, stgeneric val, _Inout_ SerWriter* w);
+
+/// Deserialize a value of this type from a serialization backend.
+///
+/// The counterpart to `stSerializeFunc`; see its notes on why this pair is
+/// format-agnostic. Any existing value at `val` is overwritten, not destroyed — the
+/// caller is responsible for handing over an uninitialized or already-cleared slot.
+///
+/// @param st Type descriptor of the value
+/// @param val Receives the value read
+/// @param r Backend to read from
+/// @return true on success; on failure the error is left in the reader
+typedef bool (*stDeserializeFunc)(stype st, _Inout_ stgeneric* val, _Inout_ SerReader* r);
+
 typedef struct STypeOps {
     stDtorFunc dtor;
     stCmpFunc cmp;
     stHashFunc hash;
     stCopyFunc copy;
     stConvertFunc convert;
+    stSerializeFunc serialize;      ///< optional; custom types only, NULL for all built-ins
+    stDeserializeFunc deserialize;  ///< optional; custom types only, NULL for all built-ins
 } STypeOps;
 
 /// Type descriptor for all runtime types in the stype system.
@@ -1704,50 +1737,6 @@ _meta_inline uint32 _stHash(stype st, _In_ stgeneric gen, flags_t flags)
         return stHash_gen(st, gen, flags);
 }
 
-/// bool stConvert(desttype, pdest, srctype, src, [flags])
-///
-/// Convert a value from one type to another.
-///
-/// **WARNING**: Overwrites destination without destroying existing value.
-///
-/// @param desttype Destination type name
-/// @param pdest Pointer to destination
-/// @param srctype Source type name
-/// @param src Source value
-/// @param ... (flags) Conversion flags:
-///   - ST_Overflow: Allow overflow without error
-///   - ST_Lossless: Fail if conversion loses precision
-/// @return true if conversion succeeded
-///
-/// Example:
-/// @code
-///   float32 f;
-///   if (stConvert(float32, &f, int32, 42)) {
-///       // f now contains 42.0
-///   }
-/// @endcode
-#define stConvert(desttype, pdest, srctype, src, ...) \
-    _stConvert(stType(desttype),                      \
-               stArgPtr(desttype, pdest),             \
-               stType(srctype),                       \
-               stArg(srctype, src),                   \
-               opt_flags(__VA_ARGS__))
-_Success_(return) _Check_return_ _meta_inline bool
-_stConvert(stype destst, _stCopyDest_Anno_(destst) stgeneric* dest, stype srcst, _In_ stgeneric src,
-           flags_t flags)
-{
-    if (!srcst || !destst)
-        return false;
-
-    // The *source* stype is responsible for handling conversions to other types
-    if (srcst == destst)
-        return _stCopy(destst, dest, src, flags), true;
-    if (srcst->ops.convert)
-        return srcst->ops.convert(destst, dest, srcst, src, flags);
-
-    return false;   // can't convert it if we don't know how!
-}
-
 // Internal: look up or insert a Temporary descriptor in the global type registry.
 // Recursively canonicalizes param[0]/param[1] before keying. Thread-safe via RWLock.
 // Always returns a non-Temporary canonical pointer.
@@ -1793,6 +1782,52 @@ _meta_inline stype stCanonical(stype st)
 _meta_inline bool stEq(stype s1, stype s2)
 {
     return stCanonical(s1) == stCanonical(s2);
+}
+
+/// bool stConvert(desttype, pdest, srctype, src, [flags])
+///
+/// Convert a value from one type to another.
+///
+/// **WARNING**: Overwrites destination without destroying existing value.
+///
+/// @param desttype Destination type name
+/// @param pdest Pointer to destination
+/// @param srctype Source type name
+/// @param src Source value
+/// @param ... (flags) Conversion flags:
+///   - ST_Overflow: Allow overflow without error
+///   - ST_Lossless: Fail if conversion loses precision
+/// @return true if conversion succeeded
+///
+/// Example:
+/// @code
+///   float32 f;
+///   if (stConvert(float32, &f, int32, 42)) {
+///       // f now contains 42.0
+///   }
+/// @endcode
+#define stConvert(desttype, pdest, srctype, src, ...) \
+    _stConvert(stType(desttype),                      \
+               stArgPtr(desttype, pdest),             \
+               stType(srctype),                       \
+               stArg(srctype, src),                   \
+               opt_flags(__VA_ARGS__))
+_Success_(return) _Check_return_ _meta_inline bool
+_stConvert(stype destst, _stCopyDest_Anno_(destst) stgeneric* dest, stype srcst, _In_ stgeneric src,
+           flags_t flags)
+{
+    if (!srcst || !destst)
+        return false;
+
+    // The *source* stype is responsible for handling conversions to other types.
+    // Compare with stEq rather than by pointer: generated compound descriptors are
+    // Temporary, so the same logical type can arrive as two different pointers.
+    if (stEq(srcst, destst))
+        return _stCopy(destst, dest, src, flags), true;
+    if (srcst->ops.convert)
+        return srcst->ops.convert(destst, dest, srcst, src, flags);
+
+    return false;   // can't convert it if we don't know how!
 }
 
 /// @defgroup stype_custom Custom Type Integration
