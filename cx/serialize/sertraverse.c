@@ -10,6 +10,7 @@
 #include "cx/serialize/serreader.h"
 #include "cx/serialize/serwriter.h"
 
+#include "cx/buffer/buffer.h"
 #include "cx/container/hashtable.h"
 #include "cx/container/sarray.h"
 #include "cx/format.h"
@@ -85,6 +86,36 @@ static bool badWriteType(_Inout_ SerWriter* w, stype st)
     strDestroy(&msg);
     strDestroy(&nm);
     return ret;
+}
+
+static bool writeSuid(_Inout_ SerWriter* w, _In_opt_ SUID* id)
+{
+    if (!id)
+        return serWriteNull(w);
+
+    if (serWriterCan(w, Bytes)) {
+        // big endian so that it's in the same logical order as the text form
+        uint8 raw[16];
+        for (int i = 0; i < 8; i++) {
+            raw[i]     = (uint8)(id->high >> (56 - i * 8));
+            raw[8 + i] = (uint8)(id->low >> (56 - i * 8));
+        }
+        return serWriteBytes(w, raw, sizeof(raw));
+    }
+
+    // use the text representation (base32)
+    string s = 0;
+    suidEncode(&s, id);
+    bool ret = serWriteStr(w, s);
+    strDestroy(&s);
+    return ret;
+}
+
+static bool writeBuffer(_Inout_ SerWriter* w, _In_opt_ Buffer buf)
+{
+    if (!buf)
+        return serWriteNull(w);
+    return serWriteBytes(w, buf->data, buf->len);
 }
 
 static bool writeArray(_Inout_ SerWriter* w, _In_ const STypeInfoExt* schema, sa_ref ref)
@@ -584,6 +615,10 @@ static bool writeValue(_Inout_ SerWriter* w, _In_ const STypeInfoExt* schema, st
 
     case STypeId_string:   // STypeId_strref shares this value
         return serWriteStr(w, val.st_string);
+    case STypeId_suid:
+        return writeSuid(w, val.st_suid);
+    case STypeId_buffer:
+        return writeBuffer(w, val.st_buffer);
 
     case STypeId_sarray:
         return writeArray(w, schema, val.st_sarray);
@@ -701,6 +736,58 @@ static bool readUintInto(_Inout_ SerReader* r, stype st, _Inout_ void* storage)
         *(uint64*)storage = v;
         return true;
     }
+}
+
+static bool readSuid(_Inout_ SerReader* r, _Inout_ void* storage)
+{
+    SUID* out = (SUID*)storage;
+
+    if (serPeek(r) == SER_Null) {
+        out->high = out->low = 0;
+        return serReadNull(r);
+    }
+
+    if (serPeek(r) == SER_Bytes) {
+        Buffer buf = NULL;
+        if (!serReadBytes(r, &buf))
+            return false;
+
+        if (buf->len != sizeof(SUID)) {
+            bufDestroy(&buf);
+            return serReaderFail(r, SER_Err_Data, _SL("a suid is exactly 16 bytes"));
+        }
+
+        uint64 hi = 0, lo = 0;
+        for (int i = 0; i < 8; i++) {
+            hi = (hi << 8) | buf->data[i];
+            lo = (lo << 8) | buf->data[8 + i];
+        }
+        out->high = hi;
+        out->low  = lo;
+        bufDestroy(&buf);
+        return true;
+    }
+
+    string s = 0;
+    if (!serReadStr(r, &s))
+        return false;
+
+    bool ok = suidDecode(out, s);
+    strDestroy(&s);
+    return ok ? true : serReaderFail(r, SER_Err_Data, _SL("value is not a valid suid"));
+}
+
+static bool readBuffer(_Inout_ SerReader* r, _Inout_ void* storage)
+{
+    Buffer* out = (Buffer*)storage;
+
+    if (serPeek(r) == SER_Null) {
+        bufDestroy(out);
+        return serReadNull(r);
+    }
+
+    // serReadBytes replaces the buffer if it exists
+    return serReadBytes(r, out);
 }
 
 // Allocate scratch storage for one value of the given schema, ready to be read into.
@@ -1256,6 +1343,11 @@ static bool readValue(_Inout_ SerReader* r, _In_ const STypeInfoExt* schema, sty
         strDestroy(sp);
         return serReadStr(r, sp);
     }
+
+    case STypeId_suid:
+        return readSuid(r, storage);
+    case STypeId_buffer:
+        return readBuffer(r, storage);
 
     case STypeId_sarray:
         return readArray(r, schema, storage);
