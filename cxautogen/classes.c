@@ -104,6 +104,56 @@ static void addAbstractInterfaces(sa_Method* methods, Interface* iface)
     }
 }
 
+// Class members reuse StructMemberDesc for their serialization reflection, but only the
+// serialization annotation carries over. [nodestroy] is already booked for class members --
+// it clears Member::destroy, which is what suppresses the generated destructor call -- and
+// setting STRUCT_NoDestroy from it as well would give one annotation two unrelated meanings.
+static void setClassMemberFlags(Class* cls)
+{
+    for (int i = 0; i < saSize(cls->members); i++) {
+        Member* m = cls->members.a[i];
+        if (getAnnotation(NULL, m->annotations, _S"noserialize"))
+            m->flags |= STRUCT_NoSerialize;
+    }
+}
+
+bool classIsSerializable(Class* cls)
+{
+    if (getAnnotation(NULL, cls->annotations, _S"serialize"))
+        return true;
+
+    for (int i = 0; i < saSize(cls->implements); i++) {
+        if (strEq(cls->implements.a[i]->name, _S"Serializable"))
+            return true;
+    }
+    return false;
+}
+
+bool classHasSerMembers(Class* cls)
+{
+    return getAnnotation(NULL, cls->annotations, _S"serialize");
+}
+
+// [serialize] and Serializable are two answers to the same question, so a class giving both
+// has no defined meaning. Rejecting it at codegen beats inventing a precedence rule that one
+// of the two authors will not have expected.
+static bool checkSerializable(Class* cls)
+{
+    if (!getAnnotation(NULL, cls->annotations, _S"serialize"))
+        return true;
+
+    for (int i = 0; i < saSize(cls->implements); i++) {
+        if (strEq(cls->implements.a[i]->name, _S"Serializable")) {
+            fprintf(stderr,
+                    "Class '%s' is both [serialize] and implements Serializable; use one or "
+                    "the other\n",
+                    strC(cls->name));
+            return false;
+        }
+    }
+    return true;
+}
+
 static void checkMemberInitDestroy(Class* cls)
 {
     for (int i = 0; i < saSize(cls->members); i++) {
@@ -392,8 +442,16 @@ bool processClass(Class* cls)
             needmixinimpl = true;
     }
 
+    if (!checkSerializable(cls))
+        return false;
+
     // check for member init/destroy requirements
     checkMemberInitDestroy(cls);
+    setClassMemberFlags(cls);
+
+    // after setClassMemberFlags, so [noserialize] members are already out of the running
+    if (classHasSerMembers(cls) && !checkSerMemberNames(cls->name, cls->members))
+        return false;
 
     // check for whether class init can fail
     checkClassInitFail(cls);
@@ -465,6 +523,30 @@ bool processClasses()
         if (!processClass(classes.a[i])) {
             printf("Error processing class '%s'\n", strC(classes.a[i]->name));
             return false;
+        }
+    }
+    return processClassSets();
+}
+
+// A class set exists to turn a wire name back into a class, so a class that has no wire name
+// cannot be in one. This is checkable only for classes this run has actually seen: a set may
+// name a class from a .cxh that was never parsed, which stays a link-time error the way an
+// unknown struct in a structset already is.
+bool processClassSets()
+{
+    for (int i = 0; i < saSize(classsets); i++) {
+        ClassSetDef* cs = classsets.a[i];
+        for (int j = 0; j < saSize(cs->members); j++) {
+            Class* cls = NULL;
+            if (!htFind(clsidx, string, cs->members.a[j], object, &cls, HT_Borrow))
+                continue;
+            if (!classIsSerializable(cls)) {
+                printf("Error in classset '%s': class '%s' is neither [serialize] nor "
+                       "Serializable, so it has no wire name to resolve\n",
+                       strC(cs->name),
+                       strC(cs->members.a[j]));
+                return false;
+            }
         }
     }
     return true;

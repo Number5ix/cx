@@ -18,6 +18,11 @@ interface Convertible {
     bool convert(stype st, stgeneric *dest, uint32 flags);
 }
 
+interface Serializable {
+    bool serialize(SerWriter *w);
+    bool deserialize(SerReader *r);
+}
+
 interface IteratorIf {
     bool valid();
     bool next();

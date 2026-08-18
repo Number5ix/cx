@@ -155,9 +155,24 @@ static void writeMethodProto(StreamBuffer* bf, Class* cls, Method* m, bool proto
 
         paramAnnotations(&annos, p);
         if (!m->standalone || j > 0)
-            strNConcat(&tmp, _S", ", annos, p->isconst ? _S"const " : _S"", ptype, ppre, _S" ", p->name, p->postdecr);
+            strNConcat(&tmp,
+                       _S", ",
+                       annos,
+                       p->isconst ? _S"const " : _S"",
+                       ptype,
+                       ppre,
+                       _S" ",
+                       p->name,
+                       p->postdecr);
         else
-            strNConcat(&tmp, annos, p->isconst ? _S"const " : _S"", ptype, ppre, _S" ", p->name, p->postdecr);
+            strNConcat(&tmp,
+                       annos,
+                       p->isconst ? _S"const " : _S"",
+                       ptype,
+                       ppre,
+                       _S" ",
+                       p->name,
+                       p->postdecr);
         strAppend(&ln, tmp);
     }
     strAppend(&ln, _S")");
@@ -710,7 +725,52 @@ static void writeClassIfaceList(StreamBuffer* bf, Class* cls)
     strDestroy(&ln);
 }
 
-static void writeClassImpl(StreamBuffer* bf, Class* cls, bool* wroteany)
+static int writeClassSerMembers(StreamBuffer* bf, Class* cls, hashtable* serseen)
+{
+    string ln    = 0;
+    int nmembers = 0;
+
+    for (int i = 0; i < saSize(cls->members); i++) {
+        Member* m = cls->members.a[i];
+        if (!structMemberEmitted(m, NULL))
+            continue;
+        nmembers++;
+        if (m->flags & STRUCT_NoSerialize)
+            continue;
+        string sername = 0;
+        memberSerName(&sername, m);
+        strNConcat(&ln, _S"STR_CONSTR(", cls->name, _S"_m_", m->name, _S"_name, \"", sername, _S"\");");
+        sbufPWriteLine(bf, ln);
+        strDestroy(&sername);
+    }
+    sbufPWriteEOL(bf);
+
+    bool wrote = false;
+    for (int i = 0; i < saSize(cls->members); i++) {
+        Member* m = cls->members.a[i];
+        if (!structMemberEmitted(m, NULL))
+            continue;
+        writeSchema(bf, m->typenode, serseen, &wrote);
+    }
+
+    strNConcat(&ln, _S"static const StructMemberDesc _sermembers_", cls->name, _S"[] = {");
+    sbufPWriteLine(bf, ln);
+    for (int i = 0; i < saSize(cls->members); i++) {
+        Member* m = cls->members.a[i];
+        // Unlike a struct, a class routinely declares members outside the stype system -- a
+        // Mutex, a raw pointer, a mixin -- and has never had to say so. Filtering here rather
+        // than in writeStructMemberDesc keeps its warning meaningful for the struct case.
+        if (structMemberEmitted(m, NULL))
+            writeStructMemberDesc(bf, cls->name, m);
+    }
+    sbufPWriteLine(bf, _S"};");
+    sbufPWriteEOL(bf);
+
+    strDestroy(&ln);
+    return nmembers;
+}
+
+static void writeClassImpl(StreamBuffer* bf, Class* cls, hashtable* serseen, bool* wroteany)
 {
     string ln = 0;
 
@@ -721,8 +781,36 @@ static void writeClassImpl(StreamBuffer* bf, Class* cls, bool* wroteany)
     }
     writeClassIfaceList(bf, cls);
 
+    // The class name is a *wire* name, so it is only emitted for classes that opt in to
+    // serialization -- either way of opting in, since a Serializable implementor still has to
+    // be nameable on the wire to be read back. Leaving it NULL everywhere else keeps a string
+    // out of the binary for every class that will never be written at all.
+    bool serializable = classIsSerializable(cls);
+    bool sermembers   = classHasSerMembers(cls);
+    int nsermembers   = 0;
+
+    if (serializable) {
+        strNConcat(&ln, _S"STR_CONSTR(", cls->name, _S"_clsname, \"", cls->name, _S"\");");
+        sbufPWriteLine(bf, ln);
+    }
+    if (sermembers)
+        nsermembers = writeClassSerMembers(bf, cls, serseen);
+
     strNConcat(&ln, _S"ObjClassInfo ", cls->name, _S"_clsinfo = {");
     sbufPWriteLine(bf, ln);
+    if (serializable) {
+        strNConcat(&ln, _S"    .name = _SR(", cls->name, _S"_clsname),");
+        sbufPWriteLine(bf, ln);
+    }
+    if (sermembers) {
+        strNConcat(&ln, _S"    .sermembers = _sermembers_", cls->name, _S",");
+        sbufPWriteLine(bf, ln);
+        string nstr = 0;
+        strFromInt32(&nstr, nsermembers, 10);
+        strNConcat(&ln, _S"    .nsermembers = ", nstr, _S",");
+        sbufPWriteLine(bf, ln);
+        strDestroy(&nstr);
+    }
     strNConcat(&ln, _S"    .instsize = sizeof(", cls->name, _S"),");
     sbufPWriteLine(bf, ln);
     if (cls->classif) {
@@ -750,6 +838,18 @@ static void writeClassImpl(StreamBuffer* bf, Class* cls, bool* wroteany)
     sbufPWriteLine(bf, _S"};");
     sbufPWriteEOL(bf);
 
+    if (serializable) {
+        strNConcat(&ln, _S"const STypeInfoExt _stie_", cls->name, _S" = {");
+        sbufPWriteLine(bf, ln);
+        sbufPWriteLine(bf, _S"    .type   = &_sti_object,");
+        strNConcat(&ln, _S"    .name   = _SR(", cls->name, _S"_clsname),");
+        sbufPWriteLine(bf, ln);
+        strNConcat(&ln, _S"    .detail = &", cls->name, _S"_clsinfo,");
+        sbufPWriteLine(bf, ln);
+        sbufPWriteLine(bf, _S"};");
+        sbufPWriteEOL(bf);
+    }
+
     strDestroy(&ln);
 }
 
@@ -758,7 +858,7 @@ bool isCompoundNode(TypeNode* node)
     if (!node || saSize(node->params) == 0)
         return false;
     return strEq(node->name, _S"sarray") || strEq(node->name, _S"hashtable") ||
-           strEq(node->name, _S"structp");
+        strEq(node->name, _S"structp");
 }
 
 bool isStructName(strref name)
@@ -773,6 +873,14 @@ bool isStructSetName(strref name)
 {
     for (int i = 0; i < saSize(structsets); i++)
         if (strEq(structsets.a[i]->name, name))
+            return true;
+    return false;
+}
+
+bool isClassSetName(strref name)
+{
+    for (int i = 0; i < saSize(classsets); i++)
+        if (strEq(classsets.a[i]->name, name))
             return true;
     return false;
 }
@@ -855,8 +963,14 @@ void buildSArrayTypeName(string* out, TypeNode* node)
 {
     if (!node)
         return;
-    if (strEq(node->name, _S"object") || strEq(node->name, _S"weak") ||
-        strEq(node->name, _S"struct")) {
+    // A class set is not a type, so an array over one is an array of base instance pointers --
+    // sa_object -- rather than an array named after the set.
+    if (strEq(node->name, _S"object") && saSize(node->params) >= 1 &&
+        isClassSetName(node->params.a[0]->name)) {
+        strDup(out, _S"object");
+        return;
+    }
+    if (strEq(node->name, _S"object") || strEq(node->name, _S"weak") || strEq(node->name, _S"struct")) {
         if (saSize(node->params) >= 1)
             buildSArrayTypeName(out, node->params.a[0]);
         return;
@@ -943,6 +1057,25 @@ static bool isBuiltinSchema(strref name)
         strEq(name, _S"hashtable");
 }
 
+static Class* serClassNode(TypeNode* node)
+{
+    if (!node || !strEq(node->name, _S"object") || saSize(node->params) < 1)
+        return NULL;
+
+    Class* cls = NULL;
+    if (!htFind(clsidx, string, node->params.a[0]->name, object, &cls, HT_Borrow))
+        return NULL;
+
+    return classIsSerializable(cls) ? cls : NULL;
+}
+
+static bool isClassSetNode(TypeNode* node)
+{
+    if (!node || !strEq(node->name, _S"object") || saSize(node->params) < 1)
+        return false;
+    return isClassSetName(node->params.a[0]->name);
+}
+
 // True if a type node is `structp[SomeStructSet]` -- the structp counterpart of
 // isClassSetNode(), a slot that holds any struct in the set and names which one on the wire.
 static bool isStructSetNode(TypeNode* node)
@@ -952,12 +1085,20 @@ static bool isStructSetNode(TypeNode* node)
     return isStructSetName(node->params.a[0]->name);
 }
 
-// The key naming a StructTypeDetail symbol. This is buildTypeKey plus class identity: two expressions
-// differing only in their class -- sarray[object[A]] and sarray[object[B]] -- share a *runtime*
-// descriptor, because the runtime erases the class to `object` and that erasure is correct.
-// A schema is what puts the class back, so the two need distinct symbols here.
 static void buildSchemaKey(string* out, TypeNode* node)
 {
+    Class* cls = serClassNode(node);
+    if (cls) {
+        strNConcat(out, _S"object_", cls->name);
+        return;
+    }
+
+    // A slot declared over a class set is dynamic to the runtime and distinct to a schema
+    if (isClassSetNode(node)) {
+        strNConcat(out, _S"classset_", node->params.a[0]->name);
+        return;
+    }
+
     if (!isCompoundNode(node)) {
         buildTypeKey(out, node);
         return;
@@ -987,9 +1128,13 @@ static void buildSchemaRef(string* out, TypeNode* node)
     if (!node)
         return;
 
-    // A struct set is the structp counterpart, for the same reason: one canonical descriptor
-    // per set, emitted alongside it, rather than a copy per use site.
-    if (isStructSetNode(node)) {
+    Class* cls = serClassNode(node);
+    if (cls) {
+        strNConcat(out, _S"&_stie_", cls->name);
+        return;
+    }
+
+    if (isClassSetNode(node) || isStructSetNode(node)) {
         strNConcat(out, _S"&_stie_", node->params.a[0]->name);
         return;
     }
@@ -1315,8 +1460,7 @@ static void writeStructSetDef(StreamBuffer* bf, StructSetDef* ss, bool* wroteany
     // sort members alphabetically for binary search
     sa_string sorted;
     saInit(&sorted, string, saSize(ss->members));
-    for (int i = 0; i < saSize(ss->members); i++)
-        saPush(&sorted, string, ss->members.a[i]);
+    for (int i = 0; i < saSize(ss->members); i++) saPush(&sorted, string, ss->members.a[i]);
     qsort(sorted.a, saSize(sorted), sizeof(string), strCmpCB);
 
     strNConcat(&ln, _S"StructSet ", ss->name, _S"_structset = {");
@@ -1340,6 +1484,53 @@ static void writeStructSetDef(StreamBuffer* bf, StructSetDef* ss, bool* wroteany
     sbufPWriteLine(bf, _S"    .type   = &_sti_structp,");
     sbufPWriteLine(bf, _S"    .flags  = STIE_TypeSet,");
     strNConcat(&ln, _S"    .detail = &", ss->name, _S"_structset,");
+    sbufPWriteLine(bf, ln);
+    sbufPWriteLine(bf, _S"};");
+    sbufPWriteEOL(bf);
+
+    saDestroy(&sorted);
+    strDestroy(&ln);
+}
+
+static void writeClassSetDef(StreamBuffer* bf, ClassSetDef* cs, bool* wroteany)
+{
+    if (saSize(cs->members) == 0)
+        return;
+
+    *wroteany = true;
+    string ln = 0;
+
+    // sort members alphabetically for binary search. A class's wire name is its declared name,
+    // so sorting the identifiers here sorts the names classSetFind searches.
+    sa_string sorted;
+    saInit(&sorted, string, saSize(cs->members));
+    for (int i = 0; i < saSize(cs->members); i++) saPush(&sorted, string, cs->members.a[i]);
+    qsort(sorted.a, saSize(sorted), sizeof(string), strCmpCB);
+
+    strNConcat(&ln, _S"ClassSet ", cs->name, _S"_classset = {");
+    sbufPWriteLine(bf, ln);
+    string nstr = 0;
+    strFromInt32(&nstr, saSize(sorted), 10);
+    strNConcat(&ln, _S"    .nentries = ", nstr, _S",");
+    strDestroy(&nstr);
+    sbufPWriteLine(bf, ln);
+    sbufPWriteLine(bf, _S"    .entries  = {");
+    for (int i = 0; i < saSize(sorted); i++) {
+        strNConcat(&ln, _S"        &", sorted.a[i], _S"_clsinfo,");
+        sbufPWriteLine(bf, ln);
+    }
+    sbufPWriteLine(bf, _S"    },");
+    sbufPWriteLine(bf, _S"};");
+    sbufPWriteEOL(bf);
+
+    // The schema descriptor for a slot declared over the set. One per set rather than one per
+    // use site, for the same reason a class or struct has one: the set is a declaration in its
+    // own right, and every slot that names it means the same thing by it.
+    strNConcat(&ln, _S"const STypeInfoExt _stie_", cs->name, _S" = {");
+    sbufPWriteLine(bf, ln);
+    sbufPWriteLine(bf, _S"    .type   = &_sti_object,");
+    sbufPWriteLine(bf, _S"    .flags  = STIE_TypeSet,");
+    strNConcat(&ln, _S"    .detail = &", cs->name, _S"_classset,");
     sbufPWriteLine(bf, ln);
     sbufPWriteLine(bf, _S"};");
     sbufPWriteEOL(bf);
@@ -1683,7 +1874,7 @@ nextloop:
         htInit(&schseen, string, bool, 16);
         for (int i = 0; i < saSize(classes); i++) {
             if (!classes.a[i]->included && !classes.a[i]->mixin)
-                writeClassImpl(ibf, classes.a[i], &wroteany);
+                writeClassImpl(ibf, classes.a[i], &schseen, &wroteany);
         }
         for (int i = 0; i < saSize(structs); i++) {
             if (!structs.a[i]->included) {
@@ -1699,6 +1890,10 @@ nextloop:
         for (int i = 0; i < saSize(structsets); i++) {
             if (!structsets.a[i]->included)
                 writeStructSetDef(ibf, structsets.a[i], &wroteany);
+        }
+        for (int i = 0; i < saSize(classsets); i++) {
+            if (!classsets.a[i]->included)
+                writeClassSetDef(ibf, classsets.a[i], &wroteany);
         }
         sbufPWriteLine(ibf, autogenEnd);
 

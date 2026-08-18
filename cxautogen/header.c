@@ -156,7 +156,15 @@ static void writeUnbound(StreamBuffer* bf, Class* cls, Class* cur, sa_Method* do
                 if (!m->standalone || j > 0)
                     strNConcat(&ln, ln, _S", ");
                 paramAnnotations(&annos, p);
-                strNConcat(&ln, ln, annos, p->isconst ? _S"const " : _S"", ptype, ppre, _S" ", p->name, p->postdecr);
+                strNConcat(&ln,
+                           ln,
+                           annos,
+                           p->isconst ? _S"const " : _S"",
+                           ptype,
+                           ppre,
+                           _S" ",
+                           p->name,
+                           p->postdecr);
             }
             strAppend(&ln, _S");");
             sbufPWriteLine(bf, ln);
@@ -277,7 +285,15 @@ void writeIfDecl(StreamBuffer* bf, Interface* iface)
             }
 
             paramAnnotations(&annos, p);
-            strNConcat(&tmp, _S", ", annos, p->isconst ? _S"const " : _S"", ptype, ppre, _S" ", p->name, p->postdecr);
+            strNConcat(&tmp,
+                       _S", ",
+                       annos,
+                       p->isconst ? _S"const " : _S"",
+                       ptype,
+                       ppre,
+                       _S" ",
+                       p->name,
+                       p->postdecr);
             strAppend(&ln, tmp);
         }
         strAppend(&ln, _S");");
@@ -408,10 +424,16 @@ static void writeMember(StreamBuffer* bf, Member* m)
         if (strEq(m->typenode->name, _S"object") || strEq(m->typenode->name, _S"weak") ||
             strEq(m->typenode->name, _S"structp")) {
             strPrepend(_S"*", &predecr);
-            // dynamic-set structp: use StructBase* instead of StructSetName*
+            // A set-typed slot holds any of several types, so the C member is the base pointer
+            // the set's members all are: StructBase* for structp[SomeSet], ObjInst* for
+            // object[SomeSet].
             if (strEq(m->typenode->name, _S"structp") && saSize(m->typenode->params) >= 1 &&
                 isStructSetName(m->typenode->params.a[0]->name)) {
                 strDup(&vartype, _S"StructBase");
+            }
+            if (strEq(m->typenode->name, _S"object") && saSize(m->typenode->params) >= 1 &&
+                isClassSetName(m->typenode->params.a[0]->name)) {
+                strDup(&vartype, _S"ObjInst");
             }
         }
     }
@@ -488,6 +510,10 @@ void writeClassDecl(StreamBuffer* bf, Class* cls)
     if (!cls->mixin) {
         strNConcat(&ln, _S"extern ObjClassInfo ", cls->name, _S"_clsinfo;");
         sbufPWriteLine(bf, ln);
+        if (classIsSerializable(cls)) {
+            strNConcat(&ln, _S"extern const STypeInfoExt _stie_", cls->name, _S";");
+            sbufPWriteLine(bf, ln);
+        }
     }
     strNConcat(&ln, _S"#define ", cls->name, _S"(inst) objInstCheckClass(", cls->name, _S", inst)");
     sbufPWriteLine(bf, ln);
@@ -565,6 +591,19 @@ static void writeStructSetDecl(StreamBuffer* bf, StructSetDef* ss)
     strNConcat(&ln, _S"extern StructSet ", ss->name, _S"_structset;");
     sbufPWriteLine(bf, ln);
     strNConcat(&ln, _S"extern const STypeInfoExt _stie_", ss->name, _S";");
+    sbufPWriteLine(bf, ln);
+    strDestroy(&ln);
+}
+
+static void writeClassSetDecl(StreamBuffer* bf, ClassSetDef* cs)
+{
+    string ln = 0;
+    strNConcat(&ln, _S"extern ClassSet ", cs->name, _S"_classset;");
+    sbufPWriteLine(bf, ln);
+    // The set's schema descriptor, visible for the same reason a class's or a struct's is:
+    // every slot declared over the set, here or in another translation unit, points at this one
+    // object rather than describing it again. Reached through stExt(name).
+    strNConcat(&ln, _S"extern const STypeInfoExt _stie_", cs->name, _S";");
     sbufPWriteLine(bf, ln);
     strDestroy(&ln);
 }
@@ -745,6 +784,11 @@ bool writeHeader(string fname, string srcpath, string binpath)
     for (int i = 0; i < saSize(structsets); i++) {
         if (!structsets.a[i]->included)
             writeStructSetDecl(bf, structsets.a[i]);
+    }
+
+    for (int i = 0; i < saSize(classsets); i++) {
+        if (!classsets.a[i]->included)
+            writeClassSetDecl(bf, classsets.a[i]);
     }
 
     for (int i = 0; i < saSize(classes); i++) {

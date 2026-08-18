@@ -1,6 +1,7 @@
 // ==================== Auto-generated section begins ====================
 // clang-format off
 // Do not modify the contents of this section; any changes will be lost!
+#include <cx/struct/struct.h>
 #include <cx/string.h>
 Sortable Sortable_tmpl = {
     ._size = sizeof(Sortable),
@@ -12,6 +13,10 @@ Hashable Hashable_tmpl = {
 
 Convertible Convertible_tmpl = {
     ._size = sizeof(Convertible),
+};
+
+Serializable Serializable_tmpl = {
+    ._size = sizeof(Serializable),
 };
 
 IteratorIf IteratorIf_tmpl = {

@@ -23,6 +23,8 @@ typedef struct StructDef StructDef;
 typedef struct StructDef_WeakRef StructDef_WeakRef;
 typedef struct StructSetDef StructSetDef;
 typedef struct StructSetDef_WeakRef StructSetDef_WeakRef;
+typedef struct ClassSetDef ClassSetDef;
+typedef struct ClassSetDef_WeakRef ClassSetDef_WeakRef;
 saDeclarePtr(Param);
 saDeclarePtr(Param_WeakRef);
 #define _sti_Param _sti_object
@@ -95,6 +97,15 @@ saDeclarePtr(StructSetDef_WeakRef);
 #define STypeArgPtr_StructSetDef(type, val) (stgeneric*)objInstCheckClassPtr(StructSetDef, val)
 #define STypeCheckedArg_StructSetDef(type, val)    stType(type), stArg(type, val)
 #define STypeCheckedPtrArg_StructSetDef(type, val) stType(type), stArgPtr(type, val)
+saDeclarePtr(ClassSetDef);
+saDeclarePtr(ClassSetDef_WeakRef);
+#define _sti_ClassSetDef _sti_object
+#define SType_ClassSetDef ClassSetDef*
+#define STStorageType_ClassSetDef ClassSetDef*
+#define STypeArg_ClassSetDef(type, val) stgeneric(object, (ObjInst*)objInstCheckClass(ClassSetDef, val))
+#define STypeArgPtr_ClassSetDef(type, val) (stgeneric*)objInstCheckClassPtr(ClassSetDef, val)
+#define STypeCheckedArg_ClassSetDef(type, val)    stType(type), stArg(type, val)
+#define STypeCheckedPtrArg_ClassSetDef(type, val) stType(type), stArgPtr(type, val)
 saDeclareType(sarray_string, sa_string);
 
 typedef struct Method_ClassIf {
@@ -151,6 +162,15 @@ typedef struct StructSetDef_ClassIf {
     intptr (*cmp)(_In_ void* self, void* other, uint32 flags);
 } StructSetDef_ClassIf;
 extern StructSetDef_ClassIf StructSetDef_ClassIf_tmpl;
+
+typedef struct ClassSetDef_ClassIf {
+    ObjIface* _implements;
+    ObjIface* _parent;
+    size_t _size;
+
+    intptr (*cmp)(_In_ void* self, void* other, uint32 flags);
+} ClassSetDef_ClassIf;
+extern ClassSetDef_ClassIf ClassSetDef_ClassIf_tmpl;
 
 typedef struct Param {
     union {
@@ -493,5 +513,41 @@ _objfactory_guaranteed StructSetDef* StructSetDef_create();
 
 // intptr structsetdefCmp(StructSetDef* self, StructSetDef* other, uint32 flags);
 #define structsetdefCmp(self, other, flags) (self)->_->cmp(StructSetDef(self), other, flags)
+
+typedef struct ClassSetDef {
+    union {
+        ClassSetDef_ClassIf* _;
+        void* _is_ClassSetDef;
+        void* _is_ObjInst;
+    };
+    ObjClassInfo* _clsinfo;
+    atomic(uintptr) _ref;
+    atomic(ptr) _weakref;
+
+    string name;
+    sa_string members;
+    bool included;
+} ClassSetDef;
+extern ObjClassInfo ClassSetDef_clsinfo;
+#define ClassSetDef(inst) objInstCheckClass(ClassSetDef, inst)
+#define ClassSetDefNone ((ClassSetDef*)NULL)
+
+typedef struct ClassSetDef_WeakRef {
+    union {
+        ObjInst* _inst;
+        void* _is_ClassSetDef_WeakRef;
+        void* _is_ObjInst_WeakRef;
+    };
+    atomic(uintptr) _ref;
+    RWLock _lock;
+} ClassSetDef_WeakRef;
+#define ClassSetDef_WeakRef(inst) objWeakRefCheckClass(ClassSetDef, inst)
+
+_objfactory_guaranteed ClassSetDef* ClassSetDef_create();
+// ClassSetDef* classsetdefCreate();
+#define classsetdefCreate() ClassSetDef_create()
+
+// intptr classsetdefCmp(ClassSetDef* self, ClassSetDef* other, uint32 flags);
+#define classsetdefCmp(self, other, flags) (self)->_->cmp(ClassSetDef(self), other, flags)
 
 CX_C_END

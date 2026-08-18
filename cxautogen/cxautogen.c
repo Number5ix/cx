@@ -9,6 +9,7 @@ hashtable ifidx;
 sa_Class classes;
 sa_StructDef structs;
 sa_StructSetDef structsets;
+sa_ClassSetDef classsets;
 hashtable clsidx;
 hashtable weakrefidx;
 sa_string includes;
@@ -98,6 +99,7 @@ int main(int argc, char* argv[])
     saInit(&classes, object, 16);
     saInit(&structs, object, 16);
     saInit(&structsets, object, 8);
+    saInit(&classsets, object, 8);
     htInit(&clsidx, string, object, 16);
     htInit(&weakrefidx, string, object, 16);
     saInit(&includes, string, 8);
@@ -139,12 +141,15 @@ int main(int argc, char* argv[])
     }
     strDestroy(&tmp);
 
+    bool failed = false;
+
     for (int i = 0; i < saSize(inputfiles); i++) {
         saClear(&ifaces);
         htClear(&ifidx);
         saClear(&classes);
         saClear(&structs);
         saClear(&structsets);
+        saClear(&classsets);
         htClear(&clsidx);
         htClear(&weakrefidx);
         saClear(&includes);
@@ -173,8 +178,10 @@ int main(int argc, char* argv[])
             strClear(&fname);
         }
 
-        if (!parseFile(inputfiles.a[i], &fname, srcpath, searchpath, false, true))
+        if (!parseFile(inputfiles.a[i], &fname, srcpath, searchpath, false, true)) {
+            failed = true;
             break;
+        }
 
         if (strEmpty(fname))   // already parsed this file
             continue;
@@ -192,18 +199,12 @@ int main(int argc, char* argv[])
         if (!force && upToDate(fname))
             continue;
 
-        if (!processInterfaces())
+        if (!processInterfaces() || !processClasses() || !processStructs() ||
+            !writeHeader(fname, srcpath, binpath) || !writeImpl(fname, srcpath, binpath, false) ||
+            (needmixinimpl && !writeImpl(fname, srcpath, binpath, true))) {
+            failed = true;
             break;
-        if (!processClasses())
-            break;
-        if (!processStructs())
-            break;
-        if (!writeHeader(fname, srcpath, binpath))
-            break;
-        if (!writeImpl(fname, srcpath, binpath, false))
-            break;
-        if (needmixinimpl && !writeImpl(fname, srcpath, binpath, true))
-            break;
+        }
     }
 
     // Written even when generation was skipped as up to date -- see the deptarget capture above.
@@ -217,6 +218,7 @@ int main(int argc, char* argv[])
     saDestroy(&classes);
     saDestroy(&structs);
     saDestroy(&structsets);
+    saDestroy(&classsets);
     saDestroy(&implincludes);
     saDestroy(&includes);
     saDestroy(&deps);
@@ -234,7 +236,7 @@ int main(int argc, char* argv[])
     saDestroy(&searchpath);
     saDestroy(&inputfiles);
 
-    return 0;
+    return failed ? 1 : 0;
 }
 
 bool upToDate(string fname)

@@ -30,8 +30,13 @@ CX_C_BEGIN
 
 typedef struct ObjClassInfo ObjClassInfo;
 typedef struct ObjInst ObjInst;
-typedef struct ObjClassInfo ObjClassInfo;
-typedef struct ObjInst ObjInst;
+
+// Serialization types the object system names but never dereferences. Forward declarations
+// keep <cx/serialize/...> out of a header that half of cx includes, and keep the cxautogen
+// bootstrap -- which emits references to all three and reads none of them -- clean.
+typedef struct StructMemberDesc StructMemberDesc;
+typedef struct SerWriter SerWriter;
+typedef struct SerReader SerReader;
 
 /// Runtime metadata for a class
 ///
@@ -44,6 +49,27 @@ typedef struct ObjInst ObjInst;
 /// - **Runtime fields**: Populated automatically during first instantiation
 typedef struct ObjClassInfo {
     // ----- Statically defined in class info instance by class implementer -----
+
+    /// Class name, as declared in the .cxh file — NULL unless the class opts in
+    ///
+    /// This is the nominal identity of the class, and its wire name: an instance can only be
+    /// serialized if its own class carries one, because the name is what the reader resolves
+    /// back into a class to construct. cxautogen populates it for classes marked
+    /// `[serialize]` and for classes implementing `Serializable`, and leaves it NULL for every
+    /// other class, so a class that is never serialized carries no name string in the binary.
+    strref name;
+
+    /// Serialization member table — the members this class itself declares
+    ///
+    /// Emitted only for `[serialize]` classes, and covering only that class's own declared
+    /// members: the traverser walks the parent chain and takes each level's table in turn,
+    /// which is how `init` and `destroy` already work. An unannotated class in the middle of a
+    /// chain simply contributes nothing, and does not stop its ancestors from contributing.
+    ///
+    /// The entries are `StructMemberDesc`, the same record a struct's reflection uses, with
+    /// `offset` relative to the start of the instance.
+    const StructMemberDesc* sermembers;
+    int32 nsermembers;      ///< Number of entries in sermembers
 
     size_t instsize;        ///< Size in bytes of a class instance
     ObjClassInfo* parent;   ///< Parent class (NULL if no parent)
@@ -84,6 +110,32 @@ typedef struct ObjClassInfo {
 /// @param cname Class name
 /// @return Expands to the class info variable name (e.g., Document_clsinfo)
 #define objClassInfoName(cname) cname##_clsinfo
+
+/// A named set of classes: the declared vocabulary of a dynamic object slot
+///
+/// This is the class counterpart of `StructSet`. A member declared `object[SomeSet]` holds an
+/// instance of any class in the set, and the set is what turns the wire name back into a class
+/// when the document is read — without the consumer having to register a resolver for it.
+///
+/// cxautogen emits one of these per `classset` declaration in a `.cxh`, with the entries
+/// sorted by wire name so the lookup is a binary search. Every class in a set must carry a wire
+/// name, which means it must be `[serialize]` or implement `Serializable`; cxautogen rejects
+/// the declaration otherwise, since a class with no name could never be resolved back.
+typedef struct ClassSet {
+    int nentries;
+    ObjClassInfo* entries[];   ///< sorted by name for binary search
+} ClassSet;
+
+/// Looks up a class by its wire name in a ClassSet using binary search.
+///
+/// @param cs   The ClassSet to search (must have entries sorted by name)
+/// @param name The class name to look up
+/// @return Pointer to the matching ObjClassInfo, or NULL if not found
+///
+/// Note that membership is by exact class: a derived class does not satisfy a set that names
+/// only its base, because the set is the list of concrete types the slot may hold and reading
+/// one back constructs exactly the class the name resolves to.
+_Ret_maybenull_ ObjClassInfo* classSetFind(_In_ const ClassSet* cs, _In_opt_ strref name);
 
 /// Base structure for all object instances
 ///

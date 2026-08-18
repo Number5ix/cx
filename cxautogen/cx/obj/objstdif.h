@@ -52,6 +52,16 @@ typedef struct Convertible {
 } Convertible;
 extern Convertible Convertible_tmpl;
 
+typedef struct Serializable {
+    ObjIface* _implements;
+    ObjIface* _parent;
+    size_t _size;
+
+    bool (*serialize)(_In_ void* self, SerWriter* w);
+    bool (*deserialize)(_In_ void* self, SerReader* r);
+} Serializable;
+extern Serializable Serializable_tmpl;
+
 typedef struct IteratorIf {
     ObjIface* _implements;
     ObjIface* _parent;

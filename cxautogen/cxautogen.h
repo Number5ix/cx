@@ -12,6 +12,7 @@ extern hashtable ifidx;
 extern sa_Class classes;
 extern sa_StructDef structs;
 extern sa_StructSetDef structsets;
+extern sa_ClassSetDef classsets;
 extern hashtable clsidx;
 extern hashtable weakrefidx;
 extern sa_string includes;
@@ -32,6 +33,7 @@ bool parseFile(strref fname, string* realfn, string srcpath, sa_string searchpat
                bool required);
 bool processInterfaces();
 bool processClasses();
+bool processClassSets();
 bool processStructs();
 bool writeHeader(string fname, string srcpath, string binpath);
 bool writeImpl(string fname, string srcpath, string binpath, bool mixinimpl);
@@ -50,8 +52,19 @@ void binPath(string* out, strref fname, strref srcpath, strref binpath);
 bool isCompoundNode(TypeNode* node);
 void buildTypeKey(string* out, TypeNode* node);
 void buildTypeName(string* out, TypeNode* node);
-void buildCompoundDescName(string* out, strref sname, TypeNode* node);
 void buildSArrayTypeName(string* out, TypeNode* node);
 void collectNestedSArrayDecls(TypeNode* node, bool included);
 bool isStructName(strref name);
+
+// Serialization opt-in, defined in classes.c. A class carries a wire name if it opts in
+// either way, but only [serialize] gets a generated member table -- a Serializable
+// implementor describes itself.
+bool classIsSerializable(Class* cls);
+bool classHasSerMembers(Class* cls);
+
+// A member's name on the wire, defined in structs.c. [serializeas X] decouples it from the C
+// identifier; without the annotation the two are the same string.
+void memberSerName(string* out, Member* m);
+bool checkSerMemberNames(strref owner, sa_Member members);
 bool isStructSetName(strref name);
+bool isClassSetName(strref name);

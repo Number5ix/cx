@@ -165,6 +165,26 @@ _Ret_maybenull_ ObjInst* _objDynCast(_In_opt_ ObjInst* inst, _In_ ObjClassInfo* 
     return NULL;
 }
 
+_Use_decl_annotations_
+ObjClassInfo* classSetFind(const ClassSet* cs, strref name)
+{
+    if (!cs || strEmpty(name))
+        return NULL;
+
+    int lo = 0, hi = cs->nentries - 1;
+    while (lo <= hi) {
+        int mid = (lo + hi) / 2;
+        int cmp = strCmp(cs->entries[mid]->name, name);
+        if (cmp == 0)
+            return cs->entries[mid];
+        if (cmp < 0)
+            lo = mid + 1;
+        else
+            hi = mid - 1;
+    }
+    return NULL;
+}
+
 static void instDtor(_In_ ObjInst* inst, _In_ ObjClassInfo* cls)
 {
     // call destructors on child classes first

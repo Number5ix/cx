@@ -286,6 +286,36 @@ void StructSetDef_destroy(_In_ StructSetDef* self)
     // Autogen ends -------
 }
 
+_objfactory_guaranteed ClassSetDef* ClassSetDef_create()
+{
+    ClassSetDef* self;
+    self = objInstCreate(ClassSetDef);
+
+    // Insert any pre-initialization object construction here
+
+    objInstInit(self);
+
+    // Insert any post-initialization object construction here
+
+    return self;
+}
+
+intptr ClassSetDef_cmp(_In_ ClassSetDef* self, ClassSetDef* other, uint32 flags)
+{
+    // Uncomment unless this function can compare different object classes
+    // devAssert(objClsInfo(self) == objClsInfo(other));
+
+    return objDefaultCmp(self, other, flags);
+}
+
+void ClassSetDef_destroy(_In_ ClassSetDef* self)
+{
+    // Autogen begins -----
+    strDestroy(&self->name);
+    saDestroy(&self->members);
+    // Autogen ends -------
+}
+
 // Autogen begins -----
 // clang-format off
 #include "objtypes.auto.inc"

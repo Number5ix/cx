@@ -129,3 +129,11 @@ class StructSetDef implements Sortable {
 
     factory create();
 }
+
+class ClassSetDef implements Sortable {
+    string name;
+    [noinit] sarray[string] members;
+    bool included;
+
+    factory create();
+}

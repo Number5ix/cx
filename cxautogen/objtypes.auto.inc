@@ -1,6 +1,7 @@
 // ==================== Auto-generated section begins ====================
 // clang-format off
 // Do not modify the contents of this section; any changes will be lost!
+#include <cx/struct/struct.h>
 #include <cx/string.h>
 Method_ClassIf Method_ClassIf_tmpl = {
     ._size = sizeof(Method_ClassIf),
@@ -24,6 +25,10 @@ StructDef_ClassIf StructDef_ClassIf_tmpl = {
 
 StructSetDef_ClassIf StructSetDef_ClassIf_tmpl = {
     ._size = sizeof(StructSetDef_ClassIf),
+};
+
+ClassSetDef_ClassIf ClassSetDef_ClassIf_tmpl = {
+    ._size = sizeof(ClassSetDef_ClassIf),
 };
 
 static ObjIface* _ifimpl_Param[] = {
@@ -199,6 +204,31 @@ ObjClassInfo StructSetDef_clsinfo = {
     .classif = (ObjIface*)&StructSetDef_ClassIf_tmpl,
     .destroy = (void(*)(void*))StructSetDef_destroy,
     .ifimpl = _ifimpl_StructSetDef,
+};
+
+static Sortable _impl_ClassSetDef_Sortable = {
+    ._size = sizeof(Sortable),
+    ._implements = (ObjIface*)&Sortable_tmpl,
+    .cmp = (intptr (*)(void*, void*, uint32))ClassSetDef_cmp,
+};
+
+static ClassSetDef_ClassIf _impl_ClassSetDef_ClassSetDef_ClassIf = {
+    ._size = sizeof(ClassSetDef_ClassIf),
+    ._implements = (ObjIface*)&ClassSetDef_ClassIf_tmpl,
+    .cmp = (intptr (*)(void*, void*, uint32))ClassSetDef_cmp,
+};
+
+static ObjIface* _ifimpl_ClassSetDef[] = {
+    (ObjIface*)&_impl_ClassSetDef_Sortable,
+    (ObjIface*)&_impl_ClassSetDef_ClassSetDef_ClassIf,
+    NULL
+};
+
+ObjClassInfo ClassSetDef_clsinfo = {
+    .instsize = sizeof(ClassSetDef),
+    .classif = (ObjIface*)&ClassSetDef_ClassIf_tmpl,
+    .destroy = (void(*)(void*))ClassSetDef_destroy,
+    .ifimpl = _ifimpl_ClassSetDef,
 };
 
 // ==================== Auto-generated section ends ======================

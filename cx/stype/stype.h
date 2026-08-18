@@ -216,6 +216,8 @@ typedef struct ObjInst_WeakRef ObjInst_WeakRef;
 typedef struct StructBase StructBase;
 typedef struct SUID SUID;
 typedef struct stvar stvar;
+typedef struct SerWriter SerWriter;
+typedef struct SerReader SerReader;
 
 enum STYPE_ID_CONSTANTS {
     STCLASS_BASIC   = 0x00000000,   // basic discrete types
@@ -1463,7 +1465,8 @@ extern const STypeInfoExt _stie_hashtable;   ///< @copydoc _stie_none
 ///
 /// Example:
 /// @code
-///   serWrite(w, stExt(int32), stType(int32), stArg(int32, 42));
+///   const STypeInfoExt *schema = stExt(int32);
+///   _serWrite(w, schema, stArg(int32, 42));
 /// @endcode
 #define stExt(name) (&_stie_##name)
 
