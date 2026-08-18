@@ -10,6 +10,9 @@
 // clang-format on
 // ==================== Auto-generated section ends ======================
 
+#include <cx/serialize/serreader.h>
+#include <cx/serialize/serwriter.h>
+
 _objfactory_guaranteed TestCls1* TestCls1_create()
 {
     TestCls1* ret;
@@ -94,6 +97,281 @@ _objfactory_guaranteed TestCls4b* TestCls4b_create()
     ret = objInstCreate(TestCls4b);
     objInstInit(ret);
     return ret;
+}
+
+_objinit_guaranteed bool StrRefCls_init(_In_ StrRefCls* self)
+{
+    // Autogen begins -----
+    structInit(TestStrP, &self->substr);
+    return true;
+    // Autogen ends -------
+}
+
+void StrRefCls_destroy(_In_ StrRefCls* self)
+{
+    // Autogen begins -----
+    structDestroyMembers(&self->substr);
+    structDestroy(&self->strp);
+    // Autogen ends -------
+}
+
+_objfactory_guaranteed SerCls1* SerCls1_create()
+{
+    SerCls1* self;
+    self = objInstCreate(SerCls1);
+
+    // Insert any pre-initialization object construction here
+
+    objInstInit(self);
+
+    // Insert any post-initialization object construction here
+
+    return self;
+}
+
+void SerCls1_destroy(_In_ SerCls1* self)
+{
+    // Autogen begins -----
+    strDestroy(&self->title);
+    strDestroy(&self->scratch);
+    // Autogen ends -------
+}
+
+_objfactory_guaranteed SerCls2* SerCls2_create()
+{
+    SerCls2* self;
+    self = objInstCreate(SerCls2);
+
+    // Insert any pre-initialization object construction here
+
+    objInstInit(self);
+
+    // Insert any post-initialization object construction here
+
+    return self;
+}
+
+_objinit_guaranteed bool SerCls2_init(_In_ SerCls2* self)
+{
+    // Autogen begins -----
+    saInit(&self->nums, int32, 1);
+    structInit(TestStr1, &self->sub);
+    return true;
+    // Autogen ends -------
+}
+
+void SerCls2_destroy(_In_ SerCls2* self)
+{
+    // Autogen begins -----
+    saDestroy(&self->nums);
+    structDestroyMembers(&self->sub);
+    // Autogen ends -------
+}
+
+_objfactory_guaranteed SerPlain* SerPlain_create()
+{
+    SerPlain* self;
+    self = objInstCreate(SerPlain);
+
+    // Insert any pre-initialization object construction here
+
+    objInstInit(self);
+
+    // Insert any post-initialization object construction here
+
+    return self;
+}
+
+_objfactory_guaranteed SerCls3* SerCls3_create()
+{
+    SerCls3* self;
+    self = objInstCreate(SerCls3);
+
+    // Insert any pre-initialization object construction here
+
+    objInstInit(self);
+
+    // Insert any post-initialization object construction here
+
+    return self;
+}
+
+void SerCls3_destroy(_In_ SerCls3* self)
+{
+    // Autogen begins -----
+    strDestroy(&self->leaf);
+    // Autogen ends -------
+}
+
+_objfactory_guaranteed SerHolder* SerHolder_create()
+{
+    SerHolder* self;
+    self = objInstCreate(SerHolder);
+
+    // Insert any pre-initialization object construction here
+
+    objInstInit(self);
+
+    // Insert any post-initialization object construction here
+
+    return self;
+}
+
+_objinit_guaranteed bool SerHolder_init(_In_ SerHolder* self)
+{
+    // Autogen begins -----
+    saInit(&self->kids, object, 1);
+    return true;
+    // Autogen ends -------
+}
+
+void SerHolder_destroy(_In_ SerHolder* self)
+{
+    // Autogen begins -----
+    objRelease(&self->child);
+    objRelease(&self->anyobj);
+    saDestroy(&self->kids);
+    // Autogen ends -------
+}
+
+_objfactory_guaranteed SerCycle* SerCycle_create()
+{
+    SerCycle* self;
+    self = objInstCreate(SerCycle);
+
+    // Insert any pre-initialization object construction here
+
+    objInstInit(self);
+
+    // Insert any post-initialization object construction here
+
+    return self;
+}
+
+void SerCycle_destroy(_In_ SerCycle* self)
+{
+    // Autogen begins -----
+    strDestroy(&self->tag);
+    objRelease(&self->next);
+    // Autogen ends -------
+}
+
+_objfactory_guaranteed SerCustom* SerCustom_create()
+{
+    SerCustom* self;
+    self = objInstCreate(SerCustom);
+
+    // Insert any pre-initialization object construction here
+
+    objInstInit(self);
+
+    // Insert any post-initialization object construction here
+
+    return self;
+}
+
+bool SerCustom_serialize(_In_ SerCustom* self, SerWriter* w)
+{
+    return serArrBegin(w, 2) && serWriteInt(w, self->magic, stType(int32)) &&
+           serWriteStr(w, self->label) && serArrEnd(w);
+}
+
+bool SerCustom_deserialize(_In_ SerCustom* self, SerReader* r)
+{
+    int32 count;
+    if (!serArrBeginR(r, &count) || !serArrNext(r))
+        return false;
+
+    int64 magic;
+    if (!serReadInt(r, &magic, stType(int32)))
+        return false;
+    self->magic = (int32)magic;
+
+    if (!serArrNext(r))
+        return serReaderFail(r, SER_Err_Data, _SL("a SerCustom is a magic and a label"));
+
+    strDestroy(&self->label);
+    return serReadStr(r, &self->label) && serArrEndR(r);
+}
+
+void SerCustom_destroy(_In_ SerCustom* self)
+{
+    // Autogen begins -----
+    strDestroy(&self->label);
+    // Autogen ends -------
+}
+
+_objfactory_guaranteed SerAny* SerAny_create()
+{
+    SerAny* self;
+    self = objInstCreate(SerAny);
+
+    // Insert any pre-initialization object construction here
+
+    objInstInit(self);
+
+    // Insert any post-initialization object construction here
+
+    return self;
+}
+
+void SerAny_destroy(_In_ SerAny* self)
+{
+    // Autogen begins -----
+    objRelease(&self->one);
+    objRelease(&self->two);
+    // Autogen ends -------
+}
+
+_objfactory_guaranteed SerRenamed* SerRenamed_create()
+{
+    SerRenamed* self;
+    self = objInstCreate(SerRenamed);
+
+    // Insert any pre-initialization object construction here
+
+    objInstInit(self);
+
+    // Insert any post-initialization object construction here
+
+    return self;
+}
+
+void SerRenamed_destroy(_In_ SerRenamed* self)
+{
+    // Autogen begins -----
+    strDestroy(&self->category);
+    // Autogen ends -------
+}
+
+_objfactory_guaranteed SerSetHolder* SerSetHolder_create()
+{
+    SerSetHolder* self;
+    self = objInstCreate(SerSetHolder);
+
+    // Insert any pre-initialization object construction here
+
+    objInstInit(self);
+
+    // Insert any post-initialization object construction here
+
+    return self;
+}
+
+_objinit_guaranteed bool SerSetHolder_init(_In_ SerSetHolder* self)
+{
+    // Autogen begins -----
+    saInit(&self->items, object, 1);
+    return true;
+    // Autogen ends -------
+}
+
+void SerSetHolder_destroy(_In_ SerSetHolder* self)
+{
+    // Autogen begins -----
+    objRelease(&self->item);
+    saDestroy(&self->items);
+    // Autogen ends -------
 }
 
 // Autogen begins -----

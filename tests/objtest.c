@@ -330,6 +330,26 @@ static int test_obj_weakref()
     return ret;
 }
 
+// ClassSet lookup, the mechanism a dynamic object slot resolves through. The entries are
+// sorted by wire name at codegen so the lookup can be a binary search.
+static int test_obj_classset()
+{
+    if (classSetFind(&SerClsSet_classset, _S"SerCls1") != &SerCls1_clsinfo)
+        return 1;
+    if (classSetFind(&SerClsSet_classset, _S"SerCustom") != &SerCustom_clsinfo)
+        return 1;
+
+    // A class that is not in the set, one that does not exist, and no name at all
+    if (classSetFind(&SerClsSet_classset, _S"SerCls3") != NULL)
+        return 1;
+    if (classSetFind(&SerClsSet_classset, _S"NoSuchClass") != NULL)
+        return 1;
+    if (classSetFind(&SerClsSet_classset, NULL) != NULL)
+        return 1;
+
+    return 0;
+}
+
 testfunc objtest_funcs[] = {
     { "iface", test_iface },
     { "inherit", test_inherit },
@@ -340,5 +360,6 @@ testfunc objtest_funcs[] = {
     { "dyncast", test_dyncast },
     { "obj_array", test_obj_array },
     { "weakref", test_obj_weakref },
+    { "classset", test_obj_classset },
     { 0, 0 }
 };

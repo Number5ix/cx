@@ -43,3 +43,167 @@ class TestCls4b extends TestCls4a {
 class TestCls5 extends TestCls1 implements Sortable {
     factory create();
 }
+
+struct TestStr1 {
+    int32 intval;
+    sarray[int32] arrval;
+    string strval;
+}
+
+struct TestStr2 {
+    string yahoo;
+    struct[TestStr1] subst;
+    hashtable[string, int32] tags;
+    sarray[struct[TestStr1]] arrayofstructs;
+    hashtable[string,sarray[sarray[struct[TestStr1]]]] hashofdblarrstr;
+    int32 fixedarr[50];
+}
+
+// Fixed C array members. TestStr2::fixedarr is int32, which has no destructor and so cannot
+// show whether arrsize is honored; these have managed element types, where mishandling
+// arrsize leaks every element past the first.
+struct TestStrFixed {
+    string names[4];
+    struct[TestStr1] substs[3];
+    int32 nums[8];
+}
+
+// Wire names that are not the declared identifiers. [serializeas] is what lets a document keep
+// a spelling the C side cannot use -- a hyphen, a reserved word, a name the struct has since
+// renamed -- so the two only have to agree here.
+struct TestStrRename {
+    [serializeas id] int32 ident;
+    [serializeas display-name] string label;
+    int32 plain;
+}
+
+// Re-declares compound member types that TestStr1/TestStr2/TestStrP also declare. cxautogen
+// scopes the generated descriptor symbols per owning struct, so these are distinct objects;
+// they must still intern to one canonical pointer apiece.
+struct TestStrDup {
+    sarray[int32] arrval;
+    hashtable[string, int32] tags;
+    structp[TestStr1] knownptr;
+}
+
+structset TestStrSet {
+    TestStr1,
+    TestStr2
+}
+
+// A second, disjoint set. Every `structp[AnySet]` runtime descriptor has the same registry key
+// -- id, size, and params, none of which a set participates in -- so they all intern to one
+// pointer whose `ext` is whichever set registered first. Two sets in one process is what makes
+// that visible, and what pins the rule that a slot's set comes from its schema.
+structset TestStrSet2 {
+    TestStrFixed,
+    TestStrRename
+}
+
+struct TestStrP {
+    structp[TestStr1] knownptr;
+    structp[TestStrSet] dynptr;
+    structp[TestStrSet2] dynptr2;
+    sarray[structp[TestStr1]] arrknown;
+    object[TestCls4] testobj;
+    sarray[object[TestCls5]] testobjarr;
+    hashtable[string, object[TestCls1]] testspecobjhash;
+    hashtable[string, object] testgenobjhash;
+}
+
+class StrRefCls  {
+    struct[TestStrP] substr;
+    structp[TestStrP] strp;
+}
+
+// stvar is a fully dynamic slot: no element/value type parameter names what it holds, since
+// that is only known -- and only nameable on the wire -- from the value itself at write time.
+struct TestStrVar {
+    stvar simple;
+    sarray[stvar] vals;
+    hashtable[string, stvar] tagged;
+}
+
+// Serialization fixtures. [serialize] opts a class in to generated reflection; each level of a
+// chain contributes only the members it declares, exactly as init and destroy already do.
+
+[serialize] class SerCls1 {
+    string title;
+    int32 revision;
+    [noserialize] string scratch;
+    factory create();
+}
+
+[serialize] class SerCls2 extends SerCls1 {
+    sarray[int32] nums;
+    struct[TestStr1] sub;
+    factory create();
+}
+
+// Not annotated, and sitting between two levels that are: it contributes no members of its own
+// and carries no wire name, so an instance of it cannot be written at all even though its base
+// serializes perfectly well.
+class SerPlain extends SerCls1 {
+    int32 hidden;
+    factory create();
+}
+
+[serialize] class SerCls3 extends SerPlain {
+    string leaf;
+    factory create();
+}
+
+// Slots that hold other objects: one declared as a base class (so a derived instance needs a
+// type tag), one fully dynamic, and one inside a container.
+[serialize] class SerHolder {
+    object[SerCls1] child;
+    object[ObjInst] anyobj;
+    sarray[object[SerCls1]] kids;
+    factory create();
+}
+
+// Two fully dynamic slots, so the same instance can be reached twice by two paths that both have
+// to be tagged. What SerHolder is for polymorphism, this is for sharing.
+[serialize] class SerAny {
+    object[ObjInst] one;
+    object[ObjInst] two;
+    factory create();
+}
+
+// The class side of [serializeas]. `revision` is inherited from SerCls1 unrenamed, so this also
+// covers a hierarchy where only one level renames anything.
+[serialize] class SerRenamed extends SerCls1 {
+    [serializeas kind] string category;
+    [noserialize] int32 skipped;
+    factory create();
+}
+
+[serialize] class SerCycle {
+    string tag;
+    object[SerCycle] next;
+    factory create();
+}
+
+// Full control over its own representation instead of generated reflection. It still carries a
+// wire name -- being nameable is what makes it readable back -- but no member table.
+class SerCustom implements Serializable {
+    int32 magic;
+    string label;
+    factory create();
+}
+
+// The class counterpart of a structset: a declared vocabulary for slots that hold any of
+// several classes. SerCls3 is deliberately left out so that a class with a perfectly good wire
+// name is still refused by a slot declared over this set.
+classset SerClsSet {
+    SerCls1,
+    SerCustom
+}
+
+// Slots typed by the set rather than by one class. The set resolves the wire name on the way
+// back in with nothing registered on the reader, which is the whole point of declaring one.
+[serialize] class SerSetHolder {
+    object[SerClsSet] item;
+    sarray[object[SerClsSet]] items;
+    factory create();
+}
