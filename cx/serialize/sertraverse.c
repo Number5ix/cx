@@ -19,6 +19,7 @@
 #include "cx/obj/objstdif.h"
 #include "cx/string.h"
 #include "cx/struct/struct.h"
+#include "cx/stype/stvar.h"
 #include "cx/xalloc/xalloc.h"
 
 // ---------------------------------------------------------------------------------------
@@ -402,6 +403,93 @@ static bool writeStructp(_Inout_ SerWriter* w, _In_ const STypeInfoExt* schema,
 }
 
 // ---------------------------------------------------------------------------------------
+// Variants
+//
+// A stvar is a fully dynamic slot -- the schema names no concrete type, only "stvar" itself --
+// so the value always needs a tag naming what it actually holds, the same as a dynamic structp
+// or a base-class object slot. Only what a flat wire name can spell is supported: a container
+// or a struct held by value inside a variant has no such name, and is refused outright as an
+// unsupported use of stvar.
+// ---------------------------------------------------------------------------------------
+
+static bool badVariantType(_Inout_ SerWriter* w, stype st)
+{
+    string msg = 0, nm = 0;
+    typeName(&nm, st);
+    strFormat(&msg, _SL("a stvar cannot hold a ${string}"), stvar(string, nm));
+    bool ret = serWriterFail(w, SER_Err_Unsupported, msg);
+    strDestroy(&msg);
+    strDestroy(&nm);
+    return ret;
+}
+
+static bool writeStvar(_Inout_ SerWriter* w, _In_ const stvar* v)
+{
+    stype st = stvarType(v);
+    if (!st)
+        st = stType(none);
+
+    STypeInfoExt schema = { .type = st };
+    STypeInfoExt sub     = { 0 };   // only ever referenced by the structp case below
+    strref nm            = NULL;
+
+    if (st->id == STypeId_object) {
+        ObjInst* obj = v->data.st_object;
+        if (obj) {
+            const ObjClassInfo* cls = objClsInfo(obj);
+            if (!cls->name)
+                return serWriterFail(w,
+                                     SER_Err_Unsupported,
+                                     _SL("this object's class is neither [serialize] nor "
+                                         "Serializable, so it has no wire name"));
+            schema.detail = cls;
+            nm            = cls->name;
+        } else {
+            nm = _serBuiltinName(STypeId_object);
+        }
+    } else if (st->id == STypeId_structp) {
+        StructBase* s = v->data.st_structp;
+        if (s) {
+            const StructInfo* si = s->structinfo;
+            if (!si)
+                return serWriterFail(w,
+                                     SER_Err_Schema,
+                                     _SL("this struct instance carries no StructInfo, so "
+                                         "nothing can name it on the wire"));
+            sub              = (STypeInfoExt) { .type = si->type, .detail = si, .name = si->name };
+            schema.param[0] = &sub;
+            nm              = si->name;
+        } else {
+            nm = _serBuiltinName(STypeId_structp);
+        }
+    } else if (st->id == STypeId_sarray || st->id == STypeId_hashtable ||
+               st->id == STypeId_struct) {
+        return badVariantType(w, st);
+    } else {
+        nm = _serBuiltinName(st->id);
+        if (!nm)
+            return badVariantType(w, st);
+    }
+
+    if (!serWriterCan(w, TypeTags)) {
+        string msg = 0;
+        strFormat(&msg,
+                  _SL("this format cannot carry the type tag a stvar holding a ${string} "
+                      "needs"),
+                  stvar(string, (string)nm));
+        bool ret = serWriterFail(w, SER_Err_Unsupported, msg);
+        strDestroy(&msg);
+        return ret;
+    }
+
+    STypeInfoExt tag = { .type = st, .name = nm };
+    if (!w->ops->typeTag(w, &tag))
+        return false;
+
+    return writeValue(w, &schema, st, v->data);
+}
+
+// ---------------------------------------------------------------------------------------
 // Objects
 //
 // A class describes only the members it declares and chains to its parent, which is how init
@@ -637,6 +725,8 @@ static bool writeValue(_Inout_ SerWriter* w, _In_ const STypeInfoExt* schema, st
         return writeStructp(w, schema, val.st_structp);
     case STypeId_object:
         return writeObject(w, schema, val.st_object);
+    case STypeId_stvar:
+        return writeStvar(w, val.st_stvar);
 
     default:
         return badWriteType(w, st);
@@ -1145,6 +1235,75 @@ static bool readStructp(_Inout_ SerReader* r, _In_ const STypeInfoExt* schema, _
     return readStruct(r, si, *slot);
 }
 
+static bool readStvar(_Inout_ SerReader* r, _Inout_ stvar* out)
+{
+    if (serPeek(r) == SER_Null) {
+        _stvarClear(out, 0);
+        return serReadNull(r);
+    }
+
+    if (serPeek(r) != SER_TypeTag)
+        return serReaderFail(r,
+                             SER_Err_Data,
+                             _SL("a stvar is a dynamic value, so it needs a type tag to say "
+                                 "what it holds"));
+
+    string name = 0;
+    if (!r->ops->readTypeTag(r, &name)) {
+        strDestroy(&name);
+        return false;
+    }
+
+    SerResolved res;
+    if (!serReaderResolve(&res, r, name)) {
+        string msg = 0;
+        strFormat(&msg,
+                  _SL("nothing resolves a type named ${string} for this stvar"),
+                  stvar(string, name));
+        serReaderFail(r, SER_Err_Type, msg);
+        strDestroy(&msg);
+        strDestroy(&name);
+        return false;
+    }
+    strDestroy(&name);
+
+    STypeInfoExt schema = { 0 };
+    STypeInfoExt sub    = { 0 };   // only ever referenced by the structp case below
+    stype st;
+
+    if (res.structinfo) {
+        st     = stType(structp);
+        sub    = (STypeInfoExt) { .type = res.structinfo->type, .detail = res.structinfo };
+        schema = (STypeInfoExt) {
+            .type  = st,
+            .param = { &sub, NULL }
+        };
+    } else if (res.clsinfo) {
+        st     = stType(object);
+        schema = (STypeInfoExt) { .type = st, .detail = res.clsinfo };
+    } else {
+        st = res.type;
+        // these shouldn't exist in serialized data but make sure nobody sends one anyway
+        if (!st || st->id == STypeId_sarray || st->id == STypeId_hashtable ||
+            st->id == STypeId_struct || st->id == STypeId_opaque) {
+            string msg = 0, nm = 0;
+            typeName(&nm, st ? st : stType(none));
+            strFormat(&msg, _SL("a stvar cannot hold a ${string}"), stvar(string, nm));
+            bool ret = serReaderFail(r, SER_Err_Unsupported, msg);
+            strDestroy(&msg);
+            strDestroy(&nm);
+            return ret;
+        }
+        schema = (STypeInfoExt) { .type = st };
+    }
+
+    void* storage = _stvarPrepare(out, st);
+    bool ok       = readValue(r, &schema, st, storage);
+    if (!ok)
+        _stvarClear(out, 0);
+    return ok;
+}
+
 // The class a type tag names, resolved the same way a dynamic structp's is: through the slot's
 // declared set when it has one, and through the reader's resolvers when it does not.
 static _Ret_maybenull_ const ObjClassInfo*
@@ -1366,6 +1525,8 @@ static bool readValue(_Inout_ SerReader* r, _In_ const STypeInfoExt* schema, sty
         return readStructp(r, schema, storage);
     case STypeId_object:
         return readObject(r, schema, storage);
+    case STypeId_stvar:
+        return readStvar(r, (stvar*)storage);
 
     default: {
         string msg = 0, nm = 0;

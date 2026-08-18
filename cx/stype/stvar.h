@@ -283,6 +283,12 @@ void _stvarSet(stvar* stv, stype type, stgeneric val);
 // Replace semantics preserving/replacing the key name.
 void _stvarSetK(stvar* stv, stype type, stgeneric val, const char* vk);
 
+// Prepare *stv -- which may hold a live value -- to receive a value of `type` written
+// directly into the returned storage. For PassPtr types the variant allocates and owns the
+// block; otherwise the storage is the variant's own inline `data`. Either way the variant is
+// left holding a zero-filled value of that type, so _stvarClear can always undo it.
+_Ret_notnull_ void* _stvarPrepare(stvar* stv, stype type);
+
 /// void stvarSet(stvar *stv, type, value)
 ///
 /// Replace the contents of a variant with a new typed value.

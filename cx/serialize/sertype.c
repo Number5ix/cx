@@ -46,9 +46,10 @@ STR_CONSTR(sertype_struct, "struct");
 STR_CONSTR(sertype_opaque, "opaque");
 
 // Aliases sharing an id with a concrete width (intptr, uintptr, size, strref) are omitted --
-// the concrete spelling is what goes on the wire. sarray/hashtable/struct/structp/opaque need
+// the concrete spelling is what goes on the wire. sarray/hashtable/struct/opaque need
 // parameters or an identity beyond a bare name, so they resolve via the type-expression parser
-// instead and have no descriptor here.
+// instead and have no descriptor here. structp is the one exception: a NULL structp inside a
+// dynamic stvar round-trip through a tag instead of an untyped null.
 static const SerBuiltinName _serBuiltinNames[] = {
     { STypeId_none,      _SR(sertype_none),      &_sti_none    },
     { STypeId_bool,      _SR(sertype_bool),      &_sti_bool    },
@@ -69,7 +70,7 @@ static const SerBuiltinName _serBuiltinNames[] = {
     { STypeId_stvar,     _SR(sertype_stvar),     &_sti_stvar   },
     { STypeId_sarray,    _SR(sertype_sarray),    NULL          },
     { STypeId_hashtable, _SR(sertype_hashtable), NULL          },
-    { STypeId_structp,   _SR(sertype_structp),   NULL          },
+    { STypeId_structp,   _SR(sertype_structp),   &_sti_structp },
     { STypeId_struct,    _SR(sertype_struct),    NULL          },
     { STypeId_opaque,    _SR(sertype_opaque),    NULL          },
 };

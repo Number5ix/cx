@@ -55,6 +55,23 @@ void _stvarSetK(stvar* stv, stype type, stgeneric val, const char* nm)
     _stvarInitK(stv, type, val, nm);
 }
 
+void* _stvarPrepare(stvar* stv, stype type)
+{
+    _stvarClear(stv, 0);
+    type = stCanonical(type);
+
+    if (stHasFlag(type, PassPtr)) {
+        void* mem     = xaAlloc(type->size, XA_Zero);
+        stv->data.st_ptr = mem;
+        _stvarSetType(stv, type, true);   // owns
+        return mem;
+    }
+
+    stv->data = (stgeneric) { 0 };
+    _stvarSetType(stv, type, false);
+    return &stv->data;
+}
+
 void stvlInit(stvlist* list, int count, stvar* vars)
 {
     list->count  = count;
