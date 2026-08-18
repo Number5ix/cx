@@ -44,29 +44,6 @@ typedef struct SerReader SerReader;
 /// - **Static fields**: Set by the class implementer during declaration
 /// - **Runtime fields**: Populated automatically during first instantiation
 typedef struct ObjClassInfo {
-    // ----- Statically defined in class info instance by class implementer -----
-
-    /// Class name, as declared in the .cxh file — NULL unless the class opts in
-    ///
-    /// This is the nominal identity of the class, and its wire name: an instance can only be
-    /// serialized if its own class carries one, because the name is what the reader resolves
-    /// back into a class to construct. cxautogen populates it for classes marked
-    /// `[serialize]` and for classes implementing `Serializable`, and leaves it NULL for every
-    /// other class, so a class that is never serialized carries no name string in the binary.
-    strref name;
-
-    /// Serialization member table — the members this class itself declares
-    ///
-    /// Emitted only for `[serialize]` classes, and covering only that class's own declared
-    /// members: the traverser walks the parent chain and takes each level's table in turn,
-    /// which is how `init` and `destroy` already work. An unannotated class in the middle of a
-    /// chain simply contributes nothing, and does not stop its ancestors from contributing.
-    ///
-    /// The entries are `StructMemberDesc`, the same record a struct's reflection uses, with
-    /// `offset` relative to the start of the instance.
-    const StructMemberDesc* sermembers;
-    int32 nsermembers;      ///< Number of entries in sermembers
-
     size_t instsize;        ///< Size in bytes of a class instance
     ObjClassInfo* parent;   ///< Parent class (NULL if no parent)
     ObjIface* classif;      ///< Class interface (methods specific to this class, optional)
@@ -87,7 +64,18 @@ typedef struct ObjClassInfo {
     /// calls parent class destructors after the child destructor.
     void (*destroy)(void* _self);
 
-    bool _abstract;   ///< True if this is an abstract class (cannot be instantiated)
+    // ----- Statically defined in class info instance by class implementer -----
+
+    /// Wire name for serialization, only if the class is serializable.
+    strref name;
+
+    /// Serialization member table
+    ///
+    /// Automatic member serialization for classes that use [serialize].
+    const StructMemberDesc* sermembers;
+    int32 nsermembers;   ///< Number of entries in sermembers
+
+    bool _abstract;      ///< True if this is an abstract class (cannot be instantiated)
 
     // ----- Runtime use only, do not set manually! -----
 
