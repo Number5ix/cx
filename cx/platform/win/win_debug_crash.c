@@ -51,6 +51,12 @@ static MSG _ef_msg;
 #pragma warning(disable : 4731)
 static DWORD _ef_tempebp;
 static DWORD _ef_savedebp;
+#elif defined(_ARCH_X64)
+static CONTEXT _ef_unwindctx;
+static PRUNTIME_FUNCTION _ef_rtf;
+static ULONG64 _ef_imagebase;
+static ULONG64 _ef_establisherframe;
+static PVOID _ef_handlerdata;
 #endif
 
 static const char* _ef_prefix = "  ";
@@ -164,7 +170,37 @@ _no_inline static LONG WINAPI dbgExceptionFilter(LPEXCEPTION_POINTERS info)
         if (stframes == 0) {
             // but if not grab one
 #if defined(_ARCH_X64)
-            stframes = dbgStackTrace(1, ST_MAX_FRAMES, stacktrace);
+            // RtlCaptureStackBackTrace (via dbgStackTrace) walks the CURRENT stack,
+            // which for a genuine unhandled exception is several ntdll/KERNELBASE
+            // exception-dispatch frames above the real fault site -- it has no way
+            // to resume unwinding from the exception context. Walk from the
+            // exception context ourselves instead, using the same primitives the OS
+            // uses internally. This mirrors what the x86 path below already has to
+            // do.
+            if (info) {
+                _ef_unwindctx = *info->ContextRecord;
+                stframes      = 0;
+                while (stframes < ST_MAX_FRAMES) {
+                    stacktrace[stframes++] = _ef_unwindctx.Rip;
+
+                    _ef_rtf = RtlLookupFunctionEntry(_ef_unwindctx.Rip, &_ef_imagebase, NULL);
+                    if (!_ef_rtf)
+                        break;   // leaf frame or no unwind info; can't safely continue
+
+                    RtlVirtualUnwind(UNW_FLAG_NHANDLER,
+                                     _ef_imagebase,
+                                     _ef_unwindctx.Rip,
+                                     _ef_rtf,
+                                     &_ef_unwindctx,
+                                     &_ef_handlerdata,
+                                     &_ef_establisherframe,
+                                     NULL);
+                    if (!_ef_unwindctx.Rip)
+                        break;   // reached the bottom of the stack
+                }
+            } else {
+                stframes = dbgStackTrace(1, ST_MAX_FRAMES, stacktrace);
+            }
 #elif defined(_ARCH_X86)
             // x86 is ugly because RtlCaptureStackBackTrace can't walk the stack back
             // through the exception itself. so we have to temporarily swap in ebp
@@ -415,7 +451,7 @@ static void dbgInvalidParameterHandler(const wchar_t* w_exp, const wchar_t* w_fu
     stframes = dbgStackTrace(1, ST_MAX_FRAMES, stacktrace);
     __try {
         *(char*)(0) = 0;
-    } __except (dbgExceptionFilter(GetExceptionInformation())) {}
+    } __except (dbgExceptionFilter(GetExceptionInformation())) { }
 }
 
 bool _dbgCrashPlatformInit()
@@ -513,5 +549,5 @@ _no_inline _no_return void dbgCrashNow(int skip)
     stframes = dbgStackTrace(skip + 1, ST_MAX_FRAMES, stacktrace);
     __try {
         *(char*)(0) = 0;
-    } __except (dbgExceptionFilter(GetExceptionInformation())) {}
+    } __except (dbgExceptionFilter(GetExceptionInformation())) { }
 }
