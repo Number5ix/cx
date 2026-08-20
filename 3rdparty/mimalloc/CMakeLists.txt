@@ -880,12 +880,14 @@ if (MI_BUILD_STATIC)
 endif()
 
 # install include files
+if(PROJECT_IS_TOP_LEVEL)
 install(FILES include/mimalloc.h DESTINATION ${mi_install_incdir})
 install(FILES include/mimalloc-override.h DESTINATION ${mi_install_incdir})
 install(FILES include/mimalloc-new-delete.h DESTINATION ${mi_install_incdir})
 install(FILES include/mimalloc-stats.h DESTINATION ${mi_install_incdir})
 install(FILES cmake/mimalloc-config.cmake DESTINATION ${mi_install_cmakedir})
 install(FILES cmake/mimalloc-config-version.cmake DESTINATION ${mi_install_cmakedir})
+endif()
 
 
 if (MI_BUILD_OBJECT)
@@ -937,8 +939,10 @@ join_paths(mi_pc_includedir "\${prefix}" "${CMAKE_INSTALL_INCLUDEDIR}")
 join_paths(mi_pc_libdir "\${prefix}" "${CMAKE_INSTALL_LIBDIR}")
 
 configure_file(mimalloc.pc.in mimalloc.pc @ONLY)
+if(PROJECT_IS_TOP_LEVEL)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/mimalloc.pc"
         DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig/")
+endif()
 
 
 
