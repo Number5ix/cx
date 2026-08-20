@@ -131,7 +131,9 @@ static void logNdjsonSerialize(_Inout_ string* out, _In_ const LogRecord* rec,
 
     string tmp = 0, msg = 0;
 
-    logFormatDate(&tmp, LOG_DateISO, cfg->flags, rec->timestamp);
+    // a structured record always carries a timestamp; LOG_OmitDate is a text-layout choice and
+    // does not get to blank the field out from under a consumer sharing one flags word
+    logFormatDate(&tmp, LOG_DateISO, cfg->flags & ~LOG_OmitDate, rec->timestamp);
     strDup(out, kNdOpen);
     jsonStrEscape(out, tmp, 0);
 

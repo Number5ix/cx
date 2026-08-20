@@ -40,7 +40,9 @@ enum LOG_DATE_FORMATS {
     LOG_DateISOCompact,      ///< Compact ISO: "2026-01-02 15:04:05"
     LOG_DateNCSA,            ///< NCSA Common Log format: "02/Jan/2026:15:04:05 +00 00"
     LOG_DateSyslog,          ///< Syslog format: "Jan  2 15:04:05"
-    LOG_DateISOCompactMsec   ///< Compact ISO with milliseconds: "2026-01-02 15:04:05.123"
+    LOG_DateISOCompactMsec,  ///< Compact ISO with milliseconds: "2026-01-02 15:04:05.123"
+    LOG_DateTimeOnly,        ///< Time of day only, no calendar date: "15:04:05"
+    LOG_DateTimeOnlyMsec     ///< Time of day only, with milliseconds: "15:04:05.123"
 };
 
 /// Formatting flags for text log output
@@ -55,6 +57,7 @@ enum LOG_FLAGS {
     LOG_AddColon       = 0x0080,   ///< Add colon after the prefix
     LOG_ChannelFirst   = 0x0100,   ///< Channel between date and level instead of at end
     LOG_IncludeContext = 0x0200,   ///< Append the log context's fields as [key:value ...]
+    LOG_OmitDate       = 0x0400,   ///< Do not include a timestamp at all
 };
 
 /// Turns a record into bytes
@@ -106,7 +109,7 @@ void logSerialize(_Inout_ string* out, _In_opt_ LogSerializer* ser, _In_ const L
 ///
 /// Produces the one-line human-readable form: timestamp, level, channel, message.
 typedef struct LogTextConfig {
-    int dateFormat;   ///< Date format from LOG_DATE_FORMATS
+    int dateFormat;   ///< Date format from LOG_DATE_FORMATS; ignored under LOG_OmitDate
     int spacing;      ///< Spaces between the prefix and the message (0 defaults to 2)
     uint32 flags;     ///< Bitwise OR of LOG_FLAGS values
 
@@ -168,9 +171,14 @@ _Ret_valid_ LogSerializer* logNdjsonSerializer(_In_opt_ LogNdjsonConfig* config)
 void logVarText(_Inout_ string* out, _In_ const stvar* v);
 
 /// Formats a timestamp per dateFormat/flags.
+///
+/// Produces an empty string when LOG_OmitDate is set. Unlike the level and channel prefixes,
+/// the date does not carry a leading space -- it is the first thing on the line -- so a
+/// serializer that omits it has to drop the space belonging to whatever now comes first.
+///
 /// @param out Receives the formatted date; any existing value is destroyed first
 /// @param dateFormat One of the LOG_DATE_FORMATS values
-/// @param flags Bitwise OR of LOG_FLAGS values (only LOG_LocalTime is consulted)
+/// @param flags Bitwise OR of LOG_FLAGS values (LOG_LocalTime and LOG_OmitDate are consulted)
 /// @param timestamp Wall clock timestamp to format
 void logFormatDate(_Inout_ string* out, int dateFormat, uint32 flags, int64 timestamp);
 

@@ -70,6 +70,7 @@ static const testspec tests[] = {
     { "log: Call sites and rate limiting", "logtest", "site" },
     { "log: Records and deferred formatting", "logtest", "record" },
     { "log: Serializers", "logtest", "serializer" },
+    { "log: Text prefix omission", "logtest", "textomit" },
     { "log: Drain groups", "logtest", "groups" },
     { "log: Volume control", "logtest", "volume" },
     { "log: Boot window", "logtest", "bootwindow" },

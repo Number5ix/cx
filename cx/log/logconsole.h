@@ -26,6 +26,10 @@
 ///       .flags      = LOG_ShortLevel | LOG_IncludeChannel,
 ///   };
 ///
+///   // ...or, on a console where the timestamp is just noise, LOG_OmitDate leaves it out
+///   // entirely and the line starts with whatever comes next:
+///   //   LogTextConfig tcfg = { .flags = LOG_OmitDate | LOG_ShortLevel | LOG_IncludeChannel };
+///
 ///   // real conOut()/conErr()
 ///   LogConsoleData *lcd = logconsoleCreate(NULL, NULL, &cfg, logTextSerializer(&tcfg));
 ///   LogDest *dest = logconsoleRegister(LOG_Info, NULL, lcd);

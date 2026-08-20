@@ -6,6 +6,7 @@
 #include <cx/taskqueue.h>
 #include <cx/thread.h>
 #include <cx/xalloc/cstrutil.h>
+#include <ctype.h>
 #include <stdio.h>
 
 #include <cx/time.h>
@@ -945,6 +946,85 @@ static int test_log_serializer()
 }
 
 // ---------------------------------------------------------------------------------------
+// textomit: the text serializer's prefix pieces, and what the line looks like without them
+// ---------------------------------------------------------------------------------------
+
+static int test_log_textomit()
+{
+    int ret = 0;
+
+    // LOG_OmitDate drops the timestamp; the level prefix loses the leading space it only ever
+    // carried as a separator from the date
+    LogTextConfig nodate = {
+        .flags = LOG_OmitDate | LOG_ShortLevel,
+    };
+    LogMembufData* nmd = logmembufCreate(4096, logTextSerializer(&nodate));
+    LogDest* ndest     = logmembufRegister(LOG_Info, NULL, nmd);
+
+    // with a channel between the (absent) date and the level, the channel is what loses it
+    LogTextConfig nodatechan = {
+        .flags = LOG_OmitDate | LOG_ShortLevel | LOG_IncludeChannel | LOG_ChannelFirst,
+    };
+    LogMembufData* cmd = logmembufCreate(4096, logTextSerializer(&nodatechan));
+    LogDest* cdest     = logmembufRegister(LOG_Info, NULL, cmd);
+
+    // nothing in the prefix at all leaves the message alone, with no orphaned spacing run
+    LogTextConfig bare = {
+        .flags = LOG_OmitDate | LOG_OmitLevel | LOG_AddColon,
+    };
+    LogMembufData* bmd = logmembufCreate(4096, logTextSerializer(&bare));
+    LogDest* bdest     = logmembufRegister(LOG_Info, NULL, bmd);
+
+    // LOG_DateTimeOnly keeps a timestamp but drops the calendar date, which is the other half
+    // of what a console usually wants
+    LogTextConfig timeonly = {
+        .dateFormat = LOG_DateTimeOnly,
+        .flags      = LOG_ShortLevel,
+    };
+    LogMembufData* tmd = logmembufCreate(4096, logTextSerializer(&timeonly));
+    LogDest* tdest     = logmembufRegister(LOG_Info, NULL, tmd);
+
+    LogChannel* chan = logChan(_S"omit/test");
+    logStrC(Info, chan, _S"hello");
+    logFlush();
+
+    string line = 0;
+    membufSnapshot(&line, nmd);
+    if (!strEq(line, _S"I  hello\n"))
+        ret = 1;
+    membufSnapshot(&line, cmd);
+    if (!strEq(line, _S"omit/test I  hello\n"))
+        ret = 1;
+    membufSnapshot(&line, bmd);
+    if (!strEq(line, _S"hello\n"))
+        ret = 1;
+
+    // the clock reading itself is whatever time it is, so check the shape: HH:MM:SS and then
+    // the rest of the line exactly as any other date format would leave it
+    membufSnapshot(&line, tmd);
+    if (strLen(line) != 18 || strGetChar(line, 2) != ':' || strGetChar(line, 5) != ':')
+        ret = 1;
+    for (int i = 0; i < 8; i++) {
+        if (i != 2 && i != 5 && !isdigit(strGetChar(line, i)))
+            ret = 1;
+    }
+    string tail = 0;
+    strSubStr(&tail, line, 8, strEnd);
+    if (!strEq(tail, _S" I  hello\n"))
+        ret = 1;
+    strDestroy(&tail);
+
+    logUnregisterDest(ndest);
+    logUnregisterDest(cdest);
+    logUnregisterDest(bdest);
+    logUnregisterDest(tdest);
+    logShutdown();
+
+    strDestroy(&line);
+    return ret;
+}
+
+// ---------------------------------------------------------------------------------------
 // groups: one queue and one drain thread per named group
 // ---------------------------------------------------------------------------------------
 
@@ -1640,6 +1720,7 @@ testfunc logtest_funcs[] = {
     { "site",          test_log_site          },
     { "record",        test_log_record        },
     { "serializer",    test_log_serializer    },
+    { "textomit",      test_log_textomit      },
     { "groups",        test_log_groups        },
     { "volume",        test_log_volume        },
     { "bootwindow",    test_log_bootwindow    },

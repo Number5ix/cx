@@ -25,6 +25,8 @@ STR_CONST(
 STR_CONST(kLogDateSyslog, "${string(3)} ${uint(2)} ${0uint(2)}:${0uint(2)}:${0uint(2)}");
 STR_CONST(kLogDateISOCompactMs,
           "${0int(4)}-${0uint(2)}-${0uint(2)} ${0uint(2)}:${0uint(2)}:${0uint(2)}.${0uint(3)}");
+STR_CONST(kLogTimeOnly, "${0uint(2)}:${0uint(2)}:${0uint(2)}");
+STR_CONST(kLogTimeOnlyMs, "${0uint(2)}:${0uint(2)}:${0uint(2)}.${0uint(3)}");
 STR_CONST(kLogBracketFmt, " [${string}]");
 STR_CONST(kLogJustifyFmt, " ${string(7)}");
 STR_CONST(kLogSpace, " ");
@@ -89,6 +91,11 @@ static void logTextContext(_Inout_ string* out, _In_ LogTextState* st, _In_ cons
 _Use_decl_annotations_
 void logFormatDate(string* out, int dateFormat, uint32 flags, int64 timestamp)
 {
+    if (flags & LOG_OmitDate) {
+        strDestroy(out);
+        return;
+    }
+
     int64 toffsetraw = 0;
     TimeParts tp     = { 0 };
     if (flags & LOG_LocalTime) {
@@ -170,6 +177,23 @@ void logFormatDate(string* out, int dateFormat, uint32 flags, int64 timestamp)
                   stvar(uint8, tp.second),
                   stvar(uint32, tp.usec / 1000));
         break;
+    case LOG_DateTimeOnly:
+        // time of day alone, for a console where the day is not in question
+        strFormat(out,
+                  kLogTimeOnly,
+                  stvar(uint8, tp.hour),
+                  stvar(uint8, tp.minute),
+                  stvar(uint8, tp.second));
+        break;
+    case LOG_DateTimeOnlyMsec:
+        // time of day alone, with milliseconds
+        strFormat(out,
+                  kLogTimeOnlyMs,
+                  stvar(uint8, tp.hour),
+                  stvar(uint8, tp.minute),
+                  stvar(uint8, tp.second),
+                  stvar(uint32, tp.usec / 1000));
+        break;
     }
 }
 
@@ -229,14 +253,6 @@ static void logTextSerialize(_Inout_ string* out, _In_ const LogRecord* rec, _In
     string msg = 0;
     string logdate = 0, loglevel = 0, logchan = 0, logspaces = 0, logctx = 0;
 
-    // The colon takes a slot of its own ahead of the spaces, so fill the whole run first and then
-    // overwrite the first byte with it.
-    int nspaces = cfg->spacing ? cfg->spacing : 2;
-    int nprefix = nspaces + ((cfg->flags & LOG_AddColon) ? 1 : 0);
-    strFillChar(&logspaces, ' ', nprefix);
-    if (cfg->flags & LOG_AddColon)
-        strSetChar(&logspaces, 0, ':');
-
     logRecordRender(&msg, rec);
     logFormatDate(&logdate, cfg->dateFormat, cfg->flags, rec->timestamp);
     logFormatLevel(&loglevel, rec->level, cfg->flags);
@@ -244,6 +260,34 @@ static void logTextSerialize(_Inout_ string* out, _In_ const LogRecord* rec, _In
 
     if (cfg->flags & LOG_IncludeContext)
         logTextContext(&logctx, st, rec);
+
+    // The date is the only piece that does not carry a leading space, because it is normally the
+    // first thing on the line. Drop the space from whichever piece inherits that position, or the
+    // line starts with one.
+    if (strEmpty(logdate)) {
+        string* order[2] = { &loglevel, &logchan };
+        if (cfg->flags & LOG_ChannelFirst) {
+            order[0] = &logchan;
+            order[1] = &loglevel;
+        }
+        for (int i = 0; i < 2; i++) {
+            if (!strEmpty(*order[i])) {
+                strSubStrI(order[i], 1, strEnd);
+                break;
+            }
+        }
+    }
+
+    // The colon takes a slot of its own ahead of the spaces, so fill the whole run first and then
+    // overwrite the first byte with it. With nothing in the prefix there is nothing to separate
+    // the message from, so the run is left out entirely.
+    if (!(strEmpty(logdate) && strEmpty(loglevel) && strEmpty(logchan))) {
+        int nspaces = cfg->spacing ? cfg->spacing : 2;
+        int nprefix = nspaces + ((cfg->flags & LOG_AddColon) ? 1 : 0);
+        strFillChar(&logspaces, ' ', nprefix);
+        if (cfg->flags & LOG_AddColon)
+            strSetChar(&logspaces, 0, ':');
+    }
 
     // context goes after the message, where it reads as an annotation rather than as part of
     // the prefix a reader scans down
