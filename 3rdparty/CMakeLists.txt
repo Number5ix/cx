@@ -13,19 +13,18 @@ set(MI_WIN_REDIRECT      OFF CACHE INTERNAL "Use redirection module ('mimalloc-r
 set(MI_WIN_USE_FIXED_TLS OFF CACHE INTERNAL "Use a fixed TLS slot on Windows to avoid extra tests in the malloc fast path" FORCE)
 set(MI_BUILD_SHARED      OFF CACHE INTERNAL "Build shared library" FORCE)
 set(MI_BUILD_STATIC      OFF CACHE INTERNAL "Build static library" FORCE)
-set(MI_BUILD_OBJECT      OFF CACHE INTERNAL "Build object library" FORCE)
-set(MI_BUILD_OBJLIB      ON  CACHE INTERNAL "Build cmake object library" FORCE)
+set(MI_BUILD_OBJECT      ON  CACHE INTERNAL "Build object library" FORCE)
 set(MI_BUILD_TESTS       OFF CACHE INTERNAL "Build test executables" FORCE)
 if(DIAGNOSTIC)
     set(MI_GUARDED       ON  CACHE INTERNAL "Build with guard pages behind certain object allocations (implies MI_NO_PADDING=ON)" FORCE)
 endif()
 add_subdirectory(mimalloc)
-target_compile_definitions(mimalloc-objlib PRIVATE
+target_compile_definitions(mimalloc-obj PRIVATE
     $<${isdebug}:MI_DEBUG=3>
     $<${isdev}:MI_DEBUG=2>
     $<${isrelease}:MI_DEBUG=0>
     $<${isrelease}:MI_SECURE=4>)
-add_library(mimalloc ALIAS mimalloc-objlib)
+add_library(mimalloc ALIAS mimalloc-obj)
 endif() # CX_MIMALLOC
 
 if (CX_TLS)

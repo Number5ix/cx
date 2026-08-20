@@ -888,13 +888,13 @@ install(FILES cmake/mimalloc-config.cmake DESTINATION ${mi_install_cmakedir})
 install(FILES cmake/mimalloc-config-version.cmake DESTINATION ${mi_install_cmakedir})
 
 
-# single object file for more predictable static overriding
 if (MI_BUILD_OBJECT)
-  add_library(mimalloc-obj OBJECT src/static.c)
+  add_library(mimalloc-obj OBJECT ${mi_sources})
   set_property(TARGET mimalloc-obj PROPERTY POSITION_INDEPENDENT_CODE ON)
   # set_property(TARGET mimalloc-obj APPEND PROPERTY OBJECT_DEPENDS ${mi_sources})
-  target_compile_definitions(mimalloc-obj PRIVATE ${mi_defines})
+  target_compile_definitions(mimalloc-obj PRIVATE ${mi_defines} MI_STATIC_LIB)
   target_compile_options(mimalloc-obj PRIVATE ${mi_cflags} ${mi_cflags_static})
+  target_link_libraries(mimalloc-obj PRIVATE ${mi_libraries})
   target_include_directories(mimalloc-obj PUBLIC
       $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
       $<INSTALL_INTERFACE:${mi_install_incdir}>
