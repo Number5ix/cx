@@ -40,7 +40,9 @@ static int test_buffer_create()
 
     // Test try_create variant that should succeed
     buf = bufTryCreate(512);
-    if (!buf || buf->sz != 512 || buf->len != 0)
+    if (!buf)
+        return 1;
+    if (buf->sz != 512 || buf->len != 0)
         ret = 1;
 
     // Write and verify data
@@ -103,7 +105,9 @@ static int test_buffer_resize()
     // Test try_resize variant on NULL buffer
     buf          = NULL;
     bool success = bufTryResize(&buf, 128);
-    if (!success || !buf || buf->sz != 128)
+    if (!buf)
+        return 1;
+    if (!success || buf->sz != 128)
         ret = 1;
 
     // Add data
