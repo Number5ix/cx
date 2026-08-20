@@ -1,0 +1,12 @@
+; DO NOT EDIT (unless you know what you are doing)
+;
+; This subdirectory is a git "subrepo", and this file is maintained by the
+; git-subrepo command. See https://github.com/ingydotnet/git-subrepo#readme
+;
+[subrepo]
+	remote = https://github.com/microsoft/mimalloc.git
+	branch = main3
+	commit = cd69707c3ca01a4c5fb358e8b92a710554f15356
+	parent = cf2d384065d8fda23ce6944f2e79fa73e15e405a
+	method = merge
+	cmdver = 0.4.6
