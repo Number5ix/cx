@@ -907,6 +907,7 @@ if (MI_BUILD_OBJECT)
   )
 
   # Copy the generated object file (`static.o`) to the output directory (as `mimalloc.o`)
+  if(0)
   if(CMAKE_GENERATOR MATCHES "^Visual Studio.*$")
     set(mimalloc-obj-static "${CMAKE_CURRENT_BINARY_DIR}/mimalloc-obj.dir/$<CONFIG>/static${CMAKE_C_OUTPUT_EXTENSION}")
   else()
@@ -915,6 +916,7 @@ if (MI_BUILD_OBJECT)
   set(mimalloc-obj-out "${CMAKE_CURRENT_BINARY_DIR}/${mi_libname}${CMAKE_C_OUTPUT_EXTENSION}")
   add_custom_command(OUTPUT ${mimalloc-obj-out} DEPENDS mimalloc-obj mimalloc-static COMMAND "${CMAKE_COMMAND}" -E copy "${mimalloc-obj-static}" "${mimalloc-obj-out}")
   add_custom_target(mimalloc-obj-target ALL DEPENDS ${mimalloc-obj-out})
+  endif()
 
 
   # the following seems to lead to cmake warnings/errors on some systems, disable for now :-(
