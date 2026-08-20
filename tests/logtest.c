@@ -29,10 +29,15 @@ static int membufLines(LogMembufData* lmd)
     return n;
 }
 
+// The write position is read once and used for both the allocation and the copy. A destination
+// can still be delivering while this runs -- the drain thread emits the periodic stats record on
+// its own schedule, not the caller's -- and reading lmd->cur twice lets it grow in between, which
+// overflows the buffer strBuffer() just sized.
 static void membufSnapshot(string* out, LogMembufData* lmd)
 {
-    memcpy(strBuffer(out, lmd->cur), lmd->buf, lmd->cur);
-    strSetLen(out, lmd->cur);
+    uint32 cur = lmd->cur;
+    memcpy(strBuffer(out, cur), lmd->buf, cur);
+    strSetLen(out, cur);
 }
 
 // How many times a line appears in a snapshot -- the difference between "arrived" and "arrived
@@ -1233,6 +1238,11 @@ static int test_log_volume()
     logFlush();
     logFlush();
     logSetStatsInterval(0);
+
+    // With the interval off no new stats record can be generated, so this last flush is the one
+    // that makes the buffer stop changing: everything the drain thread had already queued for it
+    // is delivered before the snapshot reads it.
+    logFlush();
 
     membufSnapshot(&line, smd);
     if (strFind(line, 0, _S "queued ") < 0)
