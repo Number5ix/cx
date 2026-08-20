@@ -1,6 +1,6 @@
 set(everest_target "${MBEDTLS_TARGET_PREFIX}everest")
 
-add_library(${everest_target}
+add_library(${everest_target} OBJECT
   library/everest.c
   library/x25519.c
   library/Hacl_Curve25519_joined.c)
@@ -11,6 +11,7 @@ target_include_directories(${everest_target}
          $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
   PRIVATE include/everest
           include/everest/kremlib
+          ${CX_TOP_SOURCE_DIR}
           ${MBEDTLS_DIR}/library/)
 
 # Pass-through MBEDTLS_CONFIG_FILE and MBEDTLS_USER_CONFIG_FILE
@@ -36,7 +37,9 @@ if(INSTALL_MBEDTLS_HEADERS)
 
 endif(INSTALL_MBEDTLS_HEADERS)
 
+if(PROJECT_IS_TOP_LEVEL)
 install(TARGETS ${everest_target}
   EXPORT MbedTLSTargets
   DESTINATION ${CMAKE_INSTALL_LIBDIR}
   PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ)
+endif()

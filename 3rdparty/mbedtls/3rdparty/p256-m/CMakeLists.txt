@@ -1,6 +1,6 @@
 set(p256m_target ${MBEDTLS_TARGET_PREFIX}p256m)
 
-add_library(${p256m_target}
+add_library(${p256m_target} OBJECT
     p256-m_driver_entrypoints.c
     p256-m/p256-m.c)
 
@@ -9,7 +9,8 @@ target_include_directories(${p256m_target}
          $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/p256-m>
          $<BUILD_INTERFACE:${MBEDTLS_DIR}/include>
          $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-  PRIVATE ${MBEDTLS_DIR}/library/)
+  PRIVATE ${MBEDTLS_DIR}/library/
+        ${CX_TOP_SOURCE_DIR})
 
 # Pass-through MBEDTLS_CONFIG_FILE and MBEDTLS_USER_CONFIG_FILE
 # This must be duplicated from library/CMakeLists.txt because
@@ -34,7 +35,9 @@ if(INSTALL_MBEDTLS_HEADERS)
 
 endif(INSTALL_MBEDTLS_HEADERS)
 
+if(PROJECT_IS_TOP_LEVEL)
 install(TARGETS ${p256m_target}
 EXPORT MbedTLSTargets
 DESTINATION ${CMAKE_INSTALL_LIBDIR}
 PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ)
+endif()
