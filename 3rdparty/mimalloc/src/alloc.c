@@ -404,7 +404,11 @@ static mi_decl_forceinline void* mi_theap_realloc_zero_ex(mi_theap_t* theap, voi
     if (theap!=NULL)
     #endif
     {
-      if (mi_page_heap(page)==_mi_theap_heap(theap)) {  // and within the same heap
+      // note: _peek, not _mi_theap_heap: this thread may never have allocated, leaving its
+      // theap the read-only empty one whose heap is NULL. A page always has a heap, so the
+      // comparison simply fails and we fall through to the general path, which initializes
+      // the theap. _mi_theap_heap would assert instead (MI_DEBUG>=2).
+      if (mi_page_heap(page)==_mi_theap_heap_peek(theap)) {  // and within the same heap
         mi_assert_internal(p!=NULL);
         // todo: do not track as the usable size is still the same in the free; adjust potential padding?
         // mi_track_resize(p,size,newsize)
