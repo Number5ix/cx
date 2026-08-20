@@ -65,12 +65,14 @@ static PNtAllocateVirtualMemoryEx pNtAllocateVirtualMemoryEx = NULL;
 // Similarly, GetNumaProcessorNodeEx is only supported since Windows 7  (and GetNumaNodeProcessorMask is not supported on xbox)
 typedef struct MI_PROCESSOR_NUMBER_S { WORD Group; BYTE Number; BYTE Reserved; } MI_PROCESSOR_NUMBER;
 
+typedef DWORD(__stdcall *PGetCurrentProcessorNumber)();
 typedef VOID (__stdcall *PGetCurrentProcessorNumberEx)(MI_PROCESSOR_NUMBER* ProcNumber);
 typedef BOOL (__stdcall *PGetNumaProcessorNodeEx)(MI_PROCESSOR_NUMBER* Processor, PUSHORT NodeNumber);
 typedef BOOL (__stdcall* PGetNumaNodeProcessorMaskEx)(USHORT Node, PGROUP_AFFINITY ProcessorMask);
 typedef BOOL (__stdcall *PGetNumaProcessorNode)(UCHAR Processor, PUCHAR NodeNumber);
 typedef BOOL (__stdcall* PGetNumaNodeProcessorMask)(UCHAR Node, PULONGLONG ProcessorMask);
 typedef BOOL (__stdcall* PGetNumaHighestNodeNumber)(PULONG Node);
+static PGetCurrentProcessorNumber   pGetCurrentProcessorNumber = NULL;
 static PGetCurrentProcessorNumberEx pGetCurrentProcessorNumberEx = NULL;
 static PGetNumaProcessorNodeEx      pGetNumaProcessorNodeEx = NULL;
 static PGetNumaNodeProcessorMaskEx  pGetNumaNodeProcessorMaskEx = NULL;
@@ -211,6 +213,7 @@ void _mi_prim_mem_init( mi_os_mem_config_t* config )
   // Try to use Win7+ numa API
   hDll = mi_win_getlibrary(TEXT("kernel32.dll"), &hDllFree);
   if (hDll != NULL) {
+    pGetCurrentProcessorNumber = (PGetCurrentProcessorNumber)(void(*)(void))GetProcAddress(hDll, "GetCurrentProcessorNumber");
     pGetCurrentProcessorNumberEx = (PGetCurrentProcessorNumberEx)(void (*)(void))GetProcAddress(hDll, "GetCurrentProcessorNumberEx");
     pGetNumaProcessorNodeEx = (PGetNumaProcessorNodeEx)(void (*)(void))GetProcAddress(hDll, "GetNumaProcessorNodeEx");
     pGetNumaNodeProcessorMaskEx = (PGetNumaNodeProcessorMaskEx)(void (*)(void))GetProcAddress(hDll, "GetNumaNodeProcessorMaskEx");
@@ -511,9 +514,10 @@ size_t _mi_prim_numa_node(void) {
     BOOL ok = (*pGetNumaProcessorNodeEx)(&pnum, &nnode);
     if (ok) { numa_node = nnode; }
   }
-  else if (pGetNumaProcessorNode != NULL) {
+  else if (pGetNumaProcessorNode != NULL && pGetCurrentProcessorNumber != NULL) {
     // Vista or earlier, use older API that is limited to 64 processors. Issue #277
-    DWORD pnum = GetCurrentProcessorNumber();
+    // Unless they're running XP which doesn't even have GetCurrentProcessorNumber
+    DWORD pnum = pGetCurrentProcessorNumber();
     UCHAR nnode = 0;
     BOOL ok = pGetNumaProcessorNode((UCHAR)pnum, &nnode);
     if (ok) { numa_node = nnode; }
