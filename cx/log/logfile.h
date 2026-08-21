@@ -23,11 +23,12 @@
 ///   };
 ///   LogTextConfig tcfg = { .dateFormat = LOG_DateISO, .flags = LOG_IncludeChannel };
 ///
-///   LogFileData *lfd = logfileCreate(vfs, _SL("app.log"), &cfg, logTextSerializer(&tcfg));
-///   LogDest *dest = logfileRegister(LOG_Info, NULL, lfd);
+///   LogDest *dest = logfileRegister(LOG_Info, NULL, vfs, _SL("app.log"), &cfg,
+///                                   logTextSerializer(&tcfg));
 ///
 ///   // ...or the same rotation policy, written as NDJSON
-///   LogFileData *jfd = logfileCreate(vfs, _SL("app.ndjson"), &cfg, logNdjsonSerializer(NULL));
+///   LogDest *jdest = logfileRegister(LOG_Info, NULL, vfs, _SL("app.ndjson"), &cfg,
+///                                    logNdjsonSerializer(NULL));
 ///
 ///   // Later, unregister to close
 ///   logUnregisterDest(dest);
@@ -71,11 +72,50 @@ typedef struct LogFileData LogFileData;
 // High Level Interface
 // ============================================================================
 
+/// Register a file logging destination
+///
+/// Opens the log file and registers it with the logging system in one step. The file is created
+/// if it doesn't exist, and if rotation is enabled, existing rotated log files are scanned to
+/// enforce retention policies. Records are serialized and written to the file; it is closed when
+/// logUnregisterDest() retires the returned handle.
+///
+/// @param maxlevel Maximum log level to write to the file
+/// @param chanfilter Channel path pattern, or NULL for every unrestricted channel
+/// @param vfs Virtual filesystem to use for file operations
+/// @param filename Path to the log file
+/// @param config Rotation configuration (copied, caller retains ownership)
+/// @param ser Serializer to render records with; **ownership transfers**, including if this
+///            call fails. NULL gets a default text serializer.
+/// @return Destination handle for later unregistration, or NULL if the file could not be
+///         opened or the destination could not be registered
+/// @code
+///   LogFileConfig cfg = {
+///       .rotateMode = LOG_RotateSize,
+///       .rotateSize = 10 * 1024 * 1024,
+///   };
+///   LogTextConfig tcfg = { .flags = LOG_IncludeChannel | LOG_BracketLevel };
+///   LogDest *dest = logfileRegister(LOG_Info, NULL, vfs, _SL("server.log"), &cfg,
+///                                   logTextSerializer(&tcfg));
+/// @endcode
+LogDest* logfileRegister(int maxlevel, _In_opt_ strref chanfilter, _Inout_ VFS* vfs,
+                         _In_ strref filename, _In_ LogFileConfig* config,
+                         _In_opt_ LogSerializer* ser);
+
+// ============================================================================
+// Low Level Interface
+// ============================================================================
+//
+// These callbacks can be used directly with logRegisterDest() for custom
+// destination handling. Most users should use the high-level interface above.
+
 /// Create a file logging destination
 ///
-/// Initializes a file-based log destination with the specified configuration.
-/// The file is opened immediately and created if it doesn't exist. If rotation
-/// is enabled, existing rotated log files are scanned to enforce retention policies.
+/// Only needed to register the file by hand with logRegisterDest() -- logfileRegister() does
+/// this and the registration together. The returned handle belongs to exactly one destination:
+/// it is closed and freed by logfileCloseFunc() and cannot be registered twice.
+///
+/// The file is opened immediately and created if it doesn't exist. If rotation is enabled,
+/// existing rotated log files are scanned to enforce retention policies.
 ///
 /// @param vfs Virtual filesystem to use for file operations
 /// @param filename Path to the log file
@@ -84,34 +124,13 @@ typedef struct LogFileData LogFileData;
 ///            call fails. NULL gets a default text serializer.
 /// @return File logging handle, or NULL on failure
 /// @code
-///   LogFileConfig cfg = {
-///       .rotateMode = LOG_RotateSize,
-///       .rotateSize = 10 * 1024 * 1024,
-///   };
-///   LogTextConfig tcfg = { .flags = LOG_IncludeChannel | LOG_BracketLevel };
-///   LogFileData *lfd = logfileCreate(vfs, _SL("server.log"), &cfg, logTextSerializer(&tcfg));
+///   LogFileConfig cfg = { .rotateMode = LOG_RotateSize, .rotateSize = 10 * 1024 * 1024 };
+///   LogFileData *lfd = logfileCreate(vfs, _SL("server.log"), &cfg, NULL);
+///   LogDest *dest = logRegisterDest(LOG_Info, NULL, logfileMsgFunc, logfileBatchFunc,
+///                                   logfileCloseFunc, lfd);
 /// @endcode
 LogFileData* logfileCreate(_Inout_ VFS* vfs, _In_ strref filename, _In_ LogFileConfig* config,
                            _In_opt_ LogSerializer* ser);
-
-/// Register a file destination with the logging system
-///
-/// Registers the file as a log destination. Messages will be formatted according
-/// to the configuration and written to the file. The file destination will be
-/// automatically cleaned up when unregistered.
-///
-/// @param maxlevel Maximum log level to write to file
-/// @param chanfilter Channel path pattern, or NULL for every unrestricted channel
-/// @param logfile File logging handle from logfileCreate()
-/// @return Destination handle for later unregistration, or NULL on failure
-LogDest* logfileRegister(int maxlevel, _In_opt_ strref chanfilter, _In_ LogFileData* logfile);
-
-// ============================================================================
-// Low Level Interface
-// ============================================================================
-//
-// These callbacks can be used directly with logRegisterDest() for custom
-// destination handling. Most users should use the high-level interface above.
 
 /// Log message callback for file destinations
 ///

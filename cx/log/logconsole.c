@@ -102,12 +102,22 @@ void logconsoleCloseFunc(void* userdata)
 }
 
 _Use_decl_annotations_
-LogDest* logconsoleRegister(int maxlevel, strref chanfilter, LogConsoleData* console)
+LogDest* logconsoleRegister(int maxlevel, strref chanfilter, ConStream* out, ConStream* err,
+                            LogConsoleConfig* config, LogSerializer* ser)
 {
-    return logRegisterDest(maxlevel,
-                           chanfilter,
-                           logconsoleMsgFunc,
-                           logconsoleBatchFunc,
-                           logconsoleCloseFunc,
-                           console);
+    LogConsoleData* lcd = logconsoleCreate(out, err, config, ser);
+
+    LogDest* ret = logRegisterDest(maxlevel,
+                                   chanfilter,
+                                   logconsoleMsgFunc,
+                                   logconsoleBatchFunc,
+                                   logconsoleCloseFunc,
+                                   lcd);
+
+    // the destination owns the console once it is registered; if registration failed, nothing
+    // ever will, so tear it down here rather than leaking it and the serializer with it
+    if (!ret)
+        logconsoleCloseFunc(lcd);
+
+    return ret;
 }

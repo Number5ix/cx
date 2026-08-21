@@ -317,12 +317,26 @@ void logfileCloseFunc(void* userdata)
 }
 
 _Use_decl_annotations_
-LogDest* logfileRegister(int maxlevel, strref chanfilter, LogFileData* logfile)
+LogDest* logfileRegister(int maxlevel, strref chanfilter, VFS* vfs, strref filename,
+                         LogFileConfig* config, LogSerializer* ser)
 {
-    return logRegisterDest(maxlevel,
-                           chanfilter,
-                           logfileMsgFunc,
-                           logfileBatchFunc,
-                           logfileCloseFunc,
-                           logfile);
+    // logfileCreate consumes the serializer even when it fails, so there is nothing to clean up
+    // here on this path
+    LogFileData* lfd = logfileCreate(vfs, filename, config, ser);
+    if (!lfd)
+        return NULL;
+
+    LogDest* ret = logRegisterDest(maxlevel,
+                                   chanfilter,
+                                   logfileMsgFunc,
+                                   logfileBatchFunc,
+                                   logfileCloseFunc,
+                                   lfd);
+
+    // the destination owns the file once it is registered; if registration failed, nothing ever
+    // will, so close it here rather than leaving the handle open
+    if (!ret)
+        logfileCloseFunc(lfd);
+
+    return ret;
 }

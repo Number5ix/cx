@@ -4,6 +4,7 @@
 #endif
 
 #include "logmembuf.h"
+#include "log_private.h"
 #include <cx/format.h>
 #include <cx/string.h>
 #include <cx/time.h>
@@ -68,12 +69,32 @@ void logmembufCloseFunc(void* userdata)
 }
 
 _Use_decl_annotations_
-LogDest* logmembufRegister(int maxlevel, strref chanfilter, LogMembufData* logfile)
+LogDest* logmembufRegister(int maxlevel, strref chanfilter, uint32 size, LogSerializer* ser)
 {
-    return logRegisterDest(maxlevel,
-                           chanfilter,
-                           logmembufMsgFunc,
-                           NULL,
-                           logmembufCloseFunc,
-                           logfile);
+    LogMembufData* lmd = logmembufCreate(size, ser);
+
+    LogDest* ret = logRegisterDest(maxlevel,
+                                   chanfilter,
+                                   logmembufMsgFunc,
+                                   NULL,
+                                   logmembufCloseFunc,
+                                   lmd);
+
+    // the destination owns the buffer once it is registered; if registration failed, nothing ever
+    // will, so free it here rather than leaking it and the serializer with it
+    if (!ret)
+        logmembufCloseFunc(lmd);
+
+    return ret;
+}
+
+_Use_decl_annotations_
+LogMembufData* logmembufData(LogDest* dest)
+{
+    // the userdata of a destination is only a LogMembufData if this module put it there, and
+    // msgfunc is what says so
+    if (!dest || dest->msgfunc != logmembufMsgFunc)
+        return NULL;
+
+    return (LogMembufData*)dest->userdata;
 }

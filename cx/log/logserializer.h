@@ -20,7 +20,8 @@
 /// with a different serializer:
 /// @code
 ///   LogFileConfig cfg = { .rotateMode = LOG_RotateSize, .rotateSize = 10 * 1024 * 1024 };
-///   LogFileData *lfd  = logfileCreate(vfs, _SL("app.ndjson"), &cfg, logNdjsonSerializer(NULL));
+///   LogDest *dest = logfileRegister(LOG_Info, NULL, vfs, _SL("app.ndjson"), &cfg,
+///                                   logNdjsonSerializer(NULL));
 /// @endcode
 ///
 /// **Ownership:** a transport takes ownership of the serializer it is created with and destroys
@@ -126,9 +127,8 @@ typedef struct LogTextConfig {
 /// @return Serializer, ready to be handed to a transport
 /// @code
 ///   LogTextConfig tcfg = { .dateFormat = LOG_DateISO, .flags = LOG_BracketLevel };
-///   LogDest *dest = logconsoleRegister(LOG_Info, NULL,
-///                                      logconsoleCreate(NULL, NULL, &ccfg,
-///                                                       logTextSerializer(&tcfg)));
+///   LogDest *dest = logconsoleRegister(LOG_Info, NULL, NULL, NULL, &ccfg,
+///                                      logTextSerializer(&tcfg));
 /// @endcode
 _Ret_valid_ LogSerializer* logTextSerializer(_In_opt_ LogTextConfig* config);
 

@@ -11,7 +11,7 @@
 /// that never mentions groups behaves exactly as it did when there was a single drain thread.
 ///
 /// @code
-///   LogDest *bulk = logfileRegister(LOG_Trace, _SL("net/**"), lfd);
+///   LogDest *bulk = logfileRegister(LOG_Trace, _SL("net/**"), vfs, _SL("net.log"), &cfg, NULL);
 ///   logDestSetGroup(bulk, _SL("bulk"));   // ...but not on the console's thread
 /// @endcode
 ///
@@ -90,7 +90,7 @@ _Ret_opt_valid_ strref logGroupName(_In_ LogGroup* group);
 /// @param name Group name; empty moves the destination back to the default group
 /// @return false if the destination is not registered, or the group could not be created
 /// @code
-///   LogDest *dest = logfileRegister(LOG_Trace, _SL("net/**"), lfd);
+///   LogDest *dest = logfileRegister(LOG_Trace, _SL("net/**"), vfs, _SL("net.log"), &cfg, NULL);
 ///   logDestSetGroup(dest, _SL("bulk"));
 /// @endcode
 bool logDestSetGroup(_In_ LogDest* dhandle, _In_opt_ strref name);

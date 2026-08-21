@@ -63,7 +63,7 @@ void logResetStats(void);
 ///
 /// @param interval Time between records, or 0 to stop (the default)
 /// @code
-///   logfileRegister(LOG_Notice, _SL("cx/log/stats"), lfd);
+///   logfileRegister(LOG_Notice, _SL("cx/log/stats"), vfs, _SL("stats.log"), &cfg, NULL);
 ///   logSetStatsInterval(timeS(60));
 /// @endcode
 void logSetStatsInterval(int64 interval);

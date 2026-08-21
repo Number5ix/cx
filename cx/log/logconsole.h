@@ -31,8 +31,8 @@
 ///   //   LogTextConfig tcfg = { .flags = LOG_OmitDate | LOG_ShortLevel | LOG_IncludeChannel };
 ///
 ///   // real conOut()/conErr()
-///   LogConsoleData *lcd = logconsoleCreate(NULL, NULL, &cfg, logTextSerializer(&tcfg));
-///   LogDest *dest = logconsoleRegister(LOG_Info, NULL, lcd);
+///   LogDest *dest = logconsoleRegister(LOG_Info, NULL, NULL, NULL, &cfg,
+///                                      logTextSerializer(&tcfg));
 ///
 ///   // Later, unregister to release
 ///   logUnregisterDest(dest);
@@ -77,36 +77,32 @@ typedef struct LogConsoleData LogConsoleData;
 // High Level Interface
 // ============================================================================
 
-/// Create a console logging destination
+/// Register a console logging destination
 ///
-/// @param out Stream for messages less severe than stderrLevel; NULL uses conOut(). Not
-///            acquired or owned -- must outlive the returned handle.
-/// @param err Stream for messages at or more severe than stderrLevel; NULL uses conErr().
-///            Not acquired or owned -- must outlive the returned handle.
-/// @param config Logging configuration (copied, caller retains ownership)
-/// @param ser Serializer to render records with; **ownership transfers**. NULL gets a default
-///            text serializer.
-/// @return Console logging handle
-/// @code
-///   LogConsoleConfig cfg = { .stderrLevel = LOG_Count };
-///   LogConsoleData *lcd = logconsoleCreate(NULL, NULL, &cfg, NULL);   // real conOut()/conErr()
-///
-///   // or, for a test that asserts exact output:
-///   ConStream *out = conCreateMem(&(ConCaps){ 0 });
-///   LogConsoleData *lcdTest = logconsoleCreate(out, out, &cfg, NULL);
-/// @endcode
-_Ret_valid_ LogConsoleData* logconsoleCreate(_In_opt_ ConStream* out, _In_opt_ ConStream* err,
-                                             _In_ LogConsoleConfig* config,
-                                             _In_opt_ LogSerializer* ser);
-
-/// Register a console destination with the logging system
+/// Builds the console destination and registers it with the logging system in one step. It is
+/// closed and released when logUnregisterDest() retires the returned handle.
 ///
 /// @param maxlevel Maximum log level to write to the console
 /// @param chanfilter Channel path pattern, or NULL for every unrestricted channel
-/// @param console Console logging handle from logconsoleCreate()
+/// @param out Stream for messages less severe than stderrLevel; NULL uses conOut(). Not
+///            acquired or owned -- must outlive the destination.
+/// @param err Stream for messages at or more severe than stderrLevel; NULL uses conErr().
+///            Not acquired or owned -- must outlive the destination.
+/// @param config Console configuration (copied, caller retains ownership)
+/// @param ser Serializer to render records with; **ownership transfers**, including if this
+///            call fails. NULL gets a default text serializer.
 /// @return Destination handle for later unregistration, or NULL on failure
-LogDest* logconsoleRegister(int maxlevel, _In_opt_ strref chanfilter,
-                            _In_ LogConsoleData* console);
+/// @code
+///   LogConsoleConfig cfg = { .stderrLevel = LOG_Count };
+///   LogDest *dest = logconsoleRegister(LOG_Info, NULL, NULL, NULL, &cfg, NULL);
+///
+///   // or, for a test that asserts exact output:
+///   ConStream *mem = conCreateMem(&(ConCaps){ 0 });
+///   LogDest *tdest = logconsoleRegister(LOG_Info, NULL, mem, mem, &cfg, NULL);
+/// @endcode
+LogDest* logconsoleRegister(int maxlevel, _In_opt_ strref chanfilter, _In_opt_ ConStream* out,
+                            _In_opt_ ConStream* err, _In_ LogConsoleConfig* config,
+                            _In_opt_ LogSerializer* ser);
 
 // ============================================================================
 // Low Level Interface
@@ -114,6 +110,30 @@ LogDest* logconsoleRegister(int maxlevel, _In_opt_ strref chanfilter,
 //
 // These callbacks can be used directly with logRegisterDest() for custom
 // destination handling. Most users should use the high-level interface above.
+
+/// Create a console logging destination
+///
+/// Only needed to register the console by hand with logRegisterDest() -- logconsoleRegister()
+/// does this and the registration together. The returned handle belongs to exactly one
+/// destination: it is freed by logconsoleCloseFunc() and cannot be registered twice.
+///
+/// @param out Stream for messages less severe than stderrLevel; NULL uses conOut(). Not
+///            acquired or owned -- must outlive the returned handle.
+/// @param err Stream for messages at or more severe than stderrLevel; NULL uses conErr().
+///            Not acquired or owned -- must outlive the returned handle.
+/// @param config Console configuration (copied, caller retains ownership)
+/// @param ser Serializer to render records with; **ownership transfers**. NULL gets a default
+///            text serializer.
+/// @return Console logging handle
+/// @code
+///   LogConsoleConfig cfg = { .stderrLevel = LOG_Count };
+///   LogConsoleData *lcd = logconsoleCreate(NULL, NULL, &cfg, NULL);
+///   LogDest *dest = logRegisterDest(LOG_Info, NULL, logconsoleMsgFunc, logconsoleBatchFunc,
+///                                   logconsoleCloseFunc, lcd);
+/// @endcode
+_Ret_valid_ LogConsoleData* logconsoleCreate(_In_opt_ ConStream* out, _In_opt_ ConStream* err,
+                                             _In_ LogConsoleConfig* config,
+                                             _In_opt_ LogSerializer* ser);
 
 /// Log message callback for console destinations
 ///

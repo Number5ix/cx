@@ -3,7 +3,6 @@
 #include "crash.h"
 
 char* dbgLog;
-static LogMembufData* logmemdata;
 static LogDest* logdest;
 
 void dbgLogEnable(int level)
@@ -11,10 +10,12 @@ void dbgLogEnable(int level)
     if (dbgLog)
         dbgLogDisable();
 
-    logmemdata = logmembufCreate(DBGLOG_SIZE, NULL);
-    dbgLog     = logmemdata->buf;
+    logdest = logmembufRegister(level, NULL, DBGLOG_SIZE, NULL);
+    if (!logdest)
+        return;
+
+    dbgLog = logmembufData(logdest)->buf;
     dbgCrashIncludeMemory(dbgLog, DBGLOG_SIZE);
-    logdest = logmembufRegister(level, NULL, logmemdata);
 }
 
 void dbgLogDisable()
@@ -24,7 +25,6 @@ void dbgLogDisable()
 
     dbgCrashExcludeMemory(dbgLog, DBGLOG_SIZE);
     logUnregisterDest(logdest);
-    logdest    = NULL;
-    logmemdata = NULL;
-    dbgLog     = NULL;
+    logdest = NULL;
+    dbgLog  = NULL;
 }

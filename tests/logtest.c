@@ -124,8 +124,7 @@ static int test_log_levels()
     LogTestData td = { 0 };
     eventInit(&logtestevent);
 
-    LogMembufData* lmd = logmembufCreate(4096, NULL);
-    logmembufRegister(LOG_Verbose, NULL, lmd);
+    LogMembufData* lmd = logmembufData(logmembufRegister(LOG_Verbose, NULL, 4096, NULL));
     logRegisterDest(LOG_Info, NULL, testdest, NULL, NULL, &td);
     logRegisterDest(LOG_Error, NULL, testdest, NULL, NULL, &td);
 
@@ -213,8 +212,7 @@ static int test_log_batch()
     LogTestData td = { 0 };
     eventInit(&logtestevent);
 
-    LogMembufData* lmd = logmembufCreate(128 * 1024, NULL);
-    logmembufRegister(LOG_Verbose, NULL, lmd);
+    LogMembufData* lmd = logmembufData(logmembufRegister(LOG_Verbose, NULL, 128 * 1024, NULL));
     logRegisterDest(LOG_Info, NULL, testdest, testdestbatch, NULL, &td);
     logRegisterDest(LOG_Error, NULL, testdest, testdestbatch, NULL, &td);
 
@@ -265,11 +263,11 @@ static int test_log_channels()
     LogTestData td = { 0 };
     eventInit(&logtestevent);
 
-    LogMembufData* lmd = logmembufCreate(4096, NULL);
-    LogChannel* chan1  = logChan(_S"chan1");
-    LogChannel* chan2  = logDeclareChan(_S"chan2", 0);
-    LogChannel* chan3  = logDeclareChan(_S"chan3", 0);
-    logmembufRegister(LOG_Verbose, NULL, lmd);
+    LogChannel* chan1 = logChan(_S"chan1");
+    LogChannel* chan2 = logDeclareChan(_S"chan2", 0);
+    LogChannel* chan3 = logDeclareChan(_S"chan3", 0);
+
+    LogMembufData* lmd = logmembufData(logmembufRegister(LOG_Verbose, NULL, 4096, NULL));
     logRegisterDest(LOG_Info, NULL, testdest, NULL, NULL, &td);
     logRegisterDest(LOG_Info, _S"chan1", testdest, NULL, NULL, &td);
     logRegisterDest(LOG_Info, _S"chan2", testdest, NULL, NULL, &td);
@@ -353,8 +351,7 @@ static int test_log_backfill()
     if (td.count != 0 || logBootWindowCount() != 6)
         ret = 1;
 
-    LogMembufData* lmd = logmembufCreate(4096, NULL);
-    logmembufRegister(LOG_Verbose, NULL, lmd);
+    LogMembufData* lmd = logmembufData(logmembufRegister(LOG_Verbose, NULL, 4096, NULL));
     logRegisterDest(LOG_Info, NULL, testdest, NULL, NULL, &td);
 
     // Specifically check for 5 events. The Verbose entry was retained, because the window was
@@ -900,8 +897,8 @@ static int test_log_serializer()
     int ret = 0;
 
     // the same transport, given a different serializer, stores something else entirely
-    LogMembufData* jmd = logmembufCreate(8192, logNdjsonSerializer(NULL));
-    LogDest* jdest     = logmembufRegister(LOG_Info, NULL, jmd);
+    LogDest* jdest     = logmembufRegister(LOG_Info, NULL, 8192, logNdjsonSerializer(NULL));
+    LogMembufData* jmd = logmembufData(jdest);
 
     LogChannel* chan = logChan(_S"ser/test");
     logFmtC(Info,
@@ -963,22 +960,22 @@ static int test_log_textomit()
     LogTextConfig nodate = {
         .flags = LOG_OmitDate | LOG_ShortLevel,
     };
-    LogMembufData* nmd = logmembufCreate(4096, logTextSerializer(&nodate));
-    LogDest* ndest     = logmembufRegister(LOG_Info, NULL, nmd);
+    LogDest* ndest     = logmembufRegister(LOG_Info, NULL, 4096, logTextSerializer(&nodate));
+    LogMembufData* nmd = logmembufData(ndest);
 
     // with a channel between the (absent) date and the level, the channel is what loses it
     LogTextConfig nodatechan = {
         .flags = LOG_OmitDate | LOG_ShortLevel | LOG_IncludeChannel | LOG_ChannelFirst,
     };
-    LogMembufData* cmd = logmembufCreate(4096, logTextSerializer(&nodatechan));
-    LogDest* cdest     = logmembufRegister(LOG_Info, NULL, cmd);
+    LogDest* cdest     = logmembufRegister(LOG_Info, NULL, 4096, logTextSerializer(&nodatechan));
+    LogMembufData* cmd = logmembufData(cdest);
 
     // nothing in the prefix at all leaves the message alone, with no orphaned spacing run
     LogTextConfig bare = {
         .flags = LOG_OmitDate | LOG_OmitLevel | LOG_AddColon,
     };
-    LogMembufData* bmd = logmembufCreate(4096, logTextSerializer(&bare));
-    LogDest* bdest     = logmembufRegister(LOG_Info, NULL, bmd);
+    LogDest* bdest     = logmembufRegister(LOG_Info, NULL, 4096, logTextSerializer(&bare));
+    LogMembufData* bmd = logmembufData(bdest);
 
     // LOG_DateTimeOnly keeps a timestamp but drops the calendar date, which is the other half
     // of what a console usually wants
@@ -986,8 +983,8 @@ static int test_log_textomit()
         .dateFormat = LOG_DateTimeOnly,
         .flags      = LOG_ShortLevel,
     };
-    LogMembufData* tmd = logmembufCreate(4096, logTextSerializer(&timeonly));
-    LogDest* tdest     = logmembufRegister(LOG_Info, NULL, tmd);
+    LogDest* tdest     = logmembufRegister(LOG_Info, NULL, 4096, logTextSerializer(&timeonly));
+    LogMembufData* tmd = logmembufData(tdest);
 
     LogChannel* chan = logChan(_S"omit/test");
     logStrC(Info, chan, _S"hello");
@@ -1053,10 +1050,10 @@ static int test_log_groups()
     if (!strEq(logGroupName(bulk), _S "bulk"))
         ret = 1;
 
-    LogMembufData* amd = logmembufCreate(8192, NULL);
-    LogDest* adest     = logmembufRegister(LOG_Info, _S "grp/**", amd);
-    LogMembufData* bmd = logmembufCreate(8192, NULL);
-    LogDest* bdest     = logmembufRegister(LOG_Info, _S "grp/**", bmd);
+    LogDest* adest     = logmembufRegister(LOG_Info, _S "grp/**", 8192, NULL);
+    LogMembufData* amd = logmembufData(adest);
+    LogDest* bdest     = logmembufRegister(LOG_Info, _S "grp/**", 8192, NULL);
+    LogMembufData* bmd = logmembufData(bdest);
 
     if (!logDestSetGroup(bdest, _S "bulk"))
         ret = 1;
@@ -1088,8 +1085,8 @@ static int test_log_groups()
         ret = 1;
 
     // a channel only one group is interested in reaches only that group
-    LogMembufData* cmd = logmembufCreate(8192, NULL);
-    LogDest* cdest     = logmembufRegister(LOG_Info, _S "solo/**", cmd);
+    LogDest* cdest     = logmembufRegister(LOG_Info, _S "solo/**", 8192, NULL);
+    LogMembufData* cmd = logmembufData(cdest);
     if (!logDestSetGroup(cdest, _S "bulk"))
         ret = 1;
 
@@ -1135,8 +1132,8 @@ static int test_log_volume()
 
     logResetStats();
 
-    LogMembufData* lmd = logmembufCreate(64 * 1024, NULL);
-    LogDest* dest      = logmembufRegister(LOG_Debug, _S "vol/**", lmd);
+    LogDest* dest      = logmembufRegister(LOG_Debug, _S "vol/**", 64 * 1024, NULL);
+    LogMembufData* lmd = logmembufData(dest);
 
     // --- sampling -----------------------------------------------------------------------
     LogChannel* schan = logChan(_S "vol/sampled");
@@ -1167,8 +1164,8 @@ static int test_log_volume()
         ret = 1;
 
     // the surviving record carries the rate it survived at
-    LogMembufData* jmd = logmembufCreate(8192, logNdjsonSerializer(NULL));
-    LogDest* jdest     = logmembufRegister(LOG_Info, _S "vol/**", jmd);
+    LogDest* jdest     = logmembufRegister(LOG_Info, _S "vol/**", 8192, logNdjsonSerializer(NULL));
+    LogMembufData* jmd = logmembufData(jdest);
     LogChannel* rchan  = logChan(_S "vol/rate");
     logChanSetSampling(rchan, 3);
     logStrC(Info, rchan, _S "rate carried");
@@ -1183,8 +1180,8 @@ static int test_log_volume()
 
     // --- deduplication ------------------------------------------------------------------
     logResetStats();
-    LogMembufData* dmd = logmembufCreate(64 * 1024, NULL);
-    LogDest* ddest     = logmembufRegister(LOG_Debug, _S "vol/dedup", dmd);
+    LogDest* ddest     = logmembufRegister(LOG_Debug, _S "vol/dedup", 64 * 1024, NULL);
+    LogMembufData* dmd = logmembufData(ddest);
 
     logSetDedup(timeMS(200), 3);
 
@@ -1230,8 +1227,8 @@ static int test_log_volume()
         ret = 1;
 
     // the periodic record goes to a restricted channel, so it takes a destination that names it
-    LogMembufData* smd = logmembufCreate(8192, NULL);
-    LogDest* sdest     = logmembufRegister(LOG_Notice, _S "cx/log/stats", smd);
+    LogDest* sdest     = logmembufRegister(LOG_Notice, _S "cx/log/stats", 8192, NULL);
+    LogMembufData* smd = logmembufData(sdest);
     logSetStatsInterval(timeMS(1));
     osSleep(timeMS(50));
     logStrC(Info, logChan(_S "vol/metrics"), _S "wake the drain thread");
@@ -1375,8 +1372,7 @@ static int test_log_console()
         .dateFormat = LOG_DateISOCompact,
         .flags      = LOG_ShortLevel,
     };
-    LogConsoleData* lcd = logconsoleCreate(out, err, &cfg, logTextSerializer(&tcfg));
-    LogDest* dest       = logconsoleRegister(LOG_Info, NULL, lcd);
+    LogDest* dest = logconsoleRegister(LOG_Info, NULL, out, err, &cfg, logTextSerializer(&tcfg));
 
     logStr(Info, _S"info msg");
     logStr(Error, _S"error msg");
@@ -1416,16 +1412,14 @@ static int test_log_console_style()
         .stderrLevel = LOG_Count,
         .colorMode   = LOGCON_ColorOff,
     };
-    LogConsoleData* lcdOff = logconsoleCreate(off, off, &cfgOff, NULL);
-    LogDest* destOff       = logconsoleRegister(LOG_Info, NULL, lcdOff);
+    LogDest* destOff = logconsoleRegister(LOG_Info, NULL, off, off, &cfgOff, NULL);
 
     LogConsoleConfig cfgCustom = {
         .stderrLevel = LOG_Count,
         .colorMode   = LOGCON_ColorOn,
     };
     cfgCustom.levelStyle[LOG_Info] = CONSTYLE(CON_Green, 0);
-    LogConsoleData* lcdCustom      = logconsoleCreate(custom, custom, &cfgCustom, NULL);
-    LogDest* destCustom            = logconsoleRegister(LOG_Info, NULL, lcdCustom);
+    LogDest* destCustom = logconsoleRegister(LOG_Info, NULL, custom, custom, &cfgCustom, NULL);
 
     logStr(Info, _S"plain");
     logFlush();
@@ -1483,20 +1477,20 @@ static int test_log_bootwindow()
         ret = 1;
 
     // a destination registering during the window is backfilled before it sees anything live
-    LogMembufData* amd = logmembufCreate(8192, NULL);
-    LogDest* adest     = logmembufRegister(LOG_Verbose, NULL, amd);
+    LogDest* adest     = logmembufRegister(LOG_Verbose, NULL, 8192, NULL);
+    LogMembufData* amd = logmembufData(adest);
     if (membufLines(amd) != 3)
         ret = 1;
 
     // the backfill is filtered by the destination's own spec, not by the ring's
-    LogMembufData* bmd = logmembufCreate(8192, NULL);
-    LogDest* bdest     = logmembufRegister(LOG_Info, _S "boot/one/**", bmd);
+    LogDest* bdest     = logmembufRegister(LOG_Info, _S "boot/one/**", 8192, NULL);
+    LogMembufData* bmd = logmembufData(bdest);
     if (membufLines(bmd) != 2)   // the two Info records on boot/one, not the Verbose on boot/two
         ret = 1;
 
     // ...and it does not consume the ring, so a later destination still gets everything
-    LogMembufData* cmd = logmembufCreate(8192, NULL);
-    LogDest* cdest     = logmembufRegister(LOG_Verbose, NULL, cmd);
+    LogDest* cdest     = logmembufRegister(LOG_Verbose, NULL, 8192, NULL);
+    LogMembufData* cmd = logmembufData(cdest);
     if (membufLines(cmd) != 3)
         ret = 1;
 
@@ -1517,8 +1511,8 @@ static int test_log_bootwindow()
         ret = 1;
 
     // a destination registering now has nothing to be backfilled from
-    LogMembufData* dmd = logmembufCreate(8192, NULL);
-    LogDest* ddest     = logmembufRegister(LOG_Verbose, NULL, dmd);
+    LogDest* ddest     = logmembufRegister(LOG_Verbose, NULL, 8192, NULL);
+    LogMembufData* dmd = logmembufData(ddest);
     if (membufLines(dmd) != 0)
         ret = 1;
 
@@ -1534,8 +1528,8 @@ static int test_log_bootwindow()
     if (logBootWindowCount() != 3)
         ret = 1;
 
-    LogMembufData* emd = logmembufCreate(8192, NULL);
-    LogDest* edest     = logmembufRegister(LOG_Info, NULL, emd);
+    LogDest* edest     = logmembufRegister(LOG_Info, NULL, 8192, NULL);
+    LogMembufData* emd = logmembufData(edest);
     string snap        = 0;
     membufSnapshot(&snap, emd);
     if (membufLines(emd) != 3)
@@ -1570,8 +1564,8 @@ static int test_log_bootreplay()
     logBootWindowBegin(LOG_Verbose, 8192, 0, -1);
 
     // the destination that is already listening while the window captures
-    LogMembufData* amd = logmembufCreate(1 << 20, NULL);
-    LogDest* adest     = logmembufRegister(LOG_Verbose, NULL, amd);
+    LogDest* adest     = logmembufRegister(LOG_Verbose, NULL, 1 << 20, NULL);
+    LogMembufData* amd = logmembufData(adest);
 
     // Enough to leave a backlog in the queue at the moment the second destination registers.
     // The drain thread wakes on every enqueue, so a handful of records would usually be gone
@@ -1580,8 +1574,8 @@ static int test_log_bootreplay()
     for (int i = 0; i < nburst; i++) logFmt(Info, _S "burst ${int}", stvar(int32, i));
 
     // Deliberately no logFlush() here: records are still in flight, which is the whole point.
-    LogMembufData* bmd = logmembufCreate(1 << 20, NULL);
-    LogDest* bdest     = logmembufRegister(LOG_Verbose, NULL, bmd);
+    LogDest* bdest     = logmembufRegister(LOG_Verbose, NULL, 1 << 20, NULL);
+    LogMembufData* bmd = logmembufData(bdest);
 
     logFlush();
 
@@ -1621,8 +1615,8 @@ static int test_log_debugring()
     LogChannel* req   = logChan(_S "ring/net/request");
     LogChannel* other = logChan(_S "ring/other");
 
-    LogMembufData* lmd = logmembufCreate(16384, NULL);
-    LogDest* dest      = logmembufRegister(LOG_Info, _S "ring/**", lmd);
+    LogDest* dest      = logmembufRegister(LOG_Info, _S "ring/**", 16384, NULL);
+    LogMembufData* lmd = logmembufData(dest);
 
     // Off by default: nothing has a ring, so a Verbose record on a channel whose destination
     // wants Info is discarded at the call site exactly as it always was.
@@ -1692,8 +1686,8 @@ static int test_log_debugring()
 
     // A destination too coarse to have seen the error does not get the trace either: a released
     // record is filtered at the severity that released it.
-    LogMembufData* wmd = logmembufCreate(8192, NULL);
-    LogDest* wdest     = logmembufRegister(LOG_Fatal, _S "ring/**", wmd);
+    LogDest* wdest     = logmembufRegister(LOG_Fatal, _S "ring/**", 8192, NULL);
+    LogMembufData* wmd = logmembufData(wdest);
 
     logStrC(Error, net, _S "second failure");
     logFlush();

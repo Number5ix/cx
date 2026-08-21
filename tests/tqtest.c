@@ -422,9 +422,8 @@ static int test_tqtest_sched(void)
 
 static int test_tqtest_monitor(bool dedicated)
 {
-    LogMembufData *mbuf = logmembufCreate(65536, NULL);
-    monchan             = logDeclareChan(_S"MonitorTest", 0);
-    logmembufRegister(LOG_Diag, _S"MonitorTest", mbuf);
+    monchan = logDeclareChan(_S"MonitorTest", 0);
+    LogMembufData *mbuf = logmembufData(logmembufRegister(LOG_Diag, _S"MonitorTest", 65536, NULL));
 
     // reuse the sched test, but with the monitor enabled
     is_monitor_test = dedicated ? 2 : 1;

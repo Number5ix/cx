@@ -68,7 +68,8 @@ CX_C_BEGIN
 /// @code
 ///   logBootWindowBegin(LOG_Verbose, 0, 0, 0);
 ///   ...                                          // config parsing, subsystem startup
-///   LogDest *dest = logfileRegister(LOG_Info, NULL, lfd);   // backfilled with all of it
+///   // ...and this one is backfilled with all of it
+///   LogDest *dest = logfileRegister(LOG_Info, NULL, vfs, _SL("app.log"), &cfg, NULL);
 ///   logBootWindowEnd();
 /// @endcode
 void logBootWindowBegin(int maxlevel, uint32 maxentries, uint64 maxbytes, int64 duration);

@@ -43,8 +43,10 @@
 /// that registers a plain console sees its own logging and nothing else, and one that wants the
 /// framework's view asks for it:
 /// @code
-///   logconsoleRegister(LOG_Info, NULL, lcd);         // the application's own channels only
-///   logfileRegister(LOG_Diag, _SL("cx/**"), lfd);    // ...and cx's, in a file of their own
+///   // the application's own channels only...
+///   logconsoleRegister(LOG_Info, NULL, NULL, NULL, &ccfg, NULL);
+///   // ...and cx's, in a file of their own
+///   logfileRegister(LOG_Diag, _SL("cx/**"), vfs, _SL("cx.log"), &fcfg, NULL);
 /// @endcode
 ///
 /// **Destinations:**
@@ -52,8 +54,8 @@
 /// registered with a maximum level and a channel pattern, and any number of them can be active
 /// at once:
 /// @code
-///   LogFileData *lfd = logfileCreate(vfs, _SL("app.log"), &config, NULL);
-///   LogDest *dest = logfileRegister(LOG_Info, _SL("net/**"), lfd);
+///   LogDest *dest = logfileRegister(LOG_Info, _SL("net/**"), vfs, _SL("app.log"), &config,
+///                                   NULL);
 ///
 ///   // Later, unregister when done
 ///   logUnregisterDest(dest);
