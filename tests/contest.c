@@ -19,78 +19,120 @@ static int test_caps()
     ConCaps c;
 
     // not a tty, nothing forced -> no color, no vt, regardless of TERM
-    _conDetectCaps(&c, false, "xterm-256color", NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+    _conDetectCaps(&c, false, CON_ColorNone, "xterm-256color", NULL, NULL, NULL, NULL, NULL, NULL,
+                   NULL, NULL);
     if (c.color != CON_ColorNone || c.vt)
         return 1;
 
     // FORCE_COLOR forces color even without a tty
-    _conDetectCaps(&c, false, "xterm-256color", NULL, NULL, "1", NULL, NULL, NULL, NULL, NULL);
+    _conDetectCaps(&c, false, CON_ColorNone, "xterm-256color", NULL, NULL, "1", NULL, NULL, NULL,
+                   NULL, NULL);
     if (c.color != CON_Color256 || !c.vt)
         return 2;
 
     // CLICOLOR_FORCE=0 does not count as forcing
-    _conDetectCaps(&c, false, "xterm-256color", NULL, NULL, NULL, "0", NULL, NULL, NULL, NULL);
+    _conDetectCaps(&c, false, CON_ColorNone, "xterm-256color", NULL, NULL, NULL, "0", NULL, NULL,
+                   NULL, NULL);
     if (c.color != CON_ColorNone || c.vt)
         return 3;
 
     // TERM=dumb wins even on a real tty
-    _conDetectCaps(&c, true, "dumb", NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+    _conDetectCaps(&c, true, CON_ColorNone, "dumb", NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
     if (c.color != CON_ColorNone || c.vt || c.cursor || c.altscreen)
         return 4;
 
-    // unset TERM behaves the same as dumb
-    _conDetectCaps(&c, true, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+    // unset TERM resolves to whatever the platform passed as `termless` -- CON_ColorNone is
+    // the unix answer, and makes an unset TERM behave the same as dumb
+    _conDetectCaps(&c, true, CON_ColorNone, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
     if (c.color != CON_ColorNone || c.vt)
         return 5;
 
     // COLORTERM=truecolor wins outright
-    _conDetectCaps(&c, true, "xterm", "truecolor", NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+    _conDetectCaps(&c, true, CON_ColorNone, "xterm", "truecolor", NULL, NULL, NULL, NULL, NULL,
+                   NULL, NULL);
     if (c.color != CON_ColorTrue || !c.vt)
         return 6;
 
     // TERM containing "256color"
-    _conDetectCaps(&c, true, "screen-256color", NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+    _conDetectCaps(&c, true, CON_ColorNone, "screen-256color", NULL, NULL, NULL, NULL, NULL, NULL,
+                   NULL, NULL);
     if (c.color != CON_Color256 || !c.vt)
         return 7;
 
     // known 16-color TERM prefix
-    _conDetectCaps(&c, true, "xterm", NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+    _conDetectCaps(&c, true, CON_ColorNone, "xterm", NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+                   NULL);
     if (c.color != CON_Color16 || !c.vt || !c.cursor || !c.altscreen)
         return 8;
 
     // unrecognized TERM on a real tty still gets the 16-color fallback
-    _conDetectCaps(&c, true, "some-future-terminal", NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-                  NULL);
+    _conDetectCaps(&c, true, CON_ColorNone, "some-future-terminal", NULL, NULL, NULL, NULL, NULL,
+                   NULL, NULL, NULL);
     if (c.color != CON_Color16 || !c.vt)
         return 9;
 
     // WT_SESSION upgrades an otherwise-16-color terminal to truecolor
-    _conDetectCaps(&c, true, "xterm", NULL, NULL, NULL, NULL, "1", NULL, NULL, NULL);
+    _conDetectCaps(&c, true, CON_ColorNone, "xterm", NULL, NULL, NULL, NULL, "1", NULL, NULL, NULL);
     if (c.color != CON_ColorTrue)
         return 10;
 
     // NO_COLOR wins over everything, including an explicit truecolor signal, but leaves vt alone
-    _conDetectCaps(&c, true, "xterm-256color", "truecolor", "1", NULL, NULL, NULL, NULL, NULL,
-                  NULL);
+    _conDetectCaps(&c, true, CON_ColorNone, "xterm-256color", "truecolor", "1", NULL, NULL, NULL,
+                   NULL, NULL, NULL);
     if (c.color != CON_ColorNone || !c.vt)
         return 11;
 
     // NO_COLOR beats WT_SESSION too
-    _conDetectCaps(&c, true, "xterm", NULL, "1", NULL, NULL, "1", NULL, NULL, NULL);
+    _conDetectCaps(&c, true, CON_ColorNone, "xterm", NULL, "1", NULL, NULL, "1", NULL, NULL, NULL);
     if (c.color != CON_ColorNone)
         return 12;
 
     // unicode tracks LANG regardless of color/tty state
-    _conDetectCaps(&c, false, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, "en_US.UTF-8");
+    _conDetectCaps(&c, false, CON_ColorNone, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+                   "en_US.UTF-8");
     if (!c.unicode)
         return 13;
-    _conDetectCaps(&c, true, "xterm", NULL, NULL, NULL, NULL, NULL, NULL, NULL, "C");
+    _conDetectCaps(&c, true, CON_ColorNone, "xterm", NULL, NULL, NULL, NULL, NULL, NULL, NULL, "C");
     if (c.unicode)
         return 14;
 
     // cursorquery is never claimed by the pure heuristic; only a platform probe may set it
     if (c.cursorquery)
         return 15;
+
+    // --- termless: what an unset TERM means, which is a per-platform answer ---
+
+    // the windows shape -- no TERM, but a console-mode probe that found VT. Reporting
+    // CON_ColorNone here while caps.vt stays true is what made styled output emit bare SGR
+    // resets and render nothing at all.
+    _conDetectCaps(&c, true, CON_ColorTrue, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+    if (c.color != CON_ColorTrue || !c.vt || !c.cursor || !c.altscreen)
+        return 16;
+
+    // the legacy-console shape -- no VT, so 16 colors via SetConsoleTextAttribute
+    _conDetectCaps(&c, true, CON_Color16, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+    if (c.color != CON_Color16 || !c.vt)
+        return 17;
+
+    // termless is consulted only when TERM is unset -- a TERM that is set always wins,
+    // including TERM=dumb on an otherwise fully capable console
+    _conDetectCaps(&c, true, CON_ColorTrue, "dumb", NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+    if (c.color != CON_ColorNone || c.vt)
+        return 18;
+    _conDetectCaps(&c, true, CON_ColorTrue, "xterm", NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+                   NULL);
+    if (c.color != CON_Color16 || !c.vt)
+        return 19;
+
+    // NO_COLOR still wins over termless, and still leaves vt alone
+    _conDetectCaps(&c, true, CON_ColorTrue, NULL, NULL, "1", NULL, NULL, NULL, NULL, NULL, NULL);
+    if (c.color != CON_ColorNone || !c.vt)
+        return 20;
+
+    // termless does not resurrect a non-tty: not a terminal is still not a terminal
+    _conDetectCaps(&c, false, CON_ColorTrue, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+    if (c.color != CON_ColorNone || c.vt)
+        return 21;
 
     return 0;
 }

@@ -11,6 +11,13 @@ if(CX_STANDALONE)
     endif()
     target_link_libraries(htbench cx)
     set_property(TARGET htbench PROPERTY FOLDER "tests")
+
+    source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES
+        condemo.c)
+
+    add_executable(condemo condemo.c)
+    target_link_libraries(condemo cx)
+    set_property(TARGET condemo PROPERTY FOLDER "tests")
 endif()
 
 include (${CX_TOP_SOURCE_DIR}/cmake/werror.cmake)

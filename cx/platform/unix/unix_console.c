@@ -56,7 +56,8 @@ void _conPlatInit(ConStream* con, ConKind kind)
     p->istty = p->fd >= 0 && isatty(p->fd) != 0;
     con->plat = p;
 
-    _conDetectCapsAuto(&con->caps, p->istty);
+    // An unset TERM on unix genuinely means there is nothing to speak ANSI at.
+    _conDetectCapsAuto(&con->caps, p->istty, CON_ColorNone);
     _conPlatQuerySize(con);
 
     con->linebuffered = p->istty;

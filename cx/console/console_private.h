@@ -138,15 +138,23 @@ bool _conPlatScroll(_Inout_ ConStream* con, int16 lines);
 // Pure, unit-testable capability detection from explicit inputs -- no I/O of its own. NULL
 // means the corresponding environment variable was unset. Windows-only inputs (wt_session,
 // conemuansi, term_program) are harmless to pass as NULL on other platforms.
-void _conDetectCaps(_Out_ ConCaps* out, bool istty, _In_opt_z_ const char* term,
-                    _In_opt_z_ const char* colorterm, _In_opt_z_ const char* no_color,
-                    _In_opt_z_ const char* force_color, _In_opt_z_ const char* clicolor_force,
-                    _In_opt_z_ const char* wt_session, _In_opt_z_ const char* conemuansi,
-                    _In_opt_z_ const char* term_program, _In_opt_z_ const char* lang);
+//
+// `termless` is what an unset TERM should be taken to mean on this platform, and it is the
+// one input that is not an environment variable. On unix an unset TERM is a real signal that
+// there is no terminal to speak ANSI at, so the platform file passes CON_ColorNone. Windows
+// consoles never set TERM at all, so it set an appropriate default based on API capabilities.
+//
+// NO_COLOR is applied after `termless`, so it still wins on every platform.
+void _conDetectCaps(_Out_ ConCaps* out, bool istty, ConColorDepth termless,
+                    _In_opt_z_ const char* term, _In_opt_z_ const char* colorterm,
+                    _In_opt_z_ const char* no_color, _In_opt_z_ const char* force_color,
+                    _In_opt_z_ const char* clicolor_force, _In_opt_z_ const char* wt_session,
+                    _In_opt_z_ const char* conemuansi, _In_opt_z_ const char* term_program,
+                    _In_opt_z_ const char* lang);
 
 // Convenience wrapper that reads the environment itself via getenv() and forwards to
-// _conDetectCaps(). Platform files call this after determining `istty`.
-void _conDetectCapsAuto(_Out_ ConCaps* out, bool istty);
+// _conDetectCaps(). Platform files call this after determining `istty` and `termless`.
+void _conDetectCapsAuto(_Out_ ConCaps* out, bool istty, ConColorDepth termless);
 
 // --- escape-sequence decoding, implemented in conin.c (portable, no platform dependency) ---
 //

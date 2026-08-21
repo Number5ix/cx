@@ -202,7 +202,7 @@ bool conFlush(_In_ ConStream* con);
 ///
 /// Example:
 /// @code
-///   conFmt(conOut(), _SL("Hello ${string}, you have ${int32} messages"),
+///   conFmt(conOut(), _SL("Hello ${string}, you have ${int} messages"),
 ///          stvar(string, name), stvar(int32, count));
 /// @endcode
 bool _conFmt(_In_ ConStream* con, _In_ strref fmt, int n, _In_ stvar* args);

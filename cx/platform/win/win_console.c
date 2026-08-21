@@ -73,7 +73,15 @@ void _conPlatInit(ConStream* con, ConKind kind)
         }
     }
 
-    _conDetectCapsAuto(&con->caps, p->istty);
+    // Windows consoles do not set TERM, so the console-mode probe above is the only real
+    // evidence of what this host can do -- it is what an unset TERM resolves to here. A VT
+    // host is conhost 1511 or newer, which takes 24-bit SGR (exactly from 1703 on, and
+    // approximated against its 16-color table before that); everything else gets the legacy
+    // SetConsoleTextAttribute backend, which is 16 colors and nothing more. Passing this
+    // through _conDetectCaps() rather than patching caps.color afterwards is what keeps
+    // NO_COLOR and an explicitly set TERM=dumb able to override it.
+    _conDetectCapsAuto(&con->caps, p->istty, vtEnabled ? CON_ColorTrue : CON_Color16);
+
     if (p->istty) {
         con->caps.vt          = vtEnabled;
         con->caps.unicode     = true;    // output always goes through WriteConsoleW
@@ -81,8 +89,10 @@ void _conPlatInit(ConStream* con, ConKind kind)
         con->caps.altscreen   = vtEnabled;
         con->caps.cursorquery = !vtEnabled;   // legacy GetConsoleScreenBufferInfo is exact; a VT
                                               // DSR query races with input and is not attempted
-        if (!vtEnabled && con->caps.color == CON_ColorNone)
-            con->caps.color = CON_Color16;   // legacy SetConsoleTextAttribute backend
+
+        // An explicitly set TERM can ask for more than SetConsoleTextAttribute can render
+        if (!vtEnabled && con->caps.color > CON_Color16)
+            con->caps.color = CON_Color16;
 
         if (!vtEnabled) {
             CONSOLE_SCREEN_BUFFER_INFO info;

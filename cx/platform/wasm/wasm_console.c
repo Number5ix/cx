@@ -36,7 +36,7 @@ void _conPlatInit(ConStream* con, ConKind kind)
     }
     con->plat = p;
 
-    _conDetectCapsAuto(&con->caps, false);
+    _conDetectCapsAuto(&con->caps, false, CON_ColorNone);
 
     con->linebuffered = false;
     con->autoflush    = kind == CON_Kind_Err;

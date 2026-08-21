@@ -47,10 +47,10 @@ static bool isKnown16ColorTerm(const char* term)
 }
 
 _Use_decl_annotations_
-void _conDetectCaps(ConCaps* out, bool istty, const char* term, const char* colorterm,
-                    const char* no_color, const char* force_color, const char* clicolor_force,
-                    const char* wt_session, const char* conemuansi, const char* term_program,
-                    const char* lang)
+void _conDetectCaps(ConCaps* out, bool istty, ConColorDepth termless, const char* term,
+                    const char* colorterm, const char* no_color, const char* force_color,
+                    const char* clicolor_force, const char* wt_session, const char* conemuansi,
+                    const char* term_program, const char* lang)
 {
     memset(out, 0, sizeof(*out));
     out->istty = istty;
@@ -65,7 +65,12 @@ void _conDetectCaps(ConCaps* out, bool istty, const char* term, const char* colo
         // not a terminal and nobody asked us to pretend otherwise
         color = CON_ColorNone;
         vt    = false;
-    } else if (!term || strEqi((strref)term, _SL("dumb"))) {
+    } else if (!term) {
+        // no TERM to consult -- the platform file decides what that means here, because the
+        // answer differs by platform rather than by terminal (see console_private.h)
+        color = termless;
+        vt    = termless != CON_ColorNone;
+    } else if (strEqi((strref)term, _SL("dumb"))) {
         // explicitly incapable, even if attached to a tty
         color = CON_ColorNone;
         vt    = false;
@@ -113,10 +118,11 @@ void _conDetectCaps(ConCaps* out, bool istty, const char* term, const char* colo
 }
 
 _Use_decl_annotations_
-void _conDetectCapsAuto(ConCaps* out, bool istty)
+void _conDetectCapsAuto(ConCaps* out, bool istty, ConColorDepth termless)
 {
     _conDetectCaps(out,
                    istty,
+                   termless,
                    getenv("TERM"),
                    getenv("COLORTERM"),
                    getenv("NO_COLOR"),
