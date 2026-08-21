@@ -6,13 +6,17 @@ Please write a few sentences describing the overall goals of the pull request's 
 
 ## PR checklist
 
-Please tick as appropriate and edit the reasons (e.g.: "backport: not needed because this is a new feature")
+Please remove the segment/s on either side of the | symbol as appropriate, and add any relevant link/s to the end of the line.
+If the provided content is part of the present PR remove the # symbol.
 
-- [ ] **changelog** provided, or not required
-- [ ] **3.6 backport** done, or not required
-- [ ] **2.28 backport** done, or not required
-- [ ] **tests** provided, or not required
-
+- [ ] **changelog** provided | not required because:
+- [ ] **framework PR** provided Mbed-TLS/mbedtls-framework# | not required
+- [ ] **TF-PSA-Crypto development PR** provided Mbed-TLS/TF-PSA-Crypto# | not required because:
+- [ ] **TF-PSA-Crypto 1.1 PR** provided Mbed-TLS/TF-PSA-Crypto# | not required because:
+- [ ] **mbedtls development PR** provided # | not required because:
+- [ ] **mbedtls 4.1 PR** provided # | not required because:
+- [ ] **mbedtls 3.6 PR** provided # | not required because:
+- **tests**  provided | not required because:
 
 
 ## Notes for the submitter

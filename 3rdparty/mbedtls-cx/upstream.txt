@@ -1,0 +1,14 @@
+# Upstream Mbed TLS release vendored into 3rdparty/mbedtls.
+#
+# Sourced from the release *tarball*, not the git tag: since 4.0 the tag no
+# longer carries the pre-generated sources (error.c, version_features.c,
+# ssl_debug_helpers_generated.c, psa_crypto_driver_wrappers*, the
+# *_config_check_*.h headers) and does not expand the tf-psa-crypto submodule.
+# The tarball is self-contained and defaults GEN_FILES to OFF, so the vendored
+# tree needs no Perl/Python/jinja2 at build time.
+#
+# TF-PSA-Crypto 1.2.0 is bundled inside this tarball as tf-psa-crypto/.
+
+VERSION=4.2.0
+URL=https://github.com/Mbed-TLS/mbedtls/releases/download/mbedtls-4.2.0/mbedtls-4.2.0.tar.bz2
+SHA256=2bed9d713b4668f76553b097e72b8aa30bc8f112a940d7ae228d524bbde6ffea

@@ -30,25 +30,41 @@ endif() # CX_MIMALLOC
 if (CX_TLS)
 set(ENABLE_PROGRAMS OFF CACHE INTERNAL "Build Mbed TLS programs." FORCE)
 set(ENABLE_TESTING  OFF CACHE INTERNAL "Build Mbed TLS tests." FORCE)
+# The vendored tree comes from the release tarball, which ships every generated
+# source. Nothing here needs Perl, Python or jinja2.
+set(GEN_FILES       OFF CACHE INTERNAL "Generate the auto-generated files as needed" FORCE)
+# Forwarded to TF_PSA_CRYPTO_FATAL_WARNINGS by mbedtls' CMakeLists.txt. cx's own
+# warning flags reach these targets, and upstream's -Werror on top of them turns
+# any new cx header warning into a third-party build failure.
+set(MBEDTLS_FATAL_WARNINGS OFF CACHE INTERNAL "Compiler warnings treated as errors" FORCE)
+set(INSTALL_MBEDTLS_HEADERS       OFF CACHE INTERNAL "Install Mbed TLS headers." FORCE)
+set(INSTALL_TF_PSA_CRYPTO_HEADERS OFF CACHE INTERNAL "Install TF PSA Crypto headers." FORCE)
 
-set(USE_STATIC_MBEDTLS_LIBRARY OFF CACHE INTERNAL "Build Mbed TLS static library." FORCE)
-set(USE_OBJECT_MBEDTLS_LIBRARY ON  CACHE INTERNAL "Build mbed TLS object library." FORCE)
-add_subdirectory(mbedtls)
-target_include_directories(mbedtls PRIVATE ${CX_TOP_SOURCE_DIR}/cx/include)
-target_include_directories(mbedx509 PRIVATE ${CX_TOP_SOURCE_DIR}/cx/include)
-target_include_directories(mbedcrypto PRIVATE ${CX_TOP_SOURCE_DIR}/cx/include)
-target_compile_definitions(mbedtls PRIVATE
-    $<${isdebug}:DEBUG_LEVEL=2>
-    $<${isdev}:DEBUG_LEVEL=1>
-    $<${isrelease}:DEBUG_LEVEL=0>)
-target_compile_definitions(mbedx509 PRIVATE
-    $<${isdebug}:DEBUG_LEVEL=2>
-    $<${isdev}:DEBUG_LEVEL=1>
-    $<${isrelease}:DEBUG_LEVEL=0>)
-target_compile_definitions(mbedcrypto PRIVATE
-    $<${isdebug}:DEBUG_LEVEL=2>
-    $<${isdev}:DEBUG_LEVEL=1>
-    $<${isrelease}:DEBUG_LEVEL=0>)
+# USE_STATIC_* stays ON: all the target-naming logic in objlib.cmake,
+# drivers/driver.cmake and the everest/p256-m CMakeLists is keyed on it.
+set(USE_STATIC_MBEDTLS_LIBRARY       ON CACHE INTERNAL "Build Mbed TLS static library." FORCE)
+set(USE_OBJECT_MBEDTLS_LIBRARY       ON CACHE INTERNAL "Build Mbed TLS object library." FORCE)
+set(USE_STATIC_TF_PSA_CRYPTO_LIBRARY ON CACHE INTERNAL "Build TF-PSA-Crypto static library." FORCE)
+set(USE_OBJECT_TF_PSA_CRYPTO_LIBRARY ON CACHE INTERNAL "Build TF-PSA-Crypto object library." FORCE)
+
+set(MBEDTLS_USER_CONFIG_FILE       "${CX_TOP_SOURCE_DIR}/cxtls/include/cxtls_mbedtls_config.h"
+    CACHE FILEPATH "Mbed TLS user config file (appended to default)." FORCE)
+set(TF_PSA_CRYPTO_USER_CONFIG_FILE "${CX_TOP_SOURCE_DIR}/cxtls/include/cxtls_crypto_config.h"
+    CACHE FILEPATH "TF-PSA-Crypto user config file (appended to default)." FORCE)
+
+add_subdirectory(mbedtls EXCLUDE_FROM_ALL)
+
+set(cx_mbedtls_targets
+    tfpsacrypto mbedx509 mbedtls
+    platform extras utilities
+    builtin everest p256-m pqcp)
+foreach(t IN LISTS cx_mbedtls_targets)
+    target_include_directories(${t} PRIVATE ${CX_TOP_SOURCE_DIR} ${CX_TOP_SOURCE_DIR}/cx/include)
+    target_compile_definitions(${t} PRIVATE
+        $<${isdebug}:DEBUG_LEVEL=2>
+        $<${isdev}:DEBUG_LEVEL=1>
+        $<${isrelease}:DEBUG_LEVEL=0>)
+endforeach()
 endif() # CX_TLS
 
 set(PCRE2_SHOW_REPORT     OFF CACHE INTERNAL "Show the final configuration report" FORCE)
