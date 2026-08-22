@@ -629,9 +629,13 @@ bool NetFlow__filterStreamSend(NetFlow* self, NetQueue* q, NetSocket* sock, cons
     withMutex (&self->filterLock) {
         withMutex (&sock->sendLock) {
             // Over the high watermark the payload is refused outright rather than staged: staging it
-            // would report success for data the socket has already said it cannot take.
+            // would report success for data the socket has already said it cannot take. What is
+            // already staged counts toward the limit too -- a stage that is still negotiating
+            // consumes nothing, so the send chain stays near empty while encIn grows, and a
+            // watermark that only watched the chain would never fire during a handshake.
+            size_t staged = self->encIn ? self->encIn->total : 0;
             if (data && len > 0 && sock->sendHigh &&
-                sock->bufs.stream.send.total >= sock->sendHigh) {
+                sock->bufs.stream.send.total + staged >= sock->sendHigh) {
                 sock->sendBlocked = true;
                 ok                = false;
             } else {
