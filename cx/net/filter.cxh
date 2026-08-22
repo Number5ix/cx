@@ -16,7 +16,9 @@
 ///
 /// Attach a NetFilter to a socket and it handles the rest: it creates a NetFlowFilter for every
 /// flow already open, and the socket calls it again each time a new flow opens. Applications never
-/// create or manage flow filters directly.
+/// create or manage flow filters directly. A listening socket passes its filters on to every
+/// connection it accepts, before that connection becomes reachable, so one filter attached to a
+/// listener covers the whole server.
 ///
 /// Both levels are plain arrays, ordered from the application toward the wire:
 ///
@@ -71,6 +73,13 @@
 /// TLS certificate and key material, for example -- which a created flow filter accesses by
 /// keeping its own reference to `self` (this NetFilter), captured inside createFlow(). One
 /// instance may be attached to as many sockets as needed; each socket acquires its own reference.
+/// That is what attaching one to a listener does: every accepted connection inherits it and
+/// acquires a reference of its own, so a single filter holding a certificate and key serves the
+/// whole server.
+///
+/// A factory that cannot build a usable stage should still return one, in a state that fails on its
+/// first pass. Returning NULL leaves the flow unfiltered, which for a transform is harmless and for
+/// a security filter means traffic the application believes is protected going out in the clear.
 abstract class NetFilter
 {
     /// Create a per-flow filter instance for a flow of the given socket type.

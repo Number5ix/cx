@@ -172,6 +172,12 @@ void NetSocket__accepted(_In_ NetSocket* self, _Inout_ NetSocket* newSock, _In_o
         return;
     }
 
+    // An accepted connection inherits the listener's filters.
+    for (int32 i = 0; i < saSize(self->filters); i++) {
+        if (self->filters.a[i])
+            netsocketAddFilter(newSock, self->filters.a[i]);
+    }
+
     // NQ_AutoAccept: register the socket with the queue up front so the application receives it
     // already managed (associated with the backend and being serviced for receive). The add
     // acquires its own reference; the platform factory's reference still travels on the message.

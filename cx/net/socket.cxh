@@ -263,8 +263,14 @@ abstract class NetSocket
     /// done; the same filter may be attached to any number of sockets, which is how one filter
     /// holding a certificate and key serves every accepted connection on a server.
     ///
-    /// Install filters before data starts moving -- right after creating the socket, before
-    /// connect/accept, or from the NET_Accepted handler for an inbound connection.
+    /// A filter attached to a **listening** socket is inherited by every connection it accepts, and
+    /// is installed on the accepted socket before that socket becomes reachable -- so no byte can
+    /// arrive on a new connection ahead of its chain. That is the way to secure a server: attach
+    /// once to the listener, not per connection from the NET_Accepted handler, which races the
+    /// worker already servicing the new socket.
+    ///
+    /// Install filters before data starts moving -- right after creating the socket, and before
+    /// connect or listen.
     ///
     /// @param filter Filter to attach
     /// @return true if the filter was attached, false if it declined this socket type (see
