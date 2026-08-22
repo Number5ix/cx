@@ -129,7 +129,10 @@ INPUT                  = docs/docs.md \
                          cx/include \
                          cx/stype/stype.h \
                          cx \
-                         @DOXYGEN_BUILD_DIR@/cx
+                         @DOXYGEN_BUILD_DIR@/cx \
+                         cxtls/include \
+                         cxtls \
+                         @DOXYGEN_BUILD_DIR@/cxtls
 INPUT_ENCODING         = UTF-8
 INPUT_FILE_ENCODING    = 
 FILE_PATTERNS          = *.h \

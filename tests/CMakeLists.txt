@@ -1,6 +1,11 @@
 include (${CX_TOP_SOURCE_DIR}/cmake/werror.cmake)
 include (CTest)
 
+set(tlstestsrc "")
+if(CX_TLS)
+    set(tlstestsrc tlstest.c)
+endif()
+
 create_test_sourcelist(testsrc
     test_runner.c
     debugtest.c
@@ -29,6 +34,7 @@ create_test_sourcelist(testsrc
     fstest.c
     prqtest.c
     nettest.c
+    ${tlstestsrc}
     tqtest.c
     cpptest.cpp
     alltests.c)
@@ -54,6 +60,10 @@ set(test_runner_files
     tqtestobj.cxh
     common.h)
 
+if(CX_TLS)
+    list(APPEND test_runner_files tlstestcert.c tlstestcert.h)
+endif()
+
 source_group("" FILES ${test_runner_files})
 
 add_executable(test_runner ${test_runner_files})
@@ -61,6 +71,11 @@ set_property(TARGET test_runner PROPERTY CXX_STANDARD 17)
 set_property(TARGET test_runner PROPERTY CXX_STANDARD_REQUIRED ON)
 target_include_directories(test_runner PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(test_runner cx)
+
+if(CX_TLS)
+    target_link_libraries(test_runner cxtls)
+    target_compile_definitions(test_runner PRIVATE CX_TLS_TESTS=1)
+endif()
 
 if(CX_PLATFORM_IS_WASM)
     target_link_options(test_runner PRIVATE "-sPTHREAD_POOL_SIZE=16" "-sPROXY_TO_PTHREAD" "-sEXIT_RUNTIME")
@@ -384,6 +399,22 @@ add_test(NAME "\"netkqueue: Accept\"" COMMAND test_runner nettest kqueue_accept)
 add_test(NAME "\"netkqueue: Accept AutoAccept\"" COMMAND test_runner nettest kqueue_accept_auto)
 endif()
 endif()
+if(CX_TLS AND (CX_PLATFORM_IS_WINDOWS OR CX_PLATFORM_IS_UNIX))
+add_test(NAME "\"tls: Handshake\"" COMMAND test_runner tlstest handshake)
+add_test(NAME "\"tls: Wire Is Encrypted\"" COMMAND test_runner tlstest wire)
+add_test(NAME "\"tls: Certificate Verification\"" COMMAND test_runner tlstest verify)
+add_test(NAME "\"tls: Hostname Verification\"" COMMAND test_runner tlstest hostname)
+add_test(NAME "\"tls: Bulk Transfer\"" COMMAND test_runner tlstest large)
+add_test(NAME "\"tls: STARTTLS Upgrade\"" COMMAND test_runner tlstest starttls)
+add_test(NAME "\"tls: ALPN\"" COMMAND test_runner tlstest alpn)
+add_test(NAME "\"tls: Mutual TLS\"" COMMAND test_runner tlstest mtls)
+add_test(NAME "\"tls: Certificate Rotation\"" COMMAND test_runner tlstest rotate)
+add_test(NAME "\"tls: Orderly Shutdown\"" COMMAND test_runner tlstest shutdown)
+add_test(NAME "\"tls: Session Resumption\"" COMMAND test_runner tlstest resume)
+add_test(NAME "\"tls: Post-Handshake Tickets\"" COMMAND test_runner tlstest tickets)
+add_test(NAME "\"tls: Unusable Config Fails Closed\"" COMMAND test_runner tlstest failclosed)
+endif()
+
 add_test(NAME "\"taskqueue: Tasks\"" COMMAND test_runner tqtest task)
 add_test(NAME "\"taskqueue: Failed Tasks\"" COMMAND test_runner tqtest failure)
 add_test(NAME "\"taskqueue: Concurrency (in-worker)\"" COMMAND test_runner tqtest concurrency_inworker)

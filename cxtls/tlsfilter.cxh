@@ -1,0 +1,168 @@
+#include <cx/net/filter.cxh>
+#include <cxtls/tlsconfig.cxh>
+
+/// @addtogroup tls_filter
+/// @{
+/// TLS as a NetQueue filter: encrypt on the way out, decrypt on the way in, and nothing else
+/// changes.
+///
+/// A socket with one of these attached is used exactly like a socket without: netsocketSend() takes
+/// plaintext, netsocketRecv() returns plaintext, and the ordinary handler set delivers the ordinary
+/// events. What the wire carries is TLS records, and the handshake happens inside the filter with
+/// no separate phase the application has to drive.
+///
+/// The one addition is a notification. When the channel comes up, the filter raises
+/// NFN_Secured, delivered as NET_FilterNotify through NetHandlers::filterNotify and ordered ahead
+/// of the first NET_DataReceived carrying decoded data. That is the edge at which the peer's
+/// identity is established -- and the natural place to call nettlsFlowInfo().
+///
+/// @section tls_filter_client Client
+///
+/// @code
+///   TlsConfig *cfg = tlsconfigCreateClient();
+///   tlsconfigSetCA(cfg, ca);
+///
+///   NetSocket *sock = netqueueSocket(q, NST_Stream);
+///   netqueueAddSocket(q, sock);
+///   netsocketSetHandlers(sock, &handlers, ctx);
+///
+///   TlsClientFilter *tls = tlsclientfilterCreate(cfg, _S"example.com");
+///   netsocketAddFilter(sock, NetFilter(tls));
+///   objRelease(&tls);
+///
+///   netsocketConnect(sock, _S"example.com", 443);
+/// @endcode
+///
+/// The hostname is carried on the filter rather than taken from the connect call, because a flow
+/// filter is built without any view of the socket that owns it. It is used for both SNI and
+/// certificate name verification, so it must be the name the certificate is expected to carry --
+/// not necessarily the host being dialed, when connecting through a proxy or to a literal address.
+///
+/// @section tls_filter_server Server
+///
+/// @code
+///   TlsConfig *cfg = tlsconfigCreateServer(creds);
+///   TlsServerFilter *tls = tlsserverfilterCreate(cfg);
+///   netsocketAddFilter(listener, NetFilter(tls));
+/// @endcode
+///
+/// One server filter serves every connection the listener accepts: accepted sockets inherit the
+/// listener's filters before they become reachable, so no byte can arrive on a new connection
+/// before its chain exists. Rotating the certificate is tlsserverfilterSetConfig() with a freshly
+/// built TlsConfig; connections already running finish on the one they started with.
+///
+/// @section tls_filter_starttls STARTTLS
+///
+/// Nothing special is needed. Attaching the filter to a socket that is already connected builds
+/// the chain and primes it on the spot, so a protocol that negotiates in the clear and then
+/// upgrades just calls netsocketAddFilter() at the point it agrees to:
+///
+/// @code
+///   // both ends have exchanged their cleartext STARTTLS handshake by now
+///   netsocketAddFilter(sock, NetFilter(tls));
+/// @endcode
+
+// One TLS session: the per-flow stage that does the encrypting
+//
+// Never constructed by an application -- TlsClientFilter and TlsServerFilter build one per flow.
+class TlsStreamFilter extends NetStreamFilter
+{
+    object[TlsConfig] config;
+
+    string hostname;     // Expected peer name, for SNI and certificate verification (client only)
+    bool server;         // Endpoint role
+
+    TlsSession *sess;    // opaque mbedtls_ssl_context and BIO cursor; see tls_private.h
+    TlsInfoState *info;  // snapshot captured when the handshake completed, or NULL
+
+    bool secured;        // The handshake completed; NFN_Secured has been raised
+    bool closing;        // shutdown() has run; only the close record is still owed to the wire
+    bool peerClosed;     // The peer sent close_notify; nothing more will be decoded
+    bool failed;         // A fatal error occurred; every pass from here reports it
+
+    // Bytes handed to a mbedtls_ssl_write() that has not yet completed, or 0
+    //
+    // mbedTLS requires an interrupted write to be retried with the *same* arguments, so the length
+    // is remembered and the next pass re-offers exactly that many bytes from the head of the input
+    // -- which are unchanged, since nothing is consumed until the write succeeds.
+    uint32 pendingWrite;
+
+    factory create([in] TlsConfig *config, [opt] strref hostname, bool server);
+    destroy();
+
+    override shutdown;
+    override encode;
+    override decode;
+}
+
+/// @brief Attaches TLS to an outbound connection
+///
+/// Holds the session policy and the name to verify the server against. Unlike a server filter,
+/// which is shared, one of these belongs to one socket -- the hostname is per connection, and the
+/// expensive part (the trust store, the parsed configuration) is shared through the TlsConfig
+/// rather than through the filter.
+class TlsClientFilter extends NetFilter
+{
+    object[TlsConfig] config;
+    string hostname;
+
+    /// Create a client-side TLS filter
+    ///
+    /// @param config Client configuration; the filter acquires its own reference
+    /// @param hostname Name to send as SNI and require the server's certificate to match. Pass
+    ///        NULL only when connecting somewhere no name can be checked (a bare address), which
+    ///        also means certificate name verification cannot protect the connection.
+    /// @return The new filter, or NULL if config is NULL or is not a client configuration
+    [canfail] factory create([in] TlsConfig *config, [opt] strref hostname);
+
+    destroy();
+
+    override createFlow;
+    override canFilter;
+}
+
+/// @brief Attaches TLS to inbound connections
+///
+/// Attach one to a listening socket and every connection it accepts is secured with it. The
+/// configuration behind it can be replaced at any time, which is how a certificate is rotated
+/// without dropping traffic.
+class TlsServerFilter extends NetFilter
+{
+    /// @brief The configuration handed to new sessions, swapped by setConfig()
+    ///
+    /// Guarded by `lock` rather than left to atomics, because reading it means acquiring a
+    /// reference, and a plain pointer read racing a release could hand out an object already on
+    /// its way out.
+    object[TlsConfig] config;
+
+    Mutex lock;
+
+    /// Create a server-side TLS filter
+    ///
+    /// @param config Server configuration; the filter acquires its own reference
+    /// @return The new filter, or NULL if config is NULL or is not a server configuration
+    [canfail] factory create([in] TlsConfig *config);
+
+    init();
+    destroy();
+
+    override createFlow;
+    override canFilter;
+
+    /// Replace the configuration used for connections accepted from now on
+    ///
+    /// This is certificate rotation. Build a new TlsConfig around the new credentials and install
+    /// it; sessions already running hold their own reference to the old configuration and finish
+    /// on the certificate they started with, and it is destroyed once the last of them ends.
+    ///
+    /// @param config New server configuration; the filter acquires its own reference
+    unbound void setConfig([in] TlsConfig *config);
+
+    /// The configuration currently handed to new sessions
+    ///
+    /// @return The current configuration with a reference acquired for the caller, who must
+    ///         objRelease() it
+    [sal _Ret_maybenull_] unbound TlsConfig *getConfig();
+}
+
+/// @}

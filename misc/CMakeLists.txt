@@ -22,6 +22,15 @@ endif()
 
 include (${CX_TOP_SOURCE_DIR}/cmake/werror.cmake)
 
+if(CX_STANDALONE AND CX_TLS)
+    source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES
+        tlsdemo.c)
+
+    add_executable(tlsdemo tlsdemo.c)
+    target_link_libraries(tlsdemo cxtls)
+    set_property(TARGET tlsdemo PROPERTY FOLDER "tests")
+endif()
+
 set(PRESETS_MAKER_SRCS
     presetsmaker.c
     )

@@ -41,6 +41,19 @@ class NetPassDgramFilter extends NetDatagramFilter {
     override decodeMsg;
 }
 
+// Wire tap: an identity stream stage that also copies everything it passes toward the wire into a
+// caller-supplied ring. Chained below another filter (attached after it, so it sits closer to the
+// wire) it records exactly what that filter produced -- which is how the TLS tests prove no
+// plaintext ever reaches the socket.
+class NetTapStreamFilter extends NetStreamFilter {
+    BufRing *sink;   ///< Where wire-bound bytes are copied; owned by the caller, not this stage
+
+    factory create(BufRing *sink);
+    override shutdown;
+    override encode;
+    override decode;
+}
+
 // The socket-level factories. Each accepts exactly one socket type, so attaching one to the wrong
 // kind of socket is refused by netsocketAddFilter() rather than producing a chain that cannot work.
 
@@ -58,6 +71,14 @@ class NetFrameStreamFactory extends NetFilter {
 
 class NetPassDgramFactory extends NetFilter {
     factory create();
+    override createFlow;
+    override canFilter;
+}
+
+class NetTapStreamFactory extends NetFilter {
+    BufRing *sink;
+
+    factory create(BufRing *sink);
     override createFlow;
     override canFilter;
 }

@@ -1,0 +1,134 @@
+#include <cxtls/tls_shared.h>
+
+/// @addtogroup tls_cert
+/// @{
+/// Certificate material: the trust anchors used to verify a peer, and the identity presented to one.
+///
+/// Both classes are reference-counted and immutable once handed to a TlsConfig, which is what makes
+/// them shareable. Parsing a system trust store is expensive enough that one TlsCAStore is normally
+/// built at startup and reused by every config; a TlsCreds is the unit a server rotates, so it is
+/// separate from the config that points at it only to keep that rotation cheap.
+///
+/// Neither class exposes mbedTLS types. Include `<cxtls_mbed.h>` for the underlying
+/// `mbedtls_x509_crt` / `mbedtls_pk_context` if you need to do something cxtls does not cover.
+
+/// @brief A set of trusted certificate authorities
+///
+/// Loaded once and shared by every TlsConfig that verifies against it. A store may be built from
+/// any mix of sources -- PEM text, DER bytes, files, directories, or the platform's own trust store
+/// -- and each add call appends to the chain rather than replacing it.
+///
+/// Adding to a store that is already in use by a live TlsConfig is not safe: mbedTLS reads the
+/// chain during every handshake without locking it. Finish building a store before handing it to a
+/// config, and to change the trust set afterwards, build a new store and a new config.
+class TlsCAStore
+{
+    TlsCertChain *chain;   // opaque mbedtls_x509_crt chain; see tls_private.h
+    bool sysLoaded;        // addSystem() has already run; it is a no-op after that
+
+    /// Create an empty trust store
+    ///
+    /// @return The new store, or NULL if the crypto core could not be initialized
+    [canfail] factory create();
+
+    destroy();
+
+    /// Add one or more certificates from PEM text
+    ///
+    /// Accepts a concatenation of PEM blocks, which is the usual shape of a CA bundle.
+    ///
+    /// @param pem PEM text to parse
+    /// @return true if every certificate in the text parsed
+    unbound bool addPEM(strref pem);
+
+    /// Add a single certificate from DER bytes
+    ///
+    /// @param der DER-encoded certificate
+    /// @param len Length of der in bytes
+    /// @return true if the certificate parsed
+    unbound bool addDER([in] const uint8 *der, size_t len);
+
+    /// Add every certificate in a file
+    ///
+    /// The file may hold PEM or DER, and a PEM file may hold any number of certificates.
+    ///
+    /// @param path Path to the certificate file
+    /// @return true if the file was read and at least one certificate parsed
+    unbound bool addFile(strref path);
+
+    /// Add every certificate in a directory
+    ///
+    /// Each file in the directory is parsed as a certificate; files that do not parse are skipped
+    /// rather than failing the whole call, which matches how OpenSSL-style hashed CA directories
+    /// are laid out.
+    ///
+    /// @param path Path to the directory
+    /// @return true if the directory was read and at least one certificate parsed
+    unbound bool addDir(strref path);
+
+    /// Add the platform's default trusted certificate authorities
+    ///
+    /// On Unix this probes the well-known CA bundle locations in turn and loads the first one that
+    /// exists, falling back to the hashed CA directories if no single-file bundle is present.
+    ///
+    /// On Windows it enumerates the CryptoAPI **ROOT** and **AuthRoot** stores -- the two halves
+    /// of the platform root set -- skipping anything listed in the **Disallowed** store or already
+    /// expired. Intermediates from the Windows "CA" store are deliberately not imported, since
+    /// mbedTLS treats every certificate it is given as a trust anchor and would promote them to
+    /// roots. Note also that Windows fills its root store lazily, fetching a root from Windows
+    /// Update the first time a verification needs it, so a freshly installed machine can hand back
+    /// far fewer roots than the full Microsoft root program.
+    ///
+    /// Calling this twice on the same store is a no-op the second time and returns false: the
+    /// platform trust set does not change while a process runs, and re-reading it would only
+    /// duplicate every anchor.
+    ///
+    /// @return true if a platform trust store was found and at least one certificate was added
+    unbound bool addSystem();
+
+    /// Number of certificates currently in the store
+    ///
+    /// @return The count, or 0 for an empty store
+    unbound int32 count();
+}
+
+/// @brief A certificate chain and its private key -- the identity one end presents to the other
+///
+/// A server always needs one. A client needs one only for mutual TLS.
+///
+/// The certificate argument may hold the whole chain: the leaf first, then each intermediate, and
+/// normally not the root (the peer is expected to have that in its own trust store already).
+class TlsCreds
+{
+    TlsCredsState *st;   // opaque mbedtls_x509_crt + mbedtls_pk_context; see tls_private.h
+
+    /// Create credentials from PEM text
+    ///
+    /// @param certPem Certificate chain as PEM, leaf first
+    /// @param keyPem Private key as PEM
+    /// @param password Password for an encrypted key, or NULL/empty if it is not encrypted
+    /// @return The new credentials, or NULL if either half failed to parse, or the key does not
+    ///         match the leaf certificate
+    [canfail] factory createPEM(strref certPem, strref keyPem, [opt] strref password);
+
+    /// Create credentials by loading a certificate file and a key file
+    ///
+    /// @param certPath Path to the certificate chain file (PEM or DER)
+    /// @param keyPath Path to the private key file (PEM or DER)
+    /// @param password Password for an encrypted key, or NULL/empty if it is not encrypted
+    /// @return The new credentials, or NULL if either file could not be read or parsed, or the key
+    ///         does not match the leaf certificate
+    [canfail] factory createFiles(strref certPath, strref keyPath, [opt] strref password);
+
+    destroy();
+
+    /// Subject distinguished name of the leaf certificate
+    ///
+    /// Handy for logging which identity a server is running with, especially across a rotation.
+    ///
+    /// @param out Receives the subject DN
+    /// @return true if a leaf certificate was present
+    unbound bool getSubject([out] string *out);
+}
+
+/// @}

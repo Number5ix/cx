@@ -321,6 +321,21 @@ static const testspec tests[] = {
     { "netkqueue: Accept AutoAccept", "nettest", "kqueue_accept_auto" },
 #endif
 #endif
+#if defined(CX_TLS_TESTS) && (defined(_PLATFORM_WIN) || defined(_PLATFORM_UNIX))
+    { "tls: Handshake", "tlstest", "handshake" },
+    { "tls: Wire Is Encrypted", "tlstest", "wire" },
+    { "tls: Certificate Verification", "tlstest", "verify" },
+    { "tls: Hostname Verification", "tlstest", "hostname" },
+    { "tls: Bulk Transfer", "tlstest", "large" },
+    { "tls: STARTTLS Upgrade", "tlstest", "starttls" },
+    { "tls: ALPN", "tlstest", "alpn" },
+    { "tls: Mutual TLS", "tlstest", "mtls" },
+    { "tls: Certificate Rotation", "tlstest", "rotate" },
+    { "tls: Orderly Shutdown", "tlstest", "shutdown" },
+    { "tls: Session Resumption", "tlstest", "resume" },
+    { "tls: Post-Handshake Tickets", "tlstest", "tickets" },
+    { "tls: Unusable Config Fails Closed", "tlstest", "failclosed" },
+#endif
     { "taskqueue: Tasks", "tqtest", "task" },
     { "taskqueue: Failed Tasks", "tqtest", "failure" },
     { "taskqueue: Concurrency (in-worker)", "tqtest", "concurrency_inworker" },

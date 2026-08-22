@@ -1,0 +1,149 @@
+#include <cxtls/tlscert.cxh>
+
+/// @addtogroup tls_config
+/// @{
+/// Session policy: which peers to trust, which identity to present, and what to negotiate.
+///
+/// A TlsConfig is built once, then **sealed** -- the first session set up from it freezes it, and
+/// every setter refuses afterwards. That is not a convenience restriction: mbedTLS reads the
+/// underlying `mbedtls_ssl_config` from every live handshake without locking it, so mutating one
+/// in flight would be a data race across every connection sharing it.
+///
+/// Sealing is what makes the config the unit of rotation. To change a server's certificate, build
+/// a new TlsConfig and hand it to the server filter with tlsserverfilterSetConfig(); sessions
+/// already running keep a reference to the old one and finish on the certificate they started
+/// with, and it is destroyed when the last of them ends.
+
+/// @brief Session policy shared by every connection built from it
+///
+/// Create one per role. A client config wants a trust store; a server config wants credentials,
+/// and optionally a trust store as well if it verifies client certificates.
+///
+/// @code
+///   TlsCAStore *ca = tlscastoreCreate();
+///   tlscastoreAddSystem(ca);
+///
+///   TlsConfig *cfg = tlsconfigCreateClient();
+///   tlsconfigSetCA(cfg, ca);
+///   objRelease(&ca);                       // the config holds its own reference now
+/// @endcode
+class TlsConfig
+{
+    object[TlsCAStore] ca;      ///< Trust anchors used to verify the peer, or NULL to verify nothing
+    object[TlsCreds] creds;     ///< Identity presented to the peer, or NULL for an anonymous client
+
+    TlsConfigState *st;         // opaque mbedtls_ssl_config and friends; see tls_private.h
+
+    /// Create a configuration for outbound connections
+    ///
+    /// Defaults to TLSAUTH_Required, so a client refuses to talk to a server it cannot verify.
+    /// That makes tlsconfigSetCA() effectively mandatory -- with no trust store, every handshake
+    /// fails.
+    ///
+    /// @return The new configuration, or NULL if the crypto core could not be initialized
+    [canfail] factory createClient();
+
+    /// Create a configuration for inbound connections
+    ///
+    /// Defaults to TLSAUTH_None: the server presents its own certificate and does not ask the
+    /// client for one. For mutual TLS, set a trust store and TLSAUTH_Required.
+    ///
+    /// @param creds Certificate chain and private key to present (required)
+    /// @return The new configuration, or NULL if creds is NULL or the crypto core could not be
+    ///         initialized
+    [canfail] factory createServer([in] TlsCreds *creds);
+
+    destroy();
+
+    /// Set the trust store used to verify the peer's certificate
+    ///
+    /// The config acquires its own reference, so the caller keeps theirs. One store may back any
+    /// number of configs.
+    ///
+    /// @param ca Trust store, or NULL to clear
+    unbound void setCA([in] [opt] TlsCAStore *ca);
+
+    /// Set the identity presented to the peer
+    ///
+    /// Set for a server by tlsconfigCreateServer(); set it on a *client* configuration to do mutual
+    /// TLS, where the server asks the client to prove who it is. The config acquires its own
+    /// reference, so the caller keeps theirs.
+    ///
+    /// @param creds Certificate chain and private key, or NULL to present nothing
+    unbound void setCreds([in] [opt] TlsCreds *creds);
+
+    /// Set how hard the peer's certificate is checked
+    ///
+    /// @param mode TLSAUTH_None, TLSAUTH_Optional, or TLSAUTH_Required
+    unbound void setAuthMode(TlsAuthMode mode);
+
+    /// Constrain which protocol versions may be negotiated
+    ///
+    /// Either bound may be TLSVER_Default to leave mbedTLS's own choice in place.
+    ///
+    /// @param min Lowest acceptable version
+    /// @param max Highest acceptable version
+    unbound void setVersions(TlsVersion min, TlsVersion max);
+
+    /// Offer a list of application protocols for ALPN negotiation
+    ///
+    /// A client offers these in preference order; a server picks the first entry the client also
+    /// offered. The list is copied, so the caller's array need not outlive the call. Whatever was
+    /// negotiated shows up in TlsInfo::alpn.
+    ///
+    /// @param protos Protocol names, e.g. `h2` and `http/1.1`; NULL or empty disables ALPN
+    /// @return true if the list was accepted
+    ///
+    /// Example:
+    /// @code
+    ///   sa_string protos;
+    ///   saInit(&protos, string, 2);
+    ///   saPush(&protos, string, _S"h2");
+    ///   saPush(&protos, string, _S"http/1.1");
+    ///   tlsconfigSetALPN(cfg, &protos);
+    ///   saDestroy(&protos);
+    /// @endcode
+    unbound bool setALPN([in] [opt] sa_string *protos);
+
+    /// Enable session resumption
+    ///
+    /// On a server this stands up a ticket encryption context (whose key mbedTLS rotates on its
+    /// own) and an in-memory session cache. On a client it enables ticket storage: cxtls keeps the
+    /// session handed out by each server and offers it back the next time the same hostname is
+    /// connected to, which is what turns the second handshake into an abbreviated one.
+    ///
+    /// @param enable Whether to resume sessions
+    /// @param lifetime How long a ticket stays valid, in cx time units; 0 picks a sane default
+    /// @return true if resumption was set up
+    unbound bool setResumption(bool enable, int64 lifetime);
+
+    /// Register a callback consulted for each certificate in the peer's chain
+    ///
+    /// Lets an application forgive a defect mbedTLS objects to, or reject a chain it would have
+    /// accepted. Runs during the handshake, under the flow's filter lock.
+    ///
+    /// @param cb Callback, or NULL to clear
+    /// @param ctx Context passed to the callback
+    unbound void setVerifyCallback([opt] TlsVerifyCB cb, [in] [opt] void *ctx);
+
+    /// Register a callback that picks server credentials by requested hostname
+    ///
+    /// Server configs only. Called during the handshake when a client sends an SNI hostname; return
+    /// the credentials to present, or NULL to fall back to this config's own. Composes with
+    /// rotation -- the usual implementation looks up a table the application swaps atomically.
+    ///
+    /// @param cb Callback, or NULL to clear
+    /// @param ctx Context passed to the callback
+    unbound void setSNICallback([opt] TlsSNICB cb, [in] [opt] void *ctx);
+
+    /// Freeze the configuration so sessions can be built from it
+    ///
+    /// Called automatically the first time a filter sets up a session, so applications rarely need
+    /// it. Call it explicitly to find out at startup, rather than on the first connection, that a
+    /// certificate and key do not agree or a trust store is empty. Sealing twice is a no-op.
+    ///
+    /// @return true if the configuration is usable
+    unbound bool seal();
+}
+
+/// @}

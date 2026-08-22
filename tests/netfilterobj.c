@@ -248,6 +248,76 @@ bool NetPassDgramFactory_canFilter(_In_ NetPassDgramFactory* self, NetSocketType
     return type == NST_Datagram;
 }
 
+_objfactory_guaranteed NetTapStreamFilter* NetTapStreamFilter_create(BufRing* sink)
+{
+    NetTapStreamFilter* self;
+    self = objInstCreate(NetTapStreamFilter);
+
+    self->sink = sink;
+
+    objInstInit(self);
+    return self;
+}
+
+void NetTapStreamFilter_shutdown(_In_ NetTapStreamFilter* self)
+{
+    unused_noeval(self);   // a tap negotiates nothing, so it has nothing to close down
+}
+
+intptr NetTapStreamFilter_encode(_In_ NetTapStreamFilter* self, BufRing* src)
+{
+    // Identity, with a copy taken on the way past. Attached after another filter this stage sits
+    // closer to the wire, so what lands in the sink is exactly what that filter produced.
+    uint8 tmp[FILTER_SCRATCH];
+    intptr moved = 0;
+    size_t n;
+    while ((n = bufringRead(src, tmp, sizeof(tmp))) > 0) {
+        if (self->sink)
+            bufringWrite(self->sink, tmp, n);
+        bufringWrite(&self->encOut, tmp, n);
+        moved += (intptr)n;
+    }
+    return moved;
+}
+
+intptr NetTapStreamFilter_decode(_In_ NetTapStreamFilter* self, BufRing* src)
+{
+    // The inbound direction is not recorded: one peer's outbound is the other's inbound, so a tap
+    // on each end already covers both halves of the conversation without the two mixing in one
+    // ring.
+    uint8 tmp[FILTER_SCRATCH];
+    intptr moved = 0;
+    size_t n;
+    while ((n = bufringRead(src, tmp, sizeof(tmp))) > 0) {
+        bufringWrite(&self->decOut, tmp, n);
+        moved += (intptr)n;
+    }
+    return moved;
+}
+
+_objfactory_guaranteed NetTapStreamFactory* NetTapStreamFactory_create(BufRing* sink)
+{
+    NetTapStreamFactory* self;
+    self = objInstCreate(NetTapStreamFactory);
+
+    self->sink = sink;
+
+    objInstInit(self);
+    return self;
+}
+
+NetFlowFilter* NetTapStreamFactory_createFlow(_In_ NetTapStreamFactory* self, NetSocketType type)
+{
+    unused_noeval(type);
+    return NetFlowFilter(nettapstreamfilterCreate(self->sink));
+}
+
+bool NetTapStreamFactory_canFilter(_In_ NetTapStreamFactory* self, NetSocketType type)
+{
+    unused_noeval(self);
+    return type == NST_Stream;
+}
+
 // Autogen begins -----
 // clang-format off
 #include "netfilterobj.auto.inc"
