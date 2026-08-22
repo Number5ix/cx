@@ -26,7 +26,7 @@
 
 DEFINE_ENTRY_POINT;
 
-static strref yn(bool b)
+static strref yorn(bool b)
 {
     return b ? _S"yes" : _S"no";
 }
@@ -89,13 +89,13 @@ static strref depthName(ConColorDepth d)
 static void reportCaps(ConStream* con, ConCaps* caps)
 {
     conPuts(con, _SL("Detected caps for conOut()\n"));
-    conFmt(con, _SL("  istty        ${string}\n"), stvar(strref, yn(caps->istty)));
-    conFmt(con, _SL("  vt           ${string}\n"), stvar(strref, yn(caps->vt)));
+    conFmt(con, _SL("  istty        ${string}\n"), stvar(strref, yorn(caps->istty)));
+    conFmt(con, _SL("  vt           ${string}\n"), stvar(strref, yorn(caps->vt)));
     conFmt(con, _SL("  color        ${string}\n"), stvar(strref, depthName(caps->color)));
-    conFmt(con, _SL("  unicode      ${string}\n"), stvar(strref, yn(caps->unicode)));
-    conFmt(con, _SL("  cursor       ${string}\n"), stvar(strref, yn(caps->cursor)));
-    conFmt(con, _SL("  altscreen    ${string}\n"), stvar(strref, yn(caps->altscreen)));
-    conFmt(con, _SL("  cursorquery  ${string}\n"), stvar(strref, yn(caps->cursorquery)));
+    conFmt(con, _SL("  unicode      ${string}\n"), stvar(strref, yorn(caps->unicode)));
+    conFmt(con, _SL("  cursor       ${string}\n"), stvar(strref, yorn(caps->cursor)));
+    conFmt(con, _SL("  altscreen    ${string}\n"), stvar(strref, yorn(caps->altscreen)));
+    conFmt(con, _SL("  cursorquery  ${string}\n"), stvar(strref, yorn(caps->cursorquery)));
     conFmt(con,
            _SL("  size         ${uint}x${uint}\n"),
            stvar(uint16, caps->width),
@@ -144,16 +144,16 @@ static void reportMode(ConStream* con, strref label, DWORD which, bool isInput)
         // wrong handle is an easy way to conclude VT is already enabled when it is not.
         conFmt(con,
                _SL("  echo=${string} vtinput=${string}\n"),
-               stvar(strref, yn((mode & ENABLE_ECHO_INPUT) != 0)),
-               stvar(strref, yn((mode & ENABLE_VIRTUAL_TERMINAL_INPUT) != 0)));
+               stvar(strref, yorn((mode & ENABLE_ECHO_INPUT) != 0)),
+               stvar(strref, yorn((mode & ENABLE_VIRTUAL_TERMINAL_INPUT) != 0)));
         return;
     }
 
     conFmt(con,
            _SL("  processed=${string} wrap=${string} vt=${string}\n"),
-           stvar(strref, yn((mode & ENABLE_PROCESSED_OUTPUT) != 0)),
-           stvar(strref, yn((mode & ENABLE_WRAP_AT_EOL_OUTPUT) != 0)),
-           stvar(strref, yn((mode & ENABLE_VIRTUAL_TERMINAL_PROCESSING) != 0)));
+           stvar(strref, yorn((mode & ENABLE_PROCESSED_OUTPUT) != 0)),
+           stvar(strref, yorn((mode & ENABLE_WRAP_AT_EOL_OUTPUT) != 0)),
+           stvar(strref, yorn((mode & ENABLE_VIRTUAL_TERMINAL_PROCESSING) != 0)));
 
     // Set the bit and read it straight back. A host that accepts the call without honoring
     // VT reports the bit clear here.
@@ -163,7 +163,7 @@ static void reportMode(ConStream* con, strref label, DWORD which, bool isInput)
         GetConsoleMode(h, &after);
         conFmt(con,
                _SL("          vt set ok, reads back ${string}\n"),
-               stvar(strref, yn((after & ENABLE_VIRTUAL_TERMINAL_PROCESSING) != 0)));
+               stvar(strref, yorn((after & ENABLE_VIRTUAL_TERMINAL_PROCESSING) != 0)));
         SetConsoleMode(h, mode);
     } else {
         conFmt(con,
