@@ -81,8 +81,15 @@ bool NetSocketPosix_bind(_In_ NetSocketPosix* self, NetAddr* addr)
     struct sockaddr_storage so;
     int sosz = 0;
     if (netAddrToSockaddr(addr, &so, &sosz)) {
-        if (bind(self->fd, (struct sockaddr*)&so, (socklen_t)sosz) == 0)
+        if (bind(self->fd, (struct sockaddr*)&so, (socklen_t)sosz) == 0) {
+            struct sockaddr_storage got;
+            socklen_t gotsz = sizeof(got);
+            if (getsockname(self->fd, (struct sockaddr*)&got, &gotsz) == 0)
+                netAddrFromSockaddr(&self->local, (struct sockaddr*)&got);
+            else
+                self->local = *addr;
             return true;
+        }
     }
     return false;
 }

@@ -40,7 +40,11 @@ abstract class NetSocket
     atomic[uint32] state;   ///< See NetSocketState enum
     atomic[bool] canSend;   ///< Send buffer empty; can send immediately
 
-    NetAddr local;          ///< Local end (for bound sockets)
+    /// @brief Local end, filled in by bind()
+    ///
+    /// Read back from the socket rather than copied from what was asked for, so a socket bound to
+    /// port 0 reports the port the OS actually chose.
+    NetAddr local;
     NetAddr remote;         ///< Remote address (for connected sockets only)
 
     // There is deliberately no per-socket `user` array. flow->user needs no locking because the

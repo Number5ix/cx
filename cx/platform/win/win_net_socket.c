@@ -72,8 +72,15 @@ bool NetSocketWin_bind(_In_ NetSocketWin* self, NetAddr* addr)
     struct sockaddr_storage so;
     int sosz = 0;
     if (netAddrToSockaddr(addr, &so, &sosz)) {
-        if (bind(self->sock, (struct sockaddr*)&so, sosz) == 0)
+        if (bind(self->sock, (struct sockaddr*)&so, sosz) == 0) {
+            struct sockaddr_storage got;
+            int gotsz = sizeof(got);
+            if (getsockname(self->sock, (struct sockaddr*)&got, &gotsz) == 0)
+                netAddrFromSockaddr(&self->local, (struct sockaddr*)&got);
+            else
+                self->local = *addr;
             return true;
+        }
     }
     return false;
 }
