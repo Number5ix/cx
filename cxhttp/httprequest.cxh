@@ -1,0 +1,232 @@
+#include <cx/net/net_shared.h>
+#include <cx/thread/mutex.h>
+#include <cxhttp/http_shared.h>
+
+/// @addtogroup http_client
+/// @{
+/// One HTTP transaction, from the method and URL that describe it to the status, headers and body
+/// that come back.
+///
+/// A request is a refcounted object rather than a call, because it outlives the call that starts
+/// it: the response arrives on a worker some time later, and the code that wants it is rarely the
+/// code that is on the stack when it does. Acquire one and it is still valid whenever the answer
+/// turns up.
+///
+/// The same object serves both client levels. HttpClient takes a whole URL, dials it, and applies
+/// redirect, cookie and pooling policy; HttpConn takes an already-connected socket and only speaks
+/// the protocol over it. What a request *is* does not change between them.
+
+/// @brief A request and the response it is waiting for
+class HttpRequest
+{
+    HttpMethod method;        ///< Method to send
+    string methodName;        ///< Verb as it goes on the wire, for HTTP_MethodOther
+
+    /// @brief Target URL, parsed
+    ///
+    /// Held even at the low level, where the host and scheme are not used for dialing, because the
+    /// Host header and the request target both come from it.
+    HttpUrl url;
+
+    /// @brief Headers to send
+    ///
+    /// Host, Content-Length and Transfer-Encoding are added by the writer if the application has
+    /// not set them, so the common case needs none of them here.
+    HttpHeaders reqHeaders;
+
+    /// @brief Request body held in memory, for the string and buffer forms
+    string reqBody;
+
+    /// @brief Request body streamed from the caller, for httprequestSetBodyStream()
+    ///
+    /// cxhttp is the *consumer* of this buffer; the caller registers the producer. NULL unless a
+    /// stream body was set.
+    StreamBuffer *reqBodyStream;
+
+    /// @brief Declared length of a streamed body, or -1 for chunked
+    ///
+    /// -1 means the length is not known up front, so the request is sent with chunked encoding
+    /// instead of a Content-Length.
+    int64 reqBodyLen;
+
+    flags_t flags;            ///< HttpRequestFlags
+
+    /// @brief Response status, valid once the headers have arrived
+    uint16 status;
+    string reason;            ///< Response reason phrase, which may legitimately be empty
+    HttpVersion version;      ///< Version the peer answered in
+
+    HttpHeaders respHeaders;  ///< Response headers, valid once the headers have arrived
+
+    /// @brief Buffered response body, when no sink and no data handler were set
+    ///
+    /// Empty in the streaming dispositions -- the body went to the caller instead of here.
+    string respBody;
+
+    /// @brief StreamBuffer the response body is written into, or NULL
+    ///
+    /// cxhttp is the *producer* here, the mirror of reqBodyStream.
+    StreamBuffer *respSink;
+
+    size_t maxBody;           ///< Cap on the buffered body, 0 for the parser's default
+
+    HttpError err;            ///< Why the request failed, or HTTPERR_None
+    NetErrorCode neterr;      ///< Transport cause when err is HTTPERR_Network
+
+    uint32 redirects;         ///< Redirects followed so far, against the client's limit
+
+    // ------------------------------------------------------------------------------------------
+    // Orchestration state, meaningful only while an HttpClient is running the request. A request
+    // driven directly through HttpConn never touches any of it.
+    // ------------------------------------------------------------------------------------------
+
+    /// @brief Client running this request, borrowed
+    ///
+    /// Not a reference. A client outlives every request it is running.
+    HttpClient *client;
+
+    /// @brief Connection currently carrying the request
+    object[HttpConn] conn;
+
+    /// @brief Socket being dialed, held until a connection exists to own it
+    ///
+    /// Separate from conn->sock because it exists first: between netqueueConnect() returning and
+    /// the handshake finishing there is a socket but no HttpConn, and something has to hold it.
+    object[NetSocket] dialSock;
+
+    HttpHandlers *appHandlers;   // the application's callbacks, borrowed like a NetHandlers set
+    void *appCtx;
+
+    /// @brief Target of a redirect that is about to be followed
+    ///
+    /// Set when the header block of a 3xx names a Location worth following, and consumed when the
+    /// response finishes. Empty at every other moment.
+    string redirectTo;
+
+    /// @brief Discard the response body instead of delivering it anywhere
+    ///
+    /// True while reading a 3xx that is being followed. Without it the body of every redirect in a
+    /// chain would be concatenated ahead of the real one, in the buffer or in the caller's sink.
+    bool discardBody;
+
+    /// @brief Guards the exchange binding: client, conn, dialSock and cancelled
+    ///
+    /// Everything else on a request belongs to one thread at a time -- the application's before it
+    /// is sent, the flow's worker afterwards. These four do not, because cancel() reaches them from
+    /// whichever thread decided to give up, and it has to see the same answer the worker would.
+    ///
+    /// Held only across pointer swaps, never across a call that reaches the socket layer. The
+    /// client's own lock is a separate region: the two are never nested, in either order.
+    Mutex exLock;
+
+    /// @brief A cancel has been requested
+    ///
+    /// Read under exLock alongside the connection it applies to, because "is this request still on
+    /// that connection" and "has it been cancelled" are one decision, not two.
+    bool cancelled;
+
+    /// Create a request
+    ///
+    /// @param method Method to send; use HTTP_MethodOther with httprequestSetMethodName() for a verb
+    ///               this enum does not name
+    /// @param url Absolute URL to request
+    /// @return The new request, or NULL if the URL could not be parsed
+    [canfail] factory create(HttpMethod method, strref url);
+    init();
+    destroy();
+
+    /// Set the verb for an extension method
+    ///
+    /// Only meaningful with HTTP_MethodOther; the named methods send their own spelling.
+    ///
+    /// @param name Method token, which must be a valid HTTP token
+    /// @return true if the name is a usable method token
+    bool setMethodName(strref name);
+
+    /// Add or replace a request header
+    ///
+    /// @param name Field name, matched case-insensitively
+    /// @param value Field value
+    /// @return true on success
+    bool setHeader(strref name, strref value);
+
+    /// Append a request header, keeping any existing field of the same name
+    ///
+    /// @param name Field name
+    /// @param value Field value
+    /// @return true on success
+    bool addHeader(strref name, strref value);
+
+    /// Set request flags (HttpRequestFlags)
+    ///
+    /// @param flags Flags to set
+    void setFlags(flags_t flags);
+
+    /// Set a request body held in memory
+    ///
+    /// @param body Body text, copied
+    /// @param contentType Value for the Content-Type header, or empty to leave it unset
+    /// @return true on success
+    bool setBody(strref body, strref contentType);
+
+    /// Set a binary request body held in memory
+    ///
+    /// @param data Body bytes, copied
+    /// @param len Length in bytes
+    /// @param contentType Value for the Content-Type header, or empty to leave it unset
+    /// @return true on success
+    bool setBodyBytes([in] uint8 *data, size_t len, strref contentType);
+
+    /// Stream the request body from a StreamBuffer
+    ///
+    /// cxhttp registers itself as the buffer's *consumer*; the caller registers the producer, so an
+    /// upload from a file is sbufFilePRegisterPull() and nothing more.
+    ///
+    /// @param sb StreamBuffer to read the body from; a reference is held until the request finishes
+    /// @param len Body length, or -1 to send it chunked because the length is not known up front
+    /// @param contentType Value for the Content-Type header, or empty to leave it unset
+    /// @return true on success
+    bool setBodyStream([in] StreamBuffer *sb, int64 len, strref contentType);
+
+    /// Stream the response body into a StreamBuffer instead of buffering it
+    ///
+    /// cxhttp is the *producer* here; the caller registers the consumer, so a download to a file is
+    /// sbufFileCRegisterPush() and nothing more. Note the push-mode call rather than sbufFileOut():
+    /// that one drains the buffer synchronously and invalidates it, which does not work for a
+    /// transfer that arrives over time. Mutually exclusive with a data handler; setting both is a
+    /// programming error and the sink wins.
+    ///
+    /// @param sb StreamBuffer to write the body into; a reference is held until the request finishes
+    /// @return true on success
+    bool setSink([in] StreamBuffer *sb);
+
+    /// Abandon a request that is in flight
+    ///
+    /// Cancellation is a request, not a guarantee. This claims the request, closes the transport
+    /// underneath it, and returns; the terminal event still arrives on a netqueue worker like every
+    /// other outcome, as HTTPEV_Error with HTTPERR_Aborted. A response that completed before the
+    /// cancel landed is delivered normally and this answers false -- the race is real and pretending
+    /// otherwise would mean delivering a callback on whichever thread happened to call cancel.
+    ///
+    /// Safe to call from any thread, including from inside the request's own handlers.
+    ///
+    /// @return true if the request was in flight and its transport was closed
+    ///
+    /// Example:
+    /// @code
+    ///   // give up on a download the user navigated away from
+    ///   httprequestCancel(req);
+    ///   // ... the error handler still runs, on a worker, with HTTPERR_Aborted
+    /// @endcode
+    bool cancel();
+
+    /// Cap the buffered response body
+    ///
+    /// Only applies to the default disposition. A response over the cap fails the request rather
+    /// than growing without limit -- which is the point, since the peer chooses the size.
+    ///
+    /// @param max Maximum body size in bytes, or 0 for the parser default
+    void setMaxBody(size_t max);
+}
+
+/// @}

@@ -6,6 +6,13 @@ if(CX_TLS)
     set(tlstestsrc tlstest.c)
 endif()
 
+# Same shape as the TLS tests above: every mention of httptest.c is conditional, so a
+# -DCX_HTTP=OFF build is unaffected.
+set(httptestsrc "")
+if(CX_HTTP)
+    set(httptestsrc httptest.c)
+endif()
+
 create_test_sourcelist(testsrc
     test_runner.c
     debugtest.c
@@ -35,6 +42,7 @@ create_test_sourcelist(testsrc
     prqtest.c
     nettest.c
     ${tlstestsrc}
+    ${httptestsrc}
     tqtest.c
     cpptest.cpp
     alltests.c)
@@ -71,6 +79,13 @@ set_property(TARGET test_runner PROPERTY CXX_STANDARD 17)
 set_property(TARGET test_runner PROPERTY CXX_STANDARD_REQUIRED ON)
 target_include_directories(test_runner PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(test_runner cx)
+
+if(CX_HTTP)
+    target_link_libraries(test_runner cxhttp)
+    # alltests.c is one translation unit listing every test by name, so it has to know at compile
+    # time whether the HTTP tests were built -- same reason CX_TLS_TESTS exists below.
+    target_compile_definitions(test_runner PRIVATE CX_HTTP_TESTS=1)
+endif()
 
 if(CX_TLS)
     target_link_libraries(test_runner cxtls)
@@ -445,3 +460,44 @@ add_test(NAME "\"cpp: Hashtable\"" COMMAND test_runner cpptest hashtable)
 add_test(NAME "\"cpp: stype\"" COMMAND test_runner cpptest stype)
 add_test(NAME "\"cpp: stvar\"" COMMAND test_runner cpptest stvar)
 add_test(NAME "\"cpp: Object\"" COMMAND test_runner cpptest object)
+
+if(CX_HTTP)
+    add_test(NAME "\"http: URL Parsing\"" COMMAND test_runner httptest url)
+    add_test(NAME "\"http: URL Composition\"" COMMAND test_runner httptest urlformat)
+    add_test(NAME "\"http: URL Reference Resolution\"" COMMAND test_runner httptest urlresolve)
+    add_test(NAME "\"http: Percent Coding\"" COMMAND test_runner httptest urlcodec)
+    add_test(NAME "\"http: Query Strings\"" COMMAND test_runner httptest query)
+    add_test(NAME "\"http: Header List\"" COMMAND test_runner httptest headers)
+    add_test(NAME "\"http: Header Tokens\"" COMMAND test_runner httptest headertoken)
+    add_test(NAME "\"http: Header Formatting\"" COMMAND test_runner httptest headerformat)
+    add_test(NAME "\"http: HTTP-date\"" COMMAND test_runner httptest date)
+    add_test(NAME "\"http: Response Parsing\"" COMMAND test_runner httptest parseresp)
+    add_test(NAME "\"http: Chunked Decoding\"" COMMAND test_runner httptest parsechunked)
+    add_test(NAME "\"http: Body Framing\"" COMMAND test_runner httptest parseframing)
+    add_test(NAME "\"http: Malformed Messages\"" COMMAND test_runner httptest parsereject)
+    add_test(NAME "\"http: Parser Limits\"" COMMAND test_runner httptest parselimits)
+    add_test(NAME "\"http: Request Parsing\"" COMMAND test_runner httptest parsereq)
+    add_test(NAME "\"http: Pipelined Reuse\"" COMMAND test_runner httptest parsereuse)
+    add_test(NAME "\"http: Chunked Encoding\"" COMMAND test_runner httptest chunkwrite)
+    add_test(NAME "\"http: Connection Exchange\"" COMMAND test_runner httptest conn)
+    add_test(NAME "\"http: Request Body and Split Response\"" COMMAND test_runner httptest connbody)
+    add_test(NAME "\"http: Connection Reuse\"" COMMAND test_runner httptest connreuse)
+    add_test(NAME "\"http: Connection Protocol Error\"" COMMAND test_runner httptest connerror)
+    add_test(NAME "\"http: Connection Truncation\"" COMMAND test_runner httptest conntruncated)
+    add_test(NAME "\"http: Cookie Jar\"" COMMAND test_runner httptest cookiejar)
+    add_test(NAME "\"http: Form Bodies\"" COMMAND test_runner httptest form)
+    add_test(NAME "\"http: Client Request\"" COMMAND test_runner httptest clientget)
+    add_test(NAME "\"http: Client Redirect\"" COMMAND test_runner httptest clientredirect)
+    add_test(NAME "\"http: Client Redirect Limit\"" COMMAND test_runner httptest clientredirloop)
+    add_test(NAME "\"http: Client See Other\"" COMMAND test_runner httptest clientseeother)
+    add_test(NAME "\"http: Client Connection Pool\"" COMMAND test_runner httptest clientpool)
+    add_test(NAME "\"http: Client Cookies\"" COMMAND test_runner httptest clientcookie)
+    add_test(NAME "\"http: Client Response Sink\"" COMMAND test_runner httptest clientsink)
+    add_test(NAME "\"http: Client Connection Refused\"" COMMAND test_runner httptest clientrefused)
+    add_test(NAME "\"http: Client Response Timeout\"" COMMAND test_runner httptest clienttimeout)
+    add_test(NAME "\"http: Client Cancel\"" COMMAND test_runner httptest clientcancel)
+    add_test(NAME "\"http: Client Cancel While Dialing\"" COMMAND test_runner httptest clientcancelearly)
+    add_test(NAME "\"http: Client Cancel After Completion\"" COMMAND test_runner httptest clientcanceldone)
+    add_test(NAME "\"http: Client Cancel Evicts Connection\"" COMMAND test_runner httptest clientcancelpool)
+    add_test(NAME "\"http: Connection Cancel\"" COMMAND test_runner httptest conncancel)
+endif()

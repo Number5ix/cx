@@ -31,6 +31,15 @@ if(CX_STANDALONE AND CX_TLS)
     set_property(TARGET tlsdemo PROPERTY FOLDER "tests")
 endif()
 
+if(CX_STANDALONE AND CX_HTTP)
+    source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES
+        httpdemo.c)
+
+    add_executable(httpdemo httpdemo.c)
+    target_link_libraries(httpdemo cxhttp)
+    set_property(TARGET httpdemo PROPERTY FOLDER "tests")
+endif()
+
 set(PRESETS_MAKER_SRCS
     presetsmaker.c
     )

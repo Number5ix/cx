@@ -1,0 +1,178 @@
+#include <cx/net/net_shared.h>
+#include <cxhttp/http_shared.h>
+#include <cxhttp/httprequest.cxh>
+
+/// @addtogroup http_conn
+/// @{
+/// The low-level client: HTTP over a socket the caller already owns.
+///
+/// HttpConn speaks the protocol and nothing else. It does not dial, does not resolve, does not
+/// follow redirects, and does not decide whether a connection may be reused -- the caller made all
+/// of those decisions by handing over a connected socket. What it does is write a request and
+/// stream the response back through callbacks, without ever holding the whole body.
+///
+/// This is the "libcurl without easy mode" level. HttpClient is built on it.
+///
+/// @code
+///   // sock is already connected -- plaintext, or with a TlsClientFilter attached
+///   HttpConn* c = httpconnCreate(sock, _SL("example.com"));
+///
+///   static const HttpHandlers handlers = {
+///       .headers  = onHeaders,
+///       .data     = onData,       // called per chunk; nothing is accumulated
+///       .complete = onComplete,
+///       .error    = onError,
+///   };
+///
+///   HttpRequest* r = httprequestCreate(HTTP_Get, _SL("https://example.com/big.iso"));
+///   httpconnRequest(c, r, &handlers, ctx);
+/// @endcode
+
+/// @brief One HTTP conversation over one socket
+class HttpConn
+{
+    /// @brief Socket this speaks over, held strongly for as long as the connection exists
+    object[NetSocket] sock;
+
+    /// @brief Host for the Host header
+    ///
+    /// Not necessarily the same as the address the socket was dialed on -- for example, a TLS
+    /// connection whose SNI name differs from its DNS name, or an IP literal serving a virtual host.
+    string host;
+
+    /// @brief Response parser, one per connection and reset between messages
+    ///
+    /// Opaque; see http_private.h. On a keep-alive connection this is reset rather than rebuilt, so
+    /// its buffers are reused across every request the connection carries.
+    HttpParser *parser;
+
+    HttpRequest *req;         // request in flight, borrowed -- the caller owns it
+    HttpHandlers *handlers;   // borrowed, must outlive the request like a NetHandlers set
+    void *handlerCtx;
+
+    /// @brief Bytes received but not yet parsed
+    ///
+    /// The socket's own receive ring cannot be used directly: with a TLS filter attached, what
+    /// netsocketRecv() returns is decoded plaintext that has to be copied somewhere before the
+    /// parser sees it.
+    BufRing in;
+
+    bool writing;             ///< A request body is still being written
+    bool responseDone;        ///< The response completed; the connection is idle again
+    bool failed;              ///< A protocol or transport error ended the conversation
+
+    /// @brief The conversation was abandoned rather than lost
+    ///
+    /// Set by cancel(). Read on the flow's terminal path, which is the only place that can tell the
+    /// request why its connection went away.
+    bool aborted;
+
+    /// @brief The last response ruled out another request on this connection
+    ///
+    /// Set from the parser once framing is decided: the peer said `Connection: close`, answered in
+    /// 1.0 without asking to keep alive, or delimited its body by closing.
+    bool spent;
+
+    /// @brief Called when the connection dies, whether or not a request was running
+    HttpConnClosedCB closedCB;
+    void *closedCtx;
+
+    /// @brief How long a response may take, in microseconds; 0 for no limit
+    int64 timeout;
+
+    /// @brief Flow timer enforcing `timeout`, or 0 when no request is in flight
+    NetTimerId deadlineTimer;
+
+    /// @brief Flow timer reaping this connection if it stays idle, or 0
+    NetTimerId idleTimer;
+
+    /// Create a connection over an already-connected socket
+    ///
+    /// The socket must already be connected, and any TLS filter must already be attached -- an
+    /// HttpConn does not negotiate anything. It installs its own NetHandlers on the socket, so the
+    /// caller must not overwrite them for as long as the connection exists.
+    ///
+    /// @param sock Connected stream socket; a reference is held
+    /// @param host Value for the Host header
+    /// @return The new connection, or NULL if the socket is not usable
+    [canfail] factory create([in] NetSocket *sock, strref host);
+    init();
+    destroy();
+
+    /// Send a request and begin reading its response
+    ///
+    /// One request at a time: this refuses while another is in flight. Pipelining is not
+    /// supported.
+    ///
+    /// @param req Request to send; borrowed, and must outlive the exchange
+    /// @param handlers Callbacks for the response. Not copied -- must outlive the request, so it is
+    ///                 usually `static const`
+    /// @param ctx Context passed to the handlers on HttpEvent.ctx
+    /// @return true if the request was written or queued
+    bool request([in] HttpRequest *req, [in] [opt] const HttpHandlers *handlers,
+        [in] [opt] void *ctx);
+
+    /// Whether the connection is idle and could carry another request
+    ///
+    /// False while a request is in flight, and false for good once the peer said `Connection: close`
+    /// or the body was close-delimited.
+    ///
+    /// @return true if another request may be sent
+    bool idle();
+
+    /// Register a callback for the connection's death
+    ///
+    /// @param cb Callback, or NULL to remove one
+    /// @param ctx Context passed back to it
+    void setClosedHandler(HttpConnClosedCB cb, [in] [opt] void *ctx);
+
+    /// Set how long a response may take
+    ///
+    /// Applies to requests started after this call. The clock runs from the moment the request is
+    /// written to the moment the response completes; an expired deadline delivers HTTPERR_Timeout
+    /// and puts the connection permanently out of use, since a half-read response leaves nowhere to
+    /// start the next one.
+    ///
+    /// @param us Microseconds, or 0 for no limit
+    void setTimeout(int64 us);
+
+    /// Arm or cancel an idle deadline
+    ///
+    /// Only meaningful on a connection with no request in flight. When it expires the connection is
+    /// closed and the closed handler runs -- ordered on the flow, so it cannot race the peer's own
+    /// close arriving on the same connection.
+    ///
+    /// @param us Microseconds until the connection is reaped, or 0 to cancel an armed deadline
+    /// @return true if the deadline was armed or cancelled
+    bool setIdleTimeout(int64 us);
+
+    /// Close the underlying socket and end the connection
+    ///
+    /// Safe to call more than once; only the first call does anything. The closed handler runs as
+    /// usual, from the flow's terminal path.
+    void close();
+
+    /// Abandon whatever this connection is doing and close it
+    ///
+    /// The low-level half of cancellation. Differs from close() only in what the request in flight
+    /// is told: an abort reports HTTPERR_Aborted rather than HTTPERR_Closed.
+    ///
+    /// Safe to call from any thread. The terminal event arrives on a worker as usual, because it is
+    /// the flow's own teardown that delivers it.
+    ///
+    /// @return true if the connection was live and is now closing
+    bool cancel();
+
+    // -----------------------------------------------------------------------------------------
+    // PRIVATE IMPLEMENTATION DETAILS
+    // -----------------------------------------------------------------------------------------
+
+    // Drain the socket into `in` and run the parser over it, delivering whatever that produces.
+    // Called from the socket's recv handler.
+    [extern] unbound void _pump();
+
+    // Deliver one event to the registered handlers, filling in the fields common to all of them.
+    [extern] unbound void _deliver(HttpEventType type, HttpError err);
+}
+
+/// @}

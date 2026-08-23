@@ -1,0 +1,174 @@
+#pragma once
+
+#include <cxhttp.h>
+
+#include <cx/log.h>
+#include <cx/string.h>
+
+extern LogChannel* HttpLogChannel;
+
+// Everything in cxhttp logs to the same channel.
+#undef LOG_CHANNEL
+#define LOG_CHANNEL HttpLogChannel
+
+// Process-wide initialization: registers the log channel. Every public entry point that can be the
+// first thing an application calls runs this, so there is no init call for a consumer to forget.
+void _httpInit(void);
+
+// ---------------------------------------------------------------------------------------------
+// Shared parsing primitives
+//
+// HTTP's grammar is small but every field uses the same handful of rules, so they live here rather
+// than being re-derived in each parser.
+// ---------------------------------------------------------------------------------------------
+
+// True for the whitespace HTTP calls OWS: space and horizontal tab, and nothing else. Notably not
+// \r or \n, which are structure rather than whitespace.
+_meta_inline bool _httpIsOWS(uint8 c)
+{
+    return c == ' ' || c == '\t';
+}
+
+// True for a character allowed in a `token` (RFC 9110 5.6.2) -- what a method, a header field name,
+// and a transfer-coding name are made of.
+bool _httpIsTokenChar(uint8 c);
+
+// True if `s` is a non-empty `token` -- every byte a tchar. What a method name, a header field
+// name, and a transfer-coding name each have to be.
+bool _httpIsToken(_In_opt_ strref s);
+
+// Trim leading and trailing OWS from a string in place. The usual last step of pulling a field
+// value off the wire, where "Name:   value  " has to become "value".
+void _httpTrimOWS(_Inout_ strhandle s);
+
+// Append bytes whose length is a size_t. strAppendBytes() takes a uint32, and on 64-bit Windows
+// that narrowing is a warning -- rightly, because a body length here comes off the wire. Appending
+// in uint32-sized runs turns a silent truncation into either a correct append or an honest failure.
+bool _httpAppendBytes(_Inout_ strhandle out, _In_reads_bytes_opt_(len) const uint8* data,
+                      size_t len);
+
+// ---------------------------------------------------------------------------------------------
+// Message parser
+//
+// One incremental state machine for both directions: the client feeds it responses, the server
+// feeds it requests. It never needs a whole message resident -- it consumes from a BufRing and
+// reports what it produced, so a gigabyte download and a 200-byte API reply take the same path.
+//
+// Internal rather than public API: HttpConn is the supported low-level entry point. This is
+// exposed to the test suite through <cxhttp/http_private.h> the same way cx/net/net_private.h is.
+// ---------------------------------------------------------------------------------------------
+
+/// Bounds on what a peer is allowed to send us
+///
+/// Every one of these exists because the parser reads untrusted bytes and an unbounded read is a
+/// denial of service. httpLimitsDefault() fills in values suited to the "behind a reverse proxy"
+/// deployment cxhttp is written for.
+typedef struct HttpLimits {
+    uint32 maxLineLen;       ///< Longest single start line or header line, in bytes
+    uint32 maxHeaderCount;   ///< Most header fields in one message
+    uint32 maxHeadBytes;     ///< Total size of the start line and header block together
+    uint64 maxBodyBytes;     ///< Longest body; 0 means unlimited
+    uint32 maxChunkSize;     ///< Largest single chunk in a chunked body
+} HttpLimits;
+
+void httpLimitsDefault(_Out_ HttpLimits* out);
+
+// What one parser step produced. The caller loops until NeedMore, Complete, or Error.
+typedef enum {
+    HTTPP_NeedMore = 0,   // everything available is consumed; feed more bytes
+    HTTPP_Head,           // the start line and headers are now readable on the parser
+    HTTPP_Body,           // body bytes are waiting in the parser's `out` ring
+    HTTPP_Complete,       // the message ended
+    HTTPP_Error           // protocol error; `err` says which
+} HttpParseResult;
+
+// Internal parser states. Public only to the extent that the struct below is.
+typedef enum {
+    HTTPS_Start = 0,    // before the start line
+    HTTPS_Headers,      // inside the header block
+    HTTPS_BodyLength,   // body delimited by Content-Length
+    HTTPS_BodyClose,    // body delimited by connection close
+    HTTPS_ChunkSize,    // expecting a chunk-size line
+    HTTPS_ChunkData,    // inside a chunk's data
+    HTTPS_ChunkCRLF,    // expecting the CRLF that follows a chunk's data
+    HTTPS_Trailer,      // in the trailer section after the last chunk
+    HTTPS_Done,
+    HTTPS_Failed
+} HttpParseState;
+
+typedef struct HttpParser {
+    HttpParseState state;
+    HttpError err;    // meaningful once state is HTTPS_Failed
+
+    bool isRequest;   // parsing requests (server) rather than responses (client)
+    bool headDone;    // HTTPP_Head has been reported for this message
+
+    HttpLimits limits;
+
+    // --- start line, filled in when the head completes -------------------------------------
+    HttpVersion version;
+    uint16 status;       // responses: the status code
+    string reason;       // responses: the reason phrase, which may legitimately be empty
+    HttpMethod method;   // requests: the method, HTTP_MethodOther if unrecognized
+    string methodName;   // requests: the method as sent, always populated
+    string target;       // requests: the request target, exactly as sent
+
+    HttpHeaders headers;
+
+    // --- body framing, decided once the head completes --------------------------------------
+    bool noBody;   // framing says this message cannot have one (HEAD, 1xx, 204, 304)
+    bool chunked;
+    bool hasLength;
+
+    // The body runs to EOF, so the connection is spent whatever the headers say. Recorded when the
+    // framing is decided rather than read back off `state`, because by the time anyone asks about
+    // reuse the state has already moved on to Done.
+    bool closeDelimited;
+    uint64 length;      // remaining bytes of a Content-Length body or of the current chunk
+    uint64 bodyTotal;   // decoded body bytes produced so far, for maxBodyBytes
+
+    // Decoded body bytes waiting for the caller. The caller drains this after every HTTPP_Body,
+    // so it holds at most one read's worth rather than the whole body.
+    BufRing out;
+
+    uint32 headBytes;   // start line + headers consumed, for maxHeadBytes
+    uint32 headerCount;
+
+    // The request method, which a response parser needs because a response to HEAD has no body
+    // however it is framed. Set by the caller before feeding the response.
+    HttpMethod reqMethod;
+} HttpParser;
+
+void httpParserInit(_Out_ HttpParser* p, bool isRequest, _In_opt_ const HttpLimits* limits);
+
+// Reset for the next message on the same connection, keeping the limits. Cheaper than destroy and
+// re-init, and it is what connection reuse does between requests.
+void httpParserReset(_Inout_ HttpParser* p);
+
+void httpParserDestroy(_Inout_ HttpParser* p);
+
+// Consume what it can from `src` and report what that produced. Call in a loop until it answers
+// NeedMore, Complete, or Error.
+HttpParseResult httpParserStep(_Inout_ HttpParser* p, _Inout_ BufRing* src);
+
+// Tell the parser the peer closed. Ends a close-delimited body successfully; anything else is a
+// truncated message. Returns the final result.
+HttpParseResult httpParserEOF(_Inout_ HttpParser* p);
+
+// True once the message is framed well enough to know whether the connection may be reused: 1.1
+// unless the peer said `Connection: close`, and 1.0 only if it said `Connection: keep-alive`.
+bool httpParserKeepAlive(_In_ const HttpParser* p);
+
+// ---------------------------------------------------------------------------------------------
+// Chunked encoding (httpchunk.c)
+//
+// Only the writing half lives here; decoding is part of the parser state machine above, because it
+// is inseparable from the framing decisions around it.
+// ---------------------------------------------------------------------------------------------
+
+// Append one chunk: the size in hex, CRLF, the data, CRLF. A zero-length payload would encode as
+// the terminating chunk, so it is refused -- use httpChunkFinish() to end the body deliberately.
+bool httpChunkAppend(_Inout_ strhandle out, _In_reads_bytes_(len) const uint8* data, size_t len);
+
+// Append the terminating zero-length chunk and the empty trailer section that ends a chunked body.
+bool httpChunkFinish(_Inout_ strhandle out);

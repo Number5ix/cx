@@ -1,0 +1,161 @@
+#include <cx/net/net_shared.h>
+#include <cx/thread/mutex.h>
+#include <cxhttp/http_shared.h>
+#include <cxhttp/httpconn.cxh>
+#include <cxhttp/httpcookie.cxh>
+#include <cxhttp/httprequest.cxh>
+#include <cxtls.h>
+
+/// @addtogroup http_client
+/// @{
+/// The high-level client: a URL goes in and a response comes back.
+///
+/// A client owns everything a single request should not have to think about -- which queue to run
+/// on, how to negotiate TLS, where cookies live, which connections are worth keeping, and how long
+/// to wait. Requests are cheap objects created against it; the client is created once and shared.
+///
+/// @code
+///   NetQueueConfig conf;
+///   netqueuePresetClient(&conf);
+///   NetQueue* q      = netqueueCreate(&conf);
+///   HttpClient* http = httpclientCreate(q);
+///
+///   HttpRequest* req = httprequestCreate(HTTP_Get, _SL("https://example.com/api/thing"));
+///   httprequestSetHeader(req, _SL("Accept"), _SL("application/json"));
+///
+///   static const HttpHandlers handlers = { .complete = onDone, .error = onFailed };
+///   httpclientSend(http, req, &handlers, ctx);
+///
+///   while (!done)
+///       netqueueTick(q, 100);
+/// @endcode
+///
+/// A client must outlive every request it is running. That is the one lifetime rule here, and it
+/// falls out of what a client is: requests borrow its queue, its TLS configuration and its
+/// connection pool for as long as they are in flight.
+///
+/// Configure a client before sending through it. Requests may then be sent from any thread and the
+/// pool is safe against them, but reconfiguring one while requests are in flight -- changing the
+/// TLS configuration, the jar, or the timeouts -- is not supported.
+
+/// @brief Connection pooling, TLS, cookies, redirects and timeouts for a set of requests
+class HttpClient
+{
+    /// @brief Queue every connection runs on
+    object[NetQueue] queue;
+
+    /// @brief TLS configuration for https, created on demand if the application does not supply one
+    ///
+    /// The default is a client configuration with the system trust store and `http/1.1` offered as
+    /// the only ALPN protocol. An application that needs pinning, a private CA, or client
+    /// certificates builds its own and calls setTlsConfig().
+    object[TlsConfig] tls;
+
+    /// @brief Cookie jar, or NULL to neither send nor store cookies
+    object[HttpCookieJar] jar;
+
+    /// @brief Headers added to every request that does not set them itself
+    ///
+    /// `User-Agent` is here by default. Anything a request sets explicitly wins, so a default is a
+    /// default rather than an override.
+    HttpHeaders defaultHeaders;
+
+    /// @brief How many redirects to follow before giving up
+    uint32 maxRedirects;
+
+    /// @brief How long a response may take before the request fails, in microseconds (0 = no limit)
+    ///
+    /// Measured from the moment the request is written to the moment the response completes, not
+    /// between packets.
+    int64 responseTimeout;
+
+    /// @brief How long an unused pooled connection is kept, in microseconds (0 = do not pool)
+    int64 idleTimeout;
+
+    /// @brief Idle connections available for reuse
+    ///
+    /// Parallel to poolKeys.
+    [noinit] sa_HttpConn pool;
+
+    /// @brief Origin each pooled connection belongs to, as `scheme://host:port`
+    [noinit] sa_string poolKeys;
+
+    /// @brief Guards the pool and the lazily-created TLS configuration
+    Mutex lock;
+
+    /// Create a client
+    ///
+    /// @param q Queue to run connections on; a reference is held
+    /// @return The new client, or NULL if the queue is unusable
+    [canfail] factory create([in] NetQueue *q);
+    init();
+    destroy();
+
+    /// Supply the TLS configuration https requests use
+    ///
+    /// Replaces the default. `http/1.1` is added to the configuration's ALPN list if it is not
+    /// already there.
+    ///
+    /// @param cfg Configuration to use; a reference is held. NULL restores the default.
+    void setTlsConfig([in] [opt] TlsConfig *cfg);
+
+    /// Supply the cookie jar
+    ///
+    /// @param jar Jar to send from and store into; a reference is held. NULL disables cookies.
+    void setCookieJar([in] [opt] HttpCookieJar *jar);
+
+    /// Set a default request header
+    ///
+    /// @param name Field name
+    /// @param value Field value, or empty to remove the default
+    /// @return true on success
+    bool setHeader(strref name, strref value);
+
+    /// Set how many redirects a request may follow
+    ///
+    /// @param count Maximum redirects; 0 makes every 3xx the final response
+    void setMaxRedirects(uint32 count);
+
+    /// Set the response and idle timeouts
+    ///
+    /// @param response Microseconds a response may take, or 0 for no limit
+    /// @param idle Microseconds an unused connection is pooled for, or 0 to disable pooling
+    void setTimeouts(int64 response, int64 idle);
+
+    /// Send a request
+    ///
+    /// Returns as soon as the exchange has started. The outcome arrives on `handlers`, on a
+    /// netqueue worker, some time later -- so the request must remain valid until then, which it
+    /// does: the client holds a reference for the duration.
+    ///
+    /// @param req Request to send; a reference is held until it completes
+    /// @param handlers Callbacks for the response. Not copied -- must outlive the request, so it is
+    ///                 usually `static const`
+    /// @param ctx Context passed to the handlers on HttpEvent.ctx
+    /// @return true if the exchange started; false means it never will, and no handler runs
+    bool send([in] HttpRequest *req, [in] [opt] const HttpHandlers *handlers, [in] [opt] void *ctx);
+
+    /// Close and discard every pooled idle connection
+    ///
+    /// Requests in flight are unaffected. Worth calling when an application knows it is done
+    /// talking to a host for a while, rather than waiting out the idle timeout.
+    void closeIdle();
+
+    // -----------------------------------------------------------------------------------------
+    // PRIVATE IMPLEMENTATION DETAILS
+    // -----------------------------------------------------------------------------------------
+
+    // Begin (or resume, after a redirect) the exchange for a request against its current URL.
+    // Either checks a pooled connection out or dials a new one.
+    [extern] unbound bool _start([in] HttpRequest *req);
+
+    // End an exchange: settle the connection, drop the client's reference, and deliver the terminal
+    // event to the application's handlers.
+    [extern] unbound void _finish([in] HttpRequest *req, HttpError err);
+
+    // Hand a connection back after a response. Pooled if it is reusable and pooling is on, closed
+    // otherwise. Always drops the request's reference to it.
+    [extern] unbound void _recycle([in] HttpRequest *req, bool reusable);
+}
+
+/// @}

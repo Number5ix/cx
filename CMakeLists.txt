@@ -22,15 +22,25 @@ if(PROJECT_IS_TOP_LEVEL)
 
   set(CX_LUA_DEFAULT ON)
   set(CX_TLS_DEFAULT ON)
+  set(CX_HTTP_DEFAULT ON)
   set(CX_STANDALONE 1)
 else()
   set(CX_LUA_DEFAULT OFF)
   set(CX_TLS_DEFAULT ON)
+  set(CX_HTTP_DEFAULT ON)
 endif()
 
 option(CX_LUA "Build Lua scripting engine and cxlua library" ${CX_LUA_DEFAULT})
 option(CX_TLS "Build mbedTLS cryptography library" ${CX_TLS_DEFAULT})
+option(CX_HTTP "Build cxhttp, the HTTP/1.1 client and server library" ${CX_HTTP_DEFAULT})
 option(CX_MIMALLOC "Use mimalloc rather than system allocator" ON)
+
+# cxhttp speaks https through cxtls rather than branching on whether it is available, so the
+# dependency is hard. Fail at configure time rather than at link time.
+if(CX_HTTP AND NOT CX_TLS)
+    message(FATAL_ERROR "CX_HTTP requires CX_TLS (cxhttp uses cxtls for https). "
+                        "Set -DCX_HTTP=OFF to build without HTTP support.")
+endif()
 
 include (${CMAKE_CURRENT_SOURCE_DIR}/cmake/cxauto.cmake)
 include (${CMAKE_CURRENT_SOURCE_DIR}/cmake/organize_targets.cmake)
@@ -79,6 +89,10 @@ endif()
 
 if(CX_TLS)
   add_subdirectory(cxtls)
+endif()
+
+if(CX_HTTP)
+  add_subdirectory(cxhttp)
 endif()
 
 if(PROJECT_IS_TOP_LEVEL)

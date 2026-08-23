@@ -1,0 +1,98 @@
+#include <cx/thread/mutex.h>
+#include <cxhttp/http_shared.h>
+
+/// @addtogroup http_cookies
+/// @{
+/// Session cookie storage for the client.
+///
+/// A jar is in-memory and lives as long as the process does -- there is no persistence, on purpose.
+/// Writing cookies to disk means deciding where, in what format, and with what security properties,
+/// and none of those are decisions a networking library should be making for its consumer. What the
+/// jar provides instead is enumeration, so an application that wants persistence has everything it
+/// needs to implement the policy it actually wants.
+///
+/// @code
+///   HttpCookieJar* jar = httpcookiejarCreate();
+///   httpclientSetCookieJar(client, jar);
+///   // ... requests now send and store cookies ...
+///   objRelease(&jar);
+/// @endcode
+
+/// @brief A set of cookies, matched against requests by domain, path and scheme
+class HttpCookieJar
+{
+    /// @brief Every cookie held, in no particular order
+    ///
+    /// Not indexed by domain: a suffix match against a domain cannot be a hashtable lookup anyway --
+    /// `a.b.example.com` has to find a cookie stored for `example.com`.
+    [noinit] sa_HttpCookie cookies;
+
+    /// @brief Guards the cookie list
+    ///
+    /// A jar is shared by every request a client runs, and those run on netqueue workers, so this
+    /// is genuinely contended across threads. It is held only for the length of a match or an
+    /// insert.
+    Mutex lock;
+
+    factory create();
+    init();
+    destroy();
+
+    /// Store one cookie from a `Set-Cookie` field value
+    ///
+    /// Applies the RFC 6265 defaults for a field that omits them: the default path is the request
+    /// path up to its last `/`, and the default domain is the request host with an exact-match
+    /// requirement. A cookie whose `Domain` is not a suffix of the request host is rejected, which
+    /// is what stops one site setting cookies for another.
+    ///
+    /// @param url URL the response came from
+    /// @param field Value of one `Set-Cookie` field, without the field name
+    /// @return true if the cookie was stored, false if it was malformed or not permitted
+    bool setCookie([in] HttpUrl *url, strref field);
+
+    /// Store every cookie a response set
+    ///
+    /// @param url URL the response came from
+    /// @param headers Response headers
+    /// @return Number of cookies stored
+    int32 storeAll([in] HttpUrl *url, [in] HttpHeaders *headers);
+
+    /// Build the `Cookie` header value for a request
+    ///
+    /// Selects every unexpired cookie that matches the URL's host, path and scheme, and joins them
+    /// as `name=value; name=value`. Longer paths sort first, as RFC 6265 requires.
+    ///
+    /// @param out Receives the header value; left empty when nothing matched
+    /// @param url URL about to be requested
+    /// @return true if at least one cookie matched
+    bool header([out] string *out, [in] HttpUrl *url);
+
+    /// Number of cookies held, including ones that have expired but not yet been swept
+    ///
+    /// @return Cookie count
+    int32 count();
+
+    /// Copy out every cookie held
+    ///
+    /// The enumeration a consumer implementing persistence needs. Expired cookies are dropped on
+    /// the way out, so what comes back is what would actually be sent.
+    ///
+    /// @param out Receives the cookies; initialized by this call
+    /// @return Number of cookies returned
+    int32 enumerate([out] sa_HttpCookie *out);
+
+    /// Store a cookie directly, bypassing `Set-Cookie` parsing
+    ///
+    /// The other half of persistence: what enumerate() produced goes back in through here. No
+    /// domain check is applied, because the caller is restoring its own state rather than accepting
+    /// a claim from a server.
+    ///
+    /// @param cookie Cookie to store; copied
+    /// @return true on success
+    bool add([in] HttpCookie *cookie);
+
+    /// Remove every cookie
+    void clear();
+}
+
+/// @}
