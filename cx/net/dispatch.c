@@ -13,7 +13,7 @@
 // _submit and _dispatch are two halves of one claim protocol (flow->queued, flow->claimed); each
 // one's "re-check after the store" reasoning only makes sense beside the other, so they stay
 // together. Flow admission and the flow table live in flow.c, the GC pass in queue.c, and the
-// connect timeout sweep in connect.c.
+// deadline heap in timer.c.
 // ---------------------------------------------------------------------------------------------
 
 #include "net_private.h"
@@ -58,6 +58,8 @@ static NetEventCB pickHandler(const NetHandlers* h, NetEventType ev)
         return h->flowClosed;
     case NET_Error:
         return h->error;
+    case NET_Timer:
+        return h->timer;
     }
 
     return NULL;
@@ -126,6 +128,8 @@ static strref netEventName(NetEventType ev)
         return _SL("flowClosed");
     case NET_Error:
         return _SL("error");
+    case NET_Timer:
+        return _SL("timer");
     }
 
     return _SL("unknown");
@@ -233,6 +237,10 @@ static bool drainFlow(NetQueue* q, NetSocket* sock, NetFlow* flow)
                 netflow_primeFilters(flow, q, sock);
             }
 
+            // Drop whatever the flow still had armed before the application hears the flow is
+            // gone.
+            netqueue_cancelFlowTimers(q, flow);
+
             NetEvent ev     = { .event = NET_FlowClosed };
             ev.closed.reason = (NetCloseReason)msg->reason;
             netqueue_deliver(q, sock, flow, &ev);
@@ -262,6 +270,14 @@ static bool drainFlow(NetQueue* q, NetSocket* sock, NetFlow* flow)
             // Events only ever run on a worker, so it has to route through the packet queue.
             NetEvent ev      = { .event = NET_FilterNotify };
             ev.filter.notify = (NetFilterNotify)msg->bytes;
+            netqueue_deliver(q, sock, flow, &ev);
+            netpoolFreeMsg(q->pool, &msg);
+            continue;
+        }
+
+        if (msg->kind == NMSG_Timer) {
+            NetEvent ev = { .event = NET_Timer };
+            ev.timer.id = msg->timerId;
             netqueue_deliver(q, sock, flow, &ev);
             netpoolFreeMsg(q->pool, &msg);
             continue;

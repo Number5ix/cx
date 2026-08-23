@@ -11,6 +11,7 @@ set(NETSRCS
     net/queue_select.c
     net/resolver.c
     net/socket.c
+    net/timer.c
 )
 set(NETINCLUDES
     net/addr.h

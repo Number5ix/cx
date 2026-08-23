@@ -56,15 +56,25 @@ abstract class NetQueue
 
     atomic[uint32] nflows;   ///< Flows currently live across every socket on this queue
 
-    /// @brief Sockets currently resolving or connecting across this queue
+    /// @brief Armed timers across every flow on this queue, kept as a min-heap ordered by deadline
     ///
-    /// Bumped when a socket starts resolving, dropped once its connect reaches a final state.
-    /// Lets the connect timeout sweep skip itself cheaply while nothing is connecting.
-    atomic[uint32] connecting;
+    /// Every entry holds a strong reference to its flow.
+    NetTimerEntry *timers;
 
-    /// @brief Timestamp of the last connect-timeout sweep, used to rate-limit it the same way
-    /// gcLastLo rate-limits netqueue_maint()
-    atomic[uint32] connSweepLo;
+    uint32 ntimers;      ///< Entries in use in `timers`
+    uint32 timersCap;    ///< Entries allocated in `timers`
+    uint64 timerSerial;  ///< Source of NetTimerId values; never reused, never 0
+
+    /// @brief Maps a timer id to its current index in `timers`
+    hashtable[uint64,uint32] timerIdx;
+
+    /// @brief Guards the timer heap and every flow's list of armed timer ids
+    ///
+    /// Lock order is connectLock -> timerLock, never the reverse. Never held during a callback.
+    Mutex timerLock;
+
+    /// @brief Number of armed timers, readable without taking `timerLock`
+    atomic[uint32] timersLive;
 
     /// @brief Dispatch worker threads draining the runqueue (empty in polled mode)
     ///
@@ -87,6 +97,13 @@ abstract class NetQueue
     /// NULL in polled mode, where tick() rebuilds the watch set every call. See NetSendPumpFn.
     NetSendPumpFn sendPump;
     void *sendCtx;   ///< Context passed to sendPump, normally the derived queue
+
+    /// @brief Backend hook that wakes a parked wait so it can recompute its timeout
+    ///
+    /// Called when a timer is armed with a deadline nearer than the one the backend is currently
+    /// waiting on. Set even in polled mode. NULL if the backend has no wait to interrupt.
+    NetWakeFn wake;
+    void *wakeCtx;   ///< Context passed to wake, normally the derived queue
 
     /// Add a socket to be managed by the queue
     ///
@@ -344,16 +361,39 @@ abstract class NetQueue
     // tight poll loop costs one GC attempt per interval; safe to call as often as convenient.
     unbound void _maint();
 
-    // Connect (connect.c)
+    // Timers (timer.c)
+    //
+    // The queue-wide deadline heap behind netflowAddTimer(). Backends drive it with two calls per
+    // wait: _nextDeadline() to bound the sleep, and _timerSweep() to fire whatever came due.
 
-    // Time out connect attempts whose per-address deadline has passed. A no-op on a single relaxed
-    // load while no socket is connecting; otherwise a time-gated single-runner (like _maint) that
-    // scans self->sockets under the read lock for NS_Connecting sockets past their deadline and
-    // fails the attempt over via netsocket_connectResult(NERR_Timeout). Called by every backend
-    // beside its existing _maint() call; both backends already wait on a bound finer than a
-    // connect timeout, so no dedicated timer thread is needed. Lives with the rest of the connect
-    // state machine because it is the third claimant of a socket's connectDeadline.
-    [extern] unbound void _connectSweep();
+    // Arm a timer on a flow, `delay` microseconds from now. `fn` is NULL for an application timer
+    // (delivered as NET_Timer through the flow's inbox) or a framework hook fired inline on the
+    // sweeping thread. Returns the new id, or 0 if the flow is already dying or has no queue.
+    [extern] unbound NetTimerId _addTimer([inout] NetFlow *flow, int64 delay, flags_t flags,
+        NetTimerFn fn, [in] [opt] void *ctx);
+
+    // Cancel an armed timer. Returns true only if this call removed it from the heap -- a timer
+    // already popped for delivery answers false. A successful cancel means the caller is the one
+    // that gets to act on it. Cancelling an unknown or already-fired id is a harmless false.
+    [extern] unbound bool _cancelTimer(NetTimerId id);
+
+    // Move an armed timer's deadline to `delay` microseconds from now. Returns false if the timer
+    // is not armed (cancelled, or already popped for delivery).
+    [extern] unbound bool _rearmTimer(NetTimerId id, int64 delay);
+
+    // Cancel every timer armed on a flow. Called on the flow's terminal path so a long deadline on
+    // a dead connection cannot keep the flow object alive until it expires.
+    [extern] unbound void _cancelFlowTimers([inout] NetFlow *flow);
+
+    // Fire every timer whose deadline has passed. A no-op on one relaxed load while nothing is
+    // armed. Entries are popped under timerLock and fired outside it, so a callback is free to arm,
+    // cancel, or send. Called by every backend right after its wait returns, beside _maint().
+    [extern] unbound void _timerSweep();
+
+    // The nearest armed deadline in absolute clockTimer() microseconds, or 0 if nothing is armed.
+    // Backends cap their wait to this so a timer fires close to when it is due rather than on the
+    // next unrelated wakeup.
+    [extern] unbound int64 _nextDeadline();
 
     // Flow table and lifecycle (flow.c)
 

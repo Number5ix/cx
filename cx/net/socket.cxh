@@ -123,12 +123,14 @@ abstract class NetSocket
 
     int32 connectIdx;        ///< Index of the next connQueue address to try
 
-    /// @brief Deadline (clockTimer microseconds) for the in-flight connect attempt, or 0 for none
+    /// @brief Timer arming the in-flight connect attempt's deadline, or 0 when none is armed
     ///
-    /// Two things can complete one connect attempt -- the backend and the timeout sweep -- and
-    /// whichever one clears this field to 0 under connectLock is the one that owns handling it.
-    /// Set when an attempt begins, cleared when it resolves.
-    int64 connectDeadline;
+    /// Three things can complete one connect attempt -- the backend, netsocketClose(), and the
+    /// attempt timing out -- and cancelling this timer is what arbitrates between them. A cancel
+    /// succeeds only if the timer had not already been popped for delivery, so exactly one of the
+    /// three wins and the losers see either a zeroed field or a failed cancel. Set when an attempt
+    /// begins, cleared when it resolves.
+    NetTimerId connectTimer;
 
     /// @brief Attempt generation, bumped once per connect attempt
     ///
@@ -136,7 +138,9 @@ abstract class NetSocket
     /// just clean itself up instead of acting on a stale result.
     atomic[uint32] connectGen;
 
-    /// @brief Serializes the connect-advance transition; see connectDeadline
+    /// @brief Serializes the connect-advance transition; see connectTimer
+    ///
+    /// Lock order is connectLock -> the queue's timerLock, never the reverse.
     Mutex connectLock;
 
     /// Read buffered stream data out of the socket receive buffer
@@ -325,8 +329,8 @@ abstract class NetSocket
     // Report the outcome of the in-flight connect attempt and advance the state machine: on
     // success the socket goes NS_Connected and its NET_Connection event is queued; on failure the
     // next resolved address is tried, or a failing NET_Connection is delivered when the list is
-    // exhausted. Claims the per-attempt transition under connectLock (via connectDeadline) so the
-    // backend completion and the timeout sweep cannot both advance it. Safe to call from either;
+    // exhausted. Claims the per-attempt transition by cancelling connectTimer, so the backend
+    // completion and the attempt's own timeout cannot both advance it. Safe to call from either;
     // the loser is a no-op.
     [extern] unbound void _connectResult(NetErrorCode err);
 
@@ -337,12 +341,12 @@ abstract class NetSocket
     // pending).
     [extern] unbound bool _readinessConnect([inout] NetQueue *q, [in] NetAddr *addr);
 
-    // Abort an in-flight connect when the socket is being closed. Claims the current attempt's
-    // deadline the same way the backend completion and the timeout sweep do; if won, drops the
-    // connect's resources without starting a new attempt or delivering an event. A no-op if there
-    // is no armed attempt (deadline 0) -- either nothing is connecting, or the completion/sweep
-    // already finished it, or the connect is still resolving (that window is handled in the
-    // resolver callback, which checks NS_Closed).
+    // Abort an in-flight connect when the socket is being closed. Claims the current attempt the
+    // same way the backend completion and the timeout do; if won, drops the connect's resources
+    // without starting a new attempt or delivering an event. A no-op if there is no armed attempt
+    // -- either nothing is connecting, or the completion/timeout already finished it, or the
+    // connect is still resolving (that window is handled in the resolver callback, which checks
+    // NS_Closed).
     [extern] unbound void _connectCancel();
 
     // Accept and listen (socket.c)

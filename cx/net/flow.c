@@ -96,6 +96,7 @@ void NetFlow_destroy(_In_ NetFlow* self)
     objDestroyWeak(&self->socket);
     objRelease(&self->pool);
     saDestroy(&self->user);
+    saDestroy(&self->timers);
     saDestroy(&self->filters);
     mutexDestroy(&self->filterLock);
     // Autogen ends -------
@@ -179,6 +180,43 @@ bool NetFlow__close(_In_ NetFlow* self, NetCloseReason reason)
 
     objRelease(&q);
     return true;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Timers
+// ---------------------------------------------------------------------------------------------
+
+NetTimerId NetFlow_addTimer(_In_ NetFlow* self, int64 delay, flags_t flags)
+{
+    NetQueue* q = netflow_queue(self);
+    if (!q)
+        return 0;
+
+    NetTimerId id = netqueue_addTimer(q, self, delay, flags, NULL, NULL);
+    objRelease(&q);
+    return id;
+}
+
+bool NetFlow_cancelTimer(_In_ NetFlow* self, NetTimerId id)
+{
+    NetQueue* q = netflow_queue(self);
+    if (!q)
+        return false;
+
+    bool ret = netqueue_cancelTimer(q, id);
+    objRelease(&q);
+    return ret;
+}
+
+bool NetFlow_rearmTimer(_In_ NetFlow* self, NetTimerId id, int64 delay)
+{
+    NetQueue* q = netflow_queue(self);
+    if (!q)
+        return false;
+
+    bool ret = netqueue_rearmTimer(q, id, delay);
+    objRelease(&q);
+    return ret;
 }
 
 _Ret_maybenull_ NetQueue* NetFlow__queue(_In_ NetFlow* self)

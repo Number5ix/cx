@@ -13,13 +13,81 @@
 // failed or pending connect cannot be reliably reconnected and a resolved list can mix IPv4/IPv6.
 //
 // Two threads can finish one attempt concurrently -- the backend completion (writable / ConnectEx
-// done / synchronous error) and the timeout sweep. They serialize through connectLock by clearing
-// connectDeadline to 0: whoever clears it owns the transition; the loser sees 0 and bails.
+// done / synchronous error) and the attempt's own timeout. They serialize on the attempt's timer:
+// each attempt arms one on the socket's flow, and a cancel succeeds only for a timer that has not
+// already been popped for delivery, so exactly one of the two claims the transition and the loser
+// is a no-op.
+//
+// The timeout runs INLINE on whichever thread swept it, not through the flow like every other
+// event, and that is deliberate: advancing to the next address closes the socket's OS handle and
+// opens a new one, and every backend sweeps from the same thread that owns its wait. Handing that
+// to a worker instead would let the handle be closed while the ingest thread sits in select() on
+// it -- a descriptor-reuse bug rather than a visible one.
 // ---------------------------------------------------------------------------------------------
 
 // Forward decls for the mutually recursive helpers below.
 static void connectNext(NetSocket* sock, NetErrorCode lastErr);
 static bool connectIsLastOfFamily(NetSocket* sock, NetAddrType type);
+
+// Take the socket's armed connect timer out of the running, if there is one, and report whether
+// this call is what removed it. A true return is the claim on the current attempt's transition:
+// the timer sweep pops under the same lock netqueue_cancelTimer takes, so a timer already on its
+// way to firing answers false here and owns the advance itself.
+static bool connectClaim(NetSocket* sock)
+{
+    bool won = false;
+
+    withMutex (&sock->connectLock) {
+        NetTimerId id = sock->connectTimer;
+        if (id != 0) {
+            NetQueue* q = objAcquireFromWeak(NetQueue, sock->queue);
+            // No queue left means the socket was removed while connecting; there is no heap to
+            // cancel against and nothing else can be advancing the attempt, so the claim is ours.
+            won = q ? netqueue_cancelTimer(q, id) : true;
+            objRelease(&q);
+
+            // Only the winner clears the field. Zeroing it on a lost race would leave the timeout
+            // -- which by then is already on its way to firing -- unable to recognize its own
+            // attempt, and the connect would hang with nobody advancing it.
+            if (won)
+                sock->connectTimer = 0;
+        }
+    }
+
+    return won;
+}
+
+// Fired inline by the timer sweep when an attempt outlives its deadline. Reaching this at all means
+// the timer was popped, so any concurrent connectClaim() has already failed and this is the sole
+// advancer -- the connectTimer check is against a *superseded* attempt's id, not against a race.
+static void connectTimedOut(NetFlow* flow, NetTimerId id, void* ctx)
+{
+    unused_noeval(ctx);
+
+    NetSocket* sock = objAcquireFromWeak(NetSocket, flow->socket);
+    if (!sock)
+        return;
+
+    bool claimed = false;
+    withMutex (&sock->connectLock) {
+        if (sock->connectTimer == id) {
+            sock->connectTimer = 0;
+            claimed            = true;
+        }
+    }
+
+    if (claimed)
+        connectNext(sock, NERR_Timeout);
+
+    objRelease(&sock);
+}
+
+// Clear any armed connect timer without caring who wins -- for the paths that have already claimed
+// the transition and are just tidying up after themselves.
+static void connectDisarm(NetSocket* sock)
+{
+    connectClaim(sock);
+}
 
 // Deliver NET_Connection through the flow so the connect callback runs on a worker, ordered against
 // anything already pending for the flow -- never inline on the resolver or completion thread. The
@@ -36,31 +104,25 @@ static void connectDeliver(NetQueue* q, NetSocket* sock, NetErrorCode err)
 }
 
 // The connect has failed on every resolved address (or the socket lost its queue). Deliver the
-// failing event, drop the queue's connecting count, and release the connect operation's
-// self-reference. The socket returns to NS_Init rather than NS_Closed so the application's
+// failing event and release the connect operation's self-reference. The socket returns to NS_Init rather than NS_Closed so the application's
 // netsocketClose() still runs the platform close -- setting NS_Closed here would make that a no-op
 // and leak the OS handle.
 static void connectFinishFail(NetSocket* sock, NetQueue* q, NetErrorCode err)
 {
-    withMutex (&sock->connectLock)
-        sock->connectDeadline = 0;
+    connectDisarm(sock);
     atomicStore(uint32, &sock->state, NS_Init, Release);
 
     connectDeliver(q, sock, err);
-
-    if (q)
-        atomicFetchSub(uint32, &q->connecting, 1, AcqRel);
 
     objRelease(&sock);
 }
 
 // An attempt connected. Transition to NS_Connected, deliver the success event on the flow (queued
 // before the backend starts receiving, so NET_Connection is ordered ahead of any NET_DataReceived),
-// arm the receive side, drop the connecting count, and release the connect self-reference.
+// arm the receive side, and release the connect self-reference.
 static void connectSucceed(NetSocket* sock)
 {
-    withMutex (&sock->connectLock)
-        sock->connectDeadline = 0;
+    connectDisarm(sock);
     atomicStore(uint32, &sock->state, NS_Connected, Release);
 
     NetQueue* q = objAcquireFromWeak(NetQueue, sock->queue);
@@ -68,7 +130,6 @@ static void connectSucceed(NetSocket* sock)
     connectDeliver(q, sock, NERR_None);
 
     if (q) {
-        atomicFetchSub(uint32, &q->connecting, 1, AcqRel);
         netqueueConnectArm(q, sock);
         objRelease(&q);
     }
@@ -78,19 +139,17 @@ static void connectSucceed(NetSocket* sock)
 
 // Release the connect operation's resources without changing the socket's state or delivering an
 // event -- used when the socket is being closed out from under an in-flight connect, so its held
-// self-reference and the queue's connecting count do not strand on a socket that is going away.
+// self-reference does not strand on a socket that is going away.
 static void connectDrop(NetSocket* sock, NetQueue* q)
 {
-    withMutex (&sock->connectLock)
-        sock->connectDeadline = 0;
-    if (q)
-        atomicFetchSub(uint32, &q->connecting, 1, AcqRel);
+    unused_noeval(q);
+    connectDisarm(sock);
     objRelease(&sock);
 }
 
 // Try the next resolved address, or finish the connect as failed when the list is exhausted. Runs
 // only on the thread that currently owns the advance (the resolver callback for the first attempt,
-// or whoever won the connectDeadline claim thereafter), so connectIdx/connQueue/remote need no lock.
+// or whoever won the attempt-timer claim thereafter), so connectIdx/connQueue/remote need no lock.
 // `lastErr` is the failure that ended the previous attempt; it becomes the reported error if this
 // exhausts the list, so a run of dead addresses surfaces its real cause (refused, timeout, ...).
 static void connectNext(NetSocket* sock, NetErrorCode lastErr)
@@ -124,11 +183,24 @@ static void connectNext(NetSocket* sock, NetErrorCode lastErr)
         deadline = q->conf.connectAttemptTimeout;
 
     // Begin a new attempt: bump the generation (so a superseded completion can recognize itself) and
-    // arm the deadline before starting, so a completion or the sweep firing the instant the attempt
-    // begins finds a valid claim token.
+    // arm the deadline before starting, so a completion or the timeout firing the instant the
+    // attempt begins finds a valid claim token. Arming happens under connectLock so the id is
+    // stored before the timer can possibly fire and go looking for it.
     atomicFetchAdd(uint32, &sock->connectGen, 1, AcqRel);
+
+    NetTimerId armed;
     withMutex (&sock->connectLock)
-        sock->connectDeadline = clockTimer() + deadline;
+        armed = sock->connectTimer = netqueue_addTimer(q, sock->flow, deadline, NTF_None,
+                                                       connectTimedOut, NULL);
+
+    if (armed == 0) {
+        // The flow is already tearing down -- the queue is shutting down, or the socket is being
+        // closed underneath us. There is nothing left to time the attempt against and nothing to
+        // deliver its outcome on, so finish now rather than starting an attempt nothing would end.
+        connectFinishFail(sock, q, NERR_NotConnected);
+        objRelease(&q);
+        return;
+    }
 
     // The backend begins one attempt and drives the outcome back through netsocket_connectResult --
     // synchronously for an immediate connect or failure, or later from readiness / a completion / the
@@ -139,17 +211,9 @@ static void connectNext(NetSocket* sock, NetErrorCode lastErr)
 
 void NetSocket__connectResult(_In_ NetSocket* self, NetErrorCode err)
 {
-    // Claim the advance for the current attempt. A nonzero connectDeadline means an attempt is live;
-    // clearing it under the lock makes us the sole advancer, so the other of {completion, sweep}
-    // sees 0 and returns without touching anything.
-    bool claimed = false;
-    withMutex (&self->connectLock) {
-        if (self->connectDeadline != 0) {
-            self->connectDeadline = 0;
-            claimed = true;
-        }
-    }
-    if (!claimed)
+    // Cancelling the attempt's timer is the claim: if it succeeds we are the sole advancer, and if
+    // it fails the timeout already owns this attempt and is about to advance it itself.
+    if (!connectClaim(self))
         return;
 
     if (err == NERR_None)
@@ -258,14 +322,14 @@ static bool connectIsLastOfFamily(NetSocket* sock, NetAddrType type)
 
 // Resolver callback, invoked on a resolver worker thread. Fills connQueue in the resolved order and
 // kicks off the first attempt, or fails the connect on a resolution error. No attempt is in flight
-// here (connectDeadline is 0), so writing connQueue/state without a lock is safe.
+// here (no attempt timer is armed), so writing connQueue/state without a lock is safe.
 static void netsocketResolved(sa_NetAddr* addrs, NetErrorCode err, void* ctx)
 {
     NetSocket* sock = (NetSocket*)ctx;
 
-    // The socket may have been closed while resolution was in flight. No attempt is armed yet
-    // (connectDeadline is 0), so the resolver callback is the sole owner here and can drop the
-    // connect's resources directly without the deadline claim.
+    // The socket may have been closed while resolution was in flight. No attempt is armed yet, so
+    // the resolver callback is the sole owner here and can drop the connect's resources directly
+    // without going through the timer claim.
     if (atomicLoad(uint32, &sock->state, Relaxed) == NS_Closed) {
         NetQueue* q = objAcquireFromWeak(NetQueue, sock->queue);
         connectDrop(sock, q);
@@ -322,7 +386,6 @@ bool NetSocket_connect(_In_ NetSocket* self, _In_ strref host, uint16 port)
         return false;
     }
 
-    atomicFetchAdd(uint32, &q->connecting, 1, AcqRel);
     objAcquire(self);   // the connect operation holds a self-reference until it reaches a terminal state
 
     // A literal address needs no DNS. Resolving it inline also means a program that only ever
@@ -341,7 +404,6 @@ bool NetSocket_connect(_In_ NetSocket* self, _In_ strref host, uint16 port)
     // Hostname: resolve asynchronously on the dedicated, bounded resolver queue.
     if (!_netResolveSubmit(host, port, netsocketResolved, self)) {
         atomicStore(uint32, &self->state, NS_Init, Release);
-        atomicFetchSub(uint32, &q->connecting, 1, AcqRel);
         objRelease(&self);
         objRelease(&q);
         return false;
@@ -354,81 +416,11 @@ bool NetSocket_connect(_In_ NetSocket* self, _In_ strref host, uint16 port)
 _Use_decl_annotations_
 void NetSocket__connectCancel(NetSocket* self)
 {
-    bool claimed = false;
-    withMutex (&self->connectLock) {
-        if (self->connectDeadline != 0) {
-            self->connectDeadline = 0;
-            claimed = true;
-        }
-    }
-    if (!claimed)
+    if (!connectClaim(self))
         return;
 
     NetQueue* q = objAcquireFromWeak(NetQueue, self->queue);
     connectDrop(self, q);
     if (q)
         objRelease(&q);
-}
-
-// ---------------------------------------------------------------------------------------------
-// Timeout sweep
-//
-// The third claimant of a socket's connectDeadline, alongside the backend completion (which
-// arrives through netsocket_connectResult) and netsocket_connectCancel. It is a NetQueue method
-// because the scan is over the queue's socket table, but everything it decides is connect-path
-// state, so it lives here with the other two.
-// ---------------------------------------------------------------------------------------------
-
-// Minimum spacing between connect-timeout sweeps. Fine enough that a short per-attempt timeout in a
-// test still fails over promptly, coarse enough that a busy poll loop or worker pool does not scan
-// the socket table on every pass.
-#define NET_CONNECT_SWEEP_INTERVAL timeMS(25)
-
-_Use_decl_annotations_
-void NetQueue__connectSweep(NetQueue* self)
-{
-    // The overwhelmingly common case: nothing is connecting, so this is a single relaxed load.
-    if (atomicLoad(uint32, &self->connecting, Relaxed) == 0)
-        return;
-
-    uint32 now  = (uint32)clockTimer();
-    uint32 last = atomicLoad(uint32, &self->connSweepLo, Relaxed);
-    if ((uint32)(now - last) < (uint32)NET_CONNECT_SWEEP_INTERVAL)
-        return;
-
-    // Single-runner: whichever thread wins the timestamp claims this interval; the rest bail, so a
-    // whole worker pool arriving together still runs exactly one sweep.
-    if (!atomicCompareExchange(uint32, strong, &self->connSweepLo, &last, now, Relaxed, Relaxed))
-        return;
-
-    int64 tnow = clockTimer();
-
-    // Collect the expired sockets under the read lock, then time them out after releasing it:
-    // netsocket_connectResult() submits to the runqueue and resets the socket handle, neither of
-    // which may run while the socket table is locked. Hold a reference on each so a concurrent
-    // removeSocket cannot free one between the scan and the timeout.
-    sa_ptr victims;
-    saInit(&victims, ptr, 4);
-
-    withReadLock (&self->lock) {
-        foreach (hashtable, hti, self->sockets) {
-            NetSocket* s = (NetSocket*)htiVal(object, hti);
-            if (!s || atomicLoad(uint32, &s->state, Relaxed) != NS_Connecting)
-                continue;
-
-            int64 dl;
-            withMutex (&s->connectLock)
-                dl = s->connectDeadline;
-            if (dl != 0 && tnow >= dl)
-                saPush(&victims, ptr, objAcquire(s));
-        }
-    }
-
-    for (int32 i = 0; i < saSize(victims); i++) {
-        NetSocket* s = (NetSocket*)victims.a[i];
-        netsocket_connectResult(s, NERR_Timeout);
-        objRelease(&s);
-    }
-
-    saDestroy(&victims);
 }

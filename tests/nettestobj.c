@@ -90,7 +90,10 @@ bool NetQueueTest_tick(_In_ NetQueueTest* self, int64 wait)
 {
     // Polled mode runs ingest and dispatch inline on the caller's thread -- the same code the
     // workers run, just without the threads. There is no ingest here because the test injects
-    // packets directly, so this is only the dispatch half.
+    // packets directly, so this is only the timer sweep a real backend runs after its wait, plus
+    // the dispatch half.
+    netqueue_timerSweep(self);
+
     bool ran = false;
     while (netqueue_dispatch(self))
         ran = true;

@@ -28,6 +28,10 @@ extern bool NetQueue_shutdown(_In_ NetQueue* self, int64 timeout);
 // the socket pointer as its key, which can never collide with this sentinel.
 #define IOCP_KEY_EXIT ((ULONG_PTR)~(uintptr_t)0)
 
+// Posted by iocpWake() with a NULL OVERLAPPED purely to interrupt a parked wait so it recomputes
+// its timer bound. Both wait loops fall through it without doing anything else.
+#define IOCP_KEY_WAKE ((ULONG_PTR)~(uintptr_t)1)
+
 // Stream send segments gathered into a single overlapped WSASend. The send buffer's segments are
 // 64 KiB, so this batches up to a megabyte per op before it must repost -- more than enough that
 // gathering, not op count, is what bounds a large flush.
@@ -402,6 +406,40 @@ static void iocpSendPump(void* ctx, NetSocket* sock)
         netsocket_sendError(sock, self, err, &eaddr);
 }
 
+// Wake hook installed on the base queue: arming a timer nearer than the deadline a completion
+// thread is already sleeping on posts a bare completion so it recomputes its bound. A NULL
+// OVERLAPPED with an ordinary key is ignored by both wait loops, which is exactly what a wake is.
+// Installed in polled mode too, because an application thread can arm a timer while another sits
+// in netqueueTick().
+static void iocpWake(void* ctx)
+{
+    NetQueueWinIOCP* self = (NetQueueWinIOCP*)ctx;
+    if (self->iocp)
+        PostQueuedCompletionStatus((HANDLE)self->iocp, 0, IOCP_KEY_WAKE, NULL);
+}
+
+// Cap a wait (milliseconds, negative = infinite) to the nearest armed timer deadline. A wait of
+// exactly 0 is an explicit non-blocking pull and is never stretched -- tick() uses it to drain a
+// burst after its first blocking wait, and turning that into a 1ms sleep per completion would make
+// a busy tick crawl.
+static DWORD iocpWaitMs(NetQueue* q, int64 waitMs)
+{
+    if (waitMs == 0)
+        return 0;
+
+    int64 dl = netqueue_nextDeadline(q);
+    if (dl != 0) {
+        int64 usLeft = dl - clockTimer();
+        int64 msLeft = usLeft <= 0 ? 0 : usLeft / 1000;
+        if (waitMs < 0 || msLeft < waitMs)
+            waitMs = msLeft;
+        if (waitMs < 1)
+            waitMs = 1;
+    }
+
+    return waitMs >= 0 ? (DWORD)min(waitMs, (int64)0x7fffffff) : INFINITE;
+}
+
 // ---------------------------------------------------------------------------------------------
 // Completion handling
 // ---------------------------------------------------------------------------------------------
@@ -565,7 +603,12 @@ static int iocpWorkerThread(Thread* thr)
         DWORD bytes     = 0;
         ULONG_PTR key   = 0;
         OVERLAPPED* ov  = NULL;
-        BOOL ok         = GetQueuedCompletionStatus(port, &bytes, &key, &ov, 500);
+
+        // A completion port has no wait-set to rebuild, so the only reason to cap the sleep is a
+        // timer. The 500ms floor stays as the idle heartbeat that keeps maint() and thrLoop()
+        // running; an armed deadline shortens it so timers do not run up to half a second late.
+        DWORD tmo       = iocpWaitMs(q, 500);
+        BOOL ok         = GetQueuedCompletionStatus(port, &bytes, &key, &ov, tmo);
         DWORD err       = ok ? 0 : GetLastError();
 
         if (key == IOCP_KEY_EXIT)
@@ -574,10 +617,10 @@ static int iocpWorkerThread(Thread* thr)
         if (ov)
             handleCompletion(self, ov, bytes, ok != FALSE, err);
 
-        // Time out expired connect attempts. Runs on the bare-timeout path too (ov == NULL): a
-        // black-holed address never completes, so the sweep is its only exit, and the dispatch
-        // drain below then delivers the NET_Connection(timeout) event it queued.
-        netqueue_connectSweep(q);
+        // Fire whatever came due. Runs on the bare-timeout path too (ov == NULL): a black-holed
+        // connect never completes, so its timer is the only thing that ends the attempt, and the
+        // dispatch drain below then delivers the NET_Connection(timeout) it queued.
+        netqueue_timerSweep(q);
 
         while (netqueue_dispatch(q))
             ;
@@ -680,6 +723,9 @@ _objfactory_guaranteed NetQueueWinIOCP* NetQueueWinIOCP_create(NetQueueConfig* c
     // caller's thread and tick() completes the posted op.
     NetQueue(self)->sendPump = iocpSendPump;
     NetQueue(self)->sendCtx  = self;
+
+    NetQueue(self)->wake    = iocpWake;
+    NetQueue(self)->wakeCtx = self;
 
     // Threaded mode: N completion threads block in GetQueuedCompletionStatus and both ingest and
     // dispatch. Polled mode (nthreads == 0) starts nothing; the caller drives tick().
@@ -870,11 +916,11 @@ bool NetQueueWinIOCP_tick(_In_ NetQueueWinIOCP* self, int64 wait)
         DWORD bytes    = 0;
         ULONG_PTR key  = 0;
         OVERLAPPED* ov = NULL;
-        DWORD tmo      = w >= 0 ? (DWORD)min(w, (int64)0x7fffffff) : INFINITE;
+        DWORD tmo      = iocpWaitMs(q, w);
         BOOL ok        = GetQueuedCompletionStatus(port, &bytes, &key, &ov, tmo);
         DWORD err      = ok ? 0 : GetLastError();
 
-        if (key == IOCP_KEY_EXIT) {
+        if (key == IOCP_KEY_EXIT || key == IOCP_KEY_WAKE) {
             w = 0;
             continue;
         }
@@ -886,8 +932,8 @@ bool NetQueueWinIOCP_tick(_In_ NetQueueWinIOCP* self, int64 wait)
         w   = 0;   // subsequent pulls are non-blocking
     }
 
-    // Time out expired connect attempts (the polled equivalent of the completion thread's sweep).
-    netqueue_connectSweep(q);
+    // Fire whatever came due (the polled equivalent of the completion thread's sweep).
+    netqueue_timerSweep(q);
 
     while (netqueue_dispatch(q))
         any = true;

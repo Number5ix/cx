@@ -110,6 +110,12 @@ typedef struct NetQueueConfig {
 // for it to drain later. Not used by application code; each backend supplies its own.
 typedef void (*NetSendPumpFn)(void* ctx, NetSocket* sock);
 
+// Backend hook that interrupts a parked wait so the loop recomputes its timeout. Arming a timer
+// nearer than the deadline the backend is currently sleeping on calls this; without it the timer
+// would not fire until whatever the backend was already waiting for woke it. Each backend supplies
+// its own (a self-pipe write, a select wake socket, a posted completion).
+typedef void (*NetWakeFn)(void* ctx);
+
 /// Flags for socket send/receive operations
 typedef enum {
     NSO_None = 0x00,   ///< No special options
@@ -187,6 +193,42 @@ typedef enum {
     /// at NFN_AppCustom and above, so they can never collide with codes the framework adds later.
     NFN_AppCustom = 1000
 } NetFilterNotify;
+
+/// @brief Handle to an armed timer, unique for the lifetime of its queue
+///
+/// Returned by netflowAddTimer() and passed back to netflowCancelTimer() / netflowRearmTimer().
+/// Zero is never a valid timer and means "no timer" everywhere it appears.
+typedef uint64 NetTimerId;
+
+/// Flags controlling how an armed timer behaves
+typedef enum {
+    NTF_None = 0x00,
+
+    /// @brief Re-arm automatically after each fire, at the same delay
+    ///
+    /// The timer keeps its NetTimerId across firings, so one cancel stops it for good --
+    /// including a cancel issued from inside its own callback.
+    NTF_Repeat = 0x01
+} NetTimerFlags;
+
+// Internal delivery hook for a timer armed by the framework itself rather than by an application.
+// A timer with one of these attached is fired INLINE on whichever thread ran the sweep, not
+// through the flow's inbox, so it must do no more than the connect state machine does: claim a
+// transition and hand off. Application timers always leave this NULL and arrive as NET_Timer.
+typedef void (*NetTimerFn)(NetFlow* flow, NetTimerId id, void* ctx);
+
+// One armed timer, stored in the queue's binary min-heap (see NetQueue::timers). `flow` is a
+// strong reference: an armed timer is a reason to keep its flow alive, and the flow drops them
+// all on its terminal path so a long deadline on a dead connection cannot pin one indefinitely.
+typedef struct NetTimerEntry {
+    int64 deadline;    // absolute clockTimer() microseconds
+    int64 interval;    // re-arm delay for NTF_Repeat; unused otherwise
+    NetTimerId id;
+    NetFlow* flow;     // owner, strong
+    NetTimerFn fn;     // NULL -> deliver NET_Timer through the flow instead
+    void* ctx;         // context for fn
+    flags_t flags;     // NetTimerFlags
+} NetTimerEntry;
 
 /// Network error codes
 typedef enum {
@@ -278,8 +320,13 @@ typedef struct NetMessage {
 
     NetAddr addr;    ///< Source / destination address
 
-    // internal: the accepted socket in transit to a NET_Accepted event
-    NetSocket* asock;
+    union {
+        // internal: the accepted socket in transit to a NET_Accepted event
+        NetSocket* asock;
+        // internal: which timer fired, for NMSG_Timer. Shares storage with asock because the two
+        // kinds are mutually exclusive, so on 64-bit this costs the message header nothing.
+        NetTimerId timerId;
+    };
 
     uint8 kind;      // internal: NetMessageKind (net_private.h)
     uint8 reason;    // internal: NetCloseReason, for a flow's terminal message
@@ -470,7 +517,19 @@ typedef enum {
     /// Delivered as a terminal event on the flow's own queue, so it is ordered after every
     /// packet already queued for that flow. Fires exactly once for every flow the application
     /// has seen, on every close cause; the cause is carried in NetEvent.closed.reason.
-    NET_FlowClosed
+    NET_FlowClosed,
+
+    /// @brief A timer armed on this flow reached its deadline
+    ///
+    /// Delivered on the flow's own queue like a packet, so it is ordered behind everything
+    /// already pending for that flow and runs on a worker -- never inline on whichever thread
+    /// noticed the deadline. NetEvent.timer.id says which timer fired, so one handler can serve
+    /// several. A one-shot timer is spent by the time the handler runs; an NTF_Repeat timer has
+    /// already been re-armed and keeps the same id.
+    ///
+    /// A timer never fires after its flow's NET_FlowClosed: teardown cancels everything the flow
+    /// still had armed.
+    NET_Timer
 } NetEventType;
 
 /// Network Event Structure
@@ -538,6 +597,11 @@ typedef struct NetEvent {
         struct {
             NetCloseReason reason;   ///< Why the flow is being torn down
         } closed;
+
+        /// NET_Timer
+        struct {
+            NetTimerId id;   ///< Which of the flow's armed timers reached its deadline
+        } timer;
     };
 } NetEvent;
 
@@ -557,6 +621,7 @@ typedef struct NetHandlers {
     NetEventCB flowRefused;  ///< NET_FlowRefused: packet from an unknown source, no flow made
     NetEventCB flowClosed;   ///< NET_FlowClosed: release state hanging off flow->user
     NetEventCB error;        ///< NET_Error: a queued send failed asynchronously
+    NetEventCB timer;        ///< NET_Timer: a timer armed on the flow reached its deadline
 } NetHandlers;
 
 /// @}  // end of net_handlers group

@@ -36,6 +36,17 @@ static void selectSendPump(void* ctx, NetSocket* sock)
         nselWake((NetSelectSet*)self->selset);
 }
 
+// Wake hook installed on the base queue: arming a timer nearer than the deadline this pass is
+// already sleeping on interrupts the wait so it recomputes its bound. Unlike the send pump this is
+// installed in polled mode too, because an application thread can arm a timer while another sits
+// in netqueueTick().
+static void selectWake(void* ctx)
+{
+    NetQueueSelect* self = (NetQueueSelect*)ctx;
+    if (self->selset)
+        nselWake((NetSelectSet*)self->selset);
+}
+
 // The dedicated select-loop thread used in threaded mode. It only ingests -- filling the runqueue
 // and posting the worker semaphore through netqueue_submit -- while the base dispatch workers drain
 // it. A bounded wait plus nselWake on socket changes and shutdown keeps it responsive.
@@ -68,6 +79,9 @@ _objfactory_guaranteed NetQueueSelect* NetQueueSelect_create(NetQueueConfig* con
     // Threaded mode: N base dispatch workers drain the runqueue, and one ingest thread here runs
     // the select() loop and feeds it. Polled mode (nthreads == 0) starts nothing and the caller
     // drives everything through tick().
+    NetQueue(self)->wake    = selectWake;
+    NetQueue(self)->wakeCtx = self;
+
     int32 nthreads = conf ? conf->nthreads : 0;
     if (nthreads > 0) {
         netqueue_startWorkers(self, nthreads);
@@ -227,9 +241,9 @@ static void selectPoll(_Inout_ NetQueueSelect* self, int64 waitMs)
     htClear(&self->fdmap);
     nselClear(sel);
 
-    // Nearest connect deadline across all connecting sockets, so the wait can be capped to it and
-    // the timeout sweep runs close to when an attempt actually expires.
-    int64 nearestDeadline = 0;
+    // Nearest armed deadline, so the wait can be capped to it and a timer fires close to when it
+    // is due rather than on the next unrelated wakeup.
+    int64 nearestDeadline = netqueue_nextDeadline(q);
 
     withReadLock (&q->lock) {
         foreach (hashtable, hti, q->sockets) {
@@ -255,12 +269,6 @@ static void selectPoll(_Inout_ NetQueueSelect* self, int64 waitMs)
                 // Watch for connect completion: writability signals success, and the except set
                 // (which nselAdd mirrors write interest into) signals a failed connect on Windows.
                 write = true;
-
-                int64 dl;
-                withMutex (&sock->connectLock)
-                    dl = sock->connectDeadline;
-                if (dl != 0 && (nearestDeadline == 0 || dl < nearestDeadline))
-                    nearestDeadline = dl;
             } else {
                 continue;   // NS_Init / NS_Resolving stream socket: nothing to watch yet
             }
@@ -270,8 +278,8 @@ static void selectPoll(_Inout_ NetQueueSelect* self, int64 waitMs)
         }
     }
 
-    // Do not sleep past the nearest connect deadline, so the sweep below times the attempt out
-    // promptly rather than only on the next unrelated wakeup.
+    // Do not sleep past the nearest armed deadline, so the sweep below fires it promptly rather
+    // than only on the next unrelated wakeup.
     if (nearestDeadline != 0) {
         int64 usLeft = nearestDeadline - clockTimer();
         int64 msLeft = usLeft <= 0 ? 0 : usLeft / 1000;
@@ -283,9 +291,9 @@ static void selectPoll(_Inout_ NetQueueSelect* self, int64 waitMs)
 
     int ready = nselWait(sel, waitMs);
 
-    // Time out any connect attempt whose deadline has passed. Run this even on a bare timeout (ready
-    // <= 0) -- a black-holed address never signals readiness, so the timeout is the only exit.
-    netqueue_connectSweep(q);
+    // Fire whatever came due. Run this even on a bare timeout (ready <= 0) -- a black-holed connect
+    // never signals readiness, so its timer is the only thing that ends the attempt.
+    netqueue_timerSweep(q);
 
     if (ready <= 0)
         return;   // timeout, wake, or error -- no application readiness

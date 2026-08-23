@@ -171,8 +171,10 @@ typedef enum {
     NMSG_Accept       = 4,   // connection accepted on a listener; deliver NET_Accepted (socket in `asock`)
     NMSG_Error        = 5,   // a queued send failed asynchronously; deliver NET_Error (NetErrorCode in `bytes`)
     NMSG_FlowOpen     = 6,   // the flow was just created; deliver NET_FlowOpen ahead of its first packet
-    NMSG_FilterNotify = 7    // a filter raised a notification off-worker; deliver NET_FilterNotify
+    NMSG_FilterNotify = 7,   // a filter raised a notification off-worker; deliver NET_FilterNotify
                              // (NetFilterNotify in `bytes`)
+    NMSG_Timer        = 8    // an application timer reached its deadline; deliver NET_Timer
+                             // (NetTimerId in `timerId`)
 } NetMessageKind;
 
 // Bits in NetMessage.flags. The only thing the message layer needs to remember about a payload is

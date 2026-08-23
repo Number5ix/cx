@@ -36,6 +36,8 @@ _objinit_guaranteed bool NetQueue_init(_In_ NetQueue* self)
     // Autogen begins -----
     htInit(&self->sockets, ptr, object, 16);
     rwlockInit(&self->lock);
+    htInit(&self->timerIdx, uint64, uint32, 16);
+    mutexInit(&self->timerLock);
     return true;
     // Autogen ends -------
 }
@@ -400,10 +402,19 @@ void NetQueue_destroy(_In_ NetQueue* self)
     }
     prqDestroy(&self->runq);
 
+    // So does anything still armed. After a normal shutdown every flow's terminal path has already
+    // dropped its timers and this loop finds nothing; a queue released without one has not.
+    for (uint32 i = 0; i < self->ntimers; i++)
+        objRelease(&self->timers[i].flow);
+    self->ntimers = self->timersCap = 0;
+    xaDestroy(&self->timers);
+
     // Autogen begins -----
     htDestroy(&self->sockets);
     rwlockDestroy(&self->lock);
     objRelease(&self->pool);
+    htDestroy(&self->timerIdx);
+    mutexDestroy(&self->timerLock);
     saDestroy(&self->workers);
     semaDestroy(&self->runqSema);
     // Autogen ends -------
@@ -447,7 +458,12 @@ bool NetQueue__ingestDatagram(_In_ NetQueue* self, _Inout_ NetSocket* sock, _In_
 void NetQueue__submit(_In_ NetQueue* self, _Inout_ NetFlow* flow, _Inout_ NetMessage* msg);
 bool NetQueue__dispatch(_In_ NetQueue* self);
 void NetQueue__deliver(_In_ NetQueue* self, _In_opt_ NetSocket* sock, _In_opt_ NetFlow* flow, _Inout_ NetEvent* ev);
-void NetQueue__connectSweep(_In_ NetQueue* self);
+NetTimerId NetQueue__addTimer(_In_ NetQueue* self, _Inout_ NetFlow* flow, int64 delay, flags_t flags, NetTimerFn fn, _In_opt_ void* ctx);
+bool NetQueue__cancelTimer(_In_ NetQueue* self, NetTimerId id);
+bool NetQueue__rearmTimer(_In_ NetQueue* self, NetTimerId id, int64 delay);
+void NetQueue__cancelFlowTimers(_In_ NetQueue* self, _Inout_ NetFlow* flow);
+void NetQueue__timerSweep(_In_ NetQueue* self);
+int64 NetQueue__nextDeadline(_In_ NetQueue* self);
 _Ret_maybenull_ NetFlow* NetQueue__findFlow(_In_ NetQueue* self, _Inout_ NetSocket* sock, _In_ NetAddr* peer, bool create);
 _Ret_maybenull_ NetFlow* NetQueue__admitFlow(_In_ NetQueue* self, _Inout_ NetSocket* sock, _In_ NetAddr* peer);
 uint32 NetQueue__reclaimFlows(_In_ NetQueue* self, _Inout_ NetSocket* sock);

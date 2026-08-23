@@ -223,23 +223,9 @@ static void epollPoll(_Inout_ NetQueueEpoll* self, int64 waitMs)
     NetQueue* q = NetQueue(self);
 
     // epoll_ctl already keeps the kernel's interest list in sync incrementally (unlike select,
-    // which rebuilds its whole watch set every pass), so this scan only needs the nearest connect
-    // deadline, not a rewatch of every socket.
-    int64 nearestDeadline = 0;
-    if (atomicLoad(uint32, &q->connecting, Relaxed) != 0) {
-        withReadLock (&q->lock) {
-            foreach (hashtable, hti, q->sockets) {
-                NetSocket* sock = (NetSocket*)htiVal(object, hti);
-                if (!sock || atomicLoad(uint32, &sock->state, Relaxed) != NS_Connecting)
-                    continue;
-                int64 dl;
-                withMutex (&sock->connectLock)
-                    dl = sock->connectDeadline;
-                if (dl != 0 && (nearestDeadline == 0 || dl < nearestDeadline))
-                    nearestDeadline = dl;
-            }
-        }
-    }
+    // which rebuilds its whole watch set every pass), so there is nothing to rebuild here -- only
+    // the deadline heap to ask how long this pass may sleep.
+    int64 nearestDeadline = netqueue_nextDeadline(q);
     if (nearestDeadline != 0) {
         int64 usLeft = nearestDeadline - clockTimer();
         int64 msLeft = usLeft <= 0 ? 0 : usLeft / 1000;
@@ -252,7 +238,9 @@ static void epollPoll(_Inout_ NetQueueEpoll* self, int64 waitMs)
     struct epoll_event events[64];
     int n = epoll_wait(self->epfd, events, 64, (int)(waitMs < 0 ? -1 : waitMs));
 
-    netqueue_connectSweep(q);
+    // Fire whatever came due. Runs even on a bare timeout (n <= 0) -- a black-holed connect never
+    // signals readiness, so its timer is the only thing that ends the attempt.
+    netqueue_timerSweep(q);
 
     if (n <= 0)
         return;
@@ -319,6 +307,17 @@ static void epollSendPump(void* ctx, NetSocket* sock)
     armInterest(self, sock, true, true);
 }
 
+// Defined below, next to the self-pipe it writes to.
+static void wakeIngest(_Inout_ NetQueueEpoll* self);
+
+// Wake hook installed on the base queue: arming a timer nearer than the deadline this pass is
+// already sleeping on interrupts epoll_wait so it recomputes its bound. Installed in polled mode
+// too, because an application thread can arm a timer while another sits in netqueueTick().
+static void epollWake(void* ctx)
+{
+    wakeIngest((NetQueueEpoll*)ctx);
+}
+
 _objfactory_guaranteed NetQueueEpoll* NetQueueEpoll_create(NetQueueConfig* conf)
 {
     NetQueueEpoll* self = objInstCreate(NetQueueEpoll);
@@ -348,6 +347,9 @@ _objfactory_guaranteed NetQueueEpoll* NetQueueEpoll_create(NetQueueConfig* conf)
     ev.events  = EPOLLIN;
     ev.data.fd = self->wakeRead;
     epoll_ctl(self->epfd, EPOLL_CTL_ADD, self->wakeRead, &ev);
+
+    NetQueue(self)->wake    = epollWake;
+    NetQueue(self)->wakeCtx = self;
 
     int32 nthreads = conf ? conf->nthreads : 0;
     if (nthreads > 0) {

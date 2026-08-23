@@ -54,6 +54,15 @@
 /// one-worker-at-a-time guarantee a flow does -- a single datagram socket can have thousands of
 /// flows running on every worker at once, so a shared array there would need its own locking.
 ///
+/// @section net_flow_timers Timers
+///
+/// A flow is also the unit of timing. netflowAddTimer() arms a deadline and NET_Timer is delivered
+/// on the flow when it elapses -- on a worker, ordered behind everything already pending, exactly
+/// like a packet.
+///
+/// Timers belong to the flow's lifetime as well as its ordering: teardown cancels whatever is still
+/// armed, so no NET_Timer follows NET_FlowClosed.
+///
 /// @section net_flow_teardown Teardown
 ///
 /// NET_FlowClosed is delivered as a terminal event on the flow's own queue, so it arrives after
@@ -113,6 +122,9 @@ class NetFlow
 
     NetHandlers *handlers;    ///< Per-flow handler overrides, optional
     void *handlerCtx;         ///< Context passed to per-flow handlers
+
+    /// @brief Ids of the timers currently armed on this flow, guarded by the queue's timerLock
+    [noinit] sarray[uint64] timers;
 
     /// @brief This flow's filter chain, ordered application -> wire, or empty for none
     ///
@@ -181,6 +193,37 @@ class NetFlow
     /// @param flags Optional NetSocketOpFlags
     /// @return true if the datagram was sent or queued, false if it was refused
     unbound bool send([in] uint8 *data, size_t len, flags_t flags);
+
+    /// Arm a timer on this flow
+    ///
+    /// NetEvent.timer.id on the delivered NET_Timer carries the returned id, so one handler can
+    /// tell several timers apart.
+    ///
+    /// @param delay Microseconds from now until the timer fires (see timeS() / timeMS())
+    /// @param flags Optional NetTimerFlags (NTF_Repeat to re-arm automatically)
+    /// @return The new timer's id, or 0 if the flow is closing or has no queue
+    ///
+    /// Example:
+    /// @code
+    ///   // fail the request if the response has not completed within 30 seconds
+    ///   NetTimerId deadline = netflowAddTimer(ev->flow, timeS(30), NTF_None);
+    /// @endcode
+    unbound NetTimerId addTimer(int64 delay, flags_t flags);
+
+    /// Cancel a timer armed on this flow
+    ///
+    /// @param id Timer id from netflowAddTimer()
+    /// @return true if this call stopped the timer before it fired. false if the timer had
+    ///     already fired or was never armed; if two threads race to cancel the same timer, only
+    ///     one of them gets true.
+    unbound bool cancelTimer(NetTimerId id);
+
+    /// Move an armed timer's deadline forward, keeping its id
+    ///
+    /// @param id Timer id from netflowAddTimer()
+    /// @param delay Microseconds from now until the timer fires
+    /// @return false if the timer is no longer armed
+    unbound bool rearmTimer(NetTimerId id, int64 delay);
 
     // -----------------------------------------------------------------------------------------
     // PRIVATE IMPLEMENTATION DETAILS

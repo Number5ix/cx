@@ -83,8 +83,10 @@ _At_(*msg, _Pre_notnull_ _Post_null_) void NetPool_freeMsg(_In_ NetPool* self, _
     }
 
     // An NMSG_Accept carries one reference to the accepted socket; release it here so every retire
-    // path -- delivered or dropped undelivered -- reclaims it. NULL on every other kind.
-    if (m->asock)
+    // path -- delivered or dropped undelivered -- reclaims it. The kind has to be checked rather
+    // than the pointer: `asock` shares storage with NMSG_Timer's id, and a timer id read as a
+    // pointer is a wild release.
+    if (m->kind == NMSG_Accept && m->asock)
         objRelease(&m->asock);
 
     // A full pool just means we allocated past the steady state at some point; drop the header

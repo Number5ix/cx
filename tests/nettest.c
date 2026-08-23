@@ -139,6 +139,8 @@ typedef struct Recorder {
     void* lastCtx;
     uint8 seq[256];
     uint32 seqlen;
+    uint32 timerCount;
+    NetTimerId lastTimerId;
 } Recorder;
 
 static void onConnect(NetEvent* ev)
@@ -1415,6 +1417,343 @@ static int test_nettest_flow_race(void)
 }
 
 // ---------------------------------------------------------------------------------------------
+// Timers
+//
+// The deadline heap and its delivery path, driven through the synthetic backend so the timing is
+// deterministic: a timer armed with a delay of 0 is due the instant the next sweep looks, which
+// makes "fires exactly once per tick" a real assertion rather than a race against the clock. The
+// wait-bounding and wake half of the facility needs a backend that actually sleeps, so it lives
+// with the select suite below.
+// ---------------------------------------------------------------------------------------------
+
+// Records each datagram's payload byte, so the ordering test can assert the exact interleave of
+// packets and timers rather than just their counts.
+static void onSeqRecv(NetEvent* ev)
+{
+    Recorder* r = (Recorder*)ev->ctx;
+    r->recvCount++;
+    if (ev->recv.msg && ev->recv.msg->buf && ev->recv.msg->buf->len > 0 &&
+        r->seqlen < sizeof(r->seq))
+        r->seq[r->seqlen++] = ev->recv.msg->buf->data[0];
+}
+
+static void onTimer(NetEvent* ev)
+{
+    Recorder* r    = (Recorder*)ev->ctx;
+    r->timerCount++;
+    r->lastTimerId = ev->timer.id;
+    if (r->seqlen < sizeof(r->seq))
+        r->seq[r->seqlen++] = 0xff;   // 0xff marks a timer; packets record their own payload byte
+}
+
+// Build a stream socket registered with the queue, which gives us its single flow to arm timers on
+// without needing a connection: a stream flow exists from socket init.
+static NetSocket* makeTimerSocket(NetQueue* q, Recorder* rec, const NetHandlers* handlers)
+{
+    NetSocket* s = netqueueSocket(q, NST_Stream);
+    netqueueAddSocket(q, s);
+    netsocketSetHandlers(s, handlers, rec);
+    return s;
+}
+
+// A timer fires once, carries its own id, and a timer that is not due yet stays put.
+static int test_nettest_timer_basic(void)
+{
+    int ret      = 0;
+    Recorder rec = { 0 };
+
+    static const NetHandlers handlers = { .timer = onTimer };
+
+    NetQueue* q  = makeQueue(NULL);
+    NetSocket* s = makeTimerSocket(q, &rec, &handlers);
+
+    NetTimerId id = netflowAddTimer(s->flow, 0, NTF_None);
+    if (id == 0)
+        ret = 1;
+
+    netqueueTick(q, 0);
+    if (rec.timerCount != 1 || rec.lastTimerId != id)
+        ret = 1;
+
+    // One-shot: a second sweep must not produce it again, and the heap must be empty.
+    netqueueTick(q, 0);
+    if (rec.timerCount != 1)
+        ret = 1;
+    if (q->ntimers != 0)
+        ret = 1;
+
+    // Ids are never reused, so a second timer is distinguishable from the first.
+    NetTimerId later = netflowAddTimer(s->flow, timeS(60), NTF_None);
+    if (later == 0 || later == id)
+        ret = 1;
+
+    netqueueTick(q, 0);
+    if (rec.timerCount != 1)
+        ret = 1;   // not due
+    if (q->ntimers != 1)
+        ret = 1;
+
+    if (!netflowCancelTimer(s->flow, later))
+        ret = 1;
+
+    netsocketClose(s);
+    objRelease(&s);
+    netqueueShutdown(q, 0);
+    objRelease(&q);
+    return ret;
+}
+
+// Cancel takes a timer out of the running and reports whether it was this call that did so -- the
+// property the connect state machine uses to arbitrate between a completion and a timeout.
+static int test_nettest_timer_cancel(void)
+{
+    int ret      = 0;
+    Recorder rec = { 0 };
+
+    static const NetHandlers handlers = { .timer = onTimer };
+
+    NetQueue* q  = makeQueue(NULL);
+    NetSocket* s = makeTimerSocket(q, &rec, &handlers);
+
+    NetTimerId id = netflowAddTimer(s->flow, timeS(60), NTF_None);
+
+    if (!netflowCancelTimer(s->flow, id))
+        ret = 1;   // this call is the one that removed it
+    if (netflowCancelTimer(s->flow, id))
+        ret = 1;   // a second cancel of the same timer loses
+    if (q->ntimers != 0)
+        ret = 1;
+
+    netqueueTick(q, 0);
+    if (rec.timerCount != 0)
+        ret = 1;
+
+    // Cancelling a timer that has already been popped for delivery must fail too, so the winner of
+    // that race is unambiguous.
+    NetTimerId spent = netflowAddTimer(s->flow, 0, NTF_None);
+    netqueueTick(q, 0);
+    if (rec.timerCount != 1)
+        ret = 1;
+    if (netflowCancelTimer(s->flow, spent))
+        ret = 1;
+
+    // An id that was never handed out is a harmless miss, not a crash.
+    if (netflowCancelTimer(s->flow, 0) || netflowCancelTimer(s->flow, 999999))
+        ret = 1;
+
+    netsocketClose(s);
+    objRelease(&s);
+    netqueueShutdown(q, 0);
+    objRelease(&q);
+    return ret;
+}
+
+// Rearm moves a deadline in both directions and keeps the id, which is what an idle timeout pushed
+// out on every packet needs.
+static int test_nettest_timer_rearm(void)
+{
+    int ret      = 0;
+    Recorder rec = { 0 };
+
+    static const NetHandlers handlers = { .timer = onTimer };
+
+    NetQueue* q  = makeQueue(NULL);
+    NetSocket* s = makeTimerSocket(q, &rec, &handlers);
+
+    // Two timers, so the rearm below has to sift past a sibling rather than sitting alone at the
+    // root where any implementation would look correct.
+    NetTimerId other = netflowAddTimer(s->flow, timeS(30), NTF_None);
+    NetTimerId id    = netflowAddTimer(s->flow, timeS(60), NTF_None);
+
+    netqueueTick(q, 0);
+    if (rec.timerCount != 0)
+        ret = 1;
+
+    // Pull it in front of `other` and make it due.
+    if (!netflowRearmTimer(s->flow, id, 0))
+        ret = 1;
+
+    netqueueTick(q, 0);
+    if (rec.timerCount != 1 || rec.lastTimerId != id)
+        ret = 1;
+    if (q->ntimers != 1)
+        ret = 1;   // `other` is still armed
+
+    // Rearming a spent timer fails rather than resurrecting it.
+    if (netflowRearmTimer(s->flow, id, 0))
+        ret = 1;
+
+    // Pushing a deadline out is the other direction, and must not fire.
+    if (!netflowRearmTimer(s->flow, other, timeS(60)))
+        ret = 1;
+    netqueueTick(q, 0);
+    if (rec.timerCount != 1)
+        ret = 1;
+
+    if (!netflowCancelTimer(s->flow, other))
+        ret = 1;
+
+    netsocketClose(s);
+    objRelease(&s);
+    netqueueShutdown(q, 0);
+    objRelease(&q);
+    return ret;
+}
+
+// NTF_Repeat re-arms itself, keeps its id across firings, and stops for good on one cancel.
+static int test_nettest_timer_repeat(void)
+{
+    int ret      = 0;
+    Recorder rec = { 0 };
+
+    static const NetHandlers handlers = { .timer = onTimer };
+
+    NetQueue* q  = makeQueue(NULL);
+    NetSocket* s = makeTimerSocket(q, &rec, &handlers);
+
+    NetTimerId id = netflowAddTimer(s->flow, timeMS(1), NTF_Repeat);
+
+    // One firing per sweep, not a spin: the sweep pins `now` for the whole pass and a re-arm always
+    // lands strictly after it, so a repeat cannot fire twice in the pass that re-armed it. The
+    // sleep is longer than the interval, so each tick has exactly one period to collect.
+    for (uint32 i = 1; i <= 3; i++) {
+        osSleep(timeMS(3));
+        netqueueTick(q, 0);
+        if (rec.timerCount != i || rec.lastTimerId != id)
+            ret = 1;
+    }
+
+    if (q->ntimers != 1)
+        ret = 1;   // still armed between firings
+
+    if (!netflowCancelTimer(s->flow, id))
+        ret = 1;
+
+    osSleep(timeMS(3));
+    netqueueTick(q, 0);
+    if (rec.timerCount != 3)
+        ret = 1;
+    if (q->ntimers != 0)
+        ret = 1;
+
+    netsocketClose(s);
+    objRelease(&s);
+    netqueueShutdown(q, 0);
+    objRelease(&q);
+    return ret;
+}
+
+// A timer rides the flow's inbox, so it lands behind data that was already queued when it came due
+// -- the guarantee that stops a request deadline from overtaking the response that satisfied it.
+static int test_nettest_timer_ordering(void)
+{
+    int ret      = 0;
+    Recorder rec = { 0 };
+
+    static const NetHandlers handlers = { .recv = onSeqRecv, .timer = onTimer };
+
+    NetQueue* q  = makeQueue(NULL);
+    netqueueSetHandlers(q, &handlers, &rec);
+    NetSocket* s = makeSocket(q, NST_Datagram);
+
+    NetAddr p = peerAddr(1, 5000);
+
+    // First packet creates the flow; the rest queue behind it. Nothing is dispatched yet.
+    for (uint8 i = 0; i < 4; i++) {
+        if (!inject(q, s, &p, i))
+            ret = 1;
+    }
+
+    NetFlow* flow = netqueue_findFlow(q, s, &p, false);
+    if (!flow) {
+        netsocketClose(s);
+        objRelease(&s);
+        netqueueShutdown(q, 0);
+        objRelease(&q);
+        return 1;
+    }
+
+    // Due immediately, but queued after four packets that are already waiting.
+    NetTimerId id = netflowAddTimer(flow, 0, NTF_None);
+    if (id == 0)
+        ret = 1;
+    objRelease(&flow);
+
+    netqueueTick(q, 0);
+
+    if (rec.recvCount != 4 || rec.timerCount != 1)
+        ret = 1;
+
+    // Payloads 0..3, then 0xff for the timer.
+    if (rec.seqlen != 5)
+        ret = 1;
+    else if (rec.seq[0] != 0 || rec.seq[1] != 1 || rec.seq[2] != 2 || rec.seq[3] != 3 ||
+             rec.seq[4] != 0xff)
+        ret = 1;
+
+    netsocketClose(s);
+    objRelease(&s);
+    netqueueShutdown(q, 0);
+    objRelease(&q);
+    return ret;
+}
+
+// Teardown cancels whatever the flow still had armed: no NET_Timer after NET_FlowClosed, and no
+// entry left holding the flow alive until a long deadline expires.
+static int test_nettest_timer_flowclose(void)
+{
+    int ret      = 0;
+    Recorder rec = { 0 };
+
+    static const NetHandlers handlers = { .recv = onRecv, .flowClosed = onClosed, .timer = onTimer };
+
+    NetQueue* q  = makeQueue(NULL);
+    netqueueSetHandlers(q, &handlers, &rec);
+    NetSocket* s = makeSocket(q, NST_Datagram);
+
+    NetAddr p = peerAddr(1, 5000);
+    if (!inject(q, s, &p, 7))
+        ret = 1;
+    netqueueTick(q, 0);
+
+    NetFlow* flow = netqueue_findFlow(q, s, &p, false);
+    if (!flow) {
+        netsocketClose(s);
+        objRelease(&s);
+        netqueueShutdown(q, 0);
+        objRelease(&q);
+        return 1;
+    }
+
+    netflowAddTimer(flow, timeS(60), NTF_None);
+    netflowAddTimer(flow, timeS(90), NTF_None);
+    if (q->ntimers != 2)
+        ret = 1;
+
+    netflowClose(flow);
+    objRelease(&flow);
+
+    netqueueTick(q, 0);
+
+    if (rec.closeCount != 1)
+        ret = 1;
+    if (rec.timerCount != 0)
+        ret = 1;
+    if (q->ntimers != 0)
+        ret = 1;
+    // Nothing is left pinning the flow, so the queue's count is back to zero rather than waiting
+    // out the 60 second deadline.
+    if (atomicLoad(uint32, &q->nflows, Relaxed) != 0)
+        ret = 1;
+
+    netsocketClose(s);
+    objRelease(&s);
+    netqueueShutdown(q, 0);
+    objRelease(&q);
+    return ret;
+}
+
+// ---------------------------------------------------------------------------------------------
 // Select backend, real sockets
 //
 // The tests above drive the core through a synthetic backend. These drive the *actual* select
@@ -2616,6 +2955,108 @@ static int test_nettest_select_accept_auto(void)
     if (!q)
         return 1;
     return acceptBody(q, true);
+}
+
+// The timer tests above use the synthetic backend, which never waits. These two cover the half that
+// only exists on a backend with a real wait: capping the sleep to the nearest deadline, and
+// interrupting a sleep that was already parked when a nearer timer was armed.
+
+// A tick asked to wait far longer than the armed deadline must come back at the deadline. Without
+// the nearest-deadline bound it would sit out the full wait and the timer would fire seconds late.
+static int test_nettest_timer_wait(void)
+{
+    int ret      = 0;
+    Recorder rec = { 0 };
+
+    static const NetHandlers handlers = { .timer = onTimer };
+
+    NetQueue* q = makeSelectQueue(0);
+    if (!q)
+        return 1;
+
+    NetSocket* s = makeTimerSocket(q, &rec, &handlers);
+
+    int64 start = clockTimer();
+    netflowAddTimer(s->flow, timeMS(50), NTF_None);
+
+    // select() rounds its bound down to whole milliseconds, so one tick can come back a hair early
+    // with nothing due; a couple of passes covers that without making the test time-dependent.
+    for (int i = 0; i < 5 && rec.timerCount == 0; i++)
+        netqueueTick(q, timeMS(5000));
+
+    int64 elapsed = clockTimer() - start;
+
+    if (rec.timerCount != 1)
+        ret = 1;
+    if (elapsed > timeS(2))
+        ret = 1;   // bounded by the timer, not by the 5s wait
+
+    netsocketClose(s);
+    objRelease(&s);
+    netqueueShutdown(q, 0);
+    objRelease(&q);
+    return ret;
+}
+
+typedef struct WakeArmState {
+    NetFlow* flow;
+    int64 armedAt;
+} WakeArmState;
+
+// Arms a timer on a queue that is already parked in a long wait, which is the only thing the wake
+// hook exists for.
+static int timerWakeArmThread(Thread* self)
+{
+    WakeArmState* st = stvlNextPtr(&self->args);
+
+    osSleep(timeMS(30));
+    st->armedAt = clockTimer();
+    netflowAddTimer(st->flow, 0, NTF_None);
+    return 0;
+}
+
+// A timer armed from another thread while the queue sits in a long wait must interrupt it. Without
+// the wake hook the queue would sleep out its full bound, because the bound was computed before the
+// timer existed.
+static int test_nettest_timer_wake(void)
+{
+    int ret      = 0;
+    Recorder rec = { 0 };
+
+    static const NetHandlers handlers = { .timer = onTimer };
+
+    NetQueue* q = makeSelectQueue(0);
+    if (!q)
+        return 1;
+
+    NetSocket* s = makeTimerSocket(q, &rec, &handlers);
+
+    WakeArmState st = { .flow = s->flow };
+    Thread* t       = thrCreate(timerWakeArmThread, _S "timerWakeArm", stvar(ptr, &st));
+    if (!t) {
+        netsocketClose(s);
+        objRelease(&s);
+        netqueueShutdown(q, 0);
+        objRelease(&q);
+        return 1;
+    }
+
+    // Parks in select() for five seconds with nothing armed; the thread above arms 30ms in.
+    netqueueTick(q, timeMS(5000));
+
+    if (rec.timerCount != 1)
+        ret = 1;
+    if (st.armedAt == 0 || clockTimer() - st.armedAt > timeS(2))
+        ret = 1;   // returned because of the wake, not because the 5s wait ran out
+
+    thrWait(t, timeForever);
+    objRelease(&t);
+
+    netsocketClose(s);
+    objRelease(&s);
+    netqueueShutdown(q, 0);
+    objRelease(&q);
+    return ret;
 }
 
 

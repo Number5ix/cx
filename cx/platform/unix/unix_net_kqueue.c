@@ -189,21 +189,9 @@ static void kqueuePoll(_Inout_ NetQueueKqueue* self, int64 waitMs)
 {
     NetQueue* q = NetQueue(self);
 
-    int64 nearestDeadline = 0;
-    if (atomicLoad(uint32, &q->connecting, Relaxed) != 0) {
-        withReadLock (&q->lock) {
-            foreach (hashtable, hti, q->sockets) {
-                NetSocket* sock = (NetSocket*)htiVal(object, hti);
-                if (!sock || atomicLoad(uint32, &sock->state, Relaxed) != NS_Connecting)
-                    continue;
-                int64 dl;
-                withMutex (&sock->connectLock)
-                    dl = sock->connectDeadline;
-                if (dl != 0 && (nearestDeadline == 0 || dl < nearestDeadline))
-                    nearestDeadline = dl;
-            }
-        }
-    }
+    // kevent() keeps the kernel's interest list in sync incrementally, so there is nothing to
+    // rebuild here -- only the deadline heap to ask how long this pass may sleep.
+    int64 nearestDeadline = netqueue_nextDeadline(q);
     if (nearestDeadline != 0) {
         int64 usLeft = nearestDeadline - clockTimer();
         int64 msLeft = usLeft <= 0 ? 0 : usLeft / 1000;
@@ -224,7 +212,9 @@ static void kqueuePoll(_Inout_ NetQueueKqueue* self, int64 waitMs)
 
     int n = kevent(self->kq, NULL, 0, events, 64, tsp);
 
-    netqueue_connectSweep(q);
+    // Fire whatever came due. Runs even on a bare timeout (n <= 0) -- a black-holed connect never
+    // signals readiness, so its timer is the only thing that ends the attempt.
+    netqueue_timerSweep(q);
 
     if (n <= 0)
         return;
@@ -294,6 +284,17 @@ static void kqueueSendPump(void* ctx, NetSocket* sock)
     armInterest(self, sock, true, true);
 }
 
+// Defined below, next to the self-pipe it writes to.
+static void wakeIngest(_Inout_ NetQueueKqueue* self);
+
+// Wake hook installed on the base queue: arming a timer nearer than the deadline this pass is
+// already sleeping on interrupts kevent() so it recomputes its bound. Installed in polled mode too,
+// because an application thread can arm a timer while another sits in netqueueTick().
+static void kqueueWake(void* ctx)
+{
+    wakeIngest((NetQueueKqueue*)ctx);
+}
+
 _objfactory_guaranteed NetQueueKqueue* NetQueueKqueue_create(NetQueueConfig* conf)
 {
     NetQueueKqueue* self = objInstCreate(NetQueueKqueue);
@@ -321,6 +322,9 @@ _objfactory_guaranteed NetQueueKqueue* NetQueueKqueue_create(NetQueueConfig* con
     struct kevent kev;
     EV_SET(&kev, self->wakeRead, EVFILT_READ, EV_ADD, 0, 0, NULL);
     kevent(self->kq, &kev, 1, NULL, 0, NULL);
+
+    NetQueue(self)->wake    = kqueueWake;
+    NetQueue(self)->wakeCtx = self;
 
     int32 nthreads = conf ? conf->nthreads : 0;
     if (nthreads > 0) {
