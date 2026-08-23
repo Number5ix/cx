@@ -1,0 +1,207 @@
+#include <cxhttp/http_shared.h>
+
+class HttpServerConn;
+
+/// @addtogroup http_server
+/// @{
+/// One request received by a server, and the response being built for it.
+///
+/// The received half is read directly off the object -- method, path, query, headers and body are
+/// plain fields. The response half is built through the methods below and sent by respond().
+///
+/// @code
+///   static void onRequest(HttpServerEvent* ev)
+///   {
+///       HttpServerRequest* r = ev->request;
+///
+///       if (!strEq(r->path, _SL("/hello"))) {
+///           httpsrvreqRespondStatus(r, HTTP_NotFound);
+///           return;
+///       }
+///
+///       httpsrvreqSetHeader(r, _SL("Cache-Control"), _SL("no-store"));
+///       httpsrvreqRespond(r, _SL("hello\r\n"), _SL("text/plain"));
+///   }
+/// @endcode
+///
+/// The object is reference counted, so an application may hold onto one past the end of its
+/// handler and answer later -- see respond() for the rule about which thread may do that.
+
+/// @brief A received request and the response being built for it
+[methodprefix httpsrvreq] class HttpServerRequest
+{
+    /// @brief Connection this arrived on
+    ///
+    /// Weak, because the connection holds the request: the two would otherwise keep each other
+    /// alive forever. A request held past its connection's death resolves this to NULL, which is
+    /// how respond() knows there is nobody left to answer.
+    weak[HttpServerConn] conn;
+
+    // --- what was received ------------------------------------------------------------------
+
+    HttpMethod method;      ///< Method, or HTTP_MethodOther for an extension verb
+    string methodName;      ///< Method exactly as sent, always populated
+    string target;          ///< Request target exactly as sent, before any decoding
+
+    /// @brief Decoded path, with `.` and `..` segments removed
+    ///
+    /// `"*"` for an `OPTIONS *` request, which is the one target that is not a path.
+    string path;
+
+    string query;           ///< Query string, without the '?'; still percent-encoded
+    HttpVersion version;    ///< Version the client sent
+    HttpHeaders headers;    ///< Request headers, in the order they arrived
+
+    /// @brief Request body, bounded by the server's `maxBodyBytes`
+    ///
+    /// Empty for a request that carried none, and empty when the body went to a sink or a `data`
+    /// handler instead of being accumulated here.
+    string body;
+
+    /// @brief Where the request body is being streamed, or NULL to buffer it on `body`
+    ///
+    /// Set by setSink() from the head handler. cxhttp is the *producer* into this buffer.
+    StreamBuffer *sink;
+
+    /// @brief The client announced `Expect: 100-continue` and is waiting for permission
+    bool expectContinue;
+
+    /// @brief A `100 Continue` has already gone out for this request
+    bool continueSent;
+
+    // --- the response being built ------------------------------------------------------------
+
+    uint16 status;             ///< Status to send; 200 unless set otherwise
+    string reason;             ///< Reason phrase; a standard one for `status` when left empty
+    HttpHeaders respHeaders;   ///< Headers the application has set
+    string respBody;           ///< Body the application has set
+
+    /// @brief Response body being streamed out, or NULL when `respBody` carries it
+    ///
+    /// Set by respondStream(). cxhttp is the *consumer* of this buffer.
+    StreamBuffer *respStream;
+
+    /// @brief Length promised for `respStream`; negative means chunked
+    int64 respStreamLen;
+
+    /// @brief respond() has been called; the answer is written or on its way
+    bool responded;
+
+    // Created by HttpServerConn once a request has been fully received; an application never
+    // constructs one.
+    factory create();
+    init();
+    destroy();
+
+    /// Set the response status
+    ///
+    /// @param status Status code to send
+    /// @return true if it was accepted; false once the request has been answered
+    bool setStatus(uint16 status);
+
+    /// Set the reason phrase
+    ///
+    /// Rarely needed: leaving it empty sends the standard phrase for the status. Control characters
+    /// are refused, because a reason phrase goes on the status line.
+    ///
+    /// @param reason Reason phrase to send
+    /// @return true if it was accepted
+    bool setReason(strref reason);
+
+    /// Set a response header, replacing any existing field of the same name
+    ///
+    /// @param name Field name
+    /// @param value Field value
+    /// @return true if it was accepted; false once the request has been answered
+    bool setHeader(strref name, strref value);
+
+    /// Add a response header, keeping any existing field of the same name
+    ///
+    /// What `Set-Cookie` needs -- several of them may travel in one response and must not be folded
+    /// together.
+    ///
+    /// @param name Field name
+    /// @param value Field value
+    /// @return true if it was accepted; false once the request has been answered
+    bool addHeader(strref name, strref value);
+
+    /// Send the response
+    ///
+    /// Ends the exchange. The framing headers are written from the body given here, so an
+    /// application never has to set `Content-Length` and cannot set a wrong one.
+    ///
+    /// Call this once. A second call does nothing and returns false.
+    ///
+    /// Must be called from a callback on this request's own connection -- the request handler
+    /// itself, or a later netqueue event for the same connection.
+    ///
+    /// @param body Response body, or empty for none
+    /// @param contentType Value for Content-Type; ignored when the body is empty
+    /// @return true if the response was written
+    bool respond(strref body, strref contentType);
+
+    /// Stream the response body from a StreamBuffer
+    ///
+    /// For a body too big to hold in memory, or one still being produced. Ends the exchange the
+    /// same way respond() does; the connection carries nothing else until the buffer finishes.
+    ///
+    /// Register the *producer* side of the buffer before calling this; cxhttp registers itself as
+    /// the consumer. Release your own reference with sbufRelease() once both sides are registered --
+    /// each registration holds one of its own, and finishing hands those back.
+    ///
+    /// @param sb Buffer the body is read from; a reference is held until the response finishes
+    /// @param len Body length in bytes, or a negative value to send it chunked with no length
+    ///            known up front
+    /// @param contentType Value for Content-Type, or empty to set none
+    /// @return true if the response head was written and the body is being sent
+    bool respondStream([in] StreamBuffer *sb, int64 len, strref contentType);
+
+    /// Stream the request body into a StreamBuffer instead of buffering it
+    ///
+    /// Only meaningful from the head handler: by the time a request is delivered its body has
+    /// already gone wherever it was going. Register the *consumer* side of the buffer first --
+    /// cxhttp registers itself as the producer.
+    ///
+    /// The buffer is finished when the body ends, and put into an error state if the request dies
+    /// half-read, so a consumer waiting on it is always released.
+    ///
+    /// @param sb Buffer the body is written into; a reference is held until the body ends
+    /// @return true if the sink was accepted
+    bool setSink([in] StreamBuffer *sb);
+
+    /// Tell a waiting client to send its body
+    ///
+    /// Only does anything for a request that announced `Expect: 100-continue`, and only once. The
+    /// server sends this by itself unless HttpServer::autoContinue was turned off, so an
+    /// application only calls it when it took over the decision.
+    ///
+    /// @return true if a `100 Continue` was written
+    bool sendContinue();
+
+    /// Send a response with no body
+    ///
+    /// The short form for a status that carries nothing -- 204, 304, or an error the application is
+    /// not explaining.
+    ///
+    /// @param status Status code to send
+    /// @return true if the response was written
+    bool respondStatus(uint16 status);
+
+    /// Whether the client asked for the connection to stay open
+    ///
+    /// Informational: the server handles connection reuse itself. Answering a 1.1 request with
+    /// `Connection: close` set through setHeader() is how an application overrides it.
+    ///
+    /// @return true if another request may follow on this connection
+    bool keepAlive();
+
+    // -----------------------------------------------------------------------------------------
+    // PRIVATE IMPLEMENTATION DETAILS
+    // -----------------------------------------------------------------------------------------
+
+    // Build the status line and header block for the response as it currently stands. `close` asks
+    // for a Connection: close, which the connection decides rather than the request.
+    [extern] unbound void _buildHead([inout] string *out, bool close);
+}
+
+/// @}

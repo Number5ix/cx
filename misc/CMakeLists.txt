@@ -33,11 +33,16 @@ endif()
 
 if(CX_STANDALONE AND CX_HTTP)
     source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES
-        httpdemo.c)
+        httpdemo.c
+        httpsrvdemo.c)
 
     add_executable(httpdemo httpdemo.c)
     target_link_libraries(httpdemo cxhttp)
     set_property(TARGET httpdemo PROPERTY FOLDER "tests")
+
+    add_executable(httpsrvdemo httpsrvdemo.c)
+    target_link_libraries(httpsrvdemo cxhttp)
+    set_property(TARGET httpsrvdemo PROPERTY FOLDER "tests")
 endif()
 
 set(PRESETS_MAKER_SRCS

@@ -396,6 +396,50 @@ static void removeDotSegments(_Inout_ strhandle path)
 }
 
 _Use_decl_annotations_
+bool httpUrlParseTarget(HttpUrl* out, strref target)
+{
+    _httpInit();
+
+    if (strEmpty(target))
+        return false;
+
+    // A fragment has no business on a request line -- RFC 9112 forbids sending one. It is refused
+    // rather than stripped, because a server that ignores the tail and an intermediary that does
+    // not are two parties routing the same request differently, which is the shape of every
+    // request-smuggling bug.
+    if (strFindChar(target, 0, '#') >= 0)
+        return false;
+
+    HttpUrl u = { 0 };
+
+    // Asterisk-form, which only OPTIONS may use. Reported as-is: it is not a path and there is
+    // nothing to normalize, and a real path always starts with '/' so the two cannot be confused.
+    if (strEq(target, _SL("*"))) {
+        strDup(&u.path, _SL("*"));
+        *out = u;
+        return true;
+    }
+
+    if (strGetChar(target, 0) == '/') {
+        parsePathQueryFragment(&u, target);
+        removeDotSegments(&u.path);
+        *out = u;
+        return true;
+    }
+
+    // Absolute-form. A server has to accept it even when it is not a proxy, and when it is present
+    // it outranks the Host header.
+    if (httpUrlParse(&u, target)) {
+        removeDotSegments(&u.path);
+        *out = u;
+        return true;
+    }
+
+    // Authority-form ("host:port") is only meaningful for CONNECT, which cxhttp does not serve.
+    return false;
+}
+
+_Use_decl_annotations_
 bool httpUrlResolve(HttpUrl* out, const HttpUrl* base, strref ref)
 {
     _httpInit();

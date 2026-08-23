@@ -114,11 +114,6 @@ bool HttpRequest_addHeader(_In_ HttpRequest* self, _In_opt_ strref name, _In_opt
     return httpHeadersAdd(&self->reqHeaders, name, value);
 }
 
-void HttpRequest_setFlags(_In_ HttpRequest* self, flags_t flags)
-{
-    self->flags = flags;
-}
-
 // Shared tail of the three body setters: record the content type, if one was given.
 static void setContentType(HttpRequest* self, strref contentType)
 {
@@ -194,11 +189,6 @@ bool HttpRequest_setSink(_In_ HttpRequest* self, _In_ StreamBuffer* sb)
 
     self->respSink = sb;
     return true;
-}
-
-void HttpRequest_setMaxBody(_In_ HttpRequest* self, size_t max)
-{
-    self->maxBody = max;
 }
 
 bool HttpRequest_cancel(_In_ HttpRequest* self)

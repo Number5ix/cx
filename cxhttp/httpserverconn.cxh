@@ -1,0 +1,125 @@
+#include <cx/net/socket.cxh>
+#include <cx/net/net_shared.h>
+#include <cxhttp/http_shared.h>
+#include <cxhttp/httpserverreq.cxh>
+
+class HttpServer;
+
+/// @addtogroup http_server
+/// @{
+
+/// @brief One accepted connection, and the requests arriving on it
+///
+/// Created by HttpServer for every connection it accepts. An application meets one only as
+/// `HttpServerEvent.conn`, and normally has no reason to touch it -- the request object is where
+/// the work happens.
+[methodprefix httpsrvconn] class HttpServerConn
+{
+    /// @brief Socket this speaks over, held strongly for as long as the connection exists
+    object[NetSocket] sock;
+
+    /// @brief Server that accepted this connection
+    ///
+    /// Weak, because the server holds its connections: a strong reference here would make the two
+    /// own each other, and a server would never be released while any connection had ever been
+    /// made to it.
+    weak[HttpServer] server;
+
+    /// @brief Request parser, one per connection and reset between messages
+    HttpParser *parser;
+
+    /// @brief Bytes received but not yet parsed
+    ///
+    /// The socket's own receive ring cannot be used directly: with a TLS filter attached, what
+    /// netsocketRecv() returns is decoded plaintext that has to be copied somewhere before the
+    /// parser sees it.
+    BufRing in;
+
+    /// @brief The request being received, or the one waiting for an answer
+    object[HttpServerRequest] req;
+
+    /// @brief `req` has been handed to the application and is waiting for a response
+    ///
+    /// While this is set the parser is not stepped, which is what stops a second request from
+    /// being read before the first has been answered.
+    bool awaiting;
+
+    /// @brief A response body is still being written
+    ///
+    /// Set for a streamed response between the head going out and the buffer finishing. Stops the
+    /// parser for the same reason `awaiting` does: the exchange is not over yet.
+    bool writing;
+
+    /// @brief The worker dispatching an event here, or NULL
+    ///
+    /// respond() may be called from any thread, and the two paths it can take are not
+    /// interchangeable. Writing the response also advances the connection -- the parser, the
+    /// receive ring and the deadlines -- and all of that belongs to one worker at a time. A caller
+    /// that finds its own Thread here is that worker and does the work in place; anyone else hands
+    /// it over through a zero-delay flow timer and lets a worker pick it up.
+    ///
+    /// Comparing against our own Thread is what makes a stale read harmless: another thread's
+    /// Thread is never ours, so a reader that loses the race takes the handoff, which is always
+    /// correct. Never dereferenced, only compared by identity, so it is stored without a reference.
+    atomic[ptr] dispatchThread;
+
+    /// @brief A response composed on another thread is waiting for a worker to write it
+    atomic[uint32] respondPending;
+
+    /// @brief _pump() is running on this connection
+    ///
+    /// Responding from inside the request handler re-enters _pump() through _respond(). The guard
+    /// makes that inner call a no-op and lets the loop already running carry on with the bytes it
+    /// has, rather than running two parse loops over one ring.
+    bool pumping;
+
+    bool failed;      ///< A protocol or transport error ended the conversation
+    bool closing;     ///< Close once the response in flight has been written
+    bool started;     ///< Bytes of a request have arrived; the head-read deadline is armed
+
+    /// @brief Flow timer bounding how long a request head may take to arrive, or 0
+    NetTimerId readTimer;
+
+    /// @brief Flow timer reaping the connection between requests, or 0
+    NetTimerId idleTimer;
+
+    // Created by HttpServer from its accept handler; an application never constructs one.
+    [canfail] factory create([in] HttpServer *server, [in] NetSocket *sock);
+    init();
+    destroy();
+
+    /// Close the connection
+    ///
+    /// Whatever is in flight is abandoned. The closed handler runs as usual, from the flow's
+    /// terminal path.
+    void close();
+
+    // -----------------------------------------------------------------------------------------
+    // PRIVATE IMPLEMENTATION DETAILS
+    // -----------------------------------------------------------------------------------------
+
+    // Drain the socket into `in` and run the parser over it, delivering whatever that produces.
+    // Called from the socket's recv handler, and again once a response frees the parser to move on.
+    [extern] unbound void _pump();
+
+    // Write the response a request has finished building, then decide what happens to the
+    // connection: another request, or a close. Called by HttpServerRequest_respond(). False when
+    // the connection has already moved past this request, which a late answer from a handler that
+    // held onto the object is.
+    [extern] unbound bool _respond([in] HttpServerRequest *req);
+
+    // Send a canned status with no application involvement. What answers a request that failed
+    // before anyone could look at it.
+    [extern] unbound void _sendError(uint16 status, HttpError err);
+
+    // Write a bare "100 Continue" interim response. Called by HttpServerRequest_sendContinue(),
+    // and by the head path when the server is answering Expect on the application's behalf.
+    [extern] unbound bool _sendContinue();
+
+    // Push as much of a streamed response body onto the socket as it will currently take. Called
+    // when the response starts, when the socket's backlog drains, and when the producer writes
+    // more. Finishes the exchange once the buffer is spent.
+    [extern] unbound void _pumpRespBody();
+}
+
+/// @}

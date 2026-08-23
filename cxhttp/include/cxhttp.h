@@ -8,6 +8,9 @@
 #include <cxhttp/httpconn.h>
 #include <cxhttp/httpcookie.h>
 #include <cxhttp/httprequest.h>
+#include <cxhttp/httpserver.h>
+#include <cxhttp/httpserverconn.h>
+#include <cxhttp/httpserverreq.h>
 
 /// @file cxhttp.h
 /// @brief HTTP/1.1 for cx: URLs, headers, and a client over NetQueue and cxtls
@@ -95,6 +98,11 @@
 /// @ingroup http
 /// Session cookie storage: parsing `Set-Cookie`, matching by domain, path and scheme, and building
 /// the `Cookie` header a request sends back.
+
+/// @defgroup http_server Server
+/// @ingroup http
+/// An HTTP/1.1 server over a NetQueue listener: one callback per complete request, and a response
+/// built on the request object.
 
 /// @defgroup http_forms Form Bodies
 /// @ingroup http
@@ -255,6 +263,27 @@ _Success_(return) bool httpDateParse(_Out_ int64* out, _In_opt_ strref s);
 
 /// @}
 
+/// @addtogroup http_types
+/// @{
+
+/// Fill in the default limits
+///
+/// Generous enough that no legitimate peer trips them, small enough that a hostile one cannot make
+/// cxhttp allocate on its behalf. `maxBodyBytes` comes back as 0, meaning unlimited.
+///
+/// @param out Receives the defaults
+///
+/// Example:
+/// @code
+///   HttpLimits lim;
+///   httpLimitsDefault(&lim);
+///   lim.maxBodyBytes = 1024 * 1024;      // this server accepts at most a megabyte
+///   srv->limits = lim;
+/// @endcode
+void httpLimitsDefault(_Out_ HttpLimits* out);
+
+/// @}
+
 /// @addtogroup http_url
 /// @{
 
@@ -281,6 +310,38 @@ _Success_(return) bool httpDateParse(_Out_ int64* out, _In_opt_ strref s);
 ///   }
 /// @endcode
 _Success_(return) bool httpUrlParse(_Out_ HttpUrl* out, _In_opt_ strref url);
+
+/// Parse a request target, as a server receives it on the request line
+///
+/// Accepts the two forms a server sees in practice:
+///
+/// - **origin-form** -- `/a/b?x=1`, which is what a browser sends. `scheme` and `host` come back
+///   empty, so the Host header is what names the server.
+/// - **absolute-form** -- `http://example.com/a/b?x=1`. Every field is filled in, and the host in
+///   the target outranks the Host header.
+///
+/// `*`, which OPTIONS may use to mean "the server itself", comes back as a `path` of `"*"`.
+///
+/// The path is percent-decoded and its `.` and `..` segments are removed, so what comes back is
+/// safe to compare against a prefix. Note that a `%2F` in the target decodes to a plain `/` and is
+/// then indistinguishable from a real separator; a caller that needs to tell them apart should look
+/// at the raw target instead.
+///
+/// A target carrying a `#fragment` is rejected, as is anything in a form a server may not accept.
+///
+/// @param out Receives the parsed target; release it with httpUrlDestroy()
+/// @param target The request target, exactly as it appeared on the request line
+/// @return true if the target is a form a server may accept
+///
+/// Example:
+/// @code
+///   HttpUrl u;
+///   if (httpUrlParseTarget(&u, _SL("/search?q=cats"))) {
+///       // u.path == "/search", u.query == "q=cats"
+///       httpUrlDestroy(&u);
+///   }
+/// @endcode
+_Success_(return) bool httpUrlParseTarget(_Out_ HttpUrl* out, _In_opt_ strref target);
 
 /// Resolve a possibly-relative reference against a base URL
 ///

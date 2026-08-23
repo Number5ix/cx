@@ -7,6 +7,8 @@
 #include <cxhttp.h>
 #include <cxhttp/http_private.h>
 #include <cx/net.h>
+#include <cx/thread/thread.h>
+#include "tlstestcert.h"
 #include <cx/serialize.h>
 #include <cx/string.h>
 #include <cx/string/strtest.h>
@@ -637,9 +639,12 @@ static HttpParseResult drive(HttpParser* p, BufRing* src, string* body, int* hea
 
         if (r == HTTPP_Body) {
             uint8 buf[4096];
-            size_t n;
-            while ((n = bufringRead(&p->out, buf, sizeof(buf))) > 0)
+            size_t remaining = p->bodyReady;
+            while (remaining > 0) {
+                size_t n = bufringRead(src, buf, min(remaining, sizeof(buf)));
                 strAppendBytes(body, buf, (uint32)n);
+                remaining -= n;
+            }
             continue;
         }
 
@@ -2173,7 +2178,7 @@ static int test_httptest_clientredirectloop(void)
         return 1;
     }
 
-    httpclientSetMaxRedirects(f.cl, 2);
+    f.cl->maxRedirects = 2;
 
     clientUrl(&f, &url, _SL("/loop"));
     HttpRequest* r = httprequestCreate(HTTP_Get, url);
@@ -2556,7 +2561,8 @@ static int test_httptest_clienttimeout(void)
         return 1;
     }
 
-    httpclientSetTimeouts(f.cl, timeMS(150), 0);
+    f.cl->responseTimeout = timeMS(150);
+    f.cl->idleTimeout     = 0;
 
     clientUrl(&f, &url, _SL("/slow"));
     HttpRequest* r = httprequestCreate(HTTP_Get, url);
@@ -2875,6 +2881,1660 @@ static int test_httptest_conncancel(void)
     return ret;
 }
 
+
+// ---------------------------------------------------------------------------------------------
+// The server
+//
+// The fixture inverts: a cx HttpServer on an OS-chosen port, and a raw client socket writing
+// request bytes by hand. A hand-written peer is the point -- a cx client and a cx server built from
+// the same parser could agree with each other while both were wrong.
+// ---------------------------------------------------------------------------------------------
+
+typedef struct SrvRec {
+    int requestCount;
+    int errorCount;
+    int closedCount;
+
+    string method;
+    string path;
+    string query;
+    string body;
+    string target;
+    HttpError err;
+
+    // What the handler does with the request it is given.
+    uint16 status;         // status to answer with; 0 means 200 with a body
+    bool hold;             // do not answer at all; keep a reference instead
+    HttpServerRequest* held;
+
+    // --- head handler -------------------------------------------------------------------------
+    int headCount;
+    bool useSink;          // stream the request body into `sink` rather than buffering it
+    StreamBuffer* sink;
+    string sinkData;       // what came out of `sink`
+    uint16 headStatus;     // answer from the head handler with this, refusing the body
+    bool manualContinue;   // send the 100-continue by hand from the head handler
+
+    // --- data handler -------------------------------------------------------------------------
+    int dataCount;
+    string dataBody;
+
+    // --- streamed response --------------------------------------------------------------------
+    bool streamResp;       // answer with respStream rather than a string
+    bool pushResp;         // drive respStream as a push producer rather than a pull one
+    int64 respStreamLen;   // < 0 for chunked
+    StreamBuffer* respStream;
+} SrvRec;
+
+// Drain whatever the request body sink has produced so far.
+static void srvSinkDrain(SrvRec* r)
+{
+    if (!r->sink)
+        return;
+
+    uint8 buf[512];
+    for (;;) {
+        // A push-mode buffer refuses a read bigger than what it holds, so ask for exactly that.
+        size_t want = min(sbufCAvail(r->sink), sizeof(buf));
+        if (want == 0)
+            break;
+
+        size_t got = 0;
+        if (!sbufCRead(r->sink, buf, want, &got) || got == 0)
+            break;
+        strAppendBytes(&r->sinkData, buf, (uint32)got);
+    }
+}
+
+static void onSrvSinkNotify(StreamBuffer* sb, size_t sz, void* ctx)
+{
+    unused_noeval(sb);
+    unused_noeval(sz);
+    srvSinkDrain((SrvRec*)ctx);
+}
+
+// Long enough to need several passes through a 16-byte buffer, so the streamed-response tests
+// exercise the resume path rather than completing in one go.
+#define SRV_STREAM_BODY "0123456789abcdefghijklmnopqrstuvwxyz-the-streamed-response-body"
+
+static void onSrvHead(HttpServerEvent* ev)
+{
+    SrvRec* r = (SrvRec*)ev->ctx;
+    r->headCount++;
+
+    if (r->headStatus) {
+        httpsrvreqRespondStatus(ev->request, r->headStatus);
+        return;
+    }
+
+    if (r->manualContinue)
+        httpsrvreqSendContinue(ev->request);
+
+    if (r->useSink && !r->sink) {
+        r->sink = sbufCreate(256);
+        // The consumer side is ours; cxhttp registers itself as the producer.
+        if (!sbufCRegisterPush(r->sink, onSrvSinkNotify, NULL, r) ||
+            !httpsrvreqSetSink(ev->request, r->sink)) {
+            sbufCFinish(r->sink);
+            r->sink = NULL;
+        }
+    }
+}
+
+static void onSrvData(HttpServerEvent* ev)
+{
+    SrvRec* r = (SrvRec*)ev->ctx;
+    r->dataCount++;
+    strAppendBytes(&r->dataBody, ev->data, (uint32)ev->len);
+}
+
+static void onSrvRequest(HttpServerEvent* ev)
+{
+    SrvRec* r = (SrvRec*)ev->ctx;
+    r->requestCount++;
+
+    strDup(&r->method, ev->request->methodName);
+    strDup(&r->path, ev->request->path);
+    strDup(&r->query, ev->request->query);
+    strDup(&r->body, ev->request->body);
+    strDup(&r->target, ev->request->target);
+
+    if (r->hold) {
+        r->held = objAcquire(ev->request);
+        return;
+    }
+
+    if (r->status) {
+        httpsrvreqRespondStatus(ev->request, r->status);
+        return;
+    }
+
+    if (r->streamResp && r->pushResp) {
+        // A push producer: the whole body is written before the response goes out, which is the
+        // case a pull-mode test cannot reach -- a push buffer refuses a read larger than what it
+        // is holding, so the pump has to ask for the right amount.
+        r->respStream = sbufCreate(16);
+        if (!sbufPRegisterPush(r->respStream, NULL, NULL)) {
+            sbufPFinish(r->respStream);
+            r->respStream = NULL;
+            httpsrvreqRespondStatus(ev->request, HTTP_InternalError);
+            return;
+        }
+
+        httpsrvreqRespondStream(ev->request, r->respStream, (int64)strlen(SRV_STREAM_BODY),
+                                _SL("text/plain"));
+        sbufPWrite(r->respStream, (const uint8*)SRV_STREAM_BODY, strlen(SRV_STREAM_BODY));
+        sbufPFinish(r->respStream);
+        sbufRelease(&r->respStream);
+        return;
+    }
+
+    if (r->streamResp) {
+        // A pull-mode producer over a canned string: cxhttp asks for bytes as it gets room, and
+        // cx's own string adapter answers. Deliberately smaller than the body so the pump has to
+        // come back for more rather than emptying it in one pass.
+        r->respStream = sbufCreate(16);
+        if (!sbufStrPRegisterPull(r->respStream, _SL(SRV_STREAM_BODY))) {
+            sbufPFinish(r->respStream);
+            r->respStream = NULL;
+            httpsrvreqRespondStatus(ev->request, HTTP_InternalError);
+            return;
+        }
+
+        httpsrvreqRespondStream(ev->request, r->respStream, r->respStreamLen, _SL("text/plain"));
+        sbufRelease(&r->respStream);
+        return;
+    }
+
+    httpsrvreqSetHeader(ev->request, _SL("X-Test"), _SL("yes"));
+    httpsrvreqRespond(ev->request, _SL("hello"), _SL("text/plain"));
+}
+
+static void onSrvError(HttpServerEvent* ev)
+{
+    SrvRec* r = (SrvRec*)ev->ctx;
+    r->errorCount++;
+    r->err = ev->err;
+}
+
+static void onSrvClosed(HttpServerEvent* ev)
+{
+    SrvRec* r = (SrvRec*)ev->ctx;
+    r->closedCount++;
+}
+
+static const HttpServerHandlers kSrvHandlers = {
+    .head    = onSrvHead,
+    .request = onSrvRequest,
+    .error   = onSrvError,
+    .closed  = onSrvClosed,
+};
+
+// Registering a data handler is what claims request bodies, exactly as it is on the client. Kept in
+// its own set so the rest of the tests still exercise the buffered default.
+static const HttpServerHandlers kSrvDataHandlers = {
+    .head    = onSrvHead,
+    .data    = onSrvData,
+    .request = onSrvRequest,
+    .error   = onSrvError,
+    .closed  = onSrvClosed,
+};
+
+typedef struct SrvFixture {
+    NetQueue* q;
+    HttpServer* srv;
+    SOCKET client;
+} SrvFixture;
+
+static void srvFixtureDestroy(SrvFixture* f)
+{
+    if (f->client != INVALID_SOCKET)
+        closesocket(f->client);
+    if (f->srv) {
+        httpserverShutdown(f->srv);
+        objRelease(&f->srv);
+    }
+    if (f->q) {
+        netqueueShutdown(f->q, 0);
+        objRelease(&f->q);
+    }
+}
+
+static void srvRecDestroy(SrvRec* r)
+{
+    // The reference sbufCreate() handed back. Each registration holds one of its own and gives it
+    // back when that side finishes, so this is the last one and it is ours to drop.
+    if (r->sink)
+        sbufRelease(&r->sink);
+
+    objRelease(&r->held);
+    strDestroy(&r->sinkData);
+    strDestroy(&r->dataBody);
+    strDestroy(&r->method);
+    strDestroy(&r->path);
+    strDestroy(&r->query);
+    strDestroy(&r->body);
+    strDestroy(&r->target);
+}
+
+// Stand up a server on loopback, without connecting anything to it yet. Split from the connect so
+// that a test can set limits first: they are read when a connection is accepted, so setting them
+// afterwards would leave the connection under test running on the defaults.
+static bool srvStart(SrvFixture* f, SrvRec* rec, bool attach)
+{
+    memset(f, 0, sizeof(*f));
+    f->client = INVALID_SOCKET;
+
+    NetQueueConfig conf;
+    netqueuePresetServer(&conf);
+    conf.nthreads = 0;   // polled, so the test drives every callback itself
+    f->q          = netqueueCreate(&conf);
+    if (!f->q)
+        return false;
+
+    f->srv = httpserverCreate(f->q);
+    if (!f->srv)
+        return false;
+
+    httpserverSetHandlers(f->srv, &kSrvHandlers, rec);
+
+    NetAddr la;
+    netAddrFromStr(&la, _SL("127.0.0.1"));
+    la.port = 0;
+
+    if (attach) {
+        NetSocket* lsock = netqueueSocket(f->q, NST_Stream);
+        if (!lsock)
+            return false;
+
+        bool ok = netqueueAddSocket(f->q, lsock) && netsocketBind(lsock, &la) &&
+                  netsocketListen(lsock, 4) && httpserverAttach(f->srv, lsock);
+        objRelease(&lsock);
+        if (!ok)
+            return false;
+    } else if (!httpserverListen(f->srv, &la, 4)) {
+        return false;
+    }
+
+    return httpserverPort(f->srv) != 0;
+}
+
+// Connect a raw client to a started server.
+static bool srvConnect(SrvFixture* f)
+{
+    uint16 port = httpserverPort(f->srv);
+    if (!port)
+        return false;
+
+    f->client = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (f->client == INVALID_SOCKET)
+        return false;
+
+    struct sockaddr_in a;
+    memset(&a, 0, sizeof(a));
+    a.sin_family      = AF_INET;
+    a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    a.sin_port        = htons(port);
+
+    if (connect(f->client, (struct sockaddr*)&a, sizeof(a)) != 0)
+        return false;
+
+    for (int i = 0; i < 20; i++)
+        netqueueTick(f->q, 5);
+
+    return true;
+}
+
+static bool srvFixtureInit(SrvFixture* f, SrvRec* rec, bool attach)
+{
+    return srvStart(f, rec, attach) && srvConnect(f);
+}
+
+static void srvSend(SrvFixture* f, const char* text)
+{
+    send(f->client, text, (int)strlen(text), 0);
+}
+
+// Read whatever the server has written so far, ticking the queue to let it get there. Stops early
+// once `want` bytes are in hand, so a test waiting for two pipelined responses does not have to
+// spend the whole budget.
+static void srvRead(SrvFixture* f, string* out, uint32 want)
+{
+#if defined(_WIN32)
+    u_long nb = 1;
+    ioctlsocket(f->client, FIONBIO, &nb);
+#endif
+
+    char buf[4096];
+    for (int i = 0; i < 100; i++) {
+        netqueueTick(f->q, 5);
+
+#if defined(_WIN32)
+        int n = recv(f->client, buf, sizeof(buf), 0);
+#else
+        int n = (int)recv(f->client, buf, sizeof(buf), MSG_DONTWAIT);
+#endif
+        if (n > 0)
+            strAppendBytes(out, (uint8*)buf, (size_t)n);
+
+        if (want && strLen(*out) >= want)
+            break;
+    }
+}
+
+static void srvTick(SrvFixture* f, int rounds)
+{
+    for (int i = 0; i < rounds; i++)
+        netqueueTick(f->q, 5);
+}
+
+// A plain GET: the request reaches the handler decomposed, and the response comes back well formed
+// with framing the application never had to write.
+static int test_httptest_srvget(void)
+{
+    int ret     = 0;
+    SrvRec rec  = { 0 };
+    SrvFixture f;
+    string resp = 0;
+
+    if (!srvFixtureInit(&f, &rec, false)) {
+        srvFixtureDestroy(&f);
+        srvRecDestroy(&rec);
+        return 1;
+    }
+
+    srvSend(&f,
+            "GET /a/b?x=1 HTTP/1.1\r\n"
+            "Host: example.com\r\n"
+            "\r\n");
+    srvRead(&f, &resp, 0);
+
+    if (rec.requestCount != 1)
+        ret = 1;
+    if (!strEq(rec.method, _SL("GET")) || !strEq(rec.path, _SL("/a/b")) ||
+        !strEq(rec.query, _SL("x=1")))
+        ret = 1;
+    if (!strEq(rec.target, _SL("/a/b?x=1")))
+        ret = 1;
+
+    if (!strBeginsWith(resp, _SL("HTTP/1.1 200 OK\r\n")))
+        ret = 1;
+    if (strFind(resp, 0, _SL("Content-Length: 5\r\n")) < 0)
+        ret = 1;
+    if (strFind(resp, 0, _SL("Content-Type: text/plain\r\n")) < 0)
+        ret = 1;
+    if (strFind(resp, 0, _SL("X-Test: yes\r\n")) < 0)
+        ret = 1;
+    if (strFind(resp, 0, _SL("Date: ")) < 0)
+        ret = 1;
+    if (!strEndsWith(resp, _SL("\r\n\r\nhello")))
+        ret = 1;
+
+    strDestroy(&resp);
+    srvFixtureDestroy(&f);
+    srvRecDestroy(&rec);
+    return ret;
+}
+
+// A POST with a Content-Length body, which must reach the handler whole.
+static int test_httptest_srvpost(void)
+{
+    int ret     = 0;
+    SrvRec rec  = { 0 };
+    SrvFixture f;
+    string resp = 0;
+
+    if (!srvFixtureInit(&f, &rec, false)) {
+        srvFixtureDestroy(&f);
+        srvRecDestroy(&rec);
+        return 1;
+    }
+
+    srvSend(&f,
+            "POST /submit HTTP/1.1\r\n"
+            "Host: example.com\r\n"
+            "Content-Length: 11\r\n"
+            "\r\n"
+            "hello=world");
+    srvRead(&f, &resp, 0);
+
+    if (rec.requestCount != 1)
+        ret = 1;
+    if (!strEq(rec.method, _SL("POST")) || !strEq(rec.body, _SL("hello=world")))
+        ret = 1;
+    if (!strBeginsWith(resp, _SL("HTTP/1.1 200 OK\r\n")))
+        ret = 1;
+
+    strDestroy(&resp);
+    srvFixtureDestroy(&f);
+    srvRecDestroy(&rec);
+    return ret;
+}
+
+// A chunked request body is decoded before the handler sees it, and the trailer section is
+// consumed rather than being left to look like the start of the next request.
+static int test_httptest_srvchunkedreq(void)
+{
+    int ret     = 0;
+    SrvRec rec  = { 0 };
+    SrvFixture f;
+    string resp = 0;
+
+    if (!srvFixtureInit(&f, &rec, false)) {
+        srvFixtureDestroy(&f);
+        srvRecDestroy(&rec);
+        return 1;
+    }
+
+    srvSend(&f,
+            "POST /up HTTP/1.1\r\n"
+            "Host: example.com\r\n"
+            "Transfer-Encoding: chunked\r\n"
+            "\r\n"
+            "5\r\nhello\r\n"
+            "6\r\n world\r\n"
+            "0\r\n\r\n");
+    srvRead(&f, &resp, 0);
+
+    if (rec.requestCount != 1 || !strEq(rec.body, _SL("hello world")))
+        ret = 1;
+    if (!strBeginsWith(resp, _SL("HTTP/1.1 200 OK\r\n")))
+        ret = 1;
+
+    strDestroy(&resp);
+    srvFixtureDestroy(&f);
+    srvRecDestroy(&rec);
+    return ret;
+}
+
+// Two requests one after the other on one connection, each answered before the next is sent.
+static int test_httptest_srvkeepalive(void)
+{
+    int ret     = 0;
+    SrvRec rec  = { 0 };
+    SrvFixture f;
+    string r1 = 0, r2 = 0;
+
+    if (!srvFixtureInit(&f, &rec, false)) {
+        srvFixtureDestroy(&f);
+        srvRecDestroy(&rec);
+        return 1;
+    }
+
+    srvSend(&f, "GET /one HTTP/1.1\r\nHost: h\r\n\r\n");
+    srvRead(&f, &r1, 0);
+
+    if (rec.requestCount != 1 || !strEq(rec.path, _SL("/one")))
+        ret = 1;
+    if (strFind(r1, 0, _SL("Connection: keep-alive")) < 0)
+        ret = 1;
+
+    srvSend(&f, "GET /two HTTP/1.1\r\nHost: h\r\n\r\n");
+    srvRead(&f, &r2, 0);
+
+    if (rec.requestCount != 2 || !strEq(rec.path, _SL("/two")))
+        ret = 1;
+    if (!strBeginsWith(r2, _SL("HTTP/1.1 200 OK\r\n")))
+        ret = 1;
+
+    // Still one connection, not two.
+    if (httpserverConnCount(f.srv) != 1)
+        ret = 1;
+
+    strDestroy(&r1);
+    strDestroy(&r2);
+    srvFixtureDestroy(&f);
+    srvRecDestroy(&rec);
+    return ret;
+}
+
+// A client asking to close gets the connection closed after its answer, and the server says so.
+static int test_httptest_srvclose(void)
+{
+    int ret     = 0;
+    SrvRec rec  = { 0 };
+    SrvFixture f;
+    string resp = 0;
+
+    if (!srvFixtureInit(&f, &rec, false)) {
+        srvFixtureDestroy(&f);
+        srvRecDestroy(&rec);
+        return 1;
+    }
+
+    srvSend(&f, "GET /x HTTP/1.1\r\nHost: h\r\nConnection: close\r\n\r\n");
+    srvRead(&f, &resp, 0);
+
+    if (rec.requestCount != 1)
+        ret = 1;
+    if (strFind(resp, 0, _SL("Connection: close")) < 0)
+        ret = 1;
+
+    srvTick(&f, 40);
+
+    // The connection is gone, and its closure was reported once.
+    if (httpserverConnCount(f.srv) != 0)
+        ret = 1;
+    if (rec.closedCount != 1)
+        ret = 1;
+
+    // A clean close after a completed exchange is not an error.
+    if (rec.errorCount != 0)
+        ret = 1;
+
+    strDestroy(&resp);
+    srvFixtureDestroy(&f);
+    srvRecDestroy(&rec);
+    return ret;
+}
+
+// Pipelining is not supported, so this pins what a client that pipelines anyway must get: two
+// requests arriving in one write are answered serially and in order, and the second is not parsed
+// until the first has been answered. Interleaved or reordered responses are the failure this
+// forecloses -- either one would leave the client matching answers to the wrong requests.
+static int test_httptest_srvserialized(void)
+{
+    int ret     = 0;
+    SrvRec rec  = { 0 };
+    SrvFixture f;
+    string resp = 0;
+
+    if (!srvFixtureInit(&f, &rec, false)) {
+        srvFixtureDestroy(&f);
+        srvRecDestroy(&rec);
+        return 1;
+    }
+
+    srvSend(&f,
+            "GET /first HTTP/1.1\r\nHost: h\r\n\r\n"
+            "GET /second HTTP/1.1\r\nHost: h\r\n\r\n");
+    srvRead(&f, &resp, 0);
+    srvTick(&f, 20);
+    srvRead(&f, &resp, 0);
+
+    if (rec.requestCount != 2)
+        ret = 1;
+    if (!strEq(rec.path, _SL("/second")))
+        ret = 1;   // the second one is the last seen, so they ran in order
+
+    // Two complete responses, and the body of the first ends before the head of the second begins.
+    int32 first  = strFind(resp, 0, _SL("HTTP/1.1 200 OK"));
+    int32 second = strFind(resp, first + 1, _SL("HTTP/1.1 200 OK"));
+    if (first != 0 || second <= 0)
+        ret = 1;
+    else if (strFind(resp, 0, _SL("hello")) > second)
+        ret = 1;   // the first body must precede the second head
+
+    strDestroy(&resp);
+    srvFixtureDestroy(&f);
+    srvRecDestroy(&rec);
+    return ret;
+}
+
+// A malformed request line is refused with a 400 that the application never has to write, and the
+// connection is closed rather than being left at an unknown offset.
+static int test_httptest_srvbadrequest(void)
+{
+    int ret     = 0;
+    SrvRec rec  = { 0 };
+    SrvFixture f;
+    string resp = 0;
+
+    if (!srvFixtureInit(&f, &rec, false)) {
+        srvFixtureDestroy(&f);
+        srvRecDestroy(&rec);
+        return 1;
+    }
+
+    // A header field name with whitespace before the colon: a smuggling primitive, and one the
+    // parser rejects outright rather than trimming.
+    srvSend(&f, "GET /x HTTP/1.1\r\nHost : h\r\n\r\n");
+    srvRead(&f, &resp, 0);
+
+    if (rec.requestCount != 0)
+        ret = 1;
+    if (!strBeginsWith(resp, _SL("HTTP/1.1 400 Bad Request\r\n")))
+        ret = 1;
+    if (strFind(resp, 0, _SL("Connection: close")) < 0)
+        ret = 1;
+    if (rec.errorCount != 1 || rec.err != HTTPERR_BadMessage)
+        ret = 1;
+
+    strDestroy(&resp);
+    srvFixtureDestroy(&f);
+    srvRecDestroy(&rec);
+    return ret;
+}
+
+// A request target a server may not accept is a 400 before the application sees it.
+static int test_httptest_srvbadtarget(void)
+{
+    int ret     = 0;
+    SrvRec rec  = { 0 };
+    SrvFixture f;
+    string resp = 0;
+
+    if (!srvFixtureInit(&f, &rec, false)) {
+        srvFixtureDestroy(&f);
+        srvRecDestroy(&rec);
+        return 1;
+    }
+
+    // Authority-form, which only CONNECT may use.
+    srvSend(&f, "GET example.com:80 HTTP/1.1\r\nHost: h\r\n\r\n");
+    srvRead(&f, &resp, 0);
+
+    if (rec.requestCount != 0)
+        ret = 1;
+    if (!strBeginsWith(resp, _SL("HTTP/1.1 400 Bad Request\r\n")))
+        ret = 1;
+    if (rec.err != HTTPERR_BadUrl)
+        ret = 1;
+
+    strDestroy(&resp);
+    srvFixtureDestroy(&f);
+    srvRecDestroy(&rec);
+    return ret;
+}
+
+// An oversized head is a 431, not a 400. The distinction matters: a client answered 400 for a
+// header field that is merely too long will retry it unchanged forever.
+static int test_httptest_srvtoolarge(void)
+{
+    int ret    = 0;
+    SrvRec rec = { 0 };
+    SrvFixture f;
+    string resp = 0;
+    string req  = 0;
+
+    if (!srvStart(&f, &rec, false)) {
+        srvFixtureDestroy(&f);
+        srvRecDestroy(&rec);
+        return 1;
+    }
+
+    // Set before anything connects: the limits are read when a connection is accepted.
+    f.srv->limits.maxHeadBytes = 512;
+
+    if (!srvConnect(&f)) {
+        srvFixtureDestroy(&f);
+        srvRecDestroy(&rec);
+        return 1;
+    }
+
+    strAppend(&req, _SL("GET /x HTTP/1.1\r\nHost: h\r\n"));
+    for (int i = 0; i < 20; i++)
+        strAppend(&req, _SL("X-Pad: 0123456789012345678901234567890123456789\r\n"));
+    strAppend(&req, _SL("\r\n"));
+
+    send(f.client, strC(req), (int)strLen(req), 0);
+    srvRead(&f, &resp, 0);
+
+    if (rec.requestCount != 0)
+        ret = 1;
+    if (!strBeginsWith(resp, _SL("HTTP/1.1 431 ")))
+        ret = 1;
+    if (rec.err != HTTPERR_TooLarge)
+        ret = 1;
+
+    strDestroy(&req);
+    strDestroy(&resp);
+    srvFixtureDestroy(&f);
+    srvRecDestroy(&rec);
+    return ret;
+}
+
+// A connection that opens and then says nothing is reaped by the head-read deadline rather than
+// being held forever, which is the whole of the slowloris defense.
+static int test_httptest_srvheadreadtimeout(void)
+{
+    int ret     = 0;
+    SrvRec rec  = { 0 };
+    SrvFixture f;
+    string resp = 0;
+
+    if (!srvFixtureInit(&f, &rec, false)) {
+        srvFixtureDestroy(&f);
+        srvRecDestroy(&rec);
+        return 1;
+    }
+
+    f.srv->readHeadTimeout = timeMS(30);
+    f.srv->idleTimeout     = 0;
+
+    // Enough of a request line to start the clock, and then nothing.
+    srvSend(&f, "GET /slow HT");
+    srvRead(&f, &resp, 0);
+
+    if (rec.requestCount != 0)
+        ret = 1;
+    if (!strBeginsWith(resp, _SL("HTTP/1.1 408 ")))
+        ret = 1;
+    if (rec.err != HTTPERR_Timeout)
+        ret = 1;
+
+    srvTick(&f, 40);
+    if (httpserverConnCount(f.srv) != 0)
+        ret = 1;
+
+    strDestroy(&resp);
+    srvFixtureDestroy(&f);
+    srvRecDestroy(&rec);
+    return ret;
+}
+
+// A HEAD response carries the headers its GET would, Content-Length included, and no body.
+static int test_httptest_srvhead(void)
+{
+    int ret     = 0;
+    SrvRec rec  = { 0 };
+    SrvFixture f;
+    string resp = 0;
+
+    if (!srvFixtureInit(&f, &rec, false)) {
+        srvFixtureDestroy(&f);
+        srvRecDestroy(&rec);
+        return 1;
+    }
+
+    srvSend(&f, "HEAD /x HTTP/1.1\r\nHost: h\r\nConnection: close\r\n\r\n");
+    srvRead(&f, &resp, 0);
+
+    if (rec.requestCount != 1)
+        ret = 1;
+    if (strFind(resp, 0, _SL("Content-Length: 5\r\n")) < 0)
+        ret = 1;
+    if (strFind(resp, 0, _SL("hello")) >= 0)
+        ret = 1;   // the body itself must not be sent
+    if (!strEndsWith(resp, _SL("\r\n\r\n")))
+        ret = 1;
+
+    strDestroy(&resp);
+    srvFixtureDestroy(&f);
+    srvRecDestroy(&rec);
+    return ret;
+}
+
+// A 204 carries no body and no Content-Length: a length on one of these is a framing conflict, not
+// merely a redundant header.
+static int test_httptest_srvnobody(void)
+{
+    int ret     = 0;
+    SrvRec rec  = { 0 };
+    SrvFixture f;
+    string resp = 0;
+
+    if (!srvFixtureInit(&f, &rec, false)) {
+        srvFixtureDestroy(&f);
+        srvRecDestroy(&rec);
+        return 1;
+    }
+
+    rec.status = HTTP_NoContent;
+    srvSend(&f, "GET /x HTTP/1.1\r\nHost: h\r\nConnection: close\r\n\r\n");
+    srvRead(&f, &resp, 0);
+
+    if (!strBeginsWith(resp, _SL("HTTP/1.1 204 No Content\r\n")))
+        ret = 1;
+    if (strFind(resp, 0, _SL("Content-Length")) >= 0)
+        ret = 1;
+
+    strDestroy(&resp);
+    srvFixtureDestroy(&f);
+    srvRecDestroy(&rec);
+    return ret;
+}
+
+// A handler that does not answer inline holds the request, and nothing else happens on the
+// connection until it does. Answering later still produces the response.
+static int test_httptest_srvheld(void)
+{
+    int ret     = 0;
+    SrvRec rec  = { 0 };
+    SrvFixture f;
+    string resp = 0;
+
+    if (!srvFixtureInit(&f, &rec, false)) {
+        srvFixtureDestroy(&f);
+        srvRecDestroy(&rec);
+        return 1;
+    }
+
+    rec.hold = true;
+
+    srvSend(&f, "GET /slow HTTP/1.1\r\nHost: h\r\n\r\nGET /next HTTP/1.1\r\nHost: h\r\n\r\n");
+    srvRead(&f, &resp, 0);
+
+    // The first request arrived; the second must not have been looked at yet.
+    if (rec.requestCount != 1 || !rec.held)
+        ret = 1;
+    if (strLen(resp) != 0)
+        ret = 1;
+
+    // Answer it, and the connection moves on to the request that was waiting behind it.
+    rec.hold = false;
+    httpsrvreqRespond(rec.held, _SL("late"), _SL("text/plain"));
+    objRelease(&rec.held);
+
+    srvRead(&f, &resp, 0);
+    srvTick(&f, 20);
+    srvRead(&f, &resp, 0);
+
+    if (rec.requestCount != 2 || !strEq(rec.path, _SL("/next")))
+        ret = 1;
+    if (strFind(resp, 0, _SL("late")) < 0)
+        ret = 1;
+
+    strDestroy(&resp);
+    srvFixtureDestroy(&f);
+    srvRecDestroy(&rec);
+    return ret;
+}
+
+// A handler that holds a request past the death of its connection answers into nothing rather than
+// into a freed socket. This is what the weak back-pointer from request to connection is for.
+static int test_httptest_srvlateresponse(void)
+{
+    int ret    = 0;
+    SrvRec rec = { 0 };
+    SrvFixture f;
+    string resp = 0;
+
+    if (!srvFixtureInit(&f, &rec, false)) {
+        srvFixtureDestroy(&f);
+        srvRecDestroy(&rec);
+        return 1;
+    }
+
+    rec.hold = true;
+    srvSend(&f, "GET /slow HTTP/1.1\r\nHost: h\r\n\r\n");
+    srvRead(&f, &resp, 0);
+
+    if (rec.requestCount != 1 || !rec.held)
+        ret = 1;
+
+    // The client gives up while the handler is still holding the request.
+    closesocket(f.client);
+    f.client = INVALID_SOCKET;
+    srvTick(&f, 40);
+
+    if (httpserverConnCount(f.srv) != 0)
+        ret = 1;
+    if (rec.closedCount != 1)
+        ret = 1;
+
+    // The request outlived its connection, and answering it now says so instead of writing into a
+    // socket that is gone.
+    if (rec.held && httpsrvreqRespond(rec.held, _SL("too late"), _SL("text/plain")))
+        ret = 1;
+
+    strDestroy(&resp);
+    srvFixtureDestroy(&f);
+    srvRecDestroy(&rec);
+    return ret;
+}
+
+// The same server, reached through a listener the caller bound and handed over.
+static int test_httptest_srvattach(void)
+{
+    int ret     = 0;
+    SrvRec rec  = { 0 };
+    SrvFixture f;
+    string resp = 0;
+
+    if (!srvFixtureInit(&f, &rec, true)) {
+        srvFixtureDestroy(&f);
+        srvRecDestroy(&rec);
+        return 1;
+    }
+
+    srvSend(&f, "GET /attached HTTP/1.1\r\nHost: h\r\n\r\n");
+    srvRead(&f, &resp, 0);
+
+    if (rec.requestCount != 1 || !strEq(rec.path, _SL("/attached")))
+        ret = 1;
+    if (!strBeginsWith(resp, _SL("HTTP/1.1 200 OK\r\n")))
+        ret = 1;
+
+    strDestroy(&resp);
+    srvFixtureDestroy(&f);
+    srvRecDestroy(&rec);
+    return ret;
+}
+
+// A request body streamed into a StreamBuffer chosen from the head handler, rather than being
+// accumulated on the request. Nothing lands in req->body at all -- the point of a sink is that the
+// bytes never have to be held all at once.
+static int test_httptest_srvsink(void)
+{
+    int ret     = 0;
+    SrvRec rec  = { 0 };
+    SrvFixture f;
+    string resp = 0;
+
+    rec.useSink = true;
+
+    if (!srvFixtureInit(&f, &rec, false)) {
+        srvFixtureDestroy(&f);
+        srvRecDestroy(&rec);
+        return 1;
+    }
+
+    srvSend(&f,
+            "POST /upload HTTP/1.1\r\n"
+            "Host: h\r\n"
+            "Content-Length: 11\r\n"
+            "\r\n"
+            "sink-body!!");
+    srvRead(&f, &resp, 0);
+    srvSinkDrain(&rec);
+
+    if (rec.headCount != 1 || rec.requestCount != 1)
+        ret = 1;
+    if (!strEq(rec.sinkData, _SL("sink-body!!")))
+        ret = 1;
+
+    // The body went to the sink, so it was never accumulated on the request.
+    if (!strEmpty(rec.body))
+        ret = 1;
+    if (!strBeginsWith(resp, _SL("HTTP/1.1 200 OK\r\n")))
+        ret = 1;
+
+    strDestroy(&resp);
+    srvFixtureDestroy(&f);
+    srvRecDestroy(&rec);
+    return ret;
+}
+
+// A chunked request body reaching a sink, which is the case where the bytes the client sent and the
+// bytes the application receives are not the same bytes: the chunk framing has to come off on the
+// way past.
+static int test_httptest_srvsinkchunked(void)
+{
+    int ret     = 0;
+    SrvRec rec  = { 0 };
+    SrvFixture f;
+    string resp = 0;
+
+    rec.useSink = true;
+
+    if (!srvFixtureInit(&f, &rec, false)) {
+        srvFixtureDestroy(&f);
+        srvRecDestroy(&rec);
+        return 1;
+    }
+
+    srvSend(&f,
+            "POST /upload HTTP/1.1\r\n"
+            "Host: h\r\n"
+            "Transfer-Encoding: chunked\r\n"
+            "\r\n"
+            "5\r\nhello\r\n"
+            "6\r\n world\r\n"
+            "0\r\n\r\n");
+    srvRead(&f, &resp, 0);
+    srvSinkDrain(&rec);
+
+    if (rec.requestCount != 1 || !strEq(rec.sinkData, _SL("hello world")))
+        ret = 1;
+    if (!strBeginsWith(resp, _SL("HTTP/1.1 200 OK\r\n")))
+        ret = 1;
+
+    strDestroy(&resp);
+    srvFixtureDestroy(&f);
+    srvRecDestroy(&rec);
+    return ret;
+}
+
+// With a data handler registered and no sink, body bytes arrive through the callback and are not
+// accumulated anywhere.
+static int test_httptest_srvdata(void)
+{
+    int ret     = 0;
+    SrvRec rec  = { 0 };
+    SrvFixture f;
+    string resp = 0;
+
+    if (!srvStart(&f, &rec, false)) {
+        srvFixtureDestroy(&f);
+        srvRecDestroy(&rec);
+        return 1;
+    }
+    httpserverSetHandlers(f.srv, &kSrvDataHandlers, &rec);
+    if (!srvConnect(&f)) {
+        srvFixtureDestroy(&f);
+        srvRecDestroy(&rec);
+        return 1;
+    }
+
+    srvSend(&f,
+            "POST /d HTTP/1.1\r\n"
+            "Host: h\r\n"
+            "Content-Length: 9\r\n"
+            "\r\n"
+            "data-body");
+    srvRead(&f, &resp, 0);
+
+    if (rec.dataCount < 1 || !strEq(rec.dataBody, _SL("data-body")))
+        ret = 1;
+    if (!strEmpty(rec.body))
+        ret = 1;   // claimed by the data handler, so nothing was buffered
+
+    strDestroy(&resp);
+    srvFixtureDestroy(&f);
+    srvRecDestroy(&rec);
+    return ret;
+}
+
+// A response body streamed from a StreamBuffer with a known length. The length goes out in a
+// Content-Length and the body arrives whole, in order, across however many passes the pump needed.
+static int test_httptest_srvstreamresp(void)
+{
+    int ret     = 0;
+    SrvRec rec  = { 0 };
+    SrvFixture f;
+    string resp = 0;
+
+    rec.streamResp    = true;
+    rec.respStreamLen = (int64)strlen(SRV_STREAM_BODY);
+
+    if (!srvFixtureInit(&f, &rec, false)) {
+        srvFixtureDestroy(&f);
+        srvRecDestroy(&rec);
+        return 1;
+    }
+
+    srvSend(&f, "GET /stream HTTP/1.1\r\nHost: h\r\n\r\n");
+    srvRead(&f, &resp, 0);
+
+    if (rec.requestCount != 1)
+        ret = 1;
+    if (!strBeginsWith(resp, _SL("HTTP/1.1 200 OK\r\n")))
+        ret = 1;
+
+    string clen = 0;
+    strAppend(&clen, _SL("Content-Length: "));
+    string nstr = 0;
+    strFromInt64(&nstr, (int64)strlen(SRV_STREAM_BODY), 10);
+    strAppend(&clen, nstr);
+    strAppend(&clen, _SL("\r\n"));
+    strDestroy(&nstr);
+
+    if (strFind(resp, 0, clen) < 0)
+        ret = 1;
+    if (strFind(resp, 0, _SL("Transfer-Encoding")) >= 0)
+        ret = 1;   // a known length is never chunked as well
+    if (!strEndsWith(resp, _SL(SRV_STREAM_BODY)))
+        ret = 1;
+
+    strDestroy(&clen);
+    strDestroy(&resp);
+    srvFixtureDestroy(&f);
+    srvRecDestroy(&rec);
+    return ret;
+}
+
+// The same body with no length known up front, which has to go out chunked. The terminating
+// zero-length chunk is what lets the connection survive it.
+static int test_httptest_srvchunkedresp(void)
+{
+    int ret     = 0;
+    SrvRec rec  = { 0 };
+    SrvFixture f;
+    string resp = 0;
+
+    rec.streamResp    = true;
+    rec.respStreamLen = -1;
+
+    if (!srvFixtureInit(&f, &rec, false)) {
+        srvFixtureDestroy(&f);
+        srvRecDestroy(&rec);
+        return 1;
+    }
+
+    srvSend(&f, "GET /chunked HTTP/1.1\r\nHost: h\r\n\r\n");
+    srvRead(&f, &resp, 0);
+
+    if (rec.requestCount != 1)
+        ret = 1;
+    if (strFind(resp, 0, _SL("Transfer-Encoding: chunked\r\n")) < 0)
+        ret = 1;
+    if (strFind(resp, 0, _SL("Content-Length")) >= 0)
+        ret = 1;   // chunked and a length together is the framing conflict smuggling lives in
+    if (!strEndsWith(resp, _SL("\r\n0\r\n\r\n")))
+        ret = 1;
+
+    // Decode the chunked body back and check it round-tripped intact.
+    int32 hdrEnd = strFind(resp, 0, _SL("\r\n\r\n"));
+    if (hdrEnd < 0) {
+        ret = 1;
+    } else {
+        string enc = 0;
+        strSubStr(&enc, resp, hdrEnd + 4, strLen(resp));
+
+        BufRing in;
+        bufringInit(&in, 256);
+        bufringWrite(&in, (uint8*)strPC(&enc), strLen(enc));
+
+        HttpParser p;
+        HttpLimits lim;
+        httpLimitsDefault(&lim);
+        httpParserInit(&p, false, &lim);
+        // Feed it as a response so the chunked decoder runs over just the body.
+        string wrapped = 0;
+        strAppend(&wrapped, _SL("HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n"));
+        strAppend(&wrapped, enc);
+
+        bufringDestroy(&in);
+        bufringInit(&in, 256);
+        bufringWrite(&in, (uint8*)strPC(&wrapped), strLen(wrapped));
+
+        string decoded = 0;
+        for (;;) {
+            HttpParseResult pr = httpParserStep(&p, &in);
+            if (pr == HTTPP_Body) {
+                uint8 b[256];
+                size_t remaining = p.bodyReady;
+                while (remaining > 0) {
+                    size_t got = bufringRead(&in, b, min(remaining, sizeof(b)));
+                    strAppendBytes(&decoded, b, (uint32)got);
+                    remaining -= got;
+                }
+                continue;
+            }
+            if (pr == HTTPP_Head)
+                continue;
+            break;
+        }
+
+        if (!strEq(decoded, _SL(SRV_STREAM_BODY)))
+            ret = 1;
+
+        strDestroy(&decoded);
+        strDestroy(&wrapped);
+        strDestroy(&enc);
+        bufringDestroy(&in);
+        httpParserDestroy(&p);
+    }
+
+    strDestroy(&resp);
+    srvFixtureDestroy(&f);
+    srvRecDestroy(&rec);
+    return ret;
+}
+
+// The same streamed response driven by a push producer instead of a pull one. Worth its own test
+// because the two ask the buffer for bytes in different ways, and only one of them may ask for more
+// than the buffer is holding.
+static int test_httptest_srvpushresp(void)
+{
+    int ret     = 0;
+    SrvRec rec  = { 0 };
+    SrvFixture f;
+    string resp = 0;
+
+    rec.streamResp = true;
+    rec.pushResp   = true;
+
+    if (!srvFixtureInit(&f, &rec, false)) {
+        srvFixtureDestroy(&f);
+        srvRecDestroy(&rec);
+        return 1;
+    }
+
+    srvSend(&f, "GET /push HTTP/1.1\r\nHost: h\r\n\r\n");
+    srvRead(&f, &resp, 0);
+
+    if (rec.requestCount != 1)
+        ret = 1;
+    if (!strBeginsWith(resp, _SL("HTTP/1.1 200 OK\r\n")))
+        ret = 1;
+    if (!strEndsWith(resp, _SL(SRV_STREAM_BODY)))
+        ret = 1;
+
+    strDestroy(&resp);
+    srvFixtureDestroy(&f);
+    srvRecDestroy(&rec);
+    return ret;
+}
+
+// Expect: 100-continue is answered by the server before the body is read, and the real response
+// follows once it arrives. Both go out on the same connection, in that order.
+static int test_httptest_srvcontinue(void)
+{
+    int ret     = 0;
+    SrvRec rec  = { 0 };
+    SrvFixture f;
+    string resp = 0;
+
+    if (!srvFixtureInit(&f, &rec, false)) {
+        srvFixtureDestroy(&f);
+        srvRecDestroy(&rec);
+        return 1;
+    }
+
+    // Head first, and nothing else: a client that means it waits before sending its body.
+    srvSend(&f,
+            "POST /up HTTP/1.1\r\n"
+            "Host: h\r\n"
+            "Expect: 100-continue\r\n"
+            "Content-Length: 4\r\n"
+            "\r\n");
+    srvRead(&f, &resp, 0);
+
+    if (!strBeginsWith(resp, _SL("HTTP/1.1 100 Continue\r\n\r\n")))
+        ret = 1;
+    if (rec.requestCount != 0)
+        ret = 1;   // the request is not complete until its body arrives
+
+    srvSend(&f, "body");
+    srvRead(&f, &resp, 0);
+
+    if (rec.requestCount != 1 || !strEq(rec.body, _SL("body")))
+        ret = 1;
+    if (strFind(resp, 0, _SL("HTTP/1.1 200 OK\r\n")) <= 0)
+        ret = 1;   // after the interim response, not instead of it
+
+    strDestroy(&resp);
+    srvFixtureDestroy(&f);
+    srvRecDestroy(&rec);
+    return ret;
+}
+
+// With auto-continue off, nothing is sent until the head handler says so.
+static int test_httptest_srvcontinuemanual(void)
+{
+    int ret     = 0;
+    SrvRec rec  = { 0 };
+    SrvFixture f;
+    string resp = 0;
+
+    if (!srvStart(&f, &rec, false)) {
+        srvFixtureDestroy(&f);
+        srvRecDestroy(&rec);
+        return 1;
+    }
+    f.srv->autoContinue = false;
+    if (!srvConnect(&f)) {
+        srvFixtureDestroy(&f);
+        srvRecDestroy(&rec);
+        return 1;
+    }
+
+    // The head handler answers 413 instead of letting the body come, which is the whole reason to
+    // take the decision over.
+    rec.headStatus = 413;
+
+    srvSend(&f,
+            "POST /big HTTP/1.1\r\n"
+            "Host: h\r\n"
+            "Expect: 100-continue\r\n"
+            "Content-Length: 9999\r\n"
+            "\r\n");
+    srvRead(&f, &resp, 0);
+
+    if (rec.headCount != 1)
+        ret = 1;
+    if (strFind(resp, 0, _SL("100 Continue")) >= 0)
+        ret = 1;   // refused, so no permission was ever given
+    if (!strBeginsWith(resp, _SL("HTTP/1.1 413 ")))
+        ret = 1;
+
+    // A body was refused before it was read, so the connection cannot carry another request --
+    // whatever the client sends next is the abandoned body, not a request line.
+    if (strFind(resp, 0, _SL("Connection: close\r\n")) < 0)
+        ret = 1;
+    if (rec.requestCount != 0)
+        ret = 1;
+
+    strDestroy(&resp);
+    srvFixtureDestroy(&f);
+    srvRecDestroy(&rec);
+    return ret;
+}
+
+// An Expect the server does not implement is a 417 rather than something to quietly ignore: the
+// client is waiting for an answer it would otherwise never get.
+static int test_httptest_srvexpectbad(void)
+{
+    int ret     = 0;
+    SrvRec rec  = { 0 };
+    SrvFixture f;
+    string resp = 0;
+
+    if (!srvFixtureInit(&f, &rec, false)) {
+        srvFixtureDestroy(&f);
+        srvRecDestroy(&rec);
+        return 1;
+    }
+
+    srvSend(&f,
+            "POST /x HTTP/1.1\r\n"
+            "Host: h\r\n"
+            "Expect: something-else\r\n"
+            "Content-Length: 2\r\n"
+            "\r\n");
+    srvRead(&f, &resp, 0);
+
+    if (!strBeginsWith(resp, _SL("HTTP/1.1 417 ")))
+        ret = 1;
+    if (rec.requestCount != 0)
+        ret = 1;
+
+    strDestroy(&resp);
+    srvFixtureDestroy(&f);
+    srvRecDestroy(&rec);
+    return ret;
+}
+
+// Responding from a thread that is not the connection's worker. The response has to arrive intact
+// and in one piece: the write is handed to the flow rather than performed where respond() was
+// called, so what this really pins is that the handoff happens at all.
+typedef struct DeferredCtx {
+    HttpServerRequest* req;
+    Event done;
+} DeferredCtx;
+
+static int deferredThread(Thread* self)
+{
+    DeferredCtx* d = NULL;
+    if (!stvlNext(&self->args, ptr, &d) || !d)
+        return 0;
+
+    httpsrvreqSetHeader(d->req, _SL("X-Deferred"), _SL("yes"));
+    httpsrvreqRespond(d->req, _SL("from-another-thread"), _SL("text/plain"));
+
+    eventSignal(&d->done);
+    return 0;
+}
+
+static int test_httptest_srvdeferred(void)
+{
+    int ret     = 0;
+    SrvRec rec  = { 0 };
+    SrvFixture f;
+    string resp = 0;
+    Thread* th  = NULL;
+
+    // The handler keeps the request and answers from somewhere else entirely.
+    rec.hold = true;
+
+    if (!srvFixtureInit(&f, &rec, false)) {
+        srvFixtureDestroy(&f);
+        srvRecDestroy(&rec);
+        return 1;
+    }
+
+    srvSend(&f, "GET /deferred HTTP/1.1\r\nHost: h\r\n\r\n");
+    for (int i = 0; i < 50 && !rec.held; i++)
+        netqueueTick(f.q, 5);
+
+    if (!rec.held) {
+        srvFixtureDestroy(&f);
+        srvRecDestroy(&rec);
+        return 1;
+    }
+
+    DeferredCtx d = { 0 };
+    d.req         = rec.held;
+    eventInit(&d.done);
+
+    th = thrCreate(deferredThread, _S "http deferred respond", stvar(ptr, &d));
+    if (!th) {
+        eventDestroy(&d.done);
+        srvFixtureDestroy(&f);
+        srvRecDestroy(&rec);
+        return 1;
+    }
+
+    // The respond() call itself returns as soon as the handoff is armed; the bytes only move when a
+    // worker picks it up, which for a polled queue means here.
+    eventWaitTimeout(&d.done, timeS(5));
+    srvRead(&f, &resp, 0);
+
+    if (!strBeginsWith(resp, _SL("HTTP/1.1 200 OK\r\n")))
+        ret = 1;
+    if (strFind(resp, 0, _SL("X-Deferred: yes\r\n")) < 0)
+        ret = 1;
+    if (!strEndsWith(resp, _SL("\r\n\r\nfrom-another-thread")))
+        ret = 1;
+    if (strFind(resp, 0, _SL("Content-Length: 19\r\n")) < 0)
+        ret = 1;
+
+    thrWait(th, timeForever);
+    thrShutdown(th);
+    thrRelease(&th);
+    eventDestroy(&d.done);
+
+    strDestroy(&resp);
+    srvFixtureDestroy(&f);
+    srvRecDestroy(&rec);
+    return ret;
+}
+
+// https end to end: a real handshake against a listener the server filtered itself. The peer is
+// hand-written again -- a raw TLS socket writing request bytes -- because what is being tested is
+// that nothing above the socket changed, and a cx client would hide that by changing too.
+typedef struct TlsPeer {
+    NetSocket* sock;
+    string in;
+    bool secured;
+} TlsPeer;
+
+static void onTlsPeerRecv(NetEvent* ev)
+{
+    TlsPeer* pr = (TlsPeer*)ev->ctx;
+    uint8 buf[2048];
+    size_t n;
+    while ((n = netsocketRecv(ev->socket, buf, sizeof(buf), NULL, 0)) > 0)
+        strAppendBytes(&pr->in, buf, (uint32)n);
+}
+
+static void onTlsPeerNotify(NetEvent* ev)
+{
+    TlsPeer* pr = (TlsPeer*)ev->ctx;
+    if (ev->filter.notify == NFN_Secured)
+        pr->secured = true;
+}
+
+static const NetHandlers kTlsPeerHandlers = {
+    .recv         = onTlsPeerRecv,
+    .filterNotify = onTlsPeerNotify,
+};
+
+static int test_httptest_srvtls(void)
+{
+    int ret         = 0;
+    SrvRec rec      = { 0 };
+    TlsTestPKI pki  = { 0 };
+    TlsCAStore* ca  = NULL;
+    TlsCreds* creds = NULL;
+    TlsConfig* scfg = NULL;
+    TlsConfig* ccfg = NULL;
+    HttpServer* srv = NULL;
+    NetQueue* q     = NULL;
+    TlsPeer peer    = { 0 };
+
+    if (!tlsTestPKIInit(&pki))
+        return 1;
+
+    ca = tlscastoreCreate();
+    if (!ca || !tlscastoreAddPEM(ca, pki.caCert)) {
+        ret = 1;
+        goto out;
+    }
+
+    creds = tlscredsCreatePEM(pki.serverCert, pki.serverKey, NULL);
+    scfg  = creds ? tlsconfigCreateServer(creds) : NULL;
+    ccfg  = tlsconfigCreateClient();
+    if (!scfg || !ccfg) {
+        ret = 1;
+        goto out;
+    }
+    tlsconfigSetCA(ccfg, ca);
+
+    NetQueueConfig conf;
+    netqueuePresetServer(&conf);
+    conf.nthreads = 0;
+    q             = netqueueCreate(&conf);
+    if (!q) {
+        ret = 1;
+        goto out;
+    }
+
+    srv = httpserverCreate(q);
+    if (!srv) {
+        ret = 1;
+        goto out;
+    }
+    httpserverSetHandlers(srv, &kSrvHandlers, &rec);
+
+    NetAddr la;
+    netAddrFromStr(&la, _SL("127.0.0.1"));
+    la.port = 0;
+
+    if (!httpserverListenTls(srv, &la, 4, scfg)) {
+        ret = 1;
+        goto out;
+    }
+
+    // Dialed by address, verified by name: the certificate carries TLS_TEST_HOSTNAME and nothing
+    // else, so a handshake that completes proves the filter on the listener was the server's.
+    peer.sock = nettlsConnect(q, _SL("127.0.0.1"), httpserverPort(srv), _S TLS_TEST_HOSTNAME, ccfg,
+                              &kTlsPeerHandlers, &peer);
+    if (!peer.sock) {
+        ret = 1;
+        goto out;
+    }
+
+    for (int i = 0; i < 500 && !peer.secured; i++)
+        netqueueTick(q, 10);
+
+    if (!peer.secured) {
+        ret = 1;
+        goto out;
+    }
+
+    STR_CONST(reqbytes, "GET /secure HTTP/1.1\r\nHost: " TLS_TEST_HOSTNAME "\r\n\r\n");
+    if (!netsocketSend(peer.sock, (uint8*)strC(reqbytes), strLen(reqbytes), NULL, 0)) {
+        ret = 1;
+        goto out;
+    }
+
+    // Waiting on the body rather than on the header terminator: the two arrive in separate TLS
+    // records, and stopping at the blank line would read the response as bodiless.
+    for (int i = 0; i < 500 && !strEndsWith(peer.in, _SL("\r\n\r\nhello")); i++)
+        netqueueTick(q, 10);
+
+    if (rec.requestCount != 1 || !strEq(rec.path, _SL("/secure")))
+        ret = 1;
+    if (!strBeginsWith(peer.in, _SL("HTTP/1.1 200 OK\r\n")))
+        ret = 1;
+    if (!strEndsWith(peer.in, _SL("\r\n\r\nhello")))
+        ret = 1;
+
+out:
+    if (peer.sock) {
+        netsocketClose(peer.sock);
+        objRelease(&peer.sock);
+    }
+    strDestroy(&peer.in);
+    if (srv) {
+        httpserverShutdown(srv);
+        objRelease(&srv);
+    }
+    if (q) {
+        netqueueShutdown(q, 0);
+        objRelease(&q);
+    }
+    objRelease(&scfg);
+    objRelease(&ccfg);
+    objRelease(&creds);
+    objRelease(&ca);
+    tlsTestPKIDestroy(&pki);
+    srvRecDestroy(&rec);
+    return ret;
+}
+
+// The one only now possible: HttpClient against HttpServer on one polled queue. Both halves are
+// exercised at once, which is worth having even though a hand-written peer proves more.
+static int test_httptest_srvroundtrip(void)
+{
+    int ret    = 0;
+    SrvRec rec = { 0 };
+    ConnRec cr = { 0 };
+
+    NetQueueConfig conf;
+    netqueuePresetServer(&conf);
+    conf.nthreads = 0;
+    NetQueue* q   = netqueueCreate(&conf);
+    if (!q)
+        return 1;
+
+    HttpServer* srv = httpserverCreate(q);
+    HttpClient* cl  = httpclientCreate(q);
+    HttpRequest* r  = NULL;
+    string url      = 0;
+
+    if (!srv || !cl) {
+        ret = 1;
+        goto out;
+    }
+
+    httpserverSetHandlers(srv, &kSrvHandlers, &rec);
+
+    NetAddr la;
+    netAddrFromStr(&la, _SL("127.0.0.1"));
+    la.port = 0;
+    if (!httpserverListen(srv, &la, 4)) {
+        ret = 1;
+        goto out;
+    }
+
+    string portstr = 0;
+    strFromInt64(&portstr, httpserverPort(srv), 10);
+    strAppend(&url, _SL("http://127.0.0.1:"));
+    strAppend(&url, portstr);
+    strAppend(&url, _SL("/round?q=1"));
+    strDestroy(&portstr);
+
+    r = httprequestCreate(HTTP_Get, url);
+    if (!r || !httpclientSend(cl, r, &kConnRecHandlers, &cr)) {
+        ret = 1;
+        goto out;
+    }
+
+    for (int i = 0; i < 200 && !cr.completeCount && !cr.errorCount; i++)
+        netqueueTick(q, 10);
+
+    if (cr.completeCount != 1 || cr.errorCount != 0)
+        ret = 1;
+
+    // The body arrives through the data callback rather than being buffered on the request: the
+    // handler set registered here has one, and a client that asked for chunks gets chunks.
+    if (r->status != 200 || cr.status != 200 || !strEq(cr.body, _SL("hello")))
+        ret = 1;
+    if (!strEq(cr.ctype, _SL("text/plain")))
+        ret = 1;
+    if (rec.requestCount != 1 || !strEq(rec.path, _SL("/round")) || !strEq(rec.query, _SL("q=1")))
+        ret = 1;
+
+out:
+    strDestroy(&cr.body);
+    strDestroy(&cr.ctype);
+    strDestroy(&url);
+    objRelease(&r);
+    objRelease(&cl);
+    if (srv) {
+        httpserverShutdown(srv);
+        objRelease(&srv);
+    }
+    netqueueShutdown(q, 0);
+    objRelease(&q);
+    srvRecDestroy(&rec);
+    return ret;
+}
+
 #endif   // _WIN32 || _PLATFORM_UNIX
 
 testfunc httptest_funcs[] = {
@@ -2917,6 +4577,33 @@ testfunc httptest_funcs[] = {
     { "clientcanceldone",  test_httptest_clientcanceldone  },
     { "clientcancelpool",  test_httptest_clientcancelpool  },
     { "conncancel",        test_httptest_conncancel        },
+    { "srvget",             test_httptest_srvget             },
+    { "srvpost",            test_httptest_srvpost            },
+    { "srvchunkedreq",      test_httptest_srvchunkedreq      },
+    { "srvkeepalive",       test_httptest_srvkeepalive       },
+    { "srvclose",           test_httptest_srvclose           },
+    { "srvserialized",      test_httptest_srvserialized      },
+    { "srvbadrequest",      test_httptest_srvbadrequest      },
+    { "srvbadtarget",       test_httptest_srvbadtarget       },
+    { "srvtoolarge",        test_httptest_srvtoolarge        },
+    { "srvheadreadtimeout", test_httptest_srvheadreadtimeout },
+    { "srvhead",            test_httptest_srvhead            },
+    { "srvnobody",          test_httptest_srvnobody          },
+    { "srvheld",            test_httptest_srvheld            },
+    { "srvlateresponse",    test_httptest_srvlateresponse    },
+    { "srvattach",          test_httptest_srvattach          },
+    { "srvsink",            test_httptest_srvsink            },
+    { "srvsinkchunked",     test_httptest_srvsinkchunked     },
+    { "srvdata",            test_httptest_srvdata            },
+    { "srvstreamresp",      test_httptest_srvstreamresp      },
+    { "srvchunkedresp",     test_httptest_srvchunkedresp     },
+    { "srvpushresp",        test_httptest_srvpushresp        },
+    { "srvcontinue",        test_httptest_srvcontinue        },
+    { "srvcontinuemanual",  test_httptest_srvcontinuemanual  },
+    { "srvexpectbad",       test_httptest_srvexpectbad       },
+    { "srvdeferred",        test_httptest_srvdeferred        },
+    { "srvtls",             test_httptest_srvtls             },
+    { "srvroundtrip",       test_httptest_srvroundtrip       },
 #endif
     { 0,              0                          },
 };

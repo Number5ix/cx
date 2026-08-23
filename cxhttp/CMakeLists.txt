@@ -1,6 +1,7 @@
 include (${CX_TOP_SOURCE_DIR}/cmake/werror.cmake)
 
-add_cxautogen(httprequest.cxh httpconn.cxh httpcookie.cxh httpclient.cxh)
+add_cxautogen(httprequest.cxh httpconn.cxh httpcookie.cxh httpclient.cxh
+              httpserverreq.cxh httpserverconn.cxh httpserver.cxh)
 
 add_library(cxhttp STATIC
     httpinit.c
@@ -18,6 +19,12 @@ add_library(cxhttp STATIC
     httpclient.c
     httpclient.cxh
     httpform.c
+    httpserverreq.c
+    httpserverreq.cxh
+    httpserverconn.c
+    httpserverconn.cxh
+    httpserver.c
+    httpserver.cxh
     include/cxhttp.h
     include/cxhttp/http_shared.h
     http_private.h)

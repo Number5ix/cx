@@ -510,7 +510,7 @@ static void beginOnSocket(HttpRequest* req, NetSocket* sock)
         return;
     }
 
-    httpconnSetTimeout(conn, self->responseTimeout);
+    conn->timeout = self->responseTimeout;
 
     if (!httpconnRequest(conn, req, exchangeHandlers(req), NULL))
         failExchange(self, req, HTTPERR_Network, NERR_None);
@@ -654,7 +654,7 @@ static void startExchange(HttpClient* self, HttpRequest* req)
         // A pooled connection carries the pool's closed handler; the exchange needs it back so a
         // death mid-request reaches the request rather than the pool it is no longer in.
         httpconnSetClosedHandler(pooled, NULL, NULL);
-        httpconnSetTimeout(pooled, self->responseTimeout);
+        pooled->timeout = self->responseTimeout;
 
         withMutex (&req->exLock) {
             req->conn = pooled;
@@ -765,17 +765,6 @@ bool HttpClient_setHeader(_In_ HttpClient* self, _In_opt_ strref name, _In_opt_ 
             ok = httpHeadersSet(&self->defaultHeaders, name, value);
     }
     return ok;
-}
-
-void HttpClient_setMaxRedirects(_In_ HttpClient* self, uint32 count)
-{
-    self->maxRedirects = count;
-}
-
-void HttpClient_setTimeouts(_In_ HttpClient* self, int64 response, int64 idle)
-{
-    self->responseTimeout = response;
-    self->idleTimeout     = idle;
 }
 
 bool HttpClient_send(_In_ HttpClient* self, _In_ HttpRequest* req,

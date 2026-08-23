@@ -41,6 +41,14 @@ bool _httpIsToken(_In_opt_ strref s);
 // value off the wire, where "Name:   value  " has to become "value".
 void _httpTrimOWS(_Inout_ strhandle s);
 
+// The standard reason phrase for a status code, or NULL for one this does not know. Nothing reads
+// a reason phrase, so an unrecognized code travels without one rather than needing a full table.
+strref _httpReasonPhrase(uint16 status);
+
+// True for a status whose response carries no body however it is framed (RFC 9110 6.4.1): 1xx, 204
+// and 304. A Content-Length on one of these is a framing conflict, not merely redundant.
+bool _httpStatusHasNoBody(uint16 status);
+
 // Append bytes whose length is a size_t. strAppendBytes() takes a uint32, and on 64-bit Windows
 // that narrowing is a warning -- rightly, because a body length here comes off the wire. Appending
 // in uint32-sized runs turns a silent truncation into either a correct append or an honest failure.
@@ -57,21 +65,6 @@ bool _httpAppendBytes(_Inout_ strhandle out, _In_reads_bytes_opt_(len) const uin
 // Internal rather than public API: HttpConn is the supported low-level entry point. This is
 // exposed to the test suite through <cxhttp/http_private.h> the same way cx/net/net_private.h is.
 // ---------------------------------------------------------------------------------------------
-
-/// Bounds on what a peer is allowed to send us
-///
-/// Every one of these exists because the parser reads untrusted bytes and an unbounded read is a
-/// denial of service. httpLimitsDefault() fills in values suited to the "behind a reverse proxy"
-/// deployment cxhttp is written for.
-typedef struct HttpLimits {
-    uint32 maxLineLen;       ///< Longest single start line or header line, in bytes
-    uint32 maxHeaderCount;   ///< Most header fields in one message
-    uint32 maxHeadBytes;     ///< Total size of the start line and header block together
-    uint64 maxBodyBytes;     ///< Longest body; 0 means unlimited
-    uint32 maxChunkSize;     ///< Largest single chunk in a chunked body
-} HttpLimits;
-
-void httpLimitsDefault(_Out_ HttpLimits* out);
 
 // What one parser step produced. The caller loops until NeedMore, Complete, or Error.
 typedef enum {
@@ -127,9 +120,10 @@ typedef struct HttpParser {
     uint64 length;      // remaining bytes of a Content-Length body or of the current chunk
     uint64 bodyTotal;   // decoded body bytes produced so far, for maxBodyBytes
 
-    // Decoded body bytes waiting for the caller. The caller drains this after every HTTPP_Body,
-    // so it holds at most one read's worth rather than the whole body.
-    BufRing out;
+    // Bytes at the head of the source ring that are body and ready for the caller to drain, set
+    // alongside HTTPP_Body. The caller must remove all of them from the same ring passed to
+    // httpParserStep() before calling it again.
+    size_t bodyReady;
 
     uint32 headBytes;   // start line + headers consumed, for maxHeadBytes
     uint32 headerCount;

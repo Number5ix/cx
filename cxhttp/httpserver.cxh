@@ -1,0 +1,191 @@
+#include <cx/net/queue.cxh>
+#include <cx/net/socket.cxh>
+#include <cx/thread/mutex.h>
+#include <cxhttp/http_shared.h>
+#include <cxhttp/httpserverconn.cxh>
+#include <cxtls.h>
+
+/// @addtogroup http_server
+/// @{
+/// An HTTP/1.1 server over a NetQueue listener.
+///
+/// The server owns a listening socket and turns every connection on it into requests, each
+/// delivered to one callback with its body already read:
+///
+/// @code
+///   static void onRequest(HttpServerEvent* ev)
+///   {
+///       httpsrvreqRespond(ev->request, _SL("hello\r\n"), _SL("text/plain"));
+///   }
+///
+///   static const HttpServerHandlers handlers = { .request = onRequest };
+///
+///   NetAddr addr;
+///   netAddrFromStr(&addr, _SL("127.0.0.1"));
+///   addr.port = 8080;
+///
+///   HttpServer* srv = httpserverCreate(q);
+///   httpserverSetHandlers(srv, &handlers, NULL);
+///   httpserverListen(srv, &addr, 0);
+/// @endcode
+///
+/// There is no routing and no static file serving. The handler gets the method, the path, the
+/// headers and the body, and dispatches however the application wants to.
+///
+/// @section http_server_limits What a server has to bound
+///
+/// A server reads bytes from strangers, so every limit matters more than it does on the client
+/// side. Three are worth setting deliberately:
+///
+/// - **HttpServer::limits** caps the size of a head and a body. The default body limit is
+///   *unlimited*, which is wrong for anything accepting uploads -- set it.
+/// - **HttpServer::readHeadTimeout** bounds how long a client may take to send a request head,
+///   which is what stops a connection held open one byte at a time from costing anything.
+/// - **NetQueueConfig::maxflows** caps how many connections exist at once. It belongs to the queue
+///   rather than to the server, and it is already enforced.
+///
+/// @section http_server_threads Which thread a handler runs on
+///
+/// The same rule as everywhere else in netqueue: handlers run on a worker, serialized per
+/// connection, and must not block. A request that needs slow work should be answered from
+/// somewhere else rather than by waiting inside the callback.
+
+/// @brief An HTTP server listening on one socket
+class HttpServer
+{
+    /// @brief Queue the listener runs on, held strongly
+    object[NetQueue] queue;
+
+    /// @brief The listening socket, or NULL before listen()/attach()
+    object[NetSocket] listener;
+
+    /// @brief Handlers for every request this server receives, borrowed
+    HttpServerHandlers *handlers;
+    void *handlerCtx;
+
+    /// @brief Bounds on what a client may send
+    ///
+    /// Applies to connections accepted after it is changed. Call httpLimitsDefault(&srv->limits)
+    /// to reset it. The default body limit is *unlimited*, which is wrong for anything accepting
+    /// uploads -- set this.
+    HttpLimits limits;
+
+    /// @brief How long a request head may take to arrive, in microseconds; 0 for no limit
+    ///
+    /// This is what a connection opened and then held silent costs. A flow timer, so it is ordered
+    /// against everything else happening on the connection. Applies to connections accepted after
+    /// it is changed.
+    int64 readHeadTimeout;
+
+    /// @brief How long a connection may sit idle between requests, in microseconds; 0 for no limit
+    ///
+    /// A flow timer, so it is ordered against everything else happening on the connection. Applies
+    /// to connections accepted after it is changed.
+    int64 idleTimeout;
+
+    /// @brief Live connections, keyed by pointer and held strongly
+    ///
+    /// The server is what owns an accepted connection: nothing outside holds one, and without this
+    /// a connection would have to keep itself alive and could never be shut down from outside. Each
+    /// removes itself from here when it dies, which is why the table is keyed by pointer rather
+    /// than being a list -- a dying connection knows only its own address.
+    [noinit] hashtable[ptr,object] connections;
+
+    /// @brief Guards `connections`
+    ///
+    /// Connections are added and removed from their own flows' workers, which are not the same
+    /// thread as each other or as whoever calls shutdown().
+    Mutex lock;
+
+    bool shuttingDown;   ///< shutdown() has been called; new connections are refused
+
+    /// @brief Answer `Expect: 100-continue` automatically
+    ///
+    /// On by default: a request whose head is acceptable gets a `100 Continue` before its body is
+    /// read, which is what curl waits for on any body over a kilobyte.
+    ///
+    /// Turn it off to decide per request instead, from the head handler, which is the only way to
+    /// refuse a body before it is sent. The head handler then either calls httpsrvreqSendContinue()
+    /// to accept the body or answers the request outright to refuse it.
+    bool autoContinue;
+
+    /// Create a server on a queue
+    ///
+    /// Nothing is listening yet -- call httpserverListen() or httpserverAttach().
+    ///
+    /// @param queue Queue the server's sockets live on; a reference is held
+    /// @return The new server, or NULL if the queue is not usable
+    [canfail] factory create([in] NetQueue *queue);
+    init();
+    destroy();
+
+    /// Bind a listening socket and start serving on it
+    ///
+    /// @param addr Local address to bind; port 0 lets the OS pick one
+    /// @param backlog Listen backlog, or 0 for a platform default
+    /// @return true if the socket is bound and listening
+    bool listen([in] NetAddr *addr, int backlog);
+
+    /// Bind a listening socket for https and start serving on it
+    ///
+    /// The same as httpserverListen() with TLS. Nothing above the socket changes: a filtered socket
+    /// takes and returns plaintext, so requests arrive exactly as they do without one.
+    ///
+    /// @param addr Local address to bind; port 0 lets the OS pick one
+    /// @param backlog Listen backlog, or 0 for a platform default
+    /// @param cfg Server TLS configuration, which must carry a certificate and key
+    /// @return true if the socket is bound, filtered and listening
+    bool listenTls([in] NetAddr *addr, int backlog, [in] TlsConfig *cfg);
+
+    /// Serve on a listening socket the caller already owns
+    ///
+    /// For a listener that needed setting up in a way httpserverListen() does not cover -- a socket
+    /// option, or a filter attached before anything could connect. The socket must already be
+    /// listening, and the server takes over its handlers.
+    ///
+    /// @param listener A listening stream socket; a reference is held
+    /// @return true if the server took it over
+    bool attach([in] NetSocket *listener);
+
+    /// Register the handlers every request on this server is delivered to
+    ///
+    /// Not copied -- the struct must outlive the server, so it is usually `static const`.
+    ///
+    /// @param handlers Callbacks, or NULL to remove them
+    /// @param ctx Context passed to them on HttpServerEvent.ctx
+    void setHandlers([in] [opt] const HttpServerHandlers *handlers, [in] [opt] void *ctx);
+
+    /// The port the server is listening on
+    ///
+    /// Useful when the address given to httpserverListen() had port 0 and the OS chose one.
+    ///
+    /// @return Port in host byte order, or 0 if nothing is listening
+    uint16 port();
+
+    /// How many connections are open right now
+    ///
+    /// @return Live connection count
+    int32 connCount();
+
+    /// Stop listening and close every connection
+    ///
+    /// Nothing new is accepted afterwards, and this server cannot be restarted. The connections go
+    /// down through the ordinary path, so their closed handlers still run.
+    void shutdown();
+
+    // -----------------------------------------------------------------------------------------
+    // PRIVATE IMPLEMENTATION DETAILS
+    // -----------------------------------------------------------------------------------------
+
+    // Take a connection off the live list, dropping the server's reference to it. Called by the
+    // connection from its own terminal path.
+    [extern] unbound void _forget([in] HttpServerConn *conn);
+
+    // Deliver one event to the registered handlers. `data`/`len` are only read for
+    // HTTPSRVEV_Data.
+    [extern] unbound void _deliver(HttpServerEventType type, [in] [opt] HttpServerConn *conn,
+        [in] [opt] HttpServerRequest *req, [in] [opt] const uint8 *data, size_t len,
+        HttpError err, NetErrorCode neterr);
+}
+
+/// @}

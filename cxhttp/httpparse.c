@@ -6,8 +6,9 @@
 // about what a chunked body is -- which is exactly the disagreement request smuggling exploits.
 //
 // Nothing here ever requires a whole message to be resident. Each step consumes what it can from
-// the caller's ring and reports what that produced; the caller drains decoded body bytes out of
-// `p->out` as they appear. A 200-byte API reply and a gigabyte download take the same path.
+// the caller's ring and reports what that produced; on HTTPP_Body, the decoded bytes are still
+// sitting at the head of that same ring for the caller to drain. A 200-byte API reply and a
+// gigabyte download take the same path.
 //
 // Line-terminator policy is deliberately asymmetric, and the reason is worth stating:
 //
@@ -60,7 +61,6 @@ void httpParserInit(HttpParser* p, bool isRequest, const HttpLimits* limits)
         httpLimitsDefault(&p->limits);
 
     httpHeadersInit(&p->headers);
-    bufringInit(&p->out, 4096);
 }
 
 _Use_decl_annotations_
@@ -70,10 +70,6 @@ void httpParserReset(HttpParser* p)
     strDestroy(&p->methodName);
     strDestroy(&p->target);
     httpHeadersClear(&p->headers);
-
-    // The output ring is reused rather than rebuilt: on a keep-alive connection this runs between
-    // every request, and its segments are exactly what the next message will need.
-    bufringSkip(&p->out, p->out.total);
 
     p->state          = HTTPS_Start;
     p->err            = HTTPERR_None;
@@ -89,6 +85,7 @@ void httpParserReset(HttpParser* p)
     p->bodyTotal      = 0;
     p->headBytes      = 0;
     p->headerCount    = 0;
+    p->bodyReady      = 0;
 }
 
 _Use_decl_annotations_
@@ -98,7 +95,6 @@ void httpParserDestroy(HttpParser* p)
     strDestroy(&p->methodName);
     strDestroy(&p->target);
     httpHeadersDestroy(&p->headers);
-    bufringDestroy(&p->out);
 }
 
 // Move the parser to its terminal failure state. Every rejection funnels through here so there is
@@ -468,8 +464,9 @@ static HttpParseResult parseHeaderLine(HttpParser* p, strref line)
 // Bodies
 // ---------------------------------------------------------------------------------------------
 
-// Move up to `want` bytes of body out of `src` and into the parser's output ring, reporting how
-// many actually moved so the caller can count down whatever framing it is inside.
+// Claim up to `want` bytes of body at the head of `src`, reporting how many so the caller can
+// count down whatever framing it is inside. The bytes themselves are left in `src` -- the caller
+// drains them directly (see `bodyReady`) rather than having them copied through the parser.
 static HttpParseResult emitBody(HttpParser* p, BufRing* src, uint64 want, size_t* moved)
 {
     *moved = 0;
@@ -481,16 +478,9 @@ static HttpParseResult emitBody(HttpParser* p, BufRing* src, uint64 want, size_t
     if (p->limits.maxBodyBytes && p->bodyTotal + n > p->limits.maxBodyBytes)
         return fail(p, HTTPERR_TooLarge);
 
-    uint8* buf = (uint8*)xaAlloc(n, XA_Opt);
-    if (!buf)
-        return fail(p, HTTPERR_TooLarge);
-
-    bufringRead(src, buf, n);
-    bufringWrite(&p->out, buf, n);
-    xaFree(buf);
-
     p->bodyTotal += n;
-    *moved = n;
+    p->bodyReady  = n;
+    *moved        = n;
     return HTTPP_Body;
 }
 

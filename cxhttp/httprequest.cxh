@@ -49,7 +49,7 @@ class HttpRequest
     /// instead of a Content-Length.
     int64 reqBodyLen;
 
-    flags_t flags;            ///< HttpRequestFlags
+    flags_t flags;            ///< HttpRequestFlags to send with
 
     /// @brief Response status, valid once the headers have arrived
     uint16 status;
@@ -68,7 +68,11 @@ class HttpRequest
     /// cxhttp is the *producer* here, the mirror of reqBodyStream.
     StreamBuffer *respSink;
 
-    size_t maxBody;           ///< Cap on the buffered body, 0 for the parser's default
+    /// @brief Cap on the buffered response body, 0 for the parser's default
+    ///
+    /// Only applies to the default disposition. A response over the cap fails the request rather
+    /// than growing without limit -- which is the point, since the peer chooses the size.
+    size_t maxBody;
 
     HttpError err;            ///< Why the request failed, or HTTPERR_None
     NetErrorCode neterr;      ///< Transport cause when err is HTTPERR_Network
@@ -157,11 +161,6 @@ class HttpRequest
     /// @return true on success
     bool addHeader(strref name, strref value);
 
-    /// Set request flags (HttpRequestFlags)
-    ///
-    /// @param flags Flags to set
-    void setFlags(flags_t flags);
-
     /// Set a request body held in memory
     ///
     /// @param body Body text, copied
@@ -219,14 +218,6 @@ class HttpRequest
     ///   // ... the error handler still runs, on a worker, with HTTPERR_Aborted
     /// @endcode
     bool cancel();
-
-    /// Cap the buffered response body
-    ///
-    /// Only applies to the default disposition. A response over the cap fails the request rather
-    /// than growing without limit -- which is the point, since the peer chooses the size.
-    ///
-    /// @param max Maximum body size in bytes, or 0 for the parser default
-    void setMaxBody(size_t max);
 }
 
 /// @}

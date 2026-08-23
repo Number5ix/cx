@@ -203,7 +203,7 @@ int entryPoint()
         if (method == HTTP_MethodOther)
             httprequestSetMethodName(req, methodName);
 
-        httprequestSetFlags(req, reqFlags);
+        req->flags = reqFlags;
 
         for (int32 i = 0; i < saSize(extraHeaders); i++) {
             int32 colon = strFindChar(extraHeaders.a[i], 0, ':');

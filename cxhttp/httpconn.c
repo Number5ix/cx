@@ -163,11 +163,30 @@ static void onNetTimer(NetEvent* ev)
     objRelease(&c);
 }
 
+static bool pumpBodyStream(HttpConn* self, HttpRequest* req);
+
+// The socket's backlog drained below its low watermark, so a request body that stopped against the
+// high one can carry on. Without this a streamed body larger than the send buffer stops for good:
+// the pump backs off at the watermark, and nothing else on the connection is going to restart it --
+// the server is waiting for the rest of the request, so it sends nothing to wake us with.
+static void onNetSendReady(NetEvent* ev)
+{
+    HttpConn* c = enterConn(ev);
+    if (!c)
+        return;
+
+    if (c->writing && c->req && c->req->reqBodyStream)
+        pumpBodyStream(c, c->req);
+
+    objRelease(&c);
+}
+
 // Registered on the socket for the lifetime of the connection. Deliberately not per-request: the
 // peer can close or error between requests on a pooled connection, and there has to be somebody
 // listening when it does.
 static const NetHandlers kConnHandlers = {
     .recv       = onNetRecv,
+    .sendReady  = onNetSendReady,
     .flowClosed = onNetClosed,
     .error      = onNetError,
     .timer      = onNetTimer,
@@ -609,9 +628,12 @@ void HttpConn__pump(_In_ HttpConn* self)
         }
 
         if (r == HTTPP_Body) {
-            size_t got;
-            while ((got = bufringRead(&self->parser->out, buf, sizeof(buf))) > 0)
+            size_t remaining = self->parser->bodyReady;
+            while (remaining > 0) {
+                size_t got = bufringRead(&self->in, buf, min(remaining, sizeof(buf)));
                 deliverBody(self, buf, got);
+                remaining -= got;
+            }
             continue;
         }
 
@@ -644,11 +666,6 @@ void HttpConn_setClosedHandler(_In_ HttpConn* self, HttpConnClosedCB cb, _In_opt
 {
     self->closedCB  = cb;
     self->closedCtx = ctx;
-}
-
-void HttpConn_setTimeout(_In_ HttpConn* self, int64 us)
-{
-    self->timeout = us;
 }
 
 bool HttpConn_setIdleTimeout(_In_ HttpConn* self, int64 us)

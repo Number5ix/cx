@@ -60,7 +60,7 @@ class HttpClient
     /// default rather than an override.
     HttpHeaders defaultHeaders;
 
-    /// @brief How many redirects to follow before giving up
+    /// @brief How many redirects to follow before giving up; 0 makes every 3xx the final response
     uint32 maxRedirects;
 
     /// @brief How long a response may take before the request fails, in microseconds (0 = no limit)
@@ -110,17 +110,6 @@ class HttpClient
     /// @param value Field value, or empty to remove the default
     /// @return true on success
     bool setHeader(strref name, strref value);
-
-    /// Set how many redirects a request may follow
-    ///
-    /// @param count Maximum redirects; 0 makes every 3xx the final response
-    void setMaxRedirects(uint32 count);
-
-    /// Set the response and idle timeouts
-    ///
-    /// @param response Microseconds a response may take, or 0 for no limit
-    /// @param idle Microseconds an unused connection is pooled for, or 0 to disable pooling
-    void setTimeouts(int64 response, int64 idle);
 
     /// Send a request
     ///

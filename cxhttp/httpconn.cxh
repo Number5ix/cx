@@ -78,6 +78,11 @@ class HttpConn
     void *closedCtx;
 
     /// @brief How long a response may take, in microseconds; 0 for no limit
+    ///
+    /// Applies to requests started after it is changed. The clock runs from the moment the request
+    /// is written to the moment the response completes; an expired deadline delivers
+    /// HTTPERR_Timeout and puts the connection permanently out of use, since a half-read response
+    /// leaves nowhere to start the next one.
     int64 timeout;
 
     /// @brief Flow timer enforcing `timeout`, or 0 when no request is in flight
@@ -122,19 +127,11 @@ class HttpConn
 
     /// Register a callback for the connection's death
     ///
+    /// Not copied -- `ctx` is passed back on every call to `cb`.
+    ///
     /// @param cb Callback, or NULL to remove one
     /// @param ctx Context passed back to it
     void setClosedHandler(HttpConnClosedCB cb, [in] [opt] void *ctx);
-
-    /// Set how long a response may take
-    ///
-    /// Applies to requests started after this call. The clock runs from the moment the request is
-    /// written to the moment the response completes; an expired deadline delivers HTTPERR_Timeout
-    /// and puts the connection permanently out of use, since a half-read response leaves nowhere to
-    /// start the next one.
-    ///
-    /// @param us Microseconds, or 0 for no limit
-    void setTimeout(int64 us);
 
     /// Arm or cancel an idle deadline
     ///

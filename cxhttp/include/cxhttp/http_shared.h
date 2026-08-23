@@ -21,6 +21,9 @@ typedef struct HttpConn HttpConn;
 typedef struct HttpRequest HttpRequest;
 typedef struct HttpClient HttpClient;
 typedef struct HttpCookieJar HttpCookieJar;
+typedef struct HttpServer HttpServer;
+typedef struct HttpServerConn HttpServerConn;
+typedef struct HttpServerRequest HttpServerRequest;
 
 // Opaque parser state. Held by HttpConn but not part of its API: the supported way to read a
 // message is through the callbacks.
@@ -102,6 +105,23 @@ typedef enum {
     HTTPERR_TooManyRedirects,   ///< The redirect chain exceeded its limit
     HTTPERR_Aborted             ///< The request was cancelled by the application
 } HttpError;
+
+/// @brief Bounds on what a peer is allowed to send us
+///
+/// Every one of these exists because the parser reads untrusted bytes, and an unbounded read is a
+/// denial of service. httpLimitsDefault() fills in values suited to the deployment cxhttp is
+/// written for -- an API behind a reverse proxy, and a client fetching files.
+///
+/// A server should set `maxBodyBytes` to something its endpoints can actually handle. The default
+/// leaves it unlimited, which suits a client downloading a file of unknown size and does not suit
+/// anything accepting uploads from strangers.
+typedef struct HttpLimits {
+    uint32 maxLineLen;      ///< Longest single start line or header line, in bytes
+    uint32 maxHeaderCount;  ///< Most header fields in one message
+    uint32 maxHeadBytes;    ///< Total size of the start line and header block together
+    uint64 maxBodyBytes;    ///< Longest body; 0 means unlimited
+    uint32 maxChunkSize;    ///< Largest single chunk in a chunked body
+} HttpLimits;
 
 /// @}
 
@@ -344,6 +364,90 @@ typedef struct HttpHandlers {
 /// @param conn Connection that died; still valid for the duration of the callback
 /// @param ctx Context registered with httpconnSetClosedHandler()
 typedef void (*HttpConnClosedCB)(_In_ HttpConn* conn, _In_opt_ void* ctx);
+
+/// @}
+
+/// @addtogroup http_server
+/// @{
+
+/// What happened, as carried on HttpServerEvent
+typedef enum {
+    /// @brief A complete request arrived and is waiting for a response
+    ///
+    /// The head and the whole body have been received. This is where an application does its work
+    /// and answers.
+    HTTPSRVEV_Request = 1,
+
+    /// @brief The request head arrived; its body has not been read yet
+    ///
+    /// The chance to say where the body should go, before any of it has been read. Call
+    /// httpsrvreqSetSink() here to stream it into a StreamBuffer, or do nothing and let it be
+    /// buffered on the request. Also where an application that turned auto-continue off decides
+    /// whether to accept a body announced with `Expect: 100-continue`.
+    ///
+    /// Answering the request from here is allowed and skips the body entirely -- what a 401 or a
+    /// 413 should do rather than reading an upload it is going to throw away.
+    HTTPSRVEV_Head,
+
+    /// @brief A run of request body bytes arrived
+    ///
+    /// Only delivered when the request has no sink and a `data` handler is registered. Nothing is
+    /// accumulated on the request in that case, so this is the only place those bytes appear.
+    HTTPSRVEV_Data,
+
+    /// @brief The exchange failed before a response could be written; `err` says how
+    ///
+    /// The request is whatever had been received, and may be NULL if the failure came before a
+    /// request line was even complete. cxhttp has already sent an error response where one was
+    /// possible, so this is for logging rather than for answering.
+    HTTPSRVEV_Error,
+
+    /// @brief The connection ended
+    ///
+    /// Always the last event for a connection, error or not.
+    HTTPSRVEV_Closed
+} HttpServerEventType;
+
+/// Event delivered to an HttpServerHandlers callback
+typedef struct HttpServerEvent {
+    HttpServerEventType event;     ///< Which callback this is
+    HttpServerConn* conn;          ///< Connection it happened on
+    HttpServerRequest* request;    ///< Request it belongs to; NULL if none had been received
+    void* ctx;                     ///< Context registered alongside the handlers
+
+    const uint8* data;             ///< HTTPSRVEV_Data: the bytes, valid only for this call
+    size_t len;                    ///< HTTPSRVEV_Data: how many
+
+    HttpError err;                 ///< HTTPSRVEV_Error: why it failed
+    NetErrorCode neterr;           ///< HTTPSRVEV_Error: transport cause when err is HTTPERR_Network
+} HttpServerEvent;
+
+/// The callback type for a server event handler
+///
+/// Runs on the flow's worker, under the same rules every netqueue callback follows: do not block,
+/// and hand anything slow to a TaskQueue.
+typedef void (*HttpServerEventCB)(_In_ HttpServerEvent* event);
+
+/// @brief Callbacks for a server's requests
+///
+/// A plain struct of function pointers, mirroring HttpHandlers and NetHandlers, so the layers read
+/// alike:
+///
+/// @code
+///   static const HttpServerHandlers handlers = {
+///       .request = onRequest,
+///   };
+/// @endcode
+///
+/// A NULL entry is simply not called -- except `request`, without which the server has no way to
+/// answer anything and every request gets a 500.
+typedef struct HttpServerHandlers {
+    HttpServerEventCB head;      ///< HTTPSRVEV_Head: the head arrived; choose where the body goes
+    HttpServerEventCB data;      ///< HTTPSRVEV_Data: a run of body bytes, when nothing else claims them
+    HttpServerEventCB request;   ///< HTTPSRVEV_Request: a complete request is waiting for an answer
+    HttpServerEventCB error;     ///< HTTPSRVEV_Error: the exchange failed
+    HttpServerEventCB closed;    ///< HTTPSRVEV_Closed: the connection ended
+} HttpServerHandlers;
 
 /// @}
 
