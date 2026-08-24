@@ -479,7 +479,7 @@ add_test(NAME "\"cpp: stype\"" COMMAND test_runner cpptest stype)
 add_test(NAME "\"cpp: stvar\"" COMMAND test_runner cpptest stvar)
 add_test(NAME "\"cpp: Object\"" COMMAND test_runner cpptest object)
 
-if(CX_HTTP)
+if(CX_HTTP AND (CX_PLATFORM_IS_WINDOWS OR CX_PLATFORM_IS_UNIX))
     add_test(NAME "\"http: URL Parsing\"" COMMAND test_runner httptest url)
     add_test(NAME "\"http: URL Composition\"" COMMAND test_runner httptest urlformat)
     add_test(NAME "\"http: URL Reference Resolution\"" COMMAND test_runner httptest urlresolve)

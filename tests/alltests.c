@@ -357,7 +357,7 @@ static const testspec tests[] = {
     { "tls: Post-Handshake Tickets", "tlstest", "tickets" },
     { "tls: Unusable Config Fails Closed", "tlstest", "failclosed" },
 #endif
-#if defined(CX_HTTP_TESTS)
+#if defined(CX_HTTP_TESTS) && (defined(_PLATFORM_WIN) || defined(_PLATFORM_UNIX))
     { "http: URL Parsing", "httptest", "url" },
     { "http: URL Composition", "httptest", "urlformat" },
     { "http: URL Reference Resolution", "httptest", "urlresolve" },
