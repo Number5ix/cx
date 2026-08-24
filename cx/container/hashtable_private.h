@@ -27,6 +27,14 @@ _Static_assert((HT_SLOTS_PER_CHUNK >> 8) < sizeof(((HTChunkInfo*)0)->nalloc),
     ((void*)(HT_SLOT_VAL_CHUNK_PTR(hdr, slot) + \
              (size_t)((slot) & HT_CHUNK_MASK) * stGetSize(hdr->valtype)))
 
+// Number of storage chunks currently allocated for a table. This is NOT
+// ceil(storused / HT_SLOTS_PER_CHUNK): _htNewSlot allocates the next chunk as soon as
+// storused lands exactly on a chunk boundary, so the chunk holding slot (storused - 1)
+// is never the last one allocated once storused is a multiple of HT_SLOTS_PER_CHUNK.
+// Anything walking the chunk arrays to free them must use this, or it silently drops
+// the trailing chunk whenever the table happens to end on a boundary.
+#define HT_CHUNK_COUNT(hdr) (HT_SLOT_CHUNK((hdr)->storused) + 1)
+
 #define HT_METADATA(hdr) ((uint8*)(&hdr->index[hdr->idxsz]))
 
 #define HT_DELETED_IDX(slot) ((slot & HT_CHUNK_MASK) >> 3)

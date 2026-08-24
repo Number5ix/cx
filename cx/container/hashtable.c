@@ -414,7 +414,7 @@ void htRepack(hashtable* htbl)
     *htbl = _htClone(*htbl, 0, true, true);
 
     // free all chunks
-    for (uint32 chunk = 0; chunk < HT_SLOT_CHUNK(hdr->storused + HT_SLOTS_PER_CHUNK - 1); ++chunk) {
+    for (uint32 chunk = 0; chunk < HT_CHUNK_COUNT(hdr); ++chunk) {
         xaFree(hdr->keystorage[chunk]);
         if (stGetSize(hdr->valtype) > 0)
             xaFree(hdr->valstorage[chunk]);
@@ -663,12 +663,10 @@ static void _htClear(_Inout_ HashTableHeader* hdr, bool reuse)
     }
 
     // free all chunks (except for the first one if we're planning to reuse it)
-    for (uint32 chunk = reuse ? 1 : 0;
-         chunk < HT_SLOT_CHUNK(hdr->storused + HT_SLOTS_PER_CHUNK - 1);
-         ++chunk) {
-        xaFree(hdr->keystorage[chunk]);
+    for (uint32 chunk = reuse ? 1 : 0; chunk < HT_CHUNK_COUNT(hdr); ++chunk) {
+        xaDestroy(&hdr->keystorage[chunk]);
         if (stGetSize(hdr->valtype) > 0)
-            xaFree(hdr->valstorage[chunk]);
+            xaDestroy(&hdr->valstorage[chunk]);
     }
     hdr->storused = 0;
 
