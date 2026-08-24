@@ -242,6 +242,15 @@ static int test_opts()
         !strEq(s, _S"abc"))
         ret = 1;
 
+    // a skipped placeholder binds nowhere, so it is allowed inside a group unkeyed even
+    // though every other placeholder there has to carry a key
+    uint32 sk = 0;
+    if (!strParse(_S"a 5", _S"(${string(skip)} )?${uint:v}", stvpk(v, uint32, &sk)) || sk != 5)
+        ret = 1;
+    sk = 0;
+    if (!strParse(_S"5", _S"(${string(skip)} )?${uint:v}", stvpk(v, uint32, &sk)) || sk != 5)
+        ret = 1;
+
     // skip: matched, never bound, and does not consume a positional slot either
     uint32 p1 = 0;
     if (!strParse(_S"7,8", _S"${uint(skip)},${uint}", stvp(uint32, &p1)) || p1 != 8)

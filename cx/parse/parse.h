@@ -107,7 +107,7 @@ CX_C_BEGIN
 ///
 /// **A placeholder inside a group must be keyed.** Positional order stops being meaningful
 /// once a field might not appear at all, so an unkeyed placeholder inside a group is a
-/// compile error.
+/// compile error. A `skip` placeholder is the exception, since it binds nowhere anyway.
 ///
 /// **Alternatives of the same group may reuse a key**, as `day` and `mon` do above. Only
 /// one alternative can match, so only one of them can produce a value, and a single

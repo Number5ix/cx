@@ -551,10 +551,6 @@ static bool parsePlaceholder(PCtx* c, sa_ParseElem* b)
             strDestroy(&key);
             return fail(c);
         }
-    } else if (c->depth > 0) {
-        // Inside a group a field may or may not appear at all, which makes counting
-        // positions meaningless -- so there is nothing an unkeyed placeholder could bind to.
-        return fail(c);
     }
 
     int32 fidx    = saSize(c->fields);
@@ -564,6 +560,12 @@ static bool parsePlaceholder(PCtx* c, sa_ParseElem* b)
 
     if (ostart >= 0 && !parseOpts(c, f, ostart, oend < 0 ? bend : oend))
         return false;
+
+    // Inside a group a field may or may not appear at all, which makes counting positions
+    // meaningless -- so there is nothing an unkeyed placeholder could bind to. A skipped one
+    // is exempt: it binds nowhere no matter where it sits.
+    if (!key && !f->skip && c->depth > 0)
+        return fail(c);
 
     // The position is handed out after the options are known, because a skipped field is
     // never bound and so must not use up a positional slot that the next one is counting on.
