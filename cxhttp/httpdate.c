@@ -2,7 +2,8 @@
 // HTTP-date
 //
 // RFC 9110 5.6.7. A sender must use the RFC 1123 form and a recipient must accept two obsolete ones
-// as well, so this file is asymmetric on purpose: one formatter, three parsers.
+// as well, so this file is asymmetric on purpose: one format template, and one parse pattern with
+// three alternatives.
 //
 // Every HTTP-date is GMT, which is what makes this simple -- there is no zone to resolve, so the
 // whole thing is TimeParts arithmetic over cx's canonical UTC timestamps and no local-time call
@@ -12,6 +13,7 @@
 #include "http_private.h"
 
 #include <cx/format.h>
+#include <cx/parse.h>
 #include <cx/time/time.h>
 
 // "Sun, 06 Nov 1994 08:49:37 GMT" -- day-of-week abbrev, zero-padded day, month abbrev, 4-digit
@@ -54,118 +56,31 @@ static uint8 monthFromName(strref name)
     return 0;
 }
 
-// Parse an unsigned decimal field, requiring the whole slice to be digits. Strict on purpose: a
-// date is either well formed or it is not usable, and a permissive parse here turns a corrupt
-// Expires into a plausible-looking wrong answer.
-_Success_(return) static bool numField(_Out_ uint32* out, strref s)
-{
-    uint64 v = 0;
-    if (!strToUInt64(&v, s, 10, true) || v > UINT32_MAX)
-        return false;
-    *out = (uint32)v;
-    return true;
-}
-
-// Split "HH:MM:SS" into its three parts.
-_Success_(return) static bool timeField(_Inout_ TimeParts* tp, strref s)
-{
-    sa_string parts = { 0 };   // strSplit clears rather than initializes; a zeroed array self-sizes
-    bool ok         = false;
-
-    if (strSplit(&parts, s, _SL(":"), true) == 3) {
-        uint32 h = 0, m = 0, sec = 0;
-        if (numField(&h, parts.a[0]) && numField(&m, parts.a[1]) && numField(&sec, parts.a[2]) &&
-            h < 24 && m < 60 && sec <= 60) {
-            // A leap second (":60") is clamped rather than rejected. It is legal in the grammar,
-            // cx's timestamps have no representation for it, and the alternative is failing to
-            // parse a date that is merely one second unusual.
-            tp->hour   = (uint8)h;
-            tp->minute = (uint8)m;
-            tp->second = (uint8)(sec == 60 ? 59 : sec);
-            ok         = true;
-        }
-    }
-
-    saDestroy(&parts);
-    return ok;
-}
-
-// RFC 1123: "Sun, 06 Nov 1994 08:49:37 GMT"
-// RFC 850:  "Sunday, 06-Nov-94 08:49:37 GMT"
+// The three forms RFC 9110 requires a recipient to accept, as one pattern:
 //
-// Both start with a day name and a comma, so they are told apart by the separator inside the date
-// field: '-' for the obsolete form, ' ' for the preferred one.
-_Success_(return) static bool parseDatedForm(_Out_ TimeParts* tp, strref s)
-{
-    // Everything after the comma; the day-of-week is redundant with the date and is not checked
-    // against it, because a peer getting it wrong is not a reason to reject an otherwise valid
-    // date.
-    int32 comma = strFindChar(s, 0, ',');
-    if (comma < 0)
-        return false;
-
-    string rest = 0;
-    strSubStr(&rest, s, comma + 1, strEnd);
-    _httpTrimOWS(&rest);
-
-    sa_string fields = {
-        0
-    };   // strSplit clears rather than initializes; a zeroed array self-sizes
-    bool ok = false;
-
-    // "06 Nov 1994 08:49:37 GMT" or "06-Nov-94 08:49:37 GMT": splitting on both separators at once
-    // handles either without having to decide which form this is first.
-    if (strSplitAny(&fields, rest, _SL(" -"), false) == 5 && strEqi(fields.a[4], _SL("GMT"))) {
-        uint32 day = 0, year = 0;
-        uint8 mon = monthFromName(fields.a[1]);
-
-        if (mon && numField(&day, fields.a[0]) && numField(&year, fields.a[2]) && day >= 1 &&
-            day <= 31) {
-            // RFC 850's two-digit year. RFC 9110 says to interpret a year that would put the date
-            // more than 50 years in the future as being in the past instead; the fixed 1970 pivot
-            // below is the usual approximation and is stable, which a sliding window is not.
-            if (strLen(fields.a[2]) == 2)
-                year += (year < 70) ? 2000 : 1900;
-
-            tp->year  = (int32)year;
-            tp->month = mon;
-            tp->day   = (uint8)day;
-            ok        = timeField(tp, fields.a[3]);
-        }
-    }
-
-    saDestroy(&fields);
-    strDestroy(&rest);
-    return ok;
-}
-
-// asctime: "Sun Nov  6 08:49:37 1994". No comma, and the day is space-padded rather than
-// zero-padded, so the double space before a single-digit day is significant to a naive splitter --
-// which is why this splits on runs rather than on single separators.
-_Success_(return) static bool parseAsctime(_Out_ TimeParts* tp, strref s)
-{
-    sa_string fields = {
-        0
-    };   // strSplit clears rather than initializes; a zeroed array self-sizes
-    bool ok = false;
-
-    // keepempty = false collapses the padding run, so "Nov  6" yields two fields either way.
-    if (strSplitAny(&fields, s, _SL(" "), false) == 5) {
-        uint32 day = 0, year = 0;
-        uint8 mon = monthFromName(fields.a[1]);
-
-        if (mon && numField(&day, fields.a[2]) && numField(&year, fields.a[4]) && day >= 1 &&
-            day <= 31) {
-            tp->year  = (int32)year;
-            tp->month = mon;
-            tp->day   = (uint8)day;
-            ok        = timeField(tp, fields.a[3]);
-        }
-    }
-
-    saDestroy(&fields);
-    return ok;
-}
+//   1. IMF-fixdate  "Sun, 06 Nov 1994 08:49:37 GMT"   the only one a sender may produce
+//   2. RFC 850      "Sunday, 06-Nov-94 08:49:37 GMT"  obsolete, two-digit year
+//   3. asctime      "Sun Nov  6 08:49:37 1994"        obsolete, space-padded day, no zone
+//
+// The field widths are the grammar's own, so writing them out as digits:# is what keeps the
+// three forms from bleeding into each other -- a two-digit year is what makes the second form
+// the second form. The day-of-week is matched but deliberately never checked against the date:
+// a peer getting it wrong is not a reason to reject an otherwise valid date, so nothing binds
+// ${string:wd} and it goes nowhere.
+//
+// The ranges are on the placeholders rather than in code afterwards because a value out of
+// range has to fail its *branch*, so that the next form still gets its turn.
+STR_PATTERN(kHttpDateParse,
+            "(${string:wd}, ${uint:day(digits:2,min:1,max:31)} ${string:mon} "
+            "${uint:year(digits:4)} ${uint:hh(digits:2,max:23)}:${uint:mi(digits:2,max:59)}:"
+            "${uint:ss(digits:2,max:60)} GMT"
+            "|${string:wd}, ${uint:day(digits:2,min:1,max:31)}-${string:mon}-"
+            "${uint:year(digits:2)} ${uint:hh(digits:2,max:23)}:${uint:mi(digits:2,max:59)}:"
+            "${uint:ss(digits:2,max:60)} GMT"
+            "|${string:wd} ${string:mon} ${uint:day(maxdigits:2,min:1,max:31)} "
+            "${uint:hh(digits:2,max:23)}:${uint:mi(digits:2,max:59)}:"
+            "${uint:ss(digits:2,max:60)} ${uint:year(digits:4)}"
+            "):form");
 
 // Days in a month, for the calendar check below. timeCompose() normalizes an out-of-range day
 // rather than rejecting it, so without this "31 Feb" would quietly become the 3rd of March -- a
@@ -190,20 +105,44 @@ bool httpDateParse(int64* out, strref s)
     strDup(&trimmed, s);
     _httpTrimOWS(&trimmed);
 
-    TimeParts tp = { 0 };
-    bool ok;
+    uint32 day = 0, year = 0, hour = 0, minute = 0, second = 0;
+    string mon = 0;
+    uint8 form = 0;
 
-    // A comma is what distinguishes the two dated forms from asctime; which of the two it is falls
-    // out of the field splitting rather than needing its own test.
-    if (strFindChar(trimmed, 0, ',') >= 0)
-        ok = parseDatedForm(&tp, trimmed);
-    else
-        ok = parseAsctime(&tp, trimmed);
+    bool ok = strPatternMatch(strPat(kHttpDateParse),
+                              trimmed,
+                              stvpk(day, uint32, &day),
+                              stvpk(mon, string, &mon),
+                              stvpk(year, uint32, &year),
+                              stvpk(hh, uint32, &hour),
+                              stvpk(mi, uint32, &minute),
+                              stvpk(ss, uint32, &second),
+                              stvpk(form, uint8, &form));
 
     strDestroy(&trimmed);
 
-    if (!ok)
+    uint8 month = ok ? monthFromName(mon) : 0;
+    strDestroy(&mon);
+
+    if (!ok || month == 0)
         return false;
+
+    // RFC 850's two-digit year. RFC 9110 says to read a year that would put the date more than
+    // 50 years in the future as being in the past instead; the fixed 1970 pivot below is the
+    // usual approximation and is stable, which a sliding window is not.
+    if (form == 2)
+        year += (year < 70) ? 2000 : 1900;
+
+    TimeParts tp = { 0 };
+    tp.year      = (int32)year;
+    tp.month     = month;
+    tp.day       = (uint8)day;
+    tp.hour      = (uint8)hour;
+    tp.minute    = (uint8)minute;
+    // A leap second (":60") is clamped rather than rejected. It is legal in the grammar, cx's
+    // timestamps have no representation for it, and the alternative is failing to parse a date
+    // that is merely one second unusual.
+    tp.second    = (uint8)(second == 60 ? 59 : second);
 
     if (tp.day > daysInMonth(tp.year, tp.month))
         return false;
