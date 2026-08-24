@@ -251,7 +251,7 @@ _Success_(return) static bool parseAuthority(_Inout_ HttpUrl* url, strref auth)
         // it at 0 already expresses. Anything else has to be a number in range.
         if (strEmpty(portstr)) {
             url->port = 0;
-        } else if (strToUInt64(&port, portstr, 10, true) && port > 0 && port <= UINT16_MAX) {
+        } else if (strToUInt64(&port, portstr, 10, STRNUM_NoTrailing) && port > 0 && port <= UINT16_MAX) {
             url->port = (uint16)port;
         } else {
             ok = false;

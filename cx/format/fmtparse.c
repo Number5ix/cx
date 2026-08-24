@@ -216,7 +216,7 @@ bool _fmtParseVar(FMTContext* ctx)
             xstart++;   // eat the escape
         } else {
             strSubStr(&ctx->tmp, ctx->v.var, xstart, xend);
-            xtype = strToInt32(&ctx->v.arrayidx, ctx->tmp, 10, true) ? X_Array : X_Hash;
+            xtype = strToInt32(&ctx->v.arrayidx, ctx->tmp, 10, STRNUM_NoTrailing) ? X_Array : X_Hash;
         }
     }
 
@@ -224,7 +224,7 @@ bool _fmtParseVar(FMTContext* ctx)
         // these can be the same for [], which is legal
         if (xstart != xend) {
             strSubStr(&ctx->tmp, ctx->v.var, xstart, xend);
-            if (!strToInt32(&ctx->v.arrayidx, ctx->tmp, 10, true))
+            if (!strToInt32(&ctx->v.arrayidx, ctx->tmp, 10, STRNUM_NoTrailing))
                 goto out;
         } else {
             ctx->v.arrayidx = ctx->arrayidx++;
@@ -257,7 +257,7 @@ bool _fmtParseVar(FMTContext* ctx)
     if (vtend != vnend) {
         // have a number after the type name
         strSubStr(&ctx->tmp, ctx->v.var, vtend, vnend);
-        if (!strToInt32(&ctx->v.idx, ctx->tmp, 10, true))
+        if (!strToInt32(&ctx->v.idx, ctx->tmp, 10, STRNUM_NoTrailing))
             goto out;
     }
 
@@ -275,7 +275,7 @@ bool _fmtParseVar(FMTContext* ctx)
             strSubStr(&ctx->tmp, ctx->v.var, ostart, i);
 
             // look for all-numeric width
-            if (strToInt32(&w, ctx->tmp, 10, true)) {
+            if (strToInt32(&w, ctx->tmp, 10, STRNUM_NoTrailing)) {
                 if (ctx->v.width != -1)
                     goto out;   // already have one!
                 ctx->v.width = w;

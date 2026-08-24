@@ -38,12 +38,12 @@ bool _fmtParseIntOpt(FMTVar* v, strref opt)
         return true;
     } else if (strBeginsWith(opt, kFmtOptBase)) {
         strSubStr(&v->tmp, opt, 5, strEnd);
-        if (strToUInt32(&val, v->tmp, 10, true) && val >= 2 && val <= 36)
+        if (strToUInt32(&val, v->tmp, 10, STRNUM_NoTrailing) && val >= 2 && val <= 36)
             v->fmtdata[0] = val;
         return true;
     } else if (strBeginsWith(opt, kFmtOptMin)) {
         strSubStr(&v->tmp, opt, 4, strEnd);
-        if (strToUInt32(&val, v->tmp, 10, true)) {
+        if (strToUInt32(&val, v->tmp, 10, STRNUM_NoTrailing)) {
             v->flags |= FMT_IntMin;
             v->fmtdata[1] = val;
         }

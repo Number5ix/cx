@@ -257,7 +257,7 @@ int entryPoint()
     ctx.port    = DEFAULT_PORT;
     if (saSize(cmdArgs) >= 2) {
         uint32 port = 0;
-        if (!strToUInt32(&port, cmdArgs.a[1], 10, true) || port > 65535) {
+        if (!strToUInt32(&port, cmdArgs.a[1], 10, STRNUM_NoTrailing) || port > 65535) {
             conPuts(conErr(), _SL("invalid port\n"));
             logShutdown();
             conShutdown();

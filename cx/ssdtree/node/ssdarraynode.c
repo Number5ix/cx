@@ -33,7 +33,7 @@ _objinit_guaranteed bool SSDArrayNode_init(_In_ SSDArrayNode* self)
 
 bool SSDArrayNode_get(_In_ SSDArrayNode* self, int32 idx, _In_opt_ strref name, _When_(return == true, _Out_) stvar* out, _Inout_ SSDLockState* _ssdCurrentLockState)
 {
-    if (idx == SSD_ByName && !strToInt32(&idx, name, 0, true))
+    if (idx == SSD_ByName && !strToInt32(&idx, name, 0, STRNUM_NoTrailing))
         return false;
 
     ssdLockRead(self);
@@ -55,7 +55,7 @@ static stvar* ptrInternal(SSDArrayNode* self, int32 idx)
 _Ret_opt_valid_ stvar* SSDArrayNode_ptr(_In_ SSDArrayNode* self, int32 idx, _In_opt_ strref name,
                                         _Inout_ SSDLockState* _ssdCurrentLockState)
 {
-    if (idx == SSD_ByName && !strToInt32(&idx, name, 0, true))
+    if (idx == SSD_ByName && !strToInt32(&idx, name, 0, STRNUM_NoTrailing))
         return NULL;
 
     ssdLockRead(self);
@@ -71,7 +71,7 @@ _At_(storage->a, _Post_valid_) static _meta_inline void verifySize(_Inout_ sa_st
 bool SSDArrayNode_set(_In_ SSDArrayNode* self, int32 idx, _In_opt_ strref name, stvar val,
                       _Inout_ SSDLockState* _ssdCurrentLockState)
 {
-    if (idx == SSD_ByName && !strToInt32(&idx, name, 0, true))
+    if (idx == SSD_ByName && !strToInt32(&idx, name, 0, STRNUM_NoTrailing))
         return false;
 
     if (idx < 0)
@@ -92,7 +92,7 @@ bool SSDArrayNode_setC(_In_ SSDArrayNode* self, int32 idx, _In_opt_ strref name,
 {
     bool ret = false;
 
-    if (idx == SSD_ByName && !strToInt32(&idx, name, 0, true))
+    if (idx == SSD_ByName && !strToInt32(&idx, name, 0, STRNUM_NoTrailing))
         goto out;
 
     if (idx < 0)
@@ -128,7 +128,7 @@ bool SSDArrayNode_append(_In_ SSDArrayNode* self, stvar val, SSDLockState* _ssdC
 bool SSDArrayNode_remove(_In_ SSDArrayNode* self, int32 idx, _In_opt_ strref name,
                          _Inout_ SSDLockState* _ssdCurrentLockState)
 {
-    if (idx == SSD_ByName && !strToInt32(&idx, name, 0, true))
+    if (idx == SSD_ByName && !strToInt32(&idx, name, 0, STRNUM_NoTrailing))
         return false;
 
     ssdLockWrite(self);

@@ -228,7 +228,7 @@ static bool parseSetCookie(HttpCookie* out, strref field)
             haveExpires = httpDateParse(&expiresTime, av);
         } else if (strEqi(an, _SL("Max-Age"))) {
             int64 secs = 0;
-            if (strToInt64(&secs, av, 10, true)) {
+            if (strToInt64(&secs, av, 10, STRNUM_NoTrailing)) {
                 haveMaxAge = true;
                 // A zero or negative Max-Age means "delete now", which is expressed here as an
                 // expiry already in the past rather than as a special case downstream.

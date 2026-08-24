@@ -160,7 +160,7 @@ static void deleteOldFiles(LogFileData* lfd)
             saPush(&todelete, string, fsi.name);
         } else if (strSplit(&splits, fsi.name, kLogSplitDelim, false) == 3) {
             int num;
-            if (strToInt32(&num, splits.a[1], 10, true) && num < 10000) {
+            if (strToInt32(&num, splits.a[1], 10, STRNUM_NoTrailing) && num < 10000) {
                 // this is a numbered file, not one with a date
                 // deletion is usually handled at rotation time, but check anyway in case
                 // the config changed

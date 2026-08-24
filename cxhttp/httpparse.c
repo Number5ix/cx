@@ -194,32 +194,12 @@ static HttpParseResult lineProblem(HttpParser* p, LineResult r)
     return HTTPP_NeedMore;
 }
 
-// Parse a field that must be *nothing but* digits in `base`: no sign, no "0x" prefix, no
-// surrounding whitespace, and not empty.
-//
-// strToUInt64(strict) is not enough on its own. Its `strict` rejects trailing garbage, but it still
-// accepts a leading "0x" when the base is 16 and it skips leading whitespace -- and both of those
-// are smuggling primitives in exactly the two places this is used. A peer that sends "0x5" or " 5"
-// as a chunk size is betting that an intermediary and an origin will read it differently, which is
-// how two parsers end up disagreeing about where a message ends.
-_Success_(return) static bool strictNumber(strref s, int base, _Out_ uint64* out)
-{
-    if (strEmpty(s))
-        return false;
-
-    striter it;
-    striBorrow(&it, s);
-    uint8 c;
-    while (striChar(&it, &c)) {
-        bool digit = (c >= '0' && c <= '9');
-        if (!digit && base == 16)
-            digit = (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
-        if (!digit)
-            return false;
-    }
-
-    return strToUInt64(out, s, base, true);
-}
+// A numeric field that must be *nothing but* digits in its base: no sign, no "0x" prefix, no
+// surrounding whitespace, and not empty. Every one of those is a request-smuggling primitive
+// here -- a peer that sends "0x5" or " 5" as a chunk size is betting that an intermediary and an
+// origin will read it differently, which is how two parsers end up disagreeing about where a
+// message ends.
+#define HTTP_STRICTNUM (STRNUM_NoTrailing | STRNUM_NoWS | STRNUM_NoPrefix | STRNUM_NoSign)
 
 // ---------------------------------------------------------------------------------------------
 // Start lines
@@ -284,7 +264,7 @@ static HttpParseResult parseStatusLine(HttpParser* p, strref line)
     strSubStr(&code, line, sp1 + 1, sp2 >= 0 ? sp2 : strEnd);
 
     uint64 st = 0;
-    bool ok   = strictNumber(code, 10, &st) && st >= 100 && st <= 999;
+    bool ok   = strToUInt64(&st, code, 10, HTTP_STRICTNUM) && st >= 100 && st <= 999;
     strDestroy(&code);
 
     if (!ok)
@@ -372,11 +352,11 @@ static HttpParseResult finishHead(HttpParser* p)
         httpHeadersGetAll(&p->headers, _SL("Content-Length"), &vals);
 
         uint64 len = 0;
-        bool ok    = strictNumber(vals.a[0], 10, &len);
+        bool ok    = strToUInt64(&len, vals.a[0], 10, HTTP_STRICTNUM);
 
         for (int32 i = 1; ok && i < saSize(vals); i++) {
             uint64 other = 0;
-            ok           = strictNumber(vals.a[i], 10, &other) && other == len;
+            ok           = strToUInt64(&other, vals.a[i], 10, HTTP_STRICTNUM) && other == len;
         }
 
         saDestroy(&vals);
@@ -493,10 +473,10 @@ static HttpParseResult parseChunkSize(HttpParser* p, strref line)
     string sizestr = 0;
     strSubStr(&sizestr, line, 0, semi >= 0 ? semi : strEnd);
 
-    // Strict hex: see strictNumber(). A permissive size parse is the other classic smuggling
+    // Strict hex: see HTTP_STRICTNUM. A permissive size parse is the other classic smuggling
     // primitive, since a proxy that reads it differently frames the body differently.
     uint64 sz = 0;
-    bool ok   = strictNumber(sizestr, 16, &sz);
+    bool ok   = strToUInt64(&sz, sizestr, 16, HTTP_STRICTNUM);
     strDestroy(&sizestr);
 
     if (!ok)

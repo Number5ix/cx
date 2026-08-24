@@ -200,7 +200,7 @@ static bool jsonWReal(SerWriter* w, float64 v, stype declared)
     if (declared && stGetSize(declared) == 4) {
         string tmp = 0;
         float64 shortest;
-        if (strFromFloat32(&tmp, (float32)v) && strToFloat64(&shortest, tmp, true))
+        if (strFromFloat32(&tmp, (float32)v) && strToFloat64(&shortest, tmp, STRNUM_NoTrailing))
             v = shortest;
         strDestroy(&tmp);
     }
@@ -588,7 +588,7 @@ static bool jsonRInt(SerReader* r, int64* out, stype declared)
         break;
     case JSON_String:
         // the big-integer projection: anything outside +/-2^53 went out as a decimal string
-        if (!strToInt64(out, jr->strData, 10, true))
+        if (!strToInt64(out, jr->strData, 10, STRNUM_NoTrailing))
             return jrUnexpected(jr, _S "an integer");
         break;
     case JSON_Float:
@@ -617,7 +617,7 @@ static bool jsonRUint(SerReader* r, uint64* out, stype declared)
         *out = (uint64)jr->intData;
         break;
     case JSON_String:
-        if (!strToUInt64(out, jr->strData, 10, true))
+        if (!strToUInt64(out, jr->strData, 10, STRNUM_NoTrailing))
             return jrUnexpected(jr, _S "an unsigned integer");
         break;
     case JSON_Float:
@@ -646,7 +646,7 @@ static bool jsonRReal(SerReader* r, float64* out, stype declared)
         *out = (float64)jr->intData;
         break;
     case JSON_String:
-        if (!strToFloat64(out, jr->strData, true))
+        if (!strToFloat64(out, jr->strData, STRNUM_NoTrailing))
             return jrUnexpected(jr, _S "a number");
         break;
     case JSON_Null:

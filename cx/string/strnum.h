@@ -17,9 +17,18 @@ CX_C_BEGIN
 /// '0' does NOT imply octal (base 8) - base 10 is always the default unless explicitly
 /// specified or the string begins with "0x" for hexadecimal.
 ///
-/// The 'strict' parameter controls whether the entire string must be numeric:
-/// - strict=true:  Entire string must be a valid number
-/// - strict=false: Leading whitespace and trailing non-numeric characters are allowed
+/// @section string_num_flags Parsing flags
+///
+/// Every string-to-number function takes a `flags` parameter built from STRNUM_FLAGS.
+/// Passing 0 is the most permissive setting: leading whitespace is skipped, a sign is
+/// accepted, a "0x" prefix is honored, and anything after the number is ignored. Each
+/// flag only ever tightens that, so a call site reads as a list of what is *not* allowed:
+///
+/// @code
+///   uint64 len;
+///   // no trailing junk, no leading spaces, no "0x" - exactly the digits and nothing else
+///   strToUInt64(&len, s, 10, STRNUM_NoTrailing | STRNUM_NoWS | STRNUM_NoPrefix);
+/// @endcode
 ///
 /// @section string_num_float Floating-point conversion
 ///
@@ -36,50 +45,64 @@ CX_C_BEGIN
 // for keeping annotations consistent and prototypes on a single line
 #define _strNumSuccess _Success_(return)
 
+/// Flags controlling how strictly a string is parsed as a number.
+///
+/// All of these are restrictions, so 0 is the most permissive setting and every flag
+/// only ever tightens what is accepted.
+enum STRNUM_FLAGS {
+    STRNUM_NoTrailing = 0x01,   ///< Reject anything following the number
+    STRNUM_NoWS       = 0x02,   ///< Do not skip leading whitespace
+    STRNUM_NoPrefix   = 0x04,   ///< Do not accept a "0x" base prefix
+    STRNUM_NoSign     = 0x08,   ///< Reject a leading '+' or '-'
+};
+
 /// Converts a string to a 32-bit signed integer
 ///
-/// Parses a string as a signed integer in the specified base. Leading whitespace is
-/// skipped. An optional '+' or '-' sign is recognized. Hexadecimal strings may begin
-/// with "0x" or "0X".
+/// Parses a string as a signed integer in the specified base. By default leading
+/// whitespace is skipped, an optional '+' or '-' sign is recognized, a "0x" or "0X"
+/// prefix selects hexadecimal, and trailing characters are ignored. Pass STRNUM_FLAGS
+/// values to disallow any of those.
 ///
 /// Unlike strtol(), a leading '0' does NOT imply octal - base 10 is the default.
 ///
 /// @param out Pointer to receive the parsed value
 /// @param s String to parse
 /// @param base Numeric base (2-36), or 0 for auto-detect (10 or 16)
-/// @param strict If true, entire string must be numeric; if false, trailing chars allowed
+/// @param flags Combination of STRNUM_FLAGS, or 0 to accept everything
 /// @return true on success, false on error (invalid format or out of range)
 ///
 /// Example:
 /// @code
 ///   int32 value;
-///   strToInt32(&value, _SL("123"), 10, true);       // value = 123
-///   strToInt32(&value, _SL("-42"), 10, true);       // value = -42
-///   strToInt32(&value, _SL("0xFF"), 0, true);       // value = 255
-///   strToInt32(&value, _SL("123abc"), 10, false);   // value = 123, ok
-///   strToInt32(&value, _SL("123abc"), 10, true);    // false, strict mode
+///   strToInt32(&value, _SL("123"), 10, STRNUM_NoTrailing);       // value = 123
+///   strToInt32(&value, _SL("-42"), 10, STRNUM_NoTrailing);       // value = -42
+///   strToInt32(&value, _SL("0xFF"), 0, STRNUM_NoTrailing);       // value = 255
+///   strToInt32(&value, _SL("123abc"), 10, 0);                    // value = 123, ok
+///   strToInt32(&value, _SL("123abc"), 10, STRNUM_NoTrailing);    // false
 /// @endcode
-_strNumSuccess bool strToInt32(_Out_ int32* _Nonnull out, _In_opt_ strref s, int base, bool strict);
+_strNumSuccess bool strToInt32(_Out_ int32* _Nonnull out, _In_opt_ strref s, int base,
+                               flags_t flags);
 
 /// Converts a string to a 32-bit unsigned integer
 ///
 /// Like strToInt32(), but parses as an unsigned value. A leading '-' sign is allowed
-/// and results in two's complement representation of the negative value.
+/// (unless STRNUM_NoSign is set) and results in two's complement representation of the
+/// negative value.
 ///
 /// @param out Pointer to receive the parsed value
 /// @param s String to parse
 /// @param base Numeric base (2-36), or 0 for auto-detect (10 or 16)
-/// @param strict If true, entire string must be numeric; if false, trailing chars allowed
+/// @param flags Combination of STRNUM_FLAGS, or 0 to accept everything
 /// @return true on success, false on error (invalid format or out of range)
 ///
 /// Example:
 /// @code
 ///   uint32 value;
-///   strToUInt32(&value, _SL("255"), 10, true);      // value = 255
-///   strToUInt32(&value, _SL("0xFF"), 0, true);      // value = 255
+///   strToUInt32(&value, _SL("255"), 10, STRNUM_NoTrailing);      // value = 255
+///   strToUInt32(&value, _SL("0xFF"), 0, STRNUM_NoTrailing);      // value = 255
 /// @endcode
 _strNumSuccess bool strToUInt32(_Out_ uint32* _Nonnull out, _In_opt_ strref s, int base,
-                                bool strict);
+                                flags_t flags);
 
 /// Converts a string to a 64-bit signed integer
 ///
@@ -88,9 +111,10 @@ _strNumSuccess bool strToUInt32(_Out_ uint32* _Nonnull out, _In_opt_ strref s, i
 /// @param out Pointer to receive the parsed value
 /// @param s String to parse
 /// @param base Numeric base (2-36), or 0 for auto-detect (10 or 16)
-/// @param strict If true, entire string must be numeric; if false, trailing chars allowed
+/// @param flags Combination of STRNUM_FLAGS, or 0 to accept everything
 /// @return true on success, false on error (invalid format or out of range)
-_strNumSuccess bool strToInt64(_Out_ int64* _Nonnull out, _In_opt_ strref s, int base, bool strict);
+_strNumSuccess bool strToInt64(_Out_ int64* _Nonnull out, _In_opt_ strref s, int base,
+                               flags_t flags);
 
 /// Converts a string to a 64-bit unsigned integer
 ///
@@ -99,10 +123,10 @@ _strNumSuccess bool strToInt64(_Out_ int64* _Nonnull out, _In_opt_ strref s, int
 /// @param out Pointer to receive the parsed value
 /// @param s String to parse
 /// @param base Numeric base (2-36), or 0 for auto-detect (10 or 16)
-/// @param strict If true, entire string must be numeric; if false, trailing chars allowed
+/// @param flags Combination of STRNUM_FLAGS, or 0 to accept everything
 /// @return true on success, false on error (invalid format or out of range)
 _strNumSuccess bool strToUInt64(_Out_ uint64* _Nonnull out, _In_opt_ strref s, int base,
-                                bool strict);
+                                flags_t flags);
 
 /// Converts a 32-bit signed integer to a string
 ///
@@ -167,21 +191,23 @@ bool strFromUInt64(_Inout_ strhandle out, uint64 i, uint16 base);
 ///
 /// Parses a string as a single-precision float. Supports standard decimal notation,
 /// scientific notation (e.g., "1.23e-4"), and special values ("inf", "nan").
-/// Leading whitespace is skipped.
+/// Leading whitespace is skipped unless STRNUM_NoWS is set.
+///
+/// STRNUM_NoPrefix rejects a hexadecimal float such as "0x1p3".
 ///
 /// @param out Pointer to receive the parsed value
 /// @param s String to parse
-/// @param strict If true, entire string must be numeric; if false, trailing chars allowed
+/// @param flags Combination of STRNUM_FLAGS, or 0 to accept everything
 /// @return true on success, false on error (invalid format)
 ///
 /// Example:
 /// @code
 ///   float32 value;
-///   strToFloat32(&value, _SL("3.14"), true);       // value = 3.14
-///   strToFloat32(&value, _SL("-1.5e2"), true);     // value = -150.0
-///   strToFloat32(&value, _SL("inf"), true);        // value = infinity
+///   strToFloat32(&value, _SL("3.14"), STRNUM_NoTrailing);       // value = 3.14
+///   strToFloat32(&value, _SL("-1.5e2"), STRNUM_NoTrailing);     // value = -150.0
+///   strToFloat32(&value, _SL("inf"), STRNUM_NoTrailing);        // value = infinity
 /// @endcode
-_strNumSuccess bool strToFloat32(_Out_ float32* _Nonnull out, _In_opt_ strref s, bool strict);
+_strNumSuccess bool strToFloat32(_Out_ float32* _Nonnull out, _In_opt_ strref s, flags_t flags);
 
 /// Converts a string to a 64-bit floating-point value
 ///
@@ -190,16 +216,16 @@ _strNumSuccess bool strToFloat32(_Out_ float32* _Nonnull out, _In_opt_ strref s,
 ///
 /// @param out Pointer to receive the parsed value
 /// @param s String to parse
-/// @param strict If true, entire string must be numeric; if false, trailing chars allowed
+/// @param flags Combination of STRNUM_FLAGS, or 0 to accept everything
 /// @return true on success, false on error (invalid format)
 ///
 /// Example:
 /// @code
 ///   float64 value;
-///   strToFloat64(&value, _SL("3.141592653589793"), true);
-///   strToFloat64(&value, _SL("2.5e-10"), true);
+///   strToFloat64(&value, _SL("3.141592653589793"), STRNUM_NoTrailing);
+///   strToFloat64(&value, _SL("2.5e-10"), STRNUM_NoTrailing);
 /// @endcode
-_strNumSuccess bool strToFloat64(_Out_ float64* _Nonnull out, _In_opt_ strref s, bool strict);
+_strNumSuccess bool strToFloat64(_Out_ float64* _Nonnull out, _In_opt_ strref s, flags_t flags);
 
 /// Converts a 32-bit floating-point value to a string
 ///

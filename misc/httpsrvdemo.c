@@ -274,9 +274,9 @@ int entryPoint()
         strref a = cmdArgs.a[i];
 
         if (strEq(a, _SL("-p")) && i + 1 < saSize(cmdArgs)) {
-            strToInt32(&port, cmdArgs.a[++i], 10, true);
+            strToInt32(&port, cmdArgs.a[++i], 10, STRNUM_NoTrailing);
         } else if (strEq(a, _SL("-t")) && i + 1 < saSize(cmdArgs)) {
-            strToInt32(&nthreads, cmdArgs.a[++i], 10, true);
+            strToInt32(&nthreads, cmdArgs.a[++i], 10, STRNUM_NoTrailing);
         } else if (strEq(a, _SL("--tls")) && i + 2 < saSize(cmdArgs)) {
             strDup(&cert, cmdArgs.a[++i]);
             strDup(&key, cmdArgs.a[++i]);

@@ -298,7 +298,7 @@ parseNumFloat(_Inout_ StreamBuffer* sb, bool neg, size_t intoff, size_t intlen, 
     buf[total]   = '\0';
     if (!sbufCPeek(sb, (uint8*)buf, 0, total))
         return false;
-    bool ret = strToFloat64(out, (strref)buf, true);
+    bool ret = strToFloat64(out, (strref)buf, STRNUM_NoTrailing);
     xaFree(buf);
     return ret;
 }

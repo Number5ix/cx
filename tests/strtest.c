@@ -1636,63 +1636,105 @@ static int test_num()
     // ========== String To Integer Tests ==========
 
     // String to Int32 - basic
-    if (!strToInt32(&i32, _S"42", 10, true) || i32 != 42)
+    if (!strToInt32(&i32, _S"42", 10, STRNUM_NoTrailing) || i32 != 42)
         return 1;
 
     // String to Int32 - negative
-    if (!strToInt32(&i32, _S"-789", 10, true) || i32 != -789)
+    if (!strToInt32(&i32, _S"-789", 10, STRNUM_NoTrailing) || i32 != -789)
         return 1;
 
     // String to Int32 - with leading whitespace
-    if (!strToInt32(&i32, _S"  123", 10, false) || i32 != 123)
+    if (!strToInt32(&i32, _S"  123", 10, 0) || i32 != 123)
         return 1;
 
     // String to Int32 - with trailing chars (non-strict)
-    if (!strToInt32(&i32, _S"456abc", 10, false) || i32 != 456)
+    if (!strToInt32(&i32, _S"456abc", 10, 0) || i32 != 456)
         return 1;
 
     // String to Int32 - with trailing chars (strict) should fail
-    if (strToInt32(&i32, _S"456abc", 10, true))
+    if (strToInt32(&i32, _S"456abc", 10, STRNUM_NoTrailing))
         return 1;
 
     // String to Int32 - hex with 0x prefix
-    if (!strToInt32(&i32, _S"0xFF", 0, true) || i32 != 255)
+    if (!strToInt32(&i32, _S"0xFF", 0, STRNUM_NoTrailing) || i32 != 255)
         return 1;
 
     // String to Int32 - hex without prefix
-    if (!strToInt32(&i32, _S"FF", 16, true) || i32 != 255)
+    if (!strToInt32(&i32, _S"FF", 16, STRNUM_NoTrailing) || i32 != 255)
         return 1;
 
     // String to Int32 - leading + sign
-    if (!strToInt32(&i32, _S"+123", 10, true) || i32 != 123)
+    if (!strToInt32(&i32, _S"+123", 10, STRNUM_NoTrailing) || i32 != 123)
         return 1;
 
     // String to UInt32 - basic
-    if (!strToUInt32(&u32, _S"4000000000", 10, true) || u32 != 4000000000U)
+    if (!strToUInt32(&u32, _S"4000000000", 10, STRNUM_NoTrailing) || u32 != 4000000000U)
         return 1;
 
     // String to UInt32 - hex
-    if (!strToUInt32(&u32, _S"0xDEADBEEF", 0, true) || u32 != 0xDEADBEEF)
+    if (!strToUInt32(&u32, _S"0xDEADBEEF", 0, STRNUM_NoTrailing) || u32 != 0xDEADBEEF)
         return 1;
 
     // String to Int64 - large positive
-    if (!strToInt64(&i64, _S"9223372036854775807", 10, true) || i64 != 9223372036854775807LL)
+    if (!strToInt64(&i64, _S"9223372036854775807", 10, STRNUM_NoTrailing) || i64 != 9223372036854775807LL)
         return 1;
 
     // String to Int64 - large negative
-    if (!strToInt64(&i64, _S"-9223372036854775808", 10, true) || i64 != (-9223372036854775807LL - 1))
+    if (!strToInt64(&i64, _S"-9223372036854775808", 10, STRNUM_NoTrailing) || i64 != (-9223372036854775807LL - 1))
         return 1;
 
     // String to UInt64 - maximum value
-    if (!strToUInt64(&u64, _S"18446744073709551615", 10, true) || u64 != 18446744073709551615ULL)
+    if (!strToUInt64(&u64, _S"18446744073709551615", 10, STRNUM_NoTrailing) || u64 != 18446744073709551615ULL)
         return 1;
 
     // String to Int32 - empty string should fail
-    if (strToInt32(&i32, _S"", 10, true))
+    if (strToInt32(&i32, _S"", 10, STRNUM_NoTrailing))
         return 1;
 
     // String to Int32 - non-numeric should fail
-    if (strToInt32(&i32, _S"abc", 10, true))
+    if (strToInt32(&i32, _S"abc", 10, STRNUM_NoTrailing))
+        return 1;
+
+    // ========== Parsing Restriction Flag Tests ==========
+
+    // NoWS rejects leading whitespace that a default parse would skip
+    if (!strToInt32(&i32, _S" 12", 10, 0) || i32 != 12)
+        return 1;
+    if (strToInt32(&i32, _S" 12", 10, STRNUM_NoWS))
+        return 1;
+
+    // NoPrefix rejects the 0x form, but base 16 without a prefix still works
+    if (strToUInt32(&u32, _S"0x10", 16, STRNUM_NoTrailing | STRNUM_NoPrefix))
+        return 1;
+    if (!strToUInt32(&u32, _S"10", 16, STRNUM_NoTrailing | STRNUM_NoPrefix) || u32 != 16)
+        return 1;
+
+    // NoSign rejects both signs
+    if (strToInt32(&i32, _S"-5", 10, STRNUM_NoSign))
+        return 1;
+    if (strToInt32(&i32, _S"+5", 10, STRNUM_NoSign))
+        return 1;
+    if (!strToInt32(&i32, _S"5", 10, STRNUM_NoSign) || i32 != 5)
+        return 1;
+
+    // the combination the HTTP parser uses: digits and nothing else
+    if (!strToUInt64(&u64, _S"1f", 16, STRNUM_NoTrailing | STRNUM_NoWS | STRNUM_NoPrefix) ||
+        u64 != 31)
+        return 1;
+    if (strToUInt64(&u64, _S" 1f", 16, STRNUM_NoTrailing | STRNUM_NoWS | STRNUM_NoPrefix))
+        return 1;
+    if (strToUInt64(&u64, _S"0x1f", 16, STRNUM_NoTrailing | STRNUM_NoWS | STRNUM_NoPrefix))
+        return 1;
+
+    // the same restrictions apply to floats
+    if (strToFloat64(&f64, _S" 1.5", STRNUM_NoWS))
+        return 1;
+    if (strToFloat64(&f64, _S"-1.5", STRNUM_NoSign))
+        return 1;
+    if (strToFloat64(&f64, _S"0x1p3", STRNUM_NoPrefix))
+        return 1;
+    if (!strToFloat64(&f64, _S"1.5", STRNUM_NoTrailing | STRNUM_NoWS | STRNUM_NoPrefix) ||
+        f64 != 1.5)
         return 1;
 
     // ========== Float To String Tests ==========
@@ -1762,137 +1804,137 @@ static int test_num()
     // ========== String To Float Tests ==========
 
     // String to Float32 - basic decimal
-    if (!strToFloat32(&f32, _S"3.14", true) || (f32 < 3.13f || f32 > 3.15f))
+    if (!strToFloat32(&f32, _S"3.14", STRNUM_NoTrailing) || (f32 < 3.13f || f32 > 3.15f))
         return 1;
 
     // String to Float32 - negative
-    if (!strToFloat32(&f32, _S"-2.5", true) || f32 != -2.5f)
+    if (!strToFloat32(&f32, _S"-2.5", STRNUM_NoTrailing) || f32 != -2.5f)
         return 1;
 
     // String to Float32 - zero
-    if (!strToFloat32(&f32, _S"0.0", true) || f32 != 0.0f)
+    if (!strToFloat32(&f32, _S"0.0", STRNUM_NoTrailing) || f32 != 0.0f)
         return 1;
 
     // String to Float32 - scientific notation (positive exponent)
-    if (!strToFloat32(&f32, _S"1.5e2", true) || (f32 < 149.9f || f32 > 150.1f))
+    if (!strToFloat32(&f32, _S"1.5e2", STRNUM_NoTrailing) || (f32 < 149.9f || f32 > 150.1f))
         return 1;
 
     // String to Float32 - scientific notation (negative exponent)
-    if (!strToFloat32(&f32, _S"2.5e-3", true) || (f32 < 0.0024f || f32 > 0.0026f))
+    if (!strToFloat32(&f32, _S"2.5e-3", STRNUM_NoTrailing) || (f32 < 0.0024f || f32 > 0.0026f))
         return 1;
 
     // String to Float32 - no leading zero
-    if (!strToFloat32(&f32, _S".5", true) || (f32 < 0.49f || f32 > 0.51f))
+    if (!strToFloat32(&f32, _S".5", STRNUM_NoTrailing) || (f32 < 0.49f || f32 > 0.51f))
         return 1;
 
     // String to Float32 - leading + sign
-    if (!strToFloat32(&f32, _S"+1.5", true) || (f32 < 1.49f || f32 > 1.51f))
+    if (!strToFloat32(&f32, _S"+1.5", STRNUM_NoTrailing) || (f32 < 1.49f || f32 > 1.51f))
         return 1;
 
     // String to Float32 - with leading whitespace (non-strict)
-    if (!strToFloat32(&f32, _S"  3.14", false) || (f32 < 3.13f || f32 > 3.15f))
+    if (!strToFloat32(&f32, _S"  3.14", 0) || (f32 < 3.13f || f32 > 3.15f))
         return 1;
 
     // String to Float32 - with trailing chars (non-strict)
-    if (!strToFloat32(&f32, _S"2.5abc", false) || f32 != 2.5f)
+    if (!strToFloat32(&f32, _S"2.5abc", 0) || f32 != 2.5f)
         return 1;
 
     // String to Float32 - with trailing chars (strict) should fail
-    if (strToFloat32(&f32, _S"2.5abc", true))
+    if (strToFloat32(&f32, _S"2.5abc", STRNUM_NoTrailing))
         return 1;
 
     // String to Float32 - infinity (lowercase)
-    if (!strToFloat32(&f32, _S"inf", true) || f32 != _float32_inf(false))
+    if (!strToFloat32(&f32, _S"inf", STRNUM_NoTrailing) || f32 != _float32_inf(false))
         return 1;
 
     // String to Float32 - infinity (uppercase)
-    if (!strToFloat32(&f32, _S"INF", true) || f32 != _float32_inf(false))
+    if (!strToFloat32(&f32, _S"INF", STRNUM_NoTrailing) || f32 != _float32_inf(false))
         return 1;
 
     // String to Float32 - negative infinity
-    if (!strToFloat32(&f32, _S"-inf", true) || f32 != _float32_inf(true))
+    if (!strToFloat32(&f32, _S"-inf", STRNUM_NoTrailing) || f32 != _float32_inf(true))
         return 1;
 
     // String to Float32 - NaN (lowercase)
-    if (!strToFloat32(&f32, _S"nan", true) || f32 == f32)   // NaN != NaN
+    if (!strToFloat32(&f32, _S"nan", STRNUM_NoTrailing) || f32 == f32)   // NaN != NaN
         return 1;
 
     // String to Float32 - NaN (uppercase)
-    if (!strToFloat32(&f32, _S"NaN", true) || f32 == f32)   // NaN != NaN
+    if (!strToFloat32(&f32, _S"NaN", STRNUM_NoTrailing) || f32 == f32)   // NaN != NaN
         return 1;
 
     // String to Float64 - basic decimal
-    if (!strToFloat64(&f64, _S"3.141592653589793", true) || (f64 < 3.14159265 || f64 > 3.14159266))
+    if (!strToFloat64(&f64, _S"3.141592653589793", STRNUM_NoTrailing) || (f64 < 3.14159265 || f64 > 3.14159266))
         return 1;
 
     // String to Float64 - negative
-    if (!strToFloat64(&f64, _S"-42.875", true) || f64 != -42.875)
+    if (!strToFloat64(&f64, _S"-42.875", STRNUM_NoTrailing) || f64 != -42.875)
         return 1;
 
     // String to Float64 - zero
-    if (!strToFloat64(&f64, _S"0", true) || f64 != 0.0)
+    if (!strToFloat64(&f64, _S"0", STRNUM_NoTrailing) || f64 != 0.0)
         return 1;
 
     // String to Float64 - scientific notation
-    if (!strToFloat64(&f64, _S"2.5e-10", true) || (f64 < 2.49e-10 || f64 > 2.51e-10))
+    if (!strToFloat64(&f64, _S"2.5e-10", STRNUM_NoTrailing) || (f64 < 2.49e-10 || f64 > 2.51e-10))
         return 1;
 
     // String to Float64 - large exponent
-    if (!strToFloat64(&f64, _S"1.5e100", true) || f64 < 1.0e100)
+    if (!strToFloat64(&f64, _S"1.5e100", STRNUM_NoTrailing) || f64 < 1.0e100)
         return 1;
 
     // String to Float64 - capital E in exponent
-    if (!strToFloat64(&f64, _S"2.5E+5", true) || (f64 < 249999.0 || f64 > 250001.0))
+    if (!strToFloat64(&f64, _S"2.5E+5", STRNUM_NoTrailing) || (f64 < 249999.0 || f64 > 250001.0))
         return 1;
 
     // String to Float64 - empty string should fail
-    if (strToFloat64(&f64, _S"", true))
+    if (strToFloat64(&f64, _S"", STRNUM_NoTrailing))
         return 1;
 
     // String to Float64 - non-numeric should fail
-    if (strToFloat64(&f64, _S"abc", true))
+    if (strToFloat64(&f64, _S"abc", STRNUM_NoTrailing))
         return 1;
 
     // String to Float64 - just a decimal point should fail
-    if (strToFloat64(&f64, _S".", true))
+    if (strToFloat64(&f64, _S".", STRNUM_NoTrailing))
         return 1;
 
     // String to Float64 - exponent without digits should fail
-    if (strToFloat64(&f64, _S"1e", true))
+    if (strToFloat64(&f64, _S"1e", STRNUM_NoTrailing))
         return 1;
 
     // ========== Round-trip Tests ==========
 
     // Int32 round-trip
     strFromInt32(&s, -12345, 10);
-    if (!strToInt32(&i32, s, 10, true) || i32 != -12345)
+    if (!strToInt32(&i32, s, 10, STRNUM_NoTrailing) || i32 != -12345)
         return 1;
 
     // UInt32 round-trip
     strFromUInt32(&s, 987654321U, 10);
-    if (!strToUInt32(&u32, s, 10, true) || u32 != 987654321U)
+    if (!strToUInt32(&u32, s, 10, STRNUM_NoTrailing) || u32 != 987654321U)
         return 1;
 
     // Int64 round-trip
     strFromInt64(&s, -1234567890123456LL, 10);
-    if (!strToInt64(&i64, s, 10, true) || i64 != -1234567890123456LL)
+    if (!strToInt64(&i64, s, 10, STRNUM_NoTrailing) || i64 != -1234567890123456LL)
         return 1;
 
     // UInt64 round-trip
     strFromUInt64(&s, 9876543210987654321ULL, 10);
-    if (!strToUInt64(&u64, s, 10, true) || u64 != 9876543210987654321ULL)
+    if (!strToUInt64(&u64, s, 10, STRNUM_NoTrailing) || u64 != 9876543210987654321ULL)
         return 1;
 
     // Float32 round-trip (with tolerance)
     float32 orig_f32 = 123.456f;
     strFromFloat32(&s, orig_f32);
-    if (!strToFloat32(&f32, s, true) || (f32 < orig_f32 - 0.001f || f32 > orig_f32 + 0.001f))
+    if (!strToFloat32(&f32, s, STRNUM_NoTrailing) || (f32 < orig_f32 - 0.001f || f32 > orig_f32 + 0.001f))
         return 1;
 
     // Float64 round-trip (with tolerance)
     float64 orig_f64 = 123.456789012345;
     strFromFloat64(&s, orig_f64);
-    if (!strToFloat64(&f64, s, true) || (f64 < orig_f64 - 0.000001 || f64 > orig_f64 + 0.000001))
+    if (!strToFloat64(&f64, s, STRNUM_NoTrailing) || (f64 < orig_f64 - 0.000001 || f64 > orig_f64 + 0.000001))
         return 1;
 
     strDestroy(&s);

@@ -13,7 +13,7 @@ char _strnum_ldigits[] = "0123456789abcdefghijklmnopqrstuvwxyz";
 
 #define STRNUM_IMPL(type, stype, utype, name, CUTOFF)                                             \
     _Use_decl_annotations_                                                                        \
-    bool name(type* _Nonnull out, strref s, int base, bool strict)                                \
+    bool name(type* _Nonnull out, strref s, int base, flags_t flags)                              \
     {                                                                                             \
         utype acc;                                                                                \
         uint8 c;                                                                                  \
@@ -25,21 +25,27 @@ char _strnum_ldigits[] = "0123456789abcdefghijklmnopqrstuvwxyz";
         if (!s || strEmpty(s))                                                                    \
             return false;                                                                         \
                                                                                                   \
-        do {                                                                                      \
+        if (flags & STRNUM_NoWS) {                                                                \
             c = _strFastChar(s, i++);                                                             \
-        } while (isspace(c));                                                                     \
-        if (c == '-') {                                                                           \
-            neg = true;                                                                           \
-            c   = _strFastChar(s, i++);                                                           \
         } else {                                                                                  \
-            neg = false;                                                                          \
-            if (c == '+')                                                                         \
+            do {                                                                                  \
                 c = _strFastChar(s, i++);                                                         \
+            } while (isspace(c));                                                                 \
+        }                                                                                         \
+        neg = false;                                                                              \
+        if (c == '-' || c == '+') {                                                               \
+            if (flags & STRNUM_NoSign) {                                                          \
+                cxerr = CX_InvalidArgument;                                                       \
+                return false;                                                                     \
+            }                                                                                     \
+            neg = (c == '-');                                                                     \
+            c   = _strFastChar(s, i++);                                                           \
         }                                                                                         \
                                                                                                   \
         uint8 s1 = strGetChar(s, i);                                                              \
         uint8 s2 = strGetChar(s, i + 1);                                                          \
-        if ((base == 0 || base == 16) && c == '0' && (s1 == 'x' || s1 == 'X') &&                  \
+        if (!(flags & STRNUM_NoPrefix) && (base == 0 || base == 16) && c == '0' &&                \
+            (s1 == 'x' || s1 == 'X') &&                                                           \
             ((s2 >= '0' && s2 <= '9') || (s2 >= 'A' && s2 <= 'F') || (s2 >= 'a' && s2 <= 'f'))) { \
             i++;                                                                                  \
             c    = _strFastChar(s, i++);                                                          \
@@ -82,7 +88,7 @@ char _strnum_ldigits[] = "0123456789abcdefghijklmnopqrstuvwxyz";
             return false;                                                                         \
         }                                                                                         \
                                                                                                   \
-        if (strict && i < strLen(s) + 1) {                                                        \
+        if ((flags & STRNUM_NoTrailing) && i < strLen(s) + 1) {                                   \
             cxerr = CX_InvalidArgument;                                                           \
             return false;                                                                         \
         }                                                                                         \

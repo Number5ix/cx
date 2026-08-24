@@ -32,12 +32,12 @@ bool _fmtParseFloatOpt(FMTVar* v, strref opt)
         return true;
     } else if (strBeginsWith(opt, kFmtOptSig)) {
         strSubStr(&v->tmp, opt, 4, strEnd);
-        if (strToInt32(&val, v->tmp, 10, true) && val >= 1 && val < 18)
+        if (strToInt32(&val, v->tmp, 10, STRNUM_NoTrailing) && val >= 1 && val < 18)
             v->fmtdata[0] = val;
         return true;
     } else if (strBeginsWith(opt, kFmtOptDec)) {
         strSubStr(&v->tmp, opt, 4, strEnd);
-        if (strToInt32(&val, v->tmp, 10, true) && val >= 0) {
+        if (strToInt32(&val, v->tmp, 10, STRNUM_NoTrailing) && val >= 0) {
             v->fmtdata[1] = val;
             v->flags |= FMT_FloatDecDigits;
         }

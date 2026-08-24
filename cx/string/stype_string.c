@@ -48,29 +48,29 @@ stConvert_string(stype destst, _stCopyDest_Anno_(destst) stgeneric* dest, stype 
     case stTypeId(int16): {
         // ehhh, see if it'll fit
         int32 temp;
-        if (!strToInt32(&temp, src.st_string, 0, true))
+        if (!strToInt32(&temp, src.st_string, 0, STRNUM_NoTrailing))
             return false;
         return stConvert_int(destst, dest, stType(int32), stgeneric(int32, temp), flags);
     }
     case stTypeId(uint8):
     case stTypeId(uint16): {
         uint32 temp;
-        if (!strToUInt32(&temp, src.st_string, 0, true))
+        if (!strToUInt32(&temp, src.st_string, 0, STRNUM_NoTrailing))
             return false;
         return stConvert_int(destst, dest, stType(uint32), stgeneric(uint32, temp), flags);
     }
     case stTypeId(int32):
-        return strToInt32(&dest->st_int32, src.st_string, 0, true);
+        return strToInt32(&dest->st_int32, src.st_string, 0, STRNUM_NoTrailing);
     case stTypeId(uint32):
-        return strToUInt32(&dest->st_uint32, src.st_string, 0, true);
+        return strToUInt32(&dest->st_uint32, src.st_string, 0, STRNUM_NoTrailing);
     case stTypeId(int64):
-        return strToInt64(&dest->st_int64, src.st_string, 0, true);
+        return strToInt64(&dest->st_int64, src.st_string, 0, STRNUM_NoTrailing);
     case stTypeId(uint64):
-        return strToUInt64(&dest->st_uint64, src.st_string, 0, true);
+        return strToUInt64(&dest->st_uint64, src.st_string, 0, STRNUM_NoTrailing);
     case stTypeId(float32):
-        return strToFloat32(&dest->st_float32, src.st_string, true);
+        return strToFloat32(&dest->st_float32, src.st_string, STRNUM_NoTrailing);
     case stTypeId(float64):
-        return strToFloat64(&dest->st_float64, src.st_string, true);
+        return strToFloat64(&dest->st_float64, src.st_string, STRNUM_NoTrailing);
     case stTypeId(stvar):
         // okay, sure, we can put it in one
         _stvarInit(dest->st_stvar, srcst, src);

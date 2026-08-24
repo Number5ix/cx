@@ -141,6 +141,27 @@ static int test_string()
     strDestroy(&test1);
     strDestroy(&test2);
 
+    // string -> bool accepts three spellings each way; True/False/Yes/No are case-insensitive
+    bool b;
+    static string truthy[] = { _S"True", _S"true", _S"TRUE", _S"1", _S"Yes", _S"yes" };
+    for (size_t i = 0; i < sizeof(truthy) / sizeof(truthy[0]); i++) {
+        b = false;
+        if (!stConvert(bool, &b, string, truthy[i]) || !b)
+            ret = 1;
+    }
+
+    static string falsy[] = { _S"False", _S"false", _S"FALSE", _S"0", _S"No", _S"no" };
+    for (size_t i = 0; i < sizeof(falsy) / sizeof(falsy[0]); i++) {
+        b = true;
+        if (!stConvert(bool, &b, string, falsy[i]) || b)
+            ret = 1;
+    }
+
+    // anything else is not a bool at all, rather than defaulting one way
+    if (stConvert(bool, &b, string, _S"maybe") || stConvert(bool, &b, string, _S"") ||
+        stConvert(bool, &b, string, _S"2"))
+        ret = 1;
+
     return ret;
 }
 

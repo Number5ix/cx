@@ -562,8 +562,30 @@ bool strFromFloat64(_Inout_ string* out, float64 d)
 
 // string to float parsing -------------------------------------------------------------
 
+// Apply the restrictions that have to be checked before the text reaches strtod/strtof,
+// which accept leading whitespace, a sign and a hex-float prefix unconditionally. Returns
+// the first character of the number, or NULL if one of the restrictions was violated.
+static const char* fpRestrict(const char* cstr, flags_t flags)
+{
+    if ((flags & STRNUM_NoWS) && isspace((uint8)*cstr))
+        return NULL;
+    while (isspace((uint8)*cstr)) cstr++;
+
+    const char* digits = cstr;
+    if (*digits == '-' || *digits == '+') {
+        if (flags & STRNUM_NoSign)
+            return NULL;
+        digits++;
+    }
+
+    if ((flags & STRNUM_NoPrefix) && digits[0] == '0' && (digits[1] == 'x' || digits[1] == 'X'))
+        return NULL;
+
+    return cstr;
+}
+
 _Use_decl_annotations_
-bool strToFloat64(float64* out, strref s, bool strict)
+bool strToFloat64(float64* out, strref s, flags_t flags)
 {
     if (!s || strEmpty(s))
         return false;
@@ -572,8 +594,11 @@ bool strToFloat64(float64* out, strref s, bool strict)
     const char* cstr  = strC(s);
     const char* start = cstr;
 
-    // Skip leading whitespace
-    while (isspace((uint8)*cstr)) cstr++;
+    cstr = fpRestrict(cstr, flags);
+    if (!cstr) {
+        cxerr = CX_InvalidArgument;
+        return false;
+    }
 
     if (*cstr == '\0') {
         cxerr = CX_InvalidArgument;
@@ -614,8 +639,8 @@ bool strToFloat64(float64* out, strref s, bool strict)
         return false;
     }
 
-    // In strict mode, ensure entire string was consumed (except trailing whitespace)
-    if (strict) {
+    // ensure entire string was consumed (except trailing whitespace)
+    if (flags & STRNUM_NoTrailing) {
         while (isspace((uint8)*endptr)) endptr++;
         if (*endptr != '\0') {
             cxerr = CX_InvalidArgument;
@@ -628,7 +653,7 @@ bool strToFloat64(float64* out, strref s, bool strict)
 }
 
 _Use_decl_annotations_
-bool strToFloat32(float32* out, strref s, bool strict)
+bool strToFloat32(float32* out, strref s, flags_t flags)
 {
     if (!s || strEmpty(s))
         return false;
@@ -637,8 +662,11 @@ bool strToFloat32(float32* out, strref s, bool strict)
     const char* cstr  = strC(s);
     const char* start = cstr;
 
-    // Skip leading whitespace
-    while (isspace((uint8)*cstr)) cstr++;
+    cstr = fpRestrict(cstr, flags);
+    if (!cstr) {
+        cxerr = CX_InvalidArgument;
+        return false;
+    }
 
     if (*cstr == '\0') {
         cxerr = CX_InvalidArgument;
@@ -679,8 +707,8 @@ bool strToFloat32(float32* out, strref s, bool strict)
         return false;
     }
 
-    // In strict mode, ensure entire string was consumed (except trailing whitespace)
-    if (strict) {
+    // ensure entire string was consumed (except trailing whitespace)
+    if (flags & STRNUM_NoTrailing) {
         while (isspace((uint8)*endptr)) endptr++;
         if (*endptr != '\0') {
             cxerr = CX_InvalidArgument;
