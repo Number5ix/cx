@@ -613,6 +613,14 @@ void HttpConn__pump(_In_ HttpConn* self)
     while ((n = netsocketRecv(self->sock, buf, sizeof(buf), NULL, 0)) > 0)
         bufringWrite(&self->in, buf, n);
 
+    // A completed parser stays in its terminal state until the next request resets it, so stepping
+    // it with nothing in flight would report the previous response complete a second time -- with
+    // the request already handed back, and handlers that dereference it. Only a request in flight
+    // can produce a response, so that is the condition to parse under. Anything the peer sent while
+    // idle stays in the ring for the next request to read.
+    if (!self->req)
+        return;
+
     for (;;) {
         HttpParseResult r = httpParserStep(self->parser, &self->in);
 
