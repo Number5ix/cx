@@ -1274,15 +1274,18 @@ static bool fixtureInit(ConnFixture* f)
     f->listener = INVALID_SOCKET;
     f->peer     = INVALID_SOCKET;
 
-    uint16 port = 0;
-    f->listener = rawListen(&port);
-    if (f->listener == INVALID_SOCKET)
-        return false;
-
+    // The queue comes first because creating one is what initializes the platform's networking, and
+    // the raw sockets below are made with the OS API directly: on Windows a socket() before
+    // WSAStartup() fails outright.
     NetQueueConfig conf;
     netqueuePresetClient(&conf);
     f->q = netqueueCreate(&conf);
     if (!f->q)
+        return false;
+
+    uint16 port = 0;
+    f->listener = rawListen(&port);
+    if (f->listener == INVALID_SOCKET)
         return false;
 
     f->sock = netqueueConnect(f->q, _SL("127.0.0.1"), port, &kFixtureHandlers, f);
@@ -1924,16 +1927,18 @@ static bool clientFixtureInit(ClientFixture* f)
     f->listener = INVALID_SOCKET;
     f->peer     = INVALID_SOCKET;
 
-    f->listener = rawListen(&f->port);
-    if (f->listener == INVALID_SOCKET)
-        return false;
-    rawNonBlocking(f->listener);
-
+    // Queue first, for the reason given in fixtureInit(): it is what initializes Winsock, without
+    // which the raw socket() below fails.
     NetQueueConfig conf;
     netqueuePresetClient(&conf);
     f->q = netqueueCreate(&conf);
     if (!f->q)
         return false;
+
+    f->listener = rawListen(&f->port);
+    if (f->listener == INVALID_SOCKET)
+        return false;
+    rawNonBlocking(f->listener);
 
     f->cl = httpclientCreate(f->q);
     return f->cl != NULL;
@@ -3198,10 +3203,12 @@ static bool srvConnect(SrvFixture* f)
     if (connect(f->client, (struct sockaddr*)&a, sizeof(a)) != 0)
         return false;
 
-    for (int i = 0; i < 20; i++)
+    // Tick until the server has actually accepted rather than for a fixed number of rounds, for the
+    // same reason srvRead() waits for quiet: every round past the accept is a full idle sleep.
+    for (int i = 0; i < 100 && httpserverConnCount(f->srv) == 0; i++)
         netqueueTick(f->q, 5);
 
-    return true;
+    return httpserverConnCount(f->srv) > 0;
 }
 
 static bool srvFixtureInit(SrvFixture* f, SrvRec* rec, bool attach)
@@ -3214,10 +3221,17 @@ static void srvSend(SrvFixture* f, const char* text)
     send(f->client, text, (int)strlen(text), 0);
 }
 
-// Read whatever the server has written so far, ticking the queue to let it get there. Stops early
-// once `want` bytes are in hand, so a test waiting for two pipelined responses does not have to
-// spend the whole budget.
-static void srvRead(SrvFixture* f, string* out, uint32 want)
+// Read what the server writes, ticking the queue to let it get there. A response can arrive as
+// several segments, so this stops once the wire has stayed quiet for SRVREAD_QUIET rounds rather
+// than at the first one. Waiting for quiet rather than running the whole budget matters for more
+// than tidiness: a tick with nothing to do waits out its full timeout, which the OS rounds up to
+// its timer granularity -- ~15ms on Windows -- so a fixed hundred rounds is over a second of pure
+// sleep on every test. A test expecting no response at all never sees a byte, so its `out` stays
+// empty, no quiet round is ever counted, and it still waits the whole budget.
+#define SRVREAD_ROUNDS 100
+#define SRVREAD_QUIET  10
+
+static void srvRead(SrvFixture* f, string* out)
 {
 #if defined(_WIN32)
     u_long nb = 1;
@@ -3225,7 +3239,8 @@ static void srvRead(SrvFixture* f, string* out, uint32 want)
 #endif
 
     char buf[4096];
-    for (int i = 0; i < 100; i++) {
+    int quiet = 0;
+    for (int i = 0; i < SRVREAD_ROUNDS; i++) {
         netqueueTick(f->q, 5);
 
 #if defined(_WIN32)
@@ -3233,11 +3248,12 @@ static void srvRead(SrvFixture* f, string* out, uint32 want)
 #else
         int n = (int)recv(f->client, buf, sizeof(buf), MSG_DONTWAIT);
 #endif
-        if (n > 0)
+        if (n > 0) {
             strAppendBytes(out, (uint8*)buf, (size_t)n);
-
-        if (want && strLen(*out) >= want)
+            quiet = 0;
+        } else if (!strEmpty(*out) && ++quiet >= SRVREAD_QUIET) {
             break;
+        }
     }
 }
 
@@ -3266,7 +3282,7 @@ static int test_httptest_srvget(void)
             "GET /a/b?x=1 HTTP/1.1\r\n"
             "Host: example.com\r\n"
             "\r\n");
-    srvRead(&f, &resp, 0);
+    srvRead(&f, &resp);
 
     if (rec.requestCount != 1)
         ret = 1;
@@ -3315,7 +3331,7 @@ static int test_httptest_srvpost(void)
             "Content-Length: 11\r\n"
             "\r\n"
             "hello=world");
-    srvRead(&f, &resp, 0);
+    srvRead(&f, &resp);
 
     if (rec.requestCount != 1)
         ret = 1;
@@ -3353,7 +3369,7 @@ static int test_httptest_srvchunkedreq(void)
             "5\r\nhello\r\n"
             "6\r\n world\r\n"
             "0\r\n\r\n");
-    srvRead(&f, &resp, 0);
+    srvRead(&f, &resp);
 
     if (rec.requestCount != 1 || !strEq(rec.body, _SL("hello world")))
         ret = 1;
@@ -3381,7 +3397,7 @@ static int test_httptest_srvkeepalive(void)
     }
 
     srvSend(&f, "GET /one HTTP/1.1\r\nHost: h\r\n\r\n");
-    srvRead(&f, &r1, 0);
+    srvRead(&f, &r1);
 
     if (rec.requestCount != 1 || !strEq(rec.path, _SL("/one")))
         ret = 1;
@@ -3389,7 +3405,7 @@ static int test_httptest_srvkeepalive(void)
         ret = 1;
 
     srvSend(&f, "GET /two HTTP/1.1\r\nHost: h\r\n\r\n");
-    srvRead(&f, &r2, 0);
+    srvRead(&f, &r2);
 
     if (rec.requestCount != 2 || !strEq(rec.path, _SL("/two")))
         ret = 1;
@@ -3422,7 +3438,7 @@ static int test_httptest_srvclose(void)
     }
 
     srvSend(&f, "GET /x HTTP/1.1\r\nHost: h\r\nConnection: close\r\n\r\n");
-    srvRead(&f, &resp, 0);
+    srvRead(&f, &resp);
 
     if (rec.requestCount != 1)
         ret = 1;
@@ -3467,9 +3483,9 @@ static int test_httptest_srvserialized(void)
     srvSend(&f,
             "GET /first HTTP/1.1\r\nHost: h\r\n\r\n"
             "GET /second HTTP/1.1\r\nHost: h\r\n\r\n");
-    srvRead(&f, &resp, 0);
+    srvRead(&f, &resp);
     srvTick(&f, 20);
-    srvRead(&f, &resp, 0);
+    srvRead(&f, &resp);
 
     if (rec.requestCount != 2)
         ret = 1;
@@ -3508,7 +3524,7 @@ static int test_httptest_srvbadrequest(void)
     // A header field name with whitespace before the colon: a smuggling primitive, and one the
     // parser rejects outright rather than trimming.
     srvSend(&f, "GET /x HTTP/1.1\r\nHost : h\r\n\r\n");
-    srvRead(&f, &resp, 0);
+    srvRead(&f, &resp);
 
     if (rec.requestCount != 0)
         ret = 1;
@@ -3541,7 +3557,7 @@ static int test_httptest_srvbadtarget(void)
 
     // Authority-form, which only CONNECT may use.
     srvSend(&f, "GET example.com:80 HTTP/1.1\r\nHost: h\r\n\r\n");
-    srvRead(&f, &resp, 0);
+    srvRead(&f, &resp);
 
     if (rec.requestCount != 0)
         ret = 1;
@@ -3587,7 +3603,7 @@ static int test_httptest_srvtoolarge(void)
     strAppend(&req, _SL("\r\n"));
 
     send(f.client, strC(req), (int)strLen(req), 0);
-    srvRead(&f, &resp, 0);
+    srvRead(&f, &resp);
 
     if (rec.requestCount != 0)
         ret = 1;
@@ -3623,7 +3639,7 @@ static int test_httptest_srvheadreadtimeout(void)
 
     // Enough of a request line to start the clock, and then nothing.
     srvSend(&f, "GET /slow HT");
-    srvRead(&f, &resp, 0);
+    srvRead(&f, &resp);
 
     if (rec.requestCount != 0)
         ret = 1;
@@ -3657,7 +3673,7 @@ static int test_httptest_srvhead(void)
     }
 
     srvSend(&f, "HEAD /x HTTP/1.1\r\nHost: h\r\nConnection: close\r\n\r\n");
-    srvRead(&f, &resp, 0);
+    srvRead(&f, &resp);
 
     if (rec.requestCount != 1)
         ret = 1;
@@ -3691,7 +3707,7 @@ static int test_httptest_srvnobody(void)
 
     rec.status = HTTP_NoContent;
     srvSend(&f, "GET /x HTTP/1.1\r\nHost: h\r\nConnection: close\r\n\r\n");
-    srvRead(&f, &resp, 0);
+    srvRead(&f, &resp);
 
     if (!strBeginsWith(resp, _SL("HTTP/1.1 204 No Content\r\n")))
         ret = 1;
@@ -3722,7 +3738,7 @@ static int test_httptest_srvheld(void)
     rec.hold = true;
 
     srvSend(&f, "GET /slow HTTP/1.1\r\nHost: h\r\n\r\nGET /next HTTP/1.1\r\nHost: h\r\n\r\n");
-    srvRead(&f, &resp, 0);
+    srvRead(&f, &resp);
 
     // The first request arrived; the second must not have been looked at yet.
     if (rec.requestCount != 1 || !rec.held)
@@ -3735,9 +3751,9 @@ static int test_httptest_srvheld(void)
     httpsrvreqRespond(rec.held, _SL("late"), _SL("text/plain"));
     objRelease(&rec.held);
 
-    srvRead(&f, &resp, 0);
+    srvRead(&f, &resp);
     srvTick(&f, 20);
-    srvRead(&f, &resp, 0);
+    srvRead(&f, &resp);
 
     if (rec.requestCount != 2 || !strEq(rec.path, _SL("/next")))
         ret = 1;
@@ -3767,7 +3783,7 @@ static int test_httptest_srvlateresponse(void)
 
     rec.hold = true;
     srvSend(&f, "GET /slow HTTP/1.1\r\nHost: h\r\n\r\n");
-    srvRead(&f, &resp, 0);
+    srvRead(&f, &resp);
 
     if (rec.requestCount != 1 || !rec.held)
         ret = 1;
@@ -3808,7 +3824,7 @@ static int test_httptest_srvattach(void)
     }
 
     srvSend(&f, "GET /attached HTTP/1.1\r\nHost: h\r\n\r\n");
-    srvRead(&f, &resp, 0);
+    srvRead(&f, &resp);
 
     if (rec.requestCount != 1 || !strEq(rec.path, _SL("/attached")))
         ret = 1;
@@ -3845,7 +3861,7 @@ static int test_httptest_srvsink(void)
             "Content-Length: 11\r\n"
             "\r\n"
             "sink-body!!");
-    srvRead(&f, &resp, 0);
+    srvRead(&f, &resp);
     srvSinkDrain(&rec);
 
     if (rec.headCount != 1 || rec.requestCount != 1)
@@ -3891,7 +3907,7 @@ static int test_httptest_srvsinkchunked(void)
             "5\r\nhello\r\n"
             "6\r\n world\r\n"
             "0\r\n\r\n");
-    srvRead(&f, &resp, 0);
+    srvRead(&f, &resp);
     srvSinkDrain(&rec);
 
     if (rec.requestCount != 1 || !strEq(rec.sinkData, _SL("hello world")))
@@ -3932,7 +3948,7 @@ static int test_httptest_srvdata(void)
             "Content-Length: 9\r\n"
             "\r\n"
             "data-body");
-    srvRead(&f, &resp, 0);
+    srvRead(&f, &resp);
 
     if (rec.dataCount < 1 || !strEq(rec.dataBody, _SL("data-body")))
         ret = 1;
@@ -3964,7 +3980,7 @@ static int test_httptest_srvstreamresp(void)
     }
 
     srvSend(&f, "GET /stream HTTP/1.1\r\nHost: h\r\n\r\n");
-    srvRead(&f, &resp, 0);
+    srvRead(&f, &resp);
 
     if (rec.requestCount != 1)
         ret = 1;
@@ -4012,7 +4028,7 @@ static int test_httptest_srvchunkedresp(void)
     }
 
     srvSend(&f, "GET /chunked HTTP/1.1\r\nHost: h\r\n\r\n");
-    srvRead(&f, &resp, 0);
+    srvRead(&f, &resp);
 
     if (rec.requestCount != 1)
         ret = 1;
@@ -4102,7 +4118,7 @@ static int test_httptest_srvpushresp(void)
     }
 
     srvSend(&f, "GET /push HTTP/1.1\r\nHost: h\r\n\r\n");
-    srvRead(&f, &resp, 0);
+    srvRead(&f, &resp);
 
     if (rec.requestCount != 1)
         ret = 1;
@@ -4139,7 +4155,7 @@ static int test_httptest_srvcontinue(void)
             "Expect: 100-continue\r\n"
             "Content-Length: 4\r\n"
             "\r\n");
-    srvRead(&f, &resp, 0);
+    srvRead(&f, &resp);
 
     if (!strBeginsWith(resp, _SL("HTTP/1.1 100 Continue\r\n\r\n")))
         ret = 1;
@@ -4147,7 +4163,7 @@ static int test_httptest_srvcontinue(void)
         ret = 1;   // the request is not complete until its body arrives
 
     srvSend(&f, "body");
-    srvRead(&f, &resp, 0);
+    srvRead(&f, &resp);
 
     if (rec.requestCount != 1 || !strEq(rec.body, _SL("body")))
         ret = 1;
@@ -4190,7 +4206,7 @@ static int test_httptest_srvcontinuemanual(void)
             "Expect: 100-continue\r\n"
             "Content-Length: 9999\r\n"
             "\r\n");
-    srvRead(&f, &resp, 0);
+    srvRead(&f, &resp);
 
     if (rec.headCount != 1)
         ret = 1;
@@ -4233,7 +4249,7 @@ static int test_httptest_srvexpectbad(void)
             "Expect: something-else\r\n"
             "Content-Length: 2\r\n"
             "\r\n");
-    srvRead(&f, &resp, 0);
+    srvRead(&f, &resp);
 
     if (!strBeginsWith(resp, _SL("HTTP/1.1 417 ")))
         ret = 1;
@@ -4309,7 +4325,7 @@ static int test_httptest_srvdeferred(void)
     // The respond() call itself returns as soon as the handoff is armed; the bytes only move when a
     // worker picks it up, which for a polled queue means here.
     eventWaitTimeout(&d.done, timeS(5));
-    srvRead(&f, &resp, 0);
+    srvRead(&f, &resp);
 
     if (!strBeginsWith(resp, _SL("HTTP/1.1 200 OK\r\n")))
         ret = 1;
