@@ -1,6 +1,7 @@
 #include <cx/cx.h>
 #include <cx/string.h>
 #include <cx/container.h>
+#include <cx/parse.h>
 #include <cx/stype/stvar.h>
 #include <cx/obj.h>
 #include "objtestobj.h"
@@ -285,6 +286,27 @@ static int test_stvar()
 
     stvarDestroy(&v3);
     strDestroy(&s);
+
+    // destination bindings, which take the C++ arm of the same macros
+    int32 dest = 0;
+    stvp d1    = stvp(int32, &dest);
+    stvp d2    = stvpk(port, int32, &dest);
+    stvp d3    = stvpNone;
+
+    if (!stEq(d1.type, stType(int32)) || d1.ptr != (stgeneric*)&dest || d1.key != NULL)
+        return 1;
+    if (!d2.key || strcmp(d2.key, "port") != 0)
+        return 1;
+    if (d3.type != NULL || d3.ptr != NULL)
+        return 1;
+
+    // The variadic call macros themselves stay C-only: a C++ compiler will not let the
+    // address of a compound-literal array escape the full expression, which is exactly what
+    // strFormat and strPatternMatch do. Building the array by hand is the C++ way in.
+    uint32 x = 0, y = 0;
+    stvp dests[2] = { stvpk(x, uint32, &x), stvpk(y, uint32, &y) };
+    if (!_strParse(_SL("4-5"), _SL("${uint:x}-${uint:y}"), 2, dests) || x != 4 || y != 5)
+        return 1;
 
     return 0;
 }

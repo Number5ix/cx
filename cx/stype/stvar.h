@@ -238,7 +238,7 @@ _meta_inline stvar _stvar(stype st, stgeneric val)
     ret._key  = NULL;
     return ret;
 }
-#define stvar(typen, val) _stvar(stType(typen), stArg(typen, val))
+#define stvar(typen, val)         _stvar(stType(typen), stArg(typen, val))
 
 _meta_inline stvar _stvark(const char* nm, stype st, stgeneric val)
 {
@@ -250,6 +250,116 @@ _meta_inline stvar _stvark(const char* nm, stype st, stgeneric val)
 #define stvarkn(name, typen, val) _stvark((name), stType(typen), stArg(typen, val))
 
 #define stvNone _stvar(stType(none), _cxStGenZero())
+#endif
+
+/// @}
+
+/// @defgroup stvp Output Parameter Bindings
+/// @ingroup stype
+/// @{
+///
+/// Type-safe variadic **destinations**, for functions that fill in caller variables
+/// rather than reading them.
+///
+/// An `stvp` is the mirror image of an `stvar`: where a variant carries a value into a
+/// call, an `stvp` carries a place to put one back out. It pairs a type descriptor with a
+/// pointer into the caller's own storage, plus an optional key naming the field it should
+/// receive.
+///
+/// @section stvp_notvariant This is a passing mechanism, not a variant
+///
+/// An `stvp` owns nothing, allocates nothing, and lives exactly as long as the call it
+/// appears in.
+///
+/// The two are not interchangeable. stvar is a full value container. stvp is a calling
+/// convention for a typed pointer to a value.
+///
+/// @section stvp_usage Usage
+///
+/// The same array-of-struct method `stvar` uses for input arguments:
+///
+/// @code
+///   // Internal function taking count and destination array
+///   bool _myParse(strref s, int n, stvp *dests);
+///   #define myParse(s, ...) _myParse(s, count_macro_args(__VA_ARGS__), (stvp[]){__VA_ARGS__})
+///
+///   string host = 0;
+///   uint16 port = 443;           // untouched if the input has no port
+///   myParse(text, stvpk(host, string, &host), stvpk(port, uint16, &port));
+/// @endcode
+
+/// Output parameter binding: a type descriptor plus somewhere to put the value.
+///
+typedef struct stvp {
+    stype type;        ///< Type of the destination
+    stgeneric* ptr;    ///< Destination in the caller's own storage
+    const char* key;   ///< Binding key, or NULL if this destination is positional
+} stvp;
+
+#ifndef __cplusplus
+/// stvp stvp(type, pval)
+///
+/// Create a positional destination binding.
+///
+/// The pointer is type-checked against the named type at compile time, exactly as
+/// `stvar()` checks a value.
+///
+/// @param typen Type name (e.g., int32, string)
+/// @param pval Pointer to the variable that receives the value
+/// @return Temporary stvp with automatic storage duration
+///
+/// Example:
+/// @code
+///   int32 count;
+///   myParse(text, stvp(int32, &count));
+/// @endcode
+#define stvp(typen, pval) ((stvp) { stCheckedPtrArg(typen, pval), NULL })
+
+/// stvp stvpk(key, type, pval)
+///
+/// Create a destination binding tagged with a key name.
+///
+/// Identical to `stvp()` except that the destination also carries a name, so the receiver
+/// fills it in by name rather than by position. The key is written as a bare token and
+/// stringized, same as `stvark()`.
+///
+/// @param key Key name as a bare token (not a string literal)
+/// @param typen Type name (e.g., int32, string)
+/// @param pval Pointer to the variable that receives the value
+/// @return Temporary stvp with automatic storage duration
+///
+/// Example:
+/// @code
+///   uint16 port;
+///   myParse(text, stvpk(port, uint16, &port));
+/// @endcode
+#define stvpk(key, typen, pval) ((stvp) { stCheckedPtrArg(typen, pval), #key })
+
+/// stvp stvpNone
+///
+/// A destination binding that binds nothing.
+///
+/// A variadic call cannot portably be given zero arguments, so this is what to pass when
+/// there is genuinely nothing to fill in - matching a pattern purely to find out whether
+/// it matches, for instance. Receivers skip it.
+///
+/// Example:
+/// @code
+///   if (strParse(line, _SL("BEGIN ${string(skip)}"), stvpNone)) { ... }
+/// @endcode
+#define stvpNone ((stvp) { NULL, NULL, NULL })
+#else
+_meta_inline stvp _stvp(const char* nm, stype st, stgeneric* p)
+{
+    stvp ret;
+    ret.type = st;
+    ret.ptr  = p;
+    ret.key  = nm;
+    return ret;
+}
+#define stvp(typen, pval)       _stvp(NULL, stCheckedPtrArg(typen, pval))
+#define stvpk(key, typen, pval) _stvp(#key, stCheckedPtrArg(typen, pval))
+#define stvpNone                _stvp(NULL, NULL, NULL)
 #endif
 
 /// @}
