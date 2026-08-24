@@ -1978,7 +1978,11 @@ static bool clientAccept(ClientFixture* f)
     return false;
 }
 
-// Read one whole request head (and any body already with it) off the peer.
+// Read one whole request off the peer, headers and body together. The client's headers
+// and body can arrive as separate TCP segments, so this has to wait for the full body
+// (per its own Content-Length) rather than returning as soon as the header terminator
+// shows up -- otherwise a body sent a moment later gets picked up by whatever read call
+// comes next instead, and gets mistaken for the start of a later request.
 static bool clientReadRequest(ClientFixture* f, string* out)
 {
     strClear(out);
@@ -1997,7 +2001,22 @@ static bool clientReadRequest(ClientFixture* f, string* out)
         if (n > 0)
             strAppendBytes(out, (uint8*)buf, (size_t)n);
 
-        if (strFind(*out, 0, _SL("\r\n\r\n")) >= 0)
+        int32 hdrEnd = strFind(*out, 0, _SL("\r\n\r\n"));
+        if (hdrEnd < 0)
+            continue;
+
+        int32 bodyStart = hdrEnd + 4;
+        uint32 bodyLen  = 0;
+        int32 clPos     = strFind(*out, 0, _SL("Content-Length: "));
+        if (clPos >= 0 && clPos < hdrEnd) {
+            string num = 0;
+            strSubStr(&num, *out, clPos + (int32)strlen("Content-Length: "),
+                       strFind(*out, clPos, _SL("\r\n")));
+            strToUInt32(&bodyLen, num, 10, 0);
+            strDestroy(&num);
+        }
+
+        if ((uint32)(strLen(*out) - bodyStart) >= bodyLen)
             return true;
     }
     return false;
