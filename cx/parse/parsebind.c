@@ -225,45 +225,54 @@ static bool bindOne(const StrPattern* pat, const ParseField* f, strref text, con
     return _stConvert(d->type, d->ptr, stType(string), stArg(string, (string)text), 0);
 }
 
+// Whether a destination should be written from a field the match produced. posidx is the
+// destination's own ordinal among unkeyed destinations, and is ignored for keyed ones.
+static bool destTakes(const stvp* d, int32 posidx, const ParseField* f)
+{
+    if (!d->type)
+        return false;
+    if (d->key)
+        return f->key && strEq(f->key, (strref)d->key);
+    return f->posidx >= 0 && f->posidx == posidx;
+}
+
 _Use_decl_annotations_
 bool _parseBind(const StrPattern* pat, strref s, const StrPatSpan* spans, int32 nspans, int n,
                 stvp* dests)
 {
-    int32 fbuf[16];
-    int32* fmap = fbuf;
+    int32 pbuf[16];
+    int32* pmap = pbuf;
     bool ok     = true;
 
-    if (n > (int)(sizeof(fbuf) / sizeof(fbuf[0])))
-        fmap = xaAlloc(sizeof(int32) * (size_t)n);
+    if (n > (int)(sizeof(pbuf) / sizeof(pbuf[0])))
+        pmap = xaAlloc(sizeof(int32) * (size_t)n);
 
-    // Resolve every destination to a field before writing anything. A key that is not in
-    // the pattern is a typo rather than a choice, and the same goes for more positional
-    // destinations than the pattern has positional placeholders.
+    // Check every destination has somewhere to come from before writing anything. A key that
+    // is not in the pattern is a typo rather than a choice, and the same goes for more
+    // positional destinations than the pattern has positional placeholders.
+    //
+    // A keyed destination is matched to spans by key rather than by field, because several
+    // fields in different alternatives of a group may share one key. Only the alternative
+    // that matched produces a span, so at most one of them can reach the destination.
     int32 posn = 0;
     for (int i = 0; i < n; i++) {
-        fmap[i] = -1;
+        pmap[i] = -1;
 
         if (!dests[i].type)
             continue;   // stvpNone: a placeholder for "nothing to bind"
 
+        bool found = false;
         if (dests[i].key) {
-            for (int32 j = 0; j < saSize(pat->fields); j++) {
-                if (pat->fields.a[j].key && strEq(pat->fields.a[j].key, (strref)dests[i].key)) {
-                    fmap[i] = j;
-                    break;
-                }
-            }
+            for (int32 j = 0; j < saSize(pat->fields) && !found; j++)
+                found = pat->fields.a[j].key &&
+                        strEq(pat->fields.a[j].key, (strref)dests[i].key);
         } else {
-            int32 want = posn++;
-            for (int32 j = 0; j < saSize(pat->fields); j++) {
-                if (pat->fields.a[j].posidx == want) {
-                    fmap[i] = j;
-                    break;
-                }
-            }
+            pmap[i] = posn++;
+            for (int32 j = 0; j < saSize(pat->fields) && !found; j++)
+                found = pat->fields.a[j].posidx == pmap[i];
         }
 
-        if (fmap[i] < 0) {
+        if (!found) {
             ok = false;
             break;
         }
@@ -284,7 +293,7 @@ bool _parseBind(const StrPattern* pat, strref s, const StrPatSpan* spans, int32 
 
             bool needtext = false;
             for (int i = 0; i < n; i++) {
-                if (fmap[i] == spans[si].field)
+                if (destTakes(&dests[i], pmap[i], f))
                     needtext = true;
             }
             if (!needtext)
@@ -294,7 +303,7 @@ bool _parseBind(const StrPattern* pat, strref s, const StrPatSpan* spans, int32 
                 _parseSpanText(&text, f, s, &spans[si]);
 
             for (int i = 0; i < n && ok; i++) {
-                if (fmap[i] != spans[si].field)
+                if (!destTakes(&dests[i], pmap[i], f))
                     continue;
                 ok = bindOne(pat, f, text, &spans[si], &dests[i], pass == 1);
             }
@@ -303,8 +312,8 @@ bool _parseBind(const StrPattern* pat, strref s, const StrPatSpan* spans, int32 
         strDestroy(&text);
     }
 
-    if (fmap != fbuf)
-        xaFree(fmap);
+    if (pmap != pbuf)
+        xaFree(pmap);
 
     return ok;
 }

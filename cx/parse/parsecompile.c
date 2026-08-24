@@ -104,6 +104,14 @@ typedef struct PCtx {
     sa_ParseField fields;
     int32 npos;    // how many positional fields there have been
     int32 depth;   // group nesting depth; a placeholder in a group must be keyed
+
+    // Which already-compiled fields the current point in the pattern is mutually exclusive
+    // with: those from gstart (where the innermost group's fields begin, -1 outside any
+    // group) up to altstart (where the current alternative's begin). Everything in that
+    // window sits in an earlier alternative of the same group and so can never match
+    // alongside what is being compiled now.
+    int32 gstart;
+    int32 altstart;
     int32 nelems;
     int64 complexity;
 
@@ -425,8 +433,17 @@ static bool validDefault(const ParseField* f)
 static bool dupKey(PCtx* c, strref key)
 {
     for (int32 i = 0; i < saSize(c->fields); i++) {
-        if (c->fields.a[i].key && strEq(c->fields.a[i].key, key))
-            return true;
+        if (!c->fields.a[i].key || !strEq(c->fields.a[i].key, key))
+            continue;
+
+        // Reusing a key across the alternatives of one group is how a field that is spelled
+        // differently in each form still binds to one destination. Only one alternative can
+        // match, so only one of them can ever produce a value. Anywhere else, both fields
+        // could match at once and there would be no saying which one the destination got.
+        if (c->gstart >= 0 && i >= c->gstart && i < c->altstart)
+            continue;
+
+        return true;
     }
     return false;
 }
@@ -602,9 +619,13 @@ static bool parseGroup(PCtx* c, sa_ParseElem* b)
     saInit(&alts, ParseAlt, 0);
     bool ok = true;
 
+    int32 savedg = c->gstart, saveda = c->altstart;
+    c->gstart = saSize(c->fields);
+
     for (;;) {
         int32 n = saSize(alts);
         saSetSize(&alts, n + 1);
+        c->altstart = saSize(c->fields);
         if (!parseSeq(c, &alts.a[n], true)) {
             ok = false;
             break;
@@ -626,6 +647,8 @@ static bool parseGroup(PCtx* c, sa_ParseElem* b)
     }
 
     c->depth--;
+    c->gstart   = savedg;
+    c->altstart = saveda;
 
     if (!ok) {
         saDestroy(&alts);
@@ -759,6 +782,7 @@ StrPattern* _strPatternCreate(strref pat, flags_t flags)
     c.len        = (int32)strLen(pat);
     c.flags      = flags;
     c.complexity = 1;
+    c.gstart     = -1;
     saInit(&c.fields, ParseField, 0);
 
     ParseAlt root = { 0 };

@@ -79,6 +79,9 @@ CX_C_BEGIN
 /// unkeyed destination, and adding a keyed destination to a call cannot renumber the
 /// positional ones.
 ///
+/// A key may appear on more than one placeholder when the pattern makes them alternatives
+/// of each other; see @ref string_parse_groups. One destination then serves all of them.
+///
 /// A key named in the pattern with nothing bound to it is fine and is simply not written -
 /// which lets one shared pattern serve callers who want different fields out of it. The
 /// reverse is an error: a destination whose key does not appear in the pattern fails the
@@ -105,6 +108,12 @@ CX_C_BEGIN
 /// **A placeholder inside a group must be keyed.** Positional order stops being meaningful
 /// once a field might not appear at all, so an unkeyed placeholder inside a group is a
 /// compile error.
+///
+/// **Alternatives of the same group may reuse a key**, as `day` and `mon` do above. Only
+/// one alternative can match, so only one of them can produce a value, and a single
+/// destination collects it whichever form the text turned out to be in. Repeating a key
+/// anywhere the two could match together - twice in one alternative, or inside a group and
+/// again outside it - is still a compile error.
 ///
 /// A group can carry a key of its own, written after the closing paren and the optional
 /// `?`. What the destination receives depends on its type:

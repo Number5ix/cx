@@ -314,6 +314,35 @@ static int test_group()
         v1 != 1 || v2 != 9)
         ret = 1;
 
+    // one key shared by every alternative: only the branch that matched produces a value,
+    // so one destination serves them all
+    STR_PATTERN(kShared, "(${uint:d} ${string:m}|${string:m} ${uint:d}):which");
+
+    uint32 sday  = 0;
+    string smon  = 0;
+    uint8 which  = 0;
+    if (!strPatternMatch(strPat(kShared), _S"06 Nov", stvpk(d, uint32, &sday),
+                         stvpk(m, string, &smon), stvpk(which, uint8, &which)) ||
+        sday != 6 || !strEq(smon, _S"Nov") || which != 1)
+        ret = 1;
+
+    sday = 0;
+    if (!strPatternMatch(strPat(kShared), _S"Nov 6", stvpk(d, uint32, &sday),
+                         stvpk(m, string, &smon), stvpk(which, uint8, &which)) ||
+        sday != 6 || !strEq(smon, _S"Nov") || which != 2)
+        ret = 1;
+
+    // a shared key in a branch that does not match writes nothing, so a pre-set destination
+    // survives
+    STR_PATTERN(kShareOpt, "x(${uint:v}|y${uint:v})?");
+    uint32 sv = 77;
+    if (!strPatternMatch(strPat(kShareOpt), _S"x", stvpk(v, uint32, &sv)) || sv != 77)
+        ret = 1;
+    if (!strPatternMatch(strPat(kShareOpt), _S"xy5", stvpk(v, uint32, &sv)) || sv != 5)
+        ret = 1;
+
+    strDestroy(&smon);
+
     // nested groups
     string sch = 0;
     if (!strParse(_S"https://h/p",
@@ -499,6 +528,9 @@ static int test_error()
         _S"${bool:b;perhaps}",      // and for a bool
         _S"${uint:a}-${uint:a}",    // duplicate key
         _S"${uint:a}(x)?:a",        // duplicate key, group against placeholder
+        _S"(${uint:a}-${uint:a}|b)",   // duplicate key within one alternative
+        _S"${uint:a}(-${uint:a}|b)",   // duplicate key, outer against a branch
+        _S"((${uint:a}|c) ${uint:a}|b)",   // duplicate key, nested group against its parent
         _S"${nosuchtype:a}",        // no such placeholder type
         _S"${string2:a}",           // instance numbers are a formatter idea, not a parser one
         _S"${uint:a(nosuchopt)}",   // unknown option
