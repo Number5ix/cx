@@ -17,6 +17,7 @@ add_subdirectory(math)
 add_subdirectory(meta)
 add_subdirectory(net)
 add_subdirectory(obj)
+add_subdirectory(parse)
 add_subdirectory(platform)
 add_subdirectory(serialize)
 add_subdirectory(settings)
@@ -45,6 +46,7 @@ set(CX_BASE_INCLUDES
     include/cx/meta.h
     include/cx/net.h
     include/cx/obj.h
+    include/cx/parse.h
     include/cx/platform.h
     include/cx/serialize.h
     include/cx/ssdtree.h

@@ -1,0 +1,5 @@
+#include <cx/parse.h>
+
+interface Parsable {
+    bool parse(strref text, ParseVar *v);
+}

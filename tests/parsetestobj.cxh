@@ -1,0 +1,8 @@
+#include <cx/parse/parsable.cxh>
+
+class ParseTestClass implements Parsable
+{
+    int32 iv;
+    string sv;
+    factory create();
+}

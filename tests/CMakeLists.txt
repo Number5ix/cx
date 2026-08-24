@@ -21,6 +21,7 @@ create_test_sourcelist(testsrc
     contest.c
     digesttest.c
     fmttest.c
+    parsetest.c
     logtest.c
     objtest.c
     structtest.c
@@ -49,6 +50,7 @@ create_test_sourcelist(testsrc
     alltests.c)
 add_cxautogen(converttestobj.cxh
     fmttestobj.cxh
+    parsetestobj.cxh
     netfilterobj.cxh
     nettestobj.cxh
     objtestobj.cxh
@@ -57,6 +59,8 @@ set(test_runner_files
     ${testsrc}
     fmttestobj.c
     fmttestobj.cxh
+    parsetestobj.c
+    parsetestobj.cxh
     objtestobj.c
     objtestobj.cxh
     converttestobj.c
@@ -147,6 +151,15 @@ add_test(NAME "\"format: Keyed stvlist lookup\"" COMMAND test_runner fmttest key
 add_test(NAME "\"format: Keyed variant copy\"" COMMAND test_runner fmttest keyedcopy)
 add_test(NAME "\"format: Defaults\"" COMMAND test_runner fmttest default)
 add_test(NAME "\"format: Error handling\"" COMMAND test_runner fmttest error)
+add_test(NAME "\"parse: Basics\"" COMMAND test_runner parsetest basic)
+add_test(NAME "\"parse: Types\"" COMMAND test_runner parsetest types)
+add_test(NAME "\"parse: Parse options\"" COMMAND test_runner parsetest opts)
+add_test(NAME "\"parse: Groups\"" COMMAND test_runner parsetest group)
+add_test(NAME "\"parse: Defaults\"" COMMAND test_runner parsetest default)
+add_test(NAME "\"parse: Untouched destinations\"" COMMAND test_runner parsetest untouched)
+add_test(NAME "\"parse: Resumable matching\"" COMMAND test_runner parsetest matchat)
+add_test(NAME "\"parse: Parsable objects\"" COMMAND test_runner parsetest object)
+add_test(NAME "\"parse: Error handling\"" COMMAND test_runner parsetest error)
 add_test(NAME "\"log: Log Levels\"" COMMAND test_runner logtest levels)
 add_test(NAME "\"log: Batch\"" COMMAND test_runner logtest batch)
 add_test(NAME "\"log: Shutdown\"" COMMAND test_runner logtest shutdown)
