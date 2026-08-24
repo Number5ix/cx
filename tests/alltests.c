@@ -467,7 +467,14 @@ int alltests(int argc, const char *argv[])
 
     int npassed = 0;
     int64 totalstart = clockTimer();
-    const char *fake_argv[3];
+
+    // Trailing flags on alltests' own argv (e.g. "-log=Warn") are forwarded to every
+    // sub-invocation, so a manual "alltests -log=Warn" run gets the same per-test verbosity as
+    // CX_TEST_LOGLEVEL gives a bulk ctest run.
+    const char *fake_argv[2 + 16];
+    int nflags = 0;
+    for (int i = 1; i < argc && nflags < 16; i++)
+        fake_argv[3 + nflags++] = argv[i];
 
     fake_argv[0] = argv[0];
 
@@ -485,7 +492,7 @@ int alltests(int argc, const char *argv[])
         logRestart();   // the previous test may have shut down the logging system
         fake_argv[1] = tests[i].module;
         fake_argv[2] = tests[i].test;
-        bool res = main(3, fake_argv);
+        bool res = main(3 + nflags, fake_argv);
         int64 tend = clockTimer();
 
         printf("    %s    %4d msec\n",

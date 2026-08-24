@@ -3,6 +3,65 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <cx/log.h>
+
+#include "testharness.h"
+
+// Every test file logs to the same channel with no per-file setup.
+#undef LOG_CHANNEL
+#define LOG_CHANNEL cxTestLogChan
+
+// void TEST_FAIL(code, fmt, ...);
+//
+// Logs an Error and returns code -- for a failure site that can return immediately.
+//
+// @param code Value to return
+// @param fmt Format template (see strFormat); use the generic type tokens (${int}, ${string},
+//            ...), not sized ones like ${int32}, which silently render empty
+//
+// Example:
+// @code
+//   if (val != expected)
+//       TEST_FAIL(3, _SL("expected ${int}, got ${int}"), stvar(int32, expected), stvar(int32, val));
+// @endcode
+#define TEST_FAIL(code, fmt, ...) \
+    do { \
+        logFmt(Error, fmt, ##__VA_ARGS__); \
+        return (code); \
+    } while (0)
+
+// void TEST_FAILV(var, code, fmt, ...);
+//
+// Logs an Error and assigns code to var, without returning -- for a deferred failure site (a
+// callback, or an accumulator variable checked after cleanup runs) that can't return immediately.
+//
+// @param var Variable to assign code to
+// @param code Value to assign
+// @param fmt Format template (see strFormat); use the generic type tokens, not sized ones
+//
+// Example:
+// @code
+//   if (val != expected)
+//       TEST_FAILV(ret, 1, _SL("expected ${int}, got ${int}"), stvar(int32, expected), stvar(int32, val));
+// @endcode
+#define TEST_FAILV(var, code, fmt, ...) \
+    do { \
+        logFmt(Error, fmt, ##__VA_ARGS__); \
+        (var) = (code); \
+    } while (0)
+
+// void TEST_WARN(fmt, ...);
+//
+// Logs a Warn message. Use the generic format type tokens (${int}, ${string}, ...), not sized
+// ones like ${int32}, which silently render empty.
+#define TEST_WARN(fmt, ...) logFmt(Warn, fmt, ##__VA_ARGS__)
+
+// void TEST_INFO(fmt, ...);
+//
+// Logs an Info message. Use the generic format type tokens (${int}, ${string}, ...), not sized
+// ones like ${int32}, which silently render empty.
+#define TEST_INFO(fmt, ...) logFmt(Info, fmt, ##__VA_ARGS__)
+
 #ifdef __cplusplus
 extern "C" {
 #endif

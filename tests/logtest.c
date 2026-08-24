@@ -15,6 +15,15 @@
 #include "common.h"
 #include "fmttestobj.h"
 
+// This file exercises the logging system's own channel behavior directly, so it must not
+// inherit common.h's rebinding of LOG_CHANNEL to the shared "tests" channel -- otherwise the
+// bare logStr()/logFmt() calls below, which are themselves the subject under test, would
+// silently target a different channel than what the assertions check against. A TEST_FAIL-style
+// call added to this file should name cxTestLogChan explicitly (logFmtC) rather than relying on
+// LOG_CHANNEL.
+#undef LOG_CHANNEL
+#define LOG_CHANNEL LogDefault
+
 static Event logtestevent;
 
 // Serialized records are newline-terminated, so counting lines is a format-independent way of
@@ -477,6 +486,7 @@ static int test_log_hierarchy()
 
     // channels are permanent, so the pointers survive a shutdown/restart cycle
     logRestart();
+    cxTestHarnessReattach();   // logRestart() above dropped the harness's own destination
     if (logChan(_S"hier/http") != http)
         ret = 1;
     logShutdown();
@@ -1115,6 +1125,7 @@ static int test_log_groups()
 
     // groups are permanent: the registry survives a shutdown/restart cycle the way channels do
     logRestart();
+    cxTestHarnessReattach();   // logRestart() above dropped the harness's own destination
     if (logGroup(_S "bulk") != bulk)
         ret = 1;
     logShutdown();

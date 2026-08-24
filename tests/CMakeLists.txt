@@ -13,8 +13,12 @@ if(CX_HTTP)
     set(httptestsrc httptest.c)
 endif()
 
+set(CMAKE_TESTDRIVER_BEFORE_TESTMAIN "cxTestHarnessBefore(ac, av);")
+set(CMAKE_TESTDRIVER_AFTER_TESTMAIN "cxTestHarnessAfter();")
+
 create_test_sourcelist(testsrc
     test_runner.c
+    EXTRA_INCLUDE testharness.h
     debugtest.c
     cxmemtest.c
     closuretest.c
@@ -71,7 +75,9 @@ set(test_runner_files
     nettestobj.cxh
     tqtestobj.c
     tqtestobj.cxh
-    common.h)
+    common.h
+    testharness.c
+    testharness.h)
 
 if(CX_TLS)
     list(APPEND test_runner_files tlstestcert.c tlstestcert.h)
