@@ -24,6 +24,11 @@
 #include <wchar.h>
 #endif
 
+#ifdef _MSC_VER
+// getenv() is fine here: single-threaded-at-startup environment reads
+#pragma warning(disable : 4996)
+#endif
+
 DEFINE_ENTRY_POINT;
 
 static strref yorn(bool b)

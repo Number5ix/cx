@@ -247,7 +247,7 @@ bool strscWS1(_Inout_ strscan* _Nonnull sc);
 /// @param out Receives the token, or NULL to consume it without building a string
 /// @param delims Set of bytes that end the token
 /// @return true if at least one byte was read
-bool strscToken(_Inout_ strscan* _Nonnull sc, _Inout_opt_ strhandle out, _In_opt_ strref delims);
+bool strscToken(_Inout_ strscan* _Nonnull sc, _Inout_opt_ string* out, _In_opt_ strref delims);
 
 /// Reads everything up to the next occurrence of some text.
 ///
@@ -258,7 +258,7 @@ bool strscToken(_Inout_ strscan* _Nonnull sc, _Inout_opt_ strhandle out, _In_opt
 /// @param out Receives the text read, or NULL to consume it without building a string
 /// @param text Text to stop before
 /// @return true if the text was found
-bool strscUntil(_Inout_ strscan* _Nonnull sc, _Inout_opt_ strhandle out, _In_opt_ strref text);
+bool strscUntil(_Inout_ strscan* _Nonnull sc, _Inout_opt_ string* out, _In_opt_ strref text);
 
 /// Reads a run of bytes drawn from a set.
 ///
@@ -269,7 +269,7 @@ bool strscUntil(_Inout_ strscan* _Nonnull sc, _Inout_opt_ strhandle out, _In_opt
 /// @param out Receives the run, or NULL to consume it without building a string
 /// @param chars Set of bytes the run may contain
 /// @return true if at least one byte was read
-bool strscWhile(_Inout_ strscan* _Nonnull sc, _Inout_opt_ strhandle out, _In_opt_ strref chars);
+bool strscWhile(_Inout_ strscan* _Nonnull sc, _Inout_opt_ string* out, _In_opt_ strref chars);
 
 /// Reads a double-quoted string and removes its escapes.
 ///
@@ -282,7 +282,7 @@ bool strscWhile(_Inout_ strscan* _Nonnull sc, _Inout_opt_ strhandle out, _In_opt
 /// @param sc Scanner to read from
 /// @param out Receives the unescaped contents, or NULL to consume them
 /// @return true if a complete quoted string was read
-bool strscQuoted(_Inout_ strscan* _Nonnull sc, _Inout_opt_ strhandle out);
+bool strscQuoted(_Inout_ strscan* _Nonnull sc, _Inout_opt_ string* out);
 
 /// Reads one line and consumes its terminator.
 ///
@@ -292,7 +292,7 @@ bool strscQuoted(_Inout_ strscan* _Nonnull sc, _Inout_opt_ strhandle out);
 /// @param sc Scanner to read from
 /// @param out Receives the line, or NULL to consume it
 /// @return true if there was a line left to read
-bool strscLine(_Inout_ strscan* _Nonnull sc, _Inout_opt_ strhandle out);
+bool strscLine(_Inout_ strscan* _Nonnull sc, _Inout_opt_ string* out);
 
 /// Reads everything left and moves the cursor to the end.
 ///
@@ -301,7 +301,7 @@ bool strscLine(_Inout_ strscan* _Nonnull sc, _Inout_opt_ strhandle out);
 /// @param sc Scanner to read from
 /// @param out Receives the remaining text, or NULL to consume it
 /// @return true unless the scan had already failed
-bool strscRest(_Inout_ strscan* _Nonnull sc, _Inout_opt_ strhandle out);
+bool strscRest(_Inout_ strscan* _Nonnull sc, _Inout_opt_ string* out);
 
 /// Reports the span of the most recent extraction.
 ///

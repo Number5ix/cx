@@ -27,7 +27,7 @@ static bool scFail(strscan* sc)
 // Record [off, end) as the span the most recent extraction produced, hand it to the
 // caller if they asked for a string, and move the cursor to `next`. `next` is separate
 // from `end` because a terminator is often consumed without being part of the result.
-static bool scTake(strscan* sc, strhandle out, int32 off, int32 end, int32 next)
+static bool scTake(strscan* sc, string* out, int32 off, int32 end, int32 next)
 {
     sc->_spanoff = off;
     sc->_spanlen = end - off;
@@ -201,7 +201,7 @@ bool strscWS1(strscan* sc)
 // extraction ----------------------------------------------------------------------------
 
 _Use_decl_annotations_
-bool strscToken(strscan* sc, strhandle out, strref delims)
+bool strscToken(strscan* sc, string* out, strref delims)
 {
     if (!sc->ok)
         return false;
@@ -219,7 +219,7 @@ bool strscToken(strscan* sc, strhandle out, strref delims)
 }
 
 _Use_decl_annotations_
-bool strscUntil(strscan* sc, strhandle out, strref text)
+bool strscUntil(strscan* sc, string* out, strref text)
 {
     if (!sc->ok)
         return false;
@@ -234,7 +234,7 @@ bool strscUntil(strscan* sc, strhandle out, strref text)
 }
 
 _Use_decl_annotations_
-bool strscWhile(strscan* sc, strhandle out, strref chars)
+bool strscWhile(strscan* sc, string* out, strref chars)
 {
     if (!sc->ok)
         return false;
@@ -252,7 +252,7 @@ bool strscWhile(strscan* sc, strhandle out, strref chars)
 }
 
 _Use_decl_annotations_
-bool strscQuoted(strscan* sc, strhandle out)
+bool strscQuoted(strscan* sc, string* out)
 {
     if (!sc->ok)
         return false;
@@ -318,7 +318,7 @@ bool strscQuoted(strscan* sc, strhandle out)
 }
 
 _Use_decl_annotations_
-bool strscLine(strscan* sc, strhandle out)
+bool strscLine(strscan* sc, string* out)
 {
     if (!sc->ok)
         return false;
@@ -338,7 +338,7 @@ bool strscLine(strscan* sc, strhandle out)
 }
 
 _Use_decl_annotations_
-bool strscRest(strscan* sc, strhandle out)
+bool strscRest(strscan* sc, string* out)
 {
     if (!sc->ok)
         return false;
