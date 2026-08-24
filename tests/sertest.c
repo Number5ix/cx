@@ -2536,6 +2536,7 @@ static int test_ser_refcycle(void)
     objRelease(&viaself->next);
 
     objRelease(&self->next);
+    objRelease(&self);
     strDestroy(&selfjson);
     strDestroy(&json);
     strDestroy(&bin);
