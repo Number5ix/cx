@@ -76,22 +76,13 @@ stConvert_string(stype destst, _stCopyDest_Anno_(destst) stgeneric* dest, stype 
         _stvarInit(dest->st_stvar, srcst, src);
         return true;
     case stTypeId(bool):
-        if (!strEqi(src.st_string, kTrue)) {
+        if (strEqi(src.st_string, kTrue) || strEq(src.st_string, kOne) ||
+            strEqi(src.st_string, kYes)) {
             dest->st_bool = true;
             return true;
-        } else if (!strEqi(src.st_string, kFalse)) {
-            dest->st_bool = false;
-            return true;
-        } else if (!strEq(src.st_string, kOne)) {
-            dest->st_bool = true;
-            return true;
-        } else if (!strEq(src.st_string, kZero)) {
-            dest->st_bool = false;
-            return true;
-        } else if (!strEqi(src.st_string, kYes)) {
-            dest->st_bool = true;
-            return true;
-        } else if (!strEqi(src.st_string, kNo)) {
+        }
+        if (strEqi(src.st_string, kFalse) || strEq(src.st_string, kZero) ||
+            strEqi(src.st_string, kNo)) {
             dest->st_bool = false;
             return true;
         }
