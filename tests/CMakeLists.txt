@@ -27,6 +27,7 @@ create_test_sourcelist(testsrc
     sertest.c
     sarraytest.c
     strtest.c
+    strscantest.c
     httest.c
     thrtest.c
     metatest.c
@@ -255,6 +256,10 @@ add_test(NAME "\"string: Split Variants\"" COMMAND test_runner strtest splitvar)
 add_test(NAME "\"string: Hex\"" COMMAND test_runner strtest hex)
 add_test(NAME "\"string: UTF-8\"" COMMAND test_runner strtest utf8)
 add_test(NAME "\"string: Literals\"" COMMAND test_runner strtest literal)
+add_test(NAME "\"strscan: Literals\"" COMMAND test_runner strscantest literal)
+add_test(NAME "\"strscan: Extraction\"" COMMAND test_runner strscantest extract)
+add_test(NAME "\"strscan: Typed Values\"" COMMAND test_runner strscantest typed)
+add_test(NAME "\"strscan: Backtracking\"" COMMAND test_runner strscantest backtrack)
 add_test(NAME "\"hashtable: Init\"" COMMAND test_runner httest init)
 add_test(NAME "\"hashtable: Insert\"" COMMAND test_runner httest insert)
 add_test(NAME "\"hashtable: Find\"" COMMAND test_runner httest find)

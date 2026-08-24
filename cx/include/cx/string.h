@@ -8,6 +8,7 @@
 #include <cx/string/striter.h>
 #include <cx/string/strmanip.h>
 #include <cx/string/strnum.h>
+#include <cx/string/strscan.h>
 
 /// @file string.h
 /// @brief Copy-on-write strings with automatic memory management and rope optimization

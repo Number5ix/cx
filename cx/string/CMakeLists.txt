@@ -14,6 +14,7 @@ set(STRING_SRCS
     string/strnum_int.c
     string/strreplace.c
     string/strrope.c
+    string/strscan.c
     string/strsplit.c
     string/strsubstr.c
     string/strtrim.c
@@ -29,6 +30,7 @@ set(STRING_INCLUDES
     string/striter.h
     string/strmanip.h
     string/strnum.h
+    string/strscan.h
     string/strtest.h
     string/stype_string.h)
 
