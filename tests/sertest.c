@@ -17,12 +17,10 @@
 #define TEST_FUNCS sertest_funcs
 #include "common.h"
 
-#define CHK(cond)                                                         \
-    do {                                                                  \
-        if (!(cond)) {                                                    \
-            printf("  FAILED at %s:%d: %s\n", __FILE__, __LINE__, #cond); \
-            return 1;                                                     \
-        }                                                                 \
+#define CHK(cond) \
+    do { \
+        if (!(cond)) \
+            TEST_FAIL(1, _SL("assertion failed: ${string}"), stvar(strref, _S #cond)); \
     } while (0)
 
 // Deep, field-by-field comparison, exported from structtest.c. stCmp_struct is a raw memcmp
@@ -243,7 +241,8 @@ static int test_ser_string(void)
     SSDNode* t = toSsd(stExt(string), stArg(string, src), NULL);
     CHK(t);
     CHK(fromSsd(t, stExt(string), stArgPtr(string, &dst)));
-    CHK(strEq(src, dst));
+    if (!strEq(src, dst))
+        TEST_FAIL(1, _SL("strEq mismatch: a='${string}', b='${string}'"), stvar(strref, src), stvar(strref, dst));
 
     objRelease(&t);
     strDestroy(&src);
@@ -275,7 +274,8 @@ static int test_ser_suid(void)
     string doc = 0, expected = 0;
     strFormat(&expected, _SL("\"${string}\""), stvar(string, enc));
     CHK(toJson(&doc, stExt(suid), stArg(suid, src), 0, NULL));
-    CHK(strEq(doc, expected));
+    if (!strEq(doc, expected))
+        TEST_FAIL(1, _SL("strEq mismatch: a='${string}', b='${string}'"), stvar(strref, doc), stvar(strref, expected));
 
     memset(&dst, 0, sizeof(dst));
     CHK(fromJson(doc, stExt(suid), stArgPtr(suid, &dst), 0, NULL));
@@ -319,7 +319,8 @@ static int test_ser_buffer(void)
     string doc = 0;
 
     CHK(toJson(&doc, stExt(buffer), stArg(buffer, src), 0, NULL));
-    CHK(strEq(doc, _S "\"AP9BAIB/AQ==\""));
+    if (!strEq(doc, _S "\"AP9BAIB/AQ==\""))
+        TEST_FAIL(1, _SL("strEq mismatch: a='${string}', b='${string}'"), stvar(strref, doc), stvar(strref, _S "\"AP9BAIB/AQ==\""));
     CHK(fromJson(doc, stExt(buffer), stArgPtr(buffer, &dst), 0, NULL));
     CHK(dst && dst->len == sizeof(raw) && memcmp(dst->data, raw, sizeof(raw)) == 0);
 
@@ -332,13 +333,15 @@ static int test_ser_buffer(void)
     SerError err = { 0 };
     SSDNode* t   = toSsd(stExt(buffer), stArg(buffer, src), &err);
     CHK(!t);
-    CHK(err.code == SER_Err_Unsupported);
+    if (err.code != SER_Err_Unsupported)
+        TEST_FAIL(1, _SL("expected ${int}, got ${int}"), stvar(int32, SER_Err_Unsupported), stvar(int32, err.code));
     serErrorDestroy(&err);
 
     // A NULL buffer is a distinct state from an empty one and comes back as the same state.
     Buffer none = NULL;
     CHK(toJson(&doc, stExt(buffer), stArg(buffer, none), 0, NULL));
-    CHK(strEq(doc, _S "null"));
+    if (!strEq(doc, _S "null"))
+        TEST_FAIL(1, _SL("strEq mismatch: a='${string}', b='${string}'"), stvar(strref, doc), stvar(strref, _S "null"));
     CHK(fromJson(doc, stExt(buffer), stArgPtr(buffer, &dst), 0, NULL));
     CHK(!dst);
 
@@ -360,7 +363,11 @@ static int test_ser_array(void)
     CHK(fromSsd(t, &arrschema, stArgPtr(sarray, &dst)));
 
     CHK(saSize(dst) == 5);
-    for (int32 i = 0; i < 5; i++) CHK(dst.a[i] == i * 7 - 3);
+    for (int32 i = 0; i < 5; i++) {
+        if (dst.a[i] != i * 7 - 3)
+            TEST_FAIL(1, _SL("dst.a[${int}]: expected ${int}, got ${int}"), stvar(int32, i),
+                      stvar(int32, i * 7 - 3), stvar(int32, dst.a[i]));
+    }
 
     objRelease(&t);
     saDestroy(&src);
@@ -600,9 +607,11 @@ static int test_ser_errors(void)
     SSDNode* t   = toSsd(stExt(TestStrP), stArg(TestStrP, src), &err);
 
     CHK(!t);
-    CHK(err.code == SER_Err_Unsupported);
+    if (err.code != SER_Err_Unsupported)
+        TEST_FAIL(1, _SL("expected ${int}, got ${int}"), stvar(int32, SER_Err_Unsupported), stvar(int32, err.code));
     // TestCls4 never opted in to serialization, so it has no wire name and cannot be written
-    CHK(strEq(err.path, _S "/testobj"));
+    if (!strEq(err.path, _S "/testobj"))
+        TEST_FAIL(1, _SL("strEq mismatch: a='${string}', b='${string}'"), stvar(strref, err.path), stvar(strref, _S "/testobj"));
 
     serErrorDestroy(&err);
     structDestroyMembers(&src);
@@ -642,8 +651,10 @@ static int test_ser_unknown(void)
     CHK(_serRead(r, stExt(TestStr1), stArgPtr(TestStr1, &dst)));
     serReaderDestroy(&r);
 
-    CHK(dst.intval == 42);
-    CHK(strEq(dst.strval, _S "kept"));
+    if (dst.intval != 42)
+        TEST_FAIL(1, _SL("expected ${int}, got ${int}"), stvar(int32, 42), stvar(int32, dst.intval));
+    if (!strEq(dst.strval, _S "kept"))
+        TEST_FAIL(1, _SL("strEq mismatch: a='${string}', b='${string}'"), stvar(strref, dst.strval), stvar(strref, _S "kept"));
     // a member the document does not mention keeps whatever the struct was initialized with
     CHK(!dst.arrval.a);
 
@@ -652,8 +663,10 @@ static int test_ser_unknown(void)
 
     r = serSsdReaderCreate(t, SER_Strict);
     CHK(!_serRead(r, stExt(TestStr1), stArgPtr(TestStr1, &strict)));
-    CHK(r->err.code == SER_Err_Data);
-    CHK(strEq(r->err.path, _S "/mystery"));
+    if (r->err.code != SER_Err_Data)
+        TEST_FAIL(1, _SL("expected ${int}, got ${int}"), stvar(int32, SER_Err_Data), stvar(int32, r->err.code));
+    if (!strEq(r->err.path, _S "/mystery"))
+        TEST_FAIL(1, _SL("strEq mismatch: a='${string}', b='${string}'"), stvar(strref, r->err.path), stvar(strref, _S "/mystery"));
     serReaderDestroy(&r);
 
     structDestroyMembers(&dst);
@@ -728,7 +741,8 @@ static int test_ser_generated(void)
     // A struct level is nominal: it carries the wire name and its StructInfo.
     const STypeInfoExt* s1 = stExt(TestStr1);
     CHK(s1->type == stType(TestStr1));
-    CHK(strEq(s1->name, _S "TestStr1"));
+    if (!strEq(s1->name, _S "TestStr1"))
+        TEST_FAIL(1, _SL("strEq mismatch: a='${string}', b='${string}'"), stvar(strref, s1->name), stvar(strref, _S "TestStr1"));
     CHK(s1->detail == &TestStr1_structinfo);
 
     // and the back-edge, so anything that arrives at a struct by name can reach its descriptor
@@ -811,11 +825,15 @@ static int test_ser_generated(void)
 // built-in resolver, so the write and read sides cannot disagree about them.
 static int test_ser_resolve(void)
 {
-    CHK(strEq(_serBuiltinName(STypeId_int32), _S "int32"));
-    CHK(strEq(_serBuiltinName(STypeId_string), _S "string"));
-    CHK(strEq(_serBuiltinName(STypeId_hashtable), _S "hashtable"));
+    if (!strEq(_serBuiltinName(STypeId_int32), _S "int32"))
+        TEST_FAIL(1, _SL("strEq mismatch: a='${string}', b='${string}'"), stvar(strref, _serBuiltinName(STypeId_int32)), stvar(strref, _S "int32"));
+    if (!strEq(_serBuiltinName(STypeId_string), _S "string"))
+        TEST_FAIL(1, _SL("strEq mismatch: a='${string}', b='${string}'"), stvar(strref, _serBuiltinName(STypeId_string)), stvar(strref, _S "string"));
+    if (!strEq(_serBuiltinName(STypeId_hashtable), _S "hashtable"))
+        TEST_FAIL(1, _SL("strEq mismatch: a='${string}', b='${string}'"), stvar(strref, _serBuiltinName(STypeId_hashtable)), stvar(strref, _S "hashtable"));
     // strref shares an ID with string, and the concrete spelling is the one on the wire
-    CHK(strEq(_serBuiltinName(STypeId_strref), _S "string"));
+    if (!strEq(_serBuiltinName(STypeId_strref), _S "string"))
+        TEST_FAIL(1, _SL("strEq mismatch: a='${string}', b='${string}'"), stvar(strref, _serBuiltinName(STypeId_strref)), stvar(strref, _S "string"));
 
     SerResolved res;
     CHK(_serResolveBuiltin(&res, _S "uint16"));
@@ -873,7 +891,8 @@ static int test_ser_json(void)
 
     string js = 0;
     CHK(toJson(&js, stExt(TestStr1), stArg(TestStr1, src), 0, NULL));
-    CHK(strEq(js, _S "{ \"intval\": 7, \"arrval\": [ 700, 701, 702 ], \"strval\": \"str-7\" }"));
+    if (!strEq(js, _S "{ \"intval\": 7, \"arrval\": [ 700, 701, 702 ], \"strval\": \"str-7\" }"))
+        TEST_FAIL(1, _SL("strEq mismatch: a='${string}', b='${string}'"), stvar(strref, js), stvar(strref, _S "{ \"intval\": 7, \"arrval\": [ 700, 701, 702 ], \"strval\": \"str-7\" }"));
 
     CHK(fromJson(js, stExt(TestStr1), stArgPtr(TestStr1, &dst), 0, NULL));
     CHK(structDeepEq(STRUCTBASE(&src), STRUCTBASE(&dst)));
@@ -890,7 +909,8 @@ static int test_ser_json(void)
                stArg(TestStr1, src),
                SER_JSON_Compact,
                NULL));
-    CHK(strEq(compact, _S "{\"intval\":7,\"arrval\":[700,701,702],\"strval\":\"str-7\"}"));
+    if (!strEq(compact, _S "{\"intval\":7,\"arrval\":[700,701,702],\"strval\":\"str-7\"}"))
+        TEST_FAIL(1, _SL("strEq mismatch: a='${string}', b='${string}'"), stvar(strref, compact), stvar(strref, _S "{\"intval\":7,\"arrval\":[700,701,702],\"strval\":\"str-7\"}"));
     CHK(strLen(pretty) > strLen(js));
 
     structDestroyMembers(&dst);
@@ -953,7 +973,8 @@ static int test_ser_jsonnested(void)
     };
     stype ht = stType(hashtable);
     CHK(toJson(&js, &htschema, stArg(hashtable, hsrc), SER_JSON_Compact, NULL));
-    CHK(strEq(js, _S "[[10,\"ten\"]]"));
+    if (!strEq(js, _S "[[10,\"ten\"]]"))
+        TEST_FAIL(1, _SL("strEq mismatch: a='${string}', b='${string}'"), stvar(strref, js), stvar(strref, _S "[[10,\"ten\"]]"));
     CHK(fromJson(js, &htschema, stArgPtr(hashtable, &hdst), 0, NULL));
     CHK(structDeepEqValue(ht, &hsrc, &hdst));
 
@@ -973,7 +994,8 @@ static int test_ser_jsonnested(void)
     CHK(serWriterFinish(w));
     serWriterDestroy(&w);
     sbufRelease(&sb);
-    CHK(strEq(js, _S "\"AP8QQsN6AQ==\""));
+    if (!strEq(js, _S "\"AP8QQsN6AQ==\""))
+        TEST_FAIL(1, _SL("strEq mismatch: a='${string}', b='${string}'"), stvar(strref, js), stvar(strref, _S "\"AP8QQsN6AQ==\""));
 
     sb = sbufCreate(256);
     CHK(sbufStrPRegisterPull(sb, js));
@@ -1008,24 +1030,30 @@ static int test_ser_jsonnum(void)
 
     // Inside the range a double holds exactly, an integer is a JSON number.
     RT_JSON(int32, -1234567);
-    CHK(strEq(js, _S "-1234567"));
+    if (!strEq(js, _S "-1234567"))
+        TEST_FAIL(1, _SL("strEq mismatch: a='${string}', b='${string}'"), stvar(strref, js), stvar(strref, _S "-1234567"));
     RT_JSON(int64, 9007199254740991);   // 2^53 - 1, the last exact one
-    CHK(strEq(js, _S "9007199254740991"));
+    if (!strEq(js, _S "9007199254740991"))
+        TEST_FAIL(1, _SL("strEq mismatch: a='${string}', b='${string}'"), stvar(strref, js), stvar(strref, _S "9007199254740991"));
 
     // Outside it, a decimal string -- a consumer that only has doubles would round the number
     // form silently, and the reader takes either.
     RT_JSON(int64, INT64_MIN + 1);
-    CHK(strEq(js, _S "\"-9223372036854775807\""));
+    if (!strEq(js, _S "\"-9223372036854775807\""))
+        TEST_FAIL(1, _SL("strEq mismatch: a='${string}', b='${string}'"), stvar(strref, js), stvar(strref, _S "\"-9223372036854775807\""));
     RT_JSON(uint64, UINT64_MAX);
-    CHK(strEq(js, _S "\"18446744073709551615\""));
+    if (!strEq(js, _S "\"18446744073709551615\""))
+        TEST_FAIL(1, _SL("strEq mismatch: a='${string}', b='${string}'"), stvar(strref, js), stvar(strref, _S "\"18446744073709551615\""));
 
     // A float32 is written in the shortest form that reads back as the same float32, not as the
     // double it becomes when widened.
     RT_JSON(float32, 0.1f);
-    CHK(strEq(js, _S "0.1"));
+    if (!strEq(js, _S "0.1"))
+        TEST_FAIL(1, _SL("strEq mismatch: a='${string}', b='${string}'"), stvar(strref, js), stvar(strref, _S "0.1"));
     RT_JSON(float64, 1.0 / 3.0);
     RT_JSON(bool, true);
-    CHK(strEq(js, _S "true"));
+    if (!strEq(js, _S "true"))
+        TEST_FAIL(1, _SL("strEq mismatch: a='${string}', b='${string}'"), stvar(strref, js), stvar(strref, _S "true"));
 
 #undef RT_JSON
 
@@ -1033,7 +1061,8 @@ static int test_ser_jsonnum(void)
     float32 nan32 = NAN, back = 0.0f;
     strClear(&js);
     CHK(toJson(&js, stExt(float32), stArg(float32, nan32), 0, NULL));
-    CHK(strEq(js, _S "null"));
+    if (!strEq(js, _S "null"))
+        TEST_FAIL(1, _SL("strEq mismatch: a='${string}', b='${string}'"), stvar(strref, js), stvar(strref, _S "null"));
     CHK(fromJson(js, stExt(float32), stArgPtr(float32, &back), 0, NULL));
     CHK(isnan(back));
 
@@ -1041,14 +1070,16 @@ static int test_ser_jsonnum(void)
     SerError err = { 0 };
     strClear(&js);
     CHK(!toJson(&js, stExt(float32), stArg(float32, nan32), SER_Strict, &err));
-    CHK(err.code == SER_Err_Unsupported);
+    if (err.code != SER_Err_Unsupported)
+        TEST_FAIL(1, _SL("expected ${int}, got ${int}"), stvar(int32, SER_Err_Unsupported), stvar(int32, err.code));
     serErrorDestroy(&err);
 
     // The reader takes the number form of a big integer too, which is what a hand-written
     // document or another producer will have.
     int64 big = 0;
     CHK(fromJson(_S "9223372036854775807", stExt(int64), stArgPtr(int64, &big), 0, NULL));
-    CHK(big == INT64_MAX);
+    if (big != INT64_MAX)
+        TEST_FAIL(1, _SL("expected ${int}, got ${int}"), stvar(int64, INT64_MAX), stvar(int64, big));
 
     strDestroy(&js);
     return 0;
@@ -1068,7 +1099,8 @@ static int test_ser_jsondefaults(void)
                stArg(TestStr1, empty),
                SER_JSON_Compact,
                NULL));
-    CHK(strEq(js, _S "{}"));
+    if (!strEq(js, _S "{}"))
+        TEST_FAIL(1, _SL("strEq mismatch: a='${string}', b='${string}'"), stvar(strref, js), stvar(strref, _S "{}"));
 
     // ...and SER_EmitDefaults says so explicitly, for a consumer that wants every field present
     strClear(&js);
@@ -1077,7 +1109,8 @@ static int test_ser_jsondefaults(void)
                stArg(TestStr1, empty),
                SER_JSON_Compact | SER_EmitDefaults,
                NULL));
-    CHK(strEq(js, _S "{\"intval\":0,\"arrval\":null,\"strval\":\"\"}"));
+    if (!strEq(js, _S "{\"intval\":0,\"arrval\":null,\"strval\":\"\"}"))
+        TEST_FAIL(1, _SL("strEq mismatch: a='${string}', b='${string}'"), stvar(strref, js), stvar(strref, _S "{\"intval\":0,\"arrval\":null,\"strval\":\"\"}"));
 
     // Reading a document that omits a member resets that member rather than leaving whatever
     // the destination happened to hold, which is what makes the omission lossless.
@@ -1087,7 +1120,8 @@ static int test_ser_jsondefaults(void)
                  stArgPtr(TestStr1, &dst),
                  0,
                  NULL));
-    CHK(dst.intval == 5);
+    if (dst.intval != 5)
+        TEST_FAIL(1, _SL("expected ${int}, got ${int}"), stvar(int32, 5), stvar(int32, dst.intval));
     CHK(strEmpty(dst.strval));
     CHK(!dst.arrval.a);
 
@@ -1112,8 +1146,10 @@ static int test_ser_jsonerrors(void)
                  stArgPtr(TestStr1, &dst),
                  0,
                  NULL));
-    CHK(dst.intval == 1);
-    CHK(strEq(dst.strval, _S "kept"));
+    if (dst.intval != 1)
+        TEST_FAIL(1, _SL("expected ${int}, got ${int}"), stvar(int32, 1), stvar(int32, dst.intval));
+    if (!strEq(dst.strval, _S "kept"))
+        TEST_FAIL(1, _SL("strEq mismatch: a='${string}', b='${string}'"), stvar(strref, dst.strval), stvar(strref, _S "kept"));
 
     // ...or an error, for a caller who would rather know
     CHK(!fromJson(_S "{\"intval\":1,\"mystery\":2}",
@@ -1121,8 +1157,10 @@ static int test_ser_jsonerrors(void)
                   stArgPtr(TestStr1, &dst),
                   SER_Strict,
                   &err));
-    CHK(err.code == SER_Err_Data);
-    CHK(strEq(err.path, _S "/mystery"));
+    if (err.code != SER_Err_Data)
+        TEST_FAIL(1, _SL("expected ${int}, got ${int}"), stvar(int32, SER_Err_Data), stvar(int32, err.code));
+    if (!strEq(err.path, _S "/mystery"))
+        TEST_FAIL(1, _SL("strEq mismatch: a='${string}', b='${string}'"), stvar(strref, err.path), stvar(strref, _S "/mystery"));
     serErrorDestroy(&err);
 
     // A value of the wrong type is located at the member it was found in
@@ -1131,8 +1169,10 @@ static int test_ser_jsonerrors(void)
                   stArgPtr(TestStr1, &dst),
                   0,
                   &err));
-    CHK(err.code == SER_Err_Data);
-    CHK(strEq(err.path, _S "/intval"));
+    if (err.code != SER_Err_Data)
+        TEST_FAIL(1, _SL("expected ${int}, got ${int}"), stvar(int32, SER_Err_Data), stvar(int32, err.code));
+    if (!strEq(err.path, _S "/intval"))
+        TEST_FAIL(1, _SL("strEq mismatch: a='${string}', b='${string}'"), stvar(strref, err.path), stvar(strref, _S "/intval"));
     serErrorDestroy(&err);
 
     // ...and so is a syntax error, with the parser's own message carried through
@@ -1141,8 +1181,10 @@ static int test_ser_jsonerrors(void)
                   stArgPtr(TestStr1, &dst),
                   0,
                   &err));
-    CHK(err.code == SER_Err_Data);
-    CHK(strEq(err.path, _S "/intval"));
+    if (err.code != SER_Err_Data)
+        TEST_FAIL(1, _SL("expected ${int}, got ${int}"), stvar(int32, SER_Err_Data), stvar(int32, err.code));
+    if (!strEq(err.path, _S "/intval"))
+        TEST_FAIL(1, _SL("strEq mismatch: a='${string}', b='${string}'"), stvar(strref, err.path), stvar(strref, _S "/intval"));
     CHK(!strEmpty(err.msg));
     serErrorDestroy(&err);
 
@@ -1152,7 +1194,8 @@ static int test_ser_jsonerrors(void)
                   stArgPtr(TestStr1, &dst),
                   0,
                   &err));
-    CHK(err.code == SER_Err_Overflow);
+    if (err.code != SER_Err_Overflow)
+        TEST_FAIL(1, _SL("expected ${int}, got ${int}"), stvar(int32, SER_Err_Overflow), stvar(int32, err.code));
     serErrorDestroy(&err);
 
     structDestroyMembers(&dst);
@@ -1434,7 +1477,8 @@ static int test_ser_bindefaults(void)
     // Reading a document that omits a member resets it rather than leaving what was there.
     fillTestStr1(&dst, 42);
     CHK(fromBinary(doc, stExt(TestStr1), stArgPtr(TestStr1, &dst), 0, NULL));
-    CHK(dst.intval == 0);
+    if (dst.intval != 0)
+        TEST_FAIL(1, _SL("expected ${int}, got ${int}"), stvar(int32, 0), stvar(int32, dst.intval));
     CHK(strEmpty(dst.strval));
     CHK(!dst.arrval.a);
 
@@ -1471,7 +1515,8 @@ static int test_ser_binerrors(void)
 
     CHK(toBinary(&doc, stExt(hashtable), stArg(hashtable, fut), 0, NULL));
     CHK(fromBinary(doc, stExt(TestStr1), stArgPtr(TestStr1, &dst), 0, NULL));
-    CHK(dst.intval == 1);
+    if (dst.intval != 1)
+        TEST_FAIL(1, _SL("expected ${int}, got ${int}"), stvar(int32, 1), stvar(int32, dst.intval));
 
     // ...unless the caller would rather be told
     CHK(!fromBinary(doc,
@@ -1479,8 +1524,10 @@ static int test_ser_binerrors(void)
                     stArgPtr(TestStr1, &dst),
                     SER_Strict,
                     &err));
-    CHK(err.code == SER_Err_Data);
-    CHK(strEq(err.path, _S "/mystery"));
+    if (err.code != SER_Err_Data)
+        TEST_FAIL(1, _SL("expected ${int}, got ${int}"), stvar(int32, SER_Err_Data), stvar(int32, err.code));
+    if (!strEq(err.path, _S "/mystery"))
+        TEST_FAIL(1, _SL("strEq mismatch: a='${string}', b='${string}'"), stvar(strref, err.path), stvar(strref, _S "/mystery"));
     serErrorDestroy(&err);
 
     // ...and in compact mode there is nothing to be told from: with no tag on the value there
@@ -1489,7 +1536,8 @@ static int test_ser_binerrors(void)
     strClear(&doc);
     CHK(toBinary(&doc, stExt(hashtable), stArg(hashtable, fut), SER_Bin_Compact, NULL));
     CHK(!fromBinary(doc, stExt(TestStr1), stArgPtr(TestStr1, &dst), 0, &err));
-    CHK(err.code == SER_Err_Unsupported);
+    if (err.code != SER_Err_Unsupported)
+        TEST_FAIL(1, _SL("expected ${int}, got ${int}"), stvar(int32, SER_Err_Unsupported), stvar(int32, err.code));
     serErrorDestroy(&err);
     htDestroy(&fut);
 
@@ -1499,8 +1547,10 @@ static int test_ser_binerrors(void)
     htInsert(&wrong, string, _S "intval", string, _S "seven");
     CHK(toBinary(&doc, stExt(hashtable), stArg(hashtable, wrong), 0, NULL));
     CHK(!fromBinary(doc, stExt(TestStr1), stArgPtr(TestStr1, &dst), 0, &err));
-    CHK(err.code == SER_Err_Data);
-    CHK(strEq(err.path, _S "/intval"));
+    if (err.code != SER_Err_Data)
+        TEST_FAIL(1, _SL("expected ${int}, got ${int}"), stvar(int32, SER_Err_Data), stvar(int32, err.code));
+    if (!strEq(err.path, _S "/intval"))
+        TEST_FAIL(1, _SL("strEq mismatch: a='${string}', b='${string}'"), stvar(strref, err.path), stvar(strref, _S "/intval"));
     serErrorDestroy(&err);
     htDestroy(&wrong);
 
@@ -1508,7 +1558,8 @@ static int test_ser_binerrors(void)
     strClear(&doc);
     bytesToStr(&doc, (const uint8*)"NOPE\x01\x03", 6);
     CHK(!fromBinary(doc, stExt(TestStr1), stArgPtr(TestStr1, &dst), 0, &err));
-    CHK(err.code == SER_Err_Data);
+    if (err.code != SER_Err_Data)
+        TEST_FAIL(1, _SL("expected ${int}, got ${int}"), stvar(int32, SER_Err_Data), stvar(int32, err.code));
     CHK(strFind(err.msg, 0, _S "not a cx binary document") >= 0);
     serErrorDestroy(&err);
 
@@ -1516,7 +1567,8 @@ static int test_ser_binerrors(void)
     strClear(&doc);
     bytesToStr(&doc, (const uint8*)"CXSB\x63\x03", 6);
     CHK(!fromBinary(doc, stExt(TestStr1), stArgPtr(TestStr1, &dst), 0, &err));
-    CHK(err.code == SER_Err_Data);
+    if (err.code != SER_Err_Data)
+        TEST_FAIL(1, _SL("expected ${int}, got ${int}"), stvar(int32, SER_Err_Data), stvar(int32, err.code));
     CHK(strFind(err.msg, 0, _S "version") >= 0);
     serErrorDestroy(&err);
 
@@ -1537,7 +1589,8 @@ static int test_ser_binerrors(void)
                         stArgPtr(TestStr1, &dst),
                         0,
                         &err));
-        CHK(err.code != SER_Err_None);
+        if (err.code == SER_Err_None)
+            TEST_FAIL(1, _SL("expected ${int} to differ from ${int}, but got the same value"), stvar(int32, SER_Err_None), stvar(int32, err.code));
         serErrorDestroy(&err);
     }
 
@@ -1550,7 +1603,8 @@ static int test_ser_binerrors(void)
     structDestroyMembers(&dst);
     structInit(TestStr1, &dst);
     CHK(!fromBinary(doc, stExt(TestStr1), stArgPtr(TestStr1, &dst), 0, &err));
-    CHK(err.code == SER_Err_Overflow);
+    if (err.code != SER_Err_Overflow)
+        TEST_FAIL(1, _SL("expected ${int}, got ${int}"), stvar(int32, SER_Err_Overflow), stvar(int32, err.code));
     serErrorDestroy(&err);
     htDestroy(&big);
 
@@ -1781,7 +1835,8 @@ static int test_ser_structpsetbounds(void)
                   stgeneric(structp, STRUCTBASE(outside)),
                   0,
                   &err));
-    CHK(err.code == SER_Err_Type);
+    if (err.code != SER_Err_Type)
+        TEST_FAIL(1, _SL("expected ${int}, got ${int}"), stvar(int32, SER_Err_Type), stvar(int32, err.code));
     CHK(strFind(err.msg, 0, _S "TestStrFixed") >= 0);
     serErrorDestroy(&err);
 
@@ -1805,7 +1860,8 @@ static int test_ser_structpsetbounds(void)
 
     // ...and the document that slot produced does not read back through the first one.
     CHK(!fromBinary(bin, mdyn->schema, stStoredPtr(mdyn->schema->type, &crossed), 0, &err));
-    CHK(err.code == SER_Err_Type);
+    if (err.code != SER_Err_Type)
+        TEST_FAIL(1, _SL("expected ${int}, got ${int}"), stvar(int32, SER_Err_Type), stvar(int32, err.code));
     serErrorDestroy(&err);
 
     // A hand-built document naming a struct the set does not contain. TestStrFixed is a real
@@ -1816,7 +1872,8 @@ static int test_ser_structpsetbounds(void)
                   stStoredPtr(mdyn->schema->type, &dst),
                   0,
                   &err));
-    CHK(err.code == SER_Err_Type);
+    if (err.code != SER_Err_Type)
+        TEST_FAIL(1, _SL("expected ${int}, got ${int}"), stvar(int32, SER_Err_Type), stvar(int32, err.code));
     CHK(dst == NULL);
     serErrorDestroy(&err);
 
@@ -1827,14 +1884,16 @@ static int test_ser_structpsetbounds(void)
                   stStoredPtr(mdyn->schema->type, &dst),
                   0,
                   &err));
-    CHK(err.code == SER_Err_Data);
+    if (err.code != SER_Err_Data)
+        TEST_FAIL(1, _SL("expected ${int}, got ${int}"), stvar(int32, SER_Err_Data), stvar(int32, err.code));
     serErrorDestroy(&err);
 
     // SSD cannot carry a tag at all, so a dynamic slot is simply not representable there.
     TestStr1* inside = (TestStr1*)_structAlloc(&TestStr1_structinfo);
     fillTestStr1(inside, 1);
     CHK(!toSsd(mdyn->schema, stgeneric(structp, STRUCTBASE(inside)), &err));
-    CHK(err.code == SER_Err_Unsupported);
+    if (err.code != SER_Err_Unsupported)
+        TEST_FAIL(1, _SL("expected ${int}, got ${int}"), stvar(int32, SER_Err_Unsupported), stvar(int32, err.code));
     serErrorDestroy(&err);
 
     _structDestroy((StructBase**)&outside);
@@ -1929,8 +1988,10 @@ static int test_ser_class(void)
         SerCls2* r = results[i];
         CHK(r);
         CHK(objClsInfo(r) == &SerCls2_clsinfo);
-        CHK(strEq(r->title, _S "Original"));
-        CHK(r->revision == 7);
+        if (!strEq(r->title, _S "Original"))
+            TEST_FAIL(1, _SL("strEq mismatch: a='${string}', b='${string}'"), stvar(strref, r->title), stvar(strref, _S "Original"));
+        if (r->revision != 7)
+            TEST_FAIL(1, _SL("expected ${int}, got ${int}"), stvar(int32, 7), stvar(int32, r->revision));
         CHK(strEmpty(r->scratch));
         CHK(saSize(r->nums) == 2 && r->nums.a[0] == 11 && r->nums.a[1] == 22);
         CHK(structDeepEq(STRUCTBASE(&src->sub), STRUCTBASE(&r->sub)));
@@ -1986,8 +2047,10 @@ static int test_ser_classgap(void)
     SerCls3* back = NULL;
     CHK(fromJsonCls(json, stExt(SerCls3), stArgPtr(SerCls3, &back), NULL));
     CHK(back && strEq(back->title, _S "Deep") && back->revision == 2);
-    CHK(strEq(back->leaf, _S "bottom"));
-    CHK(back->hidden == 0);
+    if (!strEq(back->leaf, _S "bottom"))
+        TEST_FAIL(1, _SL("strEq mismatch: a='${string}', b='${string}'"), stvar(strref, back->leaf), stvar(strref, _S "bottom"));
+    if (back->hidden != 0)
+        TEST_FAIL(1, _SL("expected ${int}, got ${int}"), stvar(int32, 0), stvar(int32, back->hidden));
 
     // The unannotated class itself has no wire name, so an instance of it cannot be written at
     // all -- there would be nothing for a reader to resolve back into a class.
@@ -1995,7 +2058,8 @@ static int test_ser_classgap(void)
     SerError err    = { 0 };
     string bad      = 0;
     CHK(!toJson(&bad, stExt(object), stArg(SerPlain, plain), 0, &err));
-    CHK(err.code == SER_Err_Unsupported);
+    if (err.code != SER_Err_Unsupported)
+        TEST_FAIL(1, _SL("expected ${int}, got ${int}"), stvar(int32, SER_Err_Unsupported), stvar(int32, err.code));
     CHK(strFind(err.msg, 0, _S "[serialize]") >= 0);
 
     serErrorDestroy(&err);
@@ -2054,16 +2118,19 @@ static int test_ser_classpoly(void)
         SerHolder* h = results[i];
         CHK(h);
         CHK(h->child && objClsInfo(h->child) == &SerCls2_clsinfo);
-        CHK(strEq(h->child->title, _S "derived"));
+        if (!strEq(h->child->title, _S "derived"))
+            TEST_FAIL(1, _SL("strEq mismatch: a='${string}', b='${string}'"), stvar(strref, h->child->title), stvar(strref, _S "derived"));
         CHK(saSize(((SerCls2*)h->child)->nums) == 1);
 
         CHK(h->anyobj && objClsInfo(h->anyobj) == &SerCustom_clsinfo);
         CHK(((SerCustom*)h->anyobj)->magic == 0x1234);
-        CHK(strEq(((SerCustom*)h->anyobj)->label, _S "hand-rolled"));
+        if (!strEq(((SerCustom*)h->anyobj)->label, _S "hand-rolled"))
+            TEST_FAIL(1, _SL("strEq mismatch: a='${string}', b='${string}'"), stvar(strref, ((SerCustom*)h->anyobj)->label), stvar(strref, _S "hand-rolled"));
 
         CHK(saSize(h->kids) == 2);
         CHK(objClsInfo(h->kids.a[0]) == &SerCls1_clsinfo);
-        CHK(strEq(((SerCls1*)h->kids.a[0])->title, _S "exact"));
+        if (!strEq(((SerCls1*)h->kids.a[0])->title, _S "exact"))
+            TEST_FAIL(1, _SL("strEq mismatch: a='${string}', b='${string}'"), stvar(strref, ((SerCls1*)h->kids.a[0])->title), stvar(strref, _S "exact"));
         CHK(objClsInfo(h->kids.a[1]) == &SerCls2_clsinfo);
     }
 
@@ -2086,7 +2153,8 @@ static int test_ser_classcustom(void)
     string json = 0, bin = 0;
     CHK(toJson(&json, stExt(SerCustom), stArg(SerCustom, src), 0, NULL));
     CHK(toBinary(&bin, stExt(SerCustom), stArg(SerCustom, src), 0, NULL));
-    CHK(strEq(json, _S "[ -42, \"mine\" ]"));
+    if (!strEq(json, _S "[ -42, \"mine\" ]"))
+        TEST_FAIL(1, _SL("strEq mismatch: a='${string}', b='${string}'"), stvar(strref, json), stvar(strref, _S "[ -42, \"mine\" ]"));
 
     SerCustom* viajson = NULL;
     SerCustom* viabin  = NULL;
@@ -2165,7 +2233,8 @@ static int test_ser_classset(void)
         SerSetHolder* h = results[i];
         CHK(h);
         CHK(h->item && objClsInfo(h->item) == &SerCls1_clsinfo);
-        CHK(strEq(((SerCls1*)h->item)->title, _S "in the set"));
+        if (!strEq(((SerCls1*)h->item)->title, _S "in the set"))
+            TEST_FAIL(1, _SL("strEq mismatch: a='${string}', b='${string}'"), stvar(strref, ((SerCls1*)h->item)->title), stvar(strref, _S "in the set"));
         CHK(((SerCls1*)h->item)->revision == 4);
 
         CHK(saSize(h->items) == 2);
@@ -2201,7 +2270,8 @@ static int test_ser_classsetbounds(void)
                   stArg(SerSetHolder, src),
                   0,
                   &err));
-    CHK(err.code == SER_Err_Type);
+    if (err.code != SER_Err_Type)
+        TEST_FAIL(1, _SL("expected ${int}, got ${int}"), stvar(int32, SER_Err_Type), stvar(int32, err.code));
     CHK(strFind(err.msg, 0, _S "SerCls3") >= 0);
     serErrorDestroy(&err);
 
@@ -2215,7 +2285,8 @@ static int test_ser_classsetbounds(void)
                   stArg(SerSetHolder, src),
                   0,
                   &err));
-    CHK(err.code == SER_Err_Type);
+    if (err.code != SER_Err_Type)
+        TEST_FAIL(1, _SL("expected ${int}, got ${int}"), stvar(int32, SER_Err_Type), stvar(int32, err.code));
     serErrorDestroy(&err);
 
     // And on the way in, whatever the reader's own resolvers would have said: this one knows
@@ -2225,7 +2296,8 @@ static int test_ser_classsetbounds(void)
                      stExt(SerSetHolder),
                      stArgPtr(SerSetHolder, &dst),
                      &err));
-    CHK(err.code == SER_Err_Type);
+    if (err.code != SER_Err_Type)
+        TEST_FAIL(1, _SL("expected ${int}, got ${int}"), stvar(int32, SER_Err_Type), stvar(int32, err.code));
     serErrorDestroy(&err);
 
     strDestroy(&bin);
@@ -2250,9 +2322,11 @@ static int test_ser_classcycle(void)
     SerError err = { 0 };
     string json  = 0;
     CHK(!toJson(&json, stExt(SerCycle), stArg(SerCycle, a), 0, &err));
-    CHK(err.code == SER_Err_Data);
+    if (err.code != SER_Err_Data)
+        TEST_FAIL(1, _SL("expected ${int}, got ${int}"), stvar(int32, SER_Err_Data), stvar(int32, err.code));
     CHK(strFind(err.msg, 0, _S "cycle") >= 0);
-    CHK(strEq(err.path, _S "/next/next"));
+    if (!strEq(err.path, _S "/next/next"))
+        TEST_FAIL(1, _SL("strEq mismatch: a='${string}', b='${string}'"), stvar(strref, err.path), stvar(strref, _S "/next/next"));
 
     serErrorDestroy(&err);
 
@@ -2294,7 +2368,8 @@ static int test_ser_classssd(void)
     SSDNode* bad =
         toSsd(stExt(SerCls1), stArg(SerCls1, (SerCls1*)derived), &err);
     CHK(!bad);
-    CHK(err.code == SER_Err_Unsupported);
+    if (err.code != SER_Err_Unsupported)
+        TEST_FAIL(1, _SL("expected ${int}, got ${int}"), stvar(int32, SER_Err_Unsupported), stvar(int32, err.code));
     CHK(strFind(err.msg, 0, _S "type tag") >= 0);
 
     serErrorDestroy(&err);
@@ -2323,7 +2398,8 @@ static int test_ser_rename(void)
                stArg(TestStrRename, src),
                SER_JSON_Compact,
                NULL));
-    CHK(strEq(js, _S "{\"id\":12,\"display-name\":\"hello\",\"plain\":5}"));
+    if (!strEq(js, _S "{\"id\":12,\"display-name\":\"hello\",\"plain\":5}"))
+        TEST_FAIL(1, _SL("strEq mismatch: a='${string}', b='${string}'"), stvar(strref, js), stvar(strref, _S "{\"id\":12,\"display-name\":\"hello\",\"plain\":5}"));
 
     CHK(fromJson(js,
                  stExt(TestStrRename),
@@ -2379,7 +2455,8 @@ static int test_ser_rename(void)
                stArg(SerRenamed, cls),
                SER_JSON_Compact,
                NULL));
-    CHK(strEq(cjs, _S "{\"title\":\"top\",\"revision\":1,\"kind\":\"widget\"}"));
+    if (!strEq(cjs, _S "{\"title\":\"top\",\"revision\":1,\"kind\":\"widget\"}"))
+        TEST_FAIL(1, _SL("strEq mismatch: a='${string}', b='${string}'"), stvar(strref, cjs), stvar(strref, _S "{\"title\":\"top\",\"revision\":1,\"kind\":\"widget\"}"));
 
     SerRenamed* back = NULL;
     CHK(fromJsonCls(cjs,
@@ -2387,8 +2464,10 @@ static int test_ser_rename(void)
                     stArgPtr(SerRenamed, &back),
                     NULL));
     CHK(back && strEq(back->title, _S "top") && back->revision == 1);
-    CHK(strEq(back->category, _S "widget"));
-    CHK(back->skipped == 0);
+    if (!strEq(back->category, _S "widget"))
+        TEST_FAIL(1, _SL("strEq mismatch: a='${string}', b='${string}'"), stvar(strref, back->category), stvar(strref, _S "widget"));
+    if (back->skipped != 0)
+        TEST_FAIL(1, _SL("expected ${int}, got ${int}"), stvar(int32, 0), stvar(int32, back->skipped));
 
     strDestroy(&cjs);
     objRelease(&back);
@@ -2463,7 +2542,8 @@ static int test_ser_refs(void)
                     NULL));
     CHK(viadup && saSize(viadup->kids) == 2);
     CHK(viadup->kids.a[0] != viadup->child);
-    CHK(strEq(viadup->kids.a[0]->title, _S "shared"));
+    if (!strEq(viadup->kids.a[0]->title, _S "shared"))
+        TEST_FAIL(1, _SL("strEq mismatch: a='${string}', b='${string}'"), stvar(strref, viadup->kids.a[0]->title), stvar(strref, _S "shared"));
 
     strDestroy(&json);
     strDestroy(&bin);
@@ -2566,7 +2646,8 @@ static int test_ser_refwrap(void)
                stArg(SerCustom, shared),
                SER_Refs,
                NULL));
-    CHK(strEq(bare, _S "{ \"$id\": 0, \"$value\": [ 7, \"wrapped\" ] }"));
+    if (!strEq(bare, _S "{ \"$id\": 0, \"$value\": [ 7, \"wrapped\" ] }"))
+        TEST_FAIL(1, _SL("strEq mismatch: a='${string}', b='${string}'"), stvar(strref, bare), stvar(strref, _S "{ \"$id\": 0, \"$value\": [ 7, \"wrapped\" ] }"));
 
     SerCustom* viabare = NULL;
     CHK(fromJsonCls(bare,
@@ -2623,7 +2704,8 @@ static int test_ser_referrors(void)
                      stExt(SerAny),
                      stArgPtr(SerAny, &victim),
                      &err));
-    CHK(err.code == SER_Err_Data);
+    if (err.code != SER_Err_Data)
+        TEST_FAIL(1, _SL("expected ${int}, got ${int}"), stvar(int32, SER_Err_Data), stvar(int32, err.code));
     CHK(strFind(err.msg, 0, _S "never defined") >= 0);
     serErrorDestroy(&err);
 
@@ -2633,7 +2715,8 @@ static int test_ser_referrors(void)
                      stExt(SerAny),
                      stArgPtr(SerAny, &victim),
                      &err));
-    CHK(err.code == SER_Err_Data);
+    if (err.code != SER_Err_Data)
+        TEST_FAIL(1, _SL("expected ${int}, got ${int}"), stvar(int32, SER_Err_Data), stvar(int32, err.code));
     CHK(strFind(err.msg, 0, _S "twice") >= 0);
     serErrorDestroy(&err);
 
@@ -2646,7 +2729,8 @@ static int test_ser_referrors(void)
                      stExt(SerHolder),
                      stArgPtr(SerHolder, &holder),
                      &err));
-    CHK(err.code == SER_Err_Type);
+    if (err.code != SER_Err_Type)
+        TEST_FAIL(1, _SL("expected ${int}, got ${int}"), stvar(int32, SER_Err_Type), stvar(int32, err.code));
     CHK(strFind(err.msg, 0, _S "declared to hold") >= 0);
     serErrorDestroy(&err);
 
@@ -2659,7 +2743,8 @@ static int test_ser_referrors(void)
 
     SerWriter* w = serSsdWriterCreate(SER_Refs);
     CHK(!_serWrite(w, stExt(SerCycle), stArg(SerCycle, a)));
-    CHK(w->err.code == SER_Err_Data);
+    if (w->err.code != SER_Err_Data)
+        TEST_FAIL(1, _SL("expected ${int}, got ${int}"), stvar(int32, SER_Err_Data), stvar(int32, w->err.code));
     CHK(strFind(w->err.msg, 0, _S "cycle") >= 0);
     serWriterDestroy(&w);
 
@@ -2910,11 +2995,13 @@ static int test_ser_stvar(void)
         CHK(fromBinaryCls(bn, stExt(stvar), stArgPtr(stvar, &dstb), NULL));
 
         CHK(stvarIs(&dstj, object) && objClsInfo(dstj.data.st_object) == &SerCls1_clsinfo);
-        CHK(strEq(((SerCls1*)dstj.data.st_object)->title, _S "via stvar"));
+        if (!strEq(((SerCls1*)dstj.data.st_object)->title, _S "via stvar"))
+            TEST_FAIL(1, _SL("strEq mismatch: a='${string}', b='${string}'"), stvar(strref, ((SerCls1*)dstj.data.st_object)->title), stvar(strref, _S "via stvar"));
         CHK(((SerCls1*)dstj.data.st_object)->revision == 9);
 
         CHK(stvarIs(&dstb, object) && objClsInfo(dstb.data.st_object) == &SerCls1_clsinfo);
-        CHK(strEq(((SerCls1*)dstb.data.st_object)->title, _S "via stvar"));
+        if (!strEq(((SerCls1*)dstb.data.st_object)->title, _S "via stvar"))
+            TEST_FAIL(1, _SL("strEq mismatch: a='${string}', b='${string}'"), stvar(strref, ((SerCls1*)dstb.data.st_object)->title), stvar(strref, _S "via stvar"));
 
         stvarDestroy(&src);
         stvarDestroy(&dstj);
@@ -3098,7 +3185,8 @@ static int test_ser_stvarerr(void)
         SerError err = { 0 };
         string js    = 0;
         CHK(!toJson(&js, stExt(stvar), stArg(stvar, v), 0, &err));
-        CHK(err.code == SER_Err_Unsupported);
+        if (err.code != SER_Err_Unsupported)
+            TEST_FAIL(1, _SL("expected ${int}, got ${int}"), stvar(int32, SER_Err_Unsupported), stvar(int32, err.code));
         CHK(!strEmpty(err.path));
 
         serErrorDestroy(&err);
@@ -3117,7 +3205,8 @@ static int test_ser_stvarerr(void)
         SerError err = { 0 };
         string js    = 0;
         CHK(!toJson(&js, stExt(stvar), stArg(stvar, v), 0, &err));
-        CHK(err.code == SER_Err_Unsupported);
+        if (err.code != SER_Err_Unsupported)
+            TEST_FAIL(1, _SL("expected ${int}, got ${int}"), stvar(int32, SER_Err_Unsupported), stvar(int32, err.code));
         CHK(!strEmpty(err.path));
 
         serErrorDestroy(&err);
@@ -3138,7 +3227,8 @@ static int test_ser_stvarerr(void)
         SerError err = { 0 };
         string js    = 0;
         CHK(!toJson(&js, stExt(stvar), stArg(stvar, v), 0, &err));
-        CHK(err.code == SER_Err_Unsupported);
+        if (err.code != SER_Err_Unsupported)
+            TEST_FAIL(1, _SL("expected ${int}, got ${int}"), stvar(int32, SER_Err_Unsupported), stvar(int32, err.code));
         CHK(!strEmpty(err.path));
 
         serErrorDestroy(&err);
@@ -3155,7 +3245,8 @@ static int test_ser_stvarerr(void)
         SerError err = { 0 };
         SSDNode* t   = toSsd(stExt(stvar), stArg(stvar, v), &err);
         CHK(!t);
-        CHK(err.code == SER_Err_Unsupported);
+        if (err.code != SER_Err_Unsupported)
+            TEST_FAIL(1, _SL("expected ${int}, got ${int}"), stvar(int32, SER_Err_Unsupported), stvar(int32, err.code));
         CHK(strFind(err.msg, 0, _S "type tag") >= 0);
         serErrorDestroy(&err);
     }
@@ -3169,7 +3260,8 @@ static int test_ser_stvarerr(void)
                       stArgPtr(stvar, &dst),
                       0,
                       &err));
-        CHK(err.code == SER_Err_Type);
+        if (err.code != SER_Err_Type)
+            TEST_FAIL(1, _SL("expected ${int}, got ${int}"), stvar(int32, SER_Err_Type), stvar(int32, err.code));
         CHK(strFind(err.msg, 0, _S "NoSuchType") >= 0);
         serErrorDestroy(&err);
     }
@@ -3180,7 +3272,8 @@ static int test_ser_stvarerr(void)
         stvar dst    = stvNone;
         SerError err = { 0 };
         CHK(!fromJson(_S "42", stExt(stvar), stArgPtr(stvar, &dst), 0, &err));
-        CHK(err.code == SER_Err_Data);
+        if (err.code != SER_Err_Data)
+            TEST_FAIL(1, _SL("expected ${int}, got ${int}"), stvar(int32, SER_Err_Data), stvar(int32, err.code));
         serErrorDestroy(&err);
     }
 

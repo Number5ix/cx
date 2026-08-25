@@ -23,25 +23,25 @@ static int test_string()
               stvar(string, in1), stvar(string, in2), stvar(string, in3));
 
     if (!strEq(res, _S"This is a Test1, Test2, Test3"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: string mismatch: ${string} != ${string}"), stvar(strref, res), stvar(strref, _S"This is a Test1, Test2, Test3"));
 
     strFormat(&res, _S"This is a ${string2}, ${string3}, ${string1}",
               stvar(string, in1), stvar(string, in2), stvar(string, in3));
 
     if (!strEq(res, _S"This is a Test2, Test3, Test1"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: string mismatch: ${string} != ${string}"), stvar(strref, res), stvar(strref, _S"This is a Test2, Test3, Test1"));
 
     strFormat(&res, _S"This is a ${string2}, ${string1}, ${string}",
               stvar(string, in1), stvar(string, in2), stvar(string, in3));
 
     if (!strEq(res, _S"This is a Test2, Test1, Test1"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: string mismatch: ${string} != ${string}"), stvar(strref, res), stvar(strref, _S"This is a Test2, Test1, Test1"));
 
     strFormat(&res, _S"${string1}:${string2(8,upper)}:${string3(8,right,lower)}:${string1(center,9)}",
               stvar(string, in1), stvar(string, in2), stvar(string, in3));
 
     if (!strEq(res, _S"Test1:TEST2   :   test3:  Test1  "))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: string mismatch: ${string} != ${string}"), stvar(strref, res), stvar(strref, _S"Test1:TEST2 : test3: Test1 "));
 
     strDestroy(&in1);
     strDestroy(&in2);
@@ -60,26 +60,26 @@ static int test_int()
               stvar(uint16, 65535), stvar(uint64, 0xffffffffffffffff), stvar(uint32, 0));
 
     if (!strEq(res, _S"This is a 17, 65535, -23102, 18446744073709551615, 1000000001, 0 test"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: string mismatch: ${string} != ${string}"), stvar(strref, res), stvar(strref, _S"This is a 17, 65535, -23102, 18446744073709551615, 1000000001, 0 test"));
 
     strFormat(&res, _S"This is a ${int(7)}:${int(7,left)}:${0int(7)}:${0int(7)}:${-int}:${-int}:${+int(7)}:${int(min:7)}:${int(min:7)} test",
               stvar(int32, 17), stvar(int32, -17), stvar(int32, 17), stvar(int32, -17), stvar(int32, 17), stvar(int32, -17),
               stvar(int32, 17), stvar(int32, 17), stvar(int32, -17));
 
     if (!strEq(res, _S"This is a      17:-17    :0000017:-000017: 17:-17:    +17:0000017:-0000017 test"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: string mismatch: ${string} != ${string}"), stvar(strref, res), stvar(strref, _S"This is a 17:-17 :0000017:-000017: 17:-17: +17:0000017:-0000017 test"));
 
     strFormat(&res, _S"This is a ${uint(hex)}, ${uint(octal)}, ${uint(binary)}, ${uint(octal,prefix)}, ${uint(prefix,upper,hex)} test",
               stvar(uint32, 0xbeeff00d), stvar(uint32, 0377), stvar(uint32, 273), stvar(uint32, 0755), stvar(uint32, 0xd00daf0e));
 
     if (!strEq(res, _S"This is a beeff00d, 377, 100010001, 0755, 0xD00DAF0E test"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: string mismatch: ${string} != ${string}"), stvar(strref, res), stvar(strref, _S"This is a beeff00d, 377, 100010001, 0755, 0xD00DAF0E test"));
 
     strFormat(&res, _S"This is a ${int(utfchar)}${int(utfchar)}${int(utfchar)} test",
               stvar(int32, 0x306f), stvar(int32, 0x3067), stvar(int32, 0x306a));
 
     if (!strEq(res, _SU"This is a はでな test"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: string mismatch: ${string} != _SU\"This is a はでな test\""), stvar(strref, res));
 
     strDestroy(&res);
 
@@ -95,31 +95,31 @@ static int test_float()
               stvar(float32, 65535.f), stvar(float64, 3.1415e-11), stvar(float64, -4.455e-50));
 
     if (!strEq(res, _S"This is a 1.75, -1728.023, 1.083e+23, 65535, 3.1415e-11, -4.455e-50 test"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: string mismatch: ${string} != ${string}"), stvar(strref, res), stvar(strref, _S"This is a 1.75, -1728.023, 1.083e+23, 65535, 3.1415e-11, -4.455e-50 test"));
 
     strFormat(&res, _S"This is a ${float}, ${float}, ${float} test",
               stvar(float32, NAN), stvar(float32, INFINITY), stvar(float64, -INFINITY));
 
     if (!strEq(res, _S"This is a NaN, Inf, -Inf test"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: string mismatch: ${string} != ${string}"), stvar(strref, res), stvar(strref, _S"This is a NaN, Inf, -Inf test"));
 
     strFormat(&res, _S"This is a ${float(sig:4)}, ${float(sig:4)}, ${float(dec:4)}, ${float(dec:4,zero)}, ${float(dec:4,zero)} test",
               stvar(float64, -173.2134), stvar(float64, 1.67988e+18), stvar(float64, 5.48108), stvar(float64, 5.479969), stvar(float64, -1.1));
 
     if (!strEq(res, _S"This is a -173.2, 1.68e+18, 5.4811, 5.4800, -1.1000 test"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: string mismatch: ${string} != ${string}"), stvar(strref, res), stvar(strref, _S"This is a -173.2, 1.68e+18, 5.4811, 5.4800, -1.1000 test"));
 
     strFormat(&res, _S"This is a ${float(fixed)}, ${float(fixed,zero)}, ${float(fixed,dec:3)}, ${float(fixed,dec:3)}, ${float(fixed,dec:30)} test",
               stvar(float64, 0.0043834582), stvar(float64, 1732000), stvar(float64, 1.7834e+22), stvar(float64, 1.7834e-22), stvar(float64, 1.7834e-22));
 
     if (!strEq(res, _S"This is a 0.004383, 1732000.000000, 17834000000000000000000, 0, 0.00000000000000000000017834 test"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: string mismatch: ${string} != ${string}"), stvar(strref, res), stvar(strref, _S"This is a 0.004383, 1732000.000000, 17834000000000000000000, 0, 0.00000000000000000000017834 test"));
 
     strFormat(&res, _S"This is a ${0float1(10)}, ${0float1(7)}, ${0float1(5)}, ${0float1(4)} test",
               stvar(float64, -1.17384));
 
     if (!strEq(res, _S"This is a -001.17384, -1.1738, -1.17, -1.2 test"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: string mismatch: ${string} != ${string}"), stvar(strref, res), stvar(strref, _S"This is a -001.17384, -1.1738, -1.17, -1.2 test"));
 
     strDestroy(&res);
     return 0;
@@ -133,16 +133,16 @@ static int test_ptr()
     strFormat(&res, _S"This is a ${ptr1(upper)}, ${ptr1(prefix)} test", stvar(ptr, testptr));
 
     if (!strEq(res, _S"This is a 1234DEAD, 0x1234dead test"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: string mismatch: ${string} != ${string}"), stvar(strref, res), stvar(strref, _S"This is a 1234DEAD, 0x1234dead test"));
 
     testptr = (void*)0x45babe;
     strFormat(&res, _S"This is a ${0ptr(prefix)} test", stvar(ptr, testptr));
 #ifdef _64BIT
     if (!strEq(res, _S"This is a 0x000000000045babe test"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: string mismatch: ${string} != ${string}"), stvar(strref, res), stvar(strref, _S"This is a 0x000000000045babe test"));
 #else
     if (!strEq(res, _S"This is a 0x0045babe test"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: string mismatch: ${string} != ${string}"), stvar(strref, res), stvar(strref, _S"This is a 0x0045babe test"));
 #endif
 
     strDestroy(&res);
@@ -161,7 +161,7 @@ static int test_suid()
     strFormat(&res, _S"This is a ${suid} test", stvar(suid, testsuid));
 
     if (!strEq(res, _S"This is a 0j6hb7h6nwvvr0000000000001 test"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: string mismatch: ${string} != ${string}"), stvar(strref, res), stvar(strref, _S"This is a 0j6hb7h6nwvvr0000000000001 test"));
 
     strDestroy(&res);
     return 0;
@@ -183,7 +183,7 @@ static int test_object()
               stvar(object, o1), stvar(object, o2), stvar(object, o3), stvar(object, o4), stvar(object, o5));
 
     if (!strEq(res, _S"This is a Object(Test:One), Object(Lest:Two), Object(Best:Three), Object(Fest:Four), Object(Behest:Five) test"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: string mismatch: ${string} != ${string}"), stvar(strref, res), stvar(strref, _S"This is a Object(Test:One), Object(Lest:Two), Object(Best:Three), Object(Fest:Four), Object(Behest:Five) test"));
 
     o1->iv = 5;
     o2->iv = 4;
@@ -194,7 +194,7 @@ static int test_object()
               stvar(object, o1), stvar(object, o2), stvar(object, o3), stvar(object, o4), stvar(object, o5));
 
     if (!strEq(res, _S"This is a Object(Test:Five), Object(Lest:Four), Object(Best:Three), Object(Fest:Two), Object(Behest:One) test"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: string mismatch: ${string} != ${string}"), stvar(strref, res), stvar(strref, _S"This is a Object(Test:Five), Object(Lest:Four), Object(Best:Three), Object(Fest:Two), Object(Behest:One) test"));
 
     objRelease(&o1);
     objRelease(&o2);
@@ -216,7 +216,7 @@ static int test_object()
               stvar(object, oo1), stvar(object, oo2), stvar(object, oo3), stvar(object, oo4), stvar(object, oo5));
 
     if (!strEq(res, _S"This is a Object(Test:One), Object(Lest:Two), Object(Best:Three), Object(Fest:Four), Object(Behest:Five) test"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: string mismatch: ${string} != ${string}"), stvar(strref, res), stvar(strref, _S"This is a Object(Test:One), Object(Lest:Two), Object(Best:Three), Object(Fest:Four), Object(Behest:Five) test"));
 
     oo1->iv = 5;
     oo2->iv = 4;
@@ -227,7 +227,7 @@ static int test_object()
               stvar(object, oo1), stvar(object, oo2), stvar(object, oo3), stvar(object, oo4), stvar(object, oo5));
 
     if (!strEq(res, _S"This is a Object(Test:Five), Object(Lest:Four), Object(Best:Three), Object(Fest:Two), Object(Behest:One) test"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: string mismatch: ${string} != ${string}"), stvar(strref, res), stvar(strref, _S"This is a Object(Test:Five), Object(Lest:Four), Object(Best:Three), Object(Fest:Two), Object(Behest:One) test"));
 
     objRelease(&oo1);
     objRelease(&oo2);
@@ -264,25 +264,25 @@ static int test_array()
               stvar(sarray, intarray));
 
     if (!strEq(res, _S"This is a 36, 33, 35, 32, 34 test"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: string mismatch: ${string} != ${string}"), stvar(strref, res), stvar(strref, _S"This is a 36, 33, 35, 32, 34 test"));
 
     strFormat(&res, _S"This is a ${int[]}, ${int[]}, ${int[]}, ${int[]}, ${int[]} test",
               stvar(sarray, intarray));
 
     if (!strEq(res, _S"This is a 32, 33, 34, 35, 36 test"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: string mismatch: ${string} != ${string}"), stvar(strref, res), stvar(strref, _S"This is a 32, 33, 34, 35, 36 test"));
 
     strFormat(&res, _S"This is a ${string[0]} ${string[1]} ${string[4]} ${string[2]} ${string[3]}",
               stvar(sarray, strarray));
 
     if (!strEq(res, _S"This is a Test Of Awesome Array Formatting"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: string mismatch: ${string} != ${string}"), stvar(strref, res), stvar(strref, _S"This is a Test Of Awesome Array Formatting"));
 
     strFormat(&res, _S"This is an ${string[4]} ${string[0]} ${string[1]} ${string[0]} ${string[3]}",
               stvar(sarray, intarray), stvar(sarray, strarray));
 
     if (!strEq(res, _S"This is an Awesome Test Of Test Formatting"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: string mismatch: ${string} != ${string}"), stvar(strref, res), stvar(strref, _S"This is an Awesome Test Of Test Formatting"));
 
     // The subscript binds tighter than the formatting applied to the result, so it is
     // written first: index, then pad the element that came out.
@@ -290,18 +290,18 @@ static int test_array()
               stvar(sarray, intarray));
 
     if (!strEq(res, _S"[    33][32    ][00034]"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: string mismatch: ${string} != ${string}"), stvar(strref, res), stvar(strref, _S"[ 33][32 ][00034]"));
 
     // ...and the reverse order is rejected rather than silently accepted
     if (strFormat(&res, _S"${int(6)[1]}", stvar(sarray, intarray)) != false)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: strFormat(&res, _S\"${int(6)[1]}\", stvar(sarray, intarray)) != false"), stvNone);
     if (!strEmpty(res))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !strEmpty(res)"), stvNone);
 
     // a subscript still combines with a default
     strFormat(&res, _S"${int[9];none}", stvar(sarray, intarray));
     if (!strEq(res, _S"none"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: string mismatch: ${string} != ${string}"), stvar(strref, res), stvar(strref, _S"none"));
 
     saDestroy(&intarray);
     saDestroy(&strarray);
@@ -328,19 +328,19 @@ static int test_hash()
               stvar(hashtable, testht));
 
     if (!strEq(res, _S"It's easy as 1, 2, 3"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: string mismatch: ${string} != ${string}"), stvar(strref, res), stvar(strref, _S"It's easy as 1, 2, 3"));
 
     strFormat(&res, _S"It's easy as ${float[four]}, ${float[pi]}, ${float[e]}?",
               stvar(hashtable, testht));
 
     if (!strEq(res, _S"It's easy as 4, 3.14159, 2.71828?"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: string mismatch: ${string} != ${string}"), stvar(strref, res), stvar(strref, _S"It's easy as 4, 3.14159, 2.71828?"));
 
     strFormat(&res, _S"sqrt(${float[two]}) = ${float[sqrttwo]}",
               stvar(hashtable, testht));
 
     if (!strEq(res, _S"sqrt(2) = 1.41421"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: string mismatch: ${string} != ${string}"), stvar(strref, res), stvar(strref, _S"sqrt(2) = 1.41421"));
 
     htDestroy(&testht);
 
@@ -353,7 +353,7 @@ static int test_hash()
 
     strFormat(&res, _S"${int[`0]} ${int[`1]}", stvar(hashtable, numht));
     if (!strEq(res, _S"111 222"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: string mismatch: ${string} != ${string}"), stvar(strref, res), stvar(strref, _S"111 222"));
 
     // The array-vs-hashtable decision is syntactic, not driven by which arguments are
     // present: with both an sarray and a hashtable in the list, an unescaped number is
@@ -365,12 +365,12 @@ static int test_hash()
 
     strFormat(&res, _S"${int[1]} ${int[`1]}", stvar(sarray, nums), stvar(hashtable, numht));
     if (!strEq(res, _S"888 222"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: string mismatch: ${string} != ${string}"), stvar(strref, res), stvar(strref, _S"888 222"));
 
     // ...and the same format string keeps its meaning when the sarray is absent, rather
     // than silently falling back to a hashtable lookup for "1"
     if (strFormat(&res, _S"${int[1]}", stvar(hashtable, numht)) != false)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: strFormat(&res, _S\"${int[1]}\", stvar(hashtable, numht)) != false"), stvNone);
 
     saDestroy(&nums);
     htDestroy(&numht);
@@ -386,7 +386,7 @@ static int test_default()
               stvar(int32, 1702), stvar(string, _S"specified"));
 
     if (!strEq(res, _S"This is a 1702 specified default 0 test"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: string mismatch: ${string} != ${string}"), stvar(strref, res), stvar(strref, _S"This is a 1702 specified default 0 test"));
 
     strDestroy(&res);
     return 0;
@@ -400,39 +400,39 @@ static int test_error()
 
     if (strFormat(&res, _S"This ${int} ${int} ${int} test should fail",
         stvar(int32, 5), stvar(int32, 10)) != false)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: strFormat(&res, _S\"This ${int} ${int} ${int} test should fail\", stvar(int32, 5), stvar(int32, 10)) != false"), stvNone);
     if (!strEmpty(res))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !strEmpty(res)"), stvNone);
 
     if (strFormat(&res, _S"This ${int[0]} test should fail",
                   stvar(int32, 5), stvar(int32, 10)) != false)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: strFormat(&res, _S\"This ${int[0]} test should fail\", stvar(int32, 5), stvar(int32, 10)) != false"), stvNone);
     if (!strEmpty(res))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !strEmpty(res)"), stvNone);
 
     if (strFormat(&res, _S"This ${string} test should fail",
                   stvar(int32, 5), stvar(int32, 10)) != false)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: strFormat(&res, _S\"This ${string} test should fail\", stvar(int32, 5), stvar(int32, 10)) != false"), stvNone);
     if (!strEmpty(res))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !strEmpty(res)"), stvNone);
 
     if (strFormat(&res, _S"This ${int[hash]} test should fail",
                   stvar(int32, 5), stvar(int32, 10)) != false)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: strFormat(&res, _S\"This ${int[hash]} test should fail\", stvar(int32, 5), stvar(int32, 10)) != false"), stvNone);
     if (!strEmpty(res))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !strEmpty(res)"), stvNone);
 
     if (strFormat(&res, _S"This ${int test should fail",
                   stvar(int32, 5), stvar(int32, 10)) != false)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: strFormat(&res, _S\"This ${int test should fail\", stvar(int32, 5), stvar(int32, 10)) != false"), stvNone);
     if (!strEmpty(res))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !strEmpty(res)"), stvNone);
 
     if (strFormat(&res, _S"This ${int(asdf} test should fail",
                   stvar(int32, 5), stvar(int32, 10)) != false)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: strFormat(&res, _S\"This ${int(asdf} test should fail\", stvar(int32, 5), stvar(int32, 10)) != false"), stvNone);
     if (!strEmpty(res))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !strEmpty(res)"), stvNone);
 
     strDestroy(&res);
     return 0;
@@ -449,25 +449,25 @@ static int test_keyed()
     strFormat(&res, _S"${string:host} took ${int:ms}ms",
               stvark(host, string, host), stvark(ms, int32, 250));
     if (!strEq(res, _S"web01 took 250ms"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: string mismatch: ${string} != ${string}"), stvar(strref, res), stvar(strref, _S"web01 took 250ms"));
 
     strFormat(&res, _S"${:host} took ${:ms}ms",
               stvark(host, string, host), stvark(ms, int32, 250));
     if (!strEq(res, _S"web01 took 250ms"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: string mismatch: ${string} != ${string}"), stvar(strref, res), stvar(strref, _S"web01 took 250ms"));
 
     // order-independence: keys resolve regardless of argument position, and repeating a
     // key resolves to the same argument every time
     strFormat(&res, _S"${:ms} ${:host} ${:ms}",
               stvark(host, string, host), stvark(ms, int32, 250));
     if (!strEq(res, _S"250 web01 250"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: string mismatch: ${string} != ${string}"), stvar(strref, res), stvar(strref, _S"250 web01 250"));
 
     // keys compose with format options and defaults
     strFormat(&res, _S"[${string:host(8,left)}][${0int:ms(6)}][${string:nope;fallback}]",
               stvark(host, string, host), stvark(ms, int32, 250));
     if (!strEq(res, _S"[web01   ][000250][fallback]"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: string mismatch: ${string} != ${string}"), stvar(strref, res), stvar(strref, _S"[web01 ][000250][fallback]"));
 
     // Keyed and positional placeholders interleave without disturbing each other. The
     // keyed argument sits in the middle of three positional ints and must be invisible to
@@ -475,35 +475,35 @@ static int test_keyed()
     strFormat(&res, _S"${int} ${int:ms} ${int} ${int}",
               stvar(int32, 1), stvark(ms, int32, 250), stvar(int32, 2), stvar(int32, 3));
     if (!strEq(res, _S"1 250 2 3"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: string mismatch: ${string} != ${string}"), stvar(strref, res), stvar(strref, _S"1 250 2 3"));
 
     // ...which is the same thing stated from the other side: an unkeyed placeholder never
     // matches a keyed argument, so this resolves to the one unkeyed int
     strFormat(&res, _S"${int}", stvark(ms, int32, 7), stvar(int32, 8));
     if (!strEq(res, _S"8"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: string mismatch: ${string} != ${string}"), stvar(strref, res), stvar(strref, _S"8"));
 
     // and with no unkeyed argument to find, it fails rather than silently taking the
     // keyed one
     if (strFormat(&res, _S"${int}", stvark(ms, int32, 7)) != false)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: strFormat(&res, _S\"${int}\", stvark(ms, int32, 7)) != false"), stvNone);
     if (!strEmpty(res))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !strEmpty(res)"), stvNone);
 
     // a missing key, or a key whose argument is the wrong type, fails like any other
     // unresolvable variable
     if (strFormat(&res, _S"${string:missing}", stvark(ms, int32, 250)) != false)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: strFormat(&res, _S\"${string:missing}\", stvark(ms, int32, 250)) != false"), stvNone);
     if (!strEmpty(res))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !strEmpty(res)"), stvNone);
     if (strFormat(&res, _S"${string:ms}", stvark(ms, int32, 250)) != false)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: strFormat(&res, _S\"${string:ms}\", stvark(ms, int32, 250)) != false"), stvNone);
     if (!strEmpty(res))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !strEmpty(res)"), stvNone);
 
     // an empty key is a parse error, not a match against unkeyed arguments
     if (strFormat(&res, _S"${string:}", stvar(string, host)) != false)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: strFormat(&res, _S\"${string:}\", stvar(string, host)) != false"), stvNone);
 
     strDestroy(&host);
     strDestroy(&res);
@@ -532,44 +532,44 @@ static int test_keyed_subscript()
     // a keyed array subscripts like a positional one
     strFormat(&res, _S"${int:sizes[0]} ${int:sizes[2]}", stvark(sizes, sarray, sizes));
     if (!strEq(res, _S"10 30"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: string mismatch: ${string} != ${string}"), stvar(strref, res), stvar(strref, _S"10 30"));
 
     // a keyed hashtable likewise, using the bracket form
     strFormat(&res, _S"${string:hdrs[agent]}", stvark(hdrs, hashtable, hdrs));
     if (!strEq(res, _S"cx/1"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: string mismatch: ${string} != ${string}"), stvar(strref, res), stvar(strref, _S"cx/1"));
 
     // the key selects *which* container, so two same-typed arrays stay distinguishable --
     // this is the whole point, and is not expressible positionally
     strFormat(&res, _S"${int:sizes[1]} ${int:other[0]}",
               stvark(sizes, sarray, sizes), stvark(other, sarray, other));
     if (!strEq(res, _S"20 77"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: string mismatch: ${string} != ${string}"), stvar(strref, res), stvar(strref, _S"20 77"));
 
     // typeless keyed subscripting takes its type from the element/value type
     strFormat(&res, _S"${:sizes[1]} ${:hdrs[accept]}",
               stvark(sizes, sarray, sizes), stvark(hdrs, hashtable, hdrs));
     if (!strEq(res, _S"20 text/html"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: string mismatch: ${string} != ${string}"), stvar(strref, res), stvar(strref, _S"20 text/html"));
 
     // and it still composes with format options and defaults
     strFormat(&res, _S"[${int:sizes[2](6)}][${string:hdrs[nope];none}]",
               stvark(sizes, sarray, sizes), stvark(hdrs, hashtable, hdrs));
     if (!strEq(res, _S"[    30][none]"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: string mismatch: ${string} != ${string}"), stvar(strref, res), stvar(strref, _S"[ 30][none]"));
 
     // out-of-range index, missing hash key, and wrong container kind all fail rather than
     // silently falling back to the unsubscripted argument
     if (strFormat(&res, _S"${int:sizes[9]}", stvark(sizes, sarray, sizes)) != false)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: strFormat(&res, _S\"${int:sizes[9]}\", stvark(sizes, sarray, sizes)) != false"), stvNone);
     if (strFormat(&res, _S"${string:hdrs[missing]}", stvark(hdrs, hashtable, hdrs)) != false)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: strFormat(&res, _S\"${string:hdrs[missing]}\", stvark(hdrs, hashtable, hdrs)) != false"), stvNone);
     if (strFormat(&res, _S"${int:sizes[key]}", stvark(sizes, sarray, sizes)) != false)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: strFormat(&res, _S\"${int:sizes[key]}\", stvark(sizes, sarray, sizes)) != false"), stvNone);
 
     // a keyed container is still invisible to positional container placeholders
     if (strFormat(&res, _S"${int[0]}", stvark(sizes, sarray, sizes)) != false)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: strFormat(&res, _S\"${int[0]}\", stvark(sizes, sarray, sizes)) != false"), stvNone);
 
     saDestroy(&sizes);
     saDestroy(&other);
@@ -589,31 +589,31 @@ static int test_keyed_stvl()
     // keyed lookup finds regardless of order and does not move the cursor
     int32 timeout = 0;
     if (!stvlFind(list, timeout, int32, &timeout) || timeout != 250)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !stvlFind(list, timeout, int32, &timeout) || timeout != 250 (timeout=${int})"), stvar(int32, timeout));
 
     string label = 0;
     if (!stvlFind(list, label, string, &label) || !strEq(label, _S"tagged"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !stvlFind(list, label, string, &label) || string mismatch: ${string} != ${string}"), stvar(strref, label), stvar(strref, _S"tagged"));
 
     if (!stvlHasKey(list, timeout) || stvlHasKey(list, nosuchkey))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !stvlHasKey(list, timeout) || stvlHasKey(list, nosuchkey)"), stvNone);
 
     // wrong type for an existing key does not match
     string wrong = 0;
     if (stvlFind(list, timeout, string, &wrong))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: stvlFind(list, timeout, string, &wrong)"), stvNone);
 
     // the cursor is untouched by all of the above, so positional walking still starts at
     // the beginning of the list
     string first = 0;
     if (!stvlNext(&list, string, &first) || !strEq(first, _S"positional"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !stvlNext(&list, string, &first) || string mismatch: ${string} != ${string}"), stvar(strref, first), stvar(strref, _S"positional"));
 
     // ...and positional walking skips keyed variants entirely, so the keyed string is not
     // reachable this way and the walk is now exhausted
     string second = 0;
     if (stvlNext(&list, string, &second))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: stvlNext(&list, string, &second)"), stvNone);
 
     return 0;
 }
@@ -626,13 +626,13 @@ static int test_keyed_copy()
     stvarCopy(&dst, src);
 
     if (!stvarKey(&dst) || !strEq((strref)stvarKey(&dst), _S"host"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !stvarKey(&dst) || string mismatch: (strref)stvarKey(&dst) != ${string}"), stvar(strref, _S"host"));
     if (!stvarIs(&dst, string) || !strEq(stvarString(&dst), _S"web01"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !stvarIs(&dst, string) || string mismatch: stvarString(&dst) != ${string}"), stvar(strref, _S"web01"));
 
     stvarDestroy(&dst);
     if (stvarKey(&dst) != NULL)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: stvarKey(&dst) != NULL"), stvNone);
 
     // a key is metadata: it must not affect compare or hash, or attaching one would
     // change how a variant behaves as a container element
@@ -641,21 +641,21 @@ static int test_keyed_copy()
     stvar other   = stvark(elsewhere, int32, 42);
 
     if (stCmp(stvar, keyed, unkeyed, 0) != 0 || stCmp(stvar, keyed, other, 0) != 0)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: stCmp(stvar, keyed, unkeyed, 0) != 0 || stCmp(stvar, keyed, other, 0) != 0"), stvNone);
     if (stHash(stvar, keyed, 0) != stHash(stvar, unkeyed, 0))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: stHash(stvar, keyed, 0) != stHash(stvar, unkeyed, 0)"), stvNone);
 
     // stvarSet clears a stale key; stvarSetK replaces value and key together
     stvar v = stvNone;
     stvarSetK(&v, first, int32, 1);
     if (!stvarKey(&v) || !strEq((strref)stvarKey(&v), _S"first"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !stvarKey(&v) || string mismatch: (strref)stvarKey(&v) != ${string}"), stvar(strref, _S"first"));
     stvarSet(&v, int32, 2);
     if (stvarKey(&v) != NULL)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: stvarKey(&v) != NULL"), stvNone);
     stvarSetK(&v, second, string, _S"x");
     if (!stvarKey(&v) || !strEq((strref)stvarKey(&v), _S"second"))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !stvarKey(&v) || string mismatch: (strref)stvarKey(&v) != ${string}"), stvar(strref, _S"second"));
     stvarDestroy(&v);
 
     return 0;

@@ -425,6 +425,20 @@ static string linerepeat = _S"Up to 90 more lines may follow.";
 static string line99 = _S"(99) THIS IS THE NEXT TO LAST LINE!";
 static string line100 = _S"(100) THIS IS THE LAST LINE!";
 
+// Checks the line at line number `want` matches `expect`, logging both values on mismatch.
+static void lpCheckEq(int *ret, int lines, int want, strref got, strref expect)
+{
+    if (lines == want && !strEq(got, expect))
+        TEST_FAILV(*ret, 1, _SL("line ${int}: got '${string}', want '${string}'"), stvar(int32, lines), stvar(strref, got), stvar(strref, expect));
+}
+
+// Checks every line in (lo, hi) matches `expect`, logging both values on mismatch.
+static void lpCheckRange(int *ret, int lines, int lo, int hi, strref got, strref expect)
+{
+    if (lines > lo && lines < hi && !strEq(got, expect))
+        TEST_FAILV(*ret, 1, _SL("line ${int}: got '${string}', want '${string}'"), stvar(int32, lines), stvar(strref, got), stvar(strref, expect));
+}
+
 int test_lineparse_explicit()
 {
     int ret = 0;
@@ -441,25 +455,20 @@ int test_lineparse_explicit()
     sb = sbufCreate(512);
     if (!sbufStrPRegisterPull(sb, teststr_lf) ||
         !lparseRegisterPull(sb, LPARSE_LF))
-        return 1;
+        TEST_FAIL(1, _SL("failed to register line-parser pull source"), stvNone);
 
     lines = 0;
     while (lparseLine(sb, &line)) {
         lines++;
-        if (lines == 1 && !strEq(line, line1))
-            ret = 1;
-        if (lines == 5 && !strEq(line, line5))
-            ret = 1;
-        if (lines > 10 && lines < 99 && !strEq(line, linerepeat))
-            ret = 1;
-        if (lines == 99 && !strEq(line, line99))
-            ret = 1;
-        if (lines == 100 && !strEq(line, line100))
-            ret = 1;
+        lpCheckEq(&ret, lines, 1, line, line1);
+        lpCheckEq(&ret, lines, 5, line, line5);
+        lpCheckRange(&ret, lines, 10, 99, line, linerepeat);
+        lpCheckEq(&ret, lines, 99, line, line99);
+        lpCheckEq(&ret, lines, 100, line, line100);
     }
 
     if (lines != 100)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("total lines=${int} (want 100)"), stvar(int32, lines));
 
     sbufRelease(&sb);
 
@@ -467,23 +476,19 @@ int test_lineparse_explicit()
     sb = sbufCreate(512);
     if (!sbufStrPRegisterPull(sb, teststr_lf) ||
         !lparseRegisterPull(sb, LPARSE_LF | LPARSE_NoIncomplete))
-        return 1;
+        TEST_FAIL(1, _SL("failed to register line-parser pull source"), stvNone);
 
     lines = 0;
     while (lparseLine(sb, &line)) {
         lines++;
-        if (lines == 1 && !strEq(line, line1))
-            ret = 1;
-        if (lines == 5 && !strEq(line, line5))
-            ret = 1;
-        if (lines > 10 && lines < 99 && !strEq(line, linerepeat))
-            ret = 1;
-        if (lines == 99 && !strEq(line, line99))
-            ret = 1;
+        lpCheckEq(&ret, lines, 1, line, line1);
+        lpCheckEq(&ret, lines, 5, line, line5);
+        lpCheckRange(&ret, lines, 10, 99, line, linerepeat);
+        lpCheckEq(&ret, lines, 99, line, line99);
     }
 
     if (lines != 99)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("total lines=${int} (want 99)"), stvar(int32, lines));
 
     sbufRelease(&sb);
 
@@ -492,25 +497,20 @@ int test_lineparse_explicit()
     sb = sbufCreate(512);
     if (!sbufStrPRegisterPull(sb, teststr_crlf) ||
         !lparseRegisterPull(sb, LPARSE_CRLF))
-        return 1;
+        TEST_FAIL(1, _SL("failed to register line-parser pull source"), stvNone);
 
     lines = 0;
     while (lparseLine(sb, &line)) {
         lines++;
-        if (lines == 1 && !strEq(line, line1))
-            ret = 1;
-        if (lines == 5 && !strEq(line, line5))
-            ret = 1;
-        if (lines > 10 && lines < 99 && !strEq(line, linerepeat))
-            ret = 1;
-        if (lines == 99 && !strEq(line, line99))
-            ret = 1;
-        if (lines == 100 && !strEq(line, line100))
-            ret = 1;
+        lpCheckEq(&ret, lines, 1, line, line1);
+        lpCheckEq(&ret, lines, 5, line, line5);
+        lpCheckRange(&ret, lines, 10, 99, line, linerepeat);
+        lpCheckEq(&ret, lines, 99, line, line99);
+        lpCheckEq(&ret, lines, 100, line, line100);
     }
 
     if (lines != 100)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("total lines=${int} (want 100)"), stvar(int32, lines));
 
     sbufRelease(&sb);
 
@@ -518,25 +518,20 @@ int test_lineparse_explicit()
     sb = sbufCreate(512);
     if (!sbufStrPRegisterPull(sb, teststr_crlf) ||
         !lparseRegisterPull(sb, LPARSE_CRLF | LPARSE_NoIncomplete))
-        return 1;
+        TEST_FAIL(1, _SL("failed to register line-parser pull source"), stvNone);
 
     lines = 0;
     while (lparseLine(sb, &line)) {
         lines++;
-        if (lines == 1 && !strEq(line, line1))
-            ret = 1;
-        if (lines == 5 && !strEq(line, line5))
-            ret = 1;
-        if (lines > 10 && lines < 99 && !strEq(line, linerepeat))
-            ret = 1;
-        if (lines == 99 && !strEq(line, line99))
-            ret = 1;
-        if (lines == 100 && !strEq(line, line100))
-            ret = 1;
+        lpCheckEq(&ret, lines, 1, line, line1);
+        lpCheckEq(&ret, lines, 5, line, line5);
+        lpCheckRange(&ret, lines, 10, 99, line, linerepeat);
+        lpCheckEq(&ret, lines, 99, line, line99);
+        lpCheckEq(&ret, lines, 100, line, line100);
     }
 
     if (lines != 100)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("total lines=${int} (want 100)"), stvar(int32, lines));
 
     sbufRelease(&sb);
 
@@ -545,32 +540,27 @@ int test_lineparse_explicit()
     sb = sbufCreate(512);
     if (!sbufStrPRegisterPull(sb, teststr_crlf) ||
         !lparseRegisterPull(sb, LPARSE_CRLF | LPARSE_IncludeEOL))
-        return 1;
+        TEST_FAIL(1, _SL("failed to register line-parser pull source"), stvNone);
     string temp = 0;
 
     lines = 0;
     while (lparseLine(sb, &line)) {
         lines++;
         strConcat(&temp, line1, _S"\r\n");
-        if (lines == 1 && !strEq(line, temp))
-            ret = 1;
+        lpCheckEq(&ret, lines, 1, line, temp);
         strConcat(&temp, line5, _S"\r\n");
-        if (lines == 5 && !strEq(line, temp))
-            ret = 1;
+        lpCheckEq(&ret, lines, 5, line, temp);
         strConcat(&temp, linerepeat, _S"\r\n");
-        if (lines > 10 && lines < 99 && !strEq(line, temp))
-            ret = 1;
+        lpCheckRange(&ret, lines, 10, 99, line, temp);
         strConcat(&temp, line99, _S"\r\n");
-        if (lines == 99 && !strEq(line, temp))
-            ret = 1;
+        lpCheckEq(&ret, lines, 99, line, temp);
         strConcat(&temp, line100, _S"\r\n");
-        if (lines == 100 && !strEq(line, temp))
-            ret = 1;
+        lpCheckEq(&ret, lines, 100, line, temp);
     }
     strDestroy(&temp);
 
     if (lines != 100)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("total lines=${int} (want 100)"), stvar(int32, lines));
 
     sbufRelease(&sb);
 
@@ -601,25 +591,20 @@ int test_lineparse_auto()
     sb = sbufCreate(512);
     if (!sbufStrPRegisterPull(sb, teststr_lf) ||
         !lparseRegisterPull(sb, LPARSE_Auto))
-        return 1;
+        TEST_FAIL(1, _SL("failed to register line-parser pull source"), stvNone);
 
     lines = 0;
     while (lparseLine(sb, &line)) {
         lines++;
-        if (lines == 1 && !strEq(line, line1))
-            ret = 1;
-        if (lines == 5 && !strEq(line, line5))
-            ret = 1;
-        if (lines > 10 && lines < 99 && !strEq(line, linerepeat))
-            ret = 1;
-        if (lines == 99 && !strEq(line, line99))
-            ret = 1;
-        if (lines == 100 && !strEq(line, line100))
-            ret = 1;
+        lpCheckEq(&ret, lines, 1, line, line1);
+        lpCheckEq(&ret, lines, 5, line, line5);
+        lpCheckRange(&ret, lines, 10, 99, line, linerepeat);
+        lpCheckEq(&ret, lines, 99, line, line99);
+        lpCheckEq(&ret, lines, 100, line, line100);
     }
 
     if (lines != 100)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("total lines=${int} (want 100)"), stvar(int32, lines));
 
     sbufRelease(&sb);
 
@@ -628,25 +613,20 @@ int test_lineparse_auto()
     sb = sbufCreate(512);
     if (!sbufStrPRegisterPull(sb, teststr_crlf) ||
         !lparseRegisterPull(sb, LPARSE_Auto))
-        return 1;
+        TEST_FAIL(1, _SL("failed to register line-parser pull source"), stvNone);
 
     lines = 0;
     while (lparseLine(sb, &line)) {
         lines++;
-        if (lines == 1 && !strEq(line, line1))
-            ret = 1;
-        if (lines == 5 && !strEq(line, line5))
-            ret = 1;
-        if (lines > 10 && lines < 99 && !strEq(line, linerepeat))
-            ret = 1;
-        if (lines == 99 && !strEq(line, line99))
-            ret = 1;
-        if (lines == 100 && !strEq(line, line100))
-            ret = 1;
+        lpCheckEq(&ret, lines, 1, line, line1);
+        lpCheckEq(&ret, lines, 5, line, line5);
+        lpCheckRange(&ret, lines, 10, 99, line, linerepeat);
+        lpCheckEq(&ret, lines, 99, line, line99);
+        lpCheckEq(&ret, lines, 100, line, line100);
     }
 
     if (lines != 100)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("total lines=${int} (want 100)"), stvar(int32, lines));
 
     sbufRelease(&sb);
 
@@ -656,31 +636,26 @@ int test_lineparse_auto()
     sb = sbufCreate(512);
     if (!sbufStrPRegisterPull(sb, teststr_mixed1) ||
         !lparseRegisterPull(sb, LPARSE_Auto))
-        return 1;
+        TEST_FAIL(1, _SL("failed to register line-parser pull source"), stvNone);
 
     lines = 0;
     while (lparseLine(sb, &line)) {
         lines++;
-        if (lines == 1 && !strEq(line, line1))
-            ret = 1;
-        if (lines == 5 && !strEq(line, line5))
-            ret = 1;
+        lpCheckEq(&ret, lines, 1, line, line1);
+        lpCheckEq(&ret, lines, 5, line, line5);
         strConcat(&temp, line8, _S"\r");
-        if (lines == 8 && !strEq(line, temp))
-            ret = 1;
+        lpCheckEq(&ret, lines, 8, line, temp);
         if (lines > 10 && lines < 99 && (lines % 2) == 1 && !strEq(line, linerepeat))
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("line ${int} (odd): got '${string}', want '${string}'"), stvar(int32, lines), stvar(strref, line), stvar(strref, linerepeat));
         strConcat(&temp, linerepeat, _S"\r");
         if (lines > 10 && lines < 99 && (lines % 2) == 0 && !strEq(line, temp))
-            ret = 1;
-        if (lines == 99 && !strEq(line, line99))
-            ret = 1;
-        if (lines == 100 && !strEq(line, line100))
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("line ${int} (even): got '${string}', want '${string}'"), stvar(int32, lines), stvar(strref, line), stvar(strref, temp));
+        lpCheckEq(&ret, lines, 99, line, line99);
+        lpCheckEq(&ret, lines, 100, line, line100);
     }
 
     if (lines != 100)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("total lines=${int} (want 100)"), stvar(int32, lines));
 
     sbufRelease(&sb);
 
@@ -689,25 +664,21 @@ int test_lineparse_auto()
     sb = sbufCreate(512);
     if (!sbufStrPRegisterPull(sb, teststr_mixed2) ||
         !lparseRegisterPull(sb, LPARSE_Auto))
-        return 1;
+        TEST_FAIL(1, _SL("failed to register line-parser pull source"), stvNone);
 
     lines = 0;
     while (lparseLine(sb, &line)) {
         lines++;
-        if (lines == 1 && !strEq(line, line1))
-            ret = 1;
+        lpCheckEq(&ret, lines, 1, line, line1);
         strNConcat(&temp, line8, _S"\n", line9);
-        if (lines == 5 && !strEq(line, temp))
-            ret = 1;
+        lpCheckEq(&ret, lines, 5, line, temp);
         strNConcat(&temp, linerepeat, _S"\n", linerepeat);
-        if (lines > 6 && lines < 48 && !strEq(line, temp))
-            ret = 1;
-        if (lines == 51 && !strEq(line, line100))
-            ret = 1;
+        lpCheckRange(&ret, lines, 6, 48, line, temp);
+        lpCheckEq(&ret, lines, 51, line, line100);
     }
 
     if (lines != 51)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("total lines=${int} (want 51)"), stvar(int32, lines));
 
     sbufRelease(&sb);
 
@@ -737,25 +708,20 @@ int test_lineparse_mixed()
     sb = sbufCreate(512);
     if (!sbufStrPRegisterPull(sb, teststr_mixed1) ||
         !lparseRegisterPull(sb, LPARSE_Mixed))
-        return 1;
+        TEST_FAIL(1, _SL("failed to register line-parser pull source"), stvNone);
 
     lines = 0;
     while (lparseLine(sb, &line)) {
         lines++;
-        if (lines == 1 && !strEq(line, line1))
-            ret = 1;
-        if (lines == 5 && !strEq(line, line5))
-            ret = 1;
-        if (lines > 10 && lines < 99 && !strEq(line, linerepeat))
-            ret = 1;
-        if (lines == 99 && !strEq(line, line99))
-            ret = 1;
-        if (lines == 100 && !strEq(line, line100))
-            ret = 1;
+        lpCheckEq(&ret, lines, 1, line, line1);
+        lpCheckEq(&ret, lines, 5, line, line5);
+        lpCheckRange(&ret, lines, 10, 99, line, linerepeat);
+        lpCheckEq(&ret, lines, 99, line, line99);
+        lpCheckEq(&ret, lines, 100, line, line100);
     }
 
     if (lines != 100)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("total lines=${int} (want 100)"), stvar(int32, lines));
 
     sbufRelease(&sb);
 
@@ -764,25 +730,20 @@ int test_lineparse_mixed()
     sb = sbufCreate(512);
     if (!sbufStrPRegisterPull(sb, teststr_mixed2) ||
         !lparseRegisterPull(sb, LPARSE_Mixed))
-        return 1;
+        TEST_FAIL(1, _SL("failed to register line-parser pull source"), stvNone);
 
     lines = 0;
     while (lparseLine(sb, &line)) {
         lines++;
-        if (lines == 1 && !strEq(line, line1))
-            ret = 1;
-        if (lines == 5 && !strEq(line, line5))
-            ret = 1;
-        if (lines > 10 && lines < 99 && !strEq(line, linerepeat))
-            ret = 1;
-        if (lines == 99 && !strEq(line, line99))
-            ret = 1;
-        if (lines == 100 && !strEq(line, line100))
-            ret = 1;
+        lpCheckEq(&ret, lines, 1, line, line1);
+        lpCheckEq(&ret, lines, 5, line, line5);
+        lpCheckRange(&ret, lines, 10, 99, line, linerepeat);
+        lpCheckEq(&ret, lines, 99, line, line99);
+        lpCheckEq(&ret, lines, 100, line, line100);
     }
 
     if (lines != 100)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("total lines=${int} (want 100)"), stvar(int32, lines));
 
     sbufRelease(&sb);
 
@@ -810,16 +771,11 @@ static bool test_linecb(strref line, void *ctx)
     LineParsePushTestCtx *lppt = (LineParsePushTestCtx *)ctx;
 
     lppt->lines++;
-    if (lppt->lines == 1 && !strEq(line, line1))
-        lppt->ret = 1;
-    if (lppt->lines == 5 && !strEq(line, line5))
-        lppt->ret = 1;
-    if (lppt->lines > 10 && lppt->lines < 99 && !strEq(line, linerepeat))
-        lppt->ret = 1;
-    if (lppt->lines == 99 && !strEq(line, line99))
-        lppt->ret = 1;
-    if (lppt->lines == 100 && !strEq(line, line100))
-        lppt->ret = 1;
+    lpCheckEq(&lppt->ret, lppt->lines, 1, line, line1);
+    lpCheckEq(&lppt->ret, lppt->lines, 5, line, line5);
+    lpCheckRange(&lppt->ret, lppt->lines, 10, 99, line, linerepeat);
+    lpCheckEq(&lppt->ret, lppt->lines, 99, line, line99);
+    lpCheckEq(&lppt->ret, lppt->lines, 100, line, line100);
 
     return true;
 }
@@ -838,16 +794,16 @@ int test_lineparse_push()
     // test with a large buffer
     sb = sbufCreate(8192);
     if (!lparseRegisterPush(sb, test_linecb, test_ctxcleanup, &lppt, 0))
-        return 1;
+        TEST_FAIL(1, _SL("failed to register line-parser push sink"), stvNone);
     sbufStrIn(sb, teststr_lf);
 
     if (lppt.lines != 100)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("total lines=${int} (want 100)"), stvar(int32, lppt.lines));
 
     sbufRelease(&sb);
 
     if (!lppt.didclean)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("cleanup callback did not run"), stvNone);
     ret |= lppt.ret;
 
     // test with a very small buffer
@@ -855,17 +811,17 @@ int test_lineparse_push()
 
     sb = sbufCreate(5);
     if (!lparseRegisterPush(sb, test_linecb, test_ctxcleanup, &lppt, 0))
-        return 1;
+        TEST_FAIL(1, _SL("failed to register line-parser push sink"), stvNone);
     sbufStrIn(sb, teststr_crlf);
 
     if (lppt.lines != 100)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("total lines=${int} (want 100)"), stvar(int32, lppt.lines));
     ret |= lppt.ret;
 
     sbufRelease(&sb);
 
     if (!lppt.didclean)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("cleanup callback did not run"), stvNone);
 
     strDestroy(&teststr_lf);
     strDestroy(&teststr_crlf);

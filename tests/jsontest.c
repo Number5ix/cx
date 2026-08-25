@@ -341,28 +341,38 @@ static void parsecb1(JSONParseEvent* ev, void* userdata)
 {
     CBData1* cbd = (CBData1*)userdata;
     if (cbd->count >= cbd->expectedCount) {
+        TEST_WARN(_SL("parsecb1: cbd->count=${int} >= cbd->expectedCount=${int}"),
+                  stvar(int32, cbd->count), stvar(int32, cbd->expectedCount));
         cbd->failed = true;
         return;
     }
 
     JSONParseEvent* exp = &cbd->expected[cbd->count++];
     if (ev->etype != exp->etype) {
+        TEST_WARN(_SL("parsecb1[${int}]: ev->etype=${int} != exp->etype=${int}"),
+                  stvar(int32, cbd->count - 1), stvar(int32, (int32)ev->etype), stvar(int32, (int32)exp->etype));
         cbd->failed = true;
         return;
     }
 
     if ((ev->etype == JSON_Object_Key || ev->etype == JSON_String) &&
         !strEq(ev->edata.strData, exp->edata.strData)) {
+        TEST_WARN(_SL("parsecb1[${int}]: strData='${string}' != expected='${string}'"),
+                  stvar(int32, cbd->count - 1), stvar(strref, ev->edata.strData), stvar(strref, exp->edata.strData));
         cbd->failed = true;
         return;
     }
 
     if (ev->etype == JSON_Int && ev->edata.intData != exp->edata.intData) {
+        TEST_WARN(_SL("parsecb1[${int}]: intData=${int} != expected=${int}"),
+                  stvar(int32, cbd->count - 1), stvar(int64, ev->edata.intData), stvar(int64, exp->edata.intData));
         cbd->failed = true;
         return;
     }
 
     if (ev->etype == JSON_Float && ev->edata.floatData != exp->edata.floatData) {
+        TEST_WARN(_SL("parsecb1[${int}]: floatData=${float} != expected=${float}"),
+                  stvar(int32, cbd->count - 1), stvar(float64, ev->edata.floatData), stvar(float64, exp->edata.floatData));
         cbd->failed = true;
         return;
     }
@@ -386,11 +396,11 @@ static int test_json_parse()
 
     sb = sbufCreate(256);
     if (!sbufStrPRegisterPull(sb, teststr))
-        return 1;
+        TEST_FAIL(1, _SL("sbufStrPRegisterPull failed"), stvNone);
     if (!jsonParse(sb, parsecb1, &cbd))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("jsonParse returned false (expected success)"), stvNone);
     if (cbd.failed || cbd.count != cbd.expectedCount)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("cbd.failed=${int} || cbd.count=${int} != cbd.expectedCount=${int}"), stvar(int32, (int32)cbd.failed), stvar(int32, cbd.count), stvar(int32, cbd.expectedCount));
     sbufRelease(&sb);
     strDestroy(&teststr);
 
@@ -400,11 +410,11 @@ static int test_json_parse()
 
     sb = sbufCreate(256);
     if (!sbufStrPRegisterPull(sb, teststr))
-        return 1;
+        TEST_FAIL(1, _SL("sbufStrPRegisterPull failed"), stvNone);
     if (jsonParse(sb, parsecb1, &cbd))   // should return false from failure!
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("jsonParse returned true (expected failure)"), stvNone);
     if (cbd.failed || cbd.count != cbd.expectedCount)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("cbd.failed=${int} || cbd.count=${int} != cbd.expectedCount=${int}"), stvar(int32, (int32)cbd.failed), stvar(int32, cbd.count), stvar(int32, cbd.expectedCount));
     sbufRelease(&sb);
     strDestroy(&teststr);
 
@@ -414,11 +424,11 @@ static int test_json_parse()
 
     sb = sbufCreate(256);
     if (!sbufStrPRegisterPull(sb, teststr))
-        return 1;
+        TEST_FAIL(1, _SL("sbufStrPRegisterPull failed"), stvNone);
     if (jsonParse(sb, parsecb1, &cbd))   // should return false from failure!
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("jsonParse returned true (expected failure)"), stvNone);
     if (cbd.failed || cbd.count != cbd.expectedCount)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("cbd.failed=${int} || cbd.count=${int} != cbd.expectedCount=${int}"), stvar(int32, (int32)cbd.failed), stvar(int32, cbd.count), stvar(int32, cbd.expectedCount));
     sbufRelease(&sb);
     strDestroy(&teststr);
 
@@ -428,11 +438,11 @@ static int test_json_parse()
 
     sb = sbufCreate(256);
     if (!sbufStrPRegisterPull(sb, teststr))
-        return 1;
+        TEST_FAIL(1, _SL("sbufStrPRegisterPull failed"), stvNone);
     if (!jsonParse(sb, parsecb1, &cbd))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("jsonParse returned false (expected success)"), stvNone);
     if (cbd.failed || cbd.count != cbd.expectedCount)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("cbd.failed=${int} || cbd.count=${int} != cbd.expectedCount=${int}"), stvar(int32, (int32)cbd.failed), stvar(int32, cbd.count), stvar(int32, cbd.expectedCount));
     sbufRelease(&sb);
     strDestroy(&teststr);
 
@@ -443,11 +453,11 @@ static int test_json_parse()
 
     sb = sbufCreate(256);
     if (!sbufStrPRegisterPull(sb, teststr))
-        return 1;
+        TEST_FAIL(1, _SL("sbufStrPRegisterPull failed"), stvNone);
     if (!jsonParse(sb, parsecb1, &cbd))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("jsonParse returned false (expected success)"), stvNone);
     if (cbd.failed || cbd.count != cbd.expectedCount)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("cbd.failed=${int} || cbd.count=${int} != cbd.expectedCount=${int}"), stvar(int32, (int32)cbd.failed), stvar(int32, cbd.count), stvar(int32, cbd.expectedCount));
     sbufRelease(&sb);
     strDestroy(&teststr);
 
@@ -457,11 +467,11 @@ static int test_json_parse()
 
     sb = sbufCreate(256);
     if (!sbufStrPRegisterPull(sb, teststr))
-        return 1;
+        TEST_FAIL(1, _SL("sbufStrPRegisterPull failed"), stvNone);
     if (!jsonParse(sb, parsecb1, &cbd))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("jsonParse returned false (expected success)"), stvNone);
     if (cbd.failed || cbd.count != cbd.expectedCount)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("cbd.failed=${int} || cbd.count=${int} != cbd.expectedCount=${int}"), stvar(int32, (int32)cbd.failed), stvar(int32, cbd.count), stvar(int32, cbd.expectedCount));
     sbufRelease(&sb);
     strDestroy(&teststr);
 
@@ -471,11 +481,11 @@ static int test_json_parse()
 
     sb = sbufCreate(256);
     if (!sbufStrPRegisterPull(sb, teststr))
-        return 1;
+        TEST_FAIL(1, _SL("sbufStrPRegisterPull failed"), stvNone);
     if (!jsonParse(sb, parsecb1, &cbd))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("jsonParse returned false (expected success)"), stvNone);
     if (cbd.failed || cbd.count != cbd.expectedCount)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("cbd.failed=${int} || cbd.count=${int} != cbd.expectedCount=${int}"), stvar(int32, (int32)cbd.failed), stvar(int32, cbd.count), stvar(int32, cbd.expectedCount));
     sbufRelease(&sb);
     strDestroy(&teststr);
 
@@ -510,28 +520,28 @@ static int test_json_out()
     // check expectedEvents1 against known-good normalized output
     sb = sbufCreate(256);
     if (!sbufStrCRegisterPush(sb, &out))
-        return 1;
+        TEST_FAIL(1, _SL("sbufStrCRegisterPush failed"), stvNone);
 
     if (!outsub(sb, expectedEvents1, expectedEvents1_count, JSON_Indent(4) | JSON_Unix_EOL))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("outsub(expectedEvents1) failed"), stvNone);
 
     sbufRelease(&sb);
 
     if (!strEq(out, (string)json_testdata1_exact))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("out='${string}' != json_testdata1_exact"), stvar(strref, out));
 
     strDestroy(&out);
 
     // check expectedEvents2 against itself by re-parsing the output
     sb = sbufCreate(256);
     if (!sbufStrCRegisterPush(sb, &out))
-        return 1;
+        TEST_FAIL(1, _SL("sbufStrCRegisterPush failed"), stvNone);
 
     if (!outsub(sb,
                 expectedEvents2,
                 expectedEvents2_count,
                 0))   // JSON_Minimal | JSON_ASCII_Only))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("outsub(expectedEvents2) failed"), stvNone);
 
     sbufRelease(&sb);
 
@@ -541,11 +551,11 @@ static int test_json_out()
 
     sb = sbufCreate(256);
     if (!sbufStrPRegisterPull(sb, out))
-        return 1;
+        TEST_FAIL(1, _SL("sbufStrPRegisterPull failed"), stvNone);
     if (!jsonParse(sb, parsecb1, &cbd))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("jsonParse returned false (expected success)"), stvNone);
     if (cbd.failed || cbd.count != cbd.expectedCount)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("cbd.failed=${int} || cbd.count=${int} != cbd.expectedCount=${int}"), stvar(int32, (int32)cbd.failed), stvar(int32, cbd.count), stvar(int32, cbd.expectedCount));
     sbufRelease(&sb);
 
     strDestroy(&out);
@@ -563,12 +573,12 @@ static int test_json_treeparse()
 
     sb = sbufCreate(256);
     if (!sbufStrPRegisterPull(sb, teststr))
-        return 1;
+        TEST_FAIL(1, _SL("sbufStrPRegisterPull failed"), stvNone);
     SSDNode* tree = jsonParseTree(sb);
     if (!tree) {
         sbufRelease(&sb);
         strDestroy(&teststr);
-        return 1;
+        TEST_FAIL(1, _SL("jsonParseTree returned NULL"), stvNone);
     }
 
     sbufRelease(&sb);
@@ -582,45 +592,54 @@ static int test_json_treeparse()
 
         val = ssdPtr(tree, _S"num");
         if (!val || !stvarIs(val, int64) || val->data.st_int64 != 574)
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("num: val=${ptr}, actual=${int} != 574"),
+                       stvar(ptr, val), stvar(int64, val && stvarIs(val, int64) ? val->data.st_int64 : -1));
 
         val = ssdPtr(tree, _S"str");
         if (!val || !stvarIs(val, string) ||
             !strEq(val->data.st_string, _S"This is a test."))
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("str: val=${ptr}, actual='${string}' != \"This is a test.\""),
+                       stvar(ptr, val), stvar(strref, val && stvarIs(val, string) ? val->data.st_string : _SL("<n/a>")));
 
         val = ssdPtr(tree, _S"fl");
         if (!val || !stvarIs(val, bool) || val->data.st_bool != false)
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("fl: val=${ptr}, actual=${int} != 0"),
+                       stvar(ptr, val), stvar(int32, val && stvarIs(val, bool) ? (int32)val->data.st_bool : -1));
 
         val = ssdPtr(tree, _S"tr");
         if (!val || !stvarIs(val, bool) || val->data.st_bool != true)
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("tr: val=${ptr}, actual=${int} != 1"),
+                       stvar(ptr, val), stvar(int32, val && stvarIs(val, bool) ? (int32)val->data.st_bool : -1));
 
         val = ssdPtr(tree, _S"nl");
         if (!val || !stvarIs(val, none))
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("nl: val=${ptr} not present or not none-typed"), stvar(ptr, val));
 
         val = ssdPtr(tree, _S"fltnum");
         if (!val || !stvarIs(val, float64) || val->data.st_float64 != 109.3)
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("fltnum: val=${ptr}, actual=${float} != 109.3"),
+                       stvar(ptr, val), stvar(float64, val && stvarIs(val, float64) ? val->data.st_float64 : -1.0));
 
         val = ssdPtr(tree, _S"obj/substr");
         if (!val || !stvarIs(val, string) ||
             !strEq(val->data.st_string, _S"A string in a sub-object."))
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("obj/substr: val=${ptr}, actual='${string}' != \"A string in a sub-object.\""),
+                       stvar(ptr, val), stvar(strref, val && stvarIs(val, string) ? val->data.st_string : _SL("<n/a>")));
 
         val = ssdPtr(tree, _S"obj/subnum");
         if (!val || !stvarIs(val, int64) || val->data.st_int64 != -3491)
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("obj/subnum: val=${ptr}, actual=${int} != -3491"),
+                       stvar(ptr, val), stvar(int64, val && stvarIs(val, int64) ? val->data.st_int64 : -1));
 
         val = ssdPtr(tree, _S"obj/array[0]");
         if (!val || !stvarIs(val, int64) || val->data.st_int64 != 1)
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("obj/array[0]: val=${ptr}, actual=${int} != 1"),
+                       stvar(ptr, val), stvar(int64, val && stvarIs(val, int64) ? val->data.st_int64 : -1));
 
         val = ssdPtr(tree, _S"obj/array[4]");
         if (!val || !stvarIs(val, int64) || val->data.st_int64 != 5)
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("obj/array[4]: val=${ptr}, actual=${int} != 5"),
+                       stvar(ptr, val), stvar(int64, val && stvarIs(val, int64) ? val->data.st_int64 : -1));
     }
     objRelease(&tree);
 
@@ -679,16 +698,16 @@ static int test_json_treeout()
     // output the tree to a string and compare
     sb = sbufCreate(256);
     if (!sbufStrCRegisterPush(sb, &out))
-        return 1;
+        TEST_FAIL(1, _SL("sbufStrCRegisterPush failed"), stvNone);
 
     if (!jsonOutTree(sb, tree, JSON_Indent(4) | JSON_Unix_EOL | JSON_ASCII_Only))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("jsonOutTree failed"), stvNone);
 
     objRelease(&tree);
     sbufRelease(&sb);
 
     if (!strEq(out, (string)json_testdata2))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("out='${string}' != json_testdata2"), stvar(strref, out));
 
     strDestroy(&out);
 
@@ -704,13 +723,13 @@ static int pullParseCheck(const char* data, JSONParseEvent* expected, int expect
 
     StreamBuffer* sb = sbufCreate(256);
     if (!sbufStrPRegisterPull(sb, teststr))
-        return 1;
+        TEST_FAIL(1, _SL("sbufStrPRegisterPull failed"), stvNone);
 
     JSONParseState state;
     if (!jsonParseInit(&state, sb)) {
         sbufRelease(&sb);
         strDestroy(&teststr);
-        return 1;
+        TEST_FAIL(1, _SL("jsonParseInit failed"), stvNone);
     }
 
     JSONParseEvent* ev;
@@ -718,35 +737,46 @@ static int pullParseCheck(const char* data, JSONParseEvent* expected, int expect
     bool failed = false;
     while ((ev = jsonParseNext(&state))) {
         if (count >= expectedCount) {
+            TEST_WARN(_SL("pullParseCheck: count=${int} >= expectedCount=${int}"),
+                      stvar(int32, count), stvar(int32, expectedCount));
             failed = true;
             break;
         }
         JSONParseEvent* exp = &expected[count++];
         if (ev->etype != exp->etype) {
+            TEST_WARN(_SL("pullParseCheck[${int}]: ev->etype=${int} != exp->etype=${int}"),
+                      stvar(int32, count - 1), stvar(int32, (int32)ev->etype), stvar(int32, (int32)exp->etype));
             failed = true;
             break;
         }
         if ((ev->etype == JSON_Object_Key || ev->etype == JSON_String) &&
             !strEq(ev->edata.strData, exp->edata.strData)) {
+            TEST_WARN(_SL("pullParseCheck[${int}]: strData='${string}' != expected='${string}'"),
+                      stvar(int32, count - 1), stvar(strref, ev->edata.strData), stvar(strref, exp->edata.strData));
             failed = true;
             break;
         }
         if (ev->etype == JSON_Int && ev->edata.intData != exp->edata.intData) {
+            TEST_WARN(_SL("pullParseCheck[${int}]: intData=${int} != expected=${int}"),
+                      stvar(int32, count - 1), stvar(int64, ev->edata.intData), stvar(int64, exp->edata.intData));
             failed = true;
             break;
         }
         if (ev->etype == JSON_Float && ev->edata.floatData != exp->edata.floatData) {
+            TEST_WARN(_SL("pullParseCheck[${int}]: floatData=${float} != expected=${float}"),
+                      stvar(int32, count - 1), stvar(float64, ev->edata.floatData), stvar(float64, exp->edata.floatData));
             failed = true;
             break;
         }
     }
 
     if (failed || count != expectedCount)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("failed=${int} || count=${int} != expectedCount=${int}"),
+                   stvar(int32, (int32)failed), stvar(int32, count), stvar(int32, expectedCount));
     if (expectSuccess && !state.success)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected success but state.success=${int}"), stvar(int32, (int32)state.success));
     if (!expectSuccess && state.success)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected failure but state.success=${int}"), stvar(int32, (int32)state.success));
 
     jsonParseDestroy(&state);
     sbufRelease(&sb);
@@ -781,13 +811,13 @@ static int test_json_pull_early_stop()
 
     StreamBuffer* sb = sbufCreate(256);
     if (!sbufStrPRegisterPull(sb, teststr))
-        return 1;
+        TEST_FAIL(1, _SL("sbufStrPRegisterPull failed"), stvNone);
 
     JSONParseState state;
     if (!jsonParseInit(&state, sb)) {
         sbufRelease(&sb);
         strDestroy(&teststr);
-        return 1;
+        TEST_FAIL(1, _SL("jsonParseInit failed"), stvNone);
     }
 
     // Consume only a few events then abandon
@@ -799,7 +829,7 @@ static int test_json_pull_early_stop()
     }
 
     if (count < 5)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("count=${int} < 5"), stvar(int32, count));
 
     // Destroy mid-parse; should not leak or crash
     jsonParseDestroy(&state);

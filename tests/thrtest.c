@@ -43,7 +43,7 @@ static int test_basic()
     for (i = 0; i < BASIC_THREADS; i++) {
         threads[i] = thrCreate(thrproc1, _S"Basic Test Thread", stvar(int32, i), stvar(int32, 1000000 + i * 100000));
         if (!threads[i])
-            return 1;
+            TEST_FAIL(1, _SL("thrCreate failed for basic test thread ${int}"), stvar(int32, i));
         thrSetPriorityV(threads[i], i % (THREAD_Realtime + 1));
     }
 
@@ -52,7 +52,7 @@ static int test_basic()
         thrShutdown(threads[i]);
         thrRelease(&threads[i]);
         if (thrtest1[i] != 1000000 + i * 100000)
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("thrtest1[${int}]=${int} != expected ${int}"), stvar(int32, i), stvar(int32, thrtest1[i]), stvar(int32, 1000000 + i * 100000));
     }
 
     return ret;
@@ -103,12 +103,12 @@ static int test_futex()
     for (i = 0; i < FUTEX_CONSUMERS; i++) {
         consumers[i] = thrCreate(thrproc2, _S"Futex Consumer", stvar(uint8, 1), stvar(int32, FUTEX_COUNT / FUTEX_CONSUMERS));
         if (!consumers[i])
-            return 1;
+            TEST_FAIL(1, _SL("thrCreate failed for futex consumer thread ${int}"), stvar(int32, i));
     }
     for (i = 0; i < FUTEX_PRODUCERS; i++) {
         producers[i] = thrCreate(thrproc2, _S"Futex Producer", stvar(uint8, 0), stvar(int32, FUTEX_COUNT / FUTEX_PRODUCERS));
         if (!producers[i])
-            return 1;
+            TEST_FAIL(1, _SL("thrCreate failed for futex producer thread ${int}"), stvar(int32, i));
     }
 
     for (i = 0; i < FUTEX_PRODUCERS; i++) {
@@ -123,7 +123,7 @@ static int test_futex()
     }
 
     if (atomicLoad(int32, &testftx.val, Acquire) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("final futex value=${int} != 0"), stvar(int32, atomicLoad(int32, &testftx.val, Acquire)));
 
     return ret;
 }
@@ -163,12 +163,12 @@ static int test_sema()
     for (i = 0; i < SEMA_CONSUMERS; i++) {
         consumers[i] = thrCreate(thrproc2s, _S"Semaphore Consumer", stvar(uint8, 1), stvar(int32, SEMA_COUNT / SEMA_CONSUMERS));
         if (!consumers[i])
-            return 1;
+            TEST_FAIL(1, _SL("thrCreate failed for semaphore consumer thread ${int}"), stvar(int32, i));
     }
     for (i = 0; i < SEMA_PRODUCERS; i++) {
         producers[i] = thrCreate(thrproc2s, _S"Semaphore Producer", stvar(uint8, 0), stvar(int32, SEMA_COUNT / SEMA_PRODUCERS));
         if (!producers[i])
-            return 1;
+            TEST_FAIL(1, _SL("thrCreate failed for semaphore producer thread ${int}"), stvar(int32, i));
     }
 
     for (i = 0; i < SEMA_PRODUCERS; i++) {
@@ -183,10 +183,10 @@ static int test_sema()
     }
 
     if (atomicLoad(int32, &testsem.ftx.val, Acquire) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("final semaphore value=${int} != 0"), stvar(int32, atomicLoad(int32, &testsem.ftx.val, Acquire)));
 
     if (!semaDestroy(&testsem))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("semaDestroy failed"), stvNone);
 
     return ret;
 }
@@ -235,7 +235,7 @@ static int test_mutex()
     for (i = 0; i < MTX_THREADS; i++) {
         threads[i] = thrCreate(thrproc3, _S"Mutex Test", stvar(int32, MTX_COUNT / MTX_THREADS));
         if (!threads[i])
-            return 1;
+            TEST_FAIL(1, _SL("thrCreate failed for mutex test thread ${int}"), stvar(int32, i));
     }
 
     for (i = 0; i < MTX_THREADS; i++) {
@@ -244,9 +244,11 @@ static int test_mutex()
         thrRelease(&threads[i]);
     }
 
-    int ret = atomicLoad(bool, &fail, Acquire) ? 1 : 0;
+    int ret = 0;
+    if (atomicLoad(bool, &fail, Acquire))
+        TEST_FAILV(ret, 1, _SL("mutex-protected counters diverged during concurrent access (worker thread observed testint1/testint2/testint3 mismatch)"), stvNone);
     if (testint1 != MTX_COUNT || testint2 != MTX_COUNT || testint3 != MTX_COUNT)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("final counters exp=${int}: testint1=${int} testint2=${int} testint3=${int}"), stvar(int32, MTX_COUNT), stvar(int64, testint1), stvar(int64, testint2), stvar(int64, testint3));
 
     mutexDestroy(&testmtx);
 
@@ -317,12 +319,12 @@ static int test_rwlock()
     for (i = 0; i < RW_RTHREADS; i++) {
         rthreads[i] = thrCreate(thrproc4r, _S"Reader Thread", stvar(int32, 0));
         if (!rthreads[i])
-            return 1;
+            TEST_FAIL(1, _SL("thrCreate failed for reader thread ${int}"), stvar(int32, i));
     }
     for (i = 0; i < RW_WTHREADS; i++) {
         wthreads[i] = thrCreate(thrproc4w, _S"Writer Thread", stvar(int32, RW_COUNT / RW_WTHREADS));
         if (!wthreads[i])
-            return 1;
+            TEST_FAIL(1, _SL("thrCreate failed for writer thread ${int}"), stvar(int32, i));
     }
 
     for (i = 0; i < RW_WTHREADS; i++) {
@@ -339,9 +341,11 @@ static int test_rwlock()
 
     rwlockDestroy(&testrw);
 
-    int ret = atomicLoad(bool, &fail, Acquire) ? 1 : 0;
+    int ret = 0;
+    if (atomicLoad(bool, &fail, Acquire))
+        TEST_FAILV(ret, 1, _SL("rwlock-protected counters diverged during concurrent access (worker thread observed testint1/testint2/testint3 mismatch)"), stvNone);
     if (testint1 != RW_COUNT || testint2 != RW_COUNT || testint3 != RW_COUNT)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("final counters exp=${int}: testint1=${int} testint2=${int} testint3=${int}"), stvar(int32, RW_COUNT), stvar(int64, testint1), stvar(int64, testint2), stvar(int64, testint3));
 
     return ret;
 }
@@ -427,12 +431,12 @@ static int test_event_sub(bool spin)
     for (i = 0; i < EVENT_CONSUMERS; i++) {
         cthreads[i] = thrCreate(thrproc5c, _S"Event Consumer", stvar(int32, i));
         if (!cthreads[i])
-            return 1;
+            TEST_FAIL(1, _SL("thrCreate failed for event consumer thread ${int}"), stvar(int32, i));
     }
     for (i = 0; i < EVENT_PRODUCERS; i++) {
         pthreads[i] = thrCreate(thrproc5p, _S"Event Producer", stvar(int32, EVENT_COUNT / EVENT_PRODUCERS));
         if (!pthreads[i])
-            return 1;
+            TEST_FAIL(1, _SL("thrCreate failed for event producer thread ${int}"), stvar(int32, i));
     }
 
     for (i = 0; i < EVENT_PRODUCERS; i++) {
@@ -461,16 +465,16 @@ static int test_event_sub(bool spin)
     }
 
     if (atomicLoad(bool, &fail, Acquire))
-        return 1;
+        TEST_FAIL(1, _SL("event consumer observed an unexpected wakeup (evsignaled==0) or other race"), stvNone);
 
     if (atomicLoad(int32, &evsignaled, Acquire) != 0)
-        return 1;
+        TEST_FAIL(1, _SL("final evsignaled=${int} != 0"), stvar(int32, atomicLoad(int32, &evsignaled, Acquire)));
 
     if (atomicLoad(int32, &evdone, Acquire) != EVENT_COUNT)
-        return 1;
+        TEST_FAIL(1, _SL("final evdone=${int} != expected ${int}"), stvar(int32, atomicLoad(int32, &evdone, Acquire)), stvar(int32, EVENT_COUNT));
 
     if (tcount != EVENT_COUNT)
-        return 1;
+        TEST_FAIL(1, _SL("tcount=${int} != expected ${int}"), stvar(int32, tcount), stvar(int32, EVENT_COUNT));
 
     return 0;
 }
@@ -509,7 +513,7 @@ static int test_timeout()
 
     Thread *testthr = thrCreate(thrproc6, _S"Timeout Test", stvNone);
     if (!testthr)
-        return 1;
+        TEST_FAIL(1, _SL("thrCreate failed for timeout test thread"), stvNone);
 
     osSleep(timeFromMsec(50));
     atomicFetchAdd(int32, &testftx.val, 1, Relaxed);
@@ -523,7 +527,9 @@ static int test_timeout()
     thrShutdown(testthr);
     thrRelease(&testthr);
 
-    int ret = atomicLoad(bool, &fail, Acquire) ? 1 : 0;
+    int ret = 0;
+    if (atomicLoad(bool, &fail, Acquire))
+        TEST_FAILV(ret, 1, _SL("futexWait timing check failed (expected wait or expected timeout did not occur as scheduled)"), stvNone);
     return ret;
 }
 
@@ -598,12 +604,12 @@ static int test_condvar()
     for (i = 0; i < CV_CONSUMERS; i++) {
         cthreads[i] = thrCreate(thrproc7c, _S"Condition Variable Consumer", stvar(int32, i), stvar(int32, CV_COUNT / CV_CONSUMERS));
         if (!cthreads[i])
-            return 1;
+            TEST_FAIL(1, _SL("thrCreate failed for condvar consumer thread ${int}"), stvar(int32, i));
     }
     for (i = 0; i < CV_PRODUCERS; i++) {
         pthreads[i] = thrCreate(thrproc7p, _S"Condition Variable Producer", stvar(int32, i), stvar(int32, CV_COUNT / CV_PRODUCERS));
         if (!pthreads[i])
-            return 1;
+            TEST_FAIL(1, _SL("thrCreate failed for condvar producer thread ${int}"), stvar(int32, i));
     }
 
     for (i = 0; i < CV_PRODUCERS; i++) {
@@ -623,21 +629,21 @@ static int test_condvar()
     mutexDestroy(&cvmtx);
 
     if (cvin != 0 || cvout != CV_COUNT || cvready != 0)
-        return 1;
+        TEST_FAIL(1, _SL("cvin=${int} cvout=${int} cvready=${int} (expected cvin=0, cvout=${int}, cvready=0)"), stvar(int32, cvin), stvar(int32, cvout), stvar(int32, cvready), stvar(int32, CV_COUNT));
 
     int tcount = 0;
     for (int i = 0; i < CV_CONSUMERS; i++) {
         tcount += cvconsumed[i];
     }
     if (tcount != CV_COUNT)
-        return 1;
+        TEST_FAIL(1, _SL("consumed tcount=${int} != expected ${int}"), stvar(int32, tcount), stvar(int32, CV_COUNT));
 
     tcount = 0;
     for (int i = 0; i < CV_PRODUCERS; i++) {
         tcount += cvproduced[i];
     }
     if (tcount != CV_COUNT)
-        return 1;
+        TEST_FAIL(1, _SL("produced tcount=${int} != expected ${int}"), stvar(int32, tcount), stvar(int32, CV_COUNT));
 
     return 0;
 }

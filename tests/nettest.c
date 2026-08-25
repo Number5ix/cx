@@ -242,7 +242,8 @@ static NetSocket* makeSocket(NetQueue* q, NetSocketType type)
         string _s = 0;                                                                   \
         if (!netAddrFromStr(&_a, _SL(instr)) || !netAddrToStr(&_s, &_a) ||               \
             !strEq(_s, _SL(outstr)))                                                     \
-            ret = 1;                                                                     \
+            TEST_FAILV(ret, 1, _SL("round-trip of '${string}' expected '${string}', got '${string}'"), \
+                       stvar(strref, _SL(instr)), stvar(strref, _SL(outstr)), stvar(strref, _s));       \
         strDestroy(&_s);                                                                 \
     } while (0)
 
@@ -251,7 +252,8 @@ static NetSocket* makeSocket(NetQueue* q, NetSocketType type)
     do {                                              \
         NetAddr _a;                                   \
         if (netAddrFromStr(&_a, _SL(instr)))          \
-            ret = 1;                                  \
+            TEST_FAILV(ret, 1, _SL("expected '${string}' to be rejected as malformed, but it parsed"), \
+                       stvar(strref, _SL(instr)));    \
     } while (0)
 
 // Address literal parsing and formatting.
@@ -276,13 +278,15 @@ static int test_nettest_addr(void)
     // Byte-level checks: ipv4[0] is the least significant octet, ipv6 is network order.
     if (!netAddrFromStr(&a, _SL("10.0.0.99")) || a.type != NA_IPv4 || a.ipv4[3] != 10 ||
         a.ipv4[0] != 99 || a.port != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("10.0.0.99: expected type ${int}, ipv4[3]=10, ipv4[0]=99, port=0; got type ${int}, ipv4[3]=${int}, ipv4[0]=${int}, port=${int}"),
+                   stvar(int32, NA_IPv4), stvar(int32, a.type), stvar(int32, a.ipv4[3]), stvar(int32, a.ipv4[0]), stvar(int32, a.port));
     if (!netAddrFromStr(&a, _SL("2001:db8::1")) || a.type != NA_IPv6 || a.ipv6[0] != 0x20 ||
         a.ipv6[1] != 0x01 || a.ipv6[2] != 0x0d || a.ipv6[3] != 0xb8 || a.ipv6[15] != 1 ||
         a.scope != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("2001:db8::1: expected type ${int}, bytes[0..3]=20:01:0d:b8, byte[15]=1, scope=0; got type ${int}, bytes[0..3]=${int}:${int}:${int}:${int}, byte[15]=${int}, scope=${int}"),
+                   stvar(int32, NA_IPv6), stvar(int32, a.type), stvar(int32, a.ipv6[0]), stvar(int32, a.ipv6[1]), stvar(int32, a.ipv6[2]), stvar(int32, a.ipv6[3]), stvar(int32, a.ipv6[15]), stvar(int32, a.scope));
     if (!netAddrFromStr(&a, _SL("fe80::42%7")) || a.scope != 7)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("fe80::42%7: expected scope 7, got ${int}"), stvar(int32, a.scope));
 
     ADDRBAD("");
     ADDRBAD("1.2.3");
@@ -321,38 +325,38 @@ static int test_nettest_flow_basic(void)
 
     for (uint8 i = 0; i < 4; i++) {
         if (!inject(q, s, &p1, i))
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("assertion failed: !inject(q, s, &p1, i)"), stvNone);
         if (!inject(q, s, &p2, i))
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("assertion failed: !inject(q, s, &p2, i)"), stvNone);
     }
 
     // Two distinct flows should exist, one per source address.
     if (atomicLoad(uint32, &q->nflows, Relaxed) != 2)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: atomicLoad(uint32, &q->nflows, Relaxed)=${uint} != 2"), stvar(uint32, atomicLoad(uint32, &q->nflows, Relaxed)));
 
     netqueueTick(q, 0);
 
     if (rec.recvCount != 8)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.recvCount=${uint} != 8"), stvar(uint32, rec.recvCount));
     if (rec.lastCtx != &rec)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.lastCtx=${ptr} != &rec"), stvar(ptr, rec.lastCtx));
 
     // The same peer must resolve to the same flow rather than creating a second one.
     if (!inject(q, s, &p1, 99))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !inject(q, s, &p1, 99)"), stvNone);
     if (atomicLoad(uint32, &q->nflows, Relaxed) != 2)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: atomicLoad(uint32, &q->nflows, Relaxed)=${uint} != 2"), stvar(uint32, atomicLoad(uint32, &q->nflows, Relaxed)));
 
     netqueueTick(q, 0);
     if (rec.recvCount != 9)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.recvCount=${uint} != 9"), stvar(uint32, rec.recvCount));
 
     // A stream socket has exactly one flow, created during socket init, so a consumer handling a
     // single connection never constructs one. It still gets a terminal event on close like any
     // other flow.
     NetSocket* stream = makeSocket(q, NST_Stream);
     if (!stream->flow)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !stream->flow"), stvNone);
 
     static const NetHandlers streamHandlers = { .flowClosed = onClosed };
     netsocketSetHandlers(stream, &streamHandlers, &rec);
@@ -360,9 +364,9 @@ static int test_nettest_flow_basic(void)
     netsocketClose(stream);
     netqueueTick(q, 0);
     if (rec.closeCount != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.closeCount=${uint} != 1"), stvar(uint32, rec.closeCount));
     if (rec.lastReason != NCR_SocketClosed)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.lastReason=${int} != NCR_SocketClosed"), stvar(int32, rec.lastReason));
     objRelease(&stream);
 
     netsocketClose(s);
@@ -406,25 +410,25 @@ static int test_nettest_flow_handlers(void)
     inject(q, s, &p1, 1);
     netqueueTick(q, 0);
     if (qt.n != 1 || st.n != 0 || ft.n != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: qt.n=${uint} != 1 || st.n=${uint} != 0 || ft.n=${uint} != 0"), stvar(uint32, qt.n), stvar(uint32, st.n), stvar(uint32, ft.n));
 
     // Socket override takes precedence, and brings its own ctx along.
     netsocketSetHandlers(s, &shandlers, &st);
     inject(q, s, &p1, 2);
     netqueueTick(q, 0);
     if (qt.n != 1 || st.n != 1 || ft.n != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: qt.n=${uint} != 1 || st.n=${uint} != 1 || ft.n=${uint} != 0"), stvar(uint32, qt.n), stvar(uint32, st.n), stvar(uint32, ft.n));
 
     // Flow override is the most specific and wins over both.
     NetFlow* flow = netqueuePromoteFlow(q, s, &p1);
     if (!flow)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !flow"), stvNone);
     netflowSetHandlers(flow, &fhandlers, &ft);
 
     inject(q, s, &p1, 3);
     netqueueTick(q, 0);
     if (qt.n != 1 || st.n != 1 || ft.n != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: qt.n=${uint} != 1 || st.n=${uint} != 1 || ft.n=${uint} != 1"), stvar(uint32, qt.n), stvar(uint32, st.n), stvar(uint32, ft.n));
 
     // flowClosed is set on neither the socket nor the flow, so it falls through to the queue --
     // per field, not per set. Point the queue's flowClosed ctx at a recorder we can read.
@@ -433,9 +437,9 @@ static int test_nettest_flow_handlers(void)
     netqueueTick(q, 0);
 
     if (qrec.closeCount != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: qrec.closeCount=${uint} != 1"), stvar(uint32, qrec.closeCount));
     if (qrec.lastReason != NCR_AppClosed)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: qrec.lastReason=${int} != NCR_AppClosed"), stvar(int32, qrec.lastReason));
 
     objRelease(&flow);
     netsocketClose(s);
@@ -468,35 +472,35 @@ static int test_nettest_flow_close(void)
 
     NetFlow* flow = netqueuePromoteFlow(q, s, &p1);
     if (!flow)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !flow"), stvNone);
 
     if (!netflowClose(flow))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !netflowClose(flow)"), stvNone);
     // A second close is a no-op: the application sees exactly one NET_FlowClosed per flow.
     if (netflowClose(flow))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: netflowClose(flow)"), stvNone);
 
     netqueueTick(q, 0);
 
     if (rec.recvCount != 3)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.recvCount=${uint} != 3"), stvar(uint32, rec.recvCount));
     if (rec.closeCount != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.closeCount=${uint} != 1"), stvar(uint32, rec.closeCount));
     if (rec.lastReason != NCR_AppClosed)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.lastReason=${int} != NCR_AppClosed"), stvar(int32, rec.lastReason));
 
     // The flow is out of the table, so the same peer is now a genuinely new source.
     if (atomicLoad(uint32, &q->nflows, Relaxed) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: atomicLoad(uint32, &q->nflows, Relaxed)=${uint} != 0"), stvar(uint32, atomicLoad(uint32, &q->nflows, Relaxed)));
 
     objRelease(&flow);
 
     inject(q, s, &p1, 9);
     if (atomicLoad(uint32, &q->nflows, Relaxed) != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: atomicLoad(uint32, &q->nflows, Relaxed)=${uint} != 1"), stvar(uint32, atomicLoad(uint32, &q->nflows, Relaxed)));
     netqueueTick(q, 0);
     if (rec.recvCount != 4)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.recvCount=${uint} != 4"), stvar(uint32, rec.recvCount));
 
     netsocketClose(s);
     objRelease(&s);
@@ -536,10 +540,10 @@ static int test_nettest_flow_reclaim(void)
     netqueueTick(q, 0);
 
     if (atomicLoad(uint32, &q->nflows, Relaxed) != 2)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: atomicLoad(uint32, &q->nflows, Relaxed)=${uint} != 2"), stvar(uint32, atomicLoad(uint32, &q->nflows, Relaxed)));
     // Each auto-created flow announced itself, ordered ahead of its first packet.
     if (rec.openCount != 2)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.openCount=${uint} != 2"), stvar(uint32, rec.openCount));
 
     // Touch p2 so p1 is the least recently active, then hit the cap with a third peer.
     inject(q, s, &p2, 2);
@@ -548,26 +552,26 @@ static int test_nettest_flow_reclaim(void)
     // At the cap the third packet cannot get a flow yet -- reclaim only *marks* the victim, which
     // does not leave the table until its terminal event has been delivered.
     if (inject(q, s, &p3, 1))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: inject(q, s, &p3, 1)"), stvNone);
     if (rec.refusedCount != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.refusedCount=${uint} != 1"), stvar(uint32, rec.refusedCount));
 
     netqueueTick(q, 0);
 
     // Now p1's teardown has run and there is room.
     if (rec.closeCount != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.closeCount=${uint} != 1"), stvar(uint32, rec.closeCount));
     if (rec.lastReason != NCR_Reclaimed)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.lastReason=${int} != NCR_Reclaimed"), stvar(int32, rec.lastReason));
 
     if (!inject(q, s, &p3, 2))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !inject(q, s, &p3, 2)"), stvNone);
     netqueueTick(q, 0);
 
     // p3's admission opened a third flow; every open so far has a live flow or a close to pair
     // with.
     if (rec.openCount != 3)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.openCount=${uint} != 3"), stvar(uint32, rec.openCount));
 
     netsocketClose(s);
     objRelease(&s);
@@ -590,30 +594,30 @@ static int test_nettest_flow_reclaim(void)
     netqueueTick(q, 0);
 
     if (inject(q, s, &p3, 1))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: inject(q, s, &p3, 1)"), stvNone);
     netqueueTick(q, 0);
 
     if (rec2.openCount != 2)    // p1 and p2; refused p3 opened nothing
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("p1 and p2; refused p3 opened nothing: : assertion failed: rec2.openCount=${uint} != 2"), stvar(uint32, rec2.openCount));
     if (rec2.refusedCount != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec2.refusedCount=${uint} != 1"), stvar(uint32, rec2.refusedCount));
     if (rec2.closeCount != 0)   // nothing was reclaimed
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nothing was reclaimed: : assertion failed: rec2.closeCount=${uint} != 0"), stvar(uint32, rec2.closeCount));
 
     // The application can still admit the peer explicitly once it has validated the packet.
     // Promotion fires NET_FlowOpen exactly like an auto-created flow.
     NetFlow* promoted = netqueuePromoteFlow(q, s, &p3);
     if (!promoted)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !promoted"), stvNone);
     objRelease(&promoted);
 
     if (!inject(q, s, &p3, 2))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !inject(q, s, &p3, 2)"), stvNone);
     netqueueTick(q, 0);
     if (rec2.recvCount != 3)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec2.recvCount=${uint} != 3"), stvar(uint32, rec2.recvCount));
     if (rec2.openCount != 3)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec2.openCount=${uint} != 3"), stvar(uint32, rec2.openCount));
 
     netsocketClose(s);
     objRelease(&s);
@@ -657,40 +661,40 @@ static int test_nettest_flow_reclaim_idle(void)
     inject(q, s, &p2, 1);
     netqueueTick(q, 0);
     if (rec.openCount != 2)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.openCount=${uint} != 2"), stvar(uint32, rec.openCount));
 
     // At the cap with nothing idle enough to evict: the newcomer is refused, and neither
     // existing flow is even marked for teardown.
     if (inject(q, s, &p3, 1))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: inject(q, s, &p3, 1)"), stvNone);
     netqueueTick(q, 0);
 
     if (rec.refusedCount != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.refusedCount=${uint} != 1"), stvar(uint32, rec.refusedCount));
     if (rec.closeCount != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.closeCount=${uint} != 0"), stvar(uint32, rec.closeCount));
     if (atomicLoad(uint32, &q->nflows, Relaxed) != 2)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: atomicLoad(uint32, &q->nflows, Relaxed)=${uint} != 2"), stvar(uint32, atomicLoad(uint32, &q->nflows, Relaxed)));
 
     // Both original sessions are untouched and still deliver.
     inject(q, s, &p1, 2);
     inject(q, s, &p2, 2);
     netqueueTick(q, 0);
     if (rec.recvCount != 4)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.recvCount=${uint} != 4"), stvar(uint32, rec.recvCount));
 
     // The application override still works: promotion may exceed the cap by one and fires the
     // usual NET_FlowOpen for the new session.
     NetFlow* promoted = netqueuePromoteFlow(q, s, &p3);
     if (!promoted)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !promoted"), stvNone);
     objRelease(&promoted);
 
     if (!inject(q, s, &p3, 2))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !inject(q, s, &p3, 2)"), stvNone);
     netqueueTick(q, 0);
     if (rec.recvCount != 5 || rec.openCount != 3)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.recvCount=${uint} != 5 || rec.openCount=${uint} != 3"), stvar(uint32, rec.recvCount), stvar(uint32, rec.openCount));
 
     netsocketClose(s);
     objRelease(&s);
@@ -699,7 +703,7 @@ static int test_nettest_flow_reclaim_idle(void)
 
     // Teardown paired every open with exactly one close.
     if (rec.closeCount != 3)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.closeCount=${uint} != 3"), stvar(uint32, rec.closeCount));
 
     return ret;
 }
@@ -733,40 +737,40 @@ static int test_nettest_flow_resurrect(void)
     inject(q, s, &p1, 1);
     netqueueTick(q, 0);
     if (rec.recvCount != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.recvCount=${uint} != 1"), stvar(uint32, rec.recvCount));
     if (rec.openCount != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.openCount=${uint} != 1"), stvar(uint32, rec.openCount));
 
     // p2 hits the cap, so p1 is marked dying with NCR_Reclaimed. Nothing has been dispatched, so
     // the terminal event is still sitting in p1's inbox.
     inject(q, s, &p2, 1);
     if (rec.refusedCount != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.refusedCount=${uint} != 1"), stvar(uint32, rec.refusedCount));
 
     // p1 was not gone after all. The arriving packet un-dies it and cancels the terminal event.
     inject(q, s, &p1, 2);
     netqueueTick(q, 0);
 
     if (rec.closeCount != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.closeCount=${uint} != 0"), stvar(uint32, rec.closeCount));
     if (rec.recvCount != 2)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.recvCount=${uint} != 2"), stvar(uint32, rec.recvCount));
     if (atomicLoad(uint32, &q->nflows, Relaxed) != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: atomicLoad(uint32, &q->nflows, Relaxed)=${uint} != 1"), stvar(uint32, atomicLoad(uint32, &q->nflows, Relaxed)));
     // Resurrection continues the same session; it must not announce a second open.
     if (rec.openCount != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.openCount=${uint} != 1"), stvar(uint32, rec.openCount));
 
     // The flow is fully alive again and keeps working, with no session state rebuilt.
     inject(q, s, &p1, 3);
     netqueueTick(q, 0);
     if (rec.recvCount != 3)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.recvCount=${uint} != 3"), stvar(uint32, rec.recvCount));
 
     // An application close is not speculative, so an arriving packet does not un-decide it.
     NetFlow* flow = netqueuePromoteFlow(q, s, &p1);
     if (!flow)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !flow"), stvNone);
     netflowClose(flow);
 
     if (inject(q, s, &p1, 4))
@@ -774,15 +778,15 @@ static int test_nettest_flow_resurrect(void)
 
     netqueueTick(q, 0);
     if (rec.closeCount != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.closeCount=${uint} != 1"), stvar(uint32, rec.closeCount));
     if (rec.lastReason != NCR_AppClosed)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.lastReason=${int} != NCR_AppClosed"), stvar(int32, rec.lastReason));
     if (rec.recvCount != 3)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.recvCount=${uint} != 3"), stvar(uint32, rec.recvCount));
     // Promoting the already-live flow opened nothing new, and the post-close packet was a
     // refusal, not an open: exactly one NET_FlowOpen for the whole session.
     if (rec.openCount != 1 || rec.refusedCount != 2)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.openCount=${uint} != 1 || rec.refusedCount=${uint} != 2"), stvar(uint32, rec.openCount), stvar(uint32, rec.refusedCount));
 
     objRelease(&flow);
     netsocketClose(s);
@@ -812,15 +816,15 @@ static int test_nettest_flow_shutdown(void)
     }
     netqueueTick(q, 0);
     if (rec.recvCount != 5)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.recvCount=${uint} != 5"), stvar(uint32, rec.recvCount));
 
     // Shutdown must run the terminal events it queues, so handlers fire before the queue goes.
     netqueueShutdown(q, 0);
 
     if (rec.closeCount != 5)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.closeCount=${uint} != 5"), stvar(uint32, rec.closeCount));
     if (rec.lastReason != NCR_Shutdown)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.lastReason=${int} != NCR_Shutdown"), stvar(int32, rec.lastReason));
 
     objRelease(&s);
     objRelease(&q);
@@ -841,9 +845,9 @@ static int test_nettest_flow_shutdown(void)
     netqueueTick(q, 0);
 
     if (rec2.closeCount != 3)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec2.closeCount=${uint} != 3"), stvar(uint32, rec2.closeCount));
     if (rec2.lastReason != NCR_SocketClosed)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec2.lastReason=${int} != NCR_SocketClosed"), stvar(int32, rec2.lastReason));
 
     objRelease(&s);
     netqueueShutdown(q, 0);
@@ -904,28 +908,28 @@ static int test_nettest_filter_stream(void)
 
     NetPassStreamFactory* f = netpassstreamfactoryCreate();
     if (!netsocketAddFilter(s, NetFilter(f)))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !netsocketAddFilter(s, NetFilter(f))"), stvNone);
     objRelease(&f);   // the socket holds its own reference
 
     // The socket keeps factories; the flow is where the actual stages live, built when the filter
     // was attached because the flow already existed.
     if (saSize(s->filters) != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: saSize(s->filters)=${int} != 1"), stvar(int32, saSize(s->filters)));
     if (!s->flow || saSize(s->flow->filters) != 1 || !s->flow->encIn)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !s->flow || saSize(s->flow->filters)=${int} != 1 || !s->flow->encIn"), stvar(int32, saSize(s->flow->filters)));
 
     // Encode: run the send seam, expect the payload verbatim on the send chain.
     const uint8 payload[] = "the quick brown fox";
     size_t plen           = sizeof(payload) - 1;
     if (!netflow_filterStreamSend(s->flow, q, s, payload, plen))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !netflow_filterStreamSend(s->flow, q, s, payload, plen)"), stvNone);
 
     if (s->bufs.stream.send.total != plen)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: s->bufs.stream.send.total=${uint} != plen=${uint}"), stvar(uint64, s->bufs.stream.send.total), stvar(uint64, plen));
     uint8 wire[64];
     size_t wlen = bufchainRead(&s->bufs.stream.send, wire, sizeof(wire));
     if (wlen != plen || memcmp(wire, payload, plen) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: wlen=${uint} != plen=${uint} || memcmp(wire, payload, plen) != 0"), stvar(uint64, wlen), stvar(uint64, plen));
 
     // Decode: raw wire bytes into the receive ring, run the recv seam, read plaintext back out.
     withMutex (&s->recvLock)
@@ -935,7 +939,7 @@ static int test_nettest_filter_stream(void)
     uint8 got[64];
     size_t glen = netsocketRecv(s, got, sizeof(got), NULL, 0);
     if (glen != plen || memcmp(got, payload, plen) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: glen=${uint} != plen=${uint} || memcmp(got, payload, plen) != 0"), stvar(uint64, glen), stvar(uint64, plen));
 
     netsocketClose(s);
     objRelease(&s);
@@ -968,22 +972,22 @@ static int test_nettest_filter_secured(void)
     netqueueTick(q, 0);
 
     if (rec.securedCount != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.securedCount=${uint} != 1"), stvar(uint32, rec.securedCount));
     if (rec.recvCount != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.recvCount=${uint} != 1"), stvar(uint32, rec.recvCount));
     if (rec.seqlen != 5 || memcmp(rec.seq, first, 5) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.seqlen=${uint} != 5 || memcmp(rec.seq, first, 5) != 0"), stvar(uint32, rec.seqlen));
 
     const uint8 second[] = "beta";
     injectStream(q, s, second, sizeof(second) - 1);
     netqueueTick(q, 0);
 
     if (rec.securedCount != 1)   // the edge already fired; no second notification
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("the edge already fired; no second notification: : assertion failed: rec.securedCount=${uint} != 1"), stvar(uint32, rec.securedCount));
     if (rec.recvCount != 2)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.recvCount=${uint} != 2"), stvar(uint32, rec.recvCount));
     if (rec.seqlen != 9 || memcmp(rec.seq + 5, second, 4) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.seqlen=${uint} != 9 || memcmp(rec.seq + 5, second, 4) != 0"), stvar(uint32, rec.seqlen));
 
     netsocketClose(s);
     objRelease(&s);
@@ -1013,21 +1017,21 @@ static int test_nettest_filter_chain(void)
     objRelease(&ff);
 
     if (saSize(s->filters) != 2 || !s->flow || saSize(s->flow->filters) != 2)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: saSize(s->filters)=${int} != 2 || !s->flow || saSize(s->flow->filters)=${int} != 2"), stvar(int32, saSize(s->filters)), stvar(int32, saSize(s->flow->filters)));
 
     const uint8 payload[] = "framed-payload";
     size_t plen           = sizeof(payload) - 1;
 
     if (!netflow_filterStreamSend(s->flow, q, s, payload, plen))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !netflow_filterStreamSend(s->flow, q, s, payload, plen)"), stvNone);
 
     // The wire form is a 2-byte big-endian length prefix followed by the payload.
     uint8 wire[64];
     size_t wlen = bufchainRead(&s->bufs.stream.send, wire, sizeof(wire));
     if (wlen != plen + 2)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: wlen=${uint} != plen + 2"), stvar(uint64, wlen));
     if (wire[0] != 0 || wire[1] != (uint8)plen)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: wire[0] != 0 || wire[1] != (uint8)plen=${uint}"), stvar(uint32, (uint8)plen));
 
     // Feed the wire bytes in two halves, decoding after each. The first (partial) half must yield
     // nothing; the second completes the frame and the whole payload appears.
@@ -1047,7 +1051,7 @@ static int test_nettest_filter_chain(void)
 
     glen = netsocketRecv(s, got, sizeof(got), NULL, 0);
     if (glen != plen || memcmp(got, payload, plen) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: glen=${uint} != plen=${uint} || memcmp(got, payload, plen) != 0"), stvar(uint64, glen), stvar(uint64, plen));
 
     netsocketClose(s);
     objRelease(&s);
@@ -1074,36 +1078,36 @@ static int test_nettest_filter_dgram_flows(void)
     NetAddr p1     = peerAddr(1, 5000);
     NetFlow* early = netqueuePromoteFlow(q, s, &p1);
     if (!early || saSize(early->filters) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !early || saSize(early->filters)=${int} != 0"), stvar(int32, saSize(early->filters)));
 
     NetPassDgramFactory* f = netpassdgramfactoryCreate();
     if (!netsocketAddFilter(s, NetFilter(f)))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !netsocketAddFilter(s, NetFilter(f))"), stvNone);
     objRelease(&f);
 
     // Attaching reached back and built the chain on the flow that was already open...
     if (!early || saSize(early->filters) != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !early || saSize(early->filters)=${int} != 1"), stvar(int32, saSize(early->filters)));
 
     // ...and a peer that turns up afterwards gets one from the flow's own construction.
     NetAddr p2 = peerAddr(2, 5000);
     if (!inject(q, s, &p2, 7))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !inject(q, s, &p2, 7)"), stvNone);
     NetFlow* late = netqueue_findFlow(q, s, &p2, false);
     if (!late || saSize(late->filters) != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !late || saSize(late->filters)=${int} != 1"), stvar(int32, saSize(late->filters)));
 
     // A stream-only filter is refused outright rather than producing a chain that cannot work.
     NetPassStreamFactory* sf = netpassstreamfactoryCreate();
     if (netsocketAddFilter(s, NetFilter(sf)))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: netsocketAddFilter(s, NetFilter(sf))"), stvNone);
     if (saSize(s->filters) != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: saSize(s->filters)=${int} != 1"), stvar(int32, saSize(s->filters)));
     objRelease(&sf);
 
     netqueueTick(q, 0);
     if (rec.recvCount != 1)   // the injected packet made it through the chain to the handler
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("the injected packet made it through the chain to the handler: : assertion failed: rec.recvCount=${uint} != 1"), stvar(uint32, rec.recvCount));
 
     objRelease(&late);
     objRelease(&early);
@@ -1134,21 +1138,22 @@ static int test_nettest_filter_dgram(void)
     NetAddr p1    = peerAddr(1, 5000);
     NetFlow* flow = netqueuePromoteFlow(q, s, &p1);
     if (!flow || saSize(flow->filters) != 1)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !flow || saSize(flow->filters)=${int} != 1"), stvar(int32, saSize(flow->filters)));
 
     // Encode: the chain produces one wire message per payload, addressed to the peer the flow is
     // keyed on. Collected rather than sent, since the synthetic socket has no handle to send on.
     NetMsgQueue wire  = { 0 };
     const uint8 out[] = "datagram-out";
     if (!netflow_filterDatagramEncode(flow, q, out, sizeof(out) - 1, &wire, NULL))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !netflow_filterDatagramEncode(flow, q, out, sizeof(out) - 1, &wire, NULL)"), stvNone);
 
     NetMessage* m = netMsgQueuePop(&wire);
     if (!m || !m->buf || m->buf->len != sizeof(out) - 1 ||
         memcmp(m->buf->data, out, sizeof(out) - 1) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !m || !m->buf || m->buf->len != sizeof(out) - 1 || memcmp(m->buf->data, out, sizeof(out) - 1) != 0"), stvNone);
     if (m && (m->addr.port != p1.port || memcmp(m->addr.ipv4, p1.ipv4, 4) != 0))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: m->addr.port=${uint} != p1.port=${uint} || memcmp(m->addr.ipv4, p1.ipv4, 4) != 0"),
+                   stvar(uint32, m->addr.port), stvar(uint32, p1.port));
     if (netMsgQueuePop(&wire))
         ret = 1;   // exactly one message, nothing left behind
     if (m)
@@ -1157,10 +1162,10 @@ static int test_nettest_filter_dgram(void)
     // Decode: an injected packet goes through the chain and is delivered to the handler.
     netqueueTick(q, 0);   // drain the NET_FlowOpen from the promote
     if (!inject(q, s, &p1, 42))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !inject(q, s, &p1, 42)"), stvNone);
     netqueueTick(q, 0);
     if (rec.recvCount != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.recvCount=${uint} != 1"), stvar(uint32, rec.recvCount));
 
     objRelease(&flow);
     netsocketClose(s);
@@ -1196,9 +1201,9 @@ static int test_nettest_filter_teardown(void)
 
     netsocketRemoveFilters(s);
     if (saSize(s->filters) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: saSize(s->filters)=${int} != 0"), stvar(int32, saSize(s->filters)));
     if (!s->flow || saSize(s->flow->filters) != 0 || s->flow->encIn)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !s->flow || saSize(s->flow->filters)=${int} != 0 || s->flow->encIn"), stvar(int32, saSize(s->flow->filters)));
 
     // Reattach and close with the chain live: shutdown() runs on the terminal path and the flow's
     // NET_FlowClosed is still delivered.
@@ -1209,7 +1214,7 @@ static int test_nettest_filter_teardown(void)
     netsocketClose(s);
     netqueueTick(q, 0);
     if (rec.closeCount != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.closeCount=${uint} != 1"), stvar(uint32, rec.closeCount));
 
     objRelease(&s);
     netqueueShutdown(q, 0);
@@ -1235,12 +1240,12 @@ static int test_nettest_filter_dgram_poolref(void)
     NetAddr p1    = peerAddr(1, 5000);
     NetFlow* flow = netqueuePromoteFlow(q, s, &p1);
     if (!flow || saSize(flow->filters) != 1)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !flow || saSize(flow->filters)=${int} != 1"), stvar(int32, saSize(flow->filters)));
 
     // The chain builder is what hands a stage its pool, so that a concrete filter cannot forget to.
     NetDatagramFilter* stage = objDynCast(NetDatagramFilter, flow->filters.a[0]);
     if (!stage || stage->pool != q->pool || flow->pool != q->pool)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !stage || stage->pool=${ptr} != q->pool=${ptr} || flow->pool=${ptr} != q->pool=${ptr}"), stvar(ptr, stage->pool), stvar(ptr, q->pool), stvar(ptr, flow->pool), stvar(ptr, q->pool));
 
     // Strand a pooled message in each place a chain can be holding one when it is dropped: a
     // stage's two boundary queues, and the flow's staging queue in front of the chain. This is the
@@ -1251,7 +1256,7 @@ static int test_nettest_filter_dgram_poolref(void)
         held[1] = netpoolAllocMsg(stage->pool);
         held[2] = netpoolAllocMsg(flow->pool);
         if (!held[0] || !held[1] || !held[2])
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("assertion failed: !held[0] || !held[1] || !held[2]"), stvNone);
         else {
             netMsgQueuePush(&stage->encOut, held[0]);
             netMsgQueuePush(&stage->decOut, held[1]);
@@ -1260,16 +1265,16 @@ static int test_nettest_filter_dgram_poolref(void)
     }
 
     if (bufpoolInUse(&q->pool->msgbuf) != 3)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: bufpoolInUse(&q->pool->msgbuf)=${uint} != 3"), stvar(uint32, bufpoolInUse(&q->pool->msgbuf)));
 
     netsocketRemoveFilters(s);
     if (saSize(flow->filters) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: saSize(flow->filters)=${int} != 0"), stvar(int32, saSize(flow->filters)));
 
     // Every one of the three came back. Before the pool was its own object none of them could have:
     // there was no way to reach it from a stage being destroyed.
     if (bufpoolInUse(&q->pool->msgbuf) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: bufpoolInUse(&q->pool->msgbuf)=${uint} != 0"), stvar(uint32, bufpoolInUse(&q->pool->msgbuf)));
 
     objRelease(&flow);
     netsocketClose(s);
@@ -1377,7 +1382,7 @@ static int test_nettest_flow_race(void)
 
     for (int i = 0; i < RACE_PRODUCERS; i++) {
         if (!thrWait(producers[i], timeS(60)))
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("assertion failed: !thrWait(producers[i], timeS(60))"), stvNone);
         thrRelease(&producers[i]);
     }
 
@@ -1387,7 +1392,7 @@ static int test_nettest_flow_race(void)
 
     for (int i = 0; i < RACE_CONSUMERS; i++) {
         if (!thrWait(consumers[i], timeS(60)))
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("assertion failed: !thrWait(consumers[i], timeS(60))"), stvNone);
         thrRelease(&consumers[i]);
     }
 
@@ -1396,16 +1401,15 @@ static int test_nettest_flow_race(void)
 
     // Exactly once: nothing stranded in an inbox, nothing delivered twice.
     if (delivered != expected) {
-        printf("delivered %u, expected %u\n", delivered, expected);
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("exactly-once delivery violated: expected ${uint}, delivered ${uint}"),
+                   stvar(uint32, expected), stvar(uint32, delivered));
     }
 
     // Per-flow serialization: two workers inside one flow at the same time is the bug this whole
     // protocol exists to prevent.
-    if (atomicLoad(uint32, &raceState.overlaps, Acquire) != 0) {
-        printf("flow serialization violated %u times\n",
-               atomicLoad(uint32, &raceState.overlaps, Acquire));
-        ret = 1;
+    uint32 overlaps = atomicLoad(uint32, &raceState.overlaps, Acquire);
+    if (overlaps != 0) {
+        TEST_FAILV(ret, 1, _SL("flow serialization violated ${uint} times"), stvar(uint32, overlaps));
     }
 
     netsocketClose(raceState.sock);
@@ -1469,32 +1473,32 @@ static int test_nettest_timer_basic(void)
 
     NetTimerId id = netflowAddTimer(s->flow, 0, NTF_None);
     if (id == 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: id=${uint} == 0"), stvar(uint64, id));
 
     netqueueTick(q, 0);
     if (rec.timerCount != 1 || rec.lastTimerId != id)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.timerCount=${uint} != 1 || rec.lastTimerId=${uint} != id=${uint}"), stvar(uint32, rec.timerCount), stvar(uint64, rec.lastTimerId), stvar(uint64, id));
 
     // One-shot: a second sweep must not produce it again, and the heap must be empty.
     netqueueTick(q, 0);
     if (rec.timerCount != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.timerCount=${uint} != 1"), stvar(uint32, rec.timerCount));
     if (q->ntimers != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: q->ntimers=${uint} != 0"), stvar(uint32, q->ntimers));
 
     // Ids are never reused, so a second timer is distinguishable from the first.
     NetTimerId later = netflowAddTimer(s->flow, timeS(60), NTF_None);
     if (later == 0 || later == id)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: later=${uint} == 0 || later=${uint} == id=${uint}"), stvar(uint64, later), stvar(uint64, later), stvar(uint64, id));
 
     netqueueTick(q, 0);
     if (rec.timerCount != 1)
         ret = 1;   // not due
     if (q->ntimers != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: q->ntimers=${uint} != 1"), stvar(uint32, q->ntimers));
 
     if (!netflowCancelTimer(s->flow, later))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !netflowCancelTimer(s->flow, later)"), stvNone);
 
     netsocketClose(s);
     objRelease(&s);
@@ -1522,24 +1526,24 @@ static int test_nettest_timer_cancel(void)
     if (netflowCancelTimer(s->flow, id))
         ret = 1;   // a second cancel of the same timer loses
     if (q->ntimers != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: q->ntimers=${uint} != 0"), stvar(uint32, q->ntimers));
 
     netqueueTick(q, 0);
     if (rec.timerCount != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.timerCount=${uint} != 0"), stvar(uint32, rec.timerCount));
 
     // Cancelling a timer that has already been popped for delivery must fail too, so the winner of
     // that race is unambiguous.
     NetTimerId spent = netflowAddTimer(s->flow, 0, NTF_None);
     netqueueTick(q, 0);
     if (rec.timerCount != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.timerCount=${uint} != 1"), stvar(uint32, rec.timerCount));
     if (netflowCancelTimer(s->flow, spent))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: netflowCancelTimer(s->flow, spent)"), stvNone);
 
     // An id that was never handed out is a harmless miss, not a crash.
     if (netflowCancelTimer(s->flow, 0) || netflowCancelTimer(s->flow, 999999))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: netflowCancelTimer(s->flow, 0) || netflowCancelTimer(s->flow, 999999)"), stvNone);
 
     netsocketClose(s);
     objRelease(&s);
@@ -1567,31 +1571,31 @@ static int test_nettest_timer_rearm(void)
 
     netqueueTick(q, 0);
     if (rec.timerCount != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.timerCount=${uint} != 0"), stvar(uint32, rec.timerCount));
 
     // Pull it in front of `other` and make it due.
     if (!netflowRearmTimer(s->flow, id, 0))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !netflowRearmTimer(s->flow, id, 0)"), stvNone);
 
     netqueueTick(q, 0);
     if (rec.timerCount != 1 || rec.lastTimerId != id)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.timerCount=${uint} != 1 || rec.lastTimerId=${uint} != id=${uint}"), stvar(uint32, rec.timerCount), stvar(uint64, rec.lastTimerId), stvar(uint64, id));
     if (q->ntimers != 1)
         ret = 1;   // `other` is still armed
 
     // Rearming a spent timer fails rather than resurrecting it.
     if (netflowRearmTimer(s->flow, id, 0))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: netflowRearmTimer(s->flow, id, 0)"), stvNone);
 
     // Pushing a deadline out is the other direction, and must not fire.
     if (!netflowRearmTimer(s->flow, other, timeS(60)))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !netflowRearmTimer(s->flow, other, timeS(60))"), stvNone);
     netqueueTick(q, 0);
     if (rec.timerCount != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.timerCount=${uint} != 1"), stvar(uint32, rec.timerCount));
 
     if (!netflowCancelTimer(s->flow, other))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !netflowCancelTimer(s->flow, other)"), stvNone);
 
     netsocketClose(s);
     objRelease(&s);
@@ -1620,21 +1624,21 @@ static int test_nettest_timer_repeat(void)
         osSleep(timeMS(3));
         netqueueTick(q, 0);
         if (rec.timerCount != i || rec.lastTimerId != id)
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("assertion failed: rec.timerCount=${uint} != i || rec.lastTimerId=${uint} != id=${uint}"), stvar(uint32, rec.timerCount), stvar(uint64, rec.lastTimerId), stvar(uint64, id));
     }
 
     if (q->ntimers != 1)
         ret = 1;   // still armed between firings
 
     if (!netflowCancelTimer(s->flow, id))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !netflowCancelTimer(s->flow, id)"), stvNone);
 
     osSleep(timeMS(3));
     netqueueTick(q, 0);
     if (rec.timerCount != 3)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.timerCount=${uint} != 3"), stvar(uint32, rec.timerCount));
     if (q->ntimers != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: q->ntimers=${uint} != 0"), stvar(uint32, q->ntimers));
 
     netsocketClose(s);
     objRelease(&s);
@@ -1661,7 +1665,7 @@ static int test_nettest_timer_ordering(void)
     // First packet creates the flow; the rest queue behind it. Nothing is dispatched yet.
     for (uint8 i = 0; i < 4; i++) {
         if (!inject(q, s, &p, i))
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("assertion failed: !inject(q, s, &p, i)"), stvNone);
     }
 
     NetFlow* flow = netqueue_findFlow(q, s, &p, false);
@@ -1670,26 +1674,27 @@ static int test_nettest_timer_ordering(void)
         objRelease(&s);
         netqueueShutdown(q, 0);
         objRelease(&q);
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !flow"), stvNone);
     }
 
     // Due immediately, but queued after four packets that are already waiting.
     NetTimerId id = netflowAddTimer(flow, 0, NTF_None);
     if (id == 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: id=${uint} == 0"), stvar(uint64, id));
     objRelease(&flow);
 
     netqueueTick(q, 0);
 
     if (rec.recvCount != 4 || rec.timerCount != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.recvCount=${uint} != 4 || rec.timerCount=${uint} != 1"), stvar(uint32, rec.recvCount), stvar(uint32, rec.timerCount));
 
     // Payloads 0..3, then 0xff for the timer.
     if (rec.seqlen != 5)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.seqlen=${uint} != 5"), stvar(uint32, rec.seqlen));
     else if (rec.seq[0] != 0 || rec.seq[1] != 1 || rec.seq[2] != 2 || rec.seq[3] != 3 ||
              rec.seq[4] != 0xff)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected seq 0,1,2,3,0xff; got ${int},${int},${int},${int},${int}"),
+                   stvar(int32, rec.seq[0]), stvar(int32, rec.seq[1]), stvar(int32, rec.seq[2]), stvar(int32, rec.seq[3]), stvar(int32, rec.seq[4]));
 
     netsocketClose(s);
     objRelease(&s);
@@ -1713,7 +1718,7 @@ static int test_nettest_timer_flowclose(void)
 
     NetAddr p = peerAddr(1, 5000);
     if (!inject(q, s, &p, 7))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !inject(q, s, &p, 7)"), stvNone);
     netqueueTick(q, 0);
 
     NetFlow* flow = netqueue_findFlow(q, s, &p, false);
@@ -1722,13 +1727,13 @@ static int test_nettest_timer_flowclose(void)
         objRelease(&s);
         netqueueShutdown(q, 0);
         objRelease(&q);
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !flow"), stvNone);
     }
 
     netflowAddTimer(flow, timeS(60), NTF_None);
     netflowAddTimer(flow, timeS(90), NTF_None);
     if (q->ntimers != 2)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: q->ntimers=${uint} != 2"), stvar(uint32, q->ntimers));
 
     netflowClose(flow);
     objRelease(&flow);
@@ -1736,15 +1741,15 @@ static int test_nettest_timer_flowclose(void)
     netqueueTick(q, 0);
 
     if (rec.closeCount != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.closeCount=${uint} != 1"), stvar(uint32, rec.closeCount));
     if (rec.timerCount != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.timerCount=${uint} != 0"), stvar(uint32, rec.timerCount));
     if (q->ntimers != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: q->ntimers=${uint} != 0"), stvar(uint32, q->ntimers));
     // Nothing is left pinning the flow, so the queue's count is back to zero rather than waiting
     // out the 60 second deadline.
     if (atomicLoad(uint32, &q->nflows, Relaxed) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: atomicLoad(uint32, &q->nflows, Relaxed)=${uint} != 0"), stvar(uint32, atomicLoad(uint32, &q->nflows, Relaxed)));
 
     netsocketClose(s);
     objRelease(&s);
@@ -1922,7 +1927,7 @@ static int connectBody(NetQueue* q, strref host)
     if (!makeLoopbackListeners(&listeners, &port)) {
         netqueueShutdown(q, 0);
         objRelease(&q);
-        return 1;
+        TEST_FAIL(1, _SL("couldn't set up loopback listeners to connect '${string}' to"), stvar(strref, host));
     }
 
     NetSocket* csock = netqueueSocket(q, NST_Stream);
@@ -1930,16 +1935,17 @@ static int connectBody(NetQueue* q, strref host)
         closeLoopbackListeners(&listeners);
         netqueueShutdown(q, 0);
         objRelease(&q);
-        return 1;
+        TEST_FAIL(1, _SL("netqueueSocket() returned NULL for a stream socket to '${string}'"), stvar(strref, host));
     }
     netqueueAddSocket(q, csock);
 
     if (!netsocketConnect(csock, host, port))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("netsocketConnect() to '${string}':${uint} failed to start"), stvar(strref, host), stvar(uint32, port));
 
     tickUntilConn(q, &rec, 50);
     if (rec.connCount != 1 || rec.connState != NCS_Connected)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("connecting to '${string}': expected 1 Connected event, got ${uint} events ending in state ${int}"),
+                   stvar(strref, host), stvar(uint32, rec.connCount), stvar(int32, rec.connState));
 
     // Only accept once the connect actually completed -- otherwise nothing is in either backlog yet.
     SOCKET server = INVALID_SOCKET;
@@ -1951,7 +1957,7 @@ static int connectBody(NetQueue* q, strref host)
     closeLoopbackListeners(&listeners);
 
     if (server == INVALID_SOCKET) {
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("no raw peer accepted a connection from '${string}' after it reported Connected"), stvar(strref, host));
     } else {
         // server -> client: the raw peer sends, the NetSocket ingests and delivers it.
         const char down[] = "downstream";   // 10 bytes
@@ -1959,12 +1965,12 @@ static int connectBody(NetQueue* q, strref host)
         for (int i = 0; i < 20 && rec.recvCount == 0; i++)
             netqueueTick(q, 100);
         if (rec.seqlen != 10 || memcmp(rec.seq, down, 10) != 0)
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("downstream payload mismatch: expected 10 bytes, got ${uint}"), stvar(uint32, rec.seqlen));
 
         // client -> server: netsocketSend() out the connected NetSocket, read off the raw peer.
         const char up[] = "upstream";   // 8 bytes
         if (!netsocketSend(csock, (uint8*)up, 8, NULL, 0))
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("netsocketSend() of the upstream payload failed"), stvNone);
 
         u_long nb = 1;
         ioctlsocket(server, FIONBIO, &nb);   // so the drain never blocks between ticks
@@ -1978,7 +1984,7 @@ static int connectBody(NetQueue* q, strref host)
                 netqueueTick(q, 50);   // an IOCP overlapped send drains on its completion
         }
         if (got != 8 || memcmp(rbuf, up, 8) != 0)
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("upstream payload mismatch: expected 8 bytes, got ${int}"), stvar(int32, got));
         closesocket(server);
     }
 
@@ -2016,16 +2022,16 @@ static int connectRefusedBody(NetQueue* q)
     if (!csock) {
         netqueueShutdown(q, 0);
         objRelease(&q);
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !csock"), stvNone);
     }
     netqueueAddSocket(q, csock);
 
     if (!netsocketConnect(csock, _SL("127.0.0.1"), port))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !netsocketConnect(csock, _SL(\"127.0.0.1\"), port)"), stvNone);
 
     tickUntilConn(q, &rec, 50);
     if (rec.connCount != 1 || rec.connState != NCS_NotConnected)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.connCount=${uint} != 1 || rec.connState=${int} != NCS_NotConnected"), stvar(uint32, rec.connCount), stvar(int32, rec.connState));
     if (rec.connErr == NERR_None || rec.connErr == NERR_Timeout)
         ret = 1;   // a refusal, not success and not a timeout
 
@@ -2050,7 +2056,7 @@ static int connectTimeoutBody(NetQueue* q)
     if (!csock) {
         netqueueShutdown(q, 0);
         objRelease(&q);
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !csock"), stvNone);
     }
     netqueueAddSocket(q, csock);
 
@@ -2058,16 +2064,16 @@ static int connectTimeoutBody(NetQueue* q)
     // the attempt can only end at the timeout.
     int64 start = clockTimer();
     if (!netsocketConnect(csock, _SL("192.0.2.1"), 9))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !netsocketConnect(csock, _SL(\"192.0.2.1\"), 9)"), stvNone);
 
     for (int i = 0; i < 100 && rec.connCount == 0; i++)
         netqueueTick(q, 100);
     int64 elapsed = clockTimer() - start;
 
     if (rec.connCount != 1 || rec.connState != NCS_NotConnected)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.connCount=${uint} != 1 || rec.connState=${int} != NCS_NotConnected"), stvar(uint32, rec.connCount), stvar(int32, rec.connState));
     if (rec.connErr != NERR_Timeout)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.connErr=${int} != NERR_Timeout"), stvar(int32, rec.connErr));
     if (elapsed > timeS(5))
         ret = 1;   // fired at the short connectTimeout, not the OS ~21s default
 
@@ -2095,14 +2101,14 @@ static int acceptBody(NetQueue* q, bool autoAccept)
     if (!lsock) {
         netqueueShutdown(q, 0);
         objRelease(&q);
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !lsock"), stvNone);
     }
 
     NetAddr la;
     netAddrFromStr(&la, _SL("127.0.0.1"));
     la.port = 0;
     if (!netsocketBind(lsock, &la))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !netsocketBind(lsock, &la)"), stvNone);
 
     // Discover the OS-assigned port off the socket's handle.
     struct sockaddr_in sa;
@@ -2112,7 +2118,7 @@ static int acceptBody(NetQueue* q, bool autoAccept)
 
     netqueueAddSocket(q, lsock);
     if (!netsocketListen(lsock, 4))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !netsocketListen(lsock, 4)"), stvNone);
 
     // A raw client connects. Loopback completes the handshake into the listen backlog without the
     // NetSocket having accepted yet, so a blocking connect returns promptly.
@@ -2123,13 +2129,13 @@ static int acceptBody(NetQueue* q, bool autoAccept)
     ca.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     ca.sin_port        = htons(port);
     if (client == INVALID_SOCKET || connect(client, (struct sockaddr*)&ca, sizeof(ca)) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: client == INVALID_SOCKET || connect(client, (struct sockaddr*)&ca, sizeof(ca)) != 0"), stvNone);
 
     // Tick until the accept is delivered.
     for (int i = 0; i < 50 && rec.acceptCount == 0; i++)
         netqueueTick(q, 100);
     if (rec.acceptCount != 1 || !rec.accepted)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.acceptCount=${uint} != 1 || !rec.accepted"), stvar(uint32, rec.acceptCount));
 
     NetSocket* server = rec.accepted;   // recorded with an acquired reference in onAccept
 
@@ -2144,12 +2150,12 @@ static int acceptBody(NetQueue* q, bool autoAccept)
         for (int i = 0; i < 20 && rec.recvCount == 0; i++)
             netqueueTick(q, 100);
         if (rec.seqlen != 10 || memcmp(rec.seq, down, 10) != 0)
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("assertion failed: rec.seqlen=${uint} != 10 || memcmp(rec.seq, down, 10) != 0"), stvar(uint32, rec.seqlen));
 
         // server -> client: netsocketSend() out the accepted NetSocket, read off the raw client.
         const char up[] = "upstream";   // 8 bytes
         if (!netsocketSend(server, (uint8*)up, 8, NULL, 0))
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("assertion failed: !netsocketSend(server, (uint8*)up, 8, NULL, 0)"), stvNone);
 
         u_long nb = 1;
         ioctlsocket(client, FIONBIO, &nb);   // so the drain never blocks between ticks
@@ -2163,7 +2169,7 @@ static int acceptBody(NetQueue* q, bool autoAccept)
                 netqueueTick(q, 50);   // an IOCP overlapped send drains on its completion
         }
         if (got != 8 || memcmp(rbuf, up, 8) != 0)
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("assertion failed: got=${int} != 8 || memcmp(rbuf, up, 8) != 0"), stvar(int32, got));
 
         netsocketClose(server);
         objRelease(&server);
@@ -2195,16 +2201,16 @@ static int test_nettest_helpers(void)
     conf.flags |= NQ_AutoAccept;   // accepted sockets join the queue without an addSocket by hand
     NetQueue* q = netqueueCreate(&conf);
     if (!q)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !q"), stvNone);
 
     // A bind that cannot succeed (no address family) must fail the whole helper: NULL back, and
     // the half-constructed socket removed from the queue rather than left behind unserviceable.
     NetAddr bad = { .type = NA_Unknown };
     if (netqueueListen(q, &bad, 4, NULL, NULL) != NULL)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: netqueueListen(q, &bad, 4, NULL, NULL) != NULL"), stvNone);
     withReadLock (&q->lock) {
         if (htSize(q->sockets) != 0)
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("assertion failed: htSize(q->sockets)=${uint} != 0"), stvar(uint32, htSize(q->sockets)));
     }
 
     // Listener on an ephemeral loopback port, one call.
@@ -2214,7 +2220,7 @@ static int test_nettest_helpers(void)
     if (!lsock) {
         netqueueShutdown(q, 0);
         objRelease(&q);
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !lsock"), stvNone);
     }
 
     // Learn the OS-assigned port off the listener's handle.
@@ -2228,16 +2234,16 @@ static int test_nettest_helpers(void)
     static const NetHandlers chandlers = { .connection = onConnect, .recv = onStreamRecv };
     NetSocket* csock = netqueueConnect(q, _SL("127.0.0.1"), port, &chandlers, &crec);
     if (!csock)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !csock"), stvNone);
 
     tickUntilConn(q, &crec, 50);
     if (crec.connCount != 1 || crec.connState != NCS_Connected)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: crec.connCount=${uint} != 1 || crec.connState=${int} != NCS_Connected"), stvar(uint32, crec.connCount), stvar(int32, crec.connState));
 
     for (int i = 0; i < 50 && lrec.acceptCount == 0; i++)
         netqueueTick(q, 100);
     if (lrec.acceptCount != 1 || !lrec.accepted)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: lrec.acceptCount=${uint} != 1 || !lrec.accepted"), stvar(uint32, lrec.acceptCount));
 
     NetSocket* server = lrec.accepted;   // recorded with an acquired reference in onAccept
     if (server && csock && ret == 0) {
@@ -2248,19 +2254,19 @@ static int test_nettest_helpers(void)
 
         const char up[] = "upstream";   // 8 bytes
         if (!netsocketSend(csock, (uint8*)up, 8, NULL, 0))
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("assertion failed: !netsocketSend(csock, (uint8*)up, 8, NULL, 0)"), stvNone);
         for (int i = 0; i < 20 && srec.recvCount == 0; i++)
             netqueueTick(q, 100);
         if (srec.seqlen != 8 || memcmp(srec.seq, up, 8) != 0)
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("assertion failed: srec.seqlen=${uint} != 8 || memcmp(srec.seq, up, 8) != 0"), stvar(uint32, srec.seqlen));
 
         const char down[] = "downstream";   // 10 bytes
         if (!netsocketSend(server, (uint8*)down, 10, NULL, 0))
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("assertion failed: !netsocketSend(server, (uint8*)down, 10, NULL, 0)"), stvNone);
         for (int i = 0; i < 20 && crec.recvCount == 0; i++)
             netqueueTick(q, 100);
         if (crec.seqlen != 10 || memcmp(crec.seq, down, 10) != 0)
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("assertion failed: crec.seqlen=${uint} != 10 || memcmp(crec.seq, down, 10) != 0"), stvar(uint32, crec.seqlen));
     }
 
     if (server) {
@@ -2293,23 +2299,23 @@ static int test_nettest_filter_dgram_send(void)
     conf.flags |= NQ_SelectOnly;
     NetQueue* q = netqueueCreate(&conf);
     if (!q)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !q"), stvNone);
     netqueueSetHandlers(q, &handlers, &rec);
 
     NetSocket* rsock = netqueueSocket(q, NST_Datagram);
     if (!rsock) {
         objRelease(&q);
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !rsock"), stvNone);
     }
 
     NetAddr bindAddr = loopbackAddr(0);
     if (!netsocketBind(rsock, &bindAddr))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !netsocketBind(rsock, &bindAddr)"), stvNone);
     netqueueAddSocket(q, rsock);
 
     NetPassDgramFactory* f = netpassdgramfactoryCreate();
     if (!netsocketAddFilter(rsock, NetFilter(f)))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !netsocketAddFilter(rsock, NetFilter(f))"), stvNone);
     objRelease(&f);
 
     // A raw peer socket on loopback, so the test can read exactly what went out.
@@ -2330,17 +2336,17 @@ static int test_nettest_filter_dgram_send(void)
     // the flow itself to have a filter chain to encode through.
     const char payload[] = "cold-start";
     if (!netsocketSend(rsock, (uint8*)payload, 10, &peerAddress, 0))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !netsocketSend(rsock, (uint8*)payload, 10, &peerAddress, 0)"), stvNone);
 
     if (atomicLoad(uint32, &q->nflows, Relaxed) != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: atomicLoad(uint32, &q->nflows, Relaxed)=${uint} != 1"), stvar(uint32, atomicLoad(uint32, &q->nflows, Relaxed)));
 
     char got[64];
     struct sockaddr_in from;
     int fromlen = sizeof(from);
     int n       = recvfrom(peer, got, sizeof(got), 0, (struct sockaddr*)&from, &fromlen);
     if (n != 10 || memcmp(got, payload, 10) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: n=${int} != 10 || memcmp(got, payload, 10) != 0"), stvar(int32, n));
 
     // The flow the send opened is a flow like any other: NET_FlowOpen fires on it, and a reply from
     // that peer decodes through the same chain.
@@ -2348,9 +2354,9 @@ static int test_nettest_filter_dgram_send(void)
     tickUntil(q, &rec, 1);
 
     if (rec.openCount != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.openCount=${uint} != 1"), stvar(uint32, rec.openCount));
     if (rec.recvCount != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.recvCount=${uint} != 1"), stvar(uint32, rec.recvCount));
     if (atomicLoad(uint32, &q->nflows, Relaxed) != 1)
         ret = 1;   // still the same flow, not a second one
 
@@ -2375,18 +2381,18 @@ static int test_nettest_select_udp(void)
     conf.flags |= NQ_SelectOnly;   // pin select: IOCP is the default backend now, but this is the select suite
     NetQueue* q = netqueueCreate(&conf);   // the real select backend
     if (!q)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !q"), stvNone);
     netqueueSetHandlers(q, &handlers, &rec);
 
     NetSocket* rsock = netqueueSocket(q, NST_Datagram);
     if (!rsock) {
         objRelease(&q);
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !rsock"), stvNone);
     }
 
     NetAddr bindAddr = loopbackAddr(0);   // ephemeral port on loopback
     if (!netsocketBind(rsock, &bindAddr))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !netsocketBind(rsock, &bindAddr)"), stvNone);
     netqueueAddSocket(q, rsock);
 
     // Learn the port the OS assigned so the peer can aim at it.
@@ -2409,9 +2415,9 @@ static int test_nettest_select_udp(void)
 
     // All three datagrams came from one peer address, so they share one flow and arrive in order.
     if (rec.recvCount != 3)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.recvCount=${uint} != 3"), stvar(uint32, rec.recvCount));
     if (atomicLoad(uint32, &q->nflows, Relaxed) != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: atomicLoad(uint32, &q->nflows, Relaxed)=${uint} != 1"), stvar(uint32, atomicLoad(uint32, &q->nflows, Relaxed)));
 
     closesocket(snd);
     netsocketClose(rsock);
@@ -2435,7 +2441,7 @@ static int test_nettest_select_stream(void)
     conf.flags |= NQ_SelectOnly;   // pin the select backend
     NetQueue* q = netqueueCreate(&conf);
     if (!q)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !q"), stvNone);
     netqueueSetHandlers(q, &handlers, &rec);
 
     // Build a connected pair by hand: listen on loopback, connect, accept.
@@ -2458,7 +2464,7 @@ static int test_nettest_select_stream(void)
     if (server == INVALID_SOCKET) {
         closesocket(client);
         objRelease(&q);
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: server == INVALID_SOCKET"), stvNone);
     }
 
     // Wrap the accepted end as a connected NetSocket the queue can drive.
@@ -2471,9 +2477,9 @@ static int test_nettest_select_stream(void)
     tickUntil(q, &rec, 1);
 
     if (rec.recvCount < 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.recvCount=${uint} < 1"), stvar(uint32, rec.recvCount));
     if (rec.seqlen != 10 || memcmp(rec.seq, payload, 10) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.seqlen=${uint} != 10 || memcmp(rec.seq, payload, 10) != 0"), stvar(uint32, rec.seqlen));
 
     closesocket(client);
     netsocketClose(ssock);
@@ -2547,7 +2553,7 @@ static int test_nettest_select_udp_threaded(void)
     NetQueue* q   = netqueueCreate(&conf);
     if (!q) {
         semaDestroy(&tr.recvSem);
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !q"), stvNone);
     }
     netqueueSetHandlers(q, &handlers, &tr);
 
@@ -2556,12 +2562,12 @@ static int test_nettest_select_udp_threaded(void)
         netqueueShutdown(q, 0);
         objRelease(&q);
         semaDestroy(&tr.recvSem);
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !rsock"), stvNone);
     }
 
     NetAddr bindAddr = loopbackAddr(0);
     if (!netsocketBind(rsock, &bindAddr))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !netsocketBind(rsock, &bindAddr)"), stvNone);
     netqueueAddSocket(q, rsock);   // wakes the ingest thread to start watching this socket
 
     struct sockaddr_in sa;
@@ -2582,15 +2588,15 @@ static int test_nettest_select_udp_threaded(void)
     // Await all three deliveries from the worker pool rather than ticking.
     for (int i = 0; i < 3; i++) {
         if (!semaTryDecTimeout(&tr.recvSem, timeMS(2000))) {
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("assertion failed: !semaTryDecTimeout(&tr.recvSem, timeMS(2000))"), stvNone);
             break;
         }
     }
 
     if (tr.recvCount != 3)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: tr.recvCount=${uint} != 3"), stvar(uint32, tr.recvCount));
     if (atomicLoad(uint32, &q->nflows, Relaxed) != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: atomicLoad(uint32, &q->nflows, Relaxed)=${uint} != 1"), stvar(uint32, atomicLoad(uint32, &q->nflows, Relaxed)));
 
     closesocket(snd);
 
@@ -2621,7 +2627,7 @@ static int test_nettest_select_stream_threaded(void)
     NetQueue* q   = netqueueCreate(&conf);
     if (!q) {
         semaDestroy(&tr.recvSem);
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !q"), stvNone);
     }
     netqueueSetHandlers(q, &handlers, &tr);
 
@@ -2646,7 +2652,7 @@ static int test_nettest_select_stream_threaded(void)
         netqueueShutdown(q, 0);
         objRelease(&q);
         semaDestroy(&tr.recvSem);
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: server == INVALID_SOCKET"), stvNone);
     }
 
     NetSocket* ssock = NetSocket(netsocketwinWrap(server, NST_Stream, NS_Connected));
@@ -2656,19 +2662,19 @@ static int test_nettest_select_stream_threaded(void)
     send(client, payload, 10, 0);
 
     if (!semaTryDecTimeout(&tr.recvSem, timeMS(2000)))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !semaTryDecTimeout(&tr.recvSem, timeMS(2000))"), stvNone);
 
     if (tr.recvCount < 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: tr.recvCount=${uint} < 1"), stvar(uint32, tr.recvCount));
     if (tr.seqlen != 10 || memcmp(tr.seq, payload, 10) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: tr.seqlen=${uint} != 10 || memcmp(tr.seq, payload, 10) != 0"), stvar(uint32, tr.seqlen));
 
     // Shutdown closes the stream flow with NCR_Shutdown; a worker delivers the terminal event and
     // is joined before shutdown returns, so closeCount is settled here with no extra wait.
     netqueueShutdown(q, 0);
 
     if (tr.closeCount != 1 || tr.lastReason != NCR_Shutdown)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: tr.closeCount=${uint} != 1 || tr.lastReason=${int} != NCR_Shutdown"), stvar(uint32, tr.closeCount), stvar(int32, tr.lastReason));
 
     closesocket(client);
     netsocketClose(ssock);
@@ -2695,7 +2701,7 @@ static int test_nettest_select_stream_send(void)
     conf.flags |= NQ_SelectOnly;   // pin the select backend
     NetQueue* q = netqueueCreate(&conf);
     if (!q)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !q"), stvNone);
 
     // Connected loopback pair by hand, same as select_stream but exercised in the send direction.
     SOCKET listener = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -2717,7 +2723,7 @@ static int test_nettest_select_stream_send(void)
     if (server == INVALID_SOCKET) {
         closesocket(client);
         objRelease(&q);
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: server == INVALID_SOCKET"), stvNone);
     }
 
     NetSocket* ssock = NetSocket(netsocketwinWrap(server, NST_Stream, NS_Connected));
@@ -2725,7 +2731,7 @@ static int test_nettest_select_stream_send(void)
 
     const char payload[] = "streamsend";   // 10 bytes
     if (!netsocketSend(ssock, (uint8*)payload, 10, NULL, 0))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !netsocketSend(ssock, (uint8*)payload, 10, NULL, 0)"), stvNone);
 
     // Read it back off the raw client end. The send is immediate on an empty chain over loopback,
     // so the bytes are already on their way; a blocking recv collects them.
@@ -2738,7 +2744,7 @@ static int test_nettest_select_stream_send(void)
         got += n;
     }
     if (got != 10 || memcmp(rbuf, payload, 10) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: got=${int} != 10 || memcmp(rbuf, payload, 10) != 0"), stvar(int32, got));
 
     closesocket(client);
     netsocketClose(ssock);
@@ -2758,7 +2764,7 @@ static int test_nettest_select_udp_send(void)
     conf.flags |= NQ_SelectOnly;   // pin the select backend
     NetQueue* q = netqueueCreate(&conf);
     if (!q)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !q"), stvNone);
 
     SOCKET peer = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     struct sockaddr_in pa;
@@ -2774,7 +2780,7 @@ static int test_nettest_select_udp_send(void)
     if (!ssock) {
         closesocket(peer);
         objRelease(&q);
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !ssock"), stvNone);
     }
     NetAddr bindAddr = loopbackAddr(0);
     netsocketBind(ssock, &bindAddr);
@@ -2783,12 +2789,12 @@ static int test_nettest_select_udp_send(void)
     NetAddr dest         = loopbackAddr(ntohs(pa.sin_port));
     const char payload[] = "udpsend";   // 7 bytes
     if (!netsocketSend(ssock, (uint8*)payload, 7, &dest, 0))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !netsocketSend(ssock, (uint8*)payload, 7, &dest, 0)"), stvNone);
 
     char rbuf[32];
     int n = recv(peer, rbuf, sizeof(rbuf), 0);
     if (n != 7 || memcmp(rbuf, payload, 7) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: n=${int} != 7 || memcmp(rbuf, payload, 7) != 0"), stvar(int32, n));
 
     closesocket(peer);
     netsocketClose(ssock);
@@ -2819,7 +2825,7 @@ static int test_nettest_select_stream_backpressure(void)
     conf.flags |= NQ_SelectOnly;   // pin the select backend
     NetQueue* q = netqueueCreate(&conf);
     if (!q)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !q"), stvNone);
     netqueueSetHandlers(q, &handlers, &rec);
 
     SOCKET listener = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -2841,7 +2847,7 @@ static int test_nettest_select_stream_backpressure(void)
     if (server == INVALID_SOCKET) {
         closesocket(client);
         objRelease(&q);
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: server == INVALID_SOCKET"), stvNone);
     }
 
     // Shrink both ends so the OS stops accepting after a few KB, which is what lets the outbound
@@ -2913,7 +2919,7 @@ static int test_nettest_select_connect(void)
 {
     NetQueue* q = makeSelectQueue(0);
     if (!q)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !q"), stvNone);
     return connectBody(q, _SL("127.0.0.1"));
 }
 
@@ -2921,7 +2927,7 @@ static int test_nettest_select_connect_dns(void)
 {
     NetQueue* q = makeSelectQueue(0);
     if (!q)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !q"), stvNone);
     return connectBody(q, _SL("localhost"));
 }
 
@@ -2929,7 +2935,7 @@ static int test_nettest_select_connect_refused(void)
 {
     NetQueue* q = makeSelectQueue(0);
     if (!q)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !q"), stvNone);
     return connectRefusedBody(q);
 }
 
@@ -2937,7 +2943,7 @@ static int test_nettest_select_connect_timeout(void)
 {
     NetQueue* q = makeSelectQueue(timeMS(500));
     if (!q)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !q"), stvNone);
     return connectTimeoutBody(q);
 }
 
@@ -2945,7 +2951,7 @@ static int test_nettest_select_accept(void)
 {
     NetQueue* q = makeSelectAcceptQueue(false);
     if (!q)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !q"), stvNone);
     return acceptBody(q, false);
 }
 
@@ -2953,7 +2959,7 @@ static int test_nettest_select_accept_auto(void)
 {
     NetQueue* q = makeSelectAcceptQueue(true);
     if (!q)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !q"), stvNone);
     return acceptBody(q, true);
 }
 
@@ -2972,7 +2978,7 @@ static int test_nettest_timer_wait(void)
 
     NetQueue* q = makeSelectQueue(0);
     if (!q)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !q"), stvNone);
 
     NetSocket* s = makeTimerSocket(q, &rec, &handlers);
 
@@ -2987,7 +2993,7 @@ static int test_nettest_timer_wait(void)
     int64 elapsed = clockTimer() - start;
 
     if (rec.timerCount != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.timerCount=${uint} != 1"), stvar(uint32, rec.timerCount));
     if (elapsed > timeS(2))
         ret = 1;   // bounded by the timer, not by the 5s wait
 
@@ -3027,7 +3033,7 @@ static int test_nettest_timer_wake(void)
 
     NetQueue* q = makeSelectQueue(0);
     if (!q)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !q"), stvNone);
 
     NetSocket* s = makeTimerSocket(q, &rec, &handlers);
 
@@ -3038,14 +3044,14 @@ static int test_nettest_timer_wake(void)
         objRelease(&s);
         netqueueShutdown(q, 0);
         objRelease(&q);
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !t"), stvNone);
     }
 
     // Parks in select() for five seconds with nothing armed; the thread above arms 30ms in.
     netqueueTick(q, timeMS(5000));
 
     if (rec.timerCount != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.timerCount=${uint} != 1"), stvar(uint32, rec.timerCount));
     if (st.armedAt == 0 || clockTimer() - st.armedAt > timeS(2))
         ret = 1;   // returned because of the wake, not because the 5s wait ran out
 
@@ -3087,12 +3093,12 @@ static int test_nettest_iocp_udp(void)
     NetSocket* rsock = netqueueSocket(q, NST_Datagram);
     if (!rsock) {
         objRelease(&q);
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !rsock"), stvNone);
     }
 
     NetAddr bindAddr = loopbackAddr(0);
     if (!netsocketBind(rsock, &bindAddr))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !netsocketBind(rsock, &bindAddr)"), stvNone);
     netqueueAddSocket(q, rsock);   // associates with the port and posts the initial receives
 
     struct sockaddr_in sa;
@@ -3113,9 +3119,9 @@ static int test_nettest_iocp_udp(void)
     tickUntil(q, &rec, 3);
 
     if (rec.recvCount != 3)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.recvCount=${uint} != 3"), stvar(uint32, rec.recvCount));
     if (atomicLoad(uint32, &q->nflows, Relaxed) != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: atomicLoad(uint32, &q->nflows, Relaxed)=${uint} != 1"), stvar(uint32, atomicLoad(uint32, &q->nflows, Relaxed)));
 
     closesocket(snd);
     netsocketClose(rsock);
@@ -3160,7 +3166,7 @@ static int test_nettest_iocp_stream(void)
     if (server == INVALID_SOCKET) {
         closesocket(client);
         objRelease(&q);
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: server == INVALID_SOCKET"), stvNone);
     }
 
     NetSocket* ssock = NetSocket(netsocketwinWrap(server, NST_Stream, NS_Connected));
@@ -3172,9 +3178,9 @@ static int test_nettest_iocp_stream(void)
     tickUntil(q, &rec, 1);
 
     if (rec.recvCount < 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.recvCount=${uint} < 1"), stvar(uint32, rec.recvCount));
     if (rec.seqlen != 10 || memcmp(rec.seq, payload, 10) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.seqlen=${uint} != 10 || memcmp(rec.seq, payload, 10) != 0"), stvar(uint32, rec.seqlen));
 
     closesocket(client);
     netsocketClose(ssock);
@@ -3209,12 +3215,12 @@ static int test_nettest_iocp_udp_threaded(void)
         netqueueShutdown(q, 0);
         objRelease(&q);
         semaDestroy(&tr.recvSem);
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !rsock"), stvNone);
     }
 
     NetAddr bindAddr = loopbackAddr(0);
     if (!netsocketBind(rsock, &bindAddr))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !netsocketBind(rsock, &bindAddr)"), stvNone);
     netqueueAddSocket(q, rsock);
 
     struct sockaddr_in sa;
@@ -3234,15 +3240,15 @@ static int test_nettest_iocp_udp_threaded(void)
 
     for (int i = 0; i < 3; i++) {
         if (!semaTryDecTimeout(&tr.recvSem, timeMS(2000))) {
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("assertion failed: !semaTryDecTimeout(&tr.recvSem, timeMS(2000))"), stvNone);
             break;
         }
     }
 
     if (tr.recvCount != 3)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: tr.recvCount=${uint} != 3"), stvar(uint32, tr.recvCount));
     if (atomicLoad(uint32, &q->nflows, Relaxed) != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: atomicLoad(uint32, &q->nflows, Relaxed)=${uint} != 1"), stvar(uint32, atomicLoad(uint32, &q->nflows, Relaxed)));
 
     closesocket(snd);
 
@@ -3297,7 +3303,7 @@ static int test_nettest_iocp_stream_threaded(void)
         netqueueShutdown(q, 0);
         objRelease(&q);
         semaDestroy(&tr.recvSem);
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: server == INVALID_SOCKET"), stvNone);
     }
 
     NetSocket* ssock = NetSocket(netsocketwinWrap(server, NST_Stream, NS_Connected));
@@ -3307,17 +3313,17 @@ static int test_nettest_iocp_stream_threaded(void)
     send(client, payload, 10, 0);
 
     if (!semaTryDecTimeout(&tr.recvSem, timeMS(2000)))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !semaTryDecTimeout(&tr.recvSem, timeMS(2000))"), stvNone);
 
     if (tr.recvCount < 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: tr.recvCount=${uint} < 1"), stvar(uint32, tr.recvCount));
     if (tr.seqlen != 10 || memcmp(tr.seq, payload, 10) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: tr.seqlen=${uint} != 10 || memcmp(tr.seq, payload, 10) != 0"), stvar(uint32, tr.seqlen));
 
     netqueueShutdown(q, 0);
 
     if (tr.closeCount != 1 || tr.lastReason != NCR_Shutdown)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: tr.closeCount=${uint} != 1 || tr.lastReason=${int} != NCR_Shutdown"), stvar(uint32, tr.closeCount), stvar(int32, tr.lastReason));
 
     closesocket(client);
     netsocketClose(ssock);
@@ -3364,7 +3370,7 @@ static int test_nettest_iocp_stream_send(void)
     if (server == INVALID_SOCKET) {
         closesocket(client);
         objRelease(&q);
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: server == INVALID_SOCKET"), stvNone);
     }
 
     NetSocket* ssock = NetSocket(netsocketwinWrap(server, NST_Stream, NS_Connected));
@@ -3372,7 +3378,7 @@ static int test_nettest_iocp_stream_send(void)
 
     const char payload[] = "streamsend";   // 10 bytes
     if (!netsocketSend(ssock, (uint8*)payload, 10, NULL, 0))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !netsocketSend(ssock, (uint8*)payload, 10, NULL, 0)"), stvNone);
 
     char rbuf[32];
     int got = 0;
@@ -3383,7 +3389,7 @@ static int test_nettest_iocp_stream_send(void)
         got += n;
     }
     if (got != 10 || memcmp(rbuf, payload, 10) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: got=${int} != 10 || memcmp(rbuf, payload, 10) != 0"), stvar(int32, got));
 
     closesocket(client);
     netsocketClose(ssock);
@@ -3418,7 +3424,7 @@ static int test_nettest_iocp_udp_send(void)
     if (!ssock) {
         closesocket(peer);
         objRelease(&q);
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !ssock"), stvNone);
     }
     NetAddr bindAddr = loopbackAddr(0);
     netsocketBind(ssock, &bindAddr);
@@ -3427,12 +3433,12 @@ static int test_nettest_iocp_udp_send(void)
     NetAddr dest         = loopbackAddr(ntohs(pa.sin_port));
     const char payload[] = "udpsend";   // 7 bytes
     if (!netsocketSend(ssock, (uint8*)payload, 7, &dest, 0))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !netsocketSend(ssock, (uint8*)payload, 7, &dest, 0)"), stvNone);
 
     char rbuf[32];
     int n = recv(peer, rbuf, sizeof(rbuf), 0);
     if (n != 7 || memcmp(rbuf, payload, 7) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: n=${int} != 7 || memcmp(rbuf, payload, 7) != 0"), stvar(int32, n));
 
     closesocket(peer);
     netsocketClose(ssock);
@@ -3479,7 +3485,7 @@ static int test_nettest_iocp_stream_backpressure(void)
     if (server == INVALID_SOCKET) {
         closesocket(client);
         objRelease(&q);
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: server == INVALID_SOCKET"), stvNone);
     }
 
     int snd = 4096, rcv = 4096;
@@ -3646,18 +3652,18 @@ static int test_nettest_epoll_udp(void)
 
     NetQueue* q = makeEpollQueue(0);
     if (!q)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !q"), stvNone);
     netqueueSetHandlers(q, &handlers, &rec);
 
     NetSocket* rsock = netqueueSocket(q, NST_Datagram);
     if (!rsock) {
         objRelease(&q);
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !rsock"), stvNone);
     }
 
     NetAddr bindAddr = loopbackAddr(0);
     if (!netsocketBind(rsock, &bindAddr))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !netsocketBind(rsock, &bindAddr)"), stvNone);
     netqueueAddSocket(q, rsock);
 
     struct sockaddr_in sa;
@@ -3680,9 +3686,9 @@ static int test_nettest_epoll_udp(void)
     // All `burst` datagrams came from one peer address, so they share one flow and arrive in order
     // regardless of how recvmmsg happened to batch them.
     if (rec.recvCount != (uint32)burst)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.recvCount=${uint} != (uint32)burst=${uint}"), stvar(uint32, rec.recvCount), stvar(uint32, (uint32)burst));
     if (atomicLoad(uint32, &q->nflows, Relaxed) != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: atomicLoad(uint32, &q->nflows, Relaxed)=${uint} != 1"), stvar(uint32, atomicLoad(uint32, &q->nflows, Relaxed)));
 
     closesocket(snd);
     netsocketClose(rsock);
@@ -3702,7 +3708,7 @@ static int test_nettest_epoll_stream(void)
 
     NetQueue* q = makeEpollQueue(0);
     if (!q)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !q"), stvNone);
     netqueueSetHandlers(q, &handlers, &rec);
 
     SOCKET listener = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -3725,7 +3731,7 @@ static int test_nettest_epoll_stream(void)
         closesocket(client);
         netqueueShutdown(q, 0);
         objRelease(&q);
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: server == INVALID_SOCKET"), stvNone);
     }
 
     NetSocket* ssock = NetSocket(netsocketposixWrap(server, NST_Stream, NS_Connected));
@@ -3737,9 +3743,9 @@ static int test_nettest_epoll_stream(void)
     tickUntil(q, &rec, 1);
 
     if (rec.recvCount < 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.recvCount=${uint} < 1"), stvar(uint32, rec.recvCount));
     if (rec.seqlen != 10 || memcmp(rec.seq, payload, 10) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.seqlen=${uint} != 10 || memcmp(rec.seq, payload, 10) != 0"), stvar(uint32, rec.seqlen));
 
     closesocket(client);
     netsocketClose(ssock);
@@ -3762,7 +3768,7 @@ static int test_nettest_epoll_udp_threaded(void)
     NetQueue* q = makeEpollThreadedQueue();
     if (!q) {
         semaDestroy(&tr.recvSem);
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !q"), stvNone);
     }
     netqueueSetHandlers(q, &handlers, &tr);
 
@@ -3771,12 +3777,12 @@ static int test_nettest_epoll_udp_threaded(void)
         netqueueShutdown(q, 0);
         objRelease(&q);
         semaDestroy(&tr.recvSem);
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !rsock"), stvNone);
     }
 
     NetAddr bindAddr = loopbackAddr(0);
     if (!netsocketBind(rsock, &bindAddr))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !netsocketBind(rsock, &bindAddr)"), stvNone);
     netqueueAddSocket(q, rsock);
 
     struct sockaddr_in sa;
@@ -3796,15 +3802,15 @@ static int test_nettest_epoll_udp_threaded(void)
 
     for (int i = 0; i < 3; i++) {
         if (!semaTryDecTimeout(&tr.recvSem, timeMS(2000))) {
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("assertion failed: !semaTryDecTimeout(&tr.recvSem, timeMS(2000))"), stvNone);
             break;
         }
     }
 
     if (tr.recvCount != 3)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: tr.recvCount=${uint} != 3"), stvar(uint32, tr.recvCount));
     if (atomicLoad(uint32, &q->nflows, Relaxed) != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: atomicLoad(uint32, &q->nflows, Relaxed)=${uint} != 1"), stvar(uint32, atomicLoad(uint32, &q->nflows, Relaxed)));
 
     closesocket(snd);
 
@@ -3829,7 +3835,7 @@ static int test_nettest_epoll_stream_threaded(void)
     NetQueue* q = makeEpollThreadedQueue();
     if (!q) {
         semaDestroy(&tr.recvSem);
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !q"), stvNone);
     }
     netqueueSetHandlers(q, &handlers, &tr);
 
@@ -3854,7 +3860,7 @@ static int test_nettest_epoll_stream_threaded(void)
         netqueueShutdown(q, 0);
         objRelease(&q);
         semaDestroy(&tr.recvSem);
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: server == INVALID_SOCKET"), stvNone);
     }
 
     NetSocket* ssock = NetSocket(netsocketposixWrap(server, NST_Stream, NS_Connected));
@@ -3864,17 +3870,17 @@ static int test_nettest_epoll_stream_threaded(void)
     send(client, payload, 10, 0);
 
     if (!semaTryDecTimeout(&tr.recvSem, timeMS(2000)))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !semaTryDecTimeout(&tr.recvSem, timeMS(2000))"), stvNone);
 
     if (tr.recvCount < 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: tr.recvCount=${uint} < 1"), stvar(uint32, tr.recvCount));
     if (tr.seqlen != 10 || memcmp(tr.seq, payload, 10) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: tr.seqlen=${uint} != 10 || memcmp(tr.seq, payload, 10) != 0"), stvar(uint32, tr.seqlen));
 
     netqueueShutdown(q, 0);
 
     if (tr.closeCount != 1 || tr.lastReason != NCR_Shutdown)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: tr.closeCount=${uint} != 1 || tr.lastReason=${int} != NCR_Shutdown"), stvar(uint32, tr.closeCount), stvar(int32, tr.lastReason));
 
     closesocket(client);
     netsocketClose(ssock);
@@ -3888,7 +3894,7 @@ static int test_nettest_epoll_connect(void)
 {
     NetQueue* q = makeEpollQueue(0);
     if (!q)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !q"), stvNone);
     return connectBody(q, _SL("127.0.0.1"));
 }
 
@@ -3896,7 +3902,7 @@ static int test_nettest_epoll_connect_dns(void)
 {
     NetQueue* q = makeEpollQueue(0);
     if (!q)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !q"), stvNone);
     return connectBody(q, _SL("localhost"));
 }
 
@@ -3904,7 +3910,7 @@ static int test_nettest_epoll_connect_refused(void)
 {
     NetQueue* q = makeEpollQueue(0);
     if (!q)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !q"), stvNone);
     return connectRefusedBody(q);
 }
 
@@ -3912,7 +3918,7 @@ static int test_nettest_epoll_connect_timeout(void)
 {
     NetQueue* q = makeEpollQueue(timeMS(500));
     if (!q)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !q"), stvNone);
     return connectTimeoutBody(q);
 }
 
@@ -3920,7 +3926,7 @@ static int test_nettest_epoll_accept(void)
 {
     NetQueue* q = makeEpollAcceptQueue(false);
     if (!q)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !q"), stvNone);
     return acceptBody(q, false);
 }
 
@@ -3928,7 +3934,7 @@ static int test_nettest_epoll_accept_auto(void)
 {
     NetQueue* q = makeEpollAcceptQueue(true);
     if (!q)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !q"), stvNone);
     return acceptBody(q, true);
 }
 
@@ -3984,18 +3990,18 @@ static int test_nettest_kqueue_udp(void)
 
     NetQueue* q = makeKqueueQueue(0);
     if (!q)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !q"), stvNone);
     netqueueSetHandlers(q, &handlers, &rec);
 
     NetSocket* rsock = netqueueSocket(q, NST_Datagram);
     if (!rsock) {
         objRelease(&q);
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !rsock"), stvNone);
     }
 
     NetAddr bindAddr = loopbackAddr(0);
     if (!netsocketBind(rsock, &bindAddr))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !netsocketBind(rsock, &bindAddr)"), stvNone);
     netqueueAddSocket(q, rsock);
 
     struct sockaddr_in sa;
@@ -4016,9 +4022,9 @@ static int test_nettest_kqueue_udp(void)
     tickUntil(q, &rec, 3);
 
     if (rec.recvCount != 3)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.recvCount=${uint} != 3"), stvar(uint32, rec.recvCount));
     if (atomicLoad(uint32, &q->nflows, Relaxed) != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: atomicLoad(uint32, &q->nflows, Relaxed)=${uint} != 1"), stvar(uint32, atomicLoad(uint32, &q->nflows, Relaxed)));
 
     closesocket(snd);
     netsocketClose(rsock);
@@ -4038,7 +4044,7 @@ static int test_nettest_kqueue_stream(void)
 
     NetQueue* q = makeKqueueQueue(0);
     if (!q)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !q"), stvNone);
     netqueueSetHandlers(q, &handlers, &rec);
 
     SOCKET listener = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -4061,7 +4067,7 @@ static int test_nettest_kqueue_stream(void)
         closesocket(client);
         netqueueShutdown(q, 0);
         objRelease(&q);
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: server == INVALID_SOCKET"), stvNone);
     }
 
     NetSocket* ssock = NetSocket(netsocketposixWrap(server, NST_Stream, NS_Connected));
@@ -4073,9 +4079,9 @@ static int test_nettest_kqueue_stream(void)
     tickUntil(q, &rec, 1);
 
     if (rec.recvCount < 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.recvCount=${uint} < 1"), stvar(uint32, rec.recvCount));
     if (rec.seqlen != 10 || memcmp(rec.seq, payload, 10) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: rec.seqlen=${uint} != 10 || memcmp(rec.seq, payload, 10) != 0"), stvar(uint32, rec.seqlen));
 
     closesocket(client);
     netsocketClose(ssock);
@@ -4098,7 +4104,7 @@ static int test_nettest_kqueue_udp_threaded(void)
     NetQueue* q = makeKqueueThreadedQueue();
     if (!q) {
         semaDestroy(&tr.recvSem);
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !q"), stvNone);
     }
     netqueueSetHandlers(q, &handlers, &tr);
 
@@ -4107,12 +4113,12 @@ static int test_nettest_kqueue_udp_threaded(void)
         netqueueShutdown(q, 0);
         objRelease(&q);
         semaDestroy(&tr.recvSem);
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !rsock"), stvNone);
     }
 
     NetAddr bindAddr = loopbackAddr(0);
     if (!netsocketBind(rsock, &bindAddr))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !netsocketBind(rsock, &bindAddr)"), stvNone);
     netqueueAddSocket(q, rsock);
 
     struct sockaddr_in sa;
@@ -4132,15 +4138,15 @@ static int test_nettest_kqueue_udp_threaded(void)
 
     for (int i = 0; i < 3; i++) {
         if (!semaTryDecTimeout(&tr.recvSem, timeMS(2000))) {
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("assertion failed: !semaTryDecTimeout(&tr.recvSem, timeMS(2000))"), stvNone);
             break;
         }
     }
 
     if (tr.recvCount != 3)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: tr.recvCount=${uint} != 3"), stvar(uint32, tr.recvCount));
     if (atomicLoad(uint32, &q->nflows, Relaxed) != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: atomicLoad(uint32, &q->nflows, Relaxed)=${uint} != 1"), stvar(uint32, atomicLoad(uint32, &q->nflows, Relaxed)));
 
     closesocket(snd);
 
@@ -4165,7 +4171,7 @@ static int test_nettest_kqueue_stream_threaded(void)
     NetQueue* q = makeKqueueThreadedQueue();
     if (!q) {
         semaDestroy(&tr.recvSem);
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !q"), stvNone);
     }
     netqueueSetHandlers(q, &handlers, &tr);
 
@@ -4190,7 +4196,7 @@ static int test_nettest_kqueue_stream_threaded(void)
         netqueueShutdown(q, 0);
         objRelease(&q);
         semaDestroy(&tr.recvSem);
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: server == INVALID_SOCKET"), stvNone);
     }
 
     NetSocket* ssock = NetSocket(netsocketposixWrap(server, NST_Stream, NS_Connected));
@@ -4200,17 +4206,17 @@ static int test_nettest_kqueue_stream_threaded(void)
     send(client, payload, 10, 0);
 
     if (!semaTryDecTimeout(&tr.recvSem, timeMS(2000)))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !semaTryDecTimeout(&tr.recvSem, timeMS(2000))"), stvNone);
 
     if (tr.recvCount < 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: tr.recvCount=${uint} < 1"), stvar(uint32, tr.recvCount));
     if (tr.seqlen != 10 || memcmp(tr.seq, payload, 10) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: tr.seqlen=${uint} != 10 || memcmp(tr.seq, payload, 10) != 0"), stvar(uint32, tr.seqlen));
 
     netqueueShutdown(q, 0);
 
     if (tr.closeCount != 1 || tr.lastReason != NCR_Shutdown)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: tr.closeCount=${uint} != 1 || tr.lastReason=${int} != NCR_Shutdown"), stvar(uint32, tr.closeCount), stvar(int32, tr.lastReason));
 
     closesocket(client);
     netsocketClose(ssock);
@@ -4224,7 +4230,7 @@ static int test_nettest_kqueue_connect(void)
 {
     NetQueue* q = makeKqueueQueue(0);
     if (!q)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !q"), stvNone);
     return connectBody(q, _SL("127.0.0.1"));
 }
 
@@ -4232,7 +4238,7 @@ static int test_nettest_kqueue_connect_dns(void)
 {
     NetQueue* q = makeKqueueQueue(0);
     if (!q)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !q"), stvNone);
     return connectBody(q, _SL("localhost"));
 }
 
@@ -4240,7 +4246,7 @@ static int test_nettest_kqueue_connect_refused(void)
 {
     NetQueue* q = makeKqueueQueue(0);
     if (!q)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !q"), stvNone);
     return connectRefusedBody(q);
 }
 
@@ -4248,7 +4254,7 @@ static int test_nettest_kqueue_connect_timeout(void)
 {
     NetQueue* q = makeKqueueQueue(timeMS(500));
     if (!q)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !q"), stvNone);
     return connectTimeoutBody(q);
 }
 
@@ -4256,7 +4262,7 @@ static int test_nettest_kqueue_accept(void)
 {
     NetQueue* q = makeKqueueAcceptQueue(false);
     if (!q)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !q"), stvNone);
     return acceptBody(q, false);
 }
 
@@ -4264,7 +4270,7 @@ static int test_nettest_kqueue_accept_auto(void)
 {
     NetQueue* q = makeKqueueAcceptQueue(true);
     if (!q)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !q"), stvNone);
     return acceptBody(q, true);
 }
 

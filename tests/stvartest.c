@@ -30,11 +30,11 @@ static int test_suid()
 
     // stvar should now own its own heap copy of the suid
     if (!stvarIs(&v1, suid) || !_stvarOwns(&v1))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!stvarIs(&v1, suid) || !_stvarOwns(&v1)"), stvNone);
 
     void* p1 = v1.data.st_ptr;
     if (!p1 || memcmp(p1, &s1, sizeof(SUID)) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!p1 || memcmp mismatch, p1=${ptr}"), stvar(ptr, p1));
 
     // copy to a second variant; it must allocate its own storage
     stvar v2 = stvNone;
@@ -42,18 +42,19 @@ static int test_suid()
 
     if (!_stvarOwns(&v2) || v2.data.st_ptr == p1 ||
         memcmp(v2.data.st_ptr, &s1, sizeof(SUID)) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!_stvarOwns(&v2) || v2.data.st_ptr=${ptr} == p1=${ptr} || memcmp mismatch"),
+                   stvar(ptr, v2.data.st_ptr), stvar(ptr, p1));
 
     // destroying the original must not disturb the copy
     stvarDestroy(&v1);
     if (!stvarIs(&v1, none) || _stvarOwns(&v1))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!stvarIs(&v1, none) || _stvarOwns(&v1)"), stvNone);
     if (memcmp(v2.data.st_ptr, &s1, sizeof(SUID)) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("v2 no longer matches s1 after destroying v1"), stvNone);
 
     stvarDestroy(&v2);
     if (!stvarIs(&v2, none) || _stvarOwns(&v2))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!stvarIs(&v2, none) || _stvarOwns(&v2)"), stvNone);
 
     return ret;
 }
@@ -74,28 +75,32 @@ static int test_opaque()
 
     if (!stHasFlag(stvarType(&v), PassPtr) || !_stvarOwns(&v) ||
         stvarType(&v)->size != sizeof(TestBlob))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("PassPtr/owns check failed, or stvarType(&v)->size=${uint} != sizeof(TestBlob)=${uint}"),
+                   stvar(uint64, (uint64)stvarType(&v)->size), stvar(uint64, (uint64)sizeof(TestBlob)));
 
     // must be a distinct heap copy, byte-identical to the source
     if (v.data.st_ptr == &blob || memcmp(v.data.st_ptr, &blob, sizeof(TestBlob)) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("v.data.st_ptr=${ptr} aliases &blob=${ptr} or memcmp mismatch"),
+                   stvar(ptr, v.data.st_ptr), stvar(ptr, &blob));
 
     stvar copy = stvNone;
     stvarCopy(&copy, v);
     if (copy.data.st_ptr == v.data.st_ptr ||
         memcmp(copy.data.st_ptr, &blob, sizeof(TestBlob)) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("copy.data.st_ptr=${ptr} aliases v.data.st_ptr=${ptr} or memcmp mismatch"),
+                   stvar(ptr, copy.data.st_ptr), stvar(ptr, v.data.st_ptr));
 
     // destroy the original; copy remains valid
     stvarDestroy(&v);
     if (memcmp(copy.data.st_ptr, &blob, sizeof(TestBlob)) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("copy no longer matches blob after destroying v"), stvNone);
 
     // stvarSet with replace semantics: overwrite the owned value with a new one
     stvarSet(&copy, int32, 99);
     if (!stvarIs(&copy, int32) || _stvarOwns(&copy) ||
         copy.data.st_int32 != 99)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("type/owns check failed, or copy.data.st_int32=${int} != 99"),
+                   stvar(int32, copy.data.st_int32));
 
     stvarDestroy(&copy);
 
@@ -117,7 +122,7 @@ static int test_transient()
 
     // transient variants do NOT own storage
     if (_stvarOwns(&args[0]) || _stvarOwns(&args[1]))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("_stvarOwns(&args[0]) || _stvarOwns(&args[1])"), stvNone);
 
     stvlist l;
     stvlInit(&l, 2, args);
@@ -125,16 +130,16 @@ static int test_transient()
     SUID got;
     memset(&got, 0, sizeof(got));
     if (!stvlNext(&l, suid, &got) || memcmp(&got, &s1, sizeof(SUID)) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("stvlNext(suid) failed or got != s1"), stvNone);
 
     int32 n = 0;
     if (!stvlNext(&l, int32, &n) || n != 7)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("stvlNext(int32) failed or n=${int} != 7"), stvar(int32, n));
 
     // destroying a non-owning transient must be safe and must not free anything
     stvarDestroy(&args[0]);
     if (_stvarOwns(&args[0]) || !stvarIs(&args[0], none))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("_stvarOwns(&args[0]) || !stvarIs(&args[0], none)"), stvNone);
 
     return ret;
 }
@@ -155,7 +160,7 @@ static int test_ssd_roundtrip()
     stvar outvar = { 0 };
     if (!ssdGet(tree, _S"id", &outvar) || !stvarIs(&outvar, suid) ||
         memcmp(outvar.data.st_ptr, &s1, sizeof(SUID)) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("ssdGet failed, type mismatch, or memcmp mismatch"), stvNone);
 
     stvarDestroy(&outvar);
     objRelease(&tree);
@@ -177,13 +182,13 @@ static int test_nested()
     stvar inner = stvNone;
     stvarSet(&inner, suid, s1);
     if (!stvarIs(&inner, suid) || !_stvarOwns(&inner))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!stvarIs(&inner, suid) || !_stvarOwns(&inner)"), stvNone);
 
     // outer variant owns a heap copy of the inner variant
     stvar outer = stvNone;
     stvarSet(&outer, stvar, inner);
     if (!stvarIs(&outer, stvar) || !_stvarOwns(&outer))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!stvarIs(&outer, stvar) || !_stvarOwns(&outer)"), stvNone);
 
     // the nested variant must be a distinct object that in turn owns its own distinct
     // copy of the suid
@@ -191,7 +196,7 @@ static int test_nested()
     if (nested == &inner || !stvarIs(nested, suid) || !_stvarOwns(nested) ||
         nested->data.st_ptr == inner.data.st_ptr ||
         memcmp(nested->data.st_ptr, &s1, sizeof(SUID)) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nested=${ptr} aliasing/type/owns/memcmp check failed"), stvar(ptr, nested));
 
     // copy the outer variant; the copy is fully independent all the way down
     stvar outer2 = stvNone;
@@ -199,19 +204,20 @@ static int test_nested()
     stvar* nested2 = outer2.data.st_stvar;
     if (nested2 == nested || nested2->data.st_ptr == nested->data.st_ptr ||
         memcmp(nested2->data.st_ptr, &s1, sizeof(SUID)) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nested2=${ptr} aliasing/memcmp check failed vs nested=${ptr}"),
+                   stvar(ptr, nested2), stvar(ptr, nested));
 
     // destroy the original inner and outer; the independent copy survives intact
     stvarDestroy(&inner);
     stvarDestroy(&outer);
     if (!stvarIs(&outer, none) ||
         memcmp(outer2.data.st_stvar->data.st_ptr, &s1, sizeof(SUID)) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!stvarIs(&outer, none) || outer2's nested copy no longer matches s1"), stvNone);
 
     // recursive teardown of the surviving copy (frees nested suid + nested variant)
     stvarDestroy(&outer2);
     if (!stvarIs(&outer2, none))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!stvarIs(&outer2, none)"), stvNone);
 
     return ret;
 }

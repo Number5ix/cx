@@ -19,14 +19,14 @@ static int test_int()
     }
 
     if (saSize(t1) != 51)
-        return 1;
+        TEST_FAIL(1, _SL("saSize(t1)=${uint} != 51"), stvar(uint64, (uint64)saSize(t1)));
 
     if (t1.a[0] != 500)
-        return 1;
+        TEST_FAIL(1, _SL("t1.a[0]=${int} != 500"), stvar(int32, t1.a[0]));
     if (t1.a[50] != 0)
-        return 1;
+        TEST_FAIL(1, _SL("t1.a[50]=${int} != 0"), stvar(int32, t1.a[50]));
     if (t1.a[40] != 100)
-        return 1;
+        TEST_FAIL(1, _SL("t1.a[40]=${int} != 100"), stvar(int32, t1.a[40]));
 
     saInit(&t2, int64, 10);
     for (i = 500; i >= 0; i -= 10) {
@@ -34,14 +34,14 @@ static int test_int()
     }
 
     if (saSize(t2) != 51)
-        return 1;
+        TEST_FAIL(1, _SL("saSize(t2)=${uint} != 51"), stvar(uint64, (uint64)saSize(t2)));
 
     if (t2.a[0] != 500)
-        return 1;
+        TEST_FAIL(1, _SL("t2.a[0]=${int} != 500"), stvar(int64, t2.a[0]));
     if (t2.a[50] != 0)
-        return 1;
+        TEST_FAIL(1, _SL("t2.a[50]=${int} != 0"), stvar(int64, t2.a[50]));
     if (t2.a[40] != 100)
-        return 1;
+        TEST_FAIL(1, _SL("t2.a[40]=${int} != 100"), stvar(int64, t2.a[40]));
 
     saDestroy(&t1);
     saDestroy(&t2);
@@ -61,17 +61,17 @@ static int test_sorted_int()
     }
 
     if (saSize(t1) != 51)
-        return 1;
+        TEST_FAIL(1, _SL("saSize(t1)=${uint} != 51"), stvar(uint64, (uint64)saSize(t1)));
 
     if (t1.a[0] != 0)
-        return 1;
+        TEST_FAIL(1, _SL("sorted t1.a[0]=${int} != 0"), stvar(int32, t1.a[0]));
     if (t1.a[50] != 500)
-        return 1;
+        TEST_FAIL(1, _SL("sorted t1.a[50]=${int} != 500"), stvar(int32, t1.a[50]));
     if (t1.a[40] != 400)
-        return 1;
+        TEST_FAIL(1, _SL("sorted t1.a[40]=${int} != 400"), stvar(int32, t1.a[40]));
 
     if (saFind(t1, int32, 320) != 32)
-        return 1;
+        TEST_FAIL(1, _SL("saFind(t1, 320)=${int} != 32"), stvar(int32, (int32)saFind(t1, int32, 320)));
 
     saInit(&t2, int64, 10, SA_Sorted);
     for (i = 500; i >= 0; i -= 10) {
@@ -79,17 +79,17 @@ static int test_sorted_int()
     }
 
     if (saSize(t2) != 51)
-        return 1;
+        TEST_FAIL(1, _SL("saSize(t2)=${uint} != 51"), stvar(uint64, (uint64)saSize(t2)));
 
     if (t2.a[0] != 0)
-        return 1;
+        TEST_FAIL(1, _SL("sorted t2.a[0]=${int} != 0"), stvar(int64, t2.a[0]));
     if (t2.a[50] != 500)
-        return 1;
+        TEST_FAIL(1, _SL("sorted t2.a[50]=${int} != 500"), stvar(int64, t2.a[50]));
     if (t2.a[40] != 400)
-        return 1;
+        TEST_FAIL(1, _SL("sorted t2.a[40]=${int} != 400"), stvar(int64, t2.a[40]));
 
     if (saFind(t2, int64, 320) != 32)
-        return 1;
+        TEST_FAIL(1, _SL("saFind(t2, 320)=${int} != 32"), stvar(int32, (int32)saFind(t2, int64, 320)));
 
     saDestroy(&t1);
     saDestroy(&t2);
@@ -119,28 +119,28 @@ static int test_opaque()
     }
 
     if (saSize(t1) != 51)
-        return 1;
+        TEST_FAIL(1, _SL("saSize(t1)=${uint} != 51"), stvar(uint64, (uint64)saSize(t1)));
 
     if (t1.a[0].a != 500)
-        return 1;
+        TEST_FAIL(1, _SL("t1.a[0].a=${int} != 500"), stvar(int32, t1.a[0].a));
     if (t1.a[0].b != 500000)
-        return 1;
+        TEST_FAIL(1, _SL("t1.a[0].b=${int} != 500000"), stvar(int64, t1.a[0].b));
     if (t1.a[0].c != 495)
-        return 1;
+        TEST_FAIL(1, _SL("t1.a[0].c=${int} != 495"), stvar(int32, t1.a[0].c));
 
     if (t1.a[50].a != 0)
-        return 1;
+        TEST_FAIL(1, _SL("t1.a[50].a=${int} != 0"), stvar(int32, t1.a[50].a));
     if (t1.a[50].b != 0)
-        return 1;
+        TEST_FAIL(1, _SL("t1.a[50].b=${int} != 0"), stvar(int64, t1.a[50].b));
     if (t1.a[50].c != -5)
-        return 1;
+        TEST_FAIL(1, _SL("t1.a[50].c=${int} != -5"), stvar(int32, t1.a[50].c));
 
     if (t1.a[40].a != 100)
-        return 1;
+        TEST_FAIL(1, _SL("t1.a[40].a=${int} != 100"), stvar(int32, t1.a[40].a));
     if (t1.a[40].b != 100000)
-        return 1;
+        TEST_FAIL(1, _SL("t1.a[40].b=${int} != 100000"), stvar(int64, t1.a[40].b));
     if (t1.a[40].c != 95)
-        return 1;
+        TEST_FAIL(1, _SL("t1.a[40].c=${int} != 95"), stvar(int32, t1.a[40].c));
 
     saDestroy(&t1);
 
@@ -168,32 +168,32 @@ static int test_string()
     }
 
     if (saSize(t1) != 150)
-        return 1;
+        TEST_FAIL(1, _SL("saSize(t1)=${uint} != 150"), stvar(uint64, (uint64)saSize(t1)));
 
     if (strTestRefCount(st1) != 51)
-        return 1;
+        TEST_FAIL(1, _SL("strTestRefCount(st1)=${int} != 51"), stvar(int32, strTestRefCount(st1)));
     if (strTestRefCount(st2) != 51)
-        return 1;
+        TEST_FAIL(1, _SL("strTestRefCount(st2)=${int} != 51"), stvar(int32, strTestRefCount(st2)));
     if (strTestRefCount(st3) != 51)
-        return 1;
+        TEST_FAIL(1, _SL("strTestRefCount(st3)=${int} != 51"), stvar(int32, strTestRefCount(st3)));
 
     if (saFind(t1, string, st1) != 0)
-        return 1;
+        TEST_FAIL(1, _SL("saFind(t1, st1)=${int} != 0"), stvar(int32, (int32)saFind(t1, string, st1)));
     if (saFind(t1, string, st2) != 1)
-        return 1;
+        TEST_FAIL(1, _SL("saFind(t1, st2)=${int} != 1"), stvar(int32, (int32)saFind(t1, string, st2)));
     if (saFind(t1, string, st3) != 2)
-        return 1;
+        TEST_FAIL(1, _SL("saFind(t1, st3)=${int} != 2"), stvar(int32, (int32)saFind(t1, string, st3)));
 
     saClear(&t1);
     if (saSize(t1) != 0)
-        return 1;
+        TEST_FAIL(1, _SL("saSize(t1) after clear=${uint} != 0"), stvar(uint64, (uint64)saSize(t1)));
 
     if (strTestRefCount(st1) != 1)
-        return 1;
+        TEST_FAIL(1, _SL("strTestRefCount(st1) after clear=${int} != 1"), stvar(int32, strTestRefCount(st1)));
     if (strTestRefCount(st2) != 1)
-        return 1;
+        TEST_FAIL(1, _SL("strTestRefCount(st2) after clear=${int} != 1"), stvar(int32, strTestRefCount(st2)));
     if (strTestRefCount(st3) != 1)
-        return 1;
+        TEST_FAIL(1, _SL("strTestRefCount(st3) after clear=${int} != 1"), stvar(int32, strTestRefCount(st3)));
 
     saDestroy(&t1);
     saInit(&t1, string, 10, SA_Sorted);
@@ -203,20 +203,20 @@ static int test_string()
     saPush(&t1, string, st3);
 
     if (saFind(t1, string, st1) != 1)
-        return 1;
+        TEST_FAIL(1, _SL("sorted saFind(t1, st1)=${int} != 1"), stvar(int32, (int32)saFind(t1, string, st1)));
     if (saFind(t1, string, st2) != 2)
-        return 1;
+        TEST_FAIL(1, _SL("sorted saFind(t1, st2)=${int} != 2"), stvar(int32, (int32)saFind(t1, string, st2)));
     if (saFind(t1, string, st3) != 0)
-        return 1;
+        TEST_FAIL(1, _SL("sorted saFind(t1, st3)=${int} != 0"), stvar(int32, (int32)saFind(t1, string, st3)));
 
     saDestroy(&t1);
 
     if (strTestRefCount(st1) != 1)
-        return 1;
+        TEST_FAIL(1, _SL("strTestRefCount(st1) after destroy=${int} != 1"), stvar(int32, strTestRefCount(st1)));
     if (strTestRefCount(st2) != 1)
-        return 1;
+        TEST_FAIL(1, _SL("strTestRefCount(st2) after destroy=${int} != 1"), stvar(int32, strTestRefCount(st2)));
     if (strTestRefCount(st3) != 1)
-        return 1;
+        TEST_FAIL(1, _SL("strTestRefCount(st3) after destroy=${int} != 1"), stvar(int32, strTestRefCount(st3)));
 
     strDestroy(&st1);
     strDestroy(&st2);
@@ -237,26 +237,26 @@ static int test_sort()
     }
 
     if (saSize(t1) != 51)
-        return 1;
+        TEST_FAIL(1, _SL("saSize(t1)=${uint} != 51"), stvar(uint64, (uint64)saSize(t1)));
 
     if (t1.a[0] != 500)
-        return 1;
+        TEST_FAIL(1, _SL("t1.a[0]=${int} != 500"), stvar(int32, t1.a[0]));
     if (t1.a[50] != 0)
-        return 1;
+        TEST_FAIL(1, _SL("t1.a[50]=${int} != 0"), stvar(int32, t1.a[50]));
     if (t1.a[40] != 100)
-        return 1;
+        TEST_FAIL(1, _SL("t1.a[40]=${int} != 100"), stvar(int32, t1.a[40]));
 
     saSort(&t1, true);
 
     if (t1.a[0] != 0)
-        return 1;
+        TEST_FAIL(1, _SL("sorted t1.a[0]=${int} != 0"), stvar(int32, t1.a[0]));
     if (t1.a[50] != 500)
-        return 1;
+        TEST_FAIL(1, _SL("sorted t1.a[50]=${int} != 500"), stvar(int32, t1.a[50]));
     if (t1.a[40] != 400)
-        return 1;
+        TEST_FAIL(1, _SL("sorted t1.a[40]=${int} != 400"), stvar(int32, t1.a[40]));
 
     if (saFind(t1, int32, 320) != 32)
-        return 1;
+        TEST_FAIL(1, _SL("saFind(t1, 320)=${int} != 32"), stvar(int32, (int32)saFind(t1, int32, 320)));
 
     saInit(&t2, int64, 10);
     for (i = 500; i >= 0; i -= 10) {
@@ -264,26 +264,26 @@ static int test_sort()
     }
 
     if (saSize(t2) != 51)
-        return 1;
+        TEST_FAIL(1, _SL("saSize(t2)=${uint} != 51"), stvar(uint64, (uint64)saSize(t2)));
 
     if (t2.a[0] != 500)
-        return 1;
+        TEST_FAIL(1, _SL("t2.a[0]=${int} != 500"), stvar(int64, t2.a[0]));
     if (t2.a[50] != 0)
-        return 1;
+        TEST_FAIL(1, _SL("t2.a[50]=${int} != 0"), stvar(int64, t2.a[50]));
     if (t2.a[40] != 100)
-        return 1;
+        TEST_FAIL(1, _SL("t2.a[40]=${int} != 100"), stvar(int64, t2.a[40]));
 
     saSort(&t2, true);
 
     if (t2.a[0] != 0)
-        return 1;
+        TEST_FAIL(1, _SL("sorted t2.a[0]=${int} != 0"), stvar(int64, t2.a[0]));
     if (t2.a[50] != 500)
-        return 1;
+        TEST_FAIL(1, _SL("sorted t2.a[50]=${int} != 500"), stvar(int64, t2.a[50]));
     if (t2.a[40] != 400)
-        return 1;
+        TEST_FAIL(1, _SL("sorted t2.a[40]=${int} != 400"), stvar(int64, t2.a[40]));
 
     if (saFind(t2, int64, 320) != 32)
-        return 1;
+        TEST_FAIL(1, _SL("saFind(t2, 320)=${int} != 32"), stvar(int32, (int32)saFind(t2, int64, 320)));
 
     saDestroy(&t1);
     saDestroy(&t2);
@@ -309,20 +309,20 @@ static int test_string_sort()
     saPush(&t1, string, st3);
 
     if (saFind(t1, string, st1) != 0)
-        return 1;
+        TEST_FAIL(1, _SL("saFind(t1, st1)=${int} != 0"), stvar(int32, (int32)saFind(t1, string, st1)));
     if (saFind(t1, string, st2) != 1)
-        return 1;
+        TEST_FAIL(1, _SL("saFind(t1, st2)=${int} != 1"), stvar(int32, (int32)saFind(t1, string, st2)));
     if (saFind(t1, string, st3) != 2)
-        return 1;
+        TEST_FAIL(1, _SL("saFind(t1, st3)=${int} != 2"), stvar(int32, (int32)saFind(t1, string, st3)));
 
     saSort(&t1, true);
 
     if (saFind(t1, string, st1) != 1)
-        return 1;
+        TEST_FAIL(1, _SL("sorted saFind(t1, st1)=${int} != 1"), stvar(int32, (int32)saFind(t1, string, st1)));
     if (saFind(t1, string, st2) != 2)
-        return 1;
+        TEST_FAIL(1, _SL("sorted saFind(t1, st2)=${int} != 2"), stvar(int32, (int32)saFind(t1, string, st2)));
     if (saFind(t1, string, st3) != 0)
-        return 1;
+        TEST_FAIL(1, _SL("sorted saFind(t1, st3)=${int} != 0"), stvar(int32, (int32)saFind(t1, string, st3)));
 
     saDestroy(&t1);
 
@@ -343,38 +343,38 @@ static int test_stvar_consume()
     // strCopy forces a copy
     strCopy(&s, _SL("hello stvar consume test"));
     if (strTestRefCount(s) != 1)
-        return 1;
+        TEST_FAIL(1, _SL("strTestRefCount(s)=${int} != 1"), stvar(int32, strTestRefCount(s)));
 
     // Copy into an owning stvar — stCopy_string increments the refcount
     stvarCopy(&v, stvar(string, s));
     if (strTestRefCount(s) != 2)
-        return 2;
+        TEST_FAIL(2, _SL("after stvarCopy: strTestRefCount(s)=${int} != 2"), stvar(int32, strTestRefCount(s)));
 
     // Consume v into the array; the source stvar must be zeroed afterward
     saPushC(&arr, stvar, &v);
 
     // Source stvar must have been zeroed (PassPtr memset clears all fields)
     if (stvarType(&v) != NULL || v.data.st_string != NULL)
-        return 3;
+        TEST_FAIL(3, _SL("source stvar not zeroed after consume: type=${ptr} data.st_string=${ptr}"), stvar(ptr, (void*)stvarType(&v)), stvar(ptr, v.data.st_string));
 
     // Array must have one element
     if (saSize(arr) != 1)
-        return 4;
+        TEST_FAIL(4, _SL("saSize(arr)=${uint} != 1"), stvar(uint64, (uint64)saSize(arr)));
 
     // Array element must be a string stvar pointing to the same string
     if (!stvarIs(&arr.a[0], string))
-        return 5;
+        TEST_FAIL(5, _SL("array element is not a string stvar"), stvNone);
     if (arr.a[0].data.st_string != s)
-        return 6;
+        TEST_FAIL(6, _SL("array element string=${ptr} != source s=${ptr}"), stvar(ptr, arr.a[0].data.st_string), stvar(ptr, s));
 
     // Refcount: s owns one reference, the stvar in the array owns one
     if (strTestRefCount(s) != 2)
-        return 7;
+        TEST_FAIL(7, _SL("before destroy: strTestRefCount(s)=${int} != 2"), stvar(int32, strTestRefCount(s)));
 
     // Destroying the array must release the stvar's string reference
     saDestroy(&arr);
     if (strTestRefCount(s) != 1)
-        return 8;
+        TEST_FAIL(8, _SL("after array destroy: strTestRefCount(s)=${int} != 1"), stvar(int32, strTestRefCount(s)));
 
     strDestroy(&s);
     return 0;
@@ -409,20 +409,20 @@ static int test_custom_sort()
     }
 
     if (saSize(t1) != 51)
-        return 1;
+        TEST_FAIL(1, _SL("saSize(t1)=${uint} != 51"), stvar(uint64, (uint64)saSize(t1)));
 
     saSortCustom(&t1, cmp_int32_dir, &desc);
 
     for (i = 0; i < 51; i++) {
         if (t1.a[i] != (50 - i) * 10)
-            return 2;
+            TEST_FAIL(2, _SL("descending sort t1.a[${int}]=${int} != ${int}"), stvar(int32, i), stvar(int32, t1.a[i]), stvar(int32, (50 - i) * 10));
     }
 
     // SA_Sorted must have been cleared, otherwise saFind would binary search a descending
     // array and come up with the wrong answer
     for (i = 0; i < 51; i++) {
         if (saFind(t1, int32, (50 - i) * 10) != i)
-            return 3;
+            TEST_FAIL(3, _SL("saFind after descending custom sort: found=${int} != ${int}"), stvar(int32, (int32)saFind(t1, int32, (50 - i) * 10)), stvar(int32, i));
     }
 
     // The same comparator must follow the context back the other way
@@ -431,7 +431,7 @@ static int test_custom_sort()
 
     for (i = 0; i < 51; i++) {
         if (t1.a[i] != i * 10)
-            return 4;
+            TEST_FAIL(4, _SL("ascending sort t1.a[${int}]=${int} != ${int}"), stvar(int32, i), stvar(int32, t1.a[i]), stvar(int32, i * 10));
     }
 
     // Small arrays take the insertion sort path
@@ -442,17 +442,17 @@ static int test_custom_sort()
     desc    = true;
     saSortCustom(&t1, cmp_int32_dir, &desc);
     if (t1.a[0] != 30 || t1.a[1] != 20 || t1.a[2] != 10)
-        return 5;
+        TEST_FAIL(5, _SL("insertion-sort path: t1.a={${int},${int},${int}} != {30,20,10}"), stvar(int32, t1.a[0]), stvar(int32, t1.a[1]), stvar(int32, t1.a[2]));
 
     saSetSize(&t1, 1);
     saSortCustom(&t1, cmp_int32_dir, &desc);
     if (t1.a[0] != 30)
-        return 6;
+        TEST_FAIL(6, _SL("single-element sort: t1.a[0]=${int} != 30"), stvar(int32, t1.a[0]));
 
     saClear(&t1);
     saSortCustom(&t1, cmp_int32_dir, &desc);
     if (saSize(t1) != 0)
-        return 7;
+        TEST_FAIL(7, _SL("empty-array sort: saSize(t1)=${uint} != 0"), stvar(uint64, (uint64)saSize(t1)));
 
     saDestroy(&t1);
 
@@ -465,11 +465,11 @@ static int test_custom_sort()
     saSortCustom(&t2, cmp_string_len, NULL);
 
     if (!strEq(t2.a[0], _S"Test"))
-        return 8;
+        TEST_FAIL(8, _SL("t2.a[0]='${string}' != 'Test'"), stvar(strref, t2.a[0]));
     if (!strEq(t2.a[1], _S"This is a test"))
-        return 9;
+        TEST_FAIL(9, _SL("t2.a[1]='${string}' != 'This is a test'"), stvar(strref, t2.a[1]));
     if (!strEq(t2.a[2], _S"This is also a test"))
-        return 10;
+        TEST_FAIL(10, _SL("t2.a[2]='${string}' != 'This is also a test'"), stvar(strref, t2.a[2]));
 
     saDestroy(&t2);
 

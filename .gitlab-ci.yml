@@ -2,6 +2,7 @@ variables:
   CMAKE_EXE: 'C:\Program Files\CMake\bin\cmake.exe'
   CTEST_EXE: 'C:\Program Files\CMake\bin\ctest.exe'
   MSBUILD_EXE: 'C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\MSBuild\Current\Bin\MSBuild.exe'
+  CX_TEST_LOGLEVEL: 'Error'
 
 stages:
   - build

@@ -9,16 +9,16 @@ static int test_iface()
 {
     TestCls1 *cls1 = TestCls1_create();
     if (!cls1)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !cls1"), stvNone);
 
     cls1->data = 42;
 
     TestIf1 *ifptr = objInstIf(cls1, TestIf1);
     if (!ifptr)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !ifptr"), stvNone);
 
     if (ifptr->testfunc(cls1) != 42)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: ifptr->testfunc(cls1) != 42 (ifptr->testfunc(cls1)=${int})"), stvar(int32, ifptr->testfunc(cls1)));
 
     objRelease(&cls1);
 
@@ -29,16 +29,16 @@ static int test_inherit()
 {
     TestCls2 *cls2 = TestCls2_create();
     if (!cls2)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !cls2"), stvNone);
 
     cls2->data = 42;
 
     TestIf1 *ifptr = objInstIf(cls2, TestIf1);
     if (!ifptr)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !ifptr"), stvNone);
 
     if (ifptr->testfunc(cls2) != 42)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: ifptr->testfunc(cls2) != 42 (ifptr->testfunc(cls2)=${int})"), stvar(int32, ifptr->testfunc(cls2)));
 
     objRelease(&cls2);
 
@@ -49,19 +49,19 @@ static int test_ifinherit()
 {
     TestCls3 *cls3 = TestCls3_create();
     if (!cls3)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !cls3"), stvNone);
 
     cls3->data = 42;
     cls3->data2 = 69;
 
     TestIf2 *ifptr = objInstIf(cls3, TestIf2);
     if (!ifptr)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !ifptr"), stvNone);
 
     if (ifptr->testfunc(cls3) != 42)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: ifptr->testfunc(cls3) != 42 (ifptr->testfunc(cls3)=${int})"), stvar(int32, ifptr->testfunc(cls3)));
     if (ifptr->testfunc2(cls3) != 69)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: ifptr->testfunc2(cls3) != 69 (ifptr->testfunc2(cls3)=${int})"), stvar(int32, ifptr->testfunc2(cls3)));
 
     objRelease(&cls3);
 
@@ -72,7 +72,7 @@ static int test_override()
 {
     TestCls4 *cls4 = TestCls4_create();
     if (!cls4)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !cls4"), stvNone);
 
     cls4->data = 42;
     cls4->data2 = 69;
@@ -80,12 +80,12 @@ static int test_override()
 
     TestIf2 *ifptr = objInstIf(cls4, TestIf2);
     if (!ifptr)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !ifptr"), stvNone);
 
     if (ifptr->testfunc(cls4) != 35)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: ifptr->testfunc(cls4) != 35 (ifptr->testfunc(cls4)=${int})"), stvar(int32, ifptr->testfunc(cls4)));
     if (ifptr->testfunc2(cls4) != 69)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: ifptr->testfunc2(cls4) != 69 (ifptr->testfunc2(cls4)=${int})"), stvar(int32, ifptr->testfunc2(cls4)));
 
     objRelease(&cls4);
 
@@ -96,7 +96,7 @@ static int test_abstract()
 {
     TestCls4b *cls4 = TestCls4b_create();
     if (!cls4)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !cls4"), stvNone);
 
     cls4->data = 42;
     cls4->data2 = 69;
@@ -106,24 +106,24 @@ static int test_abstract()
 
     TestIf2 *ifptr = objInstIf(cls4, TestIf2);
     if (!ifptr)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !ifptr"), stvNone);
     TestIf3 *ifptr3 = objInstIf(cls4, TestIf3);
     if (!ifptr3)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !ifptr3"), stvNone);
 
     if (ifptr->testfunc(cls4) != 71)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: ifptr->testfunc(cls4) != 71 (ifptr->testfunc(cls4)=${int})"), stvar(int32, ifptr->testfunc(cls4)));
     if (ifptr->testfunc2(cls4) != 69)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: ifptr->testfunc2(cls4) != 69 (ifptr->testfunc2(cls4)=${int})"), stvar(int32, ifptr->testfunc2(cls4)));
     if (ifptr3->testfunc3(cls4) != 99)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: ifptr3->testfunc3(cls4) != 99 (ifptr3->testfunc3(cls4)=${int})"), stvar(int32, ifptr3->testfunc3(cls4)));
 
     if (cls4->_->testfunc(cls4) != 71)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: cls4->_->testfunc(cls4) != 71 (cls4->_->testfunc(cls4)=${int})"), stvar(int32, cls4->_->testfunc(cls4)));
     if (cls4->_->testfunc2(cls4) != 69)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: cls4->_->testfunc2(cls4) != 69 (cls4->_->testfunc2(cls4)=${int})"), stvar(int32, cls4->_->testfunc2(cls4)));
     if (cls4->_->testfunc3(cls4) != 99)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: cls4->_->testfunc3(cls4) != 99 (cls4->_->testfunc3(cls4)=${int})"), stvar(int32, cls4->_->testfunc3(cls4)));
 
     objRelease(&cls4);
 
@@ -144,34 +144,34 @@ static int test_cast()
     int counter = 0;
     TestCls4a *cls4a = TestCls4a(getptr(cls4b, &counter));
     if ((uintptr)cls4a != (uintptr)cls4b || counter != 1)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: (uintptr)cls4a != (uintptr)cls4b || counter != 1 (counter=${int})"), stvar(int32, counter));
 
     TestCls4 *cls4 = TestCls4(getptr(cls4b, &counter));
     if ((uintptr)cls4 != (uintptr)cls4a || counter != 2)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: (uintptr)cls4 != (uintptr)cls4a || counter != 2 (counter=${int})"), stvar(int32, counter));
 
     TestCls3 *cls3 = TestCls3(getptr(cls4b, &counter));
     if ((uintptr)cls3 != (uintptr)cls4b || counter != 3)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: (uintptr)cls3 != (uintptr)cls4b || counter != 3 (counter=${int})"), stvar(int32, counter));
 
     TestCls2 *cls2 = TestCls2(getptr(cls4b, &counter));
     if ((uintptr)cls2 != (uintptr)cls4b || counter != 4)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: (uintptr)cls2 != (uintptr)cls4b || counter != 4 (counter=${int})"), stvar(int32, counter));
 
     TestCls1 *cls1 = TestCls1(getptr(cls4b, &counter));
     if ((uintptr)cls1 != (uintptr)cls4b || counter != 5)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: (uintptr)cls1 != (uintptr)cls4b || counter != 5 (counter=${int})"), stvar(int32, counter));
 
     // Remove ifdefs for full test; this should fail to compile
 #if 0
     TestCls1 *cls2a = TestCls2(cls1);
     if ((uintptr)cls2a != (uintptr)cls4b || counter != 5)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: (uintptr)cls2a != (uintptr)cls4b || counter != 5 (counter=${int})"), stvar(int32, counter));
 #endif
 
     ObjInst *obj = ObjInst(getptr(cls4b, &counter));
     if ((uintptr)obj != (uintptr)cls4b || counter != 6)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: (uintptr)obj != (uintptr)cls4b || counter != 6 (counter=${int})"), stvar(int32, counter));
 
     objRelease(&cls4);
     return 0;
@@ -181,7 +181,7 @@ static int test_dyncast()
 {
     TestCls4b *cls4 = TestCls4b_create();
     if (!cls4)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !cls4"), stvNone);
 
     cls4->data = 42;
     cls4->data2 = 69;
@@ -191,13 +191,13 @@ static int test_dyncast()
 
     TestCls1 *cls1 = objDynCast(TestCls1, cls4);
     if (!cls1)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !cls1"), stvNone);
 
     if (cls1->data != 42)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: cls1->data != 42"), stvNone);
 
     if (testcls1Testfunc(cls1) != 71)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: testcls1Testfunc(cls1) != 71"), stvNone);
 
     objRelease(&cls4);
 
@@ -209,7 +209,7 @@ static int test_obj_array()
 {
     TestCls5 *cls5 = TestCls5_create();
     if (!cls5)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !cls5"), stvNone);
 
     cls5->data = 42;
 
@@ -222,18 +222,18 @@ static int test_obj_array()
     }
 
     if (atomicLoad(uintptr, &cls5->_ref, Acquire) != 51)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: atomicLoad(uintptr, &cls5->_ref, Acquire) != 51"), stvNone);
 
     TestIf1 *if1 = objInstIf(arr.a[49], TestIf1);
     if (!if1)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !if1"), stvNone);
     if (if1->testfunc(arr.a[49]) != 42)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: if1->testfunc(arr.a[49]) != 42 (if1->testfunc(arr.a[49])=${int})"), stvar(int32, if1->testfunc(arr.a[49])));
 
     saDestroy(&arr);
 
     if (atomicLoad(uintptr, &cls5->_ref, Acquire) != 1)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: atomicLoad(uintptr, &cls5->_ref, Acquire) != 1"), stvNone);
 
     saInit(&arr, object, 10);
 
@@ -242,7 +242,7 @@ static int test_obj_array()
     }
 
     if (atomicLoad(uintptr, &cls5->_ref, Acquire) != 2)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: atomicLoad(uintptr, &cls5->_ref, Acquire) != 2"), stvNone);
 
     saDestroy(&arr);
     objRelease(&cls5);
@@ -254,8 +254,8 @@ static int test_obj_weakref()
 {
     TestCls4b *cls4 = TestCls4b_create();
     int ret = 0;
-    if(!cls4)
-        return 1;
+    if (!cls4)
+        TEST_FAIL(1, _SL("assertion failed: !cls4"), stvNone);
 
     cls4->data = 12;
     cls4->data2 = 99;
@@ -265,40 +265,48 @@ static int test_obj_weakref()
 
     TestCls3 *cls3 = TestCls3(cls4);
     Weak(TestCls3) *cls3w = objGetWeak(TestCls3, cls3);
-    if(atomicLoad(uintptr, &cls4->_ref, Acquire) != 1)
-        ret = 1;
+    uint64 ref1 = (uint64)atomicLoad(uintptr, &cls4->_ref, Acquire);
+    if (ref1 != 1)
+        TEST_FAILV(ret, 1, _SL("cls4->_ref after objGetWeak=${uint} != 1"), stvar(uint64, ref1));
 
     TestCls3 *cls3a = objAcquireFromWeak(TestCls3, cls3w);
     if(cls3a) {
-        if(atomicLoad(uintptr, &cls3a->_ref, Acquire) != 2)
-            ret = 1;
+        uint64 ref2 = (uint64)atomicLoad(uintptr, &cls3a->_ref, Acquire);
+        if (ref2 != 2)
+            TEST_FAILV(ret, 1, _SL("cls3a->_ref=${uint} != 2"), stvar(uint64, ref2));
 
-        if(testcls3Testfunc2(cls3) != 99)
-            ret = 1;
+        int32 tf2 = testcls3Testfunc2(cls3);
+        if (tf2 != 99)
+            TEST_FAILV(ret, 1, _SL("testcls3Testfunc2(cls3)=${int} != 99"), stvar(int32, tf2));
     } else {
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("objAcquireFromWeak(TestCls3, cls3w) returned NULL"), stvNone);
     }
 
     TestCls1 *cls1 = objAcquireFromWeak(TestCls1, cls3w);
     if(cls1) {
-        if(atomicLoad(uintptr, &cls1->_ref, Acquire) != 3)
-            ret = 1;
+        uint64 ref3 = (uint64)atomicLoad(uintptr, &cls1->_ref, Acquire);
+        if (ref3 != 3)
+            TEST_FAILV(ret, 1, _SL("cls1->_ref=${uint} != 3"), stvar(uint64, ref3));
 
-        if(cls1->data != 12 || testcls1Testfunc(cls1) != 33)
-            ret = 1;
+        int32 tf1 = testcls1Testfunc(cls1);
+        if (cls1->data != 12 || tf1 != 33)
+            TEST_FAILV(ret, 1, _SL("cls1->data=${int} != 12 || testcls1Testfunc(cls1)=${int} != 33"),
+                       stvar(int32, cls1->data), stvar(int32, tf1));
     } else {
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("objAcquireFromWeak(TestCls1, cls3w) returned NULL"), stvNone);
     }
 
     TestCls4b *cls4a = objAcquireFromWeakDyn(TestCls4b, cls3w);
     if(cls4a) {
-        if(atomicLoad(uintptr, &cls4a->_ref, Acquire) != 4)
-            ret = 1;
+        uint64 ref4 = (uint64)atomicLoad(uintptr, &cls4a->_ref, Acquire);
+        if (ref4 != 4)
+            TEST_FAILV(ret, 1, _SL("cls4a->_ref=${uint} != 4"), stvar(uint64, ref4));
 
-        if(testcls4Testfunc(cls4a) != 33)
-            ret = 1;
+        int32 tf4 = testcls4Testfunc(cls4a);
+        if (tf4 != 33)
+            TEST_FAILV(ret, 1, _SL("testcls4Testfunc(cls4a)=${int} != 33"), stvar(int32, tf4));
     } else {
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("objAcquireFromWeakDyn(TestCls4b, cls3w) returned NULL"), stvNone);
     }
 
     // test weak references after object has been destroyed
@@ -307,23 +315,27 @@ static int test_obj_weakref()
     objRelease(&cls1);
     objRelease(&cls3a);
 
-    if(atomicLoad(uintptr, &cls4->_ref, Acquire) != 1)
-        ret = 1;
+    uint64 ref5 = (uint64)atomicLoad(uintptr, &cls4->_ref, Acquire);
+    if (ref5 != 1)
+        TEST_FAILV(ret, 1, _SL("cls4->_ref before final release=${uint} != 1"), stvar(uint64, ref5));
 
     objRelease(&cls4);
 
     // these should all fail
     cls3a = objAcquireFromWeak(TestCls3, cls3w);
-    if(cls3a)
-        ret = 1;
+    if (cls3a)
+        TEST_FAILV(ret, 1, _SL("objAcquireFromWeak(TestCls3, cls3w) after final release returned non-NULL: ${ptr}"),
+                   stvar(ptr, cls3a));
 
     cls1 = objAcquireFromWeak(TestCls1, cls3w);
-    if(cls1)
-        ret = 1;
+    if (cls1)
+        TEST_FAILV(ret, 1, _SL("objAcquireFromWeak(TestCls1, cls3w) after final release returned non-NULL: ${ptr}"),
+                   stvar(ptr, cls1));
 
     cls4a = objAcquireFromWeakDyn(TestCls4b, cls3w);
-    if(cls4a)
-        ret = 1;
+    if (cls4a)
+        TEST_FAILV(ret, 1, _SL("objAcquireFromWeakDyn(TestCls4b, cls3w) after final release returned non-NULL: ${ptr}"),
+                   stvar(ptr, cls4a));
 
     objDestroyWeak(&cls3w);
 
@@ -335,17 +347,17 @@ static int test_obj_weakref()
 static int test_obj_classset()
 {
     if (classSetFind(&SerClsSet_classset, _S"SerCls1") != &SerCls1_clsinfo)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: classSetFind(&SerClsSet_classset, _S\"SerCls1\") != &SerCls1_clsinfo"), stvNone);
     if (classSetFind(&SerClsSet_classset, _S"SerCustom") != &SerCustom_clsinfo)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: classSetFind(&SerClsSet_classset, _S\"SerCustom\") != &SerCustom_clsinfo"), stvNone);
 
     // A class that is not in the set, one that does not exist, and no name at all
     if (classSetFind(&SerClsSet_classset, _S"SerCls3") != NULL)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: classSetFind(&SerClsSet_classset, _S\"SerCls3\") != NULL"), stvNone);
     if (classSetFind(&SerClsSet_classset, _S"NoSuchClass") != NULL)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: classSetFind(&SerClsSet_classset, _S\"NoSuchClass\") != NULL"), stvNone);
     if (classSetFind(&SerClsSet_classset, NULL) != NULL)
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: classSetFind(&SerClsSet_classset, NULL) != NULL"), stvNone);
 
     return 0;
 }

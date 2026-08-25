@@ -67,12 +67,12 @@ static int test_streambuf_push()
     for (int usesend = 0; usesend < 2; usesend++) {
         ptest = sbufCreate(32);
         if (!sbufPRegisterPush(ptest, NULL, 0)) {
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("sbufPRegisterPush failed, usesend=${int}"), stvar(int32, usesend));
             goto out;
         }
 
         if (!sbufCRegisterPush(ptest, sbnotify1, sbclean1, &c1)) {
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("sbufCRegisterPush failed, usesend=${int}"), stvar(int32, usesend));
             goto out;
         }
 
@@ -85,14 +85,14 @@ static int test_streambuf_push()
 
         // check if data made it
         if (memcmp(c1.out, testdata1, 5))
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("first 5 bytes mismatch, usesend=${int}"), stvar(int32, usesend));
 
         c1.shouldread = 7;
         sbufPWrite(ptest, testdata1 + 9, 5);
 
         if (memcmp(c1.out, "This is test", 12) ||
             c1.outp != 12)
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("mismatch or c1.outp=${uint} != 12, usesend=${int}"), stvar(uint64, (uint64)c1.outp), stvar(int32, usesend));
 
         // test overflow buffer
         c1.outp = 0;
@@ -102,19 +102,19 @@ static int test_streambuf_push()
         sbufPWrite(ptest, testdata1 + 7, 8);
 
         if (sbufCAvail(ptest) != 9)
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("sbufCAvail(ptest)=${uint} != 9, usesend=${int}"), stvar(uint64, (uint64)sbufCAvail(ptest)), stvar(int32, usesend));
 
         c1.shouldread = 5;
         sbufPWrite(ptest, testdata1 + 15, 5);
 
         if (memcmp(c1.out, testdata1, 11) ||
             c1.outp != 11)
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("mismatch or c1.outp=${uint} != 11, usesend=${int}"), stvar(uint64, (uint64)c1.outp), stvar(int32, usesend));
 
         // push some more data
         sbufPWrite(ptest, testdata1 + 20, 40);
         if (c1.outp != 16)
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("c1.outp=${uint} != 16, usesend=${int}"), stvar(uint64, (uint64)c1.outp), stvar(int32, usesend));
 
         // flush everything that's left
         c1.shouldread = 10000;
@@ -124,10 +124,10 @@ static int test_streambuf_push()
 
         if (memcmp(c1.out, testdata1, 60) ||
             c1.outp != 60)
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("mismatch or c1.outp=${uint} != 60, usesend=${int}"), stvar(uint64, (uint64)c1.outp), stvar(int32, usesend));
 
         if (!c1.didclean)
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("c1.didclean not set, usesend=${int}"), stvar(int32, usesend));
     }
 
 out:
@@ -186,43 +186,43 @@ static int test_streambuf_pull()
     sbufCRead(ptest, out + p, 5, &didread);
     if (didread != 5 ||
         memcmp(out + p, testdata1 + p, didread))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("didread=${uint} != 5"), stvar(uint64, (uint64)didread));
     p += didread;
 
     sbufCRead(ptest, out + p, 15, &didread);
     if (didread != 15 ||
         memcmp(out + p, testdata1 + p, didread))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("didread=${uint} != 15"), stvar(uint64, (uint64)didread));
     p += didread;
 
     sbufCRead(ptest, out + p, 3, &didread);
     if (didread != 3 ||
         memcmp(out + p, testdata1 + p, didread))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("didread=${uint} != 3"), stvar(uint64, (uint64)didread));
     p += didread;
 
     sbufCRead(ptest, out + p, 40, &didread);
     if (didread != 40 ||
         memcmp(out + p, testdata1 + p, didread))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("didread=${uint} != 40"), stvar(uint64, (uint64)didread));
     p += didread;
 
     sbufCRead(ptest, out + p, 13, &didread);
     if (didread != 13 ||
         memcmp(out + p, testdata1 + p, didread))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("didread=${uint} != 13"), stvar(uint64, (uint64)didread));
     p += didread;
 
     // this should hit the end of the input
     sbufCRead(ptest, out + p, 25, &didread);
     if (didread != 20 ||
         memcmp(out + p, testdata1 + p, didread))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("didread=${uint} != 20"), stvar(uint64, (uint64)didread));
     p += didread;
 
     if (p != sizeof(testdata1) ||
         memcmp(out, testdata1, sizeof(testdata1)))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("p=${uint} != sizeof(testdata1)=${uint}"), stvar(uint64, (uint64)p), stvar(uint64, (uint64)sizeof(testdata1)));
 
     // test releasing in opposite order
     StreamBuffer *temp = ptest;
@@ -230,7 +230,7 @@ static int test_streambuf_pull()
     sbufCFinish(ptest);
 
     if (!ctx.didclean)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("ctx.didclean not set"), stvNone);
 
     return ret;
 }
@@ -251,68 +251,68 @@ static int test_streambuf_peek()
         return false;
 
     if (!sbufCFeed(ptest, 5))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("sbufCFeed(5) failed"), stvNone);
 
     if (!sbufCPeek(ptest, out + p, 0, 5))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("sbufCPeek(0, 5) failed"), stvNone);
     if (memcmp(out + p, testdata1 + p, 5))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("peeked bytes mismatch at p=${uint}"), stvar(uint64, (uint64)p));
     if (!sbufCSkip(ptest, 5))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("sbufCSkip(5) failed"), stvNone);
     p += 5;
 
     // try peeking at future data
     if (!sbufCFeed(ptest, 15))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("sbufCFeed(15) failed"), stvNone);
 
     if (!sbufCPeek(ptest, out + p + 10, 10, 5))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("sbufCPeek(10, 5) failed"), stvNone);
     if (memcmp(out + p + 10, testdata1 + p + 10, 5))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("future-peek bytes mismatch at p=${uint}"), stvar(uint64, (uint64)p));
 
     // now fill in the gap
 
     if (!sbufCRead(ptest, out + p, 10, &didread))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("sbufCRead(10) failed"), stvNone);
     if (memcmp(out + p, testdata1 + p, 10))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("read-back bytes mismatch at p=${uint}"), stvar(uint64, (uint64)p));
     p += 10;
 
     // and skip over what we already read
     if (!sbufCSkip(ptest, 5))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("sbufCSkip(5) failed"), stvNone);
     p += 5;
 
     // populate the whole rest of the buffer
     if (!sbufCFeed(ptest, sizeof(testdata1) - p))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("sbufCFeed(rest) failed, p=${uint}"), stvar(uint64, (uint64)p));
 
     // read the rest out of order
     if (!sbufCPeek(ptest, out + p + 41, 41, 35))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("sbufCPeek(41, 35) failed"), stvNone);
     if (memcmp(out + p + 41, testdata1 + p + 41, 35))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("out-of-order peek mismatch at p=${uint}"), stvar(uint64, (uint64)p));
 
     if (!sbufCPeek(ptest, out + p, 0, 41))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("sbufCPeek(0, 41) failed"), stvNone);
     if (memcmp(out + p, testdata1 + p, 41))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("full peek mismatch at p=${uint}"), stvar(uint64, (uint64)p));
 
     // skip to the end
     if (!sbufCSkip(ptest, 76))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("sbufCSkip(76) failed"), stvNone);
     p += 76;
 
     // check entire buffer
     if (p != sizeof(testdata1) ||
         memcmp(out, testdata1, sizeof(testdata1)))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("p=${uint} != sizeof(testdata1)=${uint} or final mismatch"), stvar(uint64, (uint64)p), stvar(uint64, (uint64)sizeof(testdata1)));
 
     sbufCFinish(ptest);
     sbufRelease(&ptest);
 
     if (!ctx.didclean)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("ctx.didclean not set"), stvNone);
 
     return ret;
 }
@@ -348,12 +348,12 @@ static int test_streambuf_direct()
     c3.out = xaAlloc(TESTBUF_SZ);
     ptest = sbufCreate(0);
     if (!sbufPRegisterPush(ptest, NULL, 0)) {
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("sbufPRegisterPush failed"), stvNone);
         goto out;
     }
 
     if (!sbufCRegisterPushDirect(ptest, sbpush3, sbclean3, &c3)) {
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("sbufCRegisterPushDirect failed"), stvNone);
         goto out;
     }
 
@@ -361,25 +361,25 @@ static int test_streambuf_direct()
 
     // check if data made it
     if (memcmp(c3.out, testdata1, 7))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("first 7 bytes mismatch"), stvNone);
 
     sbufPWrite(ptest, testdata1 + 7, 5);
 
     if (memcmp(c3.out, testdata1, 12) ||
         c3.outp != 12)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("mismatch or c3.outp=${uint} != 12"), stvar(uint64, (uint64)c3.outp));
 
     sbufPWrite(ptest, testdata1 + 12, sizeof(testdata1) - 12);
     if (memcmp(c3.out, testdata1, sizeof(testdata1)) ||
         c3.outp != sizeof(testdata1))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("mismatch or c3.outp=${uint} != ${uint}"), stvar(uint64, (uint64)c3.outp), stvar(uint64, (uint64)sizeof(testdata1)));
 
     sbufPFinish(ptest);
     // this should cause sbclean3 to be called
     sbufRelease(&ptest);
 
     if (!c3.didclean)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("c3.didclean not set"), stvNone);
 
 out:
     xaFree(c3.out);
@@ -398,28 +398,28 @@ static int test_streambuf_string()
     ptest = sbufCreate(16);
     if (!sbufCRegisterPull(ptest, NULL, NULL) ||
         !sbufStrPRegisterPull(ptest, s1))
-        return 1;
+        TEST_FAIL(1, _SL("sbufCRegisterPull/sbufStrPRegisterPull failed"), stvNone);
 
     if (strTestRefCount(s1) != 2)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("strTestRefCount(s1)=${int} != 2"), stvar(int32, strTestRefCount(s1)));
 
     sbufCRead(ptest, buf, 12, &didread);
     if (memcmp(buf, strC(s1), 12))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("first 12 bytes mismatch"), stvNone);
 
     sbufCRead(ptest, buf, 40, &didread);
     if (memcmp(buf, strC(s1) + 12, 40))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("next 40 bytes mismatch"), stvNone);
 
     sbufCRead(ptest, buf, 22, &didread);
     if (didread != 22)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("didread=${uint} != 22"), stvar(uint64, (uint64)didread));
     if (memcmp(buf, strC(s1) + 52, 22))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("last 22 bytes mismatch"), stvNone);
 
     sbufCFinish(ptest);
     if (!sbufIsPFinished(ptest))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("sbufIsPFinished false after sbufCFinish"), stvNone);
 
     sbufRelease(&ptest);
 
@@ -427,14 +427,14 @@ static int test_streambuf_string()
 
     ptest = sbufCreate(16);
     if (!sbufStrCRegisterPush(ptest, &s2))
-        return 1;
+        TEST_FAIL(1, _SL("sbufStrCRegisterPush failed"), stvNone);
     sbufStrIn(ptest, s1);
 
     if (!strEq(s1, s2))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("s1='${string}' != s2='${string}'"), stvar(strref, s1), stvar(strref, s2));
 
     if (!sbufIsPFinished(ptest) || !sbufIsCFinished(ptest))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("producer or consumer not finished"), stvNone);
 
     sbufRelease(&ptest);
     strDestroy(&s2);
@@ -443,13 +443,13 @@ static int test_streambuf_string()
 
     ptest = sbufCreate(16);
     if (!sbufStrPRegisterPull(ptest, s1))
-        return 1;
+        TEST_FAIL(1, _SL("sbufStrPRegisterPull failed"), stvNone);
     sbufStrOut(ptest, &s2);
     if (!strEq(s1, s2))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("s1='${string}' != s2='${string}'"), stvar(strref, s1), stvar(strref, s2));
 
     if (!sbufIsPFinished(ptest) || !sbufIsCFinished(ptest))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("producer or consumer not finished"), stvNone);
 
     sbufRelease(&ptest);
     strDestroy(&s2);
@@ -470,14 +470,14 @@ static int test_streambuf_console()
     ConStream *con = conCreateMem(&caps);
     StreamBuffer *ptest = sbufCreate(16);
     if (!sbufConCRegisterPush(ptest, con))
-        return 1;
+        TEST_FAIL(1, _SL("sbufConCRegisterPush failed"), stvNone);
     sbufStrIn(ptest, s1);
 
     conMemGet(con, &out);
     if (!strEq(s1, out))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("s1='${string}' != out='${string}'"), stvar(strref, s1), stvar(strref, out));
     if (!sbufIsPFinished(ptest) || !sbufIsCFinished(ptest))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("producer or consumer not finished"), stvNone);
 
     sbufRelease(&ptest);
     strDestroy(&out);
@@ -487,14 +487,14 @@ static int test_streambuf_console()
     con = conCreateMem(&caps);
     ptest = sbufCreate(16);
     if (!sbufStrPRegisterPull(ptest, s1))
-        return 1;
+        TEST_FAIL(1, _SL("sbufStrPRegisterPull failed"), stvNone);
     sbufConOut(ptest, con);
 
     conMemGet(con, &out);
     if (!strEq(s1, out))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("s1='${string}' != out='${string}'"), stvar(strref, s1), stvar(strref, out));
     if (!sbufIsPFinished(ptest) || !sbufIsCFinished(ptest))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("producer or consumer not finished"), stvNone);
 
     sbufRelease(&ptest);
     strDestroy(&out);

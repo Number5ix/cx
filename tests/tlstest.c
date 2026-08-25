@@ -189,7 +189,7 @@ static void ctxDestroy(TestCtx* t)
     do {                                                                                 \
         for (int _i = 0; _i < MAX_TICKS && !(cond); _i++) netqueueTick((qq), TICK_WAIT); \
         if (!(cond))                                                                     \
-            ret = 1;                                                                     \
+            TEST_FAILV(ret, 1, _SL("pumpUntil timed out waiting for: " #cond), stvNone); \
     } while (0)
 
 // A few extra ticks with nothing to wait for, to let anything already in flight land.
@@ -304,49 +304,49 @@ static int test_tlstest_handshake(void)
     Fixture f;
 
     if (!fixtureBase(&f))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !fixtureBase(&f)"), stvNone);
 
     f.clientCfg = tlsconfigCreateClient();
     f.serverCfg = tlsconfigCreateServer(f.creds);
     tlsconfigSetCA(f.clientCfg, f.ca);
 
     if (!fixtureListen(&f) || !fixtureConnect(&f, _S TLS_TEST_HOSTNAME))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !fixtureListen(&f) || !fixtureConnect(&f, _S TLS_TEST_HOSTNAME)"), stvNone);
 
     if (!ret)
         pumpUntil(f.t.q, f.t.client.secured && f.t.server.secured);
 
     // Exactly once on each side: the edge is a transition, not a repeated state report.
     if (f.t.client.secured != 1 || f.t.server.secured != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: f.t.client.secured != 1 || f.t.server.secured != 1"), stvNone);
 
     // Both ends know what they negotiated, and the client verified the server cleanly.
     if (!f.t.client.haveInfo || !f.t.client.info.secured || f.t.client.info.verifyFlags != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !f.t.client.haveInfo || !f.t.client.info.secured || f.t.client.info.verifyFlags != 0"), stvNone);
     if (strEmpty(f.t.client.info.version) || strEmpty(f.t.client.info.ciphersuite))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: strEmpty(f.t.client.info.version) || strEmpty(f.t.client.info.ciphersuite)"), stvNone);
     if (strFind(f.t.client.info.peerSubject, 0, _S TLS_TEST_HOSTNAME) < 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: strFind(f.t.client.info.peerSubject, 0, _S TLS_TEST_HOSTNAME) < 0 (strFind(f.t.client.info.peerSubject, 0, _S TLS_TEST_HOSTNAME)=${int})"), stvar(int32, strFind(f.t.client.info.peerSubject, 0, _S TLS_TEST_HOSTNAME)));
 
     // client -> server
     static const uint8 up[] = "hello from the client";
     if (!ret && !netsocketSend(f.t.clientSock, (uint8*)up, sizeof(up) - 1, NULL, 0))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !ret && !netsocketSend(f.t.clientSock, (uint8*)up, sizeof(up) - 1, NULL, 0)"), stvNone);
     if (!ret)
         pumpUntil(f.t.q, f.t.server.got >= sizeof(up) - 1);
     if (f.t.server.buflen != sizeof(up) - 1 || memcmp(f.t.server.buf, up, sizeof(up) - 1) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: f.t.server.buflen != sizeof(up) - 1 || memcmp(f.t.server.buf, up, sizeof(up) - 1) != 0"), stvNone);
 
     // server -> client
     static const uint8 down[] = "and hello back from the server";
     if (!ret && f.t.serverSock &&
         !netsocketSend(f.t.serverSock, (uint8*)down, sizeof(down) - 1, NULL, 0))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !ret && f.t.serverSock && !netsocketSend(f.t.serverSock, (uint8*)down, sizeof(down) - 1, NULL, 0)"), stvNone);
     if (!ret)
         pumpUntil(f.t.q, f.t.client.got >= sizeof(down) - 1);
     if (f.t.client.buflen != sizeof(down) - 1 ||
         memcmp(f.t.client.buf, down, sizeof(down) - 1) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: f.t.client.buflen != sizeof(down) - 1 || memcmp(f.t.client.buf, down, sizeof(down) - 1) != 0"), stvNone);
 
     fixtureDestroy(&f);
     return ret;
@@ -365,7 +365,7 @@ static int test_tlstest_wire(void)
 
     if (!fixtureBase(&f)) {
         bufringDestroy(&wire);
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !fixtureBase(&f)"), stvNone);
     }
 
     f.clientCfg = tlsconfigCreateClient();
@@ -373,14 +373,14 @@ static int test_tlstest_wire(void)
     tlsconfigSetCA(f.clientCfg, f.ca);
 
     if (!fixtureListen(&f))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !fixtureListen(&f)"), stvNone);
 
     // Built by hand rather than through nettlsConnect(), because the tap has to be attached after
     // the TLS filter (making it the wire-end stage) and before the connect starts.
     if (!ret) {
         f.t.clientSock = netqueueSocket(f.t.q, NST_Stream);
         if (!f.t.clientSock || !netqueueAddSocket(f.t.q, f.t.clientSock))
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("assertion failed: !f.t.clientSock || !netqueueAddSocket(f.t.q, f.t.clientSock)"), stvNone);
     }
 
     if (!ret) {
@@ -389,21 +389,21 @@ static int test_tlstest_wire(void)
 
         if (!tls || !netsocketAddFilter(f.t.clientSock, NetFilter(tls)) ||
             !netsocketAddFilter(f.t.clientSock, NetFilter(tap)))
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("assertion failed: !tls || !netsocketAddFilter(f.t.clientSock, NetFilter(tls)) || !netsocketAddFilter(f.t.clientSock, NetFilter(tap))"), stvNone);
 
         objRelease(&tls);
         objRelease(&tap);
     }
 
     if (!ret && !netsocketConnect(f.t.clientSock, _SL("127.0.0.1"), f.port))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !ret && !netsocketConnect(f.t.clientSock, _SL(\"127.0.0.1\"), f.port)"), stvNone);
 
     if (!ret)
         pumpUntil(f.t.q, f.t.client.secured && f.t.server.secured);
 
     static const uint8 secret[] = "SUPER-SECRET-PLAINTEXT-MARKER";
     if (!ret && !netsocketSend(f.t.clientSock, (uint8*)secret, sizeof(secret) - 1, NULL, 0))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !ret && !netsocketSend(f.t.clientSock, (uint8*)secret, sizeof(secret) - 1, NULL, 0)"), stvNone);
     if (!ret)
         pumpUntil(f.t.q, f.t.server.got >= sizeof(secret) - 1);
 
@@ -414,11 +414,11 @@ static int test_tlstest_wire(void)
     bufringRead(&wire, wbuf, wlen);
 
     if (wlen < 5 || wbuf[0] != 0x16 || wbuf[1] != 0x03)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: wlen < 5 (wlen=${uint}) || wbuf[0] != 0x16 || wbuf[1] != 0x03"), stvar(uint64, wlen));
 
     for (size_t i = 0; i + sizeof(secret) - 1 <= wlen; i++) {
         if (memcmp(wbuf + i, secret, sizeof(secret) - 1) == 0) {
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("plaintext found on the wire at offset ${uint}"), stvar(uint64, (uint64)i));
             break;
         }
     }
@@ -438,12 +438,12 @@ static int test_tlstest_verify(void)
     Fixture f;
 
     if (!fixtureBase(&f))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !fixtureBase(&f)"), stvNone);
 
     // Trust an unrelated CA that issued nothing in this test.
     TlsCAStore* wrong = tlscastoreCreate();
     if (!wrong || !tlscastoreAddPEM(wrong, f.pki.otherCACert))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !wrong || !tlscastoreAddPEM(wrong, f.pki.otherCACert)"), stvNone);
 
     f.clientCfg = tlsconfigCreateClient();
     f.serverCfg = tlsconfigCreateServer(f.creds);
@@ -451,17 +451,17 @@ static int test_tlstest_verify(void)
     objRelease(&wrong);
 
     if (!ret && (!fixtureListen(&f) || !fixtureConnect(&f, _S TLS_TEST_HOSTNAME)))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !ret && (!fixtureListen(&f) || !fixtureConnect(&f, _S TLS_TEST_HOSTNAME))"), stvNone);
 
     if (!ret)
         pumpUntil(f.t.q, f.t.client.closed > 0);
 
     if (f.t.client.secured != 0)
-        ret = 1;   // the channel must never be reported as secured
+        TEST_FAILV(ret, 1, _SL("assertion failed: f.t.client.secured != 0"), stvNone);   // the channel must never be reported as secured
     if (f.t.client.closeReason != NCR_Error)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: f.t.client.closeReason != NCR_Error"), stvNone);
     if (f.t.client.got != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: f.t.client.got != 0"), stvNone);
 
     fixtureDestroy(&f);
     return ret;
@@ -475,14 +475,14 @@ static int test_tlstest_hostname(void)
     Fixture f;
 
     if (!fixtureBase(&f))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !fixtureBase(&f)"), stvNone);
 
     f.clientCfg = tlsconfigCreateClient();
     f.serverCfg = tlsconfigCreateServer(f.creds);
     tlsconfigSetCA(f.clientCfg, f.ca);
 
     if (!fixtureListen(&f))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !fixtureListen(&f)"), stvNone);
 
     // The trust store is correct; only the expected name is wrong. The certificate still chains to
     // a trusted CA, so nothing but the name check can reject it.
@@ -495,14 +495,14 @@ static int test_tlstest_hostname(void)
                                        NULL,
                                        NULL);
         if (!f.t.clientSock)
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("assertion failed: !f.t.clientSock"), stvNone);
     }
 
     if (!ret)
         pumpUntil(f.t.q, f.t.client.closed > 0);
 
     if (f.t.client.secured != 0 || f.t.client.closeReason != NCR_Error)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: f.t.client.secured != 0 || f.t.client.closeReason != NCR_Error"), stvNone);
 
     fixtureDestroy(&f);
     return ret;
@@ -525,7 +525,7 @@ static int test_tlstest_large(void)
 
     if (!fixtureBase(&f)) {
         xaFree(payload);
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !fixtureBase(&f)"), stvNone);
     }
 
     f.clientCfg = tlsconfigCreateClient();
@@ -533,7 +533,7 @@ static int test_tlstest_large(void)
     tlsconfigSetCA(f.clientCfg, f.ca);
 
     if (!fixtureListen(&f) || !fixtureConnect(&f, _S TLS_TEST_HOSTNAME))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !fixtureListen(&f) || !fixtureConnect(&f, _S TLS_TEST_HOSTNAME)"), stvNone);
 
     if (!ret)
         pumpUntil(f.t.q, f.t.client.secured && f.t.server.secured);
@@ -554,13 +554,13 @@ static int test_tlstest_large(void)
     }
 
     if (sent != total)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: sent != total (sent=${uint}, total=${uint})"), stvar(uint64, sent), stvar(uint64, total));
 
     if (!ret)
         pumpUntil(f.t.q, f.t.server.got >= total);
 
     if (f.t.server.got != total || f.t.server.sum != expect)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: f.t.server.got != total (total=${uint}) || f.t.server.sum != expect (expect=${uint})"), stvar(uint64, total), stvar(uint32, expect));
 
     xaFree(payload);
     fixtureDestroy(&f);
@@ -576,7 +576,7 @@ static int test_tlstest_starttls(void)
     Fixture f;
 
     if (!fixtureBase(&f))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !fixtureBase(&f)"), stvNone);
 
     f.clientCfg = tlsconfigCreateClient();
     f.serverCfg = tlsconfigCreateServer(f.creds);
@@ -588,7 +588,7 @@ static int test_tlstest_starttls(void)
     conf.flags |= NQ_AutoAccept;
     f.t.q = netqueueCreate(&conf);
     if (!f.t.q)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !f.t.q"), stvNone);
 
     if (!ret) {
         netqueueSetHandlers(f.t.q, &testHandlers, &f.t);
@@ -599,7 +599,7 @@ static int test_tlstest_starttls(void)
 
         f.listener = netqueueListen(f.t.q, &la, 4, NULL, NULL);
         if (!f.listener)
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("assertion failed: !f.listener"), stvNone);
         else
             f.port = boundPort(f.listener);
     }
@@ -607,7 +607,7 @@ static int test_tlstest_starttls(void)
     if (!ret) {
         f.t.clientSock = netqueueConnect(f.t.q, _SL("127.0.0.1"), f.port, NULL, NULL);
         if (!f.t.clientSock)
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("assertion failed: !f.t.clientSock"), stvNone);
     }
 
     if (!ret)
@@ -616,12 +616,12 @@ static int test_tlstest_starttls(void)
     // Cleartext round trip, standing in for the protocol's own STARTTLS exchange.
     static const uint8 greeting[] = "PLAIN-HELLO";
     if (!ret && !netsocketSend(f.t.clientSock, (uint8*)greeting, sizeof(greeting) - 1, NULL, 0))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !ret && !netsocketSend(f.t.clientSock, (uint8*)greeting, sizeof(greeting) - 1, NULL, 0)"), stvNone);
     if (!ret)
         pumpUntil(f.t.q, f.t.server.got >= sizeof(greeting) - 1);
     if (f.t.server.buflen != sizeof(greeting) - 1 ||
         memcmp(f.t.server.buf, greeting, sizeof(greeting) - 1) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: f.t.server.buflen != sizeof(greeting) - 1 || memcmp(f.t.server.buf, greeting, sizeof(greeting) - 1) != 0"), stvNone);
 
     // Upgrade. The server side goes on first so its stage exists before the client's ClientHello
     // can arrive, which is the same ordering a real STARTTLS gives you: the server answers "go
@@ -632,7 +632,7 @@ static int test_tlstest_starttls(void)
 
         if (!sf || !cf || !netsocketAddFilter(f.t.serverSock, NetFilter(sf)) ||
             !netsocketAddFilter(f.t.clientSock, NetFilter(cf)))
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("assertion failed: !sf || !cf || !netsocketAddFilter(f.t.serverSock, NetFilter(sf)) || !netsocketAddFilter(f.t.clientSock, NetFilter(cf))"), stvNone);
 
         objRelease(&sf);
         objRelease(&cf);
@@ -645,11 +645,11 @@ static int test_tlstest_starttls(void)
     static const uint8 secret[] = "NOW-ENCRYPTED";
     size_t before               = f.t.server.got;
     if (!ret && !netsocketSend(f.t.clientSock, (uint8*)secret, sizeof(secret) - 1, NULL, 0))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !ret && !netsocketSend(f.t.clientSock, (uint8*)secret, sizeof(secret) - 1, NULL, 0)"), stvNone);
     if (!ret)
         pumpUntil(f.t.q, f.t.server.got >= before + sizeof(secret) - 1);
     if (memcmp(f.t.server.buf + before, secret, sizeof(secret) - 1) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: memcmp(f.t.server.buf + before, secret, sizeof(secret) - 1) != 0"), stvNone);
 
     fixtureDestroy(&f);
     return ret;
@@ -662,7 +662,7 @@ static int test_tlstest_alpn(void)
     Fixture f;
 
     if (!fixtureBase(&f))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !fixtureBase(&f)"), stvNone);
 
     sa_string protos;
     saInit(&protos, string, 2);
@@ -674,19 +674,19 @@ static int test_tlstest_alpn(void)
     tlsconfigSetCA(f.clientCfg, f.ca);
 
     if (!tlsconfigSetALPN(f.clientCfg, &protos) || !tlsconfigSetALPN(f.serverCfg, &protos))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !tlsconfigSetALPN(f.clientCfg, &protos) || !tlsconfigSetALPN(f.serverCfg, &protos)"), stvNone);
     saDestroy(&protos);
 
     if (!ret && (!fixtureListen(&f) || !fixtureConnect(&f, _S TLS_TEST_HOSTNAME)))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !ret && (!fixtureListen(&f) || !fixtureConnect(&f, _S TLS_TEST_HOSTNAME))"), stvNone);
 
     if (!ret)
         pumpUntil(f.t.q, f.t.client.secured && f.t.server.secured);
 
     if (!f.t.client.haveInfo || !strEq(f.t.client.info.alpn, _S"h2"))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !f.t.client.haveInfo || string mismatch: f.t.client.info.alpn != ${string}"), stvar(strref, _S"h2"));
     if (!f.t.server.haveInfo || !strEq(f.t.server.info.alpn, _S"h2"))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !f.t.server.haveInfo || string mismatch: f.t.server.info.alpn != ${string}"), stvar(strref, _S"h2"));
 
     fixtureDestroy(&f);
     return ret;
@@ -700,11 +700,11 @@ static int test_tlstest_mtls(void)
     Fixture f;
 
     if (!fixtureBase(&f))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !fixtureBase(&f)"), stvNone);
 
     TlsCreds* clientCreds = tlscredsCreatePEM(f.pki.altCert, f.pki.altKey, NULL);
     if (!clientCreds)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !clientCreds"), stvNone);
 
     f.clientCfg = tlsconfigCreateClient();
     f.serverCfg = tlsconfigCreateServer(f.creds);
@@ -721,15 +721,15 @@ static int test_tlstest_mtls(void)
     objRelease(&clientCreds);
 
     if (!ret && (!fixtureListen(&f) || !fixtureConnect(&f, _S TLS_TEST_HOSTNAME)))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !ret && (!fixtureListen(&f) || !fixtureConnect(&f, _S TLS_TEST_HOSTNAME))"), stvNone);
 
     if (!ret)
         pumpUntil(f.t.q, f.t.client.secured && f.t.server.secured);
 
     if (!f.t.server.haveInfo || f.t.server.info.verifyFlags != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !f.t.server.haveInfo || f.t.server.info.verifyFlags != 0"), stvNone);
     if (strFind(f.t.server.info.peerSubject, 0, _S TLS_TEST_ALT_HOSTNAME) < 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: strFind(f.t.server.info.peerSubject, 0, _S TLS_TEST_ALT_HOSTNAME) < 0 (strFind(f.t.server.info.peerSubject, 0, _S TLS_TEST_ALT_HOSTNAME)=${int})"), stvar(int32, strFind(f.t.server.info.peerSubject, 0, _S TLS_TEST_ALT_HOSTNAME)));
 
     fixtureDestroy(&f);
     return ret;
@@ -743,7 +743,7 @@ static int test_tlstest_rotate(void)
     Fixture f;
 
     if (!fixtureBase(&f))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !fixtureBase(&f)"), stvNone);
 
     f.clientCfg = tlsconfigCreateClient();
     f.serverCfg = tlsconfigCreateServer(f.creds);
@@ -752,14 +752,14 @@ static int test_tlstest_rotate(void)
     // Built by hand so the test keeps a handle on the server filter to rotate through.
     TlsServerFilter* sf = tlsserverfilterCreate(f.serverCfg);
     if (!sf)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !sf"), stvNone);
 
     NetQueueConfig conf;
     netqueuePresetClient(&conf);
     conf.flags |= NQ_AutoAccept;
     f.t.q = netqueueCreate(&conf);
     if (!f.t.q)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !f.t.q"), stvNone);
 
     if (!ret) {
         netqueueSetHandlers(f.t.q, &testHandlers, &f.t);
@@ -772,32 +772,32 @@ static int test_tlstest_rotate(void)
         if (!f.listener || !netqueueAddSocket(f.t.q, f.listener) ||
             !netsocketAddFilter(f.listener, NetFilter(sf)) || !netsocketBind(f.listener, &la) ||
             !netsocketListen(f.listener, 4))
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("assertion failed: !f.listener || !netqueueAddSocket(f.t.q, f.listener) || !netsocketAddFilter(f.listener, NetFilter(sf)) || !netsocketBind(f.listener, &la) || !netsocketListen(f.listener, 4)"), stvNone);
         else
             f.port = boundPort(f.listener);
     }
 
     if (!ret && !fixtureConnect(&f, _S TLS_TEST_HOSTNAME))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !ret && !fixtureConnect(&f, _S TLS_TEST_HOSTNAME)"), stvNone);
     if (!ret)
         pumpUntil(f.t.q, f.t.client.secured && f.t.server.secured);
 
     // The first connection got the original identity.
     if (!f.t.client.haveInfo || strFind(f.t.client.info.peerSubject, 0, _S TLS_TEST_HOSTNAME) < 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !f.t.client.haveInfo || strFind(f.t.client.info.peerSubject, 0, _S TLS_TEST_HOSTNAME) < 0 (strFind(f.t.client.info.peerSubject, 0, _S TLS_TEST_HOSTNAME)=${int})"), stvar(int32, strFind(f.t.client.info.peerSubject, 0, _S TLS_TEST_HOSTNAME)));
 
     // Rotate to the alternate identity while that connection is live.
     TlsCreds* altCreds = tlscredsCreatePEM(f.pki.altCert, f.pki.altKey, NULL);
     TlsConfig* altCfg  = altCreds ? tlsconfigCreateServer(altCreds) : NULL;
     if (!altCfg)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !altCfg"), stvNone);
     else
         tlsserverfilterSetConfig(sf, altCfg);
 
     // The live connection is undisturbed: it still holds the old configuration, and still works.
     static const uint8 ping[] = "still-here";
     if (!ret && !netsocketSend(f.t.clientSock, (uint8*)ping, sizeof(ping) - 1, NULL, 0))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !ret && !netsocketSend(f.t.clientSock, (uint8*)ping, sizeof(ping) - 1, NULL, 0)"), stvNone);
     if (!ret)
         pumpUntil(f.t.q, f.t.server.got >= sizeof(ping) - 1);
 
@@ -817,14 +817,14 @@ static int test_tlstest_rotate(void)
                                       NULL,
                                       NULL);
         if (!t2.clientSock)
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("assertion failed: !t2.clientSock"), stvNone);
     }
 
     if (!ret)
         pumpUntil(t2.q, t2.client.secured > 0);
 
     if (!t2.client.haveInfo || strFind(t2.client.info.peerSubject, 0, _S TLS_TEST_ALT_HOSTNAME) < 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !t2.client.haveInfo || strFind(t2.client.info.peerSubject, 0, _S TLS_TEST_ALT_HOSTNAME) < 0 (strFind(t2.client.info.peerSubject, 0, _S TLS_TEST_ALT_HOSTNAME)=${int})"), stvar(int32, strFind(t2.client.info.peerSubject, 0, _S TLS_TEST_ALT_HOSTNAME)));
 
     ctxDestroy(&t2);
 
@@ -845,14 +845,14 @@ static int test_tlstest_shutdown(void)
     Fixture f;
 
     if (!fixtureBase(&f))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !fixtureBase(&f)"), stvNone);
 
     f.clientCfg = tlsconfigCreateClient();
     f.serverCfg = tlsconfigCreateServer(f.creds);
     tlsconfigSetCA(f.clientCfg, f.ca);
 
     if (!fixtureListen(&f) || !fixtureConnect(&f, _S TLS_TEST_HOSTNAME))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !fixtureListen(&f) || !fixtureConnect(&f, _S TLS_TEST_HOSTNAME)"), stvNone);
     if (!ret)
         pumpUntil(f.t.q, f.t.client.secured && f.t.server.secured);
 
@@ -868,9 +868,9 @@ static int test_tlstest_shutdown(void)
         pumpUntil(f.t.q, f.t.server.closed > 0);
 
     if (f.t.server.closed != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: f.t.server.closed != 1"), stvNone);
     if (f.t.server.closeReason == NCR_Error)
-        ret = 1;   // a clean close must not be reported as a failure
+        TEST_FAILV(ret, 1, _SL("assertion failed: f.t.server.closeReason == NCR_Error"), stvNone);   // a clean close must not be reported as a failure
 
     fixtureDestroy(&f);
     return ret;
@@ -884,7 +884,7 @@ static int test_tlstest_resume(void)
     Fixture f;
 
     if (!fixtureBase(&f))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !fixtureBase(&f)"), stvNone);
 
     f.clientCfg = tlsconfigCreateClient();
     f.serverCfg = tlsconfigCreateServer(f.creds);
@@ -892,10 +892,10 @@ static int test_tlstest_resume(void)
 
     if (!tlsconfigSetResumption(f.clientCfg, true, 0) ||
         !tlsconfigSetResumption(f.serverCfg, true, 0))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !tlsconfigSetResumption(f.clientCfg, true, 0) || !tlsconfigSetResumption(f.serverCfg, true, 0)"), stvNone);
 
     if (!ret && (!fixtureListen(&f) || !fixtureConnect(&f, _S TLS_TEST_HOSTNAME)))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !ret && (!fixtureListen(&f) || !fixtureConnect(&f, _S TLS_TEST_HOSTNAME))"), stvNone);
     if (!ret)
         pumpUntil(f.t.q, f.t.client.secured && f.t.server.secured);
 
@@ -911,7 +911,7 @@ static int test_tlstest_resume(void)
     t2.clientSock =
         nettlsConnect(f.t.q, _SL("127.0.0.1"), f.port, _S TLS_TEST_HOSTNAME, f.clientCfg, NULL, NULL);
     if (!t2.clientSock)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !t2.clientSock"), stvNone);
 
     if (!ret)
         pumpUntil(t2.q, t2.client.secured > 0);
@@ -920,11 +920,11 @@ static int test_tlstest_resume(void)
     // resumed -- so peerVerified being false on the second connection while it was true on the
     // first is the observable proof that the cached ticket was actually used.
     if (!t2.client.haveInfo || !t2.client.info.secured || t2.client.info.verifyFlags != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !t2.client.haveInfo || !t2.client.info.secured || t2.client.info.verifyFlags != 0"), stvNone);
     if (!f.t.client.haveInfo || !f.t.client.info.peerVerified)
-        ret = 1;   // the first connection did a full handshake and checked the certificate
+        TEST_FAILV(ret, 1, _SL("assertion failed: !f.t.client.haveInfo || !f.t.client.info.peerVerified"), stvNone);   // the first connection did a full handshake and checked the certificate
     if (t2.client.info.peerVerified)
-        ret = 1;   // the second did not, because it resumed
+        TEST_FAILV(ret, 1, _SL("assertion failed: t2.client.info.peerVerified"), stvNone);   // the second did not, because it resumed
 
     ctxDestroy(&t2);
 
@@ -942,26 +942,26 @@ static int test_tlstest_failclosed(void)
     Fixture f;
 
     if (!fixtureBase(&f))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !fixtureBase(&f)"), stvNone);
 
     f.clientCfg = tlsconfigCreateClient();   // TLSAUTH_Required by default, and no CA store
     f.serverCfg = tlsconfigCreateServer(f.creds);
 
     if (tlsconfigSeal(f.clientCfg))
-        ret = 1;   // sealing must refuse: verification is on with nothing to verify against
+        TEST_FAILV(ret, 1, _SL("assertion failed: tlsconfigSeal(f.clientCfg)"), stvNone);   // sealing must refuse: verification is on with nothing to verify against
 
     if (!ret && (!fixtureListen(&f) || !fixtureConnect(&f, _S TLS_TEST_HOSTNAME)))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !ret && (!fixtureListen(&f) || !fixtureConnect(&f, _S TLS_TEST_HOSTNAME))"), stvNone);
 
     if (!ret)
         pumpUntil(f.t.q, f.t.client.closed > 0);
 
     if (f.t.client.secured != 0 || f.t.client.closeReason != NCR_Error)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: f.t.client.secured != 0 || f.t.client.closeReason != NCR_Error"), stvNone);
 
     // Nothing may have reached the wire in the clear, and nothing may have been delivered.
     if (f.t.client.got != 0 || f.t.server.got != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: f.t.client.got != 0 || f.t.server.got != 0"), stvNone);
 
     fixtureDestroy(&f);
     return ret;
@@ -986,7 +986,7 @@ static int test_tlstest_tickets(void)
     static const char payload[] = "the response that must not be lost";
 
     if (!fixtureBase(&f))
-        return 1;
+        TEST_FAIL(1, _SL("assertion failed: !fixtureBase(&f)"), stvNone);
 
     f.clientCfg = tlsconfigCreateClient();
     f.serverCfg = tlsconfigCreateServer(f.creds);
@@ -997,19 +997,19 @@ static int test_tlstest_tickets(void)
     // resumption off -- it still receives and parses the tickets, which is all this needs.
     tlsconfigSetResumption(f.serverCfg, true, 0);
     if (!tlsconfigSeal(f.serverCfg))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !tlsconfigSeal(f.serverCfg)"), stvNone);
     else
         mbedtls_ssl_conf_new_session_tickets(tlsconfigMbedConf(f.serverCfg), 2);
 
     if (!ret && (!fixtureListen(&f) || !fixtureConnect(&f, _S TLS_TEST_HOSTNAME)))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !ret && (!fixtureListen(&f) || !fixtureConnect(&f, _S TLS_TEST_HOSTNAME))"), stvNone);
     if (!ret)
         pumpUntil(f.t.q, f.t.client.secured && f.t.server.secured);
 
     // Send and close in the same breath, so the tickets and the payload reach the client together
     // and the FIN is right behind them: no later wire read exists to rescue a stalled decode.
     if (!ret && !netsocketSend(f.t.serverSock, (uint8*)payload, sizeof(payload) - 1, NULL, 0))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: !ret && !netsocketSend(f.t.serverSock, (uint8*)payload, sizeof(payload) - 1, NULL, 0)"), stvNone);
     if (!ret) {
         netsocketClose(f.t.serverSock);
         objRelease(&f.t.serverSock);
@@ -1021,9 +1021,9 @@ static int test_tlstest_tickets(void)
 
     // The whole payload has to arrive, and it has to arrive intact.
     if (f.t.client.got != sizeof(payload) - 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: f.t.client.got != sizeof(payload) - 1"), stvNone);
     else if (memcmp(f.t.client.buf, payload, sizeof(payload) - 1) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("assertion failed: memcmp(f.t.client.buf, payload, sizeof(payload) - 1) != 0"), stvNone);
 
     fixtureDestroy(&f);
     return ret;

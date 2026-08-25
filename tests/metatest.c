@@ -25,7 +25,7 @@ static int test_meta_wrap()
         tvar2 += 28;
     }
     if (tvar1 != 34 || tvar2 != 7)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("tvar1=${int} != 34 || tvar2=${int} != 7"), stvar(int32, tvar1), stvar(int32, tvar2));
 
     tvar1 = tvar2 = 0;
     blkWrap(tvar1 = 17, tvar2 = tvar2 / 4)
@@ -36,7 +36,7 @@ static int test_meta_wrap()
         tvar2 += 28;
     }
     if (tvar1 == 34 || tvar2 == 7)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("tvar1=${int} == 34 || tvar2=${int} == 7"), stvar(int32, tvar1), stvar(int32, tvar2));
 
     // test 'continue' to break out
     tvar1 = tvar2 = 0;
@@ -49,7 +49,7 @@ static int test_meta_wrap()
         tvar2 += 28;
     }
     if (tvar1 != 34 || tvar2 != 7)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("continue: tvar1=${int} != 34 || tvar2=${int} != 7"), stvar(int32, tvar1), stvar(int32, tvar2));
 
     // test 'break' to break out
     tvar1 = tvar2 = 0;
@@ -62,7 +62,7 @@ static int test_meta_wrap()
         tvar2 += 28;
     }
     if (tvar1 != 34 || tvar2 != 7)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("break: tvar1=${int} != 34 || tvar2=${int} != 7"), stvar(int32, tvar1), stvar(int32, tvar2));
 
     // nested blocks
     tvar1 = tvar2 = 0;
@@ -83,7 +83,7 @@ static int test_meta_wrap()
         tvar2 += 28;
     }
     if (tvar1 != 10 || tvar2 != 18)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nested: tvar1=${int} != 10 || tvar2=${int} != 18"), stvar(int32, tvar1), stvar(int32, tvar2));
 
     // This compiles incorrectly on some older MSVC versions and results in an infinite loop
     // if return inhibit checking is enabled. Add this to the test suite to make sure we catch
@@ -92,13 +92,13 @@ static int test_meta_wrap()
     int switchvar = 2;
     switch (switchvar) {
     case 1:
-        return 1;
+        TEST_FAIL(1, _SL("unreachable switch case 1 hit (compiler bug), switchvar=${int}"), stvar(int32, switchvar));
     case 2:
         return ret;
     case 3:
-        return 1;
+        TEST_FAIL(1, _SL("unreachable switch case 3 hit (compiler bug), switchvar=${int}"), stvar(int32, switchvar));
     }
-    return 1;
+    TEST_FAIL(1, _SL("unreachable switch fallthrough (compiler bug), switchvar=${int}"), stvar(int32, switchvar));
 }
 
 static int test_meta_pblock_basic(string *pout)
@@ -112,7 +112,7 @@ PBLOCK_AFTER:
     }
 
     if (!strEq(*pout, _S"AB"))
-        return 1;
+        TEST_FAIL(1, _SL("*pout='${string}' != \"AB\""), stvar(strref, *pout));
 
     return 0;
 }
@@ -130,7 +130,7 @@ PBLOCK_AFTER:
     };
 
     if (!strEq(*pout, _S"AC"))
-        return 1;
+        TEST_FAIL(1, _SL("*pout='${string}' != \"AC\""), stvar(strref, *pout));
 
     return 0;
 }
@@ -193,56 +193,80 @@ static int test_meta_protect()
     ret |= test_meta_pblock_unwind(&out);
 
     test_meta_pblock_unwind_nested(&out, 0, -1);
-    if (!strEq(out, _S"A1B1C1D1E1F1G1G2G3F2F3E2E3D2D3C2C3B2B3A2A3")) ret = 1;
+    if (!strEq(out, _S"A1B1C1D1E1F1G1G2G3F2F3E2E3D2D3C2C3B2B3A2A3"))
+        TEST_FAILV(ret, 1, _SL("out='${string}' != \"A1B1C1D1E1F1G1G2G3F2F3E2E3D2D3C2C3B2B3A2A3\""), stvar(strref, out));
     test_meta_pblock_unwind_nested(&out, 1, -1);
-    if (!strEq(out, _S"A1B1C1D1E1F1G1G2G3F2F3E2E3D2D3C2C3B2B3A3")) ret = 1;
+    if (!strEq(out, _S"A1B1C1D1E1F1G1G2G3F2F3E2E3D2D3C2C3B2B3A3"))
+        TEST_FAILV(ret, 1, _SL("out='${string}' != \"A1B1C1D1E1F1G1G2G3F2F3E2E3D2D3C2C3B2B3A3\""), stvar(strref, out));
     test_meta_pblock_unwind_nested(&out, 2, -1);
-    if (!strEq(out, _S"A1B1C1D1E1F1G1G2G3F2F3E2E3D2D3C2C3B3A3")) ret = 1;
+    if (!strEq(out, _S"A1B1C1D1E1F1G1G2G3F2F3E2E3D2D3C2C3B3A3"))
+        TEST_FAILV(ret, 1, _SL("out='${string}' != \"A1B1C1D1E1F1G1G2G3F2F3E2E3D2D3C2C3B3A3\""), stvar(strref, out));
     test_meta_pblock_unwind_nested(&out, 3, -1);
-    if (!strEq(out, _S"A1B1C1D1E1F1G1G2G3F2F3E2E3D2D3C3B3A3")) ret = 1;
+    if (!strEq(out, _S"A1B1C1D1E1F1G1G2G3F2F3E2E3D2D3C3B3A3"))
+        TEST_FAILV(ret, 1, _SL("out='${string}' != \"A1B1C1D1E1F1G1G2G3F2F3E2E3D2D3C3B3A3\""), stvar(strref, out));
     test_meta_pblock_unwind_nested(&out, 4, -1);
-    if (!strEq(out, _S"A1B1C1D1E1F1G1G2G3F2F3E2E3D3C3B3A3")) ret = 1;
+    if (!strEq(out, _S"A1B1C1D1E1F1G1G2G3F2F3E2E3D3C3B3A3"))
+        TEST_FAILV(ret, 1, _SL("out='${string}' != \"A1B1C1D1E1F1G1G2G3F2F3E2E3D3C3B3A3\""), stvar(strref, out));
     test_meta_pblock_unwind_nested(&out, 5, -1);
-    if (!strEq(out, _S"A1B1C1D1E1F1G1G2G3F2F3E3D3C3B3A3")) ret = 1;
+    if (!strEq(out, _S"A1B1C1D1E1F1G1G2G3F2F3E3D3C3B3A3"))
+        TEST_FAILV(ret, 1, _SL("out='${string}' != \"A1B1C1D1E1F1G1G2G3F2F3E3D3C3B3A3\""), stvar(strref, out));
     test_meta_pblock_unwind_nested(&out, 6, -1);
-    if (!strEq(out, _S"A1B1C1D1E1F1G1G2G3F3E3D3C3B3A3")) ret = 1;
+    if (!strEq(out, _S"A1B1C1D1E1F1G1G2G3F3E3D3C3B3A3"))
+        TEST_FAILV(ret, 1, _SL("out='${string}' != \"A1B1C1D1E1F1G1G2G3F3E3D3C3B3A3\""), stvar(strref, out));
     test_meta_pblock_unwind_nested(&out, 7, -1);
-    if (!strEq(out, _S"A1B1C1D1E1F1G1G3F3E3D3C3B3A3")) ret = 1;
+    if (!strEq(out, _S"A1B1C1D1E1F1G1G3F3E3D3C3B3A3"))
+        TEST_FAILV(ret, 1, _SL("out='${string}' != \"A1B1C1D1E1F1G1G3F3E3D3C3B3A3\""), stvar(strref, out));
 
     test_meta_pblock_unwind_nested(&out, 0, 1);
-    if (!strEq(out, _S"A1B1C1D1E1F1G1G2G3F2F3E2E3D2D3C2C3B2B3A2A3")) ret = 1;
+    if (!strEq(out, _S"A1B1C1D1E1F1G1G2G3F2F3E2E3D2D3C2C3B2B3A2A3"))
+        TEST_FAILV(ret, 1, _SL("out='${string}' != \"A1B1C1D1E1F1G1G2G3F2F3E2E3D2D3C2C3B2B3A2A3\""), stvar(strref, out));
     test_meta_pblock_unwind_nested(&out, 1, 1);
-    if (!strEq(out, _S"A1B1C1D1E1F1G1G2G3F2F3E2E3D2D3C2C3B2B3A3")) ret = 1;
+    if (!strEq(out, _S"A1B1C1D1E1F1G1G2G3F2F3E2E3D2D3C2C3B2B3A3"))
+        TEST_FAILV(ret, 1, _SL("out='${string}' != \"A1B1C1D1E1F1G1G2G3F2F3E2E3D2D3C2C3B2B3A3\""), stvar(strref, out));
     test_meta_pblock_unwind_nested(&out, 2, 1);
-    if (!strEq(out, _S"A1B1C1D1E1F1G1G2G3F2F3E2E3D2D3C2C3B3A2A3")) ret = 1;
+    if (!strEq(out, _S"A1B1C1D1E1F1G1G2G3F2F3E2E3D2D3C2C3B3A2A3"))
+        TEST_FAILV(ret, 1, _SL("out='${string}' != \"A1B1C1D1E1F1G1G2G3F2F3E2E3D2D3C2C3B3A2A3\""), stvar(strref, out));
     test_meta_pblock_unwind_nested(&out, 3, 1);
-    if (!strEq(out, _S"A1B1C1D1E1F1G1G2G3F2F3E2E3D2D3C3B2B3A2A3")) ret = 1;
+    if (!strEq(out, _S"A1B1C1D1E1F1G1G2G3F2F3E2E3D2D3C3B2B3A2A3"))
+        TEST_FAILV(ret, 1, _SL("out='${string}' != \"A1B1C1D1E1F1G1G2G3F2F3E2E3D2D3C3B2B3A2A3\""), stvar(strref, out));
     test_meta_pblock_unwind_nested(&out, 4, 1);
-    if (!strEq(out, _S"A1B1C1D1E1F1G1G2G3F2F3E2E3D3C2C3B2B3A2A3")) ret = 1;
+    if (!strEq(out, _S"A1B1C1D1E1F1G1G2G3F2F3E2E3D3C2C3B2B3A2A3"))
+        TEST_FAILV(ret, 1, _SL("out='${string}' != \"A1B1C1D1E1F1G1G2G3F2F3E2E3D3C2C3B2B3A2A3\""), stvar(strref, out));
     test_meta_pblock_unwind_nested(&out, 5, 1);
-    if (!strEq(out, _S"A1B1C1D1E1F1G1G2G3F2F3E3D2D3C2C3B2B3A2A3")) ret = 1;
+    if (!strEq(out, _S"A1B1C1D1E1F1G1G2G3F2F3E3D2D3C2C3B2B3A2A3"))
+        TEST_FAILV(ret, 1, _SL("out='${string}' != \"A1B1C1D1E1F1G1G2G3F2F3E3D2D3C2C3B2B3A2A3\""), stvar(strref, out));
     test_meta_pblock_unwind_nested(&out, 6, 1);
-    if (!strEq(out, _S"A1B1C1D1E1F1G1G2G3F3E2E3D2D3C2C3B2B3A2A3")) ret = 1;
+    if (!strEq(out, _S"A1B1C1D1E1F1G1G2G3F3E2E3D2D3C2C3B2B3A2A3"))
+        TEST_FAILV(ret, 1, _SL("out='${string}' != \"A1B1C1D1E1F1G1G2G3F3E2E3D2D3C2C3B2B3A2A3\""), stvar(strref, out));
     test_meta_pblock_unwind_nested(&out, 7, 1);
-    if (!strEq(out, _S"A1B1C1D1E1F1G1G3F2F3E2E3D2D3C2C3B2B3A2A3")) ret = 1;
+    if (!strEq(out, _S"A1B1C1D1E1F1G1G3F2F3E2E3D2D3C2C3B2B3A2A3"))
+        TEST_FAILV(ret, 1, _SL("out='${string}' != \"A1B1C1D1E1F1G1G3F2F3E2E3D2D3C2C3B2B3A2A3\""), stvar(strref, out));
 
 
     test_meta_pblock_unwind_nested(&out, 0, 4);
-    if (!strEq(out, _S"A1B1C1D1E1F1G1G2G3F2F3E2E3D2D3C2C3B2B3A2A3")) ret = 1;
+    if (!strEq(out, _S"A1B1C1D1E1F1G1G2G3F2F3E2E3D2D3C2C3B2B3A2A3"))
+        TEST_FAILV(ret, 1, _SL("out='${string}' != \"A1B1C1D1E1F1G1G2G3F2F3E2E3D2D3C2C3B2B3A2A3\""), stvar(strref, out));
     test_meta_pblock_unwind_nested(&out, 1, 4);
-    if (!strEq(out, _S"A1B1C1D1E1F1G1G2G3F2F3E2E3D2D3C2C3B2B3A3")) ret = 1;
+    if (!strEq(out, _S"A1B1C1D1E1F1G1G2G3F2F3E2E3D2D3C2C3B2B3A3"))
+        TEST_FAILV(ret, 1, _SL("out='${string}' != \"A1B1C1D1E1F1G1G2G3F2F3E2E3D2D3C2C3B2B3A3\""), stvar(strref, out));
     test_meta_pblock_unwind_nested(&out, 2, 4);
-    if (!strEq(out, _S"A1B1C1D1E1F1G1G2G3F2F3E2E3D2D3C2C3B3A3")) ret = 1;
+    if (!strEq(out, _S"A1B1C1D1E1F1G1G2G3F2F3E2E3D2D3C2C3B3A3"))
+        TEST_FAILV(ret, 1, _SL("out='${string}' != \"A1B1C1D1E1F1G1G2G3F2F3E2E3D2D3C2C3B3A3\""), stvar(strref, out));
     test_meta_pblock_unwind_nested(&out, 3, 4);
-    if (!strEq(out, _S"A1B1C1D1E1F1G1G2G3F2F3E2E3D2D3C3B3A3")) ret = 1;
+    if (!strEq(out, _S"A1B1C1D1E1F1G1G2G3F2F3E2E3D2D3C3B3A3"))
+        TEST_FAILV(ret, 1, _SL("out='${string}' != \"A1B1C1D1E1F1G1G2G3F2F3E2E3D2D3C3B3A3\""), stvar(strref, out));
     test_meta_pblock_unwind_nested(&out, 4, 4);
-    if (!strEq(out, _S"A1B1C1D1E1F1G1G2G3F2F3E2E3D3C3B3A3")) ret = 1;
+    if (!strEq(out, _S"A1B1C1D1E1F1G1G2G3F2F3E2E3D3C3B3A3"))
+        TEST_FAILV(ret, 1, _SL("out='${string}' != \"A1B1C1D1E1F1G1G2G3F2F3E2E3D3C3B3A3\""), stvar(strref, out));
     test_meta_pblock_unwind_nested(&out, 5, 4);
-    if (!strEq(out, _S"A1B1C1D1E1F1G1G2G3F2F3E3D3C3B3A2A3")) ret = 1;
+    if (!strEq(out, _S"A1B1C1D1E1F1G1G2G3F2F3E3D3C3B3A2A3"))
+        TEST_FAILV(ret, 1, _SL("out='${string}' != \"A1B1C1D1E1F1G1G2G3F2F3E3D3C3B3A2A3\""), stvar(strref, out));
     test_meta_pblock_unwind_nested(&out, 6, 4);
-    if (!strEq(out, _S"A1B1C1D1E1F1G1G2G3F3E3D3C3B2B3A2A3")) ret = 1;
+    if (!strEq(out, _S"A1B1C1D1E1F1G1G2G3F3E3D3C3B2B3A2A3"))
+        TEST_FAILV(ret, 1, _SL("out='${string}' != \"A1B1C1D1E1F1G1G2G3F3E3D3C3B2B3A2A3\""), stvar(strref, out));
     test_meta_pblock_unwind_nested(&out, 7, 4);
-    if (!strEq(out, _S"A1B1C1D1E1F1G1G3F3E3D3C2C3B2B3A2A3")) ret = 1;
+    if (!strEq(out, _S"A1B1C1D1E1F1G1G3F3E3D3C2C3B2B3A2A3"))
+        TEST_FAILV(ret, 1, _SL("out='${string}' != \"A1B1C1D1E1F1G1G3F3E3D3C2C3B2B3A2A3\""), stvar(strref, out));
 
     strDestroy(&out);
     return ret;
@@ -269,7 +293,7 @@ static int test_meta_ptry()
     }
 
     if (var1 != 11 || var2 != 22 || var3 != 30)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("var1=${int}, var2=${int}, var3=${int}"), stvar(int32, var1), stvar(int32, var2), stvar(int32, var3));
 
     // test try/finally/catch blocks with an exception in the inner block
     var1 = var2 = var3 = 0;
@@ -289,7 +313,7 @@ static int test_meta_ptry()
     }
 
     if (var1 != 11 || var2 != 0 || var3 != 33)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("var1=${int}, var2=${int}, var3=${int}"), stvar(int32, var1), stvar(int32, var2), stvar(int32, var3));
 
     // test try/finally/catch blocks with an exception caught in the inner block
     var1 = var2 = var3 = 0;
@@ -310,7 +334,7 @@ static int test_meta_ptry()
     }
 
     if (var1 != 11 || var2 != 2 || var3 != 30)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("var1=${int}, var2=${int}, var3=${int}"), stvar(int32, var1), stvar(int32, var2), stvar(int32, var3));
 
     return ret;
 }
@@ -339,7 +363,7 @@ static int test_meta_ptry_rethrow()
     }
 
     if (var1 != 11 || var2 != 0 || var3 != 33)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("var1=${int}, var2=${int}, var3=${int}"), stvar(int32, var1), stvar(int32, var2), stvar(int32, var3));
 
     return ret;
 }
@@ -381,7 +405,7 @@ static int test_meta_ptry_unhandled()
     }
 
     if (var1 != 11 || var2 != 0 || var3 != 33 || unhandled)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("var1=${int}, var2=${int}, var3=${int}, unhandled=${int}"), stvar(int32, var1), stvar(int32, var2), stvar(int32, var3), stvar(int32, (int32)unhandled));
 
     var1 = var2 = var3 = 0;
     unhandled = false;
@@ -401,7 +425,7 @@ static int test_meta_ptry_unhandled()
     }
 
     if (var1 != 11 || var2 != 0 || var3 != 33 || !unhandled)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("var1=${int}, var2=${int}, var3=${int}, unhandled=${int}"), stvar(int32, var1), stvar(int32, var2), stvar(int32, var3), stvar(int32, (int32)unhandled));
 
     ptUnregisterUnhandled(test_meta_ptry_unhandled_handler);
 
@@ -483,25 +507,25 @@ static int test_meta_ptry_xfunc()
     // test basic recursion logic
     test_meta_ptry_xfunc_sub(&out, 0, 1, 1, 1, 0, 0, 0);
     if (!strEq(out, _S"A1B1C1D1D4C2C4B2B4A2A4"))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("out='${string}' != \"A1B1C1D1D4C2C4B2B4A2A4\""), stvar(strref, out));
 
     // throwing an exception from several levels deep in the call chain
     strClear(&out);
     test_meta_ptry_xfunc_sub(&out, 0, 2, 1, 1, 3, 1, 4);
     if (!strEq(out, _S"A1B1C1D1E1F1FeD3AcA3A4"))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("out='${string}' != \"A1B1C1D1E1F1FeD3AcA3A4\""), stvar(strref, out));
 
     // catching an exception at a lower level
     strClear(&out);
     test_meta_ptry_xfunc_sub(&out, 0, 2, 1, 3, 2, 1, 4);
     if (!strEq(out, _S"A1B1C1D1E1F1FeDcD3D4C2C3C4B2B4A2A3A4"))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("out='${string}' != \"A1B1C1D1E1F1FeDcD3D4C2C3C4B2B4A2A3A4\""), stvar(strref, out));
 
     // making sure execution terminates at the exception
     strClear(&out);
     test_meta_ptry_xfunc_sub(&out, 0, 2, 1, 4, 1, 4, 2);
     if (!strEq(out, _S"A1B1C1CeAcA3A4"))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("out='${string}' != \"A1B1C1CeAcA3A4\""), stvar(strref, out));
 
     // check unhandled exceptions in a function chain
     ptRegisterUnhandled(test_meta_ptry_unhandled_handler);
@@ -509,7 +533,7 @@ static int test_meta_ptry_xfunc()
     strClear(&out);
     test_meta_ptry_xfunc_sub(&out, 0, 3, 1, 3, 1, 4, 0);
     if (!strEq(out, _S"A1B1C1D1E1EeC3A3") || !unhandled)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("out='${string}' != \"A1B1C1D1E1EeC3A3\" or unhandled=${int} == 0"), stvar(strref, out), stvar(int32, (int32)unhandled));
     ptUnregisterUnhandled(test_meta_ptry_unhandled_handler);
 
     // throwing an exception in a catch block
@@ -517,7 +541,7 @@ static int test_meta_ptry_xfunc()
     strClear(&out);
     test_meta_ptry_xfunc_sub(&out, 0, 2, 1, 3, 5, 1, 4);
     if (!strEq(out, _S"A1B1C1D1E1F1FeDcDeC3AzA3A4"))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("out='${string}' != \"A1B1C1D1E1F1FeDcDeC3AzA3A4\""), stvar(strref, out));
 
     strDestroy(&out);
 

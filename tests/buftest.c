@@ -25,32 +25,32 @@ static int test_buffer_create()
     // Test basic creation
     Buffer buf = bufCreate(256);
     if (!buf || buf->sz != 256 || buf->len != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!buf || buf->sz=${int} != 256 || buf->len=${int} != 0"), stvar(int32, buf->sz), stvar(int32, buf->len));
 
     // Write some data
     memcpy(buf->data, testdata1, 50);
     buf->len = 50;
 
     if (buf->len != 50 || memcmp(buf->data, testdata1, 50))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("buf->len=${int} != 50 || memcmp(buf->data, testdata1, 50)"), stvar(int32, buf->len));
 
     bufDestroy(&buf);
     if (buf != NULL)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("buf != NULL"), stvNone);
 
     // Test try_create variant that should succeed
     buf = bufTryCreate(512);
     if (!buf)
-        return 1;
+        TEST_FAIL(1, _SL("!buf"), stvNone);
     if (buf->sz != 512 || buf->len != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("buf->sz=${int} != 512 || buf->len=${int} != 0"), stvar(int32, buf->sz), stvar(int32, buf->len));
 
     // Write and verify data
     memcpy(buf->data, testdata2, 100);
     buf->len = 100;
 
     if (memcmp(buf->data, testdata2, 100))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("memcmp(buf->data, testdata2, 100)"), stvNone);
 
     bufDestroy(&buf);
 
@@ -72,7 +72,7 @@ static int test_buffer_resize()
     Buffer buf = NULL;
     bufResize(&buf, 128);
     if (!buf || buf->sz != 128 || buf->len != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!buf || buf->sz=${int} != 128 || buf->len=${int} != 0"), stvar(int32, buf->sz), stvar(int32, buf->len));
 
     // Add some data
     memcpy(buf->data, testdata1, 80);
@@ -81,24 +81,24 @@ static int test_buffer_resize()
     // Resize larger - data should be preserved
     bufResize(&buf, 256);
     if (!buf || buf->sz != 256 || buf->len != 80)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!buf || buf->sz=${int} != 256 || buf->len=${int} != 80"), stvar(int32, buf->sz), stvar(int32, buf->len));
 
     if (memcmp(buf->data, testdata1, 80))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("memcmp(buf->data, testdata1, 80)"), stvNone);
 
     // Resize smaller - length should be truncated
     bufResize(&buf, 50);
     if (!buf || buf->sz != 50 || buf->len != 50)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!buf || buf->sz=${int} != 50 || buf->len=${int} != 50"), stvar(int32, buf->sz), stvar(int32, buf->len));
 
     if (memcmp(buf->data, testdata1, 50))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("memcmp(buf->data, testdata1, 50)"), stvNone);
 
     // Resize to same size - should be no-op
     Buffer oldBuf = buf;
     bufResize(&buf, 50);
     if (buf != oldBuf)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("buf != oldBuf"), stvNone);
 
     bufDestroy(&buf);
 
@@ -106,9 +106,9 @@ static int test_buffer_resize()
     buf          = NULL;
     bool success = bufTryResize(&buf, 128);
     if (!buf)
-        return 1;
+        TEST_FAIL(1, _SL("!buf"), stvNone);
     if (!success || buf->sz != 128)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!success || buf->sz=${int} != 128"), stvar(int32, buf->sz));
 
     // Add data
     memcpy(buf->data, testdata1, 100);
@@ -117,20 +117,20 @@ static int test_buffer_resize()
     // Resize larger
     success = bufTryResize(&buf, 512);
     if (!success || !buf || buf->sz != 512 || buf->len != 100)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!success || !buf || buf->sz=${int} != 512 || buf->len=${int} != 100"), stvar(int32, buf->sz), stvar(int32, buf->len));
 
     if (memcmp(buf->data, testdata1, 100))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("memcmp(buf->data, testdata1, 100)"), stvNone);
 
     // Resize smaller with truncation
     success = bufTryResize(&buf, 60);
     if (!success || !buf || buf->sz != 60 || buf->len != 60)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!success || !buf || buf->sz=${int} != 60 || buf->len=${int} != 60"), stvar(int32, buf->sz), stvar(int32, buf->len));
 
     // Resize to same size
     success = bufTryResize(&buf, 60);
     if (!success)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!success"), stvNone);
 
     bufDestroy(&buf);
     return ret;
@@ -151,21 +151,21 @@ static int test_bufchain_basic()
     bufchainWrite(&chain, testdata1, 20);
 
     if (chain.total != 20)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("chain.total=${int} != 20"), stvar(int32, chain.total));
     
     // Read it back
     size_t nread = bufchainRead(&chain, readbuf, 20);
     if (nread != 20 || memcmp(readbuf, testdata1, 20))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nread=${int} != 20 || memcmp(readbuf, testdata1, 20)"), stvar(int32, nread));
     
     if (chain.total != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("chain.total=${int} != 0"), stvar(int32, chain.total));
 
     // Write across segment boundary (64 bytes)
     bufchainWrite(&chain, testdata1, 80);
     nread = bufchainRead(&chain, readbuf, 80);
     if (nread != 80 || memcmp(readbuf, testdata1, 80))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nread=${int} != 80 || memcmp(readbuf, testdata1, 80)"), stvar(int32, nread));
     
     // Write more than one segment, read in parts
     bufchainWrite(&chain, testdata1, TESTDATA_LEN);
@@ -173,25 +173,25 @@ static int test_bufchain_basic()
 
     nread = bufchainRead(&chain, readbuf, 50);
     if (nread != 50 || memcmp(readbuf, testdata1, 50))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nread=${int} != 50 || memcmp(readbuf, testdata1, 50)"), stvar(int32, nread));
 
     nread = bufchainRead(&chain, readbuf + 50, 60);
     if (nread != 60 || memcmp(readbuf + 50, testdata1 + 50, 60))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nread=${int} != 60 || memcmp(readbuf + 50, testdata1 + 50, 60)"), stvar(int32, nread));
     
     // Read across the boundary between testdata1 and testdata2
     size_t remaining1 = TESTDATA_LEN - 110;
     size_t remaining_total = remaining1 + TESTDATA2_LEN;
     nread                  = bufchainRead(&chain, readbuf + 110, remaining_total);
     if (nread != remaining_total)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nread=${int} != remaining_total=${int}"), stvar(int32, nread), stvar(int32, remaining_total));
     
     if (memcmp(readbuf + 110, testdata1 + 110, remaining1) ||
         memcmp(readbuf + 110 + remaining1, testdata2, TESTDATA2_LEN))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("memcmp mismatch: readbuf vs testdata1/testdata2 tail"), stvNone);
     
     if (chain.total != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("chain.total=${int} != 0"), stvar(int32, chain.total));
 
     bufchainDestroy(&chain);
     return ret;
@@ -213,41 +213,41 @@ static int test_bufchain_peek()
     // Peek at beginning
     size_t nread = bufchainPeek(&chain, readbuf, 0, 20);
     if (nread != 20 || memcmp(readbuf, testdata1, 20))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nread=${int} != 20 || memcmp(readbuf, testdata1, 20)"), stvar(int32, nread));
     
     // Data should still be there
     if (chain.total != total)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("chain.total=${int} != total=${int}"), stvar(int32, chain.total), stvar(int32, total));
     
     // Peek at offset
     nread = bufchainPeek(&chain, readbuf, 10, 30);
     if (nread != 30 || memcmp(readbuf, testdata1 + 10, 30))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nread=${int} != 30 || memcmp(readbuf, testdata1 + 10, 30)"), stvar(int32, nread));
     
     // Peek across segment boundary (64-byte segments)
     nread = bufchainPeek(&chain, readbuf, 50, 60);
     if (nread != 60 || memcmp(readbuf, testdata1 + 50, 60))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nread=${int} != 60 || memcmp(readbuf, testdata1 + 50, 60)"), stvar(int32, nread));
     
     // Peek near end
     nread = bufchainPeek(&chain, readbuf, total - 20, 20);
     if (nread != 20 || memcmp(readbuf, testdata2 + 50 - 20, 20))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nread=${int} != 20 || memcmp(readbuf, testdata2 + 50 - 20, 20)"), stvar(int32, nread));
     
     // Peek past end
     nread = bufchainPeek(&chain, readbuf, total - 5, 20);
     if (nread != 5 || memcmp(readbuf, testdata2 + 50 - 5, 5))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nread=${int} != 5 || memcmp(readbuf, testdata2 + 50 - 5, 5)"), stvar(int32, nread));
     
     // Now actually read some data
     nread = bufchainRead(&chain, readbuf, 30);
     if (nread != 30 || memcmp(readbuf, testdata1, 30))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nread=${int} != 30 || memcmp(readbuf, testdata1, 30)"), stvar(int32, nread));
     
     // Peek at what's left
     nread = bufchainPeek(&chain, readbuf, 0, 40);
     if (nread != 40 || memcmp(readbuf, testdata1 + 30, 40))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nread=${int} != 40 || memcmp(readbuf, testdata1 + 30, 40)"), stvar(int32, nread));
 
     bufchainDestroy(&chain);
     return ret;
@@ -269,29 +269,29 @@ static int test_bufchain_skip()
     size_t nskipped = bufchainSkip(&chain, 30);
     size_t total = TESTDATA_LEN + 50;
     if (nskipped != 30 || chain.total != (total - 30))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nskipped=${int} != 30 || chain.total != (total - 30)"), stvar(int32, nskipped));
     
     // Read what's left from testdata1
     size_t nread = bufchainRead(&chain, readbuf, 40);
     if (nread != 40 || memcmp(readbuf, testdata1 + 30, 40))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nread=${int} != 40 || memcmp(readbuf, testdata1 + 30, 40)"), stvar(int32, nread));
     
     // Skip across segment boundary (64 bytes)
     nskipped = bufchainSkip(&chain, 70);
     if (nskipped != 70)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nskipped=${int} != 70"), stvar(int32, nskipped));
     
     // Read remainder (should be from testdata2)
     nread           = bufchainRead(&chain, readbuf, 100);
     size_t expected = total - 30 - 40 - 70;
     if (nread != expected || memcmp(readbuf, testdata2 + (50 - expected), expected))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nread=${int} != expected=${int} || memcmp(readbuf, testdata2 + (50 - expected), expected)"), stvar(int32, nread), stvar(int32, expected));
     
     // Skip more than available
     bufchainWrite(&chain, testdata1, 20);
     nskipped = bufchainSkip(&chain, 100);
     if (nskipped != 20 || chain.total != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nskipped=${int} != 20 || chain.total=${int} != 0"), stvar(int32, nskipped), stvar(int32, chain.total));
 
     bufchainDestroy(&chain);
     return ret;
@@ -343,15 +343,15 @@ static int test_bufchain_zerocopy_read()
 
     // Data should be consumed
     if (chain.total != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("chain.total=${int} != 0"), stvar(int32, chain.total));
 
     // Verify we got multiple segments
     if (ctx.segcount < 2)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("ctx.segcount < 2"), stvNone);
 
     // Verify the data
     if (memcmp(ctx.out, testdata1, TESTDATA_LEN) || memcmp(ctx.out + TESTDATA_LEN, testdata2, 50))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("memcmp(ctx.out, testdata1, TESTDATA_LEN) || memcmp(ctx.out + TESTDATA_LEN, testdata2, 50)"), stvNone);
 
     // Test with partial read (partial read from head segment)
     bufchainWrite(&chain, testdata1, TESTDATA_LEN);
@@ -363,11 +363,11 @@ static int test_bufchain_zerocopy_read()
     bufchainReadZC(&chain, 200, bufchainZCReadCallback, &ctx);
 
     if (chain.total != 0 || ctx.segcount < 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("chain.total=${int} != 0 || ctx.segcount < 1"), stvar(int32, chain.total));
 
     // Verify complete data
     if (memcmp(ctx.out, testdata1, TESTDATA_LEN))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("memcmp(ctx.out, testdata1, TESTDATA_LEN)"), stvNone);
 
     xaFree(ctx.out);
     bufchainDestroy(&chain);
@@ -397,18 +397,18 @@ static int test_bufchain_zerocopy_write()
 
     // Buffers should be NULL now (ownership transferred)
     if (buf1 != NULL || buf2 != NULL)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("buf1 != NULL || buf2 != NULL"), stvNone);
 
     if (chain.total != 130)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("chain.total=${int} != 130"), stvar(int32, chain.total));
 
     // Read back and verify
     size_t nread = bufchainRead(&chain, readbuf, 130);
     if (nread != 130 || memcmp(readbuf, testdata1, 70) || memcmp(readbuf + 70, testdata2, 60))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nread=${int} != 130 || memcmp(readbuf, testdata1, 70) || memcmp(readbuf + 70, testdata2, 60)"), stvar(int32, nread));
 
     if (chain.total != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("chain.total=${int} != 0"), stvar(int32, chain.total));
 
     // Test partial buffer (len < size)
     Buffer buf3 = bufCreate(100);
@@ -417,11 +417,11 @@ static int test_bufchain_zerocopy_write()
     bufchainWriteZC(&chain, &buf3);
 
     if (chain.total != 55)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("chain.total=${int} != 55"), stvar(int32, chain.total));
 
     nread = bufchainRead(&chain, readbuf, 55);
     if (nread != 55 || memcmp(readbuf, testdata2, 55))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nread=${int} != 55 || memcmp(readbuf, testdata2, 55)"), stvar(int32, nread));
 
     bufchainDestroy(&chain);
     return ret;
@@ -448,30 +448,30 @@ static int test_bufchain_multisegment()
     for (BufChainNode* node = chain.head; node; node = node->next) nodecount++;
 
     if (nodecount < 3)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nodecount < 3"), stvNone);
 
     // Read across multiple segments
     size_t nread = bufchainRead(&chain, readbuf, 100);
     if (nread != 100 || memcmp(readbuf, testdata1, 100))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nread=${int} != 100 || memcmp(readbuf, testdata1, 100)"), stvar(int32, nread));
 
     // Read more across segments (should span into testdata2)
     nread = bufchainRead(&chain, readbuf + 100, 80);
     if (nread != 80)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nread=${int} != 80"), stvar(int32, nread));
 
     size_t from_td1 = TESTDATA_LEN - 100;
     if (memcmp(readbuf + 100, testdata1 + 100, from_td1) ||
         memcmp(readbuf + 100 + from_td1, testdata2, 80 - from_td1))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("memcmp mismatch: readbuf vs testdata1/testdata2 tail"), stvNone);
 
     // Read rest
     nread = bufchainRead(&chain, readbuf + 180, 500);
     if (nread != (total_written - 180))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nread != (total_written - 180)"), stvNone);
 
     if (chain.total != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("chain.total=${int} != 0"), stvar(int32, chain.total));
 
     bufchainDestroy(&chain);
     return ret;
@@ -492,21 +492,21 @@ static int test_bufring_basic()
     bufringWrite(&ring, testdata1, 20);
 
     if (ring.total != 20)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("ring.total=${int} != 20"), stvar(int32, ring.total));
 
     // Read it back
     size_t nread = bufringRead(&ring, readbuf, 20);
     if (nread != 20 || memcmp(readbuf, testdata1, 20))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nread=${int} != 20 || memcmp(readbuf, testdata1, 20)"), stvar(int32, nread));
 
     if (ring.total != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("ring.total=${int} != 0"), stvar(int32, ring.total));
 
     // Write and read across segment boundary (64 bytes)
     bufringWrite(&ring, testdata1, 80);
     nread = bufringRead(&ring, readbuf, 80);
     if (nread != 80 || memcmp(readbuf, testdata1, 80))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nread=${int} != 80 || memcmp(readbuf, testdata1, 80)"), stvar(int32, nread));
 
     // Write more than one segment, read in parts
     bufringWrite(&ring, testdata1, TESTDATA_LEN);
@@ -514,25 +514,25 @@ static int test_bufring_basic()
 
     nread = bufringRead(&ring, readbuf, 50);
     if (nread != 50 || memcmp(readbuf, testdata1, 50))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nread=${int} != 50 || memcmp(readbuf, testdata1, 50)"), stvar(int32, nread));
 
     nread = bufringRead(&ring, readbuf + 50, 60);
     if (nread != 60 || memcmp(readbuf + 50, testdata1 + 50, 60))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nread=${int} != 60 || memcmp(readbuf + 50, testdata1 + 50, 60)"), stvar(int32, nread));
 
     // Read across the boundary between testdata1 and testdata2
     size_t remaining1      = TESTDATA_LEN - 110;
     size_t remaining_total = remaining1 + TESTDATA2_LEN;
     nread                  = bufringRead(&ring, readbuf + 110, remaining_total);
     if (nread != remaining_total)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nread=${int} != remaining_total=${int}"), stvar(int32, nread), stvar(int32, remaining_total));
 
     if (memcmp(readbuf + 110, testdata1 + 110, remaining1) ||
         memcmp(readbuf + 110 + remaining1, testdata2, TESTDATA2_LEN))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("memcmp mismatch: readbuf vs testdata1/testdata2 tail"), stvNone);
 
     if (ring.total != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("ring.total=${int} != 0"), stvar(int32, ring.total));
 
     bufringDestroy(&ring);
     return ret;
@@ -554,41 +554,41 @@ static int test_bufring_peek()
     // Peek at beginning
     size_t nread = bufringPeek(&ring, readbuf, 0, 20);
     if (nread != 20 || memcmp(readbuf, testdata1, 20))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nread=${int} != 20 || memcmp(readbuf, testdata1, 20)"), stvar(int32, nread));
 
     // Data should still be there
     if (ring.total != total)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("ring.total=${int} != total=${int}"), stvar(int32, ring.total), stvar(int32, total));
 
     // Peek at offset
     nread = bufringPeek(&ring, readbuf, 10, 30);
     if (nread != 30 || memcmp(readbuf, testdata1 + 10, 30))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nread=${int} != 30 || memcmp(readbuf, testdata1 + 10, 30)"), stvar(int32, nread));
 
     // Peek across segment boundary (64-byte segments)
     nread = bufringPeek(&ring, readbuf, 50, 60);
     if (nread != 60 || memcmp(readbuf, testdata1 + 50, 60))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nread=${int} != 60 || memcmp(readbuf, testdata1 + 50, 60)"), stvar(int32, nread));
 
     // Peek near end
     nread = bufringPeek(&ring, readbuf, total - 20, 20);
     if (nread != 20 || memcmp(readbuf, testdata2 + 50 - 20, 20))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nread=${int} != 20 || memcmp(readbuf, testdata2 + 50 - 20, 20)"), stvar(int32, nread));
 
     // Peek past end
     nread = bufringPeek(&ring, readbuf, total - 5, 20);
     if (nread != 5 || memcmp(readbuf, testdata2 + 50 - 5, 5))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nread=${int} != 5 || memcmp(readbuf, testdata2 + 50 - 5, 5)"), stvar(int32, nread));
 
     // Now actually read some data
     nread = bufringRead(&ring, readbuf, 30);
     if (nread != 30 || memcmp(readbuf, testdata1, 30))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nread=${int} != 30 || memcmp(readbuf, testdata1, 30)"), stvar(int32, nread));
 
     // Peek at what's left
     nread = bufringPeek(&ring, readbuf, 0, 40);
     if (nread != 40 || memcmp(readbuf, testdata1 + 30, 40))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nread=${int} != 40 || memcmp(readbuf, testdata1 + 30, 40)"), stvar(int32, nread));
 
     bufringDestroy(&ring);
     return ret;
@@ -610,29 +610,29 @@ static int test_bufring_skip()
     size_t nskipped = bufringSkip(&ring, 30);
     size_t total    = TESTDATA_LEN + 50;
     if (nskipped != 30 || ring.total != (total - 30))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nskipped=${int} != 30 || ring.total != (total - 30)"), stvar(int32, nskipped));
 
     // Read what's left from testdata1
     size_t nread = bufringRead(&ring, readbuf, 40);
     if (nread != 40 || memcmp(readbuf, testdata1 + 30, 40))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nread=${int} != 40 || memcmp(readbuf, testdata1 + 30, 40)"), stvar(int32, nread));
 
     // Skip across segment boundary (64 bytes)
     nskipped = bufringSkip(&ring, 70);
     if (nskipped != 70)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nskipped=${int} != 70"), stvar(int32, nskipped));
 
     // Read remainder (should be from testdata2)
     nread           = bufringRead(&ring, readbuf, 100);
     size_t expected = total - 30 - 40 - 70;
     if (nread != expected || memcmp(readbuf, testdata2 + (50 - expected), expected))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nread=${int} != expected=${int} || memcmp(readbuf, testdata2 + (50 - expected), expected)"), stvar(int32, nread), stvar(int32, expected));
 
     // Skip more than available
     bufringWrite(&ring, testdata1, 20);
     nskipped = bufringSkip(&ring, 100);
     if (nskipped != 20 || ring.total != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nskipped=${int} != 20 || ring.total=${int} != 0"), stvar(int32, nskipped), stvar(int32, ring.total));
 
     bufringDestroy(&ring);
     return ret;
@@ -678,11 +678,11 @@ static int test_bufring_zerocopy_read()
     ctx.shouldConsume = true;
     size_t nread      = bufringReadZC(&ring, 80, bufringZCReadCallback, &ctx);
     if (nread != 80 || ctx.outp != 80 || memcmp(ctx.out, testdata1, 80))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nread=${int} != 80 || ctx.outp=${int} != 80 || memcmp(ctx.out, testdata1, 80)"), stvar(int32, nread), stvar(int32, ctx.outp));
     
     // Data should be consumed
     if (ring.total != (total - 80))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("ring.total != (total - 80)"), stvNone);
     
     // Zero-copy read without consumption
     ctx.outp = 0;
@@ -690,29 +690,29 @@ static int test_bufring_zerocopy_read()
     size_t remaining  = ring.total;
     nread             = bufringReadZC(&ring, 50, bufringZCReadCallback, &ctx);
     if (nread != 50 || ctx.outp != 50)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nread=${int} != 50 || ctx.outp=${int} != 50"), stvar(int32, nread), stvar(int32, ctx.outp));
     
     // Check data: 47 bytes from testdata1[80..126], then 3 bytes from testdata2
     if (memcmp(ctx.out, testdata1 + 80, TESTDATA_LEN - 80) ||
         memcmp(ctx.out + (TESTDATA_LEN - 80), testdata2, 50 - (TESTDATA_LEN - 80)))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("memcmp mismatch: ctx.out vs testdata1/testdata2 tail"), stvNone);
     
     // Data should NOT be consumed
     if (ring.total != remaining)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("ring.total != remaining"), stvNone);
     
     // Now consume it
     ctx.outp = 0;
     ctx.shouldConsume = true;
     nread             = bufringReadZC(&ring, remaining, bufringZCReadCallback, &ctx);
     if (nread != remaining || ring.total != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nread != remaining || ring.total=${int} != 0"), stvar(int32, ring.total));
     
     // Check the data spans from testdata1 to testdata2
     size_t from_td1 = TESTDATA_LEN - 80;
     if (memcmp(ctx.out, testdata1 + 80, from_td1) ||
         memcmp(ctx.out + from_td1, testdata2, 50))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("memcmp mismatch: ctx.out vs testdata1/testdata2 tail"), stvNone);
     
     xaFree(ctx.out);
     bufringDestroy(&ring);
@@ -742,18 +742,18 @@ static int test_bufring_zerocopy_write()
 
     // Buffers should be NULL now (ownership transferred)
     if (buf1 != NULL || buf2 != NULL)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("buf1 != NULL || buf2 != NULL"), stvNone);
 
     if (ring.total != 130)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("ring.total=${int} != 130"), stvar(int32, ring.total));
     
     // Read back and verify
     size_t nread = bufringRead(&ring, readbuf, 130);
     if (nread != 130 || memcmp(readbuf, testdata1, 70) || memcmp(readbuf + 70, testdata2, 60))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nread=${int} != 130 || memcmp(readbuf, testdata1, 70) || memcmp(readbuf + 70, testdata2, 60)"), stvar(int32, nread));
 
     if (ring.total != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("ring.total=${int} != 0"), stvar(int32, ring.total));
 
     // Test partial buffer (len < size)
     Buffer buf3 = bufCreate(100);
@@ -762,11 +762,11 @@ static int test_bufring_zerocopy_write()
     bufringWriteZC(&ring, &buf3);
 
     if (ring.total != 55)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("ring.total=${int} != 55"), stvar(int32, ring.total));
 
     nread = bufringRead(&ring, readbuf, 55);
     if (nread != 55 || memcmp(readbuf, testdata2, 55))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nread=${int} != 55 || memcmp(readbuf, testdata2, 55)"), stvar(int32, nread));
 
     bufringDestroy(&ring);
     return ret;
@@ -785,7 +785,7 @@ static int test_bufring_wraparound()
     bufringWrite(&ring, testdata1, 50);
     size_t nread = bufringRead(&ring, readbuf, 35);
     if (nread != 35 || memcmp(readbuf, testdata1, 35))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nread=${int} != 35 || memcmp(readbuf, testdata1, 35)"), stvar(int32, nread));
     
     // This should wraparound in the ring buffer
     bufringWrite(&ring, testdata1 + 50, 55);
@@ -793,11 +793,11 @@ static int test_bufring_wraparound()
     // Read back and verify
     nread = bufringRead(&ring, readbuf, 70);
     if (nread != 70)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nread=${int} != 70"), stvar(int32, nread));
     
     // First 15 bytes from first write, then 55 from second write
     if (memcmp(readbuf, testdata1 + 35, 15) || memcmp(readbuf + 15, testdata1 + 50, 55))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("memcmp(readbuf, testdata1 + 35, 15) || memcmp(readbuf + 15, testdata1 + 50, 55)"), stvNone);
 
     bufringDestroy(&ring);
     return ret;
@@ -824,30 +824,30 @@ static int test_bufring_multisegment()
     for (BufRingNode* node = ring.head; node; node = node->next) nodecount++;
 
     if (nodecount < 3)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nodecount < 3"), stvNone);
     
     // Read across multiple segments
     size_t nread = bufringRead(&ring, readbuf, 100);
     if (nread != 100 || memcmp(readbuf, testdata1, 100))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nread=${int} != 100 || memcmp(readbuf, testdata1, 100)"), stvar(int32, nread));
     
     // Read more across segments (should span into testdata2)
     nread = bufringRead(&ring, readbuf + 100, 80);
     if (nread != 80)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nread=${int} != 80"), stvar(int32, nread));
     
     size_t from_td1 = TESTDATA_LEN - 100;
     if (memcmp(readbuf + 100, testdata1 + 100, from_td1) ||
         memcmp(readbuf + 100 + from_td1, testdata2, 80 - from_td1))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("memcmp mismatch: readbuf vs testdata1/testdata2 tail"), stvNone);
     
     // Read rest
     nread = bufringRead(&ring, readbuf + 180, 500);
     if (nread != (total_written - 180))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nread != (total_written - 180)"), stvNone);
 
     if (ring.total != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("ring.total=${int} != 0"), stvar(int32, ring.total));
 
     bufringDestroy(&ring);
     return ret;
@@ -868,56 +868,56 @@ static int test_bufring_reserve()
     // Basic reserve on an empty ring
     bufringReserve(&ring, 64, &ptr, &len);
     if (!ptr || len < 64)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!ptr || len < 64"), stvNone);
 
     // Nothing is visible until it's committed
     if (ring.total != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("ring.total=${int} != 0"), stvar(int32, ring.total));
 
     memcpy(ptr, testdata1, 64);
     bufringCommit(&ring, 64);
 
     if (ring.total != 64)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("ring.total=${int} != 64"), stvar(int32, ring.total));
 
     if (bufringRead(&ring, readbuf, 64) != 64 || memcmp(readbuf, testdata1, 64))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("bufringRead(&ring, readbuf, 64) != 64 || memcmp(readbuf, testdata1, 64)"), stvNone);
 
     // Short commit: reserve a lot, commit a little. The uncommitted remainder must go back to
     // being free space, not be lost or leak into the readable total.
     bufringReserve(&ring, 100, &ptr, &len);
     if (!ptr || len < 100)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!ptr || len < 100"), stvNone);
     memcpy(ptr, testdata2, 10);
     bufringCommit(&ring, 10);
 
     if (ring.total != 10)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("ring.total=${int} != 10"), stvar(int32, ring.total));
     if (bufringRead(&ring, readbuf, 10) != 10 || memcmp(readbuf, testdata2, 10))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("bufringRead(&ring, readbuf, 10) != 10 || memcmp(readbuf, testdata2, 10)"), stvNone);
 
     // Zero commit releases the reservation without adding data
     bufringReserve(&ring, 32, &ptr, &len);
     bufringCommit(&ring, 0);
     if (ring.total != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("ring.total=${int} != 0"), stvar(int32, ring.total));
 
     // A reservation larger than the segment size must still be contiguous
     bufringReserve(&ring, 500, &ptr, &len);
     if (!ptr || len < 500)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!ptr || len < 500"), stvNone);
     for (size_t i = 0; i < 500; ++i)
         ptr[i] = (uint8)(i & 0xff);
     bufringCommit(&ring, 500);
     if (ring.total != 500)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("ring.total=${int} != 500"), stvar(int32, ring.total));
 
     uint8 bigbuf[512];
     if (bufringRead(&ring, bigbuf, 500) != 500)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("bufringRead(&ring, bigbuf, 500) != 500"), stvNone);
     for (size_t i = 0; i < 500; ++i) {
         if (bigbuf[i] != (uint8)(i & 0xff))
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("bigbuf[i] != (uint8)(i & 0xff)"), stvNone);
     }
 
     bufringDestroy(&ring);
@@ -942,26 +942,26 @@ static int test_bufring_reserve_across_read()
 
     bufringReserve(&ring, 32, &ptr, &len);
     if (!ptr || len < 32)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!ptr || len < 32"), stvNone);
 
     uint8* saved = ptr;
     memcpy(ptr, testdata2, 32);
 
     // Drain everything that was already in the ring
     if (bufringRead(&ring, readbuf, 50) != 50 || memcmp(readbuf, testdata1, 50))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("bufringRead(&ring, readbuf, 50) != 50 || memcmp(readbuf, testdata1, 50)"), stvNone);
     if (ring.total != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("ring.total=${int} != 0"), stvar(int32, ring.total));
 
     // The reservation must not have moved and its contents must be intact
     if (ptr != saved || memcmp(ptr, testdata2, 32))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("ptr != saved || memcmp(ptr, testdata2, 32)"), stvNone);
 
     bufringCommit(&ring, 32);
     if (ring.total != 32)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("ring.total=${int} != 32"), stvar(int32, ring.total));
     if (bufringRead(&ring, readbuf, 32) != 32 || memcmp(readbuf, testdata2, 32))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("bufringRead(&ring, readbuf, 32) != 32 || memcmp(readbuf, testdata2, 32)"), stvNone);
 
     // Same thing again, but drain with skip rather than read
     bufringWrite(&ring, testdata1, 40);
@@ -969,12 +969,12 @@ static int test_bufring_reserve_across_read()
     saved = ptr;
     memcpy(ptr, testdata2 + 5, 16);
     if (bufringSkip(&ring, 40) != 40)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("bufringSkip(&ring, 40) != 40"), stvNone);
     if (ptr != saved || memcmp(ptr, testdata2 + 5, 16))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("ptr != saved || memcmp(ptr, testdata2 + 5, 16)"), stvNone);
     bufringCommit(&ring, 16);
     if (bufringRead(&ring, readbuf, 16) != 16 || memcmp(readbuf, testdata2 + 5, 16))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("bufringRead(&ring, readbuf, 16) != 16 || memcmp(readbuf, testdata2 + 5, 16)"), stvNone);
 
     // Interleave reserve/commit with ordinary writes to make sure the ring stays consistent
     for (int i = 0; i < 20; ++i) {
@@ -984,13 +984,13 @@ static int test_bufring_reserve_across_read()
         bufringCommit(&ring, 17);
 
         if (bufringRead(&ring, readbuf, 50) != 50)
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("bufringRead(&ring, readbuf, 50) != 50"), stvNone);
         if (memcmp(readbuf, testdata1, 33) || memcmp(readbuf + 33, testdata2, 17))
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("memcmp(readbuf, testdata1, 33) || memcmp(readbuf + 33, testdata2, 17)"), stvNone);
     }
 
     if (ring.total != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("ring.total=${int} != 0"), stvar(int32, ring.total));
 
     bufringDestroy(&ring);
     return ret;
@@ -1010,14 +1010,14 @@ static int test_bufchain_gather_iov()
 
     // Empty chain gathers nothing
     if (bufchainGatherIov(&chain, iov, 8, &niov) != 0 || niov != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("bufchainGatherIov(&chain, iov, 8, &niov) != 0 || niov=${int} != 0"), stvar(int32, niov));
 
     // Write enough to span several segments
     bufchainWrite(&chain, testdata1, 130);
 
     size_t total = bufchainGatherIov(&chain, iov, 8, &niov);
     if (total != 130 || niov < 2)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("total=${int} != 130 || niov < 2"), stvar(int32, total));
 
     // The iov entries must describe exactly the chain contents, in order
     size_t off = 0;
@@ -1025,41 +1025,41 @@ static int test_bufchain_gather_iov()
         if (iov[i].len == 0)
             ret = 1;   // zero-length entries are rejected by some platforms
         if (memcmp(iov[i].data, testdata1 + off, iov[i].len))
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("memcmp(iov[i].data, testdata1 + off, iov[i].len)"), stvNone);
         off += iov[i].len;
     }
     if (off != 130)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("off=${int} != 130"), stvar(int32, off));
 
     // Gathering must not consume
     if (chain.total != 130)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("chain.total=${int} != 130"), stvar(int32, chain.total));
 
     // maxiov must be respected, and the total must then cover only the entries returned
     size_t partial = bufchainGatherIov(&chain, iov, 1, &niov);
     if (niov != 1 || partial != iov[0].len || partial >= 130)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("niov=${int} != 1 || partial != iov[0].len || partial >= 130"), stvar(int32, niov));
 
     // count is optional
     if (bufchainGatherIov(&chain, iov, 8, NULL) != 130)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("bufchainGatherIov(&chain, iov, 8, NULL) != 130"), stvNone);
 
     // A partial read moves the cursor; the first entry must start at the cursor, not at the
     // start of the head segment
     if (bufchainRead(&chain, readbuf, 20) != 20)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("bufchainRead(&chain, readbuf, 20) != 20"), stvNone);
 
     total = bufchainGatherIov(&chain, iov, 8, &niov);
     if (total != 110)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("total=${int} != 110"), stvar(int32, total));
     if (memcmp(iov[0].data, testdata1 + 20, iov[0].len))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("memcmp(iov[0].data, testdata1 + 20, iov[0].len)"), stvNone);
 
     // Consuming what a "send" accepted is done with skip; a short write leaves the rest
     bufchainSkip(&chain, 30);
     total = bufchainGatherIov(&chain, iov, 8, &niov);
     if (total != 80 || memcmp(iov[0].data, testdata1 + 50, iov[0].len))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("total=${int} != 80 || memcmp(iov[0].data, testdata1 + 50, iov[0].len)"), stvar(int32, total));
 
     bufchainDestroy(&chain);
     return ret;
@@ -1075,45 +1075,45 @@ static int test_bufpool_basic()
     bufpoolInit(&pool, 256, 4, 8);
 
     if (bufpoolInUse(&pool) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("bufpoolInUse(&pool) != 0"), stvNone);
 
     Buffer bufs[8];
     for (int i = 0; i < 8; ++i) {
         bufs[i] = bufpoolGet(&pool);
         if (!bufs[i] || bufs[i]->sz != 256 || bufs[i]->len != 0)
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("!bufs[i] || bufs[i]->sz != 256 || bufs[i]->len != 0"), stvNone);
     }
 
     if (bufpoolInUse(&pool) != 8)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("bufpoolInUse(&pool) != 8"), stvNone);
 
     // At the cap with none free: must fail rather than allocate
     Buffer over = bufpoolGet(&pool);
     if (over != NULL)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("over != NULL"), stvNone);
 
     // Returning one makes it available again
     bufpoolPut(&pool, &bufs[0]);
     if (bufs[0] != NULL)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("bufs[0] != NULL"), stvNone);
 
     bufs[0] = bufpoolGet(&pool);
     if (!bufs[0]) {
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("bufpoolGet returned NULL after full put/get cycle"), stvNone);
     } else {
         // len must be reset on reuse
         bufs[0]->len = 100;
         bufpoolPut(&pool, &bufs[0]);
         bufs[0] = bufpoolGet(&pool);
         if (!bufs[0] || bufs[0]->len != 0)
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("!bufs[0] || bufs[0]->len != 0"), stvNone);
     }
 
     for (int i = 0; i < 8; ++i)
         bufpoolPut(&pool, &bufs[i]);
 
     if (bufpoolInUse(&pool) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("bufpoolInUse(&pool) != 0"), stvNone);
 
     // Putting a NULL is a no-op, not a crash
     Buffer nil = NULL;
@@ -1127,7 +1127,7 @@ static int test_bufpool_basic()
     for (int i = 0; i < 64; ++i) {
         many[i] = bufpoolGet(&pool);
         if (!many[i])
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("!many[i]"), stvNone);
     }
     for (int i = 0; i < 64; ++i)
         bufpoolPut(&pool, &many[i]);
@@ -1148,7 +1148,8 @@ static int test_bufpool_reuse()
     for (int round = 0; round < 100; ++round) {
         Buffer b = bufpoolGet(&pool);
         if (!b || b->sz != 128) {
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("bufpoolGet returned bad buffer: b=${ptr}, sz=${int} != 128"),
+                       stvar(ptr, b), stvar(int32, b ? (int32)b->sz : -1));
             bufpoolPut(&pool, &b);   // no-op when the get failed outright
             break;
         }
@@ -1158,11 +1159,11 @@ static int test_bufpool_reuse()
 
         bufpoolPut(&pool, &b);
         if (b != NULL)
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("b != NULL"), stvNone);
     }
 
     if (bufpoolInUse(&pool) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("bufpoolInUse(&pool) != 0"), stvNone);
 
     // Drain the pool completely; exactly the cap should be available
     Buffer held[16];
@@ -1173,9 +1174,9 @@ static int test_bufpool_reuse()
             ++got;
     }
     if (got != 16)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("got=${int} != 16"), stvar(int32, got));
     if (bufpoolGet(&pool) != NULL)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("bufpoolGet(&pool) != NULL"), stvNone);
 
     for (int i = 0; i < 16; ++i)
         bufpoolPut(&pool, &held[i]);

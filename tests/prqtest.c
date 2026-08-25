@@ -21,22 +21,22 @@ static int test_prqtest_basic()
 
     for(i = 0; i < 64; i++) {
         if(!prqPush(&queue, &testdata[i]))
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("prqPush failed at i=${int}"), stvar(int32, i));
     }
 
     // queue should be full
     if(prqPush(&queue, &testdata[64]))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("prqPush unexpectedly succeeded (queue should be full)"), stvNone);
 
     for(i = 0; i < 64; i++) {
         int *pint = prqPop(&queue);
         if(!pint || *pint != i)
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("i=${int}: *pint=${int} != i"), stvar(int32, i), stvar(int32, pint ? *pint : -1));
     }
 
     // queue should be empty now
     if(prqPop(&queue) != NULL)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("prqPop returned non-NULL on an empty queue"), stvNone);
 
     for(i = 0; i < 65; i++) {
         testdata[i] = i + 65;
@@ -45,20 +45,22 @@ static int test_prqtest_basic()
     for(int j = 0; j < 4; j++) {
         for(i = 0; i < 16; i++) {
             if(!prqPush(&queue, &testdata[j * 16 + i]))
-                ret = 1;
+                TEST_FAILV(ret, 1, _SL("prqPush failed at j=${int}, i=${int}"), stvar(int32, j), stvar(int32, i));
         }
 
         for(i = 0; i < 8; i++) {
             int *pint = prqPop(&queue);
             if(!pint || *pint != 65 + j * 8 + i)
-                ret = 1;
+                TEST_FAILV(ret, 1, _SL("j=${int}, i=${int}: *pint=${int} != ${int}"),
+                           stvar(int32, j), stvar(int32, i), stvar(int32, pint ? *pint : -1), stvar(int32, 65 + j * 8 + i));
         }
     }
 
     for(i = 0; i < 32; i++) {
         int *pint = prqPop(&queue);
         if(!pint || *pint != 97 + i)
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("i=${int}: *pint=${int} != ${int}"),
+                       stvar(int32, i), stvar(int32, pint ? *pint : -1), stvar(int32, 97 + i));
     }
 
     // interleaved push/pop
@@ -69,11 +71,12 @@ static int test_prqtest_basic()
 
     for(i = 0; i < 64; i++) {
         if(!prqPush(&queue, &testdata[i]))
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("prqPush failed at i=${int}"), stvar(int32, i));
 
         int *pint = prqPop(&queue);
         if(!pint || *pint != 128 + i)
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("i=${int}: *pint=${int} != ${int}"),
+                       stvar(int32, i), stvar(int32, pint ? *pint : -1), stvar(int32, 128 + i));
     }
 
     prqDestroy(&queue);
@@ -97,8 +100,10 @@ static int mtTestProduce(Thread *self)
     if(!stvlNext(&self->args, ptr, &queue) ||
        !stvlNext(&self->args, ptr, &testdata) ||
        !stvlNext(&self->args, int32, &tdstart) ||
-       !stvlNext(&self->args, int32, &tdend))
+       !stvlNext(&self->args, int32, &tdend)) {
+        TEST_WARN(_SL("mtTestProduce: failed to unpack thread args"), stvNone);
         return 0;
+    }
 
     for(int i = tdstart; i < tdend; i++) {
         while(!prqPush(queue, &testdata[i])) {
@@ -116,8 +121,10 @@ static int mtTestRelay(Thread *self)
     int32 num;
     if(!stvlNext(&self->args, ptr, &queue1) ||
        !stvlNext(&self->args, ptr, &queue2) ||
-       !stvlNext(&self->args, int32, &num))
+       !stvlNext(&self->args, int32, &num)) {
+        TEST_WARN(_SL("mtTestRelay: failed to unpack thread args"), stvNone);
         return 0;
+    }
 
     int count = 0;
     while (count < num) {
@@ -152,8 +159,10 @@ static int mtTestConsume(Thread *self)
        !stvlNext(&self->args, ptr, &ev) ||
        !stvlNext(&self->args, int32, &num) ||
        !stvlNext(&self->args, ptr, &total) ||
-       !stvlNext(&self->args, ptr, &done))
+       !stvlNext(&self->args, ptr, &done)) {
+        TEST_WARN(_SL("mtTestConsume: failed to unpack thread args"), stvNone);
         return 0;
+    }
 
     unsigned int subtotal = 0;
     int count = 0;
@@ -223,7 +232,9 @@ static int test_prqtest_mt()
     while(atomicLoad(uint32, &done, Acquire) < PRQ_CONSUMERS) {
         eventWaitTimeout(&ev, timeS(10));
         if(atomicLoad(bool, &mtfail, Acquire) || clockWall() > starttime + timeS(60)) {
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("mtfail=${int} or timed out, done=${uint} < ${int}"),
+                       stvar(int32, (int32)atomicLoad(bool, &mtfail, Acquire)),
+                       stvar(uint32, atomicLoad(uint32, &done, Acquire)), stvar(int32, PRQ_CONSUMERS));
             break;
         }
     }
@@ -232,7 +243,7 @@ static int test_prqtest_mt()
 
     unsigned int result = atomicLoad(uint32, &total, Acquire);
     if(result != expected)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("result=${uint} != expected=${uint}"), stvar(uint32, result), stvar(uint32, expected));
 
     prqDestroy(&queue1);
     prqDestroy(&queue2);
@@ -257,22 +268,22 @@ static int test_prqtest_grow()
     // the original 8 slots, then 16, then 32, finally 64 more
     for(i = 0; i < 120; i++) {
         if(!prqPush(&queue, &testdata[i]))
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("prqPush failed at i=${int}"), stvar(int32, i));
     }
 
     // queue should be full
     if(prqPush(&queue, &testdata[120]))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("prqPush unexpectedly succeeded (queue should be full)"), stvNone);
 
     for(i = 0; i < 120; i++) {
         int *pint = prqPop(&queue);
         if(!pint || *pint != i)
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("i=${int}: *pint=${int} != i"), stvar(int32, i), stvar(int32, pint ? *pint : -1));
     }
 
     // queue should be empty now
     if(prqPop(&queue) != NULL)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("prqPop returned non-NULL on an empty queue"), stvNone);
 
     // now that it's expanded, we should only have 64 usable slots, so repeat the test and ensure it fulls up at the right time
 
@@ -282,22 +293,23 @@ static int test_prqtest_grow()
 
     for(i = 0; i < 64; i++) {
         if(!prqPush(&queue, &testdata[i]))
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("prqPush failed at i=${int}"), stvar(int32, i));
     }
 
     // queue should be full as one slot is reserved
     if(prqPush(&queue, &testdata[64]))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("prqPush unexpectedly succeeded (queue should be full)"), stvNone);
 
     for(i = 0; i < 64; i++) {
         int *pint = prqPop(&queue);
         if(!pint || *pint != testdata[i])
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("i=${int}: *pint=${int} != testdata[i]=${int}"),
+                       stvar(int32, i), stvar(int32, pint ? *pint : -1), stvar(int32, testdata[i]));
     }
 
     // queue should be empty now
     if(prqPop(&queue) != NULL)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("prqPop returned non-NULL on an empty queue"), stvNone);
 
     prqDestroy(&queue);
 
@@ -320,17 +332,19 @@ static int test_prqtest_gc()
     // fill up first segment, then 1 more to force an expansion
     for(i = 0; i < 9; i++) {
         if(!prqPush(&queue, &testdata[i]))
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("prqPush failed at i=${int}"), stvar(int32, i));
     }
 
     PrqSegment *seg1 = atomicLoad(ptr, &queue.current, Acquire);
     if(!atomicLoad(ptr, &seg1->nextseg, Acquire) || seg1->size != 8)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("seg1->nextseg=${ptr} or seg1->size=${uint} != 8"),
+                   stvar(ptr, atomicLoad(ptr, &seg1->nextseg, Acquire)), stvar(uint64, (uint64)seg1->size));
 
     for(i = 0; i < 8; i++) {
         int *pint = prqPop(&queue);
         if(!pint || *pint != testdata[i])
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("i=${int}: *pint=${int} != testdata[i]=${int}"),
+                       stvar(int32, i), stvar(int32, pint ? *pint : -1), stvar(int32, testdata[i]));
     }
 
     prqCollect(&queue);             // once to mark retired
@@ -339,66 +353,69 @@ static int test_prqtest_gc()
     // seg1 should be retired, seg2 should not have a next
     PrqSegment *seg2 = atomicLoad(ptr, &queue.current, Acquire);
     if(seg1 == seg2 || atomicLoad(ptr, &seg2->nextseg, Acquire) || seg2->size != 16)
-        return 1;
+        TEST_FAIL(1, _SL("seg1=${ptr} == seg2=${ptr}, or seg2->nextseg=${ptr}, or seg2->size=${uint} != 16"),
+                  stvar(ptr, seg1), stvar(ptr, seg2), stvar(ptr, atomicLoad(ptr, &seg2->nextseg, Acquire)), stvar(uint64, (uint64)seg2->size));
 
     // should be able to push 15 more without allocating a new segment
     for (i = 9; i < 24; i++) {
         if(!prqPush(&queue, &testdata[i]))
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("prqPush failed at i=${int}"), stvar(int32, i));
     }
     if(atomicLoad(ptr, &seg2->nextseg, Acquire))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("seg2->nextseg=${ptr} should still be NULL"), stvar(ptr, atomicLoad(ptr, &seg2->nextseg, Acquire)));
 
     // should do nothing, except maybe deallocate
     prqCollect(&queue);
 
     if(!prqPush(&queue, &testdata[24]))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("prqPush failed at testdata[24]"), stvNone);
 
     PrqSegment *seg3 = atomicLoad(ptr, &seg2->nextseg, Acquire);
     if(!seg3 || seg3->size != 32)
-        return 1;
+        TEST_FAIL(1, _SL("seg3=${ptr} or seg3->size=${uint} != 32"), stvar(ptr, seg3), stvar(uint64, seg3 ? (uint64)seg3->size : 0));
 
     if(atomicLoad(uint32, &seg2->reserved, Acquire) & 0x80000000)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("seg2->reserved=${uint} already has retired bit set"), stvar(uint32, atomicLoad(uint32, &seg2->reserved, Acquire)));
     // should mark seg2 as retired
     prqCollect(&queue);
     if(atomicLoad(ptr, &queue.current, Acquire) != seg2)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("queue.current=${ptr} != seg2=${ptr}"), stvar(ptr, atomicLoad(ptr, &queue.current, Acquire)), stvar(ptr, seg2));
     if(!(atomicLoad(uint32, &seg2->reserved, Acquire) & 0x80000000))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("seg2->reserved=${uint} missing retired bit"), stvar(uint32, atomicLoad(uint32, &seg2->reserved, Acquire)));
 
     // pop all of them but one
     for(i = 8; i < 23; i++) {
         int *pint = prqPop(&queue);
         if(!pint || *pint != testdata[i])
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("i=${int}: *pint=${int} != testdata[i]=${int}"),
+                       stvar(int32, i), stvar(int32, pint ? *pint : -1), stvar(int32, testdata[i]));
     }
 
     // should do nothing
     prqCollect(&queue);
     if(atomicLoad(ptr, &queue.current, Acquire) != seg2)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("queue.current=${ptr} != seg2=${ptr}"), stvar(ptr, atomicLoad(ptr, &queue.current, Acquire)), stvar(ptr, seg2));
 
     for(i = 23; i < 24; i++) {
         int *pint = prqPop(&queue);
         if(!pint || *pint != testdata[i])
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("i=${int}: *pint=${int} != testdata[i]=${int}"),
+                       stvar(int32, i), stvar(int32, pint ? *pint : -1), stvar(int32, testdata[i]));
     }
 
     // finally should move seg2 to retired and promote seg3
     prqCollect(&queue);
 
     if(atomicLoad(ptr, &queue.current, Acquire) != seg3)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("queue.current=${ptr} != seg3=${ptr}"), stvar(ptr, atomicLoad(ptr, &queue.current, Acquire)), stvar(ptr, seg3));
 
     // should be 1 item left in the queue
     if(prqPop(&queue) == NULL)          // 22
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("prqPop returned NULL, expected 1 item left"), stvNone);
 
     // queue should be empty now
     if(prqPop(&queue) != NULL)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("prqPop returned non-NULL on an empty queue"), stvNone);
 
     prqDestroy(&queue);
 
@@ -461,7 +478,9 @@ static int test_prqtest_mpmc()
     while(atomicLoad(uint32, &done, Acquire) < MPMC_CONSUMERS) {
         eventWaitTimeout(&ev, timeS(10));
         if(atomicLoad(bool, &mtfail, Acquire) || clockWall() > starttime + timeS(60)) {
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("mtfail=${int} or timed out, done=${uint} < ${int}"),
+                       stvar(int32, (int32)atomicLoad(bool, &mtfail, Acquire)),
+                       stvar(uint32, atomicLoad(uint32, &done, Acquire)), stvar(int32, MPMC_CONSUMERS));
             nofree = true;          // threads are still running
             break;
         }
@@ -472,7 +491,7 @@ static int test_prqtest_mpmc()
 
     unsigned int result = atomicLoad(uint32, &total, Acquire);
     if(result != expected)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("result=${uint} != expected=${uint}"), stvar(uint32, result), stvar(uint32, expected));
 
     prqDestroy(&queue1);
     prqDestroy(&queue2);

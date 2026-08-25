@@ -30,7 +30,7 @@ static int test_tqtest_task(void)
     conf.flags |= TQ_NoComplex;
     TaskQueue *q = tqCreate(_S"Test", &conf);
     if(!q || !tqStart(q))
-        return 1;
+        TEST_FAIL(1, _SL("!q || !tqStart(q)"), stvNone);
 
     saInit(&ttasks, object, NUM_TASK_TEST);
 
@@ -44,7 +44,7 @@ static int test_tqtest_task(void)
         if(t) {
             saPushC(&ttasks, object, &t);
         } else {
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("tqtest1Create failed at i=${int}"), stvar(int32, i));
         }
     }
 
@@ -63,7 +63,7 @@ static int test_tqtest_task(void)
             case TASK_Succeeded:
                 break;
             case TASK_Failed:
-                ret = 1;
+                TEST_FAILV(ret, 1, _SL("task failed at i=${int}"), stvar(int32, i));
                 break;
             default:
                 done = false;
@@ -75,7 +75,8 @@ static int test_tqtest_task(void)
 
         eventWaitTimeout(&notifyev, timeS(3));
         if(clockTimer() - timeStart > timeS(60)) {
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("timed out waiting for tasks: elapsed=${uint}us > 60000000us"),
+                       stvar(uint64, (uint64)(clockTimer() - timeStart)));
             break;
         }
     }
@@ -86,12 +87,12 @@ static int test_tqtest_task(void)
 
     for(int i = 0; i < ntasks; i++) {
         if(btaskState(ttasks.a[i]) != TASK_Succeeded)
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("btaskState(ttasks.a[i]) != TASK_Succeeded"), stvNone);
         total2 += ttasks.a[i]->total;
     }
 
     if(total != total2)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("total=${int} != total2=${int}"), stvar(int32, total), stvar(int32, total2));
 
     saDestroy(&ttasks);
 
@@ -109,7 +110,7 @@ static int test_tqtest_failure(void)
     conf.flags |= TQ_NoComplex;
     TaskQueue *q = tqCreate(_S"Test", &conf);
     if(!q || !tqStart(q))
-        return 1;
+        TEST_FAIL(1, _SL("!q || !tqStart(q)"), stvNone);
 
     saInit(&ttasks, object, NUM_TASK_TEST);
 
@@ -121,7 +122,7 @@ static int test_tqtest_failure(void)
         if(t) {
             saPushC(&ttasks, object, &t);
         } else {
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("tqtestfailCreate failed at i=${int}"), stvar(int32, i));
         }
     }
 
@@ -150,7 +151,8 @@ static int test_tqtest_failure(void)
 
         eventWaitTimeout(&notifyev, timeS(3));
         if(clockTimer() - timeStart > timeS(60)) {
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("timed out waiting for tasks: elapsed=${uint}us > 60000000us"),
+                       stvar(uint64, (uint64)(clockTimer() - timeStart)));
             break;
         }
     }
@@ -167,7 +169,7 @@ static int test_tqtest_failure(void)
     }
 
     if(nsuc != ntasks / 2 || nfail != ntasks / 2)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("nsuc != ntasks / 2 || nfail != ntasks / 2"), stvNone);
 
     saDestroy(&ttasks);
 
@@ -192,7 +194,7 @@ static int test_tqtest_concurrency(bool dedicated)
     conf.flags |= TQ_NoComplex | (dedicated ? TQ_ManagerThread : 0);
     TaskQueue* spmc = tqCreate(_S"SPMC Test", &conf);
     if(!spmc || !tqStart(spmc))
-        return 1;
+        TEST_FAIL(1, _SL("!spmc || !tqStart(spmc)"), stvNone);
 
     conf.pool.wInitial = 1;
     conf.pool.wIdle    = 1;
@@ -203,7 +205,7 @@ static int test_tqtest_concurrency(bool dedicated)
     conf.pool.tRampDown = 0;
     TaskQueue *mpsc = tqCreate(_S"MPSC Test", &conf);
     if(!mpsc || !tqStart(mpsc))
-        return 1;
+        TEST_FAIL(1, _SL("!mpsc || !tqStart(mpsc)"), stvNone);
 
     eventInit(&notifyev);
 
@@ -220,7 +222,8 @@ static int test_tqtest_concurrency(bool dedicated)
     while(count < NUM_TASK_TEST) {
         eventWaitTimeout(&notifyev, timeS(3));
         if(clockTimer() - timeStart > timeS(60)) {
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("timed out waiting for tasks: elapsed=${uint}us > 60000000us"),
+                       stvar(uint64, (uint64)(clockTimer() - timeStart)));
             break;
         }
     }
@@ -232,7 +235,7 @@ static int test_tqtest_concurrency(bool dedicated)
     tqRelease(&mpsc);
 
     if(total != accum)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("total=${int} != accum=${int}"), stvar(int32, total), stvar(int32, accum));
 
     return ret;
 }
@@ -270,7 +273,7 @@ static int test_tqtest_call(void)
     tqPresetBalanced(&conf);
     TaskQueue *q = tqCreate(_S"Test", &conf);
     if(!q || !tqStart(q))
-        return 1;
+        TEST_FAIL(1, _SL("!q || !tqStart(q)"), stvNone);
 
     for(int i = 0; i < NUM_CALL_TEST; i++) {
         intptr rnum = rand() % 255;
@@ -282,7 +285,8 @@ static int test_tqtest_call(void)
     while(atomicLoad(intptr, &accum2, Acquire) < NUM_CALL_TEST) {
         eventWaitTimeout(&notifyev, timeS(3));
         if(clockTimer() - timeStart > timeS(60)) {
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("timed out waiting for tasks: elapsed=${uint}us > 60000000us"),
+                       stvar(uint64, (uint64)(clockTimer() - timeStart)));
             break;
         }
     }
@@ -290,7 +294,7 @@ static int test_tqtest_call(void)
     tqShutdown(q, timeS(60));
 
     if(atomicLoad(intptr, &accum1, Acquire) != total)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("atomicLoad(intptr, &accum1, Acquire) != total"), stvNone);
 
     tqRelease(&q);
 
@@ -346,7 +350,7 @@ static int test_tqtest_sched(void)
     TaskQueue *q = tqCreate(_S"Test", &conf);
 
     if(!q || !tqStart(q))
-        return 1;
+        TEST_FAIL(1, _SL("!q || !tqStart(q)"), stvNone);
 
     saInit(&dtasks, object, NUM_SCHED_STEPS);
 
@@ -386,7 +390,7 @@ static int test_tqtest_sched(void)
             case TASK_Succeeded:
                 break;
             case TASK_Failed:
-                ret = 1;
+                TEST_FAILV(ret, 1, _SL("task failed at i=${int}"), stvar(int32, i));
                 break;
             default:
                 done = false;
@@ -398,7 +402,8 @@ static int test_tqtest_sched(void)
 
         eventWaitTimeout(&notifyev, timeS(3));
         if(clockTimer() - timeStart > timeS(60)) {
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("timed out waiting for tasks: elapsed=${uint}us > 60000000us"),
+                       stvar(uint64, (uint64)(clockTimer() - timeStart)));
             break;
         }
     }
@@ -409,11 +414,11 @@ static int test_tqtest_sched(void)
 
     for(int i = 0; i < ntasks; i++) {
         if(btaskState(dtasks.a[i]) != TASK_Succeeded)
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("btaskState(dtasks.a[i]) != TASK_Succeeded"), stvNone);
     }
 
     if(atomicLoad(int32, &nsucceed, Acquire) != NUM_SCHED_STEPS * 2)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("atomicLoad(int32, &nsucceed, Acquire) != NUM_SCHED_STEPS * 2"), stvNone);
 
     saDestroy(&dtasks);
 
@@ -433,7 +438,7 @@ static int test_tqtest_monitor(bool dedicated)
     logFlush();
 
     if(mbuf->buf[0] == 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("mbuf->buf[0] == 0"), stvNone);
 
     logShutdown();
 
@@ -484,7 +489,7 @@ static int test_tqtest_depend(void)
     conf.pool.wMax     = 16;
     TaskQueue* q = tqCreate(_S"Test", &conf);
     if(!q || !tqStart(q))
-        return 1;
+        TEST_FAIL(1, _SL("!q || !tqStart(q)"), stvNone);
 
     TQMTest *tqmtest = tqmtestCreate(&notifyev);
 
@@ -527,13 +532,13 @@ static int test_tqtest_depend(void)
     saDestroy(&later);
 
     if(!eventWaitTimeout(&notifyev, timeS(60)))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!eventWaitTimeout(&notifyev, timeS(60))"), stvNone);
 
     if(saSize(tqmtest->_requires) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("saSize(tqmtest->_requires) != 0"), stvNone);
 
     if(!taskSucceeded(tqmtest))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!taskSucceeded(tqmtest)"), stvNone);
 
     objRelease(&tqmtest);
 
@@ -561,9 +566,9 @@ static int test_tqtest_depend(void)
     saDestroy(&later);
 
     if (!eventWaitTimeout(&notifyev, timeS(60)))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!eventWaitTimeout(&notifyev, timeS(60))"), stvNone);
     if (!taskFailed(tqmtest))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!taskFailed(tqmtest)"), stvNone);
 
     objRelease(&tqmtest);
 
@@ -594,7 +599,7 @@ static int test_tqtest_reqmutex(void)
     tqPresetBalanced(&conf);
     TaskQueue* q       = tqCreate(_S"Test", &conf);
     if(!q || !tqStart(q))
-        return 1;
+        TEST_FAIL(1, _SL("!q || !tqStart(q)"), stvNone);
 
     TRMutex* trmtx = trmutexCreate();
     srand((unsigned int)time(NULL));
@@ -609,11 +614,15 @@ static int test_tqtest_reqmutex(void)
     }
 
     if (!eventWaitTimeout(&rts.notify, timeS(60)))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!eventWaitTimeout(&rts.notify, timeS(60))"), stvNone);
 
     if (atomicLoad(bool, &rts.fail, Relaxed) || rts.count != NUM_REQUIRES_TASKS || rts.sum != sum ||
         rts.xor != xor)
-        ret = 1;
+        TEST_FAILV(ret, 1,
+                   _SL("rts: fail=${int} count=${int} sum=${int} xor=${int} (want count=${int} sum=${int} xor=${int})"),
+                   stvar(int32, (int32)atomicLoad(bool, &rts.fail, Relaxed)), stvar(int32, rts.count),
+                   stvar(int32, rts.sum), stvar(int32, rts.xor), stvar(int32, NUM_REQUIRES_TASKS),
+                   stvar(int32, sum), stvar(int32, xor));
 
     objRelease(&trmtx);
     eventDestroy(&rts.notify);
@@ -640,7 +649,7 @@ static int test_tqtest_reqfifo(void)
     tqPresetBalanced(&conf);
     TaskQueue* q = tqCreate(_S"Test", &conf);
     if(!q || !tqStart(q))
-        return 1;
+        TEST_FAIL(1, _SL("!q || !tqStart(q)"), stvNone);
 
     TRFifo* trfifo = trfifoCreate();
     srand((unsigned int)time(NULL));
@@ -669,11 +678,16 @@ static int test_tqtest_reqfifo(void)
     saDestroy(&tasks);
 
     if (!eventWaitTimeout(&rts.notify, timeS(60)))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!eventWaitTimeout(&rts.notify, timeS(60))"), stvNone);
 
     if (atomicLoad(bool, &rts.fail, Relaxed) || rts.count != NUM_REQUIRES_TASKS || rts.sum != sum ||
         rts.product != product || rts.seq != NUM_REQUIRES_TASKS - 1)
-        ret = 1;
+        TEST_FAILV(ret, 1,
+                   _SL("rts: fail=${int} count=${int} sum=${int} product=${int} seq=${int} (want count=${int} sum=${int} product=${int} seq=${int})"),
+                   stvar(int32, (int32)atomicLoad(bool, &rts.fail, Relaxed)), stvar(int32, rts.count),
+                   stvar(int32, rts.sum), stvar(int32, rts.product), stvar(int32, rts.seq),
+                   stvar(int32, NUM_REQUIRES_TASKS), stvar(int32, sum), stvar(int32, product),
+                   stvar(int32, NUM_REQUIRES_TASKS - 1));
 
     objRelease(&trfifo);
     eventDestroy(&rts.notify);
@@ -699,7 +713,7 @@ static int test_tqtest_reqlifo(void)
     tqPresetBalanced(&conf);
     TaskQueue *q = tqCreate(_S"Test", &conf);
     if(!q || !tqStart(q))
-        return 1;
+        TEST_FAIL(1, _SL("!q || !tqStart(q)"), stvNone);
 
     TRLifo* trlifo = trlifoCreate();
     srand((unsigned int)time(NULL));
@@ -736,11 +750,15 @@ static int test_tqtest_reqlifo(void)
     saDestroy(&tasks);
 
     if (!eventWaitTimeout(&rts.notify, timeS(60)))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!eventWaitTimeout(&rts.notify, timeS(60))"), stvNone);
 
     if (atomicLoad(bool, &rts.fail, Relaxed) || rts.count != NUM_REQUIRES_TASKS || rts.sum != sum ||
         rts.xor != xor || rts.seq != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1,
+                   _SL("rts: fail=${int} count=${int} sum=${int} xor=${int} seq=${int} (want count=${int} sum=${int} xor=${int} seq=0)"),
+                   stvar(int32, (int32)atomicLoad(bool, &rts.fail, Relaxed)), stvar(int32, rts.count),
+                   stvar(int32, rts.sum), stvar(int32, rts.xor), stvar(int32, rts.seq),
+                   stvar(int32, NUM_REQUIRES_TASKS), stvar(int32, sum), stvar(int32, xor));
 
     objRelease(&trlifo);
     eventDestroy(&rts.notify);
@@ -765,7 +783,7 @@ static int test_tqtest_reqgate(void)
     tqPresetHeavy(&conf);
     TaskQueue *q = tqCreate(_S"Test", &conf);
     if(!q || !tqStart(q))
-        return 1;
+        TEST_FAIL(1, _SL("!q || !tqStart(q)"), stvNone);
 
     TRGate* trgate = trgateCreate(_S"Test Gate");
     srand((unsigned int)time(NULL));
@@ -782,7 +800,7 @@ static int test_tqtest_reqgate(void)
     osSleep(timeMS(50));
     // nothing should have gone through yet
     if (atomicLoad(int32, &rts2.count, Relaxed) > 0 || atomicLoad(int32, &rts2.sum, Relaxed) > 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("atomicLoad(int32, &rts2.count, Relaxed) > 0 || atomicLoad(int32, &rts2.sum, Relaxed) > 0"), stvNone);
 
     trgateOpen(trgate);
 
@@ -796,12 +814,17 @@ static int test_tqtest_reqgate(void)
     }
 
     if (!eventWaitTimeout(&rts2.notify, timeS(60)))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!eventWaitTimeout(&rts2.notify, timeS(60))"), stvNone);
 
     if (atomicLoad(bool, &rts2.fail, Relaxed) ||
         atomicLoad(int32, &rts2.count, Relaxed) != NUM_REQUIRES_TASKS ||
         atomicLoad(int32, &rts2.sum, Relaxed) != sum)
-        ret = 1;
+        TEST_FAILV(ret, 1,
+                   _SL("rts2: fail=${int} count=${int} sum=${int} (want count=${int} sum=${int})"),
+                   stvar(int32, (int32)atomicLoad(bool, &rts2.fail, Relaxed)),
+                   stvar(int32, atomicLoad(int32, &rts2.count, Relaxed)),
+                   stvar(int32, atomicLoad(int32, &rts2.sum, Relaxed)),
+                   stvar(int32, NUM_REQUIRES_TASKS), stvar(int32, sum));
 
     objRelease(&trgate);
     eventDestroy(&rts2.notify);
@@ -822,7 +845,7 @@ static int test_tqtest_manual(void)
     conf.flags           = TQ_Manual;
     TaskQueue* q         = tqCreate(_S"Test", &conf);
     if (!q || !tqStart(q))
-        return 1;
+        TEST_FAIL(1, _SL("!q || !tqStart(q)"), stvNone);
 
     saInit(&ttasks, object, NUM_TASK_TEST);
 
@@ -836,7 +859,7 @@ static int test_tqtest_manual(void)
         if (t) {
             saPushC(&ttasks, object, &t);
         } else {
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("tqtest1Create failed at i=${int}"), stvar(int32, i));
         }
     }
 
@@ -857,7 +880,7 @@ static int test_tqtest_manual(void)
             total2 += ttasks.a[i]->total;
             break;
         case TASK_Failed:
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("task failed at i=${int}"), stvar(int32, i));
             break;
         default:
             done = false;
@@ -865,14 +888,14 @@ static int test_tqtest_manual(void)
     }
 
     if (!done)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!done"), stvNone);
 
     eventDestroy(&notifyev);
     tqShutdown(q, timeS(60));
     tqRelease(&q);
 
     if (total != total2)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("total=${int} != total2=${int}"), stvar(int32, total), stvar(int32, total2));
 
     saDestroy(&ttasks);
 
@@ -889,7 +912,7 @@ static int test_tqtest_oneshot(void)
     conf.flags           = TQ_Manual | TQ_Oneshot;
     TaskQueue* q         = tqCreate(_S"Test", &conf);
     if (!q || !tqStart(q))
-        return 1;
+        TEST_FAIL(1, _SL("!q || !tqStart(q)"), stvNone);
 
     saInit(&ttasks, object, NUM_TASK_TEST);
 
@@ -903,7 +926,7 @@ static int test_tqtest_oneshot(void)
         if (t) {
             saPushC(&ttasks, object, &t);
         } else {
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("tqtest1Create failed at i=${int}"), stvar(int32, i));
         }
     }
 
@@ -925,14 +948,14 @@ static int test_tqtest_oneshot(void)
             break;
         case TASK_Failed:
             ndone++;
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("task failed at i=${int}"), stvar(int32, i));
             break;
         }
     }
 
     // There should only be 1 task done so far
     if (ndone != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("ndone=${int} != 1"), stvar(int32, ndone));
 
     for(int i = 0; i < NUM_TASK_TEST / 2; i++) {
         tqTick(q);
@@ -947,13 +970,13 @@ static int test_tqtest_oneshot(void)
             break;
         case TASK_Failed:
             ndone++;
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("task failed at i=${int}"), stvar(int32, i));
             break;
         }
     }
 
     if (ndone != NUM_TASK_TEST / 2 + 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("ndone != NUM_TASK_TEST / 2 + 1"), stvNone);
 
     for (int i = 0; i < NUM_TASK_TEST / 2 - 1; i++) {
         tqTick(q);
@@ -965,12 +988,12 @@ static int test_tqtest_oneshot(void)
 
     for (int i = 0; i < ntasks; i++) {
         if (btaskState(ttasks.a[i]) != TASK_Succeeded)
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("btaskState(ttasks.a[i]) != TASK_Succeeded"), stvNone);
         total2 += ttasks.a[i]->total;
     }
 
     if (total != total2)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("total=${int} != total2=${int}"), stvar(int32, total), stvar(int32, total2));
 
     saDestroy(&ttasks);
 
@@ -989,7 +1012,7 @@ static int test_tqtest_multiphase(void) {
     tqPresetBalanced(&conf);
     TaskQueue *q = tqCreate(_S"Test", &conf);
     if(!q || !tqStart(q))
-        return 1;
+        TEST_FAIL(1, _SL("!q || !tqStart(q)"), stvNone);
 
     mps.target_count = NUM_MP_TASKS;
     eventInit(&mps.notify);
@@ -1032,13 +1055,13 @@ static int test_tqtest_multiphase(void) {
     }
 
     if (!eventWaitTimeout(&mps.notify, timeS(60)))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!eventWaitTimeout(&mps.notify, timeS(60))"), stvNone);
 
     if (atomicLoad(bool, &mps.fail, Relaxed))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("atomicLoad(bool, &mps.fail, Relaxed)"), stvNone);
 
     if (atomicLoad(int32, &mps.sum, Relaxed) != sum)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("atomicLoad(int32, &mps.sum, Relaxed) != sum"), stvNone);
 
     eventDestroy(&mps.notify);
 
@@ -1055,7 +1078,7 @@ static int test_tqtest_timeout(void) {
     tqPresetBalanced(&conf);
     TaskQueue* q = tqCreate(_S"Test", &conf);
     if(!q || !tqStart(q))
-        return 1;
+        TEST_FAIL(1, _SL("!q || !tqStart(q)"), stvNone);
 
     memset(&rts, 0, sizeof(rts));
     TQTimeoutTest1* tt1 = tqtimeouttest1Create();
@@ -1067,13 +1090,13 @@ static int test_tqtest_timeout(void) {
     tqAdd(q, tt1);
 
     if (!taskWait(tt2, timeS(5)))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!taskWait(tt2, timeS(5))"), stvNone);
 
     if (!taskIsComplete(tt2) || taskSucceeded(tt2))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!taskIsComplete(tt2) || taskSucceeded(tt2)"), stvNone);
 
     if (rts.count != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rts.count=${int} != 0"), stvar(int32, rts.count));
 
     tqShutdown(q, timeS(60));
     tqRelease(&q);

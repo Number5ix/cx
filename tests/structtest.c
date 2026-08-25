@@ -10,14 +10,12 @@
 #define TEST_FUNCS structtest_funcs
 #include "common.h"
 
-// Report which assertion failed. A bare `return 1` is not diagnosable in tests this size,
-// and these exercise code paths that had never been run at all before.
-#define CHK(cond)                                                         \
-    do {                                                                  \
-        if (!(cond)) {                                                    \
-            printf("  FAILED at %s:%d: %s\n", __FILE__, __LINE__, #cond); \
-            return 1;                                                     \
-        }                                                                 \
+// Logs which assertion failed and returns -- a bare `return 1` is not diagnosable in tests
+// this size, and these exercise code paths that had never been run at all before.
+#define CHK(cond)                                                          \
+    do {                                                                   \
+        if (!(cond))                                                       \
+            TEST_FAIL(1, _SL("assertion failed: ${string}"), stvar(strref, _SL(#cond))); \
     } while (0)
 
 // ---------------------------------------------------------------------------------------
@@ -263,13 +261,16 @@ static int test_struct_initdestroy()
     structInit(TestStr1, &s);
 
     CHK(s.structinfo == &TestStr1_structinfo);
-    CHK(s.intval == 0);
+    if (s.intval != 0)
+        TEST_FAIL(1, _SL("freshly-init s.intval=${int} != 0"), stvar(int32, s.intval));
     CHK(s.strval == NULL);
 
     fillTestStr1(&s, 1);
-    CHK(s.intval == 1);
+    if (s.intval != 1)
+        TEST_FAIL(1, _SL("s.intval=${int} != 1"), stvar(int32, s.intval));
     CHK(!strEmpty(s.strval));
-    CHK(saSize(s.arrval) == 3);
+    if (saSize(s.arrval) != 3)
+        TEST_FAIL(1, _SL("saSize(s.arrval)=${uint} != 3"), stvar(uint64, (uint64)saSize(s.arrval)));
 
     structDestroyMembers(&s);
 
@@ -283,9 +284,12 @@ static int test_struct_initdestroy()
     }
     // each must still hold its own value, not a neighbour's
     for (int i = 0; i < 4; i++) {
-        CHK(many[i].intval == i + 1);
-        CHK(saSize(many[i].arrval) == 3);
-        CHK(many[i].arrval.a[0] == (i + 1) * 100);
+        if (many[i].intval != i + 1)
+            TEST_FAIL(1, _SL("many[${int}].intval=${int} != ${int}"), stvar(int32, i), stvar(int32, many[i].intval), stvar(int32, i + 1));
+        if (saSize(many[i].arrval) != 3)
+            TEST_FAIL(1, _SL("saSize(many[${int}].arrval)=${uint} != 3"), stvar(int32, i), stvar(uint64, (uint64)saSize(many[i].arrval)));
+        if (many[i].arrval.a[0] != (i + 1) * 100)
+            TEST_FAIL(1, _SL("many[${int}].arrval.a[0]=${int} != ${int}"), stvar(int32, i), stvar(int32, many[i].arrval.a[0]), stvar(int32, (i + 1) * 100));
     }
     structDestroyMembersMany(many, 4);
 
@@ -314,12 +318,19 @@ static int test_struct_copy()
     stCopy(TestStr1, &dst, src);
 
     CHK(dst.structinfo == &TestStr1_structinfo);
-    CHK(dst.intval == 7);
-    CHK(strEq(dst.strval, src.strval));
-    CHK(saSize(dst.arrval) == 3);
-    for (int32 i = 0; i < 3; i++) CHK(dst.arrval.a[i] == src.arrval.a[i]);
+    if (dst.intval != 7)
+        TEST_FAIL(1, _SL("dst.intval=${int} != 7"), stvar(int32, dst.intval));
+    if (!strEq(dst.strval, src.strval))
+        TEST_FAIL(1, _SL("copy mismatch: dst.strval='${string}' src.strval='${string}'"), stvar(strref, dst.strval), stvar(strref, src.strval));
+    if (saSize(dst.arrval) != 3)
+        TEST_FAIL(1, _SL("saSize(dst.arrval)=${uint} != 3"), stvar(uint64, (uint64)saSize(dst.arrval)));
+    for (int32 i = 0; i < 3; i++) {
+        if (dst.arrval.a[i] != src.arrval.a[i])
+            TEST_FAIL(1, _SL("dst.arrval.a[${int}]=${int} != src.arrval.a[${int}]=${int}"), stvar(int32, i), stvar(int32, dst.arrval.a[i]), stvar(int32, i), stvar(int32, src.arrval.a[i]));
+    }
     // the copy must own its own array, not alias the source's
-    CHK(dst.arrval.a != src.arrval.a);
+    if (dst.arrval.a == src.arrval.a)
+        TEST_FAIL(1, _SL("copy aliases source array: dst.arrval.a=${ptr} src.arrval.a=${ptr}"), stvar(ptr, dst.arrval.a), stvar(ptr, src.arrval.a));
 
     CHK(structDeepEq(STRUCTBASE(&src), STRUCTBASE(&dst)));
 
@@ -394,32 +405,45 @@ static int test_struct_nested()
 
     stCopy(TestStr2, &dst, src);
 
-    CHK(strEq(dst.yahoo, _S"top"));
+    if (!strEq(dst.yahoo, _S"top"))
+        TEST_FAIL(1, _SL("dst.yahoo='${string}' != 'top'"), stvar(strref, dst.yahoo));
 
     // nested struct
     CHK(dst.subst.structinfo == &TestStr1_structinfo);
-    CHK(dst.subst.intval == 5);
-    CHK(strEq(dst.subst.strval, src.subst.strval));
-    CHK(saSize(dst.subst.arrval) == 3);
+    if (dst.subst.intval != 5)
+        TEST_FAIL(1, _SL("dst.subst.intval=${int} != 5"), stvar(int32, dst.subst.intval));
+    if (!strEq(dst.subst.strval, src.subst.strval))
+        TEST_FAIL(1, _SL("nested-struct copy mismatch: dst='${string}' src='${string}'"), stvar(strref, dst.subst.strval), stvar(strref, src.subst.strval));
+    if (saSize(dst.subst.arrval) != 3)
+        TEST_FAIL(1, _SL("saSize(dst.subst.arrval)=${uint} != 3"), stvar(uint64, (uint64)saSize(dst.subst.arrval)));
 
     // hashtable
-    CHK(htSize(dst.tags) == 2);
+    if (htSize(dst.tags) != 2)
+        TEST_FAIL(1, _SL("htSize(dst.tags)=${uint} != 2"), stvar(uint64, (uint64)htSize(dst.tags)));
     int32 v = 0;
     CHK(htFind(dst.tags, string, _S"two", int32, &v));
-    CHK(v == 2);
+    if (v != 2)
+        TEST_FAIL(1, _SL("dst.tags[two]=${int} != 2"), stvar(int32, v));
 
     // sarray of structs
-    CHK(saSize(dst.arrayofstructs) == 3);
+    if (saSize(dst.arrayofstructs) != 3)
+        TEST_FAIL(1, _SL("saSize(dst.arrayofstructs)=${uint} != 3"), stvar(uint64, (uint64)saSize(dst.arrayofstructs)));
     for (int32 i = 0; i < 3; i++) {
-        CHK(dst.arrayofstructs.a[i].intval == 10 + i);
-        CHK(strEq(dst.arrayofstructs.a[i].strval, src.arrayofstructs.a[i].strval));
+        if (dst.arrayofstructs.a[i].intval != 10 + i)
+            TEST_FAIL(1, _SL("dst.arrayofstructs.a[${int}].intval=${int} != ${int}"), stvar(int32, i), stvar(int32, dst.arrayofstructs.a[i].intval), stvar(int32, 10 + i));
+        if (!strEq(dst.arrayofstructs.a[i].strval, src.arrayofstructs.a[i].strval))
+            TEST_FAIL(1, _SL("dst.arrayofstructs.a[${int}].strval='${string}' != src '${string}'"), stvar(int32, i), stvar(strref, dst.arrayofstructs.a[i].strval), stvar(strref, src.arrayofstructs.a[i].strval));
     }
 
     // deeply nested container
-    CHK(htSize(dst.hashofdblarrstr) == 1);
+    if (htSize(dst.hashofdblarrstr) != 1)
+        TEST_FAIL(1, _SL("htSize(dst.hashofdblarrstr)=${uint} != 1"), stvar(uint64, (uint64)htSize(dst.hashofdblarrstr)));
 
     // fixedarr is int32[50]; the memset bug made the tail of the struct collateral damage
-    for (int32 i = 0; i < 50; i++) CHK(dst.fixedarr[i] == i * 3);
+    for (int32 i = 0; i < 50; i++) {
+        if (dst.fixedarr[i] != i * 3)
+            TEST_FAIL(1, _SL("dst.fixedarr[${int}]=${int} != ${int}"), stvar(int32, i), stvar(int32, dst.fixedarr[i]), stvar(int32, i * 3));
+    }
 
     // the whole thing, compared field by field
     CHK(structDeepEq(STRUCTBASE(&src), STRUCTBASE(&dst)));
@@ -458,15 +482,24 @@ static int test_struct_fixedarray()
     // every element must have been copied, not just element 0
     for (int i = 0; i < 4; i++) {
         CHK(!strEmpty(dst.names[i]));
-        CHK(strEq(dst.names[i], src.names[i]));
+        if (!strEq(dst.names[i], src.names[i]))
+            TEST_FAIL(1, _SL("dst.names[${int}]='${string}' != src '${string}'"), stvar(int32, i), stvar(strref, dst.names[i]), stvar(strref, src.names[i]));
     }
     for (int i = 0; i < 3; i++) {
-        CHK(dst.substs[i].intval == 30 + i);
-        CHK(strEq(dst.substs[i].strval, src.substs[i].strval));
-        CHK(saSize(dst.substs[i].arrval) == 3);
-        CHK(dst.substs[i].arrval.a != src.substs[i].arrval.a);   // its own allocation
+        if (dst.substs[i].intval != 30 + i)
+            TEST_FAIL(1, _SL("dst.substs[${int}].intval=${int} != ${int}"), stvar(int32, i), stvar(int32, dst.substs[i].intval), stvar(int32, 30 + i));
+        if (!strEq(dst.substs[i].strval, src.substs[i].strval))
+            TEST_FAIL(1, _SL("dst.substs[${int}].strval='${string}' != src '${string}'"), stvar(int32, i), stvar(strref, dst.substs[i].strval), stvar(strref, src.substs[i].strval));
+        if (saSize(dst.substs[i].arrval) != 3)
+            TEST_FAIL(1, _SL("saSize(dst.substs[${int}].arrval)=${uint} != 3"), stvar(int32, i), stvar(uint64, (uint64)saSize(dst.substs[i].arrval)));
+        // its own allocation
+        if (dst.substs[i].arrval.a == src.substs[i].arrval.a)
+            TEST_FAIL(1, _SL("dst.substs[${int}].arrval aliases source: ${ptr}"), stvar(int32, i), stvar(ptr, dst.substs[i].arrval.a));
     }
-    for (int i = 0; i < 8; i++) CHK(dst.nums[i] == i * 11);
+    for (int i = 0; i < 8; i++) {
+        if (dst.nums[i] != i * 11)
+            TEST_FAIL(1, _SL("dst.nums[${int}]=${int} != ${int}"), stvar(int32, i), stvar(int32, dst.nums[i]), stvar(int32, i * 11));
+    }
 
     CHK(structDeepEq(STRUCTBASE(&src), STRUCTBASE(&dst)));
 
@@ -505,19 +538,28 @@ static int test_struct_structp()
     stCopy(TestStrP, &dst, src);
 
     CHK(dst.knownptr);
-    CHK(dst.knownptr != src.knownptr);   // must be a distinct allocation
-    CHK(dst.knownptr->intval == 42);
-    CHK(strEq(dst.knownptr->strval, src.knownptr->strval));
+    // must be a distinct allocation
+    if (dst.knownptr == src.knownptr)
+        TEST_FAIL(1, _SL("dst.knownptr aliases src.knownptr: ${ptr}"), stvar(ptr, dst.knownptr));
+    if (dst.knownptr->intval != 42)
+        TEST_FAIL(1, _SL("dst.knownptr->intval=${int} != 42"), stvar(int32, dst.knownptr->intval));
+    if (!strEq(dst.knownptr->strval, src.knownptr->strval))
+        TEST_FAIL(1, _SL("dst.knownptr->strval='${string}' != src '${string}'"), stvar(strref, dst.knownptr->strval), stvar(strref, src.knownptr->strval));
 
     CHK(dst.dynptr);
-    CHK(dst.dynptr != src.dynptr);
+    if (dst.dynptr == src.dynptr)
+        TEST_FAIL(1, _SL("dst.dynptr aliases src.dynptr: ${ptr}"), stvar(ptr, dst.dynptr));
     CHK(dst.dynptr->structinfo == &TestStr2_structinfo);
-    CHK(strEq(((TestStr2*)dst.dynptr)->yahoo, _S"dynamic"));
+    if (!strEq(((TestStr2*)dst.dynptr)->yahoo, _S"dynamic"))
+        TEST_FAIL(1, _SL("dst.dynptr yahoo='${string}' != 'dynamic'"), stvar(strref, ((TestStr2*)dst.dynptr)->yahoo));
 
-    CHK(saSize(dst.arrknown) == 2);
+    if (saSize(dst.arrknown) != 2)
+        TEST_FAIL(1, _SL("saSize(dst.arrknown)=${uint} != 2"), stvar(uint64, (uint64)saSize(dst.arrknown)));
     for (int32 i = 0; i < 2; i++) {
-        CHK(dst.arrknown.a[i] != src.arrknown.a[i]);
-        CHK(dst.arrknown.a[i]->intval == 50 + i);
+        if (dst.arrknown.a[i] == src.arrknown.a[i])
+            TEST_FAIL(1, _SL("dst.arrknown.a[${int}] aliases src: ${ptr}"), stvar(int32, i), stvar(ptr, dst.arrknown.a[i]));
+        if (dst.arrknown.a[i]->intval != 50 + i)
+            TEST_FAIL(1, _SL("dst.arrknown.a[${int}]->intval=${int} != ${int}"), stvar(int32, i), stvar(int32, dst.arrknown.a[i]->intval), stvar(int32, 50 + i));
     }
 
     CHK(structDeepEq(STRUCTBASE(&src), STRUCTBASE(&dst)));

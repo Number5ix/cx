@@ -45,10 +45,14 @@ typedef int SOCKET;
     do {                                                                   \
         HttpUrl _u;                                                        \
         if (!httpUrlParse(&_u, _SL(instr))) {                              \
-            ret = 1;                                                       \
+            TEST_FAILV(ret, 1, _SL("failed to parse '${string}'"),         \
+                       stvar(strref, _SL(instr)));                         \
         } else {                                                           \
             if (!strEq(_u.field, _SL(want)))                               \
-                ret = 1;                                                   \
+                TEST_FAILV(ret, 1,                                         \
+                    _SL("${string}: expected ${string} to be '${string}', got '${string}'"), \
+                    stvar(strref, _SL(instr)), stvar(strref, _SL(#field)), \
+                    stvar(strref, _SL(want)), stvar(strref, _u.field));    \
             httpUrlDestroy(&_u);                                           \
         }                                                                  \
     } while (0)
@@ -58,10 +62,13 @@ typedef int SOCKET;
     do {                                                                   \
         HttpUrl _u;                                                        \
         if (!httpUrlParse(&_u, _SL(instr))) {                              \
-            ret = 1;                                                       \
+            TEST_FAILV(ret, 1, _SL("failed to parse '${string}'"),         \
+                       stvar(strref, _SL(instr)));                         \
         } else {                                                           \
             if (_u.port != (want))                                         \
-                ret = 1;                                                   \
+                TEST_FAILV(ret, 1, _SL("${string}: expected port ${uint}, got ${uint}"), \
+                           stvar(strref, _SL(instr)), stvar(uint16, (uint16)(want)), \
+                           stvar(uint16, _u.port));                        \
             httpUrlDestroy(&_u);                                           \
         }                                                                  \
     } while (0)
@@ -71,7 +78,9 @@ typedef int SOCKET;
     do {                                                                   \
         HttpUrl _u;                                                        \
         if (httpUrlParse(&_u, _SL(instr))) {                               \
-            ret = 1;                                                       \
+            TEST_FAILV(ret, 1,                                             \
+                _SL("expected '${string}' to be rejected as malformed, but it parsed"), \
+                stvar(strref, _SL(instr)));                                \
             httpUrlDestroy(&_u);                                           \
         }                                                                  \
     } while (0)
@@ -121,10 +130,10 @@ static int test_httptest_url(void)
     HttpUrl u;
     if (httpUrlParse(&u, _SL("http://[::1]:8080/"))) {
         if (!u.ipv6Host)
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("!u.ipv6Host"), stvNone);
         httpUrlDestroy(&u);
     } else {
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("failed: httpUrlParse(&u, _SL(\"http://[::1]:8080/\"))"), stvNone);
     }
 
     URLBAD("");
@@ -150,48 +159,48 @@ static int test_httptest_urlformat(void)
 
     if (httpUrlParse(&u, _SL("https://user:pw@example.com:8443/a%20b?x=1#frag"))) {
         if (!httpUrlTarget(&s, &u) || !strEq(s, _SL("/a%20b?x=1")))
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("!httpUrlTarget(&s, &u) || expected '${string}', got '${string}'"), stvar(strref, _SL("/a%20b?x=1")), stvar(strref, s));
 
         // The port is named because 8443 is not the https default.
         if (!httpUrlHostHeader(&s, &u) || !strEq(s, _SL("example.com:8443")))
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("!httpUrlHostHeader(&s, &u) || expected '${string}', got '${string}'"), stvar(strref, _SL("example.com:8443")), stvar(strref, s));
 
         if (!httpUrlFormat(&s, &u) ||
             !strEq(s, _SL("https://user:pw@example.com:8443/a%20b?x=1#frag")))
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("!httpUrlFormat(&s, &u) || expected '${string}', got '${string}'"), stvar(strref, _SL("https://user:pw@example.com:8443/a%20b?x=1#frag")), stvar(strref, s));
 
         httpUrlDestroy(&u);
     } else {
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("failed: httpUrlParse(&u, _SL(\"https://user:pw@example.com:8443/a%20b?x=1#frag\"))"), stvNone);
     }
 
     // A default port is not repeated in the Host header, and an unspecified one never was.
     if (httpUrlParse(&u, _SL("https://example.com:443/"))) {
         if (!httpUrlHostHeader(&s, &u) || !strEq(s, _SL("example.com")))
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("!httpUrlHostHeader(&s, &u) || expected '${string}', got '${string}'"), stvar(strref, _SL("example.com")), stvar(strref, s));
         httpUrlDestroy(&u);
     } else {
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("failed: httpUrlParse(&u, _SL(\"https://example.com:443/\"))"), stvNone);
     }
 
     // An IPv6 host is bracketed again on the way out.
     if (httpUrlParse(&u, _SL("http://[::1]:8080/x"))) {
         if (!httpUrlHostHeader(&s, &u) || !strEq(s, _SL("[::1]:8080")))
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("!httpUrlHostHeader(&s, &u) || expected '${string}', got '${string}'"), stvar(strref, _SL("[::1]:8080")), stvar(strref, s));
         if (!httpUrlFormat(&s, &u) || !strEq(s, _SL("http://[::1]:8080/x")))
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("!httpUrlFormat(&s, &u) || expected '${string}', got '${string}'"), stvar(strref, _SL("http://[::1]:8080/x")), stvar(strref, s));
         httpUrlDestroy(&u);
     } else {
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("failed: httpUrlParse(&u, _SL(\"http://[::1]:8080/x\"))"), stvNone);
     }
 
     // No path and no query: the target is still "/".
     if (httpUrlParse(&u, _SL("http://example.com"))) {
         if (!httpUrlTarget(&s, &u) || !strEq(s, _SL("/")))
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("!httpUrlTarget(&s, &u) || expected '${string}', got '${string}'"), stvar(strref, _SL("/")), stvar(strref, s));
         httpUrlDestroy(&u);
     } else {
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("failed: httpUrlParse(&u, _SL(\"http://example.com\"))"), stvNone);
     }
 
     strDestroy(&s);
@@ -204,13 +213,18 @@ static int test_httptest_urlformat(void)
         HttpUrl _b, _r;                                                    \
         string _s = 0;                                                     \
         if (!httpUrlParse(&_b, _SL(basestr))) {                            \
-            ret = 1;                                                       \
+            TEST_FAILV(ret, 1, _SL("failed to parse base '${string}'"),    \
+                       stvar(strref, _SL(basestr)));                       \
         } else {                                                           \
             if (!httpUrlResolve(&_r, &_b, _SL(refstr))) {                  \
-                ret = 1;                                                   \
+                TEST_FAILV(ret, 1, _SL("failed to resolve '${string}' against '${string}'"), \
+                           stvar(strref, _SL(refstr)), stvar(strref, _SL(basestr))); \
             } else {                                                       \
                 if (!httpUrlFormat(&_s, &_r) || !strEq(_s, _SL(want)))     \
-                    ret = 1;                                               \
+                    TEST_FAILV(ret, 1,                                     \
+                        _SL("resolving '${string}' against '${string}': expected '${string}', got '${string}'"), \
+                        stvar(strref, _SL(refstr)), stvar(strref, _SL(basestr)), \
+                        stvar(strref, _SL(want)), stvar(strref, _s));      \
                 httpUrlDestroy(&_r);                                       \
             }                                                              \
             httpUrlDestroy(&_b);                                           \
@@ -258,55 +272,55 @@ static int test_httptest_urlcodec(void)
     string s  = 0;
 
     if (!httpUrlEncode(&s, _SL("a b"), HTTPENC_Strict) || !strEq(s, _SL("a%20b")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpUrlEncode(&s, _SL(\"a b\"), HTTPENC_Strict) || expected '${string}', got '${string}'"), stvar(strref, _SL("a%20b")), stvar(strref, s));
     if (!httpUrlEncode(&s, _SL("a/b"), HTTPENC_Strict) || !strEq(s, _SL("a%2Fb")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpUrlEncode(&s, _SL(\"a/b\"), HTTPENC_Strict) || expected '${string}', got '${string}'"), stvar(strref, _SL("a%2Fb")), stvar(strref, s));
     if (!httpUrlEncode(&s, _SL("a/b"), HTTPENC_Path) || !strEq(s, _SL("a/b")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpUrlEncode(&s, _SL(\"a/b\"), HTTPENC_Path) || expected '${string}', got '${string}'"), stvar(strref, _SL("a/b")), stvar(strref, s));
 
     // The unreserved set is never escaped, in any mode.
     if (!httpUrlEncode(&s, _SL("aZ0-._~"), HTTPENC_Strict) || !strEq(s, _SL("aZ0-._~")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpUrlEncode(&s, _SL(\"aZ0-._~\"), HTTPENC_Strict) || expected '${string}', got '${string}'"), stvar(strref, _SL("aZ0-._~")), stvar(strref, s));
 
     // Separators must be escaped in strict mode or a value could forge a pair.
     if (!httpUrlEncode(&s, _SL("a&b=c"), HTTPENC_Strict) || !strEq(s, _SL("a%26b%3Dc")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpUrlEncode(&s, _SL(\"a&b=c\"), HTTPENC_Strict) || expected '${string}', got '${string}'"), stvar(strref, _SL("a%26b%3Dc")), stvar(strref, s));
 
     // '+' is escaped, because form decoding would otherwise read it as a space.
     if (!httpUrlEncode(&s, _SL("a+b"), HTTPENC_Strict) || !strEq(s, _SL("a%2Bb")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpUrlEncode(&s, _SL(\"a+b\"), HTTPENC_Strict) || expected '${string}', got '${string}'"), stvar(strref, _SL("a%2Bb")), stvar(strref, s));
 
     // Encoding is per byte, so UTF-8 survives a round trip.
     if (!httpUrlEncode(&s, _SL("\xc3\xa9"), HTTPENC_Strict) || !strEq(s, _SL("%C3%A9")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpUrlEncode(&s, _SL(\"\\xc3\\xa9\"), HTTPENC_Strict) || expected '${string}', got '${string}'"), stvar(strref, _SL("%C3%A9")), stvar(strref, s));
 
     if (!httpUrlDecode(&s, _SL("a%20b"), false) || !strEq(s, _SL("a b")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpUrlDecode(&s, _SL(\"a%20b\"), false) || expected '${string}', got '${string}'"), stvar(strref, _SL("a b")), stvar(strref, s));
     if (!httpUrlDecode(&s, _SL("a%c3%a9b"), false) || !strEq(s, _SL("a\xc3\xa9""b")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpUrlDecode(&s, _SL(\"a%c3%a9b\"), false) || expected '${string}', got '${string}'"), stvar(strref, _SL("a\xc3\xa9""b")), stvar(strref, s));
 
     // '+' only means space where the caller says the grammar says so.
     if (!httpUrlDecode(&s, _SL("a+b"), false) || !strEq(s, _SL("a+b")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpUrlDecode(&s, _SL(\"a+b\"), false) || expected '${string}', got '${string}'"), stvar(strref, _SL("a+b")), stvar(strref, s));
     if (!httpUrlDecode(&s, _SL("a+b"), true) || !strEq(s, _SL("a b")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpUrlDecode(&s, _SL(\"a+b\"), true) || expected '${string}', got '${string}'"), stvar(strref, _SL("a b")), stvar(strref, s));
 
     // A malformed escape passes through literally rather than failing the whole URL.
     if (!httpUrlDecode(&s, _SL("100%"), false) || !strEq(s, _SL("100%")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpUrlDecode(&s, _SL(\"100%\"), false) || expected '${string}', got '${string}'"), stvar(strref, _SL("100%")), stvar(strref, s));
     if (!httpUrlDecode(&s, _SL("a%zzb"), false) || !strEq(s, _SL("a%zzb")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpUrlDecode(&s, _SL(\"a%zzb\"), false) || expected '${string}', got '${string}'"), stvar(strref, _SL("a%zzb")), stvar(strref, s));
     if (!httpUrlDecode(&s, _SL("a%4"), false) || !strEq(s, _SL("a%4")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpUrlDecode(&s, _SL(\"a%4\"), false) || expected '${string}', got '${string}'"), stvar(strref, _SL("a%4")), stvar(strref, s));
 
     // A '%' that fails has to release both of the bytes it looked at, because either can start a
     // valid escape of its own. Every browser reads this as "%A".
     if (!httpUrlDecode(&s, _SL("%%41"), false) || !strEq(s, _SL("%A")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpUrlDecode(&s, _SL(\"%%41\"), false) || expected '${string}', got '${string}'"), stvar(strref, _SL("%A")), stvar(strref, s));
 
     // The same, one byte later: the first '%' consumes "%4", and the '1' left over is a literal.
     if (!httpUrlDecode(&s, _SL("%%%41"), false) || !strEq(s, _SL("%%A")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpUrlDecode(&s, _SL(\"%%%41\"), false) || expected '${string}', got '${string}'"), stvar(strref, _SL("%%A")), stvar(strref, s));
 
     // An escape straddling a rope's segment boundary. Decoding walks the string a byte at a time,
     // so a run boundary landing between the '%' and its digits is the case that would break if the
@@ -317,16 +331,16 @@ static int test_httptest_urlcodec(void)
     strAppend(&rope, pre);
     strAppend(&rope, post);
     if (strTestRopeDepth(rope) < 1) {
-        ret = 1;   // not actually a rope; the run-crossing path would go untested
+        TEST_FAILV(ret, 1, _SL("strTestRopeDepth(rope) < 1 -- not actually a rope; the run-crossing path would go untested"), stvNone);
     } else {
         strref want = _S"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
                        "Abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
         if (!httpUrlDecode(&s, rope, false) || !strEq(s, want))
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("!httpUrlDecode(&s, rope, false) || expected '${string}', got '${string}'"), stvar(strref, want), stvar(strref, s));
         // Encoding walks the same way, so it gets the same treatment.
         string enc = 0;
         if (!httpUrlEncode(&enc, rope, HTTPENC_Strict) || strLen(enc) != strLen(rope) + 2)
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("!httpUrlEncode(&enc, rope, HTTPENC_Strict) || strLen(enc) != strLen(rope) + 2"), stvNone);
         strDestroy(&enc);
     }
     strDestroy(&rope);
@@ -344,15 +358,15 @@ static int test_httptest_query(void)
 
     httpQueryParse(&q, _SL("a=1&b=two&a=3"));
     if (httpHeadersCount(&q) != 3)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("httpHeadersCount(&q) != 3"), stvNone);
     if (!httpHeadersGet(&q, _SL("a"), &s) || !strEq(s, _SL("1")))
-        ret = 1;   // first wins for a duplicated key
+        TEST_FAILV(ret, 1, _SL("!httpHeadersGet(&q, _SL(\"a\"), &s) || expected '${string}', got '${string}' -- first wins for a duplicated key"), stvar(strref, _SL("1")), stvar(strref, s));
 
     sa_string all;
     if (httpHeadersGetAll(&q, _SL("a"), &all) != 2)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("httpHeadersGetAll(&q, _SL(\"a\"), &all) != 2"), stvNone);
     else if (!strEq(all.a[0], _SL("1")) || !strEq(all.a[1], _SL("3")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}', got '${string}' || expected '${string}', got '${string}'"), stvar(strref, _SL("1")), stvar(strref, all.a[0]), stvar(strref, _SL("3")), stvar(strref, all.a[1]));
     saDestroy(&all);
     httpHeadersDestroy(&q);
 
@@ -360,31 +374,31 @@ static int test_httptest_query(void)
     // parameter-smuggling bug, which is why the query is decoded after splitting and not before.
     httpQueryParse(&q, _SL("x=a%26b=c"));
     if (httpHeadersCount(&q) != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("httpHeadersCount(&q) != 1"), stvNone);
     if (!httpHeadersGet(&q, _SL("x"), &s) || !strEq(s, _SL("a&b=c")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpHeadersGet(&q, _SL(\"x\"), &s) || expected '${string}', got '${string}'"), stvar(strref, _SL("a&b=c")), stvar(strref, s));
     httpHeadersDestroy(&q);
 
     // '+' is a space in a query, and ';' separates like '&'.
     httpQueryParse(&q, _SL("n=a+b;m=c"));
     if (httpHeadersCount(&q) != 2)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("httpHeadersCount(&q) != 2"), stvNone);
     if (!httpHeadersGet(&q, _SL("n"), &s) || !strEq(s, _SL("a b")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpHeadersGet(&q, _SL(\"n\"), &s) || expected '${string}', got '${string}'"), stvar(strref, _SL("a b")), stvar(strref, s));
     httpHeadersDestroy(&q);
 
     // A bare key keeps an empty value rather than being dropped.
     httpQueryParse(&q, _SL("debug&v=1"));
     if (httpHeadersCount(&q) != 2)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("httpHeadersCount(&q) != 2"), stvNone);
     if (!httpHeadersHas(&q, _SL("debug")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpHeadersHas(&q, _SL(\"debug\"))"), stvNone);
     httpHeadersDestroy(&q);
 
     // Empty input is an empty list, not a failure.
     httpQueryParse(&q, _SL(""));
     if (httpHeadersCount(&q) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("httpHeadersCount(&q) != 0"), stvNone);
     httpHeadersDestroy(&q);
 
     // Format escapes everything structural, so a round trip is lossless.
@@ -392,14 +406,14 @@ static int test_httptest_query(void)
     httpHeadersAdd(&q, _SL("a b"), _SL("c&d"));
     httpHeadersAdd(&q, _SL("e"), _SL("f=g"));
     if (!httpQueryFormat(&s, &q) || !strEq(s, _SL("a%20b=c%26d&e=f%3Dg")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpQueryFormat(&s, &q) || expected '${string}', got '${string}'"), stvar(strref, _SL("a%20b=c%26d&e=f%3Dg")), stvar(strref, s));
     httpHeadersDestroy(&q);
 
     httpQueryParse(&q, s);
     if (httpHeadersCount(&q) != 2)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("httpHeadersCount(&q) != 2"), stvNone);
     if (!httpHeadersGet(&q, _SL("a b"), &s) || !strEq(s, _SL("c&d")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpHeadersGet(&q, _SL(\"a b\"), &s) || expected '${string}', got '${string}'"), stvar(strref, _SL("c&d")), stvar(strref, s));
     httpHeadersDestroy(&q);
 
     strDestroy(&s);
@@ -423,13 +437,13 @@ static int test_httptest_headers(void)
 
     // Lookup is case-insensitive both ways round.
     if (!httpHeadersGet(&h, _SL("content-type"), &s) || !strEq(s, _SL("text/html")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpHeadersGet(&h, _SL(\"content-type\"), &s) || expected '${string}', got '${string}'"), stvar(strref, _SL("text/html")), stvar(strref, s));
     if (!httpHeadersGet(&h, _SL("CONTENT-LENGTH"), &s) || !strEq(s, _SL("42")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpHeadersGet(&h, _SL(\"CONTENT-LENGTH\"), &s) || expected '${string}', got '${string}'"), stvar(strref, _SL("42")), stvar(strref, s));
     if (httpHeadersGet(&h, _SL("Missing"), &s))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("httpHeadersGet(&h, _SL(\"Missing\"), &s)"), stvNone);
     if (!httpHeadersHas(&h, _SL("Content-Type")) || httpHeadersHas(&h, _SL("Nope")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpHeadersHas(&h, _SL(\"Content-Type\")) || httpHeadersHas(&h, _SL(\"Nope\"))"), stvNone);
 
     // Duplicates are the whole reason this is not a hashtable: three Set-Cookie lines must survive
     // as three, because folding them into one comma-separated value is not reversible.
@@ -439,47 +453,47 @@ static int test_httptest_headers(void)
 
     sa_string all;
     if (httpHeadersGetAll(&h, _SL("set-cookie"), &all) != 3)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("httpHeadersGetAll(&h, _SL(\"set-cookie\"), &all) != 3"), stvNone);
     else if (!strEq(all.a[0], _SL("a=1")) || !strEq(all.a[2], _SL("c=3, with a comma")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}', got '${string}' || expected '${string}', got '${string}'"), stvar(strref, _SL("a=1")), stvar(strref, all.a[0]), stvar(strref, _SL("c=3, with a comma")), stvar(strref, all.a[2]));
     saDestroy(&all);
 
     if (httpHeadersCount(&h) != 5)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("httpHeadersCount(&h) != 5"), stvNone);
 
     // Set replaces every occurrence and keeps the position of the first.
     httpHeadersSet(&h, _SL("SET-COOKIE"), _SL("only=1"));
     if (httpHeadersGetAll(&h, _SL("Set-Cookie"), &all) != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("httpHeadersGetAll(&h, _SL(\"Set-Cookie\"), &all) != 1"), stvNone);
     saDestroy(&all);
     if (httpHeadersCount(&h) != 3)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("httpHeadersCount(&h) != 3"), stvNone);
     if (!strEq(h.names.a[2], _SL("Set-Cookie")))
-        ret = 1;   // still third, not moved to the end
+        TEST_FAILV(ret, 1, _SL("expected '${string}', got '${string}' -- still third, not moved to the end"), stvar(strref, _SL("Set-Cookie")), stvar(strref, h.names.a[2]));
 
     // Set on an absent field is an add.
     httpHeadersSet(&h, _SL("Server"), _SL("cx"));
     if (httpHeadersCount(&h) != 4)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("httpHeadersCount(&h) != 4"), stvNone);
 
     if (httpHeadersRemove(&h, _SL("content-length")) != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("httpHeadersRemove(&h, _SL(\"content-length\")) != 1"), stvNone);
     if (httpHeadersRemove(&h, _SL("content-length")) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("httpHeadersRemove(&h, _SL(\"content-length\")) != 0"), stvNone);
     if (httpHeadersCount(&h) != 3)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("httpHeadersCount(&h) != 3"), stvNone);
 
     // Order is preserved across all of that.
     if (!strEq(h.names.a[0], _SL("Content-Type")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}', got '${string}'"), stvar(strref, _SL("Content-Type")), stvar(strref, h.names.a[0]));
 
     httpHeadersClear(&h);
     if (httpHeadersCount(&h) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("httpHeadersCount(&h) != 0"), stvNone);
 
     // An empty name is refused rather than producing a field nothing can address.
     if (httpHeadersAdd(&h, _SL(""), _SL("x")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("httpHeadersAdd(&h, _SL(\"\"), _SL(\"x\"))"), stvNone);
 
     httpHeadersDestroy(&h);
     strDestroy(&s);
@@ -496,25 +510,25 @@ static int test_httptest_headertoken(void)
     httpHeadersAdd(&h, _SL("Transfer-Encoding"), _SL("chunked"));
 
     if (!httpHeadersHasToken(&h, _SL("connection"), _SL("upgrade")))
-        ret = 1;   // case-insensitive on both the field name and the token
+        TEST_FAILV(ret, 1, _SL("!httpHeadersHasToken(&h, _SL(\"connection\"), _SL(\"upgrade\")) -- case-insensitive on both the field name and the token"), stvNone);
     if (!httpHeadersHasToken(&h, _SL("Connection"), _SL("keep-alive")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpHeadersHasToken(&h, _SL(\"Connection\"), _SL(\"keep-alive\"))"), stvNone);
     if (httpHeadersHasToken(&h, _SL("Connection"), _SL("close")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("httpHeadersHasToken(&h, _SL(\"Connection\"), _SL(\"close\"))"), stvNone);
     if (!httpHeadersHasToken(&h, _SL("Transfer-Encoding"), _SL("chunked")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpHeadersHasToken(&h, _SL(\"Transfer-Encoding\"), _SL(\"chunked\"))"), stvNone);
 
     // A token must match whole, not as a substring of a longer one.
     if (httpHeadersHasToken(&h, _SL("Connection"), _SL("keep")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("httpHeadersHasToken(&h, _SL(\"Connection\"), _SL(\"keep\"))"), stvNone);
 
     // A field split across two lines is searched in both, because a peer may send it either way.
     httpHeadersAdd(&h, _SL("Connection"), _SL("close"));
     if (!httpHeadersHasToken(&h, _SL("Connection"), _SL("close")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpHeadersHasToken(&h, _SL(\"Connection\"), _SL(\"close\"))"), stvNone);
 
     if (httpHeadersHasToken(&h, _SL("Absent"), _SL("x")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("httpHeadersHasToken(&h, _SL(\"Absent\"), _SL(\"x\"))"), stvNone);
 
     httpHeadersDestroy(&h);
     return ret;
@@ -532,12 +546,12 @@ static int test_httptest_headerformat(void)
 
     if (!httpHeadersFormat(&s, &h) ||
         !strEq(s, _SL("Host: example.com\r\nAccept: */*\r\n")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpHeadersFormat(&s, &h) || expected '${string}', got '${string}'"), stvar(strref, _SL("Host: example.com\r\nAccept: */*\r\n")), stvar(strref, s));
 
     // The block does not terminate itself: the caller adds the blank line after contributing
     // whatever fields it computes for itself.
     if (strEndsWith(s, _SL("\r\n\r\n")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("strEndsWith(s, _SL(\"\\r\\n\\r\\n\"))"), stvNone);
 
     httpHeadersDestroy(&h);
     strDestroy(&s);
@@ -559,57 +573,57 @@ static int test_httptest_date(void)
     int64 rfc1123 = 0, rfc850 = 0, asctime = 0;
 
     if (!httpDateParse(&rfc1123, _SL("Sun, 06 Nov 1994 08:49:37 GMT")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpDateParse(&rfc1123, _SL(\"Sun, 06 Nov 1994 08:49:37 GMT\"))"), stvNone);
     if (!httpDateParse(&rfc850, _SL("Sunday, 06-Nov-94 08:49:37 GMT")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpDateParse(&rfc850, _SL(\"Sunday, 06-Nov-94 08:49:37 GMT\"))"), stvNone);
     if (!httpDateParse(&asctime, _SL("Sun Nov  6 08:49:37 1994")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpDateParse(&asctime, _SL(\"Sun Nov  6 08:49:37 1994\"))"), stvNone);
 
     if (rfc1123 != rfc850 || rfc1123 != asctime)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rfc1123=${int} != ${int}(rfc850) || rfc1123=${int} != ${int}(asctime)"), stvar(int32, rfc1123), stvar(int32, rfc850), stvar(int32, rfc1123), stvar(int32, asctime));
 
     // Only the preferred form is ever generated, whichever form was read.
     if (!httpDateFormat(&s, rfc1123) || !strEq(s, _SL("Sun, 06 Nov 1994 08:49:37 GMT")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpDateFormat(&s, rfc1123) || expected '${string}', got '${string}'"), stvar(strref, _SL("Sun, 06 Nov 1994 08:49:37 GMT")), stvar(strref, s));
 
     // Round trip through a formatted date.
     if (!httpDateParse(&t, s) || t != rfc1123)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpDateParse(&t, s) || t=${int} != ${int}(rfc1123)"), stvar(int32, t), stvar(int32, rfc1123));
 
     // Two-digit years pivot at 70.
     int64 y2000 = 0, y1999 = 0;
     if (!httpDateParse(&y2000, _SL("Sat, 01-Jan-00 00:00:00 GMT")) ||
         !httpDateParse(&y1999, _SL("Fri, 01-Jan-99 00:00:00 GMT")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpDateParse(&y2000, _SL(\"Sat, 01-Jan-00 00:00:00 GMT\")) || !httpDateParse(&y1999, _SL(\"Fri, 01-Jan-99 00:00:00 GMT\"))"), stvNone);
     if (y2000 <= y1999)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("y2000 <= y1999"), stvNone);
 
     // A single-digit asctime day is space-padded, and the padding run must not become a field.
     if (!httpDateParse(&t, _SL("Sun Nov  6 08:49:37 1994")) || t != rfc1123)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpDateParse(&t, _SL(\"Sun Nov  6 08:49:37 1994\")) || t=${int} != ${int}(rfc1123)"), stvar(int32, t), stvar(int32, rfc1123));
 
     // Surrounding whitespace is tolerated; a header value often arrives with it.
     if (!httpDateParse(&t, _SL("  Sun, 06 Nov 1994 08:49:37 GMT  ")) || t != rfc1123)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpDateParse(&t, _SL(\"  Sun, 06 Nov 1994 08:49:37 GMT  \")) || t=${int} != ${int}(rfc1123)"), stvar(int32, t), stvar(int32, rfc1123));
 
     // Malformed dates are rejected rather than guessed at: a corrupt Expires that parses to a
     // plausible wrong answer is worse than one that fails.
     if (httpDateParse(&t, _SL("")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("httpDateParse(&t, _SL(\"\"))"), stvNone);
     if (httpDateParse(&t, _SL("not a date")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("httpDateParse(&t, _SL(\"not a date\"))"), stvNone);
     if (httpDateParse(&t, _SL("Sun, 06 Nov 1994 08:49:37")))
-        ret = 1;   // no zone
+        TEST_FAILV(ret, 1, _SL("httpDateParse(&t, _SL(\"Sun, 06 Nov 1994 08:49:37\")) -- no zone"), stvNone);
     if (httpDateParse(&t, _SL("Sun, 06 Nov 1994 08:49:37 EST")))
-        ret = 1;   // HTTP-date is always GMT
+        TEST_FAILV(ret, 1, _SL("httpDateParse(&t, _SL(\"Sun, 06 Nov 1994 08:49:37 EST\")) -- HTTP-date is always GMT"), stvNone);
     if (httpDateParse(&t, _SL("Sun, 32 Nov 1994 08:49:37 GMT")))
-        ret = 1;   // day out of range
+        TEST_FAILV(ret, 1, _SL("httpDateParse(&t, _SL(\"Sun, 32 Nov 1994 08:49:37 GMT\")) -- day out of range"), stvNone);
     if (httpDateParse(&t, _SL("Sun, 06 Xxx 1994 08:49:37 GMT")))
-        ret = 1;   // unknown month
+        TEST_FAILV(ret, 1, _SL("httpDateParse(&t, _SL(\"Sun, 06 Xxx 1994 08:49:37 GMT\")) -- unknown month"), stvNone);
     if (httpDateParse(&t, _SL("Sun, 06 Nov 1994 25:49:37 GMT")))
-        ret = 1;   // hour out of range
+        TEST_FAILV(ret, 1, _SL("httpDateParse(&t, _SL(\"Sun, 06 Nov 1994 25:49:37 GMT\")) -- hour out of range"), stvNone);
     if (httpDateParse(&t, _SL("Sun, 31 Feb 1994 08:49:37 GMT")))
-        ret = 1;   // date that does not exist
+        TEST_FAILV(ret, 1, _SL("httpDateParse(&t, _SL(\"Sun, 31 Feb 1994 08:49:37 GMT\")) -- date that does not exist"), stvNone);
 
     strDestroy(&s);
     return ret;
@@ -701,19 +715,19 @@ static int test_httptest_parseresp(void)
 
     httpParserInit(&p, false, NULL);
     if (parseWhole(&p, kResp, &body, &heads) != HTTPP_Complete)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("parseWhole(&p, kResp, &body, &heads) != HTTPP_Complete"), stvNone);
     if (p.status != 200 || p.version != HTTPVER_1_1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("p.status=${uint} != 200 || p.version=${int} != HTTPVER_1_1"), stvar(uint16, p.status), stvar(int32, p.version));
     if (!strEq(p.reason, _SL("OK")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}', got '${string}'"), stvar(strref, _SL("OK")), stvar(strref, p.reason));
     if (heads != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("heads=${int} != 1"), stvar(int32, heads));
     if (!strEq(body, _SL("hello")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}', got '${string}'"), stvar(strref, _SL("hello")), stvar(strref, body));
     if (!httpHeadersGet(&p.headers, _SL("content-type"), &v) || !strEq(v, _SL("text/plain")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpHeadersGet(&p.headers, _SL(\"content-type\"), &v) || expected '${string}', got '${string}'"), stvar(strref, _SL("text/plain")), stvar(strref, v));
     if (!httpParserKeepAlive(&p))
-        ret = 1;   // 1.1 with no Connection header persists
+        TEST_FAILV(ret, 1, _SL("!httpParserKeepAlive(&p) -- 1.1 with no Connection header persists"), stvNone);
 
     // The same bytes arriving one at a time must produce exactly the same result. This is the test
     // that catches a parser that peeks past what it has actually received.
@@ -721,9 +735,9 @@ static int test_httptest_parseresp(void)
     strDestroy(&body);
     heads = 0;
     if (parseDribbled(&p, kResp, &body, &heads) != HTTPP_Complete)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("parseDribbled(&p, kResp, &body, &heads) != HTTPP_Complete"), stvNone);
     if (p.status != 200 || heads != 1 || !strEq(body, _SL("hello")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("p.status=${uint} != 200 || heads=${int} != 1 || expected '${string}', got '${string}'"), stvar(uint16, p.status), stvar(int32, heads), stvar(strref, _SL("hello")), stvar(strref, body));
 
     httpParserDestroy(&p);
     strDestroy(&body);
@@ -749,20 +763,20 @@ static int test_httptest_parsechunked(void)
 
     httpParserInit(&p, false, NULL);
     if (parseWhole(&p, kResp, &body, NULL) != HTTPP_Complete)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("parseWhole(&p, kResp, &body, NULL) != HTTPP_Complete"), stvNone);
     if (!strEq(body, _SL("hello world")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}', got '${string}'"), stvar(strref, _SL("hello world")), stvar(strref, body));
     // Trailers are read and dropped rather than merged into the header block the application has
     // already been shown.
     if (httpHeadersHas(&p.headers, _SL("X-Trailer")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("httpHeadersHas(&p.headers, _SL(\"X-Trailer\"))"), stvNone);
 
     httpParserReset(&p);
     strDestroy(&body);
     if (parseDribbled(&p, kResp, &body, NULL) != HTTPP_Complete)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("parseDribbled(&p, kResp, &body, NULL) != HTTPP_Complete"), stvNone);
     if (!strEq(body, _SL("hello world")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}', got '${string}'"), stvar(strref, _SL("hello world")), stvar(strref, body));
 
     // A zero-length chunked body is legal and is not the same as no body.
     httpParserReset(&p);
@@ -770,9 +784,9 @@ static int test_httptest_parsechunked(void)
     if (parseWhole(&p,
                    "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n",
                    &body, NULL) != HTTPP_Complete)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("parseWhole(&p, \"HTTP/1.1 200 OK\\r\\nTransfer-Encoding: chunked\\r\\n\\r\\n0\\r\\n\\r\\n\", &body, NULL) != HTTPP_Complete"), stvNone);
     if (!strEmpty(body))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!strEmpty(body)"), stvNone);
 
     httpParserDestroy(&p);
     strDestroy(&body);
@@ -790,17 +804,17 @@ static int test_httptest_parseframing(void)
     httpParserInit(&p, false, NULL);
     if (parseWhole(&p, "HTTP/1.1 204 No Content\r\nContent-Length: 5\r\n\r\n", &body, NULL) !=
         HTTPP_Complete)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("parseWhole(&p, \"HTTP/1.1 204 No Content\\r\\nContent-Length: 5\\r\\n\\r\\n\", &body, NULL) != HTTPP_Complete"), stvNone);
     if (!strEmpty(body))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!strEmpty(body)"), stvNone);
 
     // Neither does a 304.
     httpParserReset(&p);
     if (parseWhole(&p, "HTTP/1.1 304 Not Modified\r\nContent-Length: 9\r\n\r\n", &body, NULL) !=
         HTTPP_Complete)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("parseWhole(&p, \"HTTP/1.1 304 Not Modified\\r\\nContent-Length: 9\\r\\n\\r\\n\", &body, NULL) != HTTPP_Complete"), stvNone);
     if (!strEmpty(body))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!strEmpty(body)"), stvNone);
 
     // A response to HEAD is framed like the GET response would have been, but carries no body. The
     // parser only knows that because the caller told it which method was sent.
@@ -808,9 +822,9 @@ static int test_httptest_parseframing(void)
     p.reqMethod = HTTP_Head;
     if (parseWhole(&p, "HTTP/1.1 200 OK\r\nContent-Length: 12\r\n\r\n", &body, NULL) !=
         HTTPP_Complete)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("parseWhole(&p, \"HTTP/1.1 200 OK\\r\\nContent-Length: 12\\r\\n\\r\\n\", &body, NULL) != HTTPP_Complete"), stvNone);
     if (!strEmpty(body))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!strEmpty(body)"), stvNone);
 
     // Close-delimited: no framing headers at all, so the body runs until the peer hangs up.
     httpParserReset(&p);
@@ -823,13 +837,13 @@ static int test_httptest_parseframing(void)
         bufringWrite(&src, (const uint8*)r, strlen(r));
 
         if (drive(&p, &src, &body, NULL) != HTTPP_NeedMore)
-            ret = 1;   // still open: without a close there is no way to know it ended
+            TEST_FAILV(ret, 1, _SL("drive(&p, &src, &body, NULL) != HTTPP_NeedMore -- still open: without a close there is no way to know it ended"), stvNone);
         if (httpParserEOF(&p) != HTTPP_Complete)
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("httpParserEOF(&p) != HTTPP_Complete"), stvNone);
         if (!strEq(body, _SL("some body bytes")))
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("expected '${string}', got '${string}'"), stvar(strref, _SL("some body bytes")), stvar(strref, body));
         if (httpParserKeepAlive(&p))
-            ret = 1;   // a close-delimited response spends its connection by definition
+            TEST_FAILV(ret, 1, _SL("httpParserKeepAlive(&p) -- a close-delimited response spends its connection by definition"), stvNone);
 
         bufringDestroy(&src);
     }
@@ -846,7 +860,7 @@ static int test_httptest_parseframing(void)
 
         drive(&p, &src, &body, NULL);
         if (httpParserEOF(&p) != HTTPP_Error || p.err != HTTPERR_Closed)
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("httpParserEOF(&p) != HTTPP_Error || p.err=${int} != HTTPERR_Closed"), stvar(int32, p.err));
 
         bufringDestroy(&src);
     }
@@ -862,10 +876,15 @@ static int test_httptest_parseframing(void)
         HttpParser _p;                                                     \
         string _b = 0;                                                     \
         httpParserInit(&_p, false, NULL);                                  \
-        if (parseWhole(&_p, text, &_b, NULL) != HTTPP_Error)               \
-            ret = 1;                                                       \
+        HttpParseResult _pr = parseWhole(&_p, text, &_b, NULL);            \
+        if (_pr != HTTPP_Error)                                            \
+            TEST_FAILV(ret, 1,                                             \
+                _SL("'${string}': expected parse to be rejected, got result ${int}"), \
+                stvar(strref, _SL(text)), stvar(int32, _pr));              \
         else if (_p.err != (wanterr))                                      \
-            ret = 1;                                                       \
+            TEST_FAILV(ret, 1, _SL("'${string}': expected error ${int}, got ${int}"), \
+                       stvar(strref, _SL(text)), stvar(int32, (int32)(wanterr)), \
+                       stvar(int32, _p.err));                              \
         httpParserDestroy(&_p);                                            \
         strDestroy(&_b);                                                   \
     } while (0)
@@ -939,9 +958,9 @@ static int test_httptest_parselimits(void)
     // to make two parsers disagree.
     httpParserInit(&p, false, NULL);
     if (parseWhole(&p, "HTTP/1.1 200 OK\nContent-Length: 2\n\nhi", &body, NULL) != HTTPP_Complete)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("parseWhole(&p, \"HTTP/1.1 200 OK\\nContent-Length: 2\\n\\nhi\", &body, NULL) != HTTPP_Complete"), stvNone);
     if (!strEq(body, _SL("hi")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}', got '${string}'"), stvar(strref, _SL("hi")), stvar(strref, body));
     httpParserDestroy(&p);
 
     // A header line longer than maxLineLen is refused rather than buffered.
@@ -959,7 +978,7 @@ static int test_httptest_parselimits(void)
         httpParserInit(&p, false, &lim);
         strDestroy(&body);
         if (parseWhole(&p, strC(msg), &body, NULL) != HTTPP_Error || p.err != HTTPERR_TooLarge)
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("parseWhole(&p, strC(msg), &body, NULL) != HTTPP_Error || p.err=${int} != HTTPERR_TooLarge"), stvar(int32, p.err));
         httpParserDestroy(&p);
         strDestroy(&msg);
     }
@@ -976,7 +995,7 @@ static int test_httptest_parselimits(void)
                        "HTTP/1.1 200 OK\r\nA: 1\r\nB: 2\r\nC: 3\r\nD: 4\r\nE: 5\r\n\r\n",
                        &body, NULL) != HTTPP_Error ||
             p.err != HTTPERR_TooLarge)
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("parseWhole(&p, \"HTTP/1.1 200 OK\\r\\nA: 1\\r\\nB: 2\\r\\nC: 3\\r\\nD: 4\\r\\nE: 5\\r\\n\\r\\n\", &body, NULL) != HTTPP_Error || p.err=${int} != HTTPERR_TooLarge"), stvar(int32, p.err));
         httpParserDestroy(&p);
     }
 
@@ -991,7 +1010,7 @@ static int test_httptest_parselimits(void)
         if (parseWhole(&p, "HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r\n0123456789", &body,
                        NULL) != HTTPP_Error ||
             p.err != HTTPERR_TooLarge)
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("parseWhole(&p, \"HTTP/1.1 200 OK\\r\\nContent-Length: 10\\r\\n\\r\\n0123456789\", &body, NULL) != HTTPP_Error || p.err=${int} != HTTPERR_TooLarge"), stvar(int32, p.err));
         httpParserDestroy(&p);
     }
 
@@ -1009,40 +1028,40 @@ static int test_httptest_parsereq(void)
     httpParserInit(&p, true, NULL);
     if (parseWhole(&p, "GET /a/b?x=1 HTTP/1.1\r\nHost: example.com\r\n\r\n", &body, NULL) !=
         HTTPP_Complete)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("parseWhole(&p, \"GET /a/b?x=1 HTTP/1.1\\r\\nHost: example.com\\r\\n\\r\\n\", &body, NULL) != HTTPP_Complete"), stvNone);
     if (p.method != HTTP_Get || p.version != HTTPVER_1_1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("p.method=${int} != HTTP_Get || p.version=${int} != HTTPVER_1_1"), stvar(int32, p.method), stvar(int32, p.version));
     if (!strEq(p.target, _SL("/a/b?x=1")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}', got '${string}'"), stvar(strref, _SL("/a/b?x=1")), stvar(strref, p.target));
     if (!httpHeadersGet(&p.headers, _SL("host"), &v) || !strEq(v, _SL("example.com")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpHeadersGet(&p.headers, _SL(\"host\"), &v) || expected '${string}', got '${string}'"), stvar(strref, _SL("example.com")), stvar(strref, v));
     if (!strEmpty(body))
-        ret = 1;   // a request with no framing headers has no body
+        TEST_FAILV(ret, 1, _SL("!strEmpty(body) -- a request with no framing headers has no body"), stvNone);
 
     // A POST with a length.
     httpParserReset(&p);
     if (parseWhole(&p, "POST /submit HTTP/1.1\r\nContent-Length: 4\r\n\r\ndata", &body, NULL) !=
         HTTPP_Complete)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("parseWhole(&p, \"POST /submit HTTP/1.1\\r\\nContent-Length: 4\\r\\n\\r\\ndata\", &body, NULL) != HTTPP_Complete"), stvNone);
     if (p.method != HTTP_Post || !strEq(body, _SL("data")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("p.method=${int} != HTTP_Post || expected '${string}', got '${string}'"), stvar(int32, p.method), stvar(strref, _SL("data")), stvar(strref, body));
 
     // An extension method is carried as a string rather than forcing the enum to grow.
     httpParserReset(&p);
     strDestroy(&body);
     if (parseWhole(&p, "PROPFIND / HTTP/1.1\r\n\r\n", &body, NULL) != HTTPP_Complete)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("parseWhole(&p, \"PROPFIND / HTTP/1.1\\r\\n\\r\\n\", &body, NULL) != HTTPP_Complete"), stvNone);
     if (p.method != HTTP_MethodOther || !strEq(p.methodName, _SL("PROPFIND")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("p.method=${int} != HTTP_MethodOther || expected '${string}', got '${string}'"), stvar(int32, p.method), stvar(strref, _SL("PROPFIND")), stvar(strref, p.methodName));
 
     // Request lines that are not request lines.
     httpParserReset(&p);
     if (parseWhole(&p, "GET /only-two-fields\r\n\r\n", &body, NULL) != HTTPP_Error)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("parseWhole(&p, \"GET /only-two-fields\\r\\n\\r\\n\", &body, NULL) != HTTPP_Error"), stvNone);
 
     httpParserReset(&p);
     if (parseWhole(&p, "GE T /x HTTP/1.1\r\n\r\n", &body, NULL) != HTTPP_Error)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("parseWhole(&p, \"GE T /x HTTP/1.1\\r\\n\\r\\n\", &body, NULL) != HTTPP_Error"), stvNone);
 
     httpParserDestroy(&p);
 
@@ -1051,18 +1070,18 @@ static int test_httptest_parsereq(void)
     strDestroy(&body);
     parseWhole(&p, "HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Length: 0\r\n\r\n", &body, NULL);
     if (httpParserKeepAlive(&p))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("httpParserKeepAlive(&p)"), stvNone);
 
     httpParserReset(&p);
     parseWhole(&p, "HTTP/1.0 200 OK\r\nContent-Length: 0\r\n\r\n", &body, NULL);
     if (httpParserKeepAlive(&p))
-        ret = 1;   // 1.0 closes by default
+        TEST_FAILV(ret, 1, _SL("httpParserKeepAlive(&p) -- 1.0 closes by default"), stvNone);
 
     httpParserReset(&p);
     parseWhole(&p, "HTTP/1.0 200 OK\r\nConnection: keep-alive\r\nContent-Length: 0\r\n\r\n", &body,
                NULL);
     if (!httpParserKeepAlive(&p))
-        ret = 1;   // ...unless it opts in
+        TEST_FAILV(ret, 1, _SL("!httpParserKeepAlive(&p) -- ...unless it opts in"), stvNone);
 
     httpParserDestroy(&p);
     strDestroy(&body);
@@ -1087,18 +1106,18 @@ static int test_httptest_parsereuse(void)
     httpParserInit(&p, false, NULL);
 
     if (drive(&p, &src, &body, NULL) != HTTPP_Complete)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("drive(&p, &src, &body, NULL) != HTTPP_Complete"), stvNone);
     if (p.status != 200 || !strEq(body, _SL("first")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("p.status=${uint} != 200 || expected '${string}', got '${string}'"), stvar(uint16, p.status), stvar(strref, _SL("first")), stvar(strref, body));
 
     // Reset, and the bytes still in the ring are the next message -- no re-syncing needed.
     httpParserReset(&p);
     strDestroy(&body);
 
     if (drive(&p, &src, &body, NULL) != HTTPP_Complete)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("drive(&p, &src, &body, NULL) != HTTPP_Complete"), stvNone);
     if (p.status != 404 || !strEq(body, _SL("second")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("p.status=${uint} != 404 || expected '${string}', got '${string}'"), stvar(uint16, p.status), stvar(strref, _SL("second")), stvar(strref, body));
 
     bufringDestroy(&src);
     httpParserDestroy(&p);
@@ -1113,16 +1132,16 @@ static int test_httptest_chunkwrite(void)
     string enc = 0;
 
     if (!httpChunkAppend(&enc, (const uint8*)"hello", 5))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpChunkAppend(&enc, (const uint8*)\"hello\", 5)"), stvNone);
     if (!strEq(enc, _SL("5\r\nhello\r\n")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}', got '${string}'"), stvar(strref, _SL("5\r\nhello\r\n")), stvar(strref, enc));
 
     // A zero-length chunk is the end-of-body marker, so writing one by accident would truncate the
     // body wherever the producer happened to have nothing ready.
     if (httpChunkAppend(&enc, (const uint8*)"", 0))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("httpChunkAppend(&enc, (const uint8*)\"\", 0)"), stvNone);
     if (httpChunkAppend(&enc, NULL, 0))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("httpChunkAppend(&enc, NULL, 0)"), stvNone);
 
     // A length that needs more than one hex digit.
     strDestroy(&enc);
@@ -1131,7 +1150,7 @@ static int test_httptest_chunkwrite(void)
         memset(big, 'x', sizeof(big));
         httpChunkAppend(&enc, big, sizeof(big));
         if (!strBeginsWith(enc, _SL("12c\r\n")))
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("expected '${string}' to begin with '${string}'"), stvar(strref, enc), stvar(strref, _SL("12c\r\n")));
     }
 
     // Encode then decode: what comes back out must be what went in.
@@ -1147,9 +1166,9 @@ static int test_httptest_chunkwrite(void)
         string body = 0;
         httpParserInit(&p, false, NULL);
         if (parseWhole(&p, strC(enc), &body, NULL) != HTTPP_Complete)
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("parseWhole(&p, strC(enc), &body, NULL) != HTTPP_Complete"), stvNone);
         if (!strEq(body, _SL("one two three")))
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("expected '${string}', got '${string}'"), stvar(strref, _SL("one two three")), stvar(strref, body));
         httpParserDestroy(&p);
         strDestroy(&body);
     }
@@ -1359,45 +1378,45 @@ static int test_httptest_conn(void)
 
     if (!fixtureInit(&f)) {
         fixtureDestroy(&f);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !fixtureInit(&f)"), stvNone);
     }
 
     HttpConn* c = httpconnCreate(f.sock, _SL("example.com"));
     if (!c) {
         fixtureDestroy(&f);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !c"), stvNone);
     }
 
     if (!httpconnIdle(c))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpconnIdle(c)"), stvNone);
 
     HttpRequest* r = httprequestCreate(HTTP_Get, _SL("http://example.com/a/b?x=1"));
     if (!r) {
         objRelease(&c);
         fixtureDestroy(&f);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !r"), stvNone);
     }
     httprequestSetHeader(r, _SL("Accept"), _SL("*/*"));
 
     if (!httpconnRequest(c, r, &kConnRecHandlers, &rec))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpconnRequest(c, r, &kConnRecHandlers, &rec)"), stvNone);
     if (httpconnIdle(c))
-        ret = 1;   // busy while a request is in flight
+        TEST_FAILV(ret, 1, _SL("httpconnIdle(c) -- busy while a request is in flight"), stvNone);
 
     readRequest(&f, &req);
 
     // The request line carries the target, not the whole URL, and Host comes from the connection.
     if (!strBeginsWith(req, _SL("GET /a/b?x=1 HTTP/1.1\r\n")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}' to begin with '${string}'"), stvar(strref, req), stvar(strref, _SL("GET /a/b?x=1 HTTP/1.1\r\n")));
     if (strFind(req, 0, _SL("Host: example.com\r\n")) < 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected to find '${string}' in '${string}'"), stvar(strref, _SL("Host: example.com\r\n")), stvar(strref, req));
     if (strFind(req, 0, _SL("Accept: */*\r\n")) < 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected to find '${string}' in '${string}'"), stvar(strref, _SL("Accept: */*\r\n")), stvar(strref, req));
     if (!strEndsWith(req, _SL("\r\n\r\n")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}' to end with '${string}'"), stvar(strref, req), stvar(strref, _SL("\r\n\r\n")));
     // A GET with no body must not claim one.
     if (strFind(req, 0, _SL("Content-Length")) >= 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected NOT to find '${string}', but it was present in '${string}'"), stvar(strref, _SL("Content-Length")), stvar(strref, req));
 
     writeResponse(&f,
                   "HTTP/1.1 200 OK\r\n"
@@ -1409,24 +1428,24 @@ static int test_httptest_conn(void)
     tickUntilDone(&f, &rec);
 
     if (rec.statusCount != 1 || rec.headerCount != 1 || rec.completeCount != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.statusCount=${uint} != 1 || rec.headerCount=${uint} != 1 || rec.completeCount=${uint} != 1"), stvar(uint32, rec.statusCount), stvar(uint32, rec.headerCount), stvar(uint32, rec.completeCount));
     if (rec.errorCount != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.errorCount=${uint} != 0"), stvar(uint32, rec.errorCount));
     if (rec.status != 200)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.status=${uint} != 200"), stvar(uint16, rec.status));
     if (!strEq(rec.body, _SL("hello world")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}', got '${string}'"), stvar(strref, _SL("hello world")), stvar(strref, rec.body));
     if (!strEq(rec.ctype, _SL("text/plain")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}', got '${string}'"), stvar(strref, _SL("text/plain")), stvar(strref, rec.ctype));
 
     // The response also lands on the request object, for the buffered disposition the high-level
     // client uses.
     if (r->status != 200 || !strEq(r->reason, _SL("OK")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("r->status=${uint} != 200 || expected '${string}', got '${string}'"), stvar(uint16, r->status), stvar(strref, _SL("OK")), stvar(strref, r->reason));
 
     // Idle again once the response completed, so the connection could carry another request.
     if (!httpconnIdle(c))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpconnIdle(c)"), stvNone);
 
     objRelease(&r);
     objRelease(&c);
@@ -1448,7 +1467,7 @@ static int test_httptest_connbody(void)
 
     if (!fixtureInit(&f)) {
         fixtureDestroy(&f);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !fixtureInit(&f)"), stvNone);
     }
 
     HttpConn* c    = httpconnCreate(f.sock, _SL("api.example.com"));
@@ -1457,25 +1476,25 @@ static int test_httptest_connbody(void)
         objRelease(&r);
         objRelease(&c);
         fixtureDestroy(&f);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !c || !r"), stvNone);
     }
 
     httprequestSetBody(r, _SL("{\"k\":1}"), _SL("application/json"));
 
     if (!httpconnRequest(c, r, &kConnRecHandlers, &rec))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpconnRequest(c, r, &kConnRecHandlers, &rec)"), stvNone);
 
     readRequest(&f, &req);
 
     if (!strBeginsWith(req, _SL("POST /submit HTTP/1.1\r\n")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}' to begin with '${string}'"), stvar(strref, req), stvar(strref, _SL("POST /submit HTTP/1.1\r\n")));
     // Content-Length is derived from the body that was actually set, not taken on trust.
     if (strFind(req, 0, _SL("Content-Length: 7\r\n")) < 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected to find '${string}' in '${string}'"), stvar(strref, _SL("Content-Length: 7\r\n")), stvar(strref, req));
     if (strFind(req, 0, _SL("Content-Type: application/json\r\n")) < 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected to find '${string}' in '${string}'"), stvar(strref, _SL("Content-Type: application/json\r\n")), stvar(strref, req));
     if (!strEndsWith(req, _SL("{\"k\":1}")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}' to end with '${string}'"), stvar(strref, req), stvar(strref, _SL("{\"k\":1}")));
 
     // Split across two writes, mid-chunk, with a delay between them.
     writeResponse(&f,
@@ -1488,16 +1507,16 @@ static int test_httptest_connbody(void)
         netqueueTick(f.q, 5);
 
     if (rec.completeCount != 0)
-        ret = 1;   // must not complete on a partial chunk
+        TEST_FAILV(ret, 1, _SL("rec.completeCount=${uint} != 0 -- must not complete on a partial chunk"), stvar(uint32, rec.completeCount));
 
     writeResponse(&f, "lo\r\n6\r\n world\r\n0\r\n\r\n");
 
     tickUntilDone(&f, &rec);
 
     if (rec.completeCount != 1 || rec.errorCount != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.completeCount=${uint} != 1 || rec.errorCount=${uint} != 0"), stvar(uint32, rec.completeCount), stvar(uint32, rec.errorCount));
     if (!strEq(rec.body, _SL("hello world")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}', got '${string}'"), stvar(strref, _SL("hello world")), stvar(strref, rec.body));
 
     objRelease(&r);
     objRelease(&c);
@@ -1518,7 +1537,7 @@ static int test_httptest_connreuse(void)
 
     if (!fixtureInit(&f)) {
         fixtureDestroy(&f);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !fixtureInit(&f)"), stvNone);
     }
 
     HttpConn* c     = httpconnCreate(f.sock, _SL("h"));
@@ -1529,38 +1548,38 @@ static int test_httptest_connreuse(void)
         objRelease(&r1);
         objRelease(&c);
         fixtureDestroy(&f);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !c || !r1 || !r2"), stvNone);
     }
 
     httpconnRequest(c, r1, &kConnRecHandlers, &rec1);
 
     // A second request while the first is in flight is refused: pipelining is deliberately absent.
     if (httpconnRequest(c, r2, &kConnRecHandlers, &rec2))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("httpconnRequest(c, r2, &kConnRecHandlers, &rec2)"), stvNone);
 
     readRequest(&f, &req);
     writeResponse(&f, "HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nfirst");
     tickUntilDone(&f, &rec1);
 
     if (rec1.completeCount != 1 || !strEq(rec1.body, _SL("first")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec1.completeCount=${uint} != 1 || expected '${string}', got '${string}'"), stvar(uint32, rec1.completeCount), stvar(strref, _SL("first")), stvar(strref, rec1.body));
 
     // Now that it is idle, the same connection carries the next one.
     if (!httpconnIdle(c))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpconnIdle(c)"), stvNone);
     if (!httpconnRequest(c, r2, &kConnRecHandlers, &rec2))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpconnRequest(c, r2, &kConnRecHandlers, &rec2)"), stvNone);
 
     strDestroy(&req);
     readRequest(&f, &req);
     if (!strBeginsWith(req, _SL("GET /two HTTP/1.1\r\n")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}' to begin with '${string}'"), stvar(strref, req), stvar(strref, _SL("GET /two HTTP/1.1\r\n")));
 
     writeResponse(&f, "HTTP/1.1 404 Not Found\r\nContent-Length: 6\r\n\r\nsecond");
     tickUntilDone(&f, &rec2);
 
     if (rec2.completeCount != 1 || rec2.status != 404 || !strEq(rec2.body, _SL("second")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec2.completeCount=${uint} != 1 || rec2.status=${uint} != 404 || expected '${string}', got '${string}'"), stvar(uint32, rec2.completeCount), stvar(uint16, rec2.status), stvar(strref, _SL("second")), stvar(strref, rec2.body));
 
     objRelease(&r2);
     objRelease(&r1);
@@ -1585,7 +1604,7 @@ static int test_httptest_connerror(void)
 
     if (!fixtureInit(&f)) {
         fixtureDestroy(&f);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !fixtureInit(&f)"), stvNone);
     }
 
     HttpConn* c    = httpconnCreate(f.sock, _SL("h"));
@@ -1594,7 +1613,7 @@ static int test_httptest_connerror(void)
         objRelease(&r);
         objRelease(&c);
         fixtureDestroy(&f);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !c || !r"), stvNone);
     }
 
     httpconnRequest(c, r, &kConnRecHandlers, &rec);
@@ -1606,12 +1625,12 @@ static int test_httptest_connerror(void)
     tickUntilDone(&f, &rec);
 
     if (rec.errorCount != 1 || rec.completeCount != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.errorCount=${uint} != 1 || rec.completeCount=${uint} != 0"), stvar(uint32, rec.errorCount), stvar(uint32, rec.completeCount));
     if (rec.err != HTTPERR_BadMessage)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.err=${int} != HTTPERR_BadMessage"), stvar(int32, rec.err));
     // A protocol error ends the connection: we no longer know where the next message would start.
     if (httpconnIdle(c))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("httpconnIdle(c)"), stvNone);
 
     objRelease(&r);
     objRelease(&c);
@@ -1632,7 +1651,7 @@ static int test_httptest_conntruncated(void)
 
     if (!fixtureInit(&f)) {
         fixtureDestroy(&f);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !fixtureInit(&f)"), stvNone);
     }
 
     HttpConn* c    = httpconnCreate(f.sock, _SL("h"));
@@ -1641,7 +1660,7 @@ static int test_httptest_conntruncated(void)
         objRelease(&r);
         objRelease(&c);
         fixtureDestroy(&f);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !c || !r"), stvNone);
     }
 
     httpconnRequest(c, r, &kConnRecHandlers, &rec);
@@ -1657,9 +1676,9 @@ static int test_httptest_conntruncated(void)
     tickUntilDone(&f, &rec);
 
     if (rec.errorCount != 1 || rec.completeCount != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.errorCount=${uint} != 1 || rec.completeCount=${uint} != 0"), stvar(uint32, rec.errorCount), stvar(uint32, rec.completeCount));
     if (rec.err != HTTPERR_Closed)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.err=${int} != HTTPERR_Closed"), stvar(int32, rec.err));
 
     objRelease(&r);
     objRelease(&c);
@@ -1711,96 +1730,96 @@ static int test_httptest_cookiejar(void)
     int ret            = 0;
     HttpCookieJar* jar = httpcookiejarCreate();
     if (!jar)
-        return 1;
+        TEST_FAIL(1, _SL("!jar"), stvNone);
 
     // Plain host cookie: no Domain, so it is host-only and its default path comes from the request.
     if (!jarSet(jar, _SL("http://example.com/a/b"), _SL("sid=1")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!jarSet(jar, _SL(\"http://example.com/a/b\"), _SL(\"sid=1\"))"), stvNone);
     if (!jarSends(jar, _SL("http://example.com/a/c"), _SL("sid=1")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!jarSends(jar, _SL(\"http://example.com/a/c\"), _SL(\"sid=1\"))"), stvNone);
     // Default-path is "/a", so a request outside it gets nothing.
     if (!jarSends(jar, _SL("http://example.com/z"), _SL("")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!jarSends(jar, _SL(\"http://example.com/z\"), _SL(\"\"))"), stvNone);
     // Host-only: a subdomain must not receive it.
     if (!jarSends(jar, _SL("http://www.example.com/a/b"), _SL("")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!jarSends(jar, _SL(\"http://www.example.com/a/b\"), _SL(\"\"))"), stvNone);
 
     // With an explicit Domain the cookie does reach subdomains.
     if (!jarSet(jar, _SL("http://example.com/"), _SL("wide=2; Domain=example.com; Path=/")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!jarSet(jar, _SL(\"http://example.com/\"), _SL(\"wide=2; Domain=example.com; Path=/\"))"), stvNone);
     if (!jarSends(jar, _SL("http://deep.sub.example.com/anything"), _SL("wide=2")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!jarSends(jar, _SL(\"http://deep.sub.example.com/anything\"), _SL(\"wide=2\"))"), stvNone);
 
     // ...but only real subdomains. A host that merely ends in the same letters is not one.
     if (!jarSends(jar, _SL("http://notexample.com/"), _SL("")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!jarSends(jar, _SL(\"http://notexample.com/\"), _SL(\"\"))"), stvNone);
 
     // A site may not set a cookie for a domain it is not under. This is the check that stops
     // one host writing another's session.
     if (jarSet(jar, _SL("http://evil.com/"), _SL("x=1; Domain=example.com")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("jarSet(jar, _SL(\"http://evil.com/\"), _SL(\"x=1; Domain=example.com\"))"), stvNone);
     // ...nor for a public suffix it does not own, expressed here as "not a suffix of my host".
     if (jarSet(jar, _SL("http://example.com/"), _SL("y=1; Domain=other.example.com")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("jarSet(jar, _SL(\"http://example.com/\"), _SL(\"y=1; Domain=other.example.com\"))"), stvNone);
 
     // Secure cookies never travel in the clear, whichever host asks.
     if (!jarSet(jar, _SL("https://example.com/"), _SL("s=3; Domain=example.com; Path=/; Secure")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!jarSet(jar, _SL(\"https://example.com/\"), _SL(\"s=3; Domain=example.com; Path=/; Secure\"))"), stvNone);
     if (!jarSends(jar, _SL("https://example.com/"), _SL("wide=2; s=3")))
-        ret = 1;   // equal paths, so insertion order holds
+        TEST_FAILV(ret, 1, _SL("!jarSends(jar, _SL(\"https://example.com/\"), _SL(\"wide=2; s=3\")) -- equal paths, so insertion order holds"), stvNone);
     if (!jarSends(jar, _SL("http://example.com/"), _SL("wide=2")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!jarSends(jar, _SL(\"http://example.com/\"), _SL(\"wide=2\"))"), stvNone);
 
     // Max-Age in the past is a deletion.
     if (!jarSet(jar, _SL("http://example.com/"), _SL("wide=2; Domain=example.com; Path=/; Max-Age=0")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!jarSet(jar, _SL(\"http://example.com/\"), _SL(\"wide=2; Domain=example.com; Path=/; Max-Age=0\"))"), stvNone);
     if (!jarSends(jar, _SL("http://example.com/"), _SL("")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!jarSends(jar, _SL(\"http://example.com/\"), _SL(\"\"))"), stvNone);
 
     // Setting the same (name, domain, path) again replaces rather than duplicating.
     int32 before = httpcookiejarCount(jar);
     if (!jarSet(jar, _SL("http://example.com/a/b"), _SL("sid=99")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!jarSet(jar, _SL(\"http://example.com/a/b\"), _SL(\"sid=99\"))"), stvNone);
     if (httpcookiejarCount(jar) != before)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("httpcookiejarCount(jar) != before"), stvNone);
     if (!jarSends(jar, _SL("http://example.com/a/b"), _SL("sid=99")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!jarSends(jar, _SL(\"http://example.com/a/b\"), _SL(\"sid=99\"))"), stvNone);
 
     // A longer path sorts ahead of a shorter one, so a server reading only the first value gets
     // the more specific cookie.
     if (!jarSet(jar, _SL("http://example.com/"), _SL("p=root; Path=/")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!jarSet(jar, _SL(\"http://example.com/\"), _SL(\"p=root; Path=/\"))"), stvNone);
     if (!jarSet(jar, _SL("http://example.com/"), _SL("p=deep; Path=/a/b")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!jarSet(jar, _SL(\"http://example.com/\"), _SL(\"p=deep; Path=/a/b\"))"), stvNone);
     if (!jarSends(jar, _SL("http://example.com/a/b/c"), _SL("p=deep; sid=99; p=root")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!jarSends(jar, _SL(\"http://example.com/a/b/c\"), _SL(\"p=deep; sid=99; p=root\"))"), stvNone);
 
     // An expired Expires never gets stored at all.
     if (!jarSet(jar, _SL("http://example.com/"),
                 _SL("old=1; Path=/; Expires=Sun, 06 Nov 1994 08:49:37 GMT")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!jarSet(jar, _SL(\"http://example.com/\"), _SL(\"old=1; Path=/; Expires=Sun, 06 Nov 1994 08:49:37 GMT\"))"), stvNone);
     if (!jarSends(jar, _SL("http://example.com/x"), _SL("p=root")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!jarSends(jar, _SL(\"http://example.com/x\"), _SL(\"p=root\"))"), stvNone);
 
     // Enumeration round-trips through add(), which is the whole of the persistence story.
     sa_HttpCookie all;
     int32 n = httpcookiejarEnumerate(jar, &all);
     if (n == 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("n=${int} == 0"), stvar(int32, n));
 
     HttpCookieJar* jar2 = httpcookiejarCreate();
     for (int32 i = 0; i < n; i++)
         httpcookiejarAdd(jar2, &all.a[i]);
     if (httpcookiejarCount(jar2) != n)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("httpcookiejarCount(jar2) != n"), stvNone);
     if (!jarSends(jar2, _SL("http://example.com/a/b/c"), _SL("p=deep; sid=99; p=root")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!jarSends(jar2, _SL(\"http://example.com/a/b/c\"), _SL(\"p=deep; sid=99; p=root\"))"), stvNone);
     objRelease(&jar2);
     saDestroy(&all);
 
     httpcookiejarClear(jar);
     if (httpcookiejarCount(jar) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("httpcookiejarCount(jar) != 0"), stvNone);
 
     objRelease(&jar);
     return ret;
@@ -1821,13 +1840,13 @@ static int test_httptest_form(void)
 
     string body = 0;
     if (!httpFormUrlEncoded(&body, &fields))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpFormUrlEncoded(&body, &fields)"), stvNone);
     // Every reserved character has to be escaped, or the second field's value would parse as two
     // more fields.
     if (!strEq(body, _SL("user=ada%20l&token=a%2Bb%2Fc%3Dd%26e")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}', got '${string}'"), stvar(strref, _SL("user=ada%20l&token=a%2Bb%2Fc%3Dd%26e")), stvar(strref, body));
     if (!strEq(httpFormUrlEncodedType(), _SL("application/x-www-form-urlencoded")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}', got '${string}'"), stvar(strref, _SL("application/x-www-form-urlencoded")), stvar(strref, httpFormUrlEncodedType()));
 
     strDestroy(&body);
     httpHeadersDestroy(&fields);
@@ -1835,10 +1854,10 @@ static int test_httptest_form(void)
     // multipart
     HttpMultipart mp;
     if (!httpMultipartInit(&mp))
-        return 1;
+        TEST_FAIL(1, _SL("!httpMultipartInit(&mp)"), stvNone);
 
     if (strEmpty(mp.boundary))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("strEmpty(mp.boundary)"), stvNone);
 
     httpMultipartAddField(&mp, _SL("comment"), _SL("looks good"));
     httpMultipartAddFile(&mp, _SL("upload"), _SL("notes.txt"), _SL("text/plain"),
@@ -1849,34 +1868,34 @@ static int test_httptest_form(void)
 
     string ctype = 0;
     if (!httpMultipartFinish(&mp, &body, &ctype))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpMultipartFinish(&mp, &body, &ctype)"), stvNone);
 
     if (strFind(ctype, 0, _SL("multipart/form-data; boundary=")) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("strFind(ctype, 0, _SL(\"multipart/form-data; boundary=\")) != 0"), stvNone);
     if (strFind(ctype, 0, mp.boundary) < 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected to find '${string}' in '${string}'"), stvar(strref, mp.boundary), stvar(strref, ctype));
 
     if (strFind(body, 0, _SL("Content-Disposition: form-data; name=\"comment\"\r\n\r\nlooks good")) < 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected to find '${string}' in '${string}'"), stvar(strref, _SL("Content-Disposition: form-data; name=\"comment\"\r\n\r\nlooks good")), stvar(strref, body));
     if (strFind(body, 0, _SL("name=\"upload\"; filename=\"notes.txt\"")) < 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected to find '${string}' in '${string}'"), stvar(strref, _SL("name=\"upload\"; filename=\"notes.txt\"")), stvar(strref, body));
     if (strFind(body, 0, _SL("Content-Type: text/plain\r\n\r\nline one\n")) < 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected to find '${string}' in '${string}'"), stvar(strref, _SL("Content-Type: text/plain\r\n\r\nline one\n")), stvar(strref, body));
     // The quote is escaped and the CRLF is gone, so no header was injected.
     if (strFind(body, 0, _SL("X-Evil")) < 0)
-        ret = 1;   // the text survives...
+        TEST_FAILV(ret, 1, _SL("expected to find '${string}' in '${string}' -- the text survives..."), stvar(strref, _SL("X-Evil")), stvar(strref, body));
     if (strFind(body, 0, _SL("\r\nX-Evil")) >= 0)
-        ret = 1;   // ...but not as a header of its own
+        TEST_FAILV(ret, 1, _SL("expected NOT to find '${string}', but it was present in '${string}' -- ...but not as a header of its own"), stvar(strref, _SL("\r\nX-Evil")), stvar(strref, body));
     if (strFind(body, 0, _SL("name=\"od\\\"d")) < 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected to find '${string}' in '${string}'"), stvar(strref, _SL("name=\"od\\\"d")), stvar(strref, body));
 
     // The closing boundary ends the body exactly once, and finishing twice is a no-op.
     string body2 = 0;
     httpMultipartFinish(&mp, &body2, NULL);
     if (!strEq(body, body2))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}', got '${string}'"), stvar(strref, body2), stvar(strref, body));
     if (!strEndsWith(body, _SL("--\r\n")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}' to end with '${string}'"), stvar(strref, body), stvar(strref, _SL("--\r\n")));
 
     strDestroy(&body);
     strDestroy(&body2);
@@ -2049,7 +2068,7 @@ static int test_httptest_clientget(void)
 
     if (!clientFixtureInit(&f)) {
         clientFixtureDestroy(&f);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !clientFixtureInit(&f)"), stvNone);
     }
 
     clientUrl(&f, &url, _SL("/thing?q=1"));
@@ -2057,25 +2076,25 @@ static int test_httptest_clientget(void)
     if (!r) {
         clientFixtureDestroy(&f);
         strDestroy(&url);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !r"), stvNone);
     }
 
     if (!httpclientSend(f.cl, r, &kConnRecNoDataHandlers, &rec))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpclientSend(f.cl, r, &kConnRecNoDataHandlers, &rec)"), stvNone);
 
     if (!clientAccept(&f))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!clientAccept(&f)"), stvNone);
     else if (!clientReadRequest(&f, &wire))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!clientReadRequest(&f, &wire)"), stvNone);
 
     if (!strBeginsWith(wire, _SL("GET /thing?q=1 HTTP/1.1\r\n")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}' to begin with '${string}'"), stvar(strref, wire), stvar(strref, _SL("GET /thing?q=1 HTTP/1.1\r\n")));
     // Host carries the port, because it is not the scheme default.
     if (strFind(wire, 0, _SL("Host: 127.0.0.1:")) < 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected to find '${string}' in '${string}'"), stvar(strref, _SL("Host: 127.0.0.1:")), stvar(strref, wire));
     // The client contributes a User-Agent the request never set.
     if (strFind(wire, 0, _SL("User-Agent: ")) < 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected to find '${string}' in '${string}'"), stvar(strref, _SL("User-Agent: ")), stvar(strref, wire));
 
     clientWrite(&f,
                 "HTTP/1.1 200 OK\r\n"
@@ -2087,19 +2106,19 @@ static int test_httptest_clientget(void)
     clientTickUntil(&f, &rec);
 
     if (rec.completeCount != 1 || rec.errorCount != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.completeCount=${uint} != 1 || rec.errorCount=${uint} != 0"), stvar(uint32, rec.completeCount), stvar(uint32, rec.errorCount));
     if (rec.status != 200)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.status=${uint} != 200"), stvar(uint16, rec.status));
     // No data handler and no sink, so the body buffered onto the request.
     if (!strEq(r->respBody, _SL("howdy")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}', got '${string}'"), stvar(strref, _SL("howdy")), stvar(strref, r->respBody));
     if (r->status != 200 || r->err != HTTPERR_None)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("r->status=${uint} != 200 || r->err=${int} != HTTPERR_None"), stvar(uint16, r->status), stvar(int32, r->err));
     // The response headers were copied onto the request, not left borrowed from the parser.
     string ct = 0;
     if (!httpHeadersGet(&r->respHeaders, _SL("Content-Type"), &ct) ||
         !strEq(ct, _SL("text/plain")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpHeadersGet(&r->respHeaders, _SL(\"Content-Type\"), &ct) || expected '${string}', got '${string}'"), stvar(strref, _SL("text/plain")), stvar(strref, ct));
     strDestroy(&ct);
 
     objRelease(&r);
@@ -2123,7 +2142,7 @@ static int test_httptest_clientredirect(void)
 
     if (!clientFixtureInit(&f)) {
         clientFixtureDestroy(&f);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !clientFixtureInit(&f)"), stvNone);
     }
 
     clientUrl(&f, &url, _SL("/old"));
@@ -2131,16 +2150,16 @@ static int test_httptest_clientredirect(void)
     if (!r) {
         clientFixtureDestroy(&f);
         strDestroy(&url);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !r"), stvNone);
     }
 
     if (!httpclientSend(f.cl, r, &kConnRecNoDataHandlers, &rec))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpclientSend(f.cl, r, &kConnRecNoDataHandlers, &rec)"), stvNone);
 
     if (!clientAccept(&f) || !clientReadRequest(&f, &wire))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!clientAccept(&f) || !clientReadRequest(&f, &wire)"), stvNone);
     if (!strBeginsWith(wire, _SL("GET /old HTTP/1.1\r\n")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}' to begin with '${string}'"), stvar(strref, wire), stvar(strref, _SL("GET /old HTTP/1.1\r\n")));
 
     // A 3xx with a body and a reusable connection.
     clientWrite(&f,
@@ -2151,10 +2170,10 @@ static int test_httptest_clientredirect(void)
                 "MOVED-DO-NOT-DELIVER");
 
     if (!clientReadRequest(&f, &wire))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!clientReadRequest(&f, &wire)"), stvNone);
     // Same connection: the listener was never asked for another.
     if (!strBeginsWith(wire, _SL("GET /new HTTP/1.1\r\n")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}' to begin with '${string}'"), stvar(strref, wire), stvar(strref, _SL("GET /new HTTP/1.1\r\n")));
 
     clientWrite(&f,
                 "HTTP/1.1 200 OK\r\n"
@@ -2165,20 +2184,20 @@ static int test_httptest_clientredirect(void)
     clientTickUntil(&f, &rec);
 
     if (rec.completeCount != 1 || rec.errorCount != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.completeCount=${uint} != 1 || rec.errorCount=${uint} != 0"), stvar(uint32, rec.completeCount), stvar(uint32, rec.errorCount));
     if (rec.status != 200)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.status=${uint} != 200"), stvar(uint16, rec.status));
     // The 3xx body is gone; only the real one survives.
     if (!strEq(r->respBody, _SL("final")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}', got '${string}'"), stvar(strref, _SL("final")), stvar(strref, r->respBody));
     if (r->redirects != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("r->redirects=${int} != 1"), stvar(int32, r->redirects));
     // The request's URL now names where the answer actually came from.
     if (!strEq(r->url.path, _SL("/new")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}', got '${string}'"), stvar(strref, _SL("/new")), stvar(strref, r->url.path));
     // The application never saw the intermediate status, only the final one.
     if (rec.statusCount != 1 || rec.headerCount != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.statusCount=${uint} != 1 || rec.headerCount=${uint} != 1"), stvar(uint32, rec.statusCount), stvar(uint32, rec.headerCount));
 
     objRelease(&r);
     clientFixtureDestroy(&f);
@@ -2199,7 +2218,7 @@ static int test_httptest_clientredirectloop(void)
 
     if (!clientFixtureInit(&f)) {
         clientFixtureDestroy(&f);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !clientFixtureInit(&f)"), stvNone);
     }
 
     f.cl->maxRedirects = 2;
@@ -2209,13 +2228,13 @@ static int test_httptest_clientredirectloop(void)
     if (!r) {
         clientFixtureDestroy(&f);
         strDestroy(&url);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !r"), stvNone);
     }
 
     if (!httpclientSend(f.cl, r, &kConnRecHandlers, &rec))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpclientSend(f.cl, r, &kConnRecHandlers, &rec)"), stvNone);
     if (!clientAccept(&f))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!clientAccept(&f)"), stvNone);
 
     // Three hops offered, two allowed.
     for (int i = 0; i < 3 && !rec.errorCount; i++) {
@@ -2231,11 +2250,11 @@ static int test_httptest_clientredirectloop(void)
     clientTickUntil(&f, &rec);
 
     if (rec.errorCount != 1 || rec.completeCount != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.errorCount=${uint} != 1 || rec.completeCount=${uint} != 0"), stvar(uint32, rec.errorCount), stvar(uint32, rec.completeCount));
     if (rec.err != HTTPERR_TooManyRedirects)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.err=${int} != HTTPERR_TooManyRedirects"), stvar(int32, rec.err));
     if (r->err != HTTPERR_TooManyRedirects)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("r->err=${int} != HTTPERR_TooManyRedirects"), stvar(int32, r->err));
 
     objRelease(&r);
     clientFixtureDestroy(&f);
@@ -2256,7 +2275,7 @@ static int test_httptest_clientpool(void)
 
     if (!clientFixtureInit(&f)) {
         clientFixtureDestroy(&f);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !clientFixtureInit(&f)"), stvNone);
     }
 
     clientUrl(&f, &url, _SL("/one"));
@@ -2264,17 +2283,17 @@ static int test_httptest_clientpool(void)
     if (!r1) {
         clientFixtureDestroy(&f);
         strDestroy(&url);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !r1"), stvNone);
     }
 
     httpclientSend(f.cl, r1, &kConnRecNoDataHandlers, &rec1);
     if (!clientAccept(&f) || !clientReadRequest(&f, &wire))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!clientAccept(&f) || !clientReadRequest(&f, &wire)"), stvNone);
 
     clientWrite(&f, "HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\nabc");
     clientTickUntil(&f, &rec1);
     if (rec1.completeCount != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec1.completeCount=${uint} != 1"), stvar(uint32, rec1.completeCount));
 
     // Second request, same origin. If it dials again, accept() below succeeds and the test fails.
     clientUrl(&f, &url, _SL("/two"));
@@ -2282,23 +2301,23 @@ static int test_httptest_clientpool(void)
     httpclientSend(f.cl, r2, &kConnRecNoDataHandlers, &rec2);
 
     if (!clientReadRequest(&f, &wire))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!clientReadRequest(&f, &wire)"), stvNone);
     if (!strBeginsWith(wire, _SL("GET /two HTTP/1.1\r\n")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}' to begin with '${string}'"), stvar(strref, wire), stvar(strref, _SL("GET /two HTTP/1.1\r\n")));
 
     SOCKET extra = accept(f.listener, NULL, NULL);
     if (extra != INVALID_SOCKET) {
         closesocket(extra);
-        ret = 1;   // a second connection means the pool did not do its job
+        TEST_FAILV(ret, 1, _SL("extra=${int} != INVALID_SOCKET -- a second connection means the pool did not do its job"), stvar(int32, extra));
     }
 
     clientWrite(&f, "HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\ndef");
     clientTickUntil(&f, &rec2);
 
     if (rec2.completeCount != 1 || rec2.errorCount != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec2.completeCount=${uint} != 1 || rec2.errorCount=${uint} != 0"), stvar(uint32, rec2.completeCount), stvar(uint32, rec2.errorCount));
     if (!strEq(r2->respBody, _SL("def")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}', got '${string}'"), stvar(strref, _SL("def")), stvar(strref, r2->respBody));
 
     // Dropping the idle connections is not the same as failing anything in flight.
     httpclientCloseIdle(f.cl);
@@ -2325,7 +2344,7 @@ static int test_httptest_clientcookie(void)
 
     if (!clientFixtureInit(&f)) {
         clientFixtureDestroy(&f);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !clientFixtureInit(&f)"), stvNone);
     }
 
     HttpCookieJar* jar = httpcookiejarCreate();
@@ -2337,15 +2356,15 @@ static int test_httptest_clientcookie(void)
         objRelease(&jar);
         clientFixtureDestroy(&f);
         strDestroy(&url);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !r1"), stvNone);
     }
 
     httpclientSend(f.cl, r1, &kConnRecHandlers, &rec1);
     if (!clientAccept(&f) || !clientReadRequest(&f, &wire))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!clientAccept(&f) || !clientReadRequest(&f, &wire)"), stvNone);
     // Nothing to send yet.
     if (strFind(wire, 0, _SL("Cookie:")) >= 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected NOT to find '${string}', but it was present in '${string}'"), stvar(strref, _SL("Cookie:")), stvar(strref, wire));
 
     // Two Set-Cookie fields, which is the case a hashtable-backed header list would lose.
     clientWrite(&f,
@@ -2357,23 +2376,23 @@ static int test_httptest_clientcookie(void)
                 "ok");
     clientTickUntil(&f, &rec1);
     if (rec1.completeCount != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec1.completeCount=${uint} != 1"), stvar(uint32, rec1.completeCount));
     if (httpcookiejarCount(jar) != 2)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("httpcookiejarCount(jar) != 2"), stvNone);
 
     clientUrl(&f, &url, _SL("/next"));
     HttpRequest* r2 = httprequestCreate(HTTP_Get, url);
     httpclientSend(f.cl, r2, &kConnRecHandlers, &rec2);
 
     if (!clientReadRequest(&f, &wire))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!clientReadRequest(&f, &wire)"), stvNone);
     if (strFind(wire, 0, _SL("Cookie: sid=abc; pref=dark\r\n")) < 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected to find '${string}' in '${string}'"), stvar(strref, _SL("Cookie: sid=abc; pref=dark\r\n")), stvar(strref, wire));
 
     clientWrite(&f, "HTTP/1.1 204 No Content\r\n\r\n");
     clientTickUntil(&f, &rec2);
     if (rec2.completeCount != 1 || rec2.status != 204)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec2.completeCount=${uint} != 1 || rec2.status=${uint} != 204"), stvar(uint32, rec2.completeCount), stvar(uint16, rec2.status));
 
     objRelease(&r1);
     objRelease(&r2);
@@ -2399,13 +2418,13 @@ static int test_httptest_clientsink(void)
 
     if (!clientFixtureInit(&f)) {
         clientFixtureDestroy(&f);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !clientFixtureInit(&f)"), stvNone);
     }
 
     StreamBuffer* sb = sbufCreate(4096);
     if (!sb || !sbufStrCRegisterPush(sb, &sunk)) {
         clientFixtureDestroy(&f);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !sb || !sbufStrCRegisterPush(sb, &sunk)"), stvNone);
     }
 
     clientUrl(&f, &url, _SL("/download"));
@@ -2414,15 +2433,15 @@ static int test_httptest_clientsink(void)
         sbufRelease(&sb);
         clientFixtureDestroy(&f);
         strDestroy(&url);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !r"), stvNone);
     }
 
     if (!httprequestSetSink(r, sb))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httprequestSetSink(r, sb)"), stvNone);
 
     httpclientSend(f.cl, r, &kConnRecHandlers, &rec);
     if (!clientAccept(&f) || !clientReadRequest(&f, &wire))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!clientAccept(&f) || !clientReadRequest(&f, &wire)"), stvNone);
 
     clientWrite(&f,
                 "HTTP/1.1 200 OK\r\n"
@@ -2436,17 +2455,17 @@ static int test_httptest_clientsink(void)
     clientTickUntil(&f, &rec);
 
     if (rec.completeCount != 1 || rec.errorCount != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.completeCount=${uint} != 1 || rec.errorCount=${uint} != 0"), stvar(uint32, rec.completeCount), stvar(uint32, rec.errorCount));
     if (!strEq(sunk, _SL("hello world")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}', got '${string}'"), stvar(strref, _SL("hello world")), stvar(strref, sunk));
     // The sink took the body, so nothing accumulated on the request and no data callback ran.
     if (!strEmpty(r->respBody))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!strEmpty(r->respBody)"), stvNone);
     if (rec.dataCount != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.dataCount=${uint} != 0"), stvar(uint32, rec.dataCount));
     // The producer finished, so a consumer waiting on the buffer is released rather than hanging.
     if (!sbufIsPFinished(sb))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!sbufIsPFinished(sb)"), stvNone);
 
     objRelease(&r);
     sbufRelease(&sb);
@@ -2469,7 +2488,7 @@ static int test_httptest_clientrefused(void)
 
     if (!clientFixtureInit(&f)) {
         clientFixtureDestroy(&f);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !clientFixtureInit(&f)"), stvNone);
     }
 
     // Close the listener so the port has nobody on it, then aim at it.
@@ -2481,19 +2500,19 @@ static int test_httptest_clientrefused(void)
     if (!r) {
         clientFixtureDestroy(&f);
         strDestroy(&url);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !r"), stvNone);
     }
 
     if (!httpclientSend(f.cl, r, &kConnRecHandlers, &rec))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpclientSend(f.cl, r, &kConnRecHandlers, &rec)"), stvNone);
 
     for (int i = 0; i < 400 && !rec.errorCount && !rec.completeCount; i++)
         netqueueTick(f.q, 5);
 
     if (rec.errorCount != 1 || rec.completeCount != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.errorCount=${uint} != 1 || rec.completeCount=${uint} != 0"), stvar(uint32, rec.errorCount), stvar(uint32, rec.completeCount));
     if (rec.err != HTTPERR_Network)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.err=${int} != HTTPERR_Network"), stvar(int32, rec.err));
 
     objRelease(&r);
     clientFixtureDestroy(&f);
@@ -2514,7 +2533,7 @@ static int test_httptest_clientseeother(void)
 
     if (!clientFixtureInit(&f)) {
         clientFixtureDestroy(&f);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !clientFixtureInit(&f)"), stvNone);
     }
 
     clientUrl(&f, &url, _SL("/submit"));
@@ -2522,18 +2541,18 @@ static int test_httptest_clientseeother(void)
     if (!r) {
         clientFixtureDestroy(&f);
         strDestroy(&url);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !r"), stvNone);
     }
     httprequestSetBody(r, _SL("a=1"), _SL("application/x-www-form-urlencoded"));
     httprequestSetHeader(r, _SL("Authorization"), _SL("Bearer secret"));
 
     httpclientSend(f.cl, r, &kConnRecHandlers, &rec);
     if (!clientAccept(&f) || !clientReadRequest(&f, &wire))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!clientAccept(&f) || !clientReadRequest(&f, &wire)"), stvNone);
     if (!strBeginsWith(wire, _SL("POST /submit HTTP/1.1\r\n")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}' to begin with '${string}'"), stvar(strref, wire), stvar(strref, _SL("POST /submit HTTP/1.1\r\n")));
     if (strFind(wire, 0, _SL("Content-Length: 3\r\n")) < 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected to find '${string}' in '${string}'"), stvar(strref, _SL("Content-Length: 3\r\n")), stvar(strref, wire));
 
     clientWrite(&f,
                 "HTTP/1.1 303 See Other\r\n"
@@ -2542,26 +2561,26 @@ static int test_httptest_clientseeother(void)
                 "\r\n");
 
     if (!clientReadRequest(&f, &wire))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!clientReadRequest(&f, &wire)"), stvNone);
 
     if (!strBeginsWith(wire, _SL("GET /result HTTP/1.1\r\n")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}' to begin with '${string}'"), stvar(strref, wire), stvar(strref, _SL("GET /result HTTP/1.1\r\n")));
     // The body and everything describing it are gone.
     if (strFind(wire, 0, _SL("Content-Length")) >= 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected NOT to find '${string}', but it was present in '${string}'"), stvar(strref, _SL("Content-Length")), stvar(strref, wire));
     if (strFind(wire, 0, _SL("Content-Type")) >= 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected NOT to find '${string}', but it was present in '${string}'"), stvar(strref, _SL("Content-Type")), stvar(strref, wire));
     // Same origin, so credentials do still travel.
     if (strFind(wire, 0, _SL("Authorization: Bearer secret")) < 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected to find '${string}' in '${string}'"), stvar(strref, _SL("Authorization: Bearer secret")), stvar(strref, wire));
 
     clientWrite(&f, "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok");
     clientTickUntil(&f, &rec);
 
     if (rec.completeCount != 1 || rec.status != 200)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.completeCount=${uint} != 1 || rec.status=${uint} != 200"), stvar(uint32, rec.completeCount), stvar(uint16, rec.status));
     if (r->method != HTTP_Get)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("r->method=${int} != HTTP_Get"), stvar(int32, r->method));
 
     objRelease(&r);
     clientFixtureDestroy(&f);
@@ -2582,7 +2601,7 @@ static int test_httptest_clienttimeout(void)
 
     if (!clientFixtureInit(&f)) {
         clientFixtureDestroy(&f);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !clientFixtureInit(&f)"), stvNone);
     }
 
     f.cl->responseTimeout = timeMS(150);
@@ -2593,21 +2612,21 @@ static int test_httptest_clienttimeout(void)
     if (!r) {
         clientFixtureDestroy(&f);
         strDestroy(&url);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !r"), stvNone);
     }
 
     httpclientSend(f.cl, r, &kConnRecHandlers, &rec);
     if (!clientAccept(&f) || !clientReadRequest(&f, &wire))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!clientAccept(&f) || !clientReadRequest(&f, &wire)"), stvNone);
 
     // Deliberately answer nothing.
     for (int i = 0; i < 400 && !rec.errorCount && !rec.completeCount; i++)
         netqueueTick(f.q, 5);
 
     if (rec.errorCount != 1 || rec.completeCount != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.errorCount=${uint} != 1 || rec.completeCount=${uint} != 0"), stvar(uint32, rec.errorCount), stvar(uint32, rec.completeCount));
     if (rec.err != HTTPERR_Timeout)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.err=${int} != HTTPERR_Timeout"), stvar(int32, rec.err));
 
     objRelease(&r);
     clientFixtureDestroy(&f);
@@ -2629,7 +2648,7 @@ static int test_httptest_clientcancel(void)
 
     if (!clientFixtureInit(&f)) {
         clientFixtureDestroy(&f);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !clientFixtureInit(&f)"), stvNone);
     }
 
     clientUrl(&f, &url, _SL("/slow"));
@@ -2637,12 +2656,12 @@ static int test_httptest_clientcancel(void)
     if (!r) {
         clientFixtureDestroy(&f);
         strDestroy(&url);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !r"), stvNone);
     }
 
     httpclientSend(f.cl, r, &kConnRecNoDataHandlers, &rec);
     if (!clientAccept(&f) || !clientReadRequest(&f, &wire))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!clientAccept(&f) || !clientReadRequest(&f, &wire)"), stvNone);
 
     // Head and part of a body, then nothing -- the shape of a server that has gone quiet.
     clientWrite(&f,
@@ -2654,20 +2673,20 @@ static int test_httptest_clientcancel(void)
         netqueueTick(f.q, 5);
 
     if (!httprequestCancel(r))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httprequestCancel(r)"), stvNone);
 
     clientTickUntil(&f, &rec);
 
     if (rec.errorCount != 1 || rec.completeCount != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.errorCount=${uint} != 1 || rec.completeCount=${uint} != 0"), stvar(uint32, rec.errorCount), stvar(uint32, rec.completeCount));
     if (rec.err != HTTPERR_Aborted)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.err=${int} != HTTPERR_Aborted"), stvar(int32, rec.err));
     if (r->err != HTTPERR_Aborted)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("r->err=${int} != HTTPERR_Aborted"), stvar(int32, r->err));
 
     // A second cancel has nothing left to claim.
     if (httprequestCancel(r))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("httprequestCancel(r)"), stvNone);
 
     objRelease(&r);
     clientFixtureDestroy(&f);
@@ -2689,7 +2708,7 @@ static int test_httptest_clientcancelearly(void)
 
     if (!clientFixtureInit(&f)) {
         clientFixtureDestroy(&f);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !clientFixtureInit(&f)"), stvNone);
     }
 
     clientUrl(&f, &url, _SL("/never"));
@@ -2697,22 +2716,22 @@ static int test_httptest_clientcancelearly(void)
     if (!r) {
         clientFixtureDestroy(&f);
         strDestroy(&url);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !r"), stvNone);
     }
 
     httpclientSend(f.cl, r, &kConnRecNoDataHandlers, &rec);
 
     // Deliberately never accept, and cancel before the queue has been ticked at all.
     if (!httprequestCancel(r))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httprequestCancel(r)"), stvNone);
 
     for (int i = 0; i < 400 && !rec.errorCount && !rec.completeCount; i++)
         netqueueTick(f.q, 5);
 
     if (rec.errorCount != 1 || rec.completeCount != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.errorCount=${uint} != 1 || rec.completeCount=${uint} != 0"), stvar(uint32, rec.errorCount), stvar(uint32, rec.completeCount));
     if (rec.err != HTTPERR_Aborted)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.err=${int} != HTTPERR_Aborted"), stvar(int32, rec.err));
 
     objRelease(&r);
     clientFixtureDestroy(&f);
@@ -2733,7 +2752,7 @@ static int test_httptest_clientcanceldone(void)
 
     if (!clientFixtureInit(&f)) {
         clientFixtureDestroy(&f);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !clientFixtureInit(&f)"), stvNone);
     }
 
     clientUrl(&f, &url, _SL("/quick"));
@@ -2741,27 +2760,27 @@ static int test_httptest_clientcanceldone(void)
     if (!r) {
         clientFixtureDestroy(&f);
         strDestroy(&url);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !r"), stvNone);
     }
 
     httpclientSend(f.cl, r, &kConnRecNoDataHandlers, &rec);
     if (!clientAccept(&f) || !clientReadRequest(&f, &wire))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!clientAccept(&f) || !clientReadRequest(&f, &wire)"), stvNone);
 
     clientWrite(&f, "HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\ndone");
     clientTickUntil(&f, &rec);
 
     if (rec.completeCount != 1 || rec.errorCount != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.completeCount=${uint} != 1 || rec.errorCount=${uint} != 0"), stvar(uint32, rec.completeCount), stvar(uint32, rec.errorCount));
 
     // Too late: the answer already arrived.
     if (httprequestCancel(r))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("httprequestCancel(r)"), stvNone);
 
     if (r->err != HTTPERR_None || !strEq(r->respBody, _SL("done")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("r->err=${int} != HTTPERR_None || expected '${string}', got '${string}'"), stvar(int32, r->err), stvar(strref, _SL("done")), stvar(strref, r->respBody));
     if (rec.errorCount != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.errorCount=${uint} != 0"), stvar(uint32, rec.errorCount));
 
     objRelease(&r);
     clientFixtureDestroy(&f);
@@ -2784,7 +2803,7 @@ static int test_httptest_clientcancelpool(void)
 
     if (!clientFixtureInit(&f)) {
         clientFixtureDestroy(&f);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !clientFixtureInit(&f)"), stvNone);
     }
 
     clientUrl(&f, &url, _SL("/one"));
@@ -2792,12 +2811,12 @@ static int test_httptest_clientcancelpool(void)
     if (!r1) {
         clientFixtureDestroy(&f);
         strDestroy(&url);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !r1"), stvNone);
     }
 
     httpclientSend(f.cl, r1, &kConnRecNoDataHandlers, &rec1);
     if (!clientAccept(&f) || !clientReadRequest(&f, &wire))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!clientAccept(&f) || !clientReadRequest(&f, &wire)"), stvNone);
 
     // A response that promises far more than it delivers, so the exchange is still live -- and the
     // connection would be perfectly poolable if it ever finished.
@@ -2806,14 +2825,14 @@ static int test_httptest_clientcancelpool(void)
         netqueueTick(f.q, 5);
 
     if (rec1.completeCount != 0 || rec1.errorCount != 0)
-        ret = 1;   // the premise: nothing has settled yet
+        TEST_FAILV(ret, 1, _SL("rec1.completeCount=${uint} != 0 || rec1.errorCount=${uint} != 0 -- the premise: nothing has settled yet"), stvar(uint32, rec1.completeCount), stvar(uint32, rec1.errorCount));
 
     if (!httprequestCancel(r1))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httprequestCancel(r1)"), stvNone);
     clientTickUntil(&f, &rec1);
 
     if (rec1.errorCount != 1 || rec1.err != HTTPERR_Aborted)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec1.errorCount=${uint} != 1 || rec1.err=${int} != HTTPERR_Aborted"), stvar(uint32, rec1.errorCount), stvar(int32, rec1.err));
 
     // The next request must dial rather than find that connection waiting for it.
     SOCKET first = f.peer;
@@ -2824,20 +2843,20 @@ static int test_httptest_clientcancelpool(void)
     httpclientSend(f.cl, r2, &kConnRecNoDataHandlers, &rec2);
 
     if (!clientAccept(&f))
-        ret = 1;   // no second connection means the cancelled one was handed back out
+        TEST_FAILV(ret, 1, _SL("!clientAccept(&f) -- no second connection means the cancelled one was handed back out"), stvNone);
     closesocket(first);
 
     if (f.peer != INVALID_SOCKET) {
         if (!clientReadRequest(&f, &wire))
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("!clientReadRequest(&f, &wire)"), stvNone);
         if (!strBeginsWith(wire, _SL("GET /two HTTP/1.1\r\n")))
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("expected '${string}' to begin with '${string}'"), stvar(strref, wire), stvar(strref, _SL("GET /two HTTP/1.1\r\n")));
 
         clientWrite(&f, "HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\ndef");
         clientTickUntil(&f, &rec2);
 
         if (rec2.completeCount != 1 || !strEq(r2->respBody, _SL("def")))
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("rec2.completeCount=${uint} != 1 || expected '${string}', got '${string}'"), stvar(uint32, rec2.completeCount), stvar(strref, _SL("def")), stvar(strref, r2->respBody));
     }
 
     objRelease(&r1);
@@ -2862,7 +2881,7 @@ static int test_httptest_conncancel(void)
 
     if (!fixtureInit(&f)) {
         fixtureDestroy(&f);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !fixtureInit(&f)"), stvNone);
     }
 
     HttpConn* c = httpconnCreate(f.sock, _SL("example.com"));
@@ -2871,7 +2890,7 @@ static int test_httptest_conncancel(void)
         objRelease(&r);
         objRelease(&c);
         fixtureDestroy(&f);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !c || !r"), stvNone);
     }
 
     httpconnRequest(c, r, &kConnRecHandlers, &rec);
@@ -2882,19 +2901,19 @@ static int test_httptest_conncancel(void)
         netqueueTick(f.q, 5);
 
     if (!httpconnCancel(c))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpconnCancel(c)"), stvNone);
 
     tickUntilDone(&f, &rec);
 
     if (rec.errorCount != 1 || rec.completeCount != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.errorCount=${uint} != 1 || rec.completeCount=${uint} != 0"), stvar(uint32, rec.errorCount), stvar(uint32, rec.completeCount));
     if (rec.err != HTTPERR_Aborted)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.err=${int} != HTTPERR_Aborted"), stvar(int32, rec.err));
     // A cancelled connection is spent whatever else is true.
     if (httpconnIdle(c))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("httpconnIdle(c)"), stvNone);
     if (httpconnCancel(c))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("httpconnCancel(c)"), stvNone);
 
     objRelease(&r);
     objRelease(&c);
@@ -3275,7 +3294,7 @@ static int test_httptest_srvget(void)
     if (!srvFixtureInit(&f, &rec, false)) {
         srvFixtureDestroy(&f);
         srvRecDestroy(&rec);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !srvFixtureInit(&f, &rec, false)"), stvNone);
     }
 
     srvSend(&f,
@@ -3285,25 +3304,25 @@ static int test_httptest_srvget(void)
     srvRead(&f, &resp);
 
     if (rec.requestCount != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.requestCount=${int} != 1"), stvar(int32, rec.requestCount));
     if (!strEq(rec.method, _SL("GET")) || !strEq(rec.path, _SL("/a/b")) ||
         !strEq(rec.query, _SL("x=1")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}', got '${string}' || expected '${string}', got '${string}' || expected '${string}', got '${string}'"), stvar(strref, _SL("GET")), stvar(strref, rec.method), stvar(strref, _SL("/a/b")), stvar(strref, rec.path), stvar(strref, _SL("x=1")), stvar(strref, rec.query));
     if (!strEq(rec.target, _SL("/a/b?x=1")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}', got '${string}'"), stvar(strref, _SL("/a/b?x=1")), stvar(strref, rec.target));
 
     if (!strBeginsWith(resp, _SL("HTTP/1.1 200 OK\r\n")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}' to begin with '${string}'"), stvar(strref, resp), stvar(strref, _SL("HTTP/1.1 200 OK\r\n")));
     if (strFind(resp, 0, _SL("Content-Length: 5\r\n")) < 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected to find '${string}' in '${string}'"), stvar(strref, _SL("Content-Length: 5\r\n")), stvar(strref, resp));
     if (strFind(resp, 0, _SL("Content-Type: text/plain\r\n")) < 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected to find '${string}' in '${string}'"), stvar(strref, _SL("Content-Type: text/plain\r\n")), stvar(strref, resp));
     if (strFind(resp, 0, _SL("X-Test: yes\r\n")) < 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected to find '${string}' in '${string}'"), stvar(strref, _SL("X-Test: yes\r\n")), stvar(strref, resp));
     if (strFind(resp, 0, _SL("Date: ")) < 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected to find '${string}' in '${string}'"), stvar(strref, _SL("Date: ")), stvar(strref, resp));
     if (!strEndsWith(resp, _SL("\r\n\r\nhello")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}' to end with '${string}'"), stvar(strref, resp), stvar(strref, _SL("\r\n\r\nhello")));
 
     strDestroy(&resp);
     srvFixtureDestroy(&f);
@@ -3322,7 +3341,7 @@ static int test_httptest_srvpost(void)
     if (!srvFixtureInit(&f, &rec, false)) {
         srvFixtureDestroy(&f);
         srvRecDestroy(&rec);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !srvFixtureInit(&f, &rec, false)"), stvNone);
     }
 
     srvSend(&f,
@@ -3334,11 +3353,11 @@ static int test_httptest_srvpost(void)
     srvRead(&f, &resp);
 
     if (rec.requestCount != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.requestCount=${int} != 1"), stvar(int32, rec.requestCount));
     if (!strEq(rec.method, _SL("POST")) || !strEq(rec.body, _SL("hello=world")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}', got '${string}' || expected '${string}', got '${string}'"), stvar(strref, _SL("POST")), stvar(strref, rec.method), stvar(strref, _SL("hello=world")), stvar(strref, rec.body));
     if (!strBeginsWith(resp, _SL("HTTP/1.1 200 OK\r\n")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}' to begin with '${string}'"), stvar(strref, resp), stvar(strref, _SL("HTTP/1.1 200 OK\r\n")));
 
     strDestroy(&resp);
     srvFixtureDestroy(&f);
@@ -3358,7 +3377,7 @@ static int test_httptest_srvchunkedreq(void)
     if (!srvFixtureInit(&f, &rec, false)) {
         srvFixtureDestroy(&f);
         srvRecDestroy(&rec);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !srvFixtureInit(&f, &rec, false)"), stvNone);
     }
 
     srvSend(&f,
@@ -3372,9 +3391,9 @@ static int test_httptest_srvchunkedreq(void)
     srvRead(&f, &resp);
 
     if (rec.requestCount != 1 || !strEq(rec.body, _SL("hello world")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.requestCount=${int} != 1 || expected '${string}', got '${string}'"), stvar(int32, rec.requestCount), stvar(strref, _SL("hello world")), stvar(strref, rec.body));
     if (!strBeginsWith(resp, _SL("HTTP/1.1 200 OK\r\n")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}' to begin with '${string}'"), stvar(strref, resp), stvar(strref, _SL("HTTP/1.1 200 OK\r\n")));
 
     strDestroy(&resp);
     srvFixtureDestroy(&f);
@@ -3393,28 +3412,28 @@ static int test_httptest_srvkeepalive(void)
     if (!srvFixtureInit(&f, &rec, false)) {
         srvFixtureDestroy(&f);
         srvRecDestroy(&rec);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !srvFixtureInit(&f, &rec, false)"), stvNone);
     }
 
     srvSend(&f, "GET /one HTTP/1.1\r\nHost: h\r\n\r\n");
     srvRead(&f, &r1);
 
     if (rec.requestCount != 1 || !strEq(rec.path, _SL("/one")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.requestCount=${int} != 1 || expected '${string}', got '${string}'"), stvar(int32, rec.requestCount), stvar(strref, _SL("/one")), stvar(strref, rec.path));
     if (strFind(r1, 0, _SL("Connection: keep-alive")) < 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected to find '${string}' in '${string}'"), stvar(strref, _SL("Connection: keep-alive")), stvar(strref, r1));
 
     srvSend(&f, "GET /two HTTP/1.1\r\nHost: h\r\n\r\n");
     srvRead(&f, &r2);
 
     if (rec.requestCount != 2 || !strEq(rec.path, _SL("/two")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.requestCount=${int} != 2 || expected '${string}', got '${string}'"), stvar(int32, rec.requestCount), stvar(strref, _SL("/two")), stvar(strref, rec.path));
     if (!strBeginsWith(r2, _SL("HTTP/1.1 200 OK\r\n")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}' to begin with '${string}'"), stvar(strref, r2), stvar(strref, _SL("HTTP/1.1 200 OK\r\n")));
 
     // Still one connection, not two.
     if (httpserverConnCount(f.srv) != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("httpserverConnCount(f.srv) != 1"), stvNone);
 
     strDestroy(&r1);
     strDestroy(&r2);
@@ -3434,28 +3453,28 @@ static int test_httptest_srvclose(void)
     if (!srvFixtureInit(&f, &rec, false)) {
         srvFixtureDestroy(&f);
         srvRecDestroy(&rec);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !srvFixtureInit(&f, &rec, false)"), stvNone);
     }
 
     srvSend(&f, "GET /x HTTP/1.1\r\nHost: h\r\nConnection: close\r\n\r\n");
     srvRead(&f, &resp);
 
     if (rec.requestCount != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.requestCount=${int} != 1"), stvar(int32, rec.requestCount));
     if (strFind(resp, 0, _SL("Connection: close")) < 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected to find '${string}' in '${string}'"), stvar(strref, _SL("Connection: close")), stvar(strref, resp));
 
     srvTick(&f, 40);
 
     // The connection is gone, and its closure was reported once.
     if (httpserverConnCount(f.srv) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("httpserverConnCount(f.srv) != 0"), stvNone);
     if (rec.closedCount != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.closedCount=${int} != 1"), stvar(int32, rec.closedCount));
 
     // A clean close after a completed exchange is not an error.
     if (rec.errorCount != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.errorCount=${uint} != 0"), stvar(uint32, rec.errorCount));
 
     strDestroy(&resp);
     srvFixtureDestroy(&f);
@@ -3477,7 +3496,7 @@ static int test_httptest_srvserialized(void)
     if (!srvFixtureInit(&f, &rec, false)) {
         srvFixtureDestroy(&f);
         srvRecDestroy(&rec);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !srvFixtureInit(&f, &rec, false)"), stvNone);
     }
 
     srvSend(&f,
@@ -3488,17 +3507,17 @@ static int test_httptest_srvserialized(void)
     srvRead(&f, &resp);
 
     if (rec.requestCount != 2)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.requestCount=${int} != 2"), stvar(int32, rec.requestCount));
     if (!strEq(rec.path, _SL("/second")))
-        ret = 1;   // the second one is the last seen, so they ran in order
+        TEST_FAILV(ret, 1, _SL("expected '${string}', got '${string}' -- the second one is the last seen, so they ran in order"), stvar(strref, _SL("/second")), stvar(strref, rec.path));
 
     // Two complete responses, and the body of the first ends before the head of the second begins.
     int32 first  = strFind(resp, 0, _SL("HTTP/1.1 200 OK"));
     int32 second = strFind(resp, first + 1, _SL("HTTP/1.1 200 OK"));
     if (first != 0 || second <= 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("first=${int} != 0 || second <= 0"), stvar(int32, first));
     else if (strFind(resp, 0, _SL("hello")) > second)
-        ret = 1;   // the first body must precede the second head
+        TEST_FAILV(ret, 1, _SL("strFind(resp, 0, _SL(\"hello\")) > second -- the first body must precede the second head"), stvNone);
 
     strDestroy(&resp);
     srvFixtureDestroy(&f);
@@ -3518,7 +3537,7 @@ static int test_httptest_srvbadrequest(void)
     if (!srvFixtureInit(&f, &rec, false)) {
         srvFixtureDestroy(&f);
         srvRecDestroy(&rec);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !srvFixtureInit(&f, &rec, false)"), stvNone);
     }
 
     // A header field name with whitespace before the colon: a smuggling primitive, and one the
@@ -3527,13 +3546,13 @@ static int test_httptest_srvbadrequest(void)
     srvRead(&f, &resp);
 
     if (rec.requestCount != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.requestCount=${int} != 0"), stvar(int32, rec.requestCount));
     if (!strBeginsWith(resp, _SL("HTTP/1.1 400 Bad Request\r\n")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}' to begin with '${string}'"), stvar(strref, resp), stvar(strref, _SL("HTTP/1.1 400 Bad Request\r\n")));
     if (strFind(resp, 0, _SL("Connection: close")) < 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected to find '${string}' in '${string}'"), stvar(strref, _SL("Connection: close")), stvar(strref, resp));
     if (rec.errorCount != 1 || rec.err != HTTPERR_BadMessage)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.errorCount=${uint} != 1 || rec.err=${int} != HTTPERR_BadMessage"), stvar(uint32, rec.errorCount), stvar(int32, rec.err));
 
     strDestroy(&resp);
     srvFixtureDestroy(&f);
@@ -3552,7 +3571,7 @@ static int test_httptest_srvbadtarget(void)
     if (!srvFixtureInit(&f, &rec, false)) {
         srvFixtureDestroy(&f);
         srvRecDestroy(&rec);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !srvFixtureInit(&f, &rec, false)"), stvNone);
     }
 
     // Authority-form, which only CONNECT may use.
@@ -3560,11 +3579,11 @@ static int test_httptest_srvbadtarget(void)
     srvRead(&f, &resp);
 
     if (rec.requestCount != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.requestCount=${int} != 0"), stvar(int32, rec.requestCount));
     if (!strBeginsWith(resp, _SL("HTTP/1.1 400 Bad Request\r\n")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}' to begin with '${string}'"), stvar(strref, resp), stvar(strref, _SL("HTTP/1.1 400 Bad Request\r\n")));
     if (rec.err != HTTPERR_BadUrl)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.err=${int} != HTTPERR_BadUrl"), stvar(int32, rec.err));
 
     strDestroy(&resp);
     srvFixtureDestroy(&f);
@@ -3585,7 +3604,7 @@ static int test_httptest_srvtoolarge(void)
     if (!srvStart(&f, &rec, false)) {
         srvFixtureDestroy(&f);
         srvRecDestroy(&rec);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !srvStart(&f, &rec, false)"), stvNone);
     }
 
     // Set before anything connects: the limits are read when a connection is accepted.
@@ -3594,7 +3613,7 @@ static int test_httptest_srvtoolarge(void)
     if (!srvConnect(&f)) {
         srvFixtureDestroy(&f);
         srvRecDestroy(&rec);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !srvConnect(&f)"), stvNone);
     }
 
     strAppend(&req, _SL("GET /x HTTP/1.1\r\nHost: h\r\n"));
@@ -3606,11 +3625,11 @@ static int test_httptest_srvtoolarge(void)
     srvRead(&f, &resp);
 
     if (rec.requestCount != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.requestCount=${int} != 0"), stvar(int32, rec.requestCount));
     if (!strBeginsWith(resp, _SL("HTTP/1.1 431 ")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}' to begin with '${string}'"), stvar(strref, resp), stvar(strref, _SL("HTTP/1.1 431 ")));
     if (rec.err != HTTPERR_TooLarge)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.err=${int} != HTTPERR_TooLarge"), stvar(int32, rec.err));
 
     strDestroy(&req);
     strDestroy(&resp);
@@ -3631,7 +3650,7 @@ static int test_httptest_srvheadreadtimeout(void)
     if (!srvFixtureInit(&f, &rec, false)) {
         srvFixtureDestroy(&f);
         srvRecDestroy(&rec);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !srvFixtureInit(&f, &rec, false)"), stvNone);
     }
 
     f.srv->readHeadTimeout = timeMS(30);
@@ -3642,15 +3661,15 @@ static int test_httptest_srvheadreadtimeout(void)
     srvRead(&f, &resp);
 
     if (rec.requestCount != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.requestCount=${int} != 0"), stvar(int32, rec.requestCount));
     if (!strBeginsWith(resp, _SL("HTTP/1.1 408 ")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}' to begin with '${string}'"), stvar(strref, resp), stvar(strref, _SL("HTTP/1.1 408 ")));
     if (rec.err != HTTPERR_Timeout)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.err=${int} != HTTPERR_Timeout"), stvar(int32, rec.err));
 
     srvTick(&f, 40);
     if (httpserverConnCount(f.srv) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("httpserverConnCount(f.srv) != 0"), stvNone);
 
     strDestroy(&resp);
     srvFixtureDestroy(&f);
@@ -3669,20 +3688,20 @@ static int test_httptest_srvhead(void)
     if (!srvFixtureInit(&f, &rec, false)) {
         srvFixtureDestroy(&f);
         srvRecDestroy(&rec);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !srvFixtureInit(&f, &rec, false)"), stvNone);
     }
 
     srvSend(&f, "HEAD /x HTTP/1.1\r\nHost: h\r\nConnection: close\r\n\r\n");
     srvRead(&f, &resp);
 
     if (rec.requestCount != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.requestCount=${int} != 1"), stvar(int32, rec.requestCount));
     if (strFind(resp, 0, _SL("Content-Length: 5\r\n")) < 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected to find '${string}' in '${string}'"), stvar(strref, _SL("Content-Length: 5\r\n")), stvar(strref, resp));
     if (strFind(resp, 0, _SL("hello")) >= 0)
-        ret = 1;   // the body itself must not be sent
+        TEST_FAILV(ret, 1, _SL("expected NOT to find '${string}', but it was present in '${string}' -- the body itself must not be sent"), stvar(strref, _SL("hello")), stvar(strref, resp));
     if (!strEndsWith(resp, _SL("\r\n\r\n")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}' to end with '${string}'"), stvar(strref, resp), stvar(strref, _SL("\r\n\r\n")));
 
     strDestroy(&resp);
     srvFixtureDestroy(&f);
@@ -3702,7 +3721,7 @@ static int test_httptest_srvnobody(void)
     if (!srvFixtureInit(&f, &rec, false)) {
         srvFixtureDestroy(&f);
         srvRecDestroy(&rec);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !srvFixtureInit(&f, &rec, false)"), stvNone);
     }
 
     rec.status = HTTP_NoContent;
@@ -3710,9 +3729,9 @@ static int test_httptest_srvnobody(void)
     srvRead(&f, &resp);
 
     if (!strBeginsWith(resp, _SL("HTTP/1.1 204 No Content\r\n")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}' to begin with '${string}'"), stvar(strref, resp), stvar(strref, _SL("HTTP/1.1 204 No Content\r\n")));
     if (strFind(resp, 0, _SL("Content-Length")) >= 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected NOT to find '${string}', but it was present in '${string}'"), stvar(strref, _SL("Content-Length")), stvar(strref, resp));
 
     strDestroy(&resp);
     srvFixtureDestroy(&f);
@@ -3732,7 +3751,7 @@ static int test_httptest_srvheld(void)
     if (!srvFixtureInit(&f, &rec, false)) {
         srvFixtureDestroy(&f);
         srvRecDestroy(&rec);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !srvFixtureInit(&f, &rec, false)"), stvNone);
     }
 
     rec.hold = true;
@@ -3742,9 +3761,9 @@ static int test_httptest_srvheld(void)
 
     // The first request arrived; the second must not have been looked at yet.
     if (rec.requestCount != 1 || !rec.held)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.requestCount=${int} != 1 || !rec.held"), stvar(int32, rec.requestCount));
     if (strLen(resp) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("strLen(resp) != 0"), stvNone);
 
     // Answer it, and the connection moves on to the request that was waiting behind it.
     rec.hold = false;
@@ -3756,9 +3775,9 @@ static int test_httptest_srvheld(void)
     srvRead(&f, &resp);
 
     if (rec.requestCount != 2 || !strEq(rec.path, _SL("/next")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.requestCount=${int} != 2 || expected '${string}', got '${string}'"), stvar(int32, rec.requestCount), stvar(strref, _SL("/next")), stvar(strref, rec.path));
     if (strFind(resp, 0, _SL("late")) < 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected to find '${string}' in '${string}'"), stvar(strref, _SL("late")), stvar(strref, resp));
 
     strDestroy(&resp);
     srvFixtureDestroy(&f);
@@ -3778,7 +3797,7 @@ static int test_httptest_srvlateresponse(void)
     if (!srvFixtureInit(&f, &rec, false)) {
         srvFixtureDestroy(&f);
         srvRecDestroy(&rec);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !srvFixtureInit(&f, &rec, false)"), stvNone);
     }
 
     rec.hold = true;
@@ -3786,7 +3805,7 @@ static int test_httptest_srvlateresponse(void)
     srvRead(&f, &resp);
 
     if (rec.requestCount != 1 || !rec.held)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.requestCount=${int} != 1 || !rec.held"), stvar(int32, rec.requestCount));
 
     // The client gives up while the handler is still holding the request.
     closesocket(f.client);
@@ -3794,14 +3813,14 @@ static int test_httptest_srvlateresponse(void)
     srvTick(&f, 40);
 
     if (httpserverConnCount(f.srv) != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("httpserverConnCount(f.srv) != 0"), stvNone);
     if (rec.closedCount != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.closedCount=${int} != 1"), stvar(int32, rec.closedCount));
 
     // The request outlived its connection, and answering it now says so instead of writing into a
     // socket that is gone.
     if (rec.held && httpsrvreqRespond(rec.held, _SL("too late"), _SL("text/plain")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.held && httpsrvreqRespond(rec.held, _SL(\"too late\"), _SL(\"text/plain\"))"), stvNone);
 
     strDestroy(&resp);
     srvFixtureDestroy(&f);
@@ -3820,16 +3839,16 @@ static int test_httptest_srvattach(void)
     if (!srvFixtureInit(&f, &rec, true)) {
         srvFixtureDestroy(&f);
         srvRecDestroy(&rec);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !srvFixtureInit(&f, &rec, true)"), stvNone);
     }
 
     srvSend(&f, "GET /attached HTTP/1.1\r\nHost: h\r\n\r\n");
     srvRead(&f, &resp);
 
     if (rec.requestCount != 1 || !strEq(rec.path, _SL("/attached")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.requestCount=${int} != 1 || expected '${string}', got '${string}'"), stvar(int32, rec.requestCount), stvar(strref, _SL("/attached")), stvar(strref, rec.path));
     if (!strBeginsWith(resp, _SL("HTTP/1.1 200 OK\r\n")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}' to begin with '${string}'"), stvar(strref, resp), stvar(strref, _SL("HTTP/1.1 200 OK\r\n")));
 
     strDestroy(&resp);
     srvFixtureDestroy(&f);
@@ -3852,7 +3871,7 @@ static int test_httptest_srvsink(void)
     if (!srvFixtureInit(&f, &rec, false)) {
         srvFixtureDestroy(&f);
         srvRecDestroy(&rec);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !srvFixtureInit(&f, &rec, false)"), stvNone);
     }
 
     srvSend(&f,
@@ -3865,15 +3884,15 @@ static int test_httptest_srvsink(void)
     srvSinkDrain(&rec);
 
     if (rec.headCount != 1 || rec.requestCount != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.headCount=${int} != 1 || rec.requestCount=${int} != 1"), stvar(int32, rec.headCount), stvar(int32, rec.requestCount));
     if (!strEq(rec.sinkData, _SL("sink-body!!")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}', got '${string}'"), stvar(strref, _SL("sink-body!!")), stvar(strref, rec.sinkData));
 
     // The body went to the sink, so it was never accumulated on the request.
     if (!strEmpty(rec.body))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!strEmpty(rec.body)"), stvNone);
     if (!strBeginsWith(resp, _SL("HTTP/1.1 200 OK\r\n")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}' to begin with '${string}'"), stvar(strref, resp), stvar(strref, _SL("HTTP/1.1 200 OK\r\n")));
 
     strDestroy(&resp);
     srvFixtureDestroy(&f);
@@ -3896,7 +3915,7 @@ static int test_httptest_srvsinkchunked(void)
     if (!srvFixtureInit(&f, &rec, false)) {
         srvFixtureDestroy(&f);
         srvRecDestroy(&rec);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !srvFixtureInit(&f, &rec, false)"), stvNone);
     }
 
     srvSend(&f,
@@ -3911,9 +3930,9 @@ static int test_httptest_srvsinkchunked(void)
     srvSinkDrain(&rec);
 
     if (rec.requestCount != 1 || !strEq(rec.sinkData, _SL("hello world")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.requestCount=${int} != 1 || expected '${string}', got '${string}'"), stvar(int32, rec.requestCount), stvar(strref, _SL("hello world")), stvar(strref, rec.sinkData));
     if (!strBeginsWith(resp, _SL("HTTP/1.1 200 OK\r\n")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}' to begin with '${string}'"), stvar(strref, resp), stvar(strref, _SL("HTTP/1.1 200 OK\r\n")));
 
     strDestroy(&resp);
     srvFixtureDestroy(&f);
@@ -3933,13 +3952,13 @@ static int test_httptest_srvdata(void)
     if (!srvStart(&f, &rec, false)) {
         srvFixtureDestroy(&f);
         srvRecDestroy(&rec);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !srvStart(&f, &rec, false)"), stvNone);
     }
     httpserverSetHandlers(f.srv, &kSrvDataHandlers, &rec);
     if (!srvConnect(&f)) {
         srvFixtureDestroy(&f);
         srvRecDestroy(&rec);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !srvConnect(&f)"), stvNone);
     }
 
     srvSend(&f,
@@ -3951,9 +3970,9 @@ static int test_httptest_srvdata(void)
     srvRead(&f, &resp);
 
     if (rec.dataCount < 1 || !strEq(rec.dataBody, _SL("data-body")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.dataCount < 1 || expected '${string}', got '${string}'"), stvar(strref, _SL("data-body")), stvar(strref, rec.dataBody));
     if (!strEmpty(rec.body))
-        ret = 1;   // claimed by the data handler, so nothing was buffered
+        TEST_FAILV(ret, 1, _SL("!strEmpty(rec.body) -- claimed by the data handler, so nothing was buffered"), stvNone);
 
     strDestroy(&resp);
     srvFixtureDestroy(&f);
@@ -3976,16 +3995,16 @@ static int test_httptest_srvstreamresp(void)
     if (!srvFixtureInit(&f, &rec, false)) {
         srvFixtureDestroy(&f);
         srvRecDestroy(&rec);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !srvFixtureInit(&f, &rec, false)"), stvNone);
     }
 
     srvSend(&f, "GET /stream HTTP/1.1\r\nHost: h\r\n\r\n");
     srvRead(&f, &resp);
 
     if (rec.requestCount != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.requestCount=${int} != 1"), stvar(int32, rec.requestCount));
     if (!strBeginsWith(resp, _SL("HTTP/1.1 200 OK\r\n")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}' to begin with '${string}'"), stvar(strref, resp), stvar(strref, _SL("HTTP/1.1 200 OK\r\n")));
 
     string clen = 0;
     strAppend(&clen, _SL("Content-Length: "));
@@ -3996,11 +4015,11 @@ static int test_httptest_srvstreamresp(void)
     strDestroy(&nstr);
 
     if (strFind(resp, 0, clen) < 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected to find '${string}' in '${string}'"), stvar(strref, clen), stvar(strref, resp));
     if (strFind(resp, 0, _SL("Transfer-Encoding")) >= 0)
-        ret = 1;   // a known length is never chunked as well
+        TEST_FAILV(ret, 1, _SL("expected NOT to find '${string}', but it was present in '${string}' -- a known length is never chunked as well"), stvar(strref, _SL("Transfer-Encoding")), stvar(strref, resp));
     if (!strEndsWith(resp, _SL(SRV_STREAM_BODY)))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}' to end with '${string}'"), stvar(strref, resp), stvar(strref, _SL(SRV_STREAM_BODY)));
 
     strDestroy(&clen);
     strDestroy(&resp);
@@ -4024,25 +4043,25 @@ static int test_httptest_srvchunkedresp(void)
     if (!srvFixtureInit(&f, &rec, false)) {
         srvFixtureDestroy(&f);
         srvRecDestroy(&rec);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !srvFixtureInit(&f, &rec, false)"), stvNone);
     }
 
     srvSend(&f, "GET /chunked HTTP/1.1\r\nHost: h\r\n\r\n");
     srvRead(&f, &resp);
 
     if (rec.requestCount != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.requestCount=${int} != 1"), stvar(int32, rec.requestCount));
     if (strFind(resp, 0, _SL("Transfer-Encoding: chunked\r\n")) < 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected to find '${string}' in '${string}'"), stvar(strref, _SL("Transfer-Encoding: chunked\r\n")), stvar(strref, resp));
     if (strFind(resp, 0, _SL("Content-Length")) >= 0)
-        ret = 1;   // chunked and a length together is the framing conflict smuggling lives in
+        TEST_FAILV(ret, 1, _SL("expected NOT to find '${string}', but it was present in '${string}' -- chunked and a length together is the framing conflict smuggling lives in"), stvar(strref, _SL("Content-Length")), stvar(strref, resp));
     if (!strEndsWith(resp, _SL("\r\n0\r\n\r\n")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}' to end with '${string}'"), stvar(strref, resp), stvar(strref, _SL("\r\n0\r\n\r\n")));
 
     // Decode the chunked body back and check it round-tripped intact.
     int32 hdrEnd = strFind(resp, 0, _SL("\r\n\r\n"));
     if (hdrEnd < 0) {
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("hdrEnd < 0"), stvNone);
     } else {
         string enc = 0;
         strSubStr(&enc, resp, hdrEnd + 4, strLen(resp));
@@ -4083,7 +4102,7 @@ static int test_httptest_srvchunkedresp(void)
         }
 
         if (!strEq(decoded, _SL(SRV_STREAM_BODY)))
-            ret = 1;
+            TEST_FAILV(ret, 1, _SL("expected '${string}', got '${string}'"), stvar(strref, _SL(SRV_STREAM_BODY)), stvar(strref, decoded));
 
         strDestroy(&decoded);
         strDestroy(&wrapped);
@@ -4114,18 +4133,18 @@ static int test_httptest_srvpushresp(void)
     if (!srvFixtureInit(&f, &rec, false)) {
         srvFixtureDestroy(&f);
         srvRecDestroy(&rec);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !srvFixtureInit(&f, &rec, false)"), stvNone);
     }
 
     srvSend(&f, "GET /push HTTP/1.1\r\nHost: h\r\n\r\n");
     srvRead(&f, &resp);
 
     if (rec.requestCount != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.requestCount=${int} != 1"), stvar(int32, rec.requestCount));
     if (!strBeginsWith(resp, _SL("HTTP/1.1 200 OK\r\n")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}' to begin with '${string}'"), stvar(strref, resp), stvar(strref, _SL("HTTP/1.1 200 OK\r\n")));
     if (!strEndsWith(resp, _SL(SRV_STREAM_BODY)))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}' to end with '${string}'"), stvar(strref, resp), stvar(strref, _SL(SRV_STREAM_BODY)));
 
     strDestroy(&resp);
     srvFixtureDestroy(&f);
@@ -4145,7 +4164,7 @@ static int test_httptest_srvcontinue(void)
     if (!srvFixtureInit(&f, &rec, false)) {
         srvFixtureDestroy(&f);
         srvRecDestroy(&rec);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !srvFixtureInit(&f, &rec, false)"), stvNone);
     }
 
     // Head first, and nothing else: a client that means it waits before sending its body.
@@ -4158,17 +4177,17 @@ static int test_httptest_srvcontinue(void)
     srvRead(&f, &resp);
 
     if (!strBeginsWith(resp, _SL("HTTP/1.1 100 Continue\r\n\r\n")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}' to begin with '${string}'"), stvar(strref, resp), stvar(strref, _SL("HTTP/1.1 100 Continue\r\n\r\n")));
     if (rec.requestCount != 0)
-        ret = 1;   // the request is not complete until its body arrives
+        TEST_FAILV(ret, 1, _SL("rec.requestCount=${int} != 0 -- the request is not complete until its body arrives"), stvar(int32, rec.requestCount));
 
     srvSend(&f, "body");
     srvRead(&f, &resp);
 
     if (rec.requestCount != 1 || !strEq(rec.body, _SL("body")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.requestCount=${int} != 1 || expected '${string}', got '${string}'"), stvar(int32, rec.requestCount), stvar(strref, _SL("body")), stvar(strref, rec.body));
     if (strFind(resp, 0, _SL("HTTP/1.1 200 OK\r\n")) <= 0)
-        ret = 1;   // after the interim response, not instead of it
+        TEST_FAILV(ret, 1, _SL("strFind(resp, 0, _SL(\"HTTP/1.1 200 OK\\r\\n\")) <= 0 -- after the interim response, not instead of it"), stvNone);
 
     strDestroy(&resp);
     srvFixtureDestroy(&f);
@@ -4187,13 +4206,13 @@ static int test_httptest_srvcontinuemanual(void)
     if (!srvStart(&f, &rec, false)) {
         srvFixtureDestroy(&f);
         srvRecDestroy(&rec);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !srvStart(&f, &rec, false)"), stvNone);
     }
     f.srv->autoContinue = false;
     if (!srvConnect(&f)) {
         srvFixtureDestroy(&f);
         srvRecDestroy(&rec);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !srvConnect(&f)"), stvNone);
     }
 
     // The head handler answers 413 instead of letting the body come, which is the whole reason to
@@ -4209,18 +4228,18 @@ static int test_httptest_srvcontinuemanual(void)
     srvRead(&f, &resp);
 
     if (rec.headCount != 1)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.headCount=${int} != 1"), stvar(int32, rec.headCount));
     if (strFind(resp, 0, _SL("100 Continue")) >= 0)
-        ret = 1;   // refused, so no permission was ever given
+        TEST_FAILV(ret, 1, _SL("expected NOT to find '${string}', but it was present in '${string}' -- refused, so no permission was ever given"), stvar(strref, _SL("100 Continue")), stvar(strref, resp));
     if (!strBeginsWith(resp, _SL("HTTP/1.1 413 ")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}' to begin with '${string}'"), stvar(strref, resp), stvar(strref, _SL("HTTP/1.1 413 ")));
 
     // A body was refused before it was read, so the connection cannot carry another request --
     // whatever the client sends next is the abandoned body, not a request line.
     if (strFind(resp, 0, _SL("Connection: close\r\n")) < 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected to find '${string}' in '${string}'"), stvar(strref, _SL("Connection: close\r\n")), stvar(strref, resp));
     if (rec.requestCount != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.requestCount=${int} != 0"), stvar(int32, rec.requestCount));
 
     strDestroy(&resp);
     srvFixtureDestroy(&f);
@@ -4240,7 +4259,7 @@ static int test_httptest_srvexpectbad(void)
     if (!srvFixtureInit(&f, &rec, false)) {
         srvFixtureDestroy(&f);
         srvRecDestroy(&rec);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !srvFixtureInit(&f, &rec, false)"), stvNone);
     }
 
     srvSend(&f,
@@ -4252,9 +4271,9 @@ static int test_httptest_srvexpectbad(void)
     srvRead(&f, &resp);
 
     if (!strBeginsWith(resp, _SL("HTTP/1.1 417 ")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}' to begin with '${string}'"), stvar(strref, resp), stvar(strref, _SL("HTTP/1.1 417 ")));
     if (rec.requestCount != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.requestCount=${int} != 0"), stvar(int32, rec.requestCount));
 
     strDestroy(&resp);
     srvFixtureDestroy(&f);
@@ -4297,7 +4316,7 @@ static int test_httptest_srvdeferred(void)
     if (!srvFixtureInit(&f, &rec, false)) {
         srvFixtureDestroy(&f);
         srvRecDestroy(&rec);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !srvFixtureInit(&f, &rec, false)"), stvNone);
     }
 
     srvSend(&f, "GET /deferred HTTP/1.1\r\nHost: h\r\n\r\n");
@@ -4307,7 +4326,7 @@ static int test_httptest_srvdeferred(void)
     if (!rec.held) {
         srvFixtureDestroy(&f);
         srvRecDestroy(&rec);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !rec.held"), stvNone);
     }
 
     DeferredCtx d = { 0 };
@@ -4319,7 +4338,7 @@ static int test_httptest_srvdeferred(void)
         eventDestroy(&d.done);
         srvFixtureDestroy(&f);
         srvRecDestroy(&rec);
-        return 1;
+        TEST_FAIL(1, _SL("failed: !th"), stvNone);
     }
 
     // The respond() call itself returns as soon as the handoff is armed; the bytes only move when a
@@ -4328,13 +4347,13 @@ static int test_httptest_srvdeferred(void)
     srvRead(&f, &resp);
 
     if (!strBeginsWith(resp, _SL("HTTP/1.1 200 OK\r\n")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}' to begin with '${string}'"), stvar(strref, resp), stvar(strref, _SL("HTTP/1.1 200 OK\r\n")));
     if (strFind(resp, 0, _SL("X-Deferred: yes\r\n")) < 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected to find '${string}' in '${string}'"), stvar(strref, _SL("X-Deferred: yes\r\n")), stvar(strref, resp));
     if (!strEndsWith(resp, _SL("\r\n\r\nfrom-another-thread")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}' to end with '${string}'"), stvar(strref, resp), stvar(strref, _SL("\r\n\r\nfrom-another-thread")));
     if (strFind(resp, 0, _SL("Content-Length: 19\r\n")) < 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected to find '${string}' in '${string}'"), stvar(strref, _SL("Content-Length: 19\r\n")), stvar(strref, resp));
 
     thrWait(th, timeForever);
     thrShutdown(th);
@@ -4391,11 +4410,11 @@ static int test_httptest_srvtls(void)
     TlsPeer peer    = { 0 };
 
     if (!tlsTestPKIInit(&pki))
-        return 1;
+        TEST_FAIL(1, _SL("!tlsTestPKIInit(&pki)"), stvNone);
 
     ca = tlscastoreCreate();
     if (!ca || !tlscastoreAddPEM(ca, pki.caCert)) {
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!ca || !tlscastoreAddPEM(ca, pki.caCert)"), stvNone);
         goto out;
     }
 
@@ -4403,7 +4422,7 @@ static int test_httptest_srvtls(void)
     scfg  = creds ? tlsconfigCreateServer(creds) : NULL;
     ccfg  = tlsconfigCreateClient();
     if (!scfg || !ccfg) {
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!scfg || !ccfg"), stvNone);
         goto out;
     }
     tlsconfigSetCA(ccfg, ca);
@@ -4413,13 +4432,13 @@ static int test_httptest_srvtls(void)
     conf.nthreads = 0;
     q             = netqueueCreate(&conf);
     if (!q) {
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!q"), stvNone);
         goto out;
     }
 
     srv = httpserverCreate(q);
     if (!srv) {
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!srv"), stvNone);
         goto out;
     }
     httpserverSetHandlers(srv, &kSrvHandlers, &rec);
@@ -4429,7 +4448,7 @@ static int test_httptest_srvtls(void)
     la.port = 0;
 
     if (!httpserverListenTls(srv, &la, 4, scfg)) {
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpserverListenTls(srv, &la, 4, scfg)"), stvNone);
         goto out;
     }
 
@@ -4438,7 +4457,7 @@ static int test_httptest_srvtls(void)
     peer.sock = nettlsConnect(q, _SL("127.0.0.1"), httpserverPort(srv), _S TLS_TEST_HOSTNAME, ccfg,
                               &kTlsPeerHandlers, &peer);
     if (!peer.sock) {
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!peer.sock"), stvNone);
         goto out;
     }
 
@@ -4446,13 +4465,13 @@ static int test_httptest_srvtls(void)
         netqueueTick(q, 10);
 
     if (!peer.secured) {
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!peer.secured"), stvNone);
         goto out;
     }
 
     STR_CONST(reqbytes, "GET /secure HTTP/1.1\r\nHost: " TLS_TEST_HOSTNAME "\r\n\r\n");
     if (!netsocketSend(peer.sock, (uint8*)strC(reqbytes), strLen(reqbytes), NULL, 0)) {
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!netsocketSend(peer.sock, (uint8*)strC(reqbytes), strLen(reqbytes), NULL, 0)"), stvNone);
         goto out;
     }
 
@@ -4462,11 +4481,11 @@ static int test_httptest_srvtls(void)
         netqueueTick(q, 10);
 
     if (rec.requestCount != 1 || !strEq(rec.path, _SL("/secure")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.requestCount=${int} != 1 || expected '${string}', got '${string}'"), stvar(int32, rec.requestCount), stvar(strref, _SL("/secure")), stvar(strref, rec.path));
     if (!strBeginsWith(peer.in, _SL("HTTP/1.1 200 OK\r\n")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}' to begin with '${string}'"), stvar(strref, peer.in), stvar(strref, _SL("HTTP/1.1 200 OK\r\n")));
     if (!strEndsWith(peer.in, _SL("\r\n\r\nhello")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}' to end with '${string}'"), stvar(strref, peer.in), stvar(strref, _SL("\r\n\r\nhello")));
 
 out:
     if (peer.sock) {
@@ -4504,7 +4523,7 @@ static int test_httptest_srvroundtrip(void)
     conf.nthreads = 0;
     NetQueue* q   = netqueueCreate(&conf);
     if (!q)
-        return 1;
+        TEST_FAIL(1, _SL("!q"), stvNone);
 
     HttpServer* srv = httpserverCreate(q);
     HttpClient* cl  = httpclientCreate(q);
@@ -4512,7 +4531,7 @@ static int test_httptest_srvroundtrip(void)
     string url      = 0;
 
     if (!srv || !cl) {
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!srv || !cl"), stvNone);
         goto out;
     }
 
@@ -4522,7 +4541,7 @@ static int test_httptest_srvroundtrip(void)
     netAddrFromStr(&la, _SL("127.0.0.1"));
     la.port = 0;
     if (!httpserverListen(srv, &la, 4)) {
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!httpserverListen(srv, &la, 4)"), stvNone);
         goto out;
     }
 
@@ -4535,7 +4554,7 @@ static int test_httptest_srvroundtrip(void)
 
     r = httprequestCreate(HTTP_Get, url);
     if (!r || !httpclientSend(cl, r, &kConnRecHandlers, &cr)) {
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("!r || !httpclientSend(cl, r, &kConnRecHandlers, &cr)"), stvNone);
         goto out;
     }
 
@@ -4543,16 +4562,16 @@ static int test_httptest_srvroundtrip(void)
         netqueueTick(q, 10);
 
     if (cr.completeCount != 1 || cr.errorCount != 0)
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("cr.completeCount=${uint} != 1 || cr.errorCount=${uint} != 0"), stvar(uint32, cr.completeCount), stvar(uint32, cr.errorCount));
 
     // The body arrives through the data callback rather than being buffered on the request: the
     // handler set registered here has one, and a client that asked for chunks gets chunks.
     if (r->status != 200 || cr.status != 200 || !strEq(cr.body, _SL("hello")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("r->status=${uint} != 200 || cr.status=${uint} != 200 || expected '${string}', got '${string}'"), stvar(uint16, r->status), stvar(uint16, cr.status), stvar(strref, _SL("hello")), stvar(strref, cr.body));
     if (!strEq(cr.ctype, _SL("text/plain")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("expected '${string}', got '${string}'"), stvar(strref, _SL("text/plain")), stvar(strref, cr.ctype));
     if (rec.requestCount != 1 || !strEq(rec.path, _SL("/round")) || !strEq(rec.query, _SL("q=1")))
-        ret = 1;
+        TEST_FAILV(ret, 1, _SL("rec.requestCount=${int} != 1 || expected '${string}', got '${string}' || expected '${string}', got '${string}'"), stvar(int32, rec.requestCount), stvar(strref, _SL("/round")), stvar(strref, rec.path), stvar(strref, _SL("q=1")), stvar(strref, rec.query));
 
 out:
     strDestroy(&cr.body);

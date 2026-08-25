@@ -24,6 +24,15 @@
 #undef LOG_CHANNEL
 #define LOG_CHANNEL LogDefault
 
+// Similar to how cpptest.cpp must use a custom variant of TEST_FAIL to work around C++ issues,
+// here we define a custom TEST_FAILV that logs to cxTestLogChan explicitly rather than the
+// default channel, which is needed for the log system tests.
+#define TEST_FAILV_LOG(var, code, fmt, ...)                \
+    do {                                                   \
+        logFmtC(Error, cxTestLogChan, fmt, ##__VA_ARGS__); \
+        (var) = (code);                                    \
+    } while (0)
+
 static Event logtestevent;
 
 // Serialized records are newline-terminated, so counting lines is a format-independent way of
@@ -142,18 +151,26 @@ static int test_log_levels()
     td.fail  = true;
     logStr(Info, _S"Info test");
     if (!eventWaitTimeout(&logtestevent, timeS(1)))
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("!eventWaitTimeout(&logtestevent, timeS(1))"), stvNone);
     if (td.fail || td.count != 1)
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("td.fail=${int} || td.count=${int} != 1"),
+                       stvar(int32, (int32)(td.fail)),
+                       stvar(int32, td.count));
 
     td.test  = 2;
     td.count = 0;
     td.fail  = true;
     logStr(Notice, _S"Notice test");
     if (!eventWaitTimeout(&logtestevent, timeS(1)))
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("!eventWaitTimeout(&logtestevent, timeS(1))"), stvNone);
     if (td.fail || td.count != 1)
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("td.fail=${int} || td.count=${int} != 1"),
+                       stvar(int32, (int32)(td.fail)),
+                       stvar(int32, td.count));
 
     td.test  = 3;
     td.count = 0;
@@ -161,9 +178,13 @@ static int test_log_levels()
     logStr(Info, _S"Info test");
     logStr(Notice, _S"Notice test");
     if (!eventWaitTimeout(&logtestevent, timeS(1)))
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("!eventWaitTimeout(&logtestevent, timeS(1))"), stvNone);
     if (td.fail || td.count != 2)
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("td.fail=${int} || td.count=${int} != 2"),
+                       stvar(int32, (int32)(td.fail)),
+                       stvar(int32, td.count));
 
     // should NOT be received by the destination
     td.test  = 4;
@@ -172,7 +193,11 @@ static int test_log_levels()
     logStr(Verbose, _S"Verbose test");
     osSleep(timeMS(100));
     if (td.fail || td.count != 0)
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("td.fail=${int} || td.count=${int} != 0"),
+                       stvar(int32, (int32)(td.fail)),
+                       stvar(int32, td.count));
 
     // should be received by both destinations
     td.test  = 5;
@@ -182,14 +207,18 @@ static int test_log_levels()
     logStr(Verbose, _S"Verbose test 4");
     logStr(Error, _S"Error test");
     if (!eventWaitTimeout(&logtestevent, timeS(1)))
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("!eventWaitTimeout(&logtestevent, timeS(1))"), stvNone);
     if (td.fail || td.count != 2)
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("td.fail=${int} || td.count=${int} != 2"),
+                       stvar(int32, (int32)(td.fail)),
+                       stvar(int32, td.count));
 
     // every message the buffer's level filter accepted landed in it, one line each
     logFlush();
     if (membufLines(lmd) != 9)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("membufLines(lmd)=${int} != 9"), stvar(int32, membufLines(lmd)));
 
     logShutdown();
 
@@ -209,7 +238,7 @@ static int test_log_shutdown()
     td.fail = true;
     logShutdown();
     if (td.fail)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("td.fail=${int}"), stvar(int32, (int32)(td.fail)));
 
     eventDestroy(&logtestevent);
     return ret;
@@ -233,12 +262,21 @@ static int test_log_batch()
         logFmt(Info, _S"${string} test", stvar(string, _S"Info"));
     }
     if (td.count != 0 || td.batches != 0)
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("td.count=${int} != 0 || td.batches=${int} != 0"),
+                       stvar(int32, td.count),
+                       stvar(int32, td.batches));
     logBatchEnd();
     if (!eventWaitTimeout(&logtestevent, timeS(1)))
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("!eventWaitTimeout(&logtestevent, timeS(1))"), stvNone);
     if (td.fail || td.count != 16 || td.batches != 1)
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("td.fail=${int} || td.count=${int} != 16 || td.batches=${int} != 1"),
+                       stvar(int32, (int32)(td.fail)),
+                       stvar(int32, td.count),
+                       stvar(int32, td.batches));
 
     td.test  = 21;
     td.count = 0;
@@ -249,16 +287,25 @@ static int test_log_batch()
     }
     osSleep(timeMS(100));
     if (td.count != 0 || td.batches != 1)
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("td.count=${int} != 0 || td.batches=${int} != 1"),
+                       stvar(int32, td.count),
+                       stvar(int32, td.batches));
     logBatchEnd();
     if (!eventWaitTimeout(&logtestevent, timeS(1)))
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("!eventWaitTimeout(&logtestevent, timeS(1))"), stvNone);
     if (td.fail || td.count != 1600 || td.batches != 2)
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("td.fail=${int} || td.count=${int} != 1600 || td.batches=${int} != 2"),
+                       stvar(int32, (int32)(td.fail)),
+                       stvar(int32, td.count),
+                       stvar(int32, td.batches));
 
     logFlush();
     if (membufLines(lmd) != 16 + 1600)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("membufLines(lmd) != 16 + 1600"), stvNone);
 
     logShutdown();
 
@@ -287,46 +334,69 @@ static int test_log_channels()
     td.fail  = true;
     logStr(Info, _S"Info test");
     if (!eventWaitTimeout(&logtestevent, timeS(1)))
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("!eventWaitTimeout(&logtestevent, timeS(1))"), stvNone);
     if (td.fail || td.count != 1)
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("td.fail=${int} || td.count=${int} != 1"),
+                       stvar(int32, (int32)(td.fail)),
+                       stvar(int32, td.count));
 
     // should be received by chan1 and NULL filter
     td.lastchan = NULL;
-    td.test    = 3;
-    td.count   = 0;
-    td.fail    = true;
+    td.test     = 3;
+    td.count    = 0;
+    td.fail     = true;
     logStrC(Info, chan1, _S"Info test");
     if (!eventWaitTimeout(&logtestevent, timeS(1)))
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("!eventWaitTimeout(&logtestevent, timeS(1))"), stvNone);
     if (td.fail || td.count != 2 || td.lastchan != chan1)
-        ret = 1;
+        TEST_FAILV_LOG(
+            ret,
+            1,
+            _SL("td.fail=${int} || td.count=${int} != 2 || td.lastchan=${ptr} != chan1=${ptr}"),
+            stvar(int32, (int32)(td.fail)),
+            stvar(int32, td.count),
+            stvar(ptr, td.lastchan),
+            stvar(ptr, chan1));
 
     // should ONLY be received by chan2 filter
     td.lastchan = NULL;
-    td.test    = 1;
-    td.count   = 0;
-    td.fail    = false;
+    td.test     = 1;
+    td.count    = 0;
+    td.fail     = false;
     logStrC(Info, chan2, _S"Info test");
     if (!eventWaitTimeout(&logtestevent, timeS(1)))
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("!eventWaitTimeout(&logtestevent, timeS(1))"), stvNone);
     if (td.fail || td.count != 1 || td.lastchan != chan2)
-        ret = 1;
+        TEST_FAILV_LOG(
+            ret,
+            1,
+            _SL("td.fail=${int} || td.count=${int} != 1 || td.lastchan=${ptr} != chan2=${ptr}"),
+            stvar(int32, (int32)(td.fail)),
+            stvar(int32, td.count),
+            stvar(ptr, td.lastchan),
+            stvar(ptr, chan2));
 
     // should not be received by ANY destination
     td.lastchan = NULL;
-    td.test    = 4;
-    td.count   = 0;
-    td.fail    = false;
+    td.test     = 4;
+    td.count    = 0;
+    td.fail     = false;
     logStrC(Info, chan3, _S"Info test");
     osSleep(timeMS(100));
     if (td.fail || td.count != 0 || td.lastchan != NULL)
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("td.fail=${int} || td.count=${int} != 0 || td.lastchan=${ptr} != NULL"),
+                       stvar(int32, (int32)(td.fail)),
+                       stvar(int32, td.count),
+                       stvar(ptr, td.lastchan));
 
     // chan2 and chan3 are declared, so they are restricted: the unfiltered buffer sees neither
     logFlush();
     if (membufLines(lmd) != 2)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("membufLines(lmd)=${int} != 2"), stvar(int32, membufLines(lmd)));
 
     logShutdown();
 
@@ -358,7 +428,11 @@ static int test_log_backfill()
     // nothing is delivered yet -- there is nowhere for it to go, only the ring holding it
     osSleep(timeMS(100));
     if (td.count != 0 || logBootWindowCount() != 6)
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("td.count=${int} != 0 || logBootWindowCount()=${int} != 6"),
+                       stvar(int32, td.count),
+                       stvar(int32, logBootWindowCount()));
 
     LogMembufData* lmd = logmembufData(logmembufRegister(LOG_Verbose, NULL, 4096, NULL));
     logRegisterDest(LOG_Info, NULL, testdest, NULL, NULL, &td);
@@ -367,9 +441,13 @@ static int test_log_backfill()
     // opened at that level, but is filtered out by this destination's own level on the way in.
     // The backfill runs on the registering thread, so it has already happened by now.
     if (!eventWaitTimeout(&logtestevent, timeS(1)))
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("!eventWaitTimeout(&logtestevent, timeS(1))"), stvNone);
     if (td.fail || td.count != 5)
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("td.fail=${int} || td.count=${int} != 5"),
+                       stvar(int32, (int32)(td.fail)),
+                       stvar(int32, td.count));
 
     // closing the window changes nothing for a destination already registered
     logBootWindowEnd();
@@ -381,14 +459,18 @@ static int test_log_backfill()
     logStr(Notice, _S"Notice test");
     logStr(Warn, _S"Warn test");
     if (!eventWaitTimeout(&logtestevent, timeS(1)))
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("!eventWaitTimeout(&logtestevent, timeS(1))"), stvNone);
     if (td.fail || td.count != 3)
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("td.fail=${int} || td.count=${int} != 3"),
+                       stvar(int32, (int32)(td.fail)),
+                       stvar(int32, td.count));
 
     // the membuf *should* include the Verbose entry
     logFlush();
     if (membufLines(lmd) != 9)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("membufLines(lmd)=${int} != 9"), stvar(int32, membufLines(lmd)));
 
     logShutdown();
 
@@ -421,11 +503,14 @@ static int test_log_hierarchy()
     LogChannel* http = logChan(_S"hier/http");
     LogChannel* req  = logChan(_S"hier/http/request");
     if (http != logChan(_S"hier/http"))
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("http != logChan(_S\"hier/http\")"), stvNone);
     if (req->parent != http || http->parent != logChan(_S"hier"))
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("req->parent != http || http->parent != logChan(_S\"hier\")"),
+                       stvNone);
     if (logChan(_S"hier")->parent != LogDefault)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("logChan(_S\"hier\")->parent != LogDefault"), stvNone);
 
     LogDest* dall   = logRegisterDest(LOG_Info, NULL, hiertestmsg, NULL, NULL, &all);
     LogDest* dsub   = logRegisterDest(LOG_Info, _S"hier/**", hiertestmsg, NULL, NULL, &sub);
@@ -435,14 +520,29 @@ static int test_log_hierarchy()
     logStrC(Info, req, _S"one");
     logFlush();
     if (all.count != 1 || sub.count != 1 || exact.count != 0)
-        ret = 1;
+        TEST_FAILV_LOG(
+            ret,
+            1,
+            _SL("all.count=${int} != 1 || sub.count=${int} != 1 || exact.count=${int} != 0"),
+            stvar(int32, all.count),
+            stvar(int32, sub.count),
+            stvar(int32, exact.count));
     if (!strEq(sub.last, _S"hier/http/request"))
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("strEq mismatch: sub.last=${string} vs 'hier/http/request'"),
+                       stvar(strref, sub.last));
 
     logStrC(Info, http, _S"two");
     logFlush();
     if (all.count != 2 || sub.count != 2 || exact.count != 1)
-        ret = 1;
+        TEST_FAILV_LOG(
+            ret,
+            1,
+            _SL("all.count=${int} != 2 || sub.count=${int} != 2 || exact.count=${int} != 1"),
+            stvar(int32, all.count),
+            stvar(int32, sub.count),
+            stvar(int32, exact.count));
 
     // restricting a node gates its whole subtree at that node: a rule reaches it only by naming
     // the gate in its literal prefix, so hier/** still sees everything and ** sees none of it
@@ -450,37 +550,54 @@ static int test_log_hierarchy()
     logStrC(Info, req, _S"three");
     logFlush();
     if (all.count != 2 || sub.count != 3 || exact.count != 1)
-        ret = 1;
+        TEST_FAILV_LOG(
+            ret,
+            1,
+            _SL("all.count=${int} != 2 || sub.count=${int} != 3 || exact.count=${int} != 1"),
+            stvar(int32, all.count),
+            stvar(int32, sub.count),
+            stvar(int32, exact.count));
 
     // ...and re-opening a subtree beneath a restricted parent puts it back in view of **
     logDeclareChan(_S"hier/http", LOG_Broadcast);
     logStrC(Info, req, _S"four");
     logFlush();
     if (all.count != 3 || sub.count != 4)
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("all.count=${int} != 3 || sub.count=${int} != 4"),
+                       stvar(int32, all.count),
+                       stvar(int32, sub.count));
 
     // an exclude rule wins over a less specific include
     logDestAddFilter(dsub, _S"hier/http/**", true);
     logStrC(Info, req, _S"five");
     logFlush();
     if (sub.count != 4 || all.count != 4)
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("sub.count=${int} != 4 || all.count=${int} != 4"),
+                       stvar(int32, sub.count),
+                       stvar(int32, all.count));
 
     // the level ceiling is per channel, so a Trace destination on one subtree costs nothing
     // anywhere else
     LogChannel* other = logChan(_S"hier2");
     logRegisterDest(LOG_Trace, _S"hier/**", hiertestmsg, NULL, NULL, &sub);
     if (!logWouldLog(LOG_Trace, req) || logWouldLog(LOG_Trace, other))
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("!logWouldLog(LOG_Trace, req) || logWouldLog(LOG_Trace, other)"),
+                       stvNone);
     if (!logWouldLog(LOG_Info, other))
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("!logWouldLog(LOG_Info, other)"), stvNone);
 
     // a channel nothing is listening to has no ceiling at all
     logUnregisterDest(dall);
     logUnregisterDest(dexact);
     logFlush();
     if (logWouldLog(LOG_Fatal, other))
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("logWouldLog(LOG_Fatal, other)"), stvNone);
 
     logShutdown();
 
@@ -488,7 +605,7 @@ static int test_log_hierarchy()
     logRestart();
     cxTestHarnessReattach();   // logRestart() above dropped the harness's own destination
     if (logChan(_S"hier/http") != http)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("logChan(_S\"hier/http\") != http"), stvNone);
     logShutdown();
 
     strDestroy(&all.last);
@@ -507,12 +624,15 @@ static int test_log_cxchan()
 
     LogChannel* cxroot = logChan(_S"cx");
     if (!(cxroot->flags & LOG_Restricted) || cxroot->gatedepth != 1)
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("!(cxroot->flags & LOG_Restricted) || cxroot->gatedepth != 1"),
+                       stvNone);
 
     // a channel interned beneath it inherits the gate without declaring anything itself
     LogChannel* sub = logChan(_S"cx/logtest/sub");
     if (sub->gatedepth != 1)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("sub->gatedepth != 1"), stvNone);
 
     LogDest* dall = logRegisterDest(LOG_Info, NULL, hiertestmsg, NULL, NULL, &all);
     LogDest* dcx  = logRegisterDest(LOG_Info, _S"cx/**", hiertestmsg, NULL, NULL, &cx);
@@ -522,13 +642,21 @@ static int test_log_cxchan()
     logStrC(Info, cxroot, _S"two");
     logFlush();
     if (all.count != 0 || cx.count != 2)
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("all.count=${int} != 0 || cx.count=${int} != 2"),
+                       stvar(int32, all.count),
+                       stvar(int32, cx.count));
 
     // ...while an application channel of its own is unaffected by any of it
     logStrC(Info, logChan(_S"cxtest"), _S"three");
     logFlush();
     if (all.count != 1 || cx.count != 2)
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("all.count=${int} != 1 || cx.count=${int} != 2"),
+                       stvar(int32, all.count),
+                       stvar(int32, cx.count));
 
     logUnregisterDest(dcx);
     logUnregisterDest(dall);
@@ -571,44 +699,70 @@ static int test_log_dest()
     logStr(Info, _S"one");
     logFlush();
     if (d1.count != 1 || d2.count != 1)
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("d1.count=${int} != 1 || d2.count=${int} != 1"),
+                       stvar(int32, d1.count),
+                       stvar(int32, d2.count));
 
     // the close callback runs once the retired handle has passed its grace period, which is
     // guaranteed by the time a flush completes
     if (!logUnregisterDest(dest2))
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("!logUnregisterDest(dest2)"), stvNone);
     logFlush();
     if (d2.closed != 1)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("d2.closed=${int} != 1"), stvar(int32, d2.closed));
 
     // unregistering a handle that is no longer registered must be a no-op, not a double free
     if (logUnregisterDest(dest2))
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("logUnregisterDest(dest2)"), stvNone);
     if (d2.closed != 1)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("d2.closed=${int} != 1"), stvar(int32, d2.closed));
 
     // the freed slot is reusable, and the remaining destination still receives
     LogDest* dest3 = logRegisterDest(LOG_Info, NULL, desttestmsg, NULL, desttestclose, &d3);
     logStr(Info, _S"two");
     logFlush();
     if (d1.count != 2 || d2.count != 1 || d3.count != 1)
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("d1.count=${int} != 2 || d2.count=${int} != 1 || d3.count=${int} != 1"),
+                       stvar(int32, d1.count),
+                       stvar(int32, d2.count),
+                       stvar(int32, d3.count));
 
     // the level ceiling falls once the last destination that wanted a level is gone
     if (!logUnregisterDest(dest1) || !logUnregisterDest(dest3))
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("!logUnregisterDest(dest1) || !logUnregisterDest(dest3)"),
+                       stvNone);
     logStr(Info, _S"three");
     logFlush();
     if (d1.count != 2 || d3.count != 1)
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("d1.count=${int} != 2 || d3.count=${int} != 1"),
+                       stvar(int32, d1.count),
+                       stvar(int32, d3.count));
     if (d1.closed != 1 || d3.closed != 1)
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("d1.closed=${int} != 1 || d3.closed=${int} != 1"),
+                       stvar(int32, d1.closed),
+                       stvar(int32, d3.closed));
 
     logShutdown();
 
     // everything is closed, and closed exactly once
     if (d1.closed != 1 || d2.closed != 1 || d3.closed != 1)
-        ret = 1;
+        TEST_FAILV_LOG(
+            ret,
+            1,
+            _SL("d1.closed=${int} != 1 || d2.closed=${int} != 1 || d3.closed=${int} != 1"),
+            stvar(int32, d1.closed),
+            stvar(int32, d2.closed),
+            stvar(int32, d3.closed));
 
     return ret;
 }
@@ -642,7 +796,7 @@ static int test_log_site()
     for (int i = 0; i < 10; i++) logStrOnce(Info, _S"once");
     logFlush();
     if (d1.count != 1)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("d1.count=${int} != 1"), stvar(int32, d1.count));
 
     // an identical message elsewhere is a different call site with its own budget, which is the
     // property that makes a site static a better key than a hash of the rendered message
@@ -650,42 +804,42 @@ static int test_log_site()
     for (int i = 0; i < 10; i++) logStrOnce(Info, _S"once");
     logFlush();
     if (d1.count != 1)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("d1.count=${int} != 1"), stvar(int32, d1.count));
 
     // every Nth arrival, starting with the first: 12 arrivals at N=4 emit at 0, 4 and 8
     d1.count = 0;
     for (int i = 0; i < 12; i++) logStrEveryN(Info, 4, _S"every 4");
     logFlush();
     if (d1.count != 3)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("d1.count=${int} != 3"), stvar(int32, d1.count));
 
     // N below 1 is a rate limit that limits nothing rather than a division by zero
     d1.count = 0;
     for (int i = 0; i < 5; i++) logStrEveryN(Info, 0, _S"every 0");
     logFlush();
     if (d1.count != 5)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("d1.count=${int} != 5"), stvar(int32, d1.count));
 
     // the formatted forms gate identically and still render their arguments
     d1.count = 0;
     for (int i = 0; i < 6; i++) logFmtEveryN(Info, 3, _S"i=${int}", stvar(int32, i));
     logFlush();
     if (d1.count != 2)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("d1.count=${int} != 2"), stvar(int32, d1.count));
 
     // at most one emission per interval, and the first arrival always emits
     d1.count = 0;
     for (int i = 0; i < 5; i++) siteEveryT();
     logFlush();
     if (d1.count != 1)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("d1.count=${int} != 1"), stvar(int32, d1.count));
 
     // ...and the interval reopens once it has elapsed
     osSleep(timeMS(350));
     for (int i = 0; i < 5; i++) siteEveryT();
     logFlush();
     if (d1.count != 2)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("d1.count=${int} != 2"), stvar(int32, d1.count));
 
     // A gate is only consumed when something is actually listening, so a logStrOnce() that runs
     // before its destination exists is not silently spent. Nothing is at Verbose yet.
@@ -693,17 +847,17 @@ static int test_log_site()
     for (int i = 0; i < 5; i++) siteVerboseOnce();
     logFlush();
     if (d1.count != 0)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("d1.count=${int} != 0"), stvar(int32, d1.count));
 
     LogDest* dest2 = logRegisterDest(LOG_Verbose, NULL, desttestmsg, NULL, desttestclose, &d1);
     siteVerboseOnce();
     logFlush();
     if (d1.count != 1)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("d1.count=${int} != 1"), stvar(int32, d1.count));
     siteVerboseOnce();
     logFlush();
     if (d1.count != 1)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("d1.count=${int} != 1"), stvar(int32, d1.count));
 
     logUnregisterDest(dest1);
     logUnregisterDest(dest2);
@@ -768,36 +922,53 @@ static int test_log_ctx()
     logStr(Info, _S"bare");
     logFlush();
     if (cd.havectx)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("cd.havectx=${int}"), stvar(int32, (int32)(cd.havectx)));
 
     withLogCtx(stvark(reqid, string, _S"abc123"), stvark(tenant, string, _S"acme"))
     {
         logStr(Info, _S"inside");
         logFlush();
-        if (!strEq(cd.reqid, _S"abc123") || !strEq(cd.tenant, _S"acme"))
+        if (!strEq(cd.reqid, _S"abc123") || !strEq(cd.tenant, _S"acme")) {
+            logFmtC(
+                Error,
+                cxTestLogChan,
+                _SL("strEq mismatch: cd.reqid=${string} vs 'abc123' || strEq mismatch: cd.tenant=${string} vs 'acme'"),
+                stvar(strref, cd.reqid),
+                stvar(strref, cd.tenant));
             ret = 1;
+        }
 
         // nesting shadows: the inner reqid wins and the outer one is not emitted twice
         withLogCtx(stvark(reqid, string, _S"def456"))
         {
             logStr(Info, _S"nested");
             logFlush();
-            if (!strEq(cd.reqid, _S"def456") || !strEq(cd.tenant, _S"acme"))
+            if (!strEq(cd.reqid, _S"def456") || !strEq(cd.tenant, _S"acme")) {
+                logFmtC(
+                    Error,
+                    cxTestLogChan,
+                    _SL("strEq mismatch: cd.reqid=${string} vs 'def456' || strEq mismatch: cd.tenant=${string} vs 'acme'"),
+                    stvar(strref, cd.reqid),
+                    stvar(strref, cd.tenant));
                 ret = 1;
+            }
         }
 
         // ...and unwinds back to the outer value
         logStr(Info, _S"unwound");
         logFlush();
         if (!strEq(cd.reqid, _S"abc123"))
-            ret = 1;
+            TEST_FAILV_LOG(ret,
+                           1,
+                           _SL("strEq mismatch: cd.reqid=${string} vs 'abc123'"),
+                           stvar(strref, cd.reqid));
     }
 
     // the context is gone once the block exits
     logStr(Info, _S"after");
     logFlush();
     if (cd.havectx)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("cd.havectx=${int}"), stvar(int32, (int32)(cd.havectx)));
 
     // A record holds its own reference, so it renders the fields that were in scope when it was
     // logged even though that scope is long gone by the time the drain thread reaches it.
@@ -808,7 +979,10 @@ static int test_log_ctx()
     }
     logFlush();
     if (!strEq(cd.reqid, _S"deferred"))
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("strEq mismatch: cd.reqid=${string} vs 'deferred'"),
+                       stvar(strref, cd.reqid));
 
     // A message template can name context fields directly, so a correlation id can appear in the
     // sentence rather than only in the annotation a destination appends.
@@ -817,20 +991,29 @@ static int test_log_ctx()
         logFmt(Info, _S"handling ${string:reqid} for ${string:tenant}", stvNone);
         logFlush();
         if (!strEq(cd.msg, _S"handling abc123 for acme"))
-            ret = 1;
+            TEST_FAILV_LOG(ret,
+                           1,
+                           _SL("strEq mismatch: cd.msg=${string} vs 'handling abc123 for acme'"),
+                           stvar(strref, cd.msg));
 
         // ...without disturbing the positional arguments: a keyed variant is invisible to an
         // unkeyed placeholder, so the call site's own arguments keep their numbering
         logFmt(Info, _S"n=${int} req=${string:reqid}", stvar(int32, 7));
         logFlush();
         if (!strEq(cd.msg, _S"n=7 req=abc123"))
-            ret = 1;
+            TEST_FAILV_LOG(ret,
+                           1,
+                           _SL("strEq mismatch: cd.msg=${string} vs 'n=7 req=abc123'"),
+                           stvar(strref, cd.msg));
 
         // an argument sharing a key is the more specific of the two and wins
         logFmt(Info, _S"req=${string:reqid}", stvark(reqid, string, _S"override"));
         logFlush();
         if (!strEq(cd.msg, _S"req=override"))
-            ret = 1;
+            TEST_FAILV_LOG(ret,
+                           1,
+                           _SL("strEq mismatch: cd.msg=${string} vs 'req=override'"),
+                           stvar(strref, cd.msg));
 
         // and nesting shadows here the same way it does everywhere else
         withLogCtx(stvark(reqid, string, _S"def456"))
@@ -838,7 +1021,10 @@ static int test_log_ctx()
             logFmt(Info, _S"req=${string:reqid} tenant=${string:tenant}", stvNone);
             logFlush();
             if (!strEq(cd.msg, _S"req=def456 tenant=acme"))
-                ret = 1;
+                TEST_FAILV_LOG(ret,
+                               1,
+                               _SL("strEq mismatch: cd.msg=${string} vs 'req=def456 tenant=acme'"),
+                               stvar(strref, cd.msg));
         }
     }
 
@@ -848,12 +1034,15 @@ static int test_log_ctx()
     logFmt(Info, _S"req=${string:reqid}", stvNone);
     logFlush();
     if (!strEmpty(cd.msg))
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("cd.msg=${string} (expected empty)"), stvar(strref, cd.msg));
 
     logFmt(Info, _S"req=${string:reqid;none}", stvNone);
     logFlush();
     if (!strEq(cd.msg, _S"req=none"))
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("strEq mismatch: cd.msg=${string} vs 'req=none'"),
+                       stvar(strref, cd.msg));
 
     // a literal message is never a template, so ${...} in one survives even in a context
     withLogCtx(stvark(reqid, string, _S"abc123"))
@@ -861,7 +1050,10 @@ static int test_log_ctx()
         logStr(Info, _S"literally ${string:reqid}");
         logFlush();
         if (!strEq(cd.msg, _S"literally ${string:reqid}"))
-            ret = 1;
+            TEST_FAILV_LOG(ret,
+                           1,
+                           _SL("strEq mismatch: cd.msg=${string} vs 'literally ${string:reqid}'"),
+                           stvar(strref, cd.msg));
     }
 
     // work that hops threads keeps the context of whoever submitted it
@@ -871,17 +1063,20 @@ static int test_log_ctx()
     conf.flags |= TQ_NoComplex;
     TaskQueue* tq = tqCreate(_S"LogCtx Test", &conf);
     if (!tq || !tqStart(tq)) {
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("!tq || !tqStart(tq)"), stvNone);
     } else {
         withLogCtx(stvark(reqid, string, _S"task42"))
         {
             tqCall(tq, ctxTaskFunc, NULL);
         }
         if (!eventWaitTimeout(&ctxtaskev, timeS(5)))
-            ret = 1;
+            TEST_FAILV_LOG(ret, 1, _SL("!eventWaitTimeout(&ctxtaskev, timeS(5))"), stvNone);
         logFlush();
         if (!strEq(cd.reqid, _S"task42"))
-            ret = 1;
+            TEST_FAILV_LOG(ret,
+                           1,
+                           _SL("strEq mismatch: cd.reqid=${string} vs 'task42'"),
+                           stvar(strref, cd.reqid));
 
         // ...and the worker does not keep it afterwards
         tqShutdown(tq, timeS(10));
@@ -925,30 +1120,43 @@ static int test_log_serializer()
 
     // the record's own fields, then one field per keyed argument, with types preserved
     if (strFind(line, 0, _S"\"level\":\"Info\"") < 0)
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("strFind(line, 0, _S\"\\\"level\\\":\\\"Info\\\"\") < 0"),
+                       stvNone);
     if (strFind(line, 0, _S"\"chan\":\"ser/test\"") < 0)
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("strFind(line, 0, _S\"\\\"chan\\\":\\\"ser/test\\\"\") < 0"),
+                       stvNone);
     if (strFind(line, 0, _S"\"msg\":\"connected to web01\"") < 0)
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("strFind(line, 0, _S\"\\\"msg\\\":\\\"connected to web01\\\"\") < 0"),
+                       stvNone);
     if (strFind(line, 0, _S"\"port\":8080") < 0)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("strFind(line, 0, _S\"\\\"port\\\":8080\") < 0"), stvNone);
     if (strFind(line, 0, _S"\"secure\":true") < 0)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("strFind(line, 0, _S\"\\\"secure\\\":true\") < 0"), stvNone);
     // the unkeyed argument belongs to the template and is not repeated as a field
     if (strFind(line, 0, _S"\"web01\":") >= 0)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("strFind(line, 0, _S\"\\\"web01\\\":\") >= 0"), stvNone);
     // one object per record, newline delimited
     if (membufLines(jmd) != 1)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("membufLines(jmd)=${int} != 1"), stvar(int32, membufLines(jmd)));
 
     // anything that would break the JSON has to come back out escaped
     logStrC(Info, chan, _S"quote \" backslash \\ newline \n");
     logFlush();
     membufSnapshot(&line, jmd);
     if (strFind(line, 0, _S"quote \\\" backslash \\\\ newline \\n") < 0)
-        ret = 1;
+        TEST_FAILV_LOG(
+            ret,
+            1,
+            _SL("strFind(line, 0, _S\"quote \\\\\\\" backslash \\\\\\\\ newline \\\\n\") < 0"),
+            stvNone);
     if (membufLines(jmd) != 2)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("membufLines(jmd)=${int} != 2"), stvar(int32, membufLines(jmd)));
 
     logUnregisterDest(jdest);
     logShutdown();
@@ -1003,27 +1211,53 @@ static int test_log_textomit()
     string line = 0;
     membufSnapshot(&line, nmd);
     if (!strEq(line, _S"I  hello\n"))
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("strEq mismatch: line=${string} vs _S\"I  hello\\n\"=${string}"),
+                       stvar(strref, line),
+                       stvar(strref, _S"I  hello\n"));
     membufSnapshot(&line, cmd);
     if (!strEq(line, _S"omit/test I  hello\n"))
-        ret = 1;
+        TEST_FAILV_LOG(
+            ret,
+            1,
+            _SL("strEq mismatch: line=${string} vs _S\"omit/test I  hello\\n\"=${string}"),
+            stvar(strref, line),
+            stvar(strref, _S"omit/test I  hello\n"));
     membufSnapshot(&line, bmd);
     if (!strEq(line, _S"hello\n"))
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("strEq mismatch: line=${string} vs _S\"hello\\n\"=${string}"),
+                       stvar(strref, line),
+                       stvar(strref, _S"hello\n"));
 
     // the clock reading itself is whatever time it is, so check the shape: HH:MM:SS and then
     // the rest of the line exactly as any other date format would leave it
     membufSnapshot(&line, tmd);
-    if (strLen(line) != 18 || strGetChar(line, 2) != ':' || strGetChar(line, 5) != ':')
+    if (strLen(line) != 18 || strGetChar(line, 2) != ':' || strGetChar(line, 5) != ':') {
+        logFmtC(
+            Error,
+            cxTestLogChan,
+            _SL("strLen(line)=${int} != 18 || strGetChar(line, 2) != ':' || strGetChar(line, 5) != ':'"),
+            stvar(int32, strLen(line)));
         ret = 1;
+    }
     for (int i = 0; i < 8; i++) {
         if (i != 2 && i != 5 && !isdigit(strGetChar(line, i)))
-            ret = 1;
+            TEST_FAILV_LOG(ret,
+                           1,
+                           _SL("i != 2 && i != 5 && !isdigit(strGetChar(line, i))"),
+                           stvNone);
     }
     string tail = 0;
     strSubStr(&tail, line, 8, strEnd);
     if (!strEq(tail, _S" I  hello\n"))
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("strEq mismatch: tail=${string} vs _S\" I  hello\\n\"=${string}"),
+                       stvar(strref, tail),
+                       stvar(strref, _S" I  hello\n"));
     strDestroy(&tail);
 
     logUnregisterDest(ndest);
@@ -1047,18 +1281,24 @@ static int test_log_groups()
     // the default group is what everything starts on, and is named by the empty string
     LogGroup* def = logDefaultGroup();
     if (!def || !strEmpty(logGroupName(def)))
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("!def || logGroupName(def)=${string} (expected empty)"),
+                       stvar(strref, logGroupName(def)));
     if (logGroup(NULL) != def)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("logGroup(NULL) != def"), stvNone);
 
     // groups intern like channels do: same name, same pointer
     LogGroup* bulk = logGroup(_S "bulk");
     if (!bulk || bulk == def)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("!bulk || bulk == def"), stvNone);
     if (logGroup(_S "bulk") != bulk)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("logGroup(_S \"bulk\") != bulk"), stvNone);
     if (!strEq(logGroupName(bulk), _S "bulk"))
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("strEq mismatch: logGroupName(bulk)=${string} vs 'bulk'"),
+                       stvar(strref, logGroupName(bulk)));
 
     LogDest* adest     = logmembufRegister(LOG_Info, _S "grp/**", 8192, NULL);
     LogMembufData* amd = logmembufData(adest);
@@ -1066,7 +1306,7 @@ static int test_log_groups()
     LogMembufData* bmd = logmembufData(bdest);
 
     if (!logDestSetGroup(bdest, _S "bulk"))
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("!logDestSetGroup(bdest, _S \"bulk\")"), stvNone);
 
     // Both destinations match the channel, but they are on different groups, so the entry is
     // pushed onto two queues. Each destination must still see it exactly once -- a drain thread
@@ -1078,9 +1318,9 @@ static int test_log_groups()
     logFlush();
 
     if (membufLines(amd) != 3)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("membufLines(amd)=${int} != 3"), stvar(int32, membufLines(amd)));
     if (membufLines(bmd) != 3)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("membufLines(bmd)=${int} != 3"), stvar(int32, membufLines(bmd)));
 
     // a batch fans out the same way, and stays whole in each group
     logBatchBegin();
@@ -1090,33 +1330,33 @@ static int test_log_groups()
     logFlush();
 
     if (membufLines(amd) != 5)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("membufLines(amd)=${int} != 5"), stvar(int32, membufLines(amd)));
     if (membufLines(bmd) != 5)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("membufLines(bmd)=${int} != 5"), stvar(int32, membufLines(bmd)));
 
     // a channel only one group is interested in reaches only that group
     LogDest* cdest     = logmembufRegister(LOG_Info, _S "solo/**", 8192, NULL);
     LogMembufData* cmd = logmembufData(cdest);
     if (!logDestSetGroup(cdest, _S "bulk"))
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("!logDestSetGroup(cdest, _S \"bulk\")"), stvNone);
 
     logStrC(Info, logChan(_S "solo/only"), _S "solo message");
     logFlush();
 
     if (membufLines(cmd) != 1)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("membufLines(cmd)=${int} != 1"), stvar(int32, membufLines(cmd)));
     if (membufLines(amd) != 5)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("membufLines(amd)=${int} != 5"), stvar(int32, membufLines(amd)));
     if (membufLines(bmd) != 5)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("membufLines(bmd)=${int} != 5"), stvar(int32, membufLines(bmd)));
 
     // moving a destination back to the default group works the same way
     if (!logDestSetGroup(cdest, NULL))
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("!logDestSetGroup(cdest, NULL)"), stvNone);
     logStrC(Info, logChan(_S "solo/only"), _S "back home");
     logFlush();
     if (membufLines(cmd) != 2)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("membufLines(cmd)=${int} != 2"), stvar(int32, membufLines(cmd)));
 
     logUnregisterDest(cdest);
     logUnregisterDest(bdest);
@@ -1127,7 +1367,7 @@ static int test_log_groups()
     logRestart();
     cxTestHarnessReattach();   // logRestart() above dropped the harness's own destination
     if (logGroup(_S "bulk") != bulk)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("logGroup(_S \"bulk\") != bulk"), stvNone);
     logShutdown();
 
     return ret;
@@ -1154,25 +1394,34 @@ static int test_log_volume()
     logFlush();
 
     if (membufLines(lmd) != 10)
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("membufLines(lmd)=${int} != 10"),
+                       stvar(int32, membufLines(lmd)));
 
     LogStats st;
     logGetStats(&st);
     if (st.sampled != 30)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("st.sampled != 30"), stvNone);
 
     // an Error is never sampled away, whatever the rate
     logStrC(Error, schan, _S "error message");
     logStrC(Error, schan, _S "error message");
     logFlush();
     if (membufLines(lmd) != 12)
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("membufLines(lmd)=${int} != 12"),
+                       stvar(int32, membufLines(lmd)));
 
     logChanSetSampling(schan, 0);
     logStrC(Info, schan, _S "unsampled again");
     logFlush();
     if (membufLines(lmd) != 13)
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("membufLines(lmd)=${int} != 13"),
+                       stvar(int32, membufLines(lmd)));
 
     // the surviving record carries the rate it survived at
     LogDest* jdest     = logmembufRegister(LOG_Info, _S "vol/**", 8192, logNdjsonSerializer(NULL));
@@ -1186,7 +1435,7 @@ static int test_log_volume()
     string line = 0;
     membufSnapshot(&line, jmd);
     if (strFind(line, 0, _S "\"sample\":3") < 0)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("strFind(line, 0, _S \"\\\"sample\\\":3\") < 0"), stvNone);
     logUnregisterDest(jdest);
 
     // --- deduplication ------------------------------------------------------------------
@@ -1201,10 +1450,10 @@ static int test_log_volume()
     logFlush();
 
     if (membufLines(dmd) != 3)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("membufLines(dmd)=${int} != 3"), stvar(int32, membufLines(dmd)));
     logGetStats(&st);
     if (st.suppressed != 47)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("st.suppressed != 47"), stvNone);
 
     // when the window closes, one summary goes out saying what was swallowed -- and it arrives
     // without anything else being logged, because the drain thread wakes for it
@@ -1212,10 +1461,13 @@ static int test_log_volume()
     logFlush();
 
     if (membufLines(dmd) != 4)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("membufLines(dmd)=${int} != 4"), stvar(int32, membufLines(dmd)));
     membufSnapshot(&line, dmd);
     if (strFind(line, 0, _S "flooding ... and 47 more like this") < 0)
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("strFind(line, 0, _S \"flooding ... and 47 more like this\") < 0"),
+                       stvNone);
 
     logSetDedup(0, 0);
     logUnregisterDest(ddest);
@@ -1227,15 +1479,15 @@ static int test_log_volume()
 
     logGetStats(&st);
     if (st.enqueued != 10)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("st.enqueued=${int} != 10"), stvar(int32, st.enqueued));
     if (st.dropped != 0)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("st.dropped != 0"), stvNone);
     if (st.queued != 0)   // everything has drained by now
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("st.queued=${int} != 0"), stvar(int32, st.queued));
     if (st.queuedmax < 1)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("st.queuedmax < 1"), stvNone);
     if (st.groups < 1)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("st.groups < 1"), stvNone);
 
     // the periodic record goes to a restricted channel, so it takes a destination that names it
     LogDest* sdest     = logmembufRegister(LOG_Notice, _S "cx/log/stats", 8192, NULL);
@@ -1254,9 +1506,9 @@ static int test_log_volume()
 
     membufSnapshot(&line, smd);
     if (strFind(line, 0, _S "queued ") < 0)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("strFind(line, 0, _S \"queued \") < 0"), stvNone);
     if (strFind(line, 0, _S "groups") < 0)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("strFind(line, 0, _S \"groups\") < 0"), stvNone);
     logUnregisterDest(sdest);
 
     // --- panic flush --------------------------------------------------------------------
@@ -1315,20 +1567,40 @@ static int test_log_record()
            stvar(int32, 8080));
     logFlush();
     if (rd.count != 1 || rd.nargs != 2)
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("rd.count=${int} != 1 || rd.nargs != 2"),
+                       stvar(int32, rd.count));
     if (!strEq(rd.tmpl, _S"connected to ${string} on port ${int}"))
-        ret = 1;
+        TEST_FAILV_LOG(
+            ret,
+            1,
+            _SL("strEq mismatch: rd.tmpl=${string} vs 'connected to ${string} on port ${int}'"),
+            stvar(strref, rd.tmpl));
     if (!strEq(rd.rendered, _S"connected to web01 on port 8080"))
-        ret = 1;
+        TEST_FAILV_LOG(
+            ret,
+            1,
+            _SL("strEq mismatch: rd.rendered=${string} vs 'connected to web01 on port 8080'"),
+            stvar(strref, rd.rendered));
 
     // keyed arguments survive the copy, so a structured destination can name its fields while a
     // text one still renders a sentence from the same record
     logFmt(Info, _S"connected to ${:host}", stvark(host, string, _S"web02"), stvark(port, int32, 443));
     logFlush();
-    if (!strEq(rd.host, _S"web02") || !rd.haveport || rd.port != 443)
+    if (!strEq(rd.host, _S"web02") || !rd.haveport || rd.port != 443) {
+        logFmtC(
+            Error,
+            cxTestLogChan,
+            _SL("strEq mismatch: rd.host=${string} vs 'web02' || !rd.haveport || rd.port != 443"),
+            stvar(strref, rd.host));
         ret = 1;
+    }
     if (!strEq(rd.rendered, _S"connected to web02"))
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("strEq mismatch: rd.rendered=${string} vs 'connected to web02'"),
+                       stvar(strref, rd.rendered));
 
     // a string argument is owned by the entry, so it renders correctly even though the caller's
     // string is gone by the time the drain thread gets to it
@@ -1338,7 +1610,10 @@ static int test_log_record()
     strDestroy(&tmp);
     logFlush();
     if (!strEq(rd.rendered, _S"value transient"))
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("strEq mismatch: rd.rendered=${string} vs 'value transient'"),
+                       stvar(strref, rd.rendered));
 
     // An object argument is rendered at the call site, not on the drain thread, because its
     // state can change in between. The batch is what makes the window deterministic: the
@@ -1351,7 +1626,10 @@ static int test_log_record()
     logBatchEnd();
     logFlush();
     if (!strEq(rd.rendered, _S"obj Object(before:One)"))
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("strEq mismatch: rd.rendered=${string} vs 'obj Object(before:One)'"),
+                       stvar(strref, rd.rendered));
     objRelease(&obj);
 
     logUnregisterDest(dest);
@@ -1394,13 +1672,25 @@ static int test_log_console()
     conMemGet(err, &errbuf);
 
     // Info (less severe than stderrLevel) goes to stdout only
-    if (strFind(outbuf, 0, _S"info msg") < 0 || strFind(outbuf, 0, _S"error msg") >= 0)
+    if (strFind(outbuf, 0, _S"info msg") < 0 || strFind(outbuf, 0, _S"error msg") >= 0) {
+        logFmtC(
+            Error,
+            cxTestLogChan,
+            _SL("strFind(outbuf, 0, _S\"info msg\") < 0 || strFind(outbuf, 0, _S\"error msg\") >= 0"),
+            stvNone);
         ret = 1;
+    }
     // Error (at/above stderrLevel) goes to stderr only, wrapped in the built-in bright-red style
-    if (strFind(errbuf, 0, _S"error msg") < 0 || strFind(errbuf, 0, _S"info msg") >= 0)
+    if (strFind(errbuf, 0, _S"error msg") < 0 || strFind(errbuf, 0, _S"info msg") >= 0) {
+        logFmtC(
+            Error,
+            cxTestLogChan,
+            _SL("strFind(errbuf, 0, _S\"error msg\") < 0 || strFind(errbuf, 0, _S\"info msg\") >= 0"),
+            stvNone);
         ret = 1;
+    }
     if (strFind(errbuf, 0, _S"\x1b[0;91m") < 0)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("strFind(errbuf, 0, _S\"\\x1b[0;91m\") < 0"), stvNone);
 
     strDestroy(&outbuf);
     strDestroy(&errbuf);
@@ -1441,10 +1731,10 @@ static int test_log_console_style()
 
     // LOGCON_ColorOff never emits an escape sequence
     if (strFind(offbuf, 0, _S"\x1b") >= 0)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("strFind(offbuf, 0, _S\"\\x1b\") >= 0"), stvNone);
     // a non-zero levelStyle override wins over the built-in default for that level
     if (strFind(custombuf, 0, _S"\x1b[0;32m") < 0)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("strFind(custombuf, 0, _S\"\\x1b[0;32m\") < 0"), stvNone);
 
     strDestroy(&offbuf);
     strDestroy(&custombuf);
@@ -1466,15 +1756,21 @@ static int test_log_bootwindow()
 
     // nothing is retained until a window is opened -- the ring is opt-in
     if (logBootWindowActive() || logBootWindowCount() != 0)
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("logBootWindowActive() || logBootWindowCount()=${int} != 0"),
+                       stvar(int32, logBootWindowCount()));
     logStr(Info, _S "before the window");
     if (logBootWindowCount() != 0)
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("logBootWindowCount()=${int} != 0"),
+                       stvar(int32, logBootWindowCount()));
 
     // no deadline, so the window lasts exactly as long as the test says it does
     logBootWindowBegin(LOG_Verbose, 64, 0, -1);
     if (!logBootWindowActive())
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("!logBootWindowActive()"), stvNone);
 
     // With no destination at all, these would normally be discarded at the call site: the
     // window is what raises the channel ceiling far enough for an entry to exist.
@@ -1485,47 +1781,64 @@ static int test_log_bootwindow()
     logStrC(Verbose, two, _S "two gamma");
     logStrC(Diag, two, _S "below the window");   // more verbose than the window retains
     if (logBootWindowCount() != 3)
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("logBootWindowCount()=${int} != 3"),
+                       stvar(int32, logBootWindowCount()));
 
     // a destination registering during the window is backfilled before it sees anything live
     LogDest* adest     = logmembufRegister(LOG_Verbose, NULL, 8192, NULL);
     LogMembufData* amd = logmembufData(adest);
     if (membufLines(amd) != 3)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("membufLines(amd)=${int} != 3"), stvar(int32, membufLines(amd)));
 
     // the backfill is filtered by the destination's own spec, not by the ring's
     LogDest* bdest     = logmembufRegister(LOG_Info, _S "boot/one/**", 8192, NULL);
     LogMembufData* bmd = logmembufData(bdest);
     if (membufLines(bmd) != 2)   // the two Info records on boot/one, not the Verbose on boot/two
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("membufLines(bmd)=${int} != 2"), stvar(int32, membufLines(bmd)));
 
     // ...and it does not consume the ring, so a later destination still gets everything
     LogDest* cdest     = logmembufRegister(LOG_Verbose, NULL, 8192, NULL);
     LogMembufData* cmd = logmembufData(cdest);
     if (membufLines(cmd) != 3)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("membufLines(cmd)=${int} != 3"), stvar(int32, membufLines(cmd)));
 
     // live records carry on to every destination exactly once; nothing is delivered twice
     logStrC(Info, one, _S "one delta");
     logFlush();
-    if (membufLines(amd) != 4 || membufLines(bmd) != 3 || membufLines(cmd) != 4)
+    if (membufLines(amd) != 4 || membufLines(bmd) != 3 || membufLines(cmd) != 4) {
+        logFmtC(
+            Error,
+            cxTestLogChan,
+            _SL("membufLines(amd)=${int} != 4 || membufLines(bmd)=${int} != 3 || membufLines(cmd)=${int} != 4"),
+            stvar(int32, membufLines(amd)),
+            stvar(int32, membufLines(bmd)),
+            stvar(int32, membufLines(cmd)));
         ret = 1;
+    }
 
     // closing the window discards the ring and lowers the ceilings again
     logBootWindowEnd();
     if (logBootWindowActive() || logBootWindowCount() != 0)
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("logBootWindowActive() || logBootWindowCount()=${int} != 0"),
+                       stvar(int32, logBootWindowCount()));
 
     logStrC(Info, one, _S "after the window");
     logFlush();
     if (logBootWindowCount() != 0)
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("logBootWindowCount()=${int} != 0"),
+                       stvar(int32, logBootWindowCount()));
 
     // a destination registering now has nothing to be backfilled from
     LogDest* ddest     = logmembufRegister(LOG_Verbose, NULL, 8192, NULL);
     LogMembufData* dmd = logmembufData(ddest);
     if (membufLines(dmd) != 0)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("membufLines(dmd)=${int} != 0"), stvar(int32, membufLines(dmd)));
 
     logUnregisterDest(adest);
     logUnregisterDest(bdest);
@@ -1537,18 +1850,27 @@ static int test_log_bootwindow()
     logBootWindowBegin(LOG_Info, 3, 0, -1);
     for (int i = 0; i < 8; i++) logFmtC(Info, one, _S "capped ${int}", stvar(int32, i));
     if (logBootWindowCount() != 3)
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("logBootWindowCount()=${int} != 3"),
+                       stvar(int32, logBootWindowCount()));
 
     LogDest* edest     = logmembufRegister(LOG_Info, NULL, 8192, NULL);
     LogMembufData* emd = logmembufData(edest);
     string snap        = 0;
     membufSnapshot(&snap, emd);
     if (membufLines(emd) != 3)
+        TEST_FAILV_LOG(ret, 1, _SL("membufLines(emd)=${int} != 3"), stvar(int32, membufLines(emd)));
+    if (strFind(snap, 0, _S "capped 0") < 0 || strFind(snap, 0, _S "capped 2") < 0) {
+        logFmtC(
+            Error,
+            cxTestLogChan,
+            _SL("strFind(snap, 0, _S \"capped 0\") < 0 || strFind(snap, 0, _S \"capped 2\") < 0"),
+            stvNone);
         ret = 1;
-    if (strFind(snap, 0, _S "capped 0") < 0 || strFind(snap, 0, _S "capped 2") < 0)
-        ret = 1;
+    }
     if (strFind(snap, 0, _S "capped 3") >= 0)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("strFind(snap, 0, _S \"capped 3\") >= 0"), stvNone);
 
     logBootWindowEnd();
     logUnregisterDest(edest);
@@ -1593,15 +1915,30 @@ static int test_log_bootreplay()
     // Each destination sees each record exactly once. Too many means an entry arrived from both
     // the ring and the queue; too few means it fell between them.
     if (membufLines(amd) != nburst)
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("membufLines(amd)=${int} != nburst=${int}"),
+                       stvar(int32, membufLines(amd)),
+                       stvar(int32, nburst));
     if (membufLines(bmd) != nburst)
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("membufLines(bmd)=${int} != nburst=${int}"),
+                       stvar(int32, membufLines(bmd)),
+                       stvar(int32, nburst));
 
     // A count alone would let one duplicate hide one loss, so check the two ends individually.
     string snap = 0;
     membufSnapshot(&snap, bmd);
-    if (membufCount(snap, _S "burst 0\n") != 1 || membufCount(snap, _S "burst 3999\n") != 1)
+    if (membufCount(snap, _S "burst 0\n") != 1 || membufCount(snap, _S "burst 3999\n") != 1) {
+        logFmtC(
+            Error,
+            cxTestLogChan,
+            _SL("membufCount(snap, _S \"burst 0\\n\")=${int} != 1 || membufCount(snap, _S \"burst 3999\\n\")=${int} != 1"),
+            stvar(int32, membufCount(snap, _S "burst 0\n")),
+            stvar(int32, membufCount(snap, _S "burst 3999\n")));
         ret = 1;
+    }
     strDestroy(&snap);
 
     logBootWindowEnd();
@@ -1632,18 +1969,24 @@ static int test_log_debugring()
     // Off by default: nothing has a ring, so a Verbose record on a channel whose destination
     // wants Info is discarded at the call site exactly as it always was.
     if (logChanDebugRingCount(net) != 0)
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("logChanDebugRingCount(net)=${int} != 0"),
+                       stvar(int32, logChanDebugRingCount(net)));
     logStrC(Verbose, net, _S "not retained");
     logStrC(Error, net, _S "error with no ring");
     logFlush();
     if (membufLines(lmd) != 1)   // the error only
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("membufLines(lmd)=${int} != 1"), stvar(int32, membufLines(lmd)));
     if (logChanDebugRingCount(net) != 0)
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("logChanDebugRingCount(net)=${int} != 0"),
+                       stvar(int32, logChanDebugRingCount(net)));
 
     // A ring on ring/net covers ring/net/request too, and nothing outside the subtree.
     if (!logChanSetDebugRing(net, LOG_Diag, 16, LOG_Error))
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("!logChanSetDebugRing(net, LOG_Diag, 16, LOG_Error)"), stvNone);
 
     logStrC(Diag, net, _S "ctx one");
     logStrC(Diag, req, _S "ctx two");
@@ -1651,33 +1994,56 @@ static int test_log_debugring()
     logStrC(Diag, other, _S "outside the subtree");
     // the child does not get a ring of its own: it resolves to the parent's, which is why both
     // report the same count and why the two records logged on it landed in the same place
-    if (logChanDebugRingCount(net) != 3 || logChanDebugRingCount(req) != 3)
+    if (logChanDebugRingCount(net) != 3 || logChanDebugRingCount(req) != 3) {
+        logFmtC(
+            Error,
+            cxTestLogChan,
+            _SL("logChanDebugRingCount(net)=${int} != 3 || logChanDebugRingCount(req)=${int} != 3"),
+            stvar(int32, logChanDebugRingCount(net)),
+            stvar(int32, logChanDebugRingCount(req)));
         ret = 1;
+    }
     if (logChanDebugRingCount(other) != 0)
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("logChanDebugRingCount(other)=${int} != 0"),
+                       stvar(int32, logChanDebugRingCount(other)));
 
     // nothing has been delivered: the ring holds what no destination wanted
     logFlush();
     if (membufLines(lmd) != 1)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("membufLines(lmd)=${int} != 1"), stvar(int32, membufLines(lmd)));
 
     // an error releases the ring ahead of itself, and empties it
     logStrC(Error, req, _S "the failure");
     logFlush();
     if (logChanDebugRingCount(net) != 0)
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("logChanDebugRingCount(net)=${int} != 0"),
+                       stvar(int32, logChanDebugRingCount(net)));
     if (membufLines(lmd) != 5)   // 1 + three retained + the error
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("membufLines(lmd)=${int} != 5"), stvar(int32, membufLines(lmd)));
 
     string snap = 0;
     membufSnapshot(&snap, lmd);
-    if (strFind(snap, 0, _S "ctx one") < 0 || strFind(snap, 0, _S "ctx three") < 0)
+    if (strFind(snap, 0, _S "ctx one") < 0 || strFind(snap, 0, _S "ctx three") < 0) {
+        logFmtC(
+            Error,
+            cxTestLogChan,
+            _SL("strFind(snap, 0, _S \"ctx one\") < 0 || strFind(snap, 0, _S \"ctx three\") < 0"),
+            stvNone);
         ret = 1;
+    }
     if (strFind(snap, 0, _S "outside the subtree") >= 0)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("strFind(snap, 0, _S \"outside the subtree\") >= 0"), stvNone);
     // the retained context precedes the record that released it
     if (strFind(snap, 0, _S "ctx one") > strFind(snap, 0, _S "the failure"))
-        ret = 1;
+        TEST_FAILV_LOG(
+            ret,
+            1,
+            _SL("strFind(snap, 0, _S \"ctx one\") > strFind(snap, 0, _S \"the failure\")"),
+            stvNone);
 
     // A record a destination already wanted is not retained, so releasing the ring cannot
     // deliver it twice.
@@ -1686,14 +2052,24 @@ static int test_log_debugring()
     logStrC(Error, net, _S "release again");
     logFlush();
     membufSnapshot(&snap, lmd);
-    if (strFind(snap, 0, _S "delivered once") != strFindR(snap, strEnd, _S "delivered once"))
+    if (strFind(snap, 0, _S "delivered once") != strFindR(snap, strEnd, _S "delivered once")) {
+        logFmtC(
+            Error,
+            cxTestLogChan,
+            _SL("strFind(snap, 0, _S \"delivered once\")=${int} != strFindR(snap, strEnd, _S \"delivered once\")=${int}"),
+            stvar(int32, strFind(snap, 0, _S "delivered once")),
+            stvar(int32, strFindR(snap, strEnd, _S "delivered once")));
         ret = 1;
+    }
 
     // A full ring evicts the oldest: the context of a failure is what immediately preceded it.
     logChanSetDebugRing(net, LOG_Diag, 3, LOG_Error);
     for (int i = 0; i < 8; i++) logFmtC(Diag, net, _S "evicted ${int}", stvar(int32, i));
     if (logChanDebugRingCount(net) != 3)
-        ret = 1;
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("logChanDebugRingCount(net)=${int} != 3"),
+                       stvar(int32, logChanDebugRingCount(net)));
 
     // A destination too coarse to have seen the error does not get the trace either: a released
     // record is filtered at the severity that released it.
@@ -1703,19 +2079,32 @@ static int test_log_debugring()
     logStrC(Error, net, _S "second failure");
     logFlush();
     membufSnapshot(&snap, lmd);
-    if (strFind(snap, 0, _S "evicted 7") < 0 || strFind(snap, 0, _S "evicted 5") < 0)
+    if (strFind(snap, 0, _S "evicted 7") < 0 || strFind(snap, 0, _S "evicted 5") < 0) {
+        logFmtC(
+            Error,
+            cxTestLogChan,
+            _SL("strFind(snap, 0, _S \"evicted 7\") < 0 || strFind(snap, 0, _S \"evicted 5\") < 0"),
+            stvNone);
         ret = 1;
+    }
     if (strFind(snap, 0, _S "evicted 4") >= 0)
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("strFind(snap, 0, _S \"evicted 4\") >= 0"), stvNone);
     if (membufLines(wmd) != 0)   // Fatal-only destination saw neither the error nor its context
-        ret = 1;
+        TEST_FAILV_LOG(ret, 1, _SL("membufLines(wmd)=${int} != 0"), stvar(int32, membufLines(wmd)));
 
     // taking the ring away puts the subtree back to retaining nothing
     logChanClearDebugRing(net);
     logStrC(Diag, net, _S "gone again");
     logFlush();
-    if (logChanDebugRingCount(net) != 0 || logChanDebugRingCount(req) != 0)
+    if (logChanDebugRingCount(net) != 0 || logChanDebugRingCount(req) != 0) {
+        logFmtC(
+            Error,
+            cxTestLogChan,
+            _SL("logChanDebugRingCount(net)=${int} != 0 || logChanDebugRingCount(req)=${int} != 0"),
+            stvar(int32, logChanDebugRingCount(net)),
+            stvar(int32, logChanDebugRingCount(req)));
         ret = 1;
+    }
 
     logUnregisterDest(wdest);
     logUnregisterDest(dest);
