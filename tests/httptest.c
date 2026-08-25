@@ -580,7 +580,7 @@ static int test_httptest_date(void)
         TEST_FAILV(ret, 1, _SL("!httpDateParse(&asctime, _SL(\"Sun Nov  6 08:49:37 1994\"))"), stvNone);
 
     if (rfc1123 != rfc850 || rfc1123 != asctime)
-        TEST_FAILV(ret, 1, _SL("rfc1123=${int} != ${int}(rfc850) || rfc1123=${int} != ${int}(asctime)"), stvar(int32, rfc1123), stvar(int32, rfc850), stvar(int32, rfc1123), stvar(int32, asctime));
+        TEST_FAILV(ret, 1, _SL("rfc1123=${int} != ${int}(rfc850) || rfc1123=${int} != ${int}(asctime)"), stvar(int64, rfc1123), stvar(int64, rfc850), stvar(int64, rfc1123), stvar(int64, asctime));
 
     // Only the preferred form is ever generated, whichever form was read.
     if (!httpDateFormat(&s, rfc1123) || !strEq(s, _SL("Sun, 06 Nov 1994 08:49:37 GMT")))
@@ -588,7 +588,7 @@ static int test_httptest_date(void)
 
     // Round trip through a formatted date.
     if (!httpDateParse(&t, s) || t != rfc1123)
-        TEST_FAILV(ret, 1, _SL("!httpDateParse(&t, s) || t=${int} != ${int}(rfc1123)"), stvar(int32, t), stvar(int32, rfc1123));
+        TEST_FAILV(ret, 1, _SL("!httpDateParse(&t, s) || t=${int} != ${int}(rfc1123)"), stvar(int64, t), stvar(int64, rfc1123));
 
     // Two-digit years pivot at 70.
     int64 y2000 = 0, y1999 = 0;
@@ -600,11 +600,11 @@ static int test_httptest_date(void)
 
     // A single-digit asctime day is space-padded, and the padding run must not become a field.
     if (!httpDateParse(&t, _SL("Sun Nov  6 08:49:37 1994")) || t != rfc1123)
-        TEST_FAILV(ret, 1, _SL("!httpDateParse(&t, _SL(\"Sun Nov  6 08:49:37 1994\")) || t=${int} != ${int}(rfc1123)"), stvar(int32, t), stvar(int32, rfc1123));
+        TEST_FAILV(ret, 1, _SL("!httpDateParse(&t, _SL(\"Sun Nov  6 08:49:37 1994\")) || t=${int} != ${int}(rfc1123)"), stvar(int64, t), stvar(int64, rfc1123));
 
     // Surrounding whitespace is tolerated; a header value often arrives with it.
     if (!httpDateParse(&t, _SL("  Sun, 06 Nov 1994 08:49:37 GMT  ")) || t != rfc1123)
-        TEST_FAILV(ret, 1, _SL("!httpDateParse(&t, _SL(\"  Sun, 06 Nov 1994 08:49:37 GMT  \")) || t=${int} != ${int}(rfc1123)"), stvar(int32, t), stvar(int32, rfc1123));
+        TEST_FAILV(ret, 1, _SL("!httpDateParse(&t, _SL(\"  Sun, 06 Nov 1994 08:49:37 GMT  \")) || t=${int} != ${int}(rfc1123)"), stvar(int64, t), stvar(int64, rfc1123));
 
     // Malformed dates are rejected rather than guessed at: a corrupt Expires that parses to a
     // plausible wrong answer is worse than one that fails.
@@ -2308,7 +2308,7 @@ static int test_httptest_clientpool(void)
     SOCKET extra = accept(f.listener, NULL, NULL);
     if (extra != INVALID_SOCKET) {
         closesocket(extra);
-        TEST_FAILV(ret, 1, _SL("extra=${int} != INVALID_SOCKET -- a second connection means the pool did not do its job"), stvar(int32, extra));
+        TEST_FAILV(ret, 1, _SL("extra=${uint} != INVALID_SOCKET -- a second connection means the pool did not do its job"), stvar(uintptr, extra));
     }
 
     clientWrite(&f, "HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\ndef");

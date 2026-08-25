@@ -1479,11 +1479,11 @@ static int test_log_volume()
 
     logGetStats(&st);
     if (st.enqueued != 10)
-        TEST_FAILV_LOG(ret, 1, _SL("st.enqueued=${int} != 10"), stvar(int32, st.enqueued));
+        TEST_FAILV_LOG(ret, 1, _SL("st.enqueued=${int} != 10"), stvar(uint64, st.enqueued));
     if (st.dropped != 0)
         TEST_FAILV_LOG(ret, 1, _SL("st.dropped != 0"), stvNone);
     if (st.queued != 0)   // everything has drained by now
-        TEST_FAILV_LOG(ret, 1, _SL("st.queued=${int} != 0"), stvar(int32, st.queued));
+        TEST_FAILV_LOG(ret, 1, _SL("st.queued=${int} != 0"), stvar(uint32, st.queued));
     if (st.queuedmax < 1)
         TEST_FAILV_LOG(ret, 1, _SL("st.queuedmax < 1"), stvNone);
     if (st.groups < 1)
