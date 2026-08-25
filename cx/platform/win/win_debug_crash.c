@@ -57,6 +57,9 @@ static PRUNTIME_FUNCTION _ef_rtf;
 static ULONG64 _ef_imagebase;
 static ULONG64 _ef_establisherframe;
 static PVOID _ef_handlerdata;
+static ULONG64 _ef_stacklow;
+static ULONG64 _ef_stackhigh;
+static ULONG64 _ef_prevrsp;
 #endif
 
 static const char* _ef_prefix = "  ";
@@ -180,23 +183,41 @@ _no_inline static LONG WINAPI dbgExceptionFilter(LPEXCEPTION_POINTERS info)
             if (info) {
                 _ef_unwindctx = *info->ContextRecord;
                 stframes      = 0;
+                // bounds for the leaf-frame return address read below. this is the
+                // only place the walk dereferences the faulted stack itself, and a
+                // nested fault here would break crash reporting.
+                _ef_stacklow  = __readgsqword(FIELD_OFFSET(NT_TIB, StackLimit));
+                _ef_stackhigh = __readgsqword(FIELD_OFFSET(NT_TIB, StackBase));
                 while (stframes < ST_MAX_FRAMES) {
                     stacktrace[stframes++] = _ef_unwindctx.Rip;
+                    _ef_prevrsp            = _ef_unwindctx.Rsp;
 
                     _ef_rtf = RtlLookupFunctionEntry(_ef_unwindctx.Rip, &_ef_imagebase, NULL);
-                    if (!_ef_rtf)
-                        break;   // leaf frame or no unwind info; can't safely continue
+                    if (_ef_rtf) {
+                        RtlVirtualUnwind(UNW_FLAG_NHANDLER,
+                                         _ef_imagebase,
+                                         _ef_unwindctx.Rip,
+                                         _ef_rtf,
+                                         &_ef_unwindctx,
+                                         &_ef_handlerdata,
+                                         &_ef_establisherframe,
+                                         NULL);
+                    } else {
+                        // A leaf function touches no stack and calls nothing, so x64
+                        // emits no unwind data for it at all and the lookup comes up
+                        // empty. Use the return address to unwind it by hand, but only
+                        // if it's safe to do so.
+                        if (_ef_unwindctx.Rsp < _ef_stacklow ||
+                            _ef_unwindctx.Rsp + sizeof(ULONG64) > _ef_stackhigh)
+                            break;   // rsp is not on this thread's stack; give up
+                        _ef_unwindctx.Rip  = *(ULONG64 *)_ef_unwindctx.Rsp;
+                        _ef_unwindctx.Rsp += sizeof(ULONG64);
+                    }
 
-                    RtlVirtualUnwind(UNW_FLAG_NHANDLER,
-                                     _ef_imagebase,
-                                     _ef_unwindctx.Rip,
-                                     _ef_rtf,
-                                     &_ef_unwindctx,
-                                     &_ef_handlerdata,
-                                     &_ef_establisherframe,
-                                     NULL);
                     if (!_ef_unwindctx.Rip)
                         break;   // reached the bottom of the stack
+                    if (_ef_unwindctx.Rsp <= _ef_prevrsp)
+                        break;   // no progress; bad unwind data, don't emit garbage
                 }
             } else {
                 stframes = dbgStackTrace(1, ST_MAX_FRAMES, stacktrace);
