@@ -7,7 +7,18 @@ extern "C" {
 #endif
 
 // The channel every test file logs to; bound once by common.h via LOG_CHANNEL.
+//
+// Not visible to C++ (see cxTestLogChanGet() below): LogChannel embeds atomic(...) fields, whose
+// expansion differs between C's _Atomic and C++'s std::atomic, so the struct is not the same type
+// across the two front ends. A plain `extern LogChannel*` declared in both a C and a C++ TU trips
+// -Werror=lto-type-mismatch under LTO once both sides reference the same global.
+#ifndef __cplusplus
 extern LogChannel* cxTestLogChan;
+#endif
+
+// Same value as cxTestLogChan, reached through a function call instead of the raw global so a
+// C++ TU never has to declare a variable of type LogChannel* itself -- see the note above.
+LogChannel* cxTestLogChanGet(void);
 
 // Resolves the requested verbosity from a trailing "-log=<Level>" flag in av (else
 // CX_TEST_LOGLEVEL from the environment), and if one was requested, registers a console

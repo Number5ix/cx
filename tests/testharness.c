@@ -13,6 +13,12 @@
 
 LogChannel* cxTestLogChan;
 
+// See the comment on cxTestLogChanGet()'s declaration in testharness.h.
+LogChannel* cxTestLogChanGet(void)
+{
+    return cxTestLogChan;
+}
+
 // The level resolved by the most recent cxTestHarnessBefore(), or -1 if no verbose output was
 // requested -- kept around so cxTestHarnessReattach() can re-register without re-parsing.
 static int cxTestLogLevel = -1;

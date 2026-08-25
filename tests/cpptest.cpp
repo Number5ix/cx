@@ -11,6 +11,12 @@
 #define TEST_FUNCS cpptest_funcs
 #include "common.h"
 
+// common.h binds LOG_CHANNEL to the raw cxTestLogChan global, which isn't visible to C++ builds
+// (see testharness.h) since LogChannel's atomic(...) fields aren't the same type under C++'s
+// std::atomic as under C's _Atomic -- rebind to the accessor function instead.
+#undef LOG_CHANNEL
+#define LOG_CHANNEL cxTestLogChanGet()
+
 // TEST_FAIL (common.h) expands to logFmt(), whose variadic macro takes the address of an
 // anonymous stvar compound literal -- valid C, not valid C++ (same restriction test_stvar()
 // documents below for _strParse's dests[] array). Build the array as a named local first, then
