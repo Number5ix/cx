@@ -216,7 +216,7 @@ atomic(int32) _log_bootlevel = atomicInit(-1);
 // capturing thread can read the pointer with no lock and never race a free. Closing a window
 // empties the ring; it does not take it away.
 static atomic(ptr) _log_bootring;
-static atomic(intptr) _log_bootdeadline;   // clockTimer() value, 0 for no deadline
+static atomic(int64) _log_bootdeadline;   // clockTimer() value, 0 for no deadline
 
 static _Ret_opt_valid_ LogRing* logBootRing(void)
 {
@@ -255,9 +255,9 @@ void logBootWindowBegin(int maxlevel, uint32 maxentries, uint64 maxbytes, int64 
             logRingReconfigure(ring, maxlevel, maxentries, maxbytes, -1);
         }
 
-        atomicStore(intptr,
+        atomicStore(int64,
                     &_log_bootdeadline,
-                    (duration > 0) ? (intptr)(clockTimer() + duration) : 0,
+                    (duration > 0) ? (clockTimer() + duration) : 0,
                     Relaxed);
 
         // the ceiling has to rise before anything can be retained, and every channel's ceiling is
@@ -306,8 +306,8 @@ static void logBootCapture(_In_ LogEntry* ent)
     // no clock of its own. Closing it here only drops the level, which is lock-free; the routing
     // recompute and the discard are left to a drain thread, because this path is reachable from
     // inside _log_op_lock by way of a destination callback that logs.
-    intptr deadline = atomicLoad(intptr, &_log_bootdeadline, Relaxed);
-    if (deadline != 0 && clockTimer() >= (int64)deadline) {
+    int64 deadline = atomicLoad(int64, &_log_bootdeadline, Relaxed);
+    if (deadline != 0 && clockTimer() >= deadline) {
         atomicStore(int32, &_log_bootlevel, -1, Release);
         return;
     }

@@ -26,7 +26,7 @@
 STR_CONST(kLogDedupMsg,
           "${string} ... and ${uint:suppressed} more like this in the last ${uint:seconds}s");
 
-static atomic(intptr) _log_dedupwindow;    // 0 disables; cx time units truncated to intptr
+static atomic(int64) _log_dedupwindow;   // 0 disables
 static atomic(uint32) _log_dedupthreshold;
 
 typedef struct LogDedupState {
@@ -43,7 +43,7 @@ void logSetDedup(int64 window, uint32 threshold)
 {
     logCheckInit();
     atomicStore(uint32, &_log_dedupthreshold, threshold ? threshold : 1, Release);
-    atomicStore(intptr, &_log_dedupwindow, (intptr)window, Release);
+    atomicStore(int64, &_log_dedupwindow, window, Release);
 }
 
 static void logDedupFreeState(_Pre_valid_ _Post_invalid_ LogDedupState* st)
@@ -83,7 +83,7 @@ static void logDedupSummary(_In_ LogGroup* grp, _In_opt_ LogRouting* routing,
 _Use_decl_annotations_
 bool logDedupPasses(LogGroup* grp, const LogRecord* rec)
 {
-    int64 window = (int64)(intptr)atomicLoad(intptr, &_log_dedupwindow, Relaxed);
+    int64 window = atomicLoad(int64, &_log_dedupwindow, Relaxed);
     if (window <= 0 || !rec->site)
         return true;
 
@@ -111,7 +111,7 @@ bool logDedupPasses(LogGroup* grp, const LogRecord* rec)
         return true;
 
     ++st->suppressed;
-    atomicFetchAdd(uintptr, &_log_stat_suppressed, 1, Relaxed);
+    atomicFetchAdd(uint64, &_log_stat_suppressed, 1, Relaxed);
 
     // keep the first one that was actually dropped, so the summary says what was suppressed
     if (strEmpty(st->sample))
@@ -126,7 +126,7 @@ void logDedupFlush(LogGroup* grp, LogRouting* routing, sa_LogDest* sent, bool al
     if (!grp->dedup)
         return;
 
-    int64 window = (int64)(intptr)atomicLoad(intptr, &_log_dedupwindow, Relaxed);
+    int64 window = atomicLoad(int64, &_log_dedupwindow, Relaxed);
     int64 now    = clockTimer();
 
     // Collect first, act second: emitting a summary runs destination callbacks, and a callback
@@ -164,7 +164,7 @@ void logDedupFlush(LogGroup* grp, LogRouting* routing, sa_LogDest* sent, bool al
 _Use_decl_annotations_
 int64 logDedupWait(LogGroup* grp)
 {
-    int64 window = (int64)(intptr)atomicLoad(intptr, &_log_dedupwindow, Relaxed);
+    int64 window = atomicLoad(int64, &_log_dedupwindow, Relaxed);
     if (window <= 0 || !grp->dedup || htSize(grp->dedup) == 0)
         return timeForever;
 

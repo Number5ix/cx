@@ -50,7 +50,7 @@ void logDispatchRecord(LogGroup* grp, LogRouting* routing, const LogRecord* rec,
             // Anything at or below where this destination's backfill reached has already been
             // delivered to it from the boot ring, including entries that were still in this queue
             // when it registered. False for every destination that was not backfilled.
-            if (dest->backfilled && !logSeqBefore(dest->backfillseq, (uintptr)rec->seq))
+            if (dest->backfilled && !logSeqBefore(dest->backfillseq, rec->seq))
                 continue;
 
             dest->msgfunc(rec, dest->userdata);

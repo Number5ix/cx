@@ -53,7 +53,7 @@ typedef struct LogDest {
     // The rule this states is that the backfill *defines* where the destination's log starts.
     // Records older than the end of it either came from it or predate this destination entirely;
     // either way they are not delivered a second time.
-    uintptr backfillseq;
+    uint64 backfillseq;
     bool backfilled;   // ...and whether there was a backfill at all, since 0 is a valid sequence
 } LogDest;
 saDeclarePtr(LogDest);
@@ -108,7 +108,7 @@ typedef struct LogEntry {
     // claimed, or released outright when no group wanted the entry.
     atomic(uint32) refs;
     int64 timestamp;
-    uintptr seq;           // monotonic global sequence; see logNextSeq()
+    uint64 seq;            // monotonic global sequence; see logNextSeq()
     LogChannel* chan;
     const LogSite* site;   // call site identity, NULL for a dynamically generated entry
     string msgtmpl;
@@ -206,19 +206,17 @@ extern LazyInitState _logInitState;
 // exact cross-thread ordering, which is what recovers the true order of entries that reached the
 // queue out of order -- the per-thread overflow chain in logqueue.c is exactly that case, since
 // it holds entries back and re-pushes them behind later ones.
-//
-// It is an atomic(uintptr) rather than an atomic(uint64) because 32-bit targets have no 64-bit
-// atomics at all. On 64-bit it never wraps; on 32-bit it does, so sequence numbers must be compared
-// with logSeqBefore() rather than with <. Anything that leaves the process ships it as a fixed
-// 64-bit value regardless.
-uintptr logNextSeq(void);
+uint64 logNextSeq(void);
 
 // Wrap-aware ordering test, the same discipline TCP sequence numbers use: correct as long as the
 // two are less than half the counter's range apart, which holds for anything being collated
 // within a batch window.
-_meta_inline bool logSeqBefore(uintptr a, uintptr b)
+//
+// Not really needed anymore with 64-bit sequence numbers, but keep anyway just in case somebody
+// keeps a process running for like 1000 years or something.
+_meta_inline bool logSeqBefore(uint64 a, uint64 b)
 {
-    return (intptr)(a - b) < 0;
+    return (int64)(a - b) < 0;
 }
 
 void logCheckInit(void);
@@ -275,11 +273,11 @@ void logDispatchRecord(_In_ LogGroup* grp, _In_opt_ LogRouting* routing, _In_ co
 _Ret_opt_valid_ LogRouting* logRoutingCurrentUnsafe(void);
 
 // Volume control (logvolume.c, logdedup.c).
-extern atomic(uintptr) _log_stat_enqueued;
-extern atomic(uintptr) _log_stat_dropped;
-extern atomic(uintptr) _log_stat_sampled;
-extern atomic(uintptr) _log_stat_suppressed;
-extern atomic(uintptr) _log_stat_sync;
+extern atomic(uint64) _log_stat_enqueued;
+extern atomic(uint64) _log_stat_dropped;
+extern atomic(uint64) _log_stat_sampled;
+extern atomic(uint64) _log_stat_suppressed;
+extern atomic(uint64) _log_stat_sync;
 extern atomic(int32) _log_synclevel;
 
 // Decides whether a record on this channel survives sampling, counting it if it does not. Runs

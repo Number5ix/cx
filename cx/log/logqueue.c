@@ -123,7 +123,7 @@ static void logQueueDropBatch(_In_ LogGroup* grp, _In_ LogQueueNode* head)
     }
     if (nsync > 0)
         logWriteSync(grp, head, synclevel);
-    atomicFetchAdd(uintptr, &_log_stat_dropped, nents - nsync, Relaxed);
+    atomicFetchAdd(uint64, &_log_stat_dropped, nents - nsync, Relaxed);
     logQueueFreeNodes(head);
 }
 
@@ -161,7 +161,7 @@ static void logQueueOverflow(_In_ LogGroup* grp, _In_ LogQueueNode* head)
     logQueueSplitBySeverity(head, synclevel, &keep, &drop);
 
     if (drop) {
-        atomicFetchAdd(uintptr, &_log_stat_dropped, logQueueCount(drop), Relaxed);
+        atomicFetchAdd(uint64, &_log_stat_dropped, logQueueCount(drop), Relaxed);
         logQueueFreeNodes(drop);
     }
 
@@ -260,7 +260,7 @@ static bool logQueueRetryOverflow(_In_ LogGroup* grp)
 _Use_decl_annotations_
 void logQueueAdd(LogGroup* grp, LogQueueNode* head, uint32 nents)
 {
-    atomicFetchAdd(uintptr, &_log_stat_enqueued, nents, Relaxed);
+    atomicFetchAdd(uint64, &_log_stat_enqueued, nents, Relaxed);
 
     if (!logQueueRetryOverflow(grp) || !logQueueAddInternal(grp, head, nents))
         logQueueOverflow(grp, head);

@@ -45,7 +45,7 @@ static void logSyncChain(_In_ LogGroup* grp, _In_opt_ LogRouting* routing,
         logDispatchRecord(grp, routing, &rec, sent);
         strDestroy(&cache.str);
 
-        atomicFetchAdd(uintptr, &_log_stat_sync, 1, Relaxed);
+        atomicFetchAdd(uint64, &_log_stat_sync, 1, Relaxed);
     }
 
     foreach (sarray, idx, LogDest*, dest, *sent) {
@@ -95,7 +95,7 @@ static void logEmergencyChain(_In_opt_ LogQueueNode* head, int minlevel)
         }
         _conWriteLocked(err, nl, sizeof(nl));
 
-        atomicFetchAdd(uintptr, &_log_stat_sync, 1, Relaxed);
+        atomicFetchAdd(uint64, &_log_stat_sync, 1, Relaxed);
     }
 
     strDestroy(&line);

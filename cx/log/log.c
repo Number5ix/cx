@@ -13,12 +13,11 @@ atomic(bool) _log_running;
 Mutex _log_op_lock;
 Mutex _log_run_lock;
 
-// see logNextSeq() in log_private.h for why this is a uintptr
-static atomic(uintptr) _log_seq;
+static atomic(uint64) _log_seq;
 
-uintptr logNextSeq(void)
+uint64 logNextSeq(void)
 {
-    return atomicFetchAdd(uintptr, &_log_seq, 1, Relaxed) + 1;
+    return atomicFetchAdd(uint64, &_log_seq, 1, Relaxed) + 1;
 }
 
 // Batch ids are assigned here, on the enqueueing thread, rather than by a drain thread: with more
