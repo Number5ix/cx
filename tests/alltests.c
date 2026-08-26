@@ -431,6 +431,8 @@ static const testspec tests[] = {
     { "http: Server Deferred Response", "httptest", "srvdeferred" },
     { "http: Server TLS", "httptest", "srvtls" },
     { "http: Server Client Round Trip", "httptest", "srvroundtrip" },
+    { "http: Multipart File Upload", "httptest", "multipartfile" },
+    { "http: Multipart Chunked Upload", "httptest", "multipartchunk" },
 #endif
     { "taskqueue: Tasks", "tqtest", "task" },
     { "taskqueue: Failed Tasks", "tqtest", "failure" },

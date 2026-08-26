@@ -521,8 +521,10 @@ _Pure strref httpFormUrlEncodedType(void);
 
 /// Begin a `multipart/form-data` body
 ///
-/// Generates the boundary. Every part is added afterwards, and httpMultipartFinish() produces the
-/// body and the Content-Type together.
+/// Generates the boundary. Every part is added afterwards, and the body is then either attached to
+/// a request with httpMultipartAttach() or built in memory with httpMultipartFinish().
+///
+/// Adding a part fails once either of those has been called, so build the whole body first.
 ///
 /// @param mp Multipart state to initialize; release it with httpMultipartDestroy()
 /// @return true on success, false if no random source was available for the boundary
@@ -532,14 +534,9 @@ _Pure strref httpFormUrlEncodedType(void);
 ///   HttpMultipart mp;
 ///   httpMultipartInit(&mp);
 ///   httpMultipartAddField(&mp, _SL("comment"), _SL("looks good"));
-///   httpMultipartAddFile(&mp, _SL("upload"), _SL("notes.txt"), _SL("text/plain"), data, len);
+///   httpMultipartAddFileVFS(&mp, _SL("upload"), _SL("notes.txt"), NULL, f, true);
 ///
-///   string body = 0, ctype = 0;
-///   httpMultipartFinish(&mp, &body, &ctype);
-///   httprequestSetBody(req, body, ctype);
-///
-///   strDestroy(&body);
-///   strDestroy(&ctype);
+///   httpMultipartAttach(&mp, req);
 ///   httpMultipartDestroy(&mp);
 /// @endcode
 _Success_(return) bool httpMultipartInit(_Out_ HttpMultipart* mp);
@@ -565,10 +562,86 @@ bool httpMultipartAddFile(_Inout_ HttpMultipart* mp, _In_opt_ strref name, _In_o
                           _In_opt_ strref contentType, _In_reads_bytes_opt_(len) const uint8* data,
                           size_t len);
 
-/// Close the body and produce it along with its Content-Type
+/// Add a file part read from a VFS file
 ///
-/// Safe to call more than once: the closing boundary is written once, so calling this twice
-/// produces the same body rather than two of them.
+/// The file is read while the body is being sent, so it is never held in memory. Its length is
+/// taken from the current position to the end, and the part starts from wherever the file is
+/// positioned now.
+///
+/// @param mp Multipart state
+/// @param name Field name the file was submitted under
+/// @param filename Name to report for the file, or empty for a generic one
+/// @param contentType Media type of the content, or empty for `application/octet-stream`
+/// @param file File to read the content from
+/// @param close If true, the file is closed once the part has been sent. The caller must not close
+///              it itself, even if this call returns false.
+/// @return true on success, false once the parts have been taken
+bool httpMultipartAddFileVFS(_Inout_ HttpMultipart* mp, _In_opt_ strref name,
+                             _In_opt_ strref filename, _In_opt_ strref contentType,
+                             _Inout_ VFSFile* file, bool close);
+
+/// Add a part whose content is streamed from a StreamBuffer
+///
+/// For content that is still being produced. Register the *producer* side of the buffer in pull
+/// mode before calling this; cxhttp registers itself as the consumer and reads the part as the body
+/// is sent.
+///
+/// @param mp Multipart state
+/// @param name Field name the content was submitted under
+/// @param filename Name to report for the content, or empty to send no filename at all
+/// @param contentType Media type of the content, or empty for `application/octet-stream`
+/// @param sb Buffer the content is read from; a reference is held until the part has been sent
+/// @param len Content length in bytes, or -1 when it is not known up front
+/// @return true on success, false once the parts have been taken
+bool httpMultipartAddStream(_Inout_ HttpMultipart* mp, _In_opt_ strref name,
+                            _In_opt_ strref filename, _In_opt_ strref contentType,
+                            _In_ StreamBuffer* sb, int64 len);
+
+/// How large the finished body will be
+///
+/// Every byte of a multipart body is either a fixed delimiter or the content of a part, so the
+/// total is exact whenever every part's length is known.
+///
+/// @param mp Multipart state
+/// @return Body length in bytes, or -1 if any part's length is not known up front
+_Pure int64 httpMultipartLength(_In_ const HttpMultipart* mp);
+
+/// Send the body with a request, as the parts are read
+///
+/// Takes the parts over and sets both the request body and its Content-Type. Nothing is held in
+/// memory: a file part is read while the body goes out, so this is the call an upload of any size
+/// should use.
+///
+/// A `Content-Length` is sent when httpMultipartLength() knows the total, which lets a server
+/// refuse the upload before it is sent; otherwise the body goes out chunked.
+///
+/// Ends the multipart the same way httpMultipartFinish() does -- no more parts may be added, and
+/// httpMultipartDestroy() is still the way to release it. Because the parts are read as they are
+/// sent rather than held, a redirect that would resend this body fails the request instead.
+///
+/// @param mp Multipart state
+/// @param req Request to attach the body to
+/// @return true on success
+///
+/// Example:
+/// @code
+///   HttpMultipart mp;
+///   httpMultipartInit(&mp);
+///   httpMultipartAddFileVFS(&mp, _SL("upload"), _SL("big.iso"), NULL, f, true);
+///   httpMultipartAttach(&mp, req);
+///   httpMultipartDestroy(&mp);
+///
+///   httpclientSend(client, req);
+/// @endcode
+_Success_(return) bool httpMultipartAttach(_Inout_ HttpMultipart* mp, _Inout_ HttpRequest* req);
+
+/// Build the whole body in memory and produce it along with its Content-Type
+///
+/// Reads every part and joins them, so a file part is read in full here rather than while the body
+/// is being sent. Use httpMultipartAttach() for anything large.
+///
+/// Safe to call more than once: the body is built once and kept, so a second call produces the same
+/// one rather than a second copy.
 ///
 /// @param mp Multipart state
 /// @param body Receives the body, or NULL if only the content type is wanted

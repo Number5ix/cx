@@ -6,6 +6,7 @@
 
 #include <cxhttp.h>
 #include <cxhttp/http_private.h>
+#include <cx/fs.h>
 #include <cx/net.h>
 #include <cx/thread/thread.h>
 #include "tlstestcert.h"
@@ -1887,9 +1888,16 @@ static int test_httptest_form(void)
     // A field name carrying a quote or a newline must not be able to end the part header early.
     httpMultipartAddField(&mp, _SL("od\"d\r\nX-Evil: yes"), _SL("v"));
 
+    // Computed before the body exists, and it has to match to the byte: a Content-Length that is
+    // even slightly wrong leaves the peer waiting or truncates the last part.
+    int64 want = httpMultipartLength(&mp);
+
     string ctype = 0;
     if (!httpMultipartFinish(&mp, &body, &ctype))
         TEST_FAILV(ret, 1, _SL("!httpMultipartFinish(&mp, &body, &ctype)"), stvNone);
+
+    if (want != (int64)strLen(body))
+        TEST_FAILV(ret, 1, _SL("httpMultipartLength()=${int64}, but the body is ${uint} bytes"), stvar(int64, want), stvar(uint32, strLen(body)));
 
     if (strFind(ctype, 0, _SL("multipart/form-data; boundary=")) != 0)
         TEST_FAILV(ret, 1, _SL("strFind(ctype, 0, _SL(\"multipart/form-data; boundary=\")) != 0"), stvNone);
@@ -5041,6 +5049,299 @@ out:
     return ret;
 }
 
+// ---------------------------------------------------------------------------------------------
+// Multipart bodies over a real connection
+//
+// The state machine is only interesting once something asks it for awkward slice sizes, which is
+// what the connection does. Both tests POST through a real client to a real server and check what
+// arrived, byte for byte.
+// ---------------------------------------------------------------------------------------------
+
+#define MP_FILE_NAME  "cxhttp-mptest.bin"
+#define MP_FILE_BYTES 20000
+
+// Everything the two tests below need on both ends of a loopback exchange.
+typedef struct MpFixture {
+    NetQueue* q;
+    HttpServer* srv;
+    HttpClient* cl;
+    HttpRequest* req;
+    string url;
+} MpFixture;
+
+static bool mpStart(MpFixture* f, SrvRec* rec)
+{
+    memset(f, 0, sizeof(*f));
+
+    NetQueueConfig conf;
+    netqueuePresetServer(&conf);
+    conf.nthreads = 0;
+    f->q          = netqueueCreate(&conf);
+    if (!f->q)
+        return false;
+
+    f->srv = httpserverCreate(f->q);
+    f->cl  = httpclientCreate(f->q);
+    if (!f->srv || !f->cl)
+        return false;
+
+    httpserverSetHandlers(f->srv, &kSrvHandlers, rec);
+
+    NetAddr la;
+    netAddrFromStr(&la, _SL("127.0.0.1"));
+    la.port = 0;
+    if (!httpserverListen(f->srv, &la, 4))
+        return false;
+
+    string portstr = 0;
+    strFromInt64(&portstr, httpserverPort(f->srv), 10);
+    strAppend(&f->url, _SL("http://127.0.0.1:"));
+    strAppend(&f->url, portstr);
+    strAppend(&f->url, _SL("/upload"));
+    strDestroy(&portstr);
+
+    f->req = httprequestCreate(HTTP_Post, f->url);
+    return f->req != NULL;
+}
+
+static void mpStop(MpFixture* f)
+{
+    strDestroy(&f->url);
+    objRelease(&f->req);
+    objRelease(&f->cl);
+    if (f->srv) {
+        httpserverShutdown(f->srv);
+        objRelease(&f->srv);
+    }
+    if (f->q) {
+        netqueueShutdown(f->q, 0);
+        objRelease(&f->q);
+    }
+}
+
+// Fill a file with a pattern that would show any slice being dropped, doubled or reordered.
+static bool mpWriteFile(void)
+{
+    FSFile* fh = fsOpen(_SL(MP_FILE_NAME), FS_Overwrite);
+    if (!fh)
+        return false;
+
+    uint8 chunk[250];
+    bool ok = true;
+    for (int i = 0; ok && i < MP_FILE_BYTES / (int)sizeof(chunk); i++) {
+        for (size_t j = 0; j < sizeof(chunk); j++)
+            chunk[j] = (uint8)('A' + ((i + j) % 26));
+
+        size_t wrote = 0;
+        ok = fsWrite(fh, chunk, sizeof(chunk), &wrote) && wrote == sizeof(chunk);
+    }
+
+    fsClose(fh);
+    return ok;
+}
+
+// The file's contents again, so the received body can be checked against them.
+static void mpFileBytes(strhandle out)
+{
+    strClear(out);
+    for (int i = 0; i < MP_FILE_BYTES / 250; i++) {
+        uint8 chunk[250];
+        for (size_t j = 0; j < sizeof(chunk); j++)
+            chunk[j] = (uint8)('A' + ((i + j) % 26));
+        strAppendBytes(out, chunk, (uint32)sizeof(chunk));
+    }
+}
+
+static int test_httptest_multipartfile(void)
+{
+    int ret    = 0;
+    SrvRec rec = { 0 };
+    MpFixture f;
+    ConnRec cr      = { 0 };
+    HttpMultipart mp;
+    VFS* vfs        = NULL;
+    string expect   = 0;
+    string closing  = 0;
+    string cwd      = 0;
+    bool haveFile   = false;
+    bool haveMp     = false;
+
+    if (!mpStart(&f, &rec)) {
+        TEST_FAILV(ret, 1, _SL("!mpStart(&f, &rec)"), stvNone);
+        goto out;
+    }
+
+    haveFile = mpWriteFile();
+    if (!haveFile) {
+        TEST_FAILV(ret, 1, _SL("could not write " MP_FILE_NAME), stvNone);
+        goto out;
+    }
+
+    // Mounted by absolute path: a test runs from wherever ctest put it, and the VFS wants a real
+    // root rather than a relative one.
+    fsCurDir(&cwd);
+    vfs = vfsCreate(0);
+    if (!vfs || !vfsMountFS(vfs, _SL("/"), cwd)) {
+        TEST_FAILV(ret, 1, _SL("could not mount '${string}'"), stvar(strref, cwd), stvNone);
+        goto out;
+    }
+
+    VFSFile* vf = vfsOpen(vfs, _SL("/" MP_FILE_NAME), FS_Read);
+    if (!vf) {
+        TEST_FAILV(ret, 1, _SL("!vfsOpen(vfs, _SL(\"/" MP_FILE_NAME "\"), FS_Read)"), stvNone);
+        goto out;
+    }
+
+    haveMp = httpMultipartInit(&mp);
+    if (!haveMp) {
+        vfsClose(vf);
+        TEST_FAILV(ret, 1, _SL("!httpMultipartInit(&mp)"), stvNone);
+        goto out;
+    }
+
+    httpMultipartAddField(&mp, _SL("comment"), _SL("looks good"));
+    if (!httpMultipartAddFileVFS(&mp, _SL("upload"), _SL("notes.bin"), NULL, vf, true))
+        TEST_FAILV(ret, 1, _SL("!httpMultipartAddFileVFS(...)"), stvNone);
+
+    // A file part's length comes from a seek, so the whole body is measurable and goes out with a
+    // Content-Length rather than chunked.
+    int64 want = httpMultipartLength(&mp);
+    if (want <= MP_FILE_BYTES)
+        TEST_FAILV(ret, 1, _SL("httpMultipartLength()=${int64}, expected more than ${int64}"), stvar(int64, want), stvar(int64, (int64)MP_FILE_BYTES));
+
+    strAppend(&closing, _SL("--"));
+    strAppend(&closing, mp.boundary);
+    strAppend(&closing, _SL("--\r\n"));
+
+    if (!httpMultipartAttach(&mp, f.req)) {
+        TEST_FAILV(ret, 1, _SL("!httpMultipartAttach(&mp, f.req)"), stvNone);
+        goto out;
+    }
+
+    if (!httpclientSend(f.cl, f.req, &kConnRecHandlers, &cr)) {
+        TEST_FAILV(ret, 1, _SL("!httpclientSend(f.cl, f.req, &kConnRecHandlers, &cr)"), stvNone);
+        goto out;
+    }
+
+    for (int i = 0; i < 400 && !cr.completeCount && !cr.errorCount; i++)
+        netqueueTick(f.q, 10);
+
+    if (cr.completeCount != 1 || cr.errorCount != 0)
+        TEST_FAILV(ret, 1, _SL("cr.completeCount=${uint} != 1 || cr.errorCount=${uint} != 0"), stvar(uint32, cr.completeCount), stvar(uint32, cr.errorCount));
+
+    // The length promised before a single byte was read is exactly what turned up.
+    if (want != (int64)strLen(rec.body))
+        TEST_FAILV(ret, 1, _SL("httpMultipartLength()=${int64}, but ${uint} bytes arrived"), stvar(int64, want), stvar(uint32, strLen(rec.body)));
+
+    if (strFind(rec.body, 0, _SL("name=\"comment\"\r\n\r\nlooks good")) < 0)
+        TEST_FAILV(ret, 1, _SL("expected to find '${string}' in the body"), stvar(strref, _SL("name=\"comment\"\r\n\r\nlooks good")), stvNone);
+    if (strFind(rec.body, 0, _SL("name=\"upload\"; filename=\"notes.bin\"")) < 0)
+        TEST_FAILV(ret, 1, _SL("expected to find '${string}' in the body"), stvar(strref, _SL("name=\"upload\"; filename=\"notes.bin\"")), stvNone);
+
+    // The file's own bytes, unbroken: the state machine hands them over a slice at a time across
+    // many pump passes, so a lost or repeated slice shows up here.
+    mpFileBytes(&expect);
+    if (strFind(rec.body, 0, expect) < 0)
+        TEST_FAILV(ret, 1, _SL("the ${uint}-byte file content did not survive the transfer"), stvar(uint32, strLen(expect)), stvNone);
+
+    if (!strEndsWith(rec.body, closing))
+        TEST_FAILV(ret, 1, _SL("expected the body to end with '${string}'"), stvar(strref, closing), stvNone);
+
+out:
+    if (haveMp)
+        httpMultipartDestroy(&mp);
+    strDestroy(&expect);
+    strDestroy(&closing);
+    strDestroy(&cwd);
+    strDestroy(&cr.body);
+    strDestroy(&cr.ctype);
+    objRelease(&vfs);
+    mpStop(&f);
+    srvRecDestroy(&rec);
+    if (haveFile)
+        fsDelete(_SL(MP_FILE_NAME));
+    return ret;
+}
+
+static int test_httptest_multipartchunked(void)
+{
+    int ret    = 0;
+    SrvRec rec = { 0 };
+    MpFixture f;
+    ConnRec cr        = { 0 };
+    HttpMultipart mp;
+    StreamBuffer* sb  = NULL;
+    string closing    = 0;
+    bool haveMp       = false;
+
+    if (!mpStart(&f, &rec)) {
+        TEST_FAILV(ret, 1, _SL("!mpStart(&f, &rec)"), stvNone);
+        goto out;
+    }
+
+    haveMp = httpMultipartInit(&mp);
+    if (!haveMp) {
+        TEST_FAILV(ret, 1, _SL("!httpMultipartInit(&mp)"), stvNone);
+        goto out;
+    }
+
+    // A part whose length nobody knows up front. Deliberately smaller than the slice the connection
+    // asks for, so the state machine has to move on to the next stage inside one call.
+    sb = sbufCreate(16);
+    if (!sbufStrPRegisterPull(sb, _SL("streamed part"))) {
+        TEST_FAILV(ret, 1, _SL("!sbufStrPRegisterPull(sb, ...)"), stvNone);
+        goto out;
+    }
+
+    httpMultipartAddField(&mp, _SL("comment"), _SL("looks good"));
+    if (!httpMultipartAddStream(&mp, _SL("blob"), _SL("blob.txt"), _SL("text/plain"), sb, -1))
+        TEST_FAILV(ret, 1, _SL("!httpMultipartAddStream(...)"), stvNone);
+
+    // One open-ended part is enough to make the whole body open-ended, which is what sends it
+    // chunked instead of with a Content-Length.
+    if (httpMultipartLength(&mp) != -1)
+        TEST_FAILV(ret, 1, _SL("httpMultipartLength()=${int64}, expected -1"), stvar(int64, httpMultipartLength(&mp)));
+
+    strAppend(&closing, _SL("--"));
+    strAppend(&closing, mp.boundary);
+    strAppend(&closing, _SL("--\r\n"));
+
+    if (!httpMultipartAttach(&mp, f.req)) {
+        TEST_FAILV(ret, 1, _SL("!httpMultipartAttach(&mp, f.req)"), stvNone);
+        goto out;
+    }
+
+    if (!httpclientSend(f.cl, f.req, &kConnRecHandlers, &cr)) {
+        TEST_FAILV(ret, 1, _SL("!httpclientSend(f.cl, f.req, &kConnRecHandlers, &cr)"), stvNone);
+        goto out;
+    }
+
+    for (int i = 0; i < 400 && !cr.completeCount && !cr.errorCount; i++)
+        netqueueTick(f.q, 10);
+
+    if (cr.completeCount != 1 || cr.errorCount != 0)
+        TEST_FAILV(ret, 1, _SL("cr.completeCount=${uint} != 1 || cr.errorCount=${uint} != 0"), stvar(uint32, cr.completeCount), stvar(uint32, cr.errorCount));
+
+    // The server dechunks, so what it has is the multipart body itself with no chunk framing left.
+    if (strFind(rec.body, 0, _SL("name=\"comment\"\r\n\r\nlooks good")) < 0)
+        TEST_FAILV(ret, 1, _SL("expected to find '${string}' in the body"), stvar(strref, _SL("name=\"comment\"\r\n\r\nlooks good")), stvNone);
+    if (strFind(rec.body, 0, _SL("Content-Type: text/plain\r\n\r\nstreamed part\r\n")) < 0)
+        TEST_FAILV(ret, 1, _SL("expected to find '${string}' in the body"), stvar(strref, _SL("Content-Type: text/plain\r\n\r\nstreamed part\r\n")), stvNone);
+    if (!strEndsWith(rec.body, closing))
+        TEST_FAILV(ret, 1, _SL("expected the body to end with '${string}'"), stvar(strref, closing), stvNone);
+
+out:
+    if (haveMp)
+        httpMultipartDestroy(&mp);
+    sbufRelease(&sb);
+    strDestroy(&closing);
+    strDestroy(&cr.body);
+    strDestroy(&cr.ctype);
+    mpStop(&f);
+    srvRecDestroy(&rec);
+    return ret;
+}
+
 #endif   // _WIN32 || _PLATFORM_UNIX
 
 testfunc httptest_funcs[] = {
@@ -5116,6 +5417,8 @@ testfunc httptest_funcs[] = {
     { "srvdeferred",        test_httptest_srvdeferred        },
     { "srvtls",             test_httptest_srvtls             },
     { "srvroundtrip",       test_httptest_srvroundtrip       },
+    { "multipartfile",      test_httptest_multipartfile      },
+    { "multipartchunk",     test_httptest_multipartchunked   },
 #endif
     { 0,              0                          },
 };

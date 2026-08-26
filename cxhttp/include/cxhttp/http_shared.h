@@ -1,6 +1,8 @@
 #pragma once
+#include <cx/buffer/buffer.h>
 #include <cx/container/sarray.h>
 #include <cx/cx.h>
+#include <cx/fs/vfs.h>
 #include <cx/log/log.h>
 #include <cx/net/net_shared.h>
 #include <cx/serialize/streambuf.h>
@@ -229,16 +231,51 @@ saDeclare(HttpCookie);
 /// @addtogroup http_forms
 /// @{
 
+/// Where a multipart part's content comes from
+typedef enum {
+    HTTPMPSRC_String,    ///< Text held in a string
+    HTTPMPSRC_Bytes,     ///< Bytes held in a Buffer
+    HTTPMPSRC_VFSFile,   ///< A VFS file, read while the body is being sent
+    HTTPMPSRC_Stream,    ///< A StreamBuffer the application produces into
+} HttpMultipartSrc;
+
+/// @brief One part of a `multipart/form-data` body
+///
+/// Built by the httpMultipartAdd* functions and owned by the HttpMultipart it was added to. A part
+/// has exactly one owner: it may hold an open file or a reference to a StreamBuffer, so it is
+/// never copied.
+typedef struct HttpMultipartPart {
+    /// @brief Everything that precedes the content: boundary line, headers, and the blank line
+    string header;
+
+    HttpMultipartSrc srctype;   ///< Which member of `src` holds the content
+
+    /// @brief The content itself
+    union {
+        string text;            ///< HTTPMPSRC_String
+        Buffer bytes;           ///< HTTPMPSRC_Bytes
+        VFSFile* vfile;         ///< HTTPMPSRC_VFSFile
+        StreamBuffer* stream;   ///< HTTPMPSRC_Stream
+    } src;
+
+    /// @brief Content length in bytes, or -1 when it is not known up front
+    ///
+    /// One part with -1 here is enough to make httpMultipartLength() answer -1 for the whole body.
+    int64 len;
+
+    /// @brief The file is closed once the part has been sent
+    bool close;
+} HttpMultipartPart;
+
 /// @brief A `multipart/form-data` body under construction
 ///
-/// A value type built up part by part and then finished, which produces both the body and the
-/// Content-Type that describes it -- they cannot be separated, because the Content-Type carries the
-/// boundary that delimits the body.
+/// A value type built up part by part and then either attached to a request or finished, which
+/// produces the body and the Content-Type that describes it -- they cannot be separated, because
+/// the Content-Type carries the boundary that delimits the body.
 ///
-/// The body is assembled in memory. That is the right trade for what forms are actually used for
-/// here -- a login, a small file, a handful of fields -- and a large upload has a better path
-/// already: compose it into a StreamBuffer and use httprequestSetBodyStream(), which never makes
-/// the whole thing resident.
+/// httpMultipartAttach() sends the parts as they are read, so a file part is never resident.
+/// httpMultipartFinish() builds the whole body in memory instead, which is what a handful of small
+/// fields wants.
 typedef struct HttpMultipart {
     /// @brief Delimiter separating the parts
     ///
@@ -247,8 +284,14 @@ typedef struct HttpMultipart {
     /// early and injecting one of their own.
     string boundary;
 
-    string body;     ///< Parts assembled so far
-    bool finished;   ///< The closing boundary has been written; no more parts may be added
+    /// @brief Parts added so far, in order
+    ///
+    /// Each element is an `HttpMultipartPart*`. Emptied by httpMultipartAttach() and
+    /// httpMultipartFinish(), which take the parts over.
+    sa_ptr parts;
+
+    string rendered;   ///< Body built by httpMultipartFinish(), kept so a second call matches
+    bool finished;     ///< The parts have been taken; no more may be added
 } HttpMultipart;
 
 /// @}
