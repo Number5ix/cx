@@ -17,7 +17,7 @@
 /// - **`STypeInfoExt`** - a value's declared, wire-facing type (`cx/stype/stype.h`); the
 ///   traverser works from this rather than from a plain `stype`
 /// - **`StreamBuffer`** (@ref serialize_streambuf) - the producer/consumer transport that JSON
-///   and binary documents stream over, with adapters for strings, files, and consoles
+///   and binary documents stream over, with adapters for strings, buffers, files, and consoles
 ///
 /// @defgroup serialize_overview Overview
 /// @ingroup serialize
@@ -129,6 +129,7 @@
 
 #pragma once
 
+#include <cx/serialize/sbbuffer.h>
 #include <cx/serialize/sbfile.h>
 #include <cx/serialize/sbfsfile.h>
 #include <cx/serialize/sbstring.h>
