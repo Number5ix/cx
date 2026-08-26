@@ -1,3 +1,4 @@
+#include <cx/buffer/buffer.h>
 #include <cx/net/net_shared.h>
 #include <cx/thread/mutex.h>
 #include <cxhttp/http_shared.h>
@@ -34,13 +35,25 @@ class HttpRequest
     /// not set them, so the common case needs none of them here.
     HttpHeaders reqHeaders;
 
-    /// @brief Request body held in memory, for the string and buffer forms
+    /// @brief Request body held in memory, for the string form
     string reqBody;
 
-    /// @brief Request body streamed from the caller, for httprequestSetBodyStream()
+    // Request body held in memory, for the two binary forms, and whether destroying it is ours to
+    // do. An in-memory body is kept in the form it arrived in rather than only as the stream built
+    // from it, because a redirect has to be able to send the same bytes a second time.
+    Buffer reqBodyBuf;
+    bool reqBodyOwn;
+
+    // The body came from httprequestSetBodyStream(), so its bytes are the caller's producer's and
+    // are gone once sent. This is what a redirect cannot replay.
+    bool reqBodyExternal;
+
+    /// @brief The body as it is being written, or NULL when nothing is being written
     ///
-    /// cxhttp is the *consumer* of this buffer; the caller registers the producer. NULL unless a
-    /// stream body was set.
+    /// Every body is a stream: the in-memory forms are wrapped in a buffer of their own when the
+    /// request goes out, so there is one thing to write and one place a refused send is handled.
+    /// cxhttp is the *consumer*; a body set with httprequestSetBodyStream() has the caller's own
+    /// producer on the other end.
     StreamBuffer *reqBodyStream;
 
     /// @brief Declared length of a streamed body, or -1 for chunked
@@ -50,6 +63,14 @@ class HttpRequest
     int64 reqBodyLen;
 
     flags_t flags;            ///< HttpRequestFlags to send with
+
+    // Connection currently writing the body, borrowed, plus the running result of one pass of its
+    // pump. Set while the body is being written and owned by that connection's worker for as long
+    // as it is; the body's StreamBuffer carries this request as its consumer context, and this is
+    // how the send callback gets from here to the socket.
+    HttpConn *bodyConn;
+    size_t bodySent;
+    bool bodyRefused;
 
     /// @brief Response status, valid once the headers have arrived
     uint16 status;
@@ -175,6 +196,18 @@ class HttpRequest
     /// @param contentType Value for the Content-Type header, or empty to leave it unset
     /// @return true on success
     bool setBodyBytes([in] uint8 *data, size_t len, strref contentType);
+
+    /// Set a binary request body from a Buffer, without copying it
+    ///
+    /// The cheapest of the in-memory forms: nothing is copied, and with `own` set the request
+    /// takes the Buffer over and destroys it when the body has been sent.
+    ///
+    /// @param buf Buffer holding the body
+    /// @param own If true, the request takes ownership of buf. The caller must not use or destroy
+    ///            it afterwards, even if this call returns false.
+    /// @param contentType Value for the Content-Type header, or empty to leave it unset
+    /// @return true on success
+    bool setBodyBuffer([in] Buffer buf, bool own, strref contentType);
 
     /// Stream the request body from a StreamBuffer
     ///

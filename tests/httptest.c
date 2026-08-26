@@ -2591,6 +2591,207 @@ static int test_httptest_clientseeother(void)
     return ret;
 }
 
+// A POST whose redirect is a 307: the method and the body both survive it. The body is resident
+// here, so the second hop has to build a fresh stream over the same bytes -- the first hop's is
+// drained by the time the redirect is decided.
+static int test_httptest_clienttempredirect(void)
+{
+    int ret = 0;
+    ClientFixture f;
+    ConnRec rec = { 0 };
+    string url = 0, wire = 0;
+
+    if (!clientFixtureInit(&f)) {
+        clientFixtureDestroy(&f);
+        TEST_FAIL(1, _SL("failed: !clientFixtureInit(&f)"), stvNone);
+    }
+
+    clientUrl(&f, &url, _SL("/submit"));
+    HttpRequest* r = httprequestCreate(HTTP_Post, url);
+    if (!r) {
+        clientFixtureDestroy(&f);
+        strDestroy(&url);
+        TEST_FAIL(1, _SL("failed: !r"), stvNone);
+    }
+    httprequestSetBody(r, _SL("a=1"), _SL("application/x-www-form-urlencoded"));
+
+    httpclientSend(f.cl, r, &kConnRecHandlers, &rec);
+    if (!clientAccept(&f) || !clientReadRequest(&f, &wire))
+        TEST_FAILV(ret, 1, _SL("!clientAccept(&f) || !clientReadRequest(&f, &wire)"), stvNone);
+    if (!strEndsWith(wire, _SL("\r\n\r\na=1")))
+        TEST_FAILV(ret, 1, _SL("expected '${string}' to end with the body"), stvar(strref, wire));
+
+    clientWrite(&f,
+                "HTTP/1.1 307 Temporary Redirect\r\n"
+                "Location: /result\r\n"
+                "Content-Length: 0\r\n"
+                "\r\n");
+
+    if (!clientReadRequest(&f, &wire))
+        TEST_FAILV(ret, 1, _SL("!clientReadRequest(&f, &wire)"), stvNone);
+
+    if (!strBeginsWith(wire, _SL("POST /result HTTP/1.1\r\n")))
+        TEST_FAILV(ret, 1, _SL("expected '${string}' to begin with '${string}'"), stvar(strref, wire), stvar(strref, _SL("POST /result HTTP/1.1\r\n")));
+    if (strFind(wire, 0, _SL("Content-Length: 3\r\n")) < 0)
+        TEST_FAILV(ret, 1, _SL("expected to find '${string}' in '${string}'"), stvar(strref, _SL("Content-Length: 3\r\n")), stvar(strref, wire));
+    if (!strEndsWith(wire, _SL("\r\n\r\na=1")))
+        TEST_FAILV(ret, 1, _SL("expected '${string}' to end with the body"), stvar(strref, wire));
+
+    clientWrite(&f, "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok");
+    clientTickUntil(&f, &rec);
+
+    if (rec.completeCount != 1 || rec.status != 200)
+        TEST_FAILV(ret, 1, _SL("rec.completeCount=${uint} != 1 || rec.status=${uint} != 200"), stvar(uint32, rec.completeCount), stvar(uint16, rec.status));
+    if (r->method != HTTP_Post)
+        TEST_FAILV(ret, 1, _SL("r->method=${int} != HTTP_Post"), stvar(int32, r->method));
+
+    objRelease(&r);
+    clientFixtureDestroy(&f);
+    strDestroy(&url);
+    strDestroy(&wire);
+    strDestroy(&rec.body);
+    strDestroy(&rec.ctype);
+    return ret;
+}
+
+// A body handed over as a Buffer, which the request takes ownership of and sends without copying.
+static int test_httptest_clientbodybuffer(void)
+{
+    int ret = 0;
+    ClientFixture f;
+    ConnRec rec = { 0 };
+    string url = 0, wire = 0;
+
+    if (!clientFixtureInit(&f)) {
+        clientFixtureDestroy(&f);
+        TEST_FAIL(1, _SL("failed: !clientFixtureInit(&f)"), stvNone);
+    }
+
+    clientUrl(&f, &url, _SL("/upload"));
+    HttpRequest* r = httprequestCreate(HTTP_Put, url);
+    if (!r) {
+        clientFixtureDestroy(&f);
+        strDestroy(&url);
+        TEST_FAIL(1, _SL("failed: !r"), stvNone);
+    }
+
+    Buffer buf = bufCreate(5);
+    memcpy(buf->data, "12345", 5);
+    buf->len = 5;
+    if (!httprequestSetBodyBuffer(r, buf, true, _SL("application/octet-stream")))
+        TEST_FAILV(ret, 1, _SL("httprequestSetBodyBuffer failed"), stvNone);
+
+    httpclientSend(f.cl, r, &kConnRecHandlers, &rec);
+    if (!clientAccept(&f) || !clientReadRequest(&f, &wire))
+        TEST_FAILV(ret, 1, _SL("!clientAccept(&f) || !clientReadRequest(&f, &wire)"), stvNone);
+
+    if (!strBeginsWith(wire, _SL("PUT /upload HTTP/1.1\r\n")))
+        TEST_FAILV(ret, 1, _SL("expected '${string}' to begin with '${string}'"), stvar(strref, wire), stvar(strref, _SL("PUT /upload HTTP/1.1\r\n")));
+    if (strFind(wire, 0, _SL("Content-Length: 5\r\n")) < 0)
+        TEST_FAILV(ret, 1, _SL("expected to find '${string}' in '${string}'"), stvar(strref, _SL("Content-Length: 5\r\n")), stvar(strref, wire));
+    if (strFind(wire, 0, _SL("Content-Type: application/octet-stream\r\n")) < 0)
+        TEST_FAILV(ret, 1, _SL("expected to find '${string}' in '${string}'"), stvar(strref, _SL("Content-Type: application/octet-stream\r\n")), stvar(strref, wire));
+    if (!strEndsWith(wire, _SL("\r\n\r\n12345")))
+        TEST_FAILV(ret, 1, _SL("expected '${string}' to end with the body"), stvar(strref, wire));
+
+    clientWrite(&f, "HTTP/1.1 204 No Content\r\n\r\n");
+    clientTickUntil(&f, &rec);
+
+    if (rec.completeCount != 1 || rec.status != 204)
+        TEST_FAILV(ret, 1, _SL("rec.completeCount=${uint} != 1 || rec.status=${uint} != 204"), stvar(uint32, rec.completeCount), stvar(uint16, rec.status));
+
+    objRelease(&r);
+    clientFixtureDestroy(&f);
+    strDestroy(&url);
+    strDestroy(&wire);
+    strDestroy(&rec.body);
+    strDestroy(&rec.ctype);
+    return ret;
+}
+
+// Read from the peer socket until whatever has arrived ends with `tail`. Chunked requests have no
+// Content-Length to size the read by, so the terminating chunk is what says the body is complete.
+static bool clientReadUntil(ClientFixture* f, string* out, strref tail)
+{
+    strClear(out);
+
+    for (int i = 0; i < 400; i++) {
+        netqueueTick(f->q, 5);
+
+        char buf[4096];
+#if defined(_WIN32)
+        u_long nb = 1;
+        ioctlsocket(f->peer, FIONBIO, &nb);
+        int n = recv(f->peer, buf, sizeof(buf), 0);
+#else
+        int n = (int)recv(f->peer, buf, sizeof(buf), MSG_DONTWAIT);
+#endif
+        if (n > 0)
+            strAppendBytes(out, (uint8*)buf, (size_t)n);
+
+        if (strEndsWith(*out, tail))
+            return true;
+    }
+    return false;
+}
+
+// A request body the caller streams. Nothing knows how long it is up front, so it goes out chunked
+// and the terminating chunk has to follow the data rather than being lost with it.
+static int test_httptest_clientstreambody(void)
+{
+    int ret = 0;
+    ClientFixture f;
+    ConnRec rec = { 0 };
+    string url = 0, wire = 0;
+
+    if (!clientFixtureInit(&f)) {
+        clientFixtureDestroy(&f);
+        TEST_FAIL(1, _SL("failed: !clientFixtureInit(&f)"), stvNone);
+    }
+
+    clientUrl(&f, &url, _SL("/upload"));
+    HttpRequest* r = httprequestCreate(HTTP_Post, url);
+    if (!r) {
+        clientFixtureDestroy(&f);
+        strDestroy(&url);
+        TEST_FAIL(1, _SL("failed: !r"), stvNone);
+    }
+
+    // The caller owns the producer side; cxhttp takes the consumer side when the body is set, so
+    // the reference sbufCreate() handed back goes with it.
+    StreamBuffer* sb = sbufCreate(64);
+    if (!sbufStrPRegisterPull(sb, _SL("hello world")))
+        TEST_FAILV(ret, 1, _SL("sbufStrPRegisterPull failed"), stvNone);
+    if (!httprequestSetBodyStream(r, sb, -1, _SL("text/plain")))
+        TEST_FAILV(ret, 1, _SL("httprequestSetBodyStream failed"), stvNone);
+    sbufRelease(&sb);
+
+    httpclientSend(f.cl, r, &kConnRecHandlers, &rec);
+    if (!clientAccept(&f) || !clientReadUntil(&f, &wire, _SL("0\r\n\r\n")))
+        TEST_FAILV(ret, 1, _SL("!clientAccept(&f) || !clientReadUntil(...)"), stvNone);
+
+    if (strFind(wire, 0, _SL("Transfer-Encoding: chunked\r\n")) < 0)
+        TEST_FAILV(ret, 1, _SL("expected to find '${string}' in '${string}'"), stvar(strref, _SL("Transfer-Encoding: chunked\r\n")), stvar(strref, wire));
+    if (strFind(wire, 0, _SL("Content-Length")) >= 0)
+        TEST_FAILV(ret, 1, _SL("expected NOT to find '${string}', but it was present in '${string}'"), stvar(strref, _SL("Content-Length")), stvar(strref, wire));
+    if (!strEndsWith(wire, _SL("\r\n\r\nb\r\nhello world\r\n0\r\n\r\n")))
+        TEST_FAILV(ret, 1, _SL("expected '${string}' to end with one chunk and the terminator"), stvar(strref, wire));
+
+    clientWrite(&f, "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok");
+    clientTickUntil(&f, &rec);
+
+    if (rec.completeCount != 1 || rec.status != 200)
+        TEST_FAILV(ret, 1, _SL("rec.completeCount=${uint} != 1 || rec.status=${uint} != 200"), stvar(uint32, rec.completeCount), stvar(uint16, rec.status));
+
+    objRelease(&r);
+    clientFixtureDestroy(&f);
+    strDestroy(&url);
+    strDestroy(&wire);
+    strDestroy(&rec.body);
+    strDestroy(&rec.ctype);
+    return ret;
+}
+
 // A response that never arrives has to end as a timeout rather than a hang.
 static int test_httptest_clienttimeout(void)
 {
@@ -4619,6 +4820,9 @@ testfunc httptest_funcs[] = {
     { "conntruncated",   test_httptest_conntruncated     },
     { "clientget",       test_httptest_clientget         },
     { "clientredirect",  test_httptest_clientredirect    },
+    { "clienttempredir", test_httptest_clienttempredirect },
+    { "clientbodybuf",   test_httptest_clientbodybuffer  },
+    { "clientstreambody", test_httptest_clientstreambody },
     { "clientredirloop", test_httptest_clientredirectloop },
     { "clientseeother",  test_httptest_clientseeother    },
     { "clientpool",      test_httptest_clientpool        },

@@ -3,6 +3,7 @@
 #include <cxhttp.h>
 
 #include <cx/log.h>
+#include <cx/serialize.h>
 #include <cx/string.h>
 
 extern LogChannel* HttpLogChannel;
@@ -14,6 +15,21 @@ extern LogChannel* HttpLogChannel;
 // Process-wide initialization: registers the log channel. Every public entry point that can be the
 // first thing an application calls runs this, so there is no init call for a consumer to forget.
 void _httpInit(void);
+
+// Target size for a StreamBuffer cxhttp creates to carry a body that is already in memory. Matches
+// the read chunk the connections use, so one pump pass drains one ring node.
+#define HTTP_BODY_CHUNK 8192
+
+// Notify callback for a request body whose producer works in push mode. Registered from
+// httprequest.c, where the buffer is adopted, but implemented on HttpConn because waking the
+// connection is the only thing it does.
+void _httpReqBodyNotify(_Pre_valid_ StreamBuffer* sb, size_t sz, _Pre_opt_valid_ void* ctx);
+
+// Build the stream that carries an in-memory request body, if there is one and it is not already
+// built. Called just before the head goes out, so a redirect gets a fresh stream over the same
+// bytes rather than the drained one the previous hop left behind. No-op for a body the caller is
+// streaming itself.
+bool _httpReqArmBody(_Inout_ HttpRequest* self);
 
 // ---------------------------------------------------------------------------------------------
 // Shared parsing primitives

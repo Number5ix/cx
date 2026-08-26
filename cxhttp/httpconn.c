@@ -72,13 +72,84 @@ static HttpConn* enterConn(NetEvent* ev)
     return c ? objAcquire(c) : NULL;
 }
 
+static bool pumpBodyStream(HttpConn* self, HttpRequest* req);
+
+// ---------------------------------------------------------------------------------------------
+// Which thread we are on
+//
+// A request body may be fed from any thread the application likes, but writing it also touches the
+// socket, the request and the connection's own state, and all of that belongs to one worker at a
+// time. These are the same three helpers the server uses, for the same reason.
+// ---------------------------------------------------------------------------------------------
+
+static Thread* enterDispatch(HttpConn* c)
+{
+    Thread* prev = (Thread*)atomicLoad(ptr, &c->dispatchThread, Relaxed);
+    atomicStore(ptr, &c->dispatchThread, thrCurrent(), Release);
+    return prev;
+}
+
+static void leaveDispatch(HttpConn* c, Thread* prev)
+{
+    atomicStore(ptr, &c->dispatchThread, prev, Release);
+}
+
+// True when this thread is the one currently dispatching on the connection, and may therefore
+// touch its socket, parser and ring directly. Comparing against our own Thread is what makes a
+// stale read harmless: another thread's Thread is never ours, so a reader that loses the race
+// takes the handoff, which is always correct.
+static bool onDispatchThread(HttpConn* c)
+{
+    return atomicLoad(ptr, &c->dispatchThread, Acquire) == thrCurrent();
+}
+
+// Ask a worker to come and move this connection along. A zero-delay flow timer is the handoff:
+// NET_Timer arrives on a worker, ordered behind everything already pending for this connection, so
+// what it does cannot overtake an event the application has not seen yet.
+static bool handoffToWorker(HttpConn* c)
+{
+    NetFlow* flow = c->sock ? c->sock->flow : NULL;
+    if (!flow)
+        return false;
+
+    atomicStore(uint32, &c->pumpPending, 1, Release);
+    if (netflowAddTimer(flow, 0, NTF_None) == 0) {
+        // The flow is already dying, so no worker is coming.
+        atomicStore(uint32, &c->pumpPending, 0, Relaxed);
+        return false;
+    }
+    return true;
+}
+
+_Use_decl_annotations_
+void _httpReqBodyNotify(StreamBuffer* sb, size_t sz, void* ctx)
+{
+    unused_noeval(sb);
+    unused_noeval(sz);
+
+    HttpRequest* req = (HttpRequest*)ctx;
+    HttpConn* self   = req ? req->bodyConn : NULL;
+    if (!self || !self->writing)
+        return;
+
+    // The producer may be on any thread, so this takes the same fork the server's response body
+    // does: write here if this is already the connection's worker, otherwise ask one to.
+    if (onDispatchThread(self))
+        pumpBodyStream(self, req);
+    else
+        handoffToWorker(self);
+}
+
 static void onNetRecv(NetEvent* ev)
 {
     HttpConn* c = enterConn(ev);
     if (!c)
         return;
 
+    Thread* prev = enterDispatch(c);
     httpconn_pump(c);
+    leaveDispatch(c, prev);
+
     objRelease(&c);
 }
 
@@ -158,12 +229,17 @@ static void onNetTimer(NetEvent* ev)
     } else if (ev->timer.id == c->idleTimer) {
         c->idleTimer = 0;
         httpconnClose(c);
+    } else if (atomicExchange(uint32, &c->pumpPending, 0, AcqRel)) {
+        // A producer on another thread fed the request body and asked for a worker. This is that
+        // worker; the connection's own state says what is left to write.
+        Thread* prev = enterDispatch(c);
+        if (c->writing && c->req)
+            pumpBodyStream(c, c->req);
+        leaveDispatch(c, prev);
     }
 
     objRelease(&c);
 }
-
-static bool pumpBodyStream(HttpConn* self, HttpRequest* req);
 
 // The socket's backlog drained below its low watermark, so a request body that stopped against the
 // high one can carry on. Without this a streamed body larger than the send buffer stops for good:
@@ -175,8 +251,10 @@ static void onNetSendReady(NetEvent* ev)
     if (!c)
         return;
 
-    if (c->writing && c->req && c->req->reqBodyStream)
+    Thread* prev = enterDispatch(c);
+    if (c->writing && c->req)
         pumpBodyStream(c, c->req);
+    leaveDispatch(c, prev);
 
     objRelease(&c);
 }
@@ -332,8 +410,8 @@ static bool buildHead(HttpConn* self, HttpRequest* req, string* out)
     // Framing, derived from the body rather than taken on trust.
     if (req->reqBodyStream && req->reqBodyLen < 0) {
         strAppend(out, _SL("Transfer-Encoding: chunked\r\n"));
-    } else if (req->reqBodyStream || strLen(req->reqBody) > 0) {
-        uint64 len = req->reqBodyStream ? (uint64)req->reqBodyLen : (uint64)strLen(req->reqBody);
+    } else if (req->reqBodyStream) {
+        uint64 len = (uint64)req->reqBodyLen;
         string n   = 0;
         strFromUInt64(&n, len, 10);
         strAppend(out, _SL("Content-Length: "));
@@ -358,64 +436,104 @@ static bool sendStr(HttpConn* self, strhandle s)
     return netsocketSend(self->sock, (uint8*)strPC(s), len, NULL, 0);
 }
 
-// Push whatever the request body's StreamBuffer currently holds onto the socket, encoding it as
-// chunks when the length was not known up front. Returns false on a fatal send failure.
+// Hand one slice of the request body to the socket, straight out of the stream buffer's own
+// storage. Runs with the buffer's lock held, so it must not touch the buffer at all.
+static bool bodySendCB(_Pre_valid_ StreamBuffer* sb, _In_reads_bytes_(sz) const uint8* buf,
+                       size_t off, size_t sz, _Pre_opt_valid_ void* ctx)
+{
+    unused_noeval(sb);
+    unused_noeval(off);
+
+    HttpRequest* req = (HttpRequest*)ctx;
+    HttpConn* self   = req ? req->bodyConn : NULL;
+
+    // Always retain, and let the pump consume exactly what went out. One sbufCSend() can walk
+    // several ring segments and the ring consumes either all of them or none, so a socket that
+    // takes the first and refuses the second would otherwise have to choose between sending those
+    // bytes twice and losing them.
+    if (!self || sz == 0 || req->bodyRefused)
+        return false;
+
+    bool ok;
+    if (req->reqBodyLen < 0) {
+        string enc = 0;
+        httpChunkAppend(&enc, buf, sz);
+        ok = sendStr(self, &enc);
+        strDestroy(&enc);
+    } else {
+        ok = netsocketSend(self->sock, (uint8*)buf, sz, NULL, 0);
+    }
+
+    if (ok)
+        req->bodySent += sz;
+    else
+        req->bodyRefused = true;
+
+    return false;
+}
+
+// Push as much of the request body onto the socket as it will take, encoding it as chunks when the
+// length was not known up front. Nothing leaves the stream buffer until the socket has accepted it,
+// so a refusal costs a retry and never a byte. Returns false on a fatal send failure.
 static bool pumpBodyStream(HttpConn* self, HttpRequest* req)
 {
-    uint8 buf[HTTPCONN_READ_CHUNK];
+    StreamBuffer* sb = req->reqBodyStream;
 
-    for (;;) {
-        size_t avail = sbufCAvail(req->reqBodyStream);
-        if (avail == 0)
-            break;
-
-        size_t want = min(avail, sizeof(buf));
-        if (!sbufCFeed(req->reqBodyStream, want))
-            break;
-
-        size_t n = min(sbufCAvail(req->reqBodyStream), sizeof(buf));
-        if (n == 0)
-            break;
-
-        // Read out of the stream buffer's ring directly; there is no public read-into-buffer call,
-        // so this reaches for the ring the same way the streambuf adapters do.
-        n = bufringRead(&req->reqBodyStream->buf, buf, n);
-        if (n == 0)
-            break;
-
-        bool ok;
-        if (req->reqBodyLen < 0) {
-            string enc = 0;
-            httpChunkAppend(&enc, buf, n);
-            ok = sendStr(self, &enc);
-            strDestroy(&enc);
-        } else {
-            ok = netsocketSend(self->sock, buf, n, NULL, 0);
+    while (sb) {
+        // How much to ask for is the one place the two buffer modes differ. A pull-mode buffer is
+        // asked for a full slice and calls its producer to satisfy it, short-reading only at the
+        // end of the body. A push-mode buffer holds whatever has been written so far and fails a
+        // read larger than that, so it has to be asked for exactly what it has.
+        size_t want = HTTPCONN_READ_CHUNK;
+        if (!sbufIsPull(sb)) {
+            want = min(sbufCAvail(sb), (size_t)HTTPCONN_READ_CHUNK);
+            if (want == 0)
+                break;
         }
+
+        req->bodySent    = 0;
+        req->bodyRefused = false;
+
+        if (!sbufCSend(sb, bodySendCB, want))
+            break;
+
+        if (req->bodySent > 0)
+            sbufCSkip(sb, req->bodySent);
 
         // A refused send is backpressure, not an error -- and on a TLS connection mid-handshake it
         // is the normal answer, because staged filter bytes count toward the watermark. Stop here
         // and resume when NET_SendReady says the backlog drained.
-        if (!ok)
+        if (req->bodyRefused)
             return true;
+
+        if (req->bodySent == 0)
+            break;
     }
 
-    if (sbufIsPFinished(req->reqBodyStream)) {
-        if (req->reqBodyLen < 0) {
-            string fin = 0;
-            httpChunkFinish(&fin);
-            sendStr(self, &fin);
-            strDestroy(&fin);
-        }
-        self->writing = false;
+    if (sb) {
+        if (!sbufIsPFinished(sb) || sbufCAvail(sb) > 0)
+            return true;   // more to come; the producer's next write wakes us through the notify
 
         // The body is spent, so give the producer's side the end-of-consumption it is waiting for
         // -- a file being uploaded closes here rather than when the request object happens to go
         // away. sbufCFinish() returns our reference with it, hence the NULL.
-        sbufCFinish(req->reqBodyStream);
+        sbufCFinish(sb);
         req->reqBodyStream = NULL;
     }
 
+    // The terminator is the last thing on the wire for a chunked body, so it is retried on the next
+    // NET_SendReady like everything else rather than being dropped when the socket is full.
+    if (req->reqBodyLen < 0) {
+        string fin = 0;
+        httpChunkFinish(&fin);
+        bool ok = sendStr(self, &fin);
+        strDestroy(&fin);
+        if (!ok)
+            return true;
+    }
+
+    self->writing = false;
+    req->bodyConn = NULL;
     return true;
 }
 
@@ -450,6 +568,12 @@ bool HttpConn_request(_In_ HttpConn* self, _In_ HttpRequest* req,
         self->parser->limits.maxBodyBytes = def.maxBodyBytes;
     }
 
+    // Before the head, because the head's framing is derived from the body that is actually armed.
+    if (!_httpReqArmBody(req)) {
+        self->req = NULL;
+        return false;
+    }
+
     string head = 0;
     if (!buildHead(self, req, &head)) {
         strDestroy(&head);
@@ -476,10 +600,15 @@ bool HttpConn_request(_In_ HttpConn* self, _In_ HttpRequest* req,
 
     if (req->reqBodyStream) {
         self->writing = true;
-        return pumpBodyStream(self, req);
-    }
+        req->bodyConn = self;
 
-    sendStr(self, &req->reqBody);
+        // The caller may be any thread at all, and a push-mode producer's notify has to be able to
+        // tell whether it is this one.
+        Thread* prev = enterDispatch(self);
+        bool sent    = pumpBodyStream(self, req);
+        leaveDispatch(self, prev);
+        return sent;
+    }
 
     return true;
 }
@@ -545,6 +674,9 @@ void HttpConn__deliver(_In_ HttpConn* self, HttpEventType type, HttpError err)
                 sbufPFinish(self->req->respSink);
                 self->req->respSink = NULL;
             }
+            // Whatever state the body write was in, this connection is not going to finish it.
+            self->req->bodyConn = NULL;
+
             self->req->err = err;
             httpHeadersClear(&self->req->respHeaders);
             for (int32 i = 0; i < httpHeadersCount(&self->parser->headers); i++) {

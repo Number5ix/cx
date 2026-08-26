@@ -458,54 +458,98 @@ static void finishResponse(HttpServerConn* self, bool ok)
     httpsrvconn_pump(self);
 }
 
+// Hand one slice of the response body to the socket, straight out of the stream buffer's own
+// storage. Runs with the buffer's lock held, so it must not touch the buffer at all.
+static bool respSendCB(_Pre_valid_ StreamBuffer* sb, _In_reads_bytes_(sz) const uint8* buf,
+                       size_t off, size_t sz, _Pre_opt_valid_ void* ctx)
+{
+    unused_noeval(sb);
+    unused_noeval(off);
+
+    HttpServerConn* self   = (HttpServerConn*)ctx;
+    HttpServerRequest* req = self ? self->req : NULL;
+
+    // Always retain, and let the pump consume exactly what went out. One sbufCSend() can walk
+    // several ring segments and the ring consumes either all of them or none, so a socket that
+    // takes the first and refuses the second would otherwise have to choose between sending those
+    // bytes twice and losing them.
+    if (!req || sz == 0 || self->bodyRefused)
+        return false;
+
+    bool ok;
+    if (req->respStreamLen < 0) {
+        string enc = 0;
+        httpChunkAppend(&enc, buf, sz);
+        ok = sendStr(self, &enc);
+        strDestroy(&enc);
+    } else {
+        ok = netsocketSend(self->sock, (uint8*)buf, sz, NULL, 0);
+    }
+
+    if (ok)
+        self->bodySent += sz;
+    else
+        self->bodyRefused = true;
+
+    return false;
+}
+
 void HttpServerConn__pumpRespBody(_In_ HttpServerConn* self)
 {
     HttpServerRequest* req = self->req;
-    if (self->failed || !req || !req->respStream)
+    if (self->failed || !req)
         return;
 
-    uint8 buf[HTTPSRV_READ_CHUNK];
+    StreamBuffer* sb = req->respStream;
 
-    for (;;) {
+    while (sb) {
         // How much to ask for is the one place the two buffer modes differ. A pull-mode buffer is
         // asked for a full read and calls its producer to satisfy it, short-reading only at the end
         // of the body. A push-mode buffer holds whatever has been written so far and *fails* a read
         // larger than that -- so it has to be asked for exactly what it has.
-        size_t want = sizeof(buf);
-        if (!sbufIsPull(req->respStream)) {
-            want = min(sbufCAvail(req->respStream), sizeof(buf));
+        size_t want = HTTPSRV_READ_CHUNK;
+        if (!sbufIsPull(sb)) {
+            want = min(sbufCAvail(sb), (size_t)HTTPSRV_READ_CHUNK);
             if (want == 0)
                 break;
         }
 
-        size_t got = 0;
-        if (!sbufCRead(req->respStream, buf, want, &got) || got == 0)
+        self->bodySent    = 0;
+        self->bodyRefused = false;
+
+        if (!sbufCSend(sb, respSendCB, want))
             break;
 
-        bool ok;
-        if (req->respStreamLen < 0) {
-            string enc = 0;
-            httpChunkAppend(&enc, buf, got);
-            ok = sendStr(self, &enc);
-            strDestroy(&enc);
-        } else {
-            ok = netsocketSend(self->sock, buf, got, NULL, 0);
-        }
+        if (self->bodySent > 0)
+            sbufCSkip(sb, self->bodySent);
 
         // A refused send is backpressure, not a failure. Stop here and let NET_SendReady start this
-        // up again once the socket's backlog has drained.
-        if (!ok)
+        // up again once the socket's backlog has drained. Nothing has left the stream buffer that
+        // the socket did not take, so the retry picks up exactly where this left off.
+        if (self->bodyRefused)
             return;
+
+        if (self->bodySent == 0)
+            break;
     }
 
-    if (!sbufIsPFinished(req->respStream))
-        return;   // the producer has more to come; its next write wakes us through the notify
+    if (sb) {
+        if (!sbufIsPFinished(sb) || sbufCAvail(sb) > 0)
+            return;   // the producer has more to come; its next write wakes us through the notify
 
+        sbufCFinish(sb);
+        req->respStream = NULL;
+    }
+
+    // The terminator is the last thing on the wire for a chunked body, so it is retried on the next
+    // NET_SendReady like everything else rather than being dropped when the socket is full.
     if (req->respStreamLen < 0) {
         string fin = 0;
         httpChunkFinish(&fin);
-        sendStr(self, &fin);
+        bool ok = sendStr(self, &fin);
         strDestroy(&fin);
+        if (!ok)
+            return;
     }
 
     finishResponse(self, true);
@@ -537,9 +581,30 @@ static void respStreamNotify(StreamBuffer* sb, size_t sz, void* ctx)
 static bool adoptRespStream(HttpServerConn* self, HttpServerRequest* req)
 {
     if (sbufIsPull(req->respStream))
-        return sbufCRegisterPull(req->respStream, NULL, NULL);
+        return sbufCRegisterPull(req->respStream, NULL, self);
 
     return sbufCRegisterPush(req->respStream, respStreamNotify, NULL, self);
+}
+
+// Wrap a response body the application handed over as a string in a stream buffer of its own, so
+// there is one kind of body to write and one place a refused send is handled. Pull mode: the text
+// is already resident, so there is nothing to gain from copying it into the ring before the socket
+// is ready for it, and the adapter holds its own reference to it.
+static bool armRespBody(HttpServerRequest* req)
+{
+    StreamBuffer* sb = sbufCreate(HTTP_BODY_CHUNK);
+    if (!sbufStrPRegisterPull(sb, req->respBody)) {
+        sbufRelease(&sb);
+        return false;
+    }
+
+    req->respStream    = sb;
+    req->respStreamLen = (int64)strLen(req->respBody);
+
+    // The consumer registration adoptRespStream() is about to take, plus the producer's, are what
+    // keep the buffer alive from here on, so this hands back the one sbufCreate() started with.
+    sbufRelease(&sb);
+    return true;
 }
 
 bool HttpServerConn__respond(_In_ HttpServerConn* self, _In_ HttpServerRequest* req)
@@ -584,6 +649,14 @@ bool HttpServerConn__respond(_In_ HttpServerConn* self, _In_ HttpServerRequest* 
     // already written is the length the body would have had. That is what the RFC asks for.
     bool wantBody = req->method != HTTP_Head && !_httpStatusHasNoBody(req->status);
 
+    // A body the application set as a string becomes a stream like every other body, but only once
+    // the head is out: buildHead() takes the Content-Length from respBody, and a HEAD wants that
+    // length without the bytes.
+    if (ok && wantBody && !req->respStream && !strEmpty(req->respBody) && !armRespBody(req)) {
+        finishResponse(self, false);
+        return false;
+    }
+
     if (ok && wantBody && req->respStream) {
         if (!adoptRespStream(self, req)) {
             req->respStream = NULL;
@@ -598,9 +671,6 @@ bool HttpServerConn__respond(_In_ HttpServerConn* self, _In_ HttpServerRequest* 
         httpsrvconn_pumpRespBody(self);
         return true;
     }
-
-    if (ok && wantBody)
-        sendStr(self, &req->respBody);
 
     finishResponse(self, ok);
     return ok;

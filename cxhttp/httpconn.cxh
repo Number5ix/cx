@@ -91,6 +91,12 @@ class HttpConn
     /// @brief Flow timer reaping this connection if it stays idle, or 0
     NetTimerId idleTimer;
 
+    // Thread currently dispatching on this connection, and a flag saying a zero-delay flow timer
+    // was armed to fetch one. Both exist for the same reason the server's do: a request body may
+    // be fed from any thread, and everything that moves the connection along belongs to a worker.
+    atomic[ptr] dispatchThread;
+    atomic[uint32] pumpPending;
+
     /// Create a connection over an already-connected socket
     ///
     /// The socket must already be connected, and any TLS filter must already be attached -- an

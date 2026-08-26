@@ -66,6 +66,12 @@ class HttpServer;
     /// @brief A response composed on another thread is waiting for a worker to write it
     atomic[uint32] respondPending;
 
+    // Running result of one pass of the response body pump. Owned by whichever worker is inside
+    // _pumpRespBody(); the response body's StreamBuffer carries this connection as its consumer
+    // context, and this is how the send callback reports back to the loop that drives it.
+    size_t bodySent;
+    bool bodyRefused;
+
     /// @brief _pump() is running on this connection
     ///
     /// Responding from inside the request handler re-enters _pump() through _respond(). The guard

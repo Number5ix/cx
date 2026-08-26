@@ -274,12 +274,7 @@ static bool applyRedirect(HttpClient* self, HttpRequest* req)
          req->method == HTTP_Post)) {
         req->method = HTTP_Get;
         strDestroy(&req->methodName);
-        strDestroy(&req->reqBody);
-        req->reqBodyLen = 0;
-        if (req->reqBodyStream) {
-            sbufCFinish(req->reqBodyStream);
-            req->reqBodyStream = NULL;
-        }
+        httprequestSetBody(req, NULL, NULL);
         httpHeadersRemove(&req->reqHeaders, _SL("Content-Type"));
         httpHeadersRemove(&req->reqHeaders, _SL("Content-Length"));
     }
@@ -291,9 +286,10 @@ static bool applyRedirect(HttpClient* self, HttpRequest* req)
         httpHeadersRemove(&req->reqHeaders, _SL("Cookie"));
     }
 
-    // A body that has already been consumed cannot be sent a second time: the producer's bytes are
-    // gone. Failing is honest; silently sending an empty body would not be.
-    if (req->reqBodyStream) {
+    // A body the caller is streaming cannot be sent a second time: those bytes belong to its
+    // producer and are gone. Failing is honest; silently sending an empty body would not be. A body
+    // that is resident here is fine -- the next hop builds a fresh stream over the same bytes.
+    if (req->reqBodyExternal) {
         httpUrlDestroy(&next);
         failExchange(self, req, HTTPERR_BadMessage, NERR_None);
         return false;

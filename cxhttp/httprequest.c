@@ -74,6 +74,8 @@ void HttpRequest_destroy(_In_ HttpRequest* self)
         sbufCFinish(self->reqBodyStream);
         self->reqBodyStream = NULL;
     }
+    if (self->reqBodyOwn)
+        bufDestroy(&self->reqBodyBuf);
     if (self->respSink) {
         sbufPFinish(self->respSink);
         self->respSink = NULL;
@@ -81,6 +83,7 @@ void HttpRequest_destroy(_In_ HttpRequest* self)
     // Autogen begins -----
     strDestroy(&self->methodName);
     strDestroy(&self->reqBody);
+    bufDestroy(&self->reqBodyBuf);
     strDestroy(&self->reason);
     strDestroy(&self->respBody);
     objRelease(&self->conn);
@@ -114,42 +117,124 @@ bool HttpRequest_addHeader(_In_ HttpRequest* self, _In_opt_ strref name, _In_opt
     return httpHeadersAdd(&self->reqHeaders, name, value);
 }
 
-// Shared tail of the three body setters: record the content type, if one was given.
+// Shared tail of the body setters: record the content type, if one was given.
 static void setContentType(HttpRequest* self, strref contentType)
 {
     if (!strEmpty(contentType))
         httpHeadersSet(&self->reqHeaders, _SL("Content-Type"), contentType);
 }
 
-// Clear whatever body was set before, so two setters in a row cannot leave both a resident body and
-// a stream armed -- the writer would then have to guess which one the caller meant.
+// Clear whatever body was set before, so two setters in a row cannot leave two bodies armed -- the
+// writer would then have to guess which one the caller meant.
 static void clearBody(HttpRequest* self)
 {
-    strDestroy(&self->reqBody);
     if (self->reqBodyStream) {
         sbufCFinish(self->reqBodyStream);
         self->reqBodyStream = NULL;
     }
-    self->reqBodyLen = 0;
+
+    strDestroy(&self->reqBody);
+    if (self->reqBodyOwn)
+        bufDestroy(&self->reqBodyBuf);
+    self->reqBodyBuf      = NULL;
+    self->reqBodyOwn      = false;
+    self->reqBodyExternal = false;
+
+    self->reqBodyLen  = 0;
+    self->bodyConn    = NULL;
+    self->bodySent    = 0;
+    self->bodyRefused = false;
+}
+
+// Take the consumer side of a body buffer, whichever mode its producer registered in. Push mode
+// exists so that a producer feeding the body from another thread -- an upload thread, or an
+// sbufFileIn() -- reaches the connection through the notify rather than being waited on.
+static bool adoptBody(HttpRequest* self, StreamBuffer* sb)
+{
+    if (sbufIsPull(sb))
+        return sbufCRegisterPull(sb, NULL, self);
+
+    return sbufCRegisterPush(sb, _httpReqBodyNotify, NULL, self);
+}
+
+_Use_decl_annotations_
+bool _httpReqArmBody(HttpRequest* self)
+{
+    if (self->reqBodyStream)
+        return true;   // already armed, or the caller's own stream
+
+    if (!self->reqBodyBuf && strEmpty(self->reqBody))
+        return true;   // no body to send
+
+    // Pull mode throughout: the bytes are already resident, so there is nothing to gain from
+    // copying them into the ring before the socket is ready for them. Both adapters keep their own
+    // hold on the data, and the request keeps the original either way, so a redirect can build a
+    // second stream over the same bytes once this one has been drained.
+    StreamBuffer* sb = sbufCreate(HTTP_BODY_CHUNK);
+
+    bool ok;
+    if (self->reqBodyBuf)
+        ok = sbufBufPRegisterPull(sb, self->reqBodyBuf, false);
+    else
+        ok = sbufStrPRegisterPull(sb, self->reqBody);
+
+    if (ok) {
+        ok = adoptBody(self, sb);
+        if (ok)
+            self->reqBodyStream = sb;
+        else
+            sbufPFinish(sb);   // hand back the producer registration's reference
+    }
+
+    // The two registrations are what keep the buffer alive from here on, so the reference
+    // sbufCreate() started with goes back either way.
+    sbufRelease(&sb);
+    return ok;
 }
 
 bool HttpRequest_setBody(_In_ HttpRequest* self, _In_opt_ strref body, _In_opt_ strref contentType)
 {
     clearBody(self);
+    setContentType(self, contentType);
+
     strDup(&self->reqBody, body);
     self->reqBodyLen = (int64)strLen(self->reqBody);
-    setContentType(self, contentType);
     return true;
 }
 
 bool HttpRequest_setBodyBytes(_In_ HttpRequest* self, _In_ uint8* data, size_t len,
                               _In_opt_ strref contentType)
 {
+    if (!data || len == 0) {
+        clearBody(self);
+        setContentType(self, contentType);
+        return true;
+    }
+
+    // A body-sized allocation is the caller's size rather than ours, so it fails rather than
+    // aborting the process.
+    Buffer buf = bufTryCreate(len);
+    if (!buf)
+        return false;
+
+    memcpy(buf->data, data, len);
+    buf->len = len;
+
+    return httprequestSetBodyBuffer(self, buf, true, contentType);
+}
+
+bool HttpRequest_setBodyBuffer(_In_ HttpRequest* self, _In_ Buffer buf, bool own,
+                               _In_opt_ strref contentType)
+{
     clearBody(self);
-    if (data && len > 0)
-        _httpAppendBytes(&self->reqBody, data, len);
-    self->reqBodyLen = (int64)len;
     setContentType(self, contentType);
+
+    if (!buf)
+        return true;
+
+    self->reqBodyBuf = buf;
+    self->reqBodyOwn = own;
+    self->reqBodyLen = (int64)buf->len;
     return true;
 }
 
@@ -164,11 +249,12 @@ bool HttpRequest_setBodyStream(_In_ HttpRequest* self, _In_ StreamBuffer* sb, in
     // cxhttp is the consumer of this buffer; the caller registered the producer. Registering here
     // rather than at send time means a caller that never sends still leaves the buffer in a
     // consistent state when the request is released.
-    if (!sbufCRegisterPull(sb, NULL, NULL))
+    if (!adoptBody(self, sb))
         return false;
 
-    self->reqBodyStream = sb;
-    self->reqBodyLen    = len;   // < 0 means chunked: the length is not known up front
+    self->reqBodyStream   = sb;
+    self->reqBodyLen      = len;   // < 0 means chunked: the length is not known up front
+    self->reqBodyExternal = true;
     setContentType(self, contentType);
     return true;
 }
