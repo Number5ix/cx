@@ -43,11 +43,31 @@
 ///   }
 ///   sbufCFinish(sb);
 /// @endcode
+///
+/// **Threads:** A stream buffer is single-threaded by default. The producer and the consumer are
+/// expected to run on the same thread, taking turns through the callbacks. Pass SBUF_Locked to
+/// sbufCreate() when they must live on different threads; that adds a lock around every operation
+/// and is the only supported way to share a stream buffer.
+///
+/// **Flow control:** By default the buffer grows without limit, so a producer that outruns its
+/// consumer will use as much memory as it writes. Call sbufSetWatermark() to cap it. Once the
+/// buffered data reaches the high mark the producer is held until the consumer drains it back down
+/// to the low mark. A producer registered with SBUF_PBlock waits inside sbufPWrite() until that
+/// happens; otherwise sbufPWrite() returns false right away and the resume callback set with
+/// sbufPSetResume() says when to try again.
+///
+/// @code
+///   StreamBuffer *sb = sbufCreate(4096, SBUF_Locked);
+///   sbufSetWatermark(sb, 65536, 16384);
+///   sbufPRegisterPush(sb, NULL, NULL, SBUF_PBlock);   // sbufPWrite() waits at the mark
+/// @endcode
 
 #pragma once
 
 #include <cx/buffer/bufring.h>
 #include <cx/stype/stype.h>
+#include <cx/thread/condvar.h>
+#include <cx/thread/mutex.h>
 
 CX_C_BEGIN
 
@@ -92,6 +112,12 @@ typedef bool (*sbufSendCB)(_Pre_valid_ StreamBuffer* sb, _In_reads_bytes_(sz) co
 // If sz is 0, check if the producer is finished and/or for error state.
 typedef void (*sbufNotifyCB)(_Pre_valid_ StreamBuffer* sb, size_t sz, _Pre_opt_valid_ void* ctx);
 
+// Resume callback
+// Tells a producer that was refused at the high watermark that the buffer has drained back to
+// the low mark and writing may continue. Called on whichever thread drained the buffer, with the
+// buffer's lock held, so it may call sbufPWrite() but must not block.
+typedef void (*sbufResumeCB)(_Pre_valid_ StreamBuffer* sb, _Pre_opt_valid_ void* ctx);
+
 // Cleanup callback
 // Called just before the structure is deallocated, should perform any needed
 // cleanup of the user-supplied ctx.
@@ -123,6 +149,26 @@ enum STREAM_BUFFER_FLAGS_ENUM {
     SBUF_Producer_Done       = 0x4000,
     SBUF_Consumer_Done       = 0x8000,
 };
+/// @endcond
+
+/// Optional flags for sbufCreate() and sbufPRegisterPush()
+enum STREAM_BUFFER_OPT_FLAGS {
+    /// sbufCreate(): guard the buffer with a lock so the producer and the consumer may run on
+    /// different threads. Without it a stream buffer must only ever be touched by one thread.
+    SBUF_Locked = 0x0004,
+
+    /// sbufPRegisterPush(): wait inside sbufPWrite() when the buffer is full instead of returning
+    /// false. Requires SBUF_Locked, since the thread that has to drain the buffer cannot be the
+    /// one that is waiting on it.
+    SBUF_PBlock = 0x0008,
+};
+
+/// @cond IGNORE
+// Internal state, not for callers.
+enum STREAM_BUFFER_STATE_ENUM {
+    SBUF_PHeld       = 0x0020,   // producer is held at the high watermark
+    SBUF_PResumeOwed = 0x0040,   // a write was refused; owe the producer a resume callback
+};
 
 /// Stream buffer structure for managing producer-consumer data flow
 typedef struct StreamBuffer {
@@ -130,6 +176,7 @@ typedef struct StreamBuffer {
     size_t targetsz;                 ///< Buffer size that producers should aim for
 
     sbufPullCB producerPull;         ///< Producer pull callback
+    sbufResumeCB producerResume;     ///< Producer resume callback
     sbufCleanupCB producerCleanup;   ///< Producer cleanup callback
     void* producerCtx;               ///< Producer context
 
@@ -138,12 +185,25 @@ typedef struct StreamBuffer {
     sbufCleanupCB consumerCleanup;   ///< Consumer cleanup callback
     void* consumerCtx;               ///< Consumer context
 
+    size_t high;                     ///< Hold the producer at this much buffered data (0 = never)
+    size_t low;                      ///< Release the producer once drained back to this much
+
+    Mutex lock;                      ///< Guards everything here; only used when SBUF_Locked
+    CondVar drained;                 ///< Parks a producer that is waiting out the high watermark
+    atomic(intptr) owner;            ///< thrCurrentOSThreadID() of the lock holder; 0 == free
+    uint32 depth;                    ///< Lock recursion depth; owner-only, valid while locked
+
     int refcount;                    ///< Reference count for lifecycle management
-    uint32 flags;                    ///< Operating mode and state flags
+    bool locked;                     ///< Copy of SBUF_Locked; never changes after creation
+    bool resumePending;              ///< Producer resume callback is owed once the lock is gone
+    atomic(uint32) flags;            ///< Operating mode and state flags
 } StreamBuffer;
 /// @endcond
 
-/// StreamBuffer *sbufCreate(size_t targetsz)
+// Internal function - use sbufCreate() macro instead
+_Ret_valid_ StreamBuffer* _sbufCreate(size_t targetsz, flags_t flags);
+
+/// StreamBuffer *sbufCreate(size_t targetsz, [flags])
 ///
 /// Creates a new stream buffer with the specified target size.
 ///
@@ -151,6 +211,7 @@ typedef struct StreamBuffer {
 /// Set targetsz to 0 only when using direct push mode (no buffering needed).
 ///
 /// @param targetsz Target buffer size in bytes (0 for direct mode)
+/// @param ... (flags) Pass SBUF_Locked if the producer and consumer run on different threads
 /// @return New stream buffer (must be released with sbufRelease)
 ///
 /// Example:
@@ -159,7 +220,7 @@ typedef struct StreamBuffer {
 ///   // ... register producer and consumer ...
 ///   sbufRelease(&sb);
 /// @endcode
-_Ret_valid_ StreamBuffer* sbufCreate(size_t targetsz);
+#define sbufCreate(targetsz, ...) _sbufCreate(targetsz, opt_flags(__VA_ARGS__))
 
 /// void sbufRelease(StreamBuffer **sb)
 ///
@@ -181,6 +242,34 @@ _At_(*sb, _Pre_maybenull_ _Post_null_) void sbufRelease(_Inout_ StreamBuffer** s
 /// @param sb The stream buffer
 void sbufError(_Inout_ StreamBuffer* sb);
 
+/// Sets the flow control watermarks.
+///
+/// Once the amount of buffered data reaches high, the producer is held until the consumer drains
+/// it back down to low. Held means either waiting inside sbufPWrite() or being refused by it,
+/// depending on how the producer registered. Both marks default to 0, which lets the buffer grow
+/// without limit.
+///
+/// @param sb The stream buffer
+/// @param high Amount of buffered data that holds the producer (0 turns flow control off)
+/// @param low Amount to drain back down to before releasing it (0 uses half of high)
+///
+/// Example:
+/// @code
+///   sbufSetWatermark(sb, 65536, 16384);
+/// @endcode
+void sbufSetWatermark(_Inout_ StreamBuffer* sb, size_t high, size_t low);
+
+/// bool sbufIsLocked(StreamBuffer *sb)
+///
+/// Checks whether the buffer was created with SBUF_Locked.
+///
+/// @param sb The stream buffer
+/// @return true if the buffer may be used from more than one thread
+_meta_inline bool sbufIsLocked(_In_ StreamBuffer* sb)
+{
+    return sb->locked;
+}
+
 /// bool sbufIsPull(StreamBuffer *sb)
 ///
 /// Checks if the stream buffer is in pull mode.
@@ -189,7 +278,7 @@ void sbufError(_Inout_ StreamBuffer* sb);
 /// @return true if in pull mode
 _meta_inline bool sbufIsPull(_In_ StreamBuffer* sb)
 {
-    return sb->flags & SBUF_Pull;
+    return (atomicLoad(uint32, &sb->flags, Relaxed) & SBUF_Pull) != 0;
 }
 
 /// bool sbufIsPush(StreamBuffer *sb)
@@ -200,7 +289,7 @@ _meta_inline bool sbufIsPull(_In_ StreamBuffer* sb)
 /// @return true if in push mode
 _meta_inline bool sbufIsPush(_In_ StreamBuffer* sb)
 {
-    return sb->flags & SBUF_Push;
+    return (atomicLoad(uint32, &sb->flags, Relaxed) & SBUF_Push) != 0;
 }
 
 /// bool sbufIsError(StreamBuffer *sb)
@@ -211,7 +300,7 @@ _meta_inline bool sbufIsPush(_In_ StreamBuffer* sb)
 /// @return true if in error state
 _meta_inline bool sbufIsError(_In_ StreamBuffer* sb)
 {
-    return sb->flags & SBUF_Error;
+    return (atomicLoad(uint32, &sb->flags, Relaxed) & SBUF_Error) != 0;
 }
 
 /// bool sbufIsPFinished(StreamBuffer *sb)
@@ -222,7 +311,7 @@ _meta_inline bool sbufIsError(_In_ StreamBuffer* sb)
 /// @return true if producer has finished or error occurred
 _meta_inline bool sbufIsPFinished(_In_ StreamBuffer* sb)
 {
-    return (sb->flags & SBUF_Producer_Done) || sbufIsError(sb);
+    return (atomicLoad(uint32, &sb->flags, Relaxed) & (SBUF_Producer_Done | SBUF_Error)) != 0;
 }
 
 /// bool sbufIsCFinished(StreamBuffer *sb)
@@ -235,7 +324,7 @@ _meta_inline bool sbufIsPFinished(_In_ StreamBuffer* sb)
 /// @return true if consumer has finished or error occurred
 _meta_inline bool sbufIsCFinished(_In_ StreamBuffer* sb)
 {
-    return (sb->flags & SBUF_Consumer_Done) || sbufIsError(sb);
+    return (atomicLoad(uint32, &sb->flags, Relaxed) & (SBUF_Consumer_Done | SBUF_Error)) != 0;
 }
 
 /// @}  // end of serialize_streambuf_core
@@ -261,7 +350,11 @@ _meta_inline bool sbufIsCFinished(_In_ StreamBuffer* sb)
 _Check_return_ bool sbufPRegisterPull(_Inout_ StreamBuffer* sb, _In_ sbufPullCB ppull,
                                       _In_opt_ sbufCleanupCB pcleanup, _Inout_opt_ void* ctx);
 
-/// bool sbufPRegisterPush(StreamBuffer *sb, sbufCleanupCB pcleanup, void *ctx)
+// Internal function - use sbufPRegisterPush() macro instead
+_Check_return_ bool _sbufPRegisterPush(_Inout_ StreamBuffer* sb, _In_opt_ sbufCleanupCB pcleanup,
+                                       _Inout_opt_ void* ctx, flags_t flags);
+
+/// bool sbufPRegisterPush(StreamBuffer *sb, sbufCleanupCB pcleanup, void *ctx, [flags])
 ///
 /// Registers a producer with the stream buffer in push mode.
 ///
@@ -271,9 +364,34 @@ _Check_return_ bool sbufPRegisterPull(_Inout_ StreamBuffer* sb, _In_ sbufPullCB 
 /// @param sb The stream buffer
 /// @param pcleanup Optional cleanup callback for ctx
 /// @param ctx Optional user context passed to cleanup
+/// @param ... (flags) Pass SBUF_PBlock to wait at the watermark instead of being refused
 /// @return true on success, false if already registered or invalid mode
-_Check_return_ bool sbufPRegisterPush(_Inout_ StreamBuffer* sb, _In_opt_ sbufCleanupCB pcleanup,
-                                      _Inout_opt_ void* ctx);
+#define sbufPRegisterPush(sb, pcleanup, ctx, ...) \
+    _sbufPRegisterPush(sb, pcleanup, ctx, opt_flags(__VA_ARGS__))
+
+/// Sets the callback that tells the producer it may write again.
+///
+/// Only useful for a producer that did not register with SBUF_PBlock. When sbufPWrite() refuses a
+/// write because the buffer is full, this callback fires once the consumer has drained it back to
+/// the low mark. It is passed the same context the producer registered with.
+///
+/// @param sb The stream buffer
+/// @param resume Callback to invoke when writing may continue (NULL to remove)
+///
+/// Example:
+/// @code
+///   sbufPSetResume(sb, myResumeCallback);
+/// @endcode
+void sbufPSetResume(_Inout_ StreamBuffer* sb, _In_opt_ sbufResumeCB resume);
+
+/// Checks whether the producer is currently held at the high watermark.
+///
+/// Use this to tell why sbufPWrite() returned false: true here means the buffer is full and a
+/// resume callback is coming, false means the consumer is gone or the stream failed.
+///
+/// @param sb The stream buffer
+/// @return true if the buffer is full and writes are being refused
+bool sbufPIsHeld(_Inout_ StreamBuffer* sb);
 
 /// size_t sbufPAvail(StreamBuffer *sb)
 ///
@@ -281,7 +399,7 @@ _Check_return_ bool sbufPRegisterPush(_Inout_ StreamBuffer* sb, _In_opt_ sbufCle
 ///
 /// @param sb The stream buffer
 /// @return Number of bytes available for writing
-size_t sbufPAvail(_In_ StreamBuffer* sb);
+size_t sbufPAvail(_Inout_ StreamBuffer* sb);
 
 /// bool sbufPWrite(StreamBuffer *sb, const uint8 *buf, size_t sz)
 ///

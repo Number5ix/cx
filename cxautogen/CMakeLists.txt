@@ -99,6 +99,7 @@ set(CX_SRCS
     ../cx/string/stype_string.c
     ../cx/fs/path.c
     ../cx/fs/pathmatch.c
+    ../cx/thread/condvar.c
     ../cx/thread/mutex.c
     ../cx/thread/rwlock.c
     ../cx/thread/sema.c
