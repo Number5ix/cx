@@ -44,6 +44,9 @@ CX_C_BEGIN
 ///
 /// **IMPORTANT:** The stream buffer is invalidated after this call.
 ///
+/// If flow control is active (see sbufSetWatermark()), this waits for the consumer to make room
+/// rather than dropping data, so the consumer has to be draining the buffer from another thread.
+///
 /// @param sb The stream buffer (invalidated after call)
 /// @param file Filesystem file to read from (optionally closed based on close parameter)
 /// @param close If true, the file is closed after reading

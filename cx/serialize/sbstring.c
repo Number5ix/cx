@@ -1,4 +1,5 @@
 #include "sbstring.h"
+#include <cx/debug/assert.h>
 #include <cx/string.h>
 #include <cx/utils/compare.h>
 
@@ -21,20 +22,31 @@ bool sbufStrIn(StreamBuffer* sb, strref str)
 {
     striter si;
 
-    if (!sbufPRegisterPush(sb, NULL, NULL))
+    // This does not return until the source is exhausted, so waiting out the high watermark is the
+    // only way to honor flow control.
+    devAssertMsg(sb->high == 0 || sbufIsLocked(sb),
+                 "Flow control needs a stream buffer that can block the producer");
+
+    if (!sbufPRegisterPush(sb, NULL, NULL, sbufIsLocked(sb) ? SBUF_PBlock : 0))
         return false;
 
     striBorrow(&si, str);
 
+    // a buffer created for direct push mode has no target size, so it all goes in one write
+    size_t chunksz = sb->targetsz > 0 ? sb->targetsz : (size_t)-1;
+    bool ok        = true;
+
     // iterate entire string
-    while (si.len > 0) {
-        while (si.cursor < si.len) {
+    while (ok && si.len > 0) {
+        while (ok && si.cursor < si.len) {
             // push at most the target buffer size
-            uint32 nbytes = min(si.len - si.cursor, (uint32)sb->targetsz);
-            sbufPWrite(sb, si.bytes + si.cursor, nbytes);
-            si.cursor += nbytes;
+            uint32 nbytes = (uint32)min((size_t)(si.len - si.cursor), chunksz);
+            ok            = sbufPWrite(sb, si.bytes + si.cursor, nbytes);
+            if (ok)
+                si.cursor += nbytes;
         }
-        striNext(&si);
+        if (ok)
+            striNext(&si);
     }
 
     striFinish(&si);

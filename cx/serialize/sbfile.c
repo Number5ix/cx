@@ -1,4 +1,5 @@
 #include "sbfile.h"
+#include <cx/debug/assert.h>
 
 typedef struct SbufFileCtx {
     VFSFile* file;
@@ -16,7 +17,12 @@ static void sbufFileCleanup(_Pre_valid_ void* ctx)
 _Use_decl_annotations_
 bool sbufFileIn(StreamBuffer* sb, VFSFile* file, bool close)
 {
-    if (!sbufPRegisterPush(sb, NULL, NULL))
+    // This does not return until the source is exhausted, so waiting out the high watermark is the
+    // only way to honor flow control.
+    devAssertMsg(sb->high == 0 || sbufIsLocked(sb),
+                 "Flow control needs a stream buffer that can block the producer");
+
+    if (!sbufPRegisterPush(sb, NULL, NULL, sbufIsLocked(sb) ? SBUF_PBlock : 0))
         return false;
 
     uint8* buf     = xaAlloc(sb->targetsz);
@@ -30,7 +36,8 @@ bool sbufFileIn(StreamBuffer* sb, VFSFile* file, bool close)
         if (didread == 0)   // EOF
             break;
 
-        sbufPWrite(sb, buf, didread);
+        if (!sbufPWrite(sb, buf, didread))
+            break;
     }
     xaFree(buf);
 
