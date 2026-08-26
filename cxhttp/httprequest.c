@@ -49,6 +49,7 @@ _objinit_guaranteed bool HttpRequest_init(_In_ HttpRequest* self)
 {
     httpHeadersInit(&self->reqHeaders);
     httpHeadersInit(&self->respHeaders);
+    self->progressInterval = HTTP_PROGRESS_INTERVAL;
     return true;
     // Autogen begins -----
     mutexInit(&self->exLock);
@@ -317,6 +318,26 @@ bool HttpRequest_cancel(_In_ HttpRequest* self)
     // Claimed with neither in hand means the exchange is momentarily between transports, which a
     // redirect is. startExchange() checks the flag before it commits to the next hop.
     return claimed;
+}
+
+uint64 HttpRequest_sentBytes(_In_ HttpRequest* self)
+{
+    return (uint64)atomicLoad(uintptr, &self->progSent, Relaxed);
+}
+
+uint64 HttpRequest_recvBytes(_In_ HttpRequest* self)
+{
+    return (uint64)atomicLoad(uintptr, &self->progRecv, Relaxed);
+}
+
+int64 HttpRequest_sentTotal(_In_ HttpRequest* self)
+{
+    return (int64)atomicLoad(intptr, &self->progSendTotal, Relaxed);
+}
+
+int64 HttpRequest_recvTotal(_In_ HttpRequest* self)
+{
+    return (int64)atomicLoad(intptr, &self->progRecvTotal, Relaxed);
 }
 
 // Autogen begins -----

@@ -380,6 +380,13 @@ static void onExData(HttpEvent* ev)
         forward(ev, req->appHandlers->data);
 }
 
+static void onExProgress(HttpEvent* ev)
+{
+    HttpRequest* req = ev->request;
+    if (req->appHandlers)
+        forward(ev, req->appHandlers->progress);
+}
+
 static void onExComplete(HttpEvent* ev)
 {
     HttpRequest* req = ev->request;
@@ -416,6 +423,7 @@ static const HttpHandlers kExchangeHandlers = {
     .status   = onExStatus,
     .headers  = onExHeaders,
     .data     = onExData,
+    .progress = onExProgress,
     .complete = onExComplete,
     .error    = onExError,
 };
@@ -427,6 +435,7 @@ static const HttpHandlers kExchangeHandlers = {
 static const HttpHandlers kExchangeHandlersNoData = {
     .status   = onExStatus,
     .headers  = onExHeaders,
+    .progress = onExProgress,
     .complete = onExComplete,
     .error    = onExError,
 };

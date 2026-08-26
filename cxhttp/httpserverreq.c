@@ -42,7 +42,8 @@ _objinit_guaranteed bool HttpServerRequest_init(_In_ HttpServerRequest* self)
 {
     httpHeadersInit(&self->headers);
     httpHeadersInit(&self->respHeaders);
-    self->status = HTTP_OK;
+    self->status           = HTTP_OK;
+    self->progressInterval = HTTP_PROGRESS_INTERVAL;
     // Autogen begins -----
     return true;
     // Autogen ends -------
@@ -346,6 +347,26 @@ bool HttpServerRequest_sendContinue(_In_ HttpServerRequest* self)
     bool ok            = httpsrvconn_sendContinue(conn);
     objRelease(&conn);
     return ok;
+}
+
+uint64 HttpServerRequest_sentBytes(_In_ HttpServerRequest* self)
+{
+    return (uint64)atomicLoad(uintptr, &self->progSent, Relaxed);
+}
+
+uint64 HttpServerRequest_recvBytes(_In_ HttpServerRequest* self)
+{
+    return (uint64)atomicLoad(uintptr, &self->progRecv, Relaxed);
+}
+
+int64 HttpServerRequest_sentTotal(_In_ HttpServerRequest* self)
+{
+    return (int64)atomicLoad(intptr, &self->progSendTotal, Relaxed);
+}
+
+int64 HttpServerRequest_recvTotal(_In_ HttpServerRequest* self)
+{
+    return (int64)atomicLoad(intptr, &self->progRecvTotal, Relaxed);
 }
 
 // Autogen begins -----

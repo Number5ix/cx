@@ -238,6 +238,10 @@ void HttpServer__deliver(_In_ HttpServer* self, HttpServerEventType type, _In_op
     case HTTPSRVEV_Data:
         cb = self->handlers->data;
         break;
+    case HTTPSRVEV_Progress:
+        // Never routed through here -- _deliverProgress() fills in counts this has no way to know,
+        // and delivers it itself.
+        break;
     case HTTPSRVEV_Request:
         cb = self->handlers->request;
         break;
@@ -265,6 +269,25 @@ void HttpServer__deliver(_In_ HttpServer* self, HttpServerEventType type, _In_op
     cb(&ev);
 }
 
+void HttpServer__deliverProgress(_In_ HttpServer* self, _In_opt_ HttpServerConn* conn,
+                                 _In_opt_ HttpServerRequest* req, HttpProgressDir dir, uint64 done,
+                                 int64 total)
+{
+    if (!self->handlers || !self->handlers->progress)
+        return;
+
+    HttpServerEvent ev = { 0 };
+    ev.event           = HTTPSRVEV_Progress;
+    ev.conn            = conn;
+    ev.request         = req;
+    ev.ctx             = self->handlerCtx;
+    ev.dir             = dir;
+    ev.done            = done;
+    ev.total           = total;
+
+    self->handlers->progress(&ev);
+}
+
 bool HttpServer_listenTls(_In_ HttpServer* self, _In_ NetAddr* addr, int backlog,
                           _In_ TlsConfig* cfg)
 {
@@ -285,6 +308,7 @@ bool HttpServer_listenTls(_In_ HttpServer* self, _In_ NetAddr* addr, int backlog
 // clang-format off
 void HttpServer__forget(_In_ HttpServer* self, _In_ HttpServerConn* conn);
 void HttpServer__deliver(_In_ HttpServer* self, HttpServerEventType type, _In_opt_ HttpServerConn* conn, _In_opt_ HttpServerRequest* req, _In_opt_ const uint8* data, size_t len, HttpError err, NetErrorCode neterr);
+void HttpServer__deliverProgress(_In_ HttpServer* self, _In_opt_ HttpServerConn* conn, _In_opt_ HttpServerRequest* req, HttpProgressDir dir, uint64 done, int64 total);
 #include "httpserver.auto.inc"
 // clang-format on
 // Autogen ends -------

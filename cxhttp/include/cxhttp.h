@@ -61,6 +61,25 @@
 ///       netqueueTick(q, 100);               // bounded wait, never open-ended
 /// @endcode
 ///
+/// @section http_progress Progress
+///
+/// Every body is counted as it crosses the socket, in both directions and on both sides. Poll the
+/// counters with httprequestSentBytes() and its siblings, or register a `progress` handler to be
+/// told: HTTPEV_Progress on a client, HTTPSRVEV_Progress on a server, each carrying how far a body
+/// has got and how far it has to go.
+///
+/// Two things are worth knowing before you show a number to a user:
+///
+/// - **Sent means handed to the socket.** HTTP/1.1 has no acknowledgement, so nothing here can say
+///   the peer received anything. Over TLS the bytes that reach the wire are not even the same
+///   bytes.
+/// - **A total of -1 means there is no total.** A chunked body, or a response that ends when the
+///   connection closes, does not announce a length; a progress bar needs a fallback for that.
+///
+/// Events are throttled to one per 64 KB. HttpRequest::progressInterval and
+/// HttpServerRequest::progressInterval change that, and 0 asks for one per slice. Whatever the
+/// interval, a final event always fires when a body ends, so the count always reaches its total.
+///
 /// @section http_versions Protocol versions
 ///
 /// HTTP/1.1 only on the wire. A peer answering in HTTP/1.0 is understood and answered under 1.0

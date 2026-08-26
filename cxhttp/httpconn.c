@@ -436,6 +436,52 @@ static bool sendStr(HttpConn* self, strhandle s)
     return netsocketSend(self->sock, (uint8*)strPC(s), len, NULL, 0);
 }
 
+// Add to one of the request's progress counters and deliver an event if the interval says one is
+// due. `final` is for the end of a body, where an event fires for whatever has not been reported
+// yet so a progress bar reaches its total.
+//
+// The counters are written only here, on the flow's worker, so the increment needs no
+// read-modify-write of its own. The store is atomic because httprequestSentBytes() and its
+// siblings load it from whichever thread asked.
+static void reportProgress(HttpConn* self, HttpRequest* req, HttpProgressDir dir, size_t n,
+                           bool final)
+{
+    if (!req)
+        return;
+
+    bool send                = (dir == HTTPPROG_Send);
+    atomic(uintptr)* counter = send ? &req->progSent : &req->progRecv;
+    uintptr* seen            = send ? &req->progSentSeen : &req->progRecvSeen;
+
+    uintptr done = atomicLoad(uintptr, counter, Relaxed);
+    if (n > 0) {
+        done += (uintptr)n;
+        atomicStore(uintptr, counter, done, Relaxed);
+    }
+
+    if (!_httpProgressDue(done, seen, req->progressInterval, final))
+        return;
+
+    if (!self->handlers || !self->handlers->progress)
+        return;
+
+    atomic(intptr)* total = send ? &req->progSendTotal : &req->progRecvTotal;
+
+    HttpEvent ev = { 0 };
+    ev.event     = HTTPEV_Progress;
+    ev.conn      = self;
+    ev.request   = req;
+    ev.ctx       = self->handlerCtx;
+    ev.status    = self->parser->status;
+    ev.version   = self->parser->version;
+    ev.headers   = &self->parser->headers;
+    ev.dir       = dir;
+    ev.done      = (uint64)done;
+    ev.total     = (int64)atomicLoad(intptr, total, Relaxed);
+
+    self->handlers->progress(&ev);
+}
+
 // Hand one slice of the request body to the socket, straight out of the stream buffer's own
 // storage. Runs with the buffer's lock held, so it must not touch the buffer at all.
 static bool bodySendCB(_Pre_valid_ StreamBuffer* sb, _In_reads_bytes_(sz) const uint8* buf,
@@ -497,8 +543,10 @@ static bool pumpBodyStream(HttpConn* self, HttpRequest* req)
         if (!sbufCSend(sb, bodySendCB, want))
             break;
 
-        if (req->bodySent > 0)
+        if (req->bodySent > 0) {
             sbufCSkip(sb, req->bodySent);
+            reportProgress(self, req, HTTPPROG_Send, req->bodySent, false);
+        }
 
         // A refused send is backpressure, not an error -- and on a TLS connection mid-handshake it
         // is the normal answer, because staged filter bytes count toward the watermark. Stop here
@@ -531,6 +579,8 @@ static bool pumpBodyStream(HttpConn* self, HttpRequest* req)
         if (!ok)
             return true;
     }
+
+    reportProgress(self, req, HTTPPROG_Send, 0, true);
 
     self->writing = false;
     req->bodyConn = NULL;
@@ -573,6 +623,16 @@ bool HttpConn_request(_In_ HttpConn* self, _In_ HttpRequest* req,
         self->req = NULL;
         return false;
     }
+
+    // Progress starts over for every hop. A redirect sends the body again and reads a different
+    // response, so carrying the previous hop's counts forward would report both as one transfer.
+    atomicStore(uintptr, &req->progSent, 0, Relaxed);
+    atomicStore(uintptr, &req->progRecv, 0, Relaxed);
+    intptr sendTotal = req->reqBodyStream ? (intptr)req->reqBodyLen : 0;
+    atomicStore(intptr, &req->progSendTotal, sendTotal, Relaxed);
+    atomicStore(intptr, &req->progRecvTotal, 0, Relaxed);
+    req->progSentSeen = 0;
+    req->progRecvSeen = 0;
 
     string head = 0;
     if (!buildHead(self, req, &head)) {
@@ -645,6 +705,10 @@ void HttpConn__deliver(_In_ HttpConn* self, HttpEventType type, HttpError err)
         case HTTPEV_Data:
             cb = self->handlers->data;
             break;
+        case HTTPEV_Progress:
+            // Never routed through here -- reportProgress() fills in counts this has no way to
+            // know, and delivers it itself.
+            break;
         case HTTPEV_Complete:
             cb = self->handlers->complete;
             break;
@@ -706,6 +770,10 @@ static void deliverBody(HttpConn* self, const uint8* data, size_t len)
     if (req && req->discardBody)
         return;
 
+    // Counted here rather than in each disposition below: the bytes have arrived whatever happens
+    // to them next.
+    reportProgress(self, req, HTTPPROG_Recv, len, false);
+
     if (req && req->respSink) {
         sbufPWrite(req->respSink, data, len);
         return;
@@ -760,6 +828,11 @@ void HttpConn__pump(_In_ HttpConn* self)
             break;
 
         if (r == HTTPP_Head) {
+            if (self->req) {
+                intptr total = _httpBodyTotal(self->parser);
+                atomicStore(intptr, &self->req->progRecvTotal, total, Relaxed);
+            }
+
             // Status first, then headers: a caller that only wants to know whether to keep going
             // can decide before the header block is even complete.
             httpconn_deliver(self, HTTPEV_Status, HTTPERR_None);
@@ -786,6 +859,10 @@ void HttpConn__pump(_In_ HttpConn* self)
                 self->spent = true;
 
             cancelTimers(self);
+
+            // Ahead of the terminal event, which hands the request back: after it there is no
+            // request on this connection to report against.
+            reportProgress(self, self->req, HTTPPROG_Recv, 0, true);
 
             httpconn_deliver(self, HTTPEV_Complete, HTTPERR_None);
             break;

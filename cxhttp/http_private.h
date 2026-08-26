@@ -25,6 +25,15 @@ void _httpInit(void);
 // connection is the only thing it does.
 void _httpReqBodyNotify(_Pre_valid_ StreamBuffer* sb, size_t sz, _Pre_opt_valid_ void* ctx);
 
+// Bytes between progress events when a request has not chosen an interval of its own.
+#define HTTP_PROGRESS_INTERVAL 65536
+
+// Decide whether a progress event is due for a body that has moved `done` bytes in total, and
+// remember the count when it is. `seen` is the count as of the last event delivered for that
+// direction. `final` forces one for anything not yet reported, which is what makes a progress bar
+// reliably reach its end, and costs nothing when the last event already covered everything.
+bool _httpProgressDue(uintptr done, _Inout_ uintptr* seen, size_t interval, bool final);
+
 // Build the stream that carries an in-memory request body, if there is one and it is not already
 // built. Called just before the head goes out, so a redirect gets a fresh stream over the same
 // bytes rather than the drained one the previous hop left behind. No-op for a body the caller is
@@ -164,6 +173,11 @@ HttpParseResult httpParserStep(_Inout_ HttpParser* p, _Inout_ BufRing* src);
 // Tell the parser the peer closed. Ends a close-delimited body successfully; anything else is a
 // truncated message. Returns the final result.
 HttpParseResult httpParserEOF(_Inout_ HttpParser* p);
+
+// How many body bytes a message just framed will carry, or -1 when that is not knowable up front
+// (chunked, or delimited by the connection closing). Read at the head, because the parser's own
+// `length` counts down as the body arrives.
+intptr _httpBodyTotal(_In_ const HttpParser* p);
 
 // True once the message is framed well enough to know whether the connection may be reused: 1.1
 // unless the peer said `Connection: close`, and 1.0 only if it said `Connection: keep-alive`.

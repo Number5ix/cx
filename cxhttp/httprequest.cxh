@@ -64,6 +64,26 @@ class HttpRequest
 
     flags_t flags;            ///< HttpRequestFlags to send with
 
+    /// @brief Bytes between HTTPEV_Progress events, or 0 for one per slice written or read
+    ///
+    /// 64 KB by default, because a per-slice event on a large body is thousands of callbacks that
+    /// no progress bar can use. A final event still fires when a body ends, whatever this is set
+    /// to, so the count always reaches its total.
+    size_t progressInterval;
+
+    // Progress counters, and the counts as of the last event delivered for each direction. Written
+    // only on the flow's worker; the accessors read them with a relaxed load, so polling one from
+    // another thread never touches the body's StreamBuffer.
+    //
+    // Pointer-width rather than 64-bit because 32-bit targets have no 64-bit atomic, so a body past
+    // 4 GB wraps there. The accessors answer in 64 bits regardless.
+    atomic[uintptr] progSent;
+    atomic[uintptr] progRecv;
+    atomic[intptr] progSendTotal;
+    atomic[intptr] progRecvTotal;
+    uintptr progSentSeen;
+    uintptr progRecvSeen;
+
     // Connection currently writing the body, borrowed, plus the running result of one pass of its
     // pump. Set while the body is being written and owned by that connection's worker for as long
     // as it is; the body's StreamBuffer carries this request as its consumer context, and this is
@@ -231,6 +251,37 @@ class HttpRequest
     /// @param sb StreamBuffer to write the body into; a reference is held until the request finishes
     /// @return true on success
     bool setSink([in] StreamBuffer *sb);
+
+    /// Request body bytes handed to the socket so far
+    ///
+    /// "Handed to the socket" is as much as HTTP/1.1 can tell you: the protocol has no
+    /// acknowledgement, and over TLS even leaving the machine happens to different bytes. It does
+    /// not mean the server received them.
+    ///
+    /// Safe to call from any thread. Restarts from zero when a redirect is followed, because the
+    /// next hop sends the body again.
+    ///
+    /// @return Bytes of request body written
+    uint64 sentBytes();
+
+    /// Response body bytes received so far
+    ///
+    /// Safe to call from any thread. The body of a redirect that is being followed is not counted.
+    ///
+    /// @return Bytes of response body received
+    uint64 recvBytes();
+
+    /// How large the request body is
+    ///
+    /// @return Bytes the body will be, or -1 when it is being sent chunked with no length known up
+    ///         front
+    int64 sentTotal();
+
+    /// How large the response body is
+    ///
+    /// @return Bytes the body will be, or -1 when the response carries no Content-Length. Zero
+    ///         until the response headers arrive.
+    int64 recvTotal();
 
     /// Abandon a request that is in flight
     ///

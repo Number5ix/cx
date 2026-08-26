@@ -1194,6 +1194,11 @@ typedef struct ConnRec {
     HttpError err;
     string body;
     string ctype;
+
+    // Progress, recorded per direction: how many events arrived, and what the last one said.
+    uint32 sendProgCount, recvProgCount;
+    uint64 sendDone, recvDone;
+    int64 sendTotal, recvTotal;
 } ConnRec;
 
 static void onConnStatus(HttpEvent* ev)
@@ -1230,10 +1235,26 @@ static void onConnError(HttpEvent* ev)
     r->err = ev->err;
 }
 
+static void onConnProgress(HttpEvent* ev)
+{
+    ConnRec* r = (ConnRec*)ev->ctx;
+
+    if (ev->dir == HTTPPROG_Send) {
+        r->sendProgCount++;
+        r->sendDone  = ev->done;
+        r->sendTotal = ev->total;
+    } else {
+        r->recvProgCount++;
+        r->recvDone  = ev->done;
+        r->recvTotal = ev->total;
+    }
+}
+
 static const HttpHandlers kConnRecHandlers = {
     .status   = onConnStatus,
     .headers  = onConnHeaders,
     .data     = onConnData,
+    .progress = onConnProgress,
     .complete = onConnComplete,
     .error    = onConnError,
 };
@@ -2792,6 +2813,145 @@ static int test_httptest_clientstreambody(void)
     return ret;
 }
 
+// Progress in both directions, with a body big enough to need several passes each way. The
+// interval is turned off so every slice reports, which is what makes the counts here exact rather
+// than a lower bound.
+#define PROG_BODY_LEN 20000
+
+static int test_httptest_clientprogress(void)
+{
+    int ret = 0;
+    ClientFixture f;
+    ConnRec rec = { 0 };
+    string url = 0, wire = 0, body = 0;
+
+    if (!clientFixtureInit(&f)) {
+        clientFixtureDestroy(&f);
+        TEST_FAIL(1, _SL("failed: !clientFixtureInit(&f)"), stvNone);
+    }
+
+    uint8* fill = strBuffer(&body, PROG_BODY_LEN);
+    memset(fill, 'x', PROG_BODY_LEN);
+
+    clientUrl(&f, &url, _SL("/upload"));
+    HttpRequest* r = httprequestCreate(HTTP_Post, url);
+    if (!r) {
+        clientFixtureDestroy(&f);
+        strDestroy(&url);
+        strDestroy(&body);
+        TEST_FAIL(1, _SL("failed: !r"), stvNone);
+    }
+
+    r->progressInterval = 0;   // one event per slice, so nothing is throttled away
+    if (!httprequestSetBody(r, body, _SL("text/plain")))
+        TEST_FAILV(ret, 1, _SL("httprequestSetBody failed"), stvNone);
+
+    httpclientSend(f.cl, r, &kConnRecHandlers, &rec);
+    if (!clientAccept(&f) || !clientReadRequest(&f, &wire))
+        TEST_FAILV(ret, 1, _SL("!clientAccept(&f) || !clientReadRequest(&f, &wire)"), stvNone);
+
+    // The body is larger than the pump's slice, so it cannot have gone out in one event.
+    if (rec.sendProgCount < 2)
+        TEST_FAILV(ret, 1, _SL("rec.sendProgCount=${uint} < 2"), stvar(uint32, rec.sendProgCount));
+    if (rec.sendDone != PROG_BODY_LEN || rec.sendTotal != PROG_BODY_LEN)
+        TEST_FAILV(ret, 1, _SL("rec.sendDone=${uint} / rec.sendTotal=${int} != ${int}"), stvar(uint64, rec.sendDone), stvar(int64, rec.sendTotal), stvar(int32, PROG_BODY_LEN));
+    if (httprequestSentBytes(r) != PROG_BODY_LEN || httprequestSentTotal(r) != PROG_BODY_LEN)
+        TEST_FAILV(ret, 1, _SL("httprequestSentBytes=${uint} / SentTotal=${int} != ${int}"), stvar(uint64, httprequestSentBytes(r)), stvar(int64, httprequestSentTotal(r)), stvar(int32, PROG_BODY_LEN));
+
+    // Nothing has been read yet, so the receive side is still at zero with a total from the head
+    // it has not seen.
+    if (httprequestRecvBytes(r) != 0 || rec.recvProgCount != 0)
+        TEST_FAILV(ret, 1, _SL("httprequestRecvBytes=${uint} / rec.recvProgCount=${uint} should still be 0"), stvar(uint64, httprequestRecvBytes(r)), stvar(uint32, rec.recvProgCount));
+
+    string resp = 0;
+    strAppend(&resp, _SL("HTTP/1.1 200 OK\r\nContent-Length: 20000\r\n\r\n"));
+    strAppend(&resp, body);
+    send(f.peer, (const char*)strC(resp), (int)strLen(resp), 0);
+    strDestroy(&resp);
+
+    clientTickUntil(&f, &rec);
+
+    if (rec.completeCount != 1 || rec.status != 200)
+        TEST_FAILV(ret, 1, _SL("rec.completeCount=${uint} != 1 || rec.status=${uint} != 200"), stvar(uint32, rec.completeCount), stvar(uint16, rec.status));
+    if (rec.recvProgCount == 0)
+        TEST_FAILV(ret, 1, _SL("no receive progress events arrived"), stvNone);
+    if (rec.recvDone != PROG_BODY_LEN || rec.recvTotal != PROG_BODY_LEN)
+        TEST_FAILV(ret, 1, _SL("rec.recvDone=${uint} / rec.recvTotal=${int} != ${int}"), stvar(uint64, rec.recvDone), stvar(int64, rec.recvTotal), stvar(int32, PROG_BODY_LEN));
+    if (httprequestRecvBytes(r) != PROG_BODY_LEN || httprequestRecvTotal(r) != PROG_BODY_LEN)
+        TEST_FAILV(ret, 1, _SL("httprequestRecvBytes=${uint} / RecvTotal=${int} != ${int}"), stvar(uint64, httprequestRecvBytes(r)), stvar(int64, httprequestRecvTotal(r)), stvar(int32, PROG_BODY_LEN));
+    if (strLen(rec.body) != PROG_BODY_LEN)
+        TEST_FAILV(ret, 1, _SL("strLen(rec.body)=${uint} != ${int}"), stvar(uint32, strLen(rec.body)), stvar(int32, PROG_BODY_LEN));
+
+    objRelease(&r);
+    clientFixtureDestroy(&f);
+    strDestroy(&url);
+    strDestroy(&wire);
+    strDestroy(&body);
+    strDestroy(&rec.body);
+    strDestroy(&rec.ctype);
+    return ret;
+}
+
+// A body whose length is not known up front reports a total of -1 the whole way, and a response
+// the peer sends chunked does the same on the way back. The default interval applies here, so the
+// only event either direction produces is the guaranteed final one.
+static int test_httptest_clientprogresschunked(void)
+{
+    int ret = 0;
+    ClientFixture f;
+    ConnRec rec = { 0 };
+    string url = 0, wire = 0;
+
+    if (!clientFixtureInit(&f)) {
+        clientFixtureDestroy(&f);
+        TEST_FAIL(1, _SL("failed: !clientFixtureInit(&f)"), stvNone);
+    }
+
+    clientUrl(&f, &url, _SL("/upload"));
+    HttpRequest* r = httprequestCreate(HTTP_Post, url);
+    if (!r) {
+        clientFixtureDestroy(&f);
+        strDestroy(&url);
+        TEST_FAIL(1, _SL("failed: !r"), stvNone);
+    }
+
+    StreamBuffer* sb = sbufCreate(64);
+    if (!sbufStrPRegisterPull(sb, _SL("hello world")))
+        TEST_FAILV(ret, 1, _SL("sbufStrPRegisterPull failed"), stvNone);
+    if (!httprequestSetBodyStream(r, sb, -1, _SL("text/plain")))
+        TEST_FAILV(ret, 1, _SL("httprequestSetBodyStream failed"), stvNone);
+    sbufRelease(&sb);
+
+    httpclientSend(f.cl, r, &kConnRecHandlers, &rec);
+    if (!clientAccept(&f) || !clientReadUntil(&f, &wire, _SL("0\r\n\r\n")))
+        TEST_FAILV(ret, 1, _SL("!clientAccept(&f) || !clientReadUntil(...)"), stvNone);
+
+    // Chunk framing is not body, so the count is the 11 bytes of payload rather than the encoded
+    // size, and there was never a length to promise.
+    if (rec.sendProgCount != 1 || rec.sendDone != 11 || rec.sendTotal != -1)
+        TEST_FAILV(ret, 1, _SL("rec.sendProgCount=${uint} != 1 || rec.sendDone=${uint} != 11 || rec.sendTotal=${int} != -1"), stvar(uint32, rec.sendProgCount), stvar(uint64, rec.sendDone), stvar(int64, rec.sendTotal));
+    if (httprequestSentTotal(r) != -1)
+        TEST_FAILV(ret, 1, _SL("httprequestSentTotal=${int} != -1"), stvar(int64, httprequestSentTotal(r)));
+
+    clientWrite(&f, "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n5\r\nhello\r\n6\r\n world\r\n0\r\n\r\n");
+    clientTickUntil(&f, &rec);
+
+    if (rec.completeCount != 1)
+        TEST_FAILV(ret, 1, _SL("rec.completeCount=${uint} != 1"), stvar(uint32, rec.completeCount));
+    if (rec.recvProgCount != 1 || rec.recvDone != 11 || rec.recvTotal != -1)
+        TEST_FAILV(ret, 1, _SL("rec.recvProgCount=${uint} != 1 || rec.recvDone=${uint} != 11 || rec.recvTotal=${int} != -1"), stvar(uint32, rec.recvProgCount), stvar(uint64, rec.recvDone), stvar(int64, rec.recvTotal));
+    if (httprequestRecvBytes(r) != 11 || httprequestRecvTotal(r) != -1)
+        TEST_FAILV(ret, 1, _SL("httprequestRecvBytes=${uint} != 11 || RecvTotal=${int} != -1"), stvar(uint64, httprequestRecvBytes(r)), stvar(int64, httprequestRecvTotal(r)));
+
+    objRelease(&r);
+    clientFixtureDestroy(&f);
+    strDestroy(&url);
+    strDestroy(&wire);
+    strDestroy(&rec.body);
+    strDestroy(&rec.ctype);
+    return ret;
+}
+
 // A response that never arrives has to end as a timeout rather than a hang.
 static int test_httptest_clienttimeout(void)
 {
@@ -3163,6 +3323,13 @@ typedef struct SrvRec {
     int dataCount;
     string dataBody;
 
+    // --- progress -----------------------------------------------------------------------------
+    bool progEverySlice;   // turn the request's throttle off from the head handler
+    bool keepRef;          // hold a reference past the response, so counters can be read after it
+    uint32 sendProgCount, recvProgCount;
+    uint64 sendDone, recvDone;
+    int64 sendTotal, recvTotal;
+
     // --- streamed response --------------------------------------------------------------------
     bool streamResp;       // answer with respStream rather than a string
     bool pushResp;         // drive respStream as a push producer rather than a pull one
@@ -3206,6 +3373,11 @@ static void onSrvHead(HttpServerEvent* ev)
     SrvRec* r = (SrvRec*)ev->ctx;
     r->headCount++;
 
+    // The head is the one place to reach a request before its body starts arriving, so it is the
+    // only place a progress interval can be changed in time to affect the receive side.
+    if (r->progEverySlice)
+        ev->request->progressInterval = 0;
+
     if (r->headStatus) {
         httpsrvreqRespondStatus(ev->request, r->headStatus);
         return;
@@ -3232,10 +3404,29 @@ static void onSrvData(HttpServerEvent* ev)
     strAppendBytes(&r->dataBody, ev->data, (uint32)ev->len);
 }
 
+static void onSrvProgress(HttpServerEvent* ev)
+{
+    SrvRec* r = (SrvRec*)ev->ctx;
+
+    if (ev->dir == HTTPPROG_Send) {
+        r->sendProgCount++;
+        r->sendDone  = ev->done;
+        r->sendTotal = ev->total;
+    } else {
+        r->recvProgCount++;
+        r->recvDone  = ev->done;
+        r->recvTotal = ev->total;
+    }
+}
+
 static void onSrvRequest(HttpServerEvent* ev)
 {
     SrvRec* r = (SrvRec*)ev->ctx;
     r->requestCount++;
+
+    // Unlike `hold`, this answers the request as usual -- it only keeps it readable afterwards.
+    if (r->keepRef && !r->held)
+        r->held = objAcquire(ev->request);
 
     strDup(&r->method, ev->request->methodName);
     strDup(&r->path, ev->request->path);
@@ -3308,10 +3499,11 @@ static void onSrvClosed(HttpServerEvent* ev)
 }
 
 static const HttpServerHandlers kSrvHandlers = {
-    .head    = onSrvHead,
-    .request = onSrvRequest,
-    .error   = onSrvError,
-    .closed  = onSrvClosed,
+    .head     = onSrvHead,
+    .progress = onSrvProgress,
+    .request  = onSrvRequest,
+    .error    = onSrvError,
+    .closed   = onSrvClosed,
 };
 
 // Registering a data handler is what claims request bodies, exactly as it is on the client. Kept in
@@ -3481,6 +3673,65 @@ static void srvTick(SrvFixture* f, int rounds)
 {
     for (int i = 0; i < rounds; i++)
         netqueueTick(f->q, 5);
+}
+
+// Progress on the server, both ways: a body arriving from a client and the answer going back. The
+// throttle is turned off from the head handler, which is the only moment early enough to affect
+// what the receive side reports.
+static int test_httptest_srvprogress(void)
+{
+    int ret     = 0;
+    SrvRec rec  = { 0 };
+    SrvFixture f;
+    string resp = 0, req = 0;
+
+    rec.progEverySlice = true;
+    rec.keepRef        = true;
+
+    if (!srvFixtureInit(&f, &rec, false)) {
+        srvFixtureDestroy(&f);
+        srvRecDestroy(&rec);
+        TEST_FAIL(1, _SL("failed: !srvFixtureInit(&f, &rec, false)"), stvNone);
+    }
+
+    strAppend(&req, _SL("POST /upload HTTP/1.1\r\nHost: x\r\nContent-Length: 20000\r\n\r\n"));
+    uint32 head = strLen(req);
+    uint8* fill = strBuffer(&req, head + PROG_BODY_LEN);
+    memset(fill + head, 'x', PROG_BODY_LEN);
+
+    send(f.client, (const char*)strC(req), (int)strLen(req), 0);
+    srvRead(&f, &resp);
+
+    if (rec.requestCount != 1)
+        TEST_FAILV(ret, 1, _SL("rec.requestCount=${int} != 1"), stvar(int32, rec.requestCount));
+    if (!rec.held)
+        TEST_FAILV(ret, 1, _SL("the request handler kept no reference"), stvNone);
+
+    // The body arrives in whatever runs the socket produced, so the event count is a lower bound;
+    // where it ends up is not.
+    if (rec.recvProgCount == 0)
+        TEST_FAILV(ret, 1, _SL("no receive progress events arrived"), stvNone);
+    if (rec.recvDone != PROG_BODY_LEN || rec.recvTotal != PROG_BODY_LEN)
+        TEST_FAILV(ret, 1, _SL("rec.recvDone=${uint} / rec.recvTotal=${int} != ${int}"), stvar(uint64, rec.recvDone), stvar(int64, rec.recvTotal), stvar(int32, PROG_BODY_LEN));
+    if (httpsrvreqRecvBytes(rec.held) != PROG_BODY_LEN ||
+        httpsrvreqRecvTotal(rec.held) != PROG_BODY_LEN)
+        TEST_FAILV(ret, 1, _SL("httpsrvreqRecvBytes=${uint} / RecvTotal=${int} != ${int}"), stvar(uint64, httpsrvreqRecvBytes(rec.held)), stvar(int64, httpsrvreqRecvTotal(rec.held)), stvar(int32, PROG_BODY_LEN));
+
+    // The canned answer is "hello", so the send side is small enough that the one guaranteed final
+    // event is the only one there is.
+    if (rec.sendProgCount != 1 || rec.sendDone != 5 || rec.sendTotal != 5)
+        TEST_FAILV(ret, 1, _SL("rec.sendProgCount=${uint} != 1 || rec.sendDone=${uint} != 5 || rec.sendTotal=${int} != 5"), stvar(uint32, rec.sendProgCount), stvar(uint64, rec.sendDone), stvar(int64, rec.sendTotal));
+    if (httpsrvreqSentBytes(rec.held) != 5 || httpsrvreqSentTotal(rec.held) != 5)
+        TEST_FAILV(ret, 1, _SL("httpsrvreqSentBytes=${uint} != 5 || SentTotal=${int} != 5"), stvar(uint64, httpsrvreqSentBytes(rec.held)), stvar(int64, httpsrvreqSentTotal(rec.held)));
+
+    if (strFind(resp, 0, _SL("\r\n\r\nhello")) < 0)
+        TEST_FAILV(ret, 1, _SL("expected '${string}' to end with the canned body"), stvar(strref, resp));
+
+    srvFixtureDestroy(&f);
+    srvRecDestroy(&rec);
+    strDestroy(&resp);
+    strDestroy(&req);
+    return ret;
 }
 
 // A plain GET: the request reaches the handler decomposed, and the response comes back well formed
@@ -4823,6 +5074,8 @@ testfunc httptest_funcs[] = {
     { "clienttempredir", test_httptest_clienttempredirect },
     { "clientbodybuf",   test_httptest_clientbodybuffer  },
     { "clientstreambody", test_httptest_clientstreambody },
+    { "clientprogress",   test_httptest_clientprogress    },
+    { "clientprogchunk",  test_httptest_clientprogresschunked },
     { "clientredirloop", test_httptest_clientredirectloop },
     { "clientseeother",  test_httptest_clientseeother    },
     { "clientpool",      test_httptest_clientpool        },
@@ -4835,6 +5088,7 @@ testfunc httptest_funcs[] = {
     { "clientcanceldone",  test_httptest_clientcanceldone  },
     { "clientcancelpool",  test_httptest_clientcancelpool  },
     { "conncancel",        test_httptest_conncancel        },
+    { "srvprogress",    test_httptest_srvprogress       },
     { "srvget",             test_httptest_srvget             },
     { "srvpost",            test_httptest_srvpost            },
     { "srvchunkedreq",      test_httptest_srvchunkedreq      },

@@ -659,6 +659,18 @@ HttpParseResult httpParserEOF(HttpParser* p)
 }
 
 _Use_decl_annotations_
+intptr _httpBodyTotal(const HttpParser* p)
+{
+    if (p->noBody)
+        return 0;
+
+    if (p->chunked || p->closeDelimited)
+        return -1;
+
+    return (intptr)p->length;
+}
+
+_Use_decl_annotations_
 bool httpParserKeepAlive(const HttpParser* p)
 {
     if (httpHeadersHasToken(&p->headers, _SL("Connection"), _SL("close")))

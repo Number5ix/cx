@@ -458,6 +458,43 @@ static void finishResponse(HttpServerConn* self, bool ok)
     httpsrvconn_pump(self);
 }
 
+// Add to one of the request's progress counters and deliver an event if the interval says one is
+// due. `final` is for the end of a body, where an event fires for whatever has not been reported
+// yet so a progress bar reaches its total.
+//
+// The counters are written only here, on the flow's worker, so the increment needs no
+// read-modify-write of its own. The store is atomic because httpsrvreqSentBytes() and its siblings
+// load it from whichever thread asked.
+static void reportProgress(HttpServerConn* self, HttpServerRequest* req, HttpProgressDir dir,
+                           size_t n, bool final)
+{
+    if (!req)
+        return;
+
+    bool send                = (dir == HTTPPROG_Send);
+    atomic(uintptr)* counter = send ? &req->progSent : &req->progRecv;
+    uintptr* seen            = send ? &req->progSentSeen : &req->progRecvSeen;
+
+    uintptr done = atomicLoad(uintptr, counter, Relaxed);
+    if (n > 0) {
+        done += (uintptr)n;
+        atomicStore(uintptr, counter, done, Relaxed);
+    }
+
+    if (!_httpProgressDue(done, seen, req->progressInterval, final))
+        return;
+
+    HttpServer* srv = objAcquireFromWeak(HttpServer, self->server);
+    if (!srv)
+        return;
+
+    atomic(intptr)* total = send ? &req->progSendTotal : &req->progRecvTotal;
+    int64 expect          = (int64)atomicLoad(intptr, total, Relaxed);
+
+    httpserver_deliverProgress(srv, self, req, dir, (uint64)done, expect);
+    objRelease(&srv);
+}
+
 // Hand one slice of the response body to the socket, straight out of the stream buffer's own
 // storage. Runs with the buffer's lock held, so it must not touch the buffer at all.
 static bool respSendCB(_Pre_valid_ StreamBuffer* sb, _In_reads_bytes_(sz) const uint8* buf,
@@ -520,8 +557,10 @@ void HttpServerConn__pumpRespBody(_In_ HttpServerConn* self)
         if (!sbufCSend(sb, respSendCB, want))
             break;
 
-        if (self->bodySent > 0)
+        if (self->bodySent > 0) {
             sbufCSkip(sb, self->bodySent);
+            reportProgress(self, req, HTTPPROG_Send, self->bodySent, false);
+        }
 
         // A refused send is backpressure, not a failure. Stop here and let NET_SendReady start this
         // up again once the socket's backlog has drained. Nothing has left the stream buffer that
@@ -551,6 +590,8 @@ void HttpServerConn__pumpRespBody(_In_ HttpServerConn* self)
         if (!ok)
             return;
     }
+
+    reportProgress(self, req, HTTPPROG_Send, 0, true);
 
     finishResponse(self, true);
 }
@@ -666,6 +707,8 @@ bool HttpServerConn__respond(_In_ HttpServerConn* self, _In_ HttpServerRequest* 
 
         // The head is out and the body is not, so the exchange is still open. `writing` holds the
         // parser off for exactly the same reason `awaiting` did.
+        atomicStore(intptr, &req->progSendTotal, (intptr)req->respStreamLen, Relaxed);
+
         self->awaiting = false;
         self->writing  = true;
         httpsrvconn_pumpRespBody(self);
@@ -718,6 +761,8 @@ static bool beginRequest(HttpServerConn* self)
 
     self->req = req;
 
+    atomicStore(intptr, &req->progRecvTotal, _httpBodyTotal(p), Relaxed);
+
     HttpServer* srv = objAcquireFromWeak(HttpServer, self->server);
     if (!srv) {
         httpsrvconn_sendError(self, HTTP_InternalError, HTTPERR_None);
@@ -765,6 +810,10 @@ static void deliverBody(HttpServerConn* self, const uint8* data, size_t len)
     HttpServerRequest* req = self->req;
     if (!req)
         return;
+
+    // Counted here rather than in each disposition below: the bytes have arrived whatever happens
+    // to them next.
+    reportProgress(self, req, HTTPPROG_Recv, len, false);
 
     if (req->sink) {
         sbufPWrite(req->sink, data, len);
@@ -877,6 +926,8 @@ void HttpServerConn__pump(_In_ HttpServerConn* self)
                 sbufPFinish(self->req->sink);
                 self->req->sink = NULL;
             }
+
+            reportProgress(self, self->req, HTTPPROG_Recv, 0, true);
 
             // Asked while the parser still remembers: the reset below takes the answer with it.
             if (!httpParserKeepAlive(self->parser))

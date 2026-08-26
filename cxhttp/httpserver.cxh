@@ -186,6 +186,12 @@ class HttpServer
     [extern] unbound void _deliver(HttpServerEventType type, [in] [opt] HttpServerConn *conn,
         [in] [opt] HttpServerRequest *req, [in] [opt] const uint8 *data, size_t len,
         HttpError err, NetErrorCode neterr);
+
+    // Deliver one HTTPSRVEV_Progress event. Separate from _deliver() because progress is the only
+    // event with counts to carry, and threading them through the general path would put two more
+    // ignored arguments on every other call.
+    [extern] unbound void _deliverProgress([in] [opt] HttpServerConn *conn,
+        [in] [opt] HttpServerRequest *req, HttpProgressDir dir, uint64 done, int64 total);
 }
 
 /// @}

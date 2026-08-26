@@ -276,6 +276,19 @@ typedef enum {
 /// @addtogroup http_conn
 /// @{
 
+/// Which body a progress event is counting
+typedef enum {
+    /// @brief Bytes handed to the socket
+    ///
+    /// The request body on a client, the response body on a server.
+    HTTPPROG_Send = 1,
+
+    /// @brief Bytes taken off the socket
+    ///
+    /// The response body on a client, the request body on a server.
+    HTTPPROG_Recv
+} HttpProgressDir;
+
 /// What happened, as carried on HttpEvent
 typedef enum {
     /// @brief The status line was parsed; status and version are readable
@@ -292,6 +305,12 @@ typedef enum {
     /// Valid only for the duration of the callback. Chunk boundaries mean nothing -- they are
     /// whatever the network and the transfer coding produced, not a structure of the message.
     HTTPEV_Data,
+
+    /// @brief Body bytes have moved; `dir`, `done` and `total` say which way and how far
+    ///
+    /// Throttled by HttpRequest::progressInterval, with one final event guaranteed when a body
+    /// ends. Only bodies are counted -- the head is not part of `done` or `total`.
+    HTTPEV_Progress,
 
     /// @brief The response finished successfully
     HTTPEV_Complete,
@@ -320,6 +339,10 @@ typedef struct HttpEvent {
 
     const uint8* data;     ///< HTTPEV_Data: decoded body bytes, valid during the callback only
     size_t len;            ///< HTTPEV_Data: length of `data`
+
+    HttpProgressDir dir;   ///< HTTPEV_Progress: which body is being counted
+    uint64 done;           ///< HTTPEV_Progress: body bytes moved so far in that direction
+    int64 total;           ///< HTTPEV_Progress: body bytes expected, or -1 if not known up front
 
     HttpError err;         ///< HTTPEV_Error: why it failed
     NetErrorCode neterr;   ///< HTTPEV_Error: transport cause when err is HTTPERR_Network
@@ -350,6 +373,7 @@ typedef struct HttpHandlers {
     HttpEventCB status;     ///< HTTPEV_Status: the status line is parsed
     HttpEventCB headers;    ///< HTTPEV_Headers: the header block is complete
     HttpEventCB data;       ///< HTTPEV_Data: a chunk of decoded body
+    HttpEventCB progress;   ///< HTTPEV_Progress: a body moved some bytes
     HttpEventCB complete;   ///< HTTPEV_Complete: the response finished
     HttpEventCB error;      ///< HTTPEV_Error: the exchange failed
 } HttpHandlers;
@@ -395,6 +419,12 @@ typedef enum {
     /// accumulated on the request in that case, so this is the only place those bytes appear.
     HTTPSRVEV_Data,
 
+    /// @brief Body bytes have moved; `dir`, `done` and `total` say which way and how far
+    ///
+    /// Throttled by HttpServerRequest::progressInterval, with one final event guaranteed when a
+    /// body ends. Only bodies are counted -- the head is not part of `done` or `total`.
+    HTTPSRVEV_Progress,
+
     /// @brief The exchange failed before a response could be written; `err` says how
     ///
     /// The request is whatever had been received, and may be NULL if the failure came before a
@@ -417,6 +447,10 @@ typedef struct HttpServerEvent {
 
     const uint8* data;             ///< HTTPSRVEV_Data: the bytes, valid only for this call
     size_t len;                    ///< HTTPSRVEV_Data: how many
+
+    HttpProgressDir dir;           ///< HTTPSRVEV_Progress: which body is being counted
+    uint64 done;                   ///< HTTPSRVEV_Progress: body bytes moved so far
+    int64 total;                   ///< HTTPSRVEV_Progress: bytes expected, or -1 if not known
 
     HttpError err;                 ///< HTTPSRVEV_Error: why it failed
     NetErrorCode neterr;           ///< HTTPSRVEV_Error: transport cause when err is HTTPERR_Network
@@ -444,6 +478,7 @@ typedef void (*HttpServerEventCB)(_In_ HttpServerEvent* event);
 typedef struct HttpServerHandlers {
     HttpServerEventCB head;      ///< HTTPSRVEV_Head: the head arrived; choose where the body goes
     HttpServerEventCB data;      ///< HTTPSRVEV_Data: a run of body bytes, when nothing else claims them
+    HttpServerEventCB progress;  ///< HTTPSRVEV_Progress: a body moved some bytes
     HttpServerEventCB request;   ///< HTTPSRVEV_Request: a complete request is waiting for an answer
     HttpServerEventCB error;     ///< HTTPSRVEV_Error: the exchange failed
     HttpServerEventCB closed;    ///< HTTPSRVEV_Closed: the connection ended
