@@ -830,11 +830,11 @@ static int test_atomic64_contend()
         for (i = 0; i < A64_PATTERN_READERS; i++) {
             readers[i] = thrCreate(thrproc_a64reader, _S"Atomic64 Pattern Reader", stvNone);
             if (!readers[i])
-                TEST_FAILV(ret, 1, _SL("thrCreate failed for atomic64 reader thread ${int}"), stvar(int32, i));
+                TEST_FAIL(1, _SL("thrCreate failed for atomic64 reader thread ${int}"), stvar(int32, i));
         }
         Thread *writer = thrCreate(writers[phase], _S"Atomic64 Pattern Writer", stvNone);
         if (!writer)
-            TEST_FAILV(ret, 1, _SL("thrCreate failed for atomic64 writer thread (phase ${int})"), stvar(int32, phase));
+            TEST_FAIL(1, _SL("thrCreate failed for atomic64 writer thread (phase ${int})"), stvar(int32, phase));
 
         thrWait(writer, timeForever);
         thrShutdown(writer);
