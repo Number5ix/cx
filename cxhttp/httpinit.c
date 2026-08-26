@@ -83,7 +83,7 @@ bool _httpAppendBytes(strhandle out, const uint8* data, size_t len)
 }
 
 _Use_decl_annotations_
-bool _httpProgressDue(uintptr done, uintptr* seen, size_t interval, bool final)
+bool _httpProgressDue(uint64 done, uint64* seen, size_t interval, bool final)
 {
     if (done == *seen)
         return false;   // nothing new to report, including the final call after a full one

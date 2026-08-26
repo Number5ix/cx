@@ -472,13 +472,13 @@ static void reportProgress(HttpServerConn* self, HttpServerRequest* req, HttpPro
         return;
 
     bool send                = (dir == HTTPPROG_Send);
-    atomic(uintptr)* counter = send ? &req->progSent : &req->progRecv;
-    uintptr* seen            = send ? &req->progSentSeen : &req->progRecvSeen;
+    atomic(uint64)* counter  = send ? &req->progSent : &req->progRecv;
+    uint64* seen             = send ? &req->progSentSeen : &req->progRecvSeen;
 
-    uintptr done = atomicLoad(uintptr, counter, Relaxed);
+    uint64 done = atomicLoad(uint64, counter, Relaxed);
     if (n > 0) {
-        done += (uintptr)n;
-        atomicStore(uintptr, counter, done, Relaxed);
+        done += (uint64)n;
+        atomicStore(uint64, counter, done, Relaxed);
     }
 
     if (!_httpProgressDue(done, seen, req->progressInterval, final))
@@ -488,10 +488,10 @@ static void reportProgress(HttpServerConn* self, HttpServerRequest* req, HttpPro
     if (!srv)
         return;
 
-    atomic(intptr)* total = send ? &req->progSendTotal : &req->progRecvTotal;
-    int64 expect          = (int64)atomicLoad(intptr, total, Relaxed);
+    atomic(int64)* total = send ? &req->progSendTotal : &req->progRecvTotal;
+    int64 expect         = atomicLoad(int64, total, Relaxed);
 
-    httpserver_deliverProgress(srv, self, req, dir, (uint64)done, expect);
+    httpserver_deliverProgress(srv, self, req, dir, done, expect);
     objRelease(&srv);
 }
 
@@ -707,7 +707,7 @@ bool HttpServerConn__respond(_In_ HttpServerConn* self, _In_ HttpServerRequest* 
 
         // The head is out and the body is not, so the exchange is still open. `writing` holds the
         // parser off for exactly the same reason `awaiting` did.
-        atomicStore(intptr, &req->progSendTotal, (intptr)req->respStreamLen, Relaxed);
+        atomicStore(int64, &req->progSendTotal, req->respStreamLen, Relaxed);
 
         self->awaiting = false;
         self->writing  = true;
@@ -761,7 +761,7 @@ static bool beginRequest(HttpServerConn* self)
 
     self->req = req;
 
-    atomicStore(intptr, &req->progRecvTotal, _httpBodyTotal(p), Relaxed);
+    atomicStore(int64, &req->progRecvTotal, (int64)_httpBodyTotal(p), Relaxed);
 
     HttpServer* srv = objAcquireFromWeak(HttpServer, self->server);
     if (!srv) {

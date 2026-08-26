@@ -74,15 +74,12 @@ class HttpRequest
     // Progress counters, and the counts as of the last event delivered for each direction. Written
     // only on the flow's worker; the accessors read them with a relaxed load, so polling one from
     // another thread never touches the body's StreamBuffer.
-    //
-    // Pointer-width rather than 64-bit because 32-bit targets have no 64-bit atomic, so a body past
-    // 4 GB wraps there. The accessors answer in 64 bits regardless.
-    atomic[uintptr] progSent;
-    atomic[uintptr] progRecv;
-    atomic[intptr] progSendTotal;
-    atomic[intptr] progRecvTotal;
-    uintptr progSentSeen;
-    uintptr progRecvSeen;
+    atomic[uint64] progSent;
+    atomic[uint64] progRecv;
+    atomic[int64] progSendTotal;
+    atomic[int64] progRecvTotal;
+    uint64 progSentSeen;
+    uint64 progRecvSeen;
 
     // Connection currently writing the body, borrowed, plus the running result of one pass of its
     // pump. Set while the body is being written and owned by that connection's worker for as long

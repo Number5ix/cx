@@ -322,22 +322,22 @@ bool HttpRequest_cancel(_In_ HttpRequest* self)
 
 uint64 HttpRequest_sentBytes(_In_ HttpRequest* self)
 {
-    return (uint64)atomicLoad(uintptr, &self->progSent, Relaxed);
+    return atomicLoad(uint64, &self->progSent, Relaxed);
 }
 
 uint64 HttpRequest_recvBytes(_In_ HttpRequest* self)
 {
-    return (uint64)atomicLoad(uintptr, &self->progRecv, Relaxed);
+    return atomicLoad(uint64, &self->progRecv, Relaxed);
 }
 
 int64 HttpRequest_sentTotal(_In_ HttpRequest* self)
 {
-    return (int64)atomicLoad(intptr, &self->progSendTotal, Relaxed);
+    return atomicLoad(int64, &self->progSendTotal, Relaxed);
 }
 
 int64 HttpRequest_recvTotal(_In_ HttpRequest* self)
 {
-    return (int64)atomicLoad(intptr, &self->progRecvTotal, Relaxed);
+    return atomicLoad(int64, &self->progRecvTotal, Relaxed);
 }
 
 // Autogen begins -----

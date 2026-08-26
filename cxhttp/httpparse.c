@@ -659,7 +659,7 @@ HttpParseResult httpParserEOF(HttpParser* p)
 }
 
 _Use_decl_annotations_
-intptr _httpBodyTotal(const HttpParser* p)
+uint64 _httpBodyTotal(const HttpParser* p)
 {
     if (p->noBody)
         return 0;
@@ -667,7 +667,7 @@ intptr _httpBodyTotal(const HttpParser* p)
     if (p->chunked || p->closeDelimited)
         return -1;
 
-    return (intptr)p->length;
+    return p->length;
 }
 
 _Use_decl_annotations_

@@ -100,12 +100,12 @@ class HttpServerConn;
     //
     // Pointer-width rather than 64-bit because 32-bit targets have no 64-bit atomic, so a body past
     // 4 GB wraps there. The accessors answer in 64 bits regardless.
-    atomic[uintptr] progSent;
-    atomic[uintptr] progRecv;
-    atomic[intptr] progSendTotal;
-    atomic[intptr] progRecvTotal;
-    uintptr progSentSeen;
-    uintptr progRecvSeen;
+    atomic[uint64] progSent;
+    atomic[uint64] progRecv;
+    atomic[int64] progSendTotal;
+    atomic[int64] progRecvTotal;
+    uint64 progSentSeen;
+    uint64 progRecvSeen;
 
     // Created by HttpServerConn once a request has been fully received; an application never
     // constructs one.

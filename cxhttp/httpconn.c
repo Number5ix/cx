@@ -450,13 +450,13 @@ static void reportProgress(HttpConn* self, HttpRequest* req, HttpProgressDir dir
         return;
 
     bool send                = (dir == HTTPPROG_Send);
-    atomic(uintptr)* counter = send ? &req->progSent : &req->progRecv;
-    uintptr* seen            = send ? &req->progSentSeen : &req->progRecvSeen;
+    atomic(uint64)* counter  = send ? &req->progSent : &req->progRecv;
+    uint64* seen             = send ? &req->progSentSeen : &req->progRecvSeen;
 
-    uintptr done = atomicLoad(uintptr, counter, Relaxed);
+    uint64 done = atomicLoad(uint64, counter, Relaxed);
     if (n > 0) {
-        done += (uintptr)n;
-        atomicStore(uintptr, counter, done, Relaxed);
+        done += (uint64)n;
+        atomicStore(uint64, counter, done, Relaxed);
     }
 
     if (!_httpProgressDue(done, seen, req->progressInterval, final))
@@ -465,7 +465,7 @@ static void reportProgress(HttpConn* self, HttpRequest* req, HttpProgressDir dir
     if (!self->handlers || !self->handlers->progress)
         return;
 
-    atomic(intptr)* total = send ? &req->progSendTotal : &req->progRecvTotal;
+    atomic(int64)* total = send ? &req->progSendTotal : &req->progRecvTotal;
 
     HttpEvent ev = { 0 };
     ev.event     = HTTPEV_Progress;
@@ -476,8 +476,8 @@ static void reportProgress(HttpConn* self, HttpRequest* req, HttpProgressDir dir
     ev.version   = self->parser->version;
     ev.headers   = &self->parser->headers;
     ev.dir       = dir;
-    ev.done      = (uint64)done;
-    ev.total     = (int64)atomicLoad(intptr, total, Relaxed);
+    ev.done      = done;
+    ev.total     = atomicLoad(int64, total, Relaxed);
 
     self->handlers->progress(&ev);
 }
@@ -626,11 +626,11 @@ bool HttpConn_request(_In_ HttpConn* self, _In_ HttpRequest* req,
 
     // Progress starts over for every hop. A redirect sends the body again and reads a different
     // response, so carrying the previous hop's counts forward would report both as one transfer.
-    atomicStore(uintptr, &req->progSent, 0, Relaxed);
-    atomicStore(uintptr, &req->progRecv, 0, Relaxed);
-    intptr sendTotal = req->reqBodyStream ? (intptr)req->reqBodyLen : 0;
-    atomicStore(intptr, &req->progSendTotal, sendTotal, Relaxed);
-    atomicStore(intptr, &req->progRecvTotal, 0, Relaxed);
+    atomicStore(uint64, &req->progSent, 0, Relaxed);
+    atomicStore(uint64, &req->progRecv, 0, Relaxed);
+    int64 sendTotal = req->reqBodyStream ? req->reqBodyLen : 0;
+    atomicStore(int64, &req->progSendTotal, sendTotal, Relaxed);
+    atomicStore(int64, &req->progRecvTotal, 0, Relaxed);
     req->progSentSeen = 0;
     req->progRecvSeen = 0;
 
@@ -829,8 +829,8 @@ void HttpConn__pump(_In_ HttpConn* self)
 
         if (r == HTTPP_Head) {
             if (self->req) {
-                intptr total = _httpBodyTotal(self->parser);
-                atomicStore(intptr, &self->req->progRecvTotal, total, Relaxed);
+                uint64 total = _httpBodyTotal(self->parser);
+                atomicStore(int64, &self->req->progRecvTotal, (int64)total, Relaxed);
             }
 
             // Status first, then headers: a caller that only wants to know whether to keep going

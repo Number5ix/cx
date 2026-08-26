@@ -351,22 +351,22 @@ bool HttpServerRequest_sendContinue(_In_ HttpServerRequest* self)
 
 uint64 HttpServerRequest_sentBytes(_In_ HttpServerRequest* self)
 {
-    return (uint64)atomicLoad(uintptr, &self->progSent, Relaxed);
+    return atomicLoad(uint64, &self->progSent, Relaxed);
 }
 
 uint64 HttpServerRequest_recvBytes(_In_ HttpServerRequest* self)
 {
-    return (uint64)atomicLoad(uintptr, &self->progRecv, Relaxed);
+    return atomicLoad(uint64, &self->progRecv, Relaxed);
 }
 
 int64 HttpServerRequest_sentTotal(_In_ HttpServerRequest* self)
 {
-    return (int64)atomicLoad(intptr, &self->progSendTotal, Relaxed);
+    return atomicLoad(int64, &self->progSendTotal, Relaxed);
 }
 
 int64 HttpServerRequest_recvTotal(_In_ HttpServerRequest* self)
 {
-    return (int64)atomicLoad(intptr, &self->progRecvTotal, Relaxed);
+    return atomicLoad(int64, &self->progRecvTotal, Relaxed);
 }
 
 // Autogen begins -----
