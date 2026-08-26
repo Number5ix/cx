@@ -8,6 +8,7 @@
 #include <cx/thread/rwlock.h>
 #include <cx/thread/sema.h>
 #include <cx/platform/os.h>
+#include <stddef.h>
 
 #define TEST_FILE thrtest
 #define TEST_FUNCS thrtest_funcs
@@ -648,6 +649,209 @@ static int test_condvar()
     return 0;
 }
 
+// --- int64/uint64 atomics ---------------------------------------------------------------
+//
+// The interesting target for these is 32-bit x86: MSVC has no native Interlocked
+// intrinsic for most 64-bit ops there (cx/platform/msvc/msvc_atomic.h falls back to a
+// compare-exchange retry loop), and its plain 8-byte load/store used to tear across the
+// two 32-bit halves before this test existed.
+
+typedef struct {
+    char pad;
+    atomic(int64) a;
+} AtomicI64AlignCheck;
+
+_Static_assert(sizeof(atomic(int64)) == 8, "atomic(int64) must be exactly 8 bytes");
+_Static_assert(sizeof(atomic(uint64)) == 8, "atomic(uint64) must be exactly 8 bytes");
+_Static_assert(offsetof(AtomicI64AlignCheck, a) == 8,
+               "atomic(int64) must be 8-byte aligned as a struct member");
+
+static int test_atomic64_ops()
+{
+    atomic(int64) v;
+    atomic(uint64) u;
+
+    int64 ivals[] = { 0, 1, -1, (int64)0x0123456789ABCDEFLL, INT64_MIN, INT64_MAX };
+    for (size_t i = 0; i < sizeof(ivals) / sizeof(ivals[0]); i++) {
+        atomicStore(int64, &v, ivals[i], Relaxed);
+        if (atomicLoad(int64, &v, Relaxed) != ivals[i])
+            TEST_FAIL(1, _SL("int64 relaxed load/store round-trip failed for ${int}"), stvar(int64, ivals[i]));
+        atomicStore(int64, &v, ivals[i], Release);
+        if (atomicLoad(int64, &v, Acquire) != ivals[i])
+            TEST_FAIL(1, _SL("int64 acquire/release load/store round-trip failed for ${int}"), stvar(int64, ivals[i]));
+        atomicStore(int64, &v, ivals[i], SeqCst);
+        if (atomicLoad(int64, &v, SeqCst) != ivals[i])
+            TEST_FAIL(1, _SL("int64 seqcst load/store round-trip failed for ${int}"), stvar(int64, ivals[i]));
+    }
+
+    uint64 uvals[] = { 0, 1, UINT64_MAX, 0x0123456789ABCDEFULL, 0x8000000000000000ULL };
+    for (size_t i = 0; i < sizeof(uvals) / sizeof(uvals[0]); i++) {
+        atomicStore(uint64, &u, uvals[i], Relaxed);
+        if (atomicLoad(uint64, &u, Relaxed) != uvals[i])
+            TEST_FAIL(1, _SL("uint64 relaxed load/store round-trip failed for ${uint}"), stvar(uint64, uvals[i]));
+    }
+
+    atomicStore(int64, &v, 100, Relaxed);
+    if (atomicExchange(int64, &v, 200, AcqRel) != 100)
+        TEST_FAIL(1, _SL("int64 exchange did not return the previous value"), stvNone);
+    if (atomicLoad(int64, &v, Relaxed) != 200)
+        TEST_FAIL(1, _SL("int64 exchange did not store the new value"), stvNone);
+
+    atomicStore(int64, &v, 42, Relaxed);
+    int64 expected = 42;
+    if (!atomicCompareExchange(int64, strong, &v, &expected, 43, AcqRel, Relaxed))
+        TEST_FAIL(1, _SL("int64 CAS should have succeeded"), stvNone);
+    if (atomicLoad(int64, &v, Relaxed) != 43)
+        TEST_FAIL(1, _SL("int64 CAS success did not store the desired value"), stvNone);
+
+    expected = 99;   // deliberately wrong, to force failure
+    if (atomicCompareExchange(int64, strong, &v, &expected, 44, AcqRel, Relaxed))
+        TEST_FAIL(1, _SL("int64 CAS should have failed"), stvNone);
+    if (expected != 43)
+        TEST_FAIL(1, _SL("int64 CAS failure did not write back the current value (got ${int})"), stvar(int64, expected));
+    if (atomicLoad(int64, &v, Relaxed) != 43)
+        TEST_FAIL(1, _SL("int64 CAS failure should not have modified the stored value"), stvNone);
+
+    // fetchAdd/fetchSub crossing the 32-bit word boundary, and the fetchSub-via-negation
+    // path used by CX_GENERATE_INT_ATOMICS.
+    atomicStore(uint64, &u, 0xFFFFFFFFULL, Relaxed);
+    if (atomicFetchAdd(uint64, &u, 1, AcqRel) != 0xFFFFFFFFULL)
+        TEST_FAIL(1, _SL("uint64 fetchAdd did not return the previous value"), stvNone);
+    if (atomicLoad(uint64, &u, Relaxed) != 0x100000000ULL)
+        TEST_FAIL(1, _SL("uint64 fetchAdd across the word boundary produced the wrong result"), stvNone);
+
+    atomicStore(int64, &v, 0, Relaxed);
+    atomicFetchSub(int64, &v, 1, AcqRel);
+    if (atomicLoad(int64, &v, Relaxed) != -1)
+        TEST_FAIL(1, _SL("int64 fetchSub underflow produced the wrong result"), stvNone);
+
+    // fetchAnd/Or/Xor with high-word-only and low-word-only masks.
+    atomicStore(uint64, &u, 0xFFFFFFFF00000000ULL, Relaxed);
+    atomicFetchAnd(uint64, &u, 0x00000000FFFFFFFFULL, AcqRel);
+    if (atomicLoad(uint64, &u, Relaxed) != 0)
+        TEST_FAIL(1, _SL("uint64 fetchAnd across the word boundary produced the wrong result"), stvNone);
+
+    atomicStore(uint64, &u, 0, Relaxed);
+    atomicFetchOr(uint64, &u, 0xFFFFFFFF00000000ULL, AcqRel);
+    if (atomicLoad(uint64, &u, Relaxed) != 0xFFFFFFFF00000000ULL)
+        TEST_FAIL(1, _SL("uint64 fetchOr into the high word produced the wrong result"), stvNone);
+
+    atomicStore(uint64, &u, 0xFFFFFFFFFFFFFFFFULL, Relaxed);
+    atomicFetchXor(uint64, &u, 0x00000000FFFFFFFFULL, AcqRel);
+    if (atomicLoad(uint64, &u, Relaxed) != 0xFFFFFFFF00000000ULL)
+        TEST_FAIL(1, _SL("uint64 fetchXor on the low word produced the wrong result"), stvNone);
+
+    return 0;
+}
+
+#define A64_ADD_THREADS 8
+#define A64_ADD_PER_THREAD 131072
+
+static atomic(uint64) a64counter;
+
+static int thrproc_a64add(Thread *self)
+{
+    int32 count;
+    if (!stvlNext(&self->args, int32, &count))
+        return 0;
+
+    for (int i = 0; i < count; i++)
+        atomicFetchAdd(uint64, &a64counter, 1, AcqRel);
+
+    return 0;
+}
+
+#define A64_PATTERN_ITERS 500000
+#define A64_PATTERN_READERS 4
+
+static atomic(uint64) a64pattern;
+
+static int thrproc_a64reader(Thread *self)
+{
+    while (!atomicLoad(bool, &rthread_exit, Acquire)) {
+        uint64 pat = atomicLoad(uint64, &a64pattern, Acquire);
+        uint32 hi = (uint32)(pat >> 32);
+        uint32 lo = (uint32)pat;
+        if (hi != lo)
+            atomicStore(bool, &fail, true, Release);
+    }
+    return 0;
+}
+
+static int thrproc_a64storewriter(Thread *self)
+{
+    for (uint32 w = 1; w <= A64_PATTERN_ITERS; w++)
+        atomicStore(uint64, &a64pattern, ((uint64)w << 32) | w, Release);
+    atomicStore(bool, &rthread_exit, true, Release);
+    return 0;
+}
+
+static int thrproc_a64xorwriter(Thread *self)
+{
+    // A full-word toggle keeps the two halves equal both before and after a correctly
+    // atomic op; a reader that observes hi != lo mid-flip caught a torn RMW.
+    for (uint32 i = 0; i < A64_PATTERN_ITERS; i++)
+        atomicFetchXor(uint64, &a64pattern, 0xFFFFFFFFFFFFFFFFULL, AcqRel);
+    atomicStore(bool, &rthread_exit, true, Release);
+    return 0;
+}
+
+static int test_atomic64_contend()
+{
+    int i, ret = 0;
+
+    // (1) fetchAdd under contention: lost-update check, with the running total crossing
+    // the 32-bit boundary many times over.
+    atomicStore(uint64, &a64counter, 0, Relaxed);
+    Thread *addthreads[A64_ADD_THREADS];
+    for (i = 0; i < A64_ADD_THREADS; i++) {
+        addthreads[i] = thrCreate(thrproc_a64add, _S"Atomic64 Add", stvar(int32, A64_ADD_PER_THREAD));
+        if (!addthreads[i])
+            TEST_FAIL(1, _SL("thrCreate failed for atomic64 add thread ${int}"), stvar(int32, i));
+    }
+    for (i = 0; i < A64_ADD_THREADS; i++) {
+        thrWait(addthreads[i], timeForever);
+        thrShutdown(addthreads[i]);
+        thrRelease(&addthreads[i]);
+    }
+    uint64 expectedtotal = (uint64)A64_ADD_THREADS * (uint64)A64_ADD_PER_THREAD;
+    if (atomicLoad(uint64, &a64counter, Relaxed) != expectedtotal)
+        TEST_FAILV(ret, 1, _SL("uint64 fetchAdd total=${uint} != expected ${uint} (lost update under contention)"), stvar(uint64, atomicLoad(uint64, &a64counter, Relaxed)), stvar(uint64, expectedtotal));
+
+    // (2) and (3): store/load and fetchXor tearing, driven by one writer thread and
+    // several tight-spinning readers checking self-consistency of a (w<<32)|w pattern.
+    static int (*const writers[])(Thread*) = { thrproc_a64storewriter, thrproc_a64xorwriter };
+    for (int phase = 0; phase < 2; phase++) {
+        atomicStore(bool, &fail, false, Release);
+        atomicStore(bool, &rthread_exit, false, Release);
+        atomicStore(uint64, &a64pattern, 0, Relaxed);
+
+        Thread *readers[A64_PATTERN_READERS];
+        for (i = 0; i < A64_PATTERN_READERS; i++) {
+            readers[i] = thrCreate(thrproc_a64reader, _S"Atomic64 Pattern Reader", stvNone);
+            if (!readers[i])
+                TEST_FAILV(ret, 1, _SL("thrCreate failed for atomic64 reader thread ${int}"), stvar(int32, i));
+        }
+        Thread *writer = thrCreate(writers[phase], _S"Atomic64 Pattern Writer", stvNone);
+        if (!writer)
+            TEST_FAILV(ret, 1, _SL("thrCreate failed for atomic64 writer thread (phase ${int})"), stvar(int32, phase));
+
+        thrWait(writer, timeForever);
+        thrShutdown(writer);
+        thrRelease(&writer);
+        for (i = 0; i < A64_PATTERN_READERS; i++) {
+            thrWait(readers[i], timeForever);
+            thrShutdown(readers[i]);
+            thrRelease(&readers[i]);
+        }
+
+        if (atomicLoad(bool, &fail, Acquire))
+            TEST_FAILV(ret, 1, _SL("uint64 tearing detected in pattern phase ${int} (store/load or fetchXor split across a reader's atomicLoad)"), stvar(int32, phase));
+    }
+
+    return ret;
+}
+
 testfunc thrtest_funcs[] = {
     { "basic", test_basic },
     { "futex", test_futex },
@@ -658,5 +862,7 @@ testfunc thrtest_funcs[] = {
     { "event_s", test_event_s },
     { "timeout", test_timeout },
     { "condvar", test_condvar },
+    { "atomic64", test_atomic64_ops },
+    { "atomic64_mt", test_atomic64_contend },
     { 0, 0 }
 };

@@ -1,3 +1,12 @@
+// GCC before 11.1 under-aligns _Atomic long long as a struct member on i386 (it aligns
+// the standalone typedef correctly, but not the field inside cx_atomic_int64/uint64),
+// which breaks both atomicity of 8-byte ops and the C/C++ ABI match below. There is no
+// portable way to detect this from a static_assert, since the typedef alignment lies.
+#if defined(__i386__) && defined(__GNUC__) && !defined(__clang__) && \
+    (__GNUC__ < 11 || (__GNUC__ == 11 && __GNUC_MINOR__ < 1))
+#error "GCC < 11.1 on i386 misaligns 64-bit atomics; upgrade the compiler to use int64/uint64 atomics"
+#endif
+
 #ifndef __cplusplus
 #pragma once
 
@@ -250,7 +259,8 @@
     typedef std::atomic<type> cx_atomic_##short_type;                                           \
     static_assert(sizeof(cx_atomic_##short_type) == sizeof(type),                               \
                   "cx_atomic_" #short_type " size must match " #type " for C ABI compat");      \
-    static_assert(alignof(cx_atomic_##short_type) == alignof(type),                             \
+    static_assert(alignof(cx_atomic_##short_type) ==                                            \
+                      (sizeof(type) > alignof(type) ? sizeof(type) : alignof(type)),             \
                   "cx_atomic_" #short_type " alignment must match " #type " for C ABI compat"); \
     CX_ATOMIC_LOCK_FREE_ASSERT(type, short_type)                                                \
                                                                                                 \

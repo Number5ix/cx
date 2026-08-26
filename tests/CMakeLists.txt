@@ -304,6 +304,8 @@ add_test(NAME "\"thread: Reader/writer lock\"" COMMAND test_runner thrtest rwloc
 add_test(NAME "\"thread: Event\"" COMMAND test_runner thrtest event)
 add_test(NAME "\"thread: Event (with spin)\"" COMMAND test_runner thrtest event_s)
 add_test(NAME "\"thread: Condition Variable\"" COMMAND test_runner thrtest condvar)
+add_test(NAME "\"thread: 64-bit atomics\"" COMMAND test_runner thrtest atomic64)
+add_test(NAME "\"thread: 64-bit atomics (contention)\"" COMMAND test_runner thrtest atomic64_mt)
 add_test(NAME "\"meta: Block Wrapping\"" COMMAND test_runner metatest wrap)
 add_test(NAME "\"meta: Protected Blocks\"" COMMAND test_runner metatest protect)
 add_test(NAME "\"meta: Basic Try/Catch\"" COMMAND test_runner metatest ptry)

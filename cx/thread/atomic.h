@@ -28,6 +28,13 @@
  * library):
  *   atomicFence(MemoryOrder) (mimics C11's atomic_thread_fence).
  *   atomicInit (mimics C11's ATOMIC_VAR_INIT).
+ *
+ * On 32-bit x86, int64/uint64 read-modify-write operations are implemented with a
+ * compare-exchange retry loop rather than a native instruction, since MSVC exposes no
+ * 32-bit Interlocked intrinsic for exchange/fetch-add/and/or/xor at 8 bytes. Load and
+ * store use a fast SSE2 path where available. Expect these to be slower than the native
+ * ops at other sizes; avoid int64/uint64 atomics on hot paths that must also run on
+ * 32-bit x86.
  */
 
 #ifdef _64BIT
@@ -56,4 +63,6 @@ CX_GENERATE_INT_ATOMICS(uintptr, uintptr, 2)
 CX_GENERATE_INT_ATOMICS(uint8, uint8, 0)
 CX_GENERATE_INT_ATOMICS(uint16, uint16, 1)
 CX_GENERATE_INT_ATOMICS(uint32, uint32, 2)
+CX_GENERATE_INT_ATOMICS(int64, int64, 3)
+CX_GENERATE_INT_ATOMICS(uint64, uint64, 3)
 #endif

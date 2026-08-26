@@ -275,7 +275,7 @@
 #error Unsupported operating system
 #endif
 
-#if defined(__x86_32__)
+#if defined(__i386__) || defined(__i386) || defined(_X86_)
 #define _ARCH_X86 1
 #define _ARCH_STR "x86"
 #define _32BIT    1

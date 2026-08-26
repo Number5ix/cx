@@ -1,4 +1,5 @@
 include (CheckTypeSize)
+include (CheckCSourceCompiles)
 find_package (Threads REQUIRED)
 
 include (${CX_TOP_SOURCE_DIR}/cmake/werror.cmake)
@@ -83,6 +84,34 @@ add_library(cx STATIC
     ${CX_CMAKE_FILES})
 
 target_link_libraries(cx ${CMAKE_THREAD_LIBS_INIT} ${CMAKE_DL_LIBS})
+
+# gcc/clang lower 8-byte atomic ops to __atomic builtins that are inline on most
+# targets, but on some (notably 32-bit x86 without -mcx16-style assumptions) the
+# compiler emits calls into libatomic instead. Only 32-bit is expected to need this.
+if ((CX_COMPILER_IS_GNU OR CX_COMPILER_IS_CLANG) AND NOT CX_PLATFORM_IS_WASM)
+    set(CX_ATOMIC64_TEST_SRC [[
+#include <stdint.h>
+int main(void) {
+    long long v = 0;
+    long long r = __atomic_load_n(&v, __ATOMIC_SEQ_CST);
+    __atomic_store_n(&v, r + 1, __ATOMIC_SEQ_CST);
+    long long e = 0;
+    __atomic_compare_exchange_n(&v, &e, 1, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
+    return (int)__atomic_fetch_add(&v, 1, __ATOMIC_SEQ_CST);
+}
+]])
+    check_c_source_compiles("${CX_ATOMIC64_TEST_SRC}" CX_HAVE_ATOMIC64_BUILTIN)
+    if (NOT CX_HAVE_ATOMIC64_BUILTIN)
+        set(CMAKE_REQUIRED_LIBRARIES atomic)
+        check_c_source_compiles("${CX_ATOMIC64_TEST_SRC}" CX_HAVE_ATOMIC64_BUILTIN_WITH_LIBATOMIC)
+        unset(CMAKE_REQUIRED_LIBRARIES)
+        if (NOT CX_HAVE_ATOMIC64_BUILTIN_WITH_LIBATOMIC)
+            message(FATAL_ERROR "8-byte __atomic builtins are unavailable, even linked against libatomic; int64/uint64 atomics cannot be built on this target")
+        endif()
+        target_link_libraries(cx atomic)
+    endif()
+endif()
+
 target_include_directories(cx SYSTEM PUBLIC ${CX_TOP_SOURCE_DIR} ${CX_TOP_SOURCE_DIR}/cx/include ${CX_TOP_BINARY_DIR} ${CMAKE_CURRENT_BINARY_DIR})
 target_compile_definitions(cx PRIVATE UNICODE _UNICODE)
 if (CX_COMPILER_IS_MSVC)
