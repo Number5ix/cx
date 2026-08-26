@@ -15,6 +15,14 @@ static void sbufDestroy(_Pre_valid_ _Post_invalid_ StreamBuffer* sb);
 static bool sbufPFinishLocked(_Inout_ StreamBuffer* sb);
 static bool sbufCFinishLocked(_Inout_ StreamBuffer* sb);
 
+// An sbufSendCB runs in the middle of a ring walk that is still holding pointers into nodes it
+// has not finished with, and the walk consumes what it read only after the last callback returns.
+// Anything the callback does that touches the ring -- a write, a read, a skip, a finish -- either
+// corrupts the walk or has its effect thrown away, quietly in both cases. The recursive lock lets
+// the call through, so this is the only thing that catches it.
+#define SBUF_WALK_MSG \
+    "An sbufSendCB must not call any sbuf function on the buffer it was invoked from"
+
 // Recursive per-buffer lock, active only when the buffer was created with SBUF_Locked.
 //
 // The recursion is load-bearing rather than a convenience. sbufPullCB's contract lets a pull
@@ -23,12 +31,16 @@ static bool sbufCFinishLocked(_Inout_ StreamBuffer* sb);
 // lock. cx's Mutex is not recursive, so ownership is tracked here instead.
 static void sbufLock(_Inout_ StreamBuffer* sb)
 {
-    if (!sb->locked)
+    if (!sb->locked) {
+        // an unlocked buffer only ever has the one thread, so any arrival here is a re-entry
+        devAssertMsg(!sb->walking, SBUF_WALK_MSG);
         return;
+    }
 
     intptr self = sbufSelf();
 
     if (atomicLoad(intptr, &sb->owner, Relaxed) == self) {
+        devAssertMsg(!sb->walking, SBUF_WALK_MSG);
         ++sb->depth;
         return;
     }
@@ -608,8 +620,9 @@ static void feedBuffer(_Inout_ StreamBuffer* sb, size_t want)
     bufringFeed(&sb->buf, sbufFeedCB, ctx.needed, &ctx);
 }
 
-static bool sbufCReadLocked(_Inout_ StreamBuffer* sb, _Out_writes_bytes_to_(sz, *bytesread) uint8* buf,
-                            size_t sz, _Out_ size_t* bytesread)
+static bool sbufCReadLocked(_Inout_ StreamBuffer* sb,
+                            _Out_writes_bytes_to_(sz, *bytesread) uint8* buf, size_t sz,
+                            _Out_ size_t* bytesread)
 {
     *bytesread = 0;
 
@@ -741,7 +754,9 @@ bool sbufCSend(StreamBuffer* sb, sbufSendCB func, size_t sz)
     sz = min(sz, sbufCAvailLocked(sb));
 
     SbufRingReadCtx ctx = { .sb = sb, .func = func };
+    sb->walking         = true;
     bufringReadZC(&sb->buf, sz, sbufRingRead, &ctx);
+    sb->walking = false;
 
     sbufReleaseProducerLocked(sb, false);
 

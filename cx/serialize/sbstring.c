@@ -3,16 +3,16 @@
 #include <cx/string.h>
 #include <cx/utils/compare.h>
 
-typedef struct SbufStrInCtx {
+typedef struct SbufProviderCtx {
     striter iter;
-} SbufStrInCtx;
+} SbufProviderCtx;
 
-static void sbufStrInCleanup(_Pre_opt_valid_ void* ctx)
+static void sbufProviderCleanup(_Pre_opt_valid_ void* ctx)
 {
     if (!ctx)
         return;
 
-    SbufStrInCtx* sbc = (SbufStrInCtx*)ctx;
+    SbufProviderCtx* sbc = (SbufProviderCtx*)ctx;
     striFinish(&sbc->iter);
     xaFree(sbc);
 }
@@ -58,7 +58,7 @@ bool sbufStrIn(StreamBuffer* sb, strref str)
 static size_t sbufStrPullCB(_Pre_valid_ StreamBuffer* sb, _Out_writes_bytes_(sz) uint8* buf,
                             size_t sz, _Pre_opt_valid_ void* ctx)
 {
-    SbufStrInCtx* sbc = (SbufStrInCtx*)ctx;
+    SbufProviderCtx* sbc = (SbufProviderCtx*)ctx;
     if (!sbc)
         return 0;
 
@@ -77,12 +77,15 @@ static size_t sbufStrPullCB(_Pre_valid_ StreamBuffer* sb, _Out_writes_bytes_(sz)
 _Use_decl_annotations_
 bool sbufStrPRegisterPull(StreamBuffer* sb, strref str)
 {
-    SbufStrInCtx* sbc = xaAlloc(sizeof(SbufStrInCtx));
+    SbufProviderCtx* sbc = xaAllocStruct(SbufProviderCtx);
 
     striInit(&sbc->iter, str);
 
-    if (!sbufPRegisterPull(sb, sbufStrPullCB, sbufStrInCleanup, sbc))
+    if (!sbufPRegisterPull(sb, sbufStrPullCB, sbufProviderCleanup, sbc)) {
+        // registration never ran, so the cleanup callback will not either
+        sbufProviderCleanup(sbc);
         return false;
+    }
 
     return true;
 }

@@ -99,9 +99,12 @@ typedef void (*sbufPushCB)(_Pre_valid_ StreamBuffer* sb, _In_reads_bytes_(sz) co
 // This callback is used with sbufCSend. It may be called multiple times with varying
 // offsets. The offset passed is always from the start of the available bytes in the
 // buffer.
-// If this function returns true, the sent bytes will be consumed and removed from the
-// buffer. If it returns false, it behaves like the peek functions and does not remove
-// the bytes from the buffer.
+// Consumption is all-or-nothing across the whole sbufCSend call: if every invocation
+// returns true the bytes are consumed and removed from the buffer, and if any one of them
+// returns false the buffer keeps all of them, like the peek functions. A callback that can
+// accept some of the data but not the rest should therefore return false every time and
+// have the caller sbufCSkip() exactly what it took.
+// This callback MUST NOT call any sbuf function on the buffer it was passed.
 // If sz is 0, check if the producer is finished and/or for error state.
 typedef bool (*sbufSendCB)(_Pre_valid_ StreamBuffer* sb, _In_reads_bytes_(sz) const uint8* buf,
                            size_t off, size_t sz, _Pre_opt_valid_ void* ctx);
@@ -196,6 +199,7 @@ typedef struct StreamBuffer {
     int refcount;                    ///< Reference count for lifecycle management
     bool locked;                     ///< Copy of SBUF_Locked; never changes after creation
     bool resumePending;              ///< Producer resume callback is owed once the lock is gone
+    bool walking;                    ///< Inside a zero-copy ring walk; nothing may touch the ring
     atomic(uint32) flags;            ///< Operating mode and state flags
 } StreamBuffer;
 /// @endcond
