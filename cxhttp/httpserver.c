@@ -28,9 +28,9 @@
 
 static void onAccepted(NetEvent* ev)
 {
-    HttpServer* self  = (HttpServer*)ev->ctx;
+    HttpServer* self   = (HttpServer*)ev->ctx;
     NetSocket* newsock = ev->accept.newSocket;
-    if (!self || !newsock)
+    if (!newsock)
         return;
 
     // Without NQ_AutoAccept the queue leaves registration to the application, and a socket that is
@@ -139,9 +139,13 @@ bool HttpServer_listen(_In_ HttpServer* self, _In_ NetAddr* addr, int backlog)
     if (self->listener || self->shuttingDown)
         return false;
 
-    NetSocket* sock = netqueueListen(self->queue, addr, backlog, &kListenHandlers, self);
+    NetSocket* sock = netqueueListen(self->queue, addr, backlog, NULL, NULL);
     if (!sock)
         return false;
+
+    // Held weakly: netqueueListen() only takes a borrowed ctx, so the handlers go on separately
+    // once the socket exists.
+    netsocketSetHandlersObj(sock, &kListenHandlers, self);
 
     self->listener = sock;   // the reference netqueueListen() returned is the one we keep
     return true;
@@ -160,7 +164,7 @@ bool HttpServer_attach(_In_ HttpServer* self, _In_ NetSocket* listener)
         return false;
 
     self->listener = objAcquire(listener);
-    netsocketSetHandlers(listener, &kListenHandlers, self);
+    netsocketSetHandlersObj(listener, &kListenHandlers, self);
 
     // Whatever was accepted before the server took over is not reachable from here, so a listener
     // should be handed over before anything can have connected to it.
@@ -296,9 +300,12 @@ bool HttpServer_listenTls(_In_ HttpServer* self, _In_ NetAddr* addr, int backlog
 
     // nettlsListen() is netqueueListen() with the filter step folded in, and the filter lands on
     // the listener rather than on each accepted socket.
-    NetSocket* sock = nettlsListen(self->queue, addr, backlog, cfg, &kListenHandlers, self);
+    NetSocket* sock = nettlsListen(self->queue, addr, backlog, cfg, NULL, NULL);
     if (!sock)
         return false;
+
+    // Held weakly, as in HttpServer_listen().
+    netsocketSetHandlersObj(sock, &kListenHandlers, self);
 
     self->listener = sock;   // the reference nettlsListen() returned is the one we keep
     return true;

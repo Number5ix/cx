@@ -45,6 +45,7 @@ void httpLimitsDefault(HttpLimits* out)
     out->maxHeadBytes   = 64 * 1024;
     out->maxBodyBytes   = 0;   // unlimited: a download has no natural bound, so the caller sets one
     out->maxChunkSize   = 64 * 1024 * 1024;
+    out->maxInterim     = 8;   // more than any real server sends, and still a bound
 }
 
 _Use_decl_annotations_
@@ -85,6 +86,7 @@ void httpParserReset(HttpParser* p)
     p->bodyTotal      = 0;
     p->headBytes      = 0;
     p->headerCount    = 0;
+    p->interim        = 0;
     p->bodyReady      = 0;
 }
 
@@ -331,6 +333,26 @@ static HttpParseResult finishHead(HttpParser* p)
     if (te && cl)
         return fail(p, HTTPERR_BadMessage);
 
+    // A 1xx is not the answer to anything -- it is a message that arrives ahead of the answer, so
+    // the parser reports it and then goes back for another start line instead of stopping here.
+    //
+    // Framing headers on one are refused rather than ignored. A 1xx never carries content, so a
+    // peer that declares a length is describing a body it may well go on to send while we are
+    // reading the same bytes as the next status line. That is the disagreement `Transfer-Encoding`
+    // and `Content-Length` together create, arrived at from the other direction.
+    if (!p->isRequest && p->status < 200) {
+        if (te || cl)
+            return fail(p, HTTPERR_BadMessage);
+
+        // Without a cap, a peer that sends interim responses forever holds the connection and the
+        // request on it open forever, at no cost to itself.
+        if (++p->interim > p->limits.maxInterim)
+            return fail(p, HTTPERR_TooLarge);
+
+        p->state = HTTPS_Interim;
+        return HTTPP_Interim;
+    }
+
     if (te) {
         // Only `chunked` is supported, and it has to be the last coding. Anything else means a
         // body we cannot frame, which is not something to continue past.
@@ -371,7 +393,7 @@ static HttpParseResult finishHead(HttpParser* p)
     // Statuses and methods that forbid a body win over everything above: a response to HEAD is
     // framed exactly like the GET response would have been, but the body is not sent.
     if (!p->isRequest) {
-        if (p->status < 200 || p->status == HTTP_NoContent || p->status == HTTP_NotModified ||
+        if (p->status == HTTP_NoContent || p->status == HTTP_NotModified ||
             p->reqMethod == HTTP_Head)
             p->noBody = true;
     } else if (!te && !cl) {
@@ -595,6 +617,21 @@ static HttpParseResult stepOnce(HttpParser* p, BufRing* src)
         }
         p->state = HTTPS_ChunkSize;
         ret      = STEP_Again;
+        break;
+
+    case HTTPS_Interim:
+        // The caller has had its look at the interim response by now, so clear it and start the
+        // next head where the last one left off. `headBytes` is deliberately not cleared: the head
+        // budget covers everything read before the real response, so a peer cannot buy itself a
+        // fresh allowance by prefixing each block with a 1xx.
+        strDestroy(&p->reason);
+        httpHeadersClear(&p->headers);
+        p->headDone    = false;
+        p->status      = 0;
+        p->version     = HTTPVER_Unknown;
+        p->headerCount = 0;
+        p->state       = HTTPS_Start;
+        ret            = STEP_Again;
         break;
 
     case HTTPS_Trailer:

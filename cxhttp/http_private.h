@@ -97,7 +97,12 @@ typedef enum {
     HTTPP_Head,           // the start line and headers are now readable on the parser
     HTTPP_Body,           // body bytes are waiting in the parser's `out` ring
     HTTPP_Complete,       // the message ended
-    HTTPP_Error           // protocol error; `err` says which
+    HTTPP_Error,          // protocol error; `err` says which
+
+    // An interim (1xx) response arrived and the real one has not. Its status and headers are
+    // readable now and are gone on the next step, which resumes at the next start line. A caller
+    // with nothing to do with it just keeps looping.
+    HTTPP_Interim
 } HttpParseResult;
 
 // Internal parser states. Public only to the extent that the struct below is.
@@ -110,6 +115,7 @@ typedef enum {
     HTTPS_ChunkData,    // inside a chunk's data
     HTTPS_ChunkCRLF,    // expecting the CRLF that follows a chunk's data
     HTTPS_Trailer,      // in the trailer section after the last chunk
+    HTTPS_Interim,      // an interim response was just reported; clear it and read the next head
     HTTPS_Done,
     HTTPS_Failed
 } HttpParseState;
@@ -152,6 +158,7 @@ typedef struct HttpParser {
 
     uint32 headBytes;   // start line + headers consumed, for maxHeadBytes
     uint32 headerCount;
+    uint32 interim;     // interim responses seen ahead of this one, for maxInterim
 
     // The request method, which a response parser needs because a response to HEAD has no body
     // however it is framed. Set by the caller before feeding the response.

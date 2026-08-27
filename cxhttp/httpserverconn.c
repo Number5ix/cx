@@ -133,25 +133,19 @@ static bool handoffToWorker(HttpServerConn* c)
     return true;
 }
 
-// Same reasoning as the client's: the connection is reached through a borrowed pointer, and the
-// terminal path is free to be the last thing holding it -- the server drops its reference from
-// inside the very callback that reports the connection dying.
-static HttpServerConn* enterConn(NetEvent* ev)
-{
-    HttpServerConn* c = (HttpServerConn*)ev->ctx;
-    return c ? objAcquire(c) : NULL;
-}
+// Same reasoning as the client's: the connection is registered as the socket's handler context
+// with netsocketSetHandlersObj(), which resolves it to a strong reference for the length of each
+// callback -- so ev->ctx below is always either a live connection or this callback was never
+// invoked. The server dropping its reference from inside the very callback that reports the
+// connection dying, the ordinary case, can never race a handler already in progress elsewhere.
 
 static void onNetRecv(NetEvent* ev)
 {
-    HttpServerConn* c = enterConn(ev);
-    if (!c)
-        return;
+    HttpServerConn* c = (HttpServerConn*)ev->ctx;
 
     Thread* prev = enterDispatch(c);
     httpsrvconn_pump(c);
     leaveDispatch(c, prev);
-    objRelease(&c);
 }
 
 // The socket's backlog drained below its low watermark, so a response body that stopped against the
@@ -159,15 +153,12 @@ static void onNetRecv(NetEvent* ev)
 // is a dead connection rather than backpressure.
 static void onNetSendReady(NetEvent* ev)
 {
-    HttpServerConn* c = enterConn(ev);
-    if (!c)
-        return;
+    HttpServerConn* c = (HttpServerConn*)ev->ctx;
 
     Thread* prev = enterDispatch(c);
     if (c->writing)
         httpsrvconn_pumpRespBody(c);
     leaveDispatch(c, prev);
-    objRelease(&c);
 }
 
 // Let go of whichever StreamBuffers a request was using. `ok` is false when the exchange is being
@@ -228,35 +219,27 @@ static void connDied(HttpServerConn* c, HttpError err, NetErrorCode neterr)
 
 static void onNetClosed(NetEvent* ev)
 {
-    HttpServerConn* c = enterConn(ev);
-    if (!c)
-        return;
+    HttpServerConn* c = (HttpServerConn*)ev->ctx;
 
     // A close with nothing in flight is how every keep-alive connection ends, and is not a failure.
     // One arriving mid-request is a client that gave up, which is.
     Thread* prev = enterDispatch(c);
     connDied(c, c->req ? HTTPERR_Closed : HTTPERR_None, NERR_None);
     leaveDispatch(c, prev);
-    objRelease(&c);
 }
 
 static void onNetError(NetEvent* ev)
 {
-    HttpServerConn* c = enterConn(ev);
-    if (!c)
-        return;
+    HttpServerConn* c = (HttpServerConn*)ev->ctx;
 
     Thread* prev = enterDispatch(c);
     connDied(c, HTTPERR_Network, ev->error.err);
     leaveDispatch(c, prev);
-    objRelease(&c);
 }
 
 static void onNetTimer(NetEvent* ev)
 {
-    HttpServerConn* c = enterConn(ev);
-    if (!c)
-        return;
+    HttpServerConn* c = (HttpServerConn*)ev->ctx;
 
     Thread* prev = enterDispatch(c);
 
@@ -283,7 +266,6 @@ static void onNetTimer(NetEvent* ev)
     }
 
     leaveDispatch(c, prev);
-    objRelease(&c);
 }
 
 static const NetHandlers kSrvConnHandlers = {
@@ -319,9 +301,9 @@ _objfactory_check HttpServerConn* HttpServerConn_create(_In_ HttpServer* server,
 
     httpParserInit(self->parser, true, &server->limits);
 
-    // Borrowed, like the client's: the socket must not own the connection, or the two would keep
-    // each other alive.
-    netsocketSetHandlers(sock, &kSrvConnHandlers, self);
+    // Held weakly, like the client's: the socket must not own the connection, or the two would
+    // keep each other alive.
+    netsocketSetHandlersObj(sock, &kSrvConnHandlers, self);
 
     return self;
 }
@@ -337,8 +319,8 @@ _objinit_guaranteed bool HttpServerConn_init(_In_ HttpServerConn* self)
 
 void HttpServerConn_destroy(_In_ HttpServerConn* self)
 {
-    // Stop the socket calling back into an object that is going away. Everything else here would be
-    // safe in any order; this must be first.
+    // Not required for safety, per HttpConn_destroy()'s note -- clears the now-inert registration
+    // when the socket outlives this connection instead of leaving a dead weak ref behind.
     if (self->sock)
         netsocketSetHandlers(self->sock, NULL, NULL);
 

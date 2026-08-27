@@ -61,16 +61,11 @@ static void cancelTimers(HttpConn* self)
 // Socket handlers
 // ---------------------------------------------------------------------------------------------
 
-// The one thing every handler here has in common: the connection is reached through a borrowed
-// pointer, and a terminal callback can be the last thing holding it -- a completion handler that
-// releases its connection to start the next request elsewhere is the ordinary case, not an exotic
-// one. Taking a reference for the length of the dispatch means that release destroys the object
-// after this returns rather than underneath it.
-static HttpConn* enterConn(NetEvent* ev)
-{
-    HttpConn* c = (HttpConn*)ev->ctx;
-    return c ? objAcquire(c) : NULL;
-}
+// The connection is registered as the socket's handler context with netsocketSetHandlersObj(),
+// which holds it weakly and resolves it to a strong reference for the length of each callback --
+// so ev->ctx below is always either a live connection or this callback was never invoked at all. A
+// terminal callback releasing the connection to start the next request elsewhere (the ordinary
+// case, not an exotic one) can never race a handler already in progress on another thread.
 
 static bool pumpBodyStream(HttpConn* self, HttpRequest* req);
 
@@ -142,15 +137,11 @@ void _httpReqBodyNotify(StreamBuffer* sb, size_t sz, void* ctx)
 
 static void onNetRecv(NetEvent* ev)
 {
-    HttpConn* c = enterConn(ev);
-    if (!c)
-        return;
+    HttpConn* c = (HttpConn*)ev->ctx;
 
     Thread* prev = enterDispatch(c);
     httpconn_pump(c);
     leaveDispatch(c, prev);
-
-    objRelease(&c);
 }
 
 // The connection is over, whatever the reason. Ends the request in flight, if there is one, and
@@ -195,31 +186,23 @@ static void connDied(HttpConn* c, HttpError err, bool eof)
 
 static void onNetClosed(NetEvent* ev)
 {
-    HttpConn* c = enterConn(ev);
-    if (!c)
-        return;
+    HttpConn* c = (HttpConn*)ev->ctx;
 
     connDied(c, HTTPERR_Closed, true);
-    objRelease(&c);
 }
 
 static void onNetError(NetEvent* ev)
 {
-    HttpConn* c = enterConn(ev);
-    if (!c)
-        return;
+    HttpConn* c = (HttpConn*)ev->ctx;
 
     if (c->req)
         c->req->neterr = ev->error.err;
     connDied(c, HTTPERR_Network, false);
-    objRelease(&c);
 }
 
 static void onNetTimer(NetEvent* ev)
 {
-    HttpConn* c = enterConn(ev);
-    if (!c)
-        return;
+    HttpConn* c = (HttpConn*)ev->ctx;
 
     if (ev->timer.id == c->deadlineTimer) {
         // A response that ran out of time leaves the connection unusable whatever else is true: we
@@ -237,8 +220,6 @@ static void onNetTimer(NetEvent* ev)
             pumpBodyStream(c, c->req);
         leaveDispatch(c, prev);
     }
-
-    objRelease(&c);
 }
 
 // The socket's backlog drained below its low watermark, so a request body that stopped against the
@@ -247,16 +228,12 @@ static void onNetTimer(NetEvent* ev)
 // the server is waiting for the rest of the request, so it sends nothing to wake us with.
 static void onNetSendReady(NetEvent* ev)
 {
-    HttpConn* c = enterConn(ev);
-    if (!c)
-        return;
+    HttpConn* c = (HttpConn*)ev->ctx;
 
     Thread* prev = enterDispatch(c);
     if (c->writing && c->req)
         pumpBodyStream(c, c->req);
     leaveDispatch(c, prev);
-
-    objRelease(&c);
 }
 
 // Registered on the socket for the lifetime of the connection. Deliberately not per-request: the
@@ -292,10 +269,10 @@ _objfactory_check HttpConn* HttpConn_create(_In_ NetSocket* sock, _In_opt_ strre
         return NULL;
     }
 
-    // The handler ctx is the connection itself, which is a borrowed pointer rather than a held
-    // reference: the socket outlives the connection only if the caller made it so, and taking a
+    // The handler ctx is the connection itself, held weakly rather than as a reference the socket
+    // owns: the socket outlives the connection only if the caller made it so, and a strong
     // reference here would make the two own each other.
-    netsocketSetHandlers(sock, &kConnHandlers, self);
+    netsocketSetHandlersObj(sock, &kConnHandlers, self);
 
     return self;
 }
@@ -313,8 +290,11 @@ _objinit_guaranteed bool HttpConn_init(_In_ HttpConn* self)
 
 void HttpConn_destroy(_In_ HttpConn* self)
 {
-    // Stop the socket calling back into an object that is going away. Everything else here would be
-    // safe to do in any order; this must be first.
+    // Not required for safety -- the weak ctx set in HttpConn_create() already resolves to NULL
+    // for any event after this object's last reference is gone, so a socket that outlives the
+    // connection just stops calling back on its own. Clearing it here only matters when the
+    // socket is not also going away right behind this: it drops the now-inert registration
+    // instead of leaving a dead weak ref to resolve on every future event.
     if (self->sock)
         netsocketSetHandlers(self->sock, NULL, NULL);
 
@@ -837,6 +817,13 @@ void HttpConn__pump(_In_ HttpConn* self)
             // can decide before the header block is even complete.
             httpconn_deliver(self, HTTPEV_Status, HTTPERR_None);
             httpconn_deliver(self, HTTPEV_Headers, HTTPERR_None);
+            continue;
+        }
+
+        if (r == HTTPP_Interim) {
+            // A 100 or a 103 ahead of the real response. Nothing here wants one yet, and delivering
+            // it as HTTPEV_Status would be handing the application an interim message as the
+            // answer -- so it is read past and the parser carries on to the response itself.
             continue;
         }
 

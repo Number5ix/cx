@@ -123,6 +123,13 @@ typedef struct HttpLimits {
     uint32 maxHeadBytes;    ///< Total size of the start line and header block together
     uint64 maxBodyBytes;    ///< Longest body; 0 means unlimited
     uint32 maxChunkSize;    ///< Largest single chunk in a chunked body
+
+    /// @brief Most interim (1xx) responses accepted before the real one
+    ///
+    /// A server may send `100 Continue` or `103 Early Hints` ahead of its actual answer, and the
+    /// client reads past them. A peer that sends them without end is refused once this many have
+    /// arrived. Responses only; a request cannot carry one.
+    uint32 maxInterim;
 } HttpLimits;
 
 /// @}

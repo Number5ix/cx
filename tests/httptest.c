@@ -8,7 +8,7 @@
 #include <cxhttp/http_private.h>
 #include <cx/fs.h>
 #include <cx/net.h>
-#include <cx/thread/thread.h>
+#include <cx/thread.h>
 #include "tlstestcert.h"
 #include <cx/serialize.h>
 #include <cx/string.h>
@@ -652,6 +652,9 @@ static HttpParseResult drive(HttpParser* p, BufRing* src, string* body, int* hea
             continue;
         }
 
+        if (r == HTTPP_Interim)
+            continue;   // read past, exactly as a client does; p->interim counts them
+
         if (r == HTTPP_Body) {
             uint8 buf[4096];
             size_t remaining = p->bodyReady;
@@ -868,6 +871,121 @@ static int test_httptest_parseframing(void)
 
     httpParserDestroy(&p);
     strDestroy(&body);
+    return ret;
+}
+
+// A 1xx arrives before the real response rather than instead of it.
+static int test_httptest_parseinterim(void)
+{
+    int ret = 0;
+    HttpParser p;
+    string body = 0, v = 0;
+    int heads   = 0;
+
+    // 103 Early Hints, then the answer. The hints carry headers of their own, which must not still
+    // be sitting in the header block once the real response has been read -- an application asking
+    // for Content-Type would otherwise get an answer from a message that was not the response.
+    static const char* kHints = "HTTP/1.1 103 Early Hints\r\n"
+                                "Link: </style.css>; rel=preload\r\n"
+                                "\r\n"
+                                "HTTP/1.1 200 OK\r\n"
+                                "Content-Length: 5\r\n"
+                                "\r\n"
+                                "hello";
+
+    httpParserInit(&p, false, NULL);
+    {
+        BufRing src;
+        bufringInit(&src, 256);
+        bufringWrite(&src, (const uint8*)kHints, strlen(kHints));
+
+        // Stepped by hand rather than through drive(), because the interim is only readable at the
+        // moment it is reported.
+        if (httpParserStep(&p, &src) != HTTPP_Interim)
+            TEST_FAILV(ret, 1, _SL("httpParserStep(&p, &src) != HTTPP_Interim"), stvNone);
+        if (p.status != 103)
+            TEST_FAILV(ret, 1, _SL("p.status=${uint} != 103"), stvar(uint16, p.status));
+        if (!httpHeadersGet(&p.headers, _SL("link"), &v) || !strEq(v, _SL("</style.css>; rel=preload")))
+            TEST_FAILV(ret, 1, _SL("expected '${string}', got '${string}'"), stvar(strref, _SL("</style.css>; rel=preload")), stvar(strref, v));
+
+        if (drive(&p, &src, &body, &heads) != HTTPP_Complete)
+            TEST_FAILV(ret, 1, _SL("drive(&p, &src, &body, &heads) != HTTPP_Complete"), stvNone);
+        bufringDestroy(&src);
+    }
+    if (p.status != 200 || heads != 1)
+        TEST_FAILV(ret, 1, _SL("p.status=${uint} != 200 || heads=${int} != 1"), stvar(uint16, p.status), stvar(int32, heads));
+    if (!strEq(body, _SL("hello")))
+        TEST_FAILV(ret, 1, _SL("expected '${string}', got '${string}'"), stvar(strref, _SL("hello")), stvar(strref, body));
+    if (httpHeadersHas(&p.headers, _SL("Link")))
+        TEST_FAILV(ret, 1, _SL("httpHeadersHas(&p.headers, _SL(\"Link\")) -- the interim's headers outlived it"), stvNone);
+    if (p.interim != 1)
+        TEST_FAILV(ret, 1, _SL("p.interim=${uint} != 1"), stvar(uint32, p.interim));
+
+    // The same bytes one at a time, which is where a parser that resumed at the wrong offset shows
+    // up. Only the outcome is checked here; the interim goes past inside drive().
+    httpParserReset(&p);
+    strDestroy(&body);
+    heads = 0;
+    if (parseDribbled(&p, kHints, &body, &heads) != HTTPP_Complete)
+        TEST_FAILV(ret, 1, _SL("parseDribbled(&p, kHints, &body, &heads) != HTTPP_Complete"), stvNone);
+    if (p.status != 200 || heads != 1 || !strEq(body, _SL("hello")))
+        TEST_FAILV(ret, 1, _SL("p.status=${uint} != 200 || heads=${int} != 1 || expected '${string}', got '${string}'"), stvar(uint16, p.status), stvar(int32, heads), stvar(strref, _SL("hello")), stvar(strref, body));
+
+    // 100 Continue, which is what a server sends in answer to an Expect header.
+    httpParserReset(&p);
+    strDestroy(&body);
+    if (parseWhole(&p,
+                   "HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 201 Created\r\nContent-Length: 2\r\n\r\nok",
+                   &body, NULL) != HTTPP_Complete)
+        TEST_FAILV(ret, 1, _SL("parseWhole(&p, \"HTTP/1.1 100 Continue\\r\\n\\r\\nHTTP/1.1 201 Created\\r\\nContent-Length: 2\\r\\n\\r\\nok\", &body, NULL) != HTTPP_Complete"), stvNone);
+    if (p.status != 201 || !strEq(body, _SL("ok")))
+        TEST_FAILV(ret, 1, _SL("p.status=${uint} != 201 || expected '${string}', got '${string}'"), stvar(uint16, p.status), stvar(strref, _SL("ok")), stvar(strref, body));
+
+    // Several in a row are still fine as long as they stay under the cap.
+    {
+        string msg = 0, flood = 0;
+        for (uint32 i = 0; i < 8; i++)
+            strAppend(&msg, _SL("HTTP/1.1 103 Early Hints\r\n\r\n"));
+        strDup(&flood, msg);
+        strAppend(&msg, _SL("HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\nyes"));
+
+        httpParserReset(&p);
+        strDestroy(&body);
+        if (parseWhole(&p, strC(msg), &body, NULL) != HTTPP_Complete)
+            TEST_FAILV(ret, 1, _SL("parseWhole(&p, strC(msg), &body, NULL) != HTTPP_Complete"), stvNone);
+        if (p.status != 200 || !strEq(body, _SL("yes")))
+            TEST_FAILV(ret, 1, _SL("p.status=${uint} != 200 || expected '${string}', got '${string}'"), stvar(uint16, p.status), stvar(strref, _SL("yes")), stvar(strref, body));
+
+        // One more than the cap, and the peer is refused before it ever gets to an answer. Without
+        // this a server that sends interim responses and nothing else holds the connection and the
+        // request on it open for as long as it cares to.
+        strAppend(&flood, _SL("HTTP/1.1 103 Early Hints\r\n\r\n"));
+        httpParserReset(&p);
+        strDestroy(&body);
+        if (parseWhole(&p, strC(flood), &body, NULL) != HTTPP_Error || p.err != HTTPERR_TooLarge)
+            TEST_FAILV(ret, 1, _SL("parseWhole(&p, strC(flood), &body, NULL) != HTTPP_Error || p.err=${int} != HTTPERR_TooLarge"), stvar(int32, p.err));
+
+        strDestroy(&msg);
+        strDestroy(&flood);
+    }
+
+    // A 1xx carries no content, so a length on one describes a body that only one of us would go
+    // looking for -- the same disagreement smuggling is built out of.
+    httpParserReset(&p);
+    strDestroy(&body);
+    if (parseWhole(&p, "HTTP/1.1 100 Continue\r\nContent-Length: 4\r\n\r\n", &body, NULL) !=
+        HTTPP_Error)
+        TEST_FAILV(ret, 1, _SL("parseWhole(&p, \"HTTP/1.1 100 Continue\\r\\nContent-Length: 4\\r\\n\\r\\n\", &body, NULL) != HTTPP_Error"), stvNone);
+
+    httpParserReset(&p);
+    strDestroy(&body);
+    if (parseWhole(&p, "HTTP/1.1 100 Continue\r\nTransfer-Encoding: chunked\r\n\r\n", &body, NULL) !=
+        HTTPP_Error)
+        TEST_FAILV(ret, 1, _SL("parseWhole(&p, \"HTTP/1.1 100 Continue\\r\\nTransfer-Encoding: chunked\\r\\n\\r\\n\", &body, NULL) != HTTPP_Error"), stvNone);
+
+    httpParserDestroy(&p);
+    strDestroy(&body);
+    strDestroy(&v);
     return ret;
 }
 
@@ -1200,6 +1318,14 @@ typedef struct ConnRec {
     uint32 sendProgCount, recvProgCount;
     uint64 sendDone, recvDone;
     int64 sendTotal, recvTotal;
+
+    // Set by a test whose queue delivers events from a worker thread rather than the caller's own
+    // tick() loop, wired up before anything that could complete the exchange runs -- initializing it
+    // any later races the worker thread. NULL (the default) means no one is waiting on it and the
+    // field is skipped. onConnComplete/onConnError latch it with eventSignalLock() rather than the
+    // one-shot eventSignal(), so a completion landing before the wait call starts is not lost no
+    // matter which thread gets there first.
+    Event* done;
 } ConnRec;
 
 static void onConnStatus(HttpEvent* ev)
@@ -1227,6 +1353,8 @@ static void onConnComplete(HttpEvent* ev)
 {
     ConnRec* r = (ConnRec*)ev->ctx;
     r->completeCount++;
+    if (r->done)
+        eventSignalLock(r->done);
 }
 
 static void onConnError(HttpEvent* ev)
@@ -1234,6 +1362,8 @@ static void onConnError(HttpEvent* ev)
     ConnRec* r = (ConnRec*)ev->ctx;
     r->errorCount++;
     r->err = ev->err;
+    if (r->done)
+        eventSignalLock(r->done);
 }
 
 static void onConnProgress(HttpEvent* ev)
@@ -1466,6 +1596,83 @@ static int test_httptest_conn(void)
         TEST_FAILV(ret, 1, _SL("r->status=${uint} != 200 || expected '${string}', got '${string}'"), stvar(uint16, r->status), stvar(strref, _SL("OK")), stvar(strref, r->reason));
 
     // Idle again once the response completed, so the connection could carry another request.
+    if (!httpconnIdle(c))
+        TEST_FAILV(ret, 1, _SL("!httpconnIdle(c)"), stvNone);
+
+    objRelease(&r);
+    objRelease(&c);
+    fixtureDestroy(&f);
+    strDestroy(&rec.body);
+    strDestroy(&rec.ctype);
+    strDestroy(&req);
+    return ret;
+}
+
+// An interim response ahead of the real one. This is the case a client meets in the wild with no
+// Expect header involved, because unsolicited 103 Early Hints is deployed: the connection must read
+// past it and deliver the response that follows, not hand up the 103 as the answer.
+static int test_httptest_conninterim(void)
+{
+    int ret = 0;
+    ConnFixture f;
+    ConnRec rec = { 0 };
+    string req  = 0;
+
+    if (!fixtureInit(&f)) {
+        fixtureDestroy(&f);
+        TEST_FAIL(1, _SL("failed: !fixtureInit(&f)"), stvNone);
+    }
+
+    HttpConn* c    = httpconnCreate(f.sock, _SL("example.com"));
+    HttpRequest* r = httprequestCreate(HTTP_Get, _SL("http://example.com/page"));
+    if (!c || !r) {
+        objRelease(&r);
+        objRelease(&c);
+        fixtureDestroy(&f);
+        TEST_FAIL(1, _SL("failed: !c || !r"), stvNone);
+    }
+
+    if (!httpconnRequest(c, r, &kConnRecHandlers, &rec))
+        TEST_FAILV(ret, 1, _SL("!httpconnRequest(c, r, &kConnRecHandlers, &rec)"), stvNone);
+
+    readRequest(&f, &req);
+
+    // The hints on their own, first: nothing at all may reach the application off these bytes.
+    writeResponse(&f,
+                  "HTTP/1.1 103 Early Hints\r\n"
+                  "Link: </style.css>; rel=preload\r\n"
+                  "\r\n");
+
+    for (int i = 0; i < 10; i++)
+        netqueueTick(f.q, 5);
+
+    if (rec.statusCount != 0 || rec.completeCount != 0 || rec.errorCount != 0)
+        TEST_FAILV(ret, 1, _SL("rec.statusCount=${uint} || rec.completeCount=${uint} || rec.errorCount=${uint} -- an interim response is not an answer"), stvar(uint32, rec.statusCount), stvar(uint32, rec.completeCount), stvar(uint32, rec.errorCount));
+
+    writeResponse(&f,
+                  "HTTP/1.1 200 OK\r\n"
+                  "Content-Type: text/plain\r\n"
+                  "Content-Length: 5\r\n"
+                  "\r\n"
+                  "hello");
+
+    tickUntilDone(&f, &rec);
+
+    if (rec.statusCount != 1 || rec.headerCount != 1 || rec.completeCount != 1 ||
+        rec.errorCount != 0)
+        TEST_FAILV(ret, 1, _SL("rec.statusCount=${uint} != 1 || rec.headerCount=${uint} != 1 || rec.completeCount=${uint} != 1 || rec.errorCount=${uint} != 0"), stvar(uint32, rec.statusCount), stvar(uint32, rec.headerCount), stvar(uint32, rec.completeCount), stvar(uint32, rec.errorCount));
+    if (rec.status != 200 || r->status != 200)
+        TEST_FAILV(ret, 1, _SL("rec.status=${uint} != 200 || r->status=${uint} != 200"), stvar(uint16, rec.status), stvar(uint16, r->status));
+    if (!strEq(rec.body, _SL("hello")))
+        TEST_FAILV(ret, 1, _SL("expected '${string}', got '${string}'"), stvar(strref, _SL("hello")), stvar(strref, rec.body));
+    // The headers the application sees are the response's, not the hints'.
+    if (!strEq(rec.ctype, _SL("text/plain")))
+        TEST_FAILV(ret, 1, _SL("expected '${string}', got '${string}'"), stvar(strref, _SL("text/plain")), stvar(strref, rec.ctype));
+    if (httpHeadersHas(&r->respHeaders, _SL("Link")))
+        TEST_FAILV(ret, 1, _SL("httpHeadersHas(&r->respHeaders, _SL(\"Link\")) -- the interim's headers outlived it"), stvNone);
+
+    // The connection is reusable: reading past a 1xx leaves it exactly where an ordinary response
+    // would have.
     if (!httpconnIdle(c))
         TEST_FAILV(ret, 1, _SL("!httpconnIdle(c)"), stvNone);
 
@@ -1957,6 +2164,7 @@ typedef struct ClientFixture {
     SOCKET listener;
     SOCKET peer;
     uint16 port;
+    bool threaded;   // nthreads > 0: worker threads deliver events; nothing here calls netqueueTick()
 } ClientFixture;
 
 static void rawNonBlocking(SOCKET s)
@@ -1969,16 +2177,19 @@ static void rawNonBlocking(SOCKET s)
 #endif
 }
 
-static bool clientFixtureInit(ClientFixture* f)
+static bool clientFixtureInitEx(ClientFixture* f, bool threaded)
 {
     memset(f, 0, sizeof(*f));
     f->listener = INVALID_SOCKET;
     f->peer     = INVALID_SOCKET;
+    f->threaded = threaded;
 
     // Queue first, for the reason given in fixtureInit(): it is what initializes Winsock, without
     // which the raw socket() below fails.
     NetQueueConfig conf;
     netqueuePresetClient(&conf);
+    if (threaded)
+        conf.nthreads = 2;   // 1 ingest thread + 2 dispatch workers; nothing here calls netqueueTick()
     f->q = netqueueCreate(&conf);
     if (!f->q)
         return false;
@@ -1990,6 +2201,20 @@ static bool clientFixtureInit(ClientFixture* f)
 
     f->cl = httpclientCreate(f->q);
     return f->cl != NULL;
+}
+
+static bool clientFixtureInit(ClientFixture* f)
+{
+    return clientFixtureInitEx(f, false);
+}
+
+// Same fixture, but the queue runs its own worker threads. clientAccept/clientReadRequest sleep
+// between polls of the raw peer socket instead of driving the queue -- calling netqueueTick() here
+// would violate the polled-XOR-threaded contract those workers already own -- and clientTickUntil
+// waits on ConnRec.done rather than re-checking counters after a tick.
+static bool clientFixtureInitThreaded(ClientFixture* f)
+{
+    return clientFixtureInitEx(f, true);
 }
 
 static void clientFixtureDestroy(ClientFixture* f)
@@ -2017,11 +2242,22 @@ static void clientUrl(ClientFixture* f, string* out, strref path)
     strAppend(out, path);
 }
 
+// Advance the queue in polled mode, or just wait in threaded mode -- there the worker pool is
+// already advancing it in the background, and ticking it too would violate the polled-XOR-threaded
+// contract netqueueTick() documents. Either way this paces the raw-peer-socket polls below.
+static void clientPump(ClientFixture* f, int64 waitMS)
+{
+    if (f->threaded)
+        osSleep(timeMS(waitMS));
+    else
+        netqueueTick(f->q, waitMS);
+}
+
 // Drive the queue until the client's connection shows up on the listener.
 static bool clientAccept(ClientFixture* f)
 {
     for (int i = 0; i < 400; i++) {
-        netqueueTick(f->q, 5);
+        clientPump(f, 5);
         SOCKET s = accept(f->listener, NULL, NULL);
         if (s != INVALID_SOCKET) {
             f->peer = s;
@@ -2041,7 +2277,7 @@ static bool clientReadRequest(ClientFixture* f, string* out)
     strClear(out);
 
     for (int i = 0; i < 400; i++) {
-        netqueueTick(f->q, 5);
+        clientPump(f, 5);
 
         char buf[4096];
 #if defined(_WIN32)
@@ -2082,12 +2318,25 @@ static void clientWrite(ClientFixture* f, const char* text)
 
 static void clientTickUntil(ClientFixture* f, ConnRec* rec)
 {
+    if (f->threaded) {
+        // rec->done is wired up by the test before triggering anything that could complete the
+        // exchange (see ConnRec), so there is no ordering to get right here -- onConnComplete/
+        // onConnError latch it with eventSignalLock() regardless of whether that happened before or
+        // after this call, and the wait just observes whichever already happened.
+        devAssert(rec->done);
+        eventWaitTimeout(rec->done, timeMS(2000));
+        return;
+    }
+
     for (int i = 0; i < 400 && !rec->completeCount && !rec->errorCount; i++)
         netqueueTick(f->q, 5);
 }
 
 // A plain GET: the client dials, writes a well-formed request with the headers it contributes,
 // and the response lands buffered on the request object.
+//
+// Threaded: the baseline exchange, but delivered by the queue's own worker pool rather than the
+// test driving netqueueTick() itself -- the cross-thread path most of these tests never exercise.
 static int test_httptest_clientget(void)
 {
     int ret = 0;
@@ -2095,9 +2344,15 @@ static int test_httptest_clientget(void)
     ConnRec rec  = { 0 };
     string url   = 0, wire = 0;
 
-    if (!clientFixtureInit(&f)) {
+    // Wired up before anything below can complete the exchange -- see ConnRec.
+    Event doneEvent;
+    eventInit(&doneEvent);
+    rec.done = &doneEvent;
+
+    if (!clientFixtureInitThreaded(&f)) {
         clientFixtureDestroy(&f);
-        TEST_FAIL(1, _SL("failed: !clientFixtureInit(&f)"), stvNone);
+        eventDestroy(&doneEvent);
+        TEST_FAIL(1, _SL("failed: !clientFixtureInitThreaded(&f)"), stvNone);
     }
 
     clientUrl(&f, &url, _SL("/thing?q=1"));
@@ -2105,6 +2360,7 @@ static int test_httptest_clientget(void)
     if (!r) {
         clientFixtureDestroy(&f);
         strDestroy(&url);
+        eventDestroy(&doneEvent);
         TEST_FAIL(1, _SL("failed: !r"), stvNone);
     }
 
@@ -2156,6 +2412,7 @@ static int test_httptest_clientget(void)
     strDestroy(&wire);
     strDestroy(&rec.body);
     strDestroy(&rec.ctype);
+    eventDestroy(&doneEvent);
     return ret;
 }
 
@@ -2295,6 +2552,10 @@ static int test_httptest_clientredirectloop(void)
 }
 
 // Two requests in a row reuse one pooled connection: the listener is only ever asked once.
+//
+// Threaded: the connection is handed back to the pool from inside a worker thread's event
+// dispatch rather than the test's own tick() call, which is exactly where a pool that assumed a
+// single-threaded caller would come apart.
 static int test_httptest_clientpool(void)
 {
     int ret = 0;
@@ -2302,9 +2563,18 @@ static int test_httptest_clientpool(void)
     ConnRec rec1 = { 0 }, rec2 = { 0 };
     string url = 0, wire = 0;
 
-    if (!clientFixtureInit(&f)) {
+    // Wired up before anything below can complete either exchange -- see ConnRec.
+    Event doneEvent1, doneEvent2;
+    eventInit(&doneEvent1);
+    eventInit(&doneEvent2);
+    rec1.done = &doneEvent1;
+    rec2.done = &doneEvent2;
+
+    if (!clientFixtureInitThreaded(&f)) {
         clientFixtureDestroy(&f);
-        TEST_FAIL(1, _SL("failed: !clientFixtureInit(&f)"), stvNone);
+        eventDestroy(&doneEvent1);
+        eventDestroy(&doneEvent2);
+        TEST_FAIL(1, _SL("failed: !clientFixtureInitThreaded(&f)"), stvNone);
     }
 
     clientUrl(&f, &url, _SL("/one"));
@@ -2312,6 +2582,8 @@ static int test_httptest_clientpool(void)
     if (!r1) {
         clientFixtureDestroy(&f);
         strDestroy(&url);
+        eventDestroy(&doneEvent1);
+        eventDestroy(&doneEvent2);
         TEST_FAIL(1, _SL("failed: !r1"), stvNone);
     }
 
@@ -2360,6 +2632,8 @@ static int test_httptest_clientpool(void)
     strDestroy(&rec1.ctype);
     strDestroy(&rec2.body);
     strDestroy(&rec2.ctype);
+    eventDestroy(&doneEvent1);
+    eventDestroy(&doneEvent2);
     return ret;
 }
 
@@ -3008,6 +3282,10 @@ static int test_httptest_clienttimeout(void)
 
 // A cancel landing mid-response: the request ends as an abort rather than as whatever the closed
 // socket looked like from below, and it ends exactly once.
+//
+// Threaded: httprequestCancel() is called from the test thread while a worker thread may at the
+// same moment be delivering the partial response already sitting in the socket buffer -- the
+// actual race the "best effort" cancel contract exists to describe honestly.
 static int test_httptest_clientcancel(void)
 {
     int ret = 0;
@@ -3015,9 +3293,18 @@ static int test_httptest_clientcancel(void)
     ConnRec rec = { 0 };
     string url = 0, wire = 0;
 
-    if (!clientFixtureInit(&f)) {
+    // Wired up before anything below can complete the exchange -- see ConnRec. This is the test
+    // where it matters most: httprequestCancel() below is a purely local call that a worker can
+    // finish and signal from almost immediately, well within the time it'd take a NULL check racing
+    // this setup to lose.
+    Event doneEvent;
+    eventInit(&doneEvent);
+    rec.done = &doneEvent;
+
+    if (!clientFixtureInitThreaded(&f)) {
         clientFixtureDestroy(&f);
-        TEST_FAIL(1, _SL("failed: !clientFixtureInit(&f)"), stvNone);
+        eventDestroy(&doneEvent);
+        TEST_FAIL(1, _SL("failed: !clientFixtureInitThreaded(&f)"), stvNone);
     }
 
     clientUrl(&f, &url, _SL("/slow"));
@@ -3025,6 +3312,7 @@ static int test_httptest_clientcancel(void)
     if (!r) {
         clientFixtureDestroy(&f);
         strDestroy(&url);
+        eventDestroy(&doneEvent);
         TEST_FAIL(1, _SL("failed: !r"), stvNone);
     }
 
@@ -3039,7 +3327,7 @@ static int test_httptest_clientcancel(void)
                 "\r\n"
                 "partial");
     for (int i = 0; i < 20; i++)
-        netqueueTick(f.q, 5);
+        clientPump(&f, 5);
 
     if (!httprequestCancel(r))
         TEST_FAILV(ret, 1, _SL("!httprequestCancel(r)"), stvNone);
@@ -3063,6 +3351,7 @@ static int test_httptest_clientcancel(void)
     strDestroy(&wire);
     strDestroy(&rec.body);
     strDestroy(&rec.ctype);
+    eventDestroy(&doneEvent);
     return ret;
 }
 
@@ -5357,6 +5646,7 @@ testfunc httptest_funcs[] = {
     { "parseresp",    test_httptest_parseresp    },
     { "parsechunked", test_httptest_parsechunked },
     { "parseframing", test_httptest_parseframing },
+    { "parseinterim", test_httptest_parseinterim },
     { "parsereject",  test_httptest_parsereject  },
     { "parselimits",  test_httptest_parselimits  },
     { "parsereq",     test_httptest_parsereq     },
@@ -5367,6 +5657,7 @@ testfunc httptest_funcs[] = {
 #if defined(_WIN32) || defined(_PLATFORM_UNIX)
     { "conn",            test_httptest_conn              },
     { "connbody",        test_httptest_connbody          },
+    { "conninterim",     test_httptest_conninterim       },
     { "connreuse",       test_httptest_connreuse         },
     { "connerror",       test_httptest_connerror         },
     { "conntruncated",   test_httptest_conntruncated     },
