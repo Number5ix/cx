@@ -173,7 +173,7 @@ NetSocket* nettlsConnect(NetQueue* q, strref host, uint16 port, strref hostname,
 }
 
 _Use_decl_annotations_
-NetSocket* nettlsListen(NetQueue* q, NetAddr* addr, int backlog, TlsConfig* config,
+NetSocket* nettlsListen(NetQueue* q, const NetAddr* addr, int backlog, TlsConfig* config,
                         const NetHandlers* handlers, void* ctx)
 {
     TlsServerFilter* tls = tlsserverfilterCreate(config);

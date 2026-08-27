@@ -225,7 +225,8 @@ abstract class NetSocket
     /// @param flags Optional flags to control send behavior
     /// @return true if the data was sent or queued, false if it was refused (over the high watermark,
     ///         not connected, or a fatal socket error)
-    [extern] bool send([in] const uint8* data, size_t len, [in] [opt] NetAddr* dest, flags_t flags);
+    [extern] bool send([in] const uint8* data, size_t len, [in] [opt] const NetAddr* dest,
+        flags_t flags);
 
     /// Open an outbound connection to a host and port
     ///
@@ -245,7 +246,7 @@ abstract class NetSocket
     ///         queue, or already connecting/connected)
     [extern] bool connect([in] strref host, uint16 port);
 
-    [abstract] bool bind(NetAddr* addr);
+    [abstract] bool bind(const NetAddr* addr);
 
     // backlog 0 means use a platform-specific default
     [abstract] bool listen(int backlog);
@@ -358,7 +359,7 @@ abstract class NetSocket
     // A pending connect is left for the select loop to complete on writability/except. Returns
     // true once the attempt has been initiated (the state machine has been advanced or is now
     // pending).
-    [extern] unbound bool _readinessConnect([inout] NetQueue *q, [in] NetAddr *addr);
+    [extern] unbound bool _readinessConnect([inout] NetQueue *q, [in] const NetAddr *addr);
 
     // Abort an in-flight connect when the socket is being closed. Claims the current attempt the
     // same way the backend completion and the timeout do; if won, drops the connect's resources
@@ -377,7 +378,7 @@ abstract class NetSocket
     // has no queue or flow to deliver on, the socket is dropped (released, closing its handle).
     // Called by both backends once they have pulled a connection off the backlog and wrapped it in
     // a platform NetSocket. `peer` is the remote address, or NULL if it could not be determined.
-    unbound void _accepted([inout] NetSocket *newSock, [in] [opt] NetAddr *peer);
+    unbound void _accepted([inout] NetSocket *newSock, [in] [opt] const NetAddr *peer);
 
     // Kick the backend into servicing a socket that has just started listening. Resolves the
     // socket's queue and calls its acceptArm hook (select wakes its loop to read-watch the

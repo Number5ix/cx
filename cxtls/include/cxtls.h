@@ -210,7 +210,7 @@ nettlsConnect(_In_ NetQueue* q, _In_opt_ strref host, uint16 port, _In_opt_ strr
 /// @param ctx Context passed to those handlers
 /// @return The listening socket, or NULL if it could not be created, filtered, bound, or listened
 _Ret_maybenull_ NetSocket*
-nettlsListen(_In_ NetQueue* q, _In_ NetAddr* addr, int backlog, _In_ TlsConfig* config,
+nettlsListen(_In_ NetQueue* q, _In_ const NetAddr* addr, int backlog, _In_ TlsConfig* config,
              _In_opt_ const NetHandlers* handlers, _In_opt_ void* ctx);
 
 /// @}

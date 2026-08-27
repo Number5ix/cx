@@ -56,7 +56,7 @@ out:
     return ret;
 }
 
-bool setsBind(SSDNode* sets, SetsBindSpec* bindings, void* base)
+bool setsBind(SSDNode* sets, const SetsBindSpec* bindings, void* base)
 {
     if (!sets || !bindings)
         return false;
@@ -67,7 +67,7 @@ bool setsBind(SSDNode* sets, SetsBindSpec* bindings, void* base)
 
     ssdLockedTransaction(sets)
     {
-        for (SetsBindSpec* cur = bindings; cur->name; cur++) {
+        for (const SetsBindSpec* cur = bindings; cur->name; cur++) {
             SSDNode* parent;
             int32 slash = strFindR(cur->name, strEnd, kSettingsSep);
             if (slash != -1) {
@@ -115,11 +115,11 @@ void setsUnbindAll(SSDNode* sets)
 }
 
 // TODO: loads and saves settings into a variable without actually binding it
-bool setsImport(SSDNode* sets, SetsBindSpec* bindings, void* base)
+bool setsImport(SSDNode* sets, const SetsBindSpec* bindings, void* base)
 {
     return false;
 }
-bool setsExport(SSDNode* sets, SetsBindSpec* bindings, void* base)
+bool setsExport(SSDNode* sets, const SetsBindSpec* bindings, void* base)
 {
     return false;
 }

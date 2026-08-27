@@ -209,7 +209,7 @@ void setsSetDirty(SSDNode* sets);
 ///
 ///   setsBind(settings, bindings, &config);
 /// @endcode
-bool setsBind(SSDNode* sets, SetsBindSpec* bindings, void* base);
+bool setsBind(SSDNode* sets, const SetsBindSpec* bindings, void* base);
 
 /// Removes all variable bindings from the settings tree.
 ///
@@ -239,7 +239,7 @@ void setsCheckBound(SSDNode* sets);
 /// @param bindings Array of binding specifications
 /// @param base Base pointer to the structure containing the variables
 /// @return false (not yet implemented)
-bool setsImport(SSDNode* sets, SetsBindSpec* bindings, void* base);
+bool setsImport(SSDNode* sets, const SetsBindSpec* bindings, void* base);
 
 /// Saves variable values into settings without establishing bindings.
 ///
@@ -252,7 +252,7 @@ bool setsImport(SSDNode* sets, SetsBindSpec* bindings, void* base);
 /// @param bindings Array of binding specifications
 /// @param base Base pointer to the structure containing the variables
 /// @return false (not yet implemented)
-bool setsExport(SSDNode* sets, SetsBindSpec* bindings, void* base);
+bool setsExport(SSDNode* sets, const SetsBindSpec* bindings, void* base);
 
 /// @}  // end of settings_binding
 

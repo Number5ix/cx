@@ -42,6 +42,6 @@ bool netAddrFromStr(_Out_ NetAddr* addr, _In_opt_ strref str);
 ///   string s = 0;
 ///   netAddrToStr(&s, &addr);
 /// @endcode
-bool netAddrToStr(_Inout_ string* str, _In_ NetAddr* addr);
+bool netAddrToStr(_Inout_ string* str, _In_ const NetAddr* addr);
 
 /// @}

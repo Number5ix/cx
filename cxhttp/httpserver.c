@@ -134,7 +134,7 @@ void HttpServer_destroy(_In_ HttpServer* self)
 // Listening
 // ---------------------------------------------------------------------------------------------
 
-bool HttpServer_listen(_In_ HttpServer* self, _In_ NetAddr* addr, int backlog)
+bool HttpServer_listen(_In_ HttpServer* self, _In_ const NetAddr* addr, int backlog)
 {
     if (self->listener || self->shuttingDown)
         return false;
@@ -292,7 +292,7 @@ void HttpServer__deliverProgress(_In_ HttpServer* self, _In_opt_ HttpServerConn*
     self->handlers->progress(&ev);
 }
 
-bool HttpServer_listenTls(_In_ HttpServer* self, _In_ NetAddr* addr, int backlog,
+bool HttpServer_listenTls(_In_ HttpServer* self, _In_ const NetAddr* addr, int backlog,
                           _In_ TlsConfig* cfg)
 {
     if (self->listener || self->shuttingDown || !cfg)

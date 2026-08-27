@@ -23,9 +23,9 @@ _objfactory_guaranteed NetSocketTest* NetSocketTest_create(NetSocketType type)
     return self;
 }
 
-extern bool NetSocket_send(_In_ NetSocket* self, _In_ const uint8* data, size_t len, _In_opt_ NetAddr* dest, flags_t flags);   // parent
+extern bool NetSocket_send(_In_ NetSocket* self, _In_ const uint8* data, size_t len, _In_opt_ const NetAddr* dest, flags_t flags);   // parent
 #define parent_send(data, len, dest, flags) NetSocket_send((NetSocket*)(self), data, len, dest, flags)
-bool NetSocketTest_send(_In_ NetSocketTest* self, _In_ const uint8* data, size_t len, _In_opt_ NetAddr* dest, flags_t flags)
+bool NetSocketTest_send(_In_ NetSocketTest* self, _In_ const uint8* data, size_t len, _In_opt_ const NetAddr* dest, flags_t flags)
 {
     self->sentBytes += len;
     self->sentCount++;
@@ -33,7 +33,7 @@ bool NetSocketTest_send(_In_ NetSocketTest* self, _In_ const uint8* data, size_t
     return true;
 }
 
-bool NetSocketTest_bind(_In_ NetSocketTest* self, NetAddr* addr)
+bool NetSocketTest_bind(_In_ NetSocketTest* self, const NetAddr* addr)
 {
     self->local = *addr;
     atomicStore(uint32, &self->state, NS_Connected, Relaxed);
@@ -64,7 +64,7 @@ NetSocket* NetQueueTest_socket(_In_ NetQueueTest* self, NetSocketType type)
 // The synthetic queue drives no real sockets, so it never begins a connect. These exist only to
 // satisfy the abstract connect hooks on the base; the connect path is exercised end to end by the
 // select and IOCP backends over loopback instead.
-bool NetQueueTest_connectBegin(_In_ NetQueueTest* self, NetSocket* sock, NetAddr* addr)
+bool NetQueueTest_connectBegin(_In_ NetQueueTest* self, NetSocket* sock, const NetAddr* addr)
 {
     unused_noeval(self);
     unused_noeval(sock);

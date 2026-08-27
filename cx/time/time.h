@@ -87,7 +87,7 @@ bool timeDecompose(_Out_ TimeParts* out, _In_range_(0, timeForever) int64 time);
 ///
 /// @param parts Pointer to TimeParts structure with time components to compose
 /// @return Time value in microseconds since Julian epoch, or 0 if invalid
-_Ret_range_(0, timeForever) int64 timeCompose(_In_ TimeParts* parts);
+_Ret_range_(0, timeForever) int64 timeCompose(_In_ const TimeParts* parts);
 
 /// Convert a time to local time.
 ///
@@ -147,7 +147,7 @@ _meta_inline int64 timeFromMsec(int64 msec)
 ///
 /// @param ts Pointer to timespec structure
 /// @return Time interval in microseconds
-_Ret_range_(0, timeForever) _meta_inline int64 timeFromRelTimespec(_In_ struct timespec* ts)
+_Ret_range_(0, timeForever) _meta_inline int64 timeFromRelTimespec(_In_ const struct timespec* ts)
 {
     int64 ret = (int64)ts->tv_sec * 1000000;
     ret += ts->tv_nsec / 1000;
@@ -177,7 +177,7 @@ _meta_inline void timeToRelTimespec(_Out_ struct timespec* ts, int64 time)
 ///
 /// @param ts Pointer to timespec structure with Unix epoch timestamp
 /// @return Time value in microseconds since Julian epoch
-_Ret_range_(0, timeForever) _meta_inline int64 timeFromAbsTimespec(_In_ struct timespec* ts)
+_Ret_range_(0, timeForever) _meta_inline int64 timeFromAbsTimespec(_In_ const struct timespec* ts)
 {
     int64 ret = (int64)ts->tv_sec * 1000000;
     ret += ts->tv_nsec / 1000;

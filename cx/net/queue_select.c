@@ -324,7 +324,7 @@ static void selectPoll(_Inout_ NetQueueSelect* self, int64 waitUs)
 // Begin one connect attempt. The shared readiness helper resets the handle to the address's family
 // and issues a non-blocking connect(); waking the ingest thread makes it rebuild its watch set to
 // include the new handle with connect (write + except) interest without waiting out the poll.
-bool NetQueueSelect_connectBegin(_In_ NetQueueSelect* self, NetSocket* sock, NetAddr* addr)
+bool NetQueueSelect_connectBegin(_In_ NetQueueSelect* self, NetSocket* sock, const NetAddr* addr)
 {
     bool ret = netsocket_readinessConnect(sock, self, addr);
 

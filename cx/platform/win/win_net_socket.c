@@ -61,7 +61,7 @@ NetSocketWin_wrap(SOCKET sock, NetSocketType type, NetSocketState state)
     return self;
 }
 
-bool NetSocketWin_bind(_In_ NetSocketWin* self, NetAddr* addr)
+bool NetSocketWin_bind(_In_ NetSocketWin* self, const NetAddr* addr)
 {
     if (atomicLoad(uint32, &self->state, Relaxed) == NS_Closed)
         return false;

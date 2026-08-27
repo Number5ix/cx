@@ -98,7 +98,7 @@ typedef struct LogFileData LogFileData;
 ///                                   logTextSerializer(&tcfg));
 /// @endcode
 LogDest* logfileRegister(int maxlevel, _In_opt_ strref chanfilter, _Inout_ VFS* vfs,
-                         _In_ strref filename, _In_ LogFileConfig* config,
+                         _In_ strref filename, _In_ const LogFileConfig* config,
                          _In_opt_ LogSerializer* ser);
 
 // ============================================================================
@@ -129,7 +129,7 @@ LogDest* logfileRegister(int maxlevel, _In_opt_ strref chanfilter, _Inout_ VFS* 
 ///   LogDest *dest = logRegisterDest(LOG_Info, NULL, logfileMsgFunc, logfileBatchFunc,
 ///                                   logfileCloseFunc, lfd);
 /// @endcode
-LogFileData* logfileCreate(_Inout_ VFS* vfs, _In_ strref filename, _In_ LogFileConfig* config,
+LogFileData* logfileCreate(_Inout_ VFS* vfs, _In_ strref filename, _In_ const LogFileConfig* config,
                            _In_opt_ LogSerializer* ser);
 
 /// Log message callback for file destinations

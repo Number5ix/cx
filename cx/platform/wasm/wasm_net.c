@@ -42,7 +42,7 @@ NetSocket* netPlatformCreateSocket(NetSocketType type)
 }
 
 _Use_decl_annotations_
-bool netAddrToSockaddr(NetAddr* addr, struct sockaddr_storage* sa, int* sasz)
+bool netAddrToSockaddr(const NetAddr* addr, struct sockaddr_storage* sa, int* sasz)
 {
     if (addr->type == NA_IPv4) {
         struct sockaddr_in* in4 = (struct sockaddr_in*)sa;

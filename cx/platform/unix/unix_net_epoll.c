@@ -377,7 +377,7 @@ NetSocket* NetQueueEpoll_socket(_In_ NetQueueEpoll* self, NetSocketType type)
     return netPlatformCreateSocket(type);
 }
 
-bool NetQueueEpoll_connectBegin(_In_ NetQueueEpoll* self, NetSocket* sock, NetAddr* addr)
+bool NetQueueEpoll_connectBegin(_In_ NetQueueEpoll* self, NetSocket* sock, const NetAddr* addr)
 {
     NetSockHandle oldH = sock->handle;
     bool ret           = netsocket_readinessConnect(sock, self, addr);

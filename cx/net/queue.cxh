@@ -153,7 +153,7 @@ abstract class NetQueue
     // @param sock Socket to connect (a stream socket in NS_Connecting)
     // @param addr Address to attempt
     // @return true if the attempt was initiated or resolved, false if it could not be started
-    [abstract] bool connectBegin(NetSocket* sock, NetAddr* addr);
+    [abstract] bool connectBegin(NetSocket* sock, const NetAddr* addr);
 
     // React to a socket having just become connected
     //
@@ -258,7 +258,7 @@ abstract class NetQueue
     ///   la.port = 8080;
     ///   NetSocket* s = netqueueListen(q, &la, 0, &handlers, &state);
     /// @endcode
-    [sal _Ret_maybenull_] unbound NetSocket *listen([in] NetAddr *addr, int backlog,
+    [sal _Ret_maybenull_] unbound NetSocket *listen([in] const NetAddr *addr, int backlog,
         [in] [opt] const NetHandlers *handlers, [in] [opt] void *ctx);
 
     /// Register the queue-wide fallback handlers
@@ -293,7 +293,7 @@ abstract class NetQueue
     /// @return The new flow (a reference the caller must release), or NULL if there is still
     ///         no room
     [sal _Ret_maybenull_] unbound NetFlow *promoteFlow([inout] NetSocket *sock,
-        [in] NetAddr *peer);
+        [in] const NetAddr *peer);
 
     /// Datagrams dropped for lack of a receive buffer
     ///

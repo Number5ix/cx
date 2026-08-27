@@ -153,7 +153,8 @@ bool NetSocket_recvMsgs(_In_ NetSocket* self, socketRecvCB cb, _In_opt_ void* ct
 // backend's watch/post are platform-specific (netPlatformAccept / the acceptArm hook).
 // ---------------------------------------------------------------------------------------------
 
-void NetSocket__accepted(_In_ NetSocket* self, _Inout_ NetSocket* newSock, _In_opt_ NetAddr* peer)
+void NetSocket__accepted(_In_ NetSocket* self, _Inout_ NetSocket* newSock,
+                         _In_opt_ const NetAddr* peer)
 {
     if (!newSock)
         return;
@@ -337,13 +338,13 @@ void NetSocket_removeFilters(_In_ NetSocket* self)
 
 // Autogen begins -----
 // clang-format off
-bool NetSocket_send(_In_ NetSocket* self, _In_ const uint8* data, size_t len, _In_opt_ NetAddr* dest, flags_t flags);
+bool NetSocket_send(_In_ NetSocket* self, _In_ const uint8* data, size_t len, _In_opt_ const NetAddr* dest, flags_t flags);
 bool NetSocket_connect(_In_ NetSocket* self, _In_ strref host, uint16 port);
 bool NetSocket__wantWrite(_In_ NetSocket* self);
 void NetSocket__flushSend(_In_ NetSocket* self, _In_opt_ NetQueue* q);
 void NetSocket__sendError(_In_ NetSocket* self, _In_opt_ NetQueue* q, NetErrorCode err, _In_ NetAddr* peer);
 void NetSocket__connectResult(_In_ NetSocket* self, NetErrorCode err);
-bool NetSocket__readinessConnect(_In_ NetSocket* self, _Inout_ NetQueue* q, _In_ NetAddr* addr);
+bool NetSocket__readinessConnect(_In_ NetSocket* self, _Inout_ NetQueue* q, _In_ const NetAddr* addr);
 void NetSocket__connectCancel(_In_ NetSocket* self);
 void NetSocket__dropFlow(_In_ NetSocket* self, _Inout_ NetFlow* flow);
 void NetSocket__closeFlows(_In_ NetSocket* self, NetCloseReason reason);

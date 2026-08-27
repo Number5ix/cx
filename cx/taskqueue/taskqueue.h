@@ -69,15 +69,15 @@ void tqEnableMonitor(_Inout_ TaskQueueConfig* tqconfig);
 /// @defgroup tq_lifecycle Task Queue Lifecycle
 /// @{
 
-/// TaskQueue *tqCreate(strref name, TaskQueueConfig *tqconfig)
+/// TaskQueue *tqCreate(strref name, const TaskQueueConfig *tqconfig)
 ///
 /// Create a task queue but does not start it.
 /// Call tqStart() after creation to begin processing tasks.
 /// @param name Name for the queue (used in logging and monitoring)
-/// @param tqconfig Configuration created with one of the tqPreset functions
+/// @param tqconfig Configuration created with one of the tqPreset functions.
 /// @return New task queue instance, or NULL on failure
 _Ret_opt_valid_ _Check_return_ TaskQueue*
-tqCreate(_In_ strref name, _In_ TaskQueueConfig* tqconfig);
+tqCreate(_In_ strref name, _In_ const TaskQueueConfig* tqconfig);
 
 /// bool tqStart(TaskQueue *tq)
 ///

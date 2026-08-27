@@ -338,9 +338,9 @@ _Ret_maybenull_ NetSocket* NetQueue_connect(_In_ NetQueue* self, _In_opt_ strref
     return sock;
 }
 
-_Ret_maybenull_ NetSocket* NetQueue_listen(_In_ NetQueue* self, _In_ NetAddr* addr, int backlog,
-                                           _In_opt_ const NetHandlers* handlers,
-                                           _In_opt_ void* ctx)
+_Ret_maybenull_ NetSocket*
+NetQueue_listen(_In_ NetQueue* self, _In_ const NetAddr* addr, int backlog,
+                _In_opt_ const NetHandlers* handlers, _In_opt_ void* ctx)
 {
     NetSocket* sock = netqueueSocket(self, NST_Stream);
     if (!sock)
@@ -388,17 +388,23 @@ void NetQueue_setHandlersObj(_In_ NetQueue* self, _In_opt_ const NetHandlers* ha
     }
 }
 
-_Ret_maybenull_ NetFlow* NetQueue_promoteFlow(_In_ NetQueue* self, _Inout_ NetSocket* sock,
-                                              _In_ NetAddr* peer)
+_Ret_maybenull_ NetFlow*
+NetQueue_promoteFlow(_In_ NetQueue* self, _Inout_ NetSocket* sock, _In_ const NetAddr* peer)
 {
+    // The flow table is a hashtable keyed on NetAddr, and an stype key travels as a plain void*, so
+    // the lookups below cannot take a const address. Stripping it once here keeps the cast out of
+    // the public signature, which reads the peer and never writes it -- the same trade the send
+    // path already makes in dgramSendFlow().
+    NetAddr* p = (NetAddr*)peer;
+
     // Promotion is an application decision, so it is allowed to exceed the cap by one rather than
     // being refused a second time -- the app has already done the work of proving this peer is
     // real, and failing it here would make the flowRefused handler useless.
-    NetFlow* flow = netqueue_findFlow(self, sock, peer, false);
+    NetFlow* flow = netqueue_findFlow(self, sock, p, false);
     if (flow)
         return flow;
 
-    return netqueue_admitFlow(self, sock, peer);
+    return netqueue_admitFlow(self, sock, p);
 }
 
 uint32 NetQueue_droppedNoBuf(_In_ NetQueue* self)

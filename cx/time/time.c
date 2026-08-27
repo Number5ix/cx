@@ -110,7 +110,7 @@ bool timeDecompose(TimeParts* out, int64 time)
 }
 
 _Use_decl_annotations_
-int64 timeCompose(TimeParts* parts)
+int64 timeCompose(const TimeParts* parts)
 {
     int64 time;
 

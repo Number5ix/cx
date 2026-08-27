@@ -111,7 +111,7 @@ enum JSON_OUT_FLAGS {
 /// @endcode
 _Ret_opt_valid_ JSONOut* jsonOutBegin(_Inout_ StreamBuffer* sb, flags_t flags);
 
-/// bool jsonOut(JSONOut *jo, JSONParseEvent *ev)
+/// bool jsonOut(JSONOut *jo, const JSONParseEvent *ev)
 ///
 /// Writes a JSON element using a parse event.
 ///
@@ -122,7 +122,7 @@ _Ret_opt_valid_ JSONOut* jsonOutBegin(_Inout_ StreamBuffer* sb, flags_t flags);
 /// @param jo JSON output context from jsonOutBegin()
 /// @param ev Parse event describing the element to output
 /// @return true on success, false on error
-_Check_return_ bool jsonOut(_Inout_ JSONOut* jo, _In_ JSONParseEvent* ev);
+_Check_return_ bool jsonOut(_Inout_ JSONOut* jo, _In_ const JSONParseEvent* ev);
 
 /// void jsonOutEnd(JSONOut **jo)
 ///

@@ -43,7 +43,7 @@ static bool shouldStyle(_In_ LogConsoleData* lcd, _In_ ConStream* con)
 }
 
 _Use_decl_annotations_
-LogConsoleData* logconsoleCreate(ConStream* out, ConStream* err, LogConsoleConfig* config,
+LogConsoleData* logconsoleCreate(ConStream* out, ConStream* err, const LogConsoleConfig* config,
                                  LogSerializer* ser)
 {
     LogConsoleData* ret = xaAlloc(sizeof(LogConsoleData));
@@ -103,7 +103,7 @@ void logconsoleCloseFunc(void* userdata)
 
 _Use_decl_annotations_
 LogDest* logconsoleRegister(int maxlevel, strref chanfilter, ConStream* out, ConStream* err,
-                            LogConsoleConfig* config, LogSerializer* ser)
+                            const LogConsoleConfig* config, LogSerializer* ser)
 {
     LogConsoleData* lcd = logconsoleCreate(out, err, config, ser);
 

@@ -6,7 +6,8 @@
 
 #include <sys/socket.h>
 
-bool netAddrToSockaddr(_In_ NetAddr* addr, _Out_ struct sockaddr_storage* sa, _Out_ int* sasz);
+bool netAddrToSockaddr(_In_ const NetAddr* addr, _Out_ struct sockaddr_storage* sa,
+                       _Out_ int* sasz);
 
 /// Fill a NetAddr from an OS sockaddr (the inverse of netAddrToSockaddr).
 ///

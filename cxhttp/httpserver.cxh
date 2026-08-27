@@ -124,7 +124,7 @@ class HttpServer
     /// @param addr Local address to bind; port 0 lets the OS pick one
     /// @param backlog Listen backlog, or 0 for a platform default
     /// @return true if the socket is bound and listening
-    bool listen([in] NetAddr *addr, int backlog);
+    bool listen([in] const NetAddr *addr, int backlog);
 
     /// Bind a listening socket for https and start serving on it
     ///
@@ -135,7 +135,7 @@ class HttpServer
     /// @param backlog Listen backlog, or 0 for a platform default
     /// @param cfg Server TLS configuration, which must carry a certificate and key
     /// @return true if the socket is bound, filtered and listening
-    bool listenTls([in] NetAddr *addr, int backlog, [in] TlsConfig *cfg);
+    bool listenTls([in] const NetAddr *addr, int backlog, [in] TlsConfig *cfg);
 
     /// Serve on a listening socket the caller already owns
     ///

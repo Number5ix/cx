@@ -26,7 +26,7 @@ _objinit_guaranteed bool NetFlow_init(_In_ NetFlow* self)
     // Autogen ends -------
 }
 
-_objfactory_guaranteed NetFlow* NetFlow_create(NetSocket* socket, NetAddr* peer)
+_objfactory_guaranteed NetFlow* NetFlow_create(NetSocket* socket, const NetAddr* peer)
 {
     NetFlow* self = objInstCreate(NetFlow);
 

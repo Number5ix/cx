@@ -88,57 +88,55 @@ void tqEnableMonitor(TaskQueueConfig* tqconfig)
 }
 
 _Use_decl_annotations_
-TaskQueue* tqCreate(strref name, TaskQueueConfig* tqconfig)
+TaskQueue* tqCreate(strref name, const TaskQueueConfig* tqconfig)
 {
-    if (!(tqconfig->flags & TQ_Manual)) {
-        tqconfig->pool.wMax       = clamplow(tqconfig->pool.wMax, 1);
-        tqconfig->pool.wIdle      = clamp(tqconfig->pool.wIdle, 1, tqconfig->pool.wMax);
-        tqconfig->pool.wInitial   = clamp(tqconfig->pool.wInitial,
-                                        tqconfig->pool.wIdle,
-                                        tqconfig->pool.wMax);
-        tqconfig->pool.wBusy      = clamp(tqconfig->pool.wBusy,
-                                     tqconfig->pool.wIdle,
-                                     tqconfig->pool.wMax);
-        tqconfig->pool.loadFactor = clamplow(tqconfig->pool.loadFactor, 1);
+    TaskQueueConfig conf = *tqconfig;
+
+    if (!(conf.flags & TQ_Manual)) {
+        conf.pool.wMax       = clamplow(conf.pool.wMax, 1);
+        conf.pool.wIdle      = clamp(conf.pool.wIdle, 1, conf.pool.wMax);
+        conf.pool.wInitial   = clamp(conf.pool.wInitial, conf.pool.wIdle, conf.pool.wMax);
+        conf.pool.wBusy      = clamp(conf.pool.wBusy, conf.pool.wIdle, conf.pool.wMax);
+        conf.pool.loadFactor = clamplow(conf.pool.loadFactor, 1);
     }
 
-    if (tqconfig->mGC == 0)
-        tqconfig->mGC = timeMS(250);
+    if (conf.mGC == 0)
+        conf.mGC = timeMS(250);
 
     TQRunner* runner   = NULL;
     TQManager* manager = NULL;
     TQMonitor* monitor = NULL;
 
-    if (tqconfig->flags & TQ_Manual) {
+    if (conf.flags & TQ_Manual) {
         runner  = TQRunner(tqmanualrunnerCreate());
         manager = TQManager(tqmanualmanagerCreate());
     } else {
-        runner = TQRunner(tqthreadpoolrunnerCreate(&tqconfig->pool));
-        if (tqconfig->flags & TQ_ManagerThread)
+        runner = TQRunner(tqthreadpoolrunnerCreate(&conf.pool));
+        if (conf.flags & TQ_ManagerThread)
             manager = TQManager(tqdedicatedmanagerCreate());
         else
             manager = TQManager(tqinworkermanagerCreate());
 
-        if (tqconfig->flags & TQ_Monitor)
-            monitor = TQMonitor(tqthreadpoolmonitorCreate(&tqconfig->monitor));
+        if (conf.flags & TQ_Monitor)
+            monitor = TQMonitor(tqthreadpoolmonitorCreate(&conf.monitor));
     }
 
     devAssert(runner && manager);
 
     TaskQueue* tq = NULL;
-    if (tqconfig->flags & TQ_NoComplex) {
+    if (conf.flags & TQ_NoComplex) {
         // Basic task queue
         tq = taskqueueCreate(strEmpty(name) ? kDefaultTaskQueueName : name,
-                             tqconfig->flags,
-                             tqconfig->mGC,
+                             conf.flags,
+                             conf.mGC,
                              runner,
                              manager,
                              monitor);
     } else {
         // Complex task queue
         tq = TaskQueue(ctaskqueueCreate(strEmpty(name) ? kDefaultTaskQueueName : name,
-                                        tqconfig->flags,
-                                        tqconfig->mGC,
+                                        conf.flags,
+                                        conf.mGC,
                                         runner,
                                         manager,
                                         monitor));

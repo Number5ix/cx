@@ -165,7 +165,7 @@ class NetFlow
 
     uint8 closeReason;        ///< NetCloseReason once the flow is dying
 
-    factory create(NetSocket *socket, NetAddr *peer);
+    factory create(NetSocket *socket, const NetAddr *peer);
     init();     // needed to init lastActive
 
     /// Close this flow

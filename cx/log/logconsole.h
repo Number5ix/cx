@@ -101,7 +101,7 @@ typedef struct LogConsoleData LogConsoleData;
 ///   LogDest *tdest = logconsoleRegister(LOG_Info, NULL, mem, mem, &cfg, NULL);
 /// @endcode
 LogDest* logconsoleRegister(int maxlevel, _In_opt_ strref chanfilter, _In_opt_ ConStream* out,
-                            _In_opt_ ConStream* err, _In_ LogConsoleConfig* config,
+                            _In_opt_ ConStream* err, _In_ const LogConsoleConfig* config,
                             _In_opt_ LogSerializer* ser);
 
 // ============================================================================
@@ -132,7 +132,7 @@ LogDest* logconsoleRegister(int maxlevel, _In_opt_ strref chanfilter, _In_opt_ C
 ///                                   logconsoleCloseFunc, lcd);
 /// @endcode
 _Ret_valid_ LogConsoleData* logconsoleCreate(_In_opt_ ConStream* out, _In_opt_ ConStream* err,
-                                             _In_ LogConsoleConfig* config,
+                                             _In_ const LogConsoleConfig* config,
                                              _In_opt_ LogSerializer* ser);
 
 /// Log message callback for console destinations

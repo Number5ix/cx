@@ -70,7 +70,7 @@ NetSocketPosix_wrap(int fd, NetSocketType type, NetSocketState state)
     return self;
 }
 
-bool NetSocketPosix_bind(_In_ NetSocketPosix* self, NetAddr* addr)
+bool NetSocketPosix_bind(_In_ NetSocketPosix* self, const NetAddr* addr)
 {
     if (atomicLoad(uint32, &self->state, Relaxed) == NS_Closed)
         return false;

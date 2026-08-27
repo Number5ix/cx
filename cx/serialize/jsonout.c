@@ -257,7 +257,7 @@ static bool writeStringVal(_Inout_ JSONOut* jo, _In_opt_ strref val)
 }
 
 _Use_decl_annotations_
-bool jsonOut(JSONOut* jo, JSONParseEvent* ev)
+bool jsonOut(JSONOut* jo, const JSONParseEvent* ev)
 {
     bool ret = true;
 

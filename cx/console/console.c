@@ -91,7 +91,7 @@ void conShutdown(void)
 }
 
 _Use_decl_annotations_
-ConStream* conCreateMem(ConCaps* caps)
+ConStream* conCreateMem(const ConCaps* caps)
 {
     ConStream* con    = streamAlloc(CON_Kind_Mem);
     con->caps         = *caps;

@@ -66,7 +66,7 @@ _Ret_valid_ ConStream* conIn(void);
 /// remain usable afterward.
 void conShutdown(void);
 
-/// ConStream* conCreateMem(ConCaps *caps)
+/// ConStream* conCreateMem(const ConCaps *caps)
 ///
 /// Creates a memory-backed console stream for testing.
 ///
@@ -88,7 +88,7 @@ void conShutdown(void);
 ///   strDestroy(&out);
 ///   conDestroy(&con);
 /// @endcode
-_Ret_valid_ ConStream* conCreateMem(_In_ ConCaps* caps);
+_Ret_valid_ ConStream* conCreateMem(_In_ const ConCaps* caps);
 
 /// Copies everything written to a memory-backed stream so far into *out, replacing any
 /// value already there. Does not clear the stream's internal capture buffer.

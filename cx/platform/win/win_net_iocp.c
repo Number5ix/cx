@@ -742,7 +742,7 @@ NetSocket* NetQueueWinIOCP_socket(_In_ NetQueueWinIOCP* self, NetSocketType type
 // requires it) and associated with the completion port before the op is posted. A synchronous
 // failure unwinds the op and reports the attempt failed; WSA_IO_PENDING leaves the completion to
 // finish it. The op is counted in iops so shutdown's cancel-and-drain reclaims it like any other.
-bool NetQueueWinIOCP_connectBegin(_In_ NetQueueWinIOCP* self, NetSocket* sock, NetAddr* addr)
+bool NetQueueWinIOCP_connectBegin(_In_ NetQueueWinIOCP* self, NetSocket* sock, const NetAddr* addr)
 {
     // Fresh bound handle of the address's family.
     if (!netPlatformResetSocket(sock, addr->type, true)) {

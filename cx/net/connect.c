@@ -222,7 +222,8 @@ void NetSocket__connectResult(_In_ NetSocket* self, NetErrorCode err)
         connectNext(self, err);
 }
 
-bool NetSocket__readinessConnect(_In_ NetSocket* self, _Inout_ NetQueue* q, _In_ NetAddr* addr)
+bool NetSocket__readinessConnect(_In_ NetSocket* self, _Inout_ NetQueue* q,
+                                 _In_ const NetAddr* addr)
 {
     unused_noeval(q);
 

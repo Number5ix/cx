@@ -14,7 +14,8 @@
 // derived codes that only partially overlap the WSAE* space).
 NetErrorCode _netMapWsaError(int e);
 
-bool netAddrToSockaddr(_In_ NetAddr* addr, _Out_ struct sockaddr_storage* sa, _Out_ int* sasz);
+bool netAddrToSockaddr(_In_ const NetAddr* addr, _Out_ struct sockaddr_storage* sa,
+                       _Out_ int* sasz);
 
 /// Fill a NetAddr from an OS sockaddr (the inverse of netAddrToSockaddr).
 ///

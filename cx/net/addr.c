@@ -304,7 +304,7 @@ bool netAddrFromStr(NetAddr* addr, strref str)
 }
 
 _Use_decl_annotations_
-bool netAddrToStr(string* str, NetAddr* addr)
+bool netAddrToStr(string* str, const NetAddr* addr)
 {
     if (addr->type == NA_IPv4) {
         return strFormat(str, _S"${uint}.${uint}.${uint}.${uint}", stvar(uint8, addr->ipv4[3]),

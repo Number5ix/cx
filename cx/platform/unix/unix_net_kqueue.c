@@ -356,7 +356,7 @@ NetSocket* NetQueueKqueue_socket(_In_ NetQueueKqueue* self, NetSocketType type)
     return netPlatformCreateSocket(type);
 }
 
-bool NetQueueKqueue_connectBegin(_In_ NetQueueKqueue* self, NetSocket* sock, NetAddr* addr)
+bool NetQueueKqueue_connectBegin(_In_ NetQueueKqueue* self, NetSocket* sock, const NetAddr* addr)
 {
     NetSockHandle oldH = sock->handle;
     bool ret           = netsocket_readinessConnect(sock, self, addr);

@@ -73,7 +73,8 @@ static bool logfileClose(_Inout_ LogFileData* data)
 }
 
 _Use_decl_annotations_
-LogFileData* logfileCreate(VFS* vfs, strref filename, LogFileConfig* config, LogSerializer* ser)
+LogFileData* logfileCreate(VFS* vfs, strref filename, const LogFileConfig* config,
+                           LogSerializer* ser)
 {
     LogFileData* ret = xaAlloc(sizeof(LogFileData), XA_Zero);
     string realfile  = 0;
@@ -318,7 +319,7 @@ void logfileCloseFunc(void* userdata)
 
 _Use_decl_annotations_
 LogDest* logfileRegister(int maxlevel, strref chanfilter, VFS* vfs, strref filename,
-                         LogFileConfig* config, LogSerializer* ser)
+                         const LogFileConfig* config, LogSerializer* ser)
 {
     // logfileCreate consumes the serializer even when it fails, so there is nothing to clean up
     // here on this path
