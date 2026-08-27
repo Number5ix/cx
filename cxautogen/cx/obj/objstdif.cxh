@@ -18,13 +18,6 @@ interface Convertible {
     bool convert(stype st, stgeneric *dest, uint32 flags);
 }
 
-// Full control over a class's own serialization, as an alternative to [serialize] reflection.
-// A class may use one or the other, never both -- cxautogen rejects the combination rather
-// than inventing a precedence rule. An implementor still needs a wire name, so implementing
-// this interface opts the class into carrying one exactly as [serialize] does.
-//
-// Both methods decompose into data-model nodes through the serwriter.h / serreader.h emitters
-// and never ask what format they are talking to, so one implementation serves every backend.
 interface Serializable {
     bool serialize(SerWriter *w);
     bool deserialize(SerReader *r);
