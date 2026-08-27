@@ -7,8 +7,8 @@
 #include <cx/time/clock.h>
 #include <cx/utils/lazyinit.h>
 
-extern LazyInitState netInit_done;
-void netInit(void* unused);
+extern LazyInitState _netInit_done;
+void _netInit(void* unused);
 
 bool netPlatformInit(void);
 NetQueue* netPlatformCreateQueue(_In_ const NetQueueConfig* conf);

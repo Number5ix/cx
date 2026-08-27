@@ -32,7 +32,7 @@ NetQueue* netPlatformCreateIOCP(const NetQueueConfig* conf)
 {
     // This is also a direct entry point (the IOCP test suite calls it to pin the backend), so it
     // cannot rely on netqueueCreate() having run the one-time init (WSAStartup) first.
-    lazyInit(&netInit_done, netInit, NULL);
+    lazyInit(&_netInit_done, _netInit, NULL);
 
     // IOCP over Wine is emulated on the readiness path with no throughput win and less coverage, so
     // it is not offered there even when asked for directly.

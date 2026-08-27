@@ -2,11 +2,11 @@
 #include "net.h"
 #include <cx/log.h>
 
-LazyInitState netInit_done;
+LazyInitState _netInit_done;
 
 LogChannel* NetLogChannel;
 
-void netInit(void* unused)
+void _netInit(void* unused)
 {
     NetLogChannel = logChan(_SL("cx/net"));
     netPlatformInit();
@@ -15,6 +15,6 @@ void netInit(void* unused)
 _Use_decl_annotations_
 NetQueue* netqueueCreate(const NetQueueConfig* conf)
 {
-    lazyInit(&netInit_done, netInit, NULL);
+    lazyInit(&_netInit_done, _netInit, NULL);
     return netPlatformCreateQueue(conf);
 }
