@@ -146,7 +146,7 @@ void dbgCrashRemoveCallback(dbgCrashCallback cb);
 /// - Stack of all threads
 /// - Global/static data segments
 /// - Memory around crash location
-void dbgCrashIncludeMemory(void* ptr, size_t sz);
+void dbgCrashIncludeMemory(const void* ptr, size_t sz);
 
 /// Remove a previously marked memory region from crash dumps
 /// @param ptr Pointer to start of memory region
@@ -154,7 +154,7 @@ void dbgCrashIncludeMemory(void* ptr, size_t sz);
 ///
 /// Removes a region previously added with dbgCrashIncludeMemory().
 /// Does NOT exclude automatically selected regions like stacks and data segments.
-void dbgCrashExcludeMemory(void* ptr, size_t sz);
+void dbgCrashExcludeMemory(const void* ptr, size_t sz);
 
 /// Add string metadata to crash report
 /// @param name Metadata key name

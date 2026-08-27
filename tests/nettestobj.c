@@ -23,9 +23,9 @@ _objfactory_guaranteed NetSocketTest* NetSocketTest_create(NetSocketType type)
     return self;
 }
 
-extern bool NetSocket_send(_In_ NetSocket* self, _In_ uint8* data, size_t len, _In_opt_ NetAddr* dest, flags_t flags);   // parent
+extern bool NetSocket_send(_In_ NetSocket* self, _In_ const uint8* data, size_t len, _In_opt_ NetAddr* dest, flags_t flags);   // parent
 #define parent_send(data, len, dest, flags) NetSocket_send((NetSocket*)(self), data, len, dest, flags)
-bool NetSocketTest_send(_In_ NetSocketTest* self, _In_ uint8* data, size_t len, _In_opt_ NetAddr* dest, flags_t flags)
+bool NetSocketTest_send(_In_ NetSocketTest* self, _In_ const uint8* data, size_t len, _In_opt_ NetAddr* dest, flags_t flags)
 {
     self->sentBytes += len;
     self->sentCount++;

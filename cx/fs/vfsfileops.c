@@ -178,7 +178,7 @@ error:
 }
 
 _Use_decl_annotations_
-bool vfsWrite(VFSFile* file, void* buf, size_t sz, size_t* byteswritten)
+bool vfsWrite(VFSFile* file, const void* buf, size_t sz, size_t* byteswritten)
 {
     if (!(file && file->fileprov)) {
         if (byteswritten)

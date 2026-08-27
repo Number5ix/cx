@@ -226,7 +226,7 @@ int32 hostIdPlatformInit(Digest* shactx)
             RegQueryValueExW(key, L"MachineGuid", NULL, NULL, (uint8*)buf, &sz);
             string guid = 0;
             strFromUTF16(&guid, buf, cstrLenw(buf));
-            digestUpdate(shactx, (uint8*)strC(guid), strLen(guid));
+            digestUpdate(shactx, (const uint8*)strC(guid), strLen(guid));
             strDestroy(&guid);
             ret = HID_SourceCrypto;
         }

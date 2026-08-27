@@ -97,7 +97,7 @@ bool fsRead(FSFile* file, void* buf, size_t sz, size_t* bytesread)
     return true;
 }
 
-bool fsWrite(FSFile* file, void* buf, size_t sz, size_t* byteswritten)
+bool fsWrite(FSFile* file, const void* buf, size_t sz, size_t* byteswritten)
 {
     ssize_t didwrite = 0;
 
@@ -117,7 +117,7 @@ bool fsWrite(FSFile* file, void* buf, size_t sz, size_t* byteswritten)
 
     // have to break it up into smaller chunks
     size_t actuallywrote = 0;
-    uint8* bufp          = (uint8*)buf;
+    const uint8* bufp    = (const uint8*)buf;
     while (sz > 0) {
         didwrite = write(file->fd, bufp, clamphigh(sz, MAX_TRANSFER_SIZE));
         if (didwrite < 0) {

@@ -207,7 +207,7 @@ class NetFlow
     /// @param len Length of the payload in bytes
     /// @param flags Optional NetSocketOpFlags
     /// @return true if the datagram was sent or queued, false if it was refused
-    unbound bool send([in] uint8 *data, size_t len, flags_t flags);
+    unbound bool send([in] const uint8 *data, size_t len, flags_t flags);
 
     /// Arm a timer on this flow
     ///

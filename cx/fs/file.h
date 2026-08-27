@@ -145,7 +145,7 @@ bool fsRead(_Inout_ FSFile* file, _Out_writes_bytes_to_(sz, *bytesread) void* bu
 ///       // all data written successfully
 ///   }
 /// @endcode
-bool fsWrite(_Inout_ FSFile* file, _In_reads_bytes_(sz) void* buf, size_t sz,
+bool fsWrite(_Inout_ FSFile* file, _In_reads_bytes_(sz) const void* buf, size_t sz,
              _Out_opt_ _Deref_out_range_(0, sz) size_t* byteswritten);
 
 /// Gets the current file position

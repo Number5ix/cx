@@ -480,7 +480,7 @@ void NetSocket__closeFlows(_In_ NetSocket* self, NetCloseReason reason)
     saDestroy(&victims);
 }
 
-bool NetFlow_send(_In_ NetFlow* self, _In_ uint8* data, size_t len, flags_t flags)
+bool NetFlow_send(_In_ NetFlow* self, _In_ const uint8* data, size_t len, flags_t flags)
 {
     // Purely a convenience: the socket's send path already resolves the destination's flow and runs
     // its filter chain, so sending "on a flow" is nothing more than naming the peer. Keeping the

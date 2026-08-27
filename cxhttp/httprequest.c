@@ -203,7 +203,7 @@ bool HttpRequest_setBody(_In_ HttpRequest* self, _In_opt_ strref body, _In_opt_ 
     return true;
 }
 
-bool HttpRequest_setBodyBytes(_In_ HttpRequest* self, _In_ uint8* data, size_t len,
+bool HttpRequest_setBodyBytes(_In_ HttpRequest* self, _In_ const uint8* data, size_t len,
                               _In_opt_ strref contentType)
 {
     if (!data || len == 0) {

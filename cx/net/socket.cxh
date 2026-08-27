@@ -225,7 +225,7 @@ abstract class NetSocket
     /// @param flags Optional flags to control send behavior
     /// @return true if the data was sent or queued, false if it was refused (over the high watermark,
     ///         not connected, or a fatal socket error)
-    [extern] bool send([in] uint8* data, size_t len, [in] [opt] NetAddr* dest, flags_t flags);
+    [extern] bool send([in] const uint8* data, size_t len, [in] [opt] NetAddr* dest, flags_t flags);
 
     /// Open an outbound connection to a host and port
     ///

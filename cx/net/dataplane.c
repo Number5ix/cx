@@ -358,8 +358,8 @@ static NetFlow* dgramSendFlow(NetQueue* q, NetSocket* sock, const NetAddr* dest)
     return netqueue_findFlow(q, sock, (NetAddr*)dest, true);
 }
 
-bool NetSocket_send(_In_ NetSocket* self, _In_ uint8* data, size_t len, _In_opt_ NetAddr* dest,
-                    flags_t flags)
+bool NetSocket_send(_In_ NetSocket* self, _In_ const uint8* data, size_t len,
+                    _In_opt_ NetAddr* dest, flags_t flags)
 {
     if (atomicLoad(uint32, &self->state, Relaxed) == NS_Closed)
         return false;

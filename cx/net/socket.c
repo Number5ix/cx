@@ -337,7 +337,7 @@ void NetSocket_removeFilters(_In_ NetSocket* self)
 
 // Autogen begins -----
 // clang-format off
-bool NetSocket_send(_In_ NetSocket* self, _In_ uint8* data, size_t len, _In_opt_ NetAddr* dest, flags_t flags);
+bool NetSocket_send(_In_ NetSocket* self, _In_ const uint8* data, size_t len, _In_opt_ NetAddr* dest, flags_t flags);
 bool NetSocket_connect(_In_ NetSocket* self, _In_ strref host, uint16 port);
 bool NetSocket__wantWrite(_In_ NetSocket* self);
 void NetSocket__flushSend(_In_ NetSocket* self, _In_opt_ NetQueue* q);

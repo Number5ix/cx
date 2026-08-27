@@ -28,7 +28,7 @@ void digestInit(Digest* digest, DigestType type)
 }
 
 _Use_decl_annotations_
-void digestUpdate(Digest* digest, uint8* data, uint32 size)
+void digestUpdate(Digest* digest, const uint8* data, uint32 size)
 {
     while (size > 0) {
         // faster version of (digest->size % DIGEST_BLOCKSIZE) for powers of two

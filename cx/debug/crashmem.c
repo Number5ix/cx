@@ -25,7 +25,7 @@ static void crashMemInit(void* data)
     saInit(&_dbgCrashDumpMem, CrashMemRange, 10, SA_Sorted | SA_Grow(Slow));
 }
 
-void dbgCrashIncludeMemory(void* ptr, size_t sz)
+void dbgCrashIncludeMemory(const void* ptr, size_t sz)
 {
     // removing any completely contained blocks first makes the
     // add algorithm considerably simpler
@@ -47,7 +47,7 @@ void dbgCrashIncludeMemory(void* ptr, size_t sz)
     }
 }
 
-void dbgCrashExcludeMemory(void* ptr, size_t sz)
+void dbgCrashExcludeMemory(const void* ptr, size_t sz)
 {
     lazyInit(&crashMemInitState, crashMemInit, 0);
     _Analysis_assume_(_dbgCrashDumpMem.a != NULL);

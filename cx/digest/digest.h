@@ -21,8 +21,8 @@
 /// @code
 ///   Digest ctx;
 ///   digestInit(&ctx, DIGEST_SHA256);
-///   digestUpdate(&ctx, (uint8*)"Hello ", 6);
-///   digestUpdate(&ctx, (uint8*)"World", 5);
+///   digestUpdate(&ctx, (const uint8*)"Hello ", 6);
+///   digestUpdate(&ctx, (const uint8*)"World", 5);
 ///   uint8 hash[32];
 ///   digestFinish(&ctx, hash);
 ///   // hash now contains the SHA-256 of "Hello World"
@@ -86,10 +86,10 @@ void digestInit(_Out_ Digest* digest, DigestType type);
 ///
 /// Example:
 /// @code
-///   digestUpdate(&ctx, (uint8*)"Hello ", 6);
-///   digestUpdate(&ctx, (uint8*)"World", 5);
+///   digestUpdate(&ctx, (const uint8*)"Hello ", 6);
+///   digestUpdate(&ctx, (const uint8*)"World", 5);
 /// @endcode
-void digestUpdate(_Inout_ Digest* digest, _In_ uint8* data, uint32 size);
+void digestUpdate(_Inout_ Digest* digest, _In_reads_bytes_(size) const uint8* data, uint32 size);
 
 /// Finalizes the digest computation and outputs the hash.
 ///

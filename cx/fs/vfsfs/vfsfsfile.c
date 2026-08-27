@@ -38,7 +38,7 @@ bool VFSFSFile_read(_In_ VFSFSFile* self, _Out_writes_bytes_to_(sz, *bytesread) 
     return fsRead(self->file, buf, sz, bytesread);
 }
 
-bool VFSFSFile_write(_In_ VFSFSFile* self, _In_reads_bytes_(sz) void* buf, size_t sz,
+bool VFSFSFile_write(_In_ VFSFSFile* self, _In_reads_bytes_(sz) const void* buf, size_t sz,
                      _Out_opt_ _Deref_out_range_(0, sz) size_t* byteswritten)
 {
     if (!self->file) {

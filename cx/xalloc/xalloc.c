@@ -248,10 +248,12 @@ bool _xaDestroy(void** ptr)
 }
 
 _Use_decl_annotations_
-size_t xaSize(void* ptr)
+size_t xaSize(const void* ptr)
 {
     lazyInit(&_xaInitState, _xaInit, NULL);
-    return _xa_sys_usable_size(ptr);
+    // mimalloc's mi_usable_size takes a const pointer, but glibc's malloc_usable_size and
+    // MSVC's _msize do not, even though none of them write through it
+    return _xa_sys_usable_size((void*)ptr);
 }
 
 size_t xaOptSize(size_t sz)

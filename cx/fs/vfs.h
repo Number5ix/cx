@@ -395,7 +395,7 @@ bool vfsRead(_Inout_ VFSFile* file, _Out_writes_bytes_to_(sz, *bytesread) void* 
 /// @param sz Number of bytes to write
 /// @param byteswritten Optional pointer to receive bytes written
 /// @return true on success, false on I/O error
-bool vfsWrite(_Inout_ VFSFile* file, _In_reads_bytes_(sz) void* buf, size_t sz,
+bool vfsWrite(_Inout_ VFSFile* file, _In_reads_bytes_(sz) const void* buf, size_t sz,
               _Out_opt_ _Deref_out_range_(0, sz) size_t* byteswritten);
 
 /// Writes a string to a VFS file

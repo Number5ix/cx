@@ -101,7 +101,7 @@ bool fsRead(FSFile* file, void* buf, size_t sz, size_t* bytesread)
 }
 
 _Use_decl_annotations_
-bool fsWrite(FSFile* file, void* buf, size_t sz, size_t* byteswritten)
+bool fsWrite(FSFile* file, const void* buf, size_t sz, size_t* byteswritten)
 {
     DWORD didwrite = 0;
 
@@ -120,7 +120,7 @@ bool fsWrite(FSFile* file, void* buf, size_t sz, size_t* byteswritten)
 
     // have to break it up into smaller chunks
     size_t actuallywrote = 0;
-    uint8* bufp          = (uint8*)buf;
+    const uint8* bufp    = (const uint8*)buf;
     while (sz > 0) {
         if (!WriteFile(file->h, bufp, (DWORD)clamphigh(sz, MAX_TRANSFER_SIZE), &didwrite, NULL)) {
             if (byteswritten)

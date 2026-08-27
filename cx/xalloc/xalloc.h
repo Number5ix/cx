@@ -267,7 +267,7 @@ _At_(*ptr, _Pre_maybenull_ _Post_null_) bool _xaDestroy(_Inout_ void** ptr);
 /// @param ptr Pointer to allocated memory
 /// @return Size of the allocation in bytes
 /// @see xaOptSize()
-size_t xaSize(_In_ void* ptr);
+size_t xaSize(_In_ const void* ptr);
 
 /// Returns the optimal size to allocate to fit a given number of bytes.
 ///
