@@ -20,7 +20,14 @@ abstract class NetQueue
     /// the right place for logging and error handling while sockets and flows override the
     /// events they actually care about.
     NetHandlers handlers;
-    void *handlerCtx;   ///< Context passed to queue-wide handlers
+    void *handlerCtx;   ///< Context passed to queue-wide handlers, set by setHandlers()
+
+    /// @brief Context passed to queue-wide handlers, set by setHandlersObj() -- NULL when
+    /// handlerCtx is in use instead
+    weak[ObjInst] handlerWeak;
+
+    /// @brief Guards handlers/handlerCtx/handlerWeak against a concurrent setHandlers()/setHandlersObj()
+    RWLock handlerLock;
 
     /// @brief Sockets this queue is managing, keyed by pointer identity
     hashtable[ptr,object] sockets;
@@ -260,6 +267,14 @@ abstract class NetQueue
     /// @param handlers Handler set, or NULL to clear
     /// @param ctx Context passed to these handlers on NetEvent.ctx
     unbound void setHandlers([in] [opt] const NetHandlers *handlers, [in] [opt] void *ctx);
+
+    /// Register the queue-wide fallback handlers, with an object as the context
+    ///
+    /// Same as setHandlers(), except ctx is held weakly rather than borrowed.
+    ///
+    /// @param handlers Handler set, or NULL to clear
+    /// @param ctx Object passed to these handlers on NetEvent.ctx, held weakly; NULL to clear
+    unbound void setHandlersObj([in] [opt] const NetHandlers *handlers, [in] [opt] ObjInst *ctx);
 
     /// Admit a peer that was refused by the flow cap
     ///

@@ -92,7 +92,14 @@ abstract class NetSocket
     ///
     /// Resolved per field between the flow's set and the queue-wide set; see @ref net_handlers.
     NetHandlers *handlers;
-    void *handlerCtx;       ///< Context passed to per-socket handlers
+    void *handlerCtx;       ///< Context passed to per-socket handlers, set by setHandlers()
+
+    /// @brief Context passed to per-socket handlers, set by setHandlersObj() -- NULL when
+    /// handlerCtx is in use instead
+    weak[ObjInst] handlerWeak;
+
+    /// @brief Guards handlers/handlerCtx/handlerWeak against a concurrent setHandlers()/setHandlersObj()
+    RWLock handlerLock;
 
     /// @brief Datagram: flows keyed by peer address. Not used by stream sockets.
     ///
@@ -259,6 +266,14 @@ abstract class NetSocket
     /// @param handlers Handler set, or NULL to clear
     /// @param ctx Context passed to these handlers on NetEvent.ctx
     unbound void setHandlers([in] [opt] const NetHandlers *handlers, [in] [opt] void *ctx);
+
+    /// Register per-socket handler overrides, with an object as the context
+    ///
+    /// Same as setHandlers(), except ctx is held weakly rather than borrowed.
+    ///
+    /// @param handlers Handler set, or NULL to clear
+    /// @param ctx Object passed to these handlers on NetEvent.ctx, held weakly; NULL to clear
+    unbound void setHandlersObj([in] [opt] const NetHandlers *handlers, [in] [opt] ObjInst *ctx);
 
     /// Attach a filter to the socket, applying it to every flow
     ///

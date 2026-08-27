@@ -65,34 +65,79 @@ static NetEventCB pickHandler(const NetHandlers* h, NetEventType ev)
     return NULL;
 }
 
+// Resolves ctx for a level that already matched a handler, under that level's own handlerLock: a
+// weak ctx becomes a strong reference the caller must release via strongOut, a plain ctx is just
+// copied. Returns false only when a weak ctx was registered but the object it named is already
+// gone -- the caller then delivers nothing at all rather than falling through to a lower level,
+// same as if no handler had matched here.
+static bool resolveCtx(_In_opt_ void* handlerCtx, _In_opt_ ObjInst_WeakRef* handlerWeak,
+                       _Out_ void** ctx, _Out_ ObjInst** strongOut)
+{
+    if (handlerWeak) {
+        ObjInst* strong = _objAcquireFromWeak(handlerWeak);
+        if (!strong)
+            return false;
+        *strongOut = strong;
+        *ctx       = strong;
+    } else {
+        *ctx = handlerCtx;
+    }
+    return true;
+}
+
 // Resolve a handler for an event type, walking flow -> socket -> queue per field. Returns NULL if
-// no level supplies one; `ctx` receives the context registered alongside whichever level won.
-// Static so that every callback invocation is forced through netqueue_deliver and its timing.
+// no level supplies one; `ctx` receives the context registered alongside whichever level won, and
+// `strongOut` receives a reference the caller must release if a weak ctx resolved to one. Static
+// so that every callback invocation is forced through netqueue_deliver and its timing.
 _Ret_maybenull_ static NetEventCB _netResolveHandler(_In_opt_ NetFlow* flow,
                                                      _In_opt_ NetSocket* sock, _In_opt_ NetQueue* q,
-                                                     NetEventType ev, _Out_ void** ctx)
+                                                     NetEventType ev, _Out_ void** ctx,
+                                                     _Out_ ObjInst** strongOut)
 {
-    NetEventCB cb;
+    *ctx       = NULL;
+    *strongOut = NULL;
 
     // Most specific wins, resolved per field rather than per set, so a flow that overrides only
-    // .recv inherits everything else with no explicit chaining. The ctx travels with the level
-    // the handler was found at.
-    if (flow && (cb = pickHandler(flow->handlers, ev))) {
-        *ctx = flow->handlerCtx;
-        return cb;
+    // .recv inherits everything else with no explicit chaining. Each level's handlers/ctx/weak are
+    // read, and a weak ctx resolved to a strong reference, under that level's own handlerLock in one
+    // critical section -- without it, a setHandlers()/setHandlersObj() call replacing the field on
+    // another thread could free the weak reference between the read here and the resolve.
+    if (flow) {
+        NetEventCB cb = NULL;
+        bool ok       = true;
+        withReadLock (&flow->handlerLock) {
+            cb = pickHandler(flow->handlers, ev);
+            if (cb)
+                ok = resolveCtx(flow->handlerCtx, flow->handlerWeak, ctx, strongOut);
+        }
+        if (cb)
+            return ok ? cb : NULL;
     }
 
-    if (sock && (cb = pickHandler(sock->handlers, ev))) {
-        *ctx = sock->handlerCtx;
-        return cb;
+    if (sock) {
+        NetEventCB cb = NULL;
+        bool ok       = true;
+        withReadLock (&sock->handlerLock) {
+            cb = pickHandler(sock->handlers, ev);
+            if (cb)
+                ok = resolveCtx(sock->handlerCtx, sock->handlerWeak, ctx, strongOut);
+        }
+        if (cb)
+            return ok ? cb : NULL;
     }
 
-    if (q && (cb = pickHandler(&q->handlers, ev))) {
-        *ctx = q->handlerCtx;
-        return cb;
+    if (q) {
+        NetEventCB cb = NULL;
+        bool ok       = true;
+        withReadLock (&q->handlerLock) {
+            cb = pickHandler(&q->handlers, ev);
+            if (cb)
+                ok = resolveCtx(q->handlerCtx, q->handlerWeak, ctx, strongOut);
+        }
+        if (cb)
+            return ok ? cb : NULL;
     }
 
-    *ctx = NULL;
     return NULL;
 }
 
@@ -150,8 +195,15 @@ static uint16 ptrHash(void* ptr)
 _Use_decl_annotations_
 void NetQueue__deliver(NetQueue* self, NetSocket* sock, NetFlow* flow, NetEvent* ev)
 {
-    void* ctx     = NULL;
-    NetEventCB cb = _netResolveHandler(flow, sock, self, ev->event, &ctx);
+    // A ctx registered through setHandlersObj() is resolved to a strong reference inside
+    // _netResolveHandler (under the winning level's handlerLock) rather than handed out raw, so the
+    // object cannot be caught mid-teardown by a caller on another thread: this either gets a
+    // reference for the length of the callback, or the object is already gone and there is no
+    // callback at all. Compare a plain ctx from setHandlers(), which the caller must itself
+    // guarantee stays valid for as long as the handlers are registered.
+    void* ctx       = NULL;
+    ObjInst* strong = NULL;
+    NetEventCB cb   = _netResolveHandler(flow, sock, self, ev->event, &ctx, &strong);
     if (!cb)
         return;
 
@@ -174,6 +226,8 @@ void NetQueue__deliver(NetQueue* self, NetSocket* sock, NetFlow* flow, NetEvent*
 #else
     cb(ev);
 #endif
+
+    objRelease(&strong);
 }
 
 // ---------------------------------------------------------------------------------------------

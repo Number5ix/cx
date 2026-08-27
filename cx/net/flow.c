@@ -20,6 +20,7 @@ _objinit_guaranteed bool NetFlow_init(_In_ NetFlow* self)
     atomicStore(uint32, &self->lastActive, _netLruTick(), Relaxed);
 
     // Autogen begins -----
+    rwlockInit(&self->handlerLock);
     mutexInit(&self->filterLock);
     return true;
     // Autogen ends -------
@@ -55,8 +56,24 @@ bool NetFlow_close(_In_ NetFlow* self)
 void NetFlow_setHandlers(_In_ NetFlow* self, _In_opt_ const NetHandlers* handlers,
                          _In_opt_ void* ctx)
 {
-    self->handlers   = (NetHandlers*)handlers;
-    self->handlerCtx = ctx;
+    withWriteLock (&self->handlerLock) {
+        objDestroyWeak(&self->handlerWeak);
+        self->handlers   = (NetHandlers*)handlers;
+        self->handlerCtx = ctx;
+    }
+}
+
+void NetFlow_setHandlersObj(_In_ NetFlow* self, _In_opt_ const NetHandlers* handlers,
+                            _In_opt_ ObjInst* ctx)
+{
+    ObjInst_WeakRef* weak = ctx ? objGetWeak(ObjInst, ctx) : NULL;
+
+    withWriteLock (&self->handlerLock) {
+        objDestroyWeak(&self->handlerWeak);
+        self->handlers    = (NetHandlers*)handlers;
+        self->handlerCtx  = NULL;
+        self->handlerWeak = weak;
+    }
 }
 
 void NetFlow_destroy(_In_ NetFlow* self)
@@ -96,6 +113,8 @@ void NetFlow_destroy(_In_ NetFlow* self)
     objDestroyWeak(&self->socket);
     objRelease(&self->pool);
     saDestroy(&self->user);
+    objDestroyWeak(&self->handlerWeak);
+    rwlockDestroy(&self->handlerLock);
     saDestroy(&self->timers);
     saDestroy(&self->filters);
     mutexDestroy(&self->filterLock);

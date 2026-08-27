@@ -34,6 +34,7 @@ _objinit_guaranteed bool NetQueue_init(_In_ NetQueue* self)
     semaInit(&self->runqSema, 0);
 
     // Autogen begins -----
+    rwlockInit(&self->handlerLock);
     htInit(&self->sockets, ptr, object, 16);
     rwlockInit(&self->lock);
     htInit(&self->timerIdx, uint64, uint32, 16);
@@ -326,8 +327,24 @@ _Ret_maybenull_ NetSocket* NetQueue_listen(_In_ NetQueue* self, _In_ NetAddr* ad
 void NetQueue_setHandlers(_In_ NetQueue* self, _In_opt_ const NetHandlers* handlers,
                           _In_opt_ void* ctx)
 {
-    self->handlers   = handlers ? *handlers : (NetHandlers) { 0 };
-    self->handlerCtx = ctx;
+    withWriteLock (&self->handlerLock) {
+        objDestroyWeak(&self->handlerWeak);
+        self->handlers   = handlers ? *handlers : (NetHandlers) { 0 };
+        self->handlerCtx = ctx;
+    }
+}
+
+void NetQueue_setHandlersObj(_In_ NetQueue* self, _In_opt_ const NetHandlers* handlers,
+                             _In_opt_ ObjInst* ctx)
+{
+    ObjInst_WeakRef* weak = ctx ? objGetWeak(ObjInst, ctx) : NULL;
+
+    withWriteLock (&self->handlerLock) {
+        objDestroyWeak(&self->handlerWeak);
+        self->handlers    = handlers ? *handlers : (NetHandlers) { 0 };
+        self->handlerCtx  = NULL;
+        self->handlerWeak = weak;
+    }
 }
 
 _Ret_maybenull_ NetFlow* NetQueue_promoteFlow(_In_ NetQueue* self, _Inout_ NetSocket* sock,
@@ -410,6 +427,8 @@ void NetQueue_destroy(_In_ NetQueue* self)
     xaDestroy(&self->timers);
 
     // Autogen begins -----
+    objDestroyWeak(&self->handlerWeak);
+    rwlockDestroy(&self->handlerLock);
     htDestroy(&self->sockets);
     rwlockDestroy(&self->lock);
     objRelease(&self->pool);
@@ -451,7 +470,6 @@ bool NetQueue__ingestDatagram(_In_ NetQueue* self, _Inout_ NetSocket* sock, _In_
     objRelease(&flow);
     return true;
 }
-
 
 // Autogen begins -----
 // clang-format off

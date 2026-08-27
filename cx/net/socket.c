@@ -48,6 +48,7 @@ _objinit_guaranteed bool NetSocket_init(_In_ NetSocket* self)
     // Autogen begins -----
     mutexInit(&self->recvLock);
     mutexInit(&self->sendLock);
+    rwlockInit(&self->handlerLock);
     rwlockInit(&self->flowLock);
     mutexInit(&self->connectLock);
     return true;
@@ -232,8 +233,24 @@ bool NetSocket_close(_In_ NetSocket* self)
 void NetSocket_setHandlers(_In_ NetSocket* self, _In_opt_ const NetHandlers* handlers,
                            _In_opt_ void* ctx)
 {
-    self->handlers   = (NetHandlers*)handlers;
-    self->handlerCtx = ctx;
+    withWriteLock (&self->handlerLock) {
+        objDestroyWeak(&self->handlerWeak);
+        self->handlers   = (NetHandlers*)handlers;
+        self->handlerCtx = ctx;
+    }
+}
+
+void NetSocket_setHandlersObj(_In_ NetSocket* self, _In_opt_ const NetHandlers* handlers,
+                              _In_opt_ ObjInst* ctx)
+{
+    ObjInst_WeakRef* weak = ctx ? objGetWeak(ObjInst, ctx) : NULL;
+
+    withWriteLock (&self->handlerLock) {
+        objDestroyWeak(&self->handlerWeak);
+        self->handlers    = (NetHandlers*)handlers;
+        self->handlerCtx  = NULL;
+        self->handlerWeak = weak;
+    }
 }
 
 void NetSocket_destroy(_In_ NetSocket* self)
@@ -259,6 +276,8 @@ void NetSocket_destroy(_In_ NetSocket* self)
     objDestroyWeak(&self->queue);
     mutexDestroy(&self->recvLock);
     mutexDestroy(&self->sendLock);
+    objDestroyWeak(&self->handlerWeak);
+    rwlockDestroy(&self->handlerLock);
     htDestroy(&self->flows);
     rwlockDestroy(&self->flowLock);
     objRelease(&self->flow);
