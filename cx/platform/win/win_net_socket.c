@@ -12,6 +12,13 @@
 
 #include "win_net.h"
 
+// We say NAY to Nagle
+static void setNoDelay(SOCKET sock)
+{
+    BOOL one = 1;
+    setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (const char*)&one, sizeof(one));
+}
+
 _objfactory_check NetSocketWin* NetSocketWin_create(NetSocketType type)
 {
     NetSocketWin* self;
@@ -30,6 +37,8 @@ _objfactory_check NetSocketWin* NetSocketWin_create(NetSocketType type)
     if (self->sock != INVALID_SOCKET) {
         u_long nonblocking = 1;
         ioctlsocket(self->sock, FIONBIO, &nonblocking);
+        if (type == NST_Stream)
+            setNoDelay(self->sock);
     }
 
     if (self->sock == INVALID_SOCKET || !objInstInit(self)) {
@@ -55,6 +64,8 @@ NetSocketWin_wrap(SOCKET sock, NetSocketType type, NetSocketState state)
     if (sock != INVALID_SOCKET) {
         u_long nonblocking = 1;
         ioctlsocket(sock, FIONBIO, &nonblocking);
+        if (type == NST_Stream)
+            setNoDelay(sock);
     }
 
     objInstInit(self);
@@ -160,6 +171,7 @@ bool netPlatformResetSocket(NetSocket* sock, NetAddrType family, bool bindAny)
 
     u_long nonblocking = 1;
     ioctlsocket(ns, FIONBIO, &nonblocking);
+    setNoDelay(ns);   // always a stream socket; connect() is the only caller
 
     // ConnectEx requires the socket to already be bound; a plain connect() does not.
     if (bindAny) {

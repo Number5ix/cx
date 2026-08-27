@@ -13,9 +13,10 @@
 #include "unix_net.h"
 
 #include <arpa/inet.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <netinet/in.h>
 #include <unistd.h>
 
 // Every backend drives sockets non-blocking: the select/epoll loops must not stall in recv() on a
@@ -25,6 +26,13 @@ static void setNonBlocking(int fd)
     int fl = fcntl(fd, F_GETFL, 0);
     if (fl >= 0)
         fcntl(fd, F_SETFL, fl | O_NONBLOCK);
+}
+
+// We say NAY to Nagle
+static void setNoDelay(int fd)
+{
+    int one = 1;
+    setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
 }
 
 _objfactory_check NetSocketPosix* NetSocketPosix_create(NetSocketType type)
@@ -40,8 +48,11 @@ _objfactory_check NetSocketPosix* NetSocketPosix_create(NetSocketType type)
     self->handle = (NetSockHandle)self->fd;
     atomicStore(uint32, &self->state, NS_Init, Relaxed);
 
-    if (self->fd >= 0)
+    if (self->fd >= 0) {
         setNonBlocking(self->fd);
+        if (type == NST_Stream)
+            setNoDelay(self->fd);
+    }
 
     if (self->fd < 0 || !objInstInit(self)) {
         objRelease(&self);
@@ -63,8 +74,11 @@ NetSocketPosix_wrap(int fd, NetSocketType type, NetSocketState state)
 
     // An accepted fd inherits the listener's blocking mode; the backend drains until WouldBlock,
     // so it must be non-blocking regardless of how it arrived.
-    if (fd >= 0)
+    if (fd >= 0) {
         setNonBlocking(fd);
+        if (type == NST_Stream)
+            setNoDelay(fd);
+    }
 
     objInstInit(self);
     return self;
@@ -174,6 +188,7 @@ bool netPlatformResetSocket(NetSocket* sock, NetAddrType family, bool bindAny)
         return false;
 
     setNonBlocking(ns);
+    setNoDelay(ns);   // always a stream socket; connect() is the only caller
 
     if (bindAny) {
         struct sockaddr_storage any;
