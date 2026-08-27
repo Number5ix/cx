@@ -13,10 +13,17 @@ class NetQueueEpoll extends NetQueue
 
     /// @brief Handle -> socket, each entry holding a strong reference
     ///
-    /// Unlike NetQueueSelect's fdmap (rebuilt every tick from q->sockets), this map is maintained
-    /// incrementally by addSocket/removeSocket alongside the epoll_ctl calls that keep the kernel's
-    /// interest list in sync, since there is no per-pass rebuild step to refresh it from.
+    /// Unlike NetQueueSelect's fdmap (rebuilt every tick from q->sockets, and so only ever touched
+    /// by the single thread doing that rebuild), this map is maintained incrementally by
+    /// addSocket/removeSocket alongside the epoll_ctl calls that keep the kernel's interest list in
+    /// sync, since there is no per-pass rebuild step to refresh it from -- which means it can be
+    /// mutated from an application thread (removeSocket, via netsocketClose) at the same time the
+    /// ingest thread is reading it, so every access goes through fdmapLock rather than relying on
+    /// the queue's own socket-table lock.
     hashtable[uint64,object] fdmap;
+
+    /// @brief Guards fdmap against the ingest thread and an application/worker thread racing on it
+    Mutex fdmapLock;
 
     /// @brief Dedicated epoll_wait loop thread in threaded mode (NULL in polled mode)
     ///

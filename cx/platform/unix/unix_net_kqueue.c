@@ -46,32 +46,37 @@ static void setNonBlocking(int fd)
 // non-blocking registration; it also means per-change errors (e.g. ENOENT deleting a filter that
 // was never armed) are not reported back, which is fine since that particular error is harmless and
 // there is nothing to do about it anyway.
+//
+// Called from both the ingest thread and whatever thread adds/connects/closes a socket, so fdmap is
+// always touched under fdmapLock rather than relying on the caller already holding one.
 static void armInterest(_Inout_ NetQueueKqueue* self, _Inout_ NetSocket* sock, bool read, bool write)
 {
     int fd = (int)sock->handle;
     if (fd < 0)
         return;
 
-    bool exists = htFind(self->fdmap, uint64, (uint64)fd, none, NULL) != 0;
+    withMutex (&self->fdmapLock) {
+        bool exists = htFind(self->fdmap, uint64, (uint64)fd, none, NULL) != 0;
 
-    if (!read && !write) {
-        if (exists) {
-            struct kevent chg[2];
-            EV_SET(&chg[0], fd, EVFILT_READ, EV_DELETE, 0, 0, NULL);
-            EV_SET(&chg[1], fd, EVFILT_WRITE, EV_DELETE, 0, 0, NULL);
-            kevent(self->kq, chg, 2, NULL, 0, NULL);
-            htRemove(&self->fdmap, uint64, (uint64)fd);
+        if (!read && !write) {
+            if (exists) {
+                struct kevent chg[2];
+                EV_SET(&chg[0], fd, EVFILT_READ, EV_DELETE, 0, 0, NULL);
+                EV_SET(&chg[1], fd, EVFILT_WRITE, EV_DELETE, 0, 0, NULL);
+                kevent(self->kq, chg, 2, NULL, 0, NULL);
+                htRemove(&self->fdmap, uint64, (uint64)fd);
+            }
+            break;
         }
-        return;
+
+        struct kevent chg[2];
+        EV_SET(&chg[0], fd, EVFILT_READ, read ? EV_ADD : EV_DELETE, 0, 0, sock);
+        EV_SET(&chg[1], fd, EVFILT_WRITE, write ? EV_ADD : EV_DELETE, 0, 0, sock);
+        kevent(self->kq, chg, 2, NULL, 0, NULL);
+
+        if (!exists)
+            htInsert(&self->fdmap, uint64, (uint64)fd, object, sock);
     }
-
-    struct kevent chg[2];
-    EV_SET(&chg[0], fd, EVFILT_READ, read ? EV_ADD : EV_DELETE, 0, 0, sock);
-    EV_SET(&chg[1], fd, EVFILT_WRITE, write ? EV_ADD : EV_DELETE, 0, 0, sock);
-    kevent(self->kq, chg, 2, NULL, 0, NULL);
-
-    if (!exists)
-        htInsert(&self->fdmap, uint64, (uint64)fd, object, sock);
 }
 
 // Identical to NetQueueSelect's ingestDatagram(): drain readiness one recvfrom() at a time. FreeBSD
@@ -228,8 +233,18 @@ static void kqueuePoll(_Inout_ NetQueueKqueue* self, int64 waitMs)
             continue;
         }
 
-        htelem e        = htFind(self->fdmap, uint64, (uint64)fd, none, NULL);
-        NetSocket* sock = e ? (NetSocket*)hteVal(self->fdmap, object, e) : NULL;
+        // Looked up and acquired under fdmapLock together: fdmap's own reference only lasts as long
+        // as the entry is in the table, and a close on another thread can remove it (dropping that
+        // reference) the instant the lock is released. Taking a reference of our own here is what
+        // lets the rest of this iteration go on using sock safely after that -- otherwise a close
+        // racing this pass can free the socket, ring and all, out from under ingestStream().
+        NetSocket* sock = NULL;
+        withMutex (&self->fdmapLock) {
+            htelem e          = htFind(self->fdmap, uint64, (uint64)fd, none, NULL);
+            NetSocket* found  = e ? (NetSocket*)hteVal(self->fdmap, object, e) : NULL;
+            if (found)
+                sock = objAcquire(found);
+        }
         if (!sock)
             continue;
 
@@ -242,27 +257,28 @@ static void kqueuePoll(_Inout_ NetQueueKqueue* self, int64 waitMs)
             // connectBegin), and either one firing means the attempt has resolved one way or the
             // other; SO_ERROR via netSockConnectResult() tells success from failure either way.
             netsocket_connectResult(sock, netSockConnectResult(sock->handle));
-            continue;
-        }
+        } else {
+            if (r) {
+                if (sock->type == NST_Datagram) {
+                    ingestDatagram(self, sock);
+                } else {
+                    uint32 st = atomicLoad(uint32, &sock->state, Relaxed);
+                    if (st == NS_Connected)
+                        ingestStream(self, sock);
+                    else if (st == NS_Listening)
+                        acceptReady(self, sock);
+                }
+            }
 
-        if (r) {
-            if (sock->type == NST_Datagram) {
-                ingestDatagram(self, sock);
-            } else {
-                uint32 st = atomicLoad(uint32, &sock->state, Relaxed);
-                if (st == NS_Connected)
-                    ingestStream(self, sock);
-                else if (st == NS_Listening)
-                    acceptReady(self, sock);
+            if (w) {
+                netsocket_flushSend(sock, q);
+                // Level-triggered (no EV_CLEAR): drop the write filter once the backlog has drained,
+                // or the next kevent() would spin on a writable-but-idle socket forever.
+                armInterest(self, sock, true, netsocket_wantWrite(sock));
             }
         }
 
-        if (w) {
-            netsocket_flushSend(sock, q);
-            // Level-triggered (no EV_CLEAR): drop the write filter once the backlog has drained, or
-            // the next kevent() would spin on a writable-but-idle socket forever.
-            armInterest(self, sock, true, netsocket_wantWrite(sock));
-        }
+        objRelease(&sock);
     }
 }
 
@@ -358,8 +374,10 @@ bool NetQueueKqueue_connectBegin(_In_ NetQueueKqueue* self, NetSocket* sock, Net
     // closes the old one. The kernel drops a closed fd from kqueue's interest list on its own, so
     // there is nothing to kevent() DELETE, but the stale fdmap entry would otherwise pin a strong
     // reference to this socket under a handle number that will never fire again.
-    if (oldH != newH && oldH != NET_INVALID_HANDLE)
-        htRemove(&self->fdmap, uint64, (uint64)oldH);
+    if (oldH != newH && oldH != NET_INVALID_HANDLE) {
+        withMutex (&self->fdmapLock)
+            htRemove(&self->fdmap, uint64, (uint64)oldH);
+    }
 
     // Watch both filters for connect completion: FreeBSD kqueue does not reliably deliver a refused
     // connect through EVFILT_WRITE alone the way select()'s writable+SO_ERROR convention does, so
@@ -436,11 +454,13 @@ bool NetQueueKqueue_removeSocket(_In_ NetQueueKqueue* self, NetSocket* socket)
     bool ret = NetQueue_removeSocket(NetQueue(self), socket);
 
     if (ret && h != NET_INVALID_HANDLE) {
-        struct kevent chg[2];
-        EV_SET(&chg[0], (int)h, EVFILT_READ, EV_DELETE, 0, 0, NULL);
-        EV_SET(&chg[1], (int)h, EVFILT_WRITE, EV_DELETE, 0, 0, NULL);
-        kevent(self->kq, chg, 2, NULL, 0, NULL);   // nevents=0: register only, see armInterest
-        htRemove(&self->fdmap, uint64, (uint64)h);
+        withMutex (&self->fdmapLock) {
+            struct kevent chg[2];
+            EV_SET(&chg[0], (int)h, EVFILT_READ, EV_DELETE, 0, 0, NULL);
+            EV_SET(&chg[1], (int)h, EVFILT_WRITE, EV_DELETE, 0, 0, NULL);
+            kevent(self->kq, chg, 2, NULL, 0, NULL);   // nevents=0: register only, see armInterest
+            htRemove(&self->fdmap, uint64, (uint64)h);
+        }
     }
 
     return ret;
@@ -495,6 +515,7 @@ void NetQueueKqueue_destroy(_In_ NetQueueKqueue* self)
 
     // Autogen begins -----
     htDestroy(&self->fdmap);
+    mutexDestroy(&self->fdmapLock);
     objRelease(&self->ingest);
     // Autogen ends -------
 }
@@ -507,6 +528,7 @@ _objinit_guaranteed bool NetQueueKqueue_init(_In_ NetQueueKqueue* self)
 
     // Autogen begins -----
     htInit(&self->fdmap, uint64, object, 16);
+    mutexInit(&self->fdmapLock);
     return true;
     // Autogen ends -------
 }

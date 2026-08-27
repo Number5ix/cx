@@ -15,8 +15,14 @@ class NetQueueKqueue extends NetQueue
     /// Same role as NetQueueEpoll's fdmap: maintained incrementally by addSocket/removeSocket
     /// alongside the kevent() calls that keep the kernel's interest list in sync, and consulted at
     /// dispatch time rather than trusting a kevent's udata directly, so a stale event referencing an
-    /// fd that has since been closed and reused resolves to nothing instead of the wrong socket.
+    /// fd that has since been closed and reused resolves to nothing instead of the wrong socket. Not
+    /// rebuilt wholesale per pass (unlike NetQueueSelect's), so it can be mutated from an application
+    /// thread (removeSocket, via netsocketClose) at the same time the ingest thread is reading it --
+    /// every access goes through fdmapLock rather than relying on the queue's own socket-table lock.
     hashtable[uint64,object] fdmap;
+
+    /// @brief Guards fdmap against the ingest thread and an application/worker thread racing on it
+    Mutex fdmapLock;
 
     /// @brief Dedicated kevent-wait loop thread in threaded mode (NULL in polled mode)
     ///

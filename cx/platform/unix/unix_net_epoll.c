@@ -47,33 +47,36 @@ static void setNonBlocking(int fd)
 // against a concurrently blocked epoll_wait() on the same epfd -- so there is no wake-and-rebuild
 // step anywhere in this file except shutdown. fdmap tracks which handles are currently registered
 // (ADD vs MOD) and holds the strong reference that keeps a socket alive while epoll can still report
-// it ready.
+// it ready. Called from both the ingest thread and whatever thread adds/connects/closes a socket, so
+// fdmap is always touched under fdmapLock rather than relying on the caller already holding one.
 static void armInterest(_Inout_ NetQueueEpoll* self, _Inout_ NetSocket* sock, bool read, bool write)
 {
     int fd = (int)sock->handle;
     if (fd < 0)
         return;
 
-    bool exists = htFind(self->fdmap, uint64, (uint64)fd, none, NULL) != 0;
+    withMutex (&self->fdmapLock) {
+        bool exists = htFind(self->fdmap, uint64, (uint64)fd, none, NULL) != 0;
 
-    if (!read && !write) {
-        if (exists) {
-            epoll_ctl(self->epfd, EPOLL_CTL_DEL, fd, NULL);
-            htRemove(&self->fdmap, uint64, (uint64)fd);
+        if (!read && !write) {
+            if (exists) {
+                epoll_ctl(self->epfd, EPOLL_CTL_DEL, fd, NULL);
+                htRemove(&self->fdmap, uint64, (uint64)fd);
+            }
+            break;
         }
-        return;
-    }
 
-    struct epoll_event ev;
-    memset(&ev, 0, sizeof(ev));
-    ev.events   = (read ? EPOLLIN : 0) | (write ? EPOLLOUT : 0);
-    ev.data.fd = fd;
+        struct epoll_event ev;
+        memset(&ev, 0, sizeof(ev));
+        ev.events  = (read ? EPOLLIN : 0) | (write ? EPOLLOUT : 0);
+        ev.data.fd = fd;
 
-    if (exists) {
-        epoll_ctl(self->epfd, EPOLL_CTL_MOD, fd, &ev);
-    } else {
-        if (epoll_ctl(self->epfd, EPOLL_CTL_ADD, fd, &ev) == 0)
-            htInsert(&self->fdmap, uint64, (uint64)fd, object, sock);
+        if (exists) {
+            epoll_ctl(self->epfd, EPOLL_CTL_MOD, fd, &ev);
+        } else {
+            if (epoll_ctl(self->epfd, EPOLL_CTL_ADD, fd, &ev) == 0)
+                htInsert(&self->fdmap, uint64, (uint64)fd, object, sock);
+        }
     }
 }
 
@@ -254,8 +257,18 @@ static void epollPoll(_Inout_ NetQueueEpoll* self, int64 waitMs)
             continue;
         }
 
-        htelem e        = htFind(self->fdmap, uint64, (uint64)fd, none, NULL);
-        NetSocket* sock = e ? (NetSocket*)hteVal(self->fdmap, object, e) : NULL;
+        // Looked up and acquired under fdmapLock together: fdmap's own reference only lasts as long
+        // as the entry is in the table, and a close on another thread can remove it (dropping that
+        // reference) the instant the lock is released. Taking a reference of our own here is what
+        // lets the rest of this iteration go on using sock safely after that -- otherwise a close
+        // racing this pass can free the socket, ring and all, out from under ingestStream().
+        NetSocket* sock = NULL;
+        withMutex (&self->fdmapLock) {
+            htelem e  = htFind(self->fdmap, uint64, (uint64)fd, none, NULL);
+            NetSocket* found = e ? (NetSocket*)hteVal(self->fdmap, object, e) : NULL;
+            if (found)
+                sock = objAcquire(found);
+        }
         if (!sock)
             continue;
 
@@ -265,27 +278,28 @@ static void epollPoll(_Inout_ NetQueueEpoll* self, int64 waitMs)
         if (sock->type == NST_Stream && atomicLoad(uint32, &sock->state, Relaxed) == NS_Connecting) {
             if (w)
                 netsocket_connectResult(sock, netSockConnectResult(sock->handle));
-            continue;
-        }
+        } else {
+            if (r) {
+                if (sock->type == NST_Datagram) {
+                    ingestDatagramBatch(self, sock);
+                } else {
+                    uint32 st = atomicLoad(uint32, &sock->state, Relaxed);
+                    if (st == NS_Connected)
+                        ingestStream(self, sock);
+                    else if (st == NS_Listening)
+                        acceptReady(self, sock);
+                }
+            }
 
-        if (r) {
-            if (sock->type == NST_Datagram) {
-                ingestDatagramBatch(self, sock);
-            } else {
-                uint32 st = atomicLoad(uint32, &sock->state, Relaxed);
-                if (st == NS_Connected)
-                    ingestStream(self, sock);
-                else if (st == NS_Listening)
-                    acceptReady(self, sock);
+            if (w) {
+                netsocket_flushSend(sock, q);
+                // Level-triggered: drop EPOLLOUT once the backlog has drained, or epoll_wait would
+                // spin on a writable-but-idle socket forever.
+                armInterest(self, sock, true, netsocket_wantWrite(sock));
             }
         }
 
-        if (w) {
-            netsocket_flushSend(sock, q);
-            // Level-triggered: drop EPOLLOUT once the backlog has drained, or epoll_wait would
-            // spin on a writable-but-idle socket forever.
-            armInterest(self, sock, true, netsocket_wantWrite(sock));
-        }
+        objRelease(&sock);
     }
 }
 
@@ -383,8 +397,10 @@ bool NetQueueEpoll_connectBegin(_In_ NetQueueEpoll* self, NetSocket* sock, NetAd
     // and closes the old one. The kernel drops a closed fd from epoll's interest list on its own,
     // so there is nothing to epoll_ctl DEL, but the stale fdmap entry would otherwise pin a strong
     // reference to this socket under a handle number that will never fire again.
-    if (oldH != newH && oldH != NET_INVALID_HANDLE)
-        htRemove(&self->fdmap, uint64, (uint64)oldH);
+    if (oldH != newH && oldH != NET_INVALID_HANDLE) {
+        withMutex (&self->fdmapLock)
+            htRemove(&self->fdmap, uint64, (uint64)oldH);
+    }
 
     if (newH != NET_INVALID_HANDLE)
         armInterest(self, sock, false, true);   // watch the fresh handle for connect completion
@@ -457,8 +473,10 @@ bool NetQueueEpoll_removeSocket(_In_ NetQueueEpoll* self, NetSocket* socket)
     bool ret = NetQueue_removeSocket(NetQueue(self), socket);
 
     if (ret && h != NET_INVALID_HANDLE) {
-        epoll_ctl(self->epfd, EPOLL_CTL_DEL, (int)h, NULL);
-        htRemove(&self->fdmap, uint64, (uint64)h);
+        withMutex (&self->fdmapLock) {
+            epoll_ctl(self->epfd, EPOLL_CTL_DEL, (int)h, NULL);
+            htRemove(&self->fdmap, uint64, (uint64)h);
+        }
     }
 
     return ret;
@@ -513,6 +531,7 @@ void NetQueueEpoll_destroy(_In_ NetQueueEpoll* self)
 
     // Autogen begins -----
     htDestroy(&self->fdmap);
+    mutexDestroy(&self->fdmapLock);
     objRelease(&self->ingest);
     // Autogen ends -------
 }
@@ -525,6 +544,7 @@ _objinit_guaranteed bool NetQueueEpoll_init(_In_ NetQueueEpoll* self)
 
     // Autogen begins -----
     htInit(&self->fdmap, uint64, object, 16);
+    mutexInit(&self->fdmapLock);
     return true;
     // Autogen ends -------
 }
