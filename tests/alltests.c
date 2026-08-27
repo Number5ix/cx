@@ -432,6 +432,7 @@ static const testspec tests[] = {
     { "http: Server Bad Expect", "httptest", "srvexpectbad" },
     { "http: Server Deferred Response", "httptest", "srvdeferred" },
     { "http: Server TLS", "httptest", "srvtls" },
+    { "http: Client TLS ALPN", "httptest", "clienttlsalpn" },
     { "http: Server Client Round Trip", "httptest", "srvroundtrip" },
     { "http: Multipart File Upload", "httptest", "multipartfile" },
     { "http: Multipart Chunked Upload", "httptest", "multipartchunk" },

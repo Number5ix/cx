@@ -105,6 +105,12 @@ class TlsConfig
     /// @endcode
     unbound bool setALPN([in] [opt] sa_string *protos);
 
+    /// Retrieve the ALPN protocol list currently configured
+    ///
+    /// @param out Receives the protocol list; left empty if none is set
+    /// @return Number of protocols in the list
+    unbound int32 getALPN([out] sa_string *out);
+
     /// Enable session resumption
     ///
     /// On a server this stands up a ticket encryption context (whose key mbedTLS rotates on its

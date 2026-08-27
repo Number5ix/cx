@@ -216,6 +216,20 @@ bool TlsConfig_setALPN(_In_ TlsConfig* self, _In_opt_ sa_string* protos)
     return true;
 }
 
+int32 TlsConfig_getALPN(_In_ TlsConfig* self, _Out_ sa_string* out)
+{
+    saInit(out, string, self->st->alpnCount);
+
+    for (int32 i = 0; i < self->st->alpnCount; i++) {
+        string s = 0;
+        strFromBytes(&s, (const uint8*)self->st->alpn[i], (uint32)strlen(self->st->alpn[i]));
+        saPush(out, string, s);
+        strDestroy(&s);
+    }
+
+    return saSize(*out);
+}
+
 bool TlsConfig_setResumption(_In_ TlsConfig* self, bool enable, int64 lifetime)
 {
     if (!checkUnsealed(self, _S"tlsconfigSetResumption"))

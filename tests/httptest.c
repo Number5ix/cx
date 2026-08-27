@@ -5259,6 +5259,92 @@ out:
     return ret;
 }
 
+// httpclientSetTlsConfig() is how an application installs its own trust store -- e.g. a private
+// CA -- ahead of an https request. Doing that must not cost it the ability to speak http/1.1: the
+// client adds "http/1.1" to whatever ALPN list the config already has, same as it does for the
+// config it builds itself. Checked here against tlsconfigGetALPN() rather than over a real
+// handshake because the client always verifies the peer against the URL's host, and there is no
+// hostname this suite can both dial and get a matching certificate for without real DNS.
+static int test_httptest_clienttlsalpn(void)
+{
+    int ret          = 0;
+    NetQueue* q       = NULL;
+    HttpClient* cl    = NULL;
+    TlsConfig* plain  = NULL;
+    TlsConfig* withH2 = NULL;
+    TlsConfig* withH1 = NULL;
+    sa_string out;
+    saInit(&out, string, 0);
+
+    NetQueueConfig conf;
+    netqueuePresetClient(&conf);
+    conf.nthreads = 0;
+    q             = netqueueCreate(&conf);
+    cl            = q ? httpclientCreate(q) : NULL;
+    if (!q || !cl) {
+        TEST_FAILV(ret, 1, _SL("!q || !cl"), stvNone);
+        goto out;
+    }
+
+    // A config with no ALPN preference of its own gets exactly http/1.1.
+    plain = tlsconfigCreateClient();
+    if (!plain) {
+        TEST_FAILV(ret, 1, _SL("!plain"), stvNone);
+        goto out;
+    }
+    httpclientSetTlsConfig(cl, plain);
+    saDestroy(&out);
+    if (tlsconfigGetALPN(plain, &out) != 1 || !strEq(out.a[0], _SL("http/1.1")))
+        TEST_FAILV(ret, 1, _SL("tlsconfigGetALPN(plain)=${int} entries, expected 1x '${string}'"), stvar(int32, saSize(out)), stvar(strref, _SL("http/1.1")));
+
+    // A config that already offers a protocol keeps it, with http/1.1 appended so the client can
+    // still fall back to it.
+    withH2 = tlsconfigCreateClient();
+    if (!withH2) {
+        TEST_FAILV(ret, 1, _SL("!withH2"), stvNone);
+        goto out;
+    }
+    sa_string h2;
+    saInit(&h2, string, 1);
+    saPush(&h2, strref, _SL("h2"));
+    tlsconfigSetALPN(withH2, &h2);
+    saDestroy(&h2);
+
+    httpclientSetTlsConfig(cl, withH2);
+    saDestroy(&out);
+    if (tlsconfigGetALPN(withH2, &out) != 2 || !strEq(out.a[0], _SL("h2")) || !strEq(out.a[1], _SL("http/1.1")))
+        TEST_FAILV(ret, 1, _SL("tlsconfigGetALPN(withH2)=${int} entries, expected ['h2','http/1.1']"), stvar(int32, saSize(out)), stvNone);
+
+    // A config that already offers http/1.1 is left alone rather than getting a duplicate entry.
+    withH1 = tlsconfigCreateClient();
+    if (!withH1) {
+        TEST_FAILV(ret, 1, _SL("!withH1"), stvNone);
+        goto out;
+    }
+    sa_string h1;
+    saInit(&h1, string, 1);
+    saPush(&h1, strref, _SL("http/1.1"));
+    tlsconfigSetALPN(withH1, &h1);
+    saDestroy(&h1);
+
+    httpclientSetTlsConfig(cl, withH1);
+    saDestroy(&out);
+    if (tlsconfigGetALPN(withH1, &out) != 1 || !strEq(out.a[0], _SL("http/1.1")))
+        TEST_FAILV(ret, 1, _SL("tlsconfigGetALPN(withH1)=${int} entries, expected 1x '${string}'"), stvar(int32, saSize(out)), stvar(strref, _SL("http/1.1")));
+
+out:
+    saDestroy(&out);
+    objRelease(&withH1);
+    objRelease(&withH2);
+    objRelease(&plain);
+    objRelease(&cl);
+    if (q) {
+        netqueueShutdown(q, 0);
+        objRelease(&q);
+    }
+    return ret;
+}
+
 // The one only now possible: HttpClient against HttpServer on one polled queue. Both halves are
 // exercised at once, which is worth having even though a hand-written peer proves more.
 static int test_httptest_srvroundtrip(void)
@@ -5707,6 +5793,7 @@ testfunc httptest_funcs[] = {
     { "srvexpectbad",       test_httptest_srvexpectbad       },
     { "srvdeferred",        test_httptest_srvdeferred        },
     { "srvtls",             test_httptest_srvtls             },
+    { "clienttlsalpn",      test_httptest_clienttlsalpn      },
     { "srvroundtrip",       test_httptest_srvroundtrip       },
     { "multipartfile",      test_httptest_multipartfile      },
     { "multipartchunk",     test_httptest_multipartchunked   },

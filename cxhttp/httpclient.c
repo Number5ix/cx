@@ -593,6 +593,30 @@ static const NetHandlers kDialHandlers = {
     .error        = onDialError,
 };
 
+// Add http/1.1 to cfg's ALPN list if it is not already offered, leaving the rest of the list
+// untouched. onDialFilterNotify() rejects anything negotiated other than http/1.1, so a config
+// missing it would fail every handshake that does negotiate ALPN.
+static void ensureAlpnHttp11(TlsConfig* cfg)
+{
+    sa_string protos;
+    int32 n = tlsconfigGetALPN(cfg, &protos);
+
+    bool has = false;
+    for (int32 i = 0; i < n; i++) {
+        if (strEq(protos.a[i], kAlpnHttp11)) {
+            has = true;
+            break;
+        }
+    }
+
+    if (!has) {
+        saPush(&protos, strref, kAlpnHttp11);
+        tlsconfigSetALPN(cfg, &protos);
+    }
+
+    saDestroy(&protos);
+}
+
 // Build the TLS configuration on first use, so an application that never makes an https request
 // never pays for loading the system trust store.
 static TlsConfig* clientTls(HttpClient* self)
@@ -609,12 +633,7 @@ static TlsConfig* clientTls(HttpClient* self)
             if (made) {
                 if (ca)
                     tlsconfigSetCA(made, ca);
-
-                sa_string alpn;
-                saInit(&alpn, string, 1);
-                saPush(&alpn, strref, kAlpnHttp11);
-                tlsconfigSetALPN(made, &alpn);
-                saDestroy(&alpn);
+                ensureAlpnHttp11(made);
             }
             objRelease(&ca);
             self->tls = made;
@@ -743,6 +762,9 @@ _objinit_guaranteed bool HttpClient_init(_In_ HttpClient* self)
 
 void HttpClient_setTlsConfig(_In_ HttpClient* self, _In_opt_ TlsConfig* cfg)
 {
+    if (cfg)
+        ensureAlpnHttp11(cfg);
+
     withMutex (&self->lock) {
         objRelease(&self->tls);
         self->tls = cfg ? objAcquire(cfg) : NULL;
