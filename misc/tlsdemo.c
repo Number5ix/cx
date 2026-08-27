@@ -23,7 +23,7 @@
 DEFINE_ENTRY_POINT;
 
 #define DEFAULT_PORT    443
-#define TICK_WAIT_MS    100
+#define TICK_WAIT_US    timeMS(100)
 #define IDLE_TIMEOUT_US timeS(20)   // give up after 20s of silence
 
 STR_CONST(kRequestFmt, "GET / HTTP/1.1\r\n"
@@ -296,7 +296,7 @@ int entryPoint()
     } else {
         touch(&ctx);
         while (!ctx.done) {
-            netqueueTick(q, TICK_WAIT_MS);
+            netqueueTick(q, TICK_WAIT_US);
             if (clockTimer() - ctx.lastActivity > IDLE_TIMEOUT_US) {
                 conPuts(conErr(), _SL("\ntimed out waiting for a response\n"));
                 ctx.exitCode = 1;

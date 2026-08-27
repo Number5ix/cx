@@ -132,9 +132,10 @@ void nselClear(_Inout_ NetSelectSet* set);
 // Add a socket to the set, watching it for readability, writability, or both.
 void nselAdd(_Inout_ NetSelectSet* set, NetSockHandle h, bool read, bool write);
 
-// Wait until at least one socket is ready, the timeout (in milliseconds; <0 = forever) elapses, or
-// nselWake() interrupts. Returns the number of ready sockets, 0 on timeout, or -1 on error.
-int nselWait(_Inout_ NetSelectSet* set, int64 timeout);
+// Wait until at least one socket is ready, the timeout elapses, or nselWake() interrupts. The
+// timeout is in cx microseconds, which select's timeval carries exactly; timeForever blocks until
+// something happens. Returns the number of ready sockets, 0 on timeout, or -1 on error.
+int nselWait(_Inout_ NetSelectSet* set, int64 timeoutUs);
 
 // Iterate the sockets reported ready by the last nselWait(). Writes the handle and its
 // read/write readiness and returns true, or returns false when iteration is exhausted. Each ready
@@ -220,6 +221,27 @@ _meta_inline bool _netqueueShuttingDown(_In_ NetQueue* q)
 {
     return atomicLoad(uint32, &q->shutdownReq, Acquire) != 0;
 }
+
+// ---------------------------------------------------------------------------------------------
+// Backend poll timing (see queue.c)
+// ---------------------------------------------------------------------------------------------
+
+// Work out how long a backend's poll call may sleep, given the wait its caller asked for. Both
+// take and return cx microseconds unless the name says otherwise: 0 means return immediately and
+// timeForever means block until something happens.
+//
+// The answer is capped to the queue's nearest armed timer deadline, so a timer fires close to when
+// it is due rather than on the next unrelated wakeup, and to a little under 24 days otherwise so
+// every backend's own timeout type can hold it. Call either one immediately before the poll, since
+// the cap is computed against the clock as of the call.
+//
+// Use this one for select and kqueue, whose timeout structs carry sub-millisecond resolution.
+int64 netqueue_pollTimeout(_In_ NetQueue* q, int64 waitUs);
+
+// Same, but in milliseconds, with -1 meaning block forever. For epoll and IOCP, which take a plain
+// millisecond count and cannot express anything finer. A nonzero wait rounds up, never down, since
+// truncating a short sleep to 0 would turn the caller's loop into a spin.
+int64 netqueue_pollTimeoutMsec(_In_ NetQueue* q, int64 waitUs);
 
 // ---------------------------------------------------------------------------------------------
 // Name resolution (see resolver.c)

@@ -221,25 +221,15 @@ static void acceptReady(_Inout_ NetQueueEpoll* self, _Inout_ NetSocket* listener
 // socket into its flow. Does NOT dispatch -- in polled mode tick() dispatches right after, and in
 // threaded mode the base workers do, woken through netqueue_submit. Shared by tick() and the ingest
 // thread, exactly as selectPoll() is shared in queue_select.c.
-static void epollPoll(_Inout_ NetQueueEpoll* self, int64 waitMs)
+static void epollPoll(_Inout_ NetQueueEpoll* self, int64 waitUs)
 {
     NetQueue* q = NetQueue(self);
 
     // epoll_ctl already keeps the kernel's interest list in sync incrementally (unlike select,
     // which rebuilds its whole watch set every pass), so there is nothing to rebuild here -- only
     // the deadline heap to ask how long this pass may sleep.
-    int64 nearestDeadline = netqueue_nextDeadline(q);
-    if (nearestDeadline != 0) {
-        int64 usLeft = nearestDeadline - clockTimer();
-        int64 msLeft = usLeft <= 0 ? 0 : usLeft / 1000;
-        if (waitMs < 0 || msLeft < waitMs)
-            waitMs = msLeft;
-        if (waitMs < 1)
-            waitMs = 1;
-    }
-
     struct epoll_event events[64];
-    int n = epoll_wait(self->epfd, events, 64, (int)(waitMs < 0 ? -1 : waitMs));
+    int n = epoll_wait(self->epfd, events, 64, (int)netqueue_pollTimeoutMsec(q, waitUs));
 
     // Fire whatever came due. Runs even on a bare timeout (n <= 0) -- a black-holed connect never
     // signals readiness, so its timer is the only thing that ends the attempt.
@@ -310,7 +300,7 @@ static int epollIngestThread(Thread* thr)
         return 1;
 
     while (thrLoop(thr))
-        epollPoll(self, 1000);
+        epollPoll(self, timeS(1));
 
     return 0;
 }

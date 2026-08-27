@@ -182,13 +182,16 @@ abstract class NetQueue
     /// Removes all sockets from the queue and shuts down worker threads. Will shut down
     /// the queue in the background even if false is returned.
     ///
-    /// @param timeout How long to wait for works to terminate
+    /// @param timeout How long to wait for workers to terminate, in microseconds (see timeS() /
+    ///     timeMS()), or 0 or less to wait forever
     /// @return true if the queue is fully shut down
     bool shutdown(int64 timeout);
 
     /// Process events in polled mode
     ///
-    /// @param wait How long to wait for an event, or 0 to return immediately
+    /// @param wait How long to wait for an event, in microseconds (see timeS() / timeMS()), 0 to
+    ///     return immediately, or timeForever to wait until something happens. A wait of under a
+    ///     millisecond is rounded up to one on some platforms, so treat it as a lower bound.
     /// @return true if any events were processed, false if the wait timeout was reached
     [abstract] bool tick(int64 wait);
 

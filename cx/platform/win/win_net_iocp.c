@@ -418,26 +418,13 @@ static void iocpWake(void* ctx)
         PostQueuedCompletionStatus((HANDLE)self->iocp, 0, IOCP_KEY_WAKE, NULL);
 }
 
-// Cap a wait (milliseconds, negative = infinite) to the nearest armed timer deadline. A wait of
-// exactly 0 is an explicit non-blocking pull and is never stretched -- tick() uses it to drain a
-// burst after its first blocking wait, and turning that into a 1ms sleep per completion would make
-// a busy tick crawl.
-static DWORD iocpWaitMs(NetQueue* q, int64 waitMs)
+// GetQueuedCompletionStatus timeout for a wait of `waitUs` microseconds, capped to the nearest
+// armed timer deadline. A wait of exactly 0 is an explicit non-blocking pull -- tick() uses it to
+// drain a burst after its first blocking wait.
+static DWORD iocpTimeout(NetQueue* q, int64 waitUs)
 {
-    if (waitMs == 0)
-        return 0;
-
-    int64 dl = netqueue_nextDeadline(q);
-    if (dl != 0) {
-        int64 usLeft = dl - clockTimer();
-        int64 msLeft = usLeft <= 0 ? 0 : usLeft / 1000;
-        if (waitMs < 0 || msLeft < waitMs)
-            waitMs = msLeft;
-        if (waitMs < 1)
-            waitMs = 1;
-    }
-
-    return waitMs >= 0 ? (DWORD)min(waitMs, (int64)0x7fffffff) : INFINITE;
+    int64 ms = netqueue_pollTimeoutMsec(q, waitUs);
+    return ms >= 0 ? (DWORD)ms : INFINITE;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -607,7 +594,7 @@ static int iocpWorkerThread(Thread* thr)
         // A completion port has no wait-set to rebuild, so the only reason to cap the sleep is a
         // timer. The 500ms floor stays as the idle heartbeat that keeps maint() and thrLoop()
         // running; an armed deadline shortens it so timers do not run up to half a second late.
-        DWORD tmo       = iocpWaitMs(q, 500);
+        DWORD tmo       = iocpTimeout(q, timeMS(500));
         BOOL ok         = GetQueuedCompletionStatus(port, &bytes, &key, &ov, tmo);
         DWORD err       = ok ? 0 : GetLastError();
 
@@ -905,7 +892,7 @@ bool NetQueueWinIOCP_shutdown(_In_ NetQueueWinIOCP* self, int64 timeout)
 
 bool NetQueueWinIOCP_tick(_In_ NetQueueWinIOCP* self, int64 wait)
 {
-    // Polled mode only: service completions on the caller's thread. Wait up to `wait` ms for the
+    // Polled mode only: service completions on the caller's thread. Wait up to `wait` for the
     // first, then pull the rest non-blocking so one tick services a whole burst.
     NetQueue* q = NetQueue(self);
     HANDLE port = (HANDLE)self->iocp;
@@ -916,7 +903,7 @@ bool NetQueueWinIOCP_tick(_In_ NetQueueWinIOCP* self, int64 wait)
         DWORD bytes    = 0;
         ULONG_PTR key  = 0;
         OVERLAPPED* ov = NULL;
-        DWORD tmo      = iocpWaitMs(q, w);
+        DWORD tmo      = iocpTimeout(q, w);
         BOOL ok        = GetQueuedCompletionStatus(port, &bytes, &key, &ov, tmo);
         DWORD err      = ok ? 0 : GetLastError();
 

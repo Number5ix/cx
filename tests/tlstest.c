@@ -34,7 +34,7 @@
 // handful; this is generous enough that a loaded CI machine does not flake, and small enough that a
 // genuinely stuck test still finishes.
 #define MAX_TICKS 400
-#define TICK_WAIT 20
+#define TICK_WAIT timeMS(20)
 
 // The client's receive buffer in these tests. Only the small transfers are compared byte for byte;
 // the bulk test checks a running total and a checksum instead.

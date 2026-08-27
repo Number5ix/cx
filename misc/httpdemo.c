@@ -21,7 +21,7 @@
 
 DEFINE_ENTRY_POINT;
 
-#define TICK_WAIT_MS 50
+#define TICK_WAIT_US timeMS(50)
 #define OVERALL_LIMIT_US timeS(120)
 
 typedef struct DemoCtx {
@@ -255,7 +255,7 @@ int entryPoint()
             } else {
                 int64 started = clockTimer();
                 while (!ctx.done) {
-                    netqueueTick(q, TICK_WAIT_MS);
+                    netqueueTick(q, TICK_WAIT_US);
                     if (clockTimer() - started > OVERALL_LIMIT_US) {
                         conPuts(conErr(), _SL("giving up\n"));
                         ctx.exitCode = 1;

@@ -1790,7 +1790,7 @@ static NetAddr loopbackAddr(uint16 port)
 static void tickUntil(NetQueue* q, Recorder* r, uint32 want)
 {
     for (int i = 0; i < 20 && r->recvCount < want; i++)
-        netqueueTick(q, 100);
+        netqueueTick(q, timeMS(100));
 }
 
 // Drain a stream socket's ring inside its recv handler, accumulating the bytes so the test can
@@ -1909,7 +1909,7 @@ static SOCKET acceptFromEither(LoopbackListeners* l)
 static void tickUntilConn(NetQueue* q, Recorder* r, int maxTicks)
 {
     for (int i = 0; i < maxTicks && r->connCount == 0; i++)
-        netqueueTick(q, 100);
+        netqueueTick(q, timeMS(100));
 }
 
 // Shared body: connect a NetSocket to a loopback listener via `host` (a literal or "localhost"),
@@ -1963,7 +1963,7 @@ static int connectBody(NetQueue* q, strref host)
         const char down[] = "downstream";   // 10 bytes
         send(server, down, 10, 0);
         for (int i = 0; i < 20 && rec.recvCount == 0; i++)
-            netqueueTick(q, 100);
+            netqueueTick(q, timeMS(100));
         if (rec.seqlen != 10 || memcmp(rec.seq, down, 10) != 0)
             TEST_FAILV(ret, 1, _SL("downstream payload mismatch: expected 10 bytes, got ${uint}"), stvar(uint32, rec.seqlen));
 
@@ -1981,7 +1981,7 @@ static int connectBody(NetQueue* q, strref host)
             if (n > 0)
                 got += n;
             else
-                netqueueTick(q, 50);   // an IOCP overlapped send drains on its completion
+                netqueueTick(q, timeMS(50));   // an IOCP overlapped send drains on its completion
         }
         if (got != 8 || memcmp(rbuf, up, 8) != 0)
             TEST_FAILV(ret, 1, _SL("upstream payload mismatch: expected 8 bytes, got ${int}"), stvar(int32, got));
@@ -2067,7 +2067,7 @@ static int connectTimeoutBody(NetQueue* q)
         TEST_FAILV(ret, 1, _SL("assertion failed: !netsocketConnect(csock, _SL(\"192.0.2.1\"), 9)"), stvNone);
 
     for (int i = 0; i < 100 && rec.connCount == 0; i++)
-        netqueueTick(q, 100);
+        netqueueTick(q, timeMS(100));
     int64 elapsed = clockTimer() - start;
 
     if (rec.connCount != 1 || rec.connState != NCS_NotConnected)
@@ -2133,7 +2133,7 @@ static int acceptBody(NetQueue* q, bool autoAccept)
 
     // Tick until the accept is delivered.
     for (int i = 0; i < 50 && rec.acceptCount == 0; i++)
-        netqueueTick(q, 100);
+        netqueueTick(q, timeMS(100));
     if (rec.acceptCount != 1 || !rec.accepted)
         TEST_FAILV(ret, 1, _SL("assertion failed: rec.acceptCount=${uint} != 1 || !rec.accepted"), stvar(uint32, rec.acceptCount));
 
@@ -2148,7 +2148,7 @@ static int acceptBody(NetQueue* q, bool autoAccept)
         const char down[] = "downstream";   // 10 bytes
         send(client, down, 10, 0);
         for (int i = 0; i < 20 && rec.recvCount == 0; i++)
-            netqueueTick(q, 100);
+            netqueueTick(q, timeMS(100));
         if (rec.seqlen != 10 || memcmp(rec.seq, down, 10) != 0)
             TEST_FAILV(ret, 1, _SL("assertion failed: rec.seqlen=${uint} != 10 || memcmp(rec.seq, down, 10) != 0"), stvar(uint32, rec.seqlen));
 
@@ -2166,7 +2166,7 @@ static int acceptBody(NetQueue* q, bool autoAccept)
             if (n > 0)
                 got += n;
             else
-                netqueueTick(q, 50);   // an IOCP overlapped send drains on its completion
+                netqueueTick(q, timeMS(50));   // an IOCP overlapped send drains on its completion
         }
         if (got != 8 || memcmp(rbuf, up, 8) != 0)
             TEST_FAILV(ret, 1, _SL("assertion failed: got=${int} != 8 || memcmp(rbuf, up, 8) != 0"), stvar(int32, got));
@@ -2241,7 +2241,7 @@ static int test_nettest_helpers(void)
         TEST_FAILV(ret, 1, _SL("assertion failed: crec.connCount=${uint} != 1 || crec.connState=${int} != NCS_Connected"), stvar(uint32, crec.connCount), stvar(int32, crec.connState));
 
     for (int i = 0; i < 50 && lrec.acceptCount == 0; i++)
-        netqueueTick(q, 100);
+        netqueueTick(q, timeMS(100));
     if (lrec.acceptCount != 1 || !lrec.accepted)
         TEST_FAILV(ret, 1, _SL("assertion failed: lrec.acceptCount=${uint} != 1 || !lrec.accepted"), stvar(uint32, lrec.acceptCount));
 
@@ -2256,7 +2256,7 @@ static int test_nettest_helpers(void)
         if (!netsocketSend(csock, (uint8*)up, 8, NULL, 0))
             TEST_FAILV(ret, 1, _SL("assertion failed: !netsocketSend(csock, (uint8*)up, 8, NULL, 0)"), stvNone);
         for (int i = 0; i < 20 && srec.recvCount == 0; i++)
-            netqueueTick(q, 100);
+            netqueueTick(q, timeMS(100));
         if (srec.seqlen != 8 || memcmp(srec.seq, up, 8) != 0)
             TEST_FAILV(ret, 1, _SL("assertion failed: srec.seqlen=${uint} != 8 || memcmp(srec.seq, up, 8) != 0"), stvar(uint32, srec.seqlen));
 
@@ -2264,7 +2264,7 @@ static int test_nettest_helpers(void)
         if (!netsocketSend(server, (uint8*)down, 10, NULL, 0))
             TEST_FAILV(ret, 1, _SL("assertion failed: !netsocketSend(server, (uint8*)down, 10, NULL, 0)"), stvNone);
         for (int i = 0; i < 20 && crec.recvCount == 0; i++)
-            netqueueTick(q, 100);
+            netqueueTick(q, timeMS(100));
         if (crec.seqlen != 10 || memcmp(crec.seq, down, 10) != 0)
             TEST_FAILV(ret, 1, _SL("assertion failed: crec.seqlen=${uint} != 10 || memcmp(crec.seq, down, 10) != 0"), stvar(uint32, crec.seqlen));
     }
@@ -2882,7 +2882,7 @@ static int test_nettest_select_stream_backpressure(void)
     for (int i = 0; i < 200 && rec.sendReadyCount == 0; i++) {
         while (recv(client, drain, sizeof(drain), 0) > 0)
             ;
-        netqueueTick(q, 50);
+        netqueueTick(q, timeMS(50));
     }
     if (rec.sendReadyCount == 0)
         ret = 1;   // drained below the low watermark but the ready edge never fired
@@ -3515,7 +3515,7 @@ static int test_nettest_iocp_stream_backpressure(void)
     for (int i = 0; i < 400 && rec.sendReadyCount == 0; i++) {
         while (recv(client, drain, sizeof(drain), 0) > 0)
             ;
-        netqueueTick(q, 50);
+        netqueueTick(q, timeMS(50));
     }
     if (rec.sendReadyCount == 0)
         ret = 1;   // drained below the low watermark but the ready edge never fired

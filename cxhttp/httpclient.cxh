@@ -27,7 +27,7 @@
 ///   httpclientSend(http, req, &handlers, ctx);
 ///
 ///   while (!done)
-///       netqueueTick(q, 100);
+///       netqueueTick(q, timeMS(100));
 /// @endcode
 ///
 /// A client must outlive every request it is running. That is the one lifetime rule here, and it

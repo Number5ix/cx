@@ -124,7 +124,7 @@ void nselAdd(_Inout_ NetSelectSet* set, NetSockHandle h, bool read, bool write)
     }
 }
 
-int nselWait(_Inout_ NetSelectSet* set, int64 timeout)
+int nselWait(_Inout_ NetSelectSet* set, int64 timeoutUs)
 {
     set->workRead   = set->masterRead;
     set->workWrite  = set->masterWrite;
@@ -132,9 +132,9 @@ int nselWait(_Inout_ NetSelectSet* set, int64 timeout)
 
     struct timeval tv;
     struct timeval* ptv = NULL;
-    if (timeout >= 0) {
-        tv.tv_sec  = (long)(timeout / 1000);
-        tv.tv_usec = (long)((timeout % 1000) * 1000);
+    if (timeoutUs < timeForever) {
+        tv.tv_sec  = (long)(timeoutUs / 1000000);
+        tv.tv_usec = (long)(timeoutUs % 1000000);
         ptv        = &tv;
     }
 

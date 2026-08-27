@@ -138,6 +138,47 @@ void NetQueue__stopWorkers(_In_ NetQueue* self, int64 timeout)
 }
 
 // ---------------------------------------------------------------------------------------------
+// Backend poll timing
+// ---------------------------------------------------------------------------------------------
+
+// Longest a poll may sleep when the caller did not ask to block forever. The bound exists so both
+// conversions below stay in range: it is an exact int32 millisecond count for epoll and IOCP, and
+// its second count (about 24 days) fits a 32-bit timeval.tv_sec for select.
+#define POLL_MAX_US ((int64)INT32_MAX * 1000)
+
+int64 netqueue_pollTimeout(_In_ NetQueue* q, int64 waitUs)
+{
+    if (waitUs < 0)
+        waitUs = 0;
+
+    // Do not sleep past the nearest armed deadline, so the sweep the backend runs after its wait
+    // fires the timer promptly rather than only on the next unrelated wakeup.
+    int64 deadline = netqueue_nextDeadline(q);
+    if (deadline != 0) {
+        int64 usLeft = deadline - clockTimer();
+        if (usLeft < 0)
+            usLeft = 0;
+        if (usLeft < waitUs)
+            waitUs = usLeft;
+    }
+
+    if (waitUs >= timeForever)
+        return timeForever;
+    return min(waitUs, POLL_MAX_US);
+}
+
+int64 netqueue_pollTimeoutMsec(_In_ NetQueue* q, int64 waitUs)
+{
+    int64 us = netqueue_pollTimeout(q, waitUs);
+    if (us >= timeForever)
+        return -1;
+
+    // Round up, never down: a wait under a millisecond is still a request to sleep, and truncating
+    // it to 0 would turn the caller's loop into a spin.
+    return us / 1000 + (us % 1000 != 0 ? 1 : 0);
+}
+
+// ---------------------------------------------------------------------------------------------
 // Maintenance
 // ---------------------------------------------------------------------------------------------
 

@@ -58,7 +58,7 @@
 ///   NetQueue* q = netqueueCreate(&conf);
 ///
 ///   while (!done)
-///       netqueueTick(q, 100);               // bounded wait, never open-ended
+///       netqueueTick(q, timeMS(100));       // bounded wait, never open-ended
 /// @endcode
 ///
 /// @section http_progress Progress

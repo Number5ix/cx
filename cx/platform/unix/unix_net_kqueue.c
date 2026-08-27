@@ -190,28 +190,20 @@ static void acceptReady(_Inout_ NetQueueKqueue* self, _Inout_ NetSocket* listene
 // socket into its flow. Does NOT dispatch -- in polled mode tick() dispatches right after, and in
 // threaded mode the base workers do, woken through netqueue_submit. Shared by tick() and the ingest
 // thread, exactly as epollPoll() is shared in unix_net_epoll.c.
-static void kqueuePoll(_Inout_ NetQueueKqueue* self, int64 waitMs)
+static void kqueuePoll(_Inout_ NetQueueKqueue* self, int64 waitUs)
 {
     NetQueue* q = NetQueue(self);
 
     // kevent() keeps the kernel's interest list in sync incrementally, so there is nothing to
     // rebuild here -- only the deadline heap to ask how long this pass may sleep.
-    int64 nearestDeadline = netqueue_nextDeadline(q);
-    if (nearestDeadline != 0) {
-        int64 usLeft = nearestDeadline - clockTimer();
-        int64 msLeft = usLeft <= 0 ? 0 : usLeft / 1000;
-        if (waitMs < 0 || msLeft < waitMs)
-            waitMs = msLeft;
-        if (waitMs < 1)
-            waitMs = 1;
-    }
+    int64 waitFor = netqueue_pollTimeout(q, waitUs);
 
     struct kevent events[64];
     struct timespec ts;
     struct timespec* tsp = NULL;
-    if (waitMs >= 0) {
-        ts.tv_sec  = waitMs / 1000;
-        ts.tv_nsec = (waitMs % 1000) * 1000000L;
+    if (waitFor < timeForever) {
+        ts.tv_sec  = (time_t)(waitFor / 1000000);
+        ts.tv_nsec = (long)((waitFor % 1000000) * 1000);
         tsp        = &ts;
     }
 
@@ -289,7 +281,7 @@ static int kqueueIngestThread(Thread* thr)
         return 1;
 
     while (thrLoop(thr))
-        kqueuePoll(self, 1000);
+        kqueuePoll(self, timeS(1));
 
     return 0;
 }

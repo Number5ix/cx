@@ -1464,7 +1464,7 @@ static bool fixtureInit(ConnFixture* f)
         return false;
 
     for (int i = 0; i < 100 && !f->connected && !f->connFailed; i++)
-        netqueueTick(f->q, 20);
+        netqueueTick(f->q, timeMS(20));
 
     if (!f->connected)
         return false;
@@ -1493,7 +1493,7 @@ static void fixtureDestroy(ConnFixture* f)
 static void readRequest(ConnFixture* f, string* out)
 {
     for (int i = 0; i < 20; i++)
-        netqueueTick(f->q, 5);
+        netqueueTick(f->q, timeMS(5));
 
     char buf[4096];
 #if defined(_WIN32)
@@ -1516,7 +1516,7 @@ static void writeResponse(ConnFixture* f, const char* text)
 static void tickUntilDone(ConnFixture* f, ConnRec* rec)
 {
     for (int i = 0; i < 200 && !rec->completeCount && !rec->errorCount; i++)
-        netqueueTick(f->q, 10);
+        netqueueTick(f->q, timeMS(10));
 }
 
 // A GET with a Content-Length response: the request goes out well formed, and every callback fires
@@ -1644,7 +1644,7 @@ static int test_httptest_conninterim(void)
                   "\r\n");
 
     for (int i = 0; i < 10; i++)
-        netqueueTick(f.q, 5);
+        netqueueTick(f.q, timeMS(5));
 
     if (rec.statusCount != 0 || rec.completeCount != 0 || rec.errorCount != 0)
         TEST_FAILV(ret, 1, _SL("rec.statusCount=${uint} || rec.completeCount=${uint} || rec.errorCount=${uint} -- an interim response is not an answer"), stvar(uint32, rec.statusCount), stvar(uint32, rec.completeCount), stvar(uint32, rec.errorCount));
@@ -1733,7 +1733,7 @@ static int test_httptest_connbody(void)
                   "5\r\nhel");
 
     for (int i = 0; i < 10; i++)
-        netqueueTick(f.q, 5);
+        netqueueTick(f.q, timeMS(5));
 
     if (rec.completeCount != 0)
         TEST_FAILV(ret, 1, _SL("rec.completeCount=${uint} != 0 -- must not complete on a partial chunk"), stvar(uint32, rec.completeCount));
@@ -1897,7 +1897,7 @@ static int test_httptest_conntruncated(void)
 
     writeResponse(&f, "HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\ntoo short");
     for (int i = 0; i < 10; i++)
-        netqueueTick(f.q, 5);
+        netqueueTick(f.q, timeMS(5));
 
     closesocket(f.peer);
     f.peer = INVALID_SOCKET;
@@ -2245,19 +2245,19 @@ static void clientUrl(ClientFixture* f, string* out, strref path)
 // Advance the queue in polled mode, or just wait in threaded mode -- there the worker pool is
 // already advancing it in the background, and ticking it too would violate the polled-XOR-threaded
 // contract netqueueTick() documents. Either way this paces the raw-peer-socket polls below.
-static void clientPump(ClientFixture* f, int64 waitMS)
+static void clientPump(ClientFixture* f, int64 wait)
 {
     if (f->threaded)
-        osSleep(timeMS(waitMS));
+        osSleep(wait);
     else
-        netqueueTick(f->q, waitMS);
+        netqueueTick(f->q, wait);
 }
 
 // Drive the queue until the client's connection shows up on the listener.
 static bool clientAccept(ClientFixture* f)
 {
     for (int i = 0; i < 400; i++) {
-        clientPump(f, 5);
+        clientPump(f, timeMS(5));
         SOCKET s = accept(f->listener, NULL, NULL);
         if (s != INVALID_SOCKET) {
             f->peer = s;
@@ -2277,7 +2277,7 @@ static bool clientReadRequest(ClientFixture* f, string* out)
     strClear(out);
 
     for (int i = 0; i < 400; i++) {
-        clientPump(f, 5);
+        clientPump(f, timeMS(5));
 
         char buf[4096];
 #if defined(_WIN32)
@@ -2329,7 +2329,7 @@ static void clientTickUntil(ClientFixture* f, ConnRec* rec)
     }
 
     for (int i = 0; i < 400 && !rec->completeCount && !rec->errorCount; i++)
-        netqueueTick(f->q, 5);
+        netqueueTick(f->q, timeMS(5));
 }
 
 // A plain GET: the client dials, writes a well-formed request with the headers it contributes,
@@ -2752,7 +2752,7 @@ static int test_httptest_clientsink(void)
                 "\r\n"
                 "5\r\nhello\r\n");
     for (int i = 0; i < 20; i++)
-        netqueueTick(f.q, 5);
+        netqueueTick(f.q, timeMS(5));
     clientWrite(&f, "6\r\n world\r\n0\r\n\r\n");
 
     clientTickUntil(&f, &rec);
@@ -2810,7 +2810,7 @@ static int test_httptest_clientrefused(void)
         TEST_FAILV(ret, 1, _SL("!httpclientSend(f.cl, r, &kConnRecHandlers, &rec)"), stvNone);
 
     for (int i = 0; i < 400 && !rec.errorCount && !rec.completeCount; i++)
-        netqueueTick(f.q, 5);
+        netqueueTick(f.q, timeMS(5));
 
     if (rec.errorCount != 1 || rec.completeCount != 0)
         TEST_FAILV(ret, 1, _SL("rec.errorCount=${uint} != 1 || rec.completeCount=${uint} != 0"), stvar(uint32, rec.errorCount), stvar(uint32, rec.completeCount));
@@ -3019,7 +3019,7 @@ static bool clientReadUntil(ClientFixture* f, string* out, strref tail)
     strClear(out);
 
     for (int i = 0; i < 400; i++) {
-        netqueueTick(f->q, 5);
+        netqueueTick(f->q, timeMS(5));
 
         char buf[4096];
 #if defined(_WIN32)
@@ -3264,7 +3264,7 @@ static int test_httptest_clienttimeout(void)
 
     // Deliberately answer nothing.
     for (int i = 0; i < 400 && !rec.errorCount && !rec.completeCount; i++)
-        netqueueTick(f.q, 5);
+        netqueueTick(f.q, timeMS(5));
 
     if (rec.errorCount != 1 || rec.completeCount != 0)
         TEST_FAILV(ret, 1, _SL("rec.errorCount=${uint} != 1 || rec.completeCount=${uint} != 0"), stvar(uint32, rec.errorCount), stvar(uint32, rec.completeCount));
@@ -3327,7 +3327,7 @@ static int test_httptest_clientcancel(void)
                 "\r\n"
                 "partial");
     for (int i = 0; i < 20; i++)
-        clientPump(&f, 5);
+        clientPump(&f, timeMS(5));
 
     if (!httprequestCancel(r))
         TEST_FAILV(ret, 1, _SL("!httprequestCancel(r)"), stvNone);
@@ -3384,7 +3384,7 @@ static int test_httptest_clientcancelearly(void)
         TEST_FAILV(ret, 1, _SL("!httprequestCancel(r)"), stvNone);
 
     for (int i = 0; i < 400 && !rec.errorCount && !rec.completeCount; i++)
-        netqueueTick(f.q, 5);
+        netqueueTick(f.q, timeMS(5));
 
     if (rec.errorCount != 1 || rec.completeCount != 0)
         TEST_FAILV(ret, 1, _SL("rec.errorCount=${uint} != 1 || rec.completeCount=${uint} != 0"), stvar(uint32, rec.errorCount), stvar(uint32, rec.completeCount));
@@ -3480,7 +3480,7 @@ static int test_httptest_clientcancelpool(void)
     // connection would be perfectly poolable if it ever finished.
     clientWrite(&f, "HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\nabc");
     for (int i = 0; i < 20; i++)
-        netqueueTick(f.q, 5);
+        netqueueTick(f.q, timeMS(5));
 
     if (rec1.completeCount != 0 || rec1.errorCount != 0)
         TEST_FAILV(ret, 1, _SL("rec1.completeCount=${uint} != 0 || rec1.errorCount=${uint} != 0 -- the premise: nothing has settled yet"), stvar(uint32, rec1.completeCount), stvar(uint32, rec1.errorCount));
@@ -3556,7 +3556,7 @@ static int test_httptest_conncancel(void)
 
     writeResponse(&f, "HTTP/1.1 200 OK\r\nContent-Length: 50\r\n\r\nnot all of it");
     for (int i = 0; i < 20; i++)
-        netqueueTick(f.q, 5);
+        netqueueTick(f.q, timeMS(5));
 
     if (!httpconnCancel(c))
         TEST_FAILV(ret, 1, _SL("!httpconnCancel(c)"), stvNone);
@@ -3915,7 +3915,7 @@ static bool srvConnect(SrvFixture* f)
     // Tick until the server has actually accepted rather than for a fixed number of rounds, for the
     // same reason srvRead() waits for quiet: every round past the accept is a full idle sleep.
     for (int i = 0; i < 100 && httpserverConnCount(f->srv) == 0; i++)
-        netqueueTick(f->q, 5);
+        netqueueTick(f->q, timeMS(5));
 
     return httpserverConnCount(f->srv) > 0;
 }
@@ -3950,7 +3950,7 @@ static void srvRead(SrvFixture* f, string* out)
     char buf[4096];
     int quiet = 0;
     for (int i = 0; i < SRVREAD_ROUNDS; i++) {
-        netqueueTick(f->q, 5);
+        netqueueTick(f->q, timeMS(5));
 
 #if defined(_WIN32)
         int n = recv(f->client, buf, sizeof(buf), 0);
@@ -3969,7 +3969,7 @@ static void srvRead(SrvFixture* f, string* out)
 static void srvTick(SrvFixture* f, int rounds)
 {
     for (int i = 0; i < rounds; i++)
-        netqueueTick(f->q, 5);
+        netqueueTick(f->q, timeMS(5));
 }
 
 // Progress on the server, both ways: a body arriving from a client and the answer going back. The
@@ -5070,7 +5070,7 @@ static int test_httptest_srvdeferred(void)
 
     srvSend(&f, "GET /deferred HTTP/1.1\r\nHost: h\r\n\r\n");
     for (int i = 0; i < 50 && !rec.held; i++)
-        netqueueTick(f.q, 5);
+        netqueueTick(f.q, timeMS(5));
 
     if (!rec.held) {
         srvFixtureDestroy(&f);
@@ -5211,7 +5211,7 @@ static int test_httptest_srvtls(void)
     }
 
     for (int i = 0; i < 500 && !peer.secured; i++)
-        netqueueTick(q, 10);
+        netqueueTick(q, timeMS(10));
 
     if (!peer.secured) {
         TEST_FAILV(ret, 1, _SL("!peer.secured"), stvNone);
@@ -5227,7 +5227,7 @@ static int test_httptest_srvtls(void)
     // Waiting on the body rather than on the header terminator: the two arrive in separate TLS
     // records, and stopping at the blank line would read the response as bodiless.
     for (int i = 0; i < 500 && !strEndsWith(peer.in, _SL("\r\n\r\nhello")); i++)
-        netqueueTick(q, 10);
+        netqueueTick(q, timeMS(10));
 
     if (rec.requestCount != 1 || !strEq(rec.path, _SL("/secure")))
         TEST_FAILV(ret, 1, _SL("rec.requestCount=${int} != 1 || expected '${string}', got '${string}'"), stvar(int32, rec.requestCount), stvar(strref, _SL("/secure")), stvar(strref, rec.path));
@@ -5308,7 +5308,7 @@ static int test_httptest_srvroundtrip(void)
     }
 
     for (int i = 0; i < 200 && !cr.completeCount && !cr.errorCount; i++)
-        netqueueTick(q, 10);
+        netqueueTick(q, timeMS(10));
 
     if (cr.completeCount != 1 || cr.errorCount != 0)
         TEST_FAILV(ret, 1, _SL("cr.completeCount=${uint} != 1 || cr.errorCount=${uint} != 0"), stvar(uint32, cr.completeCount), stvar(uint32, cr.errorCount));
@@ -5513,7 +5513,7 @@ static int test_httptest_multipartfile(void)
     }
 
     for (int i = 0; i < 400 && !cr.completeCount && !cr.errorCount; i++)
-        netqueueTick(f.q, 10);
+        netqueueTick(f.q, timeMS(10));
 
     if (cr.completeCount != 1 || cr.errorCount != 0)
         TEST_FAILV(ret, 1, _SL("cr.completeCount=${uint} != 1 || cr.errorCount=${uint} != 0"), stvar(uint32, cr.completeCount), stvar(uint32, cr.errorCount));
@@ -5606,7 +5606,7 @@ static int test_httptest_multipartchunked(void)
     }
 
     for (int i = 0; i < 400 && !cr.completeCount && !cr.errorCount; i++)
-        netqueueTick(f.q, 10);
+        netqueueTick(f.q, timeMS(10));
 
     if (cr.completeCount != 1 || cr.errorCount != 0)
         TEST_FAILV(ret, 1, _SL("cr.completeCount=${uint} != 1 || cr.errorCount=${uint} != 0"), stvar(uint32, cr.completeCount), stvar(uint32, cr.errorCount));

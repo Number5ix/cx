@@ -32,7 +32,7 @@
 
 DEFINE_ENTRY_POINT;
 
-#define TICK_WAIT_MS 100
+#define TICK_WAIT_US timeMS(100)
 
 typedef struct DemoCtx {
     TaskQueue* tq;
@@ -350,7 +350,7 @@ int entryPoint()
     conPuts(conErr(), _SL("try /fast, /slow, /stream, /echo -- ctrl-c to stop\n\n"));
 
     for (;;)
-        netqueueTick(q, TICK_WAIT_MS);
+        netqueueTick(q, TICK_WAIT_US);
 
 out:
     if (srv) {

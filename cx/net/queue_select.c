@@ -22,7 +22,7 @@ extern bool NetQueue_removeSocket(_In_ NetQueue* self, NetSocket* socket);
 extern bool NetQueue_shutdown(_In_ NetQueue* self, int64 timeout);
 
 // Forward decls for the split ingest loop (defined below, after the ingest helpers).
-static void selectPoll(_Inout_ NetQueueSelect* self, int64 waitMs);
+static void selectPoll(_Inout_ NetQueueSelect* self, int64 waitUs);
 
 // Send-pump hook installed on the base queue: the send path calls it after leaving outbound data
 // queued so the parked ingest thread rebuilds its watch set with write interest instead of stalling
@@ -57,7 +57,7 @@ static int selectIngestThread(Thread* thr)
         return 1;
 
     while (thrLoop(thr))
-        selectPoll(self, 1000);
+        selectPoll(self, timeS(1));
 
     return 0;
 }
@@ -228,7 +228,7 @@ static void acceptReady(_Inout_ NetQueueSelect* self, _Inout_ NetSocket* listene
 // flow. It does NOT dispatch -- in polled mode tick() dispatches right after, and in threaded mode
 // the base workers do, woken through netqueue_submit. Shared by tick() and the ingest thread so the
 // readiness-to-completion path is written exactly once.
-static void selectPoll(_Inout_ NetQueueSelect* self, int64 waitMs)
+static void selectPoll(_Inout_ NetQueueSelect* self, int64 waitUs)
 {
     NetSelectSet* sel = (NetSelectSet*)self->selset;
     NetQueue* q       = NetQueue(self);
@@ -240,10 +240,6 @@ static void selectPoll(_Inout_ NetQueueSelect* self, int64 waitMs)
     // until the next clear.
     htClear(&self->fdmap);
     nselClear(sel);
-
-    // Nearest armed deadline, so the wait can be capped to it and a timer fires close to when it
-    // is due rather than on the next unrelated wakeup.
-    int64 nearestDeadline = netqueue_nextDeadline(q);
 
     withReadLock (&q->lock) {
         foreach (hashtable, hti, q->sockets) {
@@ -278,18 +274,7 @@ static void selectPoll(_Inout_ NetQueueSelect* self, int64 waitMs)
         }
     }
 
-    // Do not sleep past the nearest armed deadline, so the sweep below fires it promptly rather
-    // than only on the next unrelated wakeup.
-    if (nearestDeadline != 0) {
-        int64 usLeft = nearestDeadline - clockTimer();
-        int64 msLeft = usLeft <= 0 ? 0 : usLeft / 1000;
-        if (waitMs < 0 || msLeft < waitMs)
-            waitMs = msLeft;
-        if (waitMs < 1)
-            waitMs = 1;
-    }
-
-    int ready = nselWait(sel, waitMs);
+    int ready = nselWait(sel, netqueue_pollTimeout(q, waitUs));
 
     // Fire whatever came due. Run this even on a bare timeout (ready <= 0) -- a black-holed connect
     // never signals readiness, so its timer is the only thing that ends the attempt.
