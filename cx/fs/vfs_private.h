@@ -46,6 +46,12 @@ typedef struct VFSCand {
 } VFSCand;
 saDeclare(VFSCand);
 stDeclare(VFSCand);
+#define SType_VFSCand                         VFSCand*
+#define STStorageType_VFSCand                 VFSCand
+#define STypeArg_VFSCand(type, val)           stgeneric(opaque, &(val))
+#define STypeArgPtr_VFSCand(type, val)        &stgeneric(opaque, (val))
+#define STypeCheckedArg_VFSCand(type, val)    stType(type), stArg(type, val)
+#define STypeCheckedPtrArg_VFSCand(type, val) stType(type), stArgPtr(type, val)
 
 // A cache entry discovered while no lock was held, waiting to be inserted once they are back.
 typedef struct VFSPendEnt {
@@ -56,6 +62,12 @@ typedef struct VFSPendEnt {
 } VFSPendEnt;
 saDeclare(VFSPendEnt);
 stDeclare(VFSPendEnt);
+#define SType_VFSPendEnt                         VFSPendEnt*
+#define STStorageType_VFSPendEnt                 VFSPendEnt
+#define STypeArg_VFSPendEnt(type, val)           stgeneric(opaque, &(val))
+#define STypeArgPtr_VFSPendEnt(type, val)        &stgeneric(opaque, (val))
+#define STypeCheckedArg_VFSPendEnt(type, val)    stType(type), stArg(type, val)
+#define STypeCheckedPtrArg_VFSPendEnt(type, val) stType(type), stArgPtr(type, val)
 
 typedef struct VFSCacheEnt {
     VFSMount* mount;   // which VFS mount this file belongs to

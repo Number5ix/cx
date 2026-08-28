@@ -424,7 +424,7 @@ void _vfsSnapshot(VFS* vfs, sa_VFSCand* out, strref abspath, bool isfile)
             strDup(&cand.mountpath, mountpath);
             strDup(&cand.relpath, curpath);
             saSlice(&cand.relcomp, components, relstart, 0);
-            _saPushPtr(SAHANDLE(out), stType(VFSCand), &stgeneric(opaque, &cand), SAINT_Consume);
+            saPushC(out, VFSCand, &cand);
 
             // if this layer is opaque, the buck stops here
             if (pdir->mounts.a[i]->flags & VFS_Opaque)
@@ -512,10 +512,7 @@ static int vfsFindCISub(_Inout_ string* out, _In_opt_ strref path, _In_opt_ strr
             strDup(&pe.dirpath, dirpath);
             strDup(&pe.name, dsiter.name);
             strDup(&pe.origpath, filepath);
-            _saPushPtr(SAHANDLE(pending),
-                       stType(VFSPendEnt),
-                       &stgeneric(opaque, &pe),
-                       SAINT_Consume);
+            saPushC(pending, VFSPendEnt, &pe);
         }
     } while (provif->searchNext(mount->provider, &dsiter));
     provif->searchFinish(mount->provider, &dsiter);
@@ -687,7 +684,7 @@ VFSMount* _vfsFindMount(VFS* vfs, string* rpath, strref path, VFSMount** cowmoun
         strDup(&pe.dirpath, cachedir);
         strDup(&pe.name, cachename);
         strDup(&pe.origpath, *rpath);
-        _saPushPtr(SAHANDLE(&pending), stType(VFSPendEnt), &stgeneric(opaque, &pe), SAINT_Consume);
+        saPushC(&pending, VFSPendEnt, &pe);
     }
 
     objAcquire(ret);

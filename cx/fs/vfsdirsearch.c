@@ -6,15 +6,17 @@ static intptr dirEntCmp(stype st, stgeneric g1, stgeneric g2, uint32 flags)
     VFSDirEnt* ent1 = (VFSDirEnt*)g1.st_opaque;
     VFSDirEnt* ent2 = (VFSDirEnt*)g2.st_opaque;
 
-    return strCmpi(ent1->name, ent2->name);
-}
-
-static intptr dirEntCmpCaseSensitive(stype st, stgeneric g1, stgeneric g2, uint32 flags)
-{
-    VFSDirEnt* ent1 = (VFSDirEnt*)g1.st_opaque;
-    VFSDirEnt* ent2 = (VFSDirEnt*)g2.st_opaque;
+    if (flags & ST_CaseInsensitive)
+        return strCmpi(ent1->name, ent2->name);
 
     return strCmp(ent1->name, ent2->name);
+}
+
+// saSortCustom() is the only sort that hands flags to the comparator, which is how a VFS's case
+// sensitivity reaches dirEntCmp.
+static intptr dirEntSortCmp(stype st, stgeneric g1, stgeneric g2, flags_t flags, void* ctx)
+{
+    return dirEntCmp(st, g1, g2, flags);
 }
 
 static void dirEntCopy(stype st, stgeneric* gdest, stgeneric gsrc, uint32 flags)
@@ -41,12 +43,12 @@ static stDefine(VFSDirEnt) {
     .ops   = { .cmp = dirEntCmp, .copy = dirEntCopy, .dtor = dirEntDestroy }
 };
 
-static stDefine(VFSDirEnt_cs) {
-    .id    = stTypeId(opaque),
-    .size  = sizeof(VFSDirEnt),
-    .flags = stFlag(PassPtr),
-    .ops   = { .cmp = dirEntCmpCaseSensitive, .copy = dirEntCopy, .dtor = dirEntDestroy }
-};
+#define SType_VFSDirEnt                         VFSDirEnt*
+#define STStorageType_VFSDirEnt                 VFSDirEnt
+#define STypeArg_VFSDirEnt(type, val)           stgeneric(opaque, &(val))
+#define STypeArgPtr_VFSDirEnt(type, val)        &stgeneric(opaque, (val))
+#define STypeCheckedArg_VFSDirEnt(type, val)    stType(type), stArg(type, val)
+#define STypeCheckedPtrArg_VFSDirEnt(type, val) stType(type), stArgPtr(type, val)
 
 // Like _vfsFindMount, this runs in three phases so that no provider is ever called with a VFS
 // lock held -- a provider here can be a VFSVFS pointing back at this same VFS.
@@ -83,13 +85,7 @@ bool vfsSearchInit(FSSearchIter* iter, VFS* vfs, strref path, strref pattern, in
     iter->_search     = search;
     search->vfs       = objAcquire(vfs);
     search->idx       = 0;
-    stype direnttype = (vfs->flags & VFS_CaseSensitive) ? stType(VFSDirEnt_cs) : stType(VFSDirEnt);
-
-    // TODO: Currently we need to bypass the stype macro machinery to make this work, since the type
-    // system is now smart enough that we can't just pass 'opaque' and get away with it.
-    // The real fix is to extend sarray and add a function for a one-time sort with a custom
-    // comparator.
-    _saInit(SAHANDLE(&search->ents), direnttype, 16, false, SA_Grow(Aggressive));
+    saInit(&search->ents, VFSDirEnt, 16, SA_Grow(Aggressive));
 
     // ---- phase 1: gather what the providers will be asked about
     rwlockAcquireRead(&vfs->vfsdlock);
@@ -142,8 +138,7 @@ bool vfsSearchInit(FSSearchIter* iter, VFS* vfs, strref path, strref pattern, in
             if (mprovif)
                 mprovif->stat(mountmnts.a[i]->provider, NULL, &ent.stat);
         }
-        idx = _saPushPtr(SAHANDLE(&search->ents), direnttype, &stgeneric(opaque, &ent),
-                         SAINT_Consume);
+        idx = saPushC(&search->ents, VFSDirEnt, &ent);
         htInsert(&names, string, search->ents.a[idx].name, intptr, 1);
 
         // the directory exists as far as a caller is concerned, even if no provider knows it
@@ -185,7 +180,7 @@ bool vfsSearchInit(FSSearchIter* iter, VFS* vfs, strref path, strref pattern, in
                 VFSDirEnt ent = { .name = dsiter.name,   // borrowed ref!
                                   .type = dsiter.type,
                                   .stat = dsiter.stat };
-                idx = _saPush(SAHANDLE(&search->ents), direnttype, stgeneric(opaque, &ent), 0);
+                idx = saPush(&search->ents, VFSDirEnt, ent);
                 htInsert(&names, string, search->ents.a[idx].name, intptr, 1);
 
                 if (dsiter.type == FS_File && !(m->flags & VFS_NoCache)) {
@@ -196,8 +191,7 @@ bool vfsSearchInit(FSSearchIter* iter, VFS* vfs, strref path, strref pattern, in
                     strDup(&pe.dirpath, abspath);
                     strDup(&pe.name, dsiter.name);
                     strDup(&pe.origpath, filepath);
-                    _saPushPtr(SAHANDLE(&pending), stType(VFSPendEnt), &stgeneric(opaque, &pe),
-                               SAINT_Consume);
+                    saPushC(&pending, VFSPendEnt, &pe);
                 }
             }
             provif->searchNext(m->provider, &dsiter);
@@ -218,7 +212,8 @@ bool vfsSearchInit(FSSearchIter* iter, VFS* vfs, strref path, strref pattern, in
     }
 
 done:
-    saSort(&search->ents, true);
+    saSortCustom(&search->ents, dirEntSortCmp, NULL,
+                 (vfs->flags & VFS_CaseSensitive) ? 0 : ST_CaseInsensitive);
 
     strDestroy(&abspath);
     strDestroy(&curpath);
