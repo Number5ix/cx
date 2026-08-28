@@ -205,7 +205,7 @@ bool vfsRename(VFS* vfs, strref from, strref to)
                                   NULL,
                                   VFS_FindWriteFile | VFS_FindCreate | VFS_FindCache);
     if (!(mfrom && mto)) {
-        ret = FS_Nonexistent;
+        cxerr = CX_FileNotFound;
         goto out;
     }
 
@@ -229,6 +229,8 @@ bool vfsRename(VFS* vfs, strref from, strref to)
     if (mfrom->provider == mto->provider) {
         // Same provider, so we can just rename it
         ret = provif->rename(mfrom->provider, rpathfrom, rpathto);
+        if (ret)
+            _vfsInvalidateCache(vfs, from);
     } else {
         // Different providers, copy and delete original
         ret = vfsCopy(vfs, from, to);

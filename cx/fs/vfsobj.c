@@ -14,8 +14,10 @@
 _objfactory_guaranteed VFS* VFS_create(uint32 flags)
 {
     VFS* ret;
-    ret        = objInstCreate(VFS);
-    ret->flags = flags;
+    ret               = objInstCreate(VFS);
+    ret->flags        = flags;
+    ret->dcache.maxdirs = VFS_CACHE_MAXDIRS;
+    ret->dcache.ttl     = VFS_CACHE_TTL;
     objInstInit(ret);
     return ret;
 }

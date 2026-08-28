@@ -29,6 +29,7 @@ void vfsDestroy(VFS** pvfs)
         vfsUnmountAll((VFSDir*)htiVal(ptr, nsi));
     }
     vfsUnmountAll(vfs->root);
+    vfs->mountgen++;
     htClear(&vfs->namespaces);
     htClear(&vfs->root->subdirs);
     htClear(&vfs->root->files);
@@ -37,11 +38,11 @@ void vfsDestroy(VFS** pvfs)
     objRelease(pvfs);
 }
 
-_When_(!writelockheld, _Requires_shared_lock_held_(vfs->vfslock)) static _Ret_valid_ VFSDir*
+_When_(!exclusive, _Requires_shared_lock_held_(vfs->vfslock)) static _Ret_valid_ VFSDir*
 _vfsGetDirInternal(_Inout_ VFS* vfs, _Inout_ VFSDir* root, _In_reads_(plen) string* path,
-                   int32 plen, bool cache, uint64 now, bool writelockheld)
+                   int32 plen, bool cache, uint64 now, bool exclusive)
 {
-    root->touched = now;
+    atomicStore(uint64, &root->touched, now, Relaxed);
 
     // if something in the path isn't cachable, the entire path becomes exempt
     if (!cache)
@@ -59,7 +60,7 @@ _vfsGetDirInternal(_Inout_ VFS* vfs, _Inout_ VFSDir* root, _In_reads_(plen) stri
         htFind(root->subdirs, string, path[0], VFSDir, &child);
 
     if (!child) {
-        if (!writelockheld) {
+        if (!exclusive) {
             rwlockReleaseRead(&vfs->vfslock);
             rwlockAcquireWrite(&vfs->vfslock);
             // try again with the write lock held
@@ -71,16 +72,16 @@ _vfsGetDirInternal(_Inout_ VFS* vfs, _Inout_ VFSDir* root, _In_reads_(plen) stri
             strDup(&child->name, path[0]);
             htInsert(&root->subdirs, string, path[0], VFSDir, child);
         }
-        if (!writelockheld) {
+        if (!exclusive) {
             rwlockDowngradeWrite(&vfs->vfslock);
         }
     }
 
-    return _vfsGetDirInternal(vfs, child, &path[1], plen - 1, cache, now, writelockheld);
+    return _vfsGetDirInternal(vfs, child, &path[1], plen - 1, cache, now, exclusive);
 }
 
 _Use_decl_annotations_
-VFSDir* _vfsGetDir(VFS* vfs, strref path, bool isfile, bool cache, bool writelockheld)
+VFSDir* _vfsGetDir(VFS* vfs, strref path, bool isfile, bool cache, bool exclusive)
 {
     VFSDir *d, *ret = 0;
     string ns = 0;
@@ -102,7 +103,7 @@ VFSDir* _vfsGetDir(VFS* vfs, strref path, bool isfile, bool cache, bool writeloc
                              saSize(components) - (isfile ? 1 : 0),
                              cache,
                              clockTimer(),
-                             writelockheld);
+                             exclusive);
 
 out:
     strDestroy(&ns);
@@ -148,6 +149,7 @@ bool _vfsMountProvider(VFS* vfs, ObjInst* provider, strref path, flags_t flags)
     VFSMount* nmount = vfsmountCreate(provider, flags | provif->flags(provider));
     saPushC(&dir->mounts, object, &nmount);
     _vfsInvalidateRecursive(vfs, dir, true);
+    vfs->mountgen++;
     ret = true;
 
 out:
@@ -191,6 +193,7 @@ bool vfsUnmount(VFS* vfs, strref path)
             _vfsInvalidateRecursive(vfs, dir, true);
         }
     }
+    vfs->mountgen++;
     ret = true;
 
 out:
@@ -226,9 +229,9 @@ bool _vfsMountVFS(VFS* vfs, strref path, VFS* vfs2, strref vfs2root, flags_t fla
 }
 
 _Use_decl_annotations_
-VFSCacheEnt* _vfsGetFile(VFS* vfs, strref path, bool writelockheld)
+VFSCacheEnt* _vfsGetFile(VFS* vfs, strref path, bool exclusive)
 {
-    VFSDir* pdir     = _vfsGetDir(vfs, path, true, true, writelockheld);
+    VFSDir* pdir     = _vfsGetDir(vfs, path, true, true, exclusive);
     VFSCacheEnt* ret = 0;
     string fname     = 0;
 
@@ -236,9 +239,7 @@ VFSCacheEnt* _vfsGetFile(VFS* vfs, strref path, bool writelockheld)
         return NULL;
 
     pathFilename(&fname, path);
-
-    if (!htFind(pdir->files, string, fname, VFSCacheEnt, &ret))
-        cxerr = CX_FileNotFound;
+    htFind(pdir->files, string, fname, VFSCacheEnt, &ret);
 
     strDestroy(&fname);
     return ret;
@@ -249,19 +250,23 @@ void _vfsInvalidateCache(VFS* vfs, strref path)
 {
     string abspath = 0, fname = 0;
 
-    rwlockAcquireWrite(&vfs->vfsdlock);
+    // This drops a single entry from one directory's file cache, which is exactly what vfslock
+    // guards -- taking vfsdlock exclusively here would serialize the whole VFS behind every
+    // failed open and every stat of a path that does not exist.
+    rwlockAcquireRead(&vfs->vfsdlock);
+    rwlockAcquireWrite(&vfs->vfslock);
+
     _vfsAbsPath(vfs, &abspath, path);
     VFSDir* pdir = _vfsGetDir(vfs, abspath, true, true, true);
 
-    if (!pdir) {
-        rwlockReleaseWrite(&vfs->vfsdlock);
-        strDestroy(&abspath);
-        return;
+    if (pdir) {
+        pathFilename(&fname, abspath);
+        htRemove(&pdir->files, string, fname);
     }
 
-    pathFilename(&fname, abspath);
-    htRemove(&pdir->files, string, fname);
-    rwlockReleaseWrite(&vfs->vfsdlock);
+    rwlockReleaseWrite(&vfs->vfslock);
+    rwlockReleaseRead(&vfs->vfsdlock);
+
     strDestroy(&fname);
     strDestroy(&abspath);
 }
@@ -277,13 +282,97 @@ void _vfsInvalidateRecursive(VFS* vfs, VFSDir* dir, bool havelock)
         htRemove(&dir->parent->subdirs, string, dir->name);
     } else {
         htClear(&dir->files);
+
+        // Collect first, act second: the recursive call removes the child it was just handed
+        // from this very hashtable, and htRemove is not iteration-safe
+        sa_ptr children;
+        saInit(&children, ptr, 8);
         foreach (hashtable, sdi, dir->subdirs) {
-            _vfsInvalidateRecursive(vfs, htiVal(VFSDir, sdi), true);
+            saPush(&children, ptr, htiVal(VFSDir, sdi));
         }
+
+        foreach (sarray, idx, VFSDir*, sd, children) {
+            _vfsInvalidateRecursive(vfs, sd, true);
+        }
+        saDestroy(&children);
     }
 
     if (!havelock)
         rwlockReleaseWrite(&vfs->vfsdlock);
+}
+
+// Depth first, because a directory can only go once nothing is left under it.
+static void _vfsPruneDir(_Inout_ VFSDir* dir, int64 cutoff)
+{
+    // Collect first, act second, for the same reason _vfsInvalidateRecursive does: the
+    // recursive call removes the child it was handed from this very hashtable.
+    sa_ptr children;
+    saInit(&children, ptr, 8);
+    foreach (hashtable, sdi, dir->subdirs) {
+        saPush(&children, ptr, htiVal(VFSDir, sdi));
+    }
+
+    foreach (sarray, idx, VFSDir*, sd, children) {
+        _vfsPruneDir(sd, cutoff);
+    }
+    saDestroy(&children);
+
+    if ((int64)atomicLoad(uint64, &dir->touched, Relaxed) >= cutoff)
+        return;   // used recently, keep it and everything it remembers
+
+    if (dir->cache && dir->parent && saSize(dir->mounts) == 0 && htSize(dir->subdirs) == 0) {
+        // exists only to cache, and nothing is left below it
+        htRemove(&dir->parent->subdirs, string, dir->name);
+        return;
+    }
+
+    // the directory itself has to stay, but the files it remembers do not
+    htClear(&dir->files);
+}
+
+_Use_decl_annotations_
+void vfsPruneCache(VFS* vfs)
+{
+    int64 now    = clockTimer();
+    int64 cutoff = now - vfs->dcache.ttl;
+
+    rwlockAcquireWrite(&vfs->vfsdlock);
+    foreach (hashtable, nsi, vfs->namespaces) {
+        _vfsPruneDir((VFSDir*)htiVal(ptr, nsi), cutoff);
+    }
+    _vfsPruneDir(vfs->root, cutoff);
+    rwlockReleaseWrite(&vfs->vfsdlock);
+
+    atomicStore(int64, &vfs->dcache.lastprune, now, Relaxed);
+}
+
+_Use_decl_annotations_
+void vfsSetCacheLimits(VFS* vfs, uint32 maxdirs, int64 ttl)
+{
+    vfs->dcache.maxdirs = maxdirs ? maxdirs : VFS_CACHE_MAXDIRS;
+    vfs->dcache.ttl     = ttl ? ttl : VFS_CACHE_TTL;
+}
+
+// Don't sweep the whole tree on every lookup once it is over the limit; a tree that stays over
+// it would otherwise pay for a full walk per operation.
+#define VFS_PRUNE_INTERVAL timeS(1)
+
+_Use_decl_annotations_
+void _vfsMaybeEvict(VFS* vfs)
+{
+    if (atomicLoad(uint32, &vfs->dcache.dircount, Relaxed) <= vfs->dcache.maxdirs)
+        return;
+
+    int64 now  = clockTimer();
+    int64 last = atomicLoad(int64, &vfs->dcache.lastprune, Relaxed);
+    if (now - last < VFS_PRUNE_INTERVAL)
+        return;
+
+    // whoever wins the exchange does the walk; everyone else carries on
+    if (!atomicCompareExchange(int64, strong, &vfs->dcache.lastprune, &last, now, AcqRel, Relaxed))
+        return;
+
+    vfsPruneCache(vfs);
 }
 
 _Use_decl_annotations_
@@ -298,21 +387,87 @@ void _vfsAbsPath(VFS* vfs, string* out, strref path)
 _Use_decl_annotations_
 void vfsAbsolutePath(VFS* vfs, string* out, strref path)
 {
+    rwlockAcquireRead(&vfs->vfslock);
     _vfsAbsPath(vfs, out, path);
+    rwlockReleaseRead(&vfs->vfslock);
 }
 
-static int vfsFindCISub(_Inout_ VFSDir* vdir, _Inout_ string* out, _In_opt_ strref path,
-                        _In_reads_(target) string* components, int depth, int target,
-                        _Inout_ VFSMount* mount, _Inout_ VFSProvider* provif)
+_Use_decl_annotations_
+void _vfsSnapshot(VFS* vfs, sa_VFSCand* out, strref abspath, bool isfile)
+{
+    string ns = 0, curpath = 0, mountpath = 0;
+    sa_string components, relcomp = saInitNone, mountcomp = saInitNone;
+
+    saInit(&components, string, 8, SA_Grow(Aggressive));
+    pathDecompose(&ns, &components, abspath);
+
+    VFSDir* pdir   = _vfsGetDir(vfs, abspath, isfile, true, false);
+    int32 relstart = saSize(components) - (isfile ? 1 : 0);
+
+    while (pdir) {
+        devAssert(relstart >= 0);
+
+        // the path this level's providers are asked about, and the VFS path of the level itself
+        saDestroy(&relcomp);
+        saSlice(&relcomp, components, relstart, 0);
+        strJoin(&curpath, relcomp, fsPathSepStr);
+
+        saDestroy(&mountcomp);
+        saSlice(&mountcomp, components, 0, relstart);
+        pathCompose(&mountpath, ns, mountcomp);
+
+        // traverse list of registered providers backwards, as providers registered later
+        // are "higher" on the stack
+        for (int i = saSize(pdir->mounts) - 1; i >= 0; --i) {
+            VFSCand cand = { 0 };
+            cand.mount   = objAcquire(pdir->mounts.a[i]);
+            strDup(&cand.mountpath, mountpath);
+            strDup(&cand.relpath, curpath);
+            saSlice(&cand.relcomp, components, relstart, 0);
+            _saPushPtr(SAHANDLE(out), stType(VFSCand), &stgeneric(opaque, &cand), SAINT_Consume);
+
+            // if this layer is opaque, the buck stops here
+            if (pdir->mounts.a[i]->flags & VFS_Opaque)
+                goto done;
+        }
+
+        relstart--;
+        pdir = pdir->parent;
+    }
+
+done:
+    strDestroy(&ns);
+    strDestroy(&curpath);
+    strDestroy(&mountpath);
+    saDestroy(&relcomp);
+    saDestroy(&mountcomp);
+    saDestroy(&components);
+}
+
+_Use_decl_annotations_
+void _vfsFlushPending(VFS* vfs, sa_VFSPendEnt* pending)
+{
+    for (int32 i = 0, n = saSize(*pending); i < n; i++) {
+        VFSPendEnt* pe = &pending->a[i];
+
+        VFSDir* d = _vfsGetDir(vfs, pe->dirpath, false, true, true);
+        if (!d)
+            continue;
+
+        VFSCacheEnt* newent = _vfsCacheEntCreate(pe->mount, pe->origpath);
+        htInsertC(&d->files, string, pe->name, VFSCacheEnt, &newent, HT_Ignore);
+    }
+}
+
+// dirpath is the absolute VFS path of the directory whose listing this level is walking, which
+// is where any files found in it belong in the cache.
+static int vfsFindCISub(_Inout_ string* out, _In_opt_ strref path, _In_opt_ strref dirpath,
+                        _In_reads_(target + 1) string* components, int depth, int target,
+                        _Inout_ VFSMount* mount, _Inout_ VFSProvider* provif,
+                        _Inout_ sa_VFSPendEnt* pending)
 {
     int ret         = FS_Nonexistent;
-    string filepath = 0;
-    VFSDir* cvdir   = vdir;
-
-    // walk backwards up vdir tree to current depth for caching
-    for (int i = depth; i < target && cvdir; i++) {
-        cvdir = cvdir->parent;
-    }
+    string filepath = 0, subdirpath = 0;
 
     // get a directory listing from the current depth
     FSSearchIter dsiter;
@@ -336,32 +491,43 @@ static int vfsFindCISub(_Inout_ VFSDir* vdir, _Inout_ string* out, _In_opt_ strr
                 // not at the target depth yet, so recurse into all matching
                 // subdirectories (there may be more than one in a case
                 // sensitive filesystem!)
-                ret = vfsFindCISub(vdir,
-                                   out,
+                pathJoin(&subdirpath, dirpath, dsiter.name);
+                ret = vfsFindCISub(out,
                                    filepath,
+                                   subdirpath,
                                    components,
                                    depth + 1,
                                    target,
                                    mount,
-                                   provif);
+                                   provif,
+                                   pending);
             }
         }
 
-        if (cvdir && dsiter.type == FS_File && !(mount->flags & VFS_NoCache)) {
-            // go ahead and add it to the cache while we're here
-            VFSCacheEnt* newent = _vfsCacheEntCreate(mount, filepath);
-            htInsertC(&cvdir->files, string, dsiter.name, VFSCacheEnt, &newent, HT_Ignore);
+        if (dsiter.type == FS_File && !(mount->flags & VFS_NoCache)) {
+            // remember it for the cache while we're here; it belongs to the directory being
+            // listed right now, whatever depth the search itself has reached
+            VFSPendEnt pe = { 0 };
+            pe.mount      = objAcquire(mount);
+            strDup(&pe.dirpath, dirpath);
+            strDup(&pe.name, dsiter.name);
+            strDup(&pe.origpath, filepath);
+            _saPushPtr(SAHANDLE(pending),
+                       stType(VFSPendEnt),
+                       &stgeneric(opaque, &pe),
+                       SAINT_Consume);
         }
     } while (provif->searchNext(mount->provider, &dsiter));
     provif->searchFinish(mount->provider, &dsiter);
 
     strDestroy(&filepath);
+    strDestroy(&subdirpath);
     return ret;
 }
 
 _Use_decl_annotations_
-int _vfsFindCIHelper(VFS* vfs, VFSDir* vdir, string* out, sa_string components, VFSMount* mount,
-                     VFSProvider* provif)
+int _vfsFindCIHelper(string* out, strref mountpath, sa_string components, VFSMount* mount,
+                     VFSProvider* provif, sa_VFSPendEnt* pending)
 {
     // This is ugly and slow. The hope is that once a given file is found, the
     // VFS cache helps take the edge off. All these dir searches help populate
@@ -370,25 +536,33 @@ int _vfsFindCIHelper(VFS* vfs, VFSDir* vdir, string* out, sa_string components, 
     if (saSize(components) == 0)
         return FS_Nonexistent;
 
-    int ret;
-    // grab write lock for this
-    rwlockReleaseRead(&vfs->vfslock);
-    rwlockAcquireWrite(&vfs->vfslock);
-
-    ret = vfsFindCISub(vdir, out, NULL, components.a, 0, saSize(components) - 1, mount, provif);
-
-    rwlockDowngradeWrite(&vfs->vfslock);
-    return ret;
+    return vfsFindCISub(out,
+                        NULL,
+                        mountpath,
+                        components.a,
+                        0,
+                        saSize(components) - 1,
+                        mount,
+                        provif,
+                        pending);
 }
 
 // This function does all the heavy lifting of the VFS system.
-// It's a bit hard to follow as a result.
+//
+// It runs in three phases, and the split is the point: the middle phase calls into providers,
+// and a provider can be another VFS pointing back at this one, so it must run with no VFS lock
+// held. Phase one gathers everything a provider call needs into a snapshot, phase two does the
+// calls, and phase three puts the results into the cache.
 _Use_decl_annotations_
 VFSMount* _vfsFindMount(VFS* vfs, string* rpath, strref path, VFSMount** cowmount, string* cowrpath,
                         uint32 flags)
 {
-    VFSMount* ret  = 0;
-    string abspath = 0, curpath = 0;
+    VFSMount* ret           = 0;
+    VFSMount* firstwritable = 0;
+    string abspath = 0, curpath = 0, firstwpath = 0, cachedir = 0, cachename = 0;
+    sa_VFSCand cands      = saInitNone;
+    sa_VFSPendEnt pending = saInitNone;
+    uint32 gen;
 
     if (cowmount)
         *cowmount = NULL;
@@ -396,12 +570,14 @@ VFSMount* _vfsFindMount(VFS* vfs, string* rpath, strref path, VFSMount** cowmoun
     if (!vfs)
         return NULL;
 
+    _vfsMaybeEvict(vfs);
+
     bool flwrite  = flags & VFS_FindWriteFile;
     bool fldelete = flags & VFS_FindDelete;
     bool flcreate = flags & VFS_FindCreate;
     bool flcache  = flags & VFS_FindCache;
 
-    // do as much work as possible with only the read locks held
+    // ---- phase 1: everything that needs a lock, and nothing that calls a provider
     rwlockAcquireRead(&vfs->vfsdlock);
     rwlockAcquireRead(&vfs->vfslock);
 
@@ -412,96 +588,82 @@ VFSMount* _vfsFindMount(VFS* vfs, string* rpath, strref path, VFSMount** cowmoun
         // only for simple case, i.e. no need to do COW or find a writable layer
         if (ent && (!flwrite || !(ent->mount->flags & VFS_ReadOnly))) {
             strDup(rpath, ent->origpath);
-            strDestroy(&abspath);
-            ret = ent->mount;
-            objAcquire(ret);
+            ret = objAcquire(ent->mount);
             rwlockReleaseRead(&vfs->vfslock);
             rwlockReleaseRead(&vfs->vfsdlock);
+            strDestroy(&abspath);
             return ret;
         }
     }
 
-    VFSDir *vfsdir = _vfsGetDir(vfs, abspath, true, true, false), *pdir = vfsdir;
-    VFSMount* firstwritable = 0;
-    string firstwpath       = 0;
-    string ns               = 0;
-    sa_string components;
-    sa_string relcomp = saInitNone;
+    saInit(&cands, VFSCand, 8);
+    _vfsSnapshot(vfs, &cands, abspath, true);
+    gen = vfs->mountgen;
 
-    saInit(&components, string, 8, SA_Grow(Aggressive));
-    pathDecompose(&ns, &components, abspath);
+    rwlockReleaseRead(&vfs->vfslock);
+    rwlockReleaseRead(&vfs->vfsdlock);
 
-    int32 relstart = saSize(components) - 1;
-    while (pdir) {
-        devAssert(relstart >= 0);
-        saDestroy(&relcomp);
-        saSlice(&relcomp, components, relstart, 0);
-        strJoin(&curpath, relcomp, fsPathSepStr);
+    // ---- phase 2: ask the providers, with no lock held
+    saInit(&pending, VFSPendEnt, 8);
 
-        // traverse list of registered providers backwards, as providers registered later
-        // are "higher" on the stack
-        for (int i = saSize(pdir->mounts) - 1; i >= 0; --i) {
-            // save first writable provider we find
-            if (!firstwritable && !(pdir->mounts.a[i]->flags & VFS_ReadOnly)) {
-                firstwritable = pdir->mounts.a[i];
-                strDup(&firstwpath, curpath);
-            }
+    for (int32 i = 0, n = saSize(cands); i < n; i++) {
+        VFSMount* m = cands.a[i].mount;
 
-            if (cowmount && (pdir->mounts.a[i]->flags & VFS_AlwaysCOW)) {
-                // this provider wants to get COW copies for any write
-                *cowmount = objAcquire(pdir->mounts.a[i]);
-                strDup(cowrpath, curpath);
-                cowmount = NULL;   // don't let anything else set it
-            }
-
-            VFSProvider* provif = objInstIf(pdir->mounts.a[i]->provider, VFSProvider);
-            if (!provif)
-                continue;
-
-            int stat;
-            if (!(vfs->flags & VFS_CaseSensitive) &&
-                (pdir->mounts.a[i]->flags & VFS_CaseSensitive)) {
-                // case-sensitive file system on insensitive VFS, find the real underlying path
-                stat = _vfsFindCIHelper(vfs, vfsdir, &curpath, relcomp, pdir->mounts.a[i], provif);
-            } else {
-                // check if this exists
-                // drop the lock here to avoid deadlocking on a loopback VFSVFS
-                rwlockReleaseRead(&vfs->vfslock);
-                stat = provif->stat(pdir->mounts.a[i]->provider, curpath, NULL);
-                rwlockAcquireRead(&vfs->vfslock);
-            }
-
-            if (stat == FS_Directory) {
-                // found a directory, don't cache this as a file
-                ret = pdir->mounts.a[i];
-                strDup(rpath, curpath);
-                flcache = false;
-                goto done;
-            } else if (stat == FS_File) {
-                // found an existing file
-                ret = pdir->mounts.a[i];
-                strDup(rpath, curpath);
-                goto done;
-            }
-
-            // do we capture new files on this layer?
-            if (flcreate && (pdir->mounts.a[i]->flags & VFS_NewFiles)) {
-                ret = pdir->mounts.a[i];
-                strDup(rpath, curpath);
-                // do not exit, keep searching to see if it exists in a lower layer
-            }
-
-            // if this layer is opaque, the buck stops here
-            if (pdir->mounts.a[i]->flags & VFS_Opaque)
-                goto done;
+        // save first writable provider we find
+        if (!firstwritable && !(m->flags & VFS_ReadOnly)) {
+            firstwritable = m;
+            strDup(&firstwpath, cands.a[i].relpath);
         }
 
-        relstart--;
-        pdir = pdir->parent;
+        if (cowmount && (m->flags & VFS_AlwaysCOW)) {
+            // this provider wants to get COW copies for any write
+            *cowmount = objAcquire(m);
+            strDup(cowrpath, cands.a[i].relpath);
+            cowmount = NULL;   // don't let anything else set it
+        }
+
+        VFSProvider* provif = objInstIf(m->provider, VFSProvider);
+        if (!provif)
+            continue;
+
+        // Start from this mount's own path every time. The case-insensitive helper rewrites it
+        // with the provider's real casing, which must not carry over to the next provider.
+        strDup(&curpath, cands.a[i].relpath);
+
+        int stat;
+        if (!(vfs->flags & VFS_CaseSensitive) && (m->flags & VFS_CaseSensitive)) {
+            // case-sensitive file system on insensitive VFS, find the real underlying path
+            stat = _vfsFindCIHelper(&curpath,
+                                    cands.a[i].mountpath,
+                                    cands.a[i].relcomp,
+                                    m,
+                                    provif,
+                                    &pending);
+        } else {
+            stat = provif->stat(m->provider, curpath, NULL);
+        }
+
+        if (stat == FS_Directory) {
+            // found a directory, don't cache this as a file
+            ret = m;
+            strDup(rpath, curpath);
+            flcache = false;
+            break;
+        } else if (stat == FS_File) {
+            // found an existing file
+            ret = m;
+            strDup(rpath, curpath);
+            break;
+        }
+
+        // do we capture new files on this layer?
+        if (flcreate && (m->flags & VFS_NewFiles)) {
+            ret = m;
+            strDup(rpath, curpath);
+            // do not exit, keep searching to see if it exists in a lower layer
+        }
     }
 
-done:
-    rwlockReleaseRead(&vfs->vfslock);
     if (ret && flwrite && (ret->flags & VFS_ReadOnly) && cowmount) {
         // let the caller know they should COW to a writable provider
         *cowmount = objAcquire(firstwritable);
@@ -518,27 +680,37 @@ done:
         cxerr = CX_FileNotFound;
 
     if (ret && flcache && !(ret->flags & VFS_NoCache)) {
-        rwlockAcquireWrite(&vfs->vfslock);
-        VFSCacheEnt* newent = _vfsCacheEntCreate(ret, *rpath);
-        htInsertC(&vfsdir->files,
-                  string,
-                  components.a[saSize(components) - 1],
-                  VFSCacheEnt,
-                  &newent,
-                  HT_Ignore);
-        rwlockReleaseWrite(&vfs->vfslock);
+        VFSPendEnt pe = { 0 };
+        pe.mount      = objAcquire(ret);
+        pathParent(&cachedir, abspath);
+        pathFilename(&cachename, abspath);
+        strDup(&pe.dirpath, cachedir);
+        strDup(&pe.name, cachename);
+        strDup(&pe.origpath, *rpath);
+        _saPushPtr(SAHANDLE(&pending), stType(VFSPendEnt), &stgeneric(opaque, &pe), SAINT_Consume);
     }
 
     objAcquire(ret);
 
-    rwlockReleaseRead(&vfs->vfsdlock);
+    // ---- phase 3: write what the providers told us into the cache
+    if (saSize(pending) > 0) {
+        rwlockAcquireRead(&vfs->vfsdlock);
+        rwlockAcquireWrite(&vfs->vfslock);
+        // A mount or unmount in the meantime means these entries may describe a tree that no
+        // longer exists, so drop them rather than cache something stale.
+        if (gen == vfs->mountgen)
+            _vfsFlushPending(vfs, &pending);
+        rwlockReleaseWrite(&vfs->vfslock);
+        rwlockReleaseRead(&vfs->vfsdlock);
+    }
 
-    strDestroy(&ns);
     strDestroy(&abspath);
     strDestroy(&curpath);
     strDestroy(&firstwpath);
-    saDestroy(&relcomp);
-    saDestroy(&components);
+    strDestroy(&cachedir);
+    strDestroy(&cachename);
+    saDestroy(&pending);
+    saDestroy(&cands);
     return ret;
 }
 

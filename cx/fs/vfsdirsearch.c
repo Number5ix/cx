@@ -48,48 +48,41 @@ static stDefine(VFSDirEnt_cs) {
     .ops   = { .cmp = dirEntCmpCaseSensitive, .copy = dirEntCopy, .dtor = dirEntDestroy }
 };
 
+// Like _vfsFindMount, this runs in three phases so that no provider is ever called with a VFS
+// lock held -- a provider here can be a VFSVFS pointing back at this same VFS.
 _Use_decl_annotations_
 bool vfsSearchInit(FSSearchIter* iter, VFS* vfs, strref path, strref pattern, int typefilter,
                    bool stat)
 {
     string abspath = 0, curpath = 0, filepath = 0;
     hashtable names;
+    sa_string mountpoints = saInitNone;
+    sa_VFSMount mountmnts = saInitNone;
+    sa_VFSCand cands      = saInitNone;
+    sa_VFSPendEnt pending = saInitNone;
+    uint32 gen  = 0;
     int32 idx;
     bool exists = false;
 
     cxerr = CX_Success;
     memset(iter, 0, sizeof(FSSearchIter));
 
+    _vfsMaybeEvict(vfs);
+
     if ((vfs->flags & VFS_CaseSensitive))
         htInit(&names, string, intptr, 8, HT_RefKeys | HT_Grow(MaxSpeed));
     else
         htInit(&names, string, intptr, 8, HT_CaseInsensitive | HT_RefKeys | HT_Grow(MaxSpeed));
 
-    // just hold the write lock for this since we'll be adding entries to the cache throughout
-    rwlockAcquireRead(&vfs->vfsdlock);
-    rwlockAcquireWrite(&vfs->vfslock);
+    saInit(&mountpoints, string, 8);
+    saInit(&mountmnts, object, 8);
+    saInit(&cands, VFSCand, 8);
+    saInit(&pending, VFSPendEnt, 8);
 
-    _vfsAbsPath(vfs, &abspath, path);
-
-    VFSDir *vfsdir = _vfsGetDir(vfs, abspath, false, false, true), *pdir = vfsdir;
-    string ns = 0;
-    sa_string components;
-    sa_string relcomp = saInitNone;
-
-    if (!vfsdir) {
-        cxerr = CX_InvalidArgument;
-        rwlockReleaseWrite(&vfs->vfslock);
-        rwlockReleaseRead(&vfs->vfsdlock);
-        return false;
-    }
-
-    saInit(&components, string, 8, SA_Grow(Aggressive));
-    pathDecompose(&ns, &components, abspath);
-
-    VFSSearch* search  = xaAlloc(sizeof(VFSSearch), XA_Zero);
-    iter->_search      = search;
-    search->vfs        = objAcquire(vfs);
-    search->idx        = 0;
+    VFSSearch* search = xaAlloc(sizeof(VFSSearch), XA_Zero);
+    iter->_search     = search;
+    search->vfs       = objAcquire(vfs);
+    search->idx       = 0;
     stype direnttype = (vfs->flags & VFS_CaseSensitive) ? stType(VFSDirEnt_cs) : stType(VFSDirEnt);
 
     // TODO: Currently we need to bypass the stype macro machinery to make this work, since the type
@@ -98,98 +91,142 @@ bool vfsSearchInit(FSSearchIter* iter, VFS* vfs, strref path, strref pattern, in
     // comparator.
     _saInit(SAHANDLE(&search->ents), direnttype, 16, false, SA_Grow(Aggressive));
 
-    // add child mount points as subdirectories
+    // ---- phase 1: gather what the providers will be asked about
+    rwlockAcquireRead(&vfs->vfsdlock);
+    rwlockAcquireRead(&vfs->vfslock);
+
+    _vfsAbsPath(vfs, &abspath, path);
+    VFSDir* vfsdir = _vfsGetDir(vfs, abspath, false, false, false);
+
+    if (!vfsdir) {
+        rwlockReleaseRead(&vfs->vfslock);
+        rwlockReleaseRead(&vfs->vfsdlock);
+        cxerr = CX_InvalidArgument;
+        goto done;
+    }
+
+    // child mount points appear as subdirectories of this one
     foreach (hashtable, sdi, vfsdir->subdirs) {
         VFSDir* sd = htiVal(VFSDir, sdi);
         if (saSize(sd->mounts) > 0) {
-            VFSDirEnt ent = { 0 };
-            strDup(&ent.name, sd->name);
-            ent.type = FS_Directory;
-            _saPushPtr(SAHANDLE(&search->ents),
-                       direnttype,
-                       &stgeneric(opaque, &ent),
-                       SAINT_Consume);
-            htInsert(&names, string, sd->name, intptr, 1);
+            saPush(&mountpoints, string, sd->name);
+            // keep the topmost provider mounted there, so its metadata can be fetched later
+            saPush(&mountmnts, object, sd->mounts.a[saSize(sd->mounts) - 1]);
         }
+    }
+
+    _vfsSnapshot(vfs, &cands, abspath, false);
+    gen = vfs->mountgen;
+
+    rwlockReleaseRead(&vfs->vfslock);
+    rwlockReleaseRead(&vfs->vfsdlock);
+
+    // ---- phase 2: collect entries, with no lock held
+
+    // Mount points go in first so they take priority over a provider entry of the same name.
+    // They are filtered exactly like provider entries -- a mount point is a directory that
+    // happens to be produced by the VFS rather than by a provider, not an exception to the
+    // caller's pattern and type filter.
+    for (int32 i = 0, n = saSize(mountpoints); i < n; i++) {
+        if (typefilter && (FS_Directory & typefilter) != typefilter)
+            continue;
+        if (!strEmpty(pattern) && !pathMatch(mountpoints.a[i], pattern, 0))
+            continue;
+
+        VFSDirEnt ent = { 0 };
+        strDup(&ent.name, mountpoints.a[i]);
+        ent.type = FS_Directory;
+        if (stat) {
+            // ask the mount's own provider about its root, which is what this entry names
+            VFSProvider* mprovif = objInstIf(mountmnts.a[i]->provider, VFSProvider);
+            if (mprovif)
+                mprovif->stat(mountmnts.a[i]->provider, NULL, &ent.stat);
+        }
+        idx = _saPushPtr(SAHANDLE(&search->ents), direnttype, &stgeneric(opaque, &ent),
+                         SAINT_Consume);
+        htInsert(&names, string, search->ents.a[idx].name, intptr, 1);
+
+        // the directory exists as far as a caller is concerned, even if no provider knows it
+        exists = true;
     }
 
     // start at the target directory and recurse upwards to see if any providers know about
     // this directory
-    int32 relstart = saSize(components);
-    while (pdir) {
-        devAssert(relstart >= 0);
-        saDestroy(&relcomp);
-        saSlice(&relcomp, components, relstart, 0);
-        strJoin(&curpath, relcomp, fsPathSepStr);
+    for (int32 i = 0, n = saSize(cands); i < n; i++) {
+        VFSMount* m         = cands.a[i].mount;
+        VFSProvider* provif = objInstIf(m->provider, VFSProvider);
+        if (!provif)
+            continue;
 
-        // traverse list of registered providers backwards, as providers registered later
-        // are "higher" on the stack
-        for (int i = saSize(pdir->mounts) - 1; i >= 0; --i) {
-            ObjInst* provider   = pdir->mounts.a[i]->provider;
-            VFSProvider* provif = objInstIf(provider, VFSProvider);
-            if (!provif)
-                continue;
+        // Start from this mount's own path every time. The case-insensitive helper rewrites it
+        // with the provider's real casing, which must not carry over to the next provider.
+        strDup(&curpath, cands.a[i].relpath);
 
-            if (!(vfs->flags & VFS_CaseSensitive) &&
-                (pdir->mounts.a[i]->flags & VFS_CaseSensitive)) {
-                // case-sensitive file system on insensitive VFS, find the real underlying path
-                _vfsFindCIHelper(vfs, vfsdir, &curpath, relcomp, pdir->mounts.a[i], provif);
-            }
-
-            // see if we can get a directory listing out of it
-            FSSearchIter dsiter;
-            if (!provif->searchInit(provider, &dsiter, curpath, pattern, stat))
-                continue;
-
-            // we did! so gather up all the files
-            exists = true;
-            while (provif->searchValid(provider, &dsiter)) {
-                // have we seen this file already on a higher layer?
-                if ((!typefilter || (dsiter.type & typefilter) == typefilter) &&
-                    !htHasKey(names, string, dsiter.name)) {
-                    // add to list and hash table of seen files
-                    VFSDirEnt ent = { .name = dsiter.name,   // borrowed ref!
-                                      .type = dsiter.type,
-                                      .stat = dsiter.stat };
-                    idx = _saPush(SAHANDLE(&search->ents), direnttype, stgeneric(opaque, &ent), 0);
-                    htInsert(&names, string, search->ents.a[idx].name, intptr, 1);
-
-                    if (dsiter.type == FS_File && !(pdir->mounts.a[i]->flags & VFS_NoCache)) {
-                        // go ahead and add it to the cache while we're here
-                        pathJoin(&filepath, curpath, dsiter.name);
-                        VFSCacheEnt* newent = _vfsCacheEntCreate(pdir->mounts.a[i], filepath);
-                        htInsertC(&vfsdir->files,
-                                  string,
-                                  dsiter.name,
-                                  VFSCacheEnt,
-                                  &newent,
-                                  HT_Ignore);
-                    }
-                }
-                provif->searchNext(provider, &dsiter);
-            }
-            provif->searchFinish(provider, &dsiter);
-
-            // if this layer is opaque, the buck stops here
-            if (pdir->mounts.a[i]->flags & VFS_Opaque)
-                goto done;
+        if (!(vfs->flags & VFS_CaseSensitive) && (m->flags & VFS_CaseSensitive)) {
+            // case-sensitive file system on insensitive VFS, find the real underlying path
+            _vfsFindCIHelper(&curpath, cands.a[i].mountpath, cands.a[i].relcomp, m, provif,
+                             &pending);
         }
 
-        relstart--;
-        pdir = pdir->parent;
+        // see if we can get a directory listing out of it
+        FSSearchIter dsiter;
+        if (!provif->searchInit(m->provider, &dsiter, curpath, pattern, stat)) {
+            provif->searchFinish(m->provider, &dsiter);
+            continue;
+        }
+
+        // we did! so gather up all the files
+        exists = true;
+        while (provif->searchValid(m->provider, &dsiter)) {
+            // have we seen this file already on a higher layer?
+            if ((!typefilter || (dsiter.type & typefilter) == typefilter) &&
+                !htHasKey(names, string, dsiter.name)) {
+                // add to list and hash table of seen files
+                VFSDirEnt ent = { .name = dsiter.name,   // borrowed ref!
+                                  .type = dsiter.type,
+                                  .stat = dsiter.stat };
+                idx = _saPush(SAHANDLE(&search->ents), direnttype, stgeneric(opaque, &ent), 0);
+                htInsert(&names, string, search->ents.a[idx].name, intptr, 1);
+
+                if (dsiter.type == FS_File && !(m->flags & VFS_NoCache)) {
+                    // remember it for the cache while we're here
+                    pathJoin(&filepath, curpath, dsiter.name);
+                    VFSPendEnt pe = { 0 };
+                    pe.mount      = objAcquire(m);
+                    strDup(&pe.dirpath, abspath);
+                    strDup(&pe.name, dsiter.name);
+                    strDup(&pe.origpath, filepath);
+                    _saPushPtr(SAHANDLE(&pending), stType(VFSPendEnt), &stgeneric(opaque, &pe),
+                               SAINT_Consume);
+                }
+            }
+            provif->searchNext(m->provider, &dsiter);
+        }
+        provif->searchFinish(m->provider, &dsiter);
+    }
+
+    // ---- phase 3: write what the providers told us into the cache
+    if (saSize(pending) > 0) {
+        rwlockAcquireRead(&vfs->vfsdlock);
+        rwlockAcquireWrite(&vfs->vfslock);
+        // A mount or unmount in the meantime means these entries may describe a tree that no
+        // longer exists, so drop them rather than cache something stale.
+        if (gen == vfs->mountgen)
+            _vfsFlushPending(vfs, &pending);
+        rwlockReleaseWrite(&vfs->vfslock);
+        rwlockReleaseRead(&vfs->vfsdlock);
     }
 
 done:
-    rwlockReleaseWrite(&vfs->vfslock);
-    rwlockReleaseRead(&vfs->vfsdlock);
     saSort(&search->ents, true);
 
-    strDestroy(&ns);
     strDestroy(&abspath);
     strDestroy(&curpath);
     strDestroy(&filepath);
-    saDestroy(&relcomp);
-    saDestroy(&components);
+    saDestroy(&pending);
+    saDestroy(&cands);
+    saDestroy(&mountpoints);
+    saDestroy(&mountmnts);
     htDestroy(&names);
 
     // did the path exist somewhere in the VFS?
@@ -198,7 +235,8 @@ done:
         return true;
     } else {
         vfsSearchFinish(iter);
-        cxerr = CX_FileNotFound;
+        if (cxerr == CX_Success)
+            cxerr = CX_FileNotFound;
         return false;
     }
 }

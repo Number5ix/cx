@@ -32,6 +32,7 @@
 
 #include <cx/fs/file.h>
 #include <cx/fs/fs.h>
+#include <cx/time/time.h>
 #include <cx/fs/vfsobj.h>
 #include <cx/fs/vfsprovider.h>
 
@@ -41,6 +42,10 @@ typedef struct VFS VFS;
 
 /// Opaque structure representing an open file in a VFS.
 /// Similar to FSFile but works through the VFS layer.
+///
+/// A VFSFile handle is single-owner: one thread at a time, like a C FILE*. Two threads may use
+/// two handles on the same file, but they must not share one handle. The VFS itself is
+/// thread-safe; only the open file handle is not.
 typedef struct VFSFile VFSFile;
 
 CX_C_BEGIN
@@ -59,8 +64,9 @@ _At_(*pvfs, _Pre_maybenull_ _Post_null_) void vfsDestroy(VFS** pvfs);
 
 /// Unmounts all providers at a specific path
 ///
-/// Removes all mounted providers from the specified mount point. Any files
-/// or directories provided by those providers become inaccessible.
+/// Removes all mounted providers from the specified mount point, and from every mount point
+/// below it -- unmounting "/a" also unmounts "/a/b". Any files or directories provided by
+/// those providers become inaccessible.
 ///
 /// @param vfs VFS instance
 /// @param path Mount path to unmount (must be absolute)
@@ -161,6 +167,40 @@ void vfsCurDir(_Inout_ VFS* vfs, _Inout_ string* out);
 /// @param cur New current directory (can be relative or absolute)
 /// @return true if successful, false if directory doesn't exist
 bool vfsSetCurDir(_Inout_ VFS* vfs, _In_opt_ strref cur);
+
+/// Default number of cached directory nodes above which eviction may run
+#define VFS_CACHE_MAXDIRS 4096
+/// Default time an unused cached directory survives, in microseconds
+#define VFS_CACHE_TTL     timeS(300)
+
+/// Sets how large the directory cache may grow before unused entries are dropped
+///
+/// The VFS remembers every directory it has been asked about, including ones no provider
+/// has, so that repeated lookups do not go back to the providers. Nothing is dropped until
+/// the number of remembered directories passes maxdirs; past that, directories that no
+/// lookup has touched for ttl are discarded, along with the files remembered inside them.
+///
+/// Dropping a cached directory never loses data -- the next lookup asks the providers again.
+///
+/// @param vfs VFS instance
+/// @param maxdirs Directory count above which eviction may run (0 for the default)
+/// @param ttl How long an untouched directory survives, in microseconds (0 for the default)
+///
+/// Example:
+/// @code
+///   // a long-lived VFS serving paths from untrusted callers
+///   vfsSetCacheLimits(vfs, 1024, timeS(60));
+/// @endcode
+void vfsSetCacheLimits(_Inout_ VFS* vfs, uint32 maxdirs, int64 ttl);
+
+/// Drops cached directories that have not been used recently
+///
+/// Runs the same pass the VFS runs on its own once the cache grows past the limit set with
+/// vfsSetCacheLimits(), regardless of the current size. Call this to release memory at a
+/// moment of your choosing.
+///
+/// @param vfs VFS instance
+void vfsPruneCache(_Inout_ VFS* vfs);
 
 /// Converts a relative path to absolute within the VFS
 ///
@@ -369,7 +409,9 @@ _Ret_opt_valid_ VFSFile* vfsOpen(_Inout_ VFS* vfs, _In_opt_ strref path, flags_t
 /// The file pointer becomes invalid after this call.
 ///
 /// @param file VFS file handle to close
-/// @return true if successful, false on error
+/// @return true if successful, false if an error occurred while flushing or closing
+///
+/// @note The file handle is freed even if this returns false
 bool vfsClose(_Pre_opt_valid_ _Post_invalid_ VFSFile* file);
 
 /// Reads data from a VFS file
@@ -448,8 +490,10 @@ enum VFSFlags {
                                       ///< depending on if the underlying operating system provider
                                       ///< is natively case sensitive or not.
 
-    VFS_NoCache = 0x00000004,   ///< Disable VFS directory/file cache. Improves memory usage but
-                                ///< slower repeated access
+    VFS_NoCache = 0x00000004,   ///< Disable the VFS file cache. Saves memory and always asks the
+                                ///< providers, at the cost of slower repeated access. The
+                                ///< directory tree itself is still remembered; use
+                                ///< vfsSetCacheLimits() to bound that.
 
     // Flags valid only for provider mounting:
 

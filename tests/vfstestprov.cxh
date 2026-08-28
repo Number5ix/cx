@@ -1,0 +1,44 @@
+#include <cx/fs/vfsprovider.cxh>
+
+// Memory-backed VFSProvider for the VFS tests.
+//
+// It touches no OS handle, so a test can build a layered filesystem in a few lines and tear it
+// down with no scratch directory. More importantly it can be made to do things a real filesystem
+// will not do on demand: report itself case-sensitive on Windows (which is the only way to reach
+// the case-insensitive resolution path there), and fail a specific operation on request.
+
+// Failure switches. Set through vfstpFail() to drive a provider error path deterministically.
+typedef enum VFSTPFailEnum {
+    VFSTP_FailOpenWrite  = 0x0001,   // open() fails when FS_Write is requested
+    VFSTP_FailWrite      = 0x0002,   // write() fails
+    VFSTP_FailRead       = 0x0004,   // read() fails
+    VFSTP_FailSearchInit = 0x0008,   // searchInit() fails, leaving the iterator zeroed
+    VFSTP_FailCreateDir  = 0x0010,   // createDir() fails
+    VFSTP_FailClose      = 0x0020,   // close() fails, as a buffered flush at close would
+} VFSTPFail;
+
+class VFSTestProv implements VFSProvider {
+    uint32 provflags;   // returned verbatim from flags()
+    uint32 failmask;    // VFSTPFail switches
+    int64 mtime;        // timestamp reported for every entry
+
+    // Paths are provider-relative with no leading separator; "" is the provider root.
+    [noinit] hashtable files;   // string path -> string contents
+    [noinit] hashtable dirs;    // string path -> int32 (a set; the value is unused)
+
+    // Adds a file, creating any parent directories it needs.
+    void addFile(strref path, strref contents);
+    // Adds a directory, creating any parent directories it needs.
+    void addDir(strref path);
+
+    factory create(uint32 provflags);
+}
+
+class VFSTestProvFile implements VFSFileProvider {
+    object[VFSTestProv] prov;
+    string path;
+    int64 pos;
+    bool writable;
+
+    factory create(VFSTestProv *prov, strref path, bool writable);
+}

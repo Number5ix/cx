@@ -1,9 +1,18 @@
 /// @brief VFS object definitions
 /// @addtogroup fs_vfs
 /// @{
+#include <cx/thread/atomic.h>
 #include <cx/thread/rwlock.h>
 
 struct VFSDir;
+
+/// Directory cache accounting. See vfsSetCacheLimits().
+typedef struct VFSDirCache {
+    atomic(int64) lastprune;   ///< clockTimer() when the last prune ran
+    atomic(uint32) dircount;   ///< VFSDir nodes currently in the tree
+    uint32 maxdirs;            ///< node count above which a prune is allowed to run
+    int64 ttl;                 ///< how long an unused directory survives, in microseconds
+} VFSDirCache;
 
 /// VFS Object
 class VFS {
@@ -12,11 +21,26 @@ class VFS {
     // Namespaces are never case sensitive even if the paths are
     [noinit] hashtable namespaces;          ///< Hashtable of string/VFSDir
     string curdir;                          ///< Current working directory of the VFS
-    RWLock vfslock;                         ///< vfslock is for adding entries to the directory cache
-    /// vfsdlock is for operations such as mounting / unmounting / invalidating cache
-    /// that may destroy VFSDir entries and remove mounts
+
+    // Two locks, and vfsdlock is always the outer one: a thread may take vfsdlock and then
+    // vfslock, never the reverse.
+    //
+    // vfslock guards additions to the directory cache and the curdir string. vfsdlock guards
+    // operations that destroy VFSDir entries or remove mounts. The invariant that makes that
+    // split work is stronger than it looks and is not enforced anywhere: every reader that
+    // walks the directory tree takes vfsdlock for read first, so holding vfsdlock for write is
+    // by itself exclusive against all of them. That is why the mount and unmount paths mutate
+    // the subdirs and files hashtables with vfslock never taken at all. A new code path that
+    // takes only vfslock and then touches the tree breaks this.
+    RWLock vfslock;
     RWLock vfsdlock;
+
+    /// Bumped whenever a mount is added or removed. A lookup that dropped the locks to call a
+    /// provider compares this before caching what it learned, so it never records a result for
+    /// a directory tree that changed underneath it.
+    uint32 mountgen;
     uint32 flags;
+    VFSDirCache dcache;   ///< directory cache size accounting
 
     /// Creates a new empty VFS instance with no mounted providers
     ///

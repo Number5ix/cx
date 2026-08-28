@@ -23,8 +23,23 @@ interface VFSProvider {
     bool rename(strref oldpath, strref newpath);
     bool getFSPath([inout] string *out, strref path);
 
+    /// Begins iterating a directory, positioning iter on the first matching entry.
+    ///
+    /// Clear iter before doing anything else, and release everything you allocated before
+    /// returning false -- a caller is allowed to walk away from a failed searchInit without
+    /// calling searchFinish.
+    ///
+    /// @param iter Iterator to initialize
+    /// @param path Directory to list, relative to the mount point ("" is the mount root)
+    /// @param pattern Wildcard to match entry names against, or NULL for all of them
+    /// @param stat Fill in each entry's stat field
+    /// @return true if the directory was listed and has at least one matching entry
     bool searchInit([out] FSSearchIter *iter, strref path, strref pattern, bool stat);
     bool searchValid([in] FSSearchIter *iter);
     bool searchNext([inout] FSSearchIter *iter);
+    /// Releases whatever searchInit allocated.
+    ///
+    /// Must do nothing when handed a cleared iterator, so that it is safe to call after a
+    /// failed searchInit as well as after a successful one.
     void searchFinish([inout] FSSearchIter *iter);
 }

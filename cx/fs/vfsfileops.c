@@ -14,7 +14,7 @@ VFSFile* vfsOpen(VFS* vfs, strref path, flags_t flags)
     // get the provider
     if (flags & (FS_Write | FS_Truncate | FS_Create))
         pflags |= VFS_FindWriteFile;
-    if (flags & FS_Truncate)
+    if (flags & (FS_Truncate | FS_Create))
         pflags |= VFS_FindCreate;
     VFSMount* m = _vfsFindMount(vfs, &rpath, path, &cowmount, &cowrpath, pflags);
     if (!m) {
@@ -70,13 +70,19 @@ bool vfsClose(VFSFile* file)
     if (!file)
         return false;
 
+    // The provider's close is where buffered writes are flushed, so a failure there is the one
+    // thing this function's return value has to carry.
+    bool ret = true;
+    if (file->fileprov)
+        ret = file->fileprovif->close(file->fileprov);
+
     objRelease(&file->fileprov);
     objRelease(&file->cowprov);
     objRelease(&file->vfs);
     strDestroy(&file->cowpath);
     strDestroy(&file->cowrpath);
     xaFree(file);
-    return true;
+    return ret;
 }
 
 _Use_decl_annotations_
@@ -106,23 +112,24 @@ static void vfsCOWCreateAll(_Inout_ ObjInst* cowprov, _Inout_ VFSProvider* cowpr
 #define COWBLOCKSIZE 65536
 static bool vfsCOWFile(_Inout_ VFSFile* file)
 {
-    ObjInst* cowfile = 0;
+    ObjInst* cowfile       = 0;
+    VFSProvider* cowprovif = 0;
+    uint8* buf             = 0;
+    bool ret               = false;
     size_t bytes;
 
-    rwlockAcquireRead(&file->vfs->vfsdlock);
-    rwlockAcquireWrite(&file->vfs->vfslock);
+    // No lock is taken here. The fields this touches -- fileprov, cowprov and the provider
+    // interfaces beside them -- are per-VFSFile state that every other file operation reads
+    // unlocked too, so a VFS-wide lock protected nothing and stalled every other thread for the
+    // length of the copy. A VFSFile is single-owner; see vfsOpen.
 
-    if (!file->cowprov) {
-        // another thread beat us to the lock
-        rwlockReleaseWrite(&file->vfs->vfslock);
-        rwlockReleaseRead(&file->vfs->vfsdlock);
-        return true;
-    }
+    if (!file->cowprov)
+        return true;   // already copied
 
-    uint8* buf             = xaAlloc(COWBLOCKSIZE);
-    VFSProvider* cowprovif = objInstIf(file->cowprov, VFSProvider);
+    buf       = xaAlloc(COWBLOCKSIZE);
+    cowprovif = objInstIf(file->cowprov, VFSProvider);
     if (!cowprovif)
-        goto error;
+        goto out;
 
     // make sure the path exists
     string dirname = 0;
@@ -133,10 +140,10 @@ static bool vfsCOWFile(_Inout_ VFSFile* file)
     // create the writable file
     cowfile = cowprovif->open(file->cowprov, file->cowrpath, FS_Write | FS_Create | FS_Truncate);
     if (!cowfile)
-        goto error;
+        goto out;
     VFSFileProvider* cowfileif = objInstIf(cowfile, VFSFileProvider);
     if (!cowfileif)
-        goto error;
+        goto out;
 
     int64 curpos = file->fileprovif->tell(file->fileprov);
     file->fileprovif->seek(file->fileprov, 0, FS_Set);
@@ -144,11 +151,11 @@ static bool vfsCOWFile(_Inout_ VFSFile* file)
     // copy contents to new file
     for (;;) {
         if (!file->fileprovif->read(file->fileprov, buf, COWBLOCKSIZE, &bytes))
-            goto error;
+            goto out;
         if (bytes == 0)
             break;   // eof
         if (!cowfileif->write(cowfile, buf, bytes, NULL))
-            goto error;
+            goto out;
     }
 
     // file data is copied, now reset file pointer and swap the providers around
@@ -157,24 +164,28 @@ static bool vfsCOWFile(_Inout_ VFSFile* file)
     objRelease(&file->fileprov);
     file->fileprov   = cowfile;
     file->fileprovif = cowfileif;
+    cowfile          = NULL;
     objRelease(&file->cowprov);
-    xaFree(buf);
-    rwlockReleaseWrite(&file->vfs->vfslock);
-    rwlockReleaseRead(&file->vfs->vfsdlock);
+    ret = true;
 
-    _vfsInvalidateCache(file->vfs, file->cowpath);
-    return true;
-
-error:
-    if (cowfile) {
-        objRelease(&cowfile);
-        if (cowprovif)
+out:
+    if (!ret) {
+        // Failed partway through, so throw away the half-written copy and the handle it was
+        // going to replace. The file is left unusable rather than silently reading from the
+        // layer the caller was trying to write past.
+        if (cowfile) {
+            objRelease(&cowfile);
             cowprovif->deleteFile(file->cowprov, file->cowrpath);
+        }
+        objRelease(&file->cowprov);
+        objRelease(&file->fileprov);
+        file->fileprovif = NULL;
     }
-    objRelease(&file->cowprov);
-    objRelease(&file->fileprov);
     xaFree(buf);
-    return false;
+
+    if (ret)
+        _vfsInvalidateCache(file->vfs, file->cowpath);
+    return ret;
 }
 
 _Use_decl_annotations_

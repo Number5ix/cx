@@ -45,6 +45,7 @@ create_test_sourcelist(testsrc
     stvartest.c
     mathtest.c
     fstest.c
+    vfstest.c
     prqtest.c
     nettest.c
     ${tlstestsrc}
@@ -58,7 +59,8 @@ add_cxautogen(converttestobj.cxh
     netfilterobj.cxh
     nettestobj.cxh
     objtestobj.cxh
-    tqtestobj.cxh)
+    tqtestobj.cxh
+    vfstestprov.cxh)
 set(test_runner_files
     ${testsrc}
     fmttestobj.c
@@ -75,6 +77,8 @@ set(test_runner_files
     nettestobj.cxh
     tqtestobj.c
     tqtestobj.cxh
+    vfstestprov.c
+    vfstestprov.cxh
     common.h
     testharness.c
     testharness.h)
@@ -357,6 +361,26 @@ add_test(NAME "\"math: PCG Random Float\"" COMMAND test_runner mathtest pcgfloat
 add_test(NAME "\"math: PCG Error Condition\"" COMMAND test_runner mathtest pcgerror)
 add_test(NAME "\"math: FP Comparison\"" COMMAND test_runner mathtest floatcmp)
 add_test(NAME "\"fs: Path Matching\"" COMMAND test_runner fstest pathmatch)
+add_test(NAME "\"vfs: Basic operations\"" COMMAND test_runner vfstest basic)
+add_test(NAME "\"vfs: Write and delete\"" COMMAND test_runner vfstest write)
+add_test(NAME "\"vfs: Layering\"" COMMAND test_runner vfstest layer)
+add_test(NAME "\"vfs: Opaque layer\"" COMMAND test_runner vfstest opaque)
+add_test(NAME "\"vfs: Read-only mount\"" COMMAND test_runner vfstest readonly)
+add_test(NAME "\"vfs: Directory search\"" COMMAND test_runner vfstest search)
+add_test(NAME "\"vfs: Mount and unmount\"" COMMAND test_runner vfstest mount)
+add_test(NAME "\"vfs: Current directory\"" COMMAND test_runner vfstest curdir)
+add_test(NAME "\"vfs: Cache invalidation\"" COMMAND test_runner vfstest invalidate)
+add_test(NAME "\"vfs: Copy-on-write\"" COMMAND test_runner vfstest cow)
+add_test(NAME "\"vfs: Failed copy-on-write\"" COMMAND test_runner vfstest cowfail)
+add_test(NAME "\"vfs: New file layer selection\"" COMMAND test_runner vfstest newfiles)
+add_test(NAME "\"vfs: Rename\"" COMMAND test_runner vfstest rename)
+add_test(NAME "\"vfs: Error paths\"" COMMAND test_runner vfstest errors)
+add_test(NAME "\"vfs: Case-insensitive resolution\"" COMMAND test_runner vfstest caseinsens)
+add_test(NAME "\"vfs: Loopback mount\"" COMMAND test_runner vfstest loopback)
+add_test(NAME "\"vfs: Mixed case sensitivity\"" COMMAND test_runner vfstest casemix)
+add_test(NAME "\"vfs: Mount point entries\"" COMMAND test_runner vfstest mountents)
+add_test(NAME "\"vfs: Cache eviction\"" COMMAND test_runner vfstest evict)
+add_test(NAME "\"vfs: OS filesystem provider\"" COMMAND test_runner vfstest fsprov)
 add_test(NAME "\"prqueue: Basic Pointer-Ring Queue\"" COMMAND test_runner prqtest basic)
 add_test(NAME "\"prqueue: Multithreaded Queue\"" COMMAND test_runner prqtest mt)
 add_test(NAME "\"prqueue: Queue Growth\"" COMMAND test_runner prqtest grow)
