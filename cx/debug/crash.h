@@ -51,33 +51,47 @@ CX_C_BEGIN
 ///
 /// These flags can be combined with bitwise OR to configure how crashes are handled.
 enum DEBUG_CRASH_FLAGS_ENUM {
-    DBG_CrashExit       = 0x0001,   ///< Exit process gracefully after handling crash
-    DBG_CrashDump       = 0x0002,   ///< Generate minidump (small memory dump)
-    DBG_CrashFullDump   = 0x0004,   ///< Generate full memory dump (large, includes entire process)
-    DBG_CrashUpload     = 0x0008,   ///< Submit crash report to reporting service
-    DBG_CrashBreakpoint = 0x0010,   ///< Trigger breakpoint for debugger attachment
-    DBG_CrashDelete     = 0x0020,   ///< Delete dump file after successful upload
-    DBG_CrashInternal   = 0x0040,   ///< Submit to internal endpoint rather than public reporting
-                                    ///< service
-    DBG_CrashProgressUI = 0x0080,   ///< Show progress UI while uploading crash report
-    DBG_CrashDevMode    = 0x0100,   ///< Process is in development mode; allow debugging and special
-                                    ///< handling
-    DBG_CrashNotify     = 0x0200,   ///< Show notification dialog but do not offer user options
-    DBG_CrashPrompt = 0x1000,   ///< Prompt user upon crash; user can choose crash handling options
-    DBG_CrashPromptLocal = 0x3000,   ///< Prompt user but disallow upload (implies CrashPrompt)
+    /// Exit process gracefully after handling crash
+    DBG_CrashExit         = 0x0001,
+    /// Generate minidump (small memory dump)
+    DBG_CrashDump         = 0x0002,
+    /// Generate full memory dump (large, includes entire process)
+    DBG_CrashFullDump     = 0x0004,
+    /// Submit crash report to reporting service
+    DBG_CrashUpload       = 0x0008,
+    ///  Trigger breakpoint for debugger attachment
+    DBG_CrashBreakpoint   = 0x0010,
+    /// Delete dump file after successful upload
+    DBG_CrashDelete       = 0x0020,
+    /// Submit to internal endpoint rather than public reporting service
+    DBG_CrashInternal     = 0x0040,
+    /// Show progress UI while uploading crash report
+    DBG_CrashProgressUI   = 0x0080,
+    /// Process is in development mode; allow debugging and special handling
+    DBG_CrashDevMode      = 0x0100,
+    /// Show notification dialog but do not offer user options
+    DBG_CrashNotify       = 0x0200,
+    /// Delete dump file even if upload fails (implies CrashDelete)
+    DBG_CrashAlwaysDelete = 0x0400 | DBG_CrashDelete,
+    /// Prompt user upon crash; user can choose crash handling options
+    DBG_CrashPrompt       = 0x1000,
+    /// Prompt user but disallow upload (implies CrashPrompt)
+    DBG_CrashPromptLocal  = 0x3000,
 };
 
 /// Preset crash mode for interactive applications
 ///
 /// Exits gracefully, prompts user for action, and shows progress UI.
 /// Suitable for desktop applications where user interaction is expected.
-#define DBG_CrashInteractive (DBG_CrashExit | DBG_CrashPrompt | DBG_CrashProgressUI)
+#define DBG_CrashInteractive \
+    (DBG_CrashExit | DBG_CrashPrompt | DBG_CrashProgressUI | DBG_CrashDelete)
 
 /// Preset crash mode for non-interactive services
 ///
 /// Exits gracefully, generates minidump, uploads automatically, and deletes dump after upload.
 /// Suitable for background services, daemons, or server processes.
-#define DBG_CrashNonInteractive (DBG_CrashExit | DBG_CrashDump | DBG_CrashUpload | DBG_CrashDelete)
+#define DBG_CrashNonInteractive \
+    (DBG_CrashExit | DBG_CrashDump | DBG_CrashUpload | DBG_CrashAlwaysDelete)
 
 /// Set crash handler behavior mode
 /// @param mode Combination of DEBUG_CRASH_FLAGS_ENUM flags
