@@ -109,6 +109,7 @@ _Use_decl_annotations_
 bool strFromUTF16(strhandle o, const uint16* _Nonnull buf, size_t wsz)
 {
     bool surrogate = false;
+    bool ascii     = true;
     int nexpand    = 1;
     int32 codepoint;
 
@@ -137,6 +138,9 @@ bool strFromUTF16(strhandle o, const uint16* _Nonnull buf, size_t wsz)
         if (codepoint == 0)
             break;   // hit NULL before end of buffer, stop string here
 
+        if (codepoint >= 0x80)
+            ascii = false;
+
         if (olen + 5 > osz) {
             // expand by more each time to not reallocate a ton if this string has
             // lots of multibyte sequences
@@ -150,6 +154,11 @@ bool strFromUTF16(strhandle o, const uint16* _Nonnull buf, size_t wsz)
 
     *(_strBuffer(*o) + olen) = 0;
     _strSetLen(*o, olen);
+
+    // The buffer was reset optimistically as ASCII, and _strReset() sets both encoding
+    // flags when it does that.
+    if (!ascii)
+        *_strHdrP(*o) &= ~STR_ASCII;
 
     return true;
 
