@@ -119,9 +119,13 @@ static int32 logRoutingChanRow(_In_ LogRouting* routing, _In_ LogChannel* chan,
     sa_string comps;
     logChanSplitPath(&comps, chan->path);
 
+    // Loop prevention, first layer: a destination that leaves the machine never binds to cx's own
+    // transport channel.
+    bool transport = logChanIsTransport(chan);
+
     for (uint32 i = 0; i < routing->ndest; i++) {
         LogDest* dest = routing->dests[i];
-        if (!dest || !logChanRuleMatchComps(dest, chan, &comps))
+        if (!dest || (transport && dest->remote) || !logChanRuleMatchComps(dest, chan, &comps))
             continue;
 
         row[i / 64] |= (uint64)1 << (i % 64);

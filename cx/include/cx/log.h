@@ -14,10 +14,12 @@
 #include <cx/log/logconsole.h>
 #include <cx/log/logctx.h>
 #include <cx/log/logfile.h>
+#include <cx/log/logforward.h>
 #include <cx/log/loggroup.h>
 #include <cx/log/logmembuf.h>
 #include <cx/log/logring.h>
 #include <cx/log/logserializer.h>
 #include <cx/log/logvolume.h>
+#include <cx/log/logwire.h>
 
 /// @}  // end of log group

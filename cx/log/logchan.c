@@ -19,11 +19,16 @@ STR_CONST(kChanSep, "/");
 STR_CONST(kChanWildOne, "*");
 STR_CONST(kChanWildAll, "**");
 STR_CONST(kChanCX, "cx");
+STR_CONST(kChanCXNet, "cx/net");
 
 // the root channel is a plain static so that LogDefault is a valid pointer before the log system
 // has initialized; a log call that beats lazy init still has somewhere to point
 static LogChannel _log_root;
 LogChannel* LogDefault = &_log_root;
+
+// cx's own transport channel, interned by logChanInit() so that loop prevention can recognize it
+// by pointer instead of by comparing paths on every routing recompute.
+static LogChannel* _log_netchan;
 
 hashtable _log_channels;   // path -> LogChannel*
 sa_LogChannel _log_chans;  // indexed by LogChannel.idx
@@ -135,7 +140,46 @@ void logChanInit(void)
     // _log_running is set, and this has to be in place before the first call site can name a
     // channel beneath it.
     bool created;
-    logChanInternLocked(kChanCX, LOG_Restricted, true, &created);
+    logChanInternLocked(kChanCX, LOG_Restricted | LOG_Declared, true, &created);
+
+    // Interned here for the same reason, and because loop prevention has to know the node before
+    // anything has logged to it: a forwarder registered before cx/net exists must still fail to
+    // bind to it once it does.
+    _log_netchan = logChanInternLocked(kChanCXNet, 0, false, &created);
+}
+
+_Use_decl_annotations_
+bool logChanIsTransport(const LogChannel* chan)
+{
+    for (const LogChannel* c = chan; c; c = c->parent) {
+        if (c == _log_netchan)
+            return true;
+    }
+    return false;
+}
+
+_Use_decl_annotations_
+void logEnumChans(LogChanEnumCB cb, void* ctx)
+{
+    logCheckInit();
+    if (!atomicLoad(bool, &_log_running, Acquire))
+        return;
+
+    // _log_chans only ever grows, so take a simple copy snapshot to walk without the lock
+    LogChannel** chans;
+    uint32 n;
+    withMutex (&_log_op_lock) {
+        n     = saSize(_log_chans);
+        chans = xaAlloc(sizeof(LogChannel*) * (n ? n : 1));
+        memcpy(chans, _log_chans.a, sizeof(LogChannel*) * n);
+    }
+
+    for (uint32 i = 0; i < n; i++) {
+        if (!cb(chans[i], ctx))
+            break;
+    }
+
+    xaFree(chans);
 }
 
 static _Ret_opt_valid_ LogChannel* logChanIntern(_In_ strref path, flags_t flags, bool declare)
@@ -166,13 +210,50 @@ LogChannel* logChan(strref path)
 }
 
 _Use_decl_annotations_
+LogChannel* logChanApplyRemote(strref path, flags_t flags)
+{
+    logCheckInit();
+    if (!atomicLoad(bool, &_log_running, Acquire))
+        return NULL;
+
+    LogChannel* chan;
+    bool created = false;
+    bool apply   = false;
+
+    withMutex (&_log_op_lock) {
+        chan = logChanInternLocked(path, 0, false, &created);
+
+        // A sender's policy is advisory: it applies only where this process has said nothing about
+        // the path itself. A channel declared here keeps what it was declared with, so a receiver's
+        // configuration is never overwritten by whatever a sender happens to think.
+        //
+        // LOG_Declared is deliberately not set by this, so a local declaration arriving later
+        // still wins, and so does a later correction from the sender.
+        apply = !(chan->flags & LOG_Declared) &&
+                (flags & (LOG_Broadcast | LOG_Restricted)) != 0 &&
+                (chan->flags & (LOG_Broadcast | LOG_Restricted)) !=
+                    (flags & (LOG_Broadcast | LOG_Restricted));
+
+        if (apply) {
+            chan->flags = flags & ~LOG_Declared;
+            logChanUpdateGateAll();
+            logRoutingPublish();
+        }
+    }
+
+    return chan;
+}
+
+_Use_decl_annotations_
 LogChannel* logDeclareChan(strref path, flags_t flags)
 {
     // declaring a channel is the act of carving out a stream, so restricted is the default
     if (!(flags & (LOG_Broadcast | LOG_Restricted)))
         flags |= LOG_Restricted;
 
-    return logChanIntern(path, flags, true);
+    // Records that this channel's policy was chosen here rather than inherited, which is what a
+    // receiver of forwarded records checks before letting a sender's flags overwrite it.
+    return logChanIntern(path, flags | LOG_Declared, true);
 }
 
 // ---------------------------------------------------------------------------------------
@@ -250,26 +331,26 @@ bool logChanMatch(strref pattern, strref path)
     return ret;
 }
 
-_Use_decl_annotations_
-bool logChanRuleMatchComps(LogDest* dest, LogChannel* chan, sa_string* comps)
+static bool logChanRuleSetMatch(_In_reads_(nrules) const LogFilterRule* rules, uint32 nrules,
+                                _In_ const LogChannel* chan, _In_ sa_string* comps)
 {
-    if (dest->nrules == 0) {
-        // an unfiltered destination is "**", which reaches every channel that is not gated
+    if (nrules == 0) {
+        // an unfiltered rule set is "**", which reaches every channel that is not gated
         return chan->gatedepth == 0;
     }
 
     // most-specific-wins: the matching rule with the longest literal prefix decides, and an
     // exclude wins a tie
-    int32 best  = -1;
-    bool inc = false;
+    int32 best = -1;
+    bool inc   = false;
 
-    for (uint32 i = 0; i < dest->nrules; i++) {
-        LogFilterRule* rule = &dest->rules[i];
+    for (uint32 i = 0; i < nrules; i++) {
+        const LogFilterRule* rule = &rules[i];
 
         // a rule only passes a gate by naming it literally
         if (rule->litdepth < chan->gatedepth)
             continue;
-        if (!logChanMatchFrom(&rule->comps, 0, comps, 0))
+        if (!logChanMatchFrom((sa_string*)&rule->comps, 0, comps, 0))
             continue;
 
         if ((int32)rule->litdepth > best || ((int32)rule->litdepth == best && rule->exclude)) {
@@ -282,10 +363,25 @@ bool logChanRuleMatchComps(LogDest* dest, LogChannel* chan, sa_string* comps)
 }
 
 _Use_decl_annotations_
+bool logChanRuleMatchComps(LogDest* dest, LogChannel* chan, sa_string* comps)
+{
+    if (!logChanRuleSetMatch(dest->rules, dest->nrules, chan, comps))
+        return false;
+
+    // A subscription narrows what the local configuration already allows; it never widens it. See
+    // LogDest.subrules for why the two sets are ANDed rather than merged.
+    if (dest->nsubrules > 0 &&
+        !logChanRuleSetMatch(dest->subrules, dest->nsubrules, chan, comps))
+        return false;
+
+    return true;
+}
+
+_Use_decl_annotations_
 bool logChanRuleMatch(LogDest* dest, LogChannel* chan)
 {
     // an unfiltered destination never looks at the path, so do not pay to split it
-    if (dest->nrules == 0)
+    if (dest->nrules == 0 && dest->nsubrules == 0)
         return chan->gatedepth == 0;
 
     sa_string comps;

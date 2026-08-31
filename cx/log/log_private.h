@@ -33,6 +33,14 @@ typedef struct LogFilterRule {
 typedef struct LogDest {
     LogFilterRule* rules;
     uint32 nrules;
+
+    // A second, independent rule set that a channel must *also* match. Empty for a destination
+    // configured only locally.
+    //
+    // `rules` is what this process has decided the destination may ever receive, and `subrules`
+    // is what a remote subscriber has asked for.
+    LogFilterRule* subrules;
+    uint32 nsubrules;
     LogDestMsg msgfunc;
     LogDestBatchDone batchfunc;
     LogDestClose closefunc;
@@ -55,6 +63,11 @@ typedef struct LogDest {
     // either way they are not delivered a second time.
     uint64 backfillseq;
     bool backfilled;   // ...and whether there was a backfill at all, since 0 is a valid sequence
+
+    // This destination sends records off the machine, which is what engages loop prevention: it
+    // never binds to the cx/net subtree (logRoutingChanRow) and never receives a record marked
+    // localonly (logDispatchRecord). Set by logforwardRegister(); nothing else may set it.
+    bool remote;
 } LogDest;
 saDeclarePtr(LogDest);
 saDeclarePtr(LogChannel);
@@ -119,7 +132,10 @@ typedef struct LogEntry {
     uint32 batchid;   // assigned at enqueue, so every group sees the same one
     uint32 sample;    // sampling rate this entry survived; 0 or 1 for none
     int trigger;      // severity that released this entry from a ring; -1 if it never was
+    string origin;    // instance this entry was forwarded from; empty for a local one
+    uint8 hops;       // instances this entry has been forwarded through
     bool istmpl;      // msgtmpl is a format template, not a literal message
+    bool localonly;   // must not reach a destination that leaves the machine
 } LogEntry;
 saDeclarePtr(LogEntry);
 
@@ -337,8 +353,24 @@ void logRingShutdown(void);
 // minlevel. The backpressure path for entries a full queue would otherwise drop (logpanic.c).
 void logWriteSync(_In_ LogGroup* grp, _In_opt_ LogQueueNode* head, int minlevel);
 
+// Is this thread inside a callback the log system owns -- a drain dispatch, or a forwarder's
+// call into an application transport? Anything logged while it is costs nothing extra but is
+// marked localonly, which is loop prevention's second layer (logthread.c).
+bool logInLocalScope(void);
+
+// Builds a context node directly, rather than by entering one on a thread. Used by the injector
+// to attach a forwarded record's fields without disturbing the injecting thread's own context.
+// Takes a reference to `parent`; the returned node is owned by the caller.
+_Ret_valid_ LogCtx* logCtxCreate(_In_opt_ LogCtx* parent, int n, _In_opt_ const stvar* vars);
+
 // Channel registry (logchan.c). The registry is permanent and is built exactly once.
 void logChanInit(void);
+// Is this channel cx's own transport, `cx/net` or anything beneath it? Loop prevention's first
+// layer: a destination that leaves the machine never binds to one of these.
+bool logChanIsTransport(_In_ const LogChannel* chan);
+// Interns a channel named by a forwarded record, applying the sender's policy flags only where
+// this process has not declared the path itself. See logInject().
+_Ret_opt_valid_ LogChannel* logChanApplyRemote(_In_ strref path, flags_t flags);
 uint32 logChanLitDepth(_In_ strref pattern);
 bool logChanMatch(_In_ strref pattern, _In_opt_ strref path);
 // Splits a channel path or filter pattern into the component form the matcher works in. The
@@ -374,9 +406,21 @@ void logDrainUnregister(_Pre_valid_ _Post_invalid_ LogDrain* drain);
 _Ret_opt_valid_ LogRouting* logDrainEnter(_Inout_ LogDrain* drain);
 void logDrainIdle(_Inout_ LogDrain* drain);
 
+// As logRegisterDest(), for a destination that sends records off the machine. Sets LogDest.remote
+// before the destination is published, so loop prevention is in force from its first record.
+_Ret_opt_valid_ LogDest*
+logRegisterRemoteDest(int maxlevel, _In_opt_ strref chanfilter, _In_ LogDestMsg msgfunc,
+                      _In_opt_ LogDestBatchDone batchfunc, _In_opt_ LogDestClose closefunc,
+                      _In_opt_ void* userdata);
+
 // does NOT free dhandle, the caller is responsible for retiring it
 bool logUnregisterDestLocked(_In_ LogDest* dhandle);
 // inserts into a free slot of the destination table; does not publish
 void logDestInsertLocked(_In_ LogDest* dest);
 void logDestAddRuleLocked(_Inout_ LogDest* dest, _In_opt_ strref pattern, bool exclude);
 void logDestFreeRules(_Inout_ LogDest* dest);
+// Replaces the destination's subscription rule set, the one a channel must match in addition to
+// the local rules. An empty list clears it. Does not publish; the caller does.
+void logDestSetSubRulesLocked(_Inout_ LogDest* dest, _In_opt_ const sa_string* patterns);
+// Same, taking the configuration lock and republishing. NULL or an empty list clears the set.
+bool logDestSetSubFilter(_In_ LogDest* dhandle, _In_opt_ const sa_string* patterns);

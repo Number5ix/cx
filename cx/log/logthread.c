@@ -11,6 +11,27 @@
 
 #define LOG_BATCH_SIZE 256
 
+// Loop prevention, second layer: is this thread inside a callback the log system owns?
+//
+static _Thread_local uint32 _log_local_depth;
+
+void _logLocalPush(void)
+{
+    ++_log_local_depth;
+}
+
+void _logLocalPop(void)
+{
+    devAssert(_log_local_depth > 0);
+    if (_log_local_depth > 0)
+        --_log_local_depth;
+}
+
+bool logInLocalScope(void)
+{
+    return _log_local_depth > 0;
+}
+
 // Pops the lowest set bit of a mask word. ctz64() is only available on 64-bit MSVC targets, so
 // the halves are scanned separately rather than assuming it.
 _meta_inline uint32 logMaskNext(_Inout_ uint64* bits)
@@ -45,6 +66,12 @@ void logDispatchRecord(LogGroup* grp, LogRouting* routing, const LogRecord* rec,
             // delivers only its own group's share of it. Without that check an entry that fanned
             // out to two groups would be delivered twice to every destination.
             if (!dest || dest->group != grp || filterlevel > dest->maxlevel)
+                continue;
+
+            // Loop prevention: a record produced inside a log-owned callback stays on this
+            // machine. It still reaches every local destination, so whatever produced it is
+            // still diagnosable here.
+            if (dest->remote && rec->localonly)
                 continue;
 
             // Anything at or below where this destination's backfill reached has already been
@@ -98,6 +125,10 @@ int logGroupThread(Thread* self)
         //
         // The routing version is taken inside the lock so that a mover holding it knows every
         // batch dispatched after it releases uses the routing it published.
+        //
+        // The scope goes outside the lock so that everything a destination callback logs -- and
+        // everything the batch-done callbacks log -- is marked localonly; see _log_local_depth.
+        _logLocalPush();
         withMutex (&grp->dispatchlock) {
             // Take a reference to the current routing version for the whole batch. One atomic
             // load amortized over up to LOG_BATCH_SIZE entries buys a consistent view of the
@@ -138,6 +169,7 @@ int logGroupThread(Thread* self)
                 logNotifyBatch(&sent, batchid);
             }
         }
+        _logLocalPop();
 
         // no reference to the routing version is held past this point
         logDrainIdle(grp->drain);
@@ -167,12 +199,14 @@ int logGroupThread(Thread* self)
     }
 
     // one last pass so a window that was open at shutdown still says what it swallowed
+    _logLocalPush();
     withMutex (&grp->dispatchlock) {
         LogRouting* routing = logDrainEnter(grp->drain);
         saClear(&sent);
         logDedupFlush(grp, routing, &sent, true);
         logNotifyBatch(&sent, 0);
     }
+    _logLocalPop();
     logDrainIdle(grp->drain);
     logDedupDestroy(grp);
 

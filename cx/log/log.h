@@ -130,6 +130,13 @@ extern strref LogLevelAbbrev[];
 /// bare `**` sees none of it. Restriction changes permission, never reach.
 #define LOG_Restricted 0x00000002
 
+/// Channel policy was set here by logDeclareChan(), rather than inherited or merely named
+///
+/// A receiver of forwarded records uses this to decide whose policy wins: a channel this process
+/// declared for itself keeps its own flags, and one it only knows about because a remote instance
+/// mentioned it takes the sender's. Set automatically; never pass it to logDeclareChan().
+#define LOG_Declared 0x00000004
+
 /// Log channel for filtering and organizing log messages
 ///
 /// Channels are the routing key of the log system. They are named by a `/`-separated
@@ -319,6 +326,23 @@ typedef struct LogRecord {
     /// says so every time is noise.
     uint32 sample;
 
+    /// Instance this record was forwarded from, or NULL if it was logged in this process
+    ///
+    /// The channel path stays exactly what the sender logged it to, so a rule written for a
+    /// subsystem matches whether the record came from here or from somewhere else; this is the
+    /// field that says where "somewhere else" was.
+    strref origin;
+
+    /// How many instances this record has been forwarded through, 0 for a local one
+    uint8 hops;
+
+    /// True if this record must not leave the machine
+    ///
+    /// Set on anything logged inside withLogLocal(), and on everything a destination's own
+    /// callbacks log while they are running. A forwarder never receives one; local destinations
+    /// receive it normally, so the transport that produced it stays diagnosable.
+    bool localonly;
+
     LogRenderCache* _cache;   // internal: shared rendering, use logRecordRender()
 } LogRecord;
 
@@ -429,6 +453,49 @@ logRegisterDest(int maxlevel, _In_opt_ strref chanfilter, _In_ LogDestMsg msgfun
 ///   logDestAddFilter(dest, _SL("net/http/**"), true);   // ...but not the HTTP subtree
 /// @endcode
 bool logDestAddFilter(_In_ LogDest* dhandle, _In_ strref pattern, bool exclude);
+
+/// Replace a destination's channel filter
+///
+/// Clears every rule the destination has and installs this one. Takes effect from the next
+/// record; anything already queued for the destination is delivered under the old filter.
+///
+/// @param dhandle Destination handle
+/// @param pattern Channel path pattern (see logRegisterDest()), or NULL for every unrestricted
+///                channel
+/// @return false if the destination is not registered
+/// @code
+///   logDestSetFilter(dest, _SL("net/**"));
+/// @endcode
+bool logDestSetFilter(_In_ LogDest* dhandle, _In_opt_ strref pattern);
+
+/// Change the most verbose level a destination receives
+///
+/// @param dhandle Destination handle
+/// @param maxlevel Maximum log level to receive, or -1 to receive nothing
+/// @return false if the destination is not registered
+/// @code
+///   logDestSetLevel(dest, LOG_Debug);   // turn this one up at runtime
+/// @endcode
+bool logDestSetLevel(_In_ LogDest* dhandle, int maxlevel);
+
+/// Called once per channel by logEnumChans()
+///
+/// @param chan The channel
+/// @param ctx User context passed to logEnumChans()
+/// @return false to stop the walk
+typedef bool (*LogChanEnumCB)(_In_ LogChannel* chan, _In_opt_ void* ctx);
+
+/// Walk every channel this process has seen
+///
+/// The registry is what a program has actually named so far, which grows as call sites are first
+/// reached. A channel is permanent once used, so this never sees one disappear.
+///
+/// @param cb Called once per channel
+/// @param ctx Passed to the callback
+/// @code
+///   logEnumChans(printChannel, NULL);
+/// @endcode
+void logEnumChans(_In_ LogChanEnumCB cb, _In_opt_ void* ctx);
 
 /// Unregister a log destination
 ///

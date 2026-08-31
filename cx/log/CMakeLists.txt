@@ -6,7 +6,9 @@ set(LOG_SRCS
     log/logdedup.c
     log/logdest.c
     log/logfile.c
+    log/logforward.c
     log/loggroup.c
+    log/loginject.c
     log/logmembuf.c
     log/logndjson.c
     log/logpanic.c
@@ -19,18 +21,22 @@ set(LOG_SRCS
     log/logsnapshot.c
     log/logtext.c
     log/logvolume.c
-    log/logthread.c)
+    log/logthread.c
+    log/logwire.c)
 set(LOG_INCLUDES
     log/log.h
     log/logconsole.h
     log/logctx.h
     log/logfile.h
+    log/logforward.h
     log/loggroup.h
     log/logmembuf.h
     log/logring.h
     log/logserializer.h
     log/logvolume.h
-    log/log_private.h)
+    log/logwire.h
+    log/log_private.h
+    log/logwire_private.h)
 set(LOG_AUTOGEN
     log/logsnapshot.cxh)
 

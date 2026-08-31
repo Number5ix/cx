@@ -40,19 +40,58 @@ void logDestAddRuleLocked(_Inout_ LogDest* dest, _In_opt_ strref pattern, bool e
     rule->exclude  = exclude;
 }
 
+static void logDestFreeRuleList(_Inout_ LogFilterRule** rules, _Inout_ uint32* n)
+{
+    for (uint32 i = 0; i < *n; i++) {
+        strDestroy(&(*rules)[i].pattern);
+        saDestroy(&(*rules)[i].comps);
+    }
+    xaDestroy(rules);
+    *n = 0;
+}
+
 void logDestFreeRules(_Inout_ LogDest* dest)
 {
-    for (uint32 i = 0; i < dest->nrules; i++) {
-        strDestroy(&dest->rules[i].pattern);
-        saDestroy(&dest->rules[i].comps);
-    }
-    xaDestroy(&dest->rules);
-    dest->nrules = 0;
+    logDestFreeRuleList(&dest->rules, &dest->nrules);
+    logDestFreeRuleList(&dest->subrules, &dest->nsubrules);
 }
 
 _Use_decl_annotations_
-LogDest* logRegisterDest(int maxlevel, strref chanfilter, LogDestMsg msgfunc,
-                         LogDestBatchDone batchfunc, LogDestClose closefunc, void* userdata)
+void logDestSetSubRulesLocked(LogDest* dest, const sa_string* patterns)
+{
+    logDestFreeRuleList(&dest->subrules, &dest->nsubrules);
+
+    uint32 n = patterns ? saSize(*patterns) : 0;
+    for (uint32 i = 0; i < n; i++) {
+        if (strEmpty(patterns->a[i]))
+            continue;
+
+        xaResize(&dest->subrules, sizeof(LogFilterRule) * (dest->nsubrules + 1));
+        LogFilterRule* rule = &dest->subrules[dest->nsubrules++];
+
+        rule->pattern = 0;
+        strDup(&rule->pattern, patterns->a[i]);
+        logChanSplitPath(&rule->comps, patterns->a[i]);
+        rule->litdepth = logChanLitDepth(patterns->a[i]);
+        rule->exclude  = false;
+    }
+}
+
+// Is this handle a destination that is actually registered? A retired one is on its way to being
+// freed and its configuration is about to become irrelevant.
+static bool logDestLiveLocked(_In_ const LogDest* dhandle)
+{
+    for (int32 i = 0; i < saSize(_log_dests); i++) {
+        if (_log_dests.a[i] == dhandle)
+            return true;
+    }
+    return false;
+}
+
+static _Ret_opt_valid_ LogDest*
+logRegisterDestInternal(int maxlevel, _In_opt_ strref chanfilter, _In_ LogDestMsg msgfunc,
+                        _In_opt_ LogDestBatchDone batchfunc, _In_opt_ LogDestClose closefunc,
+                        _In_opt_ void* userdata, bool remote)
 {
     logCheckInit();
     if (!atomicLoad(bool, &_log_running, Acquire))
@@ -60,6 +99,11 @@ LogDest* logRegisterDest(int maxlevel, strref chanfilter, LogDestMsg msgfunc,
 
     LogDest* ndest = xaAlloc(sizeof(LogDest), XA_Zero);
 
+    // Loop prevention's first layer reads this during the bind below, so it has to be set before
+    // the destination is inserted rather than turned on afterwards: a forwarder that was briefly
+    // bound to cx/net would forward the transport's own chatter for exactly as long as that
+    // window lasted.
+    ndest->remote     = remote;
     ndest->maxlevel   = maxlevel;
     ndest->msgfunc    = msgfunc;
     ndest->batchfunc  = batchfunc;
@@ -86,6 +130,22 @@ LogDest* logRegisterDest(int maxlevel, strref chanfilter, LogDestMsg msgfunc,
 }
 
 _Use_decl_annotations_
+LogDest* logRegisterDest(int maxlevel, strref chanfilter, LogDestMsg msgfunc,
+                         LogDestBatchDone batchfunc, LogDestClose closefunc, void* userdata)
+{
+    return logRegisterDestInternal(maxlevel, chanfilter, msgfunc, batchfunc, closefunc, userdata,
+                                   false);
+}
+
+_Use_decl_annotations_
+LogDest* logRegisterRemoteDest(int maxlevel, strref chanfilter, LogDestMsg msgfunc,
+                               LogDestBatchDone batchfunc, LogDestClose closefunc, void* userdata)
+{
+    return logRegisterDestInternal(maxlevel, chanfilter, msgfunc, batchfunc, closefunc, userdata,
+                                   true);
+}
+
+_Use_decl_annotations_
 bool logDestAddFilter(LogDest* dhandle, strref pattern, bool exclude)
 {
     logCheckInit();
@@ -94,19 +154,81 @@ bool logDestAddFilter(LogDest* dhandle, strref pattern, bool exclude)
 
     bool ret = false;
     withMutex (&_log_op_lock) {
-        // only touch a destination that is actually registered; a retired handle is on its way
-        // to being freed and its rules are about to become irrelevant
-        for (int32 i = 0; i < saSize(_log_dests); i++) {
-            if (_log_dests.a[i] == dhandle) {
-                ret = true;
-                break;
-            }
-        }
+        ret = logDestLiveLocked(dhandle);
 
         if (ret) {
             logDestAddRuleLocked(dhandle, pattern, exclude);
             logRoutingPublish();
         }
+    }
+
+    return ret;
+}
+
+_Use_decl_annotations_
+bool logDestSetFilter(LogDest* dhandle, strref pattern)
+{
+    logCheckInit();
+    if (!atomicLoad(bool, &_log_running, Acquire) || !dhandle)
+        return false;
+
+    bool ret = false;
+    withMutex (&_log_op_lock) {
+        ret = logDestLiveLocked(dhandle);
+        if (!ret)
+            break;
+
+        // Only the local rule set; a subscription's rules are separate and are not disturbed by
+        // reconfiguring what this process is willing to offer.
+        for (uint32 i = 0; i < dhandle->nrules; i++) {
+            strDestroy(&dhandle->rules[i].pattern);
+            saDestroy(&dhandle->rules[i].comps);
+        }
+        xaDestroy(&dhandle->rules);
+        dhandle->nrules = 0;
+
+        logDestAddRuleLocked(dhandle, pattern, false);
+        logRoutingPublish();
+    }
+
+    return ret;
+}
+
+_Use_decl_annotations_
+bool logDestSetSubFilter(LogDest* dhandle, const sa_string* patterns)
+{
+    logCheckInit();
+    if (!atomicLoad(bool, &_log_running, Acquire) || !dhandle)
+        return false;
+
+    bool ret = false;
+    withMutex (&_log_op_lock) {
+        ret = logDestLiveLocked(dhandle);
+        if (!ret)
+            break;
+
+        logDestSetSubRulesLocked(dhandle, patterns);
+        logRoutingPublish();
+    }
+
+    return ret;
+}
+
+_Use_decl_annotations_
+bool logDestSetLevel(LogDest* dhandle, int maxlevel)
+{
+    logCheckInit();
+    if (!atomicLoad(bool, &_log_running, Acquire) || !dhandle)
+        return false;
+
+    bool ret = false;
+    withMutex (&_log_op_lock) {
+        ret = logDestLiveLocked(dhandle);
+        if (!ret)
+            break;
+
+        dhandle->maxlevel = maxlevel;
+        logRoutingPublish();
     }
 
     return ret;

@@ -77,6 +77,29 @@ CX_C_BEGIN
 // Internal; use withLogCtx()
 void _logCtxPush(int n, _In_ stvar* vars);
 
+/// void withLogLocal(void)
+///
+/// Runs the following block with everything logged on this thread kept on this machine
+///
+/// Records logged inside the block still reach every local destination, so whatever is running in
+/// there stays diagnosable; they simply never reach a destination that sends them elsewhere. Use
+/// it around the code that carries log traffic off the machine, so that a transport which logs
+/// about its own sends cannot feed itself.
+///
+/// The scope is popped when the block exits, including via `break` or `continue`. `return` is not
+/// allowed inside the block, as with every block-wrapping macro in cx.
+///
+/// @code
+///   withLogLocal() {
+///       sendToCollector(buf, len);
+///   }
+/// @endcode
+#define withLogLocal() blkWrap(_logLocalPush(), _logLocalPop())
+
+// Internal; use withLogLocal()
+void _logLocalPush(void);
+void _logLocalPop(void);
+
 /// Leave the innermost context on this thread
 ///
 /// Only needed when the enter/leave pair cannot be a block; prefer withLogCtx().

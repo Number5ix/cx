@@ -75,6 +75,23 @@ void _logCtxPush(int n, stvar* vars)
     _log_ctx = ctx;
 }
 
+_Use_decl_annotations_
+LogCtx* logCtxCreate(LogCtx* parent, int n, const stvar* vars)
+{
+    if (n < 0)
+        n = 0;
+
+    LogCtx* ctx = xaAlloc(sizeof(LogCtx) + sizeof(stvar) * (size_t)n, XA_Zero);
+    ctx->parent = logCtxAcquire(parent);
+    ctx->nvars  = (uint32)n;
+    atomicStore(uint32, &ctx->refs, 1, Relaxed);
+
+    for (int i = 0; i < n; i++)
+        stvarCopy(&ctx->vars[i], vars[i]);
+
+    return ctx;
+}
+
 void logCtxPop(void)
 {
     LogCtx* top = _log_ctx;

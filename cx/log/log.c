@@ -159,6 +159,12 @@ LogEntry* logEntryCreate(int level, int64 timestamp, LogChannel* chan, const Log
     ent->ctx       = logCtxAcquire(ctx);
     ent->nargs     = nargs;
     ent->trigger   = -1;   // not released from a ring; see logChanSetDebugRing()
+
+    // Loop prevention: an entry created inside a log-owned callback -- a destination's msgfunc,
+    // or a forwarder's call into an application transport -- must not go back out over a
+    // transport. Decided here rather than at dispatch because the scope only exists on the
+    // thread that logged it.
+    ent->localonly = logInLocalScope();
     strDup(&ent->msgtmpl, tmpl);
 
     if (nargs > 0) {
@@ -185,6 +191,9 @@ void logEntryToRecord(LogRecord* rec, const LogEntry* ent, uint32 batchid, LogRe
     rec->trigger   = ent->trigger;
     rec->batchid   = batchid;
     rec->sample    = ent->sample ? ent->sample : 1;
+    rec->origin    = strEmpty(ent->origin) ? NULL : ent->origin;
+    rec->hops      = ent->hops;
+    rec->localonly = ent->localonly;
     rec->_cache    = cache;
 }
 
@@ -192,6 +201,7 @@ static void logDestroyEnt(_In_ LogEntry* ent)
 {
     for (int i = 0; i < ent->nargs; i++) stvarDestroy(&ent->args[i]);
     logCtxRelease(&ent->ctx);
+    strDestroy(&ent->origin);
     strDestroy(&ent->msgtmpl);
     xaFree(ent);
 }
