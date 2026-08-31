@@ -88,6 +88,105 @@ _At_(*buf, _Pre_maybenull_ _Post_notnull_) void bufResize(_Inout_ Buffer* buf, s
 /// @return true if resize succeeded, false if allocation failed
 _At_(*buf, _Pre_maybenull_) bool bufTryResize(_Inout_ Buffer* buf, size_t newsize);
 
+/// size_t bufLen(Buffer buf)
+///
+/// Number of valid bytes in a buffer.
+///
+/// @param buf Buffer to measure; NULL counts as empty
+/// @return Length of the valid data
+_Pure _meta_inline size_t bufLen(_In_opt_ Buffer buf)
+{
+    return buf ? buf->len : 0;
+}
+
+/// void bufClear(Buffer buf)
+///
+/// Discards a buffer's contents without freeing its memory.
+///
+/// The allocation is kept, so a buffer used over and over as scratch space stops reallocating
+/// once it has grown to the size it needs.
+///
+/// @param buf Buffer to empty; NULL is ignored
+_meta_inline void bufClear(_Inout_opt_ Buffer buf)
+{
+    if (buf)
+        buf->len = 0;
+}
+
+/// uint8* bufReserve(Buffer* buf, size_t len)
+///
+/// Makes room for `len` more bytes and returns where to write them.
+///
+/// The buffer grows if it has to, and creates one if the pointer is NULL. The length is left
+/// alone, so add to it yourself once the bytes are written.
+///
+/// @param buf Pointer to buffer pointer to reserve space in (may be NULL)
+/// @param len Number of bytes to make room for
+/// @return Pointer to the first reserved byte
+///
+/// Example:
+/// @code
+///   uint8 *p = bufReserve(&buf, 4);
+///   memcpy(p, "abcd", 4);
+///   buf->len += 4;
+/// @endcode
+_At_(*buf, _Pre_maybenull_ _Post_notnull_) _Ret_notnull_ uint8* bufReserve(_Inout_ Buffer* buf,
+                                                                          size_t len);
+
+/// void bufAppendBytes(Buffer* buf, const void* data, size_t len)
+///
+/// Appends raw bytes to the end of a buffer.
+///
+/// The buffer grows if it has to, and creates one if the pointer is NULL.
+///
+/// @param buf Pointer to buffer pointer to append to (may be NULL)
+/// @param data Bytes to append
+/// @param len Number of bytes
+///
+/// Example:
+/// @code
+///   Buffer buf = 0;
+///   bufAppendBytes(&buf, "hello", 5);
+/// @endcode
+_At_(*buf, _Pre_maybenull_ _Post_notnull_) void bufAppendBytes(_Inout_ Buffer* buf,
+                                                               _In_reads_bytes_opt_(len)
+                                                                   const void* data,
+                                                               size_t len);
+
+/// void bufAppend(Buffer* buf, Buffer src)
+///
+/// Appends the contents of one buffer to another.
+///
+/// @param buf Pointer to buffer pointer to append to (may be NULL)
+/// @param src Buffer to copy the bytes from; NULL or empty appends nothing
+///
+/// Example:
+/// @code
+///   bufAppend(&dest, src);
+///   bufDestroy(&src);
+/// @endcode
+_At_(*buf, _Pre_maybenull_ _Post_notnull_) void bufAppend(_Inout_ Buffer* buf, _In_opt_ Buffer src);
+
+/// void bufAppendC(Buffer* buf, Buffer* src)
+///
+/// Appends one buffer to another and destroys the source.
+///
+/// The source is destroyed and its pointer set to NULL, so it must not be used again. When the
+/// destination is empty this hands its memory over instead of copying the bytes, which is what
+/// makes chaining these cheap.
+///
+/// @param buf Pointer to buffer pointer to append to (may be NULL)
+/// @param src Pointer to the buffer to append and destroy
+///
+/// Example:
+/// @code
+///   Buffer part = bufCreate(64);
+///   ...fill part...
+///   bufAppendC(&whole, &part);   // part is now NULL
+/// @endcode
+_At_(*buf, _Pre_maybenull_) _At_(*src, _Pre_maybenull_ _Post_null_) void
+bufAppendC(_Inout_ Buffer* buf, _Inout_ Buffer* src);
+
 /// void bufDestroy(Buffer* buf)
 ///
 /// Destroy a buffer and free its memory.
