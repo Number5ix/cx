@@ -283,9 +283,15 @@ static void epollPoll(_Inout_ NetQueueEpoll* self, int64 waitUs)
 
             if (w) {
                 netsocket_flushSend(sock, q);
+
                 // Level-triggered: drop EPOLLOUT once the backlog has drained, or epoll_wait would
-                // spin on a writable-but-idle socket forever.
-                armInterest(self, sock, true, netsocket_wantWrite(sock));
+                // spin on a writable-but-idle socket forever. The backlog is read again after the
+                // disarm, not only before it, otherwise a backlog could get stuck forever.
+                if (!netsocket_wantWrite(sock)) {
+                    armInterest(self, sock, true, false);
+                    if (netsocket_wantWrite(sock))
+                        armInterest(self, sock, true, true);
+                }
             }
         }
 
@@ -355,17 +361,17 @@ _objfactory_guaranteed NetQueueEpoll* NetQueueEpoll_create(NetQueueConfig* conf)
     NetQueue(self)->wake    = epollWake;
     NetQueue(self)->wakeCtx = self;
 
+    // The pump is needed to catch up on a backlog after the socket queue clears.
+    NetQueue(self)->sendPump = epollSendPump;
+    NetQueue(self)->sendCtx  = self;
+
     int32 nthreads = conf ? conf->nthreads : 0;
     if (nthreads > 0) {
         netqueue_startWorkers(self, nthreads);
         self->ingest = thrCreate(epollIngestThread, _S "CX Net Epoll", stvar(ptr, self));
 
-        if (!self->ingest) {
+        if (!self->ingest)
             netqueue_stopWorkers(self, timeForever);
-        } else {
-            NetQueue(self)->sendPump = epollSendPump;
-            NetQueue(self)->sendCtx  = self;
-        }
     }
 
     return self;

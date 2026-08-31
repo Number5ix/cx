@@ -3597,6 +3597,110 @@ static int test_nettest_iocp_accept_auto(void)
 
 #endif   // _PLATFORM_WIN
 
+#if defined(_PLATFORM_LINUX) || defined(_PLATFORM_FBSD)
+
+// Backpressure end to end on a readiness backend that keeps its interest list across calls, shared
+// by the epoll and kqueue suites. Takes ownership of `q`.
+//
+// The watermark logic itself is backend-independent and is already covered by the select and iocp
+// versions, but what arms write interest on a socket whose backlog just went non-empty is not.
+// select rebuilds its whole watch set from wantWrite() every pass, so it cannot forget; epoll and
+// kqueue change their interest lists only through the send pump, and a backend that fails to arm
+// still enforces the high watermark exactly as the first half of this test expects. It is the
+// second half that catches it: without write interest the socket is never flushed, never crosses
+// the low watermark, never fires NET_SendReady, and stops sending for the rest of its life.
+static int posixStreamBackpressure(NetQueue* q)
+{
+    int ret      = 0;
+    Recorder rec = { 0 };
+
+    static const NetHandlers handlers = { .sendReady = onSendReady };
+    netqueueSetHandlers(q, &handlers, &rec);
+
+    SOCKET listener = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    struct sockaddr_in la;
+    memset(&la, 0, sizeof(la));
+    la.sin_family      = AF_INET;
+    la.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    la.sin_port        = 0;
+    bind(listener, (struct sockaddr*)&la, sizeof(la));
+    listen(listener, 1);
+    int lalen = sizeof(la);
+    getsockname(listener, (struct sockaddr*)&la, &lalen);
+
+    SOCKET client = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    connect(client, (struct sockaddr*)&la, sizeof(la));
+    SOCKET server = accept(listener, NULL, NULL);
+    closesocket(listener);
+
+    if (server == INVALID_SOCKET) {
+        closesocket(client);
+        netqueueShutdown(q, 0);
+        objRelease(&q);
+        TEST_FAIL(1, _SL("could not accept a loopback connection"), stvNone);
+    }
+
+    // Shrink both ends so the OS stops accepting after a few KB, which is what lets the outbound
+    // chain accumulate to the watermark without moving megabytes of data.
+    int snd = 4096, rcv = 4096;
+    setsockopt(server, SOL_SOCKET, SO_SNDBUF, (const char*)&snd, sizeof(snd));
+    setsockopt(client, SOL_SOCKET, SO_RCVBUF, (const char*)&rcv, sizeof(rcv));
+    u_long nb = 1;
+    ioctlsocket(client, FIONBIO, &nb);   // so the drain below never blocks
+
+    NetSocket* ssock = NetSocket(netsocketposixWrap(server, NST_Stream, NS_Connected));
+    ssock->sendHigh  = 32768;
+    ssock->sendLow   = 4096;
+    netqueueAddSocket(q, ssock);
+
+    // Push fixed chunks, never reading on the peer, until a send is refused at the high watermark.
+    uint8 chunk[4096];
+    memset(chunk, 'x', sizeof(chunk));
+    int accepted = 0;
+    bool refused = false;
+    for (int i = 0; i < 2000; i++) {
+        if (!netsocketSend(ssock, chunk, sizeof(chunk), NULL, 0)) {
+            refused = true;
+            break;
+        }
+        accepted++;
+    }
+    if (!refused)
+        TEST_FAILV(ret,
+                   1,
+                   _SL("${int} chunks were all accepted: the high watermark is not being enforced"),
+                   stvar(int32, accepted));
+
+    // Now let it drain: keep reading everything the peer has while ticking, so the socket becomes
+    // writable, the chain flushes below the low watermark, and NET_SendReady fires on the flow.
+    char drain[8192];
+    for (int i = 0; i < 200 && rec.sendReadyCount == 0; i++) {
+        while (recv(client, drain, sizeof(drain), 0) > 0)
+            ;
+        netqueueTick(q, timeMS(50));
+    }
+    if (rec.sendReadyCount == 0)
+        TEST_FAILV(ret,
+                   1,
+                   _SL("the peer drained everything after ${int} accepted chunks but NET_SendReady "
+                       "never fired: nothing armed write interest on the backlog"),
+                   stvar(int32, accepted));
+    else if (!netsocketSend(ssock, chunk, sizeof(chunk), NULL, 0))
+        TEST_FAILV(ret,
+                   1,
+                   _SL("the socket refused a send after NET_SendReady said it was ready"),
+                   stvNone);
+
+    closesocket(client);
+    netsocketClose(ssock);
+    objRelease(&ssock);
+    netqueueShutdown(q, 0);
+    objRelease(&q);
+    return ret;
+}
+
+#endif   // _PLATFORM_LINUX || _PLATFORM_FBSD
+
 // ---------------------------------------------------------------------------------------------
 // epoll backend, Linux only
 //
@@ -3605,9 +3709,10 @@ static int test_nettest_iocp_accept_auto(void)
 // independent, so there is nothing epoll-specific to add there. udp/stream get their own tests,
 // as select and iocp do, since those exercise the backend's actual ingest loop; epoll_udp in
 // particular sends a burst bigger than NET_EPOLL_MMSG_BATCH so the recvmmsg batching path is
-// exercised, not just single-packet delivery. Send/backpressure are not duplicated a third time:
-// netsocketSend() and the watermark logic are the same backend-independent code already exercised
-// by the select_*_send/backpressure and iocp_*_send/backpressure tests.
+// exercised, not just single-packet delivery. Plain sends are not duplicated a third time --
+// netsocketSend() itself is backend-independent code the select_*_send and iocp_*_send tests
+// already cover -- but backpressure is, because arming write interest on a backlog is not: epoll
+// keeps its interest list across calls where select rebuilds one from scratch every pass.
 // ---------------------------------------------------------------------------------------------
 
 #if defined(_PLATFORM_LINUX)
@@ -3753,6 +3858,14 @@ static int test_nettest_epoll_stream(void)
     netqueueShutdown(q, 0);
     objRelease(&q);
     return ret;
+}
+
+static int test_nettest_epoll_stream_backpressure(void)
+{
+    NetQueue* q = makeEpollQueue(0);
+    if (!q)
+        TEST_FAIL(1, _SL("could not create an epoll queue"), stvNone);
+    return posixStreamBackpressure(q);
 }
 
 // Threaded: the queue's own ingest thread runs epoll_wait()/recvmmsg and hands packets to the
@@ -3948,7 +4061,9 @@ static int test_nettest_epoll_accept_auto(void)
 // are backend-independent. udp/stream get their own tests, as with the other backends, since those
 // exercise the backend's actual ingest loop. There is no recvmmsg equivalent on FreeBSD, so unlike
 // epoll_udp there is nothing batch-specific to stress here; kqueue's win over select is O(1)
-// readiness reporting, not batched ingest.
+// readiness reporting, not batched ingest. Backpressure gets its own test for the same reason epoll
+// does: kqueue keeps its registrations across calls, so arming write interest on a backlog is
+// backend-specific even though the watermark logic above it is not.
 // ---------------------------------------------------------------------------------------------
 
 #if defined(_PLATFORM_FBSD)
@@ -4089,6 +4204,14 @@ static int test_nettest_kqueue_stream(void)
     netqueueShutdown(q, 0);
     objRelease(&q);
     return ret;
+}
+
+static int test_nettest_kqueue_stream_backpressure(void)
+{
+    NetQueue* q = makeKqueueQueue(0);
+    if (!q)
+        TEST_FAIL(1, _SL("could not create a kqueue queue"), stvNone);
+    return posixStreamBackpressure(q);
 }
 
 // Threaded: the queue's own ingest thread runs kevent()/recvfrom and hands packets to the dispatch
@@ -4337,6 +4460,7 @@ testfunc nettest_funcs[] = {
 #if defined(_PLATFORM_LINUX)
     { "epoll_udp",                  test_nettest_epoll_udp                  },
     { "epoll_stream",               test_nettest_epoll_stream               },
+    { "epoll_stream_backpressure",  test_nettest_epoll_stream_backpressure  },
     { "epoll_udp_threaded",         test_nettest_epoll_udp_threaded         },
     { "epoll_stream_threaded",      test_nettest_epoll_stream_threaded      },
     { "epoll_connect",              test_nettest_epoll_connect              },
@@ -4349,6 +4473,7 @@ testfunc nettest_funcs[] = {
 #if defined(_PLATFORM_FBSD)
     { "kqueue_udp",                 test_nettest_kqueue_udp                 },
     { "kqueue_stream",              test_nettest_kqueue_stream              },
+    { "kqueue_stream_backpressure", test_nettest_kqueue_stream_backpressure },
     { "kqueue_udp_threaded",        test_nettest_kqueue_udp_threaded        },
     { "kqueue_stream_threaded",     test_nettest_kqueue_stream_threaded     },
     { "kqueue_connect",             test_nettest_kqueue_connect             },

@@ -93,8 +93,10 @@ _objfactory_guaranteed NetQueueSelect* NetQueueSelect_create(NetQueueConfig* con
             netqueue_stopWorkers(self, timeForever);
         } else {
             // Let the send path wake the ingest thread when it queues outbound data, so write
-            // interest is picked up promptly. Polled mode leaves this NULL -- tick() rebuilds the
-            // set on every call anyway.
+            // interest is picked up promptly. Polled mode leaves this NULL, and only this backend
+            // can: selectPoll() rebuilds the whole watch set from wantWrite() on every call, so
+            // the hook is a latency optimization here rather than the thing that arms write
+            // interest.
             NetQueue(self)->sendPump = selectSendPump;
             NetQueue(self)->sendCtx  = self;
         }

@@ -264,9 +264,16 @@ static void kqueuePoll(_Inout_ NetQueueKqueue* self, int64 waitUs)
 
             if (w) {
                 netsocket_flushSend(sock, q);
+
                 // Level-triggered (no EV_CLEAR): drop the write filter once the backlog has drained,
-                // or the next kevent() would spin on a writable-but-idle socket forever.
-                armInterest(self, sock, true, netsocket_wantWrite(sock));
+                // or the next kevent() would spin on a writable-but-idle socket forever. The backlog
+                // is read again after the disarm, not only before it, otherwise a backlog could get
+                // stuck forever.
+                if (!netsocket_wantWrite(sock)) {
+                    armInterest(self, sock, true, false);
+                    if (netsocket_wantWrite(sock))
+                        armInterest(self, sock, true, true);
+                }
             }
         }
 
@@ -334,17 +341,17 @@ _objfactory_guaranteed NetQueueKqueue* NetQueueKqueue_create(NetQueueConfig* con
     NetQueue(self)->wake    = kqueueWake;
     NetQueue(self)->wakeCtx = self;
 
+    // The pump is needed to catch up on a backlog after the socket queue clears.
+    NetQueue(self)->sendPump = kqueueSendPump;
+    NetQueue(self)->sendCtx  = self;
+
     int32 nthreads = conf ? conf->nthreads : 0;
     if (nthreads > 0) {
         netqueue_startWorkers(self, nthreads);
         self->ingest = thrCreate(kqueueIngestThread, _S "CX Net Kqueue", stvar(ptr, self));
 
-        if (!self->ingest) {
+        if (!self->ingest)
             netqueue_stopWorkers(self, timeForever);
-        } else {
-            NetQueue(self)->sendPump = kqueueSendPump;
-            NetQueue(self)->sendCtx  = self;
-        }
     }
 
     return self;

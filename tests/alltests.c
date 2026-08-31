@@ -342,6 +342,7 @@ static const testspec tests[] = {
 #if defined(_PLATFORM_LINUX)
     { "netepoll: Datagram Loopback", "nettest", "epoll_udp" },
     { "netepoll: Stream Loopback", "nettest", "epoll_stream" },
+    { "netepoll: Stream Backpressure", "nettest", "epoll_stream_backpressure" },
     { "netepoll: Threaded Datagram Loopback", "nettest", "epoll_udp_threaded" },
     { "netepoll: Threaded Stream Loopback", "nettest", "epoll_stream_threaded" },
     { "netepoll: Connect", "nettest", "epoll_connect" },
@@ -354,6 +355,7 @@ static const testspec tests[] = {
 #if defined(_PLATFORM_FBSD)
     { "netkqueue: Datagram Loopback", "nettest", "kqueue_udp" },
     { "netkqueue: Stream Loopback", "nettest", "kqueue_stream" },
+    { "netkqueue: Stream Backpressure", "nettest", "kqueue_stream_backpressure" },
     { "netkqueue: Threaded Datagram Loopback", "nettest", "kqueue_udp_threaded" },
     { "netkqueue: Threaded Stream Loopback", "nettest", "kqueue_stream_threaded" },
     { "netkqueue: Connect", "nettest", "kqueue_connect" },
