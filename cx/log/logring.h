@@ -58,7 +58,12 @@ CX_C_BEGIN
 /// of it are not delivered to it a second time, whether they came from the ring or were still
 /// waiting in a queue. Records logged before the window opened, or too verbose for it to have
 /// retained, are dropped for that destination rather than arriving out of order ahead of the
-/// backfill.
+/// backfill. A destination the ring had nothing for is left alone, starting wherever it would have
+/// without a window open.
+///
+/// A forwarder is the exception to "registered": it has no level until a receiver subscribes, so
+/// there's nothing to backfill at registration -- it gets the ring when the subscription arrives
+/// instead.
 ///
 /// @param maxlevel Most verbose level to retain, e.g. LOG_Verbose
 /// @param maxentries Entries to retain, or 0 for LOG_BOOT_DEFAULT_ENTRIES

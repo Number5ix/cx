@@ -21,8 +21,12 @@
 // stream, and there is no framing that survives that. `send` is expected not to block -- it
 // returns false instead -- so holding the lock across it costs a queue push, not an I/O wait.
 //
-// The lock is never taken while _log_op_lock is held, and this file takes _log_op_lock only in
-// logforwardRegister/Unregister, which no log call can reach.
+// Lock order: cfglock, _log_op_lock, the drain group's dispatch lock, then this one. Subscribing
+// (logDestSubscribe) backfills the boot ring into logForwardMsg() from under the middle two, so
+// fwd->lock can never be held across a destination reconfiguration -- that takes _log_op_lock, and
+// holding both in that order too would close a cycle. That is why silencing a lapsed subscription
+// is split in two -- forwarder state under the lock, destination routing once it's released -- with
+// cfglock serializing the two halves against a concurrent subscription.
 
 STR_CONST(kForwardGroup, "remote");
 
@@ -50,6 +54,11 @@ struct LogSpoolSeg {
 
 typedef struct LogForwarder {
     Mutex lock;
+
+    // Serializes applying a subscription against tearing a lapsed one down. Held across the whole
+    // of either operation, never by a drain thread, and always acquired before any other lock here.
+    Mutex cfglock;
+
     LogDest* dest;
     const LogForwardHandlers* handlers;
     void* ctx;
@@ -87,22 +96,45 @@ typedef struct LogForwarder {
     LogForwardStats stats;
 } LogForwarder;
 
-// Puts the destination back to receiving nothing. Nothing is sent until a subscription arrives:
-// there is no locally configured "forward everything to host X", so silence is the resting state
-// rather than a mode.
+// Puts the forwarder back to sending nothing. There is no locally configured "forward everything
+// to host X", so silence is the resting state rather than a mode.
 //
-// Reconfiguring a destination takes _log_op_lock, so this may only be called from an application
-// thread. See fwdReapLocked() for the drain-thread half.
-static void fwdSilenceLocked(_Inout_ LogForwarder* fwd)
+// This is only the forwarder's half; fwdSilenceRoutingLocked() is the destination's, and the two
+// are separate because of the lock order described at the top of the file.
+static void fwdSilenceStateLocked(_Inout_ LogForwarder* fwd)
 {
     fwd->subscribed = false;
     fwd->lapsed     = false;
     fwd->expiry     = 0;
+}
+
+// The destination's half of going silent. With no level it drops out of the channel masks
+// altogether, so records stop being queued to the remote group instead of being queued and then
+// discarded.
+//
+// Called with cfglock held and fwd->lock released.
+static void fwdSilenceRoutingLocked(_Inout_ LogForwarder* fwd)
+{
     logDestSetSubFilter(fwd->dest, NULL);
     logDestSetLevel(fwd->dest, -1);
 }
 
-// Finishes tearing down a subscription that ran out while the drain thread was delivering.
+// Finishes a reap by dropping the routing, unless a subscription arrived in the meantime.
+static void fwdReapRouting(_Inout_ LogForwarder* fwd)
+{
+    withMutex (&fwd->cfglock) {
+        bool live = false;
+        withMutex (&fwd->lock) {
+            live = fwd->subscribed;
+        }
+
+        if (!live)
+            fwdSilenceRoutingLocked(fwd);
+    }
+}
+
+// Notices a subscription that ran out while the drain thread was delivering, and reports whether
+// the caller still owes it a fwdReapRouting().
 //
 // The expiry itself is noticed on the drain thread, which may only mark it: a drain thread runs
 // its destinations' callbacks with the group's dispatch lock held, and nothing holding a dispatch
@@ -110,10 +142,13 @@ static void fwdSilenceLocked(_Inout_ LogForwarder* fwd)
 // the configuration lock from a msgfunc would deadlock against a concurrent move. So the records
 // stop immediately and the routing catches up on the next call from an application thread, which
 // for any live transport is the next resume or the next byte from its receiver.
-static void fwdReapLocked(_Inout_ LogForwarder* fwd)
+static bool fwdReapLocked(_Inout_ LogForwarder* fwd)
 {
-    if (fwd->lapsed)
-        fwdSilenceLocked(fwd);
+    if (!fwd->lapsed)
+        return false;
+
+    fwdSilenceStateLocked(fwd);
+    return true;
 }
 
 // ---------------------------------------------------------------------------------------
@@ -335,6 +370,7 @@ static void logForwardClose(_In_opt_ void* userdata)
     logWireEncoderDestroy(&fwd->enc);
     bufDestroy(&fwd->scratch);
     strDestroy(&fwd->origin);
+    mutexDestroy(&fwd->cfglock);
     mutexDestroy(&fwd->lock);
     xaFree(fwd);
 }
@@ -353,6 +389,7 @@ LogForwarder* logforwardRegister(int maxlevel, strref chanfilter,
 
     LogForwarder* fwd = xaAllocStruct(LogForwarder, XA_Zero);
     mutexInit(&fwd->lock);
+    mutexInit(&fwd->cfglock);
     fwd->handlers  = handlers;
     fwd->ctx       = ctx;
     fwd->connected = true;
@@ -409,18 +446,25 @@ void logforwardUnregister(LogForwarder* fwd)
 _Use_decl_annotations_
 void logForwardResume(LogForwarder* fwd)
 {
+    bool reap = false;
+
     withMutex (&fwd->lock) {
-        fwdReapLocked(fwd);
+        reap         = fwdReapLocked(fwd);
         fwd->refused = false;
         fwdDrainLocked(fwd);
     }
+
+    if (reap)
+        fwdReapRouting(fwd);
 }
 
 _Use_decl_annotations_
 void logForwardDisconnected(LogForwarder* fwd)
 {
+    bool reap = false;
+
     withMutex (&fwd->lock) {
-        fwdReapLocked(fwd);
+        reap = fwdReapLocked(fwd);
         if (!fwd->connected)
             break;
         fwd->connected = false;
@@ -430,13 +474,18 @@ void logForwardDisconnected(LogForwarder* fwd)
         // stand on its own rather than continue a segment nobody will see the front of.
         spoolNewSegLocked(fwd);
     }
+
+    if (reap)
+        fwdReapRouting(fwd);
 }
 
 _Use_decl_annotations_
 void logForwardConnected(LogForwarder* fwd)
 {
+    bool reap = false;
+
     withMutex (&fwd->lock) {
-        fwdReapLocked(fwd);
+        reap = fwdReapLocked(fwd);
 
         // A new connection means a new decoder at the far end, so the backfill has to start at a
         // segment boundary. The spool is already cut into segments; this only closes the one that
@@ -448,15 +497,19 @@ void logForwardConnected(LogForwarder* fwd)
         fwd->refused   = false;
         fwdDrainLocked(fwd);
     }
+
+    if (reap)
+        fwdReapRouting(fwd);
 }
 
 _Use_decl_annotations_
 bool logForwardTake(LogForwarder* fwd, Buffer* out)
 {
-    bool ret = false;
+    bool ret  = false;
+    bool reap = false;
 
     withMutex (&fwd->lock) {
-        fwdReapLocked(fwd);
+        reap = fwdReapLocked(fwd);
 
         // The segment still being appended to is closed first, so a caller draining to empty gets
         // everything rather than everything but the newest records.
@@ -486,34 +539,54 @@ bool logForwardTake(LogForwarder* fwd, Buffer* out)
         }
     }
 
+    if (reap)
+        fwdReapRouting(fwd);
+
     return ret;
 }
 
 _Use_decl_annotations_
 bool logForwardApplySub(LogForwarder* fwd, const LogSubSpec* spec)
 {
-    bool ret = false;
+    if (!spec) {
+        withMutex (&fwd->cfglock) {
+            withMutex (&fwd->lock) {
+                fwdSilenceStateLocked(fwd);
+            }
+            fwdSilenceRoutingLocked(fwd);
+        }
+        return true;
+    }
 
-    withMutex (&fwd->lock) {
-        if (!spec) {
-            fwdSilenceLocked(fwd);
-            ret = true;
-            break;
+    bool ret = false;
+    withMutex (&fwd->cfglock) {
+        int level = 0;
+        withMutex (&fwd->lock) {
+            // Clamped, never trusted: a receiver asking for Trace on a forwarder registered at
+            // Info gets Info. The channel patterns are a second rule set the local filter is ANDed
+            // with, so a subscription can only ever narrow what registration already allowed.
+            level = spec->maxlevel;
+            if (level > fwd->ceiling)
+                level = fwd->ceiling;
+
+            // Armed before the destination is reconfigured, because the backfill that comes with
+            // the reconfiguration arrives through logForwardMsg() and would be discarded there as
+            // unsubscribed otherwise. Nothing else reaches the forwarder in between: the
+            // destination still has no level, so it is not in any channel's mask yet.
+            fwd->subscribed = true;
+            fwd->lapsed     = false;
+            fwd->expiry     = spec->expiry;
         }
 
-        // Clamped, never trusted: a receiver asking for Trace on a forwarder registered at Info
-        // gets Info. The channel patterns are a second rule set the local filter is ANDed with,
-        // so a subscription can only ever narrow what registration already allowed.
-        int level = spec->maxlevel;
-        if (level > fwd->ceiling)
-            level = fwd->ceiling;
-
-        logDestSetSubFilter(fwd->dest, &spec->patterns);
-        ret = logDestSetLevel(fwd->dest, level);
-
-        fwd->subscribed = ret;
-        fwd->lapsed     = false;
-        fwd->expiry     = spec->expiry;
+        // Filter, level and boot-window backfill in one step. Registration cannot do the backfill
+        // for a forwarder -- it registers at -1 and takes nothing from the ring -- and startup
+        // traffic is exactly what a receiver subscribing a moment later is missing.
+        ret = logDestSubscribe(fwd->dest, &spec->patterns, level);
+        if (!ret) {
+            withMutex (&fwd->lock) {
+                fwdSilenceStateLocked(fwd);
+            }
+        }
     }
 
     return ret;
@@ -540,9 +613,14 @@ static bool fwdControlFrame(const LogWireFrame* frame, void* ctx)
 _Use_decl_annotations_
 bool logForwardRecv(LogForwarder* fwd, const uint8* buf, size_t len)
 {
+    bool reap = false;
+
     withMutex (&fwd->lock) {
-        fwdReapLocked(fwd);
+        reap = fwdReapLocked(fwd);
     }
+
+    if (reap)
+        fwdReapRouting(fwd);
 
     if (!fwd->ctldec)
         fwd->ctldec = logWireDecoderCreate();

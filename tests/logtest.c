@@ -3180,6 +3180,85 @@ static bool catTestCB(const LogWireFrame* frame, void* ctx)
     return true;
 }
 
+// A forwarder registers long before anybody subscribes, which is the case the boot window was
+// written for: startup traffic has to survive until a receiver arrives and asks for it, and has to
+// arrive exactly once when it does.
+static int test_log_forwardboot(void)
+{
+    int ret = 0;
+    FwdTestData fd;
+    fwdTestInit(&fd);
+
+    LogChannel* chan = logChan(_SL("fwdboot/app"));
+
+    // No deadline: what this is testing is that the wait for a subscriber is unbounded.
+    logBootWindowBegin(LOG_Verbose, 0, 0, -1);
+
+    logStrC(Info, chan, _S "before the forwarder existed");
+
+    LogForwarder* fwd =
+        logforwardRegister(LOG_Info, _SL("fwdboot/**"), &kFwdTestHandlers, &fd, NULL);
+    if (!fwd) {
+        TEST_FAILV_LOG(ret, 1, _SL("logforwardRegister returned NULL"), stvNone);
+        logBootWindowEnd();
+        fwdTestDestroy(&fd);
+        return ret;
+    }
+
+    logStrC(Info, chan, _S "registered but unsubscribed");
+    logFlush();
+
+    // Registration replays the ring into every destination, and a forwarder is registered with no
+    // level, so it takes none of it. What it must not do is come away marked as having been
+    // backfilled: that would suppress the very records the subscription below asks for.
+    if (fd.nsend != 0)
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("an unsubscribed forwarder sent ${int} times"),
+                       stvar(int32, fd.nsend));
+
+    fwdSubscribe(fwd, LOG_Info, NULL);
+
+    logStrC(Info, chan, _S "after subscribing");
+    logFlush();
+    logBootWindowEnd();
+
+    WireTestData wd     = { 0 };
+    LogWireDecoder* dec = logWireDecoderCreate();
+    if (!wireFeed(dec, fd.sink, wireTestCB, &wd))
+        TEST_FAILV_LOG(ret, 1, _SL("forwarded bytes did not decode"), stvNone);
+
+    // Both boot records backfilled, the live one delivered normally, and none of the three twice:
+    // an entry can sit in the ring and in a queue at once, which is what the backfill watermark
+    // exists to settle.
+    if (wd.nentry != 3)
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("decoded ${int} entries, want 3"),
+                       stvar(int32, wd.nentry));
+    if (!strEq(wd.chanpath, _SL("fwdboot/app")))
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("chanpath=${string} != 'fwdboot/app'"),
+                       stvar(strref, wd.chanpath));
+    logWireDecoderDestroy(&dec);
+
+    // A second subscription while the window is still shut must not replay anything again.
+    fwdSubscribe(fwd, LOG_Info, NULL);
+    logFlush();
+
+    LogForwardStats st;
+    logForwardStats(fwd, &st);
+    if (st.sent != 3)
+        TEST_FAILV_LOG(ret, 1, _SL("sent=${uint}, want 3"), stvar(uint64, st.sent));
+
+    logforwardUnregister(fwd);
+    logFlush();
+    wireTestClear(&wd);
+    fwdTestDestroy(&fd);
+    return ret;
+}
+
 static int test_log_subscribe(void)
 {
     int ret = 0;
@@ -3461,6 +3540,7 @@ testfunc logtest_funcs[] = {
     { "forwardgroup",  test_log_forwardgroup  },
     { "forwardloop",   test_log_forwardloop   },
     { "forwardloopasync", test_log_forwardloopasync },
+    { "forwardboot",   test_log_forwardboot   },
     { "subscribe",     test_log_subscribe     },
     { "catalog",       test_log_catalog       },
     { "destfilter",    test_log_destfilter    },

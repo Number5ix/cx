@@ -124,8 +124,14 @@ static int32 logRoutingChanRow(_In_ LogRouting* routing, _In_ LogChannel* chan,
     bool transport = logChanIsTransport(chan);
 
     for (uint32 i = 0; i < routing->ndest; i++) {
+        // A destination that wants nothing is left out of the row rather than given a level
+        // nothing passes. Dispatch applies the same test, so the mask bit alone would reach no
+        // one -- but its group bit would still cost a queue node, a refcount and a drain thread
+        // wakeup on every record some other destination wanted on this channel. That's what an
+        // unsubscribed forwarder costs if it stays in the mask.
         LogDest* dest = routing->dests[i];
-        if (!dest || (transport && dest->remote) || !logChanRuleMatchComps(dest, chan, &comps))
+        if (!dest || dest->maxlevel < 0 || (transport && dest->remote) ||
+            !logChanRuleMatchComps(dest, chan, &comps))
             continue;
 
         row[i / 64] |= (uint64)1 << (i % 64);

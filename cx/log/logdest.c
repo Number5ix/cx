@@ -215,6 +215,39 @@ bool logDestSetSubFilter(LogDest* dhandle, const sa_string* patterns)
 }
 
 _Use_decl_annotations_
+bool logDestSubscribe(LogDest* dhandle, const sa_string* patterns, int maxlevel)
+{
+    logCheckInit();
+    if (!atomicLoad(bool, &_log_running, Acquire) || !dhandle)
+        return false;
+
+    mutexAcquire(&_log_op_lock);
+    if (!logDestLiveLocked(dhandle)) {
+        mutexRelease(&_log_op_lock);
+        return false;
+    }
+
+    // Acquire dispatch lock before replay: only this group's drain thread delivers here.
+    // Lock order: _log_op_lock > dispatchlock (as established in logDestSetGroup).
+    LogGroup* grp = dhandle->group;
+    mutexAcquire(&grp->dispatchlock);
+
+    // Publish rules before replay: keeps records queued instead of dropped during backfill.
+    logDestSetSubRulesLocked(dhandle, patterns);
+    dhandle->maxlevel = maxlevel;
+    logRoutingPublish();
+
+    // Release _log_op_lock before replay (callbacks may log, requiring this lock).
+    // Dispatch lock held across replay.
+    mutexRelease(&_log_op_lock);
+
+    logRingReplay(dhandle);
+
+    mutexRelease(&grp->dispatchlock);
+    return true;
+}
+
+_Use_decl_annotations_
 bool logDestSetLevel(LogDest* dhandle, int maxlevel)
 {
     logCheckInit();

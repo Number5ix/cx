@@ -424,3 +424,7 @@ void logDestFreeRules(_Inout_ LogDest* dest);
 void logDestSetSubRulesLocked(_Inout_ LogDest* dest, _In_opt_ const sa_string* patterns);
 // Same, taking the configuration lock and republishing. NULL or an empty list clears the set.
 bool logDestSetSubFilter(_In_ LogDest* dhandle, _In_opt_ const sa_string* patterns);
+// Applies a subscription's rule set and level in one step, and backfills the destination from the
+// boot ring if a window is still open. Caller must hold no locks that the destination group may
+// need.
+bool logDestSubscribe(_In_ LogDest* dhandle, _In_opt_ const sa_string* patterns, int maxlevel);

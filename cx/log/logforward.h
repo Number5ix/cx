@@ -70,6 +70,11 @@
 /// subscribed to at Debug starts producing records that were compiled in but dormant. That is
 /// fleet-wide verbosity control per subsystem, at runtime, paid for only where somebody is
 /// listening.
+///
+/// If a boot window (logBootWindowBegin()) is still open when the first subscription arrives, what
+/// it retained is sent ahead of any live record, so a receiver that connects during startup still
+/// gets the startup traffic that preceded it. Give the window no deadline if the wait might be
+/// longer than the default one.
 
 #include <cx/log/log.h>
 #include <cx/log/logwire.h>

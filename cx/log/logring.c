@@ -512,24 +512,33 @@ void logRingReplay(LogDest* dest)
     if (n == 0)
         return;
 
-    // The destination is not published yet, so nothing else can be delivering to it and no lock
-    // is needed to keep the two apart -- the backfill runs entirely on the registering thread,
-    // ahead of anything live, and excludes no one.
+    // Nothing may be delivering to the destination while this runs. At registration that is free,
+    // because the destination is still private to the registering thread; on the subscribe path it
+    // is what logDestSubscribe() holds the drain group's dispatch lock for.
     uint32 batchid = 0;
     bool any       = false;
 
     // How far this backfill reaches, over the whole snapshot rather than only the entries that
     // survived the filter: an entry the filter rejected here is rejected on the live path too, so
     // covering it costs nothing and leaves no gap between the two rules.
-    for (uint32 i = 0; i < n; i++) {
-        if (!dest->backfilled || logSeqBefore(dest->backfillseq, ents[i]->seq)) {
-            dest->backfillseq = ents[i]->seq;
-            dest->backfilled  = true;
-        }
+    uint64 hwm = ents[0]->seq;
+    for (uint32 i = 1; i < n; i++) {
+        if (logSeqBefore(hwm, ents[i]->seq))
+            hwm = ents[i]->seq;
     }
 
     for (uint32 i = 0; i < n; i++) {
         LogEntry* ent = ents[i];
+
+        // A destination can be replayed more than once -- a forwarder is, since its filter is -1
+        // until a receiver subscribes and the ring is still open when one does. The watermark
+        // bounds a repeat replay the same way it bounds the live queue: an entry the earlier
+        // filter rejected but this one would accept falls below it and stays undelivered. That
+        // loses a little rather than duplicating, keeping "the backfill defines where this
+        // destination's log starts" true even when the filter widens.
+        if (dest->backfilled && !logSeqBefore(dest->backfillseq, ent->seq))
+            continue;
+
         if (ent->level > dest->maxlevel || !logChanRuleMatch(dest, ent->chan))
             continue;
 
@@ -545,6 +554,15 @@ void logRingReplay(LogDest* dest)
 
     if (any && dest->batchfunc)
         dest->batchfunc(batchid, dest->userdata);
+
+    // Only a destination that actually received something has a history for the watermark to be
+    // the start of. A replay that delivered nothing must not leave the destination claiming it has
+    // already seen the window: a forwarder registers at level -1 and takes none of the ring, and a
+    // watermark recorded there would suppress the very records it subscribes for a moment later.
+    if (any && (!dest->backfilled || logSeqBefore(dest->backfillseq, hwm))) {
+        dest->backfillseq = hwm;
+        dest->backfilled  = true;
+    }
 
     logRingFreeTaken(ents, n);
 }

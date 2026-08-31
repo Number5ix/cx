@@ -98,6 +98,7 @@ static const testspec tests[] = {
     { "log: Forwarder drain group", "logtest", "forwardgroup" },
     { "log: Forward loop prevention", "logtest", "forwardloop" },
     { "log: Forward loop prevention, async transport", "logtest", "forwardloopasync" },
+    { "log: Forward boot window backfill", "logtest", "forwardboot" },
     { "log: Subscription", "logtest", "subscribe" },
     { "log: Channel catalog", "logtest", "catalog" },
     { "log: Destination filter and level changes", "logtest", "destfilter" },
