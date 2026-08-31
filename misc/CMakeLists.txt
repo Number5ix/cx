@@ -18,6 +18,15 @@ if(CX_STANDALONE)
     add_executable(condemo condemo.c)
     target_link_libraries(condemo cx)
     set_property(TARGET condemo PROPERTY FOLDER "tests")
+
+    source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES
+        logfwddemo.c)
+
+    # cx/net is part of core cx, so this needs no build option of its own -- unlike tlsdemo and
+    # httpdemo, which depend on components that can be switched off.
+    add_executable(logfwddemo logfwddemo.c)
+    target_link_libraries(logfwddemo cx)
+    set_property(TARGET logfwddemo PROPERTY FOLDER "tests")
 endif()
 
 include (${CX_TOP_SOURCE_DIR}/cmake/werror.cmake)

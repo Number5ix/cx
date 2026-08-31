@@ -1,4 +1,6 @@
+#include <cx/buffer.h>
 #include <cx/console.h>
+#include <cx/format.h>
 #include <cx/log.h>
 #include <cx/obj.h>
 #include <cx/platform/os.h>
@@ -2114,6 +2116,1320 @@ static int test_log_debugring()
     return ret;
 }
 
+// ---------------------------------------------------------------------------------------
+// Wire codec
+// ---------------------------------------------------------------------------------------
+
+// Frame kinds counted straight out of the byte stream, so a test asserting "one segment" is
+// reading the framing rather than trusting the encoder to say so.
+static bool wireNextFrame(const uint8* buf, size_t len, size_t* pos, uint64* kind, size_t* bodyoff,
+                          uint64* bodylen)
+{
+    uint64 v[2];
+    size_t p = *pos;
+
+    for (int f = 0; f < 2; f++) {
+        uint64 acc = 0;
+        int shift  = 0;
+        for (;;) {
+            if (p >= len || shift > 63)
+                return false;
+            uint8 b = buf[p++];
+            acc |= (uint64)(b & 0x7f) << shift;
+            shift += 7;
+            if (!(b & 0x80))
+                break;
+        }
+        v[f] = acc;
+    }
+
+    if (len - p < v[1])
+        return false;
+
+    *kind    = v[0];
+    *bodyoff = p;
+    *bodylen = v[1];
+    *pos     = p + (size_t)v[1];
+    return true;
+}
+
+static int wireCountKind(Buffer frames, uint64 want)
+{
+    int n      = 0;
+    size_t pos = 0;
+    uint64 kind, blen;
+    size_t boff;
+    while (wireNextFrame(frames->data, frames->len, &pos, &kind, &boff, &blen)) {
+        if (kind == want)
+            n++;
+    }
+
+    return n;
+}
+
+typedef struct WireTestData {
+    int nentry;
+    int ngap;
+    int nother;
+    LogWireGap gap;
+
+    // a snapshot of the last record to arrive
+    int level;
+    int64 timestamp;
+    uint64 seq;
+    uint32 sample;
+    int trigger;
+    uint8 hops;
+    bool istmpl;
+    int nargs;
+    int nctx;
+    string chanpath;
+    string origin;
+    string tmpl;
+    string rendered;
+} WireTestData;
+
+static void wireTestClear(WireTestData* wd)
+{
+    strDestroy(&wd->chanpath);
+    strDestroy(&wd->origin);
+    strDestroy(&wd->tmpl);
+    strDestroy(&wd->rendered);
+    memset(wd, 0, sizeof(*wd));
+}
+
+// Renders a decoded record the way logRecordRender() renders a live one, so the assertion is that
+// the record still says what it said rather than that some particular field survived.
+static void wireRender(string* out, const LogWireRecord* rec)
+{
+    strClear(out);
+    if (!rec->istmpl) {
+        strDup(out, rec->msgtmpl);
+        return;
+    }
+
+    int total   = rec->nargs + rec->nctx;
+    stvar* args = (total > 0) ? xaAlloc(sizeof(stvar) * (size_t)total) : NULL;
+    int n       = 0;
+    for (int i = 0; i < rec->nargs; i++) args[n++] = rec->args[i];
+    for (int i = 0; i < rec->nctx; i++) args[n++] = rec->ctx[i];
+
+    _strFormat(out, rec->msgtmpl, n, args);
+    xaFree(args);
+}
+
+static bool wireTestCB(const LogWireFrame* frame, void* ctx)
+{
+    WireTestData* wd = (WireTestData*)ctx;
+
+    if (frame->kind == LOG_WireGap) {
+        wd->ngap++;
+        wd->gap = *frame->gap;
+        return true;
+    }
+
+    if (frame->kind != LOG_WireEntry) {
+        wd->nother++;
+        return true;
+    }
+
+    const LogWireRecord* r = frame->rec;
+    wd->nentry++;
+    wd->level     = r->level;
+    wd->timestamp = r->timestamp;
+    wd->seq       = r->seq;
+    wd->sample    = r->sample;
+    wd->trigger   = r->trigger;
+    wd->hops      = r->hops;
+    wd->istmpl    = r->istmpl;
+    wd->nargs     = r->nargs;
+    wd->nctx      = r->nctx;
+    strDup(&wd->chanpath, r->chanpath);
+    strDup(&wd->origin, r->origin);
+    strDup(&wd->tmpl, r->msgtmpl);
+    wireRender(&wd->rendered, r);
+    return true;
+}
+
+// Feeds a whole buffer of frames to a decoder in one go.
+static bool wireFeed(LogWireDecoder* dec, Buffer frames, LogWireFrameCB cb, void* ctx)
+{
+    return logWireDecode(dec, bufLen(frames) ? frames->data : NULL, bufLen(frames), cb, ctx);
+}
+
+// Feeds only what has arrived since the last call. A stream cannot be restarted partway through
+// -- everything after a segment frame leans on it -- so a test watching a forwarder as it is
+// reconfigured has to keep one decoder and keep feeding it, rather than re-reading the sink.
+static bool wireFeedTail(LogWireDecoder* dec, Buffer frames, size_t* fed, LogWireFrameCB cb,
+                         void* ctx)
+{
+    if (bufLen(frames) <= *fed)
+        return true;
+
+    size_t from = *fed;
+    *fed        = frames->len;
+    return logWireDecode(dec, frames->data + from, *fed - from, cb, ctx);
+}
+
+static void wireFillRecord(LogRecord* rec, LogChannel* chan, strref tmpl, bool istmpl, int nargs,
+                           stvar* args)
+{
+    memset(rec, 0, sizeof(*rec));
+    rec->level     = LOG_Info;
+    rec->chan      = chan;
+    rec->timestamp = 1700000000000000LL;
+    rec->seq       = 4242;
+    rec->trigger   = -1;
+    rec->sample    = 1;
+    rec->msgtmpl   = tmpl;
+    rec->istmpl    = istmpl;
+    rec->args      = args;
+    rec->nargs     = nargs;
+}
+
+// A destination that encodes everything it receives, which is the whole of what a forwarder does
+// with a record before it reaches a transport.
+typedef struct WireEncDest {
+    LogWireEncoder* enc;
+    Buffer scratch;   // one record's frames, which the next record overwrites
+    Buffer frames;    // ...accumulated into the whole stream
+} WireEncDest;
+
+static void wireEncDestMsg(const LogRecord* rec, void* userdata)
+{
+    WireEncDest* wed = (WireEncDest*)userdata;
+    if (logWireEncode(wed->enc, &wed->scratch, rec))
+        bufAppend(&wed->frames, wed->scratch);
+}
+
+static int test_log_wire(void)
+{
+    int ret = 0;
+    WireTestData wd = { 0 };
+    Buffer frames   = 0;
+
+    LogChannel* chan = logChan(_SL("wire/codec"));
+
+    LogWireEncoder* enc = logWireEncoderCreate(_SL("web-01"), 0);
+    LogWireDecoder* dec = logWireDecoderCreate();
+
+    // Every scalar a log call can carry, keyed and unkeyed together. The keyed ones are what a
+    // structured destination reads; the unkeyed ones are what the template consumes.
+    stvar args[] = {
+        stvar(int32, -7),
+        stvar(uint64, 900000000000ULL),
+        stvar(float64, 1.5),
+        stvar(bool, true),
+        stvar(strref, _SL("inline")),
+        stvark(host, strref, _SL("web02")),
+        stvark(port, int32, 443),
+        stvark(ratio, float32, 0.5f),
+    };
+
+    LogRecord rec;
+    wireFillRecord(&rec,
+                   chan,
+                   _SL("v=${int} u=${uint} f=${float} b=${uint} s=${string} "
+                       "h=${string:host} p=${int:port} r=${float:ratio}"),
+                   true,
+                   8,
+                   args);
+
+    if (!logWireEncode(enc, &frames, &rec))
+        TEST_FAILV_LOG(ret, 1, _SL("logWireEncode failed"), stvNone);
+    if (!wireFeed(dec, frames, wireTestCB, &wd))
+        TEST_FAILV_LOG(ret, 1, _SL("logWireDecode failed"), stvNone);
+
+    if (wd.nentry != 1)
+        TEST_FAILV_LOG(ret, 1, _SL("wd.nentry=${int} != 1"), stvar(int32, wd.nentry));
+    if (!strEq(wd.chanpath, _SL("wire/codec")))
+        TEST_FAILV_LOG(ret, 1, _SL("chanpath=${string} != 'wire/codec'"), stvar(strref, wd.chanpath));
+    if (!strEq(wd.origin, _SL("web-01")))
+        TEST_FAILV_LOG(ret, 1, _SL("origin=${string} != 'web-01'"), stvar(strref, wd.origin));
+    if (wd.timestamp != 1700000000000000LL)
+        TEST_FAILV_LOG(ret, 1, _SL("timestamp=${int} != 1700000000000000"), stvar(int64, wd.timestamp));
+    if (wd.seq != 4242)
+        TEST_FAILV_LOG(ret, 1, _SL("seq=${uint} != 4242"), stvar(uint64, wd.seq));
+    if (wd.hops != 1)
+        TEST_FAILV_LOG(ret, 1, _SL("hops=${uint} != 1"), stvar(uint32, (uint32)wd.hops));
+    if (wd.nargs != 8)
+        TEST_FAILV_LOG(ret, 1, _SL("nargs=${int} != 8"), stvar(int32, wd.nargs));
+    // The strongest thing a codec test can assert: the record renders to exactly what it rendered
+    // before it was encoded, so nothing had to be said here about how any one type formats.
+    string expected = 0;
+    logRecordRender(&expected, &rec);
+    if (!strEq(wd.rendered, expected))
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("rendered=${string} != ${string}"),
+                       stvar(strref, wd.rendered),
+                       stvar(strref, expected));
+    strDestroy(&expected);
+
+    // A literal message is not a template, so one containing ${...} has to come back untouched.
+    wireTestClear(&wd);
+    wireFillRecord(&rec, chan, _SL("literal ${int} stays"), false, 0, NULL);
+    logWireEncode(enc, &frames, &rec);
+    wireFeed(dec, frames, wireTestCB, &wd);
+    if (wd.istmpl || !strEq(wd.rendered, _SL("literal ${int} stays")))
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("literal message came back as ${string}"),
+                       stvar(strref, wd.rendered));
+
+    // Context fields cross as fields and stay nameable from the template.
+    wireTestClear(&wd);
+    withLogCtx (stvark(reqid, strref, _SL("abc123"))) {
+        LogRecord crec;
+        wireFillRecord(&crec, chan, _SL("req ${string:reqid}"), true, 0, NULL);
+        crec.ctx = logCtxCurrent();
+        logWireEncode(enc, &frames, &crec);
+    }
+    wireFeed(dec, frames, wireTestCB, &wd);
+    if (wd.nctx != 1 || !strEq(wd.rendered, _SL("req abc123")))
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("nctx=${int}, rendered=${string} != 'req abc123'"),
+                       stvar(int32, wd.nctx),
+                       stvar(strref, wd.rendered));
+
+    // A record carrying an object argument, logged for real so that the entry holds whatever the
+    // log system put there rather than what this test guessed. The rendering taken at the call
+    // site has to come back as something an ${object} placeholder still matches.
+    wireTestClear(&wd);
+    WireEncDest wed = { .enc = enc };
+    LogDest* odest  = logRegisterDest(LOG_Info, _SL("wire/**"), wireEncDestMsg, NULL, NULL, &wed);
+    FmtTestClass* obj = fmttestclassCreate(1, _S "before");
+    logFmtC(Info, chan, _S "obj ${object}", stvar(object, obj));
+    logFlush();
+    logUnregisterDest(odest);
+    wireFeed(dec, wed.frames, wireTestCB, &wd);
+    if (!strEq(wd.rendered, _SL("obj Object(before:One)")))
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("object arg rendered=${string} != 'obj Object(before:One)'"),
+                       stvar(strref, wd.rendered));
+    objRelease(&obj);
+    bufDestroy(&wed.scratch);
+    bufDestroy(&wed.frames);
+
+    logWireDecoderDestroy(&dec);
+    logWireEncoderDestroy(&enc);
+    wireTestClear(&wd);
+    bufDestroy(&frames);
+    return ret;
+}
+
+static int test_log_wiresegment(void)
+{
+    int ret         = 0;
+    WireTestData wd = { 0 };
+    Buffer first = 0, second = 0, one = 0;
+
+    LogChannel* chan    = logChan(_SL("wire/seg"));
+    LogWireEncoder* enc = logWireEncoderCreate(_SL("web-01"), 0);
+
+    LogRecord rec;
+    stvar args[] = { stvar(int32, 1) };
+    wireFillRecord(&rec, chan, _SL("n=${int}"), true, 1, args);
+
+    // Each encode replaces what is in its output buffer, so building a stream out of several is
+    // the caller's job.
+    for (int i = 0; i < 3; i++) {
+        logWireEncode(enc, &one, &rec);
+        bufAppend(&first, one);
+    }
+
+    // The boundary is what makes what follows independently decodable; the dictionary and every
+    // declaration start over.
+    logWireEndSegment(enc);
+
+    for (int i = 0; i < 3; i++) {
+        logWireEncode(enc, &one, &rec);
+        bufAppend(&second, one);
+    }
+
+    if (wireCountKind(first, LOG_WireSegment) != 1)
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("first half has ${int} segment frames, want 1"),
+                       stvar(int32, wireCountKind(first, LOG_WireSegment)));
+    if (wireCountKind(second, LOG_WireSegment) != 1)
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("second half has ${int} segment frames, want 1"),
+                       stvar(int32, wireCountKind(second, LOG_WireSegment)));
+
+    // The declarations were re-sent, which is what says the dictionary really did reset.
+    if (wireCountKind(second, LOG_WireChanDecl) != 1)
+        TEST_FAILV_LOG(ret, 1, _SL("second half did not redeclare its channel"), stvNone);
+
+    // Everything decodes when fed as one stream...
+    Buffer both = 0;
+    bufAppend(&both, first);
+    bufAppend(&both, second);
+    LogWireDecoder* dec = logWireDecoderCreate();
+    if (!wireFeed(dec, both, wireTestCB, &wd) || wd.nentry != 6)
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("whole stream decoded ${int} entries, want 6"),
+                       stvar(int32, wd.nentry));
+    logWireDecoderDestroy(&dec);
+
+    // ...and the second segment still decodes on its own, which is the property that lets a spool
+    // drop what came before it.
+    wireTestClear(&wd);
+    dec = logWireDecoderCreate();
+    if (!wireFeed(dec, second, wireTestCB, &wd) || wd.nentry != 3)
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("second segment alone decoded ${int} entries, want 3"),
+                       stvar(int32, wd.nentry));
+    logWireDecoderDestroy(&dec);
+
+    // Bytes arriving one at a time have to produce the same frames as one big feed.
+    wireTestClear(&wd);
+    dec            = logWireDecoderCreate();
+    const uint8* p = both->data;
+    bool ok        = true;
+    for (size_t i = 0; ok && i < both->len; i++)
+        ok = logWireDecode(dec, p + i, 1, wireTestCB, &wd);
+    if (!ok || wd.nentry != 6)
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("byte-at-a-time decoded ${int} entries, want 6"),
+                       stvar(int32, wd.nentry));
+    logWireDecoderDestroy(&dec);
+
+    logWireEncoderDestroy(&enc);
+    wireTestClear(&wd);
+    bufDestroy(&both);
+    bufDestroy(&one);
+    bufDestroy(&second);
+    bufDestroy(&first);
+    return ret;
+}
+
+static int test_log_wiredict(void)
+{
+    int ret = 0;
+
+    LogChannel* chan = logChan(_SL("wire/dict"));
+    LogRecord rec;
+
+    // Unique string *values* are what a real log produces most of -- request ids, hostnames, error
+    // text. They must not accumulate anywhere, so the stream stays one segment however many go
+    // through it. This is the regression test for the concern that shaped the format.
+    LogWireEncoder* enc = logWireEncoderCreate(_SL("web-01"), 0);
+    Buffer frames       = 0;
+    Buffer one          = 0;
+    for (int i = 0; i < 1000; i++) {
+        string val = 0;
+        strFromInt64(&val, i, 10);
+        strPrepend(_SL("request-"), &val);
+        stvar args[] = { stvark(reqid, string, val) };
+        wireFillRecord(&rec, chan, _SL("req ${string:reqid}"), true, 1, args);
+        logWireEncode(enc, &one, &rec);
+        bufAppend(&frames, one);
+        strDestroy(&val);
+    }
+    if (wireCountKind(frames, LOG_WireSegment) != 1)
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("1000 unique values produced ${int} segments, want 1"),
+                       stvar(int32, wireCountKind(frames, LOG_WireSegment)));
+    logWireEncoderDestroy(&enc);
+    bufDestroy(&frames);
+
+    // Unique field *names* do accumulate, because a map key is always interned. An application
+    // generating them without bound would grow the dictionary forever, so the cap cuts the
+    // segment instead, which starts a fresh one.
+    enc = logWireEncoderCreate(_SL("web-01"), 0);
+    for (int i = 0; i < 6000; i++) {
+        char key[32];
+        snprintf(key, sizeof(key), "field%d", i);
+        // The name only has to outlive the encode call: the encoder copies it into its dictionary
+        // and the record does not survive the loop.
+        stvar args[] = { stvarkn(key, int32, i) };
+        wireFillRecord(&rec, chan, _SL("n"), false, 1, args);
+        logWireEncode(enc, &one, &rec);
+        bufAppend(&frames, one);
+    }
+    int nseg = wireCountKind(frames, LOG_WireSegment);
+    if (nseg < 2)
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("6000 unique keys produced ${int} segments, want at least 2"),
+                       stvar(int32, nseg));
+    logWireEncoderDestroy(&enc);
+    bufDestroy(&frames);
+    bufDestroy(&one);
+
+    return ret;
+}
+
+typedef struct InjectTestData {
+    int count;
+    int64 timestamp;
+    uint64 seq;
+    uint8 hops;
+    string chanpath;
+    string origin;
+    string rendered;
+} InjectTestData;
+
+static void injectTestMsg(const LogRecord* rec, void* userdata)
+{
+    InjectTestData* id = (InjectTestData*)userdata;
+    id->count++;
+    id->timestamp = rec->timestamp;
+    id->seq       = rec->seq;
+    id->hops      = rec->hops;
+    strDup(&id->chanpath, rec->chan->path);
+    strDup(&id->origin, rec->origin);
+    logRecordRender(&id->rendered, rec);
+}
+
+// Injects every entry frame it is handed, which is the whole of a receiver's job.
+static bool injectFrameCB(const LogWireFrame* frame, void* ctx)
+{
+    if (frame->kind == LOG_WireEntry)
+        logInject(frame->rec->chanpath, frame->rec);
+    return true;
+}
+
+static int test_log_inject(void)
+{
+    int ret            = 0;
+    InjectTestData id  = { 0 };
+    Buffer frames      = 0;
+
+    LogChannel* chan = logChan(_SL("inject/db"));
+    LogDest* dest    = logRegisterDest(LOG_Info, _SL("inject/**"), injectTestMsg, NULL, NULL, &id);
+
+    LogWireEncoder* enc = logWireEncoderCreate(_SL("db-07"), 0);
+    LogWireDecoder* dec = logWireDecoderCreate();
+
+    stvar args[] = { stvar(int32, 91), stvark(table, strref, _SL("users")) };
+    LogRecord rec;
+    wireFillRecord(&rec, chan, _SL("rows=${int} on ${string:table}"), true, 2, args);
+
+    logWireEncode(enc, &frames, &rec);
+    if (!wireFeed(dec, frames, injectFrameCB, NULL))
+        TEST_FAILV_LOG(ret, 1, _SL("decode of the injected record failed"), stvNone);
+    logFlush();
+
+    if (id.count != 1)
+        TEST_FAILV_LOG(ret, 1, _SL("id.count=${int} != 1"), stvar(int32, id.count));
+
+    // The sender's timestamp and sequence number, not fresh ones: they are what identify the
+    // record on the instance that produced it.
+    if (id.timestamp != 1700000000000000LL)
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("injected timestamp=${int} != 1700000000000000"),
+                       stvar(int64, id.timestamp));
+    if (id.seq != 4242)
+        TEST_FAILV_LOG(ret, 1, _SL("injected seq=${uint} != 4242"), stvar(uint64, id.seq));
+
+    // The channel path stays canonical; the machine it came from is a field.
+    if (!strEq(id.chanpath, _SL("inject/db")))
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("injected chan=${string} != 'inject/db'"),
+                       stvar(strref, id.chanpath));
+    if (!strEq(id.origin, _SL("db-07")))
+        TEST_FAILV_LOG(ret, 1, _SL("injected origin=${string} != 'db-07'"), stvar(strref, id.origin));
+    if (id.hops != 1)
+        TEST_FAILV_LOG(ret, 1, _SL("injected hops=${uint} != 1"), stvar(uint32, (uint32)id.hops));
+    if (!strEq(id.rendered, _SL("rows=91 on users")))
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("injected rendered=${string} != 'rows=91 on users'"),
+                       stvar(strref, id.rendered));
+
+    // The receiver's own level check applies: nothing below what this destination asked for gets
+    // in just because a sender chose to send it.
+    id.count = 0;
+    wireFillRecord(&rec, chan, _SL("chatty"), false, 0, NULL);
+    rec.level = LOG_Debug;
+    logWireEncode(enc, &frames, &rec);
+    wireFeed(dec, frames, injectFrameCB, NULL);
+    logFlush();
+    if (id.count != 0)
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("a Debug record reached an Info destination ${int} times"),
+                       stvar(int32, id.count));
+
+    logUnregisterDest(dest);
+    logWireDecoderDestroy(&dec);
+    logWireEncoderDestroy(&enc);
+
+    strDestroy(&id.chanpath);
+    strDestroy(&id.origin);
+    strDestroy(&id.rendered);
+    bufDestroy(&frames);
+    return ret;
+}
+
+static int test_log_wirebad(void)
+{
+    int ret         = 0;
+    WireTestData wd = { 0 };
+
+    // A stream that stops in the middle of a frame is not an error -- the rest may still be on its
+    // way -- so the decoder holds what it has and reports nothing.
+    LogChannel* chan    = logChan(_SL("wire/bad"));
+    LogWireEncoder* enc = logWireEncoderCreate(_SL("web-01"), 0);
+    Buffer frames       = 0;
+    LogRecord rec;
+    stvar args[] = { stvar(int32, 5) };
+    wireFillRecord(&rec, chan, _SL("n=${int}"), true, 1, args);
+    logWireEncode(enc, &frames, &rec);
+
+    const uint8* p = frames->data;
+    size_t len     = frames->len;
+
+    LogWireDecoder* dec = logWireDecoderCreate();
+    if (!logWireDecode(dec, p, len - 3, wireTestCB, &wd))
+        TEST_FAILV_LOG(ret, 1, _SL("a truncated stream was reported as malformed"), stvNone);
+    if (wd.nentry != 0)
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("a truncated stream produced ${int} entries"),
+                       stvar(int32, wd.nentry));
+    // ...and completing it delivers the frame that was waiting
+    if (!logWireDecode(dec, p + len - 3, 3, wireTestCB, &wd) || wd.nentry != 1)
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("completing the stream produced ${int} entries, want 1"),
+                       stvar(int32, wd.nentry));
+    logWireDecoderDestroy(&dec);
+
+    // Garbage is malformed, and says so rather than guessing.
+    wireTestClear(&wd);
+    dec                 = logWireDecoderCreate();
+    static const uint8 junk[] = { 0x04, 0x08, 0xde, 0xad, 0xbe, 0xef, 0x01, 0x02, 0x03, 0x04 };
+    if (logWireDecode(dec, junk, sizeof(junk), wireTestCB, &wd))
+        TEST_FAILV_LOG(ret, 1, _SL("garbage was accepted"), stvNone);
+    logWireDecoderDestroy(&dec);
+
+    // A declared length past the cap is rejected outright rather than believed and allocated for.
+    wireTestClear(&wd);
+    dec = logWireDecoderCreate();
+    static const uint8 huge[] = { 0x04, 0xff, 0xff, 0xff, 0xff, 0x7f };
+    if (logWireDecode(dec, huge, sizeof(huge), wireTestCB, &wd))
+        TEST_FAILV_LOG(ret, 1, _SL("an over-long frame length was accepted"), stvNone);
+    logWireDecoderDestroy(&dec);
+
+    // A frame whose body ends inside a value it declared: the reader must fail rather than wait
+    // forever for bytes the framing already said are not coming.
+    wireTestClear(&wd);
+    dec = logWireDecoderCreate();
+    Buffer trunc = 0;
+    size_t pos   = 0;
+    uint64 kind, blen;
+    size_t boff;
+    wireNextFrame(p, len, &pos, &kind, &boff, &blen);   // the segment frame, kept intact
+
+    // An entry frame that declares three payload bytes and then opens a map of fifteen, so the
+    // reader runs out of body inside a value the framing already said is complete.
+    static const uint8 shortbody[] = { LOG_WireEntry, 0x03, 0x0b, 0x0f, 0x00 };
+    bufAppendBytes(&trunc, p, pos);
+    bufAppendBytes(&trunc, shortbody, sizeof(shortbody));
+    if (wireFeed(dec, trunc, wireTestCB, &wd))
+        TEST_FAILV_LOG(ret, 1, _SL("a frame truncated inside a value was accepted"), stvNone);
+    logWireDecoderDestroy(&dec);
+    bufDestroy(&trunc);
+
+    logWireEncoderDestroy(&enc);
+    wireTestClear(&wd);
+    bufDestroy(&frames);
+    return ret;
+}
+
+// ---------------------------------------------------------------------------------------
+// Forwarding
+// ---------------------------------------------------------------------------------------
+
+typedef struct FwdTestData {
+    Mutex lock;
+    Buffer sink;     // everything the transport accepted, in order
+    int nsend;       // calls to send
+    bool refuse;     // the transport is not taking anything
+    Event gate;      // held closed to make send block, for the group test
+    bool usegate;
+    LogChannel* logchan;   // send logs here when set, which is the synchronous loop case
+    bool logasync;         // ...or off-thread, after returning, which is the case a scope misses
+} FwdTestData;
+
+static Thread* fwdAsyncThread;
+
+static int fwdAsyncProc(Thread* self)
+{
+    // The case a thread-local scope structurally cannot see: a non-blocking transport reports on
+    // a send after the send has returned, on a thread of its own.
+    LogChannel* chan = stvlNextPtr(&self->args);
+    for (int i = 0; i < 8; i++)
+        logStrC(Error, chan, _S "transport send failed");
+    return 0;
+}
+
+static bool fwdTestSend(void* ctx, const uint8* buf, size_t len)
+{
+    FwdTestData* fd = (FwdTestData*)ctx;
+
+    if (fd->usegate)
+        eventWaitTimeout(&fd->gate, timeS(5));
+
+    if (fd->logchan) {
+        if (fd->logasync) {
+            if (!fwdAsyncThread)
+                fwdAsyncThread = thrCreate(fwdAsyncProc, _S "fwdasync", stvar(ptr, fd->logchan));
+        } else {
+            logStrC(Error, fd->logchan, _S "transport send failed");
+        }
+    }
+
+    withMutex (&fd->lock) {
+        fd->nsend++;
+        if (!fd->refuse)
+            bufAppendBytes(&fd->sink, buf, len);
+    }
+
+    return !fd->refuse;
+}
+
+static const LogForwardHandlers kFwdTestHandlers = { .send = fwdTestSend };
+
+static void fwdTestInit(FwdTestData* fd)
+{
+    memset(fd, 0, sizeof(*fd));
+    mutexInit(&fd->lock);
+    eventInit(&fd->gate);
+}
+
+static void fwdTestDestroy(FwdTestData* fd)
+{
+    bufDestroy(&fd->sink);
+    eventDestroy(&fd->gate);
+    mutexDestroy(&fd->lock);
+}
+
+// A forwarder ships nothing until a receiver asks, so every forwarding test has to ask first.
+static void fwdSubscribe(LogForwarder* fwd, int maxlevel, strref pattern)
+{
+    LogSubSpec spec = { .maxlevel = maxlevel };
+    saInit(&spec.patterns, string, 2);
+    if (!strEmpty(pattern))
+        saPush(&spec.patterns, string, (string)pattern);
+    logForwardApplySub(fwd, &spec);
+    saDestroy(&spec.patterns);
+}
+
+static int test_log_forward(void)
+{
+    int ret         = 0;
+    WireTestData wd = { 0 };
+    FwdTestData fd;
+    fwdTestInit(&fd);
+
+    LogChannel* chan = logChan(_SL("fwd/app"));
+    LogForwardConfig cfg = { .origin = _SL("leaf-1") };
+    LogForwarder* fwd =
+        logforwardRegister(LOG_Info, _SL("fwd/**"), &kFwdTestHandlers, &fd, &cfg);
+    if (!fwd) {
+        TEST_FAILV_LOG(ret, 1, _SL("logforwardRegister returned NULL"), stvNone);
+        fwdTestDestroy(&fd);
+        return ret;
+    }
+
+    fwdSubscribe(fwd, LOG_Info, NULL);
+
+    logFmtC(Info, chan, _S "rows=${int} table=${string:table}",
+            stvar(int32, 17), stvark(table, strref, _SL("orders")));
+    logStrC(Info, chan, _S "second");
+    logFlush();
+
+    // Whatever reached the transport has to decode end to end, which is the only assertion that
+    // says the seam actually carries a record rather than merely bytes.
+    LogWireDecoder* dec = logWireDecoderCreate();
+    if (!wireFeed(dec, fd.sink, wireTestCB, &wd))
+        TEST_FAILV_LOG(ret, 1, _SL("forwarded bytes did not decode"), stvNone);
+    if (wd.nentry != 2)
+        TEST_FAILV_LOG(ret, 1, _SL("decoded ${int} entries, want 2"), stvar(int32, wd.nentry));
+    if (!strEq(wd.chanpath, _SL("fwd/app")))
+        TEST_FAILV_LOG(ret, 1, _SL("chanpath=${string} != 'fwd/app'"), stvar(strref, wd.chanpath));
+    if (!strEq(wd.origin, _SL("leaf-1")))
+        TEST_FAILV_LOG(ret, 1, _SL("origin=${string} != 'leaf-1'"), stvar(strref, wd.origin));
+    logWireDecoderDestroy(&dec);
+
+    LogForwardStats st;
+    logForwardStats(fwd, &st);
+    if (st.sent != 2 || st.spooled != 0)
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("sent=${uint} spooled=${uint}, want 2 and 0"),
+                       stvar(uint64, st.sent),
+                       stvar(uint64, st.spooled));
+
+    logforwardUnregister(fwd);
+    logFlush();
+    wireTestClear(&wd);
+    fwdTestDestroy(&fd);
+    return ret;
+}
+
+static int test_log_forwardspool(void)
+{
+    int ret         = 0;
+    WireTestData wd = { 0 };
+    FwdTestData fd;
+    fwdTestInit(&fd);
+
+    LogChannel* chan = logChan(_SL("fwdspool/app"));
+
+    // Small enough that a few hundred records overflow it several times over, so eviction is what
+    // the test is actually watching rather than a corner it never reaches.
+    LogForwardConfig cfg = {
+        .origin     = _SL("leaf-2"),
+        .spoolbytes = 8192,
+        .segbytes   = 1024,
+    };
+    LogForwarder* fwd =
+        logforwardRegister(LOG_Info, _SL("fwdspool/**"), &kFwdTestHandlers, &fd, &cfg);
+
+    fwdSubscribe(fwd, LOG_Info, NULL);
+
+    fd.refuse = true;
+    for (int i = 0; i < 400; i++)
+        logFmtC(Info, chan, _S "n=${int} pad=${string}", stvar(int32, i),
+                stvar(strref, _SL("0123456789012345678901234567890123456789")));
+    logFlush();
+
+    LogForwardStats st;
+    logForwardStats(fwd, &st);
+    if (st.dropped == 0)
+        TEST_FAILV_LOG(ret, 1, _SL("nothing was dropped from a bounded spool"), stvNone);
+    if (st.pending > cfg.spoolbytes + cfg.segbytes)
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("spool holds ${uint} bytes, over its ${uint} byte bound"),
+                       stvar(uint64, st.pending),
+                       stvar(uint64, cfg.spoolbytes));
+
+    // The transport comes back, and everything still spooled goes out.
+    fd.refuse = false;
+    logForwardResume(fwd);
+
+    LogWireDecoder* dec = logWireDecoderCreate();
+    if (!wireFeed(dec, fd.sink, wireTestCB, &wd))
+        TEST_FAILV_LOG(ret, 1, _SL("what survived the spool did not decode"), stvNone);
+
+    // A gap record says what is missing, rather than the receiver silently seeing a shorter log
+    // than the sender produced.
+    if (wd.ngap == 0)
+        TEST_FAILV_LOG(ret, 1, _SL("no gap record was emitted"), stvNone);
+    if (wd.gap.count == 0 || wd.gap.firstseq == 0 || wd.gap.lastseq < wd.gap.firstseq)
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("gap count=${uint} first=${uint} last=${uint} is not a range"),
+                       stvar(uint64, wd.gap.count),
+                       stvar(uint64, wd.gap.firstseq),
+                       stvar(uint64, wd.gap.lastseq));
+
+    // ...and what did survive is the newest traffic, which is the half closest to whatever went
+    // wrong.
+    if (wd.nentry == 0)
+        TEST_FAILV_LOG(ret, 1, _SL("nothing at all survived the spool"), stvNone);
+    logForwardStats(fwd, &st);
+    if ((uint64)wd.nentry + st.dropped < 400)
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("delivered ${int} + dropped ${uint} does not account for 400 records"),
+                       stvar(int32, wd.nentry),
+                       stvar(uint64, st.dropped));
+    logWireDecoderDestroy(&dec);
+
+    logforwardUnregister(fwd);
+    logFlush();
+    wireTestClear(&wd);
+    fwdTestDestroy(&fd);
+    return ret;
+}
+
+static int test_log_forwardgroup(void)
+{
+    int ret = 0;
+    FwdTestData fd;
+    fwdTestInit(&fd);
+    fd.usegate = true;   // send blocks until the gate opens
+
+    LogChannel* rchan = logChan(_SL("fwdgrp/remote"));
+    LogChannel* lchan = logChan(_SL("fwdgrp/local"));
+
+    LogDest* ldest     = logmembufRegister(LOG_Info, _S "fwdgrp/local", 8192, NULL);
+    LogMembufData* lmd = logmembufData(ldest);
+    LogForwarder* fwd =
+        logforwardRegister(LOG_Info, _SL("fwdgrp/remote"), &kFwdTestHandlers, &fd, NULL);
+
+    fwdSubscribe(fwd, LOG_Info, NULL);
+
+    // The forwarder's drain thread parks inside send...
+    logStrC(Info, rchan, _S "stalls the remote group");
+
+    // ...and the default group has to keep going regardless, which is the whole reason a
+    // forwarder lands in a group of its own.
+    logStrC(Info, lchan, _S "must not wait for it");
+
+    int64 deadline = clockTimer() + timeS(3);
+    while (membufLines(lmd) < 1 && clockTimer() < deadline)
+        osSleep(timeMS(5));
+
+    if (membufLines(lmd) != 1)
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("the local destination saw ${int} lines while a forwarder was "
+                           "stalled, want 1"),
+                       stvar(int32, membufLines(lmd)));
+
+    eventSignal(&fd.gate);
+    logFlush();
+
+    logforwardUnregister(fwd);
+    logUnregisterDest(ldest);
+    logFlush();
+    fwdTestDestroy(&fd);
+    return ret;
+}
+
+static int test_log_forwardloop(void)
+{
+    int ret = 0;
+    FwdTestData fd;
+    fwdTestInit(&fd);
+
+    LogChannel* netchan = logChan(_SL("cx/net"));
+    LogChannel* subchan = logChan(_SL("cx/net/socket"));
+    LogChannel* appchan = logChan(_SL("loop/app"));
+
+    // The filter names cx's transport explicitly, which is exactly the configuration that would
+    // otherwise close the loop. The exclusion is not a default that a filter can override.
+    LogForwardConfig cfg = { .origin = _SL("leaf-3"), .maxhops = 2 };
+    LogForwarder* fwd = logforwardRegister(LOG_Trace, _SL("cx/**"), &kFwdTestHandlers, &fd, &cfg);
+    logDestAddFilter(fwd ? logForwardDest(fwd) : NULL, _SL("loop/**"), false);
+    fwdSubscribe(fwd, LOG_Trace, NULL);
+
+    logStrC(Error, netchan, _S "socket error");
+    logStrC(Error, subchan, _S "socket error beneath it");
+    logFlush();
+
+    if (fd.nsend != 0)
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("cx/net reached a forwarder ${int} times with a cx/** filter"),
+                       stvar(int32, fd.nsend));
+
+    // A record produced inside the transport's own send does not come back to it either.
+    fd.logchan = appchan;
+    logStrC(Info, appchan, _S "triggers a send that logs");
+    logFlush();
+    logFlush();   // the record send logged has to have been through a whole drain cycle
+    fd.logchan = NULL;
+
+    int after = fd.nsend;
+    if (after != 1)
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("a record logged inside send produced ${int} sends, want 1"),
+                       stvar(int32, after));
+
+    // withLogLocal() extends the same protection to an application's own transport code: the
+    // record still reaches local destinations, so the transport stays diagnosable.
+    LogDest* ldest     = logmembufRegister(LOG_Info, _S "loop/**", 8192, NULL);
+    LogMembufData* lmd = logmembufData(ldest);
+    withLogLocal() {
+        logStrC(Info, appchan, _S "local only");
+    }
+    logFlush();
+    if (membufLines(lmd) != 1)
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("withLogLocal record reached ${int} local lines, want 1"),
+                       stvar(int32, membufLines(lmd)));
+    if (fd.nsend != after)
+        TEST_FAILV_LOG(ret, 1, _SL("a withLogLocal record was forwarded"), stvNone);
+
+    // Cross-process loop prevention: a record that has been round enough times, and one this
+    // instance originally produced, both stop here.
+    LogWireRecord wrec = {
+        .level     = LOG_Info,
+        .chanpath  = _SL("loop/app"),
+        .timestamp = 1700000000000000LL,
+        .seq       = 5000,
+        .sample    = 1,
+        .trigger   = -1,
+        .hops      = 2,
+        .origin    = _SL("somewhere-else"),
+        .msgtmpl   = _SL("travelled too far"),
+    };
+    logInject(_SL("loop/app"), &wrec);
+
+    wrec.hops   = 0;
+    wrec.seq    = 5001;
+    wrec.origin = _SL("leaf-3");   // this forwarder's own identity, come back around
+    logInject(_SL("loop/app"), &wrec);
+    logFlush();
+
+    LogForwardStats st;
+    logForwardStats(fwd, &st);
+    if (st.looped != 2)
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("looped=${uint}, want 2"),
+                       stvar(uint64, st.looped));
+    if (fd.nsend != after)
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("a looping record was forwarded: nsend=${int} want ${int}"),
+                       stvar(int32, fd.nsend),
+                       stvar(int32, after));
+
+    logforwardUnregister(fwd);
+    logUnregisterDest(ldest);
+    logFlush();
+    fwdTestDestroy(&fd);
+    return ret;
+}
+
+static int test_log_forwardloopasync(void)
+{
+    int ret = 0;
+    FwdTestData fd;
+    fwdTestInit(&fd);
+
+    LogChannel* appchan = logChan(_SL("loopa/app"));
+    LogChannel* netchan = logChan(_SL("cx/net"));
+
+    // The case that decided the shape of loop prevention. A non-blocking transport logs about a
+    // send from one of its own threads, after the send returned, where no thread-local scope can
+    // still be in effect. Only the unconditional cx/net exclusion stops this, so a build that had
+    // the scope and nothing else would fail here.
+    fd.logchan  = netchan;
+    fd.logasync = true;
+
+    LogForwarder* fwd = logforwardRegister(LOG_Trace, _SL("cx/**"), &kFwdTestHandlers, &fd, NULL);
+    logDestAddFilter(fwd ? logForwardDest(fwd) : NULL, _SL("loopa/**"), false);
+    fwdSubscribe(fwd, LOG_Trace, NULL);
+
+    logStrC(Info, appchan, _S "one record, one send");
+    logFlush();
+
+    if (fwdAsyncThread) {
+        thrWait(fwdAsyncThread, timeS(5));
+        thrRelease(&fwdAsyncThread);
+    }
+    logFlush();
+    logFlush();
+
+    fd.logchan  = NULL;
+    fd.logasync = false;
+
+    // One record in, one send out. Anything more means the transport's own reports came back
+    // around, which is the loop this is here to prove does not exist.
+    if (fd.nsend != 1)
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("nsend=${int} after one record, want 1 -- the transport's own "
+                           "off-thread logging came back around"),
+                       stvar(int32, fd.nsend));
+
+    logforwardUnregister(fwd);
+    logFlush();
+    fwdTestDestroy(&fd);
+    return ret;
+}
+
+// ---------------------------------------------------------------------------------------
+// Subscription and catalog
+// ---------------------------------------------------------------------------------------
+
+typedef struct CatTestData {
+    int ncat;
+    int nchans;
+    bool sawrestricted;
+    bool sawplain;
+} CatTestData;
+
+static bool catTestCB(const LogWireFrame* frame, void* ctx)
+{
+    CatTestData* cd = (CatTestData*)ctx;
+    if (frame->kind != LOG_WireCatalog)
+        return true;
+
+    cd->ncat++;
+    cd->nchans = frame->cat->nchans;
+    for (int i = 0; i < frame->cat->nchans; i++) {
+        if (strEq(frame->cat->chans[i].path, _SL("cattest/secret")) &&
+            (frame->cat->chans[i].flags & LOG_Restricted))
+            cd->sawrestricted = true;
+        if (strEq(frame->cat->chans[i].path, _SL("cattest/open")))
+            cd->sawplain = true;
+    }
+    return true;
+}
+
+static int test_log_subscribe(void)
+{
+    int ret = 0;
+    FwdTestData fd;
+    fwdTestInit(&fd);
+
+    LogChannel* db   = logChan(_SL("sub/db"));
+    LogChannel* http = logChan(_SL("sub/http"));
+
+    LogForwarder* fwd = logforwardRegister(LOG_Info, _SL("sub/**"), &kFwdTestHandlers, &fd, NULL);
+
+    // Nothing has asked for anything, so nothing is sent. This is §10.7's whole position and the
+    // part most likely to be assumed theoretical.
+    logStrC(Info, db, _S "before anybody subscribed");
+    logStrC(Info, http, _S "also before");
+    logFlush();
+    if (fd.nsend != 0)
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("an unsubscribed forwarder sent ${int} times"),
+                       stvar(int32, fd.nsend));
+
+    // A subscription arriving as encoded control frames -- the way a real collector sends one --
+    // and the same subscription applied directly have to produce identical routing.
+    LogWireEncoder* cenc = logWireEncoderCreate(NULL, 0);
+    Buffer ctl           = 0;
+    LogSubSpec spec      = { .maxlevel = LOG_Info };
+    saInit(&spec.patterns, string, 1);
+    saPush(&spec.patterns, string, _S "sub/db");
+    logWireEncodeSub(cenc, &ctl, &spec);
+    saDestroy(&spec.patterns);
+
+    if (!logForwardRecv(fwd, ctl->data, ctl->len))
+        TEST_FAILV_LOG(ret, 1, _SL("logForwardRecv rejected a subscription frame"), stvNone);
+
+    logStrC(Info, db, _S "wanted");
+    logStrC(Info, http, _S "not wanted");
+    logFlush();
+
+    WireTestData wd     = { 0 };
+    size_t fed          = 0;
+    LogWireDecoder* dec = logWireDecoderCreate();
+    wireFeedTail(dec, fd.sink, &fed, wireTestCB, &wd);
+    if (wd.nentry != 1 || !strEq(wd.chanpath, _SL("sub/db")))
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("a subscription to sub/db delivered ${int} entries, last on ${string}"),
+                       stvar(int32, wd.nentry),
+                       stvar(strref, wd.chanpath));
+
+    // The same thing said directly rather than over the wire has to produce identical routing.
+    fwdSubscribe(fwd, LOG_Info, _SL("sub/db"));
+    logStrC(Info, db, _S "wanted again");
+    logStrC(Info, http, _S "still not wanted");
+    logFlush();
+
+    wireFeedTail(dec, fd.sink, &fed, wireTestCB, &wd);
+    if (wd.nentry != 2 || !strEq(wd.chanpath, _SL("sub/db")))
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("logForwardApplySub delivered ${int} entries in total, last on "
+                           "${string}"),
+                       stvar(int32, wd.nentry),
+                       stvar(strref, wd.chanpath));
+    logWireDecoderDestroy(&dec);
+
+    // A subscription narrows what registration allowed; it can never widen it. Asking for a
+    // channel outside the registration filter, at a level above the registration level, gets
+    // neither.
+    fd.nsend = 0;
+    fwdSubscribe(fwd, LOG_Trace, _SL("**"));
+    LogChannel* other = logChan(_SL("elsewhere/thing"));
+    logStrC(Info, other, _S "outside what registration allowed");
+    logStrC(Debug, db, _S "more verbose than registration allowed");
+    logFlush();
+    if (fd.nsend != 0)
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("a subscription widened past registration: ${int} sends"),
+                       stvar(int32, fd.nsend));
+
+    // A subscription that has run out stops the traffic. The expiry is noticed on the drain
+    // thread, which may only mark it -- reconfiguring a destination takes the log system's
+    // configuration lock, which a drain thread must never hold -- so the records stop at once and
+    // the routing catches up on the next call from an application thread.
+    fd.nsend        = 0;
+    LogSubSpec lapsing = { .maxlevel = LOG_Info, .expiry = clockWall() - timeS(1) };
+    saInit(&lapsing.patterns, string, 1);
+    saPush(&lapsing.patterns, string, _S "sub/db");
+    logForwardApplySub(fwd, &lapsing);
+    saDestroy(&lapsing.patterns);
+
+    logStrC(Info, db, _S "after the subscription lapsed");
+    logFlush();
+    if (fd.nsend != 0)
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("a lapsed subscription still sent ${int} times"),
+                       stvar(int32, fd.nsend));
+
+    logForwardResume(fwd);   // any application-thread call finishes the teardown
+    LogForwardStats lst;
+    logForwardStats(fwd, &lst);
+    if (lst.subscribed)
+        TEST_FAILV_LOG(ret, 1, _SL("a lapsed subscription still reports as subscribed"), stvNone);
+
+    logStrC(Info, db, _S "and after the teardown caught up");
+    logFlush();
+    if (fd.nsend != 0)
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("a lapsed subscription sent ${int} times after teardown"),
+                       stvar(int32, fd.nsend));
+
+    // Unsubscribing returns it to silence.
+    fd.nsend = 0;
+    logForwardApplySub(fwd, NULL);
+    logStrC(Info, db, _S "after unsubscribing");
+    logFlush();
+    if (fd.nsend != 0)
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("an unsubscribed forwarder sent ${int} times"),
+                       stvar(int32, fd.nsend));
+
+    LogForwardStats st;
+    logForwardStats(fwd, &st);
+    if (st.subscribed)
+        TEST_FAILV_LOG(ret, 1, _SL("stats still report a subscription after unsubscribing"), stvNone);
+
+    logforwardUnregister(fwd);
+    logFlush();
+    logWireEncoderDestroy(&cenc);
+    wireTestClear(&wd);
+    bufDestroy(&ctl);
+    fwdTestDestroy(&fd);
+    return ret;
+}
+
+static int test_log_catalog(void)
+{
+    int ret = 0;
+    FwdTestData fd;
+    fwdTestInit(&fd);
+    CatTestData cd = { 0 };
+
+    logDeclareChan(_SL("cattest/secret"), 0);   // restricted, which is what declaring one means
+    logChan(_SL("cattest/open"));
+
+    LogForwarder* fwd = logforwardRegister(LOG_Info, _SL("cattest/**"), &kFwdTestHandlers, &fd,
+                                           NULL);
+
+    Buffer frames = 0;
+    if (!logForwardCatalog(fwd, &frames))
+        TEST_FAILV_LOG(ret, 1, _SL("logForwardCatalog failed"), stvNone);
+
+    LogWireDecoder* dec = logWireDecoderCreate();
+    if (!wireFeed(dec, frames, catTestCB, &cd))
+        TEST_FAILV_LOG(ret, 1, _SL("the catalog did not decode"), stvNone);
+
+    if (cd.ncat != 1)
+        TEST_FAILV_LOG(ret, 1, _SL("decoded ${int} catalog frames, want 1"), stvar(int32, cd.ncat));
+    if (cd.nchans < 2)
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("the catalog listed ${int} channels, want at least 2"),
+                       stvar(int32, cd.nchans));
+
+    // The flags travel with the inventory, so a receiver cannot mistake a restricted channel for
+    // an ordinary one.
+    if (!cd.sawrestricted)
+        TEST_FAILV_LOG(ret, 1, _SL("cattest/secret was not listed as restricted"), stvNone);
+    if (!cd.sawplain)
+        TEST_FAILV_LOG(ret, 1, _SL("cattest/open was not in the catalog"), stvNone);
+
+    logWireDecoderDestroy(&dec);
+    logforwardUnregister(fwd);
+    logFlush();
+    bufDestroy(&frames);
+    fwdTestDestroy(&fd);
+    return ret;
+}
+
+static int test_log_destfilter(void)
+{
+    int ret = 0;
+
+    LogChannel* a = logChan(_SL("dfilt/a"));
+    LogChannel* b = logChan(_SL("dfilt/b"));
+
+    LogDest* dest     = logmembufRegister(LOG_Info, _S "dfilt/a", 8192, NULL);
+    LogMembufData* md = logmembufData(dest);
+
+    logStrC(Info, a, _S "one");
+    logStrC(Info, b, _S "not matched yet");
+    logFlush();
+    if (membufLines(md) != 1)
+        TEST_FAILV_LOG(ret, 1, _SL("membufLines=${int} != 1"), stvar(int32, membufLines(md)));
+
+    // Replacing the filter is not the same as adding to it: the old rule is gone, so what used to
+    // match no longer does.
+    if (!logDestSetFilter(dest, _SL("dfilt/b")))
+        TEST_FAILV_LOG(ret, 1, _SL("logDestSetFilter failed"), stvNone);
+
+    logStrC(Info, a, _S "no longer matched");
+    logStrC(Info, b, _S "matched now");
+    logFlush();
+    if (membufLines(md) != 2)
+        TEST_FAILV_LOG(ret,
+                       1,
+                       _SL("after logDestSetFilter membufLines=${int} != 2"),
+                       stvar(int32, membufLines(md)));
+
+    string snap = 0;
+    membufSnapshot(&snap, md);
+    if (membufCount(snap, _S "no longer matched") != 0)
+        TEST_FAILV_LOG(ret, 1, _SL("the replaced filter still matched its old channel"), stvNone);
+    if (membufCount(snap, _S "matched now") != 1)
+        TEST_FAILV_LOG(ret, 1, _SL("the new filter did not take effect"), stvNone);
+
+    // A runtime level change takes effect on the next record, and raises the channel's ceiling so
+    // the call site starts producing at all. Verbose rather than Debug because Debug is compiled
+    // out of a release build entirely, and this test has to mean the same thing in every build.
+    if (!logDestSetLevel(dest, LOG_Verbose))
+        TEST_FAILV_LOG(ret, 1, _SL("logDestSetLevel failed"), stvNone);
+    logStrC(Verbose, b, _S "now verbose");
+    logFlush();
+
+    strClear(&snap);
+    membufSnapshot(&snap, md);
+    if (membufCount(snap, _S "now verbose") != 1)
+        TEST_FAILV_LOG(ret, 1, _SL("logDestSetLevel did not take effect"), stvNone);
+
+    // ...and down again
+    if (!logDestSetLevel(dest, LOG_Warn))
+        TEST_FAILV_LOG(ret, 1, _SL("logDestSetLevel failed on the way back down"), stvNone);
+    logStrC(Info, b, _S "too quiet now");
+    logFlush();
+
+    strClear(&snap);
+    membufSnapshot(&snap, md);
+    if (membufCount(snap, _S "too quiet now") != 0)
+        TEST_FAILV_LOG(ret, 1, _SL("lowering the level did not take effect"), stvNone);
+
+    logUnregisterDest(dest);
+    logFlush();
+    strDestroy(&snap);
+    return ret;
+}
+
 testfunc logtest_funcs[] = {
     { "levels",        test_log_levels        },
     { "shutdown",      test_log_shutdown      },
@@ -2135,5 +3451,18 @@ testfunc logtest_funcs[] = {
     { "cxchan",        test_log_cxchan        },
     { "console",       test_log_console       },
     { "console_style", test_log_console_style },
+    { "wire",          test_log_wire          },
+    { "wiresegment",   test_log_wiresegment   },
+    { "wiredict",      test_log_wiredict      },
+    { "inject",        test_log_inject        },
+    { "wirebad",       test_log_wirebad       },
+    { "forward",       test_log_forward       },
+    { "forwardspool",  test_log_forwardspool  },
+    { "forwardgroup",  test_log_forwardgroup  },
+    { "forwardloop",   test_log_forwardloop   },
+    { "forwardloopasync", test_log_forwardloopasync },
+    { "subscribe",     test_log_subscribe     },
+    { "catalog",       test_log_catalog       },
+    { "destfilter",    test_log_destfilter    },
     { 0,               0                      }
 };

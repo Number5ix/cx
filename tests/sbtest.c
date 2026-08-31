@@ -1,4 +1,6 @@
 #include <cx/serialize/streambuf.h>
+#include <cx/buffer/buffer.h>
+#include <cx/serialize/sbbuffer.h>
 #include <cx/serialize/sbcon.h>
 #include <cx/serialize/sbstring.h>
 #include <cx/xalloc/xalloc.h>
@@ -503,12 +505,110 @@ static int test_streambuf_console()
     return ret;
 }
 
+static int test_streambuf_buffer()
+{
+    int ret = 0;
+    size_t len = sizeof(testdata1) - 1;
+
+    Buffer src = bufCreate(len);
+    memcpy(src->data, testdata1, len);
+    src->len = len;
+
+    // push: Buffer producer -> Buffer consumer
+    Buffer out          = 0;
+    StreamBuffer* ptest = sbufCreate(16);
+    if (!sbufBufCRegisterPush(ptest, &out))
+        TEST_FAIL(1, _SL("sbufBufCRegisterPush failed"), stvNone);
+    sbufBufIn(ptest, src, false);
+
+    if (bufLen(out) != len || memcmp(out->data, testdata1, len))
+        TEST_FAILV(ret,
+                   1,
+                   _SL("push produced ${uint} bytes, want ${uint}"),
+                   stvar(size, bufLen(out)),
+                   stvar(size, len));
+    if (!sbufIsPFinished(ptest) || !sbufIsCFinished(ptest))
+        TEST_FAILV(ret, 1, _SL("producer or consumer not finished"), stvNone);
+    sbufRelease(&ptest);
+
+    // The consumer appends, so a second run through a fresh stream lands after the first.
+    ptest = sbufCreate(16);
+    if (!sbufBufCRegisterPush(ptest, &out))
+        TEST_FAIL(1, _SL("sbufBufCRegisterPush failed on reuse"), stvNone);
+    sbufBufIn(ptest, src, false);
+    if (bufLen(out) != len * 2 || memcmp(out->data + len, testdata1, len))
+        TEST_FAILV(ret,
+                   1,
+                   _SL("a second push gave ${uint} bytes, want ${uint}"),
+                   stvar(size, bufLen(out)),
+                   stvar(size, len * 2));
+    sbufRelease(&ptest);
+    bufDestroy(&out);
+
+    // pull: Buffer producer -> Buffer consumer, with the consumer setting the pace
+    ptest = sbufCreate(16);
+    if (!sbufBufPRegisterPull(ptest, src, false))
+        TEST_FAIL(1, _SL("sbufBufPRegisterPull failed"), stvNone);
+    if (!sbufBufOut(ptest, &out))
+        TEST_FAILV(ret, 1, _SL("sbufBufOut failed"), stvNone);
+    if (bufLen(out) != len || memcmp(out->data, testdata1, len))
+        TEST_FAILV(ret,
+                   1,
+                   _SL("pull produced ${uint} bytes, want ${uint}"),
+                   stvar(size, bufLen(out)),
+                   stvar(size, len));
+    if (!sbufIsPFinished(ptest) || !sbufIsCFinished(ptest))
+        TEST_FAILV(ret, 1, _SL("producer or consumer not finished"), stvNone);
+    sbufRelease(&ptest);
+    bufDestroy(&out);
+
+    // The convenience constructor puts the caller on the producing end, writing straight into a
+    // buffer that starts out NULL.
+    ptest = sbufBufCreatePush(&out);
+    if (!ptest)
+        TEST_FAIL(1, _SL("sbufBufCreatePush failed"), stvNone);
+    if (!sbufPWrite(ptest, testdata1, 10) || !sbufPWrite(ptest, testdata1 + 10, len - 10))
+        TEST_FAILV(ret, 1, _SL("sbufPWrite failed"), stvNone);
+    sbufPFinish(ptest);
+    if (bufLen(out) != len || memcmp(out->data, testdata1, len))
+        TEST_FAILV(ret,
+                   1,
+                   _SL("two direct writes produced ${uint} bytes, want ${uint}"),
+                   stvar(size, bufLen(out)),
+                   stvar(size, len));
+    sbufRelease(&ptest);
+    bufDestroy(&out);
+
+    // sbufBufIn owning its source destroys it, which is the whole reason it takes ownership.
+    // It registers the producer itself, so it needs a stream buffer that has none yet -- not one
+    // from sbufBufCreatePush(), which puts the caller on that end.
+    Buffer owned = bufCreate(len);
+    memcpy(owned->data, testdata1, len);
+    owned->len = len;
+    ptest      = sbufCreate(16);
+    if (!sbufBufCRegisterPush(ptest, &out))
+        TEST_FAIL(1, _SL("sbufBufCRegisterPush failed for the owned source"), stvNone);
+    sbufBufIn(ptest, owned, true);
+    if (bufLen(out) != len)
+        TEST_FAILV(ret,
+                   1,
+                   _SL("an owned source produced ${uint} bytes, want ${uint}"),
+                   stvar(size, bufLen(out)),
+                   stvar(size, len));
+    sbufRelease(&ptest);
+    bufDestroy(&out);
+
+    bufDestroy(&src);
+    return ret;
+}
+
 testfunc sbtest_funcs[] = {
     { "push", test_streambuf_push },
     { "pull", test_streambuf_pull },
     { "direct", test_streambuf_direct },
     { "peek", test_streambuf_peek },
     { "string", test_streambuf_string },
+    { "buffer", test_streambuf_buffer },
     { "console", test_streambuf_console },
     { 0, 0 }
 };
