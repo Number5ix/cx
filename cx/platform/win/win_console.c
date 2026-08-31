@@ -65,12 +65,14 @@ void _conPlatInit(ConStream* con, ConKind kind)
         p->origMode     = mode;
         p->haveOrigMode = true;
 
+#ifndef CX_XP_COMPAT
         if (kind != CON_Kind_In) {
             if (SetConsoleMode(p->handle, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING))
                 vtEnabled = true;
             else
-                SetConsoleMode(p->handle, mode);   // unsupported (pre-1511, or CX_XP_COMPAT); fall back to legacy attributes
+                SetConsoleMode(p->handle, mode);   // unsupported (pre-1511); fall back to legacy attributes
         }
+#endif
     }
 
     // Windows consoles do not set TERM, so the console-mode probe above is the only real
