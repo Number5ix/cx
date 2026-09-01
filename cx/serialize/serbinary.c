@@ -56,7 +56,6 @@ typedef struct SerBinWriter {
     hashtable dict;   // string -> uint32, ids assigned in order of first definition
     bool tags;        // self-describing: values carry a tag byte
     bool strdedup;    // string values intern rather than going out inline
-    bool streamdone;  // the producer side of the stream has been finished
 } SerBinWriter;
 
 // Errors are sticky: once one is recorded every subsequent write is a no-op, so a chain of
@@ -258,18 +257,10 @@ static bool binWRefUse(SerWriter* w, uint32 id)
     return bwTag(bw, BIN_RefUse) && bwVarint(bw, id);
 }
 
-static void bwStreamDone(_Inout_ SerBinWriter* bw)
-{
-    if (bw->streamdone)
-        return;
-    bw->streamdone = true;
-    sbufPFinish(bw->sb);
-}
-
+// The stream buffer is only borrowed: it outlives the document, and whoever owns it decides when
+// it is over, so finishing a writer says nothing to the stream.
 static bool binWFinish(SerWriter* w)
 {
-    SerBinWriter* bw = (SerBinWriter*)w;
-    bwStreamDone(bw);
     return w->err.code == SER_Err_None;
 }
 
@@ -277,10 +268,7 @@ static void binWDestroy(SerWriter* w)
 {
     SerBinWriter* bw = (SerBinWriter*)w;
 
-    // A writer destroyed without being finished still has to release the producer side, even
-    // though the document it produced is truncated.
-    bwStreamDone(bw);
-
+    sbufRelease(&bw->sb);
     htDestroy(&bw->dict);
     xaFree(bw);
 }
@@ -317,16 +305,10 @@ SerWriter* serBinaryWriterCreate(StreamBuffer* sb, flags_t flags)
     SerBinWriter* bw =
         (SerBinWriter*)_serWriterAlloc(sizeof(SerBinWriter), &binWriterOps, caps, flags);
 
-    bw->sb       = sb;
+    bw->sb       = sbufAcquire(sb);
     bw->tags     = !(flags & SER_Bin_Compact);
     bw->strdedup = !(flags & SER_Bin_NoStringDedup);
     htInit(&bw->dict, string, uint32, 32);
-
-    if (!sbufPRegisterPush(sb, NULL, NULL)) {
-        serWriterFail(&bw->w, SER_Err_Backend, _SL("could not register with the stream buffer"));
-        bw->streamdone = true;   // nothing was registered, so nothing may be finished
-        return &bw->w;
-    }
 
     uint8 hdr[BIN_HDR_SIZE];
     memcpy(hdr, SER_BIN_MAGIC, 4);
@@ -351,7 +333,6 @@ typedef struct SerBinReader {
     bool tags;         // taken from the document header, not from the caller's flags
     bool havetag;
     uint8 tag;
-    bool streamdone;   // the consumer side of the stream has been finished
 } SerBinReader;
 
 static bool brRaw(_Inout_ SerBinReader* br, _Out_writes_bytes_(n) void* p, size_t n)
@@ -929,13 +910,7 @@ static void binRDestroy(SerReader* r)
 {
     SerBinReader* br = (SerBinReader*)r;
 
-    // Registering as the consumer took a reference on the stream, so failing to finish leaks
-    // the whole buffer even though the caller released its own handle.
-    if (!br->streamdone) {
-        br->streamdone = true;
-        sbufCFinish(br->sb);
-    }
-
+    sbufRelease(&br->sb);
     saDestroy(&br->dict);
     saDestroy(&br->counts);
     xaFree(br);
@@ -1001,15 +976,9 @@ SerReader* serBinaryReaderCreate(StreamBuffer* sb, flags_t flags)
     SerBinReader* br =
         (SerBinReader*)_serReaderAlloc(sizeof(SerBinReader), &binReaderOps, caps, flags);
 
-    br->sb = sb;
+    br->sb = sbufAcquire(sb);
     saInit(&br->dict, string, 32);
     saInit(&br->counts, int32, 8);
-
-    if (!sbufCRegisterPull(sb, NULL, NULL)) {
-        serReaderFail(&br->r, SER_Err_Backend, _SL("could not register with the stream buffer"));
-        br->streamdone = true;   // nothing was registered, so nothing may be finished
-        return &br->r;
-    }
 
     brReadHeader(br, &caps);
     br->r.caps = caps;

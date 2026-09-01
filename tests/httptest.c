@@ -2766,9 +2766,12 @@ static int test_httptest_clientsink(void)
         TEST_FAILV(ret, 1, _SL("!strEmpty(r->respBody)"), stvNone);
     if (rec.dataCount != 0)
         TEST_FAILV(ret, 1, _SL("rec.dataCount=${uint} != 0"), stvar(uint32, rec.dataCount));
-    // The producer finished, so a consumer waiting on the buffer is released rather than hanging.
-    if (!sbufIsPFinished(sb))
-        TEST_FAILV(ret, 1, _SL("!sbufIsPFinished(sb)"), stvNone);
+    // The stream ended, so a consumer waiting on the buffer is released rather than hanging, and
+    // the string adapter let go of its slot when it saw that.
+    if (!sbufIsClosed(sb))
+        TEST_FAILV(ret, 1, _SL("!sbufIsClosed(sb)"), stvNone);
+    if (sbufCAttached(sb))
+        TEST_FAILV(ret, 1, _SL("the sink is still attached after the stream ended"), stvNone);
 
     objRelease(&r);
     sbufRelease(&sb);
@@ -3060,8 +3063,8 @@ static int test_httptest_clientstreambody(void)
         TEST_FAIL(1, _SL("failed: !r"), stvNone);
     }
 
-    // The caller owns the producer side; cxhttp takes the consumer side when the body is set, so
-    // the reference sbufCreate() handed back goes with it.
+    // The caller owns the producer side; cxhttp takes the consumer side when the body is set and
+    // acquires a reference of its own, so the one sbufCreate() handed back is done with here.
     StreamBuffer* sb = sbufCreate(64);
     if (!sbufStrPRegisterPull(sb, _SL("hello world")))
         TEST_FAILV(ret, 1, _SL("sbufStrPRegisterPull failed"), stvNone);
@@ -3688,8 +3691,9 @@ static void onSrvHead(HttpServerEvent* ev)
         // The consumer side is ours; cxhttp registers itself as the producer.
         if (!sbufCRegisterPush(r->sink, onSrvSinkNotify, NULL, r) ||
             !httpsrvreqSetSink(ev->request, r->sink)) {
-            sbufCFinish(r->sink);
-            r->sink = NULL;
+            sbufClose(r->sink);
+            sbufCUnregister(r->sink);
+            sbufRelease(&r->sink);
         }
     }
 }
@@ -3746,17 +3750,11 @@ static void onSrvRequest(HttpServerEvent* ev)
         // case a pull-mode test cannot reach -- a push buffer refuses a read larger than what it
         // is holding, so the pump has to ask for the right amount.
         r->respStream = sbufCreate(16);
-        if (!sbufPRegisterPush(r->respStream, NULL, NULL)) {
-            sbufPFinish(r->respStream);
-            r->respStream = NULL;
-            httpsrvreqRespondStatus(ev->request, HTTP_InternalError);
-            return;
-        }
 
         httpsrvreqRespondStream(ev->request, r->respStream, (int64)strlen(SRV_STREAM_BODY),
                                 _SL("text/plain"));
         sbufPWrite(r->respStream, (const uint8*)SRV_STREAM_BODY, strlen(SRV_STREAM_BODY));
-        sbufPFinish(r->respStream);
+        sbufClose(r->respStream);
         sbufRelease(&r->respStream);
         return;
     }
@@ -3767,8 +3765,7 @@ static void onSrvRequest(HttpServerEvent* ev)
         // come back for more rather than emptying it in one pass.
         r->respStream = sbufCreate(16);
         if (!sbufStrPRegisterPull(r->respStream, _SL(SRV_STREAM_BODY))) {
-            sbufPFinish(r->respStream);
-            r->respStream = NULL;
+            sbufRelease(&r->respStream);
             httpsrvreqRespondStatus(ev->request, HTTP_InternalError);
             return;
         }
@@ -3835,10 +3832,12 @@ static void srvFixtureDestroy(SrvFixture* f)
 
 static void srvRecDestroy(SrvRec* r)
 {
-    // The reference sbufCreate() handed back. Each registration holds one of its own and gives it
-    // back when that side finishes, so this is the last one and it is ours to drop.
-    if (r->sink)
+    // The reference sbufCreate() handed back. cxhttp gave its own back when the exchange ended;
+    // the notify registration is ours and only an unregister hands that one over.
+    if (r->sink) {
+        sbufCUnregister(r->sink);
         sbufRelease(&r->sink);
+    }
 
     objRelease(&r->held);
     strDestroy(&r->sinkData);

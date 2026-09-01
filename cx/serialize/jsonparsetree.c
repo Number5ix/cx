@@ -153,6 +153,9 @@ SSDNode* jsonTreeFromString(strref str)
     }
 
     SSDNode* ret = jsonParseTreeCustom(sb, NULL);
+
+    // this wrapper owns the stream, so it is the one that ends it
+    sbufClose(sb);
     sbufRelease(&sb);
     return ret;
 }

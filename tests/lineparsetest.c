@@ -449,16 +449,17 @@ int test_lineparse_explicit()
     strCopy(&teststr_crlf, (strref)testdata_crlf);
 
     StreamBuffer *sb;
+    LineParser *lp;
     int lines;
     string line = 0;
 
     sb = sbufCreate(512);
-    if (!sbufStrPRegisterPull(sb, teststr_lf) ||
-        !lparseRegisterPull(sb, LPARSE_LF))
+    if (!sbufStrPRegisterPull(sb, teststr_lf))
         TEST_FAIL(1, _SL("failed to register line-parser pull source"), stvNone);
+    lp = lparseCreatePull(sb, LPARSE_LF);
 
     lines = 0;
-    while (lparseLine(sb, &line)) {
+    while (lparseLine(lp, &line)) {
         lines++;
         lpCheckEq(&ret, lines, 1, line, line1);
         lpCheckEq(&ret, lines, 5, line, line5);
@@ -470,16 +471,18 @@ int test_lineparse_explicit()
     if (lines != 100)
         TEST_FAILV(ret, 1, _SL("total lines=${int} (want 100)"), stvar(int32, lines));
 
+    lparseDestroy(&lp);
+    sbufClose(sb);
     sbufRelease(&sb);
 
     // retest with NoIncomplete
     sb = sbufCreate(512);
-    if (!sbufStrPRegisterPull(sb, teststr_lf) ||
-        !lparseRegisterPull(sb, LPARSE_LF | LPARSE_NoIncomplete))
+    if (!sbufStrPRegisterPull(sb, teststr_lf))
         TEST_FAIL(1, _SL("failed to register line-parser pull source"), stvNone);
+    lp = lparseCreatePull(sb, LPARSE_LF | LPARSE_NoIncomplete);
 
     lines = 0;
-    while (lparseLine(sb, &line)) {
+    while (lparseLine(lp, &line)) {
         lines++;
         lpCheckEq(&ret, lines, 1, line, line1);
         lpCheckEq(&ret, lines, 5, line, line5);
@@ -490,17 +493,19 @@ int test_lineparse_explicit()
     if (lines != 99)
         TEST_FAILV(ret, 1, _SL("total lines=${int} (want 99)"), stvar(int32, lines));
 
+    lparseDestroy(&lp);
+    sbufClose(sb);
     sbufRelease(&sb);
 
     // CRLF
 
     sb = sbufCreate(512);
-    if (!sbufStrPRegisterPull(sb, teststr_crlf) ||
-        !lparseRegisterPull(sb, LPARSE_CRLF))
+    if (!sbufStrPRegisterPull(sb, teststr_crlf))
         TEST_FAIL(1, _SL("failed to register line-parser pull source"), stvNone);
+    lp = lparseCreatePull(sb, LPARSE_CRLF);
 
     lines = 0;
-    while (lparseLine(sb, &line)) {
+    while (lparseLine(lp, &line)) {
         lines++;
         lpCheckEq(&ret, lines, 1, line, line1);
         lpCheckEq(&ret, lines, 5, line, line5);
@@ -512,16 +517,18 @@ int test_lineparse_explicit()
     if (lines != 100)
         TEST_FAILV(ret, 1, _SL("total lines=${int} (want 100)"), stvar(int32, lines));
 
+    lparseDestroy(&lp);
+    sbufClose(sb);
     sbufRelease(&sb);
 
     // retest with NoIncomplete
     sb = sbufCreate(512);
-    if (!sbufStrPRegisterPull(sb, teststr_crlf) ||
-        !lparseRegisterPull(sb, LPARSE_CRLF | LPARSE_NoIncomplete))
+    if (!sbufStrPRegisterPull(sb, teststr_crlf))
         TEST_FAIL(1, _SL("failed to register line-parser pull source"), stvNone);
+    lp = lparseCreatePull(sb, LPARSE_CRLF | LPARSE_NoIncomplete);
 
     lines = 0;
-    while (lparseLine(sb, &line)) {
+    while (lparseLine(lp, &line)) {
         lines++;
         lpCheckEq(&ret, lines, 1, line, line1);
         lpCheckEq(&ret, lines, 5, line, line5);
@@ -533,18 +540,20 @@ int test_lineparse_explicit()
     if (lines != 100)
         TEST_FAILV(ret, 1, _SL("total lines=${int} (want 100)"), stvar(int32, lines));
 
+    lparseDestroy(&lp);
+    sbufClose(sb);
     sbufRelease(&sb);
 
     // finally a quick test with includeeol
 
     sb = sbufCreate(512);
-    if (!sbufStrPRegisterPull(sb, teststr_crlf) ||
-        !lparseRegisterPull(sb, LPARSE_CRLF | LPARSE_IncludeEOL))
+    if (!sbufStrPRegisterPull(sb, teststr_crlf))
         TEST_FAIL(1, _SL("failed to register line-parser pull source"), stvNone);
+    lp = lparseCreatePull(sb, LPARSE_CRLF | LPARSE_IncludeEOL);
     string temp = 0;
 
     lines = 0;
-    while (lparseLine(sb, &line)) {
+    while (lparseLine(lp, &line)) {
         lines++;
         strConcat(&temp, line1, _S"\r\n");
         lpCheckEq(&ret, lines, 1, line, temp);
@@ -562,6 +571,8 @@ int test_lineparse_explicit()
     if (lines != 100)
         TEST_FAILV(ret, 1, _SL("total lines=${int} (want 100)"), stvar(int32, lines));
 
+    lparseDestroy(&lp);
+    sbufClose(sb);
     sbufRelease(&sb);
 
     strDestroy(&line);
@@ -585,16 +596,17 @@ int test_lineparse_auto()
     strCopy(&teststr_mixed2, (strref)testdata_mixed2);
 
     StreamBuffer *sb;
+    LineParser *lp;
     int lines;
     string line = 0;
 
     sb = sbufCreate(512);
-    if (!sbufStrPRegisterPull(sb, teststr_lf) ||
-        !lparseRegisterPull(sb, LPARSE_Auto))
+    if (!sbufStrPRegisterPull(sb, teststr_lf))
         TEST_FAIL(1, _SL("failed to register line-parser pull source"), stvNone);
+    lp = lparseCreatePull(sb, LPARSE_Auto);
 
     lines = 0;
-    while (lparseLine(sb, &line)) {
+    while (lparseLine(lp, &line)) {
         lines++;
         lpCheckEq(&ret, lines, 1, line, line1);
         lpCheckEq(&ret, lines, 5, line, line5);
@@ -606,17 +618,19 @@ int test_lineparse_auto()
     if (lines != 100)
         TEST_FAILV(ret, 1, _SL("total lines=${int} (want 100)"), stvar(int32, lines));
 
+    lparseDestroy(&lp);
+    sbufClose(sb);
     sbufRelease(&sb);
 
     // CRLF
 
     sb = sbufCreate(512);
-    if (!sbufStrPRegisterPull(sb, teststr_crlf) ||
-        !lparseRegisterPull(sb, LPARSE_Auto))
+    if (!sbufStrPRegisterPull(sb, teststr_crlf))
         TEST_FAIL(1, _SL("failed to register line-parser pull source"), stvNone);
+    lp = lparseCreatePull(sb, LPARSE_Auto);
 
     lines = 0;
-    while (lparseLine(sb, &line)) {
+    while (lparseLine(lp, &line)) {
         lines++;
         lpCheckEq(&ret, lines, 1, line, line1);
         lpCheckEq(&ret, lines, 5, line, line5);
@@ -628,18 +642,20 @@ int test_lineparse_auto()
     if (lines != 100)
         TEST_FAILV(ret, 1, _SL("total lines=${int} (want 100)"), stvar(int32, lines));
 
+    lparseDestroy(&lp);
+    sbufClose(sb);
     sbufRelease(&sb);
 
     // Mixed 1 (should detect CR)
     string temp = 0;
 
     sb = sbufCreate(512);
-    if (!sbufStrPRegisterPull(sb, teststr_mixed1) ||
-        !lparseRegisterPull(sb, LPARSE_Auto))
+    if (!sbufStrPRegisterPull(sb, teststr_mixed1))
         TEST_FAIL(1, _SL("failed to register line-parser pull source"), stvNone);
+    lp = lparseCreatePull(sb, LPARSE_Auto);
 
     lines = 0;
-    while (lparseLine(sb, &line)) {
+    while (lparseLine(lp, &line)) {
         lines++;
         lpCheckEq(&ret, lines, 1, line, line1);
         lpCheckEq(&ret, lines, 5, line, line5);
@@ -657,17 +673,19 @@ int test_lineparse_auto()
     if (lines != 100)
         TEST_FAILV(ret, 1, _SL("total lines=${int} (want 100)"), stvar(int32, lines));
 
+    lparseDestroy(&lp);
+    sbufClose(sb);
     sbufRelease(&sb);
 
     // Mixed 1 (should detect CRLF)
 
     sb = sbufCreate(512);
-    if (!sbufStrPRegisterPull(sb, teststr_mixed2) ||
-        !lparseRegisterPull(sb, LPARSE_Auto))
+    if (!sbufStrPRegisterPull(sb, teststr_mixed2))
         TEST_FAIL(1, _SL("failed to register line-parser pull source"), stvNone);
+    lp = lparseCreatePull(sb, LPARSE_Auto);
 
     lines = 0;
-    while (lparseLine(sb, &line)) {
+    while (lparseLine(lp, &line)) {
         lines++;
         lpCheckEq(&ret, lines, 1, line, line1);
         strNConcat(&temp, line8, _S"\n", line9);
@@ -680,6 +698,8 @@ int test_lineparse_auto()
     if (lines != 51)
         TEST_FAILV(ret, 1, _SL("total lines=${int} (want 51)"), stvar(int32, lines));
 
+    lparseDestroy(&lp);
+    sbufClose(sb);
     sbufRelease(&sb);
 
     strDestroy(&temp);
@@ -702,16 +722,17 @@ int test_lineparse_mixed()
     strCopy(&teststr_mixed2, (strref)testdata_mixed2);
 
     StreamBuffer *sb;
+    LineParser *lp;
     int lines;
     string line = 0;
 
     sb = sbufCreate(512);
-    if (!sbufStrPRegisterPull(sb, teststr_mixed1) ||
-        !lparseRegisterPull(sb, LPARSE_Mixed))
+    if (!sbufStrPRegisterPull(sb, teststr_mixed1))
         TEST_FAIL(1, _SL("failed to register line-parser pull source"), stvNone);
+    lp = lparseCreatePull(sb, LPARSE_Mixed);
 
     lines = 0;
-    while (lparseLine(sb, &line)) {
+    while (lparseLine(lp, &line)) {
         lines++;
         lpCheckEq(&ret, lines, 1, line, line1);
         lpCheckEq(&ret, lines, 5, line, line5);
@@ -723,17 +744,19 @@ int test_lineparse_mixed()
     if (lines != 100)
         TEST_FAILV(ret, 1, _SL("total lines=${int} (want 100)"), stvar(int32, lines));
 
+    lparseDestroy(&lp);
+    sbufClose(sb);
     sbufRelease(&sb);
 
     // Mixed2
 
     sb = sbufCreate(512);
-    if (!sbufStrPRegisterPull(sb, teststr_mixed2) ||
-        !lparseRegisterPull(sb, LPARSE_Mixed))
+    if (!sbufStrPRegisterPull(sb, teststr_mixed2))
         TEST_FAIL(1, _SL("failed to register line-parser pull source"), stvNone);
+    lp = lparseCreatePull(sb, LPARSE_Mixed);
 
     lines = 0;
-    while (lparseLine(sb, &line)) {
+    while (lparseLine(lp, &line)) {
         lines++;
         lpCheckEq(&ret, lines, 1, line, line1);
         lpCheckEq(&ret, lines, 5, line, line5);
@@ -745,6 +768,8 @@ int test_lineparse_mixed()
     if (lines != 100)
         TEST_FAILV(ret, 1, _SL("total lines=${int} (want 100)"), stvar(int32, lines));
 
+    lparseDestroy(&lp);
+    sbufClose(sb);
     sbufRelease(&sb);
 
     strDestroy(&line);
@@ -783,6 +808,7 @@ static bool test_linecb(strref line, void *ctx)
 int test_lineparse_push()
 {
     StreamBuffer *sb;
+    LineParser *lp;
     int ret = 0;
     LineParsePushTestCtx lppt = { 0 };
     string teststr_lf = 0;
@@ -793,13 +819,16 @@ int test_lineparse_push()
 
     // test with a large buffer
     sb = sbufCreate(8192);
-    if (!lparseRegisterPush(sb, test_linecb, test_ctxcleanup, &lppt, 0))
+    lp = lparseCreatePush(sb, test_linecb, test_ctxcleanup, &lppt, 0);
+    if (!lp)
         TEST_FAIL(1, _SL("failed to register line-parser push sink"), stvNone);
     sbufStrIn(sb, teststr_lf);
+    sbufClose(sb);   // delivers a last line that has no EOL of its own
 
     if (lppt.lines != 100)
         TEST_FAILV(ret, 1, _SL("total lines=${int} (want 100)"), stvar(int32, lppt.lines));
 
+    lparseDestroy(&lp);
     sbufRelease(&sb);
 
     if (!lppt.didclean)
@@ -810,14 +839,17 @@ int test_lineparse_push()
     lppt = (LineParsePushTestCtx){ 0 };
 
     sb = sbufCreate(5);
-    if (!lparseRegisterPush(sb, test_linecb, test_ctxcleanup, &lppt, 0))
+    lp = lparseCreatePush(sb, test_linecb, test_ctxcleanup, &lppt, 0);
+    if (!lp)
         TEST_FAIL(1, _SL("failed to register line-parser push sink"), stvNone);
     sbufStrIn(sb, teststr_crlf);
+    sbufClose(sb);   // delivers a last line that has no EOL of its own
 
     if (lppt.lines != 100)
         TEST_FAILV(ret, 1, _SL("total lines=${int} (want 100)"), stvar(int32, lppt.lines));
     ret |= lppt.ret;
 
+    lparseDestroy(&lp);
     sbufRelease(&sb);
 
     if (!lppt.didclean)

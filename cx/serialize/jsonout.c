@@ -67,14 +67,9 @@ _Use_decl_annotations_
 JSONOut* jsonOutBegin(StreamBuffer* sb, flags_t flags)
 {
     JSONOut* jo = xaAlloc(sizeof(JSONOut), XA_Zero);
-    jo->sb      = sb;
+    jo->sb      = sbufAcquire(sb);
     jo->flags   = flags;
     jo->first   = true;
-
-    if (!sbufPRegisterPush(sb, NULL, NULL)) {
-        xaFree(jo);
-        return NULL;
-    }
 
     // set platform EOL value if not explicitly set
     if (!(flags & JSON_Unix_EOL) && !(flags & JSON_Windows_EOL)) {
@@ -361,7 +356,7 @@ void jsonOutEnd(JSONOut** jo)
 {
     if (!((*jo)->flags & JSON_Single_Line))
         writeStrEOL((*jo), kJSONEmpty);
-    sbufPFinish((*jo)->sb);
+    sbufRelease(&(*jo)->sb);
     strDestroy(&(*jo)->indent);
 
     xaDestroy(jo);

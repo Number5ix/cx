@@ -29,6 +29,7 @@ SSDNode* setsOpen(VFS* vfs, strref path, int64 flush_interval)
     if (!sbufFilePRegisterPull(sb, file, false))
         goto out;
     ret = jsonParseTreeCustom(sb, SSDTree(tree));
+    sbufClose(sb);
 
     // Sanity check, for settings we require the root to be a hashtable using our derived class.
     // If it's not, because somebody replaced the json with one that has an array at the root or

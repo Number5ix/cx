@@ -28,12 +28,6 @@ bool sbufBufIn(StreamBuffer* sb, Buffer buf, bool own)
     devAssertMsg(sb->high == 0 || sbufIsLocked(sb),
                  "Flow control needs a stream buffer that can block the producer");
 
-    if (!sbufPRegisterPush(sb, NULL, NULL, sbufIsLocked(sb) ? SBUF_PBlock : 0)) {
-        if (own)
-            bufDestroy(&buf);
-        return false;
-    }
-
     size_t len = buf ? buf->len : 0;
     size_t pos = 0;
     bool ret   = true;
@@ -44,7 +38,7 @@ bool sbufBufIn(StreamBuffer* sb, Buffer buf, bool own)
     while (pos < len) {
         // push at most the target buffer size
         size_t nbytes = min(len - pos, chunksz);
-        if (!sbufPWrite(sb, buf->data + pos, nbytes)) {
+        if (!sbufPWrite(sb, buf->data + pos, nbytes, SBUF_Wait)) {
             ret = false;
             break;
         }
@@ -54,9 +48,7 @@ bool sbufBufIn(StreamBuffer* sb, Buffer buf, bool own)
     if (own)
         bufDestroy(&buf);
 
-    ret = ret && !sbufIsError(sb);
-    sbufPFinish(sb);
-    return ret;
+    return ret && !sbufIsError(sb);
 }
 
 static size_t sbufBufPullCB(_Pre_valid_ StreamBuffer* sb, _Out_writes_bytes_(sz) uint8* buf,
@@ -65,6 +57,14 @@ static size_t sbufBufPullCB(_Pre_valid_ StreamBuffer* sb, _Out_writes_bytes_(sz)
     SbufBufInCtx* sbc = (SbufBufInCtx*)ctx;
     if (!sbc)
         return 0;
+
+    if (sz == 0) {
+        // A status check rather than a request for data. Once the stream is over there is nothing
+        // left to feed it, so hand the slot back.
+        if (sbufIsClosed(sb))
+            sbufPUnregister(sb);
+        return 0;
+    }
 
     size_t remain = sbc->buf ? sbc->buf->len - sbc->pos : 0;
     size_t nbytes = min(remain, sz);
@@ -75,8 +75,9 @@ static size_t sbufBufPullCB(_Pre_valid_ StreamBuffer* sb, _Out_writes_bytes_(sz)
         remain -= nbytes;
     }
 
+    // out of buffer: leave the slot open for another producer rather than ending the stream
     if (remain == 0)
-        sbufPFinish(sb);
+        sbufPUnregister(sb);
 
     return nbytes;
 }
@@ -130,27 +131,27 @@ static void sbufBufPushCB(_Pre_valid_ StreamBuffer* sb, _In_reads_bytes_(sz) con
                           size_t sz, _Pre_opt_valid_ void* ctx)
 {
     SbufBufOutCtx* sbc = (SbufBufOutCtx*)ctx;
-    if (!sbc || sz == 0)
-        return;   // sz == 0 is a status query, not data
+    if (!sbc)
+        return;
 
-    bufAppendBytes(sbc->out, buf, sz);
+    if (sz > 0)
+        bufAppendBytes(sbc->out, buf, sz);
+
+    // nothing more is coming, so hand the slot back
+    if (sbufIsClosed(sb))
+        sbufCUnregister(sb);
 }
 
 _Use_decl_annotations_
 bool sbufBufOut(StreamBuffer* sb, Buffer* bufout)
 {
-    if (!sbufCRegisterPull(sb, NULL, NULL))
-        return false;
-
     size_t got;
     do {
         if (!sbufBufDrain(sb, bufout, sb->targetsz, &got))
             break;
-    } while (got > 0 || !sbufIsPFinished(sb));
+    } while (got > 0 || sbufCMore(sb));
 
-    bool ret = !sbufIsError(sb);
-    sbufCFinish(sb);
-    return ret;
+    return !sbufIsError(sb);
 }
 
 _Use_decl_annotations_
@@ -176,11 +177,6 @@ StreamBuffer* sbufBufCreatePush(Buffer* bufout)
     StreamBuffer* ret = sbufCreate(0);
     if (!ret)
         return NULL;
-
-    if (!sbufPRegisterPush(ret, NULL, NULL)) {
-        sbufRelease(&ret);
-        return NULL;
-    }
 
     if (!sbufBufCRegisterPush(ret, bufout)) {
         sbufRelease(&ret);

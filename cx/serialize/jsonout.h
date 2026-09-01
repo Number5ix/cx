@@ -75,14 +75,17 @@ enum JSON_OUT_FLAGS {
 ///
 /// Begins event-driven JSON output to a stream buffer.
 ///
-/// Initializes a JSON output context that writes to the stream buffer in
-/// PUSH mode. After calling this, repeatedly call jsonOut() with
-/// JSONParseEvent structures to build the output, then call jsonOutEnd()
-/// to finalize.
+/// Initializes a JSON output context that writes one document to the stream buffer as a push
+/// producer. After calling this, repeatedly call jsonOut() with JSONParseEvent structures to build
+/// the output, then call jsonOutEnd() to finalize.
+///
+/// The stream buffer is only borrowed and outlives the document, so several documents may be
+/// written to the same buffer -- one jsonOutBegin()/jsonOutEnd() pair each, with any framing bytes
+/// the format needs written in between.
 ///
 /// @param sb Stream buffer to write to
 /// @param flags Output formatting flags from JSON_OUT_FLAGS
-/// @return JSON output context, or NULL on error
+/// @return JSON output context
 ///
 /// Example:
 /// @code
@@ -109,7 +112,7 @@ enum JSON_OUT_FLAGS {
 ///
 ///   jsonOutEnd(&jo);
 /// @endcode
-_Ret_opt_valid_ JSONOut* jsonOutBegin(_Inout_ StreamBuffer* sb, flags_t flags);
+_Ret_valid_ JSONOut* jsonOutBegin(_Inout_ StreamBuffer* sb, flags_t flags);
 
 /// bool jsonOut(JSONOut *jo, const JSONParseEvent *ev)
 ///
@@ -128,8 +131,8 @@ _Check_return_ bool jsonOut(_Inout_ JSONOut* jo, _In_ const JSONParseEvent* ev);
 ///
 /// Finalizes JSON output and cleans up the context.
 ///
-/// Flushes any remaining data to the stream buffer, finishes the producer,
-/// and frees the JSON output context.
+/// Writes the document's trailing line ending and frees the JSON output context. The stream buffer
+/// is left open; end it with sbufClose() once no more documents are going into it.
 ///
 /// @param jo Pointer to JSON output context (set to NULL after call)
 _At_(*jo, _Pre_valid_ _Post_invalid_) void jsonOutEnd(_Inout_ JSONOut** jo);
@@ -174,9 +177,7 @@ void jsonStrEscape(_Inout_ string* out, _In_opt_ strref val, flags_t flags);
 /// JSON. The stream buffer should have a consumer registered (e.g.,
 /// sbufStrCRegisterPush() or sbufFileCRegisterPush()).
 ///
-/// **IMPORTANT:** The stream buffer is invalidated after this call.
-///
-/// @param sb Stream buffer to write to (invalidated after call)
+/// @param sb Stream buffer to write to
 /// @param tree Root node of SSD tree to serialize
 /// @param ... (flags) Optional output formatting flags (defaults to platform EOL with no indent)
 /// @return true on success, false on error

@@ -131,8 +131,11 @@ static void destroyPart(HttpMultipartPart* p)
             vfsClose(p->src.vfile);
         break;
     case HTTPMPSRC_Stream:
-        if (p->src.stream)
-            sbufCFinish(p->src.stream);   // hands back the reference the registration took
+        if (p->src.stream) {
+            // cxhttp drove this one as the consumer, so it is the side that ends it
+            sbufClose(p->src.stream);
+            sbufRelease(&p->src.stream);
+        }
         break;
     }
 
@@ -265,7 +268,7 @@ static size_t emitContent(MpProducer* mpp, HttpMultipartPart* p, uint8* buf, siz
         if (n == 0) {
             if (sbufIsError(p->src.stream))
                 *err = true;
-            else if (sbufIsPFinished(p->src.stream))
+            else if (!sbufCMore(p->src.stream))
                 *done = true;
         }
         break;
@@ -344,6 +347,14 @@ static size_t mpPullCB(_Pre_valid_ StreamBuffer* sb, _Out_writes_bytes_(sz) uint
     if (!mpp)
         return 0;
 
+    if (sz == 0) {
+        // A status check rather than a request for data. Once the stream is over there is nothing
+        // left to feed it, so hand the slot back.
+        if (sbufIsClosed(sb))
+            sbufPUnregister(sb);
+        return 0;
+    }
+
     size_t out = 0;
     while (out < sz && mpp->stage != MPS_Done) {
         MpStage was  = mpp->stage;
@@ -358,14 +369,14 @@ static size_t mpPullCB(_Pre_valid_ StreamBuffer* sb, _Out_writes_bytes_(sz) uint
             break;
     }
 
+    // out of parts: leave the slot open for another producer rather than ending the stream
     if (mpp->stage == MPS_Done)
-        sbufPFinish(sb);
+        sbufPUnregister(sb);
 
     return out;
 }
 
-// Build a stream over the parts. The producer registration is what keeps it alive from here on, so
-// the caller hands back the reference sbufCreate() started with.
+// Build a stream over the parts, returning the reference sbufCreate() started with.
 static StreamBuffer* buildStream(HttpMultipart* mp)
 {
     MpProducer* mpp  = takeParts(mp);
@@ -467,17 +478,17 @@ bool httpMultipartAddStream(HttpMultipart* mp, strref name, strref filename, str
     if (!mp || strEmpty(name) || !sb || mp->finished)
         return false;
 
-    // cxhttp is the consumer of this buffer; the caller registered the producer. Registering here
-    // rather than when the part is reached means a buffer whose producer is in push mode is
+    // cxhttp is the consumer of this buffer; the caller registered the producer. Checking the mode
+    // here rather than when the part is reached means a buffer whose producer is in push mode is
     // refused now, while the caller can still do something about it.
-    if (!sbufCRegisterPull(sb, NULL, NULL))
+    if (!sbufIsPull(sb))
         return false;
 
     strref ctype         = strEmpty(contentType) ? kOctetStream : contentType;
     HttpMultipartPart* p = addPart(mp, name, filename, ctype);
 
     p->srctype    = HTTPMPSRC_Stream;
-    p->src.stream = sb;
+    p->src.stream = sbufAcquire(sb);
     p->len        = len;
     return true;
 }
@@ -518,7 +529,7 @@ bool httpMultipartAttach(HttpMultipart* mp, HttpRequest* req)
     if (sb) {
         ok = httprequestSetBodyStream(req, sb, len, ctype);
         if (!ok)
-            sbufPFinish(sb);   // hand back the producer registration's reference
+            sbufClose(sb);   // nothing is going to read it, so let the producer go
 
         sbufRelease(&sb);
     }
@@ -541,6 +552,7 @@ bool httpMultipartFinish(HttpMultipart* mp, string* body, string* contentType)
 
         // Drains the whole body, which for a streamed part means waiting for its producer.
         ok = sbufStrOut(sb, &mp->rendered);
+        sbufClose(sb);
         sbufRelease(&sb);
     }
 

@@ -565,11 +565,8 @@ _Use_decl_annotations_
 bool jsonParseInit(JSONParseState* state, StreamBuffer* sb)
 {
     memset(state, 0, sizeof(*state));
-    state->sb   = sb;
+    state->sb   = sbufAcquire(sb);
     state->line = 1;
-
-    if (!sbufCRegisterPull(sb, NULL, NULL))
-        return false;
 
     state->ctx        = xaAlloc(sizeof(JSONParseContext), XA_Zero);
     state->ctx->ctype = JSON_Top;
@@ -767,8 +764,7 @@ void jsonParseDestroy(JSONParseState* state)
     }
 
     strDestroy(&state->errmsg);
-    if (state->sb)
-        sbufCFinish(state->sb);
+    sbufRelease(&state->sb);
 }
 
 _Use_decl_annotations_

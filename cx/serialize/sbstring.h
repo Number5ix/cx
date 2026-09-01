@@ -42,12 +42,10 @@ CX_C_BEGIN
 /// efficient operation. The stream buffer is automatically finished after all
 /// data is written.
 ///
-/// **IMPORTANT:** The stream buffer is invalidated after this call.
-///
 /// If flow control is active (see sbufSetWatermark()), this waits for the consumer to make room
 /// rather than dropping data, so the consumer has to be draining the buffer from another thread.
 ///
-/// @param sb The stream buffer (invalidated after call)
+/// @param sb The stream buffer
 /// @param str String to push into the buffer
 /// @return true on success, false on error
 ///
@@ -57,7 +55,7 @@ CX_C_BEGIN
 ///   sbufStrCRegisterPush(sb, &output);
 ///   sbufStrIn(sb, _SL("Hello, World!"));
 /// @endcode
-bool sbufStrIn(_Pre_valid_ _Post_invalid_ StreamBuffer* sb, _In_opt_ strref str);
+bool sbufStrIn(_Inout_ StreamBuffer* sb, _In_opt_ strref str);
 
 /// bool sbufStrPRegisterPull(StreamBuffer *sb, strref str)
 ///
@@ -87,9 +85,7 @@ _Check_return_ bool sbufStrPRegisterPull(_Inout_ StreamBuffer* sb, _In_opt_ strr
 /// Reads data from the stream buffer until the producer finishes (EOF) and
 /// writes it to the output string, overwriting any existing contents.
 ///
-/// **IMPORTANT:** The stream buffer is invalidated after this call.
-///
-/// @param sb The stream buffer (invalidated after call)
+/// @param sb The stream buffer
 /// @param strout Output string (will be overwritten)
 /// @return true on success, false on error
 ///
@@ -102,7 +98,7 @@ _Check_return_ bool sbufStrPRegisterPull(_Inout_ StreamBuffer* sb, _In_opt_ strr
 ///   // use output
 ///   strDestroy(&output);
 /// @endcode
-bool sbufStrOut(_Pre_valid_ _Post_invalid_ StreamBuffer* sb, _Inout_ string* strout);
+bool sbufStrOut(_Inout_ StreamBuffer* sb, _Inout_ string* strout);
 
 /// bool sbufStrCRegisterPush(StreamBuffer *sb, string *strout)
 ///
@@ -143,7 +139,8 @@ _Check_return_ bool sbufStrCRegisterPush(_Inout_ StreamBuffer* sb, _Inout_ strin
 ///   string output = 0;
 ///   StreamBuffer *sb = sbufStrCreatePush(&output, 4096);
 ///   sbufPWrite(sb, data, size);
-///   sbufPFinish(sb);
+///   sbufClose(sb);
+///   sbufRelease(&sb);
 ///   // output now contains the data
 ///   strDestroy(&output);
 /// @endcode

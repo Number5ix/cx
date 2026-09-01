@@ -38,6 +38,7 @@
 ///       logFmt(Error, _SL("write failed at ${string}: ${string}"),
 ///              stvar(string, w->err.path), stvar(string, w->err.msg));
 ///   serWriterDestroy(&w);
+///   sbufClose(sb);
 ///   sbufRelease(&sb);
 ///
 ///   // ... send or store json ...
@@ -49,6 +50,7 @@
 ///   structInit(MyStruct, &out);
 ///   serRead(r, MyStruct, &out);
 ///   serReaderDestroy(&r);
+///   sbufClose(sb);
 ///   sbufRelease(&sb);
 /// @endcode
 ///

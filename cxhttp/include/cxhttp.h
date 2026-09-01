@@ -583,8 +583,8 @@ bool httpMultipartAddFileVFS(_Inout_ HttpMultipart* mp, _In_opt_ strref name,
 /// Add a part whose content is streamed from a StreamBuffer
 ///
 /// For content that is still being produced. Register the *producer* side of the buffer in pull
-/// mode before calling this; cxhttp registers itself as the consumer and reads the part as the body
-/// is sent.
+/// mode before calling this; cxhttp drives the buffer as its consumer and reads the part as the
+/// body is sent.
 ///
 /// @param mp Multipart state
 /// @param name Field name the content was submitted under

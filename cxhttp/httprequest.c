@@ -22,6 +22,35 @@
 
 #include "http_private.h"
 
+_Use_decl_annotations_
+void _httpReqReleaseBodyStream(HttpRequest* self)
+{
+    StreamBuffer* sb = self->reqBodyStream;
+    if (!sb)
+        return;
+    self->reqBodyStream = NULL;
+
+    // Detach first, so the end-of-stream callback cannot come back into a request that has already
+    // stopped pointing at this buffer. In pull mode there is no consumer slot filled and this does
+    // nothing. Ending it is right either way: nothing on this side is ever going to read it again.
+    sbufCUnregister(sb);
+    sbufClose(sb);
+    sbufRelease(&sb);
+}
+
+_Use_decl_annotations_
+void _httpReqReleaseSink(HttpRequest* self)
+{
+    StreamBuffer* sb = self->respSink;
+    if (!sb)
+        return;
+    self->respSink = NULL;
+
+    // cxhttp is the producer here, so it is the side that ends the stream.
+    sbufClose(sb);
+    sbufRelease(&sb);
+}
+
 _objfactory_check HttpRequest* HttpRequest_create(HttpMethod method, _In_opt_ strref url)
 {
     _httpInit();
@@ -66,21 +95,12 @@ void HttpRequest_destroy(_In_ HttpRequest* self)
     httpHeadersDestroy(&self->reqHeaders);
     httpHeadersDestroy(&self->respHeaders);
 
-    // Finish rather than release, on both sides. A StreamBuffer's reference *is* its registration:
-    // sbufCRegisterPull() and sbufPRegisterPush() each take one, and the matching Finish gives it
-    // back. Releasing instead would return a reference we never separately owned -- and by this
-    // point a completed transfer has already handed ours back, so the release would be the one that
-    // frees the buffer out from under the caller. Both Finish calls are no-ops if they already ran.
-    if (self->reqBodyStream) {
-        sbufCFinish(self->reqBodyStream);
-        self->reqBodyStream = NULL;
-    }
+    // Each of these holds a reference of its own, taken when the request started pointing at the
+    // buffer; both helpers are no-ops if a completed transfer already let go.
+    _httpReqReleaseBodyStream(self);
     if (self->reqBodyOwn)
         bufDestroy(&self->reqBodyBuf);
-    if (self->respSink) {
-        sbufPFinish(self->respSink);
-        self->respSink = NULL;
-    }
+    _httpReqReleaseSink(self);
     // Autogen begins -----
     strDestroy(&self->methodName);
     strDestroy(&self->reqBody);
@@ -129,10 +149,7 @@ static void setContentType(HttpRequest* self, strref contentType)
 // writer would then have to guess which one the caller meant.
 static void clearBody(HttpRequest* self)
 {
-    if (self->reqBodyStream) {
-        sbufCFinish(self->reqBodyStream);
-        self->reqBodyStream = NULL;
-    }
+    _httpReqReleaseBodyStream(self);
 
     strDestroy(&self->reqBody);
     if (self->reqBodyOwn)
@@ -152,10 +169,13 @@ static void clearBody(HttpRequest* self)
 // sbufFileIn() -- reaches the connection through the notify rather than being waited on.
 static bool adoptBody(HttpRequest* self, StreamBuffer* sb)
 {
-    if (sbufIsPull(sb))
-        return sbufCRegisterPull(sb, NULL, self);
+    // In pull mode cxhttp drives the buffer and has nothing to register; in push mode it is the
+    // one being called back. Either way the request keeps a reference of its own.
+    if (!sbufIsPull(sb) && !sbufCRegisterPush(sb, _httpReqBodyNotify, NULL, self))
+        return false;
 
-    return sbufCRegisterPush(sb, _httpReqBodyNotify, NULL, self);
+    self->reqBodyStream = sbufAcquire(sb);
+    return true;
 }
 
 _Use_decl_annotations_
@@ -181,14 +201,12 @@ bool _httpReqArmBody(HttpRequest* self)
 
     if (ok) {
         ok = adoptBody(self, sb);
-        if (ok)
-            self->reqBodyStream = sb;
-        else
-            sbufPFinish(sb);   // hand back the producer registration's reference
+        if (!ok)
+            sbufClose(sb);   // nothing is going to read it, so let the producer go
     }
 
-    // The two registrations are what keep the buffer alive from here on, so the reference
-    // sbufCreate() started with goes back either way.
+    // adoptBody() took a reference of its own, so the one sbufCreate() started with goes back
+    // either way.
     sbufRelease(&sb);
     return ok;
 }
@@ -253,7 +271,6 @@ bool HttpRequest_setBodyStream(_In_ HttpRequest* self, _In_ StreamBuffer* sb, in
     if (!adoptBody(self, sb))
         return false;
 
-    self->reqBodyStream   = sb;
     self->reqBodyLen      = len;   // < 0 means chunked: the length is not known up front
     self->reqBodyExternal = true;
     setContentType(self, contentType);
@@ -265,16 +282,11 @@ bool HttpRequest_setSink(_In_ HttpRequest* self, _In_ StreamBuffer* sb)
     if (!sb)
         return false;
 
-    if (self->respSink) {
-        sbufPFinish(self->respSink);
-        self->respSink = NULL;
-    }
+    _httpReqReleaseSink(self);
 
-    // The mirror image of setBodyStream: here cxhttp produces and the caller consumes.
-    if (!sbufPRegisterPush(sb, NULL, NULL))
-        return false;
-
-    self->respSink = sb;
+    // The mirror image of setBodyStream: here cxhttp produces and the caller consumes. A push
+    // producer registers nothing, so all this takes is a reference of its own.
+    self->respSink = sbufAcquire(sb);
     return true;
 }
 

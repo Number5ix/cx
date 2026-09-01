@@ -228,8 +228,11 @@ class HttpRequest
 
     /// Stream the request body from a StreamBuffer
     ///
-    /// cxhttp registers itself as the buffer's *consumer*; the caller registers the producer, so an
-    /// upload from a file is sbufFilePRegisterPull() and nothing more.
+    /// cxhttp takes the buffer's *consumer* side; the caller supplies the producer, so an upload
+    /// from a file is sbufFilePRegisterPull() and nothing more. In pull mode that means cxhttp
+    /// drives the buffer and registers nothing; in push mode it registers a notify callback.
+    ///
+    /// The request acquires its own reference, so release yours whenever you are done with it.
     ///
     /// @param sb StreamBuffer to read the body from; a reference is held until the request finishes
     /// @param len Body length, or -1 to send it chunked because the length is not known up front
@@ -241,9 +244,12 @@ class HttpRequest
     ///
     /// cxhttp is the *producer* here; the caller registers the consumer, so a download to a file is
     /// sbufFileCRegisterPush() and nothing more. Note the push-mode call rather than sbufFileOut():
-    /// that one drains the buffer synchronously and invalidates it, which does not work for a
+    /// that one drains the buffer synchronously on the calling thread, which does not work for a
     /// transfer that arrives over time. Mutually exclusive with a data handler; setting both is a
     /// programming error and the sink wins.
+    ///
+    /// cxhttp ends the stream once the response is complete, so a consumer waiting on it is always
+    /// released. The request acquires its own reference, so release yours when you are done.
     ///
     /// @param sb StreamBuffer to write the body into; a reference is held until the request finishes
     /// @return true on success

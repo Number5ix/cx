@@ -520,7 +520,7 @@ static bool pumpBodyStream(HttpConn* self, HttpRequest* req)
         req->bodySent    = 0;
         req->bodyRefused = false;
 
-        if (!sbufCSend(sb, bodySendCB, want))
+        if (!sbufCSend(sb, bodySendCB, want, req))
             break;
 
         if (req->bodySent > 0) {
@@ -539,14 +539,13 @@ static bool pumpBodyStream(HttpConn* self, HttpRequest* req)
     }
 
     if (sb) {
-        if (!sbufIsPFinished(sb) || sbufCAvail(sb) > 0)
+        if (sbufCMore(sb) || sbufCAvail(sb) > 0)
             return true;   // more to come; the producer's next write wakes us through the notify
 
         // The body is spent, so give the producer's side the end-of-consumption it is waiting for
         // -- a file being uploaded closes here rather than when the request object happens to go
-        // away. sbufCFinish() returns our reference with it, hence the NULL.
-        sbufCFinish(sb);
-        req->reqBodyStream = NULL;
+        // away.
+        _httpReqReleaseBodyStream(req);
     }
 
     // The terminator is the last thing on the wire for a chunked body, so it is retried on the next
@@ -712,11 +711,9 @@ void HttpConn__deliver(_In_ HttpConn* self, HttpEventType type, HttpError err)
                 if (type != HTTPEV_Complete)
                     sbufError(self->req->respSink);
 
-                // sbufPFinish() hands back the reference sbufPRegisterPush() took, so the request
-                // must stop pointing at a buffer it no longer holds. sbufError() does not release,
-                // which is why it is not enough on its own.
-                sbufPFinish(self->req->respSink);
-                self->req->respSink = NULL;
+                // sbufError() only marks the buffer, so it is never enough on its own: ending the
+                // stream is what tells the consumer nothing more is coming.
+                _httpReqReleaseSink(self->req);
             }
             // Whatever state the body write was in, this connection is not going to finish it.
             self->req->bodyConn = NULL;

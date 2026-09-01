@@ -372,8 +372,6 @@ SerWriter* serJsonWriterCreate(StreamBuffer* sb, flags_t flags)
                                                         flags);
     saInit(&jw->wrapdepth, int32, 4);
     jw->jo = jsonOutBegin(sb, jsonOutOptions(flags));
-    if (!jw->jo)
-        serWriterFail(&jw->w, SER_Err_Backend, _SL("could not begin JSON output"));
 
     return &jw->w;
 }

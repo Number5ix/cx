@@ -177,8 +177,6 @@ bool _jsonOutTree(StreamBuffer* sb, SSDNode* tree, uint32 flags, SSDLockState* _
 {
     bool error  = false;
     JSONOut* jo = jsonOutBegin(sb, flags);
-    if (!jo)
-        return false;
 
     ssdLockedTransaction(tree)
     {
@@ -203,6 +201,9 @@ bool _jsonTreeToString(string* out, SSDNode* tree, uint32 flags, SSDLockState* _
     }
 
     bool ret = jsonOutTree(sb, tree, flags);
+
+    // this wrapper owns the stream, so it is the one that ends it
+    sbufClose(sb);
     sbufRelease(&sb);
 
     return ret;

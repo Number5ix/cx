@@ -51,6 +51,10 @@ _objinit_guaranteed bool HttpServerRequest_init(_In_ HttpServerRequest* self)
 
 void HttpServerRequest_destroy(_In_ HttpServerRequest* self)
 {
+    // Each stream holds a reference of its own, taken when the request started pointing at it;
+    // this is a no-op once the exchange has already let go.
+    _httpSrvReqReleaseStreams(self, true);
+
     // Plain aggregates are invisible to codegen, so they come down by hand.
     httpHeadersDestroy(&self->headers);
     httpHeadersDestroy(&self->respHeaders);
@@ -311,7 +315,7 @@ bool HttpServerRequest_respondStream(_In_ HttpServerRequest* self, _In_ StreamBu
     // the bytes. Both are answered as an empty response of the declared length rather than being
     // refused, which is what keeps Content-Length honest for the HEAD case.
     if (!_httpStatusHasNoBody(self->status)) {
-        self->respStream    = sb;
+        self->respStream    = sbufAcquire(sb);
         self->respStreamLen = len;
         if (!strEmpty(contentType))
             httpHeadersSet(&self->respHeaders, _SL("Content-Type"), contentType);
@@ -327,10 +331,10 @@ bool HttpServerRequest_setSink(_In_ HttpServerRequest* self, _In_ StreamBuffer* 
 
     // cxhttp is the producer into this buffer; the application registered the consumer. Push mode
     // is the only one that fits: bytes arrive when the client sends them, not when a reader asks.
-    if (!sbufPRegisterPush(sb, NULL, NULL))
+    if (sbufIsPull(sb))
         return false;
 
-    self->sink = sb;
+    self->sink = sbufAcquire(sb);
     return true;
 }
 

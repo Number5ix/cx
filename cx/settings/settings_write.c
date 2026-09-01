@@ -212,12 +212,13 @@ bool _setsWriteTree(SSDNode* root, SettingsTree* tree, SSDLockState* lstate)
         goto out;
 
     JSONOut* jo = jsonOutBegin(sb, JSON_Pretty);
-    if (!jo)
-        goto out;
 
     bool error = false;
     outVal(jo, stvar(object, root), lstate, &error);
     jsonOutEnd(&jo);
+
+    // hands the last of the document to the file adapter, which then lets go of the stream
+    sbufClose(sb);
 
     if (!error) {
         vfsClose(file);

@@ -25,6 +25,11 @@ void _httpInit(void);
 // connection is the only thing it does.
 void _httpReqBodyNotify(_Pre_valid_ StreamBuffer* sb, size_t sz, _Pre_opt_valid_ void* ctx);
 
+// Let go of the stream buffers a request was using, whichever side of each one cxhttp took.
+void _httpReqReleaseBodyStream(_Inout_ HttpRequest* self);
+void _httpReqReleaseSink(_Inout_ HttpRequest* self);
+void _httpSrvReqReleaseStreams(_Inout_opt_ HttpServerRequest* req, bool ok);
+
 // Bytes between progress events when a request has not chosen an interval of its own.
 #define HTTP_PROGRESS_INTERVAL 65536
 

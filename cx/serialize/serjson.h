@@ -30,8 +30,8 @@ CX_C_BEGIN
 /// - An unknown key is ignored on read; under `SER_Strict` it is an error.
 ///
 /// The transport is a `StreamBuffer` the caller owns and registers a consumer or producer on,
-/// the same as the rest of cx's JSON support. The backend finishes the stream but does not
-/// release it.
+/// the same as the rest of cx's JSON support. The backend only borrows the stream buffer: it
+/// neither ends nor releases it, so several documents may go into the same one.
 ///
 /// @code
 ///   StreamBuffer *sb = sbufCreate(4096);
@@ -42,6 +42,7 @@ CX_C_BEGIN
 ///   serWrite(w, MyStruct, val);
 ///   serWriterFinish(w);
 ///   serWriterDestroy(&w);
+///   sbufClose(sb);
 ///   sbufRelease(&sb);
 /// @endcode
 
@@ -76,6 +77,7 @@ _Ret_notnull_ SerWriter* serJsonWriterCreate(_Inout_ StreamBuffer* sb, flags_t f
 ///   structInit(MyStruct, &out);
 ///   serRead(r, MyStruct, &out);
 ///   serReaderDestroy(&r);
+///   sbufClose(sb);
 ///   sbufRelease(&sb);
 /// @endcode
 _Ret_notnull_ SerReader* serJsonReaderCreate(_Inout_ StreamBuffer* sb, flags_t flags);

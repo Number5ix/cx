@@ -232,9 +232,10 @@ int entryPoint()
                        stvar(strref, outPath));
                 ctx.exitCode = 1;
             } else {
-                // Push mode, not sbufFileOut(): that one drains the buffer synchronously and
-                // invalidates it, which is the opposite of what an async transfer wants. Registered
-                // as a push consumer, the file is written as the response arrives.
+                // Push mode, not sbufFileOut(): that one drains the buffer synchronously on this
+                // thread, which is the opposite of what an async transfer wants. Registered as a
+                // push consumer, the file is written as the response arrives and closed when
+                // cxhttp ends the stream.
                 ctx.sink = sbufCreate(64 * 1024);
                 if (sbufFileCRegisterPush(ctx.sink, vf, true)) {
                     httprequestSetSink(req, ctx.sink);

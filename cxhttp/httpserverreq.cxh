@@ -165,9 +165,10 @@ class HttpServerConn;
     /// For a body too big to hold in memory, or one still being produced. Ends the exchange the
     /// same way respond() does; the connection carries nothing else until the buffer finishes.
     ///
-    /// Register the *producer* side of the buffer before calling this; cxhttp registers itself as
-    /// the consumer. Release your own reference with sbufRelease() once both sides are registered --
-    /// each registration holds one of its own, and finishing hands those back.
+    /// Register the *producer* side of the buffer before calling this; cxhttp takes the consumer
+    /// side. In pull mode that means it drives the buffer and registers nothing; in push mode it
+    /// registers a notify callback. Either way the request acquires a reference of its own, so
+    /// release yours with sbufRelease() whenever you are done with it.
     ///
     /// @param sb Buffer the body is read from; a reference is held until the response finishes
     /// @param len Body length in bytes, or a negative value to send it chunked with no length
@@ -179,11 +180,12 @@ class HttpServerConn;
     /// Stream the request body into a StreamBuffer instead of buffering it
     ///
     /// Only meaningful from the head handler: by the time a request is delivered its body has
-    /// already gone wherever it was going. Register the *consumer* side of the buffer first --
-    /// cxhttp registers itself as the producer.
+    /// already gone wherever it was going. Register the *consumer* side of the buffer first; a
+    /// push producer registers nothing, so cxhttp simply writes into it.
     ///
-    /// The buffer is finished when the body ends, and put into an error state if the request dies
-    /// half-read, so a consumer waiting on it is always released.
+    /// The stream is ended when the body ends, and put into an error state first if the request
+    /// dies half-read, so a consumer waiting on it is always released. The request acquires its own
+    /// reference, so release yours when you are done.
     ///
     /// @param sb Buffer the body is written into; a reference is held until the body ends
     /// @return true if the sink was accepted

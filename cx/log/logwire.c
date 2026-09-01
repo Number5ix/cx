@@ -188,9 +188,11 @@ LogWireEncoder* logWireEncoderCreate(strref origin, flags_t flags)
 static void wireEncCloseSegment(_Inout_ LogWireEncoder* enc)
 {
     if (enc->w)
-        serWriterDestroy(&enc->w);   // finishes the producer side, which releases its reference
-    if (enc->sb)
-        sbufRelease(&enc->sb);       // ...and this is the encoder's own
+        serWriterDestroy(&enc->w);   // releases the writer's reference to the stream
+    if (enc->sb) {
+        sbufClose(enc->sb);        // lets the accumulating consumer go
+        sbufRelease(&enc->sb);   // ...and this is the encoder's own
+    }
 
     bufClear(enc->accum);
     htClear(&enc->chanids);
@@ -732,14 +734,21 @@ static size_t wireDecPull(_Pre_valid_ StreamBuffer* sb, uint8* buf, size_t sz, v
 {
     LogWireDecoder* dec = (LogWireDecoder*)ctx;
 
-    if (sz == 0)
-        return 0;   // a status query, not a request for data
+    if (sz == 0) {
+        // A status check rather than a request for data. Once the stream is over there is nothing
+        // left to feed it, so hand the slot back.
+        if (sbufIsClosed(sb))
+            sbufPUnregister(sb);
+        return 0;
+    }
 
     size_t avail = dec->bodylen - dec->bodypos;
     if (avail == 0) {
         // The reader wants more of a value than the frame that declared its own length actually
-        // holds, so the frame is truncated. Erroring the stream is what stops sbufCRead() from
-        // calling this forever waiting for bytes that are never coming.
+        // holds, so the frame is truncated. That is a failure to report rather than a clean end of
+        // input: unregistering here would look to the reader like the segment simply finished.
+        // Erroring the stream stops sbufCRead() from calling this forever, and leaves the segment
+        // recoverable -- sbufClearError() and a fresh frame pick it back up.
         dec->underrun = true;
         sbufError(sb);
         return 0;
@@ -754,11 +763,10 @@ static size_t wireDecPull(_Pre_valid_ StreamBuffer* sb, uint8* buf, size_t sz, v
 static void wireDecCloseSegment(_Inout_ LogWireDecoder* dec)
 {
     if (dec->r)
-        serReaderDestroy(&dec->r);   // finishes the consumer side
+        serReaderDestroy(&dec->r);   // releases the reader's reference to the stream
     if (dec->sb) {
-        sbufPFinish(dec->sb);        // ...and this the producer side registered below
-        sbufRelease(&dec->sb);       // ...and this the decoder's own
-        dec->sb = NULL;
+        sbufClose(dec->sb);        // lets the pull producer registered below go
+        sbufRelease(&dec->sb);   // ...and this the decoder's own
     }
 
     wireDeclFree(&dec->chans, &dec->nchans);

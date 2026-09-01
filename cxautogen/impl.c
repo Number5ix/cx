@@ -1578,10 +1578,10 @@ static bool writeStructDefaults(StreamBuffer* bf, StructDef* str, bool* wroteany
     return true;
 }
 
-static bool fillBuf(StreamBuffer* obf, sa_string* linebuf)
+static bool fillBuf(LineParser* olp, sa_string* linebuf)
 {
     string ln = 0;
-    while (obf && saSize(*linebuf) < 5 && lparseLine(obf, &ln)) {
+    while (olp && saSize(*linebuf) < 5 && lparseLine(olp, &ln)) {
         saPushC(linebuf, string, &ln);
     }
     return saSize(*linebuf) > 0;
@@ -1618,10 +1618,10 @@ bool writeImpl(string fname, string srcpath, string binpath, bool mixinimpl)
         return false;
     }
     StreamBuffer* nbf = sbufCreate(1024);
-    if (!sbufFSFileCRegisterPush(nbf, newf, true))
+    if (!sbufFSFileCRegisterPush(nbf, newf, true)) {
+        sbufRelease(&nbf);
         return false;
-    if (!sbufPRegisterPush(nbf, NULL, 0))
-        return false;
+    }
 
     FSFile* incf      = 0;
     StreamBuffer* ibf = 0;
@@ -1629,25 +1629,27 @@ bool writeImpl(string fname, string srcpath, string binpath, bool mixinimpl)
         incf = fsOpen(incname, FS_Overwrite);
         if (!incf) {
             fprintf(stderr, "Failed to open %s for writing", lazyPlatformPath(incname));
-            sbufPFinish(nbf);
+            sbufClose(nbf);
             sbufRelease(&nbf);
             return false;
         }
         ibf = sbufCreate(1024);
-        if (!sbufFSFileCRegisterPush(ibf, incf, true))
+        if (!sbufFSFileCRegisterPush(ibf, incf, true)) {
+            sbufRelease(&ibf);
             return false;
-        if (!sbufPRegisterPush(ibf, NULL, 0))
-            return false;
+        }
     }
 
     FSFile* oldf      = fsOpen(cname, FS_Read);
     StreamBuffer* obf = NULL;
+    LineParser* olp   = NULL;
     if (oldf) {
         obf = sbufCreate(1024);
-        if (!sbufFSFilePRegisterPull(obf, oldf, true))
+        if (!sbufFSFilePRegisterPull(obf, oldf, true)) {
+            sbufRelease(&obf);
             return false;
-        if (!lparseRegisterPull(obf, 0))
-            return false;
+        }
+        olp = lparseCreatePull(obf);
     }
 
     string ln      = 0;
@@ -1729,7 +1731,7 @@ bool writeImpl(string fname, string srcpath, string binpath, bool mixinimpl)
     Class* indestroy = 0;
     sa_string linebuf;
     saInit(&linebuf, string, 5);
-    while (obf && fillBuf(obf, &linebuf)) {
+    while (olp && fillBuf(olp, &linebuf)) {
         strDup(&ln, linebuf.a[0]);
         if (strEq(ln, autogenBegin) || strEq(ln, autogenBeginShort) ||
             strEq(ln, autogenBeginShortIndent))
@@ -1798,7 +1800,7 @@ bool writeImpl(string fname, string srcpath, string binpath, bool mixinimpl)
                     if (!ssbf)
                         return false;
                     writeMethodProto(ssbf, mp.c, mp.m, nmatches == 3, mixinimpl, false);
-                    sbufPFinish(ssbf);
+                    sbufClose(ssbf);
                     sbufRelease(&ssbf);
 
                     if (strEqNoWS(olddecl, newdecl)) {
@@ -1916,7 +1918,7 @@ nextloop:
             sbufPWriteLine(nbf, clangOn);
             sbufPWriteLine(nbf, autogenEndShort);
         } else {
-            sbufPFinish(ibf);
+            sbufClose(ibf);
             sbufRelease(&ibf);
             ibf = NULL;
             fsDelete(incname);
@@ -1933,14 +1935,15 @@ nextloop:
     }
 
     if (obf) {
-        sbufCFinish(obf);
+        lparseDestroy(&olp);
+        sbufClose(obf);
         sbufRelease(&obf);
     }
     if (ibf) {
-        sbufPFinish(ibf);
+        sbufClose(ibf);
         sbufRelease(&ibf);
     }
-    sbufPFinish(nbf);
+    sbufClose(nbf);
     sbufRelease(&nbf);
 
     fsDelete(cname);

@@ -288,8 +288,10 @@ size_t bufringFeed(BufRing* ring, bufringFeedCB feed, size_t bytes, void* ctx)
         devAssert(nfeed <= count);
         node->tail = (node->tail + nfeed) % node->buf->sz;
 
-        // we filled up the node
-        if (node->head == node->tail)
+        // We filled up the node. head == tail is ambiguous on its own -- it is also what a node
+        // that was just drained to empty looks like -- so a callback that produced nothing must
+        // not be read as having filled it.
+        if (nfeed > 0 && node->head == node->tail)
             node->full = true;
 
         ring->total += nfeed;

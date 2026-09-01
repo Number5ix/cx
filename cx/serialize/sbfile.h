@@ -43,12 +43,10 @@ CX_C_BEGIN
 /// efficient operation. The stream buffer is automatically finished after all
 /// data is read.
 ///
-/// **IMPORTANT:** The stream buffer is invalidated after this call.
-///
 /// If flow control is active (see sbufSetWatermark()), this waits for the consumer to make room
 /// rather than dropping data, so the consumer has to be draining the buffer from another thread.
 ///
-/// @param sb The stream buffer (invalidated after call)
+/// @param sb The stream buffer
 /// @param file VFS file to read from (optionally closed based on close parameter)
 /// @param close If true, the file is closed after reading
 /// @return true on success, false on error
@@ -60,7 +58,7 @@ CX_C_BEGIN
 ///   sbufStrCRegisterPush(sb, &output);
 ///   sbufFileIn(sb, file, true);  // file is closed automatically
 /// @endcode
-bool sbufFileIn(_Pre_valid_ _Post_invalid_ StreamBuffer* sb, _Pre_valid_ _When_(close, _Post_invalid_) VFSFile* file,
+bool sbufFileIn(_Inout_ StreamBuffer* sb, _Pre_valid_ _When_(close, _Post_invalid_) VFSFile* file,
                 bool close);
 
 /// bool sbufFilePRegisterPull(StreamBuffer *sb, VFSFile *file, bool close)
@@ -93,9 +91,7 @@ sbufFilePRegisterPull(_Inout_ StreamBuffer* sb, _Inout_ VFSFile* file, bool clos
 /// Reads data from the stream buffer until the producer finishes (EOF) and
 /// writes it to the file in chunks.
 ///
-/// **IMPORTANT:** The stream buffer is invalidated after this call.
-///
-/// @param sb The stream buffer (invalidated after call)
+/// @param sb The stream buffer
 /// @param file VFS file to write to (optionally closed based on close parameter)
 /// @param close If true, the file is closed after writing
 /// @return true on success, false on error
@@ -107,7 +103,7 @@ sbufFilePRegisterPull(_Inout_ StreamBuffer* sb, _Inout_ VFSFile* file, bool clos
 ///   sbufStrPRegisterPull(sb, inputData);
 ///   sbufFileOut(sb, file, true);  // file is closed automatically
 /// @endcode
-bool sbufFileOut(_Pre_valid_ _Post_invalid_ StreamBuffer* sb, _Pre_valid_ _When_(close, _Post_invalid_) VFSFile* file,
+bool sbufFileOut(_Inout_ StreamBuffer* sb, _Pre_valid_ _When_(close, _Post_invalid_) VFSFile* file,
                  bool close);
 
 /// bool sbufFileCRegisterPush(StreamBuffer *sb, VFSFile *file, bool close)

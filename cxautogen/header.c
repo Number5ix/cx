@@ -696,10 +696,10 @@ bool writeHeader(string fname, string srcpath, string binpath)
         return false;
     }
     StreamBuffer* bf = sbufCreate(1024);
-    if (!sbufFSFileCRegisterPush(bf, file, true))
+    if (!sbufFSFileCRegisterPush(bf, file, true)) {
+        sbufRelease(&bf);
         return false;
-    if (!sbufPRegisterPush(bf, NULL, NULL))
-        return false;
+    }
 
     if (usedocs) {
         // write information for doxygen
@@ -804,7 +804,8 @@ bool writeHeader(string fname, string srcpath, string binpath)
 
     strDestroy(&ln);
     strDestroy(&hname);
-    sbufPFinish(bf);
+    // ending the stream is what flushes the tail and closes the file
+    sbufClose(bf);
     sbufRelease(&bf);
     return true;
 }

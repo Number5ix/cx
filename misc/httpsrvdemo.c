@@ -94,8 +94,16 @@ static size_t streamPull(StreamBuffer* sb, uint8* buf, size_t sz, void* ctx)
 {
     StreamCtx* s = (StreamCtx*)ctx;
 
+    if (sz == 0) {
+        // A status check rather than a request for data. Once the stream is over there is nothing
+        // left to feed it, so hand the slot back.
+        if (sbufIsClosed(sb))
+            sbufPUnregister(sb);
+        return 0;
+    }
+
     if (s->remaining <= 0) {
-        sbufPFinish(sb);
+        sbufPUnregister(sb);
         return 0;
     }
 
@@ -182,7 +190,7 @@ static void onRequest(HttpServerEvent* ev)
 
         StreamBuffer* sb = sbufCreate(64);
         if (!sbufPRegisterPull(sb, streamPull, streamCleanup, s)) {
-            sbufPFinish(sb);
+            sbufRelease(&sb);
             httpsrvreqRespondStatus(req, HTTP_InternalError);
             return;
         }
@@ -190,8 +198,8 @@ static void onRequest(HttpServerEvent* ev)
         // A negative length means the size is not known up front, so it goes out chunked.
         httpsrvreqRespondStream(req, sb, -1, _SL("text/plain"));
 
-        // Both sides are registered and each holds its own reference, so the one sbufCreate()
-        // handed back is done with.
+        // The request holds its own reference now, so the one sbufCreate() handed back is done
+        // with.
         sbufRelease(&sb);
         return;
     }

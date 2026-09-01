@@ -165,25 +165,36 @@ static void onNetSendReady(NetEvent* ev)
 // abandoned rather than finishing, which is the difference between a consumer seeing a complete
 // body and seeing an error.
 //
-// Finish, never release: a StreamBuffer's reference *is* its registration, and the finish call is
-// what hands it back. sbufError() only marks the buffer, so it is never enough on its own.
-static void releaseStreams(HttpServerRequest* req, bool ok)
+// sbufError() only marks the buffer, so it is never enough on its own: ending the stream is what
+// tells the other side that nothing more is coming.
+_Use_decl_annotations_
+void _httpSrvReqReleaseStreams(HttpServerRequest* req, bool ok)
 {
     if (!req)
         return;
 
     if (req->sink) {
+        StreamBuffer* sb = req->sink;
+        req->sink        = NULL;
+
+        // cxhttp is the producer into the sink, so it is the side that ends the stream.
         if (!ok)
-            sbufError(req->sink);
-        sbufPFinish(req->sink);
-        req->sink = NULL;
+            sbufError(sb);
+        sbufClose(sb);
+        sbufRelease(&sb);
     }
 
     if (req->respStream) {
+        StreamBuffer* sb = req->respStream;
+        req->respStream  = NULL;
+
+        // Detach before ending, so the end-of-stream callback cannot come back into a response
+        // that has already finished. In pull mode no consumer slot was ever filled.
+        sbufCUnregister(sb);
         if (!ok)
-            sbufError(req->respStream);
-        sbufCFinish(req->respStream);
-        req->respStream = NULL;
+            sbufError(sb);
+        sbufClose(sb);
+        sbufRelease(&sb);
     }
 }
 
@@ -198,8 +209,8 @@ static void connDied(HttpServerConn* c, HttpError err, NetErrorCode neterr)
     cancelTimers(c);
 
     // Before the handlers run, so an application waiting on a body it will never receive is
-    // released rather than left holding a buffer nothing is going to finish.
-    releaseStreams(c->req, false);
+    // released rather than left waiting on a stream nothing is ever going to end.
+    _httpSrvReqReleaseStreams(c->req, false);
 
     HttpServer* srv = objAcquireFromWeak(HttpServer, c->server);
     if (srv) {
@@ -400,7 +411,7 @@ void HttpServerConn__sendError(_In_ HttpServerConn* self, uint16 status, HttpErr
 
     // The exchange is over and has been reported. Letting go of the request here is what stops the
     // close below from reporting a second, misleading HTTPERR_Closed on top of the real reason.
-    releaseStreams(self->req, false);
+    _httpSrvReqReleaseStreams(self->req, false);
     self->awaiting = false;
     self->writing  = false;
     objRelease(&self->req);
@@ -423,7 +434,7 @@ bool HttpServerConn__sendContinue(_In_ HttpServerConn* self)
 // The exchange is over: let the request go and decide what the connection does next.
 static void finishResponse(HttpServerConn* self, bool ok)
 {
-    releaseStreams(self->req, ok);
+    _httpSrvReqReleaseStreams(self->req, ok);
 
     self->awaiting = false;
     self->writing  = false;
@@ -536,7 +547,7 @@ void HttpServerConn__pumpRespBody(_In_ HttpServerConn* self)
         self->bodySent    = 0;
         self->bodyRefused = false;
 
-        if (!sbufCSend(sb, respSendCB, want))
+        if (!sbufCSend(sb, respSendCB, want, self))
             break;
 
         if (self->bodySent > 0) {
@@ -555,11 +566,14 @@ void HttpServerConn__pumpRespBody(_In_ HttpServerConn* self)
     }
 
     if (sb) {
-        if (!sbufIsPFinished(sb) || sbufCAvail(sb) > 0)
+        if (sbufCMore(sb) || sbufCAvail(sb) > 0)
             return;   // the producer has more to come; its next write wakes us through the notify
 
-        sbufCFinish(sb);
-        req->respStream = NULL;
+        StreamBuffer* done = req->respStream;
+        req->respStream    = NULL;
+        sbufCUnregister(done);
+        sbufClose(done);
+        sbufRelease(&done);
     }
 
     // The terminator is the last thing on the wire for a chunked body, so it is retried on the next
@@ -603,8 +617,10 @@ static void respStreamNotify(StreamBuffer* sb, size_t sz, void* ctx)
 // application registered its producer in.
 static bool adoptRespStream(HttpServerConn* self, HttpServerRequest* req)
 {
+    // In pull mode cxhttp drives the buffer and has nothing to register; in push mode it is the
+    // one being called back. The request already holds a reference of its own either way.
     if (sbufIsPull(req->respStream))
-        return sbufCRegisterPull(req->respStream, NULL, self);
+        return true;
 
     return sbufCRegisterPush(req->respStream, respStreamNotify, NULL, self);
 }
@@ -621,12 +637,10 @@ static bool armRespBody(HttpServerRequest* req)
         return false;
     }
 
+    // The request takes over the reference sbufCreate() started with.
     req->respStream    = sb;
     req->respStreamLen = (int64)strLen(req->respBody);
 
-    // The consumer registration adoptRespStream() is about to take, plus the producer's, are what
-    // keep the buffer alive from here on, so this hands back the one sbufCreate() started with.
-    sbufRelease(&sb);
     return true;
 }
 
@@ -905,8 +919,10 @@ void HttpServerConn__pump(_In_ HttpServerConn* self)
             // The body is complete, so a consumer streaming it is released now rather than when
             // the exchange ends -- it has everything it is ever going to get.
             if (self->req && self->req->sink) {
-                sbufPFinish(self->req->sink);
-                self->req->sink = NULL;
+                StreamBuffer* sink = self->req->sink;
+                self->req->sink    = NULL;
+                sbufClose(sink);
+                sbufRelease(&sink);
             }
 
             reportProgress(self, self->req, HTTPPROG_Recv, 0, true);

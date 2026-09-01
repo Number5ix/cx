@@ -80,6 +80,7 @@ static bool toJson(string* out, const STypeInfoExt* schema, stgeneric val, flags
     }
 
     serWriterDestroy(&w);
+    sbufClose(sb);
     sbufRelease(&sb);
     return ok;
 }
@@ -101,6 +102,7 @@ static bool fromJson(strref json, const STypeInfoExt* schema, stgeneric* val, fl
     }
 
     serReaderDestroy(&r);
+    sbufClose(sb);
     sbufRelease(&sb);
     return ok;
 }
@@ -128,6 +130,7 @@ static bool toBinary(string* out, const STypeInfoExt* schema, stgeneric val, fla
     }
 
     serWriterDestroy(&w);
+    sbufClose(sb);
     sbufRelease(&sb);
     return ok;
 }
@@ -149,6 +152,7 @@ static bool fromBinary(strref doc, const STypeInfoExt* schema, stgeneric* val, f
     }
 
     serReaderDestroy(&r);
+    sbufClose(sb);
     sbufRelease(&sb);
     return ok;
 }
@@ -993,6 +997,7 @@ static int test_ser_jsonnested(void)
     CHK(serWriteBytes(w, bytes, sizeof(bytes)));
     CHK(serWriterFinish(w));
     serWriterDestroy(&w);
+    sbufClose(sb);
     sbufRelease(&sb);
     if (!strEq(js, _S "\"AP8QQsN6AQ==\""))
         TEST_FAIL(1, _SL("strEq mismatch: a='${string}', b='${string}'"), stvar(strref, js), stvar(strref, _S "\"AP8QQsN6AQ==\""));
@@ -1003,6 +1008,7 @@ static int test_ser_jsonnested(void)
     Buffer back  = NULL;
     CHK(serReadBytes(r, &back));
     serReaderDestroy(&r);
+    sbufClose(sb);
     sbufRelease(&sb);
 
     CHK(back && back->len == sizeof(bytes));
@@ -1361,6 +1367,7 @@ static int test_ser_binnested(void)
     CHK(serWriteBytes(w, bytes, sizeof(bytes)));
     CHK(serWriterFinish(w));
     serWriterDestroy(&w);
+    sbufClose(sb);
     sbufRelease(&sb);
     CHK(strLen(doc) == 6 + 1 + 1 + sizeof(bytes));   // header, tag, length, payload
 
@@ -1370,6 +1377,7 @@ static int test_ser_binnested(void)
     Buffer back  = NULL;
     CHK(serReadBytes(r, &back));
     serReaderDestroy(&r);
+    sbufClose(sb);
     sbufRelease(&sb);
 
     CHK(back && back->len == sizeof(bytes));
@@ -1930,6 +1938,7 @@ static bool fromJsonCls(strref json, const STypeInfoExt* schema, stgeneric* val,
     }
 
     serReaderDestroy(&r);
+    sbufClose(sb);
     sbufRelease(&sb);
     return ok;
 }
@@ -1952,6 +1961,7 @@ static bool fromBinaryCls(strref doc, const STypeInfoExt* schema, stgeneric* val
     }
 
     serReaderDestroy(&r);
+    sbufClose(sb);
     sbufRelease(&sb);
     return ok;
 }
@@ -2781,6 +2791,7 @@ static bool fromJsonStruct(strref json, const STypeInfoExt* schema, stgeneric* v
     }
 
     serReaderDestroy(&r);
+    sbufClose(sb);
     sbufRelease(&sb);
     return ok;
 }
@@ -2803,6 +2814,7 @@ static bool fromBinaryStruct(strref doc, const STypeInfoExt* schema, stgeneric* 
     }
 
     serReaderDestroy(&r);
+    sbufClose(sb);
     sbufRelease(&sb);
     return ok;
 }

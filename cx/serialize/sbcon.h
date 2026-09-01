@@ -30,9 +30,7 @@ CX_C_BEGIN
 /// Reads data from the stream buffer until the producer finishes (EOF) and writes it to
 /// con in chunks. Never closes or destroys con.
 ///
-/// **IMPORTANT:** The stream buffer is invalidated after this call.
-///
-/// @param sb The stream buffer (invalidated after call)
+/// @param sb The stream buffer
 /// @param con Console stream to write to
 /// @return true on success, false on error
 ///
@@ -42,7 +40,7 @@ CX_C_BEGIN
 ///   sbufStrPRegisterPull(sb, inputData);
 ///   sbufConOut(sb, conOut());
 /// @endcode
-bool sbufConOut(_Pre_valid_ _Post_invalid_ StreamBuffer* sb, _In_ ConStream* con);
+bool sbufConOut(_Inout_ StreamBuffer* sb, _In_ ConStream* con);
 
 /// bool sbufConCRegisterPush(StreamBuffer *sb, ConStream *con)
 ///

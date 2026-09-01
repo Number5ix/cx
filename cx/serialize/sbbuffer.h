@@ -49,7 +49,7 @@ CX_C_BEGIN
 /// If flow control is active (see sbufSetWatermark()), this waits for the consumer to make room
 /// rather than dropping data, so the consumer has to be draining the buffer from another thread.
 ///
-/// @param sb The stream buffer (invalidated after call)
+/// @param sb The stream buffer
 /// @param buf Buffer to push into the stream buffer
 /// @param own If true, buf is destroyed before this function returns. The caller must not use
 ///            or destroy buf afterwards, even if this call returns false.
@@ -62,7 +62,7 @@ CX_C_BEGIN
 ///   sbufStrCRegisterPush(sb, &output);
 ///   sbufBufIn(sb, buf, true);
 /// @endcode
-bool sbufBufIn(_Pre_valid_ _Post_invalid_ StreamBuffer* sb, _In_ Buffer buf, bool own);
+bool sbufBufIn(_Inout_ StreamBuffer* sb, _In_ Buffer buf, bool own);
 
 /// Registers a Buffer as a producer with the stream buffer in pull mode.
 ///
@@ -92,9 +92,7 @@ _Check_return_ bool sbufBufPRegisterPull(_Inout_ StreamBuffer* sb, _In_ Buffer b
 ///
 /// Reads until the producer finishes (EOF).
 ///
-/// **IMPORTANT:** The stream buffer is invalidated after this call.
-///
-/// @param sb The stream buffer (invalidated after call)
+/// @param sb The stream buffer
 /// @param bufout Buffer to append the data to; a new one is created if it is NULL
 /// @return true on success, false on error
 ///
@@ -106,7 +104,7 @@ _Check_return_ bool sbufBufPRegisterPull(_Inout_ StreamBuffer* sb, _In_ Buffer b
 ///   sbufBufOut(sb, &out);
 ///   bufDestroy(&out);
 /// @endcode
-bool sbufBufOut(_Pre_valid_ _Post_invalid_ StreamBuffer* sb, _Inout_ Buffer* bufout);
+bool sbufBufOut(_Inout_ StreamBuffer* sb, _Inout_ Buffer* bufout);
 
 /// Registers a Buffer as a consumer with the stream buffer in direct push mode.
 ///
@@ -134,7 +132,8 @@ _Check_return_ bool sbufBufCRegisterPush(_Inout_ StreamBuffer* sb, _Inout_ Buffe
 ///   Buffer out = 0;
 ///   StreamBuffer *sb = sbufBufCreatePush(&out);
 ///   sbufPWrite(sb, data, size);
-///   sbufPFinish(sb);
+///   sbufClose(sb);
+///   sbufRelease(&sb);
 ///   bufDestroy(&out);
 /// @endcode
 _Check_return_ _Ret_opt_valid_ StreamBuffer* sbufBufCreatePush(_Inout_ Buffer* bufout);

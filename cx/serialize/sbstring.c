@@ -27,9 +27,6 @@ bool sbufStrIn(StreamBuffer* sb, strref str)
     devAssertMsg(sb->high == 0 || sbufIsLocked(sb),
                  "Flow control needs a stream buffer that can block the producer");
 
-    if (!sbufPRegisterPush(sb, NULL, NULL, sbufIsLocked(sb) ? SBUF_PBlock : 0))
-        return false;
-
     striBorrow(&si, str);
 
     // a buffer created for direct push mode has no target size, so it all goes in one write
@@ -41,7 +38,7 @@ bool sbufStrIn(StreamBuffer* sb, strref str)
         while (ok && si.cursor < si.len) {
             // push at most the target buffer size
             uint32 nbytes = (uint32)min((size_t)(si.len - si.cursor), chunksz);
-            ok            = sbufPWrite(sb, si.bytes + si.cursor, nbytes);
+            ok            = sbufPWrite(sb, si.bytes + si.cursor, nbytes, SBUF_Wait);
             if (ok)
                 si.cursor += nbytes;
         }
@@ -50,9 +47,7 @@ bool sbufStrIn(StreamBuffer* sb, strref str)
     }
 
     striFinish(&si);
-    bool ret = !sbufIsError(sb);
-    sbufPFinish(sb);
-    return ret;
+    return !sbufIsError(sb);
 }
 
 static size_t sbufStrPullCB(_Pre_valid_ StreamBuffer* sb, _Out_writes_bytes_(sz) uint8* buf,
@@ -62,14 +57,23 @@ static size_t sbufStrPullCB(_Pre_valid_ StreamBuffer* sb, _Out_writes_bytes_(sz)
     if (!sbc)
         return 0;
 
+    if (sz == 0) {
+        // A status check rather than a request for data. Once the stream is over there is nothing
+        // left to feed it, so hand the slot back.
+        if (sbufIsClosed(sb))
+            sbufPUnregister(sb);
+        return 0;
+    }
+
     uint32 nbytes = min(sbc->iter.len - sbc->iter.cursor, (uint32)sz);
     if (nbytes > 0) {
         memcpy(buf, sbc->iter.bytes + sbc->iter.cursor, nbytes);
         striAdvance(&sbc->iter, nbytes);
     }
 
+    // out of string: leave the slot open for another producer rather than ending the stream
     if (sbc->iter.len == 0)
-        sbufPFinish(sb);
+        sbufPUnregister(sb);
 
     return nbytes;
 }
@@ -106,21 +110,25 @@ static void sbufStrNotifyCB(_Pre_valid_ StreamBuffer* sb, size_t sz, _Pre_opt_va
     if (!sbc)
         return;
 
-    string temp = 0;
-    uint8* tbuf = strBuffer(&temp, (uint32)sz);
-    if (sbufCRead(sb, tbuf, sz, &sz)) {
-        strSetLen(&temp, (uint32)sz);
-        strAppend(sbc->out, temp);
+    if (sz > 0) {
+        string temp   = 0;
+        size_t didread;
+        uint8* tbuf   = strBuffer(&temp, (uint32)sz);
+        if (sbufCRead(sb, tbuf, sz, &didread)) {
+            strSetLen(&temp, (uint32)didread);
+            strAppend(sbc->out, temp);
+        }
+        strDestroy(&temp);
     }
-    strDestroy(&temp);
+
+    // nothing more is coming, so hand the slot back
+    if (sbufIsClosed(sb))
+        sbufCUnregister(sb);
 }
 
 _Use_decl_annotations_
 bool sbufStrOut(StreamBuffer* sb, string* strout)
 {
-    if (!sbufCRegisterPull(sb, NULL, NULL))
-        return false;
-
     string temp = 0;
     size_t sz;
     do {
@@ -132,13 +140,11 @@ bool sbufStrOut(StreamBuffer* sb, string* strout)
             strSetLen(&temp, (uint32)sz);
             strAppend(strout, temp);
         }
-    } while (sz > 0 || !sbufIsPFinished(sb));
+    } while (sz > 0 || sbufCMore(sb));
 
     strDestroy(&temp);
 
-    bool ret = !sbufIsError(sb);
-    sbufCFinish(sb);
-    return ret;
+    return !sbufIsError(sb);
 }
 
 _Use_decl_annotations_
@@ -159,11 +165,6 @@ StreamBuffer* sbufStrCreatePush(string* strout, size_t targetsz)
     StreamBuffer* ret = sbufCreate(targetsz);
     if (!ret)
         return NULL;
-
-    if (!sbufPRegisterPush(ret, NULL, NULL)) {
-        sbufRelease(&ret);
-        return NULL;
-    }
 
     if (!sbufStrCRegisterPush(ret, strout)) {
         sbufRelease(&ret);

@@ -25,19 +25,20 @@ static bool sbufConSendCB(_Pre_valid_ StreamBuffer* sb, _In_reads_bytes_(sz) con
 static void sbufConNotifyCB(_Pre_valid_ StreamBuffer* sb, size_t sz, _Pre_opt_valid_ void* ctx)
 {
     if (sz >= (sb->targetsz >> 1) + (sb->targetsz >> 2)) {
-        sbufCSend(sb, sbufConSendCB, sz);
-    } else if (sz == 0 || sbufIsPFinished(sb)) {
+        sbufCSend(sb, sbufConSendCB, sz, ctx);
+    } else if (sz == 0 || !sbufCMore(sb)) {
         // flush anything that's left in the streambuf
-        sbufCSend(sb, sbufConSendCB, sbufCAvail(sb));
+        sbufCSend(sb, sbufConSendCB, sbufCAvail(sb), ctx);
     }
+
+    // nothing more is coming, so hand the slot back
+    if (sbufIsClosed(sb))
+        sbufCUnregister(sb);
 }
 
 _Use_decl_annotations_
 bool sbufConOut(StreamBuffer* sb, ConStream* con)
 {
-    if (!sbufCRegisterPull(sb, NULL, NULL))
-        return false;
-
     uint8* buf = xaAlloc(sb->targetsz);
     size_t sz;
     do {
@@ -48,12 +49,10 @@ bool sbufConOut(StreamBuffer* sb, ConStream* con)
                 break;
             }
         }
-    } while (sz > 0 || !sbufIsPFinished(sb));
+    } while (sz > 0 || sbufCMore(sb));
     xaFree(buf);
 
-    bool ret = !sbufIsError(sb);
-    sbufCFinish(sb);
-    return ret;
+    return !sbufIsError(sb);
 }
 
 _Use_decl_annotations_

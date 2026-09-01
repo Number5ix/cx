@@ -7,9 +7,8 @@
 ///
 /// Stream buffer consumer that parses line-by-line input.
 ///
-/// The line parser is a specialized consumer that processes stream buffer data
-/// one line at a time. It automatically handles different line ending conventions
-/// (LF, CRLF, or mixed) and provides both pull and push mode operation.
+/// The line parser reads a stream buffer one line at a time. It handles the different line ending
+/// conventions (LF, CRLF, or mixed) and works in both stream buffer modes.
 ///
 /// **Common Use Cases:**
 /// - Reading text files line by line
@@ -18,25 +17,30 @@
 /// - Any line-oriented data processing
 ///
 /// **Pull Mode:**
-/// Register the parser with lparseRegisterPull(), then repeatedly call lparseLine()
-/// to retrieve each line.
+/// Create the parser with lparseCreatePull(), then call lparseLine() for each line.
 ///
 /// **Push Mode:**
-/// Register with lparseRegisterPush() and provide a callback that is invoked for
-/// each line as data becomes available.
+/// Create the parser with lparseCreatePush() and give it a callback that runs for each line as
+/// data arrives.
+///
+/// Either way, destroy the parser with lparseDestroy() when done. A push parser is registered as
+/// the stream buffer's consumer and detaches when it is destroyed.
 ///
 /// Example (pull mode):
 /// @code
 ///   VFSFile *file = vfsOpen(vfs, _SL("config.txt"), FS_Read);
 ///   StreamBuffer *sb = sbufCreate(4096);
 ///   sbufFilePRegisterPull(sb, file, true);
-///   lparseRegisterPull(sb, LPARSE_Auto);
+///   LineParser *lp = lparseCreatePull(sb, LPARSE_Auto);
 ///
 ///   string line = 0;
-///   while (lparseLine(sb, &line)) {
+///   while (lparseLine(lp, &line)) {
 ///       // process line
 ///   }
 ///   strDestroy(&line);
+///   lparseDestroy(&lp);
+///   sbufClose(sb);
+///   sbufRelease(&sb);
 /// @endcode
 ///
 /// Example (push mode):
@@ -48,13 +52,18 @@
 ///
 ///   VFSFile *file = vfsOpen(vfs, _SL("data.txt"), FS_Read);
 ///   StreamBuffer *sb = sbufCreate(4096);
-///   lparseRegisterPush(sb, processLine, NULL, NULL, LPARSE_LF);
-///   sbufFileIn(sb, file, true);  // automatically calls processLine for each line
+///   LineParser *lp = lparseCreatePush(sb, processLine, NULL, NULL, LPARSE_LF);
+///   sbufFileIn(sb, file, true);   // calls processLine for each line
+///   sbufClose(sb);                  // flushes a last line with no EOL
+///   lparseDestroy(&lp);
+///   sbufRelease(&sb);
 /// @endcode
 
 #include <cx/serialize/streambuf.h>
 
 CX_C_BEGIN
+
+typedef struct LineParser LineParser;
 
 /// @defgroup serialize_lineparse_flags Line Parser Flags
 /// @ingroup serialize_lineparse
@@ -88,53 +97,59 @@ enum LINEPARSER_FLAGS_ENUM {
 
 /// @}  // end of serialize_lineparse_flags
 
+/// Destroys a line parser.
+///
+/// A push parser detaches from its stream buffer here, which runs the cleanup callback it was
+/// created with. Does not end the stream, and does not release the caller's reference to it.
+///
+/// @param lp Pointer to the line parser
+void lparseDestroy(_Inout_ LineParser** lp);
+
 /// @defgroup serialize_lineparse_pull Pull Mode
 /// @ingroup serialize_lineparse
 /// @{
 ///
 /// Pull-mode line parsing where the consumer explicitly requests each line.
 
-/// bool lparseRegisterPull(StreamBuffer *sb, uint32 flags)
+// Internal function - use lparseCreatePull() macro instead
+_Ret_valid_ LineParser* _lparseCreatePull(_Inout_ StreamBuffer* sb, flags_t flags);
+
+/// LineParser *lparseCreatePull(StreamBuffer *sb, [flags])
 ///
-/// Registers the line parser as a consumer with the stream buffer in pull mode.
+/// Creates a line parser that reads on demand.
 ///
-/// After registration, repeatedly call lparseLine() to retrieve each line from
-/// the stream buffer. This mode gives you explicit control over when lines are
-/// processed.
+/// The parser is the driving consumer, so it registers nothing with the stream buffer; call
+/// lparseLine() for each line. Use this on a stream buffer that has a pull producer attached.
 ///
 /// @param sb The stream buffer
-/// @param flags Configuration flags from LINEPARSER_FLAGS_ENUM
-/// @return true on success, false if registration failed
+/// @param ... (flags) Configuration flags from LINEPARSER_FLAGS_ENUM
+/// @return New line parser (destroy with lparseDestroy)
 ///
 /// Example:
 /// @code
 ///   StreamBuffer *sb = sbufCreate(4096);
 ///   sbufFilePRegisterPull(sb, file, true);
-///   lparseRegisterPull(sb, LPARSE_Auto);
+///   LineParser *lp = lparseCreatePull(sb, LPARSE_Auto);
 ///
 ///   string line = 0;
-///   while (lparseLine(sb, &line)) {
+///   while (lparseLine(lp, &line)) {
 ///       // Process each line
 ///       printf("Line: %s\n", strZ(line));
 ///   }
 ///   strDestroy(&line);
+///   lparseDestroy(&lp);
 /// @endcode
-_Check_return_ bool lparseRegisterPull(_Inout_ StreamBuffer* sb, uint32 flags);
+#define lparseCreatePull(sb, ...) _lparseCreatePull(sb, opt_flags(__VA_ARGS__))
 
-/// bool lparseLine(StreamBuffer *sb, string *out)
-///
 /// Retrieves the next line from the stream buffer.
 ///
-/// Call this function repeatedly after lparseRegisterPull() to process lines
-/// one at a time. The function returns false when there are no more lines to read.
+/// Call this repeatedly after lparseCreatePull(). It returns false once the input runs out, which
+/// happens when the stream ends, when it fails, or when the producer detaches.
 ///
-/// **IMPORTANT:** The stream buffer is invalidated when this function returns false.
-///
-/// @param sb The stream buffer (invalidated when returning false)
+/// @param lp The line parser
 /// @param out String to receive the line content (cleared and populated)
 /// @return true if a line was read, false when no more lines are available
-_Success_(return) _Check_return_ bool
-lparseLine(_Inout_ _On_failure_(_Post_invalid_) StreamBuffer* sb, _Inout_ string* out);
+_Success_(return) _Check_return_ bool lparseLine(_Inout_ LineParser* lp, _Inout_ string* out);
 
 /// @}  // end of serialize_lineparse_pull
 
@@ -155,25 +170,30 @@ lparseLine(_Inout_ _On_failure_(_Post_invalid_) StreamBuffer* sb, _Inout_ string
 /// If you need to retain the line data, copy it.
 ///
 /// @param line The parsed line (valid only during callback)
-/// @param ctx User context pointer passed to lparseRegisterPush()
+/// @param ctx User context pointer passed to lparseCreatePush()
 /// @return true to continue parsing, false to stop
 typedef bool (*lparseLineCB)(_In_opt_ strref line, _Pre_opt_valid_ void* ctx);
 
-/// bool lparseRegisterPush(StreamBuffer *sb, lparseLineCB pline, sbufCleanupCB pcleanup, void *ctx,
-/// uint32 flags)
+// Internal function - use lparseCreatePush() macro instead
+_Ret_opt_valid_ LineParser* _lparseCreatePush(_Inout_ StreamBuffer* sb, _In_ lparseLineCB pline,
+                                              _In_opt_ sbufCleanupCB pcleanup,
+                                              _Inout_opt_ void* ctx, flags_t flags);
+
+/// LineParser *lparseCreatePush(StreamBuffer *sb, lparseLineCB pline, sbufCleanupCB pcleanup,
+/// void *ctx, [flags])
 ///
-/// Registers the line parser as a consumer with the stream buffer in push mode.
+/// Creates a line parser that is called as data arrives.
 ///
-/// In push mode, the provided callback is automatically invoked for each line as
-/// data becomes available from the producer. This is useful for asynchronous
-/// processing or when you want lines to be handled as soon as they're ready.
+/// The parser registers as the stream buffer's consumer, so the producer drives: the callback runs
+/// for each line as soon as enough data is there. A last line with no EOL is delivered when the
+/// producer calls sbufClose().
 ///
 /// @param sb The stream buffer
 /// @param pline Callback function invoked for each line
-/// @param pcleanup Optional cleanup callback invoked when parsing completes
+/// @param pcleanup Optional cleanup callback for ctx, run when the parser is destroyed
 /// @param ctx User context pointer passed to callbacks
-/// @param flags Configuration flags from LINEPARSER_FLAGS_ENUM
-/// @return true on success, false if registration failed
+/// @param ... (flags) Configuration flags from LINEPARSER_FLAGS_ENUM
+/// @return New line parser, or NULL if a consumer is already attached to the stream buffer
 ///
 /// Example:
 /// @code
@@ -186,12 +206,13 @@ typedef bool (*lparseLineCB)(_In_opt_ strref line, _Pre_opt_valid_ void* ctx);
 ///
 ///   int lineCount = 0;
 ///   StreamBuffer *sb = sbufCreate(4096);
-///   lparseRegisterPush(sb, handleLine, NULL, &lineCount, LPARSE_LF);
-///   sbufFileIn(sb, file, true);  // triggers callbacks automatically
+///   LineParser *lp = lparseCreatePush(sb, handleLine, NULL, &lineCount, LPARSE_LF);
+///   sbufFileIn(sb, file, true);   // triggers callbacks automatically
+///   sbufClose(sb);
+///   lparseDestroy(&lp);
 /// @endcode
-_Check_return_ bool
-lparseRegisterPush(_Inout_ StreamBuffer* sb, _In_ lparseLineCB pline,
-                   _In_opt_ sbufCleanupCB pcleanup, _Inout_opt_ void* ctx, uint32 flags);
+#define lparseCreatePush(sb, pline, pcleanup, ctx, ...) \
+    _lparseCreatePush(sb, pline, pcleanup, ctx, opt_flags(__VA_ARGS__))
 
 /// @}  // end of serialize_lineparse_push
 /// @}  // end of serialize_lineparse

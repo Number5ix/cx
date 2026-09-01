@@ -15,10 +15,13 @@ static SSDNode* loadsrc(strref fname)
         return NULL;
 
     StreamBuffer* sb = sbufCreate(1024);
-    if (!sb || !sbufFilePRegisterPull(sb, rf, true))
+    if (!sb || !sbufFilePRegisterPull(sb, rf, true)) {
+        sbufRelease(&sb);
         return NULL;
+    }
 
     SSDNode* inf = jsonParseTree(sb);
+    sbufClose(sb);
     sbufRelease(&sb);
 
     return inf;
@@ -29,10 +32,15 @@ static bool saveresult(strref fname, SSDNode* json)
     VFSFile* wf = vfsOpen(vfs, fname, FS_Overwrite);
 
     StreamBuffer* sb = sbufCreate(1024);
-    if (!sb || !sbufFileCRegisterPush(sb, wf, true))
+    if (!sb || !sbufFileCRegisterPush(sb, wf, true)) {
+        sbufRelease(&sb);
         return false;
+    }
 
     bool ret = jsonOutTree(sb, json, JSON_Pretty);
+
+    // ending the stream is what flushes the tail and closes the file
+    sbufClose(sb);
     sbufRelease(&sb);
 
     return ret;

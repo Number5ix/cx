@@ -75,6 +75,7 @@ CX_C_BEGIN
 ///           printf("String: %s\n", strC(ev.edata.strData));
 ///   }
 ///   jsonParseDestroy(&state);
+///   sbufClose(sb);
 ///   sbufRelease(&sb);
 /// @endcode
 
@@ -197,9 +198,7 @@ typedef void (*jsonParseCB)(_In_ JSONParseEvent* ev, _Inout_opt_ void* userdata)
 /// - Custom data transformations during parsing
 /// - Selective data extraction without building full tree
 ///
-/// **IMPORTANT:** The stream buffer is invalidated after this call.
-///
-/// @param sb Stream buffer in pull mode (invalidated after call)
+/// @param sb Stream buffer in pull mode
 /// @param callback Function to invoke for each parse event
 /// @param userdata User context passed to callbacks
 /// @return true on successful parse, false on error
@@ -235,9 +234,7 @@ bool jsonParse(_Inout_ StreamBuffer* sb, _In_ jsonParseCB callback, _Inout_opt_ 
 /// The stream buffer must be configured in PULL mode before calling this
 /// function.
 ///
-/// **IMPORTANT:** The stream buffer is invalidated after this call.
-///
-/// @param sb Stream buffer in pull mode (invalidated after call)
+/// @param sb Stream buffer in pull mode
 /// @return Root node of parsed tree, or NULL on error
 ///
 /// Example:
@@ -263,9 +260,7 @@ _Ret_opt_valid_ SSDNode* jsonParseTree(_Inout_ StreamBuffer* sb);
 /// allocation. Useful when you need to control tree properties or maintain
 /// multiple related trees.
 ///
-/// **IMPORTANT:** The stream buffer is invalidated after this call.
-///
-/// @param sb Stream buffer in pull mode (invalidated after call)
+/// @param sb Stream buffer in pull mode
 /// @param tree Existing SSD tree to allocate nodes from (optional, NULL creates new tree)
 /// @return Root node of parsed tree, or NULL on error
 _Ret_opt_valid_ SSDNode* jsonParseTreeCustom(_Inout_ StreamBuffer* sb, _In_opt_ SSDTree* tree);

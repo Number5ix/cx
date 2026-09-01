@@ -55,10 +55,10 @@ static bool writeDepfile(string depfile, string target, string input)
         return false;
     }
     StreamBuffer* bf = sbufCreate(1024);
-    if (!sbufFSFileCRegisterPush(bf, file, true))
+    if (!sbufFSFileCRegisterPush(bf, file, true)) {
+        sbufRelease(&bf);
         return false;
-    if (!sbufPRegisterPush(bf, NULL, NULL))
-        return false;
+    }
 
     string esc = 0;
     depfileEscape(&esc, target);
@@ -78,7 +78,8 @@ static bool writeDepfile(string depfile, string target, string input)
     sbufPWriteEOL(bf);
     strDestroy(&esc);
 
-    sbufPFinish(bf);
+    // ending the stream is what flushes the tail and closes the file
+    sbufClose(bf);
     sbufRelease(&bf);
     return true;
 }

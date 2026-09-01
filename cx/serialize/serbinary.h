@@ -46,6 +46,7 @@ CX_C_BEGIN
 ///   serWrite(w, MyStruct, val);
 ///   serWriterFinish(w);
 ///   serWriterDestroy(&w);
+///   sbufClose(sb);
 ///   sbufRelease(&sb);
 /// @endcode
 
@@ -96,6 +97,7 @@ _Ret_notnull_ SerWriter* serBinaryWriterCreate(_Inout_ StreamBuffer* sb, flags_t
 ///   structInit(MyStruct, &out);
 ///   serRead(r, MyStruct, &out);
 ///   serReaderDestroy(&r);
+///   sbufClose(sb);
 ///   sbufRelease(&sb);
 /// @endcode
 _Ret_notnull_ SerReader* serBinaryReaderCreate(_Inout_ StreamBuffer* sb, flags_t flags);

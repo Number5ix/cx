@@ -1,6 +1,9 @@
 #include "sbfsfile.h"
 #include <cx/debug/assert.h>
 
+// direct push mode has no target size of its own, so fall back to a reasonable chunk size
+#define SBUF_DEFAULT_CHUNK (64 * 1024)
+
 typedef struct SbufFSFileCtx {
     FSFile* file;
     bool close;
@@ -22,13 +25,12 @@ bool sbufFSFileIn(StreamBuffer* sb, FSFile* file, bool close)
     devAssertMsg(sb->high == 0 || sbufIsLocked(sb),
                  "Flow control needs a stream buffer that can block the producer");
 
-    if (!sbufPRegisterPush(sb, NULL, NULL, sbufIsLocked(sb) ? SBUF_PBlock : 0))
-        return false;
+    size_t chunksz = sb->targetsz > 0 ? sb->targetsz : SBUF_DEFAULT_CHUNK;
 
-    uint8* buf     = xaAlloc(sb->targetsz);
+    uint8* buf     = xaAlloc(chunksz);
     size_t didread = 0;
     for (;;) {
-        if (!fsRead(file, buf, sb->targetsz, &didread)) {
+        if (!fsRead(file, buf, chunksz, &didread)) {
             sbufError(sb);
             break;
         }
@@ -36,7 +38,7 @@ bool sbufFSFileIn(StreamBuffer* sb, FSFile* file, bool close)
         if (didread == 0)   // EOF
             break;
 
-        if (!sbufPWrite(sb, buf, didread))
+        if (!sbufPWrite(sb, buf, didread, SBUF_Wait))
             break;
     }
     xaFree(buf);
@@ -44,9 +46,7 @@ bool sbufFSFileIn(StreamBuffer* sb, FSFile* file, bool close)
     if (close)
         fsClose(file);
 
-    bool ret = !sbufIsError(sb);
-    sbufPFinish(sb);
-    return ret;
+    return !sbufIsError(sb);
 }
 
 static size_t sbufFSFilePullCB(_Pre_valid_ StreamBuffer* sb, _Out_writes_bytes_(sz) uint8* buf,
@@ -56,12 +56,21 @@ static size_t sbufFSFilePullCB(_Pre_valid_ StreamBuffer* sb, _Out_writes_bytes_(
     if (!sbc)
         return 0;
 
+    if (sz == 0) {
+        // A status check rather than a request for data. Once the stream is over there is nothing
+        // left to feed it, so hand the slot back.
+        if (sbufIsClosed(sb))
+            sbufPUnregister(sb);
+        return 0;
+    }
+
     size_t didread = 0;
     if (!fsRead(sbc->file, buf, sz, &didread))
         sbufError(sb);
 
+    // end of file: leave the slot open for another producer rather than ending the stream
     if (didread == 0)
-        sbufPFinish(sb);
+        sbufPUnregister(sb);
 
     return didread;
 }
@@ -98,19 +107,20 @@ static bool sbufFSFileSendCB(_Pre_valid_ StreamBuffer* sb, _In_reads_bytes_(sz) 
 static void sbufFSFileNotifyCB(_Pre_valid_ StreamBuffer* sb, size_t sz, _Pre_opt_valid_ void* ctx)
 {
     if (sz >= (sb->targetsz >> 1) + (sb->targetsz >> 2)) {
-        sbufCSend(sb, sbufFSFileSendCB, sz);
-    } else if (sz == 0 || sbufIsPFinished(sb)) {
+        sbufCSend(sb, sbufFSFileSendCB, sz, ctx);
+    } else if (sz == 0 || !sbufCMore(sb)) {
         // flush anything that's left in the streambuf
-        sbufCSend(sb, sbufFSFileSendCB, sbufCAvail(sb));
+        sbufCSend(sb, sbufFSFileSendCB, sbufCAvail(sb), ctx);
     }
+
+    // nothing more is coming, so hand the slot back; that closes the file if we own it
+    if (sbufIsClosed(sb))
+        sbufCUnregister(sb);
 }
 
 _Use_decl_annotations_
 bool sbufFSFileOut(StreamBuffer* sb, FSFile* file, bool close)
 {
-    if (!sbufCRegisterPull(sb, NULL, NULL))
-        return false;
-
     uint8* buf = xaAlloc(sb->targetsz);
     size_t sz;
     do {
@@ -122,15 +132,13 @@ bool sbufFSFileOut(StreamBuffer* sb, FSFile* file, bool close)
                 break;
             }
         }
-    } while (sz > 0 || !sbufIsPFinished(sb));
+    } while (sz > 0 || sbufCMore(sb));
     xaFree(buf);
 
     if (close)
         fsClose(file);
 
-    bool ret = !sbufIsError(sb);
-    sbufCFinish(sb);
-    return ret;
+    return !sbufIsError(sb);
 }
 
 _Use_decl_annotations_
