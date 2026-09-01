@@ -30,11 +30,17 @@ void _httpReqReleaseBodyStream(HttpRequest* self)
         return;
     self->reqBodyStream = NULL;
 
+    // In pull mode this request drives the buffer, so it is the one that closes it. In push mode
+    // the caller drives and this request is only the registered consumer -- detaching, not
+    // closing, is what leaves the caller free to reuse the buffer for another request.
+    bool drives = sbufIsPull(sb);
+
     // Detach first, so the end-of-stream callback cannot come back into a request that has already
     // stopped pointing at this buffer. In pull mode there is no consumer slot filled and this does
-    // nothing. Ending it is right either way: nothing on this side is ever going to read it again.
+    // nothing.
     sbufCUnregister(sb);
-    sbufClose(sb);
+    if (drives)
+        sbufClose(sb);
     sbufRelease(&sb);
 }
 

@@ -188,12 +188,21 @@ void _httpSrvReqReleaseStreams(HttpServerRequest* req, bool ok)
         StreamBuffer* sb = req->respStream;
         req->respStream  = NULL;
 
+        // In pull mode this request drives the buffer and closes it. In push mode the caller
+        // drives and this request is only the registered consumer -- detaching, not closing, is
+        // what leaves the caller free to reuse the buffer for another response.
+        bool drives = sbufIsPull(sb);
+
         // Detach before ending, so the end-of-stream callback cannot come back into a response
         // that has already finished. In pull mode no consumer slot was ever filled.
         sbufCUnregister(sb);
+
+        // Reporting a failure is fine from either side, but only the driver gets to end the
+        // stream -- in push mode that is the caller, who may still have more to send elsewhere.
         if (!ok)
             sbufError(sb);
-        sbufClose(sb);
+        if (drives)
+            sbufClose(sb);
         sbufRelease(&sb);
     }
 }
