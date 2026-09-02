@@ -1,3 +1,69 @@
+/// @file prqueue.h
+/// @brief Lock-free pointer FIFO queue
+/// @defgroup thread_prqueue PrQueue
+/// @ingroup thread
+/// @{
+///
+/// A thread-safe, lock-free, optionally growable ring buffer of pointers. Multiple
+/// threads can push and pop at the same time.
+///
+/// PrQueue is low-level plumbing for building other concurrent structures, such as
+/// containers or a work queue, rather than a general-purpose collection to reach for
+/// directly. It moves only raw `void*` pointers - it never dereferences, allocates,
+/// frees, or copies whatever they point to. All lifetime management of the pointed-to
+/// data is the caller's responsibility.
+///
+/// NULL may never be pushed into the queue. prqPop() uses NULL as the "queue is
+/// empty" sentinel, so inserting one is an error.
+///
+/// Pushing a pointer transfers ownership of it to the queue - don't touch it again
+/// after a successful prqPush(). Popping transfers ownership back to the caller.
+///
+/// @section thread_prqueue_fixed_dynamic Fixed vs. dynamic queues
+///
+/// @code
+///   PrQueue q;
+///   prqInitFixed(&q, 1024);   // fixed capacity; push fails when full
+///
+///   // or, a queue that grows and shrinks between bounds:
+///   PrQueue q2;
+///   prqInitDynamic(&q2, 64, 1024, 65536, PRQ_Grow_100, PRQ_Grow_50);
+/// @endcode
+///
+/// A fixed queue never grows, and prqPush() simply fails when it's full. A dynamic
+/// queue grows toward its target size under load and shrinks back within its bounds,
+/// but every push and pop on a dynamic queue pays extra atomic bookkeeping to guard
+/// against a segment being freed out from under it, often close to double the atomic
+/// operations of a fixed queue doing the same work. Prefer a fixed queue whenever
+/// there's a defensible upper bound on depth; reach for dynamic only when the depth
+/// genuinely can't be bounded.
+///
+/// @section thread_prqueue_lockfree Lock-free guarantees
+///
+/// Pushing and popping are lock-free in the classical sense: a thread that suspends
+/// or terminates in the middle of an operation cannot corrupt the queue or
+/// permanently block other threads, though it can cost performance until it clears.
+///
+/// Garbage collection (prqCollect()) is the one exception. It reclaims buffer
+/// segments that were retired when a dynamic queue grew, and it does use a lock - but
+/// that lock never blocks the caller: if it can't be acquired, prqCollect() returns
+/// immediately instead of waiting. Call it opportunistically at natural idle points,
+/// such as a consumer thread about to go to sleep. GC is not required for
+/// correctness; a queue that never runs GC keeps working, it just holds on to
+/// retired segments and wastes memory after growth events. A thread that stalls in
+/// the middle of a push also blocks GC from pruning until it clears, for the same
+/// reason. Fixed queues never grow, so they never need GC.
+///
+/// @section thread_prqueue_ordering Ordering guarantees
+///
+/// Pushes from a single thread are popped in order, as long as a single thread (not
+/// necessarily the same one) pops them sequentially. Across multiple threads,
+/// ordering is only best-effort: pushes and pops generally complete in something
+/// close to real-time order, but operations happening at nearly the same time on
+/// different threads may be reordered slightly. Don't build anything that needs
+/// strict global ordering on top of this queue; rely only on the per-pair FIFO
+/// guarantee.
+
 #pragma once
 
 #include <cx/cx.h>
@@ -5,70 +71,19 @@
 #include <cx/thread/atomic.h>
 #include <cx/thread/mutex.h>
 
-// Pointer-ring FIFO queue
-// Lock-free thread-safe expandable ringbuffer implementation.
-//
-// This is in thread/ rather than container/ because it is a low-level structure intended for use
-// to implement either containers or other modules, such as the MPMC work queue.
-//
-// In abstract, it is a truly lock-free* structure in general operation. It makes a few design
-// tradeoffs to achieve this and may not be as performant as a specialized implementation that
-// does not provide full lock-free guarantees, but aims to be solidly fast for most general use
-// cases.
-//
-// * with some small caveats which are documented below
-//
-// It is fully thread-safe and can be used with multiple threads both pushing and popping
-// simultaneously.
-//
-// NULL pointers may NOT be stored in this queue -- it as considered an error to try to insert one.
-//
-// Lock-free guarantees
-//
-// The core algorithm is lock-free in the classical computer science sense. That is, if a thread
-// using it suspends or terminates unexpectedly while it is in the middle of an operation on the
-// queue, it will not irreperably break the structure and block other threads. It does not guarantee
-// full performance if this happens, however.
-//
-// Additionally, the lock-free guarantee does not extend to the garbage collection operation. This
-// operation does indeed use a lock that limits it to only exectuing on a single thread at once,
-// though it IS guaranteed that the collect operation will never block, but instead return
-// immediately if it cannot lock the structure, with the intent that it be run periodically so that
-// it is eventually able to succeed.
-//
-// Threads which stall or terminate in the middle of a push operation will likewise block the
-// ability of the garbage collector to prune the structure, causing a performance hit if the buffer
-// has been expanded multiple times.
-//
-// Despite all these warnings, garbage collection is not an essential function and the queue
-// continues to function even if GC is never able to run, albeit not optimally.
-//
-// Ordering guarantees
-//
-// Push operations within a single thread are guaranteed to be popped in order, provided a single
-// thread (not necessarily the same one) pops them sequentially.
-//
-// Push operations spread across multiple threads are ordered in a best effort fashion and will
-// generally be inserted into the queue in the order that the operations finish in real time.
-// However this is not a strong guarantee, and there may be minor reordering among entries that were
-// pushed at roughly the same time.
-//
-// Similarlty, simultaneous pop operations in multiple threads will return the items in the order
-// they were inserted, but variations in timing among threads may cause them to not be processed
-// in the exact order.
-
 #if DEBUG_LEVEL >= 2 && _64BIT
 #define PRQ_PERF_STATS
 #endif
 CX_C_BEGIN
 
+/// How much a dynamic PrQueue grows or shrinks by when it resizes
 typedef enum PrqGrowthEnum {
-    PRQ_Grow_None = 1,
-    PRQ_Grow_25,
-    PRQ_Grow_50,
-    PRQ_Grow_100,   // Default
-    PRQ_Grow_150,
-    PRQ_Grow_200,
+    PRQ_Grow_None = 1,   ///< Do not grow/shrink at all
+    PRQ_Grow_25,         ///< Resize by 25%
+    PRQ_Grow_50,         ///< Resize by 50%
+    PRQ_Grow_100,        ///< Resize by 100% (default)
+    PRQ_Grow_150,        ///< Resize by 150%
+    PRQ_Grow_200,        ///< Resize by 200%
 } PrqGrowth;
 
 typedef struct PrqSegment PrqSegment;
@@ -107,6 +122,10 @@ typedef struct PrqPerfStats {
 } PrqPerfStats;
 #endif
 
+/// Lock-free pointer FIFO queue
+///
+/// Access it only through the prq* functions - there is no supported direct field
+/// access.
 typedef struct PrQueue {
     // Initial size of the queue as well as minimum size.
     uint32 minsz;
@@ -206,51 +225,94 @@ typedef struct PrqSegment {
     atomic(ptr) buffer[];
 } PrqSegment;
 
-// Initialize a fixed-sized ringbuffer. Guaranteed to succeed, or assert.
+/// Initialize a fixed-size PrQueue
+///
+/// The queue never grows past sz slots; prqPush() fails once it is full. This is
+/// the cheaper of the two flavors to operate, and the one to prefer whenever the
+/// maximum depth is known ahead of time.
+///
+/// Always succeeds, or asserts.
+/// @param prq Pointer to uninitialized queue structure
+/// @param sz Fixed capacity, in pointer slots
 void prqInitFixed(_Out_ PrQueue* prq, uint32 sz);
 
-// Initialize a dynamic buffer chain. Guaranteed to succeed, or assert.
-// minsz: Minimum & initial size
-// targetsz: Ideal size the buffer should try to reach
-// maxsz: Maximum size
-// growth: How much to grow at a time
-// shrink: How much to shrink at a time
+/// Initialize a growable PrQueue
+///
+/// The queue starts at minsz slots, grows toward targetsz (and up to maxsz) as it
+/// fills, and shrinks back down again as load drops. growth and shrink control how
+/// large each resize step is.
+///
+/// Always succeeds, or asserts.
+/// @param prq Pointer to uninitialized queue structure
+/// @param minsz Minimum and initial size, in pointer slots
+/// @param targetsz Size the queue tries to reach under load
+/// @param maxsz Maximum size it will ever grow to
+/// @param growth How much to grow by at a time
+/// @param shrink How much to shrink by at a time
 void prqInitDynamic(_Out_ PrQueue* prq, uint32 minsz, uint32 targetsz, uint32 maxsz,
                     PrqGrowth growth, PrqGrowth shrink);
 
-// Attempts to destroy the queue. Will fail if there are still entries in the queue, because
-// this is a low-level API that has no idea what the pointers stored in it point to or what
-// kind of cleanup needs to be done on them. It is the caller's responsibility to ensure that
-// all entires have been popped and no threads are still trying to push new ones!
+/// Destroy a PrQueue and release its resources
+///
+/// Fails if the queue still holds any entries, since this is a low-level API with no
+/// idea what the stored pointers mean or how to clean them up. The caller must pop
+/// and dispose of everything, and make sure no thread is still pushing, before
+/// calling this.
+/// @param prq Queue to destroy
+/// @return true on success, false if entries remain
 _Success_(return) bool prqDestroy(_Pre_valid_ _Post_invalid_ PrQueue* prq);
 
-// Attempt to push a pointer into the queue. Returns true on success, false if the queue
-// is full and cannot be grown. Upon success, the pointer should be considered to be
-// owned by the queue and not touched again.
+/// Push a pointer into the queue
+///
+/// ptr must not be NULL. On success, the queue owns the pointer; don't touch it
+/// again until it comes back out of a prqPop() call.
+/// @param prq Queue to push into
+/// @param ptr Pointer to push. Must not be NULL
+/// @return true on success, false if the queue is full and cannot grow
 _Success_(return) bool prqPush(_Inout_ PrQueue* prq, _Pre_notnull_ _Post_invalid_ void* ptr);
 
-// Attempt to pop a pointer from the queue. If one is available, it is returned. Otherwise,
-// a NULL return indicates that the queue is empty.
+/// Pop a pointer from the queue
+///
+/// @param prq Queue to pop from
+/// @return The next pointer in the queue, or NULL if the queue is empty
 _Must_inspect_result_ _Ret_maybenull_ void* prqPop(_Inout_ PrQueue* prq);
 
-// Attempt to run a garbage collection cycle on the queue. Returns true if the cycle runs,
-// whether or not anything was collected.
+/// Run one garbage collection cycle on the queue
+///
+/// Reclaims buffer segments that were retired by a previous growth event. Never
+/// blocks: if the internal GC lock is already held by another thread, this returns
+/// immediately without doing anything. Call it opportunistically, such as from a
+/// consumer thread that is about to go idle.
+///
+/// Not needed for correctness, and a no-op on a fixed queue, which never retires
+/// segments.
+/// @param prq Queue to run a GC cycle on
+/// @return true if the cycle ran, whether or not it collected anything
 bool prqCollect(_Inout_ PrQueue* prq);
 
-// Retrieves an estimated count of the number of valid items in the queue. Accuracy
-// varies depending on how busy the queue is.
+/// Get an estimated count of items in the queue
+///
+/// This is only an estimate, and its accuracy drops the busier the queue is. Use
+/// prqPop() returning NULL as the authoritative test for "empty," not a count of
+/// zero from this function.
+/// @param prq Queue to inspect
+/// @return Approximate number of valid items currently in the queue
 uint32 prqCount(_In_ PrQueue* prq);
 
-// Attempt to fetch a copy of the nth pointer from the queue.
-// EXERCISE EXTREME CAUTION!
-// This is very dangerous and tricky to use safely! It is likely the pointer returned
-// by this function is being actively processed by another thread and may have already
-// been removed from the queue by the time you examine its contents. It is almost
-// certain to cause a crash unless you take precautions to prevent the pointed-to
-// data from being destroyed after being processed, and your underlying data must be
-// thread-safe.
-// This function is intended for use only in controlled situations where guarantees can
-// be made about which threads pop items from the queue and what they do with those items.
+/// Fetch a copy of the nth pointer in the queue without removing it
+///
+/// @warning This is dangerous. By the time the returned pointer is examined, another
+/// thread may already have popped and destroyed whatever it points to, so using it is
+/// almost certain to crash unless the caller has external guarantees about which
+/// threads pop items and what they do with them, and the pointed-to data is itself
+/// thread-safe. Only use this in tightly controlled situations; it is not a general
+/// substitute for prqPop().
+/// @param prq Queue to inspect
+/// @param n Index of the item to fetch, starting from the head of the queue
+/// @return Copy of the nth pointer
 void* prqPeek(_In_ PrQueue* prq, uint32 n);
 
 CX_C_END
+
+/// @}
+// end of thread_prqueue group
