@@ -568,7 +568,16 @@ void writeClassDecl(StreamBuffer* bf, Class* cls)
         for (int j = 0; j < saSize(m->params); j++) {
             strNConcat(&ln, ln, _S", ", m->params.a[j]->name);
         }
-        strNConcat(&ln, ln, _S") (self)->_->", m->name, _S"(", cls->name, _S"(self)");
+
+        sa_string nulldef = saInitNone;
+        bool isnullable   = false;
+        if (getAnnotation(&nulldef, m->annotations, _S"nullself") && saSize(nulldef) == 2)
+            isnullable = true;
+
+        if (isnullable)
+            strNConcat(&ln, ln, _S") ((self) ? ((self)->_->", m->name, _S"(", cls->name, _S"(self)");
+        else
+            strNConcat(&ln, ln, _S") (self)->_->", m->name, _S"(", cls->name, _S"(self)");
         for (int j = 0; j < saSize(m->params); j++) {
             // use cast macro for classes that we know about
             if (isObjectType(m->params.a[j]))
@@ -577,6 +586,8 @@ void writeClassDecl(StreamBuffer* bf, Class* cls)
                 strNConcat(&ln, ln, _S", ", m->params.a[j]->name);
         }
         strAppend(&ln, _S")");
+        if (isnullable)
+            strNConcat(&ln, ln, _S") : ", nulldef.a[1], _S")");
         sbufPWriteLine(bf, ln);
     }
     sbufPWriteEOL(bf);
