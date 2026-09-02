@@ -3,10 +3,22 @@
 #include <cx/obj.h>
 #include <cx/serialize.h>
 #include <cx/string.h>
+#include <cx/time/clock.h>
+#include <cx/time/time.h>
 
 #define TEST_FILE fstest
 #define TEST_FUNCS fstest_funcs
 #include "common.h"
+
+// Checks fsStat's verdict on a path.
+static void checkFsStat(int* ret, strref path, int want)
+{
+    int got = fsStat(path, NULL);
+    if (got != want) {
+        TEST_FAILV(*ret, 1, _SL("fsStat('${string}') == ${int}, wanted ${int}"),
+                   stvar(strref, path), stvar(int32, got), stvar(int32, want));
+    }
+}
 
 // Checks pathMatch(path, pattern, flags) against the expected result, logging all inputs and the
 // actual result on mismatch.
@@ -213,8 +225,146 @@ out:
     return ret;
 }
 
+// Native fs.h directory and search operations against the real OS filesystem: fsCreateDir /
+// fsCreateAll, fsRemoveDir (including its real-filesystem "must be empty" failure, which the
+// in-memory VFS test provider does not model), fsRename, fsSetTimes, and a directory search.
+static int test_fs_ops()
+{
+    int ret = 0;
+    string cwd = 0, dir = 0, nest1 = 0, nest2 = 0, sub = 0, file1 = 0, file2 = 0, renamed = 0;
+    FSFile* fh = NULL;
+    FSSearchIter iter;
+    sa_string names;
+
+    saInit(&names, string, 4, SA_Sorted);
+
+    fsCurDir(&cwd);
+    pathJoin(&dir, cwd, _S"cx_fstest_ops");
+    pathJoin(&nest1, dir, _S"nest1");
+    pathJoin(&nest2, nest1, _S"nest2");
+    pathJoin(&sub, dir, _S"sub");
+    pathJoin(&file1, dir, _S"one.txt");
+    pathJoin(&file2, sub, _S"two.txt");
+    pathJoin(&renamed, dir, _S"renamed.txt");
+
+    if (!fsCreateDir(dir)) {
+        TEST_FAILV(ret, 1, _SL("fsCreateDir('${string}') failed"), stvar(strref, dir));
+        goto out;
+    }
+    checkFsStat(&ret, dir, FS_Directory);
+
+    // fsCreateAll makes every missing parent along the way
+    if (!fsCreateAll(nest2))
+        TEST_FAILV(ret, 1, _SL("fsCreateAll('${string}') failed"), stvar(strref, nest2));
+    checkFsStat(&ret, nest1, FS_Directory);
+    checkFsStat(&ret, nest2, FS_Directory);
+
+    if (!fsCreateDir(sub))
+        TEST_FAILV(ret, 1, _SL("fsCreateDir('${string}') failed"), stvar(strref, sub));
+
+    fh = fsOpen(file2, FS_Overwrite);
+    if (!fh) {
+        TEST_FAILV(ret, 1, _SL("could not create '${string}'"), stvar(strref, file2));
+    } else {
+        fsWrite(fh, "x", 1, NULL);
+        fsClose(fh);
+        fh = NULL;
+    }
+
+    // a non-empty directory cannot be removed -- real OS semantics the in-memory VFS test
+    // provider does not model
+    if (fsRemoveDir(sub))
+        TEST_FAILV(ret, 1, _SL("fsRemoveDir succeeded on a non-empty directory"), stvNone);
+    checkFsStat(&ret, sub, FS_Directory);
+
+    fsDelete(file2);
+    if (!fsRemoveDir(sub))
+        TEST_FAILV(ret, 1, _SL("fsRemoveDir('${string}') failed once empty"), stvar(strref, sub));
+    checkFsStat(&ret, sub, FS_Nonexistent);
+
+    // rename
+    fh = fsOpen(file1, FS_Overwrite);
+    if (!fh) {
+        TEST_FAILV(ret, 1, _SL("could not create '${string}'"), stvar(strref, file1));
+    } else {
+        fsWrite(fh, "y", 1, NULL);
+        fsClose(fh);
+        fh = NULL;
+    }
+    if (!fsRename(file1, renamed)) {
+        TEST_FAILV(ret, 1, _SL("fsRename('${string}', '${string}') failed"), stvar(strref, file1),
+                   stvar(strref, renamed));
+    }
+    checkFsStat(&ret, renamed, FS_File);
+    checkFsStat(&ret, file1, FS_Nonexistent);
+
+    // fsSetTimes, verified via a following fsStat. Set a time in the future, rounded to the
+    // second: fsStat reports max(mtime, ctime) (see unix_fs_fs.c), and setting times always
+    // bumps ctime to "now" as a side effect, so a modified time in the past would be masked by
+    // that same call's own ctime bump. A couple of seconds of slack allows for filesystems that
+    // don't store full microsecond precision.
+    {
+        FSStat stat = { 0 };
+        int64 want  = (clockWall() + timeS(3600)) / timeS(1) * timeS(1);
+        if (!fsSetTimes(renamed, want, want))
+            TEST_FAILV(ret, 1, _SL("fsSetTimes('${string}') failed"), stvar(strref, renamed));
+        fsStat(renamed, &stat);
+        int64 diff = stat.modified - want;
+        if (diff < 0)
+            diff = -diff;
+        if (diff > timeS(2)) {
+            TEST_FAILV(ret, 1, _SL("fsStat().modified == ${int} after fsSetTimes(${int})"),
+                       stvar(int64, stat.modified), stvar(int64, want));
+        }
+    }
+
+    // search over a small fixed set of entries: nest1 and renamed.txt are all that's left
+    if (!fsSearchInit(&iter, dir, NULL, false)) {
+        TEST_FAILV(ret, 1, _SL("fsSearchInit('${string}') failed"), stvar(strref, dir));
+    } else {
+        while (fsSearchValid(&iter)) {
+            saPush(&names, string, iter.name);
+            fsSearchNext(&iter);
+        }
+    }
+    fsSearchFinish(&iter);
+
+    {
+        string joined = 0;
+        strJoin(&joined, names, _S",");
+        if (!strEq(joined, _S"nest1,renamed.txt")) {
+            TEST_FAILV(ret, 1, _SL("directory listing == '${string}', wanted 'nest1,renamed.txt'"),
+                       stvar(strref, joined));
+        }
+        strDestroy(&joined);
+    }
+
+out:
+    if (fh)
+        fsClose(fh);
+    fsDelete(renamed);
+    fsDelete(file1);
+    fsDelete(file2);
+    fsRemoveDir(sub);
+    fsRemoveDir(nest2);
+    fsRemoveDir(nest1);
+    fsRemoveDir(dir);
+
+    saDestroy(&names);
+    strDestroy(&cwd);
+    strDestroy(&dir);
+    strDestroy(&nest1);
+    strDestroy(&nest2);
+    strDestroy(&sub);
+    strDestroy(&file1);
+    strDestroy(&file2);
+    strDestroy(&renamed);
+    return ret;
+}
+
 testfunc fstest_funcs[] = {
     { "pathmatch", test_fs_pathmatch },
     { "file", test_fs_file },
+    { "ops", test_fs_ops },
     { 0, 0 }
 };

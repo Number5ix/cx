@@ -3,6 +3,8 @@
 #include <cx/format.h>
 #include <cx/fs/vfsobj.h>
 #include <cx/thread/atomic.h>
+#include <cx/thread/thread.h>
+#include <cx/time/time.h>
 #include <cx/platform/base.h>
 #include <cx/string.h>
 
@@ -500,6 +502,13 @@ static int test_vfs_rename()
     if (vfsRename(vfs, _S"/renamed.txt", _S"/sub/b.txt"))
         TEST_FAILV(ret, 1, _SL("vfsRename overwrote an existing file"), stvNone);
 
+    // a rename can also move a file into a different directory
+    if (!vfsRename(vfs, _S"/sub/deep/c.txt", _S"/sub/movedc.txt"))
+        TEST_FAILV(ret, 1, _SL("cross-directory vfsRename failed"), stvNone);
+    checkStat(&ret, vfs, _S"/sub/movedc.txt", FS_File);
+    checkStat(&ret, vfs, _S"/sub/deep/c.txt", FS_Nonexistent);
+    checkContents(&ret, vfs, _S"/sub/movedc.txt", _S"c:1");
+
     objRelease(&prov);
     vfsDestroy(&vfs);
     return ret;
@@ -542,6 +551,36 @@ static int test_vfs_errors()
         TEST_FAILV(ret, 1, _SL("vfsClose reported success on a provider whose close failed"), stvNone);
     }
     prov->failmask = 0;
+
+    // a read that fails must not take the VFS down with it
+    prov->failmask = VFSTP_FailRead;
+    f              = vfsOpen(vfs, _S"/a.txt", FS_Read);
+    if (!f) {
+        TEST_FAILV(ret, 1, _SL("could not open /a.txt"), stvNone);
+    } else {
+        uint8 buf[8];
+        size_t n = 0;
+        if (vfsRead(f, buf, sizeof(buf), &n))
+            TEST_FAILV(ret, 1, _SL("read succeeded on a provider whose read fails"), stvNone);
+        vfsClose(f);
+    }
+    prov->failmask = 0;
+
+    // ...and neither must a write that fails
+    prov->failmask = VFSTP_FailWrite;
+    f              = vfsOpen(vfs, _S"/a.txt", FS_Write);
+    if (!f) {
+        TEST_FAILV(ret, 1, _SL("could not open /a.txt for writing"), stvNone);
+    } else {
+        if (vfsWrite(f, "x", 1, NULL))
+            TEST_FAILV(ret, 1, _SL("write succeeded on a provider whose write fails"), stvNone);
+        vfsClose(f);
+    }
+    prov->failmask = 0;
+
+    // the VFS is still fully usable after all of the above
+    checkStat(&ret, vfs, _S"/a.txt", FS_File);
+    checkContents(&ret, vfs, _S"/a.txt", _S"a:1");
 
     objRelease(&prov);
     vfsDestroy(&vfs);
@@ -744,12 +783,373 @@ static int test_vfs_evict()
     return ret;
 }
 
+// vfsCreateDir, vfsCreateAll, vfsRemoveDir, and their failure paths: a nonexistent directory
+// can't be removed, VFSTP_FailCreateDir propagates through vfsCreateDir, and a read-only mount
+// refuses the write outright.
+static int test_vfs_dirops()
+{
+    int ret           = 0;
+    VFS* vfs          = vfsCreate(VFS_CaseSensitive);
+    VFSTestProv* prov = vfstestprovCreate(VFS_CaseSensitive);
+
+    vfsMountProvider(vfs, prov, _S"/");
+
+    if (!vfsCreateDir(vfs, _S"/newdir"))
+        TEST_FAILV(ret, 1, _SL("vfsCreateDir(/newdir) failed"), stvNone);
+    checkStat(&ret, vfs, _S"/newdir", FS_Directory);
+
+    // vfsCreateAll makes every missing parent along the way
+    if (!vfsCreateAll(vfs, _S"/a/b/c"))
+        TEST_FAILV(ret, 1, _SL("vfsCreateAll(/a/b/c) failed"), stvNone);
+    checkStat(&ret, vfs, _S"/a", FS_Directory);
+    checkStat(&ret, vfs, _S"/a/b", FS_Directory);
+    checkStat(&ret, vfs, _S"/a/b/c", FS_Directory);
+
+    if (!vfsRemoveDir(vfs, _S"/newdir"))
+        TEST_FAILV(ret, 1, _SL("vfsRemoveDir(/newdir) failed"), stvNone);
+    checkStat(&ret, vfs, _S"/newdir", FS_Nonexistent);
+
+    // removing something that was never there fails cleanly
+    if (vfsRemoveDir(vfs, _S"/nosuchdir"))
+        TEST_FAILV(ret, 1, _SL("vfsRemoveDir succeeded on a nonexistent directory"), stvNone);
+
+    // fault injection propagates through vfsCreateDir
+    prov->failmask = VFSTP_FailCreateDir;
+    if (vfsCreateDir(vfs, _S"/shouldfail"))
+        TEST_FAILV(ret, 1, _SL("vfsCreateDir succeeded despite VFSTP_FailCreateDir"), stvNone);
+    prov->failmask = 0;
+
+    objRelease(&prov);
+    vfsDestroy(&vfs);
+
+    // a read-only mount refuses vfsCreateDir outright
+    vfs                    = vfsCreate(VFS_CaseSensitive);
+    VFSTestProv* roprov = vfstestprovCreate(VFS_CaseSensitive);
+    vfsMountProvider(vfs, roprov, _S"/", VFS_ReadOnly);
+    if (vfsCreateDir(vfs, _S"/nope"))
+        TEST_FAILV(ret, 1, _SL("vfsCreateDir succeeded on a read-only mount"), stvNone);
+    objRelease(&roprov);
+    vfsDestroy(&vfs);
+    return ret;
+}
+
+// vfsCopy within one provider, from a read-only lower layer to a writable destination,
+// overwriting an existing destination, a missing source, and failure injection mid-copy leaving
+// no partial destination file behind.
+static int test_vfs_copy()
+{
+    int ret           = 0;
+    VFS* vfs          = vfsCreate(VFS_CaseSensitive);
+    VFSTestProv* prov = sampleProvider(VFS_CaseSensitive, _S"1");
+
+    vfsMountProvider(vfs, prov, _S"/");
+
+    if (!vfsCopy(vfs, _S"/a.txt", _S"/a-copy.txt"))
+        TEST_FAILV(ret, 1, _SL("vfsCopy(/a.txt, /a-copy.txt) failed"), stvNone);
+    checkContents(&ret, vfs, _S"/a-copy.txt", _S"a:1");
+    checkContents(&ret, vfs, _S"/a.txt", _S"a:1");   // source is untouched
+
+    // overwriting an existing destination
+    if (!vfsCopy(vfs, _S"/sub/b.txt", _S"/a-copy.txt"))
+        TEST_FAILV(ret, 1, _SL("vfsCopy(/sub/b.txt, /a-copy.txt) failed"), stvNone);
+    checkContents(&ret, vfs, _S"/a-copy.txt", _S"b:1");
+
+    // a missing source fails cleanly and leaves no destination
+    if (vfsCopy(vfs, _S"/nope.txt", _S"/should-not-exist.txt"))
+        TEST_FAILV(ret, 1, _SL("vfsCopy succeeded with a missing source"), stvNone);
+    checkStat(&ret, vfs, _S"/should-not-exist.txt", FS_Nonexistent);
+
+    objRelease(&prov);
+    vfsDestroy(&vfs);
+
+    // a read-only lower layer copies up into the writable upper layer
+    VFS* vfs2           = vfsCreate(VFS_CaseSensitive);
+    VFSTestProv* lower  = sampleProvider(VFS_CaseSensitive, _S"low");
+    VFSTestProv* upper  = vfstestprovCreate(VFS_CaseSensitive);
+
+    vfsMountProvider(vfs2, lower, _S"/", VFS_ReadOnly);
+    vfsMountProvider(vfs2, upper, _S"/");
+
+    if (!vfsCopy(vfs2, _S"/a.txt", _S"/a-copy.txt"))
+        TEST_FAILV(ret, 1, _SL("vfsCopy across layers failed"), stvNone);
+    if (!htHasKey(upper->files, string, _S"a-copy.txt"))
+        TEST_FAILV(ret, 1, _SL("copy did not land on the writable layer"), stvNone);
+    checkContents(&ret, vfs2, _S"/a-copy.txt", _S"a:low");
+
+    // a write failure mid-copy leaves no partial destination file
+    upper->failmask = VFSTP_FailWrite;
+    if (vfsCopy(vfs2, _S"/sub/b.txt", _S"/partial.txt"))
+        TEST_FAILV(ret, 1, _SL("vfsCopy succeeded despite VFSTP_FailWrite"), stvNone);
+    if (htHasKey(upper->files, string, _S"partial.txt"))
+        TEST_FAILV(ret, 1, _SL("a failed copy (write failure) left a partial destination file"), stvNone);
+    upper->failmask = 0;
+
+    // ...and neither does a read failure on the source
+    lower->failmask = VFSTP_FailRead;
+    if (vfsCopy(vfs2, _S"/sub/deep/c.txt", _S"/partial2.txt"))
+        TEST_FAILV(ret, 1, _SL("vfsCopy succeeded despite VFSTP_FailRead"), stvNone);
+    if (htHasKey(upper->files, string, _S"partial2.txt"))
+        TEST_FAILV(ret, 1, _SL("a failed copy (read failure) left a partial destination file"), stvNone);
+    lower->failmask = 0;
+
+    objRelease(&lower);
+    objRelease(&upper);
+    vfsDestroy(&vfs2);
+    return ret;
+}
+
+// Open-flag combinations, seek/tell, write-protection through a read-only handle, two
+// independent handles on one file, vfsSetTimes, and the non-VFSFS case of vfsGetFSPath (the
+// true case is covered by fsprov, the only test with a real VFSFS mount).
+static int test_vfs_fileio()
+{
+    int ret           = 0;
+    VFS* vfs          = vfsCreate(VFS_CaseSensitive);
+    VFSTestProv* prov = sampleProvider(VFS_CaseSensitive, _S"1");
+    string got        = 0;
+
+    vfsMountProvider(vfs, prov, _S"/");
+
+    // FS_Read on a missing file fails
+    if (vfsOpen(vfs, _S"/missing.txt", FS_Read))
+        TEST_FAILV(ret, 1, _SL("opened a missing file for reading"), stvNone);
+
+    // FS_Write without FS_Create on a missing file fails
+    if (vfsOpen(vfs, _S"/missing.txt", FS_Write))
+        TEST_FAILV(ret, 1, _SL("opened a missing file for writing without FS_Create"), stvNone);
+
+    // FS_Truncate zeroes an existing file
+    VFSFile* f = vfsOpen(vfs, _S"/a.txt", FS_Write | FS_Truncate);
+    if (!f) {
+        TEST_FAILV(ret, 1, _SL("could not open /a.txt with FS_Truncate"), stvNone);
+    } else {
+        vfsWriteString(f, _S"new", NULL);
+        vfsClose(f);
+    }
+    checkContents(&ret, vfs, _S"/a.txt", _S"new");
+
+    // ...but without FS_Truncate, a write only overwrites what it touches
+    f = vfsOpen(vfs, _S"/sub/b.txt", FS_Write);
+    if (!f) {
+        TEST_FAILV(ret, 1, _SL("could not open /sub/b.txt for writing"), stvNone);
+    } else {
+        vfsWriteString(f, _S"XX", NULL);
+        vfsClose(f);
+    }
+    checkContents(&ret, vfs, _S"/sub/b.txt", _S"XX1");   // "b:1" with the first two bytes overwritten
+
+    // vfsSeek/vfsTell
+    f = vfsOpen(vfs, _S"/sub/deep/c.txt", FS_Read);
+    if (!f) {
+        TEST_FAILV(ret, 1, _SL("could not open /sub/deep/c.txt"), stvNone);
+    } else {
+        uint8 buf[8];
+        size_t n = 0;
+        vfsRead(f, buf, 1, &n);
+        if (vfsTell(f) != 1)
+            TEST_FAILV(ret, 1, _SL("vfsTell() after a 1-byte read == ${int}, wanted 1"),
+                       stvar(int64, vfsTell(f)));
+        if (vfsSeek(f, 0, FS_Set) != 0)
+            TEST_FAILV(ret, 1, _SL("vfsSeek(0, FS_Set) != 0"), stvNone);
+        if (vfsSeek(f, 2, FS_Cur) != 2)
+            TEST_FAILV(ret, 1, _SL("vfsSeek(2, FS_Cur) != 2"), stvNone);
+        int64 end = vfsSeek(f, 0, FS_End);
+        if (end != (int64)strLen(_S"c:1")) {
+            TEST_FAILV(ret, 1, _SL("vfsSeek(0, FS_End) == ${int}, wanted ${int}"), stvar(int64, end),
+                       stvar(int32, (int32)strLen(_S"c:1")));
+        }
+        vfsClose(f);
+    }
+
+    // writing through a handle opened without FS_Write fails
+    f = vfsOpen(vfs, _S"/a.txt", FS_Read);
+    if (!f) {
+        TEST_FAILV(ret, 1, _SL("could not open /a.txt for reading"), stvNone);
+    } else {
+        if (vfsWrite(f, "x", 1, NULL))
+            TEST_FAILV(ret, 1, _SL("write succeeded through a read-only handle"), stvNone);
+        vfsClose(f);
+    }
+
+    // two independent handles on the same file have independent positions
+    VFSFile* f1 = vfsOpen(vfs, _S"/sub/deep/c.txt", FS_Read);
+    VFSFile* f2 = vfsOpen(vfs, _S"/sub/deep/c.txt", FS_Read);
+    if (!f1 || !f2) {
+        TEST_FAILV(ret, 1, _SL("could not open two handles on the same file"), stvNone);
+    } else {
+        vfsSeek(f1, 2, FS_Set);
+        if (vfsTell(f2) != 0)
+            TEST_FAILV(ret, 1, _SL("seeking one handle moved another handle's position"), stvNone);
+    }
+    vfsClose(f1);
+    vfsClose(f2);
+
+    // vfsSetTimes, reflected by a later vfsStat
+    FSStat stat = { 0 };
+    if (!vfsSetTimes(vfs, _S"/a.txt", 12345, 12345))
+        TEST_FAILV(ret, 1, _SL("vfsSetTimes(/a.txt) failed"), stvNone);
+    vfsStat(vfs, _S"/a.txt", &stat);
+    if (stat.modified != 12345) {
+        TEST_FAILV(ret, 1, _SL("vfsStat().modified == ${int} after vfsSetTimes, wanted 12345"),
+                   stvar(int64, stat.modified));
+    }
+
+    // vfsGetFSPath reports false for a provider that isn't backed by the real filesystem
+    if (vfsGetFSPath(&got, vfs, _S"/a.txt"))
+        TEST_FAILV(ret, 1, _SL("vfsGetFSPath succeeded on a non-VFSFS provider"), stvNone);
+
+    strDestroy(&got);
+    objRelease(&prov);
+    vfsDestroy(&vfs);
+
+    // vfsSetTimes fails on a read-only mount
+    VFS* rovfs           = vfsCreate(VFS_CaseSensitive);
+    VFSTestProv* roprov  = sampleProvider(VFS_CaseSensitive, _S"ro");
+    vfsMountProvider(rovfs, roprov, _S"/", VFS_ReadOnly);
+    if (vfsSetTimes(rovfs, _S"/a.txt", 1, 1))
+        TEST_FAILV(ret, 1, _SL("vfsSetTimes succeeded on a read-only mount"), stvNone);
+    objRelease(&roprov);
+    vfsDestroy(&rovfs);
+    return ret;
+}
+
+// VFS_NoCache means a mount is never remembered as "the" answer for a name, so a lookup always
+// re-searches every layer. Contrast that with a normally-cached mount: the first lookup after a
+// provider is mutated directly (bypassing the VFS) can still return the stale answer, because the
+// cache only remembers which single mount resolved the name last time -- it takes that lookup's
+// own failure to invalidate the entry, so it self-heals one call later rather than immediately.
+static int test_vfs_nocache()
+{
+    int ret = 0;
+
+    VFS* vfs           = vfsCreate(VFS_CaseSensitive);
+    VFSTestProv* lower = vfstestprovCreate(VFS_CaseSensitive);
+    VFSTestProv* upper = vfstestprovCreate(VFS_CaseSensitive);
+
+    vfstestprovAddFile(lower, _S"x.txt", _S"low");
+    vfstestprovAddFile(upper, _S"x.txt", _S"high");
+
+    vfsMountProvider(vfs, lower, _S"/", VFS_ReadOnly);
+    vfsMountProvider(vfs, upper, _S"/", VFS_NoCache);
+
+    // the upper (NoCache) layer answers first
+    checkStat(&ret, vfs, _S"/x.txt", FS_File);
+
+    // remove it directly from the upper provider, bypassing the VFS entirely
+    htRemove(&upper->files, string, _S"x.txt");
+
+    // a NoCache mount is never cached as the resolver for a name, so this re-searches from
+    // scratch and correctly falls through to the lower layer right away
+    checkContents(&ret, vfs, _S"/x.txt", _S"low");
+
+    objRelease(&lower);
+    objRelease(&upper);
+    vfsDestroy(&vfs);
+
+    // contrast: without VFS_NoCache, the same bypass leaves one call with a stale answer
+    VFS* vfs2           = vfsCreate(VFS_CaseSensitive);
+    VFSTestProv* lower2 = vfstestprovCreate(VFS_CaseSensitive);
+    VFSTestProv* upper2 = vfstestprovCreate(VFS_CaseSensitive);
+
+    vfstestprovAddFile(lower2, _S"x.txt", _S"low");
+    vfstestprovAddFile(upper2, _S"x.txt", _S"high");
+
+    vfsMountProvider(vfs2, lower2, _S"/", VFS_ReadOnly);
+    vfsMountProvider(vfs2, upper2, _S"/");
+
+    checkStat(&ret, vfs2, _S"/x.txt", FS_File);   // resolves to, and caches, the upper mount
+
+    htRemove(&upper2->files, string, _S"x.txt");
+
+    // the cached mapping still points at the upper mount, so this call misses the still-existing
+    // lower-layer copy entirely...
+    checkStat(&ret, vfs2, _S"/x.txt", FS_Nonexistent);
+    // ...but that miss invalidates the stale entry, so the very next call self-heals
+    checkContents(&ret, vfs2, _S"/x.txt", _S"low");
+
+    objRelease(&lower2);
+    objRelease(&upper2);
+    vfsDestroy(&vfs2);
+    return ret;
+}
+
+#define VFS_STRESS_ITERS  200
+#define VFS_STRESS_READERS 3
+
+static VFS* g_vfsStressVFS;
+
+static int vfsStressMounter(Thread* self)
+{
+    for (int i = 0; i < VFS_STRESS_ITERS; i++) {
+        VFSTestProv* p = vfstestprovCreate(VFS_CaseSensitive);
+        vfstestprovAddFile(p, _S"x.txt", _S"x");
+        vfsMountProvider(g_vfsStressVFS, p, _S"/mnt");
+        objRelease(&p);
+        vfsUnmount(g_vfsStressVFS, _S"/mnt");
+    }
+    return 0;
+}
+
+static int vfsStressReader(Thread* self)
+{
+    for (int i = 0; i < VFS_STRESS_ITERS; i++) {
+        vfsStat(g_vfsStressVFS, _S"/mnt/x.txt", NULL);
+        vfsStat(g_vfsStressVFS, _S"/mnt", NULL);
+
+        FSSearchIter iter;
+        if (vfsSearchInit(&iter, g_vfsStressVFS, _S"/mnt", NULL, 0, false)) {
+            while (vfsSearchValid(&iter))
+                vfsSearchNext(&iter);
+        }
+        vfsSearchFinish(&iter);
+    }
+    return 0;
+}
+
+// A bounded stress test: one thread mounts and unmounts a provider on a shared VFS while others
+// concurrently stat and search paths under it. This isn't about what any one call returns --
+// racing against an unmount, either a hit or a miss is a legitimate answer -- it's about the VFS
+// surviving the race at all (no hang, no crash) and staying usable once every thread is done. A
+// hang here shows up as this test itself timing out, since nothing polls for progress.
+static int test_vfs_concurrency()
+{
+    int ret = 0;
+
+    g_vfsStressVFS = vfsCreate(VFS_CaseSensitive);
+
+    Thread* mounter = thrCreate(vfsStressMounter, _S"VFS Stress Mounter", stvNone);
+    Thread* readers[VFS_STRESS_READERS];
+    for (int i = 0; i < VFS_STRESS_READERS; i++)
+        readers[i] = thrCreate(vfsStressReader, _S"VFS Stress Reader", stvNone);
+
+    if (!thrWait(mounter, timeS(30)))
+        TEST_FAILV(ret, 1, _SL("mounter thread did not finish within 30s"), stvNone);
+    thrShutdown(mounter);
+    thrRelease(&mounter);
+
+    for (int i = 0; i < VFS_STRESS_READERS; i++) {
+        if (!thrWait(readers[i], timeS(30)))
+            TEST_FAILV(ret, 1, _SL("reader thread ${int} did not finish within 30s"), stvar(int32, i));
+        thrShutdown(readers[i]);
+        thrRelease(&readers[i]);
+    }
+
+    // the VFS is still fully usable after the race
+    VFSTestProv* prov = sampleProvider(VFS_CaseSensitive, _S"1");
+    vfsMountProvider(g_vfsStressVFS, prov, _S"/");
+    checkContents(&ret, g_vfsStressVFS, _S"/a.txt", _S"a:1");
+    objRelease(&prov);
+
+    vfsDestroy(&g_vfsStressVFS);
+    return ret;
+}
+
 // The one test that goes through VFSFS to the real filesystem, so the OS provider itself stays
 // covered. Everything else uses the memory provider.
 static int test_vfs_fsprov()
 {
     int ret = 0;
-    string cwd = 0, dir = 0, file = 0;
+    string cwd = 0, dir = 0, file = 0, fspath = 0;
     VFS* vfs = NULL;
 
     fsCurDir(&cwd);
@@ -784,6 +1184,14 @@ static int test_vfs_fsprov()
     checkContents(&ret, vfs, _S"/f.txt", _S"ondisk");
     checkSearch(&ret, vfs, _S"/", NULL, 0, _S"f.txt");
 
+    // vfsGetFSPath, on the one mount here that is actually backed by the real filesystem
+    if (!vfsGetFSPath(&fspath, vfs, _S"/f.txt")) {
+        TEST_FAILV(ret, 1, _SL("vfsGetFSPath(/f.txt) failed"), stvNone);
+    } else if (!strEq(fspath, file)) {
+        TEST_FAILV(ret, 1, _SL("vfsGetFSPath(/f.txt) == '${string}', wanted '${string}'"),
+                   stvar(strref, fspath), stvar(strref, file));
+    }
+
 out:
     if (vfs)
         vfsDestroy(&vfs);
@@ -792,6 +1200,7 @@ out:
     strDestroy(&cwd);
     strDestroy(&dir);
     strDestroy(&file);
+    strDestroy(&fspath);
     return ret;
 }
 
@@ -815,6 +1224,11 @@ testfunc vfstest_funcs[] = {
     { "casemix",    test_vfs_casemix    },
     { "mountents",  test_vfs_mountents  },
     { "evict",      test_vfs_evict      },
+    { "dirops",       test_vfs_dirops       },
+    { "copy",         test_vfs_copy         },
+    { "fileio",       test_vfs_fileio       },
+    { "nocache",      test_vfs_nocache      },
+    { "concurrency",  test_vfs_concurrency  },
     { "fsprov",   test_vfs_fsprov   },
     { 0,          0                 }
 };
