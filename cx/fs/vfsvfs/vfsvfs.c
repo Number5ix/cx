@@ -10,7 +10,7 @@
 // clang-format on
 // ==================== Auto-generated section ends ======================
 #include "cx/fs/path.h"
-#include "cx/fs/vfsvfs/vfsvfsfile.h"
+#include "cx/fs/vfs.h"
 
 _objfactory_guaranteed VFSVFS* VFSVFS_create(VFS* vfs, _In_opt_ strref rootpath)
 {
@@ -29,18 +29,14 @@ flags_t VFSVFS_flags(_In_ VFSVFS* self)
     return 0;
 }
 
-_Ret_opt_valid_ ObjInst* VFSVFS_open(_In_ VFSVFS* self, _In_opt_ strref path, flags_t flags)
+_Ret_opt_valid_ File* VFSVFS_open(_In_ VFSVFS* self, _In_opt_ strref path, flags_t flags)
 {
     string vfspath = 0;
     pathJoin(&vfspath, self->root, path);
 
     VFSFile* file = vfsOpen(self->vfs, vfspath, flags);
     strDestroy(&vfspath);
-    if (!file)
-        return NULL;
-
-    VFSVFSFile* fileprov = vfsvfsfileCreate(file);
-    return objInstBase(fileprov);
+    return File(file);
 }
 
 FSPathStat VFSVFS_stat(_In_ VFSVFS* self, _In_opt_ strref path, _When_(return != FS_Nonexistent, _Out_opt_) FSStat* stat)

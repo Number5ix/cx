@@ -1,0 +1,88 @@
+#include <cx/fs/fs.h>
+
+/// @addtogroup fs_file
+/// @{
+
+/// An open file
+///
+/// Every open file is a File, whichever layer opened it: fsOpen() hands back one backed by an
+/// OS file handle, and vfsOpen() one backed by a VFS provider. Code that only reads and writes
+/// can take a File* and work with either.
+///
+/// A File is reference counted. fileClose() closes the file but keeps the handle alive;
+/// objRelease() drops a reference and closes the file if it was the last one.
+///
+/// A file handle is single-owner: one thread at a time, like a C FILE*. Two threads may use two
+/// handles on the same file, but they must not share one handle.
+abstract class File {
+    /// Closes a file, keeping the handle alive
+    ///
+    /// Flushes pending writes and closes the underlying handle. The File itself stays valid
+    /// until the last reference is released; further reads and writes fail. Closing an already
+    /// closed file is harmless.
+    ///
+    /// Use this when more than one owner holds the handle, and have each of them call
+    /// objRelease() when it is done. A single owner can use fsClose() or vfsClose() instead,
+    /// which close and release in one step.
+    ///
+    /// @return true if successful, false if an error occurred while flushing or closing, or if
+    /// self was NULL
+    [abstract] [nullself false] bool close();
+
+    /// Reads data from the file
+    ///
+    /// Reads up to sz bytes from the current position into buf and advances the position by the
+    /// number of bytes actually read. Reading less than requested is not an error; it means the
+    /// end of the file was reached.
+    ///
+    /// @param buf Buffer to receive the data (must be at least sz bytes)
+    /// @param sz Maximum number of bytes to read
+    /// @param bytesread Receives the number of bytes read (0 at end of file)
+    /// @return true if the read succeeded, false on an I/O error (bytesread is set to 0)
+    [abstract] [nullself false] bool read([sal _Out_writes_bytes_to_(sz, *bytesread)] void *buf, size_t sz,
+                         [out] [sal _Deref_out_range_(0, sz)] size_t *bytesread);
+
+    /// Writes data to the file
+    ///
+    /// Writes sz bytes from buf at the current position and advances the position by the number
+    /// of bytes written. Most of the time everything is written or the call fails, but a short
+    /// write is possible on some filesystems, so check byteswritten when it matters.
+    ///
+    /// @param buf Buffer containing the data to write
+    /// @param sz Number of bytes to write
+    /// @param byteswritten Receives the number of bytes written, or NULL
+    /// @return true if the write succeeded, false on an I/O error
+    [abstract] [nullself false] bool write([sal _In_reads_bytes_(sz)] const void *buf, size_t sz,
+                          [out] [opt] [sal _Deref_out_range_(0, sz)] size_t *byteswritten);
+
+    /// Gets the current position in the file
+    ///
+    /// @return Current position in bytes from the start of the file, -1 on error
+    [abstract] [nullself -1] int64 tell();
+
+    /// Changes the current position in the file
+    ///
+    /// @param off Offset in bytes, which may be negative for FS_Cur and FS_End
+    /// @param seektype Where to measure from: FS_Set (start), FS_Cur (current), FS_End (end)
+    /// @return New position in bytes from the start of the file, -1 on error
+    [abstract] [nullself -1] int64 seek(int64 off, FSSeekType seektype);
+
+    /// Flushes buffered writes to storage
+    ///
+    /// Forces buffered data out to the storage device. This is slow, so only do it when
+    /// durability matters right now; closing the file flushes it anyway.
+    ///
+    /// @return true if successful, false on error
+    [abstract] [nullself false] bool flush();
+
+    /// Writes the contents of a string to the file
+    ///
+    /// The string is written as-is, with no line ending added.
+    ///
+    /// @param str String to write
+    /// @param byteswritten Receives the number of bytes written, or NULL
+    /// @return true if the write succeeded, false on an I/O error
+    [nullself false] unbound bool writeString(strref str, [out] [opt] size_t *byteswritten);
+}
+
+/// @}

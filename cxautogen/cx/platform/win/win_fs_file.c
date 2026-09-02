@@ -6,7 +6,7 @@
 #include <cx/obj/objstdif.h>
 #include <cx/container.h>
 #include <cx/string.h>
-#include "platform/win/win_fs_file.h"
+#include "win_fs_file.h"
 // clang-format on
 // ==================== Auto-generated section ends ======================
 #include "cx/platform/win.h"
@@ -232,6 +232,6 @@ void FSFileWin_destroy(_In_ FSFileWin* self)
 
 // Autogen begins -----
 // clang-format off
-#include "platform/win/win_fs_file.auto.inc"
+#include "win_fs_file.auto.inc"
 // clang-format on
 // Autogen ends -------

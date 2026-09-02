@@ -310,4 +310,31 @@ _meta_inline bool fsSearchValid(_In_ FSSearchIter* iter)
 
 /// @}
 
+/// @addtogroup fs_file
+/// @{
+
+/// File open flags
+///
+/// Flags controlling how a file is opened. Combine with bitwise OR.
+/// The FS_Overwrite flag is a convenience combination of common flags.
+enum FSOpenFlags {
+    FS_Read      = 1,    ///< Open for reading
+    FS_Write     = 2,    ///< Open for writing
+    FS_Create    = 4,    ///< Create file if it doesn't exist
+    FS_Truncate  = 8,    ///< Truncate file to zero length on open
+    FS_Lock      = 16,   ///< Request exclusive access (other processes can read but not write)
+    FS_Overwrite = (FS_Write | FS_Create | FS_Truncate),   ///< Create or truncate for writing
+};
+
+/// File seek origin
+///
+/// Specifies the reference point for fileSeek operations.
+typedef enum FSSeekTypeEnum {
+    FS_Set = 0x00010000,   ///< Seek from beginning of file (absolute position)
+    FS_Cur = 0x00020000,   ///< Seek from current file position (relative)
+    FS_End = 0x00030000,   ///< Seek from end of file (usually negative offset)
+} FSSeekType;
+
+/// @}
+
 CX_C_END

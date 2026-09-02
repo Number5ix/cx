@@ -1,9 +1,10 @@
 set(FS_SRCS
+    fs/fileobj.c
     fs/path.c
     fs/pathmatch.c
     fs/vfs.c
     fs/vfsdirsearch.c
-    fs/vfsfileops.c
+    fs/vfsfile.c
     fs/vfsobj.c
     fs/vfsops.c
     fs/vfsprovider.c
@@ -16,6 +17,8 @@ set(FS_INCLUDES
     fs/vfs.h
     fs/vfs_private.h)
 set(FS_AUTOGEN
+    fs/fileobj.cxh
+    fs/vfsfile.cxh
     fs/vfsobj.cxh
     fs/vfsprovider.cxh)
 

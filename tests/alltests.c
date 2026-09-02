@@ -283,6 +283,7 @@ static const testspec tests[] = {
     { "math: PCG Error Condition", "mathtest", "pcgerror" },
     { "math: FP Comparison", "mathtest", "floatcmp" },
     { "fs: Path Matching", "fstest", "pathmatch" },
+    { "fs: File Handles", "fstest", "file" },
     { "vfs: Basic operations", "vfstest", "basic" },
     { "vfs: Write and delete", "vfstest", "write" },
     { "vfs: Layering", "vfstest", "layer" },

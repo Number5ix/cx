@@ -2089,7 +2089,7 @@ static int test_httptest_form(void)
         TEST_FAILV(ret, 1, _SL("strEmpty(mp.boundary)"), stvNone);
 
     httpMultipartAddField(&mp, _SL("comment"), _SL("looks good"));
-    httpMultipartAddFile(&mp, _SL("upload"), _SL("notes.txt"), _SL("text/plain"),
+    httpMultipartAddData(&mp, _SL("upload"), _SL("notes.txt"), _SL("text/plain"),
                          (const uint8*)"line one\n", 9);
 
     // A field name carrying a quote or a newline must not be able to end the part header early.

@@ -126,9 +126,9 @@ static void destroyPart(HttpMultipartPart* p)
     case HTTPMPSRC_Bytes:
         bufDestroy(&p->src.bytes);
         break;
-    case HTTPMPSRC_VFSFile:
-        if (p->close && p->src.vfile)
-            vfsClose(p->src.vfile);
+    case HTTPMPSRC_File:
+        if (p->close && p->src.file)
+            fsClose(p->src.file);
         break;
     case HTTPMPSRC_Stream:
         if (p->src.stream) {
@@ -144,14 +144,14 @@ static void destroyPart(HttpMultipartPart* p)
 
 // How much of an open file is still ahead of it, so a part can declare its length. A file that
 // cannot seek answers -1, which is what sends the whole body chunked instead.
-static int64 vfileRemaining(VFSFile* file)
+static int64 fileRemaining(File* file)
 {
-    int64 cur = vfsTell(file);
+    int64 cur = fileTell(file);
     if (cur < 0)
         return -1;
 
-    int64 end = vfsSeek(file, 0, FS_End);
-    if (end < 0 || vfsSeek(file, cur, FS_Set) != cur)
+    int64 end = fileSeek(file, 0, FS_End);
+    if (end < 0 || fileSeek(file, cur, FS_Set) != cur)
         return -1;
 
     return end - cur;
@@ -256,8 +256,8 @@ static size_t emitContent(MpProducer* mpp, HttpMultipartPart* p, uint8* buf, siz
         n = sz;
         break;
 
-    case HTTPMPSRC_VFSFile:
-        if (!vfsRead(p->src.vfile, buf, sz, &n))
+    case HTTPMPSRC_File:
+        if (!fileRead(p->src.file, buf, sz, &n))
             *err = true;
         else if (n == 0)
             *done = true;
@@ -422,7 +422,7 @@ bool httpMultipartAddField(HttpMultipart* mp, strref name, strref value)
 }
 
 _Use_decl_annotations_
-bool httpMultipartAddFile(HttpMultipart* mp, strref name, strref filename, strref contentType,
+bool httpMultipartAddData(HttpMultipart* mp, strref name, strref filename, strref contentType,
                           const uint8* data, size_t len)
 {
     if (!mp || strEmpty(name) || mp->finished)
@@ -451,12 +451,12 @@ bool httpMultipartAddFile(HttpMultipart* mp, strref name, strref filename, strre
 }
 
 _Use_decl_annotations_
-bool httpMultipartAddFileVFS(HttpMultipart* mp, strref name, strref filename, strref contentType,
-                             VFSFile* file, bool close)
+bool _httpMultipartAddFile(HttpMultipart* mp, strref name, strref filename,
+                           strref contentType, File* file, bool close)
 {
     if (!mp || strEmpty(name) || !file || mp->finished) {
         if (close && file)
-            vfsClose(file);
+            fsClose(file);
         return false;
     }
 
@@ -464,10 +464,10 @@ bool httpMultipartAddFileVFS(HttpMultipart* mp, strref name, strref filename, st
     strref ctype         = strEmpty(contentType) ? kOctetStream : contentType;
     HttpMultipartPart* p = addPart(mp, name, fname, ctype);
 
-    p->srctype   = HTTPMPSRC_VFSFile;
-    p->src.vfile = file;
-    p->close     = close;
-    p->len       = vfileRemaining(file);
+    p->srctype  = HTTPMPSRC_File;
+    p->src.file = file;
+    p->close    = close;
+    p->len      = fileRemaining(file);
     return true;
 }
 

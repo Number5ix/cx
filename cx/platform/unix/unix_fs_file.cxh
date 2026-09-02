@@ -1,0 +1,11 @@
+#include <cx/fs/fileobj.cxh>
+
+// A file on the unix filesystem, backed by a file descriptor.
+// Created by fsOpen(); everything else goes through the File interface.
+class FSFileUnix extends File {
+    int fd;
+    bool locked;
+
+    factory create(int fd, bool locked);
+    destroy();
+}

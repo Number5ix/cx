@@ -114,6 +114,11 @@ endif()
 
 target_include_directories(cx SYSTEM PUBLIC ${CX_TOP_SOURCE_DIR} ${CX_TOP_SOURCE_DIR}/cx/include ${CX_TOP_BINARY_DIR} ${CMAKE_CURRENT_BINARY_DIR})
 target_compile_definitions(cx PRIVATE UNICODE _UNICODE)
+if (CX_PLATFORM_IS_UNIX OR CX_PLATFORM_IS_WASM)
+    # 64-bit off_t even in 32-bit builds. This changes libc struct layouts, so it has to be set
+    # for every translation unit rather than at the top of the one that opens files.
+    target_compile_definitions(cx PRIVATE _FILE_OFFSET_BITS=64)
+endif()
 if (CX_COMPILER_IS_MSVC)
     target_link_options(cx PUBLIC /NATVIS:${CMAKE_CURRENT_SOURCE_DIR}/cx.natvis)
 endif()

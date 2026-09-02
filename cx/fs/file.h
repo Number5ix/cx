@@ -15,45 +15,32 @@
 ///   - Binary mode (no line-ending translation)
 ///   - Not line-oriented (use string or format libraries for text parsing)
 ///
+/// An open file is a File object no matter which layer opened it, so `FSFile` and `VFSFile` are
+/// both just other names for `File`. A function that reads and writes can take a `File*` and be
+/// handed either one; the type does not record where the handle came from.
+///
+/// The `fs*` calls below and the `vfs*` calls in vfs.h are the same operations as `fileRead()`,
+/// `fileWrite()` and the rest, under names that say which layer the file was opened through.
+/// Which spelling you use is a matter of readability.
+///
 /// For higher-level filesystem operations (directories, metadata), see fs.h.
 /// For virtual filesystem abstraction, see vfs.h.
 
 #pragma once
 
 #include <cx/cx.h>
+#include <cx/fs/fs.h>
+#include <cx/fs/fileobj.h>
 
 CX_C_BEGIN
 
-/// Opaque structure representing an open file. Obtain via fsOpen() and
-/// release with fsClose(). Do not access internal members directly.
-typedef struct FSFile FSFile;
-
-/// File open flags
-///
-/// Flags controlling how a file is opened. Combine with bitwise OR.
-/// The FS_Overwrite flag is a convenience combination of common flags.
-enum FSOpenFlags {
-    FS_Read      = 1,    ///< Open for reading
-    FS_Write     = 2,    ///< Open for writing
-    FS_Create    = 4,    ///< Create file if it doesn't exist
-    FS_Truncate  = 8,    ///< Truncate file to zero length on open
-    FS_Lock      = 16,   ///< Request exclusive access (other processes can read but not write)
-    FS_Overwrite = (FS_Write | FS_Create | FS_Truncate),   ///< Create or truncate for writing
-};
-
-/// File seek origin
-///
-/// Specifies the reference point for fsSeek operations.
-typedef enum FSSeekTypeEnum {
-    FS_Set = 0x00010000,   ///< Seek from beginning of file (absolute position)
-    FS_Cur = 0x00020000,   ///< Seek from current file position (relative)
-    FS_End = 0x00030000,   ///< Seek from end of file (usually negative offset)
-} FSSeekType;
+/// A file opened on the OS filesystem with fsOpen()
+typedef File FSFile;
 
 /// Opens a file for I/O operations
 ///
-/// Creates a file handle for reading, writing, or both. The file must be
-/// closed with fsClose() when done to release resources and flush buffers.
+/// Creates a file handle for reading, writing, or both. Close it with fsClose() when done, or
+/// hold on to it and release it later with objRelease().
 ///
 /// Common flag combinations:
 ///   - `FS_Read` - Open existing file for reading
@@ -81,17 +68,23 @@ typedef enum FSSeekTypeEnum {
 /// @endcode
 _Ret_opt_valid_ FSFile* fsOpen(_In_opt_ strref path, flags_t flags);
 
-/// Closes a file and releases resources
+/// Closes a file and releases the handle
 ///
-/// Flushes any pending writes, closes the underlying OS handle, and frees
-/// the FSFile structure. The file pointer becomes invalid after this call.
-/// Always call this when done with a file, even if errors occurred during I/O.
+/// Flushes pending writes, closes the underlying OS handle, and drops the reference this caller
+/// owns. Use this for the common case of one owner opening a file, using it, and being done
+/// with it. If the handle is shared, close it with fileClose() and release each reference with
+/// objRelease() instead.
 ///
-/// @param file File handle to close (must be valid)
+/// @param file File handle to close (may be NULL)
 /// @return true if successful, false if an error occurred during flush/close
 ///
-/// @note The file structure is freed even if this returns false
-bool fsClose(_Pre_valid_ _Post_invalid_ FSFile* file);
+/// @note The reference is dropped even if this returns false
+_meta_inline bool fsClose(_Pre_opt_valid_ _Post_invalid_ FSFile* file)
+{
+    bool ret = fileClose(file);
+    objRelease(&file);
+    return ret;
+}
 
 /// Reads data from a file
 ///
@@ -118,8 +111,15 @@ bool fsClose(_Pre_valid_ _Post_invalid_ FSFile* file);
 ///       }
 ///   }
 /// @endcode
-bool fsRead(_Inout_ FSFile* file, _Out_writes_bytes_to_(sz, *bytesread) void* buf, size_t sz,
-            _Out_ _Deref_out_range_(0, sz) size_t* bytesread);
+_meta_inline bool fsRead(_Inout_ FSFile* file, _Out_writes_bytes_to_(sz, *bytesread) void* buf,
+                         size_t sz, _Out_ _Deref_out_range_(0, sz) size_t* bytesread)
+{
+    if (!file) {
+        *bytesread = 0;
+        return false;
+    }
+    return fileRead(file, buf, sz, bytesread);
+}
 
 /// Writes data to a file
 ///
@@ -145,8 +145,35 @@ bool fsRead(_Inout_ FSFile* file, _Out_writes_bytes_to_(sz, *bytesread) void* bu
 ///       // all data written successfully
 ///   }
 /// @endcode
-bool fsWrite(_Inout_ FSFile* file, _In_reads_bytes_(sz) const void* buf, size_t sz,
-             _Out_opt_ _Deref_out_range_(0, sz) size_t* byteswritten);
+_meta_inline bool fsWrite(_Inout_ FSFile* file, _In_reads_bytes_(sz) const void* buf, size_t sz,
+                          _Out_opt_ _Deref_out_range_(0, sz) size_t* byteswritten)
+{
+    if (!file) {
+        if (byteswritten)
+            *byteswritten = 0;
+        return false;
+    }
+    return fileWrite(file, buf, sz, byteswritten);
+}
+
+/// Writes a string to a file
+///
+/// The string contents are written as-is, with no line ending added.
+///
+/// @param file Open file handle (must have FS_Write flag)
+/// @param str String to write
+/// @param byteswritten Optional pointer to receive actual bytes written (can be NULL)
+/// @return true on success, false on I/O error
+_meta_inline bool fsWriteString(_Inout_ FSFile* file, _In_opt_ strref str,
+                                _Out_opt_ size_t* byteswritten)
+{
+    if (!file) {
+        if (byteswritten)
+            *byteswritten = 0;
+        return false;
+    }
+    return fileWriteString(file, str, byteswritten);
+}
 
 /// Gets the current file position
 ///
@@ -156,7 +183,12 @@ bool fsWrite(_Inout_ FSFile* file, _In_reads_bytes_(sz) const void* buf, size_t 
 ///
 /// @param file Open file handle
 /// @return Current file position in bytes (0 = start of file), -1 on error
-int64 fsTell(_Inout_ FSFile* file);
+_meta_inline int64 fsTell(_Inout_ FSFile* file)
+{
+    if (!file)
+        return -1;
+    return fileTell(file);
+}
 
 /// Changes the current file position
 ///
@@ -178,7 +210,12 @@ int64 fsTell(_Inout_ FSFile* file);
 ///   fsSeek(file, -10, FS_End);      // Seek to 10 bytes before end
 ///   fsSeek(file, 1024, FS_Set);     // Seek to absolute position 1024
 /// @endcode
-int64 fsSeek(_Inout_ FSFile* file, int64 off, FSSeekType seektype);
+_meta_inline int64 fsSeek(_Inout_ FSFile* file, int64 off, FSSeekType seektype)
+{
+    if (!file)
+        return -1;
+    return fileSeek(file, off, seektype);
+}
 
 /// Flushes buffered writes to disk
 ///
@@ -192,7 +229,12 @@ int64 fsSeek(_Inout_ FSFile* file, int64 off, FSSeekType seektype);
 /// @note fsClose() automatically flushes, so explicit flushing is only
 /// needed for long-lived files or when durability is critical (e.g., after
 /// writing a transaction log entry).
-bool fsFlush(_Inout_ FSFile* file);
+_meta_inline bool fsFlush(_Inout_ FSFile* file)
+{
+    if (!file)
+        return false;
+    return fileFlush(file);
+}
 
 /// @}
 

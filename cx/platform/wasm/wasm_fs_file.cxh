@@ -1,0 +1,10 @@
+#include <cx/fs/fileobj.cxh>
+
+// A file on the wasm filesystem, backed by a file descriptor.
+// Created by fsOpen(); everything else goes through the File interface.
+class FSFileWasm extends File {
+    int fd;
+
+    factory create(int fd);
+    destroy();
+}

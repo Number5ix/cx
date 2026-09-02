@@ -7,7 +7,6 @@ set(SERIALIZE_SRCS
     serialize/sbbuffer.c
     serialize/sbcon.c
     serialize/sbfile.c
-    serialize/sbfsfile.c
     serialize/sbstring.c
     serialize/serbinary.c
     serialize/sercommon.c
@@ -24,7 +23,6 @@ set(SERIALIZE_INCLUDES
     serialize/sbbuffer.h
     serialize/sbcon.h
     serialize/sbfile.h
-    serialize/sbfsfile.h
     serialize/sbstring.h
     serialize/serbinary.h
     serialize/serjson.h

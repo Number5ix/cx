@@ -133,7 +133,6 @@
 
 #include <cx/serialize/sbbuffer.h>
 #include <cx/serialize/sbfile.h>
-#include <cx/serialize/sbfsfile.h>
 #include <cx/serialize/sbstring.h>
 #include <cx/serialize/serbinary.h>
 #include <cx/serialize/serjson.h>

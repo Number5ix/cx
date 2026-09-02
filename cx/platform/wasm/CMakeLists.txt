@@ -40,6 +40,7 @@ if(CX_PLATFORM_IS_WASM)
 endif()
 
 set(PLATFORM_WASM_AUTOGEN
+    platform/wasm/wasm_fs_file.cxh
     platform/wasm/wasm_net_socket.cxh
     platform/wasm/wasm_thread_threadobj.cxh)
 

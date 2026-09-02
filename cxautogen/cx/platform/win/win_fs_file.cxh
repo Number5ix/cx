@@ -1,0 +1,11 @@
+#include <cx/fs/fileobj.cxh>
+#include <cx/platform/win.h>
+
+// A file on the Windows filesystem, backed by a kernel handle.
+// Created by fsOpen(); everything else goes through the File interface.
+class FSFileWin extends File {
+    HANDLE h;
+
+    factory create(HANDLE h);
+    destroy();
+}

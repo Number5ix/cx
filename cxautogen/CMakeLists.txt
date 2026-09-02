@@ -6,7 +6,7 @@ if(NOT CMAKE_CROSSCOMPILING)
 if(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD" OR ${CMAKE_SYSTEM_NAME} MATCHES "Linux")
     set(CX_PLATFORM_SRCS
 	../cx/platform/unix/unix_error.c
-	../cx/platform/unix/unix_fs_file.c
+	cx/platform/unix/unix_fs_file.c
 	../cx/platform/unix/unix_fs_fs.c
 	../cx/platform/unix/unix_random.c
 	../cx/platform/unix/unix_os.c
@@ -24,7 +24,7 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD" OR ${CMAKE_SYSTEM_NAME} MATCHES "Linux
 elseif(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     set(CX_PLATFORM_SRCS
 	../cx/platform/win/win_error.c
-	../cx/platform/win/win_fs_file.c
+	cx/platform/win/win_fs_file.c
 	../cx/platform/win/win_fs_fs.c
 	../cx/platform/win/win_futex.c
 	../cx/platform/win/win_random.c
@@ -46,6 +46,7 @@ set(CXAUTOGEN_SRCS
     cxautogen.c
     stub.c)
 set(CX_SRCS
+    cx/fs/fileobj.c
     cx/obj/objclass.c
     cx/obj/objiface.c
     cx/obj/objimpl.c
@@ -65,7 +66,7 @@ set(CX_SRCS
     ../cx/debug/dbgtypes.c
     ../cx/debug/error.c
     ../cx/serialize/lineparse.c
-    ../cx/serialize/sbfsfile.c
+    ../cx/serialize/sbfile.c
     ../cx/serialize/sbstring.c
     ../cx/serialize/sertype.c
     ../cx/serialize/streambuf.c
@@ -130,9 +131,13 @@ add_executable(cxautogen
     ${CX_SRCS})
 
 target_compile_definitions(cxautogen PRIVATE CX_BUILDING_CXAUTOGEN)
+if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+    # see the matching definition on the cx target
+    target_compile_definitions(cxautogen PRIVATE _FILE_OFFSET_BITS=64)
+endif()
 
 target_link_libraries(cxautogen ${CMAKE_THREAD_LIBS_INIT} ${CMAKE_DL_LIBS} pcre2-8-object)
-target_include_directories(cxautogen PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} SYSTEM PUBLIC ${CX_TOP_SOURCE_DIR} ${CX_TOP_SOURCE_DIR}/cx/include ${CX_TOP_BINARY_DIR})
+target_include_directories(cxautogen PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/cx SYSTEM PUBLIC ${CX_TOP_SOURCE_DIR} ${CX_TOP_SOURCE_DIR}/cx/include ${CX_TOP_BINARY_DIR})
 set_property(TARGET cxautogen PROPERTY FOLDER "utils")
 
 if (CX_COMPILER_IS_MSVC)
@@ -161,7 +166,16 @@ if(CX_STANDALONE)
         COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/obj_private.h ${CX_TOP_SOURCE_DIR}/cxautogen/cx/obj/obj_private.h
         COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/stype_obj.c ${CX_TOP_SOURCE_DIR}/cxautogen/cx/obj/stype_obj.c
         COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/obj/stype_obj.h ${CX_TOP_SOURCE_DIR}/cxautogen/cx/obj/stype_obj.h
+        COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/fs/fileobj.cxh ${CX_TOP_SOURCE_DIR}/cxautogen/cx/fs/fileobj.cxh
+        COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/fs/fileobj.c ${CX_TOP_SOURCE_DIR}/cxautogen/cx/fs/fileobj.c
+        COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/platform/unix/unix_fs_file.cxh ${CX_TOP_SOURCE_DIR}/cxautogen/cx/platform/unix/unix_fs_file.cxh
+        COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/platform/unix/unix_fs_file.c ${CX_TOP_SOURCE_DIR}/cxautogen/cx/platform/unix/unix_fs_file.c
+        COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/platform/win/win_fs_file.cxh ${CX_TOP_SOURCE_DIR}/cxautogen/cx/platform/win/win_fs_file.cxh
+        COMMAND ${CMAKE_COMMAND} -E copy ${CX_TOP_SOURCE_DIR}/cx/platform/win/win_fs_file.c ${CX_TOP_SOURCE_DIR}/cxautogen/cx/platform/win/win_fs_file.c
         COMMAND cxautogen -f ${CX_TOP_SOURCE_DIR}/cxautogen/cx/obj/objstdif.cxh
+        COMMAND cxautogen -f -I${CX_TOP_SOURCE_DIR}/cxautogen -I${CX_TOP_SOURCE_DIR} -I${CX_TOP_SOURCE_DIR}/cx/include ${CX_TOP_SOURCE_DIR}/cxautogen/cx/fs/fileobj.cxh
+        COMMAND cxautogen -f -I${CX_TOP_SOURCE_DIR}/cxautogen -I${CX_TOP_SOURCE_DIR} -I${CX_TOP_SOURCE_DIR}/cx/include ${CX_TOP_SOURCE_DIR}/cxautogen/cx/platform/unix/unix_fs_file.cxh
+        COMMAND cxautogen -f -I${CX_TOP_SOURCE_DIR}/cxautogen -I${CX_TOP_SOURCE_DIR} -I${CX_TOP_SOURCE_DIR}/cx/include ${CX_TOP_SOURCE_DIR}/cxautogen/cx/platform/win/win_fs_file.cxh
         COMMAND cxautogen -f -I${CX_TOP_SOURCE_DIR} ${CX_TOP_SOURCE_DIR}/cxautogen/objtypes.cxh
         DEPENDS cxautogen)
     set_property(TARGET cxautogen_regenerate PROPERTY FOLDER "generate")

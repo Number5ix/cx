@@ -5,18 +5,6 @@
 #include "cx/string.h"
 #include "vfs.h"
 
-typedef struct VFSFile {
-    VFS* vfs;
-
-    ObjInst* fileprov;   // VFSFileProvider
-    VFSFileProvider* fileprovif;
-
-    // for copy-on-write files
-    ObjInst* cowprov;   // VFSProvider
-    string cowpath;     // absolute path to COW file (for cache invalidation)
-    string cowrpath;    // relative path for COW file for provider
-} VFSFile;
-
 typedef struct VFSDirEnt {
     string name;
     int type;

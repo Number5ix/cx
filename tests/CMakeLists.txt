@@ -385,6 +385,7 @@ add_test(NAME "\"math: PCG Random Float\"" COMMAND test_runner mathtest pcgfloat
 add_test(NAME "\"math: PCG Error Condition\"" COMMAND test_runner mathtest pcgerror)
 add_test(NAME "\"math: FP Comparison\"" COMMAND test_runner mathtest floatcmp)
 add_test(NAME "\"fs: Path Matching\"" COMMAND test_runner fstest pathmatch)
+add_test(NAME "\"fs: File Handles\"" COMMAND test_runner fstest file)
 add_test(NAME "\"vfs: Basic operations\"" COMMAND test_runner vfstest basic)
 add_test(NAME "\"vfs: Write and delete\"" COMMAND test_runner vfstest write)
 add_test(NAME "\"vfs: Layering\"" COMMAND test_runner vfstest layer)

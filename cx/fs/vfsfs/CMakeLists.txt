@@ -1,12 +1,9 @@
 SET(FS_VFSFS_SRCS
-    fs/vfsfs/vfsfs.c
-    fs/vfsfs/vfsfsfile.c)
+    fs/vfsfs/vfsfs.c)
 SET(FS_VFSFS_INCLUDES
-    fs/vfsfs/vfsfs.h
-    fs/vfsfs/vfsfsfile.h)
+    fs/vfsfs/vfsfs.h)
 set(FS_VFSFS_AUTOGEN
-    fs/vfsfs/vfsfs.cxh
-    fs/vfsfs/vfsfsfile.cxh)
+    fs/vfsfs/vfsfs.cxh)
 
 set(CX_SRCS
     ${CX_SRCS}

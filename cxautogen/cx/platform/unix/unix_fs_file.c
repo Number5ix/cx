@@ -6,13 +6,16 @@
 #include <cx/obj/objstdif.h>
 #include <cx/container.h>
 #include <cx/string.h>
-#include "platform/wasm/wasm_fs_file.h"
+#include "unix_fs_file.h"
 // clang-format on
 // ==================== Auto-generated section ends ======================
 #include "cx/fs/fs_private.h"
+#include "cx/debug/error.h"
 #include "cx/platform/unix.h"
 #include "cx/utils/compare.h"
 
+#include <sys/file.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
 
@@ -48,35 +51,56 @@ FSFile* fsOpen(strref path, flags_t flags)
         return NULL;
     }
 
-    FSFileWasm* ret = fsfilewasmCreate(fd);
+    int lockop = 0;
+    if (flags & FS_Lock)
+        lockop = LOCK_EX;   // for locking the file we need exclusive access
+    else if (flags & FS_Write)
+        lockop = LOCK_SH;   // for writing, need a shared lock
+
+    // do we need a lock
+    if (lockop != 0) {
+        if (flock(fd, lockop | LOCK_NB) == EWOULDBLOCK) {
+            // could not get the lock
+            cxerr = CX_AccessDenied;
+            close(fd);
+        }
+        // other types of failures like locking not supported on the
+        // filesystem are silently ignored; not a great way to handle it
+        // but the alternative is to just not work at all in those cases
+    }
+
+    FSFileUnix* ret = fsfileunixCreate(fd, lockop != 0);
     strDestroy(&npath);
     return File(ret);
 }
 
-_objfactory_guaranteed FSFileWasm* FSFileWasm_create(int fd)
+_objfactory_guaranteed FSFileUnix* FSFileUnix_create(int fd, bool locked)
 {
-    FSFileWasm* self;
-    self = objInstCreate(FSFileWasm);
+    FSFileUnix* self;
+    self = objInstCreate(FSFileUnix);
 
-    self->fd = fd;
+    self->fd     = fd;
+    self->locked = locked;
 
     objInstInit(self);
     return self;
 }
 
-bool FSFileWasm_close(_In_ FSFileWasm* self)
+bool FSFileUnix_close(_In_ FSFileUnix* self)
 {
     if (self->fd < 0)
         return true;   // already closed
 
     bool ret = true;
+    if (self->locked)
+        flock(self->fd, LOCK_UN);
     if (close(self->fd) != 0)
         ret = unixMapErrno();
     self->fd = -1;
     return ret;
 }
 
-bool FSFileWasm_read(_In_ FSFileWasm* self, _Out_writes_bytes_to_(sz, *bytesread) void* buf,
+bool FSFileUnix_read(_In_ FSFileUnix* self, _Out_writes_bytes_to_(sz, *bytesread) void* buf,
                      size_t sz, _Out_ _Deref_out_range_(0, sz) size_t* bytesread)
 {
     ssize_t didread = 0;
@@ -119,7 +143,7 @@ bool FSFileWasm_read(_In_ FSFileWasm* self, _Out_writes_bytes_to_(sz, *bytesread
     return true;
 }
 
-bool FSFileWasm_write(_In_ FSFileWasm* self, _In_reads_bytes_(sz) const void* buf, size_t sz,
+bool FSFileUnix_write(_In_ FSFileUnix* self, _In_reads_bytes_(sz) const void* buf, size_t sz,
                       _Out_opt_ _Deref_out_range_(0, sz) size_t* byteswritten)
 {
     ssize_t didwrite = 0;
@@ -165,7 +189,7 @@ bool FSFileWasm_write(_In_ FSFileWasm* self, _In_reads_bytes_(sz) const void* bu
     return true;
 }
 
-int64 FSFileWasm_tell(_In_ FSFileWasm* self)
+int64 FSFileUnix_tell(_In_ FSFileUnix* self)
 {
     off_t off;
 
@@ -181,7 +205,7 @@ int64 FSFileWasm_tell(_In_ FSFileWasm* self)
     return off;
 }
 
-int64 FSFileWasm_seek(_In_ FSFileWasm* self, int64 off, FSSeekType seektype)
+int64 FSFileUnix_seek(_In_ FSFileUnix* self, int64 off, FSSeekType seektype)
 {
     int method;
     off_t out;
@@ -212,7 +236,7 @@ int64 FSFileWasm_seek(_In_ FSFileWasm* self, int64 off, FSSeekType seektype)
     return out;
 }
 
-bool FSFileWasm_flush(_In_ FSFileWasm* self)
+bool FSFileUnix_flush(_In_ FSFileUnix* self)
 {
     if (self->fd < 0)
         return false;
@@ -223,13 +247,13 @@ bool FSFileWasm_flush(_In_ FSFileWasm* self)
     return true;
 }
 
-void FSFileWasm_destroy(_In_ FSFileWasm* self)
+void FSFileUnix_destroy(_In_ FSFileUnix* self)
 {
-    FSFileWasm_close(self);
+    FSFileUnix_close(self);
 }
 
 // Autogen begins -----
 // clang-format off
-#include "platform/wasm/wasm_fs_file.auto.inc"
+#include "unix_fs_file.auto.inc"
 // clang-format on
 // Autogen ends -------

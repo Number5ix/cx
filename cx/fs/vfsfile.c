@@ -1,3 +1,14 @@
+// ==================== Auto-generated section begins ====================
+// clang-format off
+// Do not modify the contents of this section; any changes will be lost!
+#include <cx/obj.h>
+#include <cx/debug/assert.h>
+#include <cx/obj/objstdif.h>
+#include <cx/container.h>
+#include <cx/string.h>
+#include "fs/vfsfile.h"
+// clang-format on
+// ==================== Auto-generated section ends ======================
 #include "vfs_private.h"
 #include "cx/debug/error.h"
 
@@ -5,6 +16,7 @@ _Use_decl_annotations_
 VFSFile* vfsOpen(VFS* vfs, strref path, flags_t flags)
 {
     VFSFile* ret = 0;
+    File* innerfile  = 0;
 
     string rpath       = 0;
     VFSMount* cowmount = 0;
@@ -37,16 +49,14 @@ VFSFile* vfsOpen(VFS* vfs, strref path, flags_t flags)
         goto out;
     }
 
-    // finally actually set up the VFSFile structure
-    ret             = xaAlloc(sizeof(VFSFile), XA_Zero);
-    ret->fileprov   = provif->open(m->provider, rpath, flags);
-    ret->fileprovif = objInstIf(ret->fileprov, VFSFileProvider);
-    if (!(ret->fileprov && ret->fileprovif)) {
+    innerfile = provif->open(m->provider, rpath, flags);
+    if (!innerfile) {
         // failed to actually open the file, cxerr set by provider
-        xaDestroy(&ret);
         _vfsInvalidateCache(vfs, path);
         goto out;
     }
+
+    ret = vfsfileCreate(vfs, innerfile);
     if (cowmount) {
         ret->cowprov = objAcquire(cowmount->provider);
         strDup(&ret->cowrpath, cowrpath);
@@ -54,9 +64,9 @@ VFSFile* vfsOpen(VFS* vfs, strref path, flags_t flags)
         _vfsAbsPath(vfs, &ret->cowpath, path);
         rwlockReleaseRead(&vfs->vfslock);
     }
-    ret->vfs = objAcquire(vfs);
 
 out:
+    objRelease(&innerfile);
     strDestroy(&rpath);
     strDestroy(&cowrpath);
     objRelease(&m);
@@ -64,36 +74,39 @@ out:
     return ret;
 }
 
-_Use_decl_annotations_
-bool vfsClose(VFSFile* file)
+_objfactory_guaranteed VFSFile* VFSFile_create(VFS* vfs, File* inner)
 {
-    if (!file)
-        return false;
+    VFSFile* self;
+    self = objInstCreate(VFSFile);
+
+    self->vfs   = objAcquire(vfs);
+    self->inner = objAcquire(inner);
+
+    objInstInit(self);
+    return self;
+}
+
+bool VFSFile_close(_In_ VFSFile* self)
+{
+    if (!self->inner)
+        return true;   // already closed
 
     // The provider's close is where buffered writes are flushed, so a failure there is the one
     // thing this function's return value has to carry.
-    bool ret = true;
-    if (file->fileprov)
-        ret = file->fileprovif->close(file->fileprov);
-
-    objRelease(&file->fileprov);
-    objRelease(&file->cowprov);
-    objRelease(&file->vfs);
-    strDestroy(&file->cowpath);
-    strDestroy(&file->cowrpath);
-    xaFree(file);
+    bool ret = fileClose(self->inner);
+    objRelease(&self->inner);
     return ret;
 }
 
-_Use_decl_annotations_
-bool vfsRead(VFSFile* file, void* buf, size_t sz, size_t* bytesread)
+bool VFSFile_read(_In_ VFSFile* self, _Out_writes_bytes_to_(sz, *bytesread) void* buf,
+                      size_t sz, _Out_ _Deref_out_range_(0, sz) size_t* bytesread)
 {
-    if (!(file && file->fileprov)) {
+    if (!self->inner) {
         *bytesread = 0;
         return false;
     }
 
-    return file->fileprovif->read(file->fileprov, buf, sz, bytesread);
+    return fileRead(self->inner, buf, sz, bytesread);
 }
 
 static void vfsCOWCreateAll(_Inout_ ObjInst* cowprov, _Inout_ VFSProvider* cowprovif,
@@ -112,16 +125,16 @@ static void vfsCOWCreateAll(_Inout_ ObjInst* cowprov, _Inout_ VFSProvider* cowpr
 #define COWBLOCKSIZE 65536
 static bool vfsCOWFile(_Inout_ VFSFile* file)
 {
-    ObjInst* cowfile       = 0;
+    File* cowfile          = 0;
     VFSProvider* cowprovif = 0;
     uint8* buf             = 0;
     bool ret               = false;
     size_t bytes;
 
-    // No lock is taken here. The fields this touches -- fileprov, cowprov and the provider
-    // interfaces beside them -- are per-VFSFile state that every other file operation reads
-    // unlocked too, so a VFS-wide lock protected nothing and stalled every other thread for the
-    // length of the copy. A VFSFile is single-owner; see vfsOpen.
+    // No lock is taken here. The fields this touches -- inner and cowprov -- are per-file state
+    // that every other file operation reads unlocked too, so a VFS-wide lock protected nothing
+    // and stalled every other thread for the length of the copy. A file handle is single-owner;
+    // see vfsOpen.
 
     if (!file->cowprov)
         return true;   // already copied
@@ -141,30 +154,26 @@ static bool vfsCOWFile(_Inout_ VFSFile* file)
     cowfile = cowprovif->open(file->cowprov, file->cowrpath, FS_Write | FS_Create | FS_Truncate);
     if (!cowfile)
         goto out;
-    VFSFileProvider* cowfileif = objInstIf(cowfile, VFSFileProvider);
-    if (!cowfileif)
-        goto out;
 
-    int64 curpos = file->fileprovif->tell(file->fileprov);
-    file->fileprovif->seek(file->fileprov, 0, FS_Set);
+    int64 curpos = fileTell(file->inner);
+    fileSeek(file->inner, 0, FS_Set);
 
     // copy contents to new file
     for (;;) {
-        if (!file->fileprovif->read(file->fileprov, buf, COWBLOCKSIZE, &bytes))
+        if (!fileRead(file->inner, buf, COWBLOCKSIZE, &bytes))
             goto out;
         if (bytes == 0)
             break;   // eof
-        if (!cowfileif->write(cowfile, buf, bytes, NULL))
+        if (!fileWrite(cowfile, buf, bytes, NULL))
             goto out;
     }
 
-    // file data is copied, now reset file pointer and swap the providers around
-    cowfileif->seek(cowfile, curpos, FS_Set);
-    file->fileprovif->close(file->fileprov);
-    objRelease(&file->fileprov);
-    file->fileprov   = cowfile;
-    file->fileprovif = cowfileif;
-    cowfile          = NULL;
+    // file data is copied, now reset file pointer and swap the files around
+    fileSeek(cowfile, curpos, FS_Set);
+    fileClose(file->inner);
+    objRelease(&file->inner);
+    file->inner = cowfile;
+    cowfile     = NULL;
     objRelease(&file->cowprov);
     ret = true;
 
@@ -178,8 +187,7 @@ out:
             cowprovif->deleteFile(file->cowprov, file->cowrpath);
         }
         objRelease(&file->cowprov);
-        objRelease(&file->fileprov);
-        file->fileprovif = NULL;
+        objRelease(&file->inner);
     }
     xaFree(buf);
 
@@ -188,68 +196,62 @@ out:
     return ret;
 }
 
-_Use_decl_annotations_
-bool vfsWrite(VFSFile* file, const void* buf, size_t sz, size_t* byteswritten)
+bool VFSFile_write(_In_ VFSFile* self, _In_reads_bytes_(sz) const void* buf, size_t sz,
+                       _Out_opt_ _Deref_out_range_(0, sz) size_t* byteswritten)
 {
-    if (!(file && file->fileprov)) {
+    if (!self->inner) {
         if (byteswritten)
             *byteswritten = 0;
         return false;
     }
 
-    if (file->cowprov) {
-        if (!vfsCOWFile(file)) {
+    if (self->cowprov) {
+        if (!vfsCOWFile(self)) {
             if (byteswritten)
                 *byteswritten = 0;
             return false;
         }
     }
 
-    return file->fileprovif->write(file->fileprov, buf, sz, byteswritten);
+    return fileWrite(self->inner, buf, sz, byteswritten);
 }
 
-_Use_decl_annotations_
-bool vfsWriteString(VFSFile* file, strref str, size_t* byteswritten)
+int64 VFSFile_tell(_In_ VFSFile* self)
 {
-    size_t written = 0, wstep = 0;
-    bool ret = true;
-
-    striter iter;
-    striBorrow(&iter, str);
-    while (iter.len > 0) {
-        if (!vfsWrite(file, iter.bytes, iter.len, &wstep)) {
-            ret = false;
-            break;
-        }
-        written += wstep;
-        striNext(&iter);
-    }
-
-    if (byteswritten)
-        *byteswritten = written;
-    return ret;
-}
-
-_Use_decl_annotations_
-int64 vfsTell(VFSFile* file)
-{
-    if (!(file && file->fileprov))
+    if (!self->inner)
         return -1;
-    return file->fileprovif->tell(file->fileprov);
+    return fileTell(self->inner);
 }
 
-_Use_decl_annotations_
-int64 vfsSeek(VFSFile* file, int64 off, FSSeekType seektype)
+int64 VFSFile_seek(_In_ VFSFile* self, int64 off, FSSeekType seektype)
 {
-    if (!(file && file->fileprov))
+    if (!self->inner)
         return -1;
-    return file->fileprovif->seek(file->fileprov, off, seektype);
+    return fileSeek(self->inner, off, seektype);
 }
 
-_Use_decl_annotations_
-bool vfsFlush(VFSFile* file)
+bool VFSFile_flush(_In_ VFSFile* self)
 {
-    if (!(file && file->fileprov))
+    if (!self->inner)
         return false;
-    return file->fileprovif->flush(file->fileprov);
+    return fileFlush(self->inner);
 }
+
+void VFSFile_destroy(_In_ VFSFile* self)
+{
+    VFSFile_close(self);
+
+    // Autogen begins -----
+    objRelease(&self->vfs);
+    objRelease(&self->inner);
+    objRelease(&self->cowprov);
+    strDestroy(&self->cowpath);
+    strDestroy(&self->cowrpath);
+    // Autogen ends -------
+}
+
+// Autogen begins -----
+// clang-format off
+#include "fs/vfsfile.auto.inc"
+// clang-format on
+// Autogen ends -------

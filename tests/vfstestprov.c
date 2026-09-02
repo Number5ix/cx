@@ -61,7 +61,7 @@ flags_t VFSTestProv_flags(_In_ VFSTestProv* self)
     return self->provflags;
 }
 
-_Ret_opt_valid_ ObjInst* VFSTestProv_open(_In_ VFSTestProv* self, _In_opt_ strref path, flags_t flags)
+_Ret_opt_valid_ File* VFSTestProv_open(_In_ VFSTestProv* self, _In_opt_ strref path, flags_t flags)
 {
     string rpath = 0;
     tpPath(&rpath, path);
@@ -80,7 +80,7 @@ _Ret_opt_valid_ ObjInst* VFSTestProv_open(_In_ VFSTestProv* self, _In_opt_ strre
 
     VFSTestProvFile* fileprov = vfstestprovfileCreate(self, rpath, writing);
     strDestroy(&rpath);
-    return objInstBase(fileprov);
+    return File(fileprov);
 
 fail:
     strDestroy(&rpath);

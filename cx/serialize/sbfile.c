@@ -5,7 +5,7 @@
 #define SBUF_DEFAULT_CHUNK (64 * 1024)
 
 typedef struct SbufFileCtx {
-    VFSFile* file;
+    File* file;
     bool close;
 } SbufFileCtx;
 
@@ -13,12 +13,12 @@ static void sbufFileCleanup(_Pre_valid_ void* ctx)
 {
     SbufFileCtx* sbc = (SbufFileCtx*)ctx;
     if (sbc->close)
-        vfsClose(sbc->file);
+        fsClose(sbc->file);
     xaFree(sbc);
 }
 
 _Use_decl_annotations_
-bool sbufFileIn(StreamBuffer* sb, VFSFile* file, bool close)
+bool _sbufFileIn(StreamBuffer* sb, File* file, bool close)
 {
     // This does not return until the source is exhausted, so waiting out the high watermark is the
     // only way to honor flow control.
@@ -30,7 +30,7 @@ bool sbufFileIn(StreamBuffer* sb, VFSFile* file, bool close)
     uint8* buf     = xaAlloc(chunksz);
     size_t didread = 0;
     for (;;) {
-        if (!vfsRead(file, buf, chunksz, &didread)) {
+        if (!fileRead(file, buf, chunksz, &didread)) {
             sbufError(sb);
             break;
         }
@@ -44,7 +44,7 @@ bool sbufFileIn(StreamBuffer* sb, VFSFile* file, bool close)
     xaFree(buf);
 
     if (close)
-        vfsClose(file);
+        fsClose(file);
 
     return !sbufIsError(sb);
 }
@@ -65,7 +65,7 @@ static size_t sbufFilePullCB(_Pre_valid_ StreamBuffer* sb, _Out_writes_bytes_(sz
     }
 
     size_t didread = 0;
-    if (!vfsRead(sbc->file, buf, sz, &didread))
+    if (!fileRead(sbc->file, buf, sz, &didread))
         sbufError(sb);
 
     // end of file: leave the slot open for another producer rather than ending the stream
@@ -76,7 +76,7 @@ static size_t sbufFilePullCB(_Pre_valid_ StreamBuffer* sb, _Out_writes_bytes_(sz
 }
 
 _Use_decl_annotations_
-bool sbufFilePRegisterPull(StreamBuffer* sb, VFSFile* file, bool close)
+bool _sbufFilePRegisterPull(StreamBuffer* sb, File* file, bool close)
 {
     SbufFileCtx* sbc = xaAlloc(sizeof(SbufFileCtx));
     sbc->file        = file;
@@ -98,7 +98,7 @@ static bool sbufFileSendCB(_Pre_valid_ StreamBuffer* sb, _In_reads_bytes_(sz) co
         return false;
 
     size_t didwrite = 0;
-    if (!vfsWrite(sbc->file, (void*)buf, sz, &didwrite))
+    if (!fileWrite(sbc->file, (void*)buf, sz, &didwrite))
         sbufError(sb);
 
     return true;
@@ -119,7 +119,7 @@ static void sbufFileNotifyCB(_Pre_valid_ StreamBuffer* sb, size_t sz, _Pre_opt_v
 }
 
 _Use_decl_annotations_
-bool sbufFileOut(StreamBuffer* sb, VFSFile* file, bool close)
+bool _sbufFileOut(StreamBuffer* sb, File* file, bool close)
 {
     uint8* buf = xaAlloc(sb->targetsz);
     size_t sz;
@@ -127,7 +127,7 @@ bool sbufFileOut(StreamBuffer* sb, VFSFile* file, bool close)
         // grab targetsz at a time from the buffer
         if (sbufCRead(sb, buf, sb->targetsz, &sz)) {
             size_t didwrite;
-            if (!vfsWrite(file, buf, sz, &didwrite)) {
+            if (!fileWrite(file, buf, sz, &didwrite)) {
                 sbufError(sb);
                 break;
             }
@@ -136,13 +136,13 @@ bool sbufFileOut(StreamBuffer* sb, VFSFile* file, bool close)
     xaFree(buf);
 
     if (close)
-        vfsClose(file);
+        fsClose(file);
 
     return !sbufIsError(sb);
 }
 
 _Use_decl_annotations_
-bool sbufFileCRegisterPush(StreamBuffer* sb, VFSFile* file, bool close)
+bool _sbufFileCRegisterPush(StreamBuffer* sb, File* file, bool close)
 {
     SbufFileCtx* sbc = xaAlloc(sizeof(SbufFileCtx));
     sbc->file        = file;

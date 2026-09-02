@@ -1,0 +1,25 @@
+#include <cx/fs/fileobj.cxh>
+#include <cx/fs/vfsobj.cxh>
+
+/// @addtogroup fs_vfs
+/// @{
+
+/// A file opened through a VFS with vfsOpen()
+///
+/// The provider's own file, plus what the VFS layer adds on top of it: copy-on-write lives here,
+/// so providers never have to know about it. Being a File, it can be handed to anything that
+/// takes one, whichever layer opened it.
+class VFSFile extends File {
+    object[VFS] vfs;
+    object[File] inner;   // the provider's file, which every operation ends up at
+
+    // for copy-on-write files
+    object[ObjInst] cowprov;   // VFSProvider
+    string cowpath;            // absolute path to COW file (for cache invalidation)
+    string cowrpath;           // relative path for COW file for provider
+
+    factory create(VFS *vfs, File *inner);
+    destroy();
+}
+
+/// @}

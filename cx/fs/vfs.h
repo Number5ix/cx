@@ -33,20 +33,13 @@
 #include <cx/fs/file.h>
 #include <cx/fs/fs.h>
 #include <cx/time/time.h>
+#include <cx/fs/vfsfile.h>
 #include <cx/fs/vfsobj.h>
 #include <cx/fs/vfsprovider.h>
 
 /// Opaque structure representing a virtual filesystem instance.
 /// Create with vfsCreate() and destroy with vfsDestroy().
 typedef struct VFS VFS;
-
-/// Opaque structure representing an open file in a VFS.
-/// Similar to FSFile but works through the VFS layer.
-///
-/// A VFSFile handle is single-owner: one thread at a time, like a C FILE*. Two threads may use
-/// two handles on the same file, but they must not share one handle. The VFS itself is
-/// thread-safe; only the open file handle is not.
-typedef struct VFSFile VFSFile;
 
 CX_C_BEGIN
 
@@ -403,16 +396,22 @@ _meta_inline bool vfsSearchValid(_In_ FSSearchIter* iter)
 /// @see FSOpenFlags in file.h
 _Ret_opt_valid_ VFSFile* vfsOpen(_Inout_ VFS* vfs, _In_opt_ strref path, flags_t flags);
 
-/// Closes a VFS file handle
+/// Closes a VFS file handle and releases it
 ///
-/// Flushes buffers, closes the file, and releases resources.
-/// The file pointer becomes invalid after this call.
+/// Flushes buffers, closes the file, and drops the reference this caller owns. Use this for the
+/// common case of one owner opening a file, using it, and being done with it. If the handle is
+/// shared, close it with fileClose() and release each reference with objRelease() instead.
 ///
-/// @param file VFS file handle to close
+/// @param file VFS file handle to close (may be NULL)
 /// @return true if successful, false if an error occurred while flushing or closing
 ///
-/// @note The file handle is freed even if this returns false
-bool vfsClose(_Pre_opt_valid_ _Post_invalid_ VFSFile* file);
+/// @note The reference is dropped even if this returns false
+_meta_inline bool vfsClose(_Pre_opt_valid_ _Post_invalid_ VFSFile* file)
+{
+    bool ret = fileClose(file);
+    objRelease(&file);
+    return ret;
+}
 
 /// Reads data from a VFS file
 ///
@@ -424,8 +423,15 @@ bool vfsClose(_Pre_opt_valid_ _Post_invalid_ VFSFile* file);
 /// @param sz Maximum bytes to read
 /// @param bytesread Receives actual bytes read
 /// @return true on success (even if 0 bytes at EOF), false on I/O error
-bool vfsRead(_Inout_ VFSFile* file, _Out_writes_bytes_to_(sz, *bytesread) void* buf, size_t sz,
-             _Out_ _Deref_out_range_(0, sz) size_t* bytesread);
+_meta_inline bool vfsRead(_Inout_ VFSFile* file, _Out_writes_bytes_to_(sz, *bytesread) void* buf,
+                          size_t sz, _Out_ _Deref_out_range_(0, sz) size_t* bytesread)
+{
+    if (!file) {
+        *bytesread = 0;
+        return false;
+    }
+    return fileRead(file, buf, sz, bytesread);
+}
 
 /// Writes data to a VFS file
 ///
@@ -437,8 +443,16 @@ bool vfsRead(_Inout_ VFSFile* file, _Out_writes_bytes_to_(sz, *bytesread) void* 
 /// @param sz Number of bytes to write
 /// @param byteswritten Optional pointer to receive bytes written
 /// @return true on success, false on I/O error
-bool vfsWrite(_Inout_ VFSFile* file, _In_reads_bytes_(sz) const void* buf, size_t sz,
-              _Out_opt_ _Deref_out_range_(0, sz) size_t* byteswritten);
+_meta_inline bool vfsWrite(_Inout_ VFSFile* file, _In_reads_bytes_(sz) const void* buf, size_t sz,
+                           _Out_opt_ _Deref_out_range_(0, sz) size_t* byteswritten)
+{
+    if (!file) {
+        if (byteswritten)
+            *byteswritten = 0;
+        return false;
+    }
+    return fileWrite(file, buf, sz, byteswritten);
+}
 
 /// Writes a string to a VFS file
 ///
@@ -449,13 +463,27 @@ bool vfsWrite(_Inout_ VFSFile* file, _In_reads_bytes_(sz) const void* buf, size_
 /// @param str String to write
 /// @param byteswritten Optional pointer to receive bytes written
 /// @return true on success, false on I/O error
-bool vfsWriteString(_Inout_ VFSFile* file, _In_opt_ strref str, _Out_opt_ size_t* byteswritten);
+_meta_inline bool vfsWriteString(_Inout_ VFSFile* file, _In_opt_ strref str,
+                                 _Out_opt_ size_t* byteswritten)
+{
+    if (!file) {
+        if (byteswritten)
+            *byteswritten = 0;
+        return false;
+    }
+    return fileWriteString(file, str, byteswritten);
+}
 
 /// Gets current position in a VFS file
 ///
 /// @param file Open VFS file handle
 /// @return Current byte offset from start of file, -1 on error
-int64 vfsTell(_Inout_ VFSFile* file);
+_meta_inline int64 vfsTell(_Inout_ VFSFile* file)
+{
+    if (!file)
+        return -1;
+    return fileTell(file);
+}
 
 /// Changes position in a VFS file
 ///
@@ -465,7 +493,12 @@ int64 vfsTell(_Inout_ VFSFile* file);
 /// @param off Offset in bytes
 /// @param seektype FS_Set, FS_Cur, or FS_End
 /// @return New file position, -1 on error
-int64 vfsSeek(_Inout_ VFSFile* file, int64 off, FSSeekType seektype);
+_meta_inline int64 vfsSeek(_Inout_ VFSFile* file, int64 off, FSSeekType seektype)
+{
+    if (!file)
+        return -1;
+    return fileSeek(file, off, seektype);
+}
 
 /// Flushes buffered writes to storage
 ///
@@ -473,7 +506,12 @@ int64 vfsSeek(_Inout_ VFSFile* file, int64 off, FSSeekType seektype);
 ///
 /// @param file Open VFS file handle
 /// @return true if successful, false on error
-bool vfsFlush(_Inout_ VFSFile* file);
+_meta_inline bool vfsFlush(_Inout_ VFSFile* file)
+{
+    if (!file)
+        return false;
+    return fileFlush(file);
+}
 
 /// VFS configuration and mount flags
 ///

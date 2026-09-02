@@ -47,6 +47,7 @@ if(CX_PLATFORM_IS_UNIX)
 endif()
 
 set(PLATFORM_UNIX_AUTOGEN
+    platform/unix/unix_fs_file.cxh
     platform/unix/unix_net_socket.cxh
     platform/unix/unix_thread_threadobj.cxh)
 

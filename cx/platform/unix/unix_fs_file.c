@@ -1,6 +1,14 @@
-// this is to prevent Linux in particular from being brain-damaged #smh
-#define _FILE_OFFSET_BITS 64
-
+// ==================== Auto-generated section begins ====================
+// clang-format off
+// Do not modify the contents of this section; any changes will be lost!
+#include <cx/obj.h>
+#include <cx/debug/assert.h>
+#include <cx/obj/objstdif.h>
+#include <cx/container.h>
+#include <cx/string.h>
+#include "platform/unix/unix_fs_file.h"
+// clang-format on
+// ==================== Auto-generated section ends ======================
 #include "cx/fs/fs_private.h"
 #include "cx/debug/error.h"
 #include "cx/platform/unix.h"
@@ -15,14 +23,8 @@
 // BSD doesn't need this but Linux does
 #define MAX_TRANSFER_SIZE (1024 * 1024 * 1024)
 
-typedef struct FSFile {
-    int fd;
-    bool locked;
-} FSFile;
-
 FSFile* fsOpen(strref path, flags_t flags)
 {
-    FSFile* ret;
     int oflags   = 0;
     string npath = 0;
 
@@ -67,31 +69,50 @@ FSFile* fsOpen(strref path, flags_t flags)
         // but the alternative is to just not work at all in those cases
     }
 
-    ret         = xaAlloc(sizeof(FSFile));
-    ret->fd     = fd;
-    ret->locked = (lockop != 0);
+    FSFileUnix* ret = fsfileunixCreate(fd, lockop != 0);
     strDestroy(&npath);
-    return ret;
+    return File(ret);
 }
 
-bool fsClose(FSFile* file)
+_objfactory_guaranteed FSFileUnix* FSFileUnix_create(int fd, bool locked)
 {
-    int ret = true;
-    if (file->locked)
-        flock(file->fd, LOCK_UN);
-    if (!close(file->fd))
+    FSFileUnix* self;
+    self = objInstCreate(FSFileUnix);
+
+    self->fd     = fd;
+    self->locked = locked;
+
+    objInstInit(self);
+    return self;
+}
+
+bool FSFileUnix_close(_In_ FSFileUnix* self)
+{
+    if (self->fd < 0)
+        return true;   // already closed
+
+    bool ret = true;
+    if (self->locked)
+        flock(self->fd, LOCK_UN);
+    if (close(self->fd) != 0)
         ret = unixMapErrno();
-    xaFree(file);
+    self->fd = -1;
     return ret;
 }
 
-bool fsRead(FSFile* file, void* buf, size_t sz, size_t* bytesread)
+bool FSFileUnix_read(_In_ FSFileUnix* self, _Out_writes_bytes_to_(sz, *bytesread) void* buf,
+                     size_t sz, _Out_ _Deref_out_range_(0, sz) size_t* bytesread)
 {
     ssize_t didread = 0;
 
+    if (self->fd < 0) {
+        *bytesread = 0;
+        return false;
+    }
+
     if (sz < MAX_TRANSFER_SIZE) {
         // fast path, can do it in a single call
-        didread = read(file->fd, buf, sz);
+        didread = read(self->fd, buf, sz);
         if (didread < 0) {
             *bytesread = 0;
             return unixMapErrno();
@@ -105,7 +126,7 @@ bool fsRead(FSFile* file, void* buf, size_t sz, size_t* bytesread)
     size_t actuallyread = 0;
     uint8* bufp         = (uint8*)buf;
     while (sz > 0) {
-        didread = read(file->fd, bufp, clamphigh(sz, MAX_TRANSFER_SIZE));
+        didread = read(self->fd, bufp, clamphigh(sz, MAX_TRANSFER_SIZE));
         if (didread < 0) {
             *bytesread = 0;
             return unixMapErrno();
@@ -122,13 +143,20 @@ bool fsRead(FSFile* file, void* buf, size_t sz, size_t* bytesread)
     return true;
 }
 
-bool fsWrite(FSFile* file, const void* buf, size_t sz, size_t* byteswritten)
+bool FSFileUnix_write(_In_ FSFileUnix* self, _In_reads_bytes_(sz) const void* buf, size_t sz,
+                      _Out_opt_ _Deref_out_range_(0, sz) size_t* byteswritten)
 {
     ssize_t didwrite = 0;
 
+    if (self->fd < 0) {
+        if (byteswritten)
+            *byteswritten = 0;
+        return false;
+    }
+
     if (sz < MAX_TRANSFER_SIZE) {
         // fast path, can do it in a single call
-        didwrite = write(file->fd, buf, sz);
+        didwrite = write(self->fd, buf, sz);
         if (didwrite < 0) {
             if (byteswritten)
                 *byteswritten = 0;
@@ -144,7 +172,7 @@ bool fsWrite(FSFile* file, const void* buf, size_t sz, size_t* byteswritten)
     size_t actuallywrote = 0;
     const uint8* bufp    = (const uint8*)buf;
     while (sz > 0) {
-        didwrite = write(file->fd, bufp, clamphigh(sz, MAX_TRANSFER_SIZE));
+        didwrite = write(self->fd, bufp, clamphigh(sz, MAX_TRANSFER_SIZE));
         if (didwrite < 0) {
             if (byteswritten)
                 *byteswritten = 0;
@@ -161,10 +189,14 @@ bool fsWrite(FSFile* file, const void* buf, size_t sz, size_t* byteswritten)
     return true;
 }
 
-int64 fsTell(FSFile* file)
+int64 FSFileUnix_tell(_In_ FSFileUnix* self)
 {
     off_t off;
-    off = lseek(file->fd, 0, SEEK_CUR);
+
+    if (self->fd < 0)
+        return -1;
+
+    off = lseek(self->fd, 0, SEEK_CUR);
     if (off < 0) {
         unixMapErrno();
         return -1;
@@ -173,10 +205,13 @@ int64 fsTell(FSFile* file)
     return off;
 }
 
-int64 fsSeek(FSFile* file, int64 off, FSSeekType seektype)
+int64 FSFileUnix_seek(_In_ FSFileUnix* self, int64 off, FSSeekType seektype)
 {
     int method;
     off_t out;
+
+    if (self->fd < 0)
+        return -1;
 
     switch (seektype) {
     case FS_Set:
@@ -192,7 +227,7 @@ int64 fsSeek(FSFile* file, int64 off, FSSeekType seektype)
         return -1;
     }
 
-    out = lseek(file->fd, (off_t)off, method);
+    out = lseek(self->fd, (off_t)off, method);
     if (out < 0) {
         unixMapErrno();
         return -1;
@@ -201,10 +236,24 @@ int64 fsSeek(FSFile* file, int64 off, FSSeekType seektype)
     return out;
 }
 
-bool fsFlush(FSFile* file)
+bool FSFileUnix_flush(_In_ FSFileUnix* self)
 {
-    if (fsync(file->fd) == -1)
+    if (self->fd < 0)
+        return false;
+
+    if (fsync(self->fd) == -1)
         return unixMapErrno();
 
     return true;
 }
+
+void FSFileUnix_destroy(_In_ FSFileUnix* self)
+{
+    FSFileUnix_close(self);
+}
+
+// Autogen begins -----
+// clang-format off
+#include "platform/unix/unix_fs_file.auto.inc"
+// clang-format on
+// Autogen ends -------

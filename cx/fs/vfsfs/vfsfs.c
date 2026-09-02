@@ -11,7 +11,6 @@
 // ==================== Auto-generated section ends ======================
 #include "cx/fs/path.h"
 #include "cx/fs/vfs.h"
-#include "cx/fs/vfsfs/vfsfsfile.h"
 #include "cx/platform/base.h"
 
 _objfactory_check VFSFS* VFSFS_create(_In_opt_ strref rootpath)
@@ -41,18 +40,14 @@ flags_t VFSFS_flags(_In_ VFSFS* self)
 #endif
 }
 
-_Ret_opt_valid_ ObjInst* VFSFS_open(_In_ VFSFS* self, _In_opt_ strref path, flags_t flags)
+_Ret_opt_valid_ File* VFSFS_open(_In_ VFSFS* self, _In_opt_ strref path, flags_t flags)
 {
     string fspath = 0;
     pathJoin(&fspath, self->root, path);
 
     FSFile* file = fsOpen(fspath, flags);
     strDestroy(&fspath);
-    if (!file)
-        return NULL;
-
-    VFSFSFile* fileprov = vfsfsfileCreate(file);
-    return objInstBase(fileprov);
+    return file;
 }
 
 FSPathStat VFSFS_stat(_In_ VFSFS* self, _In_opt_ strref path, _When_(return != FS_Nonexistent, _Out_opt_) FSStat* stat)

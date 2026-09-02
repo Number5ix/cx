@@ -534,7 +534,7 @@ _Pure strref httpFormUrlEncodedType(void);
 ///   HttpMultipart mp;
 ///   httpMultipartInit(&mp);
 ///   httpMultipartAddField(&mp, _SL("comment"), _SL("looks good"));
-///   httpMultipartAddFileVFS(&mp, _SL("upload"), _SL("notes.txt"), NULL, f, true);
+///   httpMultipartAddFile(&mp, _SL("upload"), _SL("notes.txt"), NULL, f, true);
 ///
 ///   httpMultipartAttach(&mp, req);
 ///   httpMultipartDestroy(&mp);
@@ -549,24 +549,27 @@ _Success_(return) bool httpMultipartInit(_Out_ HttpMultipart* mp);
 /// @return true on success, false once the body has been finished
 bool httpMultipartAddField(_Inout_ HttpMultipart* mp, _In_opt_ strref name, _In_opt_ strref value);
 
-/// Add a file part
+/// Add a part from data already in memory
 ///
 /// @param mp Multipart state
-/// @param name Field name the file was submitted under
-/// @param filename Name to report for the file, or empty for a generic one
+/// @param name Field name the data was submitted under
+/// @param filename Name to report for the data, or empty for a generic one
 /// @param contentType Media type of the content, or empty for `application/octet-stream`
-/// @param data File contents
+/// @param data Content
 /// @param len Length of `data` in bytes
 /// @return true on success, false once the body has been finished
-bool httpMultipartAddFile(_Inout_ HttpMultipart* mp, _In_opt_ strref name, _In_opt_ strref filename,
+bool httpMultipartAddData(_Inout_ HttpMultipart* mp, _In_opt_ strref name, _In_opt_ strref filename,
                           _In_opt_ strref contentType, _In_reads_bytes_opt_(len) const uint8* data,
                           size_t len);
 
-/// Add a file part read from a VFS file
+/// bool httpMultipartAddFile(HttpMultipart *mp, strref name, strref filename,
+///                           strref contentType, File *file, bool close);
+///
+/// Add a file part read from an already-open file
 ///
 /// The file is read while the body is being sent, so it is never held in memory. Its length is
 /// taken from the current position to the end, and the part starts from wherever the file is
-/// positioned now.
+/// positioned now. The file may have come from either fsOpen() or vfsOpen().
 ///
 /// @param mp Multipart state
 /// @param name Field name the file was submitted under
@@ -576,9 +579,18 @@ bool httpMultipartAddFile(_Inout_ HttpMultipart* mp, _In_opt_ strref name, _In_o
 /// @param close If true, the file is closed once the part has been sent. The caller must not close
 ///              it itself, even if this call returns false.
 /// @return true on success, false once the parts have been taken
-bool httpMultipartAddFileVFS(_Inout_ HttpMultipart* mp, _In_opt_ strref name,
-                             _In_opt_ strref filename, _In_opt_ strref contentType,
-                             _Inout_ VFSFile* file, bool close);
+bool _httpMultipartAddFile(_Inout_ HttpMultipart* mp, _In_opt_ strref name,
+                           _In_opt_ strref filename, _In_opt_ strref contentType,
+                           _Inout_ File* file, bool close);
+#define httpMultipartAddFile(mp, name, filename, contentType, file, close) \
+    _httpMultipartAddFile(mp, name, filename, contentType, File(file), close)
+
+/// bool httpMultipartAddFileVFS(HttpMultipart *mp, strref name, strref filename,
+///                              strref contentType, VFSFile *file, bool close);
+///
+/// Another name for httpMultipartAddFile()
+#define httpMultipartAddFileVFS(mp, name, filename, contentType, file, close) \
+    httpMultipartAddFile(mp, name, filename, contentType, file, close)
 
 /// Add a part whose content is streamed from a StreamBuffer
 ///
@@ -627,7 +639,7 @@ _Pure int64 httpMultipartLength(_In_ const HttpMultipart* mp);
 /// @code
 ///   HttpMultipart mp;
 ///   httpMultipartInit(&mp);
-///   httpMultipartAddFileVFS(&mp, _SL("upload"), _SL("big.iso"), NULL, f, true);
+///   httpMultipartAddFile(&mp, _SL("upload"), _SL("big.iso"), NULL, f, true);
 ///   httpMultipartAttach(&mp, req);
 ///   httpMultipartDestroy(&mp);
 ///

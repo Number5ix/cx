@@ -242,7 +242,7 @@ saDeclare(HttpCookie);
 typedef enum {
     HTTPMPSRC_String,    ///< Text held in a string
     HTTPMPSRC_Bytes,     ///< Bytes held in a Buffer
-    HTTPMPSRC_VFSFile,   ///< A VFS file, read while the body is being sent
+    HTTPMPSRC_File,      ///< An open file, read while the body is being sent
     HTTPMPSRC_Stream,    ///< A StreamBuffer the application produces into
 } HttpMultipartSrc;
 
@@ -261,7 +261,7 @@ typedef struct HttpMultipartPart {
     union {
         string text;            ///< HTTPMPSRC_String
         Buffer bytes;           ///< HTTPMPSRC_Bytes
-        VFSFile* vfile;         ///< HTTPMPSRC_VFSFile
+        File* file;             ///< HTTPMPSRC_File
         StreamBuffer* stream;   ///< HTTPMPSRC_Stream
     } src;
 

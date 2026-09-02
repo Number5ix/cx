@@ -3,7 +3,7 @@
 #include <cx/fs/fs.h>
 #include <cx/fs/path.h>
 #include <cx/serialize/lineparse.h>
-#include <cx/serialize/sbfsfile.h>
+#include <cx/serialize/sbfile.h>
 #include <cx/serialize/sbstring.h>
 #include "objtypes.h"
 

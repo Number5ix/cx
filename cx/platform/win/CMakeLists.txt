@@ -37,6 +37,7 @@ if(CX_PLATFORM_IS_WINDOWS)
 endif()
 
 set(PLATFORM_WIN_AUTOGEN
+    platform/win/win_fs_file.cxh
     platform/win/win_net_iocp.cxh
     platform/win/win_net_socket.cxh
     platform/win/win_thread_threadobj.cxh)

@@ -1,8 +1,0 @@
-#include "vfsvfs.cxh"
-#include <cx/fs/vfs.h>
-
-class VFSVFSFile implements VFSFileProvider {
-    VFSFile *file;
-    destroy();
-    factory create(VFSFile *f);
-}
