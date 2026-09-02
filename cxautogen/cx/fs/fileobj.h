@@ -136,7 +136,7 @@ bool File_writeString(_In_ File* self, _In_opt_ strref str, _Out_opt_ size_t* by
 /// Gets the current position in the file
 /// 
 /// @return Current position in bytes from the start of the file, -1 on error
-#define fileTell(self) (self)->_->tell(File(self))
+#define fileTell(self) ((self) ? ((self)->_->tell(File(self))) : -1)
 /// int64 fileSeek(File* self, int64 off, FSSeekType seektype);
 ///
 /// Changes the current position in the file

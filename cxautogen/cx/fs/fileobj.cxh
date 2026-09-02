@@ -58,7 +58,7 @@ abstract class File {
     /// Gets the current position in the file
     ///
     /// @return Current position in bytes from the start of the file, -1 on error
-    [abstract] int64 tell();
+    [abstract] [nullself -1] int64 tell();
 
     /// Changes the current position in the file
     ///

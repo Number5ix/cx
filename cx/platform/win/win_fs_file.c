@@ -10,8 +10,8 @@
 // clang-format on
 // ==================== Auto-generated section ends ======================
 #include "cx/platform/win.h"
+#include "cx/platform/win/win_fs.h"
 #include "cx/utils/compare.h"
-#include "win_fs.h"
 
 // biggest I/O request the OS will let us do
 // using a safe value for XP

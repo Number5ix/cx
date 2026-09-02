@@ -78,7 +78,7 @@ _objfactory_guaranteed FSFileUnix* FSFileUnix_create(int fd, bool locked);
 // bool fsfileunixWrite(FSFileUnix* self, const void* buf, size_t sz, size_t* byteswritten);
 #define fsfileunixWrite(self, buf, sz, byteswritten) ((self) ? ((self)->_->write(FSFileUnix(self), buf, sz, byteswritten)) : false)
 // int64 fsfileunixTell(FSFileUnix* self);
-#define fsfileunixTell(self) (self)->_->tell(FSFileUnix(self))
+#define fsfileunixTell(self) ((self) ? ((self)->_->tell(FSFileUnix(self))) : -1)
 // int64 fsfileunixSeek(FSFileUnix* self, int64 off, FSSeekType seektype);
 #define fsfileunixSeek(self, off, seektype) ((self) ? ((self)->_->seek(FSFileUnix(self), off, seektype)) : -1)
 // bool fsfileunixFlush(FSFileUnix* self);

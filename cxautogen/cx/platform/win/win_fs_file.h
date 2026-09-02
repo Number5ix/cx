@@ -78,7 +78,7 @@ _objfactory_guaranteed FSFileWin* FSFileWin_create(HANDLE h);
 // bool fsfilewinWrite(FSFileWin* self, const void* buf, size_t sz, size_t* byteswritten);
 #define fsfilewinWrite(self, buf, sz, byteswritten) ((self) ? ((self)->_->write(FSFileWin(self), buf, sz, byteswritten)) : false)
 // int64 fsfilewinTell(FSFileWin* self);
-#define fsfilewinTell(self) (self)->_->tell(FSFileWin(self))
+#define fsfilewinTell(self) ((self) ? ((self)->_->tell(FSFileWin(self))) : -1)
 // int64 fsfilewinSeek(FSFileWin* self, int64 off, FSSeekType seektype);
 #define fsfilewinSeek(self, off, seektype) ((self) ? ((self)->_->seek(FSFileWin(self), off, seektype)) : -1)
 // bool fsfilewinFlush(FSFileWin* self);
