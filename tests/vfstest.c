@@ -651,6 +651,9 @@ static int test_vfs_mountents()
     // nothing is mounted at /, so / exists only as the parent of the mount point below it
     vfsMountProvider(vfs, inner, _S"/mnt");
     checkSearch(&ret, vfs, _S"/", NULL, 0, _S"mnt");
+    // and vfsStat has to agree: a bare mount point is a directory even with nothing mounted
+    // above it to serve it as an entry of its own parent
+    checkStat(&ret, vfs, _S"/mnt", FS_Directory);
 
     // now give / a provider with one file, so the two kinds of entry sit side by side
     vfstestprovAddFile(root, _S"x.txt", _S"x");

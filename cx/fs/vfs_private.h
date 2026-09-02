@@ -117,6 +117,9 @@ enum VFS_FIND_PROVIDER_ENUM {
 _Ret_opt_valid_ VFSMount*
 _vfsFindMount(_Inout_ VFS* vfs, _Inout_ string* rpath, _In_opt_ strref path,
               _Out_opt_ VFSMount** cowmount, _Inout_opt_ string* cowrpath, flags_t flags);
+// Finds a mount registered directly on abspath's own VFSDir node, as opposed to a mount that
+// would serve abspath as a file within its parent (which is what _vfsFindMount answers).
+_Ret_opt_valid_ VFSMount* _vfsFindSelfMount(_Inout_ VFS* vfs, _In_opt_ strref abspath);
 void _vfsInvalidateCache(_Inout_ VFS* vfs, _In_opt_ strref path);
 void _vfsInvalidateRecursive(_Inout_ VFS* vfs, _In_ VFSDir* dir, bool havelock);
 // reads vfs->curdir, which vfsSetCurDir can replace and destroy out from under it

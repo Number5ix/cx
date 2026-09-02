@@ -544,6 +544,45 @@ int _vfsFindCIHelper(string* out, strref mountpath, sa_string components, VFSMou
                         pending);
 }
 
+// Unlike _vfsGetDir, never creates a VFSDir node to avoid polluting the tree with failed lookups.
+_Use_decl_annotations_
+VFSMount* _vfsFindSelfMount(VFS* vfs, strref abspath)
+{
+    VFSMount* ret = NULL;
+    VFSDir* dir   = NULL;
+    string ns     = 0;
+    sa_string components;
+
+    saInit(&components, string, 8, SA_Grow(Aggressive));
+    pathDecompose(&ns, &components, abspath);
+
+    rwlockAcquireRead(&vfs->vfsdlock);
+    rwlockAcquireRead(&vfs->vfslock);
+
+    if (strEmpty(ns)) {
+        dir = vfs->root;
+    } else if (!htFind(vfs->namespaces, string, ns, VFSDir, &dir)) {
+        dir = NULL;
+    }
+
+    for (int32 i = 0, n = saSize(components); dir && i < n; i++) {
+        if (strEmpty(components.a[i]))
+            continue;   // leading separator -> root, already resolved above
+        if (!htFind(dir->subdirs, string, components.a[i], VFSDir, &dir))
+            dir = NULL;
+    }
+
+    if (dir && saSize(dir->mounts) > 0)
+        ret = objAcquire(dir->mounts.a[saSize(dir->mounts) - 1]);
+
+    rwlockReleaseRead(&vfs->vfslock);
+    rwlockReleaseRead(&vfs->vfsdlock);
+
+    strDestroy(&ns);
+    saDestroy(&components);
+    return ret;
+}
+
 // This function does all the heavy lifting of the VFS system.
 //
 // It runs in three phases, and the split is the point: the middle phase calls into providers,

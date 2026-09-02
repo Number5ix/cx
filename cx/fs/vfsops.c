@@ -6,25 +6,36 @@ _Use_decl_annotations_
 FSPathStat vfsStat(VFS* vfs, strref path, FSStat* stat)
 {
     int ret      = FS_Nonexistent;
-    string rpath = 0;
+    string rpath = 0, abspath = 0;
 
     VFSMount* m = _vfsFindMount(vfs, &rpath, path, NULL, NULL, VFS_FindCache);
-    if (!m) {
-        ret = FS_Nonexistent;
-        goto out;
+    if (m) {
+        VFSProvider* provif = objInstIf(m->provider, VFSProvider);
+        if (provif)
+            ret = provif->stat(m->provider, rpath, stat);
+        else
+            cxerr = CX_InvalidArgument;
+
+        if (ret == FS_Nonexistent)
+            _vfsInvalidateCache(vfs, path);
+    } else {
+        // No provider serves path as a file within its parent, but it may still be a bare mount
+        // point -- one with no provider of its own directly on it, only child mounts below.
+        vfsAbsolutePath(vfs, &abspath, path);
+        m = _vfsFindSelfMount(vfs, abspath);
+        if (m) {
+            VFSProvider* provif = objInstIf(m->provider, VFSProvider);
+            if (provif) {
+                provif->stat(m->provider, NULL, stat);
+                ret = FS_Directory;
+            } else {
+                cxerr = CX_InvalidArgument;
+            }
+        }
     }
 
-    VFSProvider* provif = objInstIf(m->provider, VFSProvider);
-    if (provif)
-        ret = provif->stat(m->provider, rpath, stat);
-    else
-        cxerr = CX_InvalidArgument;
-
-    if (ret == FS_Nonexistent)
-        _vfsInvalidateCache(vfs, path);
-
-out:
     strDestroy(&rpath);
+    strDestroy(&abspath);
     objRelease(&m);
     return ret;
 }
@@ -38,6 +49,11 @@ bool vfsSetTimes(VFS* vfs, strref path, int64 modified, int64 accessed)
     VFSMount* m = _vfsFindMount(vfs, &rpath, path, NULL, NULL, VFS_FindCache);
     if (!m)
         goto out;
+
+    if (m->flags & VFS_ReadOnly) {
+        cxerr = CX_ReadOnly;
+        goto out;
+    }
 
     VFSProvider* provif = objInstIf(m->provider, VFSProvider);
     if (provif)
