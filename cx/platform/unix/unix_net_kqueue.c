@@ -403,6 +403,8 @@ bool NetQueueKqueue_tick(_In_ NetQueueKqueue* self, int64 wait)
     // Polled mode only. In threaded mode the ingest thread owns the kqueue instance and the workers
     // own dispatch, so the application drives neither -- same polled-XOR-threaded contract as
     // NetQueueSelect_tick()/NetQueueEpoll_tick().
+    devAssertMsg(!self->ingest, "netqueueTick() called on a threaded NetQueue");
+
     kqueuePoll(self, wait);
 
     bool any = false;

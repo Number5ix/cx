@@ -419,6 +419,8 @@ bool NetQueueEpoll_tick(_In_ NetQueueEpoll* self, int64 wait)
     // Polled mode only. In threaded mode the ingest thread owns the epoll instance and the
     // workers own dispatch, so the application drives neither -- same polled-XOR-threaded contract
     // as NetQueueSelect_tick().
+    devAssertMsg(!self->ingest, "netqueueTick() called on a threaded NetQueue");
+
     epollPoll(self, wait);
 
     bool any = false;

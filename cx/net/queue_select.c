@@ -363,6 +363,8 @@ bool NetQueueSelect_tick(_In_ NetQueueSelect* self, int64 wait)
     // Polled mode only. In threaded mode the ingest thread owns the select set and the workers own
     // dispatch, so the application drives neither and must not call this -- two threads in select()
     // on one fd_set would race the working sets and the iteration cursor.
+    devAssertMsg(!self->ingest, "netqueueTick() called on a threaded NetQueue");
+
     selectPoll(self, wait);
 
     // Fire the events that ingest produced, on the caller's thread -- polled mode has no worker

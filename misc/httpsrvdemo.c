@@ -32,7 +32,7 @@
 
 DEFINE_ENTRY_POINT;
 
-#define TICK_WAIT_US timeMS(100)
+#define IDLE_SLEEP_US timeMS(100)
 
 typedef struct DemoCtx {
     TaskQueue* tq;
@@ -176,8 +176,8 @@ static void onRequest(HttpServerEvent* ev)
 
         objAcquire(req);
         if (!tqCall(ctx->tq, slowWork, req)) {
-            objRelease(&req);
             httpsrvreqRespondStatus(req, HTTP_ServiceUnavailable);
+            objRelease(&req);
         }
         return;
     }
@@ -357,8 +357,12 @@ int entryPoint()
            stvar(uint32, (uint32)httpserverPort(srv)));
     conPuts(conErr(), _SL("try /fast, /slow, /stream, /echo -- ctrl-c to stop\n\n"));
 
+    // netqueuePresetServer() sizes a worker pool to the machine, so this queue runs threaded: an
+    // ingest thread and dispatch workers are already driving it. Calling netqueueTick() here too
+    // would race that ingest thread's own select() wait -- tick() is for polled mode only. The
+    // main thread has nothing left to do but stay alive until ctrl-c.
     for (;;)
-        netqueueTick(q, TICK_WAIT_US);
+        osSleep(IDLE_SLEEP_US);
 
 out:
     if (srv) {

@@ -893,7 +893,11 @@ bool NetQueueWinIOCP_shutdown(_In_ NetQueueWinIOCP* self, int64 timeout)
 bool NetQueueWinIOCP_tick(_In_ NetQueueWinIOCP* self, int64 wait)
 {
     // Polled mode only: service completions on the caller's thread. Wait up to `wait` for the
-    // first, then pull the rest non-blocking so one tick services a whole burst.
+    // first, then pull the rest non-blocking so one tick services a whole burst. In threaded mode
+    // the completion threads already own this port -- calling tick() too would race them for
+    // completions, same polled-XOR-threaded contract as the other backends.
+    devAssertMsg(saSize(self->iothreads) == 0, "netqueueTick() called on a threaded NetQueue");
+
     NetQueue* q = NetQueue(self);
     HANDLE port = (HANDLE)self->iocp;
 
