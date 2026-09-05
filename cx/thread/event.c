@@ -61,11 +61,24 @@ bool eventSignalMany(Event* e, int32 count)
         aspinHandleContention(&e->aspin, &astate);
     }
 
-    if (count > 0) {
+    int32 nwake = count;
+
+    // The waiter count was read before the store above was published, but a thread on its way to
+    // sleep bumps that count and only then re-checks the value. Those two orders are opposites, so
+    // a thread that registered in between is invisible to everything above: it is not in count, and
+    // it is already asleep on the value the store replaced. That hangs forever because nothing else
+    // is coming to wake it.
+    //
+    // Re-reading the count here catches it. Anything that could still be asleep on the replaced
+    // value has bumped the count by now, and the acquire half of the compare-exchange orders them.
+    if (nwake == 0 && val == 0 && atomicLoad(int32, &e->waiters, Relaxed) > 0)
+        nwake = 1;
+
+    if (nwake > 0) {
         if (!e->uiev)
-            futexWakeMany(&e->ftx, count);
+            futexWakeMany(&e->ftx, nwake);
         else
-            uieventSignal(e->uiev, count);
+            uieventSignal(e->uiev, nwake);
     }
 
     // return true if we woke something up or signaled the event
@@ -84,13 +97,37 @@ bool eventSignalAll(Event* e)
         aspinHandleContention(&e->aspin, &astate);
     }
 
-    // set the futex value the number of waiters so they all wake up.
-    // This is a broadcast event, so we don't need to worry about a race between the previous atomic
-    // and this one -- any new waiters after we read the number will just have to wait.
+    // set the futex value the number of waiters so they all wake up
     int32 val = atomicLoad(int32, &e->ftx.val, Relaxed);
     while (val >= 0 &&
            !atomicCompareExchange(int32, weak, &e->ftx.val, &val, val + waiters, AcqRel, Relaxed)) {
         aspinHandleContention(&e->aspin, &astate);
+    }
+
+    // A thread that registered while the store above was in flight is asleep on the value that
+    // store replaced and got no token out of it, so the broadcast below would wake it only for it
+    // to find the event unsignaled and go straight back to sleep. Take those late registrants and
+    // give them tokens too; see eventSignalMany() for why the count is trustworthy only once the
+    // store has been published.
+    int32 late = atomicLoad(int32, &e->waiters, Relaxed);
+    while (late > 0 &&
+           !atomicCompareExchange(int32, weak, &e->waiters, &late, 0, Relaxed, Relaxed)) {
+        aspinHandleContention(&e->aspin, &astate);
+    }
+
+    if (late > 0 && val >= 0) {
+        int32 lateval = atomicLoad(int32, &e->ftx.val, Relaxed);
+        while (lateval >= 0 &&
+               !atomicCompareExchange(int32,
+                                      weak,
+                                      &e->ftx.val,
+                                      &lateval,
+                                      lateval + late,
+                                      AcqRel,
+                                      Relaxed)) {
+            aspinHandleContention(&e->aspin, &astate);
+        }
+        waiters += late;
     }
 
     // let the herd come thundering
@@ -137,8 +174,12 @@ bool eventWaitTimeout(Event* e, uint64 timeout)
                 return false;
 
             if (!aspinSpin(&e->aspin, &astate)) {
-                // track waiters for wakeup purposes
-                atomicFetchAdd(int32, &e->waiters, 1, Relaxed);
+                // Track waiters for wakeup purposes. Sequentially consistent because the
+                // signaling side reads this count after publishing the futex value and this side
+                // re-checks that value after bumping the count: relaxed would let a weakly
+                // ordered machine reorder the two and lose the wakeup entirely. Free on x86,
+                // where the RMW is already a full barrier.
+                atomicFetchAdd(int32, &e->waiters, 1, SeqCst);
 
                 // shortwait is set if we weren't woken up by another thread and need to undo the
                 // waiter tracking. earlyret is set if we need to exit the loop now rather than
