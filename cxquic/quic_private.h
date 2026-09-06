@@ -217,6 +217,11 @@ _Success_(return) bool _quicHdrEncode(_Inout_ QuicWr* wr, _In_ const QuicPktHdr*
 #define QUIC_FRAME_CONNECTION_CLOSE_APP 0x1d
 #define QUIC_FRAME_HANDSHAKE_DONE       0x1e
 
+// RFC 9221. The two forms differ only in whether a length field is present; without one the
+// frame runs to the end of the packet.
+#define QUIC_FRAME_DATAGRAM             0x30
+#define QUIC_FRAME_DATAGRAM_LEN         0x31
+
 // The low three bits of a STREAM frame type say which optional fields are present.
 #define QUIC_STREAM_FIN 0x01
 #define QUIC_STREAM_LEN 0x02
@@ -264,6 +269,7 @@ typedef struct QuicFrame {
             uint64 error, frameType, reasonLen;
             const uint8* reason;
         } connClose;
+        struct { uint64 len; const uint8* data; } datagram;
     };
 } QuicFrame;
 

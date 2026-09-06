@@ -43,6 +43,11 @@
 // leaves room to sample. Room below this is a full window rather than a nearly full one.
 #define QUIC_MIN_SEND_ROOM (1 + QUIC_MAX_CID + 4 + QUIC_TAG_LEN + QUIC_MIN_PN_PAYLOAD)
 
+// What a DATAGRAM frame costs beyond its payload: the type byte, and a two-byte length varint,
+// which is what every payload from 64 bytes up needs and no payload that fits in a packet needs
+// more than.
+#define QUIC_DGRAM_FRAME_OVERHEAD 3
+
 struct QuicConn {
     bool server;
     uint8 state;              // QuicConnState
@@ -169,6 +174,14 @@ struct QuicConn {
     uint32 nretireQueue;
 
     QuicRecovery recov;
+
+    // RFC 9221: one unreliable datagram waiting to go out, and nothing at all remembered about one
+    // that already has. Room for a single datagram is what makes the refusal honest -- the slot is
+    // still full only while the congestion window or the pacer is actually holding it back, which
+    // is exactly when the layer above needs to hear that its send did not happen.
+    uint8 dgramOut[QUIC_MAX_DATAGRAM];
+    size_t dgramOutLen;
+    bool dgramPending;
 
     // Frames for one packet are built here before the packet they go in exists, since a packet's
     // header cannot be written until its payload length is known.
@@ -647,7 +660,8 @@ static bool tpNotReduced(_In_ const QuicTransportParams* now, _In_ const QuicTra
            now->initMaxSdUni        >= was->initMaxSdUni &&
            now->initMaxStreamsBidi  >= was->initMaxStreamsBidi &&
            now->initMaxStreamsUni   >= was->initMaxStreamsUni &&
-           now->activeCidLimit      >= was->activeCidLimit;
+           now->activeCidLimit      >= was->activeCidLimit &&
+           now->maxDatagramFrame    >= was->maxDatagramFrame;
 }
 
 // The transport parameters of the session a ticket came from. Always the server's, whichever end
@@ -1199,6 +1213,40 @@ static void putAppFrames(_Inout_ QuicConn* c, _Inout_ QuicWr* wr, uint64 pn, boo
     }
 }
 
+// Writes the pending unreliable datagram, if one fits (RFC 9221).
+//
+// Nothing about it is recorded. Every other frame in this file that matters remembers the packet
+// number it went out in, so that a loss can queue it again; a DATAGRAM frame is precisely the one
+// that must not be, which is why neither the acknowledgement path nor the loss path has a case for
+// it. The frame is still ack-eliciting and still counts against the congestion window -- RFC 9221
+// removes the repair, not the accounting.
+static void putDatagram(_Inout_ QuicConn* c, _Inout_ QuicWr* wr, _Inout_ bool* eliciting)
+{
+    if (!c->dgramPending)
+        return;
+
+    QuicFrame f;
+    memset(&f, 0, sizeof(f));
+    f.type          = QUIC_FRAME_DATAGRAM_LEN;
+    f.datagram.len  = c->dgramOutLen;
+    f.datagram.data = c->dgramOut;
+
+    // Too large for what is left of this packet. Writing nothing leaves the slot full, and since
+    // something else did take room in this packet a packet does go out -- so the flush loop comes
+    // round and builds a fresh, empty one, which the whole frame does fit in. That is what lets a
+    // full-size datagram travel whole rather than being dropped because an acknowledgement got
+    // into the packet ahead of it.
+    if (!putFrame(wr, &f))
+        return;
+
+    c->dgramPending = false;
+    c->dgramOutLen  = 0;
+    *eliciting      = true;
+
+    if (c->handlers && c->handlers->datagramWritable)
+        c->handlers->datagramWritable(c->hctx);
+}
+
 // Fills one packet's payload. Returns how many bytes were written; zero means this number space
 // has nothing to say and no packet should be built for it.
 //
@@ -1234,6 +1282,11 @@ static size_t buildPayload(_Inout_ QuicConn* c, int sp, bool early,
 
     if (sp == QUIC_PNS_APP && (early || c->handshakeComplete)) {
         putAppFrames(c, &wr, pn, early, eliciting);
+
+        // Before the stream layer's hook: a datagram that has to wait is worth less than a stream
+        // byte that has to wait, and going first is what leaves a full-size one a whole packet to
+        // claim rather than the remainder after stream data took what it wanted.
+        putDatagram(c, &wr, eliciting);
 
         size_t used = _quicWrLen(&wr);
         if (c->handlers && c->handlers->fill && used < budget) {
@@ -1305,6 +1358,12 @@ static bool connWantsToSend(_In_ const QuicConn* c)
     if (c->handshakeDone.state == QUIC_CTL_PENDING ||
         (c->pathResponse.state == QUIC_CTL_PENDING && !c->respondElsewhere) ||
         c->pathChallenge.state == QUIC_CTL_PENDING)
+        return true;
+
+    // A datagram still in the slot is data the congestion window is holding back, so an
+    // acknowledgement arriving while it waits measured the path rather than this endpoint running
+    // out of things to say (RFC 9002 section 7.8).
+    if (c->dgramPending)
         return true;
 
     for (uint32 i = 0; i < c->nretireQueue; i++) {
@@ -2110,6 +2169,29 @@ static void handleConnClose(_Inout_ QuicConn* c, _In_ const QuicFrame* f, int64 
     }
 }
 
+// RFC 9221 section 3. An endpoint that left max_datagram_frame_size at zero said it would not read
+// these at all, and one that named a size said nothing above it would fit. A peer that sends
+// either anyway has ignored what this endpoint asked for, which is a protocol violation rather
+// than something to drop quietly.
+static bool handleDatagram(_Inout_ QuicConn* c, _In_ const QuicFrame* f)
+{
+    // The parameter bounds the whole frame, not just its payload, so the type and the length field
+    // count towards it.
+    uint64 frameSize = _quicVarintSize(f->type) + f->datagram.len;
+    if (f->type == QUIC_FRAME_DATAGRAM_LEN)
+        frameSize += _quicVarintSize(f->datagram.len);
+
+    if (c->localTp.maxDatagramFrame == 0 || frameSize > c->localTp.maxDatagramFrame) {
+        _quicConnAbort(c, QUIC_ERR_PROTOCOL_VIOLATION, f->type);
+        return false;
+    }
+
+    if (c->handlers && c->handlers->datagramRecv)
+        c->handlers->datagramRecv(c->hctx, f->datagram.data, (size_t)f->datagram.len);
+
+    return true;
+}
+
 static bool handleFrame(_Inout_ QuicConn* c, int sp, _In_ const QuicFrame* f,
                         _In_ const QuicPktHdr* h, int64 now)
 {
@@ -2166,6 +2248,13 @@ static bool handleFrame(_Inout_ QuicConn* c, int sp, _In_ const QuicFrame* f,
             c->havePrev = false;
         }
         return true;
+
+    case QUIC_FRAME_DATAGRAM:
+    case QUIC_FRAME_DATAGRAM_LEN:
+        // Needs a case of its own: the default below hands anything unlisted to the stream layer,
+        // which would not know what to do with a frame that names no stream and would end the
+        // connection over it.
+        return handleDatagram(c, f);
 
     case QUIC_FRAME_CONNECTION_CLOSE:
     case QUIC_FRAME_CONNECTION_CLOSE_APP:
@@ -2927,6 +3016,57 @@ bool _quicConnEcnActive(const QuicConn* c)
 }
 
 // ---------------------------------------------------------------------------------------------
+// Unreliable datagrams (RFC 9221)
+// ---------------------------------------------------------------------------------------------
+
+_Use_decl_annotations_
+size_t _quicConnMaxDatagram(const QuicConn* c)
+{
+    // Both ends have to have advertised: this endpoint's parameter is what lets the peer send, and
+    // the peer's is what lets this one.
+    if (c->localTp.maxDatagramFrame == 0 || !c->peerTpValid || c->peerTp.maxDatagramFrame == 0)
+        return 0;
+
+    size_t cap = c->mtu;
+    if (cap > QUIC_MAX_DATAGRAM)
+        cap = QUIC_MAX_DATAGRAM;
+
+    // What a 1-RTT packet spends before its payload starts: the short header this endpoint writes,
+    // and the authentication tag after it. The packet number is taken at its widest, since how
+    // wide it will actually be when the datagram goes out is not known here -- and a limit that
+    // moved with the packet number would be a limit no caller could rely on.
+    size_t over = 1 + c->remote[c->remoteActive].cid.len + 4 + QUIC_TAG_LEN +
+                  QUIC_DGRAM_FRAME_OVERHEAD;
+    if (cap <= over)
+        return 0;
+
+    size_t byPath = cap - over;
+
+    uint64 byPeer = c->peerTp.maxDatagramFrame > QUIC_DGRAM_FRAME_OVERHEAD
+                        ? c->peerTp.maxDatagramFrame - QUIC_DGRAM_FRAME_OVERHEAD
+                        : 0;
+
+    return byPeer < (uint64)byPath ? (size_t)byPeer : byPath;
+}
+
+_Use_decl_annotations_
+bool _quicConnDatagramSend(QuicConn* c, const uint8* data, size_t len)
+{
+    if (c->dgramPending || c->state == QUIC_CS_CLOSING || c->state == QUIC_CS_DRAINING ||
+        c->state == QUIC_CS_CLOSED)
+        return false;
+
+    size_t max = _quicConnMaxDatagram(c);
+    if (max == 0 || len > max)
+        return false;
+
+    memcpy(c->dgramOut, data, len);
+    c->dgramOutLen  = len;
+    c->dgramPending = true;
+    return true;
+}
+
+// ---------------------------------------------------------------------------------------------
 // Lifecycle
 // ---------------------------------------------------------------------------------------------
 
@@ -3179,9 +3319,12 @@ void _quicConnDebug(const QuicConn* c, int64 now, strhandle out)
             stvar(int64, (int64)(c->pathRecv * 3) - (int64)c->pathSent),
             stvar(uint64, (uint64)c->mtu));
 
-    DBGLINE(_SL("conn: wantsToSend=${uint} idleIn=${int}us deadlineIn=${int}us\n"),
+    DBGLINE(_SLL("conn: wantsToSend=${uint} idleIn=${int}us deadlineIn=${int}us "
+                "dgramPending=${uint} dgramLen=${uint} dgramMax=${uint}\n"),
             stvar(uint32, connWantsToSend(c) ? 1u : 0u), stvar(int64, c->idleDeadline - now),
-            stvar(int64, _quicConnDeadline(c) - now));
+            stvar(int64, _quicConnDeadline(c) - now),
+            stvar(uint32, c->dgramPending ? 1u : 0u), stvar(uint64, (uint64)c->dgramOutLen),
+            stvar(uint64, (uint64)_quicConnMaxDatagram(c)));
 
     bool canSend    = _quicRecovCanSend(r);
     bool pacerReady = _quicRecovPacerReady(r);

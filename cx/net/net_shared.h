@@ -527,6 +527,8 @@ typedef enum {
     /// NULL, and the handler drains the ring with netsocketRecv() or netsocketRecvMsgs().
     /// For a QUIC stream (NST_Quic): recv.msg is NULL and the handler takes the bytes from the
     /// flow with netquicRecv(), which is also what reopens that stream's receive window.
+    /// For a QUIC datagram flow (netquicOpenDatagram()): one event per datagram, delivered whole
+    /// as recv.msg the way a datagram socket does.
     /// NetEvent.recv.bytes is what this event delivered; NetEvent.recv.total is everything
     /// currently pending.
     NET_DataReceived,

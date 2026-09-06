@@ -194,6 +194,23 @@ bool _quicFrameDecode(QuicFrame* f, QuicRd* rd)
         return true;
     }
 
+    case QUIC_FRAME_DATAGRAM:
+    case QUIC_FRAME_DATAGRAM_LEN: {
+        size_t len;
+        if (f->type == QUIC_FRAME_DATAGRAM_LEN) {
+            f->datagram.data = _quicRdVarintBytes(rd, &len);
+        } else {
+            // With no length field the frame runs to the end of the packet, the same way a STREAM
+            // frame without one does -- and for the same reason it has to be the last one.
+            len = _quicRdLeft(rd);
+            f->datagram.data = _quicRdBytes(rd, len);
+        }
+        if (rd->bad)
+            return false;
+        f->datagram.len = len;
+        return true;
+    }
+
     case QUIC_FRAME_CONNECTION_CLOSE:
     case QUIC_FRAME_CONNECTION_CLOSE_APP: {
         size_t len;
@@ -285,6 +302,12 @@ size_t _quicFrameSize(const QuicFrame* f)
     case QUIC_FRAME_PATH_CHALLENGE:
     case QUIC_FRAME_PATH_RESPONSE:
         return t + QUIC_PATH_DATA_LEN;
+
+    // Only the form with a length is ever written. The other has to be the last frame in its
+    // packet, and the builder cannot promise that: the stream layer's fill hook runs after every
+    // connection-owned frame and would write past it. The length varint is what that costs.
+    case QUIC_FRAME_DATAGRAM_LEN:
+        return t + _quicVarintSize(f->datagram.len) + (size_t)f->datagram.len;
 
     case QUIC_FRAME_CONNECTION_CLOSE:
     case QUIC_FRAME_CONNECTION_CLOSE_APP: {
@@ -410,6 +433,10 @@ bool _quicFrameEncode(QuicWr* wr, const QuicFrame* f)
     case QUIC_FRAME_PATH_CHALLENGE:
     case QUIC_FRAME_PATH_RESPONSE:
         _quicWrBytes(wr, f->path.data, QUIC_PATH_DATA_LEN);
+        break;
+
+    case QUIC_FRAME_DATAGRAM_LEN:
+        _quicWrVarintBytes(wr, f->datagram.data, (size_t)f->datagram.len);
         break;
 
     case QUIC_FRAME_CONNECTION_CLOSE:

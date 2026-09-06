@@ -306,6 +306,8 @@ _Pure static strref frameName(uint64 type)
     case QUIC_FRAME_CONNECTION_CLOSE:
     case QUIC_FRAME_CONNECTION_CLOSE_APP: return _S "connection_close";
     case QUIC_FRAME_HANDSHAKE_DONE:      return _S "handshake_done";
+    case QUIC_FRAME_DATAGRAM:
+    case QUIC_FRAME_DATAGRAM_LEN:        return _S "datagram";
     default:
         if (type >= QUIC_FRAME_STREAM && type < QUIC_FRAME_MAX_DATA)
             return _S "stream";
@@ -424,6 +426,11 @@ static void putFrame(_Inout_ QuicQlog* ql, _In_ const QuicFrame* f)
     case QUIC_FRAME_PADDING:
         put(ql, _S ",\"");
         putKeyU(ql, _S "payload_length", f->padding);
+        break;
+    case QUIC_FRAME_DATAGRAM:
+    case QUIC_FRAME_DATAGRAM_LEN:
+        put(ql, _S ",\"");
+        putKeyU(ql, _S "length", f->datagram.len);
         break;
     default:
         break;

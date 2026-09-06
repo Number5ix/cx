@@ -112,6 +112,15 @@ typedef struct QNSide {
     // sending half once the peer has ended its own. Leaving the rest unread is what holds the
     // peer's window shut, which is what an application that echoes actually does.
     bool echoPump;
+
+    // The unreliable datagram channel. Unlike a stream there is at most one per connection, and
+    // what arrives on it is a whole payload in the event rather than bytes to be drained.
+    NetFlow* dgFlow;
+    uint32 ndgram;          // datagrams delivered here
+    uint32 nDgSendReady;    // NET_SendReady on the datagram flow
+    size_t dgLast;          // length of the most recent one
+    Buffer dgData;          // its payload
+    bool dgEcho;            // send whatever arrives straight back
 } QNSide;
 
 typedef struct QNFix {
@@ -199,6 +208,14 @@ static void qnOnFlowOpen(_Inout_ NetEvent* ev)
 {
     QNSide* s = (QNSide*)ev->ctx;
 
+    // The peer's first datagram is what admits this flow on the receiving end, so this is where
+    // an end that never asked for the channel itself finds out it has one.
+    if (objDynCast(QuicDatagram, ev->flow)) {
+        if (!s->dgFlow)
+            s->dgFlow = objAcquire(ev->flow);
+        return;
+    }
+
     s->nOpened++;
     qnStream(s, ev->flow);
 }
@@ -236,9 +253,32 @@ static void qnEcho(_Inout_ QNSide* s, _Inout_ QNStream* st)
     }
 }
 
+// A datagram flow delivers the whole payload in the event, the way a datagram socket does, so
+// there is nothing to drain afterwards and nothing to accumulate across events.
+static void qnOnDatagram(_Inout_ QNSide* s, _Inout_ NetEvent* ev)
+{
+    Buffer buf = ev->recv.msg ? ev->recv.msg->buf : NULL;
+
+    s->ndgram++;
+    s->dgLast = buf ? buf->len : 0;
+
+    bufDestroy(&s->dgData);
+    if (buf)
+        bufAppendBytes(&s->dgData, buf->data, buf->len);
+
+    if (s->dgEcho && buf)
+        netflowSend(ev->flow, buf->data, buf->len, 0);
+}
+
 static void qnOnRecv(_Inout_ NetEvent* ev)
 {
     QNSide* s   = (QNSide*)ev->ctx;
+
+    if (objDynCast(QuicDatagram, ev->flow)) {
+        qnOnDatagram(s, ev);
+        return;
+    }
+
     QNStream* st = qnStream(s, ev->flow);
 
     s->announced += ev->recv.bytes;
@@ -305,6 +345,12 @@ static void qnPump(_Inout_ QNSide* s)
 static void qnOnSendReady(_Inout_ NetEvent* ev)
 {
     QNSide* s = (QNSide*)ev->ctx;
+
+    if (objDynCast(QuicDatagram, ev->flow)) {
+        s->nDgSendReady++;
+        return;
+    }
+
     s->nSendReady++;
 
     if (s->pumpFlow && ev->flow == s->pumpFlow)
@@ -355,6 +401,9 @@ static void qnOnFlowClosed(_Inout_ NetEvent* ev)
         }
         return;
     }
+
+    if (objDynCast(QuicDatagram, ev->flow))
+        return;
 
     s->nStreamClosed++;
     s->streamCloseReason = ev->closed.reason;
@@ -427,6 +476,8 @@ static void qnSideDestroy(_Inout_ QNSide* s)
     for (uint32 i = 0; i < s->nstreams; i++)
         bufDestroy(&s->streams[i].data);
 
+    bufDestroy(&s->dgData);
+    objRelease(&s->dgFlow);
     objRelease(&s->sock);
 }
 
@@ -1723,6 +1774,187 @@ out:
     return ret;
 }
 
+// ---------------------------------------------------------------------------------------------
+// Unreliable datagrams (RFC 9221)
+// ---------------------------------------------------------------------------------------------
+
+// One flow, whole payloads in and out, at several sizes including the largest the connection will
+// take. Boundaries are the property under test: a stream would deliver the same bytes without them.
+static int test_quicnettest_datagram(void)
+{
+    int ret = 0;
+    QNFix f;
+
+    QuicConfig cfg = { .datagrams = true };
+    CHECK("connect", qnConnect(&f, &cfg));
+
+    f.srv.dgEcho = true;
+
+    f.cli.dgFlow = netquicOpenDatagram(f.cli.sock);
+    CHECK("the datagram channel was not offered", f.cli.dgFlow != NULL);
+
+    size_t max = netquicMaxDatagram(f.cli.sock);
+    CHECK("no datagram size limit", max > 0);
+
+    uint8* payload = xaAlloc(max);
+    for (size_t i = 0; i < max; i++)
+        payload[i] = (uint8)(i * 37 + 5);
+
+    const size_t sizes[] = { 1, 64, 1000, 0 };   // the last is filled in with the limit
+    uint32 sent = 0;
+
+    for (uint32 i = 0; i < 4; i++) {
+        size_t len = sizes[i] ? sizes[i] : max;
+        if (len > max)
+            continue;
+
+        // One at a time: the connection holds one datagram waiting to go out, so a second send
+        // before the first has left is refused by design.
+        f.cli.ndgram = 0;
+        bool ok      = netflowSend(f.cli.dgFlow, payload, len, 0);
+        if (!ok)
+            break;
+        sent++;
+
+        QN_WAIT(&f, f.cli.ndgram > 0, QN_BUDGET);
+
+        if (f.cli.ndgram != 1 || f.cli.dgLast != len || !f.cli.dgData ||
+            memcmp(f.cli.dgData->data, payload, len) != 0) {
+            TEST_FAILV(ret, 1, _SL("datagram of ${int} bytes came back as ${int}"),
+                       stvar(int64, (int64)len), stvar(int64, (int64)f.cli.dgLast));
+            break;
+        }
+    }
+
+    xaFree(payload);
+    if (ret != 0)
+        goto out;
+
+    CHECK_U("datagrams sent", sent, 4);
+    CHECK_U("datagrams the server saw", f.srv.ndgram, 4);
+
+    // The channel is one flow, not one per datagram, and the stream calls do not reach it.
+    CHECK("it was counted as a stream", f.cli.nOpened == 0 && f.srv.nOpened == 0);
+
+    uint8 scratch[16];
+    CHECK_U("netquicRecv on a datagram flow returned bytes",
+            netquicRecv(f.cli.dgFlow, scratch, sizeof(scratch), NULL), 0);
+    CHECK_U("netquicReadable on a datagram flow", netquicReadable(f.cli.dgFlow), 0);
+
+    NetFlow* again = netquicOpenDatagram(f.cli.sock);
+    bool same      = again == f.cli.dgFlow;
+    objRelease(&again);
+    CHECK("opening the channel twice made two flows", same);
+
+out:
+    qnFixDestroy(&f);
+    return ret;
+}
+
+// The size limit is a real refusal, not advice.
+static int test_quicnettest_datagram_size(void)
+{
+    int ret = 0;
+    QNFix f;
+
+    QuicConfig cfg = { .datagrams = true };
+    CHECK("connect", qnConnect(&f, &cfg));
+
+    f.cli.dgFlow = netquicOpenDatagram(f.cli.sock);
+    CHECK("the datagram channel was not offered", f.cli.dgFlow != NULL);
+
+    size_t max = netquicMaxDatagram(f.cli.sock);
+    CHECK("no datagram size limit", max > 0);
+
+    uint8* payload = xaAlloc(max + 1);
+    memset(payload, 0x5a, max + 1);
+
+    bool tooBig = netflowSend(f.cli.dgFlow, payload, max + 1, 0);
+    bool exact  = netflowSend(f.cli.dgFlow, payload, max, 0);
+
+    xaFree(payload);
+
+    CHECK("a datagram one byte over the limit was accepted", !tooBig);
+    CHECK("a datagram of exactly the limit was refused", exact);
+
+    QN_WAIT(&f, f.srv.ndgram > 0, QN_BUDGET);
+    CHECK_U("datagrams the server received", f.srv.ndgram, 1);
+    CHECK_U("its length", f.srv.dgLast, max);
+
+out:
+    qnFixDestroy(&f);
+    return ret;
+}
+
+// Both ends have to ask for it, and there is no channel at all if either did not.
+static int test_quicnettest_datagram_unsupported(void)
+{
+    int ret = 0;
+    QNFix f;
+
+    CHECK("connect", qnConnect(&f, NULL));
+
+    CHECK("a client that never asked for datagrams was given a channel",
+          netquicOpenDatagram(f.cli.sock) == NULL);
+    CHECK("a server that never asked for datagrams was given a channel",
+          netquicOpenDatagram(f.srv.sock) == NULL);
+    CHECK_U("its datagram size limit", netquicMaxDatagram(f.cli.sock), 0);
+    CHECK_U("the server's", netquicMaxDatagram(f.srv.sock), 0);
+
+out:
+    qnFixDestroy(&f);
+    return ret;
+}
+
+// A send with the congestion window full is refused rather than queued, and NET_SendReady is the
+// edge that says to try again. Nothing is delivered here between sends, so the window fills and
+// stays full until the test lets acknowledgements through.
+static int test_quicnettest_datagram_blocked(void)
+{
+    int ret = 0;
+    QNFix f;
+
+    QuicConfig cfg = { .datagrams = true };
+    CHECK("connect", qnConnect(&f, &cfg));
+
+    f.cli.dgFlow = netquicOpenDatagram(f.cli.sock);
+    CHECK("the datagram channel was not offered", f.cli.dgFlow != NULL);
+
+    size_t max = netquicMaxDatagram(f.cli.sock);
+    CHECK("no datagram size limit", max > 0);
+
+    uint8* payload = xaAlloc(max);
+    memset(payload, 0xa5, max);
+
+    uint32 accepted = 0;
+    bool refused    = false;
+
+    for (uint32 i = 0; i < 4000; i++) {
+        if (!netflowSend(f.cli.dgFlow, payload, max, 0)) {
+            refused = true;
+            break;
+        }
+        accepted++;
+    }
+
+    xaFree(payload);
+
+    CHECK("the congestion window never filled", refused);
+    CHECK("nothing was accepted at all", accepted > 0);
+
+    // The refusal is answered: once acknowledgements come back the window reopens, the datagram
+    // that was waiting goes out, and the flow says so.
+    QN_WAIT(&f, f.cli.nDgSendReady > 0, QN_BUDGET);
+    CHECK("no NET_SendReady followed the refusal", f.cli.nDgSendReady > 0);
+
+    CHECK("nothing arrived at all", f.srv.ndgram > 0);
+    CHECK("the connection did not survive", f.cli.connClosed == false);
+
+out:
+    qnFixDestroy(&f);
+    return ret;
+}
+
 testfunc quicnettest_funcs[] = {
 #if defined(_PLATFORM_WIN) || defined(_PLATFORM_UNIX) || defined(_PLATFORM_WASM)
     { "handshake",      test_quicnettest_handshake      },
@@ -1751,6 +1983,10 @@ testfunc quicnettest_funcs[] = {
     { "pathmtu",        test_quicnettest_pathmtu         },
     { "migrate",        test_quicnettest_migrate         },
     { "earlydata",      test_quicnettest_earlydata       },
+    { "datagram",             test_quicnettest_datagram             },
+    { "datagram_size",        test_quicnettest_datagram_size        },
+    { "datagram_unsupported", test_quicnettest_datagram_unsupported },
+    { "datagram_blocked",     test_quicnettest_datagram_blocked     },
 #endif
     { NULL,             NULL                            }
 };

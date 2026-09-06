@@ -582,6 +582,13 @@ static const testspec tests[] = {
     { "quicconn: Early Data Rejected", "quicconntest", "early_rejected" },
     { "quicconn: Frame Forbidden In 0-RTT", "quicconntest", "early_badframe" },
     { "quicconn: Resumption Without Early Data", "quicconntest", "early_off" },
+    { "quicconn: Datagram Parameters", "quicconntest", "dgram_params" },
+    { "quicconn: Datagram Frames", "quicconntest", "dgram_frame" },
+    { "quicconn: Datagram Round Trip", "quicconntest", "dgram_cross" },
+    { "quicconn: Datagram Coalescing", "quicconntest", "dgram_coalesce" },
+    { "quicconn: Full-Size Datagram", "quicconntest", "dgram_solo" },
+    { "quicconn: Lost Datagram", "quicconntest", "dgram_lost" },
+    { "quicconn: Unwanted Datagram", "quicconntest", "dgram_refused" },
     { "quicconn: Stream Round Trip", "quicconntest", "stream_echo" },
     { "quicconn: Stream Bulk Transfer", "quicconntest", "stream_bulk" },
     { "quicconn: Stream Transfer Under Loss", "quicconntest", "stream_loss" },
@@ -617,6 +624,10 @@ static const testspec tests[] = {
     { "quicnet: Path MTU Discovery", "quicnettest", "pathmtu" },
     { "quicnet: Connection Migration", "quicnettest", "migrate" },
     { "quicnet: Early Data", "quicnettest", "earlydata" },
+    { "quicnet: Datagrams", "quicnettest", "datagram" },
+    { "quicnet: Datagram Size Limit", "quicnettest", "datagram_size" },
+    { "quicnet: Datagrams Not Negotiated", "quicnettest", "datagram_unsupported" },
+    { "quicnet: Blocked Datagram", "quicnettest", "datagram_blocked" },
 #endif
 #endif
 #if defined(CX_TLS_TESTS) && (defined(_PLATFORM_WIN) || defined(_PLATFORM_UNIX))

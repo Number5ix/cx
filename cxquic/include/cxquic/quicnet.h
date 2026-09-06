@@ -59,6 +59,12 @@ typedef struct QuicConfig {
     /// token it carried. That costs one extra round trip per connection and makes a flood of
     /// spoofed source addresses cost the server nothing but the reply.
     bool retry;
+
+    /// @brief Offer the unreliable datagram channel (RFC 9221)
+    ///
+    /// Both ends must set it, and it can only be agreed during the handshake. Off by default. See
+    /// netquicOpenDatagram().
+    bool datagrams;
 } QuicConfig;
 
 /// Write a qlog file for every connection created after this call
@@ -232,6 +238,38 @@ _Success_(return) bool netquicALPN(_In_ NetSocket* sock, _Inout_ strhandle out);
 ///         limit on how many streams may exist has been reached -- in which case a
 ///         STREAMS_BLOCKED frame has been queued telling it so
 _Ret_maybenull_ NetFlow* netquicOpen(_In_ NetSocket* sock, bool uni);
+
+/// Open the unreliable datagram channel of a connection
+///
+/// A connection has at most one, and this returns the same flow every time. Sending on it puts one
+/// datagram on the wire whole; each one that arrives is a single NET_DataReceived carrying the
+/// whole payload in NetEvent::recv.msg, the way a UDP socket delivers one. Nothing is
+/// retransmitted -- a datagram lost on the way is gone, and nothing is delivered to say so.
+///
+/// The stream calls (netquicRecv(), netquicWritable(), netquicFinish(), netquicReset()) do not
+/// apply to this flow.
+///
+/// @param sock Connection socket
+/// @return The datagram flow (a reference the caller must release), or NULL if either end left
+///         QuicConfig::datagrams off, or the handshake has not settled the parameters yet
+///
+/// Example:
+/// @code
+///   NetFlow *dg = netquicOpenDatagram(sock);
+///   if (dg && len <= netquicMaxDatagram(sock))
+///       netflowSend(dg, data, len, 0);
+/// @endcode
+_Ret_maybenull_ NetFlow* netquicOpenDatagram(_In_ NetSocket* sock);
+
+/// Largest datagram netflowSend() would accept on the datagram flow right now
+///
+/// This grows as path MTU discovery finds room, so read it before each send rather than keeping
+/// the answer. A send larger than this is refused.
+///
+/// @param sock Connection socket
+/// @return Number of bytes that fit in one datagram, or 0 if the connection has no datagram
+///         channel
+size_t netquicMaxDatagram(_In_ NetSocket* sock);
 
 /// Read from a stream
 ///

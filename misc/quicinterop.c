@@ -11,13 +11,24 @@
 // its sending half; the server writes n bytes back and ends its own. Only the length is checked in
 // this mode, since the bytes come from whatever implementation is on the other end.
 //
+// "dgram" is RFC 9221 unreliable datagrams, and uses no streams at all: the client sends -streams
+// datagrams of -size bytes each, numbered in their first four bytes, and the server sends each one
+// straight back. Nothing here is retransmitted, so a datagram lost on the path is a shortfall in
+// the count rather than something the run waits out.
+//
+// -push is for peers that agree to datagrams but never send one: it makes a server advertise the
+// extension whatever protocol it is serving, and put a datagram on every connection that
+// negotiated it. What is being checked there is only that the peer takes the frame -- an
+// implementation that rejected it would end the connection, and the stream test running alongside
+// would fail with it.
+//
 // A mismatch anywhere -- wrong bytes, short stream, no connection at all -- exits nonzero, which
 // is what makes this usable from a script that runs it against each implementation in turn.
 //
 // Usage:
-//   quicinterop server -port N -cert cert.pem -key key.pem [-proto echo|hq] [-alpn NAME]
-//   quicinterop client -host H -port N [-ca ca.pem] [-sni NAME] [-proto echo|hq] [-alpn NAME]
-//                      [-streams N] [-size N] [-0rtt] [-insecure]
+//   quicinterop server -port N -cert cert.pem -key key.pem [-proto echo|hq|dgram] [-alpn NAME]
+//   quicinterop client -host H -port N [-ca ca.pem] [-sni NAME] [-proto echo|hq|dgram]
+//                      [-alpn NAME] [-streams N] [-size N] [-0rtt] [-insecure]
 
 #include <cxquic.h>
 
@@ -37,6 +48,13 @@ DEFINE_ENTRY_POINT;
 #define IDLE_TIMEOUT_US timeS(15)
 #define MAX_STREAMS     64
 
+// The largest datagram this tool will send. Bigger than any path allows, so the connection's own
+// limit is always what decides and this is only the size of the buffer it is built in.
+#define QUIC_MAX_DGRAM_BUF 1500
+
+// How many arrived datagrams the echo server will hold when it cannot send them straight back.
+#define DGRAM_ECHO_QUEUE 64
+
 // Byte i of a stream is (i*31 + 7) mod 251. A lost or duplicated chunk shows up as a value
 // mismatch at a known offset rather than only as a wrong total length.
 static uint8 patternByte(size_t i)
@@ -46,7 +64,8 @@ static uint8 patternByte(size_t i)
 
 typedef enum IProto {
     IP_Echo,             // cx to cx: send a pattern, get the same bytes back
-    IP_Hq,              // hq-interop: "GET /<n>" in, n bytes out
+    IP_Hq,               // hq-interop: "GET /<n>" in, n bytes out
+    IP_Dgram,            // RFC 9221: send unreliable datagrams, get the same bytes back
 } IProto;
 
 typedef struct IStream {
@@ -79,10 +98,27 @@ typedef struct ICtx {
     IStream streams[MAX_STREAMS];
     uint32 nseen;
 
+    // The datagram channel, for IP_Dgram. There is one for the whole connection rather than one
+    // per exchange, so everything about it lives here rather than in a per-stream slot.
+    NetFlow* dgFlow;
+    uint32 dgWant;       // datagrams the client means to send
+    uint32 dgSent;
+    uint32 dgGot;        // datagrams that came back and matched
+    uint32 dgBad;        // datagrams that came back wrong
+    size_t dgSize;       // bytes per datagram, once the connection's limit is known
+    // Server: datagrams read off the wire and waiting to go back, because the congestion window
+    // had no room for them at the moment they arrived. Bounded, since holding them without limit
+    // would turn an unreliable channel into a queue -- and what overflows is counted, so the tool
+    // never quietly looks like the path lost something it dropped itself.
+    Buffer dgEcho[DGRAM_ECHO_QUEUE];
+    uint32 dgEchoHead, dgEchoCount;
+    uint32 dgDropped;
+
     uint32 nConnected;
     uint32 nFailed;
     uint32 nSecured;
     bool connClosed;
+    bool push;           // server: put a datagram on every connection that agreed to them
     bool done;
     int exitCode;
     int64 lastActivity;
@@ -287,11 +323,131 @@ static void pumpHq(_Inout_ ICtx* c, _Inout_ IStream* s)
     pumpPattern(c, s);
 }
 
+// The payload of datagram `seq`: its number in the first four bytes so an echo says which one came
+// back, and the same pattern the stream tests use after that.
+static void dgramFill(_Out_writes_(len) uint8* buf, size_t len, uint32 seq)
+{
+    buf[0] = (uint8)(seq >> 24);
+    buf[1] = (uint8)(seq >> 16);
+    buf[2] = (uint8)(seq >> 8);
+    buf[3] = (uint8)seq;
+
+    for (size_t i = 4; i < len; i++)
+        buf[i] = patternByte(i);
+}
+
+// Client: hand over as many datagrams as the connection will take right now. A refusal means the
+// congestion window is full, and NET_SendReady on the datagram flow is what says to come back.
+static void pumpDatagrams(_Inout_ ICtx* c)
+{
+    if (!c->dgFlow || c->dgSize == 0)
+        return;
+
+    uint8 buf[QUIC_MAX_DGRAM_BUF];
+
+    while (c->dgSent < c->dgWant) {
+        dgramFill(buf, c->dgSize, c->dgSent);
+        if (!netflowSend(c->dgFlow, buf, c->dgSize, 0))
+            return;
+        c->dgSent++;
+    }
+}
+
+// Server: queue one datagram to go back, then send as many as the connection will take. A refusal
+// means the congestion window is full, and NET_SendReady on the datagram flow brings this back.
+// `data` NULL is the drain-only case, which is what that event asks for.
+static void echoDatagram(_Inout_ ICtx* c, _In_ NetFlow* flow,
+                         _In_reads_opt_(len) const uint8* data, size_t len)
+{
+    if (data && len > 0) {
+        if (c->dgEchoCount < DGRAM_ECHO_QUEUE) {
+            uint32 slot     = (c->dgEchoHead + c->dgEchoCount) % DGRAM_ECHO_QUEUE;
+            c->dgEcho[slot] = bufCreate(len);
+            memcpy(c->dgEcho[slot]->data, data, len);
+            c->dgEcho[slot]->len = len;
+            c->dgEchoCount++;
+        } else {
+            c->dgDropped++;
+        }
+    }
+
+    while (c->dgEchoCount > 0) {
+        Buffer b = c->dgEcho[c->dgEchoHead];
+        if (!netflowSend(flow, b->data, b->len, 0))
+            return;
+
+        bufDestroy(&c->dgEcho[c->dgEchoHead]);
+        c->dgEchoHead = (c->dgEchoHead + 1) % DGRAM_ECHO_QUEUE;
+        c->dgEchoCount--;
+    }
+}
+
+// Client: check an echoed datagram against what was sent.
+static void checkDatagram(_Inout_ ICtx* c, _In_reads_(len) const uint8* data, size_t len)
+{
+    bool ok = len == c->dgSize;
+
+    if (ok) {
+        uint32 seq = ((uint32)data[0] << 24) | ((uint32)data[1] << 16) | ((uint32)data[2] << 8) |
+                     data[3];
+        ok = seq < c->dgWant;
+
+        for (size_t i = 4; ok && i < len; i++)
+            ok = data[i] == patternByte(i);
+    }
+
+    if (ok) {
+        c->dgGot++;
+    } else {
+        c->dgBad++;
+        conFmt(conErr(), _SL("datagram ${uint} of ${uint} bytes came back wrong\n"),
+               stvar(uint32, c->dgGot + c->dgBad), stvar(uint64, (uint64)len));
+    }
+}
+
+// Both roles: what to do with a datagram that arrived.
+static void onDatagram(_Inout_ ICtx* c, _Inout_ NetEvent* ev)
+{
+    Buffer buf = ev->recv.msg ? ev->recv.msg->buf : NULL;
+    if (!buf)
+        return;
+
+    if (c->server)
+        echoDatagram(c, ev->flow, buf->data, buf->len);
+    else
+        checkDatagram(c, buf->data, buf->len);
+}
+
 // Client: open every stream and start the pattern on each. This runs when the connection is handed
 // over, which with 0-RTT is before the handshake finishes -- so an early data run and an ordinary
 // one take exactly the same path.
 static void startStreams(_Inout_ ICtx* c)
 {
+    if (c->proto == IP_Dgram) {
+        c->dgFlow = netquicOpenDatagram(c->sock);
+        if (!c->dgFlow) {
+            conPuts(conErr(), _SL("the peer did not agree to unreliable datagrams\n"));
+            c->exitCode = 1;
+            c->done     = true;
+            return;
+        }
+
+        size_t max = netquicMaxDatagram(c->sock);
+        if (max > QUIC_MAX_DGRAM_BUF)
+            max = QUIC_MAX_DGRAM_BUF;
+
+        c->dgSize = c->size < max ? c->size : max;
+        if (c->dgSize < 4)
+            c->dgSize = 4;   // the sequence number has to fit
+
+        conFmt(conOut(), _SL("datagrams: ${uint} of ${uint} bytes, limit ${uint}\n"),
+               stvar(uint32, c->dgWant), stvar(uint64, (uint64)c->dgSize),
+               stvar(uint64, (uint64)netquicMaxDatagram(c->sock)));
+
+        pumpDatagrams(c);
+        return;
+    }
+
     for (uint32 i = 0; i < c->nstreams; i++) {
         NetFlow* flow = netquicOpen(c->sock, false);
         if (!flow) {
@@ -363,6 +519,32 @@ static void onAccepted(_Inout_ NetEvent* ev)
     if (!c->conn)
         c->conn = objAcquire(ev->accept.newSocket);
 
+    // The peer agreed to datagrams but may never send one, so there would otherwise be nothing to
+    // echo and no way to find out whether it takes the frame this end writes.
+    if (c->push) {
+        size_t max = netquicMaxDatagram(ev->accept.newSocket);
+        if (max == 0) {
+            conPuts(conErr(), _SL("the peer did not agree to unreliable datagrams\n"));
+            c->exitCode = 1;
+        } else {
+            objRelease(&c->dgFlow);
+            c->dgFlow = netquicOpenDatagram(ev->accept.newSocket);
+            c->dgSize = c->size < max ? c->size : max;
+            if (c->dgSize > QUIC_MAX_DGRAM_BUF)
+                c->dgSize = QUIC_MAX_DGRAM_BUF;
+            if (c->dgSize < 4)
+                c->dgSize = 4;
+
+            c->dgSent = 0;
+            c->dgWant = 1;
+            pumpDatagrams(c);
+
+            conFmt(conOut(), _SL("pushed ${uint} datagram of ${uint} bytes, peer's limit ${uint}\n"),
+                   stvar(uint32, c->dgSent), stvar(uint64, (uint64)c->dgSize),
+                   stvar(uint64, (uint64)max));
+        }
+    }
+
     string alpn = 0;
     netquicALPN(ev->accept.newSocket, &alpn);
     conFmt(conOut(), _SL("accepted: alpn ${string}, 0-RTT ${int}\n"),
@@ -386,6 +568,15 @@ static void onFlowOpen(_Inout_ NetEvent* ev)
 
     ICtx* c = (ICtx*)ev->ctx;
     touch(c);
+
+    // The datagram channel is a flow, but not a stream: it has no id, no halves and no end, so
+    // none of the per-stream bookkeeping applies to it.
+    if (objDynCast(QuicDatagram, ev->flow)) {
+        if (!c->dgFlow)
+            c->dgFlow = objAcquire(ev->flow);
+        return;
+    }
+
     istream(c, ev->flow);
 }
 
@@ -394,10 +585,15 @@ static void onRecv(_Inout_ NetEvent* ev)
     if (isControl(ev))
         return;
 
-    ICtx* c    = (ICtx*)ev->ctx;
-    IStream* s = istream(c, ev->flow);
+    ICtx* c = (ICtx*)ev->ctx;
     touch(c);
 
+    if (objDynCast(QuicDatagram, ev->flow)) {
+        onDatagram(c, ev);
+        return;
+    }
+
+    IStream* s = istream(c, ev->flow);
     if (!s)
         return;
 
@@ -441,10 +637,18 @@ static void onSendReady(_Inout_ NetEvent* ev)
     if (isControl(ev))
         return;
 
-    ICtx* c    = (ICtx*)ev->ctx;
-    IStream* s = istream(c, ev->flow);
+    ICtx* c = (ICtx*)ev->ctx;
     touch(c);
 
+    if (objDynCast(QuicDatagram, ev->flow)) {
+        if (c->server)
+            echoDatagram(c, ev->flow, NULL, 0);
+        else
+            pumpDatagrams(c);
+        return;
+    }
+
+    IStream* s = istream(c, ev->flow);
     if (!s)
         return;
 
@@ -517,6 +721,11 @@ static void onFlowClosed(_Inout_ NetEvent* ev)
         return;
     }
 
+    // The datagram channel is a flow but not a stream, so there is no slot for it and nothing to
+    // report when it goes.
+    if (objDynCast(QuicDatagram, ev->flow))
+        return;
+
     IStream* s = istream(c, ev->flow);
     if (s)
         s->closed = true;
@@ -551,6 +760,7 @@ typedef struct IArgs {
     IProto proto;
     bool zeroRtt;
     bool insecure;
+    bool push;
 } IArgs;
 
 static bool argUInt(_Out_ uint32* out, _In_ strref s)
@@ -583,6 +793,10 @@ static bool parseArgs(_Out_ IArgs* a, bool* server)
             a->zeroRtt = true;
             continue;
         }
+        if (strEq(f, _S "-push")) {
+            a->push = true;
+            continue;
+        }
         if (strEq(f, _S "-insecure")) {
             a->insecure = true;
             continue;
@@ -611,6 +825,8 @@ static bool parseArgs(_Out_ IArgs* a, bool* server)
                 a->proto = IP_Echo;
             else if (strEq(v, _S "hq"))
                 a->proto = IP_Hq;
+            else if (strEq(v, _S "dgram"))
+                a->proto = IP_Dgram;
             else
                 return false;
         }
@@ -618,7 +834,7 @@ static bool parseArgs(_Out_ IArgs* a, bool* server)
             if (!argUInt(&a->port, v) || a->port > 65535)
                 return false;
         } else if (strEq(f, _S "-streams")) {
-            if (!argUInt(&a->streams, v) || a->streams < 1 || a->streams > MAX_STREAMS)
+            if (!argUInt(&a->streams, v) || a->streams < 1)
                 return false;
         } else if (strEq(f, _S "-size")) {
             if (!argUInt(&a->size, v))
@@ -627,9 +843,16 @@ static bool parseArgs(_Out_ IArgs* a, bool* server)
             return false;
     }
 
-    // The ALPN a protocol is normally reached under, unless the run named one of its own.
+    // Streams are tracked in a fixed set of slots, so there is a ceiling on how many a run may ask
+    // for. Datagrams have no per-exchange state at all, so the same option is unbounded there.
+    if (a->proto != IP_Dgram && a->streams > MAX_STREAMS)
+        return false;
+
+    // The ALPN a protocol is normally reached under, unless the run named one of its own. The
+    // datagram mode uses hq-interop's, since that is what the peers implementing RFC 9221 listen
+    // on -- the extension is negotiated by transport parameter rather than by ALPN.
     if (strEmpty(a->alpn))
-        a->alpn = (a->proto == IP_Hq) ? _S "hq-interop" : _S "cxinterop";
+        a->alpn = (a->proto == IP_Echo) ? _S "cxinterop" : _S "hq-interop";
 
     return true;
 }
@@ -638,15 +861,24 @@ static void usage(void)
 {
     conPuts(conErr(),
             _SLL("usage: quicinterop server -port N -cert cert.pem -key key.pem\n"
-                 "                          [-proto echo|hq] [-alpn NAME]\n"
+                 "                          [-proto echo|hq|dgram] [-alpn NAME]\n"
                  "       quicinterop client -host H -port N [-ca ca.pem] [-sni NAME]\n"
-                 "                          [-proto echo|hq] [-alpn NAME]\n"
+                 "                          [-proto echo|hq|dgram] [-alpn NAME]\n"
                  "                          [-streams N] [-size N] [-0rtt] [-insecure]\n"
                  "       both accept -qlog DIR to write a qlog file per connection\n"
                  "\n"
                  "       echo (default) is cx to cx; hq is the hq-interop protocol the ngtcp2 and\n"
                  "       picoquic test peers speak, where the client asks for -size bytes and only\n"
-                 "       the length of what comes back is checked\n"));
+                 "       the length of what comes back is checked\n"
+                 "\n"
+                 "       dgram is RFC 9221 unreliable datagrams and uses no streams: -streams is\n"
+                 "       how many datagrams to send and -size how large each one is, capped at\n"
+                 "       what the connection allows. Nothing is retransmitted, so a datagram lost\n"
+                 "       on the path shows up as fewer coming back rather than as a stall\n"
+                 "\n"
+                 "       -push makes a server of any protocol advertise datagrams and send one on\n"
+                 "       each connection that agreed to them, for peers that accept datagrams but\n"
+                 "       never send any\n"));
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -754,7 +986,10 @@ int entryPoint()
     netqueuePresetClient(&conf);
     ctx.q = netqueueCreate(&conf);
 
-    QuicConfig qcfg = { .tls = tls };
+    ctx.dgWant = args.streams;
+    ctx.push    = args.push;
+
+    QuicConfig qcfg = { .tls = tls, .datagrams = args.proto == IP_Dgram || args.push };
 
     if (server) {
         NetAddr addr = { .type = NA_IPv4, .port = (uint16)args.port };
@@ -795,13 +1030,20 @@ int entryPoint()
             while (!ctx.done) {
                 netqueueTick(ctx.q, TICK_WAIT_US);
 
-                // Done when every stream has had the whole pattern echoed back and ended.
-                uint32 finished = 0;
-                for (uint32 i = 0; i < ctx.nseen; i++) {
-                    if (ctx.streams[i].fin && ctx.streams[i].got == ctx.size)
-                        finished++;
+                // Done when every stream has had the whole pattern echoed back and ended, or --
+                // with no streams in play -- when every datagram has been answered for.
+                bool finishedAll;
+                if (ctx.proto == IP_Dgram) {
+                    finishedAll = ctx.dgGot + ctx.dgBad >= ctx.dgWant;
+                } else {
+                    uint32 finished = 0;
+                    for (uint32 i = 0; i < ctx.nseen; i++) {
+                        if (ctx.streams[i].fin && ctx.streams[i].got == ctx.size)
+                            finished++;
+                    }
+                    finishedAll = ctx.nseen >= ctx.nstreams && finished >= ctx.nstreams;
                 }
-                if (ctx.nseen >= ctx.nstreams && finished >= ctx.nstreams)
+                if (finishedAll)
                     break;
 
                 if (clockTimer() - ctx.lastActivity > IDLE_TIMEOUT_US) {
@@ -812,29 +1054,55 @@ int entryPoint()
                 }
             }
 
-            for (uint32 i = 0; i < ctx.nseen; i++) {
-                IStream* s = &ctx.streams[i];
-                if (s->bad || s->got != ctx.size || !s->fin) {
+            if (ctx.proto == IP_Dgram) {
+                // A datagram is never repaired, so a shortfall here is a datagram the path lost or
+                // the peer dropped rather than a connection that stalled.
+                if (ctx.dgGot != ctx.dgWant || ctx.dgBad > 0) {
                     conFmt(conErr(),
-                           _SL("stream ${uint}: sent ${uint}, echoed ${uint} of ${uint}, "
-                               "peer finished ${int}, writable ${uint}\n"),
-                           stvar(uint64, s->id), stvar(uint64, (uint64)s->sent),
-                           stvar(uint64, (uint64)s->got), stvar(uint64, (uint64)ctx.size),
-                           stvar(int32, s->fin ? 1 : 0),
-                           stvar(uint64, s->closed ? 0 : (uint64)netquicWritable(s->flow)));
+                           _SL("datagrams: sent ${uint}, ${uint} of ${uint} came back, "
+                               "${uint} wrong\n"),
+                           stvar(uint32, ctx.dgSent), stvar(uint32, ctx.dgGot),
+                           stvar(uint32, ctx.dgWant), stvar(uint32, ctx.dgBad));
                     ctx.exitCode = 1;
+                } else {
+                    conFmt(conOut(), _SL("ok: ${uint} datagram${string} of ${uint} bytes echoed\n"),
+                           stvar(uint32, ctx.dgWant),
+                           stvar(strref, ctx.dgWant == 1 ? _S "" : _S "s"),
+                           stvar(uint64, (uint64)ctx.dgSize));
                 }
-            }
+            } else {
+                for (uint32 i = 0; i < ctx.nseen; i++) {
+                    IStream* s = &ctx.streams[i];
+                    if (s->bad || s->got != ctx.size || !s->fin) {
+                        conFmt(conErr(),
+                               _SL("stream ${uint}: sent ${uint}, echoed ${uint} of ${uint}, "
+                                   "peer finished ${int}, writable ${uint}\n"),
+                               stvar(uint64, s->id), stvar(uint64, (uint64)s->sent),
+                               stvar(uint64, (uint64)s->got), stvar(uint64, (uint64)ctx.size),
+                               stvar(int32, s->fin ? 1 : 0),
+                               stvar(uint64, s->closed ? 0 : (uint64)netquicWritable(s->flow)));
+                        ctx.exitCode = 1;
+                    }
+                }
 
-            if (ctx.exitCode == 0)
-                conFmt(conOut(), _SL("ok: ${uint} stream${string} of ${uint} bytes echoed\n"),
-                       stvar(uint32, ctx.nstreams),
-                       stvar(strref, ctx.nstreams == 1 ? _S "" : _S "s"),
-                       stvar(uint64, (uint64)ctx.size));
+                if (ctx.exitCode == 0)
+                    conFmt(conOut(), _SL("ok: ${uint} stream${string} of ${uint} bytes echoed\n"),
+                           stvar(uint32, ctx.nstreams),
+                           stvar(strref, ctx.nstreams == 1 ? _S "" : _S "s"),
+                           stvar(uint64, (uint64)ctx.size));
+            }
 
             netquicClose(ctx.sock, 0, _S "done");
         }
     }
+
+    if (server && ctx.proto == IP_Dgram && (ctx.dgDropped > 0 || ctx.dgEchoCount > 0))
+        conFmt(conErr(), _SL("datagrams: dropped ${uint}, ${uint} never went back\n"),
+               stvar(uint32, ctx.dgDropped), stvar(uint32, ctx.dgEchoCount));
+
+    objRelease(&ctx.dgFlow);
+    for (uint32 i = 0; i < DGRAM_ECHO_QUEUE; i++)
+        bufDestroy(&ctx.dgEcho[i]);
 
     if (ctx.sock) {
         netsocketClose(ctx.sock);

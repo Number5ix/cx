@@ -53,6 +53,10 @@
 // the routing table's key holds.
 #define QUIC_SOCK_CID_LEN 8
 
+// The flow key the datagram channel occupies. The flow table of a connection is keyed on stream
+// id, and a stream id is a 62-bit varint, so the top of the range can never collide with one.
+#define QUIC_DGRAM_FLOW_KEY UINT64_MAX
+
 // The shortest a deadline is ever armed for. A connection that reports a deadline already in the
 // past wants attention it could not get this pass; arming for the past instead of for a moment
 // from now would turn the timer into a spin.
@@ -132,7 +136,12 @@ static void configDefaults(_Out_ QuicConfig* out, _In_ const QuicConfig* in)
 
 // The transport parameters that follow from a configuration. Only the limits differ from the
 // defaults RFC 9000 section 18.2 lays down.
-static void tpFromConfig(_Out_ QuicTransportParams* tp, _In_ const QuicConfig* cfg)
+//
+// `q` is the queue the endpoint runs on, which is what bounds the datagram size this endpoint can
+// promise to accept: an arriving datagram is copied into one pooled receive buffer, so advertising
+// more than one of those holds would be promising something the receive path cannot deliver.
+static void tpFromConfig(_Out_ QuicTransportParams* tp, _In_ const QuicConfig* cfg,
+                         _In_opt_ NetQueue* q)
 {
     _quicTpDefaults(tp);
 
@@ -143,24 +152,46 @@ static void tpFromConfig(_Out_ QuicTransportParams* tp, _In_ const QuicConfig* c
     tp->initMaxSdUni        = cfg->maxStreamData;
     tp->initMaxStreamsBidi  = cfg->maxStreamsBidi;
     tp->initMaxStreamsUni   = cfg->maxStreamsUni;
+
+    if (cfg->datagrams) {
+        size_t cap = QUIC_MAX_DATAGRAM;
+        if (q && q->conf.recvBufSize > 0 && q->conf.recvBufSize < cap)
+            cap = q->conf.recvBufSize;
+        tp->maxDatagramFrame = cap;
+    }
 }
 
-// The flow carrying one stream, or NULL if the application never saw that stream open.
+// The flow with this key -- a stream id, or QUIC_DGRAM_FLOW_KEY -- or NULL if there is none.
 //
 // A reference comes back with it. The table is not the only thing holding a flow up -- a worker
 // finishing that flow's terminal event takes it out of the table and lets go of it -- so a bare
 // pointer read under the lock could be freed the moment the lock is dropped.
-_Ret_maybenull_ static NetFlow* findStreamFlow(_In_ NetSocketQuic* self, uint64 id)
+_Ret_maybenull_ static NetFlow* findFlow(_In_ NetSocketQuic* self, uint64 key)
 {
     NetFlow* flow = NULL;
 
     withReadLock (&self->flowLock) {
-        htelem e = htFind(self->flows, uint64, id, none, NULL);
+        htelem e = htFind(self->flows, uint64, key, none, NULL);
         if (e)
             flow = objAcquire((NetFlow*)hteVal(self->flows, object, e));
     }
 
     return flow;
+}
+
+// The connection's datagram flow, created on first use, with a reference held.
+//
+// Either end can be the first to want it: the application asking for it with
+// netquicOpenDatagram(), or a datagram arriving from the peer. Both land here, and admitting an
+// already-admitted key keeps whichever flow got in first, so a race between the two produces one
+// flow rather than two.
+_Ret_maybenull_ static NetFlow* datagramFlow(_In_ NetSocketQuic* self, _In_ NetQueue* q)
+{
+    NetFlow* flow = findFlow(self, QUIC_DGRAM_FLOW_KEY);
+    if (flow)
+        return flow;
+
+    return netqueue_admitFlowObj(q, NetSocket(self), NetFlow(quicdatagramCreate(NetSocket(self))));
 }
 
 // Puts a message on a flow. The one place the engine reaches netqueue from inside its own lock,
@@ -541,6 +572,51 @@ static void onConnCidRetired(_In_opt_ void* ctx, _In_ const QuicCid* cid, uint64
     objRelease(&lsn);
 }
 
+// An unreliable datagram arrived. It is copied out of the packet buffer, which is reused the
+// moment this returns, and delivered whole on the datagram flow -- the same shape a datagram
+// socket's receive takes, which is what makes this flow usable exactly like one.
+static void onConnDatagramRecv(_In_opt_ void* ctx, _In_reads_bytes_(len) const uint8* data,
+                               size_t len)
+{
+    NetSocketQuic* self = (NetSocketQuic*)ctx;
+
+    NetQueue* q = objAcquireFromWeak(NetQueue, self->queue);
+    if (!q)
+        return;
+
+    // The channel is only reachable through a flow, and the peer may be the first to use it. A
+    // peer-opened one is admitted here the way onStreamOpened() admits a peer-opened stream, so the
+    // application sees NET_FlowOpen before the NET_DataReceived that follows.
+    NetFlow* flow = datagramFlow(self, q);
+
+    // A pooled buffer is what the whole receive path is capped by, and running out is a normal
+    // condition rather than a reason to allocate around the ceiling. Dropping is also exactly what
+    // the protocol says may happen to a datagram.
+    NetMessage* msg = flow ? netpoolAllocMsg(q->pool) : NULL;
+    if (msg && msg->buf->sz >= len) {
+        memcpy(msg->buf->data, data, len);
+        msg->buf->len = len;
+        msg->kind     = NMSG_Data;
+        msg->bytes    = len;
+        netqueue_submit(q, flow, msg);
+    } else if (msg) {
+        netpoolFreeMsg(q->pool, &msg);
+    }
+
+    objRelease(&flow);
+    objRelease(&q);
+}
+
+// The slot the pending datagram was in is free again, so a send that was refused can be retried.
+static void onConnDatagramWritable(_In_opt_ void* ctx)
+{
+    NetSocketQuic* self = (NetSocketQuic*)ctx;
+
+    NetFlow* flow = findFlow(self, QUIC_DGRAM_FLOW_KEY);
+    postMsg(self, flow, NMSG_SendReady, 0);
+    objRelease(&flow);
+}
+
 static const QuicConnHandlers quicConnHandlers = {
     .earlyOpen   = onConnEarlyOpen,
     .earlyReject = onConnEarlyReject,
@@ -554,6 +630,8 @@ static const QuicConnHandlers quicConnHandlers = {
     .wantsToSend = onConnWantsToSend,
     .cidIssued   = onConnCidIssued,
     .cidRetired  = onConnCidRetired,
+    .datagramRecv     = onConnDatagramRecv,
+    .datagramWritable = onConnDatagramWritable,
 };
 
 // ---------------------------------------------------------------------------------------------
@@ -584,7 +662,7 @@ static void onStreamReadable(_In_opt_ void* ctx, uint64 id)
     NetSocketQuic* self = (NetSocketQuic*)ctx;
     QuicEngine* eng     = engOf(self);
 
-    NetFlow* flow = findStreamFlow(self, id);
+    NetFlow* flow = findFlow(self, id);
     postMsg(self, flow, NMSG_Data, _quicStreamReadable(&eng->streams, id));
     objRelease(&flow);
 }
@@ -593,7 +671,7 @@ static void onStreamWritable(_In_opt_ void* ctx, uint64 id)
 {
     NetSocketQuic* self = (NetSocketQuic*)ctx;
 
-    NetFlow* flow = findStreamFlow(self, id);
+    NetFlow* flow = findFlow(self, id);
     postMsg(self, flow, NMSG_SendReady, 0);
     objRelease(&flow);
 }
@@ -602,7 +680,7 @@ static void onStreamWritable(_In_opt_ void* ctx, uint64 id)
 // application has to do about it, so both arrive as one NET_Error carrying one code.
 static void streamFailed(_In_ NetSocketQuic* self, uint64 id, uint64 error)
 {
-    NetFlow* flow = findStreamFlow(self, id);
+    NetFlow* flow = findFlow(self, id);
     if (!flow)
         return;
 
@@ -631,7 +709,7 @@ static void onStreamClosed(_In_opt_ void* ctx, uint64 id)
 {
     NetSocketQuic* self = (NetSocketQuic*)ctx;
 
-    NetFlow* flow = findStreamFlow(self, id);
+    NetFlow* flow = findFlow(self, id);
     if (flow)
         netflow_close(flow, NCR_PeerClosed);
 
@@ -1269,8 +1347,8 @@ _objfactory_guaranteed QuicStream* QuicStream_create(_In_ NetSocket* socket, uin
     return self;
 }
 
-// Resolves a stream flow back to the connection it belongs to, with a reference held.
-_Ret_maybenull_ static NetSocketQuic* streamSock(_In_ NetFlow* flow)
+// Resolves a flow back to the connection it belongs to, with a reference held.
+_Ret_maybenull_ static NetSocketQuic* flowSock(_In_ NetFlow* flow)
 {
     NetSocket* s        = objAcquireFromWeak(NetSocket, flow->socket);
     NetSocketQuic* self = objDynCast(NetSocketQuic, s);
@@ -1288,7 +1366,7 @@ bool QuicStream_send(_In_ QuicStream* self, _In_ const uint8* data, size_t len, 
 {
     unused_noeval(flags);
 
-    NetSocketQuic* sock = streamSock(NetFlow(self));
+    NetSocketQuic* sock = flowSock(NetFlow(self));
     if (!sock)
         return false;
 
@@ -1316,7 +1394,7 @@ extern bool NetFlow_close(_In_ NetFlow* self);   // parent
 #define parent_close() NetFlow_close((NetFlow*)(self))
 bool QuicStream_close(_In_ QuicStream* self)
 {
-    NetSocketQuic* sock = streamSock(NetFlow(self));
+    NetSocketQuic* sock = flowSock(NetFlow(self));
 
     if (sock) {
         QuicEngine* eng = engOf(sock);
@@ -1335,6 +1413,69 @@ bool QuicStream_close(_In_ QuicStream* self)
         objRelease(&sock);
     }
 
+    return parent_close();
+}
+
+// ---------------------------------------------------------------------------------------------
+// The datagram flow
+// ---------------------------------------------------------------------------------------------
+
+_objfactory_guaranteed QuicDatagram* QuicDatagram_create(_In_ NetSocket* socket)
+{
+    QuicDatagram* self;
+    self = objInstCreate(QuicDatagram);
+
+    self->socket = objGetWeak(NetSocket, socket);
+    self->key    = QUIC_DGRAM_FLOW_KEY;
+
+    // Same as QuicStream_create: hold the pool rather than resolving it through the socket later,
+    // when either weak arm may already be broken.
+    NetQueue* q = objAcquireFromWeak(NetQueue, socket->queue);
+    if (q) {
+        self->pool = objAcquire(q->pool);
+        objRelease(&q);
+    }
+
+    objInstInit(self);
+
+    return self;
+}
+
+extern bool NetFlow_send(_In_ NetFlow* self, _In_ const uint8* data, size_t len, flags_t flags);   // parent
+#undef parent_send
+#define parent_send(data, len, flags) NetFlow_send((NetFlow*)(self), data, len, flags)
+bool QuicDatagram_send(_In_ QuicDatagram* self, _In_ const uint8* data, size_t len, flags_t flags)
+{
+    unused_noeval(flags);
+
+    NetSocketQuic* sock = flowSock(NetFlow(self));
+    if (!sock)
+        return false;
+
+    QuicEngine* eng = engOf(sock);
+    bool ok         = false;
+
+    withMutex (&eng->lock) {
+        // All or nothing, and there is no partial case to consider: a datagram is one unit. A
+        // refusal means either the payload is over netquicMaxDatagram() or the previous datagram
+        // is still waiting on the congestion window, and NET_SendReady answers the second.
+        if (eng->conn && !eng->torndown && _quicConnDatagramSend(eng->conn, data, len)) {
+            ok = true;
+            enginePump(sock, clockTimer());
+        }
+    }
+
+    objRelease(&sock);
+    return ok;
+}
+
+extern bool NetFlow_close(_In_ NetFlow* self);   // parent
+#undef parent_close
+#define parent_close() NetFlow_close((NetFlow*)(self))
+bool QuicDatagram_close(_In_ QuicDatagram* self)
+{
+    // Nothing goes on the wire: RFC 9221 gives an endpoint no way to say it will send no more
+    // datagrams, so closing the flow is purely local.
     return parent_close();
 }
 
@@ -1364,7 +1505,7 @@ NetSocket* netquicListen(NetQueue* q, const NetAddr* addr, const QuicConfig* cfg
 
     QuicConfig full;
     configDefaults(&full, cfg);
-    tpFromConfig(&eng->tp, &full);
+    tpFromConfig(&eng->tp, &full, q);
     eng->retry = full.retry;
 
     bool ok = psa_generate_random(eng->tokenKey, sizeof(eng->tokenKey)) == PSA_SUCCESS;
@@ -1409,7 +1550,7 @@ NetSocket* netquicConnect(NetQueue* q, strref host, uint16 port, strref hostname
 
     QuicConfig full;
     configDefaults(&full, cfg);
-    tpFromConfig(&eng->tp, &full);
+    tpFromConfig(&eng->tp, &full, q);
 
     // The name to authenticate defaults to the name dialled, which is what it is almost always.
     strDup(&sock->hostname, strEmpty(hostname) ? host : hostname);
@@ -1669,6 +1810,49 @@ NetFlow* netquicOpen(NetSocket* sock, bool uni)
 }
 
 _Use_decl_annotations_
+NetFlow* netquicOpenDatagram(NetSocket* sock)
+{
+    NetSocketQuic* self = objDynCast(NetSocketQuic, sock);
+    if (!self)
+        return NULL;
+
+    QuicEngine* eng = engOf(self);
+    NetFlow* flow   = NULL;
+
+    withMutex (&eng->lock) {
+        // Zero means the two ends did not agree on the extension, which is settled by the
+        // handshake and cannot change afterwards.
+        if (eng->conn && !eng->torndown && _quicConnMaxDatagram(eng->conn) > 0) {
+            NetQueue* q = objAcquireFromWeak(NetQueue, self->queue);
+            if (q) {
+                flow = datagramFlow(self, q);
+                objRelease(&q);
+            }
+        }
+    }
+
+    return flow;
+}
+
+_Use_decl_annotations_
+size_t netquicMaxDatagram(NetSocket* sock)
+{
+    NetSocketQuic* self = objDynCast(NetSocketQuic, sock);
+    if (!self)
+        return 0;
+
+    QuicEngine* eng = engOf(self);
+    size_t n        = 0;
+
+    withMutex (&eng->lock) {
+        if (eng->conn && !eng->torndown)
+            n = _quicConnMaxDatagram(eng->conn);
+    }
+
+    return n;
+}
+
+_Use_decl_annotations_
 size_t netquicRecv(NetFlow* flow, uint8* buf, size_t bufsz, bool* fin)
 {
     size_t n   = 0;
@@ -1676,7 +1860,7 @@ size_t netquicRecv(NetFlow* flow, uint8* buf, size_t bufsz, bool* fin)
 
     QuicStream* st = objDynCast(QuicStream, flow);
     if (st) {
-        NetSocketQuic* sock = streamSock(flow);
+        NetSocketQuic* sock = flowSock(flow);
         if (sock) {
             QuicEngine* eng = engOf(sock);
 
@@ -1708,7 +1892,7 @@ size_t netquicReadable(NetFlow* flow)
 
     QuicStream* st = objDynCast(QuicStream, flow);
     if (st) {
-        NetSocketQuic* sock = streamSock(flow);
+        NetSocketQuic* sock = flowSock(flow);
         if (sock) {
             QuicEngine* eng = engOf(sock);
 
@@ -1731,7 +1915,7 @@ size_t netquicWritable(NetFlow* flow)
 
     QuicStream* st = objDynCast(QuicStream, flow);
     if (st) {
-        NetSocketQuic* sock = streamSock(flow);
+        NetSocketQuic* sock = flowSock(flow);
         if (sock) {
             QuicEngine* eng = engOf(sock);
 
@@ -1761,7 +1945,7 @@ static void streamEnd(_In_ NetFlow* flow, QuicStreamEnd how, uint64 error)
     if (!st)
         return;
 
-    NetSocketQuic* sock = streamSock(flow);
+    NetSocketQuic* sock = flowSock(flow);
     if (!sock)
         return;
 

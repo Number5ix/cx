@@ -46,6 +46,28 @@
 /// larger than the room left rather than taking part of it; netquicWritable() says how much would
 /// fit, and a refusal with nothing writable is the one NET_SendReady will answer.
 ///
+/// @section quic_net_datagrams Unreliable datagrams
+///
+/// Set QuicConfig::datagrams on both ends and the connection gains one more flow alongside its
+/// streams, reached with netquicOpenDatagram(). It behaves like a UDP socket's flow: netflowSend()
+/// puts one datagram on the wire whole, and each one that arrives is a single NET_DataReceived
+/// carrying the entire payload in NetEvent::recv.msg. There is nothing to drain afterwards --
+/// netquicRecv() and the rest of the stream calls work only on streams.
+///
+/// Both ends have to ask for it. netquicOpenDatagram() returns NULL when either did not, and there
+/// is no way to turn it on after the handshake.
+///
+/// A datagram is never retransmitted: one lost on the way is simply gone, and nothing is delivered
+/// to say so. It is still paced and still counted against the congestion window, so datagrams
+/// cannot starve the streams sharing the connection.
+///
+/// There is a size limit, and it moves -- netquicMaxDatagram() reports it, and it grows as path MTU
+/// discovery finds room, so read it before each send rather than caching it. A send larger than it
+/// is refused, and so is one made while a previous datagram is still waiting on the congestion
+/// window; NET_SendReady follows when there is room again. Refusing rather than queueing is
+/// deliberate: only the application knows whether a datagram held up that long is still worth
+/// sending.
+///
 /// @section quic_net_early 0-RTT
 ///
 /// With tlsconfigSetResumption() and tlsconfigSetEarlyData() both on, a client reconnecting to a
@@ -140,6 +162,19 @@ class QuicStream extends NetFlow
     override close;
 
     factory create([in] NetSocket *socket, uint64 id);
+}
+
+/// The unreliable datagram channel of one connection
+///
+/// A flow like any other, and there is at most one per connection. It is a separate class from
+/// QuicStream so that the stream operations -- netquicRecv(), netquicFinish(), netquicReset() --
+/// simply do not apply to it rather than doing something surprising. See @ref quic_net_datagrams.
+class QuicDatagram extends NetFlow
+{
+    override send;
+    override close;
+
+    factory create([in] NetSocket *socket);
 }
 
 /// @}

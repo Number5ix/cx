@@ -87,6 +87,8 @@ bool _quicTpEncode(QuicWr* wr, const QuicTransportParams* tp, bool server)
         tpInt(wr, QUIC_TP_MAX_ACK_DELAY, tp->maxAckDelay);
     if (tp->activeCidLimit != QUIC_TP_DEF_ACTIVE_CID)
         tpInt(wr, QUIC_TP_ACTIVE_CID_LIMIT, tp->activeCidLimit);
+    if (tp->maxDatagramFrame != 0)
+        tpInt(wr, QUIC_TP_MAX_DATAGRAM_FRAME, tp->maxDatagramFrame);
 
     if (tp->disableMigration) {
         _quicWrVarint(wr, QUIC_TP_DISABLE_MIGRATION);
@@ -118,6 +120,15 @@ static bool tpRdCid(_In_reads_(len) const uint8* val, size_t len, _Out_ QuicCid*
     return true;
 }
 
+// Whether the decoder below has a case for this id. The ids RFC 9000 defines are one contiguous
+// block, but nothing keeps a later extension inside it, so this is a membership test rather than
+// an upper bound: an id outside it must be skipped untouched, since falling through to the
+// integer reader would reject a perfectly legal parameter whose value is not a varint.
+static bool tpKnown(uint64 id)
+{
+    return id <= QUIC_TP_RETRY_SCID || id == QUIC_TP_MAX_DATAGRAM_FRAME;
+}
+
 _Use_decl_annotations_
 bool _quicTpDecode(QuicTransportParams* tp, const uint8* data, size_t len, bool fromServer)
 {
@@ -126,9 +137,11 @@ bool _quicTpDecode(QuicTransportParams* tp, const uint8* data, size_t len, bool 
     QuicRd rd;
     _quicRdInit(&rd, data, len);
 
-    // Every id the RFC defines fits in the low bits of a mask, which is all duplicate detection
+    // Every id this version knows fits in the low bits of a mask, which is all duplicate detection
     // needs: ids past those are unknown to this version and are skipped without being recorded.
-    uint32 seen = 0;
+    // The mask is 64 bits because max_datagram_frame_size is id 0x20, and shifting a uint32 by 32
+    // is undefined behaviour rather than zero.
+    uint64 seen = 0;
 
     while (_quicRdLeft(&rd) > 0) {
         uint64 id = _quicRdVarint(&rd);
@@ -138,12 +151,12 @@ bool _quicTpDecode(QuicTransportParams* tp, const uint8* data, size_t len, bool 
         if (!val)
             return false;
 
-        if (id > QUIC_TP_RETRY_SCID)
+        if (!tpKnown(id))
             continue;   // a parameter from a later version, or GREASE
 
-        if (seen & (1u << id))
+        if (seen & (UINT64_C(1) << id))
             return false;
-        seen |= 1u << id;
+        seen |= UINT64_C(1) << id;
 
         // A client has no legitimate value for any of these, and accepting one would let it
         // dictate the connection IDs a server believes it used.
@@ -242,6 +255,10 @@ bool _quicTpDecode(QuicTransportParams* tp, const uint8* data, size_t len, bool 
             if (v < QUIC_TP_DEF_ACTIVE_CID)
                 return false;
             tp->activeCidLimit = v;
+            break;
+
+        case QUIC_TP_MAX_DATAGRAM_FRAME:
+            tp->maxDatagramFrame = v;
             break;
 
         default:

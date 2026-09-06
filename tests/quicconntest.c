@@ -146,6 +146,18 @@ typedef struct QSide {
     // 0-RTT, as the layer above sees it.
     bool earlyOpened;
     bool earlyRejected;
+
+    // A DATAGRAM frame written by hand, for the checks a peer that follows the rules cannot
+    // produce: one sent to an endpoint that never asked for them, and one larger than the size an
+    // endpoint said it would accept.
+    bool sendDatagram;
+    size_t sendDatagramLen;
+
+    // Unreliable datagrams, as the layer above sees them.
+    uint32 ndgramIn;
+    uint32 ndgramWritable;
+    size_t lastDgramLen;
+    Buffer lastDgram;
 } QSide;
 
 typedef struct QFix {
@@ -176,6 +188,11 @@ typedef struct QFix {
 
     // Give both ends a stream layer.
     bool streamMode;
+
+    // Have both ends advertise max_datagram_frame_size, which is what turns RFC 9221 on, and the
+    // size they advertise. Zero means the largest a datagram could hold.
+    bool datagrams;
+    uint64 datagramMax;
 
     // Override the per-stream and connection windows both ends advertise, for a test that needs a
     // transfer to run without ever being flow control blocked.
@@ -439,6 +456,28 @@ static size_t qFill(_In_opt_ void* ctx, _Out_writes_(bufsz) uint8* buf, size_t b
         return _quicWrLen(&rw);
     }
 
+    if (s->sendDatagram) {
+        static const uint8 dgpay[512] = { 0 };
+
+        QuicFrame df;
+        memset(&df, 0, sizeof(df));
+        df.type          = QUIC_FRAME_DATAGRAM_LEN;
+        df.datagram.len  = s->sendDatagramLen ? s->sendDatagramLen : 4;
+        df.datagram.data = dgpay;
+
+        if (_quicFrameSize(&df) > bufsz)
+            return 0;
+
+        QuicWr dw;
+        _quicWrInit(&dw, buf, bufsz);
+        if (!_quicFrameEncode(&dw, &df))
+            return 0;
+
+        s->sendDatagram = false;
+        *ackEliciting   = true;
+        return _quicWrLen(&dw);
+    }
+
     if (s->sendBadPathResponse) {
         QuicFrame pf;
         memset(&pf, 0, sizeof(pf));
@@ -551,6 +590,25 @@ static const QuicStreamHandlers qStreamHandlers = {
     .closed = qStreamClosed,
 };
 
+static void qDatagramRecv(_In_opt_ void* ctx, _In_reads_bytes_(len) const uint8* data, size_t len)
+{
+    QSide* s = ctx;
+
+    s->ndgramIn++;
+    s->lastDgramLen = len;
+
+    // Copied, because the frame points into the packet buffer the caller is about to reuse -- the
+    // same thing the socket layer has to do with it.
+    bufDestroy(&s->lastDgram);
+    bufAppendBytes(&s->lastDgram, data, len);
+}
+
+static void qDatagramWritable(_In_opt_ void* ctx)
+{
+    QSide* s = ctx;
+    s->ndgramWritable++;
+}
+
 static void qCidIssued(_In_opt_ void* ctx, _In_ const QuicCid* cid, uint64 seq,
                        _In_reads_bytes_(QUIC_RESET_TOKEN_LEN) const uint8* resetToken)
 {
@@ -591,6 +649,8 @@ static const QuicConnHandlers qHandlers = {
     .cidIssued   = qCidIssued,
     .cidRetired  = qCidRetired,
     .token       = qToken,
+    .datagramRecv     = qDatagramRecv,
+    .datagramWritable = qDatagramWritable,
 };
 
 static void qSideDestroy(_Inout_ QSide* s)
@@ -607,6 +667,7 @@ static void qSideDestroy(_Inout_ QSide* s)
     _quicConnDestroy(&s->conn);
     strDestroy(&s->closeReason);
     bufDestroy(&s->newToken);
+    bufDestroy(&s->lastDgram);
 }
 
 // Hands everything one side has produced to the other. Datagrams are copies, so the receiver can
@@ -784,6 +845,8 @@ static bool qStartClient(_Inout_ QFix* f)
     }
     if (f->cliAckDelayExp != 0)
         cc.tp.ackDelayExponent = f->cliAckDelayExp;
+    if (f->datagrams)
+        cc.tp.maxDatagramFrame = f->datagramMax ? f->datagramMax : QUIC_MAX_DATAGRAM;
 
     f->cli.conn = _quicConnCreate(false, &cc, &f->srvAddr);
     if (!f->cli.conn)
@@ -830,6 +893,9 @@ static bool qAccept(_Inout_ QFix* f, _In_opt_ const QuicCid* origDcid)
     // two idle timeouts is visible rather than coincidentally right.
     sc.tp.maxIdleTimeout = 120000;
 
+    if (f->datagrams)
+        sc.tp.maxDatagramFrame = f->datagramMax ? f->datagramMax : QUIC_MAX_DATAGRAM;
+
     // RFC 9001 section 4.5: a resuming client sends its early data under the limits the session it
     // is resuming was given, so a server offering less than it did cannot take that data.
     if (f->srvShrink)
@@ -874,6 +940,18 @@ static bool qHandshakeStreams2(_Inout_ QFix* f, uint64 window)
 static bool qHandshakeStreams(_Inout_ QFix* f)
 {
     return qHandshakeStreams2(f, 0);
+}
+
+// Both ends advertising max_datagram_frame_size, with a stream layer alongside so the tests that
+// need datagrams and stream data competing for the same packet have both.
+static bool qHandshakeDatagrams(_Inout_ QFix* f)
+{
+    if (!qFixInit(f))
+        return false;
+
+    f->streamMode = true;
+    f->datagrams  = true;
+    return qStartClient(f) && qAccept(f, NULL) && (qRun(f), true);
 }
 
 // A fixture whose two ends will resume, and optionally use 0-RTT when they do. Both settings have
@@ -3928,6 +4006,378 @@ out:
     return ret;
 }
 
+// ---------------------------------------------------------------------------------------------
+// Unreliable datagrams (RFC 9221)
+// ---------------------------------------------------------------------------------------------
+
+int test_quicconntest_dgram_params(void)
+{
+    int ret = 0;
+
+    QuicTransportParams tp;
+    _quicTpDefaults(&tp);
+    CHECK_U("max_datagram_frame_size defaults to off", tp.maxDatagramFrame, 0);
+
+    tp.initScid.len     = 2;
+    tp.haveInitScid     = true;
+    tp.maxDatagramFrame = 1200;
+
+    uint8 buf[128];
+    QuicWr wr;
+    _quicWrInit(&wr, buf, sizeof(buf));
+    CHECK("encode", _quicTpEncode(&wr, &tp, false));
+
+    QuicTransportParams got;
+    CHECK("decode", _quicTpDecode(&got, buf, _quicWrLen(&wr), false));
+    CHECK_U("max_datagram_frame_size", got.maxDatagramFrame, 1200);
+
+    // A set that leaves it alone says nothing about it, which the peer reads as no datagrams.
+    tp.maxDatagramFrame = 0;
+    _quicWrInit(&wr, buf, sizeof(buf));
+    CHECK("encode without it", _quicTpEncode(&wr, &tp, false));
+    CHECK("decode without it", _quicTpDecode(&got, buf, _quicWrLen(&wr), false));
+    CHECK_U("an absent parameter", got.maxDatagramFrame, 0);
+
+    // Twice, which is a malformed set like any other duplicate. The mask that catches this is
+    // indexed by parameter id, and 0x20 is past the width the ids RFC 9000 defines need.
+    static const uint8 dup[] = { 0x0f, 0x02, 0xaa, 0xbb, 0x20, 0x02, 0x44, 0xb0,
+                                 0x20, 0x02, 0x44, 0xb0 };
+    CHECK("a duplicate max_datagram_frame_size was accepted",
+          !_quicTpDecode(&got, dup, sizeof(dup), false));
+
+    // The ids between the block RFC 9000 defines and this one are still unknown, and an unknown
+    // parameter has to be skipped whatever its value looks like. This one's value is not a varint,
+    // so a decoder that reached the integer reader for it would reject the whole set -- which RFC
+    // 9000 section 7.4.2 forbids.
+    static const uint8 gap[] = { 0x0f, 0x02, 0xaa, 0xbb, 0x1f, 0x03, 0xff, 0xff, 0xff };
+    CHECK("an unknown parameter between 0x10 and 0x20 was rejected",
+          _quicTpDecode(&got, gap, sizeof(gap), false));
+    CHECK_U("it was read as a datagram parameter", got.maxDatagramFrame, 0);
+
+out:
+    return ret;
+}
+
+int test_quicconntest_dgram_frame(void)
+{
+    int ret = 0;
+
+    static const uint8 payload[] = "an unreliable datagram";
+    const size_t plen = sizeof(payload) - 1;
+    uint8 buf[128];
+
+    // Only the form with a length field is ever written, since the builder cannot promise a frame
+    // will be the last one in its packet.
+    QuicFrame f;
+    memset(&f, 0, sizeof(f));
+    f.type          = QUIC_FRAME_DATAGRAM_LEN;
+    f.datagram.len  = plen;
+    f.datagram.data = payload;
+
+    size_t sz = _quicFrameSize(&f);
+    CHECK_U("size of a DATAGRAM frame", sz, 1 + 1 + plen);
+
+    QuicWr wr;
+    _quicWrInit(&wr, buf, sizeof(buf));
+    CHECK("encode", _quicFrameEncode(&wr, &f));
+    CHECK_U("bytes written", _quicWrLen(&wr), sz);
+
+    QuicFrame got;
+    QuicRd rd;
+    _quicRdInit(&rd, buf, _quicWrLen(&wr));
+    CHECK("decode", _quicFrameDecode(&got, &rd));
+    CHECK_U("type", got.type, QUIC_FRAME_DATAGRAM_LEN);
+    CHECK_U("length", got.datagram.len, plen);
+    CHECK("payload", memcmp(got.datagram.data, payload, plen) == 0);
+    CHECK_U("nothing left over", _quicRdLeft(&rd), 0);
+
+    // The form without a length runs to the end of the packet, so everything after the type byte
+    // is the payload. cx never writes one, but a peer may.
+    uint8 raw[64];
+    raw[0] = QUIC_FRAME_DATAGRAM;
+    memcpy(raw + 1, payload, plen);
+
+    _quicRdInit(&rd, raw, 1 + plen);
+    CHECK("decode the lengthless form", _quicFrameDecode(&got, &rd));
+    CHECK_U("its type", got.type, QUIC_FRAME_DATAGRAM);
+    CHECK_U("its length", got.datagram.len, plen);
+    CHECK("its payload", memcmp(got.datagram.data, payload, plen) == 0);
+
+    // An empty datagram is a legal one.
+    memset(&f, 0, sizeof(f));
+    f.type = QUIC_FRAME_DATAGRAM_LEN;
+    _quicWrInit(&wr, buf, sizeof(buf));
+    CHECK("encode an empty datagram", _quicFrameEncode(&wr, &f));
+
+    _quicRdInit(&rd, buf, _quicWrLen(&wr));
+    CHECK("decode an empty datagram", _quicFrameDecode(&got, &rd));
+    CHECK_U("its length", got.datagram.len, 0);
+
+    // A length that runs past the end of what is there.
+    static const uint8 overrun[] = { QUIC_FRAME_DATAGRAM_LEN, 0x20, 0x01, 0x02 };
+    _quicRdInit(&rd, overrun, sizeof(overrun));
+    CHECK("a truncated DATAGRAM frame was accepted", !_quicFrameDecode(&got, &rd));
+
+out:
+    return ret;
+}
+
+// One datagram each way across a real handshake, under real packet protection.
+int test_quicconntest_dgram_cross(void)
+{
+    int ret     = 0;
+    uint8* big  = NULL;
+    QFix f;
+
+    CHECK("handshake", qHandshakeDatagrams(&f));
+    CHECK("both ends are up", f.cli.connected && f.srv.connected);
+
+    size_t max = _quicConnMaxDatagram(f.cli.conn);
+    CHECK("the client has no datagram channel", max > 0);
+    CHECK("the server has no datagram channel", _quicConnMaxDatagram(f.srv.conn) > 0);
+
+    big = xaAlloc(max + 1);
+    for (size_t i = 0; i < max + 1; i++)
+        big[i] = (uint8)(i * 7 + 3);
+
+    CHECK("a datagram larger than the limit was taken",
+          !_quicConnDatagramSend(f.cli.conn, big, max + 1));
+
+    static const uint8 msg[] = "carried unreliably";
+    CHECK("the client queued a datagram",
+          _quicConnDatagramSend(f.cli.conn, msg, sizeof(msg) - 1));
+
+    // The slot holds exactly one, so a second send before the first has gone out is refused.
+    CHECK("a second datagram was taken while the first was still waiting",
+          !_quicConnDatagramSend(f.cli.conn, msg, sizeof(msg) - 1));
+
+    for (int i = 0; i < 4; i++)
+        qStreamRound(&f);
+
+    CHECK_U("datagrams the server received", f.srv.ndgramIn, 1);
+    CHECK_U("its length", f.srv.lastDgramLen, sizeof(msg) - 1);
+    CHECK("its payload",
+          f.srv.lastDgram && memcmp(f.srv.lastDgram->data, msg, sizeof(msg) - 1) == 0);
+    CHECK("the client was never told the slot drained", f.cli.ndgramWritable > 0);
+
+    // And back the other way, at exactly the size the limit allows.
+    size_t srvMax = _quicConnMaxDatagram(f.srv.conn);
+    CHECK("a datagram of exactly the limit was refused",
+          _quicConnDatagramSend(f.srv.conn, big, srvMax));
+
+    for (int i = 0; i < 4; i++)
+        qStreamRound(&f);
+
+    CHECK_U("datagrams the client received", f.cli.ndgramIn, 1);
+    CHECK_U("the largest allowed datagram arrived truncated", f.cli.lastDgramLen, srvMax);
+    CHECK("its payload changed on the way",
+          f.cli.lastDgram && memcmp(f.cli.lastDgram->data, big, srvMax) == 0);
+
+    CHECK("the connection is still up", !f.cli.closed && !f.srv.closed);
+
+out:
+    if (big)
+        xaFree(big);
+    qFixDestroy(&f);
+    return ret;
+}
+
+// A datagram small enough to share a packet rides out with the stream data it was queued alongside
+// rather than costing a datagram of its own.
+int test_quicconntest_dgram_coalesce(void)
+{
+    int ret    = 0;
+    Buffer got = 0;
+    QFix f;
+
+    CHECK("handshake", qHandshakeDatagrams(&f));
+
+    uint64 id = 0;
+    CHECK("the client opened a stream", _quicStreamOpen(&f.cli.streams, false, &id));
+
+    static const uint8 msg[]  = "small enough to share";
+    static const uint8 body[] = "stream bytes going the same way";
+
+    CHECK_U("stream bytes queued",
+            _quicStreamSend(&f.cli.streams, id, body, sizeof(body) - 1), sizeof(body) - 1);
+    CHECK("the datagram was queued",
+          _quicConnDatagramSend(f.cli.conn, msg, sizeof(msg) - 1));
+
+    uint32 before = f.cli.nout;
+    CHECK("flush", _quicConnFlush(f.cli.conn, f.now));
+    CHECK_U("datagrams the client put on the wire", f.cli.nout - before, 1);
+
+    qRun(&f);
+
+    CHECK_U("datagrams the server received", f.srv.ndgramIn, 1);
+    CHECK_U("its length", f.srv.lastDgramLen, sizeof(msg) - 1);
+
+    qStreamDrain(&f.srv, id, &got);
+    CHECK("the stream bytes in the same packet did not arrive",
+          got && got->len == sizeof(body) - 1 && memcmp(got->data, body, sizeof(body) - 1) == 0);
+
+out:
+    bufDestroy(&got);
+    qFixDestroy(&f);
+    return ret;
+}
+
+// A full-size datagram cannot share a packet with anything, and must not be given up on because of
+// it: the packet that had no room goes without it, and the next one carries it whole.
+int test_quicconntest_dgram_solo(void)
+{
+    int ret    = 0;
+    uint8* big = NULL;
+    Buffer got = 0;
+    QFix f;
+
+    CHECK("handshake", qHandshakeDatagrams(&f));
+
+    size_t max = _quicConnMaxDatagram(f.cli.conn);
+    CHECK("no datagram channel", max > 0);
+
+    big = xaAlloc(max);
+    for (size_t i = 0; i < max; i++)
+        big[i] = (uint8)(i * 29 + 11);
+
+    // Two other things wanting the same packet: a frame the connection owes, which is written
+    // before the datagram is considered, and stream data, which is written after. A full-size
+    // datagram plus either of them is more than one packet holds, so the first packet has to go
+    // without it and a second one has to be built for it to travel in.
+    uint64 id = 0;
+    CHECK("the client opened a stream", _quicStreamOpen(&f.cli.streams, false, &id));
+
+    uint8 body[2048];
+    for (size_t i = 0; i < sizeof(body); i++)
+        body[i] = (uint8)(i * 3 + 1);
+    CHECK_U("stream bytes queued", _quicStreamSend(&f.cli.streams, id, body, sizeof(body)),
+            sizeof(body));
+    _quicStreamFinish(&f.cli.streams, id);
+
+    _quicConnValidatePath(f.cli.conn);
+    CHECK("the datagram was queued", _quicConnDatagramSend(f.cli.conn, big, max));
+
+    uint32 before = f.cli.nout;
+    CHECK("flush the client", _quicConnFlush(f.cli.conn, f.now));
+
+    // At least two: one that the other frames left no room in, and one built empty for the
+    // datagram to claim whole.
+    CHECK_UGE("datagrams the client put on the wire", f.cli.nout - before, 2);
+
+    for (int i = 0; i < 16; i++)
+        qStreamRound(&f);
+
+    CHECK_U("datagrams the server received", f.srv.ndgramIn, 1);
+    CHECK_U("it arrived truncated", f.srv.lastDgramLen, max);
+    CHECK("its payload changed on the way",
+          f.srv.lastDgram && memcmp(f.srv.lastDgram->data, big, max) == 0);
+
+    CHECK("the stream beside it did not finish", qStreamDrain(&f.srv, id, &got));
+    CHECK("the stream data beside it did not get through", got && got->len == sizeof(body));
+
+out:
+    bufDestroy(&got);
+    if (big)
+        xaFree(big);
+    qFixDestroy(&f);
+    return ret;
+}
+
+// A datagram lost on the way is gone. Nothing puts it back, and the stream sharing the connection
+// is repaired as usual -- which is the whole difference between the two.
+int test_quicconntest_dgram_lost(void)
+{
+    int ret    = 0;
+    Buffer got = 0;
+    QFix f;
+
+    CHECK("handshake", qHandshakeDatagrams(&f));
+
+    static const uint8 msg[] = "this one never arrives";
+
+    // The path throws away the next few datagrams this side produces, and the frame exists nowhere
+    // else -- there is no send buffer behind it and no packet number recorded for it.
+    f.cli.dropNext = 4;
+    CHECK("the datagram was queued",
+          _quicConnDatagramSend(f.cli.conn, msg, sizeof(msg) - 1));
+    CHECK("flush", _quicConnFlush(f.cli.conn, f.now));
+
+    CHECK("the datagram never reached a packet", f.cli.ndgramWritable > 0);
+    CHECK_U("something got past a path that was dropping everything", f.cli.nout, 0);
+
+    uint64 id = 0;
+    CHECK("the client opened a stream", _quicStreamOpen(&f.cli.streams, false, &id));
+
+    static const uint8 body[] = "the stream beside it still gets through";
+    CHECK_U("stream bytes queued",
+            _quicStreamSend(&f.cli.streams, id, body, sizeof(body) - 1), sizeof(body) - 1);
+    _quicStreamFinish(&f.cli.streams, id);
+
+    // Long enough for several retransmissions, so a datagram that was ever going to come back has
+    // had every chance to.
+    for (int i = 0; i < 32; i++)
+        qStreamRound(&f);
+
+    CHECK_U("a lost datagram was retransmitted", f.srv.ndgramIn, 0);
+
+    CHECK("the stream did not finish beside a datagram that was dropped",
+          qStreamDrain(&f.srv, id, &got));
+    CHECK("the stream bytes did not arrive",
+          got && got->len == sizeof(body) - 1 && memcmp(got->data, body, sizeof(body) - 1) == 0);
+    CHECK("the connection is still up", !f.cli.closed && !f.srv.closed);
+
+out:
+    bufDestroy(&got);
+    qFixDestroy(&f);
+    return ret;
+}
+
+// The two ways a peer can send a DATAGRAM frame that was never asked for. Both need a frame
+// written by hand, because an endpoint following the rules produces neither.
+int test_quicconntest_dgram_refused(void)
+{
+    int ret = 0;
+    QFix f;
+
+    // Neither end advertised the parameter, so the frame arriving at all is the peer ignoring what
+    // this endpoint said it would read.
+    CHECK("handshake", qHandshakeStreams(&f));
+    CHECK("a connection that never advertised the parameter offers a channel",
+          _quicConnMaxDatagram(f.cli.conn) == 0);
+    CHECK("it queued a datagram anyway",
+          !_quicConnDatagramSend(f.cli.conn, (const uint8*)"x", 1));
+
+    f.cli.sendDatagram = true;
+    CHECK("flush", _quicConnFlush(f.cli.conn, f.now));
+    qRun(&f);
+
+    CHECK("the server accepted a DATAGRAM it never asked for", f.srv.closed);
+    CHECK_U("the error it closed with", f.srv.closeError, QUIC_ERR_PROTOCOL_VIOLATION);
+    qFixDestroy(&f);
+
+    // Advertised, but the frame is larger than the size that was advertised. The size counts the
+    // type and length fields as well as the payload, so 64 leaves room for 61 bytes.
+    CHECK("handshake", qFixInit(&f));
+    f.streamMode   = true;
+    f.datagrams    = true;
+    f.datagramMax  = 64;
+    CHECK("start", qStartClient(&f) && qAccept(&f, NULL) && (qRun(&f), true));
+
+    CHECK_U("the size a 64-byte limit leaves for a payload", _quicConnMaxDatagram(f.cli.conn), 61);
+
+    f.cli.sendDatagram    = true;
+    f.cli.sendDatagramLen = 200;
+    CHECK("flush", _quicConnFlush(f.cli.conn, f.now));
+    qRun(&f);
+
+    CHECK("the server accepted an oversized DATAGRAM", f.srv.closed);
+    CHECK_U("the error it closed with", f.srv.closeError, QUIC_ERR_PROTOCOL_VIOLATION);
+
+out:
+    qFixDestroy(&f);
+    return ret;
+}
+
 testfunc quicconntest_funcs[] = {
     { "stream_echo", test_quicconntest_stream_echo },
     { "stream_bulk", test_quicconntest_stream_bulk },
@@ -3996,5 +4446,12 @@ testfunc quicconntest_funcs[] = {
     { "early_rejected", test_quicconntest_early_rejected },
     { "early_badframe", test_quicconntest_early_badframe },
     { "early_off", test_quicconntest_early_off },
+    { "dgram_params", test_quicconntest_dgram_params },
+    { "dgram_frame", test_quicconntest_dgram_frame },
+    { "dgram_cross", test_quicconntest_dgram_cross },
+    { "dgram_coalesce", test_quicconntest_dgram_coalesce },
+    { "dgram_solo", test_quicconntest_dgram_solo },
+    { "dgram_lost", test_quicconntest_dgram_lost },
+    { "dgram_refused", test_quicconntest_dgram_refused },
     { NULL, NULL },
 };

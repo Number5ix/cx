@@ -37,6 +37,10 @@ CX_C_BEGIN
 #define QUIC_TP_INIT_SCID           0x0f
 #define QUIC_TP_RETRY_SCID          0x10
 
+// RFC 9221. Sits well above the block RFC 9000 defines, which is why the decoder cannot tell a
+// known id from an unknown one with a range test.
+#define QUIC_TP_MAX_DATAGRAM_FRAME  0x20
+
 // One endpoint's transport parameters.
 //
 // The three connection ID parameters are how an endpoint proves that the connection IDs it used
@@ -64,6 +68,7 @@ typedef struct QuicTransportParams {
     uint64 ackDelayExponent;
     uint64 maxAckDelay;     // milliseconds
     uint64 activeCidLimit;
+    uint64 maxDatagramFrame;    // RFC 9221; 0 means this endpoint accepts no DATAGRAM frames
     bool disableMigration;
 } QuicTransportParams;
 
@@ -767,6 +772,13 @@ typedef struct QuicConnHandlers {
     // put back in the queue to go again once 1-RTT keys exist, so nothing above has to act -- it
     // is reported because whether the first request was replayable is worth knowing.
     void (*earlyReject)(_In_opt_ void* ctx);
+
+    // An unreliable datagram arrived (RFC 9221). `data` points into the packet it came out of and
+    // is gone when this returns, so anything that outlives the call has to be copied.
+    void (*datagramRecv)(_In_opt_ void* ctx, _In_reads_bytes_(len) const uint8* data, size_t len);
+
+    // The datagram waiting to be sent went out, so _quicConnDatagramSend() will take another.
+    void (*datagramWritable)(_In_opt_ void* ctx);
 } QuicConnHandlers;
 
 // How a connection is set up. Everything here is copied into the connection, so the struct can be
@@ -914,6 +926,21 @@ void _quicConnLocalCid(_In_ const QuicConn* c, _Out_ QuicCid* out);
 // True once the peer's address has been validated, either by a token or by the handshake getting
 // far enough that the peer must have received something at that address.
 _Pure bool _quicConnValidated(_In_ const QuicConn* c);
+
+// The largest unreliable datagram (RFC 9221) that can be sent right now, or 0 when the channel is
+// not available: either endpoint left max_datagram_frame_size at zero, or the peer's parameters
+// have not arrived. The value rises as path MTU discovery raises the packet size, so it is worth
+// reading before each send rather than once.
+_Pure size_t _quicConnMaxDatagram(_In_ const QuicConn* c);
+
+// Queues one unreliable datagram. There is room for exactly one at a time, so this fails when the
+// previous one has not gone out yet -- which only happens while the congestion window or the pacer
+// is holding it back. It also fails for a payload larger than _quicConnMaxDatagram().
+//
+// Nothing is retransmitted: a datagram lost on the way is simply gone. It is still ack-eliciting
+// and still counts against the congestion window, per RFC 9221 section 5.
+_Success_(return) bool _quicConnDatagramSend(_Inout_ QuicConn* c,
+                                             _In_reads_bytes_(len) const uint8* data, size_t len);
 
 // Loss recovery and congestion control, for reading only: the round trip estimate, the congestion
 // window, and the counters a connection's behaviour under loss is judged by.
