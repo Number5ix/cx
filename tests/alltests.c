@@ -649,6 +649,7 @@ static const testspec tests[] = {
     { "tls: Session Resumption", "tlstest", "resume" },
     { "tls: Post-Handshake Tickets", "tlstest", "tickets" },
     { "tls: Unusable Config Fails Closed", "tlstest", "failclosed" },
+    { "tls: RSA Key Encodings", "tlstest", "keyformats" },
 #endif
 #if defined(CX_HTTP_TESTS) && (defined(_PLATFORM_WIN) || defined(_PLATFORM_UNIX))
     { "http: URL Parsing", "httptest", "url" },

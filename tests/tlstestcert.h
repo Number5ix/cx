@@ -23,3 +23,19 @@ typedef struct TlsTestPKI {
 // Mint the whole set. Returns false and leaves nothing behind if any step fails.
 bool tlsTestPKIInit(_Out_ TlsTestPKI* pki);
 void tlsTestPKIDestroy(_Inout_ TlsTestPKI* pki);
+
+// Key size for the RSA identity below. Small enough that generating one per test run is cheap,
+// large enough that mbedTLS will actually use it.
+#define TLS_TEST_RSA_BITS 2048
+
+// A standalone self-signed RSA identity, carrying the one private key in both of the encodings
+// deployments ship it in. Separate from TlsTestPKI because an RSA key generation costs far more
+// than the P-256 ones and only the key-format test needs it.
+typedef struct TlsTestRSAIdentity {
+    string cert;       ///< Self-signed leaf for TLS_TEST_HOSTNAME, PEM
+    string keyPKCS1;   ///< The private key as "BEGIN RSA PRIVATE KEY", PEM
+    string keyPKCS8;   ///< The same private key as "BEGIN PRIVATE KEY", PEM
+} TlsTestRSAIdentity;
+
+bool tlsTestRSAIdentity(_Out_ TlsTestRSAIdentity* id);
+void tlsTestRSAIdentityDestroy(_Inout_ TlsTestRSAIdentity* id);

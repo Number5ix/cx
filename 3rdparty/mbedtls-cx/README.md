@@ -64,11 +64,11 @@ It must print nothing.
 certificates and formal-verification proofs, and then removes any directory left empty.
 Both `vendor.sh` and `refresh.sh` apply the identical prune, or `refresh.sh` would record
 all of it as deletions inside `cx-local.patch`. If you change `PRUNE_DIRS`, re-run
-`refresh.sh` and check the patch still names only the eight files listed below.
+`refresh.sh` and check the patch still names only the nine files listed below.
 
 ## The patch series
 
-Four groups, eight files. `cx-local.patch` is the authoritative form; this is the map.
+Five groups, nine files. `cx-local.patch` is the authoritative form; this is the map.
 
 ### A. CMake compatibility — `CMakeLists.txt`, `tf-psa-crypto/CMakeLists.txt`
 
@@ -157,6 +157,23 @@ to the PTHREAD and ALT ones. Note that this file, not the generated
   around the `#pragma comment(lib, "ws2_32.lib")` / `<winsock2.h>` block, so MSVC takes
   mbedTLS's software `inet_pton()` fallback. Unchanged one-liner from the 3.6.7 patch.
 
+### E. Upstream bug fix — `tf-psa-crypto/extras/pkparse.c`
+
+RSA private keys in PKCS#8 (`-----BEGIN PRIVATE KEY-----`, what OpenSSL 3 writes by default)
+parse into a `mbedtls_pk_context` whose `pub_raw` is left empty:
+`mbedtls_pk_parse_key_pkcs8_unencrypted_der()` calls `mbedtls_pk_rsa_set_key()` and then, unlike
+every sibling path in the file, never calls `mbedtls_pk_set_pubkey_from_prv()`. The PKCS#1 paths
+do, the SEC1 and RFC 8410 EC paths do, and this one does not — so the bug is RSA-and-PKCS#8 only.
+
+Anything that reads the public half of such a context then fails: `mbedtls_pk_check_pair()`
+returns `PSA_ERROR_INVALID_ARGUMENT` on a `pub_raw_len` of zero, `mbedtls_pk_import_into_psa()`
+imports a zero-length RSA public key, and RSA-PSS verification does the same. cxtls hits the
+first of those in `TlsCreds`, which proves the certificate and key match at load time, so an
+RSA server certificate simply refuses to load.
+
+The patch adds the missing call. Report it upstream and drop the hunk once a release carries
+the fix; `tests/tlstest.c keyformats` is the regression test and covers both encodings.
+
 ### Retired
 
 **The `entropy_poll.c` patch is gone.** 3.6.7 needed a hand-written `CryptGenRandom` branch
@@ -226,6 +243,8 @@ After an upgrade, in rough order of how much they catch:
 4. **Smoke test**: `test_runner tlstest psa` — `psa_crypto_init()` then
    `psa_generate_random()`. Run it under the leak-checking build too, to confirm
    `xa_calloc` / `xa_free` really are in the path.
+   Then `ctest -R "^\"tls:"`, which includes `tls: RSA Key Encodings` — that one fails if
+   group E was dropped or an upgrade regressed the same path.
 5. **The `.gitignore` check** above.
 6. **Patch round-trip**: `./refresh.sh` leaves `cx-local.patch` unchanged, and `./vendor.sh`
    from scratch reproduces a byte-identical tree.

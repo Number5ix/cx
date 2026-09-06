@@ -1029,6 +1029,42 @@ static int test_tlstest_tickets(void)
     return ret;
 }
 
+// One RSA private key, offered in both of the PEM encodings a deployment might hand over: PKCS#1
+// ("BEGIN RSA PRIVATE KEY") and PKCS#8 ("BEGIN PRIVATE KEY", what OpenSSL 3 writes by default).
+// TlsCreds proves the certificate and key belong together at load time, and that check needs a
+// public key derived from the private one during parsing -- which the two encodings reach by
+// different code paths, so either can work while the other does not.
+static int test_tlstest_keyformats(void)
+{
+    int ret = 0;
+    TlsTestRSAIdentity id;
+
+    if (!tlsTestRSAIdentity(&id))
+        TEST_FAIL(1, _SL("assertion failed: !tlsTestRSAIdentity(&id)"), stvNone);
+
+    if (!strBeginsWith(id.keyPKCS1, _S"-----BEGIN RSA PRIVATE KEY-----"))
+        TEST_FAILV(ret, 1, _SL("PKCS#1 key is not in the expected encoding"), stvar(strref, id.keyPKCS1));
+    if (!strBeginsWith(id.keyPKCS8, _S"-----BEGIN PRIVATE KEY-----"))
+        TEST_FAILV(ret, 1, _SL("PKCS#8 key is not in the expected encoding"), stvar(strref, id.keyPKCS8));
+
+    if (!ret) {
+        TlsCreds* c1 = tlscredsCreatePEM(id.cert, id.keyPKCS1, 0);
+        if (!c1)
+            TEST_FAILV(ret, 1, _SL("RSA credentials failed to load from PKCS#1"), stvNone);
+        objRelease(&c1);
+    }
+
+    if (!ret) {
+        TlsCreds* c8 = tlscredsCreatePEM(id.cert, id.keyPKCS8, 0);
+        if (!c8)
+            TEST_FAILV(ret, 1, _SL("RSA credentials failed to load from PKCS#8"), stvNone);
+        objRelease(&c8);
+    }
+
+    tlsTestRSAIdentityDestroy(&id);
+    return ret;
+}
+
 testfunc tlstest_funcs[] = {
     { "handshake",  test_tlstest_handshake  },
     { "wire",       test_tlstest_wire       },
@@ -1043,5 +1079,6 @@ testfunc tlstest_funcs[] = {
     { "resume",     test_tlstest_resume     },
     { "tickets",    test_tlstest_tickets    },
     { "failclosed", test_tlstest_failclosed },
+    { "keyformats", test_tlstest_keyformats },
     { 0,            0                       },
 };

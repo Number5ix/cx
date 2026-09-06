@@ -779,6 +779,7 @@ add_test(NAME "\"tls: Orderly Shutdown\"" COMMAND test_runner tlstest shutdown)
 add_test(NAME "\"tls: Session Resumption\"" COMMAND test_runner tlstest resume)
 add_test(NAME "\"tls: Post-Handshake Tickets\"" COMMAND test_runner tlstest tickets)
 add_test(NAME "\"tls: Unusable Config Fails Closed\"" COMMAND test_runner tlstest failclosed)
+add_test(NAME "\"tls: RSA Key Encodings\"" COMMAND test_runner tlstest keyformats)
 endif()
 
 add_test(NAME "\"taskqueue: Tasks\"" COMMAND test_runner tqtest task)
