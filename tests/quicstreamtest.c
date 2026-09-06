@@ -836,6 +836,160 @@ out:
     return ret;
 }
 
+// A sender that stops with room to spare still has to be woken.
+//
+// Spending a window down to exactly zero is something a framed protocol often cannot do: three
+// spare bytes are not a frame, and there is nothing useful to put in them. The refused write is
+// what says the sender is waiting, and it is the only thing that does -- no limit has been
+// reached, so there is no complaint to send the peer and nothing on the wire to remember it by.
+int test_quicstreamtest_flow_refused_stream(void)
+{
+    int ret    = 0;
+    Buffer got = 0;
+    SFix f;
+
+    QuicTransportParams atp, btp;
+    sTpDefaults(&atp);
+    sTpDefaults(&btp);
+    btp.initMaxSdBidiRemote = 10;   // what the client may put on a stream it opened
+    sFixInit2(&f, &atp, &btp);
+
+    uint64 id = 0;
+    CHECK("opened a stream", _quicStreamOpen(&f.a.ss, false, &id));
+
+    static const uint8 src[32] = { 0 };
+    bool blocked               = false;
+    CHECK("seven of the ten bytes taken", _quicStreamSendAll(&f.a.ss, id, src, 7, &blocked));
+    CHECK_U("room left over", _quicStreamWritable(&f.a.ss, id), 3);
+
+    CHECK("a write too large for it takes nothing",
+          !_quicStreamSendAll(&f.a.ss, id, src, 8, &blocked));
+    CHECK_U("and queues nothing behind it", _quicStreamWritable(&f.a.ss, id), 3);
+
+    // The limit still has room, so there is nothing to complain about: asking the peer to raise a
+    // limit that was never reached asks it for the wrong thing.
+    CHECK("the refusal was not reported as a limit", !blocked);
+
+    // Everything from the refusal on: the sender stopped here, so this is the point after which it
+    // has to be woken. Which event does it is not the sender's business -- an acknowledgement
+    // emptying the buffer will do it as readily as the window update, and either way it is told.
+    uint32 before = f.a.nwritable;
+
+    CHECK("packet built", sBuild(&f.a, SBUDGET) > 0);
+    CHECK_U("STREAM_DATA_BLOCKED frames", sCountFrames(&f.a, QUIC_FRAME_STREAM_DATA_BLOCKED), 0);
+    CHECK_U("DATA_BLOCKED frames", sCountFrames(&f.a, QUIC_FRAME_DATA_BLOCKED), 0);
+    CHECK("delivered", sDeliver(&f.a, &f.b));
+    CHECK("no connection error", sRun(&f));
+
+    bool fin = false;
+    sRead(&f.b, id, &got, &fin);
+    CHECK_U("bytes read", got ? got->len : 0, 7);
+
+    CHECK("no connection error after the read", sRun(&f));
+    CHECK("the sender was told it could write again", f.a.nwritable > before);
+    CHECK("and the write it was refused now fits", _quicStreamSendAll(&f.a.ss, id, src, 8, NULL));
+    CHECK_U("which used the room the peer gave", _quicStreamWritable(&f.a.ss, id), 2);
+
+out:
+    bufDestroy(&got);
+    sFixDestroy(&f);
+    return ret;
+}
+
+// The same, against the limit every stream shares. The connection is nowhere near its own limit
+// when the sender gives up -- there are three bytes of it left -- so nothing about the connection
+// says a stream is waiting. Only the stream that was refused knows.
+int test_quicstreamtest_flow_refused_conn(void)
+{
+    int ret    = 0;
+    Buffer got = 0;
+    SFix f;
+
+    QuicTransportParams atp, btp;
+    sTpDefaults(&atp);
+    sTpDefaults(&btp);
+    btp.initMaxData = 12;   // across every stream at once
+    sFixInit2(&f, &atp, &btp);
+
+    uint64 a = 0, b = 0;
+    CHECK("opened the first stream", _quicStreamOpen(&f.a.ss, false, &a));
+    CHECK("opened the second stream", _quicStreamOpen(&f.a.ss, false, &b));
+
+    static const uint8 src[32] = { 0 };
+    bool blocked               = false;
+    CHECK("the first stream took nine", _quicStreamSendAll(&f.a.ss, a, src, 9, NULL));
+
+    // The second stream's own window is wide open; what is left is the connection's three bytes.
+    CHECK_U("what the connection leaves the second stream", _quicStreamWritable(&f.a.ss, b), 3);
+    CHECK("a write too large for it takes nothing",
+          !_quicStreamSendAll(&f.a.ss, b, src, 8, &blocked));
+    CHECK("the refusal was not reported as a limit", !blocked);
+
+    CHECK("packet built", sBuild(&f.a, SBUDGET) > 0);
+    CHECK_U("DATA_BLOCKED frames", sCountFrames(&f.a, QUIC_FRAME_DATA_BLOCKED), 0);
+    CHECK("delivered", sDeliver(&f.a, &f.b));
+    CHECK("no connection error", sRun(&f));
+
+    uint32 before = f.a.nwritable;
+    bool fin      = false;
+    sRead(&f.b, a, &got, &fin);
+    CHECK_U("the first stream's bytes", got ? got->len : 0, 9);
+
+    CHECK("no connection error after the read", sRun(&f));
+
+    // Only the stream that was waiting: the first one was never held up, and telling it there is
+    // room is noise it has to walk its own send path to discover it did not need.
+    CHECK_U("wake-ups the raised limit produced", f.a.nwritable - before, 1);
+    CHECK("and the refused write now fits", _quicStreamSendAll(&f.a.ss, b, src, 8, NULL));
+
+out:
+    bufDestroy(&got);
+    sFixDestroy(&f);
+    return ret;
+}
+
+// A write refused right at the peer's limit is one the peer can do something about, and it is
+// told. This is the same complaint a partial write makes, from the path that takes nothing at all
+// -- which is the only path a caller who cannot use a partial write ever goes down.
+int test_quicstreamtest_flow_refused_blocked(void)
+{
+    int ret = 0;
+    SFix f;
+
+    QuicTransportParams atp, btp;
+    sTpDefaults(&atp);
+    sTpDefaults(&btp);
+    btp.initMaxSdBidiRemote = 10;
+    sFixInit2(&f, &atp, &btp);
+
+    uint64 id = 0;
+    CHECK("opened a stream", _quicStreamOpen(&f.a.ss, false, &id));
+
+    static const uint8 src[32] = { 0 };
+    bool blocked               = false;
+    CHECK("the whole window taken", _quicStreamSendAll(&f.a.ss, id, src, 10, &blocked));
+    CHECK("a write that fits reports no limit", !blocked);
+    CHECK_U("no room left", _quicStreamWritable(&f.a.ss, id), 0);
+
+    CHECK("nothing more is taken", !_quicStreamSendAll(&f.a.ss, id, src, 4, &blocked));
+    CHECK("and this refusal is one the peer is told about", blocked);
+
+    CHECK("packet built", sBuild(&f.a, SBUDGET) > 0);
+    CHECK_U("STREAM_DATA_BLOCKED frames", sCountFrames(&f.a, QUIC_FRAME_STREAM_DATA_BLOCKED), 1);
+    CHECK_U("DATA_BLOCKED frames", sCountFrames(&f.a, QUIC_FRAME_DATA_BLOCKED), 0);
+
+    QuicFrame fr;
+    CHECK("the complaint is there", sLastFrame(&f.a, QUIC_FRAME_STREAM_DATA_BLOCKED, &fr));
+    CHECK_U("the limit it names", fr.streamDataBlocked.limit, 10);
+
+    CHECK("delivered", sDeliver(&f.a, &f.b));
+    CHECK("no connection error", sRun(&f));
+
+out:
+    sFixDestroy(&f);
+    return ret;
+}
+
 int test_quicstreamtest_flow_violate_stream(void)
 {
     int ret = 0;
@@ -2202,6 +2356,9 @@ testfunc quicstreamtest_funcs[] = {
     { "reorder", test_quicstreamtest_reorder },
     { "flow_stream", test_quicstreamtest_flow_stream },
     { "flow_conn", test_quicstreamtest_flow_conn },
+    { "flow_refused_stream", test_quicstreamtest_flow_refused_stream },
+    { "flow_refused_conn", test_quicstreamtest_flow_refused_conn },
+    { "flow_refused_blocked", test_quicstreamtest_flow_refused_blocked },
     { "flow_violate_stream", test_quicstreamtest_flow_violate_stream },
     { "flow_violate_conn", test_quicstreamtest_flow_violate_conn },
     { "window", test_quicstreamtest_window },

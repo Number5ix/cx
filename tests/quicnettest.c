@@ -108,6 +108,12 @@ typedef struct QNSide {
     size_t pumpSent;
     bool pumpRefused;       // a send was refused with netquicWritable() reporting room
 
+    // Non-zero makes the pump write whole units of this size, the way a framed protocol has to:
+    // it offers the frame and lets the send be refused rather than measuring the window first,
+    // since a window with bytes left in it but not enough for a frame is one it cannot spend.
+    size_t pumpFrame;
+    uint32 pumpRefusals;    // times a whole-frame write was turned away
+
     // Echo what arrives, reading only as much as there is room to send straight back, and end the
     // sending half once the peer has ended its own. Leaving the rest unread is what holds the
     // peer's window shut, which is what an application that echoes actually does.
@@ -326,8 +332,24 @@ static void qnOnRecv(_Inout_ NetEvent* ev)
 static void qnPump(_Inout_ QNSide* s)
 {
     while (s->pumpSent < s->pumpTotal) {
-        size_t room = netquicWritable(s->pumpFlow);
         size_t want = s->pumpTotal - s->pumpSent;
+
+        if (s->pumpFrame) {
+            if (want > s->pumpFrame)
+                want = s->pumpFrame;
+
+            // Being refused is the whole point: it is what says this sender is waiting, and there
+            // is nothing else for it to wait on.
+            if (!netflowSend(s->pumpFlow, s->pumpData + s->pumpSent, want, 0)) {
+                s->pumpRefusals++;
+                return;
+            }
+
+            s->pumpSent += want;
+            continue;
+        }
+
+        size_t room = netquicWritable(s->pumpFlow);
         size_t n    = room < want ? room : want;
 
         if (n == 0)
@@ -934,6 +956,130 @@ static int test_quicnettest_sendwakeup(void)
 
     CHECK("netquicWritable() and netflowSend() agree", !f.cli.pumpRefused);
     CHECK_U("bytes handed to the stream", f.cli.pumpSent, total);
+
+    netquicFinish(flow);
+    QN_WAIT(&f, f.srv.drained == total, QN_BUDGET);
+    CHECK_U("bytes that arrived", f.srv.drained, total);
+
+out:
+    f.cli.pumpFlow = NULL;
+    xaFree(payload);
+    objRelease(&flow);
+    qnFixDestroy(&f);
+    return ret;
+}
+
+// A sender that writes whole frames stops with room to spare, and has to be woken anyway.
+//
+// This is the shape of every framed protocol on top of QUIC: the unit is a header plus a payload,
+// and a window with a few bytes left in it holds no such thing. Spending the window to exactly
+// zero is not something the sender can choose to do, so "you reached zero" is not a signal it can
+// wait on. What it can produce is a refused send, and that is what has to arm the wake-up.
+static int test_quicnettest_sendframed(void)
+{
+    int ret = 0;
+    QNFix f;
+    NetFlow* flow = NULL;
+
+    const size_t total = 128 * 1024;
+    uint8* payload     = xaAlloc(total);
+    for (size_t i = 0; i < total; i++)
+        payload[i] = (uint8)(i * 31 + (i >> 8));
+
+    // A window several times smaller than the transfer, and a frame size that does not divide it.
+    // Whatever the window happens to be when the sender runs out, the remainder is unusable and
+    // nothing but the refusal records that the sender stopped.
+    QuicConfig cfg    = { 0 };
+    cfg.maxData       = 1024 * 1024;
+    cfg.maxStreamData = 16 * 1024;
+
+    CHECK("connect", qnConnect(&f, &cfg));
+    f.srv.drain = true;
+
+    flow = netquicOpen(f.cli.sock, true);
+    CHECK("open", flow != NULL);
+
+    f.cli.pumpFlow  = flow;
+    f.cli.pumpData  = payload;
+    f.cli.pumpTotal = total;
+    f.cli.pumpFrame = 3000;
+    qnPump(&f.cli);
+
+    CHECK("the first run filled the window", f.cli.pumpSent < total);
+    CHECK("and was turned away short of it", f.cli.pumpRefusals > 0);
+    CHECK("with room left it could not use", netquicWritable(flow) > 0);
+
+    QN_WAIT(&f, f.cli.pumpSent == total, QN_BUDGET);
+    CHECK_U("bytes handed to the stream", f.cli.pumpSent, total);
+
+    // Each of those refusals had to be answered by a NET_SendReady or the transfer would have
+    // stopped where it stood, which is what this is really testing.
+    CHECK("it was refused more than once", f.cli.pumpRefusals > 1);
+    CHECK("and woken every time", f.cli.nSendReady >= f.cli.pumpRefusals);
+
+    netquicFinish(flow);
+    QN_WAIT(&f, f.srv.drained == total, QN_BUDGET);
+    CHECK_U("bytes that arrived", f.srv.drained, total);
+
+out:
+    f.cli.pumpFlow = NULL;
+    xaFree(payload);
+    objRelease(&flow);
+    qnFixDestroy(&f);
+    return ret;
+}
+
+// A framed sender is woken when it can write a frame, not when a byte comes free.
+//
+// The windows here are wide enough that what holds the sender back is the send buffer, which
+// acknowledgements release a packet at a time. Waking on the first byte of that would wake the
+// sender ten-odd times per frame, and every one of those rounds ends in a refused send: the room
+// that came free is real but useless, because it is smaller than the frame waiting to go into it.
+static int test_quicnettest_sendwatermark(void)
+{
+    int ret = 0;
+    QNFix f;
+    NetFlow* flow = NULL;
+
+    const size_t frame  = 16 * 1024;
+    const size_t total  = 768 * 1024;
+    const uint32 frames = (uint32)(total / frame);
+
+    uint8* payload = xaAlloc(total);
+    for (size_t i = 0; i < total; i++)
+        payload[i] = (uint8)(i * 31 + (i >> 8));
+
+    QuicConfig cfg    = { 0 };
+    cfg.maxData       = 8 * 1024 * 1024;
+    cfg.maxStreamData = 8 * 1024 * 1024;
+
+    CHECK("connect", qnConnect(&f, &cfg));
+    f.srv.drain = true;
+
+    flow = netquicOpen(f.cli.sock, true);
+    CHECK("open", flow != NULL);
+
+    f.cli.pumpFlow  = flow;
+    f.cli.pumpData  = payload;
+    f.cli.pumpTotal = total;
+    f.cli.pumpFrame = frame;
+    qnPump(&f.cli);
+
+    CHECK("the first run filled the buffer", f.cli.pumpSent < total);
+
+    QN_WAIT(&f, f.cli.pumpSent == total, QN_BUDGET);
+    CHECK_U("bytes handed to the stream", f.cli.pumpSent, total);
+
+    // The real measure is how many rounds it took. Every wake-up here is answered by a refusal, so
+    // an early one buys nothing: it wakes the sender to tell it something it already knew. With
+    // the watermark each round carries several frames, and waking on any free byte instead runs to
+    // three times as many rounds for the same transfer.
+    TEST_INFO(_S"wakeups=${uint} refusals=${uint} frames=${uint}",
+              stvar(uint32, f.cli.nSendReady), stvar(uint32, f.cli.pumpRefusals),
+              stvar(uint32, frames));
+    CHECK("it was woken at all", f.cli.nSendReady > 0);
+    CHECK("and each wake-up carried several frames", f.cli.nSendReady <= frames / 4);
+    CHECK("with nothing woken that was not refused", f.cli.pumpRefusals <= f.cli.nSendReady + 1);
 
     netquicFinish(flow);
     QN_WAIT(&f, f.srv.drained == total, QN_BUDGET);
@@ -1968,6 +2114,8 @@ testfunc quicnettest_funcs[] = {
     { "stopsending",    test_quicnettest_stopsending    },
     { "bulk",           test_quicnettest_bulk           },
     { "sendwakeup",     test_quicnettest_sendwakeup     },
+    { "sendframed",     test_quicnettest_sendframed     },
+    { "sendwatermark",  test_quicnettest_sendwatermark  },
     { "echostreams",    test_quicnettest_echostreams    },
     { "backpressure",   test_quicnettest_backpressure   },
     { "streamlimit",    test_quicnettest_streamlimit    },

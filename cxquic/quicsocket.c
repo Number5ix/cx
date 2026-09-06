@@ -264,6 +264,18 @@ static void armDeadline(_In_ NetSocketQuic* self, int64 now)
 
 // Sends whatever the connection has waiting and re-arms its deadline. Every path into the engine
 // ends here, which is why none of them has to think about when a packet actually goes out.
+// The queue's send watermarks mean the same thing on a QUIC stream as on a TCP socket, measured
+// against one stream rather than the socket's whole backlog: sendHigh is how much a stream will
+// hold for the application, and sendLow how much room it takes for waking a refused sender to be
+// worth doing. Zero for either leaves the stream layer's own default in place.
+static void applySendWatermarks(_Inout_ QuicEngine* eng, _In_ const NetSocket* sock)
+{
+    if (sock->sendHigh > 0)
+        eng->streams.sendBufMax = sock->sendHigh;
+
+    eng->streams.sendLow = sock->sendLow;
+}
+
 static void enginePump(_In_ NetSocketQuic* self, int64 now)
 {
     QuicEngine* eng = engOf(self);
@@ -989,6 +1001,7 @@ static bool acceptInitial(_In_ NetSocketQuic* lsn, _In_ NetQueue* q, _In_ NetAdd
     _quicConnSetHandlers(eng->conn, &quicConnHandlers, conn);
 
     _quicStreamsInit(&eng->streams, true, &eng->tp);
+    applySendWatermarks(eng, NetSocket(conn));
     _quicStreamsSetHandlers(&eng->streams, &quicStreamHandlers, conn);
     eng->streamsInit = true;
 
@@ -1056,6 +1069,7 @@ static bool startClient(_In_ NetSocketQuic* self, _In_ const NetAddr* addr)
             _quicConnSetHandlers(eng->conn, &quicConnHandlers, self);
 
             _quicStreamsInit(&eng->streams, false, &eng->tp);
+            applySendWatermarks(eng, NetSocket(self));
             _quicStreamsSetHandlers(&eng->streams, &quicStreamHandlers, self);
             eng->streamsInit = true;
 
@@ -1377,10 +1391,18 @@ bool QuicStream_send(_In_ QuicStream* self, _In_ const uint8* data, size_t len, 
         // All or nothing, the way every other send in netqueue is: a partial write would leave the
         // application holding a remainder it has no way to name. netquicWritable() is how it finds
         // out how much would fit.
-        if (eng->streamsInit && !eng->torndown &&
-            _quicStreamWritable(&eng->streams, self->key) >= len) {
-            ok = _quicStreamSend(&eng->streams, self->key, data, len) == len;
-            if (ok)
+        //
+        // The refusal goes through the stream layer rather than being decided here, because a
+        // refusal is state: it is what arms NET_SendReady, and what tells the peer we are up
+        // against a limit it set.
+        //
+        // A refusal is worth a flush only when it had something new to say, which is at most once
+        // per limit -- otherwise an application that keeps offering a write it cannot make would
+        // drive a full flush on every attempt.
+        if (eng->streamsInit && !eng->torndown) {
+            bool blocked = false;
+            ok           = _quicStreamSendAll(&eng->streams, self->key, data, len, &blocked);
+            if (ok || blocked)
                 enginePump(sock, clockTimer());
         }
     }

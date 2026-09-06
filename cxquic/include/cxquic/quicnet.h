@@ -293,8 +293,16 @@ size_t netquicReadable(_In_ NetFlow* flow);
 
 /// Bytes that netflowSend() would accept right now
 ///
-/// A send of more than this is refused. Zero means the stream is out of room and NET_SendReady
-/// will be delivered on it once there is some again.
+/// A send of more than this is refused, and nothing is queued. NET_SendReady is delivered on the
+/// stream once there is more room, so a refused send is always followed by one -- there is no need
+/// to spend the window down to exactly zero to be told, and a protocol whose smallest unit does
+/// not fit in what is left may simply stop.
+///
+/// The event waits for enough room to be worth having rather than firing on the first byte that
+/// comes free: at least as much as the refused send asked for, and at least NetSocket::sendLow.
+/// A sender writing whole frames is therefore woken once per frame it can write, not once per
+/// packet the peer acknowledges. Room the connection turns out not to be able to reach does not
+/// strand it -- the event still arrives with whatever there is.
 ///
 /// @param flow Stream flow
 /// @return Number of bytes that can be sent

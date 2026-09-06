@@ -73,7 +73,7 @@ _meta_inline uint64 _quicStreamMakeId(uint64 index, bool server, bool uni)
 #define QUIC_RECV_RESET_READ 5
 #define QUIC_RECV_NONE       6
 
-// How much one stream will hold for the application before refusing to take more.
+// Default for QuicStreams::sendBufMax, used when nothing configures it.
 //
 // Flow control already bounds this, but only by what the peer advertised, and a peer is free to
 // advertise a window far larger than anything worth buffering. This is the memory cost of one
@@ -92,6 +92,18 @@ typedef struct QuicStreamState {
     QuicSendBuf out;
     uint64 sendMax;         // the peer's limit for this stream
     uint64 sendBlocked;     // the limit a STREAM_DATA_BLOCKED was last queued for
+
+    // The room a waiting sender needs before waking it is worth doing -- what it last asked for
+    // and could not have. Meaningless unless wantWritable is set.
+    //
+    // Without a watermark the sender is woken by the first byte that comes free, and for a
+    // protocol that writes whole frames that is a wasted round: it tries, is refused, and waits
+    // again. Acknowledgements release buffer space a packet at a time, so a sender waiting on one
+    // frame would be woken once per packet the whole way there.
+    //
+    // Capped at the send buffer, since a watermark above that could never be reached however much
+    // the peer granted.
+    uint64 sendWaitLow;
     uint64 sendFinal;       // the offset the sending half stopped at, for RESET_STREAM
     uint64 resetError;
     QuicCtl fin;            // the frame carrying the end of the stream
@@ -99,6 +111,12 @@ typedef struct QuicStreamState {
     QuicCtl blocked;
     uint8 sendState;
     bool finAcked;
+
+    // The sender has stopped and is waiting to be told there is room. Not the same as sendRoom()
+    // being zero: a write can be refused with room left over, when what the application wanted did
+    // not fit in it, which is the ordinary case for a protocol that writes whole frames. Without
+    // this a sender that stops one byte short of the window is never woken again.
+    bool wantWritable;
 
     // Receiving
     QuicReasm in;           // in.limit is the offset this endpoint has advertised
@@ -176,6 +194,13 @@ typedef struct QuicStreams {
     QuicCtl maxStreams[QUIC_SDIR_COUNT];
     QuicCtl streamsBlocked[QUIC_SDIR_COUNT];
 
+    // How much one stream will hold for the application before refusing to take more, and how
+    // much room it takes to wake a sender that was refused. NetSocket::sendHigh and
+    // NetSocket::sendLow set these; the stream layer on its own uses QUIC_STREAM_SEND_MAX and no
+    // watermark. A watermark above sendBufMax could never be reached, so it is clamped to it.
+    uint64 sendBufMax;
+    uint64 sendLow;
+
     // The per-stream windows each end advertised in its transport parameters, which is where a
     // new stream's limits come from.
     uint64 localSdBidiLocal, localSdBidiRemote, localSdUni;
@@ -237,6 +262,14 @@ _Ret_maybenull_ QuicStreamState* _quicStreamFind(_In_ const QuicStreams* ss, uin
 // again. Returns 0 for a stream that cannot be written to at all.
 size_t _quicStreamSend(_Inout_ QuicStreams* ss, uint64 id, _In_reads_(len) const uint8* data,
                        size_t len);
+
+// The same, all or nothing: either every byte is queued or none is. A refusal arms the writable
+// handler, so a caller that cannot use a partial write has something to wait for. `blocked` says
+// whether the refusal also queued a frame telling the peer one of its limits is what stopped the
+// write, which is the only reason a refused write is worth flushing for.
+_Success_(return) bool _quicStreamSendAll(_Inout_ QuicStreams* ss, uint64 id,
+                                          _In_reads_(len) const uint8* data, size_t len,
+                                          _Out_opt_ bool* blocked);
 
 // Ends the sending half: no more bytes may be queued, and the end of the stream is marked once
 // everything already queued has gone out.

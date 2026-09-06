@@ -81,6 +81,7 @@ typedef struct NetQueueConfig {
 
     size_t sendHigh;        ///< Default send high watermark for sockets on this queue
     size_t sendLow;         ///< Default send low watermark for sockets on this queue
+                            ///< (both are per stream on a QUIC socket -- see NetSocket)
 
     /// @brief How long a single connect attempt may run before it's cancelled and the next
     /// resolved address is tried, in microseconds (0 = a sensible default)

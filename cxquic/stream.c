@@ -100,7 +100,7 @@ static uint64 sendRoom(_In_ const QuicStreams* ss, _In_ const QuicStreamState* s
         room = conn;
 
     uint64 held = st->out.end - st->out.base;
-    uint64 buf  = held < QUIC_STREAM_SEND_MAX ? QUIC_STREAM_SEND_MAX - held : 0;
+    uint64 buf  = held < ss->sendBufMax ? ss->sendBufMax - held : 0;
     return buf < room ? buf : room;
 }
 
@@ -315,6 +315,11 @@ void _quicStreamsInit(QuicStreams* ss, bool server, const QuicTransportParams* t
     ss->recvMax     = tp->initMaxData;
     ss->recvWindow  = tp->initMaxData;
     ss->sendBlocked = UINT64_MAX;
+
+    // Overwritten by whatever owns the connection if it has been configured; on its own the stream
+    // layer buffers the default and wakes a refused sender as soon as what it asked for fits.
+    ss->sendBufMax = QUIC_STREAM_SEND_MAX;
+    ss->sendLow    = 0;
 
     for (int dir = 0; dir < QUIC_SDIR_COUNT; dir++)
         ss->streamsBlockedAt[dir] = UINT64_MAX;
@@ -574,12 +579,53 @@ static bool handleStopSending(_Inout_ QuicStreams* ss, _In_ const QuicFrame* f)
 }
 
 
-// A limit rising is the one thing that can turn a stream that had no room into one that has some.
-// Only a stream that had none hears about it: one that was never held up has nothing to be told.
-static void sendUnblock(_Inout_ QuicStreams* ss, _Inout_ QuicStreamState* st, bool wasFull)
+// Records that the sender has stopped, and how much room it would take to be worth waking. `want`
+// is what it asked for and could not have; `room` is what was left over. A stream already waiting
+// keeps the higher watermark -- it has already turned that much room down once.
+//
+// A sender that spent its window to exactly zero without being refused anything asks for nothing
+// in particular, and passing `want` of 1 gets it the old behaviour: any room at all will do.
+static void sendWait(_In_ const QuicStreams* ss, _Inout_ QuicStreamState* st, uint64 want,
+                     uint64 room)
 {
-    if (!wasFull || sendRoom(ss, st) == 0)
+    // Never wake for less than the configured watermark, never wait for more than the buffer could
+    // hold even when empty, and never wait for what the sender already has -- the last two would
+    // be waiting for something that may never arrive.
+    uint64 low = want > ss->sendLow ? want : ss->sendLow;
+    if (low > ss->sendBufMax)
+        low = ss->sendBufMax;
+    if (low <= room)
+        low = room + 1;
+
+    if (st->wantWritable && st->sendWaitLow >= low)
         return;
+
+    st->wantWritable = true;
+    st->sendWaitLow  = low;
+}
+
+// More room arriving is the one thing that can free a stream whose sender has stopped, and only
+// that stream hears about it. One that was never held up has nothing to be told.
+//
+// Falling short of the watermark means waiting, but only while waiting is certain to end. Bytes
+// still in flight will release buffer space when they are acknowledged, so more room is coming
+// whatever the peer does -- that is the case the watermark exists for, since acknowledgements
+// arrive a packet at a time and would otherwise wake the sender once for each.
+//
+// With nothing in flight, only the peer can make more room, and it may have already given
+// everything it ever will. Waiting on a watermark nothing will reach is how a transfer stops for
+// good, so the sender is woken with what there is and left to decide. That costs at most one extra
+// wake-up per stall, and it is what makes the watermark safe to apply at all.
+static void sendUnblock(_Inout_ QuicStreams* ss, _Inout_ QuicStreamState* st)
+{
+    if (!st->wantWritable)
+        return;
+
+    uint64 room = sendRoom(ss, st);
+    if (room == 0 || (room < st->sendWaitLow && _quicSendBufOutstanding(&st->out) > 0))
+        return;
+
+    st->wantWritable = false;
 
     if (ss->handlers && ss->handlers->writable)
         ss->handlers->writable(ss->hctx, st->id);
@@ -591,22 +637,29 @@ static void connMaxData(_Inout_ QuicStreams* ss, uint64 max)
     if (max <= ss->sendMax)
         return;
 
-    bool wasFull = ss->sendOff >= ss->sendMax;
-    ss->sendMax  = max;
+    // Which streams were held up has to be read before the limit moves, since sendRoom() measures
+    // against it. There is nothing worth testing at the connection level to decide whether this
+    // walk is needed: the connection can be nowhere near its limit while an individual stream sits
+    // on the last few bytes of it, unable to spend them.
+    htiter it;
+    htiInit(&it, ss->byId);
+    while (htiValid(&it)) {
+        QuicStreamState* st = htiVal(ptr, it);
+        if (sendRoom(ss, st) == 0)
+            sendWait(ss, st, 1, 0);
+        htiNext(&it);
+    }
+    htiFinish(&it);
+
+    ss->sendMax = max;
 
     // The wall the last complaint described is gone, so the complaint goes with it -- whether it
     // is still queued or already in flight, repeating it would only mislead.
     ss->dataBlocked.state = QUIC_CTL_IDLE;
 
-    if (!wasFull || !ss->handlers || !ss->handlers->writable)
-        return;
-
-    htiter it;
     htiInit(&it, ss->byId);
     while (htiValid(&it)) {
-        QuicStreamState* st = htiVal(ptr, it);
-        if (sendRoom(ss, st) > 0)
-            ss->handlers->writable(ss->hctx, st->id);
+        sendUnblock(ss, htiVal(ptr, it));
         htiNext(&it);
     }
     htiFinish(&it);
@@ -627,11 +680,15 @@ static bool handleMaxStreamData(_Inout_ QuicStreams* ss, _In_ const QuicFrame* f
     if (f->maxStreamData.max <= st->sendMax)
         return true;
 
-    bool wasFull      = st->sendMax <= st->out.end;
+    // Measured against every bound, not just the one this frame raises: a stream out of room for
+    // any reason is one that stopped writing and is waiting to hear it may start again.
+    if (sendRoom(ss, st) == 0)
+        sendWait(ss, st, 1, 0);
+
     st->sendMax       = f->maxStreamData.max;
     st->blocked.state = QUIC_CTL_IDLE;
 
-    sendUnblock(ss, st, wasFull);
+    sendUnblock(ss, st);
     return true;
 }
 
@@ -931,7 +988,8 @@ static void streamsResolve(_Inout_ QuicStreams* ss, uint64 pn, bool acked)
         // Acknowledging stream data releases the buffer holding it, and that buffer is one of the
         // three things sendRoom() is bounded by. A stream that filled it is waiting to be told
         // there is room again, and no flow control limit is going to rise to say so.
-        bool wasFull = acked && sendRoom(ss, st) == 0;
+        if (acked && sendRoom(ss, st) == 0)
+            sendWait(ss, st, 1, 0);
 
         if (acked) {
             _quicSendBufAcked(&st->out, pn);
@@ -948,7 +1006,7 @@ static void streamsResolve(_Inout_ QuicStreams* ss, uint64 pn, bool acked)
                 _quicSendBufOutstanding(&st->out) == 0)
                 st->sendState = QUIC_SEND_DATA_DONE;
 
-            sendUnblock(ss, st, wasFull);
+            sendUnblock(ss, st);
         } else {
             _quicSendBufLost(&st->out, pn);
             _quicCtlLost(&st->stopSending, pn);
@@ -1037,6 +1095,41 @@ size_t _quicStreamWritable(const QuicStreams* ss, uint64 id)
     return (size_t)sendRoom(ss, st);
 }
 
+// A write that could not be taken whole. Two things follow from that, and they are deliberately
+// tested separately.
+//
+// The application is waiting on room, whatever it ran out of -- including the local send buffer,
+// which is not the peer's business at all.
+//
+// The peer is told only when one of its own limits is what stopped the write, which is what
+// RFC 9000 section 4.1 asks for. A write refused with credit to spare -- too large for the room
+// left, but not at the limit -- is not blocked in that sense and must not claim to be, or the peer
+// is asked to raise a limit that was never reached. Either complaint is worth making once per
+// limit rather than on every refused write.
+static bool sendRefused(_Inout_ QuicStreams* ss, _Inout_ QuicStreamState* st, uint64 want)
+{
+    // The room left is read after the write rather than before it, since a partial write spends
+    // what it was given and leaves none.
+    sendWait(ss, st, want, sendRoom(ss, st));
+
+    bool blocked = false;
+
+    if (st->sendMax <= st->out.end && st->sendBlocked != st->sendMax) {
+        st->sendBlocked = st->sendMax;
+        _quicCtlQueue(&st->blocked);
+        streamArm(ss, st);
+        blocked = true;
+    }
+
+    if (ss->sendMax <= ss->sendOff && ss->sendBlocked != ss->sendMax) {
+        ss->sendBlocked = ss->sendMax;
+        _quicCtlQueue(&ss->dataBlocked);
+        blocked = true;
+    }
+
+    return blocked;
+}
+
 _Use_decl_annotations_
 size_t _quicStreamSend(QuicStreams* ss, uint64 id, const uint8* data, size_t len)
 {
@@ -1058,22 +1151,30 @@ size_t _quicStreamSend(QuicStreams* ss, uint64 id, const uint8* data, size_t len
         streamArm(ss, st);
     }
 
-    if (want > len) {
-        // Which of the two limits the write ran into decides which complaint the peer hears, and
-        // it is worth saying once for each limit rather than on every refused write.
-        if (st->sendMax <= st->out.end && st->sendBlocked != st->sendMax) {
-            st->sendBlocked = st->sendMax;
-            _quicCtlQueue(&st->blocked);
-            streamArm(ss, st);
-        }
-
-        if (ss->sendMax <= ss->sendOff && ss->sendBlocked != ss->sendMax) {
-            ss->sendBlocked = ss->sendMax;
-            _quicCtlQueue(&ss->dataBlocked);
-        }
-    }
+    if (want > len)
+        sendRefused(ss, st, want);
 
     return len;
+}
+
+_Use_decl_annotations_
+bool _quicStreamSendAll(QuicStreams* ss, uint64 id, const uint8* data, size_t len, bool* blocked)
+{
+    if (blocked)
+        *blocked = false;
+
+    QuicStreamState* st = _quicStreamFind(ss, id);
+    if (!st || (st->sendState != QUIC_SEND_READY && st->sendState != QUIC_SEND_SEND))
+        return false;
+
+    if (sendRoom(ss, st) < len) {
+        bool b = sendRefused(ss, st, len);
+        if (blocked)
+            *blocked = b;
+        return false;
+    }
+
+    return _quicStreamSend(ss, id, data, len) == len;
 }
 
 _Use_decl_annotations_

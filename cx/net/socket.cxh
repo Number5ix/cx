@@ -72,8 +72,19 @@ abstract class NetSocket
     Mutex recvLock;         ///< Exclusive access to the socket's receive buffer
     Mutex sendLock;         ///< Exclusive access to send data on this socket
 
-    size_t sendHigh;        ///< Send fails over this many bytes queued
-    size_t sendLow;         ///< NET_SendReady fires when the queue drains below this
+    /// @brief Send fails over this many bytes queued
+    ///
+    /// On a QUIC socket this is per stream rather than per socket: how much one stream will hold
+    /// for the application before netflowSend() starts refusing.
+    size_t sendHigh;
+
+    /// @brief NET_SendReady fires when the queue drains below this
+    ///
+    /// On a QUIC socket this reads the other way round, since a stream's backlog is bounded by
+    /// what the peer allows rather than by the queue: NET_SendReady fires once the stream has this
+    /// many bytes of room. A refused send always sets the bar at least as high as what it asked
+    /// for, so this only matters when it asked for less.
+    size_t sendLow;
 
     /// @brief Bytes waiting in the datagram send queue, guarded by sendLock
     ///
