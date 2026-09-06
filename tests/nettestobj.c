@@ -46,6 +46,28 @@ bool NetSocketTest_listen(_In_ NetSocketTest* self, int backlog)
     return true;
 }
 
+_objfactory_guaranteed NetFlowTest* NetFlowTest_create(NetSocket* socket, const NetAddr* peer, uint64 key, uint32 stamp)
+{
+    NetFlowTest* self = objInstCreate(NetFlowTest);
+
+    self->socket = objGetWeak(NetSocket, socket);
+    if (peer)
+        self->peer = *peer;
+    self->key   = key;
+    self->stamp = stamp;
+
+    // Same as NetFlow_create: hold the pool rather than resolving it through the socket later, when
+    // either weak arm may already be broken.
+    NetQueue* q = objAcquireFromWeak(NetQueue, socket->queue);
+    if (q) {
+        self->pool = objAcquire(q->pool);
+        objRelease(&q);
+    }
+
+    objInstInit(self);
+    return self;
+}
+
 _objfactory_guaranteed NetQueueTest* NetQueueTest_create(NetQueueConfig* conf)
 {
     NetQueueTest* self = objInstCreate(NetQueueTest);

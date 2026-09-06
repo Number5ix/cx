@@ -106,6 +106,34 @@ intptr netSockSendv(NetSockHandle h, _In_reads_(niov) const BufIov* iov, size_t 
 intptr netSockSendTo(NetSockHandle h, _In_reads_bytes_(len) const void* buf, size_t len,
                      _In_ const NetAddr* dest, _Out_ NetErrorCode* err);
 
+// Receive one datagram, also reporting whatever the IP layer carried with it: the local address it
+// arrived on, and its ECN codepoint. Same return convention as netSockRecvFrom().
+//
+// `info` is always written. Its `have` flags say which fields the platform actually produced --
+// nothing arrives unless netSockRecvInfo() enabled it on this socket, and a platform that cannot
+// report a field leaves its flag clear on every datagram.
+intptr netSockRecvFromEx(NetSockHandle h, _Out_writes_bytes_(len) void* buf, size_t len,
+                         _Out_ NetAddr* from, _Out_ NetPktInfo* info, _Out_ NetErrorCode* err);
+
+// Send one datagram to dest, asking the IP layer for the local address it leaves from and the ECN
+// codepoint it carries. Same return convention as netSockSendTo().
+//
+// A request the platform cannot honour is dropped rather than failing the send: a datagram that
+// went out unmarked is worth far more than one that did not go out. A caller that needs to know
+// whether marking works finds out from the peer, which is what ECN validation is for.
+intptr netSockSendToEx(NetSockHandle h, _In_reads_bytes_(len) const void* buf, size_t len,
+                       _In_ const NetAddr* dest, _In_opt_ const NetPktInfo* info,
+                       _Out_ NetErrorCode* err);
+
+// Ask the OS to report the local address and ECN codepoint of datagrams received on this socket,
+// which is what makes netSockRecvFromEx() produce anything. Returns false if the platform cannot.
+bool netSockRecvInfo(NetSockHandle h, bool enable);
+
+// Set the don't-fragment bit on datagrams leaving this socket, so one larger than the path allows
+// is dropped rather than fragmented. That is the signal packetization layer path MTU discovery
+// measures the path with. Returns false if the platform cannot.
+bool netSockDontFragment(NetSockHandle h, bool enable);
+
 // ---------------------------------------------------------------------------------------------
 // Select set (NetSelectSet)
 //

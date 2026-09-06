@@ -77,6 +77,7 @@ static _Ret_maybenull_ TlsConfig* configAlloc(bool server)
     mbedtls_ssl_config_init(&self->st->conf);
     mutexInit(&self->st->sessionLock);
     htInit(&self->st->sessions, string, ptr, 8);
+    htInit(&self->st->quicTickets, string, ptr, 8);
 
     // A client that cannot verify the server is not doing TLS in any useful sense, so it starts
     // out requiring verification and the application has to opt out deliberately. A server has
@@ -240,6 +241,15 @@ bool TlsConfig_setResumption(_In_ TlsConfig* self, bool enable, int64 lifetime)
     return true;
 }
 
+bool TlsConfig_setEarlyData(_In_ TlsConfig* self, bool enable)
+{
+    if (!checkUnsealed(self, _S"tlsconfigSetEarlyData"))
+        return false;
+
+    self->st->earlyData = enable;
+    return true;
+}
+
 void TlsConfig_setVerifyCallback(_In_ TlsConfig* self, TlsVerifyCB cb, _In_opt_ void* ctx)
 {
     if (!checkUnsealed(self, _S"tlsconfigSetVerifyCallback"))
@@ -310,6 +320,18 @@ static bool sealServerResumption(_Inout_ TlsConfigState* st)
         return false;
     }
     st->ticketInit = true;
+
+    // The QUIC engine's tickets are sealed by cxtls rather than by mbedTLS, so they need a key
+    // that is not the ticket context's. One key for the life of the config: rotating it is
+    // rotating the config, which is how every other piece of server policy here changes too.
+    psa_status_t pst = psa_generate_random(st->quicTicketKey, sizeof(st->quicTicketKey));
+    if (pst != PSA_SUCCESS) {
+        tlsLogErr(Error, _S"psa_generate_random", (int)pst);
+        mbedtls_ssl_ticket_free(&st->ticket);
+        st->ticketInit = false;
+        return false;
+    }
+    st->quicTicketKeyOk = true;
 
     mbedtls_ssl_conf_session_tickets_cb(&st->conf,
                                         mbedtls_ssl_ticket_write,
@@ -418,6 +440,28 @@ bool _tlsconfigResumes(TlsConfig* self)
 // connection an application makes, the store belongs here rather than on any one session.
 // ---------------------------------------------------------------------------------------------
 
+_Use_decl_annotations_
+bool _tlsconfigQuicTicketKey(TlsConfig* self, uint8* key)
+{
+    if (!self->st->quicTicketKeyOk)
+        return false;
+
+    memcpy(key, self->st->quicTicketKey, 32);
+    return true;
+}
+
+_Use_decl_annotations_
+int64 _tlsconfigResumeLifetime(TlsConfig* self)
+{
+    return self->st->resume ? self->st->resumeLifetime : 0;
+}
+
+_Use_decl_annotations_
+bool _tlsconfigEarlyData(TlsConfig* self)
+{
+    return self->st->resume && self->st->earlyData;
+}
+
 static bool cacheUsable(_In_ TlsConfig* self, _In_opt_ strref host)
 {
     return self->st->resume && !self->st->server && !strEmpty(host);
@@ -493,6 +537,61 @@ void _tlsconfigSaveSession(TlsConfig* self, strref host, mbedtls_ssl_context* ss
     }
 }
 
+_Use_decl_annotations_
+Buffer _tlsconfigOfferQuicTicket(TlsConfig* self, strref host)
+{
+    if (!cacheUsable(self, host))
+        return NULL;
+
+    Buffer out = NULL;
+    withMutex (&self->st->sessionLock) {
+        void* p = NULL;
+        if (htFind(self->st->quicTickets, strref, host, ptr, &p) && p) {
+            Buffer t = (Buffer)p;
+            out      = bufCreate(t->len);
+            memcpy(out->data, t->data, t->len);
+            out->len = t->len;
+        }
+    }
+
+    return out;
+}
+
+_Use_decl_annotations_
+void _tlsconfigSaveQuicTicket(TlsConfig* self, strref host, Buffer* ticket)
+{
+    if (!*ticket)
+        return;
+
+    if (!cacheUsable(self, host)) {
+        bufDestroy(ticket);
+        return;
+    }
+
+    withMutex (&self->st->sessionLock) {
+        // One ticket per host: the newest is the only one worth offering, and a ticket is
+        // single-use anyway.
+        void* old = NULL;
+        if (htFind(self->st->quicTickets, strref, host, ptr, &old) && old) {
+            Buffer b = (Buffer)old;
+            bufDestroy(&b);
+        } else if (htSize(self->st->quicTickets) >= TLS_SESSION_CACHE_MAX) {
+            string victimKey = 0;
+            foreach (hashtable, hti, self->st->quicTickets) {
+                Buffer victim = (Buffer)htiVal(ptr, hti);
+                bufDestroy(&victim);
+                strDup(&victimKey, htiKey(string, hti));
+                break;
+            }
+            htRemove(&self->st->quicTickets, string, victimKey);
+            strDestroy(&victimKey);
+        }
+
+        htInsert(&self->st->quicTickets, string, (string)host, ptr, *ticket);
+        *ticket = NULL;
+    }
+}
+
 // ---------------------------------------------------------------------------------------------
 
 void TlsConfig_destroy(_In_ TlsConfig* self)
@@ -511,6 +610,13 @@ void TlsConfig_destroy(_In_ TlsConfig* self)
         }
     }
     htDestroy(&st->sessions);
+
+    foreach (hashtable, qti, st->quicTickets) {
+        Buffer t = (Buffer)htiVal(ptr, qti);
+        bufDestroy(&t);
+    }
+    htDestroy(&st->quicTickets);
+
     mutexDestroy(&st->sessionLock);
 
     if (st->ticketInit)

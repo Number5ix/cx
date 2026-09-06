@@ -346,7 +346,7 @@ abstract class NetQueue
     // was idle. Returns true if the packet was queued to a flow, false if it was dropped or handed
     // to a NET_FlowRefused handler instead.
     unbound bool _ingestDatagram([inout] NetSocket *sock, [in] NetAddr *peer,
-        [inout] Buffer *buf);
+        [in] [opt] const NetPktInfo *info, [inout] Buffer *buf);
 
     // Hand a message to a flow and make sure something will come along to run it. Takes ownership
     // of the message. `self` may be NULL, in which case the message is simply released.
@@ -418,14 +418,27 @@ abstract class NetQueue
     // Find the flow for a peer address, creating one if there is room under the cap. Returns a
     // strong reference the caller must release, or NULL if the queue is at its cap and nothing
     // could be reclaimed -- in which case the caller should fall back to the flowRefused handler.
+    // A stream or QUIC socket has no address-keyed table, so `peer` is ignored there and the
+    // socket's single control flow is returned.
     [extern] [sal _Ret_maybenull_] unbound NetFlow *_findFlow([inout] NetSocket *sock,
         [in] NetAddr *peer, bool create);
 
-    // Create a flow for a peer and register it with the socket, bypassing the cap check. Queues
-    // the flow's NET_FlowOpen ahead of anything else that could land in its inbox (datagram flows
-    // only). Returns a strong reference the caller must release.
+    // Create a flow for a peer and register it with the socket, bypassing the cap check. Returns a
+    // strong reference the caller must release. A thin wrapper over _admitFlowObj below.
     [extern] [sal _Ret_maybenull_] unbound NetFlow *_admitFlow([inout] NetSocket *sock,
         [in] NetAddr *peer);
+
+    // Register an already-constructed flow with its socket: build its filter chain, publish it in
+    // the socket's table (keyed on `peer` for a datagram socket, `key` for a QUIC one), count it
+    // against the queue, queue its NET_FlowOpen ahead of anything else that could land in its
+    // inbox, and prime the chain. Split out of _admitFlow so cxquic can register a NetFlow
+    // subclass of its own for a QUIC stream.
+    //
+    // Consumes the caller's reference and returns the one to use, which is normally the same flow
+    // -- but is the winner's flow when another thread inserted the same key first, and NULL if the
+    // table lost it. Do not use `flow` after the call; use the return value.
+    [extern] [sal _Ret_maybenull_] unbound NetFlow *_admitFlowObj([inout] NetSocket *sock,
+        [inout] NetFlow *flow);
 
     // Mark up to reclaimBatch least-recently-active flows on this socket for teardown, skipping
     // flows active more recently than reclaimMinIdle allows. Runs inline on the ingest path at the

@@ -55,6 +55,12 @@ abstract class NetSocket
 
     uint32 mru;             ///< Maximum size of received datagrams
 
+    /// @brief The OS is reporting per-datagram IP information; see setRecvInfo()
+    ///
+    /// Datagram sockets only. While set, the ingest path asks the OS for the local address and ECN
+    /// mark of every datagram and delivers them on NetMessage::info.
+    bool recvInfo;
+
     /// @brief Type-specific send/receive buffers; which arm is live depends on `type`
     ///
     /// A stream socket has a receive ring and a send chain; a datagram socket has neither and
@@ -101,19 +107,32 @@ abstract class NetSocket
     /// @brief Guards handlers/handlerCtx/handlerWeak against a concurrent setHandlers()/setHandlersObj()
     RWLock handlerLock;
 
-    /// @brief Datagram: flows keyed by peer address. Not used by stream sockets.
+    /// @brief Flows keyed by peer address (datagram) or stream id (QUIC). Not used by stream
+    /// sockets.
     ///
     /// Holds strong references -- the socket owns its flows, and the flow's back-pointer to the
-    /// socket is weak to avoid a reference cycle.
+    /// socket is weak to avoid a reference cycle. Which key a socket's table uses is fixed by
+    /// `type`, so NetFlow::key is only meaningful on a QUIC socket's flows.
     [noinit] hashtable flows;
 
     RWLock flowLock;        ///< Protects the datagram flow table
 
-    /// @brief Stream: the single flow for this connection. Not used by datagram sockets.
+    /// @brief Stream: the single flow for this connection. QUIC: the connection control flow.
+    /// Not used by datagram sockets.
     ///
     /// Created automatically during socket init, so stream consumers never construct a flow
-    /// themselves.
+    /// themselves. A QUIC socket has this *and* a flow table: connection-level work -- packet
+    /// decryption, ACK generation, loss recovery, the handshake -- is ordered on this one flow,
+    /// while each of its streams gets a flow of its own that can run on another worker.
     object[NetFlow] flow;
+
+    /// @brief Hook that takes arriving datagrams instead of the flow table, or NULL for the
+    /// normal path
+    ///
+    /// Set by cxquic on the UDP endpoint socket behind a QUIC listener; nothing else installs one.
+    /// See NetDatagramRouteFn.
+    NetDatagramRouteFn route;
+    void *routeCtx;         ///< Context passed to `route`
 
     /// @brief Filters attached to this socket, ordered application -> wire, or empty for none
     ///
@@ -227,6 +246,46 @@ abstract class NetSocket
     ///         not connected, or a fatal socket error)
     [extern] bool send([in] const uint8* data, size_t len, [in] [opt] const NetAddr* dest,
         flags_t flags);
+
+    /// Send a datagram, asking the IP layer for a specific local address and ECN mark
+    ///
+    /// Everything send() does, plus the two things a plain send cannot express: which of this
+    /// machine's addresses the datagram leaves from, and the ECN codepoint it carries. Both are
+    /// requests -- a platform that cannot honour one sends the datagram without it rather than
+    /// failing, so a caller that needs to know whether the mark survived has to ask the peer.
+    ///
+    /// Datagram sockets only, and unfiltered ones: a filter chain owns what reaches the wire, so
+    /// there is nothing here for one to attach per-datagram information to.
+    ///
+    /// @param data Pointer to data to send (copied; need not outlive the call)
+    /// @param len Length of data in bytes
+    /// @param dest Destination address
+    /// @param info Local address and ECN mark to ask for, or NULL for neither
+    /// @param flags Optional flags to control send behavior
+    /// @return true if the data was sent or queued, false if it was refused
+    [extern] unbound bool sendEx([in] const uint8* data, size_t len, [in] const NetAddr* dest,
+        [in] [opt] const NetPktInfo* info, flags_t flags);
+
+    /// Ask the OS to report the local address and ECN mark of each received datagram
+    ///
+    /// While enabled, every NetMessage delivered from this socket carries them on NetMessage::info.
+    /// Call it after bind(): the options are per address family, and a socket has no family until
+    /// it is bound.
+    ///
+    /// @param enable true to start reporting, false to stop
+    /// @return true if the platform can report them, false if it cannot -- in which case
+    ///         NetMessage::info stays empty and a caller that needed ECN should not mark its sends
+    unbound bool setRecvInfo(bool enable);
+
+    /// Set the don't-fragment bit on datagrams leaving this socket
+    ///
+    /// A datagram larger than the path allows is then dropped instead of being fragmented, which
+    /// is what turns an oversized send into a measurement rather than a slow success. Call it after
+    /// bind(), for the same reason as setRecvInfo().
+    ///
+    /// @param enable true to set the bit, false to leave fragmentation to the OS
+    /// @return true if the platform could set it
+    unbound bool setDontFragment(bool enable);
 
     /// Open an outbound connection to a host and port
     ///

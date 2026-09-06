@@ -67,6 +67,15 @@ typedef struct IocpOp {
     struct sockaddr_storage from;   // datagram recv: source; datagram send: destination
     INT         fromlen;
 
+#if defined(NET_HAVE_WSAMSG)
+    // Datagram recv on a socket that asked for per-datagram IP information: the receive is posted
+    // as a WSARecvMsg instead, and the message and its control buffer have to outlive the call, so
+    // they live here rather than on the posting thread's stack.
+    WSAMSG      msg;
+    char        control[NET_CMSG_SPACE];
+    bool        recvMsg;
+#endif
+
     // Send-only fields (unused by receives).
     NetMessage* sendMsg;               // datagram send: the message this op owns until completion
     size_t      sendBytes;             // bytes this send op is carrying (to skip/account on done)
@@ -188,7 +197,21 @@ static bool postRecvFrom(_Inout_ NetQueueWinIOCP* self, _Inout_ NetSocket* sock)
 
     atomicFetchAdd(uint32, &self->iops, 1, AcqRel);
 
-    int rc = WSARecvFrom((SOCKET)sock->handle, &op->wsabuf, 1, NULL, &op->flags,
+    int rc;
+#if defined(NET_HAVE_WSAMSG)
+    NetRecvMsgFn recvMsgFn = sock->recvInfo ? _netRecvMsgFn() : NULL;
+    if (recvMsgFn) {
+        op->recvMsg          = true;
+        op->msg.name         = (struct sockaddr*)&op->from;
+        op->msg.namelen      = (INT)sizeof(op->from);
+        op->msg.lpBuffers    = &op->wsabuf;
+        op->msg.dwBufferCount = 1;
+        op->msg.Control.buf  = op->control;
+        op->msg.Control.len  = sizeof(op->control);
+        rc = recvMsgFn((SOCKET)sock->handle, &op->msg, NULL, &op->ov, NULL);
+    } else
+#endif
+        rc = WSARecvFrom((SOCKET)sock->handle, &op->wsabuf, 1, NULL, &op->flags,
                          (struct sockaddr*)&op->from, &op->fromlen, &op->ov, NULL);
     // A return of 0 (immediate completion) still queues a completion packet, because the socket is
     // associated with the port and FILE_SKIP_COMPLETION_PORT_ON_SUCCESS is not set. Only a real
@@ -375,7 +398,27 @@ static void postSendLocked(_Inout_ NetQueueWinIOCP* self, _Inout_ NetSocket* soc
         sock->sendPending = true;
         atomicFetchAdd(uint32, &self->iops, 1, AcqRel);
 
-        int rc = WSASendTo((SOCKET)sock->handle, op->sendbufs, 1, NULL, 0,
+        int rc;
+#if defined(NET_HAVE_WSAMSG)
+        // A datagram that asked for a local address or an ECN mark can only carry them on a
+        // WSASendMsg, so a queued one goes out that way. The message and its control buffer live
+        // on the op because the send does not finish before this function returns.
+        NetSendMsgFn sendMsgFn =
+            (m->info.haveLocal || m->info.haveEcn) ? _netSendMsgFn() : NULL;
+        if (sendMsgFn) {
+            op->msg.name          = (struct sockaddr*)&op->from;
+            op->msg.namelen       = sasz;
+            op->msg.lpBuffers     = op->sendbufs;
+            op->msg.dwBufferCount = 1;
+            op->msg.Control.buf   = op->control;
+            op->msg.Control.len   = sizeof(op->control);
+            _netPktInfoToCmsg(&op->msg, &m->info, op->from.ss_family);
+            if (op->msg.Control.len == 0)
+                op->msg.Control.buf = NULL;
+            rc = sendMsgFn((SOCKET)sock->handle, &op->msg, 0, NULL, &op->ov, NULL);
+        } else
+#endif
+            rc = WSASendTo((SOCKET)sock->handle, op->sendbufs, 1, NULL, 0,
                            (struct sockaddr*)&op->from, sasz, &op->ov, NULL);
         int we = rc == SOCKET_ERROR ? WSAGetLastError() : 0;
         if (rc == SOCKET_ERROR && we != WSA_IO_PENDING) {
@@ -451,8 +494,18 @@ static void handleCompletion(_Inout_ NetQueueWinIOCP* self, _Inout_ OVERLAPPED* 
             op->buf->len = (size_t)bytes;
 
             NetAddr src;
-            if (netAddrFromSockaddr(&src, (struct sockaddr*)&op->from))
-                netqueue_ingestDatagram(q, sock, &src, &op->buf);   // takes op->buf on success
+            NetPktInfo info;
+            bool haveInfo = false;
+#if defined(NET_HAVE_WSAMSG)
+            if (op->recvMsg) {
+                _netCmsgToPktInfo(&op->msg, &info);
+                haveInfo = true;
+            }
+#endif
+            if (netAddrFromSockaddr(&src, (struct sockaddr*)&op->from)) {
+                // takes op->buf on success
+                netqueue_ingestDatagram(q, sock, &src, haveInfo ? &info : NULL, &op->buf);
+            }
 
             if (op->buf)   // unrecognized source family; ingest did not take it
                 bufpoolPut(&q->pool->msgbuf, &op->buf);
@@ -796,6 +849,9 @@ bool NetQueueWinIOCP_connectBegin(_In_ NetQueueWinIOCP* self, NetSocket* sock, c
 // does for a socket that was already connected when it joined the queue.
 void NetQueueWinIOCP_connectArm(_In_ NetQueueWinIOCP* self, NetSocket* sock)
 {
+    if (sock->handle == NET_INVALID_HANDLE)
+        return;
+
     postRecv(self, sock);
 }
 
@@ -804,6 +860,11 @@ void NetQueueWinIOCP_connectArm(_In_ NetQueueWinIOCP* self, NetSocket* sock)
 // by addSocket instead; the two are mutually exclusive, so the backlog is never double-posted.
 void NetQueueWinIOCP_acceptArm(_In_ NetQueueWinIOCP* self, NetSocket* sock)
 {
+    // A QUIC listener listens without an OS handle -- cxquic accepts connections out of the packets
+    // arriving on the shared endpoint socket, not from a backlog.
+    if (sock->handle == NET_INVALID_HANDLE)
+        return;
+
     for (int i = 0; i < IOCP_ACCEPTS; i++)
         postAccept(self, sock);
 }
@@ -831,6 +892,12 @@ bool NetQueueWinIOCP_addSocket(_In_ NetQueueWinIOCP* self, NetSocket* socket)
     // hands each completion thread a distinct packet; a connected stream socket keeps exactly one; a
     // socket that is already listening when it joins keeps a batch of AcceptEx posted. A connecting
     // socket posts nothing here -- the connect state machine drives its ConnectEx.
+    // A handle-less socket has nothing to post on. cxquic's NST_Quic sockets are the case: they are
+    // real sockets on the queue, with flows and timers, but their bytes move through a separate UDP
+    // endpoint socket that has its own completions.
+    if (socket->handle == NET_INVALID_HANDLE)
+        return true;
+
     if (socket->type == NST_Datagram) {
         for (uint32 i = 0; i < self->dgramRecvs; i++)
             postRecvFrom(self, socket);

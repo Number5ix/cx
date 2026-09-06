@@ -1,5 +1,6 @@
 #include <cx/net/queue.cxh>
 #include <cx/net/socket.cxh>
+#include <cx/net/flow.cxh>
 
 // Synthetic NetQueue backend for testing the backend-independent core.
 //
@@ -31,4 +32,15 @@ class NetSocketTest extends NetSocket
 class NetQueueTest extends NetQueue
 {
     factory create(NetQueueConfig *conf);
+}
+
+// A NetFlow subclass, standing in for the QuicStream cxquic registers on a QUIC socket. It exists
+// to prove that netqueue_admitFlowObj() puts a caller-constructed subclass instance in the flow
+// table and drives it through the normal lifecycle -- open event, dispatch, terminal event -- with
+// no special handling for the fact that it is not a plain NetFlow.
+class NetFlowTest extends NetFlow
+{
+    uint32 stamp;   // set by the test, read back after a round trip through the flow table
+
+    factory create(NetSocket *socket, const NetAddr *peer, uint64 key, uint32 stamp);
 }

@@ -2,6 +2,7 @@
 
 #include <cxtls/tls_shared.h>
 
+#include <cx/buffer/buffer.h>
 #include <cx/buffer/bufring.h>
 #include <cx/container/hashtable.h>
 #include <cx/log.h>
@@ -80,6 +81,7 @@ typedef struct TlsConfigState {
 
     bool resume;
     int64 resumeLifetime;
+    bool earlyData;
 
     // Server-side resumption. Both mbedTLS contexts mutate themselves at runtime (ticket key
     // rotation, cache eviction) and are internally locked through MBEDTLS_THREADING_C, which cx
@@ -95,6 +97,14 @@ typedef struct TlsConfigState {
     // hosts cannot grow it without bound.
     hashtable sessions;
     Mutex sessionLock;
+
+    // QUIC resumption. The QUIC handshake engine seals its own tickets rather than going through
+    // mbedtls_ssl_ticket_context, which is bound to the TLS record layer, so a resuming server
+    // config gets a ticket key of its own at seal time. Clients keep the tickets they are handed
+    // in `quicTickets`, hostname -> one serialized ticket, under sessionLock like the cache above.
+    uint8 quicTicketKey[32];
+    bool quicTicketKeyOk;
+    hashtable quicTickets;
 
     TlsVerifyCB verifyCb;
     void* verifyCtx;
@@ -147,6 +157,13 @@ bool _tlsconfigEnsureSealed(_In_ struct TlsConfig* self);
 // on the cache lookup or the save.
 bool _tlsconfigResumes(_In_ struct TlsConfig* self);
 
+// How long a ticket this config issues stays valid, in cx time units. Zero when resumption is off.
+int64 _tlsconfigResumeLifetime(_In_ struct TlsConfig* self);
+
+// Whether QUIC 0-RTT is allowed. False unless resumption is on as well, since there is nothing to
+// carry early data under without a ticket.
+bool _tlsconfigEarlyData(_In_ struct TlsConfig* self);
+
 // Client resumption. Offer whatever session was last saved for `host` to a context that has not
 // yet handshaked, and store the one a completed session produced. Both are no-ops when resumption
 // is off, `host` is empty, or this is a server config -- a server resumes through its ticket
@@ -155,6 +172,16 @@ void _tlsconfigOfferSession(_In_ struct TlsConfig* self, _In_opt_ strref host,
                             _Inout_ mbedtls_ssl_context* ssl);
 void _tlsconfigSaveSession(_In_ struct TlsConfig* self, _In_opt_ strref host,
                            _In_ mbedtls_ssl_context* ssl);
+
+// The QUIC ticket key a resuming server config seals its tickets with. False on a config that
+// does not resume, is not a server, or could not generate one.
+bool _tlsconfigQuicTicketKey(_In_ struct TlsConfig* self, _Out_writes_bytes_(32) uint8* key);
+
+// Client-side QUIC ticket cache, the counterpart of _tlsconfigOfferSession/_tlsconfigSaveSession.
+// The offered ticket is a copy the caller owns; the saved one is taken over by the config.
+_Ret_maybenull_ Buffer _tlsconfigOfferQuicTicket(_In_ struct TlsConfig* self, _In_opt_ strref host);
+void _tlsconfigSaveQuicTicket(_In_ struct TlsConfig* self, _In_opt_ strref host,
+                              _Inout_ Buffer* ticket);
 
 // Number of certificates on a chain. mbedTLS models a chain as a linked list with no count, and a
 // freshly initialized one is a single zeroed node rather than an empty list, which is the part

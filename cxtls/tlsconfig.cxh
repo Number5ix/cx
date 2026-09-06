@@ -123,6 +123,22 @@ class TlsConfig
     /// @return true if resumption was set up
     unbound bool setResumption(bool enable, int64 lifetime);
 
+    /// Allow QUIC 0-RTT on resumed connections
+    ///
+    /// Off by default, and only meaningful alongside tlsconfigSetResumption(). With it on, a
+    /// server offers early data in the tickets it issues and accepts data that arrives under one,
+    /// and a client sends its first request without waiting for the handshake whenever it holds a
+    /// ticket that permits it. That saves a round trip and costs a guarantee: **an attacker who
+    /// captures early data can send it to the server again**, and the server cannot tell the copy
+    /// from the original. Turn it on only where every request that could be sent that way is safe
+    /// to carry out more than once.
+    ///
+    /// Only the QUIC handshake engine uses this; a TLS filter ignores it.
+    ///
+    /// @param enable Whether early data may be used
+    /// @return true if the setting was applied
+    unbound bool setEarlyData(bool enable);
+
     /// Register a callback consulted for each certificate in the peer's chain
     ///
     /// Lets an application forgive a defect mbedTLS objects to, or reject a chain it would have

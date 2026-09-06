@@ -253,6 +253,43 @@ intptr netSockRecvFrom(NetSockHandle h, void* buf, size_t len, NetAddr* from, Ne
     return n;   // 0 is a legitimate zero-length datagram here, not a shutdown
 }
 
+// Emscripten's sockets are WebSockets underneath, so there is no IP header to read a destination
+// address or an ECN mark out of and none to write one into. These forward to the plain calls and
+// report nothing, which every caller already has to handle -- a platform that cannot do ECN and one
+// that is on a path where ECN does not survive look the same from above.
+
+_Use_decl_annotations_
+intptr netSockRecvFromEx(NetSockHandle h, void* buf, size_t len, NetAddr* from, NetPktInfo* info,
+                         NetErrorCode* err)
+{
+    memset(info, 0, sizeof(*info));
+    return netSockRecvFrom(h, buf, len, from, err);
+}
+
+_Use_decl_annotations_
+intptr netSockSendToEx(NetSockHandle h, const void* buf, size_t len, const NetAddr* dest,
+                       const NetPktInfo* info, NetErrorCode* err)
+{
+    unused_noeval(info);
+    return netSockSendTo(h, buf, len, dest, err);
+}
+
+_Use_decl_annotations_
+bool netSockRecvInfo(NetSockHandle h, bool enable)
+{
+    unused_noeval(h);
+    unused_noeval(enable);
+    return false;
+}
+
+_Use_decl_annotations_
+bool netSockDontFragment(NetSockHandle h, bool enable)
+{
+    unused_noeval(h);
+    unused_noeval(enable);
+    return false;
+}
+
 _Use_decl_annotations_
 intptr netSockSendv(NetSockHandle h, const BufIov* iov, size_t niov, NetErrorCode* err)
 {

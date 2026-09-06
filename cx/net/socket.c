@@ -31,6 +31,17 @@ _objinit_guaranteed bool NetSocket_init(_In_ NetSocket* self)
         // its own destination address.
         prqInitDynamic(&self->bufs.dgram.send, 32, 256, 0, PRQ_Grow_100, PRQ_Grow_50);
         htInit(&self->flows, NetAddr, object, 64);
+    } else if (self->type == NST_Quic) {
+        // No platform factory ever assigns this one a handle, so hold the invariant here rather
+        // than in each of them.
+        self->handle = NET_INVALID_HANDLE;
+
+        // A QUIC socket owns no OS handle and no buffers of its own -- bytes reach the wire through
+        // the shared UDP endpoint socket cxquic holds a reference to, so neither arm of the union
+        // is live here. It gets both kinds of flow storage: the control flow below for
+        // connection-level work, and a table keyed on stream id for its streams.
+        htInit(&self->flows, uint64, object, 16);
+        self->flow = netflowCreate(self, &self->remote);
     } else {
         // TODO: Make the buffer segment size configurable
         bufringInit(&self->bufs.stream.recv, 65536);
@@ -259,7 +270,8 @@ void NetSocket_destroy(_In_ NetSocket* self)
     // Tear down the live union arm by hand -- codegen cannot see the members, and destroying the
     // wrong arm is a silent leak or a read of uninitialized storage. Mirror NetSocket_init(): a
     // datagram socket has a send queue that may still hold queued NetMessages (each with its own
-    // buffer); a stream socket has the receive ring and send chain. Undelivered *received*
+    // buffer); a stream socket has the receive ring and send chain; a QUIC socket has neither arm
+    // live, since it sends through the endpoint socket it borrows. Undelivered *received*
     // datagrams are not here -- they live on flow inboxes and are freed when the flows are.
     if (self->type == NST_Datagram) {
         NetMessage* m;
@@ -268,7 +280,7 @@ void NetSocket_destroy(_In_ NetSocket* self)
             xaFree(m);
         }
         prqDestroy(&self->bufs.dgram.send);
-    } else {
+    } else if (self->type != NST_Quic) {
         bufringDestroy(&self->bufs.stream.recv);
         bufchainDestroy(&self->bufs.stream.send);
     }
@@ -336,9 +348,32 @@ void NetSocket_removeFilters(_In_ NetSocket* self)
     saDestroy(&flows);
 }
 
+bool NetSocket_setRecvInfo(_In_ NetSocket* self, bool enable)
+{
+    if (self->type != NST_Datagram || self->handle == NET_INVALID_HANDLE)
+        return false;
+
+    // The flag stays clear when the platform said no, so the ingest loops keep using the plain
+    // receive rather than paying for a call that will never report anything.
+    if (!netSockRecvInfo(self->handle, enable))
+        return false;
+
+    self->recvInfo = enable;
+    return true;
+}
+
+bool NetSocket_setDontFragment(_In_ NetSocket* self, bool enable)
+{
+    if (self->type != NST_Datagram || self->handle == NET_INVALID_HANDLE)
+        return false;
+
+    return netSockDontFragment(self->handle, enable);
+}
+
 // Autogen begins -----
 // clang-format off
 bool NetSocket_send(_In_ NetSocket* self, _In_ const uint8* data, size_t len, _In_opt_ const NetAddr* dest, flags_t flags);
+bool NetSocket_sendEx(_In_ NetSocket* self, _In_ const uint8* data, size_t len, _In_ const NetAddr* dest, _In_opt_ const NetPktInfo* info, flags_t flags);
 bool NetSocket_connect(_In_ NetSocket* self, _In_ strref host, uint16 port);
 bool NetSocket__wantWrite(_In_ NetSocket* self);
 void NetSocket__flushSend(_In_ NetSocket* self, _In_opt_ NetQueue* q);

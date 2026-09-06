@@ -40,6 +40,15 @@ if(CX_STANDALONE AND CX_TLS)
     set_property(TARGET tlsdemo PROPERTY FOLDER "tests")
 endif()
 
+if(CX_STANDALONE AND CX_QUIC)
+    source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES
+        quicinterop.c)
+
+    add_executable(quicinterop quicinterop.c)
+    target_link_libraries(quicinterop cxquic)
+    set_property(TARGET quicinterop PROPERTY FOLDER "tests")
+endif()
+
 if(CX_STANDALONE AND CX_HTTP)
     source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES
         httpdemo.c

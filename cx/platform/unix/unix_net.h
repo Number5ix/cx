@@ -18,6 +18,17 @@ bool netAddrToSockaddr(_In_ const NetAddr* addr, _Out_ struct sockaddr_storage* 
 /// @return true if the family was recognized and addr was written
 bool netAddrFromSockaddr(_Out_ NetAddr* addr, _In_ const struct sockaddr* sa);
 
+// Enough room for the control messages one datagram carries in either direction, in either address
+// family: a packet info structure and a traffic class byte. Buffers of this size sit on the stack
+// of every ingest loop, so it is sized to what is actually used rather than generously -- a
+// too-small buffer truncates a control message silently.
+#define NET_CMSG_SPACE 128
+
+// Reads the local address and ECN mark out of a received message's control data, and clears what
+// was not there. Anything unrecognized is skipped: an option enabled by something else on the same
+// socket must not stop the two that matter from being found.
+void _netCmsgToPktInfo(_Inout_ struct msghdr* mh, _Out_ NetPktInfo* info);
+
 /// Platform scatter/gather vector, as the OS expects it.
 ///
 /// struct iovec on unix, WSABUF on Windows. Spelled the same on both so that call sites which

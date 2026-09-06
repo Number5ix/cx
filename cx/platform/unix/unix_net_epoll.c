@@ -92,7 +92,11 @@ static void ingestDatagramBatch(_Inout_ NetQueueEpoll* self, _Inout_ NetSocket* 
         struct iovec iov[NET_EPOLL_MMSG_BATCH];
         struct sockaddr_storage addrs[NET_EPOLL_MMSG_BATCH];
         struct mmsghdr msgs[NET_EPOLL_MMSG_BATCH];
-        unsigned got = 0;
+        // Only reserved when the socket asked for per-datagram IP information; a batch of control
+        // buffers is a few kilobytes of stack that most sockets have no use for.
+        uint8 ctl[NET_EPOLL_MMSG_BATCH][NET_CMSG_SPACE];
+        bool wantInfo = sock->recvInfo;
+        unsigned got  = 0;
 
         for (; got < NET_EPOLL_MMSG_BATCH; got++) {
             Buffer b = bufpoolGet(&q->pool->msgbuf);
@@ -106,6 +110,10 @@ static void ingestDatagramBatch(_Inout_ NetQueueEpoll* self, _Inout_ NetSocket* 
             msgs[got].msg_hdr.msg_iovlen  = 1;
             msgs[got].msg_hdr.msg_name    = &addrs[got];
             msgs[got].msg_hdr.msg_namelen = sizeof(addrs[got]);
+            if (wantInfo) {
+                msgs[got].msg_hdr.msg_control    = ctl[got];
+                msgs[got].msg_hdr.msg_controllen = sizeof(ctl[got]);
+            }
         }
 
         if (got == 0) {
@@ -131,9 +139,13 @@ static void ingestDatagramBatch(_Inout_ NetQueueEpoll* self, _Inout_ NetSocket* 
 
         for (int i = 0; i < n; i++) {
             NetAddr src;
+            NetPktInfo info;
             netAddrFromSockaddr(&src, (struct sockaddr*)&addrs[i]);
+            if (wantInfo)
+                _netCmsgToPktInfo(&msgs[i].msg_hdr, &info);
             bufs[i]->len = msgs[i].msg_len;
-            netqueue_ingestDatagram(q, sock, &src, &bufs[i]);   // takes ownership of bufs[i]
+            // takes ownership of bufs[i]
+            netqueue_ingestDatagram(q, sock, &src, wantInfo ? &info : NULL, &bufs[i]);
         }
         for (unsigned i = (unsigned)n; i < got; i++) bufpoolPut(&q->pool->msgbuf, &bufs[i]);
 
@@ -438,6 +450,12 @@ bool NetQueueEpoll_addSocket(_In_ NetQueueEpoll* self, NetSocket* socket)
 {
     bool ret = NetQueue_addSocket(NetQueue(self), socket);
     if (!ret)
+        return ret;
+
+    // A handle-less socket has nothing for the backend to watch. cxquic's NST_Quic sockets are the
+    // case: they are real sockets on the queue, with flows and timers, but their bytes move through
+    // a separate UDP endpoint socket that is watched in its own right.
+    if (socket->handle == NET_INVALID_HANDLE)
         return ret;
 
     bool read = false, write = false;

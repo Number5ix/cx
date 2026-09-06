@@ -95,6 +95,12 @@ class NetFlow
 
     NetAddr peer;             ///< Datagram: the peer address this flow is keyed on
 
+    /// @brief QUIC: the stream id this flow is keyed on. Zero on every other kind of flow.
+    ///
+    /// A QUIC socket's flow table is keyed on this rather than on `peer`, because a QUIC
+    /// connection's identity is its Connection ID and its peer address can change underneath it.
+    uint64 key;
+
     atomic[uint32] claimed;   ///< A worker is currently draining this flow
     atomic[uint32] queued;    ///< Present on the queue's runqueue
     atomic[uint32] dying;     ///< Marked for close; blocks further dispatch
@@ -198,16 +204,18 @@ class NetFlow
     /// @param ctx Object passed to these handlers on NetEvent.ctx, held weakly; NULL to clear
     unbound void setHandlersObj([in] [opt] const NetHandlers *handlers, [in] [opt] ObjInst *ctx);
 
-    /// Send a datagram to this flow's peer
+    /// Send data on this flow
     ///
-    /// Convenience wrapper that calls netsocketSend() on the owning socket with this flow's peer
-    /// as the destination -- filtering, backpressure, and queueing are exactly netsocketSend()'s.
+    /// For a datagram flow this is a convenience wrapper that calls netsocketSend() on the owning
+    /// socket with this flow's peer as the destination -- filtering, backpressure, and queueing
+    /// are exactly netsocketSend()'s. A QUIC stream flow sends on its stream instead, since a
+    /// stream is named by its id and not by an address.
     ///
     /// @param data Payload to send (copied; need not outlive the call)
     /// @param len Length of the payload in bytes
     /// @param flags Optional NetSocketOpFlags
-    /// @return true if the datagram was sent or queued, false if it was refused
-    unbound bool send([in] const uint8 *data, size_t len, flags_t flags);
+    /// @return true if the payload was sent or queued, false if it was refused
+    bool send([in] const uint8 *data, size_t len, flags_t flags);
 
     /// Arm a timer on this flow
     ///

@@ -279,6 +279,322 @@ intptr netSockRecvFrom(NetSockHandle h, void* buf, size_t len, NetAddr* from, Ne
     return n;   // 0 is a legitimate zero-length datagram here, not a shutdown
 }
 
+// ---------------------------------------------------------------------------------------------
+// Per-datagram IP-layer information
+//
+// WSARecvMsg and WSASendMsg are the only calls that carry control messages, and neither is a plain
+// export: both are reached through a function pointer the socket hands out. The pointers are
+// fetched once from a throwaway datagram socket and are valid for every socket in the process.
+//
+// Everything here degrades to the plain recvfrom/sendto path when the pointer cannot be had or the
+// SDK is too old to name the options, which is the same answer a path that strips ECN gives.
+// ---------------------------------------------------------------------------------------------
+
+#if defined(NET_HAVE_WSAMSG)
+
+static LazyInitState netMsgFnState;
+static NetRecvMsgFn netRecvMsgFn;
+static NetSendMsgFn netSendMsgFn;
+
+static void netMsgFnInit(void* unused)
+{
+    unused_noeval(unused);
+
+    SOCKET s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (s == INVALID_SOCKET)
+        return;
+
+    GUID rid   = WSAID_WSARECVMSG;
+    GUID sid   = WSAID_WSASENDMSG;
+    DWORD got  = 0;
+    WSAIoctl(s, SIO_GET_EXTENSION_FUNCTION_POINTER, &rid, sizeof(rid), &netRecvMsgFn,
+             sizeof(netRecvMsgFn), &got, NULL, NULL);
+    WSAIoctl(s, SIO_GET_EXTENSION_FUNCTION_POINTER, &sid, sizeof(sid), &netSendMsgFn,
+             sizeof(netSendMsgFn), &got, NULL, NULL);
+    closesocket(s);
+}
+
+// Whether a control message carries the traffic class byte the ECN bits live in. Windows spells
+// this two ways depending on which option asked for it, and which one a given build produces is
+// not worth predicting.
+static bool cmsgIsEcn(int level, int type)
+{
+    if (level == IPPROTO_IP && type == IP_TOS)
+        return true;
+    if (level == IPPROTO_IPV6 && type == IPV6_TCLASS)
+        return true;
+#if defined(IP_ECN)
+    if (level == IPPROTO_IP && type == IP_ECN)
+        return true;
+#endif
+#if defined(IPV6_ECN)
+    if (level == IPPROTO_IPV6 && type == IPV6_ECN)
+        return true;
+#endif
+    return false;
+}
+
+_Use_decl_annotations_
+NetRecvMsgFn _netRecvMsgFn(void)
+{
+    lazyInit(&netMsgFnState, netMsgFnInit, NULL);
+    return netRecvMsgFn;
+}
+
+_Use_decl_annotations_
+NetSendMsgFn _netSendMsgFn(void)
+{
+    lazyInit(&netMsgFnState, netMsgFnInit, NULL);
+    return netSendMsgFn;
+}
+
+_Use_decl_annotations_
+bool _netPktInfoToCmsg(WSAMSG* mh, const NetPktInfo* info, int family)
+{
+    bool v6        = family == AF_INET6;
+    size_t used    = 0;
+    WSACMSGHDR* cm = WSA_CMSG_FIRSTHDR(mh);
+
+    if (info->haveLocal && cm) {
+        struct sockaddr_storage ls;
+        int lsz = 0;
+        if (netAddrToSockaddr((NetAddr*)&info->local, &ls, &lsz) && ls.ss_family == family) {
+            if (v6) {
+                IN6_PKTINFO pi;
+                memset(&pi, 0, sizeof(pi));
+                pi.ipi6_addr    = ((struct sockaddr_in6*)&ls)->sin6_addr;
+                pi.ipi6_ifindex = ((struct sockaddr_in6*)&ls)->sin6_scope_id;
+                cm->cmsg_level  = IPPROTO_IPV6;
+                cm->cmsg_type   = IPV6_PKTINFO;
+                cm->cmsg_len    = WSA_CMSG_LEN(sizeof(pi));
+                memcpy(WSA_CMSG_DATA(cm), &pi, sizeof(pi));
+                used += WSA_CMSG_SPACE(sizeof(pi));
+            } else {
+                IN_PKTINFO pi;
+                memset(&pi, 0, sizeof(pi));
+                pi.ipi_addr    = ((struct sockaddr_in*)&ls)->sin_addr;
+                cm->cmsg_level = IPPROTO_IP;
+                cm->cmsg_type  = IP_PKTINFO;
+                cm->cmsg_len   = WSA_CMSG_LEN(sizeof(pi));
+                memcpy(WSA_CMSG_DATA(cm), &pi, sizeof(pi));
+                used += WSA_CMSG_SPACE(sizeof(pi));
+            }
+            cm = WSA_CMSG_NXTHDR(mh, cm);
+        }
+    }
+
+#if defined(IP_ECN) && defined(IPV6_ECN)
+    if (info->haveEcn && cm) {
+        INT tc         = info->ecn & 0x03;
+        cm->cmsg_level = v6 ? IPPROTO_IPV6 : IPPROTO_IP;
+        cm->cmsg_type  = v6 ? IPV6_ECN : IP_ECN;
+        cm->cmsg_len   = WSA_CMSG_LEN(sizeof(tc));
+        memcpy(WSA_CMSG_DATA(cm), &tc, sizeof(tc));
+        used += WSA_CMSG_SPACE(sizeof(tc));
+    }
+#endif
+
+    mh->Control.len = (ULONG)used;
+    return used > 0;
+}
+
+_Use_decl_annotations_
+void _netCmsgToPktInfo(WSAMSG* mh, NetPktInfo* info)
+{
+    memset(info, 0, sizeof(*info));
+
+    for (WSACMSGHDR* cm = WSA_CMSG_FIRSTHDR(mh); cm; cm = WSA_CMSG_NXTHDR(mh, cm)) {
+        if (cm->cmsg_level == IPPROTO_IP && cm->cmsg_type == IP_PKTINFO) {
+            IN_PKTINFO pi;
+            memcpy(&pi, WSA_CMSG_DATA(cm), sizeof(pi));
+            struct sockaddr_in sin;
+            memset(&sin, 0, sizeof(sin));
+            sin.sin_family  = AF_INET;
+            sin.sin_addr    = pi.ipi_addr;
+            info->haveLocal = netAddrFromSockaddr(&info->local, (struct sockaddr*)&sin);
+            continue;
+        }
+        if (cm->cmsg_level == IPPROTO_IPV6 && cm->cmsg_type == IPV6_PKTINFO) {
+            IN6_PKTINFO pi;
+            memcpy(&pi, WSA_CMSG_DATA(cm), sizeof(pi));
+            struct sockaddr_in6 sin6;
+            memset(&sin6, 0, sizeof(sin6));
+            sin6.sin6_family   = AF_INET6;
+            sin6.sin6_addr     = pi.ipi6_addr;
+            sin6.sin6_scope_id = pi.ipi6_ifindex;
+            info->haveLocal    = netAddrFromSockaddr(&info->local, (struct sockaddr*)&sin6);
+            continue;
+        }
+        if (cmsgIsEcn(cm->cmsg_level, cm->cmsg_type)) {
+            unsigned int tc = 0;
+            size_t len      = (size_t)(cm->cmsg_len - WSA_CMSG_LEN(0));
+            if (len >= sizeof(INT)) {
+                INT v;
+                memcpy(&v, WSA_CMSG_DATA(cm), sizeof(v));
+                tc = (unsigned int)v;
+            } else if (len >= 1) {
+                tc = *(const unsigned char*)WSA_CMSG_DATA(cm);
+            }
+            info->ecn     = (uint8)(tc & 0x03);
+            info->haveEcn = true;
+            continue;
+        }
+    }
+}
+
+#endif   // NET_HAVE_WSAMSG
+
+// The address family a handle is bound to, or AF_UNSPEC if that cannot be determined.
+static int sockFamily(SOCKET s)
+{
+    struct sockaddr_storage sa;
+    int salen = sizeof(sa);
+    if (getsockname(s, (struct sockaddr*)&sa, &salen) != 0)
+        return AF_UNSPEC;
+    return sa.ss_family;
+}
+
+_Use_decl_annotations_
+intptr netSockRecvFromEx(NetSockHandle h, void* buf, size_t len, NetAddr* from, NetPktInfo* info,
+                         NetErrorCode* err)
+{
+#if defined(NET_HAVE_WSAMSG)
+    lazyInit(&netMsgFnState, netMsgFnInit, NULL);
+
+    if (netRecvMsgFn) {
+        struct sockaddr_storage sa;
+        WSABUF iov;
+        iov.buf = (char*)buf;
+        iov.len = (ULONG)min(len, INT_MAX);
+
+        char control[NET_CMSG_SPACE];
+        WSAMSG mh;
+        memset(&mh, 0, sizeof(mh));
+        mh.name             = (struct sockaddr*)&sa;
+        mh.namelen          = sizeof(sa);
+        mh.lpBuffers        = &iov;
+        mh.dwBufferCount    = 1;
+        mh.Control.buf      = control;
+        mh.Control.len      = sizeof(control);
+
+        DWORD got = 0;
+        if (netRecvMsgFn((SOCKET)h, &mh, &got, NULL, NULL) == SOCKET_ERROR) {
+            *err = netLastError();
+            memset(info, 0, sizeof(*info));
+            return -1;
+        }
+
+        if (from)
+            netAddrFromSockaddr(from, (struct sockaddr*)&sa);
+        _netCmsgToPktInfo(&mh, info);
+        *err = NERR_None;
+        return (intptr)got;
+    }
+#endif
+
+    memset(info, 0, sizeof(*info));
+    return netSockRecvFrom(h, buf, len, from, err);
+}
+
+_Use_decl_annotations_
+intptr netSockSendToEx(NetSockHandle h, const void* buf, size_t len, const NetAddr* dest,
+                       const NetPktInfo* info, NetErrorCode* err)
+{
+#if defined(NET_HAVE_WSAMSG)
+    lazyInit(&netMsgFnState, netMsgFnInit, NULL);
+
+    if (netSendMsgFn && info && (info->haveLocal || info->haveEcn)) {
+        struct sockaddr_storage sa;
+        int sasz = 0;
+        if (!netAddrToSockaddr((NetAddr*)dest, &sa, &sasz)) {
+            *err = NERR_Unknown;
+            return -1;
+        }
+
+        WSABUF iov;
+        iov.buf = (char*)buf;
+        iov.len = (ULONG)min(len, INT_MAX);
+
+        char control[NET_CMSG_SPACE];
+        memset(control, 0, sizeof(control));
+
+        WSAMSG mh;
+        memset(&mh, 0, sizeof(mh));
+        mh.name          = (struct sockaddr*)&sa;
+        mh.namelen       = sasz;
+        mh.lpBuffers     = &iov;
+        mh.dwBufferCount = 1;
+        mh.Control.buf   = control;
+        mh.Control.len   = sizeof(control);
+
+        if (_netPktInfoToCmsg(&mh, info, sa.ss_family)) {
+            DWORD sent = 0;
+            if (netSendMsgFn((SOCKET)h, &mh, 0, &sent, NULL, NULL) == SOCKET_ERROR) {
+                *err = netLastError();
+                return -1;
+            }
+            *err = NERR_None;
+            return (intptr)sent;
+        }
+    }
+#else
+    unused_noeval(info);
+#endif
+
+    return netSockSendTo(h, buf, len, dest, err);
+}
+
+_Use_decl_annotations_
+bool netSockRecvInfo(NetSockHandle h, bool enable)
+{
+#if defined(NET_HAVE_WSAMSG)
+    SOCKET s = (SOCKET)h;
+    DWORD on = enable ? 1 : 0;
+    int fam  = sockFamily(s);
+    bool ok  = false;
+
+    if (fam == AF_INET6) {
+        ok = setsockopt(s, IPPROTO_IPV6, IPV6_PKTINFO, (const char*)&on, sizeof(on)) == 0;
+#if defined(IPV6_ECN)
+        ok = setsockopt(s, IPPROTO_IPV6, IPV6_ECN, (const char*)&on, sizeof(on)) == 0 && ok;
+#else
+        ok = false;
+#endif
+        return ok;
+    }
+    if (fam != AF_INET)
+        return false;
+
+    ok = setsockopt(s, IPPROTO_IP, IP_PKTINFO, (const char*)&on, sizeof(on)) == 0;
+#if defined(IP_ECN)
+    ok = setsockopt(s, IPPROTO_IP, IP_ECN, (const char*)&on, sizeof(on)) == 0 && ok;
+#else
+    ok = false;
+#endif
+    return ok;
+#else
+    unused_noeval(h);
+    unused_noeval(enable);
+    return false;
+#endif
+}
+
+_Use_decl_annotations_
+bool netSockDontFragment(NetSockHandle h, bool enable)
+{
+    SOCKET s = (SOCKET)h;
+    DWORD on = enable ? 1 : 0;
+    int fam  = sockFamily(s);
+
+#if defined(IPV6_DONTFRAG)
+    if (fam == AF_INET6)
+        return setsockopt(s, IPPROTO_IPV6, IPV6_DONTFRAG, (const char*)&on, sizeof(on)) == 0;
+#endif
+    if (fam == AF_INET)
+        return setsockopt(s, IPPROTO_IP, IP_DONTFRAGMENT, (const char*)&on, sizeof(on)) == 0;
+    return false;
+}
+
 _Use_decl_annotations_
 intptr netSockSendv(NetSockHandle h, const BufIov* iov, size_t niov, NetErrorCode* err)
 {

@@ -77,7 +77,8 @@ static void flushDgramBytes(NetQueue* q, NetSocket* sock, NetErrorCode* err, Net
 
         size_t len = m->buf ? m->buf->len : 0;
         NetErrorCode e;
-        intptr n = netSockSendTo(sock->handle, m->buf ? m->buf->data : NULL, len, &m->addr, &e);
+        intptr n = netSockSendToEx(sock->handle, m->buf ? m->buf->data : NULL, len, &m->addr,
+                                   &m->info, &e);
         if (n < 0 && e == NERR_WouldBlock)
             break;   // send buffer full; leave this datagram queued at the head
 
@@ -233,7 +234,8 @@ static bool sendStreamRaw(NetQueue* q, NetSocket* sock, const uint8* data, size_
 // buffer rides one, like everything else on the datagram path; an oversized one falls back to a
 // plain heap buffer. NMF_PoolBuf is what tells the free paths apart afterwards -- destroying a
 // pooled buffer would permanently shrink the pool.
-static NetMessage* dgramWrapPayload(NetQueue* q, const uint8* data, size_t len, const NetAddr* dest)
+static NetMessage* dgramWrapPayload(NetQueue* q, const uint8* data, size_t len,
+                                    const NetAddr* dest, const NetPktInfo* info)
 {
     NetPool* pool = _netqueuePool(q);
     NetMessage* m = NULL;
@@ -251,6 +253,8 @@ static NetMessage* dgramWrapPayload(NetQueue* q, const uint8* data, size_t len, 
 
     m->kind = NMSG_Data;
     m->addr = *dest;
+    if (info)
+        m->info = *info;
 
     if (!m->buf) {
         netpoolFreeMsg(pool, &m);
@@ -292,7 +296,7 @@ static bool dgramSendMsg(NetQueue* q, NetSocket* sock, NetMessage* msg, bool* wa
             uint8* data = msg->buf ? msg->buf->data : NULL;
             size_t len  = msg->buf ? msg->buf->len : 0;
             NetErrorCode e;
-            intptr n = netSockSendTo(sock->handle, data, len, &msg->addr, &e);
+            intptr n = netSockSendToEx(sock->handle, data, len, &msg->addr, &msg->info, &e);
             if (n >= 0)
                 ret = true;   // went straight out, nothing queued
             else if (e == NERR_WouldBlock)
@@ -315,11 +319,11 @@ static bool dgramSendMsg(NetQueue* q, NetSocket* sock, NetMessage* msg, bool* wa
 
 // Unfiltered datagram send: straight to the wire, or queued behind what is already waiting.
 static bool sendDgramRaw(NetQueue* q, NetSocket* sock, const uint8* data, size_t len,
-                         const NetAddr* dest, bool immediate)
+                         const NetAddr* dest, const NetPktInfo* info, bool immediate)
 {
     if (immediate) {
         NetErrorCode e;
-        intptr n = netSockSendTo(sock->handle, data, len, dest, &e);
+        intptr n = netSockSendToEx(sock->handle, data, len, dest, info, &e);
         return n >= 0 && (size_t)n == len;
     }
 
@@ -333,7 +337,7 @@ static bool sendDgramRaw(NetQueue* q, NetSocket* sock, const uint8* data, size_t
     if (over)
         return false;
 
-    NetMessage* m = dgramWrapPayload(q, data, len, dest);
+    NetMessage* m = dgramWrapPayload(q, data, len, dest, info);
     if (!m)
         return false;
 
@@ -397,12 +401,50 @@ bool NetSocket_send(_In_ NetSocket* self, _In_ const uint8* data, size_t len,
             ret = false;   // filtered socket with nowhere to build a chain: refuse rather than
                            // put the payload on the wire in the clear
         } else {
-            ret = sendDgramRaw(q, self, data, len, dest, immediate);
+            ret = sendDgramRaw(q, self, data, len, dest, NULL, immediate);
         }
 
         objRelease(&flow);
     }
 
+    objRelease(&q);
+    return ret;
+}
+
+// Whether an address is the wildcard -- the "any local address" a socket binds to when it does not
+// care which of the machine's addresses it uses.
+static bool addrIsWildcard(_In_ const NetAddr* a)
+{
+    static const uint8 zero[16] = { 0 };
+    return a->type == NA_IPv6 ? memcmp(a->ipv6, zero, sizeof(a->ipv6)) == 0
+                              : memcmp(a->ipv4, zero, sizeof(a->ipv4)) == 0;
+}
+
+bool NetSocket_sendEx(_In_ NetSocket* self, _In_ const uint8* data, size_t len,
+                      _In_ const NetAddr* dest, _In_opt_ const NetPktInfo* info, flags_t flags)
+{
+    if (atomicLoad(uint32, &self->state, Relaxed) == NS_Closed)
+        return false;
+
+    // Datagram only, and unfiltered only. A filter chain decides for itself what leaves the socket
+    // and in how many pieces, so there is no datagram here for the ancillary request to belong to;
+    // the send is refused rather than quietly losing the request.
+    if (self->type != NST_Datagram || !dest || saSize(self->filters) > 0)
+        return false;
+
+    // A socket bound to one of the machine's addresses always leaves from it, so asking for a
+    // source address is at best redundant -- and some platforms reject the request outright on such
+    // a socket, which fails the whole call and would cost the datagram every other request it was
+    // carrying. Only a wildcard-bound socket has a choice to make.
+    NetPktInfo bound;
+    if (info && info->haveLocal && !addrIsWildcard(&self->local)) {
+        bound           = *info;
+        bound.haveLocal = false;
+        info            = &bound;
+    }
+
+    NetQueue* q = objAcquireFromWeak(NetQueue, self->queue);
+    bool ret    = sendDgramRaw(q, self, data, len, dest, info, (flags & NSO_Immediate) != 0);
     objRelease(&q);
     return ret;
 }
@@ -739,7 +781,7 @@ bool NetFlow__filterDatagramEncode(NetFlow* self, NetQueue* q, const uint8* data
             if (msgqCount(&self->encInMsgs) >= NET_FLOW_ENCQ_MAX) {
                 ok = false;
             } else {
-                NetMessage* m = dgramWrapPayload(q, data, len, &self->peer);
+                NetMessage* m = dgramWrapPayload(q, data, len, &self->peer, NULL);
                 if (!m)
                     ok = false;
                 else

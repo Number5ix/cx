@@ -257,7 +257,9 @@ void NetFlow__snapshotFlows(_In_ NetSocket* sock, _Out_ sa_NetFlow* out)
 {
     saInit(out, NetFlow, 16);
 
-    if (sock->type == NST_Datagram) {
+    // A QUIC socket is the one type with both: its control flow carries connection-level events
+    // and its table one flow per stream, and a close has to take down all of them.
+    if (sock->type == NST_Datagram || sock->type == NST_Quic) {
         withReadLock (&sock->flowLock) {
             foreach (hashtable, hti, sock->flows) {
                 NetFlow* f = (NetFlow*)htiVal(object, hti);
@@ -265,9 +267,10 @@ void NetFlow__snapshotFlows(_In_ NetSocket* sock, _Out_ sa_NetFlow* out)
                     saPush(out, NetFlow, f);
             }
         }
-    } else if (sock->flow) {
-        saPush(out, NetFlow, sock->flow);
     }
+
+    if (sock->type != NST_Datagram && sock->flow)
+        saPush(out, NetFlow, sock->flow);
 }
 
 void NetSocket__dropFlow(_In_ NetSocket* self, _Inout_ NetFlow* flow)
@@ -279,6 +282,14 @@ void NetSocket__dropFlow(_In_ NetSocket* self, _Inout_ NetFlow* flow)
             htelem e = htFind(self->flows, NetAddr, flow->peer, none, NULL);
             if (e && (NetFlow*)hteVal(self->flows, object, e) == flow)
                 htRemove(&self->flows, NetAddr, flow->peer);
+        }
+    } else if (self->type == NST_Quic && self->flow != flow) {
+        // A QUIC stream flow, keyed on its stream id. The socket's own control flow is not in the
+        // table and is dropped by the arm below.
+        withWriteLock (&self->flowLock) {
+            htelem e = htFind(self->flows, uint64, flow->key, none, NULL);
+            if (e && (NetFlow*)hteVal(self->flows, object, e) == flow)
+                htRemove(&self->flows, uint64, flow->key);
         }
     } else if (self->flow == flow) {
         objRelease(&self->flow);
@@ -293,6 +304,8 @@ void NetSocket__dropFlow(_In_ NetSocket* self, _Inout_ NetFlow* flow)
 
 uint32 NetQueue__reclaimFlows(_In_ NetQueue* self, _Inout_ NetSocket* sock)
 {
+    // Only datagram flows are reclaimable. A QUIC socket's flows are its own streams rather than
+    // guesses about who is still out there, so evicting one would break a live connection.
     if (self->conf.noReclaim || sock->type != NST_Datagram)
         return 0;
 
@@ -352,18 +365,30 @@ _Ret_maybenull_ NetFlow* NetQueue__admitFlow(_In_ NetQueue* self, _Inout_ NetSoc
     if (!flow)
         return NULL;
 
+    return netqueue_admitFlowObj(self, sock, flow);
+}
+
+_Ret_maybenull_ NetFlow* NetQueue__admitFlowObj(_In_ NetQueue* self, _Inout_ NetSocket* sock, _Inout_ NetFlow* flow)
+{
     // Build the filter chain before the flow is reachable by anything else. Doing it after the
     // insert would leave a window in which an ingest thread could hand a packet to a worker that
     // finds no chain and delivers it raw -- exactly once per new peer, which is the worst possible
     // place for it.
     netflow_buildFilters(flow, sock);
 
-    if (sock->type == NST_Datagram) {
+    if (sock->type == NST_Datagram || sock->type == NST_Quic) {
         bool inserted = false;
         withWriteLock (&sock->flowLock) {
-            htelem e = htFind(sock->flows, NetAddr, *peer, none, NULL);
+            // The two table kinds differ only in their key: a datagram socket demultiplexes peers
+            // by address, a QUIC socket demultiplexes one connection's streams by stream id.
+            htelem e = sock->type == NST_Datagram
+                           ? htFind(sock->flows, NetAddr, flow->peer, none, NULL)
+                           : htFind(sock->flows, uint64, flow->key, none, NULL);
             if (!e) {
-                htInsert(&sock->flows, NetAddr, *peer, object, flow);
+                if (sock->type == NST_Datagram)
+                    htInsert(&sock->flows, NetAddr, flow->peer, object, flow);
+                else
+                    htInsert(&sock->flows, uint64, flow->key, object, flow);
                 inserted = true;
             } else {
                 // Lost a race to another ingest thread; take theirs instead of ours.
@@ -385,9 +410,9 @@ _Ret_maybenull_ NetFlow* NetQueue__admitFlow(_In_ NetQueue* self, _Inout_ NetSoc
     // Announce the new flow before the caller can push anything else: NET_FlowOpen is the
     // session-setup hook, so it must land in the inbox ahead of the first data packet. Only the
     // thread that actually inserted gets here (a lost race returned above), so exactly one open
-    // fires per flow -- and only for datagram flows, since a stream's session start is already
-    // announced by NET_Connection / NET_Accepted.
-    if (sock->type == NST_Datagram) {
+    // fires per flow -- and only for table flows, since a stream socket's session start is already
+    // announced by NET_Connection / NET_Accepted, as is a QUIC connection's.
+    if (sock->type == NST_Datagram || sock->type == NST_Quic) {
         NetMessage* msg = netpoolAllocHeader(self->pool);
         msg->kind       = NMSG_FlowOpen;
         netqueue_submit(self, flow, msg);
@@ -414,6 +439,9 @@ _Ret_maybenull_ NetFlow* NetQueue__findFlow(_In_ NetQueue* self, _Inout_ NetSock
             }
         }
     } else if (sock->flow) {
+        // Stream and QUIC sockets both answer with their single control flow. A QUIC socket's
+        // stream table is not searched here: nothing arriving from the network names a stream, so
+        // a stream flow is only ever reached through cxquic's own frame demultiplexing.
         flow = objAcquire(sock->flow);
     }
 

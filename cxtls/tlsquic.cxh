@@ -1,0 +1,179 @@
+#include <cxtls/tlsconfig.cxh>
+
+/// @addtogroup tls_quic
+/// @{
+/// The TLS 1.3 handshake as QUIC needs it: handshake messages in and out, traffic secrets per
+/// encryption level, and no record layer anywhere.
+///
+/// QUIC does not carry TLS records. It carries the handshake messages themselves in CRYPTO frames
+/// and protects them with its own packet protection, so the part of TLS it needs is the handshake
+/// and the key schedule and nothing else. A TlsQuic is that part: it is fed the bytes that arrive
+/// on each CRYPTO stream, and everything it produces -- messages to send, secrets to expand into
+/// packet keys, the peer's transport parameters -- leaves through the TlsQuicHandlers table.
+///
+/// It never touches a socket. Wiring one to a connection is the transport's job.
+///
+/// @code
+///   TlsQuic *tq = tlsquicCreateClient(cfg, _S"example.com");
+///   tlsquicSetHandlers(tq, &handlers, conn);
+///   tlsquicSetTransportParams(tq, params, paramsLen);
+///   tlsquicStart(tq);
+///
+///   // ... when CRYPTO frame bytes arrive, in stream order:
+///   tlsquicRecv(tq, TLSQL_Initial, data, len);
+/// @endcode
+///
+/// @section tls_quic_order What happens in what order
+///
+/// A client's tlsquicStart() emits its ClientHello at TLSQL_Initial. Everything after that is
+/// driven by tlsquicRecv(): each call may produce any number of sendCrypto() callbacks, one or
+/// two secrets() callbacks, and finally complete(). A server produces nothing until the first
+/// ClientHello reaches it.
+///
+/// Secrets arrive one encryption level at a time and always before the messages protected with
+/// them. TLSQL_Initial is never reported, because both ends derive those keys from the connection
+/// ID instead. A server withholds its TLSQL_App **read** secret until the client's Finished has
+/// been checked, so that it cannot be tricked into reading 1-RTT packets from an unauthenticated
+/// peer; both directions arrive together at every other point.
+///
+/// @section tls_quic_early 0-RTT
+///
+/// A client that holds a ticket from an earlier connection to the same host, on a configuration
+/// with tlsconfigSetEarlyData() turned on, offers to send data before the handshake finishes. That
+/// shows up as one extra callback before tlsquicStart() returns -- earlyParams(), carrying the
+/// transport parameters the earlier session ran under -- and a secrets() callback for
+/// TLSQL_EarlyData carrying only a write secret. Data may go out at that level from then on.
+///
+/// The server's answer arrives as earlyData(): true means it read the 0-RTT, false means it did
+/// not and everything sent that way has to be sent again once TLSQL_App keys exist. A server sees
+/// the mirror image -- earlyParams() to check the old limits against what it is offering now, a
+/// read secret, and earlyData() with what it decided.
+///
+/// Both sides get exactly one earlyData() per handshake, or none if 0-RTT never came up.
+///
+/// @section tls_quic_fail Failure
+///
+/// Any failure raises alert() once with the TLS alert that describes it, and every later call
+/// returns false. Report it to the peer as a CONNECTION_CLOSE frame with error code 0x0100 plus
+/// the alert value.
+
+/// @brief One QUIC handshake, on one connection
+///
+/// Create a client one per outbound connection and a server one per inbound connection; a TlsQuic
+/// is single-use and is not entered from more than one thread at a time.
+class TlsQuic
+{
+    object[TlsConfig] config;   ///< Policy the handshake runs under, as passed to the factory
+
+    TlsQuicState *st;   // opaque handshake engine; see tls_private.h
+
+    /// Create a handshake for an outbound connection
+    ///
+    /// @param config Client configuration; the handshake acquires its own reference
+    /// @param hostname Name to send as SNI and require the server's certificate to match. Pass
+    ///        NULL only when connecting somewhere no name can be checked, which also means
+    ///        certificate name verification cannot protect the connection.
+    /// @return The new handshake, or NULL if config is NULL, is a server configuration, or could
+    ///         not be sealed
+    [canfail] factory createClient([in] TlsConfig *config, [opt] strref hostname);
+
+    /// Create a handshake for an inbound connection
+    ///
+    /// @param config Server configuration; the handshake acquires its own reference
+    /// @return The new handshake, or NULL if config is NULL, is a client configuration, or could
+    ///         not be sealed
+    [canfail] factory createServer([in] TlsConfig *config);
+
+    destroy();
+
+    /// Register the callbacks the handshake drives its transport through
+    ///
+    /// The table is borrowed, not copied, and must outlive the handshake. Register it before
+    /// tlsquicStart() or the first tlsquicRecv(), since a handshake with no handlers cannot get
+    /// anywhere.
+    ///
+    /// @param handlers Callback table, or NULL to clear
+    /// @param ctx Context passed to every callback
+    unbound void setHandlers([opt] const TlsQuicHandlers *handlers, [in] [opt] void *ctx);
+
+    /// Set the QUIC transport parameters to send to the peer
+    ///
+    /// The encoded body of the quic_transport_parameters extension, with no extension header.
+    /// Required: a handshake with none set refuses to start. The bytes are copied.
+    ///
+    /// @param data Encoded transport parameters
+    /// @param len Length of data in bytes
+    /// @return true if they were accepted; false once the handshake has started
+    unbound bool setTransportParams([in] const uint8 *data, size_t len);
+
+    /// Restrict which cipher suites may be negotiated
+    ///
+    /// All three TLS 1.3 suites are offered by default, AES-128-GCM first. A client offers the
+    /// list as given; a server takes the first entry the client also offered, so on a server the
+    /// order is the one that decides.
+    ///
+    /// @param suites TLS cipher suite codepoints, most preferred first: 0x1301 for
+    ///        TLS_AES_128_GCM_SHA256, 0x1302 for TLS_AES_256_GCM_SHA384, 0x1303 for
+    ///        TLS_CHACHA20_POLY1305_SHA256
+    /// @param count Number of entries, at least one
+    /// @return true if every suite is supported and the handshake has not started yet
+    unbound bool setSuites([in] const uint16 *suites, size_t count);
+
+    /// Restrict which key exchange groups may be used
+    ///
+    /// Both X25519 and secp256r1 are offered by default, X25519 first. A client generates a key
+    /// share for the first entry and offers the rest; a server takes the first entry the client
+    /// can satisfy, asking for a retry if it has to.
+    ///
+    /// @param groups TLS named group codepoints, most preferred first: 0x001d for X25519, 0x0017
+    ///        for secp256r1
+    /// @param count Number of entries, at least one
+    /// @return true if every group is supported and the handshake has not started yet
+    unbound bool setGroups([in] const uint16 *groups, size_t count);
+
+    /// Send the first flight
+    ///
+    /// Clients only; a server starts when the first ClientHello reaches tlsquicRecv().
+    ///
+    /// @return true if the ClientHello went out
+    unbound bool start();
+
+    /// Feed handshake bytes that arrived on one CRYPTO stream
+    ///
+    /// The bytes must be in stream order and gap-free; reassembling CRYPTO frames is the
+    /// transport's job. A handshake message split across calls is buffered until the rest of it
+    /// arrives.
+    ///
+    /// @param level Encryption level the bytes were protected at
+    /// @param data Handshake bytes
+    /// @param len Length of data in bytes
+    /// @return true unless the handshake failed, in which case alert() has already reported why
+    unbound bool recv(TlsQuicLevel level, [in] const uint8 *data, size_t len);
+
+    /// Whether the handshake has completed
+    ///
+    /// @return true once complete() has been called
+    unbound bool complete();
+
+    /// The alert a failed handshake raised
+    ///
+    /// @return The alert value, or 0 if nothing has failed
+    unbound uint8 alert();
+
+    /// The application protocol that was negotiated
+    ///
+    /// @param out Receives the protocol name; emptied if none was negotiated
+    /// @return true if a protocol was negotiated
+    unbound bool getALPN([out] string *out);
+
+    /// Snapshot what the handshake established
+    ///
+    /// Every string in the result is owned by the caller; release them all with
+    /// nettlsInfoDestroy().
+    ///
+    /// @param out Receives the snapshot
+    /// @return true if the handshake has completed
+    unbound bool getInfo([out] TlsInfo *out);
+}
+
+/// @}

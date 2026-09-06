@@ -117,7 +117,7 @@ static bool inject(NetQueue* q, NetSocket* sock, NetAddr* peer, uint8 val)
     buf->data[0] = val;
     buf->len     = 1;
 
-    bool ret = netqueue_ingestDatagram(q, sock, peer, &buf);
+    bool ret = netqueue_ingestDatagram(q, sock, peer, NULL, &buf);
     if (buf)
         bufpoolPut(&q->pool->msgbuf, &buf);   // only reached if ingest declined it
     return ret;
@@ -141,6 +141,7 @@ typedef struct Recorder {
     uint32 seqlen;
     uint32 timerCount;
     NetTimerId lastTimerId;
+    NetPktInfo lastInfo;   // what the IP layer carried with the most recent datagram
 } Recorder;
 
 static void onConnect(NetEvent* ev)
@@ -4401,6 +4402,363 @@ static int test_nettest_kqueue_accept_auto(void)
 
 #endif   // _PLATFORM_WIN || _PLATFORM_UNIX || _PLATFORM_WASM
 
+// ---------------------------------------------------------------------------------------------
+// QUIC seams
+//
+// cx/net knows that QUIC exists without containing any of it: a socket type with no OS handle and
+// both kinds of flow storage, a hook that takes arriving datagrams before the flow table sees them,
+// and an admit entry point that accepts an already-constructed NetFlow subclass. Nothing here
+// involves QUIC itself -- these prove the seams behave for whatever gets plugged into them.
+// ---------------------------------------------------------------------------------------------
+
+// State for the fake NetDatagramRouteFn below.
+typedef struct RouteCtx {
+    uint32 calls;         // times the hook was invoked
+    NetAddr lastPeer;     // peer of the most recent packet
+    uint8 lastByte;       // its first payload byte
+    uint8 lastEcn;        // its ECN codepoint, or 0xff when none was reported
+    NetSocket* lastSock;
+    NetFlow* target;      // flow to submit to, or NULL to drop the packet
+    NetQueue* queue;
+} RouteCtx;
+
+// Stands in for cxquic's Connection ID demultiplexer: takes the packet away from the flow table and
+// either submits it to a flow of its own choosing or drops it.
+static bool testRoute(void* ctx, NetSocket* sock, NetAddr* peer, const NetPktInfo* info,
+                      Buffer* buf)
+{
+    RouteCtx* rc = (RouteCtx*)ctx;
+    rc->calls++;
+    rc->lastPeer = *peer;
+    rc->lastSock = sock;
+    rc->lastEcn  = (info && info->haveEcn) ? info->ecn : 0xff;
+    rc->lastByte = (*buf && (*buf)->len > 0) ? (*buf)->data[0] : 0;
+
+    if (!rc->target) {
+        bufpoolPut(&rc->queue->pool->msgbuf, buf);
+        return false;
+    }
+
+    NetMessage* msg = netpoolAllocHeader(rc->queue->pool);
+    msg->kind       = NMSG_Data;
+    msg->addr       = *peer;
+    msg->buf        = *buf;
+    msg->flags      = NMF_PoolBuf;
+    *buf            = NULL;
+
+    netqueue_submit(rc->queue, rc->target, msg);
+    return true;
+}
+
+// A route hook takes every arriving datagram, so the socket's address-keyed flow table stays empty
+// no matter how many peers show up.
+static int test_nettest_quic_route(void)
+{
+    int ret      = 0;
+    Recorder rec = { 0 };
+
+    static const NetHandlers handlers = { .recv = onRecv, .flowOpen = onFlowOpen };
+
+    NetQueue* q = makeQueue(NULL);
+    netqueueSetHandlers(q, &handlers, &rec);
+
+    NetSocket* s = makeSocket(q, NST_Datagram);
+
+    RouteCtx rc = { .queue = q };
+    s->route    = testRoute;
+    s->routeCtx = &rc;
+
+    NetAddr p1 = peerAddr(1, 5000);
+    NetAddr p2 = peerAddr(2, 5000);
+
+    // With no target flow the hook drops the packet and reports it, and nothing reaches the core.
+    if (inject(q, s, &p1, 7))
+        TEST_FAILV(ret, 1, _SL("ingest reported success for a packet the route hook dropped"), stvNone);
+    if (rc.calls != 1)
+        TEST_FAILV(ret, 1, _SL("route hook ran ${uint} times, expected 1"), stvar(uint32, rc.calls));
+    if (rc.lastByte != 7)
+        TEST_FAILV(ret, 1, _SL("route hook saw payload byte ${uint}, expected 7"), stvar(uint32, (uint32)rc.lastByte));
+    if (rc.lastSock != s)
+        TEST_FAILV(ret, 1, _SL("route hook saw socket ${ptr}, expected ${ptr}"), stvar(ptr, rc.lastSock), stvar(ptr, s));
+    if (atomicLoad(uint32, &q->nflows, Relaxed) != 0)
+        TEST_FAILV(ret, 1, _SL("route hook left ${uint} flows behind, expected 0"), stvar(uint32, atomicLoad(uint32, &q->nflows, Relaxed)));
+
+    // Point the hook at a flow it chose itself. Two different peers now land on the same flow,
+    // which is the whole reason the hook exists: identity is not the source address.
+    NetFlow* own = netqueue_admitFlow(q, s, &p1);
+    if (!own) {
+        TEST_FAILV(ret, 1, _SL("admitFlow returned NULL"), stvNone);
+        goto out;
+    }
+    rc.target = own;
+
+    if (!inject(q, s, &p1, 11))
+        TEST_FAILV(ret, 1, _SL("route hook refused a packet it should have submitted"), stvNone);
+    if (!inject(q, s, &p2, 12))
+        TEST_FAILV(ret, 1, _SL("route hook refused a packet from a second peer"), stvNone);
+
+    netqueueTick(q, 0);
+
+    if (rc.calls != 3)
+        TEST_FAILV(ret, 1, _SL("route hook ran ${uint} times, expected 3"), stvar(uint32, rc.calls));
+    if (rec.recvCount != 2)
+        TEST_FAILV(ret, 1, _SL("delivered ${uint} packets, expected 2"), stvar(uint32, rec.recvCount));
+    if (atomicLoad(uint32, &q->nflows, Relaxed) != 1)
+        TEST_FAILV(ret, 1, _SL("expected 1 flow, got ${uint}"), stvar(uint32, atomicLoad(uint32, &q->nflows, Relaxed)));
+
+    // Clearing the hook puts the socket back on the ordinary path, so a new peer gets a flow again.
+    rc.target = NULL;
+    s->route  = NULL;
+    if (!inject(q, s, &p2, 13))
+        TEST_FAILV(ret, 1, _SL("ingest refused a packet after the route hook was cleared"), stvNone);
+    netqueueTick(q, 0);
+    if (atomicLoad(uint32, &q->nflows, Relaxed) != 2)
+        TEST_FAILV(ret, 1, _SL("expected 2 flows once the hook was cleared, got ${uint}"), stvar(uint32, atomicLoad(uint32, &q->nflows, Relaxed)));
+
+    objRelease(&own);
+
+out:
+    netsocketClose(s);
+    objRelease(&s);
+    netqueueShutdown(q, 0);
+    objRelease(&q);
+    return ret;
+}
+
+// An NST_Quic socket has no OS handle and both kinds of flow storage: a control flow for
+// connection-level events and a table for its streams.
+static int test_nettest_quic_socket(void)
+{
+    int ret      = 0;
+    Recorder rec = { 0 };
+
+    static const NetHandlers handlers = { .flowClosed = onClosed };
+
+    NetQueue* q  = makeQueue(NULL);
+    NetSocket* s = makeSocket(q, NST_Quic);
+    netsocketSetHandlers(s, &handlers, &rec);
+
+    if (s->handle != NET_INVALID_HANDLE)
+        TEST_FAILV(ret, 1, _SL("QUIC socket has handle ${int}, expected NET_INVALID_HANDLE"), stvar(int64, (int64)s->handle));
+    if (!s->flow)
+        TEST_FAILV(ret, 1, _SL("QUIC socket has no control flow"), stvNone);
+    if (htSize(s->flows) != 0)
+        TEST_FAILV(ret, 1, _SL("QUIC socket starts with ${uint} stream flows, expected 0"), stvar(uint32, htSize(s->flows)));
+
+    // Closing the socket tears the control flow down like any other flow.
+    netsocketClose(s);
+    netqueueTick(q, 0);
+
+    if (rec.closeCount != 1)
+        TEST_FAILV(ret, 1, _SL("expected 1 close event, got ${uint}"), stvar(uint32, rec.closeCount));
+    if (rec.lastReason != NCR_SocketClosed)
+        TEST_FAILV(ret, 1, _SL("close reason was ${int}, expected NCR_SocketClosed (${int})"), stvar(int32, rec.lastReason), stvar(int32, NCR_SocketClosed));
+
+    objRelease(&s);
+    netqueueShutdown(q, 0);
+    objRelease(&q);
+    return ret;
+}
+
+// netqueue_admitFlowObj() registers a caller-built NetFlow subclass under a uint64 key and runs it
+// through the normal lifecycle.
+static int test_nettest_quic_admitobj(void)
+{
+    int ret      = 0;
+    Recorder rec = { 0 };
+
+    static const NetHandlers handlers = { .recv = onRecv, .flowOpen = onFlowOpen, .flowClosed = onClosed };
+
+    NetQueue* q  = makeQueue(NULL);
+    netqueueSetHandlers(q, &handlers, &rec);
+
+    NetSocket* s = makeSocket(q, NST_Quic);
+
+    // Two streams on one connection, keyed on their stream ids rather than on any address.
+    NetFlow* f0 = netqueue_admitFlowObj(q, s, NetFlow(netflowtestCreate(s, NULL, 0, 0xa5a5)));
+    NetFlow* f4 = netqueue_admitFlowObj(q, s, NetFlow(netflowtestCreate(s, NULL, 4, 0x5a5a)));
+
+    if (!f0 || !f4) {
+        TEST_FAILV(ret, 1, _SL("admitFlowObj returned NULL"), stvNone);
+        goto out;
+    }
+    if (f0 == f4)
+        TEST_FAILV(ret, 1, _SL("two stream ids produced the same flow"), stvNone);
+    if (htSize(s->flows) != 2)
+        TEST_FAILV(ret, 1, _SL("socket holds ${uint} stream flows, expected 2"), stvar(uint32, htSize(s->flows)));
+    if (atomicLoad(uint32, &q->nflows, Relaxed) != 2)
+        TEST_FAILV(ret, 1, _SL("queue counts ${uint} flows, expected 2"), stvar(uint32, atomicLoad(uint32, &q->nflows, Relaxed)));
+
+    // The subclass survived the round trip through the table, which is what lets cxquic keep its
+    // own per-stream state on the flow rather than in flow->user.
+    NetFlowTest* ft = objDynCast(NetFlowTest, f0);
+    if (!ft) {
+        TEST_FAILV(ret, 1, _SL("flow in the table is not a NetFlowTest"), stvNone);
+        goto out;
+    }
+    if (ft->stamp != 0xa5a5)
+        TEST_FAILV(ret, 1, _SL("stamp is ${uint}, expected ${uint}"), stvar(uint32, ft->stamp), stvar(uint32, (uint32)0xa5a5));
+
+    netqueueTick(q, 0);
+    if (rec.openCount != 2)
+        TEST_FAILV(ret, 1, _SL("expected 2 NET_FlowOpen events, got ${uint}"), stvar(uint32, rec.openCount));
+
+    // A second admit under a live key hands back the incumbent rather than replacing it.
+    NetFlow* dup = netqueue_admitFlowObj(q, s, NetFlow(netflowtestCreate(s, NULL, 4, 0xdead)));
+    if (dup != f4)
+        TEST_FAILV(ret, 1, _SL("re-admitting stream 4 returned ${ptr}, expected the incumbent ${ptr}"), stvar(ptr, dup), stvar(ptr, f4));
+    if (htSize(s->flows) != 2)
+        TEST_FAILV(ret, 1, _SL("socket holds ${uint} stream flows after a duplicate admit, expected 2"), stvar(uint32, htSize(s->flows)));
+    objRelease(&dup);
+
+    // Closing one stream drops it from the table and leaves the other alone.
+    netflowClose(f0);
+    netqueueTick(q, 0);
+
+    if (rec.closeCount != 1)
+        TEST_FAILV(ret, 1, _SL("expected 1 close event, got ${uint}"), stvar(uint32, rec.closeCount));
+    if (htSize(s->flows) != 1)
+        TEST_FAILV(ret, 1, _SL("socket holds ${uint} stream flows after one close, expected 1"), stvar(uint32, htSize(s->flows)));
+    // The admit/drop pair must balance while the socket is still on the queue, or a QUIC connection
+    // opening and closing streams would drift the queue's flow count.
+    if (atomicLoad(uint32, &q->nflows, Relaxed) != 1)
+        TEST_FAILV(ret, 1, _SL("queue counts ${uint} flows after one close, expected 1"), stvar(uint32, atomicLoad(uint32, &q->nflows, Relaxed)));
+
+out:
+    objRelease(&f0);
+    objRelease(&f4);
+
+    // Closing the socket takes down the remaining stream and the control flow together.
+    rec.closeCount = 0;
+    netsocketClose(s);
+    netqueueTick(q, 0);
+    if (rec.closeCount != 2)
+        TEST_FAILV(ret, 1, _SL("closing the socket produced ${uint} close events, expected 2"), stvar(uint32, rec.closeCount));
+
+    objRelease(&s);
+    netqueueShutdown(q, 0);
+    objRelease(&q);
+    return ret;
+}
+
+// What the IP layer carries alongside a datagram: the local address it arrived on, and the ECN
+// codepoint it was marked with. Both are optional at every level -- the platform, the kernel build,
+// and the path -- so a platform that reports neither has to be as usable as one that reports both,
+// and this checks that both answers hold together.
+static void onRecvPktInfo(NetEvent* ev)
+{
+    Recorder* r = (Recorder*)ev->ctx;
+    r->recvCount++;
+    if (ev->recv.msg)
+        r->lastInfo = ev->recv.msg->info;
+}
+
+static int test_nettest_pktinfo(void)
+{
+    int ret      = 0;
+    Recorder rec = { 0 };
+
+    static const NetHandlers handlers = { .recv = onRecvPktInfo };
+
+    NetQueueConfig conf;
+    netqueuePresetClient(&conf);
+    conf.flags |= NQ_SelectOnly;
+    NetQueue* q = netqueueCreate(&conf);
+    if (!q)
+        TEST_FAIL(1, _SL("the queue could not be created"), stvNone);
+    netqueueSetHandlers(q, &handlers, &rec);
+
+    NetSocket* rsock = netqueueSocket(q, NST_Datagram);
+    NetSocket* ssock = netqueueSocket(q, NST_Datagram);
+    if (!rsock || !ssock) {
+        objRelease(&q);
+        TEST_FAIL(1, _SL("a socket could not be created"), stvNone);
+    }
+
+    NetAddr any = loopbackAddr(0);
+    if (!netsocketBind(rsock, &any) || !netsocketBind(ssock, &any))
+        TEST_FAILV(ret, 1, _SL("a socket could not be bound"), stvNone);
+    netqueueAddSocket(q, rsock);
+    netqueueAddSocket(q, ssock);
+
+    // Everything below is best-effort by design. A platform that says no here reports nothing on
+    // arriving datagrams, and the sends still have to work.
+    bool reports = netsocketSetRecvInfo(rsock, true);
+
+    // The don't-fragment bit is asked for the same way and is equally optional; nothing here can
+    // observe it on loopback, but a platform that claims to have set it must not then fail to send.
+    netsocketSetDontFragment(ssock, true);
+
+    NetPktInfo want;
+    memset(&want, 0, sizeof(want));
+    want.ecn     = NET_ECN_Ect0;
+    want.haveEcn = true;
+
+    const uint8 payload[] = "marked";
+    if (!netsocketSendEx(ssock, payload, sizeof(payload) - 1, &rsock->local, &want, 0))
+        TEST_FAILV(ret, 1, _SL("a datagram with an ECN mark could not be sent"), stvNone);
+
+    tickUntil(q, &rec, 1);
+    if (rec.recvCount != 1)
+        TEST_FAILV(ret, 1, _SL("datagrams received: got ${uint}, expected 1"),
+                   stvar(uint32, rec.recvCount));
+
+    if (reports) {
+        if (!rec.lastInfo.haveEcn)
+            TEST_FAILV(ret, 1, _SL("no ECN codepoint was reported on a socket that asked for one"),
+                       stvNone);
+        if (rec.lastInfo.ecn != NET_ECN_Ect0)
+            TEST_FAILV(ret, 1, _SL("ECN codepoint: got ${uint}, expected ${uint} (ECT(0))"),
+                       stvar(uint32, rec.lastInfo.ecn), stvar(uint32, (uint32)NET_ECN_Ect0));
+
+        // The datagram went to loopback, so the address it arrived on is the one it was sent to.
+        if (!rec.lastInfo.haveLocal)
+            TEST_FAILV(ret, 1, _SL("no local address was reported on a socket that asked for one"),
+                       stvNone);
+        if (rec.lastInfo.local.type != rsock->local.type ||
+            memcmp(rec.lastInfo.local.ipv4, rsock->local.ipv4,
+                   sizeof(rec.lastInfo.local.ipv4)) != 0)
+            TEST_FAILV(ret, 1, _SL("the datagram was reported as arriving on the wrong address"),
+                       stvNone);
+    }
+
+    // Turning it off leaves the socket working and the reports empty again.
+    netsocketSetRecvInfo(rsock, false);
+    rec.recvCount = 0;
+    memset(&rec.lastInfo, 0, sizeof(rec.lastInfo));
+
+    if (!netsocketSendEx(ssock, payload, sizeof(payload) - 1, &rsock->local, &want, 0))
+        TEST_FAILV(ret, 1, _SL("a datagram could not be sent after reporting was turned off"),
+                   stvNone);
+
+    tickUntil(q, &rec, 1);
+    if (rec.recvCount != 1)
+        TEST_FAILV(ret, 1, _SL("datagrams received after reporting was turned off: got ${uint}, expected 1"),
+                   stvar(uint32, rec.recvCount));
+    if (rec.lastInfo.haveEcn || rec.lastInfo.haveLocal)
+        TEST_FAILV(ret, 1, _SL("a socket that stopped asking still reported per-datagram information"),
+                   stvNone);
+
+    // A stream socket has no per-datagram anything, and neither call applies to one.
+    NetSocket* stream = netqueueSocket(q, NST_Stream);
+    if (stream) {
+        if (netsocketSetRecvInfo(stream, true))
+            TEST_FAILV(ret, 1, _SL("a stream socket accepted a per-datagram option"), stvNone);
+        if (netsocketSetDontFragment(stream, true))
+            TEST_FAILV(ret, 1, _SL("a stream socket accepted the don't-fragment option"), stvNone);
+        netsocketClose(stream);
+        objRelease(&stream);
+    }
+
+    netsocketClose(ssock);
+    netsocketClose(rsock);
+    objRelease(&ssock);
+    objRelease(&rsock);
+    netqueueShutdown(q, timeS(2));
+    objRelease(&q);
+    return ret;
+}
+
 testfunc nettest_funcs[] = {
     { "addr",                       test_nettest_addr                       },
     { "flow_basic",                 test_nettest_flow_basic                 },
@@ -4411,6 +4769,10 @@ testfunc nettest_funcs[] = {
     { "flow_resurrect",             test_nettest_flow_resurrect             },
     { "flow_shutdown",              test_nettest_flow_shutdown              },
     { "flow_race",                  test_nettest_flow_race                  },
+    { "quic_route",                 test_nettest_quic_route                 },
+    { "pktinfo",                    test_nettest_pktinfo                    },
+    { "quic_socket",                test_nettest_quic_socket                },
+    { "quic_admitobj",              test_nettest_quic_admitobj              },
     { "timer_basic",                test_nettest_timer_basic                },
     { "timer_cancel",               test_nettest_timer_cancel               },
     { "timer_rearm",                test_nettest_timer_rearm                },

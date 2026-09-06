@@ -9,23 +9,31 @@ include (${CX_TOP_SOURCE_DIR}/cmake/werror.cmake)
 # gather them transitively through nested ones -- so the eight targets that
 # tfpsacrypto merely links against would silently vanish if this list were
 # trimmed to the three aggregates.
-add_cxautogen(tlscert.cxh tlsconfig.cxh tlsfilter.cxh)
+add_cxautogen(tlscert.cxh tlsconfig.cxh tlsfilter.cxh tlsquic.cxh)
 
 add_library(cxtls STATIC
     cxtls_entropy.c
     tlsinit.c
+    tls13auth.c
+    tls13hs.c
+    tls13kdf.c
+    tls13kex.c
+    tls13msg.c
     tlscert.c
     tlsconfig.c
     tlsfilter.c
     tlsnet.c
+    tlsquic.c
     tlssystemca.c
     tlscert.cxh
     tlsconfig.cxh
     tlsfilter.cxh
+    tlsquic.cxh
     include/cxtls.h
     include/cxtls_mbed.h
     tls_shared.h
     tls_private.h
+    tls13_private.h
     $<TARGET_OBJECTS:tfpsacrypto>
     $<TARGET_OBJECTS:mbedx509>
     $<TARGET_OBJECTS:mbedtls>

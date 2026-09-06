@@ -1,0 +1,145 @@
+#include <cx/net/socket.cxh>
+#include <cx/net/flow.cxh>
+#include <cxtls/tlsconfig.cxh>
+
+/// @addtogroup quic_net
+/// @{
+/// A QUIC connection is a socket and a QUIC stream is a flow.
+///
+/// That is the whole integration: everything an application already knows about netqueue applies
+/// unchanged. A listener accepts connections and hands them over on NET_Accepted, a connection
+/// reports NET_Connection when its handshake finishes, a stream delivers NET_FlowOpen,
+/// NET_DataReceived, NET_SendReady and NET_FlowClosed, and netflowSend() puts bytes on a stream.
+///
+/// @code
+///   // server
+///   NetSocket *lsn = netquicListen(q, &addr, &cfg, &handlers, ctx);
+///
+///   // client
+///   NetSocket *cli = netquicConnect(q, _S"example.com", 443, NULL, &cfg, &handlers, ctx);
+/// @endcode
+///
+/// @section quic_net_sockets Sockets
+///
+/// A QUIC socket owns no OS handle. The bytes move through a UDP socket -- the endpoint -- that
+/// cxquic creates and never exposes; every connection a listener accepts shares the listener's
+/// endpoint, which is what lets one UDP port carry thousands of connections. Arriving packets are
+/// routed to a connection by the connection ID they carry rather than by the address they came
+/// from, so a peer that changes address stays the same connection.
+///
+/// A listener holds a reference to each connection it accepts, so an application that lets go of
+/// an accepted socket does not destroy it; closing it, or closing the listener, is what ends it.
+///
+/// @section quic_net_streams Streams
+///
+/// Every stream of one connection is a flow of that connection's socket, keyed on the stream id
+/// (NetFlow::key). Flows run concurrently on different workers, so streams of one connection are
+/// serviced in parallel while the events of any one stream stay strictly ordered -- which is the
+/// property QUIC exists to provide and the one HTTP/1.1 over TCP cannot.
+///
+/// Received bytes are not copied into the event: NetEvent::recv.msg is NULL and `recv.bytes` says
+/// how many are readable. The handler takes them with netquicRecv(), which is also what reopens the
+/// stream's receive window -- so an application that stops reading stops the peer from sending,
+/// rather than buffering without limit.
+///
+/// Sending is all or nothing, like every other send in netqueue. netflowSend() refuses a payload
+/// larger than the room left rather than taking part of it; netquicWritable() says how much would
+/// fit, and a refusal with nothing writable is the one NET_SendReady will answer.
+///
+/// @section quic_net_early 0-RTT
+///
+/// With tlsconfigSetResumption() and tlsconfigSetEarlyData() both on, a client reconnecting to a
+/// host it has been to before sends its first request in the same flight as its handshake, and a
+/// server reads it before answering. That saves a round trip, and the connection is handed over
+/// early to pay for it: NET_Connection on the client and NET_Accepted on the server arrive as soon
+/// as 0-RTT is armed rather than when the handshake finishes. Everything else is unchanged --
+/// streams open, bytes move, and a rejected 0-RTT is resent by the transport without the
+/// application hearing about it.
+///
+/// What it costs is that those first bytes are replayable: anyone who copied them off the network
+/// can send them to the server a second time. netquicEarlyData() says whether a connection is
+/// still in that state, and NET_FilterNotify with NFN_Secured is delivered on the connection's
+/// control flow when it stops being -- only on connections that used 0-RTT, since that is the only
+/// place the distinction exists.
+///
+/// @section quic_net_handlers Handlers
+///
+/// A connection accepted by a listener starts with the listener's handler set already installed,
+/// so no event of a new connection can arrive before its handlers exist. NET_Accepted is where a
+/// per-connection set replaces it.
+
+/// A QUIC connection, or a QUIC listener
+///
+/// Which one it is follows the same rule as a stream socket: a listener is in NS_Listening and
+/// delivers NET_Accepted, a connection is in NS_Connected and carries streams.
+class NetSocketQuic extends NetSocket
+{
+    /// @brief The UDP socket this connection's packets travel on, shared with every other
+    /// connection of the same listener
+    object[NetSocket] endpoint;
+
+    /// @brief The listener that routes packets to this connection, or NULL on a listener or a
+    /// client
+    ///
+    /// Weak, because the listener's routing table holds the strong reference in the other
+    /// direction.
+    weak[NetSocketQuic] listener;
+
+    object[TlsConfig] tls;      ///< TLS configuration the handshake runs against
+
+    /// @brief Client: the name sent in SNI and verified against the peer's certificate
+    ///
+    /// Kept because a connect to a hostname is resolved on another thread, and the handshake that
+    /// needs the name starts after the answer comes back.
+    string hostname;
+
+    /// @brief Listener: connection ID -> the connection it names, holding a strong reference
+    ///
+    /// Keyed on the eight bytes of the connection ID read as a 64-bit value, since the socket
+    /// layer issues connection IDs of exactly that length. A connection appears here once per ID
+    /// it has issued, and leaves as each one is retired.
+    [noinit] hashtable cids;
+
+    RWLock cidLock;             ///< Protects the routing table
+
+    void *eng;                  ///< QUIC engine state, private to cxquic
+
+    bool server;                ///< Which role this endpoint plays in the handshake
+
+    /// @brief Why the connection ended, once it has
+    ///
+    /// Readable from the NET_FlowClosed handler of the connection's control flow. `closeApp` says
+    /// whether the code is an application one or a QuicTransportError.
+    uint64 closeError;
+    bool closeApp;              ///< The close carried an application error code
+    string closeReason;         ///< Human-readable reason the peer gave, usually empty
+
+    override send;
+    override close;
+    override connect;
+
+    factory create(bool server, [in] NetSocket *endpoint, [in] TlsConfig *tls);
+    destroy();
+}
+
+/// One QUIC stream
+///
+/// A flow like any other: the application reaches it as NetEvent::flow, keeps its own state on
+/// `user`, arms timers on it, and sends with netflowSend(). What is added here is the pair of
+/// error codes QUIC streams carry, which a plain flow has nowhere to put.
+class QuicStream extends NetFlow
+{
+    /// @brief The QUIC error code that ended this stream, valid once NET_Error has been delivered
+    ///
+    /// Set by the peer resetting its sending half, or asking this endpoint to stop sending.
+    uint64 error;
+
+    bool errored;               ///< NET_Error has already been delivered for this stream
+
+    override send;
+    override close;
+
+    factory create([in] NetSocket *socket, uint64 id);
+}
+
+/// @}

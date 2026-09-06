@@ -20,6 +20,7 @@ typedef struct TlsCredsState TlsCredsState;
 typedef struct TlsConfigState TlsConfigState;
 typedef struct TlsSession TlsSession;
 typedef struct TlsInfoState TlsInfoState;
+typedef struct TlsQuicState TlsQuicState;
 
 /// How hard the peer's certificate is checked
 ///
@@ -118,6 +119,86 @@ typedef bool (*TlsVerifyCB)(_In_ void* crt, int32 depth, _Inout_ uint32* flags, 
 /// @return Credentials to use, or NULL for the config's default
 typedef struct TlsCreds* (*TlsSNICB)(_In_ strref hostname, _In_opt_ void* ctx);
 
+/// Encryption level a QUIC handshake message or traffic secret belongs to
+///
+/// QUIC carries TLS handshake messages in CRYPTO frames rather than TLS records, and each level
+/// has its own packet protection keys and its own CRYPTO stream. RFC 9001 calls these encryption
+/// levels; they run in the order listed.
+typedef enum {
+    /// @brief Client and server hellos
+    ///
+    /// Packets at this level are protected with keys both ends derive from the connection ID
+    /// rather than from the handshake, so TlsQuic never reports secrets for it.
+    TLSQL_Initial = 0,
+
+    /// @brief Client 0-RTT data, protected by a resumed session's early secret
+    TLSQL_EarlyData = 1,
+
+    /// @brief The rest of the handshake, from EncryptedExtensions to Finished
+    TLSQL_Handshake = 2,
+
+    /// @brief Application data, and post-handshake messages such as session tickets
+    TLSQL_App = 3
+} TlsQuicLevel;
+
+/// @brief Callbacks a TlsQuic engine drives its transport through
+///
+/// The engine never touches the network. Everything it needs to send, and every key it derives,
+/// leaves through this table, which is registered with tlsquicSetHandlers() and must outlive the
+/// engine. Every callback runs on whichever thread called into the engine.
+///
+/// Returning false from any of the `bool` callbacks fails the handshake.
+typedef struct TlsQuicHandlers {
+    /// @brief Handshake bytes to send at `level`
+    ///
+    /// Append them to that level's CRYPTO stream. The bytes belong to the engine and are only
+    /// valid for the duration of the call, so copy whatever is not sent immediately.
+    bool (*sendCrypto)(_In_opt_ void* ctx, TlsQuicLevel level,
+                       _In_reads_bytes_(len) const uint8* data, size_t len);
+
+    /// @brief Traffic secrets for `level` are now available
+    ///
+    /// Either secret may be NULL, meaning that direction is not ready yet; both are `len` bytes.
+    /// Expand them into packet protection keys with the AEAD and hash of `suite`, which is a TLS
+    /// 1.3 cipher suite codepoint.
+    ///
+    /// TLSQL_EarlyData only ever carries one direction, because 0-RTT only runs one way: a client
+    /// is given the write secret and a server the read secret.
+    bool (*secrets)(_In_opt_ void* ctx, TlsQuicLevel level, uint16 suite,
+                    _In_reads_bytes_opt_(len) const uint8* readSecret,
+                    _In_reads_bytes_opt_(len) const uint8* writeSecret, size_t len);
+
+    /// @brief The transport parameters the session being resumed ran under
+    ///
+    /// Called only when 0-RTT is being considered, and always before any early data could be
+    /// produced. A client is handed what the server sent it last time, to use as the peer's limits
+    /// until the real ones arrive. A server is handed what it sent last time, to compare against
+    /// what it is about to send now -- returning false refuses the early data, which is how a
+    /// server whose limits have shrunk stops a client sending under the old ones.
+    bool (*earlyParams)(_In_opt_ void* ctx,
+                        _In_reads_bytes_(len) const uint8* data, size_t len);
+
+    /// @brief Whether 0-RTT is being used, decided once per handshake
+    ///
+    /// A client that offered early data is told what the server said; a server that was offered it
+    /// is told what it decided. False means nothing may be sent or read at TLSQL_EarlyData, and a
+    /// client must send everything it already sent that way again once the handshake finishes.
+    void (*earlyData)(_In_opt_ void* ctx, bool accepted);
+
+    /// @brief The peer's quic_transport_parameters extension
+    ///
+    /// The body only, with no extension header. Valid for the duration of the call.
+    bool (*transportParams)(_In_opt_ void* ctx,
+                            _In_reads_bytes_(len) const uint8* data, size_t len);
+
+    /// @brief The handshake finished successfully
+    void (*complete)(_In_opt_ void* ctx);
+
+    /// @brief The handshake failed and this alert describes why
+    ///
+    /// Send it to the peer in a CONNECTION_CLOSE frame with error code 0x0100 plus the alert.
+    void (*alert)(_In_opt_ void* ctx, uint8 alert);
+} TlsQuicHandlers;
 /// @}
 
 /// @addtogroup tls_misc

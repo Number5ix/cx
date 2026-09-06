@@ -137,7 +137,15 @@ typedef enum {
 
     /// Datagram socket (UDP)
     /// @note This socket type is connectionless
-    NST_Datagram
+    NST_Datagram,
+
+    /// @brief QUIC connection or listener, implemented by cxquic on top of a datagram socket
+    ///
+    /// A socket of this type has no OS handle of its own: the real UDP endpoint is a separate
+    /// NST_Datagram socket that cxquic owns and shares between every connection on it. It has both
+    /// a control flow (`flow`, where connection-level events are delivered) and a flow table
+    /// (`flows`, one entry per QUIC stream, keyed on the stream id rather than a peer address).
+    NST_Quic
 } NetSocketType;
 
 /// State of a network socket
@@ -294,6 +302,49 @@ stDeclare(NetAddr);
 #define STypeCheckedArg_NetAddr(type, val)    stType(type), stArg(type, val)
 #define STypeCheckedPtrArg_NetAddr(type, val) stType(type), stArgPtr(type, val)
 
+/// @brief Explicit Congestion Notification codepoint, as carried in the IP header
+///
+/// The values are the two bits themselves, so a codepoint can be written to or read from a packet
+/// without translation. A router that is becoming congested rewrites either ECT mark to
+/// NET_ECN_CE instead of dropping the packet, which lets a transport that understands it slow
+/// down a round trip earlier than loss would have told it to.
+typedef enum NetEcn {
+    NET_ECN_NotEct = 0,   ///< Not ECN-capable: a congested router drops this packet
+    NET_ECN_Ect1   = 1,   ///< ECN-capable transport, codepoint 1
+    NET_ECN_Ect0   = 2,   ///< ECN-capable transport, codepoint 0
+    NET_ECN_CE     = 3    ///< Congestion experienced: a router marked this packet on the way
+} NetEcn;
+
+/// @brief Per-datagram information the IP layer carries alongside the payload
+///
+/// On a received datagram this says which of the machine's own addresses the datagram was sent to
+/// and how the path marked it. On a send it asks for the same two things: leave from this local
+/// address, and put this mark on the packet.
+///
+/// Both fields are optional and both have a `have` flag, because a platform that cannot report or
+/// set one must be distinguishable from one that reported "no mark" -- a transport doing ECN has
+/// to know which it is before it starts marking packets.
+typedef struct NetPktInfo {
+    /// @brief Receive: the local address the datagram arrived on. Send: the address to leave from.
+    ///
+    /// Only meaningful when `haveLocal` is set. This matters for a socket bound to the wildcard
+    /// address on a machine with more than one address: the reply has to leave from the address
+    /// the peer sent to, and a routing table lookup will not always pick that one.
+    NetAddr local;
+
+    uint8 ecn;         ///< NetEcn codepoint; only meaningful when `haveEcn` is set
+    bool haveLocal;    ///< `local` is filled in
+    bool haveEcn;      ///< `ecn` is filled in
+} NetPktInfo;
+
+// Hook that diverts a received datagram before it reaches the socket's flow table. cxquic installs
+// one on the UDP endpoint socket behind a QUIC listener, so arriving packets are demultiplexed by
+// Connection ID -- which is what lets a connection survive its peer changing address -- instead of
+// by the peer address the flow table is keyed on. It takes ownership of `buf` and does its own
+// submit; its return value becomes the ingest result. A socket with no hook installed is unchanged.
+typedef bool (*NetDatagramRouteFn)(void* ctx, NetSocket* sock, NetAddr* peer,
+                                   const NetPktInfo* info, Buffer* buf);
+
 // Internally a NetMessage is any packet in flight: the library rides its own bookkeeping
 // messages (NetMessageKind, net_private.h) through flow inboxes alongside data, but drainFlow()
 // translates those into NetEvents and retires them before any handler runs, so an application
@@ -319,6 +370,13 @@ typedef struct NetMessage {
     size_t bytes;
 
     NetAddr addr;    ///< Source / destination address
+
+    /// @brief What the IP layer carried with this datagram, where the platform could report it
+    ///
+    /// Unused for stream sockets. On a datagram this is the local address it arrived on and its
+    /// ECN mark, each present only if the platform reported it and the socket asked for it with
+    /// netsocketRecvInfo().
+    NetPktInfo info;
 
     union {
         // internal: the accepted socket in transit to a NET_Accepted event
@@ -467,6 +525,8 @@ typedef enum {
     /// For a datagram socket: one event per datagram, delivered whole as NetEvent.recv.msg.
     /// For a stream socket: bytes were appended to the socket's receive ring -- recv.msg is
     /// NULL, and the handler drains the ring with netsocketRecv() or netsocketRecvMsgs().
+    /// For a QUIC stream (NST_Quic): recv.msg is NULL and the handler takes the bytes from the
+    /// flow with netquicRecv(), which is also what reopens that stream's receive window.
     /// NetEvent.recv.bytes is what this event delivered; NetEvent.recv.total is everything
     /// currently pending.
     NET_DataReceived,

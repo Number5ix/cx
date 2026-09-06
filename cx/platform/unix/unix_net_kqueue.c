@@ -100,15 +100,19 @@ static void ingestDatagram(_Inout_ NetQueueKqueue* self, _Inout_ NetSocket* sock
         }
 
         NetAddr src;
+        NetPktInfo info;
         NetErrorCode err;
-        intptr n = netSockRecvFrom(sock->handle, buf->data, buf->sz, &src, &err);
+        intptr n = sock->recvInfo
+                       ? netSockRecvFromEx(sock->handle, buf->data, buf->sz, &src, &info, &err)
+                       : netSockRecvFrom(sock->handle, buf->data, buf->sz, &src, &err);
         if (n < 0) {
             bufpoolPut(&q->pool->msgbuf, &buf);
             break;   // WouldBlock (drained) or a real error; nothing more this pass
         }
 
         buf->len = (size_t)n;
-        netqueue_ingestDatagram(q, sock, &src, &buf);   // takes ownership of buf
+        netqueue_ingestDatagram(q, sock, &src, sock->recvInfo ? &info : NULL,
+                                &buf);   // takes ownership of buf
     }
 }
 
@@ -422,6 +426,12 @@ bool NetQueueKqueue_addSocket(_In_ NetQueueKqueue* self, NetSocket* socket)
 {
     bool ret = NetQueue_addSocket(NetQueue(self), socket);
     if (!ret)
+        return ret;
+
+    // A handle-less socket has nothing for the backend to watch. cxquic's NST_Quic sockets are the
+    // case: they are real sockets on the queue, with flows and timers, but their bytes move through
+    // a separate UDP endpoint socket that is watched in its own right.
+    if (socket->handle == NET_INVALID_HANDLE)
         return ret;
 
     bool read = false, write = false;

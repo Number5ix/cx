@@ -136,15 +136,19 @@ static void ingestDatagram(_Inout_ NetQueueSelect* self, _Inout_ NetSocket* sock
         }
 
         NetAddr src;
+        NetPktInfo info;
         NetErrorCode err;
-        intptr n = netSockRecvFrom(sock->handle, buf->data, buf->sz, &src, &err);
+        intptr n = sock->recvInfo
+                       ? netSockRecvFromEx(sock->handle, buf->data, buf->sz, &src, &info, &err)
+                       : netSockRecvFrom(sock->handle, buf->data, buf->sz, &src, &err);
         if (n < 0) {
             bufpoolPut(&q->pool->msgbuf, &buf);
             break;   // WouldBlock (drained) or a real error; nothing more this tick
         }
 
         buf->len = (size_t)n;
-        netqueue_ingestDatagram(q, sock, &src, &buf);   // takes ownership of buf
+        netqueue_ingestDatagram(q, sock, &src, sock->recvInfo ? &info : NULL,
+                                &buf);   // takes ownership of buf
     }
 }
 

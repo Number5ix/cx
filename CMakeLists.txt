@@ -23,16 +23,19 @@ if(PROJECT_IS_TOP_LEVEL)
   set(CX_LUA_DEFAULT ON)
   set(CX_TLS_DEFAULT ON)
   set(CX_HTTP_DEFAULT ON)
+  set(CX_QUIC_DEFAULT ON)
   set(CX_STANDALONE 1)
 else()
   set(CX_LUA_DEFAULT OFF)
   set(CX_TLS_DEFAULT ON)
   set(CX_HTTP_DEFAULT ON)
+  set(CX_QUIC_DEFAULT ON)
 endif()
 
 option(CX_LUA "Build Lua scripting engine and cxlua library" ${CX_LUA_DEFAULT})
 option(CX_TLS "Build mbedTLS cryptography library" ${CX_TLS_DEFAULT})
 option(CX_HTTP "Build cxhttp, the HTTP/1.1 client and server library" ${CX_HTTP_DEFAULT})
+option(CX_QUIC "Build cxquic, the QUIC transport library" ${CX_QUIC_DEFAULT})
 option(CX_MIMALLOC "Use mimalloc rather than system allocator" ON)
 
 # cxhttp speaks https through cxtls rather than branching on whether it is available, so the
@@ -40,6 +43,13 @@ option(CX_MIMALLOC "Use mimalloc rather than system allocator" ON)
 if(CX_HTTP AND NOT CX_TLS)
     message(FATAL_ERROR "CX_HTTP requires CX_TLS (cxhttp uses cxtls for https). "
                         "Set -DCX_HTTP=OFF to build without HTTP support.")
+endif()
+
+# QUIC's packet protection and handshake are TLS 1.3 by definition, so cxquic is built
+# on cxtls unconditionally. Fail at configure time rather than at link time.
+if(CX_QUIC AND NOT CX_TLS)
+    message(FATAL_ERROR "CX_QUIC requires CX_TLS (cxquic uses cxtls for TLS 1.3 and packet "
+                        "protection). Set -DCX_QUIC=OFF to build without QUIC support.")
 endif()
 
 include (${CMAKE_CURRENT_SOURCE_DIR}/cmake/cxauto.cmake)
@@ -93,6 +103,10 @@ endif()
 
 if(CX_HTTP)
   add_subdirectory(cxhttp)
+endif()
+
+if(CX_QUIC)
+  add_subdirectory(cxquic)
 endif()
 
 if(PROJECT_IS_TOP_LEVEL)

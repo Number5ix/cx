@@ -490,13 +490,21 @@ void NetQueue_destroy(_In_ NetQueue* self)
 // Ingest
 // ---------------------------------------------------------------------------------------------
 
-bool NetQueue__ingestDatagram(_In_ NetQueue* self, _Inout_ NetSocket* sock, _In_ NetAddr* peer, _Inout_ Buffer* buf)
+bool NetQueue__ingestDatagram(_In_ NetQueue* self, _Inout_ NetSocket* sock, _In_ NetAddr* peer, _In_opt_ const NetPktInfo* info, _Inout_ Buffer* buf)
 {
+    // A socket with a route hook installed does its own demultiplexing: cxquic keys on the packet's
+    // Connection ID rather than on the source address, so that a peer changing address does not
+    // look like a new peer. The hook takes the buffer and submits whatever it decides to.
+    if (sock->route)
+        return sock->route(sock->routeCtx, sock, peer, info, buf);
+
     NetFlow* flow = netqueue_findFlow(self, sock, peer, true);
 
     NetMessage* msg = netpoolAllocHeader(self->pool);
     msg->kind       = NMSG_Data;
     msg->addr       = *peer;
+    if (info)
+        msg->info = *info;
     msg->buf        = *buf;
     msg->flags      = NMF_PoolBuf;   // the backend took this buffer from the queue's pool
     *buf            = NULL;
@@ -531,6 +539,7 @@ void NetQueue__timerSweep(_In_ NetQueue* self);
 int64 NetQueue__nextDeadline(_In_ NetQueue* self);
 _Ret_maybenull_ NetFlow* NetQueue__findFlow(_In_ NetQueue* self, _Inout_ NetSocket* sock, _In_ NetAddr* peer, bool create);
 _Ret_maybenull_ NetFlow* NetQueue__admitFlow(_In_ NetQueue* self, _Inout_ NetSocket* sock, _In_ NetAddr* peer);
+_Ret_maybenull_ NetFlow* NetQueue__admitFlowObj(_In_ NetQueue* self, _Inout_ NetSocket* sock, _Inout_ NetFlow* flow);
 uint32 NetQueue__reclaimFlows(_In_ NetQueue* self, _Inout_ NetSocket* sock);
 #include "net/queue.auto.inc"
 // clang-format on

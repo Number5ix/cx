@@ -6,6 +6,7 @@
 #include <cxtls/tlscert.h>
 #include <cxtls/tlsconfig.h>
 #include <cxtls/tlsfilter.h>
+#include <cxtls/tlsquic.h>
 
 /// @file cxtls.h
 /// @brief TLS for cx: certificate handling and NetQueue filters over mbedTLS
@@ -94,6 +95,9 @@
 /// @ingroup tls
 
 /// @defgroup tls_filter Filters
+/// @ingroup tls
+
+/// @defgroup tls_quic QUIC Handshake
 /// @ingroup tls
 
 /// @defgroup tls_misc NetQueue Integration
