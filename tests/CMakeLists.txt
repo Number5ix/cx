@@ -130,7 +130,12 @@ if(CX_QUIC)
 endif()
 
 if(CX_PLATFORM_IS_WASM)
-    target_link_options(test_runner PRIVATE "-sPTHREAD_POOL_SIZE=16" "-sPROXY_TO_PTHREAD" "-sEXIT_RUNTIME")
+    # Emscripten defaults every stack, main and pthread alike, to 64 KB, where Windows gives 1 MB
+    # and Linux 8 MB. Test fixtures sized for those (quicstreamtest's SFix is ~144 KB) run off the
+    # end of it, and the stack grows down into the thread's TLS block, so the first symptom is a
+    # mimalloc assertion about a NULL thread heap rather than anything resembling a stack overflow.
+    target_link_options(test_runner PRIVATE "-sPTHREAD_POOL_SIZE=16" "-sPROXY_TO_PTHREAD" "-sEXIT_RUNTIME"
+                        "-sSTACK_SIZE=1MB" "-sDEFAULT_PTHREAD_STACK_SIZE=1MB")
 endif()
 
 set_property(TARGET test_runner PROPERTY FOLDER "tests")

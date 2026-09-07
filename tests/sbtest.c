@@ -1043,7 +1043,9 @@ static int threadedProducer(Thread *self)
     if (!stvlNext(&self->args, ptr, &tc))
         return 0;
 
-    eventSignalAll(&tc->parked);
+    // Latched rather than broadcast: the producer can reach this before the main thread gets to
+    // its eventWait, and a plain broadcast with no waiter yet is dropped.
+    eventSignalLock(&tc->parked);
 
     // In chunks, because the watermark is only checked on the way in: one write big enough to
     // blow past the high mark goes through and parks the write after it, not itself.
