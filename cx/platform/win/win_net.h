@@ -25,13 +25,33 @@ bool netAddrToSockaddr(_In_ const NetAddr* addr, _Out_ struct sockaddr_storage* 
 /// @return true if the family was recognized and addr was written
 bool netAddrFromSockaddr(_Out_ NetAddr* addr, _In_ const struct sockaddr* sa);
 
-// WSARecvMsg and WSASendMsg are the only Winsock calls that carry control messages, and both are
-// Vista-era additions: an XP build targets a _WIN32_WINNT the SDK headers do not declare the
-// message structure or the packet-info option under, so this whole path compiles out there. Where
-// it is missing, everything ancillary falls back to plain recvfrom/sendto and reports nothing,
-// which is the same answer a path that strips ECN gives.
+// Cancel every outstanding overlapped operation on a socket handle, whichever thread posted them,
+// and report whether that can be done at all on this host.
+//
+// The call behind this is CancelIoEx, which arrived with Vista. An XP-compatible build cannot
+// import it -- the executable would fail to load on XP with a missing kernel32 entry point -- so it
+// is resolved at runtime. XP's plain CancelIo is no substitute: it only reaches operations the
+// calling thread itself posted, and the IOCP backend posts everything from its completion threads.
+bool _netHaveCancelIoEx(void);
+void _netCancelSockIo(NetSockHandle h);
+
+// WSARecvMsg and WSASendMsg are the only Winsock calls that carry control messages. Where the SDK
+// is too old to name the message structure or the packet-info option, this whole path compiles out
+// and everything ancillary falls back to plain recvfrom/sendto and reports nothing, which is the
+// same answer a path that strips ECN gives.
 #if defined(WSA_CMSG_FIRSTHDR) && defined(IP_PKTINFO)
 #define NET_HAVE_WSAMSG 1
+#endif
+
+// An XP-targeted build (_WIN32_WINNT < 0x0600) gets the message structure and every option, but not
+// the identifier for WSASendMsg, which the SDK hides behind the same version check that hides the
+// Vista-only WSASendMsg import declaration. Only the identifier is needed here -- the call itself
+// is reached through a pointer WSAIoctl hands out, and on a host that has no WSASendMsg that ioctl
+// simply fails and the send falls back. So name it rather than lose the send path on every Windows
+// version an XP-compatible binary runs on.
+#if defined(NET_HAVE_WSAMSG) && !defined(WSAID_WSASENDMSG)
+#define WSAID_WSASENDMSG /* a441e712-754f-43ca-84a7-0dee44cf606d */ \
+    { 0xa441e712, 0x754f, 0x43ca, { 0x84, 0xa7, 0x0d, 0xee, 0x44, 0xcf, 0x60, 0x6d } }
 #endif
 
 #if defined(NET_HAVE_WSAMSG)
