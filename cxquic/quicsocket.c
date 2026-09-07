@@ -1570,6 +1570,14 @@ _Use_decl_annotations_
 NetSocket* netquicConnect(NetQueue* q, strref host, uint16 port, strref hostname,
                           const QuicConfig* cfg, const NetHandlers* handlers, void* ctx)
 {
+    return netquicConnectPrep(q, host, port, hostname, cfg, handlers, ctx, NULL, NULL);
+}
+
+_Use_decl_annotations_
+NetSocket* netquicConnectPrep(NetQueue* q, strref host, uint16 port, strref hostname,
+                              const QuicConfig* cfg, const NetHandlers* handlers, void* ctx,
+                              NetConnectPrepCB prep, void* prepctx)
+{
     if (!q || !cfg || !cfg->tls || !_quicInit())
         return NULL;
 
@@ -1607,6 +1615,11 @@ NetSocket* netquicConnect(NetQueue* q, strref host, uint16 port, strref hostname
         // address-keyed flow table.
         ep->route    = quicRoute;
         ep->routeCtx = sock;
+
+        // The last moment at which this connection is known to nobody but this call: it is
+        // finished, and the handshake below is what makes it start raising events.
+        if (prep)
+            prep(NetSocket(sock), prepctx);
 
         ok = netsocketConnect(sock, host, port);
     }

@@ -13,6 +13,7 @@
 #include <cx/net.h>
 #include <cx/serialize.h>
 #include <cx/string.h>
+#include <cx/taskqueue.h>
 #include <cx/thread.h>
 #include <cx/time/time.h>
 #include "tlstestcert.h"
@@ -2286,6 +2287,7 @@ typedef struct H3Loop {
     TlsConfig* ccfg;
     NetQueue* q;
     HttpServer* srv;
+    HttpServer* srv2;   // a second origin, for a test that needs two
     HttpClient* cl;
     bool threaded;   // the queue drives itself, so this fixture must not tick it
 } H3Loop;
@@ -2299,6 +2301,10 @@ static void h3LoopDestroy(_Inout_ H3Loop* f)
     if (f->srv)
         httpserverShutdown(f->srv);
     objRelease(&f->srv);
+
+    if (f->srv2)
+        httpserverShutdown(f->srv2);
+    objRelease(&f->srv2);
 
     if (f->q) {
         // Give a polled queue the ticks it needs to carry the closes above out to the peer. A
@@ -2649,8 +2655,8 @@ out:
 // ---------------------------------------------------------------------------------------------
 
 // The loopback fixture with both listeners up, so a client under HTTPV_Any has two ways in.
-static bool h3BothInit(_Inout_ H3Loop* f, _In_ const HttpServerHandlers* handlers,
-                       _In_opt_ void* ctx, bool quic, _Inout_ uint16* port)
+static bool h3BothInitN(_Inout_ H3Loop* f, _In_ const HttpServerHandlers* handlers,
+                        _In_opt_ void* ctx, bool quic, _Inout_ uint16* port, int nthreads)
 {
     if (!tlsTestPKIInit(&f->pki))
         return false;
@@ -2669,19 +2675,14 @@ static bool h3BothInit(_Inout_ H3Loop* f, _In_ const HttpServerHandlers* handler
 
     NetQueueConfig conf;
     netqueuePresetServer(&conf);
-    conf.nthreads = 0;
+    conf.nthreads = nthreads;
+    f->threaded   = nthreads > 0;
     f->q          = netqueueCreate(&conf);
     if (!f->q)
         return false;
 
-    f->srv = httpserverCreate(f->q);
-    if (!f->srv)
-        return false;
-    httpserverSetHandlers(f->srv, handlers, ctx);
-
     NetAddr la;
     netAddrFromStr(&la, _SL("127.0.0.1"));
-    la.port = 0;
 
     // A TlsConfig per listener, sharing the one TlsCreds: the two protocols need different ALPN
     // lists and an ALPN list belongs to a configuration.
@@ -2689,16 +2690,46 @@ static bool h3BothInit(_Inout_ H3Loop* f, _In_ const HttpServerHandlers* handler
     if (!f->stcp)
         return false;
 
-    // QUIC first, so its port is the one the TCP listener is asked for. A UDP socket and a TCP
-    // socket on the same number are the arrangement a real deployment has.
-    if (quic) {
-        if (!httpserverListenQuic(f->srv, &la, f->scfg))
+    // QUIC first, so its port is the one the TCP listener is asked for: a UDP socket and a TCP
+    // socket on the same number are the arrangement a real deployment has. The kernel picks that
+    // number out of the ephemeral range, though, and can hand out one another socket on the
+    // machine is already using over TCP. A listener that is bound cannot be moved, so the answer
+    // to that is to build the server again and be given a different one.
+    for (int attempt = 0; attempt < 8 && !f->srv; attempt++) {
+        HttpServer* srv = httpserverCreate(f->q);
+        if (!srv)
             return false;
-        la.port = httpserverPort(f->srv);
+        httpserverSetHandlers(srv, handlers, ctx);
+
+        la.port = 0;
+        if (quic) {
+            if (!httpserverListenQuic(srv, &la, f->scfg)) {
+                TEST_WARN(_SL("fixture: no QUIC listener on 127.0.0.1"));
+                httpserverShutdown(srv);
+                objRelease(&srv);
+                return false;
+            }
+            la.port = httpserverPort(srv);
+        }
+
+        // A backlog with room in it: under HTTPV_Any every request to a cold origin dials TCP, and
+        // a test that sends two dozen at once from four threads would otherwise be measuring the
+        // listen queue rather than the client.
+        if (httpserverListenTls(srv, &la, 64, f->stcp)) {
+            f->srv = srv;
+            break;
+        }
+
+        TEST_INFO(_SL("fixture: port ${int} is taken over TCP, trying another"),
+                  stvar(int32, (int32)la.port));
+        httpserverShutdown(srv);
+        objRelease(&srv);
     }
 
-    if (!httpserverListenTls(f->srv, &la, 4, f->stcp))
+    if (!f->srv) {
+        TEST_WARN(_SL("fixture: no port free for both a QUIC and a TCP listener"));
         return false;
+    }
 
     *port = quic ? la.port : httpserverPort(f->srv);
 
@@ -2708,6 +2739,13 @@ static bool h3BothInit(_Inout_ H3Loop* f, _In_ const HttpServerHandlers* handler
 
     httpclientSetTlsConfig(f->cl, f->ccfg);
     return httpclientSetVersions(f->cl, HTTPV_Any);
+}
+
+// Polled, which is what every test that drives the queue itself wants.
+static bool h3BothInit(_Inout_ H3Loop* f, _In_ const HttpServerHandlers* handlers,
+                       _In_opt_ void* ctx, bool quic, _Inout_ uint16* port)
+{
+    return h3BothInitN(f, handlers, ctx, quic, port, 0);
 }
 
 static void h3PortUrl(_Inout_ strhandle out, uint16 port, _In_opt_ strref path)
@@ -3142,6 +3180,465 @@ out:
     return ret;
 }
 
+// ---------------------------------------------------------------------------------------------
+// One client, many application threads
+// ---------------------------------------------------------------------------------------------
+
+// test_http3test_threaded above puts the *transport* under real workers, but every request there
+// still starts from this one thread. An application built on a task queue does not work that way:
+// four worker threads reach into the same HttpClient at once, and everything a client keeps for
+// the requests it is running -- the HTTP/1.1 pool, the HTTP/3 pool, the origin table, and the list
+// of origins with a dial already in flight -- is touched by all of them.
+//
+// That is what this exercises, under HTTPV_Any, which is the policy with the most shared state to
+// get wrong: an origin nobody has spoken to yet sends every thread down the dial-coalescing path
+// at the same moment, and one that answers HTTP/1.1 only sends them down the losing-racer path
+// instead. Two origins are used for that reason -- one with both listeners up, one with only TCP
+// -- so both pools are in use at once rather than one after the other.
+//
+// Answers are checked against what was asked for rather than merely counted, because the failure
+// this is looking for is not a crash. A pooled connection handed to two requests, or a stream
+// mixed up with another stream, delivers somebody else's body to a caller that has no way to tell
+// -- unless the body says which request it belongs to, which is what the server here answers with.
+
+#define H3TQ_TASKS  4    // application threads sending through the one client
+#define H3TQ_BURST  6    // requests each one has in flight at a time
+#define H3TQ_ROUNDS 3    // bursts each one sends; the first is the only cold one
+
+// The server for this test keeps no state of its own: with four workers answering at once,
+// anything it recorded would be a race in the test rather than in what the test is about.
+static void h3tqOnRequest(HttpServerEvent* ev)
+{
+    HttpServerRequest* req = ev->request;
+
+    string body = 0;
+    strNConcat(&body, _SL("answer:"), req->path, _SL(":"), req->body);
+    httpsrvreqRespond(req, body, _SL("text/plain"));
+    strDestroy(&body);
+}
+
+static const HttpServerHandlers kH3TqSrvHandlers = {
+    .request = h3tqOnRequest,
+};
+
+typedef struct H3TqTask H3TqTask;
+
+// One in-flight request. Written by the netqueue worker that finishes it, up to the `done` store;
+// read by the task thread that sent it, after it has seen that store. Nothing else touches one.
+typedef struct H3TqReq {
+    H3TqTask* task;
+    HttpRequest* req;
+    string want;             // the body the server owes this exact request
+    string got;              // what came back, buffered or drained out of the sink
+    StreamBuffer* sink;      // set on the streamed third of the burst
+    atomic(uint32) done;     // released by the terminal handler, acquired by the task thread
+    uint16 status;
+    HttpVersion version;
+    HttpError err;
+    NetErrorCode neterr;
+    bool sent;               // the client took it, so a terminal handler is coming
+    bool failed;
+    bool h1only;             // sent to the origin with no QUIC listener
+} H3TqReq;
+
+typedef struct H3TqPar {
+    HttpClient* cl;
+    Event start;             // held until every task is on a worker, so they all start together
+    string baseBoth;         // origin answering HTTP/3 and HTTP/1.1
+    string baseTcp;          // origin answering HTTP/1.1 only
+    Semaphore finished;      // one increment per task that has run to the end
+    atomic(uint32) failed;   // requests that ended on the error handler
+    atomic(uint32) stuck;    // requests that never reached a terminal handler at all
+    atomic(uint32) lastErr;  // the HttpError of one of the failures, to name it in the log
+    atomic(uint32) lastNet;  // and the transport cause, when there was one
+    atomic(uint32) lastWhere;   // bit 0 the origin, bits 4-7 the request's shape, bits 8+ the round
+    atomic(uint32) badBody;  // answers that belonged to some other request
+    atomic(uint32) badStatus;
+    atomic(uint32) badVer;   // HTTP/3 from the origin that has no QUIC listener
+    atomic(uint32) viaH3;
+    atomic(uint32) viaH1;
+} H3TqPar;
+
+struct H3TqTask {
+    H3TqPar* par;
+    uint32 id;
+    Semaphore done;          // one increment per request of this task's burst that ended
+    bool ok;
+};
+
+static void h3tqOnComplete(HttpEvent* ev)
+{
+    H3TqReq* r = (H3TqReq*)ev->ctx;
+
+    r->status  = ev->status;
+    r->version = ev->version;
+    if (!r->sink)
+        strDup(&r->got, ev->request->respBody);
+
+    atomicStore(uint32, &r->done, 1, Release);
+    semaInc(&r->task->done, 1);
+}
+
+static void h3tqOnError(HttpEvent* ev)
+{
+    H3TqReq* r = (H3TqReq*)ev->ctx;
+
+    r->failed  = true;
+    r->err     = ev->err;
+    r->neterr  = ev->neterr;
+    r->status  = ev->status;
+    r->version = ev->version;
+
+    atomicStore(uint32, &r->done, 1, Release);
+    semaInc(&r->task->done, 1);
+}
+
+static const HttpHandlers kH3TqCliHandlers = {
+    .complete = h3tqOnComplete,
+    .error    = h3tqOnError,
+};
+
+// Take whatever a response sink is holding. Called from the task thread while a netqueue worker is
+// still writing into the same buffer, which is the arrangement SBUF_Locked exists for. A push-mode
+// buffer refuses a read larger than what it has, so the request is sized to what is there.
+static void h3tqDrain(_Inout_ H3TqReq* r)
+{
+    if (!r->sink)
+        return;
+
+    uint8 buf[2048];
+    for (;;) {
+        size_t want = min(sbufCAvail(r->sink), sizeof(buf));
+        if (want == 0)
+            break;
+
+        size_t got = 0;
+        if (!sbufCRead(r->sink, buf, want, &got) || got == 0)
+            break;
+        _httpAppendBytes(&r->got, buf, got);
+    }
+}
+
+// A registered consumer that leaves the data where it is: the task thread drains it. Registering
+// is still what puts the buffer in push mode and what makes the watermark hold the producer, so
+// there is a callback rather than nothing.
+static void h3tqSinkNotify(StreamBuffer* sb, size_t sz, void* ctx)
+{
+    unused_noeval(sb);
+    unused_noeval(sz);
+    unused_noeval(ctx);
+}
+
+// One burst: H3TQ_BURST requests sent back to back, then waited for together. Sending them all
+// before waiting for any is the point -- it is what puts several of this thread's requests, and
+// all of the other threads', inside the client at the same time.
+static bool h3tqBurst(_Inout_ H3TqTask* t, uint32 round)
+{
+    H3TqPar* par = t->par;
+    H3TqReq recs[H3TQ_BURST] = { 0 };
+    bool ok = true;
+
+    for (uint32 i = 0; i < H3TQ_BURST; i++) {
+        H3TqReq* r = &recs[i];
+        bool built = true;
+        r->task    = t;
+        r->h1only  = ((t->id + i) & 1) != 0;
+
+        // A path no other request in this test uses, so the answer to it is unmistakable.
+        string path = 0, url = 0, num = 0;
+        strFromUInt32(&num, t->id, 10);
+        strNConcat(&path, _SL("/t"), num, _SL("-"));
+        strFromUInt32(&num, round, 10);
+        strAppend(&path, num);
+        strAppend(&path, _SL("-"));
+        strFromUInt32(&num, i, 10);
+        strAppend(&path, num);
+        strNConcat(&url, r->h1only ? par->baseTcp : par->baseBoth, path);
+
+        // Three shapes, because they take different routes through the client: a plain GET whose
+        // body the client buffers, a POST that has a request body to write, and a GET whose
+        // response body goes to a caller-supplied StreamBuffer instead of being buffered.
+        string reqBody = 0;
+        switch (i % 3) {
+        case 1:
+            strNConcat(&reqBody, _SL("body-for"), path);
+            r->req = httprequestCreate(HTTP_Post, url);
+            if (r->req)
+                httprequestSetBody(r->req, reqBody, _SL("text/plain"));
+            break;
+        case 2:
+            r->req  = httprequestCreate(HTTP_Get, url);
+            r->sink = sbufCreate(4096, SBUF_Locked);
+            if (r->sink)
+                sbufSetWatermark(r->sink, 8192, 4096);
+            built = r->sink && sbufCRegisterPush(r->sink, h3tqSinkNotify, NULL, NULL) &&
+                    r->req && httprequestSetSink(r->req, r->sink);
+            break;
+        default:
+            r->req = httprequestCreate(HTTP_Get, url);
+            break;
+        }
+
+        strNConcat(&r->want, _SL("answer:"), path, _SL(":"), reqBody);
+
+        r->sent = r->req && built && httpclientSend(par->cl, r->req, &kH3TqCliHandlers, r);
+        if (!r->sent) {
+            // Nothing was sent, so no handler will ever run for this one. Settle it by hand so
+            // the wait below is not waiting on something that cannot arrive.
+            ok        = false;
+            r->failed = true;
+            atomicStore(uint32, &r->done, 1, Release);
+            semaInc(&t->done, 1);
+        }
+
+        strDestroy(&path);
+        strDestroy(&url);
+        strDestroy(&num);
+        strDestroy(&reqBody);
+    }
+
+    // Drain the sinks while waiting rather than after: a sink left full holds its producer at the
+    // watermark, and a response big enough to reach that mark would never finish otherwise.
+    uint32 settled = 0;
+    int64 started  = clockTimer();
+    while (settled < H3TQ_BURST && clockTimer() - started < timeS(30)) {
+        for (uint32 i = 0; i < H3TQ_BURST; i++)
+            h3tqDrain(&recs[i]);
+
+        if (semaTryDecTimeout(&t->done, timeMS(5)))
+            settled++;
+    }
+
+    // Anything still outstanding is cancelled rather than walked away from: these records are on
+    // this function's stack and the client is holding pointers to them, so the burst cannot return
+    // until every one of them has been through a terminal handler. Cancelling guarantees one.
+    if (settled < H3TQ_BURST) {
+        ok = false;
+        for (uint32 i = 0; i < H3TQ_BURST; i++) {
+            if (recs[i].sent && atomicLoad(uint32, &recs[i].done, Acquire) != 1)
+                httprequestCancel(recs[i].req);
+        }
+        started = clockTimer();
+        while (settled < H3TQ_BURST && clockTimer() - started < timeS(30)) {
+            for (uint32 i = 0; i < H3TQ_BURST; i++)
+                h3tqDrain(&recs[i]);
+            if (semaTryDecTimeout(&t->done, timeMS(5)))
+                settled++;
+        }
+    }
+
+    for (uint32 i = 0; i < H3TQ_BURST; i++) {
+        H3TqReq* r = &recs[i];
+
+        if (atomicLoad(uint32, &r->done, Acquire) != 1) {
+            // A request that would not even cancel. Leaking it is the only safe thing left: its
+            // handler context is this frame, so the reference the client holds must not be given
+            // back while it may still be used.
+            atomicFetchAdd(uint32, &par->stuck, 1, AcqRel);
+            r->req = NULL;
+            ok     = false;
+            continue;
+        }
+
+        h3tqDrain(r);   // anything the sink still held once the response ended
+
+        if (r->failed) {
+            atomicFetchAdd(uint32, &par->failed, 1, AcqRel);
+            atomicStore(uint32, &par->lastErr, (uint32)r->err, Relaxed);
+            atomicStore(uint32, &par->lastNet, (uint32)r->neterr, Relaxed);
+            atomicStore(uint32, &par->lastWhere,
+                        (uint32)(r->h1only ? 1 : 0) | ((uint32)(i % 3) << 4) | (round << 8),
+                        Relaxed);
+            ok = false;
+            continue;
+        }
+
+        if (r->status != 200)
+            atomicFetchAdd(uint32, &par->badStatus, 1, AcqRel);
+        if (!strEq(r->got, r->want))
+            atomicFetchAdd(uint32, &par->badBody, 1, AcqRel);
+
+        if (r->version == HTTPVER_3) {
+            atomicFetchAdd(uint32, &par->viaH3, 1, AcqRel);
+            if (r->h1only)
+                atomicFetchAdd(uint32, &par->badVer, 1, AcqRel);
+        } else {
+            atomicFetchAdd(uint32, &par->viaH1, 1, AcqRel);
+        }
+    }
+
+    for (uint32 i = 0; i < H3TQ_BURST; i++) {
+        objRelease(&recs[i].req);
+        if (recs[i].sink)
+            sbufRelease(&recs[i].sink);
+        strDestroy(&recs[i].want);
+        strDestroy(&recs[i].got);
+    }
+
+    return ok;
+}
+
+static bool h3tqTaskRun(TaskQueue* tq, void* data)
+{
+    H3TqTask* t = (H3TqTask*)data;
+    unused_noeval(tq);
+
+    // Every task waits here until the test lets them all go, so the first burst arrives at a
+    // client that has spoken to neither origin from four threads at once rather than one.
+    eventWaitTimeout(&t->par->start, timeS(30));
+
+    bool ok = true;
+    for (uint32 round = 0; round < H3TQ_ROUNDS; round++)
+        ok = h3tqBurst(t, round) && ok;
+
+    t->ok = ok;
+    semaInc(&t->par->finished, 1);
+    return ok;
+}
+
+int test_http3test_tqparallel(void)
+{
+    int ret       = 0;
+    H3Loop f      = { 0 };
+    H3TqPar par   = { 0 };
+    TaskQueue* tq = NULL;
+    uint16 both = 0, tcp = 0;
+    H3TqTask tasks[H3TQ_TASKS] = { 0 };
+    uint32 started = 0;
+
+    eventInit(&par.start);
+    semaInit(&par.finished, 0);
+    for (uint32 i = 0; i < H3TQ_TASKS; i++)
+        semaInit(&tasks[i].done, 0);
+
+    if (!h3BothInitN(&f, &kH3TqSrvHandlers, NULL, true, &both, 4)) {
+        TEST_FAILV(ret, 1, _SL("the loopback fixture did not come up"), stvNone);
+        goto out;
+    }
+
+    // The second origin: TLS only, on the same queue and the same credentials. A request to it
+    // under HTTPV_Any starts a QUIC dial that nothing answers, and is served by the racer that
+    // does answer without waiting for the other one to give up.
+    f.srv2 = httpserverCreate(f.q);
+    if (f.srv2) {
+        NetAddr la;
+        netAddrFromStr(&la, _SL("127.0.0.1"));
+        la.port = 0;
+        httpserverSetHandlers(f.srv2, &kH3TqSrvHandlers, NULL);
+        if (httpserverListenTls(f.srv2, &la, 64, f.stcp))
+            tcp = httpserverPort(f.srv2);
+    }
+    if (!tcp) {
+        TEST_FAILV(ret, 1, _SL("the second listener did not come up"), stvNone);
+        goto out;
+    }
+
+    h3PortUrl(&par.baseBoth, both, NULL);
+    h3PortUrl(&par.baseTcp, tcp, NULL);
+    par.cl = f.cl;
+
+    // Exactly H3TQ_TASKS workers, not a number derived from the machine: the point is that this
+    // many threads are inside the client together, and a one-core build agent must run it too.
+    TaskQueueConfig conf;
+    tqPresetBalanced(&conf);
+    conf.flags |= TQ_NoComplex;
+    conf.pool.wInitial = H3TQ_TASKS;
+    conf.pool.wIdle    = H3TQ_TASKS;
+    conf.pool.wBusy    = H3TQ_TASKS;
+    conf.pool.wMax     = H3TQ_TASKS;
+
+    tq = tqCreate(_S"HttpParallel", &conf);
+    if (!tq || !tqStart(tq)) {
+        TEST_FAILV(ret, 1, _SL("the task queue did not start"), stvNone);
+        goto out;
+    }
+
+    for (uint32 i = 0; i < H3TQ_TASKS; i++) {
+        tasks[i].par = &par;
+        tasks[i].id  = i;
+        if (!tqCall(tq, h3tqTaskRun, &tasks[i]))
+            break;
+        started++;
+    }
+    CHECK_U64("tasks queued", started, H3TQ_TASKS);
+
+    // Locked rather than pulsed: a task that reached the wait after this point must still be let
+    // through, and a broadcast with no waiter yet is simply lost.
+    eventSignalLock(&par.start);
+
+    for (uint32 i = 0; i < H3TQ_TASKS; i++) {
+        if (!semaTryDecTimeout(&par.finished, timeS(120))) {
+            TEST_FAILV(ret, 1, _SL("only ${int} of ${int} tasks finished"), stvar(int32, (int32)i),
+                       stvar(int32, H3TQ_TASKS));
+            goto out;
+        }
+    }
+
+    if (atomicLoad(uint32, &par.failed, Acquire) != 0) {
+        TEST_FAILV(ret, 1,
+                   _SL("${int} requests failed; one of them with HttpError ${int} and "
+                       "NetErrorCode ${int}"),
+                   stvar(int32, (int32)atomicLoad(uint32, &par.failed, Acquire)),
+                   stvar(int32, (int32)atomicLoad(uint32, &par.lastErr, Relaxed)),
+                   stvar(int32, (int32)atomicLoad(uint32, &par.lastNet, Relaxed)));
+
+        uint32 where = atomicLoad(uint32, &par.lastWhere, Relaxed);
+        TEST_FAILV(ret, 1,
+                   _SL("that one was the ${string} request of burst ${int}, to the origin that "
+                       "answers ${string}"),
+                   stvar(strref, ((where >> 4) & 0xf) == 1  ? _SL("POST")
+                                 : ((where >> 4) & 0xf) == 2 ? _SL("streamed GET")
+                                                             : _SL("plain GET")),
+                   stvar(int32, (int32)((where >> 8) & 0xf)),
+                   stvar(strref, (where & 1) ? _SL("HTTP/1.1 only") : _SL("both protocols")));
+        goto out;
+    }
+    CHECK_U64("requests that never reached a handler",
+              atomicLoad(uint32, &par.stuck, Acquire), 0);
+    CHECK_U64("answers that were not 200", atomicLoad(uint32, &par.badStatus, Acquire), 0);
+    CHECK_U64("answers belonging to another request",
+              atomicLoad(uint32, &par.badBody, Acquire), 0);
+    CHECK_U64("HTTP/3 from an origin with no QUIC listener",
+              atomicLoad(uint32, &par.badVer, Acquire), 0);
+
+    // Every request is accounted for one way or the other. Half of them went to the origin with
+    // no QUIC listener, and every one of those had to be answered over HTTP/1.1, so that is the
+    // floor -- requests to the other origin may land either way and are not counted on here.
+    CHECK_U64("requests accounted for",
+              atomicLoad(uint32, &par.viaH3, Acquire) + atomicLoad(uint32, &par.viaH1, Acquire),
+              (uint64)H3TQ_TASKS * H3TQ_BURST * H3TQ_ROUNDS);
+    CHECK_TRUE("HTTP/1.1 carried the origin that has nothing else",
+               atomicLoad(uint32, &par.viaH1, Acquire) >=
+                   (H3TQ_TASKS * H3TQ_BURST * H3TQ_ROUNDS) / 2);
+
+    for (uint32 i = 0; i < H3TQ_TASKS; i++)
+        CHECK_TRUE("every task ran its bursts to the end", tasks[i].ok);
+
+    // The invariant concurrency would break if the dial-coalescing state were unguarded: four
+    // threads' worth of requests arriving at one cold origin together still open one HTTP/3
+    // connection between them, not one apiece.
+    if (atomicLoad(uint32, &par.viaH3, Acquire) > 0)
+        CHECK_U64("HTTP/3 connections to the one origin that has a QUIC listener",
+                  saSize(f.cl->h3pool), 1);
+
+out:
+    if (tq) {
+        // Before anything the tasks point at goes away. A task still running here would be holding
+        // a pointer into this function's frame.
+        if (!tqShutdown(tq, timeS(120)))
+            TEST_FAILV(ret, 1, _SL("the task queue did not shut down"), stvNone);
+        tqRelease(&tq);
+    }
+    for (uint32 i = 0; i < H3TQ_TASKS; i++)
+        semaDestroy(&tasks[i].done);
+    strDestroy(&par.baseBoth);
+    strDestroy(&par.baseTcp);
+    semaDestroy(&par.finished);
+    eventDestroy(&par.start);
+    h3LoopDestroy(&f);
+    return ret;
+}
+
 int test_http3test_altsvc(void)
 {
     int ret = 0;
@@ -3294,6 +3791,95 @@ out:
     return ret;
 }
 
+// ---------------------------------------------------------------------------------------------
+// Retiring the QUIC dial that loses a race
+//
+// Under HTTPV_Any both transports are dialled at once, and against an origin whose UDP port
+// answers nothing -- a firewall that drops it, which is a great many of them -- the TCP half wins
+// while the QUIC half is still waiting for a handshake. Closing the losing socket is not the whole
+// job. While a dial is in flight the origin is marked as being dialled, and every other request
+// for that origin waits behind that dial rather than starting one of its own; a dial that is
+// closed without clearing the mark never lands, so everything behind it waits for good.
+// ---------------------------------------------------------------------------------------------
+
+int test_http3test_racedialretire(void)
+{
+    int ret              = 0;
+    H3Loop f             = { 0 };
+    H3SrvRec rec         = { 0 };
+    NetSocket* blackhole = NULL;
+    HttpRequest* req1    = NULL;
+    HttpRequest* req2    = NULL;
+    H3CliRec cli1        = { 0 };
+    H3CliRec cli2        = { 0 };
+    string url           = 0;
+    uint16 port          = 0;
+    NetAddr la;
+
+    // No QUIC listener: this origin answers TCP only, which is what makes the TCP half win.
+    if (!h3BothInit(&f, &kH3SrvHandlers, &rec, false, &port)) {
+        TEST_FAILV(ret, 1, _SL("the loopback fixture did not come up"), stvNone);
+        goto out;
+    }
+
+    // A UDP socket on the listener's port that answers nothing, so the QUIC dial neither connects
+    // nor fails: it is still in flight when the TCP handshake finishes. Without it the dial would
+    // be refused within microseconds and the race would never have a loser to retire.
+    netAddrFromStr(&la, _SL("127.0.0.1"));
+    la.port   = port;
+    blackhole = netqueueSocket(f.q, NST_Datagram);
+    if (!blackhole || !netqueueAddSocket(f.q, blackhole) || !netsocketBind(blackhole, &la)) {
+        TEST_FAILV(ret, 1, _SL("could not bind a UDP socket on port ${int}"),
+                   stvar(int32, (int32)port));
+        goto out;
+    }
+
+    h3PortUrl(&url, port, _SL("/one"));
+    req1 = httprequestCreate(HTTP_Get, url);
+    CHECK_TRUE("first request created", req1 != NULL);
+    CHECK_TRUE("first request sent", httpclientSend(f.cl, req1, &kH3CliHandlers, &cli1));
+
+    for (int i = 0; i < 1500 && !(cli1.completed || cli1.failed); i++)
+        netqueueTick(f.q, timeMS(5));
+
+    CHECK_U64("first request failures", cli1.failed, 0);
+    CHECK_U64("first request completions", cli1.completed, 1);
+    CHECK_U64("first request version", cli1.version, HTTPVER_1_1);
+
+    // The QUIC dial lost and was closed with its handshake unanswered. The mark it left on the
+    // origin has to go with it: it means "a dial is coming", and no dial is coming.
+    CHECK_U64("origins still marked as being dialled", saSize(f.cl->h3Dialing), 0);
+
+    // A second request to the same origin. It must dial for itself rather than parking behind a
+    // dial that ended before it was sent.
+    strDestroy(&url);
+    h3PortUrl(&url, port, _SL("/two"));
+    req2 = httprequestCreate(HTTP_Get, url);
+    CHECK_TRUE("second request created", req2 != NULL);
+    CHECK_TRUE("second request sent", httpclientSend(f.cl, req2, &kH3CliHandlers, &cli2));
+
+    for (int i = 0; i < 1500 && !(cli2.completed || cli2.failed); i++)
+        netqueueTick(f.q, timeMS(5));
+
+    CHECK_U64("second request failures", cli2.failed, 0);
+    CHECK_U64("second request completions", cli2.completed, 1);
+    CHECK_U64("requests left waiting for a dial", saSize(f.cl->h3Waiters), 0);
+    CHECK_U64("requests the server answered", rec.requests, 2);
+
+out:
+    objRelease(&req1);
+    objRelease(&req2);
+    strDestroy(&url);
+    strDestroy(&cli1.body);
+    strDestroy(&cli2.body);
+    if (blackhole)
+        netsocketClose(blackhole);
+    objRelease(&blackhole);
+    h3SrvRecDestroy(&rec);
+    h3LoopDestroy(&f);
+    return ret;
+}
+
 // Each group below runs several of the subtests above in one process, so ctest spends one
 // process launch per feature area instead of one per subtest. The individual subtests stay
 // registered under their own names too, for running or debugging one in isolation.
@@ -3327,6 +3913,7 @@ int test_http3test_grp_serverstream(void)
                test_http3test_threaded);
 }
 
+
 int test_http3test_grp_client(void)
 {
     TEST_CHAIN(test_http3test_clientget, test_http3test_clientpool, test_http3test_clientbody,
@@ -3336,7 +3923,8 @@ int test_http3test_grp_client(void)
 int test_http3test_grp_dial(void)
 {
     TEST_CHAIN(test_http3test_race, test_http3test_racefail, test_http3test_coalesce,
-               test_http3test_goawayretry, test_http3test_altsvcseed);
+               test_http3test_goawayretry, test_http3test_altsvcseed,
+               test_http3test_racedialretire);
 }
 
 testfunc http3test_funcs[] = {
@@ -3369,6 +3957,8 @@ testfunc http3test_funcs[] = {
     { "altsvc", test_http3test_altsvc },
     { "altsvcseed", test_http3test_altsvcseed },
     { "threaded", test_http3test_threaded },
+    { "tqparallel", test_http3test_tqparallel },
+    { "racedialretire", test_http3test_racedialretire },
     { "grp_wire", test_http3test_grp_wire },
     { "grp_qpack", test_http3test_grp_qpack },
     { "grp_control", test_http3test_grp_control },

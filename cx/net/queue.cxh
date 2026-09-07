@@ -238,6 +238,35 @@ abstract class NetQueue
     [sal _Ret_maybenull_] unbound NetSocket *connect(strref host, uint16 port,
         [in] [opt] const NetHandlers *handlers, [in] [opt] void *ctx);
 
+    /// Create a stream socket, hand it over, and start connecting it, in one call
+    ///
+    /// netqueueConnect() with one addition: `prep` is called with the finished socket immediately
+    /// before the connect begins. Use it when the socket has to be reachable from somewhere else
+    /// -- a request, a session, a cancel path -- before its first event can arrive, which the
+    /// return value is too late for: the connect can complete on another thread while this call is
+    /// still returning.
+    ///
+    /// A NULL return means nothing was started. Anything `prep` stored is the caller's to clean up.
+    ///
+    /// @param host Hostname or literal address to connect to (NULL/empty means loopback)
+    /// @param port Port number, host byte order
+    /// @param handlers Per-socket handler overrides, or NULL for none. Not copied -- must
+    ///                 outlive the socket, so it is usually `static const`
+    /// @param ctx Context passed to these handlers on NetEvent.ctx
+    /// @param prep Called with the socket just before it connects, or NULL for none
+    /// @param prepctx Context passed to `prep`
+    /// @return The connecting socket (a reference the caller must release), or NULL if any
+    ///         step failed -- nothing is left registered on the queue in that case
+    ///
+    /// Example:
+    /// @code
+    ///   NetSocket* s = netqueueConnectPrep(q, _SL("example.com"), 443, &handlers, &state,
+    ///                                      publishSock, &state);
+    /// @endcode
+    [sal _Ret_maybenull_] unbound NetSocket *connectPrep(strref host, uint16 port,
+        [in] [opt] const NetHandlers *handlers, [in] [opt] void *ctx,
+        [opt] NetConnectPrepCB prep, [in] [opt] void *prepctx);
+
     /// Create a stream socket on the queue and start it listening, in one call
     ///
     /// The accept-side counterpart of netqueueConnect(): composes netqueueSocket(),

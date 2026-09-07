@@ -148,6 +148,12 @@ bool netSockDontFragment(NetSockHandle h, bool enable);
 typedef struct NetSelectSet NetSelectSet;
 
 // Create an empty select set with its wake mechanism armed, or NULL on failure.
+// The socket's single flow -- a stream socket's, or a QUIC connection's control flow -- with a
+// reference for the caller, or NULL. Read under the socket's flowLock, which is also where the
+// field is dropped: a send resolving the flow on one thread and a teardown dropping it on another
+// must not overlap, or the send acquires a flow whose last reference has just gone.
+_Ret_maybenull_ NetFlow* _netSocketFlowRef(_In_ NetSocket* sock);
+
 _Ret_maybenull_ NetSelectSet* nselCreate(void);
 
 // Destroy a select set and NULL the handle.

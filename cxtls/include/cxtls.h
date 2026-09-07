@@ -196,6 +196,36 @@ _Ret_maybenull_ NetSocket*
 nettlsConnect(_In_ NetQueue* q, _In_opt_ strref host, uint16 port, _In_opt_ strref hostname,
               _In_ TlsConfig* config, _In_opt_ const NetHandlers* handlers, _In_opt_ void* ctx);
 
+/// Dial a TLS connection, with a look at the socket before it starts
+///
+/// nettlsConnect() with one addition: `prep` is called with the finished socket immediately before
+/// the connect begins. Use it when the socket has to be reachable from somewhere else -- a request,
+/// a session, a cancel path -- before its first event can arrive, which the return value is too
+/// late for: the connect can complete on another thread while this call is still returning.
+///
+/// A NULL return means nothing was started. Anything `prep` stored is the caller's to clean up.
+///
+/// @param q Queue to run the connection on
+/// @param host Hostname or literal address to connect to
+/// @param port Port number, host byte order
+/// @param hostname Name to send as SNI and require the certificate to match, or NULL to use `host`
+/// @param config Client configuration
+/// @param handlers Handler set for the socket, or NULL
+/// @param ctx Context passed to those handlers
+/// @param prep Called with the socket just before it connects, or NULL for none
+/// @param prepctx Context passed to `prep`
+/// @return The new socket, or NULL if it could not be created, filtered, or started
+///
+/// Example:
+/// @code
+///   NetSocket *s = nettlsConnectPrep(q, _S"example.com", 443, NULL, cfg, &handlers, ctx,
+///                                    publishSock, req);
+/// @endcode
+_Ret_maybenull_ NetSocket*
+nettlsConnectPrep(_In_ NetQueue* q, _In_opt_ strref host, uint16 port, _In_opt_ strref hostname,
+                  _In_ TlsConfig* config, _In_opt_ const NetHandlers* handlers, _In_opt_ void* ctx,
+                  _In_opt_ NetConnectPrepCB prep, _In_opt_ void* prepctx);
+
 /// Listen for TLS connections in one call
 ///
 /// Creates a listening socket, registers it with the queue and its handlers, attaches a server

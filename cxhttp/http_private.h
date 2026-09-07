@@ -137,9 +137,13 @@ typedef void (*Http3ConnClosedCB)(_In_opt_ ObjInst* conn, _In_opt_ void* ctx);
 
 // Open a QUIC connection for HTTP/3. The socket comes back at once; NET_Connection on its control
 // flow says when the handshake finished. NULL in a build with no HTTP/3.
+//
+// `prep` runs with the socket just before the handshake starts, which is the only moment at which
+// a caller can be sure it has the socket before an event for it lands on a worker.
 _Ret_maybenull_ NetSocket* _http3Dial(_In_ NetQueue* q, _In_opt_ strref host, uint16 port,
                                       _In_opt_ strref hostname, _In_ TlsConfig* cfg,
-                                      _In_opt_ const NetHandlers* handlers, _In_opt_ void* ctx);
+                                      _In_opt_ const NetHandlers* handlers, _In_opt_ void* ctx,
+                                      _In_opt_ NetConnectPrepCB prep, _In_opt_ void* prepctx);
 
 // Whether a connected QUIC socket actually negotiated HTTP/3. A server that answered with anything
 // else is not speaking a protocol this client can read.

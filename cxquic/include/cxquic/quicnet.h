@@ -143,6 +143,41 @@ _Ret_maybenull_ NetSocket* netquicConnect(_In_ NetQueue* q, _In_ strref host, ui
                                           _In_opt_ const NetHandlers* handlers,
                                           _In_opt_ void* ctx);
 
+/// Dial a QUIC connection, with a look at the socket before it starts
+///
+/// netquicConnect() with one addition: `prep` is called with the finished connection socket
+/// immediately before the handshake begins. Use it when the socket has to be reachable from
+/// somewhere else -- a request, a session, a cancel path -- before its first event can arrive,
+/// which the return value is too late for: the handshake can complete on another thread while
+/// this call is still returning.
+///
+/// A NULL return means nothing was started. Anything `prep` stored is the caller's to clean up.
+///
+/// @param q Queue to register the connection with
+/// @param host Hostname or literal address to connect to
+/// @param port Port number, host byte order
+/// @param hostname Name to send in SNI and verify the certificate against; empty uses `host`
+/// @param cfg Endpoint configuration; `cfg->tls` must be a client configuration
+/// @param handlers Handler set for the connection, or NULL for none. Not copied -- it must
+///                 outlive the socket.
+/// @param ctx Context passed to those handlers on NetEvent.ctx
+/// @param prep Called with the socket just before the handshake starts, or NULL for none
+/// @param prepctx Context passed to `prep`
+/// @return The connection socket (a reference the caller must release), or NULL if the connect
+///         could not be started
+///
+/// Example:
+/// @code
+///   NetSocket *sock = netquicConnectPrep(q, _S"example.com", 443, NULL, &cfg, &handlers, NULL,
+///                                        publishSock, req);
+/// @endcode
+_Ret_maybenull_ NetSocket* netquicConnectPrep(_In_ NetQueue* q, _In_ strref host, uint16 port,
+                                              _In_opt_ strref hostname, _In_ const QuicConfig* cfg,
+                                              _In_opt_ const NetHandlers* handlers,
+                                              _In_opt_ void* ctx,
+                                              _In_opt_ NetConnectPrepCB prep,
+                                              _In_opt_ void* prepctx);
+
 /// Close a QUIC connection, telling the peer why
 ///
 /// Sends a CONNECTION_CLOSE carrying an application error code and tears the socket down. Plain

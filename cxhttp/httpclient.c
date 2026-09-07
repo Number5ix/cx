@@ -40,6 +40,7 @@ STR_CONST(kAlpnHttp11, HTTP_ALPN_HTTP11);
 
 static void startExchange(HttpClient* self, HttpRequest* req);
 static TlsConfig* clientTls(HttpClient* self);
+static void retireQuicDial(HttpClient* self, HttpRequest* req);
 
 // ---------------------------------------------------------------------------------------------
 // Pool
@@ -73,6 +74,8 @@ static void poolRemoveAt(HttpClient* self, int32 idx)
 static HttpConn* poolTake(HttpClient* self, strref key)
 {
     HttpConn* found = NULL;
+    sa_HttpConn dead;
+    saInit(&dead, HttpConn, 2);
 
     withMutex (&self->lock) {
         for (int32 i = saSize(self->pool) - 1; i >= 0; i--) {
@@ -93,10 +96,18 @@ static HttpConn* poolTake(HttpClient* self, strref key)
                 break;
             }
 
-            httpconnClose(c);
+            saPush(&dead, HttpConn, c);
             objRelease(&c);
         }
     }
+
+    // Closing happens outside the lock, the same as in closeIdle(): it reaches the socket layer,
+    // which is not somewhere to be holding a lock that every request's completion path also wants.
+    for (int32 i = 0; i < saSize(dead); i++) {
+        httpconnSetClosedHandler(dead.a[i], NULL, NULL);
+        httpconnClose(dead.a[i]);
+    }
+    saDestroy(&dead);
 
     return found;
 }
@@ -316,10 +327,12 @@ void HttpClient__finish(_In_ HttpClient* self, _In_ HttpRequest* req, HttpError 
         // The sockets, if the exchange never got as far as a connection to own them. Under
         // HTTPV_Any there may be two: whichever lost the race is closed here along with the one
         // that never finished.
-        dialing       = req->dialSock;
-        req->dialSock = NULL;
-        dialQuic      = req->dialQuic;
-        req->dialQuic = NULL;
+        dialing              = req->dialSock;
+        req->dialSock        = NULL;
+        dialQuic             = req->dialQuic;
+        req->dialQuic        = NULL;
+        req->dialSockPending = false;
+        req->dialQuicPending = false;
     }
 
     if (dialing) {
@@ -329,6 +342,10 @@ void HttpClient__finish(_In_ HttpClient* self, _In_ HttpRequest* req, HttpError 
     if (dialQuic) {
         netsocketClose(dialQuic);
         objRelease(&dialQuic);
+
+        // The same duty the race's winner has: this dial has ended without landing, and anything
+        // parked behind it is waiting for an answer that is not coming.
+        retireQuicDial(self, req);
     }
 
     req->err = err;
@@ -646,24 +663,44 @@ static void applyClientHeaders(HttpClient* self, HttpRequest* req)
 // Claim the race for one transport. False means the other one already won, in which case the
 // caller closes what it was holding and does nothing else. The loser's socket is closed here,
 // which its own dial handlers then see as a teardown for a request that has moved on.
-static bool raceClaim(_Inout_ HttpRequest* req, bool quic)
+//
+// A request that is not racing claims trivially -- there is nobody to lose to -- so every caller
+// asks unconditionally. `racing` is deliberately not cleared by a win: it says how this hop was
+// started, and both transports' handlers read it from whichever worker they land on. `raced` is
+// the winner, and it is the only thing that decides.
+static bool raceClaim(_Inout_ HttpRequest* req, bool quic, _Out_opt_ bool* closedQuicDial)
 {
     NetSocket* loser = NULL;
     bool won         = false;
 
-    withMutex (&req->exLock) {
-        if (!req->raced) {
-            req->raced  = true;
-            req->racing = false;
-            won         = true;
+    if (closedQuicDial)
+        *closedQuicDial = false;
 
+    withMutex (&req->exLock) {
+        if (!req->racing) {
+            won = true;
+        } else if (!req->raced) {
+            req->raced     = true;
+            req->racedQuic = quic;
+            won            = true;
+
+            // The loser's dial is over whether or not its socket has been published yet: clearing
+            // the pending flag is what stops the thread that started it from publishing a socket
+            // for a race that is already decided.
             if (quic) {
-                loser         = req->dialSock;
-                req->dialSock = NULL;
+                loser                = req->dialSock;
+                req->dialSock        = NULL;
+                req->dialSockPending = false;
             } else {
-                loser         = req->dialQuic;
-                req->dialQuic = NULL;
+                loser                = req->dialQuic;
+                req->dialQuic        = NULL;
+                req->dialQuicPending = false;
             }
+        } else {
+            // The winner may need to claim more than once -- a pooled connection that turned out
+            // to be dead is followed by a dial on the same transport -- so the question is which
+            // side won rather than whether anybody has.
+            won = req->racedQuic == quic;
         }
     }
 
@@ -672,6 +709,11 @@ static bool raceClaim(_Inout_ HttpRequest* req, bool quic)
     if (loser) {
         netsocketClose(loser);
         objRelease(&loser);
+
+        // The QUIC half losing means a dial has just ended without landing, which the caller has
+        // to tell the client about -- a closed socket tells it nothing.
+        if (!quic && closedQuicDial)
+            *closedQuicDial = true;
     }
 
     return won;
@@ -687,13 +729,16 @@ static void raceFailed(HttpClient* self, HttpRequest* req, bool quic, HttpError 
 
     withMutex (&req->exLock) {
         if (quic) {
-            dead          = req->dialQuic;
-            req->dialQuic = NULL;
+            dead                 = req->dialQuic;
+            req->dialQuic        = NULL;
+            req->dialQuicPending = false;
         } else {
-            dead          = req->dialSock;
-            req->dialSock = NULL;
+            dead                 = req->dialSock;
+            req->dialSock        = NULL;
+            req->dialSockPending = false;
         }
-        last = !req->raced && !req->dialSock && !req->dialQuic;
+        last = !req->raced && !req->dialSock && !req->dialQuic && !req->dialSockPending &&
+               !req->dialQuicPending;
     }
 
     if (dead) {
@@ -705,6 +750,51 @@ static void raceFailed(HttpClient* self, HttpRequest* req, bool quic, HttpError 
         failExchange(self, req, err, neterr);
 }
 
+// The dial's socket, handed over the moment it exists and before anything can be raised on it.
+// Publishing it here rather than from the return value is what makes the socket and the request
+// indivisible: the dial can finish on a worker while the call that started it is still returning,
+// and a handler that ran then would find a request holding nothing to recognize its socket by.
+static void publishDialSock(_Inout_ NetSocket* sock, _In_opt_ void* ctx)
+{
+    HttpRequest* req = (HttpRequest*)ctx;
+
+    withMutex (&req->exLock) {
+        req->dialSock        = objAcquire(sock);
+        req->dialSockPending = false;
+    }
+}
+
+static void publishDialQuic(_Inout_ NetSocket* sock, _In_opt_ void* ctx)
+{
+    HttpRequest* req = (HttpRequest*)ctx;
+
+    withMutex (&req->exLock) {
+        req->dialQuic        = objAcquire(sock);
+        req->dialQuicPending = false;
+    }
+}
+
+// Whether this request still has a TCP dial of its own outstanding. The pending flag is part of
+// the answer: a dial that is being set up has nothing in dialSock yet, and an outcome arriving
+// then is still this request's to hear about.
+static bool dialingSock(_Inout_ HttpRequest* req)
+{
+    bool live = false;
+    withMutex (&req->exLock) {
+        live = req->dialSock != NULL || req->dialSockPending;
+    }
+    return live;
+}
+
+static bool dialingQuic(_Inout_ HttpRequest* req)
+{
+    bool live = false;
+    withMutex (&req->exLock) {
+        live = req->dialQuic != NULL || req->dialQuicPending;
+    }
+    return live;
+}
+
 // Hand the socket over to a connection and write the request. Shared by the plaintext and TLS
 // paths, which differ only in when they get here.
 static void beginOnSocket(HttpRequest* req, NetSocket* sock)
@@ -714,10 +804,14 @@ static void beginOnSocket(HttpRequest* req, NetSocket* sock)
         return;
 
     // Under HTTPV_Any the QUIC dial may already have won, in which case this socket is surplus.
-    if (req->racing && !raceClaim(req, false)) {
+    bool retire = false;
+    if (!raceClaim(req, false, &retire)) {
         netsocketClose(sock);
         return;
     }
+
+    if (retire)
+        retireQuicDial(self, req);
 
     string host = 0;
     httpUrlHostHeader(&host, &req->url);
@@ -739,6 +833,8 @@ static void beginOnSocket(HttpRequest* req, NetSocket* sock)
         req->dialSock = NULL;
         req->conn     = conn;
         cancelled     = req->cancelled;
+
+        req->dialSockPending = false;
     }
     objRelease(&dialing);
 
@@ -807,7 +903,7 @@ static void onDialClosed(NetEvent* ev)
 
     // Only reachable while the request is still dialing: once a connection exists it owns the
     // socket's handlers, and this is no longer installed. A close here is a handshake that failed.
-    if (self && req->dialSock)
+    if (self && dialingSock(req))
         raceFailed(self, req, false, HTTPERR_Network, NERR_None);
 }
 
@@ -816,7 +912,7 @@ static void onDialError(NetEvent* ev)
     HttpRequest* req = (HttpRequest*)ev->ctx;
     HttpClient* self = req ? req->client : NULL;
 
-    if (self && req->dialSock)
+    if (self && dialingSock(req))
         raceFailed(self, req, false, HTTPERR_Network, ev->error.err);
 }
 
@@ -844,7 +940,7 @@ static void startOnH3(HttpClient* self, HttpRequest* req, ObjInst* conn)
 
     // The TCP half of a race may already have won for this one, in which case it is already on its
     // way over HTTP/1.1 and this connection is simply not its business.
-    if (req->racing && !raceClaim(req, true))
+    if (!raceClaim(req, true, NULL))
         return;
 
     bool cancelled = false;
@@ -865,20 +961,25 @@ static void startOnH3(HttpClient* self, HttpRequest* req, ObjInst* conn)
         failExchange(self, req, HTTPERR_Network, NERR_None);
 }
 
-// A QUIC dial has landed. Release everything that was parked behind it, on the connection if there
-// is one and through the ordinary failure path if there is not.
-static void h3DialLanded(HttpClient* self, HttpRequest* req, ObjInst* conn, strref key)
+// Hand the requests that were parked behind a dial to what it produced, and destroy the list.
+static void releaseWaiters(HttpClient* self, _Inout_ sa_HttpRequest* waiting, ObjInst* conn)
 {
-    sa_HttpRequest waiting;
-    h3DialDone(self, key, &waiting);
+    for (int32 i = 0; i < saSize(*waiting); i++) {
+        HttpRequest* w = waiting->a[i];
 
-    startOnH3(self, req, conn);
+        // A request parks behind a dial and dials TCP as well, so it may have finished over
+        // HTTP/1.1 long before this. finish() unbinds the client, and that is what says there is
+        // nothing here to start or to fail a second time.
+        bool running = false;
+        withMutex (&w->exLock) {
+            running = w->client != NULL;
+        }
+        if (!running)
+            continue;
 
-    for (int32 i = 0; i < saSize(waiting); i++) {
-        // A parked request that is racing may have been won by TCP while it waited, and one whose
-        // dial failed goes back through startExchange() -- which now finds the origin remembered
-        // as one where QUIC does not work, and falls back.
-        HttpRequest* w = waiting.a[i];
+        // A parked request that is racing may have been won by TCP while it waited, and one with
+        // no connection to go to goes back through startExchange() -- which decides again from
+        // whatever the client has learned about the origin in the meantime.
         if (conn)
             startOnH3(self, w, conn);
         else if (!w->racing)
@@ -887,7 +988,37 @@ static void h3DialLanded(HttpClient* self, HttpRequest* req, ObjInst* conn, strr
             raceFailed(self, w, true, HTTPERR_Network, NERR_None);
     }
 
-    saDestroy(&waiting);
+    saDestroy(waiting);
+}
+
+// A QUIC dial has landed. Release everything that was parked behind it, on the connection if there
+// is one and through the ordinary failure path if there is not.
+static void h3DialLanded(HttpClient* self, HttpRequest* req, ObjInst* conn, strref key)
+{
+    sa_HttpRequest waiting;
+    h3DialDone(self, key, &waiting);
+
+    startOnH3(self, req, conn);
+    releaseWaiters(self, &waiting, conn);
+}
+
+// A QUIC dial that was closed rather than answered -- it lost a race, or the request that owned it
+// ended first. Closing the socket is only half of it: the origin is marked as being dialled for as
+// long as one is in flight, and other requests park behind that mark instead of dialling for
+// themselves. A mark left behind by a dial that will never land strands every one of them.
+//
+// Only the request that dialled may retire the claim, which is exactly the request that holds a
+// dialQuic: one that parked behind somebody else's dial never has one.
+static void retireQuicDial(HttpClient* self, HttpRequest* req)
+{
+    string key = 0;
+    poolKey(&key, &req->url);
+
+    sa_HttpRequest waiting;
+    h3DialDone(self, key, &waiting);
+    strDestroy(&key);
+
+    releaseWaiters(self, &waiting, NULL);
 }
 
 // Hand the QUIC socket over to a connection and start the request on it.
@@ -918,8 +1049,9 @@ static void beginOnQuic(HttpRequest* req, NetSocket* sock)
 
         NetSocket* dialing = NULL;
         withMutex (&req->exLock) {
-            dialing       = req->dialQuic;
-            req->dialQuic = NULL;
+            dialing              = req->dialQuic;
+            req->dialQuic        = NULL;
+            req->dialQuicPending = false;
         }
         objRelease(&dialing);
 
@@ -937,8 +1069,9 @@ static void beginOnQuic(HttpRequest* req, NetSocket* sock)
     // The connection owns the socket now; the request's dialing reference has done its job.
     NetSocket* dialing = NULL;
     withMutex (&req->exLock) {
-        dialing       = req->dialQuic;
-        req->dialQuic = NULL;
+        dialing              = req->dialQuic;
+        req->dialQuic        = NULL;
+        req->dialQuicPending = false;
     }
     objRelease(&dialing);
 
@@ -1002,7 +1135,7 @@ static void onQuicDialClosed(NetEvent* ev)
 
     // Only reachable while the request is still dialing: once a connection exists it owns the
     // socket's handlers, and this is no longer installed.
-    if (self && req->dialQuic)
+    if (self && dialingQuic(req))
         quicDialFailed(self, req, HTTPERR_Network, NERR_None);
 }
 
@@ -1011,7 +1144,7 @@ static void onQuicDialError(NetEvent* ev)
     HttpRequest* req = (HttpRequest*)ev->ctx;
     HttpClient* self = req ? req->client : NULL;
 
-    if (self && req->dialQuic)
+    if (self && dialingQuic(req))
         quicDialFailed(self, req, HTTPERR_Network, ev->error.err);
 }
 
@@ -1047,6 +1180,14 @@ static bool startHttp3(HttpClient* self, HttpRequest* req, bool racing)
 
     ObjInst* pooled = h3PoolBorrow(self, key);
     if (pooled) {
+        // Same as the pooled HTTP/1.1 case in startExchange(): a connection already in hand is a
+        // win, and has to be claimed as one before the request is started on it.
+        if (!raceClaim(req, true, NULL)) {
+            objRelease(&pooled);
+            strDestroy(&key);
+            return true;   // the TCP half has the request
+        }
+
         bool ok = _http3ConnRequest(pooled, req, exchangeHandlers(req), NULL,
                                     self->responseTimeout);
         objRelease(&pooled);
@@ -1074,12 +1215,24 @@ static bool startHttp3(HttpClient* self, HttpRequest* req, bool racing)
     if (altPort == 0)
         altPort = httpUrlEffectivePort(&req->url);
 
+    // Set for the moment between deciding to dial and the socket existing to point at, which the
+    // prep callback below closes off.
+    withMutex (&req->exLock) {
+        req->dialQuicPending = true;
+    }
+
     TlsConfig* cfg  = clientTls(self);
     NetSocket* sock = NULL;
     if (cfg)
-        sock = _http3Dial(self->queue, req->url.host, altPort, NULL, cfg, &kQuicDialHandlers, req);
+        sock = _http3Dial(self->queue, req->url.host, altPort, NULL, cfg, &kQuicDialHandlers, req,
+                          publishDialQuic, req);
 
     if (!sock) {
+        // Nothing was started, so nothing is coming to end it. Anything the prep callback got as
+        // far as publishing is closed out by the failure path.
+        withMutex (&req->exLock) {
+            req->dialQuicPending = false;
+        }
         quicDialFailed(self, req, HTTPERR_Network, NERR_None);
         strDestroy(&key);
         return false;
@@ -1087,9 +1240,7 @@ static bool startHttp3(HttpClient* self, HttpRequest* req, bool racing)
 
     strDestroy(&key);
 
-    withMutex (&req->exLock) {
-        req->dialQuic = sock;
-    }
+    objRelease(&sock);   // the request took its own reference as the dial began
     return true;
 }
 
@@ -1206,8 +1357,11 @@ static void startExchange(HttpClient* self, HttpRequest* req)
     // Every hop of a redirect decides again, so the race state from the previous one is cleared
     // rather than carried forward.
     withMutex (&req->exLock) {
-        req->racing = (try == HTTPTRY_Both);
-        req->raced  = false;
+        req->racing          = (try == HTTPTRY_Both);
+        req->raced           = false;
+        req->racedQuic       = false;
+        req->dialSockPending = false;
+        req->dialQuicPending = false;
     }
 
     if (try == HTTPTRY_Http3) {
@@ -1222,19 +1376,46 @@ static void startExchange(HttpClient* self, HttpRequest* req)
         }
     }
 
+    // From here on this hop has an HTTP/1.1 half of its own -- a pooled connection or a dial of
+    // its own -- and the QUIC half finishing first must not read that as a request with nothing
+    // left to wait for. Set here rather than at the dial because everything between costs time:
+    // taking a connection out of the pool and writing the request on it.
+    withMutex (&req->exLock) {
+        req->dialSockPending = true;
+    }
+
     string key = 0;
     poolKey(&key, &req->url);
     HttpConn* pooled = poolTake(self, key);
     strDestroy(&key);
 
     if (pooled) {
+        // A connection already in hand wins the race as surely as a dial that finishes first: the
+        // request is about to be written on it, so the QUIC half must not also start it. Claiming
+        // is what stops one request from running over both transports at once.
+        bool retire = false;
+        if (!raceClaim(req, false, &retire)) {
+            // The QUIC half won in the moment this took. The connection came out of the pool and
+            // nothing is going to use it, so it goes away rather than being left half-owned.
+            withMutex (&req->exLock) {
+                req->dialSockPending = false;
+            }
+            httpconnSetClosedHandler(pooled, NULL, NULL);
+            httpconnClose(pooled);
+            objRelease(&pooled);
+            return;
+        }
+        if (retire)
+            retireQuicDial(self, req);
+
         // A pooled connection carries the pool's closed handler; the exchange needs it back so a
         // death mid-request reaches the request rather than the pool it is no longer in.
         httpconnSetClosedHandler(pooled, NULL, NULL);
         pooled->timeout = self->responseTimeout;
 
         withMutex (&req->exLock) {
-            req->conn = pooled;
+            req->conn            = pooled;
+            req->dialSockPending = false;
         }
         if (httpconnRequest(pooled, req, exchangeHandlers(req), NULL))
             return;
@@ -1243,26 +1424,30 @@ static void startExchange(HttpClient* self, HttpRequest* req)
         httpclient_recycle(self, req, false);
     }
 
-    NetSocket* sock;
+    NetSocket* sock = NULL;
     if (tls) {
         TlsConfig* cfg = clientTls(self);
-        if (!cfg) {
-            failExchange(self, req, HTTPERR_Network, NERR_None);
-            return;
-        }
-        sock = nettlsConnect(self->queue, req->url.host, port, NULL, cfg, &kDialHandlers, req);
+        if (cfg)
+            sock = nettlsConnectPrep(self->queue, req->url.host, port, NULL, cfg, &kDialHandlers,
+                                     req, publishDialSock, req);
     } else {
-        sock = netqueueConnect(self->queue, req->url.host, port, &kDialHandlers, req);
+        sock = netqueueConnectPrep(self->queue, req->url.host, port, &kDialHandlers, req,
+                                   publishDialSock, req);
     }
 
     if (!sock) {
-        failExchange(self, req, HTTPERR_Network, NERR_None);
+        // Nothing was started, so nothing is coming to end it. Through the race rather than
+        // straight to a failure, because the QUIC half may still be coming -- in which case this
+        // hop has not failed at all -- and because that is also what closes out a socket the prep
+        // callback published before the connect refused to start.
+        withMutex (&req->exLock) {
+            req->dialSockPending = false;
+        }
+        raceFailed(self, req, false, HTTPERR_Network, NERR_None);
         return;
     }
 
-    withMutex (&req->exLock) {
-        req->dialSock = sock;
-    }
+    objRelease(&sock);   // the request took its own reference as the dial began
 }
 
 bool HttpClient__start(_In_ HttpClient* self, _In_ HttpRequest* req)

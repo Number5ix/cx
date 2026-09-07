@@ -47,7 +47,7 @@ bool _http3SrvReqContinue(HttpServerRequest* req)
 
 _Use_decl_annotations_
 NetSocket* _http3Dial(NetQueue* q, strref host, uint16 port, strref hostname, TlsConfig* cfg,
-                      const NetHandlers* handlers, void* ctx)
+                      const NetHandlers* handlers, void* ctx, NetConnectPrepCB prep, void* prepctx)
 {
     unused_noeval(q);
     unused_noeval(host);
@@ -56,6 +56,8 @@ NetSocket* _http3Dial(NetQueue* q, strref host, uint16 port, strref hostname, Tl
     unused_noeval(cfg);
     unused_noeval(handlers);
     unused_noeval(ctx);
+    unused_noeval(prep);
+    unused_noeval(prepctx);
     return NULL;
 }
 
