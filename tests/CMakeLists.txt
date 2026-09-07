@@ -354,6 +354,7 @@ add_test(NAME "\"math: PCG Error Condition\"" COMMAND test_runner mathtest pcger
 add_test(NAME "\"math: FP Comparison\"" COMMAND test_runner mathtest floatcmp)
 add_test(NAME "\"fs: Path Matching\"" COMMAND test_runner fstest pathmatch)
 add_test(NAME "\"fs: File Handles\"" COMMAND test_runner fstest file)
+add_test(NAME "\"fs: Stream Buffer Registrations\"" COMMAND test_runner fstest sbufregister)
 add_test(NAME "\"fs: Directory and search operations\"" COMMAND test_runner fstest ops)
 # Each entry below runs several subtests from vfstest.c (grouped by feature area) in a single
 # process -- see the TEST_CHAIN groups at the bottom of that file. Run

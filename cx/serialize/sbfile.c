@@ -4,16 +4,28 @@
 // direct push mode has no target size of its own, so fall back to a reasonable chunk size
 #define SBUF_DEFAULT_CHUNK (64 * 1024)
 
+// A registration outlives the call that made it: its callbacks run whenever the stream buffer says
+// so, on whatever thread drives it, until the slot is handed back. So it holds a reference of its
+// own for that whole time rather than borrowing the caller's pointer -- a File whose last reference
+// went away while it was registered would otherwise be read or written through here after it was
+// freed.
 typedef struct SbufFileCtx {
-    File* file;
+    File* file;   // a reference of this registration's own
     bool close;
 } SbufFileCtx;
 
 static void sbufFileCleanup(_Pre_valid_ void* ctx)
 {
     SbufFileCtx* sbc = (SbufFileCtx*)ctx;
+
+    // Both references go back here when the registration asked to own the file: fsClose() closes
+    // the handle and returns the one the caller handed over, and the objRelease() below returns
+    // this registration's. Without `close` only the second of those exists; the caller still has
+    // its own handle and decides when the file is closed.
     if (sbc->close)
         fsClose(sbc->file);
+    objRelease(&sbc->file);
+
     xaFree(sbc);
 }
 
@@ -79,7 +91,7 @@ _Use_decl_annotations_
 bool _sbufFilePRegisterPull(StreamBuffer* sb, File* file, bool close)
 {
     SbufFileCtx* sbc = xaAlloc(sizeof(SbufFileCtx));
-    sbc->file        = file;
+    sbc->file        = objAcquire(file);
     sbc->close       = close;
 
     if (!sbufPRegisterPull(sb, sbufFilePullCB, sbufFileCleanup, sbc)) {
@@ -145,7 +157,7 @@ _Use_decl_annotations_
 bool _sbufFileCRegisterPush(StreamBuffer* sb, File* file, bool close)
 {
     SbufFileCtx* sbc = xaAlloc(sizeof(SbufFileCtx));
-    sbc->file        = file;
+    sbc->file        = objAcquire(file);
     sbc->close       = close;
 
     if (!sbufCRegisterPush(sb, sbufFileNotifyCB, sbufFileCleanup, sbc)) {
