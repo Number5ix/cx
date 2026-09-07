@@ -264,6 +264,7 @@ static const testspec tests[] = {
     { "streambuffer: Consumer Handoff", "sbtest", "chandoff" },
     { "streambuffer: Consumer Swap", "sbtest", "cswap" },
     { "streambuffer: Error Recovery", "sbtest", "error" },
+    { "streambuffer: Error From Send Callback", "sbtest", "senderror" },
     { "streambuffer: End With Pull Producer", "sbtest", "endpull" },
     { "streambuffer: Synchronous Flush", "sbtest", "flush" },
     { "streambuffer: Close Detaches", "sbtest", "closedetach" },

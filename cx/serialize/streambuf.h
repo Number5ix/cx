@@ -137,7 +137,8 @@ typedef void (*sbufPushCB)(_Pre_valid_ StreamBuffer* sb, _In_reads_bytes_(sz) co
 // returns false the buffer keeps all of them, like the peek functions. A callback that can
 // accept some of the data but not the rest should therefore return false every time and
 // have the caller sbufCSkip() exactly what it took.
-// This callback MUST NOT call any sbuf function on the buffer it was passed.
+// This callback MUST NOT call any sbuf function on the buffer it was passed, with the single
+// exception of sbufError(), which a sink that failed partway through uses to report the failure.
 typedef bool (*sbufSendCB)(_Pre_valid_ StreamBuffer* sb, _In_reads_bytes_(sz) const uint8* buf,
                            size_t off, size_t sz, _Pre_opt_valid_ void* ctx);
 
@@ -319,6 +320,9 @@ _At_(*sb, _Pre_maybenull_ _Post_null_) void sbufFinish(_Inout_ StreamBuffer** sb
 /// Reads and writes fail while the error stands, so the driving side finds out on its next call.
 /// The stream is not over: the driving side may end it, or unregister whoever failed, call
 /// sbufClearError() and attach a replacement.
+///
+/// This is the one function a send callback given to sbufCSend() may call on the buffer it was
+/// passed.
 ///
 /// @param sb The stream buffer
 void sbufError(_Inout_ StreamBuffer* sb);
