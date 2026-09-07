@@ -132,8 +132,7 @@ _Check_return_ bool sbufBufCRegisterPush(_Inout_ StreamBuffer* sb, _Inout_ Buffe
 ///   Buffer out = 0;
 ///   StreamBuffer *sb = sbufBufCreatePush(&out);
 ///   sbufPWrite(sb, data, size);
-///   sbufClose(sb);
-///   sbufRelease(&sb);
+///   sbufFinish(&sb);
 ///   bufDestroy(&out);
 /// @endcode
 _Check_return_ _Ret_opt_valid_ StreamBuffer* sbufBufCreatePush(_Inout_ Buffer* bufout);

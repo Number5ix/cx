@@ -190,8 +190,8 @@ static void wireEncCloseSegment(_Inout_ LogWireEncoder* enc)
     if (enc->w)
         serWriterDestroy(&enc->w);   // releases the writer's reference to the stream
     if (enc->sb) {
-        sbufClose(enc->sb);        // lets the accumulating consumer go
-        sbufRelease(&enc->sb);   // ...and this is the encoder's own
+        // lets the accumulating consumer go, and gives back the encoder's own reference
+        sbufFinish(&enc->sb);
     }
 
     bufClear(enc->accum);
@@ -765,8 +765,8 @@ static void wireDecCloseSegment(_Inout_ LogWireDecoder* dec)
     if (dec->r)
         serReaderDestroy(&dec->r);   // releases the reader's reference to the stream
     if (dec->sb) {
-        sbufClose(dec->sb);        // lets the pull producer registered below go
-        sbufRelease(&dec->sb);   // ...and this the decoder's own
+        // lets the pull producer registered below go, and gives back the decoder's own reference
+        sbufFinish(&dec->sb);
     }
 
     wireDeclFree(&dec->chans, &dec->nchans);

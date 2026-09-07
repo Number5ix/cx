@@ -39,8 +39,7 @@
 ///   }
 ///   strDestroy(&line);
 ///   lparseDestroy(&lp);
-///   sbufClose(sb);
-///   sbufRelease(&sb);
+///   sbufFinish(&sb);
 /// @endcode
 ///
 /// Example (push mode):

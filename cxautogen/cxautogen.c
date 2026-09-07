@@ -79,8 +79,7 @@ static bool writeDepfile(string depfile, string target, string input)
     strDestroy(&esc);
 
     // ending the stream is what flushes the tail and closes the file
-    sbufClose(bf);
-    sbufRelease(&bf);
+    sbufFinish(&bf);
     return true;
 }
 

@@ -318,10 +318,10 @@ void sbufRelease(StreamBuffer** sb)
         bool destroy = sbufDerefLocked(b);
 
         // A stream that still has registrations but no other holder has nobody left who could
-        // unregister them, so the buffer can never be freed. Ending or failing the stream first is
-        // what tells the registered side to let go.
+        // unregister them, so the buffer can never be freed. Closing detaches whatever is still
+        // registered; failing the stream leaves that to the driving side.
         devAssertMsg(destroy || b->refcount > sbufRegCountLocked(b) ||
-                         (sbufFlags(b) & (SBUF_Closed | SBUF_Error)),
+                         (sbufFlags(b) & SBUF_Error),
                      "Stream buffer abandoned with a registration still attached");
 
         sbufUnlock(b);
@@ -338,6 +338,9 @@ void sbufRelease(StreamBuffer** sb)
 _Use_decl_annotations_
 void sbufClose(StreamBuffer* sb)
 {
+    if (!sb)
+        return;
+
     sbufLock(sb);
 
     if (!sbufIsClosed(sb)) {
@@ -347,8 +350,7 @@ void sbufClose(StreamBuffer* sb)
         sbufWakeProducerLocked(sb);
 
         // Give the registered side its last callback. A notify consumer sees whatever is still
-        // buffered first, then the sz == 0 that says nothing more is coming. Both sides are
-        // expected to unregister themselves when they see the stream has ended.
+        // buffered first, then the sz == 0 that says nothing more is coming.
         if (sb->consumerNotify) {
             size_t left = sbufCAvailLocked(sb);
             if (left > 0)
@@ -363,9 +365,32 @@ void sbufClose(StreamBuffer* sb)
 
         if (sb->producerPull)
             sb->producerPull(sb, NULL, 0, sb->producerCtx);
+
+        // Nothing can reach a registered side again once the stream is over: writes are refused
+        // and a pull read stops at sbufCMore(), so a slot the final callback left filled would
+        // never hear from the buffer again while its reference kept the buffer alive forever.
+        // Whatever is still attached is therefore detached here. These do nothing for the usual
+        // case where the callback above already unregistered.
+        sbufCUnregister(sb);
+        sbufPUnregister(sb);
+
+        // The registration references just given back cannot be the ones keeping the buffer
+        // alive, because this call is still using it.
+        devAssertMsg(!sb->destroyPending,
+                     "Stream buffer closed by a caller that holds no reference to it");
     }
 
     sbufUnlockAndPay(sb);
+}
+
+_Use_decl_annotations_
+void sbufFinish(StreamBuffer** sb)
+{
+    if (!*sb)
+        return;
+
+    sbufClose(*sb);
+    sbufRelease(sb);
 }
 
 _Use_decl_annotations_

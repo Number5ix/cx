@@ -196,8 +196,7 @@
 /// serWrite(w, Config, *cfg);
 /// serWriterFinish(w);
 /// serWriterDestroy(&w);
-/// sbufClose(sb);
-/// sbufRelease(&sb);
+/// sbufFinish(&sb);
 ///
 /// Config *cfg2 = structCreate(Config);
 /// sb = sbufCreate(4096);
@@ -205,8 +204,7 @@
 /// SerReader *r = serJsonReaderCreate(sb, 0);
 /// serRead(r, Config, cfg2);
 /// serReaderDestroy(&r);
-/// sbufClose(sb);
-/// sbufRelease(&sb);
+/// sbufFinish(&sb);
 ///
 /// structDestroy(&cfg);
 /// structDestroy(&cfg2);

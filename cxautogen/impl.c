@@ -1629,8 +1629,7 @@ bool writeImpl(string fname, string srcpath, string binpath, bool mixinimpl)
         incf = fsOpen(incname, FS_Overwrite);
         if (!incf) {
             fprintf(stderr, "Failed to open %s for writing", lazyPlatformPath(incname));
-            sbufClose(nbf);
-            sbufRelease(&nbf);
+            sbufFinish(&nbf);
             return false;
         }
         ibf = sbufCreate(1024);
@@ -1800,8 +1799,7 @@ bool writeImpl(string fname, string srcpath, string binpath, bool mixinimpl)
                     if (!ssbf)
                         return false;
                     writeMethodProto(ssbf, mp.c, mp.m, nmatches == 3, mixinimpl, false);
-                    sbufClose(ssbf);
-                    sbufRelease(&ssbf);
+                    sbufFinish(&ssbf);
 
                     if (strEqNoWS(olddecl, newdecl)) {
                         sbufPWriteLine(nbf, olddecl);
@@ -1918,9 +1916,7 @@ nextloop:
             sbufPWriteLine(nbf, clangOn);
             sbufPWriteLine(nbf, autogenEndShort);
         } else {
-            sbufClose(ibf);
-            sbufRelease(&ibf);
-            ibf = NULL;
+            sbufFinish(&ibf);
             fsDelete(incname);
         }
     } else {
@@ -1936,15 +1932,10 @@ nextloop:
 
     if (obf) {
         lparseDestroy(&olp);
-        sbufClose(obf);
-        sbufRelease(&obf);
+        sbufFinish(&obf);
     }
-    if (ibf) {
-        sbufClose(ibf);
-        sbufRelease(&ibf);
-    }
-    sbufClose(nbf);
-    sbufRelease(&nbf);
+    sbufFinish(&ibf);
+    sbufFinish(&nbf);
 
     fsDelete(cname);
     fsRename(newcname, cname);

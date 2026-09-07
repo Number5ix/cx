@@ -53,8 +53,7 @@ void _httpReqReleaseSink(HttpRequest* self)
     self->respSink = NULL;
 
     // cxhttp is the producer here, so it is the side that ends the stream.
-    sbufClose(sb);
-    sbufRelease(&sb);
+    sbufFinish(&sb);
 }
 
 _objfactory_check HttpRequest* HttpRequest_create(HttpMethod method, _In_opt_ strref url)

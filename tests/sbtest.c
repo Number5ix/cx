@@ -985,6 +985,83 @@ static int test_streambuf_flush()
     return ret;
 }
 
+// Callbacks that ignore the sz == 0 signal, to check that closing detaches them anyway.
+typedef struct StuckCtx {
+    bool sawend;
+    bool didclean;
+} StuckCtx;
+
+static size_t stuckPull(StreamBuffer *sb, uint8 *buf, size_t sz, void *ctx)
+{
+    StuckCtx *sc = (StuckCtx *)ctx;
+
+    if (sz == 0) {
+        sc->sawend = true;
+        return 0;   // deliberately does not unregister
+    }
+
+    memset(buf, 'x', sz);
+    return sz;
+}
+
+static void stuckNotify(StreamBuffer *sb, size_t sz, void *ctx)
+{
+    StuckCtx *sc = (StuckCtx *)ctx;
+
+    if (sz == 0)
+        sc->sawend = true;   // deliberately does not unregister
+}
+
+static void stuckClean(void *ctx)
+{
+    ((StuckCtx *)ctx)->didclean = true;
+}
+
+// A registration that outlives the stream can never be called again and would keep the buffer
+// alive forever, so sbufClose() detaches whatever the final callback left behind.
+static int test_streambuf_closedetach()
+{
+    int ret = 0;
+
+    // NULL is a no-op rather than a crash, so error paths do not have to test first
+    sbufClose(NULL);
+    StreamBuffer *nothing = NULL;
+    sbufFinish(&nothing);
+
+    // push mode: a consumer that ignores the end of the stream
+    StuckCtx cs = { 0 };
+    StreamBuffer *sb = sbufCreate(32);
+    if (!sbufCRegisterPush(sb, stuckNotify, stuckClean, &cs))
+        TEST_FAIL(1, _SL("sbufCRegisterPush failed"), stvNone);
+
+    sbufClose(sb);
+    if (!cs.sawend)
+        TEST_FAILV(ret, 1, _SL("consumer never got the end-of-stream callback"), stvNone);
+    if (sbufCAttached(sb))
+        TEST_FAILV(ret, 1, _SL("consumer still attached after sbufClose"), stvNone);
+    if (!cs.didclean)
+        TEST_FAILV(ret, 1, _SL("consumer cleanup did not run"), stvNone);
+
+    // closing again is idempotent, and sbufFinish drops the last reference
+    sbufFinish(&sb);
+    if (sb)
+        TEST_FAILV(ret, 1, _SL("sbufFinish did not NULL the handle"), stvNone);
+
+    // pull mode: a producer that ignores the end of the stream
+    StuckCtx ps = { 0 };
+    sb = sbufCreate(32);
+    if (!sbufPRegisterPull(sb, stuckPull, stuckClean, &ps))
+        TEST_FAILV(ret, 1, _SL("sbufPRegisterPull failed"), stvNone);
+
+    sbufFinish(&sb);
+    if (!ps.sawend)
+        TEST_FAILV(ret, 1, _SL("producer never got the end-of-stream callback"), stvNone);
+    if (!ps.didclean)
+        TEST_FAILV(ret, 1, _SL("producer cleanup did not run"), stvNone);
+
+    return ret;
+}
+
 // One stream buffer, two JSON documents, with the application's own framing bytes in between --
 // the case a stream that ended with its first document could not do.
 static int test_streambuf_reuse()
@@ -1193,8 +1270,8 @@ int test_streambuf_grp_handoff(void)
 
 int test_streambuf_grp_lifecycle(void)
 {
-    TEST_CHAIN(test_streambuf_error, test_streambuf_flush, test_streambuf_reuse,
-               test_streambuf_threaded);
+    TEST_CHAIN(test_streambuf_error, test_streambuf_flush, test_streambuf_closedetach,
+               test_streambuf_reuse, test_streambuf_threaded);
 }
 
 testfunc sbtest_funcs[] = {
@@ -1211,6 +1288,7 @@ testfunc sbtest_funcs[] = {
     { "error", test_streambuf_error },
     { "endpull", test_streambuf_endpull },
     { "flush", test_streambuf_flush },
+    { "closedetach", test_streambuf_closedetach },
     { "reuse", test_streambuf_reuse },
     { "threaded", test_streambuf_threaded },
     { "grp_pushpull", test_streambuf_grp_pushpull },

@@ -28,8 +28,7 @@
 ///   sbufCRegisterPush(sb, myNotifyCallback, NULL, ctx);   // consumer is called back
 ///
 ///   sbufPWrite(sb, data, size);                           // producer drives
-///   sbufClose(sb);
-///   sbufRelease(&sb);
+///   sbufFinish(&sb);                                      // close and release
 /// @endcode
 ///
 /// **Pull mode:**
@@ -41,8 +40,7 @@
 ///   while (sbufCRead(sb, buffer, sizeof(buffer), &bytesread)) {   // consumer drives
 ///       // process buffer
 ///   }
-///   sbufClose(sb);
-///   sbufRelease(&sb);
+///   sbufFinish(&sb);                                      // close and release
 /// @endcode
 ///
 /// **Lifetime:** stream buffers are reference counted. sbufCreate() returns one reference,
@@ -55,7 +53,11 @@
 /// in push mode, the consumer in pull mode. That says something about the stream rather than about
 /// either party, so there is only one such call and only the driving side makes it. Writes stop
 /// working, a consumer may still drain whatever is already buffered, and the registered side gets
-/// one last callback with sz == 0 so it can unregister itself.
+/// one last callback with sz == 0. Anything still registered after that callback is detached,
+/// since nothing can call it again.
+///
+/// Closing does not release your own reference. sbufFinish() does both, and is what the driving
+/// side normally calls when it is finished with the buffer.
 ///
 /// **Leaving a role:** a registered party that is simply done calls sbufPUnregister() or
 /// sbufCUnregister() instead. That empties the slot without ending the stream, so a replacement can
@@ -115,7 +117,7 @@ typedef struct StreamBuffer StreamBuffer;
 //
 // A producer that has run out of data calls sbufPUnregister(), which leaves the stream open for
 // another producer. If sz is 0 this is a status check rather than a request for data: the stream
-// has closed or failed, and a producer that sees sbufIsClosed() must unregister itself.
+// has closed or failed. A closed stream detaches the producer on its own once this returns.
 typedef size_t (*sbufPullCB)(_Pre_valid_ StreamBuffer* sb, _Out_writes_bytes_(sz) uint8* buf,
                              size_t sz, _Pre_opt_valid_ void* ctx);
 
@@ -144,7 +146,7 @@ typedef bool (*sbufSendCB)(_Pre_valid_ StreamBuffer* sb, _In_reads_bytes_(sz) co
 // used to read all or part of the available data.
 // A consumer that no longer wants the stream calls sbufCUnregister(), which leaves the stream open
 // for another consumer. If sz is 0 this is a status check rather than an offer of data: the stream
-// has closed or failed, and a consumer that sees sbufIsClosed() must unregister itself.
+// has closed or failed. A closed stream detaches the consumer on its own once this returns.
 typedef void (*sbufNotifyCB)(_Pre_valid_ StreamBuffer* sb, size_t sz, _Pre_opt_valid_ void* ctx);
 
 // Resume callback
@@ -285,12 +287,30 @@ _At_(*sb, _Pre_maybenull_ _Post_null_) void sbufRelease(_Inout_ StreamBuffer** s
 ///
 /// Called by whichever side is driving: the producer in push mode, the consumer in pull mode. No
 /// more data will be written, but a consumer may still drain what is already buffered. The
-/// registered side gets one final callback with sz == 0 and is expected to unregister itself.
+/// registered side gets one final callback with sz == 0, and anything still registered once that
+/// callback returns is detached, as if it had called sbufPUnregister() or sbufCUnregister()
+/// itself.
 ///
-/// This does not release any references. Both sides still have to release theirs.
+/// This does not release your own reference. Use sbufFinish() to close and release in one step.
 ///
-/// @param sb The stream buffer
-void sbufClose(_Inout_ StreamBuffer* sb);
+/// @param sb The stream buffer (NULL does nothing)
+void sbufClose(_Inout_opt_ StreamBuffer* sb);
+
+/// Closes the stream and releases your reference to it.
+///
+/// The usual way to be finished with a buffer, and the same thing as sbufClose() followed by
+/// sbufRelease(). Sets the pointer to NULL. Does nothing if it is already NULL.
+///
+/// Only the driving side closes a stream, so a registered party that is merely done with its role
+/// calls sbufPUnregister() or sbufCUnregister() instead.
+///
+/// @param sb Pointer to stream buffer pointer
+///
+/// Example:
+/// @code
+///   sbufFinish(&sb);
+/// @endcode
+_At_(*sb, _Pre_maybenull_ _Post_null_) void sbufFinish(_Inout_ StreamBuffer** sb);
 
 /// void sbufError(StreamBuffer *sb)
 ///

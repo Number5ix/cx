@@ -75,8 +75,7 @@ CX_C_BEGIN
 ///           printf("String: %s\n", strC(ev.edata.strData));
 ///   }
 ///   jsonParseDestroy(&state);
-///   sbufClose(sb);
-///   sbufRelease(&sb);
+///   sbufFinish(&sb);
 /// @endcode
 
 saDeclareType(JSONParseEvent, JSONParseEvent);

@@ -139,8 +139,7 @@ _Check_return_ bool sbufStrCRegisterPush(_Inout_ StreamBuffer* sb, _Inout_ strin
 ///   string output = 0;
 ///   StreamBuffer *sb = sbufStrCreatePush(&output, 4096);
 ///   sbufPWrite(sb, data, size);
-///   sbufClose(sb);
-///   sbufRelease(&sb);
+///   sbufFinish(&sb);
 ///   // output now contains the data
 ///   strDestroy(&output);
 /// @endcode
