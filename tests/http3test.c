@@ -1529,7 +1529,9 @@ STR_CONST(kH3Hello, "hello from http/3");
 
 // The body a large-transfer test sends and checks, generated rather than stored so that a
 // mismatch shows up as a position rather than as a diff.
-static uint8 h3tPatternByte(size_t off)
+// The offset is a position in a stream, which outgrows size_t on a 32-bit build. Only the low
+// eight bits of the result are kept, and those are the same however wide the arithmetic is.
+static uint8 h3tPatternByte(uint64 off)
 {
     return (uint8)(off * 31u + (off >> 8));
 }
