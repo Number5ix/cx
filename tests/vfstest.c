@@ -1204,6 +1204,42 @@ out:
     return ret;
 }
 
+// Each group below runs several of the subtests above in one process, so ctest spends one
+// process launch per feature area instead of one per subtest. The individual subtests stay
+// registered under their own names too, for running or debugging one in isolation.
+
+int test_vfs_grp_fileops(void)
+{
+    TEST_CHAIN(test_vfs_basic, test_vfs_write, test_vfs_dirops, test_vfs_copy, test_vfs_fileio,
+               test_vfs_rename);
+}
+
+int test_vfs_grp_mounting(void)
+{
+    TEST_CHAIN(test_vfs_layer, test_vfs_opaque, test_vfs_readonly, test_vfs_mount,
+               test_vfs_mountents, test_vfs_loopback, test_vfs_nocache);
+}
+
+int test_vfs_grp_pathresolve(void)
+{
+    TEST_CHAIN(test_vfs_search, test_vfs_curdir, test_vfs_caseinsens, test_vfs_casemix);
+}
+
+int test_vfs_grp_caching(void)
+{
+    TEST_CHAIN(test_vfs_invalidate, test_vfs_evict);
+}
+
+int test_vfs_grp_cow(void)
+{
+    TEST_CHAIN(test_vfs_cow, test_vfs_cowfail, test_vfs_newfiles);
+}
+
+int test_vfs_grp_misc(void)
+{
+    TEST_CHAIN(test_vfs_errors, test_vfs_concurrency, test_vfs_fsprov);
+}
+
 testfunc vfstest_funcs[] = {
     { "basic",    test_vfs_basic    },
     { "write",    test_vfs_write    },
@@ -1230,5 +1266,11 @@ testfunc vfstest_funcs[] = {
     { "nocache",      test_vfs_nocache      },
     { "concurrency",  test_vfs_concurrency  },
     { "fsprov",   test_vfs_fsprov   },
+    { "grp_fileops",    test_vfs_grp_fileops    },
+    { "grp_mounting",   test_vfs_grp_mounting   },
+    { "grp_pathresolve", test_vfs_grp_pathresolve },
+    { "grp_caching",    test_vfs_grp_caching    },
+    { "grp_cow",        test_vfs_grp_cow        },
+    { "grp_misc",       test_vfs_grp_misc       },
     { 0,          0                 }
 };

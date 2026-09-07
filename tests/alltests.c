@@ -797,9 +797,13 @@ int alltests(int argc, const char *argv[])
 {
     const testspec *s;
     int ntests = 0;
+    int maxdescrlen = 0;
 
     for (s = &tests[0]; s->descr; s++) {
         ntests++;
+        int len = (int)strlen(s->descr);
+        if (len > maxdescrlen)
+            maxdescrlen = len;
     }
 
     if (ntests == 0) {
@@ -826,7 +830,7 @@ int alltests(int argc, const char *argv[])
     {
         int64 tstart = clockTimer();
         printf("%4d/%d: %s ", i + 1, ntests, tests[i].descr);
-        int ndots = 40 - (int)strlen(tests[i].descr);
+        int ndots = maxdescrlen - (int)strlen(tests[i].descr);
         for (int j = 0; j < ndots; j++)
             putchar('.');
         fflush(stdout);
