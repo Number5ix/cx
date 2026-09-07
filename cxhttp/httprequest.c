@@ -309,10 +309,11 @@ bool HttpRequest_setSink(_In_ HttpRequest* self, _In_ StreamBuffer* sb)
 
 bool HttpRequest_cancel(_In_ HttpRequest* self)
 {
-    HttpConn* conn     = NULL;
-    NetSocket* dialing = NULL;
-    bool h3            = false;
-    bool claimed       = false;
+    HttpConn* conn      = NULL;
+    NetSocket* dialing  = NULL;
+    NetSocket* dialing2 = NULL;
+    bool h3             = false;
+    bool claimed        = false;
 
     // The binding and the flag are read and written together, because they are one decision. A
     // recycler that pooled this connection between "read conn" and "set cancelled" would leave us
@@ -326,14 +327,19 @@ bool HttpRequest_cancel(_In_ HttpRequest* self)
             claimed         = true;
             self->cancelled = true;
 
-            if (self->conn)
+            if (self->conn) {
                 conn = objAcquire(self->conn);
-            else if (self->h3conn)
+            } else if (self->h3conn) {
                 h3 = true;
-            else if (self->dialSock)
-                dialing = objAcquire(self->dialSock);
-            else if (self->dialQuic)
-                dialing = objAcquire(self->dialQuic);
+            } else {
+                // Both, when both are in flight: under HTTPV_Any a cancel that closed only one of
+                // the racers would leave the request waiting out the other one's dial before it
+                // could report anything.
+                if (self->dialSock)
+                    dialing = objAcquire(self->dialSock);
+                if (self->dialQuic)
+                    dialing2 = objAcquire(self->dialQuic);
+            }
         }
     }
 
@@ -346,11 +352,17 @@ bool HttpRequest_cancel(_In_ HttpRequest* self)
         // Over HTTP/3 a cancel costs this request's stream and nothing else on the connection,
         // which goes on carrying whatever else is running there.
         _http3ReqCancel(self);
-    } else if (dialing) {
-        // No connection yet, so there is nothing to tell -- closing the half-open socket is the
+    } else {
+        // No connection yet, so there is nothing to tell -- closing the half-open sockets is the
         // whole of it, and the dial handlers turn the resulting teardown into the terminal event.
-        netsocketClose(dialing);
-        objRelease(&dialing);
+        if (dialing) {
+            netsocketClose(dialing);
+            objRelease(&dialing);
+        }
+        if (dialing2) {
+            netsocketClose(dialing2);
+            objRelease(&dialing2);
+        }
     }
 
     // Claimed with neither in hand means the exchange is momentarily between transports, which a

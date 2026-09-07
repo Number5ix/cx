@@ -556,5 +556,9 @@ if(CX_HTTP3)
         add_test(NAME "\"http3: Server Stream Control\"" COMMAND test_runner http3test grp_serverstream)
         add_test(NAME "\"http3: Client Requests\"" COMMAND test_runner http3test grp_client)
         add_test(NAME "\"http3: Dialing And Version Negotiation\"" COMMAND test_runner http3test grp_dial)
+
+        # Left ungrouped on purpose: it runs four application threads through one shared client for
+        # several seconds, so its time and its failures are worth seeing on their own.
+        add_test(NAME "\"http3: Shared Client On A Task Queue\"" COMMAND test_runner http3test tqparallel)
     endif()
 endif()

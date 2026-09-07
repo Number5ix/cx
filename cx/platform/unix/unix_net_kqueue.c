@@ -74,8 +74,11 @@ static void armInterest(_Inout_ NetQueueKqueue* self, _Inout_ NetSocket* sock, b
         EV_SET(&chg[1], fd, EVFILT_WRITE, write ? EV_ADD : EV_DELETE, 0, 0, sock);
         kevent(self->kq, chg, 2, NULL, 0, NULL);
 
-        if (!exists)
-            htInsert(&self->fdmap, uint64, (uint64)fd, object, sock);
+        // Rewritten rather than only added, because fd numbers are recycled: a closed fd leaves the
+        // kqueue on its own but its map entry outlives it by however long the owner takes to notice,
+        // and the kernel can hand the same number to a new socket in between. Keeping the old entry
+        // would send this socket's readiness to whatever object held the number before it.
+        htInsert(&self->fdmap, uint64, (uint64)fd, object, sock);
     }
 }
 
@@ -369,18 +372,21 @@ NetSocket* NetQueueKqueue_socket(_In_ NetQueueKqueue* self, NetSocketType type)
 
 bool NetQueueKqueue_connectBegin(_In_ NetQueueKqueue* self, NetSocket* sock, const NetAddr* addr)
 {
-    NetSockHandle oldH = sock->handle;
-    bool ret           = netsocket_readinessConnect(sock, self, addr);
-    NetSockHandle newH = sock->handle;
-
-    // netPlatformResetSocket() (inside the helper above) gives the socket a fresh fd per attempt and
+    // netPlatformResetSocket() (inside the helper below) gives the socket a fresh fd per attempt and
     // closes the old one. The kernel drops a closed fd from kqueue's interest list on its own, so
-    // there is nothing to kevent() DELETE, but the stale fdmap entry would otherwise pin a strong
-    // reference to this socket under a handle number that will never fire again.
-    if (oldH != newH && oldH != NET_INVALID_HANDLE) {
+    // there is nothing to kevent() DELETE -- but the map entry has to go *before* the close, not
+    // after it. A closed fd number is handed straight back out, and an accept on another thread
+    // taking that number would find this socket's entry still under it, so readiness for the new
+    // socket would be delivered to this one -- and the tidy-up afterwards would then remove the
+    // entry the new socket had just made, leaving it never read from again.
+    NetSockHandle oldH = sock->handle;
+    if (oldH != NET_INVALID_HANDLE) {
         withMutex (&self->fdmapLock)
             htRemove(&self->fdmap, uint64, (uint64)oldH);
     }
+
+    bool ret           = netsocket_readinessConnect(sock, self, addr);
+    NetSockHandle newH = sock->handle;
 
     // Watch both filters for connect completion: FreeBSD kqueue does not reliably deliver a refused
     // connect through EVFILT_WRITE alone the way select()'s writable+SO_ERROR convention does, so

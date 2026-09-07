@@ -138,6 +138,14 @@ _Use_decl_annotations_
 NetSocket* nettlsConnect(NetQueue* q, strref host, uint16 port, strref hostname, TlsConfig* config,
                          const NetHandlers* handlers, void* ctx)
 {
+    return nettlsConnectPrep(q, host, port, hostname, config, handlers, ctx, NULL, NULL);
+}
+
+_Use_decl_annotations_
+NetSocket* nettlsConnectPrep(NetQueue* q, strref host, uint16 port, strref hostname,
+                             TlsConfig* config, const NetHandlers* handlers, void* ctx,
+                             NetConnectPrepCB prep, void* prepctx)
+{
     // The name to authenticate defaults to the name dialed, which is what it is almost always.
     TlsClientFilter* tls = tlsclientfilterCreate(config, strEmpty(hostname) ? host : hostname);
     if (!tls)
@@ -159,6 +167,11 @@ NetSocket* nettlsConnect(NetQueue* q, strref host, uint16 port, strref hostname,
         ok = netsocketAddFilter(sock, NetFilter(tls));
 
     objRelease(&tls);   // the socket holds its own reference now
+
+    // The last moment at which this socket is known to nobody but this call: it is finished, and
+    // the connect below is what makes it start raising events.
+    if (ok && prep)
+        prep(sock, prepctx);
 
     if (ok)
         ok = netsocketConnect(sock, host, port);

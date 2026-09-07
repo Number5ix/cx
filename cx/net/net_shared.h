@@ -687,4 +687,29 @@ typedef struct NetHandlers {
     NetEventCB timer;        ///< NET_Timer: a timer armed on the flow reached its deadline
 } NetHandlers;
 
+/// Called with a socket that is about to dial, before the connect starts
+///
+/// The socket is finished: it is on its queue, its handlers and filters are installed, and it has
+/// a flow to deliver on -- but nothing has been sent, so no event can have been raised for it yet.
+/// A caller that has to know the socket before its first event arrives learns it here rather than
+/// from the return value, which comes back too late for that: the connect may complete on another
+/// thread while the call that started it is still returning.
+///
+/// The reference belongs to the dial, so keep one (objAcquire) if the socket is stored anywhere.
+///
+/// @param sock Socket about to connect
+/// @param ctx  Context registered alongside the callback
+///
+/// Example:
+/// @code
+///   static void publishSock(NetSocket* sock, void* ctx)
+///   {
+///       MyDial* d = (MyDial*)ctx;
+///       withMutex (&d->lock) {
+///           d->sock = objAcquire(sock);
+///       }
+///   }
+/// @endcode
+typedef void (*NetConnectPrepCB)(_Inout_ NetSocket* sock, _In_opt_ void* ctx);
+
 /// @}  // end of net_handlers group

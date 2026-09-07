@@ -71,12 +71,21 @@ static void armInterest(_Inout_ NetQueueEpoll* self, _Inout_ NetSocket* sock, bo
         ev.events  = (read ? EPOLLIN : 0) | (write ? EPOLLOUT : 0);
         ev.data.fd = fd;
 
-        if (exists) {
-            epoll_ctl(self->epfd, EPOLL_CTL_MOD, fd, &ev);
-        } else {
-            if (epoll_ctl(self->epfd, EPOLL_CTL_ADD, fd, &ev) == 0)
-                htInsert(&self->fdmap, uint64, (uint64)fd, object, sock);
-        }
+        // ADD or MOD from what the map says, then the other one if the kernel disagrees. The two
+        // can disagree because fd numbers are recycled: a closed fd leaves epoll on its own but
+        // the map entry for that number outlives it by however long the owner takes to notice, and
+        // the kernel can hand the same number to a new socket in between. Trusting the map alone
+        // there would leave a socket unregistered (a MOD that answers ENOENT) and nothing would
+        // ever read from it. The entry is rewritten on every success for the same reason: whatever
+        // it named before, this socket owns the number now.
+        int rc = epoll_ctl(self->epfd, exists ? EPOLL_CTL_MOD : EPOLL_CTL_ADD, fd, &ev);
+        if (rc != 0 && (errno == ENOENT || errno == EEXIST))
+            rc = epoll_ctl(self->epfd, exists ? EPOLL_CTL_ADD : EPOLL_CTL_MOD, fd, &ev);
+
+        if (rc == 0)
+            htInsert(&self->fdmap, uint64, (uint64)fd, object, sock);
+        else if (exists)
+            htRemove(&self->fdmap, uint64, (uint64)fd);
     }
 }
 
@@ -397,18 +406,22 @@ NetSocket* NetQueueEpoll_socket(_In_ NetQueueEpoll* self, NetSocketType type)
 
 bool NetQueueEpoll_connectBegin(_In_ NetQueueEpoll* self, NetSocket* sock, const NetAddr* addr)
 {
-    NetSockHandle oldH = sock->handle;
-    bool ret           = netsocket_readinessConnect(sock, self, addr);
-    NetSockHandle newH = sock->handle;
-
-    // netPlatformResetSocket() (inside the helper above) gives the socket a fresh fd per attempt
+    // netPlatformResetSocket() (inside the helper below) gives the socket a fresh fd per attempt
     // and closes the old one. The kernel drops a closed fd from epoll's interest list on its own,
-    // so there is nothing to epoll_ctl DEL, but the stale fdmap entry would otherwise pin a strong
-    // reference to this socket under a handle number that will never fire again.
-    if (oldH != newH && oldH != NET_INVALID_HANDLE) {
+    // so there is nothing to epoll_ctl DEL -- but the map entry has to go *before* the close, not
+    // after it. A closed fd number is handed straight back out, and an accept on another thread
+    // taking that number would find this socket's entry still under it: the new socket would be
+    // registered against a stale entry and never watched, and the tidy-up afterwards would then
+    // remove the entry the new socket had just made. Either way that socket is never read from
+    // again.
+    NetSockHandle oldH = sock->handle;
+    if (oldH != NET_INVALID_HANDLE) {
         withMutex (&self->fdmapLock)
             htRemove(&self->fdmap, uint64, (uint64)oldH);
     }
+
+    bool ret           = netsocket_readinessConnect(sock, self, addr);
+    NetSockHandle newH = sock->handle;
 
     if (newH != NET_INVALID_HANDLE)
         armInterest(self, sock, false, true);   // watch the fresh handle for connect completion

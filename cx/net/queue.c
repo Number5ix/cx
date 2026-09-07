@@ -315,6 +315,11 @@ _Ret_maybenull_ NetSocket* NetQueue_connect(_In_ NetQueue* self, _In_opt_ strref
                                             _In_opt_ const NetHandlers* handlers,
                                             _In_opt_ void* ctx)
 {
+    return netqueueConnectPrep(self, host, port, handlers, ctx, NULL, NULL);
+}
+
+_Ret_maybenull_ NetSocket* NetQueue_connectPrep(_In_ NetQueue* self, _In_opt_ strref host, uint16 port, _In_opt_ const NetHandlers* handlers, _In_opt_ void* ctx, NetConnectPrepCB prep, _In_opt_ void* prepctx)
+{
     NetSocket* sock = netqueueSocket(self, NST_Stream);
     if (!sock)
         return NULL;
@@ -328,6 +333,11 @@ _Ret_maybenull_ NetSocket* NetQueue_connect(_In_ NetQueue* self, _In_opt_ strref
     // unregistered callback.
     if (handlers)
         netsocketSetHandlers(sock, handlers, ctx);
+
+    // The last moment at which this socket is known to nobody but this call: it is finished, and
+    // the connect below is what makes it start raising events.
+    if (prep)
+        prep(sock, prepctx);
 
     if (!netsocketConnect(sock, host, port)) {
         netsocketClose(sock);   // also removes it from the queue

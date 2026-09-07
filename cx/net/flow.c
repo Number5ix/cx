@@ -283,6 +283,19 @@ void NetFlow__snapshotFlows(_In_ NetSocket* sock, _Out_ sa_NetFlow* out)
         saPush(out, NetFlow, sock->flow);
 }
 
+_Use_decl_annotations_
+NetFlow* _netSocketFlowRef(NetSocket* sock)
+{
+    NetFlow* flow = NULL;
+
+    withReadLock (&sock->flowLock) {
+        if (sock->flow)
+            flow = objAcquire(sock->flow);
+    }
+
+    return flow;
+}
+
 void NetSocket__dropFlow(_In_ NetSocket* self, _Inout_ NetFlow* flow)
 {
     if (self->type == NST_Datagram) {
@@ -301,8 +314,18 @@ void NetSocket__dropFlow(_In_ NetSocket* self, _Inout_ NetFlow* flow)
             if (e && (NetFlow*)hteVal(self->flows, object, e) == flow)
                 htRemove(&self->flows, uint64, flow->key);
         }
-    } else if (self->flow == flow) {
-        objRelease(&self->flow);
+    } else {
+        // Under the same lock _netSocketFlowRef() reads it, so a send that has just resolved this
+        // flow either holds a reference of its own or found nothing -- never a pointer whose last
+        // reference is being dropped right here.
+        NetFlow* dead = NULL;
+        withWriteLock (&self->flowLock) {
+            if (self->flow == flow) {
+                dead       = self->flow;
+                self->flow = NULL;
+            }
+        }
+        objRelease(&dead);
     }
 
     NetQueue* q = objAcquireFromWeak(NetQueue, self->queue);
@@ -448,11 +471,11 @@ _Ret_maybenull_ NetFlow* NetQueue__findFlow(_In_ NetQueue* self, _Inout_ NetSock
                     flow = objAcquire(cur);
             }
         }
-    } else if (sock->flow) {
+    } else {
         // Stream and QUIC sockets both answer with their single control flow. A QUIC socket's
         // stream table is not searched here: nothing arriving from the network names a stream, so
         // a stream flow is only ever reached through cxquic's own frame demultiplexing.
-        flow = objAcquire(sock->flow);
+        flow = _netSocketFlowRef(sock);
     }
 
     if (flow) {

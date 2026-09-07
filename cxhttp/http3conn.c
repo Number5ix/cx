@@ -814,7 +814,7 @@ bool Http3Conn_request(_In_ Http3Conn* self, _In_ HttpRequest* req,
 
 _Use_decl_annotations_
 NetSocket* _http3Dial(NetQueue* q, strref host, uint16 port, strref hostname, TlsConfig* cfg,
-                      const NetHandlers* handlers, void* ctx)
+                      const NetHandlers* handlers, void* ctx, NetConnectPrepCB prep, void* prepctx)
 {
     // A client that does not offer h3 cannot be answered with it. One configuration carries both
     // protocols, which under HTTPV_Any means the TCP handshake offers h3 as well -- harmless,
@@ -824,7 +824,7 @@ NetSocket* _http3Dial(NetQueue* q, strref host, uint16 port, strref hostname, Tl
         return NULL;
 
     QuicConfig qcfg = { .tls = cfg };
-    return netquicConnect(q, host, port, hostname, &qcfg, handlers, ctx);
+    return netquicConnectPrep(q, host, port, hostname, &qcfg, handlers, ctx, prep, prepctx);
 }
 
 _Use_decl_annotations_

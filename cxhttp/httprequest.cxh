@@ -162,11 +162,22 @@ class HttpRequest
     // means "whatever the client says" rather than the policy of that name.
     flags_t versions;
 
-    // Both transports are being dialled at once, and neither has won yet. Read under exLock
-    // alongside the two sockets, because "which of these is still live" and "has one won" are one
-    // decision rather than two.
+    // Both transports are being dialled at once for this hop. Set before either dial starts, and
+    // cleared again only if the QUIC half could not be started at all -- so it says how the hop
+    // was started rather than whether the race is still open, and a winner does not clear it.
+    // Read under exLock alongside the two sockets, because "which of these is still live" and
+    // "has one won" are one decision rather than two.
     bool racing;
     bool raced;      // one of them has won; the other's socket is closed rather than used
+    bool racedQuic;  // which one that was, so the winner claiming again still wins
+
+    // Set while this hop is setting up a transport that has nothing in the field beside it yet:
+    // between deciding to dial and the socket existing, and (for HTTP/1.1) across the pool lookup
+    // and the write that may follow it. Everything that asks "is this request still waiting on a
+    // transport" counts these as well, or the other half finishing first looks like the last one
+    // out and fails a request that is still getting started.
+    bool dialSockPending;
+    bool dialQuicPending;
 
     // The peer's GOAWAY said this request's stream was never processed, so it has been started
     // again on a fresh connection. Once only: a server that keeps saying goodbye is not a server

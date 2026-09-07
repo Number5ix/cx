@@ -377,7 +377,10 @@ bool NetSocket_send(_In_ NetSocket* self, _In_ const uint8* data, size_t len,
     bool ret    = false;
 
     if (self->type == NST_Stream) {
-        NetFlow* flow = self->flow;
+        // A reference for the length of the send. The filter chain below is not quick -- it can
+        // encrypt a record and hand it to the wire -- and a close on another thread drops the
+        // socket's flow as soon as its terminal event is delivered.
+        NetFlow* flow = _netSocketFlowRef(self);
 
         if (flow && saSize(flow->filters) > 0) {
             // Filtered: the payload goes into the flow's staging ring and the chain decides what
@@ -389,6 +392,8 @@ bool NetSocket_send(_In_ NetSocket* self, _In_ const uint8* data, size_t len,
         } else {
             ret = sendStreamRaw(q, self, data, len, immediate);
         }
+
+        objRelease(&flow);
     } else if (dest) {
         NetFlow* flow = NULL;
         if (saSize(self->filters) > 0)

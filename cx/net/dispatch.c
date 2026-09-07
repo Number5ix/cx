@@ -579,6 +579,19 @@ bool NetQueue__dispatch(NetQueue* self)
 
     if (awaiting && !ctlFlow) {
         atomicStore(uint32, &flow->claimed, 0, Release);
+
+        // Re-check after releasing, the same as the ordinary path below and for the same reason.
+        // openAcceptGate() opens the gate and requeues this flow, but that push is dropped by
+        // whichever worker pops it while the claim above is still held -- a dropped entry is only
+        // safe because the claim holder looks again, and this is the half of the handoff that
+        // belongs to a worker which turned the flow away. Without it an accepted socket whose
+        // first record arrived before the accept was delivered keeps that record in its inbox for
+        // good: nothing else is coming to wake the flow, so the connection never gets past its
+        // opening bytes.
+        if (atomicLoad(uint32, &sock->awaitingAccept, Acquire) == 0 &&
+            atomicLoad(ptr, &flow->inbox, Acquire))
+            requeueFlow(self, flow);
+
         objRelease(&sock);
         objRelease(&flow);
         return true;
@@ -591,6 +604,18 @@ bool NetQueue__dispatch(NetQueue* self)
 
         if (terminated)
             break;
+
+        if (ctlFlow) {
+            // This batch ran gated and stopped at the first message the application has to see, so
+            // that message is still in the inbox and cannot run yet: re-claiming would spin on it,
+            // and with one worker it would spin instead of ever dispatching the listener flow that
+            // raises the accept. The accept brings this flow back -- unless it opened the gate
+            // while the claim above was held, in which case its push was dropped and this is what
+            // brings it back instead.
+            if (atomicLoad(uint32, &sock->awaitingAccept, Acquire) == 0)
+                requeueFlow(self, flow);
+            break;
+        }
 
         // Re-check after releasing, so a message that arrived exactly at the release point is
         // not stranded. Both sides of the handoff re-check after their store; this is the half
