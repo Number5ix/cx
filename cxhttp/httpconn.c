@@ -146,7 +146,12 @@ static void connDied(HttpConn* c, HttpError err, bool eof)
         eof = false;
     }
 
-    if (!c->failed && !c->responseDone) {
+    // A response event is about a request, so there has to be one to deliver it for. A connection
+    // that dies between requests -- a pooled one the peer closed, or one that accepted a request
+    // and then could not write it -- has nobody to tell, and reports through closedCB below
+    // instead. Without this the handlers left over from the last exchange are called with no
+    // request attached, which is not a state any of them can be written to survive.
+    if (c->req && !c->failed && !c->responseDone) {
         if (eof) {
             // A close is how a close-delimited response ends and how every other framing is
             // truncated. The parser knows which of those this is; asking it is the whole of the
@@ -556,12 +561,26 @@ static bool pumpBodyStream(HttpConn* self, HttpRequest* req)
     return true;
 }
 
+// Undo the binding made at the top of HttpConn_request(). A connection that took a request and
+// then could not write it must not be left with the exchange's handlers armed: the terminal path
+// reads them, and there is no longer a request for them to be about.
+static void unbindRequest(HttpConn* self)
+{
+    self->req        = NULL;
+    self->handlers   = NULL;
+    self->handlerCtx = NULL;
+}
+
 bool HttpConn_request(_In_ HttpConn* self, _In_ HttpRequest* req,
                       _In_opt_ const HttpHandlers* handlers, _In_opt_ void* ctx)
 {
     // One at a time. Pipelining is deliberately not supported, which also means the response parser
     // never has to associate a response with anything but "the request this connection is running".
-    if (!req || self->failed || self->req)
+    //
+    // `spent` is refused as firmly as `failed`, and it is the one that matters for a pooled
+    // connection: the peer can close it between the pool's idle check and this call, and the answer
+    // then has to be no rather than a request written into a socket that is already gone.
+    if (!req || self->failed || self->spent || self->req)
         return false;
 
     self->req          = req;
@@ -589,7 +608,7 @@ bool HttpConn_request(_In_ HttpConn* self, _In_ HttpRequest* req,
 
     // Before the head, because the head's framing is derived from the body that is actually armed.
     if (!_httpReqArmBody(req)) {
-        self->req = NULL;
+        unbindRequest(self);
         return false;
     }
 
@@ -606,7 +625,7 @@ bool HttpConn_request(_In_ HttpConn* self, _In_ HttpRequest* req,
     string head = 0;
     if (!buildHead(self, req, &head)) {
         strDestroy(&head);
-        self->req = NULL;
+        unbindRequest(self);
         return false;
     }
 
@@ -617,7 +636,7 @@ bool HttpConn_request(_In_ HttpConn* self, _In_ HttpRequest* req,
         // The head could not even be queued, which at this point means the socket is over its
         // watermark before we have sent anything. Nothing has been written, so failing outright is
         // honest -- there is no partial request on the wire to clean up.
-        self->req = NULL;
+        unbindRequest(self);
         return false;
     }
 
@@ -648,19 +667,27 @@ bool HttpConn_request(_In_ HttpConn* self, _In_ HttpRequest* req,
 
 void HttpConn__deliver(_In_ HttpConn* self, HttpEventType type, HttpError err)
 {
+    // Every event delivered here is about a request, so there has to be one. Callers check this
+    // too; it is repeated here, and the pointer read exactly once, because the request can also be
+    // unbound by another thread. A pooled connection is handed out from whichever thread wants it
+    // while this connection's own worker is free to be on its way into a terminal event, and a
+    // request that then fails to write clears the binding underneath us. Reading it once is what
+    // keeps a handler from being handed an event with no request on it.
+    HttpRequest* req = self->req;
+    if (!req)
+        return;
+
     HttpEvent ev = { 0 };
 
     ev.event   = type;
     ev.conn    = self;
-    ev.request = self->req;
+    ev.request = req;
     ev.ctx     = self->handlerCtx;
     ev.status  = self->parser->status;
     ev.version = self->parser->version;
     ev.headers = &self->parser->headers;
     ev.err     = err;
-
-    if (self->req)
-        ev.neterr = self->req->neterr;
+    ev.neterr  = req->neterr;
 
     HttpEventCB cb = NULL;
     if (self->handlers) {
@@ -690,35 +717,34 @@ void HttpConn__deliver(_In_ HttpConn* self, HttpEventType type, HttpError err)
     // The request is detached before a terminal event runs, so a handler is free to start the next
     // request on this connection from inside its own completion callback.
     if (type == HTTPEV_Complete || type == HTTPEV_Error) {
-        if (self->req) {
-            // Close out a response sink here rather than at each of the several places a message
-            // can end, so a caller waiting on a StreamBuffer is released on every one of them --
-            // including a timeout and a transport error, which do not go through the parser at all.
-            //
-            // A body being discarded for a redirect is the exception: the sink belongs to the
-            // exchange, not to this hop, and the next one still needs it.
-            if (self->req->respSink && !self->req->discardBody) {
-                if (type != HTTPEV_Complete)
-                    sbufError(self->req->respSink);
+        // Close out a response sink here rather than at each of the several places a message can
+        // end, so a caller waiting on a StreamBuffer is released on every one of them -- including
+        // a timeout and a transport error, which do not go through the parser at all.
+        //
+        // A body being discarded for a redirect is the exception: the sink belongs to the
+        // exchange, not to this hop, and the next one still needs it.
+        if (req->respSink && !req->discardBody) {
+            if (type != HTTPEV_Complete)
+                sbufError(req->respSink);
 
-                // sbufError() only marks the buffer, so it is never enough on its own: ending the
-                // stream is what tells the consumer nothing more is coming.
-                _httpReqReleaseSink(self->req);
-            }
-            // Whatever state the body write was in, this connection is not going to finish it.
-            self->req->bodyConn = NULL;
-
-            self->req->err = err;
-            httpHeadersClear(&self->req->respHeaders);
-            for (int32 i = 0; i < httpHeadersCount(&self->parser->headers); i++) {
-                httpHeadersAdd(&self->req->respHeaders,
-                               self->parser->headers.names.a[i],
-                               self->parser->headers.values.a[i]);
-            }
-            self->req->status  = self->parser->status;
-            self->req->version = self->parser->version;
-            strDup(&self->req->reason, self->parser->reason);
+            // sbufError() only marks the buffer, so it is never enough on its own: ending the
+            // stream is what tells the consumer nothing more is coming.
+            _httpReqReleaseSink(req);
         }
+        // Whatever state the body write was in, this connection is not going to finish it.
+        req->bodyConn = NULL;
+
+        req->err = err;
+        httpHeadersClear(&req->respHeaders);
+        for (int32 i = 0; i < httpHeadersCount(&self->parser->headers); i++) {
+            httpHeadersAdd(&req->respHeaders,
+                           self->parser->headers.names.a[i],
+                           self->parser->headers.values.a[i]);
+        }
+        req->status  = self->parser->status;
+        req->version = self->parser->version;
+        strDup(&req->reason, self->parser->reason);
+
         self->req = NULL;
     }
 
