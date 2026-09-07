@@ -1131,6 +1131,23 @@ out:
     return ret;
 }
 
+// Each group below runs several of the subtests above in one process, so ctest spends one
+// process launch per feature area instead of one per subtest. The individual subtests stay
+// registered under their own names too, for running or debugging one in isolation.
+
+int test_quictest_grp_wireformat(void)
+{
+    TEST_CHAIN(test_quictest_varint, test_quictest_pn, test_quictest_header,
+               test_quictest_header_malformed, test_quictest_frames, test_quictest_ack,
+               test_quictest_frames_malformed);
+}
+
+int test_quictest_grp_protection(void)
+{
+    TEST_CHAIN(test_quictest_initial_keys, test_quictest_hpmask, test_quictest_initial_client,
+               test_quictest_initial_server, test_quictest_chacha, test_quictest_retry);
+}
+
 testfunc quictest_funcs[] = {
     { "varint", test_quictest_varint },
     { "pn", test_quictest_pn },
@@ -1145,5 +1162,7 @@ testfunc quictest_funcs[] = {
     { "initial_server", test_quictest_initial_server },
     { "chacha", test_quictest_chacha },
     { "retry", test_quictest_retry },
+    { "grp_wireformat", test_quictest_grp_wireformat },
+    { "grp_protection", test_quictest_grp_protection },
     { NULL, NULL },
 };

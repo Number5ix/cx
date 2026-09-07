@@ -3277,6 +3277,51 @@ out:
     return ret;
 }
 
+// Each group below runs several of the subtests above in one process, so ctest spends one
+// process launch per feature area instead of one per subtest. The individual subtests stay
+// registered under their own names too, for running or debugging one in isolation.
+
+int test_http3test_grp_wire(void)
+{
+    TEST_CHAIN(test_http3test_wire, test_http3test_wirefuzz);
+}
+
+int test_http3test_grp_qpack(void)
+{
+    TEST_CHAIN(test_http3test_qpackhuff, test_http3test_qpackvec, test_http3test_qpackdynamic);
+}
+
+int test_http3test_grp_control(void)
+{
+    TEST_CHAIN(test_http3test_settings, test_http3test_goaway, test_http3test_badstream,
+               test_http3test_altsvc);
+}
+
+int test_http3test_grp_server(void)
+{
+    TEST_CHAIN(test_http3test_roundtrip, test_http3test_srvpost, test_http3test_concurrent,
+               test_http3test_bodies, test_http3test_forbidden, test_http3test_trailers,
+               test_http3test_interim);
+}
+
+int test_http3test_grp_serverstream(void)
+{
+    TEST_CHAIN(test_http3test_backpressure, test_http3test_reset, test_http3test_deferred,
+               test_http3test_threaded);
+}
+
+int test_http3test_grp_client(void)
+{
+    TEST_CHAIN(test_http3test_clientget, test_http3test_clientpool, test_http3test_clientbody,
+               test_http3test_cancel);
+}
+
+int test_http3test_grp_dial(void)
+{
+    TEST_CHAIN(test_http3test_race, test_http3test_racefail, test_http3test_coalesce,
+               test_http3test_goawayretry, test_http3test_altsvcseed);
+}
+
 testfunc http3test_funcs[] = {
     { "wire", test_http3test_wire },
     { "wirefuzz", test_http3test_wirefuzz },
@@ -3307,5 +3352,12 @@ testfunc http3test_funcs[] = {
     { "altsvc", test_http3test_altsvc },
     { "altsvcseed", test_http3test_altsvcseed },
     { "threaded", test_http3test_threaded },
+    { "grp_wire", test_http3test_grp_wire },
+    { "grp_qpack", test_http3test_grp_qpack },
+    { "grp_control", test_http3test_grp_control },
+    { "grp_server", test_http3test_grp_server },
+    { "grp_serverstream", test_http3test_grp_serverstream },
+    { "grp_client", test_http3test_grp_client },
+    { "grp_dial", test_http3test_grp_dial },
     { NULL, NULL },
 };

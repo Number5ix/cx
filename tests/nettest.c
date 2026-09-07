@@ -4759,6 +4759,125 @@ static int test_nettest_pktinfo(void)
     return ret;
 }
 
+// Each group below runs several of the subtests above in one process, so ctest spends one
+// process launch per feature area instead of one per subtest. The individual subtests stay
+// registered under their own names too, for running or debugging one in isolation.
+
+int test_nettest_grp_flowlife(void)
+{
+    TEST_CHAIN(test_nettest_flow_basic, test_nettest_flow_handlers, test_nettest_flow_close);
+}
+
+int test_nettest_grp_flowreclaim(void)
+{
+    TEST_CHAIN(test_nettest_flow_reclaim, test_nettest_flow_reclaim_idle,
+               test_nettest_flow_resurrect, test_nettest_flow_shutdown, test_nettest_flow_race);
+}
+
+int test_nettest_grp_flowquic(void)
+{
+    TEST_CHAIN(test_nettest_quic_route, test_nettest_quic_socket, test_nettest_quic_admitobj);
+}
+
+int test_nettest_grp_timer(void)
+{
+    TEST_CHAIN(test_nettest_timer_basic, test_nettest_timer_cancel, test_nettest_timer_rearm,
+               test_nettest_timer_repeat, test_nettest_timer_ordering,
+               test_nettest_timer_flowclose);
+}
+
+int test_nettest_grp_filterstream(void)
+{
+    TEST_CHAIN(test_nettest_filter_stream, test_nettest_filter_secured,
+               test_nettest_filter_chain, test_nettest_filter_teardown);
+}
+
+#if defined(_PLATFORM_WIN) || defined(_PLATFORM_UNIX) || defined(_PLATFORM_WASM)
+
+int test_nettest_grp_general(void)
+{
+    TEST_CHAIN(test_nettest_addr, test_nettest_helpers, test_nettest_pktinfo);
+}
+
+int test_nettest_grp_filterdgram(void)
+{
+    TEST_CHAIN(test_nettest_filter_dgram, test_nettest_filter_dgram_flows,
+               test_nettest_filter_dgram_poolref, test_nettest_filter_dgram_send);
+}
+
+int test_nettest_grp_select_loopback(void)
+{
+    TEST_CHAIN(test_nettest_select_udp, test_nettest_select_stream,
+               test_nettest_select_udp_threaded, test_nettest_select_stream_threaded,
+               test_nettest_select_stream_send, test_nettest_select_udp_send,
+               test_nettest_select_stream_backpressure);
+}
+
+int test_nettest_grp_select_connect(void)
+{
+    TEST_CHAIN(test_nettest_select_connect, test_nettest_select_connect_dns,
+               test_nettest_select_connect_refused, test_nettest_select_connect_timeout,
+               test_nettest_select_accept, test_nettest_select_accept_auto);
+}
+
+int test_nettest_grp_timerwait(void)
+{
+    TEST_CHAIN(test_nettest_timer_wait, test_nettest_timer_wake);
+}
+
+#if defined(_PLATFORM_WIN)
+
+int test_nettest_grp_iocp_loopback(void)
+{
+    TEST_CHAIN(test_nettest_iocp_udp, test_nettest_iocp_stream, test_nettest_iocp_udp_threaded,
+               test_nettest_iocp_stream_threaded, test_nettest_iocp_stream_send,
+               test_nettest_iocp_udp_send, test_nettest_iocp_stream_backpressure);
+}
+
+int test_nettest_grp_iocp_connect(void)
+{
+    TEST_CHAIN(test_nettest_iocp_connect, test_nettest_iocp_connect_dns,
+               test_nettest_iocp_connect_refused, test_nettest_iocp_connect_timeout,
+               test_nettest_iocp_accept, test_nettest_iocp_accept_auto);
+}
+
+#endif
+#if defined(_PLATFORM_LINUX)
+
+int test_nettest_grp_epoll_loopback(void)
+{
+    TEST_CHAIN(test_nettest_epoll_udp, test_nettest_epoll_stream,
+               test_nettest_epoll_stream_backpressure, test_nettest_epoll_udp_threaded,
+               test_nettest_epoll_stream_threaded);
+}
+
+int test_nettest_grp_epoll_connect(void)
+{
+    TEST_CHAIN(test_nettest_epoll_connect, test_nettest_epoll_connect_dns,
+               test_nettest_epoll_connect_refused, test_nettest_epoll_connect_timeout,
+               test_nettest_epoll_accept, test_nettest_epoll_accept_auto);
+}
+
+#endif
+#if defined(_PLATFORM_FBSD)
+
+int test_nettest_grp_kqueue_loopback(void)
+{
+    TEST_CHAIN(test_nettest_kqueue_udp, test_nettest_kqueue_stream,
+               test_nettest_kqueue_stream_backpressure, test_nettest_kqueue_udp_threaded,
+               test_nettest_kqueue_stream_threaded);
+}
+
+int test_nettest_grp_kqueue_connect(void)
+{
+    TEST_CHAIN(test_nettest_kqueue_connect, test_nettest_kqueue_connect_dns,
+               test_nettest_kqueue_connect_refused, test_nettest_kqueue_connect_timeout,
+               test_nettest_kqueue_accept, test_nettest_kqueue_accept_auto);
+}
+
+#endif
+#endif
+
 testfunc nettest_funcs[] = {
     { "addr",                       test_nettest_addr                       },
     { "flow_basic",                 test_nettest_flow_basic                 },
@@ -4786,6 +4905,11 @@ testfunc nettest_funcs[] = {
     { "filter_dgram_flows",         test_nettest_filter_dgram_flows         },
     { "filter_teardown",            test_nettest_filter_teardown            },
     { "filter_dgram_poolref",       test_nettest_filter_dgram_poolref       },
+    { "grp_flowlife",               test_nettest_grp_flowlife               },
+    { "grp_flowreclaim",            test_nettest_grp_flowreclaim            },
+    { "grp_flowquic",               test_nettest_grp_flowquic               },
+    { "grp_timer",                  test_nettest_grp_timer                  },
+    { "grp_filterstream",           test_nettest_grp_filterstream           },
 #if defined(_PLATFORM_WIN) || defined(_PLATFORM_UNIX) || defined(_PLATFORM_WASM)
     { "helpers",                    test_nettest_helpers                    },
     { "filter_dgram_send",          test_nettest_filter_dgram_send          },
@@ -4804,6 +4928,11 @@ testfunc nettest_funcs[] = {
     { "select_accept_auto",         test_nettest_select_accept_auto         },
     { "timer_wait",                 test_nettest_timer_wait                 },
     { "timer_wake",                 test_nettest_timer_wake                 },
+    { "grp_general",                test_nettest_grp_general                },
+    { "grp_filterdgram",            test_nettest_grp_filterdgram            },
+    { "grp_select_loopback",        test_nettest_grp_select_loopback        },
+    { "grp_select_connect",         test_nettest_grp_select_connect         },
+    { "grp_timerwait",              test_nettest_grp_timerwait              },
 #if defined(_PLATFORM_WIN)
     { "iocp_udp",                   test_nettest_iocp_udp                   },
     { "iocp_stream",                test_nettest_iocp_stream                },
@@ -4818,6 +4947,8 @@ testfunc nettest_funcs[] = {
     { "iocp_connect_timeout",       test_nettest_iocp_connect_timeout       },
     { "iocp_accept",                test_nettest_iocp_accept                },
     { "iocp_accept_auto",           test_nettest_iocp_accept_auto           },
+    { "grp_iocp_loopback",          test_nettest_grp_iocp_loopback          },
+    { "grp_iocp_connect",           test_nettest_grp_iocp_connect           },
 #endif
 #if defined(_PLATFORM_LINUX)
     { "epoll_udp",                  test_nettest_epoll_udp                  },
@@ -4831,6 +4962,8 @@ testfunc nettest_funcs[] = {
     { "epoll_connect_timeout",      test_nettest_epoll_connect_timeout      },
     { "epoll_accept",               test_nettest_epoll_accept               },
     { "epoll_accept_auto",          test_nettest_epoll_accept_auto          },
+    { "grp_epoll_loopback",         test_nettest_grp_epoll_loopback         },
+    { "grp_epoll_connect",          test_nettest_grp_epoll_connect          },
 #endif
 #if defined(_PLATFORM_FBSD)
     { "kqueue_udp",                 test_nettest_kqueue_udp                 },
@@ -4844,6 +4977,8 @@ testfunc nettest_funcs[] = {
     { "kqueue_connect_timeout",     test_nettest_kqueue_connect_timeout     },
     { "kqueue_accept",              test_nettest_kqueue_accept              },
     { "kqueue_accept_auto",         test_nettest_kqueue_accept_auto         },
+    { "grp_kqueue_loopback",        test_nettest_grp_kqueue_loopback        },
+    { "grp_kqueue_connect",         test_nettest_grp_kqueue_connect         },
 #endif
 #endif
 };

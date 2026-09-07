@@ -1188,6 +1188,38 @@ out:
     return ret;
 }
 
+// Each group below runs several of the subtests above in one process, so ctest spends one
+// process launch per feature area instead of one per subtest. The individual subtests stay
+// registered under their own names too, for running or debugging one in isolation.
+
+int test_tlsquictest_grp_handshake(void)
+{
+    TEST_CHAIN(test_tlsquictest_handshake, test_tlsquictest_reassembly, test_tlsquictest_retry,
+               test_tlsquictest_suite_aes256, test_tlsquictest_suite_chacha,
+               test_tlsquictest_key_order, test_tlsquictest_compat_mode);
+}
+
+int test_tlsquictest_grp_auth(void)
+{
+    TEST_CHAIN(test_tlsquictest_mutual, test_tlsquictest_mutual_missing,
+               test_tlsquictest_untrusted, test_tlsquictest_wrongname,
+               test_tlsquictest_alpn_mismatch, test_tlsquictest_certverify_content);
+}
+
+int test_tlsquictest_grp_malformed(void)
+{
+    TEST_CHAIN(test_tlsquictest_tampered, test_tlsquictest_no_transport_params,
+               test_tlsquictest_no_sigalgs, test_tlsquictest_misuse);
+}
+
+int test_tlsquictest_grp_resumption(void)
+{
+    TEST_CHAIN(test_tlsquictest_resume, test_tlsquictest_resume_rejected,
+               test_tlsquictest_resume_badbinder, test_tlsquictest_early,
+               test_tlsquictest_early_refused, test_tlsquictest_early_hrr,
+               test_tlsquictest_early_eoed);
+}
+
 testfunc tlsquictest_funcs[] = {
     { "handshake", test_tlsquictest_handshake },
     { "reassembly", test_tlsquictest_reassembly },
@@ -1213,5 +1245,9 @@ testfunc tlsquictest_funcs[] = {
     { "no_sigalgs", test_tlsquictest_no_sigalgs },
     { "certverify_content", test_tlsquictest_certverify_content },
     { "misuse", test_tlsquictest_misuse },
+    { "grp_handshake", test_tlsquictest_grp_handshake },
+    { "grp_auth", test_tlsquictest_grp_auth },
+    { "grp_malformed", test_tlsquictest_grp_malformed },
+    { "grp_resumption", test_tlsquictest_grp_resumption },
     { NULL, NULL },
 };

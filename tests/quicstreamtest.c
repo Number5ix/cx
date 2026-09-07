@@ -2344,6 +2344,65 @@ out:
     return ret;
 }
 
+// Each group below runs several of the subtests above in one process, so ctest spends one
+// process launch per feature area instead of one per subtest. The individual subtests stay
+// registered under their own names too, for running or debugging one in isolation.
+
+int test_quicstreamtest_grp_lifecycle(void)
+{
+    TEST_CHAIN(test_quicstreamtest_ids, test_quicstreamtest_open, test_quicstreamtest_openlimit,
+               test_quicstreamtest_limit, test_quicstreamtest_implicit,
+               test_quicstreamtest_bidi_params, test_quicstreamtest_maxstreams);
+}
+
+int test_quicstreamtest_grp_transfer(void)
+{
+    TEST_CHAIN(test_quicstreamtest_send, test_quicstreamtest_bulk, test_quicstreamtest_uni,
+               test_quicstreamtest_interleave, test_quicstreamtest_fairness,
+               test_quicstreamtest_reorder, test_quicstreamtest_sendchunks,
+               test_quicstreamtest_partial_read);
+}
+
+int test_quicstreamtest_grp_flow(void)
+{
+    TEST_CHAIN(test_quicstreamtest_flow_stream, test_quicstreamtest_flow_conn,
+               test_quicstreamtest_flow_refused_stream, test_quicstreamtest_flow_refused_conn,
+               test_quicstreamtest_flow_refused_blocked, test_quicstreamtest_flow_violate_stream,
+               test_quicstreamtest_flow_violate_conn, test_quicstreamtest_window,
+               test_quicstreamtest_window_ended);
+}
+
+int test_quicstreamtest_grp_blocked(void)
+{
+    TEST_CHAIN(test_quicstreamtest_blocked_stale, test_quicstreamtest_blocked_stale_conn,
+               test_quicstreamtest_blocked_stale_streams, test_quicstreamtest_reset_drops_blocked);
+}
+
+int test_quicstreamtest_grp_retransmit(void)
+{
+    TEST_CHAIN(test_quicstreamtest_retransmit, test_quicstreamtest_retransmit_window,
+               test_quicstreamtest_finlate, test_quicstreamtest_retransmit_fin,
+               test_quicstreamtest_retransmit_reset, test_quicstreamtest_retransmit_maxdata,
+               test_quicstreamtest_fin_outstanding);
+}
+
+int test_quicstreamtest_grp_reset(void)
+{
+    TEST_CHAIN(test_quicstreamtest_reset, test_quicstreamtest_reset_credit,
+               test_quicstreamtest_stop, test_quicstreamtest_reset_close,
+               test_quicstreamtest_reset_twice, test_quicstreamtest_finish_after_reset,
+               test_quicstreamtest_stop_after_end, test_quicstreamtest_reset_duplicate,
+               test_quicstreamtest_reset_pending);
+}
+
+int test_quicstreamtest_grp_finalsize(void)
+{
+    TEST_CHAIN(test_quicstreamtest_final_size, test_quicstreamtest_final_size_moved,
+               test_quicstreamtest_final_size_reset, test_quicstreamtest_final_size_moved_reset,
+               test_quicstreamtest_state_errors, test_quicstreamtest_refuse,
+               test_quicstreamtest_closed_ignored);
+}
+
 testfunc quicstreamtest_funcs[] = {
     { "ids", test_quicstreamtest_ids },
     { "open", test_quicstreamtest_open },
@@ -2396,5 +2455,12 @@ testfunc quicstreamtest_funcs[] = {
     { "closed_ignored", test_quicstreamtest_closed_ignored },
     { "maxstreams", test_quicstreamtest_maxstreams },
     { "bidi_params", test_quicstreamtest_bidi_params },
+    { "grp_lifecycle", test_quicstreamtest_grp_lifecycle },
+    { "grp_transfer", test_quicstreamtest_grp_transfer },
+    { "grp_flow", test_quicstreamtest_grp_flow },
+    { "grp_blocked", test_quicstreamtest_grp_blocked },
+    { "grp_retransmit", test_quicstreamtest_grp_retransmit },
+    { "grp_reset", test_quicstreamtest_grp_reset },
+    { "grp_finalsize", test_quicstreamtest_grp_finalsize },
     { NULL, NULL },
 };

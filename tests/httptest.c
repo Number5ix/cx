@@ -5731,6 +5731,112 @@ out:
 
 #endif   // _WIN32 || _PLATFORM_UNIX
 
+// Each group below runs several of the subtests above in one process, so ctest spends one
+// process launch per feature area instead of one per subtest. The individual subtests stay
+// registered under their own names too, for running or debugging one in isolation.
+
+int test_httptest_grp_url(void)
+{
+    TEST_CHAIN(test_httptest_url, test_httptest_urlformat, test_httptest_urlresolve,
+               test_httptest_urlcodec, test_httptest_query);
+}
+
+int test_httptest_grp_headers(void)
+{
+    TEST_CHAIN(test_httptest_headers, test_httptest_headertoken, test_httptest_headerformat,
+               test_httptest_date);
+}
+
+int test_httptest_grp_parsing(void)
+{
+    TEST_CHAIN(test_httptest_parseresp, test_httptest_parsechunked, test_httptest_parseframing,
+               test_httptest_parseinterim, test_httptest_parsereject, test_httptest_parselimits,
+               test_httptest_parsereq, test_httptest_parsereuse);
+}
+
+int test_httptest_grp_encoding(void)
+{
+    TEST_CHAIN(test_httptest_chunkwrite, test_httptest_cookiejar, test_httptest_form);
+}
+
+#if defined(_WIN32) || defined(_PLATFORM_UNIX)
+
+int test_httptest_grp_connexchange(void)
+{
+    TEST_CHAIN(test_httptest_conn, test_httptest_connbody, test_httptest_conninterim,
+               test_httptest_connreuse, test_httptest_connerror, test_httptest_conntruncated,
+               test_httptest_conncancel);
+}
+
+int test_httptest_grp_clientredirect(void)
+{
+    TEST_CHAIN(test_httptest_clientget, test_httptest_clientredirect,
+               test_httptest_clienttempredirect, test_httptest_clientredirectloop,
+               test_httptest_clientseeother);
+}
+
+int test_httptest_grp_clientbody(void)
+{
+    TEST_CHAIN(test_httptest_clientbodybuffer, test_httptest_clientstreambody,
+               test_httptest_clientprogress, test_httptest_clientprogresschunked);
+}
+
+int test_httptest_grp_clientpool(void)
+{
+    TEST_CHAIN(test_httptest_clientpool, test_httptest_clientcookie, test_httptest_clientsink);
+}
+
+int test_httptest_grp_clienterrors(void)
+{
+    TEST_CHAIN(test_httptest_clientrefused, test_httptest_clienttimeout,
+               test_httptest_clientcancel, test_httptest_clientcancelearly,
+               test_httptest_clientcanceldone, test_httptest_clientcancelpool);
+}
+
+int test_httptest_grp_srvbasics(void)
+{
+    TEST_CHAIN(test_httptest_srvget, test_httptest_srvprogress, test_httptest_srvpost,
+               test_httptest_srvchunkedreq, test_httptest_srvkeepalive, test_httptest_srvclose,
+               test_httptest_srvserialized);
+}
+
+int test_httptest_grp_srvbadinput(void)
+{
+    TEST_CHAIN(test_httptest_srvbadrequest, test_httptest_srvbadtarget,
+               test_httptest_srvtoolarge, test_httptest_srvheadreadtimeout);
+}
+
+int test_httptest_grp_srvmethods(void)
+{
+    TEST_CHAIN(test_httptest_srvhead, test_httptest_srvnobody, test_httptest_srvheld,
+               test_httptest_srvlateresponse, test_httptest_srvattach);
+}
+
+int test_httptest_grp_srvbody(void)
+{
+    TEST_CHAIN(test_httptest_srvsink, test_httptest_srvsinkchunked, test_httptest_srvdata,
+               test_httptest_srvstreamresp, test_httptest_srvchunkedresp,
+               test_httptest_srvpushresp);
+}
+
+int test_httptest_grp_srvcontinue(void)
+{
+    TEST_CHAIN(test_httptest_srvcontinue, test_httptest_srvcontinuemanual,
+               test_httptest_srvexpectbad, test_httptest_srvdeferred);
+}
+
+int test_httptest_grp_tls(void)
+{
+    TEST_CHAIN(test_httptest_srvtls, test_httptest_clienttlsalpn, test_httptest_srvroundtrip);
+}
+
+int test_httptest_grp_multipart(void)
+{
+    TEST_CHAIN(test_httptest_multipartfile, test_httptest_multipartchunked);
+}
+
+#endif
+
 testfunc httptest_funcs[] = {
     { "url",          test_httptest_url          },
     { "urlformat",    test_httptest_urlformat    },
@@ -5752,6 +5858,10 @@ testfunc httptest_funcs[] = {
     { "chunkwrite",   test_httptest_chunkwrite   },
     { "cookiejar",    test_httptest_cookiejar    },
     { "form",         test_httptest_form         },
+    { "grp_url",      test_httptest_grp_url      },
+    { "grp_headers",  test_httptest_grp_headers  },
+    { "grp_parsing",  test_httptest_grp_parsing  },
+    { "grp_encoding", test_httptest_grp_encoding },
 #if defined(_WIN32) || defined(_PLATFORM_UNIX)
     { "conn",            test_httptest_conn              },
     { "connbody",        test_httptest_connbody          },
@@ -5809,6 +5919,18 @@ testfunc httptest_funcs[] = {
     { "srvroundtrip",       test_httptest_srvroundtrip       },
     { "multipartfile",      test_httptest_multipartfile      },
     { "multipartchunk",     test_httptest_multipartchunked   },
+    { "grp_connexchange",   test_httptest_grp_connexchange   },
+    { "grp_clientredirect", test_httptest_grp_clientredirect },
+    { "grp_clientbody",     test_httptest_grp_clientbody     },
+    { "grp_clientpool",     test_httptest_grp_clientpool     },
+    { "grp_clienterrors",   test_httptest_grp_clienterrors   },
+    { "grp_srvbasics",      test_httptest_grp_srvbasics      },
+    { "grp_srvbadinput",    test_httptest_grp_srvbadinput    },
+    { "grp_srvmethods",     test_httptest_grp_srvmethods     },
+    { "grp_srvbody",        test_httptest_grp_srvbody        },
+    { "grp_srvcontinue",    test_httptest_grp_srvcontinue    },
+    { "grp_tls",            test_httptest_grp_tls            },
+    { "grp_multipart",      test_httptest_grp_multipart      },
 #endif
     { 0,              0                          },
 };

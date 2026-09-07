@@ -3292,6 +3292,58 @@ static int test_ser_stvarerr(void)
     return 0;
 }
 
+// Each group below runs several of the subtests above in one process, so ctest spends one
+// process launch per feature area instead of one per subtest. The individual subtests stay
+// registered under their own names too, for running or debugging one in isolation.
+
+int test_ser_grp_primitives(void)
+{
+    TEST_CHAIN(test_ser_scalars, test_ser_string, test_ser_suid, test_ser_buffer, test_ser_array,
+               test_ser_hashtable, test_ser_intkeys);
+}
+
+int test_ser_grp_structs(void)
+{
+    TEST_CHAIN(test_ser_struct, test_ser_structp, test_ser_structpnull,
+               test_ser_structpdynamic, test_ser_structpsetbounds, test_ser_nested,
+               test_ser_fixedarray, test_ser_overwrite);
+}
+
+int test_ser_grp_schema(void)
+{
+    TEST_CHAIN(test_ser_errors, test_ser_unknown, test_ser_schema, test_ser_generated,
+               test_ser_resolve);
+}
+
+int test_ser_grp_json(void)
+{
+    TEST_CHAIN(test_ser_json, test_ser_jsonnested, test_ser_jsonnum, test_ser_jsondefaults,
+               test_ser_jsonerrors);
+}
+
+int test_ser_grp_binary(void)
+{
+    TEST_CHAIN(test_ser_binary, test_ser_binnested, test_ser_binnum, test_ser_bindefaults,
+               test_ser_binerrors, test_ser_crossformat);
+}
+
+int test_ser_grp_classes(void)
+{
+    TEST_CHAIN(test_ser_class, test_ser_classgap, test_ser_classpoly, test_ser_classcustom,
+               test_ser_classset, test_ser_classsetbounds, test_ser_classcycle,
+               test_ser_classssd, test_ser_rename);
+}
+
+int test_ser_grp_refs(void)
+{
+    TEST_CHAIN(test_ser_refs, test_ser_refcycle, test_ser_refwrap, test_ser_referrors);
+}
+
+int test_ser_grp_variants(void)
+{
+    TEST_CHAIN(test_ser_stvar, test_ser_stvarerr);
+}
+
 testfunc sertest_funcs[] = {
     { "scalars",        test_ser_scalars          },
     { "string",         test_ser_string           },
@@ -3339,5 +3391,13 @@ testfunc sertest_funcs[] = {
     { "referrors",      test_ser_referrors        },
     { "stvar",          test_ser_stvar            },
     { "stvarerr",       test_ser_stvarerr         },
+    { "grp_primitives", test_ser_grp_primitives   },
+    { "grp_structs",    test_ser_grp_structs      },
+    { "grp_schema",     test_ser_grp_schema       },
+    { "grp_json",       test_ser_grp_json         },
+    { "grp_binary",     test_ser_grp_binary       },
+    { "grp_classes",    test_ser_grp_classes      },
+    { "grp_refs",       test_ser_grp_refs         },
+    { "grp_variants",   test_ser_grp_variants     },
     { 0,                0                         }
 };

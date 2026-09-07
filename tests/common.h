@@ -62,6 +62,31 @@
 // ones like ${int32}, which silently render empty.
 #define TEST_INFO(fmt, ...) logFmt(Info, fmt, ##__VA_ARGS__)
 
+// int TEST_CHAIN(fn, ...);
+//
+// Runs each of the given no-argument test functions in sequence and returns, so a group of
+// related subtests can share one ctest process launch instead of one each. Stops at the first
+// one that returns nonzero and returns that value; returns 0 if they all pass. Only valid as
+// the entire body of a test function -- it returns on the caller's behalf.
+//
+// Example:
+// @code
+//   int test_foo_group(void)
+//   {
+//       TEST_CHAIN(test_foo_a, test_foo_b, test_foo_c);
+//   }
+// @endcode
+#define TEST_CHAIN(...) \
+    do { \
+        int (*const _chainFns[])(void) = { __VA_ARGS__ }; \
+        for (size_t _chainI = 0; _chainI < sizeof(_chainFns) / sizeof(_chainFns[0]); _chainI++) { \
+            int _chainRet = _chainFns[_chainI](); \
+            if (_chainRet) \
+                return _chainRet; \
+        } \
+        return 0; \
+    } while (0)
+
 #ifdef __cplusplus
 extern "C" {
 #endif

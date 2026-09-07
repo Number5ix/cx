@@ -811,6 +811,38 @@ static int test_input_wrong_kind()
     return 0;
 }
 
+// Each group below runs several of the subtests above in one process, so ctest spends one
+// process launch per feature area instead of one per subtest. The individual subtests stay
+// registered under their own names too, for running or debugging one in isolation.
+
+int test_grp_capsio(void)
+{
+    TEST_CHAIN(test_caps, test_write, test_write_rope, test_write_utf8);
+}
+
+int test_grp_locking(void)
+{
+    TEST_CHAIN(test_lock_recursive, test_lock_withblock, test_lock_stress);
+}
+
+int test_grp_styling(void)
+{
+    TEST_CHAIN(test_style_downgrade, test_style_attrs, test_style_none, test_style_restore,
+               test_fmt, test_fmt_styled);
+}
+
+int test_grp_cursor(void)
+{
+    TEST_CHAIN(test_cursor_set, test_cursor_move, test_cursor_show, test_cursor_save_restore,
+               test_cursor_erase, test_cursor_scroll, test_cursor_altscreen, test_cursor_none,
+               test_cursor_getcursor_mem);
+}
+
+int test_grp_input(void)
+{
+    TEST_CHAIN(test_decode_escape, test_input_wrong_kind);
+}
+
 testfunc contest_funcs[] = {
     { "caps",             test_caps             },
     { "write",            test_write            },
@@ -836,5 +868,10 @@ testfunc contest_funcs[] = {
     { "cursor_getmem",    test_cursor_getcursor_mem },
     { "decode_escape",    test_decode_escape    },
     { "input_wrong_kind", test_input_wrong_kind },
+    { "grp_capsio",       test_grp_capsio       },
+    { "grp_locking",      test_grp_locking      },
+    { "grp_styling",      test_grp_styling      },
+    { "grp_cursor",       test_grp_cursor       },
+    { "grp_input",        test_grp_input        },
     { 0,                  0                     }
 };

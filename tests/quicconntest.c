@@ -4378,6 +4378,88 @@ out:
     return ret;
 }
 
+// Each group below runs several of the subtests above in one process, so ctest spends one
+// process launch per feature area instead of one per subtest. The individual subtests stay
+// registered under their own names too, for running or debugging one in isolation.
+
+int test_quicconntest_grp_params(void)
+{
+    TEST_CHAIN(test_quicconntest_params, test_quicconntest_params_malformed,
+               test_quicconntest_tp_mismatch);
+}
+
+int test_quicconntest_grp_handshake(void)
+{
+    TEST_CHAIN(test_quicconntest_token, test_quicconntest_handshake, test_quicconntest_onertt,
+               test_quicconntest_keyupdate, test_quicconntest_padding, test_quicconntest_srvpad,
+               test_quicconntest_dup_packet, test_quicconntest_retry,
+               test_quicconntest_retry_forged, test_quicconntest_versionneg);
+}
+
+int test_quicconntest_grp_frames(void)
+{
+    TEST_CHAIN(test_quicconntest_reasm, test_quicconntest_ackset, test_quicconntest_no_frames,
+               test_quicconntest_bad_ack, test_quicconntest_bad_frame,
+               test_quicconntest_stream_refused, test_quicconntest_frame_level,
+               test_quicconntest_role_frames, test_quicconntest_cid_limit,
+               test_quicconntest_cid_bad);
+}
+
+int test_quicconntest_grp_lifecycle(void)
+{
+    TEST_CHAIN(test_quicconntest_close, test_quicconntest_close_level, test_quicconntest_idle,
+               test_quicconntest_statelessreset, test_quicconntest_cids);
+}
+
+int test_quicconntest_grp_path(void)
+{
+    TEST_CHAIN(test_quicconntest_path, test_quicconntest_path_replace,
+               test_quicconntest_amplification, test_quicconntest_migrate,
+               test_quicconntest_migrate_probing, test_quicconntest_migrate_reorder,
+               test_quicconntest_migrate_fallback, test_quicconntest_migrate_resets,
+               test_quicconntest_migrate_early, test_quicconntest_migrate_self_fails,
+               test_quicconntest_path_response_addr);
+}
+
+int test_quicconntest_grp_recovery(void)
+{
+    TEST_CHAIN(test_quicconntest_loss_initial, test_quicconntest_loss_flight,
+               test_quicconntest_loss_crypto, test_quicconntest_loss_control,
+               test_quicconntest_congestion, test_quicconntest_congestion_limit,
+               test_quicconntest_congestion_sliver, test_quicconntest_pacing,
+               test_quicconntest_ack_delay);
+}
+
+int test_quicconntest_grp_ecn(void)
+{
+    TEST_CHAIN(test_quicconntest_ecn, test_quicconntest_ecn_stripped,
+               test_quicconntest_ecn_congestion, test_quicconntest_pmtu,
+               test_quicconntest_pmtu_floor, test_quicconntest_ecn_partial,
+               test_quicconntest_ecn_lying);
+}
+
+int test_quicconntest_grp_early(void)
+{
+    TEST_CHAIN(test_quicconntest_early, test_quicconntest_early_rejected,
+               test_quicconntest_early_badframe, test_quicconntest_early_off);
+}
+
+int test_quicconntest_grp_datagram(void)
+{
+    TEST_CHAIN(test_quicconntest_dgram_params, test_quicconntest_dgram_frame,
+               test_quicconntest_dgram_cross, test_quicconntest_dgram_coalesce,
+               test_quicconntest_dgram_solo, test_quicconntest_dgram_lost,
+               test_quicconntest_dgram_refused);
+}
+
+int test_quicconntest_grp_stream(void)
+{
+    TEST_CHAIN(test_quicconntest_stream_echo, test_quicconntest_stream_bulk,
+               test_quicconntest_stream_loss, test_quicconntest_stream_loss_data,
+               test_quicconntest_stream_reset, test_quicconntest_stream_reset_loss,
+               test_quicconntest_stream_tail_loss, test_quicconntest_stream_violation);
+}
+
 testfunc quicconntest_funcs[] = {
     { "stream_echo", test_quicconntest_stream_echo },
     { "stream_bulk", test_quicconntest_stream_bulk },
@@ -4453,5 +4535,15 @@ testfunc quicconntest_funcs[] = {
     { "dgram_solo", test_quicconntest_dgram_solo },
     { "dgram_lost", test_quicconntest_dgram_lost },
     { "dgram_refused", test_quicconntest_dgram_refused },
+    { "grp_params", test_quicconntest_grp_params },
+    { "grp_handshake", test_quicconntest_grp_handshake },
+    { "grp_frames", test_quicconntest_grp_frames },
+    { "grp_lifecycle", test_quicconntest_grp_lifecycle },
+    { "grp_path", test_quicconntest_grp_path },
+    { "grp_recovery", test_quicconntest_grp_recovery },
+    { "grp_ecn", test_quicconntest_grp_ecn },
+    { "grp_early", test_quicconntest_grp_early },
+    { "grp_datagram", test_quicconntest_grp_datagram },
+    { "grp_stream", test_quicconntest_grp_stream },
     { NULL, NULL },
 };

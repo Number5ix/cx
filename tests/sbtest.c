@@ -1170,6 +1170,33 @@ static int test_streambuf_threaded()
     return ret;
 }
 
+// Each group below runs several of the subtests above in one process, so ctest spends one
+// process launch per feature area instead of one per subtest. The individual subtests stay
+// registered under their own names too, for running or debugging one in isolation.
+
+int test_streambuf_grp_pushpull(void)
+{
+    TEST_CHAIN(test_streambuf_push, test_streambuf_direct, test_streambuf_pull,
+               test_streambuf_peek);
+}
+
+int test_streambuf_grp_adapters(void)
+{
+    TEST_CHAIN(test_streambuf_string, test_streambuf_buffer, test_streambuf_console);
+}
+
+int test_streambuf_grp_handoff(void)
+{
+    TEST_CHAIN(test_streambuf_phandoff, test_streambuf_chandoff, test_streambuf_cswap,
+               test_streambuf_endpull);
+}
+
+int test_streambuf_grp_lifecycle(void)
+{
+    TEST_CHAIN(test_streambuf_error, test_streambuf_flush, test_streambuf_reuse,
+               test_streambuf_threaded);
+}
+
 testfunc sbtest_funcs[] = {
     { "push", test_streambuf_push },
     { "pull", test_streambuf_pull },
@@ -1186,5 +1213,9 @@ testfunc sbtest_funcs[] = {
     { "flush", test_streambuf_flush },
     { "reuse", test_streambuf_reuse },
     { "threaded", test_streambuf_threaded },
+    { "grp_pushpull", test_streambuf_grp_pushpull },
+    { "grp_adapters", test_streambuf_grp_adapters },
+    { "grp_handoff", test_streambuf_grp_handoff },
+    { "grp_lifecycle", test_streambuf_grp_lifecycle },
     { 0, 0 }
 };

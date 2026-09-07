@@ -2618,6 +2618,57 @@ out:
     return ret;
 }
 
+// Each group below runs several of the subtests above in one process, so ctest spends one
+// process launch per feature area instead of one per subtest. The individual subtests stay
+// registered under their own names too, for running or debugging one in isolation.
+#if defined(_PLATFORM_WIN) || defined(_PLATFORM_UNIX) || defined(_PLATFORM_WASM)
+
+int test_quicnettest_grp_handshake(void)
+{
+    TEST_CHAIN(test_quicnettest_handshake, test_quicnettest_echo, test_quicnettest_streams,
+               test_quicnettest_uni, test_quicnettest_bothways, test_quicnettest_finish);
+}
+
+int test_quicnettest_grp_flow(void)
+{
+    TEST_CHAIN(test_quicnettest_flowclose, test_quicnettest_reset, test_quicnettest_stopsending,
+               test_quicnettest_streamlimit);
+}
+
+int test_quicnettest_grp_bulk(void)
+{
+    TEST_CHAIN(test_quicnettest_bulk, test_quicnettest_bulkstarved, test_quicnettest_sendwakeup,
+               test_quicnettest_sendframed, test_quicnettest_sendwatermark,
+               test_quicnettest_sendwatermarksrv, test_quicnettest_echostreams,
+               test_quicnettest_backpressure);
+}
+
+int test_quicnettest_grp_lifecycle(void)
+{
+    TEST_CHAIN(test_quicnettest_close, test_quicnettest_listener_close, test_quicnettest_retry,
+               test_quicnettest_nolistener, test_quicnettest_alpn, test_quicnettest_two_clients,
+               test_quicnettest_dup_initial, test_quicnettest_short_initial);
+}
+
+int test_quicnettest_grp_path(void)
+{
+    TEST_CHAIN(test_quicnettest_ecn, test_quicnettest_pathmtu, test_quicnettest_migrate,
+               test_quicnettest_earlydata);
+}
+
+int test_quicnettest_grp_datagram(void)
+{
+    TEST_CHAIN(test_quicnettest_datagram, test_quicnettest_datagram_size,
+               test_quicnettest_datagram_unsupported, test_quicnettest_datagram_blocked);
+}
+
+int test_quicnettest_grp_accept(void)
+{
+    TEST_CHAIN(test_quicnettest_acceptorder, test_quicnettest_securedorder);
+}
+
+#endif
+
 testfunc quicnettest_funcs[] = {
 #if defined(_PLATFORM_WIN) || defined(_PLATFORM_UNIX) || defined(_PLATFORM_WASM)
     { "handshake",      test_quicnettest_handshake      },
@@ -2656,6 +2707,13 @@ testfunc quicnettest_funcs[] = {
     { "datagram_blocked",     test_quicnettest_datagram_blocked     },
     { "acceptorder",          test_quicnettest_acceptorder          },
     { "securedorder",         test_quicnettest_securedorder         },
+    { "grp_handshake",  test_quicnettest_grp_handshake   },
+    { "grp_flow",       test_quicnettest_grp_flow        },
+    { "grp_bulk",       test_quicnettest_grp_bulk        },
+    { "grp_lifecycle",  test_quicnettest_grp_lifecycle   },
+    { "grp_path",       test_quicnettest_grp_path        },
+    { "grp_datagram",   test_quicnettest_grp_datagram    },
+    { "grp_accept",     test_quicnettest_grp_accept      },
 #endif
     { NULL,             NULL                            }
 };

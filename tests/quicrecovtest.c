@@ -1177,6 +1177,48 @@ out:
     return ret;
 }
 
+// Each group below runs several of the subtests above in one process, so ctest spends one
+// process launch per feature area instead of one per subtest. The individual subtests stay
+// registered under their own names too, for running or debugging one in isolation.
+
+int test_quicrecovtest_grp_sendbuf(void)
+{
+    TEST_CHAIN(test_quicrecovtest_sendbuf, test_quicrecovtest_sendbuf_many,
+               test_quicrecovtest_ring);
+}
+
+int test_quicrecovtest_grp_lossdetect(void)
+{
+    TEST_CHAIN(test_quicrecovtest_rtt, test_quicrecovtest_rtt_noelicit,
+               test_quicrecovtest_loss_packet, test_quicrecovtest_loss_time,
+               test_quicrecovtest_reorder, test_quicrecovtest_loss_beyond);
+}
+
+int test_quicrecovtest_grp_pto(void)
+{
+    TEST_CHAIN(test_quicrecovtest_pto, test_quicrecovtest_pto_space,
+               test_quicrecovtest_pto_deadlock);
+}
+
+int test_quicrecovtest_grp_congestion(void)
+{
+    TEST_CHAIN(test_quicrecovtest_cwnd, test_quicrecovtest_cwnd_loss,
+               test_quicrecovtest_cwnd_floor, test_quicrecovtest_cwnd_recovery,
+               test_quicrecovtest_applimited);
+}
+
+int test_quicrecovtest_grp_persistent(void)
+{
+    TEST_CHAIN(test_quicrecovtest_persistent, test_quicrecovtest_persistent_short,
+               test_quicrecovtest_persistent_broken, test_quicrecovtest_persistent_firstsample,
+               test_quicrecovtest_persistent_split, test_quicrecovtest_persistent_nortt);
+}
+
+int test_quicrecovtest_grp_pacing(void)
+{
+    TEST_CHAIN(test_quicrecovtest_discard, test_quicrecovtest_pacing);
+}
+
 testfunc quicrecovtest_funcs[] = {
     { "sendbuf", test_quicrecovtest_sendbuf },
     { "sendbuf_many", test_quicrecovtest_sendbuf_many },
@@ -1203,5 +1245,11 @@ testfunc quicrecovtest_funcs[] = {
     { "applimited", test_quicrecovtest_applimited },
     { "discard", test_quicrecovtest_discard },
     { "pacing", test_quicrecovtest_pacing },
+    { "grp_sendbuf", test_quicrecovtest_grp_sendbuf },
+    { "grp_lossdetect", test_quicrecovtest_grp_lossdetect },
+    { "grp_pto", test_quicrecovtest_grp_pto },
+    { "grp_congestion", test_quicrecovtest_grp_congestion },
+    { "grp_persistent", test_quicrecovtest_grp_persistent },
+    { "grp_pacing", test_quicrecovtest_grp_pacing },
     { NULL, NULL },
 };
