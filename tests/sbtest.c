@@ -909,6 +909,74 @@ static int test_streambuf_error(void)
     return ret;
 }
 
+// A sink that fails partway through a send reports it from inside the callback, which is the one
+// sbuf call a send callback is allowed to make.
+typedef struct SendFailCtx {
+    size_t taken;
+    size_t failafter;
+    bool keep;
+} SendFailCtx;
+
+static bool sendFailCB(StreamBuffer *sb, const uint8 *buf, size_t off, size_t sz, void *ctx)
+{
+    SendFailCtx *sf = (SendFailCtx *)ctx;
+
+    if (sf->taken >= sf->failafter) {
+        sbufError(sb);
+        return sf->keep ? false : true;
+    }
+
+    sf->taken += sz;
+    return true;
+}
+
+static int test_streambuf_senderror(void)
+{
+    int ret = 0;
+
+    for (int locked = 0; locked < 2; locked++) {
+        for (int keep = 0; keep < 2; keep++) {
+            SendFailCtx sf = { .failafter = 0, .keep = keep != 0 };
+
+            StreamBuffer *sb = sbufCreate(32, locked ? SBUF_Locked : 0);
+            if (!sbufPWrite(sb, testdata1, 16))
+                TEST_FAILV(ret, 1, _SL("sbufPWrite failed, locked=${int} keep=${int}"), stvar(int32, locked), stvar(int32, keep));
+
+            // the callback fails on its first chunk, so nothing is taken either way
+            sbufCSend(sb, sendFailCB, 16, &sf);
+            if (!sbufIsError(sb))
+                TEST_FAILV(ret, 1, _SL("the send callback's failure was not recorded, locked=${int} keep=${int}"), stvar(int32, locked), stvar(int32, keep));
+            if (sbufIsClosed(sb))
+                TEST_FAILV(ret, 1, _SL("a reported failure ended the stream, locked=${int} keep=${int}"), stvar(int32, locked), stvar(int32, keep));
+
+            // returning false keeps the bytes, returning true lets the walk consume them
+            size_t want = sf.keep ? 16 : 0;
+            if (sbufCAvail(sb) != want)
+                TEST_FAILV(ret, 1, _SL("${uint} bytes left buffered after the failed send, want ${uint}, locked=${int} keep=${int}"),
+                           stvar(size, sbufCAvail(sb)), stvar(size, want), stvar(int32, locked), stvar(int32, keep));
+            if (sbufPWrite(sb, testdata1, 4))
+                TEST_FAILV(ret, 1, _SL("a write succeeded while the error stood, locked=${int} keep=${int}"), stvar(int32, locked), stvar(int32, keep));
+
+            // the driving side clears it and carries on
+            sbufClearError(sb);
+            sbufCSkip(sb, sbufCAvail(sb));
+            sf.failafter = SIZE_MAX;
+            sf.taken     = 0;
+            if (!sbufPWrite(sb, testdata1, 8))
+                TEST_FAILV(ret, 1, _SL("sbufPWrite failed after recovery, locked=${int} keep=${int}"), stvar(int32, locked), stvar(int32, keep));
+            sbufCSend(sb, sendFailCB, 8, &sf);
+            if (sf.taken != 8 || sbufIsError(sb))
+                TEST_FAILV(ret, 1, _SL("the recovered stream sent ${uint} bytes, want 8, locked=${int} keep=${int}"),
+                           stvar(size, sf.taken), stvar(int32, locked), stvar(int32, keep));
+
+            sbufClose(sb);
+            sbufRelease(&sb);
+        }
+    }
+
+    return ret;
+}
+
 // sbufClose() has to reach a registered pull producer, since that final sz == 0 callback is the only
 // thing that tells it to let go of the slot -- and therefore of its reference.
 static int test_streambuf_endpull(void)
@@ -1270,8 +1338,8 @@ int test_streambuf_grp_handoff(void)
 
 int test_streambuf_grp_lifecycle(void)
 {
-    TEST_CHAIN(test_streambuf_error, test_streambuf_flush, test_streambuf_closedetach,
-               test_streambuf_reuse, test_streambuf_threaded);
+    TEST_CHAIN(test_streambuf_error, test_streambuf_senderror, test_streambuf_flush,
+               test_streambuf_closedetach, test_streambuf_reuse, test_streambuf_threaded);
 }
 
 testfunc sbtest_funcs[] = {
@@ -1286,6 +1354,7 @@ testfunc sbtest_funcs[] = {
     { "chandoff", test_streambuf_chandoff },
     { "cswap", test_streambuf_cswap },
     { "error", test_streambuf_error },
+    { "senderror", test_streambuf_senderror },
     { "endpull", test_streambuf_endpull },
     { "flush", test_streambuf_flush },
     { "closedetach", test_streambuf_closedetach },

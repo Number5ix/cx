@@ -17,9 +17,12 @@ static void sbufDestroy(_Pre_valid_ _Post_invalid_ StreamBuffer* sb);
 // has not finished with, and the walk consumes what it read only after the last callback returns.
 // Anything the callback does that touches the ring -- a write, a read, a skip, a flush -- either
 // corrupts the walk or has its effect thrown away, quietly in both cases. The recursive lock lets
-// the call through, so this is the only thing that catches it.
+// the call through, so this is the only thing that catches it. sbufError() is the exception: it
+// touches flags and waiters only, and reporting a failed send from inside the callback is the
+// whole point of the return value being all-or-nothing.
 #define SBUF_WALK_MSG \
-    "An sbufSendCB must not call any sbuf function on the buffer it was invoked from"
+    "An sbufSendCB must not call any sbuf function except sbufError() on the buffer it was " \
+    "invoked from"
 
 // Recursive per-buffer lock, active only when the buffer was created with SBUF_Locked. The
 // recursion depth is tracked either way, since it is also what tells an entry point whether it is
@@ -28,11 +31,13 @@ static void sbufDestroy(_Pre_valid_ _Post_invalid_ StreamBuffer* sb);
 // sbufPullCB's contract lets a pullproducer call sbufPWrite() from inside its own callback when it has more data than the slice it
 // was asked for, and that callback runs from feedBuffer() on a thread that is already holding the
 // lock. cx's Mutex is not recursive, so ownership is tracked here instead.
-static void sbufLock(_Inout_ StreamBuffer* sb)
+// ringsafe marks the entry points that never touch the ring and so stay legal from inside a send
+// callback.
+static void sbufLockEx(_Inout_ StreamBuffer* sb, bool ringsafe)
 {
     if (!sb->locked) {
         // an unlocked buffer only ever has the one thread, so any arrival here is a re-entry
-        devAssertMsg(!sb->walking, SBUF_WALK_MSG);
+        devAssertMsg(ringsafe || !sb->walking, SBUF_WALK_MSG);
         ++sb->depth;
         return;
     }
@@ -40,7 +45,7 @@ static void sbufLock(_Inout_ StreamBuffer* sb)
     intptr self = sbufSelf();
 
     if (atomicLoad(intptr, &sb->owner, Relaxed) == self) {
-        devAssertMsg(!sb->walking, SBUF_WALK_MSG);
+        devAssertMsg(ringsafe || !sb->walking, SBUF_WALK_MSG);
         ++sb->depth;
         return;
     }
@@ -48,6 +53,11 @@ static void sbufLock(_Inout_ StreamBuffer* sb)
     mutexAcquire(&sb->lock);
     atomicStore(intptr, &sb->owner, self, Relaxed);
     sb->depth = 1;
+}
+
+static void sbufLock(_Inout_ StreamBuffer* sb)
+{
+    sbufLockEx(sb, false);
 }
 
 static void sbufUnlock(_Inout_ StreamBuffer* sb)
@@ -396,7 +406,8 @@ void sbufFinish(StreamBuffer** sb)
 _Use_decl_annotations_
 void sbufError(StreamBuffer* sb)
 {
-    sbufLock(sb);
+    // Legal from inside an sbufSendCB, which is where a sink that failed mid-send reports it.
+    sbufLockEx(sb, true);
 
     sbufSetFlags(sb, SBUF_Error);
 
