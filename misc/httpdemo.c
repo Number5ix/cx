@@ -6,13 +6,16 @@
 // through the same public API an application would use.
 //
 // Usage: httpdemo [-o file] [-X method] [-H "Name: value"] [-d body] [--no-redirect]
-//                 [--http3] [--http3-only] [--ca ca.pem] <url>
+//                 [--http3] [--http3-only] [--ca ca.pem] [--qlog dir] <url>
 //
 // --http3 races QUIC against TCP and uses whichever answers first; --http3-only fails the
 // request if HTTP/3 is not reachable. --ca trusts one certificate authority instead of the
-// system store, which is what pointing this at a local test server takes.
+// system store, which is what pointing this at a local test server takes. --qlog writes a qlog
+// file per QUIC connection into an existing directory, which is how to see why a handshake that
+// never reaches HTTP went wrong.
 
 #include <cxhttp.h>
+#include <cxquic/quicnet.h>
 
 #include <cx/console.h>
 #include <cx/format.h>
@@ -200,12 +203,13 @@ static void usage(void)
 {
     conPuts(conErr(),
             _SL("usage: httpdemo [-o file] [-X method] [-H \"Name: value\"] [-d body]\n"
-                "                [--no-redirect] [--http3] [--http3-only] [--ca ca.pem] <url>\n"));
+                "                [--no-redirect] [--http3] [--http3-only] [--ca ca.pem]\n"
+                "                [--qlog dir] <url>\n"));
 }
 
 int entryPoint()
 {
-    string url = 0, outPath = 0, methodName = 0, bodyText = 0, caPath = 0;
+    string url = 0, outPath = 0, methodName = 0, bodyText = 0, caPath = 0, qlogDir = 0;
     sa_string extraHeaders;
     saInit(&extraHeaders, string, 4);
     flags_t reqFlags           = HTTPREQ_None;
@@ -231,6 +235,8 @@ int entryPoint()
             versions = HTTPV_Http3;
         else if (strEq(a, _SL("--ca")) && i + 1 < saSize(cmdArgs))
             strDup(&caPath, cmdArgs.a[++i]);
+        else if (strEq(a, _SL("--qlog")) && i + 1 < saSize(cmdArgs))
+            strDup(&qlogDir, cmdArgs.a[++i]);
         else if (strEmpty(url))
             strDup(&url, a);
         else {
@@ -260,6 +266,8 @@ int entryPoint()
     // filter sees the application's logging and nothing else.
     LogConsoleConfig logcfg = { .stderrLevel = LOG_Count };
     logconsoleRegister(LOG_Warn, _SL("cx/**"), NULL, NULL, &logcfg, NULL);
+    if (!strEmpty(qlogDir))
+        netquicQlog(qlogDir);
 
     DemoCtx ctx = { 0 };
 
@@ -377,6 +385,7 @@ int entryPoint()
     strDestroy(&methodName);
     strDestroy(&bodyText);
     strDestroy(&caPath);
+    strDestroy(&qlogDir);
     saDestroy(&extraHeaders);
 
     rc = ctx.exitCode;
