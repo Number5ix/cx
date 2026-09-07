@@ -454,7 +454,7 @@ typedef enum {
 typedef struct HttpEvent {
     HttpEventType event;    ///< Which callback this is
     HttpConn* conn;         ///< Connection it happened on
-    HttpRequest* request;   ///< Request it belongs to
+    HttpRequest* request;   ///< Request it belongs to; never NULL
     void* ctx;              ///< Context registered alongside the handlers
 
     uint16 status;          ///< Response status, from HTTPEV_Status onward

@@ -1319,6 +1319,10 @@ typedef struct ConnRec {
     uint64 sendDone, recvDone;
     int64 sendTotal, recvTotal;
 
+    // Set by a terminal callback that arrived with no request attached. Every event is about one
+    // request, so this can only ever stay false; a test that reaches a terminal event checks it.
+    bool nullRequest;
+
     // Set by a test whose queue delivers events from a worker thread rather than the caller's own
     // tick() loop, wired up before anything that could complete the exchange runs -- initializing it
     // any later races the worker thread. NULL (the default) means no one is waiting on it and the
@@ -1353,6 +1357,8 @@ static void onConnComplete(HttpEvent* ev)
 {
     ConnRec* r = (ConnRec*)ev->ctx;
     r->completeCount++;
+    if (!ev->request)
+        r->nullRequest = true;
     if (r->done)
         eventSignalLock(r->done);
 }
@@ -1362,6 +1368,8 @@ static void onConnError(HttpEvent* ev)
     ConnRec* r = (ConnRec*)ev->ctx;
     r->errorCount++;
     r->err = ev->err;
+    if (!ev->request)
+        r->nullRequest = true;
     if (r->done)
         eventSignalLock(r->done);
 }
@@ -3585,6 +3593,89 @@ static int test_httptest_conncancel(void)
     return ret;
 }
 
+static void onConnClosed(HttpConn* conn, void* ctx)
+{
+    unused_noeval(conn);
+    (*(int*)ctx)++;
+}
+
+// A request that could not be written leaves nothing armed behind it.
+//
+// This is the shape a connection pool produces: the peer closes a keep-alive connection, and the
+// next request takes it out of the pool and only finds out when the write fails. The connection
+// then dies for real, and the death must not be reported to the handlers of a request that never
+// started -- there is no request attached to such an event, and a handler reading one would be
+// reading nothing.
+static int test_httptest_connstale(void)
+{
+    int ret       = 0;
+    int closed    = 0;
+    ConnFixture f;
+    ConnRec rec1 = { 0 }, rec2 = { 0 };
+    string req   = 0;
+
+    if (!fixtureInit(&f)) {
+        fixtureDestroy(&f);
+        TEST_FAIL(1, _SL("failed: !fixtureInit(&f)"), stvNone);
+    }
+
+    HttpConn* c     = httpconnCreate(f.sock, _SL("h"));
+    HttpRequest* r1 = c ? httprequestCreate(HTTP_Get, _SL("http://h/one")) : NULL;
+    HttpRequest* r2 = c ? httprequestCreate(HTTP_Get, _SL("http://h/two")) : NULL;
+    if (!c || !r1 || !r2) {
+        objRelease(&r2);
+        objRelease(&r1);
+        objRelease(&c);
+        fixtureDestroy(&f);
+        TEST_FAIL(1, _SL("failed: !c || !r1 || !r2"), stvNone);
+    }
+
+    // One ordinary exchange first, so what follows happens on a used keep-alive connection -- the
+    // state a pool holds, rather than a fresh one.
+    httpconnRequest(c, r1, &kConnRecHandlers, &rec1);
+    readRequest(&f, &req);
+    writeResponse(&f, "HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nfirst");
+    tickUntilDone(&f, &rec1);
+
+    if (rec1.completeCount != 1 || !httpconnIdle(c))
+        TEST_FAILV(ret, 1, _SL("rec1.completeCount=${uint} != 1 || connection not idle"), stvar(uint32, rec1.completeCount));
+
+    httpconnSetClosedHandler(c, onConnClosed, &closed);
+
+    // The socket goes away underneath the connection, which is what the pool's caller cannot see
+    // coming: the teardown is queued here and delivered on a later tick, so the request below is
+    // written into the window between the two.
+    netsocketClose(f.sock);
+
+    if (httpconnRequest(c, r2, &kConnRecHandlers, &rec2))
+        TEST_FAILV(ret, 1, _SL("httpconnRequest() accepted a request on a dead socket"), stvNone);
+
+    for (int i = 0; i < 40 && !closed; i++)
+        netqueueTick(f.q, timeMS(5));
+
+    // The connection's death is the closed handler's business, and only its business.
+    if (closed != 1)
+        TEST_FAILV(ret, 1, _SL("closed=${int} != 1"), stvar(int32, closed));
+    if (rec2.errorCount != 0 || rec2.completeCount != 0)
+        TEST_FAILV(ret, 1, _SL("rec2.errorCount=${uint} != 0 || rec2.completeCount=${uint} != 0 -- a request that never started was reported"), stvar(uint32, rec2.errorCount), stvar(uint32, rec2.completeCount));
+    // The first exchange finished long before the close and must not hear about it again.
+    if (rec1.errorCount != 0 || rec1.completeCount != 1)
+        TEST_FAILV(ret, 1, _SL("rec1.errorCount=${uint} != 0 || rec1.completeCount=${uint} != 1"), stvar(uint32, rec1.errorCount), stvar(uint32, rec1.completeCount));
+    if (rec1.nullRequest || rec2.nullRequest)
+        TEST_FAILV(ret, 1, _SL("a terminal event arrived with no request attached"), stvNone);
+
+    objRelease(&r2);
+    objRelease(&r1);
+    objRelease(&c);
+    fixtureDestroy(&f);
+    strDestroy(&req);
+    strDestroy(&rec1.body);
+    strDestroy(&rec1.ctype);
+    strDestroy(&rec2.body);
+    strDestroy(&rec2.ctype);
+    return ret;
+}
+
 
 // ---------------------------------------------------------------------------------------------
 // The server
@@ -5763,7 +5854,7 @@ int test_httptest_grp_connexchange(void)
 {
     TEST_CHAIN(test_httptest_conn, test_httptest_connbody, test_httptest_conninterim,
                test_httptest_connreuse, test_httptest_connerror, test_httptest_conntruncated,
-               test_httptest_conncancel);
+               test_httptest_conncancel, test_httptest_connstale);
 }
 
 int test_httptest_grp_clientredirect(void)
@@ -5886,6 +5977,7 @@ testfunc httptest_funcs[] = {
     { "clientcanceldone",  test_httptest_clientcanceldone  },
     { "clientcancelpool",  test_httptest_clientcancelpool  },
     { "conncancel",        test_httptest_conncancel        },
+    { "connstale",         test_httptest_connstale         },
     { "srvprogress",    test_httptest_srvprogress       },
     { "srvget",             test_httptest_srvget             },
     { "srvpost",            test_httptest_srvpost            },

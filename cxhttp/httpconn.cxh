@@ -112,7 +112,12 @@ class HttpConn
     /// Send a request and begin reading its response
     ///
     /// One request at a time: this refuses while another is in flight. Pipelining is not
-    /// supported.
+    /// supported. It also refuses on a connection that can no longer carry one -- idle() asks the
+    /// same question ahead of time, but a pooled connection can be closed by the peer in between,
+    /// so a false return here is an ordinary answer and not an error.
+    ///
+    /// Nothing is delivered to `handlers` when this returns false: the request never started, so
+    /// there is no exchange to report the end of.
     ///
     /// @param req Request to send; borrowed, and must outlive the exchange
     /// @param handlers Callbacks for the response. Not copied -- must outlive the request, so it is

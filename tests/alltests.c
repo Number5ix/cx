@@ -702,6 +702,7 @@ static const testspec tests[] = {
     { "http: Client Cancel After Completion", "httptest", "clientcanceldone" },
     { "http: Client Cancel Evicts Connection", "httptest", "clientcancelpool" },
     { "http: Connection Cancel", "httptest", "conncancel" },
+    { "http: Connection Stale On Reuse", "httptest", "connstale" },
     { "http: Server GET", "httptest", "srvget" },
     { "http: Server Progress", "httptest", "srvprogress" },
     { "http: Server POST Body", "httptest", "srvpost" },
