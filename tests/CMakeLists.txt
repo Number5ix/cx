@@ -746,6 +746,7 @@ add_test(NAME "\"quicnet: Closing A Stream Flow\"" COMMAND test_runner quicnette
 add_test(NAME "\"quicnet: Resetting A Stream\"" COMMAND test_runner quicnettest reset)
 add_test(NAME "\"quicnet: Stop Sending\"" COMMAND test_runner quicnettest stopsending)
 add_test(NAME "\"quicnet: Bulk Transfer\"" COMMAND test_runner quicnettest bulk)
+add_test(NAME "\"quicnet: Bulk Transfer With A Starved Pool\"" COMMAND test_runner quicnettest bulkstarved)
 add_test(NAME "\"quicnet: Send Wakeup\"" COMMAND test_runner quicnettest sendwakeup)
 add_test(NAME "\"quicnet: Framed Send Wakeup\"" COMMAND test_runner quicnettest sendframed)
 add_test(NAME "\"quicnet: Send Watermark\"" COMMAND test_runner quicnettest sendwatermark)

@@ -544,7 +544,8 @@ static void qnFixDestroy(_Inout_ QNFix* f)
     tlsTestPKIDestroy(&f->pki);
 }
 
-static bool qnFixInit(_Out_ QNFix* f)
+// recvBufMax caps the receive buffer pool; 0 leaves the preset's own cap alone.
+static bool qnFixInitPool(_Out_ QNFix* f, uint32 recvBufMax)
 {
     memset(f, 0, sizeof(*f));
 
@@ -553,6 +554,8 @@ static bool qnFixInit(_Out_ QNFix* f)
 
     NetQueueConfig conf;
     netqueuePresetClient(&conf);   // polled: the test drives netqueueTick() itself
+    if (recvBufMax > 0)
+        conf.recvBufMax = recvBufMax;
     f->q = netqueueCreate(&conf);
     if (!f->q)
         return false;
@@ -575,6 +578,11 @@ static bool qnFixInit(_Out_ QNFix* f)
 
     tlsconfigSetCA(f->ccfg, f->ca);
     return true;
+}
+
+static bool qnFixInit(_Out_ QNFix* f)
+{
+    return qnFixInitPool(f, 0);
 }
 
 // Starts a listener on an ephemeral loopback port and reports which one it got.
@@ -603,18 +611,23 @@ static bool qnDial(_Inout_ QNFix* f, _In_ const QuicConfig* base, uint16 port)
 }
 
 // Listener up, client connected, connection accepted. Everything past the handshake starts here.
-static bool qnConnect(_Inout_ QNFix* f, _In_opt_ const QuicConfig* base)
+static bool qnConnectPool(_Inout_ QNFix* f, _In_opt_ const QuicConfig* base, uint32 recvBufMax)
 {
     QuicConfig def = { 0 };
     if (!base)
         base = &def;
 
     uint16 port = 0;
-    if (!qnFixInit(f) || !qnListen(f, base, &port) || !qnDial(f, base, port))
+    if (!qnFixInitPool(f, recvBufMax) || !qnListen(f, base, &port) || !qnDial(f, base, port))
         return false;
 
     QN_WAIT(f, f->cli.nConnected > 0 && f->srv.sock != NULL, QN_BUDGET);
     return f->cli.nConnected > 0 && f->srv.sock != NULL;
+}
+
+static bool qnConnect(_Inout_ QNFix* f, _In_opt_ const QuicConfig* base)
+{
+    return qnConnectPool(f, base, 0);
 }
 
 // Opens a stream, sends one payload on it, and lets both ends settle.
@@ -917,6 +930,61 @@ static int test_quicnettest_bulk(void)
 
     CHECK_U("bytes that arrived", f.srv.drained, total);
     CHECK_U("streams the server saw", f.srv.nOpened, 1);
+
+out:
+    xaFree(payload);
+    objRelease(&flow);
+    qnFixDestroy(&f);
+    return ret;
+}
+
+// The same bulk transfer with a receive buffer pool too small to hold the flight, so the pool runs
+// dry mid-transfer. Running dry is ordinary -- the datagrams that find no buffer are dropped and
+// QUIC retransmits them -- but a completion backend has to keep a receive posted through it. One
+// that answers a completion without posting another loses that receive for good, and the socket
+// goes deaf as soon as the last one is retired. That is invisible to a readiness backend, which is
+// told about the same socket again on the very next poll.
+static int test_quicnettest_bulkstarved(void)
+{
+    int ret = 0;
+    QNFix f;
+    NetFlow* flow = NULL;
+
+    const size_t total = 64 * 1024;
+    uint8* payload     = xaAlloc(total);
+    for (size_t i = 0; i < total; i++)
+        payload[i] = (uint8)(i * 31 + (i >> 8));
+
+    CHECK("connect", qnConnectPool(&f, NULL, 8));
+    f.srv.drain = true;
+
+    flow = netquicOpen(f.cli.sock, true);
+    CHECK("open", flow != NULL);
+
+    size_t sent  = 0;
+    int64 giveUp = clockTimer() + timeMS(QN_BUDGET);
+
+    while (sent < total && clockTimer() < giveUp) {
+        size_t room = netquicWritable(flow);
+        size_t want = total - sent;
+        if (room > want)
+            room = want;
+
+        if (room == 0) {
+            qnTick(&f, timeMS(2));
+            continue;
+        }
+
+        CHECK("send", netflowSend(flow, payload + sent, room, 0));
+        sent += room;
+    }
+
+    CHECK_U("bytes handed to the stream", sent, total);
+
+    netquicFinish(flow);
+    QN_WAIT(&f, f.srv.drained == total, QN_BUDGET);
+
+    CHECK_U("bytes that arrived", f.srv.drained, total);
 
 out:
     xaFree(payload);
@@ -2562,6 +2630,7 @@ testfunc quicnettest_funcs[] = {
     { "reset",          test_quicnettest_reset          },
     { "stopsending",    test_quicnettest_stopsending    },
     { "bulk",           test_quicnettest_bulk           },
+    { "bulkstarved",    test_quicnettest_bulkstarved    },
     { "sendwakeup",     test_quicnettest_sendwakeup     },
     { "sendframed",     test_quicnettest_sendframed     },
     { "sendwatermark",  test_quicnettest_sendwatermark  },
