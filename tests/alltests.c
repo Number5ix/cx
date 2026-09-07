@@ -611,6 +611,7 @@ static const testspec tests[] = {
     { "quicnet: Resetting A Stream", "quicnettest", "reset" },
     { "quicnet: Stop Sending", "quicnettest", "stopsending" },
     { "quicnet: Bulk Transfer", "quicnettest", "bulk" },
+    { "quicnet: Bulk Transfer With A Starved Pool", "quicnettest", "bulkstarved" },
     { "quicnet: Send Wakeup", "quicnettest", "sendwakeup" },
     { "quicnet: Framed Send Wakeup", "quicnettest", "sendframed" },
     { "quicnet: Send Watermark", "quicnettest", "sendwatermark" },

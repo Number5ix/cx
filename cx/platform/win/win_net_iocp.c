@@ -62,6 +62,9 @@ typedef struct IocpOp {
     IocpOpType type;
     NetSocket*  sock;   // strong ref held for the life of the operation
     Buffer      buf;    // datagram recv: pooled buffer being filled; NULL otherwise
+    // Datagram recv posted while the buffer pool was empty: an op-owned buffer, whose contents
+    // are dropped on completion. See postRecvFrom().
+    uint8*      scratch;
     WSABUF      wsabuf;
     DWORD       flags;  // WSARecv/WSARecvFrom in/out flags
     struct sockaddr_storage from;   // datagram recv: source; datagram send: destination
@@ -181,19 +184,27 @@ static bool postRecvFrom(_Inout_ NetQueueWinIOCP* self, _Inout_ NetSocket* sock)
     if (_netqueueShuttingDown(q))
         return false;
 
-    Buffer buf = bufpoolGet(&q->pool->msgbuf);
-    if (!buf) {
-        atomicFetchAdd(uint32, &q->droppedNoBuf, 1, Relaxed);
-        return false;
-    }
+    IocpOp* op  = xaAlloc(sizeof(IocpOp), XA_Zero);
+    op->type    = IocpRecvFrom;
+    op->sock    = objAcquire(sock);
+    op->fromlen = (INT)sizeof(op->from);
 
-    IocpOp* op     = xaAlloc(sizeof(IocpOp), XA_Zero);
-    op->type       = IocpRecvFrom;
-    op->sock       = objAcquire(sock);
-    op->buf        = buf;
-    op->wsabuf.buf = (CHAR*)buf->data;
-    op->wsabuf.len = (ULONG)min(buf->sz, (size_t)ULONG_MAX);
-    op->fromlen    = (INT)sizeof(op->from);
+    // With the pool empty, receive into a buffer this op owns and drop what lands in it, rather
+    // than posting nothing. A readiness backend can decline to read and be told again on the next
+    // poll; a completion backend has no such second chance. A datagram socket that answers a
+    // completion without posting another has one fewer outstanding receive, permanently -- and
+    // once the last one is retired that socket never hears anything again. Dropping a datagram is
+    // ordinary; going deaf is not.
+    Buffer buf = bufpoolGet(&q->pool->msgbuf);
+    if (buf) {
+        op->buf        = buf;
+        op->wsabuf.buf = (CHAR*)buf->data;
+        op->wsabuf.len = (ULONG)min(buf->sz, (size_t)ULONG_MAX);
+    } else {
+        op->scratch    = xaAlloc(q->conf.recvBufSize);
+        op->wsabuf.buf = (CHAR*)op->scratch;
+        op->wsabuf.len = (ULONG)min(q->conf.recvBufSize, (size_t)ULONG_MAX);
+    }
 
     atomicFetchAdd(uint32, &self->iops, 1, AcqRel);
 
@@ -218,7 +229,9 @@ static bool postRecvFrom(_Inout_ NetQueueWinIOCP* self, _Inout_ NetSocket* sock)
     // synchronous error means no completion will arrive, so unwind here in that case alone.
     if (rc == SOCKET_ERROR && WSAGetLastError() != WSA_IO_PENDING) {
         atomicFetchSub(uint32, &self->iops, 1, AcqRel);
-        bufpoolPut(&q->pool->msgbuf, &op->buf);
+        if (op->buf)
+            bufpoolPut(&q->pool->msgbuf, &op->buf);
+        xaDestroy(&op->scratch);
         objRelease(&op->sock);
         xaFree(op);
         return false;
@@ -490,7 +503,12 @@ static void handleCompletion(_Inout_ NetQueueWinIOCP* self, _Inout_ OVERLAPPED* 
     bool live     = ok && !shutting && !closed;
 
     if (op->type == IocpRecvFrom) {
-        if (live) {
+        if (live && op->scratch) {
+            // Posted with the pool empty: the datagram is gone. Count it and keep the pipeline
+            // full -- the next post gets a real buffer if one has come back by now.
+            atomicFetchAdd(uint32, &q->droppedNoBuf, 1, Relaxed);
+            postRecvFrom(self, sock);
+        } else if (live) {
             op->buf->len = (size_t)bytes;
 
             NetAddr src;
@@ -512,7 +530,7 @@ static void handleCompletion(_Inout_ NetQueueWinIOCP* self, _Inout_ OVERLAPPED* 
 
             // Keep the outstanding set full: replace the op we are retiring with a fresh one.
             postRecvFrom(self, sock);
-        } else {
+        } else if (op->buf) {
             // Aborted, errored, or torn down: return the buffer, post nothing.
             bufpoolPut(&q->pool->msgbuf, &op->buf);
         }
@@ -618,6 +636,7 @@ static void handleCompletion(_Inout_ NetQueueWinIOCP* self, _Inout_ OVERLAPPED* 
         }
     }
 
+    xaDestroy(&op->scratch);
     objRelease(&op->sock);
     xaFree(op);
     atomicFetchSub(uint32, &self->iops, 1, AcqRel);
