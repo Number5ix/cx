@@ -1,0 +1,68 @@
+#include <cx/net/socket.cxh>
+#include <cx/net/net_shared.h>
+#include <cxhttp/http_shared.h>
+#include <cxhttp/httprequest.cxh>
+
+// One HTTP/3 connection, client side, carrying as many requests at once as the peer allows.
+//
+// The counterpart of HttpConn and deliberately not its subclass: the two share the object model
+// above them and nothing below it. An application never meets one -- an HTTP/3 response arrives
+// through the same HttpHandlers as any other, with HttpEvent::version reading HTTPVER_3.
+//
+// The difference from HttpConn that matters to everything above is that this one is *shared*. An
+// HttpConn carries one request at a time and is taken out of the pool for the duration; this hands
+// out a reference and keeps serving. That is what makes a pooled HTTP/3 connection cost one dial
+// per origin rather than one per concurrent request.
+[methodprefix h3conn] class Http3Conn
+{
+    // The QUIC connection, held strongly for as long as this exists
+    object[NetSocket] sock;
+
+    // Connection-wide HTTP/3 state: the peer's settings, the control stream in each direction and
+    // the GOAWAY. An Http3Session, opaque here for the same reason NetSocketQuic's engine state is.
+    void *session;
+
+    // The three unidirectional streams this endpoint opens.
+    object[NetFlow] control;
+    object[NetFlow] qpackEnc;
+    object[NetFlow] qpackDec;
+
+    // Authority for :authority, and what the peer's certificate was checked against
+    string host;
+
+    // Requests running right now. The pool reaps a connection only when this reaches zero, because
+    // unlike an HttpConn this one is in the pool while it is in use.
+    atomic[uint32] nreqs;
+
+    // How long a response may take, in microseconds; 0 for no limit. Copied from the client onto
+    // each request's stream as it starts.
+    int64 timeout;
+
+    bool failed;     // the connection is going down
+
+    // Called when the connection dies, so a pool can stop handing it out. An Http3ConnClosedCB,
+    // typed as void* here because the typedef lives in the implementation header.
+    void *closedCB;
+    void *closedCtx;
+
+    [canfail] factory create([in] NetSocket *sock, strref host);
+    init();
+    destroy();
+
+    // Close the connection. Everything in flight on every stream is abandoned.
+    void close();
+
+    // Whether another request may be started here: alive, and not past a GOAWAY.
+    bool usable();
+
+    // Start a request on a stream of its own.
+    bool request([in] HttpRequest *req, [in] [opt] const HttpHandlers *handlers, [in] [opt] void *ctx);
+
+    // -----------------------------------------------------------------------------------------
+    // PRIVATE IMPLEMENTATION DETAILS
+    // -----------------------------------------------------------------------------------------
+
+    // Push as much of a streamed request body onto its stream as the window will take. Called when
+    // the request starts, when the window opens, and when the producer writes more.
+    [extern] unbound void _pumpBody([in] HttpRequest *req);
+}

@@ -13,15 +13,18 @@
 #include <cxhttp/httpserverreq.h>
 
 /// @file cxhttp.h
-/// @brief HTTP/1.1 for cx: URLs, headers, and a client over NetQueue and cxtls
+/// @brief HTTP for cx: URLs, headers, and a client and server over NetQueue, cxtls and cxquic
 
 /// @defgroup http HTTP
 /// @{
-/// HTTP/1.1 over the netqueue socket layer.
+/// HTTP/1.1 and HTTP/3 over the netqueue socket layer.
 ///
-/// cxhttp speaks the common 90% of HTTP/1.1 -- framing, headers, chunked bodies, redirects,
-/// cookies, and connection reuse -- for two jobs: calling out to fetch things, and serving simple
-/// APIs behind a reverse proxy. It is not an edge server and does not try to be.
+/// cxhttp speaks the common 90% of HTTP -- framing, headers, bodies, redirects, cookies, and
+/// connection reuse -- for two jobs: calling out to fetch things, and serving simple APIs behind
+/// a reverse proxy. It is not an edge server and does not try to be.
+///
+/// The two protocols are one API. Requests, responses, headers, bodies, limits and handlers are
+/// the same objects either way; only what goes on the wire differs.
 ///
 /// @defgroup http_overview Overview
 /// @ingroup http
@@ -82,9 +85,68 @@
 ///
 /// @section http_versions Protocol versions
 ///
-/// HTTP/1.1 only on the wire. A peer answering in HTTP/1.0 is understood and answered under 1.0
-/// rules -- no chunked encoding, connection closes by default -- but cxhttp never sends `HTTP/1.0`
-/// itself. HTTP/2 is out of scope permanently; HTTP/3 waits on QUIC.
+/// HTTP/1.1 and HTTP/3. HTTP/2 is out of scope permanently. A peer answering in HTTP/1.0 is
+/// understood and answered under 1.0 rules -- no chunked encoding, connection closes by default --
+/// but cxhttp never sends `HTTP/1.0` itself.
+///
+/// A client sends HTTP/1.1 unless it is told otherwise, because reaching HTTP/3 means sending UDP
+/// to a host that has not said it listens. httpclientSetVersions() changes that for every request
+/// a client makes, httprequestSetVersions() for one:
+///
+/// - `HTTPV_Default` -- HTTP/1.1, unless this client already knows the origin answers HTTP/3
+/// - `HTTPV_Http1` -- HTTP/1.1 only
+/// - `HTTPV_Http3` -- HTTP/3 only; the request fails if QUIC cannot be reached
+/// - `HTTPV_Any` -- dial both and use whichever is usable first
+///
+/// `HTTPV_Any` starts QUIC and TCP together and closes the loser. Nothing is sent until one of
+/// them can carry it, so a POST races as safely as a GET. Which one won is remembered for that
+/// origin, so racing costs one extra dial per origin rather than one per request -- and an
+/// `Alt-Svc` header on an HTTP/1.1 response fills the same table in without racing at all.
+///
+/// Both calls answer false in a build without HTTP/3 in it. There `HTTPV_Any` means HTTP/1.1 and
+/// `HTTPV_Http3` is refused where it is asked for, rather than failing later at a request.
+///
+/// @section http_h3 HTTP/3
+///
+/// A server reaches it with httpserverListenQuic(), which is to netquicListen() what
+/// httpserverListenTls() is to nettlsListen(). It is another listener rather than another server:
+/// one HttpServer can hold both, and the same handler answers whatever arrives on either.
+/// httpserverSetAltSvc() is how an HTTP/1.1 response tells a client that this origin also answers
+/// HTTP/3; listenQuic() sets a usable default from the port it bound.
+///
+/// @code
+///   app  <->  HttpRequest / HttpServerRequest    the same objects, either protocol
+///                   |
+///             HTTP/3 framing and QPACK
+///                   |
+///             NetFlow                            one QUIC stream per request
+///                   |
+///             NetSocket                          one QUIC connection
+/// @endcode
+///
+/// Only the wire differs, and it differs in ways worth knowing:
+///
+/// - `Host` travels as `:authority`, and the method, scheme and target as `:method`, `:scheme` and
+///   `:path`. Set headers by their ordinary names; cxhttp writes whichever form the wire needs.
+/// - `Connection`, `Keep-Alive`, `Transfer-Encoding`, `Upgrade` and `Proxy-Connection` mean nothing
+///   in HTTP/3. They are dropped on the way out and refused on the way in, and `TE` is allowed only
+///   with the value `trailers`.
+/// - A body ends when its stream ends, so there is no chunked encoding to ask for.
+///   `Content-Length` is still sent, and still checked when the peer sends one.
+/// - HttpLimits::maxLineLen and HttpLimits::maxChunkSize have nothing to apply to. The rest do, and
+///   HttpLimits::maxHeadBytes is also what the peer is told its header blocks may weigh.
+/// - Server push is not implemented and cannot be turned on.
+///
+/// One behaviour is genuinely different. Requests on a single HTTP/3 connection run at the same
+/// time, because each is a QUIC stream with a worker of its own -- so on a queue with worker
+/// threads, two handlers on the same connection can be running at once. Anything a handler touches
+/// that is not its own request needs the care it would need across two connections.
+///
+/// On the client side a pooled HTTP/3 connection is shared rather than taken, so a burst of
+/// requests to one origin costs one dial and one connection. 0-RTT works if the TLS configuration
+/// allows it (tlsconfigSetEarlyData()), but cxhttp does not put request data in it: the request
+/// waits the round trip for the server's settings to arrive, so the saving is in the handshake
+/// rather than in the request.
 ///
 /// @}  // end of http_overview
 
@@ -120,8 +182,8 @@
 
 /// @defgroup http_server Server
 /// @ingroup http
-/// An HTTP/1.1 server over a NetQueue listener: one callback per complete request, and a response
-/// built on the request object.
+/// An HTTP server over NetQueue listeners: one callback per complete request, and a response built
+/// on the request object. One server may listen for HTTP/1.1, HTTPS and HTTP/3 at once.
 
 /// @defgroup http_forms Form Bodies
 /// @ingroup http

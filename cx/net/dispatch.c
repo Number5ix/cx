@@ -265,14 +265,86 @@ void NetQueue__submit(NetQueue* self, NetFlow* flow, NetMessage* msg)
 // Dispatch
 // ---------------------------------------------------------------------------------------------
 
+// Put a flow back on the runqueue without a message to carry it there. Only the accept gate uses
+// this: a flow it turned away kept everything in its inbox and left the runqueue, so something has
+// to bring it back once the gate opens.
+static void requeueFlow(_In_ NetQueue* q, _Inout_ NetFlow* flow)
+{
+    if (atomicExchange(uint32, &flow->queued, 1, AcqRel) != 0)
+        return;   // already waiting its turn
+
+    objAcquire(flow);
+    if (!prqPush(&q->runq, flow)) {
+        atomicStore(uint32, &flow->queued, 0, Release);
+        objRelease(&flow);
+        return;
+    }
+
+    if (saSize(q->workers) > 0)
+        semaInc(&q->runqSema, 1);
+}
+
+// The application has been given the socket, so what its flows were holding may run. Every flow is
+// requeued rather than only the ones that look like they have something: an empty drain costs a pop
+// and a claim, and deciding otherwise would mean reading state a worker owns.
+static void openAcceptGate(_In_ NetQueue* q, _Inout_ NetSocket* sock)
+{
+    // Cleared before the flows are woken, never after: a worker that pops one of them must find
+    // the gate open, or it would turn the flow away again with nothing left to bring it back.
+    atomicStore(uint32, &sock->awaitingAccept, 0, Release);
+
+    if (sock->type == NST_Datagram || sock->type == NST_Quic) {
+        withReadLock (&sock->flowLock) {
+            foreach (hashtable, hti, sock->flows) {
+                NetFlow* f = (NetFlow*)htiVal(object, hti);
+                if (f)
+                    requeueFlow(q, f);
+            }
+        }
+
+        // A QUIC connection's control flow sits beside that table rather than in it, and it is the
+        // one flow that was allowed to run while the gate was shut -- so it is the one that can be
+        // holding a message back, waiting for exactly this.
+        if (sock->type == NST_Quic && sock->flow)
+            requeueFlow(q, sock->flow);
+    } else if (sock->flow) {
+        requeueFlow(q, sock->flow);
+    }
+}
+
+// Whether a message on a QUIC connection's control flow is the transport's own business rather
+// than something the application is meant to see. Only these may run before the accept that
+// introduces the socket: the control flow carries the handshake, so holding them stalls the
+// connection short of raising that accept.
+//
+// A terminal is here despite being an application event, and it has to be. A connection that dies
+// during the handshake never posts an accept at all, so a gate that held its terminal would never
+// be opened by anything and the flow would sit in the socket's table forever. It is delivered
+// instead, and the accept path is where a connection that died before it was introduced is dealt
+// with -- by not introducing it.
+static bool transportOwn(_In_ const NetMessage* msg)
+{
+    return msg->kind == NMSG_Data || msg->kind == NMSG_Timer || msg->kind == NMSG_Terminal;
+}
+
 // Run every message currently pending for a flow we hold the claim on. Returns true if the flow's
 // terminal event was delivered, meaning the flow is finished and must leave the table.
-static bool drainFlow(NetQueue* q, NetSocket* sock, NetFlow* flow)
+//
+// `gatedCtl` is the QUIC control flow of a socket whose accept has not been delivered yet: it runs,
+// because it is what produces that accept, but only as far as its first application-facing message.
+static bool drainFlow(NetQueue* q, NetSocket* sock, NetFlow* flow, bool gatedCtl)
 {
     NetMessage* msg;
     bool terminated = false;
 
     while ((msg = netflow_pop(flow))) {
+        if (gatedCtl && !transportOwn(msg)) {
+            // Back where it came from, with everything behind it still behind it. The accept is
+            // what brings this flow back, and by then the application has its handlers installed.
+            netflow_unpop(flow, msg);
+            break;
+        }
+
         if (msg->kind == NMSG_Terminal) {
             // A terminal event whose flow has since resurrected is cancelled rather than
             // delivered -- the peer turned out not to be gone after all, so tearing down the
@@ -382,9 +454,29 @@ static bool drainFlow(NetQueue* q, NetSocket* sock, NetFlow* flow)
             // ingest or completion thread that pulled it off the backlog. The accepted socket rides
             // in `asock`; the handler acquires its own reference to keep it (or lets NQ_AutoAccept
             // have already added it to the queue), and retiring the message releases its reference.
-            NetEvent ev          = { .event = NET_Accepted };
-            ev.accept.newSocket  = msg->asock;
-            netqueue_deliver(q, sock, flow, &ev);
+            //
+            // A connection that died between being accepted and being announced is not
+            // announced. The application would otherwise be handed a socket that can no longer
+            // carry anything and will never raise another event -- including the closed event that
+            // would tell it to let go, since that already went past on a flow it had no handlers
+            // on yet. Which way this races is unimportant: delivering the accept a moment before
+            // the socket dies simply means the closed event follows it, in order, as usual.
+            bool dead = msg->asock &&
+                        atomicLoad(uint32, &msg->asock->state, Acquire) == NS_Closed;
+
+            if (!dead) {
+                NetEvent ev         = { .event = NET_Accepted };
+                ev.accept.newSocket = msg->asock;
+                netqueue_deliver(q, sock, flow, &ev);
+            }
+
+            // The handler has had its chance to install handlers of its own, so whatever the new
+            // socket's flows were holding back may now be delivered to them. Still done for a
+            // socket that was not announced: what it is holding has to drain and be freed, and
+            // nothing else is coming to open the gate.
+            if (msg->asock)
+                openAcceptGate(q, msg->asock);
+
             netpoolFreeMsg(q->pool, &msg);
             continue;
         }
@@ -468,8 +560,32 @@ bool NetQueue__dispatch(NetQueue* self)
     NetSocket* sock = objAcquireFromWeak(NetSocket, flow->socket);
     bool terminated = false;
 
+    // An accepted socket the application has not been introduced to yet. Its flows keep everything
+    // they have until the accept that introduces it has been delivered, which is what makes
+    // NET_Accepted first on every socket rather than merely first on the listener's flow. The
+    // messages stay in the inbox; openAcceptGate() brings the flow back.
+    //
+    // A QUIC connection's own control flow is the exception, and has to be: it is not carrying
+    // application events at all, it is running the transport -- decrypting packets, answering the
+    // handshake, and eventually raising the very accept this gate is waiting for. Holding it would
+    // stall the connection short of the handshake that introduces it. It runs as far as its first
+    // application-facing message and no further; drainFlow() draws that line.
+    //
+    // Read once for the whole batch. A gate that opens while this worker is draining is not a
+    // problem in either direction: whoever opens it wakes the flow again afterwards, so a message
+    // held back here is picked up rather than stranded.
+    bool awaiting = sock && atomicLoad(uint32, &sock->awaitingAccept, Acquire) != 0;
+    bool ctlFlow  = awaiting && sock->type == NST_Quic && flow == sock->flow;
+
+    if (awaiting && !ctlFlow) {
+        atomicStore(uint32, &flow->claimed, 0, Release);
+        objRelease(&sock);
+        objRelease(&flow);
+        return true;
+    }
+
     for (;;) {
-        terminated = drainFlow(self, sock, flow);
+        terminated = drainFlow(self, sock, flow, ctlFlow);
 
         atomicStore(uint32, &flow->claimed, 0, Release);
 

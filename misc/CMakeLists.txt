@@ -63,6 +63,17 @@ if(CX_STANDALONE AND CX_HTTP)
     set_property(TARGET httpsrvdemo PROPERTY FOLDER "tests")
 endif()
 
+# The HTTP/3 interop peer, which quicinterop is not: that one links cxquic and tests the transport,
+# this one links cxhttp and only exists in a build that has HTTP/3 in it.
+if(CX_STANDALONE AND CX_HTTP3)
+    source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES
+        h3interop.c)
+
+    add_executable(h3interop h3interop.c)
+    target_link_libraries(h3interop cxhttp cxquic)
+    set_property(TARGET h3interop PROPERTY FOLDER "tests")
+endif()
+
 set(PRESETS_MAKER_SRCS
     presetsmaker.c
     )

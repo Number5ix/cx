@@ -88,49 +88,24 @@ static void armTimers(HttpServerConn* self, bool reading)
 // Socket handlers
 // ---------------------------------------------------------------------------------------------
 
-// Claim this thread as the one dispatching on the connection, answering the previous value so it
-// can be put back. Nesting is ordinary rather than exceptional -- responding from a request handler
-// runs _respond() inside the _pump() that delivered the request -- so this saves and restores
-// rather than setting and clearing.
 static Thread* enterDispatch(HttpServerConn* c)
 {
-    Thread* prev = (Thread*)atomicLoad(ptr, &c->dispatchThread, Relaxed);
-    atomicStore(ptr, &c->dispatchThread, thrCurrent(), Release);
-    return prev;
+    return _httpDispatchEnter(&c->dispatch);
 }
 
 static void leaveDispatch(HttpServerConn* c, Thread* prev)
 {
-    atomicStore(ptr, &c->dispatchThread, prev, Release);
+    _httpDispatchLeave(&c->dispatch, prev);
 }
 
-// True when this thread is the one currently dispatching on the connection, and may therefore
-// touch its parser, ring and deadlines directly.
 static bool onDispatchThread(HttpServerConn* c)
 {
-    return atomicLoad(ptr, &c->dispatchThread, Acquire) == thrCurrent();
+    return _httpDispatchOwned(&c->dispatch);
 }
 
-// Ask a worker to come and move this connection along. A zero-delay flow timer is the handoff:
-// NET_Timer arrives on a worker, ordered behind everything already pending for this connection, so
-// what it does cannot overtake an event the application has not seen yet.
-//
-// Whether that turns out to be writing a response or pushing more of a body is decided when it
-// lands rather than here -- by then the connection's own state says which, and this side is not
-// allowed to read it.
 static bool handoffToWorker(HttpServerConn* c)
 {
-    NetFlow* flow = c->sock ? c->sock->flow : NULL;
-    if (!flow)
-        return false;
-
-    atomicStore(uint32, &c->respondPending, 1, Release);
-    if (netflowAddTimer(flow, 0, NTF_None) == 0) {
-        // The flow is already dying, so no worker is coming.
-        atomicStore(uint32, &c->respondPending, 0, Relaxed);
-        return false;
-    }
-    return true;
+    return _httpDispatchHandoff(&c->dispatch, c->sock ? c->sock->flow : NULL);
 }
 
 // Same reasoning as the client's: the connection is registered as the socket's handler context
@@ -273,12 +248,9 @@ static void onNetTimer(NetEvent* ev)
     } else if (ev->timer.id == c->idleTimer) {
         c->idleTimer = 0;
         httpsrvconnClose(c);
-    } else if (atomicExchange(uint32, &c->respondPending, 0, AcqRel)) {
+    } else if (_httpDispatchClaim(&c->dispatch)) {
         // A handoff from another thread. Any id that is neither deadline is one: nothing else arms
-        // a timer on this connection, and a stale id simply finds the flag already clear.
-        //
-        // What was written off-thread became visible here through the queue's timer lock, which
-        // both arming and firing take.
+        // a timer on this connection.
         if (c->writing)
             httpsrvconn_pumpRespBody(c);
         else if (c->req)
@@ -685,6 +657,15 @@ bool HttpServerConn__respond(_In_ HttpServerConn* self, _In_ HttpServerRequest* 
         close = true;
 
     self->closing = close;
+
+    // Alt-Svc is how a client that arrived over HTTP/1.1 learns the same origin also answers
+    // HTTP/3. Added here rather than in _buildHead(), which cannot see the server.
+    HttpServer* srv = objAcquireFromWeak(HttpServer, self->server);
+    if (srv) {
+        if (!strEmpty(srv->altSvc) && !httpHeadersHas(&req->respHeaders, _SL("Alt-Svc")))
+            httpHeadersSet(&req->respHeaders, _SL("Alt-Svc"), srv->altSvc);
+        objRelease(&srv);
+    }
 
     string head = 0;
     httpsrvreq_buildHead(req, &head, close);

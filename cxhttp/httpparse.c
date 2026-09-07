@@ -201,7 +201,6 @@ static HttpParseResult lineProblem(HttpParser* p, LineResult r)
 // here -- a peer that sends "0x5" or " 5" as a chunk size is betting that an intermediary and an
 // origin will read it differently, which is how two parsers end up disagreeing about where a
 // message ends.
-#define HTTP_STRICTNUM (STRNUM_NoTrailing | STRNUM_NoWS | STRNUM_NoPrefix | STRNUM_NoSign)
 
 // ---------------------------------------------------------------------------------------------
 // Start lines

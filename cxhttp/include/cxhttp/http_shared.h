@@ -8,6 +8,7 @@
 #include <cx/serialize/streambuf.h>
 #include <cx/string.h>
 #include <cx/stype/stype.h>
+#include <cx/thread/atomic.h>
 
 /// @file http_shared.h
 /// @brief Plain-C types shared by the cxhttp classes and their consumers
@@ -31,6 +32,22 @@ typedef struct HttpServerRequest HttpServerRequest;
 // message is through the callbacks.
 typedef struct HttpParser HttpParser;
 
+// The handoff that lets a response be composed on one thread and written on another. Held by the
+// connection and request classes rather than being part of anyone's API; the helpers that drive it
+// are in http_private.h.
+//
+// Defined here rather than there because the generated class headers need its size, and it is
+// embedded rather than pointed at because there is nothing to hide and an allocation per request
+// to avoid.
+typedef struct HttpDispatch {
+    // The worker dispatching here, or NULL. Never dereferenced, only compared by identity, so it
+    // is stored without a reference.
+    atomic(ptr) thread;
+
+    // Work composed on another thread is waiting for a worker to pick it up.
+    atomic(uint32) pending;
+} HttpDispatch;
+
 /// Request method
 ///
 /// The methods with defined semantics in RFC 9110, plus HTTP_MethodOther for anything else -- an
@@ -51,10 +68,72 @@ typedef enum {
 
 /// Protocol version seen on the wire
 ///
-/// cxhttp only ever *sends* HTTP/1.1. This exists because a peer may answer in 1.0, which changes
-/// two things that matter: chunked transfer-encoding is not available, and a connection closes by
-/// default rather than persisting.
-typedef enum { HTTPVER_Unknown = 0, HTTPVER_1_0 = 10, HTTPVER_1_1 = 11 } HttpVersion;
+/// The value is the version with its dot removed, so they sort the way the versions do.
+///
+/// cxhttp sends HTTP/1.1 or HTTP/3, never HTTP/1.0. `HTTPVER_1_0` exists because a peer may
+/// *answer* in 1.0, which changes two things that matter: chunked transfer-encoding is not
+/// available, and a connection closes by default rather than persisting.
+typedef enum {
+    HTTPVER_Unknown = 0,
+    HTTPVER_1_0     = 10,
+    HTTPVER_1_1     = 11,
+    HTTPVER_3       = 30   ///< HTTP/3, which is always over QUIC
+} HttpVersion;
+
+/// @brief Which protocol versions a client may use, and how it chooses between them
+///
+/// HTTP/3 is never reached by accident: a program that has always spoken HTTP/1.1 keeps doing so
+/// until it asks for something else, because starting to send UDP is a change a firewall or a
+/// network policy may have opinions about.
+typedef enum {
+    /// @brief HTTP/1.1, unless this origin is already known to speak HTTP/3
+    ///
+    /// An origin becomes known either by answering with an `Alt-Svc` header or by having been
+    /// reached over HTTP/3 before. Nothing is ever tried speculatively.
+    HTTPV_Default = 0,
+
+    HTTPV_Http1,   ///< HTTP/1.1 only
+
+    /// @brief HTTP/3 only; a request fails rather than falling back
+    ///
+    /// For a client that knows its peer, or one that must not silently downgrade.
+    HTTPV_Http3,
+
+    /// @brief Try both at once and use whichever connects first, then remember which
+    ///
+    /// Costs one extra connection attempt the first time an origin is used and none afterwards.
+    /// Nothing is sent until a winner exists, so a POST races as safely as a GET.
+    HTTPV_Any
+} HttpVersionPolicy;
+
+/// @brief HTTP/3 and QPACK error codes (RFC 9114 section 8.1, RFC 9204 section 6)
+///
+/// These travel as QUIC application error codes, so one shows up as the code on a stream reset or
+/// on a connection close. Nothing has to be done with them -- cxhttp reports the failure through
+/// #HttpError either way -- but a program logging why a request died reads better naming them.
+typedef enum {
+    HTTPH3_NoError               = 0x0100,
+    HTTPH3_GeneralProtocolError  = 0x0101,
+    HTTPH3_InternalError         = 0x0102,
+    HTTPH3_StreamCreationError   = 0x0103,
+    HTTPH3_ClosedCriticalStream  = 0x0104,
+    HTTPH3_FrameUnexpected       = 0x0105,
+    HTTPH3_FrameError            = 0x0106,
+    HTTPH3_ExcessiveLoad         = 0x0107,
+    HTTPH3_IdError               = 0x0108,
+    HTTPH3_SettingsError         = 0x0109,
+    HTTPH3_MissingSettings       = 0x010a,
+    HTTPH3_RequestRejected       = 0x010b,
+    HTTPH3_RequestCancelled      = 0x010c,
+    HTTPH3_RequestIncomplete     = 0x010d,
+    HTTPH3_MessageError          = 0x010e,
+    HTTPH3_ConnectError          = 0x010f,
+    HTTPH3_VersionFallback       = 0x0110,
+
+    HTTPH3_QpackDecompressionFailed = 0x0200,
+    HTTPH3_QpackEncoderStreamError  = 0x0201,
+    HTTPH3_QpackDecoderStreamError  = 0x0202
+} HttpH3Error;
 
 /// @brief Status codes worth naming
 ///

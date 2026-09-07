@@ -32,13 +32,14 @@
 #include <cx/time/clock.h>
 
 STR_CONST(kDefaultAgent, "cx/1 cxhttp");
-STR_CONST(kAlpnHttp11, "http/1.1");
+STR_CONST(kAlpnHttp11, HTTP_ALPN_HTTP11);
 
 #define HTTPCLIENT_MAX_REDIRECTS    10
 #define HTTPCLIENT_RESPONSE_TIMEOUT timeS(60)
 #define HTTPCLIENT_IDLE_TIMEOUT     timeS(30)
 
 static void startExchange(HttpClient* self, HttpRequest* req);
+static TlsConfig* clientTls(HttpClient* self);
 
 // ---------------------------------------------------------------------------------------------
 // Pool
@@ -120,11 +121,135 @@ static void onPooledClosed(HttpConn* conn, void* ctx)
 }
 
 // ---------------------------------------------------------------------------------------------
-// Terminal paths
+// The HTTP/3 pool
+//
+// A second pair of arrays beside the first, because an HTTP/3 connection is used differently
+// rather than merely being a different type. An HTTP/1.1 entry is taken out for the duration of a
+// request and put back by _recycle(); an HTTP/3 entry stays where it is, hands out a reference,
+// and serves as many requests at once as the peer's stream limit allows.
 // ---------------------------------------------------------------------------------------------
+
+// Borrow the connection for this origin, if there is one that will still take a request. The
+// reference is the caller's; the pool keeps its own.
+_Ret_maybenull_ static ObjInst* h3PoolBorrow(_Inout_ HttpClient* self, _In_opt_ strref key)
+{
+    ObjInst* found = NULL;
+
+    withMutex (&self->lock) {
+        for (int32 i = saSize(self->h3pool) - 1; i >= 0; i--) {
+            if (!strEq(self->h3poolKeys.a[i], key))
+                continue;
+
+            // A connection the peer has said goodbye to, or that died quietly, must not be handed
+            // out again. Dropping it here as well as from the closed handler costs one predicate
+            // and closes the window between the peer's close arriving and a worker delivering it.
+            if (_http3ConnUsable(self->h3pool.a[i])) {
+                found = objAcquire(self->h3pool.a[i]);
+                break;
+            }
+
+            saRemove(&self->h3pool, i);
+            saRemove(&self->h3poolKeys, i);
+        }
+    }
+
+    return found;
+}
+
+static void h3PoolAdd(_Inout_ HttpClient* self, _In_ ObjInst* conn, _In_opt_ strref key)
+{
+    withMutex (&self->lock) {
+        saPush(&self->h3pool, object, conn);
+        saPush(&self->h3poolKeys, strref, key);
+    }
+}
+
+static void h3PoolEvict(_Inout_ HttpClient* self, _In_opt_ ObjInst* conn)
+{
+    withMutex (&self->lock) {
+        for (int32 i = saSize(self->h3pool) - 1; i >= 0; i--) {
+            if (self->h3pool.a[i] == conn) {
+                saRemove(&self->h3pool, i);
+                saRemove(&self->h3poolKeys, i);
+            }
+        }
+    }
+}
+
+static void onH3PooledClosed(ObjInst* conn, void* ctx)
+{
+    HttpClient* self = (HttpClient*)ctx;
+    if (self)
+        h3PoolEvict(self, conn);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Dial coalescing
+// ---------------------------------------------------------------------------------------------
+
+// Claim the right to dial this origin over QUIC, or park the request behind a dial already in
+// flight. True means "go ahead and dial"; false means the request is waiting and will be started
+// when that dial lands.
+static bool h3DialClaim(_Inout_ HttpClient* self, _Inout_ HttpRequest* req, _In_opt_ strref key)
+{
+    bool mine = true;
+
+    withMutex (&self->lock) {
+        for (int32 i = 0; i < saSize(self->h3Dialing); i++) {
+            if (strEq(self->h3Dialing.a[i], key)) {
+                mine = false;
+                break;
+            }
+        }
+
+        if (mine) {
+            saPush(&self->h3Dialing, strref, key);
+        } else {
+            saPush(&self->h3Waiters, HttpRequest, req);
+            saPush(&self->h3WaiterKeys, strref, key);
+        }
+    }
+
+    return mine;
+}
+
+// A dial for this origin has landed, one way or the other. Takes the requests that were waiting on
+// it and clears the claim, so the next request for this origin dials rather than waiting for a
+// dial that has already finished.
+static void h3DialDone(_Inout_ HttpClient* self, _In_opt_ strref key, _Out_ sa_HttpRequest* waiting)
+{
+    saInit(waiting, HttpRequest, 4);
+
+    withMutex (&self->lock) {
+        for (int32 i = saSize(self->h3Dialing) - 1; i >= 0; i--) {
+            if (strEq(self->h3Dialing.a[i], key))
+                saRemove(&self->h3Dialing, i);
+        }
+
+        for (int32 i = saSize(self->h3WaiterKeys) - 1; i >= 0; i--) {
+            if (!strEq(self->h3WaiterKeys.a[i], key))
+                continue;
+            saPush(waiting, HttpRequest, self->h3Waiters.a[i]);
+            saRemove(&self->h3Waiters, i);
+            saRemove(&self->h3WaiterKeys, i);
+        }
+    }
+}
 
 void HttpClient__recycle(_In_ HttpClient* self, _In_ HttpRequest* req, bool reusable)
 {
+    // An HTTP/3 connection was borrowed rather than taken, so there is nothing to put back:
+    // recycling a request is only letting go of its stream. The connection stays in the pool
+    // serving whatever else is on it, and is reaped when nothing is.
+    if (req->h3conn) {
+        _http3ReqRelease(req);
+
+        // With pooling off there is nobody to reap it later, so the last request out closes it.
+        if (self->idleTimeout <= 0)
+            httpclientCloseIdle(self);
+        return;
+    }
+
     HttpConn* conn = NULL;
     bool cancelled = false;
 
@@ -174,7 +299,8 @@ void HttpClient__recycle(_In_ HttpClient* self, _In_ HttpRequest* req, bool reus
 
 void HttpClient__finish(_In_ HttpClient* self, _In_ HttpRequest* req, HttpError err)
 {
-    NetSocket* dialing = NULL;
+    NetSocket* dialing  = NULL;
+    NetSocket* dialQuic = NULL;
 
     withMutex (&req->exLock) {
         // A cancelled exchange reports why it ended rather than what the transport happened to say
@@ -187,14 +313,22 @@ void HttpClient__finish(_In_ HttpClient* self, _In_ HttpRequest* req, HttpError 
         // everything else the cancel path reads.
         req->client = NULL;
 
-        // The socket, if the exchange never got as far as a connection to own it.
+        // The sockets, if the exchange never got as far as a connection to own them. Under
+        // HTTPV_Any there may be two: whichever lost the race is closed here along with the one
+        // that never finished.
         dialing       = req->dialSock;
         req->dialSock = NULL;
+        dialQuic      = req->dialQuic;
+        req->dialQuic = NULL;
     }
 
     if (dialing) {
         netsocketClose(dialing);
         objRelease(&dialing);
+    }
+    if (dialQuic) {
+        netsocketClose(dialQuic);
+        objRelease(&dialQuic);
     }
 
     req->err = err;
@@ -353,6 +487,16 @@ static void onExHeaders(HttpEvent* ev)
     if (self->jar && !(req->flags & HTTPREQ_NoCookies))
         httpcookiejarStoreAll(self->jar, &req->url, ev->headers);
 
+    // An Alt-Svc header is how a client that has only ever spoken HTTP/1.1 to this origin learns
+    // that it also answers HTTP/3. Read on every response rather than only on HTTP/1.1 ones,
+    // because `clear` has to be honoured wherever it arrives.
+    {
+        string key = 0;
+        poolKey(&key, &req->url);
+        _httpOriginLearnAltSvc(self, key, &req->url, ev->headers);
+        strDestroy(&key);
+    }
+
     if (!(req->flags & HTTPREQ_NoRedirect) && isRedirect(ev->status)) {
         string loc = 0;
         if (httpHeadersGet(ev->headers, _SL("Location"), &loc) && !strEmpty(loc)) {
@@ -414,8 +558,21 @@ static void onExError(HttpEvent* ev)
     if (!self)
         return;
 
+    // A server restarting gracefully sends a GOAWAY naming the last stream it will serve, and
+    // resets everything above it. The peer has guaranteed those were not processed, so starting
+    // one again on a fresh connection is safe without knowing anything about the method -- and
+    // that single retry is what makes a rolling restart invisible.
+    bool retry = !req->h3Retried && _http3ReqRetryable(req);
+
     req->neterr = ev->neterr;
     httpclient_recycle(self, req, false);
+
+    if (retry) {
+        req->h3Retried = true;
+        startExchange(self, req);
+        return;
+    }
+
     httpclient_finish(self, req, ev->err);
 }
 
@@ -477,6 +634,77 @@ static void applyClientHeaders(HttpClient* self, HttpRequest* req)
     }
 }
 
+// ---------------------------------------------------------------------------------------------
+// The race
+//
+// Under HTTPV_Any against an origin nothing is remembered about, both transports are dialled at
+// once and the first to become *usable* wins. Nothing is sent until there is a winner, so there is
+// no double-send and no idempotency question -- which is why racing is as safe for a POST as for a
+// GET.
+// ---------------------------------------------------------------------------------------------
+
+// Claim the race for one transport. False means the other one already won, in which case the
+// caller closes what it was holding and does nothing else. The loser's socket is closed here,
+// which its own dial handlers then see as a teardown for a request that has moved on.
+static bool raceClaim(_Inout_ HttpRequest* req, bool quic)
+{
+    NetSocket* loser = NULL;
+    bool won         = false;
+
+    withMutex (&req->exLock) {
+        if (!req->raced) {
+            req->raced  = true;
+            req->racing = false;
+            won         = true;
+
+            if (quic) {
+                loser         = req->dialSock;
+                req->dialSock = NULL;
+            } else {
+                loser         = req->dialQuic;
+                req->dialQuic = NULL;
+            }
+        }
+    }
+
+    // Outside the lock: closing reaches the socket layer, and a per-request mutex has no business
+    // being held across that.
+    if (loser) {
+        netsocketClose(loser);
+        objRelease(&loser);
+    }
+
+    return won;
+}
+
+// One transport's dial failed. On its own that is not a failure: the other may still be coming.
+// Only when nothing is left does the request fail, reported by whichever finished last.
+static void raceFailed(HttpClient* self, HttpRequest* req, bool quic, HttpError err,
+                       NetErrorCode neterr)
+{
+    NetSocket* dead = NULL;
+    bool last       = false;
+
+    withMutex (&req->exLock) {
+        if (quic) {
+            dead          = req->dialQuic;
+            req->dialQuic = NULL;
+        } else {
+            dead          = req->dialSock;
+            req->dialSock = NULL;
+        }
+        last = !req->raced && !req->dialSock && !req->dialQuic;
+    }
+
+    if (dead) {
+        netsocketClose(dead);
+        objRelease(&dead);
+    }
+
+    if (last)
+        failExchange(self, req, err, neterr);
+}
+
 // Hand the socket over to a connection and write the request. Shared by the plaintext and TLS
 // paths, which differ only in when they get here.
 static void beginOnSocket(HttpRequest* req, NetSocket* sock)
@@ -484,6 +712,12 @@ static void beginOnSocket(HttpRequest* req, NetSocket* sock)
     HttpClient* self = req->client;
     if (!self)
         return;
+
+    // Under HTTPV_Any the QUIC dial may already have won, in which case this socket is surplus.
+    if (req->racing && !raceClaim(req, false)) {
+        netsocketClose(sock);
+        return;
+    }
 
     string host = 0;
     httpUrlHostHeader(&host, &req->url);
@@ -529,7 +763,7 @@ static void onDialConnection(NetEvent* ev)
         return;
 
     if (ev->conn.state == NCS_NotConnected) {
-        failExchange(self, req, HTTPERR_Network, ev->conn.err);
+        raceFailed(self, req, false, HTTPERR_Network, ev->conn.err);
         return;
     }
 
@@ -558,7 +792,7 @@ static void onDialFilterNotify(NetEvent* ev)
         bool ok = strEmpty(info.alpn) || strEq(info.alpn, kAlpnHttp11);
         nettlsInfoDestroy(&info);
         if (!ok) {
-            failExchange(self, req, HTTPERR_BadMessage, NERR_None);
+            raceFailed(self, req, false, HTTPERR_BadMessage, NERR_None);
             return;
         }
     }
@@ -574,7 +808,7 @@ static void onDialClosed(NetEvent* ev)
     // Only reachable while the request is still dialing: once a connection exists it owns the
     // socket's handlers, and this is no longer installed. A close here is a handshake that failed.
     if (self && req->dialSock)
-        failExchange(self, req, HTTPERR_Network, NERR_None);
+        raceFailed(self, req, false, HTTPERR_Network, NERR_None);
 }
 
 static void onDialError(NetEvent* ev)
@@ -583,7 +817,7 @@ static void onDialError(NetEvent* ev)
     HttpClient* self = req ? req->client : NULL;
 
     if (self && req->dialSock)
-        failExchange(self, req, HTTPERR_Network, ev->error.err);
+        raceFailed(self, req, false, HTTPERR_Network, ev->error.err);
 }
 
 static const NetHandlers kDialHandlers = {
@@ -593,29 +827,327 @@ static const NetHandlers kDialHandlers = {
     .error        = onDialError,
 };
 
-// Add http/1.1 to cfg's ALPN list if it is not already offered, leaving the rest of the list
-// untouched. onDialFilterNotify() rejects anything negotiated other than http/1.1, so a config
-// missing it would fail every handshake that does negotiate ALPN.
-static void ensureAlpnHttp11(TlsConfig* cfg)
+// ---------------------------------------------------------------------------------------------
+// Dialing HTTP/3
+//
+// A separate handler set from the TCP one, because the two say different things. A QUIC
+// connection is usable the moment NET_Connection says it is connected and the handshake picked
+// `h3`; there is no NFN_Secured step, since QUIC has no unencrypted phase to wait past.
+// ---------------------------------------------------------------------------------------------
+
+// Start one request on a connection that has just come up, or fail it. Used for the request that
+// did the dialling and for every request that was parked behind it.
+static void startOnH3(HttpClient* self, HttpRequest* req, ObjInst* conn)
 {
-    sa_string protos;
-    int32 n = tlsconfigGetALPN(cfg, &protos);
+    if (!req->client)
+        return;
 
-    bool has = false;
-    for (int32 i = 0; i < n; i++) {
-        if (strEq(protos.a[i], kAlpnHttp11)) {
-            has = true;
-            break;
-        }
+    // The TCP half of a race may already have won for this one, in which case it is already on its
+    // way over HTTP/1.1 and this connection is simply not its business.
+    if (req->racing && !raceClaim(req, true))
+        return;
+
+    bool cancelled = false;
+    withMutex (&req->exLock) {
+        cancelled = req->cancelled;
+    }
+    if (cancelled) {
+        failExchange(self, req, HTTPERR_Aborted, NERR_None);
+        return;
     }
 
-    if (!has) {
-        saPush(&protos, strref, kAlpnHttp11);
-        tlsconfigSetALPN(cfg, &protos);
+    if (!conn) {
+        failExchange(self, req, HTTPERR_Network, NERR_None);
+        return;
     }
 
-    saDestroy(&protos);
+    if (!_http3ConnRequest(conn, req, exchangeHandlers(req), NULL, self->responseTimeout))
+        failExchange(self, req, HTTPERR_Network, NERR_None);
 }
+
+// A QUIC dial has landed. Release everything that was parked behind it, on the connection if there
+// is one and through the ordinary failure path if there is not.
+static void h3DialLanded(HttpClient* self, HttpRequest* req, ObjInst* conn, strref key)
+{
+    sa_HttpRequest waiting;
+    h3DialDone(self, key, &waiting);
+
+    startOnH3(self, req, conn);
+
+    for (int32 i = 0; i < saSize(waiting); i++) {
+        // A parked request that is racing may have been won by TCP while it waited, and one whose
+        // dial failed goes back through startExchange() -- which now finds the origin remembered
+        // as one where QUIC does not work, and falls back.
+        HttpRequest* w = waiting.a[i];
+        if (conn)
+            startOnH3(self, w, conn);
+        else if (!w->racing)
+            startExchange(self, w);
+        else
+            raceFailed(self, w, true, HTTPERR_Network, NERR_None);
+    }
+
+    saDestroy(&waiting);
+}
+
+// Hand the QUIC socket over to a connection and start the request on it.
+static void beginOnQuic(HttpRequest* req, NetSocket* sock)
+{
+    HttpClient* self = req->client;
+    if (!self)
+        return;
+
+    string key = 0;
+    poolKey(&key, &req->url);
+
+    // A server that negotiated something other than h3 over QUIC is not speaking a protocol this
+    // client can read. Unlike the TCP case there is no benign "negotiated nothing": QUIC requires
+    // ALPN, so an empty answer means the handshake did not do what it had to.
+    string host   = 0;
+    ObjInst* conn = NULL;
+    if (_http3Negotiated(sock)) {
+        httpUrlHostHeader(&host, &req->url);
+        conn = _http3ConnCreate(sock, host);
+        strDestroy(&host);
+    }
+
+    if (!conn) {
+        // Remembered, so the next request to this origin does not pay for finding out again.
+        _httpOriginRemember(self, key, HTTPORIGIN_H3Failed, 0, HTTPORIGIN_TTL);
+        netsocketClose(sock);
+
+        NetSocket* dialing = NULL;
+        withMutex (&req->exLock) {
+            dialing       = req->dialQuic;
+            req->dialQuic = NULL;
+        }
+        objRelease(&dialing);
+
+        h3DialLanded(self, req, NULL, key);
+        if (!req->racing)
+            failExchange(self, req, HTTPERR_BadMessage, NERR_None);
+        else
+            raceFailed(self, req, true, HTTPERR_Network, NERR_None);
+        strDestroy(&key);
+        return;
+    }
+
+    _httpOriginRemember(self, key, HTTPORIGIN_H3Works, 0, HTTPORIGIN_TTL);
+
+    // The connection owns the socket now; the request's dialing reference has done its job.
+    NetSocket* dialing = NULL;
+    withMutex (&req->exLock) {
+        dialing       = req->dialQuic;
+        req->dialQuic = NULL;
+    }
+    objRelease(&dialing);
+
+    // Into the pool before any request starts, because an HTTP/3 connection is borrowed rather
+    // than taken: the pool is where it lives from now on, and it has to be reachable by the next
+    // request for this origin even while this one is still running.
+    _http3ConnSetClosed(conn, onH3PooledClosed, self);
+    h3PoolAdd(self, conn, key);
+
+    h3DialLanded(self, req, conn, key);
+
+    objRelease(&conn);   // the pool holds it now
+    strDestroy(&key);
+}
+
+// The QUIC dial for this origin failed before there was ever a connection. Everything parked
+// behind it has to be released, and the origin is remembered so the next request does not repeat
+// the wait.
+static void quicDialFailed(HttpClient* self, HttpRequest* req, HttpError err, NetErrorCode neterr)
+{
+    string key = 0;
+    poolKey(&key, &req->url);
+    _httpOriginRemember(self, key, HTTPORIGIN_H3Failed, 0, HTTPORIGIN_TTL);
+
+    sa_HttpRequest waiting;
+    h3DialDone(self, key, &waiting);
+    strDestroy(&key);
+
+    for (int32 i = 0; i < saSize(waiting); i++) {
+        HttpRequest* w = waiting.a[i];
+        if (!w->racing)
+            startExchange(self, w);
+        else
+            raceFailed(self, w, true, err, neterr);
+    }
+    saDestroy(&waiting);
+
+    raceFailed(self, req, true, err, neterr);
+}
+
+static void onQuicDialConnection(NetEvent* ev)
+{
+    HttpRequest* req = (HttpRequest*)ev->ctx;
+    HttpClient* self = req ? req->client : NULL;
+    if (!self)
+        return;
+
+    if (ev->conn.state == NCS_NotConnected) {
+        quicDialFailed(self, req, HTTPERR_Network, ev->conn.err);
+        return;
+    }
+
+    if (ev->conn.state == NCS_Connected)
+        beginOnQuic(req, ev->socket);
+}
+
+static void onQuicDialClosed(NetEvent* ev)
+{
+    HttpRequest* req = (HttpRequest*)ev->ctx;
+    HttpClient* self = req ? req->client : NULL;
+
+    // Only reachable while the request is still dialing: once a connection exists it owns the
+    // socket's handlers, and this is no longer installed.
+    if (self && req->dialQuic)
+        quicDialFailed(self, req, HTTPERR_Network, NERR_None);
+}
+
+static void onQuicDialError(NetEvent* ev)
+{
+    HttpRequest* req = (HttpRequest*)ev->ctx;
+    HttpClient* self = req ? req->client : NULL;
+
+    if (self && req->dialQuic)
+        quicDialFailed(self, req, HTTPERR_Network, ev->error.err);
+}
+
+static const NetHandlers kQuicDialHandlers = {
+    .connection = onQuicDialConnection,
+    .flowClosed = onQuicDialClosed,
+    .error      = onQuicDialError,
+};
+
+// Which protocol this request should be sent over: its own override if it set one, otherwise the
+// client's policy.
+static HttpVersionPolicy requestPolicy(HttpClient* self, HttpRequest* req)
+{
+    return (HttpVersionPolicy)(req->versions ? req->versions : self->versions);
+}
+
+// Start the exchange over HTTP/3: on a connection the client already has for this origin, parked
+// behind a dial already in flight, or on one dialled now.
+//
+// `racing` says the caller has a TCP dial going as well, which changes what a failure here means
+// -- it is one racer losing rather than the request failing.
+static bool startHttp3(HttpClient* self, HttpRequest* req, bool racing)
+{
+    // HTTP/3 is https by definition: there is no plaintext QUIC to fall back to.
+    if (!strEqi(req->url.scheme, _SL("https"))) {
+        if (!racing)
+            failExchange(self, req, HTTPERR_BadUrl, NERR_None);
+        return false;
+    }
+
+    string key = 0;
+    poolKey(&key, &req->url);
+
+    ObjInst* pooled = h3PoolBorrow(self, key);
+    if (pooled) {
+        bool ok = _http3ConnRequest(pooled, req, exchangeHandlers(req), NULL,
+                                    self->responseTimeout);
+        objRelease(&pooled);
+        if (ok) {
+            strDestroy(&key);
+            return true;
+        }
+
+        // The connection went away, or is at the peer's stream limit. Either way this request
+        // needs one of its own.
+    }
+
+    // Somebody else is already dialling this origin. Waiting for that one is what stops ten
+    // concurrent requests to a new origin from ending with ten connections.
+    if (!h3DialClaim(self, req, key)) {
+        strDestroy(&key);
+        return true;
+    }
+
+    // An Alt-Svc header may have named a port other than the origin's own. The connection is
+    // still keyed under the origin and still sends the origin's :authority -- what changes is only
+    // where the packets go, which is the whole of what an alternative service is.
+    uint16 altPort = 0;
+    _httpOriginRecall(self, key, &altPort);
+    if (altPort == 0)
+        altPort = httpUrlEffectivePort(&req->url);
+
+    TlsConfig* cfg  = clientTls(self);
+    NetSocket* sock = NULL;
+    if (cfg)
+        sock = _http3Dial(self->queue, req->url.host, altPort, NULL, cfg, &kQuicDialHandlers, req);
+
+    if (!sock) {
+        quicDialFailed(self, req, HTTPERR_Network, NERR_None);
+        strDestroy(&key);
+        return false;
+    }
+
+    strDestroy(&key);
+
+    withMutex (&req->exLock) {
+        req->dialQuic = sock;
+    }
+    return true;
+}
+
+// Which transports to use for this request, decided from the policy and from what the client has
+// learned about this origin.
+typedef enum {
+    HTTPTRY_Http1 = 1,
+    HTTPTRY_Http3,
+    HTTPTRY_Both      // race them
+} HttpTryWhat;
+
+static HttpTryWhat chooseTransport(HttpClient* self, HttpRequest* req)
+{
+    HttpVersionPolicy pol = requestPolicy(self, req);
+
+    if (pol == HTTPV_Http1)
+        return HTTPTRY_Http1;
+    if (pol == HTTPV_Http3)
+        return HTTPTRY_Http3;
+
+    // Nothing over QUIC without TLS to protect it, whatever the policy says.
+    if (!strEqi(req->url.scheme, _SL("https")))
+        return HTTPTRY_Http1;
+
+    string key = 0;
+    poolKey(&key, &req->url);
+    uint16 altPort = 0;
+    uint32 known   = _httpOriginRecall(self, key, &altPort);
+    strDestroy(&key);
+
+    if (known & HTTPORIGIN_H3Works)
+        return HTTPTRY_Http3;
+    if (known & HTTPORIGIN_H3Failed)
+        return HTTPTRY_Http1;
+
+    // Nothing is known. HTTPV_Default sends HTTP/1.1 -- HTTP/3 is never reached by accident --
+    // while HTTPV_Any pays one extra connection attempt to find out, once per origin.
+    return (pol == HTTPV_Any) ? HTTPTRY_Both : HTTPTRY_Http1;
+}
+
+// The protocols a client offers, put on before anything can seal the configuration.
+//
+// Both of them, always. A TlsConfig is frozen by the first connection built from it, so a client
+// that added h3 only when it first wanted HTTP/3 could never add it at all -- which is exactly the
+// case Alt-Svc creates: speak HTTP/1.1, learn the origin also answers HTTP/3, and switch. The
+// policy can change at any moment for the same reason, so the list cannot depend on it.
+//
+// Offering h3 in a TCP handshake is harmless. No conforming server has it in its own list, since
+// h3 names HTTP/3 over QUIC and there is no such thing over TCP; one that selected it anyway would
+// be answering with a protocol that does not exist there, and onDialFilterNotify() already refuses
+// anything but http/1.1.
+static void ensureClientAlpn(TlsConfig* cfg)
+{
+    _httpAlpnAdd(cfg, kAlpnHttp11);
+    if (_http3Available())
+        _httpAlpnAdd(cfg, _SL(HTTP_ALPN_H3));
+}
+
 
 // Build the TLS configuration on first use, so an application that never makes an https request
 // never pays for loading the system trust store.
@@ -633,7 +1165,7 @@ static TlsConfig* clientTls(HttpClient* self)
             if (made) {
                 if (ca)
                     tlsconfigSetCA(made, ca);
-                ensureAlpnHttp11(made);
+                ensureClientAlpn(made);
             }
             objRelease(&ca);
             self->tls = made;
@@ -667,6 +1199,27 @@ static void startExchange(HttpClient* self, HttpRequest* req)
     if (port == 0 || strEmpty(req->url.host)) {
         failExchange(self, req, HTTPERR_BadUrl, NERR_None);
         return;
+    }
+
+    HttpTryWhat try = chooseTransport(self, req);
+
+    // Every hop of a redirect decides again, so the race state from the previous one is cleared
+    // rather than carried forward.
+    withMutex (&req->exLock) {
+        req->racing = (try == HTTPTRY_Both);
+        req->raced  = false;
+    }
+
+    if (try == HTTPTRY_Http3) {
+        startHttp3(self, req, false);
+        return;
+    }
+
+    if (try == HTTPTRY_Both && !startHttp3(self, req, true)) {
+        // The QUIC half could not even be started, so there is no race after all.
+        withMutex (&req->exLock) {
+            req->racing = false;
+        }
     }
 
     string key = 0;
@@ -749,6 +1302,15 @@ _objinit_guaranteed bool HttpClient_init(_In_ HttpClient* self)
 
     saInit(&self->pool, HttpConn, 4);
     saInit(&self->poolKeys, string, 4);
+    saInit(&self->h3pool, object, 2);
+    saInit(&self->h3poolKeys, string, 2);
+    saInit(&self->originKeys, string, 4);
+    saInit(&self->originFlags, uint32, 4);
+    saInit(&self->originExpires, int64, 4);
+    saInit(&self->originAltPort, uint16, 4);
+    saInit(&self->h3Dialing, string, 2);
+    saInit(&self->h3Waiters, HttpRequest, 4);
+    saInit(&self->h3WaiterKeys, string, 4);
 
     self->maxRedirects    = HTTPCLIENT_MAX_REDIRECTS;
     self->responseTimeout = HTTPCLIENT_RESPONSE_TIMEOUT;
@@ -763,7 +1325,7 @@ _objinit_guaranteed bool HttpClient_init(_In_ HttpClient* self)
 void HttpClient_setTlsConfig(_In_ HttpClient* self, _In_opt_ TlsConfig* cfg)
 {
     if (cfg)
-        ensureAlpnHttp11(cfg);
+        ensureClientAlpn(cfg);
 
     withMutex (&self->lock) {
         objRelease(&self->tls);
@@ -831,10 +1393,23 @@ bool HttpClient_send(_In_ HttpClient* self, _In_ HttpRequest* req,
     return true;
 }
 
+bool HttpClient_setVersions(_In_ HttpClient* self, HttpVersionPolicy v)
+{
+    // A build with no HTTP/3 in it refuses at the setter rather than at the first request, so a
+    // program that asked for it hears about it where it asked.
+    if (v != HTTPV_Default && v != HTTPV_Http1 && !_http3Available())
+        return false;
+
+    self->versions = (flags_t)v;
+    return true;
+}
+
 void HttpClient_closeIdle(_In_ HttpClient* self)
 {
     sa_HttpConn taken;
+    sa_object h3taken;
     saInit(&taken, HttpConn, 4);
+    saInit(&h3taken, object, 2);
 
     // Closing happens outside the lock: it reaches the socket layer, which is not somewhere to be
     // holding a lock that every request's completion path also wants.
@@ -842,6 +1417,16 @@ void HttpClient_closeIdle(_In_ HttpClient* self)
         for (int32 i = 0; i < saSize(self->pool); i++) saPush(&taken, HttpConn, self->pool.a[i]);
         saClear(&self->pool);
         saClear(&self->poolKeys);
+
+        // An HTTP/3 connection is in the pool while it is in use, so "idle" here means no request
+        // is running on it -- unlike an HTTP/1.1 entry, whose presence already says that.
+        for (int32 i = saSize(self->h3pool) - 1; i >= 0; i--) {
+            if (_http3ConnRequests(self->h3pool.a[i]) > 0)
+                continue;
+            saPush(&h3taken, object, self->h3pool.a[i]);
+            saRemove(&self->h3pool, i);
+            saRemove(&self->h3poolKeys, i);
+        }
     }
 
     for (int32 i = 0; i < saSize(taken); i++) {
@@ -849,6 +1434,12 @@ void HttpClient_closeIdle(_In_ HttpClient* self)
         httpconnClose(taken.a[i]);
     }
 
+    for (int32 i = 0; i < saSize(h3taken); i++) {
+        _http3ConnSetClosed(h3taken.a[i], NULL, NULL);
+        _http3ConnClose(h3taken.a[i]);
+    }
+
+    saDestroy(&h3taken);
     saDestroy(&taken);
 }
 
@@ -859,6 +1450,15 @@ void HttpClient_destroy(_In_ HttpClient* self)
     httpHeadersDestroy(&self->defaultHeaders);
     saDestroy(&self->pool);
     saDestroy(&self->poolKeys);
+    saDestroy(&self->h3pool);
+    saDestroy(&self->h3poolKeys);
+    saDestroy(&self->originKeys);
+    saDestroy(&self->originFlags);
+    saDestroy(&self->originExpires);
+    saDestroy(&self->originAltPort);
+    saDestroy(&self->h3Dialing);
+    saDestroy(&self->h3Waiters);
+    saDestroy(&self->h3WaiterKeys);
     // Autogen begins -----
     objRelease(&self->queue);
     objRelease(&self->tls);

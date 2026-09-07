@@ -180,6 +180,16 @@ _Ret_maybenull_ NetMessage* NetFlow__pop(_In_ NetFlow* self)
     return msg;
 }
 
+void NetFlow__unpop(_In_ NetFlow* self, _Inout_ NetMessage* msg)
+{
+    devAssert(msg && !msg->next);
+
+    msg->next   = self->ready;
+    self->ready = msg;
+    if (!self->readytail)
+        self->readytail = msg;
+}
+
 bool NetFlow__close(_In_ NetFlow* self, NetCloseReason reason)
 {
     uint32 expected = 0;

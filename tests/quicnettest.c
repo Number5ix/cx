@@ -14,6 +14,7 @@
 #include "tlstestcert.h"
 
 #include <cx/container.h>
+#include <cx/platform/os.h>
 #include <cx/time/clock.h>
 #include <cx/time/time.h>
 
@@ -113,6 +114,11 @@ typedef struct QNSide {
     // since a window with bytes left in it but not enough for a frame is one it cannot spend.
     size_t pumpFrame;
     uint32 pumpRefusals;    // times a whole-frame write was turned away
+
+    // The least room any wake-up on the pump's stream arrived with. What the watermark decides is
+    // how full the window has to be for waking the sender to be worth doing, so this is the one
+    // place its effect is visible from outside.
+    size_t pumpWakeRoomMin;
 
     // Echo what arrives, reading only as much as there is room to send straight back, and end the
     // sending half once the peer has ended its own. Leaving the rest unread is what holds the
@@ -375,8 +381,12 @@ static void qnOnSendReady(_Inout_ NetEvent* ev)
 
     s->nSendReady++;
 
-    if (s->pumpFlow && ev->flow == s->pumpFlow)
+    if (s->pumpFlow && ev->flow == s->pumpFlow) {
+        size_t room = netquicWritable(ev->flow);
+        if (s->nSendReady == 1 || room < s->pumpWakeRoomMin)
+            s->pumpWakeRoomMin = room;
         qnPump(s);
+    }
 
     if (s->echoPump) {
         QNStream* st = qnStream(s, ev->flow);
@@ -1074,11 +1084,12 @@ static int test_quicnettest_sendwatermark(void)
     // an early one buys nothing: it wakes the sender to tell it something it already knew. With
     // the watermark each round carries several frames, and waking on any free byte instead runs to
     // three times as many rounds for the same transfer.
-    TEST_INFO(_S"wakeups=${uint} refusals=${uint} frames=${uint}",
+    TEST_INFO(_S"wakeups=${uint} refusals=${uint} frames=${uint} minroom=${uint}",
               stvar(uint32, f.cli.nSendReady), stvar(uint32, f.cli.pumpRefusals),
-              stvar(uint32, frames));
+              stvar(uint32, frames), stvar(uint32, (uint32)f.cli.pumpWakeRoomMin));
     CHECK("it was woken at all", f.cli.nSendReady > 0);
     CHECK("and each wake-up carried several frames", f.cli.nSendReady <= frames / 4);
+    CHECK("never for less room than the watermark asks for", f.cli.pumpWakeRoomMin >= 64 * 1024);
     CHECK("with nothing woken that was not refused", f.cli.pumpRefusals <= f.cli.nSendReady + 1);
 
     netquicFinish(flow);
@@ -1087,6 +1098,74 @@ static int test_quicnettest_sendwatermark(void)
 
 out:
     f.cli.pumpFlow = NULL;
+    xaFree(payload);
+    objRelease(&flow);
+    qnFixDestroy(&f);
+    return ret;
+}
+
+// The same measurement with the accepted end as the sender.
+//
+// A socket has no watermarks of its own until it joins a queue and inherits that queue's, and an
+// accepted socket joins later than a dialled one does. Reading them before that leaves every
+// connection a listener accepts with no watermark at all -- and that is the wrong half to lose,
+// since the end that answers is the end that sends the bytes.
+static int test_quicnettest_sendwatermarksrv(void)
+{
+    int ret = 0;
+    QNFix f;
+    NetFlow* flow = NULL;
+
+    // Frames well under the watermark, so that what decides the number of wake-ups is the
+    // watermark and not the size of what the sender happened to ask for.
+    const size_t frame  = 1024;
+    const size_t total  = 768 * 1024;
+    const uint32 frames = (uint32)(total / frame);
+
+    uint8* payload = xaAlloc(total);
+    for (size_t i = 0; i < total; i++)
+        payload[i] = (uint8)(i * 31 + (i >> 8));
+
+    QuicConfig cfg    = { 0 };
+    cfg.maxData       = 8 * 1024 * 1024;
+    cfg.maxStreamData = 8 * 1024 * 1024;
+
+    CHECK("connect", qnConnect(&f, &cfg));
+    f.cli.drain = true;
+
+    // A stream the peer has never heard of is one it cannot answer on, so it takes a byte from
+    // this end before the other end has anything to send back.
+    flow = netquicOpen(f.cli.sock, false);
+    CHECK("open", flow != NULL);
+    CHECK("the stream reached the far end", netflowSend(flow, (const uint8*)"?", 1, 0));
+
+    QN_WAIT(&f, f.srv.nstreams > 0, QN_BUDGET);
+    CHECK("the server saw the stream", f.srv.nstreams > 0);
+
+    f.srv.pumpFlow  = f.srv.streams[0].flow;
+    f.srv.pumpData  = payload;
+    f.srv.pumpTotal = total;
+    f.srv.pumpFrame = frame;
+    qnPump(&f.srv);
+
+    CHECK("the first run filled the buffer", f.srv.pumpSent < total);
+
+    QN_WAIT(&f, f.srv.pumpSent == total, QN_BUDGET);
+    CHECK_U("bytes handed to the stream", f.srv.pumpSent, total);
+
+    TEST_INFO(_S"wakeups=${uint} refusals=${uint} frames=${uint} minroom=${uint}",
+              stvar(uint32, f.srv.nSendReady), stvar(uint32, f.srv.pumpRefusals),
+              stvar(uint32, frames), stvar(uint32, (uint32)f.srv.pumpWakeRoomMin));
+    CHECK("it was woken at all", f.srv.nSendReady > 0);
+    CHECK("and never for less room than the watermark asks for",
+          f.srv.pumpWakeRoomMin >= 64 * 1024);
+
+    netquicFinish(f.srv.pumpFlow);
+    QN_WAIT(&f, f.cli.drained == total, QN_BUDGET);
+    CHECK_U("bytes that arrived", f.cli.drained, total);
+
+out:
+    f.srv.pumpFlow = NULL;
     xaFree(payload);
     objRelease(&flow);
     qnFixDestroy(&f);
@@ -2101,6 +2180,376 @@ out:
     return ret;
 }
 
+// ---------------------------------------------------------------------------------------------
+// The accept gate
+//
+// A threaded queue, because that is the only place the ordering this proves can go wrong. Every
+// other test here runs polled, where one thread does everything in turn and an accepted socket is
+// always introduced before anything of its own is looked at.
+// ---------------------------------------------------------------------------------------------
+
+typedef struct QNGate {
+    Semaphore done;
+
+    atomic(uint32) seq;   // ticket dispenser: two different workers take from it
+    uint32 acceptAt;     // the ticket NET_Accepted took
+    uint32 flowOpenAt;   // the one the peer's first stream took
+    uint32 nFlowOpen;
+    size_t got;
+} QNGate;
+
+static void qgOnFlowOpen(_Inout_ NetEvent* ev)
+{
+    QNGate* g = (QNGate*)ev->ctx;
+
+    if (g->nFlowOpen++ == 0)
+        g->flowOpenAt = atomicFetchAdd(uint32, &g->seq, 1, AcqRel) + 1;
+}
+
+static void qgOnRecv(_Inout_ NetEvent* ev)
+{
+    QNGate* g = (QNGate*)ev->ctx;
+
+    uint8 buf[1024];
+    bool fin = false;
+
+    for (;;) {
+        // Each call writes the flag, so it has to be collected rather than read at the end: the
+        // one that returns nothing would otherwise clear what the one before it reported.
+        bool atEnd = false;
+        size_t n   = netquicRecv(ev->flow, buf, sizeof(buf), &atEnd);
+        fin        = fin || atEnd;
+        if (n == 0)
+            break;
+        g->got += n;
+    }
+
+    if (fin)
+        semaInc(&g->done, 1);
+}
+
+// What the application swaps in when it is handed the connection. The listener's own table has
+// none of this, which is the whole point: an event that arrives before the accept has nowhere to
+// go, and is gone for good.
+static const NetHandlers qgConnHandlers = {
+    .flowOpen = qgOnFlowOpen,
+    .recv     = qgOnRecv,
+};
+
+static void qgOnAccepted(_Inout_ NetEvent* ev)
+{
+    QNGate* g = (QNGate*)ev->ctx;
+
+    g->acceptAt = atomicFetchAdd(uint32, &g->seq, 1, AcqRel) + 1;
+
+    // An application does something here -- looks up a policy, allocates its session state, writes
+    // a line to a log -- and the peer's first stream does not wait for it. The pause only widens a
+    // window that is there anyway: the accepted socket's flows run on other workers, and without
+    // the gate the stream is announced to the handlers installed below before they are installed.
+    osSleep(timeMS(100));
+
+    netsocketSetHandlers(ev->accept.newSocket, &qgConnHandlers, g);
+}
+
+static const NetHandlers qgListenHandlers = {
+    .accepted = qgOnAccepted,
+};
+
+static void qgOnConnect(_Inout_ NetEvent* ev)
+{
+    if (ev->conn.err != NERR_None)
+        return;
+
+    // Immediately, from the worker that delivered the connection: this is the moment that makes
+    // the race, because the peer's accept is at that instant only queued.
+    static const uint8 payload[64] = { 0 };
+    NetFlow* flow                  = netquicOpen(ev->socket, false);
+    if (flow) {
+        netflowSend(flow, payload, sizeof(payload), 0);
+        netquicFinish(flow);
+        objRelease(&flow);
+    }
+}
+
+static const NetHandlers qgDialHandlers = {
+    .connection = qgOnConnect,
+};
+
+// A stream opened the instant the handshake finishes must still be announced to the handlers the
+// application installs when it is given the connection -- not to the listener's, which it inherited
+// and which knows nothing about streams.
+static int test_quicnettest_acceptorder(void)
+{
+    int ret     = 0;
+    QNGate g    = { 0 };
+    NetQueue* q = NULL;
+    NetSocket* lsn = NULL;
+    NetSocket* cli = NULL;
+
+    TlsTestPKI pki  = { 0 };
+    TlsCAStore* ca  = NULL;
+    TlsCreds* creds = NULL;
+    TlsConfig* ccfg = NULL;
+    TlsConfig* scfg = NULL;
+
+    semaInit(&g.done, 0);
+
+    NetQueueConfig conf;
+    netqueuePresetClient(&conf);
+    conf.nthreads = 2;   // 1 ingest thread + 2 dispatch workers; nothing here calls netqueueTick()
+    q             = netqueueCreate(&conf);
+    CHECK("the queue would not start", q != NULL);
+
+    CHECK("no test PKI", tlsTestPKIInit(&pki));
+    ca = tlscastoreCreate();
+    CHECK("no CA store", ca && tlscastoreAddPEM(ca, pki.caCert));
+    creds = tlscredsCreatePEM(pki.serverCert, pki.serverKey, NULL);
+    CHECK("no credentials", creds != NULL);
+
+    ccfg = tlsconfigCreateClient();
+    scfg = tlsconfigCreateServer(creds);
+    CHECK("no TLS configuration", ccfg && scfg);
+    tlsconfigSetCA(ccfg, ca);
+
+    QuicConfig scfgq = { 0 };
+    scfgq.tls        = scfg;
+
+    NetAddr addr = qnLoopback(0);
+    lsn          = netquicListen(q, &addr, &scfgq, &qgListenHandlers, &g);
+    CHECK("the listener would not start", lsn != NULL);
+
+    QuicConfig ccfgq = { 0 };
+    ccfgq.tls        = ccfg;
+
+    cli = netquicConnect(q, _S "127.0.0.1", lsn->local.port, _S TLS_TEST_HOSTNAME, &ccfgq,
+                         &qgDialHandlers, &g);
+    CHECK("the dial would not start", cli != NULL);
+
+    if (!semaTryDecTimeout(&g.done, timeS(5))) {
+        TEST_FAILV(ret, 1, _SL("stream never arrived: acceptAt=${int} flowOpen=${int} got=${int}"),
+                   stvar(int64, (int64)g.acceptAt), stvar(int64, (int64)g.nFlowOpen),
+                   stvar(int64, (int64)g.got));
+        goto out;
+    }
+    CHECK_U("wrong number of bytes", g.got, 64);
+    CHECK("the stream was never announced", g.nFlowOpen > 0);
+    CHECK("the stream was announced before the connection it is on",
+          g.acceptAt != 0 && g.acceptAt < g.flowOpenAt);
+
+out:
+    if (q)
+        netqueueShutdown(q, timeS(2));
+
+    objRelease(&cli);
+    objRelease(&lsn);
+    objRelease(&q);
+    objRelease(&ccfg);
+    objRelease(&scfg);
+    objRelease(&creds);
+    objRelease(&ca);
+    tlsTestPKIDestroy(&pki);
+    semaDestroy(&g.done);
+    return ret;
+}
+
+// ---------------------------------------------------------------------------------------------
+// The same rule, for the connection's own control flow
+//
+// The accept gate lets a QUIC connection's control flow run while the gate is shut, because that
+// flow is the transport: it answers the handshake that eventually produces the accept, and holding
+// it would stall the connection short of its own introduction. What it may not do is deliver an
+// application event through that exemption.
+//
+// 0-RTT is where that matters. The server is handed the connection a round trip early, so the
+// notification that says what arrived early was not a replay is raised afterwards -- on the control
+// flow, while the accept for the same socket may still be sitting on the listener's.
+// ---------------------------------------------------------------------------------------------
+
+typedef struct QNSecured {
+    Semaphore done;
+    Semaphore connected;
+
+    atomic(uint32) seq;      // ticket dispenser: two different workers take from it
+    uint32 acceptAt;         // the ticket NET_Accepted took
+    uint32 securedAt;        // the one NFN_Secured took
+    uint32 nSecured;
+    uint32 early;            // what the client made of 0-RTT on the second connection
+
+    atomic(ptr) accepted;    // the server's side of the second connection
+} QNSecured;
+
+static void qsOnFilterNotify(_Inout_ NetEvent* ev)
+{
+    QNSecured* g = (QNSecured*)ev->ctx;
+    if (ev->filter.notify != NFN_Secured)
+        return;
+
+    g->securedAt = atomicFetchAdd(uint32, &g->seq, 1, AcqRel) + 1;
+    g->nSecured++;
+    semaInc(&g->done, 1);
+}
+
+// What the application swaps in when it is handed the connection. The listener's own table has no
+// filterNotify, which is the whole point: a notification that arrives before the accept has
+// nowhere to go, and is gone for good.
+static const NetHandlers qsConnHandlers = {
+    .filterNotify = qsOnFilterNotify,
+};
+
+static void qsOnAccepted(_Inout_ NetEvent* ev)
+{
+    QNSecured* g = (QNSecured*)ev->ctx;
+
+    g->acceptAt = atomicFetchAdd(uint32, &g->seq, 1, AcqRel) + 1;
+
+    NetSocket* prev = (NetSocket*)atomicExchange(ptr, &g->accepted,
+                                                 objAcquire(ev->accept.newSocket), AcqRel);
+    objRelease(&prev);
+
+    // The handshake finishes while this is still running, which is what makes the race: the
+    // notification is raised on a flow of this socket's own, on another worker, before the
+    // handlers below exist.
+    osSleep(timeMS(100));
+
+    netsocketSetHandlers(ev->accept.newSocket, &qsConnHandlers, g);
+}
+
+static const NetHandlers qsListenHandlers = {
+    .accepted = qsOnAccepted,
+};
+
+static void qsOnConnect(_Inout_ NetEvent* ev)
+{
+    QNSecured* g = (QNSecured*)ev->ctx;
+
+    if (ev->conn.err == NERR_None) {
+        g->early = netquicEarlyData(ev->socket);
+        semaInc(&g->connected, 1);
+    }
+}
+
+static const NetHandlers qsDialHandlers = {
+    .connection = qsOnConnect,
+};
+
+// A 0-RTT connection's NFN_Secured belongs to the application, so it waits for the accept that
+// gives the application somewhere to put it -- even though it travels on the one flow the gate
+// lets run.
+static int test_quicnettest_securedorder(void)
+{
+    int ret        = 0;
+    QNSecured g    = { 0 };
+    NetQueue* q    = NULL;
+    NetSocket* lsn = NULL;
+    NetSocket* cli = NULL;
+
+    TlsTestPKI pki  = { 0 };
+    TlsCAStore* ca  = NULL;
+    TlsCreds* creds = NULL;
+    TlsConfig* ccfg = NULL;
+    TlsConfig* scfg = NULL;
+
+    semaInit(&g.done, 0);
+    semaInit(&g.connected, 0);
+
+    NetQueueConfig conf;
+    netqueuePresetClient(&conf);
+    conf.nthreads = 2;   // nothing here calls netqueueTick(); the ordering needs real workers
+    q             = netqueueCreate(&conf);
+    CHECK("the queue would not start", q != NULL);
+
+    CHECK("no test PKI", tlsTestPKIInit(&pki));
+    ca = tlscastoreCreate();
+    CHECK("no CA store", ca && tlscastoreAddPEM(ca, pki.caCert));
+    creds = tlscredsCreatePEM(pki.serverCert, pki.serverKey, NULL);
+    CHECK("no credentials", creds != NULL);
+
+    ccfg = tlsconfigCreateClient();
+    scfg = tlsconfigCreateServer(creds);
+    CHECK("no TLS configuration", ccfg && scfg);
+    tlsconfigSetCA(ccfg, ca);
+
+    CHECK("client resumption", tlsconfigSetResumption(ccfg, true, timeS(600)));
+    CHECK("server resumption", tlsconfigSetResumption(scfg, true, timeS(600)));
+    CHECK("client early data", tlsconfigSetEarlyData(ccfg, true));
+    CHECK("server early data", tlsconfigSetEarlyData(scfg, true));
+
+    QuicConfig scfgq = { 0 };
+    scfgq.tls        = scfg;
+
+    NetAddr addr = qnLoopback(0);
+    lsn          = netquicListen(q, &addr, &scfgq, &qsListenHandlers, &g);
+    CHECK("the listener would not start", lsn != NULL);
+
+    QuicConfig ccfgq = { 0 };
+    ccfgq.tls        = ccfg;
+
+    // The first connection exists only to be given a session ticket, which the server issues after
+    // its handshake rather than during it -- so it has to be left running for a moment before it is
+    // let go of.
+    cli = netquicConnect(q, _S "127.0.0.1", lsn->local.port, _S TLS_TEST_HOSTNAME, &ccfgq,
+                         &qsDialHandlers, &g);
+    CHECK("the first dial would not start", cli != NULL);
+    CHECK("the first connection never came up", semaTryDecTimeout(&g.connected, timeS(5)));
+    osSleep(timeMS(200));
+
+    {
+        NetSocket* srv = (NetSocket*)atomicExchange(ptr, &g.accepted, NULL, AcqRel);
+        if (srv) {
+            netsocketClose(srv);
+            objRelease(&srv);
+        }
+    }
+    netsocketClose(cli);
+    objRelease(&cli);
+    osSleep(timeMS(200));
+
+    g.acceptAt = 0;
+
+    // The second one offers the ticket back and sends in the same flight, so both ends are handed
+    // it a round trip before the handshake finishes.
+    cli = netquicConnect(q, _S "127.0.0.1", lsn->local.port, _S TLS_TEST_HOSTNAME, &ccfgq,
+                         &qsDialHandlers, &g);
+    CHECK("the second dial would not start", cli != NULL);
+    CHECK("the second connection never came up", semaTryDecTimeout(&g.connected, timeS(5)));
+
+    // Without this the rest proves nothing: a resumption that did not take is an ordinary
+    // connection, and an ordinary connection raises no NFN_Secured to be ordered against anything.
+    CHECK_U("0-RTT did not happen", g.early, QUIC_EARLY_Pending);
+
+    if (!semaTryDecTimeout(&g.done, timeS(10))) {
+        TEST_FAILV(ret, 1,
+                   _SL("the server was never told the replay window closed: acceptAt=${int}"),
+                   stvar(int64, (int64)g.acceptAt));
+        goto out;
+    }
+
+    CHECK_U("more than one notification", g.nSecured, 1);
+    CHECK("the connection was never accepted", g.acceptAt != 0);
+    CHECK("the notification arrived before the connection it is about",
+          g.acceptAt < g.securedAt);
+
+out:
+    if (q)
+        netqueueShutdown(q, timeS(2));
+
+    {
+        NetSocket* srv = (NetSocket*)atomicExchange(ptr, &g.accepted, NULL, AcqRel);
+        objRelease(&srv);
+    }
+    objRelease(&cli);
+    objRelease(&lsn);
+    objRelease(&q);
+    objRelease(&ccfg);
+    objRelease(&scfg);
+    objRelease(&creds);
+    objRelease(&ca);
+    tlsTestPKIDestroy(&pki);
+    semaDestroy(&g.connected);
+    semaDestroy(&g.done);
+    return ret;
+}
+
 testfunc quicnettest_funcs[] = {
 #if defined(_PLATFORM_WIN) || defined(_PLATFORM_UNIX) || defined(_PLATFORM_WASM)
     { "handshake",      test_quicnettest_handshake      },
@@ -2116,6 +2565,7 @@ testfunc quicnettest_funcs[] = {
     { "sendwakeup",     test_quicnettest_sendwakeup     },
     { "sendframed",     test_quicnettest_sendframed     },
     { "sendwatermark",  test_quicnettest_sendwatermark  },
+    { "sendwatermarksrv", test_quicnettest_sendwatermarksrv },
     { "echostreams",    test_quicnettest_echostreams    },
     { "backpressure",   test_quicnettest_backpressure   },
     { "streamlimit",    test_quicnettest_streamlimit    },
@@ -2135,6 +2585,8 @@ testfunc quicnettest_funcs[] = {
     { "datagram_size",        test_quicnettest_datagram_size        },
     { "datagram_unsupported", test_quicnettest_datagram_unsupported },
     { "datagram_blocked",     test_quicnettest_datagram_blocked     },
+    { "acceptorder",          test_quicnettest_acceptorder          },
+    { "securedorder",         test_quicnettest_securedorder         },
 #endif
     { NULL,             NULL                            }
 };

@@ -1001,7 +1001,6 @@ static bool acceptInitial(_In_ NetSocketQuic* lsn, _In_ NetQueue* q, _In_ NetAdd
     _quicConnSetHandlers(eng->conn, &quicConnHandlers, conn);
 
     _quicStreamsInit(&eng->streams, true, &eng->tp);
-    applySendWatermarks(eng, NetSocket(conn));
     _quicStreamsSetHandlers(&eng->streams, &quicStreamHandlers, conn);
     eng->streamsInit = true;
 
@@ -1018,7 +1017,18 @@ static bool acceptInitial(_In_ NetSocketQuic* lsn, _In_ NetQueue* q, _In_ NetAdd
         }
     }
 
+    // Held back until NET_Accepted has been delivered. A QUIC connection opens its peer's streams
+    // on flows of their own as soon as the handshake finishes, which can be well before a worker
+    // gets to the accept sitting on the listener's flow.
+    atomicStore(uint32, &NetSocket(conn)->awaitingAccept, 1, Release);
+
     netqueueAddSocket(q, NetSocket(conn));
+
+    // After the queue has it, not before: an accepted socket has no watermarks of its own until it
+    // joins a queue and inherits that queue's. Reading them any earlier gets zero on every
+    // connection a listener accepts, which is the half of a connection that sends the most.
+    applySendWatermarks(eng, NetSocket(conn));
+
     netflowSetHandlersObj(conn->flow, &quicCtlHandlers, ObjInst(conn));
     atomicStore(uint32, &conn->state, NS_Connecting, Relaxed);
 

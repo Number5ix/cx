@@ -166,6 +166,15 @@ class TlsConfig
     ///
     /// @return true if the configuration is usable
     unbound bool seal();
+
+    /// Whether the configuration has been frozen
+    ///
+    /// A sealed configuration refuses every setter, because mbedTLS reads it from every live
+    /// handshake without locking. Ask this before changing one that may already be in use, rather
+    /// than finding out from the log.
+    ///
+    /// @return true if no further setter will take effect
+    unbound bool sealed();
 }
 
 /// @}

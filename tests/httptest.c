@@ -5266,6 +5266,14 @@ out:
 // hostname this suite can both dial and get a matching certificate for without real DNS.
 static int test_httptest_clienttlsalpn(void)
 {
+    // How many protocols a client offers: http/1.1 alone, or http/1.1 and h3 where there is an
+    // HTTP/3 to reach with it.
+#if defined(CX_HTTP3_TESTS)
+    const int32 kAlpnCount = 2;
+#else
+    const int32 kAlpnCount = 1;
+#endif
+
     int ret          = 0;
     NetQueue* q       = NULL;
     HttpClient* cl    = NULL;
@@ -5285,7 +5293,10 @@ static int test_httptest_clienttlsalpn(void)
         goto out;
     }
 
-    // A config with no ALPN preference of its own gets exactly http/1.1.
+    // A config with no ALPN preference of its own gets the protocols the client can speak. In a
+    // build with HTTP/3 that is both of them, and both have to go on now rather than when one is
+    // first wanted: a TlsConfig is frozen by the first connection built from it, so a client that
+    // added h3 only on its first HTTP/3 request could never add it at all.
     plain = tlsconfigCreateClient();
     if (!plain) {
         TEST_FAILV(ret, 1, _SL("!plain"), stvNone);
@@ -5293,8 +5304,9 @@ static int test_httptest_clienttlsalpn(void)
     }
     httpclientSetTlsConfig(cl, plain);
     saDestroy(&out);
-    if (tlsconfigGetALPN(plain, &out) != 1 || !strEq(out.a[0], _SL("http/1.1")))
-        TEST_FAILV(ret, 1, _SL("tlsconfigGetALPN(plain)=${int} entries, expected 1x '${string}'"), stvar(int32, saSize(out)), stvar(strref, _SL("http/1.1")));
+    if (tlsconfigGetALPN(plain, &out) != kAlpnCount || !strEq(out.a[0], _SL("http/1.1")) ||
+        (kAlpnCount > 1 && !strEq(out.a[1], _SL("h3"))))
+        TEST_FAILV(ret, 1, _SL("tlsconfigGetALPN(plain)=${int} entries, expected ${int}"), stvar(int32, saSize(out)), stvar(int32, kAlpnCount));
 
     // A config that already offers a protocol keeps it, with http/1.1 appended so the client can
     // still fall back to it.
@@ -5311,8 +5323,9 @@ static int test_httptest_clienttlsalpn(void)
 
     httpclientSetTlsConfig(cl, withH2);
     saDestroy(&out);
-    if (tlsconfigGetALPN(withH2, &out) != 2 || !strEq(out.a[0], _SL("h2")) || !strEq(out.a[1], _SL("http/1.1")))
-        TEST_FAILV(ret, 1, _SL("tlsconfigGetALPN(withH2)=${int} entries, expected ['h2','http/1.1']"), stvar(int32, saSize(out)), stvNone);
+    if (tlsconfigGetALPN(withH2, &out) != 1 + kAlpnCount || !strEq(out.a[0], _SL("h2")) ||
+        !strEq(out.a[1], _SL("http/1.1")))
+        TEST_FAILV(ret, 1, _SL("tlsconfigGetALPN(withH2)=${int} entries, expected ${int} beginning ['h2','http/1.1']"), stvar(int32, saSize(out)), stvar(int32, 1 + kAlpnCount));
 
     // A config that already offers http/1.1 is left alone rather than getting a duplicate entry.
     withH1 = tlsconfigCreateClient();
@@ -5328,8 +5341,8 @@ static int test_httptest_clienttlsalpn(void)
 
     httpclientSetTlsConfig(cl, withH1);
     saDestroy(&out);
-    if (tlsconfigGetALPN(withH1, &out) != 1 || !strEq(out.a[0], _SL("http/1.1")))
-        TEST_FAILV(ret, 1, _SL("tlsconfigGetALPN(withH1)=${int} entries, expected 1x '${string}'"), stvar(int32, saSize(out)), stvar(strref, _SL("http/1.1")));
+    if (tlsconfigGetALPN(withH1, &out) != kAlpnCount || !strEq(out.a[0], _SL("http/1.1")))
+        TEST_FAILV(ret, 1, _SL("tlsconfigGetALPN(withH1)=${int} entries, expected ${int} beginning '${string}'"), stvar(int32, saSize(out)), stvar(int32, kAlpnCount), stvar(strref, _SL("http/1.1")));
 
 out:
     saDestroy(&out);

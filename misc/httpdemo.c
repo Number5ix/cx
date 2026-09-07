@@ -5,7 +5,12 @@
 // tool to point at a real server when something in cxhttp looks wrong. Everything it does goes
 // through the same public API an application would use.
 //
-// Usage: httpdemo [-o file] [-X method] [-H "Name: value"] [-d body] [--no-redirect] <url>
+// Usage: httpdemo [-o file] [-X method] [-H "Name: value"] [-d body] [--no-redirect]
+//                 [--http3] [--http3-only] [--ca ca.pem] <url>
+//
+// --http3 races QUIC against TCP and uses whichever answers first; --http3-only fails the
+// request if HTTP/3 is not reachable. --ca trusts one certificate authority instead of the
+// system store, which is what pointing this at a local test server takes.
 
 #include <cxhttp.h>
 
@@ -37,13 +42,22 @@ typedef struct DemoCtx {
 // response handlers
 // ---------------------------------------------------------------------------------------------
 
+static strref versionName(HttpVersion v)
+{
+    switch (v) {
+    case HTTPVER_1_0: return _S "1.0";
+    case HTTPVER_3:   return _S "3";
+    default:          return _S "1.1";
+    }
+}
+
 static void onHeaders(HttpEvent* ev)
 {
     DemoCtx* ctx = (DemoCtx*)ev->ctx;
 
     conFmt(conErr(),
            _SL("HTTP/${string} ${uint}\n"),
-           stvar(strref, ev->version == HTTPVER_1_0 ? _S"1.0" : _S"1.1"),
+           stvar(strref, versionName(ev->version)),
            stvar(uint32, (uint32)ev->status));
 
     for (int32 i = 0; i < httpHeadersCount(ev->headers); i++) {
@@ -125,20 +139,78 @@ static HttpMethod methodFromName(strref name)
     return HTTP_MethodOther;
 }
 
+static bool slurp(_Inout_ strhandle out, _In_ strref path)
+{
+    FSFile* f = fsOpen(path, FS_Read);
+    if (!f)
+        return false;
+
+    int64 sz = fsSeek(f, 0, FS_End);
+    fsSeek(f, 0, FS_Set);
+    if (sz <= 0 || sz > 1 << 20) {
+        fsClose(f);
+        return false;
+    }
+
+    uint8* buf = strBuffer(out, (uint32)sz);
+
+    size_t n = 0;
+    bool ok  = fsRead(f, buf, (size_t)sz, &n) && n == (size_t)sz;
+    fsClose(f);
+
+    if (!ok)
+        strClear(out);
+    return ok;
+}
+
+// Trust one certificate authority instead of the system store. The client builds its own
+// configuration when it is not given one, so this only has to supply the part that differs --
+// cxhttp adds the protocols it can speak to whatever it is handed.
+static bool useCA(HttpClient* http, strref path)
+{
+    string pem = 0;
+    if (!slurp(&pem, path)) {
+        conPuts(conErr(), _SL("could not read the CA certificate\n"));
+        return false;
+    }
+
+    TlsCAStore* ca = tlscastoreCreate();
+    bool ok        = ca && tlscastoreAddPEM(ca, pem);
+    strDestroy(&pem);
+
+    TlsConfig* cfg = NULL;
+    if (ok) {
+        cfg = tlsconfigCreateClient();
+        ok  = cfg != NULL;
+    }
+
+    if (ok) {
+        tlsconfigSetCA(cfg, ca);
+        httpclientSetTlsConfig(http, cfg);
+    } else {
+        conPuts(conErr(), _SL("the CA certificate would not load\n"));
+    }
+
+    objRelease(&cfg);
+    objRelease(&ca);
+    return ok;
+}
+
 static void usage(void)
 {
     conPuts(conErr(),
             _SL("usage: httpdemo [-o file] [-X method] [-H \"Name: value\"] [-d body]\n"
-                "                [--no-redirect] <url>\n"));
+                "                [--no-redirect] [--http3] [--http3-only] [--ca ca.pem] <url>\n"));
 }
 
 int entryPoint()
 {
-    string url = 0, outPath = 0, methodName = 0, bodyText = 0;
+    string url = 0, outPath = 0, methodName = 0, bodyText = 0, caPath = 0;
     sa_string extraHeaders;
     saInit(&extraHeaders, string, 4);
-    flags_t reqFlags = HTTPREQ_None;
-    int rc           = 0;
+    flags_t reqFlags           = HTTPREQ_None;
+    HttpVersionPolicy versions = HTTPV_Default;
+    int rc                     = 0;
 
     for (int32 i = 0; i < saSize(cmdArgs); i++) {
         strref a = cmdArgs.a[i];
@@ -153,6 +225,12 @@ int entryPoint()
             strDup(&bodyText, cmdArgs.a[++i]);
         else if (strEq(a, _SL("--no-redirect")))
             reqFlags |= HTTPREQ_NoRedirect;
+        else if (strEq(a, _SL("--http3")))
+            versions = HTTPV_Any;
+        else if (strEq(a, _SL("--http3-only")))
+            versions = HTTPV_Http3;
+        else if (strEq(a, _SL("--ca")) && i + 1 < saSize(cmdArgs))
+            strDup(&caPath, cmdArgs.a[++i]);
         else if (strEmpty(url))
             strDup(&url, a);
         else {
@@ -171,6 +249,7 @@ int entryPoint()
         strDestroy(&outPath);
         strDestroy(&methodName);
         strDestroy(&bodyText);
+        strDestroy(&caPath);
         saDestroy(&extraHeaders);
         conShutdown();
         return rc;
@@ -195,9 +274,17 @@ int entryPoint()
     HttpMethod method = strEmpty(methodName) ? (strEmpty(bodyText) ? HTTP_Get : HTTP_Post)
                                              : methodFromName(methodName);
 
-    HttpRequest* req = httprequestCreate(method, url);
+    bool setupOk = strEmpty(caPath) || useCA(http, caPath);
+
+    if (setupOk && versions != HTTPV_Default && !httpclientSetVersions(http, versions)) {
+        conPuts(conErr(), _SL("this build has no HTTP/3 in it\n"));
+        setupOk = false;
+    }
+
+    HttpRequest* req = setupOk ? httprequestCreate(method, url) : NULL;
     if (!req) {
-        conFmt(conErr(), _SL("could not parse URL: ${string}\n"), stvar(strref, url));
+        if (setupOk)
+            conFmt(conErr(), _SL("could not parse URL: ${string}\n"), stvar(strref, url));
         ctx.exitCode = 2;
     } else {
         if (method == HTTP_MethodOther)
@@ -289,6 +376,7 @@ int entryPoint()
     strDestroy(&outPath);
     strDestroy(&methodName);
     strDestroy(&bodyText);
+    strDestroy(&caPath);
     saDestroy(&extraHeaders);
 
     rc = ctx.exitCode;

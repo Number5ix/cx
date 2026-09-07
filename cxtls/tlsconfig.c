@@ -259,6 +259,11 @@ void TlsConfig_setVerifyCallback(_In_ TlsConfig* self, TlsVerifyCB cb, _In_opt_ 
     self->st->verifyCtx = ctx;
 }
 
+bool TlsConfig_sealed(_In_ TlsConfig* self)
+{
+    return self->st->sealed;
+}
+
 void TlsConfig_setSNICallback(_In_ TlsConfig* self, TlsSNICB cb, _In_opt_ void* ctx)
 {
     if (!checkUnsealed(self, _S"tlsconfigSetSNICallback"))

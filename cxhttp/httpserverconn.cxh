@@ -50,21 +50,10 @@ class HttpServer;
     /// parser for the same reason `awaiting` does: the exchange is not over yet.
     bool writing;
 
-    /// @brief The worker dispatching an event here, or NULL
-    ///
-    /// respond() may be called from any thread, and the two paths it can take are not
-    /// interchangeable. Writing the response also advances the connection -- the parser, the
-    /// receive ring and the deadlines -- and all of that belongs to one worker at a time. A caller
-    /// that finds its own Thread here is that worker and does the work in place; anyone else hands
-    /// it over through a zero-delay flow timer and lets a worker pick it up.
-    ///
-    /// Comparing against our own Thread is what makes a stale read harmless: another thread's
-    /// Thread is never ours, so a reader that loses the race takes the handoff, which is always
-    /// correct. Never dereferenced, only compared by identity, so it is stored without a reference.
-    atomic[ptr] dispatchThread;
-
-    /// @brief A response composed on another thread is waiting for a worker to write it
-    atomic[uint32] respondPending;
+    // Which worker is dispatching here, and whether one has been asked to come. respond() may be
+    // called from any thread and writing a response is not only a send, so it takes one path or
+    // the other; see HttpDispatch.
+    HttpDispatch dispatch;
 
     // Running result of one pass of the response body pump. Owned by whichever worker is inside
     // _pumpRespBody(); the response body's StreamBuffer carries this connection as its consumer

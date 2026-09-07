@@ -40,6 +40,21 @@ abstract class NetSocket
     atomic[uint32] state;   ///< See NetSocketState enum
     atomic[bool] canSend;   ///< Send buffer empty; can send immediately
 
+    // An accepted socket the application has not been handed yet. While it is set, no worker
+    // delivers anything of this socket's to the application: NET_Accepted travels on the
+    // *listener's* flow, so nothing orders it against events on the accepted socket's own flows,
+    // and a QUIC connection has streams opening on flows of their own the moment its handshake
+    // finishes. Without this, the NET_FlowOpen for a peer's first stream can be delivered before
+    // the application has seen the connection, and it goes to the handlers the socket inherited
+    // from the listener rather than the ones the application installs when it does. Cleared once
+    // NET_Accepted has been delivered, which is also when those flows are put back on the
+    // runqueue.
+    //
+    // A QUIC connection's control flow still runs while this is set, because it is what answers
+    // the handshake that raises the accept -- but only as far as its first application-facing
+    // message, which waits like everything else. See drainFlow().
+    atomic[uint32] awaitingAccept;
+
     /// @brief Local end, filled in by bind()
     ///
     /// Read back from the socket rather than copied from what was asked for, so a socket bound to

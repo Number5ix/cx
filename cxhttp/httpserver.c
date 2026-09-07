@@ -73,6 +73,7 @@ static const NetHandlers kListenHandlers = {
     .accepted = onAccepted,
 };
 
+
 // ---------------------------------------------------------------------------------------------
 // Lifecycle
 // ---------------------------------------------------------------------------------------------
@@ -99,6 +100,7 @@ _objfactory_check HttpServer* HttpServer_create(_In_ NetQueue* queue)
 
 _objinit_guaranteed bool HttpServer_init(_In_ HttpServer* self)
 {
+    saInit(&self->listeners, NetSocket, 2);
     htInit(&self->connections, ptr, object, 16);
     httpLimitsDefault(&self->limits);
 
@@ -124,7 +126,8 @@ void HttpServer_destroy(_In_ HttpServer* self)
     httpserverShutdown(self);
     // Autogen begins -----
     objRelease(&self->queue);
-    objRelease(&self->listener);
+    saDestroy(&self->listeners);
+    strDestroy(&self->altSvc);
     htDestroy(&self->connections);
     mutexDestroy(&self->lock);
     // Autogen ends -------
@@ -136,7 +139,7 @@ void HttpServer_destroy(_In_ HttpServer* self)
 
 bool HttpServer_listen(_In_ HttpServer* self, _In_ const NetAddr* addr, int backlog)
 {
-    if (self->listener || self->shuttingDown)
+    if (self->shuttingDown)
         return false;
 
     NetSocket* sock = netqueueListen(self->queue, addr, backlog, NULL, NULL);
@@ -147,13 +150,14 @@ bool HttpServer_listen(_In_ HttpServer* self, _In_ const NetAddr* addr, int back
     // once the socket exists.
     netsocketSetHandlersObj(sock, &kListenHandlers, self);
 
-    self->listener = sock;   // the reference netqueueListen() returned is the one we keep
+    saPush(&self->listeners, NetSocket, sock);
+    objRelease(&sock);   // the array holds its own reference
     return true;
 }
 
 bool HttpServer_attach(_In_ HttpServer* self, _In_ NetSocket* listener)
 {
-    if (self->listener || self->shuttingDown || !listener)
+    if (self->shuttingDown || !listener)
         return false;
 
     if (listener->type != NST_Stream ||
@@ -163,7 +167,7 @@ bool HttpServer_attach(_In_ HttpServer* self, _In_ NetSocket* listener)
     if (!listener->queue && !netqueueAddSocket(self->queue, listener))
         return false;
 
-    self->listener = objAcquire(listener);
+    saPush(&self->listeners, NetSocket, listener);
     netsocketSetHandlersObj(listener, &kListenHandlers, self);
 
     // Whatever was accepted before the server took over is not reachable from here, so a listener
@@ -180,7 +184,14 @@ void HttpServer_setHandlers(_In_ HttpServer* self, _In_opt_ const HttpServerHand
 
 uint16 HttpServer_port(_In_ HttpServer* self)
 {
-    return self->listener ? self->listener->local.port : 0;
+    // The first listener's port. A server with several is normally serving one port over more than
+    // one transport, so this still answers the question that was asked.
+    return saSize(self->listeners) > 0 ? self->listeners.a[0]->local.port : 0;
+}
+
+void HttpServer_setAltSvc(_In_ HttpServer* self, _In_opt_ strref value)
+{
+    strDup(&self->altSvc, value);
 }
 
 int32 HttpServer_connCount(_In_ HttpServer* self)
@@ -193,25 +204,31 @@ int32 HttpServer_connCount(_In_ HttpServer* self)
 
 void HttpServer_shutdown(_In_ HttpServer* self)
 {
-    sa_HttpServerConn conns;
-    saInit(&conns, HttpServerConn, 8);
+    sa_object conns;
+    saInit(&conns, object, 8);
 
     // Snapshot under the lock and close outside it: closing reaches the socket layer, and a
     // connection dying calls back into _forget(), which takes this same lock.
     withMutex (&self->lock) {
         self->shuttingDown = true;
         foreach (hashtable, hti, self->connections) {
-            saPush(&conns, HttpServerConn, (HttpServerConn*)htiVal(object, hti));
+            saPush(&conns, object, htiVal(object, hti));
         }
     }
 
-    if (self->listener) {
-        netsocketSetHandlers(self->listener, NULL, NULL);
-        netsocketClose(self->listener);
+    for (int32 i = 0; i < saSize(self->listeners); i++) {
+        netsocketSetHandlers(self->listeners.a[i], NULL, NULL);
+        netsocketClose(self->listeners.a[i]);
     }
 
-    for (int32 i = 0; i < saSize(conns); i++)
-        httpsrvconnClose(conns.a[i]);
+    for (int32 i = 0; i < saSize(conns); i++) {
+        if (_http3ConnClose(conns.a[i]))
+            continue;
+
+        HttpServerConn* h1 = objDynCast(HttpServerConn, conns.a[i]);
+        if (h1)
+            httpsrvconnClose(h1);
+    }
 
     saDestroy(&conns);
 }
@@ -220,7 +237,7 @@ void HttpServer_shutdown(_In_ HttpServer* self)
 // Talking to the connections
 // ---------------------------------------------------------------------------------------------
 
-void HttpServer__forget(_In_ HttpServer* self, _In_ HttpServerConn* conn)
+void HttpServer__forget(_In_ HttpServer* self, _In_ ObjInst* conn)
 {
     // Normally the last reference the connection has, so nothing may touch it afterwards without
     // holding one of its own -- which the caller, running inside the connection's own teardown,
@@ -295,8 +312,20 @@ void HttpServer__deliverProgress(_In_ HttpServer* self, _In_opt_ HttpServerConn*
 bool HttpServer_listenTls(_In_ HttpServer* self, _In_ const NetAddr* addr, int backlog,
                           _In_ TlsConfig* cfg)
 {
-    if (self->listener || self->shuttingDown || !cfg)
+    if (self->shuttingDown || !cfg)
         return false;
+
+    // A configuration with an ALPN list refuses every protocol not on it, so one that has a list
+    // without http/1.1 on it is a listener that will fail every handshake. That happens exactly
+    // one way -- sharing a TlsConfig with a QUIC listener, which put h3 on it -- so it is worth
+    // catching here rather than leaving to be found one failed connection at a time.
+    if (_httpAlpnCount(cfg) > 0 && !_httpAlpnHas(cfg, _SL(HTTP_ALPN_HTTP11))) {
+        logStr(Error,
+               _SLL("http: httpserverListenTls() was given a TlsConfig whose ALPN list does not "
+                    "offer http/1.1, so every handshake on it would fail. Give each listener its "
+                    "own TlsConfig -- they can share a TlsCreds."));
+        return false;
+    }
 
     // nettlsListen() is netqueueListen() with the filter step folded in, and the filter lands on
     // the listener rather than on each accepted socket.
@@ -307,13 +336,24 @@ bool HttpServer_listenTls(_In_ HttpServer* self, _In_ const NetAddr* addr, int b
     // Held weakly, as in HttpServer_listen().
     netsocketSetHandlersObj(sock, &kListenHandlers, self);
 
-    self->listener = sock;   // the reference nettlsListen() returned is the one we keep
+    saPush(&self->listeners, NetSocket, sock);
+    objRelease(&sock);
     return true;
+}
+
+bool HttpServer_listenQuic(_In_ HttpServer* self, _In_ const NetAddr* addr, _In_ TlsConfig* cfg)
+{
+    if (self->shuttingDown || !cfg)
+        return false;
+
+    // The whole of it lives with the rest of HTTP/3, so that a build without any still compiles
+    // this file unchanged and answers false here.
+    return _http3ServerListen(self, addr, cfg);
 }
 
 // Autogen begins -----
 // clang-format off
-void HttpServer__forget(_In_ HttpServer* self, _In_ HttpServerConn* conn);
+void HttpServer__forget(_In_ HttpServer* self, _In_ ObjInst* conn);
 void HttpServer__deliver(_In_ HttpServer* self, HttpServerEventType type, _In_opt_ HttpServerConn* conn, _In_opt_ HttpServerRequest* req, _In_opt_ const uint8* data, size_t len, HttpError err, NetErrorCode neterr);
 void HttpServer__deliverProgress(_In_ HttpServer* self, _In_opt_ HttpServerConn* conn, _In_opt_ HttpServerRequest* req, HttpProgressDir dir, uint64 done, int64 total);
 #include "httpserver.auto.inc"

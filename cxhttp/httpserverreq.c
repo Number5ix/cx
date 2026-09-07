@@ -60,6 +60,8 @@ void HttpServerRequest_destroy(_In_ HttpServerRequest* self)
     httpHeadersDestroy(&self->respHeaders);
     // Autogen begins -----
     objDestroyWeak(&self->conn);
+    objDestroyWeak(&self->h3conn);
+    objRelease(&self->h3flow);
     strDestroy(&self->methodName);
     strDestroy(&self->target);
     strDestroy(&self->path);
@@ -274,6 +276,12 @@ bool HttpServerRequest_respond(_In_ HttpServerRequest* self, _In_opt_ strref bod
             httpHeadersSet(&self->respHeaders, _SL("Content-Type"), contentType);
     }
 
+    // Which framing layer wrote this request is the only thing that differs from here down.
+    if (self->h3conn) {
+        self->responded = true;
+        return _http3SrvReqRespond(self);
+    }
+
     HttpServerConn* conn = objAcquireFromWeak(HttpServerConn, self->conn);
     if (!conn) {
         // The connection died while the application was thinking. There is nowhere to write, and
@@ -298,6 +306,11 @@ bool HttpServerRequest_respondStatus(_In_ HttpServerRequest* self, uint16 status
 
 bool HttpServerRequest_keepAlive(_In_ HttpServerRequest* self)
 {
+    // Over HTTP/3 the connection is not the framing: a request is a stream, ending a stream ends
+    // nothing else, and there is no Connection header to say otherwise.
+    if (self->version == HTTPVER_3)
+        return true;
+
     // 1.0 closes unless the client asked for otherwise; 1.1 persists unless it asked to close.
     if (self->version == HTTPVER_1_0)
         return httpHeadersHasToken(&self->headers, _SL("Connection"), _SL("keep-alive"));
@@ -342,6 +355,11 @@ bool HttpServerRequest_sendContinue(_In_ HttpServerRequest* self)
 {
     if (!self->expectContinue || self->continueSent || self->responded)
         return false;
+
+    if (self->h3conn) {
+        self->continueSent = true;
+        return _http3SrvReqContinue(self);
+    }
 
     HttpServerConn* conn = objAcquireFromWeak(HttpServerConn, self->conn);
     if (!conn)

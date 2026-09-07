@@ -3291,12 +3291,14 @@ bool _quicConnStart(QuicConn* c, int64 now)
 
 // Appends one formatted line to a report. Used only by the debug dump below, where a line is
 // built and appended rather than being written into a fixed buffer.
-#define DBGLINE(...)                       \
-    do {                                   \
-        string _l = 0;                     \
-        strFormat(&_l, __VA_ARGS__);       \
-        strAppend(out, _l);                \
-        strDestroy(&_l);                   \
+// tokeval() forces the extra expansion pass MSVC needs: without it __VA_ARGS__ arrives at
+// strFormat() as one argument rather than several, and the variant list comes out empty.
+#define DBGLINE(...)                            \
+    do {                                        \
+        string _l = 0;                          \
+        tokeval(strFormat(&_l, __VA_ARGS__));   \
+        strAppend(out, _l);                     \
+        strDestroy(&_l);                        \
     } while (0)
 
 _Use_decl_annotations_

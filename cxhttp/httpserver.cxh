@@ -50,14 +50,18 @@
 /// connection, and must not block. A request that needs slow work should be answered from
 /// somewhere else rather than by waiting inside the callback.
 
-/// @brief An HTTP server listening on one socket
+/// @brief An HTTP server and the listeners it serves on
 class HttpServer
 {
     /// @brief Queue the listener runs on, held strongly
     object[NetQueue] queue;
 
-    /// @brief The listening socket, or NULL before listen()/attach()
-    object[NetSocket] listener;
+    /// @brief The listening sockets, held strongly; empty before the first listen()/attach()
+    ///
+    /// An array rather than one socket because a server may serve HTTP/1.1 and HTTP/3 at once, and
+    /// those are two listeners on two transports. listen(), listenTls(), listenQuic() and attach()
+    /// may each be called more than once and in any combination.
+    [noinit] sarray[NetSocket] listeners;
 
     /// @brief Handlers for every request this server receives, borrowed
     HttpServerHandlers *handlers;
@@ -83,12 +87,21 @@ class HttpServer
     /// to connections accepted after it is changed.
     int64 idleTimeout;
 
+    /// @brief Value advertised in `Alt-Svc` on every HTTP/1.1 response, or empty for none
+    ///
+    /// How a browser or a cx client learns that the same origin also speaks HTTP/3. Set by
+    /// httpserverSetAltSvc(), and given a sensible default by listenQuic().
+    string altSvc;
+
     /// @brief Live connections, keyed by pointer and held strongly
     ///
     /// The server is what owns an accepted connection: nothing outside holds one, and without this
     /// a connection would have to keep itself alive and could never be shut down from outside. Each
     /// removes itself from here when it dies, which is why the table is keyed by pointer rather
     /// than being a list -- a dying connection knows only its own address.
+    ///
+    /// Holds a connection of either protocol: the values are `object` and the key is an address,
+    /// so neither the table nor the removal path has to know which kind it has.
     [noinit] hashtable[ptr,object] connections;
 
     /// @brief Guards `connections`
@@ -137,6 +150,44 @@ class HttpServer
     /// @return true if the socket is bound, filtered and listening
     bool listenTls([in] const NetAddr *addr, int backlog, [in] TlsConfig *cfg);
 
+    /// Bind a QUIC listener and serve HTTP/3 on it
+    ///
+    /// The HTTP/3 counterpart of listenTls(), and the same shape: a QUIC endpoint is opened, `h3`
+    /// is added to the configuration's ALPN list, and every connection accepted on it becomes
+    /// requests exactly as a TCP one does. Nothing above the framing layer changes -- a request
+    /// that arrived over HTTP/3 is an HttpServerRequest whose `version` is HTTPVER_3, and is
+    /// answered the same way.
+    ///
+    /// A server that has not called httpserverSetAltSvc() gets a default `Alt-Svc` value derived
+    /// from the port bound here, which is what tells an HTTP/1.1 client that HTTP/3 is available.
+    ///
+    /// Note that HTTP/3 is UDP: the port has to be reachable, which on a network that has only
+    /// ever carried this server's TCP traffic is not automatic.
+    ///
+    /// **Give this listener a TlsConfig of its own.** The two protocols need different ALPN
+    /// lists -- this one offers `h3` and a TCP listener offers `http/1.1` -- and an ALPN list
+    /// belongs to a configuration rather than to a listener. The two configurations can share a
+    /// TlsCreds, so this costs one small object and no extra certificate. Passing the same
+    /// configuration to both calls fails, and says which one to fix.
+    ///
+    /// @param addr Local address to bind; port 0 lets the OS pick one
+    /// @param cfg Server TLS configuration, which must carry a certificate and key
+    /// @return true if the endpoint is bound and listening, false if this build has no HTTP/3 in it
+    ///
+    /// Example:
+    /// @code
+    ///   NetAddr addr;
+    ///   netAddrFromStr(&addr, _SL("0.0.0.0"));
+    ///   addr.port = 443;
+    ///
+    ///   TlsConfig* tcp  = tlsconfigCreateServer(creds);
+    ///   TlsConfig* quic = tlsconfigCreateServer(creds);
+    ///
+    ///   httpserverListenTls(srv, &addr, 0, tcp);   // http/1.1 over TCP
+    ///   httpserverListenQuic(srv, &addr, quic);    // HTTP/3 over QUIC on the same port
+    /// @endcode
+    bool listenQuic([in] const NetAddr *addr, [in] TlsConfig *cfg);
+
     /// Serve on a listening socket the caller already owns
     ///
     /// For a listener that needed setting up in a way httpserverListen() does not cover -- a socket
@@ -162,6 +213,16 @@ class HttpServer
     /// @return Port in host byte order, or 0 if nothing is listening
     uint16 port();
 
+    /// Set the `Alt-Svc` value advertised on every HTTP/1.1 response
+    ///
+    /// An `Alt-Svc` header is how a client that connected over HTTP/1.1 learns that the same
+    /// origin also answers HTTP/3, so that its next request can use it. listenQuic() sets a
+    /// sensible default; this is for a server behind a load balancer, where the port a client
+    /// should use is not the one the server bound.
+    ///
+    /// @param value Header value, such as `h3=":443"; ma=86400`, or empty to advertise nothing
+    void setAltSvc(strref value);
+
     /// How many connections are open right now
     ///
     /// @return Live connection count
@@ -178,8 +239,9 @@ class HttpServer
     // -----------------------------------------------------------------------------------------
 
     // Take a connection off the live list, dropping the server's reference to it. Called by the
-    // connection from its own terminal path.
-    [extern] unbound void _forget([in] HttpServerConn *conn);
+    // connection from its own terminal path. Takes an ObjInst because the table holds both
+    // connection types and a dying connection knows only its own address.
+    [extern] unbound void _forget([in] ObjInst *conn);
 
     // Deliver one event to the registered handlers. `data`/`len` are only read for
     // HTTPSRVEV_Data.

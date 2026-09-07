@@ -191,6 +191,11 @@ void NetSocket__accepted(_In_ NetSocket* self, _Inout_ NetSocket* newSock,
             netsocketAddFilter(newSock, self->filters.a[i]);
     }
 
+    // Nothing on the new socket may reach the application before the accept that introduces it,
+    // and with NQ_AutoAccept its receives are armed a moment from now -- while the accept is still
+    // only queued.
+    atomicStore(uint32, &newSock->awaitingAccept, 1, Release);
+
     // NQ_AutoAccept: register the socket with the queue up front so the application receives it
     // already managed (associated with the backend and being serviced for receive). The add
     // acquires its own reference; the platform factory's reference still travels on the message.

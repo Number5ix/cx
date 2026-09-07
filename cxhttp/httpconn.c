@@ -79,41 +79,22 @@ static bool pumpBodyStream(HttpConn* self, HttpRequest* req);
 
 static Thread* enterDispatch(HttpConn* c)
 {
-    Thread* prev = (Thread*)atomicLoad(ptr, &c->dispatchThread, Relaxed);
-    atomicStore(ptr, &c->dispatchThread, thrCurrent(), Release);
-    return prev;
+    return _httpDispatchEnter(&c->dispatch);
 }
 
 static void leaveDispatch(HttpConn* c, Thread* prev)
 {
-    atomicStore(ptr, &c->dispatchThread, prev, Release);
+    _httpDispatchLeave(&c->dispatch, prev);
 }
 
-// True when this thread is the one currently dispatching on the connection, and may therefore
-// touch its socket, parser and ring directly. Comparing against our own Thread is what makes a
-// stale read harmless: another thread's Thread is never ours, so a reader that loses the race
-// takes the handoff, which is always correct.
 static bool onDispatchThread(HttpConn* c)
 {
-    return atomicLoad(ptr, &c->dispatchThread, Acquire) == thrCurrent();
+    return _httpDispatchOwned(&c->dispatch);
 }
 
-// Ask a worker to come and move this connection along. A zero-delay flow timer is the handoff:
-// NET_Timer arrives on a worker, ordered behind everything already pending for this connection, so
-// what it does cannot overtake an event the application has not seen yet.
 static bool handoffToWorker(HttpConn* c)
 {
-    NetFlow* flow = c->sock ? c->sock->flow : NULL;
-    if (!flow)
-        return false;
-
-    atomicStore(uint32, &c->pumpPending, 1, Release);
-    if (netflowAddTimer(flow, 0, NTF_None) == 0) {
-        // The flow is already dying, so no worker is coming.
-        atomicStore(uint32, &c->pumpPending, 0, Relaxed);
-        return false;
-    }
-    return true;
+    return _httpDispatchHandoff(&c->dispatch, c->sock ? c->sock->flow : NULL);
 }
 
 _Use_decl_annotations_
@@ -123,7 +104,15 @@ void _httpReqBodyNotify(StreamBuffer* sb, size_t sz, void* ctx)
     unused_noeval(sz);
 
     HttpRequest* req = (HttpRequest*)ctx;
-    HttpConn* self   = req ? req->bodyConn : NULL;
+
+    // The same buffer serves both framing layers, so which one is writing it decides where this
+    // goes. A request is on exactly one of them at a time.
+    if (req && req->h3conn) {
+        _http3ReqBodyNotify(req);
+        return;
+    }
+
+    HttpConn* self = req ? req->bodyConn : NULL;
     if (!self || !self->writing)
         return;
 
@@ -212,7 +201,7 @@ static void onNetTimer(NetEvent* ev)
     } else if (ev->timer.id == c->idleTimer) {
         c->idleTimer = 0;
         httpconnClose(c);
-    } else if (atomicExchange(uint32, &c->pumpPending, 0, AcqRel)) {
+    } else if (_httpDispatchClaim(&c->dispatch)) {
         // A producer on another thread fed the request body and asked for a worker. This is that
         // worker; the connection's own state says what is left to write.
         Thread* prev = enterDispatch(c);
@@ -326,7 +315,8 @@ bool HttpConn_idle(_In_ HttpConn* self)
 // Writing a request
 // ---------------------------------------------------------------------------------------------
 
-static strref methodText(HttpRequest* req)
+_Use_decl_annotations_
+strref _httpMethodName(const HttpRequest* req)
 {
     switch (req->method) {
     case HTTP_Get:
@@ -357,7 +347,7 @@ static strref methodText(HttpRequest* req)
 // send another -- which is the same conflict the parser refuses to accept from a peer.
 static bool buildHead(HttpConn* self, HttpRequest* req, string* out)
 {
-    strref method = methodText(req);
+    strref method = _httpMethodName(req);
     if (strEmpty(method))
         return false;
 

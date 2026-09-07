@@ -38,6 +38,15 @@ option(CX_HTTP "Build cxhttp, the HTTP/1.1 client and server library" ${CX_HTTP_
 option(CX_QUIC "Build cxquic, the QUIC transport library" ${CX_QUIC_DEFAULT})
 option(CX_MIMALLOC "Use mimalloc rather than system allocator" ON)
 
+# HTTP/3 is cxhttp's second framing layer rather than a second stack, so it needs both halves
+# present. On by default whenever they are.
+if(CX_HTTP AND CX_QUIC)
+    set(CX_HTTP3_DEFAULT ON)
+else()
+    set(CX_HTTP3_DEFAULT OFF)
+endif()
+option(CX_HTTP3 "Build HTTP/3 support into cxhttp" ${CX_HTTP3_DEFAULT})
+
 # cxhttp speaks https through cxtls rather than branching on whether it is available, so the
 # dependency is hard. Fail at configure time rather than at link time.
 if(CX_HTTP AND NOT CX_TLS)
@@ -50,6 +59,12 @@ endif()
 if(CX_QUIC AND NOT CX_TLS)
     message(FATAL_ERROR "CX_QUIC requires CX_TLS (cxquic uses cxtls for TLS 1.3 and packet "
                         "protection). Set -DCX_QUIC=OFF to build without QUIC support.")
+endif()
+
+# HTTP/3 is HTTP over QUIC, so it is both halves or neither.
+if(CX_HTTP3 AND NOT (CX_HTTP AND CX_QUIC))
+    message(FATAL_ERROR "CX_HTTP3 requires both CX_HTTP and CX_QUIC. "
+                        "Set -DCX_HTTP3=OFF to build cxhttp without HTTP/3 support.")
 endif()
 
 include (${CMAKE_CURRENT_SOURCE_DIR}/cmake/cxauto.cmake)

@@ -189,6 +189,9 @@ abstract class NetQueue
 
     /// Process events in polled mode
     ///
+    /// Only for a queue created with nthreads set to 0. A queue with worker threads already does
+    /// this work on its own threads, and calling tick() on one puts two threads in the same place.
+    ///
     /// @param wait How long to wait for an event, in microseconds (see timeS() / timeMS()), 0 to
     ///     return immediately, or timeForever to wait until something happens. A wait of under a
     ///     millisecond is rounded up to one on some platforms, so treat it as a lower bound.

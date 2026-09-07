@@ -1263,12 +1263,14 @@ void _quicStreamStopSending(QuicStreams* ss, uint64 id, uint64 error)
 // Diagnostics
 // ---------------------------------------------------------------------------------------------
 
-#define DBGLINE(...)                       \
-    do {                                   \
-        string _l = 0;                     \
-        strFormat(&_l, __VA_ARGS__);       \
-        strAppend(out, _l);                \
-        strDestroy(&_l);                   \
+// tokeval() forces the extra expansion pass MSVC needs: without it __VA_ARGS__ arrives at
+// strFormat() as one argument rather than several, and the variant list comes out empty.
+#define DBGLINE(...)                            \
+    do {                                        \
+        string _l = 0;                          \
+        tokeval(strFormat(&_l, __VA_ARGS__));   \
+        strAppend(out, _l);                     \
+        strDestroy(&_l);                        \
     } while (0)
 
 _Use_decl_annotations_

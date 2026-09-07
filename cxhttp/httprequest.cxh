@@ -127,14 +127,51 @@ class HttpRequest
     /// Not a reference. A client outlives every request it is running.
     HttpClient *client;
 
-    /// @brief Connection currently carrying the request
+    /// @brief Connection currently carrying the request over HTTP/1.1
     object[HttpConn] conn;
+
+    // The HTTP/3 connection carrying the request, weak because the client's pool owns it -- an
+    // HTTP/3 connection is borrowed rather than taken, so it goes on serving whatever else is on
+    // it while this request runs. Exactly one of `conn` and `h3conn` is ever set.
+    //
+    // Typed as ObjInst rather than as the HTTP/3 connection class, which is what keeps that class
+    // out of the public headers: only the HTTP/3 sources resolve it.
+    weak[ObjInst] h3conn;
+
+    // The QUIC stream carrying the request, held strongly so that a body producer on another
+    // thread still has something to hand back to a worker.
+    object[NetFlow] h3flow;
+
+    // Which worker is dispatching on this request. Under HTTP/1.1 the connection owns this,
+    // because it carries one request at a time; under HTTP/3 each request is a stream with a
+    // worker of its own, so it lives here instead.
+    HttpDispatch dispatch;
 
     /// @brief Socket being dialed, held until a connection exists to own it
     ///
     /// Separate from conn->sock because it exists first: between netqueueConnect() returning and
     /// the handshake finishing there is a socket but no HttpConn, and something has to hold it.
     object[NetSocket] dialSock;
+
+    // The QUIC socket being dialed, held for the same reason and separately from `dialSock`
+    // because under HTTPV_Any both are in flight at once and the loser has to be told apart from
+    // the winner.
+    object[NetSocket] dialQuic;
+
+    // Which protocols this request may use, overriding the client's policy. HTTPV_Default here
+    // means "whatever the client says" rather than the policy of that name.
+    flags_t versions;
+
+    // Both transports are being dialled at once, and neither has won yet. Read under exLock
+    // alongside the two sockets, because "which of these is still live" and "has one won" are one
+    // decision rather than two.
+    bool racing;
+    bool raced;      // one of them has won; the other's socket is closed rather than used
+
+    // The peer's GOAWAY said this request's stream was never processed, so it has been started
+    // again on a fresh connection. Once only: a server that keeps saying goodbye is not a server
+    // to keep retrying against.
+    bool h3Retried;
 
     HttpHandlers *appHandlers;   // the application's callbacks, borrowed like a NetHandlers set
     void *appCtx;
@@ -176,6 +213,15 @@ class HttpRequest
     [canfail] factory create(HttpMethod method, strref url);
     init();
     destroy();
+
+    /// Choose which protocol versions this one request may use
+    ///
+    /// Overrides the client's own policy for this request alone. HTTPV_Default means "whatever the
+    /// client says" rather than the policy of that name.
+    ///
+    /// @param v What to allow, and how to choose
+    /// @return true if the policy was accepted; false means this build has no HTTP/3 in it
+    bool setVersions(HttpVersionPolicy v);
 
     /// Set the verb for an extension method
     ///

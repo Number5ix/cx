@@ -30,12 +30,31 @@ class HttpServerConn;
 /// @brief A received request and the response being built for it
 [methodprefix httpsrvreq] class HttpServerRequest
 {
-    /// @brief Connection this arrived on
+    /// @brief Connection this arrived on, when it arrived over HTTP/1.1
     ///
     /// Weak, because the connection holds the request: the two would otherwise keep each other
     /// alive forever. A request held past its connection's death resolves this to NULL, which is
     /// how respond() knows there is nobody left to answer.
     weak[HttpServerConn] conn;
+
+    // The connection this arrived on when it arrived over HTTP/3, weak for the same reason.
+    // Exactly one of `conn` and `h3conn` is ever set, and the handful of places that care branch
+    // on which -- there are two protocols and the branches are local, so a shared base class under
+    // both connection types would cost more than it saves.
+    //
+    // Typed as ObjInst rather than as the HTTP/3 connection class, which is what keeps that class
+    // out of the public headers: only the HTTP/3 sources ever resolve this, and they do it with
+    // objAcquireFromWeakDyn().
+    weak[ObjInst] h3conn;
+
+    // The QUIC stream carrying this request, held strongly so that a response composed on another
+    // thread still has something to hand back to a worker even after the stream has ended.
+    object[NetFlow] h3flow;
+
+    // Which worker is dispatching on this request. Under HTTP/1.1 the connection owns this,
+    // because it carries one request at a time; under HTTP/3 each request is a stream with a
+    // worker of its own, so it lives here instead.
+    HttpDispatch dispatch;
 
     // --- what was received ------------------------------------------------------------------
 
@@ -152,8 +171,9 @@ class HttpServerConn;
     ///
     /// Call this once. A second call does nothing and returns false.
     ///
-    /// Must be called from a callback on this request's own connection -- the request handler
-    /// itself, or a later netqueue event for the same connection.
+    /// May be called from any thread. Called from somewhere other than this request's own worker,
+    /// the response is composed here and written by a worker moments later, so it still returns
+    /// true.
     ///
     /// @param body Response body, or empty for none
     /// @param contentType Value for Content-Type; ignored when the body is empty

@@ -94,3 +94,76 @@ bool _httpProgressDue(uint64 done, uint64* seen, size_t interval, bool final)
     *seen = done;
     return true;
 }
+
+_Use_decl_annotations_
+bool _httpAlpnHas(TlsConfig* cfg, strref proto)
+{
+    sa_string protos;
+    int32 n  = tlsconfigGetALPN(cfg, &protos);
+    bool has = false;
+
+    for (int32 i = 0; i < n; i++) {
+        if (strEq(protos.a[i], proto)) {
+            has = true;
+            break;
+        }
+    }
+
+    saDestroy(&protos);
+    return has;
+}
+
+_Use_decl_annotations_
+int32 _httpAlpnCount(TlsConfig* cfg)
+{
+    sa_string protos;
+    int32 n = tlsconfigGetALPN(cfg, &protos);
+    saDestroy(&protos);
+    return n;
+}
+
+_Use_decl_annotations_
+bool _httpAlpnAdd(TlsConfig* cfg, strref proto)
+{
+    sa_string protos;
+    int32 n = tlsconfigGetALPN(cfg, &protos);
+
+    bool has = false;
+    for (int32 i = 0; i < n; i++) {
+        if (strEq(protos.a[i], proto)) {
+            has = true;
+            break;
+        }
+    }
+
+    // Asking a sealed configuration to change is an error rather than something to try and have
+    // ignored, so it is not asked. One that already offers the protocol needs nothing anyway,
+    // which is the case that lets both listeners share a configuration in either order.
+    if (!has && tlsconfigSealed(cfg)) {
+        saDestroy(&protos);
+        return false;
+    }
+
+    if (!has) {
+        saPush(&protos, strref, proto);
+        tlsconfigSetALPN(cfg, &protos);
+    }
+
+    saDestroy(&protos);
+    return true;
+}
+
+_Use_decl_annotations_
+bool _httpDispatchHandoff(HttpDispatch* d, NetFlow* flow)
+{
+    if (!flow)
+        return false;
+
+    atomicStore(uint32, &d->pending, 1, Release);
+    if (netflowAddTimer(flow, 0, NTF_None) == 0) {
+        // The flow is already dying, so no worker is coming.
+        atomicStore(uint32, &d->pending, 0, Relaxed);
+        return false;
+    }
+    return true;
+}

@@ -72,13 +72,52 @@ class HttpClient
     /// @brief How long an unused pooled connection is kept, in microseconds (0 = do not pool)
     int64 idleTimeout;
 
-    /// @brief Idle connections available for reuse
+    /// @brief Which protocols requests through this client may use
     ///
-    /// Parallel to poolKeys.
+    /// HTTPV_Default, which sends HTTP/1.1 unless an origin is already known to speak HTTP/3.
+    /// Set it with httpclientSetVersions().
+    flags_t versions;
+
+    /// @brief Idle HTTP/1.1 connections available for reuse
+    ///
+    /// Parallel to poolKeys. An entry here is taken *exclusively*: a request removes it for the
+    /// duration and _recycle() puts it back.
     [noinit] sa_HttpConn pool;
 
     /// @brief Origin each pooled connection belongs to, as `scheme://host:port`
     [noinit] sa_string poolKeys;
+
+    // Live HTTP/3 connections, and the origin each belongs to. Kept apart from the HTTP/1.1 pool
+    // because the two are used differently rather than merely holding different types: an HTTP/3
+    // entry is *borrowed*. It stays here, hands out a reference, and serves as many requests at
+    // once as the peer's stream limit allows, which is what makes ten concurrent requests to one
+    // origin cost one connection instead of ten.
+    //
+    // Held as ObjInst, which is what keeps the HTTP/3 connection class out of the public headers.
+    [noinit] sa_object h3pool;
+    [noinit] sa_string h3poolKeys;
+
+    // What this client has learned about each origin it has spoken to: whether HTTP/3 worked
+    // there, or failed outright, until when, and on which port if not the origin's own. This is
+    // what makes HTTPV_Any cost one extra connection attempt per origin rather than one per
+    // request, and what lets HTTPV_Default reach HTTP/3 at all -- an origin becomes known either
+    // by having been reached that way before or by an Alt-Svc header on a response.
+    //
+    // Four parallel arrays rather than one of structs, so the element types stay ones cx's own
+    // stype machinery copies and releases. All four are always the same length; nothing outside
+    // httpaltsvc.c touches them.
+    [noinit] sa_string originKeys;
+    [noinit] sa_uint32 originFlags;
+    [noinit] sa_int64 originExpires;
+    [noinit] sa_uint16 originAltPort;
+
+    // Origins with a QUIC dial in flight, and the requests parked on one. Without this, ten
+    // concurrent requests to a new origin would start ten dials and end with ten connections --
+    // harmless under HTTP/1.1, where each carries one request anyway, and wasteful under HTTP/3,
+    // where one connection should carry all ten.
+    [noinit] sa_string h3Dialing;
+    [noinit] sa_HttpRequest h3Waiters;
+    [noinit] sa_string h3WaiterKeys;
 
     /// @brief Guards the pool and the lazily-created TLS configuration
     Mutex lock;
@@ -123,6 +162,22 @@ class HttpClient
     /// @param ctx Context passed to the handlers on HttpEvent.ctx
     /// @return true if the exchange started; false means it never will, and no handler runs
     bool send([in] HttpRequest *req, [in] [opt] const HttpHandlers *handlers, [in] [opt] void *ctx);
+
+    /// Choose which protocol versions this client may use
+    ///
+    /// HTTP/3 is never reached by accident: a client that has always spoken HTTP/1.1 keeps doing
+    /// so until this is called, because starting to send UDP is a change a firewall or a network
+    /// policy may have opinions about.
+    ///
+    /// @param v What to allow, and how to choose
+    /// @return true if the policy was accepted; false means this build has no HTTP/3 in it, and
+    ///         the client is unchanged
+    ///
+    /// Example:
+    /// @code
+    ///   httpclientSetVersions(http, HTTPV_Any);   // race QUIC and TCP, remember which won
+    /// @endcode
+    bool setVersions(HttpVersionPolicy v);
 
     /// Close and discard every pooled idle connection
     ///

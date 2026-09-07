@@ -7,7 +7,13 @@
 // httpsrvreqRespond() may be called from any thread, so an application is free to answer from
 // wherever its work happens to finish.
 //
-// Usage: httpsrvdemo [-p port] [-t threads] [--tls cert.pem key.pem]
+// Usage: httpsrvdemo [-p port] [-t threads] [--tls cert.pem key.pem] [--http3] [-w workers] [-v]
+//
+// --http3 adds an HTTP/3 listener on the same port number over UDP, alongside the TCP one, so the
+// same endpoints answer over either. It needs --tls, because QUIC is always encrypted.
+//
+// -t is the demo's own task queue, which answers /slow. -w is the netqueue's worker count, where 0
+// means polled and this thread drives everything. -v turns cx's own logging up to Trace.
 //
 // Endpoints:
 //   /            a short index listing the rest
@@ -33,6 +39,7 @@
 DEFINE_ENTRY_POINT;
 
 #define IDLE_SLEEP_US timeMS(100)
+#define TICK_WAIT_US  timeMS(100)
 
 typedef struct DemoCtx {
     TaskQueue* tq;
@@ -244,26 +251,25 @@ static const HttpServerHandlers kHandlers = {
 
 // ---------------------------------------------------------------------------------------------
 
-static bool loadTls(HttpServer* srv, NetAddr* addr, strref certPath, strref keyPath)
+// Each listener gets its own TlsConfig and they share the credentials, because the two offer
+// different ALPN protocols and the first connection built from a configuration freezes it.
+static bool listenSecure(HttpServer* srv, NetAddr* addr, TlsCreds* creds, bool quic)
 {
-    TlsCreds* creds = tlscredsCreateFiles(certPath, keyPath, NULL);
-    if (!creds) {
-        conPuts(conErr(), _SL("could not load the certificate or key\n"));
-        return false;
-    }
-
     TlsConfig* cfg = tlsconfigCreateServer(creds);
-    bool ok        = cfg && httpserverListenTls(srv, addr, 16, cfg);
+    if (!cfg)
+        return false;
+
+    bool ok = quic ? httpserverListenQuic(srv, addr, cfg) : httpserverListenTls(srv, addr, 16, cfg);
 
     objRelease(&cfg);
-    objRelease(&creds);
     return ok;
 }
 
 static void usage(void)
 {
     conPuts(conErr(),
-            _SL("usage: httpsrvdemo [-p port] [-t threads] [--tls cert.pem key.pem]\n"));
+            _SL("usage: httpsrvdemo [-p port] [-t threads] [--tls cert.pem key.pem] [--http3]\n"
+                "                   [-w workers] [-v]\n"));
 }
 
 int entryPoint()
@@ -272,8 +278,11 @@ int entryPoint()
     int rc       = 0;
     int32 port   = 8080;
     int32 nthreads = 2;
-    string cert  = 0;
-    string key   = 0;
+    string cert    = 0;
+    string key     = 0;
+    bool http3     = false;
+    int32 workers  = -1;   // negative leaves the preset's own count alone
+    int loglevel   = LOG_Warn;
 
     NetQueue* q     = NULL;
     HttpServer* srv = NULL;
@@ -288,6 +297,12 @@ int entryPoint()
         } else if (strEq(a, _SL("--tls")) && i + 2 < saSize(cmdArgs)) {
             strDup(&cert, cmdArgs.a[++i]);
             strDup(&key, cmdArgs.a[++i]);
+        } else if (strEq(a, _SL("--http3"))) {
+            http3 = true;
+        } else if (strEq(a, _SL("-w")) && i + 1 < saSize(cmdArgs)) {
+            strToInt32(&workers, cmdArgs.a[++i], 10, STRNUM_NoTrailing);
+        } else if (strEq(a, _SL("-v"))) {
+            loglevel = LOG_Trace;
         } else {
             usage();
             strDestroy(&cert);
@@ -300,10 +315,12 @@ int entryPoint()
     // channels are restricted, so a destination registered with a NULL filter sees the
     // application's logging and nothing else.
     LogConsoleConfig logcfg = { .stderrLevel = LOG_Count };
-    logconsoleRegister(LOG_Warn, _SL("cx/**"), NULL, NULL, &logcfg, NULL);
+    logconsoleRegister(loglevel, _SL("cx/**"), NULL, NULL, &logcfg, NULL);
 
     NetQueueConfig conf;
     netqueuePresetServer(&conf);
+    if (workers >= 0)
+        conf.nthreads = workers;
     q = netqueueCreate(&conf);
     if (!q) {
         conPuts(conErr(), _SL("could not create the queue\n"));
@@ -340,7 +357,27 @@ int entryPoint()
 
     bool listening;
     if (!strEmpty(cert)) {
-        listening = loadTls(srv, &addr, cert, key);
+        TlsCreds* creds = tlscredsCreateFiles(cert, key, NULL);
+        if (!creds) {
+            conPuts(conErr(), _SL("could not load the certificate or key\n"));
+            rc = 1;
+            goto out;
+        }
+
+        listening = listenSecure(srv, &addr, creds, false);
+
+        // The port the TCP listener actually got, which matters when -p asked for 0: HTTP/3 is
+        // advertised as the same port number over UDP, so the two have to agree.
+        if (listening && http3) {
+            addr.port = httpserverPort(srv);
+            listening = listenSecure(srv, &addr, creds, true);
+        }
+
+        objRelease(&creds);
+    } else if (http3) {
+        conPuts(conErr(), _SL("--http3 needs --tls: QUIC is always encrypted\n"));
+        rc = 2;
+        goto out;
     } else {
         listening = httpserverListen(srv, &addr, 16);
     }
@@ -355,14 +392,26 @@ int entryPoint()
            _SL("listening on ${string}://0.0.0.0:${uint}\n"),
            stvar(strref, strEmpty(cert) ? _S "http" : _S "https"),
            stvar(uint32, (uint32)httpserverPort(srv)));
+    if (http3) {
+        conFmt(conErr(),
+               _SL("  and HTTP/3 on udp/${uint}\n"),
+               stvar(uint32, (uint32)httpserverPort(srv)));
+    }
     conPuts(conErr(), _SL("try /fast, /slow, /stream, /echo -- ctrl-c to stop\n\n"));
 
-    // netqueuePresetServer() sizes a worker pool to the machine, so this queue runs threaded: an
-    // ingest thread and dispatch workers are already driving it. Calling netqueueTick() here too
-    // would race that ingest thread's own select() wait -- tick() is for polled mode only. The
-    // main thread has nothing left to do but stay alive until ctrl-c.
-    for (;;)
-        osSleep(IDLE_SLEEP_US);
+    // netqueuePresetServer() sizes a worker pool to the machine, so this queue normally runs
+    // threaded: an ingest thread and dispatch workers are already driving it. Calling
+    // netqueueTick() here too would race that ingest thread's own select() wait -- tick() is for
+    // polled mode only, and the main thread has nothing left to do but stay alive until ctrl-c.
+    //
+    // -w 0 asks for no workers at all, and that queue has nothing driving it but this loop.
+    if (conf.nthreads > 0) {
+        for (;;)
+            osSleep(IDLE_SLEEP_US);
+    } else {
+        for (;;)
+            netqueueTick(q, TICK_WAIT_US);
+    }
 
 out:
     if (srv) {

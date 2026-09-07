@@ -1,0 +1,74 @@
+#include <cx/net/socket.cxh>
+#include <cx/net/net_shared.h>
+#include <cxhttp/http_shared.h>
+#include <cxhttp/httpserverreq.cxh>
+
+class HttpServer;
+
+// One accepted QUIC connection, and the requests arriving on its streams.
+//
+// The HTTP/3 counterpart of HttpServerConn, and deliberately not its subclass: the two share the
+// object model above them and nothing below it. An application never meets one of these -- HTTP/3
+// requests arrive as ordinary HttpServerRequest objects whose `version` is HTTPVER_3.
+//
+// A class rather than a plain struct because it needs refcounting and a destructor, and because
+// HttpServer's connection table holds both kinds side by side.
+//
+// The one structural difference from HTTP/1.1 is that requests here genuinely run in parallel.
+// Each is a stream, which is a flow, which is an ordering domain with a worker of its own, so
+// HttpServerConn's `awaiting` / `writing` / `pumping` serialization has no counterpart here --
+// there is nothing to serialize.
+[methodprefix h3srvconn] class Http3ServerConn
+{
+    // The QUIC connection, held strongly for as long as this exists
+    object[NetSocket] sock;
+
+    // Server that accepted this connection. Weak, because the server holds its connections.
+    weak[HttpServer] server;
+
+    // Connection-wide HTTP/3 state: the peer's settings, the control stream in each direction and
+    // the GOAWAY. An Http3Session, opaque here for the same reason NetSocketQuic's engine state is
+    // -- the type belongs to the implementation, not to this declaration.
+    void *session;
+
+    // The three unidirectional streams this endpoint opens. The two QPACK streams carry nothing
+    // but their type prefix, because with no dynamic table there are no instructions to send and
+    // RFC 9204 section 4.2 requires both to exist anyway.
+    object[NetFlow] control;
+    object[NetFlow] qpackEnc;
+    object[NetFlow] qpackDec;
+
+    // Live request streams, so the connection can be reported on without walking the flow table
+    atomic[uint32] nstreams;
+
+    bool started;    // the control and QPACK streams have been opened
+    bool failed;     // a connection error has been raised and the connection is going down
+
+    // Created by HttpServer from its accept handler; an application never constructs one.
+    [canfail] factory create([in] HttpServer *server, [in] NetSocket *sock);
+    init();
+    destroy();
+
+    // Close the connection. Whatever is in flight on any stream is abandoned.
+    void close();
+
+    // Tell the peer that no request stream at or above `id` will be served, so it may retry those
+    // elsewhere. `id` of 0 refuses everything not already running.
+    void goaway(uint64 id);
+
+    // -----------------------------------------------------------------------------------------
+    // PRIVATE IMPLEMENTATION DETAILS
+    // -----------------------------------------------------------------------------------------
+
+    // Write the response a request has finished building. Called by HttpServerRequest_respond().
+    // False when the stream has already gone, which a late answer from a handler that held onto
+    // the request object is.
+    [extern] unbound bool _respond([in] HttpServerRequest *req);
+
+    // Write a bare "100 Continue" as an interim field section on the request's own stream.
+    [extern] unbound bool _sendContinue([in] HttpServerRequest *req);
+
+    // Push as much of a streamed response body onto the stream as its window will currently take.
+    // Called when the response starts, when the window opens, and when the producer writes more.
+    [extern] unbound void _pumpRespBody([in] HttpServerRequest *req);
+}

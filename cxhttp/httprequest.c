@@ -114,10 +114,22 @@ void HttpRequest_destroy(_In_ HttpRequest* self)
     strDestroy(&self->reason);
     strDestroy(&self->respBody);
     objRelease(&self->conn);
+    objDestroyWeak(&self->h3conn);
+    objRelease(&self->h3flow);
     objRelease(&self->dialSock);
+    objRelease(&self->dialQuic);
     strDestroy(&self->redirectTo);
     mutexDestroy(&self->exLock);
     // Autogen ends -------
+}
+
+bool HttpRequest_setVersions(_In_ HttpRequest* self, HttpVersionPolicy v)
+{
+    if (v != HTTPV_Default && v != HTTPV_Http1 && !_http3Available())
+        return false;
+
+    self->versions = (flags_t)v;
+    return true;
 }
 
 bool HttpRequest_setMethodName(_In_ HttpRequest* self, _In_opt_ strref name)
@@ -300,6 +312,7 @@ bool HttpRequest_cancel(_In_ HttpRequest* self)
 {
     HttpConn* conn     = NULL;
     NetSocket* dialing = NULL;
+    bool h3            = false;
     bool claimed       = false;
 
     // The binding and the flag are read and written together, because they are one decision. A
@@ -316,8 +329,12 @@ bool HttpRequest_cancel(_In_ HttpRequest* self)
 
             if (self->conn)
                 conn = objAcquire(self->conn);
+            else if (self->h3conn)
+                h3 = true;
             else if (self->dialSock)
                 dialing = objAcquire(self->dialSock);
+            else if (self->dialQuic)
+                dialing = objAcquire(self->dialQuic);
         }
     }
 
@@ -326,6 +343,10 @@ bool HttpRequest_cancel(_In_ HttpRequest* self)
     if (conn) {
         httpconnCancel(conn);
         objRelease(&conn);
+    } else if (h3) {
+        // Over HTTP/3 a cancel costs this request's stream and nothing else on the connection,
+        // which goes on carrying whatever else is running there.
+        _http3ReqCancel(self);
     } else if (dialing) {
         // No connection yet, so there is nothing to tell -- closing the half-open socket is the
         // whole of it, and the dial handlers turn the resulting teardown into the terminal event.

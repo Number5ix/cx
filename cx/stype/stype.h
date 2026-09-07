@@ -260,7 +260,10 @@ typedef unsigned long long uint64;
 typedef intptr_t intptr;
 typedef uintptr_t uintptr;
 #ifndef __cplusplus
+#if __STDC_VERSION__ < 202311L
+// C23 made bool a keyword, so the typedef is both unnecessary and illegal there.
 typedef _Bool bool;
+#endif
 #elif !defined(_Bool)
 // Some C++ standard library / compiler configurations (e.g. GNU-extension stdbool.h
 // under C++) already #define _Bool as a macro expanding to the built-in bool type.
