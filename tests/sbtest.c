@@ -63,7 +63,7 @@ static void sbclean1(void *ctx)
     tc->didclean = true;
 }
 
-static int test_streambuf_push()
+static int test_streambuf_push(void)
 {
     int ret = 0;
 
@@ -169,7 +169,7 @@ static void sbclean2(void *ctx)
     tc->didclean = true;
 }
 
-static int test_streambuf_pull()
+static int test_streambuf_pull(void)
 {
     int ret = 0;
 
@@ -239,7 +239,7 @@ static int test_streambuf_pull()
     return ret;
 }
 
-static int test_streambuf_peek()
+static int test_streambuf_peek(void)
 {
     int ret = 0;
 
@@ -341,7 +341,7 @@ static void sbclean3(void *ctx)
     tc->didclean = true;
 }
 
-static int test_streambuf_direct()
+static int test_streambuf_direct(void)
 {
     int ret = 0;
     StreamBuffer *ptest;
@@ -383,7 +383,7 @@ out:
     return ret;
 }
 
-static int test_streambuf_string()
+static int test_streambuf_string(void)
 {
     int ret = 0;
     string s1 = 0, s2 = 0;
@@ -456,7 +456,7 @@ static int test_streambuf_string()
     return ret;
 }
 
-static int test_streambuf_console()
+static int test_streambuf_console(void)
 {
     int ret = 0;
     string s1 = 0, out = 0;
@@ -503,7 +503,7 @@ static int test_streambuf_console()
     return ret;
 }
 
-static int test_streambuf_buffer()
+static int test_streambuf_buffer(void)
 {
     int ret = 0;
     size_t len = sizeof(testdata1) - 1;
@@ -710,7 +710,7 @@ static size_t failPull(StreamBuffer *sb, uint8 *buf, size_t sz, void *ctx)
 
 // A pull producer runs dry, hands its slot back without ending the stream, and a replacement picks
 // up where it left off. The consumer only ever sees a short read.
-static int test_streambuf_phandoff()
+static int test_streambuf_phandoff(void)
 {
     int ret = 0;
     uint8 out[TESTBUF_SZ];
@@ -758,7 +758,7 @@ static int test_streambuf_phandoff()
 
 // Bytes written with nobody attached pile up in the ring, and the consumer that registers next is
 // handed all of them. A consumer may then leave and another take over mid-stream.
-static int test_streambuf_chandoff()
+static int test_streambuf_chandoff(void)
 {
     int ret = 0;
     CollectCtx c1 = { 0 }, c2 = { 0 };
@@ -813,7 +813,7 @@ static int test_streambuf_chandoff()
 
 // The log-rotation case: a consumer is swapped out from under a stream it never asked to leave.
 // Everything written before the swap has to reach the outgoing sink, and none of it the new one.
-static int test_streambuf_cswap()
+static int test_streambuf_cswap(void)
 {
     int ret = 0;
     CollectCtx c1 = { .take = 4 }, c2 = { 0 };
@@ -862,7 +862,7 @@ static int test_streambuf_cswap()
 
 // A failure reported by the producer stops the stream dead but does not end it, so the driving side
 // can unregister whoever failed, clear the error and carry on with a replacement.
-static int test_streambuf_error()
+static int test_streambuf_error(void)
 {
     int ret = 0;
     uint8 out[TESTBUF_SZ];
@@ -911,7 +911,7 @@ static int test_streambuf_error()
 
 // sbufClose() has to reach a registered pull producer, since that final sz == 0 callback is the only
 // thing that tells it to let go of the slot -- and therefore of its reference.
-static int test_streambuf_endpull()
+static int test_streambuf_endpull(void)
 {
     int ret = 0;
     uint8 out[TESTBUF_SZ];
@@ -946,7 +946,7 @@ static int test_streambuf_endpull()
 
 // sbufPFlush() is a mid-stream catch-up, not an end-of-stream signal, and it has nothing to say
 // about a buffer that only fills on demand.
-static int test_streambuf_flush()
+static int test_streambuf_flush(void)
 {
     int ret = 0;
     CollectCtx cc = { 0 };
@@ -1019,7 +1019,7 @@ static void stuckClean(void *ctx)
 
 // A registration that outlives the stream can never be called again and would keep the buffer
 // alive forever, so sbufClose() detaches whatever the final callback left behind.
-static int test_streambuf_closedetach()
+static int test_streambuf_closedetach(void)
 {
     int ret = 0;
 
@@ -1064,7 +1064,7 @@ static int test_streambuf_closedetach()
 
 // One stream buffer, two JSON documents, with the application's own framing bytes in between --
 // the case a stream that ended with its first document could not do.
-static int test_streambuf_reuse()
+static int test_streambuf_reuse(void)
 {
     int ret    = 0;
     string out = 0;
@@ -1142,7 +1142,7 @@ static int threadedProducer(Thread *self)
 
 // A producer parked at the watermark has to survive the consumer going away, and be released by
 // whoever attaches next. If nobody does, sbufClose() has to wake it so it fails instead of hanging.
-static int test_streambuf_threaded()
+static int test_streambuf_threaded(void)
 {
     int ret = 0;
     CollectCtx c1 = { .take = 1 }, c2 = { 0 };

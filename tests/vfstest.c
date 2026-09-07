@@ -113,7 +113,7 @@ static VFSTestProv* sampleProvider(uint32 provflags, strref tag)
     return prov;
 }
 
-static int test_vfs_basic()
+static int test_vfs_basic(void)
 {
     int ret           = 0;
     VFS* vfs          = vfsCreate(VFS_CaseSensitive);
@@ -142,7 +142,7 @@ static int test_vfs_basic()
     return ret;
 }
 
-static int test_vfs_write()
+static int test_vfs_write(void)
 {
     int ret           = 0;
     VFS* vfs          = vfsCreate(VFS_CaseSensitive);
@@ -173,7 +173,7 @@ static int test_vfs_write()
     return ret;
 }
 
-static int test_vfs_layer()
+static int test_vfs_layer(void)
 {
     int ret            = 0;
     VFS* vfs           = vfsCreate(VFS_CaseSensitive);
@@ -200,7 +200,7 @@ static int test_vfs_layer()
     return ret;
 }
 
-static int test_vfs_opaque()
+static int test_vfs_opaque(void)
 {
     int ret            = 0;
     VFS* vfs           = vfsCreate(VFS_CaseSensitive);
@@ -223,7 +223,7 @@ static int test_vfs_opaque()
     return ret;
 }
 
-static int test_vfs_readonly()
+static int test_vfs_readonly(void)
 {
     int ret           = 0;
     VFS* vfs          = vfsCreate(VFS_CaseSensitive);
@@ -244,7 +244,7 @@ static int test_vfs_readonly()
     return ret;
 }
 
-static int test_vfs_search()
+static int test_vfs_search(void)
 {
     int ret           = 0;
     VFS* vfs          = vfsCreate(VFS_CaseSensitive);
@@ -266,7 +266,7 @@ static int test_vfs_search()
     return ret;
 }
 
-static int test_vfs_mount()
+static int test_vfs_mount(void)
 {
     int ret            = 0;
     VFS* vfs           = vfsCreate(VFS_CaseSensitive);
@@ -300,7 +300,7 @@ static int test_vfs_mount()
     return ret;
 }
 
-static int test_vfs_curdir()
+static int test_vfs_curdir(void)
 {
     int ret           = 0;
     VFS* vfs          = vfsCreate(VFS_CaseSensitive);
@@ -335,7 +335,7 @@ static int test_vfs_curdir()
 
 // A failed copy-on-write must leave the VFS usable. The COW layer here refuses to open anything
 // for writing, which is the shape of a full disk or a read-only COW target.
-static int test_vfs_cowfail()
+static int test_vfs_cowfail(void)
 {
     int ret            = 0;
     VFS* vfs           = vfsCreate(VFS_CaseSensitive);
@@ -367,7 +367,7 @@ static int test_vfs_cowfail()
 }
 
 // A copy-on-write that succeeds puts the new copy on the COW layer and leaves the original alone.
-static int test_vfs_cow()
+static int test_vfs_cow(void)
 {
     int ret            = 0;
     VFS* vfs           = vfsCreate(VFS_CaseSensitive);
@@ -413,7 +413,7 @@ static int test_vfs_cow()
 // Mounting a second provider invalidates the whole directory cache, which walks the subdirs
 // hashtable of every cached node. Warm the cache with enough cache-only directories that the
 // invalidation walk has plenty to remove while it is iterating.
-static int test_vfs_invalidate()
+static int test_vfs_invalidate(void)
 {
     int ret           = 0;
     VFS* vfs          = vfsCreate(VFS_CaseSensitive);
@@ -447,7 +447,7 @@ static int test_vfs_invalidate()
 
 // FS_Write | FS_Create must land on the layer the caller marked VFS_NewFiles, not simply on the
 // first writable layer the search happens to reach.
-static int test_vfs_newfiles()
+static int test_vfs_newfiles(void)
 {
     int ret           = 0;
     VFS* vfs          = vfsCreate(VFS_CaseSensitive);
@@ -479,7 +479,7 @@ static int test_vfs_newfiles()
 
 // A rename through a single provider has to invalidate the cache entry for the old name, the
 // same way a delete does.
-static int test_vfs_rename()
+static int test_vfs_rename(void)
 {
     int ret           = 0;
     VFS* vfs          = vfsCreate(VFS_CaseSensitive);
@@ -516,7 +516,7 @@ static int test_vfs_rename()
 
 // Errors that a caller can reach on demand: searching an unknown namespace, and a provider whose
 // close fails. Run under LSan to also cover the allocations the failing paths have to release.
-static int test_vfs_errors()
+static int test_vfs_errors(void)
 {
     int ret           = 0;
     VFS* vfs          = vfsCreate(VFS_CaseSensitive);
@@ -590,7 +590,7 @@ static int test_vfs_errors()
 // A case-insensitive VFS over a case-sensitive provider has to walk the provider's real
 // directory entries to resolve a path. That is the only configuration in which the
 // case-insensitive resolution helper runs, and until now nothing exercised it through a search.
-static int test_vfs_caseinsens()
+static int test_vfs_caseinsens(void)
 {
     int ret           = 0;
     VFS* vfs          = vfsCreate(0);   // case-insensitive
@@ -623,7 +623,7 @@ static int test_vfs_caseinsens()
 
 // Mounting a VFS into itself is a supported (and, per vfsDestroy, common) configuration, so no
 // VFS operation may hold a lock across a call into a provider.
-static int test_vfs_loopback()
+static int test_vfs_loopback(void)
 {
     int ret           = 0;
     VFS* vfs          = vfsCreate(VFS_CaseSensitive);
@@ -650,7 +650,7 @@ static int test_vfs_loopback()
 // Two providers at one mount point, only one of which reports itself case-sensitive. The
 // corrected on-disk casing found for one must not be handed to the other -- a VFSVFS always
 // reports case-insensitive no matter what the VFS behind it does, which is exactly the mismatch.
-static int test_vfs_casemix()
+static int test_vfs_casemix(void)
 {
     int ret            = 0;
     VFS* vfs           = vfsCreate(0);   // case-insensitive
@@ -679,7 +679,7 @@ static int test_vfs_casemix()
 // Mount points are entries in their parent directory's listing, so they have to behave like any
 // other entry: they make the parent exist, they honour the caller's pattern and type filter, and
 // they carry a real stat when one was asked for.
-static int test_vfs_mountents()
+static int test_vfs_mountents(void)
 {
     int ret            = 0;
     VFS* vfs           = vfsCreate(VFS_CaseSensitive);
@@ -723,7 +723,7 @@ static int test_vfs_mountents()
 // The directory tree grows with every path ever looked up, whether or not any provider has it,
 // so it needs a bound. Eviction must free those nodes without losing anything a caller can
 // still reach through a provider.
-static int test_vfs_evict()
+static int test_vfs_evict(void)
 {
     int ret           = 0;
     VFS* vfs          = vfsCreate(VFS_CaseSensitive);
@@ -786,7 +786,7 @@ static int test_vfs_evict()
 // vfsCreateDir, vfsCreateAll, vfsRemoveDir, and their failure paths: a nonexistent directory
 // can't be removed, VFSTP_FailCreateDir propagates through vfsCreateDir, and a read-only mount
 // refuses the write outright.
-static int test_vfs_dirops()
+static int test_vfs_dirops(void)
 {
     int ret           = 0;
     VFS* vfs          = vfsCreate(VFS_CaseSensitive);
@@ -836,7 +836,7 @@ static int test_vfs_dirops()
 // vfsCopy within one provider, from a read-only lower layer to a writable destination,
 // overwriting an existing destination, a missing source, and failure injection mid-copy leaving
 // no partial destination file behind.
-static int test_vfs_copy()
+static int test_vfs_copy(void)
 {
     int ret           = 0;
     VFS* vfs          = vfsCreate(VFS_CaseSensitive);
@@ -901,7 +901,7 @@ static int test_vfs_copy()
 // Open-flag combinations, seek/tell, write-protection through a read-only handle, two
 // independent handles on one file, vfsSetTimes, and the non-VFSFS case of vfsGetFSPath (the
 // true case is covered by fsprov, the only test with a real VFSFS mount).
-static int test_vfs_fileio()
+static int test_vfs_fileio(void)
 {
     int ret           = 0;
     VFS* vfs          = vfsCreate(VFS_CaseSensitive);
@@ -1018,7 +1018,7 @@ static int test_vfs_fileio()
 // provider is mutated directly (bypassing the VFS) can still return the stale answer, because the
 // cache only remembers which single mount resolved the name last time -- it takes that lookup's
 // own failure to invalidate the entry, so it self-heals one call later rather than immediately.
-static int test_vfs_nocache()
+static int test_vfs_nocache(void)
 {
     int ret = 0;
 
@@ -1111,7 +1111,7 @@ static int vfsStressReader(Thread* self)
 // racing against an unmount, either a hit or a miss is a legitimate answer -- it's about the VFS
 // surviving the race at all (no hang, no crash) and staying usable once every thread is done. A
 // hang here shows up as this test itself timing out, since nothing polls for progress.
-static int test_vfs_concurrency()
+static int test_vfs_concurrency(void)
 {
     int ret = 0;
 
@@ -1146,7 +1146,7 @@ static int test_vfs_concurrency()
 
 // The one test that goes through VFSFS to the real filesystem, so the OS provider itself stays
 // covered. Everything else uses the memory provider.
-static int test_vfs_fsprov()
+static int test_vfs_fsprov(void)
 {
     int ret = 0;
     string cwd = 0, dir = 0, file = 0, fspath = 0;

@@ -14,7 +14,7 @@
 // caps: drive the pure heuristic directly, with no tty and no real environment involved
 // ---------------------------------------------------------------------------------------
 
-static int test_caps()
+static int test_caps(void)
 {
     ConCaps c;
 
@@ -162,7 +162,7 @@ static int test_caps()
 // write: exercise the buffered output path through a memory-backed stream
 // ---------------------------------------------------------------------------------------
 
-static int test_write()
+static int test_write(void)
 {
     ConCaps caps   = { 0 };
     ConStream* con = conCreateMem(&caps);
@@ -202,7 +202,7 @@ static int test_write()
 
 // A rope only forms above ROPE_JOIN_THRESH (128 bytes); this mirrors the construction used
 // by strtest.c's own rope test.
-static int test_write_rope()
+static int test_write_rope(void)
 {
     // Must be at least ROPE_MIN_SIZE (64) bytes, or _strAppend's small-tail-merge exception
     // keeps flattening instead of forming a rope; 66 mirrors strtest.c's own rope test.
@@ -244,7 +244,7 @@ static int test_write_rope()
     return code;
 }
 
-static int test_write_utf8()
+static int test_write_utf8(void)
 {
     ConCaps caps   = { 0 };
     ConStream* con = conCreateMem(&caps);
@@ -269,7 +269,7 @@ static int test_write_utf8()
 // lock: recursion via the external depth counter, and cross-thread atomicity
 // ---------------------------------------------------------------------------------------
 
-static int test_lock_recursive()
+static int test_lock_recursive(void)
 {
     ConCaps caps   = { 0 };
     ConStream* con = conCreateMem(&caps);
@@ -297,7 +297,7 @@ static int test_lock_recursive()
     return ret;
 }
 
-static int test_lock_withblock()
+static int test_lock_withblock(void)
 {
     ConCaps caps   = { 0 };
     ConStream* con = conCreateMem(&caps);
@@ -340,7 +340,7 @@ static int lockThreadProc(Thread* self)
     return 0;
 }
 
-static int test_lock_stress()
+static int test_lock_stress(void)
 {
     ConCaps caps = { 0 };
     g_lockCon    = conCreateMem(&caps);
@@ -418,7 +418,7 @@ static bool memEq(ConStream* con, strref expect)
 // A pure-red truecolor request downgrades cleanly at every depth: it lands exactly on an
 // xterm 256 cube entry and exactly on ANSI bright red, so the expected bytes at each rung
 // are unambiguous rather than an artifact of the distance-matching algorithm.
-static int test_style_downgrade()
+static int test_style_downgrade(void)
 {
     ConStyle red = CONSTYLE(CON_RGB(255, 0, 0), 0);
 
@@ -457,7 +457,7 @@ static int test_style_downgrade()
     return 0;
 }
 
-static int test_style_attrs()
+static int test_style_attrs(void)
 {
     ConCaps caps   = { .vt = true, .color = CON_ColorNone };
     ConStream* con = conCreateMem(&caps);
@@ -472,7 +472,7 @@ static int test_style_attrs()
 
 // A stream with no vt and no color at all (a genuinely dumb terminal) must emit nothing --
 // never garbage escape bytes it can't back up.
-static int test_style_none()
+static int test_style_none(void)
 {
     ConCaps caps   = { .vt = false, .color = CON_ColorNone };
     ConStream* con = conCreateMem(&caps);
@@ -488,7 +488,7 @@ static int test_style_none()
 // conPutsS/conWriteS must restore whatever style was active before the call, not the
 // stream's default -- so a nested styled write inside an outer conSetStyle() must come back
 // out to the outer style afterward.
-static int test_style_restore()
+static int test_style_restore(void)
 {
     ConCaps caps   = { .vt = true, .color = CON_Color16 };
     ConStream* con = conCreateMem(&caps);
@@ -516,7 +516,7 @@ static int test_style_restore()
 // fmt: conFmt/conFmtS wrap strFormat() into a temporary string, then conPuts()/conPutsS()
 // ---------------------------------------------------------------------------------------
 
-static int test_fmt()
+static int test_fmt(void)
 {
     ConCaps caps   = { 0 };
     ConStream* con = conCreateMem(&caps);
@@ -538,7 +538,7 @@ static int test_fmt()
     return 0;
 }
 
-static int test_fmt_styled()
+static int test_fmt_styled(void)
 {
     ConCaps caps   = { .vt = true, .color = CON_Color16 };
     ConStream* con = conCreateMem(&caps);
@@ -560,7 +560,7 @@ static int test_fmt_styled()
 // cursor: VT emission for cursor/screen ops, all against exact emitted bytes
 // ---------------------------------------------------------------------------------------
 
-static int test_cursor_set()
+static int test_cursor_set(void)
 {
     ConCaps caps   = { .vt = true, .cursor = true };
     ConStream* con = conCreateMem(&caps);
@@ -574,7 +574,7 @@ static int test_cursor_set()
     return 0;
 }
 
-static int test_cursor_move()
+static int test_cursor_move(void)
 {
     ConCaps caps   = { .vt = true, .cursor = true };
     ConStream* con = conCreateMem(&caps);
@@ -592,7 +592,7 @@ static int test_cursor_move()
     return 0;
 }
 
-static int test_cursor_show()
+static int test_cursor_show(void)
 {
     ConCaps caps   = { .vt = true, .cursor = true };
     ConStream* con = conCreateMem(&caps);
@@ -608,7 +608,7 @@ static int test_cursor_show()
     return 0;
 }
 
-static int test_cursor_save_restore()
+static int test_cursor_save_restore(void)
 {
     ConCaps caps   = { .vt = true, .cursor = true };
     ConStream* con = conCreateMem(&caps);
@@ -623,7 +623,7 @@ static int test_cursor_save_restore()
     return 0;
 }
 
-static int test_cursor_erase()
+static int test_cursor_erase(void)
 {
     ConCaps caps   = { .vt = true, .cursor = true };
     ConStream* con = conCreateMem(&caps);
@@ -643,7 +643,7 @@ static int test_cursor_erase()
     return 0;
 }
 
-static int test_cursor_scroll()
+static int test_cursor_scroll(void)
 {
     ConCaps caps   = { .vt = true, .cursor = true };
     ConStream* con = conCreateMem(&caps);
@@ -662,7 +662,7 @@ static int test_cursor_scroll()
     return 0;
 }
 
-static int test_cursor_altscreen()
+static int test_cursor_altscreen(void)
 {
     ConCaps caps   = { .vt = true, .cursor = true, .altscreen = true };
     ConStream* con = conCreateMem(&caps);
@@ -679,7 +679,7 @@ static int test_cursor_altscreen()
 
 // A stream with no cursor capability at all must fail cleanly and emit nothing -- never
 // garbage escape bytes it can't back up.
-static int test_cursor_none()
+static int test_cursor_none(void)
 {
     ConCaps caps   = { 0 };
     ConStream* con = conCreateMem(&caps);
@@ -700,7 +700,7 @@ static int test_cursor_none()
 // conGetCursor() is never satisfiable on a memory stream, even if a test fixture claims
 // cursorquery support -- there is no real position behind it, per console_private.h's
 // contract on _conPlatCursorGet().
-static int test_cursor_getcursor_mem()
+static int test_cursor_getcursor_mem(void)
 {
     ConCaps caps   = { .cursorquery = true };
     ConStream* con = conCreateMem(&caps);
@@ -719,7 +719,7 @@ static int test_cursor_getcursor_mem()
 // decode_escape: drive the pure escape-sequence decoder directly, no tty involved
 // ---------------------------------------------------------------------------------------
 
-static int test_decode_escape()
+static int test_decode_escape(void)
 {
     ConKeyEvent ev;
     uint32 consumed;
@@ -792,7 +792,7 @@ static int test_decode_escape()
 // input: the public wrappers only work on CON_Kind_In -- everything else fails cleanly
 // ---------------------------------------------------------------------------------------
 
-static int test_input_wrong_kind()
+static int test_input_wrong_kind(void)
 {
     ConCaps caps   = { 0 };
     ConStream* con = conCreateMem(&caps);

@@ -2704,7 +2704,7 @@ static bool h3BothInitN(_Inout_ H3Loop* f, _In_ const HttpServerHandlers* handle
         la.port = 0;
         if (quic) {
             if (!httpserverListenQuic(srv, &la, f->scfg)) {
-                TEST_WARN(_SL("fixture: no QUIC listener on 127.0.0.1"));
+                TEST_WARN(_SL("fixture: no QUIC listener on 127.0.0.1"), stvNone);
                 httpserverShutdown(srv);
                 objRelease(&srv);
                 return false;
@@ -2727,7 +2727,7 @@ static bool h3BothInitN(_Inout_ H3Loop* f, _In_ const HttpServerHandlers* handle
     }
 
     if (!f->srv) {
-        TEST_WARN(_SL("fixture: no port free for both a QUIC and a TCP listener"));
+        TEST_WARN(_SL("fixture: no port free for both a QUIC and a TCP listener"), stvNone);
         return false;
     }
 
