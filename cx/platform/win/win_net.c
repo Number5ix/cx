@@ -27,6 +27,33 @@ bool netPlatformInit(void)
     return false;
 }
 
+typedef BOOL(WINAPI* CancelIoEx_t)(HANDLE, LPOVERLAPPED);
+static LazyInitState netCancelIoExState;
+static CancelIoEx_t netCancelIoExFn;
+
+static void netCancelIoExInit(void* unused)
+{
+    unused_noeval(unused);
+
+    HANDLE hDll = LoadLibrary(TEXT("kernel32.dll"));
+    if (hDll)
+        netCancelIoExFn = (CancelIoEx_t)GetProcAddress(hDll, "CancelIoEx");
+}
+
+_Use_decl_annotations_
+bool _netHaveCancelIoEx(void)
+{
+    lazyInit(&netCancelIoExState, netCancelIoExInit, NULL);
+    return netCancelIoExFn != NULL;
+}
+
+_Use_decl_annotations_
+void _netCancelSockIo(NetSockHandle h)
+{
+    if (_netHaveCancelIoEx())
+        netCancelIoExFn((HANDLE)h, NULL);
+}
+
 _Use_decl_annotations_
 NetQueue* netPlatformCreateIOCP(const NetQueueConfig* conf)
 {
@@ -37,6 +64,13 @@ NetQueue* netPlatformCreateIOCP(const NetQueueConfig* conf)
     // IOCP over Wine is emulated on the readiness path with no throughput win and less coverage, so
     // it is not offered there even when asked for directly.
     if (osIsWine())
+        return NULL;
+
+    // Tearing the backend down means cancelling operations that other threads posted, which needs
+    // CancelIoEx. Without it (an XP-compatible build actually running on XP) a shutdown would strand
+    // pooled buffers and socket references in the kernel, so hand back the select backend instead --
+    // it is entirely adequate at the scale that host serves.
+    if (!_netHaveCancelIoEx())
         return NULL;
     return (NetQueue*)netqueuewiniocpCreate((NetQueueConfig*)conf);
 }

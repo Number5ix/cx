@@ -725,7 +725,7 @@ static void cancelAllIo(_Inout_ NetQueueWinIOCP* self)
         foreach (hashtable, hti, q->sockets) {
             NetSocket* sock = (NetSocket*)htiVal(object, hti);
             if (sock && sock->handle != NET_INVALID_HANDLE)
-                CancelIoEx((HANDLE)sock->handle, NULL);
+                _netCancelSockIo(sock->handle);
         }
     }
 }
@@ -941,7 +941,7 @@ bool NetQueueWinIOCP_removeSocket(_In_ NetQueueWinIOCP* self, NetSocket* socket)
     // are drained -- returning buffers and releasing the op's socket ref -- rather than reposting on
     // a socket on its way out.
     if (socket->handle != NET_INVALID_HANDLE)
-        CancelIoEx((HANDLE)socket->handle, NULL);
+        _netCancelSockIo(socket->handle);
 
     return NetQueue_removeSocket(NetQueue(self), socket);
 }
