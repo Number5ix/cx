@@ -741,6 +741,8 @@ static const testspec tests[] = {
     { "http3: Settings", "http3test", "settings" },
     { "http3: GOAWAY", "http3test", "goaway" },
     { "http3: Malformed Streams", "http3test", "badstream" },
+    { "http3: Alt-Svc Parsing", "http3test", "altsvc" },
+#if defined(_PLATFORM_WIN) || defined(_PLATFORM_UNIX)
     { "http3: Server Round Trip", "http3test", "roundtrip" },
     { "http3: Server POST Body", "http3test", "srvpost" },
     { "http3: Concurrent Streams", "http3test", "concurrent" },
@@ -759,9 +761,9 @@ static const testspec tests[] = {
     { "http3: Version Race Fallback", "http3test", "racefail" },
     { "http3: Dial Coalescing", "http3test", "coalesce" },
     { "http3: GOAWAY Retry", "http3test", "goawayretry" },
-    { "http3: Alt-Svc Parsing", "http3test", "altsvc" },
     { "http3: Alt-Svc Seeds The Origin Table", "http3test", "altsvcseed" },
     { "http3: Streams On Worker Threads", "http3test", "threaded" },
+#endif
 #endif
     { "taskqueue: Tasks", "tqtest", "task" },
     { "taskqueue: Failed Tasks", "tqtest", "failure" },
