@@ -107,7 +107,7 @@ int32 _tlsChainCount(const mbedtls_x509_crt* chain)
 
 _objfactory_check TlsCAStore* TlsCAStore_create()
 {
-    if (!_tlsInit())
+    if (!tlsInit())
         return NULL;
 
     TlsCAStore* self;
@@ -281,7 +281,7 @@ static TlsCreds* credsFinish(_Inout_ TlsCreds* self, bool ok)
 // Allocate the object and its mbedTLS state, ready for credsLoad().
 static _Ret_maybenull_ TlsCreds* credsAlloc(void)
 {
-    if (!_tlsInit())
+    if (!tlsInit())
         return NULL;
 
     TlsCreds* self = objInstCreate(TlsCreds);

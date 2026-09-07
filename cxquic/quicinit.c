@@ -22,7 +22,7 @@ static void quicInitOnce(void* unused)
     unused_noeval(unused);
 
     QuicLogChannel = logChan(_SL("cx/quic"));
-    quicInit_ok = _tlsInit();
+    quicInit_ok = tlsInit();
 }
 
 bool _quicInit(void)

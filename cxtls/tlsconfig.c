@@ -66,7 +66,7 @@ static int sniThunk(void* p, mbedtls_ssl_context* ssl, const unsigned char* name
 
 static _Ret_maybenull_ TlsConfig* configAlloc(bool server)
 {
-    if (!_tlsInit())
+    if (!tlsInit())
         return NULL;
 
     TlsConfig* self = objInstCreate(TlsConfig);

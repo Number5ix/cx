@@ -18,7 +18,7 @@
 
 static _Ret_maybenull_ TlsQuic* quicAlloc(_In_opt_ TlsConfig* config, bool server)
 {
-    if (!config || !_tlsInit())
+    if (!config || !tlsInit())
         return NULL;
 
     // A client handshake off a server configuration would present the wrong identity and verify

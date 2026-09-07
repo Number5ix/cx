@@ -2,7 +2,7 @@
 //
 // Mbed TLS 4.x requires psa_crypto_init() before any TLS or X.509 call -- the PSA API is the only
 // crypto API left, and the legacy entry points that used to work without it are gone. Rather than
-// make that the application's problem, every cxtls factory calls _tlsInit() first and refuses to
+// make that the application's problem, every cxtls factory calls tlsInit() first and refuses to
 // build anything if it failed, so no cxtls object can exist over an uninitialized crypto core.
 
 #include "tls_private.h"
@@ -36,7 +36,7 @@ static void tlsInitOnce(void* unused)
     tlsInit_ok = true;
 }
 
-bool _tlsInit(void)
+bool tlsInit(void)
 {
     lazyInit(&tlsInit_done, tlsInitOnce, NULL);
     return tlsInit_ok;

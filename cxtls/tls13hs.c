@@ -1858,7 +1858,7 @@ bool _tls13HsInit(Tls13Hs* hs, bool server, struct TlsConfig* config)
 {
     memset(hs, 0, sizeof(*hs));
 
-    if (!_tlsInit() || !config)
+    if (!tlsInit() || !config)
         return false;
 
     hs->server = server;
