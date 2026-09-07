@@ -275,8 +275,7 @@ void Http3ServerConn__pumpRespBody(_In_ Http3ServerConn* self, _In_ HttpServerRe
         StreamBuffer* done = req->respStream;
         req->respStream    = NULL;
         sbufCUnregister(done);
-        sbufClose(done);
-        sbufRelease(&done);
+        sbufFinish(&done);
     }
 
     reportProgress(self, req, HTTPPROG_Send, 0, true);
@@ -549,8 +548,7 @@ static void finishRequest(_Inout_ Http3ServerConn* self, _Inout_ H3Stream* st, _
     if (req->sink) {
         StreamBuffer* sink = req->sink;
         req->sink          = NULL;
-        sbufClose(sink);
-        sbufRelease(&sink);
+        sbufFinish(&sink);
     }
 
     reportProgress(self, req, HTTPPROG_Recv, 0, true);

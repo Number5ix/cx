@@ -155,8 +155,7 @@ void _httpSrvReqReleaseStreams(HttpServerRequest* req, bool ok)
         // cxhttp is the producer into the sink, so it is the side that ends the stream.
         if (!ok)
             sbufError(sb);
-        sbufClose(sb);
-        sbufRelease(&sb);
+        sbufFinish(&sb);
     }
 
     if (req->respStream) {
@@ -553,8 +552,7 @@ void HttpServerConn__pumpRespBody(_In_ HttpServerConn* self)
         StreamBuffer* done = req->respStream;
         req->respStream    = NULL;
         sbufCUnregister(done);
-        sbufClose(done);
-        sbufRelease(&done);
+        sbufFinish(&done);
     }
 
     // The terminator is the last thing on the wire for a chunked body, so it is retried on the next
@@ -911,8 +909,7 @@ void HttpServerConn__pump(_In_ HttpServerConn* self)
             if (self->req && self->req->sink) {
                 StreamBuffer* sink = self->req->sink;
                 self->req->sink    = NULL;
-                sbufClose(sink);
-                sbufRelease(&sink);
+                sbufFinish(&sink);
             }
 
             reportProgress(self, self->req, HTTPPROG_Recv, 0, true);

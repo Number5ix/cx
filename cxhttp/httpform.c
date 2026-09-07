@@ -133,8 +133,7 @@ static void destroyPart(HttpMultipartPart* p)
     case HTTPMPSRC_Stream:
         if (p->src.stream) {
             // cxhttp drove this one as the consumer, so it is the side that ends it
-            sbufClose(p->src.stream);
-            sbufRelease(&p->src.stream);
+            sbufFinish(&p->src.stream);
         }
         break;
     }
@@ -552,8 +551,7 @@ bool httpMultipartFinish(HttpMultipart* mp, string* body, string* contentType)
 
         // Drains the whole body, which for a streamed part means waiting for its producer.
         ok = sbufStrOut(sb, &mp->rendered);
-        sbufClose(sb);
-        sbufRelease(&sb);
+        sbufFinish(&sb);
     }
 
     if (body)

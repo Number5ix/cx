@@ -42,8 +42,7 @@ CX_C_BEGIN
 ///   serWrite(w, MyStruct, val);
 ///   serWriterFinish(w);
 ///   serWriterDestroy(&w);
-///   sbufClose(sb);
-///   sbufRelease(&sb);
+///   sbufFinish(&sb);
 /// @endcode
 
 /// Creates a writer that emits JSON to a stream buffer.
@@ -77,8 +76,7 @@ _Ret_notnull_ SerWriter* serJsonWriterCreate(_Inout_ StreamBuffer* sb, flags_t f
 ///   structInit(MyStruct, &out);
 ///   serRead(r, MyStruct, &out);
 ///   serReaderDestroy(&r);
-///   sbufClose(sb);
-///   sbufRelease(&sb);
+///   sbufFinish(&sb);
 /// @endcode
 _Ret_notnull_ SerReader* serJsonReaderCreate(_Inout_ StreamBuffer* sb, flags_t flags);
 

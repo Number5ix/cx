@@ -266,6 +266,7 @@ static const testspec tests[] = {
     { "streambuffer: Error Recovery", "sbtest", "error" },
     { "streambuffer: End With Pull Producer", "sbtest", "endpull" },
     { "streambuffer: Synchronous Flush", "sbtest", "flush" },
+    { "streambuffer: Close Detaches", "sbtest", "closedetach" },
     { "streambuffer: Stream Reuse", "sbtest", "reuse" },
     { "streambuffer: Threaded Handoff", "sbtest", "threaded" },
     { "lineparse: Explicit EOL", "lineparsetest", "explicit" },

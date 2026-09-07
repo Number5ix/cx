@@ -21,8 +21,7 @@ static SSDNode* loadsrc(strref fname)
     }
 
     SSDNode* inf = jsonParseTree(sb);
-    sbufClose(sb);
-    sbufRelease(&sb);
+    sbufFinish(&sb);
 
     return inf;
 }
@@ -40,8 +39,7 @@ static bool saveresult(strref fname, SSDNode* json)
     bool ret = jsonOutTree(sb, json, JSON_Pretty);
 
     // ending the stream is what flushes the tail and closes the file
-    sbufClose(sb);
-    sbufRelease(&sb);
+    sbufFinish(&sb);
 
     return ret;
 }

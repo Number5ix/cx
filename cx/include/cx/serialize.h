@@ -38,8 +38,7 @@
 ///       logFmt(Error, _SL("write failed at ${string}: ${string}"),
 ///              stvar(string, w->err.path), stvar(string, w->err.msg));
 ///   serWriterDestroy(&w);
-///   sbufClose(sb);
-///   sbufRelease(&sb);
+///   sbufFinish(&sb);
 ///
 ///   // ... send or store json ...
 ///
@@ -50,8 +49,7 @@
 ///   structInit(MyStruct, &out);
 ///   serRead(r, MyStruct, &out);
 ///   serReaderDestroy(&r);
-///   sbufClose(sb);
-///   sbufRelease(&sb);
+///   sbufFinish(&sb);
 /// @endcode
 ///
 /// Backends follow **Create/Destroy**: each supplies its own create function taking whatever

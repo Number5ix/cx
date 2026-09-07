@@ -3691,9 +3691,7 @@ static void onSrvHead(HttpServerEvent* ev)
         // The consumer side is ours; cxhttp registers itself as the producer.
         if (!sbufCRegisterPush(r->sink, onSrvSinkNotify, NULL, r) ||
             !httpsrvreqSetSink(ev->request, r->sink)) {
-            sbufClose(r->sink);
-            sbufCUnregister(r->sink);
-            sbufRelease(&r->sink);
+            sbufFinish(&r->sink);
         }
     }
 }
