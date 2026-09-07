@@ -1608,6 +1608,29 @@ static const HttpServerHandlers kH3SrvHandlers = {
     .request = h3tOnRequest,
 };
 
+// Take whatever the request body sink is holding. A push-mode buffer refuses a read bigger than
+// what it has, so a fixed-size read would leave any tail shorter than that in the buffer -- and a
+// tail left above the low watermark never releases the producer, which stalls the transfer.
+static size_t h3tSinkDrain(_Inout_ H3SrvRec* rec)
+{
+    if (!rec->sink)
+        return 0;
+
+    uint8 buf[8192];
+    size_t total = 0;
+    for (;;) {
+        size_t want = min(sbufCAvail(rec->sink), sizeof(buf));
+        if (want == 0)
+            break;
+
+        size_t got = 0;
+        if (!sbufCRead(rec->sink, buf, want, &got) || got == 0)
+            break;
+        total += got;
+    }
+    return total;
+}
+
 static void h3SrvRecDestroy(_Inout_ H3SrvRec* rec)
 {
     strDestroy(&rec->lastPath);
@@ -2006,10 +2029,7 @@ int test_http3test_backpressure(void)
     // Now read the sink, which releases the producer, which lets cxhttp read again, which reopens
     // the window.
     for (int i = 0; i < 4000 && sent < kBody; i++) {
-        uint8 drain[8192];
-        size_t got = 0;
-        while (rec.sink && sbufCRead(rec.sink, drain, sizeof(drain), &got) && got > 0)
-            got = 0;
+        h3tSinkDrain(&rec);
 
         size_t want = min(kBody - sent, (size_t)16384);
         if (_h3SendData(r->flow, raw + sent, want))
@@ -2021,10 +2041,7 @@ int test_http3test_backpressure(void)
 
     netquicFinish(r->flow);
     for (int i = 0; i < 4000 && !(r->complete || r->failed); i++) {
-        uint8 drain[8192];
-        size_t got = 0;
-        while (rec.sink && sbufCRead(rec.sink, drain, sizeof(drain), &got) && got > 0)
-            got = 0;
+        h3tSinkDrain(&rec);
         netqueueTick(f.q, timeMS(2));
     }
 
