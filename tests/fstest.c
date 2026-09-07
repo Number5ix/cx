@@ -225,6 +225,104 @@ out:
     return ret;
 }
 
+// A file handed to one of the stream buffer register functions is used long after the call that
+// registered it returns -- on whatever thread drives the buffer -- so the registration keeps a
+// reference of its own. Owning it is the whole point: an application that opens a file, registers
+// it and lets go of its own handle must not be reading and writing through a freed File.
+static int test_fs_sbufregister()
+{
+    int ret          = 0;
+    FSFile* f        = NULL;
+    StreamBuffer* sb = NULL;
+    string readback  = 0;
+    uint8 buf[64];
+    size_t got = 0;
+
+    // Something to read back.
+    f = fsOpen(_SL(FSTEST_FILE_NAME), FS_Overwrite);
+    if (!f) {
+        TEST_FAILV(ret, 1, _SL("!fsOpen(_SL(\"" FSTEST_FILE_NAME "\"), FS_Overwrite)"), stvNone);
+        goto out;
+    }
+    size_t wrote = 0;
+    if (!fsWriteString(f, fstestFileContents, &wrote))
+        TEST_FAILV(ret, 1, _SL("!fsWriteString"), stvNone);
+    fsClose(f);
+    f = NULL;
+
+    // Pull producer, with the caller letting go of its handle the moment it is registered.
+    f = fsOpen(_SL(FSTEST_FILE_NAME), FS_Read);
+    if (!f) {
+        TEST_FAILV(ret, 1, _SL("!fsOpen(_SL(\"" FSTEST_FILE_NAME "\"), FS_Read)"), stvNone);
+        goto out;
+    }
+
+    sb = sbufCreate(16);
+    if (!sbufFilePRegisterPull(sb, f, false)) {
+        TEST_FAILV(ret, 1, _SL("!sbufFilePRegisterPull(sb, f, false)"), stvNone);
+        goto out;
+    }
+
+    uint64 refs = (uint64)atomicLoad(uintptr, &ObjInst(f)->_ref, Acquire);
+    if (refs != 2)
+        TEST_FAILV(ret, 1, _SL("file refcount after registering is ${uint}, expected 2"),
+                   stvar(uint64, refs));
+
+    objRelease(&f);   // the registration is the only owner now
+
+    if (!sbufCRead(sb, buf, strLen(fstestFileContents), &got) ||
+        got != strLen(fstestFileContents))
+        TEST_FAILV(ret, 1, _SL("pulled ${uint} bytes, expected ${uint}"),
+                   stvar(uint64, (uint64)got), stvar(uint32, strLen(fstestFileContents)));
+    strFromBytes(&readback, buf, (uint32)got);
+    if (!strEq(readback, fstestFileContents))
+        TEST_FAILV(ret, 1, _SL("pulled '${string}', expected '${string}'"),
+                   stvar(strref, readback), stvar(strref, fstestFileContents));
+
+    sbufClose(sb);
+    sbufRelease(&sb);   // takes the registration with it, and the file with that
+
+    // Push consumer, the same way round: registered, then let go of.
+    f = fsOpen(_SL(FSTEST_FILE_NAME), FS_Overwrite);
+    if (!f) {
+        TEST_FAILV(ret, 1, _SL("!fsOpen(_SL(\"" FSTEST_FILE_NAME "\"), FS_Overwrite)"), stvNone);
+        goto out;
+    }
+
+    sb = sbufCreate(16);
+    if (!sbufFileCRegisterPush(sb, f, true)) {   // close: the caller's reference goes with it
+        TEST_FAILV(ret, 1, _SL("!sbufFileCRegisterPush(sb, f, true)"), stvNone);
+        goto out;
+    }
+    f = NULL;
+
+    if (!sbufPWrite(sb, (const uint8*)"written through a registration", 30))
+        TEST_FAILV(ret, 1, _SL("!sbufPWrite"), stvNone);
+    sbufClose(sb);
+    sbufRelease(&sb);
+
+    // The file is closed by now, so what it holds is only readable through a fresh handle.
+    f = fsOpen(_SL(FSTEST_FILE_NAME), FS_Read);
+    if (!f) {
+        TEST_FAILV(ret, 1, _SL("!fsOpen after the push consumer"), stvNone);
+        goto out;
+    }
+    if (!fileRead(f, buf, sizeof(buf), &got) || got != 30)
+        TEST_FAILV(ret, 1, _SL("read back ${uint} bytes, expected 30"), stvar(uint64, (uint64)got));
+    strClear(&readback);
+    strFromBytes(&readback, buf, (uint32)got);
+    if (!strEq(readback, _SL("written through a registration")))
+        TEST_FAILV(ret, 1, _SL("read back '${string}'"), stvar(strref, readback));
+
+out:
+    if (sb)
+        sbufRelease(&sb);
+    objRelease(&f);
+    strDestroy(&readback);
+    fsDelete(_SL(FSTEST_FILE_NAME));
+    return ret;
+}
+
 // Native fs.h directory and search operations against the real OS filesystem: fsCreateDir /
 // fsCreateAll, fsRemoveDir (including its real-filesystem "must be empty" failure, which the
 // in-memory VFS test provider does not model), fsRename, fsSetTimes, and a directory search.
@@ -365,6 +463,7 @@ out:
 testfunc fstest_funcs[] = {
     { "pathmatch", test_fs_pathmatch },
     { "file", test_fs_file },
+    { "sbufregister", test_fs_sbufregister },
     { "ops", test_fs_ops },
     { 0, 0 }
 };

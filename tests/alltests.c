@@ -285,6 +285,7 @@ static const testspec tests[] = {
     { "math: FP Comparison", "mathtest", "floatcmp" },
     { "fs: Path Matching", "fstest", "pathmatch" },
     { "fs: File Handles", "fstest", "file" },
+    { "fs: Stream Buffer Registrations", "fstest", "sbufregister" },
     { "fs: Directory and search operations", "fstest", "ops" },
     { "vfs: Basic operations", "vfstest", "basic" },
     { "vfs: Write and delete", "vfstest", "write" },

@@ -23,7 +23,14 @@
 /// with no cast at the call site.
 ///
 /// Where `close` is true, the file is closed and its reference released, the same as fsClose()
-/// or vfsClose() would.
+/// or vfsClose() would. The handle must not be used again after that.
+///
+/// The two register functions attach the file to the stream buffer and return; their callbacks run
+/// later, whenever the buffer is driven and on whichever thread drives it. Each of them holds a
+/// reference to the file for as long as it stays attached, so releasing your own reference after
+/// registering is safe -- the file goes away when the registration does. A file handle is still
+/// single-owner while it is registered: nothing else may read, write or seek it until the slot has
+/// been handed back.
 
 #pragma once
 
@@ -73,11 +80,16 @@ bool _sbufFileIn(_Inout_ StreamBuffer* sb, _Pre_valid_ _When_(close, _Post_inval
 /// chunks on demand. Use this instead of sbufFileIn() when you need finer
 /// control over when data is read.
 ///
+/// The registration holds its own reference to the file until the producer slot is handed back, so
+/// the caller may release its own at any time after this returns.
+///
 /// @param sb The stream buffer
-/// @param file File to read from (optionally closed when the producer finishes)
+/// @param file File to read from. With `close` set, the caller's reference is handed over with it
+///             and the handle must not be used again
 /// @param close If true, the file is closed when the producer finishes
 /// @return true on success, false if registration failed
-_Check_return_ bool _sbufFilePRegisterPull(_Inout_ StreamBuffer* sb, _Inout_ File* file,
+_Check_return_ bool _sbufFilePRegisterPull(_Inout_ StreamBuffer* sb,
+                                           _Pre_valid_ _When_(close, _Post_invalid_) File* file,
                                            bool close);
 #define sbufFilePRegisterPull(sb, file, close) _sbufFilePRegisterPull(sb, File(file), close)
 
@@ -120,11 +132,16 @@ bool _sbufFileOut(_Inout_ StreamBuffer* sb, _Pre_valid_ _When_(close, _Post_inva
 /// available from the producer. Use this instead of sbufFileOut() when you need
 /// the producer and consumer to operate asynchronously.
 ///
+/// The registration holds its own reference to the file until the consumer slot is handed back, so
+/// the caller may release its own at any time after this returns.
+///
 /// @param sb The stream buffer
-/// @param file File to write to (optionally closed when the consumer finishes)
+/// @param file File to write to. With `close` set, the caller's reference is handed over with it
+///             and the handle must not be used again
 /// @param close If true, the file is closed when the consumer finishes
 /// @return true on success, false if registration failed
-_Check_return_ bool _sbufFileCRegisterPush(_Inout_ StreamBuffer* sb, _Inout_ File* file,
+_Check_return_ bool _sbufFileCRegisterPush(_Inout_ StreamBuffer* sb,
+                                           _Pre_valid_ _When_(close, _Post_invalid_) File* file,
                                            bool close);
 #define sbufFileCRegisterPush(sb, file, close) _sbufFileCRegisterPush(sb, File(file), close)
 
