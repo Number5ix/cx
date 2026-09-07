@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cxtls/tls_shared.h>
+#include <cxtls_init.h>
 
 #include <cx/buffer/buffer.h>
 #include <cx/buffer/bufring.h>
@@ -18,11 +19,6 @@
 #include <psa/crypto.h>
 
 CX_C_BEGIN
-
-// One-time process init: creates TlsLogChannel and calls psa_crypto_init(), which 4.x requires
-// before any TLS or X.509 call. Every factory in cxtls calls this first and refuses to build
-// anything if it failed, so no object can exist over an uninitialized crypto core.
-bool _tlsInit(void);
 
 // Describe an mbedTLS or PSA status as text, for a log line: the numeric code plus whatever
 // mbedtls_strerror() knows about it. 4.x returns MBEDTLS_ERR_* and PSA_ERROR_* from the same

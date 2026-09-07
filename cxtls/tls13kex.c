@@ -56,7 +56,7 @@ bool _tls13KexGenerate(Tls13Kex* kex, uint16 group)
     memset(kex, 0, sizeof(*kex));
 
     const Tls13GroupInfo* gi = tls13GroupInfo(group);
-    if (!gi || !_tlsInit())
+    if (!gi || !tlsInit())
         return false;
 
     psa_key_attributes_t attr;
@@ -80,7 +80,7 @@ bool _tls13KexImport(Tls13Kex* kex, uint16 group, const uint8* priv, size_t priv
     memset(kex, 0, sizeof(*kex));
 
     const Tls13GroupInfo* gi = tls13GroupInfo(group);
-    if (!gi || !_tlsInit())
+    if (!gi || !tlsInit())
         return false;
 
     psa_key_attributes_t attr;

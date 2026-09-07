@@ -50,7 +50,7 @@ bool _tls13Extract(psa_algorithm_t hash, const uint8* salt, size_t saltLen, cons
                    size_t ikmLen, uint8* out)
 {
     uint8 hashLen = _tls13HashLen(hash);
-    if (!hashLen || !_tlsInit())
+    if (!hashLen || !tlsInit())
         return false;
 
     psa_key_derivation_operation_t op = PSA_KEY_DERIVATION_OPERATION_INIT;
@@ -109,7 +109,7 @@ _Use_decl_annotations_
 bool _tls13ExpandLabel(psa_algorithm_t hash, const uint8* secret, size_t secretLen, strref label,
                        const uint8* ctx, size_t ctxLen, uint8* out, size_t outLen)
 {
-    if (!_tls13HashLen(hash) || outLen > 0xffff || !_tlsInit())
+    if (!_tls13HashLen(hash) || outLen > 0xffff || !tlsInit())
         return false;
 
     // 2 length octets, then two length-prefixed byte strings that are 255 bytes at most each.
@@ -165,7 +165,7 @@ bool _tls13Finished(psa_algorithm_t hash, const uint8* secret, const uint8* thas
                     uint8* out)
 {
     uint8 hashLen = _tls13HashLen(hash);
-    if (!hashLen || !_tlsInit())
+    if (!hashLen || !tlsInit())
         return false;
 
     uint8 finKey[TLS13_MAX_HASH];
@@ -205,7 +205,7 @@ bool _tls13TranscriptInit(Tls13Transcript* tr, psa_algorithm_t hash)
 {
     memset(tr, 0, sizeof(*tr));
 
-    if (!_tls13HashLen(hash) || !_tlsInit())
+    if (!_tls13HashLen(hash) || !tlsInit())
         return false;
 
     psa_hash_operation_t init = PSA_HASH_OPERATION_INIT;
