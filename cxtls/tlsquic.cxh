@@ -174,6 +174,15 @@ class TlsQuic
     /// @param out Receives the snapshot
     /// @return true if the handshake has completed
     unbound bool getInfo([out] TlsInfo *out);
+
+    /// The peer's end-entity certificate, as DER
+    ///
+    /// Only the leaf is returned, for an application that needs more of it than TlsInfo carries.
+    /// A resumed handshake sends no certificate and reports none here.
+    ///
+    /// @param out Buffer receiving the DER bytes; emptied if this returns false
+    /// @return true if the peer presented a certificate
+    unbound bool getPeerCert([inout] Buffer *out);
 }
 
 /// @}

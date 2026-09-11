@@ -627,6 +627,8 @@ static const testspec tests[] = {
     { "quicnet: Retry", "quicnettest", "retry" },
     { "quicnet: No Listener", "quicnettest", "nolistener" },
     { "quicnet: ALPN", "quicnettest", "alpn" },
+    { "quicnet: Peer Identity", "quicnettest", "tlsinfo" },
+    { "quicnet: Peer Certificate", "quicnettest", "peercert" },
     { "quicnet: Two Clients", "quicnettest", "two_clients" },
     { "quicnet: Repeated Initial", "quicnettest", "dup_initial" },
     { "quicnet: Short Initial", "quicnettest", "short_initial" },

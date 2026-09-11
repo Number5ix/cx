@@ -261,6 +261,54 @@ _Pure QuicEarlyData netquicEarlyData(_In_ NetSocket* sock);
 /// @return true if the handshake has finished and a protocol was negotiated
 _Success_(return) bool netquicALPN(_In_ NetSocket* sock, _Inout_ strhandle out);
 
+/// What this connection's handshake established about the peer
+///
+/// The QUIC counterpart of nettlsFlowInfo(). Readable once the handshake has finished: on a client
+/// after NET_Connection, on a server after NET_Accepted, and on a connection that used 0-RTT after
+/// NFN_Secured.
+///
+/// A resumed session sends no certificate, so TlsInfo::peerVerified is false on one and the peer
+/// names are empty. A connection that may resume must therefore take the peer's identity from the
+/// handshake that established it and keep it, rather than reading it again each time.
+///
+/// Every string in the result is owned by the caller; release the whole struct with
+/// nettlsInfoDestroy().
+///
+/// @param sock A QUIC connection socket
+/// @param out Receives the snapshot; zeroed if this returns false
+/// @return true if the handshake has finished and the snapshot was filled in
+///
+/// Example:
+/// @code
+///   TlsInfo info;
+///   if (netquicTlsInfo(sock, &info)) {
+///       logFmt(Info, _SL("peer ${string}"), stvar(strref, info.peerSubject));
+///       nettlsInfoDestroy(&info);
+///   }
+/// @endcode
+_Success_(return) bool netquicTlsInfo(_In_ NetSocket* sock, _Out_ TlsInfo* out);
+
+/// The peer's end-entity certificate, as DER
+///
+/// For an application that needs more of the certificate than TlsInfo carries -- the subject
+/// alternative names, the serial, an extension of its own -- and will parse it with
+/// mbedtls_x509_crt_parse_der(). Only the leaf is returned; the chain behind it has already been
+/// checked against the configuration's trust store by the time this can be called.
+///
+/// @param sock A QUIC connection socket
+/// @param out Buffer receiving the DER bytes, replacing whatever it held; emptied if this returns
+///            false
+/// @return true if the peer presented a certificate and it was copied out
+///
+/// Example:
+/// @code
+///   Buffer der = 0;
+///   if (netquicPeerCert(sock, &der))
+///       mbedtls_x509_crt_parse_der(&crt, der->data, der->len);
+///   bufDestroy(&der);
+/// @endcode
+_Success_(return) bool netquicPeerCert(_In_ NetSocket* sock, _Inout_ Buffer* out);
+
 /// Open a stream on a connection
 ///
 /// The new stream's NET_FlowOpen is delivered on a worker like any other flow's, so a handler

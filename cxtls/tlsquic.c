@@ -138,6 +138,27 @@ bool TlsQuic_getInfo(_In_ TlsQuic* self, _Out_ TlsInfo* out)
     return true;
 }
 
+bool TlsQuic_getPeerCert(_In_ TlsQuic* self, _Inout_ Buffer* out)
+{
+    Tls13Hs* hs = &self->st->hs;
+
+    // Emptied on every path that reports nothing, so a caller reusing a buffer can never mistake
+    // the previous connection's certificate for this one's.
+    bufClear(*out);
+
+    if (hs->state != TLS13_ST_DONE || !hs->peerCertInit || !hs->peerPresent)
+        return false;
+
+    const mbedtls_x509_buf* raw = &hs->peerCert.raw;
+    if (!raw->p || raw->len == 0)
+        return false;
+
+    // Copied rather than handed out: mbedTLS owns these bytes for exactly as long as the parsed
+    // chain lives, which is shorter than the caller is entitled to hold the answer.
+    bufAppendBytes(out, raw->p, raw->len);
+    return true;
+}
+
 void TlsQuic_destroy(_In_ TlsQuic* self)
 {
     if (self->st) {

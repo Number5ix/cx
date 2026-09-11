@@ -1676,6 +1676,50 @@ bool netquicALPN(NetSocket* sock, strhandle out)
 }
 
 _Use_decl_annotations_
+bool netquicTlsInfo(NetSocket* sock, TlsInfo* out)
+{
+    memset(out, 0, sizeof(*out));
+
+    NetSocketQuic* self = objDynCast(NetSocketQuic, sock);
+    if (!self)
+        return false;
+
+    QuicEngine* eng = engOf(self);
+    bool ok         = false;
+
+    // Under the engine lock for the same reason netquicALPN() is: the handshake runs on whichever
+    // worker the connection's datagrams landed on, and this can be called from anywhere.
+    withMutex (&eng->lock) {
+        TlsQuic* tq = eng->conn ? _quicConnTls(eng->conn) : NULL;
+        if (tq)
+            ok = tlsquicGetInfo(tq, out);
+    }
+
+    return ok;
+}
+
+_Use_decl_annotations_
+bool netquicPeerCert(NetSocket* sock, Buffer* out)
+{
+    bufClear(*out);
+
+    NetSocketQuic* self = objDynCast(NetSocketQuic, sock);
+    if (!self)
+        return false;
+
+    QuicEngine* eng = engOf(self);
+    bool ok         = false;
+
+    withMutex (&eng->lock) {
+        TlsQuic* tq = eng->conn ? _quicConnTls(eng->conn) : NULL;
+        if (tq)
+            ok = tlsquicGetPeerCert(tq, out);
+    }
+
+    return ok;
+}
+
+_Use_decl_annotations_
 bool netquicMigrate(NetSocket* sock)
 {
     NetSocketQuic* self = objDynCast(NetSocketQuic, sock);

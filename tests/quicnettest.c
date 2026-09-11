@@ -145,6 +145,7 @@ typedef struct QNFix {
     TlsTestPKI pki;
     TlsCAStore* ca;
     TlsCreds* creds;
+    TlsCreds* clientCreds;
     TlsConfig* ccfg;
     TlsConfig* scfg;
 
@@ -539,6 +540,7 @@ static void qnFixDestroy(_Inout_ QNFix* f)
 
     objRelease(&f->ccfg);
     objRelease(&f->scfg);
+    objRelease(&f->clientCreds);
     objRelease(&f->creds);
     objRelease(&f->ca);
     tlsTestPKIDestroy(&f->pki);
@@ -568,7 +570,10 @@ static bool qnFixInitPool(_Out_ QNFix* f, uint32 recvBufMax)
         return false;
 
     f->creds = tlscredsCreatePEM(f->pki.serverCert, f->pki.serverKey, NULL);
-    if (!f->creds)
+
+    // The second identity doubles as the client's, for the tests that turn on mutual TLS.
+    f->clientCreds = tlscredsCreatePEM(f->pki.altCert, f->pki.altKey, NULL);
+    if (!f->creds || !f->clientCreds)
         return false;
 
     f->ccfg = tlsconfigCreateClient();
@@ -1557,6 +1562,90 @@ static int test_quicnettest_streamlimit(void)
 out:
     for (int i = 0; i < 3; i++)
         objRelease(&flows[i]);
+    qnFixDestroy(&f);
+    return ret;
+}
+
+// Who is on the other end, read back off the socket at both ends. The server requires a client
+// certificate, so each side has an identity for the other to report.
+static int test_quicnettest_tlsinfo(void)
+{
+    int ret = 0;
+    QNFix f;
+    TlsInfo cinfo = { 0 };
+    TlsInfo sinfo = { 0 };
+    bool chave    = false;
+    bool shave    = false;
+    Buffer cliCert = 0;
+
+    CHECK("fixture", qnFixInit(&f));
+
+    tlsconfigSetCA(f.scfg, f.ca);
+    tlsconfigSetAuthMode(f.scfg, TLSAUTH_Required);
+    tlsconfigSetCreds(f.ccfg, f.clientCreds);
+
+    QuicConfig cfg = { 0 };
+    uint16 port    = 0;
+    CHECK("listen", qnListen(&f, &cfg, &port));
+    CHECK("dial", qnDial(&f, &cfg, port));
+
+    QN_WAIT(&f, f.cli.nConnected > 0 && f.srv.sock != NULL, QN_BUDGET);
+    CHECK("connected", f.cli.nConnected > 0 && f.srv.sock != NULL);
+
+    chave = netquicTlsInfo(f.cli.sock, &cinfo);
+    shave = netquicTlsInfo(f.srv.sock, &sinfo);
+    CHECK("the client has no handshake info", chave);
+    CHECK("the server has no handshake info", shave);
+
+    CHECK("client not secured", cinfo.secured);
+    CHECK("server not secured", sinfo.secured);
+    CHECK("client protocol", strEq(cinfo.version, _S "TLSv1.3"));
+    CHECK("server protocol", strEq(sinfo.version, _S "TLSv1.3"));
+    CHECK("no ciphersuite", !strEmpty(cinfo.ciphersuite) && !strEmpty(sinfo.ciphersuite));
+
+    CHECK("the client did not verify the server", cinfo.peerVerified && cinfo.verifyFlags == 0);
+    CHECK("the server did not verify the client", sinfo.peerVerified && sinfo.verifyFlags == 0);
+    CHECK("no server subject", !strEmpty(cinfo.peerSubject) && !strEmpty(cinfo.peerIssuer));
+    CHECK("no client subject", !strEmpty(sinfo.peerSubject) && !strEmpty(sinfo.peerIssuer));
+
+    // The two ends are holding different certificates, so neither snapshot can be an echo of its
+    // own identity.
+    CHECK("the two ends report the same peer", !strEq(cinfo.peerSubject, sinfo.peerSubject));
+
+    // The server has a client certificate to hand out only because it asked for one.
+    CHECK("the server has no client certificate", netquicPeerCert(f.srv.sock, &cliCert));
+    CHECK("client certificate is not DER", bufLen(cliCert) > 2 && cliCert->data[0] == 0x30);
+
+out:
+    bufDestroy(&cliCert);
+    nettlsInfoDestroy(&cinfo);
+    nettlsInfoDestroy(&sinfo);
+    qnFixDestroy(&f);
+    return ret;
+}
+
+// The peer's certificate in DER. The server asks for none, so only the client has one to report.
+static int test_quicnettest_peercert(void)
+{
+    int ret = 0;
+    QNFix f;
+    Buffer srvCert = 0;
+    Buffer cliCert = 0;
+
+    CHECK("connect", qnConnect(&f, NULL));
+
+    CHECK("the client did not get the server's certificate", netquicPeerCert(f.cli.sock, &srvCert));
+    CHECK("server certificate is not DER", bufLen(srvCert) > 2 && srvCert->data[0] == 0x30);
+
+    // A buffer carrying something else is emptied even when there is nothing to report, so a
+    // stale certificate can never be read back as the peer's.
+    bufAppendBytes(&cliCert, "stale", 5);
+    CHECK("the server reported a certificate nobody sent", !netquicPeerCert(f.srv.sock, &cliCert));
+    CHECK("the buffer was left as it was", bufLen(cliCert) == 0);
+
+out:
+    bufDestroy(&srvCert);
+    bufDestroy(&cliCert);
     qnFixDestroy(&f);
     return ret;
 }
@@ -2646,7 +2735,8 @@ int test_quicnettest_grp_bulk(void)
 int test_quicnettest_grp_lifecycle(void)
 {
     TEST_CHAIN(test_quicnettest_close, test_quicnettest_listener_close, test_quicnettest_retry,
-               test_quicnettest_nolistener, test_quicnettest_alpn, test_quicnettest_two_clients,
+               test_quicnettest_nolistener, test_quicnettest_alpn, test_quicnettest_tlsinfo,
+               test_quicnettest_peercert, test_quicnettest_two_clients,
                test_quicnettest_dup_initial, test_quicnettest_short_initial);
 }
 
@@ -2694,6 +2784,8 @@ testfunc quicnettest_funcs[] = {
     { "retry",          test_quicnettest_retry          },
     { "nolistener",     test_quicnettest_nolistener     },
     { "alpn",           test_quicnettest_alpn           },
+    { "tlsinfo",        test_quicnettest_tlsinfo        },
+    { "peercert",       test_quicnettest_peercert       },
     { "two_clients",    test_quicnettest_two_clients    },
     { "dup_initial",    test_quicnettest_dup_initial    },
     { "short_initial",  test_quicnettest_short_initial  },
