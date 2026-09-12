@@ -421,6 +421,40 @@ static int test_proc_child_fdcheck(void)
 }
 #endif
 
+// The one genuine platform difference the overview calls out: on Unix only a parent can collect
+// a child's status, so a process reached through procOpen has no exit code and never will.
+// Windows has no such rule. Either way there is no code for a process that is still running --
+// what this pins down is the reason each platform gives.
+static int test_proc_exitcode_foreign(void)
+{
+    int ret        = 0;
+    ProcessID self = procCurrentID();
+    int32 code     = 0;
+
+    Process* proc = procOpen(self);
+    if (!proc)
+        TEST_FAIL(1, _SL("procOpen(${int}) returned NULL"), stvar(int64, self));
+
+    cxerr    = CX_Success;
+    bool got = procExitCode(proc, &code);
+
+    if (got) {
+        TEST_FAILV(ret, 1,
+                   _SL("procExitCode reported ${int} for pid ${int}, which is still running"),
+                   stvar(int32, code), stvar(int64, self));
+    }
+#if !defined(_PLATFORM_WIN)
+    else if (cxerr != CX_NotSupported) {
+        TEST_FAILV(ret, 1,
+                   _SL("cxerr is ${int} for a process cx did not launch, wanted CX_NotSupported (${int})"),
+                   stvar(int32, cxerr), stvar(int32, (int32)CX_NotSupported));
+    }
+#endif
+
+    procRelease(&proc);
+    return ret;
+}
+
 // ---- launching --------------------------------------------------------------------------------
 
 // Where a child reports back. Relative, so it lands in the working directory the test runs in.
@@ -995,7 +1029,7 @@ int test_proc_grp_env(void)
 int test_proc_grp_enum(void)
 {
     TEST_CHAIN(test_proc_enum_self, test_proc_find_by_name, test_proc_open_by_id,
-               test_proc_getinfo_byid);
+               test_proc_getinfo_byid, test_proc_exitcode_foreign);
 }
 
 int test_proc_grp_notify(void)
@@ -1025,6 +1059,7 @@ testfunc proctest_funcs[] = {
     { "find_by_name",   test_proc_find_by_name   },
     { "open_by_id",     test_proc_open_by_id     },
     { "getinfo_byid",   test_proc_getinfo_byid   },
+    { "exitcode_foreign", test_proc_exitcode_foreign },
     { "launch_exit",      test_proc_launch_exit      },
     { "launch_args",      test_proc_launch_args      },
     { "launch_env",       test_proc_launch_env       },

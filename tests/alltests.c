@@ -322,6 +322,7 @@ static const testspec tests[] = {
     { "process: Find by name", "proctest", "find_by_name" },
     { "process: Open by id", "proctest", "open_by_id" },
     { "process: Get info by id", "proctest", "getinfo_byid" },
+    { "process: Exit code of a foreign process", "proctest", "exitcode_foreign" },
     { "process: Launch and exit code", "proctest", "launch_exit" },
     { "process: Launch argument quoting", "proctest", "launch_args" },
     { "process: Launch with environment override", "proctest", "launch_env" },

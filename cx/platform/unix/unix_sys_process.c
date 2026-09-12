@@ -59,6 +59,26 @@ bool _procUnixAlive(ProcessID pid)
     return errno == EPERM;
 }
 
+// True if this handle's pid still refers to the process it was opened for.
+//
+// A pid identifies a process only while it is running; once it exits the number is free to be
+// given to something unrelated. A handle from procLaunch needs no check -- cx is the process's
+// parent, so the id cannot be reused before cx collects it -- but one from procOpen has no such
+// protection, and acting on a stale one would mean signalling a stranger.
+static bool procUnixSameProcess(Process* proc)
+{
+    // Nothing recorded to compare against: the start time was unreadable when the handle was
+    // opened, so this check cannot say anything either way.
+    if (proc->ischild || proc->starttime == 0)
+        return true;
+
+    int64 now = 0;
+    if (!_procUnixStartTime(proc->pid, &now))
+        return false;   // gone, or no longer readable
+
+    return now == proc->starttime;
+}
+
 // Cache a finished child's outcome on its handle. After this the status lives entirely in the
 // object, which is what lets procExitCode() keep working once the process itself is gone.
 static void publishExit(Process* proc, int status)
@@ -397,6 +417,12 @@ bool _procPlatformWait(Process* proc, int64 timeout)
 
 bool _procPlatformTerminate(Process* proc, bool force)
 {
+    // Refuse rather than signal whatever inherited the id.
+    if (!procUnixSameProcess(proc)) {
+        cxerr = CX_FileNotFound;
+        return false;
+    }
+
     if (kill((pid_t)proc->pid, force ? SIGKILL : SIGTERM) == 0)
         return true;
 
@@ -426,6 +452,11 @@ Process* _procPlatformOpen(ProcessID pid)
     uproc->pid         = pid;
     uproc->ischild     = false;
 
+    // Best effort: remembered so a later query can tell this process from a different one given
+    // the same id after it exits. Stays 0 if unreadable, which disables the check rather than
+    // guessing.
+    _procUnixStartTime(pid, &uproc->starttime);
+
     return Process(uproc);
 }
 
@@ -438,6 +469,10 @@ bool _procPlatformRunning(Process* proc)
         if (atomicLoad(bool, &proc->exited, Acquire))
             return false;
     }
+
+    // A different process wearing the same id is not this one still running.
+    if (!procUnixSameProcess(proc))
+        return false;
 
     return _procUnixAlive(proc->pid);
 }

@@ -35,13 +35,15 @@ static ssize_t readProcFile(const char* path, char* buf, size_t sz)
     return n;
 }
 
-// Pulls the parent pid out of /proc/<pid>/stat.
+// Reads one numeric field from a /proc/<pid>/stat line, counting from the field after the
+// executable name: index 0 is the state, 1 the parent pid, 19 the start time (fields 3, 4 and
+// 22 of the line as documented in proc(5)).
 //
-// Field 2 of that line is the executable name in parentheses, and it can itself contain both
-// spaces and parentheses -- a process named "ev(il) name" is legal. Scanning for the LAST ')'
-// is the only reliable way to find where the fixed-width fields begin; sscanf on the whole line
-// gets this wrong for any such process.
-static bool parseStatPPid(const char* stat, ProcessID* ppid)
+// Field 2 is the executable name in parentheses, and it can itself contain both spaces and
+// parentheses -- a process named "ev(il) name" is legal. Scanning for the LAST ')' is the only
+// reliable way to find where the fixed-width fields begin; sscanf on the whole line gets this
+// wrong for any such process.
+static bool parseStatField(const char* stat, int idx, int64* out)
 {
     const char* p = strrchr(stat, ')');
     if (!p)
@@ -49,15 +51,36 @@ static bool parseStatPPid(const char* stat, ProcessID* ppid)
 
     p++;   // just past the comm field; what follows is " <state> <ppid> ..."
 
-    while (*p == ' ') p++;
-    while (*p && *p != ' ') p++;   // skip state
-    while (*p == ' ') p++;
+    for (int i = 0;; i++) {
+        while (*p == ' ') p++;
+        if (!*p)
+            return false;
+        if (i == idx)
+            break;
+        while (*p && *p != ' ') p++;
+    }
 
-    if (*p < '0' || *p > '9')
+    char* end   = NULL;
+    long long v = strtoll(p, &end, 10);
+    if (end == p)
         return false;
 
-    *ppid = (ProcessID)strtoll(p, NULL, 10);
+    *out = (int64)v;
     return true;
+}
+
+_Use_decl_annotations_
+bool _procUnixStartTime(ProcessID pid, int64* out)
+{
+    char path[64], buf[1024];
+
+    snprintf(path, sizeof(path), "/proc/%lld/stat", (long long)pid);
+    if (readProcFile(path, buf, sizeof(buf)) < 0)
+        return false;
+
+    // Clock ticks since boot. The unit does not matter: this is only ever compared against
+    // another reading for the same pid.
+    return parseStatField(buf, 19, out);
 }
 
 // Resolves /proc/<pid>/exe. Fails with EACCES for processes belonging to other users, which is
@@ -89,7 +112,9 @@ static bool fillProcInfo(ProcessInfo* info, ProcessID pid, flags_t flags)
     if (n < 0)
         return false;
 
-    parseStatPPid(buf, &info->ppid);
+    int64 ppid = 0;
+    if (parseStatField(buf, 1, &ppid))
+        info->ppid = (ProcessID)ppid;
 
     snprintf(path, sizeof(path), "/proc/%lld/comm", (long long)pid);
     n = readProcFile(path, buf, sizeof(buf));

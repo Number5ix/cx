@@ -51,6 +51,17 @@ CX_C_BEGIN
 /// FreeBSD about 19. Where the executable path is readable, its filename is used for the name
 /// instead, so the name is the real one wherever permissions allow.
 ///
+/// @section sys_process_identity Handles and reused process ids
+///
+/// A process id names a process only while it is running. Once it exits, the operating system
+/// is free to give that number to something unrelated.
+///
+/// A handle from procLaunch() is unaffected: cx is the process's parent, so the id cannot be
+/// reused until cx collects it. A handle from procOpen() has no such protection, so cx notes
+/// when the process started and checks that again on each query. Once the original process is
+/// gone, procRunning() reports false and procTerminate() refuses, rather than acting on
+/// whatever inherited the number.
+///
 /// @section sys_process_snapshot Enumeration is a snapshot
 ///
 /// procEnum() returns a list of the processes running at the moment it was called, not a live

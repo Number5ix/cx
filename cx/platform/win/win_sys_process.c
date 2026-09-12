@@ -50,13 +50,14 @@ static void procApiInit(void* unused)
 
 // Opens a process with the rights cx needs, stepping down until one is granted.
 //
-// PROCESS_QUERY_LIMITED_INFORMATION comes first deliberately: it is enough for liveness, exit
+// The limited-information right comes first deliberately: it is enough for liveness, exit
 // codes, image paths and the timing/memory counters a future stats call would want, and it is
 // granted for processes that refuse PROCESS_QUERY_INFORMATION outright. On an OS that predates
 // it, OpenProcess just fails and the next rung runs.
 static HANDLE procOpenHandle(ProcessID pid)
 {
-    HANDLE h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | SYNCHRONIZE, FALSE, (DWORD)pid);
+    HANDLE h = OpenProcess(CX_PROCESS_QUERY_LIMITED_INFORMATION | SYNCHRONIZE, FALSE,
+                           (DWORD)pid);
     if (h)
         return h;
 

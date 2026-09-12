@@ -53,6 +53,22 @@ static void fillFromKinfo(ProcessInfo* info, const struct kinfo_proc* kp, flags_
 }
 
 _Use_decl_annotations_
+bool _procUnixStartTime(ProcessID pid, int64* out)
+{
+    int mib[4] = { CTL_KERN, KERN_PROC, KERN_PROC_PID, (int)pid };
+    struct kinfo_proc kp;
+    size_t len = sizeof(kp);
+
+    if (sysctl(mib, 4, &kp, &len, NULL, 0) != 0 || len < sizeof(kp))
+        return false;
+
+    // Only ever compared against another reading for the same pid, so any stable encoding of
+    // the same instant will do.
+    *out = (int64)kp.ki_start.tv_sec * 1000000 + (int64)kp.ki_start.tv_usec;
+    return true;
+}
+
+_Use_decl_annotations_
 bool _procPlatformEnum(sa_ProcessInfo* out, flags_t flags)
 {
     int mib[3] = { CTL_KERN, KERN_PROC, KERN_PROC_PROC };
