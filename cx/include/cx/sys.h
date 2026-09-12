@@ -12,5 +12,6 @@
 #include <cx/sys/entry.h>
 #include <cx/sys/env.h>
 #include <cx/sys/hostid.h>
+#include <cx/sys/process.h>
 
 /// @}

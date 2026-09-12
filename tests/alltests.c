@@ -317,6 +317,12 @@ static const testspec tests[] = {
     { "process: Environment unset", "proctest", "env_unset" },
     { "process: Environment enumeration", "proctest", "env_enum" },
     { "process: Environment name case", "proctest", "env_caseinsens" },
+#if !defined(_PLATFORM_WASM)
+    { "process: Enumerate and find self", "proctest", "enum_self" },
+    { "process: Find by name", "proctest", "find_by_name" },
+    { "process: Open by id", "proctest", "open_by_id" },
+    { "process: Get info by id", "proctest", "getinfo_byid" },
+#endif
     { "prqueue: Basic Pointer-Ring Queue", "prqtest", "basic" },
     { "prqueue: Multithreaded Queue", "prqtest", "mt" },
     { "prqueue: Queue Growth", "prqtest", "grow" },

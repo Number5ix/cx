@@ -1,0 +1,40 @@
+#include <cx/closure/cchain.h>
+#include <cx/thread/atomic.h>
+#include <cx/thread/mutex.h>
+
+/// @addtogroup sys_process
+/// @{
+
+/// A process cx launched or attached to
+///
+/// This is a base class; the platform layer provides the derived class holding the native
+/// handle. Release it with procRelease() when finished.
+[methodprefix _procobj] abstract class Process {
+    int64 pid;                 ///< OS process id
+    int64 starttime;           ///< When the process started, used to detect a reused pid
+
+    /// @brief cx forked this process, so cx is responsible for reaping it
+    ///
+    /// Only a child can be waited on, which is also why a process cx did not fork cannot
+    /// report an exit code.
+    bool ischild;
+
+    /// @brief Set once the outcome is known and cached in the two fields below
+    ///
+    /// Read with acquire ordering; everything published before it is then safe to read without
+    /// the lock, which is how the exit status outlives the reap.
+    atomic[bool] exited;
+    int32 exitcode;            ///< Valid once `exited` is set
+    int32 termsignal;          ///< Unix: signal that killed it, 0 if it exited normally
+
+    string name;               ///< Cached, best-effort
+    string exepath;            ///< Cached, best-effort
+
+    [noinit] Mutex lock;       ///< Guards publication of the exit state
+    [noinit] cchain onexit;    ///< Exit subscribers, fired once outside the lock
+
+    init();
+    destroy();
+}
+
+/// @}

@@ -1,11 +1,17 @@
 set(SYS_SRCS
     sys/entry.c
-    sys/hostid.c)
+    sys/hostid.c
+    sys/process.c
+    sys/processobj.c)
 set(SYS_INCLUDES
     sys/entry.h
     sys/env.h
     sys/hostid.h
-    sys/hostid_private.h)
+    sys/hostid_private.h
+    sys/process.h
+    sys/process_private.h)
+set(SYS_AUTOGEN
+    sys/processobj.cxh)
 
 set(CX_SRCS
     ${CX_SRCS}
@@ -14,6 +20,10 @@ set(CX_SRCS
 set(CX_INCLUDES
     ${CX_INCLUDES}
     ${SYS_INCLUDES}
+    PARENT_SCOPE)
+set(CX_AUTOGEN
+    ${CX_AUTOGEN}
+    ${SYS_AUTOGEN}
     PARENT_SCOPE)
 
 set(CX_CMAKE_FILES

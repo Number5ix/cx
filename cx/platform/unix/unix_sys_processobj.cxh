@@ -1,0 +1,12 @@
+#include <cx/sys/processobj.cxh>
+
+[methodprefix _unixprocobj] class UnixProcess extends Process {
+    /// @brief Linux pidfd for the process, or -1
+    ///
+    /// FreeBSD has no equivalent it can use here and keys its kqueue registration on the pid
+    /// instead, so this stays -1 there.
+    int waitfd;
+
+    factory create();
+    destroy();
+}

@@ -369,6 +369,9 @@ add_test(NAME "\"vfs: Errors And Providers\"" COMMAND test_runner vfstest grp_mi
 # Runs several subtests from proctest.c in a single process -- see the TEST_CHAIN groups at the
 # bottom of that file. Run `test_runner proctest <name>` directly to invoke one in isolation.
 add_test(NAME "\"process: Environment Variables\"" COMMAND test_runner proctest grp_env)
+if(NOT CX_PLATFORM_IS_WASM)
+add_test(NAME "\"process: Enumeration And Handles\"" COMMAND test_runner proctest grp_enum)
+endif()
 add_test(NAME "\"prqueue: Basic Pointer-Ring Queue\"" COMMAND test_runner prqtest basic)
 add_test(NAME "\"prqueue: Multithreaded Queue\"" COMMAND test_runner prqtest mt)
 add_test(NAME "\"prqueue: Queue Growth\"" COMMAND test_runner prqtest grow)

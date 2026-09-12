@@ -16,6 +16,8 @@ if(CX_PLATFORM_IS_WINDOWS)
         platform/win/win_sys_entry.c
         platform/win/win_sys_env.c
         platform/win/win_sys_hostid.c
+        platform/win/win_sys_process.c
+        platform/win/win_sys_processobj.c
         platform/win/win_thread_thread.c
         platform/win/win_thread_threadobj.c
         platform/win/win_time.c
@@ -29,6 +31,7 @@ if(CX_PLATFORM_IS_WINDOWS)
         platform/win/win_os.h
         platform/win/win_stacktrace.h
         platform/win/win_sys_entry.h
+        platform/win/win_sys_process.h
         platform/win/win_time.h)
 
     set(PLATFORM_INCLUDES
@@ -41,6 +44,7 @@ set(PLATFORM_WIN_AUTOGEN
     platform/win/win_fs_file.cxh
     platform/win/win_net_iocp.cxh
     platform/win/win_net_socket.cxh
+    platform/win/win_sys_processobj.cxh
     platform/win/win_thread_threadobj.cxh)
 
 set(CX_SRCS
