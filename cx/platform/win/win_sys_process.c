@@ -4,6 +4,7 @@
 #include "cx/fs/fs.h"
 #include "cx/fs/path.h"
 #include "cx/platform/win/win_fs.h"
+#include "cx/platform/win/win_sys_prochandle.h"
 #include "cx/platform/win.h"
 #include "cx/platform/win/win_sys_processobj.h"
 #include "cx/string.h"
@@ -51,10 +52,10 @@ static void procApiInit(void* unused)
 // Opens a process with the rights cx needs, stepping down until one is granted.
 //
 // The limited-information right comes first deliberately: it is enough for liveness, exit
-// codes, image paths and the timing/memory counters a future stats call would want, and it is
-// granted for processes that refuse PROCESS_QUERY_INFORMATION outright. On an OS that predates
-// it, OpenProcess just fails and the next rung runs.
-static HANDLE procOpenHandle(ProcessID pid)
+// codes, image paths and the timing, memory and I/O counters the statistics backend reads, and
+// it is granted for processes that refuse PROCESS_QUERY_INFORMATION outright. On an OS that
+// predates it, OpenProcess just fails and the next rung runs.
+HANDLE _procWinOpenHandle(ProcessID pid)
 {
     HANDLE h = OpenProcess(CX_PROCESS_QUERY_LIMITED_INFORMATION | SYNCHRONIZE, FALSE,
                            (DWORD)pid);
@@ -105,7 +106,7 @@ static void procResolvePath(ProcessInfo* info, flags_t flags)
     if (!(flags & PROC_EnumFullPath))
         return;
 
-    HANDLE h = procOpenHandle(info->pid);
+    HANDLE h = _procWinOpenHandle(info->pid);
     if (!h)
         return;
 
@@ -197,7 +198,7 @@ bool _procPlatformGetInfo(ProcessInfo* out, ProcessID pid, flags_t flags)
 _Use_decl_annotations_
 Process* _procPlatformOpen(ProcessID pid)
 {
-    HANDLE h = procOpenHandle(pid);
+    HANDLE h = _procWinOpenHandle(pid);
     if (!h) {
         winMapLastError();
         return NULL;

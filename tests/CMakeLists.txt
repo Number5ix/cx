@@ -56,6 +56,7 @@ create_test_sourcelist(testsrc
     fstest.c
     vfstest.c
     proctest.c
+    sysinfotest.c
     prqtest.c
     nettest.c
     ${tlstestsrc}
@@ -373,6 +374,11 @@ if(NOT CX_PLATFORM_IS_WASM)
 add_test(NAME "\"process: Enumeration And Handles\"" COMMAND test_runner proctest grp_enum)
 add_test(NAME "\"process: Launch And Wait\"" COMMAND test_runner proctest grp_launch)
 add_test(NAME "\"process: Exit Notification\"" COMMAND test_runner proctest grp_notify)
+endif()
+# Same grouping as proctest above; see the TEST_CHAIN groups at the bottom of sysinfotest.c.
+add_test(NAME "\"sysinfo: Machine Statistics\"" COMMAND test_runner sysinfotest grp_sys)
+if(NOT CX_PLATFORM_IS_WASM)
+add_test(NAME "\"sysinfo: Process Statistics\"" COMMAND test_runner sysinfotest grp_proc)
 endif()
 add_test(NAME "\"prqueue: Basic Pointer-Ring Queue\"" COMMAND test_runner prqtest basic)
 add_test(NAME "\"prqueue: Multithreaded Queue\"" COMMAND test_runner prqtest mt)

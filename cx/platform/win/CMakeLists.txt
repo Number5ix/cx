@@ -18,6 +18,7 @@ if(CX_PLATFORM_IS_WINDOWS)
         platform/win/win_sys_hostid.c
         platform/win/win_sys_process.c
         platform/win/win_sys_processobj.c
+        platform/win/win_sys_sysinfo.c
         platform/win/win_thread_thread.c
         platform/win/win_thread_threadobj.c
         platform/win/win_time.c
@@ -32,6 +33,7 @@ if(CX_PLATFORM_IS_WINDOWS)
         platform/win/win_stacktrace.h
         platform/win/win_sys_entry.h
         platform/win/win_sys_process.h
+        platform/win/win_sys_prochandle.h
         platform/win/win_time.h)
 
     set(PLATFORM_INCLUDES

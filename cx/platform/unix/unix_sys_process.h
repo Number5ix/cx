@@ -10,6 +10,11 @@
 // Unix is every process cx did not fork.
 bool _procUnixAlive(ProcessID pid);
 
+// True if this handle's pid still refers to the process it was opened for, rather than to
+// something that was given the number after the original exited. Always true for a process cx
+// forked, and for one whose start time could not be read when the handle was opened.
+bool _procUnixSameProcess(Process* proc);
+
 // When the process with this id started, in whatever unit the OS reports. Only ever compared
 // against another reading for the same pid, to notice that the id has been handed to a
 // different process. False if it cannot be read. Implemented per OS.

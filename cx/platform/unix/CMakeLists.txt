@@ -18,6 +18,7 @@ if(CX_PLATFORM_IS_UNIX)
         platform/unix/unix_sys_hostid.c
         platform/unix/unix_sys_process.c
         platform/unix/unix_sys_processobj.c
+        platform/unix/unix_sys_sysinfo.c
         platform/unix/unix_thread_thread.c
         platform/unix/unix_thread_threadobj.c
         platform/unix/unix_time.c
@@ -28,6 +29,7 @@ if(CX_PLATFORM_IS_UNIX)
     set(PLATFORM_UNIX_INCLUDES
         platform/unix/unix_hostid.h
         platform/unix/unix_sys_process.h
+        platform/unix/unix_sys_sysinfo.h
         platform/unix/unix_net.h
         platform/unix/unix_os.h
         platform/unix/unix_sys_entry.h)
@@ -36,13 +38,19 @@ if(CX_PLATFORM_IS_UNIX)
         set(PLATFORM_UNIX_SRCS
             ${PLATFORM_UNIX_SRCS}
             platform/unix/linux_futex.c
+            platform/unix/linux_procfs.c
             platform/unix/linux_sys_process.c
+            platform/unix/linux_sys_sysinfo.c
             platform/unix/unix_net_epoll.c)
+        set(PLATFORM_UNIX_INCLUDES
+            ${PLATFORM_UNIX_INCLUDES}
+            platform/unix/linux_procfs.h)
     elseif(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
         set(PLATFORM_UNIX_SRCS
             ${PLATFORM_UNIX_SRCS}
             platform/unix/freebsd_futex.c
             platform/unix/freebsd_sys_process.c
+            platform/unix/freebsd_sys_sysinfo.c
             platform/unix/unix_net_kqueue.c)
     endif()
 

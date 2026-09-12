@@ -5,7 +5,8 @@
 /// @{
 ///
 /// Platform-independent system-level utilities including application entry points,
-/// host identification, and system information.
+/// environment variables, host identification, process control, and statistics about
+/// the machine and the processes running on it.
 
 #pragma once
 
@@ -13,5 +14,6 @@
 #include <cx/sys/env.h>
 #include <cx/sys/hostid.h>
 #include <cx/sys/process.h>
+#include <cx/sys/sysinfo.h>
 
 /// @}

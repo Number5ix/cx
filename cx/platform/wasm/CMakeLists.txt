@@ -22,6 +22,7 @@ if(CX_PLATFORM_IS_WASM)
         platform/wasm/wasm_sys_env.c
         platform/wasm/wasm_sys_hostid.c
         platform/wasm/wasm_sys_process.c
+        platform/wasm/wasm_sys_sysinfo.c
         platform/wasm/wasm_thread_thread.c
         platform/wasm/wasm_thread_threadobj.c
         platform/wasm/wasm_time.c

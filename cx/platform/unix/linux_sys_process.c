@@ -6,6 +6,7 @@
 #include "cx/debug/error.h"
 #include "cx/fs/path.h"
 #include "cx/platform/unix.h"
+#include "cx/platform/unix/linux_procfs.h"
 #include "cx/platform/unix/unix_sys_processobj.h"
 #include "cx/string.h"
 
@@ -16,71 +17,18 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-// Reads a small /proc file whole. These are generated on read and always tiny, so one read is
-// enough. Returns the byte count, or -1 if the file could not be read -- which for /proc
-// usually means the process exited while we were looking at it.
-static ssize_t readProcFile(const char* path, char* buf, size_t sz)
-{
-    int fd = open(path, O_RDONLY);
-    if (fd < 0)
-        return -1;
-
-    ssize_t n = read(fd, buf, sz - 1);
-    close(fd);
-
-    if (n < 0)
-        return -1;
-
-    buf[n] = 0;
-    return n;
-}
-
-// Reads one numeric field from a /proc/<pid>/stat line, counting from the field after the
-// executable name: index 0 is the state, 1 the parent pid, 19 the start time (fields 3, 4 and
-// 22 of the line as documented in proc(5)).
-//
-// Field 2 is the executable name in parentheses, and it can itself contain both spaces and
-// parentheses -- a process named "ev(il) name" is legal. Scanning for the LAST ')' is the only
-// reliable way to find where the fixed-width fields begin; sscanf on the whole line gets this
-// wrong for any such process.
-static bool parseStatField(const char* stat, int idx, int64* out)
-{
-    const char* p = strrchr(stat, ')');
-    if (!p)
-        return false;
-
-    p++;   // just past the comm field; what follows is " <state> <ppid> ..."
-
-    for (int i = 0;; i++) {
-        while (*p == ' ') p++;
-        if (!*p)
-            return false;
-        if (i == idx)
-            break;
-        while (*p && *p != ' ') p++;
-    }
-
-    char* end   = NULL;
-    long long v = strtoll(p, &end, 10);
-    if (end == p)
-        return false;
-
-    *out = (int64)v;
-    return true;
-}
-
 _Use_decl_annotations_
 bool _procUnixStartTime(ProcessID pid, int64* out)
 {
     char path[64], buf[1024];
 
     snprintf(path, sizeof(path), "/proc/%lld/stat", (long long)pid);
-    if (readProcFile(path, buf, sizeof(buf)) < 0)
+    if (_linuxReadProcFile(path, buf, sizeof(buf)) < 0)
         return false;
 
     // Clock ticks since boot. The unit does not matter: this is only ever compared against
     // another reading for the same pid.
-    return parseStatField(buf, 19, out);
+    return _linuxParseStatField(buf, 19, out);
 }
 
 // Resolves /proc/<pid>/exe. Fails with EACCES for processes belonging to other users, which is
@@ -108,16 +56,16 @@ static bool fillProcInfo(ProcessInfo* info, ProcessID pid, flags_t flags)
     info->pid = pid;
 
     snprintf(path, sizeof(path), "/proc/%lld/stat", (long long)pid);
-    ssize_t n = readProcFile(path, buf, sizeof(buf));
+    ssize_t n = _linuxReadProcFile(path, buf, sizeof(buf));
     if (n < 0)
         return false;
 
     int64 ppid = 0;
-    if (parseStatField(buf, 1, &ppid))
+    if (_linuxParseStatField(buf, 1, &ppid))
         info->ppid = (ProcessID)ppid;
 
     snprintf(path, sizeof(path), "/proc/%lld/comm", (long long)pid);
-    n = readProcFile(path, buf, sizeof(buf));
+    n = _linuxReadProcFile(path, buf, sizeof(buf));
     if (n > 0) {
         while (n > 0 && (buf[n - 1] == '\n' || buf[n - 1] == '\r')) n--;
         strFromBytes(&info->name, buf, (uint32)n);

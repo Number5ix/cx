@@ -338,6 +338,21 @@ static const testspec tests[] = {
     { "process: Notify on an already-exited process", "proctest", "notify_after_exit" },
     { "process: Many watched processes", "proctest", "many" },
 #endif
+    { "sysinfo: Machine memory", "sysinfotest", "mem" },
+    { "sysinfo: Machine processor time", "sysinfotest", "cpu" },
+    { "sysinfo: Processor usage sampler", "sysinfotest", "cpusampler" },
+    { "sysinfo: Uptime and boot time", "sysinfotest", "uptime" },
+    { "sysinfo: Load average", "sysinfotest", "loadavg" },
+#if !defined(_PLATFORM_WASM)
+    { "sysinfo: Process memory", "sysinfotest", "procmem_self" },
+    { "sysinfo: Process memory for an invalid id", "sysinfotest", "procmem_badid" },
+    { "sysinfo: Process processor time", "sysinfotest", "proccpu_self" },
+    { "sysinfo: Processor usage of a child", "sysinfotest", "proccpu_child" },
+    { "sysinfo: Process I/O counters", "sysinfotest", "procio_self" },
+    { "sysinfo: Process I/O of another process", "sysinfotest", "procio_foreign" },
+    { "sysinfo: Statistics of a finished process", "sysinfotest", "proc_exited" },
+    { "sysinfo: Reported counters per platform", "sysinfotest", "validmask" },
+#endif
     { "prqueue: Basic Pointer-Ring Queue", "prqtest", "basic" },
     { "prqueue: Multithreaded Queue", "prqtest", "mt" },
     { "prqueue: Queue Growth", "prqtest", "grow" },

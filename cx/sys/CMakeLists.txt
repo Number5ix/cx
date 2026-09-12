@@ -3,14 +3,17 @@ set(SYS_SRCS
     sys/hostid.c
     sys/process.c
     sys/processobj.c
-    sys/procwatch.c)
+    sys/procwatch.c
+    sys/sysinfo.c)
 set(SYS_INCLUDES
     sys/entry.h
     sys/env.h
     sys/hostid.h
     sys/hostid_private.h
     sys/process.h
-    sys/process_private.h)
+    sys/process_private.h
+    sys/sysinfo.h
+    sys/sysinfo_private.h)
 set(SYS_AUTOGEN
     sys/processobj.cxh)
 

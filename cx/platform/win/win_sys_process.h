@@ -6,7 +6,7 @@
 #include "cx/sys/process.h"
 
 // Vista and later. Succeeds against far more processes than PROCESS_QUERY_INFORMATION does,
-// and covers what a future per-process stats call needs, so procOpen asks for it first and
+// and covers what the per-process statistics calls need, so procOpen asks for it first and
 // falls back only if it is refused. It is a plain constant rather than an import, so naming it
 // costs nothing on an OS that does not recognize it -- OpenProcess simply fails and the
 // fallback runs.

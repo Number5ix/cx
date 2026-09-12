@@ -65,7 +65,7 @@ bool _procUnixAlive(ProcessID pid)
 // given to something unrelated. A handle from procLaunch needs no check -- cx is the process's
 // parent, so the id cannot be reused before cx collects it -- but one from procOpen has no such
 // protection, and acting on a stale one would mean signalling a stranger.
-static bool procUnixSameProcess(Process* proc)
+bool _procUnixSameProcess(Process* proc)
 {
     // Nothing recorded to compare against: the start time was unreadable when the handle was
     // opened, so this check cannot say anything either way.
@@ -418,7 +418,7 @@ bool _procPlatformWait(Process* proc, int64 timeout)
 bool _procPlatformTerminate(Process* proc, bool force)
 {
     // Refuse rather than signal whatever inherited the id.
-    if (!procUnixSameProcess(proc)) {
+    if (!_procUnixSameProcess(proc)) {
         cxerr = CX_FileNotFound;
         return false;
     }
@@ -471,7 +471,7 @@ bool _procPlatformRunning(Process* proc)
     }
 
     // A different process wearing the same id is not this one still running.
-    if (!procUnixSameProcess(proc))
+    if (!_procUnixSameProcess(proc))
         return false;
 
     return _procUnixAlive(proc->pid);
