@@ -9,6 +9,7 @@
 #include "cx/string.h"
 #include "cx/sys/env.h"
 #include "cx/thread/atomic.h"
+#include "cx/thread/event.h"
 #include "cx/thread/mutex.h"
 #include "cx/time/clock.h"
 #include "cx/time/time.h"
@@ -573,6 +574,8 @@ Process* _procPlatformLaunch(strref exe, sa_string args, const ProcessOpts* opts
     wproc->pid        = (ProcessID)pinfo.dwProcessId;
     wproc->ischild    = true;
 
+    _procWatchRegister(Process(wproc));
+
     return Process(wproc);
 }
 
@@ -648,4 +651,105 @@ _Use_decl_annotations_
 ProcessID procCurrentID(void)
 {
     return (ProcessID)GetCurrentProcessId();
+}
+
+// ---- exit watcher ------------------------------------------------------------------------
+//
+// RegisterWaitForSingleObject rather than WaitForMultipleObjects: the latter is capped at
+// MAXIMUM_WAIT_OBJECTS, which with a wake handle leaves 63 watchable processes and simply fails
+// past that. Registered waits have no such limit, and UnregisterWaitEx with INVALID_HANDLE_VALUE
+// is exactly the "block until any in-flight callback has returned" primitive shutdown needs.
+// It is a Windows 2000 API, so no XP split is needed here.
+
+static Event procWatchEvent;
+static bool procWatchReady;
+
+// The system pool callback deliberately does no user work: it records the outcome, hands the
+// process to cx's own watcher thread and returns. That keeps every user callback on one cx
+// thread, one at a time, on every platform -- rather than on a pool thread with its own rules
+// about what may block.
+// Set while the pool callback is running, so _procWatchPlatformRemove can tell whether it is
+// being called from inside the very callback it would otherwise block on.
+static atomic(uintptr) procWatchCbThread;
+
+static DWORD procWatchCallbackThread(void)
+{
+    return (DWORD)atomicLoad(uintptr, &procWatchCbThread, Acquire);
+}
+
+static VOID CALLBACK procWaitCallback(PVOID param, BOOLEAN timedout)
+{
+    atomicStore(uintptr, &procWatchCbThread, (uintptr)GetCurrentThreadId(), Release);
+
+    Process* proc     = (Process*)param;
+    WinProcess* wproc = objDynCast(WinProcess, proc);
+
+    if (timedout || !wproc) {
+        atomicStore(uintptr, &procWatchCbThread, 0, Release);
+        return;
+    }
+
+    DWORD code = 0;
+    if (GetExitCodeProcess(wproc->h, &code))
+        publishExit(proc, code);
+
+    _procWatchCompleted(proc);
+
+    atomicStore(uintptr, &procWatchCbThread, 0, Release);
+}
+
+bool _procWatchPlatformInit(void)
+{
+    eventInit(&procWatchEvent);
+    procWatchReady = true;
+    return true;
+}
+
+bool _procWatchPlatformAdd(Process* proc)
+{
+    WinProcess* wproc = objDynCast(WinProcess, proc);
+    if (!wproc || !wproc->h)
+        return false;
+
+    HANDLE wait = NULL;
+    if (!RegisterWaitForSingleObject(&wait, wproc->h, procWaitCallback, proc, INFINITE,
+                                     WT_EXECUTEONLYONCE))
+        return false;
+
+    wproc->wait = wait;
+    return true;
+}
+
+void _procWatchPlatformRemove(Process* proc)
+{
+    WinProcess* wproc = objDynCast(WinProcess, proc);
+    if (!wproc || !wproc->wait)
+        return;
+
+    HANDLE wait = wproc->wait;
+    wproc->wait = NULL;
+
+    // INVALID_HANDLE_VALUE means "wait for a callback that is already running to finish", which
+    // would deadlock if this were called from inside that callback. It is not: removal happens
+    // on the watcher thread, or from a registration that failed before any callback could run.
+    UnregisterWaitEx(wait, (GetCurrentThreadId() == procWatchCallbackThread())
+                               ? NULL
+                               : INVALID_HANDLE_VALUE);
+}
+
+void _procWatchPlatformWake(void)
+{
+    if (procWatchReady)
+        eventSignal(&procWatchEvent);
+}
+
+void _procWatchPlatformWait(int64 timeout)
+{
+    if (!procWatchReady)
+        return;
+
+    // eventSignal, never eventSignalAll: a broadcast raised while nothing is waiting is dropped,
+    // where a plain signal stays latched until the single waiter arrives. The waiter re-checks
+    // the completion list after waking regardless.
+    eventWaitTimeout(&procWatchEvent, (uint64)timeout);
 }

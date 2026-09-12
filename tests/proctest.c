@@ -3,7 +3,9 @@
 #include <cx/debug/error.h>
 #include <cx/fs.h>
 #include <cx/string.h>
+#include <cx/closure.h>
 #include <cx/platform/os.h>
+#include <cx/thread.h>
 #include <cx/sys.h>
 #include <cx/time.h>
 
@@ -800,6 +802,188 @@ static int test_proc_terminate(void)
     return ret;
 }
 
+// ---- exit notification -------------------------------------------------------------------
+
+// Exit callbacks run on the watcher thread, so what they record is shared state. A mutex keeps
+// it simple and correct rather than reasoning about which fields need which ordering.
+typedef struct NotifyRec {
+    Mutex lock;
+    Event ev;
+    int32 count;
+    int64 pid;
+    int32 code;
+} NotifyRec;
+
+static NotifyRec nrec;
+
+static void notifyRecInit(void)
+{
+    memset(&nrec, 0, sizeof(nrec));
+    mutexInit(&nrec.lock);
+    // Locked-signal, not a broadcast: the process can finish before the test starts waiting,
+    // and a plain broadcast raised with no waiter yet is simply dropped.
+    eventInit(&nrec.ev);
+}
+
+static void notifyRecDestroy(void)
+{
+    eventDestroy(&nrec.ev);
+    mutexDestroy(&nrec.lock);
+}
+
+static bool onExitCb(stvlist* cvars, stvlist* args)
+{
+    int64 pid;
+    int32 code;
+
+    if (!stvlNext(args, int64, &pid) || !stvlNext(args, int32, &code))
+        return false;
+
+    withMutex (&nrec.lock) {
+        nrec.pid = pid;
+        nrec.code = code;
+        nrec.count++;
+    }
+
+    eventSignalLock(&nrec.ev);
+    return true;
+}
+
+static int test_proc_notify_exit(void)
+{
+    int ret          = 0;
+    sa_string noargs = saInitNone;
+
+    notifyRecInit();
+
+    Process* proc = launchSelf(_SL("child_exit42"), noargs, NULL);
+    if (!proc) {
+        notifyRecDestroy();
+        TEST_FAIL(1, _SL("procLaunch failed, cxerr ${int}"), stvar(int32, cxerr));
+    }
+
+    int64 pid = procID(proc);
+
+    if (!procNotifyExit(proc, closureCreate(onExitCb, stvNone)))
+        TEST_FAILV(ret, 1, _SL("procNotifyExit failed for pid ${int}"), stvar(int64, pid));
+
+    if (!eventWaitTimeout(&nrec.ev, timeS(30)))
+        TEST_FAILV(ret, 1, _SL("no exit callback for pid ${int} within 30s"), stvar(int64, pid));
+
+    withMutex (&nrec.lock) {
+        if (nrec.count != 1)
+            TEST_FAILV(ret, 1, _SL("exit callback ran ${int} times, wanted 1"),
+                       stvar(int32, nrec.count));
+        if (nrec.pid != pid)
+            TEST_FAILV(ret, 1, _SL("callback reported pid ${int}, wanted ${int}"),
+                       stvar(int64, nrec.pid), stvar(int64, pid));
+        if (nrec.code != 42)
+            TEST_FAILV(ret, 1, _SL("callback reported exit code ${int}, wanted 42"),
+                       stvar(int32, nrec.code));
+    }
+
+    procRelease(&proc);
+    notifyRecDestroy();
+    return ret;
+}
+
+// Registering on a process that has already finished must call the closure before returning,
+// on this thread. That is what makes the obvious check-then-register race unwritable.
+static int test_proc_notify_after_exit(void)
+{
+    int ret          = 0;
+    sa_string noargs = saInitNone;
+
+    notifyRecInit();
+
+    Process* proc = launchSelf(_SL("child_exit42"), noargs, NULL);
+    if (!proc) {
+        notifyRecDestroy();
+        TEST_FAIL(1, _SL("procLaunch failed, cxerr ${int}"), stvar(int32, cxerr));
+    }
+
+    int64 pid = procID(proc);
+
+    if (!procWait(proc, timeS(30)))
+        TEST_FAILV(ret, 1, _SL("child ${int} did not finish"), stvar(int64, pid));
+
+    if (!procNotifyExit(proc, closureCreate(onExitCb, stvNone)))
+        TEST_FAILV(ret, 1, _SL("procNotifyExit failed for finished pid ${int}"),
+                   stvar(int64, pid));
+
+    // No waiting: it must already have run by the time the call returned.
+    withMutex (&nrec.lock) {
+        if (nrec.count != 1)
+            TEST_FAILV(ret, 1,
+                       _SL("callback ran ${int} times immediately after registering on a finished process, wanted 1"),
+                       stvar(int32, nrec.count));
+        if (nrec.code != 42)
+            TEST_FAILV(ret, 1, _SL("callback reported exit code ${int}, wanted 42"),
+                       stvar(int32, nrec.code));
+    }
+
+    procRelease(&proc);
+    notifyRecDestroy();
+    return ret;
+}
+
+#define PROC_MANY 80
+
+// Eighty at once, well past the 64 handles WaitForMultipleObjects can watch. Each handle is
+// released the moment its callback is registered, so this also pins down that a forgotten child
+// is still reaped and still reports back.
+static int test_proc_many(void)
+{
+    int ret          = 0;
+    sa_string noargs = saInitNone;
+    int launched     = 0;
+
+    notifyRecInit();
+
+    for (int i = 0; i < PROC_MANY; i++) {
+        Process* proc = launchSelf(_SL("child_exit42"), noargs, NULL);
+        if (!proc) {
+            TEST_FAILV(ret, 1, _SL("launch ${int} of ${int} failed, cxerr ${int}"),
+                       stvar(int32, i), stvar(int32, (int32)PROC_MANY), stvar(int32, cxerr));
+            break;
+        }
+
+        procNotifyExit(proc, closureCreate(onExitCb, stvNone));
+        procRelease(&proc);
+        launched++;
+    }
+
+    // The event only says "at least one more finished", so re-check the count each time.
+    int64 deadline = clockTimer() + timeS(60);
+    for (;;) {
+        int32 count = 0;
+        withMutex (&nrec.lock) {
+            count = nrec.count;
+        }
+
+        if (count >= launched)
+            break;
+
+        if (clockTimer() >= deadline) {
+            TEST_FAILV(ret, 1, _SL("only ${int} of ${int} exit callbacks arrived within 60s"),
+                       stvar(int32, count), stvar(int32, launched));
+            break;
+        }
+
+        eventWaitTimeout(&nrec.ev, timeMS(100));
+        eventReset(&nrec.ev);
+    }
+
+    withMutex (&nrec.lock) {
+        if (!ret && nrec.code != 42)
+            TEST_FAILV(ret, 1, _SL("last callback reported exit code ${int}, wanted 42"),
+                       stvar(int32, nrec.code));
+    }
+
+    notifyRecDestroy();
+    return ret;
+}
+
 // Runs the environment subtests in one process, so ctest spends one process launch on the group
 // rather than one on each. Every subtest stays registered below for running one in isolation.
 int test_proc_grp_env(void)
@@ -812,6 +996,11 @@ int test_proc_grp_enum(void)
 {
     TEST_CHAIN(test_proc_enum_self, test_proc_find_by_name, test_proc_open_by_id,
                test_proc_getinfo_byid);
+}
+
+int test_proc_grp_notify(void)
+{
+    TEST_CHAIN(test_proc_notify_exit, test_proc_notify_after_exit, test_proc_many);
 }
 
 int test_proc_grp_launch(void)
@@ -855,8 +1044,12 @@ testfunc proctest_funcs[] = {
 #if defined(_PLATFORM_UNIX)
     { "child_fdcheck",    test_proc_child_fdcheck    },
 #endif
+    { "notify_exit",       test_proc_notify_exit       },
+    { "notify_after_exit", test_proc_notify_after_exit },
+    { "many",              test_proc_many              },
     { "grp_env",        test_proc_grp_env        },
     { "grp_enum",       test_proc_grp_enum       },
     { "grp_launch",     test_proc_grp_launch     },
+    { "grp_notify",     test_proc_grp_notify     },
     { 0,                0                        }
 };

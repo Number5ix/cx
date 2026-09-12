@@ -117,3 +117,126 @@ bool _procPlatformGetInfo(ProcessInfo* out, ProcessID pid, flags_t flags)
     fillFromKinfo(out, &kp, flags);
     return true;
 }
+
+// ---- exit watcher ------------------------------------------------------------------------
+//
+// kqueue can watch process exits directly with EVFILT_PROC/NOTE_EXIT, keyed on the pid. There
+// is no pidfd equivalent in use here, so UnixProcess::waitfd stays -1 throughout.
+
+#include "cx/platform/unix/unix_sys_processobj.h"
+#include "cx/thread/atomic.h"
+#include "cx/thread/mutex.h"
+
+#include <sys/event.h>
+#include <sys/wait.h>
+
+static int watchKq = -1;
+
+// Identifier for the user event used to wake a blocked kevent() call.
+#define PROCWATCH_WAKE_IDENT 1
+
+bool _procWatchPlatformInit(void)
+{
+    watchKq = kqueue();
+    if (watchKq < 0)
+        return false;
+
+    // EVFILT_USER is the kqueue-native wakeup, and it latches: a trigger raised while nothing
+    // is waiting is still pending at the next kevent().
+    struct kevent kev;
+    EV_SET(&kev, PROCWATCH_WAKE_IDENT, EVFILT_USER, EV_ADD | EV_CLEAR, 0, 0, NULL);
+    if (kevent(watchKq, &kev, 1, NULL, 0, NULL) != 0) {
+        close(watchKq);
+        watchKq = -1;
+        return false;
+    }
+
+    return true;
+}
+
+bool _procWatchPlatformAdd(Process* proc)
+{
+    if (watchKq < 0)
+        return false;
+
+    struct kevent kev;
+    EV_SET(&kev, (uintptr_t)proc->pid, EVFILT_PROC, EV_ADD | EV_ONESHOT, NOTE_EXIT, 0, proc);
+
+    if (kevent(watchKq, &kev, 1, NULL, 0, NULL) != 0) {
+        // ESRCH means it exited between the fork and this registration, so there is nothing to
+        // wait for -- collect it right now instead of losing the notification entirely.
+        if (errno == ESRCH) {
+            int status = 0;
+            if (waitpid((pid_t)proc->pid, &status, WNOHANG) > 0) {
+                mutexAcquire(&proc->lock);
+                if (WIFEXITED(status)) {
+                    proc->exitcode   = WEXITSTATUS(status);
+                    proc->termsignal = 0;
+                } else if (WIFSIGNALED(status)) {
+                    proc->termsignal = WTERMSIG(status);
+                    proc->exitcode   = 128 + proc->termsignal;
+                }
+                atomicStore(bool, &proc->exited, true, Release);
+                mutexRelease(&proc->lock);
+                _procWatchCompleted(proc);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    return true;
+}
+
+void _procWatchPlatformRemove(Process* proc)
+{
+    // EV_ONESHOT removes the registration as it fires, and a pid that has already been reaped
+    // cannot be deleted, so there is nothing to undo here.
+}
+
+void _procWatchPlatformWake(void)
+{
+    if (watchKq < 0)
+        return;
+
+    struct kevent kev;
+    EV_SET(&kev, PROCWATCH_WAKE_IDENT, EVFILT_USER, 0, NOTE_TRIGGER, 0, NULL);
+    kevent(watchKq, &kev, 1, NULL, 0, NULL);
+}
+
+void _procWatchPlatformWait(int64 timeout)
+{
+    if (watchKq < 0)
+        return;
+
+    struct kevent evs[32];
+    struct timespec ts;
+    ts.tv_sec  = (time_t)(timeout / 1000000);
+    ts.tv_nsec = (long)((timeout % 1000000) * 1000);
+
+    int n = kevent(watchKq, NULL, 0, evs, 32, &ts);
+
+    for (int i = 0; i < n; i++) {
+        if (evs[i].filter != EVFILT_PROC || !evs[i].udata)
+            continue;
+
+        Process* proc = (Process*)evs[i].udata;
+
+        int status = 0;
+        if (waitpid((pid_t)proc->pid, &status, 0) < 0)
+            continue;
+
+        mutexAcquire(&proc->lock);
+        if (WIFEXITED(status)) {
+            proc->exitcode   = WEXITSTATUS(status);
+            proc->termsignal = 0;
+        } else if (WIFSIGNALED(status)) {
+            proc->termsignal = WTERMSIG(status);
+            proc->exitcode   = 128 + proc->termsignal;
+        }
+        atomicStore(bool, &proc->exited, true, Release);
+        mutexRelease(&proc->lock);
+
+        _procWatchCompleted(proc);
+    }
+}

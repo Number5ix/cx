@@ -13,9 +13,10 @@
 
 _objinit_guaranteed bool Process_init(_In_ Process* self)
 {
-    // The lock and the chain are [noinit] in the class definition, so they are set up here.
-    // Everything else starts zeroed, which is already the right initial state.
+    // The lock and the subscriber list are [noinit] in the class definition, so they are set up
+    // here. Everything else starts zeroed, which is already the right initial state.
     mutexInit(&self->lock);
+    saInit(&self->onexit, closure, 2);
 
     // Autogen begins -----
     return true;
@@ -24,6 +25,9 @@ _objinit_guaranteed bool Process_init(_In_ Process* self)
 
 void Process_destroy(_In_ Process* self)
 {
+    // Nothing may still be about to call into this object once it is gone.
+    procNotifyCancel(self);
+
     // Releasing one handle is a good moment to collect any other child that has finished, since
     // a program that stops caring about one process is often done with several.
     _procReapPending();
@@ -32,7 +36,7 @@ void Process_destroy(_In_ Process* self)
     strDestroy(&self->name);
     strDestroy(&self->exepath);
     mutexDestroy(&self->lock);
-    cchainDestroy(&self->onexit);
+    saDestroy(&self->onexit);
     // Autogen ends -------
 }
 

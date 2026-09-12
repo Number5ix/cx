@@ -104,7 +104,16 @@ void _procReapPending(void)
             if (r < 0 && errno == EINTR)
                 continue;
 
-            publishExit(proc, status);
+            if (r > 0) {
+                publishExit(proc, status);
+            } else {
+                // Gone, but collected by someone else, so there is no status to report.
+                // Publishing the zeroed `status` here would claim a clean exit that never
+                // happened -- record only that it finished.
+                mutexAcquire(&proc->lock);
+                atomicStore(bool, &proc->exited, true, Release);
+                mutexRelease(&proc->lock);
+            }
 
             // Acquire into `done` before removing, so the refcount cannot reach zero while the
             // lock is held.
@@ -347,8 +356,13 @@ Process* _procPlatformLaunch(strref exe, sa_string args, const ProcessOpts* opts
     uproc->pid         = (ProcessID)pid;
     uproc->ischild     = true;
 
-    withMutex (&childLock) {
-        saPush(&children, object, Process(uproc));
+    // Exactly one reaper per child. The watcher takes it if it can, and only what it will not
+    // take goes on the sweep list -- two reapers racing for the same status means the loser
+    // gets ECHILD and the exit code is lost.
+    if (!_procWatchRegister(Process(uproc))) {
+        withMutex (&childLock) {
+            saPush(&children, object, Process(uproc));
+        }
     }
 
     return Process(uproc);

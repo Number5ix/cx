@@ -2,7 +2,8 @@
 #include <cx/platform/win.h>
 
 [methodprefix _winprocobj] class WinProcess extends Process {
-    HANDLE h;   ///< Native process handle, pins the pid against reuse
+    HANDLE h;      ///< Native process handle, pins the pid against reuse
+    HANDLE wait;   ///< Registered wait from the exit watcher, NULL when not watched
 
     factory create();
     destroy();

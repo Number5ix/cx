@@ -73,3 +73,27 @@ ProcessID procCurrentID(void)
     // Emscripten does provide a pid, and it is the one thing here with a real answer.
     return (ProcessID)getpid();
 }
+
+// No processes means nothing to watch. Init returns false, so procwatch.c starts no thread and
+// arms no lazy initialization at all.
+bool _procWatchPlatformInit(void)
+{
+    return false;
+}
+
+bool _procWatchPlatformAdd(Process* proc)
+{
+    return false;
+}
+
+void _procWatchPlatformRemove(Process* proc)
+{
+}
+
+void _procWatchPlatformWait(int64 timeout)
+{
+}
+
+void _procWatchPlatformWake(void)
+{
+}

@@ -7,6 +7,7 @@
 /// @ingroup sys
 /// @{
 
+#include <cx/closure/closure.h>
 #include <cx/container/hashtable.h>
 #include <cx/container/sarray.h>
 #include <cx/cx.h>
@@ -76,6 +77,21 @@ CX_C_BEGIN
 /// Once a launched process has finished, its exit code is remembered on the handle, so
 /// procRunning(), procWait() and procExitCode() keep answering correctly afterwards and never
 /// have to ask the operating system again.
+///
+/// @section sys_process_notify Being told when a process exits
+///
+/// procNotifyExit() registers a callback instead of blocking. It is delivered on a thread cx
+/// owns, one callback at a time, and never while any internal lock is held -- so a callback is
+/// free to register further watches, cancel them, or release the handle it was told about.
+///
+/// Registering on a process that has **already** finished calls the closure immediately, on the
+/// calling thread, before returning. That is deliberate: it means there is no window between
+/// checking whether a process is still running and asking to be told when it stops, so the
+/// obvious-looking race cannot be written.
+///
+/// The callback receives the process id and exit code rather than the Process itself. A caller
+/// that wants the object captures it in the closure and so decides its lifetime explicitly,
+/// instead of being handed a borrowed pointer whose validity depends on another thread.
 ///
 /// @section sys_process_shell No shell
 ///
@@ -439,6 +455,49 @@ bool procExitCode(_In_ Process* proc, _Out_ int32* code);
 ///       procTerminate(proc, true);
 /// @endcode
 bool procTerminate(_In_ Process* proc, bool force);
+
+/// Asks to be told when a process exits.
+///
+/// The closure is called with the process id and its exit code:
+/// `closureCall(cls, stvar(int64, pid), stvar(int32, exitcode))`. Several callbacks can be
+/// registered on one process. If the process has already finished, the closure is called before
+/// this returns, on the calling thread.
+///
+/// Takes ownership of the closure; do not destroy it afterwards.
+///
+/// @param proc Process to watch
+/// @param cls Closure to call when it exits
+/// @return true if the closure was registered or already called
+///
+/// Example:
+/// @code
+///   static bool onExit(stvlist* cvars, stvlist* args) {
+///       int64 pid;  int32 code;
+///       stvlNext(args, int64, &pid);
+///       stvlNext(args, int32, &code);
+///       // the process finished with 'code'
+///       return true;
+///   }
+///
+///   procNotifyExit(proc, closureCreate(onExit, stvNone));
+/// @endcode
+bool procNotifyExit(_In_ Process* proc, _In_ closure cls);
+
+/// Cancels every exit callback registered on a process.
+///
+/// Waits for a callback that is already running to finish, so once this returns nothing the
+/// callback touches is still in use. Calling it from inside an exit callback returns
+/// immediately instead, since waiting there would wait on itself forever.
+///
+/// Releasing the last reference to a process does this automatically.
+///
+/// @param proc Process to stop watching
+///
+/// Example:
+/// @code
+///   procNotifyCancel(proc);
+/// @endcode
+void procNotifyCancel(_In_ Process* proc);
 
 /// Reads the name of the process a handle refers to.
 ///

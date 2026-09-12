@@ -372,6 +372,7 @@ add_test(NAME "\"process: Environment Variables\"" COMMAND test_runner proctest 
 if(NOT CX_PLATFORM_IS_WASM)
 add_test(NAME "\"process: Enumeration And Handles\"" COMMAND test_runner proctest grp_enum)
 add_test(NAME "\"process: Launch And Wait\"" COMMAND test_runner proctest grp_launch)
+add_test(NAME "\"process: Exit Notification\"" COMMAND test_runner proctest grp_notify)
 endif()
 add_test(NAME "\"prqueue: Basic Pointer-Ring Queue\"" COMMAND test_runner prqtest basic)
 add_test(NAME "\"prqueue: Multithreaded Queue\"" COMMAND test_runner prqtest mt)

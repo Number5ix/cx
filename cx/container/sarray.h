@@ -128,6 +128,7 @@ saDeclareType(suid, SUID);
 saDeclare(stvar);
 saDeclareType(sarray, sa_ref);
 saDeclare(hashtable);
+saDeclare(closure);
 
 // SArray header structure
 //

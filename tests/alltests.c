@@ -333,6 +333,9 @@ static const testspec tests[] = {
 #endif
     { "process: Wait timeout", "proctest", "wait_timeout" },
     { "process: Terminate", "proctest", "terminate" },
+    { "process: Exit notification", "proctest", "notify_exit" },
+    { "process: Notify on an already-exited process", "proctest", "notify_after_exit" },
+    { "process: Many watched processes", "proctest", "many" },
 #endif
     { "prqueue: Basic Pointer-Ring Queue", "prqtest", "basic" },
     { "prqueue: Multithreaded Queue", "prqtest", "mt" },

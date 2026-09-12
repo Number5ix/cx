@@ -2,7 +2,8 @@ set(SYS_SRCS
     sys/entry.c
     sys/hostid.c
     sys/process.c
-    sys/processobj.c)
+    sys/processobj.c
+    sys/procwatch.c)
 set(SYS_INCLUDES
     sys/entry.h
     sys/env.h

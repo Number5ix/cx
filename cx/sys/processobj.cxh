@@ -1,4 +1,5 @@
-#include <cx/closure/cchain.h>
+#include <cx/closure/closure.h>
+#include <cx/container/sarray.h>
 #include <cx/thread/atomic.h>
 #include <cx/thread/mutex.h>
 
@@ -31,7 +32,7 @@
     string exepath;            ///< Cached, best-effort
 
     [noinit] Mutex lock;       ///< Guards publication of the exit state
-    [noinit] cchain onexit;    ///< Exit subscribers, fired once outside the lock
+    [noinit] sarray[closure] onexit;   ///< Exit subscribers, fired once outside the lock
 
     init();
     destroy();

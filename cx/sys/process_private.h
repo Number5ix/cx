@@ -49,6 +49,40 @@ ProcessInfo* _procInfoPush(sa_ProcessInfo* out);
 // not already cached on the object.
 bool _procPlatformRunning(Process* proc);
 
+// ---- exit watcher -------------------------------------------------------------------------
+//
+// procwatch.c owns the registry, the single watcher thread and closure dispatch. Each platform
+// supplies only the mechanism for learning that a process finished.
+
+// Called by procwatch.c.
+
+// One-time setup of the platform's waiting mechanism. Returning false means this platform has
+// no watcher, and no thread is started -- callers fall back to the synchronous sweep.
+bool _procWatchPlatformInit(void);
+
+// Start or stop watching a process. The registry already holds a reference for the duration.
+bool _procWatchPlatformAdd(Process* proc);
+void _procWatchPlatformRemove(Process* proc);
+
+// Block up to timeout microseconds for watched processes to finish, calling
+// _procWatchCompleted() for each. Must return early when _procWatchPlatformWake() is called, or
+// a newly registered process would not be waited on until this timed out.
+void _procWatchPlatformWait(int64 timeout);
+
+// Nudge a blocked _procWatchPlatformWait so it picks up a registration change.
+void _procWatchPlatformWake(void);
+
+// Called by the platform backends, from whatever thread noticed the exit. The exit status must
+// already be cached on the object. Hands the process to the watcher thread for dispatch, so no
+// user callback ever runs on a system thread.
+void _procWatchCompleted(Process* proc);
+
+// Called by the platform launch paths for every child cx forks, whether or not anyone asked to
+// be notified -- something has to reap it. Returns true if the watcher took the process on, in
+// which case the watcher is now its only reaper; false means the caller must fall back to the
+// synchronous sweep.
+bool _procWatchRegister(Process* proc);
+
 #if defined(_PLATFORM_WIN)
 #include "cx/platform/win/win_sys_process.h"
 #elif defined(_PLATFORM_UNIX)
