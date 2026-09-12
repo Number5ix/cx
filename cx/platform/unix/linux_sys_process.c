@@ -183,29 +183,40 @@ bool _procWatchPlatformInit(void)
 #endif
 }
 
-bool _procWatchPlatformAdd(Process* proc)
+ProcWatchAddResult _procWatchPlatformAdd(Process* proc)
 {
     UnixProcess* uproc = objDynCast(UnixProcess, proc);
     if (!uproc || watchEpoll < 0)
-        return false;
+        return PROCWATCH_Failed;
 
     int fd = pidfdOpen(proc->pid);
-    if (fd < 0)
-        return false;
+    if (fd < 0) {
+        // Already collected by its parent. A child of ours cannot be in that state -- only cx
+        // reaps it -- so for a child this is a real failure and the registry treats it as one.
+        return (errno == ESRCH) ? PROCWATCH_Gone : PROCWATCH_Failed;
+    }
+
+    // Opening by pid can catch a different process that has since been given the same number.
+    // The pidfd pins the pid while it is open, so a start time that still matches now proves
+    // the descriptor refers to the process the handle was opened for.
+    if (!proc->ischild && !_procUnixSameProcess(proc)) {
+        close(fd);
+        return PROCWATCH_Gone;
+    }
 
     uproc->waitfd = fd;
 
     struct epoll_event ev = { 0 };
     ev.events             = EPOLLIN;
-    ev.data.ptr           = proc;
+    ev.data.u64           = (uint64)proc->watchid;
 
     if (epoll_ctl(watchEpoll, EPOLL_CTL_ADD, fd, &ev) != 0) {
         close(fd);
         uproc->waitfd = -1;
-        return false;
+        return PROCWATCH_Failed;
     }
 
-    return true;
+    return PROCWATCH_Armed;
 }
 
 void _procWatchPlatformRemove(Process* proc)
@@ -231,6 +242,56 @@ void _procWatchPlatformWake(void)
     (void)ignored;
 }
 
+// Collect a child whose pidfd reported readable, and publish what was found. Returns false if
+// it turns out not to have finished after all, in which case it stays watched.
+static bool reapChild(Process* proc, UnixProcess* uproc)
+{
+    siginfo_t info;
+    int r;
+
+    do {
+        memset(&info, 0, sizeof(info));
+        r = waitid(P_PIDFD, (id_t)uproc->waitfd, &info, WEXITED | WNOHANG);
+    } while (r != 0 && errno == EINTR);
+
+    if (r != 0 && errno == EINVAL) {
+        // P_PIDFD arrived in 5.4, one release after pidfd_open. A child's pid cannot be reused
+        // until it is collected, so waiting on the bare pid is just as exact.
+        int status = 0;
+        pid_t p;
+        do {
+            p = waitpid((pid_t)proc->pid, &status, WNOHANG);
+        } while (p < 0 && errno == EINTR);
+
+        if (p == 0)
+            return false;
+        if (p > 0)
+            _procUnixPublishStatus(proc, status);
+        else
+            _procPublishExit(proc, false, 0, 0);
+        return true;
+    }
+
+    if (r != 0) {
+        // ECHILD: something else in the program -- typically a SIGCHLD handler calling
+        // waitpid(-1) -- collected it first. It has finished, but its status is gone. Leaving
+        // it watched would spin, since the pidfd stays readable forever.
+        _procPublishExit(proc, false, 0, 0);
+        return true;
+    }
+
+    // WNOHANG with nothing ready leaves si_pid zero.
+    if (info.si_pid == 0)
+        return false;
+
+    if (info.si_code == CLD_EXITED)
+        _procPublishExit(proc, true, info.si_status, 0);
+    else
+        _procPublishExit(proc, true, 128 + info.si_status, info.si_status);
+
+    return true;
+}
+
 void _procWatchPlatformWait(int64 timeout)
 {
     if (watchEpoll < 0)
@@ -240,36 +301,31 @@ void _procWatchPlatformWait(int64 timeout)
     int n = epoll_wait(watchEpoll, evs, 32, (int)timeToMsec(timeout));
 
     for (int i = 0; i < n; i++) {
-        if (!evs[i].data.ptr) {
+        if (evs[i].data.u64 == 0) {
             // The wake pipe. Drain it so it does not report readable forever.
             char buf[64];
             while (read(watchWake[0], buf, sizeof(buf)) > 0) {}
             continue;
         }
 
-        Process* proc      = (Process*)evs[i].data.ptr;
+        // Looked up by id rather than carried as a pointer: procNotifyCancel can take a process
+        // off the registry, and free it, between epoll_wait returning and this line.
+        Process* proc = _procWatchAcquire((int64)evs[i].data.u64);
+        if (!proc)
+            continue;
+
         UnixProcess* uproc = objDynCast(UnixProcess, proc);
-        if (!uproc || uproc->waitfd < 0)
-            continue;
+        bool done          = true;
 
-        // Reap through the pidfd, which collects the child and yields its status in one step
-        // and cannot be confused by a reused pid.
-        siginfo_t info;
-        memset(&info, 0, sizeof(info));
-        if (waitid(P_PIDFD, (id_t)uproc->waitfd, &info, WEXITED) != 0)
-            continue;
+        if (proc->ischild && uproc && uproc->waitfd >= 0)
+            done = reapChild(proc, uproc);
+        else
+            // Not ours to collect: that it exited is everything there is to learn.
+            _procPublishExit(proc, false, 0, 0);
 
-        mutexAcquire(&proc->lock);
-        if (info.si_code == CLD_EXITED) {
-            proc->exitcode   = info.si_status;
-            proc->termsignal = 0;
-        } else {
-            proc->termsignal = info.si_status;
-            proc->exitcode   = 128 + info.si_status;
-        }
-        atomicStore(bool, &proc->exited, true, Release);
-        mutexRelease(&proc->lock);
+        if (done)
+            _procWatchCompleted(proc);
 
-        _procWatchCompleted(proc);
+        objRelease(&proc);
     }
 }

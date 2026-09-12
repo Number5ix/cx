@@ -17,8 +17,18 @@ STR_CONST(kWatchThreadName, "cx process watcher");
 
 static LazyInitState watchInitState;
 
-// Guards both lists below.
+// Guards both lists below, and nextWatchId.
 static Mutex watchLock;
+
+// Serializes registering and cancelling a watch, each of which spans a platform call made
+// outside watchLock. Without it a second registration could see a process as already watched
+// while the first is still failing to arm it. The watcher thread's wait loop never takes this,
+// so a platform Remove that blocks on an in-flight notification cannot deadlock against it.
+//
+// Lock order is watchRegLock -> watchLock. Process::lock may be held while taking watchLock
+// (procNotifyExit does), so watchLock must never be held while taking Process::lock.
+static Mutex watchRegLock;
+static int64 nextWatchId;
 
 // Processes being watched, and those that have finished but whose callbacks have not run yet.
 // Both hold a reference, which is what makes launch-and-forget safe: procLaunch() followed
@@ -38,6 +48,7 @@ static int procWatchThread(Thread* self);
 static void watchInit(void* data)
 {
     mutexInit(&watchLock);
+    mutexInit(&watchRegLock);
     saInit(&watched, object, 8);
     saInit(&completed, object, 8);
 
@@ -115,6 +126,8 @@ static int procWatchThread(Thread* self)
 _Use_decl_annotations_
 void _procWatchCompleted(Process* proc)
 {
+    bool found = false;
+
     withMutex (&watchLock) {
         int32 idx = saFind(watched, object, proc);
         if (idx >= 0) {
@@ -122,11 +135,56 @@ void _procWatchCompleted(Process* proc)
             // destroying a Process re-enters this file.
             saPush(&completed, object, proc);
             saRemove(&watched, idx);
+            found = true;
         }
     }
 
-    _procWatchPlatformRemove(proc);
+    // Not found means procNotifyCancel took it off the registry first, and that call owns the
+    // platform removal. Removing twice would close a descriptor that may already be reused.
+    if (found)
+        _procWatchPlatformRemove(proc);
+
     _procWatchPlatformWake();
+}
+
+_Use_decl_annotations_
+Process* _procWatchAcquire(int64 watchid)
+{
+    Process* ret = NULL;
+
+    withMutex (&watchLock) {
+        for (int32 i = 0; i < saSize(watched); i++) {
+            if (watched.a[i]->watchid == watchid) {
+                ret = objAcquire(watched.a[i]);
+                break;
+            }
+        }
+    }
+
+    return ret;
+}
+
+_Use_decl_annotations_
+void _procWatchAcquireByPid(sa_Process* out, int64 pid)
+{
+    withMutex (&watchLock) {
+        for (int32 i = 0; i < saSize(watched); i++) {
+            if (watched.a[i]->pid == pid)
+                saPush(out, object, watched.a[i]);
+        }
+    }
+}
+
+// Is this process on the registry, so that an exit will reach its subscribers?
+static bool watchIsWatched(Process* proc)
+{
+    bool ret = false;
+
+    withMutex (&watchLock) {
+        ret = saFind(watched, object, proc) >= 0;
+    }
+
+    return ret;
 }
 
 _Use_decl_annotations_
@@ -138,51 +196,99 @@ bool _procWatchRegister(Process* proc)
     if (!watchAvailable)
         return false;
 
+    bool ret = true;
+    mutexAcquire(&watchRegLock);
+
+    bool already = false;
     withMutex (&watchLock) {
-        saPush(&watched, object, proc);
-    }
-
-    if (!_procWatchPlatformAdd(proc)) {
-        // Could not watch it after all. Drop back to the sweep rather than holding a reference
-        // to something nothing will ever collect.
-        withMutex (&watchLock) {
-            int32 idx = saFind(watched, object, proc);
-            if (idx >= 0)
-                saRemove(&watched, idx);
+        if (saFind(watched, object, proc) >= 0) {
+            already = true;
+        } else {
+            proc->watchid = ++nextWatchId;
+            saPush(&watched, object, proc);
         }
-        return false;
     }
 
-    _procWatchPlatformWake();
-    return true;
+    if (!already) {
+        ProcWatchAddResult res = _procWatchPlatformAdd(proc);
+
+        // Only a process cx did not launch can be reported as gone; a child always has a status
+        // waiting to be collected, which only the sweep can do if the watcher will not.
+        if (res == PROCWATCH_Gone && proc->ischild)
+            res = PROCWATCH_Failed;
+
+        if (res != PROCWATCH_Armed) {
+            // Not watching it after all. Drop the registry's reference rather than hold one to
+            // something nothing will ever collect. The caller holds its own reference, so this
+            // cannot be the last one.
+            withMutex (&watchLock) {
+                int32 idx = saFind(watched, object, proc);
+                if (idx >= 0)
+                    saRemove(&watched, idx);
+            }
+
+            if (res == PROCWATCH_Gone)
+                _procPublishExit(proc, false, 0, 0);
+            else
+                ret = false;
+        } else {
+            _procWatchPlatformWake();
+        }
+    }
+
+    mutexRelease(&watchRegLock);
+    return ret;
 }
 
 _Use_decl_annotations_
 bool procNotifyExit(Process* proc, closure cls)
 {
-    if (!proc || !cls)
+    if (!proc || !cls) {
+        closureDestroy(&cls);
         return false;
+    }
+
+    lazyInit(&watchInitState, watchInit, NULL);
 
     // Give the synchronous sweep a chance first, so a child that has already finished is known
     // to have finished even on a platform with no watcher.
     _procReapPending();
 
-    bool firenow = false;
+    if (!proc->ischild && !atomicLoad(bool, &proc->exited, Acquire)) {
+        // A process cx did not launch is only watched once someone asks. Checking whether it is
+        // still running first publishes an exit that already happened, so the closure below
+        // runs right away instead of arriving later from the watcher thread.
+        procRunning(proc);
+        if (!atomicLoad(bool, &proc->exited, Acquire))
+            _procWatchRegister(proc);
+    }
+
+    bool firenow = false, queued = false;
 
     // Deciding under the process lock is what closes the race: the exit is published under this
-    // same lock, so either this sees it and fires below, or the publisher has not got there yet
-    // and will fire the chain this closure has just joined.
+    // same lock, and a watched process stays on the registry until after that. So either this
+    // sees the exit and fires below, or the publisher has not got there yet and will fire the
+    // chain this closure has just joined.
     withMutex (&proc->lock) {
-        if (atomicLoad(bool, &proc->exited, Acquire))
+        if (atomicLoad(bool, &proc->exited, Acquire)) {
             firenow = true;
-        else
+        } else if (watchIsWatched(proc)) {
             saPushC(&proc->onexit, closure, &cls);   // takes ownership; cls is cleared
+            queued = true;
+        }
     }
 
     if (firenow) {
         // Never with the lock held.
         closureCall(cls, stvar(int64, proc->pid), stvar(int32, proc->exitcode));
         closureDestroy(&cls);
+        return true;
+    }
+
+    // Nothing will ever deliver an exit for this process, so saying yes would be a lie.
+    if (!queued) {
+        closureDestroy(&cls);
+        return false;
     }
 
     return true;
@@ -198,13 +304,42 @@ void procNotifyCancel(Process* proc)
         saClear(&proc->onexit);
     }
 
-    // Called from inside a callback: waiting would be waiting on this thread.
-    if ((uintptr)thrCurrentOSThreadID() == atomicLoad(uintptr, &watchDispatchThread, Acquire))
-        return;
+    // A process cx did not launch is watched only for its subscribers, so with none left the
+    // watch goes too, and with it the reference that was keeping the handle alive. A launched
+    // child stays watched regardless: the watcher is what reaps it.
+    //
+    // A zero watchid means it was never registered, and also that the registry may never have
+    // been initialized, so nothing here may be touched.
+    Process* drop = NULL;
+    if (!proc->ischild && proc->watchid != 0) {
+        mutexAcquire(&watchRegLock);
 
-    // Wait for any callback still running to return, so once this call is done nothing the
-    // callback touches is still in use. This waits for whatever dispatch is in flight rather
-    // than only this process's, which costs a little extra waiting and needs no bookkeeping to
-    // stay correct.
-    while (atomicLoad(uintptr, &watchDispatchThread, Acquire) != 0) osSleep(timeMS(1));
+        withMutex (&watchLock) {
+            int32 idx = saFind(watched, object, proc);
+            if (idx >= 0) {
+                drop = objAcquire(proc);
+                saRemove(&watched, idx);
+            }
+        }
+
+        // Taking it off the registry under watchLock is what makes this the only caller of
+        // Remove: _procWatchCompleted removes only what it finds there.
+        if (drop)
+            _procWatchPlatformRemove(proc);
+
+        mutexRelease(&watchRegLock);
+    }
+
+    // Called from inside a callback: waiting would be waiting on this thread.
+    if ((uintptr)thrCurrentOSThreadID() != atomicLoad(uintptr, &watchDispatchThread, Acquire)) {
+        // Wait for any callback still running to return, so once this call is done nothing the
+        // callback touches is still in use. This waits for whatever dispatch is in flight rather
+        // than only this process's, which costs a little extra waiting and needs no bookkeeping
+        // to stay correct.
+        while (atomicLoad(uintptr, &watchDispatchThread, Acquire) != 0) osSleep(timeMS(1));
+    }
+
+    // Last, and with nothing held: if this was the final reference, destroying the handle comes
+    // back through this function.
+    objRelease(&drop);
 }

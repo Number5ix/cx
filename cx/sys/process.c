@@ -154,6 +154,7 @@ _Use_decl_annotations_
 void procOptsDestroy(ProcessOpts* opts)
 {
     strDestroy(&opts->workdir);
+    strDestroy(&opts->stdioPath);
     htDestroy(&opts->env);
     saDestroy(&opts->envUnset);
 }
@@ -182,6 +183,20 @@ Process* procLaunch(strref exe, sa_string args, ProcessOpts* opts)
     if (strEmpty(exe)) {
         cxerr = CX_InvalidArgument;
         return NULL;
+    }
+
+    if (opts) {
+        if (opts->stdio == PROC_StdioFile && strEmpty(opts->stdioPath)) {
+            cxerr = CX_InvalidArgument;
+            return NULL;
+        }
+
+        // Checked everywhere, not just on Windows where the flags actually collide, so a bad
+        // combination fails on the platform it was written on.
+        if ((opts->flags & PROC_NewConsole) && (opts->flags & (PROC_Detached | PROC_NoWindow))) {
+            cxerr = CX_InvalidArgument;
+            return NULL;
+        }
     }
 
     // Collect anything that finished since the last call. Launching is the most reliable moment
@@ -214,11 +229,30 @@ bool procExitCode(Process* proc, int32* code)
     // Cached on the handle the moment the outcome became known, so this keeps answering long
     // after the process itself is gone.
     if (atomicLoad(bool, &proc->exited, Acquire)) {
-        *code = proc->exitcode;
-        return true;
+        if (proc->statusknown) {
+            *code = proc->exitcode;
+            return true;
+        }
+
+        // Finished, but nothing could collect its status, and nothing ever will.
+        cxerr = CX_NotSupported;
+        return false;
     }
 
     return _procPlatformExitCode(proc, code);
+}
+
+_Use_decl_annotations_
+void _procPublishExit(Process* proc, bool known, int32 exitcode, int32 termsignal)
+{
+    withMutex (&proc->lock) {
+        if (!atomicLoad(bool, &proc->exited, Acquire)) {
+            proc->statusknown = known;
+            proc->exitcode    = known ? exitcode : PROC_ExitCodeUnknown;
+            proc->termsignal  = known ? termsignal : 0;
+            atomicStore(bool, &proc->exited, true, Release);
+        }
+    }
 }
 
 _Use_decl_annotations_

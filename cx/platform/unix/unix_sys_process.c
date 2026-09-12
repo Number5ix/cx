@@ -5,6 +5,7 @@
 #include "cx/sys/process_private.h"
 #include "cx/container/foreach.h"
 #include "cx/debug/error.h"
+#include "cx/fs/fs.h"
 #include "cx/platform/os.h"
 #include "cx/platform/unix.h"
 #include "cx/platform/unix/unix_sys_processobj.h"
@@ -81,22 +82,15 @@ bool _procUnixSameProcess(Process* proc)
 
 // Cache a finished child's outcome on its handle. After this the status lives entirely in the
 // object, which is what lets procExitCode() keep working once the process itself is gone.
-static void publishExit(Process* proc, int status)
+void _procUnixPublishStatus(Process* proc, int status)
 {
-    mutexAcquire(&proc->lock);
-
-    if (WIFEXITED(status)) {
-        proc->exitcode   = WEXITSTATUS(status);
-        proc->termsignal = 0;
-    } else if (WIFSIGNALED(status)) {
+    if (WIFSIGNALED(status)) {
         // No exit code exists for a process a signal killed. Report the shell's convention so
         // the caller still gets a number that reflects what happened.
-        proc->termsignal = WTERMSIG(status);
-        proc->exitcode   = 128 + proc->termsignal;
+        _procPublishExit(proc, true, 128 + WTERMSIG(status), WTERMSIG(status));
+    } else {
+        _procPublishExit(proc, true, WEXITSTATUS(status), 0);
     }
-
-    atomicStore(bool, &proc->exited, true, Release);
-    mutexRelease(&proc->lock);
 }
 
 void _procReapPending(void)
@@ -125,14 +119,12 @@ void _procReapPending(void)
                 continue;
 
             if (r > 0) {
-                publishExit(proc, status);
+                _procUnixPublishStatus(proc, status);
             } else {
                 // Gone, but collected by someone else, so there is no status to report.
                 // Publishing the zeroed `status` here would claim a clean exit that never
                 // happened -- record only that it finished.
-                mutexAcquire(&proc->lock);
-                atomicStore(bool, &proc->exited, true, Release);
-                mutexRelease(&proc->lock);
+                _procPublishExit(proc, false, 0, 0);
             }
 
             // Acquire into `done` before removing, so the refcount cannot reach zero while the
@@ -252,7 +244,7 @@ static void closeFrom(int from)
 // before the fork. The lone exception is closeFrom()'s opendir() fallback, which is only
 // reached on a Linux kernel without close_range.
 static _Noreturn void childExec(char** argv, char** envp, const ProcessOpts* opts,
-                                const char* workdir, int errfd)
+                                const char* workdir, int errfd, int logfd)
 {
     // A host process that ignores SIGPIPE must not impose that on the child, so start from a
     // clean slate: no blocked signals and every handler back to its default.
@@ -277,15 +269,21 @@ static _Noreturn void childExec(char** argv, char** envp, const ProcessOpts* opt
     // survive the exec, the parent's read would never see EOF, and the launch would hang.
     fcntl(PROC_ERRFD, F_SETFD, FD_CLOEXEC);
 
-    if (opts && opts->stdio == PROC_StdioNull) {
+    if (opts && opts->stdio != PROC_StdioInherit) {
+        // logfd was moved above PROC_ERRFD by the parent, so neither the dup2 onto PROC_ERRFD
+        // above nor this open can land on it.
         int devnull = open("/dev/null", O_RDWR);
-        if (devnull >= 0) {
+        if (devnull >= 0)
             dup2(devnull, STDIN_FILENO);
-            dup2(devnull, STDOUT_FILENO);
-            dup2(devnull, STDERR_FILENO);
-            if (devnull > STDERR_FILENO)
-                close(devnull);
+
+        int out = (opts->stdio == PROC_StdioFile) ? logfd : devnull;
+        if (out >= 0) {
+            dup2(out, STDOUT_FILENO);
+            dup2(out, STDERR_FILENO);
         }
+
+        if (devnull > STDERR_FILENO)
+            close(devnull);
     }
 
     closeFrom(PROC_ERRFD + 1);
@@ -327,10 +325,53 @@ Process* _procPlatformLaunch(strref exe, sa_string args, const ProcessOpts* opts
         fcntl(errpipe[1], F_SETFD, FD_CLOEXEC);
     }
 
-    // Built before the fork; see procCStr.
-    char** argv   = buildArgv(exe, args);
+    // Opened here rather than in the child: converting the path allocates, which is not legal
+    // after the fork, and a path that cannot be opened then fails the launch with a real error
+    // instead of producing a child whose output silently goes nowhere.
+    int logfd = -1;
+    if (opts && opts->stdio == PROC_StdioFile) {
+        string plat = 0;
+        pathToPlatform(&plat, opts->stdioPath);
+        logfd = open(strC(plat), O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC | O_NOCTTY, 0666);
+        strDestroy(&plat);
+
+        if (logfd < 0) {
+            unixMapErrno();
+            close(errpipe[0]);
+            close(errpipe[1]);
+            return NULL;
+        }
+
+        // A caller running with its standard descriptors closed -- common for a daemon -- can
+        // be handed a low number here, which the child's own dup2 calls would then overwrite.
+        if (logfd <= PROC_ERRFD) {
+            int high = fcntl(logfd, F_DUPFD_CLOEXEC, PROC_ERRFD + 1);
+            close(logfd);
+            logfd = high;
+            if (logfd < 0) {
+                unixMapErrno();
+                close(errpipe[0]);
+                close(errpipe[1]);
+                return NULL;
+            }
+        }
+    }
+
+    // Built before the fork; see procCStr. Paths are converted from cx form here too, since
+    // that allocates.
+    string platexe = 0;
+    pathToPlatform(&platexe, exe);
+    char** argv = buildArgv(platexe, args);
+    strDestroy(&platexe);
+
     char** envp   = buildEnvp(opts);
-    char* workdir = (opts && !strEmpty(opts->workdir)) ? procCStr(opts->workdir) : NULL;
+    char* workdir = NULL;
+    if (opts && !strEmpty(opts->workdir)) {
+        string platdir = 0;
+        pathToPlatform(&platdir, opts->workdir);
+        workdir = procCStr(platdir);
+        strDestroy(&platdir);
+    }
 
     pid_t pid = fork();
 
@@ -338,6 +379,8 @@ Process* _procPlatformLaunch(strref exe, sa_string args, const ProcessOpts* opts
         unixMapErrno();
         close(errpipe[0]);
         close(errpipe[1]);
+        if (logfd >= 0)
+            close(logfd);
         freeCArray(argv);
         freeCArray(envp);
         xaFree(workdir);
@@ -345,9 +388,11 @@ Process* _procPlatformLaunch(strref exe, sa_string args, const ProcessOpts* opts
     }
 
     if (pid == 0)
-        childExec(argv, envp, opts, workdir, errpipe[1]);
+        childExec(argv, envp, opts, workdir, errpipe[1], logfd);
 
     close(errpipe[1]);
+    if (logfd >= 0)
+        close(logfd);
     freeCArray(argv);
     freeCArray(envp);
     xaFree(workdir);
@@ -402,8 +447,9 @@ bool _procPlatformWait(Process* proc, int64 timeout)
         if (atomicLoad(bool, &proc->exited, Acquire))
             return true;
 
-        // Not our child, so there is no status to collect -- gone is the whole answer.
-        if (!proc->ischild && !_procUnixAlive(proc->pid))
+        // Not our child, so there is no status to collect -- gone is the whole answer. This also
+        // treats a reused pid as the original process having finished.
+        if (!proc->ischild && !_procPlatformRunning(proc))
             return true;
 
         int64 now = clockTimer();
@@ -471,10 +517,15 @@ bool _procPlatformRunning(Process* proc)
     }
 
     // A different process wearing the same id is not this one still running.
-    if (!_procUnixSameProcess(proc))
-        return false;
+    if (_procUnixSameProcess(proc) && _procUnixAlive(proc->pid))
+        return true;
 
-    return _procUnixAlive(proc->pid);
+    // Children are published by their reaper, which has the status. Anything else is gone for
+    // good, so remember that.
+    if (!proc->ischild)
+        _procPublishExit(proc, false, 0, 0);
+
+    return false;
 }
 
 _Use_decl_annotations_

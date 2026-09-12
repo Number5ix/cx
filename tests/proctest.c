@@ -400,6 +400,63 @@ static int test_proc_child_cwd(void)
     return ret;
 }
 
+static int test_proc_child_sleep1(void)
+{
+    osSleep(timeS(1));
+    return 0;
+}
+
+// Writes to stdout and stderr alternately, flushing each time, so the parent can check that a
+// shared output file keeps the two in order.
+static int test_proc_child_stdio(void)
+{
+    fputs("out1\n", stdout);
+    fflush(stdout);
+    fputs("err1\n", stderr);
+    fflush(stderr);
+    fputs("out2\n", stdout);
+    fflush(stdout);
+    return 0;
+}
+
+// Starts a grandchild that outlives this process, reports its pid, and exits without waiting
+// for it. The grandchild is then a process the test's own process did not launch.
+static int test_proc_child_spawn(void)
+{
+    string exe = 0, s = 0;
+    sa_string argv;
+    ProcessOpts opts;
+
+    fsExe(&exe);
+    saInit(&argv, string, 2);
+    saPush(&argv, strref, _SL("proctest"));
+    saPush(&argv, strref, _SL("child_sleep2"));
+
+    procOptsInit(&opts);
+    opts.stdio = PROC_StdioNull;
+    opts.flags = PROC_Detached;
+
+    Process* proc = procLaunch(exe, argv, &opts);
+    int ret       = 80;
+    if (proc) {
+        strFromInt64(&s, procID(proc), 10);
+        ret = childReport(s);
+        procRelease(&proc);
+    }
+
+    strDestroy(&s);
+    procOptsDestroy(&opts);
+    saDestroy(&argv);
+    strDestroy(&exe);
+    return ret;
+}
+
+static int test_proc_child_sleep2(void)
+{
+    osSleep(timeS(2));
+    return 0;
+}
+
 #if defined(_PLATFORM_UNIX)
 #include <fcntl.h>
 
@@ -736,6 +793,201 @@ static int test_proc_launch_missing(void)
     return ret;
 }
 
+// Reads a file and drops any carriage returns, so text written by a Windows child in text mode
+// compares equal to the same text from Unix.
+static bool readReportLF(string* out, strref path)
+{
+    if (!readReport(out, path))
+        return false;
+
+    string lf = 0;
+    uint32 n  = strLen(*out);
+    for (uint32 i = 0; i < n; i++) {
+        uint8 c = strGetChar(*out, i);
+        if (c != '\r')
+            strAppendChar(&lf, c);
+    }
+
+    strDestroy(out);
+    *out = lf;
+    return true;
+}
+
+STR_CONST(kStdioOnce, "out1\nerr1\nout2\n");
+
+// Launches child_stdio with its output sent to path, and waits for it. Returns false and records
+// why on failure.
+static bool launchStdioFile(int* ret, strref path, flags_t flags)
+{
+    ProcessOpts opts;
+    sa_string noargs = saInitNone;
+
+    procOptsInit(&opts);
+    opts.stdio = PROC_StdioFile;
+    opts.flags = flags;
+    strDup(&opts.stdioPath, path);
+
+    Process* proc = launchSelf(_SL("child_stdio"), noargs, &opts);
+    procOptsDestroy(&opts);
+
+    if (!proc) {
+        TEST_FAILV(*ret, 1, _SL("procLaunch to '${string}' failed, cxerr ${int}"),
+                   stvar(strref, path), stvar(int32, cxerr));
+        return false;
+    }
+
+    if (!procWait(proc, timeS(30))) {
+        TEST_FAILV(*ret, 1, _SL("child ${int} did not finish"), stvar(int64, procID(proc)));
+        procTerminate(proc, true);
+        procRelease(&proc);
+        return false;
+    }
+
+    procRelease(&proc);
+    return true;
+}
+
+static void checkStdioFile(int* ret, strref path, int copies)
+{
+    string got = 0, want = 0;
+
+    for (int i = 0; i < copies; i++) strAppend(&want, kStdioOnce);
+
+    if (!readReportLF(&got, path))
+        TEST_FAILV(*ret, 1, _SL("nothing could be read from '${string}'"), stvar(strref, path));
+    else if (!strEq(got, want))
+        TEST_FAILV(*ret, 1, _SL("'${string}' holds '${string}', wanted '${string}'"),
+                   stvar(strref, path), stvar(string, got), stvar(string, want));
+
+    strDestroy(&got);
+    strDestroy(&want);
+}
+
+// stdout and stderr land in one file, in order, and later launches append. The name has a space
+// in it, and is used both relative -- resolved against cx's current directory -- and as an
+// absolute cx path, which on Windows is the c:/ form rather than the native one.
+static int test_proc_launch_stdiofile(void)
+{
+    int ret      = 0;
+    string abs   = 0;
+    strref rel   = _SL("cx proctest stdio.txt");
+
+    pathMakeAbsolute(&abs, rel);
+    fsDelete(abs);
+
+    if (launchStdioFile(&ret, rel, 0))
+        checkStdioFile(&ret, abs, 1);
+
+    if (!ret && launchStdioFile(&ret, abs, 0))
+        checkStdioFile(&ret, abs, 2);
+
+    // A detached child must still get the file, rather than having its output quietly dropped.
+    if (!ret && launchStdioFile(&ret, abs, PROC_Detached))
+        checkStdioFile(&ret, abs, 3);
+
+    fsDelete(abs);
+    strDestroy(&abs);
+    return ret;
+}
+
+// A file that cannot be opened fails the launch itself, and PROC_StdioFile without a path is a
+// caller error.
+static int test_proc_launch_stdiofile_bad(void)
+{
+    int ret = 0;
+    ProcessOpts opts;
+    sa_string noargs = saInitNone;
+
+    procOptsInit(&opts);
+    opts.stdio = PROC_StdioFile;
+    strDup(&opts.stdioPath, _SL("cx_proctest_no_such_dir/out.txt"));
+
+    cxerr         = CX_Success;
+    Process* proc = launchSelf(_SL("child_exit42"), noargs, &opts);
+    if (proc) {
+        TEST_FAILV(ret, 1, _SL("launch into a missing directory returned pid ${int}"),
+                   stvar(int64, procID(proc)));
+        procWait(proc, timeS(30));
+        procRelease(&proc);
+    } else if (cxerr == CX_Success) {
+        TEST_FAILV(ret, 1, _SL("launch into '${string}' failed without setting cxerr"),
+                   stvar(string, opts.stdioPath));
+    }
+
+    strDestroy(&opts.stdioPath);
+    cxerr = CX_Success;
+    proc  = launchSelf(_SL("child_exit42"), noargs, &opts);
+    if (proc) {
+        TEST_FAILV(ret, 1, _SL("PROC_StdioFile with no path returned pid ${int}"),
+                   stvar(int64, procID(proc)));
+        procWait(proc, timeS(30));
+        procRelease(&proc);
+    } else if (cxerr != CX_InvalidArgument) {
+        TEST_FAILV(ret, 1, _SL("PROC_StdioFile with no path set cxerr ${int}, wanted ${int}"),
+                   stvar(int32, cxerr), stvar(int32, (int32)CX_InvalidArgument));
+    }
+
+    procOptsDestroy(&opts);
+    return ret;
+}
+
+// PROC_NewConsole conflicts with PROC_Detached and PROC_NoWindow. It is rejected on every
+// platform, not only the one where the flags collide.
+static int test_proc_launch_flagconflict(void)
+{
+    int ret = 0;
+    ProcessOpts opts;
+    sa_string noargs = saInitNone;
+    flags_t bad[2]   = { PROC_NewConsole | PROC_Detached, PROC_NewConsole | PROC_NoWindow };
+
+    procOptsInit(&opts);
+
+    for (int i = 0; i < 2; i++) {
+        opts.flags    = bad[i];
+        cxerr         = CX_Success;
+        Process* proc = launchSelf(_SL("child_exit42"), noargs, &opts);
+
+        if (proc) {
+            TEST_FAILV(ret, 1, _SL("flags 0x${uint(hex)} were accepted"), stvar(uint32, bad[i]));
+            procWait(proc, timeS(30));
+            procRelease(&proc);
+        } else if (cxerr != CX_InvalidArgument) {
+            TEST_FAILV(ret, 1, _SL("flags 0x${uint(hex)} set cxerr ${int}, wanted ${int}"),
+                       stvar(uint32, bad[i]), stvar(int32, cxerr),
+                       stvar(int32, (int32)CX_InvalidArgument));
+        }
+    }
+
+    procOptsDestroy(&opts);
+    return ret;
+}
+
+#if defined(_PLATFORM_WIN)
+static int test_proc_launch_newconsole(void)
+{
+    int ret = 0;
+    ProcessOpts opts;
+    sa_string noargs = saInitNone;
+    int32 code       = 0;
+
+    procOptsInit(&opts);
+    opts.flags = PROC_NewConsole;
+
+    Process* proc = launchSelf(_SL("child_exit42"), noargs, &opts);
+    procOptsDestroy(&opts);
+    if (!proc)
+        TEST_FAIL(1, _SL("procLaunch failed, cxerr ${int}"), stvar(int32, cxerr));
+
+    if (!procWait(proc, timeS(30)))
+        TEST_FAILV(ret, 1, _SL("child ${int} did not finish"), stvar(int64, procID(proc)));
+    else if (!procExitCode(proc, &code) || code != 42)
+        TEST_FAILV(ret, 1, _SL("child exited with ${int}, wanted 42"), stvar(int32, code));
+
+    procRelease(&proc);
+    return ret;
+}
+#endif
+
 #if defined(_PLATFORM_UNIX)
 // The child must not inherit the parent's open descriptors. cx sets close-on-exec on nothing,
 // so this exercises the fork path's own sweep rather than any libc default -- without it every
@@ -1018,6 +1270,313 @@ static int test_proc_many(void)
     return ret;
 }
 
+// The exit code a callback should see for a process this test did not launch.
+#if defined(_PLATFORM_WIN)
+#define kForeignExitCode 0
+#else
+#define kForeignExitCode PROC_ExitCodeUnknown
+#endif
+
+#if defined(_PLATFORM_LINUX)
+#include <dirent.h>
+
+// Open descriptors in this process. A watch on a process cx did not launch holds a pidfd, so a
+// count that comes back to where it started shows the watch was torn down.
+static int countOpenFds(void)
+{
+    int n  = 0;
+    DIR* d = opendir("/proc/self/fd");
+    if (!d)
+        return -1;
+    while (readdir(d)) n++;
+    closedir(d);
+    return n;
+}
+
+// User plus system CPU time used by this whole process, in clock ticks.
+static int64 processCpuTicks(void)
+{
+    char buf[1024];
+    FILE* f = fopen("/proc/self/stat", "r");
+    if (!f)
+        return -1;
+    size_t got = fread(buf, 1, sizeof(buf) - 1, f);
+    fclose(f);
+    buf[got] = 0;
+
+    // Fields after the parenthesized name, which may itself contain spaces.
+    char* p = strrchr(buf, ')');
+    if (!p)
+        return -1;
+
+    long long utime = 0, stime = 0;
+    if (sscanf(p + 2, "%*c %*d %*d %*d %*d %*d %*u %*u %*u %*u %*u %lld %lld", &utime, &stime) != 2)
+        return -1;
+    return utime + stime;
+}
+#endif
+
+// Waits for the next exit callback and checks what it reported.
+static void expectCallback(int* ret, int64 pid, int32 code)
+{
+    if (!eventWaitTimeout(&nrec.ev, timeS(30))) {
+        TEST_FAILV(*ret, 1, _SL("no exit callback for pid ${int} within 30s"), stvar(int64, pid));
+        return;
+    }
+
+    withMutex (&nrec.lock) {
+        if (nrec.count != 1)
+            TEST_FAILV(*ret, 1, _SL("exit callback ran ${int} times, wanted 1"),
+                       stvar(int32, nrec.count));
+        if (nrec.pid != pid)
+            TEST_FAILV(*ret, 1, _SL("callback reported pid ${int}, wanted ${int}"),
+                       stvar(int64, nrec.pid), stvar(int64, pid));
+        if (nrec.code != code)
+            TEST_FAILV(*ret, 1, _SL("callback reported exit code ${int}, wanted ${int}"),
+                       stvar(int32, nrec.code), stvar(int32, code));
+    }
+}
+
+// A handle from procOpen must be told when its process exits, too. This one happens to be a
+// child of this process, reached through a second handle; the launched handle must still
+// collect the real exit code rather than having it taken by the opened one.
+static int test_proc_notify_opened(void)
+{
+    int ret          = 0;
+    sa_string noargs = saInitNone;
+    int32 code       = -99;
+
+    notifyRecInit();
+
+    Process* lproc = launchSelf(_SL("child_sleep1"), noargs, NULL);
+    if (!lproc) {
+        notifyRecDestroy();
+        TEST_FAIL(1, _SL("procLaunch failed, cxerr ${int}"), stvar(int32, cxerr));
+    }
+
+    int64 pid      = procID(lproc);
+    Process* oproc = procOpen(pid);
+
+    if (!oproc) {
+        TEST_FAILV(ret, 1, _SL("procOpen(${int}) failed, cxerr ${int}"), stvar(int64, pid),
+                   stvar(int32, cxerr));
+    } else {
+        if (!procNotifyExit(oproc, closureCreate(onExitCb, stvNone)))
+            TEST_FAILV(ret, 1, _SL("procNotifyExit failed for opened pid ${int}"),
+                       stvar(int64, pid));
+        else
+            expectCallback(&ret, pid, kForeignExitCode);
+    }
+
+    if (!procWait(lproc, timeS(30)))
+        TEST_FAILV(ret, 1, _SL("child ${int} did not finish"), stvar(int64, pid));
+    else if (!procExitCode(lproc, &code) || code != 0)
+        TEST_FAILV(ret, 1, _SL("launched handle reported exit code ${int}, wanted 0"),
+                   stvar(int32, code));
+
+#if !defined(_PLATFORM_WIN)
+    // The opened handle knows the process finished, but must not claim to know how.
+    if (oproc) {
+        cxerr = CX_Success;
+        if (procExitCode(oproc, &code))
+            TEST_FAILV(ret, 1, _SL("opened handle reported exit code ${int} on Unix"),
+                       stvar(int32, code));
+        else if (cxerr != CX_NotSupported)
+            TEST_FAILV(ret, 1, _SL("opened handle set cxerr ${int}, wanted CX_NotSupported"),
+                       stvar(int32, cxerr));
+    }
+#endif
+
+    procRelease(&oproc);
+    procRelease(&lproc);
+    notifyRecDestroy();
+    return ret;
+}
+
+// A process whose parent is not this one: the watcher cannot collect it, and on Linux must not
+// spin on a descriptor that stays readable after the exit.
+static int test_proc_notify_nonchild(void)
+{
+    int ret          = 0;
+    sa_string noargs = saInitNone;
+    ProcessOpts opts;
+    string got = 0;
+    int64 gpid = 0;
+
+    reportingOpts(&opts);
+    fsDelete(kOutFile);
+
+    Process* spawner = launchSelf(_SL("child_spawn"), noargs, &opts);
+    procOptsDestroy(&opts);
+    if (!spawner)
+        TEST_FAIL(1, _SL("procLaunch failed, cxerr ${int}"), stvar(int32, cxerr));
+
+    procWait(spawner, timeS(30));
+    procRelease(&spawner);
+
+    if (!readReport(&got, kOutFile) || !strToInt64(&gpid, got, 10, STRNUM_NoTrailing)) {
+        TEST_FAILV(ret, 1, _SL("spawner reported '${string}', wanted a pid"), stvar(string, got));
+        strDestroy(&got);
+        fsDelete(kOutFile);
+        return ret;
+    }
+    strDestroy(&got);
+    fsDelete(kOutFile);
+
+    notifyRecInit();
+
+#if defined(_PLATFORM_LINUX)
+    int fdsBefore = countOpenFds();
+#endif
+
+    Process* proc = procOpen(gpid);
+    if (!proc) {
+        TEST_FAILV(ret, 1, _SL("procOpen(${int}) failed, cxerr ${int}"), stvar(int64, gpid),
+                   stvar(int32, cxerr));
+    } else if (!procNotifyExit(proc, closureCreate(onExitCb, stvNone))) {
+        TEST_FAILV(ret, 1, _SL("procNotifyExit failed for pid ${int}"), stvar(int64, gpid));
+    } else {
+        expectCallback(&ret, gpid, kForeignExitCode);
+    }
+    procRelease(&proc);
+
+#if defined(_PLATFORM_LINUX)
+    if (!ret) {
+        // Delivery and teardown happen on the watcher thread just before and after the
+        // callback, so give the teardown a moment before counting.
+        int fdsAfter = -1;
+        for (int i = 0; i < 50; i++) {
+            fdsAfter = countOpenFds();
+            if (fdsAfter == fdsBefore)
+                break;
+            osSleep(timeMS(10));
+        }
+        if (fdsAfter != fdsBefore)
+            TEST_FAILV(ret, 1, _SL("${int} descriptors open after the watch ended, ${int} before"),
+                       stvar(int32, fdsAfter), stvar(int32, fdsBefore));
+
+        int64 before = processCpuTicks();
+        osSleep(timeMS(500));
+        int64 used = processCpuTicks() - before;
+        if (before >= 0 && used > 20)
+            TEST_FAILV(ret, 1, _SL("process used ${int} CPU ticks while idle for 500ms"),
+                       stvar(int64, used));
+    }
+#endif
+
+    notifyRecDestroy();
+    return ret;
+}
+
+// Registering on an opened handle whose process has already finished calls the closure before
+// returning, exactly as for a launched one.
+static int test_proc_notify_opened_exited(void)
+{
+    int ret          = 0;
+    sa_string noargs = saInitNone;
+
+    notifyRecInit();
+
+    Process* lproc = launchSelf(_SL("child_sleep1"), noargs, NULL);
+    if (!lproc) {
+        notifyRecDestroy();
+        TEST_FAIL(1, _SL("procLaunch failed, cxerr ${int}"), stvar(int32, cxerr));
+    }
+
+    int64 pid      = procID(lproc);
+    Process* oproc = procOpen(pid);
+    procWait(lproc, timeS(30));
+    procRelease(&lproc);
+
+    if (!oproc) {
+        TEST_FAILV(ret, 1, _SL("procOpen(${int}) failed, cxerr ${int}"), stvar(int64, pid),
+                   stvar(int32, cxerr));
+    } else {
+        if (!procNotifyExit(oproc, closureCreate(onExitCb, stvNone)))
+            TEST_FAILV(ret, 1, _SL("procNotifyExit failed for finished pid ${int}"),
+                       stvar(int64, pid));
+
+        withMutex (&nrec.lock) {
+            if (nrec.count != 1)
+                TEST_FAILV(ret, 1,
+                           _SL("callback ran ${int} times immediately after registering on a finished opened process, wanted 1"),
+                           stvar(int32, nrec.count));
+            else if (nrec.code != kForeignExitCode)
+                TEST_FAILV(ret, 1, _SL("callback reported exit code ${int}, wanted ${int}"),
+                           stvar(int32, nrec.code), stvar(int32, (int32)kForeignExitCode));
+        }
+    }
+
+    procRelease(&oproc);
+    notifyRecDestroy();
+    return ret;
+}
+
+// Cancelling the last callback on an opened handle ends the watch: the handle is freed when the
+// caller releases it, rather than held until the process exits, and nothing is called later.
+static int test_proc_notify_cancel_opened(void)
+{
+    int ret          = 0;
+    sa_string noargs = saInitNone;
+
+    notifyRecInit();
+
+    Process* lproc = launchSelf(_SL("child_sleep"), noargs, NULL);
+    if (!lproc) {
+        notifyRecDestroy();
+        TEST_FAIL(1, _SL("procLaunch failed, cxerr ${int}"), stvar(int32, cxerr));
+    }
+
+    int64 pid = procID(lproc);
+
+#if defined(_PLATFORM_LINUX)
+    int fdsBefore = countOpenFds();
+#endif
+
+    Process* oproc = procOpen(pid);
+    if (!oproc) {
+        TEST_FAILV(ret, 1, _SL("procOpen(${int}) failed, cxerr ${int}"), stvar(int64, pid),
+                   stvar(int32, cxerr));
+    } else {
+        if (!procNotifyExit(oproc, closureCreate(onExitCb, stvNone)))
+            TEST_FAILV(ret, 1, _SL("procNotifyExit failed for pid ${int}"), stvar(int64, pid));
+
+        Weak(Process)* weak = objGetWeak(Process, oproc);
+        procNotifyCancel(oproc);
+        procRelease(&oproc);
+
+        Process* still = objAcquireFromWeak(Process, weak);
+        if (still) {
+            TEST_FAILV(ret, 1, _SL("opened handle for ${int} still alive after cancel and release"),
+                       stvar(int64, pid));
+            procRelease(&still);
+        }
+        objDestroyWeak(&weak);
+
+#if defined(_PLATFORM_LINUX)
+        int fdsAfter = countOpenFds();
+        if (fdsAfter != fdsBefore)
+            TEST_FAILV(ret, 1, _SL("${int} descriptors open after cancelling, ${int} before"),
+                       stvar(int32, fdsAfter), stvar(int32, fdsBefore));
+#endif
+    }
+
+    procTerminate(lproc, true);
+    procWait(lproc, timeS(30));
+    procRelease(&lproc);
+
+    // Long enough for a stray delivery to have arrived if one were coming.
+    osSleep(timeMS(200));
+    withMutex (&nrec.lock) {
+        if (nrec.count != 0)
+            TEST_FAILV(ret, 1, _SL("cancelled callback still ran ${int} times"),
+                       stvar(int32, nrec.count));
+    }
+
+    notifyRecDestroy();
+    return ret;
+}
+
 // Runs the environment subtests in one process, so ctest spends one process launch on the group
 // rather than one on each. Every subtest stays registered below for running one in isolation.
 int test_proc_grp_env(void)
@@ -1034,7 +1593,9 @@ int test_proc_grp_enum(void)
 
 int test_proc_grp_notify(void)
 {
-    TEST_CHAIN(test_proc_notify_exit, test_proc_notify_after_exit, test_proc_many);
+    TEST_CHAIN(test_proc_notify_exit, test_proc_notify_after_exit, test_proc_many,
+               test_proc_notify_opened, test_proc_notify_nonchild,
+               test_proc_notify_opened_exited, test_proc_notify_cancel_opened);
 }
 
 int test_proc_grp_launch(void)
@@ -1042,11 +1603,20 @@ int test_proc_grp_launch(void)
 #if defined(_PLATFORM_UNIX)
     TEST_CHAIN(test_proc_launch_exit, test_proc_launch_args, test_proc_launch_env,
                test_proc_launch_cwd, test_proc_launch_stdionull, test_proc_launch_missing,
-               test_proc_launch_fdsweep, test_proc_wait_timeout, test_proc_terminate);
+               test_proc_launch_stdiofile, test_proc_launch_stdiofile_bad,
+               test_proc_launch_flagconflict, test_proc_launch_fdsweep, test_proc_wait_timeout,
+               test_proc_terminate);
+#elif defined(_PLATFORM_WIN)
+    TEST_CHAIN(test_proc_launch_exit, test_proc_launch_args, test_proc_launch_env,
+               test_proc_launch_cwd, test_proc_launch_stdionull, test_proc_launch_missing,
+               test_proc_launch_stdiofile, test_proc_launch_stdiofile_bad,
+               test_proc_launch_flagconflict, test_proc_launch_newconsole,
+               test_proc_wait_timeout, test_proc_terminate);
 #else
     TEST_CHAIN(test_proc_launch_exit, test_proc_launch_args, test_proc_launch_env,
                test_proc_launch_cwd, test_proc_launch_stdionull, test_proc_launch_missing,
-               test_proc_wait_timeout, test_proc_terminate);
+               test_proc_launch_stdiofile, test_proc_launch_stdiofile_bad,
+               test_proc_launch_flagconflict, test_proc_wait_timeout, test_proc_terminate);
 #endif
 }
 
@@ -1066,6 +1636,12 @@ testfunc proctest_funcs[] = {
     { "launch_cwd",       test_proc_launch_cwd       },
     { "launch_stdionull", test_proc_launch_stdionull },
     { "launch_missing",   test_proc_launch_missing   },
+    { "launch_stdiofile", test_proc_launch_stdiofile },
+    { "launch_stdiofile_bad", test_proc_launch_stdiofile_bad },
+    { "launch_flagconflict", test_proc_launch_flagconflict },
+#if defined(_PLATFORM_WIN)
+    { "launch_newconsole", test_proc_launch_newconsole },
+#endif
 #if defined(_PLATFORM_UNIX)
     { "launch_fdsweep",   test_proc_launch_fdsweep   },
 #endif
@@ -1073,6 +1649,10 @@ testfunc proctest_funcs[] = {
     { "terminate",        test_proc_terminate        },
     { "child_exit42",     test_proc_child_exit42     },
     { "child_sleep",      test_proc_child_sleep      },
+    { "child_sleep1",     test_proc_child_sleep1     },
+    { "child_sleep2",     test_proc_child_sleep2     },
+    { "child_stdio",      test_proc_child_stdio      },
+    { "child_spawn",      test_proc_child_spawn      },
     { "child_echoargs",   test_proc_child_echoargs   },
     { "child_echoenv",    test_proc_child_echoenv    },
     { "child_cwd",        test_proc_child_cwd        },
@@ -1082,6 +1662,10 @@ testfunc proctest_funcs[] = {
     { "notify_exit",       test_proc_notify_exit       },
     { "notify_after_exit", test_proc_notify_after_exit },
     { "many",              test_proc_many              },
+    { "notify_opened",        test_proc_notify_opened        },
+    { "notify_nonchild",      test_proc_notify_nonchild      },
+    { "notify_opened_exited", test_proc_notify_opened_exited },
+    { "notify_cancel_opened", test_proc_notify_cancel_opened },
     { "grp_env",        test_proc_grp_env        },
     { "grp_enum",       test_proc_grp_enum       },
     { "grp_launch",     test_proc_grp_launch     },

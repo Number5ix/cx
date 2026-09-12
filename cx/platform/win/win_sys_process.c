@@ -221,7 +221,14 @@ bool _procPlatformRunning(Process* proc)
     // Deliberately not GetExitCodeProcess/STILL_ACTIVE: a process that exits with code 259 is
     // indistinguishable from a running one that way. Waiting with a zero timeout answers the
     // question exactly.
-    return WaitForSingleObject(wproc->h, 0) == WAIT_TIMEOUT;
+    if (WaitForSingleObject(wproc->h, 0) == WAIT_TIMEOUT)
+        return true;
+
+    DWORD code = 0;
+    if (GetExitCodeProcess(wproc->h, &code))
+        _procPublishExit(proc, true, (int32)code, 0);
+
+    return false;
 }
 
 // ---- launching -------------------------------------------------------------------------------
@@ -447,14 +454,47 @@ Process* _procPlatformLaunch(strref exe, sa_string args, const ProcessOpts* opts
     string platexe = 0;
     pathToPlatform(&platexe, exe);
 
+    bool redirect   = opts && opts->stdio != PROC_StdioInherit;
+    bool detached   = opts && (opts->flags & PROC_Detached);
+    bool newconsole = opts && (opts->flags & PROC_NewConsole);
+
+    // Opened first, so a path that cannot be opened fails the launch before anything else is
+    // built. fsPathToNT resolves the cx path against cx's current directory and lifts the
+    // MAX_PATH limit. Append-only access makes every write land at the end of the file, and
+    // FILE_SHARE_DELETE lets whoever reads the file rotate it by renaming while the child
+    // still has it open.
+    HANDLE logfile = INVALID_HANDLE_VALUE;
+    if (redirect && opts->stdio == PROC_StdioFile) {
+        logfile = CreateFileW(fsPathToNT(opts->stdioPath), FILE_APPEND_DATA | SYNCHRONIZE,
+                              FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL,
+                              OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+        if (logfile == INVALID_HANDLE_VALUE) {
+            winMapLastError();
+            strDestroy(&platexe);
+            return NULL;
+        }
+    }
+
     string cmdline = 0;
     buildCommandLine(&cmdline, platexe, args);
 
-    wchar_t* wcmd   = strToUTF16A(cmdline);
-    wchar_t* wenv   = buildEnvBlock(opts);
-    wchar_t* wdir   = (opts && !strEmpty(opts->workdir)) ? strToUTF16A(opts->workdir) : NULL;
+    wchar_t* wcmd = strToUTF16A(cmdline);
+    wchar_t* wenv = buildEnvBlock(opts);
     strDestroy(&cmdline);
     strDestroy(&platexe);
+
+    // The working directory gets the plain platform form, never the NT form: a child that
+    // starts in a \\?\ directory inherits it as its current directory, and plenty of programs,
+    // cmd.exe included, refuse to run there.
+    wchar_t* wdir = NULL;
+    if (opts && !strEmpty(opts->workdir)) {
+        string platdir = 0;
+        pathMakeAbsolute(&platdir, opts->workdir);
+        pathNormalize(&platdir);
+        pathToPlatform(&platdir, platdir);
+        wdir = strToUTF16A(platdir);
+        strDestroy(&platdir);
+    }
 
     DWORD flags = 0;
     if (wenv)
@@ -463,20 +503,28 @@ Process* _procPlatformLaunch(strref exe, sa_string args, const ProcessOpts* opts
         flags |= CREATE_NEW_PROCESS_GROUP;
     if (opts && (opts->flags & PROC_NoWindow))
         flags |= CREATE_NO_WINDOW;
-
-    bool detached = opts && (opts->flags & PROC_Detached);
     if (detached)
         flags |= DETACHED_PROCESS;
+    if (newconsole)
+        flags |= CREATE_NEW_CONSOLE;
 
     HANDLE devnull = INVALID_HANDLE_VALUE;
-    if (opts && opts->stdio == PROC_StdioNull) {
+    if (redirect) {
         devnull = CreateFileW(L"NUL", GENERIC_READ | GENERIC_WRITE,
                               FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
     }
 
-    HANDLE srcin  = (devnull != INVALID_HANDLE_VALUE) ? devnull : GetStdHandle(STD_INPUT_HANDLE);
-    HANDLE srcout = (devnull != INVALID_HANDLE_VALUE) ? devnull : GetStdHandle(STD_OUTPUT_HANDLE);
-    HANDLE srcerr = (devnull != INVALID_HANDLE_VALUE) ? devnull : GetStdHandle(STD_ERROR_HANDLE);
+    HANDLE srcin, srcout, srcerr;
+    if (redirect) {
+        HANDLE out = (logfile != INVALID_HANDLE_VALUE) ? logfile : devnull;
+        srcin      = devnull;
+        srcout     = out;
+        srcerr     = out;
+    } else {
+        srcin  = GetStdHandle(STD_INPUT_HANDLE);
+        srcout = GetStdHandle(STD_OUTPUT_HANDLE);
+        srcerr = GetStdHandle(STD_ERROR_HANDLE);
+    }
 
     // Inheritable copies, so nothing here depends on how the caller's own handles happen to be
     // marked. Any of the three may be absent -- a process run by a build server often has no
@@ -485,9 +533,35 @@ Process* _procPlatformLaunch(strref exe, sa_string args, const ProcessOpts* opts
     HANDLE hout = procDupInheritable(srcout);
     HANDLE herr = procDupInheritable(srcerr);
 
-    // DETACHED_PROCESS conflicts with handing over std handles, and all three have to be real
-    // for STARTF_USESTDHANDLES to describe a complete set.
-    bool usestd = !detached && hin && hout && herr;
+    // All three have to be real for STARTF_USESTDHANDLES to describe a complete set.
+    //
+    // The caller's own std handles are console handles more often than not, and those mean
+    // nothing to a child that is detached from the console or given a new one -- so they are
+    // only passed on when the child shares the caller's console. Redirected handles are plain
+    // files and work with any console arrangement, so they are always passed.
+    bool usestd = hin && hout && herr && (redirect || (!detached && !newconsole));
+
+    if (redirect && !usestd) {
+        // Launching anyway would quietly send the child's output somewhere it was not asked to
+        // go.
+        winMapLastError();
+        if (hin)
+            CloseHandle(hin);
+        if (hout)
+            CloseHandle(hout);
+        if (herr)
+            CloseHandle(herr);
+        if (devnull != INVALID_HANDLE_VALUE)
+            CloseHandle(devnull);
+        if (logfile != INVALID_HANDLE_VALUE)
+            CloseHandle(logfile);
+        xaFree(wcmd);
+        if (wenv)
+            xaFree(wenv);
+        if (wdir)
+            xaFree(wdir);
+        return NULL;
+    }
 
     STARTUPINFOEXW six;
     memset(&six, 0, sizeof(six));
@@ -556,6 +630,8 @@ Process* _procPlatformLaunch(strref exe, sa_string args, const ProcessOpts* opts
 
     if (devnull != INVALID_HANDLE_VALUE)
         CloseHandle(devnull);
+    if (logfile != INVALID_HANDLE_VALUE)
+        CloseHandle(logfile);
 
     xaFree(wcmd);
     if (wenv)
@@ -581,17 +657,6 @@ Process* _procPlatformLaunch(strref exe, sa_string args, const ProcessOpts* opts
     return Process(wproc);
 }
 
-// Cache a finished process's exit code on the handle, so it survives however long the caller
-// keeps asking.
-static void publishExit(Process* proc, DWORD code)
-{
-    mutexAcquire(&proc->lock);
-    proc->exitcode   = (int32)code;
-    proc->termsignal = 0;
-    atomicStore(bool, &proc->exited, true, Release);
-    mutexRelease(&proc->lock);
-}
-
 bool _procPlatformWait(Process* proc, int64 timeout)
 {
     WinProcess* wproc = objDynCast(WinProcess, proc);
@@ -604,7 +669,7 @@ bool _procPlatformWait(Process* proc, int64 timeout)
 
     DWORD code = 0;
     if (GetExitCodeProcess(wproc->h, &code))
-        publishExit(proc, code);
+        _procPublishExit(proc, true, (int32)code, 0);
 
     return true;
 }
@@ -638,7 +703,7 @@ bool _procPlatformExitCode(Process* proc, int32* code)
     if (!GetExitCodeProcess(wproc->h, &raw))
         return winMapLastError();
 
-    publishExit(proc, raw);
+    _procPublishExit(proc, true, (int32)raw, 0);
     *code = (int32)raw;
     return true;
 }
@@ -693,7 +758,7 @@ static VOID CALLBACK procWaitCallback(PVOID param, BOOLEAN timedout)
 
     DWORD code = 0;
     if (GetExitCodeProcess(wproc->h, &code))
-        publishExit(proc, code);
+        _procPublishExit(proc, true, (int32)code, 0);
 
     _procWatchCompleted(proc);
 
@@ -707,19 +772,26 @@ bool _procWatchPlatformInit(void)
     return true;
 }
 
-bool _procWatchPlatformAdd(Process* proc)
+ProcWatchAddResult _procWatchPlatformAdd(Process* proc)
 {
     WinProcess* wproc = objDynCast(WinProcess, proc);
     if (!wproc || !wproc->h)
-        return false;
+        return PROCWATCH_Failed;
 
-    HANDLE wait = NULL;
-    if (!RegisterWaitForSingleObject(&wait, wproc->h, procWaitCallback, proc, INFINITE,
-                                     WT_EXECUTEONLYONCE))
-        return false;
+    // Works on any process handle with SYNCHRONIZE, child or not, and fires straight away for
+    // one that has already exited.
+    //
+    // The handle is written straight into the object rather than through a local: for a
+    // process that has already exited the callback can run, and look for the wait to remove,
+    // before a copy made after this call returned would have been stored.
+    wproc->wait = NULL;
+    if (!RegisterWaitForSingleObject(&wproc->wait, wproc->h, procWaitCallback, proc, INFINITE,
+                                     WT_EXECUTEONLYONCE)) {
+        wproc->wait = NULL;
+        return PROCWATCH_Failed;
+    }
 
-    wproc->wait = wait;
-    return true;
+    return PROCWATCH_Armed;
 }
 
 void _procWatchPlatformRemove(Process* proc)
@@ -732,8 +804,9 @@ void _procWatchPlatformRemove(Process* proc)
     wproc->wait = NULL;
 
     // INVALID_HANDLE_VALUE means "wait for a callback that is already running to finish", which
-    // would deadlock if this were called from inside that callback. It is not: removal happens
-    // on the watcher thread, or from a registration that failed before any callback could run.
+    // would deadlock if this were called from inside that callback, so that case does not wait.
+    // Waiting everywhere else is what keeps procNotifyCancel from releasing a process a
+    // callback on a pool thread is still using.
     UnregisterWaitEx(wait, (GetCurrentThreadId() == procWatchCallbackThread())
                                ? NULL
                                : INVALID_HANDLE_VALUE);

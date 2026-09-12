@@ -89,11 +89,15 @@ CX_C_BEGIN
 /// procRunning(), procWait() and procExitCode() keep answering correctly afterwards and never
 /// have to ask the operating system again.
 ///
+/// The same Unix rule applies to a launched child that something else in the program collected
+/// first, such as a SIGCHLD handler calling `waitpid(-1)`: cx knows it finished, but not how.
+///
 /// @section sys_process_notify Being told when a process exits
 ///
-/// procNotifyExit() registers a callback instead of blocking. It is delivered on a thread cx
-/// owns, one callback at a time, and never while any internal lock is held -- so a callback is
-/// free to register further watches, cancel them, or release the handle it was told about.
+/// procNotifyExit() registers a callback instead of blocking. It works for handles from both
+/// procLaunch() and procOpen(). It is delivered on a thread cx owns, one callback at a time, and
+/// never while any internal lock is held -- so a callback is free to register further watches,
+/// cancel them, or release the handle it was told about.
 ///
 /// Registering on a process that has **already** finished calls the closure immediately, on the
 /// calling thread, before returning. That is deliberate: it means there is no window between
@@ -102,7 +106,15 @@ CX_C_BEGIN
 ///
 /// The callback receives the process id and exit code rather than the Process itself. A caller
 /// that wants the object captures it in the closure and so decides its lifetime explicitly,
-/// instead of being handed a borrowed pointer whose validity depends on another thread.
+/// instead of being handed a borrowed pointer whose validity depends on another thread. Where
+/// the exit code cannot be known (see above), the callback receives PROC_ExitCodeUnknown.
+///
+/// A registered callback keeps the handle alive until the process exits, even after the caller
+/// releases it, so launching a process and forgetting it still delivers the callback. Call
+/// procNotifyCancel() to stop watching sooner.
+///
+/// Where no exit watcher is available -- WebAssembly, or Linux kernels older than 5.3 --
+/// procNotifyExit() returns false for a process that is still running, and takes no action.
 ///
 /// @section sys_process_shell No shell
 ///
@@ -117,6 +129,12 @@ typedef int64 ProcessID;
 
 /// A process id that does not refer to anything
 #define PROCESS_InvalidID ((ProcessID)-1)
+
+/// Exit code given to exit callbacks when a process finished but its exit code cannot be read
+///
+/// Only happens on Unix, for a process cx did not launch. Windows always reports the real code,
+/// which may itself be -1.
+#define PROC_ExitCodeUnknown ((int32)-1)
 
 /// One process in a snapshot of the running process list
 ///
@@ -267,6 +285,14 @@ ProcessID procCurrentID(void);
 typedef enum ProcStdioEnum {
     PROC_StdioInherit = 0,   ///< The child shares the caller's stdin, stdout and stderr
     PROC_StdioNull,          ///< The child's stdio is discarded (/dev/null, or NUL on Windows)
+
+    /// @brief The child's stdout and stderr both go to ProcessOpts::stdioPath
+    ///
+    /// The file is created if it does not exist and appended to if it does. Output from both
+    /// streams is written to the one file in the order it happens. Other programs can read the
+    /// file while the child writes to it, and on Windows can also rename or delete it. The
+    /// child's stdin is discarded, as with PROC_StdioNull.
+    PROC_StdioFile,
 } ProcStdio;
 
 /// Flags for procLaunch()
@@ -279,15 +305,26 @@ enum ProcLaunchFlags {
 
     /// @brief Windows: do not give the child a console window. Ignored elsewhere.
     PROC_NoWindow = 0x0004,
+
+    /// @brief Windows: give the child its own console window. Ignored elsewhere.
+    ///
+    /// Cannot be combined with PROC_Detached or PROC_NoWindow, on any platform. With
+    /// PROC_StdioInherit the child uses the new console for its stdin, stdout and stderr;
+    /// with the other stdio modes its output still goes where they send it.
+    PROC_NewConsole = 0x0008,
 };
 
 /// Options for procLaunch()
 ///
 /// Initialize with procOptsInit() and clean up with procOptsDestroy(). Passing NULL to
 /// procLaunch() instead inherits everything from the calling process.
+///
+/// Paths are ordinary cx paths, the same as the fs functions take. A relative path is
+/// relative to the caller's current directory.
 typedef struct ProcessOpts {
     string workdir;      ///< Directory to start the child in; empty inherits the caller's
     ProcStdio stdio;     ///< What to do with the child's stdin, stdout and stderr
+    string stdioPath;    ///< File for PROC_StdioFile; required in that mode, ignored otherwise
     hashtable env;       ///< Variables to set in the child, name to value
     sa_string envUnset;  ///< Variables to remove from the child
     flags_t flags;       ///< ProcLaunchFlags
@@ -345,7 +382,9 @@ void procOptsUnsetEnv(_Inout_ ProcessOpts* opts, _In_ strref name);
 /// @param exe Path to the executable to run
 /// @param args Arguments to pass, not counting the program name itself, which cx supplies
 /// @param opts Launch options, or NULL to inherit everything from this process
-/// @return A handle to the new process, or NULL if it could not be started; sets cxerr
+/// @return A handle to the new process, or NULL if it could not be started; sets cxerr. Fails
+///         with CX_InvalidArgument for conflicting options, and with a file error if
+///         PROC_StdioFile cannot open its file.
 ///
 /// Example:
 /// @code
@@ -470,15 +509,17 @@ bool procTerminate(_In_ Process* proc, bool force);
 /// Asks to be told when a process exits.
 ///
 /// The closure is called with the process id and its exit code:
-/// `closureCall(cls, stvar(int64, pid), stvar(int32, exitcode))`. Several callbacks can be
-/// registered on one process. If the process has already finished, the closure is called before
-/// this returns, on the calling thread.
+/// `closureCall(cls, stvar(int64, pid), stvar(int32, exitcode))`. The exit code is
+/// PROC_ExitCodeUnknown where it cannot be read. Several callbacks can be registered on one
+/// process. If the process has already finished, the closure is called before this returns, on
+/// the calling thread.
 ///
-/// Takes ownership of the closure; do not destroy it afterwards.
+/// Takes ownership of the closure, even when it returns false; do not destroy it afterwards.
 ///
 /// @param proc Process to watch
 /// @param cls Closure to call when it exits
-/// @return true if the closure was registered or already called
+/// @return true if the closure was registered or already called; false if the process cannot be
+///         watched, in which case the closure is destroyed without being called
 ///
 /// Example:
 /// @code
@@ -500,7 +541,8 @@ bool procNotifyExit(_In_ Process* proc, _In_ closure cls);
 /// callback touches is still in use. Calling it from inside an exit callback returns
 /// immediately instead, since waiting there would wait on itself forever.
 ///
-/// Releasing the last reference to a process does this automatically.
+/// For a process cx did not launch, this also stops watching it and lets go of the reference
+/// the watch was holding. Releasing the last reference to a process does this automatically.
 ///
 /// @param proc Process to stop watching
 ///

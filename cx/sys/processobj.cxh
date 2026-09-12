@@ -25,8 +25,15 @@
     /// Read with acquire ordering; everything published before it is then safe to read without
     /// the lock, which is how the exit status outlives the reap.
     atomic[bool] exited;
-    int32 exitcode;            ///< Valid once `exited` is set
+    int32 exitcode;            ///< Valid once `exited` is set; PROC_ExitCodeUnknown if `statusknown` is false
     int32 termsignal;          ///< Unix: signal that killed it, 0 if it exited normally
+    bool statusknown;          ///< Set with `exited` when a real exit status was collected
+
+    /// @brief Exit watcher registration id, 0 if never registered
+    ///
+    /// Ids are never reused, so a stale notification for a registration that was since
+    /// cancelled cannot be mistaken for a new one at the same address.
+    int64 watchid;
 
     string name;               ///< Cached, best-effort
     string exepath;            ///< Cached, best-effort

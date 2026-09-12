@@ -19,3 +19,7 @@ bool _procUnixSameProcess(Process* proc);
 // against another reading for the same pid, to notice that the id has been handed to a
 // different process. False if it cannot be read. Implemented per OS.
 bool _procUnixStartTime(ProcessID pid, int64* out);
+
+// Publish a status collected by waitpid() or equivalent on the handle, decoding a death by
+// signal into the shell's 128 + signal convention.
+void _procUnixPublishStatus(Process* proc, int status);

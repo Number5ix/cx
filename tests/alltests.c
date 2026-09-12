@@ -334,6 +334,12 @@ static const testspec tests[] = {
     { "process: Launch with working directory", "proctest", "launch_cwd" },
     { "process: Launch with discarded stdio", "proctest", "launch_stdionull" },
     { "process: Launch a missing program", "proctest", "launch_missing" },
+    { "process: Launch with output to a file", "proctest", "launch_stdiofile" },
+    { "process: Launch with an unusable output file", "proctest", "launch_stdiofile_bad" },
+    { "process: Launch with conflicting flags", "proctest", "launch_flagconflict" },
+#if defined(_PLATFORM_WIN)
+    { "process: Launch with a new console", "proctest", "launch_newconsole" },
+#endif
 #if defined(_PLATFORM_UNIX)
     { "process: Child inherits no descriptors", "proctest", "launch_fdsweep" },
 #endif
@@ -342,6 +348,10 @@ static const testspec tests[] = {
     { "process: Exit notification", "proctest", "notify_exit" },
     { "process: Notify on an already-exited process", "proctest", "notify_after_exit" },
     { "process: Many watched processes", "proctest", "many" },
+    { "process: Notify through an opened handle", "proctest", "notify_opened" },
+    { "process: Notify on a process that is not a child", "proctest", "notify_nonchild" },
+    { "process: Notify on an opened, already-exited process", "proctest", "notify_opened_exited" },
+    { "process: Cancel notify on an opened handle", "proctest", "notify_cancel_opened" },
 #endif
     { "sysinfo: Machine memory", "sysinfotest", "mem" },
     { "sysinfo: Machine processor time", "sysinfotest", "cpu" },

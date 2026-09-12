@@ -81,9 +81,9 @@ bool _procWatchPlatformInit(void)
     return false;
 }
 
-bool _procWatchPlatformAdd(Process* proc)
+ProcWatchAddResult _procWatchPlatformAdd(Process* proc)
 {
-    return false;
+    return PROCWATCH_Failed;
 }
 
 void _procWatchPlatformRemove(Process* proc)
