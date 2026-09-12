@@ -9,6 +9,7 @@
 #include "sys/processobj.h"
 // clang-format on
 // ==================== Auto-generated section ends ======================
+#include "process_private.h"
 
 _objinit_guaranteed bool Process_init(_In_ Process* self)
 {
@@ -23,6 +24,10 @@ _objinit_guaranteed bool Process_init(_In_ Process* self)
 
 void Process_destroy(_In_ Process* self)
 {
+    // Releasing one handle is a good moment to collect any other child that has finished, since
+    // a program that stops caring about one process is often done with several.
+    _procReapPending();
+
     // Autogen begins -----
     strDestroy(&self->name);
     strDestroy(&self->exepath);

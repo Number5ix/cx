@@ -371,6 +371,7 @@ add_test(NAME "\"vfs: Errors And Providers\"" COMMAND test_runner vfstest grp_mi
 add_test(NAME "\"process: Environment Variables\"" COMMAND test_runner proctest grp_env)
 if(NOT CX_PLATFORM_IS_WASM)
 add_test(NAME "\"process: Enumeration And Handles\"" COMMAND test_runner proctest grp_enum)
+add_test(NAME "\"process: Launch And Wait\"" COMMAND test_runner proctest grp_launch)
 endif()
 add_test(NAME "\"prqueue: Basic Pointer-Ring Queue\"" COMMAND test_runner prqtest basic)
 add_test(NAME "\"prqueue: Multithreaded Queue\"" COMMAND test_runner prqtest mt)

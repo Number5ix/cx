@@ -322,6 +322,17 @@ static const testspec tests[] = {
     { "process: Find by name", "proctest", "find_by_name" },
     { "process: Open by id", "proctest", "open_by_id" },
     { "process: Get info by id", "proctest", "getinfo_byid" },
+    { "process: Launch and exit code", "proctest", "launch_exit" },
+    { "process: Launch argument quoting", "proctest", "launch_args" },
+    { "process: Launch with environment override", "proctest", "launch_env" },
+    { "process: Launch with working directory", "proctest", "launch_cwd" },
+    { "process: Launch with discarded stdio", "proctest", "launch_stdionull" },
+    { "process: Launch a missing program", "proctest", "launch_missing" },
+#if defined(_PLATFORM_UNIX)
+    { "process: Child inherits no descriptors", "proctest", "launch_fdsweep" },
+#endif
+    { "process: Wait timeout", "proctest", "wait_timeout" },
+    { "process: Terminate", "proctest", "terminate" },
 #endif
     { "prqueue: Basic Pointer-Ring Queue", "prqtest", "basic" },
     { "prqueue: Multithreaded Queue", "prqtest", "mt" },

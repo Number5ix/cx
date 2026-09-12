@@ -1,6 +1,7 @@
 #include "process_private.h"
 
 #include <cx/container/foreach.h>
+#include <cx/thread/atomic.h>
 #include <cx/debug/error.h>
 #include <cx/string.h>
 
@@ -130,6 +131,103 @@ bool procGetInfo(ProcessInfo* out, Process* proc, flags_t flags)
         return false;
 
     return _procPlatformGetInfo(out, proc->pid, flags);
+}
+
+_Use_decl_annotations_
+void procOptsInit(ProcessOpts* opts)
+{
+    memset(opts, 0, sizeof(ProcessOpts));
+
+#if defined(_PLATFORM_WIN)
+    // Windows variable names are case-insensitive, so PATH and Path have to collapse to a single
+    // override here exactly as they do in the real environment. Handing the child a block
+    // containing both would be malformed.
+    htInit(&opts->env, string, string, 8, HT_CaseInsensitive);
+#else
+    htInit(&opts->env, string, string, 8);
+#endif
+
+    saInit(&opts->envUnset, string, 4);
+}
+
+_Use_decl_annotations_
+void procOptsDestroy(ProcessOpts* opts)
+{
+    strDestroy(&opts->workdir);
+    htDestroy(&opts->env);
+    saDestroy(&opts->envUnset);
+}
+
+_Use_decl_annotations_
+void procOptsSetEnv(ProcessOpts* opts, strref name, strref val)
+{
+    if (strEmpty(name))
+        return;
+
+    htInsert(&opts->env, strref, name, strref, val ? val : _SL(""));
+}
+
+_Use_decl_annotations_
+void procOptsUnsetEnv(ProcessOpts* opts, strref name)
+{
+    if (strEmpty(name))
+        return;
+
+    saPush(&opts->envUnset, strref, name);
+}
+
+_Use_decl_annotations_
+Process* procLaunch(strref exe, sa_string args, ProcessOpts* opts)
+{
+    if (strEmpty(exe)) {
+        cxerr = CX_InvalidArgument;
+        return NULL;
+    }
+
+    // Collect anything that finished since the last call. Launching is the most reliable moment
+    // to do this: a program that starts processes is the one accumulating them.
+    _procReapPending();
+
+    return _procPlatformLaunch(exe, args, opts);
+}
+
+_Use_decl_annotations_
+bool procWait(Process* proc, int64 timeout)
+{
+    if (!proc)
+        return false;
+
+    if (atomicLoad(bool, &proc->exited, Acquire))
+        return true;
+
+    return _procPlatformWait(proc, timeout);
+}
+
+_Use_decl_annotations_
+bool procExitCode(Process* proc, int32* code)
+{
+    if (!proc)
+        return false;
+
+    _procReapPending();
+
+    // Cached on the handle the moment the outcome became known, so this keeps answering long
+    // after the process itself is gone.
+    if (atomicLoad(bool, &proc->exited, Acquire)) {
+        *code = proc->exitcode;
+        return true;
+    }
+
+    return _procPlatformExitCode(proc, code);
+}
+
+_Use_decl_annotations_
+bool procTerminate(Process* proc, bool force)
+{
+    if (!proc)
+        return false;
+
+    return _procPlatformTerminate(proc, force);
 }
 
 _Use_decl_annotations_

@@ -64,6 +64,25 @@ CX_C_BEGIN
 /// of them is exactly the pattern endpoint security products flag, so it is opt-in through
 /// PROC_EnumFullPath rather than always on.
 ///
+/// @section sys_process_exitcode Exit codes
+///
+/// procWait() and procRunning() work for any process on every platform. Reading an exit *code*
+/// with procExitCode() is the one place the platforms genuinely differ: on Unix only a process's
+/// own parent can collect its exit status, so a process reached through procOpen() rather than
+/// procLaunch() cannot report one. There procExitCode() returns false and sets cxerr to
+/// CX_NotSupported. Windows has no such restriction. A process cx launched itself reports its
+/// exit code everywhere.
+///
+/// Once a launched process has finished, its exit code is remembered on the handle, so
+/// procRunning(), procWait() and procExitCode() keep answering correctly afterwards and never
+/// have to ask the operating system again.
+///
+/// @section sys_process_shell No shell
+///
+/// procLaunch() runs an executable directly and never goes through a shell, so nothing in the
+/// arguments is expanded, redirected or split. On Windows that means a `.bat` or `.cmd` file
+/// cannot be launched on its own -- run `cmd.exe` with `/c` and the script as arguments.
+///
 /// @}
 
 /// Operating system process id
@@ -217,6 +236,105 @@ bool procGetInfo(_Inout_ ProcessInfo* out, _In_ Process* proc, flags_t flags);
 /// @endcode
 ProcessID procCurrentID(void);
 
+/// Where a launched process's standard input, output and error go
+typedef enum ProcStdioEnum {
+    PROC_StdioInherit = 0,   ///< The child shares the caller's stdin, stdout and stderr
+    PROC_StdioNull,          ///< The child's stdio is discarded (/dev/null, or NUL on Windows)
+} ProcStdio;
+
+/// Flags for procLaunch()
+enum ProcLaunchFlags {
+    /// @brief Put the child in its own session so it outlives the caller
+    PROC_Detached = 0x0001,
+
+    /// @brief Give the child its own process group, so it can be signalled as a group
+    PROC_NewGroup = 0x0002,
+
+    /// @brief Windows: do not give the child a console window. Ignored elsewhere.
+    PROC_NoWindow = 0x0004,
+};
+
+/// Options for procLaunch()
+///
+/// Initialize with procOptsInit() and clean up with procOptsDestroy(). Passing NULL to
+/// procLaunch() instead inherits everything from the calling process.
+typedef struct ProcessOpts {
+    string workdir;      ///< Directory to start the child in; empty inherits the caller's
+    ProcStdio stdio;     ///< What to do with the child's stdin, stdout and stderr
+    hashtable env;       ///< Variables to set in the child, name to value
+    sa_string envUnset;  ///< Variables to remove from the child
+    flags_t flags;       ///< ProcLaunchFlags
+} ProcessOpts;
+
+/// Initializes launch options to "inherit everything".
+///
+/// @param opts Options to initialize
+///
+/// Example:
+/// @code
+///   ProcessOpts opts;
+///   procOptsInit(&opts);
+/// @endcode
+void procOptsInit(_Out_ ProcessOpts* opts);
+
+/// Releases everything inside a ProcessOpts, leaving the struct itself in place.
+///
+/// @param opts Options to clean up
+///
+/// Example:
+/// @code
+///   procOptsDestroy(&opts);
+/// @endcode
+void procOptsDestroy(_Inout_ ProcessOpts* opts);
+
+/// Sets an environment variable in the child, on top of what it inherits.
+///
+/// @param opts Options to modify
+/// @param name Variable name
+/// @param val Value to give it; NULL or empty gives the child an empty variable
+///
+/// Example:
+/// @code
+///   procOptsSetEnv(&opts, _SL("CX_MODE"), _SL("fast"));
+/// @endcode
+void procOptsSetEnv(_Inout_ ProcessOpts* opts, _In_ strref name, _In_opt_ strref val);
+
+/// Removes an inherited environment variable from the child.
+///
+/// This is separate from procOptsSetEnv() with an empty value, because removing a variable and
+/// setting it to nothing are different things to the program that reads it.
+///
+/// @param opts Options to modify
+/// @param name Variable name
+///
+/// Example:
+/// @code
+///   procOptsUnsetEnv(&opts, _SL("LD_PRELOAD"));
+/// @endcode
+void procOptsUnsetEnv(_Inout_ ProcessOpts* opts, _In_ strref name);
+
+/// Launches a program.
+///
+/// @param exe Path to the executable to run
+/// @param args Arguments to pass, not counting the program name itself, which cx supplies
+/// @param opts Launch options, or NULL to inherit everything from this process
+/// @return A handle to the new process, or NULL if it could not be started; sets cxerr
+///
+/// Example:
+/// @code
+///   sa_string args;
+///   saInit(&args, string, 2);
+///   saPush(&args, string, _SL("--verbose"));
+///
+///   Process* proc = procLaunch(_SL("/usr/bin/tool"), args, NULL);
+///   if (proc) {
+///       procWait(proc, timeForever);
+///       procRelease(&proc);
+///   }
+///   saDestroy(&args);
+/// @endcode
+_Ret_opt_valid_ Process* procLaunch(_In_ strref exe, sa_string args, _In_opt_ ProcessOpts* opts);
+
 /// Attaches to a process that is already running.
 ///
 /// @param pid Process to attach to
@@ -268,6 +386,59 @@ ProcessID procID(_In_ Process* proc);
 ///   }
 /// @endcode
 bool procRunning(_In_ Process* proc);
+
+/// Waits for a process to finish.
+///
+/// @param proc Process handle
+/// @param timeout How long to wait, in microseconds; timeForever waits indefinitely
+/// @return true if the process has finished, false if the timeout ran out first
+///
+/// Example:
+/// @code
+///   if (!procWait(proc, timeS(5))) {
+///       // still running after five seconds
+///       procTerminate(proc, false);
+///   }
+/// @endcode
+bool procWait(_In_ Process* proc, int64 timeout);
+
+/// Reads the exit code of a finished process.
+///
+/// Only meaningful once the process has finished. See the overview for the one case this
+/// cannot answer: a process on Unix that cx did not launch itself.
+///
+/// @param proc Process handle
+/// @param code Receives the exit code
+/// @return true if an exit code is available; sets cxerr to CX_NotSupported where it can
+///         never be
+///
+/// Example:
+/// @code
+///   int32 code;
+///   procWait(proc, timeForever);
+///   if (procExitCode(proc, &code)) {
+///       // the process exited with 'code'
+///   }
+/// @endcode
+bool procExitCode(_In_ Process* proc, _Out_ int32* code);
+
+/// Asks a process to stop, or forces it to.
+///
+/// A polite request lets the process shut down on its own terms and can be ignored; a forced
+/// stop cannot be caught and gives the process no chance to clean up.
+///
+/// @param proc Process handle
+/// @param force false asks the process to stop (SIGTERM); true kills it outright (SIGKILL, or
+///              TerminateProcess on Windows, which is always immediate)
+/// @return true if the request was delivered
+///
+/// Example:
+/// @code
+///   procTerminate(proc, false);
+///   if (!procWait(proc, timeS(5)))
+///       procTerminate(proc, true);
+/// @endcode
+bool procTerminate(_In_ Process* proc, bool force);
 
 /// Reads the name of the process a handle refers to.
 ///

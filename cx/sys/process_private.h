@@ -16,6 +16,28 @@ bool _procPlatformEnum(sa_ProcessInfo* out, flags_t flags);
 // process does not exist.
 bool _procPlatformGetInfo(ProcessInfo* out, ProcessID pid, flags_t flags);
 
+// Launch a program. Returns NULL and sets cxerr if it could not be started -- including when
+// the executable itself failed to start, which the Unix backend learns through an error pipe
+// rather than by discovering a child that immediately died.
+_Ret_opt_valid_ Process* _procPlatformLaunch(strref exe, sa_string args, const ProcessOpts* opts);
+
+// Wait for a process to finish, up to timeout microseconds. Only called when the outcome is not
+// already cached on the object.
+bool _procPlatformWait(Process* proc, int64 timeout);
+
+// Ask a process to stop (force = false) or kill it outright (force = true).
+bool _procPlatformTerminate(Process* proc, bool force);
+
+// Report the exit code for a process whose status is not already cached. Platforms that can
+// never answer for this process -- Unix, for anything cx did not fork -- set CX_NotSupported so
+// the caller can tell "cannot know" from "not finished yet".
+bool _procPlatformExitCode(Process* proc, int32* code);
+
+// Collect any launched children that have finished and cache their status on their handles.
+// Called from procLaunch, procWait and Process destroy. Until the watcher lands, this is the
+// only thing that reaps, so a finished child stays a zombie until the next process API call.
+void _procReapPending(void);
+
 // Attach to an already-running process. Returns NULL and sets cxerr on failure.
 _Ret_opt_valid_ Process* _procPlatformOpen(ProcessID pid);
 

@@ -38,6 +38,36 @@ bool _procPlatformRunning(Process* proc)
 }
 
 _Use_decl_annotations_
+Process* _procPlatformLaunch(strref exe, sa_string args, const ProcessOpts* opts)
+{
+    cxerr = CX_NotSupported;
+    return NULL;
+}
+
+bool _procPlatformWait(Process* proc, int64 timeout)
+{
+    cxerr = CX_NotSupported;
+    return false;
+}
+
+bool _procPlatformTerminate(Process* proc, bool force)
+{
+    cxerr = CX_NotSupported;
+    return false;
+}
+
+bool _procPlatformExitCode(Process* proc, int32* code)
+{
+    cxerr = CX_NotSupported;
+    return false;
+}
+
+void _procReapPending(void)
+{
+    // Nothing is ever launched here, so there is nothing to collect.
+}
+
+_Use_decl_annotations_
 ProcessID procCurrentID(void)
 {
     // Emscripten does provide a pid, and it is the one thing here with a real answer.

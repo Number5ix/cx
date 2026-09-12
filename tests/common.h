@@ -98,12 +98,21 @@ typedef struct {
 
 extern testfunc TEST_FUNCS[];
 
+// The argc/argv this test file was invoked with, saved so a subtest can see them -- the
+// testfunc signature takes no arguments. Needed by tests that re-run the test runner as a
+// child process and have to check what arguments actually arrived.
+static int cxTestArgc;
+static char **cxTestArgv;
+
 int TEST_FILE(int argc, char *argv[])
 {
     char buf[64];
     testfunc *f;
     char *t = 0;
     int ntests = 0, testnum = 0;
+
+    cxTestArgc = argc;
+    cxTestArgv = argv;
 
     if (argc < 2) {
         printf("Available tests:\n");
