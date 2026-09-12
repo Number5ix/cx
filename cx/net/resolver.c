@@ -53,32 +53,35 @@ static _meta_inline void netResolverInit(void)
     lazyInit(&netResolverInitState, netResolverInitFunc, NULL);
 }
 
-// One pending resolution. Heap-allocated so it outlives the netsocketConnect() call and is freed by
-// the task once the callback has run.
-typedef struct NetResolveReq {
-    string host;
-    uint16 port;
-    NetResolveCB cb;
-    void* ctx;
-} NetResolveReq;
-
-// Runs on a resolver worker thread. Does the (blocking) platform lookup, hands the result to the
-// callback -- which feeds it back into the connect state machine, never runs application code
-// inline -- then frees the request.
-static bool netResolveTask(TaskQueue* tq, void* data)
+// Runs on a resolver worker thread. Does the (blocking) platform lookup, then hands the result to
+// the callback -- which feeds it back into the connect state machine, never runs application code
+// inline.
+//
+// The pending request is the closure's captured environment: the host string is copied into it at
+// capture and destroyed with it, so nothing here outlives the call and there is nothing to free.
+// Keys rather than positions because this is nowhere near a hot path and a keyed capture cannot be
+// silently re-bound by inserting another one.
+static bool netResolveTask(stvlist* cvars, stvlist* args)
 {
-    unused_noeval(tq);
-    NetResolveReq* req = (NetResolveReq*)data;
+    unused_noeval(args);
+
+    strref host = 0;
+    uint16 port = 0;
+    stvlFind(*cvars, host, strref, &host);
+    stvlFind(*cvars, port, uint16, &port);
+    NetResolveCB cb = (NetResolveCB)stvlFindPtr(*cvars, cb);
+    void* ctx       = stvlFindPtr(*cvars, ctx);
+
+    if (!cb)
+        return false;
 
     sa_NetAddr addrs;
     saInit(&addrs, NetAddr, 4);
 
-    NetErrorCode err = netPlatformResolve(req->host, req->port, &addrs);
-    req->cb(&addrs, err, req->ctx);
+    NetErrorCode err = netPlatformResolve(host, port, &addrs);
+    cb(&addrs, err, ctx);
 
     saDestroy(&addrs);
-    strDestroy(&req->host);
-    xaFree(req);
     return err == NERR_None;
 }
 
@@ -89,16 +92,10 @@ bool _netResolveSubmit(strref host, uint16 port, NetResolveCB cb, void* ctx)
     if (!netResolverQ)
         return false;
 
-    NetResolveReq* req = xaAlloc(sizeof(NetResolveReq), XA_Zero);
-    strDup(&req->host, host);
-    req->port = port;
-    req->cb   = cb;
-    req->ctx  = ctx;
-
-    if (!tqCall(netResolverQ, netResolveTask, req)) {
-        strDestroy(&req->host);
-        xaFree(req);
-        return false;
-    }
-    return true;
+    // tqCall owns the closure on both outcomes, so a queue that refuses the task still releases
+    // the captured host string.
+    return tqCall(netResolverQ,
+                  closureCreate(netResolveTask, stvark(host, strref, host),
+                                stvark(port, uint16, port), stvark(cb, ptr, (void*)cb),
+                                stvark(ctx, ptr, ctx)));
 }

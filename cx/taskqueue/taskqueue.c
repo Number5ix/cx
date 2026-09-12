@@ -150,9 +150,9 @@ TaskQueue* tqCreate(strref name, const TaskQueueConfig* tqconfig)
 }
 
 _Use_decl_annotations_
-bool tqCall(TaskQueue* tq, UserTaskCB func, void* userdata)
+bool tqCall(TaskQueue* tq, closure cls)
 {
-    UserFuncTask* task = userfunctaskCreate(func, userdata);
+    UserFuncTask* task = userfunctaskCreate(cls);
     bool ret           = tqAdd(tq, task);
     objRelease(&task);
     return ret;

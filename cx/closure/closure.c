@@ -64,6 +64,12 @@ intptr _closureCompare(_In_ closure cls1, _In_ closure cls2)
 _Use_decl_annotations_
 void closureDestroy(closure* cls)
 {
+    // Tolerating an unset closure is what lets cxautogen emit an unconditional call to this in
+    // the destructor of any class with a closure member, without every such class having to
+    // guarantee the field was ever assigned.
+    if (!cls || !*cls)
+        return;
+
     Closure* c = (Closure*)(*cls);
 
     for (int i = c->nvars - 1; i >= 0; --i) {

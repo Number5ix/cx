@@ -3478,10 +3478,11 @@ static bool h3tqBurst(_Inout_ H3TqTask* t, uint32 round)
     return ok;
 }
 
-static bool h3tqTaskRun(TaskQueue* tq, void* data)
+static bool h3tqTaskRun(stvlist* cvars, stvlist* args)
 {
-    H3TqTask* t = (H3TqTask*)data;
-    unused_noeval(tq);
+    // Borrowed: the task array is owned by the test frame, which outlives every task.
+    H3TqTask* t = (H3TqTask*)stvlNextPtr(cvars);
+    unused_noeval(args);
 
     // Every task waits here until the test lets them all go, so the first burst arrives at a
     // client that has spoken to neither origin from four threads at once rather than one.
@@ -3556,7 +3557,7 @@ int test_http3test_tqparallel(void)
     for (uint32 i = 0; i < H3TQ_TASKS; i++) {
         tasks[i].par = &par;
         tasks[i].id  = i;
-        if (!tqCall(tq, h3tqTaskRun, &tasks[i]))
+        if (!tqCall(tq, closureCreate(h3tqTaskRun, stvar(ptr, &tasks[i]))))
             break;
         started++;
     }

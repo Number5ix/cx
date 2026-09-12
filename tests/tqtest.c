@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <cx/string.h>
+#include <cx/string/strtest.h>
 #include <cx/taskqueue.h>
 #include <cx/log/logmembuf.h>
 #include <cx/container/foreach.h>
@@ -250,9 +251,12 @@ static int test_tqtest_concurrency_dedicated(void)
     return test_tqtest_concurrency(true);
 }
 
-static bool tqtest_callcb(TaskQueue *tq, void *data)
+static bool tqtest_callcb(stvlist *cvars, stvlist *args)
 {
-    atomicFetchAdd(intptr, &accum1, (intptr)data, Relaxed);
+    intptr num = 0;
+    stvlNext(cvars, intptr, &num);
+
+    atomicFetchAdd(intptr, &accum1, num, Relaxed);
     atomicFetchAdd(intptr, &accum2, 1, AcqRel);
     eventSignal(&notifyev);
     return true;
@@ -278,7 +282,7 @@ static int test_tqtest_call(void)
     for(int i = 0; i < NUM_CALL_TEST; i++) {
         intptr rnum = rand() % 255;
         total += rnum;
-        tqCall(q, tqtest_callcb, (void *)rnum);
+        tqCall(q, closureCreate(tqtest_callcb, stvar(intptr, rnum)));
     }
 
     int64 timeStart = clockTimer();
@@ -1107,12 +1111,78 @@ static int test_tqtest_timeout(void) {
     return ret;
 }
 
+static bool tqtest_capturecb(stvlist *cvars, stvlist *args)
+{
+    unused_noeval(args);
+    strref captured = 0;
+    stvlNext(cvars, strref, &captured);
+    atomicFetchAdd(intptr, &accum2, 1, AcqRel);
+    return !strEmpty(captured);
+}
+
+// A closure handed to tqCall is owned by the queue from that moment, whether or not the task ever
+// runs. The refcount on a captured string is the visible proof: it goes back to 1 after the task
+// runs, and equally after a queue is torn down with the task still sitting in it. That second case
+// is the one with no other way out -- tqCall has already returned by then, so nothing else is in a
+// position to free what the callback would have carried.
+static int test_tqtest_capture(void)
+{
+    int ret = 0;
+
+    string captured = 0;
+    strCopy(&captured, _S"tqCall capture");
+
+    TaskQueueConfig conf = { 0 };
+    conf.flags           = TQ_Manual;
+    TaskQueue* q         = tqCreate(_S"Test", &conf);
+    if (!q || !tqStart(q))
+        TEST_FAIL(1, _SL("!q || !tqStart(q)"), stvNone);
+
+    atomicStore(intptr, &accum2, 0, Relaxed);
+
+    // ran to completion: the queue releases the closure once the task is done with it
+    if (!tqCall(q, closureCreate(tqtest_capturecb, stvar(string, captured))))
+        TEST_FAILV(ret, 1, _SL("tqCall failed"), stvNone);
+    if (strTestRefCount(captured) != 2)
+        TEST_FAILV(ret, 1, _SL("captured refcount=${int} after tqCall (want 2)"),
+                   stvar(int32, strTestRefCount(captured)));
+
+    tqTick(q);
+    if (atomicLoad(intptr, &accum2, Acquire) != 1)
+        TEST_FAILV(ret, 1, _SL("callback ran ${int} times (want 1)"),
+                   stvar(int32, (int32)atomicLoad(intptr, &accum2, Acquire)));
+    if (strTestRefCount(captured) != 1)
+        TEST_FAILV(ret, 1, _SL("captured refcount=${int} after the task ran (want 1)"),
+                   stvar(int32, strTestRefCount(captured)));
+
+    // never ticked: torn down with the task still queued, and the capture still comes back
+    if (!tqCall(q, closureCreate(tqtest_capturecb, stvar(string, captured))))
+        TEST_FAILV(ret, 1, _SL("second tqCall failed"), stvNone);
+    if (strTestRefCount(captured) != 2)
+        TEST_FAILV(ret, 1, _SL("captured refcount=${int} after second tqCall (want 2)"),
+                   stvar(int32, strTestRefCount(captured)));
+
+    tqShutdown(q, timeS(60));
+    tqRelease(&q);
+
+    if (atomicLoad(intptr, &accum2, Acquire) != 1)
+        TEST_FAILV(ret, 1, _SL("callback ran ${int} times after shutdown (want 1)"),
+                   stvar(int32, (int32)atomicLoad(intptr, &accum2, Acquire)));
+    if (strTestRefCount(captured) != 1)
+        TEST_FAILV(ret, 1, _SL("captured refcount=${int} after queue teardown (want 1)"),
+                   stvar(int32, strTestRefCount(captured)));
+
+    strDestroy(&captured);
+    return ret;
+}
+
 testfunc tqtest_funcs[] = {
     {"task",                   test_tqtest_task                 },
     { "failure",               test_tqtest_failure              },
     { "concurrency_inworker",  test_tqtest_concurrency_inworker },
     { "concurrency_dedicated", test_tqtest_concurrency_dedicated},
     { "call",                  test_tqtest_call                 },
+    { "capture",               test_tqtest_capture              },
     { "sched",                 test_tqtest_sched                },
     { "monitor_inworker",      test_tqtest_monitor_inworker     },
     { "monitor_dedicated",     test_tqtest_monitor_dedicated    },

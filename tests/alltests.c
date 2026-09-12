@@ -819,6 +819,7 @@ static const testspec tests[] = {
     { "taskqueue: Concurrency (in-worker)", "tqtest", "concurrency_inworker" },
     { "taskqueue: Concurrency (dedicated)", "tqtest", "concurrency_dedicated" },
     { "taskqueue: Call", "tqtest", "call" },
+    { "taskqueue: Call Capture Ownership", "tqtest", "capture" },
     { "taskqueue: Scheduled Tasks", "tqtest", "sched" },
     { "taskqueue: Monitor (in-worker)", "tqtest", "monitor_inworker" },
     { "taskqueue: Monitor (dedicated)", "tqtest", "monitor_dedicated" },

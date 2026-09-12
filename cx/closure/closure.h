@@ -99,10 +99,11 @@ _Ret_valid_ closure closureClone(_In_ closure cls);
 
 /// Destroy a closure and release its resources
 ///
-/// Frees the closure and all captured variables. Sets the closure pointer to NULL.
+/// Frees the closure and all captured variables. Sets the closure pointer to NULL. Does nothing
+/// if the closure was never created.
 ///
-/// @param cls Pointer to closure to destroy
-void closureDestroy(_Inout_ptr_uninit_ closure* cls);
+/// @param cls Pointer to closure to destroy (may be NULL or point to NULL)
+void closureDestroy(_Inout_opt_ closure* _Nullable cls);
 
 /// @}
 // end of closure_basic group

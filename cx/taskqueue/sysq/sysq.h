@@ -33,8 +33,8 @@
 ///   MyTask *delayed = myTaskCreate();
 ///   sysqSchedule(delayed, timeFromSeconds(5));
 ///
-///   // Run a simple function
-///   sysqCall(myCallback, userData);
+///   // Run a simple function, with whatever it needs captured alongside it
+///   sysqCall(closureCreate(myCallback, stvark(path, string, filename)));
 /// @endcode
 
 #pragma once
@@ -97,18 +97,15 @@ bool _sysqDefer(_In_ ComplexTask* task);
 /// @return true if the task was successfully deferred, false on failure
 #define sysqDefer(task) _sysqDefer(ComplexTask(task))
 
-/// Run a custom function on a worker thread
+/// Run a closure on a worker thread
 ///
-/// Executes a simple callback function on one of the system queue's worker threads without
-/// requiring a full task object. This is convenient for simple asynchronous operations.
+/// Runs a closure on one of the system queue's worker threads without requiring a full task
+/// object. This is convenient for simple asynchronous operations. As tqCall(), including that
+/// the closure is owned by the queue from here on and must not be destroyed by the caller.
 ///
-/// The callback is executed on a thread from the system queue's worker pool. The userdata
-/// pointer is passed through to the callback.
-///
-/// @param func Callback function to execute
-/// @param userdata Optional user data pointer passed to the callback
-/// @return true if the callback was successfully queued, false on failure
-bool sysqCall(_In_ UserTaskCB func, _In_opt_ void* userdata);
+/// @param cls Closure to execute; ownership passes to the queue
+/// @return true if the task was queued successfully
+bool sysqCall(_In_ closure cls);
 
 /// @}
 // end of taskqueue_sysq group

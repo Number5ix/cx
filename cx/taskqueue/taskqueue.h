@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cx/closure/closure.h>
 #include <cx/cx.h>
 #include <cx/log/log.h>
 #include <cx/taskqueue/queue/tqcomplex.h>
@@ -171,22 +172,27 @@ _meta_inline bool _tqDefer(_Inout_ TaskQueue* tq, _In_ ComplexTask* task)
 /// @return true if task was deferred successfully
 #define tqDefer(tq, task) _tqDefer(tq, ComplexTask(task))
 
-/// Generic callback mechanism for basic use that doesn't need to create classes.
-/// The callback should return true for success, false for failure.
-/// @param tq Task queue the callback is running on
-/// @param data User-provided data pointer
-/// @return true for success, false for failure
-typedef bool (*UserTaskCB)(TaskQueue* tq, void* data);
-
-/// bool tqCall(TaskQueue *tq, UserTaskCB func, void *userdata)
+/// Runs a closure on a thread in a task queue's worker pool.
 ///
-/// Runs a custom function on a thread in a task queue's worker pool.
-/// This is a simplified interface for cases where creating a task class is overkill.
-/// @param tq Task queue to run callback on
-/// @param func Callback function to execute
-/// @param userdata Optional data pointer passed to callback
-/// @return true if callback task was queued successfully
-bool tqCall(_Inout_ TaskQueue* tq, _In_ UserTaskCB func, _In_opt_ void* userdata);
+/// A simplified interface for cases where creating a task class is overkill. The closure is
+/// called with the queue it is running on: `closureCall(cls, stvar(object, tq))`. Returning
+/// false from it marks the task failed.
+///
+/// Anything the closure needs is captured when it is created, and released with it, so there
+/// is no separate context pointer to clean up:
+///
+/// @code
+///   tqCall(tq, closureCreate(myWork, stvark(path, string, filename)));
+/// @endcode
+///
+/// Takes ownership of the closure whatever happens: it is destroyed once the task has run, when
+/// the task is cancelled or the queue shuts down without running it, and before this returns if
+/// the task could not be queued at all. Do not destroy it afterwards.
+///
+/// @param tq Task queue to run the closure on
+/// @param cls Closure to execute; ownership passes to the queue
+/// @return true if the task was queued successfully
+bool tqCall(_Inout_ TaskQueue* tq, _In_ closure cls);
 
 /// int32 tqWorkers(TaskQueue *tq)
 ///

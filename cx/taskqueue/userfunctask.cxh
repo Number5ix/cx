@@ -2,8 +2,7 @@
 #include <cx/taskqueue/taskqueue.h>
 
 class UserFuncTask extends BasicTask {
-    UserTaskCB func;
-    void *udata;
+    closure cls;
 
-    factory create(UserTaskCB func, void *udata);
+    factory create(closure cls);
 }

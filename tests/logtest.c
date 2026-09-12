@@ -905,7 +905,7 @@ static void ctxtestmsg(const LogRecord* rec, void* userdata)
 
 static Event ctxtaskev;
 
-static bool ctxTaskFunc(TaskQueue* tq, void* data)
+static bool ctxTaskFunc(stvlist* cvars, stvlist* args)
 {
     // runs on a worker thread, but should still see the submitter's context
     logStr(Info, _S"from a task");
@@ -1069,7 +1069,7 @@ static int test_log_ctx()
     } else {
         withLogCtx(stvark(reqid, string, _S"task42"))
         {
-            tqCall(tq, ctxTaskFunc, NULL);
+            tqCall(tq, closureCreate(ctxTaskFunc, stvNone));
         }
         if (!eventWaitTimeout(&ctxtaskev, timeS(5)))
             TEST_FAILV_LOG(ret, 1, _SL("!eventWaitTimeout(&ctxtaskev, timeS(5))"), stvNone);

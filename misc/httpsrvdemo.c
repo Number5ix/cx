@@ -52,11 +52,13 @@ typedef struct DemoCtx {
 
 // Runs on a task queue worker, which is not the thread the request arrived on and not the thread
 // its connection is serviced by. Answering from here is the whole point of the demo.
-static bool slowWork(TaskQueue* tq, void* data)
+static bool slowWork(stvlist* cvars, stvlist* args)
 {
-    unused_noeval(tq);
+    unused_noeval(args);
 
-    HttpServerRequest* req = (HttpServerRequest*)data;
+    // Captured when the handler decided to defer, and released with the closure once this task is
+    // done with it -- which is what keeps the request alive in the meantime.
+    HttpServerRequest* req = stvlNextObj(cvars, HttpServerRequest);
 
     // Stand in for whatever the real work would be -- a database call, an image resize, a request
     // to something else. The connection is not blocked while this runs; it simply has no answer
@@ -76,8 +78,6 @@ static bool slowWork(TaskQueue* tq, void* data)
     httpsrvreqRespond(req, body, _SL("text/plain"));
     strDestroy(&body);
 
-    // The reference the handler took when it decided to defer.
-    objRelease(&req);
     return true;
 }
 
@@ -181,11 +181,8 @@ static void onRequest(HttpServerEvent* ev)
             return;
         }
 
-        objAcquire(req);
-        if (!tqCall(ctx->tq, slowWork, req)) {
+        if (!tqCall(ctx->tq, closureCreate(slowWork, stvar(object, req))))
             httpsrvreqRespondStatus(req, HTTP_ServiceUnavailable);
-            objRelease(&req);
-        }
         return;
     }
 

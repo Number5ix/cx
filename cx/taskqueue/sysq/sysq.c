@@ -50,8 +50,8 @@ bool _sysqDefer(ComplexTask* task)
 }
 
 _Use_decl_annotations_
-bool sysqCall(UserTaskCB func, void* userdata)
+bool sysqCall(closure cls)
 {
     sysqInit();
-    return tqCall(sysq, func, userdata);
+    return tqCall(sysq, cls);
 }

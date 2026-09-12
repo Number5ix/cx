@@ -10,13 +10,15 @@
 // clang-format on
 // ==================== Auto-generated section ends ======================
 
-_objfactory_guaranteed UserFuncTask* UserFuncTask_create(UserTaskCB func, void* udata)
+_objfactory_guaranteed UserFuncTask* UserFuncTask_create(closure cls)
 {
     UserFuncTask* self;
     self = objInstCreate(UserFuncTask);
 
-    self->func  = func;
-    self->udata = udata;
+    // Owned from here on, including if this task is cancelled or the queue shuts down without
+    // ever running it -- the generated destructor is what closes that path, and is the reason
+    // this holds a closure rather than a function pointer and a context to free by hand.
+    self->cls = cls;
 
     objInstInit(self);
 
@@ -26,7 +28,15 @@ _objfactory_guaranteed UserFuncTask* UserFuncTask_create(UserTaskCB func, void* 
 uint32 UserFuncTask_run(_In_ UserFuncTask* self, _In_ TaskQueue* tq, _In_ TQWorker* worker,
                         _Inout_ TaskControl* tcon)
 {
-    return (self->func && self->func(tq, self->udata)) ? TASK_Result_Success : TASK_Result_Failure;
+    return (self->cls && closureCall(self->cls, stvar(object, tq))) ? TASK_Result_Success
+                                                                    : TASK_Result_Failure;
+}
+
+void UserFuncTask_destroy(_In_ UserFuncTask* self)
+{
+    // Autogen begins -----
+    closureDestroy(&self->cls);
+    // Autogen ends -------
 }
 
 // Autogen begins -----
