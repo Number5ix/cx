@@ -1550,9 +1550,9 @@ static void rectestmsg(const LogRecord* rec, void* userdata)
     stvlist args;
     stvlInit(&args, rec->nargs, (stvar*)rec->args);
     string host = 0;
-    if (stvlFind(args, host, string, &host))
+    if (stvlFind(&args, host, string, &host))
         strDup(&rd->host, host);
-    rd->haveport = stvlFind(args, port, int32, &rd->port);
+    rd->haveport = stvlFind(&args, port, int32, &rd->port);
 }
 
 static int test_log_record()

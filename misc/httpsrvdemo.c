@@ -58,7 +58,7 @@ static bool slowWork(stvlist* cvars, stvlist* args)
 
     // Captured when the handler decided to defer, and released with the closure once this task is
     // done with it -- which is what keeps the request alive in the meantime.
-    HttpServerRequest* req = stvlNextObj(cvars, HttpServerRequest);
+    HttpServerRequest* req = stvlAtObj(cvars, 0, HttpServerRequest);
 
     // Stand in for whatever the real work would be -- a database call, an image resize, a request
     // to something else. The connection is not blocked while this runs; it simply has no answer

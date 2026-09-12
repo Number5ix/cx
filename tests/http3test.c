@@ -3481,7 +3481,7 @@ static bool h3tqBurst(_Inout_ H3TqTask* t, uint32 round)
 static bool h3tqTaskRun(stvlist* cvars, stvlist* args)
 {
     // Borrowed: the task array is owned by the test frame, which outlives every task.
-    H3TqTask* t = (H3TqTask*)stvlNextPtr(cvars);
+    H3TqTask* t = (H3TqTask*)stvlAtPtr(cvars, 0);
     unused_noeval(args);
 
     // Every task waits here until the test lets them all go, so the first burst arrives at a

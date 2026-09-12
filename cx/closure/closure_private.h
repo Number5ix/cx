@@ -5,7 +5,12 @@
 #include "closure.h"
 
 typedef struct Closure {
-    closureFunc func;
+    // Type-erased: a closureFunc for a generic closure, or whatever signature it was created
+    // with for a typed one. Only ever called through a cast back to the type in `sig`.
+    void (*func)(void);
+    // NULL for a generic closure, otherwise the name of the typed signature it was created with.
+    // Checked on every call in debug builds, since the call-site cast cannot be.
+    const char* sig;
     int nvars;
     stvar cvars[];
 } Closure;

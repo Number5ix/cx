@@ -837,6 +837,54 @@ void* _stvlNextPtr(stvlist* list, stype type);
 /// @endcode
 void stvlRewind(stvlist* list);
 
+stgeneric _stvlAt(_In_ stvlist* list, int idx, stype type);
+
+/// type stvlAt(stvlist *list, int idx, type)
+///
+/// Read a variant by position, without disturbing the walker.
+///
+/// Positions count from 0 and skip keyed variants, the same ones `stvlNext()` skips, so adding a
+/// keyed argument never shifts a positional one. The value is borrowed from the list: strings
+/// and objects read this way must not be destroyed or released. A type too large to fit in a
+/// variant, such as `suid`, comes back as a pointer to the stored value.
+///
+/// Use this where the position of each variant is fixed, such as the captured variables of a
+/// closure. A position that is out of range or holds a different type is a programming error,
+/// and yields zero. For optional arguments, use `stvlNext()`, which reports whether it found one.
+///
+/// @param list Pointer to list walker (not modified)
+/// @param idx Position among the unkeyed variants
+/// @param type Type of the variant at that position
+/// @return The stored value
+///
+/// Example:
+/// @code
+///   int32 limit = stvlAt(cvars, 1, int32);
+///   SUID *id    = stvlAt(cvars, 2, suid);
+/// @endcode
+#define stvlAt(list, idx, type) (_stvlAt((list), (idx), stType(type)).st_##type)
+
+/// void* stvlAtPtr(stvlist *list, int idx)
+///
+/// Read a `ptr` variant by position. As `stvlAt()`.
+///
+/// @param list Pointer to list walker (not modified)
+/// @param idx Position among the unkeyed variants
+/// @return The stored pointer
+#define stvlAtPtr(list, idx) (_stvlAt((list), (idx), stType(ptr)).st_ptr)
+
+/// ClassName* stvlAtObj(stvlist *list, int idx, ClassName)
+///
+/// Read an object variant by position and dynamic-cast it. As `stvlAt()`; the reference is
+/// borrowed.
+///
+/// @param list Pointer to list walker (not modified)
+/// @param idx Position among the unkeyed variants
+/// @param class Target class name for dynamic cast
+/// @return Typed object pointer, or NULL if incompatible
+#define stvlAtObj(list, idx, class) \
+    objDynCast(class, (ObjInst*)_stvlAt((list), (idx), stType(object)).st_object)
+
 /// @}
 
 /// @defgroup stvar_list_keyed Keyed Variant Lookup
@@ -852,9 +900,8 @@ void stvlRewind(stvlist* list);
 /// positional arguments, which arrive in a known order.
 ///
 /// Keys exist precisely so that order does not matter, so `stvlFind()` does the opposite:
-/// it scans the **whole list from the start** and **mutates nothing**. That is why it takes
-/// the `stvlist` **by value** rather than by pointer -- per the handle paradigm, passing by
-/// value at the call site is the visible signal that the walker's cursor is untouched.
+/// it scans the **whole list from the start** and **mutates nothing** -- the cursor is left
+/// exactly where it was.
 ///
 /// The two address the same argument list without interfering, in either order:
 ///
@@ -865,7 +912,7 @@ void stvlRewind(stvlist* list);
 ///       stvlInit(&list, count, args);
 ///
 ///       int32 timeout = 5000;                          // optional, keyed
-///       stvlFind(list, timeout, int32, &timeout);
+///       stvlFind(&list, timeout, int32, &timeout);
 ///
 ///       string required;                               // required, positional
 ///       if (stvlNext(&list, string, &required)) { ... }
@@ -887,17 +934,17 @@ void stvlRewind(stvlist* list);
 /// caught at compile time; debug builds assert on it, release builds take the first. Do
 /// not rely on the behaviour.
 
-/// bool stvlFind(stvlist list, key, type, type *pvar)
+/// bool stvlFind(stvlist *list, key, type, type *pvar)
 ///
 /// Find a variant by key name and type, without disturbing the walker.
 ///
 /// Scans the entire list from the beginning for a variant whose key matches `key` and
 /// whose type matches `type`, and copies its value to `pvar`. The cursor is not moved and
-/// the list is not modified -- the walker is taken by value.
+/// the list is not modified.
 ///
 /// The key is written as a bare token and stringized, matching `stvark()`.
 ///
-/// @param list Variant list walker (by value; not modified)
+/// @param list Pointer to list walker (not modified)
 /// @param key Key name as a bare token (not a string literal)
 /// @param type Expected type name
 /// @param pvar Pointer to storage receiving the value
@@ -906,62 +953,83 @@ void stvlRewind(stvlist* list);
 /// Example:
 /// @code
 ///   int32 ms;
-///   if (stvlFind(list, timeout, int32, &ms)) { ... }
+///   if (stvlFind(&list, timeout, int32, &ms)) { ... }
 /// @endcode
 #define stvlFind(list, key, type, pvar) _stvlFind(list, #key, stCheckedPtrArg(type, pvar))
-bool _stvlFind(stvlist list, const char* key, stype type, stgeneric* out);
+bool _stvlFind(_In_ stvlist* list, const char* key, stype type, stgeneric* out);
 
-/// void* stvlFindPtr(stvlist list, key)
+/// void* stvlFindPtr(stvlist *list, key)
 ///
 /// Find a pointer-typed variant by key name, without disturbing the walker.
 ///
 /// As `stvlFind()` for pointer-like types (`ptr`, objects, and PassPtr types). Returns
 /// the stored pointer directly.
 ///
-/// @param list Variant list walker (by value; not modified)
+/// @param list Pointer to list walker (not modified)
 /// @param key Key name as a bare token (not a string literal)
 /// @return Stored pointer, or NULL if no matching keyed variant exists
 ///
 /// Example:
 /// @code
-///   void *ctx = stvlFindPtr(list, context);
+///   void *ctx = stvlFindPtr(&list, context);
 /// @endcode
 #define stvlFindPtr(list, key) _stvlFindPtr(list, #key, stType(ptr))
-void* _stvlFindPtr(stvlist list, const char* key, stype type);
+void* _stvlFindPtr(_In_ stvlist* list, const char* key, stype type);
 
-/// ClassName* stvlFindObj(stvlist list, key, ClassName)
+/// ClassName* stvlFindObj(stvlist *list, key, ClassName)
 ///
 /// Find an object variant by key name and dynamic-cast it, without disturbing the walker.
 ///
 /// As `stvlFindPtr()`, but restricted to object variants and passed through `objDynCast`,
 /// so the result is NULL unless the object is compatible with the named class.
 ///
-/// @param list Variant list walker (by value; not modified)
+/// @param list Pointer to list walker (not modified)
 /// @param key Key name as a bare token (not a string literal)
 /// @param class Target class name for dynamic cast
 /// @return Typed object pointer, or NULL if not found or incompatible
 ///
 /// Example:
 /// @code
-///   Document *doc = stvlFindObj(list, source, Document);
+///   Document *doc = stvlFindObj(&list, source, Document);
 /// @endcode
 #define stvlFindObj(list, key, class) \
     objDynCast(class, (ObjInst*)_stvlFindPtr(list, #key, stType(object)))
 
-/// bool stvlHasKey(stvlist list, key)
+stgeneric _stvlFindVal(_In_ stvlist* list, const char* key, stype type);
+
+/// type stvlFindVal(stvlist *list, key, type)
+///
+/// Find a variant by key name and type, and return its value, without disturbing the walker.
+///
+/// As `stvlFind()`, but returns the value directly, or zero if there is no matching variant.
+/// Use `stvlFind()` when zero is a valid value and you need to tell it apart from a missing
+/// one. The value is borrowed from the list, as with `stvlAt()`.
+///
+/// @param list Pointer to list walker (not modified)
+/// @param key Key name as a bare token (not a string literal)
+/// @param type Expected type name
+/// @return The stored value, or zero if not found
+///
+/// Example:
+/// @code
+///   strref host = stvlFindVal(&list, host, strref);
+/// @endcode
+#define stvlFindVal(list, key, type) (_stvlFindVal(list, #key, stType(type)).st_##type)
+
+/// bool stvlHasKey(stvlist *list, key)
 ///
 /// Test whether a keyed variant exists, regardless of its type.
 ///
-/// @param list Variant list walker (by value; not modified)
+/// @param list Pointer to list walker (not modified)
 /// @param key Key name as a bare token (not a string literal)
 /// @return true if any variant in the list carries that key
 ///
 /// Example:
 /// @code
-///   if (stvlHasKey(list, verbose)) { ... }
+///   if (stvlHasKey(&list, verbose)) { ... }
 /// @endcode
 #define stvlHasKey(list, key) _stvlHasKey(list, #key)
-bool _stvlHasKey(stvlist list, const char* key);
+bool _stvlHasKey(_In_ stvlist* list, const char* key);
 
 /// @}
 

@@ -4,6 +4,8 @@
 #include <cx/suid/suid.h>
 #include <cx/ssdtree.h>
 #include <cx/string.h>
+#include <cx/string/strtest.h>
+#include "objtestobj.h"
 
 #define TEST_FILE stvartest
 #define TEST_FUNCS stvartest_funcs
@@ -222,11 +224,84 @@ static int test_nested()
     return ret;
 }
 
+// Positional and keyed reads that return the value directly. Keyed variants are interleaved with the
+// positional ones on purpose: positions must count only the unkeyed variants, so a keyed argument
+// added anywhere never shifts one.
+static int test_accessors()
+{
+    int ret = 0;
+
+    string str = 0;
+    strCopy(&str, _S"accessor");
+    int marker    = 0;
+    TestCls1* obj = testcls1Create();
+    obj->data     = 99;
+    SUID s1       = { .high = 0xdeadbeefcafef00dULL, .low = 0x0123456789abcdefULL };
+
+    stvar args[] = {
+        stvark(count, int32, 7),
+        stvar(int32, 42),
+        stvark(name, string, str),
+        stvar(string, str),
+        stvar(ptr, &marker),
+        stvark(obj, object, obj),
+        stvar(suid, s1),
+        stvar(object, obj),
+        stvark(where, ptr, &marker),
+    };
+    stvlist list;
+    stvlInit(&list, sizeof(args) / sizeof(args[0]), args);
+
+    // positional: keyed variants are skipped when counting
+    int32 num     = stvlAt(&list, 0, int32);
+    strref pstr   = stvlAt(&list, 1, strref);
+    void* pptr    = stvlAtPtr(&list, 2);
+    SUID* pid     = stvlAt(&list, 3, suid);   // oversized: a pointer to the stored value
+    TestCls1* po  = stvlAtObj(&list, 4, TestCls1);
+    if (num != 42 || !strEq(pstr, str) || pptr != &marker || !pid || !suidEq(pid, &s1) ||
+        !po || po->data != 99)
+        TEST_FAILV(ret, 1, _SL("positional: num=${int} str='${string}' ptrok=${bool} suidok=${bool} objok=${bool} (want 42, 'accessor', true, true, true)"),
+                   stvar(int32, num), stvar(strref, pstr), stvar(bool, pptr == &marker),
+                   stvar(bool, pid && suidEq(pid, &s1)), stvar(bool, po && po->data == 99));
+
+    // positional reads do not move the walker
+    if (list.cursor != 0)
+        TEST_FAILV(ret, 1, _SL("cursor=${int} after positional reads (want 0)"), stvar(int32, list.cursor));
+
+    // keyed, read in a different order than stored
+    TestCls1* ko = stvlFindObj(&list, obj, TestCls1);
+    void* kptr   = stvlFindPtr(&list, where);
+    strref kstr  = stvlFindVal(&list, name, strref);
+    int32 knum   = stvlFindVal(&list, count, int32);
+    if (knum != 7 || !strEq(kstr, str) || kptr != &marker || !ko || ko->data != 99)
+        TEST_FAILV(ret, 1, _SL("keyed: num=${int} str='${string}' ptrok=${bool} objok=${bool} (want 7, 'accessor', true, true)"),
+                   stvar(int32, knum), stvar(strref, kstr), stvar(bool, kptr == &marker),
+                   stvar(bool, ko && ko->data == 99));
+
+    // a missing key, or a key holding another type, reads as zero
+    int32 missing  = stvlFindVal(&list, nosuchkey, int32);
+    int32 wrongtyp = stvlFindVal(&list, name, int32);
+    if (missing != 0 || wrongtyp != 0)
+        TEST_FAILV(ret, 1, _SL("missing=${int} wrongtype=${int} (want 0, 0)"), stvar(int32, missing),
+                   stvar(int32, wrongtyp));
+
+    // nothing was copied out: reading borrowed, so no references were taken
+    if (strTestRefCount(str) != 1 || atomicLoad(uintptr, &obj->_ref, Acquire) != 1)
+        TEST_FAILV(ret, 1, _SL("after reads: str refcount=${int} obj refcount=${uint} (want 1, 1)"),
+                   stvar(int32, strTestRefCount(str)),
+                   stvar(uint64, (uint64)atomicLoad(uintptr, &obj->_ref, Acquire)));
+
+    objRelease(&obj);
+    strDestroy(&str);
+    return ret;
+}
+
 testfunc stvartest_funcs[] = {
     { "suid", test_suid },
     { "opaque", test_opaque },
     { "transient", test_transient },
     { "ssd_roundtrip", test_ssd_roundtrip },
     { "nested", test_nested },
+    { "accessors", test_accessors },
     { 0, 0 }
 };

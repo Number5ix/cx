@@ -588,20 +588,20 @@ static int test_keyed_stvl()
 
     // keyed lookup finds regardless of order and does not move the cursor
     int32 timeout = 0;
-    if (!stvlFind(list, timeout, int32, &timeout) || timeout != 250)
-        TEST_FAIL(1, _SL("assertion failed: !stvlFind(list, timeout, int32, &timeout) || timeout != 250 (timeout=${int})"), stvar(int32, timeout));
+    if (!stvlFind(&list, timeout, int32, &timeout) || timeout != 250)
+        TEST_FAIL(1, _SL("assertion failed: !stvlFind(&list, timeout, int32, &timeout) || timeout != 250 (timeout=${int})"), stvar(int32, timeout));
 
     string label = 0;
-    if (!stvlFind(list, label, string, &label) || !strEq(label, _S"tagged"))
-        TEST_FAIL(1, _SL("assertion failed: !stvlFind(list, label, string, &label) || string mismatch: ${string} != ${string}"), stvar(strref, label), stvar(strref, _S"tagged"));
+    if (!stvlFind(&list, label, string, &label) || !strEq(label, _S"tagged"))
+        TEST_FAIL(1, _SL("assertion failed: !stvlFind(&list, label, string, &label) || string mismatch: ${string} != ${string}"), stvar(strref, label), stvar(strref, _S"tagged"));
 
-    if (!stvlHasKey(list, timeout) || stvlHasKey(list, nosuchkey))
-        TEST_FAIL(1, _SL("assertion failed: !stvlHasKey(list, timeout) || stvlHasKey(list, nosuchkey)"), stvNone);
+    if (!stvlHasKey(&list, timeout) || stvlHasKey(&list, nosuchkey))
+        TEST_FAIL(1, _SL("assertion failed: !stvlHasKey(&list, timeout) || stvlHasKey(&list, nosuchkey)"), stvNone);
 
     // wrong type for an existing key does not match
     string wrong = 0;
-    if (stvlFind(list, timeout, string, &wrong))
-        TEST_FAIL(1, _SL("assertion failed: stvlFind(list, timeout, string, &wrong)"), stvNone);
+    if (stvlFind(&list, timeout, string, &wrong))
+        TEST_FAIL(1, _SL("assertion failed: stvlFind(&list, timeout, string, &wrong)"), stvNone);
 
     // the cursor is untouched by all of the above, so positional walking still starts at
     // the beginning of the list

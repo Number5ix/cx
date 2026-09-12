@@ -188,8 +188,74 @@ static int test_closuretest_chain(void)
     return ret;
 }
 
+// A typed signature: non-bool return and raw buffer arguments, neither of which a generic closure
+// can express.
+typedef size_t (*ClosureTestFill)(stvlist* cvars, uint8* buf, size_t sz);
+
+static size_t ctestFill(stvlist* cvars, uint8* buf, size_t sz)
+{
+    uint8 fill    = stvlAt(cvars, 0, uint8);
+    strref prefix = stvlAt(cvars, 1, strref);
+
+    size_t plen = min((size_t)strLen(prefix), sz);
+    strCopyRaw(prefix, 0, buf, (uint32)plen);
+    for (size_t i = plen; i < sz; i++)
+        buf[i] = fill;
+    return sz - plen;
+}
+
+static int test_closuretest_typed(void)
+{
+    int ret        = 0;
+    string prefix = 0;
+    strCopy(&prefix, _S"ab");
+
+    closure cls = closureCreateAs(ClosureTestFill, ctestFill, stvar(uint8, 'x'), stvar(string, prefix));
+    if (strTestRefCount(prefix) != 2)
+        TEST_FAILV(ret, 1, _SL("prefix refcount=${int} after closureCreateAs (want 2)"),
+                   stvar(int32, strTestRefCount(prefix)));
+
+    uint8 buf[6]  = { 0 };
+    size_t filled = closureCallAs(ClosureTestFill, cls, buf, sizeof(buf));
+    if (filled != 4 || memcmp(buf, "abxxxx", 6) != 0)
+        TEST_FAILV(ret, 1, _SL("closureCallAs filled=${uint} buf=${int},${int},${int} (want 4, 'abx...')"),
+                   stvar(uint64, (uint64)filled), stvar(int32, buf[0]), stvar(int32, buf[1]),
+                   stvar(int32, buf[2]));
+
+    // the clone is independent: it holds its own reference, and outlives the original
+    closure clone = closureClone(cls);
+    if (strTestRefCount(prefix) != 3)
+        TEST_FAILV(ret, 1, _SL("prefix refcount=${int} after closureClone (want 3)"),
+                   stvar(int32, strTestRefCount(prefix)));
+
+    closureDestroy(&cls);
+    if (cls || strTestRefCount(prefix) != 2)
+        TEST_FAILV(ret, 1, _SL("after destroying the original: cls=${ptr} prefix refcount=${int} (want NULL, 2)"),
+                   stvar(ptr, cls), stvar(int32, strTestRefCount(prefix)));
+
+    memset(buf, 0, sizeof(buf));
+    filled = closureCallAs(ClosureTestFill, clone, buf, 3);
+    if (filled != 1 || memcmp(buf, "abx", 3) != 0)
+        TEST_FAILV(ret, 1, _SL("clone closureCallAs filled=${uint} (want 1)"), stvar(uint64, (uint64)filled));
+
+    closureDestroy(&clone);
+    if (strTestRefCount(prefix) != 1)
+        TEST_FAILV(ret, 1, _SL("prefix refcount=${int} after destroying the clone (want 1)"),
+                   stvar(int32, strTestRefCount(prefix)));
+
+    // destroying an unset closure, or through a NULL handle, is harmless
+    closureDestroy(&clone);
+    closureDestroy(NULL);
+    if (closureClone(NULL) != NULL)
+        TEST_FAIL(1, _SL("closureClone(NULL) returned non-NULL"), stvNone);
+
+    strDestroy(&prefix);
+    return ret;
+}
+
 testfunc closuretest_funcs[] = {
     { "closure", test_closuretest_closure },
     { "chain", test_closuretest_chain },
+    { "typed", test_closuretest_typed },
     { 0, 0 }
 };

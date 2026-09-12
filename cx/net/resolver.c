@@ -65,12 +65,10 @@ static bool netResolveTask(stvlist* cvars, stvlist* args)
 {
     unused_noeval(args);
 
-    strref host = 0;
-    uint16 port = 0;
-    stvlFind(*cvars, host, strref, &host);
-    stvlFind(*cvars, port, uint16, &port);
-    NetResolveCB cb = (NetResolveCB)stvlFindPtr(*cvars, cb);
-    void* ctx       = stvlFindPtr(*cvars, ctx);
+    strref host     = stvlFindVal(cvars, host, strref);
+    uint16 port     = stvlFindVal(cvars, port, uint16);
+    NetResolveCB cb = (NetResolveCB)stvlFindPtr(cvars, cb);
+    void* ctx       = stvlFindPtr(cvars, ctx);
 
     if (!cb)
         return false;

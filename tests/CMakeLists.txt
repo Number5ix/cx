@@ -149,6 +149,7 @@ add_test(NAME "\"xalloc: Free\"" COMMAND test_runner cxmemtest free)
 add_test(NAME "\"xalloc: Reallocation\"" COMMAND test_runner cxmemtest realloc)
 add_test(NAME "\"closure: Basic Closure\"" COMMAND test_runner closuretest closure)
 add_test(NAME "\"closure: Closure Chain\"" COMMAND test_runner closuretest chain)
+add_test(NAME "\"closure: Typed Closure\"" COMMAND test_runner closuretest typed)
 # Each entry below runs several subtests from contest.c (grouped by feature area) in a single
 # process -- see the TEST_CHAIN groups at the bottom of that file. Run
 # `test_runner contest <name>` directly to invoke one subtest in isolation.
@@ -291,6 +292,7 @@ add_test(NAME "\"stvar: Opaque ownership\"" COMMAND test_runner stvartest opaque
 add_test(NAME "\"stvar: Transient\"" COMMAND test_runner stvartest transient)
 add_test(NAME "\"stvar: SSD round-trip\"" COMMAND test_runner stvartest ssd_roundtrip)
 add_test(NAME "\"stvar: Nested\"" COMMAND test_runner stvartest nested)
+add_test(NAME "\"stvar: List Accessors\"" COMMAND test_runner stvartest accessors)
 add_test(NAME "\"thread: Basic multithreading\"" COMMAND test_runner thrtest basic)
 add_test(NAME "\"thread: Futex\"" COMMAND test_runner thrtest futex)
 add_test(NAME "\"thread: Futex with timeout\"" COMMAND test_runner thrtest timeout)

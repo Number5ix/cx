@@ -1,11 +1,12 @@
 #include "closure_private.h"
+#include <cx/debug/assert.h>
 #include <cx/stype/stype_stvar.h>
 
-_Use_decl_annotations_
-closure _closureCreate(closureFunc func, int n, stvar cvars[])
+static closure closureAlloc(void (*func)(void), const char* sig, int n, stvar cvars[])
 {
     Closure* c = xaAlloc(sizeof(Closure) + n * sizeof(stvar));
     c->func    = func;
+    c->sig     = sig;
     c->nvars   = n;
     for (int i = 0; i < n; i++) {
         stvarCopy(&c->cvars[i], cvars[i]);
@@ -14,30 +15,57 @@ closure _closureCreate(closureFunc func, int n, stvar cvars[])
 }
 
 _Use_decl_annotations_
+closure _closureCreate(closureFunc func, int n, stvar cvars[])
+{
+    return closureAlloc((void (*)(void))func, NULL, n, cvars);
+}
+
+_Use_decl_annotations_
+closure _closureCreateAs(void (*func)(void), const char* sig, int n, stvar cvars[])
+{
+    return closureAlloc(func, sig, n, cvars);
+}
+
+_Use_decl_annotations_
 closure closureClone(closure cls)
 {
+    if (!cls)
+        return NULL;
+
     Closure* src = (Closure*)cls;
-    Closure* c   = xaAlloc(sizeof(Closure) + src->nvars * sizeof(stvar));
-    c->func      = src->func;
-    c->nvars     = src->nvars;
-    for (int i = 0; i < src->nvars; i++) {
-        stvarCopy(&c->cvars[i], src->cvars[i]);
-    }
-    return (closure)c;
+    return closureAlloc(src->func, src->sig, src->nvars, src->cvars);
 }
 
 _Use_decl_annotations_
 bool _closureCall(closure cls, int n, stvar args[])
 {
     Closure* c = (Closure*)cls;
+    devAssertMsg(!c->sig, "closureCall() on a typed closure; call it with closureCallAs()");
 
     stvlist stv_cvars;
     stvlist stv_args;
     stvlInit(&stv_cvars, c->nvars, c->cvars);
     stvlInit(&stv_args, n, args);
-    bool ret = c->func(&stv_cvars, &stv_args);
+    bool ret = ((closureFunc)c->func)(&stv_cvars, &stv_args);
 
     return ret;
+}
+
+_Use_decl_annotations_
+void (*_closureFuncAs(closure cls, const char* sig))(void)
+{
+    Closure* c = (Closure*)cls;
+    devAssertMsg(c->sig && (c->sig == sig || cstrEq(c->sig, sig)),
+                 "closureCallAs() with a different signature than the closure was created with");
+    return c->func;
+}
+
+_Use_decl_annotations_
+stvlist* _closureCvars(closure cls, stvlist* storage)
+{
+    Closure* c = (Closure*)cls;
+    stvlInit(storage, c->nvars, c->cvars);
+    return storage;
 }
 
 _Use_decl_annotations_

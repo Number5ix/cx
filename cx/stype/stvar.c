@@ -130,18 +130,37 @@ void stvlRewind(stvlist* list)
     list->cursor = 0;
 }
 
+// The stored variant is handed back as-is rather than copied out. For most types that is the value
+// itself; for an oversized (PassPtr) type the storage type is already a pointer, so this yields a
+// pointer to the value held in the list.
+stgeneric _stvlAt(stvlist* list, int idx, stype type)
+{
+    for (int i = 0; idx >= 0 && i < list->count; i++) {
+        if (stvlSkip(&list->vars[i]))
+            continue;
+        if (idx-- > 0)
+            continue;
+        if (stEq(type, stvarType(&list->vars[i])))
+            return list->vars[i].data;
+        break;
+    }
+
+    devAssertMsg(false, "stvlAt(): no unkeyed variant of that type at that position");
+    return (stgeneric) { 0 };
+}
+
 // Find the index of the variant carrying a key, or -1. Scans the whole list from the
 // start and never touches the cursor -- keyed arguments are order-free by design, which
 // is the opposite of _stvlNext's find-forward-and-skip contract.
-static int findKey(stvlist list, const char* key)
+static int findKey(stvlist* list, const char* key)
 {
     int found = -1;
 
     if (!key)
         return -1;
 
-    for (int i = 0; i < list.count; i++) {
-        if (cstrEq(key, stvarKey(&list.vars[i]))) {
+    for (int i = 0; i < list->count; i++) {
+        if (cstrEq(key, stvarKey(&list->vars[i]))) {
             if (found == -1) {
                 found = i;
 #if DEBUG_LEVEL < 1 && !defined(DIAGNOSTIC)
@@ -158,13 +177,13 @@ static int findKey(stvlist list, const char* key)
     return found;
 }
 
-bool _stvlFind(stvlist list, const char* key, stype type, stgeneric* out)
+bool _stvlFind(stvlist* list, const char* key, stype type, stgeneric* out)
 {
     int idx = findKey(list, key);
     if (idx == -1)
         return false;
 
-    stvar* var = &list.vars[idx];
+    stvar* var = &list->vars[idx];
     if (!stEq(type, stvarType(var)))
         return false;
 
@@ -172,7 +191,7 @@ bool _stvlFind(stvlist list, const char* key, stype type, stgeneric* out)
     return true;
 }
 
-void* _stvlFindPtr(stvlist list, const char* key, stype type)
+void* _stvlFindPtr(stvlist* list, const char* key, stype type)
 {
     // make sure this is a type that stores a pointer in stvars
     if (!(stEq(type, stType(ptr)) || stHasFlag(type, Object) || stHasFlag(type, PassPtr)))
@@ -182,14 +201,23 @@ void* _stvlFindPtr(stvlist list, const char* key, stype type)
     if (idx == -1)
         return NULL;
 
-    stvar* var = &list.vars[idx];
+    stvar* var = &list->vars[idx];
     if (!stEq(type, stvarType(var)))
         return NULL;
 
     return var->data.st_ptr;
 }
 
-bool _stvlHasKey(stvlist list, const char* key)
+stgeneric _stvlFindVal(stvlist* list, const char* key, stype type)
+{
+    int idx = findKey(list, key);
+    if (idx == -1 || !stEq(type, stvarType(&list->vars[idx])))
+        return (stgeneric) { 0 };
+
+    return list->vars[idx].data;
+}
+
+bool _stvlHasKey(stvlist* list, const char* key)
 {
     return findKey(list, key) != -1;
 }

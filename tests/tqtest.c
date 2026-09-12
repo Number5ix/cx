@@ -253,10 +253,7 @@ static int test_tqtest_concurrency_dedicated(void)
 
 static bool tqtest_callcb(stvlist *cvars, stvlist *args)
 {
-    intptr num = 0;
-    stvlNext(cvars, intptr, &num);
-
-    atomicFetchAdd(intptr, &accum1, num, Relaxed);
+    atomicFetchAdd(intptr, &accum1, stvlAt(cvars, 0, intptr), Relaxed);
     atomicFetchAdd(intptr, &accum2, 1, AcqRel);
     eventSignal(&notifyev);
     return true;
@@ -1114,10 +1111,8 @@ static int test_tqtest_timeout(void) {
 static bool tqtest_capturecb(stvlist *cvars, stvlist *args)
 {
     unused_noeval(args);
-    strref captured = 0;
-    stvlNext(cvars, strref, &captured);
     atomicFetchAdd(intptr, &accum2, 1, AcqRel);
-    return !strEmpty(captured);
+    return !strEmpty(stvlAt(cvars, 0, strref));
 }
 
 // A closure handed to tqCall is owned by the queue from that moment, whether or not the task ever
