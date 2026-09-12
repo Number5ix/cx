@@ -19,6 +19,7 @@ if(CX_PLATFORM_IS_WASM)
         platform/wasm/wasm_net_socket.c
         platform/wasm/wasm_os.c
         platform/wasm/wasm_random.c
+        platform/wasm/wasm_sys_env.c
         platform/wasm/wasm_sys_hostid.c
         platform/wasm/wasm_thread_thread.c
         platform/wasm/wasm_thread_threadobj.c

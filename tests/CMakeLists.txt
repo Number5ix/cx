@@ -55,6 +55,7 @@ create_test_sourcelist(testsrc
     mathtest.c
     fstest.c
     vfstest.c
+    proctest.c
     prqtest.c
     nettest.c
     ${tlstestsrc}
@@ -365,6 +366,9 @@ add_test(NAME "\"vfs: Path Resolution\"" COMMAND test_runner vfstest grp_pathres
 add_test(NAME "\"vfs: Caching\"" COMMAND test_runner vfstest grp_caching)
 add_test(NAME "\"vfs: Copy-On-Write\"" COMMAND test_runner vfstest grp_cow)
 add_test(NAME "\"vfs: Errors And Providers\"" COMMAND test_runner vfstest grp_misc)
+# Runs several subtests from proctest.c in a single process -- see the TEST_CHAIN groups at the
+# bottom of that file. Run `test_runner proctest <name>` directly to invoke one in isolation.
+add_test(NAME "\"process: Environment Variables\"" COMMAND test_runner proctest grp_env)
 add_test(NAME "\"prqueue: Basic Pointer-Ring Queue\"" COMMAND test_runner prqtest basic)
 add_test(NAME "\"prqueue: Multithreaded Queue\"" COMMAND test_runner prqtest mt)
 add_test(NAME "\"prqueue: Queue Growth\"" COMMAND test_runner prqtest grow)

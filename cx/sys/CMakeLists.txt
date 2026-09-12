@@ -3,6 +3,7 @@ set(SYS_SRCS
     sys/hostid.c)
 set(SYS_INCLUDES
     sys/entry.h
+    sys/env.h
     sys/hostid.h
     sys/hostid_private.h)
 

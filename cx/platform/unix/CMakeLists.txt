@@ -14,6 +14,7 @@ if(CX_PLATFORM_IS_UNIX)
         platform/unix/unix_net_socket.c
         platform/unix/unix_os.c
         platform/unix/unix_random.c
+        platform/unix/unix_sys_env.c
         platform/unix/unix_sys_hostid.c
         platform/unix/unix_thread_thread.c
         platform/unix/unix_thread_threadobj.c
