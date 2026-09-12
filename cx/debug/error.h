@@ -57,6 +57,7 @@ enum CX_ERROR {
     CX_IsDirectory,       ///< Attempted to treat a directory as a file
     CX_ReadOnly,          ///< Attempted to write to read-only path or resource
     CX_Range,             ///< Value is out of valid range
+    CX_NotSupported,      ///< Operation is not supported on this platform
 };
 
 /// Get human-readable error message for an error code
