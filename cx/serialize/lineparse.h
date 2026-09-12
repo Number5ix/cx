@@ -44,20 +44,22 @@
 ///
 /// Example (push mode):
 /// @code
-///   bool processLine(strref line, void *ctx) {
+///   bool processLine(stvlist *cvars, strref line) {
 ///       // process each line
 ///       return true;  // continue parsing
 ///   }
 ///
 ///   VFSFile *file = vfsOpen(vfs, _SL("data.txt"), FS_Read);
 ///   StreamBuffer *sb = sbufCreate(4096);
-///   LineParser *lp = lparseCreatePush(sb, processLine, NULL, NULL, LPARSE_LF);
+///   LineParser *lp = lparseCreatePush(sb, closureCreateAs(lparseLineCB, processLine, stvNone),
+///                                     LPARSE_LF);
 ///   sbufFileIn(sb, file, true);   // calls processLine for each line
 ///   sbufClose(sb);                  // flushes a last line with no EOL
 ///   lparseDestroy(&lp);
 ///   sbufRelease(&sb);
 /// @endcode
 
+#include <cx/closure/closure.h>
 #include <cx/serialize/streambuf.h>
 
 CX_C_BEGIN
@@ -158,46 +160,40 @@ _Success_(return) _Check_return_ bool lparseLine(_Inout_ LineParser* lp, _Inout_
 ///
 /// Push-mode line parsing where a callback is invoked for each line automatically.
 
-/// bool (*lparseLineCB)(strref line, void *ctx)
+/// Line callback, for a parser created with lparseCreatePush()
 ///
-/// Callback function type for push-mode line parsing.
+/// Create it with `closureCreateAs(lparseLineCB, func, ...)`. Runs for each line found in the
+/// stream buffer. The line is only valid during the call; copy it to keep it.
 ///
-/// This callback is invoked for each line found in the stream buffer. The callback
-/// should return true to continue parsing or false to stop.
-///
-/// **IMPORTANT:** The line string reference is only valid during the callback.
-/// If you need to retain the line data, copy it.
-///
-/// @param line The parsed line (valid only during callback)
-/// @param ctx User context pointer passed to lparseCreatePush()
+/// @param cvars Captured variables of the closure
+/// @param line The parsed line (valid only during the call)
 /// @return true to continue parsing, false to stop
-typedef bool (*lparseLineCB)(_In_opt_ strref line, _Pre_opt_valid_ void* ctx);
+typedef bool (*lparseLineCB)(stvlist* cvars, _In_opt_ strref line);
 
 // Internal function - use lparseCreatePush() macro instead
-_Ret_opt_valid_ LineParser* _lparseCreatePush(_Inout_ StreamBuffer* sb, _In_ lparseLineCB pline,
-                                              _In_opt_ sbufCleanupCB pcleanup,
-                                              _Inout_opt_ void* ctx, flags_t flags);
+_Ret_opt_valid_ LineParser* _lparseCreatePush(_Inout_ StreamBuffer* sb, _In_ closure pline,
+                                              flags_t flags);
 
-/// LineParser *lparseCreatePush(StreamBuffer *sb, lparseLineCB pline, sbufCleanupCB pcleanup,
-/// void *ctx, [flags])
+/// LineParser *lparseCreatePush(StreamBuffer *sb, closure pline, [flags])
 ///
 /// Creates a line parser that is called as data arrives.
 ///
-/// The parser registers as the stream buffer's consumer, so the producer drives: the callback runs
+/// The parser registers as the stream buffer's consumer, so the producer drives: the closure runs
 /// for each line as soon as enough data is there. A last line with no EOL is delivered when the
 /// producer calls sbufClose().
 ///
+/// Takes ownership of the closure whether or not the parser is created. It is destroyed along with
+/// the parser.
+///
 /// @param sb The stream buffer
-/// @param pline Callback function invoked for each line
-/// @param pcleanup Optional cleanup callback for ctx, run when the parser is destroyed
-/// @param ctx User context pointer passed to callbacks
+/// @param pline Closure created with `closureCreateAs(lparseLineCB, ...)`
 /// @param ... (flags) Configuration flags from LINEPARSER_FLAGS_ENUM
 /// @return New line parser, or NULL if a consumer is already attached to the stream buffer
 ///
 /// Example:
 /// @code
-///   bool handleLine(strref line, void *ctx) {
-///       int *count = (int *)ctx;
+///   bool handleLine(stvlist *cvars, strref line) {
+///       int *count = stvlAtPtr(cvars, 0);
 ///       (*count)++;
 ///       printf("Line %d: %s\n", *count, strC(line));
 ///       return true;  // continue processing
@@ -205,13 +201,13 @@ _Ret_opt_valid_ LineParser* _lparseCreatePush(_Inout_ StreamBuffer* sb, _In_ lpa
 ///
 ///   int lineCount = 0;
 ///   StreamBuffer *sb = sbufCreate(4096);
-///   LineParser *lp = lparseCreatePush(sb, handleLine, NULL, &lineCount, LPARSE_LF);
+///   LineParser *lp   = lparseCreatePush(sb,
+///       closureCreateAs(lparseLineCB, handleLine, stvar(ptr, &lineCount)), LPARSE_LF);
 ///   sbufFileIn(sb, file, true);   // triggers callbacks automatically
 ///   sbufClose(sb);
 ///   lparseDestroy(&lp);
 /// @endcode
-#define lparseCreatePush(sb, pline, pcleanup, ctx, ...) \
-    _lparseCreatePush(sb, pline, pcleanup, ctx, opt_flags(__VA_ARGS__))
+#define lparseCreatePush(sb, pline, ...) _lparseCreatePush(sb, pline, opt_flags(__VA_ARGS__))
 
 /// @}  // end of serialize_lineparse_push
 /// @}  // end of serialize_lineparse

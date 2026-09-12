@@ -72,6 +72,27 @@
 /// Captures can be read back by position with `stvlAt()`, `stvlAtPtr()` and `stvlAtObj()`,
 /// which is cheap enough for a callback that runs constantly, or by name with `stvlFindVal()`,
 /// `stvlFindPtr()` and `stvlFindObj()`.
+///
+/// @section closure_destroy State that is not a capture
+///
+/// Captures are copied into the closure and read back as values, so they cannot hold state the
+/// callback changes as it runs, and copying a large value just to capture it can be wasteful. For
+/// that, allocate the state yourself, capture a pointer to it, and give the closure a destroy
+/// function to free it. The destroy function runs once when the closure is destroyed, with the
+/// captures still readable, much like a class destructor:
+/// @code
+///   static void readerDestroy(stvlist *cvars) {
+///       ReaderState *st = stvlAtPtr(cvars, 0);
+///       bufDestroy(&st->buf);
+///       xaFree(st);
+///   }
+///
+///   ReaderState *st = xaAllocStruct(ReaderState, XA_Zero);
+///   closure cls     = closureCreateAs(MyReadFunc, readChunk, stvar(ptr, st));
+///   closureSetDestroy(cls, readerDestroy);
+/// @endcode
+///
+/// A closure with a destroy function cannot be copied with closureClone().
 
 #pragma once
 
@@ -174,13 +195,28 @@ _Ret_valid_ stvlist* _closureCvars(_In_ closure cls, _Out_ stvlist* storage);
 #define closureCallAs(sigtype, cls, ...) \
     ((sigtype)_closureFuncAs((cls), #sigtype))(_closureCvars((cls), &(stvlist) { 0 }), __VA_ARGS__)
 
+/// Destroy function signature
+///
+/// @param cvars Captured variables of the closure being destroyed
+typedef void (*closureDestroyFunc)(stvlist* cvars);
+
+/// Sets a function to run when the closure is destroyed
+///
+/// Use it to free state the closure owns that is not one of its captures. It runs once, from
+/// closureDestroy(), before the captured variables are destroyed.
+///
+/// @param cls Closure to attach the function to
+/// @param destroy Function to run, or NULL for none
+void closureSetDestroy(_Inout_ closure cls, _In_opt_ closureDestroyFunc destroy);
+
 /// Create a copy of a closure
 ///
 /// Creates a new closure with the same function and captured variables. The captured
 /// variables are deep-copied, so modifications to the original won't affect the clone.
 ///
 /// @param cls Closure to clone (NULL returns NULL)
-/// @return New independent closure (must be freed with closureDestroy())
+/// @return New independent closure (must be freed with closureDestroy()), or NULL for a closure
+///         with a destroy function, which cannot be copied
 _Ret_maybenull_ closure closureClone(_In_opt_ closure cls);
 
 /// Destroy a closure and release its resources

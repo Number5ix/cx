@@ -73,17 +73,19 @@ typedef struct PatternSrc {
     uint64 want;
 } PatternSrc;
 
-static void patternCleanup(void* ctx)
+// The position changes on every pull, so it lives outside the closure's captures, and this frees it
+// when the closure is destroyed.
+static void patternDestroy(stvlist* cvars)
 {
-    xaFree(ctx);
+    xaFree(stvlAtPtr(cvars, 0));
 }
 
 // A pull producer: cxhttp asks for more whenever the stream has room, so a body of any size is
 // generated as it goes out instead of existing all at once. The length is promised up front, so
 // this is the content-length path rather than the chunked one.
-static size_t patternPull(StreamBuffer* sb, uint8* buf, size_t sz, void* ctx)
+static size_t patternPull(stvlist* cvars, StreamBuffer* sb, uint8* buf, size_t sz)
 {
-    PatternSrc* p = (PatternSrc*)ctx;
+    PatternSrc* p = stvlAtPtr(cvars, 0);
 
     if (sz == 0) {
         // A status check rather than a request for data. Once the stream is over there is nothing
@@ -164,10 +166,13 @@ static void onRequest(HttpServerEvent* ev)
     PatternSrc* p = xaAllocStruct(PatternSrc, XA_Zero);
     p->want       = want;
 
+    closure cls = closureCreateAs(sbufPullCB, patternPull, stvar(ptr, p));
+    closureSetDestroy(cls, patternDestroy);
+
+    // registration owns the closure either way, so a refusal has already freed the source
     StreamBuffer* sb = sbufCreate(64 * 1024);
-    if (!sbufPRegisterPull(sb, patternPull, patternCleanup, p)) {
+    if (!sbufPRegisterPull(sb, cls)) {
         sbufRelease(&sb);
-        xaFree(p);
         httpsrvreqRespondStatus(req, HTTP_InternalError);
         return;
     }

@@ -730,9 +730,9 @@ static _Ret_opt_valid_ LogWireDecl* wireDeclSlot(_Inout_ LogWireDecl** decls, _I
     return &(*decls)[id - 1];
 }
 
-static size_t wireDecPull(_Pre_valid_ StreamBuffer* sb, uint8* buf, size_t sz, void* ctx)
+static size_t wireDecPull(stvlist* cvars, _Pre_valid_ StreamBuffer* sb, uint8* buf, size_t sz)
 {
-    LogWireDecoder* dec = (LogWireDecoder*)ctx;
+    LogWireDecoder* dec = stvlAtPtr(cvars, 0);
 
     if (sz == 0) {
         // A status check rather than a request for data. Once the stream is over there is nothing
@@ -783,7 +783,8 @@ static bool wireDecOpenSegment(_Inout_ LogWireDecoder* dec, _In_reads_bytes_(len
     wireDecCloseSegment(dec);
 
     dec->sb = sbufCreate(4096);
-    if (!sbufPRegisterPull(dec->sb, wireDecPull, NULL, dec)) {
+    // The decoder owns the buffer, so the registration only borrows a pointer back to it.
+    if (!sbufPRegisterPull(dec->sb, closureCreateAs(sbufPullCB, wireDecPull, stvar(ptr, dec)))) {
         sbufRelease(&dec->sb);
         return false;
     }

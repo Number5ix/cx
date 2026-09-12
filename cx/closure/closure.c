@@ -7,6 +7,7 @@ static closure closureAlloc(void (*func)(void), const char* sig, int n, stvar cv
     Closure* c = xaAlloc(sizeof(Closure) + n * sizeof(stvar));
     c->func    = func;
     c->sig     = sig;
+    c->destroy = NULL;
     c->nvars   = n;
     for (int i = 0; i < n; i++) {
         stvarCopy(&c->cvars[i], cvars[i]);
@@ -33,7 +34,21 @@ closure closureClone(closure cls)
         return NULL;
 
     Closure* src = (Closure*)cls;
+
+    // A destroy function tears down state the closure owns outside its captures, typically a heap
+    // context captured as a plain pointer. A copy would share that state and tear it down twice.
+    if (src->destroy) {
+        devAssertMsg(false, "closureClone() on a closure with a destroy function");
+        return NULL;
+    }
+
     return closureAlloc(src->func, src->sig, src->nvars, src->cvars);
+}
+
+_Use_decl_annotations_
+void closureSetDestroy(closure cls, closureDestroyFunc destroy)
+{
+    ((Closure*)cls)->destroy = destroy;
 }
 
 _Use_decl_annotations_
@@ -77,6 +92,9 @@ intptr _closureCompare(_In_ closure cls1, _In_ closure cls2)
     if (c1->func != c2->func)
         return (intptr)c1->func - (intptr)c2->func;
 
+    if (c1->destroy != c2->destroy)
+        return (intptr)c1->destroy - (intptr)c2->destroy;
+
     if (c1->nvars != c2->nvars)
         return c1->nvars - c2->nvars;
 
@@ -99,6 +117,12 @@ void closureDestroy(closure* cls)
         return;
 
     Closure* c = (Closure*)(*cls);
+
+    if (c->destroy) {
+        stvlist cvars;
+        stvlInit(&cvars, c->nvars, c->cvars);
+        c->destroy(&cvars);
+    }
 
     for (int i = c->nvars - 1; i >= 0; --i) {
         stvarDestroy(&c->cvars[i]);

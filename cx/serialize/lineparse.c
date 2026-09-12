@@ -12,9 +12,7 @@ typedef struct LineParser {
     size_t checked;   // buffer offset that has already been checked for EOL
     string out;       // cached output string
 
-    lparseLineCB lineCB;   // push mode only; NULL means nothing was registered
-    void* userCtx;
-    sbufCleanupCB userCleanupCB;
+    closure lineCB;   // push mode only; NULL means nothing was registered
 } LineParser;
 
 typedef struct EOLFindInfo {
@@ -119,8 +117,7 @@ void lparseDestroy(LineParser** lp)
     if (lpc->lineCB)
         sbufCUnregister(lpc->sb);
 
-    if (lpc->userCleanupCB)
-        lpc->userCleanupCB(lpc->userCtx);
+    closureDestroy(&lpc->lineCB);
 
     strDestroy(&lpc->out);
     sbufRelease(&lpc->sb);
@@ -195,9 +192,9 @@ bool lparseLine(LineParser* lpc, string* out)
 
 // -------- Push mode --------
 
-static void lpcNotify(_Pre_valid_ StreamBuffer* sb, size_t sz, _Pre_opt_valid_ void* ctx)
+static void lpcNotify(stvlist* cvars, _Pre_valid_ StreamBuffer* sb, size_t sz)
 {
-    LineParser* lpc = (LineParser*)ctx;
+    LineParser* lpc = (LineParser*)stvlAtPtr(cvars, 0);
     EOLFindInfo ei;
     uint8 buf[LPCHUNK];
     uint8* outbuf;
@@ -230,7 +227,7 @@ static void lpcNotify(_Pre_valid_ StreamBuffer* sb, size_t sz, _Pre_opt_valid_ v
             // buffer has been advanced to right after the EOL
             lpc->checked = 0;
 
-            if (!lpc->lineCB(lpc->out, lpc->userCtx)) {
+            if (!closureCallAs(lparseLineCB, lpc->lineCB, lpc->out)) {
                 // the callback wants no more of this stream, which is a hangup rather than just
                 // this parser stepping aside
                 sbufClose(sb);
@@ -247,31 +244,34 @@ static void lpcNotify(_Pre_valid_ StreamBuffer* sb, size_t sz, _Pre_opt_valid_ v
             strClear(&lpc->out);
             outbuf = strBuffer(&lpc->out, (uint32)sbufCAvail(sb));
             sbufCRead(sb, outbuf, sbufCAvail(sb), &didread);
-            lpc->lineCB(lpc->out, lpc->userCtx);
+            closureCallAs(lparseLineCB, lpc->lineCB, lpc->out);
         }
     }
 }
 
 _Use_decl_annotations_
-LineParser* _lparseCreatePush(StreamBuffer* sb, lparseLineCB pline, sbufCleanupCB pcleanup,
-                              void* ctx, flags_t flags)
+LineParser* _lparseCreatePush(StreamBuffer* sb, closure pline, flags_t flags)
 {
+    if (!pline)
+        return NULL;
+
     LineParser* lpc = xaAlloc(sizeof(LineParser), XA_Zero);
 
-    lpc->sb            = sbufAcquire(sb);
-    lpc->flags         = flags;
-    lpc->userCtx       = ctx;
-    lpc->userCleanupCB = pcleanup;
+    lpc->sb    = sbufAcquire(sb);
+    lpc->flags = flags;
 
     // Installed before registering, since a buffer that already has data waiting notifies from
     // inside the registration call.
     lpc->lineCB = pline;
 
-    // The parser owns itself rather than the registration owning it, so no cleanup goes with the
-    // registration; lparseDestroy() is what tears both down.
-    if (!pline || !sbufCRegisterPush(sb, lpcNotify, NULL, lpc)) {
-        lpc->lineCB = NULL;   // nothing was registered, so there is nothing to unregister
+    // The parser owns itself rather than the registration owning it, so the registration only
+    // borrows a pointer to it; lparseDestroy() is what tears both down.
+    if (!sbufCRegisterPush(sb, closureCreateAs(sbufNotifyCB, lpcNotify, stvar(ptr, lpc)))) {
+        // nothing was registered, so there is nothing to unregister, but the line closure is ours
+        closure cls = lpc->lineCB;
+        lpc->lineCB = NULL;
         lparseDestroy(&lpc);
+        closureDestroy(&cls);
         return NULL;
     }
 

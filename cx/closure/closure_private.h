@@ -11,6 +11,8 @@ typedef struct Closure {
     // NULL for a generic closure, otherwise the name of the typed signature it was created with.
     // Checked on every call in debug builds, since the call-site cast cannot be.
     const char* sig;
+    // Optional; runs once from closureDestroy() while the captured variables are still intact.
+    closureDestroyFunc destroy;
     int nvars;
     stvar cvars[];
 } Closure;

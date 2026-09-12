@@ -5,28 +5,26 @@
 #define SBUF_DEFAULT_CHUNK (64 * 1024)
 
 // A registration outlives the call that made it: its callbacks run whenever the stream buffer says
-// so, on whatever thread drives it, until the slot is handed back. So it holds a reference of its
-// own for that whole time rather than borrowing the caller's pointer -- a File whose last reference
-// went away while it was registered would otherwise be read or written through here after it was
-// freed.
-typedef struct SbufFileCtx {
-    File* file;   // a reference of this registration's own
-    bool close;
-} SbufFileCtx;
-
-static void sbufFileCleanup(_Pre_valid_ void* ctx)
+// so, on whatever thread drives it, until the slot is handed back. So its closure captures the
+// File, which takes a reference of its own for that whole time rather than borrowing the caller's
+// pointer -- a File whose last reference went away while it was registered would otherwise be read
+// or written through here after it was freed.
+//
+// With `close` set, the caller's reference is handed over as well, and the file is closed when the
+// registration goes away even if something else still holds a reference to it, which is what the
+// flag promises.
+static void sbufFileClose(stvlist* cvars)
 {
-    SbufFileCtx* sbc = (SbufFileCtx*)ctx;
+    fileClose(stvlAtObj(cvars, 0, File));
+}
 
-    // Both references go back here when the registration asked to own the file: fsClose() closes
-    // the handle and returns the one the caller handed over, and the objRelease() below returns
-    // this registration's. Without `close` only the second of those exists; the caller still has
-    // its own handle and decides when the file is closed.
-    if (sbc->close)
-        fsClose(sbc->file);
-    objRelease(&sbc->file);
-
-    xaFree(sbc);
+static closure sbufFileClosure(closure cls, File** file, bool close)
+{
+    if (close) {
+        closureSetDestroy(cls, sbufFileClose);
+        objRelease(file);   // the closure now holds the only reference this call was given
+    }
+    return cls;
 }
 
 _Use_decl_annotations_
@@ -61,13 +59,9 @@ bool _sbufFileIn(StreamBuffer* sb, File* file, bool close)
     return !sbufIsError(sb);
 }
 
-static size_t sbufFilePullCB(_Pre_valid_ StreamBuffer* sb, _Out_writes_bytes_(sz) uint8* buf,
-                             size_t sz, _Pre_opt_valid_ void* ctx)
+static size_t sbufFilePullCB(stvlist* cvars, _Pre_valid_ StreamBuffer* sb,
+                             _Out_writes_bytes_(sz) uint8* buf, size_t sz)
 {
-    SbufFileCtx* sbc = (SbufFileCtx*)ctx;
-    if (!sbc)
-        return 0;
-
     if (sz == 0) {
         // A status check rather than a request for data. Once the stream is over there is nothing
         // left to feed it, so hand the slot back.
@@ -77,7 +71,7 @@ static size_t sbufFilePullCB(_Pre_valid_ StreamBuffer* sb, _Out_writes_bytes_(sz
     }
 
     size_t didread = 0;
-    if (!fileRead(sbc->file, buf, sz, &didread))
+    if (!fileRead(stvlAtObj(cvars, 0, File), buf, sz, &didread))
         sbufError(sb);
 
     // end of file: leave the slot open for another producer rather than ending the stream
@@ -90,39 +84,29 @@ static size_t sbufFilePullCB(_Pre_valid_ StreamBuffer* sb, _Out_writes_bytes_(sz
 _Use_decl_annotations_
 bool _sbufFilePRegisterPull(StreamBuffer* sb, File* file, bool close)
 {
-    SbufFileCtx* sbc = xaAlloc(sizeof(SbufFileCtx));
-    sbc->file        = objAcquire(file);
-    sbc->close       = close;
-
-    if (!sbufPRegisterPull(sb, sbufFilePullCB, sbufFileCleanup, sbc)) {
-        sbufFileCleanup(sbc);
-        return false;
-    }
-
-    return true;
+    closure cls = closureCreateAs(sbufPullCB, sbufFilePullCB, stvar(object, file));
+    return sbufPRegisterPull(sb, sbufFileClosure(cls, &file, close));
 }
 
 static bool sbufFileSendCB(_Pre_valid_ StreamBuffer* sb, _In_reads_bytes_(sz) const uint8* buf,
                            size_t off, size_t sz, _Pre_opt_valid_ void* ctx)
 {
-    SbufFileCtx* sbc = (SbufFileCtx*)ctx;
-    if (!sbc)
-        return false;
-
     size_t didwrite = 0;
-    if (!fileWrite(sbc->file, (void*)buf, sz, &didwrite))
+    if (!fileWrite((File*)ctx, (void*)buf, sz, &didwrite))
         sbufError(sb);
 
     return true;
 }
 
-static void sbufFileNotifyCB(_Pre_valid_ StreamBuffer* sb, size_t sz, _Pre_opt_valid_ void* ctx)
+static void sbufFileNotifyCB(stvlist* cvars, _Pre_valid_ StreamBuffer* sb, size_t sz)
 {
+    File* file = stvlAtObj(cvars, 0, File);
+
     if (sz >= (sb->targetsz >> 1) + (sb->targetsz >> 2)) {
-        sbufCSend(sb, sbufFileSendCB, sz, ctx);
+        sbufCSend(sb, sbufFileSendCB, sz, file);
     } else if (sz == 0 || !sbufCMore(sb)) {
         // flush anything that's left in the streambuf
-        sbufCSend(sb, sbufFileSendCB, sbufCAvail(sb), ctx);
+        sbufCSend(sb, sbufFileSendCB, sbufCAvail(sb), file);
     }
 
     // nothing more is coming, so hand the slot back; that closes the file if we own it
@@ -156,14 +140,6 @@ bool _sbufFileOut(StreamBuffer* sb, File* file, bool close)
 _Use_decl_annotations_
 bool _sbufFileCRegisterPush(StreamBuffer* sb, File* file, bool close)
 {
-    SbufFileCtx* sbc = xaAlloc(sizeof(SbufFileCtx));
-    sbc->file        = objAcquire(file);
-    sbc->close       = close;
-
-    if (!sbufCRegisterPush(sb, sbufFileNotifyCB, sbufFileCleanup, sbc)) {
-        sbufFileCleanup(sbc);
-        return false;
-    }
-
-    return true;
+    closure cls = closureCreateAs(sbufNotifyCB, sbufFileNotifyCB, stvar(object, file));
+    return sbufCRegisterPush(sb, sbufFileClosure(cls, &file, close));
 }

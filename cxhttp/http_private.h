@@ -25,7 +25,7 @@ void _httpInit(void);
 // Notify callback for a request body whose producer works in push mode. Registered from
 // httprequest.c, where the buffer is adopted, but implemented on HttpConn because waking the
 // connection is the only thing it does.
-void _httpReqBodyNotify(_Pre_valid_ StreamBuffer* sb, size_t sz, _Pre_opt_valid_ void* ctx);
+void _httpReqBodyNotify(stvlist* cvars, _Pre_valid_ StreamBuffer* sb, size_t sz);
 
 // Let go of the stream buffers a request was using, whichever side of each one cxhttp took.
 void _httpReqReleaseBodyStream(_Inout_ HttpRequest* self);

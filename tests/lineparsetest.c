@@ -785,15 +785,15 @@ typedef struct LineParsePushTestCtx {
     bool didclean;
 } LineParsePushTestCtx;
 
-static void test_ctxcleanup(void *ctx)
+static void test_ctxdestroy(stvlist *cvars)
 {
-    LineParsePushTestCtx *lppt = (LineParsePushTestCtx *)ctx;
+    LineParsePushTestCtx *lppt = stvlAtPtr(cvars, 0);
     lppt->didclean = true;
 }
 
-static bool test_linecb(strref line, void *ctx)
+static bool test_linecb(stvlist *cvars, strref line)
 {
-    LineParsePushTestCtx *lppt = (LineParsePushTestCtx *)ctx;
+    LineParsePushTestCtx *lppt = stvlAtPtr(cvars, 0);
 
     lppt->lines++;
     lpCheckEq(&lppt->ret, lppt->lines, 1, line, line1);
@@ -803,6 +803,15 @@ static bool test_linecb(strref line, void *ctx)
     lpCheckEq(&lppt->ret, lppt->lines, 100, line, line100);
 
     return true;
+}
+
+// The parser owns the closure, so its destroy function running is how the test sees the parser
+// tear down what it was given.
+static closure test_lineclosure(LineParsePushTestCtx *lppt)
+{
+    closure cls = closureCreateAs(lparseLineCB, test_linecb, stvar(ptr, lppt));
+    closureSetDestroy(cls, test_ctxdestroy);
+    return cls;
 }
 
 int test_lineparse_push()
@@ -819,7 +828,7 @@ int test_lineparse_push()
 
     // test with a large buffer
     sb = sbufCreate(8192);
-    lp = lparseCreatePush(sb, test_linecb, test_ctxcleanup, &lppt, 0);
+    lp = lparseCreatePush(sb, test_lineclosure(&lppt), 0);
     if (!lp)
         TEST_FAIL(1, _SL("failed to register line-parser push sink"), stvNone);
     sbufStrIn(sb, teststr_lf);
@@ -832,14 +841,14 @@ int test_lineparse_push()
     sbufRelease(&sb);
 
     if (!lppt.didclean)
-        TEST_FAILV(ret, 1, _SL("cleanup callback did not run"), stvNone);
+        TEST_FAILV(ret, 1, _SL("line closure was not destroyed"), stvNone);
     ret |= lppt.ret;
 
     // test with a very small buffer
     lppt = (LineParsePushTestCtx){ 0 };
 
     sb = sbufCreate(5);
-    lp = lparseCreatePush(sb, test_linecb, test_ctxcleanup, &lppt, 0);
+    lp = lparseCreatePush(sb, test_lineclosure(&lppt), 0);
     if (!lp)
         TEST_FAIL(1, _SL("failed to register line-parser push sink"), stvNone);
     sbufStrIn(sb, teststr_crlf);
@@ -853,7 +862,7 @@ int test_lineparse_push()
     sbufRelease(&sb);
 
     if (!lppt.didclean)
-        TEST_FAILV(ret, 1, _SL("cleanup callback did not run"), stvNone);
+        TEST_FAILV(ret, 1, _SL("line closure was not destroyed"), stvNone);
 
     strDestroy(&teststr_lf);
     strDestroy(&teststr_crlf);

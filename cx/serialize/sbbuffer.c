@@ -2,18 +2,18 @@
 #include <cx/debug/assert.h>
 #include <cx/utils/compare.h>
 
+// A pull producer walks through the buffer as it is asked for data, so the position is state that
+// changes on every call. That lives in a context the closure points at, and the closure's destroy
+// function frees it -- along with the buffer itself, when the caller handed that over.
 typedef struct SbufBufInCtx {
     Buffer buf;
     size_t pos;
     bool own;
 } SbufBufInCtx;
 
-static void sbufBufInCleanup(_Pre_opt_valid_ void* ctx)
+static void sbufBufInDestroy(stvlist* cvars)
 {
-    SbufBufInCtx* sbc = (SbufBufInCtx*)ctx;
-    if (!sbc)
-        return;
-
+    SbufBufInCtx* sbc = stvlAtPtr(cvars, 0);
     if (sbc->own)
         bufDestroy(&sbc->buf);
     xaFree(sbc);
@@ -51,12 +51,10 @@ bool sbufBufIn(StreamBuffer* sb, Buffer buf, bool own)
     return ret && !sbufIsError(sb);
 }
 
-static size_t sbufBufPullCB(_Pre_valid_ StreamBuffer* sb, _Out_writes_bytes_(sz) uint8* buf,
-                            size_t sz, _Pre_opt_valid_ void* ctx)
+static size_t sbufBufPullCB(stvlist* cvars, _Pre_valid_ StreamBuffer* sb,
+                            _Out_writes_bytes_(sz) uint8* buf, size_t sz)
 {
-    SbufBufInCtx* sbc = (SbufBufInCtx*)ctx;
-    if (!sbc)
-        return 0;
+    SbufBufInCtx* sbc = stvlAtPtr(cvars, 0);
 
     if (sz == 0) {
         // A status check rather than a request for data. Once the stream is over there is nothing
@@ -90,22 +88,9 @@ bool sbufBufPRegisterPull(StreamBuffer* sb, Buffer buf, bool own)
     sbc->pos          = 0;
     sbc->own          = own;
 
-    if (!sbufPRegisterPull(sb, sbufBufPullCB, sbufBufInCleanup, sbc)) {
-        // registration never ran, so the cleanup callback will not either
-        sbufBufInCleanup(sbc);
-        return false;
-    }
-
-    return true;
-}
-
-typedef struct SbufBufOutCtx {
-    Buffer* out;
-} SbufBufOutCtx;
-
-static void sbufBufOutCleanup(_Pre_opt_valid_ void* ctx)
-{
-    xaFree(ctx);
+    closure cls = closureCreateAs(sbufPullCB, sbufBufPullCB, stvar(ptr, sbc));
+    closureSetDestroy(cls, sbufBufInDestroy);
+    return sbufPRegisterPull(sb, cls);
 }
 
 // Reads straight into the tail of the output buffer, so nothing is copied twice on the way in.
@@ -127,15 +112,11 @@ static bool sbufBufDrain(_Pre_valid_ StreamBuffer* sb, _Inout_ Buffer* out, size
 // Direct mode hands the producer's bytes straight here, so the only copy anywhere on this path is
 // the one into the output buffer. A push consumer has to take everything it is given in one go,
 // which a Buffer can always do -- it grows.
-static void sbufBufPushCB(_Pre_valid_ StreamBuffer* sb, _In_reads_bytes_(sz) const uint8* buf,
-                          size_t sz, _Pre_opt_valid_ void* ctx)
+static void sbufBufPushCB(stvlist* cvars, _Pre_valid_ StreamBuffer* sb,
+                          _In_reads_bytes_(sz) const uint8* buf, size_t sz)
 {
-    SbufBufOutCtx* sbc = (SbufBufOutCtx*)ctx;
-    if (!sbc)
-        return;
-
     if (sz > 0)
-        bufAppendBytes(sbc->out, buf, sz);
+        bufAppendBytes((Buffer*)stvlAtPtr(cvars, 0), buf, sz);
 
     // nothing more is coming, so hand the slot back
     if (sbufIsClosed(sb))
@@ -157,16 +138,8 @@ bool sbufBufOut(StreamBuffer* sb, Buffer* bufout)
 _Use_decl_annotations_
 bool sbufBufCRegisterPush(StreamBuffer* sb, Buffer* bufout)
 {
-    SbufBufOutCtx* sbc = xaAllocStruct(SbufBufOutCtx);
-    sbc->out           = bufout;
-
-    if (!sbufCRegisterPushDirect(sb, sbufBufPushCB, sbufBufOutCleanup, sbc)) {
-        // registration never ran, so the cleanup callback will not either
-        sbufBufOutCleanup(sbc);
-        return false;
-    }
-
-    return true;
+    return sbufCRegisterPushDirect(sb,
+                                   closureCreateAs(sbufPushCB, sbufBufPushCB, stvar(ptr, bufout)));
 }
 
 _Use_decl_annotations_

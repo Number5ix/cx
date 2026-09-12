@@ -1567,7 +1567,7 @@ static void h3tOnHead(HttpServerEvent* ev)
     if (rec->useSink) {
         rec->sink = sbufCreate(4096);
         sbufSetWatermark(rec->sink, 8192, 4096);
-        sbufCRegisterPush(rec->sink, NULL, NULL, NULL);
+        sbufCRegisterPush(rec->sink, NULL);
         httpsrvreqSetSink(ev->request, rec->sink);
     }
 }
@@ -3322,11 +3322,11 @@ static void h3tqDrain(_Inout_ H3TqReq* r)
 // A registered consumer that leaves the data where it is: the task thread drains it. Registering
 // is still what puts the buffer in push mode and what makes the watermark hold the producer, so
 // there is a callback rather than nothing.
-static void h3tqSinkNotify(StreamBuffer* sb, size_t sz, void* ctx)
+static void h3tqSinkNotify(stvlist* cvars, StreamBuffer* sb, size_t sz)
 {
+    unused_noeval(cvars);
     unused_noeval(sb);
     unused_noeval(sz);
-    unused_noeval(ctx);
 }
 
 // One burst: H3TQ_BURST requests sent back to back, then waited for together. Sending them all
@@ -3371,7 +3371,9 @@ static bool h3tqBurst(_Inout_ H3TqTask* t, uint32 round)
             r->sink = sbufCreate(4096, SBUF_Locked);
             if (r->sink)
                 sbufSetWatermark(r->sink, 8192, 4096);
-            built = r->sink && sbufCRegisterPush(r->sink, h3tqSinkNotify, NULL, NULL) &&
+            built = r->sink &&
+                    sbufCRegisterPush(r->sink,
+                                      closureCreateAs(sbufNotifyCB, h3tqSinkNotify, stvNone)) &&
                     r->req && httprequestSetSink(r->req, r->sink);
             break;
         default:

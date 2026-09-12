@@ -98,12 +98,12 @@ static bool handoffToWorker(HttpConn* c)
 }
 
 _Use_decl_annotations_
-void _httpReqBodyNotify(StreamBuffer* sb, size_t sz, void* ctx)
+void _httpReqBodyNotify(stvlist* cvars, StreamBuffer* sb, size_t sz)
 {
     unused_noeval(sb);
     unused_noeval(sz);
 
-    HttpRequest* req = (HttpRequest*)ctx;
+    HttpRequest* req = stvlAtPtr(cvars, 0);
 
     // The same buffer serves both framing layers, so which one is writing it decides where this
     // goes. A request is on exactly one of them at a time.

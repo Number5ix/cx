@@ -290,12 +290,12 @@ void Http3ServerConn__pumpRespBody(_In_ Http3ServerConn* self, _In_ HttpServerRe
 // The producer wrote into a response body buffer that had run dry. Without this a push-mode
 // producer would stall for good: the pump stops when the buffer empties, and nothing else on this
 // stream is going to wake it.
-static void respStreamNotify(StreamBuffer* sb, size_t sz, void* ctx)
+static void respStreamNotify(stvlist* cvars, StreamBuffer* sb, size_t sz)
 {
     unused_noeval(sb);
     unused_noeval(sz);
 
-    HttpServerRequest* req = (HttpServerRequest*)ctx;
+    HttpServerRequest* req = stvlAtPtr(cvars, 0);
     if (!req || !req->h3flow)
         return;
 
@@ -379,9 +379,11 @@ bool Http3ServerConn__respond(_In_ Http3ServerConn* self, _In_ HttpServerRequest
     }
 
     // In pull mode cxhttp drives the buffer and has nothing to register; in push mode it is the
-    // one being called back.
+    // one being called back. The request owns the buffer, so the registration borrows a pointer
+    // back to it rather than a reference.
     if (req->respStream && !sbufIsPull(req->respStream) &&
-        !sbufCRegisterPush(req->respStream, respStreamNotify, NULL, req)) {
+        !sbufCRegisterPush(req->respStream,
+                           closureCreateAs(sbufNotifyCB, respStreamNotify, stvar(ptr, req)))) {
         streamFail(self, st, flow, H3ERR_INTERNAL_ERROR, HTTPERR_Network);
         return false;
     }
@@ -417,7 +419,7 @@ bool Http3ServerConn__sendContinue(_In_ Http3ServerConn* self, _In_ HttpServerRe
 // The reading side is mutually recursive: a sink draining resumes the pump, and the pump is what
 // filled the sink.
 static void streamPump(_Inout_ Http3ServerConn* self, _Inout_ H3Stream* st, _In_ NetFlow* flow);
-static void sinkResume(StreamBuffer* sb, void* ctx);
+static void sinkResume(stvlist* cvars, StreamBuffer* sb);
 
 // The head is complete: fill in the request from the field section and give the application its
 // one chance to say where the body goes.
@@ -483,7 +485,7 @@ static void beginRequest(_Inout_ Http3ServerConn* self, _Inout_ H3Stream* st, _I
     // stream being read at all. Registering here rather than in setSink() keeps the request object
     // free of anything protocol-specific.
     if (req->sink)
-        sbufPSetResume(req->sink, sinkResume, req);
+        sbufPSetResume(req->sink, closureCreateAs(sbufResumeCB, sinkResume, stvar(ptr, req)));
 
     bool autoContinue = srv->autoContinue;
     objRelease(&srv);
@@ -642,11 +644,11 @@ static void streamPump(_Inout_ Http3ServerConn* self, _Inout_ H3Stream* st, _In_
 }
 
 // The application's sink drained back below its low mark, so reading may resume.
-static void sinkResume(StreamBuffer* sb, void* ctx)
+static void sinkResume(stvlist* cvars, StreamBuffer* sb)
 {
     unused_noeval(sb);
 
-    HttpServerRequest* req = (HttpServerRequest*)ctx;
+    HttpServerRequest* req = stvlAtPtr(cvars, 0);
     if (!req || !req->h3flow)
         return;
 

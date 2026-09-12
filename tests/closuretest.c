@@ -253,9 +253,54 @@ static int test_closuretest_typed(void)
     return ret;
 }
 
+typedef struct ClosureTestDestroy {
+    int runs;
+    bool captureintact;
+} ClosureTestDestroy;
+
+static void ctestDestroy(stvlist* cvars)
+{
+    ClosureTestDestroy* td = stvlAtPtr(cvars, 0);
+    td->runs++;
+    td->captureintact = strEq(stvlAt(cvars, 1, strref), _SL("still here"));
+}
+
+static bool ctestNoop(stvlist* cvars, stvlist* args)
+{
+    return true;
+}
+
+// A destroy function runs exactly once, from closureDestroy(), while the captures can still be read.
+static int test_closuretest_destroy(void)
+{
+    int ret                = 0;
+    ClosureTestDestroy td  = { 0 };
+    string str             = 0;
+    strCopy(&str, _S"still here");
+
+    closure cls = closureCreate(ctestNoop, stvar(ptr, &td), stvar(string, str));
+    closureSetDestroy(cls, ctestDestroy);
+
+    closureCall(cls, stvNone);
+    if (td.runs != 0)
+        TEST_FAILV(ret, 1, _SL("destroy function ran ${int} times before closureDestroy"), stvar(int32, td.runs));
+
+    closureDestroy(&cls);
+    closureDestroy(&cls);   // already gone: must not run it again
+    if (td.runs != 1 || !td.captureintact)
+        TEST_FAILV(ret, 1, _SL("destroy runs=${int} captureintact=${bool} (want 1, true)"),
+                   stvar(int32, td.runs), stvar(bool, td.captureintact));
+    if (strTestRefCount(str) != 1)
+        TEST_FAILV(ret, 1, _SL("capture refcount=${int} after destroy (want 1)"), stvar(int32, strTestRefCount(str)));
+
+    strDestroy(&str);
+    return ret;
+}
+
 testfunc closuretest_funcs[] = {
     { "closure", test_closuretest_closure },
     { "chain", test_closuretest_chain },
     { "typed", test_closuretest_typed },
+    { "destroy", test_closuretest_destroy },
     { 0, 0 }
 };

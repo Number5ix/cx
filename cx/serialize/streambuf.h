@@ -22,10 +22,18 @@
 /// and calls the producer in pull mode, so code that only reads, or only writes, does not have to
 /// know which mode it is in.
 ///
+/// The registered side is a typed closure (see @ref closure_typed), so whatever the callback needs
+/// is captured alongside it and released when the registration goes away.
+///
 /// **Push mode:**
 /// @code
+///   static void onData(stvlist *cvars, StreamBuffer *sb, size_t sz) {
+///       Parser *p = stvlAtPtr(cvars, 0);
+///       // read from sb with sbufCRead() or sbufCSend()
+///   }
+///
 ///   StreamBuffer *sb = sbufCreate(4096);
-///   sbufCRegisterPush(sb, myNotifyCallback, NULL, ctx);   // consumer is called back
+///   sbufCRegisterPush(sb, closureCreateAs(sbufNotifyCB, onData, stvar(ptr, parser)));
 ///
 ///   sbufPWrite(sb, data, size);                           // producer drives
 ///   sbufFinish(&sb);                                      // close and release
@@ -34,7 +42,7 @@
 /// **Pull mode:**
 /// @code
 ///   StreamBuffer *sb = sbufCreate(4096);
-///   sbufPRegisterPull(sb, myPullCallback, NULL, ctx);     // producer is called back
+///   sbufPRegisterPull(sb, closureCreateAs(sbufPullCB, onPull, stvar(object, file)));
 ///
 ///   size_t bytesread;
 ///   while (sbufCRead(sb, buffer, sizeof(buffer), &bytesread)) {   // consumer drives
@@ -63,7 +71,7 @@
 /// sbufCUnregister() instead. That empties the slot without ending the stream, so a replacement can
 /// register and carry on -- a pull producer that ran out of bytes, or a log file rotated out from
 /// under a writer. Until someone new attaches, a reader gets short reads and a writer's bytes pile
-/// up in the buffer. Unregistering runs that registration's cleanup callback and gives back the
+/// up in the buffer. Unregistering destroys that registration's closure and gives back the
 /// reference the registration took.
 ///
 /// Whoever holds a reference may unregister a slot, not only the party that filled it, which is
@@ -96,6 +104,7 @@
 #pragma once
 
 #include <cx/buffer/bufring.h>
+#include <cx/closure/closure.h>
 #include <cx/stype/stype.h>
 #include <cx/thread/condvar.h>
 #include <cx/thread/mutex.h>
@@ -104,29 +113,36 @@ CX_C_BEGIN
 
 typedef struct StreamBuffer StreamBuffer;
 
-// Pull callback
-// sz is set to the maximum amount of data the may be written to buf.
-// The callback should fill buf with up to that amount and return the number
-// of bytes that were written.
-// The callback may return 0 if no data is currently available but will likely
-// be immediately called again, so a performing a blocking wait is advisable.
-//
-// If the callback needs to write an amount of data that is larger than the
-// space available as indicated by sz, it may instead call sbufPWrite with the
-// full amount (which will expand the buffer in the process) and return 0.
-//
-// A producer that has run out of data calls sbufPUnregister(), which leaves the stream open for
-// another producer. If sz is 0 this is a status check rather than a request for data: the stream
-// has closed or failed. A closed stream detaches the producer on its own once this returns.
-typedef size_t (*sbufPullCB)(_Pre_valid_ StreamBuffer* sb, _Out_writes_bytes_(sz) uint8* buf,
-                             size_t sz, _Pre_opt_valid_ void* ctx);
+/// Pull callback, for a producer registered with sbufPRegisterPull()
+///
+/// Create it with `closureCreateAs(sbufPullCB, func, ...)`. Fill `buf` with up to `sz` bytes and
+/// return how many were written. Returning 0 means no data is ready yet; the callback will likely
+/// be called again right away, so waiting for data here is reasonable. A producer with more than
+/// `sz` bytes ready may instead call sbufPWrite() with all of it and return 0.
+///
+/// A producer that has run out of data calls sbufPUnregister(), which leaves the stream open for
+/// another producer. A call with `sz` of 0 is a status check rather than a request for data: the
+/// stream has closed or failed. A closed stream detaches the producer on its own once this returns.
+///
+/// @param cvars Captured variables of the registered closure
+/// @param sb The stream buffer
+/// @param buf Where to write the data
+/// @param sz Most bytes that may be written
+/// @return Number of bytes written
+typedef size_t (*sbufPullCB)(stvlist* cvars, _Pre_valid_ StreamBuffer* sb,
+                             _Out_writes_bytes_(sz) uint8* buf, size_t sz);
 
-// Push callback
-// When this callback is used (in direct mode), the data is pushed once to the
-// callback and MUST all be written in one go or it will be lost.
-// If sz is 0, check whether the stream has closed or failed.
-typedef void (*sbufPushCB)(_Pre_valid_ StreamBuffer* sb, _In_reads_bytes_(sz) const uint8* buf,
-                           size_t sz, _Pre_opt_valid_ void* ctx);
+/// Push callback, for a consumer registered with sbufCRegisterPushDirect()
+///
+/// Create it with `closureCreateAs(sbufPushCB, func, ...)`. The data is handed over once and must
+/// all be taken, or it is lost. A call with `sz` of 0 means the stream has closed or failed.
+///
+/// @param cvars Captured variables of the registered closure
+/// @param sb The stream buffer
+/// @param buf The data
+/// @param sz Number of bytes
+typedef void (*sbufPushCB)(stvlist* cvars, _Pre_valid_ StreamBuffer* sb,
+                           _In_reads_bytes_(sz) const uint8* buf, size_t sz);
 
 // Send callback
 // This callback is used with sbufCSend. It may be called multiple times with varying
@@ -142,25 +158,30 @@ typedef void (*sbufPushCB)(_Pre_valid_ StreamBuffer* sb, _In_reads_bytes_(sz) co
 typedef bool (*sbufSendCB)(_Pre_valid_ StreamBuffer* sb, _In_reads_bytes_(sz) const uint8* buf,
                            size_t off, size_t sz, _Pre_opt_valid_ void* ctx);
 
-// Notify callback
-// Notification to a consumer that data is available. The sbufC* functions may be
-// used to read all or part of the available data.
-// A consumer that no longer wants the stream calls sbufCUnregister(), which leaves the stream open
-// for another consumer. If sz is 0 this is a status check rather than an offer of data: the stream
-// has closed or failed. A closed stream detaches the consumer on its own once this returns.
-typedef void (*sbufNotifyCB)(_Pre_valid_ StreamBuffer* sb, size_t sz, _Pre_opt_valid_ void* ctx);
+/// Notify callback, for a consumer registered with sbufCRegisterPush()
+///
+/// Create it with `closureCreateAs(sbufNotifyCB, func, ...)`. Data is available; read all or part
+/// of it with the sbufC* functions.
+///
+/// A consumer that no longer wants the stream calls sbufCUnregister(), which leaves the stream open
+/// for another consumer. A call with `sz` of 0 is a status check rather than an offer of data: the
+/// stream has closed or failed. A closed stream detaches the consumer on its own once this returns.
+///
+/// @param cvars Captured variables of the registered closure
+/// @param sb The stream buffer
+/// @param sz Number of bytes available
+typedef void (*sbufNotifyCB)(stvlist* cvars, _Pre_valid_ StreamBuffer* sb, size_t sz);
 
-// Resume callback
-// Tells a producer that was refused at the high watermark that the buffer has drained back to
-// the low mark and writing may continue. Called on whichever thread drained the buffer, with the
-// buffer's lock held, so it may call sbufPWrite() but must not block.
-typedef void (*sbufResumeCB)(_Pre_valid_ StreamBuffer* sb, _Pre_opt_valid_ void* ctx);
-
-// Cleanup callback
-// Called when the registration it belongs to goes away, either from an explicit unregister or
-// because the buffer was destroyed with the registration still in place. Should perform any needed
-// cleanup of the user-supplied ctx.
-typedef void (*sbufCleanupCB)(_Pre_opt_valid_ void* ctx);
+/// Resume callback, set with sbufPSetResume()
+///
+/// Create it with `closureCreateAs(sbufResumeCB, func, ...)`. Tells a producer that was refused at
+/// the high watermark that the buffer has drained back to the low mark and writing may continue.
+/// It runs on whichever thread drained the buffer, after that thread has released the buffer's
+/// lock, so it may call sbufPWrite().
+///
+/// @param cvars Captured variables of the registered closure
+/// @param sb The stream buffer
+typedef void (*sbufResumeCB)(stvlist* cvars, _Pre_valid_ StreamBuffer* sb);
 
 /// @defgroup serialize_streambuf_core Core Functions
 /// @ingroup serialize_streambuf
@@ -202,24 +223,16 @@ typedef struct StreamBuffer {
     BufRing buf;                     ///< Underlying buffer ring for data storage
     size_t targetsz;                 ///< Buffer size that producers should aim for
 
-    sbufPullCB producerPull;         ///< Producer pull callback; non-NULL means pull mode
-    sbufCleanupCB producerCleanup;   ///< Producer cleanup callback
-    void* producerCtx;               ///< Producer context
+    closure producerPull;            ///< Producer pull closure; non-NULL means pull mode
+    struct SbufResume* producerResume;   ///< Producer resume closure, and who is running it
 
-    sbufResumeCB producerResume;     ///< Producer resume callback
-    void* producerResumeCtx;         ///< Context for the resume callback
+    closure consumerNotify;          ///< Consumer notify closure; non-NULL means push mode
+    closure consumerPush;            ///< Consumer push closure; non-NULL means direct push mode
 
-    sbufNotifyCB consumerNotify;     ///< Consumer notify callback; non-NULL means push mode
-    sbufPushCB consumerPush;         ///< Consumer push callback; non-NULL means direct push mode
-    sbufCleanupCB consumerCleanup;   ///< Consumer cleanup callback
-    void* consumerCtx;               ///< Consumer context
-
-    // Cleanup callbacks owed to a role that unregistered from inside a callback, paid out once the
-    // stack has unwound back out of the buffer.
-    sbufCleanupCB pendingPCleanup;
-    void* pendingPCleanupCtx;
-    sbufCleanupCB pendingCCleanup;
-    void* pendingCCleanupCtx;
+    // Closures of roles that unregistered from inside a callback, destroyed once the stack has
+    // unwound back out of the buffer.
+    closure pendingP;
+    closure pendingC;
 
     size_t high;                     ///< Hold the producer at this much buffered data (0 = never)
     size_t low;                      ///< Release the producer once drained back to this much
@@ -432,27 +445,30 @@ bool sbufCMore(_Inout_ StreamBuffer* sb);
 ///
 /// Functions for the producer side of stream buffer operations.
 
-/// bool sbufPRegisterPull(StreamBuffer *sb, sbufPullCB ppull, sbufCleanupCB pcleanup, void *ctx)
+/// Registers a producer, putting the buffer in pull mode.
 ///
-/// Registers a producer callback, putting the buffer in pull mode.
-///
-/// The consumer drives from here on: every sbufCRead() calls this callback to fill the buffer.
+/// The consumer drives from here on: every sbufCRead() calls the producer to fill the buffer.
 /// Registration takes its own reference to the buffer and gives it back on unregister, so keep
 /// your own as well.
 ///
+/// Takes ownership of the closure whether or not registration succeeds. It is destroyed when the
+/// producer is unregistered, or right away if registration fails.
+///
 /// @param sb The stream buffer
-/// @param ppull Pull callback to provide data
-/// @param pcleanup Optional cleanup callback for ctx
-/// @param ctx Optional user context passed to callbacks
+/// @param ppull Closure created with `closureCreateAs(sbufPullCB, ...)`
 /// @return true on success, false if a producer is already attached, the stream closed, or the
 ///         buffer is already in push mode
-_Check_return_ bool sbufPRegisterPull(_Inout_ StreamBuffer* sb, _In_ sbufPullCB ppull,
-                                      _In_opt_ sbufCleanupCB pcleanup, _Inout_opt_ void* ctx);
+///
+/// Example:
+/// @code
+///   sbufPRegisterPull(sb, closureCreateAs(sbufPullCB, readChunk, stvar(object, file)));
+/// @endcode
+_Check_return_ bool sbufPRegisterPull(_Inout_ StreamBuffer* sb, _In_ closure ppull);
 
 /// Detaches the producer.
 ///
-/// Empties the producer slot, runs its cleanup callback and gives back the reference the
-/// registration took. The stream is not closed: another producer may register, and until one does a
+/// Empties the producer slot, destroys its closure and gives back the reference the registration
+/// took. The stream is not closed: another producer may register, and until one does a
 /// consumer gets short reads. A pull producer that has run out of data calls this on itself.
 ///
 /// Safe to call from inside the producer's own callback. Does nothing if no producer is attached.
@@ -468,21 +484,23 @@ void sbufPUnregister(_Inout_ StreamBuffer* sb);
 /// @return true if a pull producer is registered
 bool sbufPAttached(_Inout_ StreamBuffer* sb);
 
-/// Sets the callback that tells the producer it may write again.
+/// Sets the closure that tells the producer it may write again.
 ///
 /// Only useful for a producer that does not pass SBUF_Wait. When sbufPWrite() refuses a write
-/// because the buffer is full, this callback fires once the consumer has drained it back to the
+/// because the buffer is full, this closure is called once the consumer has drained it back to the
 /// low mark.
 ///
+/// Takes ownership of the closure. Any closure set earlier is destroyed, once it is no longer
+/// running. Unregistering the producer removes it too.
+///
 /// @param sb The stream buffer
-/// @param resume Callback to invoke when writing may continue (NULL to remove)
-/// @param ctx Optional user context passed to the callback
+/// @param resume Closure created with `closureCreateAs(sbufResumeCB, ...)`, or NULL to remove
 ///
 /// Example:
 /// @code
-///   sbufPSetResume(sb, myResumeCallback, self);
+///   sbufPSetResume(sb, closureCreateAs(sbufResumeCB, onResume, stvar(ptr, self)));
 /// @endcode
-void sbufPSetResume(_Inout_ StreamBuffer* sb, _In_opt_ sbufResumeCB resume, _Inout_opt_ void* ctx);
+void sbufPSetResume(_Inout_ StreamBuffer* sb, _In_opt_ closure resume);
 
 /// Checks whether the producer is currently held at the high watermark.
 ///
@@ -589,49 +607,42 @@ bool sbufPFlush(_Inout_ StreamBuffer* sb);
 ///
 /// Functions for the consumer side of stream buffer operations.
 
-/// bool sbufCRegisterPush(StreamBuffer *sb, sbufNotifyCB cnotify, sbufCleanupCB ccleanup, void
-/// *ctx)
+/// Registers a consumer to be notified of data, putting the buffer in push mode.
 ///
-/// Registers a consumer notification callback, putting the buffer in push mode.
-///
-/// The producer drives from here on: the callback runs whenever data is available, and the consumer
+/// The producer drives from here on: the closure runs whenever data is available, and the consumer
 /// uses sbufCRead() or sbufCSend() to take as much of it as it wants. If the producer has already
-/// written something, the callback fires once immediately with the backlog.
+/// written something, the closure runs once immediately with the backlog.
 ///
 /// Registration takes its own reference to the buffer and gives it back on unregister, so keep your
 /// own as well.
 ///
+/// Takes ownership of the closure whether or not registration succeeds. It is destroyed when the
+/// consumer is unregistered, or right away if registration fails.
+///
 /// @param sb The stream buffer
-/// @param cnotify Notification callback
-/// @param ccleanup Optional cleanup callback for ctx
-/// @param ctx Optional user context passed to callbacks
+/// @param cnotify Closure created with `closureCreateAs(sbufNotifyCB, ...)`
 /// @return true on success, false if a consumer is already attached, the stream has closed, or the
 ///         buffer is already in pull or direct mode
-_Check_return_ bool sbufCRegisterPush(_Inout_ StreamBuffer* sb, _In_ sbufNotifyCB cnotify,
-                                      _In_opt_ sbufCleanupCB ccleanup, _Inout_opt_ void* ctx);
+_Check_return_ bool sbufCRegisterPush(_Inout_ StreamBuffer* sb, _In_ closure cnotify);
 
-/// bool sbufCRegisterPushDirect(StreamBuffer *sb, sbufPushCB cpush, sbufCleanupCB ccleanup, void
-/// *ctx)
-///
 /// Registers a consumer in direct push mode.
 ///
-/// Data is handed to the callback as it is written and never buffered, so the consumer must take
+/// Data is handed to the closure as it is written and never buffered, so the consumer must take
 /// all of it every time. A direct buffer has no storage of its own: with no consumer attached
 /// there is nowhere for a write to go and it fails.
 ///
+/// Takes ownership of the closure whether or not registration succeeds, as sbufCRegisterPush().
+///
 /// @param sb The stream buffer
-/// @param cpush Push callback to receive data
-/// @param ccleanup Optional cleanup callback for ctx
-/// @param ctx Optional user context passed to callbacks
+/// @param cpush Closure created with `closureCreateAs(sbufPushCB, ...)`
 /// @return true on success, false if a consumer is already attached, the stream has closed, or the
 ///         buffer is already in pull mode
-_Check_return_ bool sbufCRegisterPushDirect(_Inout_ StreamBuffer* sb, _In_ sbufPushCB cpush,
-                                            _In_opt_ sbufCleanupCB ccleanup, _Inout_opt_ void* ctx);
+_Check_return_ bool sbufCRegisterPushDirect(_Inout_ StreamBuffer* sb, _In_ closure cpush);
 
 /// Detaches the consumer.
 ///
-/// Empties the consumer slot, runs its cleanup callback and gives back the reference the
-/// registration took. The stream is not closed: another consumer may register and will be handed
+/// Empties the consumer slot, destroys its closure and gives back the reference the registration
+/// took. The stream is not closed: another consumer may register and will be handed
 /// everything that piled up in the meantime.
 ///
 /// Call sbufPFlush() first when swapping consumers, so the bytes already written reach the one that

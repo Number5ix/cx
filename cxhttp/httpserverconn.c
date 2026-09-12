@@ -575,12 +575,12 @@ void HttpServerConn__pumpRespBody(_In_ HttpServerConn* self)
 // producer would stall for good: the pump stops when the buffer empties, and nothing else on this
 // connection is going to wake it -- the client is waiting for the body, so it sends nothing, and a
 // socket that is not blocked never fires NET_SendReady either.
-static void respStreamNotify(StreamBuffer* sb, size_t sz, void* ctx)
+static void respStreamNotify(stvlist* cvars, StreamBuffer* sb, size_t sz)
 {
     unused_noeval(sb);
     unused_noeval(sz);
 
-    HttpServerConn* self = (HttpServerConn*)ctx;
+    HttpServerConn* self = stvlAtPtr(cvars, 0);
     if (!self || !self->writing)
         return;
 
@@ -601,7 +601,9 @@ static bool adoptRespStream(HttpServerConn* self, HttpServerRequest* req)
     if (sbufIsPull(req->respStream))
         return true;
 
-    return sbufCRegisterPush(req->respStream, respStreamNotify, NULL, self);
+    // The connection outlives the request's body, so the registration borrows a pointer to it.
+    return sbufCRegisterPush(req->respStream,
+                             closureCreateAs(sbufNotifyCB, respStreamNotify, stvar(ptr, self)));
 }
 
 // Wrap a response body the application handed over as a string in a stream buffer of its own, so

@@ -89,17 +89,19 @@ typedef struct StreamCtx {
     int remaining;
 } StreamCtx;
 
-static void streamCleanup(void* ctx)
+// The count changes on every pull, so it lives outside the closure's captures, and this frees it
+// when the closure is destroyed.
+static void streamDestroy(stvlist* cvars)
 {
-    xaFree(ctx);
+    xaFree(stvlAtPtr(cvars, 0));
 }
 
 // A pull producer: cxhttp calls this whenever it has room on the wire, so the body is built a piece
 // at a time and never exists all at once. The response goes out chunked, because a length was not
 // known when the head was written.
-static size_t streamPull(StreamBuffer* sb, uint8* buf, size_t sz, void* ctx)
+static size_t streamPull(stvlist* cvars, StreamBuffer* sb, uint8* buf, size_t sz)
 {
-    StreamCtx* s = (StreamCtx*)ctx;
+    StreamCtx* s = stvlAtPtr(cvars, 0);
 
     if (sz == 0) {
         // A status check rather than a request for data. Once the stream is over there is nothing
@@ -192,8 +194,11 @@ static void onRequest(HttpServerEvent* ev)
         StreamCtx* s  = xaAllocStruct(StreamCtx);
         s->remaining  = 8;
 
+        closure cls = closureCreateAs(sbufPullCB, streamPull, stvar(ptr, s));
+        closureSetDestroy(cls, streamDestroy);
+
         StreamBuffer* sb = sbufCreate(64);
-        if (!sbufPRegisterPull(sb, streamPull, streamCleanup, s)) {
+        if (!sbufPRegisterPull(sb, cls)) {
             sbufRelease(&sb);
             httpsrvreqRespondStatus(req, HTTP_InternalError);
             return;

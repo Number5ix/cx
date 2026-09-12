@@ -17,6 +17,18 @@
 #define TEST_FUNCS sbtest_funcs
 #include "common.h"
 
+static closure sbtWithDestroy(closure cls, closureDestroyFunc destroy)
+{
+    closureSetDestroy(cls, destroy);
+    return cls;
+}
+
+// Wraps a test callback and its stack context in a registration closure. The destroy function
+// stands in for the context's teardown, so a test can see that the registration got rid of what it
+// was given, and when.
+#define sbtReg(sig, fn, destroy, ctx) \
+    sbtWithDestroy(closureCreateAs(sig, fn, stvar(ptr, ctx)), destroy)
+
 static const uint8 testdata1[] = "This is a test. This is a test. This is a test. This is a test. This is a test. This is a test.";
 #define TESTBUF_SZ 128
 _Static_assert(TESTBUF_SZ > sizeof(testdata1), "TESTBUF_SZ must be big enough to hold the test data");
@@ -40,9 +52,9 @@ static bool sbsend1(StreamBuffer *sb, const uint8 *buf, size_t off, size_t sz, v
     return true;
 }
 
-static void sbnotify1(StreamBuffer *sb, size_t sz, void *ctx)
+static void sbnotify1(stvlist *cvars, StreamBuffer *sb, size_t sz)
 {
-    TestCtx1 * tc = (TestCtx1 *)ctx;
+    TestCtx1 * tc = (TestCtx1 *)stvlAtPtr(cvars, 0);
     if (tc->outp + sz > TESTBUF_SZ)
         return;
 
@@ -53,13 +65,13 @@ static void sbnotify1(StreamBuffer *sb, size_t sz, void *ctx)
         tc->outp += didread;
         devAssert(didread == min(sz, tc->shouldread));
     } else {
-        sbufCSend(sb, sbsend1, min(sz, tc->shouldread), ctx);
+        sbufCSend(sb, sbsend1, min(sz, tc->shouldread), tc);
     }
 }
 
-static void sbclean1(void *ctx)
+static void sbclean1(stvlist *cvars)
 {
-    TestCtx1 *tc = (TestCtx1 *)ctx;
+    TestCtx1 *tc = (TestCtx1 *)stvlAtPtr(cvars, 0);
     tc->didclean = true;
 }
 
@@ -73,7 +85,7 @@ static int test_streambuf_push(void)
 
     for (int usesend = 0; usesend < 2; usesend++) {
         ptest = sbufCreate(32);
-        if (!sbufCRegisterPush(ptest, sbnotify1, sbclean1, &c1)) {
+        if (!sbufCRegisterPush(ptest, sbtReg(sbufNotifyCB, sbnotify1, sbclean1, &c1))) {
             TEST_FAILV(ret, 1, _SL("sbufCRegisterPush failed, usesend=${int}"), stvar(int32, usesend));
             goto out;
         }
@@ -143,9 +155,9 @@ typedef struct TestCtx2 {
     bool didclean;
 } TestCtx2;
 
-static size_t sbpull2(StreamBuffer *sb, uint8 *buf, size_t sz, void *ctx)
+static size_t sbpull2(stvlist *cvars, StreamBuffer *sb, uint8 *buf, size_t sz)
 {
-    TestCtx2 *tc = (TestCtx2 *)ctx;
+    TestCtx2 *tc = (TestCtx2 *)stvlAtPtr(cvars, 0);
     size_t bytes = min(sz, sizeof(testdata1) - tc->inp);
 
     if (sz % 2 == 1) {
@@ -163,9 +175,9 @@ static size_t sbpull2(StreamBuffer *sb, uint8 *buf, size_t sz, void *ctx)
     return bytes;
 }
 
-static void sbclean2(void *ctx)
+static void sbclean2(stvlist *cvars)
 {
-    TestCtx2 *tc = (TestCtx2 *)ctx;
+    TestCtx2 *tc = (TestCtx2 *)stvlAtPtr(cvars, 0);
     tc->didclean = true;
 }
 
@@ -178,7 +190,7 @@ static int test_streambuf_pull(void)
     uint8 out[TESTBUF_SZ];
     size_t p = 0;
 
-    if (!sbufPRegisterPull(ptest, sbpull2, sbclean2, &ctx))
+    if (!sbufPRegisterPull(ptest, sbtReg(sbufPullCB, sbpull2, sbclean2, &ctx)))
         return false;
 
     size_t didread;
@@ -248,7 +260,7 @@ static int test_streambuf_peek(void)
     uint8 out[TESTBUF_SZ];
     size_t p = 0, didread;
 
-    if (!sbufPRegisterPull(ptest, sbpull2, sbclean2, &ctx))
+    if (!sbufPRegisterPull(ptest, sbtReg(sbufPullCB, sbpull2, sbclean2, &ctx)))
         return false;
 
     if (!sbufCFeed(ptest, 5))
@@ -324,9 +336,9 @@ typedef struct TestCtx3 {
     bool didclean;
 } TestCtx3;
 
-static void sbpush3(StreamBuffer *sb, const uint8 *buf, size_t sz, void *ctx)
+static void sbpush3(stvlist *cvars, StreamBuffer *sb, const uint8 *buf, size_t sz)
 {
-    TestCtx3 *tc = (TestCtx3 *)ctx;
+    TestCtx3 *tc = (TestCtx3 *)stvlAtPtr(cvars, 0);
 
     if (tc->outp + sz > TESTBUF_SZ)
         return;
@@ -335,9 +347,9 @@ static void sbpush3(StreamBuffer *sb, const uint8 *buf, size_t sz, void *ctx)
     tc->outp += sz;
 }
 
-static void sbclean3(void *ctx)
+static void sbclean3(stvlist *cvars)
 {
-    TestCtx3 *tc = (TestCtx3 *)ctx;
+    TestCtx3 *tc = (TestCtx3 *)stvlAtPtr(cvars, 0);
     tc->didclean = true;
 }
 
@@ -348,7 +360,7 @@ static int test_streambuf_direct(void)
     TestCtx3 c3 = { 0 };
     c3.out = xaAlloc(TESTBUF_SZ);
     ptest = sbufCreate(0);
-    if (!sbufCRegisterPushDirect(ptest, sbpush3, sbclean3, &c3)) {
+    if (!sbufCRegisterPushDirect(ptest, sbtReg(sbufPushCB, sbpush3, sbclean3, &c3))) {
         TEST_FAILV(ret, 1, _SL("sbufCRegisterPushDirect failed"), stvNone);
         goto out;
     }
@@ -625,9 +637,9 @@ typedef struct RangeProducer {
     bool didclean;
 } RangeProducer;
 
-static size_t rangePull(StreamBuffer *sb, uint8 *buf, size_t sz, void *ctx)
+static size_t rangePull(stvlist *cvars, StreamBuffer *sb, uint8 *buf, size_t sz)
 {
-    RangeProducer *rp = (RangeProducer *)ctx;
+    RangeProducer *rp = (RangeProducer *)stvlAtPtr(cvars, 0);
 
     if (sz == 0) {
         if (sbufIsClosed(sb))
@@ -645,9 +657,9 @@ static size_t rangePull(StreamBuffer *sb, uint8 *buf, size_t sz, void *ctx)
     return n;
 }
 
-static void rangeClean(void *ctx)
+static void rangeClean(stvlist *cvars)
 {
-    ((RangeProducer *)ctx)->didclean = true;
+    ((RangeProducer *)stvlAtPtr(cvars, 0))->didclean = true;
 }
 
 // A push consumer that collects into a string. take caps how much it will accept per notify, so a
@@ -658,9 +670,9 @@ typedef struct CollectCtx {
     bool didclean;
 } CollectCtx;
 
-static void collectNotify(StreamBuffer *sb, size_t sz, void *ctx)
+static void collectNotify(stvlist *cvars, StreamBuffer *sb, size_t sz)
 {
-    CollectCtx *cc = (CollectCtx *)ctx;
+    CollectCtx *cc = (CollectCtx *)stvlAtPtr(cvars, 0);
 
     size_t want = cc->take > 0 ? min(sz, cc->take) : sz;
     if (want > 0) {
@@ -675,9 +687,9 @@ static void collectNotify(StreamBuffer *sb, size_t sz, void *ctx)
         sbufCUnregister(sb);
 }
 
-static void collectClean(void *ctx)
+static void collectClean(stvlist *cvars)
 {
-    ((CollectCtx *)ctx)->didclean = true;
+    ((CollectCtx *)stvlAtPtr(cvars, 0))->didclean = true;
 }
 
 // A producer that runs out early and calls it a failure rather than an ending.
@@ -687,9 +699,9 @@ typedef struct FailProducer {
     size_t pos;
 } FailProducer;
 
-static size_t failPull(StreamBuffer *sb, uint8 *buf, size_t sz, void *ctx)
+static size_t failPull(stvlist *cvars, StreamBuffer *sb, uint8 *buf, size_t sz)
 {
-    FailProducer *fp = (FailProducer *)ctx;
+    FailProducer *fp = (FailProducer *)stvlAtPtr(cvars, 0);
 
     if (sz == 0) {
         if (sbufIsClosed(sb))
@@ -720,7 +732,7 @@ static int test_streambuf_phandoff(void)
     RangeProducer p2 = { .data = testdata1 + 10, .len = 10 };
 
     StreamBuffer *sb = sbufCreate(32);
-    if (!sbufPRegisterPull(sb, rangePull, rangeClean, &p1))
+    if (!sbufPRegisterPull(sb, sbtReg(sbufPullCB, rangePull, rangeClean, &p1)))
         TEST_FAIL(1, _SL("first sbufPRegisterPull failed"), stvNone);
 
     // asking for more than the first producer has short-reads rather than ending the stream
@@ -737,7 +749,7 @@ static int test_streambuf_phandoff(void)
         TEST_FAILV(ret, 1, _SL("sbufCMore true with no producer attached"), stvNone);
 
     // a replacement takes over and the consumer is none the wiser
-    if (!sbufPRegisterPull(sb, rangePull, rangeClean, &p2))
+    if (!sbufPRegisterPull(sb, sbtReg(sbufPullCB, rangePull, rangeClean, &p2)))
         TEST_FAIL(1, _SL("second sbufPRegisterPull failed"), stvNone);
     if (!sbufCMore(sb))
         TEST_FAILV(ret, 1, _SL("sbufCMore false right after a producer attached"), stvNone);
@@ -774,7 +786,7 @@ static int test_streambuf_chandoff(void)
         TEST_FAILV(ret, 1, _SL("sbufCAttached true with nothing registered"), stvNone);
 
     // registering hands over the backlog on the spot
-    if (!sbufCRegisterPush(sb, collectNotify, collectClean, &c1))
+    if (!sbufCRegisterPush(sb, sbtReg(sbufNotifyCB, collectNotify, collectClean, &c1)))
         TEST_FAIL(1, _SL("first sbufCRegisterPush failed"), stvNone);
     if (strLen(c1.out) != 10)
         TEST_FAILV(ret, 1, _SL("the arriving consumer got ${int} bytes, want 10"), stvar(int32, (int32)strLen(c1.out)));
@@ -792,7 +804,7 @@ static int test_streambuf_chandoff(void)
         TEST_FAILV(ret, 1, _SL("sbufPWrite after the consumer left failed"), stvNone);
 
     // everything written in between reaches whoever attaches next
-    if (!sbufCRegisterPush(sb, collectNotify, collectClean, &c2))
+    if (!sbufCRegisterPush(sb, sbtReg(sbufNotifyCB, collectNotify, collectClean, &c2)))
         TEST_FAIL(1, _SL("second sbufCRegisterPush failed"), stvNone);
 
     if (strLen(c1.out) != 15 || memcmp(strC(c1.out), testdata1, 15))
@@ -819,7 +831,7 @@ static int test_streambuf_cswap(void)
     CollectCtx c1 = { .take = 4 }, c2 = { 0 };
 
     StreamBuffer *sb = sbufCreate(64);
-    if (!sbufCRegisterPush(sb, collectNotify, collectClean, &c1))
+    if (!sbufCRegisterPush(sb, sbtReg(sbufNotifyCB, collectNotify, collectClean, &c1)))
         TEST_FAIL(1, _SL("first sbufCRegisterPush failed"), stvNone);
 
     // deliberately under-read, so a backlog is left behind that belongs to this consumer
@@ -843,7 +855,7 @@ static int test_streambuf_cswap(void)
     if (!c1.didclean)
         TEST_FAILV(ret, 1, _SL("the outgoing sink's cleanup did not run at the unregister"), stvNone);
 
-    if (!sbufCRegisterPush(sb, collectNotify, collectClean, &c2))
+    if (!sbufCRegisterPush(sb, sbtReg(sbufNotifyCB, collectNotify, collectClean, &c2)))
         TEST_FAIL(1, _SL("second sbufCRegisterPush failed"), stvNone);
     sbufPWrite(sb, testdata1 + 12, 6);
 
@@ -872,7 +884,7 @@ static int test_streambuf_error(void)
     RangeProducer rp = { .data = testdata1 + 8, .len = 8 };
 
     StreamBuffer *sb = sbufCreate(32);
-    if (!sbufPRegisterPull(sb, failPull, NULL, &fp))
+    if (!sbufPRegisterPull(sb, sbtReg(sbufPullCB, failPull, NULL, &fp)))
         TEST_FAIL(1, _SL("sbufPRegisterPull failed"), stvNone);
 
     sbufCRead(sb, out, 8, &got);
@@ -896,7 +908,7 @@ static int test_streambuf_error(void)
     sbufClearError(sb);
     if (sbufIsError(sb))
         TEST_FAILV(ret, 1, _SL("sbufClearError did not clear the error"), stvNone);
-    if (!sbufPRegisterPull(sb, rangePull, rangeClean, &rp))
+    if (!sbufPRegisterPull(sb, sbtReg(sbufPullCB, rangePull, rangeClean, &rp)))
         TEST_FAIL(1, _SL("could not attach a replacement producer"), stvNone);
 
     sbufCRead(sb, out + 8, 8, &got);
@@ -989,7 +1001,7 @@ static int test_streambuf_endpull(void)
         RangeProducer rp = { .data = testdata1, .len = sizeof(testdata1) };
 
         StreamBuffer *sb = sbufCreate(32, locked ? SBUF_Locked : 0);
-        if (!sbufPRegisterPull(sb, rangePull, rangeClean, &rp))
+        if (!sbufPRegisterPull(sb, sbtReg(sbufPullCB, rangePull, rangeClean, &rp)))
             TEST_FAILV(ret, 1, _SL("sbufPRegisterPull failed, locked=${int}"), stvar(int32, locked));
 
         sbufCRead(sb, out, 8, &got);
@@ -1021,7 +1033,7 @@ static int test_streambuf_flush(void)
     RangeProducer rp = { .data = testdata1, .len = 16 };
 
     StreamBuffer *sb = sbufCreate(32);
-    if (!sbufCRegisterPush(sb, collectNotify, collectClean, &cc))
+    if (!sbufCRegisterPush(sb, sbtReg(sbufNotifyCB, collectNotify, collectClean, &cc)))
         TEST_FAIL(1, _SL("sbufCRegisterPush failed"), stvNone);
 
     // nothing buffered, so there is nothing to catch up on
@@ -1042,7 +1054,7 @@ static int test_streambuf_flush(void)
 
     // pull mode fills on demand and any write is on the consumer's own stack, so this is refused
     sb = sbufCreate(32);
-    if (!sbufPRegisterPull(sb, rangePull, rangeClean, &rp))
+    if (!sbufPRegisterPull(sb, sbtReg(sbufPullCB, rangePull, rangeClean, &rp)))
         TEST_FAIL(1, _SL("sbufPRegisterPull failed"), stvNone);
     if (sbufPFlush(sb))
         TEST_FAILV(ret, 1, _SL("sbufPFlush succeeded in pull mode"), stvNone);
@@ -1059,9 +1071,9 @@ typedef struct StuckCtx {
     bool didclean;
 } StuckCtx;
 
-static size_t stuckPull(StreamBuffer *sb, uint8 *buf, size_t sz, void *ctx)
+static size_t stuckPull(stvlist *cvars, StreamBuffer *sb, uint8 *buf, size_t sz)
 {
-    StuckCtx *sc = (StuckCtx *)ctx;
+    StuckCtx *sc = (StuckCtx *)stvlAtPtr(cvars, 0);
 
     if (sz == 0) {
         sc->sawend = true;
@@ -1072,17 +1084,17 @@ static size_t stuckPull(StreamBuffer *sb, uint8 *buf, size_t sz, void *ctx)
     return sz;
 }
 
-static void stuckNotify(StreamBuffer *sb, size_t sz, void *ctx)
+static void stuckNotify(stvlist *cvars, StreamBuffer *sb, size_t sz)
 {
-    StuckCtx *sc = (StuckCtx *)ctx;
+    StuckCtx *sc = (StuckCtx *)stvlAtPtr(cvars, 0);
 
     if (sz == 0)
         sc->sawend = true;   // deliberately does not unregister
 }
 
-static void stuckClean(void *ctx)
+static void stuckClean(stvlist *cvars)
 {
-    ((StuckCtx *)ctx)->didclean = true;
+    ((StuckCtx *)stvlAtPtr(cvars, 0))->didclean = true;
 }
 
 // A registration that outlives the stream can never be called again and would keep the buffer
@@ -1099,7 +1111,7 @@ static int test_streambuf_closedetach(void)
     // push mode: a consumer that ignores the end of the stream
     StuckCtx cs = { 0 };
     StreamBuffer *sb = sbufCreate(32);
-    if (!sbufCRegisterPush(sb, stuckNotify, stuckClean, &cs))
+    if (!sbufCRegisterPush(sb, sbtReg(sbufNotifyCB, stuckNotify, stuckClean, &cs)))
         TEST_FAIL(1, _SL("sbufCRegisterPush failed"), stvNone);
 
     sbufClose(sb);
@@ -1118,7 +1130,7 @@ static int test_streambuf_closedetach(void)
     // pull mode: a producer that ignores the end of the stream
     StuckCtx ps = { 0 };
     sb = sbufCreate(32);
-    if (!sbufPRegisterPull(sb, stuckPull, stuckClean, &ps))
+    if (!sbufPRegisterPull(sb, sbtReg(sbufPullCB, stuckPull, stuckClean, &ps)))
         TEST_FAILV(ret, 1, _SL("sbufPRegisterPull failed"), stvNone);
 
     sbufFinish(&sb);
@@ -1221,7 +1233,7 @@ static int test_streambuf_threaded(void)
     eventInit(&tc.parked);
     sbufSetWatermark(tc.sb, 8, 4);
 
-    if (!sbufCRegisterPush(tc.sb, collectNotify, collectClean, &c1))
+    if (!sbufCRegisterPush(tc.sb, sbtReg(sbufNotifyCB, collectNotify, collectClean, &c1)))
         TEST_FAIL(1, _SL("sbufCRegisterPush failed"), stvNone);
 
     Thread *t = thrCreate(threadedProducer, _S"sbuf producer", stvar(ptr, &tc));
@@ -1236,7 +1248,7 @@ static int test_streambuf_threaded(void)
 
     // swap the consumer out from under the parked producer, then hand the stream to a new one
     sbufCUnregister(tc.sb);
-    if (!sbufCRegisterPush(tc.sb, collectNotify, collectClean, &c2))
+    if (!sbufCRegisterPush(tc.sb, sbtReg(sbufNotifyCB, collectNotify, collectClean, &c2)))
         TEST_FAIL(1, _SL("the replacement sbufCRegisterPush failed"), stvNone);
 
     thrWait(t, timeS(10));
@@ -1315,6 +1327,124 @@ static int test_streambuf_threaded(void)
     return ret;
 }
 
+// A registration owns its closure from the moment it is handed over, including when it is refused,
+// so a caller never has to work out whether it still needs cleaning up.
+static int test_streambuf_ownership(void)
+{
+    int ret = 0;
+
+    RangeProducer p1 = { .data = testdata1, .len = 10 };
+    RangeProducer p2 = { .data = testdata1, .len = 10 };
+    CollectCtx cc    = { 0 };
+
+    StreamBuffer *sb = sbufCreate(32);
+    if (!sbufPRegisterPull(sb, sbtReg(sbufPullCB, rangePull, rangeClean, &p1)))
+        TEST_FAIL(1, _SL("sbufPRegisterPull failed"), stvNone);
+
+    // the slot is taken, so this is refused and the closure goes right away -- exactly once
+    if (sbufPRegisterPull(sb, sbtReg(sbufPullCB, rangePull, rangeClean, &p2)))
+        TEST_FAILV(ret, 1, _SL("a second producer was accepted"), stvNone);
+    if (!p2.didclean)
+        TEST_FAILV(ret, 1, _SL("refused producer's closure was not destroyed"), stvNone);
+    if (p1.didclean)
+        TEST_FAILV(ret, 1, _SL("refusing a second producer destroyed the first"), stvNone);
+
+    // a pull stream has no consumer slot to take
+    if (sbufCRegisterPush(sb, sbtReg(sbufNotifyCB, collectNotify, collectClean, &cc)))
+        TEST_FAILV(ret, 1, _SL("a consumer was accepted on a pull stream"), stvNone);
+    if (!cc.didclean)
+        TEST_FAILV(ret, 1, _SL("refused consumer's closure was not destroyed"), stvNone);
+
+    // nothing to own
+    if (sbufPRegisterPull(sb, NULL) || sbufCRegisterPush(sb, NULL) ||
+        sbufCRegisterPushDirect(sb, NULL))
+        TEST_FAILV(ret, 1, _SL("a NULL closure was accepted"), stvNone);
+
+    sbufFinish(&sb);
+    if (!p1.didclean)
+        TEST_FAILV(ret, 1, _SL("the registered producer's closure outlived the stream"), stvNone);
+    strDestroy(&cc.out);
+
+    return ret;
+}
+
+typedef struct ResumeCtx {
+    StreamBuffer *sb;
+    int calls;
+    bool dead[3];
+    bool deadDuringCall;
+} ResumeCtx;
+
+static void resumeDestroy(stvlist *cvars)
+{
+    ResumeCtx *rc = stvlAtPtr(cvars, 0);
+    rc->dead[stvlAt(cvars, 1, int32)] = true;
+}
+
+static void resumeReplace(stvlist *cvars, StreamBuffer *sb);
+
+static closure resumeClosure(ResumeCtx *rc, int32 which)
+{
+    closure cls = closureCreateAs(sbufResumeCB, resumeReplace, stvar(ptr, rc), stvar(int32, which));
+    closureSetDestroy(cls, resumeDestroy);
+    return cls;
+}
+
+// Replaces itself while it is running. The closure being run must survive until it returns.
+static void resumeReplace(stvlist *cvars, StreamBuffer *sb)
+{
+    ResumeCtx *rc = stvlAtPtr(cvars, 0);
+    int32 which   = stvlAt(cvars, 1, int32);
+    rc->calls++;
+
+    sbufPSetResume(sb, resumeClosure(rc, 2));
+    rc->deadDuringCall = rc->dead[which];
+}
+
+// The resume closure runs after the buffer's lock is released, so replacing it -- even from inside
+// its own call -- must not destroy it out from under that call.
+static int test_streambuf_resume(void)
+{
+    int ret      = 0;
+    ResumeCtx rc = { 0 };
+    uint8 drained[TESTBUF_SZ];
+    size_t didread = 0;
+
+    rc.sb = sbufCreate(16);
+    sbufSetWatermark(rc.sb, 8, 4);
+
+    // replacing a resume closure that is not running destroys it straight away
+    sbufPSetResume(rc.sb, resumeClosure(&rc, 0));
+    sbufPSetResume(rc.sb, resumeClosure(&rc, 1));
+    if (!rc.dead[0] || rc.dead[1])
+        TEST_FAILV(ret, 1, _SL("after replacing: dead0=${bool} dead1=${bool} (want true, false)"),
+                   stvar(bool, rc.dead[0]), stvar(bool, rc.dead[1]));
+
+    // fill to the high mark, then get refused so a resume is owed
+    if (!sbufPWrite(rc.sb, testdata1, 8))
+        TEST_FAILV(ret, 1, _SL("filling write failed"), stvNone);
+    if (sbufPWrite(rc.sb, testdata1 + 8, 1) || !sbufPIsHeld(rc.sb))
+        TEST_FAILV(ret, 1, _SL("write at the high mark was not refused"), stvNone);
+
+    // draining below the low mark pays out the resume, which replaces itself
+    if (!sbufCRead(rc.sb, drained, 8, &didread) || didread != 8)
+        TEST_FAILV(ret, 1, _SL("drain read ${uint} bytes, want 8"), stvar(size, didread));
+    if (rc.calls != 1)
+        TEST_FAILV(ret, 1, _SL("resume ran ${int} times, want 1"), stvar(int32, rc.calls));
+    if (rc.deadDuringCall)
+        TEST_FAILV(ret, 1, _SL("resume closure was destroyed while it was running"), stvNone);
+    if (!rc.dead[1] || rc.dead[2])
+        TEST_FAILV(ret, 1, _SL("after the call: dead1=${bool} dead2=${bool} (want true, false)"),
+                   stvar(bool, rc.dead[1]), stvar(bool, rc.dead[2]));
+
+    // the replacement set from inside the call goes with the buffer
+    sbufRelease(&rc.sb);
+    if (!rc.dead[2])
+        TEST_FAILV(ret, 1, _SL("the last resume closure outlived the stream"), stvNone);
+
+    return ret;
+}
+
 // Each group below runs several of the subtests above in one process, so ctest spends one
 // process launch per feature area instead of one per subtest. The individual subtests stay
 // registered under their own names too, for running or debugging one in isolation.
@@ -1339,7 +1469,8 @@ int test_streambuf_grp_handoff(void)
 int test_streambuf_grp_lifecycle(void)
 {
     TEST_CHAIN(test_streambuf_error, test_streambuf_senderror, test_streambuf_flush,
-               test_streambuf_closedetach, test_streambuf_reuse, test_streambuf_threaded);
+               test_streambuf_closedetach, test_streambuf_reuse, test_streambuf_threaded,
+               test_streambuf_ownership, test_streambuf_resume);
 }
 
 testfunc sbtest_funcs[] = {
@@ -1360,6 +1491,8 @@ testfunc sbtest_funcs[] = {
     { "closedetach", test_streambuf_closedetach },
     { "reuse", test_streambuf_reuse },
     { "threaded", test_streambuf_threaded },
+    { "ownership", test_streambuf_ownership },
+    { "resume", test_streambuf_resume },
     { "grp_pushpull", test_streambuf_grp_pushpull },
     { "grp_adapters", test_streambuf_grp_adapters },
     { "grp_handoff", test_streambuf_grp_handoff },

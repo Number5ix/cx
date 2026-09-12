@@ -187,8 +187,10 @@ static void clearBody(HttpRequest* self)
 static bool adoptBody(HttpRequest* self, StreamBuffer* sb)
 {
     // In pull mode cxhttp drives the buffer and has nothing to register; in push mode it is the
-    // one being called back. Either way the request keeps a reference of its own.
-    if (!sbufIsPull(sb) && !sbufCRegisterPush(sb, _httpReqBodyNotify, NULL, self))
+    // one being called back. Either way the request keeps a reference of its own. The request owns
+    // the buffer, so the registration borrows a pointer back to it rather than a reference.
+    if (!sbufIsPull(sb) &&
+        !sbufCRegisterPush(sb, closureCreateAs(sbufNotifyCB, _httpReqBodyNotify, stvar(ptr, self))))
         return false;
 
     self->reqBodyStream = sbufAcquire(sb);

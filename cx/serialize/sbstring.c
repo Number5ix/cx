@@ -3,16 +3,16 @@
 #include <cx/string.h>
 #include <cx/utils/compare.h>
 
+// A pull producer walks through the string as it is asked for data, so the iterator is state that
+// changes on every call. That lives in a context the closure points at, and the closure's destroy
+// function finishes the iterator and frees it.
 typedef struct SbufProviderCtx {
     striter iter;
 } SbufProviderCtx;
 
-static void sbufProviderCleanup(_Pre_opt_valid_ void* ctx)
+static void sbufProviderDestroy(stvlist* cvars)
 {
-    if (!ctx)
-        return;
-
-    SbufProviderCtx* sbc = (SbufProviderCtx*)ctx;
+    SbufProviderCtx* sbc = stvlAtPtr(cvars, 0);
     striFinish(&sbc->iter);
     xaFree(sbc);
 }
@@ -50,12 +50,10 @@ bool sbufStrIn(StreamBuffer* sb, strref str)
     return !sbufIsError(sb);
 }
 
-static size_t sbufStrPullCB(_Pre_valid_ StreamBuffer* sb, _Out_writes_bytes_(sz) uint8* buf,
-                            size_t sz, _Pre_opt_valid_ void* ctx)
+static size_t sbufStrPullCB(stvlist* cvars, _Pre_valid_ StreamBuffer* sb,
+                            _Out_writes_bytes_(sz) uint8* buf, size_t sz)
 {
-    SbufProviderCtx* sbc = (SbufProviderCtx*)ctx;
-    if (!sbc)
-        return 0;
+    SbufProviderCtx* sbc = stvlAtPtr(cvars, 0);
 
     if (sz == 0) {
         // A status check rather than a request for data. Once the stream is over there is nothing
@@ -82,41 +80,22 @@ _Use_decl_annotations_
 bool sbufStrPRegisterPull(StreamBuffer* sb, strref str)
 {
     SbufProviderCtx* sbc = xaAllocStruct(SbufProviderCtx);
-
     striInit(&sbc->iter, str);
 
-    if (!sbufPRegisterPull(sb, sbufStrPullCB, sbufProviderCleanup, sbc)) {
-        // registration never ran, so the cleanup callback will not either
-        sbufProviderCleanup(sbc);
-        return false;
-    }
-
-    return true;
+    closure cls = closureCreateAs(sbufPullCB, sbufStrPullCB, stvar(ptr, sbc));
+    closureSetDestroy(cls, sbufProviderDestroy);
+    return sbufPRegisterPull(sb, cls);
 }
 
-typedef struct SbufStrOutCtx {
-    string* out;
-} SbufStrOutCtx;
-
-static void sbufStrOutCleanup(_Pre_opt_valid_ void* ctx)
+static void sbufStrNotifyCB(stvlist* cvars, _Pre_valid_ StreamBuffer* sb, size_t sz)
 {
-    SbufStrOutCtx* sbc = (SbufStrOutCtx*)ctx;
-    xaFree(sbc);
-}
-
-static void sbufStrNotifyCB(_Pre_valid_ StreamBuffer* sb, size_t sz, _Pre_opt_valid_ void* ctx)
-{
-    SbufStrOutCtx* sbc = (SbufStrOutCtx*)ctx;
-    if (!sbc)
-        return;
-
     if (sz > 0) {
         string temp   = 0;
         size_t didread;
         uint8* tbuf   = strBuffer(&temp, (uint32)sz);
         if (sbufCRead(sb, tbuf, sz, &didread)) {
             strSetLen(&temp, (uint32)didread);
-            strAppend(sbc->out, temp);
+            strAppend((string*)stvlAtPtr(cvars, 0), temp);
         }
         strDestroy(&temp);
     }
@@ -150,13 +129,8 @@ bool sbufStrOut(StreamBuffer* sb, string* strout)
 _Use_decl_annotations_
 bool sbufStrCRegisterPush(StreamBuffer* sb, string* strout)
 {
-    SbufStrOutCtx* sbc = xaAlloc(sizeof(SbufStrOutCtx));
-    sbc->out           = strout;
-
-    if (!sbufCRegisterPush(sb, sbufStrNotifyCB, sbufStrOutCleanup, sbc))
-        return false;
-
-    return true;
+    return sbufCRegisterPush(sb,
+                             closureCreateAs(sbufNotifyCB, sbufStrNotifyCB, stvar(ptr, strout)));
 }
 
 _Use_decl_annotations_

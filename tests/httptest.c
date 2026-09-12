@@ -3748,11 +3748,11 @@ static void srvSinkDrain(SrvRec* r)
     }
 }
 
-static void onSrvSinkNotify(StreamBuffer* sb, size_t sz, void* ctx)
+static void onSrvSinkNotify(stvlist* cvars, StreamBuffer* sb, size_t sz)
 {
     unused_noeval(sb);
     unused_noeval(sz);
-    srvSinkDrain((SrvRec*)ctx);
+    srvSinkDrain((SrvRec*)stvlAtPtr(cvars, 0));
 }
 
 // Long enough to need several passes through a 16-byte buffer, so the streamed-response tests
@@ -3780,7 +3780,8 @@ static void onSrvHead(HttpServerEvent* ev)
     if (r->useSink && !r->sink) {
         r->sink = sbufCreate(256);
         // The consumer side is ours; cxhttp registers itself as the producer.
-        if (!sbufCRegisterPush(r->sink, onSrvSinkNotify, NULL, r) ||
+        if (!sbufCRegisterPush(r->sink,
+                               closureCreateAs(sbufNotifyCB, onSrvSinkNotify, stvar(ptr, r))) ||
             !httpsrvreqSetSink(ev->request, r->sink)) {
             sbufFinish(&r->sink);
         }

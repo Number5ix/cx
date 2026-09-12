@@ -179,11 +179,11 @@ typedef struct MpProducer {
     int64 pos;        // bytes of the current stage emitted so far
 } MpProducer;
 
-static void mpCleanup(_Pre_opt_valid_ void* ctx)
+// The producer's state changes on every pull, so it lives outside the closure's captures and this
+// frees it when the closure is destroyed.
+static void mpProducerDestroy(stvlist* cvars)
 {
-    MpProducer* mpp = (MpProducer*)ctx;
-    if (!mpp)
-        return;
+    MpProducer* mpp = stvlAtPtr(cvars, 0);
 
     for (int32 i = 0; i < saSize(mpp->parts); i++) {
         destroyPart((HttpMultipartPart*)mpp->parts.a[i]);
@@ -339,12 +339,10 @@ static size_t mpStep(StreamBuffer* sb, MpProducer* mpp, uint8* buf, size_t sz)
     return n;
 }
 
-static size_t mpPullCB(_Pre_valid_ StreamBuffer* sb, _Out_writes_bytes_(sz) uint8* buf, size_t sz,
-                       _Pre_opt_valid_ void* ctx)
+static size_t mpPullCB(stvlist* cvars, _Pre_valid_ StreamBuffer* sb,
+                       _Out_writes_bytes_(sz) uint8* buf, size_t sz)
 {
-    MpProducer* mpp = (MpProducer*)ctx;
-    if (!mpp)
-        return 0;
+    MpProducer* mpp = stvlAtPtr(cvars, 0);
 
     if (sz == 0) {
         // A status check rather than a request for data. Once the stream is over there is nothing
@@ -381,9 +379,11 @@ static StreamBuffer* buildStream(HttpMultipart* mp)
     MpProducer* mpp  = takeParts(mp);
     StreamBuffer* sb = sbufCreate(HTTP_BODY_CHUNK);
 
-    if (!sbufPRegisterPull(sb, mpPullCB, mpCleanup, mpp)) {
-        // registration never ran, so the cleanup callback will not either
-        mpCleanup(mpp);
+    closure cls = closureCreateAs(sbufPullCB, mpPullCB, stvar(ptr, mpp));
+    closureSetDestroy(cls, mpProducerDestroy);
+
+    // registration owns the closure either way, so a refusal has already freed the producer
+    if (!sbufPRegisterPull(sb, cls)) {
         sbufRelease(&sb);
         return NULL;
     }

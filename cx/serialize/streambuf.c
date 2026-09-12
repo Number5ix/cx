@@ -169,17 +169,48 @@ static void sbufReleaseProducerLocked(_Inout_ StreamBuffer* sb, bool force)
         sb->resumePending = true;
 }
 
+// The resume closure is the one callback that runs after the lock is released, so on a locked
+// buffer another thread can replace it or unregister the producer while it is still running, and
+// more than one draining thread can be running it at once. The closure therefore lives in a holder
+// that counts the calls in progress: taking it off the buffer while any are running only marks it
+// detached, and the last of those calls to return is what destroys it.
+typedef struct SbufResume {
+    closure cls;
+    int calls;       // calls currently running outside the lock; guarded by the buffer's lock
+    bool detached;   // no longer on the buffer; destroy once calls reaches 0
+} SbufResume;
+
+// Takes the resume closure off the buffer. Returns the holder if nothing is running it, for the
+// caller to free once the lock is gone; otherwise the call still running frees it.
+static SbufResume* sbufDetachResumeLocked(_Inout_ StreamBuffer* sb)
+{
+    SbufResume* r      = sb->producerResume;
+    sb->producerResume = NULL;
+
+    if (r && r->calls > 0) {
+        r->detached = true;
+        return NULL;
+    }
+    return r;
+}
+
+static void sbufResumeFree(_In_opt_ SbufResume* r)
+{
+    if (!r)
+        return;
+
+    closureDestroy(&r->cls);
+    xaFree(r);
+}
+
 // Everything an operation can end up owing once it is finished with the buffer: the resume
-// callback for a producer that was refused at the watermark, the cleanup callbacks of roles that
+// callback for a producer that was refused at the watermark, the closures of roles that
 // unregistered, and the final destroy. None of it may run under the lock or with an outer frame
 // still inside the buffer, so it is collected here and paid afterwards.
 typedef struct SbufPayout {
-    sbufResumeCB resume;
-    void* resumeCtx;
-    sbufCleanupCB pcleanup;
-    void* pcleanupCtx;
-    sbufCleanupCB ccleanup;
-    void* ccleanupCtx;
+    SbufResume* resume;
+    closure pdead;
+    closure cdead;
     bool destroy;
 } SbufPayout;
 
@@ -193,31 +224,37 @@ static void sbufUnlockAndPay(_Inout_ StreamBuffer* sb)
         if (sb->resumePending) {
             sb->resumePending = false;
             pay.resume        = sb->producerResume;
-            pay.resumeCtx     = sb->producerResumeCtx;
+            if (pay.resume)
+                pay.resume->calls++;
         }
 
-        pay.pcleanup    = sb->pendingPCleanup;
-        pay.pcleanupCtx = sb->pendingPCleanupCtx;
-        pay.ccleanup    = sb->pendingCCleanup;
-        pay.ccleanupCtx = sb->pendingCCleanupCtx;
-        pay.destroy     = sb->destroyPending;
+        pay.pdead   = sb->pendingP;
+        pay.cdead   = sb->pendingC;
+        pay.destroy = sb->destroyPending;
 
-        sb->pendingPCleanup    = NULL;
-        sb->pendingPCleanupCtx = NULL;
-        sb->pendingCCleanup    = NULL;
-        sb->pendingCCleanupCtx = NULL;
-        sb->destroyPending     = false;
+        sb->pendingP       = NULL;
+        sb->pendingC       = NULL;
+        sb->destroyPending = false;
     }
 
     sbufUnlock(sb);
 
-    // Resume first, since it may write, and the cleanups may free contexts it is about to use.
-    if (pay.resume)
-        pay.resume(sb, pay.resumeCtx);
-    if (pay.pcleanup)
-        pay.pcleanup(pay.pcleanupCtx);
-    if (pay.ccleanup)
-        pay.ccleanup(pay.ccleanupCtx);
+    // Resume first, since it may write, and destroying the other closures may free state it is
+    // about to use.
+    if (pay.resume) {
+        closureCallAs(sbufResumeCB, pay.resume->cls, sb);
+
+        sbufLock(sb);
+        bool dead = --pay.resume->calls == 0 && pay.resume->detached;
+        sbufUnlock(sb);
+
+        if (dead)
+            sbufResumeFree(pay.resume);
+    }
+
+    closureDestroy(&pay.pdead);
+    closureDestroy(&pay.cdead);
+
     if (pay.destroy)
         sbufDestroy(sb);
 }
@@ -290,11 +327,16 @@ StreamBuffer* _sbufCreate(size_t targetsz, flags_t flags)
 
 static void sbufDestroy(_Pre_valid_ _Post_invalid_ StreamBuffer* sb)
 {
-    // whatever is still registered never got an unregister, so its cleanup runs here instead
-    if (sb->consumerCleanup)
-        sb->consumerCleanup(sb->consumerCtx);
-    if (sb->producerCleanup)
-        sb->producerCleanup(sb->producerCtx);
+    // whatever is still registered never got an unregister, so its closure is destroyed here instead
+    closureDestroy(&sb->consumerNotify);
+    closureDestroy(&sb->consumerPush);
+    closureDestroy(&sb->producerPull);
+    closureDestroy(&sb->pendingC);
+    closureDestroy(&sb->pendingP);
+
+    // Nothing can be running the resume closure: a call in progress is inside an entry point whose
+    // caller still holds a reference.
+    sbufResumeFree(sbufDetachResumeLocked(sb));
 
     bufringDestroy(&sb->buf);
 
@@ -364,17 +406,17 @@ void sbufClose(StreamBuffer* sb)
         if (sb->consumerNotify) {
             size_t left = sbufCAvailLocked(sb);
             if (left > 0)
-                sb->consumerNotify(sb, left, sb->consumerCtx);
+                closureCallAs(sbufNotifyCB, sb->consumerNotify, sb, left);
 
             // check again in case the consumer unregistered in the previous callback
             if (sb->consumerNotify)
-                sb->consumerNotify(sb, 0, sb->consumerCtx);
+                closureCallAs(sbufNotifyCB, sb->consumerNotify, sb, 0);
         } else if (sb->consumerPush) {
-            sb->consumerPush(sb, NULL, 0, sb->consumerCtx);
+            closureCallAs(sbufPushCB, sb->consumerPush, sb, NULL, 0);
         }
 
         if (sb->producerPull)
-            sb->producerPull(sb, NULL, 0, sb->producerCtx);
+            closureCallAs(sbufPullCB, sb->producerPull, sb, NULL, 0);
 
         // Nothing can reach a registered side again once the stream is over: writes are refused
         // and a pull read stops at sbufCMore(), so a slot the final callback left filled would
@@ -483,7 +525,7 @@ bool sbufCAttached(StreamBuffer* sb)
 }
 
 _Use_decl_annotations_
-bool sbufPRegisterPull(StreamBuffer* sb, sbufPullCB ppull, sbufCleanupCB pcleanup, void* ctx)
+bool sbufPRegisterPull(StreamBuffer* sb, closure ppull)
 {
     sbufLock(sb);
 
@@ -491,16 +533,13 @@ bool sbufPRegisterPull(StreamBuffer* sb, sbufPullCB ppull, sbufCleanupCB pcleanu
     if (!ppull || sb->producerPull || sbufIsPush(sb) || sbufIsClosed(sb)) {
         sbufUnlockAndPay(sb);
 
-        if (pcleanup)
-            pcleanup(ctx);
+        closureDestroy(&ppull);
 
         cxerr = CX_InvalidArgument;
         return false;
     }
 
-    sb->producerPull    = ppull;
-    sb->producerCleanup = pcleanup;
-    sb->producerCtx     = ctx;
+    sb->producerPull = ppull;
     sbufSetFlags(sb, SBUF_Pull);
     sb->refcount++;
 
@@ -511,8 +550,8 @@ bool sbufPRegisterPull(StreamBuffer* sb, sbufPullCB ppull, sbufCleanupCB pcleanu
 _Use_decl_annotations_
 void sbufPUnregister(StreamBuffer* sb)
 {
-    sbufCleanupCB displaced = NULL;
-    void* displacedCtx      = NULL;
+    closure displaced      = NULL;
+    SbufResume* resumeDead = NULL;
 
     sbufLock(sb);
 
@@ -521,22 +560,18 @@ void sbufPUnregister(StreamBuffer* sb)
         // unregistering itself: the read loop that called it is one frame up and tests the slot on
         // every pass, so leaving it filled until the stack unwinds would call the exhausted
         // producer forever.
-        sb->producerPull      = NULL;
-        sb->producerResume    = NULL;
-        sb->producerResumeCtx = NULL;
+        closure pull     = sb->producerPull;
+        sb->producerPull = NULL;
+        resumeDead       = sbufDetachResumeLocked(sb);
 
         // Only reachable if a replacement producer registered and left again without the stack
-        // ever getting back out of the buffer, so the displaced context cannot be the one the
-        // current callback is standing on and is safe to pay out as soon as the lock is gone.
-        displaced    = sb->pendingPCleanup;
-        displacedCtx = sb->pendingPCleanupCtx;
+        // ever getting back out of the buffer, so the displaced closure cannot be the one the
+        // current callback is standing on and is safe to destroy as soon as the lock is gone.
+        displaced = sb->pendingP;
 
-        // The cleanup may free the context the callback is standing on, so it waits for the stack
-        // to unwind. Clearing the fields also keeps sbufDestroy() from running it a second time.
-        sb->pendingPCleanup    = sb->producerCleanup;
-        sb->pendingPCleanupCtx = sb->producerCtx;
-        sb->producerCleanup    = NULL;
-        sb->producerCtx        = NULL;
+        // Destroying the closure may free state the callback is standing on, so it waits for the
+        // stack to unwind. Moving it off the slot also keeps sbufDestroy() from destroying it twice.
+        sb->pendingP = pull;
 
         if (sbufDerefLocked(sb))
             sb->destroyPending = true;
@@ -544,17 +579,25 @@ void sbufPUnregister(StreamBuffer* sb)
 
     sbufUnlockAndPay(sb);
 
-    if (displaced)
-        displaced(displacedCtx);
+    closureDestroy(&displaced);
+    sbufResumeFree(resumeDead);
 }
 
 _Use_decl_annotations_
-void sbufPSetResume(StreamBuffer* sb, sbufResumeCB resume, void* ctx)
+void sbufPSetResume(StreamBuffer* sb, closure resume)
 {
+    SbufResume* r = NULL;
+    if (resume) {
+        r      = xaAllocStruct(SbufResume, XA_Zero);
+        r->cls = resume;
+    }
+
     sbufLock(sb);
-    sb->producerResume    = resume;
-    sb->producerResumeCtx = ctx;
+    SbufResume* old    = sbufDetachResumeLocked(sb);
+    sb->producerResume = r;
     sbufUnlock(sb);
+
+    sbufResumeFree(old);
 }
 
 _Use_decl_annotations_
@@ -599,7 +642,7 @@ static bool sbufPWriteLocked(_Inout_ StreamBuffer* sb, _In_reads_bytes_(sz) cons
         if (!sb->consumerPush)
             return false;
 
-        sb->consumerPush(sb, buf, sz, sb->consumerCtx);
+        closureCallAs(sbufPushCB, sb->consumerPush, sb, buf, sz);
     } else {
         bufringWrite(&sb->buf, buf, sz);
 
@@ -607,7 +650,7 @@ static bool sbufPWriteLocked(_Inout_ StreamBuffer* sb, _In_reads_bytes_(sz) cons
         // all of it. In pull mode there is never a notify consumer: this is the producer writing
         // more than the slice it was asked for, from inside its own callback.
         if (sb->consumerNotify)
-            sb->consumerNotify(sb, sbufCAvailLocked(sb), sb->consumerCtx);
+            closureCallAs(sbufNotifyCB, sb->consumerNotify, sb, sbufCAvailLocked(sb));
     }
 
     return true;
@@ -697,7 +740,7 @@ bool sbufPFlush(StreamBuffer* sb)
 
     // Offer the consumer everything that is waiting; it may take all of it, some, or none.
     if (sb->consumerNotify && sbufCAvailLocked(sb) > 0)
-        sb->consumerNotify(sb, sbufCAvailLocked(sb), sb->consumerCtx);
+        closureCallAs(sbufNotifyCB, sb->consumerNotify, sb, sbufCAvailLocked(sb));
 
     // On a locked buffer the consumer drains on its own thread, so wait for it to catch up. An
     // unlocked buffer has nobody else to wait for and just reports what the notify achieved.
@@ -721,7 +764,7 @@ bool sbufPFlush(StreamBuffer* sb)
 }
 
 _Use_decl_annotations_
-bool sbufCRegisterPush(StreamBuffer* sb, sbufNotifyCB cnotify, sbufCleanupCB ccleanup, void* ctx)
+bool sbufCRegisterPush(StreamBuffer* sb, closure cnotify)
 {
     sbufLock(sb);
 
@@ -731,16 +774,13 @@ bool sbufCRegisterPush(StreamBuffer* sb, sbufNotifyCB cnotify, sbufCleanupCB ccl
         (sbufFlags(sb) & SBUF_Direct) || sb->targetsz == 0 || sbufIsClosed(sb)) {
         sbufUnlockAndPay(sb);
 
-        if (ccleanup)
-            ccleanup(ctx);
+        closureDestroy(&cnotify);
 
         cxerr = CX_InvalidArgument;
         return false;
     }
 
-    sb->consumerNotify  = cnotify;
-    sb->consumerCleanup = ccleanup;
-    sb->consumerCtx     = ctx;
+    sb->consumerNotify = cnotify;
     sbufSetFlags(sb, SBUF_Push);
     sb->refcount++;
 
@@ -750,14 +790,14 @@ bool sbufCRegisterPush(StreamBuffer* sb, sbufNotifyCB cnotify, sbufCleanupCB ccl
     // Hand over anything the producer wrote while the slot was empty.
     size_t waiting = sbufCAvailLocked(sb);
     if (waiting > 0)
-        cnotify(sb, waiting, ctx);
+        closureCallAs(sbufNotifyCB, cnotify, sb, waiting);
 
     sbufUnlockAndPay(sb);
     return true;
 }
 
 _Use_decl_annotations_
-bool sbufCRegisterPushDirect(StreamBuffer* sb, sbufPushCB cpush, sbufCleanupCB ccleanup, void* ctx)
+bool sbufCRegisterPushDirect(StreamBuffer* sb, closure cpush)
 {
     sbufLock(sb);
 
@@ -765,16 +805,13 @@ bool sbufCRegisterPushDirect(StreamBuffer* sb, sbufPushCB cpush, sbufCleanupCB c
     if (!cpush || sb->consumerNotify || sb->consumerPush || sbufIsPull(sb) || sbufIsClosed(sb)) {
         sbufUnlockAndPay(sb);
 
-        if (ccleanup)
-            ccleanup(ctx);
+        closureDestroy(&cpush);
 
         cxerr = CX_InvalidArgument;
         return false;
     }
 
-    sb->consumerPush    = cpush;
-    sb->consumerCleanup = ccleanup;
-    sb->consumerCtx     = ctx;
+    sb->consumerPush = cpush;
     sbufSetFlags(sb, SBUF_Push | SBUF_Direct);
     sb->refcount++;
 
@@ -787,24 +824,19 @@ bool sbufCRegisterPushDirect(StreamBuffer* sb, sbufPushCB cpush, sbufCleanupCB c
 _Use_decl_annotations_
 void sbufCUnregister(StreamBuffer* sb)
 {
-    sbufCleanupCB displaced = NULL;
-    void* displacedCtx      = NULL;
+    closure displaced = NULL;
 
     sbufLock(sb);
 
     if (sb->consumerNotify || sb->consumerPush) {
         // Empty the slot immediately, for the same reason the producer side does; see
-        // sbufPUnregister().
+        // sbufPUnregister(). Only one of the two is ever set.
+        closure cons       = sb->consumerNotify ? sb->consumerNotify : sb->consumerPush;
         sb->consumerNotify = NULL;
         sb->consumerPush   = NULL;
 
-        displaced    = sb->pendingCCleanup;
-        displacedCtx = sb->pendingCCleanupCtx;
-
-        sb->pendingCCleanup    = sb->consumerCleanup;
-        sb->pendingCCleanupCtx = sb->consumerCtx;
-        sb->consumerCleanup    = NULL;
-        sb->consumerCtx        = NULL;
+        displaced    = sb->pendingC;
+        sb->pendingC = cons;
 
         if (sbufDerefLocked(sb))
             sb->destroyPending = true;
@@ -812,8 +844,7 @@ void sbufCUnregister(StreamBuffer* sb)
 
     sbufUnlockAndPay(sb);
 
-    if (displaced)
-        displaced(displacedCtx);
+    closureDestroy(&displaced);
 }
 
 typedef struct SbufRingFeedCtx {
@@ -831,7 +862,7 @@ static size_t sbufFeedCB(uint8* buf, size_t maxbytes, void* _ctx)
         return 0;
 
     size_t toread = min(ctx->needed, maxbytes);
-    size_t read   = ctx->sb->producerPull(ctx->sb, buf, toread, ctx->sb->producerCtx);
+    size_t read   = closureCallAs(sbufPullCB, ctx->sb->producerPull, ctx->sb, buf, toread);
     ctx->needed -= read;
     return read;
 }
