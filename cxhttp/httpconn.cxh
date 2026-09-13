@@ -96,6 +96,19 @@ class HttpConn
     // worker; see HttpDispatch.
     HttpDispatch dispatch;
 
+    // A request that request() accepted on some other thread, waiting for the worker to start it,
+    // and what it was accepted with. The request is published last, and the worker takes it with
+    // an exchange: a handoff left over from a body producer can bring a worker here before the new
+    // handoff does, and that worker must find either nothing or all three.
+    atomic[ptr] startReq;
+    HttpHandlers *startHandlers;
+    void *startCtx;
+
+    // Set from the moment request() accepts a request until that request ends. It is what refuses
+    // a second request while the first is still on its way to the worker, when nothing else on the
+    // connection shows it yet.
+    atomic[bool] busy;
+
     /// Create a connection over an already-connected socket
     ///
     /// The socket must already be connected, and any TLS filter must already be attached -- an
@@ -119,11 +132,16 @@ class HttpConn
     /// Nothing is delivered to `handlers` when this returns false: the request never started, so
     /// there is no exchange to report the end of.
     ///
+    /// Called from one of the connection's own callbacks, the request is written before this
+    /// returns. Called from any other thread, it is handed to the connection's worker and written
+    /// there. If the connection has closed by the time the worker gets to it, the request ends with
+    /// HTTPEV_Error and HTTPERR_Closed, and nothing was sent.
+    ///
     /// @param req Request to send; borrowed, and must outlive the exchange
     /// @param handlers Callbacks for the response. Not copied -- must outlive the request, so it is
     ///                 usually `static const`
     /// @param ctx Context passed to the handlers on HttpEvent.ctx
-    /// @return true if the request was written or queued
+    /// @return true if the request was accepted
     bool request([in] HttpRequest *req, [in] [opt] const HttpHandlers *handlers,
         [in] [opt] void *ctx);
 

@@ -352,11 +352,8 @@ static void connTeardown(_In_ NetSocketQuic* self, NetCloseReason reason)
     // A client owns the endpoint it dialled out of; a connection a listener accepted shares the
     // listener's and must leave it alone. Which one this is is settled by who installed the route
     // hook on it.
-    if (self->endpoint && self->endpoint->routeCtx == self) {
-        self->endpoint->route    = NULL;
-        self->endpoint->routeCtx = NULL;
+    if (self->endpoint && netsocket_clearRoute(self->endpoint, ObjInst(self)))
         netsocketClose(self->endpoint);
-    }
 
     NetQueue* q = objAcquireFromWeak(NetQueue, self->queue);
     if (q) {
@@ -850,7 +847,7 @@ static bool acceptInitial(_In_ NetSocketQuic* lsn, _In_ NetQueue* q, _In_ NetAdd
                           _In_opt_ const NetPktInfo* info, _Inout_ Buffer* buf,
                           _In_ const QuicPktHdr* h);
 
-static bool quicRoute(void* ctx, NetSocket* ep, NetAddr* peer, const NetPktInfo* info,
+static bool quicRoute(ObjInst* ctx, NetSocket* ep, NetAddr* peer, const NetPktInfo* info,
                       Buffer* buf)
 {
     NetSocketQuic* self = (NetSocketQuic*)ctx;
@@ -1219,11 +1216,8 @@ bool NetSocketQuic_close(_In_ NetSocketQuic* self)
 
     saDestroy(&kids);
 
-    if (self->endpoint && self->endpoint->routeCtx == self) {
-        self->endpoint->route    = NULL;
-        self->endpoint->routeCtx = NULL;
+    if (self->endpoint && netsocket_clearRoute(self->endpoint, ObjInst(self)))
         netsocketClose(self->endpoint);
-    }
 
     return parent_close();
 }
@@ -1307,8 +1301,7 @@ bool NetSocketQuic_listen(_In_ NetSocketQuic* self, int backlog)
 
     // From here on the endpoint's packets are demultiplexed by connection ID instead of reaching
     // its own address-keyed flow table.
-    self->endpoint->route    = quicRoute;
-    self->endpoint->routeCtx = self;
+    netsocket_setRoute(self->endpoint, quicRoute, ObjInst(self));
 
     atomicStore(uint32, &self->state, NS_Listening, Relaxed);
     return true;
@@ -1316,13 +1309,11 @@ bool NetSocketQuic_listen(_In_ NetSocketQuic* self, int backlog)
 
 void NetSocketQuic_destroy(_In_ NetSocketQuic* self)
 {
-    // A socket released without being closed still has to stop being reachable from the endpoint,
-    // or the next arriving packet is handed a pointer to freed memory.
-    if (self->endpoint && self->endpoint->routeCtx == self) {
-        self->endpoint->route    = NULL;
-        self->endpoint->routeCtx = NULL;
+    // A socket released without being closed still owns the endpoint it installed its hook on. The
+    // hook already routes nothing -- its weak context can no longer be referenced -- but the
+    // endpoint is still bound and on the queue until this closes it.
+    if (self->endpoint && netsocket_clearRoute(self->endpoint, ObjInst(self)))
         netsocketClose(self->endpoint);
-    }
 
     QuicEngine* eng = engOf(self);
     if (eng) {
@@ -1613,8 +1604,7 @@ NetSocket* netquicConnectPrep(NetQueue* q, strref host, uint16 port, strref host
         // Everything arriving on this endpoint belongs to this one connection, so the hook has
         // nothing to demultiplex -- it is here to keep the packets out of the endpoint's own
         // address-keyed flow table.
-        ep->route    = quicRoute;
-        ep->routeCtx = sock;
+        netsocket_setRoute(ep, quicRoute, ObjInst(sock));
 
         // The last moment at which this connection is known to nobody but this call: it is
         // finished, and the handshake below is what makes it start raising events.
@@ -1758,8 +1748,7 @@ bool netquicMigrate(NetSocket* sock)
                 // Both halves of the swap happen under the engine lock, which is the only thing
                 // that reads self->endpoint to send on: a datagram is built for one path or the
                 // other, never for a mixture of the two.
-                ep->route    = quicRoute;
-                ep->routeCtx = self;
+                netsocket_setRoute(ep, quicRoute, ObjInst(self));
 
                 old            = self->endpoint;
                 self->endpoint = objAcquire(ep);
@@ -1775,10 +1764,7 @@ bool netquicMigrate(NetSocket* sock)
     if (old) {
         // Outside the lock: closing a socket delivers events, and the old endpoint must stop
         // routing to this connection before it goes.
-        if (old->routeCtx == self) {
-            old->route    = NULL;
-            old->routeCtx = NULL;
-        }
+        netsocket_clearRoute(old, ObjInst(self));
         netsocketClose(old);
         objRelease(&old);
     } else if (ep) {

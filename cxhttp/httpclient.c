@@ -581,8 +581,20 @@ static void onExError(HttpEvent* ev)
     // that single retry is what makes a rolling restart invisible.
     bool retry = !req->h3Retried && _http3ReqRetryable(req);
 
+    // A pooled connection that closed before its worker got round to writing this request. Nothing
+    // reached the peer, so it starts over the way it would have if the pool had known. This cannot
+    // repeat without end: every pass takes one more connection out of the pool, and a connection
+    // this client dials itself writes the request as soon as it is up.
+    bool resend    = req->neverSent;
+    req->neverSent = false;
+
     req->neterr = ev->neterr;
     httpclient_recycle(self, req, false);
+
+    if (resend) {
+        startExchange(self, req);
+        return;
+    }
 
     if (retry) {
         req->h3Retried = true;
@@ -847,7 +859,14 @@ static void beginOnSocket(HttpRequest* req, NetSocket* sock)
 
     conn->timeout = self->responseTimeout;
 
-    if (!httpconnRequest(conn, req, exchangeHandlers(req), NULL))
+    // This is the socket's own worker, already dispatching an event for it, and the connection was
+    // created here a moment ago. Saying so lets the request be written now rather than handed to
+    // the worker it is already on.
+    Thread* prev = _httpDispatchEnter(&conn->dispatch);
+    bool ok      = httpconnRequest(conn, req, exchangeHandlers(req), NULL);
+    _httpDispatchLeave(&conn->dispatch, prev);
+
+    if (!ok)
         failExchange(self, req, HTTPERR_Network, NERR_None);
 }
 
@@ -1417,10 +1436,13 @@ static void startExchange(HttpClient* self, HttpRequest* req)
             req->conn            = pooled;
             req->dialSockPending = false;
         }
+        // Unless this is already the connection's worker, the request is written there. A
+        // connection that turns out to have closed first reports back through onExError(), which
+        // starts over.
         if (httpconnRequest(pooled, req, exchangeHandlers(req), NULL))
             return;
 
-        // The connection went stale between the pool check and the write. Drop it and dial.
+        // Already known to be finished, or the flow is going away. Drop it and dial.
         httpclient_recycle(self, req, false);
     }
 

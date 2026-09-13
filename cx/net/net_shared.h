@@ -343,7 +343,8 @@ typedef struct NetPktInfo {
 // Connection ID -- which is what lets a connection survive its peer changing address -- instead of
 // by the peer address the flow table is keyed on. It takes ownership of `buf` and does its own
 // submit; its return value becomes the ingest result. A socket with no hook installed is unchanged.
-typedef bool (*NetDatagramRouteFn)(void* ctx, NetSocket* sock, NetAddr* peer,
+// `ctx` is the object the hook was installed with, referenced for the length of the call.
+typedef bool (*NetDatagramRouteFn)(ObjInst* ctx, NetSocket* sock, NetAddr* peer,
                                    const NetPktInfo* info, Buffer* buf);
 
 // Internally a NetMessage is any packet in flight: the library rides its own bookkeeping

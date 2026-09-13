@@ -4506,27 +4506,17 @@ static int test_nettest_kqueue_accept_auto(void)
 // involves QUIC itself -- these prove the seams behave for whatever gets plugged into them.
 // ---------------------------------------------------------------------------------------------
 
-// State for the fake NetDatagramRouteFn below.
-typedef struct RouteCtx {
-    uint32 calls;         // times the hook was invoked
-    NetAddr lastPeer;     // peer of the most recent packet
-    uint8 lastByte;       // its first payload byte
-    uint8 lastEcn;        // its ECN codepoint, or 0xff when none was reported
-    NetSocket* lastSock;
-    NetFlow* target;      // flow to submit to, or NULL to drop the packet
-    NetQueue* queue;
-} RouteCtx;
-
 // Stands in for cxquic's Connection ID demultiplexer: takes the packet away from the flow table and
 // either submits it to a flow of its own choosing or drops it.
-static bool testRoute(void* ctx, NetSocket* sock, NetAddr* peer, const NetPktInfo* info,
+static bool testRoute(ObjInst* ctx, NetSocket* sock, NetAddr* peer, const NetPktInfo* info,
                       Buffer* buf)
 {
-    RouteCtx* rc = (RouteCtx*)ctx;
+    unused_noeval(info);
+
+    NetRouteTestCtx* rc = objDynCast(NetRouteTestCtx, ctx);
     rc->calls++;
     rc->lastPeer = *peer;
     rc->lastSock = sock;
-    rc->lastEcn  = (info && info->haveEcn) ? info->ecn : 0xff;
     rc->lastByte = (*buf && (*buf)->len > 0) ? (*buf)->data[0] : 0;
 
     if (!rc->target) {
@@ -4559,22 +4549,22 @@ static int test_nettest_quic_route(void)
 
     NetSocket* s = makeSocket(q, NST_Datagram);
 
-    RouteCtx rc = { .queue = q };
-    s->route    = testRoute;
-    s->routeCtx = &rc;
+    NetRouteTestCtx* rc = netroutetestctxCreate(q);
+    netsocket_setRoute(s, testRoute, ObjInst(rc));
 
     NetAddr p1 = peerAddr(1, 5000);
     NetAddr p2 = peerAddr(2, 5000);
+    NetAddr p3 = peerAddr(3, 5000);
 
     // With no target flow the hook drops the packet and reports it, and nothing reaches the core.
     if (inject(q, s, &p1, 7))
         TEST_FAILV(ret, 1, _SL("ingest reported success for a packet the route hook dropped"), stvNone);
-    if (rc.calls != 1)
-        TEST_FAILV(ret, 1, _SL("route hook ran ${uint} times, expected 1"), stvar(uint32, rc.calls));
-    if (rc.lastByte != 7)
-        TEST_FAILV(ret, 1, _SL("route hook saw payload byte ${uint}, expected 7"), stvar(uint32, (uint32)rc.lastByte));
-    if (rc.lastSock != s)
-        TEST_FAILV(ret, 1, _SL("route hook saw socket ${ptr}, expected ${ptr}"), stvar(ptr, rc.lastSock), stvar(ptr, s));
+    if (rc->calls != 1)
+        TEST_FAILV(ret, 1, _SL("route hook ran ${uint} times, expected 1"), stvar(uint32, rc->calls));
+    if (rc->lastByte != 7)
+        TEST_FAILV(ret, 1, _SL("route hook saw payload byte ${uint}, expected 7"), stvar(uint32, (uint32)rc->lastByte));
+    if (rc->lastSock != s)
+        TEST_FAILV(ret, 1, _SL("route hook saw socket ${ptr}, expected ${ptr}"), stvar(ptr, rc->lastSock), stvar(ptr, s));
     if (atomicLoad(uint32, &q->nflows, Relaxed) != 0)
         TEST_FAILV(ret, 1, _SL("route hook left ${uint} flows behind, expected 0"), stvar(uint32, atomicLoad(uint32, &q->nflows, Relaxed)));
 
@@ -4585,7 +4575,7 @@ static int test_nettest_quic_route(void)
         TEST_FAILV(ret, 1, _SL("admitFlow returned NULL"), stvNone);
         goto out;
     }
-    rc.target = own;
+    rc->target = own;
 
     if (!inject(q, s, &p1, 11))
         TEST_FAILV(ret, 1, _SL("route hook refused a packet it should have submitted"), stvNone);
@@ -4594,16 +4584,37 @@ static int test_nettest_quic_route(void)
 
     netqueueTick(q, 0);
 
-    if (rc.calls != 3)
-        TEST_FAILV(ret, 1, _SL("route hook ran ${uint} times, expected 3"), stvar(uint32, rc.calls));
+    if (rc->calls != 3)
+        TEST_FAILV(ret, 1, _SL("route hook ran ${uint} times, expected 3"), stvar(uint32, rc->calls));
     if (rec.recvCount != 2)
         TEST_FAILV(ret, 1, _SL("delivered ${uint} packets, expected 2"), stvar(uint32, rec.recvCount));
     if (atomicLoad(uint32, &q->nflows, Relaxed) != 1)
         TEST_FAILV(ret, 1, _SL("expected 1 flow, got ${uint}"), stvar(uint32, atomicLoad(uint32, &q->nflows, Relaxed)));
 
+    // Only the object that installed the hook can remove it.
+    if (netsocket_clearRoute(s, ObjInst(own)))
+        TEST_FAILV(ret, 1, _SL("a route hook was removed by an object that did not install it"), stvNone);
+
+    // Releasing the hook's object without removing the hook drops its packets rather than handing
+    // them to freed memory -- and does not send them to the flow table either.
+    NetRouteTestCtx* gone = netroutetestctxCreate(q);
+    gone->target          = own;
+    netsocket_setRoute(s, testRoute, ObjInst(gone));
+    objRelease(&gone);
+
+    if (inject(q, s, &p3, 14))
+        TEST_FAILV(ret, 1, _SL("ingest reported success for a packet whose route hook object is gone"), stvNone);
+    netqueueTick(q, 0);
+    if (rec.recvCount != 2)
+        TEST_FAILV(ret, 1, _SL("delivered ${uint} packets after the route hook object was released, expected 2"), stvar(uint32, rec.recvCount));
+    if (atomicLoad(uint32, &q->nflows, Relaxed) != 1)
+        TEST_FAILV(ret, 1, _SL("expected 1 flow after the route hook object was released, got ${uint}"), stvar(uint32, atomicLoad(uint32, &q->nflows, Relaxed)));
+
     // Clearing the hook puts the socket back on the ordinary path, so a new peer gets a flow again.
-    rc.target = NULL;
-    s->route  = NULL;
+    netsocket_setRoute(s, testRoute, ObjInst(rc));
+    rc->target = NULL;
+    if (!netsocket_clearRoute(s, ObjInst(rc)))
+        TEST_FAILV(ret, 1, _SL("the object that installed a route hook could not remove it"), stvNone);
     if (!inject(q, s, &p2, 13))
         TEST_FAILV(ret, 1, _SL("ingest refused a packet after the route hook was cleared"), stvNone);
     netqueueTick(q, 0);
@@ -4615,6 +4626,7 @@ static int test_nettest_quic_route(void)
 out:
     netsocketClose(s);
     objRelease(&s);
+    objRelease(&rc);
     netqueueShutdown(q, 0);
     objRelease(&q);
     return ret;

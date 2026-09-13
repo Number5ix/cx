@@ -89,6 +89,11 @@ class HttpRequest
     size_t bodySent;
     bool bodyRefused;
 
+    // Set when a connection accepted this request from another thread and its worker then found the
+    // connection closed. Nothing reached the peer, so sending it again elsewhere is safe whatever
+    // the method. Cleared by whoever acts on it.
+    bool neverSent;
+
     /// @brief Response status, valid once the headers have arrived
     uint16 status;
     string reason;            ///< Response reason phrase, which may legitimately be empty

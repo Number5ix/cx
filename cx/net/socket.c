@@ -272,6 +272,40 @@ void NetSocket_setHandlersObj(_In_ NetSocket* self, _In_opt_ const NetHandlers* 
     }
 }
 
+void NetSocket__setRoute(_In_ NetSocket* self, _In_ NetDatagramRouteFn fn, _In_ ObjInst* ctx)
+{
+    ObjInst_WeakRef* weak = objGetWeak(ObjInst, ctx);
+    ObjInst_WeakRef* old  = NULL;
+
+    withWriteLock (&self->flowLock) {
+        old              = self->routeCtx;
+        self->routeCtx   = weak;
+        self->routeOwner = ctx;
+        self->route      = fn;
+    }
+
+    objDestroyWeak(&old);
+}
+
+bool NetSocket__clearRoute(_In_ NetSocket* self, _In_ ObjInst* owner)
+{
+    ObjInst_WeakRef* old = NULL;
+
+    withWriteLock (&self->flowLock) {
+        if (self->routeOwner != owner)
+            break;
+        old              = self->routeCtx;
+        self->route      = NULL;
+        self->routeCtx   = NULL;
+        self->routeOwner = NULL;
+    }
+
+    if (!old)
+        return false;
+    objDestroyWeak(&old);
+    return true;
+}
+
 void NetSocket_destroy(_In_ NetSocket* self)
 {
     // Tear down the live union arm by hand -- codegen cannot see the members, and destroying the
@@ -301,6 +335,7 @@ void NetSocket_destroy(_In_ NetSocket* self)
     htDestroy(&self->flows);
     rwlockDestroy(&self->flowLock);
     objRelease(&self->flow);
+    objDestroyWeak(&self->routeCtx);
     saDestroy(&self->filters);
     saDestroy(&self->connQueue);
     mutexDestroy(&self->connectLock);

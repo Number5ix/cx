@@ -505,8 +505,32 @@ bool NetQueue__ingestDatagram(_In_ NetQueue* self, _Inout_ NetSocket* sock, _In_
     // A socket with a route hook installed does its own demultiplexing: cxquic keys on the packet's
     // Connection ID rather than on the source address, so that a peer changing address does not
     // look like a new peer. The hook takes the buffer and submits whatever it decides to.
-    if (sock->route)
-        return sock->route(sock->routeCtx, sock, peer, info, buf);
+    //
+    // The hook can be removed, and the object behind it destroyed, on another thread at any moment,
+    // so the unlocked read only decides whether to look properly. Both are copied under the lock
+    // and the hook runs outside it holding its own reference, which is what lets that object's
+    // destroy clear the hook without waiting on a datagram it is itself the last reference of.
+    if (sock->route) {
+        NetDatagramRouteFn fn = NULL;
+        ObjInst* ctx          = NULL;
+        withReadLock (&sock->flowLock) {
+            fn  = sock->route;
+            ctx = fn ? objAcquireFromWeak(ObjInst, sock->routeCtx) : NULL;
+        }
+
+        if (ctx) {
+            bool taken = fn(ctx, sock, peer, info, buf);
+            objRelease(&ctx);
+            return taken;
+        }
+
+        // The hook's object is already gone and its teardown has yet to remove the hook. Its
+        // packets have nowhere to go, and the flow table is not where they belong either.
+        if (fn) {
+            bufpoolPut(&self->pool->msgbuf, buf);
+            return false;
+        }
+    }
 
     NetFlow* flow = netqueue_findFlow(self, sock, peer, true);
 

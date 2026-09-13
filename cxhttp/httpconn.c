@@ -68,6 +68,7 @@ static void cancelTimers(HttpConn* self)
 // case, not an exotic one) can never race a handler already in progress on another thread.
 
 static bool pumpBodyStream(HttpConn* self, HttpRequest* req);
+static void runPendingStart(HttpConn* self);
 
 // ---------------------------------------------------------------------------------------------
 // Which thread we are on
@@ -174,29 +175,43 @@ static void connDied(HttpConn* c, HttpError err, bool eof)
     c->spent = true;
     cancelTimers(c);
 
-    if (c->closedCB)
-        c->closedCB(c, c->closedCtx);
+    // A request accepted on another thread whose handoff had not been reached yet. It is not
+    // coming back to a connection that has ended, so it is refused here instead.
+    runPendingStart(c);
+
+    // Read once: the pool clears its handler from whichever thread takes the connection out, and a
+    // callback read twice could be found set and then called as NULL. Its context does not need
+    // the same care, because the pool's handler already tolerates one that has been cleared.
+    HttpConnClosedCB closed = c->closedCB;
+    if (closed)
+        closed(c, c->closedCtx);
 }
 
 static void onNetClosed(NetEvent* ev)
 {
     HttpConn* c = (HttpConn*)ev->ctx;
 
+    Thread* prev = enterDispatch(c);
     connDied(c, HTTPERR_Closed, true);
+    leaveDispatch(c, prev);
 }
 
 static void onNetError(NetEvent* ev)
 {
     HttpConn* c = (HttpConn*)ev->ctx;
 
+    Thread* prev = enterDispatch(c);
     if (c->req)
         c->req->neterr = ev->error.err;
     connDied(c, HTTPERR_Network, false);
+    leaveDispatch(c, prev);
 }
 
 static void onNetTimer(NetEvent* ev)
 {
     HttpConn* c = (HttpConn*)ev->ctx;
+
+    Thread* prev = enterDispatch(c);
 
     if (ev->timer.id == c->deadlineTimer) {
         // A response that ran out of time leaves the connection unusable whatever else is true: we
@@ -207,13 +222,16 @@ static void onNetTimer(NetEvent* ev)
         c->idleTimer = 0;
         httpconnClose(c);
     } else if (_httpDispatchClaim(&c->dispatch)) {
-        // A producer on another thread fed the request body and asked for a worker. This is that
-        // worker; the connection's own state says what is left to write.
-        Thread* prev = enterDispatch(c);
-        if (c->writing && c->req)
+        // Another thread asked for a worker: either request() accepted a request there, or a
+        // producer fed the request body. This is that worker, and the connection's own state says
+        // which of the two it came for.
+        if (atomicLoad(ptr, &c->startReq, Acquire))
+            runPendingStart(c);
+        else if (c->writing && c->req)
             pumpBodyStream(c, c->req);
-        leaveDispatch(c, prev);
     }
+
+    leaveDispatch(c, prev);
 }
 
 // The socket's backlog drained below its low watermark, so a request body that stopped against the
@@ -313,7 +331,8 @@ void HttpConn_destroy(_In_ HttpConn* self)
 
 bool HttpConn_idle(_In_ HttpConn* self)
 {
-    return !self->failed && !self->spent && !self->req && !self->writing;
+    return !self->failed && !self->spent && !self->req && !self->writing &&
+        !atomicLoad(bool, &self->busy, Acquire);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -571,17 +590,17 @@ static void unbindRequest(HttpConn* self)
     self->handlerCtx = NULL;
 }
 
-bool HttpConn_request(_In_ HttpConn* self, _In_ HttpRequest* req,
-                      _In_opt_ const HttpHandlers* handlers, _In_opt_ void* ctx)
+// Bind a request and write it. Runs on the connection's worker, which is what lets it touch the
+// connection's state at all. False means nothing was written and nothing is bound.
+static bool beginRequest(HttpConn* self, HttpRequest* req, HttpHandlers* handlers, void* ctx)
 {
-    // One at a time. Pipelining is deliberately not supported, which also means the response parser
-    // never has to associate a response with anything but "the request this connection is running".
-    //
     // `spent` is refused as firmly as `failed`, and it is the one that matters for a pooled
-    // connection: the peer can close it between the pool's idle check and this call, and the answer
-    // then has to be no rather than a request written into a socket that is already gone.
-    if (!req || self->failed || self->spent || self->req)
+    // connection: the peer can close it before the request reaches the worker, and the answer then
+    // has to be no rather than a request written into a socket that is already gone.
+    if (self->failed || self->spent || self->req)
         return false;
+
+    req->neverSent = false;
 
     self->req          = req;
     self->handlers     = (HttpHandlers*)handlers;
@@ -649,16 +668,90 @@ bool HttpConn_request(_In_ HttpConn* self, _In_ HttpRequest* req,
     if (req->reqBodyStream) {
         self->writing = true;
         req->bodyConn = self;
-
-        // The caller may be any thread at all, and a push-mode producer's notify has to be able to
-        // tell whether it is this one.
-        Thread* prev = enterDispatch(self);
-        bool sent    = pumpBodyStream(self, req);
-        leaveDispatch(self, prev);
-        return sent;
+        return pumpBodyStream(self, req);
     }
 
     return true;
+}
+
+// Start the request that request() left for the worker, if there is one. Called on that worker,
+// either from the handoff or from the connection's death, whichever reaches it first.
+static void runPendingStart(HttpConn* self)
+{
+    HttpRequest* req = (HttpRequest*)atomicExchange(ptr, &self->startReq, NULL, AcqRel);
+    if (!req)
+        return;
+
+    HttpHandlers* handlers = self->startHandlers;
+    void* ctx              = self->startCtx;
+    self->startHandlers    = NULL;
+    self->startCtx         = NULL;
+
+    if (beginRequest(self, req, handlers, ctx))
+        return;
+
+    // The caller was told yes, so the request has to end the way any other does. It is bound just
+    // long enough to deliver that; the terminal event unbinds it again and clears `busy`, which
+    // this deliberately left set so no other request could slip in between.
+    HttpError err = (self->failed || self->spent) ? HTTPERR_Closed : HTTPERR_Network;
+
+    self->req          = req;
+    self->handlers     = handlers;
+    self->handlerCtx   = ctx;
+    self->responseDone = false;
+    httpParserReset(self->parser);   // the error carries no status or headers from the last response
+    req->neverSent = true;
+
+    httpconn_deliver(self, HTTPEV_Error, err);
+}
+
+bool HttpConn_request(_In_ HttpConn* self, _In_ HttpRequest* req,
+                      _In_opt_ const HttpHandlers* handlers, _In_opt_ void* ctx)
+{
+    if (!req)
+        return false;
+
+    // Read here without the worker's ownership, and only as an early answer: a connection already
+    // known to be finished is refused now rather than through an error event. beginRequest() asks
+    // again where the answer is authoritative.
+    if (self->failed || self->spent)
+        return false;
+
+    // One at a time. Pipelining is deliberately not supported, which also means the response parser
+    // never has to associate a response with anything but "the request this connection is running".
+    // The flag rather than `req` decides it, because a request accepted from another thread is not
+    // bound until its worker gets to it.
+    bool expected = false;
+    if (!atomicCompareExchange(bool, strong, &self->busy, &expected, true, AcqRel, Acquire))
+        return false;
+
+    // On the worker -- a callback starting the next request, say -- everything can happen here.
+    if (onDispatchThread(self)) {
+        if (beginRequest(self, req, (HttpHandlers*)handlers, ctx))
+            return true;
+        atomicStore(bool, &self->busy, false, Release);
+        return false;
+    }
+
+    // Anywhere else, the worker could be delivering this connection's close, or the end of the
+    // request before, at this very moment. Everything that request would touch belongs to it, so it
+    // is left for the worker to start.
+    self->startHandlers = (HttpHandlers*)handlers;
+    self->startCtx      = ctx;
+    atomicStore(ptr, &self->startReq, req, Release);
+
+    if (handoffToWorker(self))
+        return true;
+
+    // The flow is already dying, so this handoff summons nobody. Take the request back -- unless a
+    // worker that came for an older handoff already took it, in which case that worker owns it now
+    // and will end it one way or the other.
+    void* ours = req;
+    if (!atomicCompareExchange(ptr, strong, &self->startReq, &ours, NULL, AcqRel, Acquire))
+        return true;
+
+    atomicStore(bool, &self->busy, false, Release);
+    return false;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -746,6 +839,7 @@ void HttpConn__deliver(_In_ HttpConn* self, HttpEventType type, HttpError err)
         strDup(&req->reason, self->parser->reason);
 
         self->req = NULL;
+        atomicStore(bool, &self->busy, false, Release);
     }
 
     if (cb)

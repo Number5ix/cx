@@ -50,6 +50,12 @@ typedef struct H3CStream {
     bool writing;        // a request body is still being pumped out
     bool finished;       // this endpoint has ended its sending half
 
+    // The stream is open but the request has not been written on it yet. request() runs on
+    // whatever thread wanted a stream, so the writing is handed to the stream's worker, which
+    // uses `timeout` to arm the response deadline once it has.
+    bool starting;
+    int64 timeout;
+
     // Running result of one pass of the request body pump. Owned by whichever worker is inside it;
     // the body's StreamBuffer carries this stream as its consumer context, and this is how the
     // send callback reports back to the loop that drives it.
@@ -474,6 +480,65 @@ static void streamPump(_Inout_ H3CStream* st, _In_ NetFlow* flow)
     deliver(st, HTTPEV_Complete, HTTPERR_None);
 }
 
+// Write the request on a stream request() opened for it. Runs on the stream's worker: a response
+// can only arrive on that worker, and doing the writing there too is what keeps the two from
+// running over the same state at once.
+static void streamStart(_In_ Http3Conn* self, _Inout_ H3CStream* st, _In_ NetFlow* flow)
+{
+    HttpRequest* req = st->req;
+    st->starting     = false;
+
+    // The stream can already have been failed, by a close ordered ahead of this.
+    if (st->failed || st->complete)
+        return;
+
+    // Before the field section, because its framing is derived from the body that is actually
+    // armed.
+    if (!_httpReqArmBody(req)) {
+        streamFail(st, flow, H3ERR_INTERNAL_ERROR, HTTPERR_Network);
+        return;
+    }
+
+    // Progress starts over for every hop. A redirect sends the body again and reads a different
+    // response, so carrying the previous hop's counts forward would report both as one transfer.
+    atomicStore(uint64, &req->progSent, 0, Relaxed);
+    atomicStore(uint64, &req->progRecv, 0, Relaxed);
+    atomicStore(int64, &req->progSendTotal, req->reqBodyStream ? req->reqBodyLen : 0, Relaxed);
+    atomicStore(int64, &req->progRecvTotal, 0, Relaxed);
+    req->progSentSeen = 0;
+    req->progRecvSeen = 0;
+
+    // A body of unknown length has no Content-Length to announce -- the stream's end is what frames
+    // it -- which is what HTTP/3 has instead of chunked transfer coding.
+    int64 bodyLen = req->reqBodyStream ? req->reqBodyLen : 0;
+
+    HttpHeaders fields;
+    bool ok = _h3ReqToFields(&fields, _httpMethodName(req), &req->url, &req->reqHeaders, bodyLen);
+
+    // Nothing follows a request with no body, so the field section carries the end of the stream.
+    bool fin = !req->reqBodyStream;
+    ok       = ok && _h3SendFields(flow, &fields, fin);
+    httpHeadersDestroy(&fields);
+
+    if (!ok) {
+        streamFail(st, flow, H3ERR_INTERNAL_ERROR, HTTPERR_Network);
+        return;
+    }
+
+    st->finished = fin;
+
+    // The clock starts once the request is on the wire and covers the whole response rather than
+    // the gap between packets: a peer that trickles one byte a second is exactly what a per-packet
+    // timer fails to catch.
+    if (st->timeout > 0)
+        st->deadline = netflowAddTimer(flow, st->timeout, NTF_None);
+
+    if (req->reqBodyStream) {
+        st->writing = true;
+        h3conn_pumpBody(self, req);
+    }
+}
+
 // ---------------------------------------------------------------------------------------------
 // Stream handlers
 // ---------------------------------------------------------------------------------------------
@@ -537,8 +602,11 @@ static void streamOnTimer(NetEvent* ev)
         st->deadline = 0;
         streamFail(st, ev->flow, H3ERR_REQUEST_CANCELLED, HTTPERR_Timeout);
     } else if (_httpDispatchClaim(&st->req->dispatch)) {
-        // A handoff from another thread: a body producer that wrote more, or a cancel.
-        if (st->writing)
+        // A handoff from another thread: the request itself, a body producer that wrote more, or a
+        // cancel.
+        if (st->starting)
+            streamStart(conn, st, ev->flow);
+        else if (st->writing)
             h3conn_pumpBody(conn, st->req);
     }
 
@@ -733,6 +801,8 @@ bool Http3Conn_request(_In_ Http3Conn* self, _In_ HttpRequest* req,
     st->req       = objAcquire(req);
     st->handlers  = handlers;
     st->hctx      = ctx;
+    st->timeout   = self->timeout;
+    st->starting  = true;
     bufringInit(&st->in, HTTP3_READ_CHUNK);
     _h3MsgInit(&st->msg, false, NULL);
 
@@ -751,57 +821,14 @@ bool Http3Conn_request(_In_ Http3Conn* self, _In_ HttpRequest* req,
     netflowSetHandlers(flow, &kStreamHandlers, st);
     atomicFetchAdd(uint32, &self->nreqs, 1, Relaxed);
 
-    // Before the field section, because its framing is derived from the body that is actually
-    // armed.
-    if (!_httpReqArmBody(req)) {
+    // Everything from here on is written on the stream's worker. From the moment the handlers are
+    // set, that worker can be delivering this stream's close, and the writing is what a close
+    // would otherwise be running into. Once the field section is out it can be delivering the
+    // response too -- a server is free to answer before the request body has finished.
+    if (!_httpDispatchHandoff(&req->dispatch, flow)) {
         netquicReset(flow, H3ERR_INTERNAL_ERROR);
         objRelease(&flow);
         return false;
-    }
-
-    // Progress starts over for every hop. A redirect sends the body again and reads a different
-    // response, so carrying the previous hop's counts forward would report both as one transfer.
-    atomicStore(uint64, &req->progSent, 0, Relaxed);
-    atomicStore(uint64, &req->progRecv, 0, Relaxed);
-    atomicStore(int64, &req->progSendTotal, req->reqBodyStream ? req->reqBodyLen : 0, Relaxed);
-    atomicStore(int64, &req->progRecvTotal, 0, Relaxed);
-    req->progSentSeen = 0;
-    req->progRecvSeen = 0;
-
-    // A body of unknown length has no Content-Length to announce -- the stream's end is what frames
-    // it -- which is what HTTP/3 has instead of chunked transfer coding.
-    int64 bodyLen = req->reqBodyStream ? req->reqBodyLen : 0;
-
-    HttpHeaders fields;
-    bool ok = _h3ReqToFields(&fields, _httpMethodName(req), &req->url, &req->reqHeaders, bodyLen);
-
-    // Nothing follows a request with no body, so the field section carries the end of the stream.
-    bool fin = !req->reqBodyStream;
-    ok       = ok && _h3SendFields(flow, &fields, fin);
-    httpHeadersDestroy(&fields);
-
-    if (!ok) {
-        netquicReset(flow, H3ERR_INTERNAL_ERROR);
-        objRelease(&flow);
-        return false;
-    }
-
-    st->finished = fin;
-
-    // The clock starts once the request is on the wire and covers the whole response rather than
-    // the gap between packets: a peer that trickles one byte a second is exactly what a per-packet
-    // timer fails to catch.
-    if (self->timeout > 0)
-        st->deadline = netflowAddTimer(flow, self->timeout, NTF_None);
-
-    if (req->reqBodyStream) {
-        st->writing = true;
-
-        // The caller may be any thread at all, and a push-mode producer's notify has to be able to
-        // tell whether it is this one.
-        Thread* prev = _httpDispatchEnter(&req->dispatch);
-        h3conn_pumpBody(self, req);
-        _httpDispatchLeave(&req->dispatch, prev);
     }
 
     objRelease(&flow);   // the flow table holds it; the stream state reaches it through the request

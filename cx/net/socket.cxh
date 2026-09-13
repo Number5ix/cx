@@ -155,13 +155,18 @@ abstract class NetSocket
     /// while each of its streams gets a flow of its own that can run on another worker.
     object[NetFlow] flow;
 
-    /// @brief Hook that takes arriving datagrams instead of the flow table, or NULL for the
-    /// normal path
-    ///
-    /// Set by cxquic on the UDP endpoint socket behind a QUIC listener; nothing else installs one.
-    /// See NetDatagramRouteFn.
+    // Hook that takes arriving datagrams instead of the flow table, or NULL for the normal path.
+    // Installed by cxquic on the UDP endpoint socket behind a QUIC connection or listener; nothing
+    // else installs one. See NetDatagramRouteFn and _setRoute().
+    //
+    // Written only under flowLock, which the ingest path holds just long enough to copy the hook
+    // and turn the weak context into a reference. `route` alone is also read without it, as a hint
+    // of whether to take the lock at all.
     NetDatagramRouteFn route;
-    void *routeCtx;         ///< Context passed to `route`
+    weak[ObjInst] routeCtx;
+    // Who installed the hook, compared and never dereferenced -- the weak reference above cannot
+    // answer that once its object is being destroyed, which is one of the times it is asked.
+    void *routeOwner;
 
     /// @brief Filters attached to this socket, ordered application -> wire, or empty for none
     ///
@@ -478,6 +483,15 @@ abstract class NetSocket
     // queue -- the backend's addSocket picks up an already-listening socket instead. Called by the
     // platform listen() once the socket is in NS_Listening.
     unbound void _listenArm();
+
+    // Install a datagram route hook, replacing whatever was installed before. `ctx` is held weakly
+    // and passed to the hook as a reference for the length of each call, so a datagram that
+    // arrives after it is gone is dropped instead of routed to freed memory.
+    unbound void _setRoute([in] NetDatagramRouteFn fn, [in] ObjInst *ctx);
+
+    // Remove the route hook, but only if `owner` is what installed it. Returns true if it did.
+    // Safe to call from `owner`'s destroy, when it can no longer be referenced.
+    unbound bool _clearRoute([in] ObjInst *owner);
 
     // Flow table (flow.c)
 

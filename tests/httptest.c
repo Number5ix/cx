@@ -3676,6 +3676,95 @@ static int test_httptest_connstale(void)
     return ret;
 }
 
+// A request accepted from outside the connection's worker, on a connection whose peer has already
+// hung up. The caller has been told yes by then, so the request has to end like any other -- once,
+// with an error, and with a request attached -- rather than vanish or be reported twice.
+static int test_httptest_connlate(void)
+{
+    int ret       = 0;
+    int closed    = 0;
+    ConnFixture f;
+    ConnRec rec1 = { 0 }, rec2 = { 0 }, rec3 = { 0 };
+    string req   = 0;
+
+    if (!fixtureInit(&f)) {
+        fixtureDestroy(&f);
+        TEST_FAIL(1, _SL("failed: !fixtureInit(&f)"), stvNone);
+    }
+
+    HttpConn* c     = httpconnCreate(f.sock, _SL("h"));
+    HttpRequest* r1 = c ? httprequestCreate(HTTP_Get, _SL("http://h/one")) : NULL;
+    HttpRequest* r2 = c ? httprequestCreate(HTTP_Get, _SL("http://h/two")) : NULL;
+    HttpRequest* r3 = c ? httprequestCreate(HTTP_Get, _SL("http://h/three")) : NULL;
+    if (!c || !r1 || !r2 || !r3) {
+        objRelease(&r3);
+        objRelease(&r2);
+        objRelease(&r1);
+        objRelease(&c);
+        fixtureDestroy(&f);
+        TEST_FAIL(1, _SL("failed: !c || !r1 || !r2 || !r3"), stvNone);
+    }
+
+    httpconnRequest(c, r1, &kConnRecHandlers, &rec1);
+    readRequest(&f, &req);
+    writeResponse(&f, "HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nfirst");
+    tickUntilDone(&f, &rec1);
+
+    if (rec1.completeCount != 1 || !httpconnIdle(c))
+        TEST_FAILV(ret, 1, _SL("rec1.completeCount=${uint} != 1 || connection not idle"), stvar(uint32, rec1.completeCount));
+
+    httpconnSetClosedHandler(c, onConnClosed, &closed);
+
+    // The peer hangs up, and nothing has ticked the queue since, so the connection cannot know yet.
+    closesocket(f.peer);
+    f.peer = INVALID_SOCKET;
+
+    // This thread is not the connection's worker, so the request is accepted and left for it.
+    if (!httpconnRequest(c, r2, &kConnRecHandlers, &rec2))
+        TEST_FAILV(ret, 1, _SL("httpconnRequest() refused a request on a connection it had no way to know was closed"), stvNone);
+
+    // A request on its way to the worker counts as in flight: a second one is refused.
+    if (httpconnIdle(c))
+        TEST_FAILV(ret, 1, _SL("httpconnIdle(c) with a request on its way to the worker"), stvNone);
+    if (httpconnRequest(c, r3, &kConnRecHandlers, &rec3))
+        TEST_FAILV(ret, 1, _SL("httpconnRequest() accepted a second request while the first was on its way"), stvNone);
+
+    for (int i = 0; i < 100 && (!closed || (!rec2.errorCount && !rec2.completeCount)); i++)
+        netqueueTick(f.q, timeMS(5));
+
+    // Whether the worker reached the request before or after the close, the peer is gone either
+    // way and the request ends in an error. Which error depends on whether the write got as far as
+    // the wire, so both are accepted.
+    if (rec2.errorCount != 1 || rec2.completeCount != 0)
+        TEST_FAILV(ret, 1, _SL("rec2.errorCount=${uint} != 1 || rec2.completeCount=${uint} != 0"), stvar(uint32, rec2.errorCount), stvar(uint32, rec2.completeCount));
+    if (rec2.err != HTTPERR_Closed && rec2.err != HTTPERR_Network)
+        TEST_FAILV(ret, 1, _SL("rec2.err=${int} is neither HTTPERR_Closed nor HTTPERR_Network"), stvar(int32, rec2.err));
+    if (closed != 1)
+        TEST_FAILV(ret, 1, _SL("closed=${int} != 1"), stvar(int32, closed));
+    if (rec2.nullRequest)
+        TEST_FAILV(ret, 1, _SL("a terminal event arrived with no request attached"), stvNone);
+    if (rec3.errorCount != 0 || rec3.completeCount != 0)
+        TEST_FAILV(ret, 1, _SL("rec3.errorCount=${uint} != 0 || rec3.completeCount=${uint} != 0 -- a refused request was reported"), stvar(uint32, rec3.errorCount), stvar(uint32, rec3.completeCount));
+    if (rec1.errorCount != 0 || rec1.completeCount != 1)
+        TEST_FAILV(ret, 1, _SL("rec1.errorCount=${uint} != 0 || rec1.completeCount=${uint} != 1"), stvar(uint32, rec1.errorCount), stvar(uint32, rec1.completeCount));
+    if (httpconnIdle(c))
+        TEST_FAILV(ret, 1, _SL("httpconnIdle(c) after the connection closed"), stvNone);
+
+    objRelease(&r3);
+    objRelease(&r2);
+    objRelease(&r1);
+    objRelease(&c);
+    fixtureDestroy(&f);
+    strDestroy(&req);
+    strDestroy(&rec1.body);
+    strDestroy(&rec1.ctype);
+    strDestroy(&rec2.body);
+    strDestroy(&rec2.ctype);
+    strDestroy(&rec3.body);
+    strDestroy(&rec3.ctype);
+    return ret;
+}
+
 
 // ---------------------------------------------------------------------------------------------
 // The server
@@ -5855,7 +5944,7 @@ int test_httptest_grp_connexchange(void)
 {
     TEST_CHAIN(test_httptest_conn, test_httptest_connbody, test_httptest_conninterim,
                test_httptest_connreuse, test_httptest_connerror, test_httptest_conntruncated,
-               test_httptest_conncancel, test_httptest_connstale);
+               test_httptest_conncancel, test_httptest_connstale, test_httptest_connlate);
 }
 
 int test_httptest_grp_clientredirect(void)
@@ -5979,6 +6068,7 @@ testfunc httptest_funcs[] = {
     { "clientcancelpool",  test_httptest_clientcancelpool  },
     { "conncancel",        test_httptest_conncancel        },
     { "connstale",         test_httptest_connstale         },
+    { "connlate",          test_httptest_connlate          },
     { "srvprogress",    test_httptest_srvprogress       },
     { "srvget",             test_httptest_srvget             },
     { "srvpost",            test_httptest_srvpost            },

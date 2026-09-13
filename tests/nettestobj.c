@@ -68,6 +68,16 @@ _objfactory_guaranteed NetFlowTest* NetFlowTest_create(NetSocket* socket, const 
     return self;
 }
 
+_objfactory_guaranteed NetRouteTestCtx* NetRouteTestCtx_create(NetQueue* queue)
+{
+    NetRouteTestCtx* self = objInstCreate(NetRouteTestCtx);
+
+    self->queue = queue;
+
+    objInstInit(self);
+    return self;
+}
+
 _objfactory_guaranteed NetQueueTest* NetQueueTest_create(NetQueueConfig* conf)
 {
     NetQueueTest* self = objInstCreate(NetQueueTest);
