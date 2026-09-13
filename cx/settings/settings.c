@@ -51,7 +51,7 @@ out:
     _setsThreadCheck();
     _setsThreadWatch(ret);
 
-    vfsClose(file);
+    fileClose(&file);
     objRelease(&tree);
 
     return ret;

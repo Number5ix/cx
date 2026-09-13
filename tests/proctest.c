@@ -343,8 +343,8 @@ static int childReport(strref text)
         return 91;
 
     size_t wrote = 0;
-    bool ok      = fsWriteString(f, text, &wrote);
-    fsClose(f);
+    bool ok      = fileWriteString(f, text, &wrote);
+    fileClose(&f);
 
     return ok ? 0 : 92;
 }
@@ -547,8 +547,8 @@ static bool readReport(string* out, strref path)
 
     char buf[4096];
     size_t got = 0;
-    bool ok    = fsRead(f, buf, sizeof(buf), &got);
-    fsClose(f);
+    bool ok    = fileRead(f, buf, sizeof(buf), &got);
+    fileClose(&f);
 
     if (!ok && got == 0)
         return false;
@@ -1025,9 +1025,9 @@ static int test_proc_launch_fdsweep(void)
     fsDelete(kOutFile);
 
     if (held1)
-        fsClose(held1);
+        fileClose(&held1);
     if (held2)
-        fsClose(held2);
+        fileClose(&held2);
     fsDelete(_SL("cx_proctest_held1.txt"));
     fsDelete(_SL("cx_proctest_held2.txt"));
 

@@ -47,9 +47,9 @@ static bool readWholeFile(_Inout_ strhandle out, _In_ strref path)
     // keeps a NUL behind the length, so strC() on the result is safe for the PEM path below.
     uint8* buf   = strBuffer(out, (uint32)st.size);
     size_t nread = 0;
-    bool ok      = fsRead(f, buf, (size_t)st.size, &nread) && nread == (size_t)st.size;
+    bool ok      = fileRead(f, buf, (size_t)st.size, &nread) && nread == (size_t)st.size;
 
-    fsClose(f);
+    fileClose(&f);
 
     if (!ok)
         strDestroy(out);

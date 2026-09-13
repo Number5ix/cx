@@ -86,7 +86,7 @@ _objfactory_guaranteed FSFileUnix* FSFileUnix_create(int fd, bool locked)
     return self;
 }
 
-bool FSFileUnix_close(_In_ FSFileUnix* self)
+bool FSFileUnix_closeHandle(_In_ FSFileUnix* self)
 {
     if (self->fd < 0)
         return true;   // already closed
@@ -249,7 +249,7 @@ bool FSFileUnix_flush(_In_ FSFileUnix* self)
 
 void FSFileUnix_destroy(_In_ FSFileUnix* self)
 {
-    FSFileUnix_close(self);
+    FSFileUnix_closeHandle(self);
 }
 
 // Autogen begins -----

@@ -122,7 +122,7 @@ STR_CONST(fstestFileContents, "the quick brown fox");
 
 // An open file is a File object whichever layer opened it, so the fs* names, the file* names and
 // anything taking a File* all have to work on the same handle -- and the handle has two ways to
-// die: fsClose(), which closes and releases in one go, and a bare objRelease() of the last
+// die: fileClose(), which closes and releases in one go, and a bare objRelease() of the last
 // reference, which has to close it on the way out.
 static int test_fs_file()
 {
@@ -141,16 +141,18 @@ static int test_fs_file()
     }
 
     size_t wrote = 0;
+    // the fs* compatibility names forward to the file* methods
     if (!fsWriteString(f, fstestFileContents, &wrote) || wrote != strLen(fstestFileContents))
         TEST_FAILV(ret, 1, _SL("fsWriteString wrote ${uint} of ${uint} bytes"), stvar(uint32, (uint32)wrote), stvar(uint32, strLen(fstestFileContents)));
 
     if (fsTell(f) != (int64)strLen(fstestFileContents))
         TEST_FAILV(ret, 1, _SL("fsTell()=${int64} after writing ${uint} bytes"), stvar(int64, fsTell(f)), stvar(uint32, strLen(fstestFileContents)));
 
-    // fsClose closes and drops the caller's reference in one call, as it always has
-    if (!fsClose(f))
-        TEST_FAILV(ret, 1, _SL("!fsClose(f)"), stvNone);
-    f = NULL;
+    // fileClose closes and drops the caller's reference in one call
+    if (!fileClose(&f))
+        TEST_FAILV(ret, 1, _SL("!fileClose(&f)"), stvNone);
+    if (f)
+        TEST_FAILV(ret, 1, _SL("fileClose(&f) did not clear the handle"), stvNone);
 
     // The same handle reached through the file* names, and through a second reference
     f = fsOpen(_SL(FSTEST_FILE_NAME), FS_Read);
@@ -169,21 +171,20 @@ static int test_fs_file()
     if (fileSeek(f2, 0, FS_Set) != 0)
         TEST_FAILV(ret, 1, _SL("fileSeek(f2, 0, FS_Set)=${int64}, expected 0"), stvar(int64, fileSeek(f2, 0, FS_Set)));
 
-    // Closing leaves both references valid; it is the reads that stop working
-    if (!fileClose(f))
-        TEST_FAILV(ret, 1, _SL("!fileClose(f)"), stvNone);
-    if (!fileClose(f))
+    // Closing through one reference leaves the other valid; it is the reads that stop working
+    if (!fileClose(&f))
+        TEST_FAILV(ret, 1, _SL("!fileClose(&f)"), stvNone);
+    if (fileRead(f2, buf, sizeof(buf), &n))
+        TEST_FAILV(ret, 1, _SL("fileRead succeeded on a closed file"), stvNone);
+    if (!fileCloseHandle(f2))
         TEST_FAILV(ret, 1, _SL("closing an already closed file was not harmless"), stvNone);
 
     // an unset handle is closeable, the way an error path would find it
     File* neverOpened = NULL;
-    if (fileClose(neverOpened))
-        TEST_FAILV(ret, 1, _SL("fileClose(NULL) did not report failure"), stvNone);
-    if (fileRead(f2, buf, sizeof(buf), &n))
-        TEST_FAILV(ret, 1, _SL("fileRead succeeded on a closed file"), stvNone);
+    if (fileClose(&neverOpened))
+        TEST_FAILV(ret, 1, _SL("fileClose(&NULL) did not report failure"), stvNone);
 
     objRelease(&f2);
-    objRelease(&f);
 
     // A handle that is only released, never closed: the destructor has to close the OS handle
     f = fsOpen(_SL(FSTEST_FILE_NAME), FS_Read);
@@ -203,8 +204,7 @@ static int test_fs_file()
     sb = sbufCreate(16);
     if (!sbufStrCRegisterPush(sb, &readback)) {
         TEST_FAILV(ret, 1, _SL("!sbufStrCRegisterPush(sb, &readback)"), stvNone);
-        fsClose(f);
-        f = NULL;
+        fileClose(&f);
         goto out;
     }
     if (!sbufFileIn(sb, f, true))   // closes and releases the file
@@ -245,10 +245,9 @@ static int test_fs_sbufregister()
         goto out;
     }
     size_t wrote = 0;
-    if (!fsWriteString(f, fstestFileContents, &wrote))
-        TEST_FAILV(ret, 1, _SL("!fsWriteString"), stvNone);
-    fsClose(f);
-    f = NULL;
+    if (!fileWriteString(f, fstestFileContents, &wrote))
+        TEST_FAILV(ret, 1, _SL("!fileWriteString"), stvNone);
+    fileClose(&f);
 
     // Pull producer, with the caller letting go of its handle the moment it is registered.
     f = fsOpen(_SL(FSTEST_FILE_NAME), FS_Read);
@@ -364,9 +363,8 @@ static int test_fs_ops()
     if (!fh) {
         TEST_FAILV(ret, 1, _SL("could not create '${string}'"), stvar(strref, file2));
     } else {
-        fsWrite(fh, "x", 1, NULL);
-        fsClose(fh);
-        fh = NULL;
+        fileWrite(fh, "x", 1, NULL);
+        fileClose(&fh);
     }
 
     // a non-empty directory cannot be removed -- real OS semantics the in-memory VFS test
@@ -385,9 +383,8 @@ static int test_fs_ops()
     if (!fh) {
         TEST_FAILV(ret, 1, _SL("could not create '${string}'"), stvar(strref, file1));
     } else {
-        fsWrite(fh, "y", 1, NULL);
-        fsClose(fh);
-        fh = NULL;
+        fileWrite(fh, "y", 1, NULL);
+        fileClose(&fh);
     }
     if (!fsRename(file1, renamed)) {
         TEST_FAILV(ret, 1, _SL("fsRename('${string}', '${string}') failed"), stvar(strref, file1),
@@ -439,7 +436,7 @@ static int test_fs_ops()
 
 out:
     if (fh)
-        fsClose(fh);
+        fileClose(&fh);
     fsDelete(renamed);
     fsDelete(file1);
     fsDelete(file2);

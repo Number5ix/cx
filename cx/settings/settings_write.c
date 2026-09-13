@@ -221,8 +221,7 @@ bool _setsWriteTree(SSDNode* root, SettingsTree* tree, SSDLockState* lstate)
     sbufClose(sb);
 
     if (!error) {
-        vfsClose(file);
-        file = NULL;
+        fileClose(&file);
 
         // only if successful, rename temp file into place
         vfsDelete(tree->vfs, tree->filename);
@@ -231,7 +230,7 @@ bool _setsWriteTree(SSDNode* root, SettingsTree* tree, SSDLockState* lstate)
 
 out:
     sbufRelease(&sb);
-    vfsClose(file);
+    fileClose(&file);
     if (!ret)
         vfsDelete(tree->vfs, tempname);
     strDestroy(&pathname);

@@ -15,7 +15,7 @@ typedef enum VFSTPFailEnum {
     VFSTP_FailRead       = 0x0004,   // read() fails
     VFSTP_FailSearchInit = 0x0008,   // searchInit() fails, leaving the iterator zeroed
     VFSTP_FailCreateDir  = 0x0010,   // createDir() fails
-    VFSTP_FailClose      = 0x0020,   // close() fails, as a buffered flush at close would
+    VFSTP_FailClose      = 0x0020,   // closeHandle() fails, as a buffered flush at close would
 } VFSTPFail;
 
 class VFSTestProv implements VFSProvider {

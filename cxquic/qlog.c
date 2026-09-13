@@ -116,7 +116,7 @@ static void qlogFlush(_Inout_ QuicQlog* ql)
     if (strLen(ql->pending) == 0)
         return;
 
-    fsWriteString(ql->file, ql->pending, NULL);
+    fileWriteString(ql->file, ql->pending, NULL);
     strClear(&ql->pending);
 }
 
@@ -184,7 +184,7 @@ void _quicQlogDestroy(QuicQlog** ql)
         return;
 
     qlogFlush(*ql);
-    fsClose((*ql)->file);
+    fileClose(&(*ql)->file);
     strDestroy(&(*ql)->line);
     strDestroy(&(*ql)->pending);
     xaFree(*ql);

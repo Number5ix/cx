@@ -24,10 +24,10 @@ static bool readAll(_Inout_ string* out, _Inout_ VFS* vfs, _In_opt_ strref path)
     if (!f)
         return false;
 
-    bool ret = vfsRead(f, buf, sizeof(buf), &bytesread);
+    bool ret = fileRead(f, buf, sizeof(buf), &bytesread);
     if (ret)
         strFromBytes(out, buf, (uint32)bytesread);
-    vfsClose(f);
+    fileClose(&f);
     return ret;
 }
 
@@ -155,10 +155,10 @@ static int test_vfs_write(void)
     if (!f) {
         TEST_FAILV(ret, 1, _SL("could not create /new.txt"), stvNone);
     } else {
-        if (!vfsWriteString(f, _S"hello", &written))
+        if (!fileWriteString(f, _S"hello", &written))
             TEST_FAILV(ret, 1, _SL("write to /new.txt failed"), stvNone);
-        if (!vfsClose(f))
-            TEST_FAILV(ret, 1, _SL("vfsClose reported failure"), stvNone);
+        if (!fileClose(&f))
+            TEST_FAILV(ret, 1, _SL("fileClose reported failure"), stvNone);
     }
 
     checkStat(&ret, vfs, _S"/new.txt", FS_File);
@@ -351,9 +351,9 @@ static int test_vfs_cowfail(void)
     if (!f) {
         TEST_FAILV(ret, 1, _SL("could not open /a.txt for COW writing"), stvNone);
     } else {
-        if (vfsWrite(f, "x", 1, &written))
+        if (fileWrite(f, "x", 1, &written))
             TEST_FAILV(ret, 1, _SL("write succeeded despite a COW layer that cannot open files"), stvNone);
-        vfsClose(f);
+        fileClose(&f);
     }
 
     // the write failing is expected; the VFS still being usable afterwards is the point
@@ -382,9 +382,9 @@ static int test_vfs_cow(void)
     if (!f) {
         TEST_FAILV(ret, 1, _SL("could not open /sub/b.txt for COW writing"), stvNone);
     } else {
-        if (!vfsWriteString(f, _S"NEW", NULL))
+        if (!fileWriteString(f, _S"NEW", NULL))
             TEST_FAILV(ret, 1, _SL("COW write failed"), stvNone);
-        vfsClose(f);
+        fileClose(&f);
     }
 
     // The copy landed on the COW layer, parent directories and all. The file was opened without
@@ -462,8 +462,8 @@ static int test_vfs_newfiles(void)
     if (!f) {
         TEST_FAILV(ret, 1, _SL("could not create /brand-new.txt"), stvNone);
     } else {
-        vfsWriteString(f, _S"n", NULL);
-        vfsClose(f);
+        fileWriteString(f, _S"n", NULL);
+        fileClose(&f);
     }
 
     if (!htHasKey(newf->files, string, _S"brand-new.txt"))
@@ -547,8 +547,8 @@ static int test_vfs_errors(void)
     VFSFile* f     = vfsOpen(vfs, _S"/a.txt", FS_Read);
     if (!f) {
         TEST_FAILV(ret, 1, _SL("could not open /a.txt"), stvNone);
-    } else if (vfsClose(f)) {
-        TEST_FAILV(ret, 1, _SL("vfsClose reported success on a provider whose close failed"), stvNone);
+    } else if (fileClose(&f)) {
+        TEST_FAILV(ret, 1, _SL("fileClose reported success on a provider whose close failed"), stvNone);
     }
     prov->failmask = 0;
 
@@ -560,9 +560,9 @@ static int test_vfs_errors(void)
     } else {
         uint8 buf[8];
         size_t n = 0;
-        if (vfsRead(f, buf, sizeof(buf), &n))
+        if (fileRead(f, buf, sizeof(buf), &n))
             TEST_FAILV(ret, 1, _SL("read succeeded on a provider whose read fails"), stvNone);
-        vfsClose(f);
+        fileClose(&f);
     }
     prov->failmask = 0;
 
@@ -572,9 +572,9 @@ static int test_vfs_errors(void)
     if (!f) {
         TEST_FAILV(ret, 1, _SL("could not open /a.txt for writing"), stvNone);
     } else {
-        if (vfsWrite(f, "x", 1, NULL))
+        if (fileWrite(f, "x", 1, NULL))
             TEST_FAILV(ret, 1, _SL("write succeeded on a provider whose write fails"), stvNone);
-        vfsClose(f);
+        fileClose(&f);
     }
     prov->failmask = 0;
 
@@ -923,8 +923,8 @@ static int test_vfs_fileio(void)
     if (!f) {
         TEST_FAILV(ret, 1, _SL("could not open /a.txt with FS_Truncate"), stvNone);
     } else {
-        vfsWriteString(f, _S"new", NULL);
-        vfsClose(f);
+        fileWriteString(f, _S"new", NULL);
+        fileClose(&f);
     }
     checkContents(&ret, vfs, _S"/a.txt", _S"new");
 
@@ -933,32 +933,32 @@ static int test_vfs_fileio(void)
     if (!f) {
         TEST_FAILV(ret, 1, _SL("could not open /sub/b.txt for writing"), stvNone);
     } else {
-        vfsWriteString(f, _S"XX", NULL);
-        vfsClose(f);
+        fileWriteString(f, _S"XX", NULL);
+        fileClose(&f);
     }
     checkContents(&ret, vfs, _S"/sub/b.txt", _S"XX1");   // "b:1" with the first two bytes overwritten
 
-    // vfsSeek/vfsTell
+    // fileSeek/fileTell
     f = vfsOpen(vfs, _S"/sub/deep/c.txt", FS_Read);
     if (!f) {
         TEST_FAILV(ret, 1, _SL("could not open /sub/deep/c.txt"), stvNone);
     } else {
         uint8 buf[8];
         size_t n = 0;
-        vfsRead(f, buf, 1, &n);
-        if (vfsTell(f) != 1)
-            TEST_FAILV(ret, 1, _SL("vfsTell() after a 1-byte read == ${int}, wanted 1"),
-                       stvar(int64, vfsTell(f)));
-        if (vfsSeek(f, 0, FS_Set) != 0)
-            TEST_FAILV(ret, 1, _SL("vfsSeek(0, FS_Set) != 0"), stvNone);
-        if (vfsSeek(f, 2, FS_Cur) != 2)
-            TEST_FAILV(ret, 1, _SL("vfsSeek(2, FS_Cur) != 2"), stvNone);
-        int64 end = vfsSeek(f, 0, FS_End);
+        fileRead(f, buf, 1, &n);
+        if (fileTell(f) != 1)
+            TEST_FAILV(ret, 1, _SL("fileTell() after a 1-byte read == ${int}, wanted 1"),
+                       stvar(int64, fileTell(f)));
+        if (fileSeek(f, 0, FS_Set) != 0)
+            TEST_FAILV(ret, 1, _SL("fileSeek(0, FS_Set) != 0"), stvNone);
+        if (fileSeek(f, 2, FS_Cur) != 2)
+            TEST_FAILV(ret, 1, _SL("fileSeek(2, FS_Cur) != 2"), stvNone);
+        int64 end = fileSeek(f, 0, FS_End);
         if (end != (int64)strLen(_S"c:1")) {
-            TEST_FAILV(ret, 1, _SL("vfsSeek(0, FS_End) == ${int}, wanted ${int}"), stvar(int64, end),
+            TEST_FAILV(ret, 1, _SL("fileSeek(0, FS_End) == ${int}, wanted ${int}"), stvar(int64, end),
                        stvar(int32, (int32)strLen(_S"c:1")));
         }
-        vfsClose(f);
+        fileClose(&f);
     }
 
     // writing through a handle opened without FS_Write fails
@@ -966,9 +966,9 @@ static int test_vfs_fileio(void)
     if (!f) {
         TEST_FAILV(ret, 1, _SL("could not open /a.txt for reading"), stvNone);
     } else {
-        if (vfsWrite(f, "x", 1, NULL))
+        if (fileWrite(f, "x", 1, NULL))
             TEST_FAILV(ret, 1, _SL("write succeeded through a read-only handle"), stvNone);
-        vfsClose(f);
+        fileClose(&f);
     }
 
     // two independent handles on the same file have independent positions
@@ -977,12 +977,12 @@ static int test_vfs_fileio(void)
     if (!f1 || !f2) {
         TEST_FAILV(ret, 1, _SL("could not open two handles on the same file"), stvNone);
     } else {
-        vfsSeek(f1, 2, FS_Set);
-        if (vfsTell(f2) != 0)
+        fileSeek(f1, 2, FS_Set);
+        if (fileTell(f2) != 0)
             TEST_FAILV(ret, 1, _SL("seeking one handle moved another handle's position"), stvNone);
     }
-    vfsClose(f1);
-    vfsClose(f2);
+    fileClose(&f1);
+    fileClose(&f2);
 
     // vfsSetTimes, reflected by a later vfsStat
     FSStat stat = { 0 };
@@ -1166,8 +1166,8 @@ static int test_vfs_fsprov(void)
         TEST_FAILV(ret, 1, _SL("could not create '${string}'"), stvar(strref, file));
         goto out;
     }
-    fsWrite(fh, "ondisk", 6, NULL);
-    fsClose(fh);
+    fileWrite(fh, "ondisk", 6, NULL);
+    fileClose(&fh);
 
     // Match what vfsCreateFromFS would pick, so the VFS and the provider agree on casing.
 #if defined(_PLATFORM_UNIX)

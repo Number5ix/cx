@@ -64,7 +64,7 @@ _objfactory_guaranteed FSFileWasm* FSFileWasm_create(int fd)
     return self;
 }
 
-bool FSFileWasm_close(_In_ FSFileWasm* self)
+bool FSFileWasm_closeHandle(_In_ FSFileWasm* self)
 {
     if (self->fd < 0)
         return true;   // already closed
@@ -225,7 +225,7 @@ bool FSFileWasm_flush(_In_ FSFileWasm* self)
 
 void FSFileWasm_destroy(_In_ FSFileWasm* self)
 {
-    FSFileWasm_close(self);
+    FSFileWasm_closeHandle(self);
 }
 
 // Autogen begins -----

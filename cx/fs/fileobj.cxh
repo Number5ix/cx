@@ -9,25 +9,17 @@
 /// OS file handle, and vfsOpen() one backed by a VFS provider. Code that only reads and writes
 /// can take a File* and work with either.
 ///
-/// A File is reference counted. fileClose() closes the file but keeps the handle alive;
-/// objRelease() drops a reference and closes the file if it was the last one.
+/// A File is reference counted. fileClose() closes the file and releases your reference;
+/// objRelease() only releases the reference, and closes the file if it was the last one.
 ///
 /// A file handle is single-owner: one thread at a time, like a C FILE*. Two threads may use two
 /// handles on the same file, but they must not share one handle.
 abstract class File {
-    /// Closes a file, keeping the handle alive
-    ///
-    /// Flushes pending writes and closes the underlying handle. The File itself stays valid
-    /// until the last reference is released; further reads and writes fail. Closing an already
-    /// closed file is harmless.
-    ///
-    /// Use this when more than one owner holds the handle, and have each of them call
-    /// objRelease() when it is done. A single owner can use fsClose() or vfsClose() instead,
-    /// which close and release in one step.
-    ///
-    /// @return true if successful, false if an error occurred while flushing or closing, or if
-    /// self was NULL
-    [abstract] [nullself false] bool close();
+    // Flushes pending writes and closes the underlying handle without releasing the File.
+    // Implemented by each kind of File; callers use fileClose() instead. Further reads and
+    // writes fail, and closing an already closed file must be harmless. Returns true if
+    // successful, false if flushing or closing failed or if self was NULL.
+    [abstract] [nullself false] bool closeHandle();
 
     /// Reads data from the file
     ///

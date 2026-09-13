@@ -26,7 +26,11 @@ typedef struct FSFileWin_ClassIf {
     ObjIface* _parent;
     size_t _size;
 
-    bool (*close)(_In_ void* self);
+    // Flushes pending writes and closes the underlying handle without releasing the File.
+    // Implemented by each kind of File; callers use fileClose() instead. Further reads and
+    // writes fail, and closing an already closed file must be harmless. Returns true if
+    // successful, false if flushing or closing failed or if self was NULL.
+    bool (*closeHandle)(_In_ void* self);
     bool (*read)(_In_ void* self, _Out_writes_bytes_to_(sz, *bytesread) void* buf, size_t sz, _Out_ _Deref_out_range_(0, sz) size_t* bytesread);
     bool (*write)(_In_ void* self, _In_reads_bytes_(sz) const void* buf, size_t sz, _Out_opt_ _Deref_out_range_(0, sz) size_t* byteswritten);
     int64 (*tell)(_In_ void* self);
@@ -71,8 +75,13 @@ _objfactory_guaranteed FSFileWin* FSFileWin_create(HANDLE h);
 // bool fsfilewinWriteString(FSFileWin* self, strref str, size_t* byteswritten);
 #define fsfilewinWriteString(self, str, byteswritten) File_writeString(File(self), str, byteswritten)
 
-// bool fsfilewinClose(FSFileWin* self);
-#define fsfilewinClose(self) ((self) ? ((self)->_->close(FSFileWin(self))) : false)
+// bool fsfilewinCloseHandle(FSFileWin* self);
+//
+// Flushes pending writes and closes the underlying handle without releasing the File.
+// Implemented by each kind of File; callers use fileClose() instead. Further reads and
+// writes fail, and closing an already closed file must be harmless. Returns true if
+// successful, false if flushing or closing failed or if self was NULL.
+#define fsfilewinCloseHandle(self) ((self) ? ((self)->_->closeHandle(FSFileWin(self))) : false)
 // bool fsfilewinRead(FSFileWin* self, void* buf, size_t sz, size_t* bytesread);
 #define fsfilewinRead(self, buf, sz, bytesread) ((self) ? ((self)->_->read(FSFileWin(self), buf, sz, bytesread)) : false)
 // bool fsfilewinWrite(FSFileWin* self, const void* buf, size_t sz, size_t* byteswritten);

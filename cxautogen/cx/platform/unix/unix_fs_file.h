@@ -25,7 +25,11 @@ typedef struct FSFileUnix_ClassIf {
     ObjIface* _parent;
     size_t _size;
 
-    bool (*close)(_In_ void* self);
+    // Flushes pending writes and closes the underlying handle without releasing the File.
+    // Implemented by each kind of File; callers use fileClose() instead. Further reads and
+    // writes fail, and closing an already closed file must be harmless. Returns true if
+    // successful, false if flushing or closing failed or if self was NULL.
+    bool (*closeHandle)(_In_ void* self);
     bool (*read)(_In_ void* self, _Out_writes_bytes_to_(sz, *bytesread) void* buf, size_t sz, _Out_ _Deref_out_range_(0, sz) size_t* bytesread);
     bool (*write)(_In_ void* self, _In_reads_bytes_(sz) const void* buf, size_t sz, _Out_opt_ _Deref_out_range_(0, sz) size_t* byteswritten);
     int64 (*tell)(_In_ void* self);
@@ -71,8 +75,13 @@ _objfactory_guaranteed FSFileUnix* FSFileUnix_create(int fd, bool locked);
 // bool fsfileunixWriteString(FSFileUnix* self, strref str, size_t* byteswritten);
 #define fsfileunixWriteString(self, str, byteswritten) File_writeString(File(self), str, byteswritten)
 
-// bool fsfileunixClose(FSFileUnix* self);
-#define fsfileunixClose(self) ((self) ? ((self)->_->close(FSFileUnix(self))) : false)
+// bool fsfileunixCloseHandle(FSFileUnix* self);
+//
+// Flushes pending writes and closes the underlying handle without releasing the File.
+// Implemented by each kind of File; callers use fileClose() instead. Further reads and
+// writes fail, and closing an already closed file must be harmless. Returns true if
+// successful, false if flushing or closing failed or if self was NULL.
+#define fsfileunixCloseHandle(self) ((self) ? ((self)->_->closeHandle(FSFileUnix(self))) : false)
 // bool fsfileunixRead(FSFileUnix* self, void* buf, size_t sz, size_t* bytesread);
 #define fsfileunixRead(self, buf, sz, bytesread) ((self) ? ((self)->_->read(FSFileUnix(self), buf, sz, bytesread)) : false)
 // bool fsfileunixWrite(FSFileUnix* self, const void* buf, size_t sz, size_t* byteswritten);

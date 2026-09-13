@@ -169,18 +169,18 @@ static bool slurp(_Inout_ strhandle out, _In_ strref path)
     if (!f)
         return false;
 
-    int64 sz = fsSeek(f, 0, FS_End);
-    fsSeek(f, 0, FS_Set);
+    int64 sz = fileSeek(f, 0, FS_End);
+    fileSeek(f, 0, FS_Set);
     if (sz <= 0 || sz > 1 << 20) {
-        fsClose(f);
+        fileClose(&f);
         return false;
     }
 
     uint8* buf = strBuffer(out, (uint32)sz);
 
     size_t n = 0;
-    bool ok  = fsRead(f, buf, (size_t)sz, &n) && n == (size_t)sz;
-    fsClose(f);
+    bool ok  = fileRead(f, buf, (size_t)sz, &n) && n == (size_t)sz;
+    fileClose(&f);
 
     if (!ok)
         strClear(out);

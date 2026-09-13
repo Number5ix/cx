@@ -32,7 +32,11 @@ typedef struct File_ClassIf {
     ObjIface* _parent;
     size_t _size;
 
-    bool (*close)(_In_ void* self);
+    // Flushes pending writes and closes the underlying handle without releasing the File.
+    // Implemented by each kind of File; callers use fileClose() instead. Further reads and
+    // writes fail, and closing an already closed file must be harmless. Returns true if
+    // successful, false if flushing or closing failed or if self was NULL.
+    bool (*closeHandle)(_In_ void* self);
     bool (*read)(_In_ void* self, _Out_writes_bytes_to_(sz, *bytesread) void* buf, size_t sz, _Out_ _Deref_out_range_(0, sz) size_t* bytesread);
     bool (*write)(_In_ void* self, _In_reads_bytes_(sz) const void* buf, size_t sz, _Out_opt_ _Deref_out_range_(0, sz) size_t* byteswritten);
     int64 (*tell)(_In_ void* self);
@@ -47,8 +51,8 @@ extern File_ClassIf File_ClassIf_tmpl;
 /// OS file handle, and vfsOpen() one backed by a VFS provider. Code that only reads and writes
 /// can take a File* and work with either.
 /// 
-/// A File is reference counted. fileClose() closes the file but keeps the handle alive;
-/// objRelease() drops a reference and closes the file if it was the last one.
+/// A File is reference counted. fileClose() closes the file and releases your reference;
+/// objRelease() only releases the reference, and closes the file if it was the last one.
 /// 
 /// A file handle is single-owner: one thread at a time, like a C FILE*. Two threads may use two
 /// handles on the same file, but they must not share one handle.
@@ -90,21 +94,13 @@ bool File_writeString(_In_ File* self, _In_opt_ strref str, _Out_opt_ size_t* by
 /// @return true if the write succeeded, false on an I/O error
 #define fileWriteString(self, str, byteswritten) File_writeString(File(self), str, byteswritten)
 
-/// bool fileClose(File* self);
-///
-/// Closes a file, keeping the handle alive
-/// 
-/// Flushes pending writes and closes the underlying handle. The File itself stays valid
-/// until the last reference is released; further reads and writes fail. Closing an already
-/// closed file is harmless.
-/// 
-/// Use this when more than one owner holds the handle, and have each of them call
-/// objRelease() when it is done. A single owner can use fsClose() or vfsClose() instead,
-/// which close and release in one step.
-/// 
-/// @return true if successful, false if an error occurred while flushing or closing, or if
-/// self was NULL
-#define fileClose(self) ((self) ? ((self)->_->close(File(self))) : false)
+// bool fileCloseHandle(File* self);
+//
+// Flushes pending writes and closes the underlying handle without releasing the File.
+// Implemented by each kind of File; callers use fileClose() instead. Further reads and
+// writes fail, and closing an already closed file must be harmless. Returns true if
+// successful, false if flushing or closing failed or if self was NULL.
+#define fileCloseHandle(self) ((self) ? ((self)->_->closeHandle(File(self))) : false)
 /// bool fileRead(File* self, void* buf, size_t sz, size_t* bytesread);
 ///
 /// Reads data from the file

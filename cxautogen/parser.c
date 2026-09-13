@@ -63,8 +63,7 @@ static bool parseEnd(ParseState* ps, bool retval)
         saClear(&ps->docs);
     }
 
-    if (ps->fp)
-        fsClose(ps->fp);
+    fileClose(&ps->fp);
     strDestroy(&ps->fname);
     saDestroy(&ps->tokstack);
     saDestroy(&ps->comments);
@@ -158,7 +157,7 @@ static bool nextTok(ParseState* ps, string* tok)
     for (;;) {
         if (ps->bpos == ps->blen) {
             ps->bpos = 0;
-            if (!fsRead(ps->fp, ps->buf, sizeof(ps->buf), &ps->blen) || ps->blen == 0)
+            if (!fileRead(ps->fp, ps->buf, sizeof(ps->buf), &ps->blen) || ps->blen == 0)
                 return false;   // eof or error
         }
 
@@ -234,7 +233,7 @@ static bool nextCustomTok(ParseState* ps, string* tok, char ends, const char* ig
     for (;;) {
         if (ps->bpos == ps->blen) {
             ps->bpos = 0;
-            if (!fsRead(ps->fp, ps->buf, sizeof(ps->buf), &ps->blen) || ps->blen == 0)
+            if (!fileRead(ps->fp, ps->buf, sizeof(ps->buf), &ps->blen) || ps->blen == 0)
                 return false;   // eof or error
         }
         ch[0]        = ps->buf[ps->bpos++];
@@ -266,7 +265,7 @@ static bool nextCustomTok2(ParseState *ps, string *tok, string ends)
     for (;;) {
         if (ps->bpos == ps->blen) {
             ps->bpos = 0;
-            if (!fsRead(ps->fp, ps->buf, sizeof(ps->buf), &ps->blen) || ps->blen == 0)
+            if (!fileRead(ps->fp, ps->buf, sizeof(ps->buf), &ps->blen) || ps->blen == 0)
                 return false;           // eof or error
         }
         ch[0] = ps->buf[ps->bpos++];

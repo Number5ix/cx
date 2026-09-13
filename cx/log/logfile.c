@@ -42,7 +42,7 @@ static void deleteOldFiles(_Inout_ LogFileData* lfd);
 static void logfileDestroy(_Pre_valid_ _Post_invalid_ LogFileData* data)
 {
     logSerializerDestroy(&data->ser);
-    vfsClose(data->curfile);
+    fileClose(&data->curfile);
     objRelease(&data->vfs);
     strDestroy(&data->fname);
     strDestroy(&data->pathname);
@@ -57,8 +57,8 @@ static bool logfileOpen(_Inout_ LogFileData* data)
     data->curfile = vfsOpen(data->vfs, data->fname, FS_Create | FS_Write);
     if (!data->curfile)
         return false;
-    vfsSeek(data->curfile, 0, FS_End);
-    data->cursize = vfsTell(data->curfile);
+    fileSeek(data->curfile, 0, FS_End);
+    data->cursize = fileTell(data->curfile);
 
     return true;
 }
@@ -66,8 +66,7 @@ static bool logfileOpen(_Inout_ LogFileData* data)
 static bool logfileClose(_Inout_ LogFileData* data)
 {
     devAssert(data->curfile);
-    vfsClose(data->curfile);
-    data->curfile = NULL;
+    fileClose(&data->curfile);
 
     return true;
 }
@@ -290,7 +289,7 @@ void logfileMsgFunc(const LogRecord* rec, void* userdata)
     logSerialize(&logline, lfd->ser, rec);
     strAppend(&logline, loglineend);
 
-    vfsWrite(lfd->curfile, (void*)strC(logline), strLen(logline), NULL);
+    fileWrite(lfd->curfile, (void*)strC(logline), strLen(logline), NULL);
     lfd->cursize += strLen(logline);
     strDestroy(&logline);
 }

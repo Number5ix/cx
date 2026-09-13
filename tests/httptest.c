@@ -5610,10 +5610,10 @@ static bool mpWriteFile(void)
             chunk[j] = (uint8)('A' + ((i + j) % 26));
 
         size_t wrote = 0;
-        ok = fsWrite(fh, chunk, sizeof(chunk), &wrote) && wrote == sizeof(chunk);
+        ok = fileWrite(fh, chunk, sizeof(chunk), &wrote) && wrote == sizeof(chunk);
     }
 
-    fsClose(fh);
+    fileClose(&fh);
     return ok;
 }
 
@@ -5671,7 +5671,7 @@ static int test_httptest_multipartfile(void)
 
     haveMp = httpMultipartInit(&mp);
     if (!haveMp) {
-        vfsClose(vf);
+        fileClose(&vf);
         TEST_FAILV(ret, 1, _SL("!httpMultipartInit(&mp)"), stvNone);
         goto out;
     }

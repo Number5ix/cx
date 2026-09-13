@@ -186,20 +186,20 @@ bool vfsCopy(VFS* vfs, strref from, strref to)
         goto out;
 
     for (;;) {
-        if (!vfsRead(srcfile, buf, COPYBLOCKSIZE, &bytes))
+        if (!fileRead(srcfile, buf, COPYBLOCKSIZE, &bytes))
             goto out;
         if (bytes == 0)
             break;   // eof
-        if (!vfsWrite(dstfile, buf, bytes, NULL))
+        if (!fileWrite(dstfile, buf, bytes, NULL))
             goto out;
     }
 
     ret = true;
 
 out:
-    vfsClose(srcfile);
+    fileClose(&srcfile);
     if (dstfile) {
-        vfsClose(dstfile);
+        fileClose(&dstfile);
         if (!ret)
             vfsDelete(vfs, to);
     }

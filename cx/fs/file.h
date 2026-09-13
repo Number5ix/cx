@@ -34,12 +34,42 @@
 
 CX_C_BEGIN
 
+// Internal function - use fileClose() macro instead
+_At_(*file, _Pre_maybenull_ _Post_null_)
+_meta_inline bool _fileClose(_Inout_ File** file)
+{
+    bool ret = fileCloseHandle(*file);
+    objRelease(file);
+    return ret;
+}
+
+/// bool fileClose(File **pfile);
+///
+/// Closes a file and releases your reference to it
+///
+/// Flushes pending writes, closes the file, and sets the pointer to NULL. Accepts any kind of
+/// File. If something else still holds a reference to the same File, that reference stays valid,
+/// but reads and writes through it fail.
+///
+/// @param pfile Pointer to the file handle (the handle may be NULL)
+/// @return true if successful, false if an error occurred while flushing or closing, or if the
+/// handle was NULL. The reference is released either way.
+///
+/// Example:
+/// @code
+///   File *f = fsOpen(_SL("data.bin"), FS_Overwrite);
+///   fileWrite(f, data, sizeof(data), NULL);
+///   if (!fileClose(&f))
+///       return false;
+/// @endcode
+#define fileClose(pfile) (unused_noeval(&((*(pfile))->_is_File)), _fileClose((File**)(pfile)))
+
 /// A file opened on the OS filesystem with fsOpen()
 typedef File FSFile;
 
 /// Opens a file for I/O operations
 ///
-/// Creates a file handle for reading, writing, or both. Close it with fsClose() when done, or
+/// Creates a file handle for reading, writing, or both. Close it with fileClose() when done, or
 /// hold on to it and release it later with objRelease().
 ///
 /// Common flag combinations:
@@ -63,28 +93,10 @@ typedef File FSFile;
 ///   FSFile *f = fsOpen(_SL("data.bin"), FS_Read);
 ///   if (f) {
 ///       // ... read operations ...
-///       fsClose(f);
+///       fileClose(&f);
 ///   }
 /// @endcode
 _Ret_opt_valid_ FSFile* fsOpen(_In_opt_ strref path, flags_t flags);
-
-/// Closes a file and releases the handle
-///
-/// Flushes pending writes, closes the underlying OS handle, and drops the reference this caller
-/// owns. Use this for the common case of one owner opening a file, using it, and being done
-/// with it. If the handle is shared, close it with fileClose() and release each reference with
-/// objRelease() instead.
-///
-/// @param file File handle to close (may be NULL)
-/// @return true if successful, false if an error occurred during flush/close
-///
-/// @note The reference is dropped even if this returns false
-_meta_inline bool fsClose(_Pre_opt_valid_ _Post_invalid_ FSFile* file)
-{
-    bool ret = fileClose(file);
-    objRelease(&file);
-    return ret;
-}
 
 /// Reads data from a file
 ///
@@ -226,7 +238,7 @@ _meta_inline int64 fsSeek(_Inout_ FSFile* file, int64 off, FSSeekType seektype)
 /// @param file Open file handle
 /// @return true if successful, false if flush failed (I/O error, disk full, etc.)
 ///
-/// @note fsClose() automatically flushes, so explicit flushing is only
+/// @note Closing a file automatically flushes, so explicit flushing is only
 /// needed for long-lived files or when durability is critical (e.g., after
 /// writing a transaction log entry).
 _meta_inline bool fsFlush(_Inout_ FSFile* file)

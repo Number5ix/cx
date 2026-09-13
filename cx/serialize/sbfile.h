@@ -22,8 +22,8 @@
 /// Every one of them takes any File -- an FSFile from fsOpen() or a VFSFile from vfsOpen() --
 /// with no cast at the call site.
 ///
-/// Where `close` is true, the file is closed and its reference released, the same as fsClose()
-/// or vfsClose() would. The handle must not be used again after that.
+/// Where `close` is true, the file is closed and its reference released, the same as fileClose()
+/// would. The handle must not be used again after that.
 ///
 /// The two register functions attach the file to the stream buffer and return; their callbacks run
 /// later, whenever the buffer is driven and on whichever thread drives it. Each of them holds a

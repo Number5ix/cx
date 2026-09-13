@@ -43,7 +43,7 @@ static bool loadFile(string path, char **buf, size_t *sz)
     size_t didread;
     *sz = (size_t)stat.size;
     *buf = xaAlloc(*sz);
-    if (!vfsRead(file, *buf, *sz, &didread)) {
+    if (!fileRead(file, *buf, *sz, &didread)) {
         errmsg(_S"Failed to read from ${string}", stvar(string, path));
         ret = false;
     } else if (didread < *sz) {

@@ -86,16 +86,14 @@ _objfactory_guaranteed VFSFile* VFSFile_create(VFS* vfs, File* inner)
     return self;
 }
 
-bool VFSFile_close(_In_ VFSFile* self)
+bool VFSFile_closeHandle(_In_ VFSFile* self)
 {
     if (!self->inner)
         return true;   // already closed
 
     // The provider's close is where buffered writes are flushed, so a failure there is the one
     // thing this function's return value has to carry.
-    bool ret = fileClose(self->inner);
-    objRelease(&self->inner);
-    return ret;
+    return fileClose(&self->inner);
 }
 
 bool VFSFile_read(_In_ VFSFile* self, _Out_writes_bytes_to_(sz, *bytesread) void* buf,
@@ -170,8 +168,7 @@ static bool vfsCOWFile(_Inout_ VFSFile* file)
 
     // file data is copied, now reset file pointer and swap the files around
     fileSeek(cowfile, curpos, FS_Set);
-    fileClose(file->inner);
-    objRelease(&file->inner);
+    fileClose(&file->inner);
     file->inner = cowfile;
     cowfile     = NULL;
     objRelease(&file->cowprov);
@@ -239,7 +236,7 @@ bool VFSFile_flush(_In_ VFSFile* self)
 
 void VFSFile_destroy(_In_ VFSFile* self)
 {
-    VFSFile_close(self);
+    VFSFile_closeHandle(self);
 
     // Autogen begins -----
     objRelease(&self->vfs);

@@ -128,7 +128,7 @@ static void destroyPart(HttpMultipartPart* p)
         break;
     case HTTPMPSRC_File:
         if (p->close && p->src.file)
-            fsClose(p->src.file);
+            fileClose(&p->src.file);
         break;
     case HTTPMPSRC_Stream:
         if (p->src.stream) {
@@ -455,7 +455,7 @@ bool _httpMultipartAddFile(HttpMultipart* mp, strref name, strref filename,
 {
     if (!mp || strEmpty(name) || !file || mp->finished) {
         if (close && file)
-            fsClose(file);
+            fileClose(&file);
         return false;
     }
 

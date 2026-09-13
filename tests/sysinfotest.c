@@ -478,8 +478,8 @@ static int test_sysinfo_procio_self(void)
     }
 
     size_t wrote = 0;
-    bool wrok    = fsWriteString(f, blob, &wrote);
-    fsClose(f);
+    bool wrok    = fileWriteString(f, blob, &wrote);
+    fileClose(&f);
     fsDelete(kIOFile);
     strDestroy(&blob);
 

@@ -15,7 +15,7 @@
 // flag promises.
 static void sbufFileClose(stvlist* cvars)
 {
-    fileClose(stvlAtObj(cvars, 0, File));
+    fileCloseHandle(stvlAtObj(cvars, 0, File));
 }
 
 static closure sbufFileClosure(closure cls, File** file, bool close)
@@ -54,7 +54,7 @@ bool _sbufFileIn(StreamBuffer* sb, File* file, bool close)
     xaFree(buf);
 
     if (close)
-        fsClose(file);
+        fileClose(&file);
 
     return !sbufIsError(sb);
 }
@@ -132,7 +132,7 @@ bool _sbufFileOut(StreamBuffer* sb, File* file, bool close)
     xaFree(buf);
 
     if (close)
-        fsClose(file);
+        fileClose(&file);
 
     return !sbufIsError(sb);
 }

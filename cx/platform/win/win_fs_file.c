@@ -69,7 +69,7 @@ _objfactory_guaranteed FSFileWin* FSFileWin_create(HANDLE h)
     return self;
 }
 
-bool FSFileWin_close(_In_ FSFileWin* self)
+bool FSFileWin_closeHandle(_In_ FSFileWin* self)
 {
     if (!self->h)
         return true;   // already closed
@@ -227,7 +227,7 @@ bool FSFileWin_flush(_In_ FSFileWin* self)
 
 void FSFileWin_destroy(_In_ FSFileWin* self)
 {
-    FSFileWin_close(self);
+    FSFileWin_closeHandle(self);
 }
 
 // Autogen begins -----

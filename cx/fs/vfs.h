@@ -396,23 +396,6 @@ _meta_inline bool vfsSearchValid(_In_ FSSearchIter* iter)
 /// @see FSOpenFlags in file.h
 _Ret_opt_valid_ VFSFile* vfsOpen(_Inout_ VFS* vfs, _In_opt_ strref path, flags_t flags);
 
-/// Closes a VFS file handle and releases it
-///
-/// Flushes buffers, closes the file, and drops the reference this caller owns. Use this for the
-/// common case of one owner opening a file, using it, and being done with it. If the handle is
-/// shared, close it with fileClose() and release each reference with objRelease() instead.
-///
-/// @param file VFS file handle to close (may be NULL)
-/// @return true if successful, false if an error occurred while flushing or closing
-///
-/// @note The reference is dropped even if this returns false
-_meta_inline bool vfsClose(_Pre_opt_valid_ _Post_invalid_ VFSFile* file)
-{
-    bool ret = fileClose(file);
-    objRelease(&file);
-    return ret;
-}
-
 /// Reads data from a VFS file
 ///
 /// Reads up to sz bytes from the current position. See fsRead() for

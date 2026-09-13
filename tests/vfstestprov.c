@@ -332,7 +332,7 @@ _objfactory_guaranteed VFSTestProvFile* VFSTestProvFile_create(VFSTestProv* prov
     return self;
 }
 
-bool VFSTestProvFile_close(_In_ VFSTestProvFile* self)
+bool VFSTestProvFile_closeHandle(_In_ VFSTestProvFile* self)
 {
     return !(self->prov->failmask & VFSTP_FailClose);
 }
