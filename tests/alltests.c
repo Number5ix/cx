@@ -492,6 +492,7 @@ static const testspec tests[] = {
     { "tlsquic: Missing Signature Algorithms", "tlsquictest", "no_sigalgs" },
     { "tlsquic: CertificateVerify Content", "tlsquictest", "certverify_content" },
     { "tlsquic: Misuse", "tlsquictest", "misuse" },
+    { "tlsquic: Verify And SNI Closures", "tlsquictest", "callbacks" },
 #endif
 #if defined(CX_QUIC_TESTS)
     { "quic: Varints", "quictest", "varint" },
@@ -714,6 +715,7 @@ static const testspec tests[] = {
     { "tls: Post-Handshake Tickets", "tlstest", "tickets" },
     { "tls: Unusable Config Fails Closed", "tlstest", "failclosed" },
     { "tls: RSA Key Encodings", "tlstest", "keyformats" },
+    { "tls: Verify And SNI Closures", "tlstest", "callbacks" },
 #endif
 #if defined(CX_HTTP_TESTS) && (defined(_PLATFORM_WIN) || defined(_PLATFORM_UNIX))
     { "http: URL Parsing", "httptest", "url" },

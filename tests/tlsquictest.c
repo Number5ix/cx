@@ -566,6 +566,80 @@ out:
     return ret;
 }
 
+// The QUIC handshake engine calls the verify and SNI closures itself rather than through mbedTLS.
+// The server picks the alt identity by name, the client's verify closure sees the chain, and
+// releasing the configs destroys both closures.
+typedef struct QCallbacks {
+    int verifyCalls;
+    int sniCalls;
+    int destroyed;
+} QCallbacks;
+
+static bool qVerify(stvlist* cvars, void* crt, int32 depth, uint32* flags)
+{
+    unused_noeval(crt);
+    unused_noeval(depth);
+    unused_noeval(flags);
+
+    QCallbacks* qc = stvlAtPtr(cvars, 0);
+    qc->verifyCalls++;
+    return true;
+}
+
+static TlsCreds* qPickCreds(stvlist* cvars, strref hostname)
+{
+    QCallbacks* qc = stvlAtPtr(cvars, 0);
+    qc->sniCalls++;
+    if (strEq(hostname, _S TLS_TEST_ALT_HOSTNAME))
+        return stvlAtObj(cvars, 1, TlsCreds);
+    return NULL;
+}
+
+static void qCallbacksDestroy(stvlist* cvars)
+{
+    QCallbacks* qc = stvlAtPtr(cvars, 0);
+    qc->destroyed++;
+}
+
+int test_tlsquictest_callbacks(void)
+{
+    int ret = 0;
+    QFix f;
+    QCallbacks qc = { 0 };
+
+    CHECK("fixture setup", qFixInit(&f));
+
+    closure cls = closureCreateAs(TlsVerifyCB, qVerify, stvar(ptr, &qc));
+    closureSetDestroy(cls, qCallbacksDestroy);
+    tlsconfigSetVerifyCallback(f.ccfg, cls);
+
+    // the fixture's client credentials are the alt identity
+    cls = closureCreateAs(TlsSNICB, qPickCreds, stvar(ptr, &qc), stvar(object, f.clientCreds));
+    closureSetDestroy(cls, qCallbacksDestroy);
+    tlsconfigSetSNICallback(f.scfg, cls);
+
+    CHECK("peer setup", qFixPeers(&f, _S TLS_TEST_ALT_HOSTNAME));
+    CHECK("client start", tlsquicStart(f.cli.tq));
+    qRun(&f.cli, &f.srv);
+
+    CHECK("client did not complete", tlsquicComplete(f.cli.tq));
+    CHECK("server did not complete", tlsquicComplete(f.srv.tq));
+    CHECK_U("SNI closure calls", qc.sniCalls, 1);
+    CHECK("verify closure was never called", qc.verifyCalls >= 1);
+
+    TlsInfo info;
+    CHECK("client info", tlsquicGetInfo(f.cli.tq, &info));
+    bool altSubject = strFind(info.peerSubject, 0, _S TLS_TEST_ALT_HOSTNAME) >= 0;
+    nettlsInfoDestroy(&info);
+    CHECK("the server did not present the credentials the SNI closure picked", altSubject);
+
+out:
+    qFixDestroy(&f);
+    if (!ret && qc.destroyed != 2)
+        TEST_FAILV(ret, 1, _SL("${int} closures destroyed after the configs were released, expected 2"), stvar(int32, qc.destroyed));
+    return ret;
+}
+
 // No application protocol in common, which QUIC treats as a fatal condition rather than as an
 // absent extension.
 int test_tlsquictest_alpn_mismatch(void)
@@ -1203,7 +1277,8 @@ int test_tlsquictest_grp_auth(void)
 {
     TEST_CHAIN(test_tlsquictest_mutual, test_tlsquictest_mutual_missing,
                test_tlsquictest_untrusted, test_tlsquictest_wrongname,
-               test_tlsquictest_alpn_mismatch, test_tlsquictest_certverify_content);
+               test_tlsquictest_alpn_mismatch, test_tlsquictest_certverify_content,
+               test_tlsquictest_callbacks);
 }
 
 int test_tlsquictest_grp_malformed(void)
@@ -1245,6 +1320,7 @@ testfunc tlsquictest_funcs[] = {
     { "no_sigalgs", test_tlsquictest_no_sigalgs },
     { "certverify_content", test_tlsquictest_certverify_content },
     { "misuse", test_tlsquictest_misuse },
+    { "callbacks", test_tlsquictest_callbacks },
     { "grp_handshake", test_tlsquictest_grp_handshake },
     { "grp_auth", test_tlsquictest_grp_auth },
     { "grp_malformed", test_tlsquictest_grp_malformed },

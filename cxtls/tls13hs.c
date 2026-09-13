@@ -1595,7 +1595,7 @@ static bool serverClientHello(_Inout_ Tls13Hs* hs, _In_reads_bytes_(len) const u
 
     hs->creds = cfg->creds;
     if (cfg->st->sniCb && !strEmpty(hs->hostname)) {
-        TlsCreds* picked = cfg->st->sniCb(hs->hostname, cfg->st->sniCtx);
+        TlsCreds* picked = closureCallAs(TlsSNICB, cfg->st->sniCb, hs->hostname);
         if (picked)
             hs->creds = picked;
     }

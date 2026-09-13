@@ -13,6 +13,14 @@
 /// a new TlsConfig and hand it to the server filter with tlsserverfilterSetConfig(); sessions
 /// already running keep a reference to the old one and finish on the certificate they started
 /// with, and it is destroyed when the last of them ends.
+///
+/// **Callbacks.** The verify and SNI callbacks are closures, and the config owns them: a setter
+/// takes ownership even when it refuses the call, and the closure is destroyed when the callback
+/// is replaced or the config is. Two rules follow from how they are called:
+/// - Every handshake built from the config calls the same closure, possibly on several threads at
+///   once, so anything it captures must be safe to read concurrently.
+/// - Capture the config itself, or anything that holds a reference to it, with `ptr` rather than
+///   `object`. A counted reference would keep the config alive forever.
 
 /// @brief Session policy shared by every connection built from it
 ///
@@ -144,9 +152,13 @@ class TlsConfig
     /// Lets an application forgive a defect mbedTLS objects to, or reject a chain it would have
     /// accepted. Runs during the handshake, under the flow's filter lock.
     ///
-    /// @param cb Callback, or NULL to clear
-    /// @param ctx Context passed to the callback
-    unbound void setVerifyCallback([opt] TlsVerifyCB cb, [in] [opt] void *ctx);
+    /// @param cb Closure created with closureCreateAs(TlsVerifyCB, ...), or NULL to clear
+    ///
+    /// Example:
+    /// @code
+    ///   tlsconfigSetVerifyCallback(cfg, closureCreateAs(TlsVerifyCB, onVerify, stvar(ptr, app)));
+    /// @endcode
+    unbound void setVerifyCallback([opt] closure cb);
 
     /// Register a callback that picks server credentials by requested hostname
     ///
@@ -154,9 +166,13 @@ class TlsConfig
     /// the credentials to present, or NULL to fall back to this config's own. Composes with
     /// rotation -- the usual implementation looks up a table the application swaps atomically.
     ///
-    /// @param cb Callback, or NULL to clear
-    /// @param ctx Context passed to the callback
-    unbound void setSNICallback([opt] TlsSNICB cb, [in] [opt] void *ctx);
+    /// @param cb Closure created with closureCreateAs(TlsSNICB, ...), or NULL to clear
+    ///
+    /// Example:
+    /// @code
+    ///   tlsconfigSetSNICallback(cfg, closureCreateAs(TlsSNICB, pickCreds, stvar(object, table)));
+    /// @endcode
+    unbound void setSNICallback([opt] closure cb);
 
     /// Freeze the configuration so sessions can be built from it
     ///

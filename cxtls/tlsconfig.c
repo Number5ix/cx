@@ -35,7 +35,7 @@ static int verifyThunk(void* p, mbedtls_x509_crt* crt, int depth, uint32_t* flag
 
     // Returning nonzero aborts the handshake outright, which is what a callback saying "stop"
     // means. Anything it wants to communicate short of that, it does by editing *flags.
-    return self->st->verifyCb(crt, depth, (uint32*)flags, self->st->verifyCtx) ? 0 : -1;
+    return closureCallAs(TlsVerifyCB, self->st->verifyCb, crt, depth, (uint32*)flags) ? 0 : -1;
 }
 
 static int sniThunk(void* p, mbedtls_ssl_context* ssl, const unsigned char* name, size_t len)
@@ -45,7 +45,7 @@ static int sniThunk(void* p, mbedtls_ssl_context* ssl, const unsigned char* name
     string host = 0;
     strFromBytes(&host, name, (uint32)len);
 
-    TlsCreds* creds = self->st->sniCb(host, self->st->sniCtx);
+    TlsCreds* creds = closureCallAs(TlsSNICB, self->st->sniCb, host);
     strDestroy(&host);
 
     // NULL means "no opinion": leave the handshake on the config's own certificate rather than
@@ -250,13 +250,15 @@ bool TlsConfig_setEarlyData(_In_ TlsConfig* self, bool enable)
     return true;
 }
 
-void TlsConfig_setVerifyCallback(_In_ TlsConfig* self, TlsVerifyCB cb, _In_opt_ void* ctx)
+void TlsConfig_setVerifyCallback(_In_ TlsConfig* self, closure cb)
 {
-    if (!checkUnsealed(self, _S"tlsconfigSetVerifyCallback"))
+    if (!checkUnsealed(self, _S"tlsconfigSetVerifyCallback")) {
+        closureDestroy(&cb);
         return;
+    }
 
-    self->st->verifyCb  = cb;
-    self->st->verifyCtx = ctx;
+    closureDestroy(&self->st->verifyCb);
+    self->st->verifyCb = cb;
 }
 
 bool TlsConfig_sealed(_In_ TlsConfig* self)
@@ -264,18 +266,21 @@ bool TlsConfig_sealed(_In_ TlsConfig* self)
     return self->st->sealed;
 }
 
-void TlsConfig_setSNICallback(_In_ TlsConfig* self, TlsSNICB cb, _In_opt_ void* ctx)
+void TlsConfig_setSNICallback(_In_ TlsConfig* self, closure cb)
 {
-    if (!checkUnsealed(self, _S"tlsconfigSetSNICallback"))
-        return;
-
-    if (cb && !self->st->server) {
-        logStr(Warn, _SL("TLS: an SNI callback on a client configuration has no effect"));
+    if (!checkUnsealed(self, _S"tlsconfigSetSNICallback")) {
+        closureDestroy(&cb);
         return;
     }
 
-    self->st->sniCb  = cb;
-    self->st->sniCtx = ctx;
+    if (cb && !self->st->server) {
+        logStr(Warn, _SL("TLS: an SNI callback on a client configuration has no effect"));
+        closureDestroy(&cb);
+        return;
+    }
+
+    closureDestroy(&self->st->sniCb);
+    self->st->sniCb = cb;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -628,6 +633,9 @@ void TlsConfig_destroy(_In_ TlsConfig* self)
         mbedtls_ssl_ticket_free(&st->ticket);
     if (st->cacheInit)
         mbedtls_ssl_cache_free(&st->cache);
+
+    closureDestroy(&st->verifyCb);
+    closureDestroy(&st->sniCb);
 
     alpnClear(st);
     mbedtls_ssl_config_free(&st->conf);

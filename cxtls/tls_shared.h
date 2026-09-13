@@ -1,4 +1,5 @@
 #pragma once
+#include <cx/closure.h>
 #include <cx/cx.h>
 #include <cx/log/log.h>
 #include <cx/string.h>
@@ -97,27 +98,28 @@ typedef struct TlsInfo {
 /// would have accepted. Runs on whichever thread is driving the handshake, under the flow's filter
 /// lock, so it must not call back into the socket.
 ///
+/// @param cvars Variables captured by the closure
 /// @param crt Certificate being checked, as an `mbedtls_x509_crt *` (cast it after including
 ///            <cxtls_mbed.h>)
 /// @param depth Position in the chain: 0 is the peer's own certificate, higher is closer to the
 /// root
 /// @param flags In/out verification flags for this certificate (MBEDTLS_X509_BADCERT_*)
-/// @param ctx Context registered alongside the callback
 /// @return true to continue verification, false to abort the handshake outright
-typedef bool (*TlsVerifyCB)(_In_ void* crt, int32 depth, _Inout_ uint32* flags, _In_opt_ void* ctx);
+typedef bool (*TlsVerifyCB)(_In_ stvlist* cvars, _In_ void* crt, int32 depth,
+                            _Inout_ uint32* flags);
 
 /// Callback invoked on a server when a client sends an SNI hostname
 ///
 /// Registered with tlsconfigSetSNICallback(), and bridged to mbedtls_ssl_conf_sni(). Return the
 /// credentials to present for `hostname`, or NULL to fall back to the config's own. The returned
 /// reference is borrowed -- the callback keeps ownership, and whatever it returns must stay alive
-/// for the life of the session, which is why the usual implementation hands back a TlsCreds it is
-/// holding in a table rather than one it built on the spot.
+/// for the life of the session. The usual implementation hands back a TlsCreds held in a table
+/// the closure captured, rather than one it built on the spot.
 ///
+/// @param cvars Variables captured by the closure
 /// @param hostname Name the client asked for
-/// @param ctx Context registered alongside the callback
 /// @return Credentials to use, or NULL for the config's default
-typedef struct TlsCreds* (*TlsSNICB)(_In_ strref hostname, _In_opt_ void* ctx);
+typedef struct TlsCreds* (*TlsSNICB)(_In_ stvlist* cvars, _In_ strref hostname);
 
 /// Encryption level a QUIC handshake message or traffic secret belongs to
 ///

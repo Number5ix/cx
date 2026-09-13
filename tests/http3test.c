@@ -2268,11 +2268,11 @@ static const HttpHandlers kH3CliHandlers = {
 // through <cxtls_mbed.h> for one constant.
 #define H3T_BADCERT_CN_MISMATCH 0x04u
 
-static bool h3tForgiveName(void* crt, int32 depth, uint32* flags, void* ctx)
+static bool h3tForgiveName(stvlist* cvars, void* crt, int32 depth, uint32* flags)
 {
+    unused_noeval(cvars);
     unused_noeval(crt);
     unused_noeval(depth);
-    unused_noeval(ctx);
 
     *flags &= ~H3T_BADCERT_CN_MISMATCH;
     return true;
@@ -2341,7 +2341,7 @@ static bool h3LoopInitN(_Inout_ H3Loop* f, _In_ const HttpServerHandlers* handle
     if (!f->scfg || !f->ccfg)
         return false;
     tlsconfigSetCA(f->ccfg, f->ca);
-    tlsconfigSetVerifyCallback(f->ccfg, h3tForgiveName, NULL);
+    tlsconfigSetVerifyCallback(f->ccfg, closureCreateAs(TlsVerifyCB, h3tForgiveName, stvNone));
 
     NetQueueConfig conf;
     netqueuePresetServer(&conf);
@@ -2671,7 +2671,7 @@ static bool h3BothInitN(_Inout_ H3Loop* f, _In_ const HttpServerHandlers* handle
     if (!f->scfg || !f->ccfg)
         return false;
     tlsconfigSetCA(f->ccfg, f->ca);
-    tlsconfigSetVerifyCallback(f->ccfg, h3tForgiveName, NULL);
+    tlsconfigSetVerifyCallback(f->ccfg, closureCreateAs(TlsVerifyCB, h3tForgiveName, stvNone));
 
     NetQueueConfig conf;
     netqueuePresetServer(&conf);

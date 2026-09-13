@@ -269,7 +269,7 @@ bool _tls13SigCheck(uint16 scheme, mbedtls_pk_context* key, bool serverSig, cons
 static int verifyThunk(void* p, mbedtls_x509_crt* crt, int depth, uint32_t* flags)
 {
     TlsConfig* cfg = (TlsConfig*)p;
-    return cfg->st->verifyCb(crt, depth, (uint32*)flags, cfg->st->verifyCtx) ? 0 : -1;
+    return closureCallAs(TlsVerifyCB, cfg->st->verifyCb, crt, depth, (uint32*)flags) ? 0 : -1;
 }
 
 _Use_decl_annotations_

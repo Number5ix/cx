@@ -102,10 +102,8 @@ typedef struct TlsConfigState {
     bool quicTicketKeyOk;
     hashtable quicTickets;
 
-    TlsVerifyCB verifyCb;
-    void* verifyCtx;
-    TlsSNICB sniCb;
-    void* sniCtx;
+    closure verifyCb;   // TlsVerifyCB
+    closure sniCb;      // TlsSNICB
 } TlsConfigState;
 
 // Hosts kept in the client resumption cache. Small on purpose: resumption is worth having for the

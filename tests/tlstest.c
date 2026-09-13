@@ -1065,6 +1065,115 @@ static int test_tlstest_keyformats(void)
     return ret;
 }
 
+// The verify and SNI callbacks are closures the config owns. A real handshake goes through both --
+// the server picks the alt identity by name, the client's verify closure sees the chain -- and
+// every closure is destroyed exactly once: on replacement, on a refused registration, and when the
+// configs go away, taking the captured credentials with them.
+typedef struct CallbackState {
+    int verifyCalls;
+    int sniCalls;
+    int destroyed;
+} CallbackState;
+
+static bool cbVerify(stvlist* cvars, void* crt, int32 depth, uint32* flags)
+{
+    unused_noeval(crt);
+    unused_noeval(depth);
+    unused_noeval(flags);
+
+    CallbackState* cs = stvlAtPtr(cvars, 0);
+    cs->verifyCalls++;
+    return true;
+}
+
+static TlsCreds* cbPickCreds(stvlist* cvars, strref hostname)
+{
+    CallbackState* cs = stvlAtPtr(cvars, 0);
+    cs->sniCalls++;
+    if (strEq(hostname, _S TLS_TEST_ALT_HOSTNAME))
+        return stvlAtObj(cvars, 1, TlsCreds);
+    return NULL;
+}
+
+static void cbDestroy(stvlist* cvars)
+{
+    CallbackState* cs = stvlAtPtr(cvars, 0);
+    cs->destroyed++;
+}
+
+static int test_tlstest_callbacks(void)
+{
+    int ret = 0;
+    Fixture f;
+    CallbackState cs = { 0 };
+
+    if (!fixtureBase(&f))
+        TEST_FAIL(1, _SL("assertion failed: !fixtureBase(&f)"), stvNone);
+
+    TlsCreds* alt = tlscredsCreatePEM(f.pki.altCert, f.pki.altKey, NULL);
+    if (!alt) {
+        fixtureDestroy(&f);
+        TEST_FAIL(1, _SL("could not load the alt credentials"), stvNone);
+    }
+    Weak(TlsCreds)* altWeak = objGetWeak(TlsCreds, alt);
+
+    f.clientCfg = tlsconfigCreateClient();
+    f.serverCfg = tlsconfigCreateServer(f.creds);
+    tlsconfigSetCA(f.clientCfg, f.ca);
+
+    closure cls = closureCreateAs(TlsVerifyCB, cbVerify, stvar(ptr, &cs));
+    closureSetDestroy(cls, cbDestroy);
+    tlsconfigSetVerifyCallback(f.clientCfg, cls);
+
+    // replacing the verify callback destroys the one it replaces
+    cls = closureCreateAs(TlsVerifyCB, cbVerify, stvar(ptr, &cs));
+    closureSetDestroy(cls, cbDestroy);
+    tlsconfigSetVerifyCallback(f.clientCfg, cls);
+    if (cs.destroyed != 1)
+        TEST_FAILV(ret, 1, _SL("replaced verify closure destroyed ${int} times, expected 1"), stvar(int32, cs.destroyed));
+
+    // a client config refuses an SNI callback, and still owns the closure it was handed
+    cls = closureCreateAs(TlsSNICB, cbPickCreds, stvar(ptr, &cs), stvar(object, alt));
+    closureSetDestroy(cls, cbDestroy);
+    tlsconfigSetSNICallback(f.clientCfg, cls);
+    if (cs.destroyed != 2)
+        TEST_FAILV(ret, 1, _SL("refused SNI closure: ${int} destroyed, expected 2"), stvar(int32, cs.destroyed));
+
+    cls = closureCreateAs(TlsSNICB, cbPickCreds, stvar(ptr, &cs), stvar(object, alt));
+    closureSetDestroy(cls, cbDestroy);
+    tlsconfigSetSNICallback(f.serverCfg, cls);
+    objRelease(&alt);   // the server's closure holds the only reference now
+
+    if (!ret && (!fixtureListen(&f) || !fixtureConnect(&f, _S TLS_TEST_ALT_HOSTNAME)))
+        TEST_FAILV(ret, 1, _SL("assertion failed: !ret && (!fixtureListen(&f) || !fixtureConnect(&f, _S TLS_TEST_ALT_HOSTNAME))"), stvNone);
+
+    if (!ret)
+        pumpUntil(f.t.q, f.t.client.secured && f.t.server.secured);
+
+    // the client asked for the alt name and got the alt certificate, which only the SNI closure
+    // could have supplied
+    if (!ret && (!f.t.client.haveInfo || strFind(f.t.client.info.peerSubject, 0, _S TLS_TEST_ALT_HOSTNAME) < 0))
+        TEST_FAILV(ret, 1, _SL("client did not receive the alt certificate; peer subject: ${string}"), stvar(strref, f.t.client.info.peerSubject));
+    if (cs.sniCalls != 1)
+        TEST_FAILV(ret, 1, _SL("SNI closure called ${int} times, expected 1"), stvar(int32, cs.sniCalls));
+    if (cs.verifyCalls < 1)
+        TEST_FAILV(ret, 1, _SL("verify closure called ${int} times, expected at least 1"), stvar(int32, cs.verifyCalls));
+
+    fixtureDestroy(&f);
+
+    if (cs.destroyed != 4)
+        TEST_FAILV(ret, 1, _SL("${int} closures destroyed after the configs were released, expected 4"), stvar(int32, cs.destroyed));
+
+    TlsCreds* still = objAcquireFromWeak(TlsCreds, altWeak);
+    if (still) {
+        TEST_FAILV(ret, 1, _SL("captured credentials outlived the config that owned them"), stvNone);
+        objRelease(&still);
+    }
+    objDestroyWeak(&altWeak);
+
+    return ret;
+}
+
 testfunc tlstest_funcs[] = {
     { "handshake",  test_tlstest_handshake  },
     { "wire",       test_tlstest_wire       },
@@ -1080,5 +1189,6 @@ testfunc tlstest_funcs[] = {
     { "tickets",    test_tlstest_tickets    },
     { "failclosed", test_tlstest_failclosed },
     { "keyformats", test_tlstest_keyformats },
+    { "callbacks",  test_tlstest_callbacks  },
     { 0,            0                       },
 };
