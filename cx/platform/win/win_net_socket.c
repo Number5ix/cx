@@ -144,16 +144,46 @@ extern bool NetSocket_close(_In_ NetSocket* self);   // parent
 #define parent_close() NetSocket_close((NetSocket*)(self))
 bool NetSocketWin_close(_In_ NetSocketWin* self)
 {
+    bool listener = atomicLoad(uint32, &self->state, Acquire) == NS_Listening;
+
     if (!parent_close())
         return false;
 
-    closesocket(self->sock);
+    // The handle is not closed here. Winsock hands a closed socket's number to the very next socket
+    // created, and a thread already holding this socket -- a completion reposting a receive, a
+    // worker flushing a send -- would then issue its call on a stranger's connection. Everything
+    // that can use the handle holds a reference, so closing it in destroy() instead is what makes
+    // that impossible. What close owes the application happens now: the peer is told, and pending
+    // operations are cancelled. The cancel comes after the base close marked the socket closed; a
+    // completion backend that posts in the meantime checks for that and cancels its own operation.
+    //
+    // A listener is the exception: its address is often wanted again at once, and nothing posts
+    // stream data on it for a reused number to be confused with.
+    if (listener) {
+        SOCKET s     = self->sock;
+        self->sock   = INVALID_SOCKET;
+        self->handle = NET_INVALID_HANDLE;
+        closesocket(s);
+        return true;
+    }
+
+    if (self->sock != INVALID_SOCKET) {
+        if (self->type == NST_Stream)
+            shutdown(self->sock, SD_BOTH);
+        _netCancelSockIo(self->handle);
+    }
     return true;
 }
 
 void NetSocketWin_destroy(_In_ NetSocketWin* self)
 {
     netsocketwinClose(self);
+
+    if (self->sock != INVALID_SOCKET) {
+        closesocket(self->sock);
+        self->sock   = INVALID_SOCKET;
+        self->handle = NET_INVALID_HANDLE;
+    }
 }
 
 _Use_decl_annotations_

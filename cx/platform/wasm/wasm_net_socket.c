@@ -158,16 +158,35 @@ extern bool NetSocket_close(_In_ NetSocket* self);   // parent
 #define parent_close() NetSocket_close((NetSocket*)(self))
 bool NetSocketPosix_close(_In_ NetSocketPosix* self)
 {
+    bool listener = atomicLoad(uint32, &self->state, Acquire) == NS_Listening;
+
     if (!parent_close())
         return false;
 
-    close(self->fd);
+    // Closed in destroy() rather than here, for the reason given in the unix NetSocketPosix_close():
+    // a reused descriptor number must not be reachable through a socket something still holds.
+    if (listener) {
+        int fd       = self->fd;
+        self->fd     = -1;
+        self->handle = NET_INVALID_HANDLE;
+        close(fd);
+        return true;
+    }
+
+    if (self->fd >= 0 && self->type == NST_Stream)
+        shutdown(self->fd, SHUT_RDWR);
     return true;
 }
 
 void NetSocketPosix_destroy(_In_ NetSocketPosix* self)
 {
     netsocketposixClose(self);
+
+    if (self->fd >= 0) {
+        close(self->fd);
+        self->fd     = -1;
+        self->handle = NET_INVALID_HANDLE;
+    }
 }
 
 _Use_decl_annotations_

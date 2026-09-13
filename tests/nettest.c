@@ -2285,6 +2285,101 @@ static int test_nettest_helpers(void)
     return ret;
 }
 
+// Closing a connection ends it for the peer at once but keeps its handle until the socket is
+// released; closing a listener gives its handle, and its address, back immediately.
+//
+// The OS reuses a closed socket's number for the next socket it makes, usually at once. A thread
+// that was still using the socket when it closed would then reach whichever connection inherited
+// the number. Holding the handle while any reference exists rules that out -- and the proof is
+// that a socket made while the closed one is still held cannot be given its number.
+static int test_nettest_close_handle(void)
+{
+    int ret           = 0;
+    Recorder lrec     = { 0 }, crec = { 0 }, srec = { 0 };
+    NetSocket* lsock  = NULL, *client = NULL, *server = NULL;
+    SOCKET probe      = INVALID_SOCKET;
+
+    NetQueueConfig conf;
+    netqueuePresetClient(&conf);
+    conf.flags |= NQ_AutoAccept;
+    NetQueue* q = netqueueCreate(&conf);
+    if (!q)
+        TEST_FAIL(1, _SL("assertion failed: !q"), stvNone);
+
+    static const NetHandlers lhandlers = { .accepted = onAccept };
+    static const NetHandlers chandlers = { .connection = onConnect };
+    static const NetHandlers shandlers = { .recv = onStreamRecv, .flowClosed = onClosed };
+
+    NetAddr la = loopbackAddr(0);
+    lsock      = netqueueListen(q, &la, 4, &lhandlers, &lrec);
+    if (!lsock) {
+        TEST_FAILV(ret, 1, _SL("assertion failed: !lsock"), stvNone);
+        goto out;
+    }
+
+    struct sockaddr_in sa;
+    int salen = sizeof(sa);
+    getsockname((SOCKET)lsock->handle, (struct sockaddr*)&sa, &salen);
+    uint16 port = ntohs(sa.sin_port);
+
+    client = netqueueConnect(q, _SL("127.0.0.1"), port, &chandlers, &crec);
+    tickUntilConn(q, &crec, 50);
+    for (int i = 0; i < 50 && lrec.acceptCount < 1; i++)
+        netqueueTick(q, timeMS(100));
+    if (!client || crec.connState != NCS_Connected || !lrec.accepted) {
+        TEST_FAILV(ret, 1, _SL("the connection did not come up"), stvNone);
+        goto out;
+    }
+    server = lrec.accepted;
+    netsocketSetHandlers(server, &shandlers, &srec);
+
+    NetSockHandle held = client->handle;
+    netsocketClose(client);
+
+    probe = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (probe == INVALID_SOCKET)
+        TEST_FAILV(ret, 1, _SL("assertion failed: probe == INVALID_SOCKET"), stvNone);
+    else if ((NetSockHandle)probe == held)
+        TEST_FAILV(ret, 1, _SL("a closed socket's handle was reused while the socket was still held"),
+                   stvNone);
+
+    for (int i = 0; i < 50 && srec.closeCount == 0; i++)
+        netqueueTick(q, timeMS(100));
+    if (srec.closeCount != 1 || srec.lastReason != NCR_PeerClosed)
+        TEST_FAILV(ret, 1,
+                   _SL("the peer did not see the close: closeCount=${uint} reason=${int}"),
+                   stvar(uint32, srec.closeCount), stvar(int32, srec.lastReason));
+
+    objRelease(&client);
+    netsocketClose(server);
+    objRelease(&server);
+
+    // Held, but closed: the address has to be free for a new listener straight away.
+    netsocketClose(lsock);
+    if (probe != INVALID_SOCKET) {
+        struct sockaddr_in again;
+        memset(&again, 0, sizeof(again));
+        again.sin_family      = AF_INET;
+        again.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        again.sin_port        = htons(port);
+        if (bind(probe, (struct sockaddr*)&again, sizeof(again)) != 0 || listen(probe, 1) != 0)
+            TEST_FAILV(ret, 1, _SL("a closed listener's address was not released"), stvNone);
+    }
+
+out:
+    if (probe != INVALID_SOCKET)
+        closesocket(probe);
+    objRelease(&server);
+    objRelease(&client);
+    if (lsock) {
+        netsocketClose(lsock);
+        objRelease(&lsock);
+    }
+    netqueueShutdown(q, 0);
+    objRelease(&q);
+    return ret;
+}
+
 // A send to a peer with no flow opens one, so that the payload has a chain to be encoded by. This is
 // the one filter path the synthetic socket cannot reach -- it overrides send() -- so it runs over a
 // real loopback UDP socket, with a raw peer socket to read what actually reached the wire.
@@ -4796,7 +4891,8 @@ int test_nettest_grp_filterstream(void)
 
 int test_nettest_grp_general(void)
 {
-    TEST_CHAIN(test_nettest_addr, test_nettest_helpers, test_nettest_pktinfo);
+    TEST_CHAIN(test_nettest_addr, test_nettest_helpers, test_nettest_close_handle,
+               test_nettest_pktinfo);
 }
 
 int test_nettest_grp_filterdgram(void)
@@ -4912,7 +5008,8 @@ testfunc nettest_funcs[] = {
     { "grp_filterstream",           test_nettest_grp_filterstream           },
 #if defined(_PLATFORM_WIN) || defined(_PLATFORM_UNIX) || defined(_PLATFORM_WASM)
     { "helpers",                    test_nettest_helpers                    },
-    { "filter_dgram_send",          test_nettest_filter_dgram_send          },
+    { "close_handle",               test_nettest_close_handle               },
+    { "filter_dgram_send",         test_nettest_filter_dgram_send          },
     { "select_udp",                 test_nettest_select_udp                 },
     { "select_stream",              test_nettest_select_stream              },
     { "select_udp_threaded",        test_nettest_select_udp_threaded        },

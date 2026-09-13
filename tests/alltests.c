@@ -400,6 +400,7 @@ static const testspec tests[] = {
     { "netfilter: Datagram Pool Reference", "nettest", "filter_dgram_poolref" },
 #if defined(_PLATFORM_WIN) || defined(_PLATFORM_UNIX)
     { "net: Composed Helpers", "nettest", "helpers" },
+    { "net: Closed Socket Handle", "nettest", "close_handle" },
     { "net: Per-Datagram IP Information", "nettest", "pktinfo" },
     { "netfilter: Datagram Cold Send", "nettest", "filter_dgram_send" },
     { "netselect: Datagram Loopback", "nettest", "select_udp" },

@@ -161,16 +161,38 @@ extern bool NetSocket_close(_In_ NetSocket* self);   // parent
 #define parent_close() NetSocket_close((NetSocket*)(self))
 bool NetSocketPosix_close(_In_ NetSocketPosix* self)
 {
+    bool listener = atomicLoad(uint32, &self->state, Acquire) == NS_Listening;
+
     if (!parent_close())
         return false;
 
-    close(self->fd);
+    // The descriptor is not closed here: the next socket created would get the same number, and a
+    // thread still holding this socket would issue its call on a stranger's connection. Everything
+    // that can use it holds a reference, so it is closed in destroy() instead. Shutting a stream
+    // down is what tells the peer now. A listener's address is often wanted again at once, and it
+    // carries no stream data for a reused number to be confused with, so it closes immediately.
+    if (listener) {
+        int fd       = self->fd;
+        self->fd     = -1;
+        self->handle = NET_INVALID_HANDLE;
+        close(fd);
+        return true;
+    }
+
+    if (self->fd >= 0 && self->type == NST_Stream)
+        shutdown(self->fd, SHUT_RDWR);
     return true;
 }
 
 void NetSocketPosix_destroy(_In_ NetSocketPosix* self)
 {
     netsocketposixClose(self);
+
+    if (self->fd >= 0) {
+        close(self->fd);
+        self->fd     = -1;
+        self->handle = NET_INVALID_HANDLE;
+    }
 }
 
 _Use_decl_annotations_

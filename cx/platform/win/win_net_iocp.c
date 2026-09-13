@@ -171,6 +171,19 @@ static NetErrorCode mapConnectError(DWORD err)
     return e == NERR_Unknown ? NERR_ConnectionRefused : e;
 }
 
+// Cancel what was just posted on a socket that was closed while it was being posted.
+//
+// close() cancels everything pending, but it can land between a completion thread deciding to
+// repost and the post itself. An operation posted after that cancel would never complete, and the
+// reference it holds would keep the socket -- and its handle, which is only closed on destroy --
+// alive for good. The base close stores NS_Closed before the platform close cancels, and this loads
+// it after posting, both SeqCst, so either that cancel sees the new operation or this sees the mark.
+static void cancelIfClosed(_In_ NetSocket* sock)
+{
+    if (atomicLoad(uint32, &sock->state, SeqCst) == NS_Closed)
+        _netCancelSockIo(sock->handle);
+}
+
 // ---------------------------------------------------------------------------------------------
 // Posting receives
 // ---------------------------------------------------------------------------------------------
@@ -238,6 +251,8 @@ static bool postRecvFrom(_Inout_ NetQueueWinIOCP* self, _Inout_ NetSocket* sock)
         xaFree(op);
         return false;
     }
+
+    cancelIfClosed(sock);
     return true;
 }
 
@@ -275,6 +290,8 @@ static bool postRecv(_Inout_ NetQueueWinIOCP* self, _Inout_ NetSocket* sock)
         xaFree(op);
         return false;
     }
+
+    cancelIfClosed(sock);
     return true;
 }
 
@@ -389,6 +406,8 @@ static void postSendLocked(_Inout_ NetQueueWinIOCP* self, _Inout_ NetSocket* soc
             xaFree(op);
             if (!_netqueueShuttingDown(q))
                 *err = _netMapWsaError(we);
+        } else {
+            cancelIfClosed(sock);
         }
     } else {   // datagram
         NetMessage* m = (NetMessage*)prqPop(&sock->bufs.dgram.send);
@@ -446,6 +465,8 @@ static void postSendLocked(_Inout_ NetQueueWinIOCP* self, _Inout_ NetSocket* soc
             netpoolFreeMsg(q->pool, &op->sendMsg);   // drop this datagram on a fatal error
             objRelease(&op->sock);
             xaFree(op);
+        } else {
+            cancelIfClosed(sock);
         }
     }
 }
@@ -876,6 +897,8 @@ bool NetQueueWinIOCP_connectBegin(_In_ NetQueueWinIOCP* self, NetSocket* sock, c
         objRelease(&op->sock);
         xaFree(op);
         netsocket_connectResult(sock, err);
+    } else {
+        cancelIfClosed(sock);
     }
     return true;
 }

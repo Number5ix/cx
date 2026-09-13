@@ -35,6 +35,9 @@ abstract class NetSocket
     /// Lets shared code in cx/net/ read a socket's handle to add it to a select set or issue a
     /// recv without knowing the derived platform type. NET_INVALID_HANDLE until the factory
     /// assigns it.
+    // Stays open until the socket is destroyed, not just closed, except on a listener: anything that
+    // can use the handle holds a reference, so the number cannot be handed to another socket while
+    // it still might. See the platform socket's close().
     NetSockHandle handle;
 
     atomic[uint32] state;   ///< See NetSocketState enum
@@ -340,6 +343,10 @@ abstract class NetSocket
     ///
     /// Will also remove from a NetQueue if it is registered to one. The socket cannot
     /// be reused once closed.
+    ///
+    /// A connection is shut down at once, but its OS handle -- and the local address it is bound
+    /// to -- is only released when the last reference to the socket is. A listening socket is the
+    /// exception and releases its handle immediately, so its address can be listened on again.
     ///
     /// @return true if the socket was successfully disconnected, false otherwise.
     bool close();

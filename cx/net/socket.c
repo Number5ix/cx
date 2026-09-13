@@ -242,7 +242,9 @@ bool NetSocket_close(_In_ NetSocket* self)
         netsocket_closeFlows(self, NCR_SocketClosed);
     }
 
-    atomicStore(uint32, &self->state, NS_Closed, Relaxed);
+    // SeqCst: a completion backend posts an operation and then checks for this, while the platform
+    // close stores it and then cancels, and one of the two has to see the other.
+    atomicStore(uint32, &self->state, NS_Closed, SeqCst);
 
     return true;
 }
