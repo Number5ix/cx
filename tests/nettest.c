@@ -2362,6 +2362,13 @@ static int test_nettest_close_handle(void)
         again.sin_family      = AF_INET;
         again.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
         again.sin_port        = htons(port);
+#if !defined(_PLATFORM_WIN)
+        // As a real listener does. Without it, BSD bind() also refuses the port while the accepted
+        // connection is still finishing its close, which says nothing about the listener. Not on
+        // Windows, where it would let the bind take the port even from a live listener.
+        int one = 1;
+        setsockopt(probe, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
+#endif
         if (bind(probe, (struct sockaddr*)&again, sizeof(again)) != 0 || listen(probe, 1) != 0)
             TEST_FAILV(ret, 1, _SL("a closed listener's address was not released"), stvNone);
     }
