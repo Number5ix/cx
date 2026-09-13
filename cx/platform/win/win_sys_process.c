@@ -243,6 +243,13 @@ bool _procPlatformRunning(Process* proc)
 #define PROC_THREAD_ATTRIBUTE_HANDLE_LIST 0x00020002
 #endif
 
+// Same layout as STARTUPINFOEXW, which XP-targeted SDKs also leave out. A typedef cannot be tested
+// for with the preprocessor, so this is used on every build.
+typedef struct ProcStartupInfoEx {
+    STARTUPINFOW StartupInfo;
+    void* lpAttributeList;
+} ProcStartupInfoEx;
+
 typedef BOOL(WINAPI* LPFN_IPTAL)(void*, DWORD, DWORD, PSIZE_T);
 typedef BOOL(WINAPI* LPFN_UPTA)(void*, DWORD, DWORD_PTR, PVOID, SIZE_T, PVOID, PSIZE_T);
 typedef VOID(WINAPI* LPFN_DPTAL)(void*);
@@ -253,7 +260,7 @@ static LPFN_DPTAL fnDeleteProcThreadAttributeList;
 
 static LazyInitState procAttrInitState;
 
-// Serializes launches when the attribute list is unavailable; see procLaunchFallbackNote below.
+// Serializes launches when the attribute list is unavailable.
 static Mutex procLaunchLock;
 
 static void procAttrInit(void* unused)
@@ -563,7 +570,7 @@ Process* _procPlatformLaunch(strref exe, sa_string args, const ProcessOpts* opts
         return NULL;
     }
 
-    STARTUPINFOEXW six;
+    ProcStartupInfoEx six;
     memset(&six, 0, sizeof(six));
     six.StartupInfo.cb = sizeof(STARTUPINFOW);
 
