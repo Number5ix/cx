@@ -62,8 +62,8 @@ typedef struct IocpOp {
     IocpOpType type;
     NetSocket*  sock;   // strong ref held for the life of the operation
     Buffer      buf;    // datagram recv: pooled buffer being filled; NULL otherwise
-    // Datagram recv posted while the buffer pool was empty: an op-owned buffer, whose contents
-    // are dropped on completion. See postRecvFrom().
+    // Datagram recv posted while the buffer pool was empty: an op-owned buffer, copied into a
+    // pooled one on completion if the pool has recovered by then. See postRecvFrom().
     uint8*      scratch;
     WSABUF      wsabuf;
     DWORD       flags;  // WSARecv/WSARecvFrom in/out flags
@@ -189,12 +189,14 @@ static bool postRecvFrom(_Inout_ NetQueueWinIOCP* self, _Inout_ NetSocket* sock)
     op->sock    = objAcquire(sock);
     op->fromlen = (INT)sizeof(op->from);
 
-    // With the pool empty, receive into a buffer this op owns and drop what lands in it, rather
-    // than posting nothing. A readiness backend can decline to read and be told again on the next
-    // poll; a completion backend has no such second chance. A datagram socket that answers a
-    // completion without posting another has one fewer outstanding receive, permanently -- and
-    // once the last one is retired that socket never hears anything again. Dropping a datagram is
-    // ordinary; going deaf is not.
+    // With the pool empty, receive into a buffer this op owns rather than posting nothing. A
+    // readiness backend can decline to read and be told again on the next poll; a completion
+    // backend has no such second chance. A datagram socket that answers a completion without
+    // posting another has one fewer outstanding receive, permanently -- and once the last one is
+    // retired that socket never hears anything again. Dropping a datagram is ordinary; going deaf
+    // is not.
+    //
+    // Whether the datagram is dropped is decided when it arrives, not here: see handleCompletion().
     Buffer buf = bufpoolGet(&q->pool->msgbuf);
     if (buf) {
         op->buf        = buf;
@@ -504,10 +506,24 @@ static void handleCompletion(_Inout_ NetQueueWinIOCP* self, _Inout_ OVERLAPPED* 
 
     if (op->type == IocpRecvFrom) {
         if (live && op->scratch) {
-            // Posted with the pool empty: the datagram is gone. Count it and keep the pipeline
-            // full -- the next post gets a real buffer if one has come back by now.
-            atomicFetchAdd(uint32, &q->droppedNoBuf, 1, Relaxed);
-            postRecvFrom(self, sock);
+            // Posted while the pool was empty, which says nothing about now. Dropping here
+            // regardless would make starvation feed itself: the replacement receive is posted
+            // before the datagram just ingested gives its buffer back, so it finds the pool empty
+            // too, and a socket can stay in that state long after buffers have come free. Only a
+            // pool that is still empty at arrival loses the datagram -- the same rule a readiness
+            // backend follows.
+            Buffer late = bufpoolGet(&q->pool->msgbuf);
+            if (late) {
+                devAssert((size_t)bytes <= late->sz);
+                memcpy(late->data, op->scratch, min((size_t)bytes, late->sz));
+                op->buf = late;
+            } else {
+                atomicFetchAdd(uint32, &q->droppedNoBuf, 1, Relaxed);
+            }
+        }
+
+        if (live && !op->buf) {
+            postRecvFrom(self, sock);   // dropped above; keep the pipeline full
         } else if (live) {
             op->buf->len = (size_t)bytes;
 
