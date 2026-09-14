@@ -43,6 +43,7 @@
 /// - `_Thread_local` - Thread-local storage (C11 compatibility)
 /// - `_Pure` - Function has no side effects
 /// - `_Analysis_noreturn` - Static analysis hint for noreturn
+/// - `CX_EXPORT` / `CX_IMPORT` - Export or import a shared library symbol
 ///
 /// **String Constants:**
 /// - `_PLATFORM_STR` - Platform name string ("win", "linux", "fbsd", "wasm")
@@ -153,6 +154,26 @@
 ///   } CacheLinePadded;
 /// @endcode
 ///
+/// @section cx_platform_export CX_EXPORT and CX_IMPORT
+///
+/// Mark functions and variables that cross a shared library boundary.
+///
+/// Put CX_EXPORT on each function or variable a shared library makes available, so it can be
+/// found with dynlibFunc() or dynlibSymbol(). Put CX_IMPORT on the declarations used by code
+/// that links against the library when it is built.
+///
+/// Example:
+/// @code
+///   // In the library
+///   CX_EXPORT int pluginVersion(void)
+///   {
+///       return 3;
+///   }
+///
+///   // In a header for programs linked against the library
+///   CX_IMPORT int pluginVersion(void);
+/// @endcode
+///
 /// @}  // end of platform_macros group
 
 #if defined(_MSC_VER)
@@ -197,6 +218,10 @@
 
 // Hint that some functions never return
 #define _no_return __declspec(noreturn)
+
+// Shared library symbol visibility
+#define CX_EXPORT __declspec(dllexport)
+#define CX_IMPORT __declspec(dllimport)
 
 #if defined(_WIN32)
 #define _PLATFORM_WIN 1
@@ -258,6 +283,10 @@
 
 // Hint that some functions never return
 #define _no_return      __attribute__((noreturn))
+
+// Shared library symbol visibility
+#define CX_EXPORT       __attribute__((visibility("default")))
+#define CX_IMPORT       __attribute__((visibility("default")))
 
 #if defined(__linux__)
 #include <alloca.h>

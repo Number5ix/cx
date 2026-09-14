@@ -14,6 +14,7 @@ if(CX_PLATFORM_IS_WINDOWS)
         platform/win/win_os.c
         platform/win/win_random.c
         platform/win/win_sys_entry.c
+        platform/win/win_sys_dynlib.c
         platform/win/win_sys_env.c
         platform/win/win_sys_hostid.c
         platform/win/win_sys_process.c

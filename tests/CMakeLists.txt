@@ -56,6 +56,7 @@ create_test_sourcelist(testsrc
     fstest.c
     vfstest.c
     proctest.c
+    dynlibtest.c
     sysinfotest.c
     prqtest.c
     nettest.c
@@ -141,6 +142,48 @@ if(CX_PLATFORM_IS_WASM)
 endif()
 
 set_property(TARGET test_runner PROPERTY FOLDER "tests")
+
+# Shared libraries loaded at runtime by dynlibtest.c. None of them link cx.
+#
+# cxdyntest goes next to test_runner. cxdyntestneeds goes there too, but its build-time dependency
+# cxdyntestdep goes in a subdirectory where the loader will not find it, so that loading it fails
+# the way a missing dependency does. A copy of both is placed together in dynlibpair.
+if(NOT CX_PLATFORM_IS_WASM)
+    set(dyntest_dir $<TARGET_FILE_DIR:test_runner>)
+
+    add_library(cxdyntest MODULE dynlib/dyntestmod.c)
+    add_library(cxdyntestdep SHARED dynlib/dyntestdep.c)
+    add_library(cxdyntestneeds MODULE dynlib/dyntestneeds.c)
+    target_link_libraries(cxdyntestneeds PRIVATE cxdyntestdep)
+
+    foreach(tgt cxdyntest cxdyntestdep cxdyntestneeds)
+        target_include_directories(${tgt} PRIVATE ${CX_TOP_SOURCE_DIR})
+        set_target_properties(${tgt} PROPERTIES
+            C_VISIBILITY_PRESET hidden
+            FOLDER "tests")
+        add_dependencies(test_runner ${tgt})
+    endforeach()
+
+    set_target_properties(cxdyntest cxdyntestneeds PROPERTIES
+        LIBRARY_OUTPUT_DIRECTORY ${dyntest_dir}
+        RUNTIME_OUTPUT_DIRECTORY ${dyntest_dir})
+    set_target_properties(cxdyntestdep PROPERTIES
+        LIBRARY_OUTPUT_DIRECTORY ${dyntest_dir}/dynlibdep
+        RUNTIME_OUTPUT_DIRECTORY ${dyntest_dir}/dynlibdep
+        ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/dynlibdep-lib)
+
+    if(CX_PLATFORM_IS_UNIX)
+        # Only the library's own directory, so the dependency is found in dynlibpair but not from
+        # beside test_runner.
+        set_target_properties(cxdyntestneeds PROPERTIES SKIP_BUILD_RPATH TRUE)
+        target_link_options(cxdyntestneeds PRIVATE "LINKER:-rpath,$ORIGIN")
+    endif()
+
+    add_custom_command(TARGET cxdyntestneeds POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${dyntest_dir}/dynlibpair
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:cxdyntestneeds>
+                $<TARGET_FILE:cxdyntestdep> ${dyntest_dir}/dynlibpair/)
+endif()
 
 add_test(NAME "\"debug: Assertions\"" COMMAND test_runner debugtest assert)
 add_test(NAME "\"xalloc: Allocation\"" COMMAND test_runner cxmemtest alloc)
@@ -377,6 +420,14 @@ if(NOT CX_PLATFORM_IS_WASM)
 add_test(NAME "\"process: Enumeration And Handles\"" COMMAND test_runner proctest grp_enum)
 add_test(NAME "\"process: Launch And Wait\"" COMMAND test_runner proctest grp_launch)
 add_test(NAME "\"process: Exit Notification\"" COMMAND test_runner proctest grp_notify)
+endif()
+# Same grouping as proctest above; see the TEST_CHAIN groups at the bottom of dynlibtest.c.
+if(NOT CX_PLATFORM_IS_WASM)
+add_test(NAME "\"dynlib: Loading\"" COMMAND test_runner dynlibtest grp_load)
+add_test(NAME "\"dynlib: Handles And Threads\"" COMMAND test_runner dynlibtest grp_handles)
+else()
+add_test(NAME "\"dynlib: Unsupported\"" COMMAND test_runner dynlibtest unsupported)
+add_test(NAME "\"dynlib: Filenames\"" COMMAND test_runner dynlibtest filename)
 endif()
 # Same grouping as proctest above; see the TEST_CHAIN groups at the bottom of sysinfotest.c.
 add_test(NAME "\"sysinfo: Machine Statistics\"" COMMAND test_runner sysinfotest grp_sys)

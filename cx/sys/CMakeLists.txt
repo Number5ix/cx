@@ -1,4 +1,6 @@
 set(SYS_SRCS
+    sys/dynlib.c
+    sys/dynlibobj.c
     sys/entry.c
     sys/hostid.c
     sys/process.c
@@ -6,6 +8,8 @@ set(SYS_SRCS
     sys/procwatch.c
     sys/sysinfo.c)
 set(SYS_INCLUDES
+    sys/dynlib.h
+    sys/dynlib_private.h
     sys/entry.h
     sys/env.h
     sys/hostid.h
@@ -15,6 +19,7 @@ set(SYS_INCLUDES
     sys/sysinfo.h
     sys/sysinfo_private.h)
 set(SYS_AUTOGEN
+    sys/dynlibobj.cxh
     sys/processobj.cxh)
 
 set(CX_SRCS

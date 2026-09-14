@@ -58,6 +58,8 @@ enum CX_ERROR {
     CX_ReadOnly,          ///< Attempted to write to read-only path or resource
     CX_Range,             ///< Value is out of valid range
     CX_NotSupported,      ///< Operation is not supported on this platform
+    CX_InvalidImage,      ///< File exists but is not a loadable executable or library
+    CX_SymbolNotFound,    ///< Library does not export the requested symbol
 };
 
 /// Get human-readable error message for an error code

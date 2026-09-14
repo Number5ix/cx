@@ -1,0 +1,18 @@
+/// @addtogroup sys_dynlib
+/// @{
+
+/// A shared library loaded into the process
+///
+/// Get one from dynlibOpen() or dynlibSelf(), and release it with dynlibRelease().
+[methodprefix _dynlibobj] class DynLib {
+    // Native module handle: an HMODULE on Windows, a dlopen() handle on Unix
+    //
+    // Every DynLib holds its own operating system reference, which is released when the object
+    // is destroyed. Opening the same library twice is counted by the OS, not by cx.
+    void *handle;
+
+    factory create(void *handle);
+    destroy();
+}
+
+/// @}

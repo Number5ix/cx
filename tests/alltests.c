@@ -353,6 +353,19 @@ static const testspec tests[] = {
     { "process: Notify on an opened, already-exited process", "proctest", "notify_opened_exited" },
     { "process: Cancel notify on an opened handle", "proctest", "notify_cancel_opened" },
 #endif
+    { "dynlib: Library filenames", "dynlibtest", "filename" },
+#if !defined(_PLATFORM_WASM)
+    { "dynlib: Open by path", "dynlibtest", "open_path" },
+    { "dynlib: Open by name", "dynlibtest", "open_search" },
+    { "dynlib: Symbol lookup", "dynlibtest", "symbols" },
+    { "dynlib: Load errors", "dynlibtest", "errors" },
+    { "dynlib: Missing dependency", "dynlibtest", "dependency" },
+    { "dynlib: Shared handles", "dynlibtest", "refcount" },
+    { "dynlib: Concurrent open and release", "dynlibtest", "concurrent" },
+    { "dynlib: Executable handle", "dynlibtest", "self" },
+#else
+    { "dynlib: Unsupported platform", "dynlibtest", "unsupported" },
+#endif
     { "sysinfo: Machine memory", "sysinfotest", "mem" },
     { "sysinfo: Machine processor time", "sysinfotest", "cpu" },
     { "sysinfo: Processor usage sampler", "sysinfotest", "cpusampler" },
