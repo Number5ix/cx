@@ -208,6 +208,44 @@ static int test_compare()
     return 0;
 }
 
+// Range comparisons whose offset falls outside the string must not match, even when the
+// comparison string is empty or the range is clamped
+static int test_range_bounds()
+{
+    if (strEndsWith(_S"vert", _S".vert"))
+        TEST_FAIL(1, _SL("strEndsWith(\"vert\", \".vert\") matched"), stvNone);
+    if (strEndsWithi(_S"vert", _S".VERT"))
+        TEST_FAIL(2, _SL("strEndsWithi(\"vert\", \".VERT\") matched"), stvNone);
+    if (!strEndsWith(_S"shader.vert", _S".vert"))
+        TEST_FAIL(3, _SL("strEndsWith(\"shader.vert\", \".vert\") did not match"), stvNone);
+    if (!strEndsWithi(_S"shader.vert", _S".VERT"))
+        TEST_FAIL(4, _SL("strEndsWithi(\"shader.vert\", \".VERT\") did not match"), stvNone);
+    if (!strEndsWith(_S".vert", _S".vert") || !strEndsWithi(_S".vert", _S".VERT"))
+        TEST_FAIL(5, _SL("suffix equal to whole string did not match"), stvNone);
+    if (strBeginsWith(_S"ver", _S"vert") || strBeginsWithi(_S"ver", _S"VERT"))
+        TEST_FAIL(6, _SL("prefix longer than string matched"), stvNone);
+
+    // offset past the end
+    if (strRangeEq(_S"ab", _S"xyz", 5, 3))
+        TEST_FAIL(7, _SL("strRangeEq(\"ab\", \"xyz\", 5, 3) matched"), stvNone);
+    if (strRangeEqi(_S"ab", _S"xyz", 5, 3))
+        TEST_FAIL(8, _SL("strRangeEqi(\"ab\", \"xyz\", 5, 3) matched"), stvNone);
+    if (strRangeEq(_S"ab", _S"", 5, 0) || strRangeEqi(_S"ab", _S"", 5, 0))
+        TEST_FAIL(9, _SL("empty range at offset past end matched"), stvNone);
+
+    // offset before the start
+    if (strRangeEq(_S"ab", _S"xyz", -5, 3))
+        TEST_FAIL(10, _SL("strRangeEq(\"ab\", \"xyz\", -5, 3) matched"), stvNone);
+    if (strRangeEqi(_S"ab", _S"xyz", -5, 3))
+        TEST_FAIL(11, _SL("strRangeEqi(\"ab\", \"xyz\", -5, 3) matched"), stvNone);
+
+    // offset exactly at the end is valid for an empty range
+    if (!strRangeEq(_S"ab", _S"", 2, 0) || !strRangeEqi(_S"ab", _S"", 2, 0))
+        TEST_FAIL(12, _SL("empty range at end of string did not match"), stvNone);
+
+    return 0;
+}
+
 // Runs every comparison in both argument orders. expect is the sign of cmp(a, b), so a
 // swapped result must have the opposite sign -- this is what catches a sign error in the
 // swapped-operand arm of strCmp. Returns 0 on success.
@@ -2043,6 +2081,7 @@ testfunc strtest_funcs[] = {
     { "substr",      test_substr       },
     { "compare",     test_compare      },
     { "comparelen0", test_compare_len0 },
+    { "rangebounds", test_range_bounds },
     { "longstring",  test_long         },
     { "find",        test_find         },
     { "rope",        test_rope         },

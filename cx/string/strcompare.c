@@ -287,13 +287,15 @@ _Pure bool strRangeEq(strref s1, strref s2, int32 off, uint32 len)
     if (!STR_CHECK_VALID(s2))
         s2 = _strEmpty;
 
+    uint32 s1len = _strFastLen(s1);
+
     // negative offset means relative to end of string
     if (off < 0)
-        off += _strFastLen(s1);
-    if (off < 0)
+        off += s1len;
+    if (off < 0 || (uint32)off > s1len)
         return false;
 
-    if (clamphigh(_strFastLen(s1) - off, len) != clamphigh(_strFastLen(s2), len))
+    if (clamphigh(s1len - off, len) != clamphigh(_strFastLen(s2), len))
         return false;   // early out if lengths do not match
 
     striter i1, i2;
@@ -364,11 +366,15 @@ _Pure bool strRangeEqi(strref s1, strref s2, int32 off, uint32 len)
     if (!STR_CHECK_VALID(s2))
         s2 = _strEmpty;
 
+    uint32 s1len = _strFastLen(s1);
+
     // negative offset means relative to end of string
     if (off < 0)
-        off += _strFastLen(s1);
+        off += s1len;
+    if (off < 0 || (uint32)off > s1len)
+        return false;
 
-    if (clamphigh(_strFastLen(s1) - off, len) != clamphigh(_strFastLen(s2), len))
+    if (clamphigh(s1len - off, len) != clamphigh(_strFastLen(s2), len))
         return false;   // early out if lengths do not match
 
     striter i1, i2;
