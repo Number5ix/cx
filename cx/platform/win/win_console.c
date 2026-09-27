@@ -4,6 +4,7 @@
 
 #include "cx/console/console_private.h"
 #include "cx/platform/win.h"
+#include "cx/platform/win/win_os.h"
 #include "cx/utils/compare.h"
 
 typedef struct ConPlatWin {
@@ -67,7 +68,7 @@ void _conPlatInit(ConStream* con, ConKind kind)
 
 #ifndef CX_XP_COMPAT
         if (kind != CON_Kind_In) {
-            if (SetConsoleMode(p->handle, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING))
+            if (!osIsWine() && SetConsoleMode(p->handle, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING))
                 vtEnabled = true;
             else
                 SetConsoleMode(p->handle, mode);   // unsupported (pre-1511); fall back to legacy attributes
