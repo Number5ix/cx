@@ -7,6 +7,7 @@
 #include <cx/platform/os.h>
 #include <cx/string.h>
 #include <cx/thread.h>
+#include <cx/time/clock.h>
 #include <cx/time/time.h>
 
 #define TEST_FILE fswatchtest
@@ -328,7 +329,12 @@ static int test_fswatch_attributes(void)
     if (unsupported(added))
         goto out;
 
-    fsSetTimes(f, timeS(1000000), timeS(1000000));
+    // A day ago: cx times count from the Julian epoch, so a small number is a date no platform
+    // can store.
+    int64 when = clockWall() - timeS(86400);
+    if (!fsSetTimes(f, when, when))
+        TEST_FAILV(ret, 1, _SL("fsSetTimes('${string}') failed: ${int}"), stvar(string, f),
+                   stvar(int32, cxerr));
     if (!recWait(&r, K(FSWE_Attributes), f))
         WFAIL(ret, &r, "no Attributes for", f);
 
@@ -866,11 +872,14 @@ static int test_fswatch_self_attributes(void)
     if (unsupported(added))
         goto out;
 
-    fsSetTimes(withself, timeS(1000000), timeS(1000000));
+    int64 when = clockWall() - timeS(86400);
+    if (!fsSetTimes(withself, when, when))
+        TEST_FAILV(ret, 1, _SL("fsSetTimes('${string}') failed: ${int}"), stvar(string, withself),
+                   stvar(int32, cxerr));
     if (!recWait(&r, K(FSWE_Attributes), withself))
         WFAIL(ret, &r, "no Attributes with FSW_Self for", withself);
 
-    fsSetTimes(plain, timeS(1000000), timeS(1000000));
+    fsSetTimes(plain, when, when);
     writeFile(sentinel, _S"");
     if (!recWait(&r, K(FSWE_Created), sentinel))
         WFAIL(ret, &r, "no Created for sentinel", sentinel);

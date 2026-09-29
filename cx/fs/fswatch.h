@@ -113,7 +113,8 @@ CX_C_BEGIN
 ///   it cannot be unmounted.
 /// - **Windows** reports writes and attribute changes the same way. A watch that asked only for
 ///   FSW_Attributes gets writes as FSWE_Attributes; one that asked for FSW_Contents gets
-///   attribute changes as FSWE_Modified. A folder that contains a watched directory cannot be
+///   attribute changes as FSWE_Modified. A directory watched with FSW_Self gets FSWE_Attributes
+///   whenever its entries change, too. A folder that contains a watched directory cannot be
 ///   renamed while the watch is active. Without FSW_Self, a watched directory that is renamed is
 ///   noticed, and stopped, only when something next changes inside it; with FSW_Self its
 ///   parent directory is watched too, which notices at once.

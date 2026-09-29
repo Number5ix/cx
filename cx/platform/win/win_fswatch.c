@@ -259,10 +259,14 @@ static void handleRecords(WinWatch* ww, DWORD bytes)
             _fsWatchRaw(FSWE_Removed, path, NULL, -1);
             break;
         case FILE_ACTION_MODIFIED: {
-            // One action covers contents and attributes alike, and directories report it when
-            // their entries change; the latter is not a change of their own.
-            if (pathIsDir(path) == 1)
+            // One action covers contents and attributes alike. A directory reports it both when
+            // its own attributes change and when its entries do, with no telling which, so it
+            // is passed on only for a directory that asked to hear about itself.
+            if (pathIsDir(path) == 1) {
+                if (_fsWatchIsSelfTarget(path))
+                    _fsWatchRaw(FSWE_Attributes, path, NULL, 1);
                 break;
+            }
             bool contents = (d->mask & FSW_Contents) || !(d->mask & FSW_Attributes);
             _fsWatchRaw(contents ? FSWE_Modified : FSWE_Attributes, path, NULL, 0);
             break;

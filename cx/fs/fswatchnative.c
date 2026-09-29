@@ -131,9 +131,10 @@ static void dirRecompute(FSWDir* d)
     d->recursive = false;
 
     foreach (sarray, i, FSWTarget*, t, d->users) {
-        // A directory target using its parent only needs to hear about its own name.
+        // A directory target using its parent only needs to hear about itself: its name, and
+        // its attributes if it asked for those, which are reported to the parent too.
         if (t->isdir && !_fsWatchPathWithin(d->path, t->path, FSWATCH_CASEI)) {
-            d->mask |= FSW_Names;
+            d->mask |= FSW_Names | (t->flags & FSW_Attributes);
             continue;
         }
 
@@ -488,6 +489,16 @@ static void dirVanished(strref path)
             dirUnuse(d->users.a[0], d);
     }
     saDestroy(&gone);
+}
+
+_Use_decl_annotations_
+bool _fsWatchIsSelfTarget(strref path)
+{
+    for (FSWTarget* t = indexHead(path); t; t = t->nextSame) {
+        if (t->isdir && (t->flags & FSW_Self))
+            return true;
+    }
+    return false;
 }
 
 // ---- backend callbacks ---------------------------------------------------------------------

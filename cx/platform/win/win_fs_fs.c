@@ -438,15 +438,17 @@ bool fsSetTimes(strref path, int64 modified, int64 accessed)
     if (accessed >= 0 && !timeToFileTime(accessed, &atime))
         return false;
 
+    // Backup semantics so a directory can be opened too; full sharing so a file someone else
+    // has open, or a directory being watched, is not a sharing violation.
     HANDLE fh = CreateFileW(fsPathToNT(path),
                             FILE_WRITE_ATTRIBUTES,
-                            FILE_SHARE_WRITE | FILE_SHARE_WRITE,
+                            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
                             NULL,
-                            OPEN_ALWAYS,
-                            FILE_ATTRIBUTE_NORMAL,
+                            OPEN_EXISTING,
+                            FILE_FLAG_BACKUP_SEMANTICS,
                             NULL);
-    if (!fh)
-        return false;
+    if (fh == INVALID_HANDLE_VALUE)
+        return winMapLastError();
 
     bool ret = SetFileTime(fh, NULL, accessed >= 0 ? &atime : NULL, modified >= 0 ? &mtime : NULL);
 

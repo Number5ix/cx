@@ -136,6 +136,10 @@ void _fsWatchRaw(FSWatchEventKind kind, _In_ strref path, _In_opt_ strref oldpat
 // this returns.
 void _fsWatchDirGone(_In_ FSWDir* d);
 
+// Is there a directory target at path that wants to hear about itself (FSW_Self)? For backends
+// that cannot tell a directory's own attribute changes from its contents changing.
+bool _fsWatchIsSelfTarget(_In_ strref path);
+
 // The OS dropped events it could not queue: for one directory, or for all of them when d is NULL.
 void _fsWatchOverflow(_In_opt_ FSWDir* d);
 
