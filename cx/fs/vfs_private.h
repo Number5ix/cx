@@ -122,6 +122,9 @@ _vfsFindMount(_Inout_ VFS* vfs, _Inout_ string* rpath, _In_opt_ strref path,
 _Ret_opt_valid_ VFSMount* _vfsFindSelfMount(_Inout_ VFS* vfs, _In_opt_ strref abspath);
 void _vfsInvalidateCache(_Inout_ VFS* vfs, _In_opt_ strref path);
 void _vfsInvalidateRecursive(_Inout_ VFS* vfs, _In_ VFSDir* dir, bool havelock);
+// Forgets what the cache knows inside the directory at abspath -- and, with recursive, below
+// it -- without creating any directory node that is not already there. Takes the locks itself.
+void _vfsInvalidatePath(_Inout_ VFS* vfs, _In_opt_ strref abspath, bool recursive);
 // reads vfs->curdir, which vfsSetCurDir can replace and destroy out from under it
 _Requires_shared_lock_held_(vfs->vfslock) void _vfsAbsPath(_Inout_ VFS* vfs, _Inout_ string* out,
                                                            _In_opt_ strref path);

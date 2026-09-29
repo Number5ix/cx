@@ -60,6 +60,7 @@ enum CX_ERROR {
     CX_NotSupported,      ///< Operation is not supported on this platform
     CX_InvalidImage,      ///< File exists but is not a loadable executable or library
     CX_SymbolNotFound,    ///< Library does not export the requested symbol
+    CX_ResourceLimit,     ///< A system limit was reached, such as the number of open files
 };
 
 /// Get human-readable error message for an error code

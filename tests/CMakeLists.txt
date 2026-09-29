@@ -54,7 +54,9 @@ create_test_sourcelist(testsrc
     stvartest.c
     mathtest.c
     fstest.c
+    fswatchtest.c
     vfstest.c
+    vfswatchtest.c
     proctest.c
     dynlibtest.c
     sysinfotest.c
@@ -405,6 +407,12 @@ add_test(NAME "\"fs: Path Matching\"" COMMAND test_runner fstest pathmatch)
 add_test(NAME "\"fs: File Handles\"" COMMAND test_runner fstest file)
 add_test(NAME "\"fs: Stream Buffer Registrations\"" COMMAND test_runner fstest sbufregister)
 add_test(NAME "\"fs: Directory and search operations\"" COMMAND test_runner fstest ops)
+# Each entry below runs several subtests from fswatchtest.c in a single process; see
+# `test_runner fswatchtest <name>` to run one subtest in isolation.
+add_test(NAME "\"fswatch: Basic Events\"" COMMAND test_runner fswatchtest grp_basic)
+add_test(NAME "\"fswatch: Targets\"" COMMAND test_runner fswatchtest grp_targets)
+add_test(NAME "\"fswatch: Subtrees\"" COMMAND test_runner fswatchtest grp_subtree)
+add_test(NAME "\"fswatch: Lifecycle\"" COMMAND test_runner fswatchtest grp_lifecycle)
 # Each entry below runs several subtests from vfstest.c (grouped by feature area) in a single
 # process -- see the TEST_CHAIN groups at the bottom of that file. Run
 # `test_runner vfstest <name>` directly to invoke one subtest in isolation.
@@ -414,6 +422,9 @@ add_test(NAME "\"vfs: Path Resolution\"" COMMAND test_runner vfstest grp_pathres
 add_test(NAME "\"vfs: Caching\"" COMMAND test_runner vfstest grp_caching)
 add_test(NAME "\"vfs: Copy-On-Write\"" COMMAND test_runner vfstest grp_cow)
 add_test(NAME "\"vfs: Errors And Providers\"" COMMAND test_runner vfstest grp_misc)
+add_test(NAME "\"vfswatch: Layers\"" COMMAND test_runner vfswatchtest grp_layers)
+add_test(NAME "\"vfswatch: Mounts\"" COMMAND test_runner vfswatchtest grp_mounts)
+add_test(NAME "\"vfswatch: OS Filesystem\"" COMMAND test_runner vfswatchtest grp_e2e)
 # Runs several subtests from proctest.c in a single process -- see the TEST_CHAIN groups at the
 # bottom of that file. Run `test_runner proctest <name>` directly to invoke one in isolation.
 add_test(NAME "\"process: Environment Variables\"" COMMAND test_runner proctest grp_env)

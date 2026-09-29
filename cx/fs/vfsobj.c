@@ -42,6 +42,7 @@ void VFS_destroy(_In_ VFS* self)
     strDestroy(&self->curdir);
     rwlockDestroy(&self->vfslock);
     rwlockDestroy(&self->vfsdlock);
+    cchainDestroy(&self->onmountchange);
     // Autogen ends -------
 }
 

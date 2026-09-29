@@ -1,6 +1,7 @@
 /// @brief VFS object definitions
 /// @addtogroup fs_vfs
 /// @{
+#include <cx/closure/cchain.h>
 #include <cx/thread/atomic.h>
 #include <cx/thread/rwlock.h>
 
@@ -39,6 +40,11 @@ class VFS {
     /// provider compares this before caching what it learned, so it never records a result for
     /// a directory tree that changed underneath it.
     uint32 mountgen;
+
+    // Called with the mount point (or NULL for everything) after a mount is added or removed.
+    // VFS watches listen here to find out which providers to watch through.
+    cchain onmountchange;
+
     uint32 flags;
     VFSDirCache dcache;   ///< directory cache size accounting
 

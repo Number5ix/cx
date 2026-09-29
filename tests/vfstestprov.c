@@ -9,7 +9,10 @@
 #include "vfstestprov.h"
 // clang-format on
 // ==================== Auto-generated section ends ======================
+#include <cx/debug/error.h>
+#include <cx/fs/fswatch_private.h>
 #include <cx/fs/path.h>
+#include <cx/utils/lazyinit.h>
 #include <cx/fs/vfs.h>
 #include <cx/time/clock.h>
 
@@ -432,6 +435,201 @@ void VFSTestProvFile_destroy(_In_ VFSTestProvFile* self)
     objRelease(&self->prov);
     strDestroy(&self->path);
     // Autogen ends -------
+}
+
+// Every live VFSTestProvWatch, so inject() can find the ones on its provider. Each entry is the
+// watch and a weak reference to it; a watch takes itself out as it is destroyed.
+typedef struct TPWatchEnt {
+    VFSTestProvWatch* w;
+    Weak(VFSTestProvWatch)* wref;
+} TPWatchEnt;
+
+static LazyInitState tpWatchInit;
+static Mutex tpWatchLock;
+static sa_ptr tpWatches;   // TPWatchEnt*
+
+static void tpWatchRegistryInit(void* unused)
+{
+    mutexInit(&tpWatchLock);
+    saInit(&tpWatches, ptr, 4);
+}
+
+// Marks a directory target in the targets table.
+#define VFSTPW_Dir 0x10000
+
+FSWatch* VFSTestProv_createWatch(_In_ VFSTestProv* self, closure cls)
+{
+    if (self->failmask & VFSTP_FailWatch) {
+        closureDestroy(&cls);
+        return NULL;
+    }
+    return FSWatch(vfstestprovwatchCreate(self, cls));
+}
+
+_objfactory_guaranteed VFSTestProvWatch* VFSTestProvWatch_create(VFSTestProv* prov, closure cls)
+{
+    VFSTestProvWatch* self;
+    self = objInstCreate(VFSTestProvWatch);
+
+    self->prov = objAcquire(prov);
+    self->cls  = cls;
+    mutexInit(&self->lock);
+    htInit(&self->targets, string, int32, 4,
+           (prov->provflags & VFS_CaseSensitive) ? 0 : HT_CaseInsensitive);
+
+    objInstInit(self);
+
+    lazyInit(&tpWatchInit, tpWatchRegistryInit, NULL);
+    TPWatchEnt* ent = xaAllocStruct(TPWatchEnt);
+    ent->w          = self;
+    ent->wref       = objGetWeak(VFSTestProvWatch, self);
+    withMutex (&tpWatchLock) {
+        saPush(&tpWatches, ptr, ent);
+    }
+
+    return self;
+}
+
+bool VFSTestProvWatch_add(_In_ VFSTestProvWatch* self, _In_opt_ strref path, flags_t flags)
+{
+    string rpath = 0, parent = 0;
+    tpPath(&rpath, path);
+
+    bool isdir = strEmpty(rpath) || htHasKey(self->prov->dirs, string, rpath);
+    bool ok    = true;
+    if (!isdir) {
+        if (flags & FSW_Subtree) {
+            cxerr = CX_InvalidArgument;
+            ok    = false;
+        } else if (pathParent(&parent, rpath) && !htHasKey(self->prov->dirs, string, parent)) {
+            // A name with no parent part is directly in the provider root, which always exists.
+            cxerr = CX_FileNotFound;
+            ok    = false;
+        }
+    }
+
+    if (ok) {
+        if (!(flags & FSW_Everything))
+            flags |= FSW_Everything;
+        withMutex (&self->lock) {
+            htInsert(&self->targets, string, rpath, int32, (int32)(flags | (isdir ? VFSTPW_Dir : 0)));
+        }
+        _fsWatchTargetAdded(FSWatch(self), rpath);
+    }
+
+    strDestroy(&parent);
+    strDestroy(&rpath);
+    return ok;
+}
+
+bool VFSTestProvWatch_remove(_In_ VFSTestProvWatch* self, _In_opt_ strref path)
+{
+    string rpath = 0;
+    tpPath(&rpath, path);
+
+    bool ret = false;
+    withMutex (&self->lock) {
+        ret = htRemove(&self->targets, string, rpath);
+    }
+    if (ret)
+        _fsWatchTargetRemoved(FSWatch(self), rpath);
+
+    strDestroy(&rpath);
+    return ret;
+}
+
+void VFSTestProvWatch_stopSources(_In_ VFSTestProvWatch* self)
+{
+    withMutex (&self->lock) {
+        htClear(&self->targets);
+    }
+}
+
+void VFSTestProvWatch_destroy(_In_ VFSTestProvWatch* self)
+{
+    withMutex (&tpWatchLock) {
+        foreach (sarray, i, TPWatchEnt*, ent, tpWatches) {
+            if (ent->w == self) {
+                objDestroyWeak(&ent->wref);
+                xaFree(ent);
+                saRemove(&tpWatches, i);
+                break;
+            }
+        }
+    }
+
+    // Autogen begins -----
+    objRelease(&self->prov);
+    mutexDestroy(&self->lock);
+    htDestroy(&self->targets);
+    // Autogen ends -------
+}
+
+void VFSTestProv_inject(_In_ VFSTestProv* self, int32 kind, _In_opt_ strref path, _In_opt_ strref oldpath)
+{
+    lazyInit(&tpWatchInit, tpWatchRegistryInit, NULL);
+
+    sa_object live;
+    saInit(&live, object, 4);
+    withMutex (&tpWatchLock) {
+        foreach (sarray, i, TPWatchEnt*, ent, tpWatches) {
+            VFSTestProvWatch* w = objAcquireFromWeak(VFSTestProvWatch, ent->wref);
+            if (w && w->prov == self)
+                saPush(&live, object, w);
+            objRelease(&w);
+        }
+    }
+
+    string rpath = 0, rold = 0;
+    tpPath(&rpath, path);
+    if (oldpath)
+        tpPath(&rold, oldpath);
+    bool casei = !tpCaseSensitive(self);
+
+    foreach (sarray, i, ObjInst*, wobj, live) {
+        VFSTestProvWatch* w = (VFSTestProvWatch*)wobj;
+        // The most specific target covering each end, as a real provider's watch would pick.
+        string tnew = 0, told = 0;
+        int32 fnew = 0, fold = 0;
+        withMutex (&w->lock) {
+            foreach (hashtable, hti, w->targets) {
+                strref tpath = htiKey(string, hti);
+                int32 tf     = htiVal(int32, hti);
+                bool isdir   = tf & VFSTPW_Dir;
+                if (_fsWatchCovers(tpath, tf, isdir, rpath, kind, casei) &&
+                    (!tnew || strLen(tpath) > strLen(tnew))) {
+                    strDup(&tnew, tpath);
+                    fnew = tf;
+                }
+                if (rold && _fsWatchCovers(tpath, tf, isdir, rold, kind, casei) &&
+                    (!told || strLen(tpath) > strLen(told))) {
+                    strDup(&told, tpath);
+                    fold = tf;
+                }
+            }
+        }
+
+        FSWatchEvent ev = { .kind = kind, .path = rpath, .oldpath = rold, .target = tnew };
+        flags_t f       = fnew;
+        if (kind == FSWE_Renamed && !(tnew && told)) {
+            if (told) {
+                ev = (FSWatchEvent) { .kind = FSWE_Removed, .path = rold, .target = told };
+                f  = fold;
+            } else {
+                ev = (FSWatchEvent) { .kind = FSWE_Created, .path = rpath, .target = tnew };
+            }
+        }
+
+        if (ev.target && (f & _fsWatchKindFilter(ev.kind)))
+            _fsWatchDeliver(FSWatch(w), &ev);
+
+        strDestroy(&tnew);
+        strDestroy(&told);
+    }
+
+    strDestroy(&rpath);
+    strDestroy(&rold);
+    saDestroy(&live);
 }
 
 // Autogen begins -----

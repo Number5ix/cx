@@ -6,6 +6,7 @@ static const char* errormsgs[] = {
     "Winning!",           "Unspecified Error",   "Invalid Argument",    "Access Denied",
     "File Not Found",     "File Already Exists", "File is a Directory", "Read-only Filesystem",
     "Value Out of Range", "Not Supported",       "Invalid Image",       "Symbol Not Found",
+    "Resource Limit Reached",
 };
 
 _Use_decl_annotations_

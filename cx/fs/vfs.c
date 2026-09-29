@@ -12,6 +12,13 @@ static void vfsUnmountAll(_Inout_ VFSDir* dir)
     saClear(&dir->mounts);
 }
 
+// Tell VFS watches the providers behind path changed. Called with no VFS lock held: they call
+// straight back into the VFS, and into providers, to work out what to watch now.
+static void vfsNotifyMountChange(_Inout_ VFS* vfs, _In_opt_ strref path)
+{
+    cchainCall(&vfs->onmountchange, stvar(strref, path));
+}
+
 _Use_decl_annotations_
 void vfsDestroy(VFS** pvfs)
 {
@@ -34,6 +41,9 @@ void vfsDestroy(VFS** pvfs)
     htClear(&vfs->root->subdirs);
     htClear(&vfs->root->files);
     rwlockReleaseWrite(&vfs->vfsdlock);
+
+    // Watches let go of the providers too, which may be what was keeping a loop alive.
+    vfsNotifyMountChange(vfs, NULL);
 
     objRelease(pvfs);
 }
@@ -154,6 +164,8 @@ bool _vfsMountProvider(VFS* vfs, ObjInst* provider, strref path, flags_t flags)
 
 out:
     rwlockReleaseWrite(&vfs->vfsdlock);
+    if (ret)
+        vfsNotifyMountChange(vfs, path);
     strDestroy(&ns);
     return ret;
 }
@@ -198,6 +210,8 @@ bool vfsUnmount(VFS* vfs, strref path)
 
 out:
     rwlockReleaseWrite(&vfs->vfsdlock);
+    if (ret)
+        vfsNotifyMountChange(vfs, path);
     strDestroy(&ns);
     return ret;
 }
@@ -299,6 +313,43 @@ void _vfsInvalidateRecursive(VFS* vfs, VFSDir* dir, bool havelock)
 
     if (!havelock)
         rwlockReleaseWrite(&vfs->vfsdlock);
+}
+
+_Use_decl_annotations_
+void _vfsInvalidatePath(VFS* vfs, strref abspath, bool recursive)
+{
+    string ns = 0;
+    sa_string components;
+    saInit(&components, string, 8, SA_Grow(Aggressive));
+    pathDecompose(&ns, &components, abspath);
+
+    rwlockAcquireWrite(&vfs->vfsdlock);
+
+    // Walk down without creating anything: a directory the cache never saw has nothing to forget.
+    VFSDir* dir = NULL;
+    if (strEmpty(ns))
+        dir = vfs->root;
+    else if (!htFind(vfs->namespaces, string, ns, VFSDir, &dir))
+        dir = NULL;
+
+    for (int32 i = 0, n = saSize(components); dir && i < n; i++) {
+        if (strEmpty(components.a[i]))
+            continue;
+        if (!htFind(dir->subdirs, string, components.a[i], VFSDir, &dir))
+            dir = NULL;
+    }
+
+    if (dir) {
+        if (recursive)
+            _vfsInvalidateRecursive(vfs, dir, true);
+        else
+            htClear(&dir->files);
+    }
+
+    rwlockReleaseWrite(&vfs->vfsdlock);
+
+    strDestroy(&ns);
+    saDestroy(&components);
 }
 
 // Depth first, because a directory can only go once nothing is left under it.

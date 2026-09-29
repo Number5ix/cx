@@ -1,5 +1,9 @@
 set(FS_SRCS
     fs/fileobj.c
+    fs/fswatch.c
+    fs/fswatchnative.c
+    fs/fswatchobj.c
+    fs/fswatchrooted.c
     fs/path.c
     fs/pathmatch.c
     fs/vfs.c
@@ -8,19 +12,26 @@ set(FS_SRCS
     fs/vfsobj.c
     fs/vfsops.c
     fs/vfsprovider.c
-    fs/vfsstruct.c)
+    fs/vfsstruct.c
+    fs/vfswatch.c)
 set(FS_INCLUDES
     fs/file.h
     fs/fs.h
     fs/fs_private.h
+    fs/fswatch.h
+    fs/fswatch_private.h
     fs/path.h
     fs/vfs.h
     fs/vfs_private.h)
 set(FS_AUTOGEN
     fs/fileobj.cxh
+    fs/fswatchnative.cxh
+    fs/fswatchobj.cxh
+    fs/fswatchrooted.cxh
     fs/vfsfile.cxh
     fs/vfsobj.cxh
-    fs/vfsprovider.cxh)
+    fs/vfsprovider.cxh
+    fs/vfswatch.cxh)
 
 add_subdirectory(vfsfs)
 add_subdirectory(vfsvfs)

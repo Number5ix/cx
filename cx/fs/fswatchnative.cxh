@@ -1,0 +1,13 @@
+#include <cx/fs/fswatchobj.cxh>
+
+// A watch on the native filesystem, created by fsWatchCreate().
+//
+// Its targets belong to the watcher's I/O thread; add, remove and cancel are commands sent to
+// that thread, so nothing here needs a lock.
+class FSNativeWatch extends FSWatch {
+    // Targets of this watch (FSWOwner), NULL until the first add. Only the I/O thread uses it.
+    void *io;
+
+    factory create(closure cls);
+    destroy();
+}

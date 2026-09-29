@@ -42,6 +42,7 @@ if(CX_PLATFORM_IS_UNIX)
             platform/unix/linux_procfs.c
             platform/unix/linux_sys_process.c
             platform/unix/linux_sys_sysinfo.c
+            platform/unix/unix_fswatch_inotify.c
             platform/unix/unix_net_epoll.c)
         set(PLATFORM_UNIX_INCLUDES
             ${PLATFORM_UNIX_INCLUDES}
@@ -53,6 +54,15 @@ if(CX_PLATFORM_IS_UNIX)
             platform/unix/freebsd_sys_process.c
             platform/unix/freebsd_sys_sysinfo.c
             platform/unix/unix_net_kqueue.c)
+
+        # Chosen by what the build machine has: FreeBSD 15 added inotify.
+        include(CheckIncludeFile)
+        check_include_file(sys/inotify.h CX_HAVE_INOTIFY)
+        if(CX_HAVE_INOTIFY)
+            set(PLATFORM_UNIX_SRCS ${PLATFORM_UNIX_SRCS} platform/unix/unix_fswatch_inotify.c)
+        else()
+            set(PLATFORM_UNIX_SRCS ${PLATFORM_UNIX_SRCS} platform/unix/freebsd_fswatch_kqueue.c)
+        endif()
     endif()
 
     set(PLATFORM_INCLUDES

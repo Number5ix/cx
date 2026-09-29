@@ -9,6 +9,7 @@
 #include "fs/vfsvfs/vfsvfs.h"
 // clang-format on
 // ==================== Auto-generated section ends ======================
+#include "cx/fs/fswatch_private.h"
 #include "cx/fs/path.h"
 #include "cx/fs/vfs.h"
 
@@ -150,6 +151,21 @@ bool VFSVFS_getFSPath(_In_ VFSVFS* self, _Inout_ string* out, _In_opt_ strref pa
 
     strDestroy(&vfspath);
     return ret;
+}
+
+FSWatch* VFSVFS_createWatch(_In_ VFSVFS* self, closure cls)
+{
+    // The inner watch reports absolute paths, so the root they are made relative to has to be
+    // absolute too.
+    string root = 0;
+    vfsAbsolutePath(self->vfs, &root, self->root);
+    pathNormalize(&root);
+
+    FSWatchRooted* w = fswatchrootedCreate(root, !(self->vfs->flags & VFS_CaseSensitive), cls);
+    w->inner         = vfsWatchCreate(self->vfs, _fsWatchRootedInnerCls(w));
+
+    strDestroy(&root);
+    return FSWatch(w);
 }
 
 // Autogen begins -----

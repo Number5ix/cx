@@ -6,6 +6,7 @@ if(CX_PLATFORM_IS_WINDOWS)
         platform/win/win_error.c
         platform/win/win_fs_file.c
         platform/win/win_fs_fs.c
+        platform/win/win_fswatch.c
         platform/win/win_futex.c
         platform/win/win_net_iocp.c
         platform/win/win_net_select.c

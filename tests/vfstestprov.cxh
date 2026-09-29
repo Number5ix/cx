@@ -16,9 +16,10 @@ typedef enum VFSTPFailEnum {
     VFSTP_FailSearchInit = 0x0008,   // searchInit() fails, leaving the iterator zeroed
     VFSTP_FailCreateDir  = 0x0010,   // createDir() fails
     VFSTP_FailClose      = 0x0020,   // closeHandle() fails, as a buffered flush at close would
+    VFSTP_FailWatch      = 0x0040,   // createWatch() fails, as for a provider that cannot watch
 } VFSTPFail;
 
-class VFSTestProv implements VFSProvider {
+class VFSTestProv implements VFSProvider implements VFSWatchable {
     uint32 provflags;   // returned verbatim from flags()
     uint32 failmask;    // VFSTPFail switches
     int64 mtime;        // timestamp reported for every entry
@@ -31,6 +32,9 @@ class VFSTestProv implements VFSProvider {
     void addFile(strref path, strref contents);
     // Adds a directory, creating any parent directories it needs.
     void addDir(strref path);
+    // Reports a change to every live watch on this provider that covers path, as if the
+    // provider had noticed it. oldpath is for FSWE_Renamed only.
+    void inject(int32 kind, strref path, strref oldpath);
 
     factory create(uint32 provflags);
 }
@@ -42,5 +46,16 @@ class VFSTestProvFile extends File {
     bool writable;
 
     factory create(VFSTestProv *prov, strref path, bool writable);
+    destroy();
+}
+
+// A watch on a VFSTestProv. Nothing changes a VFSTestProv behind the VFS's back, so the only
+// events are the ones a test injects with vfstpInject().
+class VFSTestProvWatch extends FSWatch {
+    object[VFSTestProv] prov;
+    [noinit] Mutex lock;
+    [noinit] hashtable targets;   // string relpath -> int32 flags, plus VFSTPW_Dir for a directory
+
+    factory create(VFSTestProv *prov, closure cls);
     destroy();
 }

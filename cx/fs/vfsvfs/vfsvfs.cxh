@@ -1,7 +1,7 @@
 #include <cx/fs/vfsprovider.cxh>
 #include <cx/fs/vfsobj.cxh>
 
-class VFSVFS implements VFSProvider {
+class VFSVFS implements VFSProvider implements VFSWatchable {
     object[VFS] vfs;
     string root;
 

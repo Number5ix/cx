@@ -1,0 +1,24 @@
+#include <cx/fs/fswatchobj.cxh>
+#include <cx/fs/vfsobj.cxh>
+
+// A watch on a VFS, created by vfsWatchCreate().
+//
+// Each target is watched through every mounted provider that can see it, using a watch the
+// provider creates itself, and what those report is translated back into VFS paths. When
+// something is mounted or unmounted under a target, the providers it is watched through are
+// worked out again.
+class VFSWatch extends FSWatch {
+    object[VFS] vfs;
+
+    // Serializes add, remove and working out providers again after a mount change. Held while
+    // calling into providers, so the path that delivers events must never take it: cancelling a
+    // provider's watch waits for that watch's callbacks, which would be waiting on this lock.
+    [noinit] Mutex reglock;
+
+    // Guards the state below against the delivery path. Nothing else is taken while it is held.
+    [noinit] Mutex lock;
+    void *state;   // VFSWState
+
+    factory create(VFS *vfs, closure cls);
+    destroy();
+}

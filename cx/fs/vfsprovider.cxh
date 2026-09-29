@@ -1,6 +1,7 @@
 #include <cx/fs/fs.h>
 #include <cx/fs/file.h>
 #include <cx/fs/fileobj.cxh>
+#include <cx/fs/fswatchobj.cxh>
 
 interface VFSProvider {
     flags_t flags();                            // VFSProviderFlags enforced for this provider
@@ -33,4 +34,12 @@ interface VFSProvider {
     /// Must do nothing when handed a cleared iterator, so that it is safe to call after a
     /// failed searchInit as well as after a successful one.
     void searchFinish([inout] FSSearchIter *iter);
+}
+
+// Optional interface for a provider that can report changes. vfsWatchCreate() uses it for every
+// mount whose provider implements it, and leaves the rest unwatched.
+interface VFSWatchable {
+    // Creates a watch whose paths are relative to the mount point ("" is the mount root), both
+    // in what is passed to fsWatchAdd() and in the events it reports. Takes ownership of cls.
+    FSWatch *createWatch(closure cls);
 }

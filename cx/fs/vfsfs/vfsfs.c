@@ -9,6 +9,7 @@
 #include "fs/vfsfs/vfsfs.h"
 // clang-format on
 // ==================== Auto-generated section ends ======================
+#include "cx/fs/fswatch_private.h"
 #include "cx/fs/path.h"
 #include "cx/fs/vfs.h"
 #include "cx/platform/base.h"
@@ -155,6 +156,19 @@ void VFSFS_destroy(_In_ VFSFS* self)
     // Autogen begins -----
     strDestroy(&self->root);
     // Autogen ends -------
+}
+
+FSWatch* VFSFS_createWatch(_In_ VFSFS* self, closure cls)
+{
+    string root = 0;
+    strDup(&root, self->root);
+    pathNormalize(&root);
+
+    FSWatchRooted* w = fswatchrootedCreate(root, FSWATCH_CASEI, cls);
+    w->inner         = fsWatchCreate(_fsWatchRootedInnerCls(w));
+
+    strDestroy(&root);
+    return FSWatch(w);
 }
 
 // Autogen begins -----

@@ -32,6 +32,7 @@
 
 #include <cx/fs/file.h>
 #include <cx/fs/fs.h>
+#include <cx/fs/fswatch.h>
 #include <cx/time/time.h>
 #include <cx/fs/vfsfile.h>
 #include <cx/fs/vfsobj.h>
@@ -495,6 +496,23 @@ _meta_inline bool vfsFlush(_Inout_ VFSFile* file)
         return false;
     return fileFlush(file);
 }
+
+/// Creates a watch on a VFS
+///
+/// Works like fsWatchCreate(), but the paths given to fsWatchAdd() and reported to the callback
+/// are VFS paths. A path is watched through every mounted provider that can see it and supports
+/// watching; see @ref fs_watch_vfs.
+///
+/// @param vfs VFS to watch
+/// @param cls Closure called for every change, made with closureCreateAs(FSWatchCB, ...)
+/// @return The new watch; release it with objRelease()
+///
+/// Example:
+/// @code
+///   FSWatch* w = vfsWatchCreate(vfs, closureCreateAs(FSWatchCB, onChange, stvNone));
+///   fsWatchAdd(w, _SL("/assets"), FSW_Subtree);
+/// @endcode
+_Ret_valid_ FSWatch* vfsWatchCreate(_In_ VFS* vfs, _In_ closure cls);
 
 /// VFS configuration and mount flags
 ///

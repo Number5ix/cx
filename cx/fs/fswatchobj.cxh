@@ -1,0 +1,70 @@
+#include <cx/closure/closure.h>
+#include <cx/container/sarray.h>
+#include <cx/thread/atomic.h>
+#include <cx/thread/mutex.h>
+
+/// @addtogroup fs_watch
+/// @{
+
+/// A set of paths being watched for changes
+///
+/// Created by fsWatchCreate() or vfsWatchCreate(). Every change under any of its paths is
+/// reported to the one closure it was created with. Stop it with fsWatchCancel() and release it
+/// with objRelease().
+[methodprefix fsWatch] abstract class FSWatch {
+    // FSWatchCB typed closure. Destroyed with the watch, never by cancelling it.
+    closure cls;
+
+    // Once set, no further callback starts.
+    atomic[bool] cancelled;
+    // Callbacks for this watch currently running.
+    atomic[int32] busy;
+    // Events queued for this watch and not yet delivered.
+    atomic[int32] backlog;
+    // Events were dropped because the backlog was full; a Rescan is owed.
+    atomic[bool] overflowed;
+
+    // Paths of the current targets, so the Rescan owed after an overflow knows what to name.
+    [noinit] Mutex tlock;
+    [noinit] sarray[string] tpaths;
+
+    /// Starts watching a path
+    ///
+    /// A directory is watched for changes to the entries in it, or with FSW_Subtree, to
+    /// everything below it. Anything else -- a file, or a name that does not exist yet -- is
+    /// watched by name, which keeps working when it is deleted, created again, or replaced.
+    /// Adding a path that is already in this watch changes its flags.
+    ///
+    /// @param path Path to watch
+    /// @param flags FSW_Subtree and any of FSW_Names, FSW_Contents, FSW_Attributes (none means
+    ///              all three)
+    /// @return true once the path is being watched; false with cxerr set if it cannot be:
+    ///         CX_FileNotFound when its directory does not exist, CX_NotSupported when this
+    ///         platform cannot watch, CX_ResourceLimit when the system limit on watches is
+    ///         reached
+    [abstract] [nullself false] bool add(strref path, flags_t flags);
+
+    /// Stops watching a path
+    ///
+    /// Events for it that were already on their way may still arrive shortly afterwards.
+    ///
+    /// @param path A path previously passed to fsWatchAdd()
+    /// @return true if the path was being watched
+    [abstract] [nullself false] bool remove(strref path);
+
+    // Stops every source of events for this watch and forgets its targets. Must not return
+    // while any source can still produce an event for it. Called by fsWatchCancel() and by
+    // each subclass's destroy; must be harmless to call more than once.
+    [abstract] void stopSources();
+
+    /// Stops the watch
+    ///
+    /// No callback starts after this returns, and one already running has finished -- unless
+    /// this is called from inside a callback, in which case it returns at once.
+    unbound void cancel();
+
+    init();
+    destroy();
+}
+
+/// @}
