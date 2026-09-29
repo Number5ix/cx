@@ -13,7 +13,9 @@
 
 #include <dlfcn.h>
 #include <errno.h>
+#include <limits.h>
 #include <link.h>
+#include <stdlib.h>
 #include <unistd.h>
 
 // dlerror() is per-thread but cleared by reading it, so it has to be captured immediately after
@@ -83,9 +85,13 @@ bool _dynlibPlatformPath(string* out, void* handle)
         return false;
     }
 
-    // The main executable has an empty name in its link map entry.
+    // The name is whatever path the loader was given: possibly relative, or through a symlink.
+    // Resolve it, so the answer is the same however the library -- or on FreeBSD, the executable,
+    // whose entry is named after the path it was started by -- was reached. glibc leaves the
+    // executable's name empty instead.
     if (lm->l_name && lm->l_name[0]) {
-        strDup(out, (strref)lm->l_name);
+        char real[PATH_MAX];
+        strDup(out, (strref)(realpath(lm->l_name, real) ? real : lm->l_name));
     } else {
         fsExe(out);
         pathToPlatform(out, *out);
