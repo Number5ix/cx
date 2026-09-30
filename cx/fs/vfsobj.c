@@ -10,6 +10,7 @@
 // clang-format on
 // ==================== Auto-generated section ends ======================
 #include "vfs_private.h"
+#include "fswatch_private.h"
 
 _objfactory_guaranteed VFS* VFS_create(uint32 flags)
 {
@@ -46,13 +47,14 @@ void VFS_destroy(_In_ VFS* self)
     // Autogen ends -------
 }
 
-_objfactory_guaranteed VFSMount* VFSMount_create(ObjInst* provider, uint32 flags)
+_objfactory_guaranteed VFSMount* VFSMount_create(ObjInst* provider, uint32 flags, _In_opt_ strref path)
 {
     VFSMount* ret;
     ret = objInstCreate(VFSMount);
 
     ret->provider = objAcquire(provider);
     ret->flags    = flags;
+    strDup(&ret->path, path);
 
     objInstInit(ret);
     return ret;
@@ -60,8 +62,15 @@ _objfactory_guaranteed VFSMount* VFSMount_create(ObjInst* provider, uint32 flags
 
 void VFSMount_destroy(_In_ VFSMount* self)
 {
+    // Never fsWatchCancel: the last reference can go while a VFS lock is held, and waiting for
+    // a callback that wants that lock would deadlock. The callback copes with outliving us.
+    if (self->cachewatch)
+        _fsWatchStop(self->cachewatch);
+
     // Autogen begins -----
     objRelease(&self->provider);
+    strDestroy(&self->path);
+    objRelease(&self->cachewatch);
     // Autogen ends -------
 }
 

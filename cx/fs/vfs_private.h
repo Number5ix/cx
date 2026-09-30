@@ -61,6 +61,39 @@ typedef struct VFSCacheEnt {
     VFSMount* mount;   // which VFS mount this file belongs to
     string origpath;   // original path (relative to provider)
 } VFSCacheEnt;
+
+// One entry in a cached directory listing. Its name, in the provider's own case, is the key it
+// is stored under.
+typedef struct VFSListEnt {
+    int32 type;   // FSPathStat
+    FSStat stat;
+} VFSListEnt;
+stDeclare(VFSListEnt);
+#define SType_VFSListEnt                         VFSListEnt*
+#define STStorageType_VFSListEnt                 VFSListEnt
+#define STypeArg_VFSListEnt(type, val)           stgeneric(opaque, &(val))
+#define STypeArgPtr_VFSListEnt(type, val)        &stgeneric(opaque, (val))
+#define STypeCheckedArg_VFSListEnt(type, val)    stType(type), stArg(type, val)
+#define STypeCheckedPtrArg_VFSListEnt(type, val) stType(type), stArgPtr(type, val)
+
+// One mount's whole view of one directory, cached on that directory's VFSDir.
+typedef struct VFSListing {
+    VFSMount* mount;   // holds a reference
+    string relpath;    // the directory's real path in that provider
+    hashtable ents;    // string name -> VFSListEnt, by the VFS's case rules
+    bool exists;       // false if the provider has no such directory; ents is empty then
+} VFSListing;
+saDeclare(VFSListing);
+stDeclare(VFSListing);
+#define SType_VFSListing                         VFSListing*
+#define STStorageType_VFSListing                 VFSListing
+#define STypeArg_VFSListing(type, val)           stgeneric(opaque, &(val))
+#define STypeArgPtr_VFSListing(type, val)        &stgeneric(opaque, (val))
+#define STypeCheckedArg_VFSListing(type, val)    stType(type), stArg(type, val)
+#define STypeCheckedPtrArg_VFSListing(type, val) stType(type), stArgPtr(type, val)
+
+// Starts an empty listing of relpath in mount m. Takes a reference on m.
+void _vfsListingInit(_Out_ VFSListing* l, _In_ VFS* vfs, _In_ VFSMount* m, _In_opt_ strref relpath);
 VFSCacheEnt* _vfsCacheEntCreate(VFSMount* m, strref opath);
 extern STypeOps VFSCacheEnt_ops;
 
@@ -75,6 +108,7 @@ typedef struct VFSDir {
 
     // CACHE
     hashtable files;          // hashtable of string/VFSCacheEnt*
+    sa_VFSListing listings;   // at most one per mount; guarded like files
     atomic(uint64) touched;   // clockTimer() at last use
     bool cache;               // only exists to cache directory entries, can be discarded
 } VFSDir;
@@ -154,6 +188,10 @@ int _vfsFindCIHelper(_Inout_ string* out, _In_opt_ strref mountpath, _In_ sa_str
 void _vfsMaybeEvict(_Inout_ VFS* vfs);
 
 bool _vfsIsPlatformCaseSensitive();
+
+// Starts keeping a VFS_CacheListings mount's listings current and marks it listable, or marks
+// a VFS_Immutable one listable outright. Calls into the provider; hold no VFS lock.
+void _vfsMountArmCache(_Inout_ VFS* vfs, _Inout_ VFSMount* m);
 
 // Private VFS flags, kept clear of the public VFSFlags range.
 enum VFS_PRIVATE_FLAGS_ENUM {

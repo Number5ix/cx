@@ -49,6 +49,37 @@ stDefine(VFSPendEnt) { .id    = stTypeId(opaque),
                        .flags = stFlag(PassPtr),
                        .ops   = { .dtor = _vfsPendEntDestroy } };
 
+// Plain data, so the default copy is right.
+stDefine(VFSListEnt) { .id    = stTypeId(opaque),
+                       .size  = sizeof(VFSListEnt),
+                       .flags = stFlag(PassPtr) };
+
+static void _vfsListingDestroy(stype st, stgeneric* g, uint32 flags)
+{
+    VFSListing* l = (VFSListing*)g->st_opaque;
+    objRelease(&l->mount);
+    strDestroy(&l->relpath);
+    htDestroy(&l->ents);
+}
+
+// Moved into place with saPushC, never copied.
+stDefine(VFSListing) { .id    = stTypeId(opaque),
+                       .size  = sizeof(VFSListing),
+                       .flags = stFlag(PassPtr),
+                       .ops   = { .dtor = _vfsListingDestroy } };
+
+_Use_decl_annotations_
+void _vfsListingInit(VFSListing* l, VFS* vfs, VFSMount* m, strref relpath)
+{
+    memset(l, 0, sizeof(VFSListing));
+    l->mount = objAcquire(m);
+    strDup(&l->relpath, relpath);
+    if (vfs->flags & VFS_CaseSensitive)
+        htInit(&l->ents, string, VFSListEnt, 16, HT_Grow(MaxSpeed));
+    else
+        htInit(&l->ents, string, VFSListEnt, 16, HT_CaseInsensitive | HT_Grow(MaxSpeed));
+}
+
 _Use_decl_annotations_
 VFSDir* _vfsDirCreate(VFS* vfs, VFSDir* parent)
 {
@@ -72,6 +103,7 @@ static void _vfsDirDestroy(stype st, stgeneric* g, uint32 flags)
     VFSDir* d = (VFSDir*)g->st_ptr;
     atomicFetchSub(uint32, &d->vfs->dcache.dircount, 1, Relaxed);
     saDestroy(&d->mounts);
+    saDestroy(&d->listings);
     htDestroy(&d->files);
     htDestroy(&d->subdirs);
     strDestroy(&d->name);

@@ -298,14 +298,16 @@ bool FSWatchRooted_remove(_In_ FSWatchRooted* self, _In_opt_ strref path)
 
 void FSWatchRooted_stopSources(_In_ FSWatchRooted* self)
 {
-    fsWatchCancel(self->inner);
+    // Stopped without waiting for a callback already running through them
+    if (self->inner)
+        _fsWatchStop(self->inner);
 
-    // Not under plock: cancelling waits for a running pendForward, which takes it.
     FSWatch* pendw = NULL;
     withMutex (&self->plock) {
         pendw = objAcquire(self->pendw);
     }
-    fsWatchCancel(pendw);
+    if (pendw)
+        _fsWatchStop(pendw);
     objRelease(&pendw);
 }
 

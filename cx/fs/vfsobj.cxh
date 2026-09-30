@@ -2,6 +2,7 @@
 /// @addtogroup fs_vfs
 /// @{
 #include <cx/closure/cchain.h>
+#include <cx/fs/fswatchobj.cxh>
 #include <cx/thread/atomic.h>
 #include <cx/thread/rwlock.h>
 
@@ -47,6 +48,11 @@ class VFS {
 
     uint32 flags;
     VFSDirCache dcache;   ///< directory cache size accounting
+
+    /// Bumped by every cache invalidation, under the write lock that guards what it drops. A
+    /// lookup that listed a directory with no lock held stores the listing only if this has
+    /// not moved, so it never caches something a change event has already overtaken.
+    atomic[uint32] cachegen;
 
     /// Creates a new empty VFS instance with no mounted providers
     ///
@@ -96,8 +102,14 @@ class VFS {
 class VFSMount {
     object[ObjInst] provider;
     uint32 flags;
+    string path;                  // absolute VFS path of the mount point
 
-    factory create(ObjInst *provider, uint32 flags);
+    // Directory listings from this mount can be cached. Always true for VFS_Immutable; for
+    // VFS_CacheListings, only while cachewatch is keeping them current.
+    atomic[bool] listable;
+    object[FSWatch] cachewatch;
+
+    factory create(ObjInst *provider, uint32 flags, strref path);
 }
 
 /// @}

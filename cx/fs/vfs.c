@@ -1,4 +1,5 @@
 #include "vfs_private.h"
+#include "fswatch_private.h"
 #include "cx/debug/error.h"
 #include "cx/fs/vfsfs/vfsfs.h"
 #include "cx/fs/vfsvfs/vfsvfs.h"
@@ -121,34 +122,136 @@ out:
     return ret;
 }
 
+// Changes reported by a VFS_CacheListings mount's own watch. Forgets whatever the cache knew
+// about what changed.
+static void vfsCacheWatchCB(stvlist* cvars, FSWatch* w, FSWatchEvent* ev)
+{
+    ObjInst_WeakRef *vref = NULL, *mref = NULL;
+    if (!stvlNext(cvars, weakref, &vref) || !stvlNext(cvars, weakref, &mref))
+        return;
+
+    VFS* vfs    = objAcquireFromWeakDyn(VFS, vref);
+    VFSMount* m = objAcquireFromWeakDyn(VFSMount, mref);
+    string vpath = 0, vold = 0;
+    if (!vfs || !m)
+        goto out;
+
+    pathJoin(&vpath, m->path, ev->path);
+    switch (ev->kind) {
+    case FSWE_Modified:
+    case FSWE_Attributes:
+        // only what the directory holding it says about it
+        _vfsInvalidateCache(vfs, vpath);
+        break;
+    case FSWE_Renamed:
+        if (ev->oldpath) {
+            pathJoin(&vold, m->path, ev->oldpath);
+            _vfsInvalidateCache(vfs, vold);
+            _vfsInvalidatePath(vfs, vold, true);
+        }
+        // fall through
+    case FSWE_Created:
+    case FSWE_Removed:
+    case FSWE_Rescan:
+        // Below it too: a directory that came or went takes everything under it along, including
+        // listings that say it has nothing.
+        _vfsInvalidateCache(vfs, vpath);
+        _vfsInvalidatePath(vfs, vpath, true);
+        break;
+    case FSWE_Stopped:
+        // Nothing keeps listings from this mount honest any more.
+        atomicStore(bool, &m->listable, false, Release);
+        _vfsInvalidateCache(vfs, m->path);
+        _vfsInvalidatePath(vfs, m->path, true);
+        break;
+    }
+
+out:
+    strDestroy(&vpath);
+    strDestroy(&vold);
+    objRelease(&m);
+    objRelease(&vfs);
+}
+
+_Use_decl_annotations_
+void _vfsMountArmCache(VFS* vfs, VFSMount* m)
+{
+    if (m->flags & VFS_NoCache)
+        return;
+
+    if (m->flags & VFS_Immutable) {
+        atomicStore(bool, &m->listable, true, Release);
+        return;
+    }
+
+    // A VFS mounted inside a VFS has listings of its own, and watching it through another VFS
+    // can loop back on this one.
+    VFSWatchable* wif = objInstIf(m->provider, VFSWatchable);
+    if (!(m->flags & VFS_CacheListings) || !wif || objDynCast(VFSVFS, m->provider))
+        return;
+
+    Weak(VFS)* vref      = objGetWeak(VFS, vfs);
+    Weak(VFSMount)* mref = objGetWeak(VFSMount, m);
+    closure cls          = closureCreateAs(FSWatchCB,
+                                  vfsCacheWatchCB,
+                                  stvar(weakref, objWeakRefBase(vref)),
+                                  stvar(weakref, objWeakRefBase(mref)));
+    objDestroyWeak(&vref);
+    objDestroyWeak(&mref);
+
+    // Without a watch there is nothing to keep listings current, so the mount just goes
+    // uncached.
+    FSWatch* w = wif->createWatch(m->provider, cls);
+    if (!w)
+        return;
+    if (!fsWatchAdd(w, NULL, FSW_Subtree | FSW_Everything)) {
+        _fsWatchStop(w);
+        objRelease(&w);
+        return;
+    }
+
+    m->cachewatch = w;
+    atomicStore(bool, &m->listable, true, Release);
+}
+
 _Use_decl_annotations_
 bool _vfsMountProvider(VFS* vfs, ObjInst* provider, strref path, flags_t flags)
 {
-    string ns = 0, rpath = 0;
+    string ns = 0, rpath = 0, mpath = 0;
     VFSProvider* provif;
-    bool ret = false;
+    VFSMount* nmount = NULL;
+    bool ret         = false;
 
     // verify that this implements the right interface
     provif = objInstIf(provider, VFSProvider);
     if (!provif)
         return false;
 
-    rwlockAcquireWrite(&vfs->vfsdlock);
-
     if (!pathIsAbsolute(path))
-        goto out;   // must mount with an absolute path
+        return false;   // must mount with an absolute path
+
+    // propagate certain flags from the VFS to all mounted providers
+    bool newns = flags & VFS_MountNewNS;
+    flags &= ~VFS_MountNewNS;
+    flags |= vfs->flags & (VFS_ReadOnly | VFS_NoCache | VFS_CacheListings);
+
+    // The mount is set up before it is visible, so that its watch is running before anything
+    // can list through it.
+    strDup(&mpath, path);
+    pathNormalize(&mpath);
+    nmount = vfsmountCreate(provider, flags | provif->flags(provider), mpath);
+    _vfsMountArmCache(vfs, nmount);
+
+    rwlockAcquireWrite(&vfs->vfsdlock);
 
     pathSplitNS(&ns, &rpath, path);
     strDestroy(&rpath);
 
-    if (flags & VFS_MountNewNS) {
-        flags &= ~VFS_MountNewNS;
-        if (strEmpty(ns) || htHasKey(vfs->namespaces, string, ns)) {
-            // someone else got there first
-            rwlockReleaseWrite(&vfs->vfsdlock);
-            strDestroy(&ns);
-            return true;
-        }
+    if (newns && (strEmpty(ns) || htHasKey(vfs->namespaces, string, ns))) {
+        // someone else got there first
+        ret = true;
+        rwlockReleaseWrite(&vfs->vfsdlock);
+        goto done;
     }
 
     if (!strEmpty(ns) && !htHasKey(vfs->namespaces, string, ns)) {
@@ -160,14 +263,8 @@ bool _vfsMountProvider(VFS* vfs, ObjInst* provider, strref path, flags_t flags)
     if (!dir)
         goto out;
 
-    // propagate certain flags from the VFS to all mounted providers
-    if (vfs->flags & VFS_ReadOnly)
-        flags |= VFS_ReadOnly;
-    if (vfs->flags & VFS_NoCache)
-        flags |= VFS_NoCache;
-
-    VFSMount* nmount = vfsmountCreate(provider, flags | provif->flags(provider));
     saPushC(&dir->mounts, object, &nmount);
+    nmount = NULL;   // the array has it now
     _vfsInvalidateRecursive(vfs, dir, true);
     vfs->mountgen++;
     ret = true;
@@ -176,7 +273,10 @@ out:
     rwlockReleaseWrite(&vfs->vfsdlock);
     if (ret)
         vfsNotifyMountChange(vfs, path);
+done:
+    objRelease(&nmount);
     strDestroy(&ns);
+    strDestroy(&mpath);
     return ret;
 }
 
@@ -286,7 +386,9 @@ void _vfsInvalidateCache(VFS* vfs, strref path)
     if (pdir) {
         pathFilename(&fname, abspath);
         htRemove(&pdir->files, string, fname);
+        saClear(&pdir->listings);
     }
+    atomicFetchAdd(uint32, &vfs->cachegen, 1, Relaxed);
 
     rwlockReleaseWrite(&vfs->vfslock);
     rwlockReleaseRead(&vfs->vfsdlock);
@@ -301,11 +403,14 @@ void _vfsInvalidateRecursive(VFS* vfs, VFSDir* dir, bool havelock)
     if (!havelock)
         rwlockAcquireWrite(&vfs->vfsdlock);
 
+    atomicFetchAdd(uint32, &vfs->cachegen, 1, Relaxed);
+
     if (dir->cache && dir->parent) {
         // can just remove the whole thing
         htRemove(&dir->parent->subdirs, string, dir->name);
     } else {
         htClear(&dir->files);
+        saClear(&dir->listings);
 
         // Collect first, act second: the recursive call removes the child it was just handed
         // from this very hashtable, and htRemove is not iteration-safe
@@ -350,11 +455,14 @@ void _vfsInvalidatePath(VFS* vfs, strref abspath, bool recursive)
     }
 
     if (dir) {
-        if (recursive)
+        if (recursive) {
             _vfsInvalidateRecursive(vfs, dir, true);
-        else
+        } else {
             htClear(&dir->files);
+            saClear(&dir->listings);
+        }
     }
+    atomicFetchAdd(uint32, &vfs->cachegen, 1, Relaxed);
 
     rwlockReleaseWrite(&vfs->vfsdlock);
 
@@ -387,8 +495,9 @@ static void _vfsPruneDir(_Inout_ VFSDir* dir, int64 cutoff)
         return;
     }
 
-    // the directory itself has to stay, but the files it remembers do not
+    // the directory itself has to stay, but what it remembers does not
     htClear(&dir->files);
+    saClear(&dir->listings);
 }
 
 _Use_decl_annotations_
@@ -402,6 +511,7 @@ void vfsPruneCache(VFS* vfs)
         _vfsPruneDir((VFSDir*)htiVal(ptr, nsi), cutoff);
     }
     _vfsPruneDir(vfs->root, cutoff);
+    atomicFetchAdd(uint32, &vfs->cachegen, 1, Relaxed);
     rwlockReleaseWrite(&vfs->vfsdlock);
 
     atomicStore(int64, &vfs->dcache.lastprune, now, Relaxed);

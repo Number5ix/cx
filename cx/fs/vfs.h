@@ -551,10 +551,16 @@ enum VFSFlags {
                                       ///< depending on if the underlying operating system provider
                                       ///< is natively case sensitive or not.
 
-    VFS_NoCache = 0x00000004,   ///< Disable the VFS file cache. Saves memory and always asks the
-                                ///< providers, at the cost of slower repeated access. The
-                                ///< directory tree itself is still remembered; use
-                                ///< vfsSetCacheLimits() to bound that.
+    VFS_NoCache = 0x00000004,   ///< Disable the VFS file cache and directory listings. Saves
+                                ///< memory and always asks the providers, at the cost of slower
+                                ///< repeated access. The directory tree itself is still
+                                ///< remembered; use vfsSetCacheLimits() to bound that.
+
+    VFS_CacheListings = 0x00000080,   ///< Remember whole directory listings from the provider,
+                                      ///< watching it for changes to keep them current. Lookups
+                                      ///< and searches are then answered from memory. A provider
+                                      ///< that cannot be watched is left uncached. See
+                                      ///< @ref fs_vfs_caching.
 
     // Flags valid only for provider mounting:
 
@@ -567,6 +573,10 @@ enum VFSFlags {
 
     VFS_Opaque = 0x00000020,      ///< Hide all lower layers completely. Files in lower layers are
                                   ///< invisible even if not shadowed by this layer
+
+    VFS_Immutable = 0x00000040,   ///< The layer's contents never change, so its directory
+                                  ///< listings are always cached, with no watch. A provider can
+                                  ///< also return this from its flags() method.
 };
 
 /// @}
