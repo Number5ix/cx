@@ -9,6 +9,7 @@
 #include <cx/time/time.h>
 
 #include "vfstestprov.h"
+#include <cx/fs/vfs_private.h>
 
 #define TEST_FILE vfswatchtest
 #define TEST_FUNCS vfswatchtest_funcs
@@ -860,6 +861,80 @@ out:
     return ret;
 }
 
+// A VFS_CacheListings mount of a real directory sees files created behind its back once the
+// watch reports them.
+static int test_vfswatch_vfsfs_listings(void)
+{
+    int ret = 0;
+    string dir = 0, sub = 0, f = 0, g = 0;
+    pathMakeAbsolute(&dir, _S"cx_vfswatchtest_list");
+    pathJoin(&sub, dir, _S"sub");
+    pathJoin(&f, sub, _S"late.txt");
+    pathJoin(&g, dir, _S"top.txt");
+    fsDelete(f);
+    fsDelete(g);
+    fsCreateAll(sub);
+
+    VFS* vfs = vfsCreate(0);
+    vfsMountFS(vfs, _S"/root", dir, VFS_CacheListings);
+
+    // A mount whose watch could not start quietly goes uncached, which would pass everything
+    // below without testing anything.
+    VFSDir* mdir = NULL;
+    htFind(vfs->root->subdirs, string, _S"root", VFSDir, &mdir);
+    if (!mdir || saSize(mdir->mounts) != 1 || !atomicLoad(bool, &mdir->mounts.a[0]->listable, Acquire)) {
+#if defined(_PLATFORM_WASM)
+        TEST_INFO(_SL("native watches are not supported here; skipping"), stvNone);
+#else
+        TEST_FAILV(ret, 1, _SL("the VFS_CacheListings mount is not listable"), stvNone);
+#endif
+        goto out;
+    }
+
+    if (vfsStat(vfs, _S"/root/sub/late.txt", NULL) != FS_Nonexistent ||
+        vfsStat(vfs, _S"/root/top.txt", NULL) != FS_Nonexistent) {
+        TEST_FAILV(ret, 1, _SL("scratch files exist before they were created"), stvNone);
+        goto out;
+    }
+
+    FSFile* fh = fsOpen(f, FS_Overwrite);
+    fileWrite(fh, "late", 4, NULL);
+    fileClose(&fh);
+    fh = fsOpen(g, FS_Overwrite);
+    fileClose(&fh);
+
+    bool seen = false;
+    for (int i = 0; i < 1000 && !seen; i++) {
+        seen = vfsExist(vfs, _S"/root/sub/late.txt") && vfsExist(vfs, _S"/root/top.txt");
+        if (!seen)
+            osSleep(timeMS(10));
+    }
+    if (!seen)
+        TEST_FAILV(ret, 1, _SL("files created on disk never showed up through the VFS"), stvNone);
+
+    fsDelete(f);
+    bool gone = false;
+    for (int i = 0; i < 1000 && !gone; i++) {
+        gone = !vfsExist(vfs, _S"/root/sub/late.txt");
+        if (!gone)
+            osSleep(timeMS(10));
+    }
+    if (!gone)
+        TEST_FAILV(ret, 1, _SL("file deleted on disk still shows up through the VFS"), stvNone);
+
+out:
+    vfsDestroy(&vfs);
+    fsDelete(f);
+    fsDelete(g);
+    fsRemoveDir(sub);
+    fsRemoveDir(dir);
+    strDestroy(&dir);
+    strDestroy(&sub);
+    strDestroy(&f);
+    strDestroy(&g);
+    return ret;
+}
+
 // ---- groups --------------------------------------------------------------------------------
 
 // Each group below runs several of the subtests above in one process. The individual subtests
@@ -887,7 +962,8 @@ int test_vfswatch_grp_appear(void)
 
 int test_vfswatch_grp_e2e(void)
 {
-    TEST_CHAIN(test_vfswatch_vfsfs_end_to_end, test_vfswatch_vfsfs_missing_root);
+    TEST_CHAIN(test_vfswatch_vfsfs_end_to_end, test_vfswatch_vfsfs_missing_root,
+               test_vfswatch_vfsfs_listings);
 }
 
 testfunc vfswatchtest_funcs[] = {
@@ -907,6 +983,7 @@ testfunc vfswatchtest_funcs[] = {
     { "upper_appears_deep", test_vfswatch_upper_appears_deep },
     { "upper_recreated",   test_vfswatch_upper_recreated     },
     { "vfsfs_missing_root", test_vfswatch_vfsfs_missing_root },
+    { "vfsfs_listings",    test_vfswatch_vfsfs_listings      },
     { "grp_layers",        test_vfswatch_grp_layers          },
     { "grp_mounts",        test_vfswatch_grp_mounts          },
     { "grp_appear",        test_vfswatch_grp_appear          },
