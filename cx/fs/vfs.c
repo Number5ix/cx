@@ -966,6 +966,46 @@ out:
     return ret;
 }
 
+// A plain lookup answered from the listings alone, with nothing allocated for layers that are
+// not needed. Walks the same layers in the same order as _vfsSnapshot. Returns the mount on a
+// hit, with a reference; NULL with *known set for a definite miss; NULL with *known clear if some
+// layer has no listing to go by. VFS locks must be held.
+static VFSMount* listingsLookup(_In_ VFSDir* pdir, _In_ strref fname, _Inout_ string* rpath,
+                                _Out_ VFSFound* found, _Out_ bool* known)
+{
+    *known = false;
+    for (VFSDir* d = pdir; d; d = d->parent) {
+        for (int32 i = saSize(d->mounts) - 1; i >= 0; --i) {
+            VFSMount* m = d->mounts.a[i];
+            if (!_vfsMountListable(m))
+                return NULL;
+            VFSListing* l = _vfsListingFor(pdir, m);
+            if (!l)
+                return NULL;
+
+            htelem e = l->exists ? htFind(l->ents, strref, fname, none, NULL) : 0;
+            if (e) {
+                VFSListEnt* le = hteValPtr(l->ents, VFSListEnt, e);
+                found->type    = le->type;
+                found->stat    = le->stat;
+                found->valid   = true;
+                pathJoin(rpath, l->relpath, hteKey(l->ents, string, e));
+                *known = true;
+                return objAcquire(m);
+            }
+            if (m->flags & VFS_Opaque)
+                goto miss;
+        }
+    }
+
+miss:
+    *known          = true;
+    VFSDir* self    = NULL;
+    found->nomount  = !htFind(pdir->subdirs, strref, fname, VFSDir, &self) ||
+                     saSize(self->mounts) == 0;
+    return NULL;
+}
+
 // This function does all the heavy lifting of the VFS system.
 //
 // It runs in three phases, and the split is the point: the middle phase calls into providers,
@@ -1040,12 +1080,31 @@ VFSMount* _vfsFindMount(VFS* vfs, string* rpath, strref path, VFSMount** cowmoun
             strDestroy(&fname);
             return ret;
         }
+
+        // a plain lookup the listings can answer on their own
+        bool known = false;
+        if (found && !flwrite && pdir && !strEmpty(fname))
+            ret = listingsLookup(pdir, fname, rpath, found, &known);
+        if (known) {
+            rwlockReleaseRead(&vfs->vfslock);
+            rwlockReleaseRead(&vfs->vfsdlock);
+            if (!ret)
+                cxerr = CX_FileNotFound;
+            strDestroy(&abspath);
+            strDestroy(&fname);
+            return ret;
+        }
     }
 
     saInit(&cands, VFSCand, 8);
     _vfsSnapshot(vfs, &cands, abspath, true, &pdir);
     if (pdir && !strEmpty(fname)) {
         for (int32 i = 0, n = saSize(cands); i < n; i++) candFromListings(&cands.a[i], pdir, fname);
+
+        VFSDir* self = NULL;
+        if (found)
+            found->nomount = !htFind(pdir->subdirs, strref, fname, VFSDir, &self) ||
+                             saSize(self->mounts) == 0;
     }
     gen  = vfs->mountgen;
     cgen = atomicLoad(uint32, &vfs->cachegen, Relaxed);

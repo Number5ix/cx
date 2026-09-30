@@ -23,7 +23,7 @@ FSPathStat vfsStat(VFS* vfs, strref path, FSStat* stat)
 
         if (ret == FS_Nonexistent)
             _vfsInvalidateCache(vfs, path);
-    } else {
+    } else if (!found.nomount) {
         // No provider serves path as a file within its parent, but it may still be a bare mount
         // point -- one with no provider of its own directly on it, only child mounts below.
         vfsAbsolutePath(vfs, &abspath, path);
@@ -294,7 +294,8 @@ bool vfsGetFSPath(string* out, VFS* vfs, strref path)
     bool ret     = false;
     string rpath = 0;
 
-    VFSMount* m = _vfsFindMount(vfs, &rpath, path, NULL, NULL, VFS_FindCache, NULL);
+    VFSFound found;
+    VFSMount* m = _vfsFindMount(vfs, &rpath, path, NULL, NULL, VFS_FindCache, &found);
     if (!m) {
         cxerr = CX_FileNotFound;
         goto out;

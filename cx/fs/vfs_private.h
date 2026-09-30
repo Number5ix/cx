@@ -181,9 +181,10 @@ enum VFS_FIND_PROVIDER_ENUM {
 };
 // What _vfsFindMount found out about the path along the way, so the caller need not ask again.
 typedef struct VFSFound {
-    int32 type;   // FSPathStat
+    int32 type;     // FSPathStat
     FSStat stat;
-    bool valid;   // type and stat are filled in
+    bool valid;     // type and stat are filled in
+    bool nomount;   // nothing is mounted right at the path, so _vfsFindSelfMount would not help
 } VFSFound;
 _Ret_opt_valid_ VFSMount*
 _vfsFindMount(_Inout_ VFS* vfs, _Inout_ string* rpath, _In_opt_ strref path,

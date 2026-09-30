@@ -60,7 +60,8 @@ VFSFile* vfsOpen(VFS* vfs, strref path, flags_t flags)
         pflags |= VFS_FindWriteFile;
     if (flags & (FS_Truncate | FS_Create))
         pflags |= VFS_FindCreate;
-    VFSMount* m = _vfsFindMount(vfs, &rpath, path, &cowmount, &cowrpath, pflags, NULL);
+    VFSFound found;
+    VFSMount* m = _vfsFindMount(vfs, &rpath, path, &cowmount, &cowrpath, pflags, &found);
     if (!m) {
         cxerr = CX_FileNotFound;
         goto out;

@@ -1428,6 +1428,19 @@ static int test_vfs_list_immutable(void)
     // the file is still read from the right place
     checkContents(&ret, vfs, _S"/sub/b.txt", _S"b:1");
 
+    // a listed opaque layer hides what is below it without the lower layer being asked
+    VFSTestProv* hidden = vfstestprovCreate(VFS_CaseSensitive);
+    vfstestprovAddFile(hidden, _S"sub/h.txt", _S"h");
+    vfsMountProvider(vfs, hidden, _S"/", VFS_Immutable);
+    vfsMountProvider(vfs, prov, _S"/", VFS_Immutable | VFS_Opaque);
+    checkStat(&ret, vfs, _S"/sub/b.txt", FS_File);
+    checkStat(&ret, vfs, _S"/sub/h.txt", FS_Nonexistent);
+    checkStat(&ret, vfs, _S"/sub/h.txt", FS_Nonexistent);
+    if (provCalls(hidden) != 0)
+        TEST_FAILV(ret, 1, _SL("a layer under an opaque one was asked ${int} times"),
+                   stvar(int32, provCalls(hidden)));
+
+    objRelease(&hidden);
     objRelease(&prov);
     vfsDestroy(&vfs);
     return ret;
