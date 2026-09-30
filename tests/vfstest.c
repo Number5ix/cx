@@ -1608,6 +1608,96 @@ static int test_vfs_list_stopped(void)
     return ret;
 }
 
+// Changes made through the VFS show up at once, with no watch event needed.
+static int test_vfs_list_writethrough(void)
+{
+    int ret           = 0;
+    VFS* vfs          = vfsCreate(VFS_CaseSensitive);
+    VFSTestProv* prov = sampleProvider(VFS_CaseSensitive, _S"1");
+    FSStat st         = { 0 };
+
+    // a watch that never reports anything, so only write-through can keep the cache right
+    vfsMountProvider(vfs, prov, _S"/", VFS_CacheListings);
+    checkSearch(&ret, vfs, _S"/", NULL, 0, _S"a.txt,sub");
+    checkSearch(&ret, vfs, _S"/sub", NULL, 0, _S"b.txt,deep");
+
+    if (!vfsDelete(vfs, _S"/sub/b.txt"))
+        TEST_FAILV(ret, 1, _SL("vfsDelete failed"), stvNone);
+    checkStat(&ret, vfs, _S"/sub/b.txt", FS_Nonexistent);
+
+    checkSearch(&ret, vfs, _S"/sub", NULL, 0, _S"deep");
+    if (!vfsRename(vfs, _S"/a.txt", _S"/sub/a2.txt"))
+        TEST_FAILV(ret, 1, _SL("vfsRename failed"), stvNone);
+    checkStat(&ret, vfs, _S"/a.txt", FS_Nonexistent);
+    checkSearch(&ret, vfs, _S"/sub", NULL, 0, _S"a2.txt,deep");
+
+    // the listing searched here has the file at its size just after the open
+    VFSFile* f = vfsOpen(vfs, _S"/sub/new.txt", FS_Overwrite);
+    if (!f) {
+        TEST_FAILV(ret, 1, _SL("could not create /sub/new.txt"), stvNone);
+    } else {
+        checkSearch(&ret, vfs, _S"/sub", NULL, 0, _S"a2.txt,deep,new.txt");
+        fileWriteString(f, _S"12345", NULL);
+        fileClose(&f);
+    }
+    if (vfsStat(vfs, _S"/sub/new.txt", &st) != FS_File || st.size != 5)
+        TEST_FAILV(ret, 1, _SL("/sub/new.txt has size ${uint} after close, wanted 5"),
+                   stvar(uint64, st.size));
+
+    checkSearch(&ret, vfs, _S"/sub", NULL, 0, _S"a2.txt,deep,new.txt");
+    if (!vfsSetTimes(vfs, _S"/sub/a2.txt", 5000000, 5000000))
+        TEST_FAILV(ret, 1, _SL("vfsSetTimes failed"), stvNone);
+    if (vfsStat(vfs, _S"/sub/a2.txt", &st) != FS_File || st.modified != 5000000)
+        TEST_FAILV(ret, 1, _SL("/sub/a2.txt modified ${int} after vfsSetTimes, wanted 5000000"),
+                   stvar(int64, st.modified));
+
+    // a directory the cache has seen missing
+    checkStat(&ret, vfs, _S"/nd/x.txt", FS_Nonexistent);
+    if (!vfsCreateDir(vfs, _S"/nd"))
+        TEST_FAILV(ret, 1, _SL("vfsCreateDir failed"), stvNone);
+    checkStat(&ret, vfs, _S"/nd", FS_Directory);
+    f = vfsOpen(vfs, _S"/nd/x.txt", FS_Overwrite);
+    fileClose(&f);
+    checkStat(&ret, vfs, _S"/nd/x.txt", FS_File);
+
+    vfsDelete(vfs, _S"/nd/x.txt");
+    if (!vfsRemoveDir(vfs, _S"/nd"))
+        TEST_FAILV(ret, 1, _SL("vfsRemoveDir failed"), stvNone);
+    checkStat(&ret, vfs, _S"/nd", FS_Nonexistent);
+
+    objRelease(&prov);
+    vfsDestroy(&vfs);
+    return ret;
+}
+
+// vfsInvalidate is how a caller tells the VFS about changes it could not see.
+static int test_vfs_list_invalidate(void)
+{
+    int ret           = 0;
+    VFS* vfs          = vfsCreate(VFS_CaseSensitive);
+    VFSTestProv* prov = sampleProvider(VFS_CaseSensitive, _S"1");
+
+    vfsMountProvider(vfs, prov, _S"/", VFS_CacheListings);
+    checkStat(&ret, vfs, _S"/sub/x.txt", FS_Nonexistent);
+    checkStat(&ret, vfs, _S"/sub/deep/y.txt", FS_Nonexistent);
+
+    // behind the VFS's back, with no event
+    vfstestprovAddFile(prov, _S"sub/x.txt", _S"x");
+    vfstestprovAddFile(prov, _S"sub/deep/y.txt", _S"y");
+    checkStat(&ret, vfs, _S"/sub/x.txt", FS_Nonexistent);
+
+    vfsInvalidate(vfs, _S"/sub/x.txt", false);
+    checkStat(&ret, vfs, _S"/sub/x.txt", FS_File);
+    checkStat(&ret, vfs, _S"/sub/deep/y.txt", FS_Nonexistent);
+
+    vfsInvalidate(vfs, _S"/sub", true);
+    checkStat(&ret, vfs, _S"/sub/deep/y.txt", FS_File);
+
+    objRelease(&prov);
+    vfsDestroy(&vfs);
+    return ret;
+}
+
 // Pruning the cache drops listings too.
 static int test_vfs_list_evict(void)
 {
@@ -1777,7 +1867,8 @@ int test_vfs_grp_cow(void)
 int test_vfs_grp_listings(void)
 {
     TEST_CHAIN(test_vfs_list_immutable, test_vfs_list_mixed, test_vfs_list_caseinsens,
-               test_vfs_list_search, test_vfs_list_events, test_vfs_list_stopped, test_vfs_list_evict,
+               test_vfs_list_search, test_vfs_list_events, test_vfs_list_stopped,
+               test_vfs_list_writethrough, test_vfs_list_invalidate, test_vfs_list_evict,
                test_vfs_list_nocache, test_vfs_list_stress);
 }
 
@@ -1821,6 +1912,8 @@ testfunc vfstest_funcs[] = {
     { "list_search",    test_vfs_list_search    },
     { "list_events",    test_vfs_list_events    },
     { "list_stopped",   test_vfs_list_stopped   },
+    { "list_writethrough", test_vfs_list_writethrough },
+    { "list_invalidate", test_vfs_list_invalidate },
     { "list_evict",     test_vfs_list_evict     },
     { "list_nocache",   test_vfs_list_nocache   },
     { "list_stress",    test_vfs_list_stress    },

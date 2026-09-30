@@ -53,9 +53,10 @@ VFSFile* vfsOpen(VFS* vfs, strref path, flags_t flags)
     VFSMount* cowmount = 0;
     string cowrpath    = 0;
     uint32 pflags      = VFS_FindCache;
+    bool writing       = flags & (FS_Write | FS_Truncate | FS_Create);
 
     // get the provider
-    if (flags & (FS_Write | FS_Truncate | FS_Create))
+    if (writing)
         pflags |= VFS_FindWriteFile;
     if (flags & (FS_Truncate | FS_Create))
         pflags |= VFS_FindCreate;
@@ -75,7 +76,7 @@ VFSFile* vfsOpen(VFS* vfs, strref path, flags_t flags)
         if (!innerfile)
             goto out;
         ret = vfsfileCreate(vfs, innerfile);
-        goto out;
+        goto opened;
     } else if (cowmount) {
         // initial open is read-only for COW files
         flags = FS_Read;
@@ -101,6 +102,13 @@ VFSFile* vfsOpen(VFS* vfs, strref path, flags_t flags)
         rwlockAcquireRead(&vfs->vfslock);
         _vfsAbsPath(vfs, &ret->cowpath, path);
         rwlockReleaseRead(&vfs->vfslock);
+    }
+
+opened:
+    // The open may have created or truncated it, and closing may change it again.
+    if (writing) {
+        vfsAbsolutePath(vfs, &ret->wpath, path);
+        _vfsInvalidateCache(vfs, ret->wpath);
     }
 
 out:
@@ -131,7 +139,10 @@ bool VFSFile_closeHandle(_In_ VFSFile* self)
 
     // The provider's close is where buffered writes are flushed, so a failure there is the one
     // thing this function's return value has to carry.
-    return fileClose(&self->inner);
+    bool ret = fileClose(&self->inner);
+    if (self->wpath)
+        _vfsInvalidateCache(self->vfs, self->wpath);
+    return ret;
 }
 
 bool VFSFile_read(_In_ VFSFile* self, _Out_writes_bytes_to_(sz, *bytesread) void* buf,
@@ -266,6 +277,7 @@ void VFSFile_destroy(_In_ VFSFile* self)
     // Autogen begins -----
     objRelease(&self->vfs);
     objRelease(&self->inner);
+    strDestroy(&self->wpath);
     objRelease(&self->cowprov);
     strDestroy(&self->cowpath);
     strDestroy(&self->cowrpath);

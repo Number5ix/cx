@@ -12,6 +12,7 @@
 class VFSFile extends File {
     object[VFS] vfs;
     object[File] inner;   // the provider's file, which every operation ends up at
+    string wpath;         // absolute path, if opened for writing: what closing invalidates
 
     // for copy-on-write files
     object[ObjInst] cowprov;   // VFSProvider

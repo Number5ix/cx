@@ -345,6 +345,23 @@ bool vfsCopy(_Inout_ VFS* vfs, _In_opt_ strref from, _In_opt_ strref to);
 /// @return true if successful, false on error
 bool vfsRename(_Inout_ VFS* vfs, _In_opt_ strref from, _In_opt_ strref to);
 
+/// Forgets what the VFS has cached about a path
+///
+/// Changes made through the VFS, and changes the watch on a VFS_CacheListings mount reports,
+/// keep the cache current on their own. Call this after changing a provider's files some other
+/// way, or when a change must be seen before its watch event arrives.
+///
+/// @param vfs VFS instance
+/// @param path File or directory that changed
+/// @param recursive Also forget everything below path
+///
+/// Example:
+/// @code
+///   fsDelete(_SL("c:/data/old.txt"));   // behind the VFS's back
+///   vfsInvalidate(vfs, _SL("/data/old.txt"), false);
+/// @endcode
+void vfsInvalidate(_Inout_ VFS* vfs, _In_opt_ strref path, bool recursive);
+
 /// Retrieves the real OS filesystem path (VFSFS provider only)
 ///
 /// If the specified VFS path is backed by a VFSFS provider (OS filesystem),

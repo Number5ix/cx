@@ -65,6 +65,7 @@ bool vfsSetTimes(VFS* vfs, strref path, int64 modified, int64 accessed)
         ret = provif->setTimes(m->provider, rpath, modified, accessed);
     else
         cxerr = CX_InvalidArgument;
+    _vfsInvalidateCache(vfs, path);
 
 out:
     strDestroy(&rpath);
@@ -95,6 +96,8 @@ bool vfsCreateDir(VFS* vfs, strref path)
         ret = provif->createDir(m->provider, rpath);
     else
         cxerr = CX_InvalidArgument;
+    // including a listing that says the directory is not there
+    vfsInvalidate(vfs, path, true);
 
 out:
     strDestroy(&rpath);
@@ -136,6 +139,7 @@ bool vfsRemoveDir(VFS* vfs, strref path)
         ret = provif->removeDir(m->provider, rpath);
     else
         cxerr = CX_InvalidArgument;
+    vfsInvalidate(vfs, path, true);
 
 out:
     strDestroy(&rpath);
@@ -251,8 +255,10 @@ bool vfsRename(VFS* vfs, strref from, strref to)
     if (mfrom->provider == mto->provider) {
         // Same provider, so we can just rename it
         ret = provif->rename(mfrom->provider, rpathfrom, rpathto);
-        if (ret)
-            _vfsInvalidateCache(vfs, from);
+        if (ret) {
+            vfsInvalidate(vfs, from, true);
+            vfsInvalidate(vfs, to, true);
+        }
     } else {
         // Different providers, copy and delete original
         ret = vfsCopy(vfs, from, to);
@@ -266,6 +272,20 @@ out:
     objRelease(&mfrom);
     objRelease(&mto);
     return ret;
+}
+
+_Use_decl_annotations_
+void vfsInvalidate(VFS* vfs, strref path, bool recursive)
+{
+    string abspath = 0;
+    vfsAbsolutePath(vfs, &abspath, path);
+    pathNormalize(&abspath);
+
+    // what its directory says about it, then what it says itself if it is a directory
+    _vfsInvalidateCache(vfs, abspath);
+    _vfsInvalidatePath(vfs, abspath, recursive);
+
+    strDestroy(&abspath);
 }
 
 _Use_decl_annotations_
