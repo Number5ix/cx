@@ -463,6 +463,42 @@ static int test_vfs_cowtrunc(void)
     return ret;
 }
 
+// A write to a file that is already on the AlwaysCOW layer, or a new file created there, works on
+// that layer's file in place instead of copying it onto itself.
+static int test_vfs_cowself(void)
+{
+    int ret            = 0;
+    VFS* vfs           = vfsCreate(VFS_CaseSensitive);
+    VFSTestProv* lower = sampleProvider(VFS_CaseSensitive, _S"low");
+    VFSTestProv* cow   = vfstestprovCreate(VFS_CaseSensitive);
+    vfstestprovAddFile(cow, _S"a.txt", _S"cowcontents");
+    vfsMountProvider(vfs, lower, _S"/", VFS_ReadOnly);
+    vfsMountProvider(vfs, cow, _S"/", VFS_AlwaysCOW);
+    VFSFile* f = vfsOpen(vfs, _S"/a.txt", FS_Write);
+    if (!f) {
+        TEST_FAILV(ret, 1, _SL("could not open /a.txt for writing"), stvNone);
+    } else {
+        fileWriteString(f, _S"X", NULL);
+        fileClose(&f);
+    }
+    checkContents(&ret, vfs, _S"/a.txt", _S"Xowcontents");
+
+    f = vfsOpen(vfs, _S"/new.txt", FS_Write | FS_Create);
+    if (!f) {
+        TEST_FAILV(ret, 1, _SL("could not create /new.txt on the COW layer"), stvNone);
+    } else {
+        fileWriteString(f, _S"new", NULL);
+        fileClose(&f);
+    }
+    if (!htHasKey(cow->files, string, _S"new.txt"))
+        TEST_FAILV(ret, 1, _SL("new file did not land on the COW layer"), stvNone);
+    checkContents(&ret, vfs, _S"/new.txt", _S"new");
+    objRelease(&lower);
+    objRelease(&cow);
+    vfsDestroy(&vfs);
+    return ret;
+}
+
 // Mounting a second provider invalidates the whole directory cache, which walks the subdirs
 // hashtable of every cached node. Warm the cache with enough cache-only directories that the
 // invalidation walk has plenty to remove while it is iterating.
@@ -1285,7 +1321,8 @@ int test_vfs_grp_caching(void)
 
 int test_vfs_grp_cow(void)
 {
-    TEST_CHAIN(test_vfs_cow, test_vfs_cowfail, test_vfs_cowtrunc, test_vfs_newfiles);
+    TEST_CHAIN(test_vfs_cow, test_vfs_cowfail, test_vfs_cowtrunc, test_vfs_cowself,
+               test_vfs_newfiles);
 }
 
 int test_vfs_grp_misc(void)
@@ -1306,6 +1343,7 @@ testfunc vfstest_funcs[] = {
     { "cow",        test_vfs_cow        },
     { "cowfail",    test_vfs_cowfail    },
     { "cowtrunc",   test_vfs_cowtrunc   },
+    { "cowself",    test_vfs_cowself    },
     { "newfiles",   test_vfs_newfiles   },
     { "rename",     test_vfs_rename     },
     { "errors",     test_vfs_errors     },

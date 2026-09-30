@@ -646,6 +646,7 @@ VFSMount* _vfsFindMount(VFS* vfs, string* rpath, strref path, VFSMount** cowmoun
 {
     VFSMount* ret           = 0;
     VFSMount* firstwritable = 0;
+    VFSMount* alwayscow     = 0;
     string abspath = 0, curpath = 0, firstwpath = 0, cachedir = 0, cachename = 0;
     sa_VFSCand cands      = saInitNone;
     sa_VFSPendEnt pending = saInitNone;
@@ -702,11 +703,11 @@ VFSMount* _vfsFindMount(VFS* vfs, string* rpath, strref path, VFSMount** cowmoun
             strDup(&firstwpath, cands.a[i].relpath);
         }
 
-        if (cowmount && (m->flags & VFS_AlwaysCOW)) {
+        if (cowmount && !alwayscow && (m->flags & VFS_AlwaysCOW)) {
             // this provider wants to get COW copies for any write
+            alwayscow = m;
             *cowmount = objAcquire(m);
             strDup(cowrpath, cands.a[i].relpath);
-            cowmount = NULL;   // don't let anything else set it
         }
 
         VFSProvider* provif = objInstIf(m->provider, VFSProvider);
@@ -751,7 +752,7 @@ VFSMount* _vfsFindMount(VFS* vfs, string* rpath, strref path, VFSMount** cowmoun
         }
     }
 
-    if (ret && flwrite && (ret->flags & VFS_ReadOnly) && cowmount) {
+    if (ret && flwrite && (ret->flags & VFS_ReadOnly) && cowmount && !*cowmount) {
         // let the caller know they should COW to a writable provider
         *cowmount = objAcquire(firstwritable);
         strDup(cowrpath, firstwpath);
@@ -761,6 +762,12 @@ VFSMount* _vfsFindMount(VFS* vfs, string* rpath, strref path, VFSMount** cowmoun
     if (!ret && (flwrite || flcreate) && !fldelete) {
         ret = firstwritable;
         strDup(rpath, firstwpath);
+    }
+
+    // The file already lives on (or is being created on) the AlwaysCOW layer, so there is nothing to copy up.
+    if (alwayscow && ret == alwayscow) {
+        objRelease(cowmount);
+        strDestroy(cowrpath);
     }
 
     if (!ret)
