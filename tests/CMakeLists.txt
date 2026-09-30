@@ -421,6 +421,7 @@ add_test(NAME "\"vfs: Mounting And Layering\"" COMMAND test_runner vfstest grp_m
 add_test(NAME "\"vfs: Path Resolution\"" COMMAND test_runner vfstest grp_pathresolve)
 add_test(NAME "\"vfs: Caching\"" COMMAND test_runner vfstest grp_caching)
 add_test(NAME "\"vfs: Copy-On-Write\"" COMMAND test_runner vfstest grp_cow)
+add_test(NAME "\"vfs: Directory Listings\"" COMMAND test_runner vfstest grp_listings)
 add_test(NAME "\"vfs: Errors And Providers\"" COMMAND test_runner vfstest grp_misc)
 add_test(NAME "\"vfswatch: Layers\"" COMMAND test_runner vfswatchtest grp_layers)
 add_test(NAME "\"vfswatch: Mounts\"" COMMAND test_runner vfswatchtest grp_mounts)

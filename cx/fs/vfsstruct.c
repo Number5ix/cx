@@ -26,6 +26,8 @@ static void _vfsCandDestroy(stype st, stgeneric* g, uint32 flags)
     strDestroy(&c->mountpath);
     strDestroy(&c->relpath);
     saDestroy(&c->relcomp);
+    strDestroy(&c->lname);
+    strDestroy(&c->ldir);
 }
 
 // Snapshot entries are only ever moved into an array and destroyed with it, never copied, so
@@ -54,19 +56,36 @@ stDefine(VFSListEnt) { .id    = stTypeId(opaque),
                        .size  = sizeof(VFSListEnt),
                        .flags = stFlag(PassPtr) };
 
-static void _vfsListingDestroy(stype st, stgeneric* g, uint32 flags)
+_Use_decl_annotations_
+void _vfsListingDestroy(VFSListing* l)
 {
-    VFSListing* l = (VFSListing*)g->st_opaque;
     objRelease(&l->mount);
     strDestroy(&l->relpath);
     htDestroy(&l->ents);
+}
+
+static void _vfsListingDtor(stype st, stgeneric* g, uint32 flags)
+{
+    _vfsListingDestroy((VFSListing*)g->st_opaque);
 }
 
 // Moved into place with saPushC, never copied.
 stDefine(VFSListing) { .id    = stTypeId(opaque),
                        .size  = sizeof(VFSListing),
                        .flags = stFlag(PassPtr),
-                       .ops   = { .dtor = _vfsListingDestroy } };
+                       .ops   = { .dtor = _vfsListingDtor } };
+
+static void _vfsPendListDestroy(stype st, stgeneric* g, uint32 flags)
+{
+    VFSPendList* pl = (VFSPendList*)g->st_opaque;
+    strDestroy(&pl->dirpath);
+    _vfsListingDestroy(&pl->l);
+}
+
+stDefine(VFSPendList) { .id    = stTypeId(opaque),
+                        .size  = sizeof(VFSPendList),
+                        .flags = stFlag(PassPtr),
+                        .ops   = { .dtor = _vfsPendListDestroy } };
 
 _Use_decl_annotations_
 void _vfsListingInit(VFSListing* l, VFS* vfs, VFSMount* m, strref relpath)

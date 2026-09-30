@@ -41,6 +41,7 @@ void vfsDestroy(VFS** pvfs)
     htClear(&vfs->namespaces);
     htClear(&vfs->root->subdirs);
     htClear(&vfs->root->files);
+    saClear(&vfs->root->listings);   // they hold mounts too
     rwlockReleaseWrite(&vfs->vfsdlock);
 
     // Watches let go of the providers too, which may be what was keeping a loop alive.
@@ -564,7 +565,7 @@ void vfsAbsolutePath(VFS* vfs, string* out, strref path)
 }
 
 _Use_decl_annotations_
-void _vfsSnapshot(VFS* vfs, sa_VFSCand* out, strref abspath, bool isfile)
+void _vfsSnapshot(VFS* vfs, sa_VFSCand* out, strref abspath, bool isfile, VFSDir** dir)
 {
     string ns = 0, curpath = 0, mountpath = 0;
     sa_string components, relcomp = saInitNone, mountcomp = saInitNone;
@@ -574,6 +575,8 @@ void _vfsSnapshot(VFS* vfs, sa_VFSCand* out, strref abspath, bool isfile)
 
     VFSDir* pdir   = _vfsGetDir(vfs, abspath, isfile, true, false);
     int32 relstart = saSize(components) - (isfile ? 1 : 0);
+    if (dir)
+        *dir = pdir;
 
     while (pdir) {
         devAssert(relstart >= 0);
@@ -591,6 +594,7 @@ void _vfsSnapshot(VFS* vfs, sa_VFSCand* out, strref abspath, bool isfile)
         // are "higher" on the stack
         for (int i = saSize(pdir->mounts) - 1; i >= 0; --i) {
             VFSCand cand = { 0 };
+            cand.ldepth  = -1;
             cand.mount   = objAcquire(pdir->mounts.a[i]);
             strDup(&cand.mountpath, mountpath);
             strDup(&cand.relpath, curpath);
@@ -613,6 +617,60 @@ done:
     saDestroy(&relcomp);
     saDestroy(&mountcomp);
     saDestroy(&components);
+}
+
+_Use_decl_annotations_
+VFSListing* _vfsListingFor(VFSDir* dir, VFSMount* m)
+{
+    for (int32 i = 0, n = saSize(dir->listings); i < n; i++) {
+        if (dir->listings.a[i].mount == m)
+            return &dir->listings.a[i];
+    }
+    return NULL;
+}
+
+_Use_decl_annotations_
+bool _vfsListDir(VFSListing* out, VFS* vfs, VFSMount* m, VFSProvider* provif, strref relpath)
+{
+    _vfsListingInit(out, vfs, m, relpath);
+
+    FSSearchIter iter;
+    if (!provif->searchInit(m->provider, &iter, relpath, NULL, true)) {
+        provif->searchFinish(m->provider, &iter);
+        // An empty directory cannot be told apart from one that could not be read, so only a
+        // directory that is not there at all gets a listing.
+        if (provif->stat(m->provider, relpath, NULL) == FS_Directory) {
+            _vfsListingDestroy(out);
+            return false;
+        }
+        return true;
+    }
+
+    out->exists = true;
+    while (provif->searchValid(m->provider, &iter)) {
+        VFSListEnt ent = { .type = iter.type, .stat = iter.stat };
+        // Two names differing only in case on a case-insensitive VFS: the first one wins, as
+        // it would with no listing.
+        htInsert(&out->ents, string, iter.name, VFSListEnt, ent, HT_Ignore);
+        provif->searchNext(m->provider, &iter);
+    }
+    provif->searchFinish(m->provider, &iter);
+    return true;
+}
+
+_Use_decl_annotations_
+void _vfsStoreListings(VFS* vfs, sa_VFSPendList* lists)
+{
+    for (int32 i = 0, n = saSize(*lists); i < n; i++) {
+        VFSPendList* pl = &lists->a[i];
+        if (!_vfsMountListable(pl->l.mount))
+            continue;
+
+        VFSDir* d = _vfsGetDir(vfs, pl->dirpath, false, true, true);
+        if (!d || _vfsListingFor(d, pl->l.mount))
+            continue;
+        saPushC(&d->listings, VFSListing, &pl->l);
+    }
 }
 
 _Use_decl_annotations_
@@ -782,26 +840,155 @@ VFSMount* _vfsFindSelfMount(VFS* vfs, strref abspath)
     return ret;
 }
 
+// What the cached listings say about the entry fname for candidate c, whose directory node is
+// pdir. VFS locks must be held.
+static void candFromListings(_Inout_ VFSCand* c, _In_ VFSDir* pdir, _In_ strref fname)
+{
+    VFSMount* m = c->mount;
+    if (!_vfsMountListable(m))
+        return;
+
+    int32 dirdepth = saSize(c->relcomp) - 1;
+    VFSListing* l  = _vfsListingFor(pdir, m);
+    if (l) {
+        strDup(&c->ldir, l->relpath);
+        c->ldepth = dirdepth;
+        htelem e  = l->exists ? htFind(l->ents, strref, fname, none, NULL) : 0;
+        if (e) {
+            VFSListEnt* le = hteValPtr(l->ents, VFSListEnt, e);
+            c->lstate      = VFS_LHit;
+            c->ltype       = le->type;
+            c->lstat       = le->stat;
+            strDup(&c->lname, hteKey(l->ents, string, e));
+        } else {
+            c->lstate = VFS_LMiss;
+        }
+        return;
+    }
+
+    // No listing of the directory yet. The nearest ancestor that has one says where the
+    // directory really is, or that it is not there at all.
+    if (dirdepth <= 0) {
+        strClear(&c->ldir);
+        c->ldepth = 0;
+        return;
+    }
+    VFSDir* child = pdir;
+    VFSDir* anc   = pdir->parent;
+    for (int32 depth = dirdepth - 1; anc && depth >= 0; depth--) {
+        VFSListing* al = _vfsListingFor(anc, m);
+        if (al) {
+            htelem e = al->exists ? htFind(al->ents, string, child->name, none, NULL) : 0;
+            if (e && hteValPtr(al->ents, VFSListEnt, e)->type == FS_Directory) {
+                pathJoin(&c->ldir, al->relpath, hteKey(al->ents, string, e));
+                c->ldepth = depth + 1;
+            } else {
+                c->lstate = VFS_LMiss;
+                c->lnodir = true;
+            }
+            return;
+        }
+        child = anc;
+        anc   = anc->parent;
+    }
+}
+
+// Lists the directory holding c's entry, for a listable mount with no listing of it yet. On a
+// case-insensitive VFS over a case-sensitive provider, every directory on the way whose real name
+// is not known yet is listed too, to find it. The listings are appended to lists; the one
+// returned, for the directory itself, is only valid until lists next grows. Returns NULL if the
+// provider could not say.
+static VFSListing* candListDir(_Inout_ VFS* vfs, _Inout_ VFSCand* c, _Inout_ VFSProvider* provif,
+                               _Inout_ sa_VFSPendList* lists, _In_ strref dirpath)
+{
+    VFSMount* m     = c->mount;
+    int32 dirdepth  = saSize(c->relcomp) - 1;
+    bool casefix    = !(vfs->flags & VFS_CaseSensitive) && (m->flags & VFS_CaseSensitive);
+    bool exists     = true;
+    string real = 0, vdir = 0;
+    VFSListing* ret = NULL;
+    int32 depth;
+
+    if (c->ldepth >= 0) {
+        strDup(&real, c->ldir);
+        depth = c->ldepth;
+    } else if (!casefix) {
+        // the VFS's spelling is good enough for the provider
+        if (!pathParent(&real, c->relpath))
+            strClear(&real);
+        depth = dirdepth;
+    } else {
+        depth = 0;
+    }
+
+    if (depth < dirdepth) {
+        strDup(&vdir, c->mountpath);
+        for (int32 i = 0; i < depth; i++) pathJoin(&vdir, vdir, c->relcomp.a[i]);
+    }
+
+    while (depth < dirdepth && exists) {
+        VFSPendList pl = { 0 };
+        if (!_vfsListDir(&pl.l, vfs, m, provif, real))
+            goto out;
+        strDup(&pl.dirpath, vdir);
+
+        htelem e = pl.l.exists ? htFind(pl.l.ents, string, c->relcomp.a[depth], none, NULL) : 0;
+        if (e && hteValPtr(pl.l.ents, VFSListEnt, e)->type == FS_Directory)
+            pathJoin(&real, real, hteKey(pl.l.ents, string, e));
+        else
+            exists = false;
+
+        saPushC(lists, VFSPendList, &pl);
+        pathJoin(&vdir, vdir, c->relcomp.a[depth]);
+        depth++;
+    }
+
+    VFSPendList pl = { 0 };
+    if (exists) {
+        if (!_vfsListDir(&pl.l, vfs, m, provif, real))
+            goto out;
+    } else {
+        // somewhere above it is missing, so it is not there either
+        _vfsListingInit(&pl.l, vfs, m, real);
+    }
+    strDup(&pl.dirpath, dirpath);
+    int32 idx = saPushC(lists, VFSPendList, &pl);
+    ret       = &lists->a[idx].l;
+
+out:
+    strDestroy(&real);
+    strDestroy(&vdir);
+    return ret;
+}
+
 // This function does all the heavy lifting of the VFS system.
 //
 // It runs in three phases, and the split is the point: the middle phase calls into providers,
 // and a provider can be another VFS pointing back at this one, so it must run with no VFS lock
 // held. Phase one gathers everything a provider call needs into a snapshot, phase two does the
 // calls, and phase three puts the results into the cache.
+//
+// A layer whose listing of the directory is cached is answered from it in phase one, and never
+// asked. A listable layer with no listing yet is asked for the whole directory instead of just
+// the one entry, and phase three keeps the listing.
 _Use_decl_annotations_
 VFSMount* _vfsFindMount(VFS* vfs, string* rpath, strref path, VFSMount** cowmount, string* cowrpath,
-                        uint32 flags)
+                        uint32 flags, VFSFound* found)
 {
     VFSMount* ret           = 0;
     VFSMount* firstwritable = 0;
     VFSMount* alwayscow     = 0;
-    string abspath = 0, curpath = 0, firstwpath = 0, cachedir = 0, cachename = 0;
+    string abspath = 0, curpath = 0, firstwpath = 0, dirpath = 0, fname = 0;
     sa_VFSCand cands      = saInitNone;
     sa_VFSPendEnt pending = saInitNone;
-    uint32 gen;
+    sa_VFSPendList lists  = saInitNone;
+    VFSDir* pdir          = NULL;
+    uint32 gen, cgen;
 
     if (cowmount)
         *cowmount = NULL;
+    if (found)
+        memset(found, 0, sizeof(VFSFound));
 
     if (!vfs)
         return NULL;
@@ -818,45 +1005,69 @@ VFSMount* _vfsFindMount(VFS* vfs, string* rpath, strref path, VFSMount** cowmoun
     rwlockAcquireRead(&vfs->vfsdlock);
     rwlockAcquireRead(&vfs->vfslock);
 
-    // see if we can get this from the file cache
     _vfsAbsPath(vfs, &abspath, path);
+    pathFilename(&fname, abspath);
+
+    // see if we can get this from the file cache
     if (flcache && !flcreate && !fldelete) {
-        VFSCacheEnt* ent = _vfsGetFile(vfs, abspath, false);
+        pdir             = _vfsGetDir(vfs, abspath, true, true, false);
+        VFSCacheEnt* ent = NULL;
+        if (pdir)
+            htFind(pdir->files, string, fname, VFSCacheEnt, &ent);
         // only for simple case, i.e. no need to do COW or find a writable layer
         if (ent && (!flwrite || !(ent->mount->flags & VFS_ReadOnly))) {
             strDup(rpath, ent->origpath);
             ret = objAcquire(ent->mount);
+
+            // the mount's listing of the directory, if it has one, has the rest
+            VFSListing* l = (found && _vfsMountListable(ret)) ? _vfsListingFor(pdir, ret) : NULL;
+            htelem e      = (l && l->exists) ? htFind(l->ents, strref, fname, none, NULL) : 0;
+            if (e) {
+                VFSListEnt* le = hteValPtr(l->ents, VFSListEnt, e);
+                found->type    = le->type;
+                found->stat    = le->stat;
+                found->valid   = true;
+            }
+
             rwlockReleaseRead(&vfs->vfslock);
             rwlockReleaseRead(&vfs->vfsdlock);
             strDestroy(&abspath);
+            strDestroy(&fname);
             return ret;
         }
     }
 
     saInit(&cands, VFSCand, 8);
-    _vfsSnapshot(vfs, &cands, abspath, true);
-    gen = vfs->mountgen;
+    _vfsSnapshot(vfs, &cands, abspath, true, &pdir);
+    if (pdir && !strEmpty(fname)) {
+        for (int32 i = 0, n = saSize(cands); i < n; i++) candFromListings(&cands.a[i], pdir, fname);
+    }
+    gen  = vfs->mountgen;
+    cgen = atomicLoad(uint32, &vfs->cachegen, Relaxed);
 
     rwlockReleaseRead(&vfs->vfslock);
     rwlockReleaseRead(&vfs->vfsdlock);
 
     // ---- phase 2: ask the providers, with no lock held
     saInit(&pending, VFSPendEnt, 8);
+    if (!pathParent(&dirpath, abspath))
+        strDup(&dirpath, abspath);
 
     for (int32 i = 0, n = saSize(cands); i < n; i++) {
-        VFSMount* m = cands.a[i].mount;
+        VFSCand* c  = &cands.a[i];
+        VFSMount* m = c->mount;
 
         // save first writable provider we find
         if (!firstwritable && !(m->flags & VFS_ReadOnly)) {
             firstwritable = m;
-            strDup(&firstwpath, cands.a[i].relpath);
+            strDup(&firstwpath, c->relpath);
         }
 
         if (cowmount && !alwayscow && (m->flags & VFS_AlwaysCOW)) {
             // this provider wants to get COW copies for any write
             alwayscow = m;
             *cowmount = objAcquire(m);
-            strDup(cowrpath, cands.a[i].relpath);
+            strDup(cowrpath, c->relpath);
         }
 
         VFSProvider* provif = objInstIf(m->provider, VFSProvider);
@@ -865,31 +1076,53 @@ VFSMount* _vfsFindMount(VFS* vfs, string* rpath, strref path, VFSMount** cowmoun
 
         // Start from this mount's own path every time. The case-insensitive helper rewrites it
         // with the provider's real casing, which must not carry over to the next provider.
-        strDup(&curpath, cands.a[i].relpath);
+        strDup(&curpath, c->relpath);
 
-        int stat;
-        if (!(vfs->flags & VFS_CaseSensitive) && (m->flags & VFS_CaseSensitive)) {
+        int stat       = FS_Nonexistent;
+        FSStat st      = { 0 };
+        bool stvalid   = false;
+        VFSListing* dl = NULL;
+
+        if (c->lstate == VFS_LHit) {
+            stat    = c->ltype;
+            st      = c->lstat;
+            stvalid = true;
+            pathJoin(&curpath, c->ldir, c->lname);
+        } else if (c->lstate == VFS_LMiss) {
+            // anything created here goes in the directory's real path, when it is known
+            if (c->ldepth == saSize(c->relcomp) - 1)
+                pathJoin(&curpath, c->ldir, fname);
+        } else if (_vfsMountListable(m) && !strEmpty(fname) &&
+                   (dl = candListDir(vfs, c, provif, &lists, dirpath))) {
+            htelem e = dl->exists ? htFind(dl->ents, string, fname, none, NULL) : 0;
+            if (e) {
+                VFSListEnt* le = hteValPtr(dl->ents, VFSListEnt, e);
+                stat           = le->type;
+                st             = le->stat;
+                stvalid        = true;
+                pathJoin(&curpath, dl->relpath, hteKey(dl->ents, string, e));
+            } else {
+                pathJoin(&curpath, dl->relpath, fname);
+            }
+        } else if (!(vfs->flags & VFS_CaseSensitive) && (m->flags & VFS_CaseSensitive)) {
             // case-sensitive file system on insensitive VFS, find the real underlying path
-            stat = _vfsFindCIHelper(&curpath,
-                                    cands.a[i].mountpath,
-                                    cands.a[i].relcomp,
-                                    m,
-                                    provif,
-                                    &pending);
+            stat = _vfsFindCIHelper(&curpath, c->mountpath, c->relcomp, m, provif, &pending);
         } else {
-            stat = provif->stat(m->provider, curpath, NULL);
+            stat    = provif->stat(m->provider, curpath, &st);
+            stvalid = stat != FS_Nonexistent;
         }
 
-        if (stat == FS_Directory) {
-            // found a directory, don't cache this as a file
+        if (stat == FS_Directory || stat == FS_File) {
             ret = m;
             strDup(rpath, curpath);
-            flcache = false;
-            break;
-        } else if (stat == FS_File) {
-            // found an existing file
-            ret = m;
-            strDup(rpath, curpath);
+            if (found) {
+                found->type  = stat;
+                found->stat  = st;
+                found->valid = stvalid;
+            }
+            // a directory is not cached as a file
+            if (stat == FS_Directory)
+                flcache = false;
             break;
         }
 
@@ -913,7 +1146,8 @@ VFSMount* _vfsFindMount(VFS* vfs, string* rpath, strref path, VFSMount** cowmoun
         strDup(rpath, firstwpath);
     }
 
-    // The file already lives on (or is being created on) the AlwaysCOW layer, so there is nothing to copy up.
+    // The file already lives on (or is being created on) the AlwaysCOW layer, so there is
+    // nothing to copy up.
     if (alwayscow && ret == alwayscow) {
         objRelease(cowmount);
         strDestroy(cowrpath);
@@ -925,10 +1159,8 @@ VFSMount* _vfsFindMount(VFS* vfs, string* rpath, strref path, VFSMount** cowmoun
     if (ret && flcache && !(ret->flags & VFS_NoCache)) {
         VFSPendEnt pe = { 0 };
         pe.mount      = objAcquire(ret);
-        pathParent(&cachedir, abspath);
-        pathFilename(&cachename, abspath);
-        strDup(&pe.dirpath, cachedir);
-        strDup(&pe.name, cachename);
+        strDup(&pe.dirpath, dirpath);
+        strDup(&pe.name, fname);
         strDup(&pe.origpath, *rpath);
         saPushC(&pending, VFSPendEnt, &pe);
     }
@@ -936,13 +1168,17 @@ VFSMount* _vfsFindMount(VFS* vfs, string* rpath, strref path, VFSMount** cowmoun
     objAcquire(ret);
 
     // ---- phase 3: write what the providers told us into the cache
-    if (saSize(pending) > 0) {
+    if (saSize(pending) > 0 || saSize(lists) > 0) {
         rwlockAcquireRead(&vfs->vfsdlock);
         rwlockAcquireWrite(&vfs->vfslock);
         // A mount or unmount in the meantime means these entries may describe a tree that no
-        // longer exists, so drop them rather than cache something stale.
-        if (gen == vfs->mountgen)
+        // longer exists, and an invalidation means a listing may be missing a change that was
+        // already reported, so drop them rather than cache something stale.
+        if (gen == vfs->mountgen) {
             _vfsFlushPending(vfs, &pending);
+            if (cgen == atomicLoad(uint32, &vfs->cachegen, Relaxed))
+                _vfsStoreListings(vfs, &lists);
+        }
         rwlockReleaseWrite(&vfs->vfslock);
         rwlockReleaseRead(&vfs->vfsdlock);
     }
@@ -950,9 +1186,10 @@ VFSMount* _vfsFindMount(VFS* vfs, string* rpath, strref path, VFSMount** cowmoun
     strDestroy(&abspath);
     strDestroy(&curpath);
     strDestroy(&firstwpath);
-    strDestroy(&cachedir);
-    strDestroy(&cachename);
+    strDestroy(&dirpath);
+    strDestroy(&fname);
     saDestroy(&pending);
+    saDestroy(&lists);
     saDestroy(&cands);
     return ret;
 }

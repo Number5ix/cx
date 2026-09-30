@@ -24,6 +24,11 @@ class VFSTestProv implements VFSProvider implements VFSWatchable {
     uint32 failmask;    // VFSTPFail switches
     int64 mtime;        // timestamp reported for every entry
 
+    // How many times each of these was called, so a test can tell the provider was not asked.
+    atomic[int32] nstat;
+    atomic[int32] nsearch;
+    atomic[int32] nopen;
+
     // Paths are provider-relative with no leading separator; "" is the provider root.
     [noinit] hashtable files;   // string path -> string contents
     [noinit] hashtable dirs;    // string path -> int32 (a set; the value is unused)

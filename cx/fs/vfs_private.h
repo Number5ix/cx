@@ -31,7 +31,23 @@ typedef struct VFSCand {
     string mountpath;    // absolute VFS path of the mount point
     string relpath;      // path below the mount point, as the provider sees it
     sa_string relcomp;   // relpath, split into components
+
+    // What the cached listings say, filled in by _vfsFindMount.
+    int32 lstate;   // VFSCandListState
+    int32 ltype;    // on a hit
+    FSStat lstat;   // on a hit
+    string lname;   // on a hit, the entry's real name
+    bool lnodir;    // a miss because the directory is not there at all
+    // The real path in the provider of the directory holding the entry, or of one of its
+    // ancestors: ldepth is how many of its components that covers, or -1 if nothing is known.
+    string ldir;
+    int32 ldepth;
 } VFSCand;
+enum VFSCandListState {
+    VFS_LNone = 0,   // no listing to go by
+    VFS_LHit,
+    VFS_LMiss,
+};
 saDeclare(VFSCand);
 stDeclare(VFSCand);
 #define SType_VFSCand                         VFSCand*
@@ -94,6 +110,21 @@ stDeclare(VFSListing);
 
 // Starts an empty listing of relpath in mount m. Takes a reference on m.
 void _vfsListingInit(_Out_ VFSListing* l, _In_ VFS* vfs, _In_ VFSMount* m, _In_opt_ strref relpath);
+void _vfsListingDestroy(_Inout_ VFSListing* l);
+
+// A listing made with no lock held, waiting to be stored on the VFSDir at dirpath.
+typedef struct VFSPendList {
+    string dirpath;
+    VFSListing l;
+} VFSPendList;
+saDeclare(VFSPendList);
+stDeclare(VFSPendList);
+#define SType_VFSPendList                         VFSPendList*
+#define STStorageType_VFSPendList                 VFSPendList
+#define STypeArg_VFSPendList(type, val)           stgeneric(opaque, &(val))
+#define STypeArgPtr_VFSPendList(type, val)        &stgeneric(opaque, (val))
+#define STypeCheckedArg_VFSPendList(type, val)    stType(type), stArg(type, val)
+#define STypeCheckedPtrArg_VFSPendList(type, val) stType(type), stArgPtr(type, val)
 VFSCacheEnt* _vfsCacheEntCreate(VFSMount* m, strref opath);
 extern STypeOps VFSCacheEnt_ops;
 
@@ -148,9 +179,16 @@ enum VFS_FIND_PROVIDER_ENUM {
     VFS_FindDelete    = 0x0400,
     VFS_FindCache     = 0x1000,
 };
+// What _vfsFindMount found out about the path along the way, so the caller need not ask again.
+typedef struct VFSFound {
+    int32 type;   // FSPathStat
+    FSStat stat;
+    bool valid;   // type and stat are filled in
+} VFSFound;
 _Ret_opt_valid_ VFSMount*
 _vfsFindMount(_Inout_ VFS* vfs, _Inout_ string* rpath, _In_opt_ strref path,
-              _Out_opt_ VFSMount** cowmount, _Inout_opt_ string* cowrpath, flags_t flags);
+              _Out_opt_ VFSMount** cowmount, _Inout_opt_ string* cowrpath, flags_t flags,
+              _Out_opt_ VFSFound* found);
 // Finds a mount registered directly on abspath's own VFSDir node, as opposed to a mount that
 // would serve abspath as a file within its parent (which is what _vfsFindMount answers).
 _Ret_opt_valid_ VFSMount* _vfsFindSelfMount(_Inout_ VFS* vfs, _In_opt_ strref abspath);
@@ -165,9 +203,34 @@ _Requires_shared_lock_held_(vfs->vfslock) void _vfsAbsPath(_Inout_ VFS* vfs, _In
 
 // Builds the ordered list of providers that could serve path. Stops at the first opaque layer,
 // since nothing below one is reachable. Takes a reference on every mount it records.
+// dir, if given, receives the directory node the snapshot started from: abspath itself, or its
+// parent when isfile.
 _Requires_shared_lock_held_(vfs->vfslock) void _vfsSnapshot(_Inout_ VFS* vfs,
                                                             _Inout_ sa_VFSCand* out,
-                                                            _In_opt_ strref abspath, bool isfile);
+                                                            _In_opt_ strref abspath, bool isfile,
+                                                            _Out_opt_ VFSDir** dir);
+
+// ---- directory listings ----
+
+// Can listings from m be cached right now?
+_meta_inline bool _vfsMountListable(_In_ VFSMount* m)
+{
+    return !(m->flags & VFS_NoCache) && atomicLoad(bool, &m->listable, Acquire);
+}
+
+// The listing dir has for mount m, if any. VFS locks must be held.
+_Ret_maybenull_ VFSListing* _vfsListingFor(_In_ VFSDir* dir, _In_ VFSMount* m);
+
+// Lists relpath in m's provider into out. A directory the provider does not have gives an empty
+// listing. Returns false, leaving out empty, if the provider could not say either way. Calls
+// into the provider, so no VFS lock may be held.
+bool _vfsListDir(_Out_ VFSListing* out, _Inout_ VFS* vfs, _Inout_ VFSMount* m,
+                 _Inout_ VFSProvider* provif, _In_opt_ strref relpath);
+
+// Stores listings made with no lock held, unless their directories already have one for that
+// mount. The caller checks mountgen and cachegen first.
+_Requires_exclusive_lock_held_(vfs->vfslock) void _vfsStoreListings(_Inout_ VFS* vfs,
+                                                                    _Inout_ sa_VFSPendList* lists);
 
 // Inserts cache entries that were discovered with no lock held.
 _Requires_exclusive_lock_held_(vfs->vfslock) void _vfsFlushPending(_Inout_ VFS* vfs,

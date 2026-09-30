@@ -112,7 +112,7 @@ bool vfsSearchInit(FSSearchIter* iter, VFS* vfs, strref path, strref pattern, in
         }
     }
 
-    _vfsSnapshot(vfs, &cands, abspath, false);
+    _vfsSnapshot(vfs, &cands, abspath, false, NULL);
     gen = vfs->mountgen;
 
     rwlockReleaseRead(&vfs->vfslock);

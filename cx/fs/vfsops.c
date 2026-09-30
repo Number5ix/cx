@@ -7,9 +7,14 @@ FSPathStat vfsStat(VFS* vfs, strref path, FSStat* stat)
 {
     int ret      = FS_Nonexistent;
     string rpath = 0, abspath = 0;
+    VFSFound found;
 
-    VFSMount* m = _vfsFindMount(vfs, &rpath, path, NULL, NULL, VFS_FindCache);
-    if (m) {
+    VFSMount* m = _vfsFindMount(vfs, &rpath, path, NULL, NULL, VFS_FindCache, &found);
+    if (m && found.valid) {
+        ret = found.type;
+        if (stat)
+            *stat = found.stat;
+    } else if (m) {
         VFSProvider* provif = objInstIf(m->provider, VFSProvider);
         if (provif)
             ret = provif->stat(m->provider, rpath, stat);
@@ -46,7 +51,7 @@ bool vfsSetTimes(VFS* vfs, strref path, int64 modified, int64 accessed)
     bool ret     = false;
     string rpath = 0;
 
-    VFSMount* m = _vfsFindMount(vfs, &rpath, path, NULL, NULL, VFS_FindCache);
+    VFSMount* m = _vfsFindMount(vfs, &rpath, path, NULL, NULL, VFS_FindCache, NULL);
     if (!m)
         goto out;
 
@@ -73,7 +78,7 @@ bool vfsCreateDir(VFS* vfs, strref path)
     bool ret     = false;
     string rpath = 0;
 
-    VFSMount* m = _vfsFindMount(vfs, &rpath, path, NULL, NULL, VFS_FindCreate);
+    VFSMount* m = _vfsFindMount(vfs, &rpath, path, NULL, NULL, VFS_FindCreate, NULL);
     if (!m) {
         cxerr = CX_FileNotFound;
         goto out;
@@ -115,7 +120,7 @@ bool vfsRemoveDir(VFS* vfs, strref path)
     bool ret     = false;
     string rpath = 0;
 
-    VFSMount* m = _vfsFindMount(vfs, &rpath, path, NULL, NULL, VFS_FindDelete);
+    VFSMount* m = _vfsFindMount(vfs, &rpath, path, NULL, NULL, VFS_FindDelete, NULL);
     if (!m) {
         cxerr = CX_FileNotFound;
         goto out;
@@ -144,7 +149,7 @@ bool vfsDelete(VFS* vfs, strref path)
     bool ret     = false;
     string rpath = 0;
 
-    VFSMount* m = _vfsFindMount(vfs, &rpath, path, NULL, NULL, VFS_FindDelete);
+    VFSMount* m = _vfsFindMount(vfs, &rpath, path, NULL, NULL, VFS_FindDelete, NULL);
     if (!m) {
         cxerr = CX_FileNotFound;
         goto out;
@@ -213,13 +218,14 @@ bool vfsRename(VFS* vfs, strref from, strref to)
     bool ret         = false;
     string rpathfrom = 0, rpathto = 0;
 
-    VFSMount* mfrom = _vfsFindMount(vfs, &rpathfrom, from, NULL, NULL, VFS_FindCache);
+    VFSMount* mfrom = _vfsFindMount(vfs, &rpathfrom, from, NULL, NULL, VFS_FindCache, NULL);
     VFSMount* mto   = _vfsFindMount(vfs,
                                   &rpathto,
                                   to,
                                   NULL,
                                   NULL,
-                                  VFS_FindWriteFile | VFS_FindCreate | VFS_FindCache);
+                                  VFS_FindWriteFile | VFS_FindCreate | VFS_FindCache,
+                                  NULL);
     if (!(mfrom && mto)) {
         cxerr = CX_FileNotFound;
         goto out;
@@ -268,7 +274,7 @@ bool vfsGetFSPath(string* out, VFS* vfs, strref path)
     bool ret     = false;
     string rpath = 0;
 
-    VFSMount* m = _vfsFindMount(vfs, &rpath, path, NULL, NULL, VFS_FindCache);
+    VFSMount* m = _vfsFindMount(vfs, &rpath, path, NULL, NULL, VFS_FindCache, NULL);
     if (!m) {
         cxerr = CX_FileNotFound;
         goto out;

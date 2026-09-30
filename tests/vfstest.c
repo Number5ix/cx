@@ -6,6 +6,7 @@
 #include <cx/thread/thread.h>
 #include <cx/time/time.h>
 #include <cx/platform/base.h>
+#include <cx/platform/os.h>
 #include <cx/string.h>
 
 #include "vfstestprov.h"
@@ -1355,6 +1356,343 @@ out:
     return ret;
 }
 
+// ---- directory listings ------------------------------------------------------------------
+
+// Every call the provider has taken so far, for telling that a lookup never reached it.
+static int32 provCalls(_In_ VFSTestProv* p)
+{
+    return atomicLoad(int32, &p->nstat, Relaxed) + atomicLoad(int32, &p->nsearch, Relaxed) +
+           atomicLoad(int32, &p->nopen, Relaxed);
+}
+
+static void checkNoCalls(_Inout_ int* ret, _In_ VFSTestProv* p, int32 before, _In_ strref what)
+{
+    int32 now = provCalls(p);
+    if (now != before) {
+        TEST_FAILV(*ret, 1, _SL("${string}: provider was called ${int} times, wanted none"),
+                   stvar(strref, what), stvar(int32, now - before));
+    }
+}
+
+// A change reported through a watch reaches the cache on another thread, so wait for it.
+static void waitStat(_Inout_ int* ret, _Inout_ VFS* vfs, _In_ strref path, int want)
+{
+    int got = FS_Nonexistent;
+    for (int i = 0; i < 2000; i++) {
+        got = vfsStat(vfs, path, NULL);
+        if (got == want)
+            return;
+        osSleep(timeMS(5));
+    }
+    TEST_FAILV(*ret, 1, _SL("vfsStat('${string}') still ${int} after waiting, wanted ${int}"),
+               stvar(strref, path), stvar(int32, got), stvar(int32, want));
+}
+
+static void waitSize(_Inout_ int* ret, _Inout_ VFS* vfs, _In_ strref path, uint64 want)
+{
+    FSStat st = { 0 };
+    for (int i = 0; i < 2000; i++) {
+        if (vfsStat(vfs, path, &st) == FS_File && st.size == want)
+            return;
+        osSleep(timeMS(5));
+    }
+    TEST_FAILV(*ret, 1, _SL("size of '${string}' still ${uint} after waiting, wanted ${uint}"),
+               stvar(strref, path), stvar(uint64, st.size), stvar(uint64, want));
+}
+
+// An immutable layer answers every lookup in a directory it has listed, hit or miss, without
+// asking the provider again.
+static int test_vfs_list_immutable(void)
+{
+    int ret           = 0;
+    VFS* vfs          = vfsCreate(VFS_CaseSensitive);
+    VFSTestProv* prov = sampleProvider(VFS_CaseSensitive, _S"1");
+    FSStat st         = { 0 };
+
+    vfsMountProvider(vfs, prov, _S"/", VFS_Immutable);
+
+    checkStat(&ret, vfs, _S"/sub/b.txt", FS_File);
+    int32 before = provCalls(prov);
+
+    if (vfsStat(vfs, _S"/sub/b.txt", &st) != FS_File || st.size != 3)
+        TEST_FAILV(ret, 1, _SL("stat of /sub/b.txt gave size ${uint}, wanted 3"), stvar(uint64, st.size));
+    checkStat(&ret, vfs, _S"/sub/deep", FS_Directory);
+    checkStat(&ret, vfs, _S"/sub/nope.txt", FS_Nonexistent);
+    checkStat(&ret, vfs, _S"/sub/nope/deeper.txt", FS_Nonexistent);
+    checkNoCalls(&ret, prov, before, _S"lookups in a listed directory");
+
+    if (atomicLoad(int32, &prov->nstat, Relaxed) != 0)
+        TEST_FAILV(ret, 1, _SL("provider stat was called ${int} times, wanted none"),
+                   stvar(int32, atomicLoad(int32, &prov->nstat, Relaxed)));
+
+    // the file is still read from the right place
+    checkContents(&ret, vfs, _S"/sub/b.txt", _S"b:1");
+
+    objRelease(&prov);
+    vfsDestroy(&vfs);
+    return ret;
+}
+
+// A listed layer above an unlisted one: the listed one is answered from memory, and the
+// unlisted one is still asked every time.
+static int test_vfs_list_mixed(void)
+{
+    int ret            = 0;
+    VFS* vfs           = vfsCreate(VFS_CaseSensitive);
+    VFSTestProv* lower = vfstestprovCreate(VFS_CaseSensitive);
+    VFSTestProv* upper = sampleProvider(VFS_CaseSensitive, _S"up");
+
+    vfstestprovAddFile(lower, _S"sub/low.txt", _S"low");
+    vfsMountProvider(vfs, lower, _S"/");
+    vfsMountProvider(vfs, upper, _S"/", VFS_Immutable);
+
+    checkStat(&ret, vfs, _S"/sub/low.txt", FS_File);
+    checkStat(&ret, vfs, _S"/sub/b.txt", FS_File);
+    int32 upbefore  = provCalls(upper);
+    int32 lowbefore = atomicLoad(int32, &lower->nstat, Relaxed);
+
+    checkStat(&ret, vfs, _S"/sub/none.txt", FS_Nonexistent);
+    checkStat(&ret, vfs, _S"/sub/b.txt", FS_File);
+    checkContents(&ret, vfs, _S"/sub/low.txt", _S"low");
+    checkNoCalls(&ret, upper, upbefore, _S"lookups through a listed upper layer");
+    if (atomicLoad(int32, &lower->nstat, Relaxed) == lowbefore)
+        TEST_FAILV(ret, 1, _SL("the unlisted lower layer was not asked about a miss"), stvNone);
+
+    objRelease(&lower);
+    objRelease(&upper);
+    vfsDestroy(&vfs);
+    return ret;
+}
+
+// A case-insensitive VFS over a case-sensitive provider finds names in any case from the
+// listings, and learns each directory's real name only once.
+static int test_vfs_list_caseinsens(void)
+{
+    int ret           = 0;
+    VFS* vfs          = vfsCreate(0);
+    VFSTestProv* prov = vfstestprovCreate(VFS_CaseSensitive);
+
+    vfstestprovAddFile(prov, _S"Sub/Deep/C.txt", _S"c");
+    vfstestprovAddFile(prov, _S"Sub/b.TXT", _S"b");
+    vfsMountProvider(vfs, prov, _S"/", VFS_Immutable);
+
+    checkStat(&ret, vfs, _S"/SUB/deep/c.TXT", FS_File);
+    checkContents(&ret, vfs, _S"/sub/DEEP/C.txt", _S"c");
+    int32 before = provCalls(prov);
+
+    checkStat(&ret, vfs, _S"/sub/deep/c.txt", FS_File);
+    checkStat(&ret, vfs, _S"/sUb/B.txt", FS_File);
+    checkStat(&ret, vfs, _S"/sub/other/x.txt", FS_Nonexistent);
+    checkNoCalls(&ret, prov, before, _S"case-insensitive lookups after listing");
+
+    objRelease(&prov);
+    vfsDestroy(&vfs);
+    return ret;
+}
+
+// Changes a VFS_CacheListings mount's watch reports reach the cached listings.
+static int test_vfs_list_events(void)
+{
+    int ret           = 0;
+    VFS* vfs          = vfsCreate(VFS_CaseSensitive | VFS_CacheListings);
+    VFSTestProv* prov = sampleProvider(VFS_CaseSensitive, _S"1");
+
+    vfsMountProvider(vfs, prov, _S"/");
+
+    checkStat(&ret, vfs, _S"/sub/b.txt", FS_File);
+    int32 before = provCalls(prov);
+    checkStat(&ret, vfs, _S"/sub/new.txt", FS_Nonexistent);
+    checkNoCalls(&ret, prov, before, _S"a VFS_CacheListings mount after listing");
+
+    vfstestprovAddFile(prov, _S"sub/new.txt", _S"new");
+    vfstestprovInject(prov, FSWE_Created, _S"sub/new.txt", NULL);
+    waitStat(&ret, vfs, _S"/sub/new.txt", FS_File);
+
+    htRemove(&prov->files, string, _S"sub/new.txt");
+    vfstestprovInject(prov, FSWE_Removed, _S"sub/new.txt", NULL);
+    waitStat(&ret, vfs, _S"/sub/new.txt", FS_Nonexistent);
+
+    vfstestprovAddFile(prov, _S"sub/b.txt", _S"longer contents");
+    vfstestprovInject(prov, FSWE_Modified, _S"sub/b.txt", NULL);
+    waitSize(&ret, vfs, _S"/sub/b.txt", 15);
+
+    // a directory that appears takes what is in it along
+    checkStat(&ret, vfs, _S"/sub/newdir/f.txt", FS_Nonexistent);
+    vfstestprovAddFile(prov, _S"sub/newdir/f.txt", _S"f");
+    vfstestprovInject(prov, FSWE_Created, _S"sub/newdir", NULL);
+    waitStat(&ret, vfs, _S"/sub/newdir/f.txt", FS_File);
+
+    checkStat(&ret, vfs, _S"/sub/deep/r.txt", FS_Nonexistent);
+    vfstestprovAddFile(prov, _S"sub/deep/r.txt", _S"r");
+    vfstestprovInject(prov, FSWE_Rescan, _S"sub", NULL);
+    waitStat(&ret, vfs, _S"/sub/deep/r.txt", FS_File);
+
+    objRelease(&prov);
+    vfsDestroy(&vfs);
+    return ret;
+}
+
+// Once its watch stops, a VFS_CacheListings mount goes back to asking the provider.
+static int test_vfs_list_stopped(void)
+{
+    int ret           = 0;
+    VFS* vfs          = vfsCreate(VFS_CaseSensitive);
+    VFSTestProv* prov = sampleProvider(VFS_CaseSensitive, _S"1");
+
+    vfsMountProvider(vfs, prov, _S"/", VFS_CacheListings);
+    checkStat(&ret, vfs, _S"/sub/b.txt", FS_File);
+
+    vfstestprovInject(prov, FSWE_Stopped, _S"", NULL);
+
+    // no event for this one; only asking the provider finds it
+    vfstestprovAddFile(prov, _S"sub/quiet.txt", _S"q");
+    waitStat(&ret, vfs, _S"/sub/quiet.txt", FS_File);
+
+    int32 before = atomicLoad(int32, &prov->nstat, Relaxed);
+    checkStat(&ret, vfs, _S"/sub/none.txt", FS_Nonexistent);
+    checkStat(&ret, vfs, _S"/sub/none.txt", FS_Nonexistent);
+    if (atomicLoad(int32, &prov->nstat, Relaxed) - before != 2)
+        TEST_FAILV(ret, 1, _SL("a stopped mount was not asked about every miss"), stvNone);
+
+    objRelease(&prov);
+    vfsDestroy(&vfs);
+    return ret;
+}
+
+// Pruning the cache drops listings too.
+static int test_vfs_list_evict(void)
+{
+    int ret           = 0;
+    VFS* vfs          = vfsCreate(VFS_CaseSensitive);
+    VFSTestProv* prov = sampleProvider(VFS_CaseSensitive, _S"1");
+
+    vfsMountProvider(vfs, prov, _S"/", VFS_Immutable);
+    checkStat(&ret, vfs, _S"/a.txt", FS_File);
+    checkStat(&ret, vfs, _S"/sub/b.txt", FS_File);
+
+    int32 before = atomicLoad(int32, &prov->nsearch, Relaxed);
+    vfsSetCacheLimits(vfs, 1, 1);
+    osSleep(timeMS(2));
+    vfsPruneCache(vfs);
+    vfsSetCacheLimits(vfs, 0, 0);
+
+    checkStat(&ret, vfs, _S"/a.txt", FS_File);
+    checkStat(&ret, vfs, _S"/sub/b.txt", FS_File);
+    if (atomicLoad(int32, &prov->nsearch, Relaxed) - before != 2)
+        TEST_FAILV(ret, 1, _SL("pruning did not drop both listings"), stvNone);
+
+    objRelease(&prov);
+    vfsDestroy(&vfs);
+    return ret;
+}
+
+// VFS_NoCache wins over the flags that ask for listings.
+static int test_vfs_list_nocache(void)
+{
+    int ret           = 0;
+    VFS* vfs          = vfsCreate(VFS_CaseSensitive | VFS_NoCache | VFS_CacheListings);
+    VFSTestProv* prov = sampleProvider(VFS_CaseSensitive, _S"1");
+
+    vfsMountProvider(vfs, prov, _S"/", VFS_Immutable);
+
+    checkStat(&ret, vfs, _S"/sub/b.txt", FS_File);
+    checkStat(&ret, vfs, _S"/sub/b.txt", FS_File);
+    if (atomicLoad(int32, &prov->nsearch, Relaxed) != 0 || atomicLoad(int32, &prov->nstat, Relaxed) != 2)
+        TEST_FAILV(ret, 1, _SL("VFS_NoCache lookups: ${int} searches and ${int} stats, wanted 0 and 2"),
+                   stvar(int32, atomicLoad(int32, &prov->nsearch, Relaxed)),
+                   stvar(int32, atomicLoad(int32, &prov->nstat, Relaxed)));
+
+    objRelease(&prov);
+    vfsDestroy(&vfs);
+    return ret;
+}
+
+#define VFS_LSTRESS_ITERS 300
+static VFS* g_vfsListVFS;
+static VFSTestProv* g_vfsListProv;
+
+static int vfsListStressChanger(Thread* self)
+{
+    string path = 0;
+    for (int i = 0; i < VFS_LSTRESS_ITERS; i++) {
+        strFormat(&path, _SL("sub/f${int}.txt"), stvar(int32, i % 8));
+        vfstestprovInject(g_vfsListProv, (i & 1) ? FSWE_Modified : FSWE_Created, path, NULL);
+        if (i % 50 == 0)
+            vfstestprovInject(g_vfsListProv, FSWE_Rescan, _S"", NULL);
+        if (i % 25 == 0) {
+            VFSTestProv* p = vfstestprovCreate(VFS_CaseSensitive);
+            vfstestprovAddFile(p, _S"x.txt", _S"x");
+            vfsMountProvider(g_vfsListVFS, p, _S"/mnt", VFS_CacheListings);
+            objRelease(&p);
+            vfsUnmount(g_vfsListVFS, _S"/mnt");
+        }
+    }
+    strDestroy(&path);
+    return 0;
+}
+
+static int vfsListStressReader(Thread* self)
+{
+    string path = 0;
+    for (int i = 0; i < VFS_LSTRESS_ITERS; i++) {
+        strFormat(&path, _SL("/sub/f${int}.txt"), stvar(int32, i % 8));
+        vfsStat(g_vfsListVFS, path, NULL);
+        vfsStat(g_vfsListVFS, _S"/sub/nope.txt", NULL);
+        vfsStat(g_vfsListVFS, _S"/mnt/x.txt", NULL);
+
+        FSSearchIter iter;
+        if (vfsSearchInit(&iter, g_vfsListVFS, _S"/sub", NULL, 0, true)) {
+            while (vfsSearchValid(&iter))
+                vfsSearchNext(&iter);
+        }
+        vfsSearchFinish(&iter);
+    }
+    strDestroy(&path);
+    return 0;
+}
+
+// Readers racing change events and mounts on a VFS that caches listings. Like the concurrency
+// test, what matters is surviving the race and ending up correct.
+static int test_vfs_list_stress(void)
+{
+    int ret        = 0;
+    g_vfsListVFS   = vfsCreate(VFS_CaseSensitive | VFS_CacheListings);
+    g_vfsListProv  = sampleProvider(VFS_CaseSensitive, _S"1");
+    for (int i = 0; i < 8; i++) {
+        string path = 0;
+        strFormat(&path, _SL("sub/f${int}.txt"), stvar(int32, i));
+        vfstestprovAddFile(g_vfsListProv, path, _S"f");
+        strDestroy(&path);
+    }
+    vfsMountProvider(g_vfsListVFS, g_vfsListProv, _S"/");
+
+    Thread* changer = thrCreate(vfsListStressChanger, _S"VFS List Changer", stvNone);
+    Thread* readers[VFS_STRESS_READERS];
+    for (int i = 0; i < VFS_STRESS_READERS; i++)
+        readers[i] = thrCreate(vfsListStressReader, _S"VFS List Reader", stvNone);
+
+    if (!thrWait(changer, timeS(30)))
+        TEST_FAILV(ret, 1, _SL("changer thread did not finish within 30s"), stvNone);
+    thrShutdown(changer);
+    thrRelease(&changer);
+    for (int i = 0; i < VFS_STRESS_READERS; i++) {
+        if (!thrWait(readers[i], timeS(30)))
+            TEST_FAILV(ret, 1, _SL("reader thread ${int} did not finish within 30s"), stvar(int32, i));
+        thrShutdown(readers[i]);
+        thrRelease(&readers[i]);
+    }
+
+    // a change after the dust settles still gets through
+    vfstestprovAddFile(g_vfsListProv, _S"sub/late.txt", _S"late");
+    vfstestprovInject(g_vfsListProv, FSWE_Created, _S"sub/late.txt", NULL);
+    waitStat(&ret, g_vfsListVFS, _S"/sub/late.txt", FS_File);
+    checkContents(&ret, g_vfsListVFS, _S"/sub/f3.txt", _S"f");
+
+    objRelease(&g_vfsListProv);
+    vfsDestroy(&g_vfsListVFS);
+    return ret;
+}
+
 // Each group below runs several of the subtests above in one process, so ctest spends one
 // process launch per feature area instead of one per subtest. The individual subtests stay
 // registered under their own names too, for running or debugging one in isolation.
@@ -1385,6 +1723,13 @@ int test_vfs_grp_cow(void)
 {
     TEST_CHAIN(test_vfs_cow, test_vfs_cowfail, test_vfs_cowtrunc, test_vfs_cowself,
                test_vfs_newfiles);
+}
+
+int test_vfs_grp_listings(void)
+{
+    TEST_CHAIN(test_vfs_list_immutable, test_vfs_list_mixed, test_vfs_list_caseinsens,
+               test_vfs_list_events, test_vfs_list_stopped, test_vfs_list_evict,
+               test_vfs_list_nocache, test_vfs_list_stress);
 }
 
 int test_vfs_grp_misc(void)
@@ -1421,6 +1766,15 @@ testfunc vfstest_funcs[] = {
     { "concurrency",  test_vfs_concurrency  },
     { "fsprov",   test_vfs_fsprov   },
     { "platformfs", test_vfs_platformfs },
+    { "list_immutable", test_vfs_list_immutable },
+    { "list_mixed",     test_vfs_list_mixed     },
+    { "list_caseinsens", test_vfs_list_caseinsens },
+    { "list_events",    test_vfs_list_events    },
+    { "list_stopped",   test_vfs_list_stopped   },
+    { "list_evict",     test_vfs_list_evict     },
+    { "list_nocache",   test_vfs_list_nocache   },
+    { "list_stress",    test_vfs_list_stress    },
+    { "grp_listings",   test_vfs_grp_listings   },
     { "grp_fileops",    test_vfs_grp_fileops    },
     { "grp_mounting",   test_vfs_grp_mounting   },
     { "grp_pathresolve", test_vfs_grp_pathresolve },

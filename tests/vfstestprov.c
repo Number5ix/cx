@@ -68,6 +68,7 @@ _Ret_opt_valid_ File* VFSTestProv_open(_In_ VFSTestProv* self, _In_opt_ strref p
 {
     string rpath = 0;
     tpPath(&rpath, path);
+    atomicFetchAdd(int32, &self->nopen, 1, Relaxed);
 
     bool writing = (flags & (FS_Write | FS_Create | FS_Truncate)) != 0;
     if (writing && (self->failmask & VFSTP_FailOpenWrite))
@@ -95,6 +96,7 @@ FSPathStat VFSTestProv_stat(_In_ VFSTestProv* self, _In_opt_ strref path, _When_
     string rpath = 0, contents = 0;
     int ret      = FS_Nonexistent;
     tpPath(&rpath, path);
+    atomicFetchAdd(int32, &self->nstat, 1, Relaxed);
 
     if (htFind(self->files, string, rpath, string, &contents)) {
         ret = FS_File;
@@ -175,6 +177,7 @@ bool VFSTestProv_getFSPath(_In_ VFSTestProv* self, _Inout_ string* out, _In_opt_
 bool VFSTestProv_searchNext(_In_ VFSTestProv* self, _Inout_ FSSearchIter* iter);
 
 typedef struct VFSTPSearch {
+    string dir;   // the directory being listed, for looking entries up
     sa_string names;
     sa_int32 types;
     int32 idx;
@@ -211,6 +214,7 @@ static void tpCollect(_In_ VFSTestProv* self, _Inout_ VFSTPSearch* search, _In_ 
 bool VFSTestProv_searchInit(_In_ VFSTestProv* self, _Out_ FSSearchIter* iter, _In_opt_ strref path, _In_opt_ strref pattern, bool stat)
 {
     memset(iter, 0, sizeof(FSSearchIter));
+    atomicFetchAdd(int32, &self->nsearch, 1, Relaxed);
 
     if (self->failmask & VFSTP_FailSearchInit)
         return false;
@@ -228,9 +232,11 @@ bool VFSTestProv_searchInit(_In_ VFSTestProv* self, _Out_ FSSearchIter* iter, _I
     saInit(&search->types, int32, 8);
     tpCollect(self, search, self->dirs, FS_Directory, rpath, pattern);
     tpCollect(self, search, self->files, FS_File, rpath, pattern);
-    strDestroy(&rpath);
+    search->dir = rpath;
+    rpath       = NULL;
 
     if (saSize(search->names) == 0) {
+        strDestroy(&search->dir);
         saDestroy(&search->names);
         saDestroy(&search->types);
         xaFree(search);
@@ -261,12 +267,14 @@ bool VFSTestProv_searchNext(_In_ VFSTestProv* self, _Inout_ FSSearchIter* iter)
     strDup(&iter->name, search->names.a[search->idx]);
     iter->type = search->types.a[search->idx];
 
-    string contents = 0;
-    if (htFind(self->files, string, iter->name, string, &contents))
+    string contents = 0, full = 0;
+    pathJoin(&full, search->dir, iter->name);
+    if (htFind(self->files, string, full, string, &contents))
         tpFillStat(self, &iter->stat, strLen(contents));
     else
         tpFillStat(self, &iter->stat, 0);
     strDestroy(&contents);
+    strDestroy(&full);
 
     return true;
 }
@@ -279,6 +287,7 @@ void VFSTestProv_searchFinish(_In_ VFSTestProv* self, _Inout_ FSSearchIter* iter
     if (!search)
         return;
 
+    strDestroy(&search->dir);
     saDestroy(&search->names);
     saDestroy(&search->types);
     xaDestroy(&iter->_search);
@@ -589,38 +598,44 @@ void VFSTestProv_inject(_In_ VFSTestProv* self, int32 kind, _In_opt_ strref path
     foreach (sarray, i, ObjInst*, wobj, live) {
         VFSTestProvWatch* w = (VFSTestProvWatch*)wobj;
         // The most specific target covering each end, as a real provider's watch would pick.
+        // The provider root is an empty -- NULL -- target, so whether one was found is kept apart.
         string tnew = 0, told = 0;
         int32 fnew = 0, fold = 0;
+        bool hnew = false, hold = false;
         withMutex (&w->lock) {
             foreach (hashtable, hti, w->targets) {
                 strref tpath = htiKey(string, hti);
                 int32 tf     = htiVal(int32, hti);
                 bool isdir   = tf & VFSTPW_Dir;
                 if (_fsWatchCovers(tpath, tf, isdir, rpath, kind, casei) &&
-                    (!tnew || strLen(tpath) > strLen(tnew))) {
+                    (!hnew || strLen(tpath) > strLen(tnew))) {
                     strDup(&tnew, tpath);
                     fnew = tf;
+                    hnew = true;
                 }
                 if (rold && _fsWatchCovers(tpath, tf, isdir, rold, kind, casei) &&
-                    (!told || strLen(tpath) > strLen(told))) {
+                    (!hold || strLen(tpath) > strLen(told))) {
                     strDup(&told, tpath);
                     fold = tf;
+                    hold = true;
                 }
             }
         }
 
         FSWatchEvent ev = { .kind = kind, .path = rpath, .oldpath = rold, .target = tnew };
         flags_t f       = fnew;
-        if (kind == FSWE_Renamed && !(tnew && told)) {
-            if (told) {
-                ev = (FSWatchEvent) { .kind = FSWE_Removed, .path = rold, .target = told };
-                f  = fold;
+        bool have       = hnew;
+        if (kind == FSWE_Renamed && !(hnew && hold)) {
+            if (hold) {
+                ev   = (FSWatchEvent) { .kind = FSWE_Removed, .path = rold, .target = told };
+                f    = fold;
+                have = true;
             } else {
                 ev = (FSWatchEvent) { .kind = FSWE_Created, .path = rpath, .target = tnew };
             }
         }
 
-        if (ev.target && (f & _fsWatchKindFilter(ev.kind)))
+        if (have && (f & _fsWatchKindFilter(ev.kind)))
             _fsWatchDeliver(FSWatch(w), &ev);
 
         strDestroy(&tnew);

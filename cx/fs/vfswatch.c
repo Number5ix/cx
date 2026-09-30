@@ -175,7 +175,7 @@ static uint32 planTarget(VFSWatch* self, VFSWTarget* t, sa_ptr* plan, sa_string*
     rwlockAcquireRead(&vfs->vfslock);
 
     uint32 gen = vfs->mountgen;
-    _vfsSnapshot(vfs, &cands, t->path, !t->isdir);
+    _vfsSnapshot(vfs, &cands, t->path, !t->isdir, NULL);
     foreach (sarray, i, VFSCand, c, cands) {
         planPush(plan, c.mount, c.mountpath, c.relpath, t->flags);
     }
