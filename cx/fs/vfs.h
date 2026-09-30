@@ -119,7 +119,9 @@ bool _vfsMountFS(_Inout_ VFS* vfs, _In_opt_ strref path, _In_opt_ strref fsroot,
 ///
 /// Sets up the same mounts vfsCreateFromFS() does, on a VFS you created yourself, and sets
 /// the VFS current directory to the process's current directory:
-///   - Windows: each drive letter (c:, d:, etc.) as a namespace, and the current drive at "/"
+///   - Windows: each drive letter (c:, d:, etc.) as a namespace, the current drive at "/",
+///     and network shares as "unc:/server/share". A drive that appears later is mounted the
+///     first time a path on it is used.
 ///   - Unix: the root filesystem at "/"
 ///
 /// Use this instead of vfsCreateFromFS() when the VFS needs flags of its own, such as a

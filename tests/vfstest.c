@@ -1329,6 +1329,21 @@ static int test_vfs_platformfs(void)
     checkStat(&ret, vfs, _S"cxvfsplat/mixed.TXT", FS_File);
     checkContents(&ret, vfs, _S"CXVFSPLAT/mixed.txt", _S"plat");
 
+#if defined(_PLATFORM_WIN)
+    checkStat(&ret, vfs, _S"unc:/", FS_Directory);
+
+    // A drive letter the VFS does not have yet is mounted on first use. Dropping the scratch
+    // file's own drive stands in for one that was mapped after the VFS was set up.
+    string drive = 0, abspath = 0;
+    strSubStr(&drive, file, 0, 3);
+    pathJoin(&abspath, dir, _S"MIXED.txt");
+    vfsUnmount(vfs, drive);
+    checkStat(&ret, vfs, abspath, FS_File);
+    checkContents(&ret, vfs, abspath, _S"plat");
+    strDestroy(&drive);
+    strDestroy(&abspath);
+#endif
+
 out:
     vfsDestroy(&vfs);
     fsDelete(file);

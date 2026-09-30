@@ -141,6 +141,16 @@ bool _vfsMountProvider(VFS* vfs, ObjInst* provider, strref path, flags_t flags)
     pathSplitNS(&ns, &rpath, path);
     strDestroy(&rpath);
 
+    if (flags & VFS_MountNewNS) {
+        flags &= ~VFS_MountNewNS;
+        if (strEmpty(ns) || htHasKey(vfs->namespaces, string, ns)) {
+            // someone else got there first
+            rwlockReleaseWrite(&vfs->vfsdlock);
+            strDestroy(&ns);
+            return true;
+        }
+    }
+
     if (!strEmpty(ns) && !htHasKey(vfs->namespaces, string, ns)) {
         // namespace hasn't been added yet, create it now
         htInsert(&vfs->namespaces, string, ns, VFSDir, _vfsDirCreate(vfs, NULL));
@@ -595,6 +605,32 @@ int _vfsFindCIHelper(string* out, strref mountpath, sa_string components, VFSMou
                         pending);
 }
 
+_Use_decl_annotations_
+void _vfsEnsureNamespace(VFS* vfs, strref path)
+{
+    if (!(vfs->flags & VFS_AutoMountDrives))
+        return;
+
+    // Only a drive-letter path can name a namespace that might appear later.
+    if (strLen(path) < 2 || strGetChar(path, 1) != ':')
+        return;
+    char letter = strGetChar(path, 0);
+    if (!((letter >= 'a' && letter <= 'z') || (letter >= 'A' && letter <= 'Z')))
+        return;
+
+    string ns = 0;
+    strSubStr(&ns, path, 0, 1);
+
+    rwlockAcquireRead(&vfs->vfsdlock);
+    bool have = htHasKey(vfs->namespaces, string, ns);
+    rwlockReleaseRead(&vfs->vfsdlock);
+
+    if (!have)
+        _vfsPlatformMountNamespace(vfs, ns);
+
+    strDestroy(&ns);
+}
+
 // Unlike _vfsGetDir, never creates a VFSDir node to avoid polluting the tree with failed lookups.
 _Use_decl_annotations_
 VFSMount* _vfsFindSelfMount(VFS* vfs, strref abspath)
@@ -603,6 +639,8 @@ VFSMount* _vfsFindSelfMount(VFS* vfs, strref abspath)
     VFSDir* dir   = NULL;
     string ns     = 0;
     sa_string components;
+
+    _vfsEnsureNamespace(vfs, abspath);
 
     saInit(&components, string, 8, SA_Grow(Aggressive));
     pathDecompose(&ns, &components, abspath);
@@ -659,6 +697,7 @@ VFSMount* _vfsFindMount(VFS* vfs, string* rpath, strref path, VFSMount** cowmoun
         return NULL;
 
     _vfsMaybeEvict(vfs);
+    _vfsEnsureNamespace(vfs, path);
 
     bool flwrite  = flags & VFS_FindWriteFile;
     bool fldelete = flags & VFS_FindDelete;

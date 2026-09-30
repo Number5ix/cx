@@ -154,3 +154,21 @@ int _vfsFindCIHelper(_Inout_ string* out, _In_opt_ strref mountpath, _In_ sa_str
 void _vfsMaybeEvict(_Inout_ VFS* vfs);
 
 bool _vfsIsPlatformCaseSensitive();
+
+// Private VFS flags, kept clear of the public VFSFlags range.
+enum VFS_PRIVATE_FLAGS_ENUM {
+    // Set by vfsMountPlatformFS where drives can appear after the VFS is set up. A lookup of a
+    // single-letter namespace the VFS does not have yet asks the platform to mount it.
+    VFS_AutoMountDrives = 0x40000000,
+    // Mount flag for _vfsMountProvider: mount only if the path's namespace does not exist yet,
+    // checked under the same lock that adds it. Returns true without mounting otherwise.
+    VFS_MountNewNS      = 0x80000000,
+};
+
+// Mounts the drive for a single-letter namespace if the platform has one. Takes no VFS lock
+// on entry; the mount takes its own.
+bool _vfsPlatformMountNamespace(_Inout_ VFS* vfs, _In_ strref ns);
+
+// If vfs has VFS_AutoMountDrives and path is absolute with a single-letter namespace the VFS
+// does not have yet, gives the platform a chance to mount it. Call with no VFS lock held.
+void _vfsEnsureNamespace(_Inout_ VFS* vfs, _In_opt_ strref path);

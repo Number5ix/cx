@@ -1,5 +1,4 @@
-#include "cx/fs/fs_private.h"
-#include "cx/fs/vfs.h"
+#include "cx/fs/vfs_private.h"
 
 STR_CONST(kRootPath, "/");
 
@@ -13,6 +12,13 @@ bool vfsMountPlatformFS(VFS* vfs)
     vfsSetCurDir(vfs, curdir);
     strDestroy(&curdir);
     return ret;
+}
+
+_Use_decl_annotations_
+bool _vfsPlatformMountNamespace(VFS* vfs, strref ns)
+{
+    // a single root; nothing appears later
+    return false;
 }
 
 bool _vfsIsPlatformCaseSensitive()

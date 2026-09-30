@@ -70,6 +70,7 @@ bool vfsSearchInit(FSSearchIter* iter, VFS* vfs, strref path, strref pattern, in
     memset(iter, 0, sizeof(FSSearchIter));
 
     _vfsMaybeEvict(vfs);
+    _vfsEnsureNamespace(vfs, path);
 
     if ((vfs->flags & VFS_CaseSensitive))
         htInit(&names, string, intptr, 8, HT_RefKeys | HT_Grow(MaxSpeed));
