@@ -268,7 +268,7 @@ bool vfsGetFSPath(string* out, VFS* vfs, strref path)
     bool ret     = false;
     string rpath = 0;
 
-    VFSMount* m = _vfsFindMount(vfs, &rpath, path, NULL, NULL, 0);
+    VFSMount* m = _vfsFindMount(vfs, &rpath, path, NULL, NULL, VFS_FindCache);
     if (!m) {
         cxerr = CX_FileNotFound;
         goto out;
