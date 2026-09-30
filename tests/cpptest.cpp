@@ -6,6 +6,7 @@
 #include <cx/obj.h>
 #include "objtestobj.h"
 #include <cx/string/strtest.h>
+#include <cx/sys/entry.h>
 
 #define TEST_FILE cpptest
 #define TEST_FUNCS cpptest_funcs
@@ -421,6 +422,16 @@ static int test_object()
 
     return 0;
 }
+
+// Compile-only check that DEFINE_ENTRY_POINT builds as C++. Expanded inside a namespace so it
+// defines cxentrycheck::main rather than the program's real entry point.
+namespace cxentrycheck {
+static int entryPoint()
+{
+    return 0;
+}
+DEFINE_ENTRY_POINT
+}   // namespace cxentrycheck
 
 testfunc cpptest_funcs[] = {
     { "sarray",    test_sarray    },
