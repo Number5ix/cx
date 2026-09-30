@@ -25,6 +25,39 @@
 ///   - Application data: OS filesystem with bundled default files as fallback
 ///   - Testing: Mock filesystem without touching real disk
 ///
+/// @section fs_vfs_caching Caching
+///
+/// The VFS remembers the directories it has been asked about and which layer each file came
+/// from, so a repeated lookup does not have to try every layer again.
+///
+/// Some layers can also have whole directory listings remembered: every name in the directory,
+/// with its type, size and times. A lookup or search in a directory that every layer has a
+/// listing for is answered from memory, including a lookup of a file that is not there. A
+/// layer's listings are remembered when:
+///   - it was mounted with VFS_Immutable, or its provider reports that flag, because its
+///     contents never change
+///   - it was mounted with VFS_CacheListings, or the VFS was created with it, and its provider
+///     can be watched for changes. The VFS watches it to keep the listings current.
+///
+/// VFS_NoCache turns both kinds of caching off.
+///
+/// Changes made through the VFS are seen at once. A change made some other way to a
+/// VFS_CacheListings layer, such as directly on disk, is seen once the watch reports it, which
+/// usually takes a few milliseconds; until then the VFS may still show the old state. Call
+/// vfsInvalidate() to have it seen right away, or for a change to a provider that cannot be
+/// watched.
+///
+/// Listings take memory for every entry in every listed directory. vfsSetCacheLimits() bounds
+/// how much is kept by dropping directories that have not been used recently.
+///
+/// Example:
+/// @code
+///   VFS *vfs = vfsCreate(0);
+///   vfsMountFS(vfs, _SL("/data"), _SL("c:/gamedata"), VFS_ReadOnly | VFS_CacheListings);
+///   // the first lookup in a directory lists it; later ones in it need no disk access
+///   bool has = vfsExist(vfs, _SL("/data/textures/foo.png"));
+/// @endcode
+///
 /// See vfsobj.h for vfsCreate().
 /// See vfsprovider.h for implementing custom providers.
 
