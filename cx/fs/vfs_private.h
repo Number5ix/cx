@@ -281,6 +281,9 @@ enum VFS_PRIVATE_FLAGS_ENUM {
     // Mount flag for _vfsMountProvider: mount only if the path's namespace does not exist yet,
     // checked under the same lock that adds it. Returns true without mounting otherwise.
     VFS_MountNewNS      = 0x80000000,
+    // Mount flag for _vfsMountProvider: do not take VFS_CacheListings from the VFS. For mounts of
+    // a whole filesystem, which would otherwise watch every directory on it.
+    VFS_MountNoListings = 0x20000000,
 };
 
 // Mounts the drive for a single-letter namespace if the platform has one. Takes no VFS lock

@@ -5,7 +5,7 @@ STR_CONST(kRootPath, "/");
 _Use_decl_annotations_
 bool vfsMountPlatformFS(VFS* vfs)
 {
-    bool ret = vfsMountFS(vfs, kRootPath, kRootPath, VFS_CaseSensitive);
+    bool ret = vfsMountFS(vfs, kRootPath, kRootPath, VFS_CaseSensitive | VFS_MountNoListings);
 
     string curdir = 0;
     fsCurDir(&curdir);

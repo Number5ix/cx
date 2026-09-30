@@ -233,8 +233,10 @@ bool _vfsMountProvider(VFS* vfs, ObjInst* provider, strref path, flags_t flags)
 
     // propagate certain flags from the VFS to all mounted providers
     bool newns = flags & VFS_MountNewNS;
-    flags &= ~VFS_MountNewNS;
-    flags |= vfs->flags & (VFS_ReadOnly | VFS_NoCache | VFS_CacheListings);
+    flags |= vfs->flags & (VFS_ReadOnly | VFS_NoCache);
+    if (!(flags & VFS_MountNoListings))
+        flags |= vfs->flags & VFS_CacheListings;
+    flags &= ~(VFS_MountNewNS | VFS_MountNoListings);
 
     // The mount is set up before it is visible, so that its watch is running before anything
     // can list through it.

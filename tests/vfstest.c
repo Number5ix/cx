@@ -10,6 +10,7 @@
 #include <cx/string.h>
 
 #include "vfstestprov.h"
+#include <cx/fs/vfs_private.h>
 
 #define TEST_FILE  vfstest
 #define TEST_FUNCS vfstest_funcs
@@ -1344,6 +1345,24 @@ static int test_vfs_platformfs(void)
     strDestroy(&drive);
     strDestroy(&abspath);
 #endif
+
+    // whole-filesystem mounts do not take VFS_CacheListings from the VFS
+    VFS* lvfs = vfsCreate(VFS_CacheListings);
+    vfsMountPlatformFS(lvfs);
+    checkStat(&ret, lvfs, _S"cxvfsplat/mixed.TXT", FS_File);
+    int32 listable = 0;
+    foreach (sarray, i, VFSMount*, m, lvfs->root->mounts) {
+        listable += atomicLoad(bool, &m->listable, Acquire);
+    }
+    foreach (hashtable, hti, lvfs->namespaces) {
+        VFSDir* nsdir = (VFSDir*)htiVal(ptr, hti);
+        foreach (sarray, i, VFSMount*, m, nsdir->mounts) {
+            listable += atomicLoad(bool, &m->listable, Acquire);
+        }
+    }
+    if (listable > 0)
+        TEST_FAILV(ret, 1, _SL("${int} platform mounts cache listings"), stvar(int32, listable));
+    vfsDestroy(&lvfs);
 
 out:
     vfsDestroy(&vfs);

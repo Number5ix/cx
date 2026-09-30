@@ -19,10 +19,10 @@ bool vfsMountPlatformFS(VFS* vfs)
         if (ldrives & 1 << (dletter - 'a')) {
             drivestr[0] = dletter;
             strCopy(&drive, (string)drivestr);
-            ret &= vfsMountFS(vfs, drive, drive);
+            ret &= vfsMountFS(vfs, drive, drive, VFS_MountNoListings);
         }
     }
-    ret &= vfsMountFS(vfs, kUNCPath, kUNCPath);
+    ret &= vfsMountFS(vfs, kUNCPath, kUNCPath, VFS_MountNoListings);
 
     // drives mapped or plugged in later are mounted on first use
     vfs->flags |= VFS_AutoMountDrives;
@@ -31,7 +31,7 @@ bool vfsMountPlatformFS(VFS* vfs)
     fsCurDir(&curdir);
     // mount current drive as root
     strSubStr(&drive, _fsCurDir, 0, 3);
-    vfsMountFS(vfs, kRootPath, drive);
+    vfsMountFS(vfs, kRootPath, drive, VFS_MountNoListings);
     vfsSetCurDir(vfs, curdir);
     strDestroy(&curdir);
     strDestroy(&drive);
@@ -57,7 +57,7 @@ bool _vfsPlatformMountNamespace(VFS* vfs, strref ns)
     char drivestr[4] = { letter, ':', '/', 0 };
     string drive     = 0;
     strCopy(&drive, (string)drivestr);
-    bool ret = vfsMountFS(vfs, drive, drive, VFS_MountNewNS);
+    bool ret = vfsMountFS(vfs, drive, drive, VFS_MountNewNS | VFS_MountNoListings);
     strDestroy(&drive);
     return ret;
 }

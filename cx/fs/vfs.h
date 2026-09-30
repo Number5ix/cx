@@ -158,7 +158,9 @@ bool _vfsMountFS(_Inout_ VFS* vfs, _In_opt_ strref path, _In_opt_ strref fsroot,
 ///   - Unix: the root filesystem at "/"
 ///
 /// Use this instead of vfsCreateFromFS() when the VFS needs flags of its own, such as a
-/// case-insensitive view of a case-sensitive filesystem.
+/// case-insensitive view of a case-sensitive filesystem. These mounts never cache directory
+/// listings, even on a VFS created with VFS_CacheListings; mount the directories that should
+/// have them with vfsMountFS().
 ///
 /// @param vfs VFS instance
 /// @return true if every mount succeeded
