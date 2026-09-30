@@ -363,6 +363,7 @@ static const testspec tests[] = {
     { "vfswatch: Upper layer appears", "vfswatchtest", "upper_appears" },
     { "vfswatch: Upper layer appears deep", "vfswatchtest", "upper_appears_deep" },
     { "vfswatch: Upper layer recreated", "vfswatchtest", "upper_recreated" },
+    { "vfswatch: Vfsfs missing root", "vfswatchtest", "vfsfs_missing_root" },
     { "process: Environment get and set", "proctest", "env_getset" },
     { "process: Environment unset", "proctest", "env_unset" },
     { "process: Environment enumeration", "proctest", "env_enum" },

@@ -3,10 +3,20 @@
 // A watch that speaks paths relative to a root, wrapping another watch that speaks full paths.
 // Adding "a/b" adds root/a/b to the inner watch, and an event for root/a/b is reported as "a/b".
 // VFS providers use it to hand the VFS a watch in mount-relative paths.
+//
+// With native set, the root is an OS path and inner a native watch. A path that cannot be
+// watched yet because it, or the root itself, does not exist is then still added: it waits on
+// the nearest directory that does exist, watched through a second native watch, and is added
+// for real once it appears, followed by an FSWE_Rescan for it.
 class FSWatchRooted extends FSWatch {
     object[FSWatch] inner;   // set by the creator, with a closure from _fsWatchRootedInnerCls()
     string root;
     bool casei;              // compare the root case-insensitively
+    bool native;             // set by the creator; see above
+
+    [noinit] Mutex plock;              // guards the two below
+    object[FSWatch] pendw;             // watches the directories waiting paths wait on
+    [noinit] sarray[ptr] pending;      // FSWRPending*
 
     factory create(strref root, bool casei, closure cls);
     destroy();

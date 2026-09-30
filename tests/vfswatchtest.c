@@ -814,6 +814,52 @@ out:
     return ret;
 }
 
+// A mount whose root directory does not exist yet is watched once it is created.
+static int test_vfswatch_vfsfs_missing_root(void)
+{
+    int ret = 0;
+    VRec r;
+    recInit(&r);
+
+    string dir = 0, f = 0;
+    pathMakeAbsolute(&dir, _S"cx_vfswatchtest_late");
+    pathJoin(&f, dir, _S"real.txt");
+    fsDelete(f);
+    fsRemoveDir(dir);
+
+    VFS* vfs = vfsCreate(0);
+    vfsMountFS(vfs, _S"/root", dir);
+
+    FSWatch* w = recWatch(&r, vfs);
+    if (!fsWatchAdd(w, _S"/root", 0)) {
+        if (cxerr == CX_NotSupported)
+            TEST_INFO(_SL("native watches are not supported here; skipping"), stvNone);
+        else
+            TEST_FAILV(ret, 1, _SL("fsWatchAdd(/root) failed: ${int}"), stvar(int32, cxerr));
+        goto out;
+    }
+
+    fsCreateAll(dir);
+    if (!recWait(&r, K(FSWE_Rescan), _S"/root"))
+        WFAIL(ret, &r, "no Rescan once the mount root was created;", _S"/root");
+
+    FSFile* fh = fsOpen(f, FS_Overwrite);
+    fileClose(&fh);
+    if (!recWait(&r, K(FSWE_Created), _S"/root/real.txt"))
+        WFAIL(ret, &r, "mount root created after the watch not watched;", _S"/root/real.txt");
+
+out:
+    fsWatchCancel(w);
+    objRelease(&w);
+    vfsDestroy(&vfs);
+    fsDelete(f);
+    fsRemoveDir(dir);
+    strDestroy(&f);
+    strDestroy(&dir);
+    recDestroy(&r);
+    return ret;
+}
+
 // ---- groups --------------------------------------------------------------------------------
 
 // Each group below runs several of the subtests above in one process. The individual subtests
@@ -841,7 +887,7 @@ int test_vfswatch_grp_appear(void)
 
 int test_vfswatch_grp_e2e(void)
 {
-    TEST_CHAIN(test_vfswatch_vfsfs_end_to_end);
+    TEST_CHAIN(test_vfswatch_vfsfs_end_to_end, test_vfswatch_vfsfs_missing_root);
 }
 
 testfunc vfswatchtest_funcs[] = {
@@ -860,6 +906,7 @@ testfunc vfswatchtest_funcs[] = {
     { "upper_appears",     test_vfswatch_upper_appears       },
     { "upper_appears_deep", test_vfswatch_upper_appears_deep },
     { "upper_recreated",   test_vfswatch_upper_recreated     },
+    { "vfsfs_missing_root", test_vfswatch_vfsfs_missing_root },
     { "grp_layers",        test_vfswatch_grp_layers          },
     { "grp_mounts",        test_vfswatch_grp_mounts          },
     { "grp_appear",        test_vfswatch_grp_appear          },

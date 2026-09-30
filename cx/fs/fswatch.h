@@ -98,8 +98,9 @@ CX_C_BEGIN
 ///   vfsStat() if you need to know what the VFS shows now.
 /// - Mounting or unmounting under a watched path sends an FSWE_Rescan for the mount point, and
 ///   the watch then follows whatever is mounted there.
-/// - A layer where the watched path does not exist yet is not watched, so a directory created
-///   later in only that layer goes unnoticed.
+/// - A layer that does not have the watched path yet, or loses it while another layer still has
+///   it, is watched for the path to appear there. When it does, an FSWE_Rescan is sent for the
+///   target, since whatever appeared along with it was not seen.
 /// - Changes made through the VFS to a provider that cannot be watched are not reported.
 ///
 /// @section fs_watch_limits Platform limits

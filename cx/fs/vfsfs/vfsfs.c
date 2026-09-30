@@ -166,6 +166,7 @@ FSWatch* VFSFS_createWatch(_In_ VFSFS* self, closure cls)
 
     FSWatchRooted* w = fswatchrootedCreate(root, FSWATCH_CASEI, cls);
     w->inner         = fsWatchCreate(_fsWatchRootedInnerCls(w));
+    w->native        = true;
 
     strDestroy(&root);
     return FSWatch(w);
