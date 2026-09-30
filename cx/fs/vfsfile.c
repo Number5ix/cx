@@ -12,6 +12,37 @@
 #include "vfs_private.h"
 #include "cx/debug/error.h"
 
+static void vfsCOWCreateAll(_Inout_ ObjInst* cowprov, _Inout_ VFSProvider* cowprovif,
+                            _In_opt_ strref path)
+{
+    string parent = 0;
+    pathParent(&parent, path);
+    if (!strEmpty(parent) && cowprovif->stat(cowprov, parent, NULL) == FS_Nonexistent)
+        vfsCOWCreateAll(cowprov, cowprovif, parent);
+    strDestroy(&parent);
+
+    if (cowprovif->stat(cowprov, path, NULL) == FS_Nonexistent)
+        cowprovif->createDir(cowprov, path);
+}
+
+// A truncating open has nothing to copy up, so it goes straight to the COW layer.
+static File* vfsCOWOpenTruncate(_Inout_ ObjInst* cowprov, _In_opt_ strref cowrpath,
+                                flags_t flags)
+{
+    VFSProvider* cowprovif = objInstIf(cowprov, VFSProvider);
+    if (!cowprovif) {
+        cxerr = CX_InvalidArgument;
+        return NULL;
+    }
+
+    string dirname = 0;
+    pathParent(&dirname, cowrpath);
+    vfsCOWCreateAll(cowprov, cowprovif, dirname);
+    strDestroy(&dirname);
+
+    return cowprovif->open(cowprov, cowrpath, flags | FS_Create);
+}
+
 _Use_decl_annotations_
 VFSFile* vfsOpen(VFS* vfs, strref path, flags_t flags)
 {
@@ -37,6 +68,13 @@ VFSFile* vfsOpen(VFS* vfs, strref path, flags_t flags)
     if ((pflags & VFS_FindWriteFile) && (m->flags & VFS_ReadOnly) && !cowmount) {
         // we're trying to write to a read-only VFS and don't have a COW provider...
         cxerr = CX_ReadOnly;
+        goto out;
+    } else if (cowmount && (flags & FS_Truncate)) {
+        innerfile = vfsCOWOpenTruncate(cowmount->provider, cowrpath, flags);
+        _vfsInvalidateCache(vfs, path);
+        if (!innerfile)
+            goto out;
+        ret = vfsfileCreate(vfs, innerfile);
         goto out;
     } else if (cowmount) {
         // initial open is read-only for COW files
@@ -105,19 +143,6 @@ bool VFSFile_read(_In_ VFSFile* self, _Out_writes_bytes_to_(sz, *bytesread) void
     }
 
     return fileRead(self->inner, buf, sz, bytesread);
-}
-
-static void vfsCOWCreateAll(_Inout_ ObjInst* cowprov, _Inout_ VFSProvider* cowprovif,
-                            _In_opt_ strref path)
-{
-    string parent = 0;
-    pathParent(&parent, path);
-    if (!strEmpty(parent) && cowprovif->stat(cowprov, parent, NULL) == FS_Nonexistent)
-        vfsCOWCreateAll(cowprov, cowprovif, parent);
-    strDestroy(&parent);
-
-    if (cowprovif->stat(cowprov, path, NULL) == FS_Nonexistent)
-        cowprovif->createDir(cowprov, path);
 }
 
 #define COWBLOCKSIZE 65536

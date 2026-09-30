@@ -331,6 +331,7 @@ static const testspec tests[] = {
     { "vfs: Cache invalidation", "vfstest", "invalidate" },
     { "vfs: Copy-on-write", "vfstest", "cow" },
     { "vfs: Failed copy-on-write", "vfstest", "cowfail" },
+    { "vfs: Truncating copy-on-write", "vfstest", "cowtrunc" },
     { "vfs: New file layer selection", "vfstest", "newfiles" },
     { "vfs: Rename", "vfstest", "rename" },
     { "vfs: Error paths", "vfstest", "errors" },

@@ -410,6 +410,59 @@ static int test_vfs_cow(void)
     return ret;
 }
 
+// A truncating open through a COW layer starts the copy empty instead of copying the lower file
+// up first, so nothing of the original survives past what the caller writes.
+static int test_vfs_cowtrunc(void)
+{
+    int ret            = 0;
+    VFS* vfs           = vfsCreate(VFS_CaseSensitive);
+    VFSTestProv* lower = sampleProvider(VFS_CaseSensitive, _S"low");
+    VFSTestProv* cow   = vfstestprovCreate(VFS_CaseSensitive);
+    string got         = 0;
+
+    vfsMountProvider(vfs, lower, _S"/", VFS_ReadOnly);
+    vfsMountProvider(vfs, cow, _S"/", VFS_AlwaysCOW);
+
+    // overwrite with something shorter than the original
+    VFSFile* f = vfsOpen(vfs, _S"/sub/b.txt", FS_Overwrite);
+    if (!f) {
+        TEST_FAILV(ret, 1, _SL("could not open /sub/b.txt with FS_Overwrite"), stvNone);
+    } else {
+        fileWriteString(f, _S"X", NULL);
+        fileClose(&f);
+    }
+    checkContents(&ret, vfs, _S"/sub/b.txt", _S"X");
+
+    // truncate with no write at all
+    f = vfsOpen(vfs, _S"/sub/deep/c.txt", FS_Overwrite);
+    if (!f)
+        TEST_FAILV(ret, 1, _SL("could not open /sub/deep/c.txt with FS_Overwrite"), stvNone);
+    fileClose(&f);
+    if (!htFind(cow->files, string, _S"sub/deep/c.txt", string, &got))
+        TEST_FAILV(ret, 1, _SL("truncating open left no file on the COW layer"), stvNone);
+    else if (!strEmpty(got))
+        TEST_FAILV(ret, 1, _SL("truncated COW file contains '${string}'"), stvar(strref, got));
+    checkContents(&ret, vfs, _S"/sub/deep/c.txt", _S"");
+
+    // vfsCopy overwrites through the same path
+    vfstestprovAddFile(lower, _S"long.txt", _S"a much longer original");
+    vfstestprovAddFile(lower, _S"short.txt", _S"short");
+    if (!vfsCopy(vfs, _S"/short.txt", _S"/long.txt"))
+        TEST_FAILV(ret, 1, _SL("vfsCopy onto a read-only-layer file failed"), stvNone);
+    checkContents(&ret, vfs, _S"/long.txt", _S"short");
+
+    // the read-only originals are untouched
+    strDestroy(&got);
+    if (!htFind(lower->files, string, _S"sub/b.txt", string, &got) || !strEq(got, _S"b:low"))
+        TEST_FAILV(ret, 1, _SL("read-only original was modified to '${string}'"), stvar(strref, got));
+
+    strDestroy(&got);
+    objRelease(&lower);
+    objRelease(&cow);
+    vfsDestroy(&vfs);
+    return ret;
+}
+
 // Mounting a second provider invalidates the whole directory cache, which walks the subdirs
 // hashtable of every cached node. Warm the cache with enough cache-only directories that the
 // invalidation walk has plenty to remove while it is iterating.
@@ -1232,7 +1285,7 @@ int test_vfs_grp_caching(void)
 
 int test_vfs_grp_cow(void)
 {
-    TEST_CHAIN(test_vfs_cow, test_vfs_cowfail, test_vfs_newfiles);
+    TEST_CHAIN(test_vfs_cow, test_vfs_cowfail, test_vfs_cowtrunc, test_vfs_newfiles);
 }
 
 int test_vfs_grp_misc(void)
@@ -1252,6 +1305,7 @@ testfunc vfstest_funcs[] = {
     { "invalidate", test_vfs_invalidate },
     { "cow",        test_vfs_cow        },
     { "cowfail",    test_vfs_cowfail    },
+    { "cowtrunc",   test_vfs_cowtrunc   },
     { "newfiles",   test_vfs_newfiles   },
     { "rename",     test_vfs_rename     },
     { "errors",     test_vfs_errors     },
