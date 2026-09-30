@@ -356,6 +356,7 @@ static const testspec tests[] = {
     { "vfs: Stopped listing watch", "vfstest", "list_stopped" },
     { "vfs: Listing write-through", "vfstest", "list_writethrough" },
     { "vfs: vfsInvalidate", "vfstest", "list_invalidate" },
+    { "vfs: Destroy with listings", "vfstest", "list_destroy" },
     { "vfs: Listing eviction", "vfstest", "list_evict" },
     { "vfs: NoCache listings", "vfstest", "list_nocache" },
     { "vfs: Listing stress", "vfstest", "list_stress" },

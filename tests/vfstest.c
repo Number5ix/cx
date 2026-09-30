@@ -1711,6 +1711,27 @@ static int test_vfs_list_invalidate(void)
     return ret;
 }
 
+// vfsDestroy breaks reference loops through listings too: a layer mounted at the root whose
+// provider holds the VFS, remembered in a listing on the root itself. Only a leak checker sees a
+// failure here.
+static int test_vfs_list_destroy(void)
+{
+    int ret           = 0;
+    VFS* vfs          = vfsCreate(VFS_CaseSensitive);
+    VFSTestProv* prov = sampleProvider(VFS_CaseSensitive, _S"1");
+
+    // opaque, so the loop back through the root mount stops here
+    vfsMountProvider(vfs, prov, _S"/data", VFS_Opaque);
+    vfsMountVFS(vfs, _S"/", vfs, _S"/data", VFS_Immutable);
+
+    checkStat(&ret, vfs, _S"/a.txt", FS_File);
+    checkStat(&ret, vfs, _S"/nope.txt", FS_Nonexistent);
+
+    objRelease(&prov);
+    vfsDestroy(&vfs);
+    return ret;
+}
+
 // Pruning the cache drops listings too.
 static int test_vfs_list_evict(void)
 {
@@ -1881,7 +1902,8 @@ int test_vfs_grp_listings(void)
 {
     TEST_CHAIN(test_vfs_list_immutable, test_vfs_list_mixed, test_vfs_list_caseinsens,
                test_vfs_list_search, test_vfs_list_events, test_vfs_list_stopped,
-               test_vfs_list_writethrough, test_vfs_list_invalidate, test_vfs_list_evict,
+               test_vfs_list_writethrough, test_vfs_list_invalidate, test_vfs_list_destroy,
+               test_vfs_list_evict,
                test_vfs_list_nocache, test_vfs_list_stress);
 }
 
@@ -1927,6 +1949,7 @@ testfunc vfstest_funcs[] = {
     { "list_stopped",   test_vfs_list_stopped   },
     { "list_writethrough", test_vfs_list_writethrough },
     { "list_invalidate", test_vfs_list_invalidate },
+    { "list_destroy",   test_vfs_list_destroy   },
     { "list_evict",     test_vfs_list_evict     },
     { "list_nocache",   test_vfs_list_nocache   },
     { "list_stress",    test_vfs_list_stress    },
