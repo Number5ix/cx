@@ -617,6 +617,160 @@ out:
     return ret;
 }
 
+// ---- paths appearing in a layer -------------------------------------------------------------
+
+// Waits for a provider's watch to be armed on path, which happens off the test thread when it
+// follows a change.
+static bool waitWatching(VFSTestProv* p, strref path)
+{
+    for (int i = 0; i < 1000; i++) {
+        if (vfstestprovWatching(p, path))
+            return true;
+        osSleep(timeMS(10));
+    }
+    return false;
+}
+
+// A directory watched through the lower layer, then created in the upper one, is watched there
+// from then on.
+static int test_vfswatch_upper_appears(void)
+{
+    int ret = 0;
+    VRec r;
+    recInit(&r);
+
+    VFS* vfs           = vfsCreate(VFS_CaseSensitive);
+    VFSTestProv* lower = vfstestprovCreate(VFS_CaseSensitive);
+    VFSTestProv* upper = vfstestprovCreate(VFS_CaseSensitive);
+    vfstestprovAddDir(lower, _S"d");
+    vfsMountProvider(vfs, lower, _S"/m");
+    vfsMountProvider(vfs, upper, _S"/m");
+
+    FSWatch* w = recWatch(&r, vfs);
+    if (!fsWatchAdd(w, _S"/m/d", 0)) {
+        TEST_FAILV(ret, 1, _SL("fsWatchAdd(/m/d) failed: ${int}"), stvar(int32, cxerr));
+        goto out;
+    }
+
+    vfstestprovAddDir(upper, _S"d");
+    vfstestprovInject(upper, FSWE_Created, _S"d", NULL);
+    if (!recWait(&r, K(FSWE_Rescan), _S"/m/d"))
+        WFAIL(ret, &r, "no Rescan once the upper layer had", _S"/m/d");
+
+    vfstestprovAddFile(upper, _S"d/x", _S"x");
+    vfstestprovInject(upper, FSWE_Created, _S"d/x", NULL);
+    if (!recWait(&r, K(FSWE_Created), _S"/m/d/x"))
+        WFAIL(ret, &r, "directory created in the upper layer not watched;", _S"/m/d/x");
+
+out:
+    fsWatchCancel(w);
+    objRelease(&w);
+    objRelease(&lower);
+    objRelease(&upper);
+    vfsDestroy(&vfs);
+    recDestroy(&r);
+    return ret;
+}
+
+// A subtree whose whole chain of directories appears in the upper layer at once, and a file
+// whose parent directories do.
+static int test_vfswatch_upper_appears_deep(void)
+{
+    int ret = 0;
+    VRec r;
+    recInit(&r);
+
+    VFS* vfs           = vfsCreate(VFS_CaseSensitive);
+    VFSTestProv* lower = vfstestprovCreate(VFS_CaseSensitive);
+    VFSTestProv* upper = vfstestprovCreate(VFS_CaseSensitive);
+    vfstestprovAddDir(lower, _S"d");
+    vfstestprovAddFile(lower, _S"a/b/f.txt", _S"low");
+    vfsMountProvider(vfs, lower, _S"/m");
+    vfsMountProvider(vfs, upper, _S"/m");
+
+    FSWatch* w = recWatch(&r, vfs);
+    if (!fsWatchAdd(w, _S"/m/d", FSW_Subtree) || !fsWatchAdd(w, _S"/m/a/b/f.txt", 0)) {
+        TEST_FAILV(ret, 1, _SL("fsWatchAdd failed: ${int}"), stvar(int32, cxerr));
+        goto out;
+    }
+
+    vfstestprovAddDir(upper, _S"d/e/f");
+    vfstestprovInject(upper, FSWE_Created, _S"d", NULL);
+    if (!recWait(&r, K(FSWE_Rescan), _S"/m/d"))
+        WFAIL(ret, &r, "no Rescan once the upper layer had", _S"/m/d");
+    vfstestprovInject(upper, FSWE_Created, _S"d/e/f/g", NULL);
+    if (!recWait(&r, K(FSWE_Created), _S"/m/d/e/f/g"))
+        WFAIL(ret, &r, "subtree created in the upper layer not watched;", _S"/m/d/e/f/g");
+
+    vfstestprovAddDir(upper, _S"a/b");
+    vfstestprovInject(upper, FSWE_Created, _S"a", NULL);
+    if (!recWait(&r, K(FSWE_Rescan), _S"/m/a/b/f.txt"))
+        WFAIL(ret, &r, "no Rescan once the upper layer had the parent of", _S"/m/a/b/f.txt");
+    vfstestprovAddFile(upper, _S"a/b/f.txt", _S"up");
+    vfstestprovInject(upper, FSWE_Modified, _S"a/b/f.txt", NULL);
+    if (!recWait(&r, K(FSWE_Modified), _S"/m/a/b/f.txt"))
+        WFAIL(ret, &r, "file in new upper-layer directories not watched;", _S"/m/a/b/f.txt");
+
+out:
+    fsWatchCancel(w);
+    objRelease(&w);
+    objRelease(&lower);
+    objRelease(&upper);
+    vfsDestroy(&vfs);
+    recDestroy(&r);
+    return ret;
+}
+
+// A directory removed from the upper layer while the lower one still has it keeps the watch
+// alive, and is watched in the upper layer again once it comes back.
+static int test_vfswatch_upper_recreated(void)
+{
+    int ret = 0;
+    VRec r;
+    recInit(&r);
+
+    VFS* vfs           = vfsCreate(VFS_CaseSensitive);
+    VFSTestProv* lower = vfstestprovCreate(VFS_CaseSensitive);
+    VFSTestProv* upper = vfstestprovCreate(VFS_CaseSensitive);
+    vfstestprovAddDir(lower, _S"d");
+    vfstestprovAddDir(upper, _S"d");
+    vfsMountProvider(vfs, lower, _S"/m");
+    vfsMountProvider(vfs, upper, _S"/m");
+
+    FSWatch* w = recWatch(&r, vfs);
+    if (!fsWatchAdd(w, _S"/m/d", 0)) {
+        TEST_FAILV(ret, 1, _SL("fsWatchAdd(/m/d) failed: ${int}"), stvar(int32, cxerr));
+        goto out;
+    }
+
+    // The upper layer's directory goes away, as its watch would report it.
+    vfstestprovRemoveDir(upper, _S"d");
+    vfstestprovInject(upper, FSWE_Stopped, _S"d", NULL);
+    if (!waitWatching(upper, _S"")) {
+        TEST_FAILV(ret, 1, _SL("upper layer never watched for d to come back"), stvNone);
+        goto out;
+    }
+
+    vfstestprovAddDir(upper, _S"d");
+    vfstestprovInject(upper, FSWE_Created, _S"d", NULL);
+    if (!recWait(&r, K(FSWE_Rescan), _S"/m/d"))
+        WFAIL(ret, &r, "no Rescan once the upper layer had", _S"/m/d");
+    vfstestprovInject(upper, FSWE_Created, _S"d/y", NULL);
+    if (!recWait(&r, K(FSWE_Created), _S"/m/d/y"))
+        WFAIL(ret, &r, "recreated upper-layer directory not watched;", _S"/m/d/y");
+    if (recSaw(&r, K(FSWE_Stopped), _S"/m/d"))
+        WFAIL(ret, &r, "Stopped while the lower layer still has", _S"/m/d");
+
+out:
+    fsWatchCancel(w);
+    objRelease(&w);
+    objRelease(&lower);
+    objRelease(&upper);
+    vfsDestroy(&vfs);
+    recDestroy(&r);
+    return ret;
+}
+
 // ---- end to end ----------------------------------------------------------------------------
 
 static int test_vfswatch_vfsfs_end_to_end(void)
@@ -679,6 +833,12 @@ int test_vfswatch_grp_mounts(void)
                test_vfswatch_vfsvfs_loop_guard);
 }
 
+int test_vfswatch_grp_appear(void)
+{
+    TEST_CHAIN(test_vfswatch_upper_appears, test_vfswatch_upper_appears_deep,
+               test_vfswatch_upper_recreated);
+}
+
 int test_vfswatch_grp_e2e(void)
 {
     TEST_CHAIN(test_vfswatch_vfsfs_end_to_end);
@@ -697,8 +857,12 @@ testfunc vfswatchtest_funcs[] = {
     { "vfsvfs_forward",    test_vfswatch_vfsvfs_forward      },
     { "vfsvfs_loop_guard", test_vfswatch_vfsvfs_loop_guard   },
     { "vfsfs_end_to_end",  test_vfswatch_vfsfs_end_to_end    },
+    { "upper_appears",     test_vfswatch_upper_appears       },
+    { "upper_appears_deep", test_vfswatch_upper_appears_deep },
+    { "upper_recreated",   test_vfswatch_upper_recreated     },
     { "grp_layers",        test_vfswatch_grp_layers          },
     { "grp_mounts",        test_vfswatch_grp_mounts          },
+    { "grp_appear",        test_vfswatch_grp_appear          },
     { "grp_e2e",           test_vfswatch_grp_e2e             },
     { 0, 0 }
 };

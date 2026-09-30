@@ -45,6 +45,10 @@ typedef struct VFSWUse {
     VFSWPath* path;
     flags_t flags;
     bool stopped;   // the provider reported it gone
+    // The layer does not have the target's path yet. path is then the nearest directory it
+    // does have, watched for entries being created, and want is the path being waited for.
+    bool pending;
+    string want;
 } VFSWUse;
 
 struct VFSWTarget {
@@ -52,6 +56,7 @@ struct VFSWTarget {
     flags_t flags;
     bool isdir;
     bool stopped;   // every layer it was watched through reported it gone
+    bool rearm;     // a layer may have what it was waiting for now; see rearmPending
     sa_ptr uses;    // VFSWUse*
 };
 
@@ -61,6 +66,7 @@ typedef struct VFSWState {
     sa_string hidden;    // mount points whose opaque mount hides the layers mounted above them
     int64 nextLayerId;
     bool attached;       // listening to the VFS for mount changes
+    atomic(bool) rearm;  // some target has rearm set
 } VFSWState;
 
 // What one layer of the VFS would need to be asked to watch for a target.
@@ -288,48 +294,136 @@ static flags_t pathFlags(VFSWPath* p)
     return f;
 }
 
-// Watch relpath in a layer for a target. Returns false (with cxerr) if the layer cannot.
-static bool useAdd(VFSWatch* self, VFSWTarget* t, VFSWPlan* p)
+// Records that t needs working out again. Call with lock held.
+static void flagRearm(VFSWState* st, VFSWTarget* t)
+{
+    t->rearm = true;
+    atomicStore(bool, &st->rearm, true, Release);
+}
+
+// Watch relpath in a layer for a target, as p asks. Returns the new use, or NULL (with cxerr)
+// if the layer cannot.
+static VFSWUse* useAttach(VFSWatch* self, VFSWTarget* t, VFSWPlan* p, strref relpath,
+                          flags_t flags, strref want)
 {
     VFSWLayer* l = layerGet(self, p);
     if (!l)
-        return false;
+        return NULL;
 
     VFSWPath* path = NULL;
     foreach (sarray, i, VFSWPath*, lp, l->paths) {
-        if (vpathEq(self, lp->relpath, p->relpath)) {
+        if (vpathEq(self, lp->relpath, relpath)) {
             path = lp;
             break;
         }
     }
 
-    flags_t want = p->flags | (path ? path->flags : 0);
-    if (!path || want != path->flags) {
-        if (!fsWatchAdd(l->inner, p->relpath, want)) {
+    flags_t wantflags = flags | (path ? path->flags : 0);
+    if (!path || wantflags != path->flags) {
+        if (!fsWatchAdd(l->inner, relpath, wantflags)) {
             if (saSize(l->paths) == 0)
                 layerDrop(self, l);
-            return false;
+            return NULL;
         }
     }
 
     VFSWUse* u = xaAllocStruct(VFSWUse, XA_Zero);
     u->target  = t;
     u->layer   = l;
-    u->flags   = p->flags;
+    u->flags   = flags;
+    if (want) {
+        u->pending = true;
+        strDup(&u->want, want);
+    }
 
     withMutex (&self->lock) {
         if (!path) {
             path = xaAllocStruct(VFSWPath, XA_Zero);
-            strDup(&path->relpath, p->relpath);
+            strDup(&path->relpath, relpath);
             saInit(&path->uses, ptr, 1);
             saPush(&l->paths, ptr, path);
         }
-        path->flags = want;
+        path->flags = wantflags;
         u->path     = path;
         saPush(&path->uses, ptr, u);
         saPush(&t->uses, ptr, u);
     }
-    return true;
+    return u;
+}
+
+// Does the layer lack what t needs at relpath: the directory itself for a directory target,
+// or the directory it would be in for a file? The mount root is left to the provider's watch.
+static bool layerLacks(VFSWTarget* t, VFSWPlan* p, VFSProvider* provif)
+{
+    if (strEmpty(p->relpath))
+        return false;
+    if (t->isdir)
+        return provif->stat(p->mount->provider, p->relpath, NULL) != FS_Directory;
+
+    string parent = 0;
+    bool ret = pathParent(&parent, p->relpath) && !strEmpty(parent) &&
+               provif->stat(p->mount->provider, parent, NULL) != FS_Directory;
+    strDestroy(&parent);
+    return ret;
+}
+
+// The nearest directory above relpath that the layer has, falling back to its root.
+static void layerNearestDir(string* out, VFSWPlan* p, VFSProvider* provif)
+{
+    string cur = 0, parent = 0;
+    strDup(&cur, p->relpath);
+    strClear(out);
+    while (pathParent(&parent, cur) && !strEmpty(parent)) {
+        if (provif->stat(p->mount->provider, parent, NULL) == FS_Directory) {
+            strDup(out, parent);
+            break;
+        }
+        strDup(&cur, parent);
+    }
+    strDestroy(&cur);
+    strDestroy(&parent);
+}
+
+// Watch for the target's path to appear in a layer that does not have it yet.
+static bool usePending(VFSWatch* self, VFSWTarget* t, VFSWPlan* p, VFSProvider* provif,
+                       bool recheck)
+{
+    string anc = 0, again = 0;
+    layerNearestDir(&anc, p, provif);
+
+    VFSWUse* u = useAttach(self, t, p, anc, FSW_Names, p->relpath);
+
+    // Whatever appeared before the watch above took effect produced no event for it. Look
+    // again now that it has.
+    if (u && recheck) {
+        layerNearestDir(&again, p, provif);
+        if (!layerLacks(t, p, provif) || !strEq(again, anc)) {
+            withMutex (&self->lock) {
+                flagRearm(self->state, t);
+            }
+        }
+    }
+
+    strDestroy(&anc);
+    strDestroy(&again);
+    return u != NULL;
+}
+
+// Watch p->relpath in a layer for a target, or wait for it to appear there. Returns false (with
+// cxerr) if the layer cannot do either.
+static bool useAdd(VFSWatch* self, VFSWTarget* t, VFSWPlan* p)
+{
+    VFSProvider* provif = objInstIf(p->mount->provider, VFSProvider);
+    if (provif && layerLacks(t, p, provif))
+        return usePending(self, t, p, provif, true);
+
+    if (useAttach(self, t, p, p->relpath, p->flags, NULL))
+        return true;
+
+    // Gone between the look above and the watch; no need to look a second time.
+    if (provif && cxerr == CX_FileNotFound && !strEmpty(p->relpath))
+        return usePending(self, t, p, provif, false);
+    return false;
 }
 
 static void useDrop(VFSWatch* self, VFSWUse* u)
@@ -364,32 +458,40 @@ static void useDrop(VFSWatch* self, VFSWUse* u)
         saDestroy(&path->uses);
         xaFree(path);
     }
+    strDestroy(&u->want);
     xaFree(u);
 }
 
 static bool useMatches(VFSWatch* self, VFSWUse* u, VFSWPlan* p)
 {
-    return u->layer->mount == p->mount && vpathEq(self, u->path->relpath, p->relpath) &&
-           u->flags == p->flags;
+    return !u->pending && u->layer->mount == p->mount &&
+           vpathEq(self, u->path->relpath, p->relpath) && u->flags == p->flags;
 }
 
 // Bring a target's uses in line with the layers that can see it now. Returns true if at least
-// one layer is watching it; on false, cxerr says why the last one could not.
-static bool targetArm(VFSWatch* self, VFSWTarget* t)
+// one layer is watching it; on false, cxerr says why the last one could not. appeared, if
+// given, is set when a layer that was waiting for the target's path now watches it.
+static bool targetArm(VFSWatch* self, VFSWTarget* t, bool* appeared)
 {
     VFSWState* st = self->state;
     bool ret      = false;
 
     for (int tries = 0; tries < 8; tries++) {
-        sa_ptr plan;
+        sa_ptr plan, oldpending;
         sa_string hidden;
         uint32 gen = planTarget(self, t, &plan, &hidden);
+        saInit(&oldpending, ptr, 1);
 
         // Stopped uses are gone from the provider already; drop them along with any that no
-        // longer match a layer.
+        // longer match a layer. Waiting uses are always replaced, but only after their
+        // replacements are in place, so the directory they watch is never left unwatched.
         for (int32 i = saSize(t->uses) - 1; i >= 0; --i) {
             VFSWUse* u = t->uses.a[i];
-            bool keep  = !u->stopped;
+            if (u->pending) {
+                saPush(&oldpending, ptr, u);
+                continue;
+            }
+            bool keep = !u->stopped;
             if (keep) {
                 keep = false;
                 foreach (sarray, j, VFSWPlan*, p, plan) {
@@ -411,10 +513,22 @@ static bool targetArm(VFSWatch* self, VFSWTarget* t)
                     break;
                 }
             }
-            // A layer that cannot watch, or where the path does not exist, is simply skipped.
+            // A layer that cannot watch is simply skipped.
             if (!have)
                 useAdd(self, t, p);
         }
+
+        foreach (sarray, i, VFSWUse*, old, oldpending) {
+            if (appeared && !old->stopped) {
+                foreach (sarray, j, VFSWUse*, u, t->uses) {
+                    if (!u->pending && u->layer->mount == old->layer->mount &&
+                        vpathEq(self, u->path->relpath, old->want))
+                        *appeared = true;
+                }
+            }
+            useDrop(self, old);
+        }
+        saDestroy(&oldpending);
 
         withMutex (&self->lock) {
             foreach (sarray, i, string, h, hidden) {
@@ -426,7 +540,11 @@ static bool targetArm(VFSWatch* self, VFSWTarget* t)
         planFree(&plan);
         saDestroy(&hidden);
 
-        ret = saSize(t->uses) > 0;
+        ret = false;
+        foreach (sarray, i, VFSWUse*, u, t->uses) {
+            if (!u->pending)
+                ret = true;
+        }
         if (currentGen(self->vfs) == gen)
             break;
     }
@@ -450,6 +568,82 @@ static VFSWTarget* findTarget(VFSWatch* self, strref path)
             return t;
     }
     return NULL;
+}
+
+// ---- waiting for paths to appear ----------------------------------------------------------
+//
+// A target whose path a layer does not have yet is watched there through the nearest directory
+// the layer does have. When something appears on the way, the target is worked out again.
+//
+// That has to happen under reglock, but the event that says so arrives on the delivery path,
+// which must never wait for reglock. So it only sets rearm and tries the lock. Every holder of
+// reglock calls rearmPending once it lets go, so a flag set while the lock was taken is always
+// picked up by whoever held it.
+
+static void processRearm(VFSWatch* self, sa_string* rescans)
+{
+    VFSWState* st = self->state;
+
+    // Cleared before looking, so a flag set from here on is seen by the next pass.
+    atomicStore(bool, &st->rearm, false, SeqCst);
+    if (atomicLoad(bool, &self->cancelled, Acquire))
+        return;
+
+    sa_ptr todo;
+    saInit(&todo, ptr, 2);
+    withMutex (&self->lock) {
+        foreach (sarray, i, VFSWTarget*, t, st->targets) {
+            if (t->rearm && !t->stopped)
+                saPush(&todo, ptr, t);
+            t->rearm = false;
+        }
+    }
+
+    foreach (sarray, i, VFSWTarget*, t, todo) {
+        bool appeared = false;
+        targetArm(self, t, &appeared);
+        // Whatever the layer gained before it was watched was never reported.
+        if (appeared)
+            saPush(rescans, string, t->path);
+    }
+    saDestroy(&todo);
+}
+
+static void rearmPending(VFSWatch* self)
+{
+    VFSWState* st = self->state;
+    while (st && atomicLoad(bool, &st->rearm, Acquire)) {
+        if (!mutexTryAcquire(&self->reglock))
+            return;   // the holder does it after letting go
+
+        sa_string rescans;
+        saInit(&rescans, string, 1);
+        processRearm(self, &rescans);
+        mutexRelease(&self->reglock);
+
+        foreach (sarray, i, string, p, rescans) {
+            _vfsInvalidatePath(self->vfs, p, true);
+            FSWatchEvent ev = { .kind = FSWE_Rescan, .path = p, .target = p };
+            _fsWatchDeliver(FSWatch(self), &ev);
+        }
+        saDestroy(&rescans);
+    }
+}
+
+// Does this event from layer l mean something a waiting use wants may be there now? Call
+// with lock held.
+static void notePending(VFSWatch* self, VFSWState* st, VFSWLayer* l, FSWatchEvent* ev)
+{
+    if (ev->kind != FSWE_Created && ev->kind != FSWE_Renamed && ev->kind != FSWE_Rescan)
+        return;
+
+    foreach (sarray, i, VFSWPath*, p, l->paths) {
+        foreach (sarray, j, VFSWUse*, u, p->uses) {
+            if (u->pending && !u->target->stopped &&
+                _fsWatchPathWithin(u->want, ev->path, vfsCaseI(self)))
+                flagRearm(st, u->target);
+        }
+    }
 }
 
 // ---- mount changes -------------------------------------------------------------------------
@@ -493,7 +687,7 @@ static bool vfsWatchMountChanged(stvlist* cvars, stvlist* args)
             if (t->stopped || !mountAffects(self, t, mountpath))
                 continue;
 
-            targetArm(self, t);
+            targetArm(self, t, NULL);
 
             // The contents of the mount point changed wholesale; say where to look.
             bool below = mountpath && _fsWatchPathWithin(mountpath, t->path, vfsCaseI(self));
@@ -501,6 +695,8 @@ static bool vfsWatchMountChanged(stvlist* cvars, stvlist* args)
             saPush(&rescans, string, t->path);
         }
     }
+
+    rearmPending(self);
 
     // Pairs of (where to rescan, which target), queued with nothing held.
     for (int32 i = 0; i + 1 < saSize(rescans); i += 2) {
@@ -570,10 +766,12 @@ static void vfsWatchForward(stvlist* cvars, FSWatch* inner, FSWatchEvent* ev)
         if (ev->oldpath)
             pathJoin(&vold, l->mountpath, ev->oldpath);
 
+        notePending(self, st, l, ev);
+
         if (kind == FSWE_Stopped) {
             // The provider stopped watching one of its paths. A target is only over once every
             // layer it was watched through has said so; until then the Removed that came before
-            // this is all it hears.
+            // this is all it hears, and the layer that lost it waits for it to come back.
             foreach (sarray, i, VFSWPath*, p, l->paths) {
                 if (!vpathEq(self, p->relpath, ev->target))
                     continue;
@@ -582,12 +780,14 @@ static void vfsWatchForward(stvlist* cvars, FSWatch* inner, FSWatchEvent* ev)
                     VFSWTarget* t = u->target;
                     bool alldone  = true;
                     foreach (sarray, k, VFSWUse*, tu, t->uses) {
-                        if (!tu->stopped)
+                        if (!tu->pending && !tu->stopped)
                             alldone = false;
                     }
                     if (alldone && !t->stopped) {
                         t->stopped = true;
                         strDup(&stoppedPath, t->path);
+                    } else if (!t->stopped) {
+                        flagRearm(st, t);
                     }
                 }
             }
@@ -640,6 +840,8 @@ static void vfsWatchForward(stvlist* cvars, FSWatch* inner, FSWatchEvent* ev)
         _fsWatchDeliver(FSWatch(self), &out);
         _fsWatchTargetRemoved(FSWatch(self), stoppedPath);
     }
+
+    rearmPending(self);
 
     strDestroy(&vpath);
     strDestroy(&vold);
@@ -721,7 +923,7 @@ static bool addLocked(VFSWatch* self, strref abspath, flags_t flags)
     t->isdir = isdir;
     saInit(&t->uses, ptr, 2);
 
-    if (!targetArm(self, t)) {
+    if (!targetArm(self, t, NULL)) {
         // No layer could watch it. Say so as not supported unless a provider had a better reason.
         int err = cxerr;
         targetFree(self, t);
@@ -762,6 +964,7 @@ bool VFSWatch_add(_In_ VFSWatch* self, _In_opt_ strref path, flags_t flags)
         ret = addLocked(self, abspath, flags);
     }
     vfsWatchDepth--;
+    rearmPending(self);
 
     strDestroy(&abspath);
     return ret;
@@ -788,6 +991,7 @@ bool VFSWatch_remove(_In_ VFSWatch* self, _In_opt_ strref path)
             targetFree(self, t);
         }
     }
+    rearmPending(self);
 
     if (!ret)
         cxerr = CX_FileNotFound;

@@ -35,6 +35,9 @@ class VFSTestProv implements VFSProvider implements VFSWatchable {
     // Reports a change to every live watch on this provider that covers path, as if the
     // provider had noticed it. oldpath is for FSWE_Renamed only.
     void inject(int32 kind, strref path, strref oldpath);
+    // Is any live watch on this provider watching path? Lets a test wait for a watch to be
+    // armed before it injects an event the watch has to see.
+    bool watching(strref path);
 
     factory create(uint32 provflags);
 }

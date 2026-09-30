@@ -424,6 +424,7 @@ add_test(NAME "\"vfs: Copy-On-Write\"" COMMAND test_runner vfstest grp_cow)
 add_test(NAME "\"vfs: Errors And Providers\"" COMMAND test_runner vfstest grp_misc)
 add_test(NAME "\"vfswatch: Layers\"" COMMAND test_runner vfswatchtest grp_layers)
 add_test(NAME "\"vfswatch: Mounts\"" COMMAND test_runner vfswatchtest grp_mounts)
+add_test(NAME "\"vfswatch: Paths Appearing\"" COMMAND test_runner vfswatchtest grp_appear)
 add_test(NAME "\"vfswatch: OS Filesystem\"" COMMAND test_runner vfswatchtest grp_e2e)
 # Runs several subtests from proctest.c in a single process -- see the TEST_CHAIN groups at the
 # bottom of that file. Run `test_runner proctest <name>` directly to invoke one in isolation.

@@ -632,6 +632,31 @@ void VFSTestProv_inject(_In_ VFSTestProv* self, int32 kind, _In_opt_ strref path
     saDestroy(&live);
 }
 
+bool VFSTestProv_watching(_In_ VFSTestProv* self, _In_opt_ strref path)
+{
+    lazyInit(&tpWatchInit, tpWatchRegistryInit, NULL);
+
+    string rpath = 0;
+    tpPath(&rpath, path);
+
+    bool ret = false;
+    withMutex (&tpWatchLock) {
+        foreach (sarray, i, TPWatchEnt*, ent, tpWatches) {
+            VFSTestProvWatch* w = objAcquireFromWeak(VFSTestProvWatch, ent->wref);
+            if (w && w->prov == self) {
+                withMutex (&w->lock) {
+                    if (htHasKey(w->targets, string, rpath))
+                        ret = true;
+                }
+            }
+            objRelease(&w);
+        }
+    }
+
+    strDestroy(&rpath);
+    return ret;
+}
+
 // Autogen begins -----
 // clang-format off
 #include "vfstestprov.auto.inc"
