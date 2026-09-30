@@ -69,7 +69,7 @@ _objfactory_check VFS* VFS_createFromFS()
 {
     VFS* ret = VFS_create(_vfsIsPlatformCaseSensitive() ? VFS_CaseSensitive : 0);
 
-    if (!_vfsAddPlatformSpecificMounts(ret)) {
+    if (!vfsMountPlatformFS(ret)) {
         objRelease(&ret);
         return NULL;
     }

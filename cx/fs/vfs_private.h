@@ -153,5 +153,4 @@ int _vfsFindCIHelper(_Inout_ string* out, _In_opt_ strref mountpath, _In_ sa_str
 // has grown past the configured limit. Takes no lock; call it before acquiring any.
 void _vfsMaybeEvict(_Inout_ VFS* vfs);
 
-bool _vfsAddPlatformSpecificMounts(_Inout_ VFS* vfs);
 bool _vfsIsPlatformCaseSensitive();

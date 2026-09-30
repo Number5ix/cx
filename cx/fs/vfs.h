@@ -115,6 +115,26 @@ bool _vfsMountFS(_Inout_ VFS* vfs, _In_opt_ strref path, _In_opt_ strref fsroot,
 /// @endcode
 #define vfsMountFS(vfs, path, fsroot, ...) _vfsMountFS(vfs, path, fsroot, opt_flags(__VA_ARGS__))
 
+/// Mounts the OS filesystem into a VFS
+///
+/// Sets up the same mounts vfsCreateFromFS() does, on a VFS you created yourself, and sets
+/// the VFS current directory to the process's current directory:
+///   - Windows: each drive letter (c:, d:, etc.) as a namespace, and the current drive at "/"
+///   - Unix: the root filesystem at "/"
+///
+/// Use this instead of vfsCreateFromFS() when the VFS needs flags of its own, such as a
+/// case-insensitive view of a case-sensitive filesystem.
+///
+/// @param vfs VFS instance
+/// @return true if every mount succeeded
+///
+/// Example:
+/// @code
+///   VFS *vfs = vfsCreate(0);   // case-insensitive, even on Unix
+///   vfsMountPlatformFS(vfs);
+/// @endcode
+bool vfsMountPlatformFS(_Inout_ VFS* vfs);
+
 bool _vfsMountVFS(_Inout_ VFS* vfs, _In_opt_ strref path, _Inout_ VFS* vfs2,
                   _In_opt_ strref vfs2root, flags_t flags);
 

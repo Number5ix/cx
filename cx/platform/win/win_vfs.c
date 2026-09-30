@@ -4,7 +4,8 @@
 
 STR_CONST(kRootPath, "/");
 
-bool _vfsAddPlatformSpecificMounts(VFS* vfs)
+_Use_decl_annotations_
+bool vfsMountPlatformFS(VFS* vfs)
 {
     DWORD ldrives = GetLogicalDrives();
     bool ret      = true;

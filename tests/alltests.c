@@ -347,6 +347,7 @@ static const testspec tests[] = {
     { "vfs: NoCache mount", "vfstest", "nocache" },
     { "vfs: Concurrency", "vfstest", "concurrency" },
     { "vfs: OS filesystem provider", "vfstest", "fsprov" },
+    { "vfs: Platform filesystem mount", "vfstest", "platformfs" },
     { "vfswatch: Inject basic", "vfswatchtest", "inject_basic" },
     { "vfswatch: Stacked layers", "vfswatchtest", "stacked_layers" },
     { "vfswatch: Opaque hides lower", "vfswatchtest", "opaque_hides_lower" },

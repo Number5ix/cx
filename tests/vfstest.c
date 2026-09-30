@@ -1293,6 +1293,53 @@ out:
     return ret;
 }
 
+// vfsMountPlatformFS on a VFS created with its own flags: a case-insensitive view of the OS
+// filesystem, starting in the process's current directory.
+static int test_vfs_platformfs(void)
+{
+    int ret    = 0;
+    string cwd = 0, vcwd = 0, dir = 0, file = 0;
+    VFS* vfs   = vfsCreate(0);
+
+    fsCurDir(&cwd);
+    pathJoin(&dir, cwd, _S"cxvfsplat");
+    pathJoin(&file, dir, _S"Mixed.txt");
+
+    if (!fsCreateAll(dir)) {
+        TEST_FAILV(ret, 1, _SL("could not create scratch directory '${string}'"), stvar(strref, dir));
+        goto out;
+    }
+    FSFile* fh = fsOpen(file, FS_Overwrite);
+    if (!fh) {
+        TEST_FAILV(ret, 1, _SL("could not create '${string}'"), stvar(strref, file));
+        goto out;
+    }
+    fileWrite(fh, "plat", 4, NULL);
+    fileClose(&fh);
+
+    if (!vfsMountPlatformFS(vfs))
+        TEST_FAILV(ret, 1, _SL("vfsMountPlatformFS failed"), stvNone);
+
+    vfsCurDir(vfs, &vcwd);
+    if (!strEq(vcwd, cwd))
+        TEST_FAILV(ret, 1, _SL("VFS curdir is '${string}', wanted '${string}'"), stvar(strref, vcwd),
+                   stvar(strref, cwd));
+
+    // relative, and in the wrong case
+    checkStat(&ret, vfs, _S"cxvfsplat/mixed.TXT", FS_File);
+    checkContents(&ret, vfs, _S"CXVFSPLAT/mixed.txt", _S"plat");
+
+out:
+    vfsDestroy(&vfs);
+    fsDelete(file);
+    fsRemoveDir(dir);
+    strDestroy(&cwd);
+    strDestroy(&vcwd);
+    strDestroy(&dir);
+    strDestroy(&file);
+    return ret;
+}
+
 // Each group below runs several of the subtests above in one process, so ctest spends one
 // process launch per feature area instead of one per subtest. The individual subtests stay
 // registered under their own names too, for running or debugging one in isolation.
@@ -1327,7 +1374,7 @@ int test_vfs_grp_cow(void)
 
 int test_vfs_grp_misc(void)
 {
-    TEST_CHAIN(test_vfs_errors, test_vfs_concurrency, test_vfs_fsprov);
+    TEST_CHAIN(test_vfs_errors, test_vfs_concurrency, test_vfs_fsprov, test_vfs_platformfs);
 }
 
 testfunc vfstest_funcs[] = {
@@ -1358,6 +1405,7 @@ testfunc vfstest_funcs[] = {
     { "nocache",      test_vfs_nocache      },
     { "concurrency",  test_vfs_concurrency  },
     { "fsprov",   test_vfs_fsprov   },
+    { "platformfs", test_vfs_platformfs },
     { "grp_fileops",    test_vfs_grp_fileops    },
     { "grp_mounting",   test_vfs_grp_mounting   },
     { "grp_pathresolve", test_vfs_grp_pathresolve },
