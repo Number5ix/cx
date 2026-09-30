@@ -1483,9 +1483,58 @@ static int test_vfs_list_caseinsens(void)
     checkStat(&ret, vfs, _S"/sub/deep/c.txt", FS_File);
     checkStat(&ret, vfs, _S"/sUb/B.txt", FS_File);
     checkStat(&ret, vfs, _S"/sub/other/x.txt", FS_Nonexistent);
+    checkSearch(&ret, vfs, _S"/SUB", NULL, 0, _S"Deep,b.TXT");
     checkNoCalls(&ret, prov, before, _S"case-insensitive lookups after listing");
 
     objRelease(&prov);
+    vfsDestroy(&vfs);
+    return ret;
+}
+
+// Searches are answered from listings once every layer has one, with the pattern, type filter,
+// layer order and mount points all applied as for a search the providers answer.
+static int test_vfs_list_search(void)
+{
+    int ret            = 0;
+    VFS* vfs           = vfsCreate(VFS_CaseSensitive);
+    VFSTestProv* lower = sampleProvider(VFS_CaseSensitive, _S"low");
+    VFSTestProv* upper = vfstestprovCreate(VFS_CaseSensitive);
+    VFSTestProv* child = vfstestprovCreate(VFS_CaseSensitive);
+    FSSearchIter iter;
+    FSStat st = { 0 };
+
+    vfstestprovAddFile(upper, _S"sub/u.txt", _S"u");
+    vfstestprovAddFile(upper, _S"sub/b.txt", _S"upper b");
+    vfstestprovAddDir(upper, _S"sub/udir");
+    vfstestprovAddFile(child, _S"k.txt", _S"k");
+    vfsMountProvider(vfs, lower, _S"/", VFS_Immutable);
+    vfsMountProvider(vfs, upper, _S"/", VFS_Immutable);
+    vfsMountProvider(vfs, child, _S"/sub/mnt");
+
+    checkSearch(&ret, vfs, _S"/sub", NULL, 0, _S"b.txt,deep,mnt,u.txt,udir");
+    int32 before = provCalls(lower) + provCalls(upper);
+
+    checkSearch(&ret, vfs, _S"/sub", _S"*.txt", 0, _S"b.txt,u.txt");
+    checkSearch(&ret, vfs, _S"/sub", NULL, FS_Directory, _S"deep,mnt,udir");
+    checkSearch(&ret, vfs, _S"/sub", _S"u*", FS_File, _S"u.txt");
+
+    // nothing matching is a failed search, as it is when the providers are asked
+    if (vfsSearchInit(&iter, vfs, _S"/sub", _S"*.none", 0, false))
+        TEST_FAILV(ret, 1, _SL("search matching nothing succeeded"), stvNone);
+    vfsSearchFinish(&iter);
+
+    // the upper layer's copy wins, and a lookup after the search is free too
+    if (vfsStat(vfs, _S"/sub/b.txt", &st) != FS_File || st.size != 7)
+        TEST_FAILV(ret, 1, _SL("/sub/b.txt has size ${uint}, wanted 7"), stvar(uint64, st.size));
+    checkStat(&ret, vfs, _S"/sub/zzz", FS_Nonexistent);
+
+    if (provCalls(lower) + provCalls(upper) != before)
+        TEST_FAILV(ret, 1, _SL("listed layers were asked again: ${int} calls"),
+                   stvar(int32, provCalls(lower) + provCalls(upper) - before));
+
+    objRelease(&lower);
+    objRelease(&upper);
+    objRelease(&child);
     vfsDestroy(&vfs);
     return ret;
 }
@@ -1728,7 +1777,7 @@ int test_vfs_grp_cow(void)
 int test_vfs_grp_listings(void)
 {
     TEST_CHAIN(test_vfs_list_immutable, test_vfs_list_mixed, test_vfs_list_caseinsens,
-               test_vfs_list_events, test_vfs_list_stopped, test_vfs_list_evict,
+               test_vfs_list_search, test_vfs_list_events, test_vfs_list_stopped, test_vfs_list_evict,
                test_vfs_list_nocache, test_vfs_list_stress);
 }
 
@@ -1769,6 +1818,7 @@ testfunc vfstest_funcs[] = {
     { "list_immutable", test_vfs_list_immutable },
     { "list_mixed",     test_vfs_list_mixed     },
     { "list_caseinsens", test_vfs_list_caseinsens },
+    { "list_search",    test_vfs_list_search    },
     { "list_events",    test_vfs_list_events    },
     { "list_stopped",   test_vfs_list_stopped   },
     { "list_evict",     test_vfs_list_evict     },

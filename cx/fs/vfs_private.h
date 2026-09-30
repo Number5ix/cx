@@ -227,6 +227,22 @@ _Ret_maybenull_ VFSListing* _vfsListingFor(_In_ VFSDir* dir, _In_ VFSMount* m);
 bool _vfsListDir(_Out_ VFSListing* out, _Inout_ VFS* vfs, _Inout_ VFSMount* m,
                  _Inout_ VFSProvider* provif, _In_opt_ strref relpath);
 
+// For a listable candidate with no listing of the directory at node dir -- dirdepth components
+// below its mount -- works out from the nearest ancestor's listing where that directory really
+// is (ldir, ldepth), or that it is not there at all (lnodir). VFS locks must be held.
+void _vfsCandLocateDir(_Inout_ VFSCand* c, _In_ VFSDir* dir, int32 dirdepth);
+
+// Lists the directory dirdepth components below c's mount, whose VFS path is dirpath, for a
+// listable mount with no listing of it yet. On a case-insensitive VFS over a case-sensitive
+// provider, every directory on the way whose real name is not known yet is listed too, to find
+// it. The listings are appended to lists; the one returned, for the directory itself, is only
+// valid until lists next grows. Returns NULL if the provider could not say. Calls into the
+// provider, so no VFS lock may be held.
+_Ret_maybenull_ VFSListing* _vfsCandListDir(_Inout_ VFS* vfs, _Inout_ VFSCand* c,
+                                            _Inout_ VFSProvider* provif,
+                                            _Inout_ sa_VFSPendList* lists, _In_ strref dirpath,
+                                            int32 dirdepth);
+
 // Stores listings made with no lock held, unless their directories already have one for that
 // mount. The caller checks mountgen and cachegen first.
 _Requires_exclusive_lock_held_(vfs->vfslock) void _vfsStoreListings(_Inout_ VFS* vfs,

@@ -351,6 +351,7 @@ static const testspec tests[] = {
     { "vfs: Immutable listings", "vfstest", "list_immutable" },
     { "vfs: Listed and unlisted layers", "vfstest", "list_mixed" },
     { "vfs: Case-insensitive listings", "vfstest", "list_caseinsens" },
+    { "vfs: Search from listings", "vfstest", "list_search" },
     { "vfs: Listing change events", "vfstest", "list_events" },
     { "vfs: Stopped listing watch", "vfstest", "list_stopped" },
     { "vfs: Listing eviction", "vfstest", "list_evict" },

@@ -50,8 +50,42 @@ static stDefine(VFSDirEnt) {
 #define STypeCheckedArg_VFSDirEnt(type, val)    stType(type), stArg(type, val)
 #define STypeCheckedPtrArg_VFSDirEnt(type, val) stType(type), stArgPtr(type, val)
 
+// Adds a listing's entries that pass the filters to search, skipping names a higher layer
+// already supplied. Returns whether any entry matched the pattern, which is what a provider's
+// own search would have reported.
+static bool addListing(_Inout_ VFSSearch* search, _Inout_ hashtable* names, _In_ VFSListing* l,
+                       _In_opt_ strref pattern, int typefilter)
+{
+    bool matched  = false;
+    uint32 mflags = (l->mount->flags & VFS_CaseSensitive) ? 0 : PATH_CaseInsensitive;
+
+    if (!l->exists)
+        return false;
+
+    foreach (hashtable, hti, l->ents) {
+        strref name    = htiKey(string, hti);
+        VFSListEnt* le = (VFSListEnt*)htiValPtr(VFSListEnt, hti);
+        if (!strEmpty(pattern) && !pathMatch(name, pattern, mflags))
+            continue;
+        matched = true;
+
+        if ((typefilter && (le->type & typefilter) != typefilter) ||
+            htHasKey(*names, strref, name))
+            continue;
+
+        VFSDirEnt ent = { .name = (string)name,   // borrowed ref!
+                          .type = le->type,
+                          .stat = le->stat };
+        int32 idx     = saPush(&search->ents, VFSDirEnt, ent);
+        htInsert(names, string, search->ents.a[idx].name, intptr, 1);
+    }
+    return matched;
+}
+
 // Like _vfsFindMount, this runs in three phases so that no provider is ever called with a VFS
-// lock held -- a provider here can be a VFSVFS pointing back at this same VFS.
+// lock held -- a provider here can be a VFSVFS pointing back at this same VFS. Layers whose
+// listing of the directory is cached are read in phase one; a listable layer with no listing
+// yet is listed in full in phase two, and the listing kept.
 _Use_decl_annotations_
 bool vfsSearchInit(FSSearchIter* iter, VFS* vfs, strref path, strref pattern, int typefilter,
                    bool stat)
@@ -62,7 +96,10 @@ bool vfsSearchInit(FSSearchIter* iter, VFS* vfs, strref path, strref pattern, in
     sa_VFSMount mountmnts = saInitNone;
     sa_VFSCand cands      = saInitNone;
     sa_VFSPendEnt pending = saInitNone;
-    uint32 gen  = 0;
+    sa_VFSPendList lists  = saInitNone;
+    sa_VFSDirEnt listed   = saInitNone;   // entries read from cached listings, in layer order
+    sa_int32 listedcount  = saInitNone;   // how many of them each candidate contributed, or -1
+    uint32 gen = 0, cgen = 0;
     int32 idx;
     bool exists = false;
 
@@ -81,6 +118,8 @@ bool vfsSearchInit(FSSearchIter* iter, VFS* vfs, strref path, strref pattern, in
     saInit(&mountmnts, object, 8);
     saInit(&cands, VFSCand, 8);
     saInit(&pending, VFSPendEnt, 8);
+    saInit(&listed, VFSDirEnt, 16, SA_Grow(Aggressive));
+    saInit(&listedcount, int32, 8);
 
     VFSSearch* search = xaAlloc(sizeof(VFSSearch), XA_Zero);
     iter->_search     = search;
@@ -113,7 +152,47 @@ bool vfsSearchInit(FSSearchIter* iter, VFS* vfs, strref path, strref pattern, in
     }
 
     _vfsSnapshot(vfs, &cands, abspath, false, NULL);
-    gen = vfs->mountgen;
+
+    // Copy out what cached listings have. They are filtered here, but merged with the other
+    // layers only in phase two, so that layer order and mount points still come first.
+    for (int32 i = 0, n = saSize(cands); i < n; i++) {
+        VFSCand* c = &cands.a[i];
+        int32 cnt  = -1;
+        if (_vfsMountListable(c->mount)) {
+            VFSListing* l = _vfsListingFor(vfsdir, c->mount);
+            if (l) {
+                // a hit if anything matched the pattern, as the provider's own search would say
+                cnt           = 0;
+                c->lstate     = VFS_LMiss;
+                uint32 mflags = (l->mount->flags & VFS_CaseSensitive) ? 0 : PATH_CaseInsensitive;
+                if (l->exists) {
+                    foreach (hashtable, hti, l->ents) {
+                        strref name    = htiKey(string, hti);
+                        VFSListEnt* le = (VFSListEnt*)htiValPtr(VFSListEnt, hti);
+                        if (!strEmpty(pattern) && !pathMatch(name, pattern, mflags))
+                            continue;
+                        c->lstate = VFS_LHit;
+                        if (typefilter && (le->type & typefilter) != typefilter)
+                            continue;
+                        VFSDirEnt ent = { .type = le->type, .stat = le->stat };
+                        strDup(&ent.name, name);
+                        saPushC(&listed, VFSDirEnt, &ent);
+                        cnt++;
+                    }
+                }
+            } else {
+                _vfsCandLocateDir(c, vfsdir, saSize(c->relcomp));
+                if (c->lnodir) {
+                    c->lstate = VFS_LMiss;
+                    cnt       = 0;
+                }
+            }
+        }
+        saPush(&listedcount, int32, cnt);
+    }
+
+    gen  = vfs->mountgen;
+    cgen = atomicLoad(uint32, &vfs->cachegen, Relaxed);
 
     rwlockReleaseRead(&vfs->vfslock);
     rwlockReleaseRead(&vfs->vfsdlock);
@@ -148,20 +227,45 @@ bool vfsSearchInit(FSSearchIter* iter, VFS* vfs, strref path, strref pattern, in
 
     // start at the target directory and recurse upwards to see if any providers know about
     // this directory
+    int32 lpos = 0;
     for (int32 i = 0, n = saSize(cands); i < n; i++) {
-        VFSMount* m         = cands.a[i].mount;
+        VFSCand* c          = &cands.a[i];
+        VFSMount* m         = c->mount;
         VFSProvider* provif = objInstIf(m->provider, VFSProvider);
+
+        if (listedcount.a[i] >= 0) {
+            // answered from a cached listing in phase one
+            if (c->lstate == VFS_LHit)
+                exists = true;
+            for (int32 j = 0; j < listedcount.a[i]; j++, lpos++) {
+                VFSDirEnt* le = &listed.a[lpos];
+                if (!htHasKey(names, string, le->name)) {
+                    idx = saPush(&search->ents, VFSDirEnt, *le);
+                    htInsert(&names, string, search->ents.a[idx].name, intptr, 1);
+                }
+            }
+            continue;
+        }
+
         if (!provif)
             continue;
 
+        if (_vfsMountListable(m)) {
+            VFSListing* dl = _vfsCandListDir(vfs, c, provif, &lists, abspath, saSize(c->relcomp));
+            if (dl) {
+                if (addListing(search, &names, dl, pattern, typefilter))
+                    exists = true;
+                continue;
+            }
+        }
+
         // Start from this mount's own path every time. The case-insensitive helper rewrites it
         // with the provider's real casing, which must not carry over to the next provider.
-        strDup(&curpath, cands.a[i].relpath);
+        strDup(&curpath, c->relpath);
 
         if (!(vfs->flags & VFS_CaseSensitive) && (m->flags & VFS_CaseSensitive)) {
             // case-sensitive file system on insensitive VFS, find the real underlying path
-            _vfsFindCIHelper(&curpath, cands.a[i].mountpath, cands.a[i].relcomp, m, provif,
-                             &pending);
+            _vfsFindCIHelper(&curpath, c->mountpath, c->relcomp, m, provif, &pending);
         }
 
         // see if we can get a directory listing out of it
@@ -201,13 +305,17 @@ bool vfsSearchInit(FSSearchIter* iter, VFS* vfs, strref path, strref pattern, in
     }
 
     // ---- phase 3: write what the providers told us into the cache
-    if (saSize(pending) > 0) {
+    if (saSize(pending) > 0 || saSize(lists) > 0) {
         rwlockAcquireRead(&vfs->vfsdlock);
         rwlockAcquireWrite(&vfs->vfslock);
         // A mount or unmount in the meantime means these entries may describe a tree that no
-        // longer exists, so drop them rather than cache something stale.
-        if (gen == vfs->mountgen)
+        // longer exists, and an invalidation means a listing may be missing a change, so drop
+        // them rather than cache something stale.
+        if (gen == vfs->mountgen) {
             _vfsFlushPending(vfs, &pending);
+            if (cgen == atomicLoad(uint32, &vfs->cachegen, Relaxed))
+                _vfsStoreListings(vfs, &lists);
+        }
         rwlockReleaseWrite(&vfs->vfslock);
         rwlockReleaseRead(&vfs->vfsdlock);
     }
@@ -220,6 +328,9 @@ done:
     strDestroy(&curpath);
     strDestroy(&filepath);
     saDestroy(&pending);
+    saDestroy(&lists);
+    saDestroy(&listed);
+    saDestroy(&listedcount);
     saDestroy(&cands);
     saDestroy(&mountpoints);
     saDestroy(&mountmnts);

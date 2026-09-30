@@ -840,6 +840,35 @@ VFSMount* _vfsFindSelfMount(VFS* vfs, strref abspath)
     return ret;
 }
 
+_Use_decl_annotations_
+void _vfsCandLocateDir(VFSCand* c, VFSDir* dir, int32 dirdepth)
+{
+    VFSMount* m = c->mount;
+    if (dirdepth <= 0) {
+        strClear(&c->ldir);
+        c->ldepth = 0;
+        return;
+    }
+
+    VFSDir* child = dir;
+    VFSDir* anc   = dir->parent;
+    for (int32 depth = dirdepth - 1; anc && depth >= 0; depth--) {
+        VFSListing* al = _vfsListingFor(anc, m);
+        if (al) {
+            htelem e = al->exists ? htFind(al->ents, string, child->name, none, NULL) : 0;
+            if (e && hteValPtr(al->ents, VFSListEnt, e)->type == FS_Directory) {
+                pathJoin(&c->ldir, al->relpath, hteKey(al->ents, string, e));
+                c->ldepth = depth + 1;
+            } else {
+                c->lnodir = true;
+            }
+            return;
+        }
+        child = anc;
+        anc   = anc->parent;
+    }
+}
+
 // What the cached listings say about the entry fname for candidate c, whose directory node is
 // pdir. VFS locks must be held.
 static void candFromListings(_Inout_ VFSCand* c, _In_ VFSDir* pdir, _In_ strref fname)
@@ -868,41 +897,16 @@ static void candFromListings(_Inout_ VFSCand* c, _In_ VFSDir* pdir, _In_ strref 
 
     // No listing of the directory yet. The nearest ancestor that has one says where the
     // directory really is, or that it is not there at all.
-    if (dirdepth <= 0) {
-        strClear(&c->ldir);
-        c->ldepth = 0;
-        return;
-    }
-    VFSDir* child = pdir;
-    VFSDir* anc   = pdir->parent;
-    for (int32 depth = dirdepth - 1; anc && depth >= 0; depth--) {
-        VFSListing* al = _vfsListingFor(anc, m);
-        if (al) {
-            htelem e = al->exists ? htFind(al->ents, string, child->name, none, NULL) : 0;
-            if (e && hteValPtr(al->ents, VFSListEnt, e)->type == FS_Directory) {
-                pathJoin(&c->ldir, al->relpath, hteKey(al->ents, string, e));
-                c->ldepth = depth + 1;
-            } else {
-                c->lstate = VFS_LMiss;
-                c->lnodir = true;
-            }
-            return;
-        }
-        child = anc;
-        anc   = anc->parent;
-    }
+    _vfsCandLocateDir(c, pdir, dirdepth);
+    if (c->lnodir)
+        c->lstate = VFS_LMiss;
 }
 
-// Lists the directory holding c's entry, for a listable mount with no listing of it yet. On a
-// case-insensitive VFS over a case-sensitive provider, every directory on the way whose real name
-// is not known yet is listed too, to find it. The listings are appended to lists; the one
-// returned, for the directory itself, is only valid until lists next grows. Returns NULL if the
-// provider could not say.
-static VFSListing* candListDir(_Inout_ VFS* vfs, _Inout_ VFSCand* c, _Inout_ VFSProvider* provif,
-                               _Inout_ sa_VFSPendList* lists, _In_ strref dirpath)
+_Use_decl_annotations_
+VFSListing* _vfsCandListDir(VFS* vfs, VFSCand* c, VFSProvider* provif, sa_VFSPendList* lists,
+                            strref dirpath, int32 dirdepth)
 {
     VFSMount* m     = c->mount;
-    int32 dirdepth  = saSize(c->relcomp) - 1;
     bool casefix    = !(vfs->flags & VFS_CaseSensitive) && (m->flags & VFS_CaseSensitive);
     bool exists     = true;
     string real = 0, vdir = 0;
@@ -914,7 +918,8 @@ static VFSListing* candListDir(_Inout_ VFS* vfs, _Inout_ VFSCand* c, _Inout_ VFS
         depth = c->ldepth;
     } else if (!casefix) {
         // the VFS's spelling is good enough for the provider
-        if (!pathParent(&real, c->relpath))
+        strJoin(&real, c->relcomp, fsPathSepStr);
+        if (dirdepth < saSize(c->relcomp) && !pathParent(&real, real))
             strClear(&real);
         depth = dirdepth;
     } else {
@@ -1093,7 +1098,7 @@ VFSMount* _vfsFindMount(VFS* vfs, string* rpath, strref path, VFSMount** cowmoun
             if (c->ldepth == saSize(c->relcomp) - 1)
                 pathJoin(&curpath, c->ldir, fname);
         } else if (_vfsMountListable(m) && !strEmpty(fname) &&
-                   (dl = candListDir(vfs, c, provif, &lists, dirpath))) {
+                   (dl = _vfsCandListDir(vfs, c, provif, &lists, dirpath, saSize(c->relcomp) - 1))) {
             htelem e = dl->exists ? htFind(dl->ents, string, fname, none, NULL) : 0;
             if (e) {
                 VFSListEnt* le = hteValPtr(dl->ents, VFSListEnt, e);
