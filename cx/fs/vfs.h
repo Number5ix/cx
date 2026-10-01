@@ -413,6 +413,32 @@ void vfsInvalidate(_Inout_ VFS* vfs, _In_opt_ strref path, bool recursive);
 /// provider type
 bool vfsGetFSPath(_Inout_ string* out, _Inout_ VFS* vfs, _In_opt_ strref path);
 
+/// Looks up a path and where it is on disk, in one lookup
+///
+/// Returns what vfsStat() would, and fills in the OS filesystem path that vfsGetFSPath() would
+/// return. Use it instead of calling both.
+///
+/// @param fspath Receives the OS filesystem path; cleared if the path does not exist or is not
+/// backed by the OS filesystem (for example, a file inside an archive)
+/// @param vfs VFS instance
+/// @param path Path to look up (can be relative or absolute)
+/// @param stat Optional pointer to receive detailed metadata
+/// @return FS_Nonexistent if not found, FS_Directory or FS_File otherwise
+///
+/// Example:
+/// @code
+///   string disk = 0;
+///   if (vfsLocate(&disk, vfs, _SL("/data/tex/a.dds"), NULL) == FS_File) {
+///       if (!strEmpty(disk))
+///           loadLooseFile(disk);   // on disk
+///       else
+///           loadFromVFS(vfs, _SL("/data/tex/a.dds"));   // inside an archive
+///   }
+///   strDestroy(&disk);
+/// @endcode
+_vfsStatAnno FSPathStat vfsLocate(_Inout_ string* fspath, _Inout_ VFS* vfs, _In_opt_ strref path,
+                                  _Out_opt_ FSStat* stat);
+
 typedef struct FSSearchIter FSSearchIter;
 
 /// Begins directory iteration through the VFS

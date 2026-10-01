@@ -347,6 +347,7 @@ static const testspec tests[] = {
     { "vfs: NoCache mount", "vfstest", "nocache" },
     { "vfs: Concurrency", "vfstest", "concurrency" },
     { "vfs: OS filesystem provider", "vfstest", "fsprov" },
+    { "vfs: vfsLocate", "vfstest", "locate" },
     { "vfs: Platform filesystem mount", "vfstest", "platformfs" },
     { "vfs: Immutable listings", "vfstest", "list_immutable" },
     { "vfs: Listed and unlisted layers", "vfstest", "list_mixed" },

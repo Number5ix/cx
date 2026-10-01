@@ -1295,6 +1295,83 @@ out:
     return ret;
 }
 
+// vfsLocate over a layer on disk and a layer that is not: the type always, the disk path only
+// where there is one, and the same again once the answer comes from the cache.
+static int test_vfs_locate(void)
+{
+    int ret = 0;
+    string cwd = 0, dir = 0, file = 0, fspath = 0;
+    VFSTestProv* prov = NULL;
+    VFS* vfs          = NULL;
+    FSStat st         = { 0 };
+
+    fsCurDir(&cwd);
+    pathJoin(&dir, cwd, _S"cxvfslocate");
+    pathJoin(&file, dir, _S"f.txt");
+
+    if (!fsCreateAll(dir)) {
+        TEST_FAILV(ret, 1, _SL("could not create scratch directory '${string}'"), stvar(strref, dir));
+        goto out;
+    }
+    FSFile* fh = fsOpen(file, FS_Overwrite);
+    if (!fh) {
+        TEST_FAILV(ret, 1, _SL("could not create '${string}'"), stvar(strref, file));
+        goto out;
+    }
+    fileWrite(fh, "ondisk", 6, NULL);
+    fileClose(&fh);
+
+#if defined(_PLATFORM_UNIX)
+    vfs = vfsCreate(VFS_CaseSensitive);
+#else
+    vfs = vfsCreate(0);
+#endif
+    prov = vfstestprovCreate(VFS_CaseSensitive);
+    vfstestprovAddFile(prov, _S"packed.txt", _S"packed");
+    vfsMountProvider(vfs, prov, _S"/", VFS_Immutable);
+    if (!vfsMountFS(vfs, _S"/", dir, VFS_CacheListings) || !vfsMountFS(vfs, _S"/mnt", dir)) {
+        TEST_FAILV(ret, 1, _SL("could not mount '${string}'"), stvar(strref, dir));
+        goto out;
+    }
+
+    // twice: once looked up, once from the cache
+    for (int pass = 0; pass < 2; pass++) {
+        if (vfsLocate(&fspath, vfs, _S"/f.txt", &st) != FS_File || st.size != 6)
+            TEST_FAILV(ret, 1, _SL("vfsLocate(/f.txt) missed it, or size ${uint}"), stvar(uint64, st.size));
+        if (!strEq(fspath, file))
+            TEST_FAILV(ret, 1, _SL("vfsLocate(/f.txt) path '${string}', wanted '${string}'"),
+                       stvar(strref, fspath), stvar(strref, file));
+
+        if (vfsLocate(&fspath, vfs, _S"/packed.txt", &st) != FS_File || st.size != 6)
+            TEST_FAILV(ret, 1, _SL("vfsLocate(/packed.txt) missed it, or size ${uint}"), stvar(uint64, st.size));
+        if (!strEmpty(fspath))
+            TEST_FAILV(ret, 1, _SL("vfsLocate(/packed.txt) path '${string}', wanted none"), stvar(strref, fspath));
+
+        strDup(&fspath, _S"stale");
+        if (vfsLocate(&fspath, vfs, _S"/nope.txt", NULL) != FS_Nonexistent)
+            TEST_FAILV(ret, 1, _SL("vfsLocate(/nope.txt) found it"), stvNone);
+        if (!strEmpty(fspath))
+            TEST_FAILV(ret, 1, _SL("vfsLocate(/nope.txt) path '${string}', wanted none"), stvar(strref, fspath));
+
+        // a bare mount point is the root of what is mounted there
+        if (vfsLocate(&fspath, vfs, _S"/mnt", NULL) != FS_Directory || !strEq(fspath, dir))
+            TEST_FAILV(ret, 1, _SL("vfsLocate(/mnt) path '${string}', wanted '${string}'"),
+                       stvar(strref, fspath), stvar(strref, dir));
+    }
+
+out:
+    if (vfs)
+        vfsDestroy(&vfs);
+    objRelease(&prov);
+    fsDelete(file);
+    fsRemoveDir(dir);
+    strDestroy(&cwd);
+    strDestroy(&dir);
+    strDestroy(&file);
+    strDestroy(&fspath);
+    return ret;
+}
+
 // vfsMountPlatformFS on a VFS created with its own flags: a case-insensitive view of the OS
 // filesystem, starting in the process's current directory.
 static int test_vfs_platformfs(void)
@@ -2010,7 +2087,8 @@ int test_vfs_grp_listings(void)
 
 int test_vfs_grp_misc(void)
 {
-    TEST_CHAIN(test_vfs_errors, test_vfs_concurrency, test_vfs_fsprov, test_vfs_platformfs);
+    TEST_CHAIN(test_vfs_errors, test_vfs_concurrency, test_vfs_fsprov, test_vfs_locate,
+               test_vfs_platformfs);
 }
 
 testfunc vfstest_funcs[] = {
@@ -2041,6 +2119,7 @@ testfunc vfstest_funcs[] = {
     { "nocache",      test_vfs_nocache      },
     { "concurrency",  test_vfs_concurrency  },
     { "fsprov",   test_vfs_fsprov   },
+    { "locate",   test_vfs_locate   },
     { "platformfs", test_vfs_platformfs },
     { "list_immutable", test_vfs_list_immutable },
     { "list_mixed",     test_vfs_list_mixed     },

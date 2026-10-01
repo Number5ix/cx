@@ -2,15 +2,17 @@
 #include "cx/debug/error.h"
 #include "cx/fs/vfsfs/vfsfs.h"
 
-_Use_decl_annotations_
-FSPathStat vfsStat(VFS* vfs, strref path, FSStat* stat)
+// vfsStat, and also the OS filesystem path when fspath is given.
+static FSPathStat vfsStatLocate(_Inout_opt_ string* fspath, _Inout_ VFS* vfs, _In_opt_ strref path,
+                                _Out_opt_ FSStat* stat)
 {
     int ret      = FS_Nonexistent;
     string rpath = 0, abspath = 0;
     VFSFound found;
 
-    VFSMount* m =
-        _vfsFindMount(vfs, &rpath, path, NULL, NULL, VFS_FindCache | VFS_FindStatOnly, &found);
+    // the real path is only needed for the OS one, or when the provider has to be asked
+    flags_t fflags = VFS_FindCache | (fspath ? 0 : VFS_FindStatOnly);
+    VFSMount* m    = _vfsFindMount(vfs, &rpath, path, NULL, NULL, fflags, &found);
     if (m && found.valid) {
         ret = found.type;
         if (stat)
@@ -40,10 +42,28 @@ FSPathStat vfsStat(VFS* vfs, strref path, FSStat* stat)
         }
     }
 
+    if (fspath) {
+        VFSProvider* provif = m ? objInstIf(m->provider, VFSProvider) : NULL;
+        if (ret == FS_Nonexistent || !provif || !provif->getFSPath(m->provider, fspath, rpath))
+            strClear(fspath);
+    }
+
     strDestroy(&rpath);
     strDestroy(&abspath);
     objRelease(&m);
     return ret;
+}
+
+_Use_decl_annotations_
+FSPathStat vfsStat(VFS* vfs, strref path, FSStat* stat)
+{
+    return vfsStatLocate(NULL, vfs, path, stat);
+}
+
+_Use_decl_annotations_
+FSPathStat vfsLocate(string* fspath, VFS* vfs, strref path, FSStat* stat)
+{
+    return vfsStatLocate(fspath, vfs, path, stat);
 }
 
 _Use_decl_annotations_
