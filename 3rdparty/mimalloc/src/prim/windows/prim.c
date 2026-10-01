@@ -28,6 +28,7 @@ terms of the MIT license. A copy of the license can be found in the file
 
 static DWORD win_major_version = 6;
 static DWORD win_minor_version = 0;
+static bool  win_version_is_known = false;   // did GetVersionExW succeed?
 
 // We use VirtualAlloc2 for aligned allocation, but it is only supported on Windows 10 and Windows Server 2016.
 // So, we need to look it up dynamically to run on older systems. (use __stdcall for 32-bit compatibility)
@@ -239,6 +240,7 @@ void _mi_prim_mem_init( mi_os_mem_config_t* config )
       if ((*pGetVersionExW)(&version)) {
         win_major_version = version.dwMajorVersion;
         win_minor_version = version.dwMinorVersion;
+        win_version_is_known = true;
       }
     }
     mi_win_freelibrary(hDll, hDllFree);
@@ -696,12 +698,21 @@ int _mi_prim_getenv(const char* name, char* result, size_t result_size) {
 // Random
 //----------------------------------------------------------------
 
-#if defined(MI_USE_RTLGENRANDOM) // || defined(__cplusplus)
 // We prefer to use BCryptGenRandom instead of (the unofficial) RtlGenRandom but when using
 // dynamic overriding, we observed it can raise an exception when compiled with C++, and
 // sometimes deadlocks when also running under the VS debugger.
 // In contrast, issue #623 implies that on Windows Server 2019 we need to use BCryptGenRandom.
-// To be continued..
+//
+// Neither works on every Windows version when called while the loader is still initializing
+// the process, which is where we reseed the main heap (see `_mi_auto_process_init`):
+// - Before Windows 8 (Windows 7, Server 2008 R2) the first call to BCryptGenRandom registers
+//   a thread pool wait and blocks until the pool's waiter thread acknowledges it. A thread
+//   created during process initialization cannot run until that initialization completes,
+//   so the process hangs forever at startup (issue #1395).
+// - On Windows Server 2019, RtlGenRandom can crash in that same situation (issue #623).
+// So, unless `MI_USE_RTLGENRANDOM` forces RtlGenRandom everywhere, we choose at runtime:
+// RtlGenRandom before Windows 8, and BCryptGenRandom otherwise.
+#if defined(MI_USE_RTLGENRANDOM) // || defined(__cplusplus)
 #pragma comment (lib,"advapi32.lib")
 #define RtlGenRandom  SystemFunction036
 mi_decl_externc BOOLEAN NTAPI RtlGenRandom(PVOID RandomBuffer, ULONG RandomBufferLength);
@@ -719,9 +730,7 @@ bool _mi_prim_random_buf(void* buf, size_t buf_len) {
 typedef LONG (NTAPI *PBCryptGenRandom)(HANDLE, PUCHAR, ULONG, ULONG);
 static  PBCryptGenRandom pBCryptGenRandom = NULL;
 
-bool _mi_prim_random_buf(void* buf, size_t buf_len) {
-  mi_assert(buf_len <= ULONG_MAX);
-  if (buf_len > ULONG_MAX) return false;
+static bool mi_win_bcrypt_random_buf(void* buf, size_t buf_len) {
   mi_atomic_do_once {
     HINSTANCE hDll = mi_win_loadlibrary(TEXT("bcrypt.dll"));
     if (hDll != NULL) {
@@ -731,6 +740,40 @@ bool _mi_prim_random_buf(void* buf, size_t buf_len) {
   }
   if (pBCryptGenRandom == NULL) return false;
   return (pBCryptGenRandom(NULL, (PUCHAR)buf, (ULONG)buf_len, BCRYPT_USE_SYSTEM_PREFERRED_RNG) >= 0);
+}
+
+// RtlGenRandom is exported from advapi32 as `SystemFunction036`. Bind it dynamically so we
+// only depend on advapi32 on the systems where we actually use it.
+typedef BOOLEAN (NTAPI *PRtlGenRandom)(PVOID, ULONG);
+static  PRtlGenRandom pRtlGenRandom = NULL;
+
+static bool mi_win_rtl_random_buf(void* buf, size_t buf_len) {
+  mi_atomic_do_once {
+    bool hDllFree;
+    HINSTANCE hDll = mi_win_getlibrary(TEXT("advapi32.dll"), &hDllFree);
+    if (hDll != NULL) {
+      pRtlGenRandom = (PRtlGenRandom)(void (*)(void))GetProcAddress(hDll, "SystemFunction036");
+      // don't free
+    }
+  }
+  if (pRtlGenRandom == NULL) return false;
+  return ((*pRtlGenRandom)(buf, (ULONG)buf_len) != 0);
+}
+
+// Only avoid BCryptGenRandom if we positively identified a Windows version before Windows 8 (6.2);
+// if the version query failed we keep the default.
+static bool mi_win_bcrypt_can_deadlock(void) {
+  return (win_version_is_known && (win_major_version < 6 || (win_major_version == 6 && win_minor_version < 2)));
+}
+
+bool _mi_prim_random_buf(void* buf, size_t buf_len) {
+  mi_assert(buf_len <= ULONG_MAX);
+  if (buf_len > ULONG_MAX) return false;
+  if (mi_win_bcrypt_can_deadlock()) {
+    // do not fall back to BCryptGenRandom on failure; the caller uses weak randomness instead.
+    return mi_win_rtl_random_buf(buf, buf_len);
+  }
+  return mi_win_bcrypt_random_buf(buf, buf_len);
 }
 
 #endif  // MI_USE_RTLGENRANDOM
