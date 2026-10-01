@@ -169,23 +169,21 @@ bool TlsCAStore_addDir(_In_ TlsCAStore* self, _In_opt_ strref path)
     // A hashed CA directory is full of symlinks and files that are not certificates at all, so a
     // file that will not parse is skipped rather than failing the call. Adding nothing at all is
     // the only failure.
-    if (fsSearchInit(&iter, path, NULL, false)) {
-        do {
-            if (iter.type != FS_File)
-                continue;
+    for (fsSearchInit(&iter, path, NULL, false); fsSearchValid(&iter); fsSearchNext(&iter)) {
+        if (iter.type != FS_File)
+            continue;
 
-            string full = 0;
-            pathJoin(&full, path, iter.name);
+        string full = 0;
+        pathJoin(&full, path, iter.name);
 
-            string data = 0;
-            if (readWholeFile(&data, full))
-                mbedtls_x509_crt_parse(&self->chain->crt,
-                                       (const uint8*)strC(data),
-                                       looksLikePEM(data) ? strLen(data) + 1 : strLen(data));
+        string data = 0;
+        if (readWholeFile(&data, full))
+            mbedtls_x509_crt_parse(&self->chain->crt,
+                                   (const uint8*)strC(data),
+                                   looksLikePEM(data) ? strLen(data) + 1 : strLen(data));
 
-            strDestroy(&data);
-            strDestroy(&full);
-        } while (fsSearchNext(&iter));
+        strDestroy(&data);
+        strDestroy(&full);
     }
     fsSearchFinish(&iter);
 

@@ -639,8 +639,8 @@ bool _vfsListDir(VFSListing* out, VFS* vfs, VFSMount* m, VFSProvider* provif, st
     FSSearchIter iter;
     if (!provif->searchInit(m->provider, &iter, relpath, NULL, true)) {
         provif->searchFinish(m->provider, &iter);
-        // An empty directory cannot be told apart from one that could not be read, so only a
-        // directory that is not there at all gets a listing.
+        // A directory that is there but could not be read gets no listing; one that is not there
+        // at all gets an empty one.
         if (provif->stat(m->provider, relpath, NULL) == FS_Directory) {
             _vfsListingDestroy(out);
             return false;
@@ -707,7 +707,8 @@ static int vfsFindCISub(_Inout_ string* out, _In_opt_ strref path, _In_opt_ strr
         return ret;
     }
 
-    do {
+    for (; provif->searchValid(mount->provider, &dsiter);
+         provif->searchNext(mount->provider, &dsiter)) {
         pathJoin(&filepath, path, dsiter.name);
 
         // if we haven't found it yet (the loop continues to cache even after
@@ -745,7 +746,7 @@ static int vfsFindCISub(_Inout_ string* out, _In_opt_ strref path, _In_opt_ strr
             strDup(&pe.origpath, filepath);
             saPushC(pending, VFSPendEnt, &pe);
         }
-    } while (provif->searchNext(mount->provider, &dsiter));
+    }
     provif->searchFinish(mount->provider, &dsiter);
 
     strDestroy(&filepath);

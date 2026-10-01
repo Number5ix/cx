@@ -430,7 +430,8 @@ typedef struct FSSearchIter FSSearchIter;
 /// @param pattern Optional wildcard pattern (NULL for all entries)
 /// @param typefilter FS_File, FS_Directory, or 0 for both
 /// @param stat If true, populate stat field for each entry (slower)
-/// @return true if directory opened and first entry found, false otherwise
+/// @return true if the directory exists, false otherwise. A directory with nothing in it, or
+/// nothing matching the filters, returns true with no entries.
 bool vfsSearchInit(_Out_ FSSearchIter* iter, _Inout_ VFS* vfs, _In_opt_ strref path,
                    _In_opt_ strref pattern, int typefilter, bool stat);
 

@@ -235,17 +235,19 @@ bool VFSTestProv_searchInit(_In_ VFSTestProv* self, _Out_ FSSearchIter* iter, _I
     search->dir = rpath;
     rpath       = NULL;
 
+    // The directory is there even if nothing in it matched, so that is still a success.
     if (saSize(search->names) == 0) {
         strDestroy(&search->dir);
         saDestroy(&search->names);
         saDestroy(&search->types);
         xaFree(search);
-        return false;
+        return true;
     }
 
     iter->_search = search;
     search->idx   = -1;
-    return VFSTestProv_searchNext(self, iter);
+    VFSTestProv_searchNext(self, iter);
+    return true;
 }
 
 bool VFSTestProv_searchValid(_In_ VFSTestProv* self, _In_ FSSearchIter* iter)

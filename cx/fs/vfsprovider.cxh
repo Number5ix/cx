@@ -25,7 +25,8 @@ interface VFSProvider {
     /// @param path Directory to list, relative to the mount point ("" is the mount root)
     /// @param pattern Wildcard to match entry names against, or NULL for all of them
     /// @param stat Fill in each entry's stat field
-    /// @return true if the directory was listed and has at least one matching entry
+    /// @return true if the directory was listed, even if nothing in it matched; false if it does
+    /// not exist or could not be read
     bool searchInit([out] FSSearchIter *iter, strref path, strref pattern, bool stat);
     bool searchValid([in] FSSearchIter *iter);
     bool searchNext([inout] FSSearchIter *iter);

@@ -434,6 +434,19 @@ static int test_fs_ops()
         strDestroy(&joined);
     }
 
+    // An empty directory, or one where nothing matches, is still a successful search, on every
+    // platform. Only a directory that is not there fails.
+    if (!fsSearchInit(&iter, nest2, NULL, false) || fsSearchValid(&iter))
+        TEST_FAILV(ret, 1, _SL("search of empty '${string}' failed or found something"),
+                   stvar(strref, nest2));
+    fsSearchFinish(&iter);
+    if (!fsSearchInit(&iter, dir, _S"*.none", false) || fsSearchValid(&iter))
+        TEST_FAILV(ret, 1, _SL("search for *.none failed or found something"), stvNone);
+    fsSearchFinish(&iter);
+    if (fsSearchInit(&iter, sub, NULL, false) || fsSearchValid(&iter))
+        TEST_FAILV(ret, 1, _SL("search of missing '${string}' succeeded"), stvar(strref, sub));
+    fsSearchFinish(&iter);
+
 out:
     if (fh)
         fileClose(&fh);

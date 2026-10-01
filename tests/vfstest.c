@@ -1523,6 +1523,42 @@ static int test_vfs_list_caseinsens(void)
     return ret;
 }
 
+// An empty directory, and a layer with nothing in it at all, are listed like any other, so
+// lookups there stop reaching the provider.
+static int test_vfs_list_empty(void)
+{
+    int ret            = 0;
+    VFS* vfs           = vfsCreate(VFS_CaseSensitive);
+    VFSTestProv* lower = vfstestprovCreate(VFS_CaseSensitive);
+    VFSTestProv* upper = vfstestprovCreate(VFS_CaseSensitive);
+    FSSearchIter iter;
+
+    vfstestprovAddDir(lower, _S"empty");
+    vfstestprovAddFile(lower, _S"a.txt", _S"a");
+    vfsMountProvider(vfs, lower, _S"/", VFS_Immutable);
+    vfsMountProvider(vfs, upper, _S"/", VFS_Immutable);
+
+    checkStat(&ret, vfs, _S"/a.txt", FS_File);
+    checkStat(&ret, vfs, _S"/empty/x.txt", FS_Nonexistent);
+    int32 lowbefore = provCalls(lower);
+    int32 upbefore  = provCalls(upper);
+
+    checkStat(&ret, vfs, _S"/a.txt", FS_File);
+    checkStat(&ret, vfs, _S"/b.txt", FS_Nonexistent);
+    checkStat(&ret, vfs, _S"/empty/x.txt", FS_Nonexistent);
+    checkStat(&ret, vfs, _S"/empty/y.txt", FS_Nonexistent);
+    if (!vfsSearchInit(&iter, vfs, _S"/empty", NULL, 0, false) || vfsSearchValid(&iter))
+        TEST_FAILV(ret, 1, _SL("search of an empty directory failed or found something"), stvNone);
+    vfsSearchFinish(&iter);
+    checkNoCalls(&ret, lower, lowbefore, _S"lookups in a listed empty directory");
+    checkNoCalls(&ret, upper, upbefore, _S"lookups through a listed empty layer");
+
+    objRelease(&lower);
+    objRelease(&upper);
+    vfsDestroy(&vfs);
+    return ret;
+}
+
 // Searches are answered from listings once every layer has one, with the pattern, type filter,
 // layer order and mount points all applied as for a search the providers answer.
 static int test_vfs_list_search(void)
@@ -1550,9 +1586,12 @@ static int test_vfs_list_search(void)
     checkSearch(&ret, vfs, _S"/sub", NULL, FS_Directory, _S"deep,mnt,udir");
     checkSearch(&ret, vfs, _S"/sub", _S"u*", FS_File, _S"u.txt");
 
-    // nothing matching is a failed search, as it is when the providers are asked
-    if (vfsSearchInit(&iter, vfs, _S"/sub", _S"*.none", 0, false))
-        TEST_FAILV(ret, 1, _SL("search matching nothing succeeded"), stvNone);
+    // nothing matching is still a successful search, as it is when the providers are asked
+    if (!vfsSearchInit(&iter, vfs, _S"/sub", _S"*.none", 0, false) || vfsSearchValid(&iter))
+        TEST_FAILV(ret, 1, _SL("search matching nothing failed or found something"), stvNone);
+    vfsSearchFinish(&iter);
+    if (vfsSearchInit(&iter, vfs, _S"/sub/nope", NULL, 0, false))
+        TEST_FAILV(ret, 1, _SL("search of a missing directory succeeded"), stvNone);
     vfsSearchFinish(&iter);
 
     // the upper layer's copy wins, and a lookup after the search is free too
@@ -1920,7 +1959,7 @@ int test_vfs_grp_cow(void)
 int test_vfs_grp_listings(void)
 {
     TEST_CHAIN(test_vfs_list_immutable, test_vfs_list_mixed, test_vfs_list_caseinsens,
-               test_vfs_list_search, test_vfs_list_events, test_vfs_list_stopped,
+               test_vfs_list_empty, test_vfs_list_search, test_vfs_list_events, test_vfs_list_stopped,
                test_vfs_list_writethrough, test_vfs_list_invalidate, test_vfs_list_destroy,
                test_vfs_list_evict,
                test_vfs_list_nocache, test_vfs_list_stress);
@@ -1963,6 +2002,7 @@ testfunc vfstest_funcs[] = {
     { "list_immutable", test_vfs_list_immutable },
     { "list_mixed",     test_vfs_list_mixed     },
     { "list_caseinsens", test_vfs_list_caseinsens },
+    { "list_empty",     test_vfs_list_empty     },
     { "list_search",    test_vfs_list_search    },
     { "list_events",    test_vfs_list_events    },
     { "list_stopped",   test_vfs_list_stopped   },

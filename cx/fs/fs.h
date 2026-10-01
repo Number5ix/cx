@@ -252,16 +252,18 @@ typedef struct FSSearchIter {
 /// @param pattern Optional wildcard pattern to filter results (NULL for all entries). Patterns
 /// support * and ? wildcards (e.g., "*.txt")
 /// @param stat If true, populate the stat field for each entry (slower)
-/// @return true if the directory was opened successfully and the first entry was found, false if
-/// the directory doesn't exist, can't be read, or is empty
+/// @return true if the directory was opened, false if it doesn't exist or can't be read. An empty
+/// directory, or one where nothing matches the pattern, returns true with no entries, so check
+/// fsSearchValid before reading the first one.
 ///
 /// Example:
 /// @code
 ///   FSSearchIter iter;
 ///   if (fsSearchInit(&iter, _SL("/some/dir"), _SL("*.txt"), false)) {
-///       do {
+///       while (fsSearchValid(&iter)) {
 ///           printf("Found: %s\n", strC(iter.name));
-///       } while (fsSearchNext(&iter));
+///           fsSearchNext(&iter);
+///       }
 ///   }
 ///   fsSearchFinish(&iter);
 /// @endcode

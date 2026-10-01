@@ -369,8 +369,19 @@ bool fsSearchInit(FSSearchIter* iter, strref path, strref pattern, bool stat)
     strDestroy(&spath);
 
     if (search->h == INVALID_HANDLE_VALUE) {
-        winMapLastError();
+        DWORD err = GetLastError();
         xaDestroy(&iter->_search);
+
+        // Nothing matched. Only "." makes an empty directory show up in the listing, and a drive
+        // root or some network shares have no such entry, so ask about the directory itself.
+        if (err == ERROR_FILE_NOT_FOUND || err == ERROR_NO_MORE_FILES) {
+            DWORD attr = GetFileAttributesW(fsPathToNT(path));
+            if (attr != INVALID_FILE_ATTRIBUTES && (attr & FILE_ATTRIBUTE_DIRECTORY))
+                return true;
+        }
+
+        SetLastError(err);
+        winMapLastError();
         return false;
     }
 

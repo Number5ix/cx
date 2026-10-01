@@ -51,12 +51,10 @@ static stDefine(VFSDirEnt) {
 #define STypeCheckedPtrArg_VFSDirEnt(type, val) stType(type), stArgPtr(type, val)
 
 // Adds a listing's entries that pass the filters to search, skipping names a higher layer
-// already supplied. Returns whether any entry matched the pattern, which is what a provider's
-// own search would have reported.
+// already supplied. Returns whether the layer has the directory at all.
 static bool addListing(_Inout_ VFSSearch* search, _Inout_ hashtable* names, _In_ VFSListing* l,
                        _In_opt_ strref pattern, int typefilter)
 {
-    bool matched  = false;
     uint32 mflags = (l->mount->flags & VFS_CaseSensitive) ? 0 : PATH_CaseInsensitive;
 
     if (!l->exists)
@@ -67,7 +65,6 @@ static bool addListing(_Inout_ VFSSearch* search, _Inout_ hashtable* names, _In_
         VFSListEnt* le = (VFSListEnt*)htiValPtr(VFSListEnt, hti);
         if (!strEmpty(pattern) && !pathMatch(name, pattern, mflags))
             continue;
-        matched = true;
 
         if ((typefilter && (le->type & typefilter) != typefilter) ||
             htHasKey(*names, strref, name))
@@ -79,7 +76,7 @@ static bool addListing(_Inout_ VFSSearch* search, _Inout_ hashtable* names, _In_
         int32 idx     = saPush(&search->ents, VFSDirEnt, ent);
         htInsert(names, string, search->ents.a[idx].name, intptr, 1);
     }
-    return matched;
+    return true;
 }
 
 // Like _vfsFindMount, this runs in three phases so that no provider is ever called with a VFS
@@ -161,9 +158,9 @@ bool vfsSearchInit(FSSearchIter* iter, VFS* vfs, strref path, strref pattern, in
         if (_vfsMountListable(c->mount)) {
             VFSListing* l = _vfsListingFor(vfsdir, c->mount);
             if (l) {
-                // a hit if anything matched the pattern, as the provider's own search would say
+                // a hit if the layer has the directory, whether or not anything in it matches
                 cnt           = 0;
-                c->lstate     = VFS_LMiss;
+                c->lstate     = l->exists ? VFS_LHit : VFS_LMiss;
                 uint32 mflags = (l->mount->flags & VFS_CaseSensitive) ? 0 : PATH_CaseInsensitive;
                 if (l->exists) {
                     foreach (hashtable, hti, l->ents) {
@@ -171,7 +168,6 @@ bool vfsSearchInit(FSSearchIter* iter, VFS* vfs, strref path, strref pattern, in
                         VFSListEnt* le = (VFSListEnt*)htiValPtr(VFSListEnt, hti);
                         if (!strEmpty(pattern) && !pathMatch(name, pattern, mflags))
                             continue;
-                        c->lstate = VFS_LHit;
                         if (typefilter && (le->type & typefilter) != typefilter)
                             continue;
                         VFSDirEnt ent = { .type = le->type, .stat = le->stat };
@@ -202,7 +198,9 @@ bool vfsSearchInit(FSSearchIter* iter, VFS* vfs, strref path, strref pattern, in
     // Mount points go in first so they take priority over a provider entry of the same name.
     // They are filtered exactly like provider entries -- a mount point is a directory that
     // happens to be produced by the VFS rather than by a provider, not an exception to the
-    // caller's pattern and type filter.
+    // caller's pattern and type filter. A directory with mount points in it exists as far as a
+    // caller is concerned, even if no provider knows it.
+    exists = saSize(mountpoints) > 0;
     for (int32 i = 0, n = saSize(mountpoints); i < n; i++) {
         if (typefilter && (FS_Directory & typefilter) != typefilter)
             continue;
@@ -220,9 +218,6 @@ bool vfsSearchInit(FSSearchIter* iter, VFS* vfs, strref path, strref pattern, in
         }
         idx = saPushC(&search->ents, VFSDirEnt, &ent);
         htInsert(&names, string, search->ents.a[idx].name, intptr, 1);
-
-        // the directory exists as far as a caller is concerned, even if no provider knows it
-        exists = true;
     }
 
     // start at the target directory and recurse upwards to see if any providers know about
