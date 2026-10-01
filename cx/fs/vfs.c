@@ -266,6 +266,10 @@ bool _vfsMountProvider(VFS* vfs, ObjInst* provider, strref path, flags_t flags)
     if (!dir)
         goto out;
 
+    int32 depth = 0;
+    for (VFSDir* d = dir->parent; d; d = d->parent) depth++;
+    nmount->rank = ((uint64)depth << 32) | vfs->mountgen;   // mountgen only goes up
+
     saPushC(&dir->mounts, object, &nmount);
     nmount = NULL;   // the array has it now
     _vfsInvalidateRecursive(vfs, dir, true);
@@ -671,7 +675,14 @@ void _vfsStoreListings(VFS* vfs, sa_VFSPendList* lists)
         VFSDir* d = _vfsGetDir(vfs, pl->dirpath, false, true, true);
         if (!d || _vfsListingFor(d, pl->l.mount))
             continue;
-        saPushC(&d->listings, VFSListing, &pl->l);
+
+        // keep them in the order lookups visit the layers, for listingsLookup
+        int32 i = saPushC(&d->listings, VFSListing, &pl->l);
+        for (; i > 0 && d->listings.a[i - 1].mount->rank < d->listings.a[i].mount->rank; i--) {
+            VFSListing tmp       = d->listings.a[i - 1];
+            d->listings.a[i - 1] = d->listings.a[i];
+            d->listings.a[i]     = tmp;
+        }
     }
 }
 
@@ -1060,13 +1071,21 @@ static bool listingsLackDir(_In_ VFSDir* pdir, _In_ VFSDir* mdir, _In_ VFSMount*
 static VFSMount* listingsLookup(_In_ VFSDir* pdir, _In_ strref fname, _Inout_opt_ string* rpath,
                                 _Out_ VFSFound* found, _Out_ bool* known)
 {
+    // pdir's listings are in the same order as the layers are visited, so the next one is
+    // always the current layer's, if it has one.
+    int32 li = 0, ln = saSize(pdir->listings);
+
     *known = false;
     for (VFSDir* d = pdir; d; d = d->parent) {
         for (int32 i = saSize(d->mounts) - 1; i >= 0; --i) {
             VFSMount* m = d->mounts.a[i];
             if (!_vfsMountListable(m))
                 return NULL;
-            VFSListing* l = _vfsListingFor(pdir, m);
+
+            VFSListing* l = NULL;
+            while (li < ln && pdir->listings.a[li].mount->rank > m->rank) li++;
+            if (li < ln && pdir->listings.a[li].mount == m)
+                l = &pdir->listings.a[li++];
             if (!l && !listingsLackDir(pdir, d, m))
                 return NULL;
 

@@ -103,6 +103,9 @@ class VFSMount {
     object[ObjInst] provider;
     uint32 flags;
     string path;                  // absolute VFS path of the mount point
+    // Where lookups visit this mount among the others: higher first. A deeper mount point
+    // comes first, then the mount made later. Set when it is mounted.
+    uint64 rank;
 
     // Directory listings from this mount can be cached. Always true for VFS_Immutable; for
     // VFS_CacheListings, only while cachewatch is keeping them current.
