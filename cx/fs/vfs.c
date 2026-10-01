@@ -969,6 +969,74 @@ out:
     return ret;
 }
 
+// Longest path the cache-only lookup handles; anything longer takes the full path.
+#define VFS_FAST_PATH_MAX 512
+
+// Finds the cache node of abspath's parent directory without creating anything or allocating,
+// for the lookups that are answered from the cache. Works on a copy of the path in buf, which
+// must hold VFS_FAST_PATH_MAX bytes, and hands back the file name as a C string within it.
+// Returns false for any path that is not plain "ns:/a/b/file" or "/a/b/file" -- relative, too
+// long, a "." or ".." component, a backslash, an empty component -- since only _vfsGetDir knows
+// how to normalize those. Otherwise sets *dir, or NULL if some directory on the way has no node.
+// vfslock must be held for reading.
+static bool findParentFast(_In_ VFS* vfs, _In_ strref abspath,
+                           _Out_writes_(VFS_FAST_PATH_MAX) char* buf, _Out_ VFSDir** dir,
+                           _Out_ const char** fname)
+{
+    *dir   = NULL;
+    *fname = NULL;
+
+    uint32 len = strLen(abspath);
+    if (len >= VFS_FAST_PATH_MAX)
+        return false;
+    strCopyRaw(abspath, 0, (uint8*)buf, len);
+    buf[len] = 0;
+    if (memchr(buf, '\\', len))
+        return false;
+
+    // Components are cut out in place as C strings, which the hashtables take as keys directly.
+    VFSDir* d = vfs->root;
+    char* p   = memchr(buf, ':', len);
+    if (p) {
+        *p = 0;
+        if (!htFind(vfs->namespaces, strref, (strref)buf, VFSDir, &d))
+            return false;
+        p++;
+    } else {
+        p = buf;
+    }
+    if (*p != '/')
+        return false;
+
+    uint64 now = clockTimer();
+    atomicStore(uint64, &d->touched, now, Relaxed);
+    for (;;) {
+        char* start = p + 1;
+        char* next  = strchr(start, '/');
+        char* end   = next ? next : buf + len;
+        if (end == start)
+            return false;
+        if (start[0] == '.' && (end - start == 1 || (end - start == 2 && start[1] == '.')))
+            return false;
+
+        if (!next) {
+            *fname = start;
+            break;
+        }
+
+        *next = 0;
+        if (!htFind(d->subdirs, strref, (strref)start, VFSDir, &d)) {
+            d = NULL;
+            break;
+        }
+        atomicStore(uint64, &d->touched, now, Relaxed);
+        p = next;
+    }
+
+    *dir = d;
+    return true;
+}
+
 // Whether the listings show that m, mounted on mdir, has no directory pdir at all: the nearest
 // listing above pdir, no higher than mdir, has no subdirectory on the way down to it. VFS locks
 // must be held.
@@ -987,8 +1055,9 @@ static bool listingsLackDir(_In_ VFSDir* pdir, _In_ VFSDir* mdir, _In_ VFSMount*
 // A plain lookup answered from the listings alone, with nothing allocated for layers that are
 // not needed. Walks the same layers in the same order as _vfsSnapshot. Returns the mount on a
 // hit, with a reference; NULL with *known set for a definite miss; NULL with *known clear if some
-// layer has no listing to go by. VFS locks must be held.
-static VFSMount* listingsLookup(_In_ VFSDir* pdir, _In_ strref fname, _Inout_ string* rpath,
+// layer has no listing to go by. rpath may be NULL when the caller only needs found. VFS locks
+// must be held.
+static VFSMount* listingsLookup(_In_ VFSDir* pdir, _In_ strref fname, _Inout_opt_ string* rpath,
                                 _Out_ VFSFound* found, _Out_ bool* known)
 {
     *known = false;
@@ -1007,7 +1076,8 @@ static VFSMount* listingsLookup(_In_ VFSDir* pdir, _In_ strref fname, _Inout_ st
                 found->type    = le->type;
                 found->stat    = le->stat;
                 found->valid   = true;
-                pathJoin(rpath, l->relpath, hteKey(l->ents, string, e));
+                if (rpath)
+                    pathJoin(rpath, l->relpath, hteKey(l->ents, string, e));
                 *known = true;
                 return objAcquire(m);
             }
@@ -1068,51 +1138,61 @@ VFSMount* _vfsFindMount(VFS* vfs, string* rpath, strref path, VFSMount** cowmoun
     rwlockAcquireRead(&vfs->vfsdlock);
     rwlockAcquireRead(&vfs->vfslock);
 
-    _vfsAbsPath(vfs, &abspath, path);
-    pathFilename(&fname, abspath);
-
-    // see if we can get this from the file cache
+    // See if the cache can answer it. This is the common case, so nothing here allocates.
+    VFSDir* qdir      = NULL;
+    const char* qname = NULL;
+    char qbuf[VFS_FAST_PATH_MAX];
     if (flcache && !flcreate && !fldelete) {
-        pdir             = _vfsGetDir(vfs, abspath, true, true, false);
+        if (!findParentFast(vfs, path, qbuf, &qdir, &qname) && !pathIsAbsolute(path)) {
+            _vfsAbsPath(vfs, &abspath, path);
+            findParentFast(vfs, abspath, qbuf, &qdir, &qname);
+        }
+    }
+
+    if (qdir) {
         VFSCacheEnt* ent = NULL;
-        if (pdir)
-            htFind(pdir->files, string, fname, VFSCacheEnt, &ent);
+        htFind(qdir->files, strref, (strref)qname, VFSCacheEnt, &ent);
         // only for simple case, i.e. no need to do COW or find a writable layer
         if (ent && (!flwrite || !(ent->mount->flags & VFS_ReadOnly))) {
             strDup(rpath, ent->origpath);
             ret = objAcquire(ent->mount);
 
             // the mount's listing of the directory, if it has one, has the rest
-            VFSListing* l = (found && _vfsMountListable(ret)) ? _vfsListingFor(pdir, ret) : NULL;
-            htelem e      = (l && l->exists) ? htFind(l->ents, strref, fname, none, NULL) : 0;
+            VFSListing* l = (found && _vfsMountListable(ret)) ? _vfsListingFor(qdir, ret) : NULL;
+            htelem e = (l && l->exists) ? htFind(l->ents, strref, (strref)qname, none, NULL) : 0;
             if (e) {
                 VFSListEnt* le = hteValPtr(l->ents, VFSListEnt, e);
                 found->type    = le->type;
                 found->stat    = le->stat;
                 found->valid   = true;
             }
-
-            rwlockReleaseRead(&vfs->vfslock);
-            rwlockReleaseRead(&vfs->vfsdlock);
-            strDestroy(&abspath);
-            strDestroy(&fname);
-            return ret;
+        } else if (found && !flwrite) {
+            // a plain lookup the listings can answer on their own
+            bool known = false;
+            ret        = listingsLookup(qdir,
+                                 (strref)qname,
+                                 (flags & VFS_FindStatOnly) ? NULL : rpath,
+                                 found,
+                                 &known);
+            if (!known)
+                qdir = NULL;
+            else if (!ret)
+                cxerr = CX_FileNotFound;
+        } else {
+            qdir = NULL;
         }
 
-        // a plain lookup the listings can answer on their own
-        bool known = false;
-        if (found && !flwrite && pdir && !strEmpty(fname))
-            ret = listingsLookup(pdir, fname, rpath, found, &known);
-        if (known) {
+        if (qdir) {
             rwlockReleaseRead(&vfs->vfslock);
             rwlockReleaseRead(&vfs->vfsdlock);
-            if (!ret)
-                cxerr = CX_FileNotFound;
             strDestroy(&abspath);
-            strDestroy(&fname);
             return ret;
         }
     }
+
+    if (!abspath)
+        _vfsAbsPath(vfs, &abspath, path);
+    pathFilename(&fname, abspath);
 
     saInit(&cands, VFSCand, 8);
     _vfsSnapshot(vfs, &cands, abspath, true, &pdir);

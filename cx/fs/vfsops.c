@@ -9,7 +9,8 @@ FSPathStat vfsStat(VFS* vfs, strref path, FSStat* stat)
     string rpath = 0, abspath = 0;
     VFSFound found;
 
-    VFSMount* m = _vfsFindMount(vfs, &rpath, path, NULL, NULL, VFS_FindCache, &found);
+    VFSMount* m =
+        _vfsFindMount(vfs, &rpath, path, NULL, NULL, VFS_FindCache | VFS_FindStatOnly, &found);
     if (m && found.valid) {
         ret = found.type;
         if (stat)

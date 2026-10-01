@@ -178,6 +178,7 @@ enum VFS_FIND_PROVIDER_ENUM {
     VFS_FindCreate    = 0x0200,
     VFS_FindDelete    = 0x0400,
     VFS_FindCache     = 0x1000,
+    VFS_FindStatOnly  = 0x2000,   // *rpath is only filled in when found->valid comes back false
 };
 // What _vfsFindMount found out about the path along the way, so the caller need not ask again.
 typedef struct VFSFound {
