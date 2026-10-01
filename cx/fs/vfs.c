@@ -969,6 +969,21 @@ out:
     return ret;
 }
 
+// Whether the listings show that m, mounted on mdir, has no directory pdir at all: the nearest
+// listing above pdir, no higher than mdir, has no subdirectory on the way down to it. VFS locks
+// must be held.
+static bool listingsLackDir(_In_ VFSDir* pdir, _In_ VFSDir* mdir, _In_ VFSMount* m)
+{
+    for (VFSDir* child = pdir; child != mdir && child->parent; child = child->parent) {
+        VFSListing* al = _vfsListingFor(child->parent, m);
+        if (al) {
+            htelem e = al->exists ? htFind(al->ents, string, child->name, none, NULL) : 0;
+            return !e || hteValPtr(al->ents, VFSListEnt, e)->type != FS_Directory;
+        }
+    }
+    return false;
+}
+
 // A plain lookup answered from the listings alone, with nothing allocated for layers that are
 // not needed. Walks the same layers in the same order as _vfsSnapshot. Returns the mount on a
 // hit, with a reference; NULL with *known set for a definite miss; NULL with *known clear if some
@@ -983,10 +998,10 @@ static VFSMount* listingsLookup(_In_ VFSDir* pdir, _In_ strref fname, _Inout_ st
             if (!_vfsMountListable(m))
                 return NULL;
             VFSListing* l = _vfsListingFor(pdir, m);
-            if (!l)
+            if (!l && !listingsLackDir(pdir, d, m))
                 return NULL;
 
-            htelem e = l->exists ? htFind(l->ents, strref, fname, none, NULL) : 0;
+            htelem e = (l && l->exists) ? htFind(l->ents, strref, fname, none, NULL) : 0;
             if (e) {
                 VFSListEnt* le = hteValPtr(l->ents, VFSListEnt, e);
                 found->type    = le->type;

@@ -1559,6 +1559,49 @@ static int test_vfs_list_empty(void)
     return ret;
 }
 
+// A layer that lacks a whole directory is answered from its listing of a directory above, both
+// when nothing has that name and when a file does, and sees the directory once it appears.
+static int test_vfs_list_missingdir(void)
+{
+    int ret            = 0;
+    VFS* vfs           = vfsCreate(VFS_CaseSensitive);
+    VFSTestProv* lower = vfstestprovCreate(VFS_CaseSensitive);
+    VFSTestProv* upper = vfstestprovCreate(VFS_CaseSensitive);
+
+    vfstestprovAddFile(lower, _S"a/b/f.txt", _S"low");
+    vfstestprovAddFile(lower, _S"c/g.txt", _S"low");
+    vfstestprovAddFile(upper, _S"top.txt", _S"t");
+    vfstestprovAddFile(upper, _S"c", _S"not a directory");
+    vfsMountProvider(vfs, lower, _S"/", VFS_Immutable);
+    vfsMountProvider(vfs, upper, _S"/", VFS_CacheListings);
+
+    // the upper layer's root listing is all it has to go by further down
+    checkStat(&ret, vfs, _S"/top.txt", FS_File);
+    checkStat(&ret, vfs, _S"/a/b/f.txt", FS_File);
+    checkStat(&ret, vfs, _S"/c/g.txt", FS_File);
+    checkStat(&ret, vfs, _S"/a/nope/deeper.txt", FS_Nonexistent);
+    int32 lowbefore = provCalls(lower);
+    int32 upbefore  = provCalls(upper);
+
+    checkStat(&ret, vfs, _S"/a/b/f.txt", FS_File);
+    checkStat(&ret, vfs, _S"/a/b/nope.txt", FS_Nonexistent);
+    checkStat(&ret, vfs, _S"/a/nope/deeper.txt", FS_Nonexistent);
+    checkStat(&ret, vfs, _S"/c/g.txt", FS_File);
+    checkStat(&ret, vfs, _S"/c/nope.txt", FS_Nonexistent);
+    checkNoCalls(&ret, lower, lowbefore, _S"lookups in directories the lower layer listed");
+    checkNoCalls(&ret, upper, upbefore, _S"lookups in directories the upper layer lacks");
+
+    vfstestprovAddFile(upper, _S"a/b/f.txt", _S"upper!");
+    vfstestprovInject(upper, FSWE_Created, _S"a", NULL);
+    waitSize(&ret, vfs, _S"/a/b/f.txt", 6);
+    checkContents(&ret, vfs, _S"/a/b/f.txt", _S"upper!");
+
+    objRelease(&lower);
+    objRelease(&upper);
+    vfsDestroy(&vfs);
+    return ret;
+}
+
 // Searches are answered from listings once every layer has one, with the pattern, type filter,
 // layer order and mount points all applied as for a search the providers answer.
 static int test_vfs_list_search(void)
@@ -1959,7 +2002,7 @@ int test_vfs_grp_cow(void)
 int test_vfs_grp_listings(void)
 {
     TEST_CHAIN(test_vfs_list_immutable, test_vfs_list_mixed, test_vfs_list_caseinsens,
-               test_vfs_list_empty, test_vfs_list_search, test_vfs_list_events, test_vfs_list_stopped,
+               test_vfs_list_empty, test_vfs_list_missingdir, test_vfs_list_search, test_vfs_list_events, test_vfs_list_stopped,
                test_vfs_list_writethrough, test_vfs_list_invalidate, test_vfs_list_destroy,
                test_vfs_list_evict,
                test_vfs_list_nocache, test_vfs_list_stress);
@@ -2003,6 +2046,7 @@ testfunc vfstest_funcs[] = {
     { "list_mixed",     test_vfs_list_mixed     },
     { "list_caseinsens", test_vfs_list_caseinsens },
     { "list_empty",     test_vfs_list_empty     },
+    { "list_missingdir", test_vfs_list_missingdir },
     { "list_search",    test_vfs_list_search    },
     { "list_events",    test_vfs_list_events    },
     { "list_stopped",   test_vfs_list_stopped   },
