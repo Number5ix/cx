@@ -17,6 +17,12 @@ static void xaMimallocOutput(const char* msg, void* arg)
         !atomicLoad(bool, (atomic(bool)*)&_xaInitState.init, Acquire))
         return;
 
+    // Likewise while the log system itself is coming up: logInit allocates, and a warning
+    // from that allocation would wait on the log's lazy init that this thread is running.
+    if (atomicLoad(bool, (atomic(bool)*)&_logInitState.initProgress, Acquire) &&
+        !atomicLoad(bool, (atomic(bool)*)&_logInitState.init, Acquire))
+        return;
+
     if (msg[0] == 0 || msg[0] == '\n')
         return;
 
