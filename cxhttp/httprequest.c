@@ -341,6 +341,15 @@ bool HttpRequest_cancel(_In_ HttpRequest* self)
                     dialing = objAcquire(self->dialSock);
                 if (self->dialQuic)
                     dialing2 = objAcquire(self->dialQuic);
+
+                // Parked behind another request's QUIC dial, the QUIC half is not a socket of this
+                // request's to close, and that dial may be a long time ending. While the TCP half
+                // is still live the wait is given up instead, which leaves the TCP half as all
+                // this request has and its teardown as the terminal event. With no TCP half the
+                // wait has to stay: the end of that dial is then the only thing left to report
+                // the cancel.
+                if (self->dialSock || self->dialSockPending)
+                    self->quicPark = 0;
             }
         }
     }

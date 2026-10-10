@@ -904,6 +904,10 @@ static const testspec tests[] = {
     { "http3: GOAWAY Retry", "http3test", "goawayretry" },
     { "http3: Alt-Svc Seeds The Origin Table", "http3test", "altsvcseed" },
     { "http3: A Losing QUIC Dial Is Retired", "http3test", "racedialretire" },
+    { "http3: A QUIC Peer Without HTTP/3", "http3test", "quicnoth3" },
+    { "http3: A Parked Request Outlives Its TCP Dial", "http3test", "parkedquic" },
+    { "http3: A Parked Request Fails Once", "http3test", "parkedfail" },
+    { "http3: A Parked Request Cancels At Once", "http3test", "parkedcancel" },
     { "http3: Streams On Worker Threads", "http3test", "threaded" },
     { "http3: Shared Client On A Task Queue", "http3test", "tqparallel" },
 #endif

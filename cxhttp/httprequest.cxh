@@ -184,6 +184,18 @@ class HttpRequest
     bool dialSockPending;
     bool dialQuicPending;
 
+    // Nonzero while this hop's QUIC half is somebody else's dial: the request is parked behind it
+    // and has no socket of its own to show for that. Counted alongside the pending flags, for the
+    // same reason -- a parked request whose TCP dial fails still has an answer coming.
+    //
+    // The value names the wait, and quicParkSeq is where the names come from. The end of a dial
+    // reaches every request that was parked behind it, including ones that have long since moved
+    // on -- answered over TCP, or redirected and parked again behind a different dial -- and only
+    // a request still in the same wait may be started or failed by it. Whatever ends the wait
+    // clears this in the same breath as it acts, under exLock.
+    uint32 quicPark;
+    uint32 quicParkSeq;
+
     // The peer's GOAWAY said this request's stream was never processed, so it has been started
     // again on a fresh connection. Once only: a server that keeps saying goodbye is not a server
     // to keep retrying against.

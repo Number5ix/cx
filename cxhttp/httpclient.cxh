@@ -115,9 +115,14 @@ class HttpClient
     // concurrent requests to a new origin would start ten dials and end with ten connections --
     // harmless under HTTP/1.1, where each carries one request anyway, and wasteful under HTTP/3,
     // where one connection should carry all ten.
+    //
+    // The three waiter arrays are parallel: the request, the origin it is waiting on, and the
+    // value its quicPark held when it parked. An entry stays until its dial ends even if the
+    // request stopped waiting first, and that last value is what tells the two apart.
     [noinit] sa_string h3Dialing;
     [noinit] sa_HttpRequest h3Waiters;
     [noinit] sa_string h3WaiterKeys;
+    [noinit] sa_uint32 h3WaiterParks;
 
     /// @brief Guards the pool and the lazily-created TLS configuration
     Mutex lock;

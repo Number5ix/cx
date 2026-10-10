@@ -3883,6 +3883,372 @@ out:
     return ret;
 }
 
+// ---------------------------------------------------------------------------------------------
+// A QUIC peer that is not an HTTP/3 server
+//
+// The handshake finishes, so as far as QUIC is concerned the dial worked -- but the protocol it
+// settled on is not h3 and there is nothing to send a request over. That is a failed dial like any
+// other: one racer losing under HTTPV_Any, and one failure, reported once, when HTTP/3 was the only
+// thing asked for.
+// ---------------------------------------------------------------------------------------------
+
+int test_http3test_quicnoth3(void)
+{
+    int ret          = 0;
+    H3Loop f         = { 0 };
+    H3SrvRec rec     = { 0 };
+    TlsConfig* other = NULL;
+    NetSocket* lsn   = NULL;
+    HttpRequest* a   = NULL;
+    HttpRequest* b   = NULL;
+    H3CliRec one     = { 0 };
+    H3CliRec two     = { 0 };
+    string url       = 0;
+    uint16 port      = 0;
+    sa_string protos = saInitNone;
+    NetAddr la;
+
+    // The HTTP server answers over TCP only.
+    if (!h3BothInit(&f, &kH3SrvHandlers, &rec, false, &port)) {
+        TEST_FAILV(ret, 1, _SL("the loopback fixture did not come up"), stvNone);
+        goto out;
+    }
+
+    // And on the same port over UDP, a QUIC listener that speaks something else. http/1.1 is in
+    // the client's list, because one TLS configuration serves both of its transports, so the
+    // handshake has a protocol to agree on and completes.
+    other = tlsconfigCreateServer(f.creds);
+    CHECK_TRUE("second server configuration", other != NULL);
+    saInit(&protos, string, 1);
+    saPush(&protos, string, _S"http/1.1");
+    CHECK_TRUE("protocol list set", tlsconfigSetALPN(other, &protos));
+
+    netAddrFromStr(&la, _SL("127.0.0.1"));
+    la.port = port;
+    {
+        QuicConfig qcfg = { .tls = other };
+        lsn             = netquicListen(f.q, &la, &qcfg, NULL, NULL);
+    }
+    if (!lsn) {
+        TEST_FAILV(ret, 1, _SL("no QUIC listener on port ${int}"), stvar(int32, (int32)port));
+        goto out;
+    }
+
+    // Racing: the QUIC half comes to nothing and the request is answered over HTTP/1.1.
+    h3PortUrl(&url, port, _SL("/raced"));
+    a = httprequestCreate(HTTP_Get, url);
+    CHECK_TRUE("first request created", a != NULL);
+    CHECK_TRUE("first request sent", httpclientSend(f.cl, a, &kH3CliHandlers, &one));
+
+    for (int i = 0; i < 2000 && !(one.completed || one.failed); i++)
+        netqueueTick(f.q, timeMS(5));
+
+    CHECK_U64("first request failures", one.failed, 0);
+    CHECK_U64("first request completions", one.completed, 1);
+    CHECK_U64("first request version", one.version, HTTPVER_1_1);
+    CHECK_U64("origins still marked as being dialled", saSize(f.cl->h3Dialing), 0);
+
+    // HTTP/3 or nothing: the same dial is now the whole request, and its failure is reported once.
+    strClear(&url);
+    h3PortUrl(&url, port, _SL("/h3only"));
+    b = httprequestCreate(HTTP_Get, url);
+    CHECK_TRUE("second request created", b != NULL);
+    CHECK_TRUE("second request policy", httprequestSetVersions(b, HTTPV_Http3));
+    CHECK_TRUE("second request sent", httpclientSend(f.cl, b, &kH3CliHandlers, &two));
+
+    for (int i = 0; i < 2000 && !(two.completed || two.failed); i++)
+        netqueueTick(f.q, timeMS(5));
+
+    // A second report would come from the same handler that raised the first, so a few more
+    // ticks are only there for a report that was somehow put off.
+    for (int i = 0; i < 20; i++)
+        netqueueTick(f.q, timeMS(5));
+
+    CHECK_U64("second request completions", two.completed, 0);
+    CHECK_U64("second request failures", two.failed, 1);
+    CHECK_U64("second request error", two.err, HTTPERR_BadMessage);
+    CHECK_U64("requests the server answered", rec.requests, 1);
+
+out:
+    objRelease(&a);
+    objRelease(&b);
+    strDestroy(&url);
+    strDestroy(&one.body);
+    strDestroy(&two.body);
+    saDestroy(&protos);
+    if (lsn)
+        netsocketClose(lsn);
+    objRelease(&lsn);
+    h3SrvRecDestroy(&rec);
+    h3LoopDestroy(&f);
+    objRelease(&other);
+    return ret;
+}
+
+// ---------------------------------------------------------------------------------------------
+// A parked request whose own TCP dial fails
+//
+// Under HTTPV_Any a request that parks behind another request's QUIC dial dials TCP as well. When
+// that TCP dial fails the request still has a QUIC option -- the dial it is parked behind -- and
+// has to wait for it, then be answered exactly once by whatever that dial comes to.
+// ---------------------------------------------------------------------------------------------
+
+int test_http3test_parkedquic(void)
+{
+    int ret           = 0;
+    H3Loop f          = { 0 };
+    H3SrvRec rec      = { 0 };
+    HttpRequest* req1 = NULL;
+    HttpRequest* req2 = NULL;
+    H3CliRec cli1     = { 0 };
+    H3CliRec cli2     = { 0 };
+    string url        = 0;
+
+    // A QUIC listener and nothing on the same port over TCP, so each request's TCP dial is refused
+    // while the one QUIC handshake is still in flight.
+    if (!h3LoopInit(&f, &kH3SrvHandlers, &rec)) {
+        TEST_FAILV(ret, 1, _SL("the loopback fixture did not come up"), stvNone);
+        goto out;
+    }
+    CHECK_TRUE("racing policy accepted", httpclientSetVersions(f.cl, HTTPV_Any));
+
+    h3LoopUrl(&url, &f, _SL("/one"));
+    req1 = httprequestCreate(HTTP_Get, url);
+    strClear(&url);
+    h3LoopUrl(&url, &f, _SL("/two"));
+    req2 = httprequestCreate(HTTP_Get, url);
+    CHECK_TRUE("requests created", req1 != NULL && req2 != NULL);
+
+    // The first dials QUIC, the second parks behind that dial.
+    CHECK_TRUE("first request sent", httpclientSend(f.cl, req1, &kH3CliHandlers, &cli1));
+    CHECK_TRUE("second request sent", httpclientSend(f.cl, req2, &kH3CliHandlers, &cli2));
+    CHECK_U64("requests parked behind the dial", saSize(f.cl->h3Waiters), 1);
+
+    for (int i = 0; i < 2000 && !((cli1.completed || cli1.failed) &&
+                                  (cli2.completed || cli2.failed)); i++)
+        netqueueTick(f.q, timeMS(5));
+
+    CHECK_U64("first request failures", cli1.failed, 0);
+    CHECK_U64("first request completions", cli1.completed, 1);
+    CHECK_U64("first request version", cli1.version, HTTPVER_3);
+    CHECK_U64("parked request failures", cli2.failed, 0);
+    CHECK_U64("parked request completions", cli2.completed, 1);
+    CHECK_U64("parked request version", cli2.version, HTTPVER_3);
+    CHECK_U64("one connection for both", saSize(f.cl->h3pool), 1);
+    CHECK_U64("requests the server answered", rec.requests, 2);
+
+out:
+    objRelease(&req1);
+    objRelease(&req2);
+    strDestroy(&url);
+    strDestroy(&cli1.body);
+    strDestroy(&cli2.body);
+    h3SrvRecDestroy(&rec);
+    h3LoopDestroy(&f);
+    return ret;
+}
+
+int test_http3test_parkedfail(void)
+{
+    int ret              = 0;
+    H3Loop f             = { 0 };
+    H3SrvRec rec         = { 0 };
+    NetSocket* blackhole = NULL;
+    HttpRequest* req1    = NULL;
+    HttpRequest* req2    = NULL;
+    H3CliRec cli1        = { 0 };
+    H3CliRec cli2        = { 0 };
+    string url           = 0;
+    uint16 port          = 0;
+    NetAddr la;
+
+    // Only the client and the queue are wanted from the fixture; its listener is not the origin.
+    if (!h3BothInit(&f, &kH3SrvHandlers, &rec, false, &port)) {
+        TEST_FAILV(ret, 1, _SL("the loopback fixture did not come up"), stvNone);
+        goto out;
+    }
+
+    // The origin: a UDP socket that answers nothing, on a port with no TCP listener. TCP is
+    // refused at once and the QUIC dial stays in flight for as long as the test leaves it there.
+    netAddrFromStr(&la, _SL("127.0.0.1"));
+    la.port   = 0;
+    blackhole = netqueueSocket(f.q, NST_Datagram);
+    if (!blackhole || !netqueueAddSocket(f.q, blackhole) || !netsocketBind(blackhole, &la)) {
+        TEST_FAILV(ret, 1, _SL("could not bind a UDP socket"), stvNone);
+        goto out;
+    }
+    port = blackhole->local.port;
+
+    h3PortUrl(&url, port, _SL("/one"));
+    req1 = httprequestCreate(HTTP_Get, url);
+    strClear(&url);
+    h3PortUrl(&url, port, _SL("/two"));
+    req2 = httprequestCreate(HTTP_Get, url);
+    CHECK_TRUE("requests created", req1 != NULL && req2 != NULL);
+
+    // The first dials QUIC, the second parks behind that dial.
+    CHECK_TRUE("first request sent", httpclientSend(f.cl, req1, &kH3CliHandlers, &cli1));
+    CHECK_TRUE("second request sent", httpclientSend(f.cl, req2, &kH3CliHandlers, &cli2));
+    CHECK_U64("requests parked behind the dial", saSize(f.cl->h3Waiters), 1);
+
+    // Until both TCP dials have been refused. The polled queue runs every handler on this thread,
+    // so the fields can be read as they are.
+    for (int i = 0; i < 1000 && (req1->dialSock || req1->dialSockPending || req2->dialSock ||
+                                 req2->dialSockPending); i++)
+        netqueueTick(f.q, timeMS(5));
+    CHECK_TRUE("both TCP dials ended", !req1->dialSock && !req2->dialSock);
+
+    // Neither has failed: the QUIC dial is still coming for both of them.
+    CHECK_U64("first request reports with a dial in flight", cli1.failed + cli1.completed, 0);
+    CHECK_U64("parked request reports with a dial in flight", cli2.failed + cli2.completed, 0);
+
+    // Now the QUIC dial ends without a connection. Cancelling the request that owns it is the one
+    // way to end it on cue; a handshake nobody answers takes far longer to give up by itself.
+    CHECK_TRUE("first request cancelled", httprequestCancel(req1));
+
+    for (int i = 0; i < 1000 && !(cli1.failed && cli2.failed); i++)
+        netqueueTick(f.q, timeMS(5));
+
+    CHECK_U64("first request failures", cli1.failed, 1);
+    CHECK_U64("first request completions", cli1.completed, 0);
+    CHECK_U64("first request error", cli1.err, HTTPERR_Aborted);
+    CHECK_U64("parked request failures", cli2.failed, 1);
+    CHECK_U64("parked request completions", cli2.completed, 0);
+    CHECK_U64("parked request error", cli2.err, HTTPERR_Network);
+    CHECK_U64("requests left waiting for a dial", saSize(f.cl->h3Waiters), 0);
+    CHECK_U64("origins still marked as being dialled", saSize(f.cl->h3Dialing), 0);
+
+out:
+    // A check that failed with the dial still in flight leaves requests running, and the client
+    // has to outlive every request it is running.
+    if (req1)
+        httprequestCancel(req1);
+    if (req2)
+        httprequestCancel(req2);
+    if (blackhole)
+        netsocketClose(blackhole);
+    objRelease(&blackhole);
+    for (int i = 0; i < 400 && ((req1 && req1->client) || (req2 && req2->client)); i++)
+        netqueueTick(f.q, timeMS(5));
+
+    objRelease(&req1);
+    objRelease(&req2);
+    strDestroy(&url);
+    strDestroy(&cli1.body);
+    strDestroy(&cli2.body);
+    h3SrvRecDestroy(&rec);
+    h3LoopDestroy(&f);
+    return ret;
+}
+
+int test_http3test_parkedcancel(void)
+{
+    int ret              = 0;
+    H3Loop f             = { 0 };
+    H3SrvRec rec         = { 0 };
+    NetSocket* tcphole   = NULL;
+    NetSocket* blackhole = NULL;
+    HttpRequest* req1    = NULL;
+    HttpRequest* req2    = NULL;
+    H3CliRec cli1        = { 0 };
+    H3CliRec cli2        = { 0 };
+    string url           = 0;
+    uint16 port          = 0;
+    NetAddr la;
+
+    // Only the client and the queue are wanted from the fixture; its listener is not the origin.
+    if (!h3BothInit(&f, &kH3SrvHandlers, &rec, false, &port)) {
+        TEST_FAILV(ret, 1, _SL("the loopback fixture did not come up"), stvNone);
+        goto out;
+    }
+
+    // The origin answers nothing on either transport. Over TCP it is a listener nobody accepts
+    // from: the OS completes the connection into the backlog and the TLS handshake then waits for
+    // a reply that is not coming. Over UDP it is a socket nobody reads.
+    netAddrFromStr(&la, _SL("127.0.0.1"));
+    la.port = 0;
+    tcphole = netqueueSocket(f.q, NST_Stream);
+    if (!tcphole || !netsocketBind(tcphole, &la) || !netsocketListen(tcphole, 8)) {
+        TEST_FAILV(ret, 1, _SL("could not listen on a TCP socket"), stvNone);
+        goto out;
+    }
+    port = tcphole->local.port;
+
+    la.port   = port;
+    blackhole = netqueueSocket(f.q, NST_Datagram);
+    if (!blackhole || !netqueueAddSocket(f.q, blackhole) || !netsocketBind(blackhole, &la)) {
+        TEST_FAILV(ret, 1, _SL("could not bind a UDP socket on port ${int}"),
+                   stvar(int32, (int32)port));
+        goto out;
+    }
+
+    h3PortUrl(&url, port, _SL("/one"));
+    req1 = httprequestCreate(HTTP_Get, url);
+    strClear(&url);
+    h3PortUrl(&url, port, _SL("/two"));
+    req2 = httprequestCreate(HTTP_Get, url);
+    CHECK_TRUE("requests created", req1 != NULL && req2 != NULL);
+
+    // The first dials QUIC, the second parks behind that dial. Both dial TCP.
+    CHECK_TRUE("first request sent", httpclientSend(f.cl, req1, &kH3CliHandlers, &cli1));
+    CHECK_TRUE("second request sent", httpclientSend(f.cl, req2, &kH3CliHandlers, &cli2));
+    CHECK_U64("requests parked behind the dial", saSize(f.cl->h3Waiters), 1);
+
+    for (int i = 0; i < 40; i++)
+        netqueueTick(f.q, timeMS(5));
+    CHECK_U64("first request reports while dialling", cli1.failed + cli1.completed, 0);
+    CHECK_U64("parked request reports while dialling", cli2.failed + cli2.completed, 0);
+    CHECK_TRUE("the parked request's TCP dial is in flight", req2->dialSock != NULL);
+
+    // Cancelling the parked request ends it now, not whenever the dial it was parked behind ends.
+    CHECK_TRUE("parked request cancelled", httprequestCancel(req2));
+
+    for (int i = 0; i < 400 && !cli2.failed; i++)
+        netqueueTick(f.q, timeMS(5));
+
+    CHECK_U64("parked request failures", cli2.failed, 1);
+    CHECK_U64("parked request error", cli2.err, HTTPERR_Aborted);
+    CHECK_U64("first request reports after the other was cancelled", cli1.failed + cli1.completed,
+              0);
+
+    // And the end of that dial, when it comes, has nothing more to say to it.
+    CHECK_TRUE("first request cancelled", httprequestCancel(req1));
+
+    for (int i = 0; i < 400 && !cli1.failed; i++)
+        netqueueTick(f.q, timeMS(5));
+
+    CHECK_U64("first request failures", cli1.failed, 1);
+    CHECK_U64("first request error", cli1.err, HTTPERR_Aborted);
+    CHECK_U64("parked request failures after the dial ended", cli2.failed, 1);
+    CHECK_U64("requests left waiting for a dial", saSize(f.cl->h3Waiters), 0);
+    CHECK_U64("origins still marked as being dialled", saSize(f.cl->h3Dialing), 0);
+
+out:
+    // A check that failed with the dial still in flight leaves requests running, and the client
+    // has to outlive every request it is running.
+    if (req1)
+        httprequestCancel(req1);
+    if (req2)
+        httprequestCancel(req2);
+    for (int i = 0; i < 400 && ((req1 && req1->client) || (req2 && req2->client)); i++)
+        netqueueTick(f.q, timeMS(5));
+
+    objRelease(&req1);
+    objRelease(&req2);
+    strDestroy(&url);
+    strDestroy(&cli1.body);
+    strDestroy(&cli2.body);
+    if (blackhole)
+        netsocketClose(blackhole);
+    objRelease(&blackhole);
+    if (tcphole)
+        netsocketClose(tcphole);
+    objRelease(&tcphole);
+    h3SrvRecDestroy(&rec);
+    h3LoopDestroy(&f);
+    return ret;
+}
+
 // Each group below runs several of the subtests above in one process, so ctest spends one
 // process launch per feature area instead of one per subtest. The individual subtests stay
 // registered under their own names too, for running or debugging one in isolation.
@@ -3927,7 +4293,9 @@ int test_http3test_grp_dial(void)
 {
     TEST_CHAIN(test_http3test_race, test_http3test_racefail, test_http3test_coalesce,
                test_http3test_goawayretry, test_http3test_altsvcseed,
-               test_http3test_racedialretire);
+               test_http3test_racedialretire, test_http3test_quicnoth3,
+               test_http3test_parkedquic, test_http3test_parkedfail,
+               test_http3test_parkedcancel);
 }
 
 testfunc http3test_funcs[] = {
@@ -3962,6 +4330,10 @@ testfunc http3test_funcs[] = {
     { "threaded", test_http3test_threaded },
     { "tqparallel", test_http3test_tqparallel },
     { "racedialretire", test_http3test_racedialretire },
+    { "quicnoth3", test_http3test_quicnoth3 },
+    { "parkedquic", test_http3test_parkedquic },
+    { "parkedfail", test_http3test_parkedfail },
+    { "parkedcancel", test_http3test_parkedcancel },
     { "grp_wire", test_http3test_grp_wire },
     { "grp_qpack", test_http3test_grp_qpack },
     { "grp_control", test_http3test_grp_control },
