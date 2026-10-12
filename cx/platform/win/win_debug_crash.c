@@ -55,15 +55,19 @@ static MSG _ef_msg;
 #pragma warning (disable:4731)
 static DWORD _ef_tempebp;
 static DWORD _ef_savedebp;
-#elif defined(_ARCH_X64)
+#elif defined(_ARCH_X64) || defined(_ARCH_ARM64)
 static CONTEXT _ef_unwindctx;
 static PRUNTIME_FUNCTION _ef_rtf;
 static ULONG64 _ef_imagebase;
 static ULONG64 _ef_establisherframe;
 static PVOID _ef_handlerdata;
+static ULONG64 _ef_prevsp;
+#if defined(_ARCH_X64)
 static ULONG64 _ef_stacklow;
 static ULONG64 _ef_stackhigh;
-static ULONG64 _ef_prevrsp;
+#endif
+#else
+#error Unsupported architecture
 #endif
 static uintptr_t _ef_ip;
 
@@ -182,7 +186,7 @@ _no_inline static LONG WINAPI dbgExceptionFilter(LPEXCEPTION_POINTERS info)
                 _ef_stackhigh = __readgsqword(FIELD_OFFSET(NT_TIB, StackBase));
                 while (stframes < ST_MAX_FRAMES) {
                     stacktrace[stframes++] = _ef_unwindctx.Rip;
-                    _ef_prevrsp            = _ef_unwindctx.Rsp;
+                    _ef_prevsp             = _ef_unwindctx.Rsp;
 
                     _ef_rtf = RtlLookupFunctionEntry(_ef_unwindctx.Rip, &_ef_imagebase, NULL);
                     if (_ef_rtf) {
@@ -208,7 +212,50 @@ _no_inline static LONG WINAPI dbgExceptionFilter(LPEXCEPTION_POINTERS info)
 
                     if (!_ef_unwindctx.Rip)
                         break;   // reached the bottom of the stack
-                    if (_ef_unwindctx.Rsp <= _ef_prevrsp)
+                    if (_ef_unwindctx.Rsp <= _ef_prevsp)
+                        break;   // no progress; bad unwind data, don't emit garbage
+                }
+            } else {
+                stframes = dbgStackTrace(1, ST_MAX_FRAMES, stacktrace);
+            }
+#elif defined(_ARCH_ARM64)
+            // The same walk as on x64, from the exception context and with the same
+            // primitives.
+            if (info) {
+                _ef_unwindctx = *info->ContextRecord;
+                stframes      = 0;
+                while (stframes < ST_MAX_FRAMES) {
+                    stacktrace[stframes++] = _ef_unwindctx.Pc;
+                    _ef_prevsp             = _ef_unwindctx.Sp;
+
+                    _ef_rtf = RtlLookupFunctionEntry(_ef_unwindctx.Pc, &_ef_imagebase, NULL);
+                    if (_ef_rtf) {
+                        RtlVirtualUnwind(UNW_FLAG_NHANDLER,
+                                         _ef_imagebase,
+                                         _ef_unwindctx.Pc,
+                                         _ef_rtf,
+                                         &_ef_unwindctx,
+                                         &_ef_handlerdata,
+                                         &_ef_establisherframe,
+                                         NULL);
+                    } else {
+                        // No unwind data means a leaf function, and that can only be the
+                        // frame the exception happened in: anything below it has made a
+                        // call. A leaf's return address is still in the link register and
+                        // it has not moved the stack pointer, so there is nothing to read
+                        // from the faulted stack. A jump to a bad address lands here too,
+                        // and continues from its caller the same way.
+                        if (stframes > 1)
+                            break;   // not the first frame; bad unwind data
+                        _ef_unwindctx.Pc = _ef_unwindctx.Lr;
+                    }
+
+                    if (!_ef_unwindctx.Pc)
+                        break;   // reached the bottom of the stack
+                    // Only the first frame may leave the stack pointer where it was (a
+                    // leaf, or a fault before the prolog has run).
+                    if (_ef_unwindctx.Sp < _ef_prevsp ||
+                        (_ef_unwindctx.Sp == _ef_prevsp && stframes > 1))
                         break;   // no progress; bad unwind data, don't emit garbage
                 }
             } else {
@@ -294,6 +341,8 @@ _no_inline static LONG WINAPI dbgExceptionFilter(LPEXCEPTION_POINTERS info)
                 // get 1 page before and after the instruction pointer
 #if defined(_ARCH_X64)
                 _ef_ip = info->ContextRecord->Rip;
+#elif defined(_ARCH_ARM64)
+                _ef_ip = info->ContextRecord->Pc;
 #elif defined(_ARCH_X86)
                 _ef_ip = info->ContextRecord->Eip;
 #endif
