@@ -39,6 +39,7 @@ option(CX_TLS "Build mbedTLS cryptography library" ${CX_TLS_DEFAULT})
 option(CX_HTTP "Build cxhttp, the HTTP/1.1 client and server library" ${CX_HTTP_DEFAULT})
 option(CX_QUIC "Build cxquic, the QUIC transport library" ${CX_QUIC_DEFAULT})
 option(CX_MIMALLOC "Use mimalloc rather than system allocator" ON)
+option(CX_MIMALLOC_OPT_ARCH "Let mimalloc compile itself for a newer processor than the rest of the program" OFF)
 
 # HTTP/3 is cxhttp's second framing layer rather than a second stack, so it needs both halves
 # present. On by default whenever they are.
