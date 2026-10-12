@@ -12,6 +12,8 @@ typedef struct testspec {
 
 static const testspec tests[] = {
     { "debug: Assertions", "debugtest", "assert" },
+    { "debug: Black box", "debugtest", "bbox" },
+    { "debug: Black box buffers", "debugtest", "bboxbuf" },
     { "xalloc: Allocation", "cxmemtest", "alloc" },
     { "xalloc: Usable Size", "cxmemtest", "usable_size" },
     { "xalloc: Free", "cxmemtest", "free" },

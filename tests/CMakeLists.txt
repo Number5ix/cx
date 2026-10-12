@@ -188,6 +188,8 @@ if(NOT CX_PLATFORM_IS_WASM)
 endif()
 
 add_test(NAME "\"debug: Assertions\"" COMMAND test_runner debugtest assert)
+add_test(NAME "\"debug: Black box\"" COMMAND test_runner debugtest bbox)
+add_test(NAME "\"debug: Black box buffers\"" COMMAND test_runner debugtest bboxbuf)
 add_test(NAME "\"xalloc: Allocation\"" COMMAND test_runner cxmemtest alloc)
 add_test(NAME "\"xalloc: Usable Size\"" COMMAND test_runner cxmemtest usable_size)
 add_test(NAME "\"xalloc: Free\"" COMMAND test_runner cxmemtest free)
