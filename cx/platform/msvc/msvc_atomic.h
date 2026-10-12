@@ -40,9 +40,10 @@ typedef short _cx_atomic_repr_1_t;
 typedef long _cx_atomic_repr_2_t;
 typedef __int64 _cx_atomic_repr_3_t;
 
-// Trivial per-size raw load/store, used uniformly by CX_GENERATE_ATOMICS. Sizes 0-2 (and
-// size 3 on x64) are always atomic as plain accesses on x86/x64; size 3 on x86 needs the
-// special handling below, since a plain 8-byte access there can tear.
+// Trivial per-size raw load/store, which the ordered load and store below are built from on
+// x86/x64. Sizes 0-2 (and size 3 on x64) are always atomic as plain accesses on x86/x64;
+// size 3 on x86 needs the special handling below, since a plain 8-byte access there can
+// tear. ARM64 doesn't use these: its loads and stores carry their ordering themselves.
 _meta_inline _cx_atomic_repr_0_t _cx_atomic_rawLoad_0(const _cx_atomic_repr_0_t* p)
 {
     return *p;
@@ -167,8 +168,11 @@ _meta_inline void _atomicFence(AtmoicMemoryOrder mo)
 {
     CX_ReadWriteBarrier();
 #if defined(_M_ARM64)
-    /* ARM needs a barrier for everything but relaxed. */
-    if (mo != ATOMIC_MO_Relaxed) {
+    /* ARM needs a barrier for everything but relaxed. Acquire only has to keep later loads
+     * behind it, which is a cheaper barrier than the full one. */
+    if (mo == ATOMIC_MO_Acquire) {
+        __dmb(_ARM64_BARRIER_ISHLD);
+    } else if (mo != ATOMIC_MO_Relaxed) {
         CX_MemoryBarrier();
     }
 #elif defined(_M_IX86) || defined(_M_X64)
@@ -183,6 +187,110 @@ _meta_inline void _atomicFence(AtmoicMemoryOrder mo)
 }
 #define atomicFence(order) _atomicFence(ATOMIC_MO_##order)
 
+// Ordered per-size load and store, used uniformly by CX_GENERATE_ATOMICS.
+#if defined(_M_ARM64)
+
+// On ARM64 a plain access gives no ordering at all, and a full barrier beside every load and
+// store would be correct but slow. The acquiring load (ldar) and releasing store (stlr) order
+// just the one access, which is what acquire and release ask for. A sequentially consistent
+// store also has to keep a later load from passing it, hence the full barrier after it. This
+// is how the C++ runtime implements std::atomic for ARM64.
+#if _MSC_VER >= 1940
+#define _CX_ARM64_LOAD_ACQUIRE(bits, p) \
+    __load_acquire##bits((const volatile unsigned __int##bits*)(p))
+#define _CX_ARM64_STORE_RELEASE(bits, p, val) \
+    __stlr##bits((volatile unsigned __int##bits*)(p), (unsigned __int##bits)(val))
+#else
+// Toolsets before Visual Studio 2022 17.10 are not sure to have the ldar/stlr intrinsics;
+// they get the plain access and the full barrier.
+#define _CX_ARM64_BARRIER_ACCESS(bits)                                                       \
+    _meta_inline __int##bits _cx_arm64_loadAcquire##bits(const volatile __int##bits* p)      \
+    {                                                                                        \
+        __int##bits ret = __iso_volatile_load##bits(p);                                      \
+        CX_MemoryBarrier();                                                                  \
+        return ret;                                                                          \
+    }                                                                                        \
+    _meta_inline void _cx_arm64_storeRelease##bits(volatile __int##bits* p, __int##bits val) \
+    {                                                                                        \
+        CX_MemoryBarrier();                                                                  \
+        __iso_volatile_store##bits(p, val);                                                  \
+    }
+
+_CX_ARM64_BARRIER_ACCESS(8)
+_CX_ARM64_BARRIER_ACCESS(16)
+_CX_ARM64_BARRIER_ACCESS(32)
+_CX_ARM64_BARRIER_ACCESS(64)
+
+#define _CX_ARM64_LOAD_ACQUIRE(bits, p) \
+    _cx_arm64_loadAcquire##bits((const volatile __int##bits*)(p))
+#define _CX_ARM64_STORE_RELEASE(bits, p, val) \
+    _cx_arm64_storeRelease##bits((volatile __int##bits*)(p), (__int##bits)(val))
+#endif
+
+#define _CX_ATOMIC_ORDERED_ACCESS(lg_size, bits)                                              \
+    _meta_inline _cx_atomic_repr_##lg_size##_t                                                \
+        _cx_atomic_load_##lg_size(const _cx_atomic_repr_##lg_size##_t* p,                     \
+                                  AtmoicMemoryOrder mo)                                       \
+    {                                                                                         \
+        _cx_atomic_repr_##lg_size##_t ret;                                                    \
+        if (mo == ATOMIC_MO_Relaxed) {                                                        \
+            return (_cx_atomic_repr_##lg_size##_t)                                            \
+                __iso_volatile_load##bits((const volatile __int##bits*)p);                    \
+        }                                                                                     \
+        ret = (_cx_atomic_repr_##lg_size##_t)_CX_ARM64_LOAD_ACQUIRE(bits, p);                 \
+        CX_ReadWriteBarrier();                                                                \
+        return ret;                                                                           \
+    }                                                                                         \
+    _meta_inline void _cx_atomic_store_##lg_size(_cx_atomic_repr_##lg_size##_t* p,            \
+                                                 _cx_atomic_repr_##lg_size##_t val,           \
+                                                 AtmoicMemoryOrder mo)                        \
+    {                                                                                         \
+        if (mo == ATOMIC_MO_Relaxed) {                                                        \
+            __iso_volatile_store##bits((volatile __int##bits*)p, (__int##bits)val);           \
+            return;                                                                           \
+        }                                                                                     \
+        CX_ReadWriteBarrier();                                                                \
+        _CX_ARM64_STORE_RELEASE(bits, p, val);                                                \
+        if (mo == ATOMIC_MO_SeqCst) {                                                         \
+            CX_MemoryBarrier();                                                               \
+        }                                                                                     \
+    }
+
+#else   // _M_IX86, _M_X64
+
+// On x86/x64 the raw access is already ordered against everything but a later load, so a
+// fence around it is all the stronger orderings need.
+#define _CX_ATOMIC_ORDERED_ACCESS(lg_size, bits)                                              \
+    _meta_inline _cx_atomic_repr_##lg_size##_t                                                \
+        _cx_atomic_load_##lg_size(const _cx_atomic_repr_##lg_size##_t* p,                     \
+                                  AtmoicMemoryOrder mo)                                       \
+    {                                                                                         \
+        _cx_atomic_repr_##lg_size##_t ret = _cx_atomic_rawLoad_##lg_size(p);                  \
+        if (mo != ATOMIC_MO_Relaxed) {                                                        \
+            _atomicFence(ATOMIC_MO_Acquire);                                                  \
+        }                                                                                     \
+        return ret;                                                                           \
+    }                                                                                         \
+    _meta_inline void _cx_atomic_store_##lg_size(_cx_atomic_repr_##lg_size##_t* p,            \
+                                                 _cx_atomic_repr_##lg_size##_t val,           \
+                                                 AtmoicMemoryOrder mo)                        \
+    {                                                                                         \
+        if (mo != ATOMIC_MO_Relaxed) {                                                        \
+            _atomicFence(ATOMIC_MO_Release);                                                  \
+        }                                                                                     \
+        _cx_atomic_rawStore_##lg_size(p, val);                                                \
+        if (mo == ATOMIC_MO_SeqCst) {                                                         \
+            _atomicFence(ATOMIC_MO_SeqCst);                                                   \
+        }                                                                                     \
+    }
+
+#endif
+
+_CX_ATOMIC_ORDERED_ACCESS(0, 8)
+_CX_ATOMIC_ORDERED_ACCESS(1, 16)
+_CX_ATOMIC_ORDERED_ACCESS(2, 32)
+_CX_ATOMIC_ORDERED_ACCESS(3, 64)
+
 #define CX_ATOMIC_IL_REPR(lg_size) _cx_atomic_repr_##lg_size##_t
 
 #define CX_ATOMIC_IL_NAME(base_name, lg_size) tokconcat(base_name, CX_ATOMIC_IL_SUFFIX(lg_size))
@@ -195,8 +303,8 @@ _meta_inline void _atomicFence(AtmoicMemoryOrder mo)
 // CX_ATOMIC_IL_SUFFIX_3 is defined above, alongside the rawLoad/rawStore split, since its
 // value depends on the same _M_IX86 vs _M_X64 branch.
 
-#define CX_ATOMIC_IL_RAWLOAD(lg_size)  tokconcat(_cx_atomic_rawLoad_, lg_size)
-#define CX_ATOMIC_IL_RAWSTORE(lg_size) tokconcat(_cx_atomic_rawStore_, lg_size)
+#define CX_ATOMIC_IL_LOAD(lg_size)  tokconcat(_cx_atomic_load_, lg_size)
+#define CX_ATOMIC_IL_STORE(lg_size) tokconcat(_cx_atomic_store_, lg_size)
 
 #define CX_ATOMIC_IL_ALIGN(lg_size) tokconcat(CX_ATOMIC_IL_ALIGN_, lg_size)
 #define CX_ATOMIC_IL_ALIGN_0
@@ -248,24 +356,14 @@ _meta_inline void _atomicFence(AtmoicMemoryOrder mo)
     _meta_inline type _atomicLoad_##short_type(const cx_atomic_##short_type* a,                \
                                                AtmoicMemoryOrder mo)                           \
     {                                                                                          \
-        CX_ATOMIC_IL_REPR(lg_size) ret = CX_ATOMIC_IL_RAWLOAD(lg_size)(&a->repr);              \
-        if (mo != ATOMIC_MO_Relaxed) {                                                         \
-            _atomicFence(ATOMIC_MO_Acquire);                                                   \
-        }                                                                                      \
-        return (type)ret;                                                                      \
+        return (type)CX_ATOMIC_IL_LOAD(lg_size)(&a->repr, mo);                                 \
     }                                                                                          \
                                                                                                \
     _meta_inline void _atomicStore_##short_type(cx_atomic_##short_type* a,                     \
                                                 type val,                                      \
                                                 AtmoicMemoryOrder mo)                          \
     {                                                                                          \
-        if (mo != ATOMIC_MO_Relaxed) {                                                         \
-            _atomicFence(ATOMIC_MO_Release);                                                   \
-        }                                                                                      \
-        CX_ATOMIC_IL_RAWSTORE(lg_size)(&a->repr, (CX_ATOMIC_IL_REPR(lg_size))val);             \
-        if (mo == ATOMIC_MO_SeqCst) {                                                          \
-            _atomicFence(ATOMIC_MO_SeqCst);                                                    \
-        }                                                                                      \
+        CX_ATOMIC_IL_STORE(lg_size)(&a->repr, (CX_ATOMIC_IL_REPR(lg_size))val, mo);            \
     }                                                                                          \
                                                                                                \
     _meta_inline type                                                                          \
