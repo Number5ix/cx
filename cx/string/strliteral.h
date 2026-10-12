@@ -5,7 +5,12 @@
 
 #ifdef _WIN32
 // _S definition conflicts with Windows SDK headers; pull them in first
+#if defined(_M_ARM64)
+// mmintrin.h is for x86 only. ARM64's intrinsic headers all come in through intrin.h.
+#include <intrin.h>
+#else
 #include <mmintrin.h>
+#endif
 #include <wchar.h>
 #endif
 

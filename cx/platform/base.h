@@ -239,6 +239,10 @@
 #define _ARCH_X64 1
 #define _ARCH_STR "x64"
 #define _64BIT    1
+#elif defined(_M_ARM64)
+#define _ARCH_ARM64 1
+#define _ARCH_STR   "arm64"
+#define _64BIT      1
 #else
 #error Unsupported architecture
 #endif

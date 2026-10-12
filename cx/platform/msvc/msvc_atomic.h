@@ -12,6 +12,10 @@ __forceinline void CX_MemoryBarrier(void)
     return;
 }
 #define CX_ReadWriteBarrier _ReadWriteBarrier
+#elif defined(_M_ARM64)
+// A full barrier (dmb ish), the one the C++ runtime's atomics use on ARM64.
+#define CX_MemoryBarrier()  __dmb(_ARM64_BARRIER_ISH)
+#define CX_ReadWriteBarrier _ReadWriteBarrier
 #else
 #error "Don't know how to create atomics for this platform for MSVC."
 #endif
@@ -144,7 +148,7 @@ _CX_X86_ATOMIC64_RMW(_InterlockedAnd, old & val)
 _CX_X86_ATOMIC64_RMW(_InterlockedOr, old | val)
 _CX_X86_ATOMIC64_RMW(_InterlockedXor, old ^ val)
 
-#else   // _M_X64
+#else   // _M_X64, _M_ARM64
 
 #define CX_ATOMIC_IL_SUFFIX_3 64
 
@@ -162,7 +166,7 @@ _meta_inline void _cx_atomic_rawStore_3(_cx_atomic_repr_3_t* p, _cx_atomic_repr_
 _meta_inline void _atomicFence(AtmoicMemoryOrder mo)
 {
     CX_ReadWriteBarrier();
-#if defined(_M_ARM) || defined(_M_ARM64)
+#if defined(_M_ARM64)
     /* ARM needs a barrier for everything but relaxed. */
     if (mo != ATOMIC_MO_Relaxed) {
         CX_MemoryBarrier();
