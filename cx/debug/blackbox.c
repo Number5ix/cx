@@ -5,9 +5,15 @@
 #include "cx/utils/lazyinit.h"
 
 // do not make this static; the symbol should be visible for debugging purposes!
-char dbgBlackBox[BLACKBOX_SIZE];
+alignMem(2) char dbgBlackBox[BLACKBOX_SIZE];
 #define dbgBlackBoxHead (((uint16*)dbgBlackBox)[0])
 #define dbgBlackBoxTail (((uint16*)dbgBlackBox)[1])
+
+// Entries start on even offsets so that their uint16 fields are aligned. Space is handed out
+// and freed in even amounts to keep it that way; the padding byte of an odd-sized entry is
+// not counted in bboxEntSize.
+#define bboxAlign(sz)     (((sz) + 1) & ~(size_t)1)
+#define bboxEntSpace(ent) bboxAlign(bboxEntSize(ent))
 
 // This is not a particularly fast or efficient allocation algorithm,
 // but it's simple and works reasonably well for a fixed size block.
@@ -120,7 +126,7 @@ static void _bboxInit(void* unused)
     freelist        = xaAlloc(sizeof(BBoxFreelistNode));
     freelist->next  = 0;
     freelist->start = sizeof(int16) * 2;   // after the head and tail pointers
-    freelist->size  = BLACKBOX_SIZE - sizeof(int16) * 2;
+    freelist->size  = (BLACKBOX_SIZE & ~1) - sizeof(int16) * 2;
 }
 
 void bboxInit(void)
@@ -149,11 +155,12 @@ static void _bboxDeleteInternal(uint16 idx)
         next->prev        = ent->prev;
     }
 
-    freeSpaceAdd(idx, bboxEntSize(ent));
+    freeSpaceAdd(idx, (uint16)bboxEntSpace(ent));
 }
 
 // Adds a new entry with a zero-filled value of vallen bytes and returns its offset, or 0 if
-// the name is too long or there is no room for it. Must be called with bbmtx held.
+// the name is too long or there is no room for it. Must be called with bbmtx held, and with
+// vallen already checked against BLACKBOX_VALUE_MAX.
 //
 // Regular entries use best fit. With high set, the entry is instead carved from the end of
 // the highest free block that fits; buffers use this so that long-lived entries collect at
@@ -161,10 +168,10 @@ static void _bboxDeleteInternal(uint16 idx)
 static uint16 _bboxEntAlloc(strref name, uint32 vallen, uint8 flags, bool high)
 {
     uint32 namelen = strLen(name) + 1;
-    if (namelen > UINT8_MAX || vallen > BLACKBOX_SIZE)
+    if (namelen > UINT8_MAX)
         return 0;
 
-    uint32 needsz          = (uint32)offsetof(BlackBoxEnt, name) + namelen + vallen;
+    uint32 needsz          = (uint32)bboxAlign(offsetof(BlackBoxEnt, name) + namelen + vallen);
     BBoxFreelistNode* best = 0;
     for (BBoxFreelistNode* n = freelist; n; n = n->next) {
         if (n->size < needsz)
@@ -223,27 +230,35 @@ bool bboxSet(strref name, strref val, flags_t flags)
     // only bboxReserve creates buffers
     flags &= ~BBox_Buffer;
 
-    if (htFind(bbindex, strref, name, uint16, &idx)) {
-        // already exists in index
+    if (htFind(bbindex, strref, name, uint16, &idx))
         ent = (BlackBoxEnt*)&dbgBlackBox[idx];
-        if (ent->flags & BBox_Buffer) {
-            // Whoever reserved this buffer still holds its address, so it can neither shrink
-            // nor move. The last byte is left alone to keep the value terminated.
-            ent->flags = (uint8)(flags | BBox_Buffer);
-            strCopyOut(val, 0, (uint8*)bboxGetVal(ent), ent->vallen - 1);
-            goto out;
-        }
 
+    if (ent && (ent->flags & BBox_Buffer)) {
+        // Whoever reserved this buffer still holds its address, so it can neither shrink
+        // nor move. The last byte is left alone to keep the value terminated.
+        ent->flags = (uint8)(flags | BBox_Buffer);
+        strCopyOut(val, 0, (uint8*)bboxGetVal(ent), ent->vallen - 1);
+        goto out;
+    }
+
+    if (vallen > BLACKBOX_VALUE_MAX) {
+        ret = false;
+        goto out;
+    }
+
+    if (ent) {
+        // already exists in index
         // is it big enough that we can overwrite in place?
         if (ent->vallen >= vallen) {
             // yes, overwrite it
-            uint16 origsz = bboxEntSize(ent);
+            uint16 origsz = (uint16)bboxEntSpace(ent);
             devAssert(ent->namelen == strLen(name) + 1);
             ent->vallen = (uint16)vallen;
             ent->flags  = (uint8)flags;
             strCopyOut(val, 0, (uint8*)bboxGetVal(ent), ent->vallen);
-            if (bboxEntSize(ent) < origsz)
-                freeSpaceAdd(idx + bboxEntSize(ent), origsz - bboxEntSize(ent));
+            uint16 newsz = (uint16)bboxEntSpace(ent);
+            if (newsz < origsz)
+                freeSpaceAdd((uint16)(idx + newsz), (uint16)(origsz - newsz));
             goto out;
         } else {
             // no, remove it and fall through add new
@@ -268,7 +283,7 @@ out:
 _Use_decl_annotations_
 char* bboxReserve(strref name, uint32 size, flags_t flags)
 {
-    if (size == 0 || size >= BLACKBOX_SIZE)
+    if (size == 0 || size > BLACKBOX_VALUE_MAX)
         return NULL;
 
     bboxInit();

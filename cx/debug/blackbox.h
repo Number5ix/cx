@@ -64,6 +64,10 @@ CX_C_BEGIN
 /// Size of the black box buffer in bytes (64KB)
 #define BLACKBOX_SIZE 65535
 
+/// Largest value that an entry can hold, in bytes, including the null terminator.
+/// Set 2 byte larger so that a 4096 byte reservation is possible.
+#define BLACKBOX_VALUE_MAX 4098
+
 /// Global black box buffer visible to debuggers and crash dump analyzers
 extern char dbgBlackBox[];
 
@@ -71,7 +75,8 @@ extern char dbgBlackBox[];
 ///
 /// Internal structure used to parse black box contents from crash dumps.
 /// Entries are stored as a doubly-linked list with variable-length name and value.
-/// The value of a `BBox_Buffer` entry ends at its first null byte.
+/// Every entry starts at an even offset. The value of a `BBox_Buffer` entry ends at
+/// its first null byte.
 typedef struct BlackBoxEnt {
     uint16 prev;     ///< Offset to previous entry (0 if first)
     uint16 next;     ///< Offset to next entry (0 if last)
@@ -124,10 +129,11 @@ void bboxInit(void);
 /// buffer and cut short if it does not fit.
 ///
 /// @param name Key name, up to 254 bytes (copied into black box)
-/// @param val Value to store (copied into black box)
+/// @param val Value to store, up to `BLACKBOX_VALUE_MAX` bytes including the null
+///            terminator (copied into black box)
 /// @param flags Optional flags from BLACKBOX_FLAGS enum (0 for none)
 /// @return true if the value was stored, false if the black box is full or the name
-///         is too long
+///         or value is too long
 bool bboxSet(_In_ strref name, _In_ strref val, flags_t flags);
 
 /// Reserve a buffer in the black box that can be written to directly
@@ -139,10 +145,12 @@ bool bboxSet(_In_ strref name, _In_ strref val, flags_t flags);
 /// same buffer with its contents unchanged.
 ///
 /// @param name Key name, up to 254 bytes (copied into black box)
-/// @param size Size of the buffer in bytes, including room for the null terminator
+/// @param size Size of the buffer in bytes, including room for the null terminator;
+///             at most `BLACKBOX_VALUE_MAX`
 /// @param flags Optional flags from BLACKBOX_FLAGS enum (0 for none)
-/// @return Pointer to the buffer, or NULL if the black box is full or the name is
-///         already used by an entry that is not a large enough buffer
+/// @return Pointer to the buffer, or NULL if the black box is full, the name or size
+///         is too long, or the name is already used by an entry that is not a large
+///         enough buffer
 ///
 /// Example:
 /// @code
