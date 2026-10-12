@@ -20,6 +20,7 @@ typedef struct BBoxFreelistNode {
     uint16 size;
 } BBoxFreelistNode;
 
+static LazyInitState bbinit;
 static Mutex bbmtx;
 static hashtable bbindex;
 static BBoxFreelistNode* freelist;
@@ -40,6 +41,12 @@ static void freeSpaceAdd(uint16 start, uint16 size)
     // see if we can coalsece into previous block
     if (prev && prev->start + prev->size == start) {
         prev->size += size;
+        // the freed block may have closed the gap up to the next one as well
+        if (n && prev->start + prev->size == n->start) {
+            prev->size += n->size;
+            prev->next  = n->next;
+            xaFree(n);
+        }
         return;
     }
     // see if we can coalsece into next block
@@ -106,7 +113,7 @@ static void freeSpaceRemove(uint16 start, uint16 size)
     }
 }
 
-void bboxInit()
+static void _bboxInit(void* unused)
 {
     mutexInit(&bbmtx);
     htInit(&bbindex, string, uint16, 0);
@@ -114,6 +121,11 @@ void bboxInit()
     freelist->next  = 0;
     freelist->start = sizeof(int16) * 2;   // after the head and tail pointers
     freelist->size  = BLACKBOX_SIZE - sizeof(int16) * 2;
+}
+
+void bboxInit(void)
+{
+    lazyInit(&bbinit, _bboxInit, NULL);
 }
 
 static void _bboxDeleteInternal(uint16 idx)
@@ -140,24 +152,95 @@ static void _bboxDeleteInternal(uint16 idx)
     freeSpaceAdd(idx, bboxEntSize(ent));
 }
 
-_Use_decl_annotations_
-void bboxSet(strref name, strref val, uint8 flags)
+// Adds a new entry with a zero-filled value of vallen bytes and returns its offset, or 0 if
+// the name is too long or there is no room for it. Must be called with bbmtx held.
+//
+// Regular entries use best fit. With high set, the entry is instead carved from the end of
+// the highest free block that fits; buffers use this so that long-lived entries collect at
+// the top of the box rather than pinning holes among the entries that come and go.
+static uint16 _bboxEntAlloc(strref name, uint32 vallen, uint8 flags, bool high)
 {
+    uint32 namelen = strLen(name) + 1;
+    if (namelen > UINT8_MAX || vallen > BLACKBOX_SIZE)
+        return 0;
+
+    uint32 needsz          = (uint32)offsetof(BlackBoxEnt, name) + namelen + vallen;
+    BBoxFreelistNode* best = 0;
+    for (BBoxFreelistNode* n = freelist; n; n = n->next) {
+        if (n->size < needsz)
+            continue;
+
+        if (high) {
+            best = n;   // the list is sorted by address, so the last fit is the highest
+        } else if (!best || n->size < best->size) {
+            best = n;
+            if (best->size == needsz)
+                break;   // early out for exact match
+        }
+    }
+
+    if (!best)
+        return 0;
+
+    uint16 idx       = high ? (uint16)(best->start + best->size - needsz) : best->start;
+    BlackBoxEnt* ent = (BlackBoxEnt*)&dbgBlackBox[idx];
+
+    ent->prev    = dbgBlackBoxTail;
+    ent->next    = 0;
+    ent->flags   = flags;
+    ent->namelen = (uint8)namelen;
+    ent->vallen  = (uint16)vallen;
+    strCopyOut(name, 0, (uint8*)ent->name, namelen);
+    memset(bboxGetVal(ent), 0, vallen);
+
+    // Link the entry in only now that it is complete. A crash dump is read without the lock,
+    // so anything reachable from the head must already be a well-formed entry.
+    if (dbgBlackBoxTail) {
+        BlackBoxEnt* tail = (BlackBoxEnt*)&dbgBlackBox[dbgBlackBoxTail];
+        tail->next        = idx;
+    }
+    dbgBlackBoxTail = idx;
+    if (!dbgBlackBoxHead)
+        dbgBlackBoxHead = idx;   // first item, guess we're head too
+
+    htInsert(&bbindex, string, (string)ent->name, uint16, idx);
+    freeSpaceRemove(idx, (uint16)needsz);
+
+    return idx;
+}
+
+_Use_decl_annotations_
+bool bboxSet(strref name, strref val, flags_t flags)
+{
+    bboxInit();
     mutexAcquire(&bbmtx);
 
-    BlackBoxEnt *ent = 0, *tail;
+    BlackBoxEnt* ent = 0;
+    uint32 vallen    = strLen(val) + 1;
     uint16 idx       = 0;
+    bool ret         = true;
+
+    // only bboxReserve creates buffers
+    flags &= ~BBox_Buffer;
 
     if (htFind(bbindex, strref, name, uint16, &idx)) {
         // already exists in index
         ent = (BlackBoxEnt*)&dbgBlackBox[idx];
+        if (ent->flags & BBox_Buffer) {
+            // Whoever reserved this buffer still holds its address, so it can neither shrink
+            // nor move. The last byte is left alone to keep the value terminated.
+            ent->flags = (uint8)(flags | BBox_Buffer);
+            strCopyOut(val, 0, (uint8*)bboxGetVal(ent), ent->vallen - 1);
+            goto out;
+        }
+
         // is it big enough that we can overwrite in place?
-        if (ent->vallen >= strLen(val) + 1) {
+        if (ent->vallen >= vallen) {
             // yes, overwrite it
             uint16 origsz = bboxEntSize(ent);
             devAssert(ent->namelen == strLen(name) + 1);
-            ent->vallen = strLen(val) + 1;
-            ent->flags  = flags;
+            ent->vallen = (uint16)vallen;
+            ent->flags  = (uint8)flags;
             strCopyOut(val, 0, (uint8*)bboxGetVal(ent), ent->vallen);
             if (bboxEntSize(ent) < origsz)
                 freeSpaceAdd(idx + bboxEntSize(ent), origsz - bboxEntSize(ent));
@@ -168,58 +251,56 @@ void bboxSet(strref name, strref val, uint8 flags)
         }
     }
 
-    // bit fit algorithm
-    BBoxFreelistNode *best = 0, *n = freelist;
-    uint16 needsz = (uint16)offsetof(BlackBoxEnt, name) + strLen(name) + strLen(val) + 2;
-    while (n) {
-        if (n->size >= needsz) {
-            if (!best)
-                best = n;
-            else if (n->size < best->size)
-                best = n;
-            if (best->size == needsz)
-                break;   // early out for exact match
-        }
-        n = n->next;
-    }
-
-    if (best) {
-        // add a new node
-        ent = (BlackBoxEnt*)&dbgBlackBox[best->start];
-
-        // update tail
-        ent->prev = dbgBlackBoxTail;
-        ent->next = 0;
-        if (dbgBlackBoxTail) {
-            tail       = (BlackBoxEnt*)&dbgBlackBox[dbgBlackBoxTail];
-            tail->next = best->start;
-        }
-        dbgBlackBoxTail = best->start;
-        if (!dbgBlackBoxHead)
-            dbgBlackBoxHead = best->start;   // first item, guess we're head too
-
-        ent->namelen = strLen(name) + 1;
-        ent->vallen  = strLen(val) + 1;
-        ent->flags   = flags;
-        strCopyOut(name, 0, (uint8*)ent->name, ent->namelen);
+    idx = _bboxEntAlloc(name, vallen, (uint8)flags, false);
+    if (idx) {
+        ent = (BlackBoxEnt*)&dbgBlackBox[idx];
         strCopyOut(val, 0, (uint8*)bboxGetVal(ent), ent->vallen);
-
-        // add to index
-        htInsert(&bbindex, string, (string)ent->name, uint16, best->start);
-
-        freeSpaceRemove(best->start, needsz);
     } else {
         // blackbox is full
-        // TODO: warning message? this probably shouldn't be an assert
+        ret = false;
     }
 
 out:
     mutexRelease(&bbmtx);
+    return ret;
+}
+
+_Use_decl_annotations_
+char* bboxReserve(strref name, uint32 size, flags_t flags)
+{
+    if (size == 0 || size >= BLACKBOX_SIZE)
+        return NULL;
+
+    bboxInit();
+    mutexAcquire(&bbmtx);
+
+    BlackBoxEnt* ent = 0;
+    char* ret        = NULL;
+    uint16 idx       = 0;
+
+    if (htFind(bbindex, strref, name, uint16, &idx)) {
+        // an existing buffer can be shared, but not grown: its address is already in use
+        ent = (BlackBoxEnt*)&dbgBlackBox[idx];
+        if ((ent->flags & BBox_Buffer) && ent->vallen > size)
+            ret = bboxGetVal(ent);
+    } else {
+        // One byte more than the caller is told about, which nothing but the zero fill ever
+        // writes. It terminates the value even when the caller fills the whole buffer.
+        idx = _bboxEntAlloc(name, size + 1, (uint8)(flags | BBox_Buffer), true);
+        if (idx) {
+            ent = (BlackBoxEnt*)&dbgBlackBox[idx];
+            ret = bboxGetVal(ent);
+        }
+    }
+
+    mutexRelease(&bbmtx);
+    return ret;
 }
 
 _Use_decl_annotations_
 void bboxDelete(strref name)
 {
+    bboxInit();
     mutexAcquire(&bbmtx);
     uint16 idx = 0;
 
