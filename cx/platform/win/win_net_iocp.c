@@ -576,8 +576,12 @@ static void handleCompletion(_Inout_ NetQueueWinIOCP* self, _Inout_ OVERLAPPED* 
             bufringCommit(&sock->bufs.stream.recv, (ok && bytes > 0) ? (size_t)bytes : 0);
         }
 
+        // A close on another thread can drop the socket's flow at any moment; resolve it once, with
+        // a reference, rather than reading the field for each use.
+        NetFlow* flow = _netSocketFlowRef(sock);
+
         if (live && bytes > 0) {
-            if (sock->flow) {
+            if (flow) {
                 // The bytes already live in the ring; the message only records how many arrived so
                 // the handler can drain them back out with netsocketRecv().
                 NetMessage* msg = netpoolAllocHeader(q->pool);
@@ -585,18 +589,20 @@ static void handleCompletion(_Inout_ NetQueueWinIOCP* self, _Inout_ OVERLAPPED* 
                 msg->buf        = NULL;
                 msg->bytes      = (size_t)bytes;
                 msg->addr       = sock->remote;
-                netqueue_submit(q, sock->flow, msg);
+                netqueue_submit(q, flow, msg);
             }
             postRecv(self, sock);   // keep one recv outstanding
         } else if (ok && bytes == 0) {
             // A zero-byte stream completion is an orderly peer shutdown. Do not repost.
-            if (sock->flow && !shutting)
-                netflow_close(sock->flow, NCR_PeerClosed);
+            if (flow && !shutting)
+                netflow_close(flow, NCR_PeerClosed);
         } else if (!ok && !aborted && !shutting) {
             // A genuine socket error (reset), not our own cancellation and not teardown.
-            if (sock->flow)
-                netflow_close(sock->flow, NCR_Error);
+            if (flow)
+                netflow_close(flow, NCR_Error);
         }
+
+        objRelease(&flow);
     } else if (op->type == IocpConnect) {
         // A completion whose generation no longer matches belongs to a superseded attempt -- this
         // one timed out and failed over to a fresh handle whose ConnectEx was cancelled -- so it

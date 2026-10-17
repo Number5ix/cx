@@ -158,17 +158,23 @@ static void ingestStream(_Inout_ NetQueueKqueue* self, _Inout_ NetSocket* sock)
         }
     }
 
-    if (received > 0 && sock->flow) {
+    // A close on another thread can drop the socket's flow at any moment; resolve it once, with a
+    // reference, rather than reading the field for each use.
+    NetFlow* flow = _netSocketFlowRef(sock);
+
+    if (received > 0 && flow) {
         NetMessage* msg = netpoolAllocHeader(q->pool);
         msg->kind       = NMSG_Data;
         msg->buf        = NULL;
         msg->bytes      = received;
         msg->addr       = sock->remote;
-        netqueue_submit(q, sock->flow, msg);
+        netqueue_submit(q, flow, msg);
     }
 
-    if (closed && sock->flow)
-        netflow_close(sock->flow, closeErr == NERR_None ? NCR_PeerClosed : NCR_Error);
+    if (closed && flow)
+        netflow_close(flow, closeErr == NERR_None ? NCR_PeerClosed : NCR_Error);
+
+    objRelease(&flow);
 }
 
 // Identical to the select/epoll backends' acceptReady(): drain the listener's backlog until it

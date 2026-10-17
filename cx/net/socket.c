@@ -80,8 +80,9 @@ size_t NetSocket_recv(_In_ NetSocket* self, _Out_ uint8* buf, size_t bufsz, _Out
 
     // When a filter is installed the socket's receive ring holds raw wire bytes; the application
     // reads decoded plaintext out of the flow chain's application end instead (the decode pass
-    // already ran on the worker before this event was delivered).
-    NetFlow* flow = self->flow;
+    // already ran on the worker before this event was delivered). The flow is held for the read, as
+    // a close on another thread can drop it from the socket at any moment.
+    NetFlow* flow = _netSocketFlowRef(self);
     size_t copied = 0;
 
     if (flow && saSize(flow->filters) > 0) {
@@ -97,6 +98,7 @@ size_t NetSocket_recv(_In_ NetSocket* self, _Out_ uint8* buf, size_t bufsz, _Out
             copied = bufringRead(&self->bufs.stream.recv, buf, bufsz);
     }
 
+    objRelease(&flow);
     return copied;
 }
 
@@ -105,7 +107,8 @@ bool NetSocket_recvMsgs(_In_ NetSocket* self, socketRecvCB cb, _In_opt_ void* ct
     if (self->type != NST_Stream)
         return false;
 
-    NetFlow* flow  = self->flow;
+    // Held for the drain, as a close on another thread can drop it from the socket at any moment.
+    NetFlow* flow  = _netSocketFlowRef(self);
     bool filtered  = flow && saSize(flow->filters) > 0;
     bool done      = false;
     bool ret       = false;
@@ -151,6 +154,7 @@ bool NetSocket_recvMsgs(_In_ NetSocket* self, socketRecvCB cb, _In_opt_ void* ct
         bufDestroy(&msg.buf);
     } while (!done);
 
+    objRelease(&flow);
     return ret;
 }
 
@@ -177,8 +181,9 @@ void NetSocket__accepted(_In_ NetSocket* self, _Inout_ NetSocket* newSock,
     // that reached NS_Listening through a queue. If the listener is being torn down (its weak queue
     // arm already broken), there is nowhere to deliver, so drop the accepted socket: releasing the
     // platform factory's reference closes its handle.
-    NetQueue* q = objAcquireFromWeak(NetQueue, self->queue);
-    if (!q || !self->flow) {
+    NetQueue* q   = objAcquireFromWeak(NetQueue, self->queue);
+    NetFlow* flow = q ? _netSocketFlowRef(self) : NULL;
+    if (!flow) {
         if (q)
             objRelease(&q);
         objRelease(&newSock);
@@ -207,8 +212,9 @@ void NetSocket__accepted(_In_ NetSocket* self, _Inout_ NetSocket* newSock,
     msg->asock      = newSock;   // transfers the platform factory's reference to the message
     if (peer)
         msg->addr = *peer;
-    netqueue_submit(q, self->flow, msg);
+    netqueue_submit(q, flow, msg);
 
+    objRelease(&flow);
     objRelease(&q);
 }
 

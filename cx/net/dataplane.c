@@ -127,12 +127,17 @@ static bool flushLocked(NetQueue* q, NetSocket* sock, NetErrorCode* err, NetAddr
 // sockets have exactly one flow; datagram send-ready has no single natural flow and is deferred.
 static void fireSendReady(NetQueue* q, NetSocket* sock)
 {
-    if (!q || sock->type != NST_Stream || !sock->flow)
+    if (!q || sock->type != NST_Stream)
+        return;
+
+    NetFlow* flow = _netSocketFlowRef(sock);
+    if (!flow)
         return;
 
     NetMessage* msg = netpoolAllocHeader(q->pool);
     msg->kind       = NMSG_SendReady;
-    netqueue_submit(q, sock->flow, msg);
+    netqueue_submit(q, flow, msg);
+    objRelease(&flow);
 }
 
 void NetSocket__sendError(_In_ NetSocket* self, _In_opt_ NetQueue* q, NetErrorCode err, _In_ NetAddr* peer)
@@ -142,8 +147,7 @@ void NetSocket__sendError(_In_ NetSocket* self, _In_opt_ NetQueue* q, NetErrorCo
 
     NetFlow* flow = NULL;
     if (self->type == NST_Stream) {
-        if (self->flow)
-            flow = objAcquire(self->flow);
+        flow = _netSocketFlowRef(self);
     } else {
         withReadLock (&self->flowLock) {
             htelem e = htFind(self->flows, NetAddr, *peer, none, NULL);

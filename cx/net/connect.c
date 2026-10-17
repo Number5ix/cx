@@ -94,13 +94,19 @@ static void connectDisarm(NetSocket* sock)
 // outcome rides in the message's `bytes` slot as a NetErrorCode.
 static void connectDeliver(NetQueue* q, NetSocket* sock, NetErrorCode err)
 {
-    if (!q || !sock->flow)
+    if (!q)
+        return;
+
+    // A close on another thread can drop the socket's flow at any moment.
+    NetFlow* flow = _netSocketFlowRef(sock);
+    if (!flow)
         return;
 
     NetMessage* msg = netpoolAllocHeader(q->pool);
     msg->kind       = NMSG_Connect;
     msg->bytes      = (size_t)err;
-    netqueue_submit(q, sock->flow, msg);
+    netqueue_submit(q, flow, msg);
+    objRelease(&flow);
 }
 
 // The connect has failed on every resolved address (or the socket lost its queue). Deliver the
@@ -197,10 +203,13 @@ static void connectNext(NetSocket* sock, NetErrorCode lastErr)
     // stored before the timer can possibly fire and go looking for it.
     atomicFetchAdd(uint32, &sock->connectGen, 1, AcqRel);
 
+    // A flow already dropped by a close comes back NULL, which addTimer refuses like a dying one.
+    NetFlow* flow = _netSocketFlowRef(sock);
     NetTimerId armed;
     withMutex (&sock->connectLock)
-        armed = sock->connectTimer = netqueue_addTimer(q, sock->flow, deadline, NTF_None,
+        armed = sock->connectTimer = netqueue_addTimer(q, flow, deadline, NTF_None,
                                                        connectTimedOut, NULL);
+    objRelease(&flow);
 
     if (armed == 0) {
         // The flow is already tearing down -- the queue is shutting down, or the socket is being

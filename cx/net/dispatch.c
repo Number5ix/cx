@@ -305,10 +305,17 @@ static void openAcceptGate(_In_ NetQueue* q, _Inout_ NetSocket* sock)
         // A QUIC connection's control flow sits beside that table rather than in it, and it is the
         // one flow that was allowed to run while the gate was shut -- so it is the one that can be
         // holding a message back, waiting for exactly this.
-        if (sock->type == NST_Quic && sock->flow)
-            requeueFlow(q, sock->flow);
-    } else if (sock->flow) {
-        requeueFlow(q, sock->flow);
+        if (sock->type == NST_Quic) {
+            NetFlow* ctl = _netSocketFlowRef(sock);
+            if (ctl)
+                requeueFlow(q, ctl);
+            objRelease(&ctl);
+        }
+    } else {
+        NetFlow* flow = _netSocketFlowRef(sock);
+        if (flow)
+            requeueFlow(q, flow);
+        objRelease(&flow);
     }
 }
 

@@ -191,7 +191,11 @@ static void ingestStream(_Inout_ NetQueueSelect* self, _Inout_ NetSocket* sock)
         }
     }
 
-    if (received > 0 && sock->flow) {
+    // A close on another thread can drop the socket's flow at any moment; resolve it once, with a
+    // reference, rather than reading the field for each use.
+    NetFlow* flow = _netSocketFlowRef(sock);
+
+    if (received > 0 && flow) {
         // A bufferless message: the bytes already live in the ring, and `bytes` is the only record
         // of how many arrived in this batch. The handler reads them back out through the ring.
         NetMessage* msg = netpoolAllocHeader(q->pool);
@@ -199,11 +203,13 @@ static void ingestStream(_Inout_ NetQueueSelect* self, _Inout_ NetSocket* sock)
         msg->buf        = NULL;
         msg->bytes      = received;
         msg->addr       = sock->remote;
-        netqueue_submit(q, sock->flow, msg);
+        netqueue_submit(q, flow, msg);
     }
 
-    if (closed && sock->flow)
-        netflow_close(sock->flow, closeErr == NERR_None ? NCR_PeerClosed : NCR_Error);
+    if (closed && flow)
+        netflow_close(flow, closeErr == NERR_None ? NCR_PeerClosed : NCR_Error);
+
+    objRelease(&flow);
 }
 
 // Drain every connection currently sitting in a listening socket's backlog. One readiness can cover

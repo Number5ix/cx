@@ -279,8 +279,14 @@ void NetFlow__snapshotFlows(_In_ NetSocket* sock, _Out_ sa_NetFlow* out)
         }
     }
 
-    if (sock->type != NST_Datagram && sock->flow)
-        saPush(out, NetFlow, sock->flow);
+    // A worker delivering the flow's terminal can drop it from the socket while this runs.
+    if (sock->type != NST_Datagram) {
+        NetFlow* ctl = _netSocketFlowRef(sock);
+        if (ctl) {
+            saPushC(out, NetFlow, &ctl);
+            ctl = NULL;   // the array took the reference
+        }
+    }
 }
 
 _Use_decl_annotations_
