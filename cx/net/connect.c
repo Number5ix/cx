@@ -152,8 +152,16 @@ static void connectDrop(NetSocket* sock, NetQueue* q)
 // or whoever won the attempt-timer claim thereafter), so connectIdx/connQueue/remote need no lock.
 // `lastErr` is the failure that ended the previous attempt; it becomes the reported error if this
 // exhausts the list, so a run of dead addresses surfaces its real cause (refused, timeout, ...).
+//
+// Holds its own reference for the duration. Once the attempt timer is armed below, a concurrent
+// close can win connectClaim() and drop the connect's self-reference, which may be the last one --
+// and the resolver callback holds nothing else. Taking the reference on entry is safe because the
+// self-reference can only be dropped by whoever wins the claim, and nothing can win it before the
+// timer is armed.
 static void connectNext(NetSocket* sock, NetErrorCode lastErr)
 {
+    objAcquire(sock);
+
     NetQueue* q = objAcquireFromWeak(NetQueue, sock->queue);
 
     NetAddr addr = { 0 };
@@ -167,6 +175,7 @@ static void connectNext(NetSocket* sock, NetErrorCode lastErr)
         connectFinishFail(sock, q, lastErr != NERR_None ? lastErr : NERR_ConnectionRefused);
         if (q)
             objRelease(&q);
+        objRelease(&sock);
         return;
     }
 
@@ -199,6 +208,7 @@ static void connectNext(NetSocket* sock, NetErrorCode lastErr)
         // deliver its outcome on, so finish now rather than starting an attempt nothing would end.
         connectFinishFail(sock, q, NERR_NotConnected);
         objRelease(&q);
+        objRelease(&sock);
         return;
     }
 
@@ -207,6 +217,7 @@ static void connectNext(NetSocket* sock, NetErrorCode lastErr)
     // timeout sweep.
     netqueueConnectBegin(q, sock, &addr);
     objRelease(&q);
+    objRelease(&sock);
 }
 
 void NetSocket__connectResult(_In_ NetSocket* self, NetErrorCode err)
