@@ -182,9 +182,12 @@ abstract class NetQueue
     /// Removes all sockets from the queue and shuts down worker threads. Will shut down
     /// the queue in the background even if false is returned.
     ///
-    /// @param timeout How long to wait for workers to terminate, in microseconds (see timeS() /
+    /// If it returns false, some of the queue's threads did not stop in time. They finish
+    /// stopping on their own, and releasing the last reference to the queue waits for them.
+    ///
+    /// @param timeout How long to wait for threads to stop, in microseconds (see timeS() /
     ///     timeMS()), or 0 or less to wait forever
-    /// @return true if the queue is fully shut down
+    /// @return true if every thread stopped within the timeout
     bool shutdown(int64 timeout);
 
     /// Process events in polled mode
@@ -363,8 +366,10 @@ abstract class NetQueue
 
     // Ask every dispatch worker to exit and join it. Each worker drains the runqueue one last time
     // on its way out, so terminal events queued during shutdown are still delivered. `timeout`
-    // <= 0 waits indefinitely. Idempotent -- safe to call when no workers are running.
-    unbound void _stopWorkers(int64 timeout);
+    // <= 0 waits indefinitely. Returns false if any worker missed the deadline; the pool is kept
+    // either way, so a later call (the destructor's) joins what is left. Safe to call repeatedly,
+    // and when no workers are running.
+    unbound bool _stopWorkers(int64 timeout);
 
     // Ingest (queue.c)
     //

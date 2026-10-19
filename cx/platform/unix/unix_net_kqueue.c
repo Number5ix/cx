@@ -90,6 +90,9 @@ static void ingestDatagram(_Inout_ NetQueueKqueue* self, _Inout_ NetSocket* sock
     NetQueue* q = NetQueue(self);
 
     for (;;) {
+        if (_netqueueShuttingDown(q))
+            break;
+
         Buffer buf = bufpoolGet(&q->pool->msgbuf);
         if (!buf) {
             uint8 scratch[2048];
@@ -133,6 +136,9 @@ static void ingestStream(_Inout_ NetQueueKqueue* self, _Inout_ NetSocket* sock)
 
     withMutex (&sock->recvLock) {
         for (;;) {
+            if (_netqueueShuttingDown(q))
+                break;
+
             uint8* ptr;
             size_t len;
             bufringReserve(ring, sock->mru ? sock->mru : 1500, &ptr, &len);
@@ -230,6 +236,10 @@ static void kqueuePoll(_Inout_ NetQueueKqueue* self, int64 waitUs)
         return;
 
     for (int i = 0; i < n; i++) {
+        // Readiness gathered before shutdown began is stale, and its sockets are being torn down.
+        if (_netqueueShuttingDown(q))
+            break;
+
         int fd = (int)(intptr)events[i].ident;
         if (fd == self->wakeRead) {
             char sink[64];
@@ -500,17 +510,25 @@ static void wakeIngest(_Inout_ NetQueueKqueue* self)
     }
 }
 
-static void stopIngestThread(_Inout_ NetQueueKqueue* self, int64 timeout)
+// Returns false if the thread missed the deadline. The reference is then kept, because the thread
+// still holds a raw pointer to this queue, and the destructor's unbounded call is what finally
+// joins it.
+static bool stopIngestThread(_Inout_ NetQueueKqueue* self, int64 timeout)
 {
     Thread* ing = self->ingest;
     if (!ing)
-        return;
+        return true;
 
-    self->ingest = NULL;
     thrRequestExit(ing);
     wakeIngest(self);
-    thrWait(ing, timeout > 0 ? timeout : timeForever);
+    if (!thrWait(ing, timeout > 0 ? timeout : timeForever)) {
+        _netWarnJoinTimeout(ing->name, timeout);
+        return false;
+    }
+
+    self->ingest = NULL;
     objRelease(&ing);
+    return true;
 }
 
 extern bool NetQueue_shutdown(_In_ NetQueue* self, int64 timeout);   // parent
@@ -518,11 +536,16 @@ extern bool NetQueue_shutdown(_In_ NetQueue* self, int64 timeout);   // parent
 bool NetQueueKqueue_shutdown(_In_ NetQueueKqueue* self, int64 timeout)
 {
     atomicStore(uint32, &NetQueue(self)->shutdownReq, 1, Release);
-    stopIngestThread(self, timeout);
+    bool joined = stopIngestThread(self, timeout);
 
-    htClear(&self->fdmap);
+    // The ingest thread takes its own reference on each socket it services, so this is safe even
+    // if it missed the deadline, but only under the lock.
+    withMutex (&self->fdmapLock) {
+        htClear(&self->fdmap);
+    }
 
-    return NetQueue_shutdown(NetQueue(self), timeout);
+    bool ret = NetQueue_shutdown(NetQueue(self), timeout);
+    return joined && ret;
 }
 
 void NetQueueKqueue_destroy(_In_ NetQueueKqueue* self)

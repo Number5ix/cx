@@ -495,6 +495,10 @@ static const testspec tests[] = {
     { "netselect: Accept AutoAccept", "nettest", "select_accept_auto" },
     { "nettimer: Wait Bounding", "nettest", "timer_wait" },
     { "nettimer: Wake While Parked", "nettest", "timer_wake" },
+    { "netselect: Shutdown With Stalled I/O Thread", "nettest", "select_shutdown_stall_io" },
+    { "netselect: Shutdown With Stalled Handler", "nettest", "select_shutdown_stall_handler" },
+    { "net: Shutdown With Stalled I/O Thread", "nettest", "shutdown_stall_io" },
+    { "net: Shutdown With Stalled Handler", "nettest", "shutdown_stall_handler" },
 #if defined(_PLATFORM_WIN)
     { "netiocp: Datagram Loopback", "nettest", "iocp_udp" },
     { "netiocp: Stream Loopback", "nettest", "iocp_stream" },

@@ -10,6 +10,8 @@
 // clang-format on
 // ==================== Auto-generated section ends ======================
 #include "net_private.h"
+#include "net.h"   // NetLogChannel
+#include <cx/log.h>
 #include <cx/platform/os.h>
 #include <cx/thread.h>
 #include <cx/time/time.h>
@@ -66,6 +68,16 @@ void NetQueue__applyConfig(_In_ NetQueue* self, _In_opt_ const NetQueueConfig* c
 // ---------------------------------------------------------------------------------------------
 
 STR_CONST(kNetWorkerName, "CX Net Worker");
+STR_CONST(kNetFmtJoinTimeout,
+          "${string} thread did not exit within ${int} ms of shutdown; leaving its resources for "
+          "the queue's final release");
+
+_Use_decl_annotations_
+void _netWarnJoinTimeout(strref thread, int64 timeout)
+{
+    logFmtC(Warn, NetLogChannel, kNetFmtJoinTimeout, stvar(strref, thread),
+            stvar(int64, timeToMsec(timeout)));
+}
 
 static int netDispatchWorker(Thread* thr)
 {
@@ -112,29 +124,41 @@ void NetQueue__startWorkers(_In_ NetQueue* self, int32 n)
     }
 }
 
-void NetQueue__stopWorkers(_In_ NetQueue* self, int64 timeout)
+bool NetQueue__stopWorkers(_In_ NetQueue* self, int64 timeout)
 {
     int32 n = saSize(self->workers);
     if (n == 0)
-        return;
+        return true;
 
     // Two passes so the pool shuts down in parallel: ask everyone to exit and release the semaphore
     // once per worker (so a worker blocked on an empty runqueue wakes at once rather than waiting
-    // out its poll interval), then join.
+    // out its poll interval), then join against one shared deadline.
     foreach (sarray, idx, Thread*, t, self->workers) {
         thrRequestExit(t);
     }
     semaInc(&self->runqSema, n);
 
-    int64 wait = timeout > 0 ? timeout : timeForever;
+    // timeForever must reach thrWait unchanged: anything less is taken as a finite deadline, and
+    // timeForever minus the elapsed time overflows once added to the wall clock.
+    bool forever = timeout <= 0 || timeout == timeForever;
+    bool joined  = true;
+    int64 start  = clockTimer();
     foreach (sarray, idx, Thread*, t, self->workers) {
-        thrWait(t, wait);
+        int64 wait = forever ? timeForever : max(0, timeout - (clockTimer() - start));
+        if (!thrWait(t, wait))
+            joined = false;
     }
 
-    // The OS threads have exited, so releasing the pool's references (which frees the Thread
-    // objects) is safe. Resets the handle to empty; the autogen saDestroy at teardown is then a
-    // no-op, and a second stop call sees saSize() == 0 and returns.
-    saDestroy(&self->workers);
+    // The array is deliberately kept until the queue is destroyed, even once every worker has
+    // joined. A worker that missed the deadline still holds a raw pointer to this queue, and the
+    // destructor's unbounded stop is what finally joins it -- that only works if it can still find
+    // the thread here. And an ingest thread that outlived its own backend's stop still reads
+    // saSize(workers) in netqueue_submit, so freeing the array now would race that read. Calling
+    // this again re-waits; a thread that already exited returns at once.
+    if (!joined)
+        _netWarnJoinTimeout(kNetWorkerName, timeout);
+
+    return joined;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -424,9 +448,11 @@ uint32 NetQueue_droppedNoBuf(_In_ NetQueue* self)
 
 bool NetQueue_shutdown(_In_ NetQueue* self, int64 timeout)
 {
-    // Stop accepting new work first. A backend that runs an ingest thread (select) has already
-    // stopped it in its own shutdown override before chaining here, so no new packets can arrive
-    // past this point and the socket set is quiescent.
+    // Stop accepting new work first. A backend that runs its own I/O threads has already stopped
+    // them in its shutdown override before chaining here. If one of those missed its deadline it
+    // may still be ingesting, so the teardown below must stay safe alongside a live I/O thread:
+    // emptying the socket table is the same operation as removing sockets at runtime, and the
+    // backend keeps its own references on any socket that thread may still touch.
     atomicStore(uint32, &self->shutdownReq, 1, Release);
 
     sa_NetSocket socks;
@@ -449,24 +475,26 @@ bool NetQueue_shutdown(_In_ NetQueue* self, int64 timeout)
     // Join the dispatch workers within the timeout. Each drains the runqueue one last time as it
     // exits, so the terminal events just queued are delivered on a worker -- the application sees
     // its NET_FlowClosed callbacks before the queue goes away. A no-op in polled mode.
-    netqueue_stopWorkers(self, timeout);
+    bool joined = netqueue_stopWorkers(self, timeout);
 
     // Final inline drain: it does the work in polled mode, and mops up any straggler a worker left
-    // if it timed out.
+    // if it timed out. Dispatch is safe alongside a worker that is still running, since workers
+    // already dispatch concurrently with each other.
     while (netqueue_dispatch(self))
         ;
 
     saDestroy(&socks);
 
-    return true;
+    return joined;
 }
 
 void NetQueue_destroy(_In_ NetQueue* self)
 {
-    // Safety net for a queue released without a shutdown: the workers hold a raw pointer to it, so
-    // they must be joined before anything they touch is freed. After a normal shutdown this is a
-    // no-op. A backend's own destructor (which runs first) is responsible for its ingest thread.
-    // (runqSema and the now-empty workers array are torn down by the autogen block below.)
+    // The workers hold a raw pointer to the queue, so they must be joined before anything they
+    // touch is freed. This is the join for a queue released without a shutdown, and for workers
+    // that missed a timed-out shutdown's deadline; after a clean shutdown it returns at once. A
+    // backend's own destructor (which runs first) is responsible for its I/O threads. (runqSema
+    // and the workers array are torn down by the autogen block below.)
     netqueue_stopWorkers(self, timeForever);
 
     // Anything still on the runqueue holds a reference that has to come back.

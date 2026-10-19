@@ -2788,6 +2788,179 @@ static int test_nettest_select_stream_threaded(void)
 }
 
 // ---------------------------------------------------------------------------------------------
+// Shutdown with a thread that will not stop in time. One of the queue's threads is parked on an
+// Event, either in a timer hook (which runs inline on the I/O thread: the select/epoll/kqueue
+// ingest thread, or an IOCP completion thread) or in a receive handler (on whichever thread
+// dispatches). A short-timeout shutdown must report false rather than tearing down what that
+// thread is still using, and releasing the queue afterward must wait for it.
+// ---------------------------------------------------------------------------------------------
+
+typedef struct StallCtx {
+    Event entered;   // signaled when the first stall begins
+    Event release;   // the stalled thread waits on this
+    atomic(uint32) calls;
+} StallCtx;
+
+// Only the first caller parks, so a second event reaching another thread does not stall it too.
+static void stallOnce(StallCtx* st)
+{
+    if (atomicFetchAdd(uint32, &st->calls, 1, AcqRel) != 0)
+        return;
+    eventSignalLock(&st->entered);
+    eventWait(&st->release);
+}
+
+static void stallTimerFn(NetFlow* flow, NetTimerId id, void* ctx)
+{
+    unused_noeval(flow);
+    unused_noeval(id);
+    stallOnce((StallCtx*)ctx);
+}
+
+// Lets the stalled thread go a little after the test has dropped its last queue reference, so the
+// release has to wait for it.
+static int stallReleaseThread(Thread* thr)
+{
+    StallCtx* st = stvlNextPtr(&thr->args);
+    osSleep(timeMS(200));
+    eventSignalLock(&st->release);
+    return 0;
+}
+
+static void onStreamRecvStall(NetEvent* ev)
+{
+    uint8 buf[256];
+    while (netsocketRecv(ev->socket, buf, sizeof(buf), NULL, 0) > 0)
+        ;
+    stallOnce((StallCtx*)ev->ctx);
+}
+
+static int shutdownStallBody(NetQueue* q, bool inHandler)
+{
+    if (!q)
+        TEST_FAIL(1, _SL("assertion failed: !q (${string} stall)"), stvar(strref, inHandler ? _SL("handler") : _SL("I/O")));
+
+    int ret = 0;
+    StallCtx st;
+    eventInit(&st.entered);
+    eventInit(&st.release);
+    atomicStore(uint32, &st.calls, 0, Relaxed);
+
+    static const NetHandlers handlers = { .recv = onStreamRecvStall };
+    netqueueSetHandlers(q, &handlers, &st);
+
+    SOCKET listener = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    struct sockaddr_in la;
+    memset(&la, 0, sizeof(la));
+    la.sin_family      = AF_INET;
+    la.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    la.sin_port        = 0;
+    bind(listener, (struct sockaddr*)&la, sizeof(la));
+    listen(listener, 1);
+    int lalen = sizeof(la);
+    getsockname(listener, (struct sockaddr*)&la, &lalen);
+
+    SOCKET client = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    connect(client, (struct sockaddr*)&la, sizeof(la));
+    SOCKET server = accept(listener, NULL, NULL);
+    closesocket(listener);
+
+    if (server == INVALID_SOCKET) {
+        closesocket(client);
+        netqueueShutdown(q, 0);
+        objRelease(&q);
+        eventDestroy(&st.entered);
+        eventDestroy(&st.release);
+        TEST_FAIL(1, _SL("assertion failed: server == INVALID_SOCKET"), stvNone);
+    }
+
+    NetSocket* ssock = NetSocket(netsocketwinWrap(server, NST_Stream, NS_Connected));
+    netqueueAddSocket(q, ssock);
+
+    if (!inHandler) {
+        NetTimerId tid = netqueue_addTimer(q, ssock->flow, 0, 0, stallTimerFn, &st);
+        if (tid == 0)
+            TEST_FAILV(ret, 1, _SL("assertion failed: netqueue_addTimer returned ${uint}"),
+                       stvar(uint64, tid));
+    }
+
+    // Data waiting on the socket: in the handler case it is what triggers the stall, and in the
+    // timer case it leaves readiness pending for the I/O thread to find once it is let go.
+    const char payload[] = "streamdata";
+    send(client, payload, 10, 0);
+
+    if (ret == 0 && !eventWaitTimeout(&st.entered, timeS(5)))
+        TEST_FAILV(ret, 1, _SL("stall never began (${string} stall)"), stvar(strref, inHandler ? _SL("handler") : _SL("I/O")));
+
+    if (ret == 0) {
+        int64 start = clockTimer();
+        bool done   = netqueueShutdown(q, timeMS(100));
+        int64 took  = clockTimer() - start;
+
+        if (done)
+            TEST_FAILV(ret, 1, _SL("netqueueShutdown returned true with a thread still stalled (${string} stall)"),
+                       stvar(strref, inHandler ? _SL("handler") : _SL("I/O")));
+        if (took > timeS(3))
+            TEST_FAILV(ret, 1, _SL("netqueueShutdown took ${int} ms despite a 100 ms timeout"),
+                       stvar(int64, timeToMsec(took)));
+    }
+
+    // The stalled thread is let go only after the last queue reference is dropped below, so the
+    // release must wait for it before freeing anything it uses. A backend that lost track of the
+    // thread on the timed-out shutdown frees the queue under it instead, which ASan reports as a
+    // use-after-free once the thread resumes.
+    Thread* rel = thrCreate(stallReleaseThread, _S "stallRelease", stvar(ptr, &st));
+    if (!rel) {
+        TEST_FAILV(ret, 1, _SL("assertion failed: !rel (${string} stall)"),
+                   stvar(strref, inHandler ? _SL("handler") : _SL("I/O")));
+        eventSignalLock(&st.release);
+    }
+    objRelease(&q);
+    if (rel) {
+        thrWait(rel, timeForever);
+        objRelease(&rel);
+    }
+
+    closesocket(client);
+    netsocketClose(ssock);
+    objRelease(&ssock);
+    eventDestroy(&st.entered);
+    eventDestroy(&st.release);
+    return ret;
+}
+
+static NetQueue* makeStallQueue(bool selectOnly)
+{
+    NetQueueConfig conf;
+    netqueuePresetClient(&conf);
+    if (selectOnly)
+        conf.flags |= NQ_SelectOnly;
+    conf.nthreads = 2;
+    return netqueueCreate(&conf);
+}
+
+static int test_nettest_select_shutdown_stall_io(void)
+{
+    return shutdownStallBody(makeStallQueue(true), false);
+}
+
+static int test_nettest_select_shutdown_stall_handler(void)
+{
+    return shutdownStallBody(makeStallQueue(true), true);
+}
+
+// The same two cases on the platform's default backend: IOCP, epoll, or kqueue.
+static int test_nettest_shutdown_stall_io(void)
+{
+    return shutdownStallBody(makeStallQueue(false), false);
+}
+
+static int test_nettest_shutdown_stall_handler(void)
+{
+    return shutdownStallBody(makeStallQueue(false), true);
+}
+
+// ---------------------------------------------------------------------------------------------
 // Send path: the outbound side of the same loopback round trip. netsocketSend() gathers
 // the outbound chain and writes it with WSASend (stream) or sends whole datagrams (datagram); the
 // bytes are read back off a raw peer to prove they went out intact.
@@ -4940,6 +5113,12 @@ int test_nettest_grp_timerwait(void)
     TEST_CHAIN(test_nettest_timer_wait, test_nettest_timer_wake);
 }
 
+int test_nettest_grp_shutdown_stall(void)
+{
+    TEST_CHAIN(test_nettest_select_shutdown_stall_io, test_nettest_select_shutdown_stall_handler,
+               test_nettest_shutdown_stall_io, test_nettest_shutdown_stall_handler);
+}
+
 #if defined(_PLATFORM_WIN)
 
 int test_nettest_grp_iocp_loopback(void)
@@ -5044,11 +5223,16 @@ testfunc nettest_funcs[] = {
     { "select_accept_auto",         test_nettest_select_accept_auto         },
     { "timer_wait",                 test_nettest_timer_wait                 },
     { "timer_wake",                 test_nettest_timer_wake                 },
+    { "select_shutdown_stall_io",   test_nettest_select_shutdown_stall_io   },
+    { "select_shutdown_stall_handler", test_nettest_select_shutdown_stall_handler },
+    { "shutdown_stall_io",          test_nettest_shutdown_stall_io          },
+    { "shutdown_stall_handler",     test_nettest_shutdown_stall_handler     },
     { "grp_general",                test_nettest_grp_general                },
     { "grp_filterdgram",            test_nettest_grp_filterdgram            },
     { "grp_select_loopback",        test_nettest_grp_select_loopback        },
     { "grp_select_connect",         test_nettest_grp_select_connect         },
     { "grp_timerwait",              test_nettest_grp_timerwait              },
+    { "grp_shutdown_stall",         test_nettest_grp_shutdown_stall         },
 #if defined(_PLATFORM_WIN)
     { "iocp_udp",                   test_nettest_iocp_udp                   },
     { "iocp_stream",                test_nettest_iocp_stream                },

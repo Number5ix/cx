@@ -116,7 +116,8 @@ bool thrRequestExit(_In_ Thread* thread);
 ///
 /// Blocks the calling thread until the specified thread exits or the timeout expires.
 /// @param thread Thread object to wait on
-/// @param timeout Maximum time to wait in nanoseconds (use timeFromSeconds(), timeFromMs(), etc.)
+/// @param timeout Maximum time to wait in microseconds (use timeS(), timeMS(), etc.), or
+///     timeForever to wait without a limit
 /// @return true if the thread exited within the timeout, false if timeout expired
 bool thrWait(_In_ Thread* thread, int64 timeout);
 

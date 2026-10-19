@@ -59,6 +59,10 @@ static int selectIngestThread(Thread* thr)
     while (thrLoop(thr))
         selectPoll(self, timeS(1));
 
+    // In threaded mode this thread is the only one that touches fdmap, so it drops the map's socket
+    // references itself on the way out. Shutdown cannot do it on our behalf unless it has joined us.
+    htClear(&self->fdmap);
+
     return 0;
 }
 
@@ -119,6 +123,9 @@ static void ingestDatagram(_Inout_ NetQueueSelect* self, _Inout_ NetSocket* sock
     NetQueue* q = NetQueue(self);
 
     for (;;) {
+        if (_netqueueShuttingDown(q))
+            break;
+
         Buffer buf = bufpoolGet(&q->pool->msgbuf);
         if (!buf) {
             // Pool exhausted. Consume one datagram into a scratch and drop it, so readiness clears
@@ -164,6 +171,9 @@ static void ingestStream(_Inout_ NetQueueSelect* self, _Inout_ NetSocket* sock)
 
     withMutex (&sock->recvLock) {
         for (;;) {
+            if (_netqueueShuttingDown(q))
+                break;
+
             uint8* ptr;
             size_t len;
             // Reserve at least the mru so the reservation is never pathologically small; commit
@@ -298,6 +308,12 @@ static void selectPoll(_Inout_ NetQueueSelect* self, int64 waitUs)
     NetSockHandle h;
     bool r, w;
     while (nselNext(sel, &h, &r, &w)) {
+        // Readiness gathered before shutdown began is stale by now, and the sockets it names are
+        // being torn down; stop touching them. A slow pass (a long timer hook, say) can reach this
+        // loop well after the stop request.
+        if (_netqueueShuttingDown(q))
+            break;
+
         htelem e        = htFind(self->fdmap, uint64, (uint64)h, none, NULL);
         NetSocket* sock = e ? (NetSocket*)hteVal(self->fdmap, object, e) : NULL;
         if (!sock)
@@ -390,21 +406,26 @@ bool NetQueueSelect_tick(_In_ NetQueueSelect* self, int64 wait)
 }
 
 // Stop and join the ingest thread if one is running. nselWake breaks a blocked select() at once;
-// the bounded poll interval bounds the wait even if that wake is somehow missed.
-static void stopIngestThread(_Inout_ NetQueueSelect* self, int64 timeout)
+// the bounded poll interval bounds the wait even if that wake is somehow missed. Returns false if
+// the thread missed the deadline. The reference is then kept, because the thread still holds a raw
+// pointer to this queue, and the destructor's unbounded call is what finally joins it.
+static bool stopIngestThread(_Inout_ NetQueueSelect* self, int64 timeout)
 {
     Thread* ing = self->ingest;
     if (!ing)
-        return;
+        return true;
 
-    // NULL the member before joining so addSocket/removeSocket stop trying to wake it; we hold the
-    // reference locally until the OS thread has exited, then release it.
-    self->ingest = NULL;
     thrRequestExit(ing);
     if (self->selset)
         nselWake((NetSelectSet*)self->selset);
-    thrWait(ing, timeout > 0 ? timeout : timeForever);
+    if (!thrWait(ing, timeout > 0 ? timeout : timeForever)) {
+        _netWarnJoinTimeout(ing->name, timeout);
+        return false;
+    }
+
+    self->ingest = NULL;
     objRelease(&ing);
+    return true;
 }
 
 extern bool NetQueue_addSocket(_In_ NetQueue* self, NetSocket* socket);   // parent
@@ -444,19 +465,24 @@ bool NetQueueSelect_shutdown(_In_ NetQueueSelect* self, int64 timeout)
     // "cancel outstanding I/O" amounts to for a readiness backend: there are no async operations in
     // flight, only a thread that must stop touching the sockets.
     atomicStore(uint32, &NetQueue(self)->shutdownReq, 1, Release);
-    stopIngestThread(self, timeout);
 
-    // The ingest thread is joined, so nothing else touches fdmap; drop its socket references now
-    // rather than leaving them pinned until the queue is finally destroyed.
-    htClear(&self->fdmap);
+    // If the ingest thread missed the deadline, fdmap must be left alone: it may be mid-pass,
+    // and the map's references are all that keep the sockets it is reading alive once the base
+    // empties the socket table. It clears the map itself when it exits. Polled mode has no ingest
+    // thread and fdmap belongs to the tick() caller, which is us.
+    bool joined = stopIngestThread(self, timeout);
+    if (joined)
+        htClear(&self->fdmap);
 
-    return NetQueue_shutdown(NetQueue(self), timeout);
+    bool ret = NetQueue_shutdown(NetQueue(self), timeout);
+    return joined && ret;
 }
 
 void NetQueueSelect_destroy(_In_ NetQueueSelect* self)
 {
-    // Safety net for a queue released without a shutdown: the ingest thread holds a raw pointer to
-    // us, so join it before freeing the select set it waits on. A no-op after a normal shutdown.
+    // The ingest thread holds a raw pointer to us, so join it before freeing the select set it waits
+    // on. This is the join for a queue released without a shutdown, or after a shutdown whose
+    // deadline the thread missed; after a clean shutdown it is a no-op.
     stopIngestThread(self, timeForever);
 
     NetSelectSet* sel = (NetSelectSet*)self->selset;

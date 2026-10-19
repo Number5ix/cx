@@ -735,8 +735,8 @@ static int iocpWorkerThread(Thread* thr)
 // Drain completions on the calling thread until the outstanding count reaches zero, so no op is
 // stranded in the kernel after its socket's I/O has been cancelled. `timeout` (microseconds, <= 0 =
 // forever) bounds the wait; because cancelled operations complete promptly, the bound is a
-// backstop rather than the normal exit.
-static void drainQuiescent(_Inout_ NetQueueWinIOCP* self, int64 timeout)
+// backstop rather than the normal exit. Returns false if operations were still outstanding.
+static bool drainQuiescent(_Inout_ NetQueueWinIOCP* self, int64 timeout)
 {
     HANDLE port = (HANDLE)self->iocp;
     int64 start = clockTimer();
@@ -754,8 +754,9 @@ static void drainQuiescent(_Inout_ NetQueueWinIOCP* self, int64 timeout)
         }
 
         if (timeout > 0 && (clockTimer() - start) > timeout)
-            break;
+            return false;
     }
+    return true;
 }
 
 // Cancel every outstanding operation on every socket. The completions come back with
@@ -773,12 +774,15 @@ static void cancelAllIo(_Inout_ NetQueueWinIOCP* self)
     }
 }
 
-// Wake every completion thread with an exit sentinel and join it. Idempotent.
-static void stopIoThreads(_Inout_ NetQueueWinIOCP* self, int64 timeout)
+// Wake every completion thread with an exit sentinel and join it, against one shared deadline.
+// Returns false if any thread missed it. The threads are then kept, because they still hold a raw
+// pointer to this queue and wait on its port, and the destructor's unbounded call is what finally
+// joins them. Safe to call repeatedly.
+static bool stopIoThreads(_Inout_ NetQueueWinIOCP* self, int64 timeout)
 {
     int32 n = saSize(self->iothreads);
     if (n == 0)
-        return;
+        return true;
 
     for (int32 i = 0; i < n; i++)
         PostQueuedCompletionStatus((HANDLE)self->iocp, 0, IOCP_KEY_EXIT, NULL);
@@ -787,12 +791,23 @@ static void stopIoThreads(_Inout_ NetQueueWinIOCP* self, int64 timeout)
         thrRequestExit(t);
     }
 
-    int64 wait = timeout > 0 ? timeout : timeForever;
+    // timeForever must reach thrWait unchanged: anything less is taken as a finite deadline.
+    bool forever = timeout <= 0 || timeout == timeForever;
+    bool joined  = true;
+    int64 start  = clockTimer();
     foreach (sarray, idx, Thread*, t, self->iothreads) {
-        thrWait(t, wait);
+        int64 wait = forever ? timeForever : max(0, timeout - (clockTimer() - start));
+        if (!thrWait(t, wait))
+            joined = false;
+    }
+
+    if (!joined) {
+        _netWarnJoinTimeout(self->iothreads.a[0]->name, timeout);
+        return false;
     }
 
     saClear(&self->iothreads);
+    return true;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1003,22 +1018,31 @@ bool NetQueueWinIOCP_shutdown(_In_ NetQueueWinIOCP* self, int64 timeout)
     // Cancel outstanding I/O, stop the completion threads, then drain whatever aborted completions
     // they left behind so no pooled buffer or socket reference is stranded in the kernel.
     cancelAllIo(self);
-    stopIoThreads(self, timeout);
+    int64 start = clockTimer();
+    bool joined = stopIoThreads(self, timeout);
 
     // A completion thread's repost-on-completion (postRecvFrom et al.) only checks shutdownReq at
     // entry, with no re-check right before the WSA* call -- so it can read the flag as not-yet-set,
     // then get preempted, and post a fresh op *after* the sweep above already ran, leaving it
     // uncancelled and never completing (drainQuiescent below would then spin forever waiting for
-    // an iops decrement that never comes). stopIoThreads() just joined every completion thread, so
-    // none can still be mid-repost -- a second sweep here is guaranteed to see the final, complete
-    // set of outstanding ops and catch anything that slipped through the first one.
+    // an iops decrement that never comes). Once stopIoThreads() has joined every completion thread,
+    // none can still be mid-repost, so a second sweep here is guaranteed to see the final, complete
+    // set of outstanding ops and catch anything that slipped through the first one. If a thread
+    // missed the deadline that guarantee is gone; the sweep and drain still run, since a live
+    // completion thread pulling from the same port is the normal threaded case, but the drain may
+    // then come up short and the shutdown reports false.
     cancelAllIo(self);
-    drainQuiescent(self, timeout);
+    bool forever = timeout <= 0 || timeout == timeForever;
+    int64 left   = forever ? timeForever : max(1, timeout - (clockTimer() - start));
+    bool drained = drainQuiescent(self, left);
 
     // The base closes flows (queuing terminal events) and drains the runqueue inline on this
     // thread. The completion threads that would normally dispatch are gone, so that inline drain is
-    // what delivers the NET_FlowClosed callbacks before the queue goes away.
-    return NetQueue_shutdown(q, timeout);
+    // what delivers the NET_FlowClosed callbacks before the queue goes away. Outstanding operations
+    // hold their own socket references, so emptying the socket table is safe even if a completion
+    // thread or a straggling operation is still live.
+    bool ret = NetQueue_shutdown(q, timeout);
+    return joined && drained && ret;
 }
 
 bool NetQueueWinIOCP_tick(_In_ NetQueueWinIOCP* self, int64 wait)
@@ -1066,9 +1090,10 @@ bool NetQueueWinIOCP_tick(_In_ NetQueueWinIOCP* self, int64 wait)
 
 void NetQueueWinIOCP_destroy(_In_ NetQueueWinIOCP* self)
 {
-    // Safety net for a queue released without a shutdown: cancel and drain outstanding I/O and stop
-    // the completion threads before the port they wait on is closed. A no-op after a normal
-    // shutdown (no sockets, no threads, no outstanding ops).
+    // Cancel and drain outstanding I/O and stop the completion threads before the port they wait on
+    // is closed. This is the join for a queue released without a shutdown, or after a shutdown whose
+    // deadline a completion thread missed; after a clean shutdown it is a no-op (no sockets, no
+    // threads, no outstanding ops).
     atomicStore(uint32, &NetQueue(self)->shutdownReq, 1, Release);
     cancelAllIo(self);
     stopIoThreads(self, timeForever);

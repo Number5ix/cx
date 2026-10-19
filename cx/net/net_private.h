@@ -256,6 +256,10 @@ _meta_inline bool _netqueueShuttingDown(_In_ NetQueue* q)
     return atomicLoad(uint32, &q->shutdownReq, Acquire) != 0;
 }
 
+// Log that a queue-owned thread missed its shutdown deadline. The caller must then leave everything
+// that thread touches in place for the queue's destructor, which joins without a limit.
+void _netWarnJoinTimeout(_In_ strref thread, int64 timeout);
+
 // ---------------------------------------------------------------------------------------------
 // Backend poll timing (see queue.c)
 // ---------------------------------------------------------------------------------------------
