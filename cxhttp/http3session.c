@@ -21,12 +21,18 @@ void _h3SessionInit(Http3Session* s, bool server, const HttpLimits* limits)
     memset(s, 0, sizeof(*s));
     s->server = server;
 
+    HttpLimits def;
+    if (!limits) {
+        httpLimitsDefault(&def);
+        limits = &def;
+    }
+
     // A dynamic table capacity of zero is what forbids the peer from using one, which is the whole
     // of cxhttp's QPACK scope decision. Advertising zero blocked streams says the same thing a
     // second way: no field section may ever wait on table state.
     s->local.qpackMaxTableCapacity = 0;
     s->local.qpackBlockedStreams   = 0;
-    s->local.maxFieldSectionSize   = limits ? limits->maxHeadBytes : 0;
+    s->local.maxFieldSectionSize   = limits->maxHeadBytes;
 }
 
 _Use_decl_annotations_

@@ -24,12 +24,16 @@ void _h3MsgInit(H3MsgReader* r, bool server, const HttpLimits* limits)
     _h3FrameReaderInit(&r->fr);
     httpHeadersInit(&r->headers);
 
-    r->server = server;
-    if (limits) {
-        r->maxHeaderCount = limits->maxHeaderCount;
-        r->maxFieldSize   = limits->maxHeadBytes;
-        r->maxBody        = limits->maxBodyBytes;
+    HttpLimits def;
+    if (!limits) {
+        httpLimitsDefault(&def);
+        limits = &def;
     }
+
+    r->server         = server;
+    r->maxHeaderCount = limits->maxHeaderCount;
+    r->maxFieldSize   = limits->maxHeadBytes;
+    r->maxBody        = limits->maxBodyBytes;
 }
 
 _Use_decl_annotations_

@@ -856,6 +856,88 @@ out:
     return ret;
 }
 
+// Append a HEADERS frame of `n` copies of one static-table field, after a `:status 200`.
+static void msgFieldFlood(_Inout_ strhandle out, uint32 n)
+{
+    uint8* p = xaAlloc(3 + n);
+    p[0]     = 0x00;   // Required Insert Count
+    p[1]     = 0x00;   // Delta Base
+    p[2]     = 0xd9;   // :status 200
+    memset(p + 3, 0xe0, n);   // accept-ranges: bytes
+    msgFrame(out, H3_FRAME_HEADERS, p, 3 + n);
+    xaFree(p);
+}
+
+// A HEADERS frame header declaring `len` bytes, followed by far fewer.
+static void msgHugeFields(_Inout_ strhandle out, uint64 len)
+{
+    static const uint8 kSome[16] = { 0 };
+    uint8 hdr[H3_FRAME_HDR_MAX];
+    size_t n = _h3WrFrameHdr(hdr, sizeof(hdr), H3_FRAME_HEADERS, len);
+    _httpAppendBytes(out, hdr, n);
+    _httpAppendBytes(out, kSome, sizeof(kSome));
+}
+
+int test_http3test_msglimits(void)
+{
+    int ret     = 0;
+    string in   = 0;
+    string seen = 0;
+    H3MsgReader r;
+    _h3MsgInit(&r, false, NULL);
+
+    HttpLimits def;
+    httpLimitsDefault(&def);
+
+    // A reader given no limits holds the peer to the defaults rather than to nothing. Each of these
+    // declares far more than a field section may weigh, and is refused from the frame header
+    // alone. 2^32 + 16 is the one a 32-bit build would otherwise truncate to 16.
+    static const uint64 kLens[] = { ((uint64)1 << 32) + 16, (uint64)1 << 40, H3_VARINT_MAX };
+    for (size_t i = 0; i < sizeof(kLens) / sizeof(kLens[0]); i++) {
+        _h3MsgDestroy(&r);
+        _h3MsgInit(&r, false, NULL);
+        strClear(&in);
+        strClear(&seen);
+
+        msgHugeFields(&in, kLens[i]);
+        msgRun(&r, in, 4096, &seen);
+        if (!strEq(seen, _SL("e")) || r.err != H3ERR_EXCESSIVE_LOAD) {
+            TEST_FAILV(ret, 1,
+                       _SL("declared length ${uint}: reported '${string}' with error ${int}"),
+                       stvar(uint64, kLens[i]), stvar(strref, seen), stvar(int64, (int64)r.err));
+            goto out;
+        }
+    }
+
+    // The decoded limits apply too: one byte per field on the wire is still a field.
+    {
+        _h3MsgDestroy(&r);
+        _h3MsgInit(&r, false, NULL);
+        strClear(&in);
+        strClear(&seen);
+
+        msgFieldFlood(&in, def.maxHeaderCount - 1);
+        msgRun(&r, in, 4096, &seen);
+        CHECK_STR("fields at the count limit", seen, _SL("h"));
+
+        _h3MsgDestroy(&r);
+        _h3MsgInit(&r, false, NULL);
+        strClear(&in);
+        strClear(&seen);
+
+        msgFieldFlood(&in, def.maxHeaderCount);
+        msgRun(&r, in, 4096, &seen);
+        CHECK_STR("fields past the count limit", seen, _SL("e"));
+        CHECK_U64("fields past the count limit error", r.err, H3ERR_MESSAGE_ERROR);
+    }
+
+out:
+    _h3MsgDestroy(&r);
+    strDestroy(&in);
+    strDestroy(&seen);
+    return ret;
+}
+
 // ---------------------------------------------------------------------------------------------
 // The connection session
 //
@@ -2865,6 +2947,162 @@ out:
 }
 
 // ---------------------------------------------------------------------------------------------
+// The client against a hostile server
+//
+// A bare QUIC listener that answers every request stream with whatever bytes the test chose, which
+// is how a response no cx server would send is put in front of the client.
+// ---------------------------------------------------------------------------------------------
+
+typedef struct H3Evil {
+    NetQueue* q;
+    string reply;
+    bool fin;
+    NetSocket* conns[4];
+    uint32 nconns;
+} H3Evil;
+
+static void h3evilOnFlowOpen(NetEvent* ev)
+{
+    H3Evil* e = (H3Evil*)ev->ctx;
+    if (!ev->flow || (ev->socket && ev->flow == ev->socket->flow))
+        return;
+
+    // Only client-initiated bidirectional streams are requests. The client's control and QPACK
+    // streams are let in and never read.
+    if ((ev->flow->key & 0x03) != 0)
+        return;
+
+    netflowSend(ev->flow, (uint8*)strPC(&e->reply), strLen(e->reply), 0);
+    if (e->fin)
+        netquicFinish(ev->flow);
+}
+
+static const NetHandlers kH3EvilConnHandlers = {
+    .flowOpen = h3evilOnFlowOpen,
+};
+
+static void h3evilOnAccepted(NetEvent* ev)
+{
+    H3Evil* e     = (H3Evil*)ev->ctx;
+    NetSocket* ns = ev->accept.newSocket;
+    if (!ns || e->nconns >= sizeof(e->conns) / sizeof(e->conns[0]))
+        return;
+    if (!ns->queue && !netqueueAddSocket(e->q, ns))
+        return;
+
+    netsocketSetHandlers(ns, &kH3EvilConnHandlers, e);
+    e->conns[e->nconns++] = objAcquire(ns);
+}
+
+static const NetHandlers kH3EvilListenHandlers = {
+    .accepted = h3evilOnAccepted,
+};
+
+int test_http3test_clientlimits(void)
+{
+    int ret          = 0;
+    H3Loop f         = { 0 };
+    H3SrvRec rec     = { 0 };
+    H3Evil e         = { 0 };
+    H3CliRec cli     = { 0 };
+    TlsConfig* evcfg = NULL;
+    NetSocket* lsn   = NULL;
+    HttpRequest* req = NULL;
+    string url       = 0;
+    string port      = 0;
+    sa_string protos = saInitNone;
+    NetAddr la;
+
+    if (!h3LoopInit(&f, &kH3SrvHandlers, &rec)) {
+        TEST_FAILV(ret, 1, _SL("the loopback fixture did not come up"), stvNone);
+        goto out;
+    }
+
+    evcfg = tlsconfigCreateServer(f.creds);
+    CHECK_TRUE("hostile server configuration", evcfg != NULL);
+    saInit(&protos, string, 1);
+    saPush(&protos, string, _S"h3");
+    CHECK_TRUE("protocol list set", tlsconfigSetALPN(evcfg, &protos));
+
+    netAddrFromStr(&la, _SL("127.0.0.1"));
+    la.port = 0;
+    e.q     = f.q;
+    {
+        QuicConfig qcfg = { .tls = evcfg };
+        lsn             = netquicListen(f.q, &la, &qcfg, &kH3EvilListenHandlers, &e);
+    }
+    CHECK_TRUE("hostile listener", lsn != NULL);
+
+    strFromUInt32(&port, lsn->local.port, 10);
+    strNConcat(&url, _SL("https://127.0.0.1:"), port, _SL("/"));
+
+    // Responses the client must refuse rather than act on. The first is small on the wire and
+    // large once decoded. The others declare a field section the client would once have allocated
+    // in full before reading a byte of it: a terabyte, which aborts the process when the allocation
+    // fails, and 2^32 + 16, which a 32-bit build truncates to a 16-byte buffer and then overruns.
+    static const struct {
+        const char* what;
+        uint64 declared;   // a HEADERS frame header declaring this, or 0 for a field flood
+        HttpError err;
+    } tv[] = {
+        { "too many fields", 0, HTTPERR_BadMessage },
+        { "length past 32 bits", ((uint64)1 << 32) + 16, HTTPERR_TooLarge },
+        { "length of a terabyte", (uint64)1 << 40, HTTPERR_TooLarge },
+    };
+
+    for (size_t i = 0; i < sizeof(tv) / sizeof(tv[0]); i++) {
+        strClear(&e.reply);
+        if (tv[i].declared == 0) {
+            msgFieldFlood(&e.reply, 200);
+            e.fin = true;
+        } else {
+            msgHugeFields(&e.reply, tv[i].declared);
+            e.fin = false;
+        }
+
+        strDestroy(&cli.body);
+        memset(&cli, 0, sizeof(cli));
+        objRelease(&req);
+
+        req = httprequestCreate(HTTP_Get, url);
+        CHECK_TRUE("request created", req != NULL);
+        CHECK_TRUE("request sent", httpclientSend(f.cl, req, &kH3CliHandlers, &cli));
+
+        for (int j = 0; j < 1500 && !(cli.completed || cli.failed); j++)
+            netqueueTick(f.q, timeMS(5));
+
+        if (cli.completed != 0 || cli.failed != 1 || cli.err != tv[i].err) {
+            TEST_FAILV(ret, 1,
+                       _SL("${string}: ${int} completions, ${int} failures, error ${int}; "
+                           "expected one failure with error ${int}"),
+                       stvar(strref, (strref)tv[i].what), stvar(int32, cli.completed),
+                       stvar(int32, cli.failed), stvar(int32, (int32)cli.err),
+                       stvar(int32, (int32)tv[i].err));
+            goto out;
+        }
+    }
+
+out:
+    objRelease(&req);
+    strDestroy(&url);
+    strDestroy(&port);
+    strDestroy(&cli.body);
+    strDestroy(&e.reply);
+    saDestroy(&protos);
+    for (uint32 i = 0; i < e.nconns; i++) {
+        netsocketClose(e.conns[i]);
+        objRelease(&e.conns[i]);
+    }
+    if (lsn)
+        netsocketClose(lsn);
+    objRelease(&lsn);
+    h3SrvRecDestroy(&rec);
+    h3LoopDestroy(&f);
+    objRelease(&evcfg);
+    return ret;
+}
+
+// ---------------------------------------------------------------------------------------------
 // Falling back
 // ---------------------------------------------------------------------------------------------
 
@@ -4469,7 +4707,8 @@ out:
 
 int test_http3test_grp_wire(void)
 {
-    TEST_CHAIN(test_http3test_wire, test_http3test_wirefuzz, test_http3test_msgorder);
+    TEST_CHAIN(test_http3test_wire, test_http3test_wirefuzz, test_http3test_msgorder,
+               test_http3test_msglimits);
 }
 
 int test_http3test_grp_qpack(void)
@@ -4500,7 +4739,7 @@ int test_http3test_grp_serverstream(void)
 int test_http3test_grp_client(void)
 {
     TEST_CHAIN(test_http3test_clientget, test_http3test_clientpool, test_http3test_clientbody,
-               test_http3test_cancel);
+               test_http3test_cancel, test_http3test_clientlimits);
 }
 
 int test_http3test_grp_dial(void)
@@ -4516,6 +4755,7 @@ testfunc http3test_funcs[] = {
     { "wire", test_http3test_wire },
     { "wirefuzz", test_http3test_wirefuzz },
     { "msgorder", test_http3test_msgorder },
+    { "msglimits", test_http3test_msglimits },
     { "qpackhuff", test_http3test_qpackhuff },
     { "qpackvec", test_http3test_qpackvec },
     { "qpackdynamic", test_http3test_qpackdynamic },
@@ -4537,6 +4777,7 @@ testfunc http3test_funcs[] = {
     { "clientpool", test_http3test_clientpool },
     { "clientbody", test_http3test_clientbody },
     { "cancel", test_http3test_cancel },
+    { "clientlimits", test_http3test_clientlimits },
     { "race", test_http3test_race },
     { "racefail", test_http3test_racefail },
     { "coalesce", test_http3test_coalesce },

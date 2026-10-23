@@ -726,7 +726,11 @@ _objfactory_check Http3Conn* Http3Conn_create(_In_ NetSocket* sock, _In_opt_ str
         return NULL;
     }
 
-    _h3SessionInit(sessionOf(self), false, NULL);
+    // A client has no HttpLimits of its own, so the server is held to the defaults, exactly as an
+    // HTTP/1.1 response is.
+    HttpLimits def;
+    httpLimitsDefault(&def);
+    _h3SessionInit(sessionOf(self), false, &def);
 
     // Held weakly: the socket must not own the connection, or the two would keep each other alive.
     netsocketSetHandlersObj(sock, &kConnHandlers, self);
@@ -804,12 +808,12 @@ bool Http3Conn_request(_In_ Http3Conn* self, _In_ HttpRequest* req,
     st->timeout   = self->timeout;
     st->starting  = true;
     bufringInit(&st->in, HTTP3_READ_CHUNK);
-    _h3MsgInit(&st->msg, false, NULL);
 
     // The response body cap is the request's if it set one, and the parser default otherwise. Set
     // both ways round: a shared connection carries whatever the last request asked for.
     HttpLimits def;
     httpLimitsDefault(&def);
+    _h3MsgInit(&st->msg, false, &def);
     st->msg.maxBody = req->maxBody ? req->maxBody : def.maxBodyBytes;
 
     objRelease(&req->h3flow);

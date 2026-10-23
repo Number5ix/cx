@@ -330,6 +330,7 @@ typedef struct Http3Session {
 // bytes; anything approaching this is a peer trying to make us allocate on its behalf.
 #define H3_MAX_CONTROL_FRAME 16384
 
+// `limits` supplies the field section size this endpoint advertises; NULL means the defaults.
 void _h3SessionInit(_Out_ Http3Session* s, bool server, _In_opt_ const HttpLimits* limits);
 void _h3SessionDestroy(_Inout_ Http3Session* s);
 
@@ -459,6 +460,7 @@ typedef struct H3MsgReader {
     uint64 err;            // the code behind H3MSG_Error
 } H3MsgReader;
 
+// `limits` bounds what the peer may send; NULL means httpLimitsDefault().
 void _h3MsgInit(_Out_ H3MsgReader* r, bool server, _In_opt_ const HttpLimits* limits);
 void _h3MsgDestroy(_Inout_ H3MsgReader* r);
 
