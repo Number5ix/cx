@@ -359,7 +359,7 @@ static void wrStr(_Inout_ H3Wr* wr, _In_reads_bytes_(len) const uint8* data, siz
 }
 
 // Read a string literal into `out`, replacing whatever it held. `maxlen` bounds the decoded
-// length; 0 means no bound.
+// length.
 static bool rdStr(_Inout_ H3Rd* rd, _Inout_ strhandle out, uint8 prefixBits, _Out_ uint8* flags,
                   size_t maxlen)
 {
@@ -377,19 +377,19 @@ static bool rdStr(_Inout_ H3Rd* rd, _Inout_ strhandle out, uint8 prefixBits, _Ou
         return false;
 
     if (!(fl & hbit)) {
-        if (maxlen > 0 && len > maxlen)
+        if (len > maxlen)
             return false;
         return strFromBytes(out, data, (uint32)len);
     }
 
     size_t bufsz = _qpackHuffMaxDecoded((size_t)len);
-    if (maxlen > 0 && bufsz > maxlen + 1)
+    if (bufsz > maxlen)
         bufsz = maxlen + 1;   // one over the limit is enough to know it was exceeded
 
     uint8* buf  = xaAlloc(bufsz);
     size_t dlen = 0;
     bool ok     = _qpackHuffDecode(buf, bufsz, &dlen, data, (size_t)len);
-    if (ok && maxlen > 0 && dlen > maxlen)
+    if (ok && dlen > maxlen)
         ok = false;
     if (ok)
         ok = strFromBytes(out, buf, (uint32)dlen);
@@ -567,6 +567,7 @@ uint64 _qpackDecode(HttpHeaders* out, const uint8* data, size_t len, uint32 maxC
     uint64 err    = 0;
     string name   = 0;
     string value  = 0;
+    size_t maxlen = (size_t)min(maxSize, (uint64)SIZE_MAX);
 
     while (_h3RdLeft(&rd) > 0 && err == 0) {
         uint8 b = *rd.p;
@@ -598,14 +599,14 @@ uint64 _qpackDecode(HttpHeaders* out, const uint8* data, size_t len, uint32 maxC
                 break;
             }
             strDup(&name, sn);
-            if (!rdStr(&rd, &value, 7, &flags, maxSize ? (size_t)maxSize : 0)) {
+            if (!rdStr(&rd, &value, 7, &flags, maxlen)) {
                 err = H3ERR_QPACK_DECOMPRESSION_FAILED;
                 break;
             }
         } else if ((b & 0xe0) == 0x20) {
             // Two literals.
-            if (!rdStr(&rd, &name, 3, &flags, maxSize ? (size_t)maxSize : 0) ||
-                !rdStr(&rd, &value, 7, &flags, maxSize ? (size_t)maxSize : 0)) {
+            if (!rdStr(&rd, &name, 3, &flags, maxlen) ||
+                !rdStr(&rd, &value, 7, &flags, maxlen)) {
                 err = H3ERR_QPACK_DECOMPRESSION_FAILED;
                 break;
             }
@@ -623,7 +624,7 @@ uint64 _qpackDecode(HttpHeaders* out, const uint8* data, size_t len, uint32 maxC
 
         count++;
         size += (uint64)strLen(name) + strLen(value) + 32;
-        if ((maxCount > 0 && count > maxCount) || (maxSize > 0 && size > maxSize)) {
+        if (count > maxCount || size > maxSize) {
             err = H3ERR_MESSAGE_ERROR;
             break;
         }

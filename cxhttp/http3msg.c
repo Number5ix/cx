@@ -137,7 +137,7 @@ H3MsgResult _h3MsgStep(H3MsgReader* r, BufRing* src)
             // A field section is held whole before it can be decoded, so one declared larger than
             // this endpoint will hold is refused from the header alone, before a byte of it has
             // been read.
-            if (r->inFields && r->maxFieldSize > 0 && r->fr.len > r->maxFieldSize)
+            if (r->inFields && r->fr.len > r->maxFieldSize)
                 return msgFail(r, H3ERR_EXCESSIVE_LOAD);
             break;
         }

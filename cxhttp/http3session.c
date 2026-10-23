@@ -33,6 +33,9 @@ void _h3SessionInit(Http3Session* s, bool server, const HttpLimits* limits)
     s->local.qpackMaxTableCapacity = 0;
     s->local.qpackBlockedStreams   = 0;
     s->local.maxFieldSectionSize   = limits->maxHeadBytes;
+
+    // RFC 9114 section 7.2.4.1: a peer that says nothing accepts field sections of any size.
+    s->peer.maxFieldSectionSize = UINT64_MAX;
 }
 
 _Use_decl_annotations_
@@ -55,10 +58,8 @@ bool _h3SessionControlPreamble(const Http3Session* s, strhandle out)
     _h3WrVarint(&sw, s->local.qpackMaxTableCapacity);
     _h3WrVarint(&sw, H3_SETTING_QPACK_BLOCKED_STREAMS);
     _h3WrVarint(&sw, s->local.qpackBlockedStreams);
-    if (s->local.maxFieldSectionSize > 0) {
-        _h3WrVarint(&sw, H3_SETTING_MAX_FIELD_SECTION_SIZE);
-        _h3WrVarint(&sw, s->local.maxFieldSectionSize);
-    }
+    _h3WrVarint(&sw, H3_SETTING_MAX_FIELD_SECTION_SIZE);
+    _h3WrVarint(&sw, s->local.maxFieldSectionSize);
     if (sw.bad)
         return false;
 

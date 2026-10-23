@@ -246,7 +246,7 @@ _Success_(return) bool _qpackEncode(_Inout_ strhandle out, _In_ const HttpHeader
 // failed decode still needs exactly one httpHeadersDestroy().
 //
 // `maxCount` bounds the number of fields and `maxSize` the total counted the way
-// _qpackFieldSectionSize() counts it; either may be 0 for no limit.
+// _qpackFieldSectionSize() counts it. Both always apply, so 0 refuses any field at all.
 //
 // Returns 0 on success, or the HTTP/3 error code the failure calls for. A
 // #H3ERR_QPACK_DECOMPRESSION_FAILED is a connection error -- the field section could not be
@@ -280,7 +280,7 @@ typedef enum {
 
 // The settings one endpoint advertises to the other.
 typedef struct Http3Settings {
-    uint64 maxFieldSectionSize;    // 0 means no limit was advertised
+    uint64 maxFieldSectionSize;    // largest field section accepted; UINT64_MAX if unadvertised
     uint64 qpackMaxTableCapacity;
     uint64 qpackBlockedStreams;
     bool enableConnectProtocol;
@@ -436,8 +436,8 @@ typedef struct H3MsgReader {
     H3FrameReader fr;
 
     bool server;             // reading requests rather than responses
-    uint32 maxHeaderCount;   // fields in one section; 0 for no limit
-    uint64 maxFieldSize;     // one section's uncompressed size; 0 for no limit
+    uint32 maxHeaderCount;   // fields in one section
+    uint64 maxFieldSize;     // one section's uncompressed size
     uint64 maxBody;          // body bytes; 0 for no limit
 
     // The field section being accumulated, grown as its payload arrives up to the frame's

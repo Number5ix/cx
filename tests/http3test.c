@@ -435,6 +435,13 @@ static void buildHeaders(_Out_ HttpHeaders* h, _In_ const char* const* nv)
         httpHeadersAdd(h, (strref)nv[i], (strref)nv[i + 1]);
 }
 
+// Decode a field section with no limits, for a test about the encoding rather than the limits.
+static uint64 qpackDecodeAll(_Out_ HttpHeaders* out, _In_reads_bytes_(len) const uint8* data,
+                             size_t len)
+{
+    return _qpackDecode(out, data, len, UINT32_MAX, UINT64_MAX);
+}
+
 // True if a decoded header list holds exactly the fields in the same NULL-terminated array, in
 // the same order.
 static bool headersMatch(_In_ const HttpHeaders* h, _In_ const char* const* nv)
@@ -473,7 +480,7 @@ int test_http3test_qpackvec(void)
         static const char* const want[] = { ":path", "/index.html", NULL };
 
         httpHeadersDestroy(&dec);
-        CHECK_U64("B.1 decode", _qpackDecode(&dec, b1, sizeof(b1), 0, 0), 0);
+        CHECK_U64("B.1 decode", qpackDecodeAll(&dec, b1, sizeof(b1)), 0);
         CHECK_TRUE("B.1 fields", headersMatch(&dec, want));
     }
 
@@ -539,7 +546,7 @@ int test_http3test_qpackvec(void)
         // And back the other way. A decode of what we encoded has to produce what went in, with
         // the one deliberate difference that the name is now lowercase.
         httpHeadersDestroy(&dec);
-        CHECK_U64("decode", _qpackDecode(&dec, tv[i].enc, tv[i].enclen, 0, 0), 0);
+        CHECK_U64("decode", qpackDecodeAll(&dec, tv[i].enc, tv[i].enclen), 0);
 
         CHECK_U64("field count", httpHeadersCount(&dec), httpHeadersCount(&h));
         for (int32 f = 0; f < httpHeadersCount(&h); f++) {
@@ -572,7 +579,7 @@ int test_http3test_qpackvec(void)
         uint8* raw   = xaAlloc(strLen(enc));
         uint32 rawlen = strCopyRaw(enc, 0, raw, strLen(enc));
         httpHeadersDestroy(&dec);
-        uint64 err = ok ? _qpackDecode(&dec, raw, rawlen, 0, 0) : 1;
+        uint64 err = ok ? qpackDecodeAll(&dec, raw, rawlen) : 1;
         bool same  = err == 0 && httpHeadersCount(&dec) == 1 &&
                     strEq(dec.names.a[0], longname) && strEq(dec.values.a[0], longval);
         xaFree(raw);
@@ -634,7 +641,7 @@ int test_http3test_qpackdynamic(void)
 
     for (size_t i = 0; i < sizeof(tv) / sizeof(tv[0]); i++) {
         httpHeadersDestroy(&dec);
-        uint64 err = _qpackDecode(&dec, tv[i].enc, tv[i].len, 0, 0);
+        uint64 err = qpackDecodeAll(&dec, tv[i].enc, tv[i].len);
         if (err != tv[i].err) {
             TEST_FAILV(ret, 1, _SL("${string}: error ${int}, expected ${int}"),
                        stvar(strref, (strref)tv[i].what), stvar(int64, (int64)err),
@@ -650,7 +657,7 @@ int test_http3test_qpackdynamic(void)
         // Literal with literal name "Host", value "x".
         static const uint8 upper[] = { 0x00, 0x00, 0x24, 'H', 'o', 's', 't', 0x01, 'x' };
         httpHeadersDestroy(&dec);
-        CHECK_U64("uppercase name", _qpackDecode(&dec, upper, sizeof(upper), 0, 0),
+        CHECK_U64("uppercase name", qpackDecodeAll(&dec, upper, sizeof(upper)),
                   H3ERR_MESSAGE_ERROR);
     }
 
@@ -659,7 +666,7 @@ int test_http3test_qpackdynamic(void)
     {
         static const uint8 inject[] = { 0x00, 0x00, 0x23, 'a', 'b', 'c', 0x03, 'x', '\n', 'y' };
         httpHeadersDestroy(&dec);
-        CHECK_U64("injected newline", _qpackDecode(&dec, inject, sizeof(inject), 0, 0),
+        CHECK_U64("injected newline", qpackDecodeAll(&dec, inject, sizeof(inject)),
                   H3ERR_MESSAGE_ERROR);
     }
 
@@ -669,14 +676,24 @@ int test_http3test_qpackdynamic(void)
         static const uint8 three[] = { 0x00, 0x00, 0xd1, 0xd7, 0xd9 };
 
         httpHeadersDestroy(&dec);
-        CHECK_U64("count limit", _qpackDecode(&dec, three, sizeof(three), 2, 0),
+        CHECK_U64("count limit", _qpackDecode(&dec, three, sizeof(three), 2, UINT64_MAX),
                   H3ERR_MESSAGE_ERROR);
 
         httpHeadersDestroy(&dec);
-        CHECK_U64("count limit not tripped", _qpackDecode(&dec, three, sizeof(three), 3, 0), 0);
+        CHECK_U64("count limit not tripped",
+                  _qpackDecode(&dec, three, sizeof(three), 3, UINT64_MAX), 0);
 
         httpHeadersDestroy(&dec);
-        CHECK_U64("size limit", _qpackDecode(&dec, three, sizeof(three), 0, 64),
+        CHECK_U64("size limit", _qpackDecode(&dec, three, sizeof(three), UINT32_MAX, 64),
+                  H3ERR_MESSAGE_ERROR);
+
+        // A limit of zero is a limit, as it is for HTTP/1.1: it admits no fields at all.
+        httpHeadersDestroy(&dec);
+        CHECK_U64("zero count limit", _qpackDecode(&dec, three, sizeof(three), 0, UINT64_MAX),
+                  H3ERR_MESSAGE_ERROR);
+
+        httpHeadersDestroy(&dec);
+        CHECK_U64("zero size limit", _qpackDecode(&dec, three, sizeof(three), UINT32_MAX, 0),
                   H3ERR_MESSAGE_ERROR);
     }
 
@@ -931,6 +948,56 @@ int test_http3test_msglimits(void)
         CHECK_U64("fields past the count limit error", r.err, H3ERR_MESSAGE_ERROR);
     }
 
+    // A limit of zero refuses every field section, just as it refuses every HTTP/1.1 head. Both
+    // protocols are checked here so the two cannot drift apart again.
+    {
+        static const struct {
+            const char* what;
+            bool zeroBytes;   // zero maxHeadBytes, or else zero maxHeaderCount
+            uint64 err;
+        } zv[] = {
+            { "zero maxHeadBytes", true, H3ERR_EXCESSIVE_LOAD },
+            { "zero maxHeaderCount", false, H3ERR_MESSAGE_ERROR },
+        };
+        static const char kHead[] = "GET / HTTP/1.1\r\nHost: x\r\n\r\n";
+
+        for (size_t i = 0; i < sizeof(zv) / sizeof(zv[0]); i++) {
+            HttpLimits zero = def;
+            if (zv[i].zeroBytes)
+                zero.maxHeadBytes = 0;
+            else
+                zero.maxHeaderCount = 0;
+
+            _h3MsgDestroy(&r);
+            _h3MsgInit(&r, true, &zero);
+            strClear(&in);
+            strClear(&seen);
+
+            msgScript(&in, "H");
+            msgRun(&r, in, 4096, &seen);
+            if (!strEq(seen, _SL("e")) || r.err != zv[i].err) {
+                TEST_FAILV(ret, 1, _SL("HTTP/3, ${string}: reported '${string}' with error ${int}"),
+                           stvar(strref, (strref)zv[i].what), stvar(strref, seen),
+                           stvar(int64, (int64)r.err));
+                goto out;
+            }
+
+            HttpParser p;
+            httpParserInit(&p, true, &zero);
+            BufRing ring;
+            bufringInit(&ring, 64);
+            bufringWrite(&ring, (const uint8*)kHead, sizeof(kHead) - 1);
+            HttpParseResult pr = httpParserStep(&p, &ring);
+            bufringDestroy(&ring);
+            httpParserDestroy(&p);
+            if (pr != HTTPP_Error) {
+                TEST_FAILV(ret, 1, _SL("HTTP/1.1, ${string}: parser answered ${int}"),
+                           stvar(strref, (strref)zv[i].what), stvar(int32, (int32)pr));
+                goto out;
+            }
+        }
+    }
+
 out:
     _h3MsgDestroy(&r);
     strDestroy(&in);
@@ -1060,6 +1127,38 @@ int test_http3test_settings(void)
         CHECK_BYTES("control preamble", got, gotlen, want, sizeof(want));
 
         _h3SessionDestroy(&s);
+    }
+
+    // With no limits given, the defaults are advertised. A limit of zero goes out as zero: leaving
+    // the setting out would tell the peer there is no limit at all.
+    {
+        static const struct {
+            const char* what;
+            bool zero;   // maxHeadBytes of 0, or else no limits at all
+            uint8 want[16];
+            size_t len;
+        } tv[] = {
+            { "default limits", false,
+              { 0x00, 0x04, 0x09, 0x01, 0x00, 0x07, 0x00, 0x06, 0x80, 0x01, 0x00, 0x00 }, 12 },
+            { "zero limit", true, { 0x00, 0x04, 0x06, 0x01, 0x00, 0x07, 0x00, 0x06, 0x00 }, 9 },
+        };
+
+        for (size_t i = 0; i < sizeof(tv) / sizeof(tv[0]); i++) {
+            HttpLimits lim;
+            httpLimitsDefault(&lim);
+            lim.maxHeadBytes = 0;
+
+            Http3Session s;
+            _h3SessionInit(&s, false, tv[i].zero ? &lim : NULL);
+            strClear(&out);
+            bool ok = _h3SessionControlPreamble(&s, &out);
+            _h3SessionDestroy(&s);
+            CHECK_TRUE(tv[i].what, ok);
+
+            uint8 got[32];
+            uint32 gotlen = strCopyRaw(out, 0, got, sizeof(got));
+            CHECK_BYTES(tv[i].what, got, gotlen, tv[i].want, tv[i].len);
+        }
     }
 
     // The peer's settings, read whole and then read a byte at a time. Splitting a frame across
