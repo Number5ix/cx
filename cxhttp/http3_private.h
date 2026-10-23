@@ -445,7 +445,8 @@ typedef struct H3MsgReader {
     size_t fieldsLen;
     bool inFields;
 
-    HttpHeaders headers;   // the decoded section, valid at H3MSG_Head and H3MSG_Trailers
+    HttpHeaders headers;   // the decoded section, valid from H3MSG_Head or H3MSG_Trailers until
+                           // the next section replaces it
 
     // Body bytes at the head of the source ring, set alongside H3MSG_Body. The caller must remove
     // exactly this many before stepping again.
@@ -454,6 +455,7 @@ typedef struct H3MsgReader {
 
     bool bodyStarted;      // a DATA frame has been seen, so a later section is trailers
     bool headDone;         // a field section has been reported
+    bool trailersDone;     // trailers have been reported; no HEADERS or DATA may follow
     uint64 err;            // the code behind H3MSG_Error
 } H3MsgReader;
 

@@ -882,6 +882,7 @@ static const testspec tests[] = {
 #if defined(CX_HTTP3_TESTS)
     { "http3: Wire Codec", "http3test", "wire" },
     { "http3: Frame Reader", "http3test", "wirefuzz" },
+    { "http3: Message Frame Order", "http3test", "msgorder" },
     { "http3: QPACK Huffman", "http3test", "qpackhuff" },
     { "http3: QPACK Field Sections", "http3test", "qpackvec" },
     { "http3: QPACK Dynamic Table Refused", "http3test", "qpackdynamic" },
@@ -896,6 +897,7 @@ static const testspec tests[] = {
     { "http3: Large Bodies", "http3test", "bodies" },
     { "http3: Malformed Requests", "http3test", "forbidden" },
     { "http3: Trailers", "http3test", "trailers" },
+    { "http3: Nothing After Trailers", "http3test", "trailersagain" },
     { "http3: Expect Continue", "http3test", "interim" },
     { "http3: Receive Backpressure", "http3test", "backpressure" },
     { "http3: Stream Reset", "http3test", "reset" },

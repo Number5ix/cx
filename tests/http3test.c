@@ -686,6 +686,177 @@ out:
 }
 
 // ---------------------------------------------------------------------------------------------
+// The message reader
+//
+// The frame grammar of a request or response stream, driven by bytes rather than by a socket.
+// ---------------------------------------------------------------------------------------------
+
+static const char* const kMsgReqFields[] = { ":method", "POST", ":scheme", "https", ":authority",
+                                             "x", ":path", "/", NULL };
+static const char* const kMsgTrailerFields[] = { "x-checksum", "1", NULL };
+
+// Append one frame to `out`: its header, then `len` bytes of payload.
+static void msgFrame(_Inout_ strhandle out, uint64 type,
+                     _In_reads_bytes_opt_(len) const uint8* payload, size_t len)
+{
+    uint8 hdr[H3_FRAME_HDR_MAX];
+    size_t n = _h3WrFrameHdr(hdr, sizeof(hdr), type, len);
+    _httpAppendBytes(out, hdr, n);
+    _httpAppendBytes(out, payload, len);
+}
+
+// Append a HEADERS frame carrying the fields in a NULL-terminated name/value array.
+static void msgFields(_Inout_ strhandle out, _In_ const char* const* nv)
+{
+    HttpHeaders h;
+    buildHeaders(&h, nv);
+
+    string enc = 0;
+    _qpackEncode(&enc, &h);
+    msgFrame(out, H3_FRAME_HEADERS, (const uint8*)strPC(&enc), strLen(enc));
+
+    strDestroy(&enc);
+    httpHeadersDestroy(&h);
+}
+
+// Build a stream from a script, one letter per frame: H a request's field section, T a trailer
+// section, D a DATA frame, G an unknown frame type reserved for greasing.
+static void msgScript(_Inout_ strhandle out, _In_ const char* script)
+{
+    static const uint8 kData[] = { 'a', 'b', 'c' };
+
+    for (const char* c = script; *c; c++) {
+        switch (*c) {
+        case 'H':
+            msgFields(out, kMsgReqFields);
+            break;
+        case 'T':
+            msgFields(out, kMsgTrailerFields);
+            break;
+        case 'D':
+            msgFrame(out, H3_FRAME_DATA, kData, sizeof(kData));
+            break;
+        case 'G':
+            msgFrame(out, 0x21, kData, sizeof(kData));
+            break;
+        }
+    }
+}
+
+// Feed `in` to the reader `chunk` bytes at a time and record what it reported, one letter per
+// result: h Head, b Body, t Trailers, e Error. A body split across several reads is still one b.
+// Stops at the first error.
+static void msgRun(_Inout_ H3MsgReader* r, _In_ strref in, size_t chunk, _Inout_ strhandle seen)
+{
+    BufRing ring;
+    bufringInit(&ring, 64);
+
+    uint32 len = strLen(in);
+    uint8* raw = xaAlloc(len + 1);
+    strCopyRaw(in, 0, raw, len);
+
+    bool failed = false;
+    for (size_t off = 0; off < len && !failed;) {
+        size_t n = min(chunk, len - off);
+        bufringWrite(&ring, raw + off, n);
+        off += n;
+
+        for (;;) {
+            H3MsgResult res = _h3MsgStep(r, &ring);
+            if (res == H3MSG_NeedMore)
+                break;
+
+            uint32 slen = strLen(*seen);
+            if (res == H3MSG_Body) {
+                bufringSkip(&ring, r->bodyReady);
+                if (slen > 0 && strGetChar(*seen, slen - 1) == 'b')
+                    continue;
+            }
+
+            static const char* const kLetters[] = { "?", "h", "b", "t", "e" };
+            strAppend(seen, (strref)kLetters[res]);
+            if (res == H3MSG_Error) {
+                failed = true;
+                break;
+            }
+        }
+    }
+
+    xaFree(raw);
+    bufringDestroy(&ring);
+}
+
+int test_http3test_msgorder(void)
+{
+    int ret      = 0;
+    string in    = 0;
+    string seen  = 0;
+    H3MsgReader r;
+    _h3MsgInit(&r, true, NULL);
+
+    // Trailers end a message. Whatever HEADERS or DATA follows them is refused, which is also what
+    // stops a peer sending field sections without end on a stream that is never finished.
+    static const struct {
+        const char* what;
+        const char* script;
+        const char* want;
+        uint64 err;
+    } tv[] = {
+        { "plain message", "HDT", "hbt", 0 },
+        { "trailers twice", "HDTT", "hbte", H3ERR_FRAME_UNEXPECTED },
+        { "data after trailers", "HDTD", "hbte", H3ERR_FRAME_UNEXPECTED },
+        { "grease after trailers", "HDTG", "hbt", 0 },
+        { "data before head", "D", "e", H3ERR_FRAME_UNEXPECTED },
+        { "trailers then a flood", "HDTTTTTTTT", "hbte", H3ERR_FRAME_UNEXPECTED },
+    };
+
+    static const size_t chunks[] = { 1, 7, 4096 };
+
+    for (size_t i = 0; i < sizeof(tv) / sizeof(tv[0]); i++) {
+        for (size_t c = 0; c < sizeof(chunks) / sizeof(chunks[0]); c++) {
+            _h3MsgDestroy(&r);
+            _h3MsgInit(&r, true, NULL);
+            strClear(&in);
+            strClear(&seen);
+
+            msgScript(&in, tv[i].script);
+            msgRun(&r, in, chunks[c], &seen);
+
+            if (!strEq(seen, (strref)tv[i].want) || r.err != tv[i].err) {
+                TEST_FAILV(ret, 1,
+                           _SL("${string} (chunk ${int}): reported '${string}' with error "
+                               "${int}, expected '${string}' with error ${int}"),
+                           stvar(strref, (strref)tv[i].what), stvar(int64, (int64)chunks[c]),
+                           stvar(strref, seen), stvar(int64, (int64)r.err),
+                           stvar(strref, (strref)tv[i].want), stvar(int64, (int64)tv[i].err));
+                goto out;
+            }
+        }
+    }
+
+    // Two sections before any body both come back as heads, since only the caller can tell an
+    // interim response from a malformed request. The second replaces the first rather than adding
+    // to it.
+    {
+        _h3MsgDestroy(&r);
+        _h3MsgInit(&r, true, NULL);
+        strClear(&in);
+        strClear(&seen);
+
+        msgScript(&in, "HT");
+        msgRun(&r, in, 4096, &seen);
+        CHECK_STR("two heads", seen, _SL("hh"));
+        CHECK_TRUE("second head replaced the first", headersMatch(&r.headers, kMsgTrailerFields));
+    }
+
+out:
+    _h3MsgDestroy(&r);
+    strDestroy(&in);
+    strDestroy(&seen);
+    return ret;
+}
+
+// ---------------------------------------------------------------------------------------------
 // The connection session
 //
 // Driven by bytes rather than by a socket, which is the point: a peer that opens two control
@@ -1969,6 +2140,49 @@ int test_http3test_trailers(void)
     CHECK_STR("body survived the trailers", rec.lastBody, _SL("body bytes"));
     CHECK_TRUE("trailers did not become headers",
                !httpHeadersHas(&r->headers, _SL("x-checksum")));
+
+out:
+    h3SrvRecDestroy(&rec);
+    h3tFixDestroy(&f);
+    return ret;
+}
+
+int test_http3test_trailersagain(void)
+{
+    int ret      = 0;
+    H3TFix f     = { 0 };
+    H3SrvRec rec = { 0 };
+
+    if (!h3tFixInit(&f, &kH3SrvHandlers, &rec, NULL)) {
+        TEST_FAILV(ret, 1, _SL("the HTTP/3 fixture did not come up"), stvNone);
+        goto out;
+    }
+
+    HttpHeaders fields;
+    buildHeaders(&fields, kMsgReqFields);
+    H3TReq* r = h3tSendFields(&f.cl, &fields, _SL("body bytes"), false);
+    httpHeadersDestroy(&fields);
+    CHECK_TRUE("request started", r != NULL);
+
+    // A second trailer section is a frame the grammar does not allow, so the stream is reset
+    // before the request ever reaches the application.
+    HttpHeaders trailers;
+    buildHeaders(&trailers, kMsgTrailerFields);
+    bool sent = _h3SendFields(r->flow, &trailers, false) && _h3SendFields(r->flow, &trailers, true);
+    httpHeadersDestroy(&trailers);
+    CHECK_TRUE("trailers sent", sent);
+
+    CHECK_TRUE("stream ended", h3tWait(&f, h3tReqDone, r));
+    CHECK_TRUE("stream refused", r->failed);
+    CHECK_U64("reset code", r->err, H3ERR_FRAME_UNEXPECTED);
+    CHECK_U64("status", r->status, 0);
+    CHECK_U64("requests delivered", rec.requests, 0);
+
+    // A stream error, not a connection error: the next request is answered.
+    H3TReq* r2 = h3tRequest(&f.cl, _SL("GET"), _SL("/after"), NULL);
+    CHECK_TRUE("request after refusal", r2 != NULL);
+    CHECK_TRUE("response after refusal", h3tWait(&f, h3tReqDone, r2));
+    CHECK_U64("status after refusal", r2->status, 200);
 
 out:
     h3SrvRecDestroy(&rec);
@@ -4255,7 +4469,7 @@ out:
 
 int test_http3test_grp_wire(void)
 {
-    TEST_CHAIN(test_http3test_wire, test_http3test_wirefuzz);
+    TEST_CHAIN(test_http3test_wire, test_http3test_wirefuzz, test_http3test_msgorder);
 }
 
 int test_http3test_grp_qpack(void)
@@ -4273,7 +4487,7 @@ int test_http3test_grp_server(void)
 {
     TEST_CHAIN(test_http3test_roundtrip, test_http3test_srvpost, test_http3test_concurrent,
                test_http3test_bodies, test_http3test_forbidden, test_http3test_trailers,
-               test_http3test_interim);
+               test_http3test_trailersagain, test_http3test_interim);
 }
 
 int test_http3test_grp_serverstream(void)
@@ -4301,6 +4515,7 @@ int test_http3test_grp_dial(void)
 testfunc http3test_funcs[] = {
     { "wire", test_http3test_wire },
     { "wirefuzz", test_http3test_wirefuzz },
+    { "msgorder", test_http3test_msgorder },
     { "qpackhuff", test_http3test_qpackhuff },
     { "qpackvec", test_http3test_qpackvec },
     { "qpackdynamic", test_http3test_qpackdynamic },
@@ -4313,6 +4528,7 @@ testfunc http3test_funcs[] = {
     { "bodies", test_http3test_bodies },
     { "forbidden", test_http3test_forbidden },
     { "trailers", test_http3test_trailers },
+    { "trailersagain", test_http3test_trailersagain },
     { "interim", test_http3test_interim },
     { "backpressure", test_http3test_backpressure },
     { "reset", test_http3test_reset },

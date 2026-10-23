@@ -52,11 +52,13 @@ static uint64 streamFrameAllowed(_In_ const H3MsgReader* r, uint64 type)
 {
     switch (type) {
     case H3_FRAME_HEADERS:
-        return 0;
+        // Trailers end the message. Without this a peer could follow them with field sections
+        // forever, each one decoded and thrown away.
+        return r->trailersDone ? H3ERR_FRAME_UNEXPECTED : 0;
 
     case H3_FRAME_DATA:
-        // A body with nothing to say what it is the body of.
-        return r->headDone ? 0 : H3ERR_FRAME_UNEXPECTED;
+        // A body with nothing to say what it is the body of, or body after the trailers.
+        return (r->headDone && !r->trailersDone) ? 0 : H3ERR_FRAME_UNEXPECTED;
 
     case H3_FRAME_PUSH_PROMISE:
         // A server may not receive one at all. A client may only after saying how many pushes it
@@ -142,6 +144,9 @@ H3MsgResult _h3MsgStep(H3MsgReader* r, BufRing* src)
                 break;
             r->inFields = false;
 
+            // The previous section, if there was one, is done with: the caller copies out what it
+            // keeps before stepping again.
+            httpHeadersDestroy(&r->headers);
             uint64 err = _qpackDecode(&r->headers, r->fields, r->fieldsLen, r->maxHeaderCount,
                                       r->maxFieldSize);
             xaDestroy(&r->fields);
@@ -152,8 +157,10 @@ H3MsgResult _h3MsgStep(H3MsgReader* r, BufRing* src)
             // A section before any body is the message's own; one after it is trailers. That is
             // the only distinction the frame layer can make -- whether a second section before the
             // body is an interim response or a malformed request is the caller's to decide.
-            if (r->bodyStarted)
+            if (r->bodyStarted) {
+                r->trailersDone = true;
                 return H3MSG_Trailers;
+            }
 
             r->headDone = true;
             return H3MSG_Head;
