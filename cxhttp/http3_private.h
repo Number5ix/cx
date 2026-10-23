@@ -440,10 +440,11 @@ typedef struct H3MsgReader {
     uint64 maxFieldSize;     // one section's uncompressed size; 0 for no limit
     uint64 maxBody;          // body bytes; 0 for no limit
 
-    // The field section being accumulated. Allocated to the frame's declared length, which is
-    // refused before the allocation when it is larger than this endpoint will hold.
+    // The field section being accumulated, grown as its payload arrives up to the frame's
+    // declared length. A frame declaring more than this endpoint will hold is refused first.
     uint8* fields;
     size_t fieldsLen;
+    size_t fieldsCap;
     bool inFields;
 
     HttpHeaders headers;   // the decoded section, valid from H3MSG_Head or H3MSG_Trailers until

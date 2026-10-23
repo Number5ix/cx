@@ -884,6 +884,7 @@ static const testspec tests[] = {
     { "http3: Frame Reader", "http3test", "wirefuzz" },
     { "http3: Message Frame Order", "http3test", "msgorder" },
     { "http3: Message Limits Default", "http3test", "msglimits" },
+    { "http3: Field Sections Grow As They Arrive", "http3test", "msgprealloc" },
     { "http3: QPACK Huffman", "http3test", "qpackhuff" },
     { "http3: QPACK Field Sections", "http3test", "qpackvec" },
     { "http3: QPACK Dynamic Table Refused", "http3test", "qpackdynamic" },

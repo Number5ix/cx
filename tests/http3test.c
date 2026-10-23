@@ -938,6 +938,74 @@ out:
     return ret;
 }
 
+int test_http3test_msgprealloc(void)
+{
+    int ret     = 0;
+    string in   = 0;
+    string seen = 0;
+    char* big   = NULL;
+    BufRing ring;
+    bufringInit(&ring, 64);
+    H3MsgReader r;
+    _h3MsgInit(&r, true, NULL);
+
+    // A section declared just under the limit, then only its frame header. Nothing is allocated
+    // for bytes that have not arrived, which is what stops a peer pinning the declared size on
+    // every stream it opens.
+    {
+        static const uint8 kSome[100] = { 0 };
+        uint8 hdr[H3_FRAME_HDR_MAX];
+        size_t n = _h3WrFrameHdr(hdr, sizeof(hdr), H3_FRAME_HEADERS, 60000);
+        bufringWrite(&ring, hdr, n);
+
+        CHECK_U64("header alone", _h3MsgStep(&r, &ring), H3MSG_NeedMore);
+        CHECK_TRUE("nothing allocated for the header alone", !r.fields && r.fieldsCap == 0);
+
+        bufringWrite(&ring, kSome, sizeof(kSome));
+        CHECK_U64("a little payload", _h3MsgStep(&r, &ring), H3MSG_NeedMore);
+        CHECK_U64("payload held", r.fieldsLen, sizeof(kSome));
+        if (r.fieldsCap < r.fieldsLen || r.fieldsCap > HTTP3_READ_CHUNK) {
+            TEST_FAILV(ret, 1, _SL("${int} bytes allocated for ${int} received"),
+                       stvar(int64, (int64)r.fieldsCap), stvar(int64, (int64)r.fieldsLen));
+            goto out;
+        }
+    }
+
+    // A section that has to grow many times still arrives intact, however it is split.
+    static const uint32 kBigLen = 40000;
+    big = xaAlloc(kBigLen + 1);
+    for (uint32 i = 0; i < kBigLen; i++)
+        big[i] = (char)('a' + i % 26);
+    big[kBigLen] = 0;
+
+    const char* const nv[] = { ":status", "200", "x-big", big, NULL };
+
+    static const size_t chunks[] = { 1, 999, 65536 };
+    for (size_t c = 0; c < sizeof(chunks) / sizeof(chunks[0]); c++) {
+        _h3MsgDestroy(&r);
+        _h3MsgInit(&r, false, NULL);
+        strClear(&in);
+        strClear(&seen);
+
+        msgFields(&in, nv);
+        msgRun(&r, in, chunks[c], &seen);
+        if (!strEq(seen, _SL("h")) || !headersMatch(&r.headers, nv)) {
+            TEST_FAILV(ret, 1, _SL("chunk ${int}: reported '${string}' with error ${int}"),
+                       stvar(int64, (int64)chunks[c]), stvar(strref, seen),
+                       stvar(int64, (int64)r.err));
+            goto out;
+        }
+    }
+
+out:
+    _h3MsgDestroy(&r);
+    bufringDestroy(&ring);
+    xaFree(big);
+    strDestroy(&in);
+    strDestroy(&seen);
+    return ret;
+}
+
 // ---------------------------------------------------------------------------------------------
 // The connection session
 //
@@ -4708,7 +4776,7 @@ out:
 int test_http3test_grp_wire(void)
 {
     TEST_CHAIN(test_http3test_wire, test_http3test_wirefuzz, test_http3test_msgorder,
-               test_http3test_msglimits);
+               test_http3test_msglimits, test_http3test_msgprealloc);
 }
 
 int test_http3test_grp_qpack(void)
@@ -4756,6 +4824,7 @@ testfunc http3test_funcs[] = {
     { "wirefuzz", test_http3test_wirefuzz },
     { "msgorder", test_http3test_msgorder },
     { "msglimits", test_http3test_msglimits },
+    { "msgprealloc", test_http3test_msgprealloc },
     { "qpackhuff", test_http3test_qpackhuff },
     { "qpackvec", test_http3test_qpackvec },
     { "qpackdynamic", test_http3test_qpackdynamic },

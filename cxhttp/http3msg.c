@@ -42,6 +42,7 @@ void _h3MsgDestroy(H3MsgReader* r)
     httpHeadersDestroy(&r->headers);
     xaDestroy(&r->fields);
     r->fieldsLen = 0;
+    r->fieldsCap = 0;
 }
 
 static H3MsgResult msgFail(_Inout_ H3MsgReader* r, uint64 err)
@@ -49,6 +50,25 @@ static H3MsgResult msgFail(_Inout_ H3MsgReader* r, uint64 err)
     r->err = err;
     _h3FrameReaderFail(&r->fr);
     return H3MSG_Error;
+}
+
+// Make room for `need` bytes of the field section being read. The buffer doubles as the payload
+// arrives and never grows past the frame's declared length, so a peer that declares a large
+// section and then sends nothing has made this endpoint allocate nothing.
+static void fieldsReserve(_Inout_ H3MsgReader* r, uint64 need)
+{
+    if (need <= r->fieldsCap)
+        return;
+
+    // 64-bit arithmetic so the doubling cannot wrap on a 32-bit build.
+    uint64 cap = r->fieldsCap ? r->fieldsCap : HTTP3_READ_CHUNK;
+    while (cap < need)
+        cap *= 2;
+    if (cap > r->fr.len)
+        cap = r->fr.len;
+
+    xaResize(&r->fields, (size_t)cap);
+    r->fieldsCap = (size_t)cap;
 }
 
 // Whether a frame type may appear on a request or response stream at all.
@@ -106,6 +126,7 @@ H3MsgResult _h3MsgStep(H3MsgReader* r, BufRing* src)
 
             xaDestroy(&r->fields);
             r->fieldsLen = 0;
+            r->fieldsCap = 0;
             r->inFields  = (r->fr.type == H3_FRAME_HEADERS);
 
             // Marked from the header rather than from the first payload byte, so that an empty
@@ -113,20 +134,17 @@ H3MsgResult _h3MsgStep(H3MsgReader* r, BufRing* src)
             if (r->fr.type == H3_FRAME_DATA)
                 r->bodyStarted = true;
 
-            if (r->inFields) {
-                // A field section is held whole before it can be decoded, so its declared length
-                // is the one thing a peer could use to make this endpoint allocate on its behalf.
-                // Refused from the header alone, before a byte of it has been read.
-                if (r->maxFieldSize > 0 && r->fr.len > r->maxFieldSize)
-                    return msgFail(r, H3ERR_EXCESSIVE_LOAD);
-                if (r->fr.len > 0)
-                    r->fields = xaAlloc((size_t)r->fr.len);
-            }
+            // A field section is held whole before it can be decoded, so one declared larger than
+            // this endpoint will hold is refused from the header alone, before a byte of it has
+            // been read.
+            if (r->inFields && r->maxFieldSize > 0 && r->fr.len > r->maxFieldSize)
+                return msgFail(r, H3ERR_EXCESSIVE_LOAD);
             break;
         }
 
         case H3FR_Payload:
             if (r->inFields) {
+                fieldsReserve(r, (uint64)r->fieldsLen + r->fr.avail);
                 r->fieldsLen += bufringRead(src, r->fields + r->fieldsLen, r->fr.avail);
                 break;
             }
@@ -155,6 +173,7 @@ H3MsgResult _h3MsgStep(H3MsgReader* r, BufRing* src)
                                       r->maxFieldSize);
             xaDestroy(&r->fields);
             r->fieldsLen = 0;
+            r->fieldsCap = 0;
             if (err != 0)
                 return msgFail(r, err);
 
