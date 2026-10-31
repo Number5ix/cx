@@ -34,18 +34,28 @@ static void setNonBlocking(int fd)
         fcntl(fd, F_SETFL, fl | O_NONBLOCK);
 }
 
+// Applies a batch of changes to the interest list, each one regardless of whether the others
+// succeed. Without EV_RECEIPT, a change that fails (ENOENT, deleting a filter that was never armed)
+// with no room in the eventlist to report it ends the call there, and every change after it is
+// silently skipped -- so "delete read, add write" would never add write. EV_RECEIPT puts each
+// change's result in its own eventlist slot instead, and with exactly one slot per change and a
+// zero timeout the call never waits for events. The results themselves are not needed: the only
+// expected failure is that harmless ENOENT.
+static void applyChanges(int kq, _Inout_updates_(n) struct kevent* chg, int n)
+{
+    struct kevent res[2];
+    struct timespec zero = { 0, 0 };
+    devAssert(n <= 2);
+
+    for (int i = 0; i < n; i++) chg[i].flags |= EV_RECEIPT;
+    kevent(kq, chg, n, res, n, &zero);
+}
+
 // Arm (or update) a socket's kqueue interest. Unlike NetSelectSet, which is rebuilt wholesale every
 // pass, kevent() mutates the kernel's interest list directly, so there is no wake-and-rebuild step
 // anywhere in this file except shutdown -- same shape as NetQueueEpoll's armInterest, but EVFILT_READ
 // and EVFILT_WRITE are independent registrations rather than bits in one struct, so both filters are
 // always resubmitted (ADD if wanted, DELETE if not) rather than tracked as a single combined state.
-//
-// nevents is passed as 0 here deliberately. A NULL timeout does not mean "return once the changes
-// are applied" -- it means "block indefinitely until the eventlist can be filled", and that wait
-// applies even to a change-only call as long as nevents > 0. Passing 0 is what makes this a pure,
-// non-blocking registration; it also means per-change errors (e.g. ENOENT deleting a filter that
-// was never armed) are not reported back, which is fine since that particular error is harmless and
-// there is nothing to do about it anyway.
 //
 // Called from both the ingest thread and whatever thread adds/connects/closes a socket, so fdmap is
 // always touched under fdmapLock rather than relying on the caller already holding one.
@@ -63,7 +73,7 @@ static void armInterest(_Inout_ NetQueueKqueue* self, _Inout_ NetSocket* sock, b
                 struct kevent chg[2];
                 EV_SET(&chg[0], fd, EVFILT_READ, EV_DELETE, 0, 0, NULL);
                 EV_SET(&chg[1], fd, EVFILT_WRITE, EV_DELETE, 0, 0, NULL);
-                kevent(self->kq, chg, 2, NULL, 0, NULL);
+                applyChanges(self->kq, chg, 2);
                 htRemove(&self->fdmap, uint64, (uint64)fd);
             }
             break;
@@ -72,7 +82,7 @@ static void armInterest(_Inout_ NetQueueKqueue* self, _Inout_ NetSocket* sock, b
         struct kevent chg[2];
         EV_SET(&chg[0], fd, EVFILT_READ, read ? EV_ADD : EV_DELETE, 0, 0, sock);
         EV_SET(&chg[1], fd, EVFILT_WRITE, write ? EV_ADD : EV_DELETE, 0, 0, sock);
-        kevent(self->kq, chg, 2, NULL, 0, NULL);
+        applyChanges(self->kq, chg, 2);
 
         // Rewritten rather than only added, because fd numbers are recycled: a closed fd leaves the
         // kqueue on its own but its map entry outlives it by however long the owner takes to notice,
@@ -491,7 +501,7 @@ bool NetQueueKqueue_removeSocket(_In_ NetQueueKqueue* self, NetSocket* socket)
             struct kevent chg[2];
             EV_SET(&chg[0], (int)h, EVFILT_READ, EV_DELETE, 0, 0, NULL);
             EV_SET(&chg[1], (int)h, EVFILT_WRITE, EV_DELETE, 0, 0, NULL);
-            kevent(self->kq, chg, 2, NULL, 0, NULL);   // nevents=0: register only, see armInterest
+            applyChanges(self->kq, chg, 2);
             htRemove(&self->fdmap, uint64, (uint64)h);
         }
     }
