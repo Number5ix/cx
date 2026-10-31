@@ -179,12 +179,16 @@ static void dumpQueue(TQThreadPoolMonitor* self, TaskQueue* tq, TQThreadPoolRunn
     rwlockAcquireRead(&runner->workerlock);
     int32 nworkers = saSize(runner->workers);
     for (int i = 0; i < nworkers; i++) {
-        dumpTask(c->mLogChan,
-                 atomicLoad(ptr, &runner->workers.a[i]->curtask, Relaxed),
-                 now,
-                 i,
-                 false,
-                 runner->workers.a[i]->thr == thrCurrent());
+        TQThreadWorker* worker = runner->workers.a[i];
+        // monitorlock keeps the worker from releasing the task while it is being read
+        withMutex (&worker->monitorlock) {
+            dumpTask(c->mLogChan,
+                     atomicLoad(ptr, &worker->curtask, Acquire),
+                     now,
+                     i,
+                     false,
+                     worker->thr == thrCurrent());
+        }
     }
     rwlockReleaseRead(&runner->workerlock);
 
@@ -263,16 +267,20 @@ int64 TQThreadPoolMonitor_tick(_In_ TQThreadPoolMonitor* self)
     rwlockAcquireRead(&runner->workerlock);
     int32 nworkers = saSize(runner->workers);
     for (int i = 0; i < nworkers; i++) {
-        void* ptr  = atomicLoad(ptr, &runner->workers.a[i]->curtask, Relaxed);
-        Task* task = objDynCast(Task, (BasicTask*)ptr);
-        if (task && now > task->last + c->mTaskRunning) {
-            doWarn(self, tq, &warned);
-            logFmtC(Warn,
-                    c->mLogChan,
-                    kTQFmtRunning,
-                    stvar(strref, task->name),
-                    stvar(uint16, ptrHash(task)),
-                    stvar(int64, timeToMsec(now - task->last)));
+        TQThreadWorker* worker = runner->workers.a[i];
+        // monitorlock keeps the worker from releasing the task while it is being read
+        withMutex (&worker->monitorlock) {
+            void* ptr  = atomicLoad(ptr, &worker->curtask, Acquire);
+            Task* task = objDynCast(Task, (BasicTask*)ptr);
+            if (task && now > task->last + c->mTaskRunning) {
+                doWarn(self, tq, &warned);
+                logFmtC(Warn,
+                        c->mLogChan,
+                        kTQFmtRunning,
+                        stvar(strref, task->name),
+                        stvar(uint16, ptrHash(task)),
+                        stvar(int64, timeToMsec(now - task->last)));
+            }
         }
     }
     rwlockReleaseRead(&runner->workerlock);

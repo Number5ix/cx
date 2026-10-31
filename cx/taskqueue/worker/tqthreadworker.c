@@ -101,9 +101,8 @@ int64 TQThreadWorker_tick(_In_ TQThreadWorker* self, _In_ TaskQueue* tq)
             self->ui(tq);
 
         // IMPLEMENTATION NOTE: At this point we become the owner of the btask pointer
-        // and it does not exist anywhere else in the queue -- MOSTLY. We are not allowed
-        // to destroy the object because the manager/monitor thread may be accessing it
-        // concurrently through our curtask pointer.
+        // and it does not exist anywhere else in the queue -- MOSTLY. The monitor may be
+        // reading it concurrently through our curtask pointer.
 
         // See if this is a full Task or just a BasicTask
         Task* task = objDynCast(Task, btask);
@@ -112,9 +111,21 @@ int64 TQThreadWorker_tick(_In_ TQThreadWorker* self, _In_ TaskQueue* tq)
             task->last = clockTimer();
 
         // run it
-        atomicStore(ptr, &self->curtask, btask, Release);
+        //
+        // runTask hands the task off before it returns -- to the done queue, back to the run
+        // queue, or by releasing it -- and from then on the manager or another worker can free it
+        // at any moment, while curtask still points at it. So the worker keeps its own reference
+        // for as long as the task is published in curtask, and drops it only after clearing
+        // curtask under monitorlock. The monitor holds monitorlock while it dereferences curtask,
+        // so whatever it finds there is alive until it lets go. The Release store pairs with the
+        // monitor's Acquire load, so the monitor also sees task->last as set above.
+        BasicTask* running = objAcquire(btask);
+        atomicStore(ptr, &self->curtask, running, Release);
         taskqueue_runTask(tq, &btask, self);
-        atomicStore(ptr, &self->curtask, NULL, Release);
+        withMutex (&self->monitorlock) {
+            atomicStore(ptr, &self->curtask, NULL, Release);
+        }
+        objRelease(&running);
 
         // For in-worker managers, we need to tick the manager
         if (tq->manager->needsWorkerTick) {
@@ -142,6 +153,15 @@ void TQThreadWorker_destroy(_In_ TQThreadWorker* self)
 {
     // Autogen begins -----
     objRelease(&self->thr);
+    mutexDestroy(&self->monitorlock);
+    // Autogen ends -------
+}
+
+_objinit_guaranteed bool TQThreadWorker_init(_In_ TQThreadWorker* self)
+{
+    // Autogen begins -----
+    mutexInit(&self->monitorlock);
+    return true;
     // Autogen ends -------
 }
 
