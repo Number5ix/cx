@@ -112,6 +112,12 @@ CX_C_BEGIN
 ///   directory where contents or attributes are watched, so large subtrees count against the
 ///   open file limit (CX_ResourceLimit when reached). A filesystem with watched directories on
 ///   it cannot be unmounted.
+/// - **macOS** always watches a directory's whole subtree, then discards what was not asked
+///   for, so a directory watched without FSW_Subtree costs as much as one watched with it.
+///   Avoid watching a busy tree, such as a home directory, just to hear about a few entries in
+///   it. Watching a file by name watches the directory it is in, so it costs the same. Changes
+///   arrive a few milliseconds late, and a file whose contents and attributes both changed
+///   recently may get FSWE_Modified and FSWE_Attributes for a change that was only one of them.
 /// - **Windows** reports writes and attribute changes the same way. A watch that asked only for
 ///   FSW_Attributes gets writes as FSWE_Attributes; one that asked for FSW_Contents gets
 ///   attribute changes as FSWE_Modified. A directory watched with FSW_Self gets FSWE_Attributes

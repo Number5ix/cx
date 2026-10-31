@@ -2,17 +2,16 @@
 #undef __STRICT_ANSI__
 #endif
 
-#include <pthread.h>
+#include <sched.h>
 #include <time.h>
 #include "cx/platform/os.h"
 #include "cx/time/time.h"
 #include "cx/utils/lazyinit.h"
 
-#if defined(_PLATFORM_FBSD)
+#if defined(_PLATFORM_FBSD) || defined(_PLATFORM_MACOS)
 #include <sys/sysctl.h>
 #include <sys/types.h>
 #elif defined(_PLATFORM_LINUX)
-#include <sched.h>
 #include <unistd.h>
 #endif
 
@@ -22,11 +21,7 @@ static int nlogical;
 
 void osYield()
 {
-#if defined(_PLATFORM_LINUX)
     sched_yield();
-#else
-    pthread_yield();
-#endif
 }
 
 void osSleep(int64 time)
@@ -38,7 +33,12 @@ void osSleep(int64 time)
 
 static void initCoreCache(void* dummy)
 {
-#ifdef _PLATFORM_FBSD
+#if defined(_PLATFORM_MACOS)
+    size_t len = sizeof(nlogical);
+    sysctlbyname("hw.logicalcpu", &nlogical, &len, NULL, 0);
+    len = sizeof(ncores);
+    sysctlbyname("hw.physicalcpu", &ncores, &len, NULL, 0);
+#elif defined(_PLATFORM_FBSD)
     int mib[2];
     size_t len = sizeof(nlogical);
 
@@ -49,7 +49,7 @@ static void initCoreCache(void* dummy)
 
     ncores = nlogical;   // TODO: figure out a way to get physical core count that
                          // doesn't involve parsing XML...
-#elif _PLATFORM_LINUX
+#elif defined(_PLATFORM_LINUX)
     nlogical = sysconf(_SC_NPROCESSORS_ONLN);
 
     ncores = nlogical;   // TODO: get physical core count

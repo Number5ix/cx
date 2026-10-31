@@ -15,7 +15,7 @@
 
 #if defined(_PLATFORM_LINUX)
 #include "platform/unix/unix_net_epoll.h"
-#elif defined(_PLATFORM_FBSD)
+#elif defined(_PLATFORM_FBSD) || defined(_PLATFORM_MACOS)
 #include "platform/unix/unix_net_kqueue.h"
 #endif
 
@@ -41,8 +41,8 @@ NetQueue* netPlatformCreateQueue(_In_ const NetQueueConfig* conf)
         if (q)
             return q;
     }
-#elif defined(_PLATFORM_FBSD)
-    // kqueue is the FreeBSD performance target, the same role epoll plays on Linux.
+#elif defined(_PLATFORM_FBSD) || defined(_PLATFORM_MACOS)
+    // kqueue is the BSD performance target, the same role epoll plays on Linux.
     if (!(flags & NQ_SelectOnly)) {
         NetQueue* q = (NetQueue*)netqueuekqueueCreate((NetQueueConfig*)conf);
         if (q)
@@ -460,8 +460,9 @@ intptr netSockSendToEx(NetSockHandle h, const void* buf, size_t len, const NetAd
 
     if (info && info->haveEcn && cm) {
         // RFC 3542 fixes IPV6_TCLASS as an int. IPv4 has no such rule and the platforms disagree:
-        // Linux accepts either width for IP_TOS, the BSDs accept only the byte -- and reject the
-        // whole sendmsg if it is anything else. So the byte is what goes out.
+        // Linux accepts either width for IP_TOS, FreeBSD accepts only the byte and rejects the
+        // whole sendmsg otherwise, and macOS takes only the int -- it accepts the byte but silently
+        // sends the datagram unmarked.
         if (v6) {
             int tc         = info->ecn & 0x03;
             cm->cmsg_level = IPPROTO_IPV6;
@@ -470,7 +471,11 @@ intptr netSockSendToEx(NetSockHandle h, const void* buf, size_t len, const NetAd
             memcpy(CMSG_DATA(cm), &tc, sizeof(tc));
             used += CMSG_SPACE(sizeof(tc));
         } else {
+#if defined(_PLATFORM_FBSD)
             unsigned char tc = (unsigned char)(info->ecn & 0x03);
+#else
+            int tc = info->ecn & 0x03;
+#endif
             cm->cmsg_level   = IPPROTO_IP;
             cm->cmsg_type    = IP_TOS;
             cm->cmsg_len     = CMSG_LEN(sizeof(tc));

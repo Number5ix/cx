@@ -527,7 +527,7 @@ static const testspec tests[] = {
     { "netepoll: Accept", "nettest", "epoll_accept" },
     { "netepoll: Accept AutoAccept", "nettest", "epoll_accept_auto" },
 #endif
-#if defined(_PLATFORM_FBSD)
+#if defined(_PLATFORM_FBSD) || defined(_PLATFORM_MACOS)
     { "netkqueue: Datagram Loopback", "nettest", "kqueue_udp" },
     { "netkqueue: Stream Loopback", "nettest", "kqueue_stream" },
     { "netkqueue: Stream Backpressure", "nettest", "kqueue_stream_backpressure" },

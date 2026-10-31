@@ -87,6 +87,16 @@ static bool getPerUserId(Digest* shactx)
 
 int32 hostIdPlatformInit(Digest* shactx)
 {
+#if defined(_PLATFORM_MACOS)
+    // The machine's hardware UUID; macOS has neither of the id files below.
+    uuid_t uuid;
+    struct timespec wait = { 1, 0 };
+    if (gethostuuid(uuid, &wait) == 0) {
+        digestUpdate(shactx, uuid, sizeof(uuid));
+        return HID_SourceHardwareUUID;
+    }
+#endif
+
     if (readIdFile("/etc/hostid", shactx, false))
         return HID_SourceMachineFile;
     else if (readIdFile("/etc/machine-id", shactx, false))

@@ -11,7 +11,7 @@
 /// This header defines:
 /// - Compiler identification macros (`_COMPILER_MSVC`, `_COMPILER_CLANG`, `_COMPILER_GCC`)
 /// - Platform identification macros (`_PLATFORM_WIN`, `_PLATFORM_UNIX`, `_PLATFORM_LINUX`,
-/// `_PLATFORM_FBSD`, `_PLATFORM_WASM`)
+/// `_PLATFORM_FBSD`, `_PLATFORM_MACOS`, `_PLATFORM_WASM`)
 /// - Architecture macros (`_ARCH_X86`, `_ARCH_X64`, `_ARCH_ARM64`, `_ARCH_WASM`)
 /// - Bit width macros (`_32BIT`, `_64BIT`)
 /// - Portability macros for inline, alignment, thread-local storage, etc.
@@ -23,9 +23,10 @@
 ///
 /// **Platform Detection:**
 /// - `_PLATFORM_WIN` - Windows
-/// - `_PLATFORM_UNIX` - Unix-like systems (Linux, FreeBSD)
+/// - `_PLATFORM_UNIX` - Unix-like systems (Linux, FreeBSD, macOS)
 /// - `_PLATFORM_LINUX` - Linux specifically
 /// - `_PLATFORM_FBSD` - FreeBSD specifically
+/// - `_PLATFORM_MACOS` - macOS specifically
 /// - `_PLATFORM_WASM` - WebAssembly (Emscripten)
 ///
 /// **Architecture Detection:**
@@ -46,7 +47,7 @@
 /// - `CX_EXPORT` / `CX_IMPORT` - Export or import a shared library symbol
 ///
 /// **String Constants:**
-/// - `_PLATFORM_STR` - Platform name string ("win", "linux", "fbsd", "wasm")
+/// - `_PLATFORM_STR` - Platform name string ("win", "linux", "fbsd", "macos", "wasm")
 /// - `_ARCH_STR` - Architecture string ("x86", "x64", "arm64", "wasm32")
 /// - `_PLATFORM_ARCH_STR` - Combined platform-architecture (e.g., "win-x64")
 ///
@@ -301,6 +302,11 @@
 #define _PLATFORM_UNIX 1
 #define _PLATFORM_FBSD 1
 #define _PLATFORM_STR  "fbsd"
+#elif defined(__APPLE__) && defined(__MACH__)
+#include <alloca.h>
+#define _PLATFORM_UNIX  1
+#define _PLATFORM_MACOS 1
+#define _PLATFORM_STR   "macos"
 #elif defined(__EMSCRIPTEN__)
 #define _PLATFORM_WASM 1
 #define _PLATFORM_STR  "wasm"

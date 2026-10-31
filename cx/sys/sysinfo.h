@@ -29,8 +29,8 @@ CX_C_BEGIN
 ///
 /// @section sys_sysinfo_valid What the system will and will not tell you
 ///
-/// Operating systems do not all count the same things. FreeBSD keeps no record of committed
-/// memory, Windows does not report how much of a process has been paged out, and only Linux
+/// Operating systems do not all count the same things. FreeBSD and macOS keep no record of
+/// committed memory, Windows does not report how much of a process has been paged out, and only Linux
 /// separates time spent waiting for a disk from time spent idle.
 ///
 /// Every structure therefore carries a `valid` field: a set of flags naming the fields the
@@ -175,7 +175,7 @@ typedef struct SysCPUTimes {
     int64 system;    ///< Time spent inside the operating system
     int64 idle;      ///< Time spent with nothing to do
     int64 iowait;    ///< Time spent waiting for a disk. Linux only
-    int64 irq;       ///< Time spent servicing hardware. Not reported on Windows
+    int64 irq;       ///< Time spent servicing hardware. Not reported on Windows or macOS
     int64 steal;     ///< Time a hypervisor gave to someone else. Linux only
 
     int32 cpus;      ///< How many logical processors these figures cover
@@ -244,7 +244,7 @@ typedef struct ProcMemInfo {
 
     /// @brief Bytes of memory the process has asked for and nobody else can share
     ///
-    /// Windows only.
+    /// Windows and macOS only.
     uint64 privateSize;
 
     uint64 swapped;           ///< Bytes of the process paged out to swap. Linux only
@@ -285,10 +285,10 @@ enum ProcIOInfoValid {
 typedef struct ProcIOInfo {
     flags_t valid;   ///< ProcIOInfoValid flags naming the fields that were reported
 
-    uint64 readBytes;    ///< Bytes read. Not reported on FreeBSD
+    uint64 readBytes;    ///< Bytes read. Not reported on FreeBSD; only reads from disk on macOS
     uint64 writeBytes;   ///< Bytes written. Not reported on FreeBSD
-    uint64 readOps;      ///< How many separate reads were made
-    uint64 writeOps;     ///< How many separate writes were made
+    uint64 readOps;      ///< How many separate reads were made. Not reported on macOS
+    uint64 writeOps;     ///< How many separate writes were made. Not reported on macOS
     uint64 otherBytes;   ///< Bytes transferred by anything that is neither. Windows only
     uint64 otherOps;     ///< How many such operations were made. Windows only
 } ProcIOInfo;

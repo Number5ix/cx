@@ -12,7 +12,7 @@
 ///
 /// The implementation is selected at compile time based on the target platform:
 /// - **Windows**: `win_os.h`
-/// - **Unix** (Linux/FreeBSD): `unix_os.h`
+/// - **Unix** (Linux/FreeBSD/macOS): `unix_os.h`
 /// - **WebAssembly**: `wasm_os.h`
 ///
 /// **Available Services:**
@@ -87,6 +87,7 @@ int osLogicalCPUs();
 /// - Windows: `BCryptGenRandom`
 /// - Linux: `/dev/urandom`
 /// - FreeBSD: `arc4random_buf`
+/// - macOS: `arc4random_buf`
 ///
 /// @param buffer Buffer to fill with random data
 /// @param size Number of bytes to generate

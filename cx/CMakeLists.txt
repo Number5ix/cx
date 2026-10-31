@@ -84,6 +84,9 @@ add_library(cx STATIC
     ${CX_CMAKE_FILES})
 
 target_link_libraries(cx ${CMAKE_THREAD_LIBS_INIT} ${CMAKE_DL_LIBS})
+if(CX_PLATFORM_IS_MACOS)
+    target_link_libraries(cx "-framework CoreServices" "-framework CoreFoundation")
+endif()
 
 # gcc/clang lower 8-byte atomic ops to __atomic builtins that are inline on most
 # targets, but on some (notably 32-bit x86 without -mcx16-style assumptions) the

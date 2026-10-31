@@ -1,7 +1,7 @@
 #pragma once
 
 // Unix-internal declarations shared between the common Unix statistics code and the per-OS
-// backends (linux_sys_sysinfo.c, freebsd_sys_sysinfo.c).
+// backends (linux_sys_sysinfo.c, freebsd_sys_sysinfo.c, darwin_sys_sysinfo.c).
 
 #include "cx/sys/sysinfo.h"
 

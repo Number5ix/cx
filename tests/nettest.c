@@ -28,7 +28,7 @@
 #include "platform/unix/unix_net_socket.h"
 #if defined(_PLATFORM_LINUX)
 #include "platform/unix/unix_net_epoll.h"   // netqueueepollCreate, to exercise the epoll backend directly
-#elif defined(_PLATFORM_FBSD)
+#elif defined(_PLATFORM_FBSD) || defined(_PLATFORM_MACOS)
 #include "platform/unix/unix_net_kqueue.h"   // netqueuekqueueCreate, to exercise the kqueue backend directly
 #endif
 #elif defined(_PLATFORM_WASM)
@@ -1768,7 +1768,7 @@ static int test_nettest_timer_flowclose(void)
 // platform with a real socket layer (Windows, Unix, and WASM); select_* tests are grouped together
 // and run everywhere in this guard, followed by the iocp_* suite (Windows only -- there is no IOCP
 // stub on other platforms, so these do not even compile elsewhere), then epoll_* (Linux only) and
-// kqueue_* (FreeBSD only) further down. WASM has no performance backend at all -- select is the
+// kqueue_* (FreeBSD and macOS) further down. WASM has no performance backend at all -- select is the
 // only queue backend Emscripten's syscall emulation supports, so select_* is the entire suite for
 // that platform.
 // ---------------------------------------------------------------------------------------------
@@ -3876,7 +3876,7 @@ static int test_nettest_iocp_accept_auto(void)
 
 #endif   // _PLATFORM_WIN
 
-#if defined(_PLATFORM_LINUX) || defined(_PLATFORM_FBSD)
+#if defined(_PLATFORM_LINUX) || defined(_PLATFORM_FBSD) || defined(_PLATFORM_MACOS)
 
 // Backpressure end to end on a readiness backend that keeps its interest list across calls, shared
 // by the epoll and kqueue suites. Takes ownership of `q`.
@@ -3978,7 +3978,7 @@ static int posixStreamBackpressure(NetQueue* q)
     return ret;
 }
 
-#endif   // _PLATFORM_LINUX || _PLATFORM_FBSD
+#endif   // _PLATFORM_LINUX || _PLATFORM_FBSD || _PLATFORM_MACOS
 
 // ---------------------------------------------------------------------------------------------
 // epoll backend, Linux only
@@ -4333,19 +4333,19 @@ static int test_nettest_epoll_accept_auto(void)
 #endif   // _PLATFORM_LINUX
 
 // ---------------------------------------------------------------------------------------------
-// kqueue backend, FreeBSD only
+// kqueue backend, FreeBSD and macOS only
 //
-// The FreeBSD performance target, the counterpart to epoll on Linux and IOCP on Windows. connect/
+// The BSD performance target, the counterpart to epoll on Linux and IOCP on Windows. connect/
 // accept reuse the same shared bodies as select/iocp/epoll -- the state machine and admission path
 // are backend-independent. udp/stream get their own tests, as with the other backends, since those
-// exercise the backend's actual ingest loop. There is no recvmmsg equivalent on FreeBSD, so unlike
+// exercise the backend's actual ingest loop. There is no recvmmsg equivalent on the BSDs, so unlike
 // epoll_udp there is nothing batch-specific to stress here; kqueue's win over select is O(1)
 // readiness reporting, not batched ingest. Backpressure gets its own test for the same reason epoll
 // does: kqueue keeps its registrations across calls, so arming write interest on a backlog is
 // backend-specific even though the watermark logic above it is not.
 // ---------------------------------------------------------------------------------------------
 
-#if defined(_PLATFORM_FBSD)
+#if defined(_PLATFORM_FBSD) || defined(_PLATFORM_MACOS)
 
 static NetQueue* makeKqueueQueue(int64 connectTimeout)
 {
@@ -4676,7 +4676,7 @@ static int test_nettest_kqueue_accept_auto(void)
     return acceptBody(q, true);
 }
 
-#endif   // _PLATFORM_FBSD
+#endif   // _PLATFORM_FBSD || _PLATFORM_MACOS
 
 #endif   // _PLATFORM_WIN || _PLATFORM_UNIX || _PLATFORM_WASM
 
@@ -5156,7 +5156,7 @@ int test_nettest_grp_epoll_connect(void)
 }
 
 #endif
-#if defined(_PLATFORM_FBSD)
+#if defined(_PLATFORM_FBSD) || defined(_PLATFORM_MACOS)
 
 int test_nettest_grp_kqueue_loopback(void)
 {
@@ -5268,7 +5268,7 @@ testfunc nettest_funcs[] = {
     { "grp_epoll_loopback",         test_nettest_grp_epoll_loopback         },
     { "grp_epoll_connect",          test_nettest_grp_epoll_connect          },
 #endif
-#if defined(_PLATFORM_FBSD)
+#if defined(_PLATFORM_FBSD) || defined(_PLATFORM_MACOS)
     { "kqueue_udp",                 test_nettest_kqueue_udp                 },
     { "kqueue_stream",              test_nettest_kqueue_stream              },
     { "kqueue_stream_backpressure", test_nettest_kqueue_stream_backpressure },

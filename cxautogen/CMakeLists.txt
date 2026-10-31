@@ -3,7 +3,7 @@ find_package (Threads REQUIRED)
 include (${CX_TOP_SOURCE_DIR}/cmake/werror.cmake)
 
 if(NOT CMAKE_CROSSCOMPILING)
-if(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD" OR ${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+if(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD" OR ${CMAKE_SYSTEM_NAME} MATCHES "Linux" OR ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     set(CX_PLATFORM_SRCS
 	../cx/platform/unix/unix_error.c
 	cx/platform/unix/unix_fs_file.c
@@ -20,6 +20,10 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD" OR ${CMAKE_SYSTEM_NAME} MATCHES "Linux
         set(CX_PLATFORM_SRCS
             ${CX_PLATFORM_SRCS}
             ../cx/platform/unix/freebsd_futex.c)
+    elseif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+        set(CX_PLATFORM_SRCS
+            ${CX_PLATFORM_SRCS}
+            ../cx/platform/unix/darwin_futex.c)
     endif()
 elseif(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     set(CX_PLATFORM_SRCS

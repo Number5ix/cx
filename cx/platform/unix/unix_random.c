@@ -68,10 +68,21 @@ static bool sysctl_arnd_wrapper(unsigned char* buf, size_t buflen)
 #endif /* KERN_ARND */
 #endif /* __FreeBSD__ || __NetBSD__ */
 
+#if defined(__APPLE__)
+#include <stdlib.h>
+#define HAVE_ARC4RANDOM
+#endif
+
 #include <stdio.h>
 
 bool osGenRandom(uint8* buffer, uint32 size)
 {
+#if defined(HAVE_ARC4RANDOM)
+    // Seeded from the kernel's generator and cannot fail.
+    arc4random_buf(buffer, size);
+    return true;
+#endif
+
 #if defined(HAVE_GETRANDOM)
     return getrandom_wrapper(buffer, size, 0);
     /* Fall through if the system call isn't known. */

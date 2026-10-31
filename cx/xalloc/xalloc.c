@@ -59,6 +59,8 @@ static void _xaInit(void* data)
 #include <malloc.h>
 #elif defined(_PLATFORM_FBSD)
 #include <malloc_np.h>
+#elif defined(_PLATFORM_MACOS)
+#include <malloc/malloc.h>
 #endif
 
 inline static void* _xa_sys_malloc_aligned(size_t size, size_t alignment)
@@ -94,8 +96,10 @@ inline static void* _xa_sys_zalloc(size_t size)
 
 #define _xa_sys_free free
 
-#ifdef _COMPILER_MSVC
+#if defined(_COMPILER_MSVC)
 #define _xa_sys_usable_size _msize
+#elif defined(_PLATFORM_MACOS)
+#define _xa_sys_usable_size malloc_size
 #else
 #define _xa_sys_usable_size malloc_usable_size
 #endif

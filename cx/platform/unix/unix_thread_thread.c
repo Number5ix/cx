@@ -19,6 +19,11 @@
 #endif
 #include <sys/syscall.h>
 #include <pthread.h>
+#elif defined(_PLATFORM_MACOS)
+#include <pthread.h>
+#include <cx/platform/os.h>
+#include <cx/time/clock.h>
+#include <cx/utils.h>
 #endif
 #include <sched.h>
 #include "cx/platform/unix/unix_thread_threadobj.h"
@@ -34,6 +39,10 @@ static int getThreadId()
 #elif defined(_PLATFORM_FBSD)
     long tid;
     thr_self(&tid);
+    return (int)tid;
+#elif defined(_PLATFORM_MACOS)
+    uint64_t tid = 0;
+    pthread_threadid_np(NULL, &tid);
     return (int)tid;
 #else
     return getpid();
@@ -80,7 +89,11 @@ static void* _thrEntryPoint(void* data)
     curthread = thr;
 
     pthread_cleanup_push(_thrCancelCleanup, thr);
+#if defined(_PLATFORM_MACOS)
+    pthread_setname_np(strC(thr->name));   // can only name the calling thread
+#else
     pthread_setname_np(thr->pthr, strC(thr->name));
+#endif
 
     thr->exitCode = thr->entry(Thread(thr));
     saClear(&thr->_argsa);
@@ -113,11 +126,24 @@ bool _thrPlatformStart(Thread* thread)
     // condition that can happen if the thread terminates and releases the only reference (e.g. in
     // the thrRun case) before we can call _thrPlatformSetPriority below.
     objAcquire(thr);
+#if defined(_PLATFORM_MACOS)
+    // Secondary threads get only 512 KB of stack by default here, against 8 MB on Linux. Match
+    // Linux so code that runs fine there doesn't overflow here. It is reserved, not committed.
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setstacksize(&attr, 8 * 1024 * 1024);
+    bool ret = !pthread_create(&thr->pthr, &attr, _thrEntryPoint, thr);
+    pthread_attr_destroy(&attr);
+    // Not adjusted for Normal: setting a scheduling priority explicitly would take the thread out
+    // of the default QoS class the scheduler uses to choose between performance and efficiency
+    // cores.
+#else
     bool ret = !pthread_create(&thr->pthr, NULL, _thrEntryPoint, thr);
     // pthreads has annoying limitations so it may be necessary to adjust
     // thready priority even for "Normal" threads as a result...
     if (ret)
         _thrPlatformSetPriority(thread, THREAD_Normal);
+#endif
     objRelease(&thr);
     return ret;
 }
@@ -135,12 +161,31 @@ bool _thrPlatformWait(Thread* thread, int64 timeout)
 
     if (timeout == timeForever)
         thr->joined = !pthread_join(thr->pthr, NULL);
+#if defined(_PLATFORM_MACOS)
+    else {
+        // There is no pthread_timedjoin_np. 'running' clears in the thread's cleanup handler, just
+        // before it exits, so wait for that and then join; the join only waits out the last few
+        // instructions of the thread.
+        int64 now      = clockTimer();
+        int64 deadline = (timeout > timeForever - now) ? timeForever : now + timeout;
+        int64 nap      = 100;   // microseconds
+        while (atomicLoad(bool, &thr->running, Acquire)) {
+            now = clockTimer();
+            if (now >= deadline)
+                return false;
+            osSleep(min(nap, deadline - now));
+            nap = min(nap * 2, timeMS(10));
+        }
+        thr->joined = !pthread_join(thr->pthr, NULL);
+    }
+#else
     else {
         struct timespec ts;
         void* unused;
         timeToAbsTimespec(&ts, clockWall() + timeout);
         thr->joined = !pthread_timedjoin_np(thr->pthr, &unused, &ts);
     }
+#endif
     return thr->joined;
 }
 
@@ -225,6 +270,49 @@ bool _thrPlatformSetPriority(Thread* thread, int prio)
     case THREAD_Realtime:
         policy               = SCHED_RR;
         param.sched_priority = 1;
+        break;
+    }
+
+    return !pthread_setschedparam(thr->pthr, policy, &param);
+}
+#endif
+
+#ifdef _PLATFORM_MACOS
+// SCHED_OTHER priorities here run from 15 to 47, with 31 the default every thread starts at.
+bool _thrPlatformSetPriority(Thread* thread, int prio)
+{
+    UnixThread* thr = objDynCast(UnixThread, thread);
+    if (!thr)
+        return false;
+
+    struct sched_param param = { 0 };
+    int policy               = SCHED_OTHER;
+    int minprio              = sched_get_priority_min(SCHED_OTHER);
+    int maxprio              = sched_get_priority_max(SCHED_OTHER);
+    int normal               = (minprio + maxprio) / 2;
+
+    switch (prio) {
+    case THREAD_Normal:
+        param.sched_priority = normal;
+        break;
+    case THREAD_Batch:
+        param.sched_priority = normal - 4;
+        break;
+    case THREAD_Low:
+        param.sched_priority = (minprio + normal) / 2;
+        break;
+    case THREAD_Idle:
+        param.sched_priority = minprio;
+        break;
+    case THREAD_High:
+        param.sched_priority = (normal + maxprio) / 2;
+        break;
+    case THREAD_Higher:
+        param.sched_priority = maxprio;
+        break;
+    case THREAD_Realtime:
+        policy               = SCHED_RR;
+        param.sched_priority = sched_get_priority_max(SCHED_RR);
         break;
     }
 

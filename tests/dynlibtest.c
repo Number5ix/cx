@@ -466,6 +466,10 @@ static int test_dynlib_filename(void)
     ret |= checkFilename(_SL("render"), 0, _SL("render.dll"));
     ret |= checkFilename(_SL("render"), DYNLIB_NoPrefix, _SL("render.dll"));
     ret |= checkFilename(_SL("plugins/render"), 0, _SL("plugins/render.dll"));
+#elif defined(_PLATFORM_MACOS)
+    ret |= checkFilename(_SL("render"), 0, _SL("librender.dylib"));
+    ret |= checkFilename(_SL("render"), DYNLIB_NoPrefix, _SL("render.dylib"));
+    ret |= checkFilename(_SL("plugins/render"), 0, _SL("plugins/librender.dylib"));
 #else
     ret |= checkFilename(_SL("render"), 0, _SL("librender.so"));
     ret |= checkFilename(_SL("render"), DYNLIB_NoPrefix, _SL("render.so"));

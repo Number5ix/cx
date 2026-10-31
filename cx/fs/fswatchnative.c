@@ -413,6 +413,7 @@ static bool walkArm(FSWTarget** ts, int32 n, strref path, bool emit)
     return ret;
 }
 
+#if !FSWATCH_NATIVE_RECURSIVE
 // Subtree targets that path is strictly below.
 static void subtreesAbove(sa_ptr* out, strref path)
 {
@@ -440,6 +441,7 @@ static void subtreesAbove(sa_ptr* out, strref path)
     }
     strDestroy(&cur);
 }
+#endif
 
 // A directory appeared at path, by being created or moved in.
 static void dirAppeared(strref path)

@@ -1,8 +1,4 @@
 if(CX_PLATFORM_IS_UNIX)
-    set(CMAKE_EXTRA_INCLUDE_FILES semaphore.h)
-    check_type_size("sem_t" KERNEL_SEMA_SIZE)
-    unset(CMAKE_EXTRA_INCLUDE_FILES)
-
     set(PLATFORM_UNIX_SRCS
         platform/unix/unix_console.c
         platform/unix/unix_debug_crash.c
@@ -53,7 +49,8 @@ if(CX_PLATFORM_IS_UNIX)
             platform/unix/freebsd_futex.c
             platform/unix/freebsd_sys_process.c
             platform/unix/freebsd_sys_sysinfo.c
-            platform/unix/unix_net_kqueue.c)
+            platform/unix/unix_net_kqueue.c
+            platform/unix/unix_sys_process_kqueue.c)
 
         # Chosen by what the build machine has: FreeBSD 15 added inotify.
         include(CheckIncludeFile)
@@ -63,6 +60,15 @@ if(CX_PLATFORM_IS_UNIX)
         else()
             set(PLATFORM_UNIX_SRCS ${PLATFORM_UNIX_SRCS} platform/unix/freebsd_fswatch_kqueue.c)
         endif()
+    elseif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+        set(PLATFORM_UNIX_SRCS
+            ${PLATFORM_UNIX_SRCS}
+            platform/unix/darwin_futex.c
+            platform/unix/darwin_sys_process.c
+            platform/unix/darwin_fswatch_fsevents.c
+            platform/unix/darwin_sys_sysinfo.c
+            platform/unix/unix_net_kqueue.c
+            platform/unix/unix_sys_process_kqueue.c)
     endif()
 
     set(PLATFORM_INCLUDES
@@ -81,7 +87,7 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
     set(PLATFORM_UNIX_AUTOGEN
         ${PLATFORM_UNIX_AUTOGEN}
         platform/unix/unix_net_epoll.cxh)
-elseif(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
+elseif(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD" OR ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     set(PLATFORM_UNIX_AUTOGEN
         ${PLATFORM_UNIX_AUTOGEN}
         platform/unix/unix_net_kqueue.cxh)

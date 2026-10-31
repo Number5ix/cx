@@ -26,6 +26,10 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#if defined(_PLATFORM_MACOS)
+#include <libproc.h>
+#endif
+
 // The fd the child reports a failed exec on. Chosen above the three standard descriptors and
 // closed by the kernel at exec, so its closing is what tells the parent exec succeeded.
 #define PROC_ERRFD 3
@@ -218,6 +222,26 @@ static void closeFrom(int from)
     closefrom(from);
     return;
 #endif
+#if defined(_PLATFORM_MACOS)
+    // Lists into a caller-supplied buffer, so unlike opendir() it does not allocate after the
+    // fork. A full buffer may have missed some, so list again until a pass closes nothing.
+    struct proc_fdinfo fds[256];
+    for (;;) {
+        int n = proc_pidinfo(getpid(), PROC_PIDLISTFDS, 0, fds, (int)sizeof(fds));
+        if (n <= 0)
+            break;
+        int count   = n / (int)sizeof(fds[0]);
+        bool closed = false;
+        for (int i = 0; i < count; i++) {
+            if (fds[i].proc_fd >= from) {
+                close(fds[i].proc_fd);
+                closed = true;
+            }
+        }
+        if (!closed || count < (int)(sizeof(fds) / sizeof(fds[0])))
+            return;
+    }
+#endif
 
     // No bulk primitive: walk what is actually open rather than guessing at a ceiling.
     DIR* d = opendir("/proc/self/fd");
@@ -318,7 +342,11 @@ Process* _procPlatformLaunch(strref exe, sa_string args, const ProcessOpts* opts
 
     // The read end must not leak into the child, or nothing would ever close it and the parent
     // would block forever waiting for EOF.
-    if (pipe2(errpipe, O_CLOEXEC) != 0) {
+    int prc = -1;
+#if !defined(_PLATFORM_MACOS)
+    prc = pipe2(errpipe, O_CLOEXEC);
+#endif
+    if (prc != 0) {
         if (pipe(errpipe) != 0)
             return (unixMapErrno(), NULL);
         fcntl(errpipe[0], F_SETFD, FD_CLOEXEC);

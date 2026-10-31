@@ -1,10 +1,10 @@
 #include <cx/net/queue.cxh>
 #include <cx/platform/unix.h>
 
-// FreeBSD-only completion emulation over kqueue, the counterpart to NetQueueEpoll on Linux and IOCP
-// on Windows. Structurally identical to NetQueueEpoll -- one ingest thread feeds the base class's
-// dispatch pool -- but kevent() registers read and write interest as two independent filters per fd
-// rather than one combined interest struct, and there is no recvmmsg equivalent on FreeBSD, so the
+// Completion emulation over kqueue for FreeBSD and macOS, the counterpart to NetQueueEpoll on Linux
+// and IOCP on Windows. Structurally identical to NetQueueEpoll -- one ingest thread feeds the base
+// class's dispatch pool -- but kevent() registers read and write interest as two independent filters
+// per fd rather than one combined interest struct, and there is no recvmmsg equivalent, so the
 // datagram ingest path is the same unbatched per-packet loop NetQueueSelect uses.
 class NetQueueKqueue extends NetQueue
 {

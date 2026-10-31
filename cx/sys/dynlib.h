@@ -16,8 +16,8 @@ CX_C_BEGIN
 /// @ingroup sys_dynlib
 /// @{
 ///
-/// Loads shared libraries (`.dll` on Windows, `.so` on Unix) while the program is running, and
-/// finds the functions and variables they export.
+/// Loads shared libraries (`.dll` on Windows, `.dylib` on macOS, `.so` on other Unix) while the
+/// program is running, and finds the functions and variables they export.
 ///
 /// @code
 ///   string fname = 0;
@@ -57,8 +57,9 @@ CX_C_BEGIN
 /// A bare filename like `foo.dll` is found using the operating system's search rules:
 /// - **Windows** searches the executable's directory, then `System32`. The current directory is
 ///   never searched.
-/// - **Unix** searches `LD_LIBRARY_PATH`, the executable's run path, and the system library
-///   directories. The executable's own directory is not searched.
+/// - **Unix** searches `LD_LIBRARY_PATH` (`DYLD_LIBRARY_PATH` on macOS), the executable's run
+///   path, and the system library directories. The executable's own directory and the current
+///   directory are not searched.
 ///
 /// Pass DYNLIB_ExeDirFirst to look next to the executable first on every platform.
 ///
@@ -233,7 +234,8 @@ bool dynlibPath(_Inout_ string* out, _In_ DynLib* lib);
 
 /// Builds the platform's filename for a library.
 ///
-/// Adds `.dll` on Windows. On Unix adds `.so`, and a `lib` prefix unless DYNLIB_NoPrefix is set.
+/// Adds `.dll` on Windows. On Unix adds `.dylib` on macOS or `.so` elsewhere, and a `lib` prefix
+/// unless DYNLIB_NoPrefix is set.
 /// Any directory in `basename` is kept.
 ///
 /// @param out String to receive the filename

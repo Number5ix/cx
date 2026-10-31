@@ -44,6 +44,8 @@ endif()
 
 if(CX_PLATFORM_IS_WINDOWS)
     target_compile_definitions(lua PRIVATE LUA_USE_WINDOWS)
+elseif(CX_PLATFORM_IS_MACOS)
+    target_compile_definitions(lua PRIVATE LUA_USE_MACOSX)
 elseif(CX_PLATFORM_IS_UNIX)
     target_compile_definitions(lua PRIVATE LUA_USE_LINUX)
 endif()

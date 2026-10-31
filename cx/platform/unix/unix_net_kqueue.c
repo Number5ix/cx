@@ -92,9 +92,9 @@ static void armInterest(_Inout_ NetQueueKqueue* self, _Inout_ NetSocket* sock, b
     }
 }
 
-// Identical to NetQueueSelect's ingestDatagram(): drain readiness one recvfrom() at a time. FreeBSD
-// has no recvmmsg equivalent, so unlike NetQueueEpoll there is no batching to add here -- kqueue's
-// win over select is O(1) readiness reporting, not batched ingest.
+// Identical to NetQueueSelect's ingestDatagram(): drain readiness one recvfrom() at a time. Neither
+// FreeBSD nor macOS has a recvmmsg equivalent, so unlike NetQueueEpoll there is no batching to add
+// here -- kqueue's win over select is O(1) readiness reporting, not batched ingest.
 static void ingestDatagram(_Inout_ NetQueueKqueue* self, _Inout_ NetSocket* sock)
 {
     NetQueue* q = NetQueue(self);

@@ -15,13 +15,24 @@
 #include <limits.h>
 #include <unistd.h>
 
-#ifdef _PLATFORM_FBSD
+#if defined(_PLATFORM_FBSD)
 #include <sys/sysctl.h>
 #include <sys/types.h>
+#elif defined(_PLATFORM_MACOS)
+#include <mach-o/dyld.h>
+#include <stdlib.h>
 #endif
 
 #include <sys/stat.h>
 #include <fcntl.h>
+
+// macOS names the struct stat timestamps differently.
+#if defined(_PLATFORM_MACOS) && !defined(st_atim)
+#define st_atim     st_atimespec
+#define st_mtim     st_mtimespec
+#define st_ctim     st_ctimespec
+#define st_birthtim st_birthtimespec
+#endif
 
 STR_CONST(kRootPath, "/");
 
@@ -168,6 +179,17 @@ static void fsExeInit(void* data)
         pathFromPlatform(exepath, (string)buf);
     }
     xaFree(buf);
+#elif defined(_PLATFORM_MACOS)
+    uint32_t sz = 0;
+    _NSGetExecutablePath(NULL, &sz);   // fails, but reports the size needed
+    char* buf = xaAlloc(sz + 1);
+    char resolved[PATH_MAX];
+    // The path the program was started by, which may be relative or go through symlinks.
+    if (_NSGetExecutablePath(buf, &sz) == 0 && realpath(buf, resolved))
+        pathFromPlatform(exepath, (string)resolved);
+    else
+        strCopy(exepath, kRootPath);
+    xaFree(buf);
 #else
 #error Unknown Platform
 #endif
@@ -213,7 +235,7 @@ FSPathStat fsStat(strref path, FSStat* fsstat)
         // metadata is touched
         fsstat->modified = max(timeFromAbsTimespec(&sb.st_mtim), timeFromAbsTimespec(&sb.st_ctim));
 
-#ifdef _PLATFORM_FBSD
+#if defined(_PLATFORM_FBSD) || defined(_PLATFORM_MACOS)
         fsstat->created = timeFromAbsTimespec(&sb.st_birthtim);
 #else
         // Linux has no file creation timestamp

@@ -241,6 +241,12 @@ bool FSFileUnix_flush(_In_ FSFileUnix* self)
     if (self->fd < 0)
         return false;
 
+#if defined(F_FULLFSYNC)
+    // fsync() on macOS only hands the data to the drive, which may still hold it in its cache.
+    // Not every filesystem supports the full flush, so fall back to fsync() where it fails.
+    if (fcntl(self->fd, F_FULLFSYNC) == 0)
+        return true;
+#endif
     if (fsync(self->fd) == -1)
         return unixMapErrno();
 

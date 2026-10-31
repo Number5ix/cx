@@ -610,6 +610,9 @@ static int test_sysinfo_validmask(void)
 #elif defined(_PLATFORM_FBSD)
     wantCPU |= SYSCPU_IRQ;
     wantPMem |= PROCMEM_Virtual;
+#elif defined(_PLATFORM_MACOS)
+    wantMem |= SYSMEM_Swap;
+    wantPMem |= PROCMEM_Virtual | PROCMEM_Private;
 #elif defined(_PLATFORM_WIN)
     wantMem |= SYSMEM_Commit;
     wantPMem |= PROCMEM_PeakResident | PROCMEM_Private;

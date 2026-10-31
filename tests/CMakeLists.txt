@@ -174,7 +174,14 @@ if(NOT CX_PLATFORM_IS_WASM)
         RUNTIME_OUTPUT_DIRECTORY ${dyntest_dir}/dynlibdep
         ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/dynlibdep-lib)
 
-    if(CX_PLATFORM_IS_UNIX)
+    if(CX_PLATFORM_IS_MACOS)
+        # dynlibFilename() names these .dylib on macOS; CMake would name the modules .so.
+        set_target_properties(cxdyntest cxdyntestneeds PROPERTIES SUFFIX ".dylib")
+        # Only the library's own directory, so the dependency is found in dynlibpair but not from
+        # beside test_runner. CMake already gives the dependency an @rpath install name.
+        set_target_properties(cxdyntestneeds PROPERTIES SKIP_BUILD_RPATH TRUE)
+        target_link_options(cxdyntestneeds PRIVATE "LINKER:-rpath,@loader_path")
+    elseif(CX_PLATFORM_IS_UNIX)
         # Only the library's own directory, so the dependency is found in dynlibpair but not from
         # beside test_runner.
         set_target_properties(cxdyntestneeds PROPERTIES SKIP_BUILD_RPATH TRUE)
@@ -484,7 +491,7 @@ endif()
 if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
 add_test(NAME "\"netepoll: Loopback And Backpressure\"" COMMAND test_runner nettest grp_epoll_loopback)
 add_test(NAME "\"netepoll: Connect And Accept\"" COMMAND test_runner nettest grp_epoll_connect)
-elseif(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
+elseif(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD" OR ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 add_test(NAME "\"netkqueue: Loopback And Backpressure\"" COMMAND test_runner nettest grp_kqueue_loopback)
 add_test(NAME "\"netkqueue: Connect And Accept\"" COMMAND test_runner nettest grp_kqueue_connect)
 endif()

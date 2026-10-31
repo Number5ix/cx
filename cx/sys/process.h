@@ -47,8 +47,8 @@ CX_C_BEGIN
 /// this is treated as an error. A field the system will not report comes back as an empty
 /// string, or as PROCESS_InvalidID for a parent id, and the call still succeeds.
 ///
-/// Names are shortened by the operating system too: Linux reports the first 15 characters and
-/// FreeBSD about 19. Where the executable path is readable, its filename is used for the name
+/// Names are shortened by the operating system too: Linux reports the first 15 characters,
+/// macOS 16, and FreeBSD about 19. Where the executable path is readable, its filename is used for the name
 /// instead, so the name is the real one wherever permissions allow.
 ///
 /// @section sys_process_identity Handles and reused process ids

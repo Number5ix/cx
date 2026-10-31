@@ -11,6 +11,7 @@
 /// - **Windows** (MSVC compiler)
 /// - **Linux** (GCC/Clang compilers)
 /// - **FreeBSD** (GCC/Clang compilers)
+/// - **macOS** (Clang compiler; Apple Silicon and Intel)
 /// - **WebAssembly** (Emscripten)
 ///
 /// The abstraction is organized into three main areas:

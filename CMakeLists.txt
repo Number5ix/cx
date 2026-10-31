@@ -3,6 +3,8 @@ cmake_minimum_required (VERSION 3.24)
 set(CX_TOP_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}" CACHE STRING "Location of CX source files" FORCE)
 set(CX_TOP_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}" CACHE STRING "Location of CX build files" FORCE)
 
+set(CMAKE_OSX_DEPLOYMENT_TARGET "14.4" CACHE STRING "Minimum macOS version")
+
 project (cx C CXX)
 
 if(PROJECT_IS_TOP_LEVEL)
@@ -83,6 +85,17 @@ elseif(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     set(CX_PLATFORM_IS_WASM 1)
 else()
     set(CX_PLATFORM_IS_UNIX 1)
+    if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+        set(CX_PLATFORM_IS_MACOS 1)
+    endif()
+endif()
+
+if(CX_PLATFORM_IS_MACOS)
+    list(LENGTH CMAKE_OSX_ARCHITECTURES CX_OSX_ARCH_COUNT)
+    if(CX_OSX_ARCH_COUNT GREATER 1)
+        message(FATAL_ERROR "Universal builds are not supported; set CMAKE_OSX_ARCHITECTURES to a single architecture.")
+    endif()
+    add_compile_definitions(__APPLE_USE_RFC_3542)
 endif()
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")

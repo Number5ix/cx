@@ -11,6 +11,9 @@
 #if defined(_PLATFORM_WIN)
 STR_CONST(kDynlibPrefix, "");
 STR_CONST(kDynlibSuffix, ".dll");
+#elif defined(_PLATFORM_MACOS)
+STR_CONST(kDynlibPrefix, "lib");
+STR_CONST(kDynlibSuffix, ".dylib");
 #else
 STR_CONST(kDynlibPrefix, "lib");
 STR_CONST(kDynlibSuffix, ".so");

@@ -28,6 +28,16 @@
             }
         },
         {
+            "name": "darwin",
+            "inherits": "base",
+            "hidden": true,
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Darwin"
+            }
+        },
+        {
             "name": "msvc-debug",
             "displayName": "MSVC Debug",
             "inherits": "windows",
@@ -144,6 +154,94 @@
             "cacheVariables": {
                 "CMAKE_C_COMPILER": "clang",
                 "CMAKE_CXX_COMPILER": "clang++",
+                "CMAKE_BUILD_TYPE": "Release"
+            }
+        },
+        {
+            "name": "macos-debug",
+            "displayName": "macOS arm64 Debug",
+            "inherits": "darwin",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "clang",
+                "CMAKE_CXX_COMPILER": "clang++",
+                "CMAKE_OSX_ARCHITECTURES": "arm64",
+                "CMAKE_BUILD_TYPE": "Debug"
+            }
+        },
+        {
+            "name": "macos-dev",
+            "displayName": "macOS arm64 Dev",
+            "inherits": "darwin",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "clang",
+                "CMAKE_CXX_COMPILER": "clang++",
+                "CMAKE_OSX_ARCHITECTURES": "arm64",
+                "CMAKE_BUILD_TYPE": "Dev"
+            }
+        },
+        {
+            "name": "macos-devnoopt",
+            "displayName": "macOS arm64 DevNoOpt",
+            "inherits": "darwin",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "clang",
+                "CMAKE_CXX_COMPILER": "clang++",
+                "CMAKE_OSX_ARCHITECTURES": "arm64",
+                "CMAKE_BUILD_TYPE": "DevNoOpt"
+            }
+        },
+        {
+            "name": "macos-release",
+            "displayName": "macOS arm64 Release",
+            "inherits": "darwin",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "clang",
+                "CMAKE_CXX_COMPILER": "clang++",
+                "CMAKE_OSX_ARCHITECTURES": "arm64",
+                "CMAKE_BUILD_TYPE": "Release"
+            }
+        },
+        {
+            "name": "macos-x64-debug",
+            "displayName": "macOS x86_64 Debug",
+            "inherits": "darwin",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "clang",
+                "CMAKE_CXX_COMPILER": "clang++",
+                "CMAKE_OSX_ARCHITECTURES": "x86_64",
+                "CMAKE_BUILD_TYPE": "Debug"
+            }
+        },
+        {
+            "name": "macos-x64-dev",
+            "displayName": "macOS x86_64 Dev",
+            "inherits": "darwin",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "clang",
+                "CMAKE_CXX_COMPILER": "clang++",
+                "CMAKE_OSX_ARCHITECTURES": "x86_64",
+                "CMAKE_BUILD_TYPE": "Dev"
+            }
+        },
+        {
+            "name": "macos-x64-devnoopt",
+            "displayName": "macOS x86_64 DevNoOpt",
+            "inherits": "darwin",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "clang",
+                "CMAKE_CXX_COMPILER": "clang++",
+                "CMAKE_OSX_ARCHITECTURES": "x86_64",
+                "CMAKE_BUILD_TYPE": "DevNoOpt"
+            }
+        },
+        {
+            "name": "macos-x64-release",
+            "displayName": "macOS x86_64 Release",
+            "inherits": "darwin",
+            "cacheVariables": {
+                "CMAKE_C_COMPILER": "clang",
+                "CMAKE_CXX_COMPILER": "clang++",
+                "CMAKE_OSX_ARCHITECTURES": "x86_64",
                 "CMAKE_BUILD_TYPE": "Release"
             }
         }
@@ -208,6 +306,46 @@
             "name": "clang-release",
             "displayName": "Clang Release",
             "configurePreset": "clang-release"
+        },
+        {
+            "name": "macos-debug",
+            "displayName": "macOS arm64 Debug",
+            "configurePreset": "macos-debug"
+        },
+        {
+            "name": "macos-dev",
+            "displayName": "macOS arm64 Dev",
+            "configurePreset": "macos-dev"
+        },
+        {
+            "name": "macos-devnoopt",
+            "displayName": "macOS arm64 DevNoOpt",
+            "configurePreset": "macos-devnoopt"
+        },
+        {
+            "name": "macos-release",
+            "displayName": "macOS arm64 Release",
+            "configurePreset": "macos-release"
+        },
+        {
+            "name": "macos-x64-debug",
+            "displayName": "macOS x86_64 Debug",
+            "configurePreset": "macos-x64-debug"
+        },
+        {
+            "name": "macos-x64-dev",
+            "displayName": "macOS x86_64 Dev",
+            "configurePreset": "macos-x64-dev"
+        },
+        {
+            "name": "macos-x64-devnoopt",
+            "displayName": "macOS x86_64 DevNoOpt",
+            "configurePreset": "macos-x64-devnoopt"
+        },
+        {
+            "name": "macos-x64-release",
+            "displayName": "macOS x86_64 Release",
+            "configurePreset": "macos-x64-release"
         }
     ],
     "testPresets": [
@@ -451,6 +589,174 @@
             "name": "clang-release-taskqueue",
             "displayName": "Clang Release Taskqueue Stress",
             "configurePreset": "clang-release",
+            "filter": {
+                "include": {
+                    "name": "taskqueue:.*"
+                }
+            },
+            "execution": {
+                "repeat": {
+                    "mode": "until-fail",
+                    "count": 100
+                }
+            }
+        },
+        {
+            "name": "macos-debug",
+            "displayName": "macOS arm64 Debug",
+            "configurePreset": "macos-debug"
+        },
+        {
+            "name": "macos-debug-taskqueue",
+            "displayName": "macOS arm64 Debug Taskqueue Stress",
+            "configurePreset": "macos-debug",
+            "filter": {
+                "include": {
+                    "name": "taskqueue:.*"
+                }
+            },
+            "execution": {
+                "repeat": {
+                    "mode": "until-fail",
+                    "count": 100
+                }
+            }
+        },
+        {
+            "name": "macos-dev",
+            "displayName": "macOS arm64 Dev",
+            "configurePreset": "macos-dev"
+        },
+        {
+            "name": "macos-dev-taskqueue",
+            "displayName": "macOS arm64 Dev Taskqueue Stress",
+            "configurePreset": "macos-dev",
+            "filter": {
+                "include": {
+                    "name": "taskqueue:.*"
+                }
+            },
+            "execution": {
+                "repeat": {
+                    "mode": "until-fail",
+                    "count": 100
+                }
+            }
+        },
+        {
+            "name": "macos-devnoopt",
+            "displayName": "macOS arm64 DevNoOpt",
+            "configurePreset": "macos-devnoopt"
+        },
+        {
+            "name": "macos-devnoopt-taskqueue",
+            "displayName": "macOS arm64 DevNoOpt Taskqueue Stress",
+            "configurePreset": "macos-devnoopt",
+            "filter": {
+                "include": {
+                    "name": "taskqueue:.*"
+                }
+            },
+            "execution": {
+                "repeat": {
+                    "mode": "until-fail",
+                    "count": 100
+                }
+            }
+        },
+        {
+            "name": "macos-release",
+            "displayName": "macOS arm64 Release",
+            "configurePreset": "macos-release"
+        },
+        {
+            "name": "macos-release-taskqueue",
+            "displayName": "macOS arm64 Release Taskqueue Stress",
+            "configurePreset": "macos-release",
+            "filter": {
+                "include": {
+                    "name": "taskqueue:.*"
+                }
+            },
+            "execution": {
+                "repeat": {
+                    "mode": "until-fail",
+                    "count": 100
+                }
+            }
+        },
+        {
+            "name": "macos-x64-debug",
+            "displayName": "macOS x86_64 Debug",
+            "configurePreset": "macos-x64-debug"
+        },
+        {
+            "name": "macos-x64-debug-taskqueue",
+            "displayName": "macOS x86_64 Debug Taskqueue Stress",
+            "configurePreset": "macos-x64-debug",
+            "filter": {
+                "include": {
+                    "name": "taskqueue:.*"
+                }
+            },
+            "execution": {
+                "repeat": {
+                    "mode": "until-fail",
+                    "count": 100
+                }
+            }
+        },
+        {
+            "name": "macos-x64-dev",
+            "displayName": "macOS x86_64 Dev",
+            "configurePreset": "macos-x64-dev"
+        },
+        {
+            "name": "macos-x64-dev-taskqueue",
+            "displayName": "macOS x86_64 Dev Taskqueue Stress",
+            "configurePreset": "macos-x64-dev",
+            "filter": {
+                "include": {
+                    "name": "taskqueue:.*"
+                }
+            },
+            "execution": {
+                "repeat": {
+                    "mode": "until-fail",
+                    "count": 100
+                }
+            }
+        },
+        {
+            "name": "macos-x64-devnoopt",
+            "displayName": "macOS x86_64 DevNoOpt",
+            "configurePreset": "macos-x64-devnoopt"
+        },
+        {
+            "name": "macos-x64-devnoopt-taskqueue",
+            "displayName": "macOS x86_64 DevNoOpt Taskqueue Stress",
+            "configurePreset": "macos-x64-devnoopt",
+            "filter": {
+                "include": {
+                    "name": "taskqueue:.*"
+                }
+            },
+            "execution": {
+                "repeat": {
+                    "mode": "until-fail",
+                    "count": 100
+                }
+            }
+        },
+        {
+            "name": "macos-x64-release",
+            "displayName": "macOS x86_64 Release",
+            "configurePreset": "macos-x64-release"
+        },
+        {
+            "name": "macos-x64-release-taskqueue",
+            "displayName": "macOS x86_64 Release Taskqueue Stress",
+            "configurePreset": "macos-x64-release",
             "filter": {
                 "include": {
                     "name": "taskqueue:.*"
