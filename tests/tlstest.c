@@ -1034,6 +1034,41 @@ static int test_tlstest_tickets(void)
 // TlsCreds proves the certificate and key belong together at load time, and that check needs a
 // public key derived from the private one during parsing -- which the two encodings reach by
 // different code paths, so either can work while the other does not.
+// The platform's own trust store loads. Windows and macOS keep theirs in the OS, so it must be
+// found there; elsewhere it is a file, and a minimal container may not have one installed.
+static int test_tlstest_systemca(void)
+{
+    int ret        = 0;
+    TlsCAStore* ca = tlscastoreCreate();
+    if (!ca)
+        TEST_FAIL(1, _SL("tlscastoreCreate failed"), stvNone);
+
+    bool added = tlscastoreAddSystem(ca);
+    int32 n    = tlscastoreCount(ca);
+    TEST_INFO(_SL("system trust store: ${int} certificates"), stvar(int32, n));
+
+#if defined(_PLATFORM_MACOS)
+    // The Keychain holds well over a hundred roots, and even the fallback bundle does.
+    if (!added || n < 100)
+        TEST_FAILV(ret, 1, _SL("system trust store: added=${int} count=${int}, wanted at least 100"),
+                   stvar(int32, added), stvar(int32, n));
+#elif defined(_PLATFORM_WIN)
+    // Windows fills its root store lazily, so a fresh machine can have very few.
+    if (!added || n < 1)
+        TEST_FAILV(ret, 1, _SL("system trust store: added=${int} count=${int}"),
+                   stvar(int32, added), stvar(int32, n));
+#else
+    (void)added;
+#endif
+
+    if (tlscastoreAddSystem(ca) || tlscastoreCount(ca) != n)
+        TEST_FAILV(ret, 1, _SL("second addSystem changed the store: count ${int} -> ${int}"),
+                   stvar(int32, n), stvar(int32, tlscastoreCount(ca)));
+
+    objRelease(&ca);
+    return ret;
+}
+
 static int test_tlstest_keyformats(void)
 {
     int ret = 0;
@@ -1189,6 +1224,7 @@ testfunc tlstest_funcs[] = {
     { "tickets",    test_tlstest_tickets    },
     { "failclosed", test_tlstest_failclosed },
     { "keyformats", test_tlstest_keyformats },
+    { "systemca",   test_tlstest_systemca   },
     { "callbacks",  test_tlstest_callbacks  },
     { 0,            0                       },
 };

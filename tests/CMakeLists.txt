@@ -586,6 +586,7 @@ add_test(NAME "\"tls: Session Resumption\"" COMMAND test_runner tlstest resume)
 add_test(NAME "\"tls: Post-Handshake Tickets\"" COMMAND test_runner tlstest tickets)
 add_test(NAME "\"tls: Unusable Config Fails Closed\"" COMMAND test_runner tlstest failclosed)
 add_test(NAME "\"tls: RSA Key Encodings\"" COMMAND test_runner tlstest keyformats)
+add_test(NAME "\"tls: System Trust Store\"" COMMAND test_runner tlstest systemca)
 add_test(NAME "\"tls: Verify And SNI Closures\"" COMMAND test_runner tlstest callbacks)
 endif()
 

@@ -48,6 +48,9 @@ add_library(cxtls STATIC
 # Linked for usage requirements only -- include paths, the *_CONFIG_FILE
 # defines and the platform link libraries. The objects come from the list above.
 target_link_libraries(cxtls cx tfpsacrypto mbedx509 mbedtls)
+if(CX_PLATFORM_IS_MACOS)
+    target_link_libraries(cxtls "-framework Security")
+endif()
 
 target_include_directories(cxtls
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include

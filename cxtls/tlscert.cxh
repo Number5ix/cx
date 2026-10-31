@@ -79,6 +79,11 @@ class TlsCAStore
     /// Update the first time a verification needs it, so a freshly installed machine can hand back
     /// far fewer roots than the full Microsoft root program.
     ///
+    /// On macOS it reads the system roots from the Keychain, along with any root an administrator
+    /// or the user has marked as trusted for TLS, and leaves out roots marked as distrusted or
+    /// expired. macOS keeps some system roots for other uses, such as email or code signing, but
+    /// does not say which; those are trusted for TLS here as well.
+    ///
     /// Calling this twice on the same store is a no-op the second time and returns false: the
     /// platform trust set does not change while a process runs, and re-reading it would only
     /// duplicate every anchor.

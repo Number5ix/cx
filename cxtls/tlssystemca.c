@@ -4,7 +4,9 @@
 // own answer here. Unix distributions all publish a CA bundle, but each in its own place, so the
 // only portable approach is to try the known locations in order and take the first that exists.
 // Windows keeps its roots in certificate stores rather than files and has no mbedTLS bridge at
-// all, so the stores are enumerated through CryptoAPI and each root handed over as DER.
+// all, so the stores are enumerated through CryptoAPI and each root handed over as DER. macOS does
+// ship a bundle at /etc/ssl/cert.pem, but it is not the set macOS trusts, so there the roots come
+// from the Keychain's trust settings.
 //
 // Two things that snapshot cannot reproduce, both worth knowing before relying on it. Windows
 // populates its root store *lazily*, fetching a root from Windows Update the first time a
@@ -14,6 +16,19 @@
 // wound down through the CTL alone still looks trusted here. Both are inherent to copying anchors
 // into mbedTLS, and are the argument for a Windows-native verification path -- handing the chain
 // to CertGetCertificateChain from a verify callback -- as the eventual answer rather than this.
+//
+// macOS has the same gap in a different place. Apple limits some system roots to email, code
+// signing or timestamps, but applies those limits only inside its own chain evaluation; no public
+// API reports them, so those roots end up trusted for TLS here too. SecTrustEvaluateWithError from
+// a verify callback is the macOS counterpart of the Windows answer above.
+
+// Ahead of the cx headers, so their macros cannot reach into Apple's, and so tested with __APPLE__:
+// _PLATFORM_MACOS is not defined yet. AssertMacros.h would otherwise define check(), verify() and
+// require() as plain macros.
+#if defined(__APPLE__)
+#define __ASSERT_MACROS_DEFINE_VERSIONS_WITHOUT_UNDERSCORES 0
+#include <Security/Security.h>
+#endif
 
 #include "tls_private.h"
 
@@ -21,6 +36,54 @@
 
 #undef LOG_CHANNEL
 #define LOG_CHANNEL TlsLogChannel
+
+#if defined(_PLATFORM_WIN) || defined(_PLATFORM_MACOS)
+
+// True if `chain` already holds a byte-identical certificate. The platform stores overlap with each
+// other, and a duplicated anchor is one more parent for mbedTLS to try and discard on every path
+// search. Quadratic in the size of the store, but the length test resolves nearly every pair in a
+// single integer compare.
+static bool chainHasCert(_In_ const mbedtls_x509_crt* chain, _In_ const uint8* der, size_t len)
+{
+    for (const mbedtls_x509_crt* c = chain; c; c = c->next) {
+        // A freshly initialized chain is one zeroed node, not an empty list.
+        if (c->raw.len == 0)
+            break;
+        if (c->raw.len == len && memcmp(c->raw.p, der, len) == 0)
+            return true;
+    }
+    return false;
+}
+
+// Hand one root to mbedTLS, dropping it if it is a duplicate, unparseable, or expired.
+static void addAnchor(_Inout_ mbedtls_x509_crt* chain, _In_ const uint8* der, size_t len)
+{
+    if (chainHasCert(chain, der, len))
+        return;
+
+    // Parsed into a scratch chain first only so the dates can be checked. The stores accumulate
+    // roots that have aged out, and every one left in place is another parent mbedTLS tries and
+    // rejects on every path search.
+    mbedtls_x509_crt tmp;
+    mbedtls_x509_crt_init(&tmp);
+
+    // is_future(valid_to) reads as "has not expired yet". It also answers 1 when the clock cannot
+    // be read at all, which keeps the certificate -- failing open here is right, because the
+    // alternative is discarding the entire trust store on a machine with no working clock.
+    if (mbedtls_x509_crt_parse_der(&tmp, der, len) == 0 &&
+        mbedtls_x509_time_is_future(&tmp.valid_to)) {
+        // Parsed a second time rather than spliced across from `tmp`: a DER walk per root is cheap
+        // next to enumerating the store, and it leaves the shape of the chain entirely to mbedTLS
+        // instead of duplicating its append logic here.
+        int ret = mbedtls_x509_crt_parse_der(chain, der, len);
+        if (ret != 0)
+            tlsLogErr(Warn, _S"mbedtls_x509_crt_parse_der", ret);
+    }
+
+    mbedtls_x509_crt_free(&tmp);
+}
+
+#endif
 
 #if !defined(_PLATFORM_WIN)
 
@@ -48,8 +111,7 @@ static const strref kCADirs[] = {
     _S"/system/etc/security/cacerts",
 };
 
-_Use_decl_annotations_
-int32 _tlsSystemCALoad(mbedtls_x509_crt* chain)
+static int32 loadBundles(_Inout_ mbedtls_x509_crt* chain)
 {
     int32 before = _tlsChainCount(chain);
 
@@ -86,6 +148,134 @@ int32 _tlsSystemCALoad(mbedtls_x509_crt* chain)
     return -1;
 }
 
+#endif
+
+#if defined(_PLATFORM_MACOS)
+
+typedef enum MacTrust {
+    MT_Unspecified,
+    MT_Trust,
+    MT_Deny,
+} MacTrust;
+
+static bool isTlsPolicy(SecPolicyRef pol)
+{
+    CFDictionaryRef props = SecPolicyCopyProperties(pol);
+    if (!props)
+        return false;
+    CFTypeRef oid = CFDictionaryGetValue(props, kSecPolicyOid);
+    bool ret      = oid && CFEqual(oid, kSecPolicyAppleSSL);
+    CFRelease(props);
+    return ret;
+}
+
+// What one domain's trust settings say about using a certificate as a TLS root.
+static MacTrust trustFor(SecCertificateRef cert, SecTrustSettingsDomain domain)
+{
+    CFArrayRef settings = NULL;
+    if (SecTrustSettingsCopyTrustSettings(cert, domain, &settings) != errSecSuccess) {
+        // Being in the system set is what makes a system root trusted; it needs no settings.
+        return domain == kSecTrustSettingsDomainSystem ? MT_Trust : MT_Unspecified;
+    }
+
+    // An empty list means "always trust as a root".
+    MacTrust ret = CFArrayGetCount(settings) == 0 ? MT_Trust : MT_Unspecified;
+
+    for (CFIndex i = 0; i < CFArrayGetCount(settings); i++) {
+        CFDictionaryRef d = CFArrayGetValueAtIndex(settings, i);
+
+        // Only settings for TLS, or for no policy in particular, apply.
+        SecPolicyRef pol = (SecPolicyRef)CFDictionaryGetValue(d, kSecTrustSettingsPolicy);
+        if (pol && !isTlsPolicy(pol))
+            continue;
+
+        // Trust limited to one host name cannot be expressed as an mbedTLS anchor, so it is not
+        // taken as trust at all rather than widened to every host.
+        if (CFDictionaryGetValue(d, kSecTrustSettingsPolicyString))
+            continue;
+
+        SInt32 result  = kSecTrustSettingsResultTrustRoot;
+        CFNumberRef rn = CFDictionaryGetValue(d, kSecTrustSettingsResult);
+        if (rn)
+            CFNumberGetValue(rn, kCFNumberSInt32Type, &result);
+
+        if (result == kSecTrustSettingsResultTrustRoot ||
+            result == kSecTrustSettingsResultTrustAsRoot) {
+            ret = MT_Trust;
+            break;
+        }
+        if (result == kSecTrustSettingsResultDeny) {
+            ret = MT_Deny;
+            break;
+        }
+    }
+
+    CFRelease(settings);
+    return ret;
+}
+
+_Use_decl_annotations_
+int32 _tlsSystemCALoad(mbedtls_x509_crt* chain)
+{
+    // The user's settings override the administrator's, which override the system's. So the
+    // domains are read in that order, and the first one to decide a certificate settles it.
+    static const SecTrustSettingsDomain kDomains[] = {
+        kSecTrustSettingsDomainUser,
+        kSecTrustSettingsDomainAdmin,
+        kSecTrustSettingsDomainSystem,
+    };
+
+    int32 before = _tlsChainCount(chain);
+    bool opened  = false;
+
+    // DER of every certificate a domain has already decided on, so a later one cannot overrule it.
+    CFMutableSetRef decided = CFSetCreateMutable(NULL, 0, &kCFTypeSetCallBacks);
+
+    for (int i = 0; i < (int)(sizeof(kDomains) / sizeof(kDomains[0])); i++) {
+        CFArrayRef certs = NULL;
+        // A domain nobody has put trust settings in reports errSecNoTrustSettings; that is normal.
+        if (SecTrustSettingsCopyCertificates(kDomains[i], &certs) != errSecSuccess)
+            continue;
+        if (kDomains[i] == kSecTrustSettingsDomainSystem)
+            opened = true;
+
+        for (CFIndex j = 0; j < CFArrayGetCount(certs); j++) {
+            SecCertificateRef cert = (SecCertificateRef)CFArrayGetValueAtIndex(certs, j);
+            CFDataRef der          = SecCertificateCopyData(cert);
+            if (!der)
+                continue;
+
+            if (!CFSetContainsValue(decided, der)) {
+                MacTrust t = trustFor(cert, kDomains[i]);
+                if (t != MT_Unspecified)
+                    CFSetAddValue(decided, der);
+                if (t == MT_Trust)
+                    addAnchor(chain, CFDataGetBytePtr(der), (size_t)CFDataGetLength(der));
+            }
+            CFRelease(der);
+        }
+        CFRelease(certs);
+    }
+
+    CFRelease(decided);
+
+    // Without the system roots there is nothing to stand on but the bundle file.
+    if (!opened) {
+        logStr(Warn, _SL("TLS: could not read the system roots from the Keychain"));
+        return loadBundles(chain);
+    }
+
+    return _tlsChainCount(chain) - before;
+}
+
+#elif !defined(_PLATFORM_WIN)
+
+_Use_decl_annotations_
+int32 _tlsSystemCALoad(mbedtls_x509_crt* chain)
+{
+    return loadBundles(chain);
+}
+
 #else
 
 #pragma comment(lib, "crypt32.lib")
@@ -118,22 +308,6 @@ static const strref kWinRootNames[] = {
     _S"AuthRoot",
 };
 
-// True if `chain` already holds a byte-identical certificate. ROOT and AuthRoot overlap on some
-// systems, and a duplicated anchor is one more parent for mbedTLS to try and discard on every path
-// search. Quadratic in the size of the store, but the length test resolves nearly every pair in a
-// single integer compare.
-static bool chainHasCert(_In_ const mbedtls_x509_crt* chain, _In_ const uint8* der, size_t len)
-{
-    for (const mbedtls_x509_crt* c = chain; c; c = c->next) {
-        // A freshly initialized chain is one zeroed node, not an empty list.
-        if (c->raw.len == 0)
-            break;
-        if (c->raw.len == len && memcmp(c->raw.p, der, len) == 0)
-            return true;
-    }
-    return false;
-}
-
 // Hand one store entry to mbedTLS, dropping it if it is a duplicate, distrusted, unparseable, or
 // expired.
 static void addSystemCert(_Inout_ mbedtls_x509_crt* chain, _In_ PCCERT_CONTEXT ctx,
@@ -160,26 +334,7 @@ static void addSystemCert(_Inout_ mbedtls_x509_crt* chain, _In_ PCCERT_CONTEXT c
         }
     }
 
-    // Parsed into a scratch chain first only so the dates can be checked. The store accumulates
-    // roots that have aged out, and every one left in place is another parent mbedTLS tries and
-    // rejects on every path search.
-    mbedtls_x509_crt tmp;
-    mbedtls_x509_crt_init(&tmp);
-
-    // is_future(valid_to) reads as "has not expired yet". It also answers 1 when the clock cannot
-    // be read at all, which keeps the certificate -- failing open here is right, because the
-    // alternative is discarding the entire trust store on a machine with no working clock.
-    if (mbedtls_x509_crt_parse_der(&tmp, der, len) == 0 &&
-        mbedtls_x509_time_is_future(&tmp.valid_to)) {
-        // Parsed a second time rather than spliced across from `tmp`: a DER walk per root is cheap
-        // next to enumerating the store, and it leaves the shape of the chain entirely to mbedTLS
-        // instead of duplicating its append logic here.
-        int ret = mbedtls_x509_crt_parse_der(chain, der, len);
-        if (ret != 0)
-            tlsLogErr(Warn, _S"mbedtls_x509_crt_parse_der", ret);
-    }
-
-    mbedtls_x509_crt_free(&tmp);
+    addAnchor(chain, der, len);
 }
 
 _Use_decl_annotations_
