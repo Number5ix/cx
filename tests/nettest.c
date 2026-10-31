@@ -1906,10 +1906,13 @@ static SOCKET acceptFromEither(LoopbackListeners* l)
     return INVALID_SOCKET;
 }
 
-// Tick until a NET_Connection has been delivered or the budget runs out.
+// Tick until a NET_Connection has been delivered or the budget (maxTicks * 100ms) runs out. Bounded
+// by time rather than by counting ticks: a tick can return early (a wake, or a pass that raced a
+// socket's handle being replaced), so a tick count can be spent in a millisecond.
 static void tickUntilConn(NetQueue* q, Recorder* r, int maxTicks)
 {
-    for (int i = 0; i < maxTicks && r->connCount == 0; i++)
+    int64 deadline = clockTimer() + maxTicks * timeMS(100);
+    while (r->connCount == 0 && clockTimer() < deadline)
         netqueueTick(q, timeMS(100));
 }
 

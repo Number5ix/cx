@@ -224,11 +224,15 @@ bool netPlatformResetSocket(NetSocket* sock, NetAddrType family, bool bindAny)
         }
     }
 
-    // Swap the new handle in for the old, closing the one the previous attempt (if any) left behind.
-    if (self->sock != INVALID_SOCKET)
-        closesocket(self->sock);
+    // Publish the new handle before closing the old one. The select backend reads the handle from
+    // another thread when it builds its watch set; closing first would leave a window, as long as
+    // this thread stays descheduled, in which every pass hands select() a closed descriptor and
+    // fails at once instead of waiting.
+    SOCKET old   = self->sock;
     self->sock   = ns;
     self->handle = (NetSockHandle)ns;
+    if (old != INVALID_SOCKET)
+        closesocket(old);
     return true;
 }
 
