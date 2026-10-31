@@ -576,20 +576,36 @@ void VFSTestProvWatch_destroy(_In_ VFSTestProvWatch* self)
     // Autogen ends -------
 }
 
+// Fills live with a reference to each watch on prov that still exists.
+static void tpLiveWatches(_Inout_ sa_object* live, _In_ VFSTestProv* prov)
+{
+    // Every reference is dropped after tpWatchLock is released, including those to other providers'
+    // watches: if the owner let go meanwhile, that drop destroys the watch, and the destructor takes
+    // tpWatchLock.
+    sa_object all;
+    saInit(&all, object, 8);
+    withMutex (&tpWatchLock) {
+        foreach (sarray, i, TPWatchEnt*, ent, tpWatches) {
+            VFSTestProvWatch* w = objAcquireFromWeak(VFSTestProvWatch, ent->wref);
+            if (w)
+                saPushC(&all, object, &w);
+        }
+    }
+
+    foreach (sarray, i, ObjInst*, wobj, all) {
+        if (((VFSTestProvWatch*)wobj)->prov == prov)
+            saPush(live, object, wobj);
+    }
+    saDestroy(&all);
+}
+
 void VFSTestProv_inject(_In_ VFSTestProv* self, int32 kind, _In_opt_ strref path, _In_opt_ strref oldpath)
 {
     lazyInit(&tpWatchInit, tpWatchRegistryInit, NULL);
 
     sa_object live;
     saInit(&live, object, 4);
-    withMutex (&tpWatchLock) {
-        foreach (sarray, i, TPWatchEnt*, ent, tpWatches) {
-            VFSTestProvWatch* w = objAcquireFromWeak(VFSTestProvWatch, ent->wref);
-            if (w && w->prov == self)
-                saPush(&live, object, w);
-            objRelease(&w);
-        }
-    }
+    tpLiveWatches(&live, self);
 
     string rpath = 0, rold = 0;
     tpPath(&rpath, path);
@@ -656,20 +672,20 @@ bool VFSTestProv_watching(_In_ VFSTestProv* self, _In_opt_ strref path)
     string rpath = 0;
     tpPath(&rpath, path);
 
+    sa_object live;
+    saInit(&live, object, 4);
+    tpLiveWatches(&live, self);
+
     bool ret = false;
-    withMutex (&tpWatchLock) {
-        foreach (sarray, i, TPWatchEnt*, ent, tpWatches) {
-            VFSTestProvWatch* w = objAcquireFromWeak(VFSTestProvWatch, ent->wref);
-            if (w && w->prov == self) {
-                withMutex (&w->lock) {
-                    if (htHasKey(w->targets, string, rpath))
-                        ret = true;
-                }
-            }
-            objRelease(&w);
+    foreach (sarray, i, ObjInst*, wobj, live) {
+        VFSTestProvWatch* w = (VFSTestProvWatch*)wobj;
+        withMutex (&w->lock) {
+            if (htHasKey(w->targets, string, rpath))
+                ret = true;
         }
     }
 
+    saDestroy(&live);
     strDestroy(&rpath);
     return ret;
 }
