@@ -52,7 +52,9 @@ bool mutexRelease(Mutex* m)
     int prevstate = atomicFetchSub(int32, &m->ftx.val, 1, Release);
     devAssert(prevstate > 0);
     if (prevstate > 1) {
-        futexSet(&m->ftx, 0);
+        // A waiter takes the lock by reading this 0, not the value the subtraction left, so this
+        // store has to publish what the owner did as well. A relaxed store here would not.
+        atomicStore(int32, &m->ftx.val, 0, Release);
         futexWake(&m->ftx);
         return true;
     }

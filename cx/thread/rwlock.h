@@ -270,7 +270,7 @@ _Releases_shared_lock_(*l) _meta_inline bool rwlockReleaseRead(_Inout_ RWLock* l
 
     // If we were the last reader and any writers are waiting, unblock one
     if (RWLOCK_READERS(oldstate) == 1 && RWLOCK_WRITERS(oldstate) > 0) {
-        devVerify(atomicFetchAdd(int32, &l->wftx.val, 1, Relaxed) == 0);
+        devVerify(atomicFetchAdd(int32, &l->wftx.val, 1, Release) == 0);
         futexWake(&l->wftx);
     }
 

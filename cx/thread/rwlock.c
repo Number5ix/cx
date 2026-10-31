@@ -59,9 +59,11 @@ bool rwlockTryAcquireReadTimeout(RWLock* l, int64 timeout)
     // otherwise have to wait in the read queue until released
     AdaptiveSpinState astate;
     aspinBegin(&l->aspin, &astate, timeout);
+    // Taking a count from rftx is taking the lock from the writer that released it, so it acquires
+    // what that writer did; the releaser adds to rftx with Release to match.
     int rval = atomicLoad(int32, &l->rftx.val, Relaxed);
     while (rval == 0 ||
-           !atomicCompareExchange(int32, weak, &l->rftx.val, &rval, rval - 1, Relaxed, Relaxed)) {
+           !atomicCompareExchange(int32, weak, &l->rftx.val, &rval, rval - 1, Acquire, Relaxed)) {
         if (aspinTimeout(&l->aspin, &astate)) {
             // have to undo the add of RWLOCK_READWAIT_ADD from above,
             // but be careful to avoid a race with rwlockReleaseWrite
@@ -116,19 +118,20 @@ bool rwlockTryAcquireWriteTimeout(RWLock* l, int64 timeout)
         if (RWLOCK_WRITERS(state) == RWLOCK_WRITER_MAX)
             return false;
 
+        // Acquire: with no readers or writers in the old state, this takes the lock outright.
         if (atomicCompareExchange(uint32,
                                   weak,
                                   &l->state,
                                   &state,
                                   state + RWLOCK_WRITE_ADD,
-                                  Relaxed,
+                                  Acquire,
                                   Relaxed))
             break;
     }
 
     // if there were any other readers or writers we must wait on them
     if (RWLOCK_READERS(state) > 0 || RWLOCK_WRITERS(state) > 0) {
-        // wait in the write queue
+        // wait in the write queue; as for readers, taking a count is taking the lock
         int32 wval = atomicLoad(int32, &l->wftx.val, Relaxed);
         while (wval == 0 ||
                !atomicCompareExchange(int32,
@@ -136,7 +139,7 @@ bool rwlockTryAcquireWriteTimeout(RWLock* l, int64 timeout)
                                       &l->wftx.val,
                                       &wval,
                                       wval - 1,
-                                      Relaxed,
+                                      Acquire,
                                       Relaxed)) {
             if (aspinTimeout(&l->aspin, &astate)) {
                 // nothing else can remove a writer except the writer itself, so we can just
@@ -192,11 +195,11 @@ _meta_inline bool _rwlockReleaseWriteInternal(_Inout_ RWLock* l, bool downgrade)
     if (rwait > 0 || downgrade) {
         // if any threads are waiting to read, release them
         // waiting readers get priority over writers so that they take turns
-        atomicFetchAdd(int32, &l->rftx.val, rwait, Relaxed);
+        atomicFetchAdd(int32, &l->rftx.val, rwait, Release);
         futexWakeAll(&l->rftx);
     } else if (RWLOCK_WRITERS(state) > 1) {
         // otherwise if anyone else is waiting, release one thread
-        atomicFetchAdd(int32, &l->wftx.val, 1, Relaxed);
+        atomicFetchAdd(int32, &l->wftx.val, 1, Release);
         futexWake(&l->wftx);
     }
 
