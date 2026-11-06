@@ -71,7 +71,7 @@ inline static void* _xa_sys_malloc_aligned(size_t size, size_t alignment)
     // So return unaligned memory instead. TODO: Maybe better to fail here?
     return malloc(size);
 #else
-    return aligned_alloc(size, alignment);
+    return aligned_alloc(alignment, size);
 #endif
 }
 
@@ -92,7 +92,10 @@ inline static void* _xa_sys_zalloc(size_t size)
 
 #define _xa_sys_malloc malloc
 
-#define _xa_sys_realloc realloc
+inline static void* _xa_sys_realloc(void* origblk, size_t size)
+{
+    return realloc(origblk, size ? size : 1);
+}
 
 #define _xa_sys_free free
 
@@ -106,14 +109,24 @@ inline static void* _xa_sys_zalloc(size_t size)
 
 // standard malloc doesn't support any of these, have to always copy the data
 
+// Moves and frees the old data
+inline static void _xa_sys_move(void* nblk, void* origblk, size_t size)
+{
+    if (!origblk)
+        return;
+
+    size_t oldsize = _xa_sys_usable_size(origblk);
+    memcpy(nblk, origblk, oldsize < size ? oldsize : size);
+    free(origblk);
+}
+
 inline static void* _xa_sys_rezalloc_aligned(void* origblk, size_t size, size_t alignment)
 {
     void* nblk = _xa_sys_zalloc_aligned(size, alignment);
     if (!nblk)
         return NULL;
 
-    memcpy(nblk, origblk, _xa_sys_usable_size(origblk));
-    free(origblk);
+    _xa_sys_move(nblk, origblk, size);
     return nblk;
 }
 
@@ -123,8 +136,7 @@ inline static void* _xa_sys_realloc_aligned(void* origblk, size_t size, size_t a
     if (!nblk)
         return NULL;
 
-    memcpy(nblk, origblk, _xa_sys_usable_size(origblk));
-    free(origblk);
+    _xa_sys_move(nblk, origblk, size);
     return nblk;
 }
 
@@ -134,8 +146,7 @@ inline static void* _xa_sys_rezalloc(void* origblk, size_t size)
     if (!nblk)
         return NULL;
 
-    memcpy(nblk, origblk, _xa_sys_usable_size(origblk));
-    free(origblk);
+    _xa_sys_move(nblk, origblk, size);
     return nblk;
 }
 
