@@ -694,9 +694,19 @@ static void onNetClosed(NetEvent* ev)
 
     // The pool needs to hear about this even when no request was running, because a pooled
     // connection the peer closed produces no response event at all: there is no response.
-    Http3ConnClosedCB cb = (Http3ConnClosedCB)self->closedCB;
-    if (cb)
-        cb(ObjInst(self), self->closedCtx);
+    //
+    // The owner is taken as a reference under the lock and held across the call. Unregistering
+    // races this on another thread, and a raw pointer read here could outlive the pool it names.
+    Http3ConnClosedCB cb = NULL;
+    ObjInst* owner       = NULL;
+    withMutex (&self->closedLock) {
+        cb    = (Http3ConnClosedCB)self->closedCB;
+        owner = cb ? objAcquireFromWeak(ObjInst, self->closedOwner) : NULL;
+    }
+
+    if (owner)
+        cb(ObjInst(self), owner);
+    objRelease(&owner);
 }
 
 static const NetHandlers kConnHandlers = {
@@ -748,6 +758,7 @@ _objinit_guaranteed bool Http3Conn_init(_In_ Http3Conn* self)
 {
     self->session = xaAlloc(sizeof(Http3Session), XA_Zero);
     // Autogen begins -----
+    mutexInit(&self->closedLock);
     return true;
     // Autogen ends -------
 }
@@ -768,6 +779,8 @@ void Http3Conn_destroy(_In_ Http3Conn* self)
     objRelease(&self->qpackEnc);
     objRelease(&self->qpackDec);
     strDestroy(&self->host);
+    objDestroyWeak(&self->closedOwner);
+    mutexDestroy(&self->closedLock);
     // Autogen ends -------
 }
 
@@ -900,14 +913,22 @@ uint32 _http3ConnRequests(ObjInst* conn)
 }
 
 _Use_decl_annotations_
-void _http3ConnSetClosed(ObjInst* conn, Http3ConnClosedCB cb, void* ctx)
+void _http3ConnSetClosed(ObjInst* conn, Http3ConnClosedCB cb, ObjInst* owner)
 {
     Http3Conn* self = objDynCast(Http3Conn, conn);
     if (!self)
         return;
 
-    self->closedCB  = (void*)cb;
-    self->closedCtx = ctx;
+    ObjInst_WeakRef* weak = (cb && owner) ? objGetWeak(ObjInst, owner) : NULL;
+    ObjInst_WeakRef* old  = NULL;
+
+    withMutex (&self->closedLock) {
+        old               = self->closedOwner;
+        self->closedCB    = weak ? (void*)cb : NULL;
+        self->closedOwner = weak;
+    }
+
+    objDestroyWeak(&old);
 }
 
 _Use_decl_annotations_

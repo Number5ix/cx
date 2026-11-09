@@ -41,9 +41,12 @@
     bool failed;     // the connection is going down
 
     // Called when the connection dies, so a pool can stop handing it out. An Http3ConnClosedCB,
-    // typed as void* here because the typedef lives in the implementation header.
+    // typed as void* here because the typedef lives in the implementation header. The owner is
+    // weak, so a pool that is destroyed while the connection lives on is never called back.
+    // Both are guarded by closedLock.
     void *closedCB;
-    void *closedCtx;
+    weak[ObjInst] closedOwner;
+    Mutex closedLock;
 
     [canfail] factory create([in] NetSocket *sock, strref host);
     init();

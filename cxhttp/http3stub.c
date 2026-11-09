@@ -106,11 +106,11 @@ uint32 _http3ConnRequests(ObjInst* conn)
 }
 
 _Use_decl_annotations_
-void _http3ConnSetClosed(ObjInst* conn, Http3ConnClosedCB cb, void* ctx)
+void _http3ConnSetClosed(ObjInst* conn, Http3ConnClosedCB cb, ObjInst* owner)
 {
     unused_noeval(conn);
     unused_noeval(cb);
-    unused_noeval(ctx);
+    unused_noeval(owner);
 }
 
 _Use_decl_annotations_

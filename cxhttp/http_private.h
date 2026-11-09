@@ -133,7 +133,8 @@ bool _http3SrvReqContinue(_Inout_ HttpServerRequest* req);
 
 // Told that an HTTP/3 connection has died, so a pool can stop handing it out. Shaped like
 // HttpConnClosedCB but carrying an ObjInst, because the two connection types share no base class.
-typedef void (*Http3ConnClosedCB)(_In_opt_ ObjInst* conn, _In_opt_ void* ctx);
+// `owner` is the object that registered, held for the length of the call.
+typedef void (*Http3ConnClosedCB)(_In_opt_ ObjInst* conn, _In_ ObjInst* owner);
 
 // Open a QUIC connection for HTTP/3. The socket comes back at once; NET_Connection on its control
 // flow says when the handshake finished. NULL in a build with no HTTP/3.
@@ -166,7 +167,7 @@ bool _http3ConnUsable(_In_ ObjInst* conn);
 uint32 _http3ConnRequests(_In_ ObjInst* conn);
 
 // Register the callback that says a connection died.
-void _http3ConnSetClosed(_Inout_ ObjInst* conn, Http3ConnClosedCB cb, _In_opt_ void* ctx);
+void _http3ConnSetClosed(_Inout_ ObjInst* conn, Http3ConnClosedCB cb, _In_opt_ ObjInst* owner);
 
 // A push-mode request body producer wrote more. The HTTP/3 half of _httpReqBodyNotify().
 void _http3ReqBodyNotify(_Inout_ HttpRequest* req);

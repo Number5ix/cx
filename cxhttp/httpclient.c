@@ -188,9 +188,9 @@ static void h3PoolEvict(_Inout_ HttpClient* self, _In_opt_ ObjInst* conn)
     }
 }
 
-static void onH3PooledClosed(ObjInst* conn, void* ctx)
+static void onH3PooledClosed(ObjInst* conn, ObjInst* owner)
 {
-    HttpClient* self = (HttpClient*)ctx;
+    HttpClient* self = objDynCast(HttpClient, owner);
     if (self)
         h3PoolEvict(self, conn);
 }
@@ -1142,7 +1142,7 @@ static void beginOnQuic(HttpRequest* req, NetSocket* sock)
     // Into the pool before any request starts, because an HTTP/3 connection is borrowed rather
     // than taken: the pool is where it lives from now on, and it has to be reachable by the next
     // request for this origin even while this one is still running.
-    _http3ConnSetClosed(conn, onH3PooledClosed, self);
+    _http3ConnSetClosed(conn, onH3PooledClosed, ObjInst(self));
     h3PoolAdd(self, conn, key);
 
     h3DialLanded(self, req, conn, key);
