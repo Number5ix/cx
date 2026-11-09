@@ -22,6 +22,18 @@ typedef struct Event Event;
 /// @return true if all UI events processed, false if more events remain
 typedef bool (*TQUICallback)(TaskQueue* tq);
 
+/// Callback that wakes the event loop driving a manual task queue.
+///
+/// Called when a task is added, scheduled, deferred or advanced, or when waiting tasks become
+/// ready to run, so the loop knows to call tqTick(). It can be called from any thread, including
+/// the one that ticks the queue, sometimes while the queue holds internal locks. It must return
+/// quickly without blocking and must not call into the queue; typically it posts a message to the
+/// loop. Scheduled tasks don't call it when their time comes: tqTick() returns how long the loop
+/// may wait before ticking again.
+/// @param tq The task queue that has work
+/// @param ctx The `wakeCtx` from TaskQueueManualConfig
+typedef void (*TQWakeCallback)(TaskQueue* tq, void* ctx);
+
 /// Task queue configuration flags
 enum TaskQueueFlagsEnum {
     /// Use a dedicated manager thread for queue maintenance instead of stealing idle worker time.
@@ -84,12 +96,19 @@ typedef struct TaskQueueMonitorConfig {
     LogChannel* mLogChan;   ///< Custom log channel for monitor messages (NULL for default)
 } TaskQueueMonitorConfig;
 
+/// Configuration for a manual (TQ_Manual) task queue
+typedef struct TaskQueueManualConfig {
+    TQWakeCallback wake;   ///< Called when the queue needs to be ticked (NULL for none)
+    void* wakeCtx;         ///< Passed to wake
+} TaskQueueManualConfig;
+
 /// Complete configuration for a task queue
 typedef struct TaskQueueConfig {
     uint32 flags;                     ///< Combination of TaskQueueFlagsEnum values
     int64 mGC;                        ///< How often a garbage collection cycle should run
     TaskQueueThreadPoolConfig pool;   ///< Thread pool configuration
     TaskQueueMonitorConfig monitor;   ///< Monitor configuration
+    TaskQueueManualConfig manual;     ///< Manual queue configuration
 } TaskQueueConfig;
 
 /// Task state values

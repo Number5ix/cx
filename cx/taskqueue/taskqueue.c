@@ -142,6 +142,11 @@ TaskQueue* tqCreate(strref name, const TaskQueueConfig* tqconfig)
                                         monitor));
     }
 
+    if (tq && (conf.flags & TQ_Manual)) {
+        tq->wake    = conf.manual.wake;
+        tq->wakeCtx = conf.manual.wakeCtx;
+    }
+
     objRelease(&runner);
     objRelease(&manager);
     objRelease(&monitor);

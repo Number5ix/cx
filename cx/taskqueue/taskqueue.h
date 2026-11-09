@@ -54,7 +54,7 @@ void tqPresetHeavy(_Out_ TaskQueueConfig* tqconfig);
 ///
 /// Initialize a queue config for manual ticking without a thread pool.
 /// Queue must be ticked manually with tqTick(). Suitable for integration with
-/// existing event loops.
+/// existing event loops: set `manual.wake` to have the queue tell the loop when it needs a tick.
 /// @param tqconfig Configuration structure to initialize
 void tqPresetManual(_Out_ TaskQueueConfig* tqconfig);
 

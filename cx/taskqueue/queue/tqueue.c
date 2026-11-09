@@ -83,7 +83,7 @@ bool TaskQueue_add(_In_ TaskQueue* self, _In_ BasicTask* btask)
     }
 
     // Signal the runner to pick it up
-    eventSignal(&self->workev);
+    taskqueue_signalWork(self, 1);
     // let dedicated managers know they may need to check for thread pool expansion.
     // In-worker managers will be ticked anyway, so don't signal workev twice.
     tqmanagerNotify(self->manager, !self->manager->needsWorkerTick);
@@ -227,6 +227,13 @@ bool TaskQueue__runTask(_In_ TaskQueue* self, _Inout_ BasicTask** pbtask, _In_ T
     tqmanagerNotify(self->manager, !self->manager->needsWorkerTick);
 
     return true;
+}
+
+void TaskQueue__signalWork(_In_ TaskQueue* self, int32 count)
+{
+    eventSignalMany(&self->workev, count);
+    if (self->wake)
+        self->wake(self, self->wakeCtx);
 }
 
 void TaskQueue__clear(_In_ TaskQueue* self)

@@ -949,6 +949,7 @@ static const testspec tests[] = {
     { "taskqueue: Dependency Timeout", "tqtest", "timeout" },
     { "taskqueue: Manual", "tqtest", "manual" },
     { "taskqueue: Oneshot", "tqtest", "oneshot" },
+    { "taskqueue: Manual Wake", "tqtest", "manualwake" },
     { "taskqueue: Multiphase", "tqtest", "multiphase" },
     { "cpp: SArray", "cpptest", "sarray" },
     { "cpp: Hashtable", "cpptest", "hashtable" },

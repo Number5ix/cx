@@ -548,6 +548,31 @@ uint32 TQTimeoutTest2_run(_In_ TQTimeoutTest2* self, _In_ TaskQueue* tq, _In_ TQ
     return TASK_Result_Success;
 }
 
+_objfactory_guaranteed TQWakeResched* TQWakeResched_create(WakeTestState* wts, int target, int64 delay)
+{
+    TQWakeResched* self;
+    self = objInstCreate(TQWakeResched);
+
+    self->wts    = wts;
+    self->target = target;
+    self->delay  = delay;
+
+    objInstInit(self);
+    return self;
+}
+
+uint32 TQWakeResched_run(_In_ TQWakeResched* self, _In_ TaskQueue* tq, _In_ TQWorker* worker,
+                         _Inout_ TaskControl* tcon)
+{
+    if (++self->runs < self->target) {
+        tcon->delay = self->delay;
+        return TASK_Result_Schedule;
+    }
+
+    atomicStore(bool, &self->wts->done, true, Release);
+    return TASK_Result_Success;
+}
+
 // Autogen begins -----
 // clang-format off
 #include "tqtestobj.auto.inc"

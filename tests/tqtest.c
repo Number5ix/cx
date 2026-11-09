@@ -1001,6 +1001,124 @@ static int test_tqtest_oneshot(void)
     return ret;
 }
 
+static void tqtestWake(TaskQueue* tq, void* ctx)
+{
+    WakeTestState* wts = (WakeTestState*)ctx;
+    atomicFetchAdd(int32, &wts->wakes, 1, Relaxed);
+    eventSignal(&wts->wakeev);
+}
+
+// Drives a manual queue the way a native event loop would: tick, then sleep until the wake
+// callback fires or the time tqTick asked for passes. A lost wake leaves it asleep until limit.
+static bool tqtestWakeLoop(TaskQueue* q, WakeTestState* wts, int64 limit)
+{
+    int64 deadline = clockTimer() + limit;
+    for (;;) {
+        int64 next = tqTick(q);
+        if (atomicLoad(bool, &wts->done, Acquire))
+            return true;
+
+        int64 left = deadline - clockTimer();
+        if (left <= 0)
+            return false;
+        if (next > 0)
+            eventWaitTimeout(&wts->wakeev, min(next, left));
+    }
+}
+
+static bool tqtestWakeDone(stvlist* cvars, stvlist* args)
+{
+    WakeTestState* wts = stvlAtPtr(cvars, 0);
+    atomicStore(bool, &wts->done, true, Release);
+    return true;
+}
+
+enum { WAKE_Add, WAKE_Schedule, WAKE_Advance, WAKE_Reschedule, WAKE_Count };
+
+static int tqtestWakeThread(Thread* thr)
+{
+    TaskQueue* q       = stvlAtPtr(&thr->args, 0);
+    WakeTestState* wts = stvlAtPtr(&thr->args, 1);
+    int32 kind         = stvlAt(&thr->args, 2, int32);
+    ComplexTask* task  = stvlAtPtr(&thr->args, 3);
+
+    osSleep(timeMS(50));   // let the loop go to sleep first
+    switch (kind) {
+    case WAKE_Add:
+        tqCall(q, closureCreate(tqtestWakeDone, stvar(ptr, wts)));
+        break;
+    case WAKE_Schedule:
+        tqSchedule(q, task, timeMS(20));
+        break;
+    case WAKE_Advance:
+        ctaskAdvance(task);
+        break;
+    }
+    return 0;
+}
+
+// A manual queue's wake callback fires for work queued from another thread, and a loop that only
+// ticks on a wake or after the time tqTick returns keeps every kind of work moving.
+static int test_tqtest_manualwake(void)
+{
+    static const char* kindNames[WAKE_Count] = { "add", "schedule", "advance", "reschedule" };
+    int ret           = 0;
+    WakeTestState wts = { 0 };
+    eventInit(&wts.wakeev);
+
+    TaskQueueConfig conf;
+    tqPresetManual(&conf);
+    conf.manual.wake    = tqtestWake;
+    conf.manual.wakeCtx = &wts;
+    TaskQueue* q        = tqCreate(_S"Wake", &conf);
+    if (!q || !tqStart(q))
+        TEST_FAIL(1, _SL("couldn't start the manual queue"), stvNone);
+
+    for (int32 kind = 0; kind < WAKE_Count; kind++) {
+        atomicStore(bool, &wts.done, false, Release);
+        atomicStore(int32, &wts.wakes, 0, Relaxed);
+        eventReset(&wts.wakeev);   // a wake left over from the last case could hide a lost one
+
+        TQWakeResched* task = tqwakereschedCreate(&wts, kind == WAKE_Reschedule ? 5 : 1, timeMS(10));
+        Thread* thr         = NULL;
+        if (kind == WAKE_Reschedule)
+            tqAdd(q, task);
+        else {
+            if (kind == WAKE_Advance)
+                tqDefer(q, task);
+            thr = thrCreate(tqtestWakeThread, _S"Wake producer", stvar(ptr, q), stvar(ptr, &wts),
+                            stvar(int32, kind), stvar(ptr, task));
+        }
+
+        if (!tqtestWakeLoop(q, &wts, timeS(5)))
+            TEST_FAILV(ret, 1, _SL("${string}: work never ran (wakes=${int})"),
+                       stvar(strref, (strref)kindNames[kind]), stvar(int32, atomicLoad(int32, &wts.wakes, Relaxed)));
+        else if (atomicLoad(int32, &wts.wakes, Relaxed) == 0)
+            TEST_FAILV(ret, 1, _SL("${string}: wake callback never fired"),
+                       stvar(strref, (strref)kindNames[kind]));
+
+        if (thr) {
+            thrWait(thr, timeS(5));
+            thrRelease(&thr);
+        }
+        objRelease(&task);
+
+        // work a failed case left queued would set done for the next one
+        if (ret)
+            break;
+    }
+
+    tqShutdown(q, timeS(5));
+    tqRelease(&q);
+    eventDestroy(&wts.wakeev);
+    return ret;
+}
+
+static int test_tqtest_grp_manual(void)
+{
+    TEST_CHAIN(test_tqtest_manual, test_tqtest_oneshot, test_tqtest_manualwake);
+}
+
 static MPTestState mps;
 
 #define NUM_MP_TASKS 20000
@@ -1189,6 +1307,8 @@ testfunc tqtest_funcs[] = {
     { "timeout",               test_tqtest_timeout              },
     { "manual",                test_tqtest_manual               },
     { "oneshot",               test_tqtest_oneshot              },
+    { "manualwake",            test_tqtest_manualwake           },
+    { "grp_manual",            test_tqtest_grp_manual           },
     { "multiphase",            test_tqtest_multiphase           },
     { 0,                       0                                }
 };

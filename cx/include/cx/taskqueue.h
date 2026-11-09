@@ -71,6 +71,24 @@
 /// - Suitable for integration with existing event loops
 /// - Can run one task per tick (TQ_Oneshot flag) or all available tasks
 /// - No manager or monitor thread
+/// - An optional wake callback (`manual.wake`) tells the event loop when to tick
+///
+/// An event loop drives a manual queue by ticking it whenever the wake callback fires, and again
+/// after the time `tqTick()` returns:
+/// @code
+///   static void onWake(TaskQueue *tq, void *ctx) { postWakeMessage(ctx); }   // any thread
+///
+///   TaskQueueConfig conf;
+///   tqPresetManual(&conf);
+///   conf.manual.wake    = onWake;
+///   conf.manual.wakeCtx = loop;
+///   TaskQueue *q = tqCreate(_S"UI", &conf);
+///   tqStart(q);
+///
+///   // in the loop, on a wake message or when the timer expires:
+///   int64 next = tqTick(q);
+///   armTimer(loop, next);   // timeForever: no timer needed
+/// @endcode
 ///
 /// @section tq_flags Configuration Flags
 ///

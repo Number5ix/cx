@@ -151,3 +151,19 @@ class TQTimeoutTest2 extends ComplexTask {
 
     factory create(ReqTestState *rts);
 }
+
+typedef struct WakeTestState {
+    atomic(int32) wakes;
+    atomic(bool) done;
+    Event wakeev;
+} WakeTestState;
+
+// Runs target times, rescheduling itself delay apart, then sets wts->done
+class TQWakeResched extends ComplexTask {
+    WakeTestState *wts;
+    int runs;
+    int target;
+    int64 delay;
+
+    factory create(WakeTestState *wts, int target, int64 delay);
+}

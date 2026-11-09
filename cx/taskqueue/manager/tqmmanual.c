@@ -32,11 +32,11 @@ extern void TQManager_notify(_In_ TQManager* self, bool wakeup);   // parent
 #define parent_notify(wakeup) TQManager_notify((TQManager*)(self), wakeup)
 void TQManualManager_notify(_In_ TQManualManager* self, bool wakeup)
 {
-    if (self->tq && !atomicLoad(bool, &self->needrun, Relaxed)) {
-        atomicStore(bool, &self->needrun, true, Relaxed);
-        if (wakeup)
-            eventSignal(&self->tq->workev);
-    }
+    // Both sides use an exchange so a notify can't be lost: either tick's clear comes first and
+    // this call wakes the queue, or tick's exchange reads this call's true (Release/Acquire) and
+    // sees whatever the caller queued before notifying.
+    if (self->tq && !atomicExchange(bool, &self->needrun, true, Release) && wakeup)
+        taskqueue_signalWork(self->tq, 1);
 }
 
 extern int64 TQManager_tick(_In_ TQManager* self);   // parent
@@ -48,7 +48,7 @@ int64 TQManualManager_tick(_In_ TQManualManager* self)
     // this will USUALLY be called from the same thread over and over, but manual workers CAN be
     // ticked from different threads, so we need to handle it just like the in-worker class
     if (mutexTryAcquire(&self->mgrlock)) {
-        atomicStore(bool, &self->needrun, false, Relaxed);
+        atomicExchange(bool, &self->needrun, false, Acquire);
 
         // Run monitor if we have one (usually don't for manual, but nothing stopping somebody from
         // writing one)

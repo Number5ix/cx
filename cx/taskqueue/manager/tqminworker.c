@@ -35,7 +35,7 @@ void TQInWorkerManager_notify(_In_ TQInWorkerManager* self, bool wakeup)
     if (self->tq && !atomicLoad(bool, &self->needrun, Relaxed)) {
         atomicStore(bool, &self->needrun, true, Relaxed);
         if (wakeup)
-            eventSignal(&self->tq->workev);
+            taskqueue_signalWork(self->tq, 1);
     }
 }
 

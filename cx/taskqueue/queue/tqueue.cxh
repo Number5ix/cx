@@ -34,6 +34,9 @@ class TaskQueue {
     int64 gcinterval;       // how often to run a garbage collection cycle on a queue
     uint32 flags;
 
+    TQWakeCallback wake;    // manual queues only: tells the owner's event loop to tick
+    void *wakeCtx;
+
     int64 _lastgc;          // timestamp of last GC cycle
     int _gccycle;           // which GC cycle ran last
 
@@ -47,6 +50,7 @@ class TaskQueue {
     bool _processDone();    // internal function for manager to tell the queue to process its doneq
     int64 _processExtra(bool taskscompleted);  // internal function for any additional processing that the queue needs to do in the manager thread
     bool _queueMaint();     // internal function that the manager should call to perform any queue maintenance
+    void _signalWork(int32 count);  // internal function to signal workev and call the wake hook
 
     bool _runTask([inout] BasicTask **pbtask, [in] TQWorker *worker);    // internal function workers should call to actually run a task and process the results
     void _clear();          // deletes all tasks in queue, for internal use only

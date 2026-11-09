@@ -149,7 +149,7 @@ bool ComplexTaskQueue__processDone(_In_ ComplexTaskQueue* self)
     // if anything went back into the run queue, signal the event so that worker threads can pick it
     // up
     if (dcount > 0)
-        eventSignalMany(&self->workev, dcount);
+        taskqueue_signalWork(self, dcount);
 
     // return true if some tasks were completed, false otherwise
     return ret;
@@ -253,7 +253,7 @@ int64 ComplexTaskQueue__processExtra(_In_ ComplexTaskQueue* self, bool taskscomp
 
     // if we put anything back in, signal the event so that worker threads can pick it up
     if (dcount > 0)
-        eventSignalMany(&self->workev, dcount);
+        taskqueue_signalWork(self, dcount);
 
     foreach (sarray, idx, void*, ctaskptr, readvance) {
         prqPush(&self->advanceq, ctaskptr);
@@ -527,7 +527,7 @@ bool ComplexTaskQueue_add(_In_ ComplexTaskQueue* self, _In_ BasicTask* btask)
     }
 
     // Signal the runner to pick it up
-    eventSignal(&self->workev);
+    taskqueue_signalWork(self, 1);
     // let dedicated managers know they may need to check for thread pool expansion.
     // In-worker managers will be ticked anyway, so don't signal workev twice.
     tqmanagerNotify(self->manager, !self->manager->needsWorkerTick);
