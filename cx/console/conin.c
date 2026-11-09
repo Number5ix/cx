@@ -298,6 +298,16 @@ static bool readLinePlain(ConStream* con, string* out)
 // line/password reading: a small raw-mode editor built entirely on conReadKey()
 // ---------------------------------------------------------------------------------------
 
+static ConStream* echoStream(void)
+{
+    ConCaps caps;
+    conGetCaps(conOut(), &caps);
+    if (caps.istty)
+        return conOut();
+    conGetCaps(conErr(), &caps);
+    return caps.istty ? conErr() : NULL;
+}
+
 static bool readLineImpl(ConStream* con, string* out, bool echoTyped)
 {
     strDestroy(out);
@@ -314,6 +324,12 @@ static bool readLineImpl(ConStream* con, string* out, bool echoTyped)
         return false;
     conSetEcho(con, false);   // this function echoes itself (or not, for a password) -- the
                               // terminal's own echo would double up or leak the password
+
+    // The input stream can't always be written to (a Windows console input handle never can), so
+    // the echo goes to whichever output is the terminal, and nowhere if neither is.
+    ConStream* echoTo = echoStream();
+    if (!echoTo)
+        echoTyped = false;
 
     sa_int32 chars;
     saInit(&chars, int32, 64);
@@ -335,7 +351,8 @@ static bool readLineImpl(ConStream* con, string* out, bool echoTyped)
                 saSetSize(&chars, n - 1);
                 if (echoTyped) {
                     static const uint8 erase[] = { '\b', ' ', '\b' };
-                    conWrite(con, erase, sizeof(erase));
+                    conWrite(echoTo, erase, sizeof(erase));
+                    conFlush(echoTo);
                 }
             }
             continue;
@@ -343,8 +360,10 @@ static bool readLineImpl(ConStream* con, string* out, bool echoTyped)
 
         if (ev.key == CON_Key_Char) {
             saPush(&chars, int32, ev.ch);
-            if (echoTyped)
-                conPutc(con, ev.ch);
+            if (echoTyped) {
+                conPutc(echoTo, ev.ch);
+                conFlush(echoTo);
+            }
             continue;
         }
 
@@ -353,8 +372,10 @@ static bool readLineImpl(ConStream* con, string* out, bool echoTyped)
 
     conSetMode(con, CON_Cooked);
     conSetEcho(con, true);
-    if (ok && echoTyped)
-        conNL(con);   // the terminal never echoed Enter itself; move to the next line
+    if (ok && echoTyped) {
+        conNL(echoTo);   // the terminal never echoed Enter itself; move to the next line
+        conFlush(echoTo);
+    }
 
     if (ok) {
         uint32 total = 0;
