@@ -9,6 +9,9 @@
 #include <cx/taskqueue/resource/trfifo.h>
 #include <cx/taskqueue/resource/trlifo.h>
 #include "tqtestobj.h"
+#if defined(_PLATFORM_WIN)
+#include <cx/platform/win.h>
+#endif
 
 #define TEST_FILE tqtest
 #define TEST_FUNCS tqtest_funcs
@@ -1114,6 +1117,62 @@ static int test_tqtest_manualwake(void)
     return ret;
 }
 
+#if defined(_PLATFORM_WIN)
+static atomic(int32) uiwakeMsgs;
+static atomic(uint32) uiwakeThread;
+
+// Handles one message per call and reports the queue as drained, like a pump that steps once.
+static bool tqtestUIStep(TaskQueue* tq)
+{
+    MSG msg;
+    if (PeekMessageW(&msg, NULL, 0, 0, PM_REMOVE) && msg.message == WM_APP)
+        atomicFetchAdd(int32, &uiwakeMsgs, 1, Relaxed);
+    return true;
+}
+
+static bool tqtestUIThreadId(stvlist* cvars, stvlist* args)
+{
+    atomicStore(uint32, &uiwakeThread, GetCurrentThreadId(), Release);
+    return true;
+}
+
+// A UI worker wakes for a message its callback already saw but left in the queue.
+static int test_tqtest_uiwake(void)
+{
+    int ret = 0;
+    TaskQueueConfig conf;
+    tqPresetSingle(&conf);
+    conf.pool.ui = tqtestUIStep;
+    TaskQueue* q = tqCreate(_S"UI", &conf);
+    if (!q || !tqStart(q))
+        TEST_FAIL(1, _SL("couldn't start the UI queue"), stvNone);
+
+    atomicStore(int32, &uiwakeMsgs, 0, Relaxed);
+    atomicStore(uint32, &uiwakeThread, 0, Relaxed);
+    tqCall(q, closureCreate(tqtestUIThreadId, stvNone));
+    int64 deadline = clockTimer() + timeS(2);
+    while (atomicLoad(uint32, &uiwakeThread, Acquire) == 0 && clockTimer() < deadline)
+        osSleep(timeMS(5));
+    osSleep(timeMS(100));   // let the worker go idle in its wait
+
+    // the first message wakes the worker, whose callback takes it and leaves the second
+    DWORD tid = atomicLoad(uint32, &uiwakeThread, Acquire);
+    PostThreadMessageW(tid, WM_APP, 0, 0);
+    PostThreadMessageW(tid, WM_APP, 0, 0);
+
+    deadline = clockTimer() + timeS(2);
+    while (atomicLoad(int32, &uiwakeMsgs, Relaxed) < 2 && clockTimer() < deadline)
+        osSleep(timeMS(5));
+    if (atomicLoad(int32, &uiwakeMsgs, Relaxed) != 2)
+        TEST_FAILV(ret, 1, _SL("UI callback handled ${int} messages (want 2)"),
+                   stvar(int32, atomicLoad(int32, &uiwakeMsgs, Relaxed)));
+
+    tqShutdown(q, timeS(5));
+    tqRelease(&q);
+    return ret;
+}
+#endif
+
 static int test_tqtest_grp_manual(void)
 {
     TEST_CHAIN(test_tqtest_manual, test_tqtest_oneshot, test_tqtest_manualwake);
@@ -1308,6 +1367,9 @@ testfunc tqtest_funcs[] = {
     { "manual",                test_tqtest_manual               },
     { "oneshot",               test_tqtest_oneshot              },
     { "manualwake",            test_tqtest_manualwake           },
+#if defined(_PLATFORM_WIN)
+    { "uiwake",                test_tqtest_uiwake               },
+#endif
     { "grp_manual",            test_tqtest_grp_manual           },
     { "multiphase",            test_tqtest_multiphase           },
     { 0,                       0                                }

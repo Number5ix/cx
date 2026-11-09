@@ -950,6 +950,9 @@ static const testspec tests[] = {
     { "taskqueue: Manual", "tqtest", "manual" },
     { "taskqueue: Oneshot", "tqtest", "oneshot" },
     { "taskqueue: Manual Wake", "tqtest", "manualwake" },
+#if defined(_PLATFORM_WIN)
+    { "taskqueue: UI Wake", "tqtest", "uiwake" },
+#endif
     { "taskqueue: Multiphase", "tqtest", "multiphase" },
     { "cpp: SArray", "cpptest", "sarray" },
     { "cpp: Hashtable", "cpptest", "hashtable" },

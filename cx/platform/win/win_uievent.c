@@ -20,12 +20,14 @@ bool uieventSignal(UIEvent* e, int count)
 
 int uieventWaitTimeout(UIEvent* e, uint64 timeout)
 {
-    DWORD ret = MsgWaitForMultipleObjects(1,
-                                          &e->h,
-                                          FALSE,
-                                          timeout == timeForever ? INFINITE :
-                                                                   (DWORD)timeToMsec(timeout),
-                                          QS_ALLINPUT);
+    // MWMO_INPUTAVAILABLE also returns for messages that a PeekMessage already saw but left in
+    // the queue; without it those wait until the next new message arrives.
+    DWORD ret = MsgWaitForMultipleObjectsEx(1,
+                                            &e->h,
+                                            timeout == timeForever ? INFINITE :
+                                                                     (DWORD)timeToMsec(timeout),
+                                            QS_ALLINPUT,
+                                            MWMO_INPUTAVAILABLE);
     if (ret == WAIT_OBJECT_0)
         return UIEVENT_Event;
     if (ret == WAIT_OBJECT_0 + 1)
