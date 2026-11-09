@@ -214,6 +214,15 @@ static void postMsg(_In_ NetSocketQuic* self, _In_opt_ NetFlow* flow, uint8 kind
     objRelease(&q);
 }
 
+// Puts a message on the connection's control flow. The flow is taken under the socket's flow lock,
+// because a queue shutdown can drop it from another thread at any moment.
+static void postCtl(_In_ NetSocketQuic* self, uint8 kind, size_t bytes)
+{
+    NetFlow* flow = _netSocketFlowRef(NetSocket(self));
+    postMsg(self, flow, kind, bytes);
+    objRelease(&flow);
+}
+
 // ---------------------------------------------------------------------------------------------
 // The connection's clock
 //
@@ -231,14 +240,24 @@ static void armDeadline(_In_ NetSocketQuic* self, int64 now)
     if (!eng->conn || eng->torndown)
         return;
 
+    // The timer lives on the control flow, which a queue shutdown can drop from another thread.
+    // Once it has, the timer went with it.
+    NetFlow* flow = _netSocketFlowRef(NetSocket(self));
+    if (!flow) {
+        eng->timer   = 0;
+        eng->timerAt = 0;
+        return;
+    }
+
     int64 want = _quicConnDeadline(eng->conn);
 
     if (want == timeForever) {
         if (eng->timer != 0) {
-            netflowCancelTimer(self->flow, eng->timer);
+            netflowCancelTimer(flow, eng->timer);
             eng->timer   = 0;
             eng->timerAt = 0;
         }
+        objRelease(&flow);
         return;
     }
 
@@ -248,18 +267,22 @@ static void armDeadline(_In_ NetSocketQuic* self, int64 now)
     int64 delay = want > now ? want - now : QUIC_SOCK_MIN_TIMER;
 
     if (eng->timer != 0) {
-        if (eng->timerAt == want)
+        if (eng->timerAt == want) {
+            objRelease(&flow);
             return;   // already armed for exactly this moment
-        if (netflowRearmTimer(self->flow, eng->timer, delay)) {
+        }
+        if (netflowRearmTimer(flow, eng->timer, delay)) {
             eng->timerAt = want;
+            objRelease(&flow);
             return;
         }
         eng->timer = 0;   // it fired while we were deciding; its delivery will re-arm
     }
 
-    eng->timer = netflowAddTimer(self->flow, delay, NTF_None);
+    eng->timer = netflowAddTimer(flow, delay, NTF_None);
     if (eng->timer != 0)
         eng->timerAt = want;
+    objRelease(&flow);
 }
 
 // Sends whatever the connection has waiting and re-arms its deadline. Every path into the engine
@@ -336,8 +359,12 @@ static void connTeardown(_In_ NetSocketQuic* self, NetCloseReason reason)
         return;
     eng->torndown = true;
 
+    // A queue shutdown may already have dropped the control flow, and its timer with it.
     if (eng->timer != 0) {
-        netflowCancelTimer(self->flow, eng->timer);
+        NetFlow* flow = _netSocketFlowRef(NetSocket(self));
+        if (flow)
+            netflowCancelTimer(flow, eng->timer);
+        objRelease(&flow);
         eng->timer   = 0;
         eng->timerAt = 0;
     }
@@ -424,7 +451,7 @@ static bool onConnEarlyOpen(_In_opt_ void* ctx, _In_opt_ const QuicTransportPara
     if (self->server)
         postAccept(self);
     else
-        postMsg(self, self->flow, NMSG_Connect, (size_t)NERR_None);
+        postCtl(self, NMSG_Connect, (size_t)NERR_None);
 
     return true;
 }
@@ -456,7 +483,7 @@ static void onConnConnected(_In_opt_ void* ctx)
     // that the handshake has now vouched for it: nothing that crossed it was a replay after all,
     // and nothing that crosses it from here could be.
     if (eng->connected) {
-        postMsg(self, self->flow, NMSG_FilterNotify, (size_t)NFN_Secured);
+        postCtl(self, NMSG_FilterNotify, (size_t)NFN_Secured);
         return;
     }
 
@@ -464,7 +491,7 @@ static void onConnConnected(_In_opt_ void* ctx)
     atomicStore(uint32, &self->state, NS_Connected, Relaxed);
 
     if (!self->server) {
-        postMsg(self, self->flow, NMSG_Connect, (size_t)NERR_None);
+        postCtl(self, NMSG_Connect, (size_t)NERR_None);
         return;
     }
 
@@ -486,7 +513,7 @@ static void onConnClosed(_In_opt_ void* ctx, uint64 error, bool app, bool local,
     // A client whose handshake never finished has a connect still outstanding, and an event is the
     // only way it can be told the answer is no.
     if (!self->server && !eng->connected)
-        postMsg(self, self->flow, NMSG_Connect, (size_t)NERR_ConnectionRefused);
+        postCtl(self, NMSG_Connect, (size_t)NERR_ConnectionRefused);
 
     // An application close reports itself the moment it is asked for, before the frame that
     // carries it has been anywhere near the wire. Tearing down here would close the endpoint out
@@ -1113,8 +1140,7 @@ static void onResolved(_In_opt_ sa_NetAddr* addrs, NetErrorCode err, _In_opt_ vo
     }
 
     atomicStore(uint32, &self->state, NS_Init, Release);
-    postMsg(self, self->flow, NMSG_Connect,
-            (size_t)(err != NERR_None ? err : NERR_HostUnreachable));
+    postCtl(self, NMSG_Connect, (size_t)(err != NERR_None ? err : NERR_HostUnreachable));
 
     objRelease(&self);
 }
