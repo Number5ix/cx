@@ -1,0 +1,6 @@
+// expect: 'enum' on property 'x' must be on both the getter and the setter
+class PropFail {
+    [prop x enum] int32 x();
+    [prop x] void setX(int32 v);
+    factory create();
+}

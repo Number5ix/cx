@@ -374,6 +374,249 @@ void SerSetHolder_destroy(_In_ SerSetHolder* self)
     // Autogen ends -------
 }
 
+_objfactory_guaranteed PropBase* PropBase_create()
+{
+    PropBase* self;
+    self = objInstCreate(PropBase);
+
+    // Insert any pre-initialization object construction here
+
+    objInstInit(self);
+
+    // Insert any post-initialization object construction here
+
+    return self;
+}
+
+int32 PropBase_num(_In_ PropBase* self)
+{
+    return self->vnum;
+}
+
+void PropBase_setNum(_In_ PropBase* self, int32 v)
+{
+    self->vnum = v;
+    self->vversion++;
+}
+
+bool PropBase_flag(_In_ PropBase* self)
+{
+    return self->vflag;
+}
+
+void PropBase_setFlag(_In_ PropBase* self, bool v)
+{
+    self->vflag = v;
+    self->vversion++;
+}
+
+float32 PropBase_f32(_In_ PropBase* self)
+{
+    return self->vf32;
+}
+
+void PropBase_setF32(_In_ PropBase* self, float32 v)
+{
+    self->vf32 = v;
+    self->vversion++;
+}
+
+float64 PropBase_ratio(_In_ PropBase* self)
+{
+    return self->vratio;
+}
+
+void PropBase_setRatio(_In_ PropBase* self, float64 v)
+{
+    self->vratio = v;
+    self->vversion++;
+}
+
+int64 PropBase_big(_In_ PropBase* self)
+{
+    return self->vbig;
+}
+
+void PropBase_setBig(_In_ PropBase* self, int64 v)
+{
+    self->vbig = v;
+    self->vversion++;
+}
+
+uint8 PropBase_small(_In_ PropBase* self)
+{
+    return self->vsmall;
+}
+
+void PropBase_setSmall(_In_ PropBase* self, uint8 v)
+{
+    self->vsmall = v;
+    self->vversion++;
+}
+
+size_t PropBase_size(_In_ PropBase* self)
+{
+    return self->vsize;
+}
+
+void PropBase_setSize(_In_ PropBase* self, size_t v)
+{
+    self->vsize = v;
+    self->vversion++;
+}
+
+int32 PropBase_mode(_In_ PropBase* self)
+{
+    return self->vmode;
+}
+
+void PropBase_setMode(_In_ PropBase* self, int32 v)
+{
+    self->vmode = v;
+    self->vversion++;
+}
+
+PropBase* PropBase_peer(_In_ PropBase* self)
+{
+    return self->vpeer;
+}
+
+void PropBase_setPeer(_In_ PropBase* self, _In_opt_ PropBase* p)
+{
+    objRelease(&self->vpeer);
+    self->vpeer = objAcquire(p);
+    self->vversion++;
+}
+
+int32 PropBase_limit(_In_ PropBase* self)
+{
+    return self->vlimit;
+}
+
+bool PropBase_setLimit(_In_ PropBase* self, int32 v)
+{
+    if (v > 100)
+        return false;
+    self->vlimit = v;
+    self->vversion++;
+    return true;
+}
+
+int32 PropBase_version(_In_ PropBase* self)
+{
+    return self->vversion;
+}
+
+int32 PropBase_tag(_In_ PropBase* self)
+{
+    return self->vtag;
+}
+
+void PropBase_setTag(_In_ PropBase* self, int32 v)
+{
+    self->vtag = v;
+}
+
+strref PropBase_label(_In_ PropBase* self)
+{
+    return self->vlabel;
+}
+
+void PropBase_setLabel(_In_ PropBase* self, _In_opt_ strref label)
+{
+    strDup(&self->vlabel, label);
+    self->vversion++;
+}
+
+void PropBase_destroy(_In_ PropBase* self)
+{
+    // Autogen begins -----
+    strDestroy(&self->vlabel);
+    objRelease(&self->vpeer);
+    // Autogen ends -------
+}
+
+_objfactory_guaranteed PropChild* PropChild_create()
+{
+    PropChild* self;
+    self = objInstCreate(PropChild);
+
+    // Insert any pre-initialization object construction here
+
+    objInstInit(self);
+
+    // Insert any post-initialization object construction here
+
+    return self;
+}
+
+int32 PropChild_extra(_In_ PropChild* self)
+{
+    return self->vextra;
+}
+
+void PropChild_setExtra(_In_ PropChild* self, int32 v)
+{
+    self->vextra = v;
+}
+
+extern void PropBase_setNum(_In_ PropBase* self, int32 v);   // parent
+#define parent_setNum(v) PropBase_setNum((PropBase*)(self), v)
+void PropChild_setNum(_In_ PropChild* self, int32 v)
+{
+    parent_setNum(v * 2);
+}
+
+_objfactory_guaranteed PropOther* PropOther_create()
+{
+    PropOther* self;
+    self = objInstCreate(PropOther);
+
+    // Insert any pre-initialization object construction here
+
+    objInstInit(self);
+
+    // Insert any post-initialization object construction here
+
+    return self;
+}
+
+strref PropOther_label(_In_ PropOther* self)
+{
+    return self->vlabel;
+}
+
+void PropOther_setLabel(_In_ PropOther* self, _In_opt_ strref label)
+{
+    strConcat(&self->vlabel, _S"other:", label);
+}
+
+void PropOther_destroy(_In_ PropOther* self)
+{
+    // Autogen begins -----
+    strDestroy(&self->vlabel);
+    // Autogen ends -------
+}
+
+_objfactory_guaranteed PropSquare* PropSquare_create()
+{
+    PropSquare* self;
+    self = objInstCreate(PropSquare);
+
+    // Insert any pre-initialization object construction here
+
+    objInstInit(self);
+
+    // Insert any post-initialization object construction here
+
+    return self;
+}
+
+int32 PropSquare_sides(_In_ PropSquare* self)
+{
+    return 4;
+}
+
 // Autogen begins -----
 // clang-format off
 #include "objtestobj.auto.inc"

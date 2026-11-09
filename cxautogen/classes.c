@@ -1,3 +1,4 @@
+#include <ctype.h>
 #include <cx/container.h>
 #include <cx/string.h>
 #include "cxautogen.h"
@@ -343,6 +344,318 @@ static void propagateCanFailToFactories(Class* cls)
     }
 }
 
+static bool isIdent(strref s)
+{
+    if (strEmpty(s))
+        return false;
+    for (uint32 i = 0; i < strLen(s); i++) {
+        int ch = strGetChar(s, i);
+        if (!(isalpha(ch) || ch == '_' || (i > 0 && isdigit(ch))))
+            return false;
+    }
+    return true;
+}
+
+// A method's [prop] annotation, or the one on the parent or interface method it replaces
+static bool propAnnotation(sa_string* out, Class* cls, Method* m, bool* fromiface)
+{
+    *fromiface = m->srcif != NULL;
+    if (getAnnotation(out, m->annotations, _S"prop"))
+        return true;
+
+    if (cls->parent) {
+        for (int i = 0; i < saSize(cls->parent->allmethods); i++) {
+            Method* pm = cls->parent->allmethods.a[i];
+            if (strEq(pm->name, m->name))
+                return propAnnotation(out, cls->parent, pm, fromiface);
+        }
+    }
+
+    for (int i = 0; i < saSize(cls->implements); i++) {
+        Interface* iface = cls->implements.a[i];
+        if (iface->classif)
+            continue;
+        for (int j = 0; j < saSize(iface->allmethods); j++) {
+            Method* im = iface->allmethods.a[j];
+            if (strEq(im->name, m->name) && getAnnotation(out, im->annotations, _S"prop")) {
+                *fromiface = true;
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+// Splits "NAME [ro] [enum]"
+static bool parsePropWords(Class* cls, Method* m, sa_string an, string* name, bool* ro, bool* isenum)
+{
+    *ro = *isenum = false;
+    if (saSize(an) < 2) {
+        fprintf(stderr, "Class '%s': [prop] on method '%s' needs a property name\n", strC(cls->name),
+                strC(m->name));
+        return false;
+    }
+
+    sa_string words;
+    saInit(&words, string, 4);
+    strSplit(&words, an.a[1], _S" ", false);
+    bool ok = saSize(words) > 0 && isIdent(words.a[0]);
+    if (ok)
+        strDup(name, words.a[0]);
+    else
+        fprintf(stderr, "Class '%s': [prop %s] on method '%s' has an invalid property name\n",
+                strC(cls->name), strC(an.a[1]), strC(m->name));
+
+    for (int i = 1; ok && i < saSize(words); i++) {
+        if (strEq(words.a[i], _S"ro")) {
+            *ro = true;
+        } else if (strEq(words.a[i], _S"enum")) {
+            *isenum = true;
+        } else {
+            fprintf(stderr, "Class '%s': unknown flag '%s' in [prop %s]\n", strC(cls->name),
+                    strC(words.a[i]), strC(an.a[1]));
+            ok = false;
+        }
+    }
+    saDestroy(&words);
+    return ok;
+}
+
+// Maps a method's C type to the stype name a property descriptor uses
+static bool propType(string* sttype, string* objclass, strref type, strref predecr)
+{
+    static const char* const scalars[] = { "bool",   "int8",   "int16",   "int32",   "int64",
+                                           "uint8",  "uint16", "uint32",  "uint64",  "intptr",
+                                           "uintptr", "float32", "float64", NULL };
+
+    strClear(objclass);
+    if (strEmpty(predecr)) {
+        for (int i = 0; scalars[i]; i++) {
+            if (strEq(type, (strref)scalars[i])) {
+                strDup(sttype, type);
+                return true;
+            }
+        }
+        if (strEq(type, _S"size_t")) {
+            strDup(sttype, _S"size");
+            return true;
+        }
+        if (strEq(type, _S"strref") || strEq(type, _S"string")) {
+            strDup(sttype, _S"string");
+            return true;
+        }
+        return false;
+    }
+
+    if (strEq(predecr, _S"*") && htHasKey(clsidx, strref, type)) {
+        strDup(sttype, _S"object");
+        strDup(objclass, type);
+        return true;
+    }
+    return false;
+}
+
+static PropDef* findPropDef(sa_PropDef props, strref name)
+{
+    for (int i = 0; i < saSize(props); i++) {
+        if (strEq(props.a[i]->name, name))
+            return props.a[i];
+    }
+    return NULL;
+}
+
+static bool sameMethod(Method* a, Method* b)
+{
+    return (!a && !b) || (a && b && strEq(a->name, b->name));
+}
+
+// Checks a property's getter/setter pair once every [prop] method has been seen
+static bool checkPropDef(Class* cls, PropDef* pd)
+{
+    const char* cname = strC(cls->name);
+    const char* pname = strC(pd->name);
+
+    if (!pd->getter) {
+        fprintf(stderr, "Class '%s': property '%s' has a setter but no getter\n", cname, pname);
+        return false;
+    }
+    if (pd->ro && pd->setter) {
+        fprintf(stderr, "Class '%s': read-only property '%s' has a setter\n", cname, pname);
+        return false;
+    }
+    if (!pd->ro && !pd->setter) {
+        fprintf(stderr,
+                "Class '%s': property '%s' has no setter; mark the getter [prop %s ro] if it is "
+                "read-only\n",
+                cname, pname, pname);
+        return false;
+    }
+
+    if (!propType(&pd->sttype, &pd->objclass, pd->getter->returntype, pd->getter->predecr)) {
+        fprintf(stderr, "Class '%s': property '%s' has unsupported type '%s%s'\n", cname, pname,
+                strC(pd->getter->returntype), strC(pd->getter->predecr));
+        return false;
+    }
+
+    if (pd->setter) {
+        Param* p    = pd->setter->params.a[0];
+        string st   = 0, oc = 0;
+        bool sameok = propType(&st, &oc, p->type, p->predecr) && strEq(st, pd->sttype) &&
+            strEq(oc, pd->objclass);
+        strDestroy(&st);
+        strDestroy(&oc);
+        if (!sameok) {
+            fprintf(stderr,
+                    "Class '%s': property '%s' setter takes '%s%s' but the getter returns "
+                    "'%s%s'\n",
+                    cname, pname, strC(p->type), strC(p->predecr),
+                    strC(pd->getter->returntype), strC(pd->getter->predecr));
+            return false;
+        }
+        pd->setterbool = strEq(pd->setter->returntype, _S"bool");
+        pd->setteropt  = getAnnotation(NULL, p->annotations, _S"opt");
+    }
+
+    if (pd->isenum && !strEq(pd->sttype, _S"int32")) {
+        fprintf(stderr, "Class '%s': enum property '%s' must be int32\n", cname, pname);
+        return false;
+    }
+    return true;
+}
+
+// Collects the [prop] methods visible on a class into the properties it adds over its parents.
+// Thunks call through the method table, so a parent's entry already reaches any override and a
+// subclass never needs its own copy.
+static bool processClassProps(Class* cls)
+{
+    for (int i = 0; i < saSize(cls->methods); i++) {
+        Method* m = cls->methods.a[i];
+        if ((m->isfactory || m->standalone) && getAnnotation(NULL, m->annotations, _S"prop")) {
+            fprintf(stderr, "Class '%s': method '%s' can't be a property; standalone methods and "
+                            "factories have no object to act on\n",
+                    strC(cls->name), strC(m->name));
+            return false;
+        }
+    }
+
+    if (cls->mixin)
+        return true;
+
+    sa_PropDef found;
+    saInit(&found, object, 4);
+    sa_string enumhalves;   // names whose setter is marked enum
+    saInit(&enumhalves, string, 4, SA_Sorted);
+    string name = 0;
+    bool ok     = true;
+
+    // The method table's methods, and this class's own unbound ones; a parent's unbound
+    // properties are in the parent's table.
+    sa_Method cands;
+    saInit(&cands, object, saSize(cls->allmethods) + 4);
+    for (int i = 0; i < saSize(cls->allmethods); i++)
+        saPush(&cands, object, cls->allmethods.a[i]);
+    for (int i = 0; i < saSize(cls->methods); i++) {
+        if (cls->methods.a[i]->unbound && !cls->methods.a[i]->standalone)
+            saPush(&cands, object, cls->methods.a[i]);
+    }
+
+    for (int i = 0; ok && i < saSize(cands); i++) {
+        Method* m = cands.a[i];
+        sa_string an;
+        bool fromiface, ro, isenum;
+        if (!propAnnotation(&an, cls, m, &fromiface))
+            continue;
+        if (!parsePropWords(cls, m, an, &name, &ro, &isenum)) {
+            ok = false;
+            break;
+        }
+
+        bool isvoid   = strEq(m->returntype, _S"void") && strEmpty(m->predecr);
+        bool isgetter = saSize(m->params) == 0 && !isvoid;
+        bool issetter = saSize(m->params) == 1 &&
+            (isvoid || (strEq(m->returntype, _S"bool") && strEmpty(m->predecr)));
+        if (!isgetter && !issetter) {
+            fprintf(stderr,
+                    "Class '%s': [prop %s] method '%s' is neither a getter (no parameters) nor "
+                    "a setter (one parameter, returning void or bool)\n",
+                    strC(cls->name), strC(name), strC(m->name));
+            ok = false;
+            break;
+        }
+
+        PropDef* pd = findPropDef(found, name);
+        if (!pd) {
+            pd = propdefCreate();
+            strDup(&pd->name, name);
+            saPushC(&found, object, &pd);
+            pd = found.a[saSize(found) - 1];
+        }
+        pd->iface |= fromiface;
+
+        if (isgetter) {
+            if (pd->getter) {
+                fprintf(stderr, "Class '%s': property '%s' has two getters, '%s' and '%s'\n",
+                        strC(cls->name), strC(name), strC(pd->getter->name), strC(m->name));
+                ok = false;
+            }
+            pd->getter = m;
+            pd->ro     = ro;
+            pd->isenum = isenum;
+        } else {
+            if (ro) {
+                fprintf(stderr, "Class '%s': 'ro' on property '%s' belongs on the getter\n",
+                        strC(cls->name), strC(name));
+                ok = false;
+            } else if (pd->setter) {
+                fprintf(stderr, "Class '%s': property '%s' has two setters, '%s' and '%s'\n",
+                        strC(cls->name), strC(name), strC(pd->setter->name), strC(m->name));
+                ok = false;
+            }
+            pd->setter = m;
+            if (isenum)
+                saPush(&enumhalves, string, name);
+        }
+    }
+
+    for (int i = 0; ok && i < saSize(found); i++) {
+        PropDef* pd = found.a[i];
+        ok          = checkPropDef(cls, pd);
+        if (ok && pd->setter && pd->isenum != (saFind(enumhalves, string, pd->name) != -1)) {
+            fprintf(stderr, "Class '%s': 'enum' on property '%s' must be on both the getter and "
+                            "the setter\n",
+                    strC(cls->name), strC(pd->name));
+            ok = false;
+        }
+        if (!ok)
+            break;
+
+        PropDef* inherited = NULL;
+        for (Class* c = cls->parent; c && !inherited; c = c->parent)
+            inherited = findPropDef(c->props, pd->name);
+        if (inherited) {
+            if (sameMethod(inherited->getter, pd->getter) &&
+                sameMethod(inherited->setter, pd->setter))
+                continue;
+            fprintf(stderr,
+                    "Class '%s': property '%s' is already declared by a parent class; override "
+                    "its methods instead\n",
+                    strC(cls->name), strC(pd->name));
+            ok = false;
+            break;
+        }
+
+        int32 at = 0;
+        while (at < saSize(cls->props) && strCmp(cls->props.a[at]->name, pd->name) < 0) at++;
+        saInsert(&cls->props, at, object, pd);
+    }
+
+    strDestroy(&name);
+    saDestroy(&enumhalves);
+    saDestroy(&found);
+    saDestroy(&cands);
+    return ok;
+}
+
 bool processClass(Class* cls)
 {
     if (cls->processed)
@@ -508,6 +821,9 @@ bool processClass(Class* cls)
                 saRemove(&cls->methods, i);
         }
     }
+
+    if (!processClassProps(cls))
+        return false;
 
     // delete redundant interfaces
     pruneInterfaces(cls);

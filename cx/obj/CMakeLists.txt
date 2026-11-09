@@ -2,6 +2,7 @@ set(OBJSRCS
     obj/objclass.c
     obj/objiface.c
     obj/objimpl.c
+    obj/objprop.c
     obj/objstdif.c
     obj/objweak.c
     obj/stype_obj.c)
@@ -10,6 +11,7 @@ set(OBJINCLUDES
     obj/objclass.h
     obj/objiface.h
     obj/objimpl.h
+    obj/objprop.h
     obj/stype_obj.h)
 set(OBJSIDL
     obj/objstdif.cxh)

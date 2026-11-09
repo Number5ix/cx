@@ -1,0 +1,5 @@
+// expect: property 'x' has no setter
+class PropFail {
+    [prop x] int32 x();
+    factory create();
+}

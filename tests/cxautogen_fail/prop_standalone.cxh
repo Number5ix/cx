@@ -1,0 +1,5 @@
+// expect: method 'x' can.t be a property
+class PropFail {
+    [prop x ro] standalone int32 x();
+    factory create();
+}

@@ -287,6 +287,15 @@ add_test(NAME "\"object: Dynamic Cast\"" COMMAND test_runner objtest dyncast)
 add_test(NAME "\"object: Object Array\"" COMMAND test_runner objtest obj_array)
 add_test(NAME "\"object: Weak References\"" COMMAND test_runner objtest weakref)
 add_test(NAME "\"object: ClassSet\"" COMMAND test_runner objtest classset)
+add_test(NAME "\"object: Properties\"" COMMAND test_runner objtest grp_props)
+# cxautogen must reject every declaration in cxautogen_fail/ with the message its fixture expects
+if(NOT CMAKE_CROSSCOMPILING)
+    add_test(NAME "\"cxautogen: Rejected Declarations\""
+             COMMAND ${CMAKE_COMMAND} -DCXAUTOGEN=$<TARGET_FILE:cxautogen>
+                     -DFIXTURE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/cxautogen_fail
+                     -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/cxautogen_fail
+                     -P ${CMAKE_CURRENT_SOURCE_DIR}/cxautogen_fail/check.cmake)
+endif()
 add_test(NAME "\"struct: Type Identity\"" COMMAND test_runner structtest typeidentity)
 add_test(NAME "\"struct: Type Nesting\"" COMMAND test_runner structtest typenesting)
 add_test(NAME "\"struct: Init/Destroy\"" COMMAND test_runner structtest initdestroy)

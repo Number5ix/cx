@@ -11,6 +11,8 @@ typedef struct Param Param;
 typedef struct Param_WeakRef Param_WeakRef;
 typedef struct Method Method;
 typedef struct Method_WeakRef Method_WeakRef;
+typedef struct PropDef PropDef;
+typedef struct PropDef_WeakRef PropDef_WeakRef;
 typedef struct Interface Interface;
 typedef struct Interface_WeakRef Interface_WeakRef;
 typedef struct TypeNode TypeNode;
@@ -43,6 +45,15 @@ saDeclarePtr(Method_WeakRef);
 #define STypeArgPtr_Method(type, val) (stgeneric*)objInstCheckClassPtr(Method, val)
 #define STypeCheckedArg_Method(type, val)    stType(type), stArg(type, val)
 #define STypeCheckedPtrArg_Method(type, val) stType(type), stArgPtr(type, val)
+saDeclarePtr(PropDef);
+saDeclarePtr(PropDef_WeakRef);
+#define _sti_PropDef _sti_object
+#define SType_PropDef PropDef*
+#define STStorageType_PropDef PropDef*
+#define STypeArg_PropDef(type, val) stgeneric(object, (ObjInst*)objInstCheckClass(PropDef, val))
+#define STypeArgPtr_PropDef(type, val) (stgeneric*)objInstCheckClassPtr(PropDef, val)
+#define STypeCheckedArg_PropDef(type, val)    stType(type), stArg(type, val)
+#define STypeCheckedPtrArg_PropDef(type, val) stType(type), stArgPtr(type, val)
 saDeclarePtr(Interface);
 saDeclarePtr(Interface_WeakRef);
 #define _sti_Interface _sti_object
@@ -263,6 +274,47 @@ _objfactory_guaranteed Method* Method_create();
 // intptr methodCmp(Method* self, Method* other, uint32 flags);
 #define methodCmp(self, other, flags) (self)->_->cmp(Method(self), other, flags)
 
+typedef struct PropDef {
+    union {
+        ObjIface* _;
+        void* _is_PropDef;
+        void* _is_ObjInst;
+    };
+    ObjClassInfo* _clsinfo;
+    atomic(uintptr) _ref;
+    atomic(ptr) _weakref;
+
+    string name;
+    string sttype;        // stype name of the value
+    string objclass;        // class name, when sttype is object
+    Method* getter;
+    Method* setter;
+    bool ro;
+    bool isenum;
+    bool iface;
+    bool setterbool;        // setter returns bool
+    bool setteropt;        // setter's object parameter is [opt]
+} PropDef;
+extern ObjClassInfo PropDef_clsinfo;
+#define PropDef(inst) objInstCheckClass(PropDef, inst)
+#define PropDefNone ((PropDef*)NULL)
+
+typedef struct PropDef_WeakRef {
+    union {
+        ObjInst* _inst;
+        void* _is_PropDef_WeakRef;
+        void* _is_ObjInst_WeakRef;
+    };
+    atomic(uintptr) _ref;
+    RWLock _lock;
+} PropDef_WeakRef;
+#define PropDef_WeakRef(inst) objWeakRefCheckClass(PropDef, inst)
+
+_objfactory_guaranteed PropDef* PropDef_create();
+// PropDef* propdefCreate();
+#define propdefCreate() PropDef_create()
+
+
 typedef struct Interface {
     union {
         Interface_ClassIf* _;
@@ -412,6 +464,7 @@ typedef struct Class {
     bool hasautoinit;
     bool hasautodtors;
     string methodprefix;
+    sa_PropDef props;        // properties this class adds, sorted by name
     sa_Member allmembers;        // runtime stuff
     sa_Method allmethods;
 } Class;

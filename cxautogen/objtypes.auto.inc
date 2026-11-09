@@ -68,6 +68,16 @@ ObjClassInfo Method_clsinfo = {
     .ifimpl = _ifimpl_Method,
 };
 
+static ObjIface* _ifimpl_PropDef[] = {
+    NULL
+};
+
+ObjClassInfo PropDef_clsinfo = {
+    .instsize = sizeof(PropDef),
+    .destroy = (void(*)(void*))PropDef_destroy,
+    .ifimpl = _ifimpl_PropDef,
+};
+
 static Sortable _impl_Interface_Sortable = {
     ._size = sizeof(Sortable),
     ._implements = (ObjIface*)&Sortable_tmpl,

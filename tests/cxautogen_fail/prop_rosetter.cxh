@@ -1,0 +1,6 @@
+// expect: read-only property 'x' has a setter
+class PropFail {
+    [prop x ro] int32 x();
+    [prop x] void setX(int32 v);
+    factory create();
+}

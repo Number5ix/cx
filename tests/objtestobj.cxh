@@ -207,3 +207,75 @@ classset SerClsSet {
     sarray[object[SerClsSet]] items;
     factory create();
 }
+// Property fixtures. PropBase covers every allowed type; PropIf's property comes from an
+// interface; PropChild inherits and overrides; PropShape reaches an override from an abstract base.
+
+interface PropIf {
+    [prop label] strref label();
+    [prop label] void setLabel(strref label);
+}
+
+class PropBase implements PropIf {
+    int32 vnum;
+    bool vflag;
+    float32 vf32;
+    float64 vratio;
+    int64 vbig;
+    uint8 vsmall;
+    size_t vsize;
+    string vlabel;
+    int32 vmode;
+    object[PropBase] vpeer;
+    int32 vlimit;
+    int32 vversion;     // bumped by every setter
+    int32 vtag;
+
+    [prop num] int32 num();
+    [prop num] void setNum(int32 v);
+    [prop flag] bool flag();
+    [prop flag] void setFlag(bool v);
+    [prop f32] float32 f32();
+    [prop f32] void setF32(float32 v);
+    [prop ratio] float64 ratio();
+    [prop ratio] void setRatio(float64 v);
+    [prop big] int64 big();
+    [prop big] void setBig(int64 v);
+    [prop small] uint8 small();
+    [prop small] void setSmall(uint8 v);
+    [prop size] size_t size();
+    [prop size] void setSize(size_t v);
+    [prop mode enum] int32 mode();
+    [prop mode enum] void setMode(int32 v);
+    [prop peer] PropBase *peer();
+    [prop peer] void setPeer([in] [opt] PropBase *p);
+    [prop limit] int32 limit();
+    [prop limit] bool setLimit(int32 v);    // refuses anything over 100
+    [prop version ro] int32 version();
+    [prop tag] unbound int32 tag();
+    [prop tag] unbound void setTag(int32 v);
+    factory create();
+}
+
+class PropChild extends PropBase {
+    int32 vextra;
+
+    [prop extra] int32 extra();
+    [prop extra] void setExtra(int32 v);
+    override setNum;    // stores twice the value
+    factory create();
+}
+
+// Implements PropIf without PropBase's other properties; its setLabel adds a prefix.
+class PropOther implements PropIf {
+    string vlabel;
+    factory create();
+}
+
+abstract class PropShape {
+    [prop sides ro] [abstract] int32 sides();
+}
+
+class PropSquare extends PropShape {
+    override sides;
+    factory create();
+}

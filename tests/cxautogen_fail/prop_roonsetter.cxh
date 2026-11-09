@@ -1,0 +1,6 @@
+// expect: 'ro' on property 'x' belongs on the getter
+class PropFail {
+    [prop x] int32 x();
+    [prop x ro] void setX(int32 v);
+    factory create();
+}

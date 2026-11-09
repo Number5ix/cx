@@ -1,0 +1,6 @@
+// expect: property 'x' has unsupported type 'NotAClass\*'
+class PropFail {
+    [prop x] NotAClass *x();
+    [prop x] void setX(NotAClass *v);
+    factory create();
+}

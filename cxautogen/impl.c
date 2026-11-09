@@ -770,6 +770,89 @@ static int writeClassSerMembers(StreamBuffer* bf, Class* cls, hashtable* serseen
     return nmembers;
 }
 
+// Thunks that adapt each property's typed methods to ObjPropGetFn/ObjPropSetFn, and the sorted
+// descriptor table. The thunks use the class's call macros, which dispatch through the method
+// table, so overrides are honored.
+static void writeClassProps(StreamBuffer* bf, Class* cls)
+{
+    string ln = 0, call = 0, fn = 0, flags = 0;
+
+    for (int i = 0; i < saSize(cls->props); i++) {
+        PropDef* pd = cls->props.a[i];
+        strref argtype = strEq(pd->sttype, _S"string") ? _S"strref" : pd->sttype;
+
+        methodCallName(&call, cls, pd->getter->name);
+        strNConcat(&ln, _S"static bool _", cls->name, _S"_pget_", pd->name, _S"(ObjInst* self, stvar* out)");
+        sbufPWriteLine(bf, ln);
+        sbufPWriteLine(bf, _S"{");
+        strNConcat(&ln, _S"    stvarCopy(out, stvar(", argtype, _S", ", call, _S"((", cls->name, _S"*)self)));");
+        sbufPWriteLine(bf, ln);
+        sbufPWriteLine(bf, _S"    return true;");
+        sbufPWriteLine(bf, _S"}");
+        sbufPWriteEOL(bf);
+
+        if (!pd->setter)
+            continue;
+
+        methodCallName(&call, cls, pd->setter->name);
+        strNConcat(&ln, _S"static bool _", cls->name, _S"_pset_", pd->name, _S"(ObjInst* self, stvar val)");
+        sbufPWriteLine(bf, ln);
+        sbufPWriteLine(bf, _S"{");
+        string arg = 0;
+        if (strEq(pd->sttype, _S"object")) {
+            strNConcat(&ln, _S"    ", pd->objclass, _S"* v = objDynCast(", pd->objclass, _S", val.data.st_object);");
+            sbufPWriteLine(bf, ln);
+            sbufPWriteLine(bf, pd->setteropt ? _S"    if (!v && val.data.st_object)" : _S"    if (!v)");
+            sbufPWriteLine(bf, _S"        return false;");
+            strDup(&arg, _S"v");
+        } else {
+            strNConcat(&arg, _S"val.data.st_", pd->sttype);
+        }
+        if (pd->setterbool) {
+            strNConcat(&ln, _S"    return ", call, _S"((", cls->name, _S"*)self, ", arg, _S");");
+            sbufPWriteLine(bf, ln);
+        } else {
+            strNConcat(&ln, _S"    ", call, _S"((", cls->name, _S"*)self, ", arg, _S");");
+            sbufPWriteLine(bf, ln);
+            sbufPWriteLine(bf, _S"    return true;");
+        }
+        strDestroy(&arg);
+        sbufPWriteLine(bf, _S"}");
+        sbufPWriteEOL(bf);
+    }
+
+    strNConcat(&ln, _S"static const ObjPropDesc _props_", cls->name, _S"[] = {");
+    sbufPWriteLine(bf, ln);
+    for (int i = 0; i < saSize(cls->props); i++) {
+        PropDef* pd = cls->props.a[i];
+
+        strClear(&flags);
+        if (pd->ro)
+            strAppend(&flags, _S"OBJPROP_ReadOnly");
+        if (pd->isenum)
+            strNConcat(&flags, flags, strEmpty(flags) ? _S"" : _S" | ", _S"OBJPROP_Enum");
+        if (pd->iface)
+            strNConcat(&flags, flags, strEmpty(flags) ? _S"" : _S" | ", _S"OBJPROP_Iface");
+        if (strEmpty(flags))
+            strDup(&flags, _S"0");
+
+        if (pd->setter)
+            strNConcat(&fn, _S"_", cls->name, _S"_pset_", pd->name);
+        else
+            strDup(&fn, _S"NULL");
+        strNConcat(&ln, _S"    { _S\"", pd->name, _S"\", stType(", pd->sttype, _S"), _", cls->name,
+                   _S"_pget_", pd->name, _S", ", fn, _S", ", flags, _S" },");
+        sbufPWriteLine(bf, ln);
+    }
+    sbufPWriteLine(bf, _S"};");
+    sbufPWriteEOL(bf);
+
+    strDestroy(&flags);
+    strDestroy(&fn);
+    strDestroy(&call);
+    strDestroy(&ln);
+}
+
 static void writeClassImpl(StreamBuffer* bf, Class* cls, hashtable* serseen, bool* wroteany)
 {
     string ln = 0;
@@ -795,6 +878,8 @@ static void writeClassImpl(StreamBuffer* bf, Class* cls, hashtable* serseen, boo
     }
     if (sermembers)
         nsermembers = writeClassSerMembers(bf, cls, serseen);
+    if (saSize(cls->props) > 0)
+        writeClassProps(bf, cls);
 
     strNConcat(&ln, _S"ObjClassInfo ", cls->name, _S"_clsinfo = {");
     sbufPWriteLine(bf, ln);
@@ -808,6 +893,15 @@ static void writeClassImpl(StreamBuffer* bf, Class* cls, hashtable* serseen, boo
         string nstr = 0;
         strFromInt32(&nstr, nsermembers, 10);
         strNConcat(&ln, _S"    .nsermembers = ", nstr, _S",");
+        sbufPWriteLine(bf, ln);
+        strDestroy(&nstr);
+    }
+    if (saSize(cls->props) > 0) {
+        strNConcat(&ln, _S"    .props = _props_", cls->name, _S",");
+        sbufPWriteLine(bf, ln);
+        string nstr = 0;
+        strFromInt32(&nstr, saSize(cls->props), 10);
+        strNConcat(&ln, _S"    .nprops = ", nstr, _S",");
         sbufPWriteLine(bf, ln);
         strDestroy(&nstr);
     }

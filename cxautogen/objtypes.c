@@ -108,6 +108,7 @@ _objinit_guaranteed bool Class_init(_In_ Class* self)
     saInit(&self->members, object, 1);
     saInit(&self->methods, object, 1);
     saInit(&self->overrides, string, 1);
+    saInit(&self->props, object, 1);
     saInit(&self->allmembers, object, 1);
     saInit(&self->allmethods, object, 1);
     return true;
@@ -135,6 +136,7 @@ void Class_destroy(_In_ Class* self)
     saDestroy(&self->docs);
     saDestroy(&self->annotations);
     strDestroy(&self->methodprefix);
+    saDestroy(&self->props);
     saDestroy(&self->allmembers);
     saDestroy(&self->allmethods);
     // Autogen ends -------
@@ -313,6 +315,29 @@ void ClassSetDef_destroy(_In_ ClassSetDef* self)
     // Autogen begins -----
     strDestroy(&self->name);
     saDestroy(&self->members);
+    // Autogen ends -------
+}
+
+_objfactory_guaranteed PropDef* PropDef_create()
+{
+    PropDef* self;
+    self = objInstCreate(PropDef);
+
+    // Insert any pre-initialization object construction here
+
+    objInstInit(self);
+
+    // Insert any post-initialization object construction here
+
+    return self;
+}
+
+void PropDef_destroy(_In_ PropDef* self)
+{
+    // Autogen begins -----
+    strDestroy(&self->name);
+    strDestroy(&self->sttype);
+    strDestroy(&self->objclass);
     // Autogen ends -------
 }
 

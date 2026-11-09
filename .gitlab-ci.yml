@@ -20,6 +20,7 @@ build_freebsd:
     paths:
       - '_build/tests/CTestTestfile.cmake'
       - '_build/tests/test_runner'
+      - '_build/cxautogen/cxautogen'
       - '_build/tests/*.so'
       - '_build/tests/dynlibdep/'
       - '_build/tests/dynlibpair/'
@@ -36,6 +37,7 @@ build_linux:
     paths:
       - '_build/tests/CTestTestfile.cmake'
       - '_build/tests/test_runner'
+      - '_build/cxautogen/cxautogen'
       - '_build/tests/*.so'
       - '_build/tests/dynlibdep/'
       - '_build/tests/dynlibpair/'
@@ -52,6 +54,7 @@ build_win64:
     paths:
       - '_build/tests/CTestTestfile.cmake'
       - '_build/tests/Release/test_runner.exe'
+      - '_build/cxautogen/Release/cxautogen.exe'
       - '_build/tests/Release/*.dll'
       - '_build/tests/Release/dynlibdep/'
       - '_build/tests/Release/dynlibpair/'
@@ -68,6 +71,7 @@ build_win32:
     paths:
       - '_build/tests/CTestTestfile.cmake'
       - '_build/tests/Release/test_runner.exe'
+      - '_build/cxautogen/Release/cxautogen.exe'
       - '_build/tests/Release/*.dll'
       - '_build/tests/Release/dynlibdep/'
       - '_build/tests/Release/dynlibpair/'
@@ -84,6 +88,7 @@ build_linux_lto:
     paths:
       - '_build_lto/tests/CTestTestfile.cmake'
       - '_build_lto/tests/test_runner'
+      - '_build_lto/cxautogen/cxautogen'
       - '_build_lto/tests/*.so'
       - '_build_lto/tests/dynlibdep/'
       - '_build_lto/tests/dynlibpair/'

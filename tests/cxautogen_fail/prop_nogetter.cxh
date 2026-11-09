@@ -1,0 +1,5 @@
+// expect: property 'x' has a setter but no getter
+class PropFail {
+    [prop x] void setX(int32 v);
+    factory create();
+}

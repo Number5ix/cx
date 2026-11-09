@@ -1,0 +1,6 @@
+// expect: enum property 'x' must be int32
+class PropFail {
+    [prop x enum] uint32 x();
+    [prop x enum] void setX(uint32 v);
+    factory create();
+}

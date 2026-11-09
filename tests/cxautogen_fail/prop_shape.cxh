@@ -1,0 +1,6 @@
+// expect: method 'setX' is neither a getter
+class PropFail {
+    [prop x] int32 x();
+    [prop x] void setX(int32 a, int32 b);
+    factory create();
+}

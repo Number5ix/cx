@@ -1,0 +1,6 @@
+// expect: unknown flag 'bogus'
+class PropFail {
+    [prop x bogus] int32 x();
+    [prop x] void setX(int32 v);
+    factory create();
+}

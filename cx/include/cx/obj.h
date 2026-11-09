@@ -78,6 +78,8 @@
 /// - `[sal ...]` - SAL annotations for static analysis
 /// - `[opt]` - Function can return NULL/optional result
 /// - `[out]`, `[inout]` - Parameter direction hints
+/// - `[prop name]` - Method is the getter or setter of a property that can be read and written by
+/// name at run time (see @ref obj_prop "Properties")
 ///
 /// Example:
 /// @code
@@ -263,5 +265,6 @@
 #include <cx/obj/objclass.h>
 #include <cx/obj/objiface.h>
 #include <cx/obj/objimpl.h>
+#include <cx/obj/objprop.h>
 
 /// @}  // end of obj group

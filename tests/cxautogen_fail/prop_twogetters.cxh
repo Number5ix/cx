@@ -1,0 +1,6 @@
+// expect: property 'x' has two getters
+class PropFail {
+    [prop x ro] int32 x();
+    [prop x ro] int32 alsoX();
+    factory create();
+}

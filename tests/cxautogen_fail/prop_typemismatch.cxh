@@ -1,0 +1,6 @@
+// expect: property 'x' setter takes 'float64' but the getter returns 'int32'
+class PropFail {
+    [prop x] int32 x();
+    [prop x] void setX(float64 v);
+    factory create();
+}

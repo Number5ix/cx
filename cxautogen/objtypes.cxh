@@ -40,6 +40,22 @@ class Method implements Sortable {
     factory create();
 }
 
+// A [prop] property resolved for one class
+class PropDef {
+    string name;
+    string sttype;      // stype name of the value
+    string objclass;    // class name, when sttype is object
+    Method *getter;
+    Method *setter;
+    bool ro;
+    bool isenum;
+    bool iface;
+    bool setterbool;    // setter returns bool
+    bool setteropt;     // setter's object parameter is [opt]
+
+    factory create();
+}
+
 class Interface implements Sortable {
     string name;
     Interface *parent;
@@ -100,6 +116,7 @@ class Class implements Sortable {
     bool hasautodtors;
 
     string methodprefix;
+    sarray[object[PropDef]] props;   // properties this class adds, sorted by name
 
     // runtime stuff
     sarray[object[Member]] allmembers;
