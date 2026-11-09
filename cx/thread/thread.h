@@ -48,10 +48,12 @@ _thrCreate(_In_ threadFunc func, _In_ strref name, int n, _In_ stvar args[], boo
 //
 // Creates and starts a thread. The return value MUST be released with thrRelease to avoid leaking
 // memory.
-#define thrCreate(func, name, ...) \
-    _thrCreate(func, name, count_macro_args(__VA_ARGS__), (stvar[]) { __VA_ARGS__ }, false)
-#define thrCreateUI(func, name, ...) \
-    _thrCreate(func, name, count_macro_args(__VA_ARGS__), (stvar[]) { __VA_ARGS__ }, true)
+#define thrCreate(func, name, ...)     \
+    (_stvarArgsGuard(__VA_ARGS__),     \
+     _thrCreate(func, name, count_macro_args(__VA_ARGS__), (stvar[]) { __VA_ARGS__ }, false))
+#define thrCreateUI(func, name, ...)   \
+    (_stvarArgsGuard(__VA_ARGS__),     \
+     _thrCreate(func, name, count_macro_args(__VA_ARGS__), (stvar[]) { __VA_ARGS__ }, true))
 
 void _thrRun(_In_ threadFunc func, _In_ strref name, int n, _In_ stvar args[]);
 
@@ -65,8 +67,9 @@ void _thrRun(_In_ threadFunc func, _In_ strref name, int n, _In_ stvar args[]);
 /// @param func Thread entry point function
 /// @param name Thread name for debugging
 /// @param ... Optional arguments passed to the thread function (wrapped as stvar)
-#define thrRun(func, name, ...) \
-    _thrRun(func, name, count_macro_args(__VA_ARGS__), (stvar[]) { __VA_ARGS__ })
+#define thrRun(func, name, ...)        \
+    (_stvarArgsGuard(__VA_ARGS__),     \
+     _thrRun(func, name, count_macro_args(__VA_ARGS__), (stvar[]) { __VA_ARGS__ }))
 
 /// Check if a thread is currently running
 /// @param thread Thread object

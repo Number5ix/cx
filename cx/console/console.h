@@ -206,8 +206,9 @@ bool conFlush(_In_ ConStream* con);
 ///          stvar(string, name), stvar(int32, count));
 /// @endcode
 bool _conFmt(_In_ ConStream* con, _In_ strref fmt, int n, _In_ stvar* args);
-#define conFmt(con, fmt, ...) \
-    _conFmt(con, fmt, count_macro_args(__VA_ARGS__), (stvar[]) { __VA_ARGS__ })
+#define conFmt(con, fmt, ...)          \
+    (_stvarArgsGuard(__VA_ARGS__),     \
+     _conFmt(con, fmt, count_macro_args(__VA_ARGS__), (stvar[]) { __VA_ARGS__ }))
 
 /// @}  // end of console_output group
 

@@ -252,6 +252,9 @@ _meta_inline stvar _stvark(const char* nm, stype st, stgeneric val)
 #define stvNone _stvar(stType(none), _cxStGenZero())
 #endif
 
+// Internal: fails to compile when a variadic stvar macro gets no arguments at all.
+#define _stvarArgsGuard(...) ((void)sizeof(char[sizeof((stvar[]) { __VA_ARGS__ }) ? 1 : -1]))
+
 /// @}
 
 /// @defgroup stvp Output Parameter Bindings

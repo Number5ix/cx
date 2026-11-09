@@ -150,8 +150,9 @@ bool conPutcS(_In_ ConStream* con, ConStyle style, int32 codepoint);
 ///   conFmtS(conOut(), CONSTYLE(CON_Red, CON_Bold), _SL("error: ${string}"), stvar(string, msg));
 /// @endcode
 bool _conFmtS(_In_ ConStream* con, ConStyle style, _In_ strref fmt, int n, _In_ stvar* args);
-#define conFmtS(con, style, fmt, ...) \
-    _conFmtS(con, style, fmt, count_macro_args(__VA_ARGS__), (stvar[]) { __VA_ARGS__ })
+#define conFmtS(con, style, fmt, ...)  \
+    (_stvarArgsGuard(__VA_ARGS__),     \
+     _conFmtS(con, style, fmt, count_macro_args(__VA_ARGS__), (stvar[]) { __VA_ARGS__ }))
 
 /// @}  // end of console_style group
 

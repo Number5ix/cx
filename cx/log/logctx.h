@@ -70,8 +70,9 @@ CX_C_BEGIN
 ///   }
 /// @endcode
 #define withLogCtx(...)                                                   \
-    blkWrap (_logCtxPush(count_macro_args(__VA_ARGS__),                   \
-                         (stvar[]) { __VA_ARGS__ }),                      \
+    blkWrap ((_stvarArgsGuard(__VA_ARGS__),                               \
+              _logCtxPush(count_macro_args(__VA_ARGS__),                  \
+                          (stvar[]) { __VA_ARGS__ })),                    \
              logCtxPop())
 
 // Internal; use withLogCtx()
