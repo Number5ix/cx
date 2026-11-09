@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <cx/string.h>
 #include <cx/closure.h>
+#include <cx/format.h>
 #include <cx/string/strtest.h>
 
 #define TEST_FILE closuretest
@@ -297,10 +298,79 @@ static int test_closuretest_destroy(void)
     return ret;
 }
 
+static int ctestEvalCalls;
+
+static int32 ctestEvalNext(void)
+{
+    return ++ctestEvalCalls;
+}
+
+typedef int32 (*ClosureTestEval)(stvlist* cvars, int32 n);
+
+static int32 ctestEvalTyped(stvlist* cvars, int32 n)
+{
+    return n;
+}
+
+// Runs one macro call whose stvar arguments are x++ and ctestEvalNext(), then checks that each
+// was evaluated exactly once.
+#define CTEST_EVAL_ONCE(name, call)                                                             \
+    do {                                                                                        \
+        x              = 0;                                                                     \
+        ctestEvalCalls = 0;                                                                     \
+        call;                                                                                   \
+        if (x != 1 || ctestEvalCalls != 1)                                                      \
+            TEST_FAILV(ret, 1, _SL("${string}: x=${int} calls=${int} (want 1, 1)"),             \
+                       stvar(strref, _SL(name)), stvar(int32, x), stvar(int32, ctestEvalCalls)); \
+    } while (0)
+
+// Macros that take an stvar list also check at compile time that the list isn't empty, using a
+// sizeof over the same arguments. That operand must never be evaluated: every argument's side
+// effects have to happen exactly once.
+static int test_closuretest_argseval(void)
+{
+    int ret     = 0;
+    int x       = 0;
+    closure cls = NULL;
+    cchain ch   = NULL;
+    string out  = 0;
+
+    CTEST_EVAL_ONCE("closureCreate",
+                    cls = closureCreate(ctestNoop, stvar(int32, x++), stvar(int32, ctestEvalNext())));
+    closureDestroy(&cls);
+
+    CTEST_EVAL_ONCE("closureCreateAs",
+                    cls = closureCreateAs(ClosureTestEval, ctestEvalTyped, stvar(int32, x++),
+                                          stvar(int32, ctestEvalNext())));
+    closureDestroy(&cls);
+
+    cls = closureCreate(ctestNoop, stvNone);
+    CTEST_EVAL_ONCE("closureCall", closureCall(cls, stvar(int32, x++), stvar(int32, ctestEvalNext())));
+    closureDestroy(&cls);
+
+    CTEST_EVAL_ONCE("cchainAttach",
+                    cchainAttach(&ch, ctestNoop, stvar(int32, x++), stvar(int32, ctestEvalNext())));
+    CTEST_EVAL_ONCE("cchainAttachToken",
+                    cchainAttachToken(&ch, ctestNoop, 1, stvar(int32, x++), stvar(int32, ctestEvalNext())));
+    CTEST_EVAL_ONCE("cchainCall", cchainCall(&ch, stvar(int32, x++), stvar(int32, ctestEvalNext())));
+    CTEST_EVAL_ONCE("cchainCallOnce", cchainCallOnce(&ch, stvar(int32, x++), stvar(int32, ctestEvalNext())));
+    cchainDestroy(&ch);
+
+    // the values that arrive must be the ones from the single evaluation
+    CTEST_EVAL_ONCE("strFormat",
+                    strFormat(&out, _S"${int} ${int}", stvar(int32, x++), stvar(int32, ctestEvalNext())));
+    if (!strEq(out, _SL("0 1")))
+        TEST_FAILV(ret, 1, _SL("strFormat produced '${string}' (want '0 1')"), stvar(string, out));
+
+    strDestroy(&out);
+    return ret;
+}
+
 testfunc closuretest_funcs[] = {
     { "closure", test_closuretest_closure },
     { "chain", test_closuretest_chain },
     { "typed", test_closuretest_typed },
     { "destroy", test_closuretest_destroy },
+    { "argseval", test_closuretest_argseval },
     { 0, 0 }
 };

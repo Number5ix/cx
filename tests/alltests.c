@@ -22,6 +22,7 @@ static const testspec tests[] = {
     { "closure: Closure Chain", "closuretest", "chain" },
     { "closure: Typed Closure", "closuretest", "typed" },
     { "closure: Destroy Function", "closuretest", "destroy" },
+    { "closure: Argument Evaluation", "closuretest", "argseval" },
     { "console: Capability detection", "contest", "caps" },
     { "console: Buffered write", "contest", "write" },
     { "console: Rope write", "contest", "write_rope" },
