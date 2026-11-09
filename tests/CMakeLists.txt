@@ -29,6 +29,7 @@ create_test_sourcelist(testsrc
     test_runner.c
     EXTRA_INCLUDE testharness.h
     debugtest.c
+    harnesstest.c
     cxmemtest.c
     closuretest.c
     contest.c
@@ -197,6 +198,8 @@ endif()
 add_test(NAME "\"debug: Assertions\"" COMMAND test_runner debugtest assert)
 add_test(NAME "\"debug: Black box\"" COMMAND test_runner debugtest bbox)
 add_test(NAME "\"debug: Black box buffers\"" COMMAND test_runner debugtest bboxbuf)
+add_test(NAME "\"harness: Skip\"" COMMAND test_runner harnesstest skip)
+add_test(NAME "\"harness: Chain\"" COMMAND test_runner harnesstest chain)
 add_test(NAME "\"xalloc: Allocation\"" COMMAND test_runner cxmemtest alloc)
 add_test(NAME "\"xalloc: Usable Size\"" COMMAND test_runner cxmemtest usable_size)
 add_test(NAME "\"xalloc: Free\"" COMMAND test_runner cxmemtest free)

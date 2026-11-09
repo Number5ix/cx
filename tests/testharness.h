@@ -2,6 +2,10 @@
 
 #include <cx/log/log.h>
 
+// Exit code for a test that can't run in this environment. ctest reports it as skipped for tests
+// registered with SKIP_RETURN_CODE 77; alltests always counts it as skipped.
+#define CX_TEST_SKIP 77
+
 #ifdef __cplusplus
 extern "C" {
 #endif

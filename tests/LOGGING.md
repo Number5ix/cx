@@ -32,14 +32,19 @@ interleave.
 Every test file logs to the same channel (`tests`, via `LOG_CHANNEL`) with no per-file setup.
 It's deliberately not under `cx/` -- that root is `LOG_Restricted`, and the `NULL`/unrestricted
 filter that nearly every existing test destination uses cannot reach into a restricted subtree.
-`common.h` provides four macros:
+`common.h` provides five macros:
 
 ```c
 TEST_FAIL(code, fmt, ...)          // logs an Error, then returns code
 TEST_FAILV(var, code, fmt, ...)    // logs an Error, then assigns code to var (no return)
+TEST_SKIP(fmt, ...)                // logs an Info, then returns CX_TEST_SKIP (77)
 TEST_WARN(fmt, ...)                // logs a Warn
 TEST_INFO(fmt, ...)                // logs an Info
 ```
+
+`TEST_SKIP` is for a test the environment can't run (no display, for instance). Register such a
+test with `set_tests_properties(<name> PROPERTIES SKIP_RETURN_CODE 77)` so ctest reports it as
+skipped rather than failed; `alltests` counts 77 as skipped for every test.
 
 `TEST_FAIL` replaces an immediate `return N;` at a failure site. `TEST_FAILV` is for a failure
 that can't unwind right away -- inside a callback, or an accumulator variable (`ret = 1;`) that a

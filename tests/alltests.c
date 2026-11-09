@@ -2,6 +2,8 @@
 #include <cx/time.h>
 #include <stdio.h>
 
+#include "testharness.h"
+
 // Run all tests in a single process, to make manual testing easier
 
 typedef struct testspec {
@@ -14,6 +16,8 @@ static const testspec tests[] = {
     { "debug: Assertions", "debugtest", "assert" },
     { "debug: Black box", "debugtest", "bbox" },
     { "debug: Black box buffers", "debugtest", "bboxbuf" },
+    { "harness: Skip", "harnesstest", "skip" },
+    { "harness: Chain", "harnesstest", "chain" },
     { "xalloc: Allocation", "cxmemtest", "alloc" },
     { "xalloc: Usable Size", "cxmemtest", "usable_size" },
     { "xalloc: Free", "cxmemtest", "free" },
@@ -974,7 +978,7 @@ int alltests(int argc, const char *argv[])
         return 1;
     }
 
-    int npassed = 0;
+    int npassed = 0, nskipped = 0;
     int64 totalstart = clockTimer();
 
     // Trailing flags on alltests' own argv (e.g. "-log=Warn") are forwarded to every
@@ -1001,20 +1005,28 @@ int alltests(int argc, const char *argv[])
         logRestart();   // the previous test may have shut down the logging system
         fake_argv[1] = tests[i].module;
         fake_argv[2] = tests[i].test;
-        bool res = main(3 + nflags, fake_argv);
+        int res = main(3 + nflags, fake_argv);
         int64 tend = clockTimer();
 
-        printf("    %s    %4d msec\n",
-                res ? "Failed" : "Passed", (int)timeToMsec(tend - tstart));
-        if (!res)
+        const char *status = "Failed";
+        if (res == 0) {
+            status = "Passed";
             npassed++;
+        } else if (res == CX_TEST_SKIP) {
+            status = "Skipped";
+            nskipped++;
+        }
+        printf("    %-7s    %4d msec\n", status, (int)timeToMsec(tend - tstart));
         xaFlush();
     }
 
     int64 totalend = clockTimer();
+    int nfailed = ntests - npassed - nskipped;
     printf("\n%d%% tests passed, %d tests failed out of %d, total elapsed %d msec\n",
-            npassed * 100 / ntests, ntests - npassed, ntests,
+            (ntests - nfailed) * 100 / ntests, nfailed, ntests,
             (int)timeToMsec(totalend - totalstart));
+    if (nskipped > 0)
+        printf("%d tests skipped\n", nskipped);
 
-    return ntests - npassed;
+    return nfailed;
 }

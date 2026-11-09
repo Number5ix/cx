@@ -50,6 +50,24 @@
         (var) = (code); \
     } while (0)
 
+// void TEST_SKIP(fmt, ...);
+//
+// Logs why at Info level and returns CX_TEST_SKIP -- for a test whose environment can't run it
+// (no display, missing hardware, and so on). Never use it to hide a failure.
+//
+// @param fmt Format template (see strFormat); use the generic type tokens, not sized ones
+//
+// Example:
+// @code
+//   if (!haveDisplay())
+//       TEST_SKIP(_SL("no display"), stvNone);
+// @endcode
+#define TEST_SKIP(fmt, ...) \
+    do { \
+        logFmt(Info, fmt, ##__VA_ARGS__); \
+        return CX_TEST_SKIP; \
+    } while (0)
+
 // void TEST_WARN(fmt, ...);
 //
 // Logs a Warn message. Use the generic format type tokens (${int}, ${string}, ...), not sized
@@ -66,8 +84,9 @@
 //
 // Runs each of the given no-argument test functions in sequence and returns, so a group of
 // related subtests can share one ctest process launch instead of one each. Stops at the first
-// one that returns nonzero and returns that value; returns 0 if they all pass. Only valid as
-// the entire body of a test function -- it returns on the caller's behalf.
+// one that fails and returns its value. A skipped subtest doesn't stop the chain; if nothing
+// failed but something skipped, returns CX_TEST_SKIP, and 0 if they all pass. Only valid as the
+// entire body of a test function -- it returns on the caller's behalf.
 //
 // Example:
 // @code
@@ -79,12 +98,15 @@
 #define TEST_CHAIN(...) \
     do { \
         int (*const _chainFns[])(void) = { __VA_ARGS__ }; \
+        int _chainSkip = 0; \
         for (size_t _chainI = 0; _chainI < sizeof(_chainFns) / sizeof(_chainFns[0]); _chainI++) { \
             int _chainRet = _chainFns[_chainI](); \
-            if (_chainRet) \
+            if (_chainRet == CX_TEST_SKIP) \
+                _chainSkip = CX_TEST_SKIP; \
+            else if (_chainRet) \
                 return _chainRet; \
         } \
-        return 0; \
+        return _chainSkip; \
     } while (0)
 
 #ifdef __cplusplus
