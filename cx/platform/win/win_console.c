@@ -12,6 +12,7 @@ typedef struct ConPlatWin {
     bool istty;          // handle is a real console, not redirected to a file/pipe
     bool haveOrigMode;
     DWORD origMode;
+    bool echoOff;         // input only: echo as conSetEcho() last asked, applied while line input is on
     bool haveOrigAttrs;   // legacy backend only: text attributes as found at stream init
     WORD origAttrs;
     bool haveSavedPos;    // legacy backend only: conSaveCursor() target -- there is no
@@ -65,6 +66,7 @@ void _conPlatInit(ConStream* con, ConKind kind)
         // conIn() back to its original mode too, in case conSetMode(CON_Raw) ever changed it.
         p->origMode     = mode;
         p->haveOrigMode = true;
+        p->echoOff      = !(mode & ENABLE_ECHO_INPUT);
 
 #ifndef CX_XP_COMPAT
         if (kind != CON_Kind_In) {
@@ -429,8 +431,15 @@ bool _conPlatSetMode(ConStream* con, ConInputMode mode)
     if (!GetConsoleMode(p->handle, &cur))
         return false;
 
-    DWORD next = mode == CON_Raw ? cur & ~(DWORD)(ENABLE_LINE_INPUT | ENABLE_PROCESSED_INPUT)
-                                 : cur | ENABLE_LINE_INPUT | ENABLE_PROCESSED_INPUT;
+    // Windows rejects ENABLE_ECHO_INPUT without ENABLE_LINE_INPUT (Wine doesn't), so raw mode
+    // drops echo too, and cooked mode puts back what conSetEcho() last asked for.
+    DWORD next;
+    if (mode == CON_Raw) {
+        next = cur & ~(DWORD)(ENABLE_LINE_INPUT | ENABLE_PROCESSED_INPUT | ENABLE_ECHO_INPUT);
+    } else {
+        next = cur | ENABLE_LINE_INPUT | ENABLE_PROCESSED_INPUT;
+        next = p->echoOff ? next & ~(DWORD)ENABLE_ECHO_INPUT : next | ENABLE_ECHO_INPUT;
+    }
     return SetConsoleMode(p->handle, next) != 0;
 }
 
@@ -444,6 +453,11 @@ bool _conPlatSetEcho(ConStream* con, bool echo)
     DWORD cur;
     if (!GetConsoleMode(p->handle, &cur))
         return false;
+
+    // Without line input (raw mode) echo can't be set; it is applied when cooked mode returns.
+    p->echoOff = !echo;
+    if (!(cur & ENABLE_LINE_INPUT))
+        return true;
 
     DWORD next = echo ? cur | ENABLE_ECHO_INPUT : cur & ~(DWORD)ENABLE_ECHO_INPUT;
     return SetConsoleMode(p->handle, next) != 0;
