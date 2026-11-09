@@ -39,8 +39,8 @@
 ///   closureDestroy(&cls);
 /// @endcode
 ///
-/// A closure that captures nothing, or a call that passes nothing, must say so with `stvNone`
-/// rather than leaving the argument list empty.
+/// A closure that captures nothing, or a call that passes nothing, must say so with `stvNone`.
+/// Leaving the argument list empty does not compile.
 ///
 /// @section closure_typed Typed closures
 ///
@@ -121,6 +121,11 @@ typedef struct closure_ref* closure;
 /// @return true on success, false on failure
 typedef bool (*closureFunc)(stvlist* cvars, stvlist* args);
 
+// Internal: fails to compile when a closure macro gets no stvar arguments at all. GCC and Clang
+// otherwise accept the empty array while count_macro_args() still reports one entry, so the
+// callee would read past the end of it.
+#define _closureArgsGuard(...) ((void)sizeof(char[sizeof((stvar[]) { __VA_ARGS__ }) ? 1 : -1]))
+
 _Ret_valid_ closure _closureCreate(_In_ closureFunc func, int n, stvar cvars[]);
 
 /// closure closureCreate(closureFunc func, ...)
@@ -132,8 +137,9 @@ _Ret_valid_ closure _closureCreate(_In_ closureFunc func, int n, stvar cvars[]);
 /// @param func Closure function to call
 /// @param ... One or more stvar arguments to capture (`stvNone` for none)
 /// @return New closure object (must be freed with closureDestroy())
-#define closureCreate(func, ...) \
-    _closureCreate(func, count_macro_args(__VA_ARGS__), (stvar[]) { __VA_ARGS__ })
+#define closureCreate(func, ...)      \
+    (_closureArgsGuard(__VA_ARGS__), \
+     _closureCreate(func, count_macro_args(__VA_ARGS__), (stvar[]) { __VA_ARGS__ }))
 
 bool _closureCall(_In_ closure cls, int n, stvar args[]);
 
@@ -144,8 +150,9 @@ bool _closureCall(_In_ closure cls, int n, stvar args[]);
 /// @param cls Closure to call
 /// @param ... One or more stvar arguments to pass (`stvNone` for none)
 /// @return Return value from the closure function
-#define closureCall(cls, ...) \
-    _closureCall(cls, count_macro_args(__VA_ARGS__), (stvar[]) { __VA_ARGS__ })
+#define closureCall(cls, ...)         \
+    (_closureArgsGuard(__VA_ARGS__), \
+     _closureCall(cls, count_macro_args(__VA_ARGS__), (stvar[]) { __VA_ARGS__ }))
 
 _Ret_valid_ closure _closureCreateAs(_In_ void (*func)(void), _In_z_ const char* sig, int n,
                                      stvar cvars[]);
@@ -166,10 +173,11 @@ _Ret_valid_ closure _closureCreateAs(_In_ void (*func)(void), _In_z_ const char*
 ///   closure cls = closureCreateAs(ProgressFunc, onProgress, stvar(object, window));
 /// @endcode
 #define closureCreateAs(sigtype, func, ...)                                                   \
-    _closureCreateAs((void (*)(void))(1 ? (func) : (sigtype)0),                                \
-                     #sigtype,                                                                 \
-                     count_macro_args(__VA_ARGS__),                                            \
-                     (stvar[]) { __VA_ARGS__ })
+    (_closureArgsGuard(__VA_ARGS__),                                                           \
+     _closureCreateAs((void (*)(void))(1 ? (func) : (sigtype)0),                               \
+                      #sigtype,                                                                \
+                      count_macro_args(__VA_ARGS__),                                           \
+                      (stvar[]) { __VA_ARGS__ }))
 
 // Internal: back closureCallAs(). They are usable directly by code that needs to call a typed
 // closure without the macro, but closureCallAs() is the supported way.

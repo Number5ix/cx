@@ -77,10 +77,11 @@ _Success_(return) bool _cchainAttach(_Inout_ptr_opt_ cchain* chain, _In_ closure
 ///
 /// @param chain Pointer to closure chain (may be NULL, will be initialized)
 /// @param func Closure function to attach
-/// @param ... Zero or more stvar arguments to capture
+/// @param ... One or more stvar arguments to capture (`stvNone` for none)
 /// @return true on success, false if the chain is invalid
 #define cchainAttach(chain, func, ...) \
-    _cchainAttach(chain, func, 0, count_macro_args(__VA_ARGS__), (stvar[]) { __VA_ARGS__ })
+    (_closureArgsGuard(__VA_ARGS__), \
+     _cchainAttach(chain, func, 0, count_macro_args(__VA_ARGS__), (stvar[]) { __VA_ARGS__ }))
 
 /// bool cchainAttachToken(cchain *chain, closureFunc func, intptr token, ...)
 ///
@@ -93,10 +94,11 @@ _Success_(return) bool _cchainAttach(_Inout_ptr_opt_ cchain* chain, _In_ closure
 /// @param chain Pointer to closure chain (may be NULL, will be initialized)
 /// @param func Closure function to attach
 /// @param token Nonzero identifier for this closure instance
-/// @param ... Zero or more stvar arguments to capture
+/// @param ... One or more stvar arguments to capture (`stvNone` for none)
 /// @return true on success, false if the chain is invalid
 #define cchainAttachToken(chain, func, token, ...) \
-    _cchainAttach(chain, func, token, count_macro_args(__VA_ARGS__), (stvar[]) { __VA_ARGS__ })
+    (_closureArgsGuard(__VA_ARGS__), \
+     _cchainAttach(chain, func, token, count_macro_args(__VA_ARGS__), (stvar[]) { __VA_ARGS__ }))
 
 /// Detach a closure from the chain
 ///
@@ -124,10 +126,11 @@ _Success_(return) bool _cchainCall(_In_ptr_opt_ cchain* chain, int n, stvar args
 /// to perform atomic reads for thread safety.
 ///
 /// @param chain Pointer to closure chain
-/// @param ... Zero or more stvar arguments to pass to each closure
+/// @param ... One or more stvar arguments to pass to each closure (`stvNone` for none)
 /// @return true if all closures returned true, false otherwise or if chain is invalid
 #define cchainCall(chain, ...) \
-    _cchainCall(chain, count_macro_args(__VA_ARGS__), (stvar[]) { __VA_ARGS__ })
+    (_closureArgsGuard(__VA_ARGS__), \
+     _cchainCall(chain, count_macro_args(__VA_ARGS__), (stvar[]) { __VA_ARGS__ }))
 
 _Success_(return) bool _cchainCallOnce(_Inout_ptr_opt_ cchain* chain, int n, stvar args[]);
 
@@ -140,10 +143,11 @@ _Success_(return) bool _cchainCallOnce(_Inout_ptr_opt_ cchain* chain, int n, stv
 /// after the event has already fired.
 ///
 /// @param chain Pointer to closure chain (will be invalidated)
-/// @param ... Zero or more stvar arguments to pass to each closure
+/// @param ... One or more stvar arguments to pass to each closure (`stvNone` for none)
 /// @return true if all closures returned true, false otherwise or if chain was already invalid
 #define cchainCallOnce(chain, ...) \
-    _cchainCallOnce(chain, count_macro_args(__VA_ARGS__), (stvar[]) { __VA_ARGS__ })
+    (_closureArgsGuard(__VA_ARGS__), \
+     _cchainCallOnce(chain, count_macro_args(__VA_ARGS__), (stvar[]) { __VA_ARGS__ }))
 
 /// Transfer a closure chain to a new location
 ///
