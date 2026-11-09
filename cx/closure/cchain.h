@@ -4,43 +4,47 @@
 /// @ingroup closure
 /// @{
 ///
-/// Thread-safe linked lists of closures for implementing multi-callback event systems.
+/// A closure chain is a list of closures that are called together, for events that can have more
+/// than one listener. Any thread can attach, detach or call at any time.
 ///
-/// Closure chains are the recommended way to implement event handlers that can have multiple
-/// subscribers. They provide thread-safe attachment and detachment of callbacks, with optional
-/// tokens for selective removal.
+/// - A `cchain` set to NULL is an empty chain, ready to use.
+/// - Closures run **newest first**: the most recently attached closure is called first.
+/// - Every closure is called, even after one returns false.
+/// - A call runs the closures that were attached when it started. Attaching or detaching during a
+///   call, from another thread or from one of its closures, takes effect from the next call. So a
+///   closure can still run once after cchainDetach() returns, if another thread was already calling
+///   the chain; its captured variables stay valid until then.
+/// - Closures run on the calling thread with no lock held, so they may attach, detach or call the
+///   same chain.
+/// - A token identifies one attached closure for cchainDetach(). It is passed to the closure as the
+///   last captured variable, after the ones given to cchainAttachToken().
 ///
-/// Key features:
-/// - Thread-safe attachment/detachment using atomic operations
-/// - Optional tokens to identify specific callback instances
-/// - One-shot mode with cchainCallOnce() for non-renewable events
-/// - Transfer and clone operations for chain management
-///
-/// The token, if provided, is automatically added as the last captured variable in each
-/// closure, after any variables passed to cchainAttach().
+/// cchainCallOnce(), cchainDestroy(), and cchainTransfer() (on its source) **consume** a chain.
+/// After that, attaching fails and calling returns false, so a closure can't be attached after a
+/// one-time event has already fired. cchainReset() makes a consumed chain usable again.
 ///
 /// Basic usage:
 /// @code
 ///   cchain eventChain = NULL;
 ///
 ///   bool handler1(stvlist *cvars, stvlist *args) {
-///       string event = stvlNextPtr(string, args);
+///       strref event = stvlAt(args, 0, strref);
 ///       // handle event...
 ///       return true;
 ///   }
 ///
 ///   bool handler2(stvlist *cvars, stvlist *args) {
-///       int captured = stvlNextInt(cvars);
+///       int32 captured = stvlAt(cvars, 0, int32);
 ///       // handle event with captured data...
 ///       return true;
 ///   }
 ///
 ///   // Attach handlers
-///   cchainAttach(&eventChain, handler1);
+///   cchainAttach(&eventChain, handler1, stvNone);
 ///   cchainAttach(&eventChain, handler2, stvar(int32, 42));
 ///
-///   // Fire event - calls all handlers
-///   cchainCall(&eventChain, stvar(string, _SL("myEvent")));
+///   // Fire event - calls handler2, then handler1
+///   cchainCall(&eventChain, stvar(strref, _SL("myEvent")));
 ///
 ///   // Cleanup
 ///   cchainDestroy(&eventChain);
@@ -72,13 +76,10 @@ _Success_(return) bool _cchainAttach(_Inout_ptr_opt_ cchain* chain, _In_ closure
 ///
 /// Attach a closure to the chain without a token.
 ///
-/// Adds a new closure to the chain with the specified function and captured variables.
-/// Can fail if the chain has been consumed by cchainCallOnce().
-///
-/// @param chain Pointer to closure chain (may be NULL, will be initialized)
+/// @param chain Pointer to closure chain
 /// @param func Closure function to attach
 /// @param ... One or more stvar arguments to capture (`stvNone` for none)
-/// @return true on success, false if the chain is invalid
+/// @return true on success, false if the chain has been consumed
 #define cchainAttach(chain, func, ...) \
     (_stvarArgsGuard(__VA_ARGS__),   \
      _cchainAttach(chain, func, 0, count_macro_args(__VA_ARGS__), (stvar[]) { __VA_ARGS__ }))
@@ -87,24 +88,19 @@ _Success_(return) bool _cchainAttach(_Inout_ptr_opt_ cchain* chain, _In_ closure
 ///
 /// Attach a closure to the chain with an identifying token.
 ///
-/// The token should be a nonzero value that can be used to selectively detach this specific
-/// closure instance using cchainDetach(). The token is automatically added as the last
-/// captured variable passed to the closure function.
-///
-/// @param chain Pointer to closure chain (may be NULL, will be initialized)
+/// @param chain Pointer to closure chain
 /// @param func Closure function to attach
-/// @param token Nonzero identifier for this closure instance
+/// @param token Nonzero identifier for this closure instance, used by cchainDetach()
 /// @param ... One or more stvar arguments to capture (`stvNone` for none)
-/// @return true on success, false if the chain is invalid
+/// @return true on success, false if the chain has been consumed
 #define cchainAttachToken(chain, func, token, ...) \
     (_stvarArgsGuard(__VA_ARGS__),   \
      _cchainAttach(chain, func, token, count_macro_args(__VA_ARGS__), (stvar[]) { __VA_ARGS__ }))
 
 /// Detach a closure from the chain
 ///
-/// Attempts to remove a previously attached closure from the chain. The function pointer
-/// and token must both match the values used when attaching (use 0 for token if none was
-/// specified).
+/// The function and token must both match the ones used when attaching (0 if there was no token).
+/// If that pair was attached more than once, only the most recently attached one is removed.
 ///
 /// @param chain Pointer to closure chain
 /// @param func Closure function to detach
@@ -118,16 +114,12 @@ _Success_(return) bool _cchainCall(_In_ptr_opt_ cchain* chain, int n, stvar args
 ///
 /// Call all closures in the chain with the given arguments.
 ///
-/// Invokes each closure in the chain, passing the provided arguments. Returns true only if
-/// all closures return true. The chain is cloned internally before calling, so callbacks
-/// can take arbitrary time without blocking other threads.
-///
-/// Note: Unlike closureCall(), this requires a pointer to the chain (not the chain itself)
-/// to perform atomic reads for thread safety.
+/// Unlike closureCall(), this takes a pointer to the chain.
 ///
 /// @param chain Pointer to closure chain
 /// @param ... One or more stvar arguments to pass to each closure (`stvNone` for none)
-/// @return true if all closures returned true, false otherwise or if chain is invalid
+/// @return true if every closure returned true (or the chain is empty), false if any returned
+/// false or the chain has been consumed
 #define cchainCall(chain, ...) \
     (_stvarArgsGuard(__VA_ARGS__),   \
      _cchainCall(chain, count_macro_args(__VA_ARGS__), (stvar[]) { __VA_ARGS__ }))
@@ -136,61 +128,58 @@ _Success_(return) bool _cchainCallOnce(_Inout_ptr_opt_ cchain* chain, int n, stv
 
 /// bool cchainCallOnce(cchain *chain, ...)
 ///
-/// Call all closures in the chain once, then invalidate the chain.
+/// Consume the chain and call all of its closures.
 ///
-/// Atomically calls all closures and marks the chain as invalid, preventing future attachments.
-/// This is useful for one-time events to avoid race conditions where callbacks might be added
-/// after the event has already fired.
+/// The chain is consumed before the first closure runs, so any later cchainAttach() fails instead
+/// of attaching a closure that would never be called. Use this for one-time events.
 ///
-/// @param chain Pointer to closure chain (will be invalidated)
+/// @param chain Pointer to closure chain
 /// @param ... One or more stvar arguments to pass to each closure (`stvNone` for none)
-/// @return true if all closures returned true, false otherwise or if chain was already invalid
+/// @return true if every closure returned true (or the chain is empty), false if any returned
+/// false or the chain was already consumed
 #define cchainCallOnce(chain, ...) \
     (_stvarArgsGuard(__VA_ARGS__),   \
      _cchainCallOnce(chain, count_macro_args(__VA_ARGS__), (stvar[]) { __VA_ARGS__ }))
 
 /// Transfer a closure chain to a new location
 ///
-/// Safely moves the chain from src to dest, invalidating the source. The transferred chain
-/// is inserted before any existing closures in dest. Future attach attempts to src will fail.
+/// Moves every closure from src to dest and consumes src. The moved closures run before the ones
+/// already in dest.
 ///
 /// @param dest Destination chain pointer
-/// @param src Source chain pointer (will be invalidated)
-/// @return true on success, false if dest is invalid
+/// @param src Source chain pointer
+/// @return true on success, false if either chain has been consumed
 _Success_(return) bool cchainTransfer(_Inout_ptr_opt_ cchain* dest, _Inout_ptr_opt_ cchain* src);
 
 /// Clone a closure chain to a new location
 ///
-/// Creates a copy of all closures in src and adds them to dest. Unlike transfer, the source
-/// chain remains valid and usable. Cloned closures are inserted before any existing closures
-/// in dest.
+/// Copies every closure from src into dest. The copies run before the closures already in dest.
+/// src is unchanged.
 ///
 /// @param dest Destination chain pointer
-/// @param src Source chain pointer (remains valid)
-/// @return true on success, false if dest is invalid
+/// @param src Source chain pointer
+/// @return true on success, false if dest has been consumed
 _Success_(return) bool cchainClone(_Inout_ptr_opt_ cchain* dest, _In_ptr_opt_ cchain* src);
 
-/// Reset a previously invalidated closure chain
+/// Make a consumed closure chain usable again
 ///
-/// Resets a chain that was invalidated by cchainCallOnce() or cchainTransfer() so it can be
-/// reused. Only works on chains that are in the invalid state.
+/// The chain is left empty.
 ///
-/// @param chain Pointer to invalidated closure chain
-/// @return true if the chain was reset, false if it was not invalidated
+/// @param chain Pointer to closure chain
+/// @return true if the chain was reset, false if it had not been consumed
 _Success_(return) bool cchainReset(_Inout_ptr_opt_ cchain* chain);
 
 /// Remove all closures from the chain
 ///
-/// Clears all closures from the chain but leaves it in a valid state for future attachments.
-/// Unlike cchainDestroy(), the chain can be reused after calling this.
+/// Unlike cchainDestroy(), the chain stays usable.
 ///
 /// @param chain Pointer to closure chain
-/// @return true on success, false if chain is invalid
+/// @return true on success, false if the chain has been consumed
 _Success_(return) bool cchainClear(_Inout_ptr_opt_ cchain* chain);
 
 /// Destroy a closure chain and all its closures
 ///
-/// Frees all closures and invalidates the chain. The chain cannot be used after this call.
+/// The chain is left consumed. Destroying a chain that is already consumed does nothing.
 ///
 /// @param chain Pointer to closure chain
 void cchainDestroy(_Inout_ptr_opt_ cchain* chain);

@@ -2,13 +2,9 @@
 #include "closure_private.h"
 #include <cx/thread/aspin.h>
 
-// This module used to use a global lock to handle thread safety. However this became quite
-// inefficient once there was a mix of renewable and one-shot chains.
-
-// Now it uses sentinel values with a strict compare-and-exchange regime to implement simple
-// spinlocks using the pointers themselves. This is slightly worse for the case with many
-// concurrent calls to the same closure chain as they are now serialized, but better for
-// the general use case as the locking is specific to a chain rather than global.
+// Each chain is its own spinlock: the head pointer is swapped for a sentinel with compare-and-
+// exchange while it's being changed. Nodes are immutable and reference counted once published, so
+// a call holds the lock only long enough to take a reference to the head.
 
 // Sentinel value for a chain that's been invalidated for future use.
 #define CCNODE_INVALID ((CChainNode*)-1)
@@ -43,16 +39,13 @@ static void ccnodeDeref(_Inout_ CChainNode* node)
     }
 }
 
-static CChainNode* ccnodeFree(_In_ CChainNode* node)
+// Frees a node that was never published to a chain
+static void ccnodeFree(_In_ CChainNode* node)
 {
-    // Only used in code paths where we have exclusive ownership (cchainCallOnce)
-    for (int i = node ? node->nvars - 1 : -1; i >= 0; --i) {
+    for (int i = node->nvars - 1; i >= 0; --i) {
         stvarDestroy(&node->cvars[i]);
     }
-
-    CChainNode* prev = node->prev;
     xaFree(node);
-    return prev;
 }
 
 // Get the head node of a chain and mark it busy (or invalid)
@@ -152,7 +145,7 @@ bool cchainDetach(cchain* chain, closureFunc func, intptr token)
 
         // Clone chain excluding the target node
         while (cur) {
-            if (cur->func == func && cur->token == token) {
+            if (!ret && cur->func == func && cur->token == token) {
                 // Skip this node (first match only)
                 ret = true;
                 cur = cur->prev;
@@ -263,28 +256,22 @@ bool _cchainCall(cchain* chain, int n, stvar args[])
 _Use_decl_annotations_
 bool _cchainCallOnce(cchain* chain, int n, stvar args[])
 {
-    CChainNode* cur;
+    CChainNode* head;
     bool ret = true;
 
     stvlist stv_cvars;
     stvlist stv_args;
 
-    // Atomically invalidate the chain while getting the value, then we can be assured it's owned
-    // exclusively and destroy it as we go.
-
-    if (cchainAcquire(chain, &cur, true)) {
-        while (cur) {
+    // Invalidating the chain takes over its reference to the head. The nodes can still be shared
+    // with a cchainCall in progress, so they're released by reference rather than freed.
+    if (cchainAcquire(chain, &head, true)) {
+        for (CChainNode* cur = head; cur; cur = cur->prev) {
             stvlInit(&stv_cvars, cur->nvars, cur->cvars);
             stvlInit(&stv_args, n, args);
             ret &= cur->func(&stv_cvars, &stv_args);
-
-            // we should be the sole reference holder here
-            devAssert(atomicLoad(uint32, &cur->refcount, Relaxed) == 1);
-
-            cur = ccnodeFree(cur);
         }
 
-        // no need to call cchainRelease because it's invalid now
+        ccnodeDeref(head);
         return ret;
     } else {
         return false;

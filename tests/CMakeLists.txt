@@ -202,7 +202,7 @@ add_test(NAME "\"xalloc: Usable Size\"" COMMAND test_runner cxmemtest usable_siz
 add_test(NAME "\"xalloc: Free\"" COMMAND test_runner cxmemtest free)
 add_test(NAME "\"xalloc: Reallocation\"" COMMAND test_runner cxmemtest realloc)
 add_test(NAME "\"closure: Basic Closure\"" COMMAND test_runner closuretest closure)
-add_test(NAME "\"closure: Closure Chain\"" COMMAND test_runner closuretest chain)
+add_test(NAME "\"closure: Closure Chain\"" COMMAND test_runner closuretest grp_chain)
 add_test(NAME "\"closure: Typed Closure\"" COMMAND test_runner closuretest typed)
 add_test(NAME "\"closure: Destroy Function\"" COMMAND test_runner closuretest destroy)
 add_test(NAME "\"closure: Argument Evaluation\"" COMMAND test_runner closuretest argseval)

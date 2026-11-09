@@ -189,6 +189,179 @@ static int test_closuretest_chain(void)
     return ret;
 }
 
+// Each chain-order handler appends its one-digit id here.
+static char ctorder[16];
+static int ctorderLen;
+
+static void ctorderReset(void)
+{
+    memset(ctorder, 0, sizeof(ctorder));
+    ctorderLen = 0;
+}
+
+static void ctorderAdd(int32 id)
+{
+    if (ctorderLen < (int)sizeof(ctorder) - 1)
+        ctorder[ctorderLen++] = (char)('0' + id);
+}
+
+#define CTEST_ORDER(what, want)                                                                    \
+    if (!strEq((strref)ctorder, _SL(want)))                                                        \
+        TEST_FAILV(ret, 1, _SL("${string}: handlers ran as '${string}' (want '${string}')"),       \
+                   stvar(strref, _SL(what)), stvar(strref, (strref)ctorder), stvar(strref, _SL(want)))
+
+// Captures: id, return value
+static bool ctestOrder(stvlist* cvars, stvlist* args)
+{
+    ctorderAdd(stvlAt(cvars, 0, int32));
+    return stvlAt(cvars, 1, bool);
+}
+
+// Handlers run newest first, all of them run even when one returns false, and a detach removes
+// only the newest match.
+static int test_closuretest_chainorder(void)
+{
+    int ret   = 0;
+    cchain ch = NULL;
+
+    ctorderReset();
+    if (!cchainCall(&ch, stvNone))
+        TEST_FAILV(ret, 1, _SL("cchainCall on an empty chain returned false"), stvNone);
+    CTEST_ORDER("empty chain", "");
+
+    cchainAttach(&ch, ctestOrder, stvar(int32, 1), stvar(bool, true));
+    cchainAttachToken(&ch, ctestOrder, 7, stvar(int32, 2), stvar(bool, false));
+    cchainAttach(&ch, ctestOrder, stvar(int32, 3), stvar(bool, true));
+
+    ctorderReset();
+    if (cchainCall(&ch, stvNone))
+        TEST_FAILV(ret, 1, _SL("cchainCall returned true with a handler returning false"), stvNone);
+    CTEST_ORDER("three handlers", "321");
+
+    if (!cchainDetach(&ch, ctestOrder, 7))
+        TEST_FAILV(ret, 1, _SL("cchainDetach with token 7 found nothing"), stvNone);
+    ctorderReset();
+    if (!cchainCall(&ch, stvNone))
+        TEST_FAILV(ret, 1, _SL("cchainCall returned false after detaching the false handler"), stvNone);
+    CTEST_ORDER("after token detach", "31");
+
+    if (!cchainDetach(&ch, ctestOrder, 0))
+        TEST_FAILV(ret, 1, _SL("cchainDetach with no token found nothing"), stvNone);
+    ctorderReset();
+    cchainCall(&ch, stvNone);
+    CTEST_ORDER("after tokenless detach", "1");
+
+    cchainDestroy(&ch);
+    return ret;
+}
+
+// Captures: id, chain, whether it has run
+static bool ctestEditDuringCall(stvlist* cvars, stvlist* args)
+{
+    ctorderAdd(stvlAt(cvars, 0, int32));
+    cchain* ch = stvlAtPtr(cvars, 1);
+    bool* ran  = stvlAtPtr(cvars, 2);
+
+    if (!*ran) {
+        *ran = true;
+        cchainAttach(ch, ctestOrder, stvar(int32, 9), stvar(bool, true));
+        cchainDetach(ch, ctestOrder, 5);
+    }
+    return true;
+}
+
+// A call runs the handlers that were attached when it started. Attaching or detaching from inside
+// a handler takes effect from the next call.
+static int test_closuretest_chainsnapshot(void)
+{
+    int ret   = 0;
+    cchain ch = NULL;
+    bool ran  = false;
+
+    cchainAttachToken(&ch, ctestOrder, 5, stvar(int32, 2), stvar(bool, true));
+    cchainAttach(&ch, ctestEditDuringCall, stvar(int32, 1), stvar(ptr, &ch), stvar(ptr, &ran));
+
+    ctorderReset();
+    cchainCall(&ch, stvNone);
+    CTEST_ORDER("call that edits the chain", "12");
+
+    ctorderReset();
+    cchainCall(&ch, stvNone);
+    CTEST_ORDER("next call", "91");
+
+    cchainDestroy(&ch);
+    return ret;
+}
+
+// Captures: id, chain, whether it has run, cchainAttach result out
+static bool ctestCallOnceDuringCall(stvlist* cvars, stvlist* args)
+{
+    ctorderAdd(stvlAt(cvars, 0, int32));
+    cchain* ch     = stvlAtPtr(cvars, 1);
+    bool* ran      = stvlAtPtr(cvars, 2);
+    bool* reattach = stvlAtPtr(cvars, 3);
+
+    if (!*ran) {
+        *ran = true;
+        cchainCallOnce(ch, stvNone);
+    } else {
+        // inside cchainCallOnce: the chain is already consumed
+        *reattach = cchainAttach(ch, ctestOrder, stvar(int32, 9), stvar(bool, true));
+    }
+    return true;
+}
+
+// cchainCallOnce from inside a cchainCall on the same chain must leave the outer call's handlers
+// and their captures intact until it finishes.
+static int test_closuretest_chainonce(void)
+{
+    int ret       = 0;
+    cchain ch     = NULL;
+    bool ran      = false;
+    bool reattach = true;
+    string str    = 0;
+    strCopy(&str, _S"captured");
+
+    cchainAttach(&ch, ctestOrder, stvar(int32, 2), stvar(bool, true), stvar(string, str));
+    cchainAttach(&ch,
+                 ctestCallOnceDuringCall,
+                 stvar(int32, 1),
+                 stvar(ptr, &ch),
+                 stvar(ptr, &ran),
+                 stvar(ptr, &reattach));
+
+    ctorderReset();
+    if (!cchainCall(&ch, stvNone))
+        TEST_FAILV(ret, 1, _SL("outer cchainCall returned false"), stvNone);
+    CTEST_ORDER("cchainCallOnce inside cchainCall", "1122");
+    if (reattach)
+        TEST_FAILV(ret, 1, _SL("cchainAttach succeeded inside cchainCallOnce"), stvNone);
+    if (strTestRefCount(str) != 1)
+        TEST_FAILV(ret, 1, _SL("capture refcount=${int} after cchainCallOnce (want 1)"),
+                   stvar(int32, strTestRefCount(str)));
+
+    if (cchainAttach(&ch, ctestOrder, stvar(int32, 3), stvar(bool, true)))
+        TEST_FAILV(ret, 1, _SL("cchainAttach succeeded after cchainCallOnce"), stvNone);
+    if (cchainCall(&ch, stvNone))
+        TEST_FAILV(ret, 1, _SL("cchainCall returned true on a consumed chain"), stvNone);
+    if (!cchainReset(&ch))
+        TEST_FAILV(ret, 1, _SL("cchainReset failed on a consumed chain"), stvNone);
+    if (!cchainAttach(&ch, ctestOrder, stvar(int32, 3), stvar(bool, true)))
+        TEST_FAILV(ret, 1, _SL("cchainAttach failed after cchainReset"), stvNone);
+
+    cchainDestroy(&ch);
+    strDestroy(&str);
+    return ret;
+}
+
+static int test_closuretest_grp_chain(void)
+{
+    TEST_CHAIN(test_closuretest_chain,
+               test_closuretest_chainorder,
+               test_closuretest_chainsnapshot,
+               test_closuretest_chainonce);
+}
+
 // A typed signature: non-bool return and raw buffer arguments, neither of which a generic closure
 // can express.
 typedef size_t (*ClosureTestFill)(stvlist* cvars, uint8* buf, size_t sz);
@@ -369,6 +542,10 @@ static int test_closuretest_argseval(void)
 testfunc closuretest_funcs[] = {
     { "closure", test_closuretest_closure },
     { "chain", test_closuretest_chain },
+    { "chainorder", test_closuretest_chainorder },
+    { "chainsnapshot", test_closuretest_chainsnapshot },
+    { "chainonce", test_closuretest_chainonce },
+    { "grp_chain", test_closuretest_grp_chain },
     { "typed", test_closuretest_typed },
     { "destroy", test_closuretest_destroy },
     { "argseval", test_closuretest_argseval },
