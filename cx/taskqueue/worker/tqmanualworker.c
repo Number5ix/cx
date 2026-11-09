@@ -64,8 +64,9 @@ int64 TQManualWorker_tick(_In_ TQManualWorker* self, _In_ TaskQueue* tq)
         waittime      = min(waittime, mgrtime);
     }
 
-    // If there's still anything left in the run queue, ask politely to be run again
-    if ((tq->flags & TQ_Oneshot) && prqCount(&tq->runq) > 0)
+    // If there's still anything left in the run queue (oneshot, or the last manager tick moved
+    // tasks there), ask politely to be run again
+    if (prqCount(&tq->runq) > 0)
         return 0;
 
     return waittime;

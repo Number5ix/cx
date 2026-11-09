@@ -1117,6 +1117,129 @@ static int test_tqtest_manualwake(void)
     return ret;
 }
 
+typedef struct NestTestState {
+    TaskQueue* q;
+    WakeTestState wts;
+    int count;
+    bool finished[3];
+} NestTestState;
+
+static bool tqtestNestCount(stvlist* cvars, stvlist* args)
+{
+    NestTestState* nts = stvlAtPtr(cvars, 0);
+    nts->count++;
+    return true;
+}
+
+// A task that ticks its own queue until the work it queued has run, like a nested modal loop.
+// Levels 0 and 1 nest another level inside themselves; level 1 also waits on a scheduled task.
+static bool tqtestNestTick(stvlist* cvars, stvlist* args)
+{
+    NestTestState* nts = stvlAtPtr(cvars, 0);
+    int32 level        = stvlAt(cvars, 1, int32);
+
+    if (level < 2) {
+        tqCall(nts->q, closureCreate(tqtestNestTick, stvar(ptr, nts), stvar(int32, level + 1)));
+        tqCall(nts->q, closureCreate(tqtestNestCount, stvar(ptr, nts)));
+        if (level == 1) {
+            TQWakeResched* sched = tqwakereschedCreate(&nts->wts, 3, timeMS(5));
+            tqRun(nts->q, &sched);
+        }
+
+        int64 deadline = clockTimer() + timeS(5);
+        while (!nts->finished[level + 1] ||
+               (level == 1 && !atomicLoad(bool, &nts->wts.done, Acquire))) {
+            if (clockTimer() > deadline)
+                return false;
+            int64 next = tqTick(nts->q);
+            if (next > 0)
+                osSleep(min(next, timeMS(1)));
+        }
+    }
+
+    nts->finished[level] = true;
+    return true;
+}
+
+static int test_tqtest_nestedtick(void)
+{
+    int ret           = 0;
+    NestTestState nts = { 0 };
+
+    TaskQueueConfig conf;
+    tqPresetManual(&conf);
+    nts.q = tqCreate(_S"Nested", &conf);
+    if (!nts.q || !tqStart(nts.q))
+        TEST_FAIL(1, _SL("couldn't start the manual queue"), stvNone);
+
+    tqCall(nts.q, closureCreate(tqtestNestTick, stvar(ptr, &nts), stvar(int32, 0)));
+    int64 deadline = clockTimer() + timeS(10);
+    while (!nts.finished[0] && clockTimer() < deadline) {
+        int64 next = tqTick(nts.q);
+        if (next > 0)
+            osSleep(min(next, timeMS(1)));
+    }
+
+    if (!nts.finished[0] || !nts.finished[1] || !nts.finished[2] ||
+        !atomicLoad(bool, &nts.wts.done, Acquire))
+        TEST_FAILV(ret, 1, _SL("finished=${int},${int},${int} scheduled done=${int} (want all 1)"),
+                   stvar(int32, nts.finished[0]), stvar(int32, nts.finished[1]),
+                   stvar(int32, nts.finished[2]),
+                   stvar(int32, atomicLoad(bool, &nts.wts.done, Acquire)));
+    if (nts.count != 2)
+        TEST_FAILV(ret, 1, _SL("count=${int} after nested ticks (want 2)"), stvar(int32, nts.count));
+
+    // the queue still works normally afterwards, and goes idle
+    tqCall(nts.q, closureCreate(tqtestNestCount, stvar(ptr, &nts)));
+    tqTick(nts.q);
+    if (nts.count != 3)
+        TEST_FAILV(ret, 1, _SL("count=${int} after a plain tick (want 3)"), stvar(int32, nts.count));
+    int64 next = tqTick(nts.q);
+    if (next != timeForever)
+        TEST_FAILV(ret, 1, _SL("idle tqTick returned ${int} (want timeForever)"), stvar(int64, next));
+
+    tqShutdown(nts.q, timeS(5));
+    tqRelease(&nts.q);
+    return ret;
+}
+
+// Without a wake callback, tqTick's return value alone must bring the loop back to a scheduled
+// task once it's due.
+static int test_tqtest_tickdue(void)
+{
+    int ret           = 0;
+    WakeTestState wts = { 0 };
+
+    TaskQueueConfig conf;
+    tqPresetManual(&conf);
+    TaskQueue* q = tqCreate(_S"Due", &conf);
+    if (!q || !tqStart(q))
+        TEST_FAIL(1, _SL("couldn't start the manual queue"), stvNone);
+
+    TQWakeResched* task = tqwakereschedCreate(&wts, 1, 0);
+    tqSchedule(q, task, timeMS(2));
+
+    int64 deadline = clockTimer() + timeS(5);
+    while (!atomicLoad(bool, &wts.done, Acquire) && clockTimer() < deadline) {
+        int64 next = tqTick(q);
+        if (atomicLoad(bool, &wts.done, Acquire))
+            break;
+        if (next == timeForever) {
+            TEST_FAILV(ret, 1, _SL("tqTick returned timeForever while a task was scheduled"), stvNone);
+            break;
+        }
+        if (next > 0)
+            osSleep(min(next, timeMS(100)));
+    }
+    if (!ret && !atomicLoad(bool, &wts.done, Acquire))
+        TEST_FAILV(ret, 1, _SL("scheduled task never ran"), stvNone);
+
+    objRelease(&task);
+    tqShutdown(q, timeS(5));
+    tqRelease(&q);
+    return ret;
+}
+
 #if defined(_PLATFORM_WIN)
 static atomic(int32) uiwakeMsgs;
 static atomic(uint32) uiwakeThread;
@@ -1175,7 +1298,11 @@ static int test_tqtest_uiwake(void)
 
 static int test_tqtest_grp_manual(void)
 {
-    TEST_CHAIN(test_tqtest_manual, test_tqtest_oneshot, test_tqtest_manualwake);
+    TEST_CHAIN(test_tqtest_manual,
+               test_tqtest_oneshot,
+               test_tqtest_manualwake,
+               test_tqtest_nestedtick,
+               test_tqtest_tickdue);
 }
 
 static MPTestState mps;
@@ -1367,6 +1494,8 @@ testfunc tqtest_funcs[] = {
     { "manual",                test_tqtest_manual               },
     { "oneshot",               test_tqtest_oneshot              },
     { "manualwake",            test_tqtest_manualwake           },
+    { "nestedtick",            test_tqtest_nestedtick           },
+    { "tickdue",               test_tqtest_tickdue              },
 #if defined(_PLATFORM_WIN)
     { "uiwake",                test_tqtest_uiwake               },
 #endif

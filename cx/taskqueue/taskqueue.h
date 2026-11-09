@@ -92,8 +92,13 @@ tqCreate(_In_ strref name, _In_ const TaskQueueConfig* tqconfig);
 ///
 /// Tick a manual queue to process one or more tasks.
 /// Only valid for queues created with TQ_Manual flag.
+///
+/// A task running on the queue may tick the queue itself, for example from inside a nested modal
+/// loop. Tasks added in the meantime run inside that inner tick.
+///
 /// @param tq Manual task queue to tick
-/// @return Time until next scheduled task, or -1 if no tasks pending
+/// @return 0 if more work is ready now, otherwise how long the caller may wait before ticking
+/// again (timeForever if nothing is scheduled). Waiting less is always safe.
 #define tqTick taskqueueTick
 
 /// bool tqShutdown(TaskQueue *tq, int64 wait)
