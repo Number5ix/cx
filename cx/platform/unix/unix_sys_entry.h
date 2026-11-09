@@ -2,9 +2,9 @@
 
 #include "cx/cx.h"
 
-#define DEFINE_ENTRY_POINT                         \
+#define _CX_DEFINE_ENTRY_POINT_RUNNER(runner)      \
     int main(int argc, char* argv[])               \
     {                                              \
         _entryParseArgs(argc, (const char**)argv); \
-        return entryPoint();                       \
+        return runner(entryPoint);                 \
     }

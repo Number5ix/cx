@@ -9,22 +9,22 @@ extern int entryCmdShow;
 // Windows subsystem
 
 #if defined(_UNICODE)
-#define DEFINE_ENTRY_POINT                                                                      \
+#define _CX_DEFINE_ENTRY_POINT_RUNNER(runner)                                                   \
     int WINAPI                                                                                  \
     wWinMain(_In_ HINSTANCE hInst, _In_opt_ HINSTANCE hPrev, _In_ PWSTR cmdline, _In_ int show) \
     {                                                                                           \
         entryCmdShow = show;                                                                    \
         _entryParseArgsU16(__argc, (const uint16**)__wargv);                                    \
-        return entryPoint();                                                                    \
+        return runner(entryPoint);                                                              \
     }
 #else
-#define DEFINE_ENTRY_POINT                                                                    \
+#define _CX_DEFINE_ENTRY_POINT_RUNNER(runner)                                                 \
     int WINAPI                                                                                \
     WinMain(_In_ HINSTANCE hInst, _In_opt_ HINSTANCE hPrev, _In_ PSTR cmdline, _In_ int show) \
     {                                                                                         \
         entryCmdShow = show;                                                                  \
         _entryParseArgs(__argc, (const char**)__argv);                                        \
-        return entryPoint();                                                                  \
+        return runner(entryPoint);                                                            \
     }
 #endif
 
@@ -32,18 +32,18 @@ extern int entryCmdShow;
 // Console subsystem
 
 #if defined(_UNICODE)
-#define DEFINE_ENTRY_POINT                               \
+#define _CX_DEFINE_ENTRY_POINT_RUNNER(runner)            \
     int wmain(int argc, wchar_t* wargv[])                \
     {                                                    \
         _entryParseArgsU16(argc, (const uint16**)wargv); \
-        return entryPoint();                             \
+        return runner(entryPoint);                       \
     }
 #else
-#define DEFINE_ENTRY_POINT                         \
+#define _CX_DEFINE_ENTRY_POINT_RUNNER(runner)      \
     int main(int argc, char* argv[])               \
     {                                              \
         _entryParseArgs(argc, (const char**)argv); \
-        return entryPoint();                       \
+        return runner(entryPoint);                 \
     }
 #endif
 

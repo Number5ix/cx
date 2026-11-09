@@ -433,6 +433,19 @@ static int entryPoint()
 DEFINE_ENTRY_POINT
 }   // namespace cxentrycheck
 
+// The same for an entry point with its own runner.
+namespace cxentryrunnercheck {
+static int entryPoint()
+{
+    return 0;
+}
+static int runner(int (*entry)(void))
+{
+    return entry();
+}
+_CX_DEFINE_ENTRY_POINT_RUNNER(runner)
+}   // namespace cxentryrunnercheck
+
 testfunc cpptest_funcs[] = {
     { "sarray",    test_sarray    },
     { "hashtable", test_hashtable },

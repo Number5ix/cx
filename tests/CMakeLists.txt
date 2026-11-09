@@ -146,6 +146,15 @@ endif()
 
 set_property(TARGET test_runner PROPERTY FOLDER "tests")
 
+# A program whose entry point runner hands entryPoint() to another thread. It checks itself and
+# exits 0 on success.
+if(NOT CX_PLATFORM_IS_WASM)
+    add_executable(entrytest entrytest.c)
+    target_link_libraries(entrytest cx)
+    set_property(TARGET entrytest PROPERTY FOLDER "tests")
+    add_test(NAME "\"sys: Entry Point Runner\"" COMMAND entrytest alpha "beta gamma")
+endif()
+
 # Shared libraries loaded at runtime by dynlibtest.c. None of them link cx.
 #
 # cxdyntest goes next to test_runner. cxdyntestneeds goes there too, but its build-time dependency

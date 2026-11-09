@@ -39,3 +39,8 @@ void _entryParseArgsU16(int argc, const uint16** argv)
     }
     strDestroy(&temp);
 }
+
+int _entryRunDirect(int (*entry)(void))
+{
+    return entry();
+}
