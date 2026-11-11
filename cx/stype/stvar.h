@@ -252,8 +252,14 @@ _meta_inline stvar _stvark(const char* nm, stype st, stgeneric val)
 #define stvNone _stvar(stType(none), _cxStGenZero())
 #endif
 
-// Internal: fails to compile when a variadic stvar macro gets no arguments at all.
+// Internal: fails to compile when a variadic stvar macro gets no arguments at all. MSVC before 2019
+// (the XP toolset) evaluates compound literals inside sizeof, which would run every argument
+// twice, so it gets no check; other compilers still catch an empty list.
+#if defined(_MSC_VER) && _MSC_VER < 1920
+#define _stvarArgsGuard(...) ((void)0)
+#else
 #define _stvarArgsGuard(...) ((void)sizeof(char[sizeof((stvar[]) { __VA_ARGS__ }) ? 1 : -1]))
+#endif
 
 /// @}
 

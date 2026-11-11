@@ -787,10 +787,15 @@ _meta_inline bool _logSitePasses(_Inout_ LogSite* site, int level, _In_ LogChann
     } while (0)
 
 // args is the call site's compound literal; the sizeof is the same empty-list check as
-// _stvarArgsGuard()
+// _stvarArgsGuard(), and skipped on the same compilers
+#if defined(_MSC_VER) && _MSC_VER < 1920
+#define _logArgsGuard(args) ((void)0)
+#else
+#define _logArgsGuard(args) ((void)sizeof(char[sizeof(args) ? 1 : -1]))
+#endif
 #define _logFmtSite(level, chan, gate, garg, fmt, nargs, args)                \
     do {                                                                      \
-        (void)sizeof(char[sizeof(args) ? 1 : -1]);                            \
+        _logArgsGuard(args);                                                  \
         static LogSite _log_site;                                             \
         LogChannel* _log_site_chan = (chan);                                  \
         if (_logSitePasses(&_log_site, level, _log_site_chan, gate, garg))    \
