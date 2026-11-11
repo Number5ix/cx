@@ -1,4 +1,7 @@
+include (${CX_TOP_SOURCE_DIR}/cmake/werror.cmake)
+
 add_library(cxlua STATIC
+    include/cxlua.h
     cxlua.c)
 
 target_link_libraries(cxlua cx lua)

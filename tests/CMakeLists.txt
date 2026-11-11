@@ -22,6 +22,11 @@ if(CX_HTTP)
     endif()
 endif()
 
+set(luatestsrc "")
+if(CX_LUA)
+    set(luatestsrc cxluatest.c)
+endif()
+
 set(CMAKE_TESTDRIVER_BEFORE_TESTMAIN "cxTestHarnessBefore(ac, av);")
 set(CMAKE_TESTDRIVER_AFTER_TESTMAIN "cxTestHarnessAfter();")
 
@@ -66,6 +71,7 @@ create_test_sourcelist(testsrc
     ${tlstestsrc}
     ${quictestsrc}
     ${httptestsrc}
+    ${luatestsrc}
     tqtest.c
     cpptest.cpp
     alltests.c)
@@ -123,6 +129,11 @@ if(CX_HTTP)
     if(CX_HTTP3)
         target_compile_definitions(test_runner PRIVATE CX_HTTP3_TESTS=1)
     endif()
+endif()
+
+if(CX_LUA)
+    target_link_libraries(test_runner cxlua)
+    target_compile_definitions(test_runner PRIVATE CX_LUA_TESTS=1)
 endif()
 
 if(CX_TLS)
@@ -682,4 +693,8 @@ if(CX_HTTP3)
         # several seconds, so its time and its failures are worth seeing on their own.
         add_test(NAME "\"http3: Shared Client On A Task Queue\"" COMMAND test_runner http3test tqparallel)
     endif()
+endif()
+
+if(CX_LUA)
+    add_test(NAME "\"cxlua: Bridge\"" COMMAND test_runner cxluatest grp_bridge)
 endif()

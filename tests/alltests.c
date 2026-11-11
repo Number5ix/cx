@@ -968,6 +968,13 @@ static const testspec tests[] = {
     { "cpp: stype", "cpptest", "stype" },
     { "cpp: stvar", "cpptest", "stvar" },
     { "cpp: Object", "cpptest", "object" },
+#if defined(CX_LUA_TESTS)
+    { "cxlua: Objects", "cxluatest", "objects" },
+    { "cxlua: Weak Objects", "cxluatest", "weak" },
+    { "cxlua: Closures", "cxluatest", "closures" },
+    { "cxlua: Errors", "cxluatest", "errors" },
+    { "cxlua: Values", "cxluatest", "values" },
+#endif
     { 0 }
 };
 
