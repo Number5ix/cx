@@ -31,7 +31,7 @@ AllowShortIfStatementsOnASingleLine: Never
 AllowShortLoopsOnASingleLine: true
 AlwaysBreakAfterReturnType: None
 AlwaysBreakBeforeMultilineStrings: false
-AttributeMacros: 
+AttributeMacros:
   - _meta_inline
   - _no_inline
   - stackAlloc
@@ -52,7 +52,60 @@ AttributeMacros:
   - _Ret_maybenull_
   - _Ret_valid_
   - _SAL_Attr_
-BinPackArguments: false
+  - _Acquires_exclusive_lock_
+  - _Acquires_lock_
+  - _Acquires_nonreentrant_lock_
+  - _Acquires_shared_lock_
+  - _Analysis_noreturn
+  - _Analysis_noreturn_
+  - _At_
+  - _On_failure_
+  - _Post_equal_to
+  - _Post_equal_to_
+  - _Post_invalid_
+  - _Post_maybenull_
+  - _Post_notnull_
+  - _Post_null_
+  - _Post_same_lock_
+  - _Post_satisfies_
+  - _Post_valid_
+  - _Post_writable_byte_size_
+  - _Pre_equal_to_
+  - _Pre_maybenull_
+  - _Pre_notnull_
+  - _Pre_null_
+  - _Pre_opt_valid_
+  - _Pre_satisfies_
+  - _Pre_valid_
+  - _Releases_exclusive_lock_
+  - _Releases_lock_
+  - _Releases_nonreentrant_lock_
+  - _Releases_shared_lock_
+  - _Requires_exclusive_lock_held_
+  - _Requires_lock_held_
+  - _Requires_lock_not_held_
+  - _Requires_no_locks_held_
+  - _Requires_shared_lock_held_
+  - _Ret_maybenull_z_
+  - _Ret_null_
+  - _Ret_opt_valid_
+  - _Ret_range_
+  - _Ret_writes_
+  - _Ret_writes_bytes_
+  - _Ret_writes_bytes_maybenull_
+  - _Ret_writes_bytes_to_
+  - _Ret_writes_bytes_to_maybenull_
+  - _Ret_writes_maybenull_
+  - _Ret_writes_maybenull_z_
+  - _Ret_writes_to_
+  - _Ret_writes_to_maybenull_
+  - _Ret_writes_z_
+  - _Ret_z_
+  - _Success_
+  - _When_
+  - _objfactory_check
+  - _objfactory_guaranteed
+BinPackArguments: true
 BinPackParameters: true
 BitFieldColonSpacing: Both
 BraceWrapping:
@@ -82,16 +135,20 @@ ForEachMacros:
   - withReadLock
   - withWriteLock
   - blkWrap
+  - withConLock
+  - withLogLocal
 IncludeBlocks: Preserve
 IncludeCategories:
   - Regex: '^".*_private\.h"'
     Priority: 0
-  - Regex: '^<cx/.*\.h>'
+  - Regex: '^<cx/cx\.h>'
     Priority: 1
-  - Regex: '^<.*/.*\.h>'
+  - Regex: '^<cx/.*\.h>'
     Priority: 2
-  - Regex: '^<.*\.h>'
+  - Regex: '^<.*/.*\.h>'
     Priority: 3
+  - Regex: '^<.*\.h>'
+    Priority: 4
   - Regex: '^".*/.*\.h\"'
     Priority: 10
   - Regex: '^".*\.h\"'
@@ -116,18 +173,18 @@ Macros:
   - ptCatch=else
   - ptFinally=else
   - PBLOCK_AFTER=case 1
-  - _Success_(x)=_SAL_Attr_
-  - _At_(x,y)=_SAL_Attr_
-  - _When_(x,y)=_SAL_Attr_
-  - _Post_writable_byte_size_(x)=_SAL_Attr_
-  - _Post_equal_to(x)=_SAL_Attr_
+  - DEFINE_INT={0, 0},
+  - DEFINE_END={0, 0},
+  - DEFINE_STRING={0, 0},
+  - DEFINE_EMBEDDYNAMIC(x)={0, 0},
+  - DEFINE_EMBEDDYNAMIC_INT(x)={0, 0},
 MaxEmptyLinesToKeep: 1
 NamespaceIndentation: None
-PenaltyBreakAssignment: 1000
+PenaltyBreakAssignment: 100
 PenaltyBreakBeforeFirstCallParameter: 100
 PenaltyBreakOpenParenthesis: 1000
 PenaltyIndentedWhitespace: 1
-PointerAlignment: Left
+PointerAlignment: Right
 QualifierAlignment: Leave
 ReflowComments: true
 RemoveBracesLLVM: false
@@ -143,7 +200,7 @@ SpaceBeforeAssignmentOperators: true
 SpaceBeforeCaseColon: false
 SpaceBeforeParens: ControlStatements
 SpaceBeforeSquareBrackets: false
-SpaceInEmptyBlock: false
+SpaceInEmptyBraces: Never
 SpacesBeforeTrailingComments: 3
 SpacesInParens: Never
 SpacesInSquareBrackets: false
