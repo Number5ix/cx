@@ -345,8 +345,8 @@ PREDEFINED             = __attribute__(x)= \
                          _Pre_opt_valid_= \
                          _Ret_maybenull_= \
                          _Post_notnull_ \
-                         stCheckedArg(x,y)=x y \
-                         stvar(x,y)=x y
+                         "stCheckedArg(x,y)=x y" \
+                         "stvar(x,y)=x y"
 EXPAND_AS_DEFINED      = 
 SKIP_FUNCTION_MACROS   = YES
 
