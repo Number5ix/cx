@@ -647,7 +647,8 @@ _Use_decl_annotations_
 CxUiPeer* _cxuiWin32CanvasAt(POINT screen)
 {
     HWND hwnd = WindowFromPoint(screen);
-    if (!hwnd || (WNDPROC)GetWindowLongPtrW(hwnd, GWLP_WNDPROC) != win32CanvasProc)
+    // The class's procedure: a renderer may subclass a render view (OpenGL does)
+    if (!hwnd || (WNDPROC)GetClassLongPtrW(hwnd, GCLP_WNDPROC) != win32CanvasProc)
         return NULL;
     Win32Canvas* c = (Win32Canvas*)GetWindowLongPtrW(hwnd, GWLP_USERDATA);
     return c ? &c->cp.base : NULL;
