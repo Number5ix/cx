@@ -1,0 +1,21 @@
+#include <cxui/cxui_shared.h>
+
+/// @addtogroup cxui_image
+/// @{
+
+/// Pixels to draw on a canvas, or a part of another image
+[methodprefix cxuiImageObj] class CxUiImage {
+    // The image holding the pixels, for a part of one; NULL for an image of its own
+    object[CxUiImage] _root;
+    // This image's area within the root, or all of it
+    CxUiRect _rect;
+    // Root only: premultiplied B, G, R, A bytes, rows of _rect.w pixels
+    [noinit] void* _pixels;
+    // Root only: one engine's copy, made when first drawn
+    [noinit] void* _cacheOps;
+    [noinit] void* _cache;
+
+    destroy();
+}
+
+/// @}

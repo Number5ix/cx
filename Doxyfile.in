@@ -135,7 +135,11 @@ INPUT                  = docs/docs.md \
                          @DOXYGEN_BUILD_DIR@/cxtls \
                          cxhttp/include \
                          cxhttp \
-                         @DOXYGEN_BUILD_DIR@/cxhttp
+                         @DOXYGEN_BUILD_DIR@/cxhttp \
+                         cxui/include \
+                         cxui/core \
+                         cxui/lua/include \
+                         @DOXYGEN_BUILD_DIR@/cxui
 INPUT_ENCODING         = UTF-8
 INPUT_FILE_ENCODING    = 
 FILE_PATTERNS          = *.h \

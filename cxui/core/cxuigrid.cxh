@@ -1,0 +1,419 @@
+#include <cxui/core/cxuidrawn.cxh>
+#include <cxui/core/cxuibox.cxh>
+#include <cxui/core/cxuitext.cxh>
+
+/// @addtogroup cxui_grid
+/// @{
+
+/// The rows of a flat grid: a CxUiListStore, or the program's own object
+///
+/// The grid calls it on the UI thread, while painting, only for the cells it shows; it must answer
+/// quickly, without waiting on other threads. It keeps no copy of what it is told. When rows
+/// change, the program tells the grid with cxuiGridRowsInserted() and the like.
+interface CxUiGridSource {
+    /// How many rows there are
+    int64 rowCount();
+    /// Says what a cell shows
+    /// @param out The cell to fill in
+    /// @param row The row, from 0
+    /// @param col The column, from 0
+    /// @return false to leave the cell empty
+    bool cell([out] CxUiCell* out, int64 row, int32 col);
+}
+
+/// The nodes of a tree shown in a grid: a CxUiTreeStore, or the program's own object
+///
+/// Nodes are named by CxUiNodeId, which must stay the same while the node exists and never be 0.
+/// The grid calls it as CxUiGridSource is called: on the UI thread, while painting, for what it
+/// shows. When nodes change, the program tells the grid with cxuiGridNodeInserted() and the like.
+interface CxUiTreeSource {
+    /// A node's first child
+    /// @param parent The node, or 0 for the top of the tree
+    /// @return The child, or 0 for none
+    CxUiNodeId firstChild(CxUiNodeId parent);
+    /// The node after one with the same parent
+    /// @param node The node
+    /// @return The next node, or 0 for none
+    CxUiNodeId nextSibling(CxUiNodeId node);
+    /// A node's parent
+    /// @param node The node
+    /// @return The parent, or 0 at the top of the tree
+    CxUiNodeId parentOf(CxUiNodeId node);
+    /// Whether a node has children, or may have once it is opened; it is shown with an expander
+    /// @param node The node
+    /// @return true if it has
+    bool hasChildren(CxUiNodeId node);
+    /// Says what a node's cell shows
+    /// @param out The cell to fill in
+    /// @param node The node
+    /// @param col The column, from 0
+    /// @return false to leave the cell empty
+    bool nodeCell([out] CxUiCell* out, CxUiNodeId node, int32 col);
+}
+
+/// Changes a grid's source makes for the user, which a source implements to let them be made
+///
+/// The grid calls it when the user changes a cell, after the event for the change, unless a
+/// handler handled that. The source then tells the grid what changed, as for any other change.
+interface CxUiGridEditable {
+    /// Changes a cell's text
+    /// @param item The row, or the node in a tree
+    /// @param col The column, from 0
+    /// @param text The new text
+    /// @return false if the source refused it
+    bool setCellText(uint64 item, int32 col, [in] strref text);
+    /// Changes a cell's check box
+    /// @param item The row, or the node in a tree
+    /// @param col The column, from 0
+    /// @param state The new CxUiCheckState
+    /// @return false if the source refused it
+    bool setCellCheck(uint64 item, int32 col, uint32 state);
+}
+
+// The grid's headers and rows, drawn on one canvas in physical pixels; its parent is the grid
+class CxUiGridBody extends CxUiDrawn {
+    factory create();
+    CxUiResult handleEvent([inout] CxUiEvent* ev);
+}
+
+// The field editing a grid cell; its parent is a frame whose parent is the grid
+class CxUiGridEditor extends CxUiTextField {
+    factory create([in] strref text);
+    CxUiResult handleEvent([inout] CxUiEvent* ev);
+}
+
+/// A table of rows and columns that cxui draws itself, showing what a source gives it
+[methodprefix cxuiGrid] class CxUiGrid extends CxUiBoxBase {
+    // The source, and its interfaces
+    object[ObjInst] _source;
+    CxUiGridSource* _flat;
+    CxUiTreeSource* _treeSrc;
+    CxUiGridEditable* _edit;
+    // The nodes opened, and the walk through them for painting
+    [noinit] CxUiGridTree* _tree;
+    [noinit] CxUiGridCol* _cols;
+    int32 _ncols;
+    flags_t _flags;
+    object[CxUiGridBody] _body;
+    object[CxUiDScrollBar] _vbar;
+    object[CxUiDScrollBar] _hbar;
+    // How many rows there are, and the first one shown
+    int64 _rows;
+    int64 _top;
+    // How far it is scrolled across, in physical pixels
+    int32 _scrollX;
+    // In physical pixels, for _scale
+    float32 _scale;
+    int32 _rowH;
+    // The program's row height, or 0
+    CxUiLen _rowHeight;
+    int32 _headerH;
+    int32 _padX;
+    int32 _totalW;
+    // Rows that fit wholly below the headers
+    int64 _page;
+    // The scroll bars shown
+    bool _barV;
+    bool _barH;
+    // Reused for every cell painted
+    [noinit] CxUiCell _cell;
+    string _shown;
+    // Texts fitted to widths, by their hash; made when first needed
+    [noinit] CxUiGridFit* _fit;
+    // The font with CXUI_FONT_Bold, made when first needed
+    object[CxUiFont] _bold;
+
+    // CxUiSelectMode
+    uint32 _select;
+    // The selected rows as sorted ranges, apart and not touching: the first and last of each in turn
+    sarray[int64] _sel;
+    // The focus row, the row Shift+click and Shift+arrows select from, and the row under the
+    // mouse; -1 for none
+    int64 _focus;
+    int64 _anchor;
+    int64 _hot;
+    // The column with the sort arrow, or -1
+    int32 _sortCol;
+    bool _sortDesc;
+    // The header held down, and the column whose edge is being dragged; -1 for none
+    int32 _pressCol;
+    int32 _sizeCol;
+    // Where the edge drag started, and the column's width then, in physical pixels
+    int32 _sizeFrom;
+    int32 _sizeW;
+    // Selecting by dragging over the rows, and which way it scrolls when outside them
+    bool _dragging;
+    int32 _dragDir;
+    // Whether the pointer is over the body, and where it was last, in physical pixels
+    bool _mouseIn;
+    int32 _mouseX;
+    int32 _mouseY;
+    object[CxUiTimer] _autoscroll;
+    // What has been typed to find a row, and when, from clockTimer()
+    string _typed;
+    int64 _typedAt;
+    // The cell being edited, and the field over it in its frame; none while _editFrame is NULL
+    uint64 _editItem;
+    int32 _editCol;
+    object[CxUiTextFrame] _editFrame;
+    object[CxUiTextField] _editField;
+    // Where the frame goes, in physical pixels in the window
+    CxUiRect _editRect;
+    // Bumped as each edit begins and ends, so a focus check queued earlier can tell it is late
+    uint32 _editSerial;
+    // A click on the selected focus row edits its cell once the double-click time has passed
+    object[CxUiTimer] _clickTimer;
+    int64 _clickRow;
+    int32 _clickCol;
+
+    // Use cxuiGridCreate(), which also takes a compound literal.
+    factory createWith([in] [opt] const CxUiGridDesc* desc);
+
+    /// Shows the rows of a source
+    /// @param source An object implementing CxUiGridSource, such as a CxUiListStore, or
+    /// CxUiTreeSource, such as a CxUiTreeStore, or its class's None (CxUiListStoreNone) for none;
+    /// the grid holds a reference to it
+    unbound void setSource([in] [opt] ObjInst* source);
+
+    /// The grid's source
+    /// @return The source, borrowed, or NULL
+    unbound ObjInst* source();
+
+    /// Replaces the columns with those in an array
+    ///
+    /// cxuiGridSetColumns() takes them one by one instead.
+    ///
+    /// @param cols The columns, copied
+    /// @param n How many there are; none for one column without a title that fills the width
+    unbound void setColumnArray([in] [opt] const CxUiGridColumn* cols, int32 n);
+
+    /// Counts the columns, hidden ones included
+    /// @return How many there are
+    [prop columnCount ro] unbound int32 columnCount();
+
+    /// Changes a column's width
+    /// @param col The column, from 0
+    /// @param width The width; 0 to fit the title
+    unbound void setColumnWidth(int32 col, CxUiLen width);
+
+    /// A column's width as shown
+    /// @param col The column, from 0
+    /// @return The width in device-independent pixels; 0 for a hidden column, or before the grid
+    /// is laid out
+    unbound int32 columnWidth(int32 col);
+
+    /// Shows or hides a column
+    /// @param col The column, from 0
+    /// @param hidden true to hide it
+    unbound void setColumnHidden(int32 col, bool hidden);
+
+    /// Counts the rows, as of the last change the grid was told of
+    /// @return How many there are
+    [prop rowCount ro] unbound int64 rowCount();
+
+    /// The first row shown
+    /// @return The row, from 0
+    [prop top] unbound int64 top();
+
+    /// Scrolls to put a row first, or as near as the rows after it allow
+    /// @param row The row, from 0
+    [prop top] unbound void setTop(int64 row);
+
+    /// Scrolls as little as it takes to show a row whole
+    /// @param row The row, from 0
+    unbound void showRow(int64 row);
+
+    /// How many rows the user can select
+    /// @return CxUiSelectMode
+    [prop selectMode] unbound uint32 selectMode();
+
+    /// Sets how many rows the user can select, unselecting rows that no longer can be
+    /// @param mode CxUiSelectMode
+    [prop selectMode] unbound void setSelectMode(uint32 mode);
+
+    /// The selected row, or the first of several
+    /// @return The row, or -1 if none is selected
+    [prop selected ro] unbound int64 selected();
+
+    /// Whether a row is selected
+    /// @param row The row, from 0
+    /// @return true if it is
+    unbound bool isSelected(int64 row);
+
+    /// Counts the selected rows
+    /// @return How many there are
+    [prop selectedCount ro] unbound int64 selectedCount();
+
+    /// The next selected row, to go through them in order
+    /// @param after A row, or -1 to start from the beginning
+    /// @return The row, or -1 when there are no more
+    unbound int64 nextSelected(int64 after);
+
+    /// Selects rows, or unselects them
+    ///
+    /// Where one row at a time can be selected, selecting a row unselects the one before, and only
+    /// the first of several is selected. Nothing is selected where none can be.
+    ///
+    /// @param row The first row
+    /// @param n How many
+    /// @param selected true to select them, false to unselect them
+    unbound void setSelected(int64 row, int64 n, bool selected);
+
+    /// Selects every row, where any number can be selected
+    unbound void selectAll();
+
+    /// Unselects every row
+    unbound void clearSelection();
+
+    /// The focus row, which the arrow keys move from
+    /// @return The row, or -1 for none
+    [prop focusRow] unbound int64 focusRow();
+
+    /// Moves the focus row, without selecting it, and scrolls to show it
+    /// @param row The row, or -1 for none
+    [prop focusRow] unbound void setFocusRow(int64 row);
+
+    /// Shows the sort arrow in a column's header
+    /// @param col The column, or -1 for none
+    /// @param descending true for largest first
+    unbound void setSort(int32 col, bool descending);
+
+    /// The column with the sort arrow
+    /// @return The column, or -1 for none
+    [prop sortColumn ro] unbound int32 sortColumn();
+
+    /// Whether the sort arrow is for largest first
+    /// @return true if it is
+    [prop sortDescending ro] unbound bool sortDescending();
+
+    /// Fits a column to its title and the rows shown, as double-clicking its header's edge does
+    /// @param col The column, from 0
+    unbound void fitColumn(int32 col);
+
+    /// The node shown in a row of a tree
+    /// @param row The row, from 0
+    /// @return The node, or 0 if there is no such row or the grid shows no tree
+    unbound CxUiNodeId nodeAt(int64 row);
+
+    /// The row a node of a tree is shown in
+    /// @param node The node
+    /// @return The row, or -1 if a node above it is closed or it isn't in the tree
+    unbound int64 rowOf(CxUiNodeId node);
+
+    /// How deep a node is in the tree
+    /// @param node The node
+    /// @return 0 for a node at the top, 1 for its children and so on; -1 if it isn't shown
+    unbound int32 depthOf(CxUiNodeId node);
+
+    /// Whether a node of a tree is open, showing its children
+    /// @param node The node
+    /// @return true if it is
+    unbound bool isExpanded(CxUiNodeId node);
+
+    /// Opens or closes a node of a tree; the nodes above it are opened too
+    ///
+    /// Raises no event, so a source that adds children as nodes open adds them first.
+    ///
+    /// @param node The node
+    /// @param expanded true to open it
+    unbound void setExpanded(CxUiNodeId node, bool expanded);
+
+    /// Opens a node of a tree and every node under it
+    /// @param node The node, or 0 for the whole tree
+    unbound void expandAll(CxUiNodeId node);
+
+    /// Closes a node of a tree and every node under it
+    /// @param node The node, or 0 for the whole tree
+    unbound void collapseAll(CxUiNodeId node);
+
+    /// Opens the nodes above a node of a tree, and scrolls as little as it takes to show it
+    /// @param node The node
+    unbound void showNode(CxUiNodeId node);
+
+    /// The selected node of a tree, or the first of several
+    /// @return The node, or 0 if none is selected
+    unbound CxUiNodeId selectedNode();
+
+    /// Whether a node of a tree is selected
+    /// @param node The node
+    /// @return true if it is
+    unbound bool isNodeSelected(CxUiNodeId node);
+
+    /// Selects a node of a tree, opening the nodes above it, or unselects it
+    /// @param node The node
+    /// @param selected true to select it
+    unbound void setNodeSelected(CxUiNodeId node, bool selected);
+
+    /// The focus row's node in a tree
+    /// @return The node, or 0 for none
+    unbound CxUiNodeId focusNode();
+
+    /// Moves the focus row to a node of a tree, opening the nodes above it, and scrolls to show it
+    /// @param node The node, or 0 for none
+    unbound void setFocusNode(CxUiNodeId node);
+
+    /// Tells the grid a node was added to its tree
+    /// @param node The new node, already in the source
+    unbound void nodeInserted(CxUiNodeId node);
+
+    /// Tells the grid a node and the nodes under it were taken out of its tree
+    /// @param parent The node's parent, or 0 at the top
+    /// @param node The node, already gone from the source
+    unbound void nodeRemoved(CxUiNodeId parent, CxUiNodeId node);
+
+    /// Tells the grid what a node shows changed, so it is painted again
+    /// @param node The node
+    unbound void nodeChanged(CxUiNodeId node);
+
+    /// Opens an editor over a cell, as F2 does, with its text selected
+    ///
+    /// Any column but a CXUI_COL_Check column can be edited this way, whatever its flags. The grid
+    /// shows the cell first, and must be on screen.
+    ///
+    /// @param item The row, or the node in a tree
+    /// @param col The column, from 0
+    /// @return false if the cell can't be edited, or a handler closed the editor as it opened
+    unbound bool edit(uint64 item, int32 col);
+
+    /// Closes the editor over a cell, if one is open
+    /// @param commit true to keep what was typed, as Enter does; false to drop it, as Esc does
+    unbound void endEdit(bool commit);
+
+    /// The field editing a cell, to change what is selected in it, say
+    /// @return The field, borrowed, or NULL if no cell is being edited
+    [opt] unbound CxUiTextField* editor();
+
+    /// Tells the grid rows were added to its flat source
+    /// @param at Where the first one now is
+    /// @param n How many
+    unbound void rowsInserted(int64 at, int64 n);
+
+    /// Tells the grid rows were taken out of its flat source
+    /// @param at Where the first one was
+    /// @param n How many
+    unbound void rowsRemoved(int64 at, int64 n);
+
+    /// Tells the grid what rows show changed, so they are painted again
+    /// @param at The first row
+    /// @param n How many
+    unbound void rowsChanged(int64 at, int64 n);
+
+    /// Tells the grid everything in its source may have changed, such as after sorting or
+    /// filtering; it reads the source again, unselects every row and paints again. A tree keeps
+    /// the nodes open that are still there.
+    unbound void reset();
+
+    bool append([in] CxUiWidget* child);
+    bool insert([in] CxUiWidget* child, int32 at);
+    bool detach([in] CxUiWidget* child);
+    int32 childCount();
+    [opt] CxUiWidget* child(int32 i);
+    CxUiSize measure();
+    void arrange();
+    void restyle();
+    uint32 eventMask();
+    CxUiResult handleEvent([inout] CxUiEvent* ev);
+    destroy();
+}
+
+/// @}

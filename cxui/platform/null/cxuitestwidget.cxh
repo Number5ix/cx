@@ -1,0 +1,14 @@
+#include <cxui/core/cxuiwidget.cxh>
+
+// A test fixture: a widget that raises whichever events it was created with, and holds children
+// in the order they were added.
+[methodprefix cxuiTestWidget] class CxUiTestWidget extends CxUiWidget implements CxUiContainer {
+    // CxUiEventKind bits
+    uint32 events;
+    [noinit] sarray[object[CxUiWidget]] children;
+
+    factory create(uint32 events);
+    uint32 eventMask();
+    init();
+    destroy();
+}

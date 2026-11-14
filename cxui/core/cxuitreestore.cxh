@@ -1,0 +1,141 @@
+#include <cxui/core/cxuigrid.cxh>
+
+/// @addtogroup cxui_grid
+/// @{
+
+/// Nodes of text for a tree in a grid, with colors, flags and data of the program's own per node
+///
+/// Node ids name the same node for as long as it exists; once it is removed, its id names nothing,
+/// even after the store reuses its place. Grids showing it are told of every change.
+[methodprefix cxuiTreeStore] class CxUiTreeStore implements CxUiTreeSource implements CxUiGridEditable {
+    int32 _ncols;
+    [noinit] CxUiTreeSlot* _slots;
+    int32 _nslots;
+    int32 _cap;
+    // The first free slot, or -1
+    int32 _free;
+    // The first and last node at the top of the tree
+    CxUiNodeId _first;
+    CxUiNodeId _last;
+    int64 _count;
+    // The grids showing it; each takes itself out when it lets go
+    sarray[ptr] _grids;
+
+    /// Creates an empty store
+    /// @param ncols Cells per node
+    factory create(int32 ncols);
+
+    /// Counts the cells in a node
+    /// @return How many there are
+    [prop columns ro] unbound int32 columns();
+
+    /// Counts the nodes
+    /// @return How many there are, at every depth
+    [prop nodeCount ro] unbound int64 nodeCount();
+
+    /// Adds a node after a parent's other children, from an array
+    ///
+    /// cxuiTreeStoreAppend() takes the cells one by one instead.
+    ///
+    /// @param parent The parent, or 0 for the top of the tree
+    /// @param cells The cells' text, as many as the store has columns; missing ones are empty
+    /// @param n How many there are
+    /// @return The new node, or 0 if the parent doesn't exist
+    unbound CxUiNodeId appendCells(CxUiNodeId parent, [in] [opt] strref* cells, int32 n);
+
+    /// Adds a node among a parent's children, from an array
+    ///
+    /// cxuiTreeStoreInsert() takes the cells one by one instead.
+    ///
+    /// @param parent The parent, or 0 for the top of the tree
+    /// @param after The child it goes after, or 0 to go first
+    /// @param cells The cells' text, as many as the store has columns; missing ones are empty
+    /// @param n How many there are
+    /// @return The new node, or 0 if the parent doesn't exist or after isn't its child
+    unbound CxUiNodeId insertCells(CxUiNodeId parent, CxUiNodeId after, [in] [opt] strref* cells, int32 n);
+
+    /// Removes a node and every node under it
+    /// @param node The node
+    /// @return false if it doesn't exist
+    unbound bool remove(CxUiNodeId node);
+
+    /// Removes every node
+    unbound void clear();
+
+    /// Whether a node exists
+    /// @param node The node
+    /// @return true if it does
+    unbound bool isValid(CxUiNodeId node);
+
+    /// Counts a node's children
+    /// @param parent The node, or 0 for the top of the tree
+    /// @return How many there are
+    unbound int64 childCount(CxUiNodeId parent);
+
+    /// Changes a cell's text
+    /// @param node The node
+    /// @param col The column, from 0
+    /// @param text The text
+    unbound void setText(CxUiNodeId node, int32 col, [in] strref text);
+
+    /// A cell's text
+    /// @param node The node
+    /// @param col The column, from 0
+    /// @return The text, borrowed until it changes; NULL if there is no such node
+    unbound strref text(CxUiNodeId node, int32 col);
+
+    /// Sets how a node is drawn
+    /// @param node The node
+    /// @param flags CxUiCellFlags, for every cell of the node, such as CXUI_CELL_CheckHidden
+    unbound void setFlags(CxUiNodeId node, flags_t flags);
+
+    /// Gives a node colors of its own
+    /// @param node The node
+    /// @param fg Text color; alpha 0 for the palette's
+    /// @param bg Background; alpha 0 for none
+    unbound void setColors(CxUiNodeId node, CxUiColor fg, CxUiColor bg);
+
+    /// Keeps a value of the program's own with a node, such as what the node stands for
+    /// @param node The node
+    /// @param data The value, copied; stvNone for none
+    unbound void setData(CxUiNodeId node, stvar data);
+
+    /// The value kept with a node
+    /// @param node The node
+    /// @return The value, borrowed until it changes; stvNone if there is none or no such node
+    unbound stvar data(CxUiNodeId node);
+
+    /// Sets a cell's check box, for a column with check boxes
+    /// @param node The node
+    /// @param col The column, from 0
+    /// @param state CxUiCheckState
+    unbound void setCheck(CxUiNodeId node, int32 col, uint32 state);
+
+    /// A cell's check box
+    /// @param node The node
+    /// @param col The column, from 0
+    /// @return CxUiCheckState; Off if there is no such node
+    unbound uint32 check(CxUiNodeId node, int32 col);
+
+    /// Spreads a node's check box to the nodes under it and above it
+    ///
+    /// Checked or cleared, it sets every node under it the same. Each node above it is then
+    /// checked if all its children are, cleared if none are, and mixed otherwise; children with
+    /// CXUI_CELL_CheckHidden don't count. Call it from the check event's handler, after setting the
+    /// node, to keep a tree's check boxes in step with each other.
+    ///
+    /// @param node The node
+    /// @param col The column, from 0
+    unbound void propagateCheck(CxUiNodeId node, int32 col);
+
+    CxUiNodeId firstChild(CxUiNodeId parent);
+    CxUiNodeId nextSibling(CxUiNodeId node);
+    CxUiNodeId parentOf(CxUiNodeId node);
+    bool hasChildren(CxUiNodeId node);
+    bool nodeCell([out] CxUiCell* out, CxUiNodeId node, int32 col);
+    bool setCellText(uint64 item, int32 col, [in] strref text);
+    bool setCellCheck(uint64 item, int32 col, uint32 state);
+    destroy();
+}
+
+/// @}

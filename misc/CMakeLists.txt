@@ -63,6 +63,61 @@ if(CX_STANDALONE AND CX_HTTP)
     set_property(TARGET httpsrvdemo PROPERTY FOLDER "tests")
 endif()
 
+if(CX_STANDALONE AND CX_UI)
+    set(CXUIGALLERY_SRCS
+        cxuigallery/gallery.h
+        cxuigallery/main.c
+        cxuigallery/page_canvas.c
+        cxuigallery/page_desktop.c
+        cxuigallery/page_drawn.c
+        cxuigallery/page_grid.c
+        cxuigallery/page_layout.c
+        cxuigallery/page_tabs.c
+        cxuigallery/page_modals.c
+        cxuigallery/page_native.c
+        cxuigallery/page_values.c
+        cxuigallery/page_text.c
+        cxuigallery/page_windows.c)
+    if(CX_PLATFORM_IS_WINDOWS)
+        list(APPEND CXUIGALLERY_SRCS cxuigallery/cxuigallery.rc)
+    endif()
+    if(CX_PLATFORM_IS_MACOS)
+        enable_language(OBJC)
+        list(APPEND CXUIGALLERY_SRCS cxuigallery/render_metal.m)
+        set_source_files_properties(cxuigallery/render_metal.m PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+    endif()
+    source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${CXUIGALLERY_SRCS})
+
+    if(CX_LUA)
+        list(APPEND CXUIGALLERY_SRCS cxuigallery/page_lua.c)
+    endif()
+    add_executable(cxuigallery ${CXUIGALLERY_SRCS})
+    target_link_libraries(cxuigallery cxui)
+    if(CX_PLATFORM_IS_MACOS)
+        target_link_libraries(cxuigallery "-framework Metal")
+    endif()
+    if(CX_LUA)
+        target_link_libraries(cxuigallery cxuilua)
+        target_compile_definitions(cxuigallery PRIVATE CXUIGALLERY_LUA=1)
+    endif()
+    set_property(TARGET cxuigallery PROPERTY FOLDER "tests")
+
+    add_executable(cxuidrawbench cxuidrawbench.c)
+    target_link_libraries(cxuidrawbench cxui)
+    set_property(TARGET cxuidrawbench PROPERTY FOLDER "tests")
+
+    add_executable(cxuigridbench cxuigridbench.c)
+    target_link_libraries(cxuigridbench cxui)
+    if (CX_MIMALLOC)
+        target_compile_definitions(cxuigridbench PRIVATE GRIDBENCH_MIMALLOC)
+    endif()
+    set_property(TARGET cxuigridbench PROPERTY FOLDER "tests")
+
+    add_executable(cxuirowview cxuirowview.c)
+    target_link_libraries(cxuirowview cxui)
+    set_property(TARGET cxuirowview PROPERTY FOLDER "tests")
+endif()
+
 # The HTTP/3 interop peer, which quicinterop is not: that one links cxquic and tests the transport,
 # this one links cxhttp and only exists in a build that has HTTP/3 in it.
 if(CX_STANDALONE AND CX_HTTP3)

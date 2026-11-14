@@ -1,0 +1,31 @@
+#include <cxui/core/cxuicanvas.cxh>
+
+/// @addtogroup cxui_layout
+/// @{
+
+/// The bar between a split's panes, dragged to resize them
+///
+/// A split makes its own; it is the split's last child, after the two panes.
+[methodprefix cxuiSash] class CxUiSash extends CxUiCanvas {
+    // CxUiOrient of the split: a sash in a side-by-side split is a vertical bar
+    uint8 _orient;
+    bool _grip;
+    // A color in place of the palette's border color; 0 for that
+    CxUiColor _color;
+    // A drag in progress: where it started, in pixels along the split, and the first pane's size
+    // then, in DIPs
+    bool _dragging;
+    int32 _dragFrom;
+    int32 _dragFirst;
+
+    // Made by a split
+    factory create(uint32 orient, bool grip);
+
+    /// Sets the sash's color
+    /// @param c The color, or one with all fields 0 for the palette's border color
+    unbound void setColor(CxUiColor c);
+
+    CxUiResult handleEvent([inout] CxUiEvent* ev);
+}
+
+/// @}

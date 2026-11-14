@@ -1,0 +1,39 @@
+#include <cxui/core/cxuiwindow.cxh>
+#include <cxui/core/cxuicontrols.cxh>
+
+/// @addtogroup cxui_dialog
+/// @{
+
+/// A window that shows how far some work has got, with an optional Cancel button
+[methodprefix cxuiProgressDialog] class CxUiProgressDialog extends CxUiWindow {
+    object[CxUiLabel] _label;
+    object[CxUiProgress] _bar;
+    object[CxUiButton] _cancel;
+    int64 _count;
+    int64 _total;
+    bool _cancelled;
+
+    // Use cxuiProgressDialogCreate(), which also takes a compound literal.
+    factory createWith([in] [opt] const CxUiProgressDialogDesc* desc);
+
+    /// Replaces the line describing the work
+    /// @param text The new description
+    unbound void setText([in] strref text);
+
+    /// Sets how much of the work is done
+    /// @param count How much is done, from 0 to the total
+    unbound void setCount(int64 count);
+
+    /// Sets how much work there is
+    /// @param total The amount of work; 0 shows activity without saying how much is done
+    unbound void setTotal(int64 total);
+
+    /// Checks whether the user asked to cancel the work
+    /// @return true once Cancel, Escape or the close box was used, and the close handler didn't
+    /// return CXUI_Handled
+    [prop cancelled ro] unbound bool cancelled();
+
+    CxUiResult handleEvent([inout] CxUiEvent* ev);
+}
+
+/// @}

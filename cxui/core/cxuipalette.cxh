@@ -1,0 +1,36 @@
+#include <cxui/cxui_shared.h>
+
+/// @addtogroup cxui_theme
+/// @{
+
+/// The colors drawn widgets use, one per CxUiPaletteRole
+///
+/// A palette can be shared by any number of widgets and windows. Once one uses it, it can't be
+/// changed; to change colors, give the widget a new palette.
+[methodprefix cxuiPalette] class CxUiPalette {
+    CxUiPaletteColors _colors;
+    // In use by a widget, so its colors are fixed
+    bool _frozen;
+
+    /// Creates a palette with the built-in light colors
+    factory create();
+
+    /// Creates a palette with the same colors as another
+    /// @param src The palette to copy
+    factory clone([in] CxUiPalette* src);
+
+    /// Gets one of a palette's colors
+    /// @param role CxUiPaletteRole
+    /// @return The color; transparent black for an unknown role
+    unbound CxUiColor color(uint32 role);
+
+    /// Sets one of a palette's colors
+    ///
+    /// Only before any widget uses the palette.
+    ///
+    /// @param role CxUiPaletteRole
+    /// @param c The color
+    unbound void setColor(uint32 role, CxUiColor c);
+}
+
+/// @}

@@ -1,0 +1,62 @@
+#include <cx/closure/closure.h>
+#include <cx/taskqueue/task/complextask.cxh>
+#include <cxui/cxui_shared.h>
+
+/// @addtogroup cxui_timer
+/// @{
+
+/// A timer that calls a handler on the UI thread
+[methodprefix cxuiTimer] class CxUiTimer {
+    /// Time between calls, in microseconds. A change takes effect from the next call.
+    int64 period;
+    /// CxUiTimerFlags
+    uint32 flags;
+    // CxUiTimerFn closure
+    closure _fn;
+    // Bumped by start and stop; a task from an earlier start finds it changed and ends quietly.
+    uint32 _gen;
+    // Running in session _session: a timer is stopped by the end of the session it ran in.
+    bool _running;
+    uint32 _session;
+
+    /// Creates a timer from a handler closure made with closureCreateAs() and CxUiTimerFn
+    ///
+    /// Usually called through cxuiTimerCreate() instead. The timer takes ownership of the closure.
+    ///
+    /// @param period Time between calls, in microseconds
+    /// @param flags CxUiTimerFlags
+    /// @param fn Handler closure
+    /// @return The timer, stopped
+    factory createWith(int64 period, uint32 flags, closure fn);
+
+    /// Starts the timer
+    ///
+    /// The first call comes one period from now. Starting a running timer does nothing. UI thread
+    /// only.
+    ///
+    /// @return true if the timer is running
+    unbound bool start();
+
+    /// Stops the timer
+    ///
+    /// No call starts after this, including from inside the handler. UI thread only.
+    unbound void stop();
+
+    /// Checks whether the timer is running
+    /// @return true between cxuiTimerStart() and cxuiTimerStop(), the end of a one-shot's call, or
+    /// cxuiShutdown()
+    unbound bool isRunning();
+
+    destroy();
+}
+
+// The task on the UI queue behind one start of a timer. It holds the timer weakly, so a timer
+// whose last reference is dropped stops.
+[methodprefix _cxuiTimerTask] class CxUiTimerTask extends ComplexTask {
+    weak[CxUiTimer] timer;
+    uint32 gen;
+
+    factory create([in] CxUiTimer* timer, uint32 gen);
+}
+
+/// @}

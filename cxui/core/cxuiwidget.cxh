@@ -1,0 +1,214 @@
+#include <cx/closure/cchain.h>
+#include <cxui/cxui_shared.h>
+#include <cxui/core/cxuifont.cxh>
+#include <cxui/core/cxuipalette.cxh>
+
+/// @addtogroup cxui_widget
+/// @{
+
+/// A widget that holds other widgets
+///
+/// Every container holds a reference to each of its children.
+interface CxUiContainer {
+    /// Adds a widget at the end; the container takes its own reference
+    bool append([in] CxUiWidget* child);
+    /// Adds a widget before position `at` (any position past the end appends)
+    bool insert([in] CxUiWidget* child, int32 at);
+    /// Removes a child and drops the container's reference to it
+    bool detach([in] CxUiWidget* child);
+    int32 childCount();
+    /// The child at position `i`, borrowed, or NULL
+    [opt] CxUiWidget* child(int32 i);
+}
+
+/// The base of every widget
+[methodprefix cxuiWidget] abstract class CxUiWidget {
+    /// The containing widget, or NULL. Not a reference: the parent holds one to this widget.
+    CxUiWidget* parent;
+    // Native counterpart while realized; guarded by the core's peer lock
+    [noinit] CxUiPeer* peer;
+    /// CxUiWidgetStates
+    uint32 state;
+    /// Optional name, for lookup and diagnostics
+    string name;
+    /// Anything the program wants to keep with the widget
+    stvar userdata;
+    // Shown while the mouse rests over the widget; NULL for none
+    string _tip;
+    /// Called once when the widget is destroyed, with `stvar(object, widget)`. Attach with
+    /// cchainAttach().
+    cchain destroyNotify;
+    // Occupied event slots, in no particular order; created with the first handler
+    [noinit] sarray[CxUiHandlerSlot] handlers;
+
+    // ---- layout ----
+    CxUiLayoutParams _lp;
+    // From the last measure, in DIPs: measure() as returned, then with _lp applied
+    CxUiSize _measured;
+    CxUiSize _natural;
+    // _lp.expand, plus whatever children expand in for a container
+    uint8 _expand;
+    // The height depends on the width given (a wrapped label, or a container holding one); the
+    // last width asked about and the height for it, while _hfwValid
+    bool _hfw;
+    bool _hfwValid;
+    int32 _hfwWidth;
+    int32 _hfwHeight;
+    // Where layout last put the widget, and the same in physical pixels; both relative to the
+    // window's client area
+    CxUiLayoutRect _lrect;
+    CxUiRect _bounds;
+    // What the peer was last given, relative to its host: a peer inside a panel moves when the
+    // panel does, even where its place in the window stays the same
+    CxUiRect _peerBounds;
+    // A floating widget's bounds, in DIPs relative to its parent
+    CxUiRect _floatBounds;
+
+    // ---- style ----
+    // Set with cxuiWidgetSetPalette(); NULL inherits
+    object[CxUiPalette] _palette;
+    // Set with cxuiWidgetSetFont(); without one, the font is inherited
+    string _fontFaces;
+    float32 _fontSize;
+    uint32 _fontFlags;
+    bool _hasFont;
+    // The font made from the above (or the interface font, on a widget at the top), for the scale
+    // and session it was made in
+    object[CxUiFont] _font;
+    uint32 _fontSession;
+
+    // The CxUiEventKind bits for the events this class raises
+    uint32 eventMask();
+
+    // Natural size of the content in DIPs, before the layout parameters; children are measured
+    // with _cxuiLayoutNatural. The default fits the largest child.
+    CxUiSize measure();
+    // Height of the content in DIPs when given width DIPs across, before the layout parameters;
+    // asked only of widgets with _hfw, through _cxuiLayoutHeightFor. The default fits the tallest
+    // child at that width.
+    int32 heightFor(int32 width);
+    // Places the children inside _lrect with _cxuiLayoutPlace. The default gives each child all
+    // of it.
+    void arrange();
+    // Creates the peer, inside host; the default has none.
+    void realizePeer([in] CxUiPeer* host);
+    // The peer's new bounds, in physical pixels relative to its host.
+    void placePeer(CxUiRect px);
+    // Whether a child is shown now; a container that shows one child at a time says no to the
+    // others. The default shows them all.
+    bool showsChild([in] CxUiWidget* child);
+    // The palette or theme the widget resolves changed; drawn widgets paint again.
+    void restyle();
+    // The widget's own handling of an event, for drawn widgets: runs when the handler the program
+    // set returns CXUI_Default, or there is none. The default does nothing.
+    CxUiResult handleEvent([inout] CxUiEvent* ev);
+    // Whether the widget takes keyboard focus, when clicked or with Tab. The default says no.
+    bool canFocus();
+
+    /// Shows or hides a widget
+    ///
+    /// A hidden widget takes no space in its container. A widget is on screen only when it and
+    /// every container around it are visible. Widgets start visible.
+    ///
+    /// @param visible true to show it
+    [prop visible] unbound void setVisible(bool visible);
+
+    /// Checks whether a widget is set to be visible
+    /// @return The widget's own setting, whether or not its containers are visible
+    [prop visible] unbound bool visible();
+
+    /// Enables or disables a widget and everything inside it
+    ///
+    /// A disabled widget gets no mouse or keyboard input; keys go to its containers instead.
+    /// Enabling a container again restores exactly the children that were enabled before.
+    ///
+    /// @param enabled true to enable it
+    [prop enabled] unbound void setEnabled(bool enabled);
+
+    /// Checks a widget's own enabled setting
+    /// @return false if cxuiWidgetSetEnabled() turned it off, whatever its containers are set to
+    [prop enabled] unbound bool enabled();
+
+    /// Checks whether a widget takes input
+    /// @return true if the widget and every container around it are enabled
+    unbound bool effectiveEnabled();
+
+    /// Sets the axes in which a widget takes a share of its container's spare space
+    /// @param expand CxUiExpand: axes, plus stop bits for a container that shouldn't expand with
+    /// its children
+    unbound void setExpand(uint32 expand);
+
+    /// Sets where a widget sits when its slot is larger than it
+    /// @param h CxUiAlign across
+    /// @param v CxUiAlign down
+    unbound void setAlign(uint32 h, uint32 v);
+
+    /// Sets the size a widget asks its container for, in place of its natural size
+    /// @param width Width, or a length of 0 for the natural width
+    /// @param height Height, or a length of 0 for the natural height
+    unbound void setNaturalSize(CxUiLen width, CxUiLen height);
+
+    /// Sets the smallest size a widget can be given, even when its window is shrunk
+    ///
+    /// For a window, this is the smallest size of the area inside its frame.
+    ///
+    /// @param width Smallest width, or a length of 0 for none
+    /// @param height Smallest height, or a length of 0 for none
+    unbound void setMinSize(CxUiLen width, CxUiLen height);
+
+    // Use cxuiWidgetSetLayout(), which also takes a compound literal.
+    unbound void setLayoutWith([in] const CxUiLayoutParams* lp);
+
+    /// Gets all of a widget's layout parameters
+    /// @param out Receives them
+    unbound void layout([out] CxUiLayoutParams* out);
+
+    /// Sets the colors a widget and everything inside it draw with
+    ///
+    /// The palette can't be changed afterwards; the widget holds a reference to it. Drawn widgets
+    /// inside are painted again.
+    ///
+    /// @param pal The palette, or CxUiPaletteNone to use the container's (for a window, the
+    /// built-in light or dark palette, as its theme resolves)
+    [prop palette] unbound void setPalette([in] [opt] CxUiPalette* pal);
+
+    /// Gets the palette a widget draws with: its own, its nearest container's, or its window's
+    /// built-in one
+    /// @return The palette, borrowed until the widget's palette or theme changes
+    [prop palette] unbound CxUiPalette* palette();
+
+    // Use cxuiWidgetSetFont(), which also takes a compound literal.
+    unbound void setFontWith([in] [opt] const CxUiFontDesc* desc);
+
+    /// Gets the font a widget draws and measures with, at its window's scale
+    ///
+    /// It is the widget's own (cxuiWidgetSetFont()), its nearest container's, or the system's
+    /// interface font.
+    ///
+    /// @return The font, borrowed until the widget's font or scale changes
+    unbound CxUiFont* font();
+
+    /// Sets the text shown while the mouse rests over the widget
+    ///
+    /// Only widgets with a surface of their own show one: native controls, text fields, canvases,
+    /// drawn widgets and panels.
+    ///
+    /// @param tip The text, which may have several lines, or NULL for none
+    [prop tip] unbound void setTip([in] [opt] strref tip);
+
+    /// The text shown while the mouse rests over the widget
+    /// @return The text, borrowed until it changes, or NULL for none
+    [prop tip] unbound strref tip();
+
+    /// Places a floating widget (see CXUI_LP_Floating)
+    /// @param x Left edge, in device-independent pixels from its container's left edge
+    /// @param y Top edge, from its container's top edge
+    /// @param width Width, in device-independent pixels
+    /// @param height Height
+    unbound void setBounds(int32 x, int32 y, int32 width, int32 height);
+
+    init();
+    destroy();
+}
+
+/// @}

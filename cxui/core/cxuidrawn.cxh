@@ -1,0 +1,245 @@
+#include <cxui/core/cxuicanvas.cxh>
+#include <cxui/core/cxuiimage.cxh>
+#include <cxui/core/cxuitimer.cxh>
+#include <cxui/core/cxuicontainers.cxh>
+
+/// @addtogroup cxui_drawn
+/// @{
+
+// The base of the widgets cxui draws itself: a canvas in DIPs that tracks the mouse and focus,
+// draws from the palette, and keeps its colors when disabled.
+abstract class CxUiDrawn extends CxUiCanvas {
+    // The mouse is over it; the left button went down on it and is held
+    bool _hot;
+    bool _down;
+    bool _canFocus;
+    bool _focused;
+
+    init();
+    bool canFocus();
+    CxUiResult handleEvent([inout] CxUiEvent* ev);
+}
+
+/// Text drawn in the palette's colors
+///
+/// Unlike a native label, it keeps its colors when disabled (in CXUI_PAL_TextDisabled) and draws
+/// on the background around it.
+[methodprefix cxuiDLabel] class CxUiDLabel extends CxUiDrawn {
+    string _text;
+    flags_t _align;
+    bool _ellipsis;
+    CxUiSize _padding;
+    // A color of its own, or 0 for the palette's text color
+    CxUiColor _color;
+
+    // Use cxuiDLabelCreate(), which also takes a compound literal.
+    factory createWith([in] [opt] const CxUiDLabelDesc* desc);
+
+    /// The label's text
+    /// @return The text, borrowed until it changes
+    [prop text] unbound strref text();
+
+    /// Sets the label's text, which may have several lines
+    /// @param text The text
+    [prop text] unbound void setText([in] strref text);
+
+    /// Sets the text's color
+    /// @param c The color, or one with all fields 0 for the palette's text color
+    unbound void setColor(CxUiColor c);
+
+    CxUiSize measure();
+    CxUiResult handleEvent([inout] CxUiEvent* ev);
+}
+
+/// Toggles in a group, of which only one is down at a time
+[methodprefix cxuiDGroup] class CxUiDGroup {
+    // The members, not references: each takes itself out when it goes
+    [noinit] void* _members;
+    int32 _count;
+    int32 _cap;
+
+    /// Creates an empty group; give it to toggles with cxuiDButtonSetGroup()
+    factory create();
+
+    /// The toggle in the group that is down
+    /// @return The toggle, borrowed, or NULL
+    unbound CxUiDButton* value();
+
+    destroy();
+}
+
+/// A button cxui draws itself, which can also stay down as a toggle
+[methodprefix cxuiDButton] class CxUiDButton extends CxUiDrawn {
+    string _title;
+    object[CxUiImage] _image;
+    bool _toggle;
+    bool _value;
+    object[CxUiDGroup] _group;
+    CxUiSize _padding;
+    // Colors of its own by CxUiDButtonColor; 0 for the palette's
+    CxUiDButtonColors _colors;
+
+    // Use cxuiDButtonCreate(), which also takes a compound literal.
+    factory createWith([in] [opt] const CxUiDButtonDesc* desc);
+
+    /// The button's title
+    /// @return The title as set, with its `&`, borrowed until it changes
+    [prop title] unbound strref title();
+
+    /// Sets the button's title
+    /// @param title The title; `&` marks a mnemonic and `&&` is a literal ampersand
+    [prop title] unbound void setTitle([in] strref title);
+
+    /// Whether a toggle is down
+    /// @return true if it is down
+    [prop value] unbound bool value();
+
+    /// Puts a toggle down or up, without raising an event
+    ///
+    /// Putting one down in a group puts the group's other toggle up.
+    ///
+    /// @param value true for down
+    [prop value] unbound void setValue(bool value);
+
+    /// Makes the toggle one of a group, of which only one is down at a time
+    /// @param group The group, or CxUiDGroupNone to leave it
+    unbound void setGroup([in] [opt] CxUiDGroup* group);
+
+    /// Sets one of the button's colors apart from its palette
+    /// @param which CxUiDButtonColor
+    /// @param c The color, or one with all fields 0 for the palette's
+    unbound void setColor(uint32 which, CxUiColor c);
+
+    uint32 eventMask();
+    CxUiSize measure();
+    CxUiResult handleEvent([inout] CxUiEvent* ev);
+    destroy();
+}
+
+/// A row of tabs that shows one page of a zbox at a time
+///
+/// Tab n shows the zbox's child n. When the user picks a tab, its page is shown and the tabs raise
+/// a change event before the page is first created on screen, so a handler can build the page's
+/// content then.
+[methodprefix cxuiDTabs] class CxUiDTabs extends CxUiDrawn {
+    sarray[string] _titles;
+    int32 _value;
+    object[CxUiZBox] _zbox;
+    CxUiSize _padding;
+    int32 _gap;
+    // The tab under the mouse, or -1
+    int32 _hotTab;
+
+    // Use cxuiDTabsCreate(), which also takes a compound literal.
+    factory createWith([in] [opt] const CxUiDTabsDesc* desc);
+
+    /// Adds a tab at the end
+    /// @param title Its title
+    unbound void add([in] strref title);
+
+    /// Changes a tab's title, such as to mark its page modified
+    /// @param index The tab, from 0
+    /// @param title The new title
+    unbound void setTitle(int32 index, [in] strref title);
+
+    /// Counts the tabs
+    /// @return How many there are
+    [prop count ro] unbound int32 count();
+
+    /// The tab that is picked
+    /// @return Its position, from 0, or -1 with no tabs
+    [prop value] unbound int32 value();
+
+    /// Picks a tab and shows its page, without raising an event
+    /// @param index The tab, from 0
+    [prop value] unbound void setValue(int32 index);
+
+    uint32 eventMask();
+    CxUiSize measure();
+    CxUiResult handleEvent([inout] CxUiEvent* ev);
+}
+
+/// A scroll bar cxui draws itself, over a range in whatever units the program scrolls by
+[methodprefix cxuiDScrollBar] class CxUiDScrollBar extends CxUiDrawn {
+    uint8 _orient;
+    int64 _range;
+    int64 _page;
+    int64 _pos;
+    int64 _step;
+    bool _autoHide;
+    int32 _thickness;
+    // A thumb drag: where it started along the bar, in DIPs, and the position then
+    bool _dragging;
+    float32 _dragFrom;
+    int64 _dragPos;
+    // Paging while the track is held: which way, and where the pointer is, in DIPs along the bar
+    int32 _paging;
+    float32 _pageAt;
+    object[CxUiTimer] _repeat;
+    int32 _repeatTicks;
+
+    // Use cxuiDScrollBarCreate(), which also takes a compound literal.
+    factory createWith([in] [opt] const CxUiDScrollBarDesc* desc);
+
+    /// Sets what the bar scrolls over
+    /// @param range Units of the whole content
+    /// @param page Units visible at once
+    unbound void setRange(int64 range, int64 page);
+
+    /// The first unit visible
+    /// @return The position, from 0 to range less page
+    [prop pos] unbound int64 pos();
+
+    /// Moves the bar, without raising an event
+    /// @param pos The first unit visible; kept within 0 to range less page
+    [prop pos] unbound void setPos(int64 pos);
+
+    /// Sets how far a wheel notch or an arrow key scrolls
+    /// @param step Units
+    unbound void setStep(int64 step);
+
+    uint32 eventMask();
+    CxUiSize measure();
+    CxUiResult handleEvent([inout] CxUiEvent* ev);
+    destroy();
+}
+
+/// Text that leads somewhere, drawn in the palette's link colors
+///
+/// Clicking it, or Space or Enter while it has focus, raises an activate event; the program opens
+/// the URL itself.
+[methodprefix cxuiLink] class CxUiLink extends CxUiDrawn {
+    string _text;
+    string _url;
+    uint32 _underline;
+    // Colors of its own; alpha 0 for the palette's
+    CxUiColor _color;
+    CxUiColor _hoverColor;
+
+    // Use cxuiLinkCreate(), which also takes a compound literal.
+    factory createWith([in] [opt] const CxUiLinkDesc* desc);
+
+    /// The link's text
+    /// @return The text, borrowed until it changes
+    [prop text] unbound strref text();
+
+    /// Replaces the text
+    /// @param text The new text
+    [prop text] unbound void setText([in] strref text);
+
+    /// Where the link leads
+    /// @return The URL as given, borrowed until it changes
+    [prop url] unbound strref url();
+
+    /// Changes where the link leads
+    /// @param url The URL
+    [prop url] unbound void setUrl([in] strref url);
+
+    uint32 eventMask();
+    CxUiSize measure();
+    void realizePeer([in] CxUiPeer* host);
+    CxUiResult handleEvent([inout] CxUiEvent* ev);
+    destroy();
+}
+
+/// @}

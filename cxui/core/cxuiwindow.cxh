@@ -1,0 +1,306 @@
+#include <cxui/core/cxuiwidget.cxh>
+#include <cxui/core/cxuimenu.cxh>
+
+/// @addtogroup cxui_window
+/// @{
+
+/// A top-level window
+[methodprefix cxuiWindow] class CxUiWindow extends CxUiWidget implements CxUiContainer {
+    /// CxUiCloseActions: what happens when the window is asked to close and the close handler
+    /// returns CXUI_Default
+    uint32 closeAction;
+    // The one child
+    object[CxUiWidget] _content;
+    // The menu bar, whose parent is the window although it isn't a child
+    object[CxUiMenu] _menu;
+    string _title;
+    // Area inside the frame in device-independent pixels; 0 until set or known
+    CxUiSize _size;
+    // The same in physical pixels, and the scale; set by the backend while realized
+    CxUiSize _clientPx;
+    float32 _scale;
+    CxUiPoint _pos;
+    bool _hasPos;
+    // A placement set before realization, applied when the peer is created
+    CxUiPlacement _place;
+    // The state a placement set while hidden, for the next show
+    uint32 _placeState;
+    bool _placeStatePending;
+    uint32 _theme;
+    // _theme resolved, when the peer was created or the mode last set
+    bool _dark;
+    bool _visible;
+    // Held by the runtime's list of realized windows
+    bool _registered;
+    // Modals (popups and message boxes) that currently disable this window
+    uint32 _modalLocks;
+    // The widget with keyboard focus, as the platform last reported; not a reference, cleared
+    // when that widget is unrealized
+    CxUiWidget* _focus;
+    // The running cxuiWindowPopup() call's state, or NULL
+    [noinit] void* _popup;
+    // A cxuiWindowShowModal() that hasn't ended, or NULL
+    [noinit] void* _modalShow;
+    // The window this one belongs to
+    weak[CxUiWindow] _owner;
+    // A cxuiWindowMoveNear() waiting for realization: the window given, if one was, and where
+    weak[CxUiWindow] _nearOther;
+    bool _nearGiven;
+    uint32 _near;
+    bool _nearPending;
+    // What Enter and Esc press when nothing else takes them, and what gets focus on first show
+    weak[CxUiWidget] _defaultEnter;
+    weak[CxUiWidget] _defaultEsc;
+    weak[CxUiWidget] _startFocus;
+    bool _shownOnce;
+
+    // ---- layout ----
+    // CxUiWindowSizing, the size asked for (desc or cxuiWindowSetSize), and CxUiWindowFlags; the
+    // minimum is the widget's own minSize
+    uint32 _sizing;
+    CxUiSize _askedSize;
+    uint32 _flags;
+    // Natural sizing stops refitting once the user or the program sizes the window.
+    bool _userSized;
+    // The size layout last asked the platform for, so a resize it caused isn't taken for the user's
+    CxUiSize _fitSize;
+    // The minimum last given to the platform
+    CxUiSize _appliedMin;
+    // A flush is queued; one is running; realization and visibility need a walk of the tree
+    bool _flushQueued;
+    bool _flushing;
+    bool _needWalk;
+    // Layout passes run, for tests
+    int32 _flushes;
+    // Scale the cached natural sizes were measured at
+    float32 _measureScale;
+    // It has held a split, so sizing it to its content measures its fit size
+    bool _hasSplit;
+    // Largest natural size per normalize group, while any widget in the window has a group
+    [noinit] CxUiSize* _groups;
+
+    // Use cxuiWindowCreate(), which also takes a compound literal: a generated macro would split
+    // one at its commas.
+    factory createWith([in] [opt] const CxUiWindowDesc* desc);
+
+    /// Shows the window
+    ///
+    /// Any thread: from another thread, the window is shown shortly afterwards on the UI thread.
+    ///
+    /// @param mode CxUiShowModes
+    unbound void show(uint32 mode);
+
+    /// Hides the window
+    ///
+    /// Any thread, as for cxuiWindowShow().
+    unbound void hide();
+
+    /// Asks the window to close, as the close box would
+    ///
+    /// The close handler runs with CXUI_CLOSE_App, and unless it returns CXUI_Handled, the
+    /// window's closeAction follows. Any thread, as for cxuiWindowShow().
+    unbound void close();
+
+    /// Creates the native window without showing it
+    ///
+    /// Showing a window does this as well. Use it to apply native settings before the first show.
+    ///
+    /// @return true if the window has its native counterpart
+    unbound bool realize();
+
+    /// Checks whether the window is shown
+    /// @return true from cxuiWindowShow() until it is hidden or destroyed; a minimized window
+    /// counts as shown
+    unbound bool isVisible();
+
+    /// The window's title
+    /// @return The title, borrowed until it changes
+    [prop title] unbound strref title();
+
+    /// Sets the window's title, shown in its frame and the taskbar
+    /// @param title The new title
+    [prop title] unbound void setTitle([in] strref title);
+
+    /// The window's menu bar
+    /// @return The menu, borrowed, or NULL for none
+    [prop menu] unbound CxUiMenu* menu();
+
+    /// Gives the window a menu bar, or takes it away
+    ///
+    /// The area inside the frame keeps its size; the frame grows to fit the bar.
+    ///
+    /// @param menu The menu, which the window holds from then on, or CxUiMenuNone for none
+    [prop menu] unbound void setMenu([in] [opt] CxUiMenu* menu);
+
+    /// Gets the size of the area inside the window's frame
+    /// @param out Receives the size, in device-independent pixels
+    /// @return false if no size was set and the window has never been realized
+    unbound bool size([out] CxUiSize* out);
+
+    /// Sets the size of the area inside the window's frame
+    /// @param width Width in device-independent pixels
+    /// @param height Height in device-independent pixels
+    unbound void setSize(int32 width, int32 height);
+
+    /// Sets how the window's size is chosen
+    /// @param sizing CxUiWindowSizing
+    unbound void setSizing(uint32 sizing);
+
+    /// Sizes the window to fit its content
+    ///
+    /// The window is made big enough for each widget's natural size, with each split keeping its
+    /// sash where it is as a share of the split. For a window that has been resized, after its
+    /// content has changed.
+    ///
+    /// @param flags CxUiFitFlags; without CXUI_FIT_Shrink the window only grows
+    unbound void fit(flags_t flags);
+
+    /// Lets the user move the window by dragging with the mouse button held down
+    ///
+    /// Call it from a mouse down handler, usually on a widget that serves as a borderless
+    /// window's title bar. The widget gets an Up with CXUI_MOUSE_CaptureLost at once, and the
+    /// platform moves the window until the button is released.
+    ///
+    /// @return false if no mouse button is held over a widget in the window, or the platform can't
+    /// move windows (Wayland may refuse)
+    unbound bool beginDrag();
+
+    /// Gets the position of the window's frame
+    /// @param out Receives the top-left corner, in the platform's screen units
+    /// @return false where the platform doesn't report window positions (Linux), or if the
+    /// position isn't known yet
+    unbound bool position([out] CxUiPoint* out);
+
+    /// Moves the window's frame
+    ///
+    /// Before the window is first shown, this picks where it appears.
+    ///
+    /// @param x Left edge, in the platform's screen units
+    /// @param y Top edge
+    /// @return false where the platform doesn't let programs place windows (Linux)
+    unbound bool setPosition(int32 x, int32 y);
+
+    /// Gets where the window is, how big, and whether it is minimized or maximized
+    ///
+    /// For saving between runs and restoring with cxuiWindowSetPlacement(). While the window is
+    /// minimized or maximized, the rectangle is where it goes back to.
+    ///
+    /// @param out Receives the placement; out->valid says which parts hold
+    /// @return false if the window has never been realized and no placement was set
+    unbound bool placement([out] CxUiPlacement* out);
+
+    /// Puts the window where a placement says
+    ///
+    /// Only the parts in p->valid that the platform supports are applied. A rectangle that would
+    /// leave the window out of reach, such as on a monitor no longer connected, is moved onto the
+    /// nearest monitor. On a hidden window the state is applied the next time it is shown with
+    /// CXUI_SHOW_Normal or CXUI_SHOW_NoActivate.
+    ///
+    /// @param p The placement, usually one cxuiWindowPlacement() gave on an earlier run
+    unbound void setPlacement([in] const CxUiPlacement* p);
+
+    /// Moves the window beside another, or centers it on one
+    ///
+    /// The window is kept on the screen the other window is on. On a window that isn't realized
+    /// yet, the move happens when it is, once its size is known; on a realized one, it happens
+    /// at once, at the size its content needs now.
+    ///
+    /// @param other The window to put it by, or CxUiWindowNone for its owner. With neither,
+    /// CXUI_NEAR_Center centers it on the screen.
+    /// @param where CxUiNearPlaces
+    /// @return false where the platform doesn't let programs place windows (Linux), or on a realized
+    /// window with no window to put it beside
+    unbound bool moveNear([in] [opt] CxUiWindow* other, uint32 where);
+
+    /// The window this one belongs to
+    /// @return The owner, borrowed, or NULL for none
+    [prop owner] unbound CxUiWindow* owner();
+
+    /// Makes the window belong to another, as a tool window belongs to the main one
+    ///
+    /// An owned window stays in front of its owner, and on Windows is minimized with it and has no
+    /// taskbar button of its own. A popup or dialog over any window makes the windows it belongs
+    /// with wait too: its owners, and the other windows they own. It stays open when its owner is
+    /// destroyed. The owner is realized when this window is, if it isn't already.
+    ///
+    /// @param owner The owner, or CxUiWindowNone for none. A window that already belongs to this
+    /// one, directly or through others, is ignored.
+    [prop owner] unbound void setOwner([in] [opt] CxUiWindow* owner);
+
+    /// Shows the window as a popup and waits for cxuiWindowEndPopup()
+    ///
+    /// The window is shown centered on its parent, and the parent can't be used until the popup
+    /// ends, nor can the windows it belongs with (cxuiWindowSetOwner()). With no parent, every
+    /// other window is disabled. Closing or hiding the popup ends it
+    /// with 0. UI thread only.
+    ///
+    /// @param parent The window the popup belongs to, or CxUiWindowNone for the whole program
+    /// @return The value passed to cxuiWindowEndPopup(), or 0 if the popup was closed, hidden or
+    /// destroyed, cxui shut down, or it couldn't be shown
+    unbound int32 popup([in] [opt] CxUiWindow* parent);
+
+    /// Shows the window as a popup without waiting for it to end
+    ///
+    /// As cxuiWindowPopup(), but the call returns at once. When the popup ends, with
+    /// cxuiWindowEndPopup() or by being closed, hidden or destroyed (with 0), onDone is called with
+    /// the window and the result as its arguments. UI thread only.
+    ///
+    /// @param parent The window the popup belongs to, or CxUiWindowNone for the whole program
+    /// @param onDone Called once when the popup ends; may be NULL. The window takes it over, also
+    /// when the call fails.
+    /// @return false if the window is already a popup or couldn't be shown
+    unbound bool showModal([in] [opt] CxUiWindow* parent, [in] [opt] closure onDone);
+
+    /// Ends the window's popup
+    ///
+    /// cxuiWindowPopup() returns result once every popup and message box opened after this one has
+    /// ended too; for cxuiWindowShowModal(), its onDone is called with result.
+    ///
+    /// @param result What cxuiWindowPopup() returns
+    unbound void endPopup(int32 result);
+
+    /// Sets the button Enter presses when nothing with focus takes it
+    ///
+    /// The button is shown as the window's default. A text field passes Enter on after its commit
+    /// event, so Enter in a field presses it too; a button with focus is pressed itself instead.
+    ///
+    /// @param w The button, or CxUiWidgetNone for none
+    unbound void setDefaultEnter([in] [opt] CxUiWidget* w);
+
+    /// Sets the button Esc presses when nothing with focus takes it
+    ///
+    /// Without one, Esc closes a popup, as its close box would; other windows ignore it.
+    ///
+    /// @param w The button, or CxUiWidgetNone for none
+    unbound void setDefaultEsc([in] [opt] CxUiWidget* w);
+
+    /// Sets what gets keyboard focus when the window is first shown
+    ///
+    /// Not when it is shown minimized or without activating it.
+    ///
+    /// @param w The widget, or CxUiWidgetNone to leave focus to the platform
+    unbound void setStartFocus([in] [opt] CxUiWidget* w);
+
+    /// Gets the theme mode, as set
+    /// @return CxUiThemeMode, possibly CXUI_Theme_System
+    [prop themeMode] unbound uint32 themeMode();
+
+    /// Sets whether the window's frame is light or dark
+    ///
+    /// Set it before the window is first shown, so the window never appears in the wrong mode.
+    /// On Linux the mode applies to every window in the program.
+    ///
+    /// @param mode CxUiThemeMode
+    [prop themeMode] unbound void setThemeMode(uint32 mode);
+
+    /// Gets the theme the window uses
+    /// @return CXUI_Theme_Light or CXUI_Theme_Dark
+    [prop resolvedTheme ro] unbound uint32 resolvedTheme();
+
+    uint32 eventMask();
+    void restyle();
+    init();
+    destroy();
+}
+
+/// @}

@@ -1,0 +1,99 @@
+#include <cxui/core/cxuiwidget.cxh>
+
+/// @addtogroup cxui_canvas
+/// @{
+
+/// A widget the program draws itself, in its paint handler
+[methodprefix cxuiCanvas] class CxUiCanvas extends CxUiWidget {
+    // CxUiDrawBackends, as asked for
+    uint32 _drawBackend;
+    uint32 _units;
+    // Size in physical pixels; 0 until laid out
+    CxUiSize _size;
+    // Waiting to be painted, in physical pixels
+    CxUiDirtyRegion _dirty;
+    // CxUiCursors over the canvas
+    uint32 _cursor;
+    // Pointer state, kept by the core from what the platform reports
+    uint32 _buttons;     // held, as CxUiMouseButtons
+    bool _hover;         // an Enter was sent without a Leave since
+    int64 _lastPress;    // when the last press that could start a double click happened
+    uint32 _lastButton;
+    CxUiPoint _lastPressAt;
+
+    // Use cxuiCanvasCreate(), which also takes a compound literal.
+    factory createWith([in] [opt] const CxUiCanvasDesc* desc);
+
+    /// Marks part of the canvas to be painted
+    ///
+    /// The paint handler runs once soon after, for everything marked since it last ran.
+    ///
+    /// @param x Left edge, in the canvas's units
+    /// @param y Top edge
+    /// @param w Width
+    /// @param h Height
+    unbound void invalidate(int32 x, int32 y, int32 w, int32 h);
+
+    /// Marks the whole canvas to be painted
+    unbound void invalidateAll();
+
+    /// Paints what is marked now, rather than waiting
+    ///
+    /// For keeping a canvas up to date during a live resize or a long task on the UI thread.
+    unbound void paintNow();
+
+    /// Gets the canvas's size
+    /// @param out Receives the size, in the canvas's units
+    /// @return false until the canvas is shown in a window
+    unbound bool size([out] CxUiSize* out);
+
+    /// Gets the units the canvas is drawn in
+    /// @return CxUiCanvasUnits
+    [prop units] unbound uint32 units();
+
+    /// Sets the mouse cursor shown over the canvas
+    /// @param cursor CxUiCursors
+    unbound void setCursor(uint32 cursor);
+
+    /// Sets the units for drawing, mouse positions and invalidated areas
+    ///
+    /// The whole canvas is painted again.
+    ///
+    /// @param units CxUiCanvasUnits
+    [prop units] unbound void setUnits(uint32 units);
+
+    uint32 eventMask();
+    void realizePeer([in] CxUiPeer* host);
+    void placePeer(CxUiRect px);
+    void restyle();
+    bool canFocus();
+    init();
+}
+
+/// A surface a renderer presents to, which cxui never paints or erases
+///
+/// It takes input as a canvas does. Its native surface comes some time after it is first shown,
+/// or on Windows and macOS after its window is realized, even if that is never shown, with a
+/// surface event (cxuiOnSurface()); start the renderer then, and stop it when the surface event
+/// says it is going, which comes before the view is taken off the screen or destroyed.
+/// Resize events give the size the renderer should present at. A paint event, with no draw,
+/// asks for a frame: when the platform shows part of the view again, and during a live resize on
+/// Windows and macOS, where presenting from the handler keeps the view up with the window's edge.
+[methodprefix cxuiRenderView] class CxUiRenderView extends CxUiCanvas {
+    // The surface event said the surface is there, and hasn't yet said it is going
+    bool _available;
+    // That event is being sent
+    bool _going;
+
+    // Use cxuiRenderViewCreate(), which also takes a compound literal.
+    factory createWith([in] [opt] const CxUiRenderViewDesc* desc);
+
+    /// The native surface
+    /// @param out Receives the surface, with its size in physical pixels
+    /// @return false until the surface event says it is there, and after it says it is going
+    unbound bool surface([out] CxUiNativeSurface* out);
+
+    uint32 eventMask();
+}
+
+/// @}

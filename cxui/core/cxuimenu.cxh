@@ -1,0 +1,95 @@
+#include <cxui/core/cxuiwidget.cxh>
+
+/// @addtogroup cxui_menu
+/// @{
+
+/// A list of menu items: a window's menu bar, or the menu an item opens
+[methodprefix cxuiMenu] class CxUiMenu extends CxUiWidget implements CxUiContainer {
+    [noinit] sarray[object[CxUiWidget]] _items;
+
+    /// Creates an empty menu
+    factory create();
+
+    /// Adds an item at the end
+    /// @param desc The item's settings
+    /// @return The item, borrowed: the menu holds it
+    unbound CxUiMenuItem* appendItemWith([in] const CxUiMenuItemDesc* desc);
+
+    /// Adds a separator line at the end
+    unbound void appendSeparator();
+
+    /// Removes and destroys every item
+    unbound void clear();
+
+    init();
+    destroy();
+}
+
+/// One entry of a menu: a command, a check item, one of a radio group, a separator, or a submenu
+[methodprefix cxuiMenuItem] class CxUiMenuItem extends CxUiWidget implements CxUiContainer {
+    // As given, with its & mnemonic
+    string _title;
+    string _hint;
+    // CxUiMenuItemKind
+    uint32 _kind;
+    bool _checked;
+    object[CxUiMenu] _submenu;
+
+    // Use cxuiMenuItemCreate(), which also takes a compound literal.
+    factory createWith([in] [opt] const CxUiMenuItemDesc* desc);
+
+    /// The item's title
+    /// @return The title as given, with its `&`, borrowed until it changes
+    [prop title] unbound strref title();
+
+    /// Replaces the title
+    /// @param title The new title; `&` before a letter makes it the mnemonic
+    [prop title] unbound void setTitle([in] strref title);
+
+    /// The shortcut shown beside the title
+    /// @return The text, borrowed until it changes, or NULL for none
+    [prop hint] unbound strref hint();
+
+    /// Sets the shortcut shown beside the title, such as "Ctrl+S"
+    ///
+    /// It is only shown: handle the key itself in the window's key handler. cxuiKeyLabel() writes a
+    /// shortcut the platform's way, such as "Ctrl+S", or "⌘S" on macOS.
+    ///
+    /// @param hint The text, or NULL for none
+    [prop hint] unbound void setHint([in] [opt] strref hint);
+
+    /// What the item is
+    /// @return CxUiMenuItemKind
+    [prop kind ro] unbound uint32 kind();
+
+    /// Whether a check or radio item is checked
+    /// @return true if it is
+    [prop checked] unbound bool checked();
+
+    /// Checks or clears a check or radio item
+    ///
+    /// Checking a radio item clears the others of its group. Raises no event.
+    ///
+    /// @param checked true to check it
+    [prop checked] unbound void setChecked(bool checked);
+
+    /// The menu the item opens
+    /// @return The menu, borrowed, or NULL for none
+    [prop submenu] unbound CxUiMenu* submenu();
+
+    /// Makes the item open a menu
+    /// @param menu The menu, which the item holds from then on, or CxUiMenuNone for none
+    [prop submenu] unbound void setSubmenu([in] [opt] CxUiMenu* menu);
+
+    /// Chooses the item, as the user does
+    ///
+    /// A check item is turned on or off and a radio item checked first, then an activate event
+    /// is raised. Nothing happens to a disabled item, a separator or one that opens a menu.
+    unbound void choose();
+
+    uint32 eventMask();
+    void restyle();
+    destroy();
+}
+
+/// @}

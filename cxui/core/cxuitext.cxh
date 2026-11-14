@@ -1,0 +1,143 @@
+#include <cxui/core/cxuicontainers.cxh>
+
+/// @addtogroup cxui_text
+/// @{
+
+/// A single line of text the user can edit
+[methodprefix cxuiTextField] class CxUiTextField extends CxUiWidget {
+    // The text as last set or edited; kept up to date while the user types
+    string _text;
+    string _cue;
+    int32 _columns;
+    int32 _maxLength;
+    bool _readOnly;
+    // The selection, in code points, while the field isn't on screen; the caret is at _selEnd. A
+    // new field's is at the start, so its text shows from the start.
+    int32 _selStart;
+    int32 _selEnd;
+    // Edited since the last commit event
+    bool _edited;
+    // The font last given to the peer
+    object[CxUiFont] _peerFont;
+
+    // Use cxuiTextFieldCreate(), which also takes a compound literal.
+    factory createWith([in] [opt] const CxUiTextFieldDesc* desc);
+
+    /// The field's text
+    /// @return The text, borrowed until it changes
+    [prop text] unbound strref text();
+
+    /// Replaces the text, without raising a change event
+    ///
+    /// The caret moves to the end.
+    ///
+    /// @param text The new text
+    [prop text] unbound void setText([in] strref text);
+
+    /// Sets the text shown in gray while the field is empty and doesn't have focus
+    /// @param cue The text, or NULL for none
+    unbound void setCue([in] [opt] strref cue);
+
+    /// Whether the user can't change the text
+    /// @return true if it is read-only
+    [prop readOnly] unbound bool readOnly();
+
+    /// Lets the user change the text, or only select and copy it
+    /// @param readOnly true to stop the user changing it
+    [prop readOnly] unbound void setReadOnly(bool readOnly);
+
+    /// Limits how much the user can type
+    /// @param maxLength Most characters, or 0 for no limit
+    unbound void setMaxLength(int32 maxLength);
+
+    /// Where the caret is
+    /// @return Characters before it, from 0
+    [prop caret] unbound int32 caret();
+
+    /// Moves the caret, selecting nothing
+    /// @param pos Characters before it; past the end puts it at the end
+    [prop caret] unbound void setCaret(int32 pos);
+
+    /// The selected text's position
+    ///
+    /// With nothing selected, both are the caret's position.
+    ///
+    /// @param start Receives the characters before the selection
+    /// @param end Receives the characters before its end
+    unbound void selection([out] int32* start, [out] int32* end);
+
+    /// Selects part of the text, with the caret at its end
+    /// @param start Characters before the selection
+    /// @param end Characters before its end; -1 for the end of the text
+    unbound void select(int32 start, int32 end);
+
+    /// Selects all of the text
+    unbound void selectAll();
+
+    uint32 eventMask();
+    CxUiSize measure();
+    void realizePeer([in] CxUiPeer* host);
+    void placePeer(CxUiRect px);
+    void restyle();
+    bool canFocus();
+    CxUiResult handleEvent([inout] CxUiEvent* ev);
+    destroy();
+}
+
+/// Lines of text the user can edit, with scroll bars
+///
+/// Everything a CxUiTextField does but show a cue, with lines separated by `\n`. Enter starts a new
+/// line rather than pressing the window's default button, and commits only on leaving it.
+[methodprefix cxuiTextArea] class CxUiTextArea extends CxUiTextField {
+    int32 _lines;
+    bool _wrap;
+    // scrollToEnd() before the peer existed
+    bool _toEnd;
+
+    // Use cxuiTextAreaCreate(), which also takes a compound literal.
+    factory createWith([in] [opt] const CxUiTextAreaDesc* desc);
+
+    /// Adds text at the end, without raising a change event or moving the selection
+    /// @param text The text, which may start or end with `\n`
+    unbound void append([in] strref text);
+
+    /// Scrolls to the last line
+    unbound void scrollToEnd();
+
+    /// Whether lines break at words to fit the width
+    /// @return true if they do
+    [prop wrap ro] unbound bool wrap();
+
+    CxUiSize measure();
+    void realizePeer([in] CxUiPeer* host);
+    CxUiResult handleEvent([inout] CxUiEvent* ev);
+}
+
+/// A border and background cxui draws around a text field, in the palette's colors
+///
+/// The field's text, caret and cue take the palette's input colors too. When disabled, the field
+/// keeps those colors, with the text in CXUI_PAL_TextDisabled, and becomes read-only. The
+/// background is CXUI_PAL_Input unless cxuiPanelSetBgRole() or cxuiPanelSetBg() picks another, and
+/// the field's follows it: without a border and in CXUI_PAL_Panel, a read-only field reads as text
+/// on the window that can still be selected and copied.
+[methodprefix cxuiTextFrame] class CxUiTextFrame extends CxUiPanel {
+    object[CxUiTextField] _field;
+    bool _bad;
+
+    // Use cxuiTextFrameCreate(), which also takes a compound literal.
+    factory createWith([in] const CxUiTextFrameDesc* desc);
+
+    /// The field inside the frame
+    /// @return The field, borrowed
+    [prop field ro] unbound CxUiTextField* field();
+
+    /// Marks the contents wrong, such as a search with no match, with the CXUI_PAL_InputBad
+    /// background
+    /// @param bad true to mark it
+    unbound void setBad(bool bad);
+
+    void restyle();
+    destroy();
+}
+
+/// @}

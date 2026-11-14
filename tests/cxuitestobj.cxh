@@ -1,0 +1,28 @@
+#include <cxui/core/cxuigrid.cxh>
+
+// A tree source for the grid tests, over arrays the test changes directly; the grid hears of a
+// change only when the test tells it. Node n is shown as "tn". Edits are counted, not kept.
+class UiTestTree implements CxUiTreeSource implements CxUiGridEditable {
+    // Every node, in sibling order: a node's children are those with it as parent, in the order
+    // they appear here.
+    sarray[uint64] order;
+    // Indexed by node - 1: the node's parent, or 0
+    sarray[uint64] parents;
+    // The cell edits the grid asked for, and the last one's node and text
+    int32 edits;
+    uint64 editedNode;
+    string editedText;
+
+    factory create();
+
+    // Adds node n under a parent, after the nodes already there; nodes are added 1, 2, 3...
+    unbound CxUiNodeId add(CxUiNodeId parent);
+
+    CxUiNodeId firstChild(CxUiNodeId parent);
+    CxUiNodeId nextSibling(CxUiNodeId node);
+    CxUiNodeId parentOf(CxUiNodeId node);
+    bool hasChildren(CxUiNodeId node);
+    bool nodeCell([out] CxUiCell* out, CxUiNodeId node, int32 col);
+    bool setCellText(uint64 item, int32 col, [in] strref text);
+    bool setCellCheck(uint64 item, int32 col, uint32 state);
+}

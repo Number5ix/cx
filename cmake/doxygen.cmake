@@ -16,5 +16,9 @@ if(DOXYGEN_FOUND)
         COMMENT "Generating API documentation with Doxygen"
         DEPENDS cx  # This ensures all cxautogen runs first since cx depends on it
     )
+    # cxui's headers made from its .cxh files
+    if(TARGET cxui)
+        add_dependencies(cx_create_docs cxui)
+    endif()
     set_property(TARGET cx_create_docs PROPERTY FOLDER "generate")
 endif()

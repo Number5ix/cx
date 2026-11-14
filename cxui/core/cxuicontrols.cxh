@@ -1,0 +1,445 @@
+#include <cxui/core/cxuiwidget.cxh>
+#include <cxui/core/cxuibox.cxh>
+
+/// @addtogroup cxui_controls
+/// @{
+
+/// A line or more of text the user can't change
+[methodprefix cxuiLabel] class CxUiLabel extends CxUiWidget {
+    // As given, with its & mnemonic
+    string _text;
+    uint32 _align;
+    uint32 _ellipsis;
+    bool _wrap;
+    int32 _columns;
+    // Alpha 0 for the palette's
+    CxUiColor _color;
+    // CxUiKey of the mnemonic, or CXUI_KEY_None
+    uint32 _mnemonic;
+    object[CxUiFont] _peerFont;
+
+    // Use cxuiLabelCreate(), which also takes a compound literal.
+    factory createWith([in] [opt] const CxUiLabelDesc* desc);
+
+    /// The label's text
+    /// @return The text as given, with its `&`, borrowed until it changes
+    [prop text] unbound strref text();
+
+    /// Replaces the text
+    /// @param text The new text; `&` before a letter makes it the mnemonic
+    [prop text] unbound void setText([in] strref text);
+
+    /// Sets the text's color
+    /// @param color The color, or one with alpha 0 for the palette's text color
+    unbound void setColor(CxUiColor color);
+
+    uint32 eventMask();
+    CxUiSize measure();
+    int32 heightFor(int32 width);
+    void realizePeer([in] CxUiPeer* host);
+    void placePeer(CxUiRect px);
+    void restyle();
+    destroy();
+}
+
+/// A push button
+[methodprefix cxuiButton] class CxUiButton extends CxUiWidget {
+    string _title;
+    CxUiSize _padding;
+    uint32 _mnemonic;
+    // Shown as the window's default, the button Enter presses
+    bool _isDefault;
+    object[CxUiFont] _peerFont;
+
+    // Use cxuiButtonCreate(), which also takes a compound literal.
+    factory createWith([in] [opt] const CxUiButtonDesc* desc);
+
+    /// The button's title
+    /// @return The title as given, with its `&`, borrowed until it changes
+    [prop title] unbound strref title();
+
+    /// Replaces the title
+    /// @param title The new title; `&` before a letter makes it the mnemonic
+    [prop title] unbound void setTitle([in] strref title);
+
+    /// Presses the button, as a click does
+    ///
+    /// Raises an activate event, unless the button is disabled or hidden.
+    unbound void press();
+
+    uint32 eventMask();
+    CxUiSize measure();
+    void realizePeer([in] CxUiPeer* host);
+    void placePeer(CxUiRect px);
+    void restyle();
+    bool canFocus();
+    CxUiResult handleEvent([inout] CxUiEvent* ev);
+    destroy();
+}
+
+/// A check box: a box the user checks and clears, with a title beside it
+[methodprefix cxuiCheck] class CxUiCheck extends CxUiWidget {
+    string _title;
+    uint32 _mnemonic;
+    // CxUiCheckState
+    uint32 _state;
+    bool _threeState;
+    object[CxUiFont] _peerFont;
+
+    // Use cxuiCheckCreate(), which also takes a compound literal.
+    factory createWith([in] [opt] const CxUiCheckDesc* desc);
+
+    /// The check box's title
+    /// @return The title as given, with its `&`, borrowed until it changes
+    [prop title] unbound strref title();
+
+    /// Replaces the title
+    /// @param title The new title; `&` before a letter makes it the mnemonic
+    [prop title] unbound void setTitle([in] strref title);
+
+    /// Whether the box is checked
+    /// @return true when checked; false when clear or mixed
+    [prop value] unbound bool value();
+
+    /// Checks or clears the box
+    /// @param value true to check it
+    [prop value] unbound void setValue(bool value);
+
+    /// What the box shows
+    /// @return CxUiCheckState
+    [prop state] unbound uint32 state();
+
+    /// Sets what the box shows, including mixed
+    /// @param state CxUiCheckState
+    [prop state] unbound void setState(uint32 state);
+
+    /// Changes the box as a click does
+    ///
+    /// Raises a change event, unless the check box is disabled or hidden.
+    unbound void press();
+
+    uint32 eventMask();
+    CxUiSize measure();
+    void realizePeer([in] CxUiPeer* host);
+    void placePeer(CxUiRect px);
+    void restyle();
+    bool canFocus();
+    destroy();
+}
+
+/// One choice of several in a CxUiRadioGroup
+[methodprefix cxuiRadio] class CxUiRadio extends CxUiWidget {
+    string _title;
+    uint32 _mnemonic;
+    bool _selected;
+    object[CxUiFont] _peerFont;
+
+    // Use cxuiRadioCreate(), which also takes a compound literal.
+    factory createWith([in] [opt] const CxUiRadioDesc* desc);
+
+    /// The radio button's title
+    /// @return The title as given, with its `&`, borrowed until it changes
+    [prop title] unbound strref title();
+
+    /// Replaces the title
+    /// @param title The new title; `&` before a letter makes it the mnemonic
+    [prop title] unbound void setTitle([in] strref title);
+
+    /// Whether this is the group's choice
+    /// @return true if it is selected
+    [prop selected ro] unbound bool selected();
+
+    /// The group the radio button is in
+    /// @return The nearest CxUiRadioGroup around it, borrowed, or NULL
+    [opt] unbound CxUiRadioGroup* group();
+
+    uint32 eventMask();
+    CxUiSize measure();
+    void realizePeer([in] CxUiPeer* host);
+    void placePeer(CxUiRect px);
+    void restyle();
+    bool canFocus();
+    CxUiResult handleEvent([inout] CxUiEvent* ev);
+    destroy();
+}
+
+/// A row or column holding radio buttons, of which one at most is selected
+[methodprefix cxuiRadioGroup] class CxUiRadioGroup extends CxUiBox {
+    // Use cxuiRadioGroupCreate(), which also takes a compound literal.
+    factory createWith([in] [opt] const CxUiBoxDesc* desc);
+
+    /// The selected radio button
+    /// @return The radio, borrowed, or NULL if none is selected
+    [opt] unbound CxUiRadio* value();
+
+    /// Selects a radio button and clears the others
+    /// @param radio A radio inside the group, or NULL to clear them all
+    unbound void setValue([in] [opt] CxUiRadio* radio);
+
+    /// The selected radio button's position among the group's radios
+    /// @return Its index in the order they appear in the group, or -1 if none is selected
+    [prop index] unbound int32 index();
+
+    /// Selects the radio button at a position among the group's radios
+    /// @param index Its index in the order they appear in the group; -1 or one past the last
+    /// clears them all
+    [prop index] unbound void setIndex(int32 index);
+
+    uint32 eventMask();
+}
+
+/// A list of text items the user picks one from
+[methodprefix cxuiList] class CxUiList extends CxUiWidget {
+    sarray[string] _items;
+    // The selected item, or the first of several
+    int32 _value;
+    int32 _visibleItems;
+    int32 _columns;
+    object[CxUiFont] _peerFont;
+    // CxUiSelectMode
+    uint8 _select;
+    // Where any number can be selected, whether each item is
+    sarray[uint8] _marks;
+    // The first item shown, until the platform has the list
+    int32 _top;
+    // beginUpdate() calls not yet ended
+    int32 _updating;
+    // While updating, how many items the platform still has, or -1 if it is up to date
+    int32 _peerCount;
+
+    // Use cxuiListCreate(), which also takes a compound literal.
+    factory createWith([in] [opt] const CxUiListDesc* desc);
+
+    /// Counts the items
+    /// @return How many there are
+    [prop count ro] unbound int32 count();
+
+    /// One of the items
+    /// @param index Its position, from 0
+    /// @return Its text, borrowed until the items change, or NULL past the end
+    unbound strref item(int32 index);
+
+    /// Replaces every item, and selects none
+    /// @param items The new items
+    unbound void setItems([in] sa_string items);
+
+    /// Adds an item at the end
+    /// @param text Its text
+    unbound void append([in] strref text);
+
+    /// Adds an item before another
+    /// @param index Where it goes; one past the last, or more, appends
+    /// @param text Its text
+    unbound void insert(int32 index, [in] strref text);
+
+    /// Changes an item's text
+    /// @param index Its position, from 0
+    /// @param text The new text
+    unbound void setItem(int32 index, [in] strref text);
+
+    /// Removes an item; the selection stays on the item it was on, or goes if it was this one
+    /// @param index Its position, from 0
+    unbound void remove(int32 index);
+
+    /// Removes every item
+    unbound void clear();
+
+    /// The selected item
+    /// @return Its position, from 0, or -1 if none is selected
+    [prop value] unbound int32 value();
+
+    /// Selects an item alone, without raising a change event
+    /// @param index Its position, from 0, or -1 for none
+    [prop value] unbound void setValue(int32 index);
+
+    /// Whether an item is selected
+    /// @param index Its position, from 0
+    /// @return true if it is
+    unbound bool isSelected(int32 index);
+
+    /// Counts the selected items
+    /// @return How many there are
+    unbound int32 selectedCount();
+
+    /// The next selected item, to go through them in order
+    /// @param after An item, or -1 to start from the beginning
+    /// @return Its position, or -1 when there are no more
+    unbound int32 nextSelected(int32 after);
+
+    /// Selects items or unselects them, without raising a change event
+    ///
+    /// Where one item at a time can be selected, selecting one unselects the one before, and only
+    /// the first of several is selected.
+    ///
+    /// @param index The first item
+    /// @param n How many
+    /// @param selected true to select them, false to unselect them
+    unbound void setSelected(int32 index, int32 n, bool selected);
+
+    /// Selects every item, where any number can be selected
+    unbound void selectAll();
+
+    /// Unselects every item
+    unbound void clearSelection();
+
+    /// Scrolls the list so an item can be seen
+    /// @param index Its position, from 0
+    unbound void show(int32 index);
+
+    /// The first item the list shows
+    /// @return Its position, from 0
+    [prop topItem] unbound int32 topItem();
+
+    /// Scrolls the list so an item is the first it shows, as far as it can go
+    /// @param index Its position, from 0
+    [prop topItem] unbound void setTopItem(int32 index);
+
+    /// Holds changes to the items and selection back from the screen until endUpdate()
+    ///
+    /// Use it around filling a list with many items, which then reaches the platform at once.
+    /// Calls nest; the list reads back as changed straight away.
+    unbound void beginUpdate();
+
+    /// Puts the changes held back since beginUpdate() on the screen, once the last call is ended
+    unbound void endUpdate();
+
+    uint32 eventMask();
+    CxUiSize measure();
+    void realizePeer([in] CxUiPeer* host);
+    void placePeer(CxUiRect px);
+    void restyle();
+    bool canFocus();
+    CxUiResult handleEvent([inout] CxUiEvent* ev);
+    destroy();
+}
+
+/// A button that shows one of a list of text items, and lets the user pick another
+[methodprefix cxuiDropdown] class CxUiDropdown extends CxUiWidget {
+    sarray[string] _items;
+    int32 _value;
+    int32 _columns;
+    object[CxUiFont] _peerFont;
+
+    // Use cxuiDropdownCreate(), which also takes a compound literal.
+    factory createWith([in] [opt] const CxUiDropdownDesc* desc);
+
+    /// Counts the items
+    /// @return How many there are
+    [prop count ro] unbound int32 count();
+
+    /// One of the items
+    /// @param index Its position, from 0
+    /// @return Its text, borrowed until the items change, or NULL past the end
+    unbound strref item(int32 index);
+
+    /// Replaces every item, and selects none
+    /// @param items The new items
+    unbound void setItems([in] sa_string items);
+
+    /// Adds an item at the end
+    /// @param text Its text
+    unbound void append([in] strref text);
+
+    /// Adds an item before another
+    /// @param index Where it goes; one past the last, or more, appends
+    /// @param text Its text
+    unbound void insert(int32 index, [in] strref text);
+
+    /// Changes an item's text
+    /// @param index Its position, from 0
+    /// @param text The new text
+    unbound void setItem(int32 index, [in] strref text);
+
+    /// Removes an item; the selection stays on the item it was on, or goes if it was this one
+    /// @param index Its position, from 0
+    unbound void remove(int32 index);
+
+    /// Removes every item
+    unbound void clear();
+
+    /// The item shown
+    /// @return Its position, from 0, or -1 if none is
+    [prop value] unbound int32 value();
+
+    /// Shows an item, without raising a change event
+    /// @param index Its position, from 0, or -1 for none
+    [prop value] unbound void setValue(int32 index);
+
+    uint32 eventMask();
+    CxUiSize measure();
+    void realizePeer([in] CxUiPeer* host);
+    void placePeer(CxUiRect px);
+    void restyle();
+    bool canFocus();
+    destroy();
+}
+
+/// A thumb the user slides along a track to pick a value
+[methodprefix cxuiSlider] class CxUiSlider extends CxUiWidget {
+    float64 _min;
+    float64 _max;
+    float64 _step;
+    float64 _page;
+    float64 _value;
+    // The value last reported in a commit event
+    float64 _committed;
+    int32 _ticks;
+    int32 _length;
+    uint8 _orient;
+
+    // Use cxuiSliderCreate(), which also takes a compound literal.
+    factory createWith([in] [opt] const CxUiSliderDesc* desc);
+
+    /// The value the thumb is at
+    /// @return The value, a whole number of steps from the lowest
+    [prop value] unbound float64 value();
+
+    /// Moves the thumb, without raising an event
+    /// @param value The value, snapped to a step and kept within the range
+    [prop value] unbound void setValue(float64 value);
+
+    /// Changes the range and step, keeping the value within it
+    /// @param min The lowest value
+    /// @param max The highest value
+    /// @param step The difference between values, or 0 for a hundredth of the range
+    unbound void setRange(float64 min, float64 max, float64 step);
+
+    uint32 eventMask();
+    CxUiSize measure();
+    void realizePeer([in] CxUiPeer* host);
+    void placePeer(CxUiRect px);
+    bool canFocus();
+}
+
+/// A bar that fills to show how much of something is done
+[methodprefix cxuiProgress] class CxUiProgress extends CxUiWidget {
+    float64 _value;
+    float64 _max;
+    int32 _length;
+    bool _indeterminate;
+
+    // Use cxuiProgressCreate(), which also takes a compound literal.
+    factory createWith([in] [opt] const CxUiProgressDesc* desc);
+
+    /// How much is done
+    /// @return The value, from 0 to the maximum
+    [prop value] unbound float64 value();
+
+    /// Sets how much is done, and stops showing activity without a value
+    /// @param value From 0 to the maximum
+    [prop value] unbound void setValue(float64 value);
+
+    /// Sets the value at which the bar is full
+    /// @param max The value; 0 or less is taken as 100
+    unbound void setMax(float64 max);
+
+    /// Shows activity without saying how much is done, or stops
+    /// @param indeterminate true to show activity
+    unbound void setIndeterminate(bool indeterminate);
+
+    CxUiSize measure();
+    void realizePeer([in] CxUiPeer* host);
+    void placePeer(CxUiRect px);
+}
+
+/// @}

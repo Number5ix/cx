@@ -116,6 +116,26 @@ if (CX_PLATFORM_IS_WINDOWS)
     option (CX_XP_COMPAT "Build with Windows XP compatibility" OFF)
 endif()
 
+# cxui has no wasm backend, and on Linux and the BSDs it is on by default only where the GTK 4
+# development files are installed.
+set(CX_UI_DEFAULT OFF)
+if(PROJECT_IS_TOP_LEVEL AND NOT CX_PLATFORM_IS_WASM)
+    set(CX_UI_DEFAULT ON)
+    if(CX_PLATFORM_IS_UNIX AND NOT CX_PLATFORM_IS_MACOS)
+        find_package(PkgConfig QUIET)
+        if(PKG_CONFIG_FOUND)
+            pkg_check_modules(CX_UI_GTK4_PROBE QUIET gtk4>=4.14)
+        endif()
+        if(NOT CX_UI_GTK4_PROBE_FOUND)
+            set(CX_UI_DEFAULT OFF)
+        endif()
+    endif()
+endif()
+option(CX_UI "Build cxui, the user interface library" ${CX_UI_DEFAULT})
+if(CX_UI AND CX_PLATFORM_IS_WASM)
+    message(FATAL_ERROR "cxui does not support wasm. Set -DCX_UI=OFF.")
+endif()
+
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)            # for MSVC
 set(CMAKE_CODELITE_USE_TARGETS ON)
 
@@ -138,6 +158,10 @@ endif()
 
 if(CX_QUIC)
   add_subdirectory(cxquic)
+endif()
+
+if(CX_UI)
+  add_subdirectory(cxui)
 endif()
 
 if(PROJECT_IS_TOP_LEVEL)

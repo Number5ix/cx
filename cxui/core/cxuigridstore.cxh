@@ -1,0 +1,107 @@
+#include <cxui/core/cxuigrid.cxh>
+
+/// @addtogroup cxui_grid
+/// @{
+
+/// Rows of text for a flat grid, with colors and flags per row
+///
+/// Grids showing it are told of every change, and paint again.
+[methodprefix cxuiListStore] class CxUiListStore implements CxUiGridSource implements CxUiGridEditable {
+    int32 _ncols;
+    // Row by row, _ncols cells each
+    sarray[string] _cells;
+    // Per row: CxUiCellFlags, then the text and background colors
+    sarray[uint32] _flags;
+    sarray[uint32] _fg;
+    sarray[uint32] _bg;
+    // Each cell's CxUiCheckState, as _cells
+    sarray[uint8] _checks;
+    // The grids showing it; each takes itself out when it lets go
+    sarray[ptr] _grids;
+
+    /// Creates an empty store
+    /// @param ncols Cells per row
+    factory create(int32 ncols);
+
+    /// Counts the cells in a row
+    /// @return How many there are
+    [prop columns ro] unbound int32 columns();
+
+    /// Adds a row at the end, from an array
+    ///
+    /// cxuiListStoreAppend() takes the cells one by one instead.
+    ///
+    /// @param cells The cells' text, as many as the store has columns; missing ones are empty
+    /// @param n How many there are
+    /// @return The new row
+    unbound int64 appendCells([in] [opt] strref* cells, int32 n);
+
+    /// Adds a row, from an array
+    ///
+    /// cxuiListStoreInsert() takes the cells one by one instead.
+    ///
+    /// @param at Where it goes; past the end appends
+    /// @param cells The cells' text, as many as the store has columns; missing ones are empty
+    /// @param n How many there are
+    /// @return The new row
+    unbound int64 insertCells(int64 at, [in] [opt] strref* cells, int32 n);
+
+    /// Takes rows out
+    /// @param at The first row
+    /// @param n How many
+    unbound void remove(int64 at, int64 n);
+
+    /// Takes every row out
+    unbound void clear();
+
+    /// Changes a cell's text
+    /// @param row The row, from 0
+    /// @param col The column, from 0
+    /// @param text The text
+    unbound void setText(int64 row, int32 col, [in] strref text);
+
+    /// A cell's text
+    /// @param row The row, from 0
+    /// @param col The column, from 0
+    /// @return The text, borrowed until it changes; NULL past the end
+    unbound strref text(int64 row, int32 col);
+
+    /// Sets how a row is drawn
+    /// @param row The row, from 0
+    /// @param flags CxUiCellFlags, for every cell in the row, such as CXUI_CELL_CheckHidden
+    unbound void setFlags(int64 row, flags_t flags);
+
+    /// Gives a row colors of its own
+    /// @param row The row, from 0
+    /// @param fg Text color; alpha 0 for the palette's
+    /// @param bg Background; alpha 0 for none
+    unbound void setColors(int64 row, CxUiColor fg, CxUiColor bg);
+
+    /// Sorts the rows by a column's text
+    ///
+    /// Case is ignored, and runs of digits compare as numbers, so "file9" comes before "file10".
+    /// Rows that compare equal keep their order. Grids showing the store unselect every row.
+    ///
+    /// @param col The column, from 0
+    /// @param descending true for largest first
+    unbound void sort(int32 col, bool descending);
+
+    /// Sets a cell's check box, for a column with check boxes
+    /// @param row The row, from 0
+    /// @param col The column, from 0
+    /// @param state CxUiCheckState
+    unbound void setCheck(int64 row, int32 col, uint32 state);
+
+    /// A cell's check box
+    /// @param row The row, from 0
+    /// @param col The column, from 0
+    /// @return CxUiCheckState; Off past the end
+    unbound uint32 check(int64 row, int32 col);
+
+    int64 rowCount();
+    bool cell([out] CxUiCell* out, int64 row, int32 col);
+    bool setCellText(uint64 item, int32 col, [in] strref text);
+    bool setCellCheck(uint64 item, int32 col, uint32 state);
+}
+
+/// @}

@@ -1,0 +1,78 @@
+#include <cxui/core/cxuiwidget.cxh>
+
+/// @addtogroup cxui_layout
+/// @{
+
+/// The base of containers that hold a list of children, with a margin and a gap between them
+abstract class CxUiBoxBase extends CxUiWidget implements CxUiContainer {
+    [noinit] sarray[object[CxUiWidget]] _children;
+    CxUiEdges _margin;
+    int32 _gap;
+    // Space on every side inside the margin, for a border, in DIPs
+    int32 _inset;
+    // More space at the top, for a frame's title, in DIPs
+    int32 _insetTop;
+
+    init();
+}
+
+/// A row or a column of widgets
+[methodprefix cxuiBox] class CxUiBox extends CxUiBoxBase {
+    // CxUiOrient
+    uint8 _orient;
+    uint8 _align[2];
+    uint8 _normalize;
+
+    // Use cxuiBoxCreate(), which also takes a compound literal.
+    factory createWith([in] [opt] const CxUiBoxDesc* desc);
+
+    /// Creates an empty row
+    factory createH();
+
+    /// Creates an empty column
+    factory createV();
+
+    /// Sets the space inside the box's edges
+    /// @param left Space at the left edge, in device-independent pixels
+    /// @param top Space at the top
+    /// @param right Space at the right edge
+    /// @param bottom Space at the bottom
+    unbound void setMargin(int32 left, int32 top, int32 right, int32 bottom);
+
+    /// Sets the space between children
+    /// @param gap Space in device-independent pixels
+    unbound void setGap(int32 gap);
+
+    /// Sets where children that don't set their own alignment are placed
+    ///
+    /// Along the box, this places the children as a group when none of them expands.
+    ///
+    /// @param h CxUiAlign across
+    /// @param v CxUiAlign down
+    unbound void setChildAlign(uint32 h, uint32 v);
+
+    /// Makes every child as large as the largest one
+    /// @param axes CxUiExpand: the axes to do it in
+    unbound void setNormalize(uint32 axes);
+
+    CxUiSize measure();
+    int32 heightFor(int32 width);
+    void arrange();
+}
+
+/// Empty space that takes a share of the spare space along its box
+///
+/// Put one between widgets in a box to push them apart.
+[methodprefix cxuiFill] class CxUiFill extends CxUiWidget {
+    factory create();
+}
+
+/// Empty space of a fixed size
+[methodprefix cxuiSpace] class CxUiSpace extends CxUiWidget {
+    /// Creates empty space
+    /// @param width Width; use cxuiLen() or cxuiChars()
+    /// @param height Height
+    factory create(CxUiLen width, CxUiLen height);
+}
+
+/// @}

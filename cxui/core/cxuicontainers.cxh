@@ -1,0 +1,218 @@
+#include <cxui/core/cxuibox.cxh>
+#include <cxui/core/cxuisash.cxh>
+
+/// @addtogroup cxui_layout
+/// @{
+
+/// A box with a background color, and optionally a border
+[methodprefix cxuiPanel] class CxUiPanel extends CxUiBox {
+    // CxUiPaletteRole, or an explicit color when _bg isn't 0
+    uint32 _bgRole;
+    CxUiColor _bg;
+    // Width of the border in DIPs (the same as _inset)
+    int32 _border;
+
+    // Use cxuiPanelCreate(), which also takes a compound literal.
+    factory createWith([in] [opt] const CxUiPanelDesc* desc);
+
+    /// Sets the background to a palette color
+    /// @param role CxUiPaletteRole
+    unbound void setBgRole(uint32 role);
+
+    /// Sets the background to a color of its own
+    /// @param c The color, or one with all fields 0 to go back to the palette's
+    unbound void setBg(CxUiColor c);
+
+    void realizePeer([in] CxUiPeer* host);
+    void placePeer(CxUiRect px);
+    void restyle();
+}
+
+/// A box with a border around it
+///
+/// Its background is the one around it: the nearest panel's, or the window's.
+[methodprefix cxuiFrame] class CxUiFrame extends CxUiPanel {
+    string _title;
+    object[CxUiFont] _peerFont;
+
+    // Use cxuiFrameCreate(), which also takes a compound literal.
+    factory createWith([in] [opt] const CxUiPanelDesc* desc);
+
+    /// The frame's title
+    /// @return The title, borrowed until it changes, or NULL for none
+    [prop title] unbound strref title();
+
+    /// Sets the title shown in the top of the border
+    /// @param title The title, or NULL for none
+    [prop title] unbound void setTitle([in] [opt] strref title);
+
+    CxUiSize measure();
+    void restyle();
+    destroy();
+}
+
+/// A box whose content scrolls when it is larger than the room the box has
+///
+/// The children are laid out as in a box, over an area as large as they need along the axes
+/// that scroll, and as large as the box across the others.
+[methodprefix cxuiScrollBox] class CxUiScrollBox extends CxUiPanel {
+    // CxUiExpand: the axes that scroll
+    uint8 _axes;
+    // Natural size along the axes that scroll, in DIPs; 0 for the content's
+    CxUiSize _view;
+    // The content's natural size, from the last measure, in DIPs
+    CxUiSize _contentNatural;
+    // The content's size from the last arrange, in physical pixels
+    CxUiSize _contentPx;
+
+    // Use cxuiScrollBoxCreate(), which also takes a compound literal.
+    factory createWith([in] [opt] const CxUiScrollBoxDesc* desc);
+
+    /// Scrolls just enough for a widget inside to be seen
+    /// @param w The widget, anywhere inside the scroll box
+    unbound void show([in] CxUiWidget* w);
+
+    CxUiSize measure();
+    int32 heightFor(int32 width);
+    void arrange();
+    void realizePeer([in] CxUiPeer* host);
+}
+
+/// Widgets in rows of a fixed number of columns
+///
+/// Each column is as wide as its widest child, and each row as tall as its tallest. A child that
+/// expands across spreads the spare width over its column, and one that expands down spreads the
+/// spare height over its row.
+[methodprefix cxuiGridBox] class CxUiGridBox extends CxUiBoxBase {
+    int32 _ncols;
+    int32 _rowGap;
+
+    // Use cxuiGridBoxCreate(), which also takes a compound literal.
+    factory createWith([in] [opt] const CxUiGridBoxDesc* desc);
+
+    CxUiSize measure();
+    int32 heightFor(int32 width);
+    void arrange();
+}
+
+/// Widgets on top of each other, one shown at a time
+///
+/// Its natural size fits the largest child, so switching doesn't change its size, unless it was
+/// made with CXUI_ZBOX_SizeToActive. A child is only created on screen the first time it is
+/// shown, unless it is marked CXUI_LP_RealizeEager.
+[methodprefix cxuiZBox] class CxUiZBox extends CxUiBoxBase {
+    int32 _active;
+    uint32 _flags;
+
+    // Use cxuiZBoxCreate(), which also takes a compound literal.
+    factory createWith([in] [opt] const CxUiZBoxDesc* desc);
+
+    /// Shows one child, hiding the others
+    /// @param index Position of the child, from 0
+    [prop active] unbound void setActive(int32 index);
+
+    /// Gets the shown child's position
+    /// @return Its position, from 0; -1 with no children
+    [prop active] unbound int32 active();
+
+    CxUiSize measure();
+    int32 heightFor(int32 width);
+    void arrange();
+    bool showsChild([in] CxUiWidget* child);
+}
+
+/// Pages with the platform's own tabs above them, one page shown at a time
+///
+/// Each child is a page, with a tab. A page's widgets are created on screen the first time it is
+/// shown, as in a zbox. When the user picks a tab, the tabs raise a change event before showing
+/// its page, so a handler can fill the page then; cxuiZBoxSetActive() picks one without an event.
+/// Ctrl+Tab and Ctrl+Shift+Tab, or Ctrl+Page Down and Ctrl+Page Up, pick the next and previous tab
+/// while focus is on a page. Where the platform's tabs have mnemonics (not Windows'), Alt with a
+/// tab's mnemonic picks it; elsewhere the `&` isn't shown.
+///
+/// Tabs that don't fit the width scroll, except on macOS, where their titles are shortened
+/// instead. To keep every title whole, use CXUI_TABS_Multiline, which puts them on more lines.
+[methodprefix cxuiTabs] class CxUiTabs extends CxUiZBox {
+    sarray[string] _titles;
+    uint32 _bgRole;
+    object[CxUiFont] _peerFont;
+    // The room around the pages for the strip and the border, in DIPs, from the last measure
+    CxUiEdges _insets;
+    // Where the pages are, in physical pixels within the window, from the last arrange
+    CxUiRect _pagePx;
+
+    // Use cxuiTabsCreate(), which also takes a compound literal.
+    factory createWith([in] [opt] const CxUiTabsDesc* desc);
+
+    /// Adds a page at the end
+    /// @param page The page, which the tabs take a reference to
+    /// @param title Its tab's title, which may have an `&` mnemonic
+    /// @return False if page already has a parent
+    unbound bool add([in] CxUiWidget* page, [in] strref title);
+
+    /// A tab's title
+    /// @param index The page, from 0
+    /// @return The title, borrowed until it changes, or NULL for none
+    unbound strref title(int32 index);
+
+    /// Changes a tab's title, such as to mark its page modified
+    /// @param index The page, from 0
+    /// @param title The new title
+    unbound void setTitle(int32 index, [in] [opt] strref title);
+
+    /// Sets the pages' background to a palette color, which the widgets on them show
+    /// @param role CxUiPaletteRole
+    unbound void setBgRole(uint32 role);
+
+    bool append([in] CxUiWidget* child);
+    bool insert([in] CxUiWidget* child, int32 at);
+    bool detach([in] CxUiWidget* child);
+    uint32 eventMask();
+    CxUiSize measure();
+    int32 heightFor(int32 width);
+    void arrange();
+    void realizePeer([in] CxUiPeer* host);
+    void placePeer(CxUiRect px);
+    void restyle();
+    CxUiResult handleEvent([inout] CxUiEvent* ev);
+    bool canFocus();
+    destroy();
+}
+
+/// Two panes with a sash between them that the user can drag
+///
+/// Add the two panes with cxuiContainerAppend(). The sash is a third child, after them. The split
+/// raises a change event when the user lets go of the sash.
+[methodprefix cxuiSplit] class CxUiSplit extends CxUiBoxBase {
+    uint8 _orient;
+    float32 _value;
+    int32 _minPane[2];
+    int32 _maxPane[2];
+    int32 _sashSize;
+    object[CxUiSash] _sash;
+    // The panes' space along the split, less the sash, in DIPs, from the last arrange
+    int32 _avail;
+
+    // Use cxuiSplitCreate(), which also takes a compound literal.
+    factory createWith([in] [opt] const CxUiSplitDesc* desc);
+
+    /// Sets the share of the space the first pane gets
+    /// @param value From 0 to 1; the panes' limits still apply
+    [prop value] unbound void setValue(float32 value);
+
+    /// Gets the share of the space the first pane gets
+    /// @return From 0 to 1
+    [prop value] unbound float32 value();
+
+    /// The sash between the panes
+    /// @return The sash, borrowed
+    unbound CxUiSash* sash();
+
+    uint32 eventMask();
+    CxUiSize measure();
+    int32 heightFor(int32 width);
+    void arrange();
+    destroy();
+}
+
+/// @}

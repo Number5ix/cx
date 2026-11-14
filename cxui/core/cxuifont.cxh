@@ -1,0 +1,23 @@
+#include <cxui/cxui_shared.h>
+
+/// @addtogroup cxui_font
+/// @{
+
+/// A font at one scale, ready for measuring and drawing
+[methodprefix cxuiFontObj] class CxUiFont {
+    // The engine that measures with this font, and its native font
+    [noinit] void* _ops;
+    [noinit] void* _native;
+    // Another engine's native font, for a canvas that draws with that engine
+    [noinit] void* _altOps;
+    [noinit] void* _alt;
+    string _faces;
+    float32 _size;
+    uint32 _flags;
+    float32 _scale;
+    CxUiFontMetrics _metrics;
+
+    destroy();
+}
+
+/// @}

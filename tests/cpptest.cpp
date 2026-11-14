@@ -7,6 +7,9 @@
 #include "objtestobj.h"
 #include <cx/string/strtest.h>
 #include <cx/sys/entry.h>
+#if defined(CX_UI_TESTS)
+#include <cxui.h>
+#endif
 
 #define TEST_FILE cpptest
 #define TEST_FUNCS cpptest_funcs
@@ -445,6 +448,16 @@ static int runner(int (*entry)(void))
 }
 _CX_DEFINE_ENTRY_POINT_RUNNER(runner)
 }   // namespace cxentryrunnercheck
+
+#if defined(CX_UI_TESTS)
+// Compile-only check that the cxui headers build as C++. The cxuiOn* wrappers, like
+// closureCreate(), take the address of an array literal and are C only.
+static CxUiResult cxuiCppKey(stvlist* cvars, CxUiKeyEvent* ev)
+{
+    return (cvars && ev->down) ? CXUI_Handled : CXUI_Default;
+}
+CxUiKeyFn cxuiCppKeyFn = cxuiCppKey;
+#endif
 
 testfunc cpptest_funcs[] = {
     { "sarray",    test_sarray    },
