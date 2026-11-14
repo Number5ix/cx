@@ -27,11 +27,34 @@ static bool uiEnvHas(strref name)
     return set;
 }
 
+#if defined(_PLATFORM_WIN)
+// A service, such as a CI runner with nobody logged on, runs in session 0 or on a window station
+// that isn't shown. cxui starts there, but its windows never paint or take input.
+static bool uiWinInteractive(void)
+{
+    DWORD session = 0;
+    if (ProcessIdToSessionId(GetCurrentProcessId(), &session) && session == 0)
+        return false;
+    USEROBJECTFLAGS uof = { 0 };
+    HWINSTA station     = GetProcessWindowStation();
+    if (station && GetUserObjectInformationW(station, UOI_FLAGS, &uof, sizeof(uof), NULL) &&
+        !(uof.dwFlags & WSF_VISIBLE))
+        return false;
+    return true;
+}
+#endif
+
 // 0 when started, CX_TEST_SKIP without a display, 1 on failure.
 static int uiStartNative(void)
 {
     if (uiEnvHas(_SL("CXUI_TEST_NODISPLAY")))
         return CX_TEST_SKIP;
+#if defined(_PLATFORM_WIN)
+    if (!uiWinInteractive()) {
+        logStr(Info, _SL("not in an interactive desktop session"));
+        return CX_TEST_SKIP;
+    }
+#endif
     if (cxuiStart(&(CxUiStartDesc){ .name = _S"Display test UI" }))
         return 0;
 #if defined(_PLATFORM_MACOS)
