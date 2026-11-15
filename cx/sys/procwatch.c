@@ -126,25 +126,27 @@ static int procWatchThread(Thread* self)
 _Use_decl_annotations_
 void _procWatchCompleted(Process* proc)
 {
-    bool found = false;
+    Process* hold = NULL;
 
     withMutex (&watchLock) {
         int32 idx = saFind(watched, object, proc);
         if (idx >= 0) {
+            hold = objAcquire(proc);
             // Push before removing, so the refcount cannot reach zero while the lock is held --
             // destroying a Process re-enters this file.
             saPush(&completed, object, proc);
             saRemove(&watched, idx);
-            found = true;
         }
     }
 
     // Not found means procNotifyCancel took it off the registry first, and that call owns the
     // platform removal. Removing twice would close a descriptor that may already be reused.
-    if (found)
+    if (hold)
         _procWatchPlatformRemove(proc);
 
     _procWatchPlatformWake();
+
+    objRelease(&hold);
 }
 
 _Use_decl_annotations_

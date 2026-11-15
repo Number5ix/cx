@@ -592,6 +592,53 @@ static int test_proc_launch_exit(void)
     return ret;
 }
 
+// Children polled with procRunning rather than waited for, several at a time: the moment one is
+// seen to have finished its exit code has to be there. A finished child is collected on another
+// thread, so this catches procRunning answering before that thread has published the status.
+#define PROC_POLL_TOTAL 200
+#define PROC_POLL_AT_ONCE 8
+static int test_proc_launch_poll(void)
+{
+    int ret          = 0;
+    sa_string noargs = saInitNone;
+    Process* running[PROC_POLL_AT_ONCE] = { 0 };
+    int started = 0, finished = 0;
+    int64 deadline = clockTimer() + timeS(120);
+
+    while (finished < PROC_POLL_TOTAL && ret == 0) {
+        for (int i = 0; i < PROC_POLL_AT_ONCE; i++) {
+            if (!running[i] && started < PROC_POLL_TOTAL) {
+                running[i] = launchSelf(_SL("child_exit42"), noargs, NULL);
+                if (!running[i])
+                    TEST_FAIL(1, _SL("procLaunch failed, cxerr ${int}"), stvar(int32, cxerr));
+                started++;
+            }
+            if (running[i] && !procRunning(running[i])) {
+                int32 code = 0;
+                if (!procExitCode(running[i], &code)) {
+                    TEST_FAILV(ret, 1, _SL("child ${int} finished but has no exit code, cxerr ${int}"),
+                               stvar(int64, procID(running[i])), stvar(int32, cxerr));
+                } else if (code != 42) {
+                    TEST_FAILV(ret, 1, _SL("child exited with ${int}, wanted 42"), stvar(int32, code));
+                }
+                procRelease(&running[i]);
+                finished++;
+            }
+        }
+        if (clockTimer() > deadline)
+            TEST_FAILV(ret, 1, _SL("only ${int} of ${int} children finished within 120s"),
+                       stvar(int32, finished), stvar(int32, (int32)PROC_POLL_TOTAL));
+    }
+
+    for (int i = 0; i < PROC_POLL_AT_ONCE; i++) {
+        if (running[i]) {
+            procWait(running[i], timeS(30));
+            procRelease(&running[i]);
+        }
+    }
+    return ret;
+}
+
 static int test_proc_launch_args(void)
 {
     int ret = 0;
@@ -1601,19 +1648,19 @@ int test_proc_grp_notify(void)
 int test_proc_grp_launch(void)
 {
 #if defined(_PLATFORM_UNIX)
-    TEST_CHAIN(test_proc_launch_exit, test_proc_launch_args, test_proc_launch_env,
+    TEST_CHAIN(test_proc_launch_exit, test_proc_launch_poll, test_proc_launch_args, test_proc_launch_env,
                test_proc_launch_cwd, test_proc_launch_stdionull, test_proc_launch_missing,
                test_proc_launch_stdiofile, test_proc_launch_stdiofile_bad,
                test_proc_launch_flagconflict, test_proc_launch_fdsweep, test_proc_wait_timeout,
                test_proc_terminate);
 #elif defined(_PLATFORM_WIN)
-    TEST_CHAIN(test_proc_launch_exit, test_proc_launch_args, test_proc_launch_env,
+    TEST_CHAIN(test_proc_launch_exit, test_proc_launch_poll, test_proc_launch_args, test_proc_launch_env,
                test_proc_launch_cwd, test_proc_launch_stdionull, test_proc_launch_missing,
                test_proc_launch_stdiofile, test_proc_launch_stdiofile_bad,
                test_proc_launch_flagconflict, test_proc_launch_newconsole,
                test_proc_wait_timeout, test_proc_terminate);
 #else
-    TEST_CHAIN(test_proc_launch_exit, test_proc_launch_args, test_proc_launch_env,
+    TEST_CHAIN(test_proc_launch_exit, test_proc_launch_poll, test_proc_launch_args, test_proc_launch_env,
                test_proc_launch_cwd, test_proc_launch_stdionull, test_proc_launch_missing,
                test_proc_launch_stdiofile, test_proc_launch_stdiofile_bad,
                test_proc_launch_flagconflict, test_proc_wait_timeout, test_proc_terminate);
@@ -1631,6 +1678,7 @@ testfunc proctest_funcs[] = {
     { "getinfo_byid",   test_proc_getinfo_byid   },
     { "exitcode_foreign", test_proc_exitcode_foreign },
     { "launch_exit",      test_proc_launch_exit      },
+    { "launch_poll",      test_proc_launch_poll      },
     { "launch_args",      test_proc_launch_args      },
     { "launch_env",       test_proc_launch_env       },
     { "launch_cwd",       test_proc_launch_cwd       },

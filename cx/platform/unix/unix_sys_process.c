@@ -536,23 +536,21 @@ Process* _procPlatformOpen(ProcessID pid)
 
 bool _procPlatformRunning(Process* proc)
 {
-    // A finished child stays alive as a zombie until it is reaped, so ask the reaper first or
-    // it would look like it is still running.
+    // A child is running until its reaper publishes the outcome. Asking the system instead would
+    // be wrong both ways: a finished child stays alive as a zombie until it is reaped, and once
+    // the watcher thread has reaped it the pid is gone a moment before the status is published,
+    // which would report it finished with no exit code to read yet.
     if (proc->ischild) {
         _procReapPending();
-        if (atomicLoad(bool, &proc->exited, Acquire))
-            return false;
+        return !atomicLoad(bool, &proc->exited, Acquire);
     }
 
     // A different process wearing the same id is not this one still running.
     if (_procUnixSameProcess(proc) && _procUnixAlive(proc->pid))
         return true;
 
-    // Children are published by their reaper, which has the status. Anything else is gone for
-    // good, so remember that.
-    if (!proc->ischild)
-        _procPublishExit(proc, false, 0, 0);
-
+    // Not a child, so there is no status to wait for: gone is gone for good. Remember that.
+    _procPublishExit(proc, false, 0, 0);
     return false;
 }
 
