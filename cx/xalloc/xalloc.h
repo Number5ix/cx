@@ -16,6 +16,7 @@
 #ifdef XALLOC_REMAP_MALLOC
 // these need to be pulled in first so our #defines don't cause chaos when they
 // are included
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -300,8 +301,11 @@ CX_C_END
 #define realloc(ptr, sz) xa_realloc(ptr, sz)
 #define strdup(s)        cstrDup(s)
 #define _strdup(s)       cstrDup(s)
+// cstrDupw only matches wcsdup's declaration where wchar_t is 16 bits
+#if WCHAR_MAX <= 0xffff
 #define wcsdup(s)        cstrDupw(s)
 #define _wcsdup(s)       cstrDupw(s)
+#endif
 
 #ifdef _WIN32
 #undef _malloc_dbg
