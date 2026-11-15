@@ -33,13 +33,14 @@
 #pragma once
 
 #include <cx/cx.h>
+#include <cx/thread/atomic.h>
 
 CX_C_BEGIN
 
 /// State tracker for lazy initialization
 typedef struct LazyInitState {
-    bool init;           ///< True after initialization completes
-    bool initProgress;   ///< True while initialization is in progress
+    atomic(bool) init;           ///< True after initialization completes
+    atomic(bool) initProgress;   ///< True while initialization is in progress
 } LazyInitState;
 
 /// Callback function type for lazy initialization
@@ -48,8 +49,8 @@ typedef struct LazyInitState {
 typedef void (*LazyInitCallback)(void* userData);
 
 // Internal implementation for lazy initialization (do not call directly)
-void _lazyInitInternal(_Inout_ bool* init, _Inout_ bool* initProgress,
-                       _In_ LazyInitCallback initfunc, _In_opt_ void* userData);
+void _lazyInitInternal(_Inout_ LazyInitState* state, _In_ LazyInitCallback initfunc,
+                       _In_opt_ void* userData);
 
 /// void lazyInit(LazyInitState *state, LazyInitCallback initfunc, void *userData)
 ///
@@ -69,8 +70,8 @@ void _lazyInitInternal(_Inout_ bool* init, _Inout_ bool* initProgress,
 _meta_inline void lazyInit(_Inout_ LazyInitState* state, _In_ LazyInitCallback initfunc,
                            _In_opt_ void* userData)
 {
-    if (!state->init)
-        _lazyInitInternal(&state->init, &state->initProgress, initfunc, userData);
+    if (!atomicLoad(bool, &state->init, Acquire))
+        _lazyInitInternal(state, initfunc, userData);
 }
 
 CX_C_END

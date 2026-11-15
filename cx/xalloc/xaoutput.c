@@ -13,8 +13,8 @@ static void xaMimallocOutput(const char* msg, void* arg)
     // This can get called during mi_register_output. Be careful not to actually output anything in
     // that case because _logStr allocates and recursing into xaInit causes a deadlock with
     // ourselves.
-    if (atomicLoad(bool, (atomic(bool)*)&_xaInitState.initProgress, Acquire) &&
-        !atomicLoad(bool, (atomic(bool)*)&_xaInitState.init, Acquire))
+    if (atomicLoad(bool, &_xaInitState.initProgress, Acquire) &&
+        !atomicLoad(bool, &_xaInitState.init, Acquire))
         return;
 
     // Likewise while the log system itself is coming up: logInit allocates, and a warning
